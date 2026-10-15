@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { CheckboxComponent, type CheckboxToggle } from '../../../ui/checkbox.component';
 import { IconComponent } from '../../../ui/icon.component';
 import { PillComponent } from '../../../ui/pill.component';
 import { ToggleComponent } from '../../../ui/toggle.component';
@@ -11,15 +12,14 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
 @Component({
   selector: 'bo-product-row',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, PillComponent, ToggleComponent],
+  imports: [CheckboxComponent, IconComponent, PillComponent, ToggleComponent],
   template: `
     <div class="row" [class.selected]="selected()">
       <label class="cell-check">
-        <input
-          type="checkbox"
+        <bo-checkbox
           [checked]="selected()"
-          [attr.aria-label]="'Selecionar ' + product().name"
-          (change)="selectedChange.emit(!selected())"
+          [ariaLabel]="'Selecionar ' + product().name"
+          (checkedChange)="selectedChange.emit($event)"
         />
       </label>
 
@@ -96,7 +96,10 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
       background: rgba(255, 106, 26, 0.05);
     }
 
+    /* A área de clique é a célula inteira, não os 17px do quadrado. */
     .cell-check {
+      width: 24px;
+      height: 54px;
       display: grid;
       place-items: center;
       cursor: pointer;
@@ -215,7 +218,7 @@ export class ProductRowComponent {
   readonly selected = input(false);
 
   readonly activeChange = output<boolean>();
-  readonly selectedChange = output<boolean>();
+  readonly selectedChange = output<CheckboxToggle>();
 
   protected readonly state = computed(() => stockState(this.product()));
   protected readonly categoryLabel = computed(() => PRODUCT_CATEGORY_LABELS[this.product().category]);

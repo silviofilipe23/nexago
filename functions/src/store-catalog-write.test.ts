@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import type {Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {
+  archiveCore,
+  duplicateCore,
   saveStoreProductCore,
   saveVariationsCore,
   type SaveProductInput,
@@ -313,5 +315,77 @@ describe("saveVariationsCore", () => {
         return true;
       },
     );
+  });
+});
+
+describe("archiveCore", () => {
+  it("arquiva e depois restaura como rascunho", async () => {
+    const {fake, db} = makeDb();
+    const {productId} = await saveStoreProductCore(db, input(), ACTOR, NOW);
+
+    await archiveCore(db, {productId, version: 1}, ACTOR, NOW);
+    assert.equal(fake.store.get(`storeProducts/${productId}`)!["status"], "arquivado");
+
+    await archiveCore(db, {productId, version: 2, restore: true}, ACTOR, NOW);
+    assert.equal(fake.store.get(`storeProducts/${productId}`)!["status"], "rascunho");
+  });
+
+  it("recusa versão velha", async () => {
+    const {db} = makeDb();
+    const {productId} = await saveStoreProductCore(db, input(), ACTOR, NOW);
+    await assert.rejects(
+      () => archiveCore(db, {productId, version: 99}, ACTOR, NOW),
+      (err: Error & {code?: string}) => {
+        assert.equal(err.code, "failed-precondition");
+        return true;
+      },
+    );
+  });
+});
+
+describe("duplicateCore", () => {
+  async function withVariations() {
+    const made = makeDb();
+    const {productId} = await saveStoreProductCore(made.db, input(), ACTOR, NOW);
+    await saveVariationsCore(made.db, {
+      productId,
+      version: 1,
+      axes: [{id: "cor", label: "Cor", values: [{id: "branco", label: "Branco"}]}],
+      skus: [{axisValues: {cor: "branco"}, stockByLocation: {cd: 9}, priceCents: null, barcode: "789"}],
+    }, ACTOR, NOW);
+    return {...made, productId};
+  }
+
+  it("a cópia nasce rascunho, com nome e slug próprios", async () => {
+    const {fake, db, productId} = await withVariations();
+    const copy = await duplicateCore(db, {productId}, ACTOR, NOW);
+
+    const doc = fake.store.get(`storeProducts/${copy.productId}`)!;
+    assert.equal(doc["status"], "rascunho");
+    assert.equal(doc["name"], "Cópia de Camiseta Dry UV50 Areia");
+    assert.notEqual(doc["slug"], "camiseta-dry-uv50-areia");
+    assert.equal(doc["version"], 1);
+  });
+
+  it("a cópia leva as variações com estoque zerado", async () => {
+    const {fake, db, productId} = await withVariations();
+    const copy = await duplicateCore(db, {productId}, ACTOR, NOW);
+
+    const sku = fake.store.get(`storeProducts/${copy.productId}/skus/branco`)!;
+    assert.equal(sku["stock"], 0);
+    assert.deepEqual(sku["stockByLocation"], {});
+    assert.equal(fake.store.get(`storeProducts/${copy.productId}`)!["stockTotal"], 0);
+  });
+
+  it("a cópia não herda o código de barras, que é único do original", async () => {
+    const {fake, db, productId} = await withVariations();
+    const copy = await duplicateCore(db, {productId}, ACTOR, NOW);
+    assert.equal(fake.store.get(`storeProducts/${copy.productId}/skus/branco`)!["barcode"], null);
+  });
+
+  it("a cópia não leva o custo do original", async () => {
+    const {fake, db, productId} = await withVariations();
+    const copy = await duplicateCore(db, {productId}, ACTOR, NOW);
+    assert.equal(fake.store.has(`storeProductCosts/${copy.productId}`), false);
   });
 });

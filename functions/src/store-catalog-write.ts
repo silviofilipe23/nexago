@@ -326,6 +326,117 @@ export const saveStoreProductVariations = onCall(BACKOFFICE_CALLABLE, async (req
   return saveVariationsCore(getFirestore(), (request.data ?? {}) as SaveVariationsInput, actor, new Date());
 });
 
+export async function archiveCore(
+  db: Firestore,
+  input: {productId: string; version: number; restore?: boolean},
+  actor: Actor,
+  now: Date,
+): Promise<{version: number; status: ProductStatus}> {
+  const ref = db.collection(PRODUCTS).doc(input.productId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) {
+      throw new HttpsError("not-found", "Produto não encontrado.");
+    }
+    const existing = snap.data()!;
+    if (existing["version"] !== input.version) {
+      throw conflict(existing);
+    }
+    // Restaurar devolve como rascunho: republicar é decisão consciente de quem restaurou.
+    const status: ProductStatus = input.restore ? "rascunho" : "arquivado";
+    const version = input.version + 1;
+    tx.set(ref, {status, active: false, version, updatedAt: now, updatedBy: actor}, {merge: true});
+    return {version, status};
+  });
+}
+
+export async function duplicateCore(
+  db: Firestore,
+  input: {productId: string},
+  actor: Actor,
+  now: Date,
+): Promise<{productId: string}> {
+  const sourceRef = db.collection(PRODUCTS).doc(input.productId);
+  const copyId = db.collection(PRODUCTS).doc().id;
+  const copyRef = db.collection(PRODUCTS).doc(copyId);
+
+  return db.runTransaction(async (tx) => {
+    // ---------- leituras ----------
+    const sourceSnap = await tx.get(sourceRef);
+    if (!sourceSnap.exists) {
+      throw new HttpsError("not-found", "Produto não encontrado.");
+    }
+    const source = sourceSnap.data()!;
+    const sourceSkus = await tx.get(sourceRef.collection("skus"));
+
+    const name = `Cópia de ${source["name"]}`;
+    const slug = await freeSlug(tx, db, slugify(name), copyId);
+
+    const axes = (source["axes"] ?? []) as Axis[];
+    const baseSku = `${source["baseSku"]}-COPIA`;
+    const skus: SkuDoc[] = sourceSkus.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        code: skuCodeFrom(baseSku, data["axisValues"] as Record<string, string>, axes),
+        // Código de barras é do produto original; a cópia começa sem.
+        barcode: null,
+        axisValues: data["axisValues"] as Record<string, string>,
+        priceCents: (data["priceCents"] ?? null) as number | null,
+        stockByLocation: {},
+        stock: 0,
+      };
+    });
+
+    for (const sku of skus) {
+      await assertKeyFree(tx, db, `sku:${sku.code}`, copyId);
+    }
+
+    // ---------- escritas ----------
+    writeKey(tx, db, `slug:${slug}`, {productId: copyId});
+    for (const sku of skus) {
+      writeKey(tx, db, `sku:${sku.code}`, {productId: copyId, skuId: sku.id});
+      tx.set(copyRef.collection("skus").doc(sku.id), sku, {merge: false});
+    }
+
+    tx.set(copyRef, {
+      ...source,
+      name,
+      slug,
+      baseSku,
+      status: "rascunho" as ProductStatus,
+      active: false,
+      publishedAt: null,
+      photos: [],
+      soldLast30: 0,
+      skuCount: skus.length,
+      stockTotal: 0,
+      priceFromCents: source["priceCents"],
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+      updatedBy: actor,
+    }, {merge: false});
+
+    return {productId: copyId};
+  });
+}
+
+export const archiveStoreProduct = onCall(BACKOFFICE_CALLABLE, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  const actor = await assertCatalogAdmin(uid);
+  const data = (request.data ?? {}) as {productId: string; version: number; restore?: boolean};
+  return archiveCore(getFirestore(), data, actor, new Date());
+});
+
+export const duplicateStoreProduct = onCall(BACKOFFICE_CALLABLE, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  const actor = await assertCatalogAdmin(uid);
+  return duplicateCore(getFirestore(), (request.data ?? {}) as {productId: string}, actor, new Date());
+});
+
 export const saveStoreProduct = onCall(BACKOFFICE_CALLABLE, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");

@@ -553,7 +553,12 @@ export {
 } from "./backoffice-finance";
 
 // Catálogo da Loja: escrita só por callable (as rules negam escrita de cliente).
-export {saveStoreProduct, saveStoreProductVariations} from "./store-catalog-write";
+export {
+  archiveStoreProduct,
+  duplicateStoreProduct,
+  saveStoreProduct,
+  saveStoreProductVariations,
+} from "./store-catalog-write";
 
 // Prévia de link (OG/Twitter Card) das rotas dinâmicas do site público — a SPA Angular não
 // tem SSR, então bots de rede social são redirecionados aqui pelo .htaccess (por User-Agent).

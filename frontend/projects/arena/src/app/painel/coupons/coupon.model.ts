@@ -1,7 +1,7 @@
 /** Espelha `ArenaCouponDoc`/`serializeCoupon` (`functions/src/arena-coupons.ts`) — cupom é um
  *  CÓDIGO digitado pelo cliente (com validade e limite de uso), diferente de `ArenaPromotion`
- *  (desconto automático por quadra/dia/horário, sem código). Sem update: só criar/listar/desativar
- *  — desativar é irreversível (reativar exige criar outro código). */
+ *  (desconto automático por quadra/dia/horário, sem código). Cupom ativo pode ser editado
+ *  (condições; o código é o id e não muda) — desativar é irreversível (reativar exige criar outro). */
 
 export interface ArenaCoupon {
   id: string;

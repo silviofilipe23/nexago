@@ -246,6 +246,13 @@ export const routes: Routes = [
       import('./painel/coupons/panel-coupon-form.component').then((m) => m.PanelCouponFormComponent),
   },
   {
+    path: 'painel/cupons/:couponId/editar',
+    title: 'Editar cupom — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('promocoes')],
+    loadComponent: () =>
+      import('./painel/coupons/panel-coupon-form.component').then((m) => m.PanelCouponFormComponent),
+  },
+  {
     path: 'painel/links',
     title: 'Links — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('site')],

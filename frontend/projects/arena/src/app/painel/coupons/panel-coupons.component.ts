@@ -37,7 +37,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
 ];
 
 /** Tela Cupons do painel: lista `arenas/{arenaId}/coupons` via callable (`listArenaCoupons`).
- *  Sem edição — o backend só expõe criar/listar/desativar; desativar é irreversível. */
+ *  Cupom ativo pode ser editado (condições; o código não muda); desativar é irreversível. */
 @Component({
   selector: 'ar-panel-coupons',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -97,6 +97,10 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
                       <div><ar-pill [tone]="statusTone[row.status]">{{ statusLabel[row.status] }}</ar-pill></div>
                       <div class="coupon-actions">
                         @if (row.coupon.active) {
+                          <button type="button" class="ar-mini-btn" (click)="editCoupon(row.coupon)">
+                            <ar-icon name="edit" [size]="13" />
+                            Editar
+                          </button>
                           <button type="button" class="ar-mini-btn" (click)="askDeactivate(row.coupon)">
                             <ar-icon name="alert-triangle" [size]="13" />
                             Desativar
@@ -190,7 +194,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
     .table-head,
     .table-row {
       display: grid;
-      grid-template-columns: 1fr 110px 200px 130px 110px 130px;
+      grid-template-columns: 1fr 110px 200px 130px 110px 200px;
       gap: 12px;
       align-items: center;
     }
@@ -248,6 +252,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
 
     .coupon-actions {
       display: flex;
+      gap: 8px;
       justify-content: flex-end;
     }
 
@@ -356,6 +361,10 @@ export class PanelCouponsComponent {
 
   protected createCoupon(): void {
     this.router.navigate(['/painel/cupons/novo']);
+  }
+
+  protected editCoupon(coupon: ArenaCoupon): void {
+    this.router.navigate(['/painel/cupons', coupon.id, 'editar']);
   }
 
   protected askDeactivate(coupon: ArenaCoupon): void {

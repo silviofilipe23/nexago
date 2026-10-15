@@ -1,13 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFunctions } from '../data/functions';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
-import { inputValueToIso } from './coupon.model';
-import { createArenaCoupon } from './coupons-repository';
+import { inputValueToIso, isoToInputValue } from './coupon.model';
+import { createArenaCoupon, listArenaCoupons, updateArenaCoupon } from './coupons-repository';
 
 type DiscountKind = 'percent' | 'fixed';
 
@@ -19,24 +19,27 @@ function normalizeCode(raw: string): string {
   return raw.toUpperCase().replace(/\s+/g, '');
 }
 
-/** Tela Novo cupom: só criação — o backend não expõe callable de edição (`createArenaCoupon`
- *  apenas). Desativar é feito na lista. Código é normalizado no servidor também; a UI já
- *  força maiúsculas pra combinar com o que vai ser salvo. */
+/** Tela Novo/Editar cupom (`/painel/cupons/novo` e `/painel/cupons/:couponId/editar`). Na edição o
+ *  código é fixo (é o id do cupom) e só as condições mudam. Desativar é feito na lista. Código é
+ *  normalizado no servidor também; a UI já força maiúsculas pra combinar com o que vai ser salvo. */
 @Component({
   selector: 'ar-panel-coupon-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, IconComponent],
   template: `
     <ar-panel-shell>
-      <ar-page-header title="Novo cupom" subtitle="Código de desconto que o cliente digita na reserva">
+      <ar-page-header [title]="isEdit ? 'Editar cupom' : 'Novo cupom'" subtitle="Código de desconto que o cliente digita na reserva">
         <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="!canSave() || saving()" (click)="save()">
           <ar-icon name="check" [size]="14" />
-          {{ saving() ? 'Criando…' : 'Criar cupom' }}
+          {{ saving() ? 'Salvando…' : isEdit ? 'Salvar alterações' : 'Criar cupom' }}
         </button>
       </ar-page-header>
 
       <div class="body ar-split">
         <div class="col-left">
+          @if (loadingCoupon()) {
+            <div class="hint-box">Carregando cupom…</div>
+          }
           @if (errorMessage(); as err) {
             <div class="error-banner">{{ err }}</div>
           }
@@ -48,9 +51,12 @@ function normalizeCode(raw: string): string {
               class="input-box code-input"
               placeholder="Ex.: VERAO10"
               [value]="code()"
+              [disabled]="isEdit"
               (input)="code.set(normalizeCode($any($event.target).value))"
             />
-            <p class="hint">Mínimo 3 caracteres. Sempre salvo em maiúsculas, sem espaços.</p>
+            <p class="hint">
+              {{ isEdit ? 'O código não pode ser alterado. Para usar outro, crie um novo cupom.' : 'Mínimo 3 caracteres. Sempre salvo em maiúsculas, sem espaços.' }}
+            </p>
           </ar-panel-card>
 
           <ar-panel-card title="Desconto">
@@ -263,6 +269,10 @@ function normalizeCode(raw: string): string {
 export class PanelCouponFormComponent {
   private readonly arenaContext = inject(ArenaContextService);
   private readonly router = inject(Router);
+  private readonly couponId = inject(ActivatedRoute).snapshot.paramMap.get('couponId');
+
+  protected readonly isEdit = this.couponId != null;
+  protected readonly loadingCoupon = signal(this.isEdit);
 
   protected readonly normalizeCode = normalizeCode;
 
@@ -278,8 +288,39 @@ export class PanelCouponFormComponent {
   protected readonly maxPerAthlete = signal('1');
 
   protected readonly canSave = computed(
-    () => this.code().trim().length >= 3 && parseNumber(this.discountValue()) > 0 && !this.saving(),
+    () => this.code().trim().length >= 3 && parseNumber(this.discountValue()) > 0 && !this.saving() && !this.loadingCoupon(),
   );
+
+  constructor() {
+    if (!this.isEdit) return;
+    effect(() => {
+      const arenaId = this.arenaContext.arenaId();
+      if (!arenaId) return;
+      void this.loadCoupon(arenaId);
+    });
+  }
+
+  private async loadCoupon(arenaId: string): Promise<void> {
+    this.loadingCoupon.set(true);
+    this.errorMessage.set(null);
+    try {
+      const coupon = (await listArenaCoupons(arenaFunctions(), arenaId)).find((c) => c.id === this.couponId);
+      if (!coupon || !coupon.active) {
+        this.errorMessage.set(coupon ? 'Cupom desativado não pode ser editado.' : 'Cupom não encontrado.');
+        return;
+      }
+      this.code.set(coupon.code);
+      this.discountKind.set(coupon.fixedDiscountReais != null ? 'fixed' : 'percent');
+      this.discountValue.set(String(coupon.fixedDiscountReais ?? coupon.discountPercent ?? ''));
+      this.validFrom.set(isoToInputValue(coupon.validFrom));
+      this.validUntil.set(isoToInputValue(coupon.validUntil));
+      this.maxTotal.set(coupon.maxRedemptionsTotal != null ? String(coupon.maxRedemptionsTotal) : '');
+      this.maxPerAthlete.set(String(coupon.maxRedemptionsPerAthlete));
+      this.loadingCoupon.set(false);
+    } catch (err) {
+      this.errorMessage.set(err instanceof Error ? err.message : 'Não foi possível carregar o cupom.');
+    }
+  }
 
   protected async save(): Promise<void> {
     if (!this.canSave()) return;
@@ -290,19 +331,23 @@ export class PanelCouponFormComponent {
     this.saving.set(true);
     this.errorMessage.set(null);
     try {
-      await createArenaCoupon(arenaFunctions(), {
+      const terms = {
         arenaId,
-        code: this.code(),
         discountPercent: this.discountKind() === 'percent' ? value : null,
         fixedDiscountReais: this.discountKind() === 'fixed' ? value : null,
         validFrom: inputValueToIso(this.validFrom()),
         validUntil: inputValueToIso(this.validUntil()),
         maxRedemptionsTotal: this.maxTotal().trim() ? Math.floor(parseNumber(this.maxTotal())) : null,
         maxRedemptionsPerAthlete: this.maxPerAthlete().trim() ? Math.max(1, Math.floor(parseNumber(this.maxPerAthlete()))) : 1,
-      });
+      };
+      if (this.couponId) {
+        await updateArenaCoupon(arenaFunctions(), { ...terms, couponId: this.couponId });
+      } else {
+        await createArenaCoupon(arenaFunctions(), { ...terms, code: this.code() });
+      }
       void this.router.navigate(['/painel/cupons']);
     } catch (err) {
-      this.errorMessage.set(err instanceof Error ? err.message : 'Não foi possível criar o cupom.');
+      this.errorMessage.set(err instanceof Error ? err.message : this.isEdit ? 'Não foi possível salvar o cupom.' : 'Não foi possível criar o cupom.');
     } finally {
       this.saving.set(false);
     }

@@ -1,33 +1,100 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
 import { IconComponent, type PanelIconName } from './icon.component';
 
-interface PanelNavItem {
+export interface NavLink {
+  kind: 'link';
   id: string;
   label: string;
   icon: PanelIconName;
-  route: string | null;
+  route: string;
+  badge?: number;
 }
 
-const NAV_ITEMS: PanelNavItem[] = [
-  { id: 'inicio', label: 'Início', icon: 'home', route: '/painel' },
-  { id: 'arenas', label: 'Arenas', icon: 'arena', route: '/painel/arenas' },
+export interface NavSoon {
+  kind: 'soon';
+  id: string;
+  label: string;
+  icon: PanelIconName;
+  badge?: number;
+}
+
+export interface NavGroup {
+  kind: 'group';
+  id: string;
+  label: string;
+  icon: PanelIconName;
+  children: ReadonlyArray<NavLink | NavSoon>;
+}
+
+/** Um nível só de aninhamento: grupo não entra dentro de grupo. */
+export type PanelNavItem = NavLink | NavSoon | NavGroup;
+
+/** Contadores de exemplo: saem quando a Loja tiver backend. */
+const LOJA_BADGES = { pedidos: 12, personalizados: 2, estoque: 4, cupons: 2, trocas: 2 } as const;
+
+const LOJA_GROUP: NavGroup = {
+  kind: 'group',
+  id: 'loja',
+  label: 'Loja',
+  icon: 'bag',
+  children: [
+    { kind: 'soon', id: 'loja-visao-geral', label: 'Visão geral', icon: 'trend-up' },
+    { kind: 'soon', id: 'loja-pedidos', label: 'Pedidos', icon: 'file', badge: LOJA_BADGES.pedidos },
+    {
+      kind: 'soon',
+      id: 'loja-personalizados',
+      label: 'Personalizados',
+      icon: 'edit',
+      badge: LOJA_BADGES.personalizados,
+    },
+    {
+      kind: 'link',
+      id: 'loja-produtos',
+      label: 'Produtos',
+      icon: 'archive',
+      route: '/painel/loja/produtos',
+    },
+    { kind: 'soon', id: 'loja-estoque', label: 'Estoque', icon: 'archive', badge: LOJA_BADGES.estoque },
+    { kind: 'soon', id: 'loja-retirada', label: 'Retirada & frete', icon: 'swap' },
+    {
+      kind: 'soon',
+      id: 'loja-cupons',
+      label: 'Cupons & promoções',
+      icon: 'ticket',
+      badge: LOJA_BADGES.cupons,
+    },
+    { kind: 'soon', id: 'loja-trocas', label: 'Trocas', icon: 'swap', badge: LOJA_BADGES.trocas },
+  ],
+};
+
+const NAV_ITEMS: readonly PanelNavItem[] = [
+  { kind: 'link', id: 'inicio', label: 'Início', icon: 'home', route: '/painel' },
+  { kind: 'link', id: 'arenas', label: 'Arenas', icon: 'arena', route: '/painel/arenas' },
   {
+    kind: 'link',
     id: 'arenas-pre-cadastro',
     label: 'Pré-cadastradas',
     icon: 'arena',
     route: '/painel/arenas/pre-cadastro',
   },
-  { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios' },
-  { id: 'avaliacoes', label: 'Avaliações', icon: 'star', route: '/painel/avaliacoes' },
-  { id: 'organizadores', label: 'Organizadores', icon: 'id-badge', route: '/painel/organizadores' },
-  { id: 'atletas', label: 'Atletas', icon: 'users', route: '/painel/atletas' },
-  { id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro' },
-  { id: 'moderacao', label: 'Moderação', icon: 'shield', route: null },
-  { id: 'equipe', label: 'Equipe', icon: 'team', route: '/painel/equipe' },
+  { kind: 'link', id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios' },
+  { kind: 'link', id: 'avaliacoes', label: 'Avaliações', icon: 'star', route: '/painel/avaliacoes' },
+  {
+    kind: 'link',
+    id: 'organizadores',
+    label: 'Organizadores',
+    icon: 'id-badge',
+    route: '/painel/organizadores',
+  },
+  { kind: 'link', id: 'atletas', label: 'Atletas', icon: 'users', route: '/painel/atletas' },
+  { kind: 'link', id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro' },
+  LOJA_GROUP,
+  { kind: 'soon', id: 'moderacao', label: 'Moderação', icon: 'shield' },
+  { kind: 'link', id: 'equipe', label: 'Equipe', icon: 'team', route: '/painel/equipe' },
 ];
 
 function pathOnly(url: string): string {
@@ -64,21 +131,69 @@ function initialsOf(name: string): string {
         <nav class="nav">
           <div class="nav-kicker">Operação</div>
           @for (item of navItems; track item.id) {
-            @if (item.route) {
-              <a
-                class="nav-item"
-                [class.active]="activeId() === item.id"
-                [routerLink]="item.route"
-              >
-                <bo-icon [name]="item.icon" [size]="17" [strokeWidth]="1.9" />
-                <span>{{ item.label }}</span>
-              </a>
-            } @else {
-              <div class="nav-item disabled" title="Em breve">
-                <bo-icon [name]="item.icon" [size]="17" [strokeWidth]="1.9" />
-                <span>{{ item.label }}</span>
-                <span class="soon">Em breve</span>
-              </div>
+            @switch (item.kind) {
+              @case ('link') {
+                <a
+                  class="nav-item"
+                  [class.active]="activeId() === item.id"
+                  [routerLink]="item.route"
+                >
+                  <bo-icon [name]="item.icon" [size]="17" [strokeWidth]="1.9" />
+                  <span>{{ item.label }}</span>
+                </a>
+              }
+              @case ('soon') {
+                <div class="nav-item disabled" title="Em breve">
+                  <bo-icon [name]="item.icon" [size]="17" [strokeWidth]="1.9" />
+                  <span>{{ item.label }}</span>
+                  <span class="soon">Em breve</span>
+                </div>
+              }
+              @case ('group') {
+                <button
+                  type="button"
+                  class="nav-item group"
+                  [class.active]="openGroupIds().has(item.id)"
+                  [attr.aria-expanded]="openGroupIds().has(item.id)"
+                  (click)="toggleGroup(item.id)"
+                >
+                  <bo-icon [name]="item.icon" [size]="17" [strokeWidth]="1.9" />
+                  <span>{{ item.label }}</span>
+                  <bo-icon
+                    [name]="openGroupIds().has(item.id) ? 'chevron-down' : 'chevron-right'"
+                    [size]="13"
+                  />
+                </button>
+
+                @if (openGroupIds().has(item.id)) {
+                  <div class="subnav">
+                    @for (child of item.children; track child.id) {
+                      @switch (child.kind) {
+                        @case ('link') {
+                          <a
+                            class="nav-item"
+                            [class.active]="activeId() === child.id"
+                            [routerLink]="child.route"
+                          >
+                            <span>{{ child.label }}</span>
+                            @if (child.badge) {
+                              <span class="badge">{{ child.badge }}</span>
+                            }
+                          </a>
+                        }
+                        @case ('soon') {
+                          <div class="nav-item disabled" title="Em breve">
+                            <span>{{ child.label }}</span>
+                            @if (child.badge) {
+                              <span class="badge">{{ child.badge }}</span>
+                            }
+                          </div>
+                        }
+                      }
+                    }
+                  </div>
+                }
+              }
             }
           }
         </nav>
@@ -240,6 +355,53 @@ function initialsOf(name: string): string {
       flex: 1;
     }
 
+    button.nav-item {
+      width: 100%;
+      background: transparent;
+      border: none;
+      font: inherit;
+      cursor: pointer;
+      transition: background 140ms var(--nx-ease-out);
+    }
+
+    button.nav-item:hover {
+      background: var(--nx-surface-1);
+    }
+
+    .subnav {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin: 2px 0 4px 15px;
+      padding-left: 11px;
+      border-left: 1px solid var(--nx-line);
+    }
+
+    .subnav .nav-item {
+      height: 32px;
+      font-size: 12.5px;
+      font-weight: 500;
+      gap: 8px;
+    }
+
+    .subnav .nav-item.active::before {
+      left: -12px;
+    }
+
+    .badge {
+      font-family: var(--nx-font-mono);
+      font-size: 9px;
+      font-weight: 600;
+      min-width: 18px;
+      height: 17px;
+      padding: 0 5px;
+      border-radius: var(--nx-r-pill);
+      background: var(--nx-surface-2);
+      color: var(--nx-text-mute);
+      display: inline-grid;
+      place-items: center;
+    }
+
     .nav-item .soon {
       font-family: var(--nx-font-mono);
       font-size: 8.5px;
@@ -378,11 +540,47 @@ export class PanelShellComponent {
     if (path.startsWith('/painel/atletas')) {
       return 'atletas';
     }
+    if (path.startsWith('/painel/loja/produtos')) {
+      return 'loja-produtos';
+    }
     if (path === '/painel') {
       return 'inicio';
     }
     return null;
   });
+
+  private readonly manualOpen = signal<{ url: string; ids: ReadonlySet<string> } | null>(null);
+
+  /** Grupos que a rota ativa abre sozinha. */
+  private readonly routeOpenIds = computed<ReadonlySet<string>>(() => {
+    const path = this.currentPath();
+    const ids = new Set<string>();
+    for (const item of NAV_ITEMS) {
+      if (item.kind !== 'group') {
+        continue;
+      }
+      if (item.children.some((c) => c.kind === 'link' && path.startsWith(c.route))) {
+        ids.add(item.id);
+      }
+    }
+    return ids;
+  });
+
+  /** O clique do usuário manda enquanto ele fica na mesma URL; navegar devolve o comando à rota. */
+  protected readonly openGroupIds = computed<ReadonlySet<string>>(() => {
+    const manual = this.manualOpen();
+    return manual && manual.url === this.currentPath() ? manual.ids : this.routeOpenIds();
+  });
+
+  protected toggleGroup(id: string): void {
+    const ids = new Set(this.openGroupIds());
+    if (ids.has(id)) {
+      ids.delete(id);
+    } else {
+      ids.add(id);
+    }
+    this.manualOpen.set({ url: this.currentPath(), ids });
+  }
 
   protected readonly displayName = computed(
     () => this.auth.displayName() || this.auth.user()?.email || 'Conta',

@@ -125,6 +125,15 @@ export const routes: Routes = [
       import('./painel/equipe/panel-equipe.component').then((m) => m.PanelEquipeComponent),
   },
   {
+    path: 'painel/loja/produtos',
+    title: 'Produtos — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/loja/produtos/panel-produtos.component').then(
+        (m) => m.PanelProdutosComponent,
+      ),
+  },
+  {
     path: 'painel/perfil',
     title: 'Meu perfil — NexaGO Backoffice',
     canActivate: [authGuard],

@@ -20,7 +20,7 @@ function normalizeCode(raw: string): string {
 }
 
 /** Tela Novo/Editar cupom (`/painel/cupons/novo` e `/painel/cupons/:couponId/editar`). Na edição o
- *  código é fixo (é o id do cupom) e só as condições mudam. Desativar é feito na lista. Código é
+ *  código é fixo (é o id do cupom) e só as condições mudam. Desativar/reativar também pode ser feito aqui. Código é
  *  normalizado no servidor também; a UI já força maiúsculas pra combinar com o que vai ser salvo. */
 @Component({
   selector: 'ar-panel-coupon-form',
@@ -58,6 +58,16 @@ function normalizeCode(raw: string): string {
               {{ isEdit ? 'O código não pode ser alterado. Para usar outro, crie um novo cupom.' : 'Mínimo 3 caracteres. Sempre salvo em maiúsculas, sem espaços.' }}
             </p>
           </ar-panel-card>
+
+          @if (isEdit) {
+            <ar-panel-card title="Situação">
+              <div class="type-toggle">
+                <button type="button" class="type-btn" [class.active]="active()" (click)="active.set(true)">Ativo</button>
+                <button type="button" class="type-btn" [class.active]="!active()" (click)="active.set(false)">Desativado</button>
+              </div>
+              <p class="hint">Desativado, o cliente não consegue aplicar o código. Dá pra reativar a qualquer momento.</p>
+            </ar-panel-card>
+          }
 
           <ar-panel-card title="Desconto">
             <div class="type-toggle">
@@ -279,6 +289,7 @@ export class PanelCouponFormComponent {
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly saving = signal(false);
 
+  protected readonly active = signal(true);
   protected readonly code = signal('');
   protected readonly discountKind = signal<DiscountKind>('percent');
   protected readonly discountValue = signal('10');
@@ -305,10 +316,11 @@ export class PanelCouponFormComponent {
     this.errorMessage.set(null);
     try {
       const coupon = (await listArenaCoupons(arenaFunctions(), arenaId)).find((c) => c.id === this.couponId);
-      if (!coupon || !coupon.active) {
-        this.errorMessage.set(coupon ? 'Cupom desativado não pode ser editado.' : 'Cupom não encontrado.');
+      if (!coupon) {
+        this.errorMessage.set('Cupom não encontrado.');
         return;
       }
+      this.active.set(coupon.active);
       this.code.set(coupon.code);
       this.discountKind.set(coupon.fixedDiscountReais != null ? 'fixed' : 'percent');
       this.discountValue.set(String(coupon.fixedDiscountReais ?? coupon.discountPercent ?? ''));
@@ -341,7 +353,7 @@ export class PanelCouponFormComponent {
         maxRedemptionsPerAthlete: this.maxPerAthlete().trim() ? Math.max(1, Math.floor(parseNumber(this.maxPerAthlete()))) : 1,
       };
       if (this.couponId) {
-        await updateArenaCoupon(arenaFunctions(), { ...terms, couponId: this.couponId });
+        await updateArenaCoupon(arenaFunctions(), { ...terms, couponId: this.couponId, active: this.active() });
       } else {
         await createArenaCoupon(arenaFunctions(), { ...terms, code: this.code() });
       }

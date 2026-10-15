@@ -255,4 +255,49 @@ describe('PanelProdutosComponent', () => {
 
     expect(host.querySelector('.bulk-bar')).toBeNull();
   });
+  /** O debounce da busca é de 300 ms: espera real, sem jasmine.clock (o mount depende de setTimeout). */
+  const afterDebounce = () => new Promise((resolve) => setTimeout(resolve, 350));
+
+  it('escreve a busca na URL depois do debounce', async () => {
+    const host = await mount();
+    const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+
+    await typeSearch(host, 'bola');
+    expect(navigate).not.toHaveBeenCalled();
+
+    await afterDebounce();
+    expect(navigate).toHaveBeenCalled();
+    const [, extras] = navigate.calls.mostRecent().args as [unknown, { queryParams: unknown }];
+    expect(extras.queryParams).toEqual(jasmine.objectContaining({ q: 'bola' }));
+  });
+
+  it('sair da tela no meio do debounce não navega de volta para Produtos', async () => {
+    const host = await mount();
+    const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+
+    await typeSearch(host, 'bola');
+    fixture.destroy();
+    await afterDebounce();
+
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('mudar de aba dentro da janela do debounce não apaga a seleção feita depois', async () => {
+    const host = await mount();
+    await typeSearch(host, 'b');
+    await clickTab(host, 'Ativos');
+    checkboxes(host)[0]!.click();
+    await settle();
+    expect(host.querySelector('.bulk-bar')!.textContent).toContain('1 selecionado');
+
+    await afterDebounce();
+    await settle();
+
+    expect(host.querySelector('.bulk-bar')).not.toBeNull();
+  });
+
+  it('coleção desconhecida na URL cai no padrão, em vez de sumir com a lista', async () => {
+    const host = await mount({ params: { colecao: 'foo' } });
+    expect(names(host).length).toBe(8);
+  });
 });

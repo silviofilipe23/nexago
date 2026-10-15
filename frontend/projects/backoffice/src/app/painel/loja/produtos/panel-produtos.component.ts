@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { callableErrorMessage } from '../../data/callable-error';
 import { IconComponent } from '../../ui/icon.component';
@@ -17,6 +24,7 @@ import {
 } from './data/product-filters';
 import {
   PRODUCT_CATEGORY_LABELS,
+  PRODUCT_COLLECTIONS,
   ProductsRepository,
   type ProductCategory,
   type StoreProduct,
@@ -385,6 +393,7 @@ export class PanelProdutosComponent {
   private readonly repository = inject(ProductsRepository);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly categories = (Object.keys(PRODUCT_CATEGORY_LABELS) as ProductCategory[]).map(
@@ -394,10 +403,7 @@ export class PanelProdutosComponent {
     { id: 'web', label: 'Web' },
     { id: 'app', label: 'App' },
   ] as const;
-  protected readonly collections = [
-    { id: 'verao-2026', label: 'Verão 2026' },
-    { id: 'linha-pro', label: 'Linha Pro' },
-  ];
+  protected readonly collections = PRODUCT_COLLECTIONS;
 
   protected readonly skeleton = [0, 1, 2, 3, 4, 5, 6, 7];
 
@@ -418,6 +424,9 @@ export class PanelProdutosComponent {
   });
 
   constructor() {
+    // Sem isto o debounce dispara depois da tela morrer e navega de volta para cá.
+    this.destroyRef.onDestroy(() => this.cancelSearchTimer());
+
     const params = this.route.snapshot.queryParamMap;
     const raw = Object.fromEntries(params.keys.map((k) => [k, params.get(k)]));
     this.criteria.set(criteriaFromParams(raw));
@@ -478,6 +487,8 @@ export class PanelProdutosComponent {
 
   /** Único ponto de escrita do critério, para a URL nunca discordar da tela. */
   private apply(next: ProductCriteria): void {
+    // Um debounce pendente aplicaria um critério velho e limparia a seleção recém-feita.
+    this.cancelSearchTimer();
     this.criteria.set(next);
     this.clearSelection();
     void this.router.navigate([], {
@@ -520,13 +531,18 @@ export class PanelProdutosComponent {
   /** A busca filtra a cada tecla; só a URL espera, senão cada letra vira uma entrada no histórico. */
   protected setSearch(q: string): void {
     this.criteria.update((c) => ({ ...c, q }));
-    if (this.searchTimer !== null) {
-      clearTimeout(this.searchTimer);
-    }
+    this.cancelSearchTimer();
     this.searchTimer = setTimeout(() => {
       this.searchTimer = null;
       this.apply(this.criteria());
     }, 300);
+  }
+
+  private cancelSearchTimer(): void {
+    if (this.searchTimer !== null) {
+      clearTimeout(this.searchTimer);
+      this.searchTimer = null;
+    }
   }
 
   protected value(event: Event): string {

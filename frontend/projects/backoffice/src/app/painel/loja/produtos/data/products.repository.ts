@@ -12,6 +12,12 @@ export const PRODUCT_CATEGORY_LABELS: Record<ProductCategory, string> = {
   kits: 'Kits',
 };
 
+/** Coleções do catálogo. Fica junto das categorias para a validação da URL ter uma fonte só. */
+export const PRODUCT_COLLECTIONS: ReadonlyArray<{ id: string; label: string }> = [
+  { id: 'verao-2026', label: 'Verão 2026' },
+  { id: 'linha-pro', label: 'Linha Pro' },
+];
+
 export interface StoreProduct {
   id: string;
   name: string;

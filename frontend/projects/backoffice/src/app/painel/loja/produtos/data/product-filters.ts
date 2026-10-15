@@ -1,4 +1,9 @@
-import type { ProductCategory, ProductChannel, StoreProduct } from './products.repository';
+import {
+  PRODUCT_COLLECTIONS,
+  type ProductCategory,
+  type ProductChannel,
+  type StoreProduct,
+} from './products.repository';
 
 export type StockState = 'esgotado' | 'baixo' | 'ok';
 export type ProductTab = 'todos' | 'ativos' | 'rascunhos' | 'esgotados' | 'baixo';
@@ -35,6 +40,7 @@ const CATEGORIES: readonly ProductCategory[] = [
   'kits',
 ];
 const CHANNELS: readonly ProductChannel[] = ['web', 'app'];
+const COLLECTION_IDS: readonly string[] = PRODUCT_COLLECTIONS.map((c) => c.id);
 
 /** Minúscula e sem acento, para a busca não depender de como o operador digita. */
 function normalize(text: string): string {
@@ -123,7 +129,7 @@ export function criteriaFromParams(params: RawParams): ProductCriteria {
     q: (params['q'] ?? '').trim(),
     category: oneOf(params['categoria'], CATEGORIES),
     channel: oneOf(params['canal'], CHANNELS),
-    collection: params['colecao']?.trim() || null,
+    collection: oneOf(params['colecao']?.trim(), COLLECTION_IDS),
   };
 }
 

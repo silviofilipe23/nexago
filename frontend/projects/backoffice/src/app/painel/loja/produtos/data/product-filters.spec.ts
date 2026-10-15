@@ -177,4 +177,14 @@ describe('ida e volta pela URL', () => {
       colecao: null,
     });
   });
+  it('coleção desconhecida vira nulo', () => {
+    expect(criteriaFromParams({ colecao: 'foo' }).collection).toBeNull();
+  });
+
+  it('coleção conhecida é lida e volta para a URL', () => {
+    expect(criteriaFromParams({ colecao: 'linha-pro' }).collection).toBe('linha-pro');
+    expect(paramsFromCriteria({ ...EMPTY_CRITERIA, collection: 'linha-pro' })['colecao']).toBe(
+      'linha-pro',
+    );
+  });
 });

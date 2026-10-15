@@ -199,4 +199,60 @@ describe('PanelProdutosComponent', () => {
     );
     expect(extras.replaceUrl).toBeTrue();
   });
+
+  const checkboxes = (host: HTMLElement) =>
+    [...host.querySelectorAll('bo-product-row input[type="checkbox"]')] as HTMLInputElement[];
+
+  it('selecionar uma linha mostra a barra de lote com as ações desabilitadas', async () => {
+    const host = await mount();
+    checkboxes(host)[0]!.click();
+    await settle();
+
+    const bar = host.querySelector('.bulk-bar')!;
+    expect(bar.textContent).toContain('1 selecionado');
+    const actions = [...bar.querySelectorAll('button')] as HTMLButtonElement[];
+    const comAcao = actions.filter((b) => !b.textContent!.includes('Limpar'));
+    expect(comAcao.length).toBeGreaterThan(0);
+    expect(comAcao.every((b) => b.disabled)).toBeTrue();
+  });
+
+  it('o checkbox do cabeçalho marca e desmarca a página inteira', async () => {
+    const host = await mount();
+    const all = host.querySelector('.select-all') as HTMLInputElement;
+
+    all.click();
+    await settle();
+    expect(host.querySelector('.bulk-bar')!.textContent).toContain('8 selecionados');
+
+    all.click();
+    await settle();
+    expect(host.querySelector('.bulk-bar')).toBeNull();
+  });
+
+  it('mudar o filtro limpa a seleção, para ninguém agir sobre linha que não vê', async () => {
+    const host = await mount();
+    checkboxes(host)[0]!.click();
+    await settle();
+    expect(host.querySelector('.bulk-bar')).not.toBeNull();
+
+    await clickTab(host, 'Esgotados');
+    expect(host.querySelector('.bulk-bar')).toBeNull();
+  });
+
+  it('desativar um produto selecionado na aba Ativos não deixa seleção órfã', async () => {
+    const host = await mount();
+    await clickTab(host, 'Ativos');
+    checkboxes(host)[0]!.click();
+    await settle();
+    // Sem esta asserção o teste passaria mesmo sem a barra existir: não saberia falhar.
+    expect(host.querySelector('.bulk-bar')!.textContent).toContain('1 selecionado');
+
+    const toggle = host.querySelector(
+      'bo-product-row [role="switch"][aria-label^="Desativar Bola"]',
+    ) as HTMLButtonElement;
+    toggle.click();
+    await settle();
+
+    expect(host.querySelector('.bulk-bar')).toBeNull();
+  });
 });

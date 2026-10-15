@@ -151,13 +151,38 @@ type LoadState = 'loading' | 'ok' | 'error';
               }
             </div>
           } @else {
+            @if (selectedVisible().length > 0) {
+              <div class="bulk-bar">
+                <strong>{{ selectionLabel() }}</strong>
+                <button type="button" class="bo-mini-btn" disabled title="Em breve">Ativar</button>
+                <button type="button" class="bo-mini-btn" disabled title="Em breve">Desativar</button>
+                <button type="button" class="bo-mini-btn" disabled title="Em breve">Exportar</button>
+                <div class="spacer"></div>
+                <button type="button" class="bo-ghost-btn" (click)="clearSelection()">Limpar</button>
+              </div>
+            }
+
             <div class="table-head">
-              <span></span><span>Produto</span><span>Categoria</span><span>Variações</span>
+              <span>
+                <input
+                  type="checkbox"
+                  class="select-all"
+                  aria-label="Selecionar todos os produtos da página"
+                  [checked]="allSelected()"
+                  (change)="toggleAll()"
+                />
+              </span>
+              <span>Produto</span><span>Categoria</span><span>Variações</span>
               <span>Preço</span><span>Estoque</span><span>Vendas 30d</span><span>Canais</span>
               <span>Ativo</span><span></span>
             </div>
             @for (product of rows(); track product.id) {
-              <bo-product-row [product]="product" (activeChange)="setActive(product.id, $event)" />
+              <bo-product-row
+                [product]="product"
+                [selected]="isSelected(product.id)"
+                (selectedChange)="setSelected(product.id, $event)"
+                (activeChange)="setActive(product.id, $event)"
+              />
             }
           }
         </bo-panel-card>
@@ -314,6 +339,28 @@ type LoadState = 'loading' | 'ok' | 'error';
       }
     }
 
+    .bulk-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 9px 14px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-orange-tint);
+      border: 1px solid rgba(255, 106, 26, 0.3);
+    }
+
+    .bulk-bar strong {
+      font-family: var(--nx-font-display);
+      font-size: 12.5px;
+      color: var(--nx-orange-500);
+      margin-right: 4px;
+    }
+
+    .bulk-bar .spacer {
+      flex: 1;
+    }
+
     .empty {
       display: flex;
       flex-direction: column;
@@ -388,9 +435,51 @@ export class PanelProdutosComponent {
     }
   }
 
+  private readonly selectedIds = signal<ReadonlySet<string>>(new Set());
+
+  /** Só conta quem está visível: o filtro pode ter tirado da tela uma linha marcada. */
+  protected readonly selectedVisible = computed(() => {
+    const ids = this.selectedIds();
+    return this.rows().filter((p) => ids.has(p.id));
+  });
+
+  protected readonly selectionLabel = computed(() => {
+    const n = this.selectedVisible().length;
+    return n === 1 ? '1 selecionado' : `${n} selecionados`;
+  });
+
+  protected readonly allSelected = computed(
+    () => this.rows().length > 0 && this.selectedVisible().length === this.rows().length,
+  );
+
+  protected isSelected(id: string): boolean {
+    return this.selectedIds().has(id);
+  }
+
+  protected setSelected(id: string, selected: boolean): void {
+    this.selectedIds.update((ids) => {
+      const next = new Set(ids);
+      if (selected) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  }
+
+  protected toggleAll(): void {
+    this.selectedIds.set(this.allSelected() ? new Set() : new Set(this.rows().map((p) => p.id)));
+  }
+
+  protected clearSelection(): void {
+    this.selectedIds.set(new Set());
+  }
+
   /** Único ponto de escrita do critério, para a URL nunca discordar da tela. */
   private apply(next: ProductCriteria): void {
     this.criteria.set(next);
+    this.clearSelection();
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: paramsFromCriteria(next),

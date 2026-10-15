@@ -12,9 +12,8 @@ function mapFunctionsError(err: unknown): ArenaCouponError {
   return new ArenaCouponError(message);
 }
 
-export interface CreateArenaCouponInput {
+export interface ArenaCouponTermsInput {
   arenaId: string;
-  code: string;
   discountPercent?: number | null;
   fixedDiscountReais?: number | null;
   /** ISO */
@@ -25,10 +24,17 @@ export interface CreateArenaCouponInput {
   maxRedemptionsPerAthlete?: number;
 }
 
-export async function createArenaCoupon(functions: Functions, input: CreateArenaCouponInput): Promise<string> {
+export interface CreateArenaCouponInput extends ArenaCouponTermsInput {
+  code: string;
+}
+
+export interface UpdateArenaCouponInput extends ArenaCouponTermsInput {
+  couponId: string;
+}
+
+function termsPayload(input: ArenaCouponTermsInput): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     arenaId: input.arenaId,
-    code: input.code,
     maxRedemptionsPerAthlete: input.maxRedemptionsPerAthlete ?? 1,
   };
   if (input.discountPercent != null) payload['discountPercent'] = input.discountPercent;
@@ -36,7 +42,11 @@ export async function createArenaCoupon(functions: Functions, input: CreateArena
   if (input.validFrom) payload['validFrom'] = input.validFrom;
   if (input.validUntil) payload['validUntil'] = input.validUntil;
   if (input.maxRedemptionsTotal != null) payload['maxRedemptionsTotal'] = input.maxRedemptionsTotal;
+  return payload;
+}
 
+export async function createArenaCoupon(functions: Functions, input: CreateArenaCouponInput): Promise<string> {
+  const payload = { ...termsPayload(input), code: input.code };
   try {
     const result = await httpsCallable<Record<string, unknown>, { couponId: string }>(functions, 'createArenaCoupon')(payload);
     return result.data.couponId;
@@ -61,6 +71,17 @@ export async function deactivateArenaCoupon(functions: Functions, arenaId: strin
       arenaId,
       couponId,
     });
+  } catch (err) {
+    throw mapFunctionsError(err);
+  }
+}
+
+/** O payload é o estado final das condições: campos opcionais omitidos são removidos no servidor.
+ *  O código não muda (é o id do cupom). */
+export async function updateArenaCoupon(functions: Functions, input: UpdateArenaCouponInput): Promise<void> {
+  const payload = { ...termsPayload(input), couponId: input.couponId };
+  try {
+    await httpsCallable<Record<string, unknown>, { success: boolean }>(functions, 'updateArenaCoupon')(payload);
   } catch (err) {
     throw mapFunctionsError(err);
   }

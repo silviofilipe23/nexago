@@ -393,31 +393,18 @@ function serializeCoupon(c: ArenaCouponDoc) {
   };
 }
 
-/** Cria um cupom de marketing (código digitável, validade, limite de uso). */
-export const createArenaCoupon = onCall({
-  region: CLIENT_FACING_REGIONS,
-}, async (request) => {
-  const callerUid = request.auth?.uid;
-  if (!callerUid) {
-    throw new HttpsError("unauthenticated", "Faça login para continuar.");
-  }
+interface CouponTerms {
+  discountPercent?: number;
+  fixedDiscountReais?: number;
+  validFrom: Date | null;
+  validUntil: Date | null;
+  maxRedemptionsTotal?: number;
+  maxRedemptionsPerAthlete: number;
+}
 
-  const data = (request.data ?? {}) as Record<string, unknown>;
-  const arenaId = typeof data.arenaId === "string" ? data.arenaId.trim() : "";
-  if (!arenaId) {
-    throw new HttpsError("invalid-argument", "arenaId é obrigatório.");
-  }
-
-  await assertCallerManagesArena(arenaId, callerUid, "write");
-
-  const code = normalizeCouponCode(data.code);
-  if (!code || code.length < 3) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Informe um código de cupom com ao menos 3 caracteres.",
-    );
-  }
-
+/** Valida e normaliza as condições do cupom (desconto, vigência, limites) — compartilhado entre
+ *  criar e editar. O código não entra aqui: é o id do doc e não muda. */
+function parseCouponTerms(data: Record<string, unknown>): CouponTerms {
   const discountPercent = typeof data.discountPercent === "number" ? data.discountPercent : undefined;
   const fixedDiscountReais =
     typeof data.fixedDiscountReais === "number" ? data.fixedDiscountReais : undefined;
@@ -455,6 +442,54 @@ export const createArenaCoupon = onCall({
       Math.floor(maxPerAthleteRaw) :
       1;
 
+  return {
+    ...(hasPercent ? {discountPercent} : {}),
+    ...(hasFixed ? {fixedDiscountReais} : {}),
+    validFrom,
+    validUntil,
+    ...(maxRedemptionsTotal != null ? {maxRedemptionsTotal} : {}),
+    maxRedemptionsPerAthlete,
+  };
+}
+
+function couponTermsToFields(t: CouponTerms) {
+  return {
+    maxRedemptionsPerAthlete: t.maxRedemptionsPerAthlete,
+    ...(t.discountPercent != null ? {discountPercent: t.discountPercent} : {}),
+    ...(t.fixedDiscountReais != null ? {fixedDiscountReais: t.fixedDiscountReais} : {}),
+    ...(t.validFrom ? {validFrom: Timestamp.fromDate(t.validFrom)} : {}),
+    ...(t.validUntil ? {validUntil: Timestamp.fromDate(t.validUntil)} : {}),
+    ...(t.maxRedemptionsTotal != null ? {maxRedemptionsTotal: t.maxRedemptionsTotal} : {}),
+  };
+}
+
+/** Cria um cupom de marketing (código digitável, validade, limite de uso). */
+export const createArenaCoupon = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  }
+
+  const data = (request.data ?? {}) as Record<string, unknown>;
+  const arenaId = typeof data.arenaId === "string" ? data.arenaId.trim() : "";
+  if (!arenaId) {
+    throw new HttpsError("invalid-argument", "arenaId é obrigatório.");
+  }
+
+  await assertCallerManagesArena(arenaId, callerUid, "write");
+
+  const code = normalizeCouponCode(data.code);
+  if (!code || code.length < 3) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Informe um código de cupom com ao menos 3 caracteres.",
+    );
+  }
+
+  const terms = parseCouponTerms(data);
+
   const db = getFirestore();
   const ref = couponDocRef(db, arenaId, code);
   const existing = await ref.get();
@@ -466,12 +501,7 @@ export const createArenaCoupon = onCall({
     code,
     active: true,
     redemptionsCount: 0,
-    maxRedemptionsPerAthlete,
-    ...(hasPercent ? {discountPercent} : {}),
-    ...(hasFixed ? {fixedDiscountReais} : {}),
-    ...(validFrom ? {validFrom: Timestamp.fromDate(validFrom)} : {}),
-    ...(validUntil ? {validUntil: Timestamp.fromDate(validUntil)} : {}),
-    ...(maxRedemptionsTotal != null ? {maxRedemptionsTotal} : {}),
+    ...couponTermsToFields(terms),
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });
@@ -528,5 +558,60 @@ export const deactivateArenaCoupon = onCall({
     throw new HttpsError("not-found", "Cupom não encontrado.");
   }
   await ref.update({active: false, updatedAt: FieldValue.serverTimestamp()});
+  return {success: true};
+});
+
+/**
+ * Edita as condições de um cupom (desconto, vigência, limites). O código é o id do doc e não
+ * muda; cupom desativado não é editável (desativar é definitivo). Campos opcionais omitidos são
+ * removidos (FieldValue.delete) — o payload é o estado final desejado, como no formulário.
+ */
+export const updateArenaCoupon = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  }
+  const data = (request.data ?? {}) as Record<string, unknown>;
+  const arenaId = typeof data.arenaId === "string" ? data.arenaId.trim() : "";
+  const couponId = typeof data.couponId === "string" ? data.couponId.trim() : "";
+  if (!arenaId || !couponId) {
+    throw new HttpsError("invalid-argument", "arenaId e couponId são obrigatórios.");
+  }
+
+  await assertCallerManagesArena(arenaId, callerUid, "write");
+
+  const terms = parseCouponTerms(data);
+
+  const db = getFirestore();
+  const ref = couponDocRef(db, arenaId, couponId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) {
+      throw new HttpsError("not-found", "Cupom não encontrado.");
+    }
+    const current = parseCouponDoc(snap.id, snap.data() as Record<string, unknown>);
+    if (!current.active) {
+      throw new HttpsError("failed-precondition", "Cupom desativado não pode ser editado.");
+    }
+    if (terms.maxRedemptionsTotal != null && terms.maxRedemptionsTotal < current.redemptionsCount) {
+      throw new HttpsError(
+        "invalid-argument",
+        `O limite total não pode ser menor que os ${current.redemptionsCount} resgates já feitos.`,
+      );
+    }
+    tx.update(ref, {
+      ...couponTermsToFields(terms),
+      ...(terms.discountPercent == null ? {discountPercent: FieldValue.delete()} : {}),
+      ...(terms.fixedDiscountReais == null ? {fixedDiscountReais: FieldValue.delete()} : {}),
+      ...(terms.validFrom ? {} : {validFrom: FieldValue.delete()}),
+      ...(terms.validUntil ? {} : {validUntil: FieldValue.delete()}),
+      ...(terms.maxRedemptionsTotal != null ? {} : {maxRedemptionsTotal: FieldValue.delete()}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  logger.info("updateArenaCoupon: cupom editado", {arenaId, couponId});
   return {success: true};
 });

@@ -1,4 +1,4 @@
-import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { ApplicationRef, provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
@@ -34,5 +34,52 @@ describe('PanelShellComponent', () => {
     const soon = [...host.querySelectorAll('.nav-item.disabled')].map((e) => e.textContent!.trim());
     expect(soon.some((t) => t.startsWith('Moderação'))).toBeTrue();
     expect(host.querySelector('a.nav-item[href*="moderacao"]')).toBeNull();
+  });
+  it('mostra o grupo Loja fechado fora da área, com os filhos escondidos', async () => {
+    const host = await mount();
+    const group = host.querySelector('button.nav-item')!;
+    expect(group.textContent!.trim()).toContain('Loja');
+    expect(group.getAttribute('aria-expanded')).toBe('false');
+    expect(host.querySelector('.subnav')).toBeNull();
+  });
+
+  it('abre o grupo no clique e fecha no clique seguinte', async () => {
+    const host = await mount();
+    const group = host.querySelector('button.nav-item') as HTMLButtonElement;
+
+    group.click();
+    await TestBed.inject(ApplicationRef).whenStable();
+    expect(group.getAttribute('aria-expanded')).toBe('true');
+    const children = [...host.querySelectorAll('.subnav .nav-item')].map((e) => e.textContent!.trim());
+    expect(children.some((t) => t.startsWith('Produtos'))).toBeTrue();
+    expect(children.some((t) => t.startsWith('Pedidos'))).toBeTrue();
+
+    group.click();
+    await TestBed.inject(ApplicationRef).whenStable();
+    expect(group.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('só Produtos é link; os outros filhos são "Em breve"', async () => {
+    const host = await mount();
+    (host.querySelector('button.nav-item') as HTMLButtonElement).click();
+    await TestBed.inject(ApplicationRef).whenStable();
+
+    const links = [...host.querySelectorAll('.subnav a.nav-item')].map((e) => e.textContent!.trim());
+    expect(links.length).toBe(1);
+    expect(links[0]).toContain('Produtos');
+    expect(host.querySelector('.subnav a.nav-item')!.getAttribute('href')).toBe(
+      '/painel/loja/produtos',
+    );
+  });
+
+  it('mostra o badge dos filhos que têm contador', async () => {
+    const host = await mount();
+    (host.querySelector('button.nav-item') as HTMLButtonElement).click();
+    await TestBed.inject(ApplicationRef).whenStable();
+
+    const pedidos = [...host.querySelectorAll('.subnav .nav-item')].find((e) =>
+      e.textContent!.includes('Pedidos'),
+    )!;
+    expect(pedidos.querySelector('.badge')!.textContent!.trim()).toBe('12');
   });
 });

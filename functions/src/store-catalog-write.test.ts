@@ -2,7 +2,12 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import type {Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
-import {saveStoreProductCore, type SaveProductInput} from "./store-catalog-write";
+import {
+  saveStoreProductCore,
+  saveVariationsCore,
+  type SaveProductInput,
+  type SaveVariationsInput,
+} from "./store-catalog-write";
 
 function makeDb(): {fake: FakeFirestore; db: Firestore} {
   const fake = new FakeFirestore();
@@ -155,5 +160,158 @@ describe("saveStoreProductCore — atualização", () => {
     const later = new Date("2026-11-20T18:00:00Z");
     await saveStoreProductCore(db, input({productId: first.productId, version: 2}), ACTOR, later);
     assert.deepEqual(fake.store.get(`storeProducts/${first.productId}`)!["publishedAt"], stamped);
+  });
+});
+
+describe("saveVariationsCore", () => {
+  const AXES = [
+    {id: "cor", label: "Cor", values: [
+      {id: "branco", label: "Branco areia", hex: "#F2EDE4"},
+      {id: "laranja", label: "Laranja", hex: "#FF6A1A"},
+    ]},
+    {id: "tam", label: "Tamanho", values: [{id: "p", label: "P"}, {id: "m", label: "M"}]},
+  ];
+
+  function variations(over: Partial<SaveVariationsInput> = {}): SaveVariationsInput {
+    return {
+      productId: "p1",
+      version: 1,
+      axes: AXES,
+      skus: [
+        {axisValues: {cor: "branco", tam: "p"}, stockByLocation: {cd: 6}, priceCents: null, barcode: null},
+        {axisValues: {cor: "branco", tam: "m"}, stockByLocation: {cd: 2}, priceCents: null, barcode: null},
+        {axisValues: {cor: "laranja", tam: "p"}, stockByLocation: {cd: 4}, priceCents: null, barcode: null},
+      ],
+      ...over,
+    };
+  }
+
+  async function seeded() {
+    const made = makeDb();
+    const {productId} = await saveStoreProductCore(made.db, input(), ACTOR, NOW);
+    return {...made, productId};
+  }
+
+  it("grava um documento por SKU, com id e código vindos dos eixos", async () => {
+    const {fake, db, productId} = await seeded();
+    await saveVariationsCore(db, variations({productId}), ACTOR, NOW);
+
+    const sku = fake.store.get(`storeProducts/${productId}/skus/branco_p`)!;
+    assert.equal(sku["code"], "NX-CAM-BRANCO-P");
+    assert.equal(sku["stock"], 6);
+    assert.ok(fake.store.has(`storeProducts/${productId}/skus/laranja_p`));
+  });
+
+  it("os rollups do pai batem com a soma dos SKUs", async () => {
+    const {fake, db, productId} = await seeded();
+    await saveVariationsCore(db, variations({productId}), ACTOR, NOW);
+
+    const product = fake.store.get(`storeProducts/${productId}`)!;
+    assert.equal(product["skuCount"], 3);
+    assert.equal(product["stockTotal"], 12);
+    assert.equal(product["priceFromCents"], 12990);
+  });
+
+  it("estoque de vários locais soma no SKU e no rollup", async () => {
+    const {fake, db, productId} = await seeded();
+    await saveVariationsCore(db, variations({
+      productId,
+      skus: [{axisValues: {cor: "branco", tam: "p"}, stockByLocation: {cd: 6, arena1: 4}, priceCents: null, barcode: null}],
+    }), ACTOR, NOW);
+
+    assert.equal(fake.store.get(`storeProducts/${productId}/skus/branco_p`)!["stock"], 10);
+    assert.equal(fake.store.get(`storeProducts/${productId}`)!["stockTotal"], 10);
+  });
+
+  it("estoque negativo é recusado, em vez de virar rollup negativo", async () => {
+    const {db, productId} = await seeded();
+    await assert.rejects(
+      () => saveVariationsCore(db, variations({
+        productId,
+        skus: [{axisValues: {cor: "branco", tam: "p"}, stockByLocation: {cd: -3}, priceCents: null, barcode: null}],
+      }), ACTOR, NOW),
+      (err: Error & {code?: string}) => {
+        assert.equal(err.code, "invalid-argument");
+        return true;
+      },
+    );
+  });
+
+  it("tirar um SKU que tinha estoque diz o que seria perdido, em vez de sumir calado", async () => {
+    const {db, productId} = await seeded();
+    await saveVariationsCore(db, variations({productId}), ACTOR, NOW);
+
+    await assert.rejects(
+      () => saveVariationsCore(db, variations({
+        productId,
+        version: 2,
+        skus: [{axisValues: {cor: "branco", tam: "p"}, stockByLocation: {cd: 6}, priceCents: null, barcode: null}],
+      }), ACTOR, NOW),
+      (err: Error & {details?: {droppedWithStock?: string[]}}) => {
+        assert.deepEqual(err.details?.droppedWithStock?.sort(), ["branco_m", "laranja_p"]);
+        return true;
+      },
+    );
+  });
+
+  it("tirar um SKU zerado é permitido e some do rollup", async () => {
+    const {fake, db, productId} = await seeded();
+    await saveVariationsCore(db, variations({
+      productId,
+      skus: [
+        {axisValues: {cor: "branco", tam: "p"}, stockByLocation: {cd: 6}, priceCents: null, barcode: null},
+        {axisValues: {cor: "branco", tam: "m"}, stockByLocation: {cd: 0}, priceCents: null, barcode: null},
+      ],
+    }), ACTOR, NOW);
+
+    await saveVariationsCore(db, variations({
+      productId,
+      version: 2,
+      skus: [{axisValues: {cor: "branco", tam: "p"}, stockByLocation: {cd: 6}, priceCents: null, barcode: null}],
+    }), ACTOR, NOW);
+
+    assert.equal(fake.store.has(`storeProducts/${productId}/skus/branco_m`), false);
+    assert.equal(fake.store.get(`storeProducts/${productId}`)!["skuCount"], 1);
+  });
+
+  it("código de SKU já usado por outro produto é recusado", async () => {
+    const {fake, db, productId} = await seeded();
+    fake.store.set("storeCatalogKeys/sku:NX-CAM-BRANCO-P", {productId: "outro", skuId: "x"});
+
+    await assert.rejects(
+      () => saveVariationsCore(db, variations({productId}), ACTOR, NOW),
+      (err: Error & {code?: string}) => {
+        assert.equal(err.code, "invalid-argument");
+        return true;
+      },
+    );
+  });
+
+  it("acima do teto de SKUs é recusado antes de escrever", async () => {
+    const {db, productId} = await seeded();
+    const many = Array.from({length: 101}, (_, i) => ({
+      axisValues: {cor: `c${i}`, tam: "p"},
+      stockByLocation: {cd: 1},
+      priceCents: null,
+      barcode: null,
+    }));
+    await assert.rejects(
+      () => saveVariationsCore(db, variations({productId, skus: many}), ACTOR, NOW),
+      (err: Error & {code?: string}) => {
+        assert.equal(err.code, "invalid-argument");
+        return true;
+      },
+    );
+  });
+
+  it("versão velha é recusada", async () => {
+    const {db, productId} = await seeded();
+    await assert.rejects(
+      () => saveVariationsCore(db, variations({productId, version: 99}), ACTOR, NOW),
+      (err: Error & {code?: string}) => {
+        assert.equal(err.code, "failed-precondition");
+        return true;
+      },
+    );
   });
 });

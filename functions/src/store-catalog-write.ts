@@ -11,10 +11,17 @@ import {getFirestore, type Firestore, type Transaction} from "firebase-admin/fir
 import {callerCanAccessBackoffice} from "./auth-roles";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {
+  MAX_SKUS_PER_PRODUCT,
   publishValidationErrors,
+  rollupsOf,
+  skuCodeFrom,
+  skuIdFromAxisValues,
   slugify,
+  sumStock,
+  type Axis,
   type ProductBadge,
   type ProductStatus,
+  type SkuDoc,
 } from "./store-catalog";
 
 const BACKOFFICE_CALLABLE = {region: CLIENT_FACING_REGIONS, invoker: "public" as const};
@@ -59,6 +66,23 @@ function conflict(existing: FirebaseFirestore.DocumentData): HttpsError {
     "Este produto foi alterado por outra pessoa. Recarregue antes de salvar.",
     {updatedBy: existing["updatedBy"], updatedAt: existing["updatedAt"]},
   );
+}
+
+/**
+ * Confere se a chave de unicidade está livre para este produto. **Só lê** — a
+ * escrita vem depois, no bloco de escritas, porque a transação do Firestore
+ * recusa uma leitura feita após qualquer escrita.
+ */
+async function assertKeyFree(
+  tx: Transaction,
+  db: Firestore,
+  key: string,
+  productId: string,
+): Promise<void> {
+  const snap = await tx.get(db.collection(KEYS).doc(key));
+  if (snap.exists && snap.data()?.["productId"] !== productId) {
+    throw new HttpsError("invalid-argument", `Já existe outro produto com ${key}.`, {key});
+  }
 }
 
 function writeKey(
@@ -188,6 +212,119 @@ export async function assertCatalogAdmin(uid: string): Promise<Actor> {
   }
   return {uid, name: caller.displayName ?? caller.email ?? uid};
 }
+
+export interface SkuInput {
+  axisValues: Record<string, string>;
+  barcode: string | null;
+  priceCents: number | null;
+  stockByLocation: Record<string, number>;
+}
+
+export interface SaveVariationsInput {
+  productId: string;
+  version: number;
+  axes: Axis[];
+  skus: SkuInput[];
+}
+
+export async function saveVariationsCore(
+  db: Firestore,
+  input: SaveVariationsInput,
+  actor: Actor,
+  now: Date,
+): Promise<{version: number; skuCount: number; stockTotal: number}> {
+  if (input.axes.length > 2) {
+    throw new HttpsError("invalid-argument", "Um produto tem no máximo 2 eixos de variação.");
+  }
+  if (input.skus.length === 0) {
+    throw new HttpsError("invalid-argument", "O produto precisa de ao menos um SKU.");
+  }
+  if (input.skus.length > MAX_SKUS_PER_PRODUCT) {
+    throw new HttpsError(
+      "invalid-argument",
+      `Um produto comporta no máximo ${MAX_SKUS_PER_PRODUCT} variações.`,
+    );
+  }
+  for (const sku of input.skus) {
+    for (const [location, qty] of Object.entries(sku.stockByLocation)) {
+      if (!Number.isInteger(qty) || qty < 0) {
+        throw new HttpsError("invalid-argument", `Estoque inválido em ${location}.`, {location});
+      }
+    }
+  }
+
+  const ref = db.collection(PRODUCTS).doc(input.productId);
+
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) {
+      throw new HttpsError("not-found", "Produto não encontrado.");
+    }
+    const existing = snap.data()!;
+    if (existing["version"] !== input.version) {
+      throw conflict(existing);
+    }
+
+    // ---------- ainda leituras ----------
+    const baseSku = existing["baseSku"] as string;
+    const next: SkuDoc[] = input.skus.map((sku) => ({
+      id: skuIdFromAxisValues(sku.axisValues, input.axes),
+      code: skuCodeFrom(baseSku, sku.axisValues, input.axes),
+      barcode: sku.barcode,
+      axisValues: sku.axisValues,
+      priceCents: sku.priceCents,
+      stockByLocation: sku.stockByLocation,
+      stock: sumStock(sku.stockByLocation),
+    }));
+
+    const skusRef = ref.collection("skus");
+    const currentSnap = await tx.get(skusRef);
+    const keepIds = new Set(next.map((s) => s.id));
+    const dropped = currentSnap.docs.filter((d) => !keepIds.has(d.id));
+    const droppedWithStock = dropped.filter((d) => (d.data()["stock"] ?? 0) > 0).map((d) => d.id);
+
+    if (droppedWithStock.length > 0) {
+      // Apagar em silêncio levaria o estoque junto; quem decide descartar é o usuário.
+      throw new HttpsError(
+        "failed-precondition",
+        "Há variações com estoque que seriam removidas.",
+        {droppedWithStock},
+      );
+    }
+
+    // Em série, e ainda no bloco de leituras: a transação recusa ler depois de escrever.
+    for (const sku of next) {
+      await assertKeyFree(tx, db, `sku:${sku.code}`, input.productId);
+    }
+
+    // ---------- escritas ----------
+    for (const doc of dropped) {
+      tx.delete(doc.ref);
+      tx.delete(db.collection(KEYS).doc(`sku:${doc.data()["code"]}`));
+    }
+    for (const sku of next) {
+      writeKey(tx, db, `sku:${sku.code}`, {productId: input.productId, skuId: sku.id});
+      tx.set(skusRef.doc(sku.id), sku, {merge: false});
+    }
+
+    const rollups = rollupsOf(next, existing["priceCents"] as number);
+    const version = input.version + 1;
+    tx.set(
+      ref,
+      {axes: input.axes, ...rollups, version, updatedAt: now, updatedBy: actor},
+      {merge: true},
+    );
+
+    return {version, skuCount: rollups.skuCount, stockTotal: rollups.stockTotal};
+  });
+}
+
+export const saveStoreProductVariations = onCall(BACKOFFICE_CALLABLE, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  const actor = await assertCatalogAdmin(uid);
+  return saveVariationsCore(getFirestore(), (request.data ?? {}) as SaveVariationsInput, actor, new Date());
+});
 
 export const saveStoreProduct = onCall(BACKOFFICE_CALLABLE, async (request) => {
   const uid = request.auth?.uid;

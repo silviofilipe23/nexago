@@ -103,25 +103,42 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
                     <ar-icon name="search" [size]="15" style="color: var(--nx-text-dim)" />
                     <input
                       type="text"
-                      placeholder="Buscar produto do estoque para adicionar…"
+                      placeholder="Filtrar produtos…"
                       [value]="addQuery()"
                       [disabled]="cargoReadOnly()"
                       (input)="onAddQueryInput($any($event.target).value)"
                     />
                   </div>
                   @if (addSuggestions().length > 0) {
-                    <div class="suggestions">
+                    <div class="product-grid" role="listbox" aria-label="Produtos">
                       @for (p of addSuggestions(); track p.id) {
-                        <button type="button" class="suggestion-row" (click)="selectProduct(p)">
-                          <span>{{ p.emoji }} {{ p.name }}</span>
-                          <span>{{ formatBRL(p.priceCents) }}</span>
+                        <button
+                          type="button"
+                          class="product-card"
+                          role="option"
+                          [class.selected]="selectedProduct()?.id === p.id"
+                          [attr.aria-selected]="selectedProduct()?.id === p.id"
+                          [disabled]="cargoReadOnly()"
+                          (click)="selectProduct(p)"
+                        >
+                          <span class="product-emoji" aria-hidden="true">{{ p.emoji || '🛒' }}</span>
+                          <span class="product-name">{{ p.name }}</span>
+                          <span class="product-price">{{ formatBRL(p.priceCents) }}</span>
+                          @if (p.stockQuantity <= 0) {
+                            <span class="product-stock out">Sem estoque</span>
+                          } @else if (p.stockQuantity <= p.minStockQuantity) {
+                            <span class="product-stock low">{{ p.stockQuantity }} em estoque</span>
+                          }
                         </button>
                       }
                     </div>
+                  } @else if (addQuery().trim()) {
+                    <p class="state-text">Nenhum produto encontrado.</p>
                   }
                   @if (selectedProduct(); as sp) {
                     <div class="selected-row">
                       <span class="selected-name">{{ sp.name }}</span>
+                      <button type="button" class="qty-step" aria-label="Diminuir quantidade" [disabled]="addQuantity() <= 1" (click)="addQuantity.set(Math.max(1, addQuantity() - 1))">−</button>
                       <input
                         type="number"
                         min="1"
@@ -129,6 +146,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
                         [value]="addQuantity()"
                         (input)="addQuantity.set(Math.max(1, $any($event.target).valueAsNumber || 1))"
                       />
+                      <button type="button" class="qty-step" aria-label="Aumentar quantidade" (click)="addQuantity.set(addQuantity() + 1)">+</button>
                       <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="adding() || cargoReadOnly()" (click)="confirmAddItem(c)">
                         {{ adding() ? 'Adicionando…' : 'Adicionar' }}
                       </button>
@@ -415,34 +433,89 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
       font-size: 13.5px;
     }
 
-    .suggestions {
-      margin-top: 8px;
+    .product-grid {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+      gap: 8px;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    .product-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 12px 8px;
+      min-height: 96px;
+      background: var(--nx-surface-0);
       border: 1px solid var(--nx-line);
       border-radius: var(--nx-r-2);
-      overflow: hidden;
-    }
-
-    .suggestion-row {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 14px;
-      background: var(--nx-surface-0);
-      border: none;
-      border-bottom: 1px solid var(--nx-line);
       color: var(--nx-text);
-      font-size: 13px;
       cursor: pointer;
-      text-align: left;
+      text-align: center;
+      font-family: var(--nx-font-ui);
     }
 
-    .suggestion-row:last-child {
-      border-bottom: none;
-    }
-
-    .suggestion-row:hover {
+    .product-card:hover:not(:disabled) {
       background: var(--nx-surface-1);
+      border-color: var(--nx-line-strong);
+    }
+
+    .product-card:focus-visible,
+    .product-card.selected {
+      outline: 2px solid var(--nx-primary, currentColor);
+      outline-offset: -2px;
+    }
+
+    .product-card:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    .product-emoji {
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .product-name {
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.25;
+    }
+
+    .product-price {
+      font-size: 12.5px;
+      color: var(--nx-text-dim);
+    }
+
+    .product-stock {
+      font-size: 11px;
+    }
+
+    .product-stock.out {
+      color: #ff3b30;
+    }
+
+    .product-stock.low {
+      color: var(--nx-text-dim);
+    }
+
+    .qty-step {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      color: var(--nx-text);
+      font-size: 18px;
+      cursor: pointer;
+    }
+
+    .qty-step:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
 
     .selected-row {
@@ -780,12 +853,9 @@ export class PanelOrderDetailComponent {
   });
 
   protected readonly addSuggestions = computed(() => {
-    if (this.selectedProduct()) return [];
     const q = this.addQuery().trim().toLowerCase();
-    if (!q) return [];
-    return this.products()
-      .filter((p) => p.name.toLowerCase().includes(q))
-      .slice(0, 6);
+    const all = this.products();
+    return q ? all.filter((p) => p.name.toLowerCase().includes(q)) : all;
   });
 
   constructor() {

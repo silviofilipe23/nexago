@@ -581,3 +581,40 @@ describe("fix pass — invariantes que a revisão final achou", () => {
     assert.equal(doc["code"], "NX-CAM-BRANCO-P");
   });
 });
+
+describe("códigos de barras desnormalizados no produto", () => {
+  const AXES_BC = [
+    {id: "cor", label: "Cor", values: [{id: "branco", label: "Branco"}, {id: "preto", label: "Preto"}]},
+  ];
+
+  it("o produto guarda os códigos dos SKUs, que é por onde a lista busca", async () => {
+    const {fake, db} = makeDb();
+    const {productId} = await saveStoreProductCore(db, input(), ACTOR, NOW);
+    await saveVariationsCore(db, {
+      productId, version: 1, axes: AXES_BC,
+      skus: [
+        {axisValues: {cor: "branco"}, stockByLocation: {cd: 3}, priceCents: null, barcode: "789100001"},
+        {axisValues: {cor: "preto"}, stockByLocation: {cd: 2}, priceCents: null, barcode: "789100002"},
+      ],
+    }, ACTOR, NOW);
+
+    assert.deepEqual(fake.store.get(`storeProducts/${productId}`)!["barcodes"], [
+      "789100001",
+      "789100002",
+    ]);
+  });
+
+  it("SKU sem código não deixa buraco na lista", async () => {
+    const {fake, db} = makeDb();
+    const {productId} = await saveStoreProductCore(db, input(), ACTOR, NOW);
+    await saveVariationsCore(db, {
+      productId, version: 1, axes: AXES_BC,
+      skus: [
+        {axisValues: {cor: "branco"}, stockByLocation: {cd: 3}, priceCents: null, barcode: null},
+        {axisValues: {cor: "preto"}, stockByLocation: {cd: 2}, priceCents: null, barcode: "789100002"},
+      ],
+    }, ACTOR, NOW);
+
+    assert.deepEqual(fake.store.get(`storeProducts/${productId}`)!["barcodes"], ["789100002"]);
+  });
+});

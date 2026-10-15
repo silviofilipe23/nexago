@@ -52,28 +52,32 @@ const GRADE_CAMISETA = {
 
 function camisetaSkus() {
   const out = [];
+  // Um código de barras só, no primeiro SKU: o suficiente para a busca da lista
+  // ter o que casar sem inventar 15 códigos falsos.
+  let primeiro = true;
   for (const [cor, porTamanho] of Object.entries(GRADE_CAMISETA)) {
     for (const [tam, stock] of Object.entries(porTamanho)) {
       out.push({
         id: `${cor}_${tam}`,
         code: `NX-CAM-${cor.toUpperCase()}-${tam.toUpperCase()}`,
-        barcode: null,
+        barcode: primeiro ? "7891000200017" : null,
         axisValues: {cor, tam},
         priceCents: null,
         stockByLocation: {cd: stock},
         stock,
       });
+      primeiro = false;
     }
   }
   return out;
 }
 
 /** Produto sem eixo: um SKU só, com o código igual à raiz. */
-function skuUnico(baseSku, stock) {
+function skuUnico(baseSku, stock, barcode = null) {
   return [{
     id: "unico",
     code: baseSku,
-    barcode: null,
+    barcode,
     axisValues: {},
     priceCents: null,
     stockByLocation: {cd: stock},
@@ -87,7 +91,7 @@ const PRODUCTS = [
     slug: "bola-nexago-pro-beach", category: "bolas", collection: "linha-pro",
     priceCents: 28990, compareAtPriceCents: 32990, costCents: null,
     lowStockThreshold: 10, soldLast30: 64, active: true, status: "ativo",
-    axes: [], skus: skuUnico("NX-BOL", 86),
+    axes: [], skus: skuUnico("NX-BOL", 86, "7891000100011"),
   },
   {
     id: "p-camiseta-dry-uv50", name: "Camiseta Dry UV50 Areia", baseSku: "NX-CAM",
@@ -101,42 +105,42 @@ const PRODUCTS = [
     slug: "oculos-polarizado-sunline", category: "acessorios", collection: "verao-2026",
     priceCents: 19990, compareAtPriceCents: null, costCents: null,
     lowStockThreshold: 10, soldLast30: 21, active: true, status: "ativo",
-    axes: [], skus: skuUnico("NX-OCU", 22),
+    axes: [], skus: skuUnico("NX-OCU", 22, "7891000300014"),
   },
   {
     id: "p-viseira-dry-fit", name: "Viseira Dry Fit", baseSku: "NX-VIS",
     slug: "viseira-dry-fit", category: "acessorios", collection: "verao-2026",
     priceCents: 6990, compareAtPriceCents: null, costCents: null,
     lowStockThreshold: 12, soldLast30: 47, active: true, status: "ativo",
-    axes: [], skus: skuUnico("NX-VIS", 9),
+    axes: [], skus: skuUnico("NX-VIS", 9, "7891000400011"),
   },
   {
     id: "p-rede-oficial-beach", name: "Rede Oficial Beach 8,5 m", baseSku: "NX-RED",
     slug: "rede-oficial-beach-8-5-m", category: "rede-quadra", collection: "linha-pro",
     priceCents: 45990, compareAtPriceCents: null, costCents: null,
     lowStockThreshold: 6, soldLast30: 6, active: true, status: "ativo",
-    axes: [], skus: skuUnico("NX-RED", 14),
+    axes: [], skus: skuUnico("NX-RED", 14, "7891000500018"),
   },
   {
     id: "p-kit-demarcacao", name: "Kit Demarcação de Quadra", baseSku: "NX-KIT",
     slug: "kit-demarcacao-de-quadra", category: "rede-quadra", collection: "linha-pro",
     priceCents: 34990, compareAtPriceCents: null, costCents: null,
     lowStockThreshold: 12, soldLast30: 9, active: true, status: "ativo",
-    axes: [], skus: skuUnico("NX-KIT", 11),
+    axes: [], skus: skuUnico("NX-KIT", 11, "7891000600015"),
   },
   {
     id: "p-garrafa-termica", name: "Garrafa Térmica 750 ml", baseSku: "NX-SQU",
     slug: "garrafa-termica-750-ml", category: "acessorios", collection: "verao-2026",
     priceCents: 8990, compareAtPriceCents: 10990, costCents: null,
     lowStockThreshold: 10, soldLast30: 33, active: true, status: "ativo",
-    axes: [], skus: skuUnico("NX-SQU", 58),
+    axes: [], skus: skuUnico("NX-SQU", 58, "7891000700012"),
   },
   {
     id: "p-mochila-praia", name: "Mochila Praia Impermeável", baseSku: "NX-MOC",
     slug: "mochila-praia-impermeavel", category: "acessorios", collection: null,
     priceCents: 23990, compareAtPriceCents: null, costCents: null,
     lowStockThreshold: 10, soldLast30: 12, active: false, status: "ativo",
-    axes: [], skus: skuUnico("NX-MOC", 0),
+    axes: [], skus: skuUnico("NX-MOC", 0, "7891000800019"),
   },
 ];
 
@@ -183,6 +187,7 @@ async function main() {
       shipping: {weightGrams: 300, lengthCm: 30, widthCm: 22, heightCm: 5},
       lowStockThreshold: p.lowStockThreshold, status: p.status, active: p.active,
       photos: [], soldLast30: p.soldLast30, ...rollups,
+      barcodes: p.skus.map((s) => s.barcode).filter((c) => typeof c === "string" && c !== ""),
       publishedAt: p.status === "ativo" ? now : null,
       version: 1, createdAt: now, updatedAt: now,
       updatedBy: {uid: "seed", name: "seed-store-catalog"},

@@ -6,7 +6,10 @@ const COMMON = {
   imageUrl: null,
 } satisfies Pick<StoreProduct, 'status' | 'channels' | 'imageUrl'>;
 
-/** Dados de exemplo da tela de Produtos. Saem quando a loja tiver backend. */
+/**
+ * Fixture dos specs. Deixou de ser o que a tela mostra quando o repositório passou a
+ * ler o Firestore — nenhum código de produção importa este arquivo.
+ */
 export const STORE_PRODUCTS: readonly StoreProduct[] = [
   {
     ...COMMON,
@@ -16,7 +19,7 @@ export const STORE_PRODUCTS: readonly StoreProduct[] = [
     barcodes: ['7891000100011', '7891000100028'],
     category: 'bolas',
     collections: ['linha-pro'],
-    variations: 2,
+    skuCount: 1,
     priceCents: 28990,
     compareAtPriceCents: 32990,
     stock: 86,
@@ -32,7 +35,7 @@ export const STORE_PRODUCTS: readonly StoreProduct[] = [
     barcodes: ['7891000200017'],
     category: 'vestuario',
     collections: ['verao-2026'],
-    variations: 15,
+    skuCount: 15,
     priceCents: 12990,
     compareAtPriceCents: null,
     stock: 34,
@@ -48,7 +51,7 @@ export const STORE_PRODUCTS: readonly StoreProduct[] = [
     barcodes: ['7891000300014'],
     category: 'acessorios',
     collections: ['verao-2026'],
-    variations: 3,
+    skuCount: 1,
     priceCents: 19990,
     compareAtPriceCents: null,
     stock: 22,
@@ -64,7 +67,7 @@ export const STORE_PRODUCTS: readonly StoreProduct[] = [
     barcodes: ['7891000400011'],
     category: 'acessorios',
     collections: ['verao-2026'],
-    variations: 3,
+    skuCount: 1,
     priceCents: 6990,
     compareAtPriceCents: null,
     stock: 9,
@@ -80,7 +83,7 @@ export const STORE_PRODUCTS: readonly StoreProduct[] = [
     barcodes: ['7891000500018'],
     category: 'rede-quadra',
     collections: ['linha-pro'],
-    variations: 1,
+    skuCount: 1,
     priceCents: 45990,
     compareAtPriceCents: null,
     stock: 14,
@@ -96,7 +99,7 @@ export const STORE_PRODUCTS: readonly StoreProduct[] = [
     barcodes: ['7891000600015'],
     category: 'rede-quadra',
     collections: ['linha-pro'],
-    variations: 1,
+    skuCount: 1,
     priceCents: 34990,
     compareAtPriceCents: null,
     stock: 11,
@@ -112,7 +115,7 @@ export const STORE_PRODUCTS: readonly StoreProduct[] = [
     barcodes: ['7891000700012'],
     category: 'acessorios',
     collections: ['verao-2026'],
-    variations: 4,
+    skuCount: 1,
     priceCents: 8990,
     compareAtPriceCents: 10990,
     stock: 58,
@@ -129,7 +132,7 @@ export const STORE_PRODUCTS: readonly StoreProduct[] = [
     category: 'acessorios',
     // Sem coleção de propósito: o filtro de coleção precisa do caso vazio.
     collections: [],
-    variations: 2,
+    skuCount: 1,
     priceCents: 23990,
     compareAtPriceCents: null,
     stock: 0,

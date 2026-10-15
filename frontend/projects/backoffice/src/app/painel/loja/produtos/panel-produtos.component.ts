@@ -4,6 +4,14 @@ import { IconComponent } from '../../ui/icon.component';
 import { PageHeaderComponent } from '../../ui/page-header.component';
 import { PanelCardComponent } from '../../ui/panel-card.component';
 import { PanelShellComponent } from '../../ui/panel-shell.component';
+import {
+  EMPTY_CRITERIA,
+  PRODUCT_TABS,
+  filterProducts,
+  tabCounts,
+  type ProductCriteria,
+  type ProductTab,
+} from './data/product-filters';
 import { ProductsRepository, type StoreProduct } from './data/products.repository';
 import { ProductRowComponent } from './ui/product-row.component';
 
@@ -36,6 +44,20 @@ type LoadState = 'loading' | 'ok' | 'error';
         </div>
       </bo-page-header>
 
+      <div class="tabs">
+        @for (tab of productTabs; track tab.id) {
+          <button
+            type="button"
+            [class.active]="criteria().tab === tab.id"
+            [attr.aria-pressed]="criteria().tab === tab.id"
+            (click)="setTab(tab.id)"
+          >
+            {{ tab.label }}
+            <span class="tab-count">{{ counts()[tab.id] }}</span>
+          </button>
+        }
+      </div>
+
       <div class="body">
         <bo-panel-card pad="sm" kicker="dados de exemplo" title="Catálogo">
           @if (state() === 'error') {
@@ -56,7 +78,14 @@ type LoadState = 'loading' | 'ok' | 'error';
           } @else if (rows().length === 0) {
             <div class="empty">
               <bo-icon name="archive" [size]="20" />
-              <p>Nenhum produto cadastrado</p>
+              @if (all().length === 0) {
+                <p>Nenhum produto cadastrado</p>
+              } @else {
+                <p>Nenhum produto com esses filtros</p>
+                <button type="button" class="bo-mini-btn" (click)="clearFilters()">
+                  Limpar filtros
+                </button>
+              }
             </div>
           } @else {
             <div class="table-head">
@@ -91,6 +120,52 @@ type LoadState = 'loading' | 'ok' | 'error';
       display: flex;
       align-items: center;
       gap: 10px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      padding: 10px 32px 0;
+      border-bottom: 1px solid var(--nx-line);
+      overflow-x: auto;
+      flex: none;
+    }
+
+    .tabs button {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      height: 36px;
+      padding: 0 12px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--nx-text-mute);
+      font-family: var(--nx-font-display);
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .tabs button:hover {
+      color: var(--nx-text);
+    }
+
+    .tabs button.active {
+      color: var(--nx-orange-500);
+      border-bottom-color: var(--nx-orange-500);
+    }
+
+    .tab-count {
+      font-family: var(--nx-font-mono);
+      font-size: 9.5px;
+      color: var(--nx-text-dim);
+    }
+
+    .tabs button.active .tab-count {
+      color: var(--nx-orange-500);
     }
 
     .body {
@@ -167,11 +242,15 @@ export class PanelProdutosComponent {
 
   protected readonly skeleton = [0, 1, 2, 3, 4, 5, 6, 7];
 
-  private readonly all = signal<StoreProduct[]>([]);
+  protected readonly all = signal<StoreProduct[]>([]);
   protected readonly state = signal<LoadState>('loading');
   protected readonly errorMessage = signal('');
 
-  protected readonly rows = computed(() => this.all());
+  protected readonly productTabs = PRODUCT_TABS;
+  protected readonly criteria = signal<ProductCriteria>(EMPTY_CRITERIA);
+
+  protected readonly rows = computed(() => filterProducts(this.all(), this.criteria()));
+  protected readonly counts = computed(() => tabCounts(this.all(), this.criteria()));
 
   protected readonly countLabel = computed(() => {
     const rows = this.all();
@@ -192,6 +271,14 @@ export class PanelProdutosComponent {
       this.errorMessage.set(callableErrorMessage(error));
       this.state.set('error');
     }
+  }
+
+  protected setTab(tab: ProductTab): void {
+    this.criteria.update((c) => ({ ...c, tab }));
+  }
+
+  protected clearFilters(): void {
+    this.criteria.set(EMPTY_CRITERIA);
   }
 
   protected setActive(id: string, active: boolean): void {

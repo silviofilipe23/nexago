@@ -91,4 +91,55 @@ describe('PanelProdutosComponent', () => {
     const host = await mount({ rows: [] });
     expect(host.textContent).toContain('Nenhum produto cadastrado');
   });
+
+  const tabs = (host: HTMLElement) =>
+    [...host.querySelectorAll('.tabs button')].map((e) => e.textContent!.replace(/\s+/g, ' ').trim());
+
+  const clickTab = async (host: HTMLElement, label: string) => {
+    const button = [...host.querySelectorAll('.tabs button')].find((e) =>
+      e.textContent!.includes(label),
+    ) as HTMLButtonElement;
+    button.click();
+    await settle();
+  };
+
+  it('mostra as abas com os contadores do exemplo', async () => {
+    const host = await mount();
+    expect(tabs(host)).toEqual([
+      'Todos 8',
+      'Ativos 7',
+      'Rascunhos 0',
+      'Esgotados 1',
+      'Estoque baixo 2',
+    ]);
+  });
+
+  it('trocar de aba muda as linhas da tabela', async () => {
+    const host = await mount();
+    await clickTab(host, 'Esgotados');
+    expect(names(host)).toEqual(['Mochila Praia Impermeável']);
+  });
+
+  it('desligar o toggle tira a linha da aba Ativos e baixa o contador', async () => {
+    const host = await mount();
+    await clickTab(host, 'Ativos');
+    expect(names(host).length).toBe(7);
+
+    const toggle = host.querySelector(
+      'bo-product-row [role="switch"][aria-label^="Desativar Bola"]',
+    ) as HTMLButtonElement;
+    toggle.click();
+    await settle();
+
+    expect(names(host).length).toBe(6);
+    expect(names(host)).not.toContain('Bola NexaGO Pro Beach');
+    expect(tabs(host)).toContain('Ativos 6');
+  });
+
+  it('aba sem resultado explica e oferece limpar os filtros', async () => {
+    const host = await mount();
+    await clickTab(host, 'Rascunhos');
+    expect(host.textContent).toContain('Nenhum produto com esses filtros');
+    expect(host.querySelector('.empty .bo-mini-btn')).not.toBeNull();
+  });
 });

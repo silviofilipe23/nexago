@@ -32,7 +32,7 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
       </div>
 
       <div class="cell-category">{{ categoryLabel() }}</div>
-      <div class="cell-variations">{{ product().variations }}</div>
+      <div class="cell-variations">{{ product().skuCount }}</div>
 
       <div class="cell-price">
         <div class="now">{{ price() }}</div>

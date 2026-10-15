@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
-import { STORE_PRODUCTS } from './products.mock';
+import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { backofficeDb } from '../../../data/firebase';
+import { storeProductFromDoc, type StoreProductDoc } from './product-doc';
 
 export type ProductCategory = 'bolas' | 'vestuario' | 'acessorios' | 'rede-quadra' | 'kits';
 export type ProductChannel = 'web' | 'app';
@@ -26,8 +28,8 @@ export interface StoreProduct {
   barcodes: string[];
   category: ProductCategory;
   collections: string[];
-  /** Quantidade de SKUs filhos. */
-  variations: number;
+  /** Quantidade de SKUs filhos (campo `skuCount` do documento). */
+  skuCount: number;
   priceCents: number;
   /** Preço antigo, riscado na tela. */
   compareAtPriceCents: number | null;
@@ -42,14 +44,19 @@ export interface StoreProduct {
 }
 
 /**
- * Leitura dos produtos da loja.
- *
- * Fase de desenho: devolve os dados de exemplo. A assinatura é a mesma que a versão
- * com Firestore vai ter, então a troca não encosta na tela.
+ * Leitura dos produtos da loja, direto do Firestore — o padrão do painel
+ * (`arenas.repository`, `tournaments.repository`). Escrita é só por callable.
  */
 @Injectable({ providedIn: 'root' })
 export class ProductsRepository {
-  list(): Promise<StoreProduct[]> {
-    return Promise.resolve(STORE_PRODUCTS.map((p) => ({ ...p })));
+  async list(): Promise<StoreProduct[]> {
+    const products = collection(backofficeDb(), 'storeProducts');
+    const snap = await getDocs(query(products, orderBy('name')));
+    // Arquivado some da lista: a tela não tem aba para ele. Filtrado aqui, e não na
+    // consulta, porque `where` + `orderBy` em campos diferentes exigiria índice composto.
+    return snap.docs
+      .map((d) => ({ id: d.id, data: d.data() as StoreProductDoc }))
+      .filter((d) => d.data.status !== 'arquivado')
+      .map((d) => storeProductFromDoc(d.id, d.data));
   }
 }

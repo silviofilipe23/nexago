@@ -55,7 +55,8 @@ describe('PanelProdutosComponent', () => {
   it('mostra total de produtos e de SKUs no cabeçalho', async () => {
     const host = await mount();
     expect(host.querySelector('.count-pill')!.textContent).toContain('8 produtos');
-    expect(host.querySelector('.count-pill')!.textContent).toContain('31 SKUs');
+    // 22, não 31: o 31 vinha do campo solto do mock; agora é a contagem real de SKUs.
+    expect(host.querySelector('.count-pill')!.textContent).toContain('22 SKUs');
   });
 
   it('mostra preço de agora e preço antigo riscado', async () => {

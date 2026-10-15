@@ -457,7 +457,7 @@ export class PanelProdutosComponent {
 
   protected readonly countLabel = computed(() => {
     const rows = this.all();
-    const skus = rows.reduce((total, p) => total + p.variations, 0);
+    const skus = rows.reduce((total, p) => total + p.skuCount, 0);
     return `${rows.length} produtos · ${skus} SKUs`;
   });
 

@@ -454,10 +454,15 @@ export async function saveVariationsCore(
     }
 
     const rollups = rollupsOf(next, existing["priceCents"] as number);
+    // Desnormalizado no pai porque a lista de Produtos busca por código de barras e
+    // não lê a subcoleção: sem isto a busca não teria o que casar.
+    const barcodes = next
+      .map((sku) => sku.barcode)
+      .filter((code): code is string => typeof code === "string" && code !== "");
     const version = input.version + 1;
     tx.set(
       ref,
-      {axes: input.axes, ...rollups, version, updatedAt: now, updatedBy: actor},
+      {axes: input.axes, ...rollups, barcodes, version, updatedAt: now, updatedBy: actor},
       {merge: true},
     );
 

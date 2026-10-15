@@ -3129,6 +3129,30 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Catálogo da Loja (produtos da marca nexaGO). Escrita só por callable:
+    // rollup, unicidade de SKU e versão de conflito são decisões de servidor.
+    match /storeProducts/{productId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+
+      match /skus/{skuId} {
+        allow read: if isAdmin() || isSuperAdmin();
+        allow write: if false;
+      }
+    }
+
+    // Custo fica fora do doc do produto: rule não esconde campo, e o produto
+    // vai ser legível pela vitrine um dia.
+    match /storeProductCosts/{productId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    // Documentos-chave de unicidade. Só o Admin SDK toca.
+    match /storeCatalogKeys/{key} {
+      allow read, write: if false;
+    }
+
     // NEGAÇÃO padrão para caminhos não mapeados.
     // ATENÇÃO à semântica do Firestore: quando vários `match` cobrem o mesmo
     // caminho, os `allow` fazem OR — um catch-all com `allow read` CONCEDE

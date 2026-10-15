@@ -48,8 +48,8 @@ export interface SaveProductInput {
   badge: ProductBadge | null;
   priceCents: number;
   compareAtPriceCents: number | null;
-  /** Ausente/null = não informado. Zero é custo informado. */
-  costCents: number | null;
+  /** Omitido = não mexe no custo. `null` = apagar. Zero é custo informado. */
+  costCents?: number | null;
   channels: {app: boolean; web: boolean};
   fulfillment: {pickup: boolean; delivery: boolean};
   featured: boolean;
@@ -57,6 +57,56 @@ export interface SaveProductInput {
   lowStockThreshold: number;
   status: ProductStatus;
   active: boolean;
+}
+
+const STATUSES: ProductStatus[] = ["rascunho", "ativo", "arquivado"];
+const BADGES: ProductBadge[] = ["nova", "mais-vendida", "edicao-limitada"];
+/** Vai cru para o id de um documento de chave: nada que quebre caminho do Firestore. */
+const BASE_SKU_RE = /^[A-Z0-9][A-Z0-9-]*$/;
+const AXIS_ID_RE = /^[a-z0-9][a-z0-9_-]*$/;
+
+function isCount(v: unknown): boolean {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0;
+}
+
+function invalidFields(fields: string[]): HttpsError {
+  return new HttpsError("invalid-argument", "Dados inválidos.", {fields: [...new Set(fields)].sort()});
+}
+
+/**
+ * As rules negam escrita de cliente, então esta é a única porta do catálogo:
+ * o que não for barrado aqui vira documento ruim que ninguém mais filtra.
+ */
+function validateProductInput(input: SaveProductInput): void {
+  const fields: string[] = [];
+  const name = typeof input.name === "string" ? input.name.trim() : "";
+  if (name === "" || name.length > 80) fields.push("name");
+  if (typeof input.category !== "string" || input.category === "") fields.push("category");
+  if (typeof input.baseSku !== "string" || !BASE_SKU_RE.test(input.baseSku)) fields.push("baseSku");
+  if (!isCount(input.priceCents)) fields.push("priceCents");
+  if (input.compareAtPriceCents != null && !isCount(input.compareAtPriceCents)) {
+    fields.push("compareAtPriceCents");
+  }
+  if (input.costCents != null && !isCount(input.costCents)) fields.push("costCents");
+  if (!isCount(input.lowStockThreshold)) fields.push("lowStockThreshold");
+  if (!STATUSES.includes(input.status)) fields.push("status");
+  if (input.badge != null && !BADGES.includes(input.badge)) fields.push("badge");
+  if (typeof input.active !== "boolean") fields.push("active");
+  if (typeof input.channels?.app !== "boolean" || typeof input.channels?.web !== "boolean") {
+    fields.push("channels");
+  }
+  if (
+    typeof input.fulfillment?.pickup !== "boolean" ||
+    typeof input.fulfillment?.delivery !== "boolean"
+  ) {
+    fields.push("fulfillment");
+  }
+  if (input.shipping != null) {
+    const ship = input.shipping as unknown as Record<string, unknown>;
+    const ok = ["weightGrams", "lengthCm", "widthCm", "heightCm"].every((k) => isCount(ship[k]));
+    if (!ok) fields.push("shipping");
+  }
+  if (fields.length > 0) throw invalidFields(fields);
 }
 
 /** `failed-precondition` com quem salvou antes: é o que o banner de conflito mostra. */
@@ -111,12 +161,39 @@ async function freeSlug(
   throw new HttpsError("invalid-argument", "Escolha outro nome: este já tem cópias demais.");
 }
 
+/** Procura uma raiz de SKU livre para a cópia, do mesmo jeito que `freeSlug` faz com o slug. */
+async function freeCopyBaseSku(
+  tx: Transaction,
+  db: Firestore,
+  sourceBaseSku: string,
+  axes: Axis[],
+  axisValuesList: Record<string, string>[],
+  copyId: string,
+): Promise<string> {
+  for (let n = 1; n <= 50; n++) {
+    const candidate = n === 1 ? `${sourceBaseSku}-COPIA` : `${sourceBaseSku}-COPIA-${n}`;
+    let free = true;
+    for (const axisValues of axisValuesList) {
+      const code = skuCodeFrom(candidate, axisValues, axes);
+      const snap = await tx.get(db.collection(KEYS).doc(`sku:${code}`));
+      if (snap.exists && snap.data()?.["productId"] !== copyId) {
+        free = false;
+        break;
+      }
+    }
+    if (free) return candidate;
+  }
+  throw new HttpsError("invalid-argument", "Este produto já tem cópias demais.");
+}
+
 export async function saveStoreProductCore(
   db: Firestore,
   input: SaveProductInput,
   actor: Actor,
   now: Date,
 ): Promise<{productId: string; version: number; slug: string}> {
+  validateProductInput(input);
+
   if (input.status === "ativo") {
     const fields = publishValidationErrors(input);
     if (fields.length > 0) {
@@ -138,6 +215,11 @@ export async function saveStoreProductCore(
 
     const slug = await freeSlug(tx, db, slugify(input.name), productId);
 
+    // O 'a partir de' depende dos SKUs: recalcular, senão ele congela no preço antigo.
+    const skusSnap = await tx.get(ref.collection("skus"));
+    const skus = skusSnap.docs.map((d) => d.data() as unknown as SkuDoc);
+    const rollups = rollupsOf(skus, input.priceCents);
+
     // ---------- escritas ----------
     const previousSlug = existing?.["slug"] as string | undefined;
     if (previousSlug && previousSlug !== slug) {
@@ -157,25 +239,26 @@ export async function saveStoreProductCore(
         slug,
         baseSku: input.baseSku,
         category: input.category,
-        collection: input.collection,
-        brand: input.brand,
-        description: input.description,
-        technicalDetails: input.technicalDetails,
-        badge: input.badge,
+        collection: input.collection ?? null,
+        brand: input.brand ?? "NexaGO",
+        description: input.description ?? "",
+        technicalDetails: input.technicalDetails ?? [],
+        badge: input.badge ?? null,
         priceCents: input.priceCents,
-        compareAtPriceCents: input.compareAtPriceCents,
+        compareAtPriceCents: input.compareAtPriceCents ?? null,
+        // Os eixos são do produto e o cliente não os reenvia neste payload:
+        // sem preservar, salvar o preço apagaria rótulo e cor de cada variação.
+        axes: existing?.["axes"] ?? [],
         channels: input.channels,
         fulfillment: input.fulfillment,
-        featured: input.featured,
-        shipping: input.shipping,
+        featured: input.featured ?? false,
+        shipping: input.shipping ?? null,
         lowStockThreshold: input.lowStockThreshold,
         status: input.status,
         active: input.active,
         photos: existing?.["photos"] ?? [],
         soldLast30: existing?.["soldLast30"] ?? 0,
-        skuCount: existing?.["skuCount"] ?? 0,
-        stockTotal: existing?.["stockTotal"] ?? 0,
-        priceFromCents: existing?.["priceFromCents"] ?? input.priceCents,
+        ...rollups,
         publishedAt,
         version,
         createdAt: existing?.["createdAt"] ?? now,
@@ -185,8 +268,11 @@ export async function saveStoreProductCore(
       {merge: false},
     );
 
-    // Custo fora do produto: `null` é "não informado", zero é custo informado.
-    if (input.costCents !== null) {
+    // Custo fora do produto. Omitido = não mexe; `null` = o admin apagou e o
+    // documento tem de sumir, senão a margem segue sendo feita sobre o custo velho.
+    if (input.costCents === null) {
+      tx.delete(db.collection(COSTS).doc(productId));
+    } else if (input.costCents !== undefined) {
       tx.set(db.collection(COSTS).doc(productId), {costCents: input.costCents, updatedAt: now});
     }
 
@@ -227,6 +313,56 @@ export interface SaveVariationsInput {
   skus: SkuInput[];
 }
 
+/**
+ * Sem isto, duas linhas na mesma combinação viram UM documento enquanto o
+ * rollup conta DUAS — estoque fantasma que a vitrine venderia, exatamente a
+ * invariante que justifica a escrita só por servidor.
+ */
+function validateVariationsInput(input: SaveVariationsInput): void {
+  const fields: string[] = [];
+  const axisIds = new Set<string>();
+  const valuesByAxis = new Map<string, Set<string>>();
+
+  for (const axis of input.axes ?? []) {
+    if (typeof axis?.id !== "string" || !AXIS_ID_RE.test(axis.id) || axisIds.has(axis.id)) {
+      fields.push("axes");
+      continue;
+    }
+    axisIds.add(axis.id);
+    const values = new Set<string>();
+    for (const value of axis.values ?? []) {
+      if (typeof value?.id !== "string" || !AXIS_ID_RE.test(value.id) || values.has(value.id)) {
+        fields.push("axes");
+        continue;
+      }
+      values.add(value.id);
+    }
+    valuesByAxis.set(axis.id, values);
+  }
+
+  const seen = new Set<string>();
+  for (const sku of input.skus ?? []) {
+    const given = Object.keys(sku?.axisValues ?? {});
+    if (given.length !== axisIds.size || !given.every((id) => axisIds.has(id))) {
+      fields.push("skus.axisValues");
+      continue;
+    }
+    const foraDoEixo = given.some((id) => !valuesByAxis.get(id)!.has(sku.axisValues[id]!));
+    if (foraDoEixo) {
+      fields.push("skus.axisValues");
+      continue;
+    }
+    const id = skuIdFromAxisValues(sku.axisValues, input.axes);
+    if (seen.has(id)) {
+      fields.push("skus.duplicados");
+      continue;
+    }
+    seen.add(id);
+  }
+
+  if (fields.length > 0) throw invalidFields(fields);
+}
+
 export async function saveVariationsCore(
   db: Firestore,
   input: SaveVariationsInput,
@@ -239,6 +375,7 @@ export async function saveVariationsCore(
   if (input.skus.length === 0) {
     throw new HttpsError("invalid-argument", "O produto precisa de ao menos um SKU.");
   }
+  validateVariationsInput(input);
   if (input.skus.length > MAX_SKUS_PER_PRODUCT) {
     throw new HttpsError(
       "invalid-argument",
@@ -297,14 +434,23 @@ export async function saveVariationsCore(
       await assertKeyFree(tx, db, `sku:${sku.code}`, input.productId);
     }
 
+    const codeById = new Map(currentSnap.docs.map((d) => [d.id, d.data()["code"] as string]));
+
     // ---------- escritas ----------
     for (const doc of dropped) {
       tx.delete(doc.ref);
       tx.delete(db.collection(KEYS).doc(`sku:${doc.data()["code"]}`));
     }
     for (const sku of next) {
+      // Renomear a raiz (baseSku) muda o código do SKU mantido: sem apagar a
+      // chave antiga ela fica órfã e bloqueia aquele código para sempre.
+      const oldCode = codeById.get(sku.id);
+      if (oldCode && oldCode !== sku.code) {
+        tx.delete(db.collection(KEYS).doc(`sku:${oldCode}`));
+      }
       writeKey(tx, db, `sku:${sku.code}`, {productId: input.productId, skuId: sku.id});
-      tx.set(skusRef.doc(sku.id), sku, {merge: false});
+      const {id: _id, ...data} = sku;
+      tx.set(skusRef.doc(sku.id), data, {merge: false});
     }
 
     const rollups = rollupsOf(next, existing["priceCents"] as number);
@@ -373,7 +519,14 @@ export async function duplicateCore(
     const slug = await freeSlug(tx, db, slugify(name), copyId);
 
     const axes = (source["axes"] ?? []) as Axis[];
-    const baseSku = `${source["baseSku"]}-COPIA`;
+    const axisValuesList = sourceSkus.docs.map(
+      (d) => d.data()["axisValues"] as Record<string, string>,
+    );
+    // A raiz precisa desempatar como o slug: senão a segunda cópia colide
+    // com os códigos de SKU da primeira e o botão Duplicar simplesmente falha.
+    const baseSku = await freeCopyBaseSku(
+      tx, db, source["baseSku"] as string, axes, axisValuesList, copyId,
+    );
     const skus: SkuDoc[] = sourceSkus.docs.map((d) => {
       const data = d.data();
       return {
@@ -388,15 +541,14 @@ export async function duplicateCore(
       };
     });
 
-    for (const sku of skus) {
-      await assertKeyFree(tx, db, `sku:${sku.code}`, copyId);
-    }
+    const rollups = rollupsOf(skus, source["priceCents"] as number);
 
     // ---------- escritas ----------
     writeKey(tx, db, `slug:${slug}`, {productId: copyId});
     for (const sku of skus) {
       writeKey(tx, db, `sku:${sku.code}`, {productId: copyId, skuId: sku.id});
-      tx.set(copyRef.collection("skus").doc(sku.id), sku, {merge: false});
+      const {id: _id, ...data} = sku;
+      tx.set(copyRef.collection("skus").doc(sku.id), data, {merge: false});
     }
 
     tx.set(copyRef, {
@@ -409,9 +561,7 @@ export async function duplicateCore(
       publishedAt: null,
       photos: [],
       soldLast30: 0,
-      skuCount: skus.length,
-      stockTotal: 0,
-      priceFromCents: source["priceCents"],
+      ...rollups,
       version: 1,
       createdAt: now,
       updatedAt: now,

@@ -190,8 +190,10 @@ Criação não manda `version` e o documento nasce com `version: 1`.
 
 `functions/scripts/seed-store-catalog.js`, no padrão dos vizinhos (`--project`, `--yes`), escrevendo
 pelo Admin SDK — que não passa pelas callables nem pelas rules. Semeia os 8 produtos do mock da tela de
-Produtos, com a Camiseta ganhando os eixos reais do mockup: 3 cores × 5 tamanhos = 15 SKUs, somando
-**31 SKUs** no total, para a fatia B encontrar exatamente os números que a tela já testa.
+Produtos, com a Camiseta ganhando os eixos reais do mockup: 3 cores × 5 tamanhos = 15 SKUs. Os outros
+sete não têm eixo e ganham um SKU cada, então o catálogo semeado tem **22 SKUs**, não os 31 que a tela
+mostra hoje — aquele número vem do campo `variations` do mock, que era um inteiro solto. Quando a
+fatia B passar a ler `skuCount`, o cabeçalho passa a dizer 22.
 
 ## Testes
 

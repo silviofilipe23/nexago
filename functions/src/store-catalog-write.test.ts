@@ -389,3 +389,195 @@ describe("duplicateCore", () => {
     assert.equal(fake.store.has(`storeProductCosts/${copy.productId}`), false);
   });
 });
+
+describe("fix pass — invariantes que a revisão final achou", () => {
+  const AXES_FIX = [
+    {id: "cor", label: "Cor", values: [
+      {id: "branco", label: "Branco areia", hex: "#F2EDE4"},
+      {id: "laranja", label: "Laranja", hex: "#FF6A1A"},
+    ]},
+    {id: "tam", label: "Tamanho", values: [{id: "p", label: "P"}, {id: "m", label: "M"}]},
+  ];
+
+  function sku(cor: string, tam: string, stock: number, priceCents: number | null = null) {
+    return {axisValues: {cor, tam}, stockByLocation: {cd: stock}, priceCents, barcode: null};
+  }
+
+  async function withGrid() {
+    const made = makeDb();
+    const {productId} = await saveStoreProductCore(made.db, input(), ACTOR, NOW);
+    await saveVariationsCore(made.db, {
+      productId, version: 1, axes: AXES_FIX,
+      skus: [sku("branco", "p", 6), sku("laranja", "m", 2)],
+    }, ACTOR, NOW);
+    return {...made, productId};
+  }
+
+  it("salvar o produto não apaga os eixos que o admin cadastrou", async () => {
+    const {fake, db, productId} = await withGrid();
+    await saveStoreProductCore(db, input({productId, version: 2, priceCents: 9990}), ACTOR, NOW);
+
+    const doc = fake.store.get(`storeProducts/${productId}`)!;
+    expectAxisIds(doc, ["cor", "tam"]);
+    assert.equal(doc["skuCount"], 2);
+  });
+
+  function expectAxisIds(doc: Record<string, unknown>, ids: string[]) {
+    const axes = (doc["axes"] ?? []) as {id: string}[];
+    assert.deepEqual(axes.map((a) => a.id), ids);
+  }
+
+  it("dois SKUs na mesma combinação são recusados, em vez de virar estoque fantasma", async () => {
+    const {db, productId} = await withGrid();
+    await assert.rejects(
+      () => saveVariationsCore(db, {
+        productId, version: 2, axes: AXES_FIX,
+        skus: [sku("branco", "p", 6), sku("branco", "p", 5)],
+      }, ACTOR, NOW),
+      (err: Error & {code?: string}) => {
+        assert.equal(err.code, "invalid-argument");
+        return true;
+      },
+    );
+  });
+
+  it("valor de eixo que não existe no eixo declarado é recusado", async () => {
+    const {db, productId} = await withGrid();
+    await assert.rejects(
+      () => saveVariationsCore(db, {
+        productId, version: 2, axes: AXES_FIX, skus: [sku("azul", "p", 7)],
+      }, ACTOR, NOW),
+      (err: Error & {code?: string}) => {
+        assert.equal(err.code, "invalid-argument");
+        return true;
+      },
+    );
+  });
+
+  it("SKU sem um dos eixos declarados é recusado, em vez de colapsar em 'unico'", async () => {
+    const {db, productId} = await withGrid();
+    await assert.rejects(
+      () => saveVariationsCore(db, {
+        productId, version: 2, axes: AXES_FIX,
+        skus: [{axisValues: {cor: "branco"}, stockByLocation: {cd: 3}, priceCents: null, barcode: null}],
+      }, ACTOR, NOW),
+      (err: Error & {code?: string}) => {
+        assert.equal(err.code, "invalid-argument");
+        return true;
+      },
+    );
+  });
+
+  it("rollup e documentos sempre batem depois de um save válido", async () => {
+    const {fake, productId} = await withGrid();
+    const product = fake.store.get(`storeProducts/${productId}`)!;
+    const docs = [...fake.store.keys()].filter((k) => k.startsWith(`storeProducts/${productId}/skus/`));
+    assert.equal(product["skuCount"], docs.length);
+    assert.equal(
+      product["stockTotal"],
+      docs.reduce((t, k) => t + (fake.store.get(k)!["stock"] as number), 0),
+    );
+  });
+
+  it("custo omitido não quebra o save", async () => {
+    const {fake, db} = makeDb();
+    const semCusto = input();
+    delete (semCusto as {costCents?: number | null}).costCents;
+    const {productId} = await saveStoreProductCore(db, semCusto, ACTOR, NOW);
+    assert.equal(fake.store.get(`storeProducts/${productId}`)!["name"], "Camiseta Dry UV50 Areia");
+  });
+
+  it("custo nulo explícito apaga o custo que existia", async () => {
+    const {fake, db} = makeDb();
+    const {productId} = await saveStoreProductCore(db, input(), ACTOR, NOW);
+    assert.ok(fake.store.has(`storeProductCosts/${productId}`));
+
+    await saveStoreProductCore(db, input({productId, version: 1, costCents: null}), ACTOR, NOW);
+    assert.equal(fake.store.has(`storeProductCosts/${productId}`), false);
+  });
+
+  it("entrada sem nome vira invalid-argument, não erro interno", async () => {
+    const {db} = makeDb();
+    const semNome = input({status: "rascunho"});
+    delete (semNome as {name?: string}).name;
+    await assert.rejects(
+      () => saveStoreProductCore(db, semNome, ACTOR, NOW),
+      (err: Error & {code?: string; details?: {fields?: string[]}}) => {
+        assert.equal(err.code, "invalid-argument");
+        assert.ok(err.details?.fields?.includes("name"));
+        return true;
+      },
+    );
+  });
+
+  it("status fora do enum e preço negativo são recusados", async () => {
+    const {db} = makeDb();
+    await assert.rejects(
+      () => saveStoreProductCore(db, input({status: "qualquer" as never}), ACTOR, NOW),
+      (err: Error & {code?: string}) => (assert.equal(err.code, "invalid-argument"), true),
+    );
+    await assert.rejects(
+      () => saveStoreProductCore(db, input({status: "rascunho", priceCents: -5}), ACTOR, NOW),
+      (err: Error & {code?: string}) => (assert.equal(err.code, "invalid-argument"), true),
+    );
+  });
+
+  it("baseSku com caractere que quebra caminho de documento é recusado", async () => {
+    const {db} = makeDb();
+    await assert.rejects(
+      () => saveStoreProductCore(db, input({status: "rascunho", baseSku: "NX/CAM"}), ACTOR, NOW),
+      (err: Error & {code?: string}) => (assert.equal(err.code, "invalid-argument"), true),
+    );
+  });
+
+  it("baixar o preço do produto atualiza o 'a partir de'", async () => {
+    const {fake, db} = makeDb();
+    const {productId} = await saveStoreProductCore(db, input(), ACTOR, NOW);
+    await saveVariationsCore(db, {
+      productId, version: 1, axes: AXES_FIX, skus: [sku("branco", "p", 6, 9900)],
+    }, ACTOR, NOW);
+    assert.equal(fake.store.get(`storeProducts/${productId}`)!["priceFromCents"], 9900);
+
+    await saveStoreProductCore(db, input({productId, version: 2, priceCents: 4900}), ACTOR, NOW);
+    assert.equal(fake.store.get(`storeProducts/${productId}`)!["priceFromCents"], 4900);
+  });
+
+  it("renomear a raiz do SKU não deixa chave órfã bloqueando outro produto", async () => {
+    const {fake, db, productId} = await withGrid();
+    assert.ok(fake.store.has("storeCatalogKeys/sku:NX-CAM-BRANCO-P"));
+
+    await saveStoreProductCore(db, input({productId, version: 2, baseSku: "NX-TSH"}), ACTOR, NOW);
+    await saveVariationsCore(db, {
+      productId, version: 3, axes: AXES_FIX,
+      skus: [sku("branco", "p", 6), sku("laranja", "m", 2)],
+    }, ACTOR, NOW);
+
+    assert.ok(fake.store.has("storeCatalogKeys/sku:NX-TSH-BRANCO-P"));
+    assert.equal(fake.store.has("storeCatalogKeys/sku:NX-CAM-BRANCO-P"), false);
+  });
+
+  it("duplicar o mesmo produto duas vezes funciona", async () => {
+    const {db, productId} = await withGrid();
+    const first = await duplicateCore(db, {productId}, ACTOR, NOW);
+    const second = await duplicateCore(db, {productId}, ACTOR, NOW);
+    assert.notEqual(first.productId, second.productId);
+  });
+
+  it("a cópia leva o 'a partir de' das suas próprias variações", async () => {
+    const {fake, db} = makeDb();
+    const {productId} = await saveStoreProductCore(db, input(), ACTOR, NOW);
+    await saveVariationsCore(db, {
+      productId, version: 1, axes: AXES_FIX, skus: [sku("branco", "p", 6, 8900)],
+    }, ACTOR, NOW);
+
+    const copy = await duplicateCore(db, {productId}, ACTOR, NOW);
+    assert.equal(fake.store.get(`storeProducts/${copy.productId}`)!["priceFromCents"], 8900);
+  });
+
+  it("o documento do SKU não repete o id dentro dele, igual ao seed", async () => {
+    const {fake, productId} = await withGrid();
+    const doc = fake.store.get(`storeProducts/${productId}/skus/branco_p`)!;
+    assert.equal(doc["id"], undefined);
+    assert.equal(doc["code"], "NX-CAM-BRANCO-P");
+  });
+});

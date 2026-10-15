@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { callableErrorMessage } from '../../data/callable-error';
 import { IconComponent } from '../../ui/icon.component';
 import { PageHeaderComponent } from '../../ui/page-header.component';
@@ -7,12 +8,19 @@ import { PanelShellComponent } from '../../ui/panel-shell.component';
 import {
   EMPTY_CRITERIA,
   PRODUCT_TABS,
+  criteriaFromParams,
   filterProducts,
+  paramsFromCriteria,
   tabCounts,
   type ProductCriteria,
   type ProductTab,
 } from './data/product-filters';
-import { ProductsRepository, type StoreProduct } from './data/products.repository';
+import {
+  PRODUCT_CATEGORY_LABELS,
+  ProductsRepository,
+  type ProductCategory,
+  type StoreProduct,
+} from './data/products.repository';
 import { ProductRowComponent } from './ui/product-row.component';
 
 type LoadState = 'loading' | 'ok' | 'error';
@@ -54,6 +62,61 @@ type LoadState = 'loading' | 'ok' | 'error';
           >
             {{ tab.label }}
             <span class="tab-count">{{ counts()[tab.id] }}</span>
+          </button>
+        }
+      </div>
+
+      <div class="bo-filter-bar">
+        <div class="search">
+          <bo-icon name="search" [size]="15" />
+          <input
+            type="search"
+            class="search-input"
+            placeholder="Nome, SKU ou código de barras"
+            aria-label="Buscar produto"
+            [value]="criteria().q"
+            (input)="setSearch(value($event))"
+          />
+        </div>
+
+        <select class="bo-select" aria-label="Categoria" (change)="setCategoryFromSelect(value($event))">
+          <option value="" [selected]="criteria().category === null">Categoria</option>
+          @for (category of categories; track category.id) {
+            <option [value]="category.id" [selected]="criteria().category === category.id">
+              {{ category.label }}
+            </option>
+          }
+        </select>
+
+        <select class="bo-select" aria-label="Canal" (change)="setChannel(value($event))">
+          <option value="" [selected]="criteria().channel === null">Canal</option>
+          @for (channel of channels; track channel.id) {
+            <option [value]="channel.id" [selected]="criteria().channel === channel.id">
+              {{ channel.label }}
+            </option>
+          }
+        </select>
+
+        <select class="bo-select" aria-label="Coleção" (change)="setCollection(value($event))">
+          <option value="" [selected]="criteria().collection === null">Coleção</option>
+          @for (collection of collections; track collection.id) {
+            <option [value]="collection.id" [selected]="criteria().collection === collection.id">
+              {{ collection.label }}
+            </option>
+          }
+        </select>
+
+        <div class="spacer"></div>
+
+        @for (category of categories; track category.id) {
+          <button
+            type="button"
+            class="bo-chip"
+            [class.active]="criteria().category === category.id"
+            [attr.aria-pressed]="criteria().category === category.id"
+            (click)="toggleCategory(category.id)"
+          >
+            {{ category.label }}
           </button>
         }
       </div>
@@ -120,6 +183,40 @@ type LoadState = 'loading' | 'ok' | 'error';
       display: flex;
       align-items: center;
       gap: 10px;
+    }
+
+    .search {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 32px;
+      padding: 0 11px;
+      min-width: 280px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-0);
+      border: 1px solid var(--nx-line);
+      color: var(--nx-text-dim);
+      flex: none;
+    }
+
+    .search-input {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--nx-text);
+      font-family: var(--nx-font-display);
+      font-size: 12.5px;
+      width: 100%;
+    }
+
+    .search-input::placeholder {
+      color: var(--nx-text-dim);
+    }
+
+    .bo-filter-bar .spacer {
+      flex: 1;
+      min-width: 12px;
     }
 
     .tabs {
@@ -239,6 +336,21 @@ type LoadState = 'loading' | 'ok' | 'error';
 })
 export class PanelProdutosComponent {
   private readonly repository = inject(ProductsRepository);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+  protected readonly categories = (Object.keys(PRODUCT_CATEGORY_LABELS) as ProductCategory[]).map(
+    (id) => ({ id, label: PRODUCT_CATEGORY_LABELS[id] }),
+  );
+  protected readonly channels = [
+    { id: 'web', label: 'Web' },
+    { id: 'app', label: 'App' },
+  ] as const;
+  protected readonly collections = [
+    { id: 'verao-2026', label: 'Verão 2026' },
+    { id: 'linha-pro', label: 'Linha Pro' },
+  ];
 
   protected readonly skeleton = [0, 1, 2, 3, 4, 5, 6, 7];
 
@@ -259,6 +371,9 @@ export class PanelProdutosComponent {
   });
 
   constructor() {
+    const params = this.route.snapshot.queryParamMap;
+    const raw = Object.fromEntries(params.keys.map((k) => [k, params.get(k)]));
+    this.criteria.set(criteriaFromParams(raw));
     void this.reload();
   }
 
@@ -273,12 +388,60 @@ export class PanelProdutosComponent {
     }
   }
 
+  /** Único ponto de escrita do critério, para a URL nunca discordar da tela. */
+  private apply(next: ProductCriteria): void {
+    this.criteria.set(next);
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: paramsFromCriteria(next),
+      replaceUrl: true,
+    });
+  }
+
   protected setTab(tab: ProductTab): void {
-    this.criteria.update((c) => ({ ...c, tab }));
+    this.apply({ ...this.criteria(), tab });
   }
 
   protected clearFilters(): void {
-    this.criteria.set(EMPTY_CRITERIA);
+    this.apply(EMPTY_CRITERIA);
+  }
+
+  protected setCategory(category: ProductCategory | null): void {
+    this.apply({ ...this.criteria(), category });
+  }
+
+  protected toggleCategory(category: ProductCategory): void {
+    this.setCategory(this.criteria().category === category ? null : category);
+  }
+
+  /** O `<select>` devolve string: valida contra a lista em vez de forçar o tipo. */
+  protected setCategoryFromSelect(value: string): void {
+    this.setCategory(this.categories.find((c) => c.id === value)?.id ?? null);
+  }
+
+  protected setChannel(value: string): void {
+    const channel = this.channels.find((c) => c.id === value)?.id ?? null;
+    this.apply({ ...this.criteria(), channel });
+  }
+
+  protected setCollection(value: string): void {
+    this.apply({ ...this.criteria(), collection: value === '' ? null : value });
+  }
+
+  /** A busca filtra a cada tecla; só a URL espera, senão cada letra vira uma entrada no histórico. */
+  protected setSearch(q: string): void {
+    this.criteria.update((c) => ({ ...c, q }));
+    if (this.searchTimer !== null) {
+      clearTimeout(this.searchTimer);
+    }
+    this.searchTimer = setTimeout(() => {
+      this.searchTimer = null;
+      this.apply(this.criteria());
+    }, 300);
+  }
+
+  protected value(event: Event): string {
+    return (event.target as HTMLInputElement).value;
   }
 
   protected setActive(id: string, active: boolean): void {

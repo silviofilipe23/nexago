@@ -1,6 +1,6 @@
 import { ApplicationRef, provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { AuthService } from '../../../auth/auth.service';
 import { STORE_PRODUCTS } from './data/products.mock';
 import { ProductsRepository, type StoreProduct } from './data/products.repository';
@@ -141,5 +141,62 @@ describe('PanelProdutosComponent', () => {
     await clickTab(host, 'Rascunhos');
     expect(host.textContent).toContain('Nenhum produto com esses filtros');
     expect(host.querySelector('.empty .bo-mini-btn')).not.toBeNull();
+  });
+
+  const typeSearch = async (host: HTMLElement, text: string) => {
+    const input = host.querySelector('.search-input') as HTMLInputElement;
+    input.value = text;
+    input.dispatchEvent(new Event('input'));
+    await settle();
+  };
+
+  it('busca por nome sem acento', async () => {
+    const host = await mount();
+    await typeSearch(host, 'oculos');
+    expect(names(host)).toEqual(['Óculos Polarizado Sunline']);
+  });
+
+  it('busca por SKU', async () => {
+    const host = await mount();
+    await typeSearch(host, 'NX-RED');
+    expect(names(host)).toEqual(['Rede Oficial Beach 8,5 m']);
+  });
+
+  it('chip de categoria filtra e clicar de novo limpa', async () => {
+    const host = await mount();
+    const chip = [...host.querySelectorAll('.bo-chip')].find((e) =>
+      e.textContent!.includes('Rede & quadra'),
+    ) as HTMLButtonElement;
+
+    chip.click();
+    await settle();
+    expect(names(host).length).toBe(2);
+
+    chip.click();
+    await settle();
+    expect(names(host).length).toBe(8);
+  });
+
+  it('abre já filtrado pelo que veio na URL', async () => {
+    const host = await mount({ params: { aba: 'esgotados' } });
+    expect(names(host)).toEqual(['Mochila Praia Impermeável']);
+  });
+
+  it('parâmetro inválido na URL não esvazia a lista', async () => {
+    const host = await mount({ params: { aba: 'xpto', categoria: 'foo' } });
+    expect(names(host).length).toBe(8);
+  });
+
+  it('escreve o filtro na URL sem empilhar histórico', async () => {
+    const host = await mount();
+    const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+    await clickTab(host, 'Esgotados');
+
+    expect(navigate).toHaveBeenCalled();
+    const [, extras] = navigate.calls.mostRecent().args as [unknown, { queryParams: unknown; replaceUrl: boolean }];
+    expect(extras.queryParams).toEqual(
+      jasmine.objectContaining({ aba: 'esgotados', q: null, categoria: null }),
+    );
+    expect(extras.replaceUrl).toBeTrue();
   });
 });

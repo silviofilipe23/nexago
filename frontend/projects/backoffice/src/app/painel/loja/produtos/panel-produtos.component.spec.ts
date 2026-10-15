@@ -218,7 +218,7 @@ describe('PanelProdutosComponent', () => {
 
   it('o checkbox do cabeçalho marca e desmarca a página inteira', async () => {
     const host = await mount();
-    const all = host.querySelector('.select-all') as HTMLInputElement;
+    const all = host.querySelector('.select-all input') as HTMLInputElement;
 
     all.click();
     await settle();
@@ -299,5 +299,91 @@ describe('PanelProdutosComponent', () => {
   it('coleção desconhecida na URL cai no padrão, em vez de sumir com a lista', async () => {
     const host = await mount({ params: { colecao: 'foo' } });
     expect(names(host).length).toBe(8);
+  });
+  it('o checkbox do header fica parcial quando só algumas linhas estão marcadas', async () => {
+    const host = await mount();
+    const all = host.querySelector('.select-all input') as HTMLInputElement;
+    expect(all.indeterminate).toBeFalse();
+
+    checkboxes(host)[0]!.click();
+    await settle();
+
+    expect(all.indeterminate).toBeTrue();
+    expect(all.checked).toBeFalse();
+  });
+
+  it('o checkbox do header fica marcado, e não parcial, com a página inteira selecionada', async () => {
+    const host = await mount();
+    const all = host.querySelector('.select-all input') as HTMLInputElement;
+
+    all.click();
+    await settle();
+
+    expect(all.checked).toBeTrue();
+    expect(all.indeterminate).toBeFalse();
+  });
+
+  it('Shift+clique marca o intervalo desde o último clicado', async () => {
+    const host = await mount();
+    checkboxes(host)[0]!.click();
+    await settle();
+
+    checkboxes(host)[3]!.dispatchEvent(new MouseEvent('click', { shiftKey: true, bubbles: true }));
+    await settle();
+
+    expect(host.querySelector('.bulk-bar')!.textContent).toContain('4 selecionados');
+  });
+
+  it('Shift+clique desmarcando limpa o intervalo inteiro', async () => {
+    const host = await mount();
+    const all = host.querySelector('.select-all input') as HTMLInputElement;
+    all.click();
+    await settle();
+    expect(host.querySelector('.bulk-bar')!.textContent).toContain('8 selecionados');
+
+    checkboxes(host)[0]!.click();
+    await settle();
+    checkboxes(host)[3]!.dispatchEvent(new MouseEvent('click', { shiftKey: true, bubbles: true }));
+    await settle();
+
+    expect(host.querySelector('.bulk-bar')!.textContent).toContain('4 selecionados');
+  });
+
+  it('Esc limpa a seleção com a barra de lote aberta', async () => {
+    const host = await mount();
+    checkboxes(host)[0]!.click();
+    await settle();
+    expect(host.querySelector('.bulk-bar')).not.toBeNull();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await settle();
+
+    expect(host.querySelector('.bulk-bar')).toBeNull();
+  });
+
+  it('a barra de lote anuncia a contagem para leitor de tela', async () => {
+    const host = await mount();
+    checkboxes(host)[0]!.click();
+    await settle();
+
+    const bar = host.querySelector('.bulk-bar')!;
+    expect(bar.getAttribute('aria-live')).toBe('polite');
+    expect(bar.textContent).toContain('1 selecionado');
+  });
+
+  it('avisa que a seleção foi limpa quando o filtro muda', async () => {
+    const host = await mount();
+    checkboxes(host)[0]!.click();
+    await settle();
+
+    await clickTab(host, 'Ativos');
+
+    expect(host.textContent).toContain('Seleção limpa');
+  });
+
+  it('não avisa nada quando não havia seleção para limpar', async () => {
+    const host = await mount();
+    await clickTab(host, 'Ativos');
+    expect(host.textContent).not.toContain('Seleção limpa');
   });
 });

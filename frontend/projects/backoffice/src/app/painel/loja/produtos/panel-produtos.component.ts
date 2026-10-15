@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { callableErrorMessage } from '../../data/callable-error';
+import { CheckboxComponent, type CheckboxToggle } from '../../ui/checkbox.component';
 import { IconComponent } from '../../ui/icon.component';
 import { PageHeaderComponent } from '../../ui/page-header.component';
 import { PanelCardComponent } from '../../ui/panel-card.component';
@@ -37,7 +38,9 @@ type LoadState = 'loading' | 'ok' | 'error';
 @Component({
   selector: 'bo-panel-produtos',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(document:keydown.escape)': 'onEscape()' },
   imports: [
+    CheckboxComponent,
     PanelShellComponent,
     PageHeaderComponent,
     PanelCardComponent,
@@ -130,6 +133,13 @@ type LoadState = 'loading' | 'ok' | 'error';
       </div>
 
       <div class="body">
+        @if (notice(); as text) {
+          <div class="bo-feedback" role="status" aria-live="polite">
+            <bo-icon name="check" [size]="15" />
+            <span>{{ text }}</span>
+          </div>
+        }
+
         <bo-panel-card pad="sm" kicker="dados de exemplo" title="Catálogo">
           @if (state() === 'error') {
             <div class="bo-alert">
@@ -160,7 +170,13 @@ type LoadState = 'loading' | 'ok' | 'error';
             </div>
           } @else {
             @if (selectedVisible().length > 0) {
-              <div class="bulk-bar">
+              <div class="bulk-bar" role="status" aria-live="polite">
+                <bo-checkbox
+                  ariaLabel="Limpar a seleção"
+                  [checked]="allSelected()"
+                  [indeterminate]="someSelected()"
+                  (checkedChange)="toggleAll()"
+                />
                 <strong>{{ selectionLabel() }}</strong>
                 <button type="button" class="bo-mini-btn" disabled title="Em breve">Ativar</button>
                 <button type="button" class="bo-mini-btn" disabled title="Em breve">Desativar</button>
@@ -171,13 +187,12 @@ type LoadState = 'loading' | 'ok' | 'error';
             }
 
             <div class="table-head">
-              <span>
-                <input
-                  type="checkbox"
-                  class="select-all"
-                  aria-label="Selecionar todos os produtos da página"
+              <span class="select-all">
+                <bo-checkbox
+                  ariaLabel="Selecionar todos os produtos da página"
                   [checked]="allSelected()"
-                  (change)="toggleAll()"
+                  [indeterminate]="someSelected()"
+                  (checkedChange)="toggleAll()"
                 />
               </span>
               <span>Produto</span><span>Categoria</span><span>Variações</span>
@@ -347,7 +362,13 @@ type LoadState = 'loading' | 'ok' | 'error';
       }
     }
 
+    .select-all {
+      display: grid;
+      place-items: center;
+    }
+
     .bulk-bar {
+      animation: bulk-in 150ms var(--nx-ease-out);
       display: flex;
       align-items: center;
       gap: 8px;
@@ -367,6 +388,23 @@ type LoadState = 'loading' | 'ok' | 'error';
 
     .bulk-bar .spacer {
       flex: 1;
+    }
+
+    @keyframes bulk-in {
+      from {
+        opacity: 0;
+        transform: translateY(-4px);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .bulk-bar {
+        animation: none;
+      }
     }
 
     .empty {
@@ -425,7 +463,10 @@ export class PanelProdutosComponent {
 
   constructor() {
     // Sem isto o debounce dispara depois da tela morrer e navega de volta para cá.
-    this.destroyRef.onDestroy(() => this.cancelSearchTimer());
+    this.destroyRef.onDestroy(() => {
+      this.cancelSearchTimer();
+      this.cancelNoticeTimer();
+    });
 
     const params = this.route.snapshot.queryParamMap;
     const raw = Object.fromEntries(params.keys.map((k) => [k, params.get(k)]));
@@ -445,6 +486,10 @@ export class PanelProdutosComponent {
   }
 
   private readonly selectedIds = signal<ReadonlySet<string>>(new Set());
+  private rangeAnchorId: string | null = null;
+  private noticeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  protected readonly notice = signal('');
 
   /** Só conta quem está visível: o filtro pode ter tirado da tela uma linha marcada. */
   protected readonly selectedVisible = computed(() => {
@@ -461,20 +506,42 @@ export class PanelProdutosComponent {
     () => this.rows().length > 0 && this.selectedVisible().length === this.rows().length,
   );
 
+  /** Parcial: alguma linha marcada, mas não a página inteira. */
+  protected readonly someSelected = computed(
+    () => this.selectedVisible().length > 0 && !this.allSelected(),
+  );
+
   protected isSelected(id: string): boolean {
     return this.selectedIds().has(id);
   }
 
-  protected setSelected(id: string, selected: boolean): void {
-    this.selectedIds.update((ids) => {
-      const next = new Set(ids);
-      if (selected) {
-        next.add(id);
-      } else {
-        next.delete(id);
+  protected setSelected(id: string, toggle: CheckboxToggle): void {
+    const rows = this.rows();
+    const index = rows.findIndex((p) => p.id === id);
+    const anchor = rows.findIndex((p) => p.id === this.rangeAnchorId);
+    // Shift+clique aplica o novo estado ao intervalo inteiro desde o último clicado.
+    const ids = toggle.shift && anchor >= 0 && index >= 0
+      ? rows.slice(Math.min(anchor, index), Math.max(anchor, index) + 1).map((p) => p.id)
+      : [id];
+
+    this.selectedIds.update((current) => {
+      const next = new Set(current);
+      for (const each of ids) {
+        if (toggle.checked) {
+          next.add(each);
+        } else {
+          next.delete(each);
+        }
       }
       return next;
     });
+    this.rangeAnchorId = id;
+  }
+
+  protected onEscape(): void {
+    if (this.selectedVisible().length > 0) {
+      this.clearSelection();
+    }
   }
 
   protected toggleAll(): void {
@@ -490,6 +557,10 @@ export class PanelProdutosComponent {
     // Um debounce pendente aplicaria um critério velho e limparia a seleção recém-feita.
     this.cancelSearchTimer();
     this.criteria.set(next);
+    // A seleção some junto com as linhas; sem o aviso o usuário não entende para onde ela foi.
+    if (this.selectedVisible().length > 0) {
+      this.showNotice('Seleção limpa');
+    }
     this.clearSelection();
     void this.router.navigate([], {
       relativeTo: this.route,
@@ -536,6 +607,22 @@ export class PanelProdutosComponent {
       this.searchTimer = null;
       this.apply(this.criteria());
     }, 300);
+  }
+
+  private showNotice(text: string): void {
+    this.notice.set(text);
+    this.cancelNoticeTimer();
+    this.noticeTimer = setTimeout(() => {
+      this.noticeTimer = null;
+      this.notice.set('');
+    }, 3000);
+  }
+
+  private cancelNoticeTimer(): void {
+    if (this.noticeTimer !== null) {
+      clearTimeout(this.noticeTimer);
+      this.noticeTimer = null;
+    }
   }
 
   private cancelSearchTimer(): void {

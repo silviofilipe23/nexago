@@ -30,6 +30,8 @@ export interface CreateArenaCouponInput extends ArenaCouponTermsInput {
 
 export interface UpdateArenaCouponInput extends ArenaCouponTermsInput {
   couponId: string;
+  /** Omitido = não altera. `true` reativa um cupom desativado. */
+  active?: boolean;
 }
 
 function termsPayload(input: ArenaCouponTermsInput): Record<string, unknown> {
@@ -64,7 +66,7 @@ export async function listArenaCoupons(functions: Functions, arenaId: string): P
   }
 }
 
-/** Irreversível — reativar exige criar outro código. */
+/** Reativar é feito pela edição (`updateArenaCoupon` com `active: true`). */
 export async function deactivateArenaCoupon(functions: Functions, arenaId: string, couponId: string): Promise<void> {
   try {
     await httpsCallable<{ arenaId: string; couponId: string }, { success: boolean }>(functions, 'deactivateArenaCoupon')({
@@ -79,7 +81,8 @@ export async function deactivateArenaCoupon(functions: Functions, arenaId: strin
 /** O payload é o estado final das condições: campos opcionais omitidos são removidos no servidor.
  *  O código não muda (é o id do cupom). */
 export async function updateArenaCoupon(functions: Functions, input: UpdateArenaCouponInput): Promise<void> {
-  const payload = { ...termsPayload(input), couponId: input.couponId };
+  const payload: Record<string, unknown> = { ...termsPayload(input), couponId: input.couponId };
+  if (input.active != null) payload['active'] = input.active;
   try {
     await httpsCallable<Record<string, unknown>, { success: boolean }>(functions, 'updateArenaCoupon')(payload);
   } catch (err) {

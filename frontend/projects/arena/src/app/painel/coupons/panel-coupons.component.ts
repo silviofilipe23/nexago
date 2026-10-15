@@ -37,7 +37,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
 ];
 
 /** Tela Cupons do painel: lista `arenas/{arenaId}/coupons` via callable (`listArenaCoupons`).
- *  Cupom ativo pode ser editado (condições; o código não muda); desativar é irreversível. */
+ *  Qualquer cupom pode ser editado (o código não muda); desativado volta a valer ao reativar na edição. */
 @Component({
   selector: 'ar-panel-coupons',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -96,11 +96,11 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
                       <div class="coupon-usage">{{ formatCouponUsage(row.coupon) }}</div>
                       <div><ar-pill [tone]="statusTone[row.status]">{{ statusLabel[row.status] }}</ar-pill></div>
                       <div class="coupon-actions">
+                        <button type="button" class="ar-mini-btn" (click)="editCoupon(row.coupon)">
+                          <ar-icon name="edit" [size]="13" />
+                          Editar
+                        </button>
                         @if (row.coupon.active) {
-                          <button type="button" class="ar-mini-btn" (click)="editCoupon(row.coupon)">
-                            <ar-icon name="edit" [size]="13" />
-                            Editar
-                          </button>
                           <button type="button" class="ar-mini-btn" (click)="askDeactivate(row.coupon)">
                             <ar-icon name="alert-triangle" [size]="13" />
                             Desativar
@@ -122,7 +122,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
         <ar-modal (close)="couponToDeactivate.set(null)">
           <h2 class="confirm-title">Desativar cupom {{ coupon.code }}?</h2>
           <p class="confirm-body">
-            Clientes não vão conseguir mais aplicar este código. Essa ação não pode ser desfeita — reativar exige criar um cupom novo.
+            Clientes não vão conseguir mais aplicar este código. Para voltar a usá-lo, reative pela edição do cupom.
           </p>
           @if (deactivateError(); as err) {
             <p class="confirm-error">{{ err }}</p>

@@ -534,7 +534,7 @@ export const listArenaCoupons = onCall({
   return {coupons};
 });
 
-/** Desativa um cupom (ação unidirecional — reativar exige criar um novo código). */
+/** Desativa um cupom. Reativar é feito pela edição (`updateArenaCoupon` com `active: true`). */
 export const deactivateArenaCoupon = onCall({
   region: CLIENT_FACING_REGIONS,
 }, async (request) => {
@@ -563,8 +563,9 @@ export const deactivateArenaCoupon = onCall({
 
 /**
  * Edita as condições de um cupom (desconto, vigência, limites). O código é o id do doc e não
- * muda; cupom desativado não é editável (desativar é definitivo). Campos opcionais omitidos são
- * removidos (FieldValue.delete) — o payload é o estado final desejado, como no formulário.
+ * muda, então editar também é o caminho pra reativar um cupom desativado (`active: true`) — não
+ * dá pra criar outro com o mesmo código. Campos opcionais omitidos são removidos
+ * (FieldValue.delete) — o payload é o estado final desejado, como no formulário.
  */
 export const updateArenaCoupon = onCall({
   region: CLIENT_FACING_REGIONS,
@@ -592,9 +593,6 @@ export const updateArenaCoupon = onCall({
       throw new HttpsError("not-found", "Cupom não encontrado.");
     }
     const current = parseCouponDoc(snap.id, snap.data() as Record<string, unknown>);
-    if (!current.active) {
-      throw new HttpsError("failed-precondition", "Cupom desativado não pode ser editado.");
-    }
     if (terms.maxRedemptionsTotal != null && terms.maxRedemptionsTotal < current.redemptionsCount) {
       throw new HttpsError(
         "invalid-argument",
@@ -603,6 +601,7 @@ export const updateArenaCoupon = onCall({
     }
     tx.update(ref, {
       ...couponTermsToFields(terms),
+      ...(typeof data.active === "boolean" ? {active: data.active} : {}),
       ...(terms.discountPercent == null ? {discountPercent: FieldValue.delete()} : {}),
       ...(terms.fixedDiscountReais == null ? {fixedDiscountReais: FieldValue.delete()} : {}),
       ...(terms.validFrom ? {} : {validFrom: FieldValue.delete()}),

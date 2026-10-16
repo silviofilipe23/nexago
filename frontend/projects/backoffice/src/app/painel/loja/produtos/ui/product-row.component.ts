@@ -132,6 +132,8 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
     }
 
     .name {
+      display: block;
+      text-decoration: none;
       font-family: var(--nx-font-display);
       font-weight: 600;
       font-size: 13px;

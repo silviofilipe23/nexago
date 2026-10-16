@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { IconComponent } from '../../../ui/icon.component';
 import { PillComponent } from '../../../ui/pill.component';
+import type { PhotoSides } from '../../produtos/data/photo-sides';
 import { FONT_LABELS, type CustomizationConfig, type FontId } from '../../produtos/personalizacao/data/customization';
 import {
   PLACEMENT_SHORT,
@@ -31,23 +32,23 @@ const COLOR_NAMES: Record<string, string> = { '#ffffff': 'branco', '#111111': 'p
 
       <div class="previews">
         <figure>
-          <div class="mock" [class.has-photo]="coverUrl()">
-            @if (coverUrl(); as url) { <img class="photo" [src]="url" [alt]="it.productName" /> }
+          <div class="mock" [class.has-photo]="sides().frente">
+            @if (sides().frente; as url) { <img class="photo" [src]="url" [alt]="it.productName" /> }
             @if (it.image && frontArea()) {
               <span class="area" [class]="'area at-' + it.imageArea">
                 @if (it.image.url) { <img [src]="it.image.url" alt="Imagem enviada" /> }
               </span>
             }
             @if (nameOn() === 'frente') { <span class="name" [class]="'name font-' + it.font" [style.color]="it.nameColor">{{ displayName() }}</span> }
-            <span class="mock-label">{{ coverUrl() ? 'Foto do produto' : 'Mockup' }} · Frente</span>
+            <span class="mock-label">{{ sides().frente ? 'Foto do produto' : 'Mockup' }} · Frente</span>
           </div>
           <figcaption>{{ frontCaption() }}</figcaption>
         </figure>
         <figure>
-          <div class="mock" [class.has-photo]="coverUrl()">
-            @if (coverUrl(); as url) { <img class="photo" [src]="url" [alt]="it.productName" /> }
+          <div class="mock" [class.has-photo]="sides().costas">
+            @if (sides().costas; as url) { <img class="photo" [src]="url" [alt]="it.productName" /> }
             @if (nameOn() === 'costas') { <span class="name" [class]="'name font-' + it.font" [style.color]="it.nameColor">{{ displayName() }}</span> }
-            <span class="mock-label">{{ coverUrl() ? 'Foto do produto' : 'Mockup' }} · Costas</span>
+            <span class="mock-label">{{ sides().costas ? 'Foto do produto' : 'Mockup' }} · Costas</span>
           </div>
           <figcaption>{{ backCaption() }}</figcaption>
         </figure>
@@ -193,8 +194,8 @@ export class CustomDetailComponent {
   readonly item = input.required<CustomItem>();
   readonly config = input.required<CustomizationConfig>();
   readonly blocklist = input.required<string[]>();
-  /** Capa do produto; sem ela, o mockup hachurado. */
-  readonly coverUrl = input<string | null>(null);
+  /** Foto de cada lado do produto; lado sem foto mostra o mockup hachurado. */
+  readonly sides = input<PhotoSides>({ frente: null, costas: null });
   readonly busy = input(false);
 
   readonly approve = output<void>();

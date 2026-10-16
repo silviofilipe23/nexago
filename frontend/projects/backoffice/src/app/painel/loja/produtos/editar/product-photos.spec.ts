@@ -1,8 +1,8 @@
-import { dimensionError, fileError, galleryForColor, moveItem, persistable, type PhotoItem } from './product-photos';
+import { dimensionError, fileError, galleryForColor, moveItem, persistable, withView, type PhotoItem } from './product-photos';
 import { toggleBold, toggleList } from './description-format';
 
 const item = (id: string, over: Partial<PhotoItem> = {}): PhotoItem => ({
-  id, url: 'https://x/' + id, path: 'store/products/p/' + id, colorValueId: null, progress: null, error: null, ...over,
+  id, url: 'https://x/' + id, path: 'store/products/p/' + id, colorValueId: null, view: null, progress: null, error: null, ...over,
 });
 
 describe('product-photos', () => {
@@ -45,5 +45,14 @@ describe('description-format', () => {
     const on = toggleList('a\nb\nc', 0, 3);
     expect(on.text).toBe('- a\n- b\nc');
     expect(toggleList(on.text, on.selStart, on.selEnd).text).toBe('a\nb\nc');
+  });
+  it('um lado por foto: marcar frente tira a frente da outra', () => {
+    const items = [item('a', { view: 'frente' }), item('b'), item('c', { view: 'costas' })];
+    expect(withView(items, 'b', 'frente').map((p) => p.view)).toEqual([null, 'frente', 'costas']);
+    expect(withView(items, 'c', null).map((p) => p.view)).toEqual(['frente', null, null]);
+  });
+
+  it('o lado vai para o servidor', () => {
+    expect(persistable([item('a', { view: 'costas' })])[0]!.view).toBe('costas');
   });
 });

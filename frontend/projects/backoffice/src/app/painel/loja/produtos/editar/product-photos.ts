@@ -1,3 +1,5 @@
+import type { PhotoView } from '../data/photo-sides';
+
 export const MAX_PHOTOS = 10;
 export const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 export const MIN_PHOTO_SIDE = 1200;
@@ -8,6 +10,8 @@ export interface PhotoItem {
   url: string;
   path: string;
   colorValueId: string | null;
+  /** Lado da peça na foto (prévias de personalização). Um por lado. */
+  view: PhotoView | null;
   /** 0–100 enquanto sobe; `null` quando já está no servidor. */
   progress: number | null;
   error: string | null;
@@ -48,7 +52,12 @@ export function moveItem<T>(items: T[], from: number, to: number): T[] {
 export function persistable(items: PhotoItem[]) {
   return items
     .filter((p) => p.progress === null && p.error === null)
-    .map(({ id, url, path, colorValueId }) => ({ id, url, path, colorValueId }));
+    .map(({ id, url, path, colorValueId, view }) => ({ id, url, path, colorValueId, view }));
+}
+
+/** Marca o lado de uma foto; a foto que tinha esse lado perde a marcação (um por lado). */
+export function withView<T extends { id: string; view: PhotoView | null }>(items: T[], id: string, view: PhotoView | null): T[] {
+  return items.map((p) => (p.id === id ? { ...p, view } : view !== null && p.view === view ? { ...p, view: null } : p));
 }
 
 /** Galeria para uma cor: as fotos ligadas a ela vêm primeiro; a ordem relativa se mantém. */

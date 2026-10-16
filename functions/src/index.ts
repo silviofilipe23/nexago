@@ -578,6 +578,9 @@ export {
   saveStoreTransfer,
 } from "./store-stock-write";
 
+// Trocas & devoluções da Loja (tela 09): status e estoque na mesma transação.
+export {createStoreReturn, storeReturnAction} from "./store-returns-write";
+
 // Prévia de link (OG/Twitter Card) das rotas dinâmicas do site público — a SPA Angular não
 // tem SSR, então bots de rede social são redirecionados aqui pelo .htaccess (por User-Agent).
 export {siteOgPreview} from "./site-og-preview";

@@ -75,11 +75,13 @@ describe('PanelProdutosComponent', () => {
     expect(cells.some((t) => t === '86 un.')).toBeTrue();
   });
 
-  it('ações de escrita ficam desabilitadas', async () => {
+  it('"Novo produto" abre a tela de criação', async () => {
     const host = await mount();
+    const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
     const novo = host.querySelector('.header-actions .bo-mini-btn-primary') as HTMLButtonElement;
-    expect(novo.disabled).toBeTrue();
-    expect(novo.title).toBe('Em breve');
+    expect(novo.disabled).toBeFalse();
+    novo.click();
+    expect(navigate).toHaveBeenCalledWith(['/painel/loja/produtos/novo']);
   });
 
   it('erro na leitura mostra o aviso e o botão de tentar de novo', async () => {

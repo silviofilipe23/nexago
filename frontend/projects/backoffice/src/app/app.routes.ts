@@ -1,6 +1,9 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './auth/auth.guard';
 
+/** Guard estrutural: não importa o componente, para a tela continuar lazy. */
+const leaveProductEdit = (c: { canLeave(): boolean | Promise<boolean> }) => c.canLeave();
+
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'painel' },
   {
@@ -132,6 +135,22 @@ export const routes: Routes = [
       import('./painel/loja/produtos/panel-produtos.component').then(
         (m) => m.PanelProdutosComponent,
       ),
+  },
+  {
+    path: 'painel/loja/produtos/novo',
+    title: 'Novo produto — NexaGO Backoffice',
+    canActivate: [authGuard],
+    canDeactivate: [leaveProductEdit],
+    loadComponent: () =>
+      import('./painel/loja/produtos/editar/product-edit.component').then((m) => m.ProductEditComponent),
+  },
+  {
+    path: 'painel/loja/produtos/:id',
+    title: 'Editar produto — NexaGO Backoffice',
+    canActivate: [authGuard],
+    canDeactivate: [leaveProductEdit],
+    loadComponent: () =>
+      import('./painel/loja/produtos/editar/product-edit.component').then((m) => m.ProductEditComponent),
   },
   {
     path: 'painel/perfil',

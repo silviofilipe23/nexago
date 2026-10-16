@@ -56,7 +56,7 @@ type LoadState = 'loading' | 'ok' | 'error';
             <bo-icon name="download" [size]="13" />
             Importar planilha
           </button>
-          <button type="button" class="bo-mini-btn bo-mini-btn-primary" disabled title="Em breve">
+          <button type="button" class="bo-mini-btn bo-mini-btn-primary" (click)="newProduct()">
             <bo-icon name="plus" [size]="13" />
             Novo produto
           </button>
@@ -490,6 +490,10 @@ export class PanelProdutosComponent {
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly notice = signal('');
+
+  protected newProduct(): void {
+    void this.router.navigate(['/painel/loja/produtos/novo']);
+  }
 
   /** Só conta quem está visível: o filtro pode ter tirado da tela uma linha marcada. */
   protected readonly selectedVisible = computed(() => {

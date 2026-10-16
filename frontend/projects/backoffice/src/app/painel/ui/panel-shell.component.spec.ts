@@ -78,14 +78,15 @@ describe('PanelShellComponent', () => {
     expect(group.classList.contains('active')).toBeFalse();
   });
 
-  it('só Produtos é link; os outros filhos são "Em breve"', async () => {
+  it('Produtos e Retirada & frete são links; os outros filhos são "Em breve"', async () => {
     const host = await mount();
     (host.querySelector('button.nav-item') as HTMLButtonElement).click();
     await TestBed.inject(ApplicationRef).whenStable();
 
     const links = [...host.querySelectorAll('.subnav a.nav-item')].map((e) => e.textContent!.trim());
-    expect(links.length).toBe(1);
+    expect(links.length).toBe(2);
     expect(links[0]).toContain('Produtos');
+    expect(links[1]).toContain('Retirada & frete');
     expect(host.querySelector('.subnav a.nav-item')!.getAttribute('href')).toBe(
       '/painel/loja/produtos',
     );

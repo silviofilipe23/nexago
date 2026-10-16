@@ -561,6 +561,15 @@ export {
   saveStoreProductVariations,
 } from "./store-catalog-write";
 
+// Estoque da Loja: entrada (06a) e transferência (06b). Saldo só muda por aqui.
+export {
+  advanceStoreTransfer,
+  confirmStockEntry,
+  deleteStockDraft,
+  saveStockEntryDraft,
+  saveStoreTransfer,
+} from "./store-stock-write";
+
 // Prévia de link (OG/Twitter Card) das rotas dinâmicas do site público — a SPA Angular não
 // tem SSR, então bots de rede social são redirecionados aqui pelo .htaccess (por User-Agent).
 export {siteOgPreview} from "./site-og-preview";

@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { CheckboxComponent, type CheckboxToggle } from '../../../ui/checkbox.component';
 import { IconComponent } from '../../../ui/icon.component';
 import { PillComponent } from '../../../ui/pill.component';
@@ -12,7 +13,7 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
 @Component({
   selector: 'bo-product-row',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CheckboxComponent, IconComponent, PillComponent, ToggleComponent],
+  imports: [RouterLink, CheckboxComponent, IconComponent, PillComponent, ToggleComponent],
   template: `
     <div class="row" [class.selected]="selected()">
       <label class="cell-check">
@@ -26,7 +27,7 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
       <div class="cell-product">
         <div class="thumb" aria-hidden="true"></div>
         <div class="who">
-          <div class="name">{{ product().name }}</div>
+          <a class="name" [routerLink]="['/painel/loja/produtos', product().id]">{{ product().name }}</a>
           <div class="sku">{{ product().sku }}</div>
         </div>
       </div>

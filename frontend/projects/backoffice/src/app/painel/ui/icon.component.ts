@@ -36,7 +36,11 @@ export type PanelIconName =
   | 'bag'
   | 'ban'
   | 'trash'
-  | 'star';
+  | 'star'
+  | 'pin'
+  | 'truck'
+  | 'printer'
+  | 'more';
 
 /** Ícones stroke-24 do painel (mesmo conjunto do protótipo BoIc*), um componente para evitar repetir SVG. */
 @Component({
@@ -167,6 +171,18 @@ export type PanelIconName =
         }
         @case ('trash') {
           <path d="M4 7h16" /><path d="M9 7V4h6v3" /><path d="M6 7l1 13h10l1-13" />
+        }
+        @case ('pin') {
+          <path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" />
+        }
+        @case ('truck') {
+          <path d="M3 6h11v10H3z" /><path d="M14 9h4l3 3.5V16h-7" /><circle cx="7" cy="17.5" r="1.8" /><circle cx="17" cy="17.5" r="1.8" />
+        }
+        @case ('printer') {
+          <path d="M7 9V4h10v5" /><rect x="3" y="9" width="18" height="8" rx="2" /><path d="M7 14h10v6H7z" />
+        }
+        @case ('more') {
+          <circle cx="5.5" cy="12" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="18.5" cy="12" r="1.2" />
         }
       }
     </svg>

@@ -46,6 +46,8 @@ export interface TransferDoc {
   receiver: string;
   note: string;
   history: { status: TransferStatus; actor: { name: string }; at: Date | null }[];
+  /** Pedidos que a remessa leva (02 › "Criar remessa p/ arena"). */
+  orderIds?: string[];
 }
 
 /** Rascunho de entrada como o servidor guarda (mesmo formato do payload). */
@@ -90,6 +92,7 @@ function transferFromDoc(id: string, d: Raw): TransferDoc {
     receiver: d['receiver'] ?? '',
     note: d['note'] ?? '',
     history: ((d['history'] ?? []) as Raw[]).map((h) => ({ status: h['status'], actor: h['actor'] ?? { name: '' }, at: dateOf(h['at']) })),
+    orderIds: Array.isArray(d['orderIds']) ? d['orderIds'] : [],
   };
 }
 

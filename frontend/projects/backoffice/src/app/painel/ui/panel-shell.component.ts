@@ -35,7 +35,7 @@ export interface NavGroup {
 export type PanelNavItem = NavLink | NavSoon | NavGroup;
 
 /** Contadores de exemplo: saem quando a Loja tiver backend. */
-const LOJA_BADGES = { pedidos: 12, personalizados: 2, cupons: 2 } as const;
+const LOJA_BADGES = { personalizados: 2 } as const;
 
 const LOJA_GROUP: NavGroup = {
   kind: 'group',
@@ -43,8 +43,9 @@ const LOJA_GROUP: NavGroup = {
   label: 'Loja',
   icon: 'bag',
   children: [
-    { kind: 'soon', id: 'loja-visao-geral', label: 'Visão geral', icon: 'trend-up' },
-    { kind: 'soon', id: 'loja-pedidos', label: 'Pedidos', icon: 'file', badge: LOJA_BADGES.pedidos },
+    { kind: 'link', id: 'loja-visao-geral', label: 'Visão geral', icon: 'trend-up', route: '/painel/loja/visao-geral' },
+    // Badge real: pedidos pagos esperando separação (StoreBadgesService).
+    { kind: 'link', id: 'loja-pedidos', label: 'Pedidos', icon: 'file', route: '/painel/loja/pedidos' },
     {
       kind: 'soon',
       id: 'loja-personalizados',
@@ -551,6 +552,7 @@ export class PanelShellComponent {
     if (this.auth.user()) {
       void this.badges.load();
       void this.badges.loadReturns();
+      void this.badges.loadOrders();
     }
   }
 
@@ -560,6 +562,9 @@ export class PanelShellComponent {
     }
     if (item.id === 'loja-trocas') {
       return this.badges.returnsToReview() || undefined;
+    }
+    if (item.id === 'loja-pedidos') {
+      return this.badges.ordersToPick() || undefined;
     }
     return item.badge;
   }
@@ -602,6 +607,12 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/atletas')) {
       return 'atletas';
+    }
+    if (path.startsWith('/painel/loja/visao-geral')) {
+      return 'loja-visao-geral';
+    }
+    if (path.startsWith('/painel/loja/pedidos')) {
+      return 'loja-pedidos';
     }
     if (path.startsWith('/painel/loja/produtos')) {
       return 'loja-produtos';

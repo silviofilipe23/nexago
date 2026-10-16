@@ -137,6 +137,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'painel/loja/estoque',
+    title: 'Estoque — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/loja/estoque/panel-estoque.component').then((m) => m.PanelEstoqueComponent),
+  },
+  {
     path: 'painel/loja/produtos/novo',
     title: 'Novo produto — NexaGO Backoffice',
     canActivate: [authGuard],

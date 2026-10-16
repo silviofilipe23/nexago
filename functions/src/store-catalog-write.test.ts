@@ -658,3 +658,41 @@ describe("savePhotosCore", () => {
     await assert.rejects(savePhotosCore(db, {productId, version: 9, photos: []}, ACTOR, NOW));
   });
 });
+
+describe("saveVariationsCore — movimentação de ajuste", () => {
+  const axes = [
+    {id: "cor", label: "Cor", values: [{id: "branco", label: "Branco areia"}]},
+    {id: "tam", label: "Tamanho", values: [{id: "p", label: "P"}, {id: "m", label: "M"}]},
+  ];
+  const movements = (fake: FakeFirestore) =>
+    [...fake.store.entries()].filter(([k]) => k.startsWith("storeStockMovements/")).map(([, v]) => v);
+
+  it("registra um ajuste com a diferença por SKU e local, e nada quando o saldo não muda", async () => {
+    const {fake, db} = makeDb();
+    const {productId} = await saveStoreProductCore(db, input(), ACTOR, NOW);
+    const skus = (p: number, m: number) => [
+      {axisValues: {cor: "branco", tam: "p"}, barcode: null, priceCents: null, stockByLocation: {cd: p}},
+      {axisValues: {cor: "branco", tam: "m"}, barcode: null, priceCents: null, stockByLocation: {cd: m}},
+    ];
+    await saveVariationsCore(db, {productId, version: 1, axes, skus: skus(5, 0)}, ACTOR, NOW);
+    let all = movements(fake);
+    assert.equal(all.length, 1);
+    assert.equal(all[0]!["type"], "ajuste");
+    const items = all[0]!["items"] as {skuCode: string; variantLabel: string; delta: number; before: number}[];
+    assert.deepEqual(items.map((i) => [i.skuCode, i.variantLabel, i.delta, i.before]), [
+      ["NX-CAM-BRANCO-P", "Branco areia · P", 5, 0],
+    ]);
+
+    await saveVariationsCore(db, {productId, version: 2, axes, skus: skus(5, 0)}, ACTOR, NOW);
+    assert.equal(movements(fake).length, 1);
+
+    await saveVariationsCore(db, {productId, version: 3, axes, skus: skus(3, 2)}, ACTOR, NOW);
+    all = movements(fake);
+    assert.equal(all.length, 2);
+    // Alerta padrão do input() é 3: P com 3 não é baixo, M com 2 é.
+    assert.equal(fake.store.get(`storeProducts/${productId}`)!["lowStockSkuCount"], 1);
+    const last = all.find((m) => (m["items"] as unknown[]).length === 2)!;
+    assert.deepEqual((last["items"] as {delta: number}[]).map((i) => i.delta), [-2, 2]);
+    assert.deepEqual(last["actor"], ACTOR);
+  });
+});

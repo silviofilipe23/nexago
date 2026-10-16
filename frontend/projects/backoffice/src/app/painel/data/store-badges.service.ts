@@ -1,0 +1,37 @@
+import { Injectable, signal } from '@angular/core';
+import { collection, getDocs } from 'firebase/firestore';
+import { backofficeDb } from './firebase';
+
+/**
+ * Contadores da Loja na sidebar. Lê uma vez por sessão: o shell monta em toda
+ * tela, e recontar a cada navegação custaria uma consulta por clique.
+ */
+@Injectable({ providedIn: 'root' })
+export class StoreBadgesService {
+  /** SKUs abaixo do alerta (soma de `lowStockSkuCount` dos produtos não arquivados). */
+  readonly lowStock = signal<number | null>(null);
+  private loading: Promise<void> | null = null;
+
+  load(): Promise<void> {
+    this.loading ??= getDocs(collection(backofficeDb(), 'storeProducts'))
+      .then((snap) => {
+        const total = snap.docs
+          .map((d) => d.data() as Record<string, unknown>)
+          .filter((d) => d['status'] !== 'arquivado')
+          .reduce((n, d) => n + (typeof d['lowStockSkuCount'] === 'number' ? d['lowStockSkuCount'] : 0), 0);
+        // A tela de Estoque pode ter publicado um número mais fresco enquanto isto carregava.
+        if (this.lowStock() === null) {
+          this.lowStock.set(total);
+        }
+      })
+      .catch(() => {
+        // Sem badge é melhor que badge errado.
+      });
+    return this.loading;
+  }
+
+  /** A tela de Estoque conta direto dos SKUs: vale mais que o desnormalizado. */
+  set(count: number): void {
+    this.lowStock.set(count);
+  }
+}

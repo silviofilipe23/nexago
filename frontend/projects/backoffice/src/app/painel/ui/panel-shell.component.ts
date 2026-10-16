@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
+import { StoreBadgesService } from '../data/store-badges.service';
 import { IconComponent, type PanelIconName } from './icon.component';
 
 export interface NavLink {
@@ -34,7 +35,7 @@ export interface NavGroup {
 export type PanelNavItem = NavLink | NavSoon | NavGroup;
 
 /** Contadores de exemplo: saem quando a Loja tiver backend. */
-const LOJA_BADGES = { pedidos: 12, personalizados: 2, estoque: 4, cupons: 2, trocas: 2 } as const;
+const LOJA_BADGES = { pedidos: 12, personalizados: 2, cupons: 2, trocas: 2 } as const;
 
 const LOJA_GROUP: NavGroup = {
   kind: 'group',
@@ -178,8 +179,8 @@ function initialsOf(name: string): string {
                             [routerLink]="child.route"
                           >
                             <span>{{ child.label }}</span>
-                            @if (child.badge) {
-                              <span class="badge">{{ child.badge }}</span>
+                            @if (badgeFor(child); as count) {
+                              <span class="badge">{{ count }}</span>
                             }
                           </a>
                         }
@@ -438,6 +439,12 @@ function initialsOf(name: string): string {
       place-items: center;
     }
 
+    /* Badge do item ativo acende em laranja, como no desenho. */
+    .nav-item.active .badge {
+      background: var(--nx-orange-500);
+      color: var(--nx-text-on-orange);
+    }
+
     .nav-item .soon {
       font-family: var(--nx-font-mono);
       font-size: 8.5px;
@@ -536,6 +543,21 @@ function initialsOf(name: string): string {
 export class PanelShellComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
+  private readonly badges = inject(StoreBadgesService);
+
+  constructor() {
+    // Só com sessão: o shell monta atrás do authGuard, mas a leitura exige admin.
+    if (this.auth.user()) {
+      void this.badges.load();
+    }
+  }
+
+  protected badgeFor(item: NavLink | NavSoon): number | undefined {
+    if (item.id === 'loja-estoque') {
+      return this.badges.lowStock() || undefined;
+    }
+    return item.badge;
+  }
 
   protected readonly navItems = NAV_ITEMS;
 

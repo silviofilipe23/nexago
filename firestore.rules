@@ -3148,6 +3148,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Locais de estoque da Loja (CD + arenas). Cadastro por script, por enquanto.
+    match /storeLocations/{locationId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    // Movimentações de estoque: o rastro de toda mudança de saldo. Só servidor grava.
+    match /storeStockMovements/{movementId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
     // Documentos-chave de unicidade. Só o Admin SDK toca.
     match /storeCatalogKeys/{key} {
       allow read, write: if false;

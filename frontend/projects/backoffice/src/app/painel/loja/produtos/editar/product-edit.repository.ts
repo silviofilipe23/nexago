@@ -1,7 +1,9 @@
 import { Injectable } from '@angular/core';
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { backofficeDb, backofficeFunctions } from '../../../data/firebase';
+import { deleteObject, getDownloadURL, ref as storageRef, uploadBytesResumable } from 'firebase/storage';
+import { backofficeDb, backofficeFunctions, backofficeStorage } from '../../../data/firebase';
+import { persistable, type PhotoItem } from './product-photos';
 import {
   emptyForm,
   formatMoneyInput,
@@ -21,6 +23,7 @@ export interface LoadedProduct {
   updatedBy: string | null;
   /** Primeira foto, só para a prévia. */
   coverUrl: string | null;
+  photos: PhotoItem[];
 }
 
 type Raw = Record<string, any>;
@@ -97,6 +100,14 @@ export class ProductEditRepository {
       form: formFromDocs(data, skus, cost),
       updatedBy: updatedByName(data),
       coverUrl: data['photos']?.[0]?.url ?? null,
+      photos: ((data['photos'] ?? []) as Raw[]).map((p) => ({
+        id: p['id'],
+        url: p['url'],
+        path: p['path'] ?? '',
+        colorValueId: p['colorValueId'] ?? null,
+        progress: null,
+        error: null,
+      })),
     };
   }
 
@@ -145,5 +156,45 @@ export class ProductEditRepository {
       'duplicateStoreProduct',
     )({ productId: id });
     return result.data.productId;
+  }
+
+  /** Sobe o arquivo ao Storage; `onProgress` recebe 0–100. */
+  async uploadPhoto(
+    productId: string,
+    file: File,
+    onProgress: (percent: number) => void,
+  ): Promise<{ id: string; url: string; path: string }> {
+    const id = crypto.randomUUID();
+    const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+    const path = `store/products/${productId}/${id}.${ext}`;
+    const task = uploadBytesResumable(storageRef(backofficeStorage(), path), file, { contentType: file.type });
+    await new Promise<void>((resolve, reject) => {
+      task.on(
+        'state_changed',
+        (snap) => onProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
+        reject,
+        () => resolve(),
+      );
+    });
+    return { id, url: await getDownloadURL(task.snapshot.ref), path };
+  }
+
+  /** Registra a galeria no produto e devolve a nova versão. */
+  async savePhotos(productId: string, version: number, photos: PhotoItem[]): Promise<number> {
+    const result = await httpsCallable<unknown, { version: number }>(backofficeFunctions(), 'saveStoreProductPhotos')({
+      productId,
+      version,
+      photos: persistable(photos),
+    });
+    return result.data.version;
+  }
+
+  /** Apaga o arquivo; falha aqui não importa, o produto já não aponta para ele. */
+  async deletePhotoFile(path: string): Promise<void> {
+    try {
+      await deleteObject(storageRef(backofficeStorage(), path));
+    } catch {
+      // arquivo órfão é aceitável
+    }
   }
 }

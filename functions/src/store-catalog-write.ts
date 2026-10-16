@@ -599,3 +599,73 @@ export const saveStoreProduct = onCall(BACKOFFICE_CALLABLE, async (request) => {
   const input = (request.data ?? {}) as SaveProductInput;
   return saveStoreProductCore(getFirestore(), input, actor, new Date());
 });
+
+export const MAX_PHOTOS_PER_PRODUCT = 10;
+
+export interface PhotoInput {
+  id: string;
+  url: string;
+  /** Caminho no Storage; serve para apagar o arquivo e prova que a foto é deste produto. */
+  path: string;
+  /** Valor do primeiro eixo (cor) a que a foto está ligada. */
+  colorValueId: string | null;
+}
+
+export interface SavePhotosInput {
+  productId: string;
+  version: number;
+  /** Ordem do array = ordem da galeria; a primeira é a capa. */
+  photos: PhotoInput[];
+}
+
+/** O cliente envia o arquivo ao Storage e só então registra aqui: o servidor confere o que vai para o doc. */
+export async function savePhotosCore(
+  db: Firestore,
+  input: SavePhotosInput,
+  actor: Actor,
+  now: Date,
+): Promise<{version: number; photoCount: number}> {
+  const photos = Array.isArray(input.photos) ? input.photos : [];
+  if (photos.length > MAX_PHOTOS_PER_PRODUCT) {
+    throw new HttpsError("invalid-argument", `Um produto comporta no máximo ${MAX_PHOTOS_PER_PRODUCT} fotos.`);
+  }
+  const prefix = `store/products/${input.productId}/`;
+  const ids = new Set<string>();
+  const bad = photos.some((p) => {
+    const ok =
+      typeof p?.id === "string" && p.id !== "" && !ids.has(p.id) &&
+      typeof p.url === "string" && p.url.startsWith("https://") &&
+      typeof p.path === "string" && p.path.startsWith(prefix) && !p.path.includes("..") &&
+      (p.colorValueId === null || (typeof p.colorValueId === "string" && AXIS_ID_RE.test(p.colorValueId)));
+    ids.add(p?.id);
+    return !ok;
+  });
+  if (bad) throw invalidFields(["photos"]);
+
+  const ref = db.collection(PRODUCTS).doc(input.productId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "Produto não encontrado.");
+    const existing = snap.data()!;
+    if (existing["version"] !== input.version) throw conflict(existing);
+    const version = input.version + 1;
+    tx.set(
+      ref,
+      {
+        photos: photos.map(({id, url, path, colorValueId}) => ({id, url, path, colorValueId})),
+        version,
+        updatedAt: now,
+        updatedBy: actor,
+      },
+      {merge: true},
+    );
+    return {version, photoCount: photos.length};
+  });
+}
+
+export const saveStoreProductPhotos = onCall(BACKOFFICE_CALLABLE, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  const actor = await assertCatalogAdmin(uid);
+  return savePhotosCore(getFirestore(), (request.data ?? {}) as SavePhotosInput, actor, new Date());
+});

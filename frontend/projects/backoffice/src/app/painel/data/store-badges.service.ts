@@ -12,7 +12,10 @@ export class StoreBadgesService {
   readonly lowStock = signal<number | null>(null);
   /** Trocas & devoluções esperando análise. */
   readonly returnsToReview = signal<number | null>(null);
+  /** Artes de personalizados esperando aprovação. */
+  readonly customToApprove = signal<number | null>(null);
   private loading: Promise<void> | null = null;
+  private loadingCustom: Promise<void> | null = null;
   private loadingReturns: Promise<void> | null = null;
 
   load(): Promise<void> {
@@ -44,6 +47,24 @@ export class StoreBadgesService {
         // Sem badge é melhor que badge errado.
       });
     return this.loadingReturns;
+  }
+
+  loadCustom(): Promise<void> {
+    this.loadingCustom ??= getDocs(query(collection(backofficeDb(), 'storeCustomItems'), where('status', '==', 'aprovar')))
+      .then((snap) => {
+        if (this.customToApprove() === null) {
+          this.customToApprove.set(snap.size);
+        }
+      })
+      .catch(() => {
+        // Sem badge é melhor que badge errado.
+      });
+    return this.loadingCustom;
+  }
+
+  /** A fila de arte conta direto ao carregar e a cada decisão. */
+  setCustom(count: number): void {
+    this.customToApprove.set(count);
   }
 
   setReturns(count: number): void {

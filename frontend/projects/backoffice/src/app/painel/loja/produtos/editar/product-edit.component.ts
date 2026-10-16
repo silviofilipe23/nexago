@@ -102,6 +102,7 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
           Ver na loja
         </button>
         @if (!isNew() && loadState() === 'ok') {
+          <a class="bo-mini-btn" [routerLink]="['/painel/loja/produtos', productId(), 'personalizacao']">Personalização</a>
           <button type="button" class="bo-mini-btn" [disabled]="locked()" (click)="duplicate()">Duplicar</button>
         }
         @if (isNew() || form().status === 'rascunho') {
@@ -609,7 +610,7 @@ export class ProductEditComponent {
   protected readonly badges = BADGE_OPTIONS;
   protected readonly maxFeatured = MAX_FEATURED;
 
-  private readonly productId = signal<string | null>(this.route.snapshot.paramMap.get('id'));
+  protected readonly productId = signal<string | null>(this.route.snapshot.paramMap.get('id'));
   protected readonly isNew = computed(() => this.productId() === null);
   protected readonly loadState = signal<LoadState>('loading');
   protected readonly form = signal<ProductForm>(emptyForm());

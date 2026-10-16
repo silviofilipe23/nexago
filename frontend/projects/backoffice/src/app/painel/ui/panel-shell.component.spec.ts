@@ -79,7 +79,7 @@ describe('PanelShellComponent', () => {
     expect(group.classList.contains('active')).toBeFalse();
   });
 
-  it('Produtos, Estoque e Retirada & frete são links; os outros filhos são "Em breve"', async () => {
+  it('Produtos, Estoque, Retirada & frete e Cupons são links; os outros filhos são "Em breve"', async () => {
     const host = await mount();
     (host.querySelector('button.nav-item') as HTMLButtonElement).click();
     await TestBed.inject(ApplicationRef).whenStable();
@@ -89,11 +89,13 @@ describe('PanelShellComponent', () => {
       'Produtos',
       'Estoque',
       'Retirada & frete',
+      'Cupons & promoções',
     ]);
     expect(links.map((e) => e.getAttribute('href'))).toEqual([
       '/painel/loja/produtos',
       '/painel/loja/estoque',
       '/painel/loja/retirada',
+      '/painel/loja/cupons',
     ]);
   });
 

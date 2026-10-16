@@ -569,6 +569,14 @@ export {
   setStoreShippingModeActive,
 } from "./store-pickup";
 
+// Loja: cupons e descontos automáticos. Escrita só por callable.
+export {
+  endStoreCoupon,
+  saveStoreCoupon,
+  setStoreAutoDiscountActive,
+  setStoreCouponPaused,
+} from "./store-coupons";
+
 // Estoque da Loja: entrada (06a) e transferência (06b). Saldo só muda por aqui.
 export {
   advanceStoreTransfer,

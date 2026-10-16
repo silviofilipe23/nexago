@@ -202,6 +202,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'painel/loja/cupons',
+    title: 'Cupons & promoções — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/loja/cupons/panel-cupons.component').then((m) => m.PanelCuponsComponent),
+  },
+  {
     path: 'painel/perfil',
     title: 'Meu perfil — NexaGO Backoffice',
     canActivate: [authGuard],

@@ -36,12 +36,20 @@ export function mergeDeep(target: DocData, source: DocData): DocData {
 
 function orderValue(raw: unknown): number | string {
   if (raw instanceof Timestamp) return raw.toMillis();
+  // O Admin SDK grava `Date` como Timestamp; aqui ele fica cru no store.
+  if (raw instanceof Date) return raw.getTime();
   if (typeof raw === "number") return raw;
   return String(raw ?? "");
 }
 
 /** `where` do fake: igualdade, `array-contains` e intervalos. Intervalo só compara valores do
  *  mesmo tipo (Timestamp vira millis), como o Firestore — campo ausente ou de outro tipo não casa. */
+/** Campo por caminho com ponto (`delivery.pickupDeadline`), como o `where` do Firestore. */
+function fieldAt(doc: DocData | undefined, field: string): unknown {
+  if (!field.includes(".")) return doc?.[field];
+  return field.split(".").reduce<unknown>((v, k) => (isPlainObject(v) ? v[k] : undefined), doc);
+}
+
 function matchesWhere(actual: unknown, op: string, value: unknown): boolean {
   if (op === "array-contains") return Array.isArray(actual) && actual.includes(value);
   if (op === "<" || op === "<=" || op === ">" || op === ">=") {
@@ -179,7 +187,7 @@ export class FakeFirestore {
       where: (field: string, op: string, value: unknown) =>
         build({
           ...spec,
-          filters: [...spec.filters, (doc: DocData) => matchesWhere(doc[field], op, value)],
+          filters: [...spec.filters, (doc: DocData) => matchesWhere(fieldAt(doc, field), op, value)],
         }),
       // `FieldPath.documentId()` vira "__name__" (ordena e corta pelo id do doc).
       orderBy: (field: unknown) => build({...spec, orderField: String(field)}),
@@ -194,7 +202,7 @@ export class FakeFirestore {
         if (spec.orderField) {
           const field = spec.orderField;
           const valueOf = (docPath: string, data: DocData | undefined) =>
-            field === "__name__" ? docPath.slice(docPath.lastIndexOf("/") + 1) : data?.[field];
+            field === "__name__" ? docPath.slice(docPath.lastIndexOf("/") + 1) : fieldAt(data, field);
           // Como o Firestore: empate no campo ordena pelo caminho do doc.
           entries = entries.sort(([ap, a], [bp, b]) => {
             const av = orderValue(valueOf(ap, a));

@@ -11,6 +11,15 @@ import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {lowStockSkuCount, variantLabelOf, type Axis, type StockMovementItem} from "./store-catalog";
 import {assertCatalogAdmin, type Actor} from "./store-catalog-write";
 import {
+  arriveOrdersPlan,
+  linkOrdersPlan,
+  releaseOrdersPlan,
+  type LinkedOrder,
+  type OrderNotice,
+} from "./store-orders";
+import {ORDER_NOTIFY_SECRETS, notifyOrderCustomer} from "./store-order-notify";
+import {STORE_CONFIG, SHIPPING_CONFIG_ID, withShippingDefaults} from "./store-pickup";
+import {
   ENTRY_SUBTYPES,
   MAX_STOCK_LINES,
   availableAt,
@@ -34,6 +43,7 @@ const MOVEMENTS = "storeStockMovements";
 const DRAFTS = "storeStockDrafts";
 const TRANSFERS = "storeTransfers";
 const COUNTERS = "storeCounters";
+const ORDERS = "storeOrders";
 
 const ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -181,6 +191,30 @@ export async function assertLocation(tx: Transaction, db: Firestore, id: unknown
 
 export function locationName(snapData: Data | undefined, id: string): string {
   return (snapData?.["name"] as string | undefined) ?? id;
+}
+
+/** Pedidos ligados a uma remessa. Só leituras, como `loadProducts`. */
+async function loadOrders(
+  tx: Transaction,
+  db: Firestore,
+  ids: string[],
+  {skipMissing = false} = {},
+): Promise<LinkedOrder<FirebaseFirestore.DocumentReference>[]> {
+  const out: LinkedOrder<FirebaseFirestore.DocumentReference>[] = [];
+  for (const id of ids) {
+    const ref = db.collection(ORDERS).doc(id);
+    const snap = await tx.get(ref);
+    if (!snap.exists && skipMissing) continue;
+    if (!snap.exists) throw new HttpsError("not-found", "Pedido não encontrado.", {orderId: id});
+    out.push({ref, id, data: snap.data()!});
+  }
+  return out;
+}
+
+/** A reserva dos pedidos mexe nos mesmos SKUs carregados da transação. */
+function reserveIn(products: Map<string, LoadedProduct>) {
+  return (productId: string, skuId: string, locationId: string, delta: number) =>
+    moveReserved(skuOf(products, productId, skuId), locationId, delta);
 }
 
 // ---------------------------------------------------------------------------
@@ -469,6 +503,8 @@ export interface TransferInput {
   note: string;
   /** true = "Criar transferência": sai do rascunho para a separação e reserva na origem. */
   submit: boolean;
+  /** Remessa de pedidos (02 › "Criar remessa p/ arena"): a transferência assume a reserva deles. */
+  orderIds?: string[];
 }
 
 function transferFields(input: TransferInput): string[] {
@@ -494,7 +530,12 @@ export async function saveTransferCore(
   actor: Actor,
   now: Date,
 ): Promise<{transferId: string; code: string; version: number; status: TransferStatus}> {
-  const input: TransferInput = {...raw, items: Array.isArray(raw?.items) ? raw.items : [], submit: raw?.submit === true};
+  const input: TransferInput = {
+    ...raw,
+    items: Array.isArray(raw?.items) ? raw.items : [],
+    submit: raw?.submit === true,
+    orderIds: [...new Set((Array.isArray(raw?.orderIds) ? raw.orderIds : []).filter((id) => ID_RE.test(String(id))))].slice(0, 50),
+  };
   const fields = transferFields(input);
   if (fields.length > 0) throw invalid(fields);
   const ref = input.transferId ? db.collection(TRANSFERS).doc(input.transferId) : db.collection(TRANSFERS).doc();
@@ -513,8 +554,21 @@ export async function saveTransferCore(
     await assertLocation(tx, db, input.fromLocationId, "fromLocationId");
     await assertLocation(tx, db, input.toLocationId, "toLocationId");
     const products = await loadProducts(tx, db, input.items.map((i) => i.productId));
+    const orders = input.submit ? await loadOrders(tx, db, input.orderIds ?? []) : [];
 
     // ---------- cálculo ----------
+    const next = ((counter?.data()?.["next"] ?? 1) as number);
+    const code = (existing?.["code"] as string | undefined) ?? transferCode(next);
+    // Pedidos primeiro: a reserva deles sai da origem antes de a remessa reservar as mesmas peças.
+    let orderWrites: {ref: FirebaseFirestore.DocumentReference; data: Data}[] = [];
+    if (orders.length > 0) {
+      const linked = linkOrdersPlan(orders, {
+        id: ref.id, code,
+        fromLocationId: input.fromLocationId, toLocationId: input.toLocationId, items: input.items,
+      }, reserveIn(products), actor, now);
+      if ("error" in linked) throw new HttpsError("failed-precondition", linked.error, {fields: ["orderIds"]});
+      orderWrites = linked.writes;
+    }
     const items = input.items.map((item) => {
       const sku = skuOf(products, item.productId, item.skuId);
       if (input.submit) {
@@ -531,8 +585,6 @@ export async function saveTransferCore(
       return {productId: item.productId, skuId: item.skuId, qty: item.qty, ...describe(products, item.productId, item.skuId)};
     });
     const status: TransferStatus = input.submit ? "separacao" : "rascunho";
-    const next = ((counter?.data()?.["next"] ?? 1) as number);
-    const code = (existing?.["code"] as string | undefined) ?? transferCode(next);
     const version = ((existing?.["version"] ?? 0) as number) + 1;
     const history = [...((existing?.["history"] ?? []) as Data[])];
     if (!existing) history.push({status: "rascunho", actor, at: now});
@@ -541,6 +593,7 @@ export async function saveTransferCore(
     // ---------- escritas ----------
     if (counter) tx.set(counterRef, {next: next + 1}, {merge: true});
     if (input.submit) writeProducts(tx, products, actor, now);
+    for (const w of orderWrites) tx.set(w.ref, w.data, {merge: true});
     tx.set(ref, {
       code,
       status,
@@ -554,6 +607,7 @@ export async function saveTransferCore(
       arriveAt: text(input.arriveAt, 20),
       receiver: text(input.receiver, 120),
       note: text(input.note, 2000),
+      orderIds: input.orderIds ?? [],
       history,
       version,
       createdAt: existing?.["createdAt"] ?? now,
@@ -579,7 +633,7 @@ export async function advanceTransferCore(
   input: AdvanceTransferInput,
   actor: Actor,
   now: Date,
-): Promise<{version: number; status: TransferStatus}> {
+): Promise<{version: number; status: TransferStatus; notices: OrderNotice[]}> {
   if (typeof input?.transferId !== "string" || input.transferId === "") throw invalid(["transferId"]);
   if (input.action === "separacao") {
     throw new HttpsError("invalid-argument", "Use \"Criar transferência\" para sair do rascunho.");
@@ -606,6 +660,15 @@ export async function advanceTransferCore(
       tx.get(db.collection(LOCATIONS).doc(to)),
     ]);
     const code = t["code"] as string;
+    // Pedidos da remessa (02 › "Criar remessa p/ arena"): chegam com ela ou voltam a reservar na origem.
+    const orderIds = (t["orderIds"] ?? []) as string[];
+    const touchesOrders = orderIds.length > 0 && (input.action === "recebido" || (input.action === "cancelar" && current === "separacao"));
+    const orders = touchesOrders ? await loadOrders(tx, db, orderIds, {skipMissing: true}) : [];
+    const deadlineDays = orders.length > 0 ?
+      withShippingDefaults((await tx.get(db.collection(STORE_CONFIG).doc(SHIPPING_CONFIG_ID))).data()).pickupDeadlineDays : 0;
+    const transferRef = {id: ref.id, code, fromLocationId: from, toLocationId: to};
+    let orderWrites: {ref: FirebaseFirestore.DocumentReference; data: Data}[] = [];
+    let notices: OrderNotice[] = [];
 
     // ---------- cálculo + escritas ----------
     const movement = (type: string, its: StockMovementItem[], extra: Data) =>
@@ -626,6 +689,7 @@ export async function advanceTransferCore(
 
     if (input.action === "cancelar" && current === "separacao") {
       for (const i of items) moveReserved(skuOf(products, i.productId, i.skuId), from, -i.qty);
+      orderWrites = releaseOrdersPlan(orders, transferRef, reserveIn(products), actor, now);
     }
 
     if (input.action === "em_transito") {
@@ -666,9 +730,14 @@ export async function advanceTransferCore(
         });
       }
       updates = {items: withReceived, receivedAt: now, receivedBy: actor};
+      const arrived = arriveOrdersPlan(orders, {...transferRef, toName: locationName(toSnap.data(), to)},
+        reserveIn(products), deadlineDays, actor, now);
+      orderWrites = arrived.writes;
+      notices = arrived.notices;
     }
 
     writeProducts(tx, products, actor, now);
+    for (const w of orderWrites) tx.set(w.ref, w.data, {merge: true});
     const version = input.version + 1;
     tx.set(
       ref,
@@ -682,7 +751,7 @@ export async function advanceTransferCore(
       },
       {merge: true},
     );
-    return {version, status};
+    return {version, status, notices};
   });
 }
 
@@ -716,7 +785,10 @@ export const saveStoreTransfer = onCall(BACKOFFICE_CALLABLE, async (request) => 
   return saveTransferCore(getFirestore(), (request.data ?? {}) as TransferInput, actor, new Date());
 });
 
-export const advanceStoreTransfer = onCall(BACKOFFICE_CALLABLE, async (request) => {
+export const advanceStoreTransfer = onCall({...BACKOFFICE_CALLABLE, secrets: ORDER_NOTIFY_SECRETS}, async (request) => {
   const actor = await actorOf(request.auth?.uid);
-  return advanceTransferCore(getFirestore(), (request.data ?? {}) as AdvanceTransferInput, actor, new Date());
+  const {notices, ...result} = await advanceTransferCore(getFirestore(), (request.data ?? {}) as AdvanceTransferInput, actor, new Date());
+  // Pedidos que chegaram na arena: o cliente recebe o código de retirada.
+  await Promise.all(notices.map((n) => notifyOrderCustomer(n)));
+  return result;
 });

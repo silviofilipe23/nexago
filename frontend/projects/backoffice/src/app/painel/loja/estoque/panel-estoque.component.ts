@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 import { callableErrorMessage } from '../../data/callable-error';
 import { StoreBadgesService } from '../../data/store-badges.service';
 import { IconComponent } from '../../ui/icon.component';
@@ -9,6 +10,7 @@ import { PRODUCT_CATEGORY_LABELS } from '../produtos/data/products.repository';
 import {
   filterRows,
   kpisOf,
+  skuKey,
   qtyTone,
   relativeStamp,
   rowAction,
@@ -17,7 +19,8 @@ import {
   type StockMovement,
   type StockRow,
 } from './data/stock';
-import { StockRepository } from './data/stock.repository';
+import { StockRepository, type EntryDraftDoc, type TransferDoc } from './data/stock.repository';
+import { formatStamp } from './data/transfer-form';
 
 type LoadState = 'loading' | 'ok' | 'error';
 
@@ -31,14 +34,12 @@ const MOVEMENT_PILL: Record<MovementType, { tone: PillTone; label: string }> = {
   ajuste: { tone: 'yellow', label: 'Ajuste' },
 };
 
-/** Entradas e transferências têm tela própria (06a/06b), que ainda não existe. */
-const SOON = 'Em breve: chega com a tela de entrada/transferência';
 
 /** Loja › Estoque: saldo por SKU e local, KPIs e as últimas movimentações. */
 @Component({
   selector: 'bo-panel-estoque',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, PanelCardComponent, PanelShellComponent, PillComponent],
+  imports: [IconComponent, PanelCardComponent, PanelShellComponent, PillComponent, RouterLink],
   template: `
     <bo-panel-shell>
       <header class="head">
@@ -52,15 +53,18 @@ const SOON = 'Em breve: chega com a tela de entrada/transferência';
           </div>
         </div>
         <div class="spacer"></div>
-        <button type="button" class="bo-mini-btn" disabled [title]="soon">
+        <a class="bo-mini-btn" routerLink="/painel/loja/estoque/transferencia/nova">
           <bo-icon name="swap" [size]="13" /> Nova transferência
-        </button>
-        <button type="button" class="bo-mini-btn bo-mini-btn-primary" disabled [title]="soon">
+        </a>
+        <a class="bo-mini-btn bo-mini-btn-primary" routerLink="/painel/loja/estoque/entrada/nova">
           <bo-icon name="plus" [size]="13" /> Registrar entrada
-        </button>
+        </a>
       </header>
 
       <div class="body">
+        @if (toast(); as t) {
+          <div class="bo-feedback" role="status"><bo-icon name="check" [size]="15" /><span>{{ t }}</span></div>
+        }
         @if (state() === 'error') {
           <div class="bo-alert" role="alert">
             <bo-icon name="alert" [size]="16" />
@@ -92,8 +96,8 @@ const SOON = 'Em breve: chega com a tela de entrada/transferência';
           <div class="kpi">
             <span class="kpi-label">Em trânsito p/ arenas</span>
             @if (state() === 'loading') { <span class="kpi-skel"></span> } @else {
-              <span class="kpi-value">0 un.</span>
-              <span class="kpi-hint">0 remessas</span>
+              <span class="kpi-value">{{ int(inTransit().units) }} un.</span>
+              <span class="kpi-hint">{{ inTransit().count }} {{ inTransit().count === 1 ? 'remessa' : 'remessas' }}</span>
             }
           </div>
           <div class="kpi">
@@ -175,9 +179,9 @@ const SOON = 'Em breve: chega com a tela de entrada/transferência';
                   <span role="cell" class="num reserved">{{ r.reserved }}</span>
                   <span role="cell" class="action">
                     @if (action(r) === 'repor') {
-                      <button type="button" class="bo-mini-btn bo-mini-btn-primary small" disabled [title]="soon">Repor</button>
+                      <a class="bo-mini-btn bo-mini-btn-primary small" routerLink="/painel/loja/estoque/entrada/nova" [queryParams]="{ sku: key(r) }">Repor</a>
                     } @else {
-                      <button type="button" class="ghost-btn" disabled [title]="soon"><bo-icon name="swap" [size]="12" /> Transferir</button>
+                      <a class="ghost-btn" routerLink="/painel/loja/estoque/transferencia/nova" [queryParams]="{ sku: key(r) }"><bo-icon name="swap" [size]="12" /> Transferir</a>
                     }
                   </span>
                 </div>
@@ -185,6 +189,22 @@ const SOON = 'Em breve: chega com a tela de entrada/transferência';
             }
           </div>
         </bo-panel-card>
+
+        @if (openWork().length > 0) {
+          <bo-panel-card title="Em andamento" [kicker]="openWork().length + ' abertas'">
+            <div class="moves">
+              @for (w of openWork(); track w.kind + w.id) {
+                <a class="move work" [routerLink]="w.link">
+                  <span class="move-type"><bo-pill [tone]="w.tone">{{ w.status }}</bo-pill></span>
+                  <span class="move-title">{{ w.title }}</span>
+                  <span class="move-items">{{ w.subtitle }}</span>
+                  <span class="move-place">{{ w.place }}</span>
+                  <span class="move-at">{{ w.when }}</span>
+                </a>
+              }
+            </div>
+          </bo-panel-card>
+        }
 
         <bo-panel-card title="Movimentações">
           <span card-actions class="history-link" [title]="'Em breve: histórico completo'">Ver histórico</span>
@@ -256,6 +276,10 @@ const SOON = 'Em breve: chega com a tela de entrada/transferência';
     .bo-mini-btn:disabled { cursor: default; }
     .ghost-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; background: none; border: none; color: var(--nx-text-mute); font-family: var(--nx-font-display); font-weight: 600; font-size: 12.5px; }
     .ghost-btn:disabled { cursor: default; }
+    a.bo-mini-btn, a.ghost-btn { text-decoration: none; }
+    a.ghost-btn:hover { color: var(--nx-text); }
+    .move.work { color: inherit; text-decoration: none; border-radius: 8px; }
+    .move.work:hover { background: var(--nx-surface-1); }
     .empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 0; color: var(--nx-text-dim); border-top: 1px solid var(--nx-line); }
     .empty p { margin: 0; color: var(--nx-text-mute); font-weight: 600; }
     .empty span { font-size: 12px; }
@@ -287,7 +311,6 @@ export class PanelEstoqueComponent {
   private readonly repo = inject(StockRepository);
   private readonly badges = inject(StoreBadgesService);
 
-  protected readonly soon = SOON;
   protected readonly categories = Object.entries(PRODUCT_CATEGORY_LABELS).map(([id, label]) => ({ id, label }));
   protected readonly skeleton = [0, 1, 2, 3, 4, 5];
   protected readonly skeletonShort = [0, 1, 2, 3];
@@ -297,6 +320,45 @@ export class PanelEstoqueComponent {
   protected readonly all = signal<StockRow[]>([]);
   protected readonly locations = signal<StockLocation[]>([]);
   protected readonly movements = signal<StockMovement[]>([]);
+  protected readonly transfers = signal<TransferDoc[]>([]);
+  protected readonly drafts = signal<EntryDraftDoc[]>([]);
+  /** Aviso que a 06a/06b deixa ao voltar ("Entrada confirmada…"). */
+  protected readonly toast = signal<string | null>(
+    (inject(Router).getCurrentNavigation()?.extras.state?.['toast'] as string | undefined) ?? null,
+  );
+
+  protected readonly inTransit = computed(() => {
+    const moving = this.transfers().filter((t) => t.status === 'em_transito');
+    return { count: moving.length, units: moving.reduce((n, t) => n + t.units, 0) };
+  });
+
+  /** Rascunhos de entrada e transferências que ainda não terminaram. */
+  protected readonly openWork = computed(() => {
+    const name = (id: string) => this.locations().find((l) => l.id === id)?.name ?? id;
+    const transfers = this.transfers().map((t) => ({
+      kind: 'transferencia',
+      id: t.id,
+      link: ['/painel/loja/estoque/transferencia', t.id],
+      tone: (t.status === 'em_transito' ? 'orange' : t.status === 'separacao' ? 'yellow' : 'dim') as PillTone,
+      status: t.status === 'em_transito' ? 'Em trânsito' : t.status === 'separacao' ? 'Separação' : 'Rascunho',
+      title: `${t.code} → ${name(t.toLocationId)}`,
+      subtitle: `${t.units} un. · ${t.items.length} ${t.items.length === 1 ? 'SKU' : 'SKUs'}`,
+      place: `${name(t.fromLocationId)} → ${name(t.toLocationId)}`,
+      when: t.arriveAt ? `Chega ${formatStamp(t.arriveAt)}` : '',
+    }));
+    const drafts = this.drafts().map((d) => ({
+      kind: 'entrada',
+      id: d.entryId,
+      link: ['/painel/loja/estoque/entrada', d.entryId],
+      tone: 'dim' as PillTone,
+      status: 'Rascunho',
+      title: d['nfNumber'] ? `Entrada · NF ${d['nfNumber']}` : 'Entrada',
+      subtitle: `${(d['items'] ?? []).length} itens`,
+      place: name(d['toLocationId'] ?? ''),
+      when: d.updatedAt ? relativeStamp(d.updatedAt, this.now) : '',
+    }));
+    return [...transfers, ...drafts];
+  });
 
   protected readonly q = signal('');
   protected readonly lowFirst = signal(true);
@@ -325,7 +387,14 @@ export class PanelEstoqueComponent {
   protected async reload(): Promise<void> {
     this.state.set('loading');
     try {
-      const snap = await this.repo.load();
+      const [snap, transfers, drafts] = await Promise.all([
+        this.repo.load(),
+        // Sem transferências ou rascunhos a tela segue: são cards à parte.
+        this.repo.openTransfers().catch(() => [] as TransferDoc[]),
+        this.repo.entryDrafts().catch(() => [] as EntryDraftDoc[]),
+      ]);
+      this.transfers.set(transfers);
+      this.drafts.set(drafts);
       this.all.set(snap.rows);
       this.locations.set(snap.locations);
       this.movements.set(snap.movements);
@@ -359,6 +428,9 @@ export class PanelEstoqueComponent {
   }
   protected tone(qty: number, row: StockRow): string {
     return qtyTone(qty, row.threshold);
+  }
+  protected key(row: StockRow): string {
+    return skuKey(row);
   }
   protected action(row: StockRow): 'repor' | 'transferir' {
     return rowAction(row);

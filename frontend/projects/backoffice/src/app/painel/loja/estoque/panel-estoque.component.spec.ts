@@ -4,12 +4,13 @@ import { provideRouter } from '@angular/router';
 import { AuthService } from '../../../auth/auth.service';
 import { StoreBadgesService } from '../../data/store-badges.service';
 import type { StockRow } from './data/stock';
-import { StockRepository, type StockSnapshot } from './data/stock.repository';
+import { StockRepository, type StockSnapshot, type TransferDoc } from './data/stock.repository';
 import { PanelEstoqueComponent } from './panel-estoque.component';
 
 const row = (over: Partial<StockRow>): StockRow => ({
   productId: 'p', productName: 'Produto', skuId: 's', skuCode: 'NX-P', barcode: '', variantLabel: 'único',
-  category: 'vestuario', imageUrl: null, byLocation: {}, total: 0, reserved: 0, threshold: 3, costCents: null, ...over,
+  category: 'vestuario', imageUrl: null, byLocation: {}, total: 0, reservedByLocation: {}, reserved: 0, threshold: 3,
+  costCents: null, lastCostCents: null, ...over,
 });
 
 const SNAPSHOT: StockSnapshot = {
@@ -27,6 +28,13 @@ const SNAPSHOT: StockSnapshot = {
   ],
 };
 
+const TRANSFERS: TransferDoc[] = [
+  { id: 't1', code: 'TR-118', status: 'em_transito', version: 3, fromLocationId: 'cd', toLocationId: 'arena-cfc',
+    items: [], units: 24, transport: '', departAt: '', arriveAt: '2026-10-17T08:00', receiver: '', note: '', history: [] },
+  { id: 't2', code: 'TR-119', status: 'separacao', version: 2, fromLocationId: 'cd', toLocationId: 'arena-cfc',
+    items: [], units: 5, transport: '', departAt: '', arriveAt: '', receiver: '', note: '', history: [] },
+];
+
 describe('PanelEstoqueComponent', () => {
   async function mount(snapshot: StockSnapshot | 'fail' = SNAPSHOT): Promise<HTMLElement> {
     await TestBed.configureTestingModule({
@@ -37,7 +45,11 @@ describe('PanelEstoqueComponent', () => {
         { provide: AuthService, useValue: { displayName: signal('Ana Souza'), user: signal(null) } },
         {
           provide: StockRepository,
-          useValue: { load: () => (snapshot === 'fail' ? Promise.reject(new Error('x')) : Promise.resolve(snapshot)) },
+          useValue: {
+            load: () => (snapshot === 'fail' ? Promise.reject(new Error('x')) : Promise.resolve(snapshot)),
+            openTransfers: () => Promise.resolve(TRANSFERS),
+            entryDrafts: () => Promise.resolve([{ entryId: 'd1', nfNumber: '8812', items: [{}], toLocationId: 'cd', updatedAt: null }]),
+          },
         },
       ],
     }).compileComponents();
@@ -101,11 +113,27 @@ describe('PanelEstoqueComponent', () => {
 
   it('mostra as movimentações e o vazio do catálogo', async () => {
     let host = await mount();
-    expect(host.querySelector('.move-title')!.textContent).toContain('Ajuste manual');
+    expect(host.querySelector('.move:not(.work) .move-title')!.textContent).toContain('Ajuste manual');
     TestBed.resetTestingModule();
     host = await mount({ locations: [], rows: [], movements: [] });
     expect(host.querySelector('.empty')!.textContent).toContain('Nenhum SKU cadastrado');
     expect(host.querySelector('.moves-empty')).not.toBeNull();
+  });
+
+  it('KPI em trânsito soma só as remessas em trânsito; em andamento lista transferências e rascunhos', async () => {
+    const host = await mount();
+    const values = [...host.querySelectorAll('.kpi-value')].map((e) => e.textContent!.trim());
+    expect(values[2]).toBe('24 un.');
+    expect(host.querySelectorAll('.kpi-hint')[2]!.textContent!.trim()).toBe('1 remessa');
+    const work = [...host.querySelectorAll('.move.work .move-title')].map((e) => e.textContent!.trim());
+    expect(work).toEqual(['TR-118 → Arena CFC', 'TR-119 → Arena CFC', 'Entrada · NF 8812']);
+  });
+
+  it('Repor e Transferir abrem 06a/06b com o SKU', async () => {
+    const host = await mount();
+    const links = [...host.querySelectorAll('.action a')].map((a) => a.getAttribute('href'));
+    expect(links[0]).toBe('/painel/loja/estoque/entrada/nova?sku=p%2Fcam');
+    expect(links[2]).toBe('/painel/loja/estoque/transferencia/nova?sku=p%2Fbola');
   });
 
   it('erro na leitura mostra o aviso com tentar de novo', async () => {

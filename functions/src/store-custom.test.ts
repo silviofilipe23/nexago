@@ -104,6 +104,43 @@ describe("configuração de personalização", () => {
     );
   });
 
+  it("costas ligadas exigem imagem ou número; dígitos de 1 a 3", () => {
+    assert.deepEqual(customizationErrors(config((c) => {
+      c.back.enabled = true;
+      c.back.allowImage = false;
+      c.back.allowNumber = false;
+    })), ["back"]);
+    assert.deepEqual(customizationErrors(config((c) => {
+      c.back.numberMaxDigits = 4;
+    })), ["back"]);
+    // Só as costas ligadas já é personalização suficiente.
+    assert.deepEqual(customizationErrors(config((c) => {
+      c.name.enabled = false;
+      c.image.enabled = false;
+      c.back.enabled = true;
+    })), []);
+  });
+
+  it("doc antigo com número junto do nome vira costas só com número", () => {
+    const c = withCustomizationDefaults({active: true, name: {maxChars: 10, allowNumber: true}});
+    assert.deepEqual(
+      {enabled: c.back.enabled, allowImage: c.back.allowImage, allowNumber: c.back.allowNumber},
+      {enabled: true, allowImage: false, allowNumber: true},
+    );
+    assert.equal("allowNumber" in c.name, false);
+    assert.equal(withCustomizationDefaults({name: {allowNumber: false}}).back.enabled, false);
+  });
+
+  it("não grava o allowNumber antigo que um cliente desatualizado mande", async () => {
+    const {fake, db} = makeDb();
+    const legacy = config() as CustomizationConfig & {name: {allowNumber?: boolean}};
+    legacy.name.allowNumber = true;
+    await saveCustomizationCore(db, {productId: "p1", config: legacy}, ACTOR, NOW);
+    const doc = fake.store.get("storeProductCustomization/p1")!;
+    assert.equal("allowNumber" in (doc["name"] as object), false);
+    assert.equal((doc["back"] as {enabled: boolean}).enabled, false);
+  });
+
   it("doc antigo ganha campos novos do padrão", () => {
     const c = withCustomizationDefaults({active: true, name: {maxChars: 8}});
     assert.equal(c.name.maxChars, 8);
@@ -178,13 +215,18 @@ describe("fila de arte", () => {
 
   it("lote leva só aprovados sem lote, e marca os itens", async () => {
     const {fake, db} = makeDb();
-    fake.store.set("storeCustomItems/a", item({status: "producao", units: [{name: "ANA"}, {name: "BIA"}]}));
+    fake.store.set("storeCustomItems/a", item({
+      status: "producao", units: [{name: "ANA", number: "7"}, {name: "BIA", number: "10"}],
+      back: {type: "numero", number: "10"},
+    }));
     fake.store.set("storeCustomItems/b", item({status: "producao", batchId: "antigo"}));
     fake.store.set("storeCustomItems/c", item({status: "aprovar"}));
     const {batchId, rows} = await createCustomBatchCore(db, ACTOR, NOW);
 
     assert.deepEqual(rows.map((r) => r.itemId), ["a"]);
     assert.deepEqual(rows[0]!.names, ["ANA", "BIA"]);
+    assert.deepEqual(rows[0]!.numbers, ["7", "10"]);
+    assert.equal(rows[0]!.back, "nº 10");
     assert.equal(fake.store.get("storeCustomItems/a")!["batchId"], batchId);
     assert.equal(fake.store.get("storeCustomItems/b")!["batchId"], "antigo");
     assert.deepEqual(fake.store.get(`storeCustomBatches/${batchId}`)!["itemIds"], ["a"]);

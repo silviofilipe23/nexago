@@ -59,6 +59,16 @@ describe('PanelShellComponent', () => {
     expect(group.getAttribute('aria-expanded')).toBe('false');
   });
 
+  it('o cabeçalho do grupo usa a mesma fonte e alinhamento dos links', async () => {
+    const host = await mount();
+    const group = getComputedStyle(host.querySelector('button.nav-item')!);
+    const link = getComputedStyle(host.querySelector('a.nav-item')!);
+    expect(group.textAlign).toBe('left');
+    expect(group.fontFamily).toBe(link.fontFamily);
+    expect(group.fontSize).toBe(link.fontSize);
+    expect(group.fontWeight).toBe(link.fontWeight);
+  });
+
   it('abrir o grupo na mão não o destaca: o destaque é da rota', async () => {
     const host = await mount();
     const group = host.querySelector('button.nav-item') as HTMLButtonElement;

@@ -351,11 +351,13 @@ function initialsOf(name: string): string {
       flex: 1;
     }
 
+    /* \`font: inherit\` aqui apagava a fonte do .nav-item (o grupo saía em Inter 16 px)
+       e o <button> centraliza o texto por padrão: o grupo tem de ler igual aos links. */
     button.nav-item {
       width: 100%;
       background: transparent;
       border: none;
-      font: inherit;
+      text-align: left;
       cursor: pointer;
       transition: background 140ms var(--nx-ease-out);
     }

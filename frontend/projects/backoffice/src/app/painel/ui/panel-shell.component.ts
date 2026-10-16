@@ -35,7 +35,7 @@ export interface NavGroup {
 export type PanelNavItem = NavLink | NavSoon | NavGroup;
 
 /** Contadores de exemplo: saem quando a Loja tiver backend. */
-const LOJA_BADGES = { pedidos: 12, personalizados: 2, cupons: 2, trocas: 2 } as const;
+const LOJA_BADGES = { pedidos: 12, personalizados: 2, trocas: 2 } as const;
 
 const LOJA_GROUP: NavGroup = {
   kind: 'group',
@@ -68,11 +68,11 @@ const LOJA_GROUP: NavGroup = {
       route: '/painel/loja/retirada',
     },
     {
-      kind: 'soon',
+      kind: 'link',
       id: 'loja-cupons',
       label: 'Cupons & promoções',
       icon: 'ticket',
-      badge: LOJA_BADGES.cupons,
+      route: '/painel/loja/cupons',
     },
     { kind: 'soon', id: 'loja-trocas', label: 'Trocas', icon: 'swap', badge: LOJA_BADGES.trocas },
   ],
@@ -606,6 +606,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/loja/retirada')) {
       return 'loja-retirada';
+    }
+    if (path.startsWith('/painel/loja/cupons')) {
+      return 'loja-cupons';
     }
     if (path === '/painel') {
       return 'inicio';

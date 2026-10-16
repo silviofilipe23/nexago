@@ -59,7 +59,13 @@ const LOJA_GROUP: NavGroup = {
       route: '/painel/loja/produtos',
     },
     { kind: 'soon', id: 'loja-estoque', label: 'Estoque', icon: 'archive', badge: LOJA_BADGES.estoque },
-    { kind: 'soon', id: 'loja-retirada', label: 'Retirada & frete', icon: 'swap' },
+    {
+      kind: 'link',
+      id: 'loja-retirada',
+      label: 'Retirada & frete',
+      icon: 'swap',
+      route: '/painel/loja/retirada',
+    },
     {
       kind: 'soon',
       id: 'loja-cupons',
@@ -572,6 +578,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/loja/produtos')) {
       return 'loja-produtos';
+    }
+    if (path.startsWith('/painel/loja/retirada')) {
+      return 'loja-retirada';
     }
     if (path === '/painel') {
       return 'inicio';

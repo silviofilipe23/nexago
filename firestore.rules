@@ -3189,6 +3189,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Trocas & devoluções (tela 09). Status, reserva e estoque andam juntos no servidor.
+    match /storeReturns/{returnId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
     // Transferências entre locais (06b). Status e reservas são decisão de servidor.
     match /storeTransfers/{transferId} {
       allow read: if isAdmin() || isSuperAdmin();

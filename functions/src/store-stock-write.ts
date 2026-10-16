@@ -61,13 +61,13 @@ const lineKey = (productId: string, skuId: string) => `${productId}/${skuId}`;
 // Leitura e gravação dos SKUs tocados, compartilhada por entrada e transferência
 // ---------------------------------------------------------------------------
 
-interface LoadedSku {
+export interface LoadedSku {
   ref: FirebaseFirestore.DocumentReference;
   data: Data;
   touched: boolean;
 }
 
-interface LoadedProduct {
+export interface LoadedProduct {
   ref: FirebaseFirestore.DocumentReference;
   data: Data;
   skus: Map<string, LoadedSku>;
@@ -76,7 +76,7 @@ interface LoadedProduct {
 }
 
 /** Só leituras: a transação recusa ler depois de escrever. */
-async function loadProducts(tx: Transaction, db: Firestore, productIds: string[]): Promise<Map<string, LoadedProduct>> {
+export async function loadProducts(tx: Transaction, db: Firestore, productIds: string[]): Promise<Map<string, LoadedProduct>> {
   const out = new Map<string, LoadedProduct>();
   for (const productId of [...new Set(productIds)]) {
     const ref = db.collection(PRODUCTS).doc(productId);
@@ -96,7 +96,7 @@ async function loadProducts(tx: Transaction, db: Firestore, productIds: string[]
   return out;
 }
 
-function skuOf(products: Map<string, LoadedProduct>, productId: string, skuId: string): LoadedSku {
+export function skuOf(products: Map<string, LoadedProduct>, productId: string, skuId: string): LoadedSku {
   const sku = products.get(productId)?.skus.get(skuId);
   if (!sku) {
     throw new HttpsError("not-found", "Variação não encontrada.", {productId, skuId});
@@ -104,7 +104,7 @@ function skuOf(products: Map<string, LoadedProduct>, productId: string, skuId: s
   return sku;
 }
 
-function describe(products: Map<string, LoadedProduct>, productId: string, skuId: string) {
+export function describe(products: Map<string, LoadedProduct>, productId: string, skuId: string) {
   const product = products.get(productId)!;
   const sku = skuOf(products, productId, skuId);
   return {
@@ -118,7 +118,7 @@ function describe(products: Map<string, LoadedProduct>, productId: string, skuId
 }
 
 /** Muda o saldo de um SKU num local e devolve o antes/depois para a movimentação. */
-function moveStock(sku: LoadedSku, locationId: string, delta: number): {before: number; after: number} {
+export function moveStock(sku: LoadedSku, locationId: string, delta: number): {before: number; after: number} {
   const byLocation = {...((sku.data["stockByLocation"] ?? {}) as Record<string, number>)};
   const before = byLocation[locationId] ?? 0;
   const after = before + delta;
@@ -132,7 +132,7 @@ function moveStock(sku: LoadedSku, locationId: string, delta: number): {before: 
   return {before, after};
 }
 
-function moveReserved(sku: LoadedSku, locationId: string, delta: number): void {
+export function moveReserved(sku: LoadedSku, locationId: string, delta: number): void {
   const reserved = {...((sku.data["reservedByLocation"] ?? {}) as Record<string, number>)};
   reserved[locationId] = Math.max(0, (reserved[locationId] ?? 0) + delta);
   sku.data["reservedByLocation"] = reserved;
@@ -140,7 +140,7 @@ function moveReserved(sku: LoadedSku, locationId: string, delta: number): void {
 }
 
 /** Grava os SKUs tocados e recalcula os rollups de cada produto (sobe a versão). */
-function writeProducts(tx: Transaction, products: Map<string, LoadedProduct>, actor: Actor, now: Date): void {
+export function writeProducts(tx: Transaction, products: Map<string, LoadedProduct>, actor: Actor, now: Date): void {
   for (const product of products.values()) {
     const touched = [...product.skus.values()].filter((s) => s.touched);
     if (touched.length === 0) continue;
@@ -170,7 +170,7 @@ function writeProducts(tx: Transaction, products: Map<string, LoadedProduct>, ac
   }
 }
 
-async function assertLocation(tx: Transaction, db: Firestore, id: unknown, field: string): Promise<string> {
+export async function assertLocation(tx: Transaction, db: Firestore, id: unknown, field: string): Promise<string> {
   if (typeof id !== "string" || id === "") throw invalid([field]);
   const snap = await tx.get(db.collection(LOCATIONS).doc(id));
   if (!snap.exists || snap.data()?.["active"] === false) {
@@ -179,7 +179,7 @@ async function assertLocation(tx: Transaction, db: Firestore, id: unknown, field
   return id;
 }
 
-function locationName(snapData: Data | undefined, id: string): string {
+export function locationName(snapData: Data | undefined, id: string): string {
   return (snapData?.["name"] as string | undefined) ?? id;
 }
 

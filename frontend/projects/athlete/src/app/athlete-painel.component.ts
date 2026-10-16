@@ -30,6 +30,7 @@ import { staffRoleLabel } from './data/tournament-staff-repository';
 import { StaffTournamentsService } from './data/staff-tournaments.service';
 import { PartnerInvitesService } from './data/partner-invites.service';
 import { PendingTournamentReviewsService } from './data/pending-tournament-reviews.service';
+import { StoreFlagService } from './data/store-flag.service';
 import { reviewCardItems } from './data/tournament-reviews';
 import { fetchAthleteRankingPosition } from './data/rankings-repository';
 import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type ArenaMatch } from './data/teams-repository';
@@ -563,6 +564,9 @@ export class AthletePainelComponent {
 
   protected readonly loadingRanking = signal(false);
   private readonly toasts = inject(NxToastService);
+
+  /** Atalho "Loja" — no celular a sidebar some, e esta é a porta de entrada da vitrine. */
+  protected readonly storeEnabled = inject(StoreFlagService).enabled;
 
   /** Só falha de SINCRONIZAÇÃO de dados. Erro de ação (aceitar/recusar convite)
    *  vai pra toast — ele pertence ao gesto, não ao estado da tela. */

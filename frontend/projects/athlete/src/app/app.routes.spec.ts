@@ -18,6 +18,8 @@ const PUBLIC_PATHS = new Set([
   'esqueci-senha',
   'email-enviado',
   'redefinir-senha',
+  // Vitrine aberta a visitante (spec da Loja); carrinho e favoritos têm guard nas filhas.
+  'loja',
   '**',
 ]);
 
@@ -38,6 +40,16 @@ describe('app.routes', () => {
       .map((r) => r.path);
 
     expect(unguarded).toEqual([]);
+  });
+
+  it('Loja: vitrine aberta, carrinho e favoritos exigem login', async () => {
+    const route = routes.find((r) => r.path === 'loja');
+    expect(route?.canActivate).toBeUndefined();
+    const { LOJA_ROUTES } = await import('./loja/loja.routes');
+    const guarded = (path: string) => LOJA_ROUTES.find((r) => r.path === path)?.canActivate ?? [];
+    expect(guarded('')).toEqual([]);
+    expect(guarded('carrinho')).toContain(authGuard);
+    expect(guarded('favoritos')).toContain(authGuard);
   });
 
   // `webUrl: '/cashback'` dos pushes `cashback_released`/`cashback_expiring` cai aqui.

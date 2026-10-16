@@ -6,6 +6,8 @@ import { storeProductFromDoc, type StoreProductDoc } from './product-doc';
 export type ProductCategory = 'bolas' | 'vestuario' | 'acessorios' | 'rede-quadra' | 'kits';
 export type ProductChannel = 'web' | 'app';
 
+/** Ordem e rótulos espelhados em `STORE_CATEGORIES` (functions/src/store-showcase.ts), que a
+ *  vitrine do atleta lê — mudar os dois. */
 export const PRODUCT_CATEGORY_LABELS: Record<ProductCategory, string> = {
   bolas: 'Bolas',
   vestuario: 'Vestuário',
@@ -14,7 +16,8 @@ export const PRODUCT_CATEGORY_LABELS: Record<ProductCategory, string> = {
   kits: 'Kits',
 };
 
-/** Coleções do catálogo. Fica junto das categorias para a validação da URL ter uma fonte só. */
+/** Coleções do catálogo. Fica junto das categorias para a validação da URL ter uma fonte só.
+ *  Espelhadas em `STORE_COLLECTIONS` (functions/src/store-showcase.ts) — mudar os dois. */
 export const PRODUCT_COLLECTIONS: ReadonlyArray<{ id: string; label: string }> = [
   { id: 'verao-2026', label: 'Verão 2026' },
   { id: 'linha-pro', label: 'Linha Pro' },

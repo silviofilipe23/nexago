@@ -180,6 +180,15 @@
   }
 }
 
+// Visitante na vitrine da Loja (única tela do shell aberta sem login).
+.at-nav-item--login {
+  color: var(--nx-orange-500);
+
+  &:hover {
+    background: var(--nx-orange-tint);
+  }
+}
+
 .at-sidebar-spacer {
   flex: 1;
 }

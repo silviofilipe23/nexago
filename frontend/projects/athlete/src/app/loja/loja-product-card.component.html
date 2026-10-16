@@ -1,0 +1,47 @@
+<a class="lj-card-link" [routerLink]="['/loja/produto', product().id]" (click)="opened.emit()">
+  <div class="lj-card-media" [attr.data-tone]="placeholderTone()">
+    @if (product().coverUrl; as cover) {
+      <img class="lj-card-img" [src]="cover" [alt]="product().name" loading="lazy" decoding="async" />
+    } @else {
+      <span class="lj-card-placeholder" aria-hidden="true">{{ categoryLabel() }}</span>
+    }
+    @if (badge(); as b) {
+      <span class="lj-badge" [class.lj-badge--orange]="b.tone === 'orange'">{{ b.label }}</span>
+    }
+  </div>
+
+  <div class="lj-card-info">
+    <div class="lj-card-category">{{ categoryLabel() }}</div>
+    <div class="lj-card-name" [title]="product().name">{{ product().name }}</div>
+    @if (rating(); as r) {
+      <div class="lj-card-rating">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z" /></svg>
+        <span>{{ r.avg }}</span>
+        <span class="lj-card-rating-count">({{ r.count }})</span>
+      </div>
+    }
+    <div class="lj-card-price-row">
+      @if (fromLabel(); as from) {
+        <span class="lj-card-from">{{ from }}</span>
+      }
+      <span class="lj-card-price">{{ priceLabel() }}</span>
+      @if (strikeLabel(); as strike) {
+        <span class="lj-card-strike">{{ strike }}</span>
+      }
+    </div>
+    @if (pixLabel(); as pix) {
+      <div class="lj-card-pix"><strong>{{ pix }}</strong> no Pix</div>
+    }
+  </div>
+</a>
+
+<button
+  type="button"
+  class="lj-fav"
+  [class.lj-fav--on]="favorite()"
+  [attr.aria-pressed]="favorite()"
+  [attr.aria-label]="favorite() ? 'Tirar ' + product().name + ' dos favoritos' : 'Favoritar ' + product().name"
+  (click)="toggleFavorite($event)"
+>
+  <svg width="15" height="15" viewBox="0 0 24 24" [attr.fill]="favorite() ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z" /></svg>
+</button>

@@ -1,0 +1,227 @@
+<app-at-panel-shell [userName]="accountLabel()" [guest]="guest()">
+  <header class="lj-header">
+    <h1 class="lj-title">Loja NexaGO</h1>
+
+    <div class="lj-search" #searchBox (focusout)="onSearchFocusOut($event, searchBox)">
+      <svg class="lj-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+      <input
+        type="search"
+        class="lj-search-input"
+        placeholder="Buscar bola, viseira, rede…"
+        aria-label="Buscar na loja"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-controls="lj-search-panel"
+        [attr.aria-expanded]="searchOpen() && searchOptions().length > 0"
+        [attr.aria-activedescendant]="activeOption() >= 0 ? 'lj-opt-' + activeOption() : null"
+        autocomplete="off"
+        enterkeyhint="search"
+        [value]="searchDraft()"
+        (input)="onSearchInput($any($event.target).value)"
+        (focus)="searchOpen.set(true)"
+        (keydown)="onSearchKeydown($event)"
+      />
+      @if (searchOpen() && searchOptions().length > 0) {
+        <div class="lj-search-panel" id="lj-search-panel" role="listbox" aria-label="Sugestões">
+          @if (searchDraft().trim().length < 2) {
+            <div class="lj-search-group">Buscas recentes</div>
+          }
+          @for (opt of searchOptions(); track $index; let i = $index) {
+            @if (opt.kind === 'category' && (i === 0 || searchOptions()[i - 1]?.kind !== 'category')) {
+              <div class="lj-search-group">Categorias</div>
+            }
+            <button
+              type="button"
+              role="option"
+              class="lj-search-option"
+              [id]="'lj-opt-' + i"
+              [class.lj-search-option--active]="activeOption() === i"
+              [attr.aria-selected]="activeOption() === i"
+              (mousedown)="$event.preventDefault()"
+              (click)="pickOption(opt)"
+            >
+              @switch (opt.kind) {
+                @case ('recent') {
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></svg>
+                  <span class="lj-search-option-name">{{ opt.term }}</span>
+                }
+                @case ('product') {
+                  <span class="lj-search-thumb">
+                    @if (opt.product.coverUrl; as cover) {
+                      <img [src]="cover" alt="" loading="lazy" />
+                    }
+                  </span>
+                  <span class="lj-search-option-name">{{ opt.product.name }}</span>
+                  <span class="lj-search-option-price">{{ priceOf(opt.product) }}</span>
+                }
+                @case ('category') {
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" /></svg>
+                  <span class="lj-search-option-name">{{ opt.category.label }}</span>
+                }
+              }
+            </button>
+          }
+        </div>
+      }
+    </div>
+
+    <div class="lj-header-actions">
+      <a class="lj-icon-btn" routerLink="/loja/favoritos" aria-label="Favoritos">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z" /></svg>
+      </a>
+      <a class="lj-cart-btn" routerLink="/loja/carrinho" [attr.aria-label]="store.cartUnits() > 0 ? 'Carrinho, ' + store.cartUnits() + ' itens' : 'Carrinho'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h8.7a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2" /><circle cx="9.5" cy="20" r="1.2" /><circle cx="17.5" cy="20" r="1.2" /></svg>
+        <span>Carrinho</span>
+        @if (store.cartUnits() > 0) {
+          <span class="lj-cart-count">{{ store.cartUnits() }}</span>
+        }
+      </a>
+    </div>
+  </header>
+
+  <div class="lj-body">
+    @if (store.error(); as err) {
+      <section class="lj-state" role="alert">
+        <h2>Não deu pra carregar a loja</h2>
+        <p>Confira a conexão e tente de novo.</p>
+        <button type="button" class="lj-state-btn" (click)="store.retry()">Tentar de novo</button>
+        <small class="lj-state-detail">{{ err }}</small>
+      </section>
+    } @else if (store.loading()) {
+      <p class="lj-visually-hidden" role="status">Carregando a loja…</p>
+      <div class="lj-skeleton" aria-hidden="true">
+        <app-nx-skeleton [h]="300" [r]="24" />
+        <div class="lj-skeleton-chips">
+          @for (i of [1, 2, 3, 4, 5]; track i) {
+            <app-nx-skeleton [w]="84" [h]="38" [r]="999" />
+          }
+        </div>
+        <div class="lj-grid">
+          @for (i of skeletonCards; track i) {
+            <div class="lj-skeleton-card">
+              <app-nx-skeleton [h]="236" [r]="0" />
+              <div class="lj-skeleton-card-info">
+                <app-nx-skeleton [w]="60" [h]="9" />
+                <app-nx-skeleton w="80%" [h]="13" />
+                <app-nx-skeleton [w]="90" [h]="16" />
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    } @else {
+      @if (!filters().query && banners().length > 0) {
+        <app-loja-banner [banners]="banners()" (primaryClick)="openBanner($event)" (secondaryClick)="openBannerSecondary($event)" />
+      }
+
+      @if (!filters().query) {
+        <ul class="lj-benefits" aria-label="Vantagens da loja">
+          @if (benefits().pixDiscountPct; as pct) {
+            <li class="lj-benefit">
+              <span class="lj-benefit-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 9-9 9-9-9z" /><path d="m12 8 4 4-4 4-4-4z" /></svg></span>
+              <span><strong>{{ pct }}% off no Pix</strong><small>Desconto aplicado no checkout</small></span>
+            </li>
+          }
+          @if (benefits().pickupReadyHours; as hours) {
+            <li class="lj-benefit">
+              <span class="lj-benefit-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.1-7-11.5a7 7 0 0 1 14 0C19 14.9 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></svg></span>
+              <span><strong>Retire grátis na sua arena</strong><small>Pronto em até {{ hours }} h</small></span>
+            </li>
+          }
+          <li class="lj-benefit">
+            <span class="lj-benefit-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8" /><path d="M4 3v5h5" /><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16" /><path d="M20 21v-5h-5" /></svg></span>
+            <span><strong>Troca em {{ benefits().exchangeDays }} dias</strong><small>Sem custo na primeira troca</small></span>
+          </li>
+        </ul>
+      }
+
+      <div class="lj-toolbar" #gridTop>
+        <div class="lj-chips" role="group" aria-label="Categorias">
+          <button type="button" class="lj-chip" [class.lj-chip--on]="filters().category === null" [attr.aria-pressed]="filters().category === null" (click)="selectCategory(null)">Tudo</button>
+          @for (c of categories(); track c.id) {
+            <button type="button" class="lj-chip" [class.lj-chip--on]="filters().category === c.id" [attr.aria-pressed]="filters().category === c.id" (click)="selectCategory(c.id)">{{ c.label }}</button>
+          }
+        </div>
+
+        <div class="lj-sort" #sortBox (focusout)="onSortFocusOut($event, sortBox)">
+          <button type="button" class="lj-sort-btn" aria-haspopup="listbox" [attr.aria-expanded]="sortOpen()" (click)="sortOpen.set(!sortOpen())">
+            <span class="lj-sort-label">Ordenar:</span>
+            <span class="lj-sort-value">{{ sortLabel() }}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+          </button>
+          @if (sortOpen()) {
+            <div class="lj-sort-menu" role="listbox" aria-label="Ordenar por">
+              @for (o of sortOptions; track o.id) {
+                <button type="button" role="option" class="lj-sort-option" [class.lj-sort-option--on]="o.id === filters().sort" [attr.aria-selected]="o.id === filters().sort" (click)="selectSort(o.id)">
+                  {{ o.label }}
+                  @if (o.id === filters().sort) {
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg>
+                  }
+                </button>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      @if (heading(); as h) {
+        <div class="lj-heading">
+          <h2>{{ h }}</h2>
+          <button type="button" class="lj-heading-clear" (click)="clearFilters()">Limpar</button>
+        </div>
+      }
+
+      @if (results().length === 0) {
+        @if (filters().query) {
+          <section class="lj-state lj-state--inline">
+            <h2>Não achamos "{{ filters().query }}"</h2>
+            <p>Confira a grafia ou veja o que está saindo mais.</p>
+          </section>
+          @if (fallbackProducts().length > 0) {
+            <h3 class="lj-subheading">Mais vendidos</h3>
+            <div class="lj-grid">
+              @for (p of fallbackProducts(); track p.id; let i = $index) {
+                <app-loja-product-card
+                  [product]="p"
+                  [categoryLabel]="categoryName(p.category)"
+                  [pixDiscountPct]="benefits().pixDiscountPct"
+                  [favorite]="store.isFavorite(p.id)"
+                  [now]="now"
+                  (opened)="productClicked(p, i)"
+                  (favoriteToggled)="toggleFavorite(p)"
+                />
+              }
+            </div>
+          }
+        } @else {
+          <section class="lj-state lj-state--inline">
+            @if (hasFilters()) {
+              <h2>Nada por aqui com esses filtros</h2>
+              <button type="button" class="lj-state-btn" (click)="clearFilters()">Limpar filtros</button>
+            } @else {
+              <h2>A vitrine está sendo montada</h2>
+              <p>Os produtos aparecem aqui assim que forem publicados.</p>
+            }
+          </section>
+        }
+      } @else {
+        <div class="lj-grid">
+          @for (p of visibleResults(); track p.id; let i = $index) {
+            <app-loja-product-card
+              [product]="p"
+              [categoryLabel]="categoryName(p.category)"
+              [pixDiscountPct]="benefits().pixDiscountPct"
+              [favorite]="store.isFavorite(p.id)"
+              [now]="now"
+              (opened)="productClicked(p, i)"
+              (favoriteToggled)="toggleFavorite(p)"
+            />
+          }
+        </div>
+        @if (hasMore()) {
+          <div class="lj-sentinel" #sentinel aria-hidden="true"></div>
+        }
+      }
+    }
+  </div>
+</app-at-panel-shell>

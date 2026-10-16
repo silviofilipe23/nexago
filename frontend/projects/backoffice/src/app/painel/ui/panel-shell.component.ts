@@ -35,7 +35,7 @@ export interface NavGroup {
 export type PanelNavItem = NavLink | NavSoon | NavGroup;
 
 /** Contadores de exemplo: saem quando a Loja tiver backend. */
-const LOJA_BADGES = { pedidos: 12, personalizados: 2, cupons: 2 } as const;
+const LOJA_BADGES = { pedidos: 12 } as const;
 
 const LOJA_GROUP: NavGroup = {
   kind: 'group',
@@ -45,12 +45,13 @@ const LOJA_GROUP: NavGroup = {
   children: [
     { kind: 'soon', id: 'loja-visao-geral', label: 'Visão geral', icon: 'trend-up' },
     { kind: 'soon', id: 'loja-pedidos', label: 'Pedidos', icon: 'file', badge: LOJA_BADGES.pedidos },
+    // Badge real: artes esperando aprovação (StoreBadgesService).
     {
-      kind: 'soon',
+      kind: 'link',
       id: 'loja-personalizados',
       label: 'Personalizados',
       icon: 'edit',
-      badge: LOJA_BADGES.personalizados,
+      route: '/painel/loja/personalizados',
     },
     {
       kind: 'link',
@@ -551,6 +552,7 @@ export class PanelShellComponent {
     if (this.auth.user()) {
       void this.badges.load();
       void this.badges.loadReturns();
+      void this.badges.loadCustom();
     }
   }
 
@@ -560,6 +562,9 @@ export class PanelShellComponent {
     }
     if (item.id === 'loja-trocas') {
       return this.badges.returnsToReview() || undefined;
+    }
+    if (item.id === 'loja-personalizados') {
+      return this.badges.customToApprove() || undefined;
     }
     return item.badge;
   }
@@ -614,6 +619,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/loja/retirada')) {
       return 'loja-retirada';
+    }
+    if (path.startsWith('/painel/loja/personalizados')) {
+      return 'loja-personalizados';
     }
     if (path.startsWith('/painel/loja/cupons')) {
       return 'loja-cupons';

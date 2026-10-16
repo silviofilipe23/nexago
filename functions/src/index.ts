@@ -577,6 +577,14 @@ export {
   setStoreCouponPaused,
 } from "./store-coupons";
 
+// Loja: personalizados — configuração por produto (tela 11) e fila de arte (tela 10).
+export {
+  createStoreCustomBatch,
+  reviewStoreCustomItem,
+  saveStoreBlocklist,
+  saveStoreCustomization,
+} from "./store-custom";
+
 // Estoque da Loja: entrada (06a) e transferência (06b). Saldo só muda por aqui.
 export {
   advanceStoreTransfer,

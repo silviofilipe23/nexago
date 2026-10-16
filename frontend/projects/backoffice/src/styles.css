@@ -447,6 +447,11 @@ button {
   transition: all 140ms var(--nx-ease-out);
 }
 
+/* Link com cara de botão (ex.: navegar para outra tela a partir do cabeçalho). */
+a.bo-mini-btn {
+  text-decoration: none;
+}
+
 .bo-mini-btn:hover:not(:disabled) {
   background: var(--nx-surface-2);
 }

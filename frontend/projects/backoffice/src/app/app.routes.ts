@@ -192,6 +192,16 @@ export const routes: Routes = [
       import('./painel/loja/produtos/editar/product-edit.component').then((m) => m.ProductEditComponent),
   },
   {
+    path: 'painel/loja/produtos/:id/personalizacao',
+    title: 'Personalização do produto — NexaGO Backoffice',
+    canActivate: [authGuard],
+    canDeactivate: [leaveWithConfirm],
+    loadComponent: () =>
+      import('./painel/loja/produtos/personalizacao/product-customization.component').then(
+        (m) => m.ProductCustomizationComponent,
+      ),
+  },
+  {
     path: 'painel/loja/produtos/:id',
     title: 'Editar produto — NexaGO Backoffice',
     canActivate: [authGuard],
@@ -206,6 +216,15 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/loja/retirada/panel-retirada.component').then(
         (m) => m.PanelRetiradaComponent,
+      ),
+  },
+  {
+    path: 'painel/loja/personalizados',
+    title: 'Personalizados — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/loja/personalizados/panel-personalizados.component').then(
+        (m) => m.PanelPersonalizadosComponent,
       ),
   },
   {

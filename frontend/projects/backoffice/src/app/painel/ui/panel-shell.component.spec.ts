@@ -79,26 +79,37 @@ describe('PanelShellComponent', () => {
     expect(group.classList.contains('active')).toBeFalse();
   });
 
-  it('Produtos, Estoque, Retirada & frete e Trocas são links; os outros filhos são "Em breve"', async () => {
+  it('Personalizados, Produtos, Estoque, Retirada, Cupons e Trocas são links; os outros filhos são "Em breve"', async () => {
     const host = await mount();
     (host.querySelector('button.nav-item') as HTMLButtonElement).click();
     await TestBed.inject(ApplicationRef).whenStable();
 
     const links = [...host.querySelectorAll('.subnav a.nav-item')];
     expect(links.map((e) => e.textContent!.trim().replace(/\d+$/, '').trim())).toEqual([
+      'Personalizados',
       'Produtos',
       'Estoque',
       'Retirada & frete',
-      'Trocas',
       'Cupons & promoções',
+      'Trocas',
     ]);
     expect(links.map((e) => e.getAttribute('href'))).toEqual([
+      '/painel/loja/personalizados',
       '/painel/loja/produtos',
       '/painel/loja/estoque',
       '/painel/loja/retirada',
-      '/painel/loja/trocas',
       '/painel/loja/cupons',
+      '/painel/loja/trocas',
     ]);
+  });
+
+  it('o badge de Personalizados é o número de artes para aprovar', async () => {
+    const host = await mount();
+    TestBed.inject(StoreBadgesService).setCustom(2);
+    (host.querySelector('button.nav-item') as HTMLButtonElement).click();
+    await TestBed.inject(ApplicationRef).whenStable();
+    const item = [...host.querySelectorAll('.subnav a.nav-item')].find((e) => e.textContent!.includes('Personalizados'))!;
+    expect(item.querySelector('.badge')!.textContent!.trim()).toBe('2');
   });
 
   it('o badge de Trocas é o número para analisar', async () => {

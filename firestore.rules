@@ -3172,6 +3172,23 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Personalizados da Loja: config por produto, fila de arte e lotes da estamparia.
+    // Só o backoffice lê; escrita só pelas callables de store-custom.
+    match /storeProductCustomization/{productId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /storeCustomItems/{itemId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /storeCustomBatches/{batchId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
     match /storeConfig/{configId} {
       allow read: if isAdmin() || isSuperAdmin();
       allow write: if false;

@@ -68,11 +68,11 @@ const LOJA_GROUP: NavGroup = {
       route: '/painel/loja/retirada',
     },
     {
-      kind: 'soon',
+      kind: 'link',
       id: 'loja-cupons',
       label: 'Cupons & promoções',
       icon: 'ticket',
-      badge: LOJA_BADGES.cupons,
+      route: '/painel/loja/cupons',
     },
     // Badge real: solicitações para analisar (StoreBadgesService).
     { kind: 'link', id: 'loja-trocas', label: 'Trocas', icon: 'swap', route: '/painel/loja/trocas' },
@@ -614,6 +614,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/loja/retirada')) {
       return 'loja-retirada';
+    }
+    if (path.startsWith('/painel/loja/cupons')) {
+      return 'loja-cupons';
     }
     if (path === '/painel') {
       return 'inicio';

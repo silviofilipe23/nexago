@@ -3161,6 +3161,17 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Cupons da Loja: só o backoffice lê; escrita (e a contagem de uso) só pelo servidor.
+    match /storeCoupons/{couponId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    // Chaves de unicidade do código de cupom. Só o Admin SDK toca.
+    match /storeCouponCodes/{code} {
+      allow read, write: if false;
+    }
+
     match /storeConfig/{configId} {
       allow read: if isAdmin() || isSuperAdmin();
       allow write: if false;

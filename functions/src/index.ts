@@ -606,6 +606,14 @@ export {
   sweepExpiredStorePickups,
 } from "./store-orders-write";
 
+// Vitrine da Loja: espelho público do catálogo e da config, recalculado a cada escrita da fonte.
+export {
+  onStoreConfigWrittenSyncShowcase,
+  onStoreCustomizationWrittenSyncShowcase,
+  onStorePickupPointWrittenSyncShowcase,
+  onStoreProductWrittenSyncShowcase,
+} from "./store-showcase-sync";
+
 // Prévia de link (OG/Twitter Card) das rotas dinâmicas do site público — a SPA Angular não
 // tem SSR, então bots de rede social são redirecionados aqui pelo .htaccess (por User-Agent).
 export {siteOgPreview} from "./site-og-preview";

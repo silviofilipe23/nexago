@@ -299,7 +299,10 @@ type PriceKey = keyof CustomizationConfig['price'];
 
               <!-- Prévia -->
               <bo-panel-card kicker="O que o atleta vê" title="Prévia">
-                <div class="mockup">
+                <div class="mockup" [class.has-photo]="coverUrl()">
+                  @if (coverUrl(); as url) {
+                    <img class="photo" [src]="url" [alt]="productName()" />
+                  }
                   <div class="segmented" role="radiogroup" aria-label="Lado">
                     <button type="button" role="radio" [attr.aria-checked]="side() === 'frente'" [class.on]="side() === 'frente'" (click)="side.set('frente')">Frente</button>
                     <button type="button" role="radio" [attr.aria-checked]="side() === 'costas'" [class.on]="side() === 'costas'" (click)="side.set('costas')">Costas</button>
@@ -314,7 +317,7 @@ type PriceKey = keyof CustomizationConfig['price'];
                   @for (a of previewAreas(); track a.id) {
                     <span class="area" [class]="'area at-' + a.id" [title]="a.name"></span>
                   }
-                  <span class="mock-label">Mockup · {{ side() === 'frente' ? 'Frente' : 'Costas' }}</span>
+                  <span class="mock-label">{{ coverUrl() ? 'Foto do produto' : 'Mockup' }} · {{ side() === 'frente' ? 'Frente' : 'Costas' }}</span>
                 </div>
                 <dl class="summary">
                   <div><dt>Preço base</dt><dd>{{ brl(basePrice()) }}</dd></div>
@@ -416,6 +419,11 @@ type PriceKey = keyof CustomizationConfig['price'];
     .segmented { position: absolute; top: 10px; left: 10px; display: flex; gap: 3px; padding: 3px; border-radius: var(--nx-r-pill); background: rgba(0, 0, 0, 0.45); z-index: 1; }
     .segmented button { height: 28px; padding: 0 14px; border: none; border-radius: var(--nx-r-pill); background: transparent; color: var(--nx-text-mute); font-family: var(--nx-font-display); font-weight: 600; font-size: 12px; cursor: pointer; }
     .segmented button.on { background: #f4f4f5; color: #111; }
+    /* Foto inteira à vista (contain): a marcação de área precisa cair sobre a peça, não cortada. */
+    .mockup.has-photo { background: #0d0d0f; }
+    .photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+    .mockup.has-photo .mock-label { color: var(--nx-text-mute); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
+    .name-sample { text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
     .name-sample { position: absolute; left: 50%; transform: translateX(-50%); padding: 4px 12px; border: 1px dashed rgba(244, 244, 245, 0.35); border-radius: 4px; font-size: 22px; white-space: nowrap; }
     .name-sample.at-top { top: 26%; }
     .name-sample.at-bottom { top: 62%; }
@@ -445,6 +453,7 @@ export class ProductCustomizationComponent {
   protected readonly loadError = signal('');
   protected readonly productName = signal('Produto');
   protected readonly basePrice = signal(0);
+  protected readonly coverUrl = signal<string | null>(null);
   protected readonly config = signal<CustomizationConfig>(structuredClone(DEFAULT_CUSTOMIZATION));
   private readonly baseline = signal('');
   protected readonly blocklist = signal<string[]>([]);
@@ -505,6 +514,7 @@ export class ProductCustomizationComponent {
       }
       this.productName.set(snap.productName);
       this.basePrice.set(snap.priceCents);
+      this.coverUrl.set(snap.coverUrl);
       this.config.set(snap.config);
       this.baseline.set(JSON.stringify(snap.config));
       this.blocklist.set(snap.blocklist);

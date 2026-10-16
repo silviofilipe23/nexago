@@ -231,7 +231,7 @@ export function skusLostWithStock(axes: AxisForm[], current: SkuForm[]): SkuForm
 }
 
 export type FormErrors = Partial<Record<
-  'name' | 'category' | 'price' | 'compareAtPrice' | 'cost' | 'channels' | 'fulfillment' | 'shipping' | 'baseSku' | 'featured',
+  'name' | 'category' | 'price' | 'compareAtPrice' | 'cost' | 'channels' | 'fulfillment' | 'shipping' | 'baseSku' | 'featured' | 'photos',
   string
 >>;
 
@@ -293,7 +293,7 @@ export function publishErrors(form: ProductForm): FormErrors {
 
 /** Ordem em que a tela rola até o primeiro erro. */
 export const ERROR_ORDER: (keyof FormErrors)[] = [
-  'name', 'baseSku', 'category', 'price', 'compareAtPrice', 'cost', 'channels', 'fulfillment', 'shipping',
+  'name', 'baseSku', 'category', 'price', 'compareAtPrice', 'cost', 'channels', 'fulfillment', 'shipping', 'photos',
 ];
 
 export function firstErrorField(errors: FormErrors): keyof FormErrors | null {

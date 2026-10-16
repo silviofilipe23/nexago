@@ -5,6 +5,8 @@ import {
   computed,
   inject,
   signal,
+  viewChild,
+  type ElementRef,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { callableErrorMessage } from '../../../data/callable-error';
@@ -15,7 +17,16 @@ import { PanelCardComponent } from '../../../ui/panel-card.component';
 import { PanelShellComponent } from '../../../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../../../ui/pill.component';
 import { ToggleComponent } from '../../../ui/toggle.component';
+import { AuthService } from '../../../../auth/auth.service';
 import { PRODUCT_CATEGORY_LABELS, PRODUCT_COLLECTIONS } from '../data/products.repository';
+import { toggleBold, toggleList } from './description-format';
+import {
+  MAX_PHOTOS,
+  dimensionError,
+  fileError,
+  moveItem,
+  type PhotoItem,
+} from './product-photos';
 import { ProductEditRepository } from './product-edit.repository';
 import {
   BADGE_OPTIONS,
@@ -78,18 +89,18 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
         <bo-pill [tone]="pill().tone">{{ pill().label }}</bo-pill>
         <div class="spacer"></div>
         @if (!isNew() && loadState() === 'ok') {
-          <button type="button" class="bo-mini-btn" [disabled]="busy()" (click)="duplicate()">Duplicar</button>
+          <button type="button" class="bo-mini-btn" [disabled]="locked()" (click)="duplicate()">Duplicar</button>
         }
-        <button type="button" class="bo-mini-btn" [disabled]="busy()" (click)="requestLeave()">Voltar</button>
+        <button type="button" class="bo-mini-btn" [disabled]="locked()" (click)="requestLeave()">Voltar</button>
         @if (isNew() || form().status === 'rascunho') {
-          <button type="button" class="bo-mini-btn" [disabled]="busy() || (!isNew() && !dirty())" (click)="save('rascunho')">
+          <button type="button" class="bo-mini-btn" [disabled]="locked() || (!isNew() && !dirty())" (click)="save('rascunho')">
             Salvar rascunho
           </button>
-          <button type="button" class="bo-mini-btn bo-mini-btn-primary" [disabled]="busy()" (click)="save('ativo')">
+          <button type="button" class="bo-mini-btn bo-mini-btn-primary" [disabled]="locked()" (click)="save('ativo')">
             Publicar
           </button>
         } @else {
-          <button type="button" class="bo-mini-btn bo-mini-btn-primary" [disabled]="busy() || !dirty()" (click)="save(form().status)">
+          <button type="button" class="bo-mini-btn bo-mini-btn-primary" [disabled]="locked() || !dirty()" (click)="save(form().status)">
             @if (busy()) { <span class="bo-spinner small" aria-hidden="true"></span> }
             Salvar alterações
           </button>
@@ -102,6 +113,9 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
         @case ('error') { <div class="state">Não foi possível carregar o produto.</div> }
         @default {
           <div class="body">
+            @if (!canEdit()) {
+              <div class="bo-alert" role="status"><bo-icon name="lock" [size]="16" /><span>Somente leitura: sua conta não pode editar o catálogo.</span></div>
+            }
             @if (conflict(); as c) {
               <div class="bo-alert" role="alert">
                 <bo-icon name="alert" [size]="16" />
@@ -118,22 +132,60 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
 
             <div class="cols">
               <div class="main">
-                <bo-panel-card kicker="Mídia" title="Fotos">
-                  <p class="muted">O envio de fotos chega na próxima etapa. Até lá, o produto é publicado sem imagem.</p>
+                <bo-panel-card kicker="Mídia" title="Fotos" id="f-photos">
+                  @if (errors().photos; as pe) { <p class="error">{{ pe }}</p> }
+                  @if (isNew()) {
+                    <p class="muted">Salve o rascunho para adicionar fotos.</p>
+                  } @else {
+                    <div class="photos" (dragover)="$event.preventDefault()" (drop)="onDropFiles($event)">
+                      @for (p of photos(); track p.id; let i = $index) {
+                        <div class="photo" [class.cover-photo]="i === 0" [class.failed]="p.error" draggable="true"
+                          (dragstart)="dragFrom = i" (dragover)="$event.preventDefault()" (drop)="onDropPhoto($event, i)">
+                          <img [src]="p.url" alt="" />
+                          @if (i === 0) { <span class="badge">Capa</span> }
+                          @if (p.progress !== null) { <div class="bar"><span [style.width.%]="p.progress"></span></div> }
+                          @if (p.error) {
+                            <div class="photo-err">{{ p.error }}
+                              <button type="button" class="bo-mini-btn" (click)="retryPhoto(p.id)">Tentar de novo</button>
+                            </div>
+                          }
+                          <div class="photo-actions">
+                            @if (i > 0 && !p.error) {
+                              <button type="button" class="bo-mini-btn" title="Definir como capa" aria-label="Definir como capa" [disabled]="locked()" (click)="makeCover(i)"><bo-icon name="star" [size]="13" /></button>
+                            }
+                            @if (form().axes.length > 0 && !p.error) {
+                              <select class="bo-select mini" aria-label="Associar à cor" [disabled]="locked()" (change)="setPhotoColor(p.id, val($event))">
+                                <option value="" [selected]="!p.colorValueId">Sem cor</option>
+                                @for (v of form().axes[0]!.values; track v.id) { <option [value]="v.id" [selected]="p.colorValueId === v.id">{{ v.label }}</option> }
+                              </select>
+                            }
+                            <button type="button" class="bo-mini-btn" title="Remover" aria-label="Remover foto" [disabled]="locked()" (click)="removePhoto(p.id)"><bo-icon name="trash" [size]="13" /></button>
+                          </div>
+                        </div>
+                      }
+                      @if (photos().length < maxPhotos) {
+                        <label class="drop"><bo-icon name="plus" [size]="16" /> Adicionar ou soltar imagem
+                          <input type="file" hidden multiple accept="image/jpeg,image/png,image/webp" [disabled]="locked()" (change)="onPick($event)" />
+                        </label>
+                      }
+                    </div>
+                    @if (photoError(); as pe) { <p class="error">{{ pe }}</p> }
+                    <p class="muted">JPG, PNG ou WebP, até 10 MB, mínimo 1200×1200 px, máx. {{ maxPhotos }}. Arraste para reordenar; a primeira é a capa.</p>
+                  }
                 </bo-panel-card>
 
                 <bo-panel-card kicker="Dados" title="Informações">
                   <div class="grid">
                     <bo-field label="Nome" [hint]="errors().name ?? ''">
-                      <input id="f-name" class="bo-input" [class.err]="errors().name" [value]="form().name" [disabled]="busy()"
+                      <input id="f-name" class="bo-input" [class.err]="errors().name" [value]="form().name" [disabled]="locked()"
                         (input)="setName(val($event))" maxlength="80" />
                     </bo-field>
                     <bo-field label="SKU raiz" [hint]="errors().baseSku ?? 'Base dos códigos das variações'">
-                      <input id="f-baseSku" class="bo-input" [class.err]="errors().baseSku" [value]="form().baseSku" [disabled]="busy() || !isNew()"
+                      <input id="f-baseSku" class="bo-input" [class.err]="errors().baseSku" [value]="form().baseSku" [disabled]="locked() || !isNew()"
                         (input)="set('baseSku', val($event).toUpperCase())" />
                     </bo-field>
                     <bo-field label="Categoria" [hint]="errors().category ?? ''">
-                      <select id="f-category" class="bo-select" [disabled]="busy()" (change)="set('category', val($event))">
+                      <select id="f-category" class="bo-select" [disabled]="locked()" (change)="set('category', val($event))">
                         <option value="" [selected]="!form().category">Selecione</option>
                         @for (c of categories; track c.id) {
                           <option [value]="c.id" [selected]="form().category === c.id">{{ c.label }}</option>
@@ -141,7 +193,7 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
                       </select>
                     </bo-field>
                     <bo-field label="Coleção">
-                      <select class="bo-select" [disabled]="busy()" (change)="set('collection', val($event))">
+                      <select class="bo-select" [disabled]="locked()" (change)="set('collection', val($event))">
                         <option value="" [selected]="!form().collection">Nenhuma</option>
                         @for (c of collections; track c.id) {
                           <option [value]="c.id" [selected]="form().collection === c.id">{{ c.label }}</option>
@@ -149,11 +201,15 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
                       </select>
                     </bo-field>
                     <bo-field label="Marca">
-                      <input class="bo-input" [value]="form().brand" [disabled]="busy()" (input)="set('brand', val($event))" />
+                      <input class="bo-input" [value]="form().brand" [disabled]="locked()" (input)="set('brand', val($event))" />
                     </bo-field>
                   </div>
-                  <bo-field label="Descrição" [hint]="form().description.length + ' / 2000'">
-                    <textarea class="bo-input area" maxlength="2000" [value]="form().description" [disabled]="busy()"
+                  <bo-field label="Descrição" [hint]="form().description.length + ' / 2000 · **negrito** e listas com “- ”'">
+                    <div class="toolbar">
+                      <button type="button" class="bo-mini-btn" aria-label="Negrito" [disabled]="locked()" (click)="format('bold')"><strong>B</strong></button>
+                      <button type="button" class="bo-mini-btn" aria-label="Lista" [disabled]="locked()" (click)="format('list')">• Lista</button>
+                    </div>
+                    <textarea #desc class="bo-input area" maxlength="2000" [value]="form().description" [disabled]="locked()"
                       (input)="set('description', val($event))"></textarea>
                   </bo-field>
                   <div class="details">
@@ -177,15 +233,15 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
                   <div class="grid">
                     <bo-field label="Preço de venda (R$)" [hint]="errors().price ?? ''">
                       <input id="f-price" class="bo-input" inputmode="decimal" [class.err]="errors().price" [value]="form().price"
-                        [disabled]="busy()" (input)="set('price', val($event))" />
+                        [disabled]="locked()" (input)="set('price', val($event))" />
                     </bo-field>
                     <bo-field label='Preço "de" (R$)' [hint]="errors().compareAtPrice ?? (discount() ? 'Selo -' + discount() + '%' : '')">
                       <input id="f-compareAtPrice" class="bo-input" inputmode="decimal" [class.err]="errors().compareAtPrice"
-                        [value]="form().compareAtPrice" [disabled]="busy()" (input)="set('compareAtPrice', val($event))" />
+                        [value]="form().compareAtPrice" [disabled]="locked()" (input)="set('compareAtPrice', val($event))" />
                     </bo-field>
                     <bo-field label="Custo (R$)" [hint]="errors().cost ?? 'Só visível no backoffice'">
                       <input id="f-cost" class="bo-input" inputmode="decimal" [class.err]="errors().cost" [value]="form().cost"
-                        [disabled]="busy()" (input)="set('cost', val($event))" />
+                        [disabled]="locked()" (input)="set('cost', val($event))" />
                     </bo-field>
                     <bo-field label="Margem">
                       @if (margin(); as m) {
@@ -203,14 +259,14 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
                 <bo-panel-card kicker="Estoque" title="Variações e estoque">
                   <div class="var-head">
                     <span class="muted">Alerta de estoque baixo:</span>
-                    <input class="bo-input narrow" type="number" min="0" [value]="form().lowStockThreshold" [disabled]="busy()"
+                    <input class="bo-input narrow" type="number" min="0" [value]="form().lowStockThreshold" [disabled]="locked()"
                       (input)="set('lowStockThreshold', toInt(val($event)))" aria-label="Alerta de estoque baixo" />
                     <div class="spacer"></div>
-                    <button type="button" class="bo-mini-btn" [disabled]="busy()" (click)="openAxes()">Editar opções</button>
+                    <button type="button" class="bo-mini-btn" [disabled]="locked()" (click)="openAxes()">Editar opções</button>
                   </div>
                   @if (form().axes.length === 0) {
                     <bo-field label="Estoque">
-                      <input class="bo-input narrow" type="number" min="0" [value]="cellValue(0)" [disabled]="busy()"
+                      <input class="bo-input narrow" type="number" min="0" [value]="cellValue(0)" [disabled]="locked()"
                         (input)="setStock(0, toInt(val($event)))" />
                     </bo-field>
                   } @else {
@@ -233,7 +289,7 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
                               @for (col of colValues(); track col.id) {
                                 <td>
                                   <input type="number" min="0" [class]="'cell cell-' + cellState(skuIndex(row.id, col.id))"
-                                    [value]="cellValue(skuIndex(row.id, col.id))" [disabled]="busy()"
+                                    [value]="cellValue(skuIndex(row.id, col.id))" [disabled]="locked()"
                                     [attr.aria-label]="row.label + ' ' + col.label"
                                     (input)="setStock(skuIndex(row.id, col.id), toInt(val($event)))"
                                     (click)="onCellClick($event, skuIndex(row.id, col.id))" />
@@ -301,7 +357,7 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
                 </bo-panel-card>
 
                 @if (!isNew()) {
-                  <button type="button" class="bo-mini-btn danger-btn" [disabled]="busy()" (click)="archiveOpen.set(true)">
+                  <button type="button" class="bo-mini-btn danger-btn" [disabled]="locked()" (click)="archiveOpen.set(true)">
                     {{ form().status === 'arquivado' ? 'Restaurar produto' : 'Arquivar produto' }}
                   </button>
                 }
@@ -399,6 +455,19 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
     .danger-btn { color: var(--nx-live); border-color: rgba(255, 59, 48, .35); justify-content: center; }
     .axis { border: 1px solid var(--nx-line); border-radius: var(--nx-r-3); padding: 12px; }
     .bo-spinner.small { width: 13px; height: 13px; border-width: 2px; }
+    .photos { display: grid; grid-template-columns: repeat(auto-fill, 110px); gap: 10px; }
+    .photo { position: relative; width: 110px; height: 110px; border-radius: var(--nx-r-3); overflow: hidden; background: var(--nx-surface-1); border: 1px solid var(--nx-line); cursor: grab; }
+    .photo.cover-photo { grid-column: span 2; grid-row: span 2; width: 230px; height: 230px; }
+    .photo.failed { border-color: var(--nx-live); }
+    .photo img { width: 100%; height: 100%; object-fit: cover; }
+    .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(0,0,0,.4); }
+    .bar span { display: block; height: 100%; background: var(--nx-orange-500); }
+    .photo-err { position: absolute; inset: 0; background: rgba(0,0,0,.7); color: #fff; font-size: 11px; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+    .photo-actions { position: absolute; top: 4px; right: 4px; display: none; gap: 4px; }
+    .photo:hover .photo-actions, .photo:focus-within .photo-actions { display: flex; flex-direction: column; align-items: flex-end; }
+    .bo-select.mini { height: 28px; font-size: 11px; width: 90px; padding: 0 6px; }
+    .drop { width: 110px; height: 110px; border: 1px dashed var(--nx-line-strong); border-radius: var(--nx-r-3); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 11px; text-align: center; color: var(--nx-text-mute); cursor: pointer; }
+    .toolbar { display: flex; gap: 6px; }
     @media (max-width: 1000px) { .cols { grid-template-columns: 1fr; } }
   `,
 })
@@ -421,7 +490,17 @@ export class ProductEditComponent {
   private version: number | null = null;
   private baselineVariations = '';
   protected readonly slug = signal('');
-  protected readonly coverUrl = signal<string | null>(null);
+  private readonly auth = inject(AuthService);
+  protected readonly canEdit = computed(() => this.auth.isSuperAdmin() || this.auth.roles().includes('admin'));
+  protected readonly locked = computed(() => this.busy() || !this.canEdit());
+  protected readonly photos = signal<PhotoItem[]>([]);
+  protected readonly photoError = signal<string | null>(null);
+  protected readonly maxPhotos = MAX_PHOTOS;
+  protected readonly coverUrl = computed(() => this.photos()[0]?.url ?? null);
+  protected dragFrom = -1;
+  private readonly pendingFiles = new Map<string, File>();
+  private persistQueue: Promise<void> = Promise.resolve();
+  private readonly descRef = viewChild<ElementRef<HTMLTextAreaElement>>('desc');
   protected readonly busy = signal(false);
   protected readonly errors = signal<FormErrors>({});
   protected readonly error = signal<string | null>(null);
@@ -613,7 +692,7 @@ export class ProductEditComponent {
       }
       this.version = loaded.version;
       this.slug.set(loaded.slug);
-      this.coverUrl.set(loaded.coverUrl);
+      this.photos.set(loaded.photos);
       this.snapshot(loaded.form);
       this.loadState.set('ok');
     } catch {
@@ -633,7 +712,12 @@ export class ProductEditComponent {
       return;
     }
     const form = this.form();
-    const errors = target === 'ativo' ? publishErrors(form) : draftErrors(form);
+    const errors: FormErrors = target === 'ativo' ? publishErrors(form) : draftErrors(form);
+    if (target === 'ativo' && !this.photos().some((p) => p.progress === null && !p.error)) {
+      errors.photos = this.isNew()
+        ? 'Salve o rascunho e adicione ao menos 1 foto para publicar.'
+        : 'Adicione ao menos 1 foto para publicar.';
+    }
     this.errors.set(errors);
     const first = firstErrorField(errors);
     if (first) {
@@ -738,6 +822,137 @@ export class ProductEditComponent {
         void this.save(this.isNew() ? 'rascunho' : this.form().status);
       }
     }
+  }
+
+  // ---------- descrição ----------
+  protected format(kind: 'bold' | 'list'): void {
+    const el = this.descRef()?.nativeElement;
+    if (!el) {
+      return;
+    }
+    const edit = (kind === 'bold' ? toggleBold : toggleList)(el.value, el.selectionStart, el.selectionEnd);
+    this.set('description', edit.text.slice(0, 2000));
+    queueMicrotask(() => {
+      el.value = this.form().description;
+      el.focus();
+      el.setSelectionRange(edit.selStart, edit.selEnd);
+    });
+  }
+
+  // ---------- fotos ----------
+  protected onPick(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    void this.addFiles([...(input.files ?? [])]);
+    input.value = '';
+  }
+  protected onDropFiles(event: DragEvent): void {
+    const files = [...(event.dataTransfer?.files ?? [])];
+    if (files.length > 0) {
+      event.preventDefault();
+      void this.addFiles(files);
+    }
+  }
+  protected onDropPhoto(event: DragEvent, to: number): void {
+    if (event.dataTransfer?.files.length) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.dragFrom >= 0 && !this.locked()) {
+      this.photos.update((p) => moveItem(p, this.dragFrom, to));
+      this.persistPhotos();
+    }
+    this.dragFrom = -1;
+  }
+  protected makeCover(i: number): void {
+    this.photos.update((p) => moveItem(p, i, 0));
+    this.persistPhotos();
+  }
+  protected setPhotoColor(id: string, value: string): void {
+    this.photos.update((p) => p.map((x) => (x.id === id ? { ...x, colorValueId: value || null } : x)));
+    this.persistPhotos();
+  }
+  protected removePhoto(id: string): void {
+    const removed = this.photos().find((p) => p.id === id);
+    this.photos.update((p) => p.filter((x) => x.id !== id));
+    this.pendingFiles.delete(id);
+    this.persistPhotos();
+    if (removed?.path) {
+      void this.repo.deletePhotoFile(removed.path);
+    }
+  }
+  protected retryPhoto(id: string): void {
+    const file = this.pendingFiles.get(id);
+    if (file) {
+      void this.uploadOne(id, file);
+    }
+  }
+
+  private async addFiles(files: File[]): Promise<void> {
+    this.photoError.set(null);
+    for (const file of files) {
+      const problem = fileError(file, this.photos().length);
+      if (problem) {
+        this.photoError.set(`${file.name}: ${problem}`);
+        continue;
+      }
+      try {
+        const bitmap = await createImageBitmap(file);
+        const dim = dimensionError(bitmap.width, bitmap.height);
+        bitmap.close();
+        if (dim) {
+          this.photoError.set(`${file.name}: ${dim}`);
+          continue;
+        }
+      } catch {
+        this.photoError.set(`${file.name}: não foi possível ler a imagem.`);
+        continue;
+      }
+      const tempId = 'tmp-' + crypto.randomUUID();
+      this.photos.update((p) => [
+        ...p,
+        { id: tempId, url: URL.createObjectURL(file), path: '', colorValueId: null, progress: 0, error: null },
+      ]);
+      this.pendingFiles.set(tempId, file);
+      void this.uploadOne(tempId, file);
+    }
+  }
+
+  private async uploadOne(tempId: string, file: File): Promise<void> {
+    const productId = this.productId();
+    if (!productId) {
+      return;
+    }
+    this.patchPhoto(tempId, { error: null, progress: 0 });
+    try {
+      const done = await this.repo.uploadPhoto(productId, file, (progress) => this.patchPhoto(tempId, { progress }));
+      this.pendingFiles.delete(tempId);
+      this.photos.update((p) =>
+        p.map((x) => (x.id === tempId ? { ...x, id: done.id, url: done.url, path: done.path, progress: null } : x)),
+      );
+      this.persistPhotos();
+    } catch {
+      this.patchPhoto(tempId, { progress: null, error: 'Falha no envio.' });
+    }
+  }
+
+  private patchPhoto(id: string, patch: Partial<PhotoItem>): void {
+    this.photos.update((p) => p.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  }
+
+  /** Em fila: cada gravação usa a versão devolvida pela anterior. */
+  private persistPhotos(): void {
+    this.persistQueue = this.persistQueue.then(async () => {
+      const id = this.productId();
+      if (!id || this.version === null) {
+        return;
+      }
+      try {
+        this.version = await this.repo.savePhotos(id, this.version, this.photos());
+      } catch (err) {
+        await this.handleSaveError(err);
+      }
+    });
   }
 
   // ---------- sair ----------

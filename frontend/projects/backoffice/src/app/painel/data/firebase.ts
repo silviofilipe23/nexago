@@ -1,6 +1,7 @@
 import { getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getFunctions, type Functions } from 'firebase/functions';
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import { environment } from '../../../environments/environment';
 import { FUNCTIONS_REGION } from '@nexago/firebase-config';
 
@@ -15,4 +16,8 @@ export function backofficeFunctions(): Functions {
 
 export function backofficeDb(): Firestore {
   return getFirestore(backofficeApp());
+}
+
+export function backofficeStorage(): FirebaseStorage {
+  return getStorage(backofficeApp());
 }

@@ -557,6 +557,7 @@ export {
   archiveStoreProduct,
   duplicateStoreProduct,
   saveStoreProduct,
+  saveStoreProductPhotos,
   saveStoreProductVariations,
 } from "./store-catalog-write";
 

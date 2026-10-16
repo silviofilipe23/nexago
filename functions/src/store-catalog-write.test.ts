@@ -6,6 +6,7 @@ import {
   archiveCore,
   duplicateCore,
   saveStoreProductCore,
+  savePhotosCore,
   saveVariationsCore,
   type SaveProductInput,
   type SaveVariationsInput,
@@ -616,5 +617,44 @@ describe("códigos de barras desnormalizados no produto", () => {
     }, ACTOR, NOW);
 
     assert.deepEqual(fake.store.get(`storeProducts/${productId}`)!["barcodes"], ["789100002"]);
+  });
+});
+
+describe("savePhotosCore", () => {
+  const photo = (productId: string, n: number, over = {}) => ({
+    id: `p${n}`,
+    url: `https://storage.example/p${n}.jpg`,
+    path: `store/products/${productId}/p${n}.jpg`,
+    colorValueId: null,
+    ...over,
+  });
+
+  it("grava a ordem, sobe a versão e preserva o resto do produto", async () => {
+    const {fake, db} = makeDb();
+    const {productId} = await saveStoreProductCore(db, input(), ACTOR, NOW);
+    const result = await savePhotosCore(
+      db, {productId, version: 1, photos: [photo(productId, 2), photo(productId, 1)]}, ACTOR, NOW,
+    );
+    assert.equal(result.version, 2);
+    const doc = fake.store.get(`storeProducts/${productId}`)!;
+    assert.deepEqual((doc["photos"] as {id: string}[]).map((p) => p.id), ["p2", "p1"]);
+    assert.equal(doc["name"], "Camiseta Dry UV50 Areia");
+  });
+
+  it("recusa caminho de outro produto, id repetido e mais de 10 fotos", async () => {
+    const {db} = makeDb();
+    const {productId} = await saveStoreProductCore(db, input(), ACTOR, NOW);
+    await assert.rejects(savePhotosCore(db, {productId, version: 1, photos: [photo("outro", 1)]}, ACTOR, NOW));
+    await assert.rejects(
+      savePhotosCore(db, {productId, version: 1, photos: [photo(productId, 1), photo(productId, 1)]}, ACTOR, NOW),
+    );
+    const many = Array.from({length: 11}, (_, i) => photo(productId, i));
+    await assert.rejects(savePhotosCore(db, {productId, version: 1, photos: many}, ACTOR, NOW));
+  });
+
+  it("versão velha dá conflito", async () => {
+    const {db} = makeDb();
+    const {productId} = await saveStoreProductCore(db, input(), ACTOR, NOW);
+    await assert.rejects(savePhotosCore(db, {productId, version: 9, photos: []}, ACTOR, NOW));
   });
 });

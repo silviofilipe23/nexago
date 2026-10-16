@@ -15,20 +15,20 @@ type Raw = Record<string, any>;
 export class RetiradaRepository {
   async load(now = new Date()): Promise<RetiradaData> {
     const db = backofficeDb();
-    const [arenaSnap, pointSnap, shippingSnap, locSnap, moveSnap] = await Promise.all([
+    const [arenaSnap, pointSnap, shippingSnap, locSnap, transferSnap] = await Promise.all([
       getDocs(query(collection(db, 'arenas'), orderBy('name'))),
       getDocs(collection(db, 'storePickupPoints')),
       getDoc(doc(db, 'storeConfig', 'shipping')),
       getDocs(collection(db, 'storeLocations')),
-      // Sem `where('type')`: com o orderBy exigiria índice composto. Filtra na tela.
-      getDocs(query(collection(db, 'storeStockMovements'), orderBy('createdAt', 'desc'), limit(40))),
+      // Sem `where('status')`: com o orderBy exigiria índice composto. Filtra na tela.
+      getDocs(query(collection(db, 'storeTransfers'), orderBy('createdAt', 'desc'), limit(20))),
     ]);
 
     const locations = new Map(locSnap.docs.map((d) => [d.id, ((d.data() as Raw)['name'] as string) ?? d.id]));
     const toRows = (snap: typeof pointSnap) => snap.docs.map((d) => ({ id: d.id, data: d.data() as Raw }));
     return {
       pontos: pontosFrom(toRows(arenaSnap), toRows(pointSnap)),
-      remessas: remessasFrom(toRows(moveSnap), (id) => locations.get(id) ?? id, now),
+      remessas: remessasFrom(toRows(transferSnap), (id) => locations.get(id) ?? id, now),
       ...shippingFromDoc(shippingSnap.exists() ? (shippingSnap.data() as Raw) : undefined),
     };
   }

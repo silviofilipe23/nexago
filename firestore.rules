@@ -3172,6 +3172,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Rascunhos de entrada de estoque (06a). Não mexem em saldo; só servidor grava.
+    match /storeStockDrafts/{draftId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    // Transferências entre locais (06b). Status e reservas são decisão de servidor.
+    match /storeTransfers/{transferId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
     // Documentos-chave de unicidade. Só o Admin SDK toca.
     match /storeCatalogKeys/{key} {
       allow read, write: if false;

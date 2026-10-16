@@ -17,11 +17,15 @@ export interface StockRow {
   imageUrl: string | null;
   byLocation: Partial<Record<string, number>>;
   total: number;
-  /** Pedidos pagos ainda não retirados. Zero até a Loja ter pedidos. */
+  /** Reservado por local: hoje, transferências em separação (pedidos pagos entram aqui depois). */
+  reservedByLocation: Partial<Record<string, number>>;
   reserved: number;
   /** Alerta de estoque baixo do produto (tela 05). */
   threshold: number;
+  /** Custo médio do SKU (entradas), senão o custo do produto. */
   costCents: number | null;
+  /** Custo da última compra do SKU, para o alerta de desvio da 06a. */
+  lastCostCents: number | null;
 }
 
 export type MovementType = 'entrada' | 'saida' | 'transferencia' | 'ajuste';
@@ -118,7 +122,7 @@ export function rowsFromProduct(
   productId: string,
   product: Raw,
   skus: { id: string; data: Raw }[],
-  costCents: number | null,
+  costs: Raw | null,
 ): StockRow[] {
   const axes = (product['axes'] ?? []) as Raw[];
   const label = (axisValues: Record<string, string>) =>
@@ -131,6 +135,7 @@ export function rowsFromProduct(
       .join(' · ');
   return skus.map(({ id, data }) => {
     const byLocation = (data['stockByLocation'] ?? {}) as Record<string, number>;
+    const reservedByLocation = (data['reservedByLocation'] ?? {}) as Record<string, number>;
     return {
       productId,
       productName: product['name'] ?? '',
@@ -142,9 +147,11 @@ export function rowsFromProduct(
       imageUrl: product['photos']?.[0]?.url ?? null,
       byLocation,
       total: Object.values(byLocation).reduce((n, q) => n + q, 0),
-      reserved: 0,
+      reservedByLocation,
+      reserved: Object.values(reservedByLocation).reduce((n, q) => n + q, 0),
       threshold: product['lowStockThreshold'] ?? 0,
-      costCents,
+      costCents: costs?.['skuCosts']?.[id] ?? costs?.['costCents'] ?? null,
+      lastCostCents: costs?.['lastPurchaseCents']?.[id] ?? null,
     };
   });
 }
@@ -189,4 +196,26 @@ export function relativeStamp(date: Date | null, now: Date): string {
     return `Ontem ${hm}`;
   }
   return `${date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${hm}`;
+}
+
+/** Chave estável de um SKU entre produtos: `productId/skuId` (o mesmo que as callables usam). */
+export function skuKey(row: { productId: string; skuId: string }): string {
+  return `${row.productId}/${row.skuId}`;
+}
+
+/** Acha o SKU lido pelo leitor: código de barras ou código do SKU, sem diferenciar caixa. */
+export function findByCode(rows: StockRow[], code: string): StockRow | null {
+  const c = code.trim().toUpperCase();
+  if (c === '') {
+    return null;
+  }
+  return rows.find((r) => r.barcode.toUpperCase() === c) ?? rows.find((r) => r.skuCode.toUpperCase() === c) ?? null;
+}
+
+/** Busca para o seletor de SKU (as mesmas regras da tabela), limitada para caber no dropdown. */
+export function searchRows(rows: StockRow[], q: string, max = 8): StockRow[] {
+  if (q.trim() === '') {
+    return [];
+  }
+  return filterRows(rows, { q, category: null, lowFirst: false }).slice(0, max);
 }

@@ -279,12 +279,16 @@ export async function saveStoreProductCore(
       {merge: false},
     );
 
-    // Custo fora do produto. Omitido = não mexe; `null` = o admin apagou e o
-    // documento tem de sumir, senão a margem segue sendo feita sobre o custo velho.
-    if (input.costCents === null) {
-      tx.delete(db.collection(COSTS).doc(productId));
-    } else if (input.costCents !== undefined) {
-      tx.set(db.collection(COSTS).doc(productId), {costCents: input.costCents, updatedAt: now});
+    // Custo fora do produto. Omitido = não mexe; `null` = o admin apagou, senão a
+    // margem segue sendo feita sobre o custo velho. Merge, e não delete/replace: o
+    // mesmo doc guarda o custo médio por SKU que as entradas de estoque calculam.
+    // Produto novo sem custo não cria documento nenhum.
+    if (input.costCents !== undefined && (input.costCents !== null || existing)) {
+      tx.set(
+        db.collection(COSTS).doc(productId),
+        {costCents: input.costCents, updatedAt: now},
+        {merge: true},
+      );
     }
 
     return {productId, version, slug};
@@ -429,7 +433,13 @@ export async function saveVariationsCore(
     const currentSnap = await tx.get(skusRef);
     const keepIds = new Set(next.map((s) => s.id));
     const dropped = currentSnap.docs.filter((d) => !keepIds.has(d.id));
-    const droppedWithStock = dropped.filter((d) => (d.data()["stock"] ?? 0) > 0).map((d) => d.id);
+    const droppedWithStock = dropped
+      .filter((d) => {
+        const reserved = Object.values((d.data()["reservedByLocation"] ?? {}) as Record<string, number>);
+        // Reserva de transferência em separação também prende a variação.
+        return (d.data()["stock"] ?? 0) > 0 || reserved.some((n) => n > 0);
+      })
+      .map((d) => d.id);
 
     if (droppedWithStock.length > 0) {
       // Apagar em silêncio levaria o estoque junto; quem decide descartar é o usuário.
@@ -476,7 +486,10 @@ export async function saveVariationsCore(
       }
       writeKey(tx, db, `sku:${sku.code}`, {productId: input.productId, skuId: sku.id});
       const {id: _id, ...data} = sku;
-      tx.set(skusRef.doc(sku.id), data, {merge: false});
+      // O cliente não conhece as reservas de transferência: sem preservar, salvar a
+      // grade liberaria unidades que já estão separadas para uma arena.
+      const reserved = currentSnap.docs.find((d) => d.id === sku.id)?.data()["reservedByLocation"];
+      tx.set(skusRef.doc(sku.id), reserved ? {...data, reservedByLocation: reserved} : data, {merge: false});
     }
 
     // Saldo só muda com rastro: a grade da tela 05 vira uma movimentação "ajuste".

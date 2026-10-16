@@ -40,9 +40,9 @@ export interface ConfigFrete {
   comissaoPadraoPct: number;
 }
 
-export type RemessaStatus = 'em_transito' | 'recebida';
+export type RemessaStatus = 'separacao' | 'em_transito' | 'recebida';
 
-/** Transferência do CD para uma arena (`storeStockMovements` do tipo `transferencia`). */
+/** Transferência entre locais de estoque (`storeTransfers`, a mesma da tela 06b). */
 export interface Remessa {
   id: string;
   codigo: string;

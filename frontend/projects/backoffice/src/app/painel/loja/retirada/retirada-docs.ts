@@ -1,5 +1,5 @@
 import { relativeStamp } from '../estoque/data/stock';
-import type { ConfigFrete, ModalidadeFrete, PontoRetirada, Remessa } from './retirada.model';
+import type { ConfigFrete, ModalidadeFrete, PontoRetirada, Remessa, RemessaStatus } from './retirada.model';
 
 type Raw = Record<string, any>;
 
@@ -102,35 +102,43 @@ function pontoFrom(id: string, arena: Raw, point: Raw | undefined): PontoRetirad
   };
 }
 
-/** Só transferências; o resto do histórico de estoque não é remessa. */
+function dateOf(value: any): Date | null {
+  return value?.toDate?.() ?? (value instanceof Date ? value : null);
+}
+
+const SHOWN: Record<string, RemessaStatus> = {
+  separacao: 'separacao',
+  em_transito: 'em_transito',
+  recebido: 'recebida',
+};
+
+/** Transferências (`storeTransfers`, tela 06b) que já saíram do rascunho e não foram canceladas. */
 export function remessasFrom(
-  movements: { id: string; data: Raw }[],
+  transfers: { id: string; data: Raw }[],
   locationName: (id: string) => string,
   now: Date,
   max = 5,
 ): Remessa[] {
-  return movements
-    .filter((m) => m.data['type'] === 'transferencia')
+  return transfers
+    .filter((t) => SHOWN[t.data['status']] !== undefined)
     .slice(0, max)
     .map(({ id, data }) => {
+      const status = SHOWN[data['status']]!;
       const items = (data['items'] ?? []) as Raw[];
-      // Item com `locationId` é uma perna (saída do CD, entrada na arena): conta só a entrada.
-      const legs = items.some((i) => i['locationId']) ? items.filter((i) => i['locationId'] === data['toLocationId']) : items;
-      const units = legs.reduce((n, i) => n + Math.abs(i['delta'] ?? i['qty'] ?? 0), 0);
-      const recebida = data['status'] === 'recebida';
-      const createdAt: Date | null = data['createdAt']?.toDate?.() ?? (data['createdAt'] instanceof Date ? data['createdAt'] : null);
-      const receivedAt: Date | null = data['receivedAt']?.toDate?.() ?? (data['receivedAt'] instanceof Date ? data['receivedAt'] : null);
       const by = str(data['receivedBy']?.['name']);
-      const quando = recebida
-        ? [relativeStamp(receivedAt ?? createdAt, now), by].filter(Boolean).join(' · ')
-        : `Saiu ${relativeStamp(createdAt, now).replace(/^(Hoje|Ontem)/, (w) => w.toLowerCase())}`;
+      const quando =
+        status === 'recebida'
+          ? [relativeStamp(dateOf(data['receivedAt']), now), by].filter(Boolean).join(' · ')
+          : status === 'em_transito'
+            ? `Saiu ${relativeStamp(dateOf(data['shippedAt']) ?? dateOf(data['createdAt']), now).replace(/^(Hoje|Ontem)/, (w) => w.toLowerCase())}`
+            : `Criada ${relativeStamp(dateOf(data['createdAt']), now).replace(/^(Hoje|Ontem)/, (w) => w.toLowerCase())}`;
       return {
         id,
-        codigo: str(data['reference']) || id.slice(0, 6).toUpperCase(),
+        codigo: str(data['code']) || id.slice(0, 6).toUpperCase(),
         destino: data['toLocationId'] ? locationName(data['toLocationId']) : '—',
         pedidos: Array.isArray(data['orderIds']) ? data['orderIds'].length : 0,
-        unidades: units,
-        status: recebida ? 'recebida' : 'em_transito',
+        unidades: typeof data['units'] === 'number' ? data['units'] : items.reduce((n, i) => n + (i['qty'] ?? 0), 0),
+        status,
         quando,
       };
     });

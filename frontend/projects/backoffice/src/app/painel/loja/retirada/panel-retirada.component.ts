@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { callableErrorMessage } from '../../data/callable-error';
 import { FieldComponent } from '../../ui/field.component';
 import { IconComponent } from '../../ui/icon.component';
@@ -8,7 +9,7 @@ import { PanelShellComponent } from '../../ui/panel-shell.component';
 import { PillComponent } from '../../ui/pill.component';
 import { ToggleComponent } from '../../ui/toggle.component';
 import { centsToInput, formatBrl, isValidCep, maskCep, parseBrlToCents } from './retirada-format';
-import type { ConfigFrete, ModalidadeFrete, ModalidadeId, PontoRetirada, Remessa } from './retirada.model';
+import type { ConfigFrete, ModalidadeFrete, ModalidadeId, PontoRetirada, Remessa, RemessaStatus } from './retirada.model';
 import { RetiradaRepository } from './retirada.repository';
 
 interface PontoDraft {
@@ -69,6 +70,7 @@ function errorText(error: unknown): string {
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '(document:keydown.escape)': 'closeForm()', '(document:click)': 'menuOpenId.set(null)' },
   imports: [
+    RouterLink,
     PanelShellComponent,
     PageHeaderComponent,
     PanelCardComponent,
@@ -194,25 +196,23 @@ function errorText(error: unknown): string {
               </section>
 
               <bo-panel-card pad="sm" kicker="CD Goiânia → pontos de retirada" title="Remessas para arenas">
-                <button card-actions type="button" class="bo-mini-btn" disabled title="Em breve">
+                <a card-actions class="bo-mini-btn" routerLink="/painel/loja/estoque/transferencia/nova">
                   <bo-icon name="swap" [size]="13" />
                   Nova remessa
-                </button>
+                </a>
                 @if (remessas().length === 0) {
                   <p class="empty-line">Nenhuma remessa recente</p>
                 } @else {
                   @for (r of remessas(); track r.id) {
-                    <div class="shipment">
+                    <a class="shipment" [routerLink]="['/painel/loja/estoque/transferencia', r.id]">
                       <span class="code">{{ r.codigo }}</span>
                       <span class="dest">{{ r.destino }}</span>
                       <span class="muted">{{ shipmentCounts(r) }}</span>
                       <span>
-                        <bo-pill [tone]="r.status === 'recebida' ? 'green' : 'dim'">
-                          {{ r.status === 'recebida' ? 'Recebida' : 'Em trânsito' }}
-                        </bo-pill>
+                        <bo-pill [tone]="r.status === 'recebida' ? 'green' : 'dim'">{{ statusLabel[r.status] }}</bo-pill>
                       </span>
                       <span class="muted when">{{ r.quando }}</span>
-                    </div>
+                    </a>
                   }
                 }
               </bo-panel-card>
@@ -434,8 +434,10 @@ function errorText(error: unknown): string {
     .menu button:hover:not(:disabled) { background: var(--nx-surface-2); }
     .menu button:disabled { opacity: 0.5; cursor: default; }
 
-    .shipment { display: grid; grid-template-columns: 62px minmax(90px, 1fr) minmax(100px, 1fr) 100px minmax(110px, 1.1fr); gap: 10px; align-items: center; min-height: 44px; border-top: 1px solid var(--nx-line); font-size: 12.5px; }
+    .shipment { color: inherit; text-decoration: none; border-radius: var(--nx-r-2); display: grid; grid-template-columns: 62px minmax(90px, 1fr) minmax(100px, 1fr) 100px minmax(110px, 1.1fr); gap: 10px; align-items: center; min-height: 44px; border-top: 1px solid var(--nx-line); font-size: 12.5px; }
     .shipment:first-of-type { border-top: none; }
+    .shipment:hover { background: var(--nx-surface-1); }
+    a.bo-mini-btn { text-decoration: none; }
     .code { font-family: var(--nx-font-mono); font-size: 11.5px; color: var(--nx-text); }
     .dest { font-family: var(--nx-font-display); font-weight: 600; color: var(--nx-text); }
     .when { text-align: right; }
@@ -507,6 +509,11 @@ export class PanelRetiradaComponent {
   );
 
   protected readonly maskCep = maskCep;
+  protected readonly statusLabel: Record<RemessaStatus, string> = {
+    separacao: 'Em separação',
+    em_transito: 'Em trânsito',
+    recebida: 'Recebida',
+  };
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {

@@ -50,34 +50,31 @@ describe('retirada-docs', () => {
     const now = new Date(2026, 9, 16, 12, 0);
     const name = (id: string) => (id === 'arena-cfc' ? 'Arena CFC' : id);
 
-    it('só transferências, contando a perna de entrada', () => {
+    it('ignora rascunho e cancelada; em trânsito mostra a saída', () => {
       const rows = remessasFrom(
         [
-          { id: 'm1', data: { type: 'ajuste', items: [] } },
+          { id: 't0', data: { status: 'rascunho', code: 'TR-119' } },
+          { id: 't9', data: { status: 'cancelada', code: 'TR-117' } },
           {
-            id: 'm2',
-            data: {
-              type: 'transferencia', reference: 'TR-118', toLocationId: 'arena-cfc', orderIds: ['o1', 'o2'],
-              createdAt: new Date(2026, 9, 16, 8, 30),
-              items: [{ locationId: 'cd', delta: -24 }, { locationId: 'arena-cfc', delta: 24 }],
-            },
+            id: 't1',
+            data: { status: 'em_transito', code: 'TR-118', toLocationId: 'arena-cfc', units: 24, shippedAt: new Date(2026, 9, 16, 8, 30) },
           },
         ],
         name,
         now,
       );
       expect(rows).toEqual([
-        { id: 'm2', codigo: 'TR-118', destino: 'Arena CFC', pedidos: 2, unidades: 24, status: 'em_transito', quando: 'Saiu hoje 08:30' },
+        { id: 't1', codigo: 'TR-118', destino: 'Arena CFC', pedidos: 0, unidades: 24, status: 'em_transito', quando: 'Saiu hoje 08:30' },
       ]);
     });
 
-    it('recebida mostra quando e quem recebeu', () => {
+    it('recebido mostra quando e quem recebeu', () => {
       const [r] = remessasFrom(
-        [{ id: 'm3', data: { type: 'transferencia', status: 'recebida', toLocationId: 'arena-cfc', receivedAt: new Date(2026, 9, 16, 9, 40), receivedBy: { name: 'Paula R.' }, items: [] } }],
+        [{ id: 't2', data: { status: 'recebido', toLocationId: 'arena-cfc', receivedAt: new Date(2026, 9, 16, 9, 40), receivedBy: { name: 'Paula R.' }, items: [{ qty: 3 }, { qty: 4 }] } }],
         name,
         now,
       );
-      expect(r!.quando).toBe('Hoje 09:40 · Paula R.');
+      expect(r).toEqual(jasmine.objectContaining({ status: 'recebida', unidades: 7, quando: 'Hoje 09:40 · Paula R.' }));
     });
   });
 });

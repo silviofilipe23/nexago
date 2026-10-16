@@ -1,8 +1,11 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './auth/auth.guard';
 
-/** Guard estrutural: não importa o componente, para a tela continuar lazy. */
-const leaveProductEdit = (c: { canLeave(): boolean | Promise<boolean> }) => c.canLeave();
+/**
+ * Pergunta antes de sair com alteração não salva (produto, entrada de estoque).
+ * Estrutural: não importa o componente, para a tela continuar lazy.
+ */
+const leaveWithConfirm = (c: { canLeave(): boolean | Promise<boolean> }) => c.canLeave();
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'painel' },
@@ -137,6 +140,36 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'painel/loja/estoque/entrada/nova',
+    title: 'Registrar entrada — NexaGO Backoffice',
+    canActivate: [authGuard],
+    canDeactivate: [leaveWithConfirm],
+    loadComponent: () =>
+      import('./painel/loja/estoque/entrada/stock-entry.component').then((m) => m.StockEntryComponent),
+  },
+  {
+    path: 'painel/loja/estoque/entrada/:id',
+    title: 'Registrar entrada — NexaGO Backoffice',
+    canActivate: [authGuard],
+    canDeactivate: [leaveWithConfirm],
+    loadComponent: () =>
+      import('./painel/loja/estoque/entrada/stock-entry.component').then((m) => m.StockEntryComponent),
+  },
+  {
+    path: 'painel/loja/estoque/transferencia/nova',
+    title: 'Nova transferência — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/loja/estoque/transferencia/stock-transfer.component').then((m) => m.StockTransferComponent),
+  },
+  {
+    path: 'painel/loja/estoque/transferencia/:id',
+    title: 'Transferência — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/loja/estoque/transferencia/stock-transfer.component').then((m) => m.StockTransferComponent),
+  },
+  {
     path: 'painel/loja/estoque',
     title: 'Estoque — NexaGO Backoffice',
     canActivate: [authGuard],
@@ -147,7 +180,7 @@ export const routes: Routes = [
     path: 'painel/loja/produtos/novo',
     title: 'Novo produto — NexaGO Backoffice',
     canActivate: [authGuard],
-    canDeactivate: [leaveProductEdit],
+    canDeactivate: [leaveWithConfirm],
     loadComponent: () =>
       import('./painel/loja/produtos/editar/product-edit.component').then((m) => m.ProductEditComponent),
   },
@@ -155,7 +188,7 @@ export const routes: Routes = [
     path: 'painel/loja/produtos/:id',
     title: 'Editar produto — NexaGO Backoffice',
     canActivate: [authGuard],
-    canDeactivate: [leaveProductEdit],
+    canDeactivate: [leaveWithConfirm],
     loadComponent: () =>
       import('./painel/loja/produtos/editar/product-edit.component').then((m) => m.ProductEditComponent),
   },

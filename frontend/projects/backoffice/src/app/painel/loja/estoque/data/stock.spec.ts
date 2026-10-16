@@ -12,7 +12,7 @@ import {
 const row = (over: Partial<StockRow> = {}): StockRow => ({
   productId: 'p', productName: 'Camiseta Dry', skuId: 's', skuCode: 'NX-CAM-BRANCO-M', barcode: '789',
   variantLabel: 'Branco areia · M', category: 'vestuario', imageUrl: null, byLocation: { cd: 5 }, total: 5,
-  reserved: 0, threshold: 3, costCents: 1000, ...over,
+  reservedByLocation: {}, reserved: 0, threshold: 3, costCents: 1000, lastCostCents: null, ...over,
 });
 
 describe('estoque · regras', () => {
@@ -54,10 +54,12 @@ describe('estoque · regras', () => {
     };
     const [r] = rowsFromProduct('p1', product, [
       { id: 'branco_m', data: { code: 'NX-C-BRANCO-M', axisValues: { cor: 'branco', tam: 'm' }, stockByLocation: { cd: 1, 'arena-cfc': 2 } } },
-    ], 500);
+    ], { costCents: 500, skuCosts: { branco_m: 450 }, lastPurchaseCents: { branco_m: 480 } });
     expect(r!.variantLabel).toBe('Branco areia · M');
     expect(r!.total).toBe(3);
     expect(r!.imageUrl).toBe('https://x/c.jpg');
+    expect(r!.costCents).toBe(450);
+    expect(r!.lastCostCents).toBe(480);
     const [single] = rowsFromProduct('p2', { name: 'Bola' }, [{ id: 'unico', data: {} }], null);
     expect(single!.variantLabel).toBe('único');
     expect(single!.total).toBe(0);

@@ -79,14 +79,22 @@ describe('PanelShellComponent', () => {
     expect(group.classList.contains('active')).toBeFalse();
   });
 
-  it('Produtos e Estoque são links; os outros filhos são "Em breve"', async () => {
+  it('Produtos, Estoque e Retirada & frete são links; os outros filhos são "Em breve"', async () => {
     const host = await mount();
     (host.querySelector('button.nav-item') as HTMLButtonElement).click();
     await TestBed.inject(ApplicationRef).whenStable();
 
     const links = [...host.querySelectorAll('.subnav a.nav-item')];
-    expect(links.map((e) => e.textContent!.trim().replace(/\d+$/, '').trim())).toEqual(['Produtos', 'Estoque']);
-    expect(links.map((e) => e.getAttribute('href'))).toEqual(['/painel/loja/produtos', '/painel/loja/estoque']);
+    expect(links.map((e) => e.textContent!.trim().replace(/\d+$/, '').trim())).toEqual([
+      'Produtos',
+      'Estoque',
+      'Retirada & frete',
+    ]);
+    expect(links.map((e) => e.getAttribute('href'))).toEqual([
+      '/painel/loja/produtos',
+      '/painel/loja/estoque',
+      '/painel/loja/retirada',
+    ]);
   });
 
   it('o badge do Estoque vem da contagem real de SKUs baixos', async () => {

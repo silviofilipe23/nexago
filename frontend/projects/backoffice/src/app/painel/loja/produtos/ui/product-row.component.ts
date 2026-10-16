@@ -25,7 +25,11 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
       </label>
 
       <div class="cell-product">
-        <div class="thumb" aria-hidden="true"></div>
+        <div class="thumb" aria-hidden="true">
+          @if (product().imageUrl; as url) {
+            <img [src]="url" alt="" loading="lazy" decoding="async" width="34" height="34" />
+          }
+        </div>
         <div class="who">
           <a class="name" [routerLink]="['/painel/loja/produtos', product().id]">{{ product().name }}</a>
           <div class="sku">{{ product().sku }}</div>
@@ -118,6 +122,7 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
     }
 
     .thumb {
+      overflow: hidden;
       width: 34px;
       height: 34px;
       flex: none;
@@ -222,6 +227,14 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
 
     .cell-more:hover {
       color: var(--nx-text);
+    }
+
+    /* A foto cobre o listrado; sem foto, o listrado é o placeholder. */
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
     }
   `,
 })

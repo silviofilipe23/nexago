@@ -494,7 +494,8 @@ describe("fix pass — invariantes que a revisão final achou", () => {
     assert.ok(fake.store.has(`storeProductCosts/${productId}`));
 
     await saveStoreProductCore(db, input({productId, version: 1, costCents: null}), ACTOR, NOW);
-    assert.equal(fake.store.has(`storeProductCosts/${productId}`), false);
+    // O doc fica (guarda o custo médio por SKU), mas o custo do produto some.
+    assert.equal(fake.store.get(`storeProductCosts/${productId}`)!["costCents"], null);
   });
 
   it("entrada sem nome vira invalid-argument, não erro interno", async () => {

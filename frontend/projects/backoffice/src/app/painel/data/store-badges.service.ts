@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { backofficeDb } from './firebase';
 
 /**
@@ -10,7 +10,10 @@ import { backofficeDb } from './firebase';
 export class StoreBadgesService {
   /** SKUs abaixo do alerta (soma de `lowStockSkuCount` dos produtos não arquivados). */
   readonly lowStock = signal<number | null>(null);
+  /** Trocas & devoluções esperando análise. */
+  readonly returnsToReview = signal<number | null>(null);
   private loading: Promise<void> | null = null;
+  private loadingReturns: Promise<void> | null = null;
 
   load(): Promise<void> {
     this.loading ??= getDocs(collection(backofficeDb(), 'storeProducts'))
@@ -28,6 +31,23 @@ export class StoreBadgesService {
         // Sem badge é melhor que badge errado.
       });
     return this.loading;
+  }
+
+  loadReturns(): Promise<void> {
+    this.loadingReturns ??= getDocs(query(collection(backofficeDb(), 'storeReturns'), where('status', '==', 'analisar')))
+      .then((snap) => {
+        if (this.returnsToReview() === null) {
+          this.returnsToReview.set(snap.size);
+        }
+      })
+      .catch(() => {
+        // Sem badge é melhor que badge errado.
+      });
+    return this.loadingReturns;
+  }
+
+  setReturns(count: number): void {
+    this.returnsToReview.set(count);
   }
 
   /** A tela de Estoque conta direto dos SKUs: vale mais que o desnormalizado. */

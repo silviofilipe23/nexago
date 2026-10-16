@@ -170,6 +170,13 @@ export const routes: Routes = [
       import('./painel/loja/estoque/transferencia/stock-transfer.component').then((m) => m.StockTransferComponent),
   },
   {
+    path: 'painel/loja/trocas',
+    title: 'Trocas & devoluções — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/loja/trocas/panel-trocas.component').then((m) => m.PanelTrocasComponent),
+  },
+  {
     path: 'painel/loja/estoque',
     title: 'Estoque — NexaGO Backoffice',
     canActivate: [authGuard],

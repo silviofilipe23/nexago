@@ -79,7 +79,7 @@ describe('PanelShellComponent', () => {
     expect(group.classList.contains('active')).toBeFalse();
   });
 
-  it('Produtos, Estoque e Retirada & frete são links; os outros filhos são "Em breve"', async () => {
+  it('Produtos, Estoque, Retirada & frete e Trocas são links; os outros filhos são "Em breve"', async () => {
     const host = await mount();
     (host.querySelector('button.nav-item') as HTMLButtonElement).click();
     await TestBed.inject(ApplicationRef).whenStable();
@@ -89,12 +89,23 @@ describe('PanelShellComponent', () => {
       'Produtos',
       'Estoque',
       'Retirada & frete',
+      'Trocas',
     ]);
     expect(links.map((e) => e.getAttribute('href'))).toEqual([
       '/painel/loja/produtos',
       '/painel/loja/estoque',
       '/painel/loja/retirada',
+      '/painel/loja/trocas',
     ]);
+  });
+
+  it('o badge de Trocas é o número para analisar', async () => {
+    const host = await mount();
+    TestBed.inject(StoreBadgesService).setReturns(2);
+    (host.querySelector('button.nav-item') as HTMLButtonElement).click();
+    await TestBed.inject(ApplicationRef).whenStable();
+    const trocas = [...host.querySelectorAll('.subnav a.nav-item')].find((e) => e.textContent!.includes('Trocas'))!;
+    expect(trocas.querySelector('.badge')!.textContent!.trim()).toBe('2');
   });
 
   it('o badge do Estoque vem da contagem real de SKUs baixos', async () => {

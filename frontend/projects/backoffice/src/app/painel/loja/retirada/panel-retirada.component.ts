@@ -1,31 +1,26 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { callableErrorMessage } from '../../data/callable-error';
+import { FieldComponent } from '../../ui/field.component';
 import { IconComponent } from '../../ui/icon.component';
 import { PageHeaderComponent } from '../../ui/page-header.component';
 import { PanelCardComponent } from '../../ui/panel-card.component';
 import { PanelShellComponent } from '../../ui/panel-shell.component';
 import { PillComponent } from '../../ui/pill.component';
 import { ToggleComponent } from '../../ui/toggle.component';
-import { FieldComponent } from '../../ui/field.component';
-import {
-  centsToInput,
-  formatBrl,
-  isValidCep,
-  maskCep,
-  parseBrlToCents,
-} from './retirada-format';
-import type { ConfigFrete, ModalidadeFrete, PontoRetirada, Remessa } from './retirada.model';
+import { centsToInput, formatBrl, isValidCep, maskCep, parseBrlToCents } from './retirada-format';
+import type { ConfigFrete, ModalidadeFrete, ModalidadeId, PontoRetirada, Remessa } from './retirada.model';
 import { RetiradaRepository } from './retirada.repository';
 
 interface PontoDraft {
-  id: string | null;
-  nome: string;
-  endereco: string;
+  /** Vazio = "Adicionar arena", ainda sem arena escolhida. */
+  arenaId: string;
+  isNew: boolean;
   balcao: string;
   horario: string;
   responsavel: string;
   prazoAbastecimentoH: 24 | 48;
   comissaoPct: string;
+  ativo: boolean;
 }
 
 interface RulesDraft {
@@ -37,15 +32,14 @@ interface RulesDraft {
   reembolsoEmSaldo: boolean;
 }
 
-const EMPTY_DRAFT: PontoDraft = {
-  id: null,
-  nome: '',
-  endereco: '',
-  balcao: '',
-  horario: '',
-  responsavel: '',
-  prazoAbastecimentoH: 24,
-  comissaoPct: '',
+const EMPTY_CONFIG: ConfigFrete = {
+  freteGratisAcimaCents: 0,
+  prazoRetiradaDias: 0,
+  cepOrigem: '',
+  prazoSeparacaoH: 0,
+  cancelarRetiradaVencida: false,
+  reembolsoEmSaldo: false,
+  comissaoPadraoPct: 0,
 };
 
 function rulesDraftOf(c: ConfigFrete): RulesDraft {
@@ -59,7 +53,17 @@ function rulesDraftOf(c: ConfigFrete): RulesDraft {
   };
 }
 
-/** Loja › Retirada & frete. Arenas reais; o restante é dado de exemplo (ver `RetiradaRepository`). */
+/** `not-found` cru ("NOT FOUND") é callable que ainda não foi publicada, não registro sumido. */
+function errorText(error: unknown): string {
+  const code = String((error as { code?: unknown })?.code ?? '');
+  const message = String((error as { message?: unknown })?.message ?? '');
+  if (code.includes('not-found')) {
+    return message && message !== 'NOT FOUND' ? message : 'Função ainda não publicada no servidor.';
+  }
+  return callableErrorMessage(error);
+}
+
+/** Loja › Retirada & frete: arenas do nexaGO como pontos de retirada + regras de frete. */
 @Component({
   selector: 'bo-panel-retirada',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -76,7 +80,12 @@ function rulesDraftOf(c: ConfigFrete): RulesDraft {
   template: `
     <bo-panel-shell>
       <bo-page-header title="Retirada & frete" subtitle="Loja">
-        <button type="button" class="bo-mini-btn bo-mini-btn-primary" (click)="openForm(null)">
+        <button
+          type="button"
+          class="bo-mini-btn bo-mini-btn-primary"
+          [disabled]="loading() || unconfigured().length === 0"
+          (click)="openNew()"
+        >
           <bo-icon name="plus" [size]="13" />
           Adicionar arena
         </button>
@@ -97,6 +106,12 @@ function rulesDraftOf(c: ConfigFrete): RulesDraft {
               <span>{{ text }}</span>
             </div>
           }
+          @if (actionError(); as text) {
+            <div class="bo-alert" role="alert">
+              <bo-icon name="alert" [size]="16" />
+              <span>{{ text }}</span>
+            </div>
+          }
 
           <div class="grid">
             <div class="col">
@@ -112,11 +127,7 @@ function rulesDraftOf(c: ConfigFrete): RulesDraft {
                   @if (pontos().length === 0) {
                     <div class="empty">
                       <bo-icon name="arena" [size]="20" />
-                      <p>Nenhuma arena cadastrada</p>
-                      <button type="button" class="bo-mini-btn bo-mini-btn-primary" (click)="openForm(null)">
-                        <bo-icon name="plus" [size]="13" />
-                        Adicionar arena
-                      </button>
+                      <p>Nenhuma arena ativa no nexaGO</p>
                     </div>
                   } @else {
                     <div class="table-head">
@@ -130,17 +141,23 @@ function rulesDraftOf(c: ConfigFrete): RulesDraft {
                             <bo-icon name="arena" [size]="15" />
                           </span>
                           <div class="who">
-                            <div class="name">{{ p.nome }}</div>
+                            <div class="name">
+                              {{ p.nome }}
+                              @if (!p.configurado) {
+                                <span class="tag">Não configurado</span>
+                              }
+                            </div>
                             <div class="sub">{{ pointSubtitle(p) }}</div>
                           </div>
                         </div>
                         <div class="num strong">{{ p.aguardando > 0 ? p.aguardando : '—' }}</div>
-                        <div class="muted">{{ p.responsavel ?? '—' }}</div>
+                        <div class="muted">{{ p.responsavel || '—' }}</div>
                         <div>
                           <bo-toggle
                             [ariaLabel]="'Ativar ' + p.nome + ' no checkout'"
                             [checked]="p.ativo"
-                            (checkedChange)="setPointActive(p.id, $event)"
+                            [disabled]="busyIds().has(p.id)"
+                            (checkedChange)="setPointActive(p, $event)"
                           />
                         </div>
                         <div class="menu-wrap">
@@ -156,13 +173,17 @@ function rulesDraftOf(c: ConfigFrete): RulesDraft {
                           </button>
                           @if (menuOpenId() === p.id) {
                             <div class="menu" role="menu">
-                              <button type="button" role="menuitem" (click)="openForm(p)">Editar</button>
+                              <button type="button" role="menuitem" (click)="openForm(p)">
+                                {{ p.configurado ? 'Editar' : 'Configurar' }}
+                              </button>
                               <button type="button" role="menuitem" disabled title="Em breve">
                                 Ver pedidos aguardando
                               </button>
-                              <button type="button" role="menuitem" (click)="setPointActive(p.id, !p.ativo)">
-                                {{ p.ativo ? 'Desativar' : 'Ativar' }}
-                              </button>
+                              @if (p.configurado) {
+                                <button type="button" role="menuitem" (click)="setPointActive(p, !p.ativo)">
+                                  {{ p.ativo ? 'Desativar' : 'Ativar' }}
+                                </button>
+                              }
                             </div>
                           }
                         </div>
@@ -173,13 +194,7 @@ function rulesDraftOf(c: ConfigFrete): RulesDraft {
               </section>
 
               <bo-panel-card pad="sm" kicker="CD Goiânia → pontos de retirada" title="Remessas para arenas">
-                <button
-                  card-actions
-                  type="button"
-                  class="bo-mini-btn"
-                  disabled
-                  title="Em breve"
-                >
+                <button card-actions type="button" class="bo-mini-btn" disabled title="Em breve">
                   <bo-icon name="swap" [size]="13" />
                   Nova remessa
                 </button>
@@ -222,7 +237,7 @@ function rulesDraftOf(c: ConfigFrete): RulesDraft {
                     <bo-toggle
                       [ariaLabel]="'Ativar entrega ' + m.nome"
                       [checked]="m.ativo"
-                      [disabled]="m.tipoValor === 'calculado' && !melhorEnvioConectado()"
+                      [disabled]="busyIds().has(m.id) || (m.tipoValor === 'calculado' && !melhorEnvioConectado() && !m.ativo)"
                       (checkedChange)="setModeActive(m.id, $event)"
                     />
                   </div>
@@ -297,9 +312,16 @@ function rulesDraftOf(c: ConfigFrete): RulesDraft {
                     @if (rulesError(); as err) {
                       <span class="err" role="alert">{{ err }}</span>
                     }
-                    <button type="button" class="bo-ghost-btn" (click)="resetRules()">Descartar</button>
-                    <button type="button" class="bo-mini-btn bo-mini-btn-primary" (click)="saveRules()">
-                      Salvar
+                    <button type="button" class="bo-ghost-btn" [disabled]="saving()" (click)="resetRules()">
+                      Descartar
+                    </button>
+                    <button
+                      type="button"
+                      class="bo-mini-btn bo-mini-btn-primary"
+                      [disabled]="saving()"
+                      (click)="saveRules()"
+                    >
+                      {{ saving() ? 'Salvando…' : 'Salvar' }}
                     </button>
                   </div>
                 }
@@ -311,17 +333,34 @@ function rulesDraftOf(c: ConfigFrete): RulesDraft {
 
       @if (form(); as f) {
         <div class="backdrop" (click)="closeForm()"></div>
-        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="form-title" (click)="$event.stopPropagation()">
-          <h2 id="form-title">{{ f.id ? 'Editar ponto de retirada' : 'Adicionar arena' }}</h2>
+        <div
+          class="dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="form-title"
+          (click)="$event.stopPropagation()"
+        >
+          <h2 id="form-title">{{ f.isNew ? 'Adicionar arena' : 'Ponto de retirada' }}</h2>
           <div class="form-grid">
-            <bo-field label="Nome" class="span2">
-              <input class="bo-input" [value]="f.nome" (input)="patchForm({ nome: value($event) })" />
-            </bo-field>
-            <bo-field label="Endereço" class="span2">
-              <input class="bo-input" [value]="f.endereco" (input)="patchForm({ endereco: value($event) })" />
-            </bo-field>
+            @if (f.isNew) {
+              <bo-field label="Arena" class="span2">
+                <select class="bo-select" (change)="patchForm({ arenaId: value($event) })">
+                  <option value="" [selected]="f.arenaId === ''">Escolha uma arena ativa</option>
+                  @for (a of unconfigured(); track a.id) {
+                    <option [value]="a.id" [selected]="f.arenaId === a.id">
+                      {{ a.nome }}{{ a.cidade ? ' — ' + a.cidade : '' }}
+                    </option>
+                  }
+                </select>
+              </bo-field>
+            } @else if (formArena(); as a) {
+              <div class="readonly span2">
+                <strong>{{ a.nome }}</strong>
+                {{ arenaLine(a) }}
+              </div>
+            }
             <bo-field label="Balcão de retirada">
-              <input class="bo-input" [value]="f.balcao" (input)="patchForm({ balcao: value($event) })" />
+              <input class="bo-input" placeholder="Recepção" [value]="f.balcao" (input)="patchForm({ balcao: value($event) })" />
             </bo-field>
             <bo-field label="Horário">
               <input class="bo-input" placeholder="8h–22h" [value]="f.horario" (input)="patchForm({ horario: value($event) })" />
@@ -338,13 +377,19 @@ function rulesDraftOf(c: ConfigFrete): RulesDraft {
             <bo-field label="Comissão (%)" [hint]="'Vazio herda o padrão de ' + config().comissaoPadraoPct + '%'">
               <input class="bo-input" inputmode="decimal" [value]="f.comissaoPct" (input)="patchForm({ comissaoPct: value($event) })" />
             </bo-field>
+            <div class="toggle-row">
+              <span>Ativo no checkout</span>
+              <bo-toggle ariaLabel="Ativo no checkout" [checked]="f.ativo" (checkedChange)="patchForm({ ativo: $event })" />
+            </div>
           </div>
           @if (formError(); as err) {
             <div class="bo-alert"><bo-icon name="alert" [size]="16" /><span>{{ err }}</span></div>
           }
           <div class="dialog-actions">
-            <button type="button" class="bo-ghost-btn" (click)="closeForm()">Cancelar</button>
-            <button type="button" class="bo-mini-btn bo-mini-btn-primary" (click)="saveForm()">Salvar</button>
+            <button type="button" class="bo-ghost-btn" [disabled]="saving()" (click)="closeForm()">Cancelar</button>
+            <button type="button" class="bo-mini-btn bo-mini-btn-primary" [disabled]="saving()" (click)="saveForm()">
+              {{ saving() ? 'Salvando…' : 'Salvar' }}
+            </button>
           </div>
         </div>
       }
@@ -424,6 +469,10 @@ function rulesDraftOf(c: ConfigFrete): RulesDraft {
     .span2 { grid-column: span 2; }
     .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
     @media (max-width: 640px) { .form-grid, .rules { grid-template-columns: 1fr; } .span2 { grid-column: auto; } }
+
+    .tag { display: inline-block; margin-left: 6px; font-family: var(--nx-font-mono); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--nx-text-dim); }
+    .readonly { font-size: 13px; color: var(--nx-text-mute); }
+    .readonly strong { display: block; font-family: var(--nx-font-display); font-size: 14px; color: var(--nx-text); }
   `,
 })
 export class PanelRetiradaComponent {
@@ -434,19 +483,25 @@ export class PanelRetiradaComponent {
   protected readonly pontos = signal<PontoRetirada[]>([]);
   protected readonly modalidades = signal<ModalidadeFrete[]>([]);
   protected readonly remessas = signal<Remessa[]>([]);
-  protected readonly config = signal<ConfigFrete>({
-    freteGratisAcimaCents: 0, prazoRetiradaDias: 0, cepOrigem: '', prazoSeparacaoH: 0,
-    cancelarRetiradaVencida: false, reembolsoEmSaldo: false, comissaoPadraoPct: 0,
-  });
-  protected readonly melhorEnvioConectado = signal(true);
+  protected readonly config = signal<ConfigFrete>(EMPTY_CONFIG);
+  protected readonly melhorEnvioConectado = signal(false);
 
-  protected readonly rules = signal<RulesDraft>(rulesDraftOf(this.config()));
+  protected readonly rules = signal<RulesDraft>(rulesDraftOf(EMPTY_CONFIG));
   protected readonly rulesError = signal('');
   protected readonly notice = signal('');
+  protected readonly actionError = signal('');
   protected readonly menuOpenId = signal<string | null>(null);
   protected readonly form = signal<PontoDraft | null>(null);
   protected readonly formError = signal('');
+  protected readonly saving = signal(false);
+  /** Linhas com toggle a caminho do servidor: segundo clique esperaria a resposta errada. */
+  protected readonly busyIds = signal<ReadonlySet<string>>(new Set());
 
+  protected readonly unconfigured = computed(() => this.pontos().filter((p) => !p.configurado));
+  protected readonly formArena = computed(() => {
+    const id = this.form()?.arenaId;
+    return id ? (this.pontos().find((p) => p.id === id) ?? null) : null;
+  });
   protected readonly rulesDirty = computed(
     () => JSON.stringify(this.rules()) !== JSON.stringify(rulesDraftOf(this.config())),
   );
@@ -470,20 +525,23 @@ export class PanelRetiradaComponent {
       this.rules.set(rulesDraftOf(data.config));
       this.melhorEnvioConectado.set(data.melhorEnvioConectado);
     } catch (error) {
-      this.loadError.set(callableErrorMessage(error));
+      this.loadError.set(errorText(error));
     } finally {
       this.loading.set(false);
     }
   }
 
   protected pointSubtitle(p: PontoRetirada): string {
-    return [p.bairro, p.cidade, [p.balcao, p.horario].filter(Boolean).join(' · ')]
-      .filter(Boolean)
-      .join(' · ');
+    return [p.cidade, p.balcao, p.horario].filter(Boolean).join(' · ') || p.endereco;
+  }
+
+  protected arenaLine(a: PontoRetirada): string {
+    return [a.endereco, a.cidade].filter(Boolean).join(' · ') || 'Endereço não informado na arena';
   }
 
   protected shipmentCounts(r: Remessa): string {
-    return `${r.pedidos} ${r.pedidos === 1 ? 'pedido' : 'pedidos'} · ${r.unidades} un.`;
+    const units = `${r.unidades} un.`;
+    return r.pedidos > 0 ? `${r.pedidos} ${r.pedidos === 1 ? 'pedido' : 'pedidos'} · ${units}` : units;
   }
 
   protected modeValue(m: ModalidadeFrete): string {
@@ -495,45 +553,93 @@ export class PanelRetiradaComponent {
     this.menuOpenId.update((current) => (current === id ? null : id));
   }
 
-  protected setPointActive(id: string, ativo: boolean): void {
+  /** Ponto ainda não configurado não liga direto: abre o cadastro, já marcado como ativo. */
+  protected async setPointActive(p: PontoRetirada, ativo: boolean): Promise<void> {
     this.menuOpenId.set(null);
-    this.pontos.update((rows) => rows.map((p) => (p.id === id ? { ...p, ativo } : p)));
-  }
-
-  protected setModeActive(id: string, ativo: boolean): void {
-    this.modalidades.update((rows) => rows.map((m) => (m.id === id ? { ...m, ativo } : m)));
-  }
-
-  // ── Cadastro de ponto ──
-  protected openForm(p: PontoRetirada | null): void {
-    this.menuOpenId.set(null);
-    this.formError.set('');
-    this.form.set(
-      p
-        ? {
-            id: p.id, nome: p.nome, endereco: p.endereco, balcao: p.balcao, horario: p.horario,
-            responsavel: p.responsavel ?? '', prazoAbastecimentoH: p.prazoAbastecimentoH,
-            comissaoPct: p.comissaoPct === null ? '' : String(p.comissaoPct).replace('.', ','),
-          }
-        : EMPTY_DRAFT,
+    if (!p.configurado) {
+      this.openForm({ ...p, ativo: true });
+      return;
+    }
+    await this.optimistic(
+      p.id,
+      () => this.pontos.update((rows) => rows.map((r) => (r.id === p.id ? { ...r, ativo } : r))),
+      () => this.pontos.update((rows) => rows.map((r) => (r.id === p.id ? { ...r, ativo: !ativo } : r))),
+      () => this.repository.setPointActive(p.id, ativo),
     );
   }
 
+  protected async setModeActive(id: ModalidadeId, ativo: boolean): Promise<void> {
+    const set = (value: boolean) =>
+      this.modalidades.update((rows) => rows.map((m) => (m.id === id ? { ...m, ativo: value } : m)));
+    await this.optimistic(id, () => set(ativo), () => set(!ativo), () => this.repository.setModeActive(id, ativo));
+  }
+
+  /** Mostra o novo estado na hora e desfaz se o servidor recusar. */
+  private async optimistic(id: string, apply: () => void, revert: () => void, call: () => Promise<void>): Promise<void> {
+    this.actionError.set('');
+    this.busyIds.update((ids) => new Set(ids).add(id));
+    apply();
+    try {
+      await call();
+    } catch (error) {
+      revert();
+      this.actionError.set(errorText(error));
+    } finally {
+      this.busyIds.update((ids) => {
+        const next = new Set(ids);
+        next.delete(id);
+        return next;
+      });
+    }
+  }
+
+  // ── Cadastro de ponto ──
+  protected openNew(): void {
+    this.formError.set('');
+    this.form.set({
+      arenaId: '',
+      isNew: true,
+      balcao: '',
+      horario: '',
+      responsavel: '',
+      prazoAbastecimentoH: 24,
+      comissaoPct: '',
+      ativo: true,
+    });
+  }
+
+  protected openForm(p: PontoRetirada): void {
+    this.menuOpenId.set(null);
+    this.formError.set('');
+    this.form.set({
+      arenaId: p.id,
+      isNew: false,
+      balcao: p.balcao,
+      horario: p.horario,
+      responsavel: p.responsavel,
+      prazoAbastecimentoH: p.prazoAbastecimentoH,
+      comissaoPct: p.comissaoPct === null ? '' : String(p.comissaoPct).replace('.', ','),
+      ativo: p.ativo || !p.configurado,
+    });
+  }
+
   protected closeForm(): void {
-    this.form.set(null);
+    if (!this.saving()) {
+      this.form.set(null);
+    }
   }
 
   protected patchForm(patch: Partial<PontoDraft>): void {
     this.form.update((f) => (f ? { ...f, ...patch } : f));
   }
 
-  protected saveForm(): void {
+  protected async saveForm(): Promise<void> {
     const f = this.form();
-    if (!f) {
+    if (!f || this.saving()) {
       return;
     }
-    if (f.nome.trim() === '' || f.endereco.trim() === '') {
-      this.formError.set('Informe o nome e o endereço.');
+    if (f.arenaId === '') {
+      this.formError.set('Escolha a arena.');
       return;
     }
     const raw = f.comissaoPct.trim().replace(',', '.');
@@ -542,22 +648,28 @@ export class PanelRetiradaComponent {
       this.formError.set('A comissão deve estar entre 0 e 100.');
       return;
     }
-    const base = {
-      nome: f.nome.trim(), endereco: f.endereco.trim(), balcao: f.balcao.trim(),
-      horario: f.horario.trim(), responsavel: f.responsavel.trim() || null,
-      prazoAbastecimentoH: f.prazoAbastecimentoH, comissaoPct: comissao,
+    const input = {
+      arenaId: f.arenaId,
+      balcao: f.balcao.trim(),
+      horario: f.horario.trim(),
+      responsavel: f.responsavel.trim(),
+      prazoAbastecimentoH: f.prazoAbastecimentoH,
+      comissaoPct: comissao,
+      ativo: f.ativo,
     };
-    if (f.id) {
-      this.pontos.update((rows) => rows.map((p) => (p.id === f.id ? { ...p, ...base } : p)));
-    } else {
-      const id = `novo-${Date.now()}`;
-      this.pontos.update((rows) => [
-        ...rows,
-        { id, localId: '', bairro: '', cidade: '', ativo: true, aguardando: 0, ...base },
-      ]);
+    this.saving.set(true);
+    this.formError.set('');
+    try {
+      await this.repository.savePoint(input);
+      const { arenaId, ...fields } = input;
+      this.pontos.update((rows) => rows.map((p) => (p.id === arenaId ? { ...p, ...fields, configurado: true } : p)));
+      this.form.set(null);
+      this.showNotice('Ponto de retirada salvo');
+    } catch (error) {
+      this.formError.set(errorText(error));
+    } finally {
+      this.saving.set(false);
     }
-    this.form.set(null);
-    this.showNotice(f.id ? 'Ponto de retirada atualizado' : 'Ponto de retirada adicionado');
   }
 
   // ── Regras ──
@@ -571,28 +683,47 @@ export class PanelRetiradaComponent {
     this.rules.set(rulesDraftOf(this.config()));
   }
 
-  protected saveRules(): void {
+  protected async saveRules(): Promise<void> {
     const r = this.rules();
     const cents = parseBrlToCents(r.freteGratis);
     const dias = Number(r.prazoRetiradaDias);
     const horas = Number(r.prazoSeparacaoH);
     if (cents === null) {
       this.rulesError.set('Informe um valor válido para o frete grátis.');
-    } else if (!Number.isInteger(dias) || dias < 1) {
-      this.rulesError.set('O prazo de retirada deve ter ao menos 1 dia.');
-    } else if (!isValidCep(r.cepOrigem)) {
+      return;
+    }
+    if (!Number.isInteger(dias) || dias < 1 || dias > 60) {
+      this.rulesError.set('O prazo de retirada vai de 1 a 60 dias.');
+      return;
+    }
+    if (!isValidCep(r.cepOrigem)) {
       this.rulesError.set('Informe o CEP de origem completo.');
-    } else if (!Number.isInteger(horas) || horas < 0) {
-      this.rulesError.set('Informe o prazo de separação em horas.');
-    } else {
-      this.config.update((c) => ({
-        ...c, freteGratisAcimaCents: cents, prazoRetiradaDias: dias, cepOrigem: r.cepOrigem,
-        prazoSeparacaoH: horas, cancelarRetiradaVencida: r.cancelarRetiradaVencida,
-        reembolsoEmSaldo: r.reembolsoEmSaldo,
-      }));
-      this.rules.set(rulesDraftOf(this.config()));
+      return;
+    }
+    if (r.prazoSeparacaoH === '' || !Number.isInteger(horas) || horas > 240) {
+      this.rulesError.set('O prazo de separação vai de 0 a 240 horas.');
+      return;
+    }
+    const next: ConfigFrete = {
+      ...this.config(),
+      freteGratisAcimaCents: cents,
+      prazoRetiradaDias: dias,
+      cepOrigem: r.cepOrigem,
+      prazoSeparacaoH: horas,
+      cancelarRetiradaVencida: r.cancelarRetiradaVencida,
+      reembolsoEmSaldo: r.reembolsoEmSaldo,
+    };
+    this.saving.set(true);
+    try {
+      await this.repository.saveRules(next);
+      this.config.set(next);
+      this.rules.set(rulesDraftOf(next));
       this.rulesError.set('');
       this.showNotice('Regras salvas');
+    } catch (error) {
+      this.rulesError.set(errorText(error));
+    } finally {
+      this.saving.set(false);
     }
   }
 

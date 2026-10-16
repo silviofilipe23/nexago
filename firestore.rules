@@ -3154,6 +3154,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Pontos de retirada (um por arena, id = arenaId) e regras de frete da Loja.
+    // Só o backoffice lê; escrita só pelas callables de store-pickup.
+    match /storePickupPoints/{arenaId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /storeConfig/{configId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
     // Movimentações de estoque: o rastro de toda mudança de saldo. Só servidor grava.
     match /storeStockMovements/{movementId} {
       allow read: if isAdmin() || isSuperAdmin();

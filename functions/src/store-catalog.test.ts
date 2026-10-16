@@ -12,6 +12,8 @@ import {
   type Axis,
   type ProductForValidation,
   type SkuDoc,
+  stockDeltas,
+  variantLabelOf,
 } from "./store-catalog";
 
 const AXES: Axis[] = [
@@ -169,5 +171,34 @@ describe("badgeIsVisible", () => {
 describe("MAX_SKUS_PER_PRODUCT", () => {
   it("é 100, o teto que mantém a transação dentro das 500 operações", () => {
     assert.equal(MAX_SKUS_PER_PRODUCT, 100);
+  });
+});
+
+describe("stockDeltas", () => {
+  it("só devolve local que mudou, com antes e depois", () => {
+    const before = new Map<string, Record<string, number>>([["a", {cd: 5, arena: 2}]]);
+    const after: {id: string; stockByLocation: Record<string, number>}[] = [{id: "a", stockByLocation: {cd: 3, arena: 2}}, {id: "b", stockByLocation: {cd: 4}}];
+    assert.deepEqual(stockDeltas(before, after), [
+      {skuId: "a", locationId: "cd", delta: -2, before: 5, after: 3},
+      {skuId: "b", locationId: "cd", delta: 4, before: 0, after: 4},
+    ]);
+  });
+
+  it("local que some conta como zerado", () => {
+    const before = new Map<string, Record<string, number>>([["a", {cd: 1, arena: 2}]]);
+    assert.deepEqual(stockDeltas(before, [{id: "a", stockByLocation: {cd: 1}}]), [
+      {skuId: "a", locationId: "arena", delta: -2, before: 2, after: 0},
+    ]);
+  });
+});
+
+describe("variantLabelOf", () => {
+  it("usa os rótulos na ordem dos eixos; sem eixo é vazio", () => {
+    const axes = [
+      {id: "cor", label: "Cor", values: [{id: "laranja", label: "Laranja"}]},
+      {id: "tam", label: "Tamanho", values: [{id: "g", label: "G"}]},
+    ];
+    assert.equal(variantLabelOf({tam: "g", cor: "laranja"}, axes), "Laranja · G");
+    assert.equal(variantLabelOf({}, []), "");
   });
 });

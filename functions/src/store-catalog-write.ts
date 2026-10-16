@@ -12,16 +12,20 @@ import {callerCanAccessBackoffice} from "./auth-roles";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {
   MAX_SKUS_PER_PRODUCT,
+  lowStockSkuCount,
   publishValidationErrors,
   rollupsOf,
   skuCodeFrom,
   skuIdFromAxisValues,
   slugify,
+  stockDeltas,
   sumStock,
+  variantLabelOf,
   type Axis,
   type ProductBadge,
   type ProductStatus,
   type SkuDoc,
+  type StockMovementItem,
 } from "./store-catalog";
 
 const BACKOFFICE_CALLABLE = {region: CLIENT_FACING_REGIONS, invoker: "public" as const};
@@ -29,6 +33,10 @@ const BACKOFFICE_CALLABLE = {region: CLIENT_FACING_REGIONS, invoker: "public" as
 const PRODUCTS = "storeProducts";
 const COSTS = "storeProductCosts";
 const KEYS = "storeCatalogKeys";
+const MOVEMENTS = "storeStockMovements";
+
+/** Motivo das movimentações que a grade da tela de produto gera. */
+export const GRID_ADJUST_REASON = "Ajuste manual na tela do produto";
 
 export interface Actor {
   uid: string;
@@ -218,7 +226,10 @@ export async function saveStoreProductCore(
     // O 'a partir de' depende dos SKUs: recalcular, senão ele congela no preço antigo.
     const skusSnap = await tx.get(ref.collection("skus"));
     const skus = skusSnap.docs.map((d) => d.data() as unknown as SkuDoc);
-    const rollups = rollupsOf(skus, input.priceCents);
+    const rollups = {
+      ...rollupsOf(skus, input.priceCents),
+      lowStockSkuCount: lowStockSkuCount(skus, input.lowStockThreshold),
+    };
 
     // ---------- escritas ----------
     const previousSlug = existing?.["slug"] as string | undefined;
@@ -435,6 +446,21 @@ export async function saveVariationsCore(
     }
 
     const codeById = new Map(currentSnap.docs.map((d) => [d.id, d.data()["code"] as string]));
+    const stockById = new Map(
+      currentSnap.docs.map((d) => [d.id, (d.data()["stockByLocation"] ?? {}) as Record<string, number>]),
+    );
+    const byId = new Map(next.map((sku) => [sku.id, sku]));
+    const movementItems: StockMovementItem[] = stockDeltas(stockById, next).map((d) => ({
+      productId: input.productId,
+      skuId: d.skuId,
+      skuCode: byId.get(d.skuId)!.code,
+      productName: existing["name"] as string,
+      variantLabel: variantLabelOf(byId.get(d.skuId)!.axisValues, input.axes),
+      locationId: d.locationId,
+      delta: d.delta,
+      before: d.before,
+      after: d.after,
+    }));
 
     // ---------- escritas ----------
     for (const doc of dropped) {
@@ -453,7 +479,25 @@ export async function saveVariationsCore(
       tx.set(skusRef.doc(sku.id), data, {merge: false});
     }
 
-    const rollups = rollupsOf(next, existing["priceCents"] as number);
+    // Saldo só muda com rastro: a grade da tela 05 vira uma movimentação "ajuste".
+    if (movementItems.length > 0) {
+      tx.set(db.collection(MOVEMENTS).doc(), {
+        type: "ajuste",
+        fromLocationId: null,
+        toLocationId: null,
+        items: movementItems,
+        productIds: [input.productId],
+        reference: null,
+        reason: GRID_ADJUST_REASON,
+        actor,
+        createdAt: now,
+      });
+    }
+
+    const rollups = {
+      ...rollupsOf(next, existing["priceCents"] as number),
+      lowStockSkuCount: lowStockSkuCount(next, (existing["lowStockThreshold"] ?? 0) as number),
+    };
     // Desnormalizado no pai porque a lista de Produtos busca por código de barras e
     // não lê a subcoleção: sem isto a busca não teria o que casar.
     const barcodes = next
@@ -546,7 +590,10 @@ export async function duplicateCore(
       };
     });
 
-    const rollups = rollupsOf(skus, source["priceCents"] as number);
+    const rollups = {
+      ...rollupsOf(skus, source["priceCents"] as number),
+      lowStockSkuCount: lowStockSkuCount(skus, (source["lowStockThreshold"] ?? 0) as number),
+    };
 
     // ---------- escritas ----------
     writeKey(tx, db, `slug:${slug}`, {productId: copyId});

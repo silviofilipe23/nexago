@@ -144,3 +144,53 @@ export function badgeIsVisible(
   const days = (now.getTime() - publishedAt.getTime()) / 86_400_000;
   return days < NEW_BADGE_DAYS;
 }
+
+export type StockMovementType = "entrada" | "saida" | "transferencia" | "ajuste";
+
+export interface StockMovementItem {
+  productId: string;
+  skuId: string;
+  skuCode: string;
+  productName: string;
+  /** "Branco areia · M"; vazio em produto sem variação. */
+  variantLabel: string;
+  locationId: string;
+  /** Com sinal: +3 entrou, −2 saiu do local. */
+  delta: number;
+  before: number;
+  after: number;
+}
+
+/** "Branco areia · M": rótulos na ordem dos eixos. */
+export function variantLabelOf(axisValues: Record<string, string>, axes: Axis[]): string {
+  return axes
+    .map((axis) => axis.values.find((v) => v.id === axisValues[axis.id])?.label ?? axisValues[axis.id] ?? "")
+    .filter((label) => label !== "")
+    .join(" · ");
+}
+
+/**
+ * Diferença de saldo por SKU e local entre o que está gravado e o que vai ser.
+ * É o que vira a movimentação "ajuste": saldo nunca muda sem deixar rastro.
+ */
+export function stockDeltas(
+  before: Map<string, Record<string, number>>,
+  after: {id: string; stockByLocation: Record<string, number>}[],
+): {skuId: string; locationId: string; delta: number; before: number; after: number}[] {
+  const out: {skuId: string; locationId: string; delta: number; before: number; after: number}[] = [];
+  for (const sku of after) {
+    const old = before.get(sku.id) ?? {};
+    const locations = [...new Set([...Object.keys(old), ...Object.keys(sku.stockByLocation)])].sort();
+    for (const locationId of locations) {
+      const b = old[locationId] ?? 0;
+      const a = sku.stockByLocation[locationId] ?? 0;
+      if (a !== b) out.push({skuId: sku.id, locationId, delta: a - b, before: b, after: a});
+    }
+  }
+  return out;
+}
+
+/** SKUs abaixo do alerta do produto (esgotado conta). Vai no pai para o badge do menu ler um doc só. */
+export function lowStockSkuCount(skus: {stock: number}[], threshold: number): number {
+  return skus.filter((sku) => sku.stock < threshold).length;
+}

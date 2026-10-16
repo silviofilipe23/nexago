@@ -2,6 +2,7 @@ import { ApplicationRef, provideZonelessChangeDetection, signal } from '@angular
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
+import { StoreBadgesService } from '../data/store-badges.service';
 import { PanelShellComponent } from './panel-shell.component';
 
 describe('PanelShellComponent', () => {
@@ -78,17 +79,27 @@ describe('PanelShellComponent', () => {
     expect(group.classList.contains('active')).toBeFalse();
   });
 
-  it('só Produtos é link; os outros filhos são "Em breve"', async () => {
+  it('Produtos e Estoque são links; os outros filhos são "Em breve"', async () => {
     const host = await mount();
     (host.querySelector('button.nav-item') as HTMLButtonElement).click();
     await TestBed.inject(ApplicationRef).whenStable();
 
-    const links = [...host.querySelectorAll('.subnav a.nav-item')].map((e) => e.textContent!.trim());
-    expect(links.length).toBe(1);
-    expect(links[0]).toContain('Produtos');
-    expect(host.querySelector('.subnav a.nav-item')!.getAttribute('href')).toBe(
-      '/painel/loja/produtos',
-    );
+    const links = [...host.querySelectorAll('.subnav a.nav-item')];
+    expect(links.map((e) => e.textContent!.trim().replace(/\d+$/, '').trim())).toEqual(['Produtos', 'Estoque']);
+    expect(links.map((e) => e.getAttribute('href'))).toEqual(['/painel/loja/produtos', '/painel/loja/estoque']);
+  });
+
+  it('o badge do Estoque vem da contagem real de SKUs baixos', async () => {
+    const host = await mount();
+    TestBed.inject(StoreBadgesService).set(4);
+    (host.querySelector('button.nav-item') as HTMLButtonElement).click();
+    await TestBed.inject(ApplicationRef).whenStable();
+    const estoque = [...host.querySelectorAll('.subnav a.nav-item')].find((e) => e.textContent!.includes('Estoque'))!;
+    expect(estoque.querySelector('.badge')!.textContent!.trim()).toBe('4');
+
+    TestBed.inject(StoreBadgesService).set(0);
+    await TestBed.inject(ApplicationRef).whenStable();
+    expect(estoque.querySelector('.badge')).toBeNull();
   });
 
   it('mostra o badge dos filhos que têm contador', async () => {

@@ -31,21 +31,23 @@ const COLOR_NAMES: Record<string, string> = { '#ffffff': 'branco', '#111111': 'p
 
       <div class="previews">
         <figure>
-          <div class="mock">
+          <div class="mock" [class.has-photo]="coverUrl()">
+            @if (coverUrl(); as url) { <img class="photo" [src]="url" [alt]="it.productName" /> }
             @if (it.image && frontArea()) {
               <span class="area" [class]="'area at-' + it.imageArea">
                 @if (it.image.url) { <img [src]="it.image.url" alt="Imagem enviada" /> }
               </span>
             }
             @if (nameOn() === 'frente') { <span class="name" [class]="'name font-' + it.font" [style.color]="it.nameColor">{{ displayName() }}</span> }
-            <span class="mock-label">Mockup · Frente</span>
+            <span class="mock-label">{{ coverUrl() ? 'Foto do produto' : 'Mockup' }} · Frente</span>
           </div>
           <figcaption>{{ frontCaption() }}</figcaption>
         </figure>
         <figure>
-          <div class="mock">
+          <div class="mock" [class.has-photo]="coverUrl()">
+            @if (coverUrl(); as url) { <img class="photo" [src]="url" [alt]="it.productName" /> }
             @if (nameOn() === 'costas') { <span class="name" [class]="'name font-' + it.font" [style.color]="it.nameColor">{{ displayName() }}</span> }
-            <span class="mock-label">Mockup · Costas</span>
+            <span class="mock-label">{{ coverUrl() ? 'Foto do produto' : 'Mockup' }} · Costas</span>
           </div>
           <figcaption>{{ backCaption() }}</figcaption>
         </figure>
@@ -146,12 +148,16 @@ const COLOR_NAMES: Record<string, string> = { '#ffffff': 'branco', '#111111': 'p
     figcaption { font-size: 11px; color: var(--nx-text-dim); }
     .mock { position: relative; aspect-ratio: 1; border-radius: var(--nx-r-2); overflow: hidden; background: repeating-linear-gradient(135deg, var(--nx-surface-1) 0 10px, var(--nx-surface-2) 10px 20px); }
     .mock-label { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; font-family: var(--nx-font-mono); font-size: 8.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--nx-text-dim); }
+    /* Foto inteira à vista (contain): a área marcada cai sobre a peça, sem corte. */
+    .mock.has-photo { background: #0d0d0f; }
+    .photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+    .mock.has-photo .mock-label { color: var(--nx-text-mute); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
     .area { position: absolute; border: 1px dashed var(--nx-orange-500); background: rgba(255, 106, 26, 0.18); overflow: hidden; }
     .area img { width: 100%; height: 100%; object-fit: contain; }
     .area.at-peito_esquerdo { top: 28%; right: 24%; width: 16%; height: 16%; }
     .area.at-centro_frente { top: 30%; left: 28%; width: 44%; height: 50%; }
     .area.at-manga { top: 30%; left: 6%; width: 12%; height: 12%; }
-    .name { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); padding: 3px 10px; border: 1px dashed rgba(244, 244, 245, 0.35); border-radius: 4px; font-size: 16px; white-space: nowrap; color: #fff; }
+    .name { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); padding: 3px 10px; border: 1px dashed rgba(244, 244, 245, 0.35); border-radius: 4px; font-size: 16px; white-space: nowrap; color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
     .font-bloco { font-family: var(--nx-font-display); font-weight: 800; }
     .font-classica { font-family: Georgia, serif; font-style: italic; font-weight: 700; }
     .font-mono { font-family: var(--nx-font-mono); font-weight: 700; }
@@ -187,6 +193,8 @@ export class CustomDetailComponent {
   readonly item = input.required<CustomItem>();
   readonly config = input.required<CustomizationConfig>();
   readonly blocklist = input.required<string[]>();
+  /** Capa do produto; sem ela, o mockup hachurado. */
+  readonly coverUrl = input<string | null>(null);
   readonly busy = input(false);
 
   readonly approve = output<void>();

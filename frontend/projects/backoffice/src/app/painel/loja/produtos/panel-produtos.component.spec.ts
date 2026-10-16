@@ -84,6 +84,18 @@ describe('PanelProdutosComponent', () => {
     expect(navigate).toHaveBeenCalledWith(['/painel/loja/produtos/novo']);
   });
 
+  it('clique na linha abre a edição; clique no toggle não', async () => {
+    const host = await mount();
+    const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+    const row = host.querySelector('bo-product-row .row') as HTMLElement;
+    (row.querySelector('.cell-category') as HTMLElement).click();
+    expect(navigate).toHaveBeenCalledWith(['/painel/loja/produtos', STORE_PRODUCTS[0]!.id]);
+
+    navigate.calls.reset();
+    (row.querySelector('.cell-active button') as HTMLElement).click();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
   it('erro na leitura mostra o aviso e o botão de tentar de novo', async () => {
     const host = await mount({ fail: true });
     expect(host.querySelector('.bo-alert')).not.toBeNull();

@@ -15,7 +15,7 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, CheckboxComponent, IconComponent, PillComponent, ToggleComponent],
   template: `
-    <div class="row" [class.selected]="selected()">
+    <div class="row" [class.selected]="selected()" (click)="onRowClick($event)">
       <label class="cell-check">
         <bo-checkbox
           [checked]="selected()"
@@ -72,7 +72,7 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
         />
       </div>
 
-      <button type="button" class="cell-more" disabled title="Em breve" aria-label="Mais ações">
+      <button type="button" class="cell-more" title="Editar" [attr.aria-label]="'Editar ' + product().name" (click)="open.emit()">
         <bo-icon name="chevron-right" [size]="14" />
       </button>
     </div>
@@ -87,6 +87,10 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
       padding: 0 14px;
       border-top: 1px solid var(--nx-line);
       transition: background 140ms var(--nx-ease-out);
+    }
+
+    .row {
+      cursor: pointer;
     }
 
     .row:hover {
@@ -211,12 +215,32 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
       color: var(--nx-text-dim);
       display: grid;
       place-items: center;
-      opacity: 0.5;
-      cursor: default;
+      cursor: pointer;
+      border-radius: var(--nx-r-2);
+      height: 30px;
+    }
+
+    .cell-more:hover {
+      color: var(--nx-text);
     }
   `,
 })
 export class ProductRowComponent {
+  /** Clique na linha abre a edição. */
+  readonly open = output<void>();
+
+  /**
+   * A linha inteira abre o produto, menos os controles dela: marcar, ligar o
+   * toggle ou seguir o link do nome não podem disparar uma segunda navegação.
+   */
+  protected onRowClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('a, button, label, input, select, bo-checkbox, bo-toggle')) {
+      return;
+    }
+    this.open.emit();
+  }
+
   readonly product = input.required<StoreProduct>();
   readonly selected = input(false);
 

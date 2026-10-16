@@ -205,6 +205,7 @@ type LoadState = 'loading' | 'ok' | 'error';
                 [selected]="isSelected(product.id)"
                 (selectedChange)="setSelected(product.id, $event)"
                 (activeChange)="setActive(product.id, $event)"
+                (open)="openProduct(product.id)"
               />
             }
           }
@@ -490,6 +491,10 @@ export class PanelProdutosComponent {
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly notice = signal('');
+
+  protected openProduct(id: string): void {
+    void this.router.navigate(['/painel/loja/produtos', id]);
+  }
 
   protected newProduct(): void {
     void this.router.navigate(['/painel/loja/produtos/novo']);

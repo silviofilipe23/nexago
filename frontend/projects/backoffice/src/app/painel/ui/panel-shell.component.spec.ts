@@ -59,6 +59,15 @@ describe('PanelShellComponent', () => {
     expect(group.getAttribute('aria-expanded')).toBe('false');
   });
 
+  it('abrir o grupo na mão não o destaca: o destaque é da rota', async () => {
+    const host = await mount();
+    const group = host.querySelector('button.nav-item') as HTMLButtonElement;
+    group.click();
+    await TestBed.inject(ApplicationRef).whenStable();
+    expect(group.getAttribute('aria-expanded')).toBe('true');
+    expect(group.classList.contains('active')).toBeFalse();
+  });
+
   it('só Produtos é link; os outros filhos são "Em breve"', async () => {
     const host = await mount();
     (host.querySelector('button.nav-item') as HTMLButtonElement).click();

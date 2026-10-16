@@ -153,16 +153,12 @@ function initialsOf(name: string): string {
                 <button
                   type="button"
                   class="nav-item group"
-                  [class.active]="openGroupIds().has(item.id)"
+                  [class.active]="routeOpenIds().has(item.id)"
                   [attr.aria-expanded]="openGroupIds().has(item.id)"
                   (click)="toggleGroup(item.id)"
                 >
                   <bo-icon [name]="item.icon" [size]="17" [strokeWidth]="1.9" />
                   <span>{{ item.label }}</span>
-                  <bo-icon
-                    [name]="openGroupIds().has(item.id) ? 'chevron-down' : 'chevron-right'"
-                    [size]="13"
-                  />
                 </button>
 
                 @if (openGroupIds().has(item.id)) {
@@ -368,24 +364,45 @@ function initialsOf(name: string): string {
       background: var(--nx-surface-1);
     }
 
+    /* Submenu (desenho 05): fio vertical na linha do ícone do grupo, filhos sem ícone,
+       o ativo marcado por um ponto laranja sobre o fio em vez da barra lateral. */
     .subnav {
       display: flex;
       flex-direction: column;
       gap: 2px;
-      margin: 2px 0 4px 15px;
-      padding-left: 11px;
-      border-left: 1px solid var(--nx-line);
+      margin: 4px 0 6px 20px;
+      padding-left: 10px;
+      border-left: 1px solid var(--nx-line-strong);
     }
 
     .subnav .nav-item {
-      height: 32px;
-      font-size: 12.5px;
+      height: 34px;
+      font-size: 13px;
       font-weight: 500;
       gap: 8px;
+      padding: 0 10px;
+      color: var(--nx-text-mute);
+    }
+
+    /* "Em breve" no submenu fica legível como no desenho; só o cursor e o title avisam. */
+    .subnav .nav-item.disabled {
+      opacity: 1;
+    }
+
+    .subnav .nav-item.active {
+      background: var(--nx-surface-1);
+      color: var(--nx-text);
+      font-weight: 700;
     }
 
     .subnav .nav-item.active::before {
-      left: -12px;
+      left: -14px;
+      top: 50%;
+      bottom: auto;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      transform: translateY(-50%);
     }
 
     .badge {
@@ -552,7 +569,7 @@ export class PanelShellComponent {
   private readonly manualOpen = signal<{ url: string; ids: ReadonlySet<string> } | null>(null);
 
   /** Grupos que a rota ativa abre sozinha. */
-  private readonly routeOpenIds = computed<ReadonlySet<string>>(() => {
+  protected readonly routeOpenIds = computed<ReadonlySet<string>>(() => {
     const path = this.currentPath();
     const ids = new Set<string>();
     for (const item of NAV_ITEMS) {

@@ -109,7 +109,13 @@ async function main() {
     if (!APPLY) continue;
 
     const at = (h) => new Date(createdAt.getTime() + h * 3_600_000);
-    await createOrderCore(db, input, ACTOR, createdAt);
+    try {
+      await createOrderCore(db, input, ACTOR, createdAt);
+    } catch (err) {
+      // Saldo acabou no meio (pedidos anteriores reservaram): pula este, segue com os outros.
+      console.log(`    pulado: ${err.message}`);
+      continue;
+    }
     let version = 1;
     const act = async (action, h, extra = {}) => {
       const r = await orderActionCore(db, {orderId, version, action, ...extra}, ACTOR, at(h));

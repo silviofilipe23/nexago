@@ -160,6 +160,15 @@ export const routes: Routes = [
       import('./painel/loja/produtos/editar/product-edit.component').then((m) => m.ProductEditComponent),
   },
   {
+    path: 'painel/loja/retirada',
+    title: 'Retirada & frete — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/loja/retirada/panel-retirada.component').then(
+        (m) => m.PanelRetiradaComponent,
+      ),
+  },
+  {
     path: 'painel/perfil',
     title: 'Meu perfil — NexaGO Backoffice',
     canActivate: [authGuard],

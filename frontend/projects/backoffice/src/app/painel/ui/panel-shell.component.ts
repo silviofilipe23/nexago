@@ -59,9 +59,14 @@ const LOJA_GROUP: NavGroup = {
       icon: 'archive',
       route: '/painel/loja/produtos',
     },
-    // Badge real: SKUs abaixo do alerta (StoreBadgesService), não número de exemplo.
-    { kind: 'link', id: 'loja-estoque', label: 'Estoque', icon: 'archive', route: '/painel/loja/estoque' },
-    { kind: 'soon', id: 'loja-retirada', label: 'Retirada & frete', icon: 'swap' },
+    { kind: 'soon', id: 'loja-estoque', label: 'Estoque', icon: 'archive', badge: LOJA_BADGES.estoque },
+    {
+      kind: 'link',
+      id: 'loja-retirada',
+      label: 'Retirada & frete',
+      icon: 'swap',
+      route: '/painel/loja/retirada',
+    },
     {
       kind: 'soon',
       id: 'loja-cupons',
@@ -596,8 +601,8 @@ export class PanelShellComponent {
     if (path.startsWith('/painel/loja/produtos')) {
       return 'loja-produtos';
     }
-    if (path.startsWith('/painel/loja/estoque')) {
-      return 'loja-estoque';
+    if (path.startsWith('/painel/loja/retirada')) {
+      return 'loja-retirada';
     }
     if (path === '/painel') {
       return 'inicio';

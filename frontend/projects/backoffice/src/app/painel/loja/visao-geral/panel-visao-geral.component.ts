@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { StoreBadgesService } from '../../data/store-badges.service';
 import { IconComponent } from '../../ui/icon.component';
 import { PanelShellComponent } from '../../ui/panel-shell.component';
 import { PillComponent } from '../../ui/pill.component';
@@ -204,6 +205,7 @@ export class PanelVisaoGeralComponent {
   private readonly orders = inject(OrdersRepository);
   private readonly stock = inject(StockRepository);
   private readonly returns = inject(ReturnsRepository);
+  private readonly badges = inject(StoreBadgesService);
 
   protected readonly periods = PERIODS;
   protected readonly now = new Date();
@@ -263,6 +265,7 @@ export class PanelVisaoGeralComponent {
         this.stock.load().catch(() => ({ rows: [] as StockRow[], locations: [], movements: [] })),
         this.stock.openTransfers().catch(() => [] as TransferDoc[]),
         this.returns.list().catch(() => []),
+        this.badges.loadCustom(),
       ]);
       this.loaded.set(orders);
       this.loadedSince = since;
@@ -276,6 +279,7 @@ export class PanelVisaoGeralComponent {
         lateTransfers: transfers
           .filter((t) => t.status === 'em_transito' && transferLate(t.arriveAt, this.now))
           .map((t) => ({ id: t.id, code: t.code, arenaName: names.get(t.toLocationId) ?? t.toLocationId, orders: t.orderIds?.length ?? 0 })),
+        artsToApprove: this.badges.customToApprove() ?? 0,
         now: this.now,
       }));
       this.state.set('ok');

@@ -59,14 +59,16 @@ describe('visão geral · cálculos', () => {
       toPick: [late, fresh], handlingHours: 24,
       returnsToReview: [{ reasonLabel: 'Tamanho errado' }, { reasonLabel: 'Defeito' }],
       lateTransfers: [{ id: 't', code: 'TR-118', arenaName: 'Arena CFC', orders: 6 }],
+      artsToApprove: 2,
       now: NOW,
     });
-    expect(alerts.map((a) => a.id)).toEqual(['estoque', 'separacao', 'trocas', 'remessa']);
+    expect(alerts.map((a) => a.id)).toEqual(['estoque', 'separacao', 'trocas', 'remessa', 'artes']);
+    expect(alerts[4]!.title).toBe('2 artes para aprovar');
     expect(alerts[0]!.title).toBe('3 SKUs com estoque baixo');
     expect(alerts[0]!.detail).toBe('Camiseta M e G · Bola Pro');
     expect(alerts[1]!.title).toBe('1 pedido pago há mais de 24 h');
     expect(alerts[3]!.detail).toBe('Remessa TR-118 · 6 pedidos');
-    expect(alertsOf({ lowStock: [], toPick: [], handlingHours: 24, returnsToReview: [], lateTransfers: [], now: NOW })).toEqual([]);
+    expect(alertsOf({ lowStock: [], toPick: [], handlingHours: 24, returnsToReview: [], lateTransfers: [], artsToApprove: 0, now: NOW })).toEqual([]);
   });
 
   it('remessa atrasada pela chegada prevista (parede de SP)', () => {

@@ -184,7 +184,7 @@ export function topProducts(sales: Order[], n = 5): TopProduct[] {
 // ---------------------------------------------------------------------------
 
 export interface Alert {
-  id: 'estoque' | 'separacao' | 'trocas' | 'remessa';
+  id: 'estoque' | 'separacao' | 'trocas' | 'remessa' | 'artes';
   tone: 'red' | 'orange' | 'yellow';
   title: string;
   detail: string;
@@ -199,6 +199,8 @@ export interface AlertInputs {
   handlingHours: number;
   returnsToReview: { reasonLabel: string }[];
   lateTransfers: { id: string; code: string; arenaName: string; orders: number }[];
+  /** Artes de personalizados em `aprovar` (tela 10). */
+  artsToApprove: number;
   now: Date;
 }
 
@@ -247,6 +249,12 @@ export function alertsOf(a: AlertInputs): Alert[] {
       id: 'remessa', tone: 'yellow', title: `${t.arenaName} sem confirmar recebimento`,
       detail: `Remessa ${t.code}${t.orders > 0 ? ` · ${plural(t.orders, 'pedido', 'pedidos')}` : ''}`,
       action: 'Ver remessa', link: `/painel/loja/estoque/transferencia/${t.id}`,
+    });
+  }
+  if (a.artsToApprove > 0) {
+    out.push({
+      id: 'artes', tone: 'orange', title: `${plural(a.artsToApprove, 'arte', 'artes')} para aprovar`,
+      detail: 'Personalizados esperando a revisão da arte', action: 'Aprovar', link: '/painel/loja/personalizados',
     });
   }
   return out;

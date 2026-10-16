@@ -369,3 +369,16 @@ export function toVariationsInput(form: ProductForm, productId: string, version:
 export function categoryLabel(id: string): string {
   return PRODUCT_CATEGORY_LABELS[id as ProductCategory] ?? id;
 }
+
+/** "30×22×3", "30x22x3" ou "30 * 22 * 3" → as três medidas em texto. O que faltar fica vazio. */
+export function parseDimensions(text: string): { length: string; width: string; height: string } {
+  const parts = text
+    .split(/\s*[x×*]\s*/i)
+    .map((p) => p.trim().replace(/\s*cm$/i, ''))
+    .filter((p) => p !== '');
+  return { length: parts[0] ?? '', width: parts[1] ?? '', height: parts[2] ?? '' };
+}
+
+export function formatDimensions(length: string, width: string, height: string): string {
+  return [length, width, height].some((v) => v.trim() !== '') ? `${length}×${width}×${height}` : '';
+}

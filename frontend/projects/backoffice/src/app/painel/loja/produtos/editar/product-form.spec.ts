@@ -1,5 +1,7 @@
 import {
   baseSkuFromName,
+  formatDimensions,
+  parseDimensions,
   draftErrors,
   emptyForm,
   headerStatus,
@@ -86,5 +88,13 @@ describe('product-form', () => {
     expect('costCents' in input).toBeFalse();
     expect(input['priceCents']).toBe(8990);
     expect('productId' in input).toBeFalse();
+  });
+
+  it('lê e escreve dimensões no formato C×L×A', () => {
+    expect(parseDimensions('30×22×3')).toEqual({ length: '30', width: '22', height: '3' });
+    expect(parseDimensions('30 x 22 x 3 cm')).toEqual({ length: '30', width: '22', height: '3' });
+    expect(parseDimensions('30x22')).toEqual({ length: '30', width: '22', height: '' });
+    expect(formatDimensions('30', '22', '3')).toBe('30×22×3');
+    expect(formatDimensions('', '', '')).toBe('');
   });
 });

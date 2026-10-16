@@ -1,37 +1,49 @@
 import { Injectable } from '@angular/core';
-import type { RetiradaData } from './retirada.model';
+import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { backofficeDb } from '../../data/firebase';
+import type { PontoRetirada, RetiradaData } from './retirada.model';
+
+function str(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
 
 /**
- * Fase de desenho: ainda não há backend de retirada & frete, então a tela lê dados de
- * exemplo. Trocar por Firestore/callable muda só esta classe.
+ * As arenas são reais (coleção `arenas`, só as já reivindicadas: pré-cadastro não opera
+ * retirada). O resto — configuração do ponto, modalidades, regras e remessas — ainda não
+ * tem backend e segue como dado de exemplo. Trocar por Firestore/callable muda só esta classe.
  */
 @Injectable({ providedIn: 'root' })
 export class RetiradaRepository {
+  private async listArenas(): Promise<PontoRetirada[]> {
+    const snap = await getDocs(query(collection(backofficeDb(), 'arenas'), orderBy('name')));
+    return snap.docs
+      .filter((d) => d.data()['unclaimed'] !== true)
+      .map((d) => {
+        const data = d.data();
+        const city = str(data['city']);
+        const state = str(data['state']);
+        return {
+          id: d.id,
+          localId: '',
+          nome: str(data['name']) || `Arena ${d.id}`,
+          endereco: str(data['address']),
+          bairro: '',
+          cidade: city && state ? `${city} · ${state}` : city || state,
+          balcao: '',
+          horario: '',
+          responsavel: null,
+          prazoAbastecimentoH: 24,
+          comissaoPct: null,
+          ativo: false,
+          aguardando: 0,
+        };
+      });
+  }
+
   async load(): Promise<RetiradaData> {
     return {
       melhorEnvioConectado: true,
-      pontos: [
-        {
-          id: 'errejota', localId: 'loc-errejota', nome: 'Arena Errejota', endereco: 'Av. Perimetral, 1200',
-          bairro: 'Setor Marista', cidade: 'Goiânia', balcao: 'Recepção', horario: '8h–22h',
-          responsavel: 'Paula R.', prazoAbastecimentoH: 24, comissaoPct: null, ativo: true, aguardando: 18,
-        },
-        {
-          id: 'cfc', localId: 'loc-cfc', nome: 'Arena CFC', endereco: 'Rua 90, 410',
-          bairro: 'Setor Oeste', cidade: 'Goiânia', balcao: 'Lanchonete', horario: '7h–23h',
-          responsavel: 'Diego S.', prazoAbastecimentoH: 24, comissaoPct: null, ativo: true, aguardando: 6,
-        },
-        {
-          id: 'praia-bt-sul', localId: 'loc-praia-bt-sul', nome: 'Praia BT Sul', endereco: 'Av. Goiás, 88',
-          bairro: 'Jd. América', cidade: 'Goiânia', balcao: 'Recepção', horario: '6h–22h',
-          responsavel: 'Márcia T.', prazoAbastecimentoH: 48, comissaoPct: null, ativo: true, aguardando: 3,
-        },
-        {
-          id: 'beach-club', localId: 'loc-beach-club', nome: 'Arena Beach Club', endereco: 'Q. 12, Lote 4',
-          bairro: 'Águas Claras', cidade: 'Brasília', balcao: '', horario: '',
-          responsavel: null, prazoAbastecimentoH: 48, comissaoPct: null, ativo: false, aguardando: 0,
-        },
-      ],
+      pontos: await this.listArenas(),
       modalidades: [
         { id: 'padrao', nome: 'Padrão', descricao: 'Correios PAC / Jadlog · 3–5 dias úteis', tipoValor: 'calculado', valorCents: null, ativo: true },
         { id: 'expressa', nome: 'Expressa', descricao: 'Loggi · Goiânia e região em 24 h', tipoValor: 'fixo', valorCents: 3490, ativo: true },

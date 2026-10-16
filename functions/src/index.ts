@@ -561,6 +561,14 @@ export {
   saveStoreProductVariations,
 } from "./store-catalog-write";
 
+// Loja: pontos de retirada nas arenas e regras de frete. Escrita só por callable.
+export {
+  saveStorePickupPoint,
+  saveStoreShippingRules,
+  setStorePickupPointActive,
+  setStoreShippingModeActive,
+} from "./store-pickup";
+
 // Estoque da Loja: entrada (06a) e transferência (06b). Saldo só muda por aqui.
 export {
   advanceStoreTransfer,

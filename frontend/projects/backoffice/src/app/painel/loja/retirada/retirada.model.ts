@@ -1,24 +1,28 @@
 export interface PontoRetirada {
+  /** Id da arena — o ponto usa o mesmo id (`storePickupPoints/{arenaId}`). */
   id: string;
-  /** Liga ao `Local` do estoque (tela 06). */
-  localId: string;
+  /** `false` = arena ativa no nexaGO que ainda não foi configurada como ponto. */
+  configurado: boolean;
+  /** Local de estoque ligado à arena (tela 06), quando existe. */
+  localId: string | null;
   nome: string;
   endereco: string;
-  bairro: string;
   cidade: string;
   balcao: string;
   horario: string;
-  responsavel: string | null;
+  responsavel: string;
   prazoAbastecimentoH: 24 | 48;
   /** `null` herda o padrão da configuração. */
   comissaoPct: number | null;
   ativo: boolean;
-  /** Pedidos `ret` (Pronto p/ retirar) neste ponto. */
+  /** Pedidos `ret` (Pronto p/ retirar) neste ponto. Zero até a Loja ter pedidos. */
   aguardando: number;
 }
 
+export type ModalidadeId = 'padrao' | 'expressa' | 'motoboy';
+
 export interface ModalidadeFrete {
-  id: string;
+  id: ModalidadeId;
   nome: string;
   descricao: string;
   tipoValor: 'calculado' | 'fixo';
@@ -36,9 +40,9 @@ export interface ConfigFrete {
   comissaoPadraoPct: number;
 }
 
-export type RemessaStatus = 'em_transito' | 'recebida';
+export type RemessaStatus = 'separacao' | 'em_transito' | 'recebida';
 
-/** Mesmo objeto `Transferencia` da tela de estoque, na visão que esta tela precisa. */
+/** Transferência entre locais de estoque (`storeTransfers`, a mesma da tela 06b). */
 export interface Remessa {
   id: string;
   codigo: string;
@@ -56,4 +60,15 @@ export interface RetiradaData {
   config: ConfigFrete;
   remessas: Remessa[];
   melhorEnvioConectado: boolean;
+}
+
+/** Cadastro/edição de um ponto: o que vai para a callable `saveStorePickupPoint`. */
+export interface PontoInput {
+  arenaId: string;
+  balcao: string;
+  horario: string;
+  responsavel: string;
+  prazoAbastecimentoH: 24 | 48;
+  comissaoPct: number | null;
+  ativo: boolean;
 }

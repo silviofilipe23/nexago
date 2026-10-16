@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { callableErrorMessage } from '../../data/callable-error';
 import { IconComponent } from '../../ui/icon.component';
 import { PageHeaderComponent } from '../../ui/page-header.component';
 import { PanelCardComponent } from '../../ui/panel-card.component';
@@ -58,7 +59,7 @@ function rulesDraftOf(c: ConfigFrete): RulesDraft {
   };
 }
 
-/** Loja › Retirada & frete. Fase de desenho: dados de exemplo (ver `RetiradaRepository`). */
+/** Loja › Retirada & frete. Arenas reais; o restante é dado de exemplo (ver `RetiradaRepository`). */
 @Component({
   selector: 'bo-panel-retirada',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -83,6 +84,11 @@ function rulesDraftOf(c: ConfigFrete): RulesDraft {
 
       @if (loading()) {
         <div class="body"><div class="skeleton"></div></div>
+      } @else if (loadError(); as err) {
+        <div class="body">
+          <div class="bo-alert"><bo-icon name="alert" [size]="16" /><span>{{ err }}</span></div>
+          <button type="button" class="bo-mini-btn" (click)="reload()">Tentar de novo</button>
+        </div>
       } @else {
         <div class="body">
           @if (notice(); as text) {
@@ -424,6 +430,7 @@ export class PanelRetiradaComponent {
   private readonly repository = inject(RetiradaRepository);
 
   protected readonly loading = signal(true);
+  protected readonly loadError = signal('');
   protected readonly pontos = signal<PontoRetirada[]>([]);
   protected readonly modalidades = signal<ModalidadeFrete[]>([]);
   protected readonly remessas = signal<Remessa[]>([]);
@@ -448,15 +455,25 @@ export class PanelRetiradaComponent {
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
-    void this.repository.load().then((data) => {
+    void this.reload();
+  }
+
+  protected async reload(): Promise<void> {
+    this.loading.set(true);
+    this.loadError.set('');
+    try {
+      const data = await this.repository.load();
       this.pontos.set(data.pontos);
       this.modalidades.set(data.modalidades);
       this.remessas.set(data.remessas);
       this.config.set(data.config);
       this.rules.set(rulesDraftOf(data.config));
       this.melhorEnvioConectado.set(data.melhorEnvioConectado);
+    } catch (error) {
+      this.loadError.set(callableErrorMessage(error));
+    } finally {
       this.loading.set(false);
-    });
+    }
   }
 
   protected pointSubtitle(p: PontoRetirada): string {

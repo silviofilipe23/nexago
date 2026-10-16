@@ -12,11 +12,14 @@ export class StoreBadgesService {
   readonly lowStock = signal<number | null>(null);
   /** Trocas & devoluções esperando análise. */
   readonly returnsToReview = signal<number | null>(null);
+  /** Pedidos pagos esperando separação (aba "Para separar"). */
+  readonly ordersToPick = signal<number | null>(null);
   /** Artes de personalizados esperando aprovação. */
   readonly customToApprove = signal<number | null>(null);
   private loading: Promise<void> | null = null;
   private loadingCustom: Promise<void> | null = null;
   private loadingReturns: Promise<void> | null = null;
+  private loadingOrders: Promise<void> | null = null;
 
   load(): Promise<void> {
     this.loading ??= getDocs(collection(backofficeDb(), 'storeProducts'))
@@ -47,6 +50,24 @@ export class StoreBadgesService {
         // Sem badge é melhor que badge errado.
       });
     return this.loadingReturns;
+  }
+
+  loadOrders(): Promise<void> {
+    this.loadingOrders ??= getDocs(query(collection(backofficeDb(), 'storeOrders'), where('status', '==', 'sep')))
+      .then((snap) => {
+        if (this.ordersToPick() === null) {
+          this.ordersToPick.set(snap.size);
+        }
+      })
+      .catch(() => {
+        // Sem badge é melhor que badge errado.
+      });
+    return this.loadingOrders;
+  }
+
+  /** A tela de Pedidos conta da lista que acabou de ler. */
+  setOrders(count: number): void {
+    this.ordersToPick.set(count);
   }
 
   loadCustom(): Promise<void> {

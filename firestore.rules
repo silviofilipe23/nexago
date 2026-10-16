@@ -3212,6 +3212,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Pedidos da Loja (02/03): só o backoffice lê (CPF, telefone, endereço). Status,
+    // reserva, código de retirada e reembolso só mudam pelas callables de pedidos.
+    match /storeOrders/{orderId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
     // Transferências entre locais (06b). Status e reservas são decisão de servidor.
     match /storeTransfers/{transferId} {
       allow read: if isAdmin() || isSuperAdmin();

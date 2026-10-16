@@ -130,6 +130,28 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/equipe/panel-equipe.component').then((m) => m.PanelEquipeComponent),
   },
+  { path: 'painel/loja', pathMatch: 'full', redirectTo: 'painel/loja/visao-geral' },
+  {
+    path: 'painel/loja/visao-geral',
+    title: 'Loja — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/loja/visao-geral/panel-visao-geral.component').then((m) => m.PanelVisaoGeralComponent),
+  },
+  {
+    path: 'painel/loja/pedidos',
+    title: 'Pedidos — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/loja/pedidos/panel-pedidos.component').then((m) => m.PanelPedidosComponent),
+  },
+  {
+    path: 'painel/loja/pedidos/:id',
+    title: 'Pedido — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/loja/pedidos/detalhe/order-detail.component').then((m) => m.OrderDetailComponent),
+  },
   {
     path: 'painel/loja/produtos',
     title: 'Produtos — NexaGO Backoffice',

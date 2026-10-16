@@ -25,6 +25,8 @@ import {
   type TransferErrors,
   type TransferForm,
 } from '../data/transfer-form';
+import { transferLines, type Order } from '../../pedidos/data/order';
+import { OrdersRepository } from '../../pedidos/data/orders.repository';
 import { QtyStepperComponent } from '../ui/qty-stepper.component';
 import { SkuPickerComponent } from '../ui/sku-picker.component';
 
@@ -108,6 +110,10 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
           <div class="body">
             @if (error(); as e) { <div class="bo-alert" role="alert"><bo-icon name="alert" [size]="16" /><span>{{ e }}</span></div> }
             @if (toast(); as t) { <div class="bo-feedback" role="status"><bo-icon name="check" [size]="15" /><span>{{ t }}</span></div> }
+            @if (orderNumbers().length > 0) {
+              <div class="bo-info-card" role="note" style="margin-top: 0"><bo-icon name="file" [size]="16" />
+                <span>Remessa {{ orderNumbers().length === 1 ? 'do pedido' : 'dos pedidos' }} {{ orderNumbers().join(', ') }}: ao criar, a reserva deles passa para esta transferência e eles ficam prontos para retirar quando a arena confirmar o recebimento.</span></div>
+            }
 
             <div class="cols">
               <div class="main">
@@ -373,6 +379,10 @@ export class StockTransferComponent {
   private readonly repo = inject(StockRepository);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly ordersRepo = inject(OrdersRepository);
+  /** Pedidos que esta remessa leva (02 › "Criar remessa p/ arena"). */
+  private orderIds: string[] = [];
+  protected readonly orderNumbers = signal<string[]>([]);
 
   protected readonly days = COVERAGE_DAYS;
   protected readonly flow = FLOW;
@@ -445,6 +455,7 @@ export class StockTransferComponent {
           receiver: doc.receiver,
           note: doc.note,
         });
+        if (doc.status === 'rascunho' && doc.orderIds?.length) await this.attachOrders(doc.orderIds, false);
       } else {
         let form = newTransferForm(cd, arena);
         // "Transferir" da tela de Estoque chega com o SKU pronto na linha.
@@ -454,10 +465,49 @@ export class StockTransferComponent {
           form = { ...form, lines: addTransferLine([], row, Math.max(1, suggestedQty(row, form))) };
         }
         this.form.set(form);
+        const pedidos = (this.route.snapshot.queryParamMap.get('pedidos') ?? '').split(',').filter(Boolean);
+        if (pedidos.length > 0) await this.attachOrders(pedidos, true);
       }
       this.state.set('ok');
     } catch {
       this.state.set('error');
+    }
+  }
+
+  /**
+   * Pedidos na remessa: a reserva deles na origem passa para a transferência, então
+   * aqui ela conta como disponível (o servidor faz a mesma troca na mesma transação).
+   */
+  private async attachOrders(ids: string[], prefill: boolean): Promise<void> {
+    const orders = (await this.ordersRepo.many(ids)).filter((o) => o.reservation?.active && !o.transferId);
+    if (orders.length === 0) return;
+    this.orderIds = orders.map((o) => o.id);
+    this.orderNumbers.set(orders.map((o) => '#' + o.number));
+    const held = new Map<string, { qty: number; from: string }>();
+    for (const o of orders as Order[]) {
+      for (const i of o.items) {
+        const key = `${i.productId}/${i.skuId}`;
+        const cur = held.get(key);
+        held.set(key, { qty: (cur?.qty ?? 0) + i.qty, from: o.reservation!.locationId });
+      }
+    }
+    this.rows.update((rows) =>
+      rows.map((r) => {
+        const h = held.get(skuKey(r));
+        if (!h) return r;
+        const reserved = { ...r.reservedByLocation, [h.from]: Math.max(0, (r.reservedByLocation[h.from] ?? 0) - h.qty) };
+        return { ...r, reservedByLocation: reserved, reserved: Math.max(0, r.reserved - h.qty) };
+      }),
+    );
+    if (prefill) {
+      const first = orders[0]!;
+      this.form.update((f) => ({
+        ...f,
+        fromLocationId: first.reservation!.locationId,
+        toLocationId: first.delivery.locationId ?? f.toLocationId,
+        lines: transferLines(orders).map((l) => ({ key: `${l.productId}/${l.skuId}`, ...l })),
+        note: f.note || `Pedidos ${orders.map((o) => '#' + o.number).join(', ')}`,
+      }));
     }
   }
 
@@ -602,9 +652,10 @@ export class StockTransferComponent {
     this.error.set(null);
     try {
       const doc = this.doc();
-      const r = await this.repo.saveTransfer(
-        toTransferInput(this.form(), { transferId: doc?.id ?? null, version: doc?.version ?? null }, submit),
-      );
+      const r = await this.repo.saveTransfer({
+        ...toTransferInput(this.form(), { transferId: doc?.id ?? null, version: doc?.version ?? null }, submit),
+        orderIds: this.orderIds,
+      });
       if (submit) {
         await this.router.navigate(['/painel/loja/estoque'], { state: { toast: `${r.code} criada: separação no ${this.originShort()}.` } });
         return;

@@ -79,13 +79,15 @@ describe('PanelShellComponent', () => {
     expect(group.classList.contains('active')).toBeFalse();
   });
 
-  it('Personalizados, Produtos, Estoque, Retirada, Cupons e Trocas são links; os outros filhos são "Em breve"', async () => {
+  it('todos os filhos da Loja são links, na ordem do desenho', async () => {
     const host = await mount();
     (host.querySelector('button.nav-item') as HTMLButtonElement).click();
     await TestBed.inject(ApplicationRef).whenStable();
 
     const links = [...host.querySelectorAll('.subnav a.nav-item')];
     expect(links.map((e) => e.textContent!.trim().replace(/\d+$/, '').trim())).toEqual([
+      'Visão geral',
+      'Pedidos',
       'Personalizados',
       'Produtos',
       'Estoque',
@@ -94,6 +96,8 @@ describe('PanelShellComponent', () => {
       'Trocas',
     ]);
     expect(links.map((e) => e.getAttribute('href'))).toEqual([
+      '/painel/loja/visao-geral',
+      '/painel/loja/pedidos',
       '/painel/loja/personalizados',
       '/painel/loja/produtos',
       '/painel/loja/estoque',
@@ -134,14 +138,19 @@ describe('PanelShellComponent', () => {
     expect(estoque.querySelector('.badge')).toBeNull();
   });
 
-  it('mostra o badge dos filhos que têm contador', async () => {
+  it('o badge de Pedidos é o número para separar', async () => {
     const host = await mount();
+    TestBed.inject(StoreBadgesService).setOrders(9);
     (host.querySelector('button.nav-item') as HTMLButtonElement).click();
     await TestBed.inject(ApplicationRef).whenStable();
 
     const pedidos = [...host.querySelectorAll('.subnav .nav-item')].find((e) =>
       e.textContent!.includes('Pedidos'),
     )!;
-    expect(pedidos.querySelector('.badge')!.textContent!.trim()).toBe('12');
+    expect(pedidos.querySelector('.badge')!.textContent!.trim()).toBe('9');
+
+    TestBed.inject(StoreBadgesService).setOrders(0);
+    await TestBed.inject(ApplicationRef).whenStable();
+    expect(pedidos.querySelector('.badge')).toBeNull();
   });
 });

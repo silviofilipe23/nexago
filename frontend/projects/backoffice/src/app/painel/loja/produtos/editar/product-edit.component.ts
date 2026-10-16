@@ -25,6 +25,7 @@ import {
   dimensionError,
   fileError,
   moveItem,
+  withView,
   type PhotoItem,
 } from './product-photos';
 import { ProductEditRepository } from './product-edit.repository';
@@ -164,6 +165,7 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
                             (dragstart)="dragFrom = i" (dragover)="$event.preventDefault()" (drop)="onDropPhoto($event, i)">
                             <img [src]="p.url" alt="" />
                             @if (i === 0) { <span class="cover-pill">Capa</span> }
+                            @if (p.view) { <span class="view-pill">{{ p.view === 'frente' ? 'Frente' : 'Costas' }}</span> }
                             @if (p.progress !== null) { <div class="bar"><span [style.width.%]="p.progress"></span></div> }
                             @if (p.error) {
                               <div class="photo-err">{{ p.error }}
@@ -178,6 +180,13 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
                                 <select class="bo-select mini" aria-label="Associar à cor" [disabled]="locked()" (change)="setPhotoColor(p.id, val($event))">
                                   <option value="" [selected]="!p.colorValueId">Sem cor</option>
                                   @for (v of form().axes[0]!.values; track v.id) { <option [value]="v.id" [selected]="p.colorValueId === v.id">{{ v.label }}</option> }
+                                </select>
+                              }
+                              @if (!p.error) {
+                                <select class="bo-select mini" aria-label="Lado da peça na foto" title="Usado nas prévias de personalização" [disabled]="locked()" (change)="setPhotoView(p.id, val($event))">
+                                  <option value="" [selected]="!p.view">Sem lado</option>
+                                  <option value="frente" [selected]="p.view === 'frente'">Frente</option>
+                                  <option value="costas" [selected]="p.view === 'costas'">Costas</option>
                                 </select>
                               }
                               <button type="button" class="icon-btn" title="Remover" aria-label="Remover foto" [disabled]="locked()" (click)="removePhoto(p.id)"><bo-icon name="trash" [size]="13" /></button>
@@ -524,6 +533,7 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
     .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(0, 0, 0, 0.45); }
     .bar span { display: block; height: 100%; background: var(--nx-orange-500); }
     .photo-err { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.72); color: #fff; font-size: 11px; padding: 8px; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; }
+    .view-pill { position: absolute; bottom: 8px; left: 8px; height: 20px; padding: 0 8px; display: inline-flex; align-items: center; border-radius: var(--nx-r-pill); background: rgba(0, 0, 0, 0.65); color: #fff; font-family: var(--nx-font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
     .photo-actions { position: absolute; top: 6px; right: 6px; display: none; flex-direction: column; align-items: flex-end; gap: 4px; }
     .photo:hover .photo-actions, .photo:focus-within .photo-actions { display: flex; }
     .bo-select.mini { height: 28px; font-size: 11px; width: 96px; padding: 0 22px 0 8px; }
@@ -1021,6 +1031,11 @@ export class ProductEditComponent {
     this.photos.update((p) => p.map((x) => (x.id === id ? { ...x, colorValueId: value || null } : x)));
     this.persistPhotos();
   }
+  /** Um lado por foto: marcar "frente" aqui tira a marcação da foto que era a frente. */
+  protected setPhotoView(id: string, value: string): void {
+    this.photos.update((p) => withView(p, id, value === 'frente' || value === 'costas' ? value : null));
+    this.persistPhotos();
+  }
   protected removePhoto(id: string): void {
     const removed = this.photos().find((p) => p.id === id);
     this.photos.update((p) => p.filter((x) => x.id !== id));
@@ -1060,7 +1075,7 @@ export class ProductEditComponent {
       const tempId = 'tmp-' + crypto.randomUUID();
       this.photos.update((p) => [
         ...p,
-        { id: tempId, url: URL.createObjectURL(file), path: '', colorValueId: null, progress: 0, error: null },
+        { id: tempId, url: URL.createObjectURL(file), path: '', colorValueId: null, view: null, progress: 0, error: null },
       ]);
       this.pendingFiles.set(tempId, file);
       void this.uploadOne(tempId, file);

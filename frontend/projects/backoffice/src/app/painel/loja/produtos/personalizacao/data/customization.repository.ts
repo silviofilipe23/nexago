@@ -2,13 +2,14 @@ import { Injectable } from '@angular/core';
 import { doc, getDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { backofficeDb, backofficeFunctions } from '../../../../data/firebase';
+import { photoSides, type PhotoSides } from '../../data/photo-sides';
 import { customizationFromDoc, type CustomizationConfig } from './customization';
 
 export interface CustomizationSnapshot {
   productName: string;
   priceCents: number;
-  /** Capa do produto (1ª foto), o fundo da prévia. */
-  coverUrl: string | null;
+  /** Foto de cada lado da peça, o fundo da prévia. */
+  sides: PhotoSides;
   config: CustomizationConfig;
   blocklist: string[];
 }
@@ -31,7 +32,7 @@ export class CustomizationRepository {
     return {
       productName: String(p['name'] ?? 'Produto'),
       priceCents: typeof p['priceCents'] === 'number' ? p['priceCents'] : 0,
-      coverUrl: typeof p['photos']?.[0]?.url === 'string' ? p['photos'][0].url : null,
+      sides: photoSides(p['photos']),
       config: customizationFromDoc(custom.exists() ? custom.data() : undefined),
       blocklist: blocklist.exists() && Array.isArray(blocklist.data()['terms']) ? blocklist.data()['terms'] : [],
     };

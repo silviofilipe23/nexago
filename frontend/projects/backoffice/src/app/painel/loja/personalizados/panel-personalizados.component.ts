@@ -8,6 +8,7 @@ import { PanelCardComponent } from '../../ui/panel-card.component';
 import { PanelShellComponent } from '../../ui/panel-shell.component';
 import { PillComponent } from '../../ui/pill.component';
 import { relativeStamp } from '../estoque/data/stock';
+import type { PhotoSides } from '../produtos/data/photo-sides';
 import { customizationFromDoc, type CustomizationConfig } from '../produtos/personalizacao/data/customization';
 import {
   REASON_LABELS,
@@ -29,6 +30,7 @@ import { CustomItemsRepository, type ReviewRequest } from './data/custom-items.r
 import { CustomDetailComponent } from './ui/custom-detail.component';
 
 const DEFAULT_CONFIG = customizationFromDoc(undefined);
+const NO_SIDES: PhotoSides = { frente: null, costas: null };
 
 /** `not-found` cru ("NOT FOUND") é callable que ainda não foi publicada, não registro sumido. */
 function errorText(error: unknown): string {
@@ -147,7 +149,7 @@ function errorText(error: unknown): string {
             <bo-custom-detail
               [item]="it"
               [config]="configOf(it)"
-              [coverUrl]="covers().get(it.productId) ?? null"
+              [sides]="sides().get(it.productId) ?? noSides"
               [blocklist]="blocklist()"
               [busy]="busyId() === it.id"
               (approve)="approve(it)"
@@ -271,12 +273,13 @@ export class PanelPersonalizadosComponent {
   protected readonly statusInfo = STATUS_INFO;
   protected readonly reasons = (Object.keys(REASON_LABELS) as NewImageReason[]).map((id) => ({ id, label: REASON_LABELS[id] }));
   protected readonly nameCell = nameCell;
+  protected readonly noSides = NO_SIDES;
 
   protected readonly loading = signal(true);
   protected readonly loadError = signal('');
   protected readonly items = signal<CustomItem[]>([]);
   private readonly configs = signal<Map<string, CustomizationConfig>>(new Map());
-  protected readonly covers = signal<Map<string, string>>(new Map());
+  protected readonly sides = signal<Map<string, PhotoSides>>(new Map());
   protected readonly blocklist = signal<string[]>([]);
   protected readonly now = signal(new Date());
 
@@ -338,7 +341,7 @@ export class PanelPersonalizadosComponent {
       const snap = await this.repository.load();
       this.items.set(snap.items);
       this.configs.set(snap.configs);
-      this.covers.set(snap.covers);
+      this.sides.set(snap.sides);
       this.blocklist.set(snap.blocklist);
       this.now.set(new Date());
       this.badges.setCustom(tabCounts(snap.items).aprovar);

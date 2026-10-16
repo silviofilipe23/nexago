@@ -23,6 +23,7 @@ import {
   type ImageFormat,
   type NamePlacement,
 } from './data/customization';
+import type { PhotoSides } from '../data/photo-sides';
 import { CustomizationRepository } from './data/customization.repository';
 
 type LoadState = 'loading' | 'ok' | 'missing' | 'error';
@@ -453,7 +454,9 @@ export class ProductCustomizationComponent {
   protected readonly loadError = signal('');
   protected readonly productName = signal('Produto');
   protected readonly basePrice = signal(0);
-  protected readonly coverUrl = signal<string | null>(null);
+  private readonly sides = signal<PhotoSides>({ frente: null, costas: null });
+  /** A foto do lado escolhido; sem ela, o mockup. */
+  protected readonly coverUrl = computed(() => this.sides()[this.side()]);
   protected readonly config = signal<CustomizationConfig>(structuredClone(DEFAULT_CUSTOMIZATION));
   private readonly baseline = signal('');
   protected readonly blocklist = signal<string[]>([]);
@@ -514,7 +517,7 @@ export class ProductCustomizationComponent {
       }
       this.productName.set(snap.productName);
       this.basePrice.set(snap.priceCents);
-      this.coverUrl.set(snap.coverUrl);
+      this.sides.set(snap.sides);
       this.config.set(snap.config);
       this.baseline.set(JSON.stringify(snap.config));
       this.blocklist.set(snap.blocklist);

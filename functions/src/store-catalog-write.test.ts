@@ -642,6 +642,23 @@ describe("savePhotosCore", () => {
     assert.equal(doc["name"], "Camiseta Dry UV50 Areia");
   });
 
+  it("grava o lado da foto e recusa dois iguais ou lado desconhecido", async () => {
+    const {fake, db} = makeDb();
+    const {productId} = await saveStoreProductCore(db, input(), ACTOR, NOW);
+    await savePhotosCore(db, {productId, version: 1, photos: [
+      photo(productId, 1, {view: "frente"}), photo(productId, 2, {view: "costas"}), photo(productId, 3),
+    ]}, ACTOR, NOW);
+    const saved = fake.store.get(`storeProducts/${productId}`)!["photos"] as {view: string | null}[];
+    assert.deepEqual(saved.map((p) => p.view), ["frente", "costas", null]);
+
+    await assert.rejects(savePhotosCore(db, {productId, version: 2, photos: [
+      photo(productId, 1, {view: "frente"}), photo(productId, 2, {view: "frente"}),
+    ]}, ACTOR, NOW), {code: "invalid-argument"});
+    await assert.rejects(savePhotosCore(db, {productId, version: 2, photos: [
+      photo(productId, 1, {view: "lado"}),
+    ]}, ACTOR, NOW), {code: "invalid-argument"});
+  });
+
   it("recusa caminho de outro produto, id repetido e mais de 10 fotos", async () => {
     const {db} = makeDb();
     const {productId} = await saveStoreProductCore(db, input(), ACTOR, NOW);

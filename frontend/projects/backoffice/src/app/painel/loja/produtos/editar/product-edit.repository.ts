@@ -105,6 +105,7 @@ export class ProductEditRepository {
         url: p['url'],
         path: p['path'] ?? '',
         colorValueId: p['colorValueId'] ?? null,
+        view: p['view'] === 'frente' || p['view'] === 'costas' ? p['view'] : null,
         progress: null,
         error: null,
       })),

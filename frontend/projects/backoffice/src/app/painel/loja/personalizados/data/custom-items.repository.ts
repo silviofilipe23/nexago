@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { collection, doc, getDoc, getDocs, orderBy, query } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { backofficeDb, backofficeFunctions } from '../../../data/firebase';
+import { photoSides, type PhotoSides } from '../../produtos/data/photo-sides';
 import { customizationFromDoc, type CustomizationConfig } from '../../produtos/personalizacao/data/customization';
 import { customItemFromDoc, type CustomItem, type NewImageReason, type RefundScope } from './custom-item';
 
@@ -9,8 +10,8 @@ export interface CustomQueueSnapshot {
   items: CustomItem[];
   /** Config de personalização por produto (o padrão quando o produto não tem doc). */
   configs: Map<string, CustomizationConfig>;
-  /** Capa (1ª foto) de cada produto da fila: o fundo das prévias. */
-  covers: Map<string, string>;
+  /** Foto de frente e de costas de cada produto da fila: o fundo das prévias. */
+  sides: Map<string, PhotoSides>;
   blocklist: string[];
 }
 
@@ -35,20 +36,14 @@ export class CustomItemsRepository {
       Promise.all(productIds.map((id) => getDoc(doc(db, 'storeProductCustomization', id)))),
       Promise.all(productIds.map((id) => getDoc(doc(db, 'storeProducts', id)))),
     ]);
-    const covers = new Map<string, string>();
-    productSnaps.forEach((snap, i) => {
-      const url = snap.exists() ? snap.data()['photos']?.[0]?.url : null;
-      if (typeof url === 'string') {
-        covers.set(productIds[i]!, url);
-      }
-    });
+    const sides = new Map(productIds.map((id, i) => [id, photoSides(productSnaps[i]!.exists() ? productSnaps[i]!.data()['photos'] : [])]));
     const configs = new Map(
       productIds.map((id, i) => [id, customizationFromDoc(configSnaps[i]!.exists() ? configSnaps[i]!.data() : undefined)]),
     );
     return {
       items,
       configs,
-      covers,
+      sides,
       blocklist: blockSnap.exists() && Array.isArray(blockSnap.data()['terms']) ? blockSnap.data()['terms'] : [],
     };
   }

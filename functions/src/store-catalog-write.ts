@@ -669,7 +669,12 @@ export interface PhotoInput {
   path: string;
   /** Valor do primeiro eixo (cor) a que a foto está ligada. */
   colorValueId: string | null;
+  /** Lado da peça na foto: as prévias de personalização mostram cada lado com a foto dele. */
+  view?: PhotoView | null;
 }
+
+export type PhotoView = "frente" | "costas";
+const PHOTO_VIEWS: PhotoView[] = ["frente", "costas"];
 
 export interface SavePhotosInput {
   productId: string;
@@ -696,11 +701,15 @@ export async function savePhotosCore(
       typeof p?.id === "string" && p.id !== "" && !ids.has(p.id) &&
       typeof p.url === "string" && p.url.startsWith("https://") &&
       typeof p.path === "string" && p.path.startsWith(prefix) && !p.path.includes("..") &&
-      (p.colorValueId === null || (typeof p.colorValueId === "string" && AXIS_ID_RE.test(p.colorValueId)));
+      (p.colorValueId === null || (typeof p.colorValueId === "string" && AXIS_ID_RE.test(p.colorValueId))) &&
+      (p.view == null || PHOTO_VIEWS.includes(p.view));
     ids.add(p?.id);
     return !ok;
   });
   if (bad) throw invalidFields(["photos"]);
+  // Uma foto por lado: duas "frente" deixariam a prévia escolhendo no escuro.
+  const views = photos.map((p) => p.view).filter((v): v is PhotoView => v != null);
+  if (new Set(views).size !== views.length) throw invalidFields(["photos"]);
 
   const ref = db.collection(PRODUCTS).doc(input.productId);
   return db.runTransaction(async (tx) => {
@@ -712,7 +721,7 @@ export async function savePhotosCore(
     tx.set(
       ref,
       {
-        photos: photos.map(({id, url, path, colorValueId}) => ({id, url, path, colorValueId})),
+        photos: photos.map(({id, url, path, colorValueId, view}) => ({id, url, path, colorValueId, view: view ?? null})),
         version,
         updatedAt: now,
         updatedBy: actor,

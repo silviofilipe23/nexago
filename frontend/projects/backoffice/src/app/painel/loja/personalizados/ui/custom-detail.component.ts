@@ -48,6 +48,15 @@ const COLOR_NAMES: Record<string, string> = { '#ffffff': 'branco', '#111111': 'p
           <div class="mock" [class.has-photo]="sides().costas">
             @if (sides().costas; as url) { <img class="photo" [src]="url" [alt]="it.productName" /> }
             @if (nameOn() === 'costas') { <span class="name" [class]="'name font-' + it.font" [style.color]="it.nameColor">{{ displayName() }}</span> }
+            @if (it.back; as b) {
+              <span class="back-area">
+                @if (b.type === 'imagem') {
+                  @if (b.image.url) { <img [src]="b.image.url" alt="Imagem das costas" /> } @else { <span class="back-kind">imagem</span> }
+                } @else {
+                  <span class="back-number" [class]="'back-number font-' + it.font" [style.color]="it.nameColor">{{ backNumber() }}</span>
+                }
+              </span>
+            }
             <span class="mock-label">{{ sides().costas ? 'Foto do produto' : 'Mockup' }} · Costas</span>
           </div>
           <figcaption>{{ backCaption() }}</figcaption>
@@ -58,7 +67,9 @@ const COLOR_NAMES: Record<string, string> = { '#ffffff': 'branco', '#111111': 'p
         <div class="units">
           <div class="label">{{ it.units.length }} unidades</div>
           <ol>
-            @for (u of it.units; track $index) { <li>{{ u.toUpperCase() }}</li> }
+            @for (u of it.units; track $index; let i = $index) {
+              <li>{{ u.toUpperCase() }}@if (it.unitNumbers[i]) { <span class="dim"> · {{ it.unitNumbers[i] }}</span> }</li>
+            }
           </ol>
         </div>
       }
@@ -162,6 +173,11 @@ const COLOR_NAMES: Record<string, string> = { '#ffffff': 'branco', '#111111': 'p
     .font-bloco { font-family: var(--nx-font-display); font-weight: 800; }
     .font-classica { font-family: Georgia, serif; font-style: italic; font-weight: 700; }
     .font-mono { font-family: var(--nx-font-mono); font-weight: 700; }
+    .back-area { position: absolute; top: 40%; left: 30%; width: 40%; height: 34%; display: grid; place-items: center; border: 1px dashed var(--nx-orange-500); background: rgba(255, 106, 26, 0.12); overflow: hidden; }
+    .back-area img { width: 100%; height: 100%; object-fit: contain; }
+    .back-number { font-size: 34px; line-height: 1; color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
+    .back-kind { font-family: var(--nx-font-mono); font-size: 8.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--nx-orange-500); }
+    .dim { color: var(--nx-text-dim); font-weight: 500; }
     .units .label { font-family: var(--nx-font-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--nx-text-dim); margin-bottom: 6px; }
     .units ol { margin: 0; padding-left: 20px; columns: 2; font-family: var(--nx-font-display); font-weight: 600; font-size: 12.5px; color: var(--nx-text); }
     .checks { list-style: none; margin: 0; padding: 14px 0 0; border-top: 1px solid var(--nx-line); display: flex; flex-direction: column; gap: 12px; }
@@ -239,9 +255,31 @@ export class CustomDetailComponent {
     return this.nameOn() === 'frente' ? `Frente · ${this.nameLine()}` : 'Frente · sem personalização';
   });
 
-  protected readonly backCaption = computed(() =>
-    this.nameOn() === 'costas' ? `${PLACEMENT_SHORT[this.item().namePlacement ?? ''] ?? 'Costas'} · ${this.nameLine()}` : 'Costas · sem personalização',
-  );
+  /** Número de exemplo na prévia: o do item, ou o da 1ª unidade do kit. */
+  protected readonly backNumber = computed(() => {
+    const it = this.item();
+    return it.back?.type === 'numero' && it.back.number ? it.back.number : (it.unitNumbers.find(Boolean) ?? '');
+  });
+
+  protected readonly backCaption = computed(() => {
+    const it = this.item();
+    const parts: string[] = [];
+    if (this.nameOn() === 'costas') {
+      parts.push(this.nameLine());
+    }
+    if (it.back?.type === 'imagem') {
+      parts.push(`imagem ${this.backSize()}`);
+    } else if (it.back?.type === 'numero' || it.unitNumbers.some(Boolean)) {
+      parts.push(it.unitNumbers.some(Boolean) ? 'números por unidade' : `nº ${this.backNumber()}`);
+    }
+    const label = PLACEMENT_SHORT[it.namePlacement ?? ''] ?? 'Costas';
+    return parts.length > 0 ? `${this.nameOn() === 'costas' ? label : 'Costas'} · ${parts.join(' · ')}` : 'Costas · sem personalização';
+  });
+
+  private backSize(): string {
+    const b = this.config().back;
+    return `${b.widthCm}×${b.heightCm} cm`;
+  }
 
   protected readonly fileNames = computed(() => this.item().finalFiles.map((f) => f.name).join(' · '));
   protected readonly hasFileUrls = computed(() => this.item().finalFiles.some((f) => f.url));

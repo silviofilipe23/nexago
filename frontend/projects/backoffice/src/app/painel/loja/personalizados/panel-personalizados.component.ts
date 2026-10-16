@@ -15,8 +15,8 @@ import {
   STATUS_INFO,
   STATUS_ORDER,
   batchCsv,
-  checklist,
   customKpis,
+  hasLowResolution,
   itemsForTab,
   nameCell,
   slaOverdue,
@@ -206,7 +206,7 @@ function errorText(error: unknown): string {
       <bo-confirm-dialog
         [open]="lowResOpen()"
         title="Aprovar mesmo assim?"
-        description="A imagem está abaixo da resolução mínima do produto e pode sair borrada na estampa."
+        description="Uma imagem (frente ou costas) está abaixo da resolução mínima do produto e pode sair borrada na estampa."
         confirmLabel="Aprovar e produzir"
         [busy]="dialogBusy()"
         [error]="dialogError()"
@@ -381,7 +381,7 @@ export class PanelPersonalizadosComponent {
 
   // ── Decisões ──
   protected approve(item: CustomItem): void {
-    const lowRes = checklist(item, this.configOf(item), this.blocklist()).some((c) => c.id === 'resolucao' && c.level === 'erro');
+    const lowRes = hasLowResolution(item, this.configOf(item));
     if (lowRes) {
       this.dialogError.set(null);
       this.lowResOpen.set(true);

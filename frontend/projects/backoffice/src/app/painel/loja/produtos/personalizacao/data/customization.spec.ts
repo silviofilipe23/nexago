@@ -1,7 +1,8 @@
 import {
   DEFAULT_CUSTOMIZATION,
   addOnCents,
-  addOnLabel,
+  addOnLines,
+  backKindLabel,
   customizationErrors,
   customizationFromDoc,
   sampleName,
@@ -50,11 +51,38 @@ describe('customization', () => {
     expect(e.active).toContain('desative');
   });
 
-  it('acréscimo segue o que está ligado', () => {
+  it('acréscimo segue o que está ligado, com as costas em linha própria', () => {
     expect(addOnCents(config())).toBe(2490);
-    expect(addOnLabel(config())).toBe('Nome + imagem');
+    expect(addOnLines(config()).map((l) => l.label)).toEqual(['Nome + imagem']);
     expect(addOnCents(config((c) => (c.image.enabled = false)))).toBe(1490);
     expect(addOnCents(config((c) => (c.name.enabled = false)))).toBe(1990);
+    const withBack = config((c) => (c.back.enabled = true));
+    expect(addOnLines(withBack)).toEqual([
+      { label: 'Nome + imagem', cents: 2490 },
+      { label: 'Costas: imagem ou número', cents: 990 },
+    ]);
+    expect(addOnCents(withBack)).toBe(3480);
+  });
+
+  it('costas: o que está liberado e as regras', () => {
+    expect(backKindLabel(config((c) => (c.back.allowImage = false)))).toBe('número');
+    expect(customizationErrors(config((c) => {
+      c.back.enabled = true;
+      c.back.allowImage = false;
+      c.back.allowNumber = false;
+    })).back).toContain('Libere');
+    // Só costas já basta para a personalização estar ativa.
+    expect(customizationErrors(config((c) => {
+      c.name.enabled = false;
+      c.image.enabled = false;
+      c.back.enabled = true;
+    }))).toEqual({});
+  });
+
+  it('doc antigo com número junto do nome vira costas só com número', () => {
+    const c = customizationFromDoc({ active: true, name: { allowNumber: true } });
+    expect([c.back.enabled, c.back.allowImage, c.back.allowNumber]).toEqual([true, false, true]);
+    expect('allowNumber' in c.name).toBeFalse();
   });
 
   it('nome de exemplo respeita o limite', () => {

@@ -20,7 +20,6 @@ export interface CustomizationConfig {
     fonts: { id: FontId; enabled: boolean }[];
     colors: string[];
     blockOffensive: boolean;
-    allowNumber: boolean;
   };
   image: {
     enabled: boolean;
@@ -31,7 +30,16 @@ export interface CustomizationConfig {
     areas: PrintArea[];
     removeBackground: boolean;
   };
-  price: { nameOnlyCents: number; imageOnlyCents: number; bothCents: number };
+  /** Costas, abaixo do nome: o atleta escolhe imagem OU número entre os liberados. */
+  back: {
+    enabled: boolean;
+    allowImage: boolean;
+    allowNumber: boolean;
+    numberMaxDigits: number;
+    widthCm: number;
+    heightCm: number;
+  };
+  price: { nameOnlyCents: number; imageOnlyCents: number; bothCents: number; backCents: number };
   production: { leadDays: number; printShop: string; manualApproval: boolean };
   defectOnlyReturns: boolean;
 }
@@ -63,7 +71,6 @@ export const DEFAULT_CUSTOMIZATION: CustomizationConfig = {
     ],
     colors: ['#ffffff', '#111111', '#ff6a1a', '#e3b85c'],
     blockOffensive: true,
-    allowNumber: false,
   },
   image: {
     enabled: true,
@@ -78,7 +85,8 @@ export const DEFAULT_CUSTOMIZATION: CustomizationConfig = {
     ],
     removeBackground: true,
   },
-  price: { nameOnlyCents: 1490, imageOnlyCents: 1990, bothCents: 2490 },
+  back: { enabled: false, allowImage: true, allowNumber: true, numberMaxDigits: 2, widthCm: 25, heightCm: 25 },
+  price: { nameOnlyCents: 1490, imageOnlyCents: 1990, bothCents: 2490, backCents: 990 },
   production: { leadDays: 5, printShop: '', manualApproval: true },
   defectOnlyReturns: true,
 };
@@ -91,10 +99,16 @@ export function customizationFromDoc(d: Raw | undefined): CustomizationConfig {
   if (!d) {
     return base;
   }
+  // Doc de antes das costas com "número junto com o nome" ligado vira costas só com número.
+  const { allowNumber: legacyNumber, ...name } = (d['name'] ?? {}) as Raw;
   return {
     ...base,
     active: d['active'] === true,
-    name: { ...base.name, ...(d['name'] ?? {}) },
+    name: { ...base.name, ...name },
+    back:
+      d['back'] === undefined && legacyNumber === true
+        ? { ...base.back, enabled: true, allowImage: false, allowNumber: true }
+        : { ...base.back, ...(d['back'] ?? {}) },
     image: { ...base.image, ...(d['image'] ?? {}) },
     price: { ...base.price, ...(d['price'] ?? {}) },
     production: { ...base.production, ...(d['production'] ?? {}) },
@@ -102,7 +116,7 @@ export function customizationFromDoc(d: Raw | undefined): CustomizationConfig {
   };
 }
 
-export type CardErrors = Partial<Record<'name' | 'image' | 'price' | 'production' | 'active', string>>;
+export type CardErrors = Partial<Record<'name' | 'image' | 'back' | 'price' | 'production' | 'active', string>>;
 
 /** Mesmas regras da callable, com a mensagem no card certo. */
 export function customizationErrors(c: CustomizationConfig): CardErrors {
@@ -126,31 +140,56 @@ export function customizationErrors(c: CustomizationConfig): CardErrors {
   } else if (c.image.enabled && !c.image.areas.some((a) => a.enabled)) {
     e.image = 'Ligue ao menos uma área de impressão.';
   }
-  const prices = [c.price.nameOnlyCents, c.price.imageOnlyCents, c.price.bothCents];
+  if (c.back.enabled && !c.back.allowImage && !c.back.allowNumber) {
+    e.back = 'Libere imagem, número ou os dois.';
+  } else if (!Number.isInteger(c.back.numberMaxDigits) || c.back.numberMaxDigits < 1 || c.back.numberMaxDigits > 3) {
+    e.back = 'O número tem de 1 a 3 dígitos.';
+  } else if (
+    !Number.isInteger(c.back.widthCm) || !Number.isInteger(c.back.heightCm) ||
+    c.back.widthCm < 1 || c.back.heightCm < 1 || c.back.widthCm > 100 || c.back.heightCm > 100
+  ) {
+    e.back = 'A área das costas vai de 1 a 100 cm.';
+  }
+  const prices = [c.price.nameOnlyCents, c.price.imageOnlyCents, c.price.bothCents, c.price.backCents];
   if (prices.some((p) => !Number.isInteger(p) || p < 0)) {
     e.price = 'Informe preços válidos.';
   } else if (!Number.isInteger(c.production.leadDays) || c.production.leadDays < 1 || c.production.leadDays > 60) {
     e.production = 'Prazo de produção vai de 1 a 60 dias úteis.';
   }
-  if (Object.keys(e).length === 0 && c.active && !c.name.enabled && !c.image.enabled) {
-    e.active = 'Nome e imagem desligados: desative a personalização para salvar.';
+  if (Object.keys(e).length === 0 && c.active && !c.name.enabled && !c.image.enabled && !c.back.enabled) {
+    e.active = 'Nome, imagem e costas desligados: desative a personalização para salvar.';
   }
   return e;
 }
 
-/** O que soma ao preço base com tudo o que está ligado (pior caso que o atleta pode montar). */
-export function addOnCents(c: CustomizationConfig): number {
+/** Linhas do resumo com tudo o que está ligado (o máximo que o atleta pode montar). */
+export function addOnLines(c: CustomizationConfig): { label: string; cents: number }[] {
+  const lines: { label: string; cents: number }[] = [];
   if (c.name.enabled && c.image.enabled) {
-    return c.price.bothCents;
+    lines.push({ label: 'Nome + imagem', cents: c.price.bothCents });
+  } else if (c.name.enabled) {
+    lines.push({ label: 'Nome', cents: c.price.nameOnlyCents });
+  } else if (c.image.enabled) {
+    lines.push({ label: 'Imagem', cents: c.price.imageOnlyCents });
   }
-  if (c.name.enabled) {
-    return c.price.nameOnlyCents;
+  if (c.back.enabled) {
+    lines.push({ label: `Costas: ${backKindLabel(c)}`, cents: c.price.backCents });
   }
-  return c.image.enabled ? c.price.imageOnlyCents : 0;
+  return lines;
 }
 
-export function addOnLabel(c: CustomizationConfig): string {
-  return c.name.enabled && c.image.enabled ? 'Nome + imagem' : c.name.enabled ? 'Nome' : c.image.enabled ? 'Imagem' : 'Personalização';
+export function addOnCents(c: CustomizationConfig): number {
+  return addOnLines(c).reduce((n, l) => n + l.cents, 0);
+}
+
+/** "imagem ou número" · "número" · "imagem". */
+export function backKindLabel(c: CustomizationConfig): string {
+  return c.back.allowImage && c.back.allowNumber ? 'imagem ou número' : c.back.allowNumber ? 'número' : 'imagem';
+}
+
+/** Número de exemplo cabendo no máximo de dígitos: 10 com 2, 7 com 1, 100 com 3. */
+export function sampleNumber(maxDigits: number): string {
+  return maxDigits <= 1 ? '7' : maxDigits === 2 ? '10' : '100';
 }
 
 /** Nome de exemplo cabendo no limite: "ANTUNES" corta em "ANTUN" com máx. 5. */

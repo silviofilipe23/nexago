@@ -8,7 +8,7 @@ import {
   viewChild,
   type ElementRef,
 } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { callableErrorMessage } from '../../../data/callable-error';
 import { ConfirmDialogComponent } from '../../../ui/confirm-dialog.component';
 import { FieldComponent } from '../../../ui/field.component';
@@ -37,6 +37,8 @@ import {
   draftErrors,
   emptyForm,
   firstErrorField,
+  formatDimensions,
+  parseDimensions,
   headerStatus,
   idFromLabel,
   marginOf,
@@ -77,26 +79,37 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
     PanelCardComponent,
     PanelShellComponent,
     PillComponent,
+    RouterLink,
     ToggleComponent,
   ],
   template: `
     <bo-panel-shell>
       <header class="head">
         <div class="titles">
-          <div class="crumb">Loja › Produtos</div>
-          <h1>{{ title() }}</h1>
+          <nav class="crumb" aria-label="Trilha">
+            <span>Loja</span>
+            <bo-icon name="chevron-right" [size]="10" />
+            <a routerLink="/painel/loja/produtos">Produtos</a>
+          </nav>
+          <div class="title-row">
+            <h1>{{ title() }}</h1>
+            <bo-pill [tone]="pill().tone">{{ pill().label }}</bo-pill>
+          </div>
         </div>
-        <bo-pill [tone]="pill().tone">{{ pill().label }}</bo-pill>
         <div class="spacer"></div>
+        <button type="button" class="bo-mini-btn ghost" disabled
+          [title]="isNew() || form().status === 'rascunho' ? 'Rascunho não aparece na loja' : 'A vitrine do portal ainda não está no ar'">
+          Ver na loja
+        </button>
         @if (!isNew() && loadState() === 'ok') {
           <button type="button" class="bo-mini-btn" [disabled]="locked()" (click)="duplicate()">Duplicar</button>
         }
-        <button type="button" class="bo-mini-btn" [disabled]="locked()" (click)="requestLeave()">Voltar</button>
         @if (isNew() || form().status === 'rascunho') {
           <button type="button" class="bo-mini-btn" [disabled]="locked() || (!isNew() && !dirty())" (click)="save('rascunho')">
             Salvar rascunho
           </button>
           <button type="button" class="bo-mini-btn bo-mini-btn-primary" [disabled]="locked()" (click)="save('ativo')">
+            @if (busy()) { <span class="bo-spinner small" aria-hidden="true"></span> }
             Publicar
           </button>
         } @else {
@@ -132,232 +145,274 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
 
             <div class="cols">
               <div class="main">
-                <bo-panel-card kicker="Mídia" title="Fotos" id="f-photos">
-                  @if (errors().photos; as pe) { <p class="error">{{ pe }}</p> }
-                  @if (isNew()) {
-                    <p class="muted">Salve o rascunho para adicionar fotos.</p>
-                  } @else {
-                    <div class="photos" (dragover)="$event.preventDefault()" (drop)="onDropFiles($event)">
-                      @for (p of photos(); track p.id; let i = $index) {
-                        <div class="photo" [class.cover-photo]="i === 0" [class.failed]="p.error" draggable="true"
-                          (dragstart)="dragFrom = i" (dragover)="$event.preventDefault()" (drop)="onDropPhoto($event, i)">
-                          <img [src]="p.url" alt="" />
-                          @if (i === 0) { <span class="badge">Capa</span> }
-                          @if (p.progress !== null) { <div class="bar"><span [style.width.%]="p.progress"></span></div> }
-                          @if (p.error) {
-                            <div class="photo-err">{{ p.error }}
-                              <button type="button" class="bo-mini-btn" (click)="retryPhoto(p.id)">Tentar de novo</button>
-                            </div>
-                          }
-                          <div class="photo-actions">
-                            @if (i > 0 && !p.error) {
-                              <button type="button" class="bo-mini-btn" title="Definir como capa" aria-label="Definir como capa" [disabled]="locked()" (click)="makeCover(i)"><bo-icon name="star" [size]="13" /></button>
-                            }
-                            @if (form().axes.length > 0 && !p.error) {
-                              <select class="bo-select mini" aria-label="Associar à cor" [disabled]="locked()" (change)="setPhotoColor(p.id, val($event))">
-                                <option value="" [selected]="!p.colorValueId">Sem cor</option>
-                                @for (v of form().axes[0]!.values; track v.id) { <option [value]="v.id" [selected]="p.colorValueId === v.id">{{ v.label }}</option> }
-                              </select>
-                            }
-                            <button type="button" class="bo-mini-btn" title="Remover" aria-label="Remover foto" [disabled]="locked()" (click)="removePhoto(p.id)"><bo-icon name="trash" [size]="13" /></button>
-                          </div>
-                        </div>
-                      }
-                      @if (photos().length < maxPhotos) {
-                        <label class="drop"><bo-icon name="plus" [size]="16" /> Adicionar ou soltar imagem
-                          <input type="file" hidden multiple accept="image/jpeg,image/png,image/webp" [disabled]="locked()" (change)="onPick($event)" />
-                        </label>
-                      }
-                    </div>
-                    @if (photoError(); as pe) { <p class="error">{{ pe }}</p> }
-                    <p class="muted">JPG, PNG ou WebP, até 10 MB, mínimo 1200×1200 px, máx. {{ maxPhotos }}. Arraste para reordenar; a primeira é a capa.</p>
+                <bo-panel-card kicker="Arraste para reordenar · a 1ª é a capa" title="Fotos" id="f-photos">
+                  @if (!isNew() && photos().length < maxPhotos) {
+                    <label card-actions class="bo-mini-btn" [class.is-disabled]="locked()">
+                      <bo-icon name="plus" [size]="13" /> Adicionar
+                      <input type="file" hidden multiple accept="image/jpeg,image/png,image/webp" [disabled]="locked()" (change)="onPick($event)" />
+                    </label>
                   }
+                  <div class="card-body">
+                    @if (errors().photos; as pe) { <p class="error">{{ pe }}</p> }
+                    @if (isNew()) {
+                      <p class="muted">Salve o rascunho para adicionar fotos.</p>
+                    } @else {
+                      <div class="photos" (dragover)="$event.preventDefault()" (drop)="onDropFiles($event)">
+                        @for (p of photos(); track p.id; let i = $index) {
+                          <div class="photo" [class.cover-photo]="i === 0" [class.failed]="p.error" draggable="true"
+                            (dragstart)="dragFrom = i" (dragover)="$event.preventDefault()" (drop)="onDropPhoto($event, i)">
+                            <img [src]="p.url" alt="" />
+                            @if (i === 0) { <span class="cover-pill">Capa</span> }
+                            @if (p.progress !== null) { <div class="bar"><span [style.width.%]="p.progress"></span></div> }
+                            @if (p.error) {
+                              <div class="photo-err">{{ p.error }}
+                                <button type="button" class="bo-mini-btn" (click)="retryPhoto(p.id)">Tentar de novo</button>
+                              </div>
+                            }
+                            <div class="photo-actions">
+                              @if (i > 0 && !p.error) {
+                                <button type="button" class="icon-btn" title="Definir como capa" aria-label="Definir como capa" [disabled]="locked()" (click)="makeCover(i)"><bo-icon name="star" [size]="13" /></button>
+                              }
+                              @if (form().axes.length > 0 && !p.error) {
+                                <select class="bo-select mini" aria-label="Associar à cor" [disabled]="locked()" (change)="setPhotoColor(p.id, val($event))">
+                                  <option value="" [selected]="!p.colorValueId">Sem cor</option>
+                                  @for (v of form().axes[0]!.values; track v.id) { <option [value]="v.id" [selected]="p.colorValueId === v.id">{{ v.label }}</option> }
+                                </select>
+                              }
+                              <button type="button" class="icon-btn" title="Remover" aria-label="Remover foto" [disabled]="locked()" (click)="removePhoto(p.id)"><bo-icon name="trash" [size]="13" /></button>
+                            </div>
+                          </div>
+                        }
+                        @if (photos().length < maxPhotos) {
+                          <label class="drop" [class.drop-first]="photos().length === 0">
+                            <bo-icon name="camera" [size]="16" />
+                            <span>Soltar imagem</span>
+                            <input type="file" hidden multiple accept="image/jpeg,image/png,image/webp" [disabled]="locked()" (change)="onPick($event)" />
+                          </label>
+                        }
+                      </div>
+                      @if (photoError(); as pe) { <p class="error">{{ pe }}</p> }
+                      <p class="footnote">JPG, PNG ou WebP · até 10 MB · mínimo 1200×1200 px · máx. {{ maxPhotos }} fotos</p>
+                    }
+                  </div>
                 </bo-panel-card>
 
-                <bo-panel-card kicker="Dados" title="Informações">
-                  <div class="grid">
+                <bo-panel-card title="Informações">
+                  <div class="card-body stack">
                     <bo-field label="Nome" [hint]="errors().name ?? ''">
                       <input id="f-name" class="bo-input" [class.err]="errors().name" [value]="form().name" [disabled]="locked()"
                         (input)="setName(val($event))" maxlength="80" />
                     </bo-field>
-                    <bo-field label="SKU raiz" [hint]="errors().baseSku ?? 'Base dos códigos das variações'">
-                      <input id="f-baseSku" class="bo-input" [class.err]="errors().baseSku" [value]="form().baseSku" [disabled]="locked() || !isNew()"
-                        (input)="set('baseSku', val($event).toUpperCase())" />
-                    </bo-field>
-                    <bo-field label="Categoria" [hint]="errors().category ?? ''">
-                      <select id="f-category" class="bo-select" [disabled]="locked()" (change)="set('category', val($event))">
-                        <option value="" [selected]="!form().category">Selecione</option>
-                        @for (c of categories; track c.id) {
-                          <option [value]="c.id" [selected]="form().category === c.id">{{ c.label }}</option>
-                        }
-                      </select>
-                    </bo-field>
-                    <bo-field label="Coleção">
-                      <select class="bo-select" [disabled]="locked()" (change)="set('collection', val($event))">
-                        <option value="" [selected]="!form().collection">Nenhuma</option>
-                        @for (c of collections; track c.id) {
-                          <option [value]="c.id" [selected]="form().collection === c.id">{{ c.label }}</option>
-                        }
-                      </select>
-                    </bo-field>
-                    <bo-field label="Marca">
-                      <input class="bo-input" [value]="form().brand" [disabled]="locked()" (input)="set('brand', val($event))" />
-                    </bo-field>
-                  </div>
-                  <bo-field label="Descrição" [hint]="form().description.length + ' / 2000 · **negrito** e listas com “- ”'">
-                    <div class="toolbar">
-                      <button type="button" class="bo-mini-btn" aria-label="Negrito" [disabled]="locked()" (click)="format('bold')"><strong>B</strong></button>
-                      <button type="button" class="bo-mini-btn" aria-label="Lista" [disabled]="locked()" (click)="format('list')">• Lista</button>
+                    <div class="grid three">
+                      <bo-field label="Categoria" [hint]="errors().category ?? ''">
+                        <select id="f-category" class="bo-select" [class.err]="errors().category" [disabled]="locked()" (change)="set('category', val($event))">
+                          <option value="" [selected]="!form().category">Selecione</option>
+                          @for (c of categories; track c.id) {
+                            <option [value]="c.id" [selected]="form().category === c.id">{{ c.label }}</option>
+                          }
+                        </select>
+                      </bo-field>
+                      <bo-field label="Coleção">
+                        <select class="bo-select" [disabled]="locked()" (change)="set('collection', val($event))">
+                          <option value="" [selected]="!form().collection">Nenhuma</option>
+                          @for (c of collections; track c.id) {
+                            <option [value]="c.id" [selected]="form().collection === c.id">{{ c.label }}</option>
+                          }
+                        </select>
+                      </bo-field>
+                      <bo-field label="Marca">
+                        <input class="bo-input" [value]="form().brand" [disabled]="locked()" (input)="set('brand', val($event))" />
+                      </bo-field>
                     </div>
-                    <textarea #desc class="bo-input area" maxlength="2000" [value]="form().description" [disabled]="locked()"
-                      (input)="set('description', val($event))"></textarea>
-                  </bo-field>
-                  <div class="details">
-                    <div class="sub">Detalhes técnicos</div>
-                    @for (d of form().technicalDetails; track $index) {
-                      <div class="detail-row">
-                        <input class="bo-input" placeholder="Tecido" [value]="d.label" (input)="setDetail($index, 'label', val($event))" />
-                        <input class="bo-input" placeholder="Poliéster" [value]="d.value" (input)="setDetail($index, 'value', val($event))" />
-                        <button type="button" class="bo-mini-btn" aria-label="Remover detalhe" (click)="removeDetail($index)">
-                          <bo-icon name="trash" [size]="13" />
-                        </button>
+                    <div class="desc-field">
+                      <div class="desc-head">
+                        <span class="label">Descrição</span>
+                        <div class="toolbar">
+                          <button type="button" class="icon-btn" title="Negrito" aria-label="Negrito" [disabled]="locked()" (click)="format('bold')"><strong>B</strong></button>
+                          <button type="button" class="icon-btn" title="Lista" aria-label="Lista" [disabled]="locked()" (click)="format('list')">•</button>
+                          <span class="count">{{ form().description.length }}/2000</span>
+                        </div>
+                      </div>
+                      <textarea #desc class="bo-input area" maxlength="2000" aria-label="Descrição" [value]="form().description" [disabled]="locked()"
+                        (input)="set('description', val($event))"></textarea>
+                    </div>
+                    <div class="details">
+                      <span class="label">Detalhes técnicos</span>
+                      @for (d of form().technicalDetails; track $index) {
+                        <div class="detail-row">
+                          <input class="bo-input" placeholder="Tecido" aria-label="Detalhe" [value]="d.label" [disabled]="locked()" (input)="setDetail($index, 'label', val($event))" />
+                          <input class="bo-input" placeholder="Poliamida dry" aria-label="Valor do detalhe" [value]="d.value" [disabled]="locked()" (input)="setDetail($index, 'value', val($event))" />
+                          <button type="button" class="icon-btn" aria-label="Remover detalhe" [disabled]="locked()" (click)="removeDetail($index)">
+                            <bo-icon name="trash" [size]="13" />
+                          </button>
+                        </div>
+                      }
+                      <button type="button" class="link-btn" [disabled]="locked()" (click)="addDetail()">
+                        <bo-icon name="plus" [size]="12" /> Adicionar detalhe
+                      </button>
+                    </div>
+                  </div>
+                </bo-panel-card>
+
+                <bo-panel-card title="Preço">
+                  <div class="card-body">
+                    <div class="grid four">
+                      <bo-field label="Preço de venda" [hint]="errors().price ?? ''">
+                        <span class="affix" [class.err]="errors().price">
+                          <span class="pre">R$</span>
+                          <input id="f-price" inputmode="decimal" aria-label="Preço de venda" [value]="form().price" [disabled]="locked()" (input)="set('price', val($event))" />
+                        </span>
+                      </bo-field>
+                      <bo-field label='Preço "de"' [hint]="errors().compareAtPrice ?? (discount() ? 'Selo -' + discount() + '%' : '')">
+                        <span class="affix" [class.err]="errors().compareAtPrice">
+                          <span class="pre">R$</span>
+                          <input id="f-compareAtPrice" inputmode="decimal" placeholder="opcional" aria-label='Preço "de"' [value]="form().compareAtPrice" [disabled]="locked()" (input)="set('compareAtPrice', val($event))" />
+                        </span>
+                      </bo-field>
+                      <bo-field label="Custo" [hint]="errors().cost ?? ''">
+                        <span class="affix" [class.err]="errors().cost">
+                          <span class="pre">R$</span>
+                          <input id="f-cost" inputmode="decimal" placeholder="opcional" aria-label="Custo" [value]="form().cost" [disabled]="locked()" (input)="set('cost', val($event))" />
+                        </span>
+                      </bo-field>
+                      <div class="margin-field">
+                        <span class="label">Margem</span>
+                        <div class="margin">
+                          @if (margin(); as m) {
+                            <span class="pct" [class]="'pct tone-' + m.tone">{{ percent(m.percent) }}</span>
+                            <span class="per-unit">{{ money(m.perUnitCents) }} / un.</span>
+                          } @else {
+                            <span class="pct none">—</span>
+                            <span class="per-unit">informe o custo</span>
+                          }
+                        </div>
+                      </div>
+                    </div>
+                    <p class="info-line">
+                      <bo-icon name="ticket" [size]="13" />
+                      Preço no Pix e parcelamento seguem o desconto global de Cupons & promoções.
+                    </p>
+                  </div>
+                </bo-panel-card>
+
+                <bo-panel-card [kicker]="variationsKicker()" title="Variações e estoque">
+                  <button card-actions type="button" class="bo-mini-btn" [disabled]="locked()" (click)="openAxes()">
+                    <bo-icon name="edit" [size]="13" /> Editar opções
+                  </button>
+                  <div class="card-body">
+                    @if (form().axes.length === 0) {
+                      <bo-field label="Estoque" hint="Produto sem variação">
+                        <input class="bo-input narrow" type="number" min="0" [value]="cellValue(0)" [disabled]="locked()"
+                          (input)="setStock(0, toInt(val($event)))" />
+                      </bo-field>
+                    } @else {
+                      <div class="stock-grid" [style.grid-template-columns]="stockColumns()">
+                        <span></span>
+                        @for (col of colValues(); track col.id) { <span class="col-head">{{ col.label }}</span> }
+                        <span class="col-head total-head">Total</span>
+                        @for (row of rowValues(); track row.id) {
+                          <span class="row-head">
+                            <span class="swatch" [style.background]="row.hex || 'var(--nx-surface-2)'"></span>
+                            {{ row.label }}
+                          </span>
+                          @for (col of colValues(); track col.id) {
+                            <input type="number" min="0" [class]="'cell cell-' + cellState(skuIndex(row.id, col.id))"
+                              [value]="cellValue(skuIndex(row.id, col.id))" [disabled]="locked()"
+                              [attr.aria-label]="row.label + ' ' + col.label"
+                              (input)="setStock(skuIndex(row.id, col.id), toInt(val($event)))"
+                              (click)="onCellClick($event, skuIndex(row.id, col.id))" />
+                          }
+                          <span class="row-total">{{ rowTotal(row.id) }}</span>
+                        }
                       </div>
                     }
-                    <button type="button" class="bo-mini-btn add" (click)="addDetail()">
-                      <bo-icon name="plus" [size]="13" /> Adicionar detalhe
-                    </button>
-                  </div>
-                </bo-panel-card>
-
-                <bo-panel-card kicker="Valores" title="Preço">
-                  <div class="grid">
-                    <bo-field label="Preço de venda (R$)" [hint]="errors().price ?? ''">
-                      <input id="f-price" class="bo-input" inputmode="decimal" [class.err]="errors().price" [value]="form().price"
-                        [disabled]="locked()" (input)="set('price', val($event))" />
-                    </bo-field>
-                    <bo-field label='Preço "de" (R$)' [hint]="errors().compareAtPrice ?? (discount() ? 'Selo -' + discount() + '%' : '')">
-                      <input id="f-compareAtPrice" class="bo-input" inputmode="decimal" [class.err]="errors().compareAtPrice"
-                        [value]="form().compareAtPrice" [disabled]="locked()" (input)="set('compareAtPrice', val($event))" />
-                    </bo-field>
-                    <bo-field label="Custo (R$)" [hint]="errors().cost ?? 'Só visível no backoffice'">
-                      <input id="f-cost" class="bo-input" inputmode="decimal" [class.err]="errors().cost" [value]="form().cost"
-                        [disabled]="locked()" (input)="set('cost', val($event))" />
-                    </bo-field>
-                    <bo-field label="Margem">
-                      @if (margin(); as m) {
-                        <div class="margin" [class]="'margin tone-' + m.tone">
-                          {{ m.percent.toFixed(0) }}% · {{ money(m.perUnitCents) }}/un.
-                        </div>
-                      } @else {
-                        <div class="margin muted">—</div>
-                      }
-                    </bo-field>
-                  </div>
-                  <p class="muted">Preço no Pix e parcelamento seguem as regras de Cupons & promoções.</p>
-                </bo-panel-card>
-
-                <bo-panel-card kicker="Estoque" title="Variações e estoque">
-                  <div class="var-head">
-                    <span class="muted">Alerta de estoque baixo:</span>
-                    <input class="bo-input narrow" type="number" min="0" [value]="form().lowStockThreshold" [disabled]="locked()"
-                      (input)="set('lowStockThreshold', toInt(val($event)))" aria-label="Alerta de estoque baixo" />
-                    <div class="spacer"></div>
-                    <button type="button" class="bo-mini-btn" [disabled]="locked()" (click)="openAxes()">Editar opções</button>
-                  </div>
-                  @if (form().axes.length === 0) {
-                    <bo-field label="Estoque">
-                      <input class="bo-input narrow" type="number" min="0" [value]="cellValue(0)" [disabled]="locked()"
-                        (input)="setStock(0, toInt(val($event)))" />
-                    </bo-field>
-                  } @else {
-                    <div class="table-wrap">
-                      <table class="stock">
-                        <thead>
-                          <tr>
-                            <th>{{ rowAxis().label }}</th>
-                            @for (col of colValues(); track col.id) { <th>{{ col.label }}</th> }
-                            <th>Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          @for (row of rowValues(); track row.id) {
-                            <tr>
-                              <th>
-                                @if (row.hex) { <span class="swatch" [style.background]="row.hex"></span> }
-                                {{ row.label }}
-                              </th>
-                              @for (col of colValues(); track col.id) {
-                                <td>
-                                  <input type="number" min="0" [class]="'cell cell-' + cellState(skuIndex(row.id, col.id))"
-                                    [value]="cellValue(skuIndex(row.id, col.id))" [disabled]="locked()"
-                                    [attr.aria-label]="row.label + ' ' + col.label"
-                                    (input)="setStock(skuIndex(row.id, col.id), toInt(val($event)))"
-                                    (click)="onCellClick($event, skuIndex(row.id, col.id))" />
-                                </td>
-                              }
-                              <td class="total">{{ rowTotal(row.id) }}</td>
-                            </tr>
-                          }
-                        </tbody>
-                      </table>
+                    <div class="grid-foot">
+                      <span>SKU:
+                        @if (isNew()) {
+                          <input id="f-baseSku" class="sku-input" [class.err]="errors().baseSku" aria-label="SKU raiz" [value]="form().baseSku" [disabled]="locked()"
+                            (input)="set('baseSku', val($event).toUpperCase())" />
+                        } @else {
+                          <code>{{ form().baseSku }}</code>
+                        }<code>{{ skuSuffix() }}</code>
+                      </span>
+                      <span>Alerta de estoque baixo: &lt;
+                        <input class="alert-input" type="number" min="0" aria-label="Alerta de estoque baixo" [value]="form().lowStockThreshold" [disabled]="locked()"
+                          (input)="set('lowStockThreshold', toInt(val($event)))" /> un.
+                      </span>
+                      <span>Estoque somado de todos os locais · Alt+clique abre o SKU</span>
                     </div>
-                    <p class="muted">Alt+clique numa célula para código de barras e preço próprio. O número ajusta o estoque do CD.</p>
-                  }
+                    @if (errors().baseSku; as e) { <p class="error">{{ e }}</p> }
+                  </div>
                 </bo-panel-card>
               </div>
 
               <aside class="side">
-                <bo-panel-card kicker="Canais" title="Publicação">
-                  <div class="toggle-row"><span>Visível no app</span>
-                    <bo-toggle ariaLabel="Visível no app" [checked]="form().channels.app" (checkedChange)="setChannel('app', $event)" /></div>
-                  <div class="toggle-row"><span>Visível no portal web</span>
-                    <bo-toggle ariaLabel="Visível no portal web" [checked]="form().channels.web" (checkedChange)="setChannel('web', $event)" /></div>
-                  <div class="toggle-row"><span>Permite retirada na arena</span>
-                    <bo-toggle ariaLabel="Permite retirada" [checked]="form().fulfillment.pickup" (checkedChange)="setFulfillment('pickup', $event)" /></div>
-                  <div class="toggle-row"><span>Permite entrega</span>
-                    <bo-toggle ariaLabel="Permite entrega" [checked]="form().fulfillment.delivery" (checkedChange)="setFulfillment('delivery', $event)" /></div>
-                  <div class="toggle-row"><span>Destaque na vitrine</span>
-                    <bo-toggle ariaLabel="Destaque" [checked]="form().featured" (checkedChange)="set('featured', $event)" /></div>
-                  <p class="muted">Destaque: até {{ maxFeatured }} produtos na vitrine.</p>
-                  @if (errors().channels ?? errors().fulfillment; as msg) {
-                    <p id="f-channels" class="error">{{ msg }}</p>
-                  }
-                  <bo-field label="Selo">
-                    <select class="bo-select" (change)="setBadge(val($event))">
-                      @for (b of badges; track b.id) {
-                        <option [value]="b.id" [selected]="form().badge === b.id">{{ b.label }}</option>
-                      }
-                    </select>
-                  </bo-field>
-                  @if (!isNew() && slug()) { <p class="muted">URL: /loja/{{ slug() }}</p> }
+                <bo-panel-card title="Publicação">
+                  <div class="card-body">
+                    <div class="toggle-row"><span>Visível no app</span>
+                      <bo-toggle ariaLabel="Visível no app" [disabled]="locked()" [checked]="form().channels.app" (checkedChange)="setChannel('app', $event)" /></div>
+                    <div class="toggle-row"><span>Visível no portal web</span>
+                      <bo-toggle ariaLabel="Visível no portal web" [disabled]="locked()" [checked]="form().channels.web" (checkedChange)="setChannel('web', $event)" /></div>
+                    <div class="toggle-row"><span>Permite retirada na arena</span>
+                      <bo-toggle ariaLabel="Permite retirada na arena" [disabled]="locked()" [checked]="form().fulfillment.pickup" (checkedChange)="setFulfillment('pickup', $event)" /></div>
+                    <div class="toggle-row"><span>Permite entrega</span>
+                      <bo-toggle ariaLabel="Permite entrega" [disabled]="locked()" [checked]="form().fulfillment.delivery" (checkedChange)="setFulfillment('delivery', $event)" /></div>
+                    <div class="toggle-row"><span>Destaque na vitrine</span>
+                      <bo-toggle ariaLabel="Destaque na vitrine" [disabled]="locked()" [checked]="form().featured" (checkedChange)="set('featured', $event)" /></div>
+                    @if (errors().channels ?? errors().fulfillment; as msg) {
+                      <p id="f-channels" class="error">{{ msg }}</p>
+                    }
+                    <bo-field label="Selo" class="selo">
+                      <select class="bo-select" [disabled]="locked()" (change)="setBadge(val($event))">
+                        @for (b of badges; track b.id) {
+                          <option [value]="b.id" [selected]="form().badge === b.id">{{ b.label }}</option>
+                        }
+                      </select>
+                    </bo-field>
+                  </div>
                 </bo-panel-card>
 
-                <bo-panel-card kicker="Vitrine" title="Prévia">
-                  <div class="preview">
-                    <div class="cover">
-                      @if (coverUrl()) { <img [src]="coverUrl()" alt="" /> }
-                      @if (form().badge) { <span class="badge">{{ badgeLabel() }}</span> }
-                    </div>
-                    <div class="p-name">{{ form().name || 'Nome do produto' }}</div>
-                    <div class="p-price">
-                      <strong>{{ money(priceCents() ?? 0) }}</strong>
-                      @if (compareCents() && discount()) { <s>{{ money(compareCents()!) }}</s> <em>-{{ discount() }}%</em> }
+                <bo-panel-card kicker="Como aparece no app" title="Prévia">
+                  <div class="card-body">
+                    <div class="preview">
+                      <div class="cover">
+                        @if (coverUrl()) { <img [src]="coverUrl()" alt="" /> } @else { <span class="cover-ph">Capa</span> }
+                        @if (form().badge) { <span class="cover-pill">{{ badgeLabel() }}</span> }
+                      </div>
+                      <div class="p-info">
+                        <div class="p-name">{{ form().name || 'Nome do produto' }}</div>
+                        <div class="p-price">{{ money(priceCents() ?? 0) }}</div>
+                        @if (compareCents() && discount()) {
+                          <div class="p-was"><s>{{ money(compareCents()!) }}</s> · -{{ discount() }}%</div>
+                        }
+                      </div>
                     </div>
                   </div>
                 </bo-panel-card>
 
-                <bo-panel-card kicker="Logística" title="Envio">
-                  <div class="grid two">
-                    <bo-field label="Peso (kg)"><input id="f-shipping" class="bo-input" [class.err]="errors().shipping" [value]="form().weightKg" (input)="set('weightKg', val($event))" /></bo-field>
-                    <bo-field label="Comprimento (cm)"><input class="bo-input" [value]="form().lengthCm" (input)="set('lengthCm', val($event))" /></bo-field>
-                    <bo-field label="Largura (cm)"><input class="bo-input" [value]="form().widthCm" (input)="set('widthCm', val($event))" /></bo-field>
-                    <bo-field label="Altura (cm)"><input class="bo-input" [value]="form().heightCm" (input)="set('heightCm', val($event))" /></bo-field>
+                <bo-panel-card title="Envio">
+                  <div class="card-body">
+                    <div class="grid two">
+                      <bo-field label="Peso">
+                        <span class="affix" [class.err]="errors().shipping">
+                          <input id="f-shipping" inputmode="decimal" aria-label="Peso em kg" [value]="form().weightKg" [disabled]="locked()" (input)="set('weightKg', val($event))" />
+                          <span class="suf">kg</span>
+                        </span>
+                      </bo-field>
+                      <bo-field label="Dimensões">
+                        <span class="affix" [class.err]="errors().shipping">
+                          <input placeholder="C×L×A" aria-label="Dimensões em cm, comprimento × largura × altura" [value]="dimensions()" [disabled]="locked()" (change)="setDimensions(val($event))" />
+                          <span class="suf">cm</span>
+                        </span>
+                      </bo-field>
+                    </div>
+                    @if (errors().shipping; as s) { <p class="error">{{ s }}</p> }
                   </div>
-                  @if (errors().shipping; as s) { <p class="error">{{ s }}</p> }
                 </bo-panel-card>
 
                 @if (!isNew()) {
                   <button type="button" class="bo-mini-btn danger-btn" [disabled]="locked()" (click)="archiveOpen.set(true)">
+                    <bo-icon name="archive" [size]="13" />
                     {{ form().status === 'arquivado' ? 'Restaurar produto' : 'Arquivar produto' }}
                   </button>
                 }
@@ -414,61 +469,133 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
   `,
   styles: `
     :host { display: block; }
-    .head { display: flex; align-items: center; gap: 12px; padding: 20px 32px; border-bottom: 1px solid var(--nx-line); flex-wrap: wrap; }
-    .crumb { font-family: var(--nx-font-mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--nx-text-dim); }
-    h1 { margin: 3px 0 0; font-family: var(--nx-font-display); font-weight: 800; font-size: 21px; letter-spacing: -.02em; }
+    .head { display: flex; align-items: center; gap: 12px; padding: 18px 32px; border-bottom: 1px solid var(--nx-line); flex-wrap: wrap; }
+    .titles { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .crumb { display: flex; align-items: center; gap: 6px; font-family: var(--nx-font-mono); font-size: 10px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--nx-text-dim); }
+    .crumb a { color: inherit; text-decoration: none; }
+    .crumb a:hover { color: var(--nx-text); }
+    .title-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    h1 { margin: 0; font-family: var(--nx-font-display); font-weight: 800; font-size: 21px; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .spacer { flex: 1; }
+    .bo-mini-btn.ghost { background: transparent; border-color: transparent; color: var(--nx-text-mute); padding: 0 11px; }
+    .bo-mini-btn.ghost:disabled { opacity: 1; color: var(--nx-text-dim); }
     .state { padding: 48px 32px; color: var(--nx-text-mute); }
-    .body { padding: 24px 32px; display: flex; flex-direction: column; gap: 16px; }
-    .cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+    .body { padding: 24px 32px 40px; display: flex; flex-direction: column; gap: 16px; }
+    .cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
     .main, .side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
-    .grid.two { margin: 0; }
-    .muted { color: var(--nx-text-dim); font-size: 12px; margin: 8px 0 0; }
-    .error { color: var(--nx-live); font-size: 12px; margin: 6px 0 0; }
-    .bo-input.err { border-color: var(--nx-live); }
-    .area { height: 120px; padding: 10px 13px; resize: vertical; }
-    .narrow { width: 90px; }
+    .card-body { margin-top: 14px; display: flex; flex-direction: column; min-width: 0; }
+    .card-body.stack { gap: 14px; }
+    .grid { display: grid; gap: 14px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .label { font-family: var(--nx-font-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--nx-text-dim); }
+    .muted { color: var(--nx-text-dim); font-size: 12px; margin: 0; }
+    .footnote { color: var(--nx-text-dim); font-size: 12px; margin: 12px 0 0; }
+    .error { color: var(--nx-live); font-size: 12px; margin: 8px 0 0; }
+    .bo-input.err, .bo-select.err, .affix.err { border-color: var(--nx-live); }
+    .narrow { width: 120px; }
     .hex { max-width: 120px; }
-    .sub { font-size: 12px; color: var(--nx-text-mute); margin: 14px 0 8px; }
-    .detail-row { display: flex; gap: 8px; margin-bottom: 8px; }
-    .add { margin-top: 4px; }
-    .margin { height: 42px; display: flex; align-items: center; font-weight: 600; }
-    .tone-green { color: var(--nx-win); } .tone-yellow { color: var(--nx-pending); } .tone-red { color: var(--nx-live); }
-    .var-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-    .table-wrap { overflow-x: auto; }
-    table.stock { border-collapse: collapse; width: 100%; font-size: 13px; }
-    table.stock th, table.stock td { padding: 6px 8px; text-align: center; }
-    table.stock tbody th { text-align: left; white-space: nowrap; }
-    .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; border: 1px solid var(--nx-line-strong); }
-    .cell { width: 64px; height: 34px; text-align: center; background: var(--nx-surface-1); border: 1px solid var(--nx-line); border-radius: var(--nx-r-2); color: var(--nx-text); }
-    .cell-zero { background: rgba(255, 59, 48, .12); border-color: rgba(255, 59, 48, .35); }
-    .cell-low { background: rgba(244, 197, 67, .12); border-color: rgba(244, 197, 67, .35); }
-    .total { font-weight: 700; }
-    .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; font-size: 13px; }
-    .preview { display: flex; flex-direction: column; gap: 8px; }
-    .cover { position: relative; aspect-ratio: 1; background: var(--nx-surface-1); border-radius: var(--nx-r-3); overflow: hidden; }
-    .cover img { width: 100%; height: 100%; object-fit: cover; }
-    .badge { position: absolute; top: 8px; left: 8px; background: var(--nx-orange-500); color: #fff; font-size: 10px; padding: 3px 8px; border-radius: var(--nx-r-pill); }
-    .p-name { font-weight: 600; }
-    .p-price s { color: var(--nx-text-dim); margin: 0 6px; } .p-price em { color: var(--nx-win); font-style: normal; }
-    .danger-btn { color: var(--nx-live); border-color: rgba(255, 59, 48, .35); justify-content: center; }
-    .axis { border: 1px solid var(--nx-line); border-radius: var(--nx-r-3); padding: 12px; }
-    .bo-spinner.small { width: 13px; height: 13px; border-width: 2px; }
-    .photos { display: grid; grid-template-columns: repeat(auto-fill, 110px); gap: 10px; }
-    .photo { position: relative; width: 110px; height: 110px; border-radius: var(--nx-r-3); overflow: hidden; background: var(--nx-surface-1); border: 1px solid var(--nx-line); cursor: grab; }
-    .photo.cover-photo { grid-column: span 2; grid-row: span 2; width: 230px; height: 230px; }
-    .photo.failed { border-color: var(--nx-live); }
-    .photo img { width: 100%; height: 100%; object-fit: cover; }
-    .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(0,0,0,.4); }
+    .is-disabled { opacity: 0.5; pointer-events: none; }
+    label.bo-mini-btn { cursor: pointer; }
+
+    /* Botão só de ícone, usado em fotos, detalhes e na barra da descrição. */
+    .icon-btn { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; border: 1px solid var(--nx-line-strong); background: var(--nx-surface-1); color: var(--nx-text); cursor: pointer; font-size: 12px; }
+    .icon-btn:disabled { opacity: 0.5; cursor: default; }
+    .link-btn { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; background: none; border: none; padding: 0; color: var(--nx-orange-500); font-family: var(--nx-font-display); font-weight: 600; font-size: 12.5px; cursor: pointer; }
+    .link-btn:disabled { opacity: 0.5; cursor: default; }
+
+    /* Campo com prefixo/sufixo (R$, kg, cm) dentro da mesma caixa, como no desenho. */
+    .affix { display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 12px; background: var(--nx-surface-1); border: 1px solid var(--nx-line); border-radius: var(--nx-r-2); }
+    .affix:focus-within { border-color: rgba(255, 106, 26, 0.5); }
+    .affix input { flex: 1; min-width: 0; height: 100%; background: none; border: none; outline: none; color: var(--nx-text); font-family: var(--nx-font-ui); font-size: 13.5px; }
+    .affix input::placeholder { color: var(--nx-text-dim); }
+    .affix .pre, .affix .suf { color: var(--nx-text-dim); font-size: 13.5px; }
+    .affix .suf { font-size: 12px; }
+
+    /* Fotos: capa ocupa 2×2, miniaturas de 110 px. */
+    .photos { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; grid-auto-rows: 110px; gap: 10px; }
+    .photo { position: relative; border-radius: 12px; overflow: hidden; background: var(--nx-surface-1); cursor: grab; }
+    .photo.cover-photo { grid-column: span 1; grid-row: span 2; }
+    .photo.failed { outline: 1px solid var(--nx-live); }
+    .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cover-pill { position: absolute; top: 8px; left: 8px; height: 22px; padding: 0 9px; display: inline-flex; align-items: center; border-radius: var(--nx-r-pill); background: var(--nx-orange-500); color: var(--nx-text-on-orange); font-family: var(--nx-font-mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(0, 0, 0, 0.45); }
     .bar span { display: block; height: 100%; background: var(--nx-orange-500); }
-    .photo-err { position: absolute; inset: 0; background: rgba(0,0,0,.7); color: #fff; font-size: 11px; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
-    .photo-actions { position: absolute; top: 4px; right: 4px; display: none; gap: 4px; }
-    .photo:hover .photo-actions, .photo:focus-within .photo-actions { display: flex; flex-direction: column; align-items: flex-end; }
-    .bo-select.mini { height: 28px; font-size: 11px; width: 90px; padding: 0 6px; }
-    .drop { width: 110px; height: 110px; border: 1px dashed var(--nx-line-strong); border-radius: var(--nx-r-3); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 11px; text-align: center; color: var(--nx-text-mute); cursor: pointer; }
-    .toolbar { display: flex; gap: 6px; }
-    @media (max-width: 1000px) { .cols { grid-template-columns: 1fr; } }
+    .photo-err { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.72); color: #fff; font-size: 11px; padding: 8px; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; }
+    .photo-actions { position: absolute; top: 6px; right: 6px; display: none; flex-direction: column; align-items: flex-end; gap: 4px; }
+    .photo:hover .photo-actions, .photo:focus-within .photo-actions { display: flex; }
+    .bo-select.mini { height: 28px; font-size: 11px; width: 96px; padding: 0 22px 0 8px; }
+    .drop { border: 1px dashed var(--nx-line-strong); border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 12px; color: var(--nx-text-dim); cursor: pointer; }
+    .drop:hover { border-color: rgba(255, 106, 26, 0.5); color: var(--nx-text-mute); }
+    .drop.drop-first { grid-row: span 2; }
+
+    /* Descrição com a barra de formatação na linha do rótulo. */
+    .desc-field { display: flex; flex-direction: column; gap: 6px; }
+    .desc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .toolbar { display: flex; align-items: center; gap: 4px; }
+    .toolbar .icon-btn { width: 24px; height: 24px; }
+    .count { font-family: var(--nx-font-mono); font-size: 9.5px; color: var(--nx-text-dim); margin-left: 6px; }
+    .area { height: 96px; padding: 10px 12px; resize: vertical; line-height: 1.5; }
+    .details { display: flex; flex-direction: column; gap: 8px; }
+    .detail-row { display: flex; gap: 8px; align-items: center; }
+    .detail-row .icon-btn { flex: none; }
+
+    /* Preço */
+    .margin-field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+    .margin { height: 40px; display: flex; align-items: center; gap: 8px; }
+    .pct { font-family: var(--nx-font-display); font-weight: 800; font-size: 20px; }
+    .pct.none { color: var(--nx-text-dim); }
+    .per-unit { font-size: 12px; color: var(--nx-text-dim); white-space: nowrap; }
+    .tone-green { color: var(--nx-win); }
+    .tone-yellow { color: var(--nx-pending); }
+    .tone-red { color: var(--nx-live); }
+    .info-line { display: flex; align-items: center; gap: 10px; margin: 14px 0 0; font-size: 12.5px; color: var(--nx-text-mute); }
+    .info-line bo-icon { color: var(--nx-orange-500); }
+
+    /* Grade cor × tamanho */
+    .stock-grid { display: grid; gap: 8px; align-items: center; }
+    .col-head { font-family: var(--nx-font-mono); font-size: 10.5px; font-weight: 700; color: var(--nx-text-dim); text-align: center; }
+    .total-head { font-size: 9.5px; font-weight: 400; letter-spacing: 0.12em; text-transform: uppercase; text-align: right; }
+    .row-head { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; min-width: 0; }
+    .swatch { width: 16px; height: 16px; border-radius: 50%; flex: none; border: 1px solid var(--nx-line-strong); }
+    .cell { width: 100%; height: 40px; box-sizing: border-box; text-align: center; background: var(--nx-surface-1); border: 1px solid var(--nx-line); border-radius: 8px; color: var(--nx-text); font-family: var(--nx-font-display); font-weight: 700; font-size: 13.5px; -moz-appearance: textfield; }
+    .cell::-webkit-inner-spin-button, .cell::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    .cell:focus { outline: none; border-color: rgba(255, 106, 26, 0.5); }
+    .cell-low { background: rgba(244, 197, 67, 0.08); border-color: rgba(244, 197, 67, 0.3); color: var(--nx-pending); }
+    .cell-zero { background: rgba(255, 59, 48, 0.08); border-color: rgba(255, 59, 48, 0.3); color: var(--nx-live); }
+    .row-total { text-align: right; font-family: var(--nx-font-display); font-weight: 700; font-size: 16px; }
+    .grid-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin-top: 14px; font-size: 12px; color: var(--nx-text-dim); }
+    .grid-foot code { font-family: var(--nx-font-mono); font-size: 11px; color: var(--nx-text-mute); }
+    .sku-input, .alert-input { height: 24px; padding: 0 6px; background: var(--nx-surface-1); border: 1px solid var(--nx-line); border-radius: 6px; color: var(--nx-text); font-family: var(--nx-font-mono); font-size: 11px; }
+    .sku-input { width: 120px; }
+    .alert-input { width: 44px; text-align: center; font-weight: 700; }
+    .sku-input.err { border-color: var(--nx-live); }
+
+    /* Lateral */
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 13px; }
+    .selo { margin-top: 10px; }
+    .preview { border-radius: var(--nx-r-3); overflow: hidden; border: 1px solid var(--nx-line); background: var(--nx-bg); }
+    .cover { position: relative; aspect-ratio: 296 / 210; background: var(--nx-surface-1) repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0 10px, transparent 10px 20px); display: grid; place-items: center; }
+    .cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .cover-ph { font-family: var(--nx-font-mono); font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--nx-text-dim); }
+    .p-info { padding: 14px; }
+    .p-name { font-family: var(--nx-font-display); font-weight: 600; font-size: 13.5px; }
+    .p-price { margin-top: 6px; font-family: var(--nx-font-display); font-weight: 800; font-size: 16px; }
+    .p-was { margin-top: 2px; font-size: 11.5px; color: var(--nx-text-dim); }
+    .danger-btn { width: 100%; justify-content: flex-start; background: transparent; border-color: transparent; color: var(--nx-live); padding: 0 11px; }
+    .danger-btn:hover:not(:disabled) { background: rgba(255, 59, 48, 0.08); }
+    .axis { border: 1px solid var(--nx-line); border-radius: var(--nx-r-3); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .add { align-self: flex-start; }
+    .bo-spinner.small { width: 13px; height: 13px; border-width: 2px; }
+    @media (max-width: 1100px) {
+      .cols { grid-template-columns: 1fr; }
+      .grid.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 640px) {
+      .grid.three, .grid.two { grid-template-columns: 1fr; }
+      .photos { grid-template-columns: repeat(2, 1fr); }
+    }
   `,
 })
 export class ProductEditComponent {
@@ -528,6 +655,19 @@ export class ProductEditComponent {
   protected readonly rowAxis = computed(() => this.form().axes[0]!);
   protected readonly rowValues = computed(() => this.form().axes[0]?.values ?? []);
   protected readonly colValues = computed(() => this.form().axes[1]?.values ?? [{ id: '', label: 'Estoque', hex: '' }]);
+  protected readonly variationsKicker = computed(() => {
+    const axes = this.form().axes;
+    const n = this.form().skus.length;
+    return axes.length === 0 ? 'Sem variação' : `${axes.map((a) => a.label).join(' × ')} · ${n} ${n === 1 ? 'SKU' : 'SKUs'}`;
+  });
+  protected readonly stockColumns = computed(() => `180px repeat(${this.colValues().length}, minmax(56px, 1fr)) 80px`);
+  protected readonly skuSuffix = computed(() =>
+    this.form().axes.map((a) => '-{' + idFromLabel(a.label).toUpperCase().slice(0, 4) + '}').join(''),
+  );
+  protected readonly dimensions = computed(() => {
+    const f = this.form();
+    return formatDimensions(f.lengthCm, f.widthCm, f.heightCm);
+  });
   protected readonly skuDetail = computed(() => {
     const i = this.skuOpen();
     return i === null ? null : (this.form().skus[i] ?? null);
@@ -547,6 +687,14 @@ export class ProductEditComponent {
   }
   protected money(cents: number): string {
     return BRL.format(cents / 100);
+  }
+  protected percent(value: number): string {
+    return value.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%';
+  }
+  protected setDimensions(text: string): void {
+    const d = parseDimensions(text);
+    this.form.update((f) => ({ ...f, lengthCm: d.length, widthCm: d.width, heightCm: d.height }));
+    this.clearErrors();
   }
 
   protected set<K extends keyof ProductForm>(key: K, value: ProductForm[K]): void {

@@ -364,24 +364,33 @@ function initialsOf(name: string): string {
       background: var(--nx-surface-1);
     }
 
-    /* Submenu (desenho 05): fio vertical na linha do ícone do grupo, filhos sem ícone,
-       o ativo marcado por um ponto laranja sobre o fio em vez da barra lateral. */
+    /* Submenu (desenho 05): o rótulo do filho alinha com o do grupo (41 px), cada
+       filho desenha o seu trecho do fio na linha do ícone, e o ativo ganha uma
+       pílula laranja sobre o fio em vez da barra da borda. */
     .subnav {
       display: flex;
       flex-direction: column;
-      gap: 2px;
-      margin: 4px 0 6px 20px;
-      padding-left: 10px;
-      border-left: 1px solid var(--nx-line-strong);
+      gap: 1px;
+      margin: 2px 0 6px;
     }
 
     .subnav .nav-item {
       height: 34px;
       font-size: 13px;
       font-weight: 500;
-      gap: 8px;
-      padding: 0 10px;
+      gap: 10px;
+      padding: 0 12px 0 41px;
       color: var(--nx-text-mute);
+    }
+
+    .subnav .nav-item::after {
+      content: '';
+      position: absolute;
+      left: 20px;
+      top: 0;
+      bottom: -1px;
+      width: 1px;
+      background: var(--nx-line-strong);
     }
 
     /* "Em breve" no submenu fica legível como no desenho; só o cursor e o title avisam. */
@@ -396,22 +405,24 @@ function initialsOf(name: string): string {
     }
 
     .subnav .nav-item.active::before {
-      left: -14px;
+      left: 18px;
       top: 50%;
       bottom: auto;
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
+      width: 5px;
+      height: 12px;
+      border-radius: 3px;
       transform: translateY(-50%);
+      z-index: 1;
     }
 
     .badge {
       font-family: var(--nx-font-mono);
-      font-size: 9px;
-      font-weight: 600;
-      min-width: 18px;
-      height: 17px;
+      font-size: 10px;
+      font-weight: 700;
+      min-width: 28px;
+      height: 18px;
       padding: 0 5px;
+      box-sizing: border-box;
       border-radius: var(--nx-r-pill);
       background: var(--nx-surface-2);
       color: var(--nx-text-mute);

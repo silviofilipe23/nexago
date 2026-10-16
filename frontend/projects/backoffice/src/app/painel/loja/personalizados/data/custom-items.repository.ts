@@ -9,6 +9,8 @@ export interface CustomQueueSnapshot {
   items: CustomItem[];
   /** Config de personalização por produto (o padrão quando o produto não tem doc). */
   configs: Map<string, CustomizationConfig>;
+  /** Capa (1ª foto) de cada produto da fila: o fundo das prévias. */
+  covers: Map<string, string>;
   blocklist: string[];
 }
 
@@ -29,13 +31,24 @@ export class CustomItemsRepository {
     const items = itemSnap.docs.map((d) => customItemFromDoc(d.id, d.data()));
     const productIds = [...new Set(items.map((i) => i.productId).filter(Boolean))];
     // Em paralelo: são poucos produtos personalizáveis, um getDoc cada.
-    const configSnaps = await Promise.all(productIds.map((id) => getDoc(doc(db, 'storeProductCustomization', id))));
+    const [configSnaps, productSnaps] = await Promise.all([
+      Promise.all(productIds.map((id) => getDoc(doc(db, 'storeProductCustomization', id)))),
+      Promise.all(productIds.map((id) => getDoc(doc(db, 'storeProducts', id)))),
+    ]);
+    const covers = new Map<string, string>();
+    productSnaps.forEach((snap, i) => {
+      const url = snap.exists() ? snap.data()['photos']?.[0]?.url : null;
+      if (typeof url === 'string') {
+        covers.set(productIds[i]!, url);
+      }
+    });
     const configs = new Map(
       productIds.map((id, i) => [id, customizationFromDoc(configSnaps[i]!.exists() ? configSnaps[i]!.data() : undefined)]),
     );
     return {
       items,
       configs,
+      covers,
       blocklist: blockSnap.exists() && Array.isArray(blockSnap.data()['terms']) ? blockSnap.data()['terms'] : [],
     };
   }

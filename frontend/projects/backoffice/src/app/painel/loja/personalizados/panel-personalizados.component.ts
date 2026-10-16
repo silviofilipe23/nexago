@@ -147,6 +147,7 @@ function errorText(error: unknown): string {
             <bo-custom-detail
               [item]="it"
               [config]="configOf(it)"
+              [coverUrl]="covers().get(it.productId) ?? null"
               [blocklist]="blocklist()"
               [busy]="busyId() === it.id"
               (approve)="approve(it)"
@@ -275,6 +276,7 @@ export class PanelPersonalizadosComponent {
   protected readonly loadError = signal('');
   protected readonly items = signal<CustomItem[]>([]);
   private readonly configs = signal<Map<string, CustomizationConfig>>(new Map());
+  protected readonly covers = signal<Map<string, string>>(new Map());
   protected readonly blocklist = signal<string[]>([]);
   protected readonly now = signal(new Date());
 
@@ -336,6 +338,7 @@ export class PanelPersonalizadosComponent {
       const snap = await this.repository.load();
       this.items.set(snap.items);
       this.configs.set(snap.configs);
+      this.covers.set(snap.covers);
       this.blocklist.set(snap.blocklist);
       this.now.set(new Date());
       this.badges.setCustom(tabCounts(snap.items).aprovar);

@@ -96,6 +96,14 @@ describe('PanelProdutosComponent', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
+  it('mostra a capa do produto na miniatura; sem foto fica o placeholder', async () => {
+    const rows = STORE_PRODUCTS.map((p, i) => ({ ...p, imageUrl: i === 0 ? 'https://x/capa.jpg' : null }));
+    const host = await mount({ rows });
+    const thumbs = [...host.querySelectorAll('.cell-product .thumb')];
+    expect(thumbs[0]!.querySelector('img')!.getAttribute('src')).toBe('https://x/capa.jpg');
+    expect(thumbs[1]!.querySelector('img')).toBeNull();
+  });
+
   it('erro na leitura mostra o aviso e o botão de tentar de novo', async () => {
     const host = await mount({ fail: true });
     expect(host.querySelector('.bo-alert')).not.toBeNull();

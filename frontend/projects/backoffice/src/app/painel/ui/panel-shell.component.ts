@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
+import { SquadBadgesService } from '../data/squad-badges.service';
 import { StoreBadgesService } from '../data/store-badges.service';
 import { IconComponent, type PanelIconName } from './icon.component';
 
@@ -81,8 +82,8 @@ const LOJA_GROUP: NavGroup = {
 };
 
 /**
- * NexaSquad (programa de embaixadores). Só "Níveis & regras" tem tela; o resto chega com
- * os contratos — sem badge até lá, para não exibir contagem que não existe.
+ * NexaSquad (programa de embaixadores). Visão geral, Embaixadores e Candidaturas chegam com os
+ * contratos — sem badge até lá, para não exibir contagem que não existe.
  */
 const SQUAD_GROUP: NavGroup = {
   kind: 'group',
@@ -93,7 +94,8 @@ const SQUAD_GROUP: NavGroup = {
     { kind: 'soon', id: 'squad-visao-geral', label: 'Visão geral', icon: 'trend-up' },
     { kind: 'soon', id: 'squad-embaixadores', label: 'Embaixadores', icon: 'users' },
     { kind: 'soon', id: 'squad-candidaturas', label: 'Candidaturas', icon: 'file' },
-    { kind: 'soon', id: 'squad-comissoes', label: 'Comissões', icon: 'cash' },
+    // Badge real: embaixadores com comissão liberada a repassar (SquadBadgesService).
+    { kind: 'link', id: 'squad-comissoes', label: 'Comissões', icon: 'cash', route: '/painel/squad/comissoes' },
     {
       kind: 'link',
       id: 'squad-niveis-regras',
@@ -571,6 +573,7 @@ export class PanelShellComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly badges = inject(StoreBadgesService);
+  private readonly squadBadges = inject(SquadBadgesService);
 
   constructor() {
     // Só com sessão: o shell monta atrás do authGuard, mas a leitura exige admin.
@@ -579,6 +582,7 @@ export class PanelShellComponent {
       void this.badges.loadReturns();
       void this.badges.loadOrders();
       void this.badges.loadCustom();
+      void this.squadBadges.load();
     }
   }
 
@@ -594,6 +598,9 @@ export class PanelShellComponent {
     }
     if (item.id === 'loja-personalizados') {
       return this.badges.customToApprove() || undefined;
+    }
+    if (item.id === 'squad-comissoes') {
+      return this.squadBadges.ambassadorsToPay() || undefined;
     }
     return item.badge;
   }
@@ -639,6 +646,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/squad/niveis-regras')) {
       return 'squad-niveis-regras';
+    }
+    if (path.startsWith('/painel/squad/comissoes')) {
+      return 'squad-comissoes';
     }
     if (path.startsWith('/painel/loja/visao-geral')) {
       return 'loja-visao-geral';

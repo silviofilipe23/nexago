@@ -4,7 +4,7 @@
  */
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import type {DocumentReference, Firestore} from "firebase-admin/firestore";
+import {Timestamp, type DocumentReference, type Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {processTournamentRegistrationAsaasNotification} from "./asaas-tournament-registration-webhook";
 import {cancelRegistrationCommissions, recordCommissionForCharge} from "./squad-commission-lifecycle";
@@ -175,6 +175,39 @@ describe("desconto do seguidor no crédito do organizador", () => {
   it("sem o registro por paymentId, usa o desconto gravado no pendente desta cobrança", async () => {
     const com = await pay(false, 10_00);
     assert.equal(com.store.get("tournamentWallets/t1")!["availableReais"], 92);
+  });
+});
+
+describe("cashback ganho com desconto do seguidor", () => {
+  it("o teto do cashback é sobre a taxa que sobrou depois do desconto", async () => {
+    const fake = new FakeFirestore();
+    const db = fake as unknown as Firestore;
+    fake.seedDoc("users/uidA", {fullName: "Lucas Martins"});
+    fake.seedDoc("appConfig/cashback", {enabled: true});
+    fake.seedDoc("tournaments/t1", {
+      name: "Copa Teste",
+      managerId: "org1",
+      startAt: Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      categories: [{categoryName: "Masculina A", entryFee: 100}],
+    });
+    fake.seedDoc(REG_PATH, {
+      tournamentId: "t1", categoryId: "Masculina A", player1Id: "uidA", participantUids: ["uidA", "uidB"],
+      sharePaidUids: [], paidAmount: 0, isPaid: false,
+    });
+    // Cota de R$ 50 (taxa de 8% = R$ 4,00) com R$ 3,00 de desconto: pagou R$ 47.
+    fake.seedDoc(PENDING_A, {status: "pending", amountType: "share", asaasPaymentId: "pay1", payerUid: "uidA", squadDiscountCents: 3_00});
+    fake.seedDoc("squadChargeDiscounts/pay1", {paymentId: "pay1", cents: 3_00, pct: 6});
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1",
+      {status: "RECEIVED", value: 47, billingType: "PIX", externalReference: "tournamentRegistration:reg1:uidA"},
+      db.doc(PROCESSED) as DocumentReference, deps,
+    );
+
+    // 2% de R$ 47 = R$ 0,94, mas sobrou só R$ 1,00 de taxa (4 − 3): teto de metade = R$ 0,50.
+    assert.equal(fake.store.get("athleteWallets/uidA/lots/pay1")!["earnedCents"], 50);
+    // E o organizador segue recebendo como se a cota fosse cheia: R$ 50 − R$ 4.
+    assert.equal(fake.store.get("tournamentWallets/t1")!["availableReais"], 46);
   });
 });
 

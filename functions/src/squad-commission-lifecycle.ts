@@ -42,12 +42,20 @@ async function payerAlreadyConverted(db: Firestore, payerUid: string, exceptId: 
 
 /**
  * Desconto que o código dá ao seguidor nesta cobrança, em centavos do preço. Sai da taxa da
- * nexaGO: o organizador é creditado sobre o preço cheio (o webhook soma o desconto ao bruto).
- * Com "só na primeira inscrição" ligado, quem já converteu não ganha de novo.
+ * nexaGO: o organizador é creditado sobre o preço cheio (o webhook soma o desconto ao bruto), e
+ * por isso nunca passa da taxa da plataforma desta cobrança (`feeCapCents`; `null` = torneio sem
+ * organizador, receita toda da plataforma). Com "só na primeira inscrição" ligado, quem já
+ * converteu não ganha de novo.
  */
 export async function followerDiscountFor(
   db: Firestore,
-  input: {attribution: ResolvedAttribution; payerUid: string; registrationId: string; priceCents: number},
+  input: {
+    attribution: ResolvedAttribution;
+    payerUid: string;
+    registrationId: string;
+    priceCents: number;
+    feeCapCents?: number | null;
+  },
 ): Promise<{cents: number; pct: number}> {
   const rules = await loadAttributionRules(db);
   const id = squadCommissionId(input.registrationId, input.payerUid);
@@ -58,7 +66,8 @@ export async function followerDiscountFor(
   const pct = ambassador.followerDiscountPct ??
     await tierFollowerDiscountPct(db, ambassador.tier, ambassador.rulesVersion);
   const raw = Math.round((input.priceCents * pct) / 100);
-  const cents = Math.max(0, Math.min(raw, input.priceCents - MIN_CHARGE_CENTS));
+  const feeCap = input.feeCapCents ?? Number.POSITIVE_INFINITY;
+  const cents = Math.max(0, Math.min(raw, input.priceCents - MIN_CHARGE_CENTS, feeCap));
   return {cents, pct: cents > 0 ? pct : 0};
 }
 

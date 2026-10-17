@@ -117,8 +117,8 @@ describe("checkSquadCodeCore", () => {
   it("devolve quem indicou, a origem e o % de desconto que vale para o atleta", async () => {
     const {fake, db} = makeDb();
     assert.deepEqual(
-      await checkSquadCodeCore(db, {payerUid: "atl", athleteUids: ["atl"], code: "joao10", registrationId: "reg1"}, NOW),
-      {ambassadorName: "João Victor", code: "JOAO10", origin: "code", discountPct: 10},
+      await checkSquadCodeCore(db, {payerUid: "atl", athleteUids: ["atl"], code: "joao10", registrationId: "reg1", feePercent: 8}, NOW),
+      {ambassadorName: "João Victor", code: "JOAO10", origin: "code", discountPct: 10, feePercent: 8},
     );
     // Sem código: o link guardado, com o mesmo desconto.
     fake.seedDoc("squadAttributions/atl", {ambassadorId: "rb", code: "RAYSSA", origin: "link", at: NOW});
@@ -133,7 +133,7 @@ describe("checkSquadCodeCore", () => {
     const {db} = makeDb();
     assert.deepEqual(
       await checkSquadCodeCore(db, {payerUid: "atl", athleteUids: [], code: "", registrationId: "reg1"}, NOW),
-      {ambassadorName: null, code: null, origin: null, discountPct: 0},
+      {ambassadorName: null, code: null, origin: null, discountPct: 0, feePercent: null},
     );
   });
 });

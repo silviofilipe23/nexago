@@ -191,6 +191,20 @@ describe("desconto do seguidor", () => {
     assert.deepEqual(await followerDiscountFor(db, {...base, priceCents: 5_00, attribution: alto}), {cents: 0, pct: 0});
   });
 
+  it("nunca passa da taxa da plataforma desta cobrança (a nexaGO não paga do bolso)", async () => {
+    const {db} = makeDb();
+    const alto = {...JOAO, ambassador: {...JOAO.ambassador, followerDiscountPct: 15}};
+    // R$ 150 × 15% = R$ 22,50, mas a taxa (8%) é R$ 12,00: o desconto para em R$ 12,00.
+    assert.deepEqual(
+      await followerDiscountFor(db, {...base, attribution: alto, feeCapCents: 12_00}),
+      {cents: 12_00, pct: 15},
+    );
+    // Taxa zero (organizador sem taxa): nada a bancar, nada de desconto.
+    assert.deepEqual(await followerDiscountFor(db, {...base, attribution: alto, feeCapCents: 0}), {cents: 0, pct: 0});
+    // Sem organizador (`null`): só o mínimo de cobrança limita.
+    assert.equal((await followerDiscountFor(db, {...base, attribution: alto, feeCapCents: null})).cents, 22_50);
+  });
+
   it("registro por paymentId", async () => {
     const {db} = makeDb();
     await recordChargeDiscount(db, {paymentId: "p1", registrationId: "reg1", payerUid: "atl", ambassadorId: "jv", cents: 15_00, pct: 10}, NOW);

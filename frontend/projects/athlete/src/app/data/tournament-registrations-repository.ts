@@ -720,6 +720,8 @@ export interface SquadCodeCheck {
   origin: 'code' | 'link' | 'qr' | null;
   /** % de desconto que vale para este atleta nesta inscrição (0 = sem desconto). */
   discountPct: number;
+  /** % da taxa da plataforma no torneio: teto do desconto. `null` = sem organizador (sem teto). */
+  feePercent: number | null;
 }
 
 export async function checkSquadCode(
@@ -740,6 +742,7 @@ export async function checkSquadCode(
       code: d.code ?? null,
       origin: d.origin ?? null,
       discountPct: typeof d.discountPct === 'number' ? d.discountPct : 0,
+      feePercent: typeof d.feePercent === 'number' ? d.feePercent : null,
     };
   } catch (err) {
     throw mapCallableError(err);

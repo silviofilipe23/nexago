@@ -304,12 +304,14 @@ export class TournamentPaymentComponent {
   protected readonly squadAthleteUids = computed(() => this.registration()?.participantUids ?? []);
   /** % do desconto do seguidor (código aplicado ou link), conferido no servidor pelo campo. */
   protected readonly squadDiscountPct = signal(0);
+  /** % da taxa da plataforma no torneio: o desconto nunca passa dela (a nexaGO banca com a taxa). */
+  protected readonly squadFeePercent = signal<number | null>(null);
   /** Desconto do seguidor: o da cobrança gerada ou a prévia. Sai da taxa da nexaGO. */
   protected readonly squadDiscountReais = computed(() => {
     const live = this.pixResult() ?? this.cardResult();
     if (live) return live.squadDiscountReais;
     if (!this.appChargeOpen()) return 0;
-    return squadDiscountPreviewCents(this.amountDueReais(), this.squadDiscountPct()) / 100;
+    return squadDiscountPreviewCents(this.amountDueReais(), this.squadDiscountPct(), this.squadFeePercent()) / 100;
   });
   /** Preço desta cobrança depois do desconto do seguidor — o cashback incide sobre ele. */
   protected readonly priceAfterSquadReais = computed(

@@ -4,11 +4,12 @@ import { SquadCodeFieldComponent } from './squad-code-field.component';
 
 @Component({
   imports: [SquadCodeFieldComponent],
-  template: `<app-squad-code-field [(code)]="code" [serverError]="serverError()" />`,
+  template: `<app-squad-code-field [(code)]="code" [serverError]="serverError()" [discountReais]="discount()" />`,
 })
 class HostComponent {
   readonly code = signal('');
   readonly serverError = signal<string | null>(null);
+  readonly discount = signal(0);
 }
 
 describe('SquadCodeFieldComponent', () => {
@@ -60,5 +61,15 @@ describe('SquadCodeFieldComponent', () => {
     expect(host.code()).toBe('');
     expect((el.querySelector('input') as HTMLInputElement).value).toBe('JOAO10');
     expect(el.textContent).toContain('Você não pode usar seu próprio código.');
+  });
+
+  it('mostra o desconto em reais (o que vale de fato, com o teto)', async () => {
+    const { el, host } = await mount();
+    host.code.set('JOAO10');
+    host.discount.set(4);
+    await settle();
+    // pt-BR formata "R$ 4,00" com espaço não-quebrável.
+    expect(el.textContent!.replace(/\s/g, ' ')).toContain('R$ 4,00 de desconto');
+    expect(el.textContent).not.toContain('%');
   });
 });

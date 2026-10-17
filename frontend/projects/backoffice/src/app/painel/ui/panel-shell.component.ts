@@ -81,17 +81,14 @@ const LOJA_GROUP: NavGroup = {
   ],
 };
 
-/**
- * NexaSquad (programa de embaixadores). Visão geral ainda não existe — sem badge até lá, para não
- * exibir contagem que não existe.
- */
+/** NexaSquad (programa de embaixadores). Visão geral não tem badge: os números estão na própria tela. */
 const SQUAD_GROUP: NavGroup = {
   kind: 'group',
   id: 'squad',
   label: 'Squad',
   icon: 'squad',
   children: [
-    { kind: 'soon', id: 'squad-visao-geral', label: 'Visão geral', icon: 'trend-up' },
+    { kind: 'link', id: 'squad-visao-geral', label: 'Visão geral', icon: 'trend-up', route: '/painel/squad/visao-geral' },
     // Badge real: contratos ativos (pausado conta; encerrado não).
     { kind: 'link', id: 'squad-embaixadores', label: 'Embaixadores', icon: 'users', route: '/painel/squad/embaixadores' },
     // Badge real: candidaturas na coluna Novas.
@@ -651,6 +648,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/atletas')) {
       return 'atletas';
+    }
+    if (path.startsWith('/painel/squad/visao-geral')) {
+      return 'squad-visao-geral';
     }
     if (path.startsWith('/painel/squad/niveis-regras')) {
       return 'squad-niveis-regras';

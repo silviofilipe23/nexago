@@ -48,7 +48,7 @@ describe('PanelShellComponent', () => {
     expect(host.querySelector('.subnav')).toBeNull();
   });
 
-  it('Squad fica entre Atletas e Financeiro, com Embaixadores, Candidaturas, Comissões e Níveis & regras navegáveis', async () => {
+  it('Squad fica entre Atletas e Financeiro, com os cinco filhos navegáveis', async () => {
     const host = await mount();
     const top = labels(host, '.nav > .nav-item');
     expect(top.indexOf('Squad')).toBe(top.indexOf('Atletas') + 1);
@@ -65,6 +65,7 @@ describe('PanelShellComponent', () => {
     ]);
     const links = [...host.querySelectorAll('.subnav a.nav-item')];
     expect(links.map((e) => e.getAttribute('href'))).toEqual([
+      '/painel/squad/visao-geral',
       '/painel/squad/embaixadores',
       '/painel/squad/candidaturas',
       '/painel/squad/comissoes',

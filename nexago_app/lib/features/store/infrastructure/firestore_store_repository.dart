@@ -240,6 +240,7 @@ StoreProduct? storeProductFromMap(String id, Map<String, dynamic>? data) {
           StorePhoto(
             url: _str(ph['url']),
             colorValueId: _strOrNull(ph['colorValueId']),
+            view: StorePhotoView.from(ph['view']),
           ),
     ],
     description: _str(data['description']),
@@ -255,16 +256,84 @@ StoreProduct? storeProductFromMap(String id, Map<String, dynamic>? data) {
     soldOut: data['soldOut'] == true,
     customizable: data['customizable'] == true,
     customization: data['customizable'] == true && customization != null
-        ? StoreCustomization(
-            fromCents: _count(customization['fromCents']),
-            leadDays: _count(customization['leadDays']),
-            defectOnlyReturns: customization['defectOnlyReturns'] == true,
-          )
+        ? storeCustomizationFromMap(customization)
         : null,
     ratingAvg: _num(data['ratingAvg']),
     ratingCount: _count(data['ratingCount']),
     soldLast30: _count(data['soldLast30']),
     publishedAt: _date(data['publishedAt']),
+  );
+}
+
+Map<String, dynamic> _map(Object? v) =>
+    v is Map ? Map<String, dynamic>.from(v) : const <String, dynamic>{};
+
+final RegExp _hexColor = RegExp(r'^#[0-9a-f]{6}$');
+
+/// `storeShowcase/{id}.customization` (gravado por `publicCustomization`).
+/// Doc anterior às opções = nome e imagem desligados. Fonte que o app não
+/// sabe desenhar fica de fora; sem fonte, sem cor ou sem área, a opção some.
+StoreCustomization storeCustomizationFromMap(Map<String, dynamic> data) {
+  final name = _map(data['name']);
+  final fonts = <StoreCustomFont>[
+    if (name['fonts'] is List)
+      for (final f in name['fonts'] as List) ?StoreCustomFont.from(f),
+  ];
+  final colors = <String>[
+    if (name['colors'] is List)
+      for (final c in name['colors'] as List)
+        if (c is String && _hexColor.hasMatch(c.trim().toLowerCase()))
+          c.trim().toLowerCase(),
+  ];
+  final maxChars = _count(name['maxChars']);
+
+  final image = _map(data['image']);
+  final formats = <String>[
+    if (image['formats'] is List)
+      for (final f in image['formats'] as List)
+        if (f is String && _str(f).isNotEmpty) _str(f).toLowerCase(),
+  ];
+  final areas = [
+    for (final a in _maps(image['areas']))
+      if (_str(a['id']).isNotEmpty &&
+          (_num(a['widthCm']) ?? 0) > 0 &&
+          (_num(a['heightCm']) ?? 0) > 0)
+        StoreCustomArea(
+          id: _str(a['id']),
+          name: _strOrNull(a['name']) ?? _str(a['id']),
+          widthCm: _num(a['widthCm'])!,
+          heightCm: _num(a['heightCm'])!,
+        ),
+  ];
+  final maxSizeMb = _count(image['maxSizeMb']);
+
+  final price = _map(data['price']);
+  return StoreCustomization(
+    fromCents: _count(data['fromCents']),
+    leadDays: _count(data['leadDays']),
+    defectOnlyReturns: data['defectOnlyReturns'] == true,
+    version: _count(data['version']),
+    name: StoreCustomNameOptions(
+      enabled: name['enabled'] == true && fonts.isNotEmpty && colors.isNotEmpty,
+      maxChars: maxChars > 0 ? maxChars : 12,
+      placement: StoreNamePlacement.from(name['placement']),
+      fonts: fonts,
+      colors: colors,
+    ),
+    image: StoreCustomImageOptions(
+      enabled:
+          image['enabled'] == true && formats.isNotEmpty && areas.isNotEmpty,
+      formats: formats,
+      maxSizeMb: maxSizeMb > 0 ? maxSizeMb : 10,
+      minWidthPx: _count(image['minWidthPx']),
+      minHeightPx: _count(image['minHeightPx']),
+      areas: areas,
+    ),
+    price: StoreCustomPrice(
+      nameOnlyCents: _count(price['nameOnlyCents']),
+      imageOnlyCents: _count(price['imageOnlyCents']),
+      bothCents: _count(price['bothCents']),
+    ),
   );
 }
 
@@ -380,7 +449,9 @@ StoreShopper storeShopperFromMap(Map<String, dynamic>? data) {
   );
 }
 
-/// Linhas sem produto, sem SKU ou com quantidade ≤ 0 são descartadas.
+/// Linhas sem produto, sem SKU ou com quantidade ≤ 0 são descartadas. A
+/// linha personalizada leva `lineId` e o mapa `customization` intactos —
+/// reescrever `items` devolve os dois como vieram.
 List<StoreCartItem> storeCartItemsFromMap(Map<String, dynamic>? data) {
   if (data == null) return const [];
   return [
@@ -392,6 +463,10 @@ List<StoreCartItem> storeCartItemsFromMap(Map<String, dynamic>? data) {
           productId: _str(i['productId']),
           skuId: _str(i['skuId']),
           qty: _count(i['qty']),
+          lineId: _strOrNull(i['lineId']),
+          customization: i['customization'] is Map
+              ? Map<String, Object?>.from(i['customization'] as Map)
+              : null,
         ),
   ];
 }

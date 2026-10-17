@@ -148,6 +148,7 @@ import '../../features/athlete/presentation/athlete_settings_page.dart';
 import '../../features/athlete/presentation/athlete_referral_page.dart';
 import '../../features/cashback/presentation/cashback_page.dart';
 import '../../features/store/presentation/store_coming_soon_page.dart';
+import '../../features/store/presentation/store_customize_page.dart';
 import '../../features/store/presentation/store_page.dart';
 import '../../features/store/presentation/store_product_page.dart';
 import '../../features/store/presentation/store_search_page.dart';
@@ -1066,6 +1067,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => StoreProductPage(
           productId: state.pathParameters['productId'] ?? '',
           origin: state.uri.queryParameters['origem'],
+        ),
+      ),
+      // Personalizar (app 02b/02c): `?sku=` é o SKU escolhido na página do
+      // produto. Sem SKU (ou SKU que sumiu), a aba "Cor e tam." pede a
+      // escolha antes de adicionar.
+      GoRoute(
+        path: AppRoutes.storeCustomize,
+        name: AppRouteNames.storeCustomize,
+        builder: (context, state) => StoreCustomizePage(
+          productId: state.pathParameters['productId'] ?? '',
+          skuId: state.uri.queryParameters['sku'],
         ),
       ),
       // Carrinho ainda não existe: tela de "chega na próxima etapa".

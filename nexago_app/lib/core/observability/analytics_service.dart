@@ -177,11 +177,14 @@ class AnalyticsService {
         parameters: storeEventParams(sku: sku),
       );
 
-  /// [priceCents] = preço unitário do SKU, em centavos.
+  /// [priceCents] = preço unitário do SKU (com o adicional, na linha
+  /// personalizada), em centavos. [customized] só vai na personalização
+  /// (`personalizado: 1`).
   Future<void> logStoreAddToCart({
     required String sku,
     required int qty,
     required int priceCents,
+    bool? customized,
   }) =>
       _analytics.logEvent(
         name: AnalyticsEvents.storeAddToCart,
@@ -189,6 +192,7 @@ class AnalyticsService {
           sku: sku,
           qty: qty,
           priceCents: priceCents,
+          customized: customized,
         ),
       );
 
@@ -199,8 +203,31 @@ class AnalyticsService {
         parameters: storeEventParams(type: type),
       );
 
-  Future<void> logStoreCustomizeOpen() =>
-      _analytics.logEvent(name: AnalyticsEvents.storeCustomizeOpen);
+  // --- Loja · Personalizar (app 02b/02c) ---
+
+  /// Ao abrir a tela de personalização (`canal: app`).
+  Future<void> logStoreCustomizeOpen({required String productId}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeCustomizeOpen,
+        parameters: storeEventParams(productId: productId, channel: 'app'),
+      );
+
+  /// O atleta saiu do campo com um nome; [font] = id da fonte.
+  Future<void> logStoreCustomizeName({required String font}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeCustomizeName,
+        parameters: storeEventParams(font: font),
+      );
+
+  /// Imagem enviada; [area] = id da área, [quality] = `good`/`warn`.
+  Future<void> logStoreCustomizeImage({
+    required String area,
+    required String quality,
+  }) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeCustomizeImage,
+        parameters: storeEventParams(area: area, quality: quality),
+      );
 
   Future<void> logStoreRelatedClick({required String productId}) =>
       _analytics.logEvent(

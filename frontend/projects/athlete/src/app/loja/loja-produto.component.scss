@@ -1,73 +1,9 @@
 @use 'loja-header';
+@use 'loja-controls';
 
 // Página do produto — desenho "02 · Produto" (portal web).
 :host {
   display: block;
-}
-
-// ── Cabeçalho: breadcrumb + nome no lugar do título da vitrine ────
-.lp-heading {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.lp-crumbs {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--nx-font-ui);
-  font-size: 12.5px;
-  color: var(--nx-text-dim);
-
-  a {
-    color: inherit;
-    text-decoration: none;
-
-    &:hover {
-      color: var(--nx-text);
-    }
-
-    &:last-child {
-      color: var(--nx-text-mute);
-    }
-  }
-}
-
-.lp-title {
-  margin: 0;
-  overflow: hidden;
-  font-family: var(--nx-font-display);
-  font-size: 21px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: var(--nx-text);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-
-  @media (max-width: 640px) {
-    font-size: 18px;
-  }
-}
-
-.lj-cart-btn.lp-pulse {
-  animation: lp-pulse 0.6s var(--nx-ease-out);
-}
-
-@keyframes lp-pulse {
-  0% {
-    transform: scale(1);
-  }
-  35% {
-    transform: scale(1.08);
-    box-shadow: 0 0 0 6px rgba(255, 106, 26, 0.22);
-  }
-  100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(255, 106, 26, 0);
-  }
 }
 
 // ── Corpo ─────────────────────────────────────────────────────
@@ -239,14 +175,6 @@
   color: var(--nx-text-dim);
 }
 
-.lp-divider {
-  width: 100%;
-  height: 1px;
-  margin: 4px 0;
-  border: 0;
-  background: var(--nx-line);
-}
-
 // ── Eixos ─────────────────────────────────────────────────────
 .lp-axis {
   display: flex;
@@ -259,150 +187,6 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-}
-
-.lp-eyebrow {
-  font-family: var(--nx-font-mono);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--nx-text-mute);
-}
-
-.lp-swatches {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.lp-swatch {
-  position: relative;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 50%;
-  background: var(--lp-swatch);
-  cursor: pointer;
-  transition: box-shadow var(--nx-d-fast) var(--nx-ease-out);
-
-  &--on {
-    box-shadow:
-      0 0 0 3px var(--nx-bg),
-      0 0 0 5px var(--nx-orange-500);
-  }
-
-  // Cor sem saldo em nenhum tamanho: risco na diagonal, mas segue clicável (fotos).
-  &--out::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: -3px;
-    right: -3px;
-    height: 2px;
-    background: var(--nx-text-mute);
-    transform: rotate(-45deg);
-    box-shadow: 0 0 0 1px var(--nx-bg);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--nx-orange-500);
-    outline-offset: 6px;
-  }
-}
-
-.lp-sizes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.lp-size {
-  min-width: 66px;
-
-  height: 46px;
-  padding: 0 14px;
-  border: 1px solid var(--nx-line-strong);
-  border-radius: var(--nx-r-3);
-  background: transparent;
-  color: var(--nx-text);
-  font-family: var(--nx-font-display);
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    border-color var(--nx-d-fast) var(--nx-ease-out),
-    background var(--nx-d-fast) var(--nx-ease-out);
-
-  &:hover {
-    border-color: rgba(255, 255, 255, 0.32);
-  }
-
-  &--on {
-    border-color: var(--nx-orange-500);
-    background: var(--nx-orange-tint);
-
-    &:hover {
-      border-color: var(--nx-orange-500);
-    }
-  }
-
-  &--out {
-    color: var(--nx-text-dim);
-    text-decoration: line-through;
-    opacity: 0.55;
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--nx-orange-500);
-    outline-offset: 2px;
-  }
-
-  @media (max-width: 480px) {
-    min-width: 56px;
-    padding: 0 10px;
-  }
-}
-
-.lp-attention {
-  margin: 0;
-  font-family: var(--nx-font-ui);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--nx-orange-500);
-}
-
-.lp-shake .lp-sizes,
-.lp-shake .lp-swatches {
-  animation: lp-shake 0.42s var(--nx-ease-out);
-}
-
-@keyframes lp-shake {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  20% {
-    transform: translateX(-6px);
-  }
-  40% {
-    transform: translateX(6px);
-  }
-  60% {
-    transform: translateX(-4px);
-  }
-  80% {
-    transform: translateX(3px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lp-shake .lp-sizes,
-  .lp-shake .lp-swatches,
-  .lj-cart-btn.lp-pulse {
-    animation: none;
-  }
 }
 
 .lp-low {
@@ -491,105 +275,6 @@
 
   @media (max-width: 420px) {
     flex-wrap: wrap;
-  }
-}
-
-.lp-qty {
-  flex: none;
-  display: flex;
-  align-items: center;
-  height: 54px;
-  border: 1px solid var(--nx-line);
-  border-radius: var(--nx-r-3);
-  background: var(--nx-surface-0);
-}
-
-.lp-qty-btn {
-  width: 42px;
-  height: 100%;
-  display: grid;
-  place-items: center;
-  border: 0;
-  background: transparent;
-  color: var(--nx-text);
-  cursor: pointer;
-
-  &:disabled {
-    color: var(--nx-text-dim);
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--nx-orange-500);
-    outline-offset: -4px;
-    border-radius: 10px;
-  }
-}
-
-.lp-qty-value {
-  min-width: 28px;
-  text-align: center;
-  font-family: var(--nx-font-display);
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--nx-text);
-}
-
-.lp-add,
-.lp-notify {
-  flex: 1;
-  min-width: 0;
-  height: 54px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: var(--nx-r-3);
-  font-family: var(--nx-font-display);
-  font-size: 15.5px;
-  font-weight: 800;
-  cursor: pointer;
-  transition: background var(--nx-d-fast) var(--nx-ease-out);
-
-  &:focus-visible {
-    outline: 2px solid var(--nx-orange-500);
-    outline-offset: 2px;
-  }
-}
-
-.lp-add {
-  background: var(--nx-orange-500);
-  color: var(--nx-text-on-orange);
-  box-shadow: var(--nx-glow-orange);
-  white-space: nowrap;
-
-  &:hover {
-    background: var(--nx-orange-400);
-  }
-
-  &[aria-busy='true'] {
-    opacity: 0.75;
-    cursor: progress;
-  }
-
-  // Celular: "Adicionar" basta — o texto inteiro quebrava em duas linhas.
-  @media (max-width: 480px) {
-    .lp-add-long {
-      display: none;
-    }
-  }
-
-  &--done {
-    background: var(--nx-win);
-    color: #052e16;
-    box-shadow: none;
-
-    &:hover {
-      background: var(--nx-win);
-    }
   }
 }
 
@@ -979,64 +664,6 @@
   color: var(--nx-text);
 }
 
-// ── Estados ───────────────────────────────────────────────────
-.lp-state {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
-  max-width: 560px;
-
-  h2 {
-    margin: 0;
-    font-family: var(--nx-font-display);
-    font-size: 24px;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    color: var(--nx-text);
-  }
-
-  p {
-    margin: 0;
-    font-family: var(--nx-font-ui);
-    font-size: 14px;
-    line-height: 1.5;
-    color: var(--nx-text-mute);
-  }
-}
-
-.lp-kicker {
-  font-family: var(--nx-font-mono);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--nx-orange-500);
-}
-
-.lp-state-btn {
-  margin-top: 6px;
-  display: inline-flex;
-  align-items: center;
-  height: 42px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 12px;
-  background: var(--nx-orange-500);
-  color: var(--nx-text-on-orange);
-  font-family: var(--nx-font-display);
-  font-size: 13.5px;
-  font-weight: 700;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.lp-state-detail {
-  font-family: var(--nx-font-mono);
-  font-size: 11px;
-  color: var(--nx-text-dim);
-}
-
 .lp-fallback-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -1079,13 +706,4 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
-}
-
-.lp-visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
 }

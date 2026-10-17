@@ -11,6 +11,9 @@ export type ProductBadge = "nova" | "mais-vendida" | "edicao-limitada";
 /** Teto por produto: a troca completa de variações toca ~400 operações, e o limite é 500. */
 export const MAX_SKUS_PER_PRODUCT = 100;
 
+/** Teto de unidades de um SKU por compra (página do produto, personalização, carrinho). */
+export const MAX_QTY_PER_ITEM = 10;
+
 /** Quantos dias o selo "nova" aparece depois da publicação. */
 const NEW_BADGE_DAYS = 30;
 

@@ -258,6 +258,9 @@ class _StorePageState extends ConsumerState<StorePage> {
           shape: const RoundedRectangleBorder(borderRadius: AppRadii.mdAll),
           backgroundColor: AppColors.black.withValues(alpha: 0.88),
           duration: const Duration(seconds: 4),
+          // Com ação o SnackBar fica até ser fechado (`persist` padrão) e
+          // ignora o `duration` — seguia até por cima da tela seguinte.
+          persist: false,
         ),
       );
   }

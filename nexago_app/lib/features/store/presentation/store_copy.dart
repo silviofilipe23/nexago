@@ -95,7 +95,6 @@ abstract final class StoreCopy {
   static const soldOutBadge = 'Esgotado';
   static const customizeTitle = 'Personalize';
   static const customizeButton = 'Personalizar';
-  static const customizeSoon = 'A personalização chega em breve';
   static const receiveTitle = 'COMO RECEBER';
   static const receiveSheetTitle = 'Como receber';
   static const receiveFree = 'Grátis';
@@ -160,6 +159,105 @@ abstract final class StoreCopy {
       'Adicionado · seu carrinho ficou com $max, o máximo desse item.';
 
   static String ratingCount(int count) => '($count)';
+
+  // Personalizar (app 02b nome / 02c imagem)
+  static const customizePageTitle = 'Personalizar';
+  static const customizeTabName = 'Nome';
+  static const customizeTabImage = 'Imagem';
+  static const customizeTabVariant = 'Cor e tam.';
+  static const customizeFront = 'Frente';
+  static const customizeBack = 'Costas';
+  static const customizeSkip = 'Pular';
+  static const customizeWith = 'Com personalização';
+  static const customizeWithout = 'Sem personalização';
+  static const customizeAdd = 'Adicionar';
+  static const customizeNameHint = 'Digite o nome';
+  static const customizeNameInvalidChar = 'Só letras, números e espaço';
+  static const customizeNameBlocked = 'Esse nome não pode ser usado';
+  static const customizeNameDisabled =
+      'Esse produto não aceita nome no momento';
+  static const customizeNameTooLong = 'Nome maior que o permitido';
+  static const customizeFont = 'FONTE';
+  static const customizeNameColor = 'COR DO NOME';
+  static const customizePosition = 'POSIÇÃO';
+  static const customizeSendImage = 'Enviar imagem';
+  static const customizeSourcePhotos = 'Fotos';
+  static const customizeSourceFiles = 'Arquivos';
+  static const customizeSourceCamera = 'Câmera';
+  static const customizeRemoveImage = 'Remover imagem';
+  static const customizeChange = 'Trocar';
+  static const customizePreparing = 'Conferindo a imagem…';
+  static const customizeUploadFailed = 'Não deu pra enviar a imagem';
+  static const customizeVector = 'Boa qualidade · vetor';
+  static const customizeReviewNotice =
+      'A equipe NexaGO revisa a arte antes de produzir. Logos de marcas e '
+      'fotos de terceiros podem ser recusados.';
+  static const customizeDragHint = 'Arraste e use dois dedos pra ajustar';
+  static const customizeYourImage = 'SUA IMAGEM';
+  static const customizeYourName = 'SEU NOME';
+  static const customizePickError = 'Não deu pra abrir a imagem. Tente outra.';
+  static const customizeDiscardTitle = 'Descartar personalização?';
+  static const customizeDiscardBody =
+      'O nome e a imagem que você escolheu não ficam salvos.';
+  static const customizeDiscard = 'Descartar';
+  static const customizeKeepEditing = 'Continuar editando';
+  static const customizeUnavailableTitle =
+      'Esse produto não está mais personalizável';
+  static const customizeUnavailableHint =
+      'Dá pra comprar sem personalizar na página do produto.';
+  static const customizeBackToProduct = 'Ver o produto';
+
+  /// "7 de 12 · letras, números e espaço".
+  static String customizeNameCounter(int count, int max) =>
+      '$count de $max · letras, números e espaço';
+
+  /// "+ R$ 14,90 sozinho" (nome) / "+ R$ 19,90 sozinha" (imagem).
+  static String customizeAlone(int cents, {bool feminine = false}) =>
+      '+ ${price(cents)} ${feminine ? 'sozinha' : 'sozinho'}';
+
+  /// "PNG, JPG ou SVG · até 10 MB · mín. 1000 × 1000 px".
+  static String customizeImageRules(
+    String formats,
+    int maxSizeMb,
+    int minWidthPx,
+    int minHeightPx,
+  ) =>
+      [
+        formats,
+        'até $maxSizeMb MB',
+        if (minWidthPx > 0 || minHeightPx > 0)
+          'mín. $minWidthPx × $minHeightPx px',
+      ].join(' · ');
+
+  static String customizeUploading(double progress) =>
+      'Enviando… ${(progress * 100).clamp(0, 100).round()}%';
+
+  static String customizeQualityGood(int width, int height) =>
+      'Boa qualidade · $width × $height px';
+
+  static String customizeQualityWarn(String areaName) =>
+      'Pode ficar levemente borrada no tamanho $areaName';
+
+  /// 9 → "9"; 7.5 → "7,5".
+  static String centimeters(double cm) => cm == cm.roundToDouble()
+      ? cm.round().toString()
+      : cm.toStringAsFixed(1).replaceAll('.', ',');
+
+  /// "9 × 9 cm".
+  static String customizeAreaSize(double widthCm, double heightCm) =>
+      '${centimeters(widthCm)} × ${centimeters(heightCm)} cm';
+
+  static String customizeMockup({required bool back}) =>
+      'MOCKUP · ${back ? 'COSTAS' : 'FRENTE'}';
+
+  /// "5 dias úteis".
+  static String businessDays(int days) =>
+      '$days ${days == 1 ? 'dia útil' : 'dias úteis'}';
+
+  static const customizeLeadPrefix = 'Feito sob demanda: fica pronto ';
+  static const customizeLeadSuffix = ' depois que a arte é aprovada.';
+  static const customizeDefectOnly =
+      ' Personalizados só têm troca em caso de defeito.';
 
   // Próxima etapa
   static const comingSoonTitle = 'Esta parte da Loja chega na próxima etapa';

@@ -224,19 +224,30 @@ class _StoreProductPageState extends ConsumerState<StoreProductPage> {
     showAppSnackBar(context, StoreCopy.waitlistSoon);
   }
 
-  void _customize() {
-    _analytics.logStoreCustomizeOpen();
-    showAppSnackBar(context, StoreCopy.customizeSoon);
-  }
-
-  // ── Carrinho ──────────────────────────────────────────────────────────
-
-  Future<void> _add(
+  /// "Personalizar" exige o SKU completo (sem tamanho: o mesmo tremor do
+  /// "Adicionar"). Volta `true` = a linha personalizada entrou no carrinho.
+  Future<void> _customize(
     StoreProduct product,
     Map<String, String> selected,
-    int qty,
   ) async {
-    if (_adding) return;
+    final variant = _chosenVariant(product, selected);
+    if (variant == null) return;
+    final added = await context.pushNamed<bool>(
+      AppRouteNames.storeCustomize,
+      pathParameters: {'productId': product.id},
+      queryParameters: {'sku': variant.id},
+    );
+    if (added != true || !mounted) return;
+    setState(() => _bagPulse++);
+    _showAddedSnackBar();
+  }
+
+  /// SKU da escolha, pronto para comprar. Eixo faltando treme (e rola até
+  /// ele); combinação sem SKU ou que acabou avisa. `null` = não seguir.
+  StoreVariant? _chosenVariant(
+    StoreProduct product,
+    Map<String, String> selected,
+  ) {
     final missing = storeMissingAxis(product, selected);
     if (missing != null) {
       setState(() {
@@ -251,18 +262,31 @@ class _StoreProductPageState extends ConsumerState<StoreProductPage> {
           duration: const Duration(milliseconds: 280),
         );
       }
-      return;
+      return null;
     }
     final variant = storeVariantFor(product, selected);
     if (variant == null) {
       showAppSnackBar(context, StoreCopy.comboUnavailable);
-      return;
+      return null;
     }
     // O listener já trouxe o saldo novo: o SKU acabou depois da escolha.
     if (!variant.inStock) {
       showAppSnackBar(context, storeSoldOutMessage(product, variant));
-      return;
+      return null;
     }
+    return variant;
+  }
+
+  // ── Carrinho ──────────────────────────────────────────────────────────
+
+  Future<void> _add(
+    StoreProduct product,
+    Map<String, String> selected,
+    int qty,
+  ) async {
+    if (_adding) return;
+    final variant = _chosenVariant(product, selected);
+    if (variant == null) return;
     final cap = variant.maxQty.clamp(1, kStoreMaxQtyPerItem);
     final cart =
         ref.read(storeCartProvider).valueOrNull ?? const <StoreCartItem>[];
@@ -337,6 +361,9 @@ class _StoreProductPageState extends ConsumerState<StoreProductPage> {
           shape: const RoundedRectangleBorder(borderRadius: AppRadii.mdAll),
           backgroundColor: AppColors.black.withValues(alpha: 0.88),
           duration: const Duration(seconds: 4),
+          // Com ação o SnackBar fica até ser fechado (`persist` padrão) e
+          // ignora o `duration` — seguia até por cima da tela seguinte.
+          persist: false,
         ),
       );
   }
@@ -757,7 +784,9 @@ class _StoreProductPageState extends ConsumerState<StoreProductPage> {
             const SizedBox(height: 24),
             StoreCustomizeBlock(
               customization: customization,
-              onCustomize: _customize,
+              onCustomize: customization.hasOptions
+                  ? () => _customize(product, selected)
+                  : null,
             ),
           ],
           if (receive != null) ...[

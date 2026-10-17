@@ -4,6 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { persistRedirectIntent } from '../auth/redirect-intent';
 import { formatCentsBRL } from '../data/cashback-model';
+import { hasCustomOptions } from '../data/store-customize-model';
 import {
   axisValueAvailable,
   chooseAxisMessage,
@@ -20,7 +21,6 @@ import {
   selectedVariant,
   selectionPrice,
   soldOutMessage,
-  variantLabel,
 } from '../data/store-product-model';
 import {
   cardBadge,
@@ -39,7 +39,7 @@ import {
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxToastService } from '../shared/feedback';
 import { NxSkeletonComponent } from '../shared/loading/nx-skeleton.component';
-import { LojaMiniCartComponent, type MiniCartLine } from './loja-mini-cart.component';
+import { LojaMiniCartComponent, buildMiniCartLines, type MiniCartLine } from './loja-mini-cart.component';
 import { LojaProdutoGalleryComponent } from './loja-produto-gallery.component';
 import { LojaProductCardComponent } from './loja-product-card.component';
 import { trackLojaEvent } from './loja-telemetry';
@@ -243,24 +243,9 @@ export class LojaProdutoComponent {
   });
 
   // ── Mini-carrinho ───────────────────────────────────────────────
-  protected readonly miniCartLines = computed<MiniCartLine[]>(() => {
-    const byId = new Map(this.store.products().map((p) => [p.id, p]));
-    return this.store.cart().flatMap((item) => {
-      const p = byId.get(item.productId);
-      const v = p?.variants.find((x) => x.id === item.skuId);
-      if (!p || !v) return [];
-      return [
-        {
-          key: `${item.productId}/${item.skuId}`,
-          name: p.name,
-          detail: variantLabel(p, v),
-          coverUrl: p.coverUrl,
-          qty: item.qty,
-          totalCents: v.priceCents * item.qty,
-        },
-      ];
-    });
-  });
+  protected readonly miniCartLines = computed<MiniCartLine[]>(() =>
+    buildMiniCartLines(this.store.cart(), this.store.products()),
+  );
   protected readonly miniCartSubtotal = computed(() => this.miniCartLines().reduce((t, l) => t + l.totalCents, 0));
 
   private timers: ReturnType<typeof setTimeout>[] = [];
@@ -424,9 +409,15 @@ export class LojaProdutoComponent {
     this.toast.info('Aviso de reposição chega em breve', 'Por enquanto, volte aqui: a peça aparece assim que entrar.');
   }
 
+  /** Abre a 02b com a cor e o tamanho já escolhidos (`?cor=preto&tam=m`, por id do eixo). */
   protected personalize(): void {
-    trackLojaEvent('loja_personalizar_open', { produto_id: this.product()?.id ?? null });
-    this.toast.info('A personalização chega em breve', 'Por enquanto, dá pra comprar a peça sem personalizar.');
+    const p = this.product();
+    if (!p) return;
+    if (!hasCustomOptions(p.customization)) {
+      this.toast.info('A personalização chega em breve', 'Por enquanto, dá pra comprar a peça sem personalizar.');
+      return;
+    }
+    void this.router.navigate(['/loja/p', p.slug || p.id, 'personalizar'], { queryParams: this.selected() });
   }
 
   protected toggleFavorite(): void {

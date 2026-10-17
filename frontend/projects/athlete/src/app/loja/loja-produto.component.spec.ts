@@ -122,6 +122,7 @@ describe('LojaProdutoComponent', () => {
         provideZonelessChangeDetection(),
         provideRouter([
           { path: 'loja/p/:slug', component: LojaProdutoComponent },
+          { path: 'loja/p/:slug/personalizar', children: [] },
           { path: 'loja/produto/:id', component: LojaProdutoComponent },
           { path: 'loja', children: [] },
           { path: 'entrar', children: [] },
@@ -281,6 +282,28 @@ describe('LojaProdutoComponent', () => {
       'Produto oculos',
       'Produto garrafa',
     ]);
+  });
+
+  it('Personalizar abre a 02b com a cor e o tamanho escolhidos', async () => {
+    const custom = {
+      fromCents: 1490,
+      leadDays: 5,
+      name: { enabled: true, maxChars: 12, placement: 'costas_superior', fonts: ['bloco'], colors: ['#ffffff'] },
+    };
+    const harness = await render('/loja/p/camiseta-dry-uv50-areia');
+    const el = load(harness, [camiseta({ customizable: true, customization: custom })]);
+    button(el, 'P').click();
+    harness.detectChanges();
+    button(el, 'Personalizar').click();
+    await harness.fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/loja/p/camiseta-dry-uv50-areia/personalizar?cor=branco&tam=p');
+  });
+
+  it('Personalizar sem opção no espelho (doc antigo) só avisa', async () => {
+    const harness = await render('/loja/p/camiseta-dry-uv50-areia');
+    const el = load(harness, [camiseta({ customizable: true, customization: { fromCents: 1490, leadDays: 5 } })]);
+    button(el, 'Personalizar').click();
+    expect(toasts).toContain('A personalização chega em breve');
   });
 
   it('produto fora do catálogo: indisponível + mais vendidos', async () => {

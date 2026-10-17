@@ -447,6 +447,70 @@ void main() {
     expect(repo.added, isEmpty);
   });
 
+  testWidgets('Personalizar sem tamanho treme e pede o tamanho', (
+    tester,
+  ) async {
+    final custom = StoreProduct(
+      id: 'camiseta-custom',
+      name: 'Camiseta Personalizável',
+      category: 'vestuario',
+      priceCents: 12990,
+      minPriceCents: 12990,
+      maxPriceCents: 12990,
+      customizable: true,
+      customization: const StoreCustomization(
+        fromCents: 1490,
+        leadDays: 5,
+        name: StoreCustomNameOptions(
+          enabled: true,
+          fonts: [StoreCustomFont.bloco],
+          colors: ['#ffffff'],
+        ),
+      ),
+      axes: _camiseta.axes,
+      variants: _camiseta.variants,
+    );
+    final repo = _FakeStoreRepository(
+      catalog: StoreCatalog(products: [custom, _bola]),
+      config: _config,
+    );
+    await _open(tester, repo, 'camiseta-custom');
+
+    await tester.tap(find.byKey(const ValueKey('store-customize-open')));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Escolha um tamanho'), findsOneWidget);
+    expect(repo.added, isEmpty);
+  });
+
+  testWidgets('personalização sem opções (espelho antigo) esconde o botão', (
+    tester,
+  ) async {
+    final legacy = StoreProduct(
+      id: 'camiseta-legacy',
+      name: 'Camiseta Antiga',
+      category: 'vestuario',
+      priceCents: 12990,
+      minPriceCents: 12990,
+      maxPriceCents: 12990,
+      customizable: true,
+      customization: const StoreCustomization(fromCents: 1490, leadDays: 5),
+      axes: _camiseta.axes,
+      variants: _camiseta.variants,
+    );
+    await _open(
+      tester,
+      _FakeStoreRepository(
+        catalog: StoreCatalog(products: [legacy, _bola]),
+        config: _config,
+      ),
+      'camiseta-legacy',
+    );
+
+    expect(find.text(StoreCopy.customizeTitle), findsOneWidget);
+    expect(find.byKey(const ValueKey('store-customize-open')), findsNothing);
+  });
+
   testWidgets('catálogo do cache: "Sem conexão" e o CTA desabilitado', (
     tester,
   ) async {

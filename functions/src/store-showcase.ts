@@ -9,9 +9,9 @@
  * o que a vitrine mostra, e é recalculado pelos gatilhos de `store-showcase-sync.ts` a cada
  * escrita da fonte. Aqui ficam as regras, sem banco, para teste direto.
  */
-import {badgeIsVisible, type Axis, type ProductBadge} from "./store-catalog";
+import {MAX_QTY_PER_ITEM, badgeIsVisible, type Axis, type ProductBadge} from "./store-catalog";
 import {withDiscountDefaults} from "./store-coupons";
-import {withCustomizationDefaults} from "./store-custom";
+import {publicCustomization, type PublicCustomization} from "./store-custom-cart";
 import {withShippingDefaults} from "./store-pickup";
 import {withReturnsDefaults} from "./store-returns";
 
@@ -39,8 +39,8 @@ export const STORE_COLLECTIONS: ReadonlyArray<{id: string; label: string}> = [
 /** Sem ponto de retirada ativo não há prazo a prometer; com eles, vale o mais lento. */
 const DEFAULT_PICKUP_READY_HOURS = 48;
 
-/** Teto de unidades de um SKU por compra (página do produto). Acima disso o saldo não é exposto. */
-export const MAX_QTY_PER_ITEM = 10;
+/** Teto de unidades por compra — acima disso o saldo não é exposto. */
+export {MAX_QTY_PER_ITEM};
 
 /** Mesmo teto do backoffice (`MAX_PHOTOS_PER_PRODUCT`). */
 const MAX_SHOWCASE_PHOTOS = 10;
@@ -68,6 +68,8 @@ export interface ShowcasePhoto {
   url: string;
   /** Valor do primeiro eixo (cor) a que a foto pertence; `null` = vale para todas. */
   colorValueId: string | null;
+  /** Lado da peça (prévia da personalização); `null` = foto livre. */
+  view: "frente" | "costas" | null;
 }
 
 /** "Tecido · Poliamida dry com elastano". */
@@ -76,15 +78,11 @@ export interface ShowcaseDetail {
   value: string;
 }
 
-/** O pedaço público da personalização (o resto — fontes, áreas, gráfica — é do backoffice). */
-export interface ShowcaseCustomization {
-  /** Menor preço entre as opções ligadas: "+ personalização a partir de R$ 14,90". 0 = nenhuma. */
-  fromCents: number;
-  /** Dias úteis de produção — somam ao prazo de retirada/entrega. */
-  leadDays: number;
-  /** Peça personalizada só troca por defeito. */
-  defectOnlyReturns: boolean;
-}
+/**
+ * O pedaço público da personalização (o resto — gráfica, aprovação manual, lista de bloqueio — é
+ * do backoffice). Montado por `publicCustomization` (store-custom-cart.ts).
+ */
+export type ShowcaseCustomization = PublicCustomization;
 
 export interface ShowcaseProduct {
   name: string;
@@ -146,7 +144,14 @@ const NEW_BADGE_MS = 30 * 86_400_000;
 function photosOf(raw: unknown): ShowcasePhoto[] {
   if (!Array.isArray(raw)) return [];
   return (raw as Data[])
-    .map((p) => ({url: str(p?.["url"]), colorValueId: str(p?.["colorValueId"]) || null}))
+    .map((p) => {
+      const view = str(p?.["view"]);
+      return {
+        url: str(p?.["url"]),
+        colorValueId: str(p?.["colorValueId"]) || null,
+        view: view === "frente" || view === "costas" ? view : null,
+      } as ShowcasePhoto;
+    })
     .filter((p) => p.url !== "")
     .slice(0, MAX_SHOWCASE_PHOTOS);
 }
@@ -158,21 +163,6 @@ function detailsOf(raw: unknown): ShowcaseDetail[] {
     .filter((d) => d.label !== "" && d.value !== "");
 }
 
-/** Preço "a partir de": a opção mais barata entre nome e imagem; costas sozinhas só sem as duas. */
-export function customizationSummary(raw: Data | null): ShowcaseCustomization | null {
-  if (raw?.["active"] !== true) return null;
-  const c = withCustomizationDefaults(raw);
-  const options = [
-    c.name.enabled ? c.price.nameOnlyCents : null,
-    c.image.enabled ? c.price.imageOnlyCents : null,
-  ].filter((n): n is number => n !== null && n > 0);
-  if (options.length === 0 && c.back.enabled && c.price.backCents > 0) options.push(c.price.backCents);
-  return {
-    fromCents: options.length > 0 ? Math.min(...options) : 0,
-    leadDays: count(c.production.leadDays),
-    defectOnlyReturns: c.defectOnlyReturns === true,
-  };
-}
 
 /**
  * Produto da fonte → espelho da vitrine. `null` = não está à venda e o espelho deve sumir:
@@ -243,7 +233,7 @@ export function buildShowcaseProduct(
     variants,
     soldOut: !variants.some((v) => v.inStock),
     customizable: customization?.["active"] === true,
-    customization: customizationSummary(customization),
+    customization: publicCustomization(customization),
     ratingAvg: typeof rating === "number" && Number.isFinite(rating) ? rating : null,
     ratingCount: count(product["ratingCount"]),
     soldLast30: count(product["soldLast30"]),

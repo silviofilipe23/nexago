@@ -247,14 +247,17 @@ int storeMaxQuantity(StoreProduct p, Map<String, String> selected) {
   return v.maxQty.clamp(1, kStoreMaxQtyPerItem);
 }
 
-/// Unidades do SKU que já estão no carrinho.
+/// Unidades do SKU na linha COMUM do carrinho (a que o "Adicionar" soma);
+/// linhas personalizadas do mesmo SKU não contam.
 int storeCartQtyOf(
   List<StoreCartItem> items, {
   required String productId,
   required String skuId,
 }) {
   for (final i in items) {
-    if (i.productId == productId && i.skuId == skuId) return i.qty;
+    if (!i.isCustom && i.productId == productId && i.skuId == skuId) {
+      return i.qty;
+    }
   }
   return 0;
 }

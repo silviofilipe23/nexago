@@ -71,9 +71,27 @@ class StoreVariant {
   final bool lowStock;
 }
 
+/// Lado da peça que a foto mostra (`photos[].view`) — a prévia da
+/// personalização usa a foto do lado escolhido.
+enum StorePhotoView {
+  front('frente'),
+  back('costas');
+
+  const StorePhotoView(this.id);
+
+  final String id;
+
+  static StorePhotoView? from(Object? raw) {
+    for (final view in values) {
+      if (view.id == raw) return view;
+    }
+    return null;
+  }
+}
+
 /// Foto da galeria, na ordem do backoffice (a primeira é a capa).
 class StorePhoto {
-  const StorePhoto({required this.url, this.colorValueId});
+  const StorePhoto({required this.url, this.colorValueId, this.view});
 
   final String url;
 
@@ -81,17 +99,21 @@ class StorePhoto {
   /// todas.
   final String? colorValueId;
 
+  /// Frente/costas da peça; `null` = não marcado no backoffice.
+  final StorePhotoView? view;
+
   @override
   bool operator ==(Object other) =>
       other is StorePhoto &&
       other.url == url &&
-      other.colorValueId == colorValueId;
+      other.colorValueId == colorValueId &&
+      other.view == view;
 
   @override
-  int get hashCode => Object.hash(url, colorValueId);
+  int get hashCode => Object.hash(url, colorValueId, view);
 
   @override
-  String toString() => 'StorePhoto($url, $colorValueId)';
+  String toString() => 'StorePhoto($url, $colorValueId, ${view?.id})';
 }
 
 /// "Tecido · Poliamida dry com elastano" (detalhes técnicos do backoffice).
@@ -102,12 +124,133 @@ class StoreDetail {
   final String value;
 }
 
-/// O pedaço público da personalização (só com ela ativa).
+/// Fonte do nome — os mesmos três cards do backoffice.
+enum StoreCustomFont {
+  bloco('bloco', 'Bloco'),
+  classica('classica', 'Clássica'),
+  mono('mono', 'Mono');
+
+  const StoreCustomFont(this.id, this.label);
+
+  final String id;
+  final String label;
+
+  static StoreCustomFont? from(Object? raw) {
+    for (final font in values) {
+      if (font.id == raw) return font;
+    }
+    return null;
+  }
+}
+
+/// Onde o nome vai na peça.
+enum StoreNamePlacement {
+  backUpper('costas_superior'),
+  backLower('costas_inferior'),
+  front('frente'),
+  sleeve('manga');
+
+  const StoreNamePlacement(this.id);
+
+  final String id;
+
+  /// Desconhecido cai no padrão do backoffice (costas, em cima).
+  static StoreNamePlacement from(Object? raw) {
+    for (final placement in values) {
+      if (placement.id == raw) return placement;
+    }
+    return backUpper;
+  }
+}
+
+/// `customization.name` do espelho.
+class StoreCustomNameOptions {
+  const StoreCustomNameOptions({
+    this.enabled = false,
+    this.maxChars = 12,
+    this.placement = StoreNamePlacement.backUpper,
+    this.fonts = const [],
+    this.colors = const [],
+  });
+
+  static const StoreCustomNameOptions disabled = StoreCustomNameOptions();
+
+  final bool enabled;
+  final int maxChars;
+  final StoreNamePlacement placement;
+
+  /// Só as ligadas, na ordem do backoffice (a 1ª é o padrão).
+  final List<StoreCustomFont> fonts;
+
+  /// `#rrggbb` em minúsculas.
+  final List<String> colors;
+}
+
+/// Área de impressão da imagem ("Peito esquerdo · 9 × 9 cm").
+class StoreCustomArea {
+  const StoreCustomArea({
+    required this.id,
+    required this.name,
+    required this.widthCm,
+    required this.heightCm,
+  });
+
+  final String id;
+  final String name;
+  final double widthCm;
+  final double heightCm;
+}
+
+/// `customization.image` do espelho.
+class StoreCustomImageOptions {
+  const StoreCustomImageOptions({
+    this.enabled = false,
+    this.formats = const [],
+    this.maxSizeMb = 10,
+    this.minWidthPx = 0,
+    this.minHeightPx = 0,
+    this.areas = const [],
+  });
+
+  static const StoreCustomImageOptions disabled = StoreCustomImageOptions();
+
+  final bool enabled;
+
+  /// `png`, `jpg`, `svg`.
+  final List<String> formats;
+  final int maxSizeMb;
+  final int minWidthPx;
+  final int minHeightPx;
+
+  /// Só as ligadas (a 1ª é o padrão).
+  final List<StoreCustomArea> areas;
+}
+
+/// Adicional da personalização: nome e imagem juntos têm preço próprio.
+class StoreCustomPrice {
+  const StoreCustomPrice({
+    this.nameOnlyCents = 0,
+    this.imageOnlyCents = 0,
+    this.bothCents = 0,
+  });
+
+  final int nameOnlyCents;
+  final int imageOnlyCents;
+  final int bothCents;
+}
+
+/// O pedaço público da personalização (só com ela ativa). Doc gravado antes
+/// das opções (só `fromCents`/`leadDays`/`defectOnlyReturns`) vem com nome e
+/// imagem desligados.
 class StoreCustomization {
   const StoreCustomization({
     this.fromCents = 0,
     this.leadDays = 0,
     this.defectOnlyReturns = false,
+    this.version = 0,
+    this.name = StoreCustomNameOptions.disabled,
+    this.image = StoreCustomImageOptions.disabled,
+    this.price = const StoreCustomPrice(),
   });
 
   /// "+ personalização a partir de R$ X"; 0 = nenhuma opção com preço.
@@ -118,6 +261,15 @@ class StoreCustomization {
 
   /// Peça personalizada só troca por defeito.
   final bool defectOnlyReturns;
+
+  /// ms do `updatedAt` da config (o carrinho guarda com qual foi feito).
+  final int version;
+  final StoreCustomNameOptions name;
+  final StoreCustomImageOptions image;
+  final StoreCustomPrice price;
+
+  /// Alguma opção que o atleta consegue usar nesta tela.
+  bool get hasOptions => name.enabled || image.enabled;
 }
 
 class StoreProduct {
@@ -363,35 +515,59 @@ class StoreShopper {
 
 /// Linha de `storeCarts/{uid}.items`. Só intenção: o checkout relê preço e
 /// saldo no servidor.
+///
+/// A linha personalizada só nasce no servidor (`addStoreCustomItemToCart`),
+/// com [lineId] e [customization]. Quem reescreve `items` no cliente leva os
+/// dois de volta intactos ([toMap]) — senão a personalização some do
+/// carrinho.
 class StoreCartItem {
   const StoreCartItem({
     required this.productId,
     required this.skuId,
     required this.qty,
+    this.lineId,
+    this.customization,
   });
 
   final String productId;
   final String skuId;
   final int qty;
 
+  /// Id da linha personalizada; `null` na linha comum.
+  final String? lineId;
+
+  /// O mapa `customization` como veio do Firestore (Timestamps inclusive);
+  /// `null` na linha comum.
+  final Map<String, Object?>? customization;
+
+  /// Linha personalizada: nunca soma com outra.
+  bool get isCustom => customization != null;
+
   Map<String, Object> toMap() => {
+        if (lineId != null) 'lineId': lineId!,
         'productId': productId,
         'skuId': skuId,
         'qty': qty,
+        if (customization != null) 'customization': customization!,
       };
 
+  /// A personalização não entra na comparação: [lineId] já identifica a
+  /// linha personalizada.
   @override
   bool operator ==(Object other) =>
       other is StoreCartItem &&
       other.productId == productId &&
       other.skuId == skuId &&
-      other.qty == qty;
+      other.qty == qty &&
+      other.lineId == lineId &&
+      other.isCustom == isCustom;
 
   @override
-  int get hashCode => Object.hash(productId, skuId, qty);
+  int get hashCode => Object.hash(productId, skuId, qty, lineId, isCustom);
 
   @override
-  String toString() => 'StoreCartItem($productId, $skuId, $qty)';
+  String toString() => 'StoreCartItem($productId, $skuId, $qty'
+      '${lineId != null ? ', $lineId' : ''}${isCustom ? ', custom' : ''})';
 }
 
 /// Teto da rule de `storeShoppers.recentSearches`.

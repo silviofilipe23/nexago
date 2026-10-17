@@ -7,7 +7,6 @@ import {
   buildShowcaseConfig,
   buildShowcaseDelivery,
   buildShowcaseProduct,
-  customizationSummary,
   pixPriceCents,
   STORE_CATEGORIES,
 } from "./store-showcase";
@@ -119,8 +118,8 @@ describe("buildShowcaseProduct", () => {
       ],
     }), [sku("m", 1)], null, NOW)!;
     assert.deepEqual(out.photos, [
-      {url: "https://cdn/branco.jpg", colorValueId: "branco"},
-      {url: "https://cdn/geral.jpg", colorValueId: null},
+      {url: "https://cdn/branco.jpg", colorValueId: "branco", view: "frente"},
+      {url: "https://cdn/geral.jpg", colorValueId: null, view: null},
     ]);
     assert.equal(out.coverUrl, "https://cdn/branco.jpg");
     assert.ok(!JSON.stringify(out.photos).includes("path"), "caminho do Storage não vai para a vitrine");
@@ -133,23 +132,6 @@ describe("buildShowcaseProduct", () => {
     }), [sku("m", 1)], null, NOW)!;
     assert.equal(out.description, "Camiseta leve.");
     assert.deepEqual(out.details, [{label: "Tecido", value: "Poliamida"}]);
-  });
-});
-
-describe("customizationSummary", () => {
-  it("desligada não vai; ligada leva o preço mais barato, o prazo e a regra de troca", () => {
-    assert.equal(customizationSummary(null), null);
-    assert.equal(customizationSummary({active: false}), null);
-    assert.deepEqual(customizationSummary({active: true}), {fromCents: 1490, leadDays: 5, defectOnlyReturns: true});
-    assert.deepEqual(
-      customizationSummary({active: true, name: {enabled: false}, price: {imageOnlyCents: 2290}, production: {leadDays: 7}}),
-      {fromCents: 2290, leadDays: 7, defectOnlyReturns: true},
-    );
-  });
-
-  it("só costas: o preço das costas", () => {
-    const out = customizationSummary({active: true, name: {enabled: false}, image: {enabled: false}, back: {enabled: true}});
-    assert.equal(out?.fromCents, 990);
   });
 });
 

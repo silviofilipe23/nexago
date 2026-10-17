@@ -182,7 +182,8 @@ export interface CartMerge {
 }
 
 /**
- * Soma na linha do mesmo SKU sem passar do `maxQty` dele, ou abre linha nova.
+ * Soma na linha do mesmo SKU sem passar do `maxQty` dele, ou abre linha nova. Linha personalizada
+ * nunca recebe a soma (é outra peça) e volta intacta na lista.
  * `null` = carrinho cheio (30 linhas distintas, o teto da rule).
  */
 export function mergeCartItem(
@@ -190,7 +191,7 @@ export function mergeCartItem(
   item: { productId: string; skuId: string; qty: number; maxQty: number },
 ): CartMerge | null {
   const cap = Math.max(1, Math.min(item.maxQty, MAX_QTY_PER_ITEM));
-  const index = items.findIndex((i) => i.productId === item.productId && i.skuId === item.skuId);
+  const index = items.findIndex((i) => !i.customization && i.productId === item.productId && i.skuId === item.skuId);
   if (index >= 0) {
     const current = items[index]!.qty;
     const next = Math.max(current, Math.min(current + item.qty, cap));

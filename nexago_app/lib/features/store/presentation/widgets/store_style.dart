@@ -35,29 +35,38 @@ abstract final class StoreStyle {
 /// Fundo listrado (diagonais de 9px a cada 18px) — o "sem foto" do desenho,
 /// sem texto de placeholder.
 class StoreStripedBox extends StatelessWidget {
-  const StoreStripedBox({super.key, this.color = StoreStyle.placeholderBase});
+  const StoreStripedBox({
+    super.key,
+    this.color = StoreStyle.placeholderBase,
+    this.stripeColor = const Color(0x08FFFFFF),
+  });
 
   final Color color;
+
+  /// Listra por cima do fundo (escura num fundo claro, como a peça Areia da
+  /// prévia da personalização).
+  final Color stripeColor;
 
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      painter: _StripesPainter(color),
+      painter: _StripesPainter(color, stripeColor),
       child: const SizedBox.expand(),
     );
   }
 }
 
 class _StripesPainter extends CustomPainter {
-  const _StripesPainter(this.base);
+  const _StripesPainter(this.base, this.stripeColor);
 
   final Color base;
+  final Color stripeColor;
 
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(Offset.zero & size, Paint()..color = base);
     final stripe = Paint()
-      ..color = const Color(0x08FFFFFF)
+      ..color = stripeColor
       ..strokeWidth = 9;
     // 18px medidos na perpendicular da listra (45°) viram 18·√2 na horizontal.
     final step = 18 * math.sqrt2;
@@ -71,5 +80,6 @@ class _StripesPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_StripesPainter oldDelegate) => oldDelegate.base != base;
+  bool shouldRepaint(_StripesPainter oldDelegate) =>
+      oldDelegate.base != base || oldDelegate.stripeColor != stripeColor;
 }

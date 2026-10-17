@@ -1,0 +1,402 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  <header class="lj-header">
+    <div class="lp-heading">
+      <nav class="lp-crumbs" aria-label="Você está em">
+        <a routerLink="/loja">Loja</a>
+        @if (product(); as p) {
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+          <a routerLink="/loja" [queryParams]="{ categoria: p.category }">{{ categoryName(p.category) }}</a>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+          <span class="lz-crumb-here" aria-current="page">Personalizar</span>
+        }
+      </nav>
+      <h1 class="lp-title">{{ product()?.name ?? 'Personalizar' }}</h1>
+    </div>
+
+    <form class="lj-search" role="search" (submit)="search($event, searchInput.value)">
+      <svg class="lj-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+      <input #searchInput type="search" class="lj-search-input" placeholder="Buscar bola, viseira, rede…" aria-label="Buscar na loja" autocomplete="off" enterkeyhint="search" />
+    </form>
+
+    <div class="lj-header-actions">
+      <a class="lj-icon-btn" routerLink="/loja/favoritos" aria-label="Favoritos">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z" /></svg>
+      </a>
+      <a class="lj-cart-btn" routerLink="/loja/carrinho" [class.lp-pulse]="cartPulse()" [attr.aria-label]="store.cartUnits() > 0 ? 'Carrinho, ' + store.cartUnits() + ' itens' : 'Carrinho'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h8.7a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2" /><circle cx="9.5" cy="20" r="1.2" /><circle cx="17.5" cy="20" r="1.2" /></svg>
+        <span>Carrinho</span>
+        @if (store.cartUnits() > 0) {
+          <span class="lj-cart-count">{{ store.cartUnits() }}</span>
+        }
+      </a>
+    </div>
+  </header>
+
+  <div class="lz-body">
+    @if (store.error(); as err) {
+      <section class="lp-state" role="alert">
+        <h2>Não deu pra carregar o produto</h2>
+        <p>Confira a conexão e tente de novo.</p>
+        <button type="button" class="lp-state-btn" (click)="store.retry()">Tentar de novo</button>
+        <small class="lp-state-detail">{{ err }}</small>
+      </section>
+    } @else if (store.loading()) {
+      <p class="lp-visually-hidden" role="status">Carregando a personalização…</p>
+      <div class="lz-grid" aria-hidden="true">
+        <app-nx-skeleton class="lz-skeleton-preview" h="100%" [r]="24" />
+        <div class="lz-skeleton-steps">
+          <app-nx-skeleton [w]="180" [h]="22" [r]="999" />
+          <app-nx-skeleton w="85%" [h]="40" [r]="10" />
+          <app-nx-skeleton [w]="200" [h]="34" [r]="10" />
+          <app-nx-skeleton w="100%" [h]="80" [r]="14" />
+          <app-nx-skeleton w="100%" [h]="200" [r]="14" />
+          <app-nx-skeleton w="100%" [h]="54" [r]="14" />
+        </div>
+      </div>
+    } @else if (product(); as p) {
+      @if (custom(); as c) {
+        <section class="lz-grid">
+          <!-- ── Prévia ────────────────────────────────────── -->
+          <div class="lz-preview">
+            <div class="lz-stage">
+              <app-loja-custom-preview
+                class="lz-stage-main"
+                [side]="side()"
+                [photoUrl]="photoFor(side())"
+                [garmentHex]="garmentHex()"
+                [name]="previewName()"
+                [area]="previewArea()"
+                [image]="previewImage()"
+                [interactive]="side() === 'frente' && !!previewImage()"
+                (transformChanged)="transform.set($event)"
+              />
+              <div class="lz-sides" role="radiogroup" aria-label="Lado da peça">
+                <button type="button" role="radio" class="lz-side" [class.lz-side--on]="side() === 'frente'" [attr.aria-checked]="side() === 'frente'" (click)="side.set('frente')">Frente</button>
+                <button type="button" role="radio" class="lz-side" [class.lz-side--on]="side() === 'costas'" [attr.aria-checked]="side() === 'costas'" (click)="side.set('costas')">Costas</button>
+              </div>
+              <span class="lz-live">Prévia ao vivo</span>
+            </div>
+            <div class="lz-thumbs">
+              <button type="button" class="lz-thumb" [class.lz-thumb--on]="side() === 'frente'" aria-label="Ver a frente" (click)="side.set('frente')">
+                <app-loja-custom-preview [side]="'frente'" [photoUrl]="photoFor('frente')" [garmentHex]="garmentHex()" [name]="previewName()" [area]="previewArea()" [image]="previewImage()" [compact]="true" />
+              </button>
+              <button type="button" class="lz-thumb" [class.lz-thumb--on]="side() === 'costas'" aria-label="Ver as costas" (click)="side.set('costas')">
+                <app-loja-custom-preview [side]="'costas'" [photoUrl]="photoFor('costas')" [garmentHex]="garmentHex()" [name]="previewName()" [area]="previewArea()" [image]="previewImage()" [compact]="true" />
+              </button>
+            </div>
+            @if (previewImage() && side() === 'frente') {
+              <p class="lz-preview-hint">Arraste a imagem para posicionar · puxe a bolinha para o tamanho</p>
+            }
+          </div>
+
+          <!-- ── Passos ───────────────────────────────────── -->
+          <div class="lz-steps">
+            <div class="lz-head">
+              <div class="lz-tags">
+                <span class="lz-tag lz-tag--orange">Personalizável</span>
+                <span class="lz-tag">{{ optionsTag() }}</span>
+              </div>
+              <h2 class="lz-name"><a [routerLink]="['/loja/p', p.slug || p.id]">{{ p.name }}</a></h2>
+              <div class="lz-price-row">
+                <span class="lz-price">{{ money(unitCents()) }}</span>
+                @if (breakdown(); as b) {
+                  <span class="lz-breakdown">{{ b }}</span>
+                }
+              </div>
+              @if (pixLabel(); as pix) {
+                <div class="lz-pix"><strong>{{ pix }}</strong> no Pix</div>
+              }
+            </div>
+
+            <!-- 1 · Cor e tamanho -->
+            <section class="lz-step" aria-labelledby="lz-step-1">
+              <div class="lz-step-head">
+                <span class="lz-step-n" aria-hidden="true">1</span>
+                <h3 class="lz-step-title" id="lz-step-1">{{ p.axes.length > 0 ? 'Cor e tamanho' : 'Quantidade' }}</h3>
+              </div>
+              @if (p.axes.length > 0) {
+                <div class="lz-axes">
+                  @for (axis of p.axes; track axis.id; let i = $index) {
+                    <div class="lz-axis" [class.lp-shake]="shaking() === axis.id">
+                      @if (isColor(axis)) {
+                        <div class="lp-swatches" role="radiogroup" [attr.aria-label]="axis.label">
+                          @for (v of axis.values; track v.id) {
+                            <button
+                              type="button"
+                              role="radio"
+                              class="lp-swatch"
+                              [class.lp-swatch--on]="selected()[axis.id] === v.id"
+                              [class.lp-swatch--out]="!available(i, v.id)"
+                              [style.--lp-swatch]="v.hex ?? '#3f3f46'"
+                              [attr.aria-checked]="selected()[axis.id] === v.id"
+                              [attr.aria-label]="available(i, v.id) ? v.label : v.label + ', esgotada'"
+                              [title]="v.label"
+                              (click)="pick(axis, i, v.id)"
+                            ></button>
+                          }
+                        </div>
+                      } @else {
+                        <div class="lp-sizes" role="radiogroup" [attr.aria-label]="axis.label">
+                          @for (v of axis.values; track v.id) {
+                            <button
+                              type="button"
+                              role="radio"
+                              class="lp-size"
+                              [class.lp-size--on]="selected()[axis.id] === v.id"
+                              [class.lp-size--out]="!available(i, v.id)"
+                              [attr.aria-checked]="selected()[axis.id] === v.id"
+                              [attr.aria-label]="available(i, v.id) ? v.label : v.label + ', esgotado'"
+                              [disabled]="!available(i, v.id)"
+                              (click)="pick(axis, i, v.id)"
+                            >
+                              {{ v.label }}
+                            </button>
+                          }
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+                @if (attentionMessage(); as msg) {
+                  <p class="lp-attention" role="alert">{{ msg }}</p>
+                }
+              }
+            </section>
+
+            <!-- 2 · Nome -->
+            @if (c.name.enabled) {
+              <hr class="lp-divider" />
+              <section class="lz-step" aria-labelledby="lz-step-2">
+                <div class="lz-step-head">
+                  <span class="lz-step-n" aria-hidden="true">2</span>
+                  <h3 class="lz-step-title" id="lz-step-2">{{ nameTitle() }}</h3>
+                  <span class="lz-step-price">{{ nameSolo() }}</span>
+                  @if (nameOn()) {
+                    <button type="button" class="lz-skip" (click)="setNameOn(false)">Não quero</button>
+                  }
+                </div>
+                @if (nameOn()) {
+                  <div class="lz-field" [class.lz-field--shake]="nameShake()">
+                    <label class="lp-eyebrow" for="lz-name-input">Nome</label>
+                    <input
+                      #nameInput
+                      id="lz-name-input"
+                      class="lz-input"
+                      [class.lz-input--bad]="nameProblem() === 'blocked'"
+                      type="text"
+                      autocomplete="off"
+                      autocapitalize="characters"
+                      spellcheck="false"
+                      placeholder="SEU NOME"
+                      [value]="nameText()"
+                      [attr.maxlength]="c.name.maxChars"
+                      [attr.aria-invalid]="nameProblem() === 'blocked'"
+                      aria-describedby="lz-name-hint"
+                      (input)="onNameInput(nameInput)"
+                      (blur)="onNameBlur(nameInput)"
+                    />
+                    <span
+                      id="lz-name-hint"
+                      class="lz-hint"
+                      [class.lz-hint--warn]="nameHintWarn()"
+                      [class.lz-hint--bad]="nameRejected() || nameProblem() === 'blocked'"
+                      aria-live="polite"
+                    >{{ nameHintText() }}</span>
+                  </div>
+                  <div class="lz-name-opts">
+                    @if (c.name.fonts.length > 1) {
+                      <div class="lz-opt">
+                        <span class="lp-eyebrow" id="lz-font-label">Fonte</span>
+                        <div class="lz-fonts" role="radiogroup" aria-labelledby="lz-font-label">
+                          @for (f of c.name.fonts; track f) {
+                            <button type="button" role="radio" class="lz-font" [class.lz-font--on]="fontId() === f" [attr.aria-checked]="fontId() === f" [attr.aria-label]="fontName(f)" (click)="chooseFont(f)">
+                              <span class="lz-font-sample" [attr.data-font]="f" aria-hidden="true">ABC</span>
+                              <span class="lz-font-label">{{ fontName(f) }}</span>
+                            </button>
+                          }
+                        </div>
+                      </div>
+                    }
+                    @if (c.name.colors.length > 1) {
+                      <div class="lz-opt">
+                        <span class="lp-eyebrow" id="lz-color-label">Cor do nome</span>
+                        <div class="lp-swatches lz-name-colors" role="radiogroup" aria-labelledby="lz-color-label">
+                          @for (hex of c.name.colors; track hex) {
+                            <button
+                              type="button"
+                              role="radio"
+                              class="lp-swatch"
+                              [class.lp-swatch--on]="nameColor() === hex"
+                              [style.--lp-swatch]="hex"
+                              [attr.aria-checked]="nameColor() === hex"
+                              [attr.aria-label]="'Cor ' + hex"
+                              (click)="chooseNameColor(hex)"
+                            ></button>
+                          }
+                        </div>
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <button type="button" class="lz-collapsed" (click)="setNameOn(true)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                    Adicionar nome
+                  </button>
+                }
+              </section>
+            }
+
+            <!-- 3 · Imagem -->
+            @if (c.image.enabled) {
+              <hr class="lp-divider" />
+              <section class="lz-step" aria-labelledby="lz-step-3">
+                <div class="lz-step-head">
+                  <span class="lz-step-n" aria-hidden="true">{{ c.name.enabled ? 3 : 2 }}</span>
+                  <h3 class="lz-step-title" id="lz-step-3">{{ imageTitle() }}</h3>
+                  <span class="lz-step-price">{{ imageSolo() }}</span>
+                  @if (imageOn()) {
+                    <button type="button" class="lz-skip" (click)="setImageOn(false)">Não quero</button>
+                  }
+                </div>
+                @if (imageOn()) {
+                  <input #fileInput type="file" class="lp-visually-hidden" [accept]="accept()" (change)="onFilePicked(fileInput)" tabindex="-1" aria-hidden="true" />
+                  @if (imageError(); as err) {
+                    <div class="lz-file lz-file--bad" role="alert">
+                      <span class="lz-file-thumb lz-file-thumb--bad" aria-hidden="true">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5M12 16.5h.01" /></svg>
+                      </span>
+                      <span class="lz-file-text">
+                        <strong>{{ err.fileName }}</strong>
+                        <small>{{ err.message }}</small>
+                      </span>
+                      <button type="button" class="lz-link" (click)="fileInput.click()">Escolher outra</button>
+                    </div>
+                  } @else if (upload(); as up) {
+                    <div class="lz-file" [class.lz-file--bad]="up.status === 'error'">
+                      <span class="lz-file-thumb">
+                        <img [src]="up.previewUrl" alt="" />
+                      </span>
+                      <span class="lz-file-text">
+                        <strong [title]="up.fileName">{{ up.fileName }}</strong>
+                        @switch (up.status) {
+                          @case ('uploading') {
+                            <small class="lz-progress-label" aria-live="polite">Enviando… {{ up.pct }}%</small>
+                            <span class="lz-progress" aria-hidden="true"><span [style.width.%]="up.pct"></span></span>
+                          }
+                          @case ('error') {
+                            <small class="lz-q lz-q--bad">Não deu pra enviar a imagem</small>
+                          }
+                          @default {
+                            @if (quality(); as q) {
+                              <small class="lz-q" [class.lz-q--warn]="q.tone === 'warn'">
+                                @if (q.tone === 'good') {
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+                                } @else {
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4 2.5 20h19z" /><path d="M12 10v4.5M12 17.5h.01" /></svg>
+                                }
+                                {{ q.label }}
+                              </small>
+                            }
+                          }
+                        }
+                      </span>
+                      @if (up.status === 'error') {
+                        <button type="button" class="lz-link" (click)="retryUpload()">Tentar de novo</button>
+                      } @else {
+                        <button type="button" class="lz-link" (click)="fileInput.click()">Trocar</button>
+                      }
+                    </div>
+                  } @else {
+                    <button
+                      type="button"
+                      class="lz-drop"
+                      [class.lz-drop--over]="dragOver()"
+                      (click)="fileInput.click()"
+                      (dragover)="onDragOver($event)"
+                      (dragleave)="dragOver.set(false)"
+                      (drop)="onDrop($event)"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></svg>
+                      <span><strong>Enviar imagem</strong> · arraste o arquivo ou clique</span>
+                    </button>
+                  }
+
+                  @if (c.image.areas.length > 0) {
+                    <span class="lp-eyebrow" id="lz-area-label">Posição</span>
+                    <div class="lz-areas" role="radiogroup" aria-labelledby="lz-area-label">
+                      @for (a of c.image.areas; track a.id) {
+                        <button type="button" role="radio" class="lz-area" [class.lz-area--on]="area()?.id === a.id" [attr.aria-checked]="area()?.id === a.id" [attr.aria-label]="a.name + ', ' + areaSize(a)" (click)="chooseArea(a)">
+                          <strong>{{ a.name }}</strong>
+                          <small>{{ areaSize(a) }}</small>
+                        </button>
+                      }
+                    </div>
+                  }
+                  <p class="lz-rules">{{ imageRules() }}</p>
+                } @else {
+                  <button type="button" class="lz-collapsed" (click)="setImageOn(true)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                    Adicionar imagem
+                  </button>
+                }
+              </section>
+            }
+
+            @if (note(); as n) {
+              <p class="lz-note">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
+                <span>{{ n.before }}<b>{{ n.days }}</b>{{ n.after }}</span>
+              </p>
+            }
+
+            <div class="lz-buy">
+              <div class="lp-qty" role="group" aria-label="Quantidade">
+                <button type="button" class="lp-qty-btn" aria-label="Menos uma" [disabled]="qty() <= 1" (click)="stepQty(-1)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+                </button>
+                <output class="lp-qty-value" aria-live="polite">{{ qty() }}</output>
+                <button type="button" class="lp-qty-btn" aria-label="Mais uma" [disabled]="qty() >= maxQty()" (click)="stepQty(1)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                </button>
+              </div>
+              <button type="button" class="lp-add" [class.lp-add--done]="added()" [attr.aria-busy]="adding()" [disabled]="addBlocked() && !adding()" (click)="addToCart()">
+                @if (added()) {
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg>
+                  Adicionado
+                } @else {
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l-1 13H7z" /><path d="M9 7a3 3 0 0 1 6 0" /></svg>
+                  <span>Adicionar<span class="lp-add-long"> ao carrinho</span></span>
+                }
+              </button>
+            </div>
+          </div>
+        </section>
+      } @else {
+        <section class="lp-state">
+          <span class="lp-kicker">Personalizar</span>
+          <h2>Esse produto não está personalizável agora</h2>
+          <p>A personalização foi desligada ou ainda está sendo preparada. Dá pra comprar a peça sem personalizar.</p>
+          <a class="lp-state-btn" [routerLink]="['/loja/p', p.slug || p.id]">Ver o produto</a>
+        </section>
+      }
+    } @else {
+      <section class="lp-state">
+        <span class="lp-kicker">Loja NexaGO</span>
+        <h2>Esse produto não está mais disponível</h2>
+        <p>Ele saiu da vitrine ou o link mudou.</p>
+        <a class="lp-state-btn" routerLink="/loja">Voltar para a vitrine</a>
+      </section>
+    }
+  </div>
+
+  @if (miniCartOpen()) {
+    <app-loja-mini-cart
+      [lines]="miniCartLines()"
+      [subtotalCents]="miniCartSubtotal()"
+      (closed)="miniCartOpen.set(false)"
+      (mouseenter)="holdMiniCart()"
+      (focusin)="holdMiniCart()"
+      (mouseleave)="scheduleMiniCartClose(2000)"
+    />
+  }
+</app-at-panel-shell>

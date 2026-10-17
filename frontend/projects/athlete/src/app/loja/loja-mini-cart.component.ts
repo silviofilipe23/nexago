@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { formatCentsBRL } from '../data/cashback-model';
+import { variantLabel } from '../data/store-product-model';
+import { cartLineExtraCents, type StoreCartItem, type StoreProduct } from '../data/store-showcase-model';
 
 export interface MiniCartLine {
   key: string;
@@ -10,6 +12,30 @@ export interface MiniCartLine {
   coverUrl: string | null;
   qty: number;
   totalCents: number;
+}
+
+/**
+ * Linhas do carrinho com nome, variação e total. Linha personalizada é uma linha à parte (o
+ * `lineId` é a chave) e soma o adicional que o servidor gravou. Produto que saiu da vitrine some.
+ */
+export function buildMiniCartLines(cart: readonly StoreCartItem[], products: readonly StoreProduct[]): MiniCartLine[] {
+  const byId = new Map(products.map((p) => [p.id, p]));
+  return cart.flatMap((item) => {
+    const p = byId.get(item.productId);
+    const v = p?.variants.find((x) => x.id === item.skuId);
+    if (!p || !v) return [];
+    const detail = [variantLabel(p, v), item.customization ? 'Personalizada' : ''].filter(Boolean).join(' · ');
+    return [
+      {
+        key: item.lineId ?? `${item.productId}/${item.skuId}`,
+        name: p.name,
+        detail,
+        coverUrl: p.coverUrl,
+        qty: item.qty,
+        totalCents: (v.priceCents + cartLineExtraCents(item)) * item.qty,
+      },
+    ];
+  });
 }
 
 /** Mini-carrinho que desliza da direita depois de "Adicionar ao carrinho" (web). */

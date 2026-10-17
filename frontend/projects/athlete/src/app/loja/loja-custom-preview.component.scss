@@ -1,0 +1,150 @@
+// Prévia da personalização — quadro do desenho "02b" (620 × 640) com a peça de referência
+// 60 × 70 cm no meio: a escala é a mesma nos dois eixos.
+:host {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  aspect-ratio: 31 / 32;
+  border-radius: var(--nx-r-5);
+  background: #0f1214;
+}
+
+:host(.cp--compact) {
+  aspect-ratio: auto;
+  height: 150px;
+  border-radius: var(--nx-r-4);
+}
+
+.cp-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+// Sem foto: mockup listrado na cor da peça (sem cor, o escuro do desenho).
+.cp-mockbg {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0 9px, transparent 9px 18px);
+}
+
+.cp-mock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 18px;
+  text-align: center;
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: rgba(244, 244, 245, 0.32);
+
+  :host(.cp--compact) & {
+    bottom: 10px;
+    font-size: 9.5px;
+  }
+
+  &--on-light {
+    color: rgba(10, 10, 10, 0.4);
+  }
+}
+
+.cp-garment {
+  position: relative;
+  height: 100%;
+  aspect-ratio: 6 / 7;
+  container-type: inline-size;
+}
+
+.cp-area {
+  position: absolute;
+
+  &--edit {
+    outline: 1.5px dashed rgba(255, 106, 26, 0.7);
+    outline-offset: 2px;
+  }
+}
+
+.cp-art {
+  position: absolute;
+  object-fit: contain;
+  user-select: none;
+
+  .cp-area--edit & {
+    cursor: grab;
+    touch-action: none;
+
+    &:active {
+      cursor: grabbing;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--nx-orange-500);
+      outline-offset: 2px;
+    }
+  }
+}
+
+.cp-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid var(--nx-bg);
+  border-radius: 50%;
+  background: var(--nx-orange-500);
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.cp-art-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 106, 26, 0.18) 0 6px,
+    rgba(255, 106, 26, 0.06) 6px 12px
+  );
+  font-family: var(--nx-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: rgba(244, 244, 245, 0.45);
+  white-space: nowrap;
+}
+
+.cp-name-band {
+  position: absolute;
+  display: grid;
+  place-items: center;
+}
+
+.cp-name {
+  white-space: nowrap;
+  line-height: 1;
+  font-family: var(--nx-font-display);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+
+  &[data-font='classica'] {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-style: italic;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  &[data-font='mono'] {
+    font-family: var(--nx-font-mono);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+  }
+
+  &--empty {
+    opacity: 0.35;
+  }
+}

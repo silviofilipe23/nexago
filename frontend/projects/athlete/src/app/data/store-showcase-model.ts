@@ -30,10 +30,14 @@ export interface StoreVariant {
   lowStock: boolean;
 }
 
+export type StorePhotoView = 'frente' | 'costas';
+
 export interface StorePhoto {
   url: string;
   /** Valor do primeiro eixo (cor) da foto; `null` = vale para todas. */
   colorValueId: string | null;
+  /** Lado da peça na foto (prévia da personalização); `null` = não informado. */
+  view?: StorePhotoView | null;
 }
 
 export interface StoreDetail {
@@ -41,11 +45,44 @@ export interface StoreDetail {
   value: string;
 }
 
+export type StoreNamePlacement = 'costas_superior' | 'costas_inferior' | 'frente' | 'manga';
+
+export interface StoreCustomArea {
+  id: string;
+  name: string;
+  widthCm: number;
+  heightCm: number;
+}
+
+/**
+ * Config pública da personalização (tela 11), contrato em `docs/business-rules/loja-personalizar.md`.
+ * Doc anterior a nome/imagem no espelho: as duas opções chegam desligadas.
+ */
 export interface StoreCustomization {
   /** "+ personalização a partir de"; 0 = nenhuma opção com preço. */
   fromCents: number;
   leadDays: number;
   defectOnlyReturns: boolean;
+  /** Versão da config (ms do `updatedAt`) — vai na linha do carrinho. */
+  version: number;
+  name: {
+    enabled: boolean;
+    maxChars: number;
+    placement: StoreNamePlacement;
+    /** Só as ligadas; a 1ª é o padrão. */
+    fonts: string[];
+    colors: string[];
+  };
+  image: {
+    enabled: boolean;
+    formats: string[];
+    maxSizeMb: number;
+    minWidthPx: number;
+    minHeightPx: number;
+    /** Só as ligadas; a 1ª é o padrão. */
+    areas: StoreCustomArea[];
+  };
+  price: { nameOnlyCents: number; imageOnlyCents: number; bothCents: number };
 }
 
 export interface StoreProduct {
@@ -187,6 +224,59 @@ function labels(v: unknown): StoreLabel[] {
 }
 
 const BADGES: StoreBadge[] = ['mais-vendida', 'nova', 'edicao-limitada'];
+const PLACEMENTS: StoreNamePlacement[] = ['costas_superior', 'costas_inferior', 'frente', 'manga'];
+
+function strings(v: unknown): string[] {
+  return Array.isArray(v) ? v.map(str).filter((x) => x !== '') : [];
+}
+
+function customizationFromRaw(custom: Raw): StoreCustomization {
+  const name = (custom['name'] ?? {}) as Raw;
+  const image = (custom['image'] ?? {}) as Raw;
+  const price = (custom['price'] ?? {}) as Raw;
+  const fonts = strings(name['fonts']);
+  const colors = strings(name['colors']).map((c) => c.toLowerCase());
+  const formats = strings(image['formats']);
+  const areas: StoreCustomArea[] = Array.isArray(image['areas'])
+    ? (image['areas'] as Raw[])
+        .map((a) => ({
+          id: str(a?.['id']),
+          name: str(a?.['name']),
+          widthCm: num(a?.['widthCm']) ?? 0,
+          heightCm: num(a?.['heightCm']) ?? 0,
+        }))
+        .filter((a) => a.id !== '' && a.name !== '' && a.widthCm > 0 && a.heightCm > 0)
+    : [];
+  const placement = PLACEMENTS.includes(name['placement'] as StoreNamePlacement)
+    ? (name['placement'] as StoreNamePlacement)
+    : 'costas_superior';
+  return {
+    fromCents: count(custom['fromCents']),
+    leadDays: count(custom['leadDays']),
+    defectOnlyReturns: custom['defectOnlyReturns'] === true,
+    version: count(custom['version']),
+    name: {
+      enabled: name['enabled'] === true && fonts.length > 0 && colors.length > 0,
+      maxChars: count(name['maxChars']) || 12,
+      placement,
+      fonts,
+      colors,
+    },
+    image: {
+      enabled: image['enabled'] === true && areas.length > 0 && formats.length > 0,
+      formats,
+      maxSizeMb: num(image['maxSizeMb']) ?? 10,
+      minWidthPx: count(image['minWidthPx']),
+      minHeightPx: count(image['minHeightPx']),
+      areas,
+    },
+    price: {
+      nameOnlyCents: count(price['nameOnlyCents']),
+      imageOnlyCents: count(price['imageOnlyCents']),
+      bothCents: count(price['bothCents']),
+    },
+  };
+}
 
 /** Doc → produto. Doc sem nome ou sem preço é descartado em vez de virar card quebrado. */
 export function storeProductFromDoc(id: string, data: Raw | undefined): StoreProduct | null {
@@ -229,7 +319,11 @@ export function storeProductFromDoc(id: string, data: Raw | undefined): StorePro
     : [];
   const photos: StorePhoto[] = Array.isArray(data['photos'])
     ? (data['photos'] as Raw[])
-        .map((p) => ({ url: str(p?.['url']), colorValueId: str(p?.['colorValueId']) || null }))
+        .map((p) => ({
+          url: str(p?.['url']),
+          colorValueId: str(p?.['colorValueId']) || null,
+          view: p?.['view'] === 'frente' || p?.['view'] === 'costas' ? (p['view'] as StorePhotoView) : null,
+        }))
         .filter((p) => p.url !== '')
     : [];
   const details: StoreDetail[] = Array.isArray(data['details'])
@@ -263,13 +357,7 @@ export function storeProductFromDoc(id: string, data: Raw | undefined): StorePro
     soldOut: data['soldOut'] === true,
     customizable: data['customizable'] === true,
     customization:
-      data['customizable'] === true && custom && typeof custom === 'object'
-        ? {
-            fromCents: count(custom['fromCents']),
-            leadDays: count(custom['leadDays']),
-            defectOnlyReturns: custom['defectOnlyReturns'] === true,
-          }
-        : null,
+      data['customizable'] === true && custom && typeof custom === 'object' ? customizationFromRaw(custom) : null,
     ratingAvg: num(data['ratingAvg']),
     ratingCount: count(data['ratingCount']),
     soldLast30: count(data['soldLast30']),
@@ -556,13 +644,33 @@ export interface StoreCartItem {
   productId: string;
   skuId: string;
   qty: number;
+  /** Linha personalizada (gravada pela callable): id próprio, nunca soma com outra. */
+  lineId?: string;
+  /** Mapa da personalização como veio — o cliente só repassa (ver loja-personalizar.md). */
+  customization?: Readonly<Raw>;
 }
 
+/**
+ * Doc → linhas. `lineId` e `customization` vão junto só quando existem: quem reescreve `items`
+ * (adicionar comum) devolve as linhas personalizadas inteiras, e `undefined` derruba o `set`.
+ */
 export function cartItemsFromDoc(data: Raw | undefined): StoreCartItem[] {
   if (!data || !Array.isArray(data['items'])) return [];
   return (data['items'] as Raw[])
-    .map((i) => ({ productId: str(i?.['productId']), skuId: str(i?.['skuId']), qty: count(i?.['qty']) }))
+    .map((i) => {
+      const item: StoreCartItem = { productId: str(i?.['productId']), skuId: str(i?.['skuId']), qty: count(i?.['qty']) };
+      const lineId = str(i?.['lineId']);
+      const custom = i?.['customization'];
+      if (lineId) item.lineId = lineId;
+      if (custom && typeof custom === 'object') item.customization = custom as Raw;
+      return item;
+    })
     .filter((i) => i.productId !== '' && i.skuId !== '' && i.qty > 0);
+}
+
+/** Adicional da personalização por unidade (o servidor calculou ao gravar a linha). */
+export function cartLineExtraCents(item: StoreCartItem): number {
+  return item.customization ? count(item.customization['extraPriceCents']) : 0;
 }
 
 /** O contador do botão Carrinho: soma das unidades, não das linhas. */

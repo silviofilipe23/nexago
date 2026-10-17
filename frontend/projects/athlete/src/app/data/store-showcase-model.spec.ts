@@ -88,12 +88,12 @@ describe('store-showcase-model', () => {
         ],
       })!;
       expect(p.photos).toEqual([
-        { url: 'https://cdn/a.jpg', colorValueId: 'branco' },
-        { url: 'https://cdn/b.jpg', colorValueId: null },
+        { url: 'https://cdn/a.jpg', colorValueId: 'branco', view: null },
+        { url: 'https://cdn/b.jpg', colorValueId: null, view: null },
       ]);
       expect(p.description).toBe('Leve.');
       expect(p.details).toEqual([{ label: 'Tecido', value: 'Dry' }]);
-      expect(p.customization).toEqual({ fromCents: 1490, leadDays: 5, defectOnlyReturns: true });
+      expect(p.customization).toEqual(jasmine.objectContaining({ fromCents: 1490, leadDays: 5, defectOnlyReturns: true }));
       expect(p.variants.map((v) => [v.id, v.maxQty, v.lowStock])).toEqual([
         ['m', 2, true],
         ['g', 0, false],

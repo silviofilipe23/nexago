@@ -98,7 +98,9 @@ Upload pede login.
 
 ### Prévia (ilustrativa)
 - Foto do produto na cor escolhida e no lado (`view`); sem foto do lado, fundo listrado
-  "MOCKUP · FRENTE/COSTAS". Seletor Frente/Costas; editar o nome mostra o lado do nome, editar a
+  "MOCKUP · FRENTE/COSTAS" **na cor da peça** (o `hex` da cor do SKU; sem hex, o escuro #0F1214) —
+  o nome padrão contrasta com a peça, e no mockup escuro um nome escuro sumia. Rótulo do mockup
+  escuro em peça clara. Seletor Frente/Costas; editar o nome mostra o lado do nome, editar a
   imagem mostra a frente.
 - Peça de referência 60 × 70 cm: caixa da área = `widthCm/60` × `heightCm/70` do quadro. Centro das
   áreas conhecidas: `peito_esquerdo` (68%, 30%) — esquerdo de quem veste, direita de quem olha;

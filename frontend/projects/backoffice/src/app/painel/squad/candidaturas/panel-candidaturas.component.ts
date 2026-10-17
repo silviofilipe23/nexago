@@ -220,7 +220,7 @@ function errorText(error: unknown): string {
     .push { margin-left: auto; flex: none; }
     .skel { height: 560px; border-radius: var(--nx-r-4); background: var(--nx-surface-0); border: 1px solid var(--nx-line); }
     .skel.small { height: 240px; }
-    .board { display: grid; grid-template-columns: repeat(4, minmax(260px, 1fr)); gap: 18px; overflow-x: auto; align-items: stretch; }
+    .board { display: grid; grid-template-columns: repeat(4, minmax(300px, 1fr)); gap: 18px; overflow-x: auto; align-items: stretch; }
     .col { display: flex; flex-direction: column; gap: 14px; min-height: 520px; padding: 18px 16px; border-radius: var(--nx-r-4); border: 1px solid var(--nx-line); background: rgba(255, 255, 255, 0.012); transition: border-color 120ms var(--nx-ease-out), background 120ms; }
     .col.drop-ok { border-color: rgba(255, 106, 26, 0.6); background: var(--nx-orange-tint); }
     .col h2 { margin: 0 4px; font-family: var(--nx-font-display); font-weight: 700; font-size: 17px; }

@@ -42,6 +42,9 @@ export const LEADS_LABELS: Record<LeadsGroup, string> = {
   gt30: 'Mais de 30 atletas',
 };
 
+/** Forma curta para o mini-fato do card (cabe em meia coluna). */
+const LEADS_SHORT: Record<LeadsGroup, string> = { no: 'Não lidera', lt10: '< 10 atl.', '10to30': '10–30 atl.', gt30: '> 30 atl.' };
+
 export const SOURCE_LABELS = { portal: 'Portal', app: 'App', manual: 'Convite direto' } as const;
 export type Source = keyof typeof SOURCE_LABELS;
 
@@ -123,7 +126,7 @@ export function applicationFromDoc(id: string, d: Raw): Application {
     submittedAt: dateOf(d['submittedAt']),
     answers: answers
       ? {
-          instagram: str(answers['instagram']) || null,
+          instagram: str(answers['instagram']).trim().replace(/^@+/, '') || null,
           city: str(answers['city']),
           leadsGroup: LEADS.includes(answers['leadsGroup'] as LeadsGroup) ? (answers['leadsGroup'] as LeadsGroup) : null,
           why: str(answers['why']),
@@ -224,7 +227,7 @@ export function cardFacts(app: Application, invite: Invite | null, defaultPct: n
     case 'cap':
       return s.referredCount !== null && s.referredCount > 0
         ? [{ label: 'Indicou', value: `${s.referredCount} atletas` }, tournaments]
-        : [{ label: 'Comunidade', value: app.answers?.leadsGroup ? LEADS_LABELS[app.answers.leadsGroup] : '—' }, tournaments];
+        : [{ label: 'Comunidade', value: app.answers?.leadsGroup ? LEADS_SHORT[app.answers.leadsGroup] : '—' }, tournaments];
     case 'pro':
       return [{ label: 'Ranking', value: s.rankingPosition === null ? '—' : `#${s.rankingPosition}` }, followers];
     case 'amb': {

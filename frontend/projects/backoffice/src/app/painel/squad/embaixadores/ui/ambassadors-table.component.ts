@@ -103,7 +103,7 @@ const STATUS_TONE: Record<string, string> = {
   `,
   styles: `
     :host { display: block; }
-    .table { border-radius: var(--nx-r-4); border: 1px solid var(--nx-line); background: var(--nx-surface-0); overflow-x: auto; }
+    .table { border-radius: var(--nx-r-4); border: 1px solid var(--nx-line); background: var(--nx-surface-0); overflow-x: auto; position: relative; }
     .row { display: grid; grid-template-columns: minmax(220px, 1.6fr) minmax(150px, 1fr) 110px 56px 100px 96px 64px 140px minmax(150px, 1fr) 40px; gap: 12px; align-items: center; min-width: 1180px; min-height: 80px; padding: 0 16px 0 24px; border-top: 1px solid var(--nx-line); font-size: 13.5px; }
     .row:hover { background: rgba(255, 255, 255, 0.025); }
     .row.head { min-height: 54px; border-top: none; font-family: var(--nx-font-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--nx-text-dim); }

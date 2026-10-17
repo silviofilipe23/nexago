@@ -15,6 +15,7 @@ import '../../../core/ui/nexa_async_view.dart';
 import '../../../core/ui/nexa_skeleton.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../../cashback/presentation/widgets/cashback_balance_pill.dart';
+import '../../store/application/store_providers.dart';
 import '../../store/presentation/widgets/store_home_entry.dart';
 import '../../ranking/domain/ranking_providers.dart';
 import '../../tournaments/data/my_tournament_registrations_repository.dart';
@@ -288,7 +289,9 @@ class AthleteHomePage extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.sectionGap),
                       // Atalho da Loja: só com appConfig/store.enabled; traz o
                       // próprio respiro de baixo (desligado não deixa vão).
-                      const StoreHomeEntry(),
+                      StoreHomeEntry(
+                        onTap: () => _goToTab(ref, athleteShellStoreTabIndex),
+                      ),
                       Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.screenH,
@@ -371,10 +374,16 @@ class AthleteHomePage extends ConsumerWidget {
                                   horizontal: AppSpacing.screenH,
                                 ),
                                 child: AthleteHomeCommunitySection(
-                                  onViewAll: () => _goToTab(
-                                    ref,
-                                    athleteShellCommunityTabIndex,
-                                  ),
+                                  // Com a Loja na barra, a Comunidade não é
+                                  // mais aba: abre a página própria.
+                                  onViewAll: () => ref.read(storeEnabledProvider)
+                                      ? context.pushNamed(
+                                          AppRouteNames.community,
+                                        )
+                                      : _goToTab(
+                                          ref,
+                                          athleteShellCommunityTabIndex,
+                                        ),
                                 ),
                               ),
                               const SizedBox(height: AppSpacing.sectionGap),

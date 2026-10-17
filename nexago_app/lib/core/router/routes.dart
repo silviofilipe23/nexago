@@ -208,6 +208,11 @@ abstract final class AppRoutes {
   /// `url` dos pushes `cashback_released` / `cashback_expiring`.
   static const String athleteCashback = '/cashback';
 
+  /// Comunidade como página própria: com a Loja na barra inferior (flag
+  /// `appConfig/store.enabled`), é o destino do "Ver todos" da Home e de
+  /// `/discover?tab=comunidade`.
+  static const String community = '/comunidade';
+
   /// Loja · vitrine (tela 01). Mesmo caminho do portal; deep link
   /// `nexago://loja`. Aceita `?categoria=`, `?colecao=` e `?q=` como o web.
   static const String store = '/loja';
@@ -668,6 +673,7 @@ abstract final class AppRouteNames {
   static const String athleteSettings = 'athleteSettings';
   static const String athleteReferral = 'athleteReferral';
   static const String athleteCashback = 'athleteCashback';
+  static const String community = 'community';
   static const String store = 'store';
   static const String storeSearch = 'storeSearch';
   static const String storeProduct = 'storeProduct';

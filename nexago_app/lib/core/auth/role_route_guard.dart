@@ -23,6 +23,7 @@ bool isAthleteExperiencePath(String path) {
       path == AppRoutes.myBookings ||
       path == AppRoutes.bookingSuccess ||
       path == AppRoutes.athleteCashback ||
+      path == AppRoutes.community ||
       path == AppRoutes.store) {
     return true;
   }

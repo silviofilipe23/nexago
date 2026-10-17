@@ -182,6 +182,7 @@ Future<_RecordingAnalytics> _open(
   WidgetTester tester,
   _FakeStoreRepository repo, {
   String initialQuery = '',
+  ScrollController? tabScrollController,
 }) async {
   // Tela alta: a grade monta preguiçosamente e os cards ficariam fora.
   tester.view.physicalSize = const Size(390, 2400);
@@ -208,6 +209,7 @@ Future<_RecordingAnalytics> _open(
           child: StorePage(
             initialQuery: initialQuery,
             clock: () => DateTime.utc(2026, 10, 16, 15),
+            tabScrollController: tabScrollController,
           ),
         ),
       ),
@@ -228,6 +230,29 @@ _FakeStoreRepository _repo({bool fromCache = false}) => _FakeStoreRepository(
     );
 
 void main() {
+  // Aba da barra inferior do atleta (flag da Loja ligada): sem "voltar", e a
+  // lista no controller da aba — é ele que o toque repetido leva ao topo.
+  testWidgets('como aba: sem voltar e rolando no controller da aba', (
+    tester,
+  ) async {
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    await _open(tester, _repo(), tabScrollController: controller);
+
+    expect(find.byTooltip(StoreCopy.back), findsNothing);
+    expect(find.text(StoreCopy.pageTitle), findsOneWidget);
+    expect(controller.hasClients, isTrue);
+
+    // Fechar a vitrine não descarta o controller (é do shell).
+    await tester.pumpWidget(const SizedBox.shrink());
+    expect(() => controller.addListener(() {}), returnsNormally);
+  });
+
+  testWidgets('como rota empilhada: tem voltar', (tester) async {
+    await _open(tester, _repo());
+    expect(find.byTooltip(StoreCopy.back), findsOneWidget);
+  });
+
   testWidgets('renderiza banner, chips, arena, título e a grade', (
     tester,
   ) async {

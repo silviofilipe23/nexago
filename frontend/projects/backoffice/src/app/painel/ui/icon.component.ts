@@ -40,7 +40,9 @@ export type PanelIconName =
   | 'pin'
   | 'truck'
   | 'printer'
-  | 'more';
+  | 'more'
+  | 'squad'
+  | 'history';
 
 /** Ícones stroke-24 do painel (mesmo conjunto do protótipo BoIc*), um componente para evitar repetir SVG. */
 @Component({
@@ -183,6 +185,13 @@ export type PanelIconName =
         }
         @case ('more') {
           <circle cx="5.5" cy="12" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="18.5" cy="12" r="1.2" />
+        }
+        @case ('squad') {
+          <circle cx="9" cy="8" r="3.5" /><path d="M3 20c0-3.3 2.7-6 6-6 1.6 0 3 .6 4.1 1.6" />
+          <path d="m18 13 1 2 2.2.3-1.6 1.5.4 2.2-2-1.1-2 1.1.4-2.2-1.6-1.5L17 15z" />
+        }
+        @case ('history') {
+          <path d="M3.5 12a8.5 8.5 0 1 0 2.5-6" /><path d="M3.5 4v4h4" /><path d="M12 7.5V12l3 2" />
         }
       }
     </svg>

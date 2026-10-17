@@ -580,6 +580,9 @@ export {
 // Loja: banners de campanha da vitrine. Escrita só por callable; o gatilho publica.
 export {saveStoreCampaigns} from "./store-campaigns";
 
+// NexaSquad: regras do programa de embaixadores, versionadas. Escrita só por callable.
+export {saveSquadRules} from "./squad-rules";
+
 // Loja: personalizados — configuração por produto (tela 11) e fila de arte (tela 10).
 export {
   createStoreCustomBatch,

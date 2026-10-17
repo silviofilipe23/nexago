@@ -263,6 +263,17 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/loja/campanhas/panel-campanhas.component').then((m) => m.PanelCampanhasComponent),
   },
+  { path: 'painel/squad', pathMatch: 'full', redirectTo: 'painel/squad/niveis-regras' },
+  {
+    path: 'painel/squad/niveis-regras',
+    title: 'Níveis & regras — NexaGO Backoffice',
+    canActivate: [authGuard],
+    canDeactivate: [leaveWithConfirm],
+    loadComponent: () =>
+      import('./painel/squad/niveis-regras/panel-niveis-regras.component').then(
+        (m) => m.PanelNiveisRegrasComponent,
+      ),
+  },
   {
     path: 'painel/perfil',
     title: 'Meu perfil — NexaGO Backoffice',

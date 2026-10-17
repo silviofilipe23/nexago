@@ -9,6 +9,8 @@ import {
   createStoreOrderCore,
   expireStorePixCore,
   quoteCheckoutCore,
+  recordLatePixRefundCore,
+  releaseCouponOnCancelCore,
   type CheckoutPayments,
 } from "./store-checkout";
 import {pixDiscountOf, priceCoupon, shippingFor, type QuoteLine} from "./store-checkout-price";
@@ -77,7 +79,7 @@ describe("checkout · preço", () => {
     collection: null, baseCents: 10000, extraCents: 0, unitCents: 10000, totalCents: 10000, personalized: false,
     customizationLabel: null, problem: null, ...over,
   });
-  const coupon = (data: Record<string, unknown>) => ({id: "c1", usedByAthlete: false, data: {
+  const coupon = (data: Record<string, unknown>) => ({id: "c1", athleteUse: null, reserved: 0, data: {
     type: "percent", value: 10, maxDiscountCents: null, scope: {type: "store", ids: []}, minOrderCents: null,
     usageLimit: null, uses: 0, onePerAthlete: false, stacksWithPix: true, appOnly: false, startDate: "2026-10-01",
     endDate: null, paused: false, ...data,
@@ -100,8 +102,13 @@ describe("checkout · preço", () => {
     assert.equal(priceCoupon("c", coupon({minOrderCents: 50000}), lines, "web", null, NOW).message,
       "Cupom vale a partir de R$ 500 em produtos");
     assert.equal(priceCoupon("c", coupon({usageLimit: 3, uses: 3}), lines, "web", null, NOW).problem, "esgotado");
-    const used = {...coupon({onePerAthlete: true}), usedByAthlete: true};
+    // Pedido esperando o Pix segura o uso: 2 pagos + 1 reservado esgotam um limite de 3.
+    assert.equal(priceCoupon("c", {...coupon({usageLimit: 3, uses: 2}), reserved: 1}, lines, "web", null, NOW).problem,
+      "esgotado");
+    const used = {...coupon({onePerAthlete: true}), athleteUse: "usado" as const};
     assert.equal(priceCoupon("c", used, lines, "web", null, NOW).problem, "ja_usado");
+    const held = {...coupon({onePerAthlete: true}), athleteUse: "reservado" as const};
+    assert.equal(priceCoupon("c", held, lines, "web", null, NOW).problem, "reservado");
   });
 
   it("cupom: % sobre os itens do escopo com teto; fixo até o elegível; arena só na retirada dela", () => {
@@ -162,6 +169,42 @@ describe("checkout · cotação e pedido", () => {
     assert.ok(noAddr.problems.includes("endereco_faltando"));
   });
 
+  it("estoque com a conta da reserva: o mesmo SKU soma e o local é um só (arena inteira ou CD)", async () => {
+    const {db, productId, cart} = await setup({stockM: 1});
+    // M: CD 1, arena 2. Duas linhas de M (uma personalizada) somam 2: a arena cobre.
+    cart([{productId, skuId: "m", qty: 1}, {productId, skuId: "m", qty: 1, lineId: "l-outra"}]);
+    const ok = await quoteCheckoutCore(db, "ana", {channel: "web", delivery: ARENA, couponCode: null}, NOW);
+    assert.deepEqual(ok.lines.map((l) => l.problem), [null, null]);
+    // Com P (só no CD) a arena não cobre tudo: vai tudo do CD, e lá M só tem 1 pras 2 linhas.
+    cart([{productId, skuId: "m", qty: 1}, {productId, skuId: "m", qty: 1, lineId: "l-outra"}, {productId, skuId: "p", qty: 1}]);
+    const short = await quoteCheckoutCore(db, "ana", {channel: "web", delivery: ARENA, couponCode: null}, NOW);
+    assert.deepEqual(short.lines.map((l) => l.problem), ["esgotado", "esgotado", null]);
+  });
+
+  it("personalizada adulterada no carrinho (fonte fora da config, arte de outro) sai do pedido", async () => {
+    const {fake, db, productId, cart} = await setup();
+    fake.seedDoc(`storeProductCustomization/${productId}`, {active: true, updatedAt: NOW});
+    const name = {text: "ANA", fontId: "bloco", color: "#ffffff", placement: "costas_superior"};
+    cart([{productId, skuId: "m", qty: 1, lineId: "l1", customization: {configVersion: 1, name}}]);
+    const ok = await quoteCheckoutCore(db, "ana", {channel: "web", delivery: ARENA, couponCode: null}, NOW);
+    assert.equal(ok.lines[0]!.problem, null);
+    cart([{productId, skuId: "m", qty: 1, lineId: "l1", customization: {configVersion: 1, name: {...name, fontId: "comic"}}}]);
+    const font = await quoteCheckoutCore(db, "ana", {channel: "web", delivery: ARENA, couponCode: null}, NOW);
+    assert.equal(font.lines[0]!.problem, "personalizacao_off");
+    fake.seedDoc("storeConfig/blocklist", {terms: ["ANA"]});
+    cart([{productId, skuId: "m", qty: 1, lineId: "l1", customization: {configVersion: 1, name}}]);
+    const blocked = await quoteCheckoutCore(db, "ana", {channel: "web", delivery: ARENA, couponCode: null}, NOW);
+    assert.equal(blocked.lines[0]!.problem, "personalizacao_off");
+  });
+
+  it("cupom fora do formato não derruba a cotação: vira não encontrado", async () => {
+    const {db, productId, cart} = await setup();
+    cart([{productId, skuId: "m", qty: 1}]);
+    const q = await quoteCheckoutCore(db, "ana", {channel: "web", delivery: ARENA, couponCode: "black-friday/2"}, NOW);
+    assert.equal(q.coupon?.problem, "nao_existe");
+    assert.equal(q.totalCents, 12990 - pixDiscountOf(12990, 5));
+  });
+
   it("pedido: cobra o Pix, reserva, guarda a cobrança e limpa o carrinho", async () => {
     const {fake, db, productId, cart} = await setup();
     cart([{productId, skuId: "m", qty: 1}, {productId, skuId: "p", qty: 1, lineId: "l-outra"}]);
@@ -203,7 +246,11 @@ describe("checkout · cotação e pedido", () => {
     };
     await assert.rejects(createStoreOrderCore(db, "ana", {
       channel: "web", delivery: ARENA, couponCode: null, expectedTotalCents: quote.totalCents, cpf: null,
-    }, pay, NOW, () => "ord_pedido_y"), /Sem estoque/);
+    }, pay, NOW, () => "ord_pedido_y"), (e: {message: string; details?: {quote?: {lines: QuoteLine[]}}}) => {
+      assert.match(e.message, /Sem estoque/);
+      assert.equal(e.details?.quote?.lines[0]?.problem, "esgotado", "volta a cotação nova com a linha marcada");
+      return true;
+    });
     assert.deepEqual(pay.canceled, ["pay_1"]);
     assert.equal(fake.store.has("storeOrders/ord_pedido_y"), false);
   });
@@ -246,7 +293,8 @@ describe("checkout · pagamento e Pix vencido", () => {
     assert.equal(o["status"], "sep");
     assert.equal(o["pix"], null);
     assert.equal(fake.store.get("storeCoupons/cp1")!["uses"], 5);
-    assert.ok(fake.store.has("storeCouponUses/cp1_ana"));
+    assert.equal(fake.store.get("storeCouponUses/cp1_ana")!["status"], "usado");
+    assert.equal(fake.store.get("storeCouponUses/cp1")!["reserved"], 0);
     const item = fake.store.get("storeCustomItems/ord_pedido_1-1")!;
     assert.equal(item["name"], "ANA");
     assert.equal(item["status"], "aprovar");
@@ -254,6 +302,29 @@ describe("checkout · pagamento e Pix vencido", () => {
     const again = await confirmStoreOrderPaymentCore(db, "ord_pedido_1", {paymentId: "pay_1", valueCents: quote.totalCents}, NOW);
     assert.equal(again.outcome, "already_paid");
     assert.equal(fake.store.get("storeCoupons/cp1")!["uses"], 5, "não conta duas vezes");
+  });
+
+  it("cupom fica reservado enquanto o Pix não cai: outro pedido do atleta não leva o mesmo cupom", async () => {
+    const {fake, db, cart, productId} = await paidSetup(true);
+    assert.equal(fake.store.get("storeCouponUses/cp1_ana")!["status"], "reservado");
+    assert.equal(fake.store.get("storeCouponUses/cp1")!["reserved"], 1);
+    cart([{productId, skuId: "p", qty: 1}]);
+    const input = {channel: "app_ios" as const, delivery: ARENA, couponCode: "AREIA10"};
+    const q = await quoteCheckoutCore(db, "ana", input, NOW);
+    assert.equal(q.coupon?.problem, "reservado");
+    await assert.rejects(createStoreOrderCore(db, "ana", {...input, expectedTotalCents: q.totalCents, cpf: null},
+      new FakePay(), NOW, () => "ord_pedido_2"), /esperando o Pix/);
+  });
+
+  it("cancelado sem pagar devolve o cupom reservado (uma vez só)", async () => {
+    const {fake, db} = await paidSetup(true);
+    const later = new Date(NOW.getTime() + 31 * 60_000);
+    await expireStorePixCore(db, later, {getPayment: async () => ({status: "PENDING", valueCents: 0}), deleteCharge: async () => {}});
+    assert.equal(await releaseCouponOnCancelCore(db, "ord_pedido_1", later), true);
+    assert.equal(fake.store.has("storeCouponUses/cp1_ana"), false);
+    assert.equal(fake.store.get("storeCouponUses/cp1")!["reserved"], 0);
+    assert.equal(fake.store.get("storeCoupons/cp1")!["uses"], 4, "não pagou, não usou");
+    assert.equal(await releaseCouponOnCancelCore(db, "ord_pedido_1", later), false);
   });
 
   it("valor menor ou cobrança de outro pedido não confirmam", async () => {
@@ -291,12 +362,34 @@ describe("checkout · pagamento e Pix vencido", () => {
     assert.equal(fake.store.get("storeOrders/ord_pedido_1")!["status"], "sep");
   });
 
+  it("Pix vencido pago com valor que não fecha: nunca cancela dinheiro que entrou", async () => {
+    const {fake, db, quote} = await paidSetup();
+    const later = new Date(NOW.getTime() + 31 * 60_000);
+    const r = await expireStorePixCore(db, later, {
+      getPayment: async () => ({status: "RECEIVED", valueCents: quote.totalCents - 100}),
+      deleteCharge: async () => assert.fail("não apaga cobrança paga"),
+    });
+    assert.deepEqual(r.failed, ["ord_pedido_1"]);
+    assert.equal(fake.store.get("storeOrders/ord_pedido_1")!["status"], "pag");
+  });
+
+  it("Pix pago depois do cancelamento: o estorno entra no pedido (uma vez)", async () => {
+    const {fake, db, quote} = await paidSetup();
+    const later = new Date(NOW.getTime() + 31 * 60_000);
+    await expireStorePixCore(db, later, {getPayment: async () => ({status: "PENDING", valueCents: 0}), deleteCharge: async () => {}});
+    await recordLatePixRefundCore(db, "ord_pedido_1", "pay_1", quote.totalCents, later);
+    await recordLatePixRefundCore(db, "ord_pedido_1", "pay_1", quote.totalCents, later);
+    const o = fake.store.get("storeOrders/ord_pedido_1")!;
+    assert.equal(o["refundedCents"], quote.totalCents);
+    assert.equal((o["refunds"] as unknown[]).length, 1);
+  });
+
   it("antes de vencer, a varredura não mexe", async () => {
     const {db} = await paidSetup();
     const r = await expireStorePixCore(db, NOW, {
       getPayment: async () => assert.fail("não consulta"), deleteCharge: async () => assert.fail("não apaga"),
     });
-    assert.deepEqual(r, {confirmed: [], canceled: [], failed: []});
+    assert.deepEqual(r, {confirmed: [], canceled: [], failed: [], customItemIds: []});
   });
 });
 

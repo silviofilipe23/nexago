@@ -6,7 +6,14 @@
  * puro — quem carrega os docs é `store-checkout.ts`. Contrato em `docs/business-rules/loja-checkout.md`.
  */
 import {MAX_QTY_PER_ITEM, variantLabelOf, type Axis} from "./store-catalog";
-import {customExtraCents, publicCustomization} from "./store-custom-cart";
+import {
+  CUSTOM_UPLOAD_PREFIX,
+  customExtraCents,
+  nameProblem,
+  normalizeCustomName,
+  publicCustomization,
+} from "./store-custom-cart";
+import {withCustomizationDefaults} from "./store-custom";
 import {availableAt} from "./store-stock";
 import {MAIN_LOCATION} from "./store-orders";
 import type {AutoDiscount} from "./store-coupons";
@@ -60,11 +67,20 @@ export interface PickupPoint {
 export interface CouponDoc {
   id: string;
   data: Data;
-  /** O atleta já usou (marcador `storeCouponUses/{couponId}_{uid}`). */
-  usedByAthlete: boolean;
+  /**
+   * Marcador `storeCouponUses/{couponId}_{uid}` do cupom "uma vez por atleta": `reservado` num
+   * pedido esperando o Pix, `usado` num pedido pago.
+   */
+  athleteUse: "reservado" | "usado" | null;
+  /** Pedidos esperando o Pix com esse cupom (`storeCouponUses/{couponId}.reserved`). */
+  reserved: number;
 }
 
 export interface CheckoutSnapshot {
+  /** O dono do carrinho: a arte da linha personalizada tem de ser dele. */
+  uid: string;
+  /** Lista de bloqueio dos nomes (a mesma do "Adicionar" personalizado). */
+  blockedTerms: string[];
   cart: CartLine[];
   catalog: Map<string, CatalogProduct>;
   discounts: AutoDiscount[];
@@ -107,7 +123,8 @@ export type CouponProblem =
   | "fora_do_escopo"
   | "minimo"
   | "esgotado"
-  | "ja_usado";
+  | "ja_usado"
+  | "reservado";
 
 export interface QuoteCoupon {
   id: string | null;
@@ -146,6 +163,7 @@ const COUPON_MESSAGES: Record<CouponProblem, string> = {
   minimo: "Falta pouco para o valor mínimo do cupom",
   esgotado: "Esse cupom chegou ao limite de usos",
   ja_usado: "Você já usou esse cupom",
+  reservado: "Esse cupom está num pedido seu esperando o Pix",
 };
 
 export function couponMessage(problem: CouponProblem, minCents?: number | null): string {
@@ -189,11 +207,61 @@ export function pixPercent(discounts: AutoDiscount[]): number | null {
   return pix?.active && pix.percent && pix.percent > 0 ? pix.percent : null;
 }
 
-/** Disponível para a linha: a arena da retirada sozinha ou o CD (a reserva não divide). */
-function availableFor(sku: Data, arenaLocation: string | null): number {
-  const s = sku as {stockByLocation?: Record<string, number>; reservedByLocation?: Record<string, number>};
-  const cd = availableAt(s, MAIN_LOCATION);
-  return arenaLocation ? Math.max(cd, availableAt(s, arenaLocation)) : cd;
+type StockSku = {stockByLocation?: Record<string, number>; reservedByLocation?: Record<string, number>};
+
+/**
+ * A mesma conta da reserva do `createOrderCore`: tudo na arena da retirada quando ela cobre o
+ * pedido inteiro (o mesmo SKU de linhas diferentes soma), senão tudo no CD. Linha que a reserva
+ * recusaria sai "esgotado" já na cotação — antes de cobrar o Pix.
+ */
+export function markShortStock(
+  lines: QuoteLine[],
+  catalog: Map<string, CatalogProduct>,
+  arenaLocation: string | null,
+): QuoteLine[] {
+  const key = (l: QuoteLine) => `${l.productId}/${l.skuId}`;
+  const sku = (l: QuoteLine) => (catalog.get(l.productId)?.skus.get(l.skuId) ?? {}) as StockSku;
+  const need = new Map<string, {qty: number; sku: StockSku}>();
+  for (const l of lines) {
+    if (l.problem !== null) continue;
+    const cur = need.get(key(l));
+    need.set(key(l), {qty: (cur?.qty ?? 0) + l.qty, sku: sku(l)});
+  }
+  const fromArena = arenaLocation !== null &&
+    [...need.values()].every((n) => availableAt(n.sku, arenaLocation) >= n.qty);
+  const at = fromArena ? arenaLocation! : MAIN_LOCATION;
+  return lines.map((l) => {
+    const n = need.get(key(l));
+    return l.problem === null && n && availableAt(n.sku, at) < n.qty ? {...l, problem: "esgotado" as const} : l;
+  });
+}
+
+/**
+ * A linha personalizada como o dono gravou no carrinho (gravável por ele): o checkout refaz o que
+ * o "Adicionar" conferiu — nome na lista de bloqueio, fonte e cor da config, arte dele mesmo.
+ */
+function customizationValid(
+  custom: Data,
+  config: NonNullable<ReturnType<typeof publicCustomization>>,
+  raw: Data | null,
+  uid: string,
+  blockedTerms: readonly string[],
+): boolean {
+  const name = custom["name"] as Data | undefined;
+  const image = custom["image"] as Data | undefined;
+  if (name) {
+    const text = normalizeCustomName(name["text"]);
+    const block = withCustomizationDefaults(raw ?? undefined).name.blockOffensive;
+    if (nameProblem(text, {maxChars: config.name.maxChars, blockOffensive: block}, blockedTerms) !== null) return false;
+    if (!config.name.fonts.includes(str(name["fontId"]) as never)) return false;
+    if (!config.name.colors.includes(str(name["color"]).toLowerCase())) return false;
+  }
+  if (image) {
+    const path = str(image["path"]);
+    if (!path.startsWith(`${CUSTOM_UPLOAD_PREFIX}/${uid}/`) || path.includes("..")) return false;
+    if (!config.image.areas.some((a) => a.id === image["areaId"])) return false;
+  }
+  return true;
 }
 
 function priceLine(
@@ -201,7 +269,7 @@ function priceLine(
   catalog: Map<string, CatalogProduct>,
   channel: CheckoutChannel,
   delivery: CheckoutDelivery | null,
-  arenaLocation: string | null,
+  owner: {uid: string; blockedTerms: readonly string[]},
 ): QuoteLine {
   const entry = catalog.get(line.productId);
   const p = entry?.data ?? {};
@@ -223,14 +291,13 @@ function priceLine(
     problem = "sem_retirada";
   } else if (delivery?.type === "casa" && fulfillment["delivery"] !== true) {
     problem = "sem_entrega";
-  } else if (availableFor(sku, arenaLocation) < qty) {
-    problem = "esgotado";
   }
   if (personalized && problem === null) {
     const config = publicCustomization(entry?.customization ?? null);
     const hasName = !!name && config?.name.enabled === true;
     const hasImage = !!image && config?.image.enabled === true;
-    if (!config || (!!name && !hasName) || (!!image && !hasImage)) {
+    if (!config || (!!name && !hasName) || (!!image && !hasImage) ||
+      !customizationValid(custom!, config, entry?.customization ?? null, owner.uid, owner.blockedTerms)) {
       problem = "personalizacao_off";
     } else {
       extraCents = customExtraCents(config.price, hasName, hasImage);
@@ -317,9 +384,11 @@ export function priceCoupon(
   const subtotal = ok.reduce((n, l) => n + l.totalCents, 0);
   const minCents = cents(c["minOrderCents"]) || null;
   if (minCents !== null && subtotal < minCents) return fail("minimo", minCents);
+  // Pedido esperando o Pix segura o uso: senão N pedidos pendentes furam o limite.
   const limit = cents(c["usageLimit"]) || null;
-  if (limit !== null && cents(c["uses"]) >= limit) return fail("esgotado");
-  if (c["onePerAthlete"] === true && coupon.usedByAthlete) return fail("ja_usado");
+  if (limit !== null && cents(c["uses"]) + coupon.reserved >= limit) return fail("esgotado");
+  if (c["onePerAthlete"] === true && coupon.athleteUse === "usado") return fail("ja_usado");
+  if (c["onePerAthlete"] === true && coupon.athleteUse === "reservado") return fail("reservado");
 
   const value = cents(c["value"]);
   let discount: number;
@@ -361,7 +430,12 @@ export function priceCheckout(
   const problems: QuoteProblem[] = [];
   const delivery = input.delivery;
   const arenaLocation = delivery?.type === "arena" && snap.pickupPoint?.active ? snap.pickupPoint.locationId : null;
-  const lines = snap.cart.map((l) => priceLine(l, snap.catalog, input.channel, delivery, arenaLocation));
+  const owner = {uid: snap.uid, blockedTerms: snap.blockedTerms};
+  const lines = markShortStock(
+    snap.cart.map((l) => priceLine(l, snap.catalog, input.channel, delivery, owner)),
+    snap.catalog,
+    arenaLocation,
+  );
   if (lines.length === 0) problems.push("carrinho_vazio");
   if (lines.some((l) => l.problem !== null)) problems.push("linha_com_problema");
 

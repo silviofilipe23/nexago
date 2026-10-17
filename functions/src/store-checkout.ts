@@ -6,12 +6,14 @@
  *   storeAddresses/{uid}        — endereços de entrega do atleta (só o dono)
  *   storeOrders/{id}            — o pedido do backoffice (só admin lê: CPF, código, reserva)
  *   storeOrderViews/{id}        — o pedido como o atleta vê (espelho saneado, por gatilho)
- *   storeCouponUses/{coupon_uid} — marcador do "uma vez por atleta" (só servidor)
+ *   storeCouponUses/{coupon_uid} — marcador do "uma vez por atleta" (reservado → usado; só servidor)
+ *   storeCouponUses/{couponId}  — `reserved`: pedidos esperando o Pix com o cupom (entra no limite)
  *
  * O preço sai de `store-checkout-price.ts`; o pedido nasce em `createOrderCore` (reserva o
  * estoque) só DEPOIS da cobrança Pix existir. Contrato em `docs/business-rules/loja-checkout.md`.
  */
 import {type Firestore} from "firebase-admin/firestore";
+import {logger} from "firebase-functions/v2";
 import {HttpsError} from "firebase-functions/v2/https";
 import {
   addressLine,
@@ -28,6 +30,7 @@ import {
 } from "./store-checkout-price";
 import {withDiscountDefaults} from "./store-coupons";
 import {CUSTOMIZATION, CUSTOM_ITEMS} from "./store-custom";
+import {BLOCKLIST_DOC} from "./store-custom-cart";
 import {historyEntry} from "./store-orders";
 import {ORDERS, SYSTEM_ACTOR, createOrderCore, orderActionCore} from "./store-orders-write";
 import {STORE_CONFIG, SHIPPING_CONFIG_ID, withShippingDefaults} from "./store-pickup";
@@ -97,7 +100,10 @@ export function checkoutInputErrors(input: Partial<CheckoutInput> | null | undef
       fields.push("delivery");
     }
   }
-  if (input?.couponCode != null && !/^[A-Za-z0-9]{0,20}$/.test(String(input.couponCode).trim())) fields.push("couponCode");
+  // Código fora do formato não derruba a cotação: vira "Cupom não encontrado" (o atleta remove).
+  if (input?.couponCode != null && (typeof input.couponCode !== "string" || input.couponCode.length > 60)) {
+    fields.push("couponCode");
+  }
   return fields;
 }
 
@@ -157,10 +163,12 @@ export async function loadCheckoutSnapshot(
     });
   }));
 
-  const [discounts, shipping] = await Promise.all([
+  const [discounts, shipping, blocklist] = await Promise.all([
     db.collection(STORE_CONFIG).doc("discounts").get(),
     db.collection(STORE_CONFIG).doc(SHIPPING_CONFIG_ID).get(),
+    cart.some((l) => l.customization) ? db.doc(BLOCKLIST_DOC).get() : Promise.resolve(null),
   ]);
+  const terms = blocklist?.data()?.["terms"];
 
   let pickupPoint: PickupPoint | null = null;
   let address: CheckoutAddress | null = null;
@@ -180,25 +188,118 @@ export async function loadCheckoutSnapshot(
   }
 
   let coupon: CouponDoc | null = null;
-  const code = str(input.couponCode, 20).toUpperCase();
+  const code = couponKey(input.couponCode);
   if (code) {
     const key = await db.collection(COUPON_CODES).doc(code).get();
     const couponId = str(key.data()?.["couponId"], 128);
-    if (couponId) {
-      const [c, use] = await Promise.all([
+    if (ID_RE.test(couponId)) {
+      const [c, use, count] = await Promise.all([
         db.collection(COUPONS).doc(couponId).get(),
         db.collection(COUPON_USES).doc(`${couponId}_${uid}`).get(),
+        db.collection(COUPON_USES).doc(couponId).get(),
       ]);
-      if (c.exists) coupon = {id: couponId, data: c.data()!, usedByAthlete: use.exists};
+      if (c.exists) {
+        coupon = {
+          id: couponId, data: c.data()!,
+          athleteUse: use.exists ? (use.data()?.["status"] === "reservado" ? "reservado" : "usado") : null,
+          reserved: Math.max(0, Number(count.data()?.["reserved"] ?? 0) || 0),
+        };
+      }
     }
   }
 
   return {
+    uid,
+    blockedTerms: Array.isArray(terms) ? terms.filter((t): t is string => typeof t === "string") : [],
     cart, catalog,
     discounts: withDiscountDefaults(discounts.data()),
     shipping: withShippingDefaults(shipping.data()),
     pickupPoint, address, coupon,
   };
+}
+
+/** O código como chave de `storeCouponCodes` (só letras e números); fora disso, nenhum. */
+function couponKey(raw: unknown): string | null {
+  const code = typeof raw === "string" ? raw.trim().toUpperCase() : "";
+  return /^[A-Z0-9]{1,20}$/.test(code) ? code : null;
+}
+
+// ---------------------------------------------------------------------------
+// Reserva do cupom (pedido esperando o Pix)
+// ---------------------------------------------------------------------------
+
+export interface CouponReservation {
+  couponId: string;
+  /** Marcador do "uma vez por atleta" gravado junto. */
+  marker: boolean;
+  status: "reservado" | "usado" | "liberado";
+}
+
+/**
+ * Segura o uso do cupom antes de cobrar: soma em `storeCouponUses/{couponId}.reserved` (entra no
+ * limite) e, no "uma vez por atleta", grava o marcador como `reservado`. Em transação, para dois
+ * pedidos ao mesmo tempo não passarem os dois.
+ */
+async function reserveCoupon(
+  db: Firestore, couponId: string, uid: string, orderId: string, now: Date,
+): Promise<CouponReservation> {
+  const couponRef = db.collection(COUPONS).doc(couponId);
+  const countRef = db.collection(COUPON_USES).doc(couponId);
+  const markerRef = db.collection(COUPON_USES).doc(`${couponId}_${uid}`);
+  return db.runTransaction(async (tx) => {
+    const [c, count, marker] = await Promise.all([tx.get(couponRef), tx.get(countRef), tx.get(markerRef)]);
+    const data = c.data() ?? {};
+    const reserved = Math.max(0, Number(count.data()?.["reserved"] ?? 0) || 0);
+    const limit = Number(data["usageLimit"] ?? 0) || 0;
+    if (limit > 0 && (Number(data["uses"] ?? 0) || 0) + reserved >= limit) {
+      throw new HttpsError("failed-precondition", "Esse cupom chegou ao limite de usos.", {reason: "coupon"});
+    }
+    const onePerAthlete = data["onePerAthlete"] === true;
+    if (onePerAthlete && marker.exists) {
+      throw new HttpsError("failed-precondition", marker.data()?.["status"] === "reservado" ?
+        "Esse cupom está num pedido seu esperando o Pix." : "Você já usou esse cupom.", {reason: "coupon"});
+    }
+    tx.set(countRef, {reserved: reserved + 1, updatedAt: now}, {merge: true});
+    if (onePerAthlete) tx.set(markerRef, {couponId, uid, orderId, status: "reservado", at: now});
+    return {couponId, marker: onePerAthlete, status: "reservado" as const};
+  });
+}
+
+/** Devolve a reserva (pedido não nasceu, ou cancelou sem pagar). Só mexe no que é desse pedido. */
+async function releaseCoupon(db: Firestore, r: CouponReservation, uid: string, orderId: string, now: Date): Promise<void> {
+  const countRef = db.collection(COUPON_USES).doc(r.couponId);
+  const markerRef = db.collection(COUPON_USES).doc(`${r.couponId}_${uid}`);
+  await db.runTransaction(async (tx) => {
+    const [count, marker] = await Promise.all([tx.get(countRef), tx.get(markerRef)]);
+    const reserved = Math.max(0, Number(count.data()?.["reserved"] ?? 0) || 0);
+    tx.set(countRef, {reserved: Math.max(0, reserved - 1), updatedAt: now}, {merge: true});
+    const m = marker.data();
+    if (r.marker && m?.["orderId"] === orderId && m?.["status"] === "reservado") tx.delete(markerRef);
+  });
+}
+
+/**
+ * Gatilho do pedido: cancelado sem pagar (Pix vencido, backoffice) devolve o cupom reservado.
+ * Idempotente pelo `couponReservation.status` do pedido.
+ */
+export async function releaseCouponOnCancelCore(db: Firestore, orderId: string, now: Date): Promise<boolean> {
+  const ref = db.collection(ORDERS).doc(orderId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const o = snap.data();
+    const r = o?.["couponReservation"] as CouponReservation | undefined;
+    if (!o || o["status"] !== "can" || o["paidAt"] || r?.status !== "reservado") return false;
+    const uid = str((o["customer"] as Data | undefined)?.["uid"], 128);
+    const countRef = db.collection(COUPON_USES).doc(r.couponId);
+    const markerRef = db.collection(COUPON_USES).doc(`${r.couponId}_${uid}`);
+    const [count, marker] = await Promise.all([tx.get(countRef), tx.get(markerRef)]);
+    const reserved = Math.max(0, Number(count.data()?.["reserved"] ?? 0) || 0);
+    tx.set(countRef, {reserved: Math.max(0, reserved - 1), updatedAt: now}, {merge: true});
+    const m = marker.data();
+    if (r.marker && m?.["orderId"] === orderId && m?.["status"] === "reservado") tx.delete(markerRef);
+    tx.update(ref, {couponReservation: {...r, status: "liberado"}});
+    return true;
+  });
 }
 
 export async function quoteCheckoutCore(db: Firestore, uid: string, input: CheckoutInput, now: Date): Promise<Quote> {
@@ -248,11 +349,39 @@ export async function createStoreOrderCore(
 
   const buyer = await pay.customer(uid, input.cpf);
   const orderId = newOrderId();
+  // Recusa no meio do caminho (cupom tomado, estoque acabou) volta com a cotação nova: a tela
+  // marca a linha/o cupom em vez de deixar o "Pagar" liberado repetindo o mesmo erro.
+  const withFreshQuote = async (e: unknown): Promise<unknown> => {
+    if (!(e instanceof HttpsError) || e.code !== "failed-precondition") return e;
+    const fresh = priceCheckout(await loadCheckoutSnapshot(db, uid, input), input, now);
+    return new HttpsError(e.code, e.message, {...((e.details ?? {}) as Data), quote: fresh});
+  };
+
+  const couponId = quote.coupon?.problem === null ? quote.coupon.id : null;
+  let reservation: CouponReservation | null = null;
+  if (couponId) {
+    try {
+      reservation = await reserveCoupon(db, couponId, uid, orderId, now);
+    } catch (e) {
+      throw await withFreshQuote(e);
+    }
+  }
+  const release = () => reservation ?
+    releaseCoupon(db, reservation, uid, orderId, now).catch((err) =>
+      logger.error("Loja: reserva do cupom não voltou", {orderId, couponId, error: String(err)})) :
+    Promise.resolve();
+
   const expiresAt = new Date(now.getTime() + STORE_PIX_WINDOW_MS);
-  const charge = await pay.createPix({
-    orderId, customerId: buyer.asaasCustomerId, totalCents: quote.totalCents,
-    description: `Loja NexaGO · ${quote.units} ${quote.units === 1 ? "item" : "itens"}`, expiresAt,
-  });
+  let charge: {paymentId: string; copyPaste: string};
+  try {
+    charge = await pay.createPix({
+      orderId, customerId: buyer.asaasCustomerId, totalCents: quote.totalCents,
+      description: `Loja NexaGO · ${quote.units} ${quote.units === 1 ? "item" : "itens"}`, expiresAt,
+    });
+  } catch (e) {
+    await release();
+    throw e;
+  }
 
   const d = input.delivery!;
   const point = snap.pickupPoint;
@@ -295,23 +424,30 @@ export async function createStoreOrderCore(
         charge: {provider: "asaas", paymentId: charge.paymentId, method: "pix"},
         customLines,
         recipient: d.type === "casa" ? {name: address!.recipient, phone: address!.phone} : null,
+        couponReservation: reservation,
       },
     }, {uid, name: buyer.name}, now);
   } catch (e) {
     // Sem pedido (estoque acabou entre a cotação e a reserva): a cobrança não pode ficar aberta.
     await pay.cancelCharge(charge.paymentId).catch(() => undefined);
-    throw e;
+    await release();
+    throw await withFreshQuote(e);
   }
 
-  // Tira do carrinho só o que virou pedido (o atleta pode ter mexido em outra aba).
+  // Tira do carrinho só o que virou pedido (o atleta pode ter mexido em outra aba). O pedido e o
+  // Pix já existem: falhar aqui não pode virar erro, senão o "tentar de novo" duplica o pedido.
   const bought = new Set(quote.lines.map((l) => l.key));
   const cartRef = db.collection(CARTS).doc(uid);
-  await db.runTransaction(async (tx) => {
-    const cur = await tx.get(cartRef);
-    const items = (Array.isArray(cur.data()?.["items"]) ? cur.data()!["items"] : []) as Data[];
-    const left = items.filter((i) => !bought.has(str(i["lineId"], 128) || `${str(i["productId"], 128)}/${str(i["skuId"], 120)}`));
-    tx.set(cartRef, {items: left, updatedAt: now});
-  });
+  try {
+    await db.runTransaction(async (tx) => {
+      const cur = await tx.get(cartRef);
+      const items = (Array.isArray(cur.data()?.["items"]) ? cur.data()!["items"] : []) as Data[];
+      const left = items.filter((i) => !bought.has(str(i["lineId"], 128) || `${str(i["productId"], 128)}/${str(i["skuId"], 120)}`));
+      tx.set(cartRef, {items: left, updatedAt: now});
+    });
+  } catch (e) {
+    logger.warn("Loja: carrinho não foi limpo depois do pedido", {orderId: created.orderId, error: String(e)});
+  }
 
   return {
     orderId: created.orderId, number: created.number, totalCents: quote.totalCents,
@@ -353,23 +489,33 @@ export async function confirmStoreOrderPaymentCore(
     }
 
     const couponId = str(o["couponId"], 128);
+    const reservation = o["couponReservation"] as CouponReservation | null | undefined;
     const couponRef = couponId ? db.collection(COUPONS).doc(couponId) : null;
     const couponSnap = couponRef ? await tx.get(couponRef) : null;
     const useRef = couponId && uid ? db.collection(COUPON_USES).doc(`${couponId}_${uid}`) : null;
     const useSnap = useRef ? await tx.get(useRef) : null;
+    const countRef = couponId && reservation?.status === "reservado" ? db.collection(COUPON_USES).doc(couponId) : null;
+    const countSnap = countRef ? await tx.get(countRef) : null;
 
     // ---------- escritas ----------
     const payments = ((o["payments"] ?? []) as Data[]).map((p) =>
       p["method"] === "pix" ? {...p, txid: payment.paymentId} : p);
     tx.update(ref, {
       status: "sep", paidAt: now, pix: null, payments,
+      ...(reservation?.status === "reservado" ? {couponReservation: {...reservation, status: "usado"}} : {}),
       history: [...((o["history"] ?? []) as unknown[]), historyEntry("pago", "Pagamento aprovado", "Pix", null, now)],
       version: ((o["version"] as number) ?? 0) + 1, updatedAt: now, updatedBy: SYSTEM_ACTOR,
     });
-    // `uses` só conta pedido pago (o limite do cupom é de uso de verdade).
+    // `uses` só conta pedido pago; a reserva desse pedido sai do `reserved` e o marcador vira `usado`.
     if (couponRef && couponSnap?.exists) {
       tx.update(couponRef, {uses: ((couponSnap.data()?.["uses"] as number) ?? 0) + 1});
-      if (useRef && !useSnap?.exists) tx.set(useRef, {couponId, uid, orderId, at: now});
+      if (countRef) {
+        const reserved = Math.max(0, Number(countSnap?.data()?.["reserved"] ?? 0) || 0);
+        tx.set(countRef, {reserved: Math.max(0, reserved - 1), updatedAt: now}, {merge: true});
+      }
+      if (useRef && (!useSnap?.exists || useSnap.data()?.["orderId"] === orderId)) {
+        tx.set(useRef, {couponId, uid, orderId, status: "usado", at: now});
+      }
     }
 
     const customer = (o["customer"] ?? {}) as Data;
@@ -403,6 +549,33 @@ export async function confirmStoreOrderPaymentCore(
   });
 }
 
+/**
+ * Pix pago depois do pedido cancelar (vencido): o estorno feito no Asaas entra no pedido, para o
+ * backoffice e o atleta verem que o dinheiro entrou e voltou. Idempotente pelo `paymentId`.
+ */
+export async function recordLatePixRefundCore(
+  db: Firestore, orderId: string, paymentId: string, valueCents: number, now: Date,
+): Promise<void> {
+  const ref = db.collection(ORDERS).doc(orderId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    const o = snap.data()!;
+    const refunds = (o["refunds"] ?? []) as Data[];
+    if (refunds.some((r) => r["paymentId"] === paymentId)) return;
+    tx.update(ref, {
+      refunds: [...refunds, {
+        amountCents: valueCents, destination: "original", items: null, reason: "Pix pago depois do cancelamento",
+        status: "concluido", paymentId, actor: SYSTEM_ACTOR, at: now,
+      }],
+      refundedCents: ((o["refundedCents"] ?? 0) as number) + valueCents,
+      history: [...((o["history"] ?? []) as unknown[]), historyEntry("reembolso", "Pix estornado",
+        `${(valueCents / 100).toFixed(2).replace(".", ",")} · pago depois do cancelamento`, null, now)],
+      version: ((o["version"] as number) ?? 0) + 1, updatedAt: now, updatedBy: SYSTEM_ACTOR,
+    });
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Pix vencido
 // ---------------------------------------------------------------------------
@@ -428,13 +601,13 @@ export async function expireStorePixCore(
   now: Date,
   deps: ExpiryDeps,
   limit = 50,
-): Promise<{confirmed: string[]; canceled: string[]; failed: string[]}> {
+): Promise<{confirmed: string[]; canceled: string[]; failed: string[]; customItemIds: string[]}> {
   const snap = await db.collection(ORDERS)
     .where("status", "==", "pag")
     .where("pix.expiresAt", "<", now)
     .limit(limit)
     .get();
-  const out = {confirmed: [] as string[], canceled: [] as string[], failed: [] as string[]};
+  const out = {confirmed: [] as string[], canceled: [] as string[], failed: [] as string[], customItemIds: [] as string[]};
   for (const doc of snap.docs) {
     const o = doc.data();
     const paymentId = str((o["charge"] as Data | undefined)?.["paymentId"], 128);
@@ -445,8 +618,13 @@ export async function expireStorePixCore(
           const r = await confirmStoreOrderPaymentCore(db, doc.id, {paymentId, valueCents: p.valueCents}, now);
           if (r.outcome === "confirmed" || r.outcome === "already_paid") {
             out.confirmed.push(doc.id);
-            continue;
+            out.customItemIds.push(...r.customItemIds);
+          } else {
+            // Pago no Asaas mas não confirmou (valor diferente etc.): nunca cancelar dinheiro que entrou.
+            logger.error("Loja: Pix pago que não confirma, ficou pra conferência", {orderId: doc.id, outcome: r.outcome});
+            out.failed.push(doc.id);
           }
+          continue;
         }
         await deps.deleteCharge(paymentId);
       }
@@ -541,10 +719,14 @@ export function buildOrderView(orderId: string, o: Data): Data | null {
   };
 }
 
-/** Gatilho: espelha o pedido na visão do dono (e apaga quando o pedido some). */
-export async function syncOrderViewCore(db: Firestore, orderId: string, after: Data | null): Promise<void> {
+/**
+ * Gatilho: espelha o pedido na visão do dono (e apaga quando o pedido some). Relê o pedido em vez
+ * de usar o `after` do evento: eventos chegam fora de ordem e o espelho não pode voltar no tempo.
+ */
+export async function syncOrderViewCore(db: Firestore, orderId: string): Promise<void> {
+  const snap = await db.collection(ORDERS).doc(orderId).get();
   const ref = db.collection(ORDER_VIEWS).doc(orderId);
-  const view = after ? buildOrderView(orderId, after) : null;
+  const view = snap.exists ? buildOrderView(orderId, snap.data()!) : null;
   if (view) await ref.set(view);
   else await ref.delete();
 }

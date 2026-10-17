@@ -36,6 +36,8 @@ cancelReason, refundedCents, updatedAt
 - `pickupCode` só aparece com o pedido **na arena** (`ret`).
 - Nunca vão para a visão: CPF, reserva de estoque, custo, nota interna.
 - Lista: `where('uid','==',uid).orderBy('createdAt','desc')` (índice composto).
+- `get` de um id que ainda não existe é permitido (a rule aceita `resource == null`): a tela do Pix
+  escuta o pedido antes do gatilho criar o espelho. Negar mataria o listener e o "pago" não chegaria.
 - O `storeOrders` de verdade continua só do servidor.
 
 ### Status
@@ -63,6 +65,7 @@ Quote = { lines: [{ key, productId, skuId, qty, name, variantLabel, imageUrl, ca
           pixDiscountPct, pixDiscountCents, shippingCents, freeShipping, totalCents, problems }
 ```
 - `line.problem ∈ indisponivel|esgotado|sem_retirada|sem_entrega|personalizacao_off|null`.
+- Código de cupom fora do formato (traço, espaço, longo) não derruba a cotação: volta `nao_existe`.
 - `problems ∈ carrinho_vazio|entrega_faltando|arena_indisponivel|endereco_faltando|
   modalidade_indisponivel|linha_com_problema`. Com qualquer problema não se paga.
 - `coupon.message` já vem pronta em português para mostrar sob o campo.
@@ -72,20 +75,31 @@ Quote = { lines: [{ key, productId, skuId, qty, name, variantLabel, imageUrl, ca
 
 Erros (`HttpsError`, mensagem pronta):
 - `failed-precondition` com `details.problems` + `details.quote`: carrinho com problema.
-- `failed-precondition` com `details.quote`: cupom recusado.
+- `failed-precondition` com `details.quote`: cupom recusado, ou o estoque/cupom acabou entre a
+  cotação e a reserva (a cotação nova já vem com a linha ou o cupom marcado).
 - `failed-precondition` com `details.reason == 'cpf_required'`: pedir o CPF e reenviar com `cpf`.
 - `aborted` com `details.quote`: o total mudou; mostrar o novo e pedir confirmação.
 
-Ao criar: cobra o Pix no Asaas, reserva o estoque e tira do carrinho **só as linhas compradas**.
-Se a reserva falhar (estoque acabou no meio), a cobrança é cancelada.
+Ao criar: segura o cupom, cobra o Pix no Asaas, reserva o estoque e tira do carrinho **só as linhas
+compradas**. Se a reserva falhar (estoque acabou no meio), a cobrança é cancelada e o cupom volta.
+Falhar só na limpeza do carrinho não é erro (o pedido já existe; repetir duplicaria).
 
 ## Regras de preço (`store-checkout-price.ts`)
 1. **Linha:** produto ativo e à venda no canal (web ou app); retirada exige `fulfillment.pickup`,
-   casa exige `delivery`; saldo = máximo entre CD e arena escolhida; personalizada soma o
-   adicional da config **atual** (e some se a personalização foi desligada).
+   casa exige `delivery`; personalizada soma o adicional da config **atual** e é conferida de novo
+   (nome na lista de bloqueio, fonte e cor da config, arte na pasta do próprio atleta, área ligada):
+   o carrinho é gravável pelo dono, então nada dele é confiável.
+   **Estoque** com a conta da reserva: tudo na arena da retirada se ela cobre o pedido inteiro
+   (o mesmo SKU de linhas diferentes soma), senão tudo no CD; o que não cabe sai `esgotado`.
 2. **Cupom** (na ordem): existe → encerrado/pausado/agendado → só no app → escopo (loja, categoria,
-   coleção, produtos, arena) → pedido mínimo → esgotado → já usado por este atleta. Percentual
-   arredonda e respeita o teto; fixo nunca passa do valor elegível. Escopo de torneio não é aceito.
+   coleção, produtos, arena) → pedido mínimo → esgotado (`uses` + reservados) → já usado por este
+   atleta → `reservado` (está num pedido dele esperando o Pix). Percentual arredonda e respeita o
+   teto; fixo nunca passa do valor elegível. Escopo de torneio não é aceito.
+   **Reserva:** criar o pedido soma em `storeCouponUses/{couponId}.reserved` e, no "uma vez por
+   atleta", grava o marcador `{couponId}_{uid}` como `reservado` (em transação). Pago → marcador
+   `usado`, `uses + 1`, reserva sai. Cancelado sem pagar (Pix vencido, backoffice) → o gatilho do
+   pedido devolve a reserva e apaga o marcador. O doc do cupom não guarda a reserva porque a edição
+   do backoffice regrava o doc inteiro.
 3. **Pix:** `% de storeConfig/discounts` sobre (subtotal − cupom). Cupom com
    `stacksWithPix: false` cancela o desconto do Pix.
 4. **Frete:** por último. Só modos de preço fixo ativos; grátis a partir de
@@ -98,7 +112,11 @@ Se a reserva falhar (estoque acabou no meio), a cobrança é cancelada.
 - Notificação repetida é inofensiva (`asaas_processed_payments/{paymentId}`).
 - **Pix vencido** (varredura a cada 5 min): se pagou sem webhook, confirma; senão apaga a cobrança e
   cancela o pedido ("Pix expirou sem pagamento"), liberando o estoque.
-- Pix pago **depois** de cancelado: estorno automático.
+- Pix pago **depois** de cancelado: estorno automático, registrado no pedido (`refunds`,
+  `refundedCents`, histórico). Estorno que falha fica `refund_failed` e a varredura tenta de novo.
+- A varredura nunca cancela pedido que o Asaas diz que foi pago (valor que não fecha vai pra
+  conferência manual). Confirmado pela varredura também gera o link da arte.
+- O gatilho do espelho relê o pedido (evento fora de ordem não volta o espelho no tempo).
 
 ## Telas
 - **Carrinho + entrega** (web 03/04, app 03/04): linhas com problema aparecem marcadas e bloqueiam

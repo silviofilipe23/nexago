@@ -162,6 +162,7 @@ export class LojaCheckoutComponent {
   protected readonly lines = computed<CheckoutLine[]>(() => {
     const byId = new Map(this.store.products().map((p) => [p.id, p]));
     const quoted = new Map((this.quote()?.lines ?? []).map((l) => [l.key, l]));
+    const fresh = this.quoteFresh();
     return this.store.cart().map((item) => {
       const key = cartLineKey(item);
       const p = byId.get(item.productId);
@@ -178,7 +179,8 @@ export class LojaCheckoutComponent {
         coverUrl: p?.coverUrl ?? q?.imageUrl ?? null,
         qty: item.qty,
         maxQty: Math.max(1, Math.min(v?.maxQty ?? item.qty, MAX_QTY_PER_ITEM)),
-        totalCents: v ? (v.priceCents + cartLineExtraCents(item)) * item.qty : (q?.totalCents ?? 0),
+        // Cotação em dia manda (preço e adicional atuais); antes dela, a conta local da vitrine.
+        totalCents: q && fresh && q.qty === item.qty ? q.totalCents : v ? (v.priceCents + cartLineExtraCents(item)) * item.qty : (q?.totalCents ?? 0),
         // Produto fora da vitrine: o servidor confirma, mas a tela já marca.
         problem: q?.problem ?? (p && v ? null : 'indisponivel'),
       };

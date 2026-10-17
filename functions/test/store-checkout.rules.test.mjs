@@ -87,6 +87,9 @@ test('visão do pedido: só o dono lê, e ninguém escreve', async () => {
     collection(dbOf(DONO), 'storeOrderViews'), where('uid', '==', DONO), orderBy('createdAt', 'desc'),
   )));
   await assertFails(getDocs(collection(dbOf(DONO), 'storeOrderViews')));
+  // O espelho nasce ~1 s depois do pedido: escutar antes não pode dar permission-denied.
+  await assertSucceeds(getDoc(doc(dbOf(DONO), 'storeOrderViews', 'ord_ainda_nao_existe')));
+  await assertFails(getDoc(doc(anon(), 'storeOrderViews', 'ord_ainda_nao_existe')));
   await assertFails(setDoc(doc(dbOf(DONO), 'storeOrderViews', 'ord_dono_1'), { uid: DONO, status: 'ent' }));
   await assertFails(setDoc(doc(dbOf(DONO), 'storeOrderViews', 'ord_novo_1'), { uid: DONO }));
 });

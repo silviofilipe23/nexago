@@ -3353,8 +3353,11 @@ service cloud.firestore {
 
     // O pedido como o atleta vê (espelho saneado de storeOrders, por gatilho): sem CPF, custo,
     // reserva nem nota interna; o código de retirada só quando está na arena. Só o dono lê.
+    // `get` de doc que ainda não existe passa (resource == null): a tela do Pix escuta o pedido
+    // antes do gatilho criar o espelho (~1 s) — negar mataria o listener e o "pago" nunca chegaria.
     match /storeOrderViews/{orderId} {
-      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow get: if request.auth != null && (resource == null || resource.data.uid == request.auth.uid);
+      allow list: if request.auth != null && resource.data.uid == request.auth.uid;
       allow write: if false;
     }
 

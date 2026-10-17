@@ -19,6 +19,7 @@ import {
   type AsaasPaymentDetails,
 } from "./asaas-booking-payment";
 import {getOrCreateAsaasCustomer, resolveAthleteCpfCnpj, resolveAthletePayerName} from "./asaas-customer";
+import {getFirebaseProjectId} from "./firebase-paths";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {
   STORE_ORDER_PAYMENT_REF_PREFIX,
@@ -27,11 +28,14 @@ import {
   expireStorePixCore,
   isPaidStatus,
   quoteCheckoutCore,
+  recordLatePixRefundCore,
+  releaseCouponOnCancelCore,
   syncOrderViewCore,
   type CheckoutPayments,
   type CreateCheckoutInput,
 } from "./store-checkout";
 import {CUSTOM_ITEMS} from "./store-custom";
+import {CUSTOM_UPLOAD_PREFIX} from "./store-custom-cart";
 import {ORDERS} from "./store-orders-write";
 
 const CLIENT_CALLABLE = {region: CLIENT_FACING_REGIONS, invoker: "public" as const};
@@ -93,7 +97,8 @@ export const createStoreOrder = onCall({...CLIENT_CALLABLE, secrets: asaasArenaS
 
 /**
  * Link de leitura da arte para a fila do backoffice (tela 10): token de download do Storage,
- * o mesmo esquema do `getDownloadURL` do cliente. Best-effort — sem ele a fila mostra o caminho.
+ * o mesmo esquema do `getDownloadURL` do cliente. Só na pasta de uploads do próprio comprador, e
+ * reaproveitando o token que o arquivo já tiver (trocar quebraria os links dele). Best-effort.
  */
 async function attachArtUrls(db: Firestore, itemIds: string[]): Promise<void> {
   const bucket = getStorage().bucket();
@@ -102,9 +107,13 @@ async function attachArtUrls(db: Firestore, itemIds: string[]): Promise<void> {
       const ref = db.collection(CUSTOM_ITEMS).doc(id);
       const item = (await ref.get()).data();
       const path = (item?.["image"] as {path?: string} | null)?.path;
-      if (!path) continue;
-      const token = randomUUID();
-      await bucket.file(path).setMetadata({metadata: {firebaseStorageDownloadTokens: token}});
+      const owner = (item?.["customer"] as {uid?: string} | undefined)?.uid;
+      if (!path || !owner || !path.startsWith(`${CUSTOM_UPLOAD_PREFIX}/${owner}/`) || path.includes("..")) continue;
+      const file = bucket.file(path);
+      const [meta] = await file.getMetadata();
+      const tokens = String(meta.metadata?.["firebaseStorageDownloadTokens"] ?? "").split(",").filter(Boolean);
+      const token = tokens[0] ?? randomUUID();
+      if (tokens.length === 0) await file.setMetadata({metadata: {firebaseStorageDownloadTokens: token}});
       const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
       await ref.update({"image.url": url});
     } catch (e) {
@@ -114,8 +123,29 @@ async function attachArtUrls(db: Firestore, itemIds: string[]): Promise<void> {
 }
 
 /**
+ * Estorno do Pix pago com o pedido já cancelado. Falhou (sem saldo no Asaas, fora do ar): fica
+ * `refund_failed` e a varredura tenta de novo; deu certo: entra no pedido.
+ */
+async function refundLatePix(
+  db: Firestore, orderId: string, paymentId: string, valueCents: number,
+  processedRef: DocumentReference, base: Record<string, unknown>,
+): Promise<boolean> {
+  try {
+    await refundAsaasPayment(paymentId);
+  } catch (e) {
+    logger.error("Loja: estorno do Pix pago depois do cancelamento falhou", {orderId, paymentId, error: String(e)});
+    await processedRef.set({...base, valueCents, outcome: "refund_failed", error: String(e)}, {merge: true});
+    return false;
+  }
+  await recordLatePixRefundCore(db, orderId, paymentId, valueCents, new Date());
+  await processedRef.set({...base, valueCents, outcome: "refunded_after_cancel"}, {merge: true});
+  return true;
+}
+
+/**
  * Ramo do `asaasWebhook` para `storeOrder:{orderId}`. Pago → confirma; pago depois de cancelado
- * (Pix vencido) → estorna. O doc de processados torna a notificação repetida inofensiva.
+ * (Pix vencido) → estorna. O doc de processados torna a notificação repetida inofensiva (menos o
+ * estorno que falhou, que a notificação repetida tenta de novo).
  */
 export async function processStoreOrderAsaasNotification(
   db: Firestore,
@@ -126,7 +156,8 @@ export async function processStoreOrderAsaasNotification(
   const orderId = (payment.externalReference ?? "").slice(STORE_ORDER_PAYMENT_REF_PREFIX.length).trim();
   if (!orderId || !isPaidStatus(payment.status ?? "")) return;
   const processed = await processedRef.get();
-  if (processed.exists && processed.data()?.["outcome"]) return;
+  const done = processed.data()?.["outcome"];
+  if (done && done !== "refund_failed") return;
 
   const now = new Date();
   const r = await confirmStoreOrderPaymentCore(db, orderId, {paymentId, valueCents: toCents(payment.value)}, now);
@@ -140,8 +171,7 @@ export async function processStoreOrderAsaasNotification(
   case "not_pending":
     // Pix pago depois do pedido cancelar (vencido): o dinheiro volta.
     logger.error("Loja: Pix pago com o pedido já cancelado — estornando", {orderId, paymentId});
-    await refundAsaasPayment(paymentId);
-    await processedRef.set({...base, outcome: "refunded_after_cancel"}, {merge: true});
+    await refundLatePix(db, orderId, paymentId, toCents(payment.value), processedRef, base);
     return;
   default:
     logger.error("Loja: pagamento não confirmou o pedido", {orderId, paymentId, outcome: r.outcome});
@@ -149,7 +179,10 @@ export async function processStoreOrderAsaasNotification(
   }
 }
 
-/** Pix vencido (30 min): confirma o que pagou sem webhook; cancela o resto e libera o estoque. */
+/**
+ * Pix vencido (30 min): confirma o que pagou sem webhook (e gera o link da arte); cancela o resto
+ * e libera o estoque. Também tenta de novo o estorno que falhou no webhook.
+ */
 export const expireStoreOrderPix = onSchedule(
   {schedule: "every 5 minutes", timeZone: "America/Sao_Paulo", secrets: asaasArenaSecrets},
   async () => {
@@ -161,13 +194,34 @@ export const expireStoreOrderPix = onSchedule(
       },
       deleteCharge: (id) => deleteAsaasPaymentIfOpen(id),
     });
+    await attachArtUrls(db, r.customItemIds);
     if (r.canceled.length + r.confirmed.length + r.failed.length > 0) logger.info("Loja: Pix vencidos", r);
+
+    const pending = await db.collection(`artifacts/${getFirebaseProjectId()}/public/data/asaas_processed_payments`)
+      .where("kind", "==", "storeOrder")
+      .where("outcome", "==", "refund_failed")
+      .limit(20)
+      .get();
+    for (const doc of pending.docs) {
+      const d = doc.data();
+      const base = {kind: "storeOrder", orderId: d["orderId"], payerUid: d["payerUid"] ?? null, processedAt: new Date()};
+      await refundLatePix(db, String(d["orderId"]), doc.id, Number(d["valueCents"] ?? 0), doc.ref, base);
+    }
   },
 );
 
-/** Espelho do pedido para o atleta (`storeOrderViews`), a cada mudança do pedido. */
+/**
+ * Espelho do pedido para o atleta (`storeOrderViews`), a cada mudança do pedido. Cancelado sem
+ * pagar devolve o cupom que o pedido segurava.
+ */
 export const onStoreOrderWrittenSyncView = onDocumentWritten(`${ORDERS}/{orderId}`, async (event) => {
-  const after = event.data?.after;
-  await syncOrderViewCore(getFirestore(), event.params.orderId, after?.exists ? after.data() ?? null : null);
+  const db = getFirestore();
+  const orderId = event.params.orderId;
+  await syncOrderViewCore(db, orderId);
+  const after = event.data?.after?.data();
+  const reservation = after?.["couponReservation"] as {status?: string} | null | undefined;
+  if (after?.["status"] === "can" && !after["paidAt"] && reservation?.status === "reservado") {
+    await releaseCouponOnCancelCore(db, orderId, new Date());
+  }
 });
 

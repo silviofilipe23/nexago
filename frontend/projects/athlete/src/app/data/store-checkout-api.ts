@@ -79,7 +79,8 @@ export function firebaseStoreCheckoutApi(functions: Functions, db: Firestore): S
         (snap) => onChange(snap.docs.map((d) => orderViewFromDoc(d.id, d.data())).filter((o): o is StoreOrderView => o !== null)),
         onError,
       ),
-    // Doc que ainda não existe (o gatilho espelha o pedido em ~1 s) chega como `null`, não erro.
+    // Doc que ainda não existe (o gatilho espelha o pedido em ~1 s) chega como `null`, não erro:
+    // a rule deixa o `get` de doc inexistente passar justamente pra este listener.
     watchOrder: (orderId, onChange, onError) =>
       onSnapshot(
         doc(db, 'storeOrderViews', orderId),

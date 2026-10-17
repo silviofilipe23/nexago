@@ -140,7 +140,7 @@ export const LINE_PROBLEM_LABEL: Record<QuoteLineProblem, string> = {
   esgotado: 'Sem estoque nessa quantidade',
   sem_retirada: 'Não sai pra retirada na arena',
   sem_entrega: 'Não tem entrega em casa',
-  personalizacao_off: 'A personalização saiu do ar — remova pra seguir',
+  personalizacao_off: 'Essa personalização não vale mais — remova e refaça',
 };
 
 /** Por que o "Pagar" está travado (a primeira causa que o atleta resolve), ou `null`. */
@@ -619,7 +619,8 @@ export function orderInfo(o: StoreOrderView): string {
     case 'sepd':
       return d.type === 'arena' ? 'Separando pra levar à arena' : 'Separando pra enviar';
     case 'can':
-      return o.refundedCents > 0 ? 'Valor devolvido no Pix' : (o.cancelReason ?? 'Pedido cancelado');
+      // O reembolso pode estar pendente ou ir pro saldo: não prometer "no Pix".
+      return o.refundedCents > 0 ? 'Reembolso registrado' : (o.cancelReason ?? 'Pedido cancelado');
     default:
       return '';
   }

@@ -304,6 +304,12 @@
                   @if (documentError(); as err) {
                     <app-nx-field-error>{{ err }}</app-nx-field-error>
                   }
+                  <app-squad-code-field
+                    [(code)]="squadCode"
+                    [athleteUids]="squadAthleteUids()"
+                    [disabled]="processing()"
+                    [serverError]="squadError()"
+                  />
                   <app-checkout-cashback-toggle
                     [priceReais]="amountDueReais()"
                     [availableCents]="cashback.availableCents()"

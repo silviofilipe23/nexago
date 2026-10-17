@@ -28,6 +28,7 @@ import {
   findCategory,
   loadTournamentData,
   resolveCategoryEntryFee,
+  resolveCategoryLabel,
 } from "./tournament-registration-guards";
 import {
   buildTournamentRegistrationExternalReference,
@@ -71,6 +72,8 @@ import {
 import {registrationCashbackLabel} from "./cashback-intent";
 import {attachHoldPayment} from "./athlete-wallet";
 import {isOrganizerRegistered} from "./organizer-create-registration-core";
+import {resolveRegistrationAttribution, type ResolvedAttribution} from "./squad-attribution";
+import {recordCommissionForCharge} from "./squad-commission-lifecycle";
 
 const pixPaymentSecrets = [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL];
 
@@ -159,7 +162,19 @@ type RegistrationChargeRequest = {
   cpfCnpj?: string;
   amountType?: string;
   useCashback?: boolean;
+  /** Código de embaixador do NexaSquad digitado no checkout (vence o link/QR). */
+  squadCode?: string;
 };
+
+/** O que a comissão do Squad precisa da cobrança, resolvido antes de cobrar. */
+interface SquadChargeContext {
+  attribution: ResolvedAttribution;
+  tournamentId: string;
+  categoryName: string;
+  teamName: string | null;
+  /** Quem esta cobrança converte: só o pagador, ou todos quando paga a dupla/equipe inteira. */
+  convertedUids: string[];
+}
 
 /** Tudo que uma cobrança precisa, já validado e resolvido no gateway. */
 interface PreparedRegistrationCharge {
@@ -173,6 +188,7 @@ interface PreparedRegistrationCharge {
   externalReference: string;
   expiresAtDate: Date;
   tournamentName: string;
+  squad: SquadChargeContext | null;
 }
 
 /**
@@ -338,6 +354,31 @@ async function prepareRegistrationCharge(
       ? resolveTournamentChargeReais(entryFee, "full")
       : shareAmount;
 
+  // Embaixador do NexaSquad: código digitado errado ou autoindicação para aqui, antes de cobrar,
+  // para o atleta corrigir. Link/QR nunca derruba o checkout.
+  let squad: SquadChargeContext | null = null;
+  try {
+    const attribution = await resolveRegistrationAttribution(
+      db,
+      {payerUid: callerUid, athleteUids, typedCode: data.squadCode},
+      new Date(),
+    );
+    if (attribution) {
+      const teamName = typeof team?.teamName === "string" ? team.teamName :
+        typeof registration.teamName === "string" ? registration.teamName : null;
+      squad = {
+        attribution,
+        tournamentId,
+        categoryName: resolveCategoryLabel(tournamentData, categoryId),
+        teamName,
+        convertedUids: amountType === "full" ? athleteUids : [callerUid],
+      };
+    }
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    logger.warn("prepareRegistrationCharge: atribuição do Squad indisponível", e);
+  }
+
   // A cobrança cabe no prazo da vaga; nunca o estica. Inscrição que acabou de
   // ir para a fila perdeu o prazo ali em cima — e fila não tem prazo nenhum.
   const pixWindow = computePixWindow({
@@ -443,7 +484,42 @@ async function prepareRegistrationCharge(
     externalReference,
     expiresAtDate,
     tournamentName,
+    squad,
   };
+}
+
+/**
+ * Comissão pendente do embaixador, depois que a cobrança existe. Melhor esforço: a cobrança já
+ * foi criada e o atleta precisa do QR/checkout mesmo que isto falhe.
+ */
+async function recordSquadCommissionQuietly(
+  prepared: PreparedRegistrationCharge,
+  payerUid: string,
+  paymentId: string,
+  chargedReais: number,
+): Promise<void> {
+  if (!prepared.squad) return;
+  try {
+    await recordCommissionForCharge(prepared.db, {
+      attribution: prepared.squad.attribution,
+      registrationId: prepared.registrationId,
+      tournamentId: prepared.squad.tournamentId,
+      tournamentName: prepared.tournamentName,
+      categoryName: prepared.squad.categoryName,
+      teamName: prepared.squad.teamName,
+      paymentId,
+      payerUid,
+      convertedUids: prepared.squad.convertedUids,
+      grossCents: Math.round(chargedReais * 100),
+    }, new Date());
+  } catch (e) {
+    logger.error("Comissão do Squad não registrada na cobrança", {
+      registrationId: prepared.registrationId,
+      payerUid,
+      paymentId,
+      e,
+    });
+  }
 }
 
 export const createTournamentRegistrationPixPayment = onCall({
@@ -455,14 +531,15 @@ export const createTournamentRegistrationPixPayment = onCall({
     throw new HttpsError("unauthenticated", "Faça login para pagar.");
   }
 
-  const {
-    db, projectId, registrationId, amountType, chargeAmount,
-    customerId, description, externalReference, expiresAtDate, tournamentName,
-  } = await prepareRegistrationCharge(
+  const prepared = await prepareRegistrationCharge(
     callerUid,
     (request.data ?? {}) as RegistrationChargeRequest,
     "PIX",
   );
+  const {
+    db, projectId, registrationId, amountType, chargeAmount,
+    customerId, description, externalReference, expiresAtDate, tournamentName,
+  } = prepared;
 
   const pendingDocRef = pixPendingRef(db, projectId, registrationId, callerUid);
   const cashback = await reserveCashbackForCharge(db, {
@@ -533,6 +610,7 @@ export const createTournamentRegistrationPixPayment = onCall({
     cashbackHoldId: cashback.holdId,
     updatedAt: FieldValue.serverTimestamp(),
   });
+  await recordSquadCommissionQuietly(prepared, callerUid, charge.paymentId, cashback.chargeReais);
 
   return {
     paymentId: charge.paymentId,
@@ -572,14 +650,15 @@ export const createTournamentRegistrationCardPayment = onCall({
     throw new HttpsError("unauthenticated", "Faça login para pagar.");
   }
 
-  const {
-    db, projectId, registrationId, amountType, chargeAmount,
-    customerId, description, externalReference, expiresAtDate, tournamentName,
-  } = await prepareRegistrationCharge(
+  const prepared = await prepareRegistrationCharge(
     callerUid,
     (request.data ?? {}) as RegistrationChargeRequest,
     "cartão",
   );
+  const {
+    db, projectId, registrationId, amountType, chargeAmount,
+    customerId, description, externalReference, expiresAtDate, tournamentName,
+  } = prepared;
 
   const pendingDocRef = pixPendingRef(db, projectId, registrationId, callerUid);
   const cashback = await reserveCashbackForCharge(db, {
@@ -650,6 +729,7 @@ export const createTournamentRegistrationCardPayment = onCall({
     cashbackHoldId: cashback.holdId,
     updatedAt: FieldValue.serverTimestamp(),
   });
+  await recordSquadCommissionQuietly(prepared, callerUid, charge.paymentId, cashback.chargeReais);
 
   return {
     paymentId: charge.paymentId,

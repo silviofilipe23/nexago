@@ -120,6 +120,7 @@ class PaymentService {
     String? cpfCnpj,
     String amountType = 'share',
     bool useCashback = false,
+    String? squadCode,
   }) async {
     if (registrationId.isEmpty) {
       throw PaymentException('Inscrição inválida.');
@@ -139,6 +140,12 @@ class PaymentService {
       }
       if (useCashback) {
         payload['useCashback'] = true;
+      }
+      // Código de embaixador (NexaSquad): o servidor confere e recusa com
+      // mensagem se não existir ou for do próprio atleta.
+      final code = squadCode?.trim().toUpperCase() ?? '';
+      if (code.isNotEmpty) {
+        payload['squadCode'] = code;
       }
       final raw = await callable.call(payload);
       return _parsePixResponse(

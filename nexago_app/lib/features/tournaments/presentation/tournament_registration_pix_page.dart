@@ -36,6 +36,7 @@ import '../domain/tournament_registration_navigation.dart';
 import '../domain/tournament_registration_pix_args.dart';
 import '../domain/tournament_registration_providers.dart';
 import 'widgets/registration_wizard/registration_wizard_notice.dart';
+import 'widgets/squad_code_field.dart';
 
 class TournamentRegistrationPixPage extends ConsumerStatefulWidget {
   const TournamentRegistrationPixPage({
@@ -53,6 +54,7 @@ class TournamentRegistrationPixPage extends ConsumerStatefulWidget {
 class _TournamentRegistrationPixPageState
     extends ConsumerState<TournamentRegistrationPixPage> {
   final _cpfController = TextEditingController();
+  final _squadCodeController = TextEditingController();
   ArenaBookingPixPaymentResult? _pix;
   bool _loadingPix = false;
   String? _pixError;
@@ -93,6 +95,7 @@ class _TournamentRegistrationPixPageState
     _expiryTimer?.cancel();
     _cpfController.removeListener(_onCpfTextChanged);
     _cpfController.dispose();
+    _squadCodeController.dispose();
     super.dispose();
   }
 
@@ -190,6 +193,7 @@ class _TournamentRegistrationPixPageState
             cpfCnpj: _cpfDigits,
             amountType: widget.args.amountType,
             useCashback: useCashback,
+            squadCode: _squadCodeController.text,
           );
       if (!mounted) return;
       setState(() {
@@ -444,6 +448,11 @@ class _TournamentRegistrationPixPageState
                           BookingPixSaveCpfTile(
                             value: _saveCpf,
                             onChanged: (v) => setState(() => _saveCpf = v),
+                          ),
+                          const SizedBox(height: 12),
+                          SquadCodeField(
+                            controller: _squadCodeController,
+                            enabled: !_loadingPix,
                           ),
                           if (_pixError != null) ...[
                             SizedBox(height: 16),

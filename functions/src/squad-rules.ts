@@ -462,6 +462,26 @@ export function normalizeSquadRules(r: SquadRules): SquadRules {
   };
 }
 
+/**
+ * Regras de atribuição vigentes (valem para todos a partir do salvamento, não ficam no contrato).
+ * Doc ausente ou campo inválido cai no padrão do piloto.
+ */
+export async function loadAttributionRules(db: Firestore): Promise<SquadRules["attribution"]> {
+  const snap = await db.collection(SQUAD_CONFIG).doc(SQUAD_RULES_DOC).get();
+  const raw = snap.exists ? (snap.data()?.["rules"] as Raw | undefined)?.["attribution"] : undefined;
+  const d = DEFAULT_SQUAD_RULES.attribution;
+  if (!isObj(raw)) return {...d};
+  return {
+    requirePaidConfirmation: true,
+    cancelOnRefund: true,
+    followerDiscountFirstOnly: typeof raw["followerDiscountFirstOnly"] === "boolean" ?
+      raw["followerDiscountFirstOnly"] : d.followerDiscountFirstOnly,
+    blockSelfReferral: typeof raw["blockSelfReferral"] === "boolean" ? raw["blockSelfReferral"] : d.blockSelfReferral,
+    windowDays: int(raw["windowDays"], 1, MAX_WINDOW_DAYS) ? raw["windowDays"] : d.windowDays,
+    model: raw["model"] === "firstTouch" ? "firstTouch" : "lastTouch",
+  };
+}
+
 // ── diff entre versões ──────────────────────────────────────────────────────
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);

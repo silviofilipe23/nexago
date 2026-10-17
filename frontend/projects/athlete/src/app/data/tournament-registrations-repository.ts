@@ -486,6 +486,8 @@ export class TournamentRegistrationError extends Error {
   constructor(
     message: string,
     readonly code: string | null = null,
+    /** Campo que o servidor apontou (`details.field`), ex.: `squadCode` no checkout. */
+    readonly field: string | null = null,
   ) {
     super(message);
     this.name = 'TournamentRegistrationError';
@@ -511,9 +513,13 @@ function stripFirebaseMessage(raw: string | null | undefined): string | null {
 /** Mesmo padrão de `arena-bookings-repository.mapCallableError` — extrai a mensagem PT
  *  do HttpsError (não o "Conflict" cru do HTTP 409). */
 function mapCallableError(err: unknown): TournamentRegistrationError {
-  const fb = err as { code?: string; message?: string };
+  const fb = err as { code?: string; message?: string; details?: { field?: unknown } };
   const code = (fb.code ?? '').replace(/^functions\//, '');
   const detail = stripFirebaseMessage(fb.message);
+  const field = typeof fb.details?.field === 'string' ? fb.details.field : null;
+  if (field && detail) {
+    return new TournamentRegistrationError(detail, code || null, field);
+  }
   switch (code) {
     case 'unauthenticated':
       return new TournamentRegistrationError('Faça login para continuar.', code);
@@ -684,16 +690,40 @@ export interface RegistrationChargeOptions {
   amountType: 'share' | 'full';
   cpfCnpj: string;
   useCashback?: boolean;
+  /** Código de embaixador do NexaSquad aplicado no checkout. */
+  squadCode?: string;
 }
 
-/** Corpo das duas callables — sem `useCashback`, exatamente o corpo de antes. */
+/** Corpo das duas callables — sem `useCashback` nem `squadCode`, exatamente o corpo de antes. */
 export function registrationChargePayload(opts: RegistrationChargeOptions): Record<string, unknown> {
+  const squadCode = opts.squadCode?.trim();
   return {
     registrationId: opts.registrationId,
     amountType: opts.amountType,
     cpfCnpj: opts.cpfCnpj,
     ...(opts.useCashback === true ? { useCashback: true } : {}),
+    ...(squadCode ? { squadCode } : {}),
   };
+}
+
+/**
+ * Confere o código de embaixador antes de cobrar. Devolve o nome de quem indicou; código
+ * inexistente ou do próprio atleta (ou do parceiro) volta como erro com a mensagem do servidor.
+ */
+export async function checkSquadCode(
+  functions: Functions,
+  code: string,
+  athleteUids: string[],
+): Promise<{ ambassadorName: string | null; code: string | null }> {
+  try {
+    const result = await httpsCallable<Record<string, unknown>, { ambassadorName: string | null; code: string | null }>(
+      functions,
+      'checkSquadCode',
+    )({ code, athleteUids });
+    return result.data;
+  } catch (err) {
+    throw mapCallableError(err);
+  }
 }
 
 export async function createRegistrationPixPayment(

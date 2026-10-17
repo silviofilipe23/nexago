@@ -38,6 +38,7 @@ import {registrationHoldClearedFields} from "./tournament-registration-hold-ops"
 import {tournamentManagerUids} from "./tournament-acl";
 import {organizerTournamentNotificationLinks} from "./organizer-notification-links";
 import {creditTournamentWalletFromRegistration} from "./tournament-wallet";
+import {applySquadPaymentEventQuietly, squadEventForStatus} from "./squad-commission-lifecycle";
 import {computePlatformFeeReais, resolveOrganizerTournamentFeePercent} from "./platform-fees";
 import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 import {
@@ -293,6 +294,8 @@ export async function processTournamentRegistrationAsaasNotification(
           `${payerUid} (R$ ${paidOnline}) — estorno manual necessário`,
           {registrationId, payerUid, paymentId, paidValue: paidOnline, cashbackAppliedCents: appliedCents},
         );
+        // Dinheiro deste pagador volta por estorno: a comissão dele não pode ser liberada.
+        await applySquadPaymentEventQuietly(db, {registrationId, payerUid, paymentId, event: "failed"}, new Date());
         await processedRef.set({
           kind: "tournamentRegistration",
           registrationId,
@@ -391,6 +394,16 @@ export async function processTournamentRegistrationAsaasNotification(
       }, {merge: true});
 
       await batch.commit();
+
+      // Comissão do embaixador (NexaSquad): libera com a receita líquida do Asaas. Nunca lança.
+      await applySquadPaymentEventQuietly(db, {
+        registrationId,
+        payerUid,
+        paymentId,
+        event: "confirmed",
+        valueCents: Math.round(paidOnline * 100),
+        netValueCents: typeof payment.netValue === "number" ? Math.round(payment.netValue * 100) : null,
+      }, new Date());
 
       // Captura a reserva de saldo e cria o lote pendente. Nunca lança: o que
       // falhar fica pendente para a varredura de 5 minutos.
@@ -539,6 +552,10 @@ export async function processTournamentRegistrationAsaasNotification(
     // Estorno ou chargeback DEPOIS da vaga garantida. Não há desfazimento
     // automático (mesma lacuna que o estorno de PIX sempre teve), mas isso
     // precisa ser barulhento em vez de sumir num return silencioso.
+    const squadEvent = squadEventForStatus(status, alreadyConfirmed);
+    if (squadEvent) {
+      await applySquadPaymentEventQuietly(db, {registrationId, payerUid, paymentId, event: squadEvent}, new Date());
+    }
     if (alreadyConfirmed) {
       logger.error(
         `Asaas tournament registration ${registrationId}: pagamento ${paymentId} ` +

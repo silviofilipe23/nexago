@@ -38,6 +38,7 @@ import {
 } from '../../shared/feedback';
 import { resolveDirectPaymentState, type DirectPaymentState } from './direct-payment-state';
 import { RegistrationHoldNoticeComponent } from './registration-hold-notice.component';
+import { SquadCodeFieldComponent } from './squad-code-field.component';
 import { shouldShowRegistrationHoldCountdown, registrationHoldCountdownView } from './registration-hold';
 import { appliedPreviewCents } from '../../data/cashback-preview';
 import { CashbackService } from '../../data/cashback.service';
@@ -110,6 +111,7 @@ const PAID_REVEAL_MS = 2000;
     RegistrationHoldNoticeComponent,
     CheckoutCashbackToggleComponent,
     CashbackEarnedNoteComponent,
+    SquadCodeFieldComponent,
   ],
   templateUrl: './tournament-payment.component.html',
   styleUrl: './tournament-payment.component.scss',
@@ -293,6 +295,12 @@ export class TournamentPaymentComponent {
 
   /** "Usar meu cashback" — desligado por padrão (o atleta escolhe gastar); vale para PIX e cartão. */
   protected readonly useCashback = signal(false);
+
+  /** Código de embaixador do NexaSquad já conferido (vai na cobrança como `squadCode`). */
+  protected readonly squadCode = signal('');
+  /** Recusa do código pela própria cobrança (contrato encerrado entre conferir e pagar, por ex.). */
+  protected readonly squadError = signal<string | null>(null);
+  protected readonly squadAthleteUids = computed(() => this.registration()?.participantUids ?? []);
 
   /** Só há o que descontar com a cobrança pelo app ainda por fazer: inscrição paga, parcela paga
    *  e pagamento direto com o organizador nunca mostram desconto no resumo. */
@@ -567,12 +575,14 @@ export class TournamentPaymentComponent {
       return;
     }
     this.processing.set(true);
+    this.squadError.set(null);
     try {
       const result = await createRegistrationPixPayment(athleteFunctions(), {
         registrationId: reg.id,
         amountType: this.amountType(),
         cpfCnpj: this.cpfCnpj(),
         useCashback: this.cashbackAppliedReais() > 0,
+        squadCode: this.squadCode(),
       });
       this.pixResult.set(result);
       this.lastChargePaymentId.set(result.paymentId);
@@ -581,6 +591,10 @@ export class TournamentPaymentComponent {
       this.documentError.set(null);
       this.schedulePixExpiry(result.expiresAt);
     } catch (err) {
+      if (err instanceof TournamentRegistrationError && err.field === 'squadCode') {
+        this.squadError.set(err.message);
+        return;
+      }
       this.toasts.error(
         'Não foi possível gerar o Pix',
         err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu. Nenhum valor foi cobrado.',
@@ -610,12 +624,14 @@ export class TournamentPaymentComponent {
       return;
     }
     this.processing.set(true);
+    this.squadError.set(null);
     try {
       const result = await createRegistrationCardPayment(athleteFunctions(), {
         registrationId: reg.id,
         amountType: this.amountType(),
         cpfCnpj: this.cpfCnpj(),
         useCashback: this.cashbackAppliedReais() > 0,
+        squadCode: this.squadCode(),
       });
       // Uma cobrança viva por vez: duas seriam duas chances de pagar a mesma cota.
       this.pixResult.set(null);
@@ -626,6 +642,10 @@ export class TournamentPaymentComponent {
       this.documentError.set(null);
       this.schedulePixExpiry(result.expiresAt);
     } catch (err) {
+      if (err instanceof TournamentRegistrationError && err.field === 'squadCode') {
+        this.squadError.set(err.message);
+        return;
+      }
       this.toasts.error(
         'Não foi possível abrir o checkout',
         err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu. Nenhum valor foi cobrado.',

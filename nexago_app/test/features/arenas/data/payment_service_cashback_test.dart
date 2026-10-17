@@ -112,6 +112,27 @@ void main() {
       expect(pix.chargedReais, 100.0);
     });
   });
+
+  group('createTournamentRegistrationPixPayment — código de embaixador', () {
+    test('manda o squadCode em maiúsculas e nada quando vazio', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'createTournamentRegistrationPixPayment': {..._pix, 'amountReais': 100.0},
+      });
+      final service = PaymentService(functions: functions);
+
+      await service.createTournamentRegistrationPixPayment(
+        registrationId: 'r1',
+        squadCode: ' joao10 ',
+      );
+      await service.createTournamentRegistrationPixPayment(
+        registrationId: 'r1',
+        squadCode: '  ',
+      );
+
+      expect(functions.calledPayloads[0]?['squadCode'], 'JOAO10');
+      expect(functions.calledPayloads[1]?.containsKey('squadCode'), isFalse);
+    });
+  });
 }
 
 /// Mesmo dublê de `booking_service_coupon_test.dart`: registra o payload de

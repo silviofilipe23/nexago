@@ -80,6 +80,30 @@ const LOJA_GROUP: NavGroup = {
   ],
 };
 
+/**
+ * NexaSquad (programa de embaixadores). Só "Níveis & regras" tem tela; o resto chega com
+ * os contratos — sem badge até lá, para não exibir contagem que não existe.
+ */
+const SQUAD_GROUP: NavGroup = {
+  kind: 'group',
+  id: 'squad',
+  label: 'Squad',
+  icon: 'squad',
+  children: [
+    { kind: 'soon', id: 'squad-visao-geral', label: 'Visão geral', icon: 'trend-up' },
+    { kind: 'soon', id: 'squad-embaixadores', label: 'Embaixadores', icon: 'users' },
+    { kind: 'soon', id: 'squad-candidaturas', label: 'Candidaturas', icon: 'file' },
+    { kind: 'soon', id: 'squad-comissoes', label: 'Comissões', icon: 'cash' },
+    {
+      kind: 'link',
+      id: 'squad-niveis-regras',
+      label: 'Níveis & regras',
+      icon: 'gear',
+      route: '/painel/squad/niveis-regras',
+    },
+  ],
+};
+
 const NAV_ITEMS: readonly PanelNavItem[] = [
   { kind: 'link', id: 'inicio', label: 'Início', icon: 'home', route: '/painel' },
   { kind: 'link', id: 'arenas', label: 'Arenas', icon: 'arena', route: '/painel/arenas' },
@@ -100,6 +124,7 @@ const NAV_ITEMS: readonly PanelNavItem[] = [
     route: '/painel/organizadores',
   },
   { kind: 'link', id: 'atletas', label: 'Atletas', icon: 'users', route: '/painel/atletas' },
+  SQUAD_GROUP,
   { kind: 'link', id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro' },
   LOJA_GROUP,
   { kind: 'soon', id: 'moderacao', label: 'Moderação', icon: 'shield' },
@@ -611,6 +636,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/atletas')) {
       return 'atletas';
+    }
+    if (path.startsWith('/painel/squad/niveis-regras')) {
+      return 'squad-niveis-regras';
     }
     if (path.startsWith('/painel/loja/visao-geral')) {
       return 'loja-visao-geral';

@@ -3194,6 +3194,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // NexaSquad: regras do programa (vigente + histórico de versões). Só a callable
+    // `saveSquadRules` grava; contrato assinado guarda o número da versão.
+    match /squadConfig/{configId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+
+      match /versions/{versionId} {
+        allow read: if isAdmin() || isSuperAdmin();
+        allow write: if false;
+      }
+    }
+
     // Movimentações de estoque: o rastro de toda mudança de saldo. Só servidor grava.
     match /storeStockMovements/{movementId} {
       allow read: if isAdmin() || isSuperAdmin();

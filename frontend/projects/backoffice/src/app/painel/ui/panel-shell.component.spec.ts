@@ -23,6 +23,9 @@ describe('PanelShellComponent', () => {
   const labels = (host: HTMLElement, selector: string) =>
     [...host.querySelectorAll(selector)].map((e) => e.textContent!.trim());
 
+  const groupButton = (host: HTMLElement, label: string) =>
+    [...host.querySelectorAll<HTMLButtonElement>('button.nav-item')].find((b) => b.textContent!.includes(label))!;
+
   it('renderiza os itens com rota como link', async () => {
     const host = await mount();
     const links = labels(host, 'a.nav-item');
@@ -38,15 +41,36 @@ describe('PanelShellComponent', () => {
   });
   it('mostra o grupo Loja fechado fora da área, com os filhos escondidos', async () => {
     const host = await mount();
-    const group = host.querySelector('button.nav-item')!;
+    const group = groupButton(host, 'Loja');
     expect(group.textContent!.trim()).toContain('Loja');
     expect(group.getAttribute('aria-expanded')).toBe('false');
     expect(host.querySelector('.subnav')).toBeNull();
   });
 
+  it('Squad fica entre Atletas e Financeiro, com só Níveis & regras navegável', async () => {
+    const host = await mount();
+    const top = labels(host, '.nav > .nav-item');
+    expect(top.indexOf('Squad')).toBe(top.indexOf('Atletas') + 1);
+    expect(top.indexOf('Financeiro')).toBe(top.indexOf('Squad') + 1);
+
+    groupButton(host, 'Squad').click();
+    await TestBed.inject(ApplicationRef).whenStable();
+    expect(labels(host, '.subnav .nav-item')).toEqual([
+      'Visão geral',
+      'Embaixadores',
+      'Candidaturas',
+      'Comissões',
+      'Níveis & regras',
+    ]);
+    const links = [...host.querySelectorAll('.subnav a.nav-item')];
+    expect(links.map((e) => e.getAttribute('href'))).toEqual(['/painel/squad/niveis-regras']);
+    // Sem contrato ainda: nenhuma contagem inventada nos filhos.
+    expect(host.querySelector('.subnav .badge')).toBeNull();
+  });
+
   it('abre o grupo no clique e fecha no clique seguinte', async () => {
     const host = await mount();
-    const group = host.querySelector('button.nav-item') as HTMLButtonElement;
+    const group = groupButton(host, 'Loja');
 
     group.click();
     await TestBed.inject(ApplicationRef).whenStable();
@@ -62,7 +86,7 @@ describe('PanelShellComponent', () => {
 
   it('o cabeçalho do grupo usa a mesma fonte e alinhamento dos links', async () => {
     const host = await mount();
-    const group = getComputedStyle(host.querySelector('button.nav-item')!);
+    const group = getComputedStyle(groupButton(host, 'Loja'));
     const link = getComputedStyle(host.querySelector('a.nav-item')!);
     expect(group.textAlign).toBe('left');
     expect(group.fontFamily).toBe(link.fontFamily);
@@ -72,7 +96,7 @@ describe('PanelShellComponent', () => {
 
   it('abrir o grupo na mão não o destaca: o destaque é da rota', async () => {
     const host = await mount();
-    const group = host.querySelector('button.nav-item') as HTMLButtonElement;
+    const group = groupButton(host, 'Loja');
     group.click();
     await TestBed.inject(ApplicationRef).whenStable();
     expect(group.getAttribute('aria-expanded')).toBe('true');
@@ -81,7 +105,7 @@ describe('PanelShellComponent', () => {
 
   it('todos os filhos da Loja são links, na ordem do desenho', async () => {
     const host = await mount();
-    (host.querySelector('button.nav-item') as HTMLButtonElement).click();
+    groupButton(host, 'Loja').click();
     await TestBed.inject(ApplicationRef).whenStable();
 
     const links = [...host.querySelectorAll('.subnav a.nav-item')];
@@ -112,7 +136,7 @@ describe('PanelShellComponent', () => {
   it('o badge de Personalizados é o número de artes para aprovar', async () => {
     const host = await mount();
     TestBed.inject(StoreBadgesService).setCustom(2);
-    (host.querySelector('button.nav-item') as HTMLButtonElement).click();
+    groupButton(host, 'Loja').click();
     await TestBed.inject(ApplicationRef).whenStable();
     const item = [...host.querySelectorAll('.subnav a.nav-item')].find((e) => e.textContent!.includes('Personalizados'))!;
     expect(item.querySelector('.badge')!.textContent!.trim()).toBe('2');
@@ -121,7 +145,7 @@ describe('PanelShellComponent', () => {
   it('o badge de Trocas é o número para analisar', async () => {
     const host = await mount();
     TestBed.inject(StoreBadgesService).setReturns(2);
-    (host.querySelector('button.nav-item') as HTMLButtonElement).click();
+    groupButton(host, 'Loja').click();
     await TestBed.inject(ApplicationRef).whenStable();
     const trocas = [...host.querySelectorAll('.subnav a.nav-item')].find((e) => e.textContent!.includes('Trocas'))!;
     expect(trocas.querySelector('.badge')!.textContent!.trim()).toBe('2');
@@ -130,7 +154,7 @@ describe('PanelShellComponent', () => {
   it('o badge do Estoque vem da contagem real de SKUs baixos', async () => {
     const host = await mount();
     TestBed.inject(StoreBadgesService).set(4);
-    (host.querySelector('button.nav-item') as HTMLButtonElement).click();
+    groupButton(host, 'Loja').click();
     await TestBed.inject(ApplicationRef).whenStable();
     const estoque = [...host.querySelectorAll('.subnav a.nav-item')].find((e) => e.textContent!.includes('Estoque'))!;
     expect(estoque.querySelector('.badge')!.textContent!.trim()).toBe('4');
@@ -143,7 +167,7 @@ describe('PanelShellComponent', () => {
   it('o badge de Pedidos é o número para separar', async () => {
     const host = await mount();
     TestBed.inject(StoreBadgesService).setOrders(9);
-    (host.querySelector('button.nav-item') as HTMLButtonElement).click();
+    groupButton(host, 'Loja').click();
     await TestBed.inject(ApplicationRef).whenStable();
 
     const pedidos = [...host.querySelectorAll('.subnav .nav-item')].find((e) =>

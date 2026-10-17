@@ -386,7 +386,11 @@ export async function processTournamentRegistrationAsaasNotification(
         eventAtMs: toMillisOrNull(tournament?.startAt ?? tournament?.startDate) ?? Date.now(),
         cashReais: paidOnline,
         appliedCents,
-        feeReais: organizerId ? computePlatformFeeReais(grossOnline, organizerFeePercent ?? 0) : 0,
+        // O teto do cashback ganho é sobre a taxa que sobrou para a nexaGO: o desconto do
+        // seguidor (NexaSquad) já saiu dela.
+        feeReais: organizerId ?
+          Math.max(0, roundMoney(computePlatformFeeReais(grossOnline, organizerFeePercent ?? 0) - squadDiscount / 100)) :
+          0,
         holdId,
         config: cashbackConfig,
       });

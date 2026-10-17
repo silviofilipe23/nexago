@@ -27,8 +27,8 @@ interface LinkReferral {
       <div class="applied" role="status">
         <span>
           <strong>{{ applied }}</strong> · indicação de {{ ambassadorName() || 'embaixador' }}
-          @if (discountPct() > 0) {
-            · <b>{{ discountPct() }}% de desconto</b>
+          @if (discountReais() > 0) {
+            · <b>{{ brl(discountReais()) }} de desconto</b>
           }
         </span>
         <button type="button" class="link" [disabled]="disabled()" (click)="remove()">Remover</button>
@@ -38,8 +38,8 @@ interface LinkReferral {
         <div class="applied" role="status">
           <span>
             Indicação de {{ ref.name }}
-            @if (ref.pct > 0) {
-              · <b>{{ ref.pct }}% de desconto</b>
+            @if (discountReais() > 0) {
+              · <b>{{ brl(discountReais()) }} de desconto</b>
             }
           </span>
           <button type="button" class="link" [disabled]="disabled()" (click)="open.set(true)">Tenho outro código</button>
@@ -99,11 +99,18 @@ export class SquadCodeFieldComponent {
   readonly code = model('');
   /** % de desconto do seguidor que vale agora (código aplicado ou link), para o pai mostrar o preço. */
   readonly discountPct = model(0);
+  /** % da taxa da plataforma no torneio (teto do desconto); `null` = sem teto. */
+  readonly feePercent = model<number | null>(null);
   /** Atletas da inscrição: o servidor recusa o código de qualquer um deles (autoindicação). */
   readonly athleteUids = input<string[]>([]);
   /** Inscrição sendo paga: o desconto "só na primeira inscrição" é decidido por ela. */
   readonly registrationId = input<string | null>(null);
   readonly disabled = input(false);
+  /**
+   * Desconto que vale de fato nesta cobrança, calculado pelo pai (% com teto na taxa da plataforma):
+   * o campo mostra reais, não o %, porque o teto quase sempre corta o % do contrato.
+   */
+  readonly discountReais = input(0);
   /** Erro que a cobrança devolveu para este campo (`details.field === 'squadCode'`). */
   readonly serverError = input<string | null>(null);
 
@@ -144,10 +151,15 @@ export class SquadCodeFieldComponent {
       const result = await checkSquadCode(athleteFunctions(), '', this.athleteUids(), registrationId);
       if (result.origin !== 'link' && result.origin !== 'qr') return;
       this.viaLink.set({ name: result.ambassadorName ?? 'um embaixador', pct: result.discountPct });
+      this.feePercent.set(result.feePercent);
       if (!this.code()) this.discountPct.set(result.discountPct);
     } catch {
       // Sem indicação visível: a cobrança resolve o link do mesmo jeito no servidor.
     }
+  }
+
+  protected brl(reais: number): string {
+    return reais.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
   protected onInput(value: string): void {
@@ -168,6 +180,7 @@ export class SquadCodeFieldComponent {
       this.ambassadorName.set(result.ambassadorName ?? 'um embaixador');
       this.code.set(result.code ?? code);
       this.discountPct.set(result.discountPct);
+      this.feePercent.set(result.feePercent);
       this.message.set(null);
     } catch (err) {
       this.message.set(

@@ -13,6 +13,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {Timestamp, getFirestore, type Firestore} from "firebase-admin/firestore";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {followerDiscountFor} from "./squad-commission-lifecycle";
+import {feePercentForRegistration} from "./squad-fee-cap";
 import {SQUAD_AMBASSADORS} from "./squad-commissions";
 import {loadAttributionRules, type SquadTier} from "./squad-rules";
 
@@ -162,6 +163,11 @@ export interface SquadCodeCheck {
   origin: AttributionOrigin | null;
   /** % do desconto do seguidor que vale para este atleta nesta inscrição (0 = sem desconto). */
   discountPct: number;
+  /**
+   * % da taxa da plataforma neste torneio: o desconto nunca passa dela (a nexaGO banca o desconto
+   * com a própria taxa). `null` = torneio sem organizador, sem esse teto.
+   */
+  feePercent: number | null;
 }
 
 /**
@@ -170,7 +176,7 @@ export interface SquadCodeCheck {
  */
 export async function checkSquadCodeCore(
   db: Firestore,
-  input: {payerUid: string; athleteUids: string[]; code: string; registrationId: string},
+  input: {payerUid: string; athleteUids: string[]; code: string; registrationId: string; feePercent?: number | null},
   now: Date,
 ): Promise<SquadCodeCheck> {
   const resolved = await resolveRegistrationAttribution(
@@ -178,7 +184,8 @@ export async function checkSquadCodeCore(
     {payerUid: input.payerUid, athleteUids: input.athleteUids, typedCode: input.code},
     now,
   );
-  if (!resolved) return {ambassadorName: null, code: null, origin: null, discountPct: 0};
+  const feePercent = input.feePercent ?? null;
+  if (!resolved) return {ambassadorName: null, code: null, origin: null, discountPct: 0, feePercent};
   // Preço de referência só para saber se o desconto vale (primeira inscrição); o checkout aplica o %.
   const discount = await followerDiscountFor(db, {
     attribution: resolved,
@@ -191,6 +198,7 @@ export async function checkSquadCodeCore(
     code: resolved.ambassador.code,
     origin: resolved.origin,
     discountPct: discount.pct,
+    feePercent,
   };
 }
 
@@ -201,10 +209,13 @@ export const checkSquadCode = onCall(CLIENT_CALLABLE, async (request) => {
   const athleteUids = Array.isArray(data.athleteUids) ?
     data.athleteUids.filter((u): u is string => typeof u === "string").slice(0, 10) :
     [];
-  return checkSquadCodeCore(getFirestore(), {
+  const db = getFirestore();
+  const registrationId = typeof data.registrationId === "string" ? data.registrationId : "";
+  return checkSquadCodeCore(db, {
     payerUid: uid,
     athleteUids,
     code: typeof data.code === "string" ? data.code : "",
-    registrationId: typeof data.registrationId === "string" ? data.registrationId : "",
+    registrationId,
+    feePercent: await feePercentForRegistration(db, registrationId),
   }, new Date());
 });

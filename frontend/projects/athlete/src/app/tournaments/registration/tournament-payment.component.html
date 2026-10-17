@@ -307,6 +307,8 @@
                   <app-squad-code-field
                     [(code)]="squadCode"
                     [(discountPct)]="squadDiscountPct"
+                    [(feePercent)]="squadFeePercent"
+                    [discountReais]="squadDiscountReais()"
                     [registrationId]="registration()?.id ?? null"
                     [athleteUids]="squadAthleteUids()"
                     [disabled]="processing()"

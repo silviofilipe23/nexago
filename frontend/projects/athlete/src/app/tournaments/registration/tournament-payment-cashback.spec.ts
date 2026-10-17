@@ -27,6 +27,7 @@ interface Internals {
   cashbackAppliedReais(): number;
   lastChargePaymentId: WritableSignal<string | null>;
   squadDiscountPct: WritableSignal<number>;
+  squadFeePercent: WritableSignal<number | null>;
 }
 
 const firebase = environment.firebase as { apiKey: string };
@@ -292,6 +293,17 @@ describe('TournamentPaymentComponent — desconto do seguidor (NexaSquad)', () =
 
     expect(squadSummary(fixture)).toBe('−R$ 7,50');
     expect(total(fixture)).toBe('R$ 42,50');
+  });
+
+  it('o desconto para na taxa da plataforma do torneio', () => {
+    const { fixture, internals } = create(fakeCashbackService());
+    // Cota de R$ 50 × 15% = R$ 7,50, mas a taxa de 8% é R$ 4,00.
+    internals.squadDiscountPct.set(15);
+    internals.squadFeePercent.set(8);
+    fixture.detectChanges();
+
+    expect(squadSummary(fixture)).toBe('−R$ 4,00');
+    expect(total(fixture)).toBe('R$ 46,00');
   });
 
   it('sem indicação, o resumo é o de antes', () => {

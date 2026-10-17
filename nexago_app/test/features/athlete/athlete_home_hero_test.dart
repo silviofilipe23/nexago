@@ -49,13 +49,13 @@ void main() {
         athleteHomeHeroAssetFor('Outro', sport: 'FUTEVOLEI'),
         'assets/images/sports/futevolei.webp',
       );
-    });
-
-    test('padel sem gênero e esporte sem arte seguem por gênero', () {
       expect(
         athleteHomeHeroAssetFor(null, sport: 'PADEL'),
-        AthleteHomeHeroArt.neutro,
+        'assets/images/sports/padel.webp',
       );
+    });
+
+    test('esporte sem arte segue por gênero', () {
       expect(
         athleteHomeHeroAssetFor('Feminino', sport: 'OUTROS'),
         AthleteHomeHeroArt.feminino,

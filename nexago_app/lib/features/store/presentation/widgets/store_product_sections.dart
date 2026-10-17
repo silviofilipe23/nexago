@@ -180,22 +180,26 @@ class _Pill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    // Center com widthFactor: a pílula fica do tamanho do texto (com
+    // `alignment` no Container ela ocupava a linha toda).
     return Container(
       height: 26,
       padding: const EdgeInsets.symmetric(horizontal: 10),
-      alignment: Alignment.center,
       decoration: BoxDecoration(
         color: dark ? StoreStyle.surface(colors) : AppColors.brand,
         borderRadius: AppRadii.pillAll,
       ),
-      child: Text(
-        label.toUpperCase(),
-        style: AppTypography.mono(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.9,
-          height: 1,
-          color: dark ? colors.onSurface : StoreStyle.onBrand,
+      child: Center(
+        widthFactor: 1,
+        child: Text(
+          label.toUpperCase(),
+          style: AppTypography.mono(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.9,
+            height: 1,
+            color: dark ? colors.onSurface : StoreStyle.onBrand,
+          ),
         ),
       ),
     );

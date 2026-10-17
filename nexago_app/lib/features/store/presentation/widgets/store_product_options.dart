@@ -313,22 +313,27 @@ class _AxisButton extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
+          // Sem `alignment` no Container: dentro do Wrap ele viraria um Align
+          // e ocuparia a largura toda. O Center com widthFactor encolhe na
+          // largura do texto e centraliza na altura de 50.
           child: Container(
             height: 50,
             constraints: const BoxConstraints(minWidth: 62),
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            alignment: Alignment.center,
-            child: Text(
-              label,
-              style: AppTypography.soraRegular(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: available
-                    ? colors.onSurface
-                    : StoreStyle.tertiary(colors).withValues(alpha: 0.3),
-              ).copyWith(
-                decoration: available ? null : TextDecoration.lineThrough,
-                decorationColor: StoreStyle.tertiary(colors),
+            child: Center(
+              widthFactor: 1,
+              child: Text(
+                label,
+                style: AppTypography.soraRegular(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: available
+                      ? colors.onSurface
+                      : StoreStyle.tertiary(colors).withValues(alpha: 0.3),
+                ).copyWith(
+                  decoration: available ? null : TextDecoration.lineThrough,
+                  decorationColor: StoreStyle.tertiary(colors),
+                ),
               ),
             ),
           ),

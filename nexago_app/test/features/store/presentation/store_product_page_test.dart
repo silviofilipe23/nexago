@@ -275,6 +275,25 @@ void main() {
     );
   });
 
+  // Regressão vista no simulador: `Container(alignment:)` dentro do Wrap
+  // esticava cada tamanho (e a pílula da coleção) na largura toda.
+  testWidgets('tamanhos lado a lado e pílula do tamanho do texto', (
+    tester,
+  ) async {
+    await _open(tester, _repo(), 'camiseta');
+
+    final p = tester.getRect(find.byKey(const ValueKey('store-axis-tam-p')));
+    final m = tester.getRect(find.byKey(const ValueKey('store-axis-tam-m')));
+    expect(p.width, lessThan(120));
+    expect(m.top, p.top, reason: 'M fica na mesma linha do P');
+    expect(m.left, greaterThan(p.right));
+    expect(tester.getSize(find.text('VERÃO 2026')).width, lessThan(200));
+    final pill = find
+        .ancestor(of: find.text('VERÃO 2026'), matching: find.byType(Container))
+        .first;
+    expect(tester.getSize(pill).width, lessThan(200));
+  });
+
   testWidgets('trocar a cor atualiza o rótulo "COR · X" e loga', (
     tester,
   ) async {

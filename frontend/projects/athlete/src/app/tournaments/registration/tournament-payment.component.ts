@@ -39,6 +39,7 @@ import {
 import { resolveDirectPaymentState, type DirectPaymentState } from './direct-payment-state';
 import { RegistrationHoldNoticeComponent } from './registration-hold-notice.component';
 import { SquadCodeFieldComponent } from './squad-code-field.component';
+import { squadDiscountPreviewCents } from '../../data/squad-discount';
 import { shouldShowRegistrationHoldCountdown, registrationHoldCountdownView } from './registration-hold';
 import { appliedPreviewCents } from '../../data/cashback-preview';
 import { CashbackService } from '../../data/cashback.service';
@@ -301,6 +302,19 @@ export class TournamentPaymentComponent {
   /** Recusa do código pela própria cobrança (contrato encerrado entre conferir e pagar, por ex.). */
   protected readonly squadError = signal<string | null>(null);
   protected readonly squadAthleteUids = computed(() => this.registration()?.participantUids ?? []);
+  /** % do desconto do seguidor (código aplicado ou link), conferido no servidor pelo campo. */
+  protected readonly squadDiscountPct = signal(0);
+  /** Desconto do seguidor: o da cobrança gerada ou a prévia. Sai da taxa da nexaGO. */
+  protected readonly squadDiscountReais = computed(() => {
+    const live = this.pixResult() ?? this.cardResult();
+    if (live) return live.squadDiscountReais;
+    if (!this.appChargeOpen()) return 0;
+    return squadDiscountPreviewCents(this.amountDueReais(), this.squadDiscountPct()) / 100;
+  });
+  /** Preço desta cobrança depois do desconto do seguidor — o cashback incide sobre ele. */
+  protected readonly priceAfterSquadReais = computed(
+    () => Math.round((this.amountDueReais() - this.squadDiscountReais()) * 100) / 100,
+  );
 
   /** Só há o que descontar com a cobrança pelo app ainda por fazer: inscrição paga, parcela paga
    *  e pagamento direto com o organizador nunca mostram desconto no resumo. */
@@ -324,7 +338,7 @@ export class TournamentPaymentComponent {
     return (
       appliedPreviewCents({
         use: this.useCashback(),
-        priceReais: this.amountDueReais(),
+        priceReais: this.priceAfterSquadReais(),
         availableCents: this.cashback.availableCents(),
         config: this.cashback.config(),
       }) / 100
@@ -335,7 +349,7 @@ export class TournamentPaymentComponent {
   protected readonly chargeDueReais = computed(() => {
     const live = this.pixResult() ?? this.cardResult();
     if (live) return live.chargedReais || this.amountDueReais();
-    return Math.round((this.amountDueReais() - this.cashbackAppliedReais()) * 100) / 100;
+    return Math.round((this.priceAfterSquadReais() - this.cashbackAppliedReais()) * 100) / 100;
   });
 
   constructor() {

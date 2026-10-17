@@ -22,10 +22,60 @@ import {onDocumentDeleted} from "firebase-functions/v2/firestore";
 import {getFirestore, type DocumentSnapshot, type Firestore, type Transaction} from "firebase-admin/firestore";
 import type {ResolvedAttribution} from "./squad-attribution";
 import {SQUAD_ADJUSTMENTS, SQUAD_COMMISSIONS} from "./squad-commissions";
+import {loadAttributionRules, tierFollowerDiscountPct} from "./squad-rules";
 
 export type PaymentEvent = "confirmed" | "failed" | "refunded" | "chargeback";
 
 const LIVE_STATUSES = ["pending", "released", "paid"];
+
+/** Desconto do seguidor de cada cobrança, por `paymentId`. Só servidor lê e grava. */
+export const SQUAD_CHARGE_DISCOUNTS = "squadChargeDiscounts";
+
+/** O Asaas não cobra PIX abaixo disto: o desconto nunca deixa a cobrança menor. */
+const MIN_CHARGE_CENTS = 5_00;
+
+/** O pagador já tem conversão viva (pendente, liberada ou paga) em OUTRA cobrança? */
+async function payerAlreadyConverted(db: Firestore, payerUid: string, exceptId: string): Promise<boolean> {
+  const previous = await db.collection(SQUAD_COMMISSIONS).where("payerUid", "==", payerUid).get();
+  return previous.docs.some((d) => d.id !== exceptId && LIVE_STATUSES.includes(String(d.data()["status"])));
+}
+
+/**
+ * Desconto que o código dá ao seguidor nesta cobrança, em centavos do preço. Sai da taxa da
+ * nexaGO: o organizador é creditado sobre o preço cheio (o webhook soma o desconto ao bruto).
+ * Com "só na primeira inscrição" ligado, quem já converteu não ganha de novo.
+ */
+export async function followerDiscountFor(
+  db: Firestore,
+  input: {attribution: ResolvedAttribution; payerUid: string; registrationId: string; priceCents: number},
+): Promise<{cents: number; pct: number}> {
+  const rules = await loadAttributionRules(db);
+  const id = squadCommissionId(input.registrationId, input.payerUid);
+  if (rules.followerDiscountFirstOnly && await payerAlreadyConverted(db, input.payerUid, id)) {
+    return {cents: 0, pct: 0};
+  }
+  const {ambassador} = input.attribution;
+  const pct = ambassador.followerDiscountPct ??
+    await tierFollowerDiscountPct(db, ambassador.tier, ambassador.rulesVersion);
+  const raw = Math.round((input.priceCents * pct) / 100);
+  const cents = Math.max(0, Math.min(raw, input.priceCents - MIN_CHARGE_CENTS));
+  return {cents, pct: cents > 0 ? pct : 0};
+}
+
+export async function recordChargeDiscount(
+  db: Firestore,
+  input: {paymentId: string; registrationId: string; payerUid: string; ambassadorId: string; cents: number; pct: number},
+  now: Date,
+): Promise<void> {
+  await db.collection(SQUAD_CHARGE_DISCOUNTS).doc(input.paymentId).set({...input, createdAt: now});
+}
+
+/** Quanto desta cobrança foi desconto do seguidor (0 sem registro). */
+export async function chargeDiscountCents(db: Firestore, paymentId: string): Promise<number> {
+  const d = (await db.collection(SQUAD_CHARGE_DISCOUNTS).doc(paymentId).get()).data();
+  const cents = d?.["cents"];
+  return typeof cents === "number" && Number.isInteger(cents) && cents > 0 ? cents : 0;
+}
 
 export function squadCommissionId(registrationId: string, payerUid: string): string {
   return `${registrationId}_${payerUid}`;
@@ -79,8 +129,7 @@ export async function createPendingCommission(
   const id = squadCommissionId(input.registrationId, input.payerUid);
   const ref = db.collection(SQUAD_COMMISSIONS).doc(id);
 
-  const previous = await db.collection(SQUAD_COMMISSIONS).where("payerUid", "==", input.payerUid).get();
-  if (previous.docs.some((d) => d.id !== id && LIVE_STATUSES.includes(String(d.data()["status"])))) return null;
+  if (await payerAlreadyConverted(db, input.payerUid, id)) return null;
 
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);

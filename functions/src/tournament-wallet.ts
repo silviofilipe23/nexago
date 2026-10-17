@@ -30,6 +30,8 @@ export async function creditTournamentWalletFromRegistration(
     gatewayFeeReais?: number;
     /** Parte do bruto paga com cashback do atleta (a nexaGO cobre) — só auditoria. */
     cashbackAppliedReais?: number;
+    /** Desconto do seguidor (NexaSquad) bancado pela nexaGO — informativo, já dentro do bruto. */
+    squadDiscountReais?: number;
   },
 ): Promise<void> {
   const gatewayFeeReais = roundMoney(Math.max(0, params.gatewayFeeReais ?? 0));
@@ -66,6 +68,7 @@ export async function creditTournamentWalletFromRegistration(
       gatewayFeeReais,
       netReais,
       cashbackAppliedReais: roundMoney(Math.max(0, params.cashbackAppliedReais ?? 0)),
+      squadDiscountReais: roundMoney(Math.max(0, params.squadDiscountReais ?? 0)),
       createdAt: FieldValue.serverTimestamp(),
     });
   });

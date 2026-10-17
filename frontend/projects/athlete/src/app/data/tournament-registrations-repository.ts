@@ -15,6 +15,7 @@ import { httpsCallable, type Functions } from 'firebase/functions';
 import { isConfirmedInscription, type RosterRow } from '../tournaments/enrolled-teams';
 import { fetchTeamsByIds } from './teams-repository';
 import { withCashbackCharge, type CashbackChargeFields } from './cashback-preview';
+import { readSquadDiscount } from './squad-discount';
 
 const INVITES_COLLECTION = 'tournamentRegistrationInvites';
 
@@ -681,6 +682,8 @@ export interface PixPaymentResult {
   cashbackAppliedReais: number;
   /** O que o Pix vale de fato; `amountReais` quando o backend é antigo. */
   chargedReais: number;
+  /** Desconto do código/link de embaixador (NexaSquad), já fora do `chargedReais`. */
+  squadDiscountReais: number;
 }
 
 /** Cobrança da inscrição (PIX ou cartão). Objeto em vez de posicional: `useCashback` é opcional
@@ -710,17 +713,34 @@ export function registrationChargePayload(opts: RegistrationChargeOptions): Reco
  * Confere o código de embaixador antes de cobrar. Devolve o nome de quem indicou; código
  * inexistente ou do próprio atleta (ou do parceiro) volta como erro com a mensagem do servidor.
  */
+export interface SquadCodeCheck {
+  ambassadorName: string | null;
+  code: string | null;
+  /** `code` digitado, ou `link`/`qr` quando veio da atribuição guardada (sem código). */
+  origin: 'code' | 'link' | 'qr' | null;
+  /** % de desconto que vale para este atleta nesta inscrição (0 = sem desconto). */
+  discountPct: number;
+}
+
 export async function checkSquadCode(
   functions: Functions,
   code: string,
   athleteUids: string[],
-): Promise<{ ambassadorName: string | null; code: string | null }> {
+  registrationId: string,
+): Promise<SquadCodeCheck> {
   try {
-    const result = await httpsCallable<Record<string, unknown>, { ambassadorName: string | null; code: string | null }>(
-      functions,
-      'checkSquadCode',
-    )({ code, athleteUids });
-    return result.data;
+    const result = await httpsCallable<Record<string, unknown>, Partial<SquadCodeCheck>>(functions, 'checkSquadCode')({
+      code,
+      athleteUids,
+      registrationId,
+    });
+    const d = result.data ?? {};
+    return {
+      ambassadorName: d.ambassadorName ?? null,
+      code: d.code ?? null,
+      origin: d.origin ?? null,
+      discountPct: typeof d.discountPct === 'number' ? d.discountPct : 0,
+    };
   } catch (err) {
     throw mapCallableError(err);
   }
@@ -731,11 +751,11 @@ export async function createRegistrationPixPayment(
   opts: RegistrationChargeOptions,
 ): Promise<PixPaymentResult> {
   try {
-    const result = await httpsCallable<Record<string, unknown>, Omit<PixPaymentResult, keyof CashbackChargeFields>>(
+    const result = await httpsCallable<Record<string, unknown>, Omit<PixPaymentResult, keyof CashbackChargeFields | 'squadDiscountReais'>>(
       functions,
       'createTournamentRegistrationPixPayment',
     )(registrationChargePayload(opts));
-    return withCashbackCharge(result.data);
+    return { ...withCashbackCharge(result.data), squadDiscountReais: readSquadDiscount(result.data) };
   } catch (err) {
     throw mapCallableError(err);
   }
@@ -754,6 +774,8 @@ export interface CardPaymentResult {
   cashbackAppliedReais: number;
   /** O que o checkout cobra de fato; `amountReais` quando o backend é antigo. */
   chargedReais: number;
+  /** Desconto do código/link de embaixador (NexaSquad), já fora do `chargedReais`. */
+  squadDiscountReais: number;
 }
 
 export async function createRegistrationCardPayment(
@@ -761,11 +783,11 @@ export async function createRegistrationCardPayment(
   opts: RegistrationChargeOptions,
 ): Promise<CardPaymentResult> {
   try {
-    const result = await httpsCallable<Record<string, unknown>, Omit<CardPaymentResult, keyof CashbackChargeFields>>(
+    const result = await httpsCallable<Record<string, unknown>, Omit<CardPaymentResult, keyof CashbackChargeFields | 'squadDiscountReais'>>(
       functions,
       'createTournamentRegistrationCardPayment',
     )(registrationChargePayload(opts));
-    return withCashbackCharge(result.data);
+    return { ...withCashbackCharge(result.data), squadDiscountReais: readSquadDiscount(result.data) };
   } catch (err) {
     throw mapCallableError(err);
   }

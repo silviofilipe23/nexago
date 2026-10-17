@@ -306,12 +306,14 @@
                   }
                   <app-squad-code-field
                     [(code)]="squadCode"
+                    [(discountPct)]="squadDiscountPct"
+                    [registrationId]="registration()?.id ?? null"
                     [athleteUids]="squadAthleteUids()"
                     [disabled]="processing()"
                     [serverError]="squadError()"
                   />
                   <app-checkout-cashback-toggle
-                    [priceReais]="amountDueReais()"
+                    [priceReais]="priceAfterSquadReais()"
                     [availableCents]="cashback.availableCents()"
                     [config]="cashback.config()"
                     [chargeLabel]="method() === 'card' ? 'cartão' : 'PIX'"
@@ -401,6 +403,12 @@
               <span class="tp-summary-label">Inscrição total (dupla)</span>
               <span class="tp-summary-value">{{ formatBRL(totalPriceReais()) }}</span>
             </div>
+            @if (squadDiscountReais() > 0) {
+              <div class="tp-summary-row">
+                <span class="tp-summary-label">Indicação de embaixador</span>
+                <span class="tp-summary-value tp-summary-value--discount">&minus;{{ formatBRL(squadDiscountReais()) }}</span>
+              </div>
+            }
             @if (cashbackAppliedReais() > 0) {
               <div class="tp-summary-row">
                 <span class="tp-summary-label">Cashback</span>

@@ -12,6 +12,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {Timestamp, getFirestore, type Firestore} from "firebase-admin/firestore";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {followerDiscountFor} from "./squad-commission-lifecycle";
 import {SQUAD_AMBASSADORS} from "./squad-commissions";
 import {loadAttributionRules, type SquadTier} from "./squad-rules";
 
@@ -32,6 +33,8 @@ export interface AmbassadorContract {
   tier: SquadTier | null;
   code: string;
   commissionPct: number;
+  /** Desconto do seguidor congelado no contrato; `null` = vem das regras da versão do contrato. */
+  followerDiscountPct: number | null;
   rulesVersion: number | null;
 }
 
@@ -60,6 +63,8 @@ function contractOf(uid: string, d: Raw | undefined): AmbassadorContract | null 
     tier: (d["tier"] as SquadTier | undefined) ?? null,
     code,
     commissionPct: pct,
+    followerDiscountPct: typeof d["followerDiscountPct"] === "number" &&
+      d["followerDiscountPct"] >= 0 && d["followerDiscountPct"] <= 30 ? d["followerDiscountPct"] : null,
     rulesVersion: typeof d["rulesVersion"] === "number" ? d["rulesVersion"] : null,
   };
 }
@@ -151,18 +156,55 @@ export const recordSquadAttribution = onCall(CLIENT_CALLABLE, async (request) =>
   return recordAttributionCore(getFirestore(), {uid, code: data.code, origin: data.origin}, new Date());
 });
 
-/** Confere o código no checkout antes de pagar: "Código de João Victor aplicado". */
+export interface SquadCodeCheck {
+  ambassadorName: string | null;
+  code: string | null;
+  origin: AttributionOrigin | null;
+  /** % do desconto do seguidor que vale para este atleta nesta inscrição (0 = sem desconto). */
+  discountPct: number;
+}
+
+/**
+ * Confere o código no checkout antes de pagar ("indicação de João · 10% de desconto"). Sem código,
+ * devolve a atribuição por link/QR, se houver — o desconto também vale para ela.
+ */
+export async function checkSquadCodeCore(
+  db: Firestore,
+  input: {payerUid: string; athleteUids: string[]; code: string; registrationId: string},
+  now: Date,
+): Promise<SquadCodeCheck> {
+  const resolved = await resolveRegistrationAttribution(
+    db,
+    {payerUid: input.payerUid, athleteUids: input.athleteUids, typedCode: input.code},
+    now,
+  );
+  if (!resolved) return {ambassadorName: null, code: null, origin: null, discountPct: 0};
+  // Preço de referência só para saber se o desconto vale (primeira inscrição); o checkout aplica o %.
+  const discount = await followerDiscountFor(db, {
+    attribution: resolved,
+    payerUid: input.payerUid,
+    registrationId: input.registrationId,
+    priceCents: 1_000_00,
+  });
+  return {
+    ambassadorName: resolved.ambassador.displayName,
+    code: resolved.ambassador.code,
+    origin: resolved.origin,
+    discountPct: discount.pct,
+  };
+}
+
 export const checkSquadCode = onCall(CLIENT_CALLABLE, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
-  const data = (request.data ?? {}) as {code?: unknown; athleteUids?: unknown};
+  const data = (request.data ?? {}) as {code?: unknown; athleteUids?: unknown; registrationId?: unknown};
   const athleteUids = Array.isArray(data.athleteUids) ?
     data.athleteUids.filter((u): u is string => typeof u === "string").slice(0, 10) :
     [];
-  const resolved = await resolveRegistrationAttribution(
-    getFirestore(),
-    {payerUid: uid, athleteUids, typedCode: typeof data.code === "string" ? data.code : ""},
-    new Date(),
-  );
-  return {ambassadorName: resolved?.ambassador.displayName ?? null, code: resolved?.ambassador.code ?? null};
+  return checkSquadCodeCore(getFirestore(), {
+    payerUid: uid,
+    athleteUids,
+    code: typeof data.code === "string" ? data.code : "",
+    registrationId: typeof data.registrationId === "string" ? data.registrationId : "",
+  }, new Date());
 });

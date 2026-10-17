@@ -482,6 +482,31 @@ export async function loadAttributionRules(db: Firestore): Promise<SquadRules["a
   };
 }
 
+/**
+ * Desconto do seguidor de um nível na versão das regras congelada no contrato. Versão ausente
+ * (ou sem o retrato) cai na vigente e, por fim, no padrão do piloto.
+ */
+export async function tierFollowerDiscountPct(
+  db: Firestore,
+  tier: SquadTier | null,
+  rulesVersion: number | null,
+): Promise<number> {
+  if (!tier) return 0;
+  const pctOf = (data: Raw | undefined): number | null => {
+    const tiers = isObj(data?.["rules"]) ? (data!["rules"] as Raw)["tiers"] : undefined;
+    const t = isObj(tiers) ? tiers[tier] : undefined;
+    const pct = isObj(t) ? t["followerDiscountPct"] : undefined;
+    return num(pct, 0, MAX_FOLLOWER_DISCOUNT_PCT) ? pct : null;
+  };
+  const rulesRef = db.collection(SQUAD_CONFIG).doc(SQUAD_RULES_DOC);
+  if (rulesVersion !== null) {
+    const fromVersion = pctOf((await rulesRef.collection(SQUAD_RULES_VERSIONS).doc(String(rulesVersion)).get()).data());
+    if (fromVersion !== null) return fromVersion;
+  }
+  const current = pctOf((await rulesRef.get()).data());
+  return current ?? DEFAULT_SQUAD_RULES.tiers[tier].followerDiscountPct;
+}
+
 // ── diff entre versões ──────────────────────────────────────────────────────
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);

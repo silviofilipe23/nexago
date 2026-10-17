@@ -5,8 +5,11 @@ import {FakeFirestore} from "./fake-firestore.test-helper";
 import type {ResolvedAttribution} from "./squad-attribution";
 import {
   applySquadPaymentEvent,
+  chargeDiscountCents,
   convertedLabelOf,
   createPendingCommission,
+  followerDiscountFor,
+  recordChargeDiscount,
   shortAthleteName,
   squadEventForStatus,
 } from "./squad-commission-lifecycle";
@@ -15,7 +18,7 @@ const NOW = new Date("2026-10-17T15:00:00Z");
 const LATER = new Date("2026-10-17T15:20:00Z");
 
 const JOAO: ResolvedAttribution = {
-  ambassador: {uid: "jv", displayName: "João Victor", tier: "amb", code: "JOAO10", commissionPct: 10, rulesVersion: 2},
+  ambassador: {uid: "jv", displayName: "João Victor", tier: "amb", code: "JOAO10", commissionPct: 10, followerDiscountPct: 10, rulesVersion: 2},
   origin: "code",
 };
 
@@ -149,3 +152,50 @@ describe("squadEventForStatus", () => {
     assert.equal(squadEventForStatus("DUNNING_REQUESTED", true), null);
   });
 });
+
+describe("desconto do seguidor", () => {
+  const base = {payerUid: "atl", registrationId: "reg1", priceCents: 150_00};
+
+  it("usa o % congelado no contrato", async () => {
+    const {db} = makeDb();
+    assert.deepEqual(await followerDiscountFor(db, {...base, attribution: JOAO}), {cents: 15_00, pct: 10});
+  });
+
+  it("sem % no contrato, vem da versão das regras do contrato (não da vigente)", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("squadConfig/rules", {version: 3, rules: {tiers: {amb: {followerDiscountPct: 20}}}});
+    fake.seedDoc("squadConfig/rules/versions/2", {rules: {tiers: {amb: {followerDiscountPct: 12}}}});
+    const semPct = {...JOAO, ambassador: {...JOAO.ambassador, followerDiscountPct: null}};
+    assert.deepEqual(await followerDiscountFor(db, {...base, attribution: semPct}), {cents: 18_00, pct: 12});
+  });
+
+  it("só na primeira inscrição: quem já converteu não ganha de novo", async () => {
+    const {db} = makeDb();
+    await createPendingCommission(db, input(), NOW);
+    // A mesma cobrança refeita continua com desconto; outra inscrição, não.
+    assert.equal((await followerDiscountFor(db, {...base, attribution: JOAO})).cents, 15_00);
+    assert.deepEqual(await followerDiscountFor(db, {...base, registrationId: "reg2", attribution: JOAO}), {cents: 0, pct: 0});
+  });
+
+  it("com a regra desligada, vale em toda inscrição", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("squadConfig/rules", {version: 2, rules: {attribution: {followerDiscountFirstOnly: false}}});
+    await createPendingCommission(db, input(), NOW);
+    assert.equal((await followerDiscountFor(db, {...base, registrationId: "reg2", attribution: JOAO})).cents, 15_00);
+  });
+
+  it("nunca deixa a cobrança abaixo do mínimo do Asaas", async () => {
+    const {db} = makeDb();
+    const alto = {...JOAO, ambassador: {...JOAO.ambassador, followerDiscountPct: 30}};
+    assert.equal((await followerDiscountFor(db, {...base, priceCents: 6_00, attribution: alto})).cents, 1_00);
+    assert.deepEqual(await followerDiscountFor(db, {...base, priceCents: 5_00, attribution: alto}), {cents: 0, pct: 0});
+  });
+
+  it("registro por paymentId", async () => {
+    const {db} = makeDb();
+    await recordChargeDiscount(db, {paymentId: "p1", registrationId: "reg1", payerUid: "atl", ambassadorId: "jv", cents: 15_00, pct: 10}, NOW);
+    assert.equal(await chargeDiscountCents(db, "p1"), 15_00);
+    assert.equal(await chargeDiscountCents(db, "outro"), 0);
+  });
+});
+

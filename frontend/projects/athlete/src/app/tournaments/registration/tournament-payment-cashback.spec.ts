@@ -26,6 +26,7 @@ interface Internals {
   pixResult: WritableSignal<PixPaymentResult | null>;
   cashbackAppliedReais(): number;
   lastChargePaymentId: WritableSignal<string | null>;
+  squadDiscountPct: WritableSignal<number>;
 }
 
 const firebase = environment.firebase as { apiKey: string };
@@ -92,6 +93,7 @@ function pix(overrides: Partial<PixPaymentResult> = {}): PixPaymentResult {
     amountReais: 50,
     cashbackAppliedReais: 0,
     chargedReais: 50,
+    squadDiscountReais: 0,
     ...overrides,
   };
 }
@@ -254,3 +256,48 @@ describe('TournamentPaymentComponent — nota de cashback no sucesso', () => {
     expect(fake.lotIds).toEqual(['pay_9']);
   });
 });
+
+describe('TournamentPaymentComponent — desconto do seguidor (NexaSquad)', () => {
+  useBlankFirebaseKey();
+
+  /** Valor da linha "Indicação de embaixador" do resumo (null quando a linha não existe). */
+  function squadSummary(fixture: ComponentFixture<TournamentPaymentComponent>): string | null {
+    const row = Array.from(host(fixture).querySelectorAll('.tp-summary-row')).find(
+      (r) => text(r.querySelector('.tp-summary-label')) === 'Indicação de embaixador',
+    );
+    return row ? text(row.querySelector('.tp-summary-value')) : null;
+  }
+
+  it('o % do código entra no resumo e no CTA antes do cashback', () => {
+    const { fixture, internals } = create(fakeCashbackService({ wallet: { availableCents: 1240 } }));
+    internals.squadDiscountPct.set(10);
+    fixture.detectChanges();
+
+    expect(squadSummary(fixture)).toBe('−R$ 5,00');
+    expect(total(fixture)).toBe('R$ 45,00');
+    expect(cta(fixture)).toBe('Gerar Pix de R$ 45,00');
+
+    // O cashback cobre o que sobra depois do desconto.
+    internals.useCashback.set(true);
+    fixture.detectChanges();
+    expect(cashbackSummary(fixture)).toBe('−R$ 12,40');
+    expect(total(fixture)).toBe('R$ 32,60');
+  });
+
+  it('cobrança gerada: vale o desconto que o servidor aplicou', () => {
+    const { fixture, internals } = create(fakeCashbackService());
+    internals.squadDiscountPct.set(10);
+    internals.pixResult.set(pix({ squadDiscountReais: 7.5, chargedReais: 42.5 }));
+    fixture.detectChanges();
+
+    expect(squadSummary(fixture)).toBe('−R$ 7,50');
+    expect(total(fixture)).toBe('R$ 42,50');
+  });
+
+  it('sem indicação, o resumo é o de antes', () => {
+    const { fixture } = create(fakeCashbackService());
+    expect(squadSummary(fixture)).toBeNull();
+    expect(total(fixture)).toBe('R$ 50,00');
+  });
+});
+

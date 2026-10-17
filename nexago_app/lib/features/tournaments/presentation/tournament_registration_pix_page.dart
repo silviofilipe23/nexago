@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -469,6 +470,20 @@ class _TournamentRegistrationPixPageState
                               amountReais: _pix?.chargedReais ?? _shareReais,
                             ),
                             const SizedBox(height: 20),
+                          ],
+                          if (_pix!.squadDiscountReais > 0) ...[
+                            Text(
+                              '${formatBRL(_pix!.squadDiscountReais)} de '
+                              'desconto pela indicação de embaixador',
+                              key: const Key('squad-discount-note'),
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: AppColors.win,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                            const SizedBox(height: 12),
                           ],
                           if (_pix!.cashbackAppliedReais > 0) ...[
                             CheckoutCashbackAppliedNote(

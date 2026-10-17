@@ -38,7 +38,7 @@ import {registrationHoldClearedFields} from "./tournament-registration-hold-ops"
 import {tournamentManagerUids} from "./tournament-acl";
 import {organizerTournamentNotificationLinks} from "./organizer-notification-links";
 import {creditTournamentWalletFromRegistration} from "./tournament-wallet";
-import {applySquadPaymentEventQuietly, squadEventForStatus} from "./squad-commission-lifecycle";
+import {applySquadPaymentEventQuietly, chargeDiscountCents, squadEventForStatus} from "./squad-commission-lifecycle";
 import {computePlatformFeeReais, resolveOrganizerTournamentFeePercent} from "./platform-fees";
 import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 import {
@@ -105,6 +105,27 @@ export interface TournamentRegistrationWebhookDeps {
 const defaultDeps: TournamentRegistrationWebhookDeps = {
   cancelCharge: (asaasPaymentId) => deleteAsaasPaymentOrThrow(asaasPaymentId),
 };
+
+/**
+ * Desconto do seguidor desta cobrança: o registro por `paymentId` (estável mesmo se o pendente for
+ * reescrito por uma cobrança nova) e, na falta dele, o pendente — só se for desta cobrança.
+ * Falha de leitura vira 0 com log: a confirmação nunca cai por isso.
+ */
+async function resolveSquadDiscountCents(
+  db: Firestore,
+  paymentId: string,
+  pending: Record<string, unknown> | undefined,
+): Promise<number> {
+  try {
+    const recorded = await chargeDiscountCents(db, paymentId);
+    if (recorded > 0) return recorded;
+  } catch (e) {
+    logger.error(`Asaas tournament registration: desconto do Squad ilegível para ${paymentId}`, e);
+  }
+  const fromPending = pending?.["squadDiscountCents"];
+  return pending?.["asaasPaymentId"] === paymentId && typeof fromPending === "number" &&
+    Number.isInteger(fromPending) && fromPending > 0 ? fromPending : 0;
+}
 
 export async function processTournamentRegistrationAsaasNotification(
   db: Firestore,
@@ -223,7 +244,10 @@ export async function processTournamentRegistrationAsaasNotification(
       Number.isFinite(processedAppliedCents) ?
         {appliedCents: processedAppliedCents, holdId: null} :
         await resolveCashbackForPayment(db, payerUid, paymentId, pendingSnap.data());
-    const grossOnline = roundMoney(paidOnline + appliedCents / 100);
+    // Desconto do seguidor (código de embaixador do NexaGO Squad): também sai da taxa da nexaGO,
+    // então entra no bruto como o cashback — o organizador recebe o mesmo líquido.
+    const squadDiscount = await resolveSquadDiscountCents(db, paymentId, pendingSnap.data());
+    const grossOnline = roundMoney(paidOnline + appliedCents / 100 + squadDiscount / 100);
 
     // Comissão negociada no cadastro do organizador; sem cadastro (ou com
     // valor fora da faixa) cai nos 8% padrão. Lida uma vez para as duas fases.
@@ -526,6 +550,7 @@ export async function processTournamentRegistrationAsaasNotification(
           // A taxa do gateway é sobre o que o Asaas cobrou (o dinheiro), não sobre o bruto.
           gatewayFeeReais: resolveGatewayFeeReais(payment, billingType, paidOnline),
           cashbackAppliedReais: appliedCents / 100,
+          squadDiscountReais: squadDiscount / 100,
         });
         // Marca a fase só no sucesso: crédito que falhou precisa poder ser
         // reprocessado por uma reentrega do evento.

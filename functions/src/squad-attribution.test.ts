@@ -5,6 +5,7 @@ import {FakeFirestore} from "./fake-firestore.test-helper";
 import {
   SELF_REFERRAL_MESSAGE,
   UNKNOWN_CODE_MESSAGE,
+  checkSquadCodeCore,
   normalizeSquadCode,
   recordAttributionCore,
   resolveRegistrationAttribution,
@@ -111,3 +112,29 @@ describe("resolveRegistrationAttribution", () => {
     assert.equal(r!.ambassador.uid, "jv");
   });
 });
+
+describe("checkSquadCodeCore", () => {
+  it("devolve quem indicou, a origem e o % de desconto que vale para o atleta", async () => {
+    const {fake, db} = makeDb();
+    assert.deepEqual(
+      await checkSquadCodeCore(db, {payerUid: "atl", athleteUids: ["atl"], code: "joao10", registrationId: "reg1"}, NOW),
+      {ambassadorName: "João Victor", code: "JOAO10", origin: "code", discountPct: 10},
+    );
+    // Sem código: o link guardado, com o mesmo desconto.
+    fake.seedDoc("squadAttributions/atl", {ambassadorId: "rb", code: "RAYSSA", origin: "link", at: NOW});
+    const viaLink = await checkSquadCodeCore(db, {payerUid: "atl", athleteUids: [], code: "", registrationId: "reg1"}, NOW);
+    assert.equal(viaLink.origin, "link");
+    assert.equal(viaLink.ambassadorName, "Rayssa Brito");
+    // Pro sem % no contrato: vem das regras (padrão 15%).
+    assert.equal(viaLink.discountPct, 15);
+  });
+
+  it("sem atribuição: nada", async () => {
+    const {db} = makeDb();
+    assert.deepEqual(
+      await checkSquadCodeCore(db, {payerUid: "atl", athleteUids: [], code: "", registrationId: "reg1"}, NOW),
+      {ambassadorName: null, code: null, origin: null, discountPct: 0},
+    );
+  });
+});
+

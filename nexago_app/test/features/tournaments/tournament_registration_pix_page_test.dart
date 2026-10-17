@@ -170,6 +170,34 @@ void main() {
 
       expect(service.squadCodeCalls, ['JOAO10']);
     });
+
+    testWidgets('QR mostra o desconto da indicação que o servidor aplicou',
+        (tester) async {
+      final service = _FakePaymentService(
+        ArenaBookingPixPaymentResult(
+          paymentId: 'pay_t1',
+          qrCode: '00020101021226860014br.gov.bcb.pix',
+          qrCodeBase64: '',
+          expiresAt: DateTime.now().add(const Duration(minutes: 15)),
+          amountToPayNowReais: 100,
+          squadDiscountReais: 10,
+          chargedReais: 90,
+        ),
+      );
+      await _abrirPixComCashback(
+        tester,
+        service: service,
+        config: CashbackConfig.fallback,
+      );
+      await _gerarPix(tester);
+
+      expect(find.byKey(const Key('squad-discount-note')), findsOneWidget);
+      expect(
+        find.text('${formatBRL(10)} de desconto pela indicação de embaixador'),
+        findsOneWidget,
+      );
+      expect(find.text(formatBRL(90)), findsOneWidget);
+    });
   });
 }
 

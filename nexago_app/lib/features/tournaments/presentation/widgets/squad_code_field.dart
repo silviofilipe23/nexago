@@ -88,6 +88,14 @@ class _SquadCodeFieldState extends State<SquadCodeField> {
             ),
           ),
         ),
+        const SizedBox(height: 8),
+        Text(
+          'O desconto da indicação aparece no valor do PIX.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: context.themeColors.onSurfaceMuted,
+            height: 1.35,
+          ),
+        ),
       ],
     );
   }

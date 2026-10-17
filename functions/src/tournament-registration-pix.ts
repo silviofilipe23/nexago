@@ -73,7 +73,7 @@ import {registrationCashbackLabel} from "./cashback-intent";
 import {attachHoldPayment} from "./athlete-wallet";
 import {isOrganizerRegistered} from "./organizer-create-registration-core";
 import {resolveRegistrationAttribution, type ResolvedAttribution} from "./squad-attribution";
-import {recordCommissionForCharge} from "./squad-commission-lifecycle";
+import {followerDiscountFor, recordChargeDiscount, recordCommissionForCharge} from "./squad-commission-lifecycle";
 
 const pixPaymentSecrets = [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL];
 
@@ -90,6 +90,8 @@ type PixPaymentResponse = {
   cashbackAppliedReais?: number;
   /** Valor efetivamente cobrado no Asaas. */
   chargedReais?: number;
+  /** Desconto do código de embaixador (NexaSquad), já fora do cobrado. */
+  squadDiscountReais?: number;
 };
 
 async function loadTournamentEntryFee(
@@ -174,6 +176,9 @@ interface SquadChargeContext {
   teamName: string | null;
   /** Quem esta cobrança converte: só o pagador, ou todos quando paga a dupla/equipe inteira. */
   convertedUids: string[];
+  /** Desconto do seguidor sobre o preço desta cobrança (sai da taxa da nexaGO). */
+  discountCents: number;
+  discountPct: number;
 }
 
 /** Tudo que uma cobrança precisa, já validado e resolvido no gateway. */
@@ -366,12 +371,20 @@ async function prepareRegistrationCharge(
     if (attribution) {
       const teamName = typeof team?.teamName === "string" ? team.teamName :
         typeof registration.teamName === "string" ? registration.teamName : null;
+      const discount = await followerDiscountFor(db, {
+        attribution,
+        payerUid: callerUid,
+        registrationId,
+        priceCents: Math.round(chargeAmount * 100),
+      });
       squad = {
         attribution,
         tournamentId,
         categoryName: resolveCategoryLabel(tournamentData, categoryId),
         teamName,
         convertedUids: amountType === "full" ? athleteUids : [callerUid],
+        discountCents: discount.cents,
+        discountPct: discount.pct,
       };
     }
   } catch (e) {
@@ -488,9 +501,21 @@ async function prepareRegistrationCharge(
   };
 }
 
+/** Preço desta cobrança depois do desconto do seguidor (o cashback incide sobre ele). */
+function priceAfterSquadDiscount(prepared: PreparedRegistrationCharge): number {
+  const discount = prepared.squad?.discountCents ?? 0;
+  return Math.round(prepared.chargeAmount * 100 - discount) / 100;
+}
+
+function squadIdempotencySuffix(prepared: PreparedRegistrationCharge): string {
+  const discount = prepared.squad?.discountCents ?? 0;
+  return discount > 0 ? `-sq${discount}` : "";
+}
+
 /**
- * Comissão pendente do embaixador, depois que a cobrança existe. Melhor esforço: a cobrança já
- * foi criada e o atleta precisa do QR/checkout mesmo que isto falhe.
+ * Desconto do seguidor (por `paymentId`) e comissão pendente do embaixador, depois que a cobrança
+ * existe. Melhor esforço: a cobrança já foi criada e o atleta precisa do QR/checkout mesmo que
+ * isto falhe — o desconto também está no `pixPending`, que o webhook usa se este registro faltar.
  */
 async function recordSquadCommissionQuietly(
   prepared: PreparedRegistrationCharge,
@@ -500,6 +525,16 @@ async function recordSquadCommissionQuietly(
 ): Promise<void> {
   if (!prepared.squad) return;
   try {
+    if (prepared.squad.discountCents > 0) {
+      await recordChargeDiscount(prepared.db, {
+        paymentId,
+        registrationId: prepared.registrationId,
+        payerUid,
+        ambassadorId: prepared.squad.attribution.ambassador.uid,
+        cents: prepared.squad.discountCents,
+        pct: prepared.squad.discountPct,
+      }, new Date());
+    }
     await recordCommissionForCharge(prepared.db, {
       attribution: prepared.squad.attribution,
       registrationId: prepared.registrationId,
@@ -545,7 +580,8 @@ export const createTournamentRegistrationPixPayment = onCall({
   const cashback = await reserveCashbackForCharge(db, {
     uid: callerUid,
     useCashback: (request.data as RegistrationChargeRequest | undefined)?.useCashback,
-    priceReais: chargeAmount,
+    // O desconto do seguidor (NexaSquad) sai antes do cashback: o saldo cobre o que sobra.
+    priceReais: priceAfterSquadDiscount(prepared),
     sourceType: "registration",
     sourceId: registrationId,
     trackingPath: pendingDocRef.path,
@@ -561,7 +597,11 @@ export const createTournamentRegistrationPixPayment = onCall({
       dueDate: expiresAtDate,
       description,
       externalReference,
-      idempotencyKey: cashbackIdempotencyKey(`tournament-reg-pix-${registrationId}-${callerUid}`, cashback.holdId),
+      // Com desconto a cobrança é outra: chave própria, para o Asaas não devolver a cheia.
+      idempotencyKey: cashbackIdempotencyKey(
+        `tournament-reg-pix-${registrationId}-${callerUid}${squadIdempotencySuffix(prepared)}`,
+        cashback.holdId,
+      ),
     });
   } catch (e) {
     await releaseCashbackHoldQuietly(db, callerUid, cashback.holdId, Date.now());
@@ -608,6 +648,8 @@ export const createTournamentRegistrationPixPayment = onCall({
     paymentExpiresAt: Timestamp.fromDate(expiresAtDate),
     cashbackAppliedCents: cashback.appliedCents,
     cashbackHoldId: cashback.holdId,
+    // Desconto do seguidor (NexaSquad): o webhook soma ao bruto para o organizador receber igual.
+    squadDiscountCents: prepared.squad?.discountCents ?? 0,
     updatedAt: FieldValue.serverTimestamp(),
   });
   await recordSquadCommissionQuietly(prepared, callerUid, charge.paymentId, cashback.chargeReais);
@@ -619,6 +661,7 @@ export const createTournamentRegistrationPixPayment = onCall({
     expiresAt: expiresAtDate.toISOString(),
     amountReais: chargeAmount,
     ...cashbackResponseFields(cashback),
+    ...(prepared.squad?.discountCents ? {squadDiscountReais: prepared.squad.discountCents / 100} : {}),
   };
 });
 
@@ -632,6 +675,8 @@ type CardPaymentResponse = {
   cashbackAppliedReais?: number;
   /** Valor efetivamente cobrado no Asaas. */
   chargedReais?: number;
+  /** Desconto do código de embaixador (NexaSquad), já fora do cobrado. */
+  squadDiscountReais?: number;
 };
 
 /**
@@ -664,7 +709,8 @@ export const createTournamentRegistrationCardPayment = onCall({
   const cashback = await reserveCashbackForCharge(db, {
     uid: callerUid,
     useCashback: (request.data as RegistrationChargeRequest | undefined)?.useCashback,
-    priceReais: chargeAmount,
+    // O desconto do seguidor (NexaSquad) sai antes do cashback: o saldo cobre o que sobra.
+    priceReais: priceAfterSquadDiscount(prepared),
     sourceType: "registration",
     sourceId: registrationId,
     trackingPath: pendingDocRef.path,
@@ -680,7 +726,11 @@ export const createTournamentRegistrationCardPayment = onCall({
       dueDate: expiresAtDate,
       description,
       externalReference,
-      idempotencyKey: cashbackIdempotencyKey(`tournament-reg-card-${registrationId}-${callerUid}`, cashback.holdId),
+      // Com desconto a cobrança é outra: chave própria, para o Asaas não devolver a cheia.
+      idempotencyKey: cashbackIdempotencyKey(
+        `tournament-reg-card-${registrationId}-${callerUid}${squadIdempotencySuffix(prepared)}`,
+        cashback.holdId,
+      ),
     });
   } catch (e) {
     await releaseCashbackHoldQuietly(db, callerUid, cashback.holdId, Date.now());
@@ -727,6 +777,8 @@ export const createTournamentRegistrationCardPayment = onCall({
     paymentExpiresAt: Timestamp.fromDate(expiresAtDate),
     cashbackAppliedCents: cashback.appliedCents,
     cashbackHoldId: cashback.holdId,
+    // Desconto do seguidor (NexaSquad): o webhook soma ao bruto para o organizador receber igual.
+    squadDiscountCents: prepared.squad?.discountCents ?? 0,
     updatedAt: FieldValue.serverTimestamp(),
   });
   await recordSquadCommissionQuietly(prepared, callerUid, charge.paymentId, cashback.chargeReais);
@@ -737,6 +789,7 @@ export const createTournamentRegistrationCardPayment = onCall({
     expiresAt: expiresAtDate.toISOString(),
     amountReais: chargeAmount,
     ...cashbackResponseFields(cashback),
+    ...(prepared.squad?.discountCents ? {squadDiscountReais: prepared.squad.discountCents / 100} : {}),
   };
 });
 

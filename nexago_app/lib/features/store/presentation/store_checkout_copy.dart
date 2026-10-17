@@ -31,6 +31,9 @@ abstract final class StoreCheckoutCopy {
       'Não deu pra atualizar o carrinho. Tente de novo em instantes.';
 
   static const receiveTitle = 'COMO RECEBER';
+  /// Só uma forma de receber: o título já diz qual (sem o seletor).
+  static const receiveHomeOnly = 'ENTREGA EM CASA';
+  static const receivePickupOnly = 'RETIRADA NA ARENA';
   static const receivePickup = 'Retirar na arena';
   static const receiveDelivery = 'Entregar';
   static const receiveNone =

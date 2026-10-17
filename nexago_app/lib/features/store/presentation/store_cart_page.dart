@@ -569,7 +569,13 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
           const SizedBox(height: 12),
         ],
         const SizedBox(height: 12),
-        const StoreSectionLabel(StoreCheckoutCopy.receiveTitle),
+        StoreSectionLabel(
+          config.pickupArenas.isNotEmpty && modes.isNotEmpty
+              ? StoreCheckoutCopy.receiveTitle
+              : modes.isNotEmpty
+                  ? StoreCheckoutCopy.receiveHomeOnly
+                  : StoreCheckoutCopy.receivePickupOnly,
+        ),
         const SizedBox(height: 10),
         ..._receive(
           colors,
@@ -683,7 +689,9 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
       label: kind == _homeKind
           ? StoreCheckoutCopy.totalWithShipping
           : StoreCheckoutCopy.total,
-      value: quote == null
+      value: quote == null && _quoteError != null
+          ? const Text('—', key: ValueKey('store-cart-total'))
+          : quote == null
           ? const SizedBox(
               height: 28,
               child: Align(
@@ -860,9 +868,11 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
               : null,
         ),
       if (kind == _homeKind) ...[
-        if (arenas.isEmpty) const SizedBox(height: 2),
-        const StoreSectionLabel(StoreCheckoutCopy.addressesTitle),
-        const SizedBox(height: 10),
+        // Só entrega: o título da seção já é "Entrega em casa".
+        if (arenas.isNotEmpty) ...[
+          const StoreSectionLabel(StoreCheckoutCopy.addressesTitle),
+          const SizedBox(height: 10),
+        ],
         if (addresses.isEmpty)
           StoreDashedButton(
             key: const ValueKey('store-cart-first-address'),

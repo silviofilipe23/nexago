@@ -43,7 +43,7 @@ pickupArenas[{arenaId, name, address, city, state, latitude|null, longitude|null
 
 - **Banner**: no ar se hoje (data civil de São Paulo) ∈ `[startDate, endDate]` (vazio = sem limite);
   até 3. Sem banner, o bloco some e a grade sobe. Banners vêm de `storeConfig/campaigns`
-  (`scripts/seed-store-campaigns.js` até existir tela no backoffice).
+  (backoffice › Loja › Campanhas — ver "Gestão dos banners" abaixo).
 - **Benefícios** (web): card do Pix só com `pixDiscountPct`; card da retirada só com `pickupReadyHours`.
 - **Chips**: "Tudo" + categorias de `categories` (nessa ordem) com ≥1 produto no canal.
 - **Selo**: esgotado → "Esgotado"; senão selo válido (`badge` e `badgeExpiresAt` nulo ou no futuro):
@@ -73,6 +73,31 @@ Ordem: escolhida pelo atleta (`storeShoppers.pickupArenaId`, se ainda for ponto 
 frequente nas reservas ativas dos últimos 60 dias que seja ponto de retirada (empate: a mais recente)
 → a mais próxima pela localização já concedida (o app não pede permissão aqui) → nenhuma
 ("Escolha uma arena pra retirar grátis · Escolher"). Trocar grava `pickupArenaId`.
+
+## Gestão dos banners (backoffice › Loja › Campanhas)
+
+Rota `/painel/loja/campanhas`. Fonte `storeConfig/campaigns` = `{banners[], version, updatedAt, updatedBy}`;
+rules: leitura só admin, escrita só pela callable `saveStoreCampaigns` (`functions/src/store-campaigns.ts`).
+
+- **Grava a lista inteira** na ordem da vitrine — reordenar, pausar, editar e excluir são todos um
+  save. `version` é a lida pela tela: outra pessoa salvou no meio = `failed-precondition` e a tela
+  pede "Recarregar" em vez de sobrescrever. Doc gravado pelo script (sem `version`) vale 0.
+- **Validação no servidor** (recusa, não corta): até 12 banners; `id` `[a-z0-9-]` único (vai pro
+  analytics como `campanha_id`, gerado do título e fixo depois de criado); chamada ≤ 40; título
+  1–50; subtítulo ≤ 90; foto `https`; botão principal 1–30 + coleção de `STORE_COLLECTIONS`;
+  secundário opcional com categoria de `STORE_CATEGORIES` **ou** link (`/caminho` do portal ou
+  `https://`, nunca os dois); datas civis válidas com fim ≥ início. Depois normaliza por
+  `bannerFromData`, o mesmo corte que o gatilho faz ao publicar.
+- **Ativo**: pausado fica guardado na fonte, mas `bannerFromData` não o leva ao espelho.
+- **Status na tela** (regra de `liveBanners`): pausada · encerrada (fim < hoje) · agendada (início >
+  hoje) · no ar (os 3 primeiros ativos dentro do período) · na fila (do 4º em diante).
+- Nova campanha (ou cópia) entra em 1º; cópia nasce pausada.
+- **Foto**: Storage `store/campaigns/{uuid}.{ext}`, leitura pública, escrita admin, JPG/PNG/WebP
+  < 10 MB. Arquivo antigo não é apagado ao trocar (pode ainda estar no espelho até o gatilho rodar).
+- **Prévia**: web (bloco de 2 colunas do portal) e app (card de 196px, título em até 2 linhas, sem
+  subtítulo nem secundário).
+- `scripts/seed-store-campaigns.js` continua para ambiente vazio/QA; ele sobrescreve o doc sem
+  `version` (vira 0): uma tela aberta que já tinha salvo recebe "Recarregar" no próximo save.
 
 ## Fora da tela 01 (por enquanto)
 

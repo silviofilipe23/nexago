@@ -5,7 +5,9 @@
  *   { banners: [{ id, kicker, title, subtitle, imageUrl, primary: {label, collectionId},
  *                 secondary: {label, categoryId, url} | null, startDate, endDate, active }] }
  *
- * Ainda não há tela de campanhas no backoffice — até lá, é por aqui. O gatilho
+ * O caminho normal é a tela Loja › Campanhas do backoffice (callable `saveStoreCampaigns`); este
+ * script fica para ambiente vazio e QA. Ele grava sem `version`, então uma tela aberta recebe
+ * "Recarregar" no próximo save (se já tinha salvo pela tela uma vez). O gatilho
  * `onStoreConfigWrittenSyncShowcase` copia os banners válidos para `storePublic/showcase`;
  * sem as functions deployadas, rode `scripts/sync-store-showcase.js --yes` depois.
  *

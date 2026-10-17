@@ -577,6 +577,9 @@ export {
   setStoreCouponPaused,
 } from "./store-coupons";
 
+// Loja: banners de campanha da vitrine. Escrita só por callable; o gatilho publica.
+export {saveStoreCampaigns} from "./store-campaigns";
+
 // Loja: personalizados — configuração por produto (tela 11) e fila de arte (tela 10).
 export {
   createStoreCustomBatch,

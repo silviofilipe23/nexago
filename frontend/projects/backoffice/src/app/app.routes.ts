@@ -263,7 +263,14 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/loja/campanhas/panel-campanhas.component').then((m) => m.PanelCampanhasComponent),
   },
-  { path: 'painel/squad', pathMatch: 'full', redirectTo: 'painel/squad/niveis-regras' },
+  { path: 'painel/squad', pathMatch: 'full', redirectTo: 'painel/squad/comissoes' },
+  {
+    path: 'painel/squad/comissoes',
+    title: 'Comissões — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/squad/comissoes/panel-comissoes.component').then((m) => m.PanelComissoesComponent),
+  },
   {
     path: 'painel/squad/niveis-regras',
     title: 'Níveis & regras — NexaGO Backoffice',

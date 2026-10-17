@@ -3206,6 +3206,39 @@ service cloud.firestore {
       }
     }
 
+    // NexaSquad: comissões, ajustes de reembolso, repasses e contratos. Só as callables de
+    // `squad-commissions.ts` gravam (atribuição no checkout e webhook chegam depois).
+    match /squadCommissions/{commissionId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /squadCommissionAdjustments/{adjustmentId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /squadPayouts/{payoutId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /squadAmbassadors/{ambassadorId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    // Carteira do embaixador: saldo sacável das comissões pagas. O dono lê (tela Ganhos).
+    match /squadWallets/{uid} {
+      allow read: if isAdmin() || isSuperAdmin() || (request.auth != null && request.auth.uid == uid);
+      allow write: if false;
+
+      match /transactions/{transactionId} {
+        allow read: if isAdmin() || isSuperAdmin() || (request.auth != null && request.auth.uid == uid);
+        allow write: if false;
+      }
+    }
+
     // Movimentações de estoque: o rastro de toda mudança de saldo. Só servidor grava.
     match /storeStockMovements/{movementId} {
       allow read: if isAdmin() || isSuperAdmin();

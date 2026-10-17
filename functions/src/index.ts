@@ -583,6 +583,14 @@ export {saveStoreCampaigns} from "./store-campaigns";
 // NexaSquad: regras do programa de embaixadores, versionadas. Escrita só por callable.
 export {saveSquadRules} from "./squad-rules";
 
+// NexaSquad: comissões dos embaixadores e repasse quinzenal. Escrita só por callable.
+export {
+  approveSquadPayout,
+  cancelSquadCommission,
+  reassignSquadCommission,
+  setSquadCommissionHold,
+} from "./squad-commissions";
+
 // Loja: personalizados — configuração por produto (tela 11) e fila de arte (tela 10).
 export {
   createStoreCustomBatch,

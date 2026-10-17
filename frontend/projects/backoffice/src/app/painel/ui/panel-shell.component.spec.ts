@@ -2,6 +2,7 @@ import { ApplicationRef, provideZonelessChangeDetection, signal } from '@angular
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
+import { SquadBadgesService } from '../data/squad-badges.service';
 import { StoreBadgesService } from '../data/store-badges.service';
 import { PanelShellComponent } from './panel-shell.component';
 
@@ -47,7 +48,7 @@ describe('PanelShellComponent', () => {
     expect(host.querySelector('.subnav')).toBeNull();
   });
 
-  it('Squad fica entre Atletas e Financeiro, com só Níveis & regras navegável', async () => {
+  it('Squad fica entre Atletas e Financeiro, com Comissões e Níveis & regras navegáveis', async () => {
     const host = await mount();
     const top = labels(host, '.nav > .nav-item');
     expect(top.indexOf('Squad')).toBe(top.indexOf('Atletas') + 1);
@@ -63,9 +64,18 @@ describe('PanelShellComponent', () => {
       'Níveis & regras',
     ]);
     const links = [...host.querySelectorAll('.subnav a.nav-item')];
-    expect(links.map((e) => e.getAttribute('href'))).toEqual(['/painel/squad/niveis-regras']);
-    // Sem contrato ainda: nenhuma contagem inventada nos filhos.
+    expect(links.map((e) => e.getAttribute('href'))).toEqual(['/painel/squad/comissoes', '/painel/squad/niveis-regras']);
+    // Sem comissão liberada: nenhuma contagem nos filhos.
     expect(host.querySelector('.subnav .badge')).toBeNull();
+  });
+
+  it('o badge de Comissões é o número de embaixadores com repasse a fazer', async () => {
+    const host = await mount();
+    TestBed.inject(SquadBadgesService).set(14);
+    groupButton(host, 'Squad').click();
+    await TestBed.inject(ApplicationRef).whenStable();
+    const item = [...host.querySelectorAll('.subnav a.nav-item')].find((e) => e.textContent!.includes('Comissões'))!;
+    expect(item.querySelector('.badge')!.textContent!.trim()).toBe('14');
   });
 
   it('abre o grupo no clique e fecha no clique seguinte', async () => {

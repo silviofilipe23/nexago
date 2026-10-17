@@ -502,10 +502,20 @@
 }
 
 // ── Grade: 4 colunas ≥1280, 3 de 1024 a 1279, 2 abaixo ────────
+// Tela larga ganha colunas (5 ≥1680, 6 ≥2300) em vez de esticar o card: a página ocupa a
+// largura toda e o card fica perto dos 265–330px do desenho.
 .lj-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
+
+  @media (min-width: 1680px) {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  @media (min-width: 2300px) {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
 
   @media (max-width: 1279px) {
     grid-template-columns: repeat(3, minmax(0, 1fr));

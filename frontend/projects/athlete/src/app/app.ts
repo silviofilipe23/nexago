@@ -27,6 +27,7 @@ const SHELL_ROUTE_PREFIXES = [
   '/mesa',
   '/cashback',
   '/organizadores',
+  '/loja',
 ];
 const AUTH_ROUTES = [
   '/entrar',

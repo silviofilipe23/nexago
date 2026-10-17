@@ -208,6 +208,19 @@ abstract final class AppRoutes {
   /// `url` dos pushes `cashback_released` / `cashback_expiring`.
   static const String athleteCashback = '/cashback';
 
+  /// Loja · vitrine (tela 01). Mesmo caminho do portal; deep link
+  /// `nexago://loja`. Aceita `?categoria=`, `?colecao=` e `?q=` como o web.
+  static const String store = '/loja';
+
+  /// Busca da Loja em tela cheia (devolve o termo para a vitrine).
+  static const String storeSearch = '/loja/busca';
+
+  /// Página do produto (tela 02 — por enquanto, "chega na próxima etapa").
+  static const String storeProduct = '/loja/produto/:productId';
+
+  /// Carrinho (por enquanto, "chega na próxima etapa").
+  static const String storeCart = '/loja/carrinho';
+
   /// Esportes e níveis do atleta.
   static const String athleteSportsLevels = '/athlete/profile/sports-levels';
 
@@ -654,6 +667,10 @@ abstract final class AppRouteNames {
   static const String athleteSettings = 'athleteSettings';
   static const String athleteReferral = 'athleteReferral';
   static const String athleteCashback = 'athleteCashback';
+  static const String store = 'store';
+  static const String storeSearch = 'storeSearch';
+  static const String storeProduct = 'storeProduct';
+  static const String storeCart = 'storeCart';
   static const String athleteSportsLevels = 'athleteSportsLevels';
   static const String athleteNotificationSettings =
       'athleteNotificationSettings';

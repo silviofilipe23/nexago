@@ -1,0 +1,300 @@
+/// Modelos da vitrine da Loja (tela 01).
+///
+/// Espelham o contrato de `docs/business-rules/loja-vitrine.md`: o app só lê
+/// `storeShowcase/{id}` e `storePublic/showcase` (espelhos públicos gravados
+/// pelos gatilhos) e grava `storeShoppers/{uid}` e `storeCarts/{uid}`.
+library;
+
+/// Selo do produto vindo do espelho (`badge`).
+enum StoreBadge {
+  bestSeller('mais-vendida'),
+  isNew('nova'),
+  limitedEdition('edicao-limitada');
+
+  const StoreBadge(this.id);
+
+  final String id;
+
+  static StoreBadge? from(Object? raw) {
+    for (final badge in values) {
+      if (badge.id == raw) return badge;
+    }
+    return null;
+  }
+}
+
+class StoreAxisValue {
+  const StoreAxisValue({required this.id, required this.label, this.hex});
+
+  final String id;
+  final String label;
+
+  /// Cor da bolinha no seletor (`#RRGGBB`); só eixos de cor têm.
+  final String? hex;
+}
+
+class StoreAxis {
+  const StoreAxis({required this.id, required this.label, this.values = const []});
+
+  final String id;
+  final String label;
+  final List<StoreAxisValue> values;
+}
+
+class StoreVariant {
+  const StoreVariant({
+    required this.id,
+    this.values = const {},
+    required this.priceCents,
+    required this.inStock,
+  });
+
+  /// Id do SKU (`branco_m`, `unico`) — é o `skuId` do carrinho.
+  final String id;
+
+  /// Eixo → valor (`{cor: branco, tam: m}`); vazio no produto sem variação.
+  final Map<String, String> values;
+  final int priceCents;
+
+  /// Só "tem ou não tem": o saldo de cada peça não é público.
+  final bool inStock;
+}
+
+class StoreProduct {
+  const StoreProduct({
+    required this.id,
+    required this.name,
+    this.slug = '',
+    this.category = '',
+    this.collection,
+    this.brand = 'NexaGO',
+    this.badge,
+    this.badgeExpiresAt,
+    required this.priceCents,
+    this.compareAtPriceCents,
+    required this.minPriceCents,
+    required this.maxPriceCents,
+    this.coverUrl,
+    this.pickup = false,
+    this.delivery = false,
+    this.axes = const [],
+    this.variants = const [],
+    this.soldOut = false,
+    this.customizable = false,
+    this.ratingAvg,
+    this.ratingCount = 0,
+    this.soldLast30 = 0,
+    this.publishedAt,
+  });
+
+  final String id;
+  final String name;
+  final String slug;
+  final String category;
+  final String? collection;
+  final String brand;
+  final StoreBadge? badge;
+
+  /// Quando o selo "nova" deixa de valer; `null` = não vence.
+  final DateTime? badgeExpiresAt;
+  final int priceCents;
+  final int? compareAtPriceCents;
+
+  /// Menor/maior preço entre as variações à venda.
+  final int minPriceCents;
+  final int maxPriceCents;
+  final String? coverUrl;
+  final bool pickup;
+  final bool delivery;
+  final List<StoreAxis> axes;
+  final List<StoreVariant> variants;
+  final bool soldOut;
+  final bool customizable;
+  final double? ratingAvg;
+  final int ratingCount;
+
+  /// Unidades vendidas nos últimos 30 dias — a ordem "Mais vendidos".
+  final int soldLast30;
+  final DateTime? publishedAt;
+}
+
+/// Catálogo do canal app, com a origem do snapshot.
+class StoreCatalog {
+  const StoreCatalog({required this.products, this.fromCache = false});
+
+  final List<StoreProduct> products;
+
+  /// `metadata.isFromCache`: ainda sem resposta do servidor (offline ou abrindo).
+  final bool fromCache;
+}
+
+class StoreBanner {
+  const StoreBanner({
+    required this.id,
+    this.kicker = '',
+    required this.title,
+    this.subtitle = '',
+    this.imageUrl,
+    this.primaryLabel = 'Ver coleção',
+    required this.collectionId,
+    this.startDate,
+    this.endDate,
+  });
+
+  final String id;
+  final String kicker;
+  final String title;
+  final String subtitle;
+  final String? imageUrl;
+  final String primaryLabel;
+
+  /// O card abre a vitrine filtrada por esta coleção.
+  final String collectionId;
+
+  /// Datas civis de São Paulo (`YYYY-MM-DD`), inclusivas; `null` = sem limite.
+  final String? startDate;
+  final String? endDate;
+}
+
+class StoreBenefits {
+  const StoreBenefits({
+    this.pixDiscountPct,
+    this.pickupReadyHours,
+    this.exchangeDays = 30,
+  });
+
+  /// `null` = desconto do Pix desligado: some o "no Pix" dos preços.
+  final num? pixDiscountPct;
+  final int? pickupReadyHours;
+  final int exchangeDays;
+}
+
+class StoreLabel {
+  const StoreLabel({required this.id, required this.label});
+
+  final String id;
+  final String label;
+}
+
+class StorePickupArena {
+  const StorePickupArena({
+    required this.arenaId,
+    required this.name,
+    this.address = '',
+    this.city = '',
+    this.state = '',
+    this.latitude,
+    this.longitude,
+    this.readyHours = 48,
+  });
+
+  final String arenaId;
+  final String name;
+  final String address;
+  final String city;
+  final String state;
+  final double? latitude;
+  final double? longitude;
+  final int readyHours;
+
+  bool get hasCoordinates =>
+      latitude != null &&
+      longitude != null &&
+      latitude!.isFinite &&
+      longitude!.isFinite;
+}
+
+/// Ordem e rótulos de reserva enquanto `storePublic/showcase` não existir
+/// (espelha `STORE_CATEGORIES`/`STORE_COLLECTIONS` do servidor e o portal).
+const List<StoreLabel> kStoreFallbackCategories = [
+  StoreLabel(id: 'bolas', label: 'Bolas'),
+  StoreLabel(id: 'vestuario', label: 'Vestuário'),
+  StoreLabel(id: 'acessorios', label: 'Acessórios'),
+  StoreLabel(id: 'rede-quadra', label: 'Rede & quadra'),
+  StoreLabel(id: 'kits', label: 'Kits'),
+];
+
+const List<StoreLabel> kStoreFallbackCollections = [
+  StoreLabel(id: 'verao-2026', label: 'Verão 2026'),
+  StoreLabel(id: 'linha-pro', label: 'Linha Pro'),
+];
+
+class StoreShowcaseConfig {
+  const StoreShowcaseConfig({
+    this.banners = const [],
+    this.benefits = const StoreBenefits(),
+    this.categories = kStoreFallbackCategories,
+    this.collections = kStoreFallbackCollections,
+    this.pickupArenas = const [],
+  });
+
+  /// Sem o doc de config, nada de prometer desconto ou prazo que ninguém
+  /// configurou: Pix e retirada somem.
+  static const StoreShowcaseConfig empty = StoreShowcaseConfig();
+
+  final List<StoreBanner> banners;
+  final StoreBenefits benefits;
+  final List<StoreLabel> categories;
+  final List<StoreLabel> collections;
+  final List<StorePickupArena> pickupArenas;
+}
+
+/// `storeShoppers/{uid}`: preferências do atleta na Loja.
+class StoreShopper {
+  const StoreShopper({
+    this.favoriteIds = const [],
+    this.pickupArenaId,
+    this.recentSearches = const [],
+  });
+
+  static const StoreShopper empty = StoreShopper();
+
+  final List<String> favoriteIds;
+  final String? pickupArenaId;
+
+  /// Mais recente primeiro, no máximo [kStoreMaxRecentSearches].
+  final List<String> recentSearches;
+}
+
+/// Linha de `storeCarts/{uid}.items`. Só intenção: o checkout relê preço e
+/// saldo no servidor.
+class StoreCartItem {
+  const StoreCartItem({
+    required this.productId,
+    required this.skuId,
+    required this.qty,
+  });
+
+  final String productId;
+  final String skuId;
+  final int qty;
+
+  Map<String, Object> toMap() => {
+        'productId': productId,
+        'skuId': skuId,
+        'qty': qty,
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      other is StoreCartItem &&
+      other.productId == productId &&
+      other.skuId == skuId &&
+      other.qty == qty;
+
+  @override
+  int get hashCode => Object.hash(productId, skuId, qty);
+
+  @override
+  String toString() => 'StoreCartItem($productId, $skuId, $qty)';
+}
+
+/// Teto da rule de `storeShoppers.recentSearches`.
+const int kStoreMaxRecentSearches = 5;
+
+/// Teto da rule de `storeCarts.items` (linhas distintas).
+const int kStoreMaxCartLines = 30;
+
+/// Teto de unidades por linha do carrinho (sem regra no servidor; evita
+/// número absurdo por toque repetido).
+const int kStoreMaxQtyPerLine = 99;

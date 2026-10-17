@@ -173,6 +173,16 @@ void main() {
     });
   });
 
+  // Loja (`/loja` e filhas): área do atleta, como o cashback.
+  group('Loja', () {
+    test('vitrine e subpáginas são rotas do atleta', () {
+      expect(isAthleteExperiencePath(AppRoutes.store), isTrue);
+      expect(isAthleteExperiencePath('/loja/produto/bola'), isTrue);
+      expect(isAthleteExperiencePath(AppRoutes.storeCart), isTrue);
+      expect(isAthleteExperiencePath('/lojas'), isFalse);
+    });
+  });
+
   // `/cashback` é o destino do push `cashback_released`/`cashback_expiring`:
   // fora da área do atleta, um organizador ativo abriria a tela do atleta.
   group('Meu cashback', () {

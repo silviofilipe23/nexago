@@ -134,6 +134,32 @@ void main() {
         '/convite-dupla/ext-1',
       );
     });
+
+    test('maps the store on the custom scheme (nexago://loja)', () {
+      expect(resolveAppDeepLinkPath(Uri.parse('nexago://loja')), '/loja');
+      expect(resolveAppDeepLinkPath(Uri.parse('nexago:///loja')), '/loja');
+      expect(
+        resolveAppDeepLinkPath(Uri.parse('nexago://loja?categoria=bolas')),
+        '/loja?categoria=bolas',
+      );
+      expect(
+        resolveAppDeepLinkPath(Uri.parse('nexago://loja/produto/bola-pro')),
+        '/loja/produto/bola-pro',
+      );
+      expect(
+        resolveAppDeepLinkPath(Uri.parse('nexago://loja/carrinho')),
+        '/loja/carrinho',
+      );
+      // Subcaminho desconhecido cai na vitrine, não na tela de erro.
+      expect(resolveAppDeepLinkPath(Uri.parse('nexago://loja/xyz')), '/loja');
+    });
+
+    test('https /loja stays with the athlete portal', () {
+      expect(
+        resolveAppDeepLinkPath(Uri.parse('https://atleta.nexago.com.br/loja')),
+        isNull,
+      );
+    });
   });
 
   group('isMercadoPagoOAuthDeepLink', () {

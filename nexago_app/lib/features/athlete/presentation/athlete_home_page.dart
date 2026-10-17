@@ -15,6 +15,7 @@ import '../../../core/ui/nexa_async_view.dart';
 import '../../../core/ui/nexa_skeleton.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../../cashback/presentation/widgets/cashback_balance_pill.dart';
+import '../../store/presentation/widgets/store_home_entry.dart';
 import '../../ranking/domain/ranking_providers.dart';
 import '../../tournaments/data/my_tournament_registrations_repository.dart';
 import '../../tournaments/data/tournament_partner_invite_service.dart';
@@ -285,6 +286,9 @@ class AthleteHomePage extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.sectionGap),
                       const AthleteHomeCompetitionsSection(),
                       const SizedBox(height: AppSpacing.sectionGap),
+                      // Atalho da Loja: só com appConfig/store.enabled; traz o
+                      // próprio respiro de baixo (desligado não deixa vão).
+                      const StoreHomeEntry(),
                       Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.screenH,

@@ -22,9 +22,11 @@ bool isAthleteExperiencePath(String path) {
       path == '/' ||
       path == AppRoutes.myBookings ||
       path == AppRoutes.bookingSuccess ||
-      path == AppRoutes.athleteCashback) {
+      path == AppRoutes.athleteCashback ||
+      path == AppRoutes.store) {
     return true;
   }
+  if (path.startsWith('${AppRoutes.store}/')) return true;
   if (path.startsWith('/athlete/')) return true;
   if (path.startsWith('/competir/')) return true;
   if (path.startsWith('/torneios')) return true;

@@ -1,0 +1,58 @@
+@if (photos().length > 1) {
+  <div class="lg-thumbs" role="tablist" aria-label="Fotos do produto">
+    @for (photo of photos(); track photo.url + $index; let i = $index) {
+      <button
+        type="button"
+        role="tab"
+        class="lg-thumb"
+        [class.lg-thumb--on]="i === index()"
+        [attr.aria-selected]="i === index()"
+        [attr.aria-label]="'Foto ' + (i + 1) + ' de ' + photos().length"
+        (click)="show(i)"
+      >
+        <img [src]="photo.url" alt="" loading="lazy" decoding="async" />
+      </button>
+    }
+  </div>
+}
+
+<div
+  #frame
+  class="lg-main"
+  [attr.data-tone]="tone()"
+  [class.lg-main--zoom]="zoom() !== null"
+  (pointermove)="onPointerMove($event, frame)"
+  (pointerleave)="zoom.set(null)"
+>
+  @if (current(); as photo) {
+    <button type="button" class="lg-open" [attr.aria-label]="'Ampliar foto de ' + name()" (click)="openLightbox()">
+      <img
+        class="lg-img"
+        [src]="photo.url"
+        [alt]="name()"
+        decoding="async"
+        [style.transform-origin]="zoom() ? zoom()!.x + '% ' + zoom()!.y + '%' : null"
+      />
+    </button>
+  } @else {
+    <span class="lg-placeholder" aria-hidden="true">{{ placeholder() }} · foto principal</span>
+  }
+</div>
+
+@if (lightbox() && current(); as photo) {
+  <div class="lg-lightbox" role="dialog" aria-modal="true" [attr.aria-label]="'Fotos de ' + name()" (click)="closeLightbox()">
+    <img class="lg-lightbox-img" [src]="photo.url" [alt]="name()" (click)="$event.stopPropagation()" />
+    <button #closeBtn type="button" class="lg-lightbox-close" aria-label="Fechar (Esc)" (click)="closeLightbox()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+    </button>
+    @if (photos().length > 1) {
+      <button type="button" class="lg-lightbox-nav lg-lightbox-nav--prev" aria-label="Foto anterior" (click)="$event.stopPropagation(); show(index() - 1)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+      </button>
+      <button type="button" class="lg-lightbox-nav lg-lightbox-nav--next" aria-label="Próxima foto" (click)="$event.stopPropagation(); show(index() + 1)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+      </button>
+      <span class="lg-lightbox-count">{{ index() + 1 }} / {{ photos().length }}</span>
+    }
+  </div>
+}

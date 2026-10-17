@@ -7,12 +7,14 @@ import {
   getDoc,
   onSnapshot,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   where,
   type Firestore,
 } from 'firebase/firestore';
 import { athleteFirestore } from './firestore';
+import { mergeCartItem } from './store-product-model';
 import {
   cartItemsFromDoc,
   storeConfigFromDoc,
@@ -52,6 +54,12 @@ export interface StoreShowcaseSource {
   watchCart(uid: string, onChange: (items: StoreCartItem[]) => void): () => void;
   setFavorite(uid: string, productId: string, on: boolean): Promise<void>;
   saveRecentSearches(uid: string, searches: string[]): Promise<void>;
+  setPickupArena(uid: string, arenaId: string): Promise<void>;
+  /**
+   * Soma no carrinho sem passar do `maxQty` do SKU. Devolve as unidades que entraram (0 = a
+   * linha já estava no teto) ou `null` com o carrinho cheio.
+   */
+  addToCart(uid: string, item: { productId: string; skuId: string; qty: number; maxQty: number }): Promise<number | null>;
 }
 
 export function firestoreStoreShowcaseSource(db: Firestore): StoreShowcaseSource {
@@ -102,6 +110,20 @@ export function firestoreStoreShowcaseSource(db: Firestore): StoreShowcaseSource
       ),
     saveRecentSearches: (uid, searches) =>
       setDoc(doc(db, 'storeShoppers', uid), { recentSearches: searches, updatedAt: serverTimestamp() }, { merge: true }),
+    setPickupArena: (uid, arenaId) =>
+      setDoc(doc(db, 'storeShoppers', uid), { pickupArenaId: arenaId, updatedAt: serverTimestamp() }, { merge: true }),
+    // Transação: soma na linha que outro aparelho pode ter mudado. A lista vai inteira e sem
+    // FieldValue dentro (a rule só aceita `items` + `updatedAt`) — igual ao app.
+    addToCart: (uid, item) => {
+      const ref = doc(db, 'storeCarts', uid);
+      return runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const merged = mergeCartItem(cartItemsFromDoc(snap.data()), item);
+        if (merged === null) return null;
+        if (merged.added > 0) tx.set(ref, { items: merged.items, updatedAt: serverTimestamp() });
+        return merged.added;
+      });
+    },
   };
 }
 

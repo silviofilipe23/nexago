@@ -314,7 +314,7 @@ export class LojaVitrineComponent {
       this.submitSearch(option.term);
     } else if (option.kind === 'product') {
       trackLojaEvent('loja_produto_click', { produto_id: option.product.id, posicao: 0, origem: 'busca' });
-      void this.router.navigate(['/loja/produto', option.product.id]);
+      void this.router.navigate(['/loja/p', option.product.slug || option.product.id], { state: { origem: 'busca' } });
     } else {
       trackLojaEvent('loja_categoria_select', { categoria: option.category.id, origem: 'busca' });
       this.setParams({ categoria: option.category.id, q: null }, true);

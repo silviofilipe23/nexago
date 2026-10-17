@@ -5,7 +5,9 @@ import {FakeFirestore} from "./fake-firestore.test-helper";
 import {
   bannerFromData,
   buildShowcaseConfig,
+  buildShowcaseDelivery,
   buildShowcaseProduct,
+  customizationSummary,
   pixPriceCents,
   STORE_CATEGORIES,
 } from "./store-showcase";
@@ -93,6 +95,80 @@ describe("buildShowcaseProduct", () => {
     assert.equal(buildShowcaseProduct(product(), [sku("m", 1)], {active: true}, NOW)!.customizable, true);
     assert.equal(buildShowcaseProduct(product(), [sku("m", 1)], {active: false}, NOW)!.customizable, false);
   });
+
+  it("saldo só até o teto da compra; estoque baixo pelo alerta do produto", () => {
+    const skus = [sku("p", 0), sku("m", 2), sku("g", 10), sku("gg", 40), sku("xg", 3, {reservedByLocation: {cd: 1}})];
+    const out = buildShowcaseProduct(product({lowStockThreshold: 3}), skus, null, NOW)!;
+    const byId = new Map(out.variants.map((v) => [v.id, v]));
+    assert.deepEqual(byId.get("p"), {...byId.get("p")!, maxQty: 0, lowStock: false, inStock: false});
+    assert.equal(byId.get("m")!.maxQty, 2);
+    assert.equal(byId.get("m")!.lowStock, true);
+    assert.equal(byId.get("g")!.maxQty, 10);
+    assert.equal(byId.get("g")!.lowStock, false);
+    assert.equal(byId.get("gg")!.maxQty, 10, "acima do teto o público não sabe o saldo");
+    assert.equal(byId.get("xg")!.maxQty, 2, "reserva sai do saldo livre");
+    assert.equal(byId.get("xg")!.lowStock, true);
+  });
+
+  it("galeria na ordem do backoffice, com a cor de cada foto; sem foto sem url", () => {
+    const out = buildShowcaseProduct(product({
+      photos: [
+        {id: "a", url: "", path: "x"},
+        {id: "b", url: "https://cdn/branco.jpg", path: "y", colorValueId: "branco", view: "frente"},
+        {id: "c", url: "https://cdn/geral.jpg", path: "z", colorValueId: null},
+      ],
+    }), [sku("m", 1)], null, NOW)!;
+    assert.deepEqual(out.photos, [
+      {url: "https://cdn/branco.jpg", colorValueId: "branco"},
+      {url: "https://cdn/geral.jpg", colorValueId: null},
+    ]);
+    assert.equal(out.coverUrl, "https://cdn/branco.jpg");
+    assert.ok(!JSON.stringify(out.photos).includes("path"), "caminho do Storage não vai para a vitrine");
+  });
+
+  it("descrição e detalhes técnicos, sem linha pela metade", () => {
+    const out = buildShowcaseProduct(product({
+      description: "  Camiseta leve.  ",
+      technicalDetails: [{label: "Tecido", value: "Poliamida"}, {label: "Proteção", value: ""}, null],
+    }), [sku("m", 1)], null, NOW)!;
+    assert.equal(out.description, "Camiseta leve.");
+    assert.deepEqual(out.details, [{label: "Tecido", value: "Poliamida"}]);
+  });
+});
+
+describe("customizationSummary", () => {
+  it("desligada não vai; ligada leva o preço mais barato, o prazo e a regra de troca", () => {
+    assert.equal(customizationSummary(null), null);
+    assert.equal(customizationSummary({active: false}), null);
+    assert.deepEqual(customizationSummary({active: true}), {fromCents: 1490, leadDays: 5, defectOnlyReturns: true});
+    assert.deepEqual(
+      customizationSummary({active: true, name: {enabled: false}, price: {imageOnlyCents: 2290}, production: {leadDays: 7}}),
+      {fromCents: 2290, leadDays: 7, defectOnlyReturns: true},
+    );
+  });
+
+  it("só costas: o preço das costas", () => {
+    const out = customizationSummary({active: true, name: {enabled: false}, image: {enabled: false}, back: {enabled: true}});
+    assert.equal(out?.fromCents, 990);
+  });
+});
+
+describe("buildShowcaseDelivery", () => {
+  it("sem config: só a Expressa (fixa); a calculada espera a integração de frete", () => {
+    const d = buildShowcaseDelivery(null);
+    assert.equal(d.freeAboveCents, 39900);
+    assert.deepEqual(d.modes.map((m) => [m.id, m.priceCents]), [["expressa", 3490]]);
+  });
+
+  it("calculada entra com a integração ligada; desligada e sem preço ficam de fora", () => {
+    const d = buildShowcaseDelivery({
+      melhorEnvioConnected: true,
+      freeShippingAboveCents: 0,
+      modes: [{id: "expressa", active: false}, {id: "motoboy", active: true, priceCents: 0}],
+    });
+    assert.equal(d.freeAboveCents, null);
+    assert.deepEqual(d.modes.map((m) => [m.id, m.priceCents]), [["padrao", null]]);
+  });
 });
 
 describe("pixPriceCents", () => {
@@ -131,6 +207,7 @@ describe("buildShowcaseConfig", () => {
     assert.deepEqual(c.benefits, {pixDiscountPct: 5, pickupReadyHours: null, exchangeDays: 30});
     assert.deepEqual(c.categories.map((x) => x.id), STORE_CATEGORIES.map((x) => x.id));
     assert.deepEqual(c.banners, []);
+    assert.deepEqual(c.delivery.modes.map((m) => m.id), ["expressa"]);
   });
 
   it("Pix desligado some; prazo da retirada é o do ponto mais lento", () => {

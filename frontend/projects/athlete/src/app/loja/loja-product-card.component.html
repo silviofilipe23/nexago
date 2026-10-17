@@ -1,4 +1,4 @@
-<a class="lj-card-link" [routerLink]="['/loja/produto', product().id]" (click)="opened.emit()">
+<a class="lj-card-link" [routerLink]="['/loja/p', product().slug || product().id]" [state]="{ origem: 'vitrine' }" (click)="opened.emit()">
   <div class="lj-card-media" [attr.data-tone]="placeholderTone()">
     @if (product().coverUrl; as cover) {
       <img class="lj-card-img" [src]="cover" [alt]="product().name" loading="lazy" decoding="async" />

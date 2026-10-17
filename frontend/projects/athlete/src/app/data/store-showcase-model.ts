@@ -24,6 +24,28 @@ export interface StoreVariant {
   values: Record<string, string>;
   priceCents: number;
   inStock: boolean;
+  /** Saldo livre até o teto da compra (10); 0 = esgotado. */
+  maxQty: number;
+  /** Saldo no alerta de estoque baixo: "Só 2 no tamanho M". */
+  lowStock: boolean;
+}
+
+export interface StorePhoto {
+  url: string;
+  /** Valor do primeiro eixo (cor) da foto; `null` = vale para todas. */
+  colorValueId: string | null;
+}
+
+export interface StoreDetail {
+  label: string;
+  value: string;
+}
+
+export interface StoreCustomization {
+  /** "+ personalização a partir de"; 0 = nenhuma opção com preço. */
+  fromCents: number;
+  leadDays: number;
+  defectOnlyReturns: boolean;
 }
 
 export interface StoreProduct {
@@ -40,12 +62,16 @@ export interface StoreProduct {
   minPriceCents: number;
   maxPriceCents: number;
   coverUrl: string | null;
+  photos: StorePhoto[];
+  description: string;
+  details: StoreDetail[];
   pickup: boolean;
   delivery: boolean;
   axes: StoreAxis[];
   variants: StoreVariant[];
   soldOut: boolean;
   customizable: boolean;
+  customization: StoreCustomization | null;
   ratingAvg: number | null;
   ratingCount: number;
   soldLast30: number;
@@ -80,12 +106,26 @@ export interface StorePickupArena {
   readyHours: number;
 }
 
+export interface StoreDeliveryMode {
+  id: string;
+  name: string;
+  description: string;
+  /** `null` = calculado no checkout. */
+  priceCents: number | null;
+}
+
+export interface StoreDelivery {
+  freeAboveCents: number | null;
+  modes: StoreDeliveryMode[];
+}
+
 export interface StoreShowcaseConfig {
   banners: StoreBanner[];
   benefits: { pixDiscountPct: number | null; pickupReadyHours: number | null; exchangeDays: number };
   categories: StoreLabel[];
   collections: StoreLabel[];
   pickupArenas: StorePickupArena[];
+  delivery: StoreDelivery;
 }
 
 /** Ordem e rótulos de reserva enquanto `storePublic/showcase` não existir (espelha o servidor). */
@@ -112,7 +152,11 @@ export const EMPTY_SHOWCASE_CONFIG: StoreShowcaseConfig = {
   categories: FALLBACK_CATEGORIES,
   collections: FALLBACK_COLLECTIONS,
   pickupArenas: [],
+  delivery: { freeAboveCents: null, modes: [] },
 };
+
+/** Teto de unidades de um SKU por compra — o mesmo `MAX_QTY_PER_ITEM` do servidor. */
+export const MAX_QTY_PER_ITEM = 10;
 
 type Raw = Record<string, unknown>;
 
@@ -169,13 +213,31 @@ export function storeProductFromDoc(id: string, data: Raw | undefined): StorePro
       }))
     : [];
   const variants: StoreVariant[] = Array.isArray(data['variants'])
-    ? (data['variants'] as Raw[]).map((v) => ({
-        id: str(v?.['id']),
-        values: (v?.['values'] ?? {}) as Record<string, string>,
-        priceCents: count(v?.['priceCents']) || priceCents,
-        inStock: v?.['inStock'] === true,
-      }))
+    ? (data['variants'] as Raw[]).map((v) => {
+        const inStock = v?.['inStock'] === true;
+        // Doc anterior ao `maxQty`: com saldo vale o teto, sem saldo 0.
+        const maxQty = num(v?.['maxQty']);
+        return {
+          id: str(v?.['id']),
+          values: (v?.['values'] ?? {}) as Record<string, string>,
+          priceCents: count(v?.['priceCents']) || priceCents,
+          inStock,
+          maxQty: inStock ? Math.min(maxQty === null ? MAX_QTY_PER_ITEM : count(maxQty), MAX_QTY_PER_ITEM) : 0,
+          lowStock: inStock && v?.['lowStock'] === true,
+        };
+      })
     : [];
+  const photos: StorePhoto[] = Array.isArray(data['photos'])
+    ? (data['photos'] as Raw[])
+        .map((p) => ({ url: str(p?.['url']), colorValueId: str(p?.['colorValueId']) || null }))
+        .filter((p) => p.url !== '')
+    : [];
+  const details: StoreDetail[] = Array.isArray(data['details'])
+    ? (data['details'] as Raw[])
+        .map((d) => ({ label: str(d?.['label']), value: str(d?.['value']) }))
+        .filter((d) => d.label !== '' && d.value !== '')
+    : [];
+  const custom = data['customization'] as Raw | null | undefined;
 
   return {
     id,
@@ -191,12 +253,23 @@ export function storeProductFromDoc(id: string, data: Raw | undefined): StorePro
     minPriceCents,
     maxPriceCents,
     coverUrl: str(data['coverUrl']) || null,
+    photos,
+    description: str(data['description']),
+    details,
     pickup: data['pickup'] === true,
     delivery: data['delivery'] === true,
     axes,
     variants,
     soldOut: data['soldOut'] === true,
     customizable: data['customizable'] === true,
+    customization:
+      data['customizable'] === true && custom && typeof custom === 'object'
+        ? {
+            fromCents: count(custom['fromCents']),
+            leadDays: count(custom['leadDays']),
+            defectOnlyReturns: custom['defectOnlyReturns'] === true,
+          }
+        : null,
     ratingAvg: num(data['ratingAvg']),
     ratingCount: count(data['ratingCount']),
     soldLast30: count(data['soldLast30']),
@@ -258,6 +331,28 @@ export function storeConfigFromDoc(data: Raw | undefined): StoreShowcaseConfig {
             readyHours: count(a?.['readyHours']) || 48,
           }))
           .filter((a) => a.arenaId !== '')
+      : [],
+    delivery: deliveryFromRaw(data['delivery']),
+  };
+}
+
+function deliveryFromRaw(v: unknown): StoreDelivery {
+  const raw = (v ?? {}) as Raw;
+  const free = count(raw['freeAboveCents']);
+  return {
+    freeAboveCents: free > 0 ? free : null,
+    modes: Array.isArray(raw['modes'])
+      ? (raw['modes'] as Raw[])
+          .map((m) => {
+            const price = count(m?.['priceCents']);
+            return {
+              id: str(m?.['id']),
+              name: str(m?.['name']),
+              description: str(m?.['description']),
+              priceCents: price > 0 ? price : null,
+            };
+          })
+          .filter((m) => m.id !== '' && m.name !== '')
       : [],
   };
 }

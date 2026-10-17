@@ -11,6 +11,8 @@
  */
 import {badgeIsVisible, type Axis, type ProductBadge} from "./store-catalog";
 import {withDiscountDefaults} from "./store-coupons";
+import {withCustomizationDefaults} from "./store-custom";
+import {withShippingDefaults} from "./store-pickup";
 import {withReturnsDefaults} from "./store-returns";
 
 export const SHOWCASE_PRODUCTS = "storeShowcase";
@@ -37,6 +39,12 @@ export const STORE_COLLECTIONS: ReadonlyArray<{id: string; label: string}> = [
 /** Sem ponto de retirada ativo não há prazo a prometer; com eles, vale o mais lento. */
 const DEFAULT_PICKUP_READY_HOURS = 48;
 
+/** Teto de unidades de um SKU por compra (página do produto). Acima disso o saldo não é exposto. */
+export const MAX_QTY_PER_ITEM = 10;
+
+/** Mesmo teto do backoffice (`MAX_PHOTOS_PER_PRODUCT`). */
+const MAX_SHOWCASE_PHOTOS = 10;
+
 type Data = Record<string, unknown>;
 
 export interface ShowcaseVariant {
@@ -45,8 +53,37 @@ export interface ShowcaseVariant {
   /** Eixo → valor (`{cor: "branco", tam: "m"}`); vazio no produto sem variação. */
   values: Record<string, string>;
   priceCents: number;
-  /** Booleano de propósito: o saldo de cada peça não é da conta do público. */
   inStock: boolean;
+  /**
+   * Quanto cabe numa compra: o saldo livre, até [MAX_QTY_PER_ITEM]; 0 = esgotado. O saldo de
+   * verdade não é da conta do público — acima do teto ele só sabe que "tem".
+   */
+  maxQty: number;
+  /** Saldo livre no alerta de estoque baixo do produto: "Só 2 no tamanho M". */
+  lowStock: boolean;
+}
+
+/** Foto da galeria, na ordem do backoffice (a primeira é a capa). */
+export interface ShowcasePhoto {
+  url: string;
+  /** Valor do primeiro eixo (cor) a que a foto pertence; `null` = vale para todas. */
+  colorValueId: string | null;
+}
+
+/** "Tecido · Poliamida dry com elastano". */
+export interface ShowcaseDetail {
+  label: string;
+  value: string;
+}
+
+/** O pedaço público da personalização (o resto — fontes, áreas, gráfica — é do backoffice). */
+export interface ShowcaseCustomization {
+  /** Menor preço entre as opções ligadas: "+ personalização a partir de R$ 14,90". 0 = nenhuma. */
+  fromCents: number;
+  /** Dias úteis de produção — somam ao prazo de retirada/entrega. */
+  leadDays: number;
+  /** Peça personalizada só troca por defeito. */
+  defectOnlyReturns: boolean;
 }
 
 export interface ShowcaseProduct {
@@ -65,6 +102,9 @@ export interface ShowcaseProduct {
   minPriceCents: number;
   maxPriceCents: number;
   coverUrl: string | null;
+  photos: ShowcasePhoto[];
+  description: string;
+  details: ShowcaseDetail[];
   channels: {app: boolean; web: boolean};
   pickup: boolean;
   delivery: boolean;
@@ -72,6 +112,8 @@ export interface ShowcaseProduct {
   variants: ShowcaseVariant[];
   soldOut: boolean;
   customizable: boolean;
+  /** Só com a personalização ativa. */
+  customization: ShowcaseCustomization | null;
   /** Avaliações ainda não existem: chegam `null`/0 e a vitrine esconde a nota. */
   ratingAvg: number | null;
   ratingCount: number;
@@ -101,6 +143,37 @@ function sumValues(v: unknown): number {
 
 const NEW_BADGE_MS = 30 * 86_400_000;
 
+function photosOf(raw: unknown): ShowcasePhoto[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as Data[])
+    .map((p) => ({url: str(p?.["url"]), colorValueId: str(p?.["colorValueId"]) || null}))
+    .filter((p) => p.url !== "")
+    .slice(0, MAX_SHOWCASE_PHOTOS);
+}
+
+function detailsOf(raw: unknown): ShowcaseDetail[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as Data[])
+    .map((d) => ({label: str(d?.["label"]), value: str(d?.["value"])}))
+    .filter((d) => d.label !== "" && d.value !== "");
+}
+
+/** Preço "a partir de": a opção mais barata entre nome e imagem; costas sozinhas só sem as duas. */
+export function customizationSummary(raw: Data | null): ShowcaseCustomization | null {
+  if (raw?.["active"] !== true) return null;
+  const c = withCustomizationDefaults(raw);
+  const options = [
+    c.name.enabled ? c.price.nameOnlyCents : null,
+    c.image.enabled ? c.price.imageOnlyCents : null,
+  ].filter((n): n is number => n !== null && n > 0);
+  if (options.length === 0 && c.back.enabled && c.price.backCents > 0) options.push(c.price.backCents);
+  return {
+    fromCents: options.length > 0 ? Math.min(...options) : 0,
+    leadDays: count(c.production.leadDays),
+    defectOnlyReturns: c.defectOnlyReturns === true,
+  };
+}
+
 /**
  * Produto da fonte → espelho da vitrine. `null` = não está à venda e o espelho deve sumir:
  * rascunho, arquivado, pausado, sem canal ou sem SKU.
@@ -119,6 +192,7 @@ export function buildShowcaseProduct(
   if (skus.length === 0) return null;
 
   const priceCents = count(product["priceCents"]);
+  const lowStockThreshold = count(product["lowStockThreshold"]);
   const axes = Array.isArray(product["axes"]) ? (product["axes"] as Axis[]) : [];
   const variants: ShowcaseVariant[] = skus
     .map(({id, data}) => {
@@ -129,6 +203,8 @@ export function buildShowcaseProduct(
         values: (data["axisValues"] ?? {}) as Record<string, string>,
         priceCents: typeof own === "number" && own > 0 ? own : priceCents,
         inStock: available > 0,
+        maxQty: Math.max(0, Math.min(available, MAX_QTY_PER_ITEM)),
+        lowStock: available > 0 && available <= lowStockThreshold,
       };
     })
     .sort((a, b) => a.id.localeCompare(b.id));
@@ -140,8 +216,7 @@ export function buildShowcaseProduct(
   const publishedAt = toDate(product["publishedAt"]) ?? now;
   const badge = badgeIsVisible(rawBadge, publishedAt, now) ? rawBadge : null;
   const compareAt = count(product["compareAtPriceCents"]);
-  const photos = Array.isArray(product["photos"]) ? (product["photos"] as Data[]) : [];
-  const cover = photos.map((p) => str(p?.["url"])).find((url) => url !== "") ?? null;
+  const photos = photosOf(product["photos"]);
   const fulfillment = (product["fulfillment"] ?? {}) as Data;
   const rating = product["ratingAvg"];
 
@@ -157,7 +232,10 @@ export function buildShowcaseProduct(
     compareAtPriceCents: compareAt > priceCents ? compareAt : null,
     minPriceCents: Math.min(...prices),
     maxPriceCents: Math.max(...prices),
-    coverUrl: cover,
+    coverUrl: photos[0]?.url ?? null,
+    photos,
+    description: str(product["description"]),
+    details: detailsOf(product["technicalDetails"]),
     channels,
     pickup: fulfillment["pickup"] === true,
     delivery: fulfillment["delivery"] === true,
@@ -165,6 +243,7 @@ export function buildShowcaseProduct(
     variants,
     soldOut: !variants.some((v) => v.inStock),
     customizable: customization?.["active"] === true,
+    customization: customizationSummary(customization),
     ratingAvg: typeof rating === "number" && Number.isFinite(rating) ? rating : null,
     ratingCount: count(product["ratingCount"]),
     soldLast30: count(product["soldLast30"]),
@@ -206,6 +285,22 @@ export interface ShowcasePickupArena {
   readyHours: number;
 }
 
+export interface ShowcaseDeliveryMode {
+  id: string;
+  name: string;
+  /** Texto do backoffice com prazo e transportadora ("Loggi · Goiânia e região em 24 h"). */
+  description: string;
+  /** `null` = calculado no checkout (só com a integração de frete ligada). */
+  priceCents: number | null;
+}
+
+export interface ShowcaseDelivery {
+  /** Pedido a partir daqui não paga frete; `null` = sem frete grátis. */
+  freeAboveCents: number | null;
+  /** Só as modalidades que o checkout aceita hoje — vazio = sem entrega. */
+  modes: ShowcaseDeliveryMode[];
+}
+
 export interface ShowcaseConfig {
   banners: ShowcaseBanner[];
   benefits: {
@@ -218,6 +313,7 @@ export interface ShowcaseConfig {
   categories: {id: string; label: string}[];
   collections: {id: string; label: string}[];
   pickupArenas: ShowcasePickupArena[];
+  delivery: ShowcaseDelivery;
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -267,10 +363,33 @@ function coordinate(arena: Data | null, axis: "latitude" | "longitude"): number 
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+/**
+ * A modalidade "calculada" só vale com a integração de frete ligada (o checkout recusa sem ela);
+ * as de preço fixo valem com preço.
+ */
+export function buildShowcaseDelivery(shipping: Data | null): ShowcaseDelivery {
+  const config = withShippingDefaults(shipping ?? undefined);
+  const modes = config.modes
+    .filter((m) => m.active === true)
+    .map((m): ShowcaseDeliveryMode | null => {
+      if (m.priceType === "calculado") {
+        return config.melhorEnvioConnected === true ?
+          {id: m.id, name: str(m.name), description: str(m.description), priceCents: null} :
+          null;
+      }
+      const price = count(m.priceCents);
+      return price > 0 ? {id: m.id, name: str(m.name), description: str(m.description), priceCents: price} : null;
+    })
+    .filter((m): m is ShowcaseDeliveryMode => m !== null);
+  return {freeAboveCents: count(config.freeShippingAboveCents) || null, modes};
+}
+
 export function buildShowcaseConfig(input: {
   discounts: Data | null;
   returns: Data | null;
   campaigns: Data | null;
+  /** `storeConfig/shipping`; omitido = padrão. */
+  shipping?: Data | null;
   pickupPoints: {arenaId: string; data: Data}[];
   arenas: Map<string, Data>;
 }): ShowcaseConfig {
@@ -311,5 +430,6 @@ export function buildShowcaseConfig(input: {
     categories: STORE_CATEGORIES.map((c) => ({...c})),
     collections: STORE_COLLECTIONS.map((c) => ({...c})),
     pickupArenas,
+    delivery: buildShowcaseDelivery(input.shipping ?? null),
   };
 }

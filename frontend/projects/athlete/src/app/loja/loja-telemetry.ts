@@ -1,6 +1,6 @@
 import { environment } from '../../environments/environment';
 
-/** Eventos da vitrine — mesmos nomes do app (`docs/business-rules/loja-vitrine.md`). */
+/** Eventos da Loja — mesmos nomes do app (`docs/business-rules/loja-vitrine.md`). */
 export type LojaEvent =
   | 'loja_vitrine_view'
   | 'loja_banner_click'
@@ -9,7 +9,16 @@ export type LojaEvent =
   | 'loja_produto_click'
   | 'loja_add_rapido'
   | 'loja_favoritar'
-  | 'loja_arena_trocar';
+  | 'loja_arena_trocar'
+  // Página do produto (tela 02, `docs/business-rules/loja-produto.md`).
+  | 'loja_produto_view'
+  | 'loja_foto_swipe'
+  | 'loja_variacao_select'
+  | 'loja_avise_me'
+  | 'loja_add_carrinho'
+  | 'loja_entrega_select'
+  | 'loja_personalizar_open'
+  | 'loja_relacionado_click';
 
 /**
  * Ponto único dos eventos da Loja no portal. O portal ainda não tem coletor de analytics

@@ -22,8 +22,8 @@ import {
 
 const PRODUCTS = "storeProducts";
 const CUSTOMIZATION = "storeProductCustomization";
-/** Config que muda o que a vitrine mostra: desconto do Pix, prazo de troca, banners. */
-const CONFIG_SOURCES = new Set(["discounts", "returns", CAMPAIGNS_CONFIG_ID]);
+/** Config que muda o que a vitrine mostra: desconto do Pix, prazo de troca, banners, entrega. */
+const CONFIG_SOURCES = new Set(["discounts", "returns", "shipping", CAMPAIGNS_CONFIG_ID]);
 
 export async function syncShowcaseProduct(db: Firestore, productId: string, now = new Date()): Promise<"set" | "deleted"> {
   const productRef = db.collection(PRODUCTS).doc(productId);
@@ -49,10 +49,11 @@ export async function syncShowcaseProduct(db: Firestore, productId: string, now 
 
 export async function rebuildShowcaseConfig(db: Firestore, now = new Date()): Promise<void> {
   const config = db.collection(STORE_CONFIG);
-  const [discounts, returns, campaigns, points] = await Promise.all([
+  const [discounts, returns, campaigns, shipping, points] = await Promise.all([
     config.doc("discounts").get(),
     config.doc("returns").get(),
     config.doc(CAMPAIGNS_CONFIG_ID).get(),
+    config.doc("shipping").get(),
     db.collection(PICKUP_POINTS).where("active", "==", true).get(),
   ]);
   const pickupPoints = points.docs.map((d) => ({arenaId: d.id, data: d.data()}));
@@ -64,6 +65,7 @@ export async function rebuildShowcaseConfig(db: Firestore, now = new Date()): Pr
     discounts: discounts.exists ? discounts.data()! : null,
     returns: returns.exists ? returns.data()! : null,
     campaigns: campaigns.exists ? campaigns.data()! : null,
+    shipping: shipping.exists ? shipping.data()! : null,
     pickupPoints,
     arenas,
   });

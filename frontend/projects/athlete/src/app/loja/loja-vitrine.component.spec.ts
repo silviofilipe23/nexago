@@ -69,6 +69,12 @@ class FakeSource implements StoreShowcaseSource {
   saveRecentSearches(): Promise<void> {
     return Promise.resolve();
   }
+  setPickupArena(): Promise<void> {
+    return Promise.resolve();
+  }
+  addToCart(): Promise<number | null> {
+    return Promise.resolve(1);
+  }
 }
 
 function text(el: Element | null | undefined): string {

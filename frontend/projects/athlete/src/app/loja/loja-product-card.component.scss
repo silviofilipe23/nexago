@@ -1,0 +1,267 @@
+// Card da vitrine — medidas do desenho "01 · Vitrine" (portal web): foto 236px, info 16px.
+:host {
+  position: relative;
+  display: block;
+  min-width: 0;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-4);
+  overflow: hidden;
+  transition:
+    border-color var(--nx-d-fast) var(--nx-ease-out),
+    transform var(--nx-d-base) var(--nx-ease-out);
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+
+  &:focus-within {
+    border-color: rgba(255, 106, 26, 0.5);
+  }
+}
+
+.lj-card-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+
+  &:focus-visible {
+    outline: none;
+  }
+}
+
+.lj-card-media {
+  position: relative;
+  height: 236px;
+  display: grid;
+  place-items: center;
+  background-color: #121214;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.03) 0 9px,
+    transparent 9px 18px
+  );
+
+  &[data-tone='warm'] {
+    background-color: #16120f;
+  }
+
+  &[data-tone='cool'] {
+    background-color: #0f1214;
+  }
+
+  @media (max-width: 640px) {
+    height: 176px;
+  }
+}
+
+.lj-card-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--nx-d-slow) var(--nx-ease-out);
+
+  :host(:hover) & {
+    transform: scale(1.03);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+
+    :host(:hover) & {
+      transform: none;
+    }
+  }
+}
+
+.lj-card-placeholder {
+  font-family: var(--nx-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(244, 244, 245, 0.32);
+}
+
+:host(.lj-card--sold-out) .lj-card-img,
+:host(.lj-card--sold-out) .lj-card-placeholder {
+  opacity: 0.55;
+}
+
+.lj-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--nx-r-1);
+  background: rgba(5, 5, 5, 0.7);
+  color: var(--nx-text);
+  font-family: var(--nx-font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  backdrop-filter: blur(6px);
+
+  // Card de ~150px: selo e coração não podem se encostar.
+  @media (max-width: 640px) {
+    top: 8px;
+    left: 8px;
+    height: 20px;
+    padding: 0 6px;
+    font-size: 8.5px;
+    letter-spacing: 0.06em;
+  }
+}
+
+.lj-badge--orange {
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+}
+
+.lj-fav {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(5, 5, 5, 0.6);
+  color: var(--nx-text);
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition:
+    color var(--nx-d-fast) var(--nx-ease-out),
+    transform var(--nx-d-fast) var(--nx-ease-spring);
+
+  &:hover {
+    color: var(--nx-orange-400);
+  }
+
+  &:active {
+    transform: scale(0.9);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 640px) {
+    top: 8px;
+    right: 8px;
+    width: 30px;
+    height: 30px;
+  }
+}
+
+.lj-fav--on {
+  color: var(--nx-orange-500);
+}
+
+.lj-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px 16px;
+
+  @media (max-width: 640px) {
+    padding: 12px;
+  }
+}
+
+.lj-card-category {
+  font-family: var(--nx-font-ui);
+  font-size: 11.5px;
+  color: var(--nx-text-dim);
+}
+
+.lj-card-name {
+  font-family: var(--nx-font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--nx-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  // Card estreito no celular: até 2 linhas, como no app.
+  @media (max-width: 640px) {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    font-size: 13.5px;
+    line-height: 1.25;
+    white-space: normal;
+  }
+}
+
+.lj-card-rating {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  color: var(--nx-text-mute);
+
+  svg {
+    color: var(--nx-orange-500);
+  }
+}
+
+.lj-card-rating-count {
+  color: var(--nx-text-dim);
+}
+
+.lj-card-price-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin-top: 6px;
+}
+
+.lj-card-from {
+  flex-basis: 100%;
+  font-family: var(--nx-font-ui);
+  font-size: 11px;
+  color: var(--nx-text-dim);
+}
+
+.lj-card-price {
+  font-family: var(--nx-font-display);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--nx-text);
+
+  @media (max-width: 640px) {
+    font-size: 16px;
+  }
+}
+
+.lj-card-strike {
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  color: var(--nx-text-dim);
+  text-decoration: line-through;
+}
+
+.lj-card-pix {
+  font-family: var(--nx-font-ui);
+  font-size: 11.5px;
+  color: var(--nx-text-mute);
+
+  strong {
+    font-weight: 600;
+    color: var(--nx-orange-500);
+  }
+}

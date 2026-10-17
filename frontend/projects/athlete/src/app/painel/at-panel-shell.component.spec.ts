@@ -4,6 +4,7 @@ import { provideRouter, Router } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { PartnerInvitesService } from '../data/partner-invites.service';
 import { StaffTournamentsService } from '../data/staff-tournaments.service';
+import { StoreFlagService } from '../data/store-flag.service';
 import { AtPanelShellComponent } from './at-panel-shell.component';
 
 /** A Mesa é item condicional das DUAS navegações: só existe pra quem é equipe de torneio EM
@@ -219,5 +220,55 @@ describe('AtPanelShellComponent — item Competir na bottom-nav', () => {
     expect(isActive(fixture, '/painel')).toBeTrue();
     await navigate(fixture, '/equipes');
     expect(isActive(fixture, '/competir')).toBeTrue();
+  });
+});
+
+/** A Loja ainda não tem checkout: a entrada fica atrás de `appConfig/store.enabled`. A vitrine
+ *  abre sem login, e o rodapé da sidebar tem de oferecer "Entrar" em vez de "Sair da conta". */
+describe('AtPanelShellComponent — Loja', () => {
+  let enabled: ReturnType<typeof signal<boolean>>;
+
+  beforeEach(async () => {
+    enabled = signal(false);
+    await TestBed.configureTestingModule({
+      imports: [AtPanelShellComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([]),
+        { provide: StoreFlagService, useValue: { enabled } },
+        { provide: StaffTournamentsService, useValue: { count: signal(0) } },
+        { provide: PartnerInvitesService, useValue: { pending: signal([]), pendingCount: signal(0), markAnswered: () => {} } },
+        { provide: AuthService, useValue: { user: signal(null) } },
+      ],
+    }).compileComponents();
+  });
+
+  async function render(guest = false): Promise<HTMLElement> {
+    const fixture = TestBed.createComponent(AtPanelShellComponent);
+    fixture.componentRef.setInput('guest', guest);
+    await fixture.whenStable();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('sem a flag, nada de Loja no menu', async () => {
+    expect((await render()).querySelector('.at-nav a[href="/loja"]')).toBeNull();
+  });
+
+  it('com a flag, a Loja entra no menu', async () => {
+    enabled.set(true);
+    expect((await render()).querySelector('.at-nav a[href="/loja"]')?.textContent).toContain('Loja');
+  });
+
+  it('visitante vê "Entrar" no lugar de sair e do cartão da conta', async () => {
+    const host = await render(true);
+    expect(host.querySelector('.at-nav-item--login')?.getAttribute('href')).toBe('/entrar');
+    expect(host.querySelector('.at-nav-item--logout')).toBeNull();
+    expect(host.querySelector('.at-user-chip')).toBeNull();
+  });
+
+  it('com sessão, segue o rodapé de sempre', async () => {
+    const host = await render(false);
+    expect(host.querySelector('.at-nav-item--logout')).not.toBeNull();
+    expect(host.querySelector('.at-nav-item--login')).toBeNull();
   });
 });

@@ -3225,6 +3225,46 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Vitrine da Loja (tela 01): espelho público do que está à venda e a config da vitrine
+    // (banners, benefícios, categorias, arenas de retirada). Leitura aberta — o visitante
+    // deslogado vê a vitrine. Só os gatilhos de store-showcase-sync gravam.
+    match /storeShowcase/{productId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /storePublic/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Preferências do atleta na Loja: favoritos, arena de retirada e buscas recentes.
+    // Só o dono lê e grava, e só estes campos, com teto de tamanho.
+    function storeShopperDocOk(data) {
+      return data.keys().hasOnly(['favoriteIds', 'pickupArenaId', 'recentSearches', 'updatedAt'])
+        && (!('favoriteIds' in data) || (data.favoriteIds is list && data.favoriteIds.size() <= 200))
+        && (!('recentSearches' in data) || (data.recentSearches is list && data.recentSearches.size() <= 5))
+        && (!('pickupArenaId' in data) || data.pickupArenaId == null
+            || (data.pickupArenaId is string && data.pickupArenaId.size() <= 128))
+        && (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+    match /storeShoppers/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && storeShopperDocOk(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Carrinho da Loja: o dono monta à vontade. Preço, saldo e personalização NÃO saem
+    // daqui — o checkout relê tudo no servidor; o carrinho só diz o que o atleta quer.
+    match /storeCarts/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['items', 'updatedAt'])
+        && request.resource.data.items is list
+        && request.resource.data.items.size() <= 30
+        && (!('updatedAt' in request.resource.data) || request.resource.data.updatedAt is timestamp);
+    }
+
     // Documentos-chave de unicidade. Só o Admin SDK toca.
     match /storeCatalogKeys/{key} {
       allow read, write: if false;

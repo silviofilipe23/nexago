@@ -147,6 +147,9 @@ import '../../features/athlete/presentation/athlete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_settings_page.dart';
 import '../../features/athlete/presentation/athlete_referral_page.dart';
 import '../../features/cashback/presentation/cashback_page.dart';
+import '../../features/store/presentation/store_coming_soon_page.dart';
+import '../../features/store/presentation/store_page.dart';
+import '../../features/store/presentation/store_search_page.dart';
 import '../../features/athlete/presentation/athlete_active_sessions_page.dart';
 import '../../features/athlete/presentation/athlete_change_password_page.dart';
 import '../../features/athlete/presentation/athlete_notification_settings_page.dart';
@@ -995,6 +998,37 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.athleteCashback,
         name: AppRouteNames.athleteCashback,
         builder: (context, state) => const CashbackPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.store,
+        name: AppRouteNames.store,
+        builder: (context, state) {
+          final query = state.uri.queryParameters;
+          return StorePage(
+            initialCategoryId: query['categoria'],
+            initialCollectionId: query['colecao'],
+            initialQuery: query['q'] ?? '',
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.storeSearch,
+        name: AppRouteNames.storeSearch,
+        builder: (context, state) => StoreSearchPage(
+          initialQuery: state.uri.queryParameters['q'] ?? '',
+        ),
+      ),
+      // Página do produto (02) e carrinho ainda não existem: a mesma tela de
+      // "chega na próxima etapa" atende os dois destinos.
+      GoRoute(
+        path: AppRoutes.storeProduct,
+        name: AppRouteNames.storeProduct,
+        builder: (context, state) => const StoreComingSoonPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.storeCart,
+        name: AppRouteNames.storeCart,
+        builder: (context, state) => const StoreComingSoonPage(),
       ),
       GoRoute(
         path: AppRoutes.athleteSportsLevels,

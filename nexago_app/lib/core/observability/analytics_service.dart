@@ -92,6 +92,61 @@ class AnalyticsService {
         name: AnalyticsEvents.friendlyMatchReviewSubmitted,
         parameters: friendlyMatchParams(stars: stars),
       );
+
+  // --- Loja · vitrine (tela 01) ---
+
+  Future<void> logStoreShowcaseView() =>
+      _analytics.logEvent(name: AnalyticsEvents.storeShowcaseView);
+
+  Future<void> logStoreBannerClick({required String campaignId}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeBannerClick,
+        parameters: storeEventParams(campaignId: campaignId),
+      );
+
+  /// [category] `null` = chip "Tudo" (vai como `tudo`, igual ao portal).
+  Future<void> logStoreCategorySelect({String? category}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeCategorySelect,
+        parameters: storeEventParams(category: category ?? 'tudo'),
+      );
+
+  Future<void> logStoreSearch({required String term, required int results}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeSearch,
+        parameters: storeEventParams(term: term, results: results),
+      );
+
+  /// [position] começa em 1 (primeiro card da grade), como no portal.
+  Future<void> logStoreProductClick({
+    required String productId,
+    required int position,
+  }) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeProductClick,
+        parameters: storeEventParams(productId: productId, position: position),
+      );
+
+  Future<void> logStoreQuickAdd({required String productId}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeQuickAdd,
+        parameters: storeEventParams(productId: productId),
+      );
+
+  Future<void> logStoreFavorite({
+    required String productId,
+    required bool on,
+  }) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeFavorite,
+        parameters: storeEventParams(productId: productId, on: on),
+      );
+
+  Future<void> logStorePickupArenaChange({required String arenaId}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storePickupArenaChange,
+        parameters: storeEventParams(arenaId: arenaId),
+      );
 }
 
 final analyticsServiceProvider = Provider<AnalyticsService>(

@@ -18,6 +18,7 @@ import { AuthService } from '../auth/auth.service';
 import { fetchMyAthleteProfile } from '../data/my-athlete-profile-repository';
 import { PartnerInvitesService } from '../data/partner-invites.service';
 import { StaffTournamentsService } from '../data/staff-tournaments.service';
+import { StoreFlagService } from '../data/store-flag.service';
 import { NxBannerComponent } from '../shared/feedback';
 import { AtInviteAnnouncerComponent } from '../shared/partner-invite/at-invite-announcer.component';
 
@@ -62,6 +63,8 @@ export class AtPanelShellComponent {
 
   readonly userName = input('Atleta');
   readonly userLevel = input<string | null>(null);
+  /** Visitante sem sessão (só a vitrine da Loja abre assim): o rodapé vira "Entrar". */
+  readonly guest = input(false);
 
   protected readonly initials = computed(() => initialsOf(this.userName()));
 
@@ -79,6 +82,10 @@ export class AtPanelShellComponent {
    *  motivo dos convites: entrar na equipe é gesto do organizador e o menu tem de acender no
    *  instante em que isso acontece, em qualquer tela. */
   protected readonly staffCount = inject(StaffTournamentsService).count;
+
+  /** Item "Loja" — atrás de `appConfig/store.enabled` enquanto o checkout não existe. */
+  protected readonly storeEnabled = inject(StoreFlagService).enabled;
+
 
   constructor() {
     const syncOnline = () => this.offline.set(!navigator.onLine);

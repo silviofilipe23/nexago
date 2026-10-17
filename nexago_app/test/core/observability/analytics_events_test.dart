@@ -38,4 +38,39 @@ void main() {
       );
     });
   });
+
+  group('storeEventParams (Loja · vitrine)', () {
+    test('event names match the web portal', () {
+      expect(AnalyticsEvents.storeShowcaseView, 'loja_vitrine_view');
+      expect(AnalyticsEvents.storeBannerClick, 'loja_banner_click');
+      expect(AnalyticsEvents.storeCategorySelect, 'loja_categoria_select');
+      expect(AnalyticsEvents.storeSearch, 'loja_busca');
+      expect(AnalyticsEvents.storeProductClick, 'loja_produto_click');
+      expect(AnalyticsEvents.storeQuickAdd, 'loja_add_rapido');
+      expect(AnalyticsEvents.storeFavorite, 'loja_favoritar');
+      expect(AnalyticsEvents.storePickupArenaChange, 'loja_arena_trocar');
+    });
+
+    test('uses the portal param names; bool becomes 1/0', () {
+      expect(
+        storeEventParams(productId: ' bola ', position: 3),
+        {'produto_id': 'bola', 'posicao': 3},
+      );
+      expect(
+        storeEventParams(term: 'bola', results: 0),
+        {'termo': 'bola', 'resultados': 0},
+      );
+      expect(storeEventParams(productId: 'b', on: false), {
+        'produto_id': 'b',
+        'on': 0,
+      });
+      expect(storeEventParams(campaignId: 'verao'), {'campanha_id': 'verao'});
+      expect(storeEventParams(category: 'tudo'), {'categoria': 'tudo'});
+      expect(storeEventParams(arenaId: 'a1'), {'arena_id': 'a1'});
+    });
+
+    test('drops blank text', () {
+      expect(storeEventParams(term: '  ', arenaId: ''), isEmpty);
+    });
+  });
 }

@@ -17,6 +17,45 @@ abstract final class AnalyticsEvents {
   static const friendlyMatchInviteAccepted = 'friendly_match_invite_accepted';
   static const friendlyMatchCheckedIn = 'friendly_match_checked_in';
   static const friendlyMatchReviewSubmitted = 'friendly_match_review_submitted';
+
+  // Loja · vitrine (tela 01). Mesmos nomes do portal web
+  // (`docs/business-rules/loja-vitrine.md`).
+  static const storeShowcaseView = 'loja_vitrine_view';
+  static const storeBannerClick = 'loja_banner_click';
+  static const storeCategorySelect = 'loja_categoria_select';
+  static const storeSearch = 'loja_busca';
+  static const storeProductClick = 'loja_produto_click';
+  static const storeQuickAdd = 'loja_add_rapido';
+  static const storeFavorite = 'loja_favoritar';
+  static const storePickupArenaChange = 'loja_arena_trocar';
+}
+
+/// Parâmetros dos eventos da Loja, com os nomes do portal (`campanha_id`,
+/// `categoria`, `termo`, `resultados`, `produto_id`, `posicao`, `on`,
+/// `arena_id`). Texto vazio é descartado; booleano vira 1/0 (o
+/// FirebaseAnalytics só aceita texto e número).
+Map<String, Object> storeEventParams({
+  String? campaignId,
+  String? category,
+  String? term,
+  int? results,
+  String? productId,
+  int? position,
+  bool? on,
+  String? arenaId,
+}) {
+  String? clean(String? v) =>
+      v != null && v.trim().isNotEmpty ? v.trim() : null;
+  return {
+    if (clean(campaignId) != null) 'campanha_id': clean(campaignId)!,
+    if (clean(category) != null) 'categoria': clean(category)!,
+    if (clean(term) != null) 'termo': clean(term)!,
+    if (results != null) 'resultados': results,
+    if (clean(productId) != null) 'produto_id': clean(productId)!,
+    if (position != null) 'posicao': position,
+    if (on != null) 'on': on ? 1 : 0,
+    if (clean(arenaId) != null) 'arena_id': clean(arenaId)!,
+  };
 }
 
 /// Monta os parâmetros de um evento de inscrição, descartando campos vazios

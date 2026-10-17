@@ -273,6 +273,12 @@ export const routes: Routes = [
     loadChildren: () => import('./tournaments/tournament.routes').then((m) => m.tournamentRoutes),
   },
   {
+    // Loja: a vitrine abre sem login (o visitante vê o catálogo; favoritar e carrinho pedem
+    // login). As filhas e o guard de cada uma moram em `loja/loja.routes.ts`.
+    path: 'loja',
+    loadChildren: () => import('./loja/loja.routes').then((m) => m.LOJA_ROUTES),
+  },
+  {
     path: 'perfil',
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>

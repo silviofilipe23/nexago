@@ -36,6 +36,19 @@ String? resolveAppDeepLinkPath(Uri uri) {
     return _withQuery('/${segments.join('/')}', uri);
   }
 
+  // Loja: só pelo esquema do app (`nexago://loja`). O `/loja` HTTPS é do
+  // portal e segue abrindo no navegador. Subcaminho desconhecido cai na
+  // vitrine em vez da tela de erro do router.
+  if (segments.first == 'loja' && uri.scheme == 'nexago') {
+    if (segments.length >= 3 && segments[1] == 'produto') {
+      return '/loja/produto/${Uri.encodeComponent(segments[2])}';
+    }
+    if (segments.length >= 2 && segments[1] == 'carrinho') {
+      return '/loja/carrinho';
+    }
+    return _withQuery('/loja', uri);
+  }
+
   return null;
 }
 
@@ -47,6 +60,9 @@ List<String>? _deepLinkPathSegments(Uri uri) {
     }
     if (uri.host == 'convite-dupla') {
       return ['convite-dupla', ...uri.pathSegments.where((s) => s.isNotEmpty)];
+    }
+    if (uri.host == 'loja') {
+      return ['loja', ...uri.pathSegments.where((s) => s.isNotEmpty)];
     }
     return uri.pathSegments.where((s) => s.isNotEmpty).toList();
   }

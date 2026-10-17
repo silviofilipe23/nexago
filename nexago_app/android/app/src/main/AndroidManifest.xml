@@ -93,6 +93,13 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="nexago" android:host="torneios"/>
             </intent-filter>
+            <!-- Loja · vitrine: nexago://loja (o https /loja é do portal). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="nexago" android:host="loja"/>
+            </intent-filter>
             <!-- Retorno OAuth Mercado Pago (gestor) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>

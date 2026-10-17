@@ -26,6 +26,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const SELF_REFERRAL_MESSAGE = "Você não pode usar seu próprio código.";
 export const UNKNOWN_CODE_MESSAGE = "Código de embaixador não encontrado.";
+/** Contrato pausado no backoffice: o código existe, mas não dá desconto nem gera comissão. */
+export const PAUSED_CODE_MESSAGE = "Código indisponível.";
 
 /** Contrato vigente do embaixador, como a comissão precisa dele. */
 export interface AmbassadorContract {
@@ -133,7 +135,12 @@ export async function resolveRegistrationAttribution(
   if (typed !== null) {
     const code = normalizeSquadCode(typed);
     const ambassador = code ? await findAmbassadorByCode(db, code) : null;
-    if (!ambassador) throw new HttpsError("invalid-argument", UNKNOWN_CODE_MESSAGE, {field: "squadCode"});
+    if (!ambassador) {
+      const paused = code ?
+        !(await db.collection(SQUAD_AMBASSADORS).where("code", "==", code).where("status", "==", "paused").get()).empty :
+        false;
+      throw new HttpsError("invalid-argument", paused ? PAUSED_CODE_MESSAGE : UNKNOWN_CODE_MESSAGE, {field: "squadCode"});
+    }
     if (isSelf(ambassador)) throw new HttpsError("failed-precondition", SELF_REFERRAL_MESSAGE, {field: "squadCode"});
     return {ambassador, origin: "code"};
   }

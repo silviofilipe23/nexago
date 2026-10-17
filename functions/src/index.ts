@@ -595,6 +595,18 @@ export {
 export {checkSquadCode, recordSquadAttribution} from "./squad-attribution";
 // NexaSquad: inscrição removida cancela a comissão (pendente, liberada ou paga → ajuste).
 export {onInscriptionDeletedCancelSquadCommissions} from "./squad-commission-lifecycle";
+// NexaSquad: candidaturas, convites e aceite (tela 04) — time no backoffice, atleta no app/portal.
+export {
+  acceptSquadInvite,
+  openSquadInvite,
+  sendSquadInvite,
+  submitSquadApplication,
+  updateSquadApplication,
+  updateSquadInvite,
+} from "./squad-applications";
+// NexaSquad: contrato do embaixador (tela 02: nível com aditivo, pausa, encerramento) e a varredura
+// de hora em hora (lembretes/expiração de convite, convite agendado, fim de contrato, retorno de pausa).
+export {acceptSquadAmendment, sweepSquadProgram, updateSquadContract} from "./squad-contracts";
 
 // Loja: personalizados — configuração por produto (tela 11) e fila de arte (tela 10).
 export {

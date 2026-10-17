@@ -26,6 +26,8 @@ import {reverseCashbackForPayment} from "./cashback-reversal";
 import {getFirebaseProjectId} from "./firebase-paths";
 import {WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {STORE_ORDER_PAYMENT_REF_PREFIX} from "./store-checkout";
+import {processStoreOrderAsaasNotification} from "./store-checkout-endpoints";
 
 const PAYMENT_EVENTS = new Set([
   "PAYMENT_RECEIVED",
@@ -139,6 +141,8 @@ export const asaasWebhook = onRequest({
         payment,
         processedRef,
       );
+    } else if (externalRef.startsWith(STORE_ORDER_PAYMENT_REF_PREFIX)) {
+      await processStoreOrderAsaasNotification(db, paymentId, payment, processedRef);
     } else if (externalRef.startsWith(ARENA_CLUB_SESSION_PAYMENT_REF_PREFIX)) {
       await processArenaClubSessionAsaasNotification(db, paymentId, payment, processedRef);
     } else if (externalRef.startsWith(ARENA_BOOKING_SHARE_PAYMENT_REF_PREFIX)) {

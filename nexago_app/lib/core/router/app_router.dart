@@ -213,6 +213,8 @@ import '../../features/tournaments/presentation/tournament_substitution_status_p
 import '../../features/tournaments/presentation/tournament_substitution_wizard_page.dart';
 import '../auth/post_login_destination.dart';
 import '../auth/auth_providers.dart';
+import '../deep_link/app_deep_link_logic.dart';
+import '../deep_link/deep_link_providers.dart';
 import 'go_router_refresh.dart';
 import 'routes.dart';
 
@@ -247,6 +249,33 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
     redirect: (context, state) async {
       final authAsync = ref.read(authProvider);
+
+      // Link externo que o próprio Flutter entregou cru (`nexago://loja/…`,
+      // Universal/App Link): traduz pelo mesmo mapa do `app_links` antes de
+      // qualquer guarda — senão o host vira parte do nada e cai no "Page Not
+      // Found". Ver `externalDeepLinkLocation`.
+      final deepLink = externalDeepLinkLocation(
+        state.uri,
+        fallback: AppRoutes.discover,
+      );
+      if (deepLink != null) {
+        switch (deepLinkLanding(
+          path: deepLink,
+          authLoading: authAsync.isLoading,
+          signedIn: authAsync.valueOrNull != null,
+          bootstrapPending: isSessionBootstrapPending(ref),
+        )) {
+          case DeepLinkLanding.direct:
+            return deepLink;
+          case DeepLinkLanding.afterLoading:
+            ref.read(pendingDeepLinkPathProvider.notifier).state = deepLink;
+            return AppRoutes.authLoading;
+          case DeepLinkLanding.afterLogin:
+            ref.read(pendingDeepLinkPathProvider.notifier).state = deepLink;
+            return AppRoutes.login;
+        }
+      }
+
       final path = state.uri.path;
       final isAuthRoute = path == AppRoutes.login ||
           path == AppRoutes.register ||

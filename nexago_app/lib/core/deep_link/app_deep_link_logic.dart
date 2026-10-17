@@ -97,3 +97,53 @@ bool isMercadoPagoOAuthDeepLink(Uri uri) {
   }
   return false;
 }
+
+// ── Deep link entregue ao go_router pelo próprio Flutter ──────────────────
+
+/// O deep linking nativo do Flutter (ligado por padrão desde o 3.27) repassa a
+/// URL inteira ao go_router. No iOS ele é o ÚNICO caminho que entrega o link:
+/// o app roda com UIScene e o `app_links` 6.x só escuta o AppDelegate. Crua,
+/// `nexago://loja/produto/x` vira host `loja` + path `/produto/x`, não casa com
+/// rota nenhuma e cai no "Page Not Found".
+///
+/// Link externo do app (esquema `nexago` ou host de [kAppDeepLinkHosts]) →
+/// o caminho interno de [resolveAppDeepLinkPath], ou [fallback] quando o link
+/// não tem destino conhecido. `null` = não é link externo (rota interna comum)
+/// ou é o retorno OAuth do Mercado Pago, que segue o tratamento próprio.
+String? externalDeepLinkLocation(Uri uri, {required String fallback}) {
+  final appScheme = uri.scheme == 'nexago';
+  final appHost = (uri.scheme == 'https' || uri.scheme == 'http') &&
+      kAppDeepLinkHosts.contains(uri.host.toLowerCase());
+  if (!appScheme && !appHost) return null;
+  if (isMercadoPagoOAuthDeepLink(uri)) return null;
+  return resolveAppDeepLinkPath(uri) ?? fallback;
+}
+
+/// Para onde vai um deep link já traduzido, conforme a sessão.
+enum DeepLinkLanding {
+  /// Sessão pronta (ou rota pública): abre o destino.
+  direct,
+
+  /// Sessão ainda assentando: guarda o destino e espera no loading — é o
+  /// pós-login (`resolvePostLoginDestination`) que o consome. Abrir direto
+  /// perderia o destino no desvio para `/auth/loading`.
+  afterLoading,
+
+  /// Sem sessão: guarda o destino e vai ao login (igual a
+  /// `navigateFromDeepLink`).
+  afterLogin,
+}
+
+DeepLinkLanding deepLinkLanding({
+  required String path,
+  required bool authLoading,
+  required bool signedIn,
+  required bool bootstrapPending,
+}) {
+  if (path.startsWith('/convite/')) return DeepLinkLanding.direct;
+  if (authLoading) return DeepLinkLanding.afterLoading;
+  if (!signedIn) return DeepLinkLanding.afterLogin;
+  return bootstrapPending
+      ? DeepLinkLanding.afterLoading
+      : DeepLinkLanding.direct;
+}

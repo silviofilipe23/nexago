@@ -38,13 +38,18 @@ abstract final class AnalyticsEvents {
   static const storeDeliverySelect = 'loja_entrega_select';
   static const storeCustomizeOpen = 'loja_personalizar_open';
   static const storeRelatedClick = 'loja_relacionado_click';
+
+  // Loja · Personalizar (app 02b/02c, `docs/business-rules/loja-personalizar.md`).
+  static const storeCustomizeName = 'loja_personalizar_nome';
+  static const storeCustomizeImage = 'loja_personalizar_imagem';
 }
 
 /// Parâmetros dos eventos da Loja, com os nomes do portal (`campanha_id`,
 /// `categoria`, `termo`, `resultados`, `produto_id`, `posicao`, `on`,
 /// `arena_id`; na página do produto, `origem`, `cor`, `tamanho`, `sku`,
-/// `qtd`, `preco` e `tipo`). Texto vazio é descartado; booleano vira 1/0 (o
-/// FirebaseAnalytics só aceita texto e número).
+/// `qtd`, `preco` e `tipo`; na personalização, `canal`, `fonte`, `area`,
+/// `qualidade` e `personalizado`). Texto vazio é descartado; booleano vira
+/// 1/0 (o FirebaseAnalytics só aceita texto e número).
 Map<String, Object> storeEventParams({
   String? campaignId,
   String? category,
@@ -61,6 +66,11 @@ Map<String, Object> storeEventParams({
   int? qty,
   int? priceCents,
   String? type,
+  String? channel,
+  String? font,
+  String? area,
+  String? quality,
+  bool? customized,
 }) {
   String? clean(String? v) =>
       v != null && v.trim().isNotEmpty ? v.trim() : null;
@@ -80,6 +90,11 @@ Map<String, Object> storeEventParams({
     if (qty != null) 'qtd': qty,
     if (priceCents != null) 'preco': priceCents,
     if (clean(type) != null) 'tipo': clean(type)!,
+    if (clean(channel) != null) 'canal': clean(channel)!,
+    if (clean(font) != null) 'fonte': clean(font)!,
+    if (clean(area) != null) 'area': clean(area)!,
+    if (clean(quality) != null) 'qualidade': clean(quality)!,
+    if (customized != null) 'personalizado': customized ? 1 : 0,
   };
 }
 

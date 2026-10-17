@@ -433,11 +433,13 @@ String storeGridTitle(StoreBrowse browse, StoreShowcaseConfig config) {
 int storeCartUnits(List<StoreCartItem> items) =>
     items.fold(0, (total, i) => total + i.qty);
 
-/// Soma [qty] na linha do mesmo produto+SKU ou acrescenta uma linha nova.
-/// A linha não passa de `min(maxQty, kStoreMaxQtyPerLine)` (o saldo exposto do
-/// SKU, quando vem da página do produto) e nunca diminui: no teto, fica como
-/// está. `null` = carrinho cheio (já tem [kStoreMaxCartLines] linhas
-/// distintas).
+/// Soma [qty] na linha COMUM do mesmo produto+SKU ou acrescenta uma linha
+/// nova. Linha personalizada nunca recebe soma (cada configuração é uma
+/// linha) e volta intacta, com `lineId` e `customization`. A linha não passa
+/// de `min(maxQty, kStoreMaxQtyPerLine)` (o saldo exposto do SKU, quando vem
+/// da página do produto) e nunca diminui: no teto, fica como está. `null` =
+/// carrinho cheio (já tem [kStoreMaxCartLines] linhas, personalizadas
+/// inclusive).
 List<StoreCartItem>? mergeStoreCartItem(
   List<StoreCartItem> items, {
   required String productId,
@@ -449,7 +451,7 @@ List<StoreCartItem>? mergeStoreCartItem(
       ? kStoreMaxQtyPerLine
       : maxQty.clamp(1, kStoreMaxQtyPerLine);
   final index = items.indexWhere(
-    (i) => i.productId == productId && i.skuId == skuId,
+    (i) => !i.isCustom && i.productId == productId && i.skuId == skuId,
   );
   if (index >= 0) {
     final current = items[index];

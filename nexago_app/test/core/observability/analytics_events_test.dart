@@ -103,4 +103,33 @@ void main() {
       expect(storeEventParams(type: 'retirada'), {'tipo': 'retirada'});
     });
   });
+
+  group('storeEventParams (Loja · Personalizar)', () {
+    test('event names match the contract', () {
+      expect(AnalyticsEvents.storeCustomizeName, 'loja_personalizar_nome');
+      expect(AnalyticsEvents.storeCustomizeImage, 'loja_personalizar_imagem');
+    });
+
+    test('uses the contract param names; personalizado becomes 1/0', () {
+      expect(
+        storeEventParams(productId: 'cam', channel: 'app'),
+        {'produto_id': 'cam', 'canal': 'app'},
+      );
+      expect(storeEventParams(font: 'bloco'), {'fonte': 'bloco'});
+      expect(
+        storeEventParams(area: 'peito_esquerdo', quality: 'good'),
+        {'area': 'peito_esquerdo', 'qualidade': 'good'},
+      );
+      expect(
+        storeEventParams(
+          sku: 'preto_m',
+          qty: 1,
+          priceCents: 15480,
+          customized: true,
+        ),
+        {'sku': 'preto_m', 'qtd': 1, 'preco': 15480, 'personalizado': 1},
+      );
+      expect(storeEventParams(font: ' ', area: ''), isEmpty);
+    });
+  });
 }

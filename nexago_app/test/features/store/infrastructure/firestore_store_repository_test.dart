@@ -160,6 +160,111 @@ void main() {
       expect(p.variants.last.maxQty, 0);
     });
 
+    test('personalização com opções (publicCustomization) e lado das fotos',
+        () {
+      final p = storeProductFromMap('camiseta', {
+        'name': 'Camiseta',
+        'priceCents': 12990,
+        'photos': [
+          {'url': 'https://cdn/f.jpg', 'colorValueId': 'preto', 'view': 'frente'},
+          {'url': 'https://cdn/c.jpg', 'view': 'costas'},
+          {'url': 'https://cdn/x.jpg', 'view': 'lado'},
+        ],
+        'customizable': true,
+        'customization': {
+          'fromCents': 1490,
+          'leadDays': 5,
+          'defectOnlyReturns': true,
+          'version': 1760000000000,
+          'name': {
+            'enabled': true,
+            'maxChars': 12,
+            'placement': 'costas_superior',
+            'fonts': ['bloco', 'inventada', 'mono'],
+            'colors': ['#FFFFFF', '#111111', 'azul'],
+          },
+          'image': {
+            'enabled': true,
+            'formats': ['png', 'jpg', 'svg'],
+            'maxSizeMb': 10,
+            'minWidthPx': 1000,
+            'minHeightPx': 1000,
+            'areas': [
+              {
+                'id': 'peito_esquerdo',
+                'name': 'Peito esquerdo',
+                'widthCm': 9,
+                'heightCm': 9,
+              },
+              {'id': 'sem_medida', 'name': 'X', 'widthCm': 0, 'heightCm': 9},
+            ],
+          },
+          'price': {
+            'nameOnlyCents': 1490,
+            'imageOnlyCents': 1990,
+            'bothCents': 2490,
+          },
+        },
+      })!;
+
+      expect(p.photos.map((ph) => ph.view).toList(), [
+        StorePhotoView.front,
+        StorePhotoView.back,
+        null,
+      ]);
+      final c = p.customization!;
+      expect(c.version, 1760000000000);
+      expect(c.hasOptions, isTrue);
+      expect(c.name.enabled, isTrue);
+      expect(c.name.maxChars, 12);
+      expect(c.name.placement, StoreNamePlacement.backUpper);
+      // Fonte que o app não sabe desenhar fica de fora.
+      expect(c.name.fonts, [StoreCustomFont.bloco, StoreCustomFont.mono]);
+      expect(c.name.colors, ['#ffffff', '#111111']);
+      expect(c.image.enabled, isTrue);
+      expect(c.image.formats, ['png', 'jpg', 'svg']);
+      expect(c.image.maxSizeMb, 10);
+      expect(c.image.minWidthPx, 1000);
+      expect(c.image.areas.single.id, 'peito_esquerdo');
+      expect(c.image.areas.single.widthCm, 9);
+      expect(c.price.nameOnlyCents, 1490);
+      expect(c.price.imageOnlyCents, 1990);
+      expect(c.price.bothCents, 2490);
+    });
+
+    test('personalização de doc antigo (sem opções): tudo desligado', () {
+      final c = storeProductFromMap('camiseta', {
+        'name': 'Camiseta',
+        'priceCents': 12990,
+        'customizable': true,
+        'customization': {'fromCents': 1490, 'leadDays': 5},
+      })!
+          .customization!;
+      expect(c.fromCents, 1490);
+      expect(c.version, 0);
+      expect(c.name.enabled, isFalse);
+      expect(c.image.enabled, isFalse);
+      expect(c.hasOptions, isFalse);
+      expect(c.price.bothCents, 0);
+    });
+
+    test('opção ligada sem fonte/cor ou sem área/formato some', () {
+      final c = storeCustomizationFromMap({
+        'name': {'enabled': true, 'fonts': ['bloco'], 'colors': []},
+        'image': {
+          'enabled': true,
+          'formats': ['png'],
+          'areas': [],
+        },
+      });
+      expect(c.name.enabled, isFalse);
+      expect(c.image.enabled, isFalse);
+      // Padrões do backoffice quando o número não vem.
+      expect(c.name.maxChars, 12);
+      expect(c.image.maxSizeMb, 10);
+      expect(c.name.placement, StoreNamePlacement.backUpper);
+    });
+
     test('sem nome ou sem preço é descartado', () {
       expect(storeProductFromMap('a', {'name': '', 'priceCents': 100}), isNull);
       expect(storeProductFromMap('a', {'name': 'Bola'}), isNull);
@@ -322,6 +427,50 @@ void main() {
         const StoreCartItem(productId: 'bola', skuId: 'unico', qty: 2).toMap(),
         {'productId': 'bola', 'skuId': 'unico', 'qty': 2},
       );
+    });
+
+    test('linha personalizada volta intacta (lineId, customization e '
+        'Timestamps)', () {
+      final addedAt = Timestamp.fromDate(DateTime.utc(2026, 10, 17, 12));
+      final customLine = {
+        'lineId': 'l-1',
+        'productId': 'camiseta',
+        'skuId': 'preto_m',
+        'qty': 1,
+        'customization': {
+          'configVersion': 1760000000000,
+          'extraPriceCents': 2490,
+          'addedAt': addedAt,
+          'name': {
+            'text': 'ANTUNES',
+            'fontId': 'bloco',
+            'color': '#ffffff',
+            'placement': 'costas_superior',
+          },
+          'image': {
+            'path': 'store/custom-uploads/u1/a.png',
+            'widthPx': null,
+            'transform': {'x': 0.5, 'y': 0.5, 'scale': 1},
+          },
+        },
+      };
+      final items = storeCartItemsFromMap({
+        'items': [
+          {'productId': 'bola', 'skuId': 'unico', 'qty': 2},
+          customLine,
+        ],
+      });
+
+      expect(items.first.isCustom, isFalse);
+      expect(items.last.isCustom, isTrue);
+      expect(items.last.lineId, 'l-1');
+      // Reescrever `items` (o "Adicionar" comum) devolve o mapa inteiro.
+      expect(items.last.toMap(), customLine);
+      expect(items.first.toMap(), {
+        'productId': 'bola',
+        'skuId': 'unico',
+        'qty': 2,
+      });
     });
   });
 }

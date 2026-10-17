@@ -9,6 +9,10 @@ import '../domain/store_product_rules.dart';
 import '../domain/store_rules.dart';
 import '../infrastructure/firestore_store_repository.dart';
 
+export '../infrastructure/device_store_custom_image_picker.dart'
+    show storeCustomImagePickerProvider;
+export '../infrastructure/firebase_store_customize_service.dart'
+    show storeCustomizeServiceProvider;
 export '../infrastructure/firestore_store_repository.dart'
     show storeRepositoryProvider;
 

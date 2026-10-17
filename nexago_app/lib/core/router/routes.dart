@@ -224,6 +224,11 @@ abstract final class AppRoutes {
   /// `nexago://loja/p/:id`; aceita `?origem=` (analytics).
   static const String storeProduct = '/loja/produto/:productId';
 
+  /// Personalizar (app 02b nome / 02c imagem), aberta pelo bloco
+  /// "Personalize" da página do produto com o SKU escolhido (`?sku=`).
+  static const String storeCustomize =
+      '/loja/produto/:productId/personalizar';
+
   /// Carrinho (por enquanto, "chega na próxima etapa").
   static const String storeCart = '/loja/carrinho';
 
@@ -677,6 +682,7 @@ abstract final class AppRouteNames {
   static const String store = 'store';
   static const String storeSearch = 'storeSearch';
   static const String storeProduct = 'storeProduct';
+  static const String storeCustomize = 'storeCustomize';
   static const String storeCart = 'storeCart';
   static const String athleteSportsLevels = 'athleteSportsLevels';
   static const String athleteNotificationSettings =

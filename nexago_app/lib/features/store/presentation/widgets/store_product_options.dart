@@ -136,7 +136,7 @@ class _AxisBlock extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        _Shake(
+        StoreShake(
           tick: missing ? shakeTick : 0,
           child: Wrap(
             spacing: color ? 10 : 8,
@@ -343,25 +343,27 @@ class _AxisButton extends StatelessWidget {
   }
 }
 
-/// Treme o filho cada vez que [tick] muda (e não é 0).
-class _Shake extends StatefulWidget {
-  const _Shake({required this.tick, required this.child});
+/// Treme o filho cada vez que [tick] muda (e não é 0) — o eixo que falta no
+/// "Adicionar" e o nome com caractere inválido.
+class StoreShake extends StatefulWidget {
+  const StoreShake({super.key, required this.tick, required this.child});
 
   final int tick;
   final Widget child;
 
   @override
-  State<_Shake> createState() => _ShakeState();
+  State<StoreShake> createState() => _StoreShakeState();
 }
 
-class _ShakeState extends State<_Shake> with SingleTickerProviderStateMixin {
+class _StoreShakeState extends State<StoreShake>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 420),
   );
 
   @override
-  void didUpdateWidget(_Shake oldWidget) {
+  void didUpdateWidget(StoreShake oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.tick != 0 && widget.tick != oldWidget.tick) {
       _controller.forward(from: 0);

@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/store/domain/store_models.dart';
+import 'package:nexago_app/features/store/domain/store_product_rules.dart'
+    show storeCartQtyOf;
 import 'package:nexago_app/features/store/domain/store_rules.dart';
 
 final _now = DateTime.utc(2026, 10, 16, 18);
@@ -507,6 +509,88 @@ void main() {
         qty: 5,
       );
       expect(merged?.single.qty, kStoreMaxQtyPerLine);
+    });
+
+    group('linha personalizada', () {
+      const custom = StoreCartItem(
+        productId: 'camiseta',
+        skuId: 'branco_m',
+        qty: 1,
+        lineId: 'l-1',
+        customization: {
+          'extraPriceCents': 2490,
+          'name': {'text': 'ANTUNES'},
+        },
+      );
+
+      test('o contador soma as unidades dela também', () {
+        expect(storeCartUnits([...items, custom]), 4);
+      });
+
+      test('nunca recebe soma: o mesmo SKU comum vira linha nova', () {
+        final merged = mergeStoreCartItem(
+          const [custom],
+          productId: 'camiseta',
+          skuId: 'branco_m',
+          qty: 2,
+        )!;
+        expect(merged.length, 2);
+        expect(merged.first, custom);
+        expect(merged.first.qty, 1);
+        expect(identical(merged.first.customization, custom.customization),
+            isTrue);
+        expect(
+          merged.last,
+          const StoreCartItem(productId: 'camiseta', skuId: 'branco_m', qty: 2),
+        );
+      });
+
+      test('somar na linha comum preserva lineId e customization das outras',
+          () {
+        final merged = mergeStoreCartItem(
+          [custom, ...items],
+          productId: 'camiseta',
+          skuId: 'branco_m',
+        )!;
+        expect(merged.length, 3);
+        expect(merged[0].toMap(), custom.toMap());
+        expect(merged[0].toMap()['lineId'], 'l-1');
+        expect(
+          merged[2],
+          const StoreCartItem(productId: 'camiseta', skuId: 'branco_m', qty: 2),
+        );
+      });
+
+      test('conta nas 30 linhas', () {
+        final full = [
+          for (var i = 0; i < kStoreMaxCartLines - 1; i++)
+            StoreCartItem(productId: 'p$i', skuId: 'unico', qty: 1),
+          custom,
+        ];
+        expect(
+          mergeStoreCartItem(full, productId: 'camiseta', skuId: 'branco_m'),
+          isNull,
+        );
+      });
+
+      test('unidades do SKU na linha comum ignoram a personalizada', () {
+        expect(
+          storeCartQtyOf(
+            [custom],
+            productId: 'camiseta',
+            skuId: 'branco_m',
+          ),
+          0,
+        );
+        expect(
+          storeCartQtyOf(
+            [custom, ...items],
+            productId: 'camiseta',
+            skuId: 'branco_m',
+          ),
+          1,
+        );
+      });
     });
   });
 

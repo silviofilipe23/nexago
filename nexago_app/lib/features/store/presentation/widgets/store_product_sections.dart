@@ -242,8 +242,9 @@ class _Rating extends StatelessWidget {
   }
 }
 
-/// Bloco "Personalize" do produto personalizável. O fluxo (02b/02c) ainda
-/// não existe: o botão avisa "em breve".
+/// Bloco "Personalize" do produto personalizável. O botão abre a
+/// personalização (02b/02c); sem [onCustomize] (espelho anterior às opções
+/// de nome/imagem), fica só a nota de produção.
 class StoreCustomizeBlock extends StatelessWidget {
   const StoreCustomizeBlock({
     super.key,
@@ -252,7 +253,7 @@ class StoreCustomizeBlock extends StatelessWidget {
   });
 
   final StoreCustomization customization;
-  final VoidCallback onCustomize;
+  final VoidCallback? onCustomize;
 
   @override
   Widget build(BuildContext context) {
@@ -282,21 +283,23 @@ class StoreCustomizeBlock extends StatelessWidget {
                   ),
                 ),
               ),
-              OutlinedButton(
-                onPressed: onCustomize,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.brand,
-                  side: const BorderSide(color: AppColors.brand),
-                  visualDensity: VisualDensity.compact,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: AppRadii.pillAll,
+              if (onCustomize != null)
+                OutlinedButton(
+                  key: const ValueKey('store-customize-open'),
+                  onPressed: onCustomize,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.brand,
+                    side: const BorderSide(color: AppColors.brand),
+                    visualDensity: VisualDensity.compact,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: AppRadii.pillAll,
+                    ),
+                  ),
+                  child: const Text(
+                    StoreCopy.customizeButton,
+                    style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
-                child: const Text(
-                  StoreCopy.customizeButton,
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 10),

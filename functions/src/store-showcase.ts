@@ -16,7 +16,7 @@ import {withReturnsDefaults} from "./store-returns";
 export const SHOWCASE_PRODUCTS = "storeShowcase";
 export const STORE_PUBLIC = "storePublic";
 export const SHOWCASE_CONFIG_ID = "showcase";
-/** Banners de campanha. Sem tela no backoffice ainda: `scripts/seed-store-campaigns.js`. */
+/** Banners de campanha: tela Campanhas do backoffice (`saveStoreCampaigns`, `store-campaigns.ts`). */
 export const CAMPAIGNS_CONFIG_ID = "campaigns";
 
 /** Ordem dos chips. Espelha `PRODUCT_CATEGORY_LABELS` do backoffice — mudar os dois. */
@@ -221,8 +221,8 @@ export interface ShowcaseConfig {
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const TITLE_MAX = 50;
-const SUBTITLE_MAX = 90;
+export const BANNER_TITLE_MAX = 50;
+export const BANNER_SUBTITLE_MAX = 90;
 
 function civilDate(v: unknown): string | null {
   const s = str(v);
@@ -249,8 +249,8 @@ export function bannerFromData(raw: Data): ShowcaseBanner | null {
   return {
     id,
     kicker: str(raw["kicker"]),
-    title: title.slice(0, TITLE_MAX),
-    subtitle: str(raw["subtitle"]).slice(0, SUBTITLE_MAX),
+    title: title.slice(0, BANNER_TITLE_MAX),
+    subtitle: str(raw["subtitle"]).slice(0, BANNER_SUBTITLE_MAX),
     imageUrl: str(raw["imageUrl"]) || null,
     primary: {label: str(primary["label"]) || "Ver coleção", collectionId},
     secondary: secondary && (secondary.categoryId || secondary.url) ? secondary : null,

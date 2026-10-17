@@ -257,6 +257,13 @@ export const routes: Routes = [
       import('./painel/loja/cupons/panel-cupons.component').then((m) => m.PanelCuponsComponent),
   },
   {
+    path: 'painel/loja/campanhas',
+    title: 'Campanhas — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/loja/campanhas/panel-campanhas.component').then((m) => m.PanelCampanhasComponent),
+  },
+  {
     path: 'painel/perfil',
     title: 'Meu perfil — NexaGO Backoffice',
     canActivate: [authGuard],

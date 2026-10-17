@@ -73,6 +73,8 @@ const LOJA_GROUP: NavGroup = {
       icon: 'ticket',
       route: '/painel/loja/cupons',
     },
+    // Banners da vitrine (portal e app).
+    { kind: 'link', id: 'loja-campanhas', label: 'Campanhas', icon: 'flag', route: '/painel/loja/campanhas' },
     // Badge real: solicitações para analisar (StoreBadgesService).
     { kind: 'link', id: 'loja-trocas', label: 'Trocas', icon: 'swap', route: '/painel/loja/trocas' },
   ],
@@ -633,6 +635,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/loja/cupons')) {
       return 'loja-cupons';
+    }
+    if (path.startsWith('/painel/loja/campanhas')) {
+      return 'loja-campanhas';
     }
     if (path === '/painel') {
       return 'inicio';

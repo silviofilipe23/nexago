@@ -93,6 +93,7 @@ describe('PanelShellComponent', () => {
       'Estoque',
       'Retirada & frete',
       'Cupons & promoções',
+      'Campanhas',
       'Trocas',
     ]);
     expect(links.map((e) => e.getAttribute('href'))).toEqual([
@@ -103,6 +104,7 @@ describe('PanelShellComponent', () => {
       '/painel/loja/estoque',
       '/painel/loja/retirada',
       '/painel/loja/cupons',
+      '/painel/loja/campanhas',
       '/painel/loja/trocas',
     ]);
   });

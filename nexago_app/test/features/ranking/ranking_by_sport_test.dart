@@ -127,6 +127,7 @@ void main() {
         'FUTEVOLEI',
         'TENIS',
         'BEACH_TENNIS',
+        'PADEL',
       ]);
     });
 

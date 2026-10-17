@@ -910,9 +910,17 @@ void main() {
         await tester.pump();
         expect(find.byType(LiveTableTimeoutTeamPicker), findsNothing);
 
-        // Tempo técnico é 100% estado local de tela — nada disso grava no
-        // Firestore.
-        expect(fakeRepo.pointWrites, isEmpty);
+        // A contagem é estado de tela; o doc só recebe o início e o fim de
+        // cada tempo (pro overlay da transmissão) — nenhum ponto creditado.
+        expect(
+          fakeRepo.pointWrites.map((w) => w.pointEvent['type']),
+          [
+            'technical-timeout',
+            'technical-timeout-end',
+            'technical-timeout',
+            'technical-timeout-end',
+          ],
+        );
         expect(fakeRepo.updateFieldsCalls, isEmpty);
       },
     );
@@ -974,6 +982,28 @@ void main() {
         expect(timeout.totalSeconds, 60);
         expect(timeout.phase, LiveTableTimeoutPhase.running);
         expect(find.text('1º tempo do time'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'sair da mesa com o tempo rodando publica o fim — o overlay da '
+      'transmissão não fica preso no tempo técnico',
+      (tester) async {
+        await pumpLiveTable(
+          tester,
+          initialMatch: buildMatch(servingTeamId: teamAId),
+        );
+        await toggleFullMode(tester);
+        await callTechnicalTimeout(tester, teamALabel);
+
+        // Desmonta a mesa (o `dispose` usava `ref` e estourava `Bad state`).
+        await tester.pumpWidget(const SizedBox());
+
+        expect(tester.takeException(), isNull);
+        expect(
+          fakeRepo.pointWrites.map((w) => w.pointEvent['type']),
+          ['technical-timeout', 'technical-timeout-end'],
+        );
       },
     );
 
@@ -1099,14 +1129,18 @@ void main() {
 
         await callTechnicalTimeout(tester, teamALabel);
 
-        // Painel A: não credita ponto.
+        // Painel A: não credita ponto (a única escrita é o início do tempo,
+        // publicado pro overlay da transmissão).
         await tester.tap(
           panelWithLabel(teamALabel),
           warnIfMissed: false,
         );
         await tester.pump();
         await tester.pump();
-        expect(fakeRepo.pointWrites, isEmpty);
+        expect(
+          fakeRepo.pointWrites.map((w) => w.pointEvent['type']),
+          ['technical-timeout'],
+        );
 
         // "Trocar saque": não grava nada.
         await tester.tap(find.text('Trocar saque'), warnIfMissed: false);

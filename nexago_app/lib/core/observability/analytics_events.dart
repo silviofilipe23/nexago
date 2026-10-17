@@ -42,14 +42,29 @@ abstract final class AnalyticsEvents {
   // Loja · Personalizar (app 02b/02c, `docs/business-rules/loja-personalizar.md`).
   static const storeCustomizeName = 'loja_personalizar_nome';
   static const storeCustomizeImage = 'loja_personalizar_imagem';
+
+  // Loja · Carrinho, checkout e pedidos (app 03–08,
+  // `docs/business-rules/loja-checkout.md`).
+  static const storeCartView = 'loja_carrinho_view';
+  static const storeCartQty = 'loja_carrinho_qtd';
+  static const storeCartRemove = 'loja_carrinho_remover';
+  static const storeAddressSave = 'loja_endereco_salvar';
+  static const storeCouponApply = 'loja_cupom_aplicar';
+  static const storeCheckoutPay = 'loja_checkout_pagar';
+  static const storePixCopy = 'loja_pix_copiar';
+  static const storeOrderView = 'loja_pedido_view';
+  static const storeOrdersView = 'loja_pedidos_view';
+  static const storeRebuy = 'loja_comprar_de_novo';
 }
 
 /// Parâmetros dos eventos da Loja, com os nomes do portal (`campanha_id`,
 /// `categoria`, `termo`, `resultados`, `produto_id`, `posicao`, `on`,
 /// `arena_id`; na página do produto, `origem`, `cor`, `tamanho`, `sku`,
 /// `qtd`, `preco` e `tipo`; na personalização, `canal`, `fonte`, `area`,
-/// `qualidade` e `personalizado`). Texto vazio é descartado; booleano vira
-/// 1/0 (o FirebaseAnalytics só aceita texto e número).
+/// `qualidade` e `personalizado`; no checkout, `itens`, `linha`, `novo`,
+/// `cupom`, `total`, `entrega`, `tela` e `pedido_id`). Texto vazio é
+/// descartado; booleano vira 1/0 (o FirebaseAnalytics só aceita texto e
+/// número).
 Map<String, Object> storeEventParams({
   String? campaignId,
   String? category,
@@ -71,6 +86,14 @@ Map<String, Object> storeEventParams({
   String? area,
   String? quality,
   bool? customized,
+  int? units,
+  String? line,
+  bool? isNew,
+  String? coupon,
+  int? totalCents,
+  String? delivery,
+  String? screen,
+  String? orderId,
 }) {
   String? clean(String? v) =>
       v != null && v.trim().isNotEmpty ? v.trim() : null;
@@ -95,6 +118,14 @@ Map<String, Object> storeEventParams({
     if (clean(area) != null) 'area': clean(area)!,
     if (clean(quality) != null) 'qualidade': clean(quality)!,
     if (customized != null) 'personalizado': customized ? 1 : 0,
+    if (units != null) 'itens': units,
+    if (clean(line) != null) 'linha': clean(line)!,
+    if (isNew != null) 'novo': isNew ? 1 : 0,
+    if (clean(coupon) != null) 'cupom': clean(coupon)!,
+    if (totalCents != null) 'total': totalCents,
+    if (clean(delivery) != null) 'entrega': clean(delivery)!,
+    if (clean(screen) != null) 'tela': clean(screen)!,
+    if (clean(orderId) != null) 'pedido_id': clean(orderId)!,
   };
 }
 

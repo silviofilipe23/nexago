@@ -229,8 +229,18 @@ abstract final class AppRoutes {
   static const String storeCustomize =
       '/loja/produto/:productId/personalizar';
 
-  /// Carrinho (por enquanto, "chega na próxima etapa").
+  /// Carrinho e checkout (app 03/04). Deep link `nexago://loja/carrinho`.
   static const String storeCart = '/loja/carrinho';
+
+  /// Novo endereço / editar (app 05); `?id=` edita. Devolve o id salvo.
+  static const String storeAddress = '/loja/endereco';
+
+  /// Meus pedidos (app 08). Deep link `nexago://loja/pedidos`.
+  static const String storeOrders = '/loja/pedidos';
+
+  /// Pedido (app 06 Pix · 07 retirada). O checkout manda o Pix recém-criado
+  /// pelo `extra` (o espelho `storeOrderViews` nasce ~1 s depois).
+  static const String storeOrder = '/loja/pedidos/:orderId';
 
   /// Esportes e níveis do atleta.
   static const String athleteSportsLevels = '/athlete/profile/sports-levels';
@@ -684,6 +694,9 @@ abstract final class AppRouteNames {
   static const String storeProduct = 'storeProduct';
   static const String storeCustomize = 'storeCustomize';
   static const String storeCart = 'storeCart';
+  static const String storeAddress = 'storeAddress';
+  static const String storeOrders = 'storeOrders';
+  static const String storeOrder = 'storeOrder';
   static const String athleteSportsLevels = 'athleteSportsLevels';
   static const String athleteNotificationSettings =
       'athleteNotificationSettings';

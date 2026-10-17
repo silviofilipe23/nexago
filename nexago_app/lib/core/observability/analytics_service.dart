@@ -196,11 +196,16 @@ class AnalyticsService {
         ),
       );
 
-  /// [type]: `retirada` ou o id da modalidade de entrega.
-  Future<void> logStoreDeliverySelect({required String type}) =>
+  /// [type]: `retirada` ou o id da modalidade de entrega (página do
+  /// produto); no carrinho, `arena`/`casa` com [screen] `checkout` (igual ao
+  /// portal).
+  Future<void> logStoreDeliverySelect({
+    required String type,
+    String? screen,
+  }) =>
       _analytics.logEvent(
         name: AnalyticsEvents.storeDeliverySelect,
-        parameters: storeEventParams(type: type),
+        parameters: storeEventParams(type: type, screen: screen),
       );
 
   // --- Loja · Personalizar (app 02b/02c) ---
@@ -233,6 +238,74 @@ class AnalyticsService {
       _analytics.logEvent(
         name: AnalyticsEvents.storeRelatedClick,
         parameters: storeEventParams(productId: productId),
+      );
+
+  // --- Loja · Carrinho, checkout e pedidos (app 03–08) ---
+
+  /// Carrinho aberto com [units] unidades.
+  Future<void> logStoreCartView({required int units}) => _analytics.logEvent(
+        name: AnalyticsEvents.storeCartView,
+        parameters: storeEventParams(units: units),
+      );
+
+  /// Quantidade da linha [line] (a chave do carrinho) mudou para [qty].
+  Future<void> logStoreCartQty({required String line, required int qty}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeCartQty,
+        parameters: storeEventParams(line: line, qty: qty),
+      );
+
+  Future<void> logStoreCartRemove({required String line}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeCartRemove,
+        parameters: storeEventParams(line: line, qty: 0),
+      );
+
+  Future<void> logStoreAddressSave({required bool isNew}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeAddressSave,
+        parameters: storeEventParams(isNew: isNew),
+      );
+
+  Future<void> logStoreCouponApply({required String code}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeCouponApply,
+        parameters: storeEventParams(coupon: code),
+      );
+
+  /// [delivery]: `arena` ou `casa`.
+  Future<void> logStoreCheckoutPay({
+    required int totalCents,
+    String? delivery,
+    String? coupon,
+  }) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeCheckoutPay,
+        parameters: storeEventParams(
+          totalCents: totalCents,
+          delivery: delivery,
+          coupon: coupon,
+        ),
+      );
+
+  Future<void> logStorePixCopy({required String orderId}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storePixCopy,
+        parameters: storeEventParams(orderId: orderId),
+      );
+
+  Future<void> logStoreOrderView({required String orderId}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeOrderView,
+        parameters: storeEventParams(orderId: orderId),
+      );
+
+  Future<void> logStoreOrdersView() =>
+      _analytics.logEvent(name: AnalyticsEvents.storeOrdersView);
+
+  Future<void> logStoreRebuy({required String orderId}) => _analytics.logEvent(
+        name: AnalyticsEvents.storeRebuy,
+        parameters: storeEventParams(orderId: orderId),
       );
 }
 

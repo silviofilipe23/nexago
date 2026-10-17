@@ -179,6 +179,9 @@ void main() {
       expect(isAthleteExperiencePath(AppRoutes.store), isTrue);
       expect(isAthleteExperiencePath('/loja/produto/bola'), isTrue);
       expect(isAthleteExperiencePath(AppRoutes.storeCart), isTrue);
+      expect(isAthleteExperiencePath(AppRoutes.storeAddress), isTrue);
+      expect(isAthleteExperiencePath(AppRoutes.storeOrders), isTrue);
+      expect(isAthleteExperiencePath('/loja/pedidos/ord_1'), isTrue);
       expect(isAthleteExperiencePath('/lojas'), isFalse);
     });
 

@@ -144,6 +144,21 @@ void main() {
       });
       expect(route, isNull);
     });
+
+    test('aviso de pedido da Loja abre o pedido; sem id, Meus pedidos', () {
+      expect(
+        resolveNotificationRoute({
+          'type': 'store_order_pickup_code',
+          'orderId': 'ord_1',
+          'number': 'NX-0001',
+        }),
+        '/loja/pedidos/ord_1',
+      );
+      expect(
+        resolveNotificationRoute({'type': 'store_order_payment'}),
+        AppRoutes.storeOrders,
+      );
+    });
   });
 
   group('resolveNotificationTapDestination', () {

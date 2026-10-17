@@ -8,8 +8,9 @@ import '../../../../core/theme/app_typography.dart';
 import '../store_copy.dart';
 import 'store_style.dart';
 
-/// Header próprio da vitrine (voltar · "Loja" · busca · sacola). Como aba da
-/// barra inferior não há para onde voltar: sem [onBack], sem o botão.
+/// Header próprio da vitrine (voltar · "Loja" · pedidos · busca · sacola).
+/// Como aba da barra inferior não há para onde voltar: sem [onBack], sem o
+/// botão. "Meus pedidos" só com sessão ([onOrders]).
 ///
 /// Não usa `NexaAppBar` de propósito: o contador da sacola é um `Stack` sobre
 /// a ação, e badge em `Stack` derruba a barra nativa Liquid Glass do iOS
@@ -21,6 +22,7 @@ class StoreHeader extends StatelessWidget {
     required this.cartUnits,
     required this.pulseTick,
     this.onBack,
+    this.onOrders,
     required this.onSearch,
     required this.onCart,
   });
@@ -30,6 +32,9 @@ class StoreHeader extends StatelessWidget {
   /// Muda a cada "+" que adicionou: a sacola pulsa.
   final int pulseTick;
   final VoidCallback? onBack;
+
+  /// "Meus pedidos"; `null` = sem o botão (deslogado).
+  final VoidCallback? onOrders;
   final VoidCallback onSearch;
   final VoidCallback onCart;
 
@@ -63,6 +68,15 @@ class StoreHeader extends StatelessWidget {
               ),
             ),
           ),
+          if (onOrders case final orders?) ...[
+            StoreRoundButton(
+              key: const ValueKey('store-header-orders'),
+              icon: Icons.receipt_long_outlined,
+              tooltip: StoreCopy.orders,
+              onTap: orders,
+            ),
+            const SizedBox(width: 8),
+          ],
           StoreRoundButton(
             icon: Icons.search_rounded,
             tooltip: StoreCopy.search,

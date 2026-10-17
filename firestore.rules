@@ -3324,6 +3324,48 @@ service cloud.firestore {
         && (!('updatedAt' in request.resource.data) || request.resource.data.updatedAt is timestamp);
     }
 
+    // Endereços de entrega do atleta (checkout da Loja). Só o dono — `users/{uid}` é legível por
+    // outros atletas, então endereço não pode morar lá. O servidor relê no checkout.
+    // Leve de propósito: 10 posições × `hasOnly` estoura o teto de 1000 expressões. O servidor
+    // relê e saneia cada campo no checkout; aqui só se garante a forma e o tamanho.
+    function storeAddressOk(a) {
+      return a is map && a.size() <= 12
+        && a.id is string && a.id.size() > 0 && a.id.size() <= 64
+        && a.uf is string && a.uf.size() == 2;
+    }
+    // Sem laço nas rules: cada posição da lista (até 10) é conferida pelo índice.
+    function storeAddressAt(items, i) {
+      return items.size() <= i || storeAddressOk(items[i]);
+    }
+    match /storeAddresses/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['items', 'updatedAt'])
+        && request.resource.data.items is list
+        && request.resource.data.items.size() <= 10
+        && storeAddressAt(request.resource.data.items, 0) && storeAddressAt(request.resource.data.items, 1)
+        && storeAddressAt(request.resource.data.items, 2) && storeAddressAt(request.resource.data.items, 3)
+        && storeAddressAt(request.resource.data.items, 4) && storeAddressAt(request.resource.data.items, 5)
+        && storeAddressAt(request.resource.data.items, 6) && storeAddressAt(request.resource.data.items, 7)
+        && storeAddressAt(request.resource.data.items, 8) && storeAddressAt(request.resource.data.items, 9)
+        && (!('updatedAt' in request.resource.data) || request.resource.data.updatedAt is timestamp);
+    }
+
+    // O pedido como o atleta vê (espelho saneado de storeOrders, por gatilho): sem CPF, custo,
+    // reserva nem nota interna; o código de retirada só quando está na arena. Só o dono lê.
+    // `get` de doc que ainda não existe passa (resource == null): a tela do Pix escuta o pedido
+    // antes do gatilho criar o espelho (~1 s) — negar mataria o listener e o "pago" nunca chegaria.
+    match /storeOrderViews/{orderId} {
+      allow get: if request.auth != null && (resource == null || resource.data.uid == request.auth.uid);
+      allow list: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+
+    // "Uma vez por atleta" dos cupons e o espelho do uso — só servidor.
+    match /storeCouponUses/{id} {
+      allow read, write: if false;
+    }
+
     // Documentos-chave de unicidade. Só o Admin SDK toca.
     match /storeCatalogKeys/{key} {
       allow read, write: if false;

@@ -147,8 +147,12 @@ import '../../features/athlete/presentation/athlete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_settings_page.dart';
 import '../../features/athlete/presentation/athlete_referral_page.dart';
 import '../../features/cashback/presentation/cashback_page.dart';
-import '../../features/store/presentation/store_coming_soon_page.dart';
+import '../../features/store/domain/store_checkout_models.dart';
+import '../../features/store/presentation/store_address_page.dart';
+import '../../features/store/presentation/store_cart_page.dart';
 import '../../features/store/presentation/store_customize_page.dart';
+import '../../features/store/presentation/store_order_page.dart';
+import '../../features/store/presentation/store_orders_page.dart';
 import '../../features/store/presentation/store_page.dart';
 import '../../features/store/presentation/store_product_page.dart';
 import '../../features/store/presentation/store_search_page.dart';
@@ -1080,11 +1084,39 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           skuId: state.uri.queryParameters['sku'],
         ),
       ),
-      // Carrinho ainda não existe: tela de "chega na próxima etapa".
+      // Carrinho e checkout (app 03/04): cotação no servidor, só Pix.
       GoRoute(
         path: AppRoutes.storeCart,
         name: AppRouteNames.storeCart,
-        builder: (context, state) => const StoreComingSoonPage(),
+        builder: (context, state) => const StoreCartPage(),
+      ),
+      // Novo endereço / editar (app 05): `?id=` edita; volta com o id salvo.
+      GoRoute(
+        path: AppRoutes.storeAddress,
+        name: AppRouteNames.storeAddress,
+        builder: (context, state) => StoreAddressPage(
+          addressId: state.uri.queryParameters['id'],
+        ),
+      ),
+      // Meus pedidos (app 08).
+      GoRoute(
+        path: AppRoutes.storeOrders,
+        name: AppRouteNames.storeOrders,
+        builder: (context, state) => const StoreOrdersPage(),
+      ),
+      // Pedido (app 06 Pix · 07 retirada). O checkout manda o Pix pelo
+      // `extra` (o espelho nasce ~1 s depois); sem ele (lista, push, deep
+      // link), a tela lê só o espelho.
+      GoRoute(
+        path: AppRoutes.storeOrder,
+        name: AppRouteNames.storeOrder,
+        builder: (context, state) {
+          final extra = state.extra;
+          return StoreOrderPage(
+            orderId: state.pathParameters['orderId'] ?? '',
+            created: extra is StoreCreatedOrder ? extra : null,
+          );
+        },
       ),
       GoRoute(
         path: AppRoutes.athleteSportsLevels,

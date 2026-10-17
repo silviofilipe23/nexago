@@ -1,0 +1,115 @@
+// Peças de página da Loja (produto, personalizar, carrinho, pedidos): cabeçalho com breadcrumb
+// e estados (erro, vazio). Incluído com `@use` — cada componente leva a sua cópia.
+// ── Cabeçalho: breadcrumb + nome no lugar do título da vitrine ────
+.lp-heading {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.lp-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-text-dim);
+
+  a {
+    color: inherit;
+    text-decoration: none;
+
+    &:hover {
+      color: var(--nx-text);
+    }
+
+    &:last-child {
+      color: var(--nx-text-mute);
+    }
+  }
+}
+
+.lp-title {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--nx-font-display);
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--nx-text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+
+  @media (max-width: 640px) {
+    font-size: 18px;
+  }
+}
+
+// ── Estados ───────────────────────────────────────────────────
+.lp-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 560px;
+
+  h2 {
+    margin: 0;
+    font-family: var(--nx-font-display);
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--nx-text);
+  }
+
+  p {
+    margin: 0;
+    font-family: var(--nx-font-ui);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--nx-text-mute);
+  }
+}
+
+.lp-kicker {
+  font-family: var(--nx-font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nx-orange-500);
+}
+
+.lp-state-btn {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  height: 42px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  font-family: var(--nx-font-display);
+  font-size: 13.5px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.lp-state-detail {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  color: var(--nx-text-dim);
+}
+
+.lp-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

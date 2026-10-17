@@ -1,0 +1,164 @@
+<div class="em-backdrop" (click)="onBackdrop($event)">
+  <form class="em-dialog" role="dialog" aria-modal="true" aria-labelledby="em-title" novalidate (submit)="submit($event)">
+    <header class="em-head">
+      <div class="em-head-text">
+        <h2 id="em-title">{{ editing() ? 'Editar endereço' : 'Novo endereço' }}</h2>
+        <p>Digite o CEP e a gente preenche o resto</p>
+      </div>
+      <button type="button" class="em-close" aria-label="Fechar" (click)="closed.emit()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+      </button>
+    </header>
+
+    <div class="em-body">
+      <div class="em-row em-row--cep">
+        <label class="em-field">
+          <span class="em-label">CEP</span>
+          <span class="em-input-wrap" [class.em-input-wrap--invalid]="error('zip')">
+            <input
+              #cepInput
+              class="em-input em-input--mono"
+              inputmode="numeric"
+              autocomplete="postal-code"
+              placeholder="00000-000"
+              [value]="cepLabel()"
+              [attr.aria-invalid]="error('zip') !== null"
+              (input)="onCep($any($event.target).value)"
+            />
+            @if (cepState() === 'loading') {
+              <span class="em-spin" aria-hidden="true"></span>
+            } @else if (cepState() === 'found') {
+              <svg class="em-ok" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg>
+            }
+          </span>
+          @if (error('zip'); as e) {
+            <small class="em-error">{{ e }}</small>
+          } @else if (cepState() === 'not_found') {
+            <small class="em-hint em-hint--warn" role="status">Não achamos esse CEP. Confira ou preencha na mão.</small>
+          }
+        </label>
+        <a class="em-link" [href]="correiosUrl" target="_blank" rel="noopener">Não sei meu CEP</a>
+      </div>
+
+      <label class="em-field">
+        <span class="em-label">Rua</span>
+        <span class="em-input-wrap" [class.em-input-wrap--invalid]="error('street')">
+          <input class="em-input" autocomplete="address-line1" maxlength="160" [value]="draft().street" [attr.aria-invalid]="error('street') !== null" (input)="set('street', $any($event.target).value)" />
+          @if (fromCep().has('street')) {
+            <svg class="em-ok" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg>
+          }
+        </span>
+        @if (error('street'); as e) {
+          <small class="em-error">{{ e }}</small>
+        }
+      </label>
+
+      <div class="em-row em-row--number">
+        <label class="em-field">
+          <span class="em-label">Número</span>
+          <span class="em-input-wrap" [class.em-input-wrap--invalid]="error('number')">
+            <input #numberInput class="em-input" maxlength="20" [value]="draft().number" [attr.aria-invalid]="error('number') !== null" (input)="set('number', $any($event.target).value)" />
+          </span>
+          @if (error('number'); as e) {
+            <small class="em-error">{{ e }}</small>
+          }
+        </label>
+        <label class="em-field">
+          <span class="em-label">Complemento</span>
+          <span class="em-input-wrap">
+            <input class="em-input" autocomplete="address-line2" maxlength="120" placeholder="Apto, bloco, referência (opcional)" [value]="draft().complement" (input)="set('complement', $any($event.target).value)" />
+          </span>
+        </label>
+      </div>
+
+      <div class="em-row em-row--half">
+        <label class="em-field">
+          <span class="em-label">Bairro</span>
+          <span class="em-input-wrap" [class.em-input-wrap--invalid]="error('district')">
+            <input class="em-input" maxlength="120" [value]="draft().district" [attr.aria-invalid]="error('district') !== null" (input)="set('district', $any($event.target).value)" />
+            @if (fromCep().has('district')) {
+              <svg class="em-ok" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg>
+            }
+          </span>
+          @if (error('district'); as e) {
+            <small class="em-error">{{ e }}</small>
+          }
+        </label>
+        <div class="em-row em-row--city">
+          <label class="em-field">
+            <span class="em-label">Cidade</span>
+            <span class="em-input-wrap" [class.em-input-wrap--invalid]="error('city')">
+              <input class="em-input" autocomplete="address-level2" maxlength="80" [value]="draft().city" [attr.aria-invalid]="error('city') !== null" (input)="set('city', $any($event.target).value)" />
+              @if (fromCep().has('city')) {
+                <svg class="em-ok" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg>
+              }
+            </span>
+            @if (error('city'); as e) {
+              <small class="em-error">{{ e }}</small>
+            }
+          </label>
+          <label class="em-field">
+            <span class="em-label">UF</span>
+            <span class="em-input-wrap" [class.em-input-wrap--invalid]="error('uf')">
+              <input class="em-input em-input--uf" autocomplete="address-level1" maxlength="2" [value]="draft().uf" [attr.aria-invalid]="error('uf') !== null" (input)="set('uf', $any($event.target).value.toUpperCase())" />
+            </span>
+            @if (error('uf'); as e) {
+              <small class="em-error">{{ e }}</small>
+            }
+          </label>
+        </div>
+      </div>
+
+      <div class="em-row em-row--half">
+        <label class="em-field">
+          <span class="em-label">Quem recebe</span>
+          <span class="em-input-wrap" [class.em-input-wrap--invalid]="error('recipient')">
+            <input class="em-input" autocomplete="name" maxlength="120" [value]="draft().recipient" [attr.aria-invalid]="error('recipient') !== null" (input)="set('recipient', $any($event.target).value)" />
+          </span>
+          @if (error('recipient'); as e) {
+            <small class="em-error">{{ e }}</small>
+          }
+        </label>
+        <label class="em-field">
+          <span class="em-label">Celular</span>
+          <span class="em-input-wrap" [class.em-input-wrap--invalid]="error('phone')">
+            <input class="em-input em-input--mono" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="(00) 00000-0000" [value]="phoneLabel()" [attr.aria-invalid]="error('phone') !== null" (input)="onPhone($any($event.target).value)" />
+          </span>
+          @if (error('phone'); as e) {
+            <small class="em-error">{{ e }}</small>
+          } @else {
+            <small class="em-hint">Pra transportadora avisar na entrega</small>
+          }
+        </label>
+      </div>
+
+      <div class="em-foot-row">
+        <div class="em-chips" role="radiogroup" aria-label="Nome do endereço">
+          @for (l of labels; track l) {
+            <button type="button" role="radio" class="em-chip" [class.em-chip--on]="draft().label === l" [attr.aria-checked]="draft().label === l" (click)="set('label', l)">{{ l }}</button>
+          }
+        </div>
+        @if (!first()) {
+          <label class="em-check">
+            <input type="checkbox" [checked]="makeMain()" (change)="makeMain.set($any($event.target).checked)" />
+            <span class="em-check-box" aria-hidden="true">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10" /></svg>
+            </span>
+            Tornar principal
+          </label>
+        }
+      </div>
+    </div>
+
+    <footer class="em-actions">
+      @if (editing()) {
+        <button type="button" class="em-btn em-btn--danger" [disabled]="saving()" (click)="removed.emit(address()!.id)">Excluir</button>
+      }
+      <span class="em-spacer"></span>
+      <button type="button" class="em-btn em-btn--ghost" (click)="closed.emit()">Cancelar</button>
+      <button type="submit" class="em-btn em-btn--primary" [disabled]="saving()" [attr.aria-busy]="saving()">
+        {{ saving() ? 'Salvando…' : 'Salvar endereço' }}
+      </button>
+    </footer>
+  </form>
+</div>

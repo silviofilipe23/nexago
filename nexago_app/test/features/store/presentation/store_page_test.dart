@@ -253,6 +253,14 @@ void main() {
     expect(find.byTooltip(StoreCopy.back), findsOneWidget);
   });
 
+  testWidgets('logado, o header tem a entrada de "Meus pedidos"', (
+    tester,
+  ) async {
+    await _open(tester, _repo());
+    expect(find.byKey(const ValueKey('store-header-orders')), findsOneWidget);
+    expect(find.byTooltip(StoreCopy.orders), findsOneWidget);
+  });
+
   testWidgets('renderiza banner, chips, arena, título e a grade', (
     tester,
   ) async {

@@ -156,6 +156,14 @@ void main() {
         resolveAppDeepLinkPath(Uri.parse('nexago://loja/carrinho')),
         '/loja/carrinho',
       );
+      expect(
+        resolveAppDeepLinkPath(Uri.parse('nexago://loja/pedidos')),
+        '/loja/pedidos',
+      );
+      expect(
+        resolveAppDeepLinkPath(Uri.parse('nexago://loja/pedidos/ord_1')),
+        '/loja/pedidos/ord_1',
+      );
       // Subcaminho desconhecido cai na vitrine, não na tela de erro.
       expect(resolveAppDeepLinkPath(Uri.parse('nexago://loja/xyz')), '/loja');
     });

@@ -25,7 +25,7 @@ type Data = Record<string, unknown>;
 const PRODUCTS = "storeProducts";
 const CUSTOMIZATION = "storeProductCustomization";
 const CARTS = "storeCarts";
-const BLOCKLIST_DOC = "storeConfig/blocklist";
+export const BLOCKLIST_DOC = "storeConfig/blocklist";
 /** Teto da rule de `storeCarts.items`. */
 const MAX_CART_LINES = 30;
 /** Onde o atleta sobe a imagem. A rule do Storage só deixa o dono escrever aqui. */

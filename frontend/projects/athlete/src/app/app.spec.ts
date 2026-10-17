@@ -34,4 +34,13 @@ describe('chromeHiddenForUrl', () => {
     expect(chromeHiddenForUrl('/organizadores/x')).toBe(true);
     expect(chromeHiddenForUrl('/organizadores/x?aba=eventos')).toBe(true);
   });
+
+  // Fora da lista, a vitrine (e as filhas) ficava dentro do .container-nexago: 1440px no máximo,
+  // centralizada, com faixas pretas dos dois lados numa tela larga.
+  it('usa a moldura do painel na Loja e nas filhas', () => {
+    expect(chromeHiddenForUrl('/loja')).toBe(true);
+    expect(chromeHiddenForUrl('/loja?categoria=bolas')).toBe(true);
+    expect(chromeHiddenForUrl('/loja/produto/p1')).toBe(true);
+    expect(chromeHiddenForUrl('/lojas')).toBe(false);
+  });
 });

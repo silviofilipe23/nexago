@@ -11,7 +11,10 @@ void main() {
       'assets/images/sports/beach_tennis.webp',
     );
     expect(TournamentCoverArt.assetFor('other'), isNull);
-    expect(TournamentCoverArt.assetFor('padel'), isNull);
+    expect(
+      TournamentCoverArt.assetFor('padel'),
+      'assets/images/sports/padel.webp',
+    );
   });
 
   test('arte do perfil aceita o id do app', () {

@@ -128,7 +128,7 @@ const List<SportCatalogEntry> kSportCatalog = [
     profileCode: 'PADEL',
     appId: 'padel',
     label: 'Padel',
-    art: null,
+    art: 'padel',
     support: SportSupport.competition,
     allowedTeamSizes: [2],
     arenaCourtTypes: ['Padel'],

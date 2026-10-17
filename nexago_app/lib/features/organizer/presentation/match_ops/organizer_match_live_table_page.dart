@@ -21,6 +21,7 @@ import '../../domain/match_ops/match_ops_providers.dart';
 import '../../domain/match_ops/match_serving_player_logic.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/data/tournament_live_matches_sync.dart';
+import '../../../tournaments/data/tournament_matches_repository.dart';
 import '../../../tournaments/domain/tournament_discovery_providers.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_display.dart';
@@ -87,9 +88,15 @@ class _OrganizerMatchLiveTablePageState
   bool _medicalPickerOpen = false;
   String? _medicalAlertedKey;
 
+  /// Lido no `initState`: o `dispose` encerra o tempo técnico em andamento, e o Riverpod não
+  /// deixa usar `ref` depois que o widget saiu da árvore — sair da mesa no meio do tempo
+  /// lançava `Bad state` e o overlay da transmissão ficava preso no tempo técnico.
+  late final TournamentMatchesRepository _matchesRepository;
+
   @override
   void initState() {
     super.initState();
+    _matchesRepository = ref.read(tournamentMatchesRepositoryProvider);
     // Tela ligada enquanto a partida está aberta na mesa.
     unawaited(WakelockPlus.enable().catchError((Object _) {}));
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -229,8 +236,7 @@ class _OrganizerMatchLiveTablePageState
   /// Publica o tempo técnico no doc pro overlay de transmissão. Best-effort: a contagem local
   /// manda e a mesa não vê erro nem reverte se a escrita falhar.
   void _publishTechnicalTimeoutStart(String side) {
-    ref
-        .read(tournamentMatchesRepositoryProvider)
+    _matchesRepository
         .recordPointTransaction(
           matchId: widget.matchId,
           build: (fresh) => buildTechnicalTimeoutStartWrite(fresh, side: side),
@@ -239,8 +245,7 @@ class _OrganizerMatchLiveTablePageState
   }
 
   void _publishTechnicalTimeoutEnd() {
-    ref
-        .read(tournamentMatchesRepositoryProvider)
+    _matchesRepository
         .recordPointTransaction(
           matchId: widget.matchId,
           build: buildTechnicalTimeoutEndWrite,

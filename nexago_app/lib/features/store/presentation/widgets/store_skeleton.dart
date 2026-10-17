@@ -95,3 +95,71 @@ class StoreProductCardSkeleton extends StatelessWidget {
     );
   }
 }
+
+/// Página do produto carregando: galeria e painel no formato final.
+class StoreProductSkeleton extends StatelessWidget {
+  const StoreProductSkeleton({super.key, required this.galleryHeight});
+
+  final double galleryHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          NexaSkeleton(height: galleryHeight, radius: BorderRadius.zero),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.screenH,
+              24,
+              AppSpacing.screenH,
+              0,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                NexaSkeleton(width: 64, height: 24, radius: AppRadii.pillAll),
+                SizedBox(height: 16),
+                NexaSkeleton(height: 24),
+                SizedBox(height: 8),
+                NexaSkeleton(width: 200, height: 24),
+                SizedBox(height: 16),
+                NexaSkeleton(width: 140, height: 28),
+                SizedBox(height: 8),
+                NexaSkeleton(width: 120, height: 14),
+                SizedBox(height: 28),
+                NexaSkeleton(width: 110, height: 12),
+                SizedBox(height: 12),
+                Row(
+                  children: [
+                    NexaSkeleton.circle(size: 40),
+                    SizedBox(width: 12),
+                    NexaSkeleton.circle(size: 40),
+                    SizedBox(width: 12),
+                    NexaSkeleton.circle(size: 40),
+                  ],
+                ),
+                SizedBox(height: 24),
+                NexaSkeleton(width: 80, height: 12),
+                SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(child: NexaSkeleton(height: 50)),
+                    SizedBox(width: 8),
+                    Expanded(child: NexaSkeleton(height: 50)),
+                    SizedBox(width: 8),
+                    Expanded(child: NexaSkeleton(height: 50)),
+                    SizedBox(width: 8),
+                    Expanded(child: NexaSkeleton(height: 50)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

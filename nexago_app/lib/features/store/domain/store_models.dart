@@ -1,6 +1,7 @@
-/// Modelos da vitrine da Loja (tela 01).
+/// Modelos da vitrine da Loja (tela 01) e da página do produto (tela 02).
 ///
-/// Espelham o contrato de `docs/business-rules/loja-vitrine.md`: o app só lê
+/// Espelham o contrato de `docs/business-rules/loja-vitrine.md` e
+/// `docs/business-rules/loja-produto.md`: o app só lê
 /// `storeShowcase/{id}` e `storePublic/showcase` (espelhos públicos gravados
 /// pelos gatilhos) e grava `storeShoppers/{uid}` e `storeCarts/{uid}`.
 library;
@@ -42,12 +43,16 @@ class StoreAxis {
 }
 
 class StoreVariant {
+  /// [maxQty] ausente (doc anterior ao campo) vale [kStoreMaxQtyPerItem] com
+  /// saldo e 0 sem.
   const StoreVariant({
     required this.id,
     this.values = const {},
     required this.priceCents,
     required this.inStock,
-  });
+    int? maxQty,
+    this.lowStock = false,
+  }) : maxQty = maxQty ?? (inStock ? kStoreMaxQtyPerItem : 0);
 
   /// Id do SKU (`branco_m`, `unico`) — é o `skuId` do carrinho.
   final String id;
@@ -56,8 +61,63 @@ class StoreVariant {
   final Map<String, String> values;
   final int priceCents;
 
-  /// Só "tem ou não tem": o saldo de cada peça não é público.
+  /// O saldo de verdade não é público: só "tem", e quanto cabe numa compra.
   final bool inStock;
+
+  /// Saldo livre até [kStoreMaxQtyPerItem] — o teto da compra; 0 = esgotado.
+  final int maxQty;
+
+  /// Saldo livre no alerta de estoque baixo do produto ("Só 2 no tamanho M").
+  final bool lowStock;
+}
+
+/// Foto da galeria, na ordem do backoffice (a primeira é a capa).
+class StorePhoto {
+  const StorePhoto({required this.url, this.colorValueId});
+
+  final String url;
+
+  /// Valor do primeiro eixo (cor) a que a foto pertence; `null` = vale para
+  /// todas.
+  final String? colorValueId;
+
+  @override
+  bool operator ==(Object other) =>
+      other is StorePhoto &&
+      other.url == url &&
+      other.colorValueId == colorValueId;
+
+  @override
+  int get hashCode => Object.hash(url, colorValueId);
+
+  @override
+  String toString() => 'StorePhoto($url, $colorValueId)';
+}
+
+/// "Tecido · Poliamida dry com elastano" (detalhes técnicos do backoffice).
+class StoreDetail {
+  const StoreDetail({required this.label, required this.value});
+
+  final String label;
+  final String value;
+}
+
+/// O pedaço público da personalização (só com ela ativa).
+class StoreCustomization {
+  const StoreCustomization({
+    this.fromCents = 0,
+    this.leadDays = 0,
+    this.defectOnlyReturns = false,
+  });
+
+  /// "+ personalização a partir de R$ X"; 0 = nenhuma opção com preço.
+  final int fromCents;
+
+  /// Dias úteis de produção.
+  final int leadDays;
+
+  /// Peça personalizada só troca por defeito.
+  final bool defectOnlyReturns;
 }
 
 class StoreProduct {
@@ -75,12 +135,16 @@ class StoreProduct {
     required this.minPriceCents,
     required this.maxPriceCents,
     this.coverUrl,
+    this.photos = const [],
+    this.description = '',
+    this.details = const [],
     this.pickup = false,
     this.delivery = false,
     this.axes = const [],
     this.variants = const [],
     this.soldOut = false,
     this.customizable = false,
+    this.customization,
     this.ratingAvg,
     this.ratingCount = 0,
     this.soldLast30 = 0,
@@ -104,12 +168,20 @@ class StoreProduct {
   final int minPriceCents;
   final int maxPriceCents;
   final String? coverUrl;
+
+  /// Galeria (até 10, a 1ª é a capa); vazia em doc anterior ao campo.
+  final List<StorePhoto> photos;
+  final String description;
+  final List<StoreDetail> details;
   final bool pickup;
   final bool delivery;
   final List<StoreAxis> axes;
   final List<StoreVariant> variants;
   final bool soldOut;
   final bool customizable;
+
+  /// Só com a personalização ativa (`customizable`).
+  final StoreCustomization? customization;
   final double? ratingAvg;
   final int ratingCount;
 
@@ -219,6 +291,37 @@ const List<StoreLabel> kStoreFallbackCollections = [
   StoreLabel(id: 'linha-pro', label: 'Linha Pro'),
 ];
 
+/// Modalidade de entrega que o checkout aceita hoje.
+class StoreDeliveryMode {
+  const StoreDeliveryMode({
+    required this.id,
+    required this.name,
+    this.description = '',
+    this.priceCents,
+  });
+
+  final String id;
+  final String name;
+
+  /// Prazo e transportadora ("Loggi · Goiânia e região em 24 h").
+  final String description;
+
+  /// `null` = calculado no checkout (integração de frete ligada).
+  final int? priceCents;
+}
+
+/// `storePublic/showcase.delivery`.
+class StoreDelivery {
+  const StoreDelivery({this.freeAboveCents, this.modes = const []});
+
+  /// Sem frete grátis e sem modalidade: a entrega some.
+  static const StoreDelivery none = StoreDelivery();
+
+  /// Pedido a partir daqui não paga frete; `null` = sem frete grátis.
+  final int? freeAboveCents;
+  final List<StoreDeliveryMode> modes;
+}
+
 class StoreShowcaseConfig {
   const StoreShowcaseConfig({
     this.banners = const [],
@@ -226,6 +329,7 @@ class StoreShowcaseConfig {
     this.categories = kStoreFallbackCategories,
     this.collections = kStoreFallbackCollections,
     this.pickupArenas = const [],
+    this.delivery = StoreDelivery.none,
   });
 
   /// Sem o doc de config, nada de prometer desconto ou prazo que ninguém
@@ -237,6 +341,7 @@ class StoreShowcaseConfig {
   final List<StoreLabel> categories;
   final List<StoreLabel> collections;
   final List<StorePickupArena> pickupArenas;
+  final StoreDelivery delivery;
 }
 
 /// `storeShoppers/{uid}`: preferências do atleta na Loja.
@@ -298,3 +403,7 @@ const int kStoreMaxCartLines = 30;
 /// Teto de unidades por linha do carrinho (sem regra no servidor; evita
 /// número absurdo por toque repetido).
 const int kStoreMaxQtyPerLine = 99;
+
+/// Teto de unidades de um SKU por compra — o `MAX_QTY_PER_ITEM` do servidor
+/// (`functions/src/store-showcase.ts`): acima disso o saldo não é exposto.
+const int kStoreMaxQtyPerItem = 10;

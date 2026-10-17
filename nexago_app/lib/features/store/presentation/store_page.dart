@@ -186,6 +186,7 @@ class _StorePageState extends ConsumerState<StorePage> {
     context.pushNamed(
       AppRouteNames.storeProduct,
       pathParameters: {'productId': product.id},
+      queryParameters: {'origem': 'vitrine'},
     );
   }
 

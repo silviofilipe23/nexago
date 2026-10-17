@@ -34,12 +34,16 @@ function product(over: Partial<StoreProduct> = {}): StoreProduct {
     minPriceCents: 28990,
     maxPriceCents: 28990,
     coverUrl: null,
+    photos: [],
+    description: '',
+    details: [],
     pickup: true,
     delivery: true,
     axes: [],
-    variants: [{ id: 'unico', values: {}, priceCents: 28990, inStock: true }],
+    variants: [{ id: 'unico', values: {}, priceCents: 28990, inStock: true, maxQty: 10, lowStock: false }],
     soldOut: false,
     customizable: false,
+    customization: null,
     ratingAvg: null,
     ratingCount: 0,
     soldLast30: 10,
@@ -67,6 +71,48 @@ describe('store-showcase-model', () => {
       expect(p.compareAtPriceCents).toBeNull();
       expect(p.badgeExpiresAt?.toISOString()).toBe('2026-10-31T00:00:00.000Z');
       expect(p.variants[0]!.inStock).toBeTrue();
+    });
+
+    it('lê galeria, detalhes, personalização e o saldo da compra', () => {
+      const p = storeProductFromDoc('p1', {
+        name: 'Camiseta',
+        priceCents: 12990,
+        photos: [{ url: 'https://cdn/a.jpg', colorValueId: 'branco' }, { url: '' }, { url: 'https://cdn/b.jpg' }],
+        description: ' Leve. ',
+        details: [{ label: 'Tecido', value: 'Dry' }, { label: 'Vazio', value: '' }],
+        customizable: true,
+        customization: { fromCents: 1490, leadDays: 5, defectOnlyReturns: true },
+        variants: [
+          { id: 'm', values: { tam: 'm' }, priceCents: 12990, inStock: true, maxQty: 2, lowStock: true },
+          { id: 'g', values: { tam: 'g' }, priceCents: 12990, inStock: false, maxQty: 0 },
+        ],
+      })!;
+      expect(p.photos).toEqual([
+        { url: 'https://cdn/a.jpg', colorValueId: 'branco' },
+        { url: 'https://cdn/b.jpg', colorValueId: null },
+      ]);
+      expect(p.description).toBe('Leve.');
+      expect(p.details).toEqual([{ label: 'Tecido', value: 'Dry' }]);
+      expect(p.customization).toEqual({ fromCents: 1490, leadDays: 5, defectOnlyReturns: true });
+      expect(p.variants.map((v) => [v.id, v.maxQty, v.lowStock])).toEqual([
+        ['m', 2, true],
+        ['g', 0, false],
+      ]);
+    });
+
+    it('doc anterior aos campos da página: teto com saldo, nada de galeria nem entrega', () => {
+      const p = storeProductFromDoc('p1', {
+        name: 'Bola',
+        priceCents: 28990,
+        variants: [
+          { id: 'unico', values: {}, priceCents: 28990, inStock: true },
+          { id: 'outra', values: {}, priceCents: 28990, inStock: false },
+        ],
+      })!;
+      expect(p.variants.map((v) => v.maxQty)).toEqual([10, 0]);
+      expect(p.photos).toEqual([]);
+      expect(p.customization).toBeNull();
+      expect(storeConfigFromDoc({}).delivery).toEqual({ freeAboveCents: null, modes: [] });
     });
 
     it('descarta doc sem nome ou sem preço', () => {

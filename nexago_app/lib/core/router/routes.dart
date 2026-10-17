@@ -215,7 +215,8 @@ abstract final class AppRoutes {
   /// Busca da Loja em tela cheia (devolve o termo para a vitrine).
   static const String storeSearch = '/loja/busca';
 
-  /// Página do produto (tela 02 — por enquanto, "chega na próxima etapa").
+  /// Página do produto (tela 02). Deep link `nexago://loja/produto/:id` ou
+  /// `nexago://loja/p/:id`; aceita `?origem=` (analytics).
   static const String storeProduct = '/loja/produto/:productId';
 
   /// Carrinho (por enquanto, "chega na próxima etapa").

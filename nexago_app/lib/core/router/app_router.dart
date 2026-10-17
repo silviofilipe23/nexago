@@ -149,6 +149,7 @@ import '../../features/athlete/presentation/athlete_referral_page.dart';
 import '../../features/cashback/presentation/cashback_page.dart';
 import '../../features/store/presentation/store_coming_soon_page.dart';
 import '../../features/store/presentation/store_page.dart';
+import '../../features/store/presentation/store_product_page.dart';
 import '../../features/store/presentation/store_search_page.dart';
 import '../../features/athlete/presentation/athlete_active_sessions_page.dart';
 import '../../features/athlete/presentation/athlete_change_password_page.dart';
@@ -1018,13 +1019,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           initialQuery: state.uri.queryParameters['q'] ?? '',
         ),
       ),
-      // Página do produto (02) e carrinho ainda não existem: a mesma tela de
-      // "chega na próxima etapa" atende os dois destinos.
+      // Página do produto (tela 02). `?origem=` alimenta o
+      // `loja_produto_view` (deep link chega sem: vai como `link`).
       GoRoute(
         path: AppRoutes.storeProduct,
         name: AppRouteNames.storeProduct,
-        builder: (context, state) => const StoreComingSoonPage(),
+        builder: (context, state) => StoreProductPage(
+          productId: state.pathParameters['productId'] ?? '',
+          origin: state.uri.queryParameters['origem'],
+        ),
       ),
+      // Carrinho ainda não existe: tela de "chega na próxima etapa".
       GoRoute(
         path: AppRoutes.storeCart,
         name: AppRouteNames.storeCart,

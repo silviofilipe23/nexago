@@ -37,10 +37,12 @@ String? resolveAppDeepLinkPath(Uri uri) {
   }
 
   // Loja: só pelo esquema do app (`nexago://loja`). O `/loja` HTTPS é do
-  // portal e segue abrindo no navegador. Subcaminho desconhecido cai na
+  // portal e segue abrindo no navegador. Produto: `produto/:id` ou `p/:id`
+  // (o caminho curto do link do portal). Subcaminho desconhecido cai na
   // vitrine em vez da tela de erro do router.
   if (segments.first == 'loja' && uri.scheme == 'nexago') {
-    if (segments.length >= 3 && segments[1] == 'produto') {
+    if (segments.length >= 3 &&
+        (segments[1] == 'produto' || segments[1] == 'p')) {
       return '/loja/produto/${Uri.encodeComponent(segments[2])}';
     }
     if (segments.length >= 2 && segments[1] == 'carrinho') {

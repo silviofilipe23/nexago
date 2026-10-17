@@ -1,0 +1,364 @@
+<app-at-panel-shell [userName]="accountLabel()" [guest]="guest()">
+  <header class="lj-header">
+    <div class="lp-heading">
+      <nav class="lp-crumbs" aria-label="Você está em">
+        <a routerLink="/loja">Loja</a>
+        @if (product(); as p) {
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+          <a routerLink="/loja" [queryParams]="{ categoria: p.category }">{{ categoryName(p.category) }}</a>
+        }
+      </nav>
+      <h1 class="lp-title">{{ product()?.name ?? 'Loja NexaGO' }}</h1>
+    </div>
+
+    <form class="lj-search" role="search" (submit)="search($event, searchInput.value)">
+      <svg class="lj-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+      <input #searchInput type="search" class="lj-search-input" placeholder="Buscar bola, viseira, rede…" aria-label="Buscar na loja" autocomplete="off" enterkeyhint="search" />
+    </form>
+
+    <div class="lj-header-actions">
+      <a class="lj-icon-btn" routerLink="/loja/favoritos" aria-label="Favoritos">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z" /></svg>
+      </a>
+      <a class="lj-cart-btn" routerLink="/loja/carrinho" [class.lp-pulse]="cartPulse()" [attr.aria-label]="store.cartUnits() > 0 ? 'Carrinho, ' + store.cartUnits() + ' itens' : 'Carrinho'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h8.7a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2" /><circle cx="9.5" cy="20" r="1.2" /><circle cx="17.5" cy="20" r="1.2" /></svg>
+        <span>Carrinho</span>
+        @if (store.cartUnits() > 0) {
+          <span class="lj-cart-count">{{ store.cartUnits() }}</span>
+        }
+      </a>
+    </div>
+  </header>
+
+  <div class="lp-body">
+    @if (store.error(); as err) {
+      <section class="lp-state" role="alert">
+        <h2>Não deu pra carregar o produto</h2>
+        <p>Confira a conexão e tente de novo.</p>
+        <button type="button" class="lp-state-btn" (click)="store.retry()">Tentar de novo</button>
+        <small class="lp-state-detail">{{ err }}</small>
+      </section>
+    } @else if (store.loading()) {
+      <p class="lp-visually-hidden" role="status">Carregando o produto…</p>
+      <div class="lp-top lp-skeleton" aria-hidden="true">
+        <div class="lp-skeleton-gallery">
+          <div class="lp-skeleton-thumbs">
+            @for (i of skeletonThumbs; track i) {
+              <app-nx-skeleton [w]="84" [h]="84" [r]="14" />
+            }
+          </div>
+          <app-nx-skeleton class="lp-skeleton-main" h="100%" [r]="24" />
+        </div>
+        <div class="lp-skeleton-info">
+          <app-nx-skeleton [w]="140" [h]="22" [r]="999" />
+          <app-nx-skeleton w="85%" [h]="40" [r]="10" />
+          <app-nx-skeleton [w]="180" [h]="34" [r]="10" />
+          <app-nx-skeleton [w]="220" [h]="16" />
+          <app-nx-skeleton w="100%" [h]="1" [r]="0" />
+          <app-nx-skeleton [w]="160" [h]="44" [r]="999" />
+          <app-nx-skeleton w="80%" [h]="46" [r]="12" />
+          <app-nx-skeleton w="100%" [h]="54" [r]="14" />
+        </div>
+      </div>
+    } @else if (product(); as p) {
+      <section class="lp-top">
+        <app-loja-produto-gallery
+          class="lp-gallery"
+          [photos]="photos()"
+          [name]="p.name"
+          [placeholder]="categoryName(p.category)"
+          [tone]="placeholderTone()"
+          (photoChanged)="photoSwiped($event)"
+        />
+
+        <div class="lp-info">
+          @if (badge() || collection()) {
+            <div class="lp-tags">
+              @if (badge(); as b) {
+                <span class="lp-badge" [class.lp-badge--dark]="b.tone === 'dark'">{{ b.label }}</span>
+              }
+              @if (collection(); as c) {
+                <span class="lp-collection">{{ c }}</span>
+              }
+            </div>
+          }
+
+          <h2 class="lp-name">{{ p.name }}</h2>
+
+          @if (rating(); as r) {
+            <div class="lp-rating">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z" /></svg>
+              <strong>{{ r.avg }}</strong>
+              <span>· {{ r.count }} avaliações</span>
+            </div>
+          }
+
+          @if (price(); as pr) {
+            <div class="lp-prices">
+              <div class="lp-price-row">
+                @if (pr.from) {
+                  <span class="lp-from">a partir de</span>
+                }
+                <span class="lp-price">{{ money(pr.cents) }}</span>
+                @if (pr.strikeCents; as strike) {
+                  <s class="lp-strike">{{ money(strike) }}</s>
+                }
+              </div>
+              @if (pixLabel(); as pix) {
+                <div class="lp-pix"><strong>{{ pix }}</strong> no Pix</div>
+              }
+              @if (p.customization?.fromCents; as custom) {
+                <div class="lp-custom-price">+ personalização a partir de {{ money(custom) }}</div>
+              }
+            </div>
+          }
+
+          <hr class="lp-divider" />
+
+          @for (axis of p.axes; track axis.id; let i = $index) {
+            <div class="lp-axis" [class.lp-shake]="shaking() === axis.id">
+              <div class="lp-axis-head">
+                <span class="lp-eyebrow" [id]="'lp-axis-' + axis.id">
+                  {{ axis.label }}
+                  @if (isColor(axis) && selectedLabel(axis); as label) {
+                    · {{ label }}
+                  }
+                </span>
+              </div>
+
+              @if (isColor(axis)) {
+                <div class="lp-swatches" role="radiogroup" [attr.aria-labelledby]="'lp-axis-' + axis.id">
+                  @for (v of axis.values; track v.id) {
+                    <button
+                      type="button"
+                      role="radio"
+                      class="lp-swatch"
+                      [class.lp-swatch--on]="selected()[axis.id] === v.id"
+                      [class.lp-swatch--out]="!available(i, v.id)"
+                      [style.--lp-swatch]="v.hex ?? '#3f3f46'"
+                      [attr.aria-checked]="selected()[axis.id] === v.id"
+                      [attr.aria-label]="available(i, v.id) ? v.label : v.label + ', esgotada'"
+                      [title]="v.label"
+                      (click)="pick(axis, i, v.id)"
+                    ></button>
+                  }
+                </div>
+              } @else {
+                <div class="lp-sizes" role="radiogroup" [attr.aria-labelledby]="'lp-axis-' + axis.id">
+                  @for (v of axis.values; track v.id) {
+                    <button
+                      type="button"
+                      role="radio"
+                      class="lp-size"
+                      [class.lp-size--on]="selected()[axis.id] === v.id"
+                      [class.lp-size--out]="!available(i, v.id)"
+                      [attr.aria-checked]="selected()[axis.id] === v.id"
+                      [attr.aria-label]="available(i, v.id) ? v.label : v.label + ', esgotado — avise-me'"
+                      (click)="pick(axis, i, v.id)"
+                    >
+                      {{ v.label }}
+                    </button>
+                  }
+                </div>
+              }
+
+              @if (attention() === axis.id) {
+                <p class="lp-attention" role="alert">{{ chooseMessage(axis) }}</p>
+              }
+            </div>
+          }
+
+          @if (lowStock(); as caption) {
+            <p class="lp-low">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.4 1.3-3.9 2.5-5 .3 1.6 1.2 2.6 2.5 3-.6-3 0-5.5 0-8z" /></svg>
+              {{ caption }}
+            </p>
+          }
+
+          @if (p.customizable) {
+            <div class="lp-custom">
+              <span class="lp-custom-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m4 20 4-1 11-11a2.1 2.1 0 0 0-3-3L5 16z" /><path d="m14 7 3 3" /></svg>
+              </span>
+              <span class="lp-custom-text">
+                <strong>Personalize</strong>
+                <small>Nome, número ou imagem na peça</small>
+              </span>
+              <button type="button" class="lp-custom-btn" (click)="personalize()">Personalizar</button>
+              @if (p.customization; as c) {
+                <p class="lp-custom-note">
+                  Feito sob demanda · pronto em {{ c.leadDays }} {{ c.leadDays === 1 ? 'dia útil' : 'dias úteis' }}{{ c.defectOnlyReturns ? ' · troca só por defeito' : '' }}
+                </p>
+              }
+            </div>
+          }
+
+          <div class="lp-buy">
+            @if (p.soldOut) {
+              <button type="button" class="lp-notify" (click)="notifyMe(null)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>
+                Avise-me quando chegar
+              </button>
+            } @else {
+              <div class="lp-qty" role="group" aria-label="Quantidade">
+                <button type="button" class="lp-qty-btn" aria-label="Menos uma" [disabled]="qty() <= 1" (click)="stepQty(-1)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+                </button>
+                <output class="lp-qty-value" aria-live="polite">{{ qty() }}</output>
+                <button type="button" class="lp-qty-btn" aria-label="Mais uma" [disabled]="qty() >= maxQty()" (click)="stepQty(1)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                </button>
+              </div>
+              <button type="button" class="lp-add" [class.lp-add--done]="added()" [attr.aria-busy]="adding()" (click)="addToCart()">
+                @if (added()) {
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg>
+                  Adicionado
+                } @else {
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l-1 13H7z" /><path d="M9 7a3 3 0 0 1 6 0" /></svg>
+                  <span>Adicionar<span class="lp-add-long"> ao carrinho</span></span>
+                }
+              </button>
+            }
+            <button
+              type="button"
+              class="lp-fav"
+              [class.lp-fav--on]="store.isFavorite(p.id)"
+              [attr.aria-pressed]="store.isFavorite(p.id)"
+              [attr.aria-label]="store.isFavorite(p.id) ? 'Tirar dos favoritos' : 'Favoritar'"
+              (click)="toggleFavorite()"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" [attr.fill]="store.isFavorite(p.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z" /></svg>
+            </button>
+          </div>
+
+          @if (receiveOptions().length > 0) {
+            <div class="lp-receive">
+              <div class="lp-axis-head">
+                <span class="lp-eyebrow" id="lp-receive-label">Como receber</span>
+                @if (arenaChoices().length > 1) {
+                  <div class="lp-arena" #arenaBox (focusout)="onArenaFocusOut($event, arenaBox)">
+                    <button type="button" class="lp-link" aria-haspopup="listbox" [attr.aria-expanded]="arenaMenuOpen()" (click)="arenaMenuOpen.set(!arenaMenuOpen())">
+                      {{ pickupArena() ? 'Trocar arena' : 'Escolher arena' }}
+                    </button>
+                    @if (arenaMenuOpen()) {
+                      <div class="lp-arena-menu" role="listbox" aria-label="Arena de retirada">
+                        @for (a of arenaChoices(); track a.arenaId) {
+                          <button type="button" role="option" class="lp-arena-option" [class.lp-arena-option--on]="a.arenaId === pickupArena()?.arenaId" [attr.aria-selected]="a.arenaId === pickupArena()?.arenaId" (click)="chooseArena(a.arenaId)">
+                            <strong>{{ a.name }}</strong>
+                            @if (a.city) {
+                              <small>{{ a.city }}{{ a.state ? ' · ' + a.state : '' }}</small>
+                            }
+                          </button>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+              <div class="lp-receive-list" role="radiogroup" aria-labelledby="lp-receive-label">
+                @for (opt of receiveOptions(); track opt.id) {
+                  <label class="lp-receive-opt" [class.lp-receive-opt--on]="receiveChoice() === opt.id">
+                    <input type="radio" class="lp-receive-input" name="lp-receive" [value]="opt.id" [checked]="receiveChoice() === opt.id" (change)="chooseReceive(opt)" />
+                    <span class="lp-radio" aria-hidden="true"></span>
+                    <span class="lp-receive-icon" aria-hidden="true">
+                      @if (opt.kind === 'retirada') {
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.1-7-11.5a7 7 0 0 1 14 0C19 14.9 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></svg>
+                      } @else {
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h11v10H3z" /><path d="M14 9h4l3 3v4h-7" /><circle cx="7" cy="17.5" r="1.8" /><circle cx="17" cy="17.5" r="1.8" /></svg>
+                      }
+                    </span>
+                    <span class="lp-receive-text">
+                      <strong>{{ opt.title }}</strong>
+                      <small>{{ opt.subtitle }}</small>
+                    </span>
+                    <span class="lp-receive-price" [class.lp-receive-price--free]="opt.free">{{ opt.priceLabel }}</span>
+                  </label>
+                }
+              </div>
+              @if (freeShippingHint(); as hint) {
+                <p class="lp-hint">{{ hint }}</p>
+              }
+            </div>
+          }
+        </div>
+      </section>
+
+      @if (p.details.length > 0 || p.description || related().length > 0) {
+        <section class="lp-bottom">
+          @if (p.details.length > 0 || p.description) {
+            <div class="lp-details">
+              <h3 class="lp-section-title">Detalhes</h3>
+              @if (p.details.length > 0) {
+                <dl class="lp-detail-grid">
+                  @for (d of p.details; track $index) {
+                    <div class="lp-detail">
+                      <dt>{{ d.label }}</dt>
+                      <dd>{{ d.value }}</dd>
+                    </div>
+                  }
+                </dl>
+              }
+              @if (p.description) {
+                <p class="lp-description">{{ p.description }}</p>
+              }
+            </div>
+          }
+          @if (related().length > 0) {
+            <div class="lp-related">
+              <h3 class="lp-section-title">Combina com</h3>
+              <div class="lp-related-grid">
+                @for (r of related(); track r.id) {
+                  <a class="lp-mini" [routerLink]="['/loja/p', r.slug || r.id]" [state]="{ origem: 'relacionado' }" (click)="relatedClicked(r)">
+                    <span class="lp-mini-media">
+                      @if (r.coverUrl; as cover) {
+                        <img [src]="cover" [alt]="r.name" loading="lazy" decoding="async" />
+                      } @else {
+                        <span class="lp-mini-placeholder" aria-hidden="true">{{ categoryName(r.category) }}</span>
+                      }
+                    </span>
+                    <span class="lp-mini-info">
+                      <span class="lp-mini-name" [title]="r.name">{{ r.name }}</span>
+                      <span class="lp-mini-price">{{ cardPrice(r) }}</span>
+                    </span>
+                  </a>
+                }
+              </div>
+            </div>
+          }
+        </section>
+      }
+    } @else {
+      <section class="lp-state">
+        <span class="lp-kicker">Loja NexaGO</span>
+        <h2>Esse produto não está mais disponível</h2>
+        <p>Ele saiu da vitrine ou o link mudou. Veja o que está saindo mais:</p>
+        <a class="lp-state-btn" routerLink="/loja">Voltar para a vitrine</a>
+      </section>
+      @if (fallbackProducts().length > 0) {
+        <div class="lp-fallback-grid">
+          @for (fp of fallbackProducts(); track fp.id) {
+            <app-loja-product-card
+              [product]="fp"
+              [categoryLabel]="categoryName(fp.category)"
+              [pixDiscountPct]="store.config().benefits.pixDiscountPct"
+              [favorite]="store.isFavorite(fp.id)"
+              [now]="now"
+              (favoriteToggled)="store.signedIn() ? store.toggleFavorite(fp.id) : goToLogin()"
+            />
+          }
+        </div>
+      }
+    }
+  </div>
+
+  @if (miniCartOpen()) {
+    <app-loja-mini-cart
+      [lines]="miniCartLines()"
+      [subtotalCents]="miniCartSubtotal()"
+      (closed)="miniCartOpen.set(false)"
+      (mouseenter)="holdMiniCart()"
+      (focusin)="holdMiniCart()"
+      (mouseleave)="scheduleMiniCartClose(2000)"
+    />
+  }
+</app-at-panel-shell>

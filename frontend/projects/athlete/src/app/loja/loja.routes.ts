@@ -2,8 +2,8 @@ import { type Routes } from '@angular/router';
 import { authGuard } from '../auth/auth.guard';
 
 /**
- * Loja do atleta. A vitrine é aberta a visitante deslogado (spec); carrinho e favoritos são
- * do atleta e pedem login. Produto, carrinho e favoritos ainda são o destino provisório.
+ * Loja do atleta. Vitrine e produto são abertos a visitante deslogado (spec); carrinho e
+ * favoritos são do atleta e pedem login. Carrinho e favoritos ainda são o destino provisório.
  */
 export const LOJA_ROUTES: Routes = [
   {
@@ -11,9 +11,13 @@ export const LOJA_ROUTES: Routes = [
     loadComponent: () => import('./loja-vitrine.component').then((m) => m.LojaVitrineComponent),
   },
   {
+    path: 'p/:slug',
+    loadComponent: () => import('./loja-produto.component').then((m) => m.LojaProdutoComponent),
+  },
+  // Link antigo da vitrine (por id) — segue valendo para quem guardou ou compartilhou.
+  {
     path: 'produto/:id',
-    data: { title: 'Página do produto' },
-    loadComponent: () => import('./loja-em-breve.component').then((m) => m.LojaEmBreveComponent),
+    loadComponent: () => import('./loja-produto.component').then((m) => m.LojaProdutoComponent),
   },
   {
     path: 'carrinho',

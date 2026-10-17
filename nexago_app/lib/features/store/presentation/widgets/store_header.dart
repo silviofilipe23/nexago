@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -75,7 +77,8 @@ class StoreHeader extends StatelessWidget {
   }
 }
 
-/// Botão redondo de 44 com fundo de superfície translúcida.
+/// Botão redondo de 44 com fundo de superfície translúcida. [glass]: escuro
+/// translúcido com desfoque, para flutuar sobre a foto (página do produto).
 class StoreRoundButton extends StatelessWidget {
   const StoreRoundButton({
     super.key,
@@ -83,30 +86,48 @@ class StoreRoundButton extends StatelessWidget {
     required this.tooltip,
     required this.onTap,
     this.iconSize = 20,
+    this.glass = false,
+    this.iconColor,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
   final double iconSize;
+  final bool glass;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: StoreStyle.surface(colors),
-        shape: const CircleBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: SizedBox.square(
-            dimension: StoreStyle.headerButton,
-            child: Icon(icon, size: iconSize, color: colors.onSurface),
+    final button = Material(
+      color: glass
+          ? AppColors.black.withValues(alpha: 0.38)
+          : StoreStyle.surface(colors),
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox.square(
+          dimension: StoreStyle.headerButton,
+          child: Icon(
+            icon,
+            size: iconSize,
+            color: iconColor ?? (glass ? AppColors.white : colors.onSurface),
           ),
         ),
       ),
+    );
+    return Tooltip(
+      message: tooltip,
+      child: glass
+          ? ClipOval(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: button,
+              ),
+            )
+          : button,
     );
   }
 }
@@ -118,11 +139,15 @@ class StoreBagButton extends StatefulWidget {
     required this.units,
     required this.pulseTick,
     required this.onTap,
+    this.glass = false,
   });
 
   final int units;
   final int pulseTick;
   final VoidCallback onTap;
+
+  /// Sobre a foto (ver [StoreRoundButton.glass]).
+  final bool glass;
 
   @override
   State<StoreBagButton> createState() => _StoreBagButtonState();
@@ -172,6 +197,7 @@ class _StoreBagButtonState extends State<StoreBagButton>
             icon: Icons.shopping_bag_outlined,
             tooltip: StoreCopy.cartTooltip(units),
             onTap: widget.onTap,
+            glass: widget.glass,
           ),
           if (units > 0)
             Positioned(

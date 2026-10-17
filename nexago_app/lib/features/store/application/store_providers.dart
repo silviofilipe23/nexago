@@ -5,6 +5,7 @@ import '../../../core/location/user_location_providers.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../domain/store_models.dart';
 import '../domain/store_pickup.dart';
+import '../domain/store_product_rules.dart';
 import '../domain/store_rules.dart';
 import '../infrastructure/firestore_store_repository.dart';
 
@@ -36,6 +37,60 @@ final storeCatalogProvider = StreamProvider.autoDispose<StoreCatalog>((ref) {
 final storeShowcaseConfigProvider =
     StreamProvider.autoDispose<StoreShowcaseConfig>((ref) {
   return ref.watch(storeRepositoryProvider).watchShowcaseConfig();
+});
+
+enum StoreProductStatus { loading, error, notFound, found }
+
+/// Página do produto (tela 02) lida do catálogo que a vitrine já escuta —
+/// nada de consulta nova. [products] alimenta "Combina com" e os mais
+/// vendidos do "não está mais disponível".
+class StoreProductLookup {
+  const StoreProductLookup._(
+    this.status, {
+    this.product,
+    this.products = const [],
+    this.fromCache = false,
+  });
+
+  static const StoreProductLookup loading =
+      StoreProductLookup._(StoreProductStatus.loading);
+  static const StoreProductLookup error =
+      StoreProductLookup._(StoreProductStatus.error);
+
+  final StoreProductStatus status;
+  final StoreProduct? product;
+  final List<StoreProduct> products;
+
+  /// Catálogo do cache (offline): a página abre, mas o "Adicionar" não.
+  final bool fromCache;
+}
+
+/// Produto por id (ou slug, o link do portal), derivado de
+/// [storeCatalogProvider]. Cache vazio ainda não é "não encontrado": é o
+/// servidor que não respondeu.
+final storeProductProvider =
+    Provider.autoDispose.family<StoreProductLookup, String>((ref, idOrSlug) {
+  final async = ref.watch(storeCatalogProvider);
+  final catalog = async.valueOrNull;
+  if (catalog == null) {
+    return async.hasError
+        ? StoreProductLookup.error
+        : StoreProductLookup.loading;
+  }
+  final product = findStoreProduct(catalog.products, idOrSlug);
+  if (product == null) {
+    if (catalog.fromCache) return StoreProductLookup.loading;
+    return StoreProductLookup._(
+      StoreProductStatus.notFound,
+      products: catalog.products,
+    );
+  }
+  return StoreProductLookup._(
+    StoreProductStatus.found,
+    product: product,
+    products: catalog.products,
+    fromCache: catalog.fromCache,
+  );
 });
 
 final storeShopperProvider = StreamProvider.autoDispose<StoreShopper>((ref) {
@@ -109,16 +164,30 @@ class StoreActions {
   String get _uid => _ref.read(storeUidProvider);
 
   /// `false` = carrinho cheio. Sem sessão lança (a tela já exige login).
+  /// [maxQty] = saldo exposto do SKU (página do produto): a linha não passa
+  /// dele.
   Future<bool> addToCart({
     required String productId,
     required String skuId,
     int qty = 1,
+    int? maxQty,
   }) {
     final uid = _uid;
     if (uid.isEmpty) throw StateError('Entre na sua conta pra usar a Loja.');
-    return _ref
-        .read(storeRepositoryProvider)
-        .addToCart(uid, productId: productId, skuId: skuId, qty: qty);
+    return _ref.read(storeRepositoryProvider).addToCart(
+          uid,
+          productId: productId,
+          skuId: skuId,
+          qty: qty,
+          maxQty: maxQty,
+        );
+  }
+
+  /// Liga/desliga o favorito. Sem sessão lança (a tela já exige login).
+  Future<void> toggleFavorite(String productId, {required bool on}) {
+    final uid = _uid;
+    if (uid.isEmpty) throw StateError('Entre na sua conta pra usar a Loja.');
+    return _ref.read(storeRepositoryProvider).setFavorite(uid, productId, on);
   }
 
   Future<void> choosePickupArena(String arenaId) async {

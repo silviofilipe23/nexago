@@ -71,6 +71,36 @@ void main() {
 
     test('drops blank text', () {
       expect(storeEventParams(term: '  ', arenaId: ''), isEmpty);
+      expect(storeEventParams(origin: '', color: ' ', sku: ''), isEmpty);
+    });
+  });
+
+  group('storeEventParams (Loja · produto)', () {
+    test('event names match the web portal', () {
+      expect(AnalyticsEvents.storeProductView, 'loja_produto_view');
+      expect(AnalyticsEvents.storePhotoSwipe, 'loja_foto_swipe');
+      expect(AnalyticsEvents.storeVariantSelect, 'loja_variacao_select');
+      expect(AnalyticsEvents.storeNotifyMe, 'loja_avise_me');
+      expect(AnalyticsEvents.storeAddToCart, 'loja_add_carrinho');
+      expect(AnalyticsEvents.storeDeliverySelect, 'loja_entrega_select');
+      expect(AnalyticsEvents.storeCustomizeOpen, 'loja_personalizar_open');
+      expect(AnalyticsEvents.storeRelatedClick, 'loja_relacionado_click');
+    });
+
+    test('uses the contract param names', () {
+      expect(
+        storeEventParams(productId: 'cam', origin: 'vitrine'),
+        {'produto_id': 'cam', 'origem': 'vitrine'},
+      );
+      expect(
+        storeEventParams(color: 'branco', size: 'm'),
+        {'cor': 'branco', 'tamanho': 'm'},
+      );
+      expect(
+        storeEventParams(sku: 'branco_m', qty: 2, priceCents: 12990),
+        {'sku': 'branco_m', 'qtd': 2, 'preco': 12990},
+      );
+      expect(storeEventParams(type: 'retirada'), {'tipo': 'retirada'});
     });
   });
 }

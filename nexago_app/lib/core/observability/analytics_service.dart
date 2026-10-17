@@ -147,6 +147,66 @@ class AnalyticsService {
         name: AnalyticsEvents.storePickupArenaChange,
         parameters: storeEventParams(arenaId: arenaId),
       );
+
+  // --- Loja · produto (tela 02) ---
+
+  /// [origin]: `vitrine`, `busca`, `relacionado`, `indisponivel` ou `link`
+  /// (deep link / rota sem origem).
+  Future<void> logStoreProductView({
+    required String productId,
+    required String origin,
+  }) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeProductView,
+        parameters: storeEventParams(productId: productId, origin: origin),
+      );
+
+  Future<void> logStorePhotoSwipe() =>
+      _analytics.logEvent(name: AnalyticsEvents.storePhotoSwipe);
+
+  /// Ids dos valores escolhidos: [color] do eixo de cor, [size] do último
+  /// eixo de botões (tamanho, modelo…).
+  Future<void> logStoreVariantSelect({String? color, String? size}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeVariantSelect,
+        parameters: storeEventParams(color: color, size: size),
+      );
+
+  Future<void> logStoreNotifyMe({String? sku}) => _analytics.logEvent(
+        name: AnalyticsEvents.storeNotifyMe,
+        parameters: storeEventParams(sku: sku),
+      );
+
+  /// [priceCents] = preço unitário do SKU, em centavos.
+  Future<void> logStoreAddToCart({
+    required String sku,
+    required int qty,
+    required int priceCents,
+  }) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeAddToCart,
+        parameters: storeEventParams(
+          sku: sku,
+          qty: qty,
+          priceCents: priceCents,
+        ),
+      );
+
+  /// [type]: `retirada` ou o id da modalidade de entrega.
+  Future<void> logStoreDeliverySelect({required String type}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeDeliverySelect,
+        parameters: storeEventParams(type: type),
+      );
+
+  Future<void> logStoreCustomizeOpen() =>
+      _analytics.logEvent(name: AnalyticsEvents.storeCustomizeOpen);
+
+  Future<void> logStoreRelatedClick({required String productId}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeRelatedClick,
+        parameters: storeEventParams(productId: productId),
+      );
 }
 
 final analyticsServiceProvider = Provider<AnalyticsService>(

@@ -28,11 +28,22 @@ abstract final class AnalyticsEvents {
   static const storeQuickAdd = 'loja_add_rapido';
   static const storeFavorite = 'loja_favoritar';
   static const storePickupArenaChange = 'loja_arena_trocar';
+
+  // Loja · produto (tela 02, `docs/business-rules/loja-produto.md`).
+  static const storeProductView = 'loja_produto_view';
+  static const storePhotoSwipe = 'loja_foto_swipe';
+  static const storeVariantSelect = 'loja_variacao_select';
+  static const storeNotifyMe = 'loja_avise_me';
+  static const storeAddToCart = 'loja_add_carrinho';
+  static const storeDeliverySelect = 'loja_entrega_select';
+  static const storeCustomizeOpen = 'loja_personalizar_open';
+  static const storeRelatedClick = 'loja_relacionado_click';
 }
 
 /// Parâmetros dos eventos da Loja, com os nomes do portal (`campanha_id`,
 /// `categoria`, `termo`, `resultados`, `produto_id`, `posicao`, `on`,
-/// `arena_id`). Texto vazio é descartado; booleano vira 1/0 (o
+/// `arena_id`; na página do produto, `origem`, `cor`, `tamanho`, `sku`,
+/// `qtd`, `preco` e `tipo`). Texto vazio é descartado; booleano vira 1/0 (o
 /// FirebaseAnalytics só aceita texto e número).
 Map<String, Object> storeEventParams({
   String? campaignId,
@@ -43,6 +54,13 @@ Map<String, Object> storeEventParams({
   int? position,
   bool? on,
   String? arenaId,
+  String? origin,
+  String? color,
+  String? size,
+  String? sku,
+  int? qty,
+  int? priceCents,
+  String? type,
 }) {
   String? clean(String? v) =>
       v != null && v.trim().isNotEmpty ? v.trim() : null;
@@ -55,6 +73,13 @@ Map<String, Object> storeEventParams({
     if (position != null) 'posicao': position,
     if (on != null) 'on': on ? 1 : 0,
     if (clean(arenaId) != null) 'arena_id': clean(arenaId)!,
+    if (clean(origin) != null) 'origem': clean(origin)!,
+    if (clean(color) != null) 'cor': clean(color)!,
+    if (clean(size) != null) 'tamanho': clean(size)!,
+    if (clean(sku) != null) 'sku': clean(sku)!,
+    if (qty != null) 'qtd': qty,
+    if (priceCents != null) 'preco': priceCents,
+    if (clean(type) != null) 'tipo': clean(type)!,
   };
 }
 

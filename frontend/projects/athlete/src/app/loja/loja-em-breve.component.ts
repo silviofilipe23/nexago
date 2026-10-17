@@ -5,7 +5,7 @@ import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 
 /**
  * Destino provisório dos links da vitrine que apontam para telas ainda não construídas
- * (produto, carrinho, favoritos). Some quando cada tela chegar — a rota fica.
+ * (carrinho, favoritos). Some quando cada tela chegar — a rota fica.
  */
 @Component({
   selector: 'app-loja-em-breve',

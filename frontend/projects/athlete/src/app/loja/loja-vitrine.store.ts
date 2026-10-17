@@ -105,6 +105,31 @@ export class LojaVitrineStore {
     }
   }
 
+  /**
+   * Põe no carrinho. Devolve as unidades que entraram (0 = já estava no teto do SKU), `null` com o
+   * carrinho cheio; lança se o servidor recusar. Sem sessão não chama (a tela manda pro login).
+   */
+  async addToCart(item: { productId: string; skuId: string; qty: number; maxQty: number }): Promise<number | null> {
+    const uid = this.auth.user()?.uid;
+    if (!uid || !this.source) throw new Error('Sem sessão.');
+    return this.source.addToCart(uid, item);
+  }
+
+  /** Arena de retirada: na hora na tela, gravada em `storeShoppers` (volta se falhar). */
+  async choosePickupArena(arenaId: string): Promise<void> {
+    const uid = this.auth.user()?.uid;
+    if (!uid || !this.source) return;
+    const previous = this.shopper();
+    this.shopper.update((s) => ({ ...s, pickupArenaId: arenaId }));
+    trackLojaEvent('loja_arena_trocar', { arena_id: arenaId });
+    try {
+      await this.source.setPickupArena(uid, arenaId);
+    } catch {
+      this.shopper.set(previous);
+      this.toast.error('Não deu pra trocar a arena', 'Tente de novo em instantes.');
+    }
+  }
+
   /** Busca recente é conveniência: falhar em gravar não atrapalha a busca. */
   rememberSearch(term: string): void {
     const uid = this.auth.user()?.uid;

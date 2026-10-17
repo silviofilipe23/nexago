@@ -101,9 +101,10 @@ rules: leitura só admin, escrita só pela callable `saveStoreCampaigns` (`funct
 
 ## Fora da tela 01 (por enquanto)
 
-Página do produto (02), carrinho/checkout e Favoritos (07) ainda não existem: os destinos abrem uma
-tela "chega na próxima etapa". O carrinho só guarda intenção — o checkout tem de reler preço, saldo e
-personalização no servidor (`createOrderCore`).
+A página do produto (02) existe — `docs/business-rules/loja-produto.md`; o card da vitrine abre
+`/loja/p/:slug` no web e `/loja/produto/:id` no app. Carrinho/checkout e Favoritos (07) ainda não
+existem: os destinos abrem uma tela "chega na próxima etapa". O carrinho só guarda intenção — o
+checkout tem de reler preço, saldo e personalização no servidor (`createOrderCore`).
 
 ## Analytics
 

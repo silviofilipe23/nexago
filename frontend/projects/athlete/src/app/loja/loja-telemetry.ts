@@ -21,7 +21,18 @@ export type LojaEvent =
   // Personalizar (tela 02b, `docs/business-rules/loja-personalizar.md`).
   | 'loja_personalizar_nome'
   | 'loja_personalizar_imagem'
-  | 'loja_relacionado_click';
+  | 'loja_relacionado_click'
+  // Carrinho, checkout e pedidos (`docs/business-rules/loja-checkout.md`).
+  | 'loja_carrinho_view'
+  | 'loja_carrinho_qtd'
+  | 'loja_carrinho_remover'
+  | 'loja_endereco_salvar'
+  | 'loja_cupom_aplicar'
+  | 'loja_checkout_pagar'
+  | 'loja_pix_copiar'
+  | 'loja_pedido_view'
+  | 'loja_pedidos_view'
+  | 'loja_comprar_de_novo';
 
 /**
  * Ponto único dos eventos da Loja no portal. O portal ainda não tem coletor de analytics

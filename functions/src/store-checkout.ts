@@ -490,6 +490,7 @@ export function buildOrderView(orderId: string, o: Data): Data | null {
     channel: str(o["channel"], 20),
     items: ((o["items"] ?? []) as Data[]).map((i) => ({
       productId: str(i["productId"], 128),
+      skuId: str(i["skuId"], 120),
       name: str(i["productName"], 160),
       variantLabel: str(i["variantLabel"], 120),
       imageUrl: (i["imageUrl"] as string | null) ?? null,

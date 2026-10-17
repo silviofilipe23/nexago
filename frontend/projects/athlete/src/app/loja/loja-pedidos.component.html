@@ -1,0 +1,188 @@
+<app-at-panel-shell [userName]="accountLabel()" [guest]="guest()">
+  <header class="lj-header">
+    <div class="lp-heading">
+      <nav class="lp-crumbs" aria-label="Você está em">
+        <a routerLink="/loja">Loja</a>
+      </nav>
+      <h1 class="lp-title">Meus pedidos</h1>
+    </div>
+    <div class="lj-header-actions">
+      <a class="lj-icon-btn" routerLink="/loja/favoritos" aria-label="Favoritos" title="Favoritos">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z" /></svg>
+      </a>
+      <a class="lj-cart-btn" routerLink="/loja/carrinho" [attr.aria-label]="store.cartUnits() > 0 ? 'Carrinho, ' + store.cartUnits() + ' itens' : 'Carrinho'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h8.7a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2" /><circle cx="9.5" cy="20" r="1.2" /><circle cx="17.5" cy="20" r="1.2" /></svg>
+        <span>Carrinho</span>
+        @if (store.cartUnits() > 0) {
+          <span class="lj-cart-count">{{ store.cartUnits() }}</span>
+        }
+      </a>
+    </div>
+  </header>
+
+  <div class="ps-body">
+    @if (error(); as err) {
+      <section class="lp-state" role="alert">
+        <h2>Não deu pra carregar seus pedidos</h2>
+        <p>Confira a conexão e tente de novo.</p>
+        <small class="lp-state-detail">{{ err }}</small>
+      </section>
+    } @else if (!loaded()) {
+      <p class="lp-visually-hidden" role="status">Carregando os pedidos…</p>
+      <div class="ps-grid" aria-hidden="true">
+        <div class="ps-main">
+          @for (i of skeletons; track i) {
+            <app-nx-skeleton w="100%" [h]="180" [r]="20" />
+          }
+        </div>
+        <app-nx-skeleton w="100%" [h]="260" [r]="24" />
+      </div>
+    } @else if (orders().length === 0) {
+      <section class="lp-state">
+        <span class="lp-kicker">Pedidos</span>
+        <h2>Você ainda não fez pedidos</h2>
+        <p>Quando comprar na Loja, o pedido aparece aqui — com o Pix, o código de retirada e a entrega.</p>
+        <a class="lp-state-btn" routerLink="/loja">Ver a loja</a>
+      </section>
+    } @else {
+      <div class="ps-grid">
+        <div class="ps-main">
+          <div class="ps-toolbar">
+            <div class="ps-filters" role="tablist" aria-label="Filtrar pedidos">
+              @for (f of filters; track f.id) {
+                <button type="button" role="tab" class="ps-filter" [class.ps-filter--on]="filter() === f.id" [attr.aria-selected]="filter() === f.id" (click)="filter.set(f.id)">
+                  {{ f.label }}<span class="ps-filter-n">{{ counts()[f.id] }}</span>
+                </button>
+              }
+            </div>
+            <label class="ps-search">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+              <input type="search" placeholder="Buscar pedido ou produto" aria-label="Buscar pedido ou produto" [value]="search()" (input)="search.set($any($event.target).value)" />
+            </label>
+          </div>
+
+          @if (active().length === 0 && past().length === 0) {
+            <p class="ps-none">Nenhum pedido com esse filtro.</p>
+          }
+          @for (section of sections(); track section.label) {
+            <h2 class="ps-label">{{ section.label }}</h2>
+            @for (c of section.cards; track c.order.id) {
+            <article class="ps-card" [class.ps-card--ready]="c.order.status === 'ret'">
+              <div class="ps-card-head">
+                <span class="ps-number">#{{ c.order.number }}</span>
+                <span class="ps-date">{{ c.date }}</span>
+                @if (c.personalized) {
+                  <span class="ps-tag">Personalizado</span>
+                }
+                <span class="ps-spacer"></span>
+                <app-loja-order-pill [status]="c.order.status" />
+              </div>
+              <div class="ps-card-body">
+                <span class="ps-thumbs" aria-hidden="true">
+                  @for (t of c.thumbs; track $index) {
+                    <span class="ps-thumb">
+                      @if (t) {
+                        <img [src]="t" alt="" loading="lazy" />
+                      }
+                    </span>
+                  }
+                  @if (c.more > 0) {
+                    <span class="ps-thumb ps-thumb--more">+{{ c.more }}</span>
+                  }
+                </span>
+                <div class="ps-card-text">
+                  <strong>{{ c.title }}</strong>
+                  <span class="ps-where">
+                    @if (c.order.delivery.type === 'arena') {
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--nx-orange-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.1-7-11.5a7 7 0 0 1 14 0C19 14.9 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></svg>
+                    } @else {
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h11v10H3z" /><path d="M14 9h4l3 3v4h-7" /><circle cx="7" cy="17.5" r="1.8" /><circle cx="17" cy="17.5" r="1.8" /></svg>
+                    }
+                    {{ c.where }}
+                  </span>
+                </div>
+                <div class="ps-total">
+                  <small>Total</small>
+                  <strong>{{ money(c.order.totalCents) }}</strong>
+                </div>
+              </div>
+              @if (c.progress; as pg) {
+                <app-loja-order-progress [steps]="pg.steps" [step]="pg.step" />
+              }
+              <div class="ps-card-foot">
+                <span class="ps-info" [class.ps-info--ready]="c.order.status === 'ret'">{{ c.info }}</span>
+                <a class="ps-details" [routerLink]="['/loja/pedidos', c.order.id]">Detalhes</a>
+                @switch (c.order.status) {
+                  @case ('pag') {
+                    <a class="ps-btn ps-btn--primary" [routerLink]="['/loja/pedidos', c.order.id]">Pagar Pix</a>
+                  }
+                  @case ('ret') {
+                    <a class="ps-btn ps-btn--primary" [routerLink]="['/loja/pedidos', c.order.id]">Ver código</a>
+                    @if (c.mapsUrl) {
+                      <a class="ps-btn" [href]="c.mapsUrl" target="_blank" rel="noopener">Como chegar</a>
+                    }
+                  }
+                  @case ('tra') {
+                    @if (c.order.delivery.type === 'casa' && c.order.delivery.trackingUrl) {
+                      <a class="ps-btn ps-btn--primary" [href]="c.order.delivery.trackingUrl" target="_blank" rel="noopener">Rastrear</a>
+                    }
+                  }
+                  @case ('ent') {
+                    <button type="button" class="ps-btn" [disabled]="rebuying() !== null" (click)="rebuy(c.order)">Comprar de novo</button>
+                  }
+                  @case ('rtd') {
+                    <button type="button" class="ps-btn" [disabled]="rebuying() !== null" (click)="rebuy(c.order)">Comprar de novo</button>
+                  }
+                  @case ('can') {
+                    <button type="button" class="ps-btn" [disabled]="rebuying() !== null" (click)="rebuy(c.order)">Comprar de novo</button>
+                  }
+                }
+              </div>
+            </article>
+            }
+          }
+        </div>
+
+        <aside class="ps-side">
+          @if (ready(); as r) {
+            <a class="ps-ready" [routerLink]="['/loja/pedidos', r.id]">
+              <span class="ps-ready-kicker">#{{ r.number }} · {{ r.place }}</span>
+              <strong class="ps-ready-title">Pronto pra retirar</strong>
+              <span class="ps-code">
+                <span class="ps-code-label">Código</span>
+                <strong>{{ r.code }}</strong>
+                @if (r.deadline) {
+                  <small>Até {{ r.deadline }}</small>
+                }
+              </span>
+            </a>
+          } @else if (awaitingPix(); as o) {
+            <a class="ps-pix" [routerLink]="['/loja/pedidos', o.id]">
+              <span class="ps-ready-kicker">#{{ o.number }}</span>
+              <strong>Falta pagar o Pix</strong>
+              <small>{{ money(o.totalCents) }} · abrir o QR code</small>
+            </a>
+          }
+          <div class="ps-help">
+            <h2 class="ps-help-title">Precisa de ajuda?</h2>
+            <div class="ps-help-row">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" /></svg>
+              <span>
+                <strong>Trocar ou devolver</strong>
+                <small>Até {{ store.config().benefits.exchangeDays }} dias, na arena da retirada</small>
+              </span>
+            </div>
+            <div class="ps-help-row">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h18v12H3z" /><path d="M16 13h2M3 10h18" /></svg>
+              <span>
+                <strong>Reembolsos</strong>
+                <small>Pedido cancelado depois de pago volta no Pix</small>
+              </span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    }
+  </div>
+
+</app-at-panel-shell>

@@ -35,6 +35,8 @@ export class LojaVitrineStore {
 
   readonly shopper = signal<StoreShopper>(EMPTY_SHOPPER);
   readonly cart = signal<StoreCartItem[]>([]);
+  /** O primeiro snapshot do carrinho chegou (o checkout não mostra "vazio" antes disso). */
+  readonly cartLoaded = signal(false);
   /** Favorito alternado na hora, antes do servidor responder. Sai quando o listener confirma. */
   private readonly favoriteOverrides = signal<ReadonlyMap<string, boolean>>(new Map());
 
@@ -66,6 +68,7 @@ export class LojaVitrineStore {
       this.stop(this.stopShopper);
       this.shopper.set(EMPTY_SHOPPER);
       this.cart.set([]);
+      this.cartLoaded.set(false);
       this.favoriteOverrides.set(new Map());
       if (!uid || !this.source) return;
       this.stopShopper = [
@@ -73,7 +76,10 @@ export class LojaVitrineStore {
           this.shopper.set(s);
           this.favoriteOverrides.set(new Map());
         }),
-        this.source.watchCart(uid, (items) => this.cart.set(items)),
+        this.source.watchCart(uid, (items) => {
+          this.cart.set(items);
+          this.cartLoaded.set(true);
+        }),
       ];
     });
   }

@@ -1,0 +1,272 @@
+// Peças do checkout e dos pedidos (web 03–06): títulos de seção, opção com rádio, linhas do
+// resumo e o botão principal. Incluído com `@use` — cada componente leva a sua cópia.
+
+.ck-h2 {
+  margin: 0 0 14px;
+  font-family: var(--nx-font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--nx-text);
+}
+
+.ck-eyebrow {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.ck-note {
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  color: var(--nx-text-mute);
+}
+
+.ck-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--nx-orange-500);
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &--icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+  }
+}
+
+// ── Opção com rádio (entrega, prazo, pagamento) ───────────────
+.ck-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+
+  &--single {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  @media (max-width: 640px) {
+    &,
+    &--single {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+.ck-opt {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1.5px solid var(--nx-line);
+  border-radius: 14px;
+  cursor: pointer;
+  transition:
+    border-color var(--nx-d-fast) var(--nx-ease-out),
+    background var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+
+  &--on,
+  &--on:hover {
+    border-color: var(--nx-orange-500);
+    background: rgba(255, 106, 26, 0.06);
+  }
+
+  &--compact {
+    gap: 12px;
+    padding: 12px 14px;
+  }
+
+  &--static {
+    cursor: default;
+  }
+
+  &:has(.ck-opt-input:focus-visible) {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+  }
+}
+
+.ck-opt-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ck-radio {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--nx-line-strong);
+  border-radius: 50%;
+
+  .ck-opt--on & {
+    border-color: var(--nx-orange-500);
+    background: radial-gradient(circle, var(--nx-orange-500) 0 4.5px, transparent 5px);
+  }
+}
+
+.ck-opt-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--nx-text-mute);
+
+  .ck-opt--on & {
+    color: var(--nx-orange-500);
+  }
+}
+
+.ck-opt-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  strong {
+    font-family: var(--nx-font-display);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--nx-text);
+  }
+
+  small {
+    font-family: var(--nx-font-ui);
+    font-size: 12.5px;
+    color: var(--nx-text-dim);
+  }
+}
+
+.ck-opt-price {
+  flex: none;
+  font-family: var(--nx-font-display);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--nx-text);
+
+  &--free {
+    color: var(--nx-win);
+  }
+}
+
+.ck-tag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  font-family: var(--nx-font-display);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+// ── Resumo ─────────────────────────────────────────────────────
+.ck-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-family: var(--nx-font-ui);
+  font-size: 13.5px;
+  color: var(--nx-text-mute);
+
+  &--total {
+    align-items: center;
+    font-family: var(--nx-font-display);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--nx-text);
+  }
+}
+
+.ck-row-v {
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  color: var(--nx-text);
+  white-space: nowrap;
+
+  &--win {
+    color: var(--nx-win);
+  }
+}
+
+.ck-total {
+  font-family: var(--nx-font-display);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--nx-text);
+}
+
+.ck-divider {
+  width: 100%;
+  height: 1px;
+  margin: 4px 0;
+  border: 0;
+  background: var(--nx-line);
+}
+
+.ck-pay {
+  width: 100%;
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  box-shadow: var(--nx-glow-orange);
+  font-family: var(--nx-font-display);
+  font-size: 15.5px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover:not(:disabled) {
+    background: var(--nx-orange-400);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  &[aria-busy='true'] {
+    cursor: progress;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+  }
+}

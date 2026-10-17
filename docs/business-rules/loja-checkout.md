@@ -23,7 +23,7 @@ O CEP é preenchido no cliente pelo ViaCEP.
 ### Pedido do atleta — `storeOrderViews/{orderId}` (espelho por gatilho; só o dono lê)
 ```
 uid, orderId, number ('NX-0001'), status, channel,
-items: [{ productId, name, variantLabel, imageUrl, qty, unitCents, totalCents,
+items: [{ productId, skuId, name, variantLabel, imageUrl, qty, unitCents, totalCents,
           personalized, customizationLabel }],
 units, subtotalCents, couponCode, couponDiscountCents, pixDiscountCents, shippingCents, totalCents,
 paymentMethods,

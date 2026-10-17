@@ -185,4 +185,69 @@ void main() {
       );
     });
   });
+
+  // O deep linking nativo do Flutter entrega a URL crua ao go_router (no iOS
+  // com UIScene é o único caminho). Antes, `nexago://loja/produto/x` virava
+  // host `loja` + path `/produto/x` e caía no "Page Not Found".
+  group('externalDeepLinkLocation', () {
+    String? map(String url) =>
+        externalDeepLinkLocation(Uri.parse(url), fallback: '/discover');
+
+    test('esquema próprio vira o caminho interno', () {
+      expect(map('nexago://loja/produto/bola'), '/loja/produto/bola');
+      expect(map('nexago://loja?categoria=bolas'), '/loja?categoria=bolas');
+      expect(map('nexago://torneios/abc/inscricao'), '/torneios/abc/inscricao');
+    });
+
+    test('Universal Link do portal: o mesmo caminho do app_links', () {
+      expect(
+        map('https://atleta.nexago.com.br/convite-dupla/inv1?ref=ana'),
+        '/convite-dupla/inv1?ref=ana',
+      );
+    });
+
+    test('link do app sem destino conhecido cai no fallback', () {
+      expect(map('nexago://nada/por/aqui'), '/discover');
+    });
+
+    test('rota interna e retorno do Mercado Pago passam intactos', () {
+      expect(map('/loja/produto/bola'), isNull);
+      expect(map('https://outro.site.com/torneios/abc'), isNull);
+      expect(map('nexago://mercadopago?mp=ok'), isNull);
+    });
+  });
+
+  group('deepLinkLanding', () {
+    DeepLinkLanding landing({
+      String path = '/loja/produto/bola',
+      bool authLoading = false,
+      bool signedIn = true,
+      bool bootstrapPending = false,
+    }) =>
+        deepLinkLanding(
+          path: path,
+          authLoading: authLoading,
+          signedIn: signedIn,
+          bootstrapPending: bootstrapPending,
+        );
+
+    test('sessão pronta abre direto', () {
+      expect(landing(), DeepLinkLanding.direct);
+    });
+
+    test('cold start: espera no loading (o pós-login consome o destino)', () {
+      expect(landing(authLoading: true, signedIn: false),
+          DeepLinkLanding.afterLoading);
+      expect(landing(bootstrapPending: true), DeepLinkLanding.afterLoading);
+    });
+
+    test('sem sessão vai ao login guardando o destino', () {
+      expect(landing(signedIn: false), DeepLinkLanding.afterLogin);
+    });
+
+    test('convite por link é público mesmo sem sessão', () {
+      expect(landing(path: '/convite/abc', signedIn: false),
+          DeepLinkLanding.direct);
+    });
+  });
 }

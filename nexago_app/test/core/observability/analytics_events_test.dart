@@ -132,4 +132,28 @@ void main() {
       expect(storeEventParams(font: ' ', area: ''), isEmpty);
     });
   });
+
+  group('storeEventParams (Loja · Favoritos)', () {
+    test('event name matches the contract', () {
+      expect(AnalyticsEvents.storeFavoritesView, 'loja_favoritos_view');
+    });
+
+    test('view carries canal + total; add to cart carries origem', () {
+      expect(
+        storeEventParams(channel: 'app', total: 6),
+        {'canal': 'app', 'total': 6},
+      );
+      expect(storeEventParams(total: 0), {'total': 0});
+      expect(
+        storeEventParams(
+          sku: 'unico',
+          qty: 1,
+          priceCents: 28990,
+          origin: 'favoritos',
+        ),
+        {'sku': 'unico', 'qtd': 1, 'preco': 28990, 'origem': 'favoritos'},
+      );
+      expect(storeEventParams(productId: 'mochila'), {'produto_id': 'mochila'});
+    });
+  });
 }

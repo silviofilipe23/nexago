@@ -45,11 +45,7 @@ class StoreProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    final scaler = MediaQuery.textScalerOf(context);
     final badge = storeCardBadge(product, now);
-    final price = displayPriceCents(product);
-    final strike = strikePriceCents(product);
     final pixPct = pixDiscountPct;
 
     return Semantics(
@@ -72,7 +68,7 @@ class StoreProductCard extends StatelessWidget {
                     ),
                     child: Opacity(
                       opacity: product.soldOut ? 0.55 : 1,
-                      child: _Photo(url: product.coverUrl),
+                      child: StoreCardPhoto(url: product.coverUrl),
                     ),
                   ),
                   if (badge != null)
@@ -93,79 +89,14 @@ class StoreProductCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            SizedBox(
-              height: scaler.scale(_nameFontSize) * _nameLineHeight * 2 + 1,
-              child: Text(
-                product.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.soraRegular(
-                  fontSize: _nameFontSize,
-                  fontWeight: FontWeight.w600,
-                  height: _nameLineHeight,
-                  color: colors.onSurface,
-                ),
-              ),
-            ),
+            StoreCardName(name: product.name),
             const SizedBox(height: 4),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text.rich(
-                TextSpan(
-                  children: [
-                    if (priceVaries(product))
-                      TextSpan(
-                        text: StoreCopy.fromPrefix,
-                        style: AppTypography.soraRegular(
-                          fontSize: _pixFontSize,
-                          fontWeight: FontWeight.w500,
-                          color: StoreStyle.secondary(colors),
-                        ),
-                      ),
-                    TextSpan(text: StoreCopy.price(price)),
-                    if (strike != null) ...[
-                      const TextSpan(text: '  '),
-                      TextSpan(
-                        text: StoreCopy.price(strike),
-                        style: AppTypography.soraRegular(
-                          fontSize: _pixFontSize,
-                          fontWeight: FontWeight.w500,
-                          color: StoreStyle.tertiary(colors),
-                        ).copyWith(decoration: TextDecoration.lineThrough),
-                      ),
-                    ],
-                  ],
-                ),
-                maxLines: 1,
-                style: AppTypography.soraRegular(
-                  fontSize: _priceFontSize,
-                  fontWeight: FontWeight.w800,
-                  height: 1.3,
-                  color: colors.onSurface,
-                ),
-              ),
-            ),
+            StoreCardPrice(product: product),
             if (pixPct != null) ...[
               const SizedBox(height: 2),
-              Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: StoreCopy.price(pixPriceCents(price, pixPct)),
-                      style: const TextStyle(color: AppColors.brand),
-                    ),
-                    const TextSpan(text: StoreCopy.pixSuffix),
-                  ],
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.soraRegular(
-                  fontSize: _pixFontSize,
-                  fontWeight: FontWeight.w500,
-                  height: 1.3,
-                  color: StoreStyle.tertiary(colors),
-                ),
+              StoreCardFootnote.pix(
+                priceCents: displayPriceCents(product),
+                discountPct: pixPct,
               ),
             ],
           ],
@@ -175,8 +106,125 @@ class StoreProductCard extends StatelessWidget {
   }
 }
 
-class _Photo extends StatelessWidget {
-  const _Photo({required this.url});
+/// Nome do card em até 2 linhas, na altura fixa da grade.
+class StoreCardName extends StatelessWidget {
+  const StoreCardName({super.key, required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    return SizedBox(
+      height: scaler.scale(_nameFontSize) * _nameLineHeight * 2 + 1,
+      child: Text(
+        name,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: AppTypography.soraRegular(
+          fontSize: _nameFontSize,
+          fontWeight: FontWeight.w600,
+          height: _nameLineHeight,
+          color: context.themeColors.onSurface,
+        ),
+      ),
+    );
+  }
+}
+
+/// Preço do card: o mínimo, com "a partir de" quando varia, e o "de" riscado
+/// quando há.
+class StoreCardPrice extends StatelessWidget {
+  const StoreCardPrice({super.key, required this.product});
+
+  final StoreProduct product;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final strike = strikePriceCents(product);
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Text.rich(
+        TextSpan(
+          children: [
+            if (priceVaries(product))
+              TextSpan(
+                text: StoreCopy.fromPrefix,
+                style: AppTypography.soraRegular(
+                  fontSize: _pixFontSize,
+                  fontWeight: FontWeight.w500,
+                  color: StoreStyle.secondary(colors),
+                ),
+              ),
+            TextSpan(text: StoreCopy.price(displayPriceCents(product))),
+            if (strike != null) ...[
+              const TextSpan(text: '  '),
+              TextSpan(
+                text: StoreCopy.price(strike),
+                style: AppTypography.soraRegular(
+                  fontSize: _pixFontSize,
+                  fontWeight: FontWeight.w500,
+                  color: StoreStyle.tertiary(colors),
+                ).copyWith(decoration: TextDecoration.lineThrough),
+              ),
+            ],
+          ],
+        ),
+        maxLines: 1,
+        style: AppTypography.soraRegular(
+          fontSize: _priceFontSize,
+          fontWeight: FontWeight.w800,
+          height: 1.3,
+          color: colors.onSurface,
+        ),
+      ),
+    );
+  }
+}
+
+/// Linha pequena embaixo do preço ("R$ X no Pix", "Avisaremos quando
+/// voltar"), na altura que [StoreProductCard.extent] reserva.
+class StoreCardFootnote extends StatelessWidget {
+  const StoreCardFootnote({super.key, required this.text});
+
+  /// "R$ X no Pix", com o preço no laranja da marca.
+  StoreCardFootnote.pix({
+    super.key,
+    required int priceCents,
+    required num discountPct,
+  }) : text = TextSpan(
+          children: [
+            TextSpan(
+              text: StoreCopy.price(pixPriceCents(priceCents, discountPct)),
+              style: const TextStyle(color: AppColors.brand),
+            ),
+            const TextSpan(text: StoreCopy.pixSuffix),
+          ],
+        );
+
+  final InlineSpan text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text.rich(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: AppTypography.soraRegular(
+        fontSize: _pixFontSize,
+        fontWeight: FontWeight.w500,
+        height: 1.3,
+        color: StoreStyle.tertiary(context.themeColors),
+      ),
+    );
+  }
+}
+
+/// Capa do card (listrado sem foto ou enquanto carrega).
+class StoreCardPhoto extends StatelessWidget {
+  const StoreCardPhoto({super.key, required this.url});
 
   final String? url;
 

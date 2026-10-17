@@ -22,6 +22,7 @@ import '../domain/store_models.dart';
 import '../domain/store_product_rules.dart';
 import '../domain/store_rules.dart';
 import 'store_copy.dart';
+import 'widgets/store_added_snack_bar.dart';
 import 'widgets/store_header.dart';
 import 'widgets/store_pickup_sheet.dart';
 import 'widgets/store_product_bottom_bar.dart';
@@ -287,22 +288,29 @@ class _StoreProductPageState extends ConsumerState<StoreProductPage> {
     if (_adding) return;
     final variant = _chosenVariant(product, selected);
     if (variant == null) return;
-    final cap = variant.maxQty.clamp(1, kStoreMaxQtyPerItem);
+    final cap = storeVariantCap(variant);
     final cart =
         ref.read(storeCartProvider).valueOrNull ?? const <StoreCartItem>[];
+    switch (storeCartAddBlock(
+      cart,
+      productId: product.id,
+      skuId: variant.id,
+      cap: cap,
+    )) {
+      case StoreCartAddBlock.lineAtMax:
+        showAppSnackBar(context, StoreCopy.cartLineAtMax(cap));
+        return;
+      case StoreCartAddBlock.cartFull:
+        showAppSnackBar(context, StoreCopy.cartFull, isError: true);
+        return;
+      case null:
+        break;
+    }
     final inCart = storeCartQtyOf(
       cart,
       productId: product.id,
       skuId: variant.id,
     );
-    if (inCart >= cap) {
-      showAppSnackBar(context, StoreCopy.cartLineAtMax(cap));
-      return;
-    }
-    if (inCart == 0 && cart.length >= kStoreMaxCartLines) {
-      showAppSnackBar(context, StoreCopy.cartFull, isError: true);
-      return;
-    }
 
     setState(() => _adding = true);
     try {
@@ -339,33 +347,14 @@ class _StoreProductPageState extends ConsumerState<StoreProductPage> {
   }
 
   void _showAddedSnackBar({int? cappedAt}) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    if (messenger == null) return;
-    messenger
-      ..clearSnackBars()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            cappedAt != null
-                ? StoreCopy.cartLineCapped(cappedAt)
-                : StoreCopy.addedToCart,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-          action: SnackBarAction(
-            label: StoreCopy.see,
-            textColor: AppColors.brand,
-            onPressed: _openCart,
-          ),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          shape: const RoundedRectangleBorder(borderRadius: AppRadii.mdAll),
-          backgroundColor: AppColors.black.withValues(alpha: 0.88),
-          duration: const Duration(seconds: 4),
-          // Com ação o SnackBar fica até ser fechado (`persist` padrão) e
-          // ignora o `duration` — seguia até por cima da tela seguinte.
-          persist: false,
-        ),
-      );
+    showStoreAddedSnackBar(
+      context,
+      message: cappedAt != null
+          ? StoreCopy.cartLineCapped(cappedAt)
+          : StoreCopy.addedToCart,
+      actionLabel: StoreCopy.see,
+      onAction: _openCart,
+    );
   }
 
   // ── Como receber ──────────────────────────────────────────────────────

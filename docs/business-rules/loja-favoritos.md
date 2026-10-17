@@ -66,7 +66,7 @@ pra guardar aqui." Botão **Explorar a loja**, que volta à vitrine.
 ### Linha de preço
 Igual ao card da vitrine: preço (o mínimo, com "a partir de" quando varia) e, quando há "de", o "de"
 riscado. App: "R$ X no Pix" quando há desconto Pix; esgotado mostra "Avisaremos quando voltar";
-personalizável mostra "Personalize com seu nome".
+personalizável mostra "Personalize com seu nome" (só imagem ligada: "Personalize com sua imagem").
 
 ## Fora (por enquanto)
 - "Avisar quando baixar de preço" (o toggle do desenho) e o "Avise-me" de verdade: ainda não há

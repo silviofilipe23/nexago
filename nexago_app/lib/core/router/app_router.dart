@@ -149,6 +149,7 @@ import '../../features/athlete/presentation/athlete_referral_page.dart';
 import '../../features/cashback/presentation/cashback_page.dart';
 import '../../features/store/presentation/store_coming_soon_page.dart';
 import '../../features/store/presentation/store_customize_page.dart';
+import '../../features/store/presentation/store_favorites_page.dart';
 import '../../features/store/presentation/store_page.dart';
 import '../../features/store/presentation/store_product_page.dart';
 import '../../features/store/presentation/store_search_page.dart';
@@ -1085,6 +1086,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.storeCart,
         name: AppRouteNames.storeCart,
         builder: (context, state) => const StoreComingSoonPage(),
+      ),
+      // Favoritos (app 09): coração do header da vitrine.
+      GoRoute(
+        path: AppRoutes.storeFavorites,
+        name: AppRouteNames.storeFavorites,
+        builder: (context, state) => const StoreFavoritesPage(),
       ),
       GoRoute(
         path: AppRoutes.athleteSportsLevels,

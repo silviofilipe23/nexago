@@ -100,7 +100,7 @@ describe('PanelEmbaixadoresComponent', () => {
     expect(text(button(host, 'Todos')!)).toBe('Todos 3');
     expect(text(button(host, 'Captain')!)).toBe('Captain 1');
     // Encerrado fica fora do padrão; Marcos (Captain) tem o maior ROI.
-    expect(rows(host).map((r) => text(r.querySelector('.who strong')))).toEqual(['Marcos Reis', 'João Victor', 'Maria Fernanda']);
+    expect(rows(host).map((r) => text(r.querySelector('.who .name')))).toEqual(['Marcos Reis', 'João Victor', 'Maria Fernanda']);
     expect(text(host.querySelector('.foot'))).toContain('Mostrando 3 de 3');
     expect(text(host.querySelector('.foot'))).toContain('Score é interno — o atleta vê só pontos e nível');
   });
@@ -112,6 +112,14 @@ describe('PanelEmbaixadoresComponent', () => {
     expect(text(rows(host)[1]!.querySelector('.score'))).toContain('92');
     // Maria: 1 conversão em 60 dias, ROI < 1,5x → Em risco.
     expect(text(rows(host)[2]!.querySelector('.status'))).toBe('Em risco');
+  });
+
+  it('o nome e "Ver perfil" levam à tela 03 · Perfil', async () => {
+    const host = await mount();
+    expect(rows(host)[0]!.querySelector('.who .name')!.getAttribute('href')).toBe('/painel/squad/embaixadores/marcos');
+    rows(host)[0]!.querySelector<HTMLButtonElement>('.more')!.click();
+    await settle();
+    expect(host.querySelector('.menu a')!.getAttribute('href')).toBe('/painel/squad/embaixadores/marcos');
   });
 
   it('estado vazio oferece o convite', async () => {
@@ -137,7 +145,7 @@ describe('PanelEmbaixadoresComponent', () => {
     const menu = text(host.querySelector('.menu'));
     expect(menu).toContain('Copiar código');
     expect(menu).not.toContain('Pausar');
-    expect(menu).toContain('Em breve');
+    expect(menu).toContain('Ver perfil');
   });
 
   it('pausar chama a callable com motivo e data de retorno', async () => {

@@ -159,7 +159,7 @@
                   </span>
                   <span class="pd-item-text">
                     <strong>{{ i.name }}</strong>
-                    <small>{{ i.variantLabel }}{{ i.customizationLabel ? ' · ' + i.customizationLabel : '' }} · {{ i.qty }}×</small>
+                    <small>{{ itemDetail(i) }}</small>
                   </span>
                   <span class="pd-item-price">{{ money(i.totalCents) }}</span>
                 </li>

@@ -271,9 +271,12 @@
           } @else if (kind() === 'casa' && mode(); as m) {
             <div class="ck-row">
               <span>Frete · {{ m.name }}</span>
-              <span class="ck-row-v" [class.ck-row-v--win]="quote()?.shippingCents === 0">
-                {{ quote() ? (quote()!.shippingCents === 0 ? 'Grátis' : money(quote()!.shippingCents)) : '—' }}
-              </span>
+              <!-- Sem endereço a cotação vem sem frete: mostra o preço do modo até escolher. -->
+              @if (quote() && address()) {
+                <span class="ck-row-v" [class.ck-row-v--win]="quote()!.shippingCents === 0">{{ quote()!.shippingCents === 0 ? 'Grátis' : money(quote()!.shippingCents) }}</span>
+              } @else {
+                <span class="ck-row-v" [class.ck-row-v--win]="modePrice(m).free">{{ modePrice(m).label }}</span>
+              }
             </div>
           }
 

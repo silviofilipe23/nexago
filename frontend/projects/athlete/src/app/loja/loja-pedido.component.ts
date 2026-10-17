@@ -13,6 +13,7 @@ import {
   orderProgress,
   orderWhere,
   pixCountdown,
+  type StoreOrderItem,
   type StoreOrderView,
 } from '../data/store-checkout-model';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
@@ -158,6 +159,11 @@ export class LojaPedidoComponent {
 
   protected money(cents: number): string {
     return formatCentsBRL(cents);
+  }
+
+  /** "Preta · M · ANTUNES · 2×" — sem o ponto solto quando não há variação. */
+  protected itemDetail(i: StoreOrderItem): string {
+    return [i.variantLabel, i.customizationLabel, `${i.qty}×`].filter(Boolean).join(' · ');
   }
 
   protected async copyPix(): Promise<void> {

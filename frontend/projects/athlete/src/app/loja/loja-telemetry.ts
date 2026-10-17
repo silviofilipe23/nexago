@@ -21,6 +21,8 @@ export type LojaEvent =
   // Personalizar (tela 02b, `docs/business-rules/loja-personalizar.md`).
   | 'loja_personalizar_nome'
   | 'loja_personalizar_imagem'
+  // Favoritos (tela 07, `docs/business-rules/loja-favoritos.md`).
+  | 'loja_favoritos_view'
   | 'loja_relacionado_click';
 
 /**

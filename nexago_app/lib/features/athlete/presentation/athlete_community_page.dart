@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/layout/nexa_bottom_nav_bar.dart';
 import '../../../core/layout/nexa_page_header.dart';
+import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
@@ -17,32 +18,66 @@ import '../../tournaments/presentation/widgets/compete_hub/compete_hub_ranking_r
 import '../domain/athlete_shell_providers.dart';
 import 'widgets/community/community_feed_section.dart';
 
-/// Aba Comunidade no padrão do painel do portal web: feed automático primeiro
+/// Comunidade no padrão do painel do portal web: feed automático primeiro
 /// (aberturas de inscrição e campeões), "Ranking em destaque" como card
 /// depois — a posição do atleta vive destacada dentro do próprio card.
+///
+/// É a última aba do shell enquanto a Loja está desligada; com a Loja na barra,
+/// abre como página própria ([standalone], rota `/comunidade`) pelo "Ver todos"
+/// da Home — com "voltar", sem a barra inferior e com rolagem própria (o
+/// controller da aba passa a ser da Loja).
 class AthleteCommunityPage extends ConsumerWidget {
-  const AthleteCommunityPage({super.key});
+  const AthleteCommunityPage({super.key, this.standalone = false});
+
+  final bool standalone;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.themeColors;
     final bottomClearance =
-        nexaBottomNavBarHeight(context) +
+        (standalone ? 0 : nexaBottomNavBarHeight(context)) +
         MediaQuery.viewPaddingOf(context).bottom +
         16;
+    final title = Text(
+      'Comunidade',
+      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.5,
+        color: colors.onSurface,
+      ),
+    );
 
-    return NexaPageHeader(
+    final page = NexaPageHeader(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
       header: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Comunidade',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
-              color: context.themeColors.onSurface,
-            ),
-          ),
+          if (standalone)
+            Row(
+              children: [
+                Material(
+                  color: colors.surfaceRaised,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    onTap: () => popOrGo(context, AppRoutes.discover),
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: Icon(
+                        Icons.chevron_left_rounded,
+                        color: colors.onSurface,
+                        semanticLabel: 'Voltar',
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(child: title),
+              ],
+            )
+          else
+            title,
           const SizedBox(height: 3),
           Text(
             'O QUE ESTÁ ROLANDO NOS ESPORTES DE AREIA',
@@ -53,9 +88,13 @@ class AthleteCommunityPage extends ConsumerWidget {
         ],
       ),
       child: CustomScrollView(
-        controller: ref
-            .watch(athleteShellScrollRegistryProvider)
-            .controllerFor(athleteShellCommunityTabIndex),
+        // Página própria: o controller primário da rota (o 5º do shell é da
+        // Loja nesse caso).
+        controller: standalone
+            ? null
+            : ref
+                .watch(athleteShellScrollRegistryProvider)
+                .controllerFor(athleteShellCommunityTabIndex),
         slivers: [
           SliverPadding(
             padding: EdgeInsets.fromLTRB(
@@ -75,6 +114,8 @@ class AthleteCommunityPage extends ConsumerWidget {
         ],
       ),
     );
+    if (!standalone) return page;
+    return Scaffold(backgroundColor: colors.canvas, body: page);
   }
 }
 

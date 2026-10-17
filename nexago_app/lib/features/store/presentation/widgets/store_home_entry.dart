@@ -16,7 +16,11 @@ import 'store_style.dart';
 /// confirmado (carregando ou com erro = escondido). Já traz o respiro de
 /// baixo da seção, então desligado não deixa vão.
 class StoreHomeEntry extends ConsumerWidget {
-  const StoreHomeEntry({super.key});
+  const StoreHomeEntry({super.key, this.onTap});
+
+  /// Na home do shell a Loja é uma aba: o atalho troca de aba em vez de
+  /// empilhar outra vitrine. Sem callback, abre a rota `/loja`.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -34,7 +38,7 @@ class StoreHomeEntry extends ConsumerWidget {
         borderRadius: AppRadii.lgAll,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () => context.pushNamed(AppRouteNames.store),
+          onTap: onTap ?? () => context.pushNamed(AppRouteNames.store),
           child: Container(
             padding: const EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(

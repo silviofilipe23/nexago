@@ -167,6 +167,7 @@ import '../../features/athlete/presentation/athlete_privacy_security_page.dart';
 import '../../features/athlete/presentation/athlete_sports_levels_page.dart';
 import '../../features/athlete/presentation/athlete_profile_update_success_page.dart';
 import '../../features/athlete/presentation/arena_reviews_page.dart';
+import '../../features/athlete/presentation/athlete_community_page.dart';
 import '../../features/athlete/presentation/athlete_shell_page.dart';
 import '../../features/tournaments/presentation/league_detail_page.dart';
 import '../../features/athlete/presentation/athlete_discover_page.dart';
@@ -952,6 +953,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           if (tab == 'profile' || tab == 'perfil') {
             return AppRoutes.athleteProfile;
           }
+          // A 5ª aba pode ser a Loja (flag): a Comunidade tem endereço próprio.
+          if (tab == 'comunidade' || tab == 'community') {
+            return AppRoutes.community;
+          }
           return null;
         },
         builder: (context, state) {
@@ -960,7 +965,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             'agenda' => 1,
             'reservar' => 2,
             'torneios' || 'competir' || 'feed' => 3,
-            'comunidade' || 'community' => 4,
             _ => 0,
           };
           return AthleteShellPage(initialIndex: initialIndex);
@@ -1028,6 +1032,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.athleteCashback,
         name: AppRouteNames.athleteCashback,
         builder: (context, state) => const CashbackPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.community,
+        name: AppRouteNames.community,
+        builder: (context, state) =>
+            const AthleteCommunityPage(standalone: true),
       ),
       GoRoute(
         path: AppRoutes.store,

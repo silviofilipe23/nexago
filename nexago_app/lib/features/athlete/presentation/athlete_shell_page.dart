@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/layout/nexa_bottom_nav_bar.dart';
 import '../../../core/layout/shell_tab_bar_collapse.dart';
+import '../../store/application/store_providers.dart';
+import '../../store/presentation/store_page.dart';
 import '../domain/athlete_shell_providers.dart';
 import '../domain/daily_mission_sync_provider.dart';
 import '../domain/gamification_models.dart';
@@ -23,6 +25,9 @@ import '../../tournaments/presentation/focus/focus_day_announcer.dart';
 import '../../tournaments/presentation/widgets/tournament_invite_announcer.dart';
 
 /// Container principal do atleta com [BottomNavigationBar] e [IndexedStack].
+///
+/// A última aba é a Loja quando `appConfig/store.enabled` está ligado e a
+/// Comunidade quando não está (ela segue pela Home → `/comunidade`).
 class AthleteShellPage extends ConsumerStatefulWidget {
   const AthleteShellPage({super.key, this.initialIndex = 0});
 
@@ -36,18 +41,17 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
   late int _index;
   bool _promotionSheetOpen = false;
 
-  static const _titles = <String>[
-    'Início',
-    'Agenda',
-    'Reservar',
-    'Competir',
-    'Comunidade',
-  ];
+  /// A Loja só é montada na primeira visita: no `IndexedStack` ela abriria o
+  /// listener do catálogo e registraria "vitrine vista" a cada abertura do app.
+  bool _storeVisited = false;
+
+  /// Início, Agenda, Reservar, Competir e Loja (ou Comunidade).
+  static const _tabCount = 5;
 
   @override
   void initState() {
     super.initState();
-    _index = widget.initialIndex.clamp(0, _titles.length - 1);
+    _index = widget.initialIndex.clamp(0, _tabCount - 1);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.read(athleteShellTabIndexProvider.notifier).state = _index;
@@ -58,9 +62,14 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scrollRegistry = ref.watch(athleteShellScrollRegistryProvider);
+    final storeTab = ref.watch(storeEnabledProvider);
+    // Só cresce (nunca volta a false): marcar aqui cobre toque, Home e
+    // `initialIndex` sem espalhar o estado.
+    _storeVisited =
+        _storeVisited || (storeTab && _index == athleteShellStoreTabIndex);
 
     ref.listen<int>(athleteShellTabIndexProvider, (previous, next) {
-      if (next != _index && next >= 0 && next < _titles.length) {
+      if (next != _index && next >= 0 && next < _tabCount) {
         setState(() => _index = next);
       }
     });
@@ -119,12 +128,20 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
               controller: scrollRegistry.tabBarCollapse,
               child: IndexedStack(
                 index: _index,
-                children: const [
-                  AthleteHomePage(),
-                  AthleteAgendaPage(),
-                  ArenaListPage(),
-                  TournamentDiscoveryPage(),
-                  AthleteCommunityPage(),
+                children: [
+                  const AthleteHomePage(),
+                  const AthleteAgendaPage(),
+                  const ArenaListPage(),
+                  const TournamentDiscoveryPage(),
+                  if (!storeTab)
+                    const AthleteCommunityPage()
+                  else if (_storeVisited)
+                    StorePage(
+                      tabScrollController: scrollRegistry
+                          .controllerFor(athleteShellStoreTabIndex),
+                    )
+                  else
+                    const SizedBox.shrink(),
                 ],
               ),
             ),
@@ -140,42 +157,51 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
                   scrollRegistry.tabBarCollapse.expand();
                   ref.read(athleteShellScrollRegistryProvider).scrollToTop(i);
                 },
-                items: const [
-                  NexaBottomNavItem(
+                items: [
+                  const NexaBottomNavItem(
                     label: 'Início',
                     icon: Icons.home_outlined,
                     selectedIcon: Icons.home,
                     sfSymbol: 'house',
                     selectedSfSymbol: 'house.fill',
                   ),
-                  NexaBottomNavItem(
+                  const NexaBottomNavItem(
                     label: 'Agenda',
                     icon: Icons.calendar_today_outlined,
                     selectedIcon: Icons.calendar_today,
                     sfSymbol: 'calendar',
                     selectedSfSymbol: 'calendar',
                   ),
-                  NexaBottomNavItem(
+                  const NexaBottomNavItem(
                     label: 'Reservar',
                     icon: Icons.add_circle_outline,
                     selectedIcon: Icons.add_circle,
                     sfSymbol: 'plus.circle',
                     selectedSfSymbol: 'plus.circle.fill',
                   ),
-                  NexaBottomNavItem(
+                  const NexaBottomNavItem(
                     label: 'Competir',
                     icon: Icons.emoji_events_outlined,
                     selectedIcon: Icons.emoji_events,
                     sfSymbol: 'trophy',
                     selectedSfSymbol: 'trophy.fill',
                   ),
-                  NexaBottomNavItem(
-                    label: 'Comunidade',
-                    icon: Icons.diversity_2_outlined,
-                    selectedIcon: Icons.diversity_2_rounded,
-                    sfSymbol: 'person.2',
-                    selectedSfSymbol: 'person.2.fill',
-                  ),
+                  if (storeTab)
+                    const NexaBottomNavItem(
+                      label: 'Loja',
+                      icon: Icons.shopping_bag_outlined,
+                      selectedIcon: Icons.shopping_bag,
+                      sfSymbol: 'bag',
+                      selectedSfSymbol: 'bag.fill',
+                    )
+                  else
+                    const NexaBottomNavItem(
+                      label: 'Comunidade',
+                      icon: Icons.diversity_2_outlined,
+                      selectedIcon: Icons.diversity_2_rounded,
+                      sfSymbol: 'person.2',
+                      selectedSfSymbol: 'person.2.fill',
+                    ),
                 ],
               ),
             ),

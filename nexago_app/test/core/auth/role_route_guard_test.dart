@@ -181,6 +181,11 @@ void main() {
       expect(isAthleteExperiencePath(AppRoutes.storeCart), isTrue);
       expect(isAthleteExperiencePath('/lojas'), isFalse);
     });
+
+    // Com a Loja na barra inferior, a Comunidade virou página própria.
+    test('Comunidade como página própria é rota do atleta', () {
+      expect(isAthleteExperiencePath(AppRoutes.community), isTrue);
+    });
   });
 
   // `/cashback` é o destino do push `cashback_released`/`cashback_expiring`:

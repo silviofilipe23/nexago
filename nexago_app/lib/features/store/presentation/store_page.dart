@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/layout/nexa_bottom_nav_bar.dart';
 import '../../../core/layout/nexa_page_header.dart';
 import '../../../core/observability/analytics_service.dart';
 import '../../../core/router/navigation_helpers.dart';
@@ -33,9 +34,10 @@ import 'widgets/store_variant_sheet.dart';
 
 /// Loja · Vitrine (tela 01, `/loja`).
 ///
-/// Abre mesmo com a flag desligada (link direto, QA) — só a ENTRADA da home
-/// depende de `appConfig/store.enabled`. O catálogo inteiro do canal vem numa
-/// consulta; a grade pagina no cliente (24 por vez).
+/// Abre mesmo com a flag desligada (link direto, QA) — só as ENTRADAS (aba da
+/// barra inferior e atalho da home) dependem de `appConfig/store.enabled`. O
+/// catálogo inteiro do canal vem numa consulta; a grade pagina no cliente
+/// (24 por vez).
 class StorePage extends ConsumerStatefulWidget {
   const StorePage({
     super.key,
@@ -43,7 +45,13 @@ class StorePage extends ConsumerStatefulWidget {
     this.initialCollectionId,
     this.initialQuery = '',
     this.clock,
+    this.tabScrollController,
   });
+
+  /// Como aba da barra inferior do atleta: o controller da aba (o toque
+  /// repetido na Loja volta ao topo), sem "voltar" e com espaço para a barra.
+  /// `null` = rota empilhada (`/loja`).
+  final ScrollController? tabScrollController;
 
   /// `?categoria=`, `?colecao=` e `?q=` (mesmos parâmetros do portal).
   final String? initialCategoryId;
@@ -63,7 +71,8 @@ class _StorePageState extends ConsumerState<StorePage> {
     collectionId: _blankToNull(widget.initialCollectionId),
     query: widget.initialQuery.trim(),
   );
-  final ScrollController _scroll = ScrollController();
+  late final ScrollController _scroll =
+      widget.tabScrollController ?? ScrollController();
   int _visible = kStorePageSize;
   int _resultCount = 0;
   int _bagPulse = 0;
@@ -86,7 +95,9 @@ class _StorePageState extends ConsumerState<StorePage> {
 
   @override
   void dispose() {
-    _scroll.dispose();
+    _scroll.removeListener(_maybeShowMore);
+    // O da aba é do shell (registro de rolagem), que o descarta.
+    if (widget.tabScrollController == null) _scroll.dispose();
     super.dispose();
   }
 
@@ -298,7 +309,9 @@ class _StorePageState extends ConsumerState<StorePage> {
             StoreHeader(
               cartUnits: ref.watch(storeCartUnitsProvider),
               pulseTick: _bagPulse,
-              onBack: () => popOrGo(context, AppRoutes.discover),
+              onBack: widget.tabScrollController != null
+                  ? null
+                  : () => popOrGo(context, AppRoutes.discover),
               onSearch: _openSearch,
               onCart: _openCart,
             ),
@@ -329,7 +342,11 @@ class _StorePageState extends ConsumerState<StorePage> {
     final shown = math.min(_visible, results.length);
     final extent = StoreProductCard.extent(MediaQuery.textScalerOf(context));
     final pixPct = config.benefits.pixDiscountPct;
-    final bottom = MediaQuery.paddingOf(context).bottom;
+    // Como aba, a barra inferior flutua por cima da lista.
+    final bottom = widget.tabScrollController != null
+        ? nexaBottomNavBarHeight(context) +
+            MediaQuery.viewPaddingOf(context).bottom
+        : MediaQuery.paddingOf(context).bottom;
 
     SliverGridDelegate gridDelegate() =>
         SliverGridDelegateWithFixedCrossAxisCount(

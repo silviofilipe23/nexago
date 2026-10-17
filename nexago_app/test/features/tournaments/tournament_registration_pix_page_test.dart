@@ -130,6 +130,75 @@ void main() {
       expect(service.useCashbackCalls, [false]);
     });
   });
+
+  group('código de embaixador (NexaSquad)', () {
+    testWidgets('recolhido por padrão; sem código a cobrança vai como antes',
+        (tester) async {
+      final service = _FakePaymentService(_resposta());
+      await _abrirPixComCashback(
+        tester,
+        service: service,
+        config: CashbackConfig.fallback,
+      );
+
+      expect(find.byKey(const Key('squad-code-field')), findsNothing);
+      await _gerarPix(tester);
+      expect(service.squadCodeCalls.single ?? '', isEmpty);
+    });
+
+    testWidgets('o código digitado vai na cobrança, em maiúsculas',
+        (tester) async {
+      final service = _FakePaymentService(_resposta());
+      await _abrirPixComCashback(
+        tester,
+        service: service,
+        config: CashbackConfig.fallback,
+      );
+
+      await tester.tap(find.text('Tem código de embaixador?'));
+      await tester.pump();
+      await tester.enterText(
+        find.byKey(const Key('squad-code-field')),
+        'joao10',
+      );
+      // O CPF é o primeiro campo da tela; o código fica logo abaixo.
+      await tester.enterText(find.byType(TextField).first, '52998224725');
+      await tester.pump();
+      await tester.tap(find.text('Gerar PIX'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(service.squadCodeCalls, ['JOAO10']);
+    });
+
+    testWidgets('QR mostra o desconto da indicação que o servidor aplicou',
+        (tester) async {
+      final service = _FakePaymentService(
+        ArenaBookingPixPaymentResult(
+          paymentId: 'pay_t1',
+          qrCode: '00020101021226860014br.gov.bcb.pix',
+          qrCodeBase64: '',
+          expiresAt: DateTime.now().add(const Duration(minutes: 15)),
+          amountToPayNowReais: 100,
+          squadDiscountReais: 10,
+          chargedReais: 90,
+        ),
+      );
+      await _abrirPixComCashback(
+        tester,
+        service: service,
+        config: CashbackConfig.fallback,
+      );
+      await _gerarPix(tester);
+
+      expect(find.byKey(const Key('squad-discount-note')), findsOneWidget);
+      expect(
+        find.text('${formatBRL(10)} de desconto pela indicação de embaixador'),
+        findsOneWidget,
+      );
+      expect(find.text(formatBRL(90)), findsOneWidget);
+    });
+  });
 }
 
 const _ligado = CashbackConfig(
@@ -147,6 +216,7 @@ class _FakePaymentService implements PaymentService {
 
   final ArenaBookingPixPaymentResult result;
   final useCashbackCalls = <bool>[];
+  final squadCodeCalls = <String?>[];
 
   @override
   Future<ArenaBookingPixPaymentResult> createTournamentRegistrationPixPayment({
@@ -154,8 +224,10 @@ class _FakePaymentService implements PaymentService {
     String? cpfCnpj,
     String amountType = 'share',
     bool useCashback = false,
+    String? squadCode,
   }) async {
     useCashbackCalls.add(useCashback);
+    squadCodeCalls.add(squadCode);
     return result;
   }
 

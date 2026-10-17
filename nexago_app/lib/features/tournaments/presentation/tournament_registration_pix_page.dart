@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -36,6 +37,7 @@ import '../domain/tournament_registration_navigation.dart';
 import '../domain/tournament_registration_pix_args.dart';
 import '../domain/tournament_registration_providers.dart';
 import 'widgets/registration_wizard/registration_wizard_notice.dart';
+import 'widgets/squad_code_field.dart';
 
 class TournamentRegistrationPixPage extends ConsumerStatefulWidget {
   const TournamentRegistrationPixPage({
@@ -53,6 +55,7 @@ class TournamentRegistrationPixPage extends ConsumerStatefulWidget {
 class _TournamentRegistrationPixPageState
     extends ConsumerState<TournamentRegistrationPixPage> {
   final _cpfController = TextEditingController();
+  final _squadCodeController = TextEditingController();
   ArenaBookingPixPaymentResult? _pix;
   bool _loadingPix = false;
   String? _pixError;
@@ -93,6 +96,7 @@ class _TournamentRegistrationPixPageState
     _expiryTimer?.cancel();
     _cpfController.removeListener(_onCpfTextChanged);
     _cpfController.dispose();
+    _squadCodeController.dispose();
     super.dispose();
   }
 
@@ -190,6 +194,7 @@ class _TournamentRegistrationPixPageState
             cpfCnpj: _cpfDigits,
             amountType: widget.args.amountType,
             useCashback: useCashback,
+            squadCode: _squadCodeController.text,
           );
       if (!mounted) return;
       setState(() {
@@ -445,6 +450,11 @@ class _TournamentRegistrationPixPageState
                             value: _saveCpf,
                             onChanged: (v) => setState(() => _saveCpf = v),
                           ),
+                          const SizedBox(height: 12),
+                          SquadCodeField(
+                            controller: _squadCodeController,
+                            enabled: !_loadingPix,
+                          ),
                           if (_pixError != null) ...[
                             SizedBox(height: 16),
                             _PixErrorCard(
@@ -460,6 +470,20 @@ class _TournamentRegistrationPixPageState
                               amountReais: _pix?.chargedReais ?? _shareReais,
                             ),
                             const SizedBox(height: 20),
+                          ],
+                          if (_pix!.squadDiscountReais > 0) ...[
+                            Text(
+                              '${formatBRL(_pix!.squadDiscountReais)} de '
+                              'desconto pela indicação de embaixador',
+                              key: const Key('squad-discount-note'),
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: AppColors.win,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                            const SizedBox(height: 12),
                           ],
                           if (_pix!.cashbackAppliedReais > 0) ...[
                             CheckoutCashbackAppliedNote(

@@ -52,6 +52,7 @@ class _FakeRegistrationPixPaymentService implements PaymentService {
     String? cpfCnpj,
     String amountType = 'share',
     bool useCashback = false,
+    String? squadCode,
   }) async => result;
 
   @override

@@ -12,6 +12,7 @@ class ArenaBookingPixPaymentResult {
     required this.expiresAt,
     required this.amountToPayNowReais,
     this.cashbackAppliedReais = 0,
+    this.squadDiscountReais = 0,
     double? chargedReais,
   }) : chargedReais = chargedReais ?? amountToPayNowReais;
 
@@ -28,6 +29,10 @@ class ArenaBookingPixPaymentResult {
 
   /// O que o QR cobra no PIX: o valor a mostrar depois da resposta.
   final double chargedReais;
+
+  /// Desconto do código/link de embaixador (NexaSquad), já fora de
+  /// [chargedReais]. Sai da taxa da nexaGO; só existe na inscrição.
+  final double squadDiscountReais;
 }
 
 /// Resposta da callable [createArenaBookingMercadoPagoPayment].
@@ -120,6 +125,7 @@ class PaymentService {
     String? cpfCnpj,
     String amountType = 'share',
     bool useCashback = false,
+    String? squadCode,
   }) async {
     if (registrationId.isEmpty) {
       throw PaymentException('Inscrição inválida.');
@@ -139,6 +145,12 @@ class PaymentService {
       }
       if (useCashback) {
         payload['useCashback'] = true;
+      }
+      // Código de embaixador (NexaSquad): o servidor confere e recusa com
+      // mensagem se não existir ou for do próprio atleta.
+      final code = squadCode?.trim().toUpperCase() ?? '';
+      if (code.isNotEmpty) {
+        payload['squadCode'] = code;
       }
       final raw = await callable.call(payload);
       return _parsePixResponse(
@@ -186,6 +198,7 @@ class PaymentService {
         : DateTime.now().add(expiryFallback);
     final applied = (map['cashbackAppliedReais'] as num?)?.toDouble() ?? 0;
     final charged = (map['chargedReais'] as num?)?.toDouble();
+    final squadDiscount = (map['squadDiscountReais'] as num?)?.toDouble() ?? 0;
     return ArenaBookingPixPaymentResult(
       paymentId: paymentId,
       qrCode: qrCode,
@@ -193,6 +206,7 @@ class PaymentService {
       expiresAt: expiresAt,
       amountToPayNowReais: amount,
       cashbackAppliedReais: applied > 0 ? applied : 0,
+      squadDiscountReais: squadDiscount > 0 ? squadDiscount : 0,
       chargedReais: charged != null && charged > 0 ? charged : amount,
     );
   }

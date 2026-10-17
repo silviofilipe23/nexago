@@ -1,8 +1,10 @@
-import { Component, inject } from '@angular/core';
+import { Component, effect, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
+import { AuthService } from './auth/auth.service';
 import { NxToastHostComponent } from './shared/feedback';
+import { captureSquadParam, flushSquadRef, pendingSquadRef } from './shared/squad/squad-link';
 
 function pathOnly(url: string): string {
   const i = url.indexOf('?');
@@ -55,6 +57,16 @@ export function chromeHiddenForUrl(url: string): boolean {
 })
 export class App {
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+
+  constructor() {
+    // Link/QR de embaixador (`?squad=CODIGO`): guarda o clique já na carga, com ou sem login, e
+    // grava na conta quando houver sessão. Navegação interna não traz o parâmetro de novo.
+    if (typeof window !== 'undefined') captureSquadParam(window.location.search);
+    effect(() => {
+      if (this.auth.user() && pendingSquadRef()) void flushSquadRef();
+    });
+  }
 
   protected readonly hideChrome = toSignal(
     this.router.events.pipe(

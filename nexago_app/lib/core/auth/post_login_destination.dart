@@ -124,6 +124,7 @@ Future<String?> resolveAuthenticatedRedirect({
   }
 
   if (leavingAuthRoute) {
+    flushPendingSquadRef(ref);
     final pendingDeepLink = consumePendingDeepLinkPath(ref);
     if (pendingDeepLink != null) {
       return pendingDeepLink;

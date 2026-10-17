@@ -3228,6 +3228,20 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Último link/QR de embaixador que o atleta abriu. Só a callable `recordSquadAttribution` grava
+    // (o cliente não escolhe a quem atribuir a própria inscrição).
+    match /squadAttributions/{uid} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    // Desconto do seguidor de cada cobrança (por paymentId): o webhook soma ao bruto para o
+    // organizador receber o mesmo líquido. Só servidor.
+    match /squadChargeDiscounts/{paymentId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
     // Carteira do embaixador: saldo sacável das comissões pagas. O dono lê (tela Ganhos).
     match /squadWallets/{uid} {
       allow read: if isAdmin() || isSuperAdmin() || (request.auth != null && request.auth.uid == uid);

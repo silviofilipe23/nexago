@@ -18,4 +18,13 @@ describe('registrationChargePayload', () => {
         registrationChargePayload({ registrationId: 'r1', amountType: 'share', cpfCnpj: '1', useCashback: false }),
     ).toBeFalse();
   });
+
+  it('manda o código de embaixador aparado, e nada quando vazio', () => {
+    expect(
+      registrationChargePayload({ registrationId: 'r1', amountType: 'share', cpfCnpj: '1', squadCode: ' JOAO10 ' }),
+    ).toEqual({ registrationId: 'r1', amountType: 'share', cpfCnpj: '1', squadCode: 'JOAO10' });
+    expect(
+      'squadCode' in registrationChargePayload({ registrationId: 'r1', amountType: 'share', cpfCnpj: '1', squadCode: '  ' }),
+    ).toBeFalse();
+  });
 });

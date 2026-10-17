@@ -462,6 +462,51 @@ export function normalizeSquadRules(r: SquadRules): SquadRules {
   };
 }
 
+/**
+ * Regras de atribuição vigentes (valem para todos a partir do salvamento, não ficam no contrato).
+ * Doc ausente ou campo inválido cai no padrão do piloto.
+ */
+export async function loadAttributionRules(db: Firestore): Promise<SquadRules["attribution"]> {
+  const snap = await db.collection(SQUAD_CONFIG).doc(SQUAD_RULES_DOC).get();
+  const raw = snap.exists ? (snap.data()?.["rules"] as Raw | undefined)?.["attribution"] : undefined;
+  const d = DEFAULT_SQUAD_RULES.attribution;
+  if (!isObj(raw)) return {...d};
+  return {
+    requirePaidConfirmation: true,
+    cancelOnRefund: true,
+    followerDiscountFirstOnly: typeof raw["followerDiscountFirstOnly"] === "boolean" ?
+      raw["followerDiscountFirstOnly"] : d.followerDiscountFirstOnly,
+    blockSelfReferral: typeof raw["blockSelfReferral"] === "boolean" ? raw["blockSelfReferral"] : d.blockSelfReferral,
+    windowDays: int(raw["windowDays"], 1, MAX_WINDOW_DAYS) ? raw["windowDays"] : d.windowDays,
+    model: raw["model"] === "firstTouch" ? "firstTouch" : "lastTouch",
+  };
+}
+
+/**
+ * Desconto do seguidor de um nível na versão das regras congelada no contrato. Versão ausente
+ * (ou sem o retrato) cai na vigente e, por fim, no padrão do piloto.
+ */
+export async function tierFollowerDiscountPct(
+  db: Firestore,
+  tier: SquadTier | null,
+  rulesVersion: number | null,
+): Promise<number> {
+  if (!tier) return 0;
+  const pctOf = (data: Raw | undefined): number | null => {
+    const tiers = isObj(data?.["rules"]) ? (data!["rules"] as Raw)["tiers"] : undefined;
+    const t = isObj(tiers) ? tiers[tier] : undefined;
+    const pct = isObj(t) ? t["followerDiscountPct"] : undefined;
+    return num(pct, 0, MAX_FOLLOWER_DISCOUNT_PCT) ? pct : null;
+  };
+  const rulesRef = db.collection(SQUAD_CONFIG).doc(SQUAD_RULES_DOC);
+  if (rulesVersion !== null) {
+    const fromVersion = pctOf((await rulesRef.collection(SQUAD_RULES_VERSIONS).doc(String(rulesVersion)).get()).data());
+    if (fromVersion !== null) return fromVersion;
+  }
+  const current = pctOf((await rulesRef.get()).data());
+  return current ?? DEFAULT_SQUAD_RULES.tiers[tier].followerDiscountPct;
+}
+
 // ── diff entre versões ──────────────────────────────────────────────────────
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);

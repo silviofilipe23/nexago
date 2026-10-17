@@ -28,6 +28,7 @@ import {
   findCategory,
   loadTournamentData,
   resolveCategoryEntryFee,
+  resolveCategoryLabel,
 } from "./tournament-registration-guards";
 import {
   buildTournamentRegistrationExternalReference,
@@ -71,6 +72,8 @@ import {
 import {registrationCashbackLabel} from "./cashback-intent";
 import {attachHoldPayment} from "./athlete-wallet";
 import {isOrganizerRegistered} from "./organizer-create-registration-core";
+import {resolveRegistrationAttribution, type ResolvedAttribution} from "./squad-attribution";
+import {followerDiscountFor, recordChargeDiscount, recordCommissionForCharge} from "./squad-commission-lifecycle";
 
 const pixPaymentSecrets = [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL];
 
@@ -87,6 +90,8 @@ type PixPaymentResponse = {
   cashbackAppliedReais?: number;
   /** Valor efetivamente cobrado no Asaas. */
   chargedReais?: number;
+  /** Desconto do código de embaixador (NexaSquad), já fora do cobrado. */
+  squadDiscountReais?: number;
 };
 
 async function loadTournamentEntryFee(
@@ -159,7 +164,22 @@ type RegistrationChargeRequest = {
   cpfCnpj?: string;
   amountType?: string;
   useCashback?: boolean;
+  /** Código de embaixador do NexaSquad digitado no checkout (vence o link/QR). */
+  squadCode?: string;
 };
+
+/** O que a comissão do Squad precisa da cobrança, resolvido antes de cobrar. */
+interface SquadChargeContext {
+  attribution: ResolvedAttribution;
+  tournamentId: string;
+  categoryName: string;
+  teamName: string | null;
+  /** Quem esta cobrança converte: só o pagador, ou todos quando paga a dupla/equipe inteira. */
+  convertedUids: string[];
+  /** Desconto do seguidor sobre o preço desta cobrança (sai da taxa da nexaGO). */
+  discountCents: number;
+  discountPct: number;
+}
 
 /** Tudo que uma cobrança precisa, já validado e resolvido no gateway. */
 interface PreparedRegistrationCharge {
@@ -173,6 +193,7 @@ interface PreparedRegistrationCharge {
   externalReference: string;
   expiresAtDate: Date;
   tournamentName: string;
+  squad: SquadChargeContext | null;
 }
 
 /**
@@ -338,6 +359,39 @@ async function prepareRegistrationCharge(
       ? resolveTournamentChargeReais(entryFee, "full")
       : shareAmount;
 
+  // Embaixador do NexaSquad: código digitado errado ou autoindicação para aqui, antes de cobrar,
+  // para o atleta corrigir. Link/QR nunca derruba o checkout.
+  let squad: SquadChargeContext | null = null;
+  try {
+    const attribution = await resolveRegistrationAttribution(
+      db,
+      {payerUid: callerUid, athleteUids, typedCode: data.squadCode},
+      new Date(),
+    );
+    if (attribution) {
+      const teamName = typeof team?.teamName === "string" ? team.teamName :
+        typeof registration.teamName === "string" ? registration.teamName : null;
+      const discount = await followerDiscountFor(db, {
+        attribution,
+        payerUid: callerUid,
+        registrationId,
+        priceCents: Math.round(chargeAmount * 100),
+      });
+      squad = {
+        attribution,
+        tournamentId,
+        categoryName: resolveCategoryLabel(tournamentData, categoryId),
+        teamName,
+        convertedUids: amountType === "full" ? athleteUids : [callerUid],
+        discountCents: discount.cents,
+        discountPct: discount.pct,
+      };
+    }
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    logger.warn("prepareRegistrationCharge: atribuição do Squad indisponível", e);
+  }
+
   // A cobrança cabe no prazo da vaga; nunca o estica. Inscrição que acabou de
   // ir para a fila perdeu o prazo ali em cima — e fila não tem prazo nenhum.
   const pixWindow = computePixWindow({
@@ -443,7 +497,64 @@ async function prepareRegistrationCharge(
     externalReference,
     expiresAtDate,
     tournamentName,
+    squad,
   };
+}
+
+/** Preço desta cobrança depois do desconto do seguidor (o cashback incide sobre ele). */
+function priceAfterSquadDiscount(prepared: PreparedRegistrationCharge): number {
+  const discount = prepared.squad?.discountCents ?? 0;
+  return Math.round(prepared.chargeAmount * 100 - discount) / 100;
+}
+
+function squadIdempotencySuffix(prepared: PreparedRegistrationCharge): string {
+  const discount = prepared.squad?.discountCents ?? 0;
+  return discount > 0 ? `-sq${discount}` : "";
+}
+
+/**
+ * Desconto do seguidor (por `paymentId`) e comissão pendente do embaixador, depois que a cobrança
+ * existe. Melhor esforço: a cobrança já foi criada e o atleta precisa do QR/checkout mesmo que
+ * isto falhe — o desconto também está no `pixPending`, que o webhook usa se este registro faltar.
+ */
+async function recordSquadCommissionQuietly(
+  prepared: PreparedRegistrationCharge,
+  payerUid: string,
+  paymentId: string,
+  chargedReais: number,
+): Promise<void> {
+  if (!prepared.squad) return;
+  try {
+    if (prepared.squad.discountCents > 0) {
+      await recordChargeDiscount(prepared.db, {
+        paymentId,
+        registrationId: prepared.registrationId,
+        payerUid,
+        ambassadorId: prepared.squad.attribution.ambassador.uid,
+        cents: prepared.squad.discountCents,
+        pct: prepared.squad.discountPct,
+      }, new Date());
+    }
+    await recordCommissionForCharge(prepared.db, {
+      attribution: prepared.squad.attribution,
+      registrationId: prepared.registrationId,
+      tournamentId: prepared.squad.tournamentId,
+      tournamentName: prepared.tournamentName,
+      categoryName: prepared.squad.categoryName,
+      teamName: prepared.squad.teamName,
+      paymentId,
+      payerUid,
+      convertedUids: prepared.squad.convertedUids,
+      grossCents: Math.round(chargedReais * 100),
+    }, new Date());
+  } catch (e) {
+    logger.error("Comissão do Squad não registrada na cobrança", {
+      registrationId: prepared.registrationId,
+      payerUid,
+      paymentId,
+      e,
+    });
+  }
 }
 
 export const createTournamentRegistrationPixPayment = onCall({
@@ -455,20 +566,22 @@ export const createTournamentRegistrationPixPayment = onCall({
     throw new HttpsError("unauthenticated", "Faça login para pagar.");
   }
 
-  const {
-    db, projectId, registrationId, amountType, chargeAmount,
-    customerId, description, externalReference, expiresAtDate, tournamentName,
-  } = await prepareRegistrationCharge(
+  const prepared = await prepareRegistrationCharge(
     callerUid,
     (request.data ?? {}) as RegistrationChargeRequest,
     "PIX",
   );
+  const {
+    db, projectId, registrationId, amountType, chargeAmount,
+    customerId, description, externalReference, expiresAtDate, tournamentName,
+  } = prepared;
 
   const pendingDocRef = pixPendingRef(db, projectId, registrationId, callerUid);
   const cashback = await reserveCashbackForCharge(db, {
     uid: callerUid,
     useCashback: (request.data as RegistrationChargeRequest | undefined)?.useCashback,
-    priceReais: chargeAmount,
+    // O desconto do seguidor (NexaSquad) sai antes do cashback: o saldo cobre o que sobra.
+    priceReais: priceAfterSquadDiscount(prepared),
     sourceType: "registration",
     sourceId: registrationId,
     trackingPath: pendingDocRef.path,
@@ -484,7 +597,11 @@ export const createTournamentRegistrationPixPayment = onCall({
       dueDate: expiresAtDate,
       description,
       externalReference,
-      idempotencyKey: cashbackIdempotencyKey(`tournament-reg-pix-${registrationId}-${callerUid}`, cashback.holdId),
+      // Com desconto a cobrança é outra: chave própria, para o Asaas não devolver a cheia.
+      idempotencyKey: cashbackIdempotencyKey(
+        `tournament-reg-pix-${registrationId}-${callerUid}${squadIdempotencySuffix(prepared)}`,
+        cashback.holdId,
+      ),
     });
   } catch (e) {
     await releaseCashbackHoldQuietly(db, callerUid, cashback.holdId, Date.now());
@@ -531,8 +648,11 @@ export const createTournamentRegistrationPixPayment = onCall({
     paymentExpiresAt: Timestamp.fromDate(expiresAtDate),
     cashbackAppliedCents: cashback.appliedCents,
     cashbackHoldId: cashback.holdId,
+    // Desconto do seguidor (NexaSquad): o webhook soma ao bruto para o organizador receber igual.
+    squadDiscountCents: prepared.squad?.discountCents ?? 0,
     updatedAt: FieldValue.serverTimestamp(),
   });
+  await recordSquadCommissionQuietly(prepared, callerUid, charge.paymentId, cashback.chargeReais);
 
   return {
     paymentId: charge.paymentId,
@@ -541,6 +661,7 @@ export const createTournamentRegistrationPixPayment = onCall({
     expiresAt: expiresAtDate.toISOString(),
     amountReais: chargeAmount,
     ...cashbackResponseFields(cashback),
+    ...(prepared.squad?.discountCents ? {squadDiscountReais: prepared.squad.discountCents / 100} : {}),
   };
 });
 
@@ -554,6 +675,8 @@ type CardPaymentResponse = {
   cashbackAppliedReais?: number;
   /** Valor efetivamente cobrado no Asaas. */
   chargedReais?: number;
+  /** Desconto do código de embaixador (NexaSquad), já fora do cobrado. */
+  squadDiscountReais?: number;
 };
 
 /**
@@ -572,20 +695,22 @@ export const createTournamentRegistrationCardPayment = onCall({
     throw new HttpsError("unauthenticated", "Faça login para pagar.");
   }
 
-  const {
-    db, projectId, registrationId, amountType, chargeAmount,
-    customerId, description, externalReference, expiresAtDate, tournamentName,
-  } = await prepareRegistrationCharge(
+  const prepared = await prepareRegistrationCharge(
     callerUid,
     (request.data ?? {}) as RegistrationChargeRequest,
     "cartão",
   );
+  const {
+    db, projectId, registrationId, amountType, chargeAmount,
+    customerId, description, externalReference, expiresAtDate, tournamentName,
+  } = prepared;
 
   const pendingDocRef = pixPendingRef(db, projectId, registrationId, callerUid);
   const cashback = await reserveCashbackForCharge(db, {
     uid: callerUid,
     useCashback: (request.data as RegistrationChargeRequest | undefined)?.useCashback,
-    priceReais: chargeAmount,
+    // O desconto do seguidor (NexaSquad) sai antes do cashback: o saldo cobre o que sobra.
+    priceReais: priceAfterSquadDiscount(prepared),
     sourceType: "registration",
     sourceId: registrationId,
     trackingPath: pendingDocRef.path,
@@ -601,7 +726,11 @@ export const createTournamentRegistrationCardPayment = onCall({
       dueDate: expiresAtDate,
       description,
       externalReference,
-      idempotencyKey: cashbackIdempotencyKey(`tournament-reg-card-${registrationId}-${callerUid}`, cashback.holdId),
+      // Com desconto a cobrança é outra: chave própria, para o Asaas não devolver a cheia.
+      idempotencyKey: cashbackIdempotencyKey(
+        `tournament-reg-card-${registrationId}-${callerUid}${squadIdempotencySuffix(prepared)}`,
+        cashback.holdId,
+      ),
     });
   } catch (e) {
     await releaseCashbackHoldQuietly(db, callerUid, cashback.holdId, Date.now());
@@ -648,8 +777,11 @@ export const createTournamentRegistrationCardPayment = onCall({
     paymentExpiresAt: Timestamp.fromDate(expiresAtDate),
     cashbackAppliedCents: cashback.appliedCents,
     cashbackHoldId: cashback.holdId,
+    // Desconto do seguidor (NexaSquad): o webhook soma ao bruto para o organizador receber igual.
+    squadDiscountCents: prepared.squad?.discountCents ?? 0,
     updatedAt: FieldValue.serverTimestamp(),
   });
+  await recordSquadCommissionQuietly(prepared, callerUid, charge.paymentId, cashback.chargeReais);
 
   return {
     paymentId: charge.paymentId,
@@ -657,6 +789,7 @@ export const createTournamentRegistrationCardPayment = onCall({
     expiresAt: expiresAtDate.toISOString(),
     amountReais: chargeAmount,
     ...cashbackResponseFields(cashback),
+    ...(prepared.squad?.discountCents ? {squadDiscountReais: prepared.squad.discountCents / 100} : {}),
   };
 });
 

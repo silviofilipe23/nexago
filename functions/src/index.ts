@@ -591,6 +591,11 @@ export {
   setSquadCommissionHold,
 } from "./squad-commissions";
 
+// NexaSquad: atribuição por link/QR (portal/app) e conferência do código no checkout.
+export {checkSquadCode, recordSquadAttribution} from "./squad-attribution";
+// NexaSquad: inscrição removida cancela a comissão (pendente, liberada ou paga → ajuste).
+export {onInscriptionDeletedCancelSquadCommissions} from "./squad-commission-lifecycle";
+
 // Loja: personalizados — configuração por produto (tela 11) e fila de arte (tela 10).
 export {
   createStoreCustomBatch,

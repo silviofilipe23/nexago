@@ -70,6 +70,96 @@ void main() {
       expect(p.publishedAt?.toUtc(), DateTime.utc(2026, 10, 16));
     });
 
+    test('lê galeria, descrição, detalhes, saldo e personalização (tela 02)',
+        () {
+      final p = storeProductFromMap('camiseta', {
+        'name': 'Camiseta Dry UV50 Areia',
+        'priceCents': 12990,
+        'coverUrl': 'https://cdn/branco-1.jpg',
+        'photos': [
+          {'url': 'https://cdn/branco-1.jpg', 'colorValueId': 'branco'},
+          {'url': 'https://cdn/geral.jpg', 'colorValueId': null},
+          {'url': '', 'colorValueId': 'preto'},
+          'lixo',
+        ],
+        'description': '  Tecido leve com proteção UV50.  ',
+        'details': [
+          {'label': 'Tecido', 'value': 'Poliamida dry'},
+          {'label': 'Sem valor', 'value': ''},
+        ],
+        'variants': [
+          {
+            'id': 'branco_m',
+            'values': {'cor': 'branco', 'tam': 'm'},
+            'priceCents': 12990,
+            'inStock': true,
+            'maxQty': 2,
+            'lowStock': true,
+          },
+          {
+            'id': 'branco_g',
+            'values': {'cor': 'branco', 'tam': 'g'},
+            'priceCents': 12990,
+            'inStock': false,
+            'maxQty': 0,
+            'lowStock': true,
+          },
+          {
+            'id': 'branco_gg',
+            'priceCents': 12990,
+            'inStock': true,
+            'maxQty': 40,
+          },
+        ],
+        'customizable': true,
+        'customization': {
+          'fromCents': 1490,
+          'leadDays': 5,
+          'defectOnlyReturns': true,
+        },
+      })!;
+
+      expect(p.photos, const [
+        StorePhoto(url: 'https://cdn/branco-1.jpg', colorValueId: 'branco'),
+        StorePhoto(url: 'https://cdn/geral.jpg'),
+      ]);
+      expect(p.description, 'Tecido leve com proteção UV50.');
+      expect(p.details.single.label, 'Tecido');
+      expect(p.details.single.value, 'Poliamida dry');
+      expect(p.variants[0].maxQty, 2);
+      expect(p.variants[0].lowStock, isTrue);
+      // Sem saldo: 0 e sem alerta, venha o que vier.
+      expect(p.variants[1].maxQty, 0);
+      expect(p.variants[1].lowStock, isFalse);
+      // Acima do teto exposto vira o teto.
+      expect(p.variants[2].maxQty, kStoreMaxQtyPerItem);
+      expect(p.customization?.fromCents, 1490);
+      expect(p.customization?.leadDays, 5);
+      expect(p.customization?.defectOnlyReturns, isTrue);
+    });
+
+    test('doc antigo (sem os campos da tela 02): padrões seguros', () {
+      final p = storeProductFromMap('bola', {
+        'name': 'Bola',
+        'priceCents': 28990,
+        'coverUrl': 'https://cdn/bola.jpg',
+        'variants': [
+          {'id': 'unico', 'priceCents': 28990, 'inStock': true},
+          {'id': 'outro', 'priceCents': 28990, 'inStock': false},
+        ],
+        // Personalização sem `customizable` não vale.
+        'customization': {'fromCents': 1490},
+      })!;
+
+      expect(p.photos, isEmpty);
+      expect(p.description, '');
+      expect(p.details, isEmpty);
+      expect(p.customization, isNull);
+      expect(p.variants.first.maxQty, kStoreMaxQtyPerItem);
+      expect(p.variants.first.lowStock, isFalse);
+      expect(p.variants.last.maxQty, 0);
+    });
+
     test('sem nome ou sem preço é descartado', () {
       expect(storeProductFromMap('a', {'name': '', 'priceCents': 100}), isNull);
       expect(storeProductFromMap('a', {'name': 'Bola'}), isNull);
@@ -153,6 +243,48 @@ void main() {
       expect(c.collections.first.id, 'verao-2026');
       expect(c.pickupArenas.single.name, 'Arena Errejota');
       expect(c.pickupArenas.single.hasCoordinates, isTrue);
+      // Doc anterior à entrega: sem frete grátis e sem modalidade.
+      expect(c.delivery.freeAboveCents, isNull);
+      expect(c.delivery.modes, isEmpty);
+    });
+
+    test('lê a entrega; preço ausente = calculado no checkout', () {
+      final c = storeShowcaseConfigFromMap({
+        'delivery': {
+          'freeAboveCents': 39900,
+          'modes': [
+            {
+              'id': 'expressa',
+              'name': 'Expressa',
+              'description': 'Loggi · Goiânia e região em 24 h',
+              'priceCents': 3490,
+            },
+            {
+              'id': 'calculada',
+              'name': 'Correios',
+              'description': '',
+              'priceCents': null,
+            },
+            {'id': '', 'name': 'Sem id', 'priceCents': 100},
+          ],
+        },
+      });
+
+      expect(c.delivery.freeAboveCents, 39900);
+      expect(c.delivery.modes.map((m) => m.id), ['expressa', 'calculada']);
+      expect(c.delivery.modes.first.priceCents, 3490);
+      expect(
+        c.delivery.modes.first.description,
+        'Loggi · Goiânia e região em 24 h',
+      );
+      expect(c.delivery.modes.last.priceCents, isNull);
+      expect(
+        storeShowcaseConfigFromMap({'delivery': {'freeAboveCents': 0}})
+            .delivery
+            .freeAboveCents,
+        isNull,
+      );
+      expect(storeShowcaseConfigFromMap(null).delivery.modes, isEmpty);
     });
   });
 

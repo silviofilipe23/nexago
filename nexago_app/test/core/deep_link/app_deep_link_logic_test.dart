@@ -146,6 +146,12 @@ void main() {
         resolveAppDeepLinkPath(Uri.parse('nexago://loja/produto/bola-pro')),
         '/loja/produto/bola-pro',
       );
+      // Caminho curto do link do portal (`/loja/p/:id`).
+      expect(
+        resolveAppDeepLinkPath(Uri.parse('nexago://loja/p/bola-pro')),
+        '/loja/produto/bola-pro',
+      );
+      expect(resolveAppDeepLinkPath(Uri.parse('nexago://loja/p')), '/loja');
       expect(
         resolveAppDeepLinkPath(Uri.parse('nexago://loja/carrinho')),
         '/loja/carrinho',

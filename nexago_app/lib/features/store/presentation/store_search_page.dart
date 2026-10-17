@@ -81,6 +81,7 @@ class _StoreSearchPageState extends ConsumerState<StoreSearchPage> {
     context.pushNamed(
       AppRouteNames.storeProduct,
       pathParameters: {'productId': product.id},
+      queryParameters: {'origem': 'busca'},
     );
   }
 

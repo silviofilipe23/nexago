@@ -434,19 +434,27 @@ int storeCartUnits(List<StoreCartItem> items) =>
     items.fold(0, (total, i) => total + i.qty);
 
 /// Soma [qty] na linha do mesmo produto+SKU ou acrescenta uma linha nova.
-/// `null` = carrinho cheio (já tem [kStoreMaxCartLines] linhas distintas).
+/// A linha não passa de `min(maxQty, kStoreMaxQtyPerLine)` (o saldo exposto do
+/// SKU, quando vem da página do produto) e nunca diminui: no teto, fica como
+/// está. `null` = carrinho cheio (já tem [kStoreMaxCartLines] linhas
+/// distintas).
 List<StoreCartItem>? mergeStoreCartItem(
   List<StoreCartItem> items, {
   required String productId,
   required String skuId,
   int qty = 1,
+  int? maxQty,
 }) {
+  final cap = maxQty == null
+      ? kStoreMaxQtyPerLine
+      : maxQty.clamp(1, kStoreMaxQtyPerLine);
   final index = items.indexWhere(
     (i) => i.productId == productId && i.skuId == skuId,
   );
   if (index >= 0) {
     final current = items[index];
-    final next = (current.qty + qty).clamp(1, kStoreMaxQtyPerLine);
+    final summed = (current.qty + qty).clamp(1, cap);
+    final next = summed > current.qty ? summed : current.qty;
     return [
       for (var i = 0; i < items.length; i++)
         if (i == index)
@@ -461,7 +469,7 @@ List<StoreCartItem>? mergeStoreCartItem(
     StoreCartItem(
       productId: productId,
       skuId: skuId,
-      qty: qty.clamp(1, kStoreMaxQtyPerLine),
+      qty: qty.clamp(1, cap),
     ),
   ];
 }

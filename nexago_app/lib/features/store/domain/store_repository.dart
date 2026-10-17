@@ -27,12 +27,17 @@ abstract interface class StoreRepository {
   /// Regrava as buscas recentes (já cortadas em 5, mais recente primeiro).
   Future<void> setRecentSearches(String uid, List<String> searches);
 
+  /// Liga/desliga [productId] em `favoriteIds` (merge, sem reler a lista).
+  Future<void> setFavorite(String uid, String productId, bool on);
+
   /// Soma [qty] unidades do SKU no carrinho (lê, soma e grava numa
-  /// transação). `false` = carrinho cheio (30 linhas).
+  /// transação), sem a linha passar de [maxQty] (o saldo exposto do SKU).
+  /// `false` = carrinho cheio (30 linhas).
   Future<bool> addToCart(
     String uid, {
     required String productId,
     required String skuId,
     int qty = 1,
+    int? maxQty,
   });
 }

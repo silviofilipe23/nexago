@@ -77,6 +77,20 @@ class FirestoreStoreRepository implements StoreRepository {
         SetOptions(merge: true),
       );
 
+  /// `arrayUnion`/`arrayRemove`: favoritar em dois aparelhos não se
+  /// sobrescreve. A rule limita a lista a 200 (passou disso, a escrita falha).
+  @override
+  Future<void> setFavorite(String uid, String productId, bool on) =>
+      _shopper(uid).set(
+        {
+          'favoriteIds': on
+              ? FieldValue.arrayUnion([productId])
+              : FieldValue.arrayRemove([productId]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
   /// Transação: soma na linha existente em vez de sobrescrever um carrinho
   /// alterado em outro aparelho. A lista vai inteira e sem `FieldValue`
   /// dentro (a rule só aceita `items` + `updatedAt`).
@@ -86,6 +100,7 @@ class FirestoreStoreRepository implements StoreRepository {
     required String productId,
     required String skuId,
     int qty = 1,
+    int? maxQty,
   }) {
     final ref = _cart(uid);
     return _db.runTransaction<bool>((tx) async {
@@ -95,6 +110,7 @@ class FirestoreStoreRepository implements StoreRepository {
         productId: productId,
         skuId: skuId,
         qty: qty,
+        maxQty: maxQty,
       );
       if (merged == null) return false;
       tx.set(ref, {
@@ -196,8 +212,13 @@ StoreProduct? storeProductFromMap(String id, Map<String, dynamic>? data) {
             ? _count(v['priceCents'])
             : priceCents,
         inStock: v['inStock'] == true,
+        maxQty: _variantMaxQty(v),
+        lowStock: v['inStock'] == true && v['lowStock'] == true,
       ),
   ];
+  final customization = data['customization'] is Map
+      ? Map<String, dynamic>.from(data['customization'] as Map)
+      : null;
 
   return StoreProduct(
     id: id,
@@ -213,16 +234,68 @@ StoreProduct? storeProductFromMap(String id, Map<String, dynamic>? data) {
     minPriceCents: minPriceCents,
     maxPriceCents: maxPriceCents,
     coverUrl: _strOrNull(data['coverUrl']),
+    photos: [
+      for (final ph in _maps(data['photos']))
+        if (_str(ph['url']).isNotEmpty)
+          StorePhoto(
+            url: _str(ph['url']),
+            colorValueId: _strOrNull(ph['colorValueId']),
+          ),
+    ],
+    description: _str(data['description']),
+    details: [
+      for (final d in _maps(data['details']))
+        if (_str(d['label']).isNotEmpty && _str(d['value']).isNotEmpty)
+          StoreDetail(label: _str(d['label']), value: _str(d['value'])),
+    ],
     pickup: data['pickup'] == true,
     delivery: data['delivery'] == true,
     axes: axes,
     variants: variants,
     soldOut: data['soldOut'] == true,
     customizable: data['customizable'] == true,
+    customization: data['customizable'] == true && customization != null
+        ? StoreCustomization(
+            fromCents: _count(customization['fromCents']),
+            leadDays: _count(customization['leadDays']),
+            defectOnlyReturns: customization['defectOnlyReturns'] == true,
+          )
+        : null,
     ratingAvg: _num(data['ratingAvg']),
     ratingCount: _count(data['ratingCount']),
     soldLast30: _count(data['soldLast30']),
     publishedAt: _date(data['publishedAt']),
+  );
+}
+
+/// Quanto cabe numa compra. Doc anterior ao `maxQty`: com saldo vale o teto,
+/// sem saldo 0 (mesma leitura do portal).
+int _variantMaxQty(Map<String, dynamic> v) {
+  if (v['inStock'] != true) return 0;
+  final raw = _num(v['maxQty']);
+  final qty = raw == null ? kStoreMaxQtyPerItem : _count(raw);
+  return qty < kStoreMaxQtyPerItem ? qty : kStoreMaxQtyPerItem;
+}
+
+/// `storePublic/showcase.delivery`; ausente = sem frete grátis e sem
+/// modalidade. Preço ausente/0 = calculado no checkout.
+StoreDelivery _deliveryFromMap(Object? raw) {
+  if (raw is! Map) return StoreDelivery.none;
+  final data = Map<String, dynamic>.from(raw);
+  final free = _count(data['freeAboveCents']);
+  return StoreDelivery(
+    freeAboveCents: free > 0 ? free : null,
+    modes: [
+      for (final m in _maps(data['modes']))
+        if (_str(m['id']).isNotEmpty && _str(m['name']).isNotEmpty)
+          StoreDeliveryMode(
+            id: _str(m['id']),
+            name: _str(m['name']),
+            description: _str(m['description']),
+            priceCents:
+                _count(m['priceCents']) > 0 ? _count(m['priceCents']) : null,
+          ),
+    ],
   );
 }
 
@@ -287,6 +360,7 @@ StoreShowcaseConfig storeShowcaseConfigFromMap(Map<String, dynamic>? data) {
                 : 48,
           ),
     ],
+    delivery: _deliveryFromMap(data['delivery']),
   );
 }
 

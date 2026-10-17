@@ -58,6 +58,7 @@ class _FakeStoreRepository implements StoreRepository {
     required String productId,
     required String skuId,
     int qty = 1,
+    int? maxQty,
   }) async {
     addedSkus.add(skuId);
     cart.add(StoreCartItem(productId: productId, skuId: skuId, qty: qty));
@@ -70,6 +71,9 @@ class _FakeStoreRepository implements StoreRepository {
 
   @override
   Future<void> setRecentSearches(String uid, List<String> searches) async {}
+
+  @override
+  Future<void> setFavorite(String uid, String productId, bool on) async {}
 }
 
 class _RecordingAnalytics implements AnalyticsService {

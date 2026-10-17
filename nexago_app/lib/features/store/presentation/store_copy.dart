@@ -1,6 +1,6 @@
 import '../../../core/formatting/app_currency_format.dart';
 
-/// Textos da vitrine da Loja (tela 01).
+/// Textos da vitrine da Loja (tela 01) e da página do produto (tela 02).
 abstract final class StoreCopy {
   StoreCopy._();
 
@@ -86,6 +86,80 @@ abstract final class StoreCopy {
   static const noSuggestions = 'Nada com esse nome. Aperte buscar pra ver tudo.';
 
   static String categorySuggestion(String label) => 'Ver tudo em $label';
+
+  // Página do produto (tela 02)
+  static const favoriteAdd = 'Favoritar';
+  static const favoriteRemove = 'Tirar dos favoritos';
+  static const favoriteError = 'Não deu pra salvar o favorito. Tente de novo.';
+  static const share = 'Compartilhar';
+  static const soldOutBadge = 'Esgotado';
+  static const customizeTitle = 'Personalize';
+  static const customizeButton = 'Personalizar';
+  static const customizeSoon = 'A personalização chega em breve';
+  static const receiveTitle = 'COMO RECEBER';
+  static const receiveSheetTitle = 'Como receber';
+  static const receiveFree = 'Grátis';
+  static const receiveAtCheckout = 'No checkout';
+  static const receiveChangeArena = 'Trocar arena';
+  static const receiveChooseArena = 'Escolher arena';
+  static const receiveNoArena = 'Escolha uma arena pra retirar grátis';
+  static const detailsTitle = 'DETALHES';
+  static const readMore = 'Ler mais';
+  static const readLess = 'Ler menos';
+  static const relatedTitle = 'Combina com';
+  static const qtyLess = 'Diminuir quantidade';
+  static const qtyMore = 'Aumentar quantidade';
+  static const addedCta = 'Adicionado';
+  static const notifyMeCta = 'Avise-me quando chegar';
+  static const offlineCta = 'Sem conexão';
+  static const addedToCart = 'Adicionado ao carrinho';
+  static const see = 'Ver';
+  static const comboUnavailable = 'Essa combinação esgotou · escolha outra';
+  static const unavailableTitle = 'Esse produto não está mais disponível';
+  static const unavailableHint = 'Que tal os mais vendidos da loja?';
+  static const backToStore = 'Ver a loja';
+
+  static String addCta(int totalCents) => 'Adicionar · ${price(totalCents)}';
+
+  static String customizeFrom(int cents) =>
+      '+ personalização a partir de ${price(cents)}';
+
+  /// "Feito sob demanda · pronto em 5 dias úteis · troca só por defeito".
+  static String madeToOrder(int leadDays, {required bool defectOnlyReturns}) =>
+      [
+        'Feito sob demanda',
+        if (leadDays > 0)
+          'pronto em $leadDays ${leadDays == 1 ? 'dia útil' : 'dias úteis'}',
+        if (defectOnlyReturns) 'troca só por defeito',
+      ].join(' · ');
+
+  static String pickupAt(String arena) => 'Retirar na $arena';
+  static String pickupSummary(String day) => 'Retire $day · grátis';
+
+  static String deliveryFrom(int? cents) => switch (cents) {
+        null => 'Entrega · frete no checkout',
+        0 => 'Entrega grátis',
+        _ => 'Entrega a partir de ${price(cents)}',
+      };
+
+  static String orDeliveryFrom(int? cents) => switch (cents) {
+        null => 'ou entrega',
+        0 => 'ou entrega grátis',
+        _ => 'ou entrega a partir de ${price(cents)}',
+      };
+
+  static String freeShippingAbove(int cents) =>
+      'Frete grátis a partir de ${price(cents)}';
+
+  /// A linha já tem o máximo que o saldo deixa comprar.
+  static String cartLineAtMax(int max) =>
+      'Você já tem $max no carrinho — é o máximo desse item agora.';
+
+  /// Só parte coube: a linha foi até o máximo.
+  static String cartLineCapped(int max) =>
+      'Adicionado · seu carrinho ficou com $max, o máximo desse item.';
+
+  static String ratingCount(int count) => '($count)';
 
   // Próxima etapa
   static const comingSoonTitle = 'Esta parte da Loja chega na próxima etapa';

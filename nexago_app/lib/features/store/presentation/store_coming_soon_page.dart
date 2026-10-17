@@ -12,8 +12,8 @@ import 'store_copy.dart';
 import 'widgets/store_header.dart';
 import 'widgets/store_style.dart';
 
-/// Destinos da Loja que ainda não existem (página do produto, carrinho):
-/// avisa que chegam na próxima etapa e volta pra vitrine.
+/// Destinos da Loja que ainda não existem (hoje, o carrinho): avisa que
+/// chegam na próxima etapa e volta pra vitrine.
 class StoreComingSoonPage extends StatelessWidget {
   const StoreComingSoonPage({super.key});
 

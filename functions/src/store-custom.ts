@@ -48,7 +48,6 @@ export interface CustomizationConfig {
     fonts: {id: FontId; enabled: boolean}[];
     colors: string[];
     blockOffensive: boolean;
-    allowNumber: boolean;
   };
   image: {
     enabled: boolean;
@@ -59,7 +58,20 @@ export interface CustomizationConfig {
     areas: PrintArea[];
     removeBackground: boolean;
   };
-  price: {nameOnlyCents: number; imageOnlyCents: number; bothCents: number};
+  /**
+   * Elemento das costas, abaixo do nome: o atleta escolhe imagem OU número entre os que o
+   * produto libera. Substitui o antigo `name.allowNumber` (número colado ao nome).
+   */
+  back: {
+    enabled: boolean;
+    allowImage: boolean;
+    allowNumber: boolean;
+    numberMaxDigits: number;
+    widthCm: number;
+    heightCm: number;
+  };
+  /** `backCents` soma ao preço de nome/imagem quando o atleta preenche as costas. */
+  price: {nameOnlyCents: number; imageOnlyCents: number; bothCents: number; backCents: number};
   production: {leadDays: number; printShop: string; manualApproval: boolean};
   defectOnlyReturns: boolean;
 }
@@ -80,7 +92,6 @@ export const DEFAULT_CUSTOMIZATION: CustomizationConfig = {
     fonts: FONTS.map((id) => ({id, enabled: true})),
     colors: ["#ffffff", "#111111", "#ff6a1a", "#e3b85c"],
     blockOffensive: true,
-    allowNumber: false,
   },
   image: {
     enabled: true,
@@ -95,7 +106,8 @@ export const DEFAULT_CUSTOMIZATION: CustomizationConfig = {
     ],
     removeBackground: true,
   },
-  price: {nameOnlyCents: 1490, imageOnlyCents: 1990, bothCents: 2490},
+  back: {enabled: false, allowImage: true, allowNumber: true, numberMaxDigits: 2, widthCm: 25, heightCm: 25},
+  price: {nameOnlyCents: 1490, imageOnlyCents: 1990, bothCents: 2490, backCents: 990},
   production: {leadDays: 5, printShop: "", manualApproval: true},
   defectOnlyReturns: true,
 };
@@ -121,7 +133,7 @@ export function customizationErrors(c: CustomizationConfig): string[] {
   const colors = Array.isArray(n?.colors) ? n.colors : null;
   if (
     !n || !bool(n.enabled) || !int(n.maxChars, 1, 20) || !PLACEMENTS.includes(n.placement) ||
-    !bool(n.blockOffensive) || !bool(n.allowNumber) ||
+    !bool(n.blockOffensive) ||
     !fonts || fonts.length !== FONTS.length || fonts.some((f) => !FONTS.includes(f?.id) || !bool(f.enabled)) ||
     new Set(fonts.map((f) => f.id)).size !== FONTS.length ||
     !colors || colors.length > 8 || colors.some((h) => typeof h !== "string" || !HEX_RE.test(h))
@@ -150,8 +162,22 @@ export function customizationErrors(c: CustomizationConfig): string[] {
     fields.push("image");
   }
 
+  const b = c?.back;
+  if (
+    !b || !bool(b.enabled) || !bool(b.allowImage) || !bool(b.allowNumber) ||
+    !int(b.numberMaxDigits, 1, 3) || !int(b.widthCm, 1, 100) || !int(b.heightCm, 1, 100)
+  ) {
+    fields.push("back");
+  } else if (b.enabled && !b.allowImage && !b.allowNumber) {
+    // Costas ligadas sem imagem nem número: o atleta não teria o que escolher.
+    fields.push("back");
+  }
+
   const p = c?.price;
-  if (!p || !int(p.nameOnlyCents, 0, 100000) || !int(p.imageOnlyCents, 0, 100000) || !int(p.bothCents, 0, 100000)) {
+  if (
+    !p || !int(p.nameOnlyCents, 0, 100000) || !int(p.imageOnlyCents, 0, 100000) || !int(p.bothCents, 0, 100000) ||
+    !int(p.backCents, 0, 100000)
+  ) {
     fields.push("price");
   }
   const prod = c?.production;
@@ -164,17 +190,23 @@ export function customizationErrors(c: CustomizationConfig): string[] {
   if (!bool(c?.defectOnlyReturns)) fields.push("defectOnlyReturns");
 
   // Ativa sem nada para personalizar: o app mostraria um editor vazio.
-  if (fields.length === 0 && c.active && !c.name.enabled && !c.image.enabled) fields.push("active");
+  if (fields.length === 0 && c.active && !c.name.enabled && !c.image.enabled && !c.back.enabled) fields.push("active");
   return fields.sort();
 }
 
 /** Doc salvo por cima do padrão — o doc pode ser de versão anterior. */
 export function withCustomizationDefaults(data: Record<string, unknown> | undefined): CustomizationConfig {
-  const d = (data ?? {}) as Partial<CustomizationConfig>;
+  const d = (data ?? {}) as Partial<CustomizationConfig> & {name?: {allowNumber?: boolean}};
+  // Doc de antes das costas com "número junto com o nome" ligado vira costas só com número.
+  const legacyNumber = d.back === undefined && d.name?.allowNumber === true;
+  const {allowNumber: _legacy, ...name} = (d.name ?? {}) as Record<string, unknown>;
   return {
     ...DEFAULT_CUSTOMIZATION,
     ...d,
-    name: {...DEFAULT_CUSTOMIZATION.name, ...(d.name ?? {})},
+    name: {...DEFAULT_CUSTOMIZATION.name, ...name},
+    back: legacyNumber
+      ? {...DEFAULT_CUSTOMIZATION.back, enabled: true, allowImage: false, allowNumber: true}
+      : {...DEFAULT_CUSTOMIZATION.back, ...(d.back ?? {})},
     image: {...DEFAULT_CUSTOMIZATION.image, ...(d.image ?? {})},
     price: {...DEFAULT_CUSTOMIZATION.price, ...(d.price ?? {})},
     production: {...DEFAULT_CUSTOMIZATION.production, ...(d.production ?? {})},
@@ -197,8 +229,24 @@ export async function saveCustomizationCore(
   const c = input.config;
   await db.collection(CUSTOMIZATION).doc(input.productId).set({
     active: c.active,
-    name: {...c.name, colors: c.name.colors.map((h) => h.toLowerCase())},
+    // Campo a campo: o `allowNumber` antigo, se vier de um cliente desatualizado, não volta ao doc.
+    name: {
+      enabled: c.name.enabled,
+      maxChars: c.name.maxChars,
+      placement: c.name.placement,
+      fonts: c.name.fonts,
+      colors: c.name.colors.map((h) => h.toLowerCase()),
+      blockOffensive: c.name.blockOffensive,
+    },
     image: {...c.image, areas: c.image.areas.map((a) => ({...a, name: a.name.trim()}))},
+    back: {
+      enabled: c.back.enabled,
+      allowImage: c.back.allowImage,
+      allowNumber: c.back.allowNumber,
+      numberMaxDigits: c.back.numberMaxDigits,
+      widthCm: c.back.widthCm,
+      heightCm: c.back.heightCm,
+    },
     price: c.price,
     production: {...c.production, printShop: c.production.printShop.trim()},
     defectOnlyReturns: c.defectOnlyReturns,
@@ -329,6 +377,10 @@ export interface BatchRow {
   namePlacement: string | null;
   imageArea: string | null;
   imageUrl: string | null;
+  /** "nº 10" ou a URL da imagem das costas; `null` sem costas. */
+  back: string | null;
+  /** Número das costas de cada unidade do kit (mesma ordem de `names`). */
+  numbers: string[];
   files: {name: string; url: string}[];
 }
 
@@ -353,7 +405,8 @@ export async function createCustomBatchCore(
   const batchRef = db.collection(CUSTOM_BATCHES).doc();
   const rows: BatchRow[] = pending.map((d) => {
     const it = d.data();
-    const units = Array.isArray(it["units"]) ? (it["units"] as {name?: string}[]) : [];
+    const units = Array.isArray(it["units"]) ? (it["units"] as {name?: string; number?: string}[]) : [];
+    const back = it["back"] as {type?: string; number?: string; image?: {url?: string}} | undefined;
     const names = units.length > 0 ? units.map((u) => u.name ?? "") : it["name"] ? [it["name"] as string] : [];
     return {
       itemId: d.id,
@@ -366,6 +419,8 @@ export async function createCustomBatchCore(
       namePlacement: (it["namePlacement"] as string) ?? null,
       imageArea: (it["imageArea"] as string) ?? null,
       imageUrl: (it["image"]?.["url"] as string) ?? null,
+      back: back?.type === "numero" ? `nº ${back.number ?? ""}` : back?.type === "imagem" ? (back.image?.url ?? "imagem") : null,
+      numbers: units.map((u) => u.number ?? ""),
       files: Array.isArray(it["finalFiles"]) ? it["finalFiles"] : [],
     };
   });

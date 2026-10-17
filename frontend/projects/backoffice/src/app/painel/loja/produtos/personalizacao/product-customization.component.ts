@@ -15,7 +15,9 @@ import {
   FORMAT_LABELS,
   PLACEMENT_LABELS,
   addOnCents,
-  addOnLabel,
+  addOnLines,
+  backKindLabel,
+  sampleNumber,
   customizationErrors,
   sampleName,
   type CustomizationConfig,
@@ -113,6 +115,7 @@ type PriceKey = keyof CustomizationConfig['price'];
             }
 
             <div class="grid">
+              <div class="col">
               <!-- Nome -->
               <bo-panel-card>
                 <div class="card-head">
@@ -175,13 +178,54 @@ type PriceKey = keyof CustomizationConfig['price'];
                     </div>
                     <bo-toggle ariaLabel="Bloquear palavrões e ofensas" [checked]="config().name.blockOffensive" (checkedChange)="set('name.blockOffensive', $event)" />
                   </div>
-                  <div class="row-between bordered">
-                    <span>Permitir número junto com o nome</span>
-                    <bo-toggle ariaLabel="Permitir número junto com o nome" [checked]="config().name.allowNumber" (checkedChange)="set('name.allowNumber', $event)" />
-                  </div>
                 </fieldset>
                 @if (errors().name; as text) { <p class="error">{{ text }}</p> }
               </bo-panel-card>
+
+              <!-- Costas: abaixo do nome, imagem OU número (o atleta escolhe) -->
+              <bo-panel-card>
+                <div class="card-head">
+                  <div>
+                    <h2>Costas</h2>
+                    <div class="hint">Abaixo do nome · o atleta escolhe imagem ou número</div>
+                  </div>
+                  <bo-toggle ariaLabel="Personalizar costas" [checked]="config().back.enabled" (checkedChange)="set('back.enabled', $event)" />
+                </div>
+                <fieldset class="stack" [disabled]="!config().back.enabled">
+                  <div class="field-like">
+                    <span class="label">O atleta pode enviar</span>
+                    <div class="chips" role="group" aria-label="O que vale nas costas">
+                      <button type="button" class="bo-chip" [class.active]="config().back.allowImage" [attr.aria-pressed]="config().back.allowImage" (click)="set('back.allowImage', !config().back.allowImage)">Imagem</button>
+                      <button type="button" class="bo-chip" [class.active]="config().back.allowNumber" [attr.aria-pressed]="config().back.allowNumber" (click)="set('back.allowNumber', !config().back.allowNumber)">Número</button>
+                    </div>
+                  </div>
+                  <div class="two">
+                    @if (config().back.allowNumber) {
+                      <bo-field label="Máx. dígitos">
+                        <select class="bo-select" (change)="set('back.numberMaxDigits', num($event))">
+                          @for (d of [1, 2, 3]; track d) {
+                            <option [value]="d" [selected]="config().back.numberMaxDigits === d">{{ d }} ({{ d === 1 ? '0–9' : d === 2 ? '0–99' : '0–999' }})</option>
+                          }
+                        </select>
+                      </bo-field>
+                    }
+                    <div class="field-like">
+                      <span class="label">Área nas costas</span>
+                      <div class="res">
+                        <input class="bo-input" inputmode="numeric" aria-label="Largura da área das costas em cm" [value]="config().back.widthCm" (input)="set('back.widthCm', num($event))" />
+                        <span>×</span>
+                        <input class="bo-input" inputmode="numeric" aria-label="Altura da área das costas em cm" [value]="config().back.heightCm" (input)="set('back.heightCm', num($event))" />
+                        <span class="unit">cm</span>
+                      </div>
+                    </div>
+                  </div>
+                  @if (config().back.allowImage) {
+                    <p class="hint">A imagem das costas segue os formatos, o tamanho e a resolução mínima do card Imagem.</p>
+                  }
+                </fieldset>
+                @if (errors().back; as text) { <p class="error">{{ text }}</p> }
+              </bo-panel-card>
+              </div>
 
               <div class="col">
                 <!-- Imagem -->
@@ -259,6 +303,13 @@ type PriceKey = keyof CustomizationConfig['price'];
                           </span>
                         </bo-field>
                       }
+                      @if (config().back.enabled) {
+                        <bo-field label="Costas">
+                          <span class="affix"><span class="pre">R$</span>
+                            <input class="bo-input" inputmode="decimal" [value]="money(config().price.backCents)" (change)="setPrice('backCents', $event)" />
+                          </span>
+                        </bo-field>
+                      }
                       @if (config().name.enabled && config().image.enabled) {
                         <bo-field label="Os dois">
                           <span class="affix"><span class="pre">R$</span>
@@ -318,12 +369,21 @@ type PriceKey = keyof CustomizationConfig['price'];
                   @for (a of previewAreas(); track a.id) {
                     <span class="area" [class]="'area at-' + a.id" [title]="a.name"></span>
                   }
+                  @if (previewBack(); as b) {
+                    <span class="back-area" [class]="'back-area at-' + b.spot" [title]="'Costas · ' + b.kind">
+                      @if (b.number) {
+                        <span class="back-number" [class]="'back-number font-' + b.font" [style.color]="b.color">{{ b.number }}</span>
+                      } @else {
+                        <span class="back-kind">imagem</span>
+                      }
+                    </span>
+                  }
                   <span class="mock-label">{{ coverUrl() ? 'Foto do produto' : 'Mockup' }} · {{ side() === 'frente' ? 'Frente' : 'Costas' }}</span>
                 </div>
                 <dl class="summary">
                   <div><dt>Preço base</dt><dd>{{ brl(basePrice()) }}</dd></div>
-                  @if (addOn() > 0) {
-                    <div><dt>{{ addOnText() }}</dt><dd>+ {{ brl(addOn()) }}</dd></div>
+                  @for (line of addOnLines(); track line.label) {
+                    <div><dt>{{ line.label }}</dt><dd>+ {{ brl(line.cents) }}</dd></div>
                   }
                   <div class="total"><dt>Total</dt><dd>{{ brl(basePrice() + addOn()) }}</dd></div>
                 </dl>
@@ -433,6 +493,11 @@ type PriceKey = keyof CustomizationConfig['price'];
     .area.at-peito_esquerdo { top: 28%; right: 26%; width: 12%; height: 12%; }
     .area.at-centro_frente { top: 42%; left: 30%; width: 40%; height: 40%; }
     .area.at-manga { top: 30%; left: 6%; width: 10%; height: 10%; }
+    .back-area { position: absolute; left: 30%; width: 40%; height: 34%; display: grid; place-items: center; border: 1px dashed var(--nx-orange-500); background: rgba(255, 106, 26, 0.08); }
+    .back-area.at-below { top: 40%; }
+    .back-area.at-above { top: 20%; }
+    .back-number { font-size: 56px; line-height: 1; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
+    .back-kind { font-family: var(--nx-font-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--nx-orange-500); }
     .mock-label { position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; font-family: var(--nx-font-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--nx-text-dim); }
     .summary { margin: 14px 0 0; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
     .summary div { display: flex; justify-content: space-between; }
@@ -478,7 +543,7 @@ export class ProductCustomizationComponent {
 
   protected readonly dirty = computed(() => this.state() === 'ok' && JSON.stringify(this.config()) !== this.baseline());
   protected readonly addOn = computed(() => addOnCents(this.config()));
-  protected readonly addOnText = computed(() => addOnLabel(this.config()));
+  protected readonly addOnLines = computed(() => addOnLines(this.config()));
 
   /** Nome na 1ª fonte e cor ativas, no lado onde ele é estampado. */
   protected readonly previewName = computed(() => {
@@ -495,6 +560,21 @@ export class ProductCustomizationComponent {
       font: c.name.fonts.find((f) => f.enabled)?.id ?? 'bloco',
       color: c.name.colors[0] ?? '#ffffff',
       spot: c.name.placement === 'costas_inferior' ? 'bottom' : onBack ? 'top' : 'chest',
+    };
+  });
+
+  /** Elemento das costas abaixo do nome (acima, se o nome for embaixo). Número de exemplo quando vale número. */
+  protected readonly previewBack = computed(() => {
+    const c = this.config();
+    if (!c.back.enabled || this.side() !== 'costas') {
+      return null;
+    }
+    return {
+      spot: c.name.enabled && c.name.placement === 'costas_inferior' ? 'above' : 'below',
+      kind: backKindLabel(c),
+      number: c.back.allowNumber ? sampleNumber(c.back.numberMaxDigits) : null,
+      font: c.name.fonts.find((f) => f.enabled)?.id ?? 'bloco',
+      color: c.name.colors[0] ?? '#ffffff',
     };
   });
 

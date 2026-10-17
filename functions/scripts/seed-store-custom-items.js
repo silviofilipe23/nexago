@@ -56,12 +56,14 @@ function items(productId, productName, now) {
       orderCode: "NX-4835", customerName: "Marcelo Antunes", variantLabel: "Preta · M", status: "aprovar",
       name: "ANTUNES", font: "bloco", nameColor: "#ffffff", namePlacement: "costas_superior",
       image: image(2400, 2400, "png", 1_800_000), imageArea: "peito_esquerdo",
+      back: {type: "numero", number: "10"},
       finalFiles: [{name: "arte-NX4835-frente.png", url: null}, {name: "arte-NX4835-costas.pdf", url: null}],
     }),
     "seed-4833": base("4833", 5, {
       orderCode: "NX-4833", customerName: "Duda Ferraz", variantLabel: "Branca · P", status: "aprovar",
       name: "DUDA", font: "classica", nameColor: "#111111", namePlacement: "costas_superior",
       image: image(800, 800, "jpg", 400_000), imageArea: "centro_frente",
+      back: {type: "imagem", image: image(2000, 2000, "png", 1_200_000)},
     }),
     "seed-4826": base("4826", 21, {
       orderCode: "NX-4826", customerName: "Lucas Teo", variantLabel: "Viseira · Preta", status: "nova_imagem",
@@ -75,7 +77,8 @@ function items(productId, productName, now) {
     }),
     "seed-4820": base("4820", 72, {
       orderCode: "NX-4820", customerName: "Equipe Areia GO", variantLabel: "Kit 8 camisetas", status: "producao",
-      units: ["ANA", "BIA", "CAU", "DANI", "EDU", "FE", "GABI", "HELO"].map((name) => ({name})),
+      units: ["ANA", "BIA", "CAU", "DANI", "EDU", "FE", "GABI", "HELO"].map((name, i) => ({name, number: String(i + 1)})),
+      back: {type: "numero", number: ""},
       font: "bloco", nameColor: "#ffffff", namePlacement: "costas_superior",
       image: image(3000, 3000, "png", 2_400_000), imageArea: "centro_frente",
       approvedAt: at(70), approvedBy: {uid: "seed", name: "Seed"},

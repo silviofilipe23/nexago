@@ -5,6 +5,7 @@ import {
   customItemFromDoc,
   customKpis,
   effectiveDpi,
+  hasLowResolution,
   itemsForTab,
   nameCell,
   slaOverdue,
@@ -89,6 +90,33 @@ describe('custom-item', () => {
       expect(checklist(item({ name: 'PALAVRAO' }), off, ['palavrao']).find((r) => r.id === 'nome')!.level).toBe('ok');
     });
 
+    it('costas com número: só dígitos, até o máximo', () => {
+      const ok = checklist(item({ back: { type: 'numero', number: '10' } }), config, []).find((r) => r.id === 'numero')!;
+      expect([ok.level, ok.detail]).toEqual(['ok', 'nº 10 · até 2 dígitos']);
+      expect(checklist(item({ back: { type: 'numero', number: '100' } }), config, []).find((r) => r.id === 'numero')!.level).toBe('erro');
+      expect(checklist(item({ back: { type: 'numero', number: '1A' } }), config, []).find((r) => r.id === 'numero')!.level).toBe('erro');
+    });
+
+    it('kit: número de cada unidade', () => {
+      const kit = item({ units: [{ name: 'ana', number: '7' }, { name: 'bia', number: '10' }], back: { type: 'numero', number: '' } });
+      const row = checklist(kit, config, []).find((r) => r.id === 'numero')!;
+      expect([row.label, row.level, row.detail]).toEqual(['Números', 'ok', '7, 10 · até 2 dígitos']);
+    });
+
+    it('costas com imagem: resolução pela área das costas e conteúdo a conferir', () => {
+      const rows = checklist(item({ image: null, back: { type: 'imagem', image: { widthPx: 2000, heightPx: 2000, format: 'png', sizeBytes: 1_200_000 } } }), config, []);
+      // 25 cm = 9,84 pol → 2000 px dão 203 dpi: acima do mínimo, abaixo do ideal.
+      expect(rows.find((r) => r.id === 'costas')!.level).toBe('warn');
+      expect(rows.find((r) => r.id === 'costas')!.detail).toContain('203 dpi');
+      expect(rows.some((r) => r.id === 'conteudo')).toBeTrue();
+    });
+
+    it('resolução baixa em qualquer lado pede confirmação', () => {
+      const lowBack = item({ back: { type: 'imagem', image: { widthPx: 500, heightPx: 500, format: 'png', sizeBytes: 1 } } });
+      expect(hasLowResolution(lowBack, config)).toBeTrue();
+      expect(hasLowResolution(item(), config)).toBeFalse();
+    });
+
     it('sem imagem não há checagem de imagem', () => {
       expect(checklist(item({ image: null }), config, []).map((r) => r.id)).toEqual(['nome']);
     });
@@ -112,11 +140,13 @@ describe('custom-item', () => {
   });
 
   it('planilha: uma linha por nome, com BOM e ; como separador', () => {
-    const csv = batchCsv([{ item: item({ units: [{ name: 'ana' }, { name: 'bia' }] }), areaLabel: 'Peito esquerdo 9×9 cm' }]);
+    const csv = batchCsv([{ item: item({ units: [{ name: 'ana', number: '7' }, { name: 'bia' }], back: { type: 'numero', number: '10' } }), areaLabel: 'Peito esquerdo 9×9 cm' }]);
     const lines = csv.replace('﻿', '').split('\r\n');
     expect(csv.startsWith('﻿')).toBeTrue();
     expect(lines.length).toBe(3);
-    expect(lines[1]).toContain('#NX-4835;Camiseta;Preta · M;ANA;bloco');
-    expect(lines[2]).toContain(';BIA;');
+    expect(lines[0]).toContain('nome;costas;fonte');
+    // Unidade com número próprio usa o dela; sem número, cai no das costas do item.
+    expect(lines[1]).toContain('#NX-4835;Camiseta;Preta · M;ANA;nº 7;bloco');
+    expect(lines[2]).toContain(';BIA;nº 10;');
   });
 });

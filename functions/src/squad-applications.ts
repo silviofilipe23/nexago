@@ -32,6 +32,7 @@ import {
   DEFAULT_CYCLE,
   INVITE_TTL_DAYS,
   LEADS_GROUPS,
+  REJECTION_MESSAGE,
   freeSeats,
   isValidCode,
   nextCycleStart,
@@ -56,6 +57,8 @@ import {
   type SquadTier,
 } from "./squad-rules";
 import {INVITES_COLLECTION} from "./tournament-invite-constants";
+
+export {REJECTION_MESSAGE};
 
 export const SQUAD_APPLICATIONS = "squadApplications";
 export const SQUAD_INVITES = "squadInvites";
@@ -331,8 +334,6 @@ export type ApplicationAction =
   | {action: "note"; text: string}
   | {action: "social"; followers: number; engagementPct: number | null}
   | {action: "suggest"; tier: SquadTier | "auto"};
-
-export const REJECTION_MESSAGE = "Obrigado pelo interesse! Neste ciclo não seguimos com sua candidatura.";
 
 export async function updateApplicationCore(
   db: Firestore,

@@ -5,7 +5,7 @@
  * relógio dos convites (lembretes e expiração). Sem Firestore: quem lê e grava é
  * `squad-applications.ts` / `squad-contracts.ts`.
  *
- * Espelhado à mão em `frontend/projects/backoffice/src/app/painel/squad/embaixadores/data/squad-program.ts`:
+ * Espelhado à mão em `frontend/projects/backoffice/src/app/painel/squad/data/squad-program.ts`:
  * mudou aqui, muda lá.
  */
 import type {SquadTier} from "./squad-rules";
@@ -184,6 +184,9 @@ export function scoreTone(score: number | null): ScoreTone {
   if (score >= 55) return "warm";
   return "red";
 }
+
+/** O que o atleta recusado recebe. O motivo interno nunca sai do backoffice. */
+export const REJECTION_MESSAGE = "Obrigado pelo interesse! Neste ciclo não seguimos com sua candidatura.";
 
 // ── kanban (tela 04) ────────────────────────────────────────────────────────
 

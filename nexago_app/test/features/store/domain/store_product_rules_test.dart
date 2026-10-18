@@ -448,6 +448,50 @@ void main() {
         isNull,
       );
     });
+
+    test('teto do SKU: saldo exposto, mínimo 1, até o teto da compra', () {
+      expect(storeVariantCap(_sku('branco', 'g', 2)), 2);
+      expect(storeVariantCap(_sku('branco', 'm', 12)), kStoreMaxQtyPerItem);
+      expect(storeVariantCap(_sku('preto', 'm', 0)), 1);
+    });
+
+    test('antes de gravar: linha no teto ou carrinho sem lugar', () {
+      expect(
+        storeCartAddBlock(base, productId: 'cam', skuId: 'branco_m', cap: 10),
+        isNull,
+      );
+      expect(
+        storeCartAddBlock(base, productId: 'cam', skuId: 'branco_m', cap: 8),
+        StoreCartAddBlock.lineAtMax,
+      );
+      final full = [
+        for (var i = 0; i < kStoreMaxCartLines; i++)
+          StoreCartItem(productId: 'p$i', skuId: 'u', qty: 1),
+      ];
+      expect(
+        storeCartAddBlock(full, productId: 'novo', skuId: 'u', cap: 10),
+        StoreCartAddBlock.cartFull,
+      );
+      // Linha que já existe soma mesmo com 30 linhas.
+      expect(
+        storeCartAddBlock(full, productId: 'p0', skuId: 'u', cap: 10),
+        isNull,
+      );
+      // Linha personalizada do mesmo SKU não conta pro teto da comum.
+      const custom = [
+        StoreCartItem(
+          productId: 'cam',
+          skuId: 'branco_m',
+          qty: 10,
+          lineId: 'l1',
+          customization: {'name': 'SILVIO'},
+        ),
+      ];
+      expect(
+        storeCartAddBlock(custom, productId: 'cam', skuId: 'branco_m', cap: 10),
+        isNull,
+      );
+    });
   });
 
   group('galeria', () {

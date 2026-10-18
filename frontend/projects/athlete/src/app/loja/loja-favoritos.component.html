@@ -1,0 +1,182 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  <header class="lj-header">
+    <div class="lp-heading">
+      <nav class="lp-crumbs" aria-label="Você está em">
+        <a routerLink="/loja">Loja</a>
+      </nav>
+      <h1 class="lp-title">Favoritos</h1>
+    </div>
+
+    <form class="lj-search" role="search" (submit)="search($event, searchInput.value)">
+      <svg class="lj-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+      <input #searchInput type="search" class="lj-search-input" placeholder="Buscar bola, viseira, rede…" aria-label="Buscar na loja" autocomplete="off" enterkeyhint="search" />
+    </form>
+
+    <div class="lj-header-actions">
+      <a class="lj-icon-btn lf-heart-on" routerLink="/loja/favoritos" aria-label="Favoritos" aria-current="page">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z" /></svg>
+      </a>
+      <a class="lj-cart-btn" routerLink="/loja/carrinho" [class.lp-pulse]="cartPulse()" [attr.aria-label]="store.cartUnits() > 0 ? 'Carrinho, ' + store.cartUnits() + ' itens' : 'Carrinho'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h8.7a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2" /><circle cx="9.5" cy="20" r="1.2" /><circle cx="17.5" cy="20" r="1.2" /></svg>
+        <span>Carrinho</span>
+        @if (store.cartUnits() > 0) {
+          <span class="lj-cart-count">{{ store.cartUnits() }}</span>
+        }
+      </a>
+    </div>
+  </header>
+
+  <div class="lf-body">
+    @if (store.error(); as err) {
+      <section class="lp-state" role="alert">
+        <h2>Não deu pra carregar seus favoritos</h2>
+        <p>Confira a conexão e tente de novo.</p>
+        <button type="button" class="lp-state-btn" (click)="store.retry()">Tentar de novo</button>
+        <small class="lp-state-detail">{{ err }}</small>
+      </section>
+    } @else if (store.loading()) {
+      <p class="lp-visually-hidden" role="status">Carregando seus favoritos…</p>
+      <div class="lf-grid" aria-hidden="true">
+        @for (i of skeletonCards; track i) {
+          <app-nx-skeleton h="360px" [r]="20" />
+        }
+      </div>
+    } @else if (favorites().length === 0) {
+      <section class="lf-empty">
+        <span class="lf-empty-icon" aria-hidden="true">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z" /></svg>
+        </span>
+        <h2>Nada salvo ainda</h2>
+        <p>Toque no coração de um produto pra guardar aqui.</p>
+        <a class="lp-state-btn" routerLink="/loja">Explorar a loja</a>
+      </section>
+    } @else {
+      <div class="lf-toolbar">
+        <div class="lf-chips" role="radiogroup" aria-label="Filtrar favoritos">
+          @for (f of filters; track f.id) {
+            <button
+              type="button"
+              role="radio"
+              class="lf-chip"
+              [class.lf-chip--on]="filter() === f.id"
+              [attr.aria-checked]="filter() === f.id"
+              [disabled]="counts()[f.id] === 0 && f.id !== 'todos'"
+              (click)="chooseFilter(f.id)"
+            >
+              {{ f.label }}<span class="lf-chip-count">{{ counts()[f.id] }}</span>
+            </button>
+          }
+        </div>
+        @if (plan().add.length > 0) {
+          <button type="button" class="lf-bulk" [attr.aria-busy]="bulkAdding()" (click)="addAvailable()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l-1 13H7z" /><path d="M9 7a3 3 0 0 1 6 0" /></svg>
+            Adicionar disponíveis ao carrinho
+          </button>
+        }
+      </div>
+
+      @if (visible().length === 0) {
+        <p class="lf-none">Nenhum favorito nesse filtro.</p>
+      }
+
+      <div class="lf-grid">
+        @for (p of visible(); track p.id; let i = $index) {
+          <article class="lf-card" [class.lf-card--out]="p.soldOut">
+            <a class="lf-media" [routerLink]="['/loja/p', p.slug || p.id]" [state]="{ origem: 'favoritos' }" [attr.data-tone]="tone(p)" [attr.aria-label]="p.name">
+              @if (p.coverUrl; as cover) {
+                <img [src]="cover" [alt]="p.name" loading="lazy" decoding="async" />
+              } @else {
+                <span class="lf-placeholder" aria-hidden="true">{{ categoryName(p.category) }}</span>
+              }
+            </a>
+            <div class="lf-tags">
+              @if (badge(p); as b) {
+                <span class="lf-note" [attr.data-kind]="b.kind">{{ b.label }}</span>
+              }
+              @if (customizable(p)) {
+                <span class="lf-tag">Personalizável</span>
+              }
+            </div>
+            <button type="button" class="lf-heart" [attr.aria-label]="'Tirar ' + p.name + ' dos favoritos'" (click)="toggleFavorite(p)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z" /></svg>
+            </button>
+            <div class="lf-info">
+              <span class="lf-category">{{ categoryName(p.category) }}</span>
+              <a class="lf-name" [routerLink]="['/loja/p', p.slug || p.id]" [state]="{ origem: 'favoritos' }" [title]="p.name">{{ p.name }}</a>
+              <div class="lf-price-row">
+                @if (from(p)) {
+                  <span class="lf-from">a partir de</span>
+                }
+                <span class="lf-price">{{ price(p) }}</span>
+                @if (strike(p); as s) {
+                  <s class="lf-strike">{{ s }}</s>
+                }
+              </div>
+              @if (pix(p); as px) {
+                <span class="lf-pix"><strong>{{ px }}</strong> no Pix</span>
+              }
+              <div class="lf-cta">
+                <button
+                  type="button"
+                  class="lf-action"
+                  [attr.data-kind]="action(p)"
+                  [attr.aria-busy]="adding() === p.id"
+                  (click)="act(p)"
+                >
+                  @switch (action(p)) {
+                    @case ('avise') {
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 10a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4S6 15 6 10z" /><path d="M10 19.5a2 2 0 0 0 4 0" /></svg>
+                    }
+                    @case ('adicionar') {
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 7h12l-1 13H7z" /><path d="M9 7a3 3 0 0 1 6 0" /></svg>
+                    }
+                  }
+                  @if (action(p) === 'avise') {
+                    <span>Avise-me<span class="lf-long"> quando chegar</span></span>
+                  } @else {
+                    {{ actionLabel(p) }}
+                  }
+                </button>
+              </div>
+            </div>
+          </article>
+        }
+      </div>
+
+      @if (related().length > 0) {
+        <section class="lf-related" aria-labelledby="lf-related-title">
+          <div class="lf-related-head">
+            <h2 id="lf-related-title">Combina com seus favoritos</h2>
+            <a routerLink="/loja">Ver loja</a>
+          </div>
+          <div class="lf-related-grid">
+            @for (r of related(); track r.id) {
+              <a class="lf-mini" [routerLink]="['/loja/p', r.slug || r.id]" [state]="{ origem: 'favoritos' }">
+                <span class="lf-mini-media" [attr.data-tone]="tone(r)">
+                  @if (r.coverUrl; as cover) {
+                    <img [src]="cover" [alt]="r.name" loading="lazy" decoding="async" />
+                  } @else {
+                    <span class="lf-placeholder" aria-hidden="true">{{ categoryName(r.category) }}</span>
+                  }
+                </span>
+                <span class="lf-mini-name" [title]="r.name">{{ r.name }}</span>
+                <span class="lf-mini-price">{{ (from(r) ? 'a partir de ' : '') + price(r) }}</span>
+              </a>
+            }
+          </div>
+        </section>
+      }
+    }
+  </div>
+
+  @if (miniCartOpen()) {
+    <app-loja-mini-cart
+      [lines]="miniCartLines()"
+      [subtotalCents]="miniCartSubtotal()"
+      (closed)="miniCartOpen.set(false)"
+      (mouseenter)="holdMiniCart()"
+      (focusin)="holdMiniCart()"
+      (mouseleave)="scheduleMiniCartClose(2000)"
+    />
+  }
+</app-at-panel-shell>

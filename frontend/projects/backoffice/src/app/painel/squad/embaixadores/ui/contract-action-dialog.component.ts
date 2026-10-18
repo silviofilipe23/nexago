@@ -106,6 +106,8 @@ export class ContractActionDialogComponent {
   readonly contract = input<Contract | null>(null);
   readonly rules = input.required<SquadRules>();
   readonly rulesVersion = input(1);
+  /** Nível já escolhido ao abrir "Mudar nível" ("Promover a Pro" no perfil); sem ele, o primeiro diferente do atual. */
+  readonly initialTier = input<SquadTier | null>(null);
   readonly busy = input(false);
   readonly error = input<string | null>(null);
   readonly now = input.required<Date>();
@@ -178,7 +180,8 @@ export class ContractActionDialogComponent {
         this.reason.set('');
         this.endReason.set('');
         this.date.set(mode === 'end' ? this.today() : '');
-        const next = SQUAD_TIERS.find((t) => t !== contract?.tier) ?? 'amb';
+        const preset = this.initialTier();
+        const next = preset && preset !== contract?.tier ? preset : (SQUAD_TIERS.find((t) => t !== contract?.tier) ?? 'amb');
         this.tier.set(next);
         const range = this.rules().tiers.pro.commissionPct;
         this.pct.set(Array.isArray(range) ? range[0] : null);

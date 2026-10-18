@@ -28,7 +28,8 @@
                 "input": "projects/backoffice/public"
               }
             ],
-            "styles": ["projects/backoffice/src/styles.css"]
+            "styles": ["projects/backoffice/src/styles.css"],
+            "allowedCommonJsDependencies": ["qrcode", "dijkstrajs"]
           },
           "configurations": {
             "production": {

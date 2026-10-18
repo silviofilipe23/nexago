@@ -71,6 +71,31 @@ export const routes: Routes = [
       import('./painel/torneios/panel-torneios.component').then((m) => m.PanelTorneiosComponent),
   },
   {
+    path: 'painel/torneios/planos',
+    title: 'Planos de torneio — NexaGO Backoffice',
+    canActivate: [authGuard],
+    canDeactivate: [leaveWithConfirm],
+    loadComponent: () =>
+      import('./painel/torneios/planos/panel-planos.component').then((m) => m.PanelPlanosComponent),
+  },
+  {
+    // `novo` = plano novo; depois de salvar a URL troca para o id.
+    path: 'painel/torneios/planos/:id',
+    title: 'Editar plano — NexaGO Backoffice',
+    canActivate: [authGuard],
+    canDeactivate: [leaveWithConfirm],
+    loadComponent: () =>
+      import('./painel/torneios/planos/editar/plan-editor.component').then((m) => m.PlanEditorComponent),
+  },
+  {
+    path: 'painel/torneios/sponsors',
+    title: 'NexaGO Sponsors — NexaGO Backoffice',
+    canActivate: [authGuard],
+    canDeactivate: [leaveWithConfirm],
+    loadComponent: () =>
+      import('./painel/torneios/sponsors/panel-sponsors.component').then((m) => m.PanelSponsorsComponent),
+  },
+  {
     path: 'painel/avaliacoes',
     title: 'Avaliações de torneios — NexaGO Backoffice',
     canActivate: [authGuard],

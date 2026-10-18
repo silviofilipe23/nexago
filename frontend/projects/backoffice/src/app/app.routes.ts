@@ -263,7 +263,21 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/loja/campanhas/panel-campanhas.component').then((m) => m.PanelCampanhasComponent),
   },
-  { path: 'painel/squad', pathMatch: 'full', redirectTo: 'painel/squad/comissoes' },
+  { path: 'painel/squad', pathMatch: 'full', redirectTo: 'painel/squad/embaixadores' },
+  {
+    path: 'painel/squad/embaixadores',
+    title: 'Embaixadores — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/squad/embaixadores/panel-embaixadores.component').then((m) => m.PanelEmbaixadoresComponent),
+  },
+  {
+    path: 'painel/squad/candidaturas',
+    title: 'Candidaturas & convites — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/squad/candidaturas/panel-candidaturas.component').then((m) => m.PanelCandidaturasComponent),
+  },
   {
     path: 'painel/squad/comissoes',
     title: 'Comissões — NexaGO Backoffice',

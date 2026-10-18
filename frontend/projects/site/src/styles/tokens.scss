@@ -43,6 +43,14 @@
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
+  /* Pesos numéricos — o site herdou do Next.js as classes font-400..800, mas o Tailwind v4 só
+     gera peso a partir de --font-weight-*; sem estas chaves tudo caía em 400. */
+  --font-weight-400: 400;
+  --font-weight-500: 500;
+  --font-weight-600: 600;
+  --font-weight-700: 700;
+  --font-weight-800: 800;
+
   /* Raios */
   --radius-1: 6px;
   --radius-2: 10px;

@@ -310,6 +310,9 @@ class _StorePageState extends ConsumerState<StorePage> {
               onBack: widget.tabScrollController != null
                   ? null
                   : () => popOrGo(context, AppRoutes.discover),
+              onOrders: ref.watch(storeUidProvider).isEmpty
+                  ? null
+                  : () => context.pushNamed(AppRouteNames.storeOrders),
               onSearch: _openSearch,
               onFavorites: _openFavorites,
               onCart: _openCart,

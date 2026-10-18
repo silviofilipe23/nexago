@@ -143,6 +143,11 @@ export interface CreateOrderInput {
   delivery:
     | {type: "arena"; locationId: string; pickupPointId: string | null}
     | {type: "casa"; modeId: string; modeName: string; address: string; city: string; uf: string; zip: string};
+  /**
+   * Campos extras do checkout (só servidor): cobrança no Asaas, linhas personalizadas completas
+   * para a fila de arte nascer no pagamento. Não sobrescrevem os campos do pedido.
+   */
+  extra?: Record<string, unknown>;
 }
 
 function createErrors(input: CreateOrderInput): string[] {
@@ -256,6 +261,7 @@ export async function createOrderCore(
     tx.set(counterRef, {next: seq + 1}, {merge: true});
     writeProducts(tx, products, actor, now);
     tx.set(ref, {
+      ...(input.extra ?? {}),
       number, seq, status: (input.paid ? "sep" : "pag") as OrderStatus, channel: input.channel,
       customer: {
         uid: input.customer.uid ?? null, name: text(input.customer.name, 120), email: text(input.customer.email, 160),

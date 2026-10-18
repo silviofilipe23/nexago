@@ -182,6 +182,15 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   }
   if (type == 'squad_payout') return AppRoutes.squadEarnings;
 
+  // Pedido da Loja (`store_order_pickup_code`, `_payment`, `_shipped`,
+  // `_canceled`): o push leva só o `orderId` — abre o pedido.
+  if (type.startsWith('store_order_')) {
+    final orderId = (data['orderId'] as String?)?.trim() ?? '';
+    if (orderId.isEmpty) return AppRoutes.storeOrders;
+    return AppRoutes.storeOrder
+        .replaceAll(':orderId', Uri.encodeComponent(orderId));
+  }
+
   // Lembrete de partida: mesmo destino do item no inbox. O `url` antigo apontava pro admin web.
   if (type == 'match_reminder') {
     final matchId = (data['matchId'] as String?)?.trim() ?? '';

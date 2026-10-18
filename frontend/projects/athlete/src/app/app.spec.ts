@@ -43,4 +43,11 @@ describe('chromeHiddenForUrl', () => {
     expect(chromeHiddenForUrl('/loja/produto/p1')).toBe(true);
     expect(chromeHiddenForUrl('/lojas')).toBe(false);
   });
+
+  it('usa a moldura do painel no Squad e nas abas', () => {
+    expect(chromeHiddenForUrl('/squad')).toBe(true);
+    expect(chromeHiddenForUrl('/squad/ganhos')).toBe(true);
+    expect(chromeHiddenForUrl('/squad/nivel')).toBe(true);
+    expect(chromeHiddenForUrl('/squads')).toBe(false);
+  });
 });

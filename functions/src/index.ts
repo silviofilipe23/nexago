@@ -609,6 +609,8 @@ export {
 export {acceptSquadAmendment, sweepSquadProgram, updateSquadContract} from "./squad-contracts";
 // NexaSquad: o que o atleta vê no app/portal (ganhos, pontos, ranking e o convite com o pacote).
 export {getMySquad, getSquadRanking, viewSquadInvite} from "./squad-athlete";
+// NexaSquad: o que só o portal do atleta mostra ("Entrar no Squad", cadastros do funil, checklist).
+export {getSquadPortalInfo} from "./squad-athlete-portal";
 
 // Loja: personalizados — configuração por produto (tela 11) e fila de arte (tela 10).
 export {

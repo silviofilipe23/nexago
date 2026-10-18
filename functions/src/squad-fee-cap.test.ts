@@ -26,4 +26,19 @@ describe("teto do desconto = taxa da plataforma", () => {
     assert.equal(await feePercentForRegistration(db, "reg1"), 5);
     assert.equal(await feePercentForRegistration(db, "nada"), null);
   });
+
+  it("acha o torneio do caminho legado, igual à cobrança (prévia não fica sem teto)", async () => {
+    const fake = new FakeFirestore();
+    const db = fake as unknown as Firestore;
+    fake.seedDoc("organizers/org1", {commissionPercent: 5});
+    fake.seedDoc("artifacts/p/public/data/inscriptions/reg1", {tournamentId: "legado"});
+    fake.seedDoc("artifacts/p/public/data/tournaments/legado", {managerId: "org1"});
+    assert.equal(await feePercentForRegistration(db, "reg1"), 5);
+
+    // O doc do topo ganha quando os dois existem (mesma cascata de `loadTournamentData`).
+    fake.seedDoc("artifacts/p/public/data/inscriptions/reg2", {tournamentId: "t2"});
+    fake.seedDoc("tournaments/t2", {managerId: "org1"});
+    fake.seedDoc("artifacts/p/public/data/tournaments/t2", {managerId: "org2"});
+    assert.equal(await feePercentForRegistration(db, "reg2"), 5);
+  });
 });

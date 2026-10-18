@@ -11,14 +11,14 @@
       </span>
     </a>
 
-    <nav aria-label="Principal" class="hidden items-center gap-7 md:flex">
+    <nav aria-label="Principal" class="hidden items-center gap-5 md:flex lg:gap-7">
       <div #personaMenu class="relative" (mouseenter)="personaOpen.set(true)" (mouseleave)="personaOpen.set(false)">
         <button
           type="button"
           [attr.aria-expanded]="personaOpen()"
           aria-haspopup="true"
           (click)="togglePersona()"
-          class="flex items-center gap-1 text-sm font-500 text-text-mute transition-colors duration-200 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:rounded-2"
+          class="flex items-center gap-1 whitespace-nowrap text-sm font-500 text-text-mute transition-colors duration-200 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:rounded-2"
         >
           Para você
           <svg
@@ -54,7 +54,7 @@
       </div>
 
       @for (item of nav; track item.href) {
-        <a [routerLink]="item.href" class="text-sm font-500 text-text-mute transition-colors duration-200 hover:text-fg">
+        <a [routerLink]="item.href" class="whitespace-nowrap text-sm font-500 text-text-mute transition-colors duration-200 hover:text-fg">
           {{ item.label }}
         </a>
       }
@@ -62,7 +62,7 @@
 
     <div class="hidden items-center gap-2 md:flex">
       <app-theme-toggle />
-      <a nxButton="primary" href="https://linktr.ee/nexago" target="_blank" rel="noopener noreferrer" class="min-h-0 py-2 text-sm">
+      <a nxButton="primary" href="https://linktr.ee/nexago" target="_blank" rel="noopener noreferrer" class="min-h-0 whitespace-nowrap py-2 text-sm">
         Baixar o app
       </a>
     </div>

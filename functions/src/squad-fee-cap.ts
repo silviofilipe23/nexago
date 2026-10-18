@@ -10,6 +10,7 @@
 import type {Firestore} from "firebase-admin/firestore";
 import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 import {computePlatformFeeReais, resolveOrganizerTournamentFeePercent} from "./platform-fees";
+import {loadTournamentData} from "./tournament-registration-guards";
 
 /** % da taxa do torneio (negociado no cadastro do organizador, senão o padrão); `null` sem organizador. */
 export async function tournamentFeePercent(
@@ -21,13 +22,18 @@ export async function tournamentFeePercent(
   return resolveOrganizerTournamentFeePercent((await db.doc(`organizers/${organizerId}`).get()).data());
 }
 
-/** O mesmo % a partir da inscrição (para a prévia do checkout, que só conhece a inscrição). */
+/**
+ * O mesmo % a partir da inscrição (para a prévia do checkout, que só conhece a inscrição).
+ * O torneio sai da mesma cascata da cobrança (`loadTournamentData`: topo, senão o caminho legado),
+ * ou a prévia de um torneio legado mostra o desconto sem teto e a cobrança aplica outro valor.
+ */
 export async function feePercentForRegistration(db: Firestore, registrationId: string): Promise<number | null> {
   if (!registrationId) return null;
-  const reg = (await db.collection(artifactsInscriptionsPath(getFirebaseProjectId())).doc(registrationId).get()).data();
+  const projectId = getFirebaseProjectId();
+  const reg = (await db.collection(artifactsInscriptionsPath(projectId)).doc(registrationId).get()).data();
   const tournamentId = typeof reg?.["tournamentId"] === "string" ? reg["tournamentId"] : "";
   if (!tournamentId) return null;
-  return tournamentFeePercent(db, (await db.doc(`tournaments/${tournamentId}`).get()).data());
+  return tournamentFeePercent(db, await loadTournamentData(db, projectId, tournamentId));
 }
 
 /** Teto em centavos: a taxa da plataforma sobre o preço desta cobrança; `null` = sem teto de taxa. */

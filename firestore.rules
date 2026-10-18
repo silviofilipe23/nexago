@@ -3228,6 +3228,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Espelho público dos embaixadores ativos (página "Conheça o Squad" do site, sem login): nome,
+    // foto, nível, cidade, esporte, Elo, torneios e código — sem comissão, % ou score. Só os
+    // gatilhos de `squad-public-sync.ts` gravam; o contrato acima segue fechado.
+    match /squadPublic/{uid} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Candidaturas do Squad (tela 04): notas internas e motivo de recusa nunca saem para o atleta,
     // então só o backoffice lê. Escrita só pelas callables de `squad-applications.ts`.
     match /squadApplications/{applicationId} {
@@ -3235,11 +3243,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Convites do Squad: o atleta convidado lê o próprio (App 06 · Convite recebido). Abrir e
-    // aceitar passam pelas callables `openSquadInvite`/`acceptSquadInvite`.
+    // Convites do Squad: só o backoffice lê o doc, que guarda quem criou/reenviou/cancelou
+    // (`{uid, name}` — o nome pode ser o e-mail do operador). O atleta lê o próprio convite pela
+    // callable `viewSquadInvite` (App 06 · Convite recebido); abrir e aceitar também são callables.
     match /squadInvites/{inviteId} {
-      allow read: if isAdmin() || isSuperAdmin() ||
-        (request.auth != null && resource.data.athleteId == request.auth.uid);
+      allow read: if isAdmin() || isSuperAdmin();
       allow write: if false;
     }
 

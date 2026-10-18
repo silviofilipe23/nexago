@@ -6,7 +6,8 @@
  *                             (`archivedReason`: rejected · waitlist · expired · canceled · accepted).
  *                             `snapshot` = dados do NexaGO lidos na criação (torneios, Elo, ranking…).
  *   squadInvites/{id}       — o convite: scheduled (piloto cheio) → sent → opened → accepted;
- *                             expired/canceled. O atleta lê o próprio (App 06 · Convite recebido).
+ *                             expired/canceled. Doc só do backoffice (tem o operador); o atleta
+ *                             lê o próprio pela callable `viewSquadInvite` (App 06 · Convite recebido).
  *   squadConfig/cycle       — `{id, start, end, seats}`; ausente = piloto de 20 vagas (`DEFAULT_CYCLE`).
  *
  * O aceite cria/atualiza `squadAmbassadors/{uid}` (o contrato que a atribuição e as comissões já

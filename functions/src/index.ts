@@ -611,6 +611,12 @@ export {acceptSquadAmendment, sweepSquadProgram, updateSquadContract} from "./sq
 export {getMySquad, getSquadRanking, viewSquadInvite} from "./squad-athlete";
 // NexaSquad: o que só o portal do atleta mostra ("Entrar no Squad", cadastros do funil, checklist).
 export {getSquadPortalInfo} from "./squad-athlete-portal";
+// NexaSquad: espelho público dos embaixadores (página "Conheça o Squad" do site, sem login).
+export {
+  onAthleteRankingWrittenSyncSquadPublic,
+  onSquadAmbassadorWrittenSyncPublic,
+  onUserWrittenSyncSquadPublic,
+} from "./squad-public-sync";
 
 // Loja: personalizados — configuração por produto (tela 11) e fila de arte (tela 10).
 export {

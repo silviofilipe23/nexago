@@ -4,7 +4,7 @@
       <div class="sq-col">
         <section class="sq-box sq-box--hot" aria-label="Seus benefícios">
           <div class="sqn-mine-head">
-            <app-squad-tier [tier]="a.contract.tier" [solid]="true" />
+            <app-squad-tier [tier]="a.member.tier" [solid]="true" />
             <span class="sq-dim">{{ period() }}</span>
           </div>
           <div class="sq-rows">
@@ -51,20 +51,19 @@
                 </div>
               }
             </div>
-            @if (l.next; as next) {
-              <p class="sq-dim sqn-next">Faltam {{ next.missing.toLocaleString('pt-BR') }} pts para {{ next.name }}.</p>
+            @if (missingLabel(); as missing) {
+              <p class="sq-dim sqn-next">{{ missing }}</p>
             }
           }
           <div class="sqn-earn">
-            @for (e of earn(); track e.label) {
-              <div class="sqn-earn-tile">
-                <div class="sqn-earn-v">{{ e.value }}</div>
-                <div class="sqn-earn-k">{{ e.label }}</div>
-                @if (e.soon) {
-                  <div class="sqn-earn-soon">contagem em breve</div>
-                }
-              </div>
-            }
+            <div class="sqn-earn-tile">
+              <div class="sqn-earn-v">+{{ perConversion() }}</div>
+              <div class="sqn-earn-k">Conversão paga</div>
+            </div>
+            <div class="sqn-earn-tile sqn-earn-tile--soon">
+              <div class="sqn-earn-k">Presença em evento e conteúdo aprovado</div>
+              <div class="sqn-earn-soon">também vão contar pontos · em breve</div>
+            </div>
           </div>
         </section>
       </div>
@@ -77,7 +76,7 @@
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="sq-dim" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2" /><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" /></svg>
                 <app-squad-tier [tier]="to" />
               } @else {
-                <app-squad-tier [tier]="a.contract.tier" [solid]="true" />
+                <app-squad-tier [tier]="a.member.tier" [solid]="true" />
               }
             </div>
             <h2 class="sqn-promo-title" id="sqn-promo">{{ p.title }}</h2>

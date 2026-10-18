@@ -3,11 +3,11 @@ import {
   availableHint,
   brl,
   dayMonth,
-  payoutDaysLabel,
+  earnedCents,
   plural,
   statementLines,
   totalHint,
-  weeklyCommissions,
+  weekBars,
   type StatementFilter,
 } from './data/squad-model';
 import { SQUAD_NOW } from './data/squad-tokens';
@@ -38,32 +38,34 @@ export class SquadGanhosComponent {
   protected readonly cards = computed(() => {
     const v = this.store.ambassador();
     if (!v) return [];
-    const t = v.totals;
+    const m = v.member;
+    const e = m.earnings;
+    const pending = v.extras.pending;
     return [
-      { key: 'Disponível', value: brl(t.availableCents), sub: availableHint(v), hot: true },
+      { key: 'Disponível', value: brl(e.availableCents), sub: availableHint(m), hot: true },
       {
         key: 'A liberar',
-        value: brl(t.pendingCents),
-        sub: t.pendingCount > 0 ? `${plural(t.pendingCount, 'pagamento pendente', 'pagamentos pendentes')}` : 'nada aguardando pagamento',
+        value: brl(e.pendingCents),
+        sub: pending > 0 ? plural(pending, 'pagamento pendente', 'pagamentos pendentes') : 'nada aguardando pagamento',
         hot: false,
       },
       {
         key: 'Já recebido',
-        value: brl(t.receivedCents),
-        sub: t.lastPayoutAt ? `repasse de ${dayMonth(t.lastPayoutAt)}` : 'nenhum repasse ainda',
+        value: brl(e.receivedCents),
+        sub: m.payouts[0]?.at ? `repasse de ${dayMonth(m.payouts[0].at)}` : 'nenhum repasse ainda',
         hot: false,
       },
-      { key: v.cycle.id === 'piloto' ? 'Total no piloto' : 'Total no ciclo', value: brl(t.earnedCents), sub: totalHint(v), hot: false },
+      { key: m.cycleId === 'piloto' ? 'Total no piloto' : 'Total no ciclo', value: brl(earnedCents(m)), sub: totalHint(m), hot: false },
     ];
   });
 
   protected readonly weeks = computed(() => {
     const v = this.store.ambassador();
-    return v ? weeklyCommissions(v.commissions, this.now) : { bars: [], best: null };
+    return v ? weekBars(v.member.weekly) : { bars: [], best: null };
   });
   protected readonly bestLabel = computed(() => {
     const best = this.weeks().best;
-    return best ? brl(best.cents, false) : null;
+    return best ? `${brl(best.cents, false)} · semana de ${dayMonth(best.weekStart)}` : null;
   });
 
   protected readonly how = computed(() => {
@@ -73,8 +75,8 @@ export class SquadGanhosComponent {
       { icon: 'check', title: 'Pagamento confirmado', sub: 'A comissão é liberada quando o atleta paga a inscrição.' },
       {
         icon: 'cal',
-        title: `Repasse nos ${payoutDaysLabel(v.payout.days)}`,
-        sub: `O liberado cai na sua carteira do Squad. Abaixo de ${brl(v.payout.minNetCents, false)}, acumula para o próximo.`,
+        title: `Próximo repasse em ${dayMonth(v.member.earnings.nextPayoutDate)}`,
+        sub: `O liberado cai na sua carteira do Squad. Abaixo de ${brl(v.member.earnings.minPayoutCents, false)}, acumula para o próximo.`,
       },
       { icon: 'x', title: 'Reembolso cancela', sub: 'Se a inscrição for reembolsada, a comissão sai do saldo.' },
     ];
@@ -82,7 +84,7 @@ export class SquadGanhosComponent {
 
   private readonly allLines = computed(() => {
     const v = this.store.ambassador();
-    return v ? statementLines(v, this.filter(), this.now) : [];
+    return v ? statementLines(v.member, this.filter(), this.now) : [];
   });
   /** O extrato abre com as 15 mais recentes; "Mostrar mais" soma outras 15. */
   protected readonly shown = signal(STATEMENT_PAGE);

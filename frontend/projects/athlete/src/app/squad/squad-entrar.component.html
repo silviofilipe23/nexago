@@ -46,7 +46,7 @@
   <section class="sq-box sq-box--hot sqe-form" aria-labelledby="sqe-form-title">
     <h2 class="sq-h" id="sqe-form-title"><span>Quero entrar no Squad</span></h2>
 
-    @if (view().profile; as p) {
+    @if (join().profile; as p) {
       <div class="sqe-profile">
         <span class="sq-av sqe-profile-av" [style.background]="'oklch(0.34 0.06 ' + avatar().hue + ')'">
           @if (p.photoUrl) {
@@ -68,7 +68,7 @@
     @switch (stage()) {
       @case ('invite') {
         <div class="sqe-state" role="status">
-          <div class="sqe-state-title">Você foi convidado como {{ tierLabels[view().invite!.tier] }}</div>
+          <div class="sqe-state-title">Você foi convidado como {{ join().invite!.tierLabel }}</div>
           <p class="sq-muted">
             Abra o app nexaGO para ver o contrato, escolher o seu código e aceitar{{ inviteExpires() ? ' até ' + inviteExpires() : '' }}.
           </p>
@@ -97,6 +97,9 @@
         </div>
       }
       @default {
+        @if (pastContract(); as past) {
+          <p class="sq-callout sqe-rejected">{{ past }}</p>
+        }
         @if (rejected()) {
           <p class="sq-callout sqe-rejected">Obrigado pelo interesse! Neste ciclo não seguimos com sua candidatura. Você pode se candidatar de novo quando quiser.</p>
         }
@@ -141,9 +144,9 @@
           <p class="sq-callout" [class.sq-callout--gold]="seatsFull()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg>
             @if (seatsFull()) {
-              <span>As {{ view().cycle.seats }} vagas {{ cycleName() }} estão preenchidas. Sua candidatura entra para o <b>próximo ciclo, em {{ nextCycleLabel() }}</b>.</span>
+              <span>As {{ join().cycle.seats }} vagas {{ cycleName() }} estão preenchidas. Sua candidatura entra para o <b>próximo ciclo, em {{ nextCycleLabel() }}</b>.</span>
             } @else {
-              <span>{{ view().seatsLeft === 1 ? 'Resta 1 vaga' : 'Restam ' + view().seatsLeft + ' vagas' }} {{ cycleName() }}. O time NexaGO analisa cada candidatura.</span>
+              <span>{{ join().seatsLeft === 1 ? 'Resta 1 vaga' : 'Restam ' + join().seatsLeft + ' vagas' }} {{ cycleName() }}. O time NexaGO analisa cada candidatura.</span>
             }
           </p>
 

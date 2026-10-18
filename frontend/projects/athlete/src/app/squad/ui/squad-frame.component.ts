@@ -27,7 +27,7 @@ export type SquadTab = 'painel' | 'ganhos' | 'nivel';
         <h1 class="sq-title">NexaGO Squad</h1>
         @if (store.ambassador(); as a) {
           <div class="sq-header-right">
-            <app-squad-tier [tier]="a.contract.tier" />
+            <app-squad-tier [tier]="a.member.tier" />
             <nav class="sq-tabs" aria-label="Seções do Squad">
               <a routerLink="/squad" class="sq-tab" [class.sq-tab--on]="tab() === 'painel'" [attr.aria-current]="tab() === 'painel' ? 'page' : null">Painel</a>
               <a routerLink="/squad/ganhos" class="sq-tab" [class.sq-tab--on]="tab() === 'ganhos'" [attr.aria-current]="tab() === 'ganhos' ? 'page' : null">Ganhos</a>
@@ -72,7 +72,7 @@ export class SquadFrameComponent {
   protected readonly accountLabel = computed(() => this.auth.user()?.displayName?.trim() || 'Atleta');
   protected readonly notice = computed(() => {
     const a = this.store.ambassador();
-    return a ? contractNotice(a.contract) : null;
+    return a ? contractNotice(a.member) : null;
   });
 
   constructor() {

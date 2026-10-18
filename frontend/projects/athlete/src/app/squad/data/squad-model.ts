@@ -1,20 +1,19 @@
 /**
- * NexaSquad no portal do atleta: o que as telas mostram, a partir de `getMySquadView`.
+ * NexaSquad no portal do atleta: o que as telas mostram, a partir de `getMySquad`,
+ * `getSquadRanking` e `getSquadPortalInfo`.
  *
- * Módulo puro (sem Angular, sem Firebase): rótulos, dinheiro, datas de São Paulo, barras de
- * nível, benefícios do pacote, semanas de comissão e o extrato. As regras de negócio (o que é
- * conversão, o que está disponível, a posição no ranking) já vêm prontas do servidor.
+ * Módulo puro (sem Angular, sem Firebase): rótulos, dinheiro, datas de São Paulo, barras de nível,
+ * benefícios do pacote, semanas de comissão e o extrato. As regras de negócio (o que é conversão,
+ * o que entra no repasse, a posição no ranking) já vêm prontas do servidor.
  */
 import type {
-  AmbassadorView,
+  AthletePackage,
   CancelReason,
   CommissionOrigin,
   CommissionStatus,
-  PublicPackage,
-  SquadCommissionLine,
-  SquadCycle,
-  SquadPoints,
-  SquadPromotion,
+  RankingEntry,
+  SquadMember,
+  SquadPortalMemberInfo,
   SquadTier,
 } from './squad-view';
 
@@ -59,7 +58,7 @@ export function tournamentShareLink(tournamentId: string, code: string): string 
 
 // ── dinheiro e datas ────────────────────────────────────────────────────────
 
-/** "R$ 1.240,00"; `cents = false` arredonda para o real ("R$ 324"). Negativo leva o sinal. */
+/** "R$ 1.240,00"; `withCents = false` arredonda para o real ("R$ 324"). Negativo leva o sinal. */
 export function brl(cents: number, withCents = true): string {
   const v = Math.abs(cents) / 100;
   const body = v.toLocaleString('pt-BR', {
@@ -109,45 +108,48 @@ export function plural(n: number, one: string, many: string): string {
 
 // ── ciclo e contrato ────────────────────────────────────────────────────────
 
-/** "Piloto · dia 38 de 90" (mesma conta do backoffice, tela 01). */
-export function cyclePill(cycle: SquadCycle, now: Date): string {
-  const total = daysBetweenKeys(cycle.start, cycle.end) + 1;
+/** "Piloto · dia 38 de 90": o dia do contrato dentro do período dele. */
+export function cyclePill(m: Pick<SquadMember, 'cycleId' | 'start' | 'end'>, now: Date): string {
+  const name = m.cycleId === 'piloto' ? 'Piloto' : 'Ciclo';
+  if (!m.start || !m.end) return name;
+  const start = keyOf(m.start);
+  const end = keyOf(m.end);
   const today = spKey(now);
-  const name = cycle.id === 'piloto' ? 'Piloto' : 'Ciclo';
-  if (today < cycle.start) return `${name} · começa em ${dayMonth(cycle.start)}`;
-  if (today > cycle.end) return `${name} · encerrado em ${dayMonth(cycle.end)}`;
-  return `${name} · dia ${daysBetweenKeys(cycle.start, today) + 1} de ${total}`;
+  const total = daysBetweenKeys(start, end) + 1;
+  if (today < start) return `${name} · começa em ${dayMonth(start)}`;
+  if (today > end) return `${name} · encerrado em ${dayMonth(end)}`;
+  return `${name} · dia ${daysBetweenKeys(start, today) + 1} de ${total}`;
 }
 
 /** Faixa de aviso no topo das telas do embaixador. `null` = contrato ativo sem pendência. */
-export function contractNotice(c: AmbassadorView['contract']): { tone: 'warning' | 'info'; text: string } | null {
-  if (c.status === 'ended') {
+export function contractNotice(m: SquadMember): { tone: 'warning' | 'info'; text: string } | null {
+  if (m.status === 'paused') {
     return {
       tone: 'warning',
-      text: `Seu contrato do Squad terminou${c.endedAt ? ` em ${dayMonth(c.endedAt)}` : ''}. O código não dá mais desconto; comissões já pagas pelo atleta seguem para o repasse.`,
+      text: `Contrato pausado${m.pausedUntil ? ` até ${dayMonth(m.pausedUntil)}` : ''}: enquanto isso o seu código não dá desconto nem gera comissão.`,
     };
   }
-  if (c.status === 'paused') {
+  if (m.endsAt) {
     return {
       tone: 'warning',
-      text: `Contrato pausado${c.pausedUntil ? ` até ${dayMonth(c.pausedUntil)}` : ''}: enquanto isso o seu código não dá desconto nem gera comissão.`,
+      text: `Seu contrato do Squad termina em ${dayMonth(m.endsAt)}. As comissões pagas até lá seguem para o repasse.`,
     };
   }
-  if (c.pendingTier) {
+  if (m.pendingAmendment) {
     return {
       tone: 'info',
-      text: `O time NexaGO propôs a mudança para ${TIER_LABELS[c.pendingTier]}. Abra o app nexaGO para ver o aditivo e aceitar.`,
+      text: `O time NexaGO propôs a mudança para ${m.pendingAmendment.package.tierLabel}. Abra o app nexaGO para ver o aditivo e aceitar.`,
     };
   }
   return null;
 }
 
 /** "desde 08 set · contrato até 06 dez". */
-export function contractPeriod(c: AmbassadorView['contract']): string {
+export function contractPeriod(m: Pick<SquadMember, 'start' | 'end' | 'endsAt'>): string {
   const parts: string[] = [];
-  if (c.start) parts.push(`desde ${dayMonth(c.start)}`);
-  if (c.status === 'ended') parts.push(`encerrado${c.endedAt ? ` em ${dayMonth(c.endedAt)}` : ''}`);
-  else if (c.end) parts.push(`contrato até ${dayMonth(c.end)}`);
+  if (m.start) parts.push(`desde ${dayMonth(m.start)}`);
+  const end = m.endsAt ?? m.end;
+  if (end) parts.push(`contrato até ${dayMonth(end)}`);
   return parts.join(' · ');
 }
 
@@ -155,11 +157,13 @@ export function contractPeriod(c: AmbassadorView['contract']): string {
  * "Quem usa o seu código ganha até 10% OFF…": o desconto real tem teto na taxa da plataforma.
  * Nível sem desconto do seguidor (0%) não promete nada (`discount: null`).
  */
-export function followerOffer(c: AmbassadorView['contract']): { discount: string | null; rest: string } {
-  const where = c.followerDiscountFirstOnly ? 'na primeira inscrição' : 'nas inscrições';
+export function followerOffer(
+  m: Pick<SquadMember, 'followerDiscountPct' | 'followerDiscountFirstOnly' | 'commissionPct'>,
+): { discount: string | null; rest: string } {
+  const where = m.followerDiscountFirstOnly ? 'na primeira inscrição' : 'nas inscrições';
   return {
-    discount: c.followerDiscountPct > 0 ? `até ${c.followerDiscountPct}% OFF ${where}` : null,
-    rest: `Você recebe ${c.commissionPct}% depois que o pagamento é confirmado.`,
+    discount: m.followerDiscountPct > 0 ? `até ${m.followerDiscountPct}% OFF ${where}` : null,
+    rest: `Você recebe ${m.commissionPct}% depois que o pagamento é confirmado.`,
   };
 }
 
@@ -170,7 +174,6 @@ export type StatusTone = 'pending' | 'win' | 'dim' | 'live';
 const CANCEL_LABELS: Record<CancelReason, string> = {
   refund: 'Cancelada · reembolso',
   chargeback: 'Cancelada · contestação',
-  payment_failed: 'Cancelada · não pago',
   manual: 'Cancelada',
 };
 
@@ -180,8 +183,6 @@ export function commissionStatusMeta(status: CommissionStatus, reason: CancelRea
       return { label: 'Aguardando pgto', tone: 'pending' };
     case 'released':
       return { label: 'Liberada', tone: 'win' };
-    case 'held':
-      return { label: 'Em revisão', tone: 'pending' };
     case 'paid':
       return { label: 'Paga', tone: 'dim' };
     case 'canceled':
@@ -193,32 +194,65 @@ export const ORIGIN_LABELS: Record<CommissionOrigin, string> = { code: 'Código'
 
 // ── painel ──────────────────────────────────────────────────────────────────
 
+/** Comissão confirmada (liberada ou paga): o "Você ganhou" e o total do ciclo, sem o pendente. */
+export function earnedCents(m: Pick<SquadMember, 'earnings'>): number {
+  return Math.max(0, m.earnings.totalCents - m.earnings.pendingCents);
+}
+
+/** Conversões cuja inscrição foi neste mês (SP), entre as comissões recentes. */
+export function monthConversions(m: Pick<SquadMember, 'commissions'>, now: Date): number {
+  const month = spKey(now).slice(0, 7);
+  return m.commissions.filter(
+    (c) => (c.status === 'released' || c.status === 'paid') && c.at !== null && spKey(new Date(c.at)).slice(0, 7) === month,
+  ).length;
+}
+
 export interface FunnelStep {
   label: string;
   value: number | null;
   pct: number;
 }
 
-export function funnelSteps(f: AmbassadorView['funnel']): FunnelStep[] {
+/** Cliques ainda não são medidos ("—"). Mesmas definições do backoffice (tela 01). */
+export function funnelSteps(m: Pick<SquadMember, 'conversions'>, extras: SquadPortalMemberInfo): FunnelStep[] {
   const steps: Array<[string, number | null]> = [
-    ['Cliques', f.clicks],
-    ['Cadastros', f.signups],
-    ['Inscrições', f.registrations],
-    ['Pagas', f.paid],
+    ['Cliques', null],
+    ['Cadastros', extras.signups],
+    ['Inscrições', Math.max(extras.registrations, m.conversions)],
+    ['Pagas', m.conversions],
   ];
   const max = Math.max(1, ...steps.map(([, v]) => v ?? 0));
   return steps.map(([label, value]) => ({ label, value, pct: !value ? 0 : Math.max(6, (value / max) * 100) }));
 }
 
-/** "Você recebe" do painel: "repasse em 20 out", ou o mínimo que ainda falta acumular. */
-export function availableHint(view: Pick<AmbassadorView, 'totals' | 'payout'>): string {
-  const { availableCents, heldCents } = view.totals;
-  const held = heldCents > 0 ? ` · ${brl(heldCents)} em revisão` : '';
-  if (availableCents <= 0) return `próximo repasse em ${dayMonth(view.payout.nextDate)}${held}`;
-  if (availableCents < view.payout.minNetCents) {
-    return `acumulando · repasse a partir de ${brl(view.payout.minNetCents, false)}${held}`;
-  }
-  return `vai pra carteira em ${dayMonth(view.payout.nextDate)}${held}`;
+/**
+ * Embaixo do "Disponível": quanto entra no repasse em aberto e quando. O que ficou de fora (retido
+ * ou liberado depois do fechamento) entra num repasse seguinte; abaixo do mínimo, acumula.
+ */
+export function availableHint(m: Pick<SquadMember, 'earnings'>): string {
+  const e = m.earnings;
+  const date = dayMonth(e.nextPayoutDate);
+  if (e.availableCents <= 0) return `próximo repasse em ${date}`;
+  if (e.nextPayoutCents <= 0) return 'entra num próximo repasse';
+  if (e.nextPayoutCents < e.minPayoutCents) return `acumulando · repasse a partir de ${brl(e.minPayoutCents, false)}`;
+  if (e.nextPayoutCents < e.availableCents) return `${brl(e.nextPayoutCents)} vão pra carteira em ${date}`;
+  return `vai pra carteira em ${date}`;
+}
+
+export interface RankRow extends RankingEntry {
+  deltaLabel: string;
+  deltaTone: 'up' | 'down' | 'flat';
+}
+
+/** Os 5 primeiros e o atleta no fim, se estiver fora. A seta compara com 7 dias atrás. */
+export function rankingRows(entries: readonly RankingEntry[], me: RankingEntry | null, top = 5): RankRow[] {
+  const rows = entries.slice(0, top);
+  if (me && !rows.some((r) => r.me)) rows.push(me);
+  return rows.map((r) => ({
+    ...r,
+    deltaLabel: r.delta === null ? 'novo' : r.delta > 0 ? `▲${r.delta}` : r.delta < 0 ? `▼${-r.delta}` : '—',
+    deltaTone: r.delta !== null && r.delta > 0 ? 'up' : r.delta !== null && r.delta < 0 ? 'down' : 'flat',
+  }));
 }
 
 // ── pontos e nível ──────────────────────────────────────────────────────────
@@ -238,7 +272,7 @@ export interface LevelProgress {
 }
 
 /** Bronze 0 · Silver 500 · Gold 1000 · Elite 2000 → 1.280 pts = Gold, 28% da faixa, 720 p/ Elite. */
-export function levelProgress(points: Pick<SquadPoints, 'total' | 'levels'>): LevelProgress {
+export function levelProgress(points: Pick<SquadMember['points'], 'total' | 'levels'>): LevelProgress {
   const levels = [...points.levels].sort((a, b) => a.min - b.min);
   if (levels.length === 0) return { current: '—', next: null, bars: [] };
   let index = 0;
@@ -263,28 +297,13 @@ export function levelProgress(points: Pick<SquadPoints, 'total' | 'levels'>): Le
   };
 }
 
-export interface PointsRule {
-  label: string;
-  value: string;
-  /** Ainda sem contagem no NexaGO. */
-  soon: boolean;
-}
-
-export function pointsRules(points: SquadPoints): PointsRule[] {
-  return [
-    { label: 'Conversão paga', value: `+${points.perConversion}`, soon: false },
-    { label: 'Presença em evento', value: `+${points.perEvent}`, soon: points.events === null },
-    { label: 'Conteúdo aprovado', value: `+${points.perContent}`, soon: points.content === null },
-  ];
-}
-
 // ── pacote e promoção ───────────────────────────────────────────────────────
 
-function commissionLabel(pct: PublicPackage['commissionPct']): string {
+function commissionLabel(pct: AthletePackage['commissionPct']): string {
   return Array.isArray(pct) ? `Comissão de ${pct[0]} a ${pct[1]}%` : `Comissão de ${pct}%`;
 }
 
-function registrationsLabel(r: PublicPackage['registrations']): string {
+function registrationsLabel(r: AthletePackage['registrations']): string {
   if (r.type === 'discount') return `${r.value ?? 0}% off nas suas inscrições`;
   if (r.type === 'freePerMonth') {
     const n = r.value ?? 1;
@@ -294,7 +313,7 @@ function registrationsLabel(r: PublicPackage['registrations']): string {
 }
 
 /** Chips "O que muda" do próximo nível. */
-export function packageChips(pkg: PublicPackage): string[] {
+export function packageChips(pkg: AthletePackage): string[] {
   const out = [commissionLabel(pkg.commissionPct), registrationsLabel(pkg.registrations)];
   if (pkg.kit) out.push(pkg.kit);
   if (pkg.events) out.push(`Eventos: ${pkg.events}`);
@@ -318,16 +337,18 @@ export interface Benefit {
  * O pacote congelado no contrato. "Ativo" só no que o NexaGO já opera sozinho (comissão e desconto
  * do seguidor); o resto é "No pacote", porque uso e entrega ainda não são registrados.
  */
-export function benefitsOf(view: Pick<AmbassadorView, 'contract' | 'package'>): Benefit[] {
-  const { contract: c, package: pkg } = view;
-  const live: BenefitStatus = c.status === 'active' ? 'active' : 'paused';
+export function benefitsOf(
+  m: Pick<SquadMember, 'status' | 'commissionPct' | 'followerDiscountPct' | 'followerDiscountFirstOnly' | 'package'>,
+): Benefit[] {
+  const pkg = m.package;
+  const live: BenefitStatus = m.status === 'active' ? 'active' : 'paused';
   const out: Benefit[] = [
-    { label: `${c.commissionPct}% de comissão`, sub: 'sobre cada inscrição paga com seu código', icon: 'trend', status: live },
+    { label: `${m.commissionPct}% de comissão`, sub: 'sobre cada inscrição paga com seu código', icon: 'trend', status: live },
   ];
-  if (c.followerDiscountPct > 0) {
+  if (m.followerDiscountPct > 0) {
     out.push({
-      label: `Até ${c.followerDiscountPct}% OFF pra quem usa seu código`,
-      sub: `${c.followerDiscountFirstOnly ? 'na primeira inscrição' : 'nas inscrições'} · sai da taxa da plataforma, com teto nela`,
+      label: `Até ${m.followerDiscountPct}% OFF pra quem usa seu código`,
+      sub: `${m.followerDiscountFirstOnly ? 'na primeira inscrição' : 'nas inscrições'} · sai da taxa da plataforma, com teto nela`,
       icon: 'gift',
       status: live,
     });
@@ -355,7 +376,7 @@ export const BENEFIT_STATUS_LABELS: Record<BenefitStatus, string> = {
 };
 
 export interface PromotionCopy {
-  kind: SquadPromotion['kind'];
+  kind: 'promotion' | 'top' | 'captain';
   /** "Faltam 3 conversões pra concorrer". */
   title: string;
   /** Texto curto do painel ("Mais 3 até a avaliação de 06 dez…"). */
@@ -366,19 +387,20 @@ export interface PromotionCopy {
   to: SquadTier | null;
 }
 
-export function promotionCopy(p: SquadPromotion): PromotionCopy {
-  if (p.kind === 'captain') {
-    return {
-      kind: 'captain',
-      title: 'Captain é o seu caminho',
-      summary: 'Captain corre em paralelo à escada: o time avalia a sua comunidade ao fim do ciclo.',
-      pct: 100,
-      conversions: 0,
-      min: 0,
-      to: null,
-    };
-  }
-  if (p.kind === 'top') {
+export function promotionCopy(m: Pick<SquadMember, 'tier' | 'progress'>): PromotionCopy {
+  const p = m.progress;
+  if (!p) {
+    if (m.tier === 'cap') {
+      return {
+        kind: 'captain',
+        title: 'Captain é o seu caminho',
+        summary: 'Captain corre em paralelo à escada: o time avalia a sua comunidade ao fim do ciclo.',
+        pct: 100,
+        conversions: 0,
+        min: 0,
+        to: null,
+      };
+    }
     return {
       kind: 'top',
       title: 'Você está no topo do Squad',
@@ -389,78 +411,45 @@ export function promotionCopy(p: SquadPromotion): PromotionCopy {
       to: null,
     };
   }
-  const missing = Math.max(0, p.min - p.conversions);
-  const when = p.evaluation ? ` até a avaliação de ${dayMonth(p.evaluation)}` : '';
-  const target = TIER_LABELS[p.to];
+  const missing = Math.max(0, p.minConversions - p.conversions);
+  const when = p.reviewDate ? ` até a avaliação de ${dayMonth(p.reviewDate)}` : '';
   return {
     kind: 'promotion',
-    title: missing > 0 ? `Faltam ${plural(missing, 'conversão', 'conversões')} pra concorrer` : `Você já pode concorrer a ${target}`,
+    title: missing > 0 ? `Faltam ${plural(missing, 'conversão', 'conversões')} pra concorrer` : `Você já pode concorrer a ${p.toTierLabel}`,
     summary:
       missing > 0
-        ? `Mais ${missing}${when} para concorrer a ${target}.`
-        : `Meta de conversões batida: o time avalia a promoção a ${target}${when ? ` na avaliação de ${dayMonth(p.evaluation)}` : ''}.`,
-    pct: p.min > 0 ? Math.min(100, (p.conversions / p.min) * 100) : 100,
+        ? `Mais ${missing}${when} para concorrer a ${p.toTierLabel}.`
+        : `Meta de conversões batida: o time avalia a promoção a ${p.toTierLabel}${p.reviewDate ? ` em ${dayMonth(p.reviewDate)}` : ''}.`,
+    pct: p.minConversions > 0 ? Math.min(100, (p.conversions / p.minConversions) * 100) : 100,
     conversions: p.conversions,
-    min: p.min,
-    to: p.to,
+    min: p.minConversions,
+    to: p.toTier,
   };
 }
 
 // ── ganhos ──────────────────────────────────────────────────────────────────
 
 export interface WeekBar {
-  /** "8 set" no primeiro e em virada de mês; senão só o dia ("15"). */
+  /** "7 set" no primeiro e em virada de mês; senão só o dia ("14"). */
   label: string;
   cents: number;
   pct: number;
   best: boolean;
 }
 
-/** Segunda-feira (SP) da semana de uma data civil. */
-function mondayOf(key: string): string {
-  const d = new Date(`${key}T12:00:00Z`);
-  const back = (d.getUTCDay() + 6) % 7;
-  d.setUTCDate(d.getUTCDate() - back);
-  return d.toISOString().slice(0, 10);
-}
-
-function addDays(key: string, n: number): string {
-  const d = new Date(`${key}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
-/**
- * Comissão das conversões por semana (segunda a domingo, pela data da inscrição), as últimas
- * `weeks` com a atual no fim. A melhor semana leva o torneio que mais rendeu nela.
- */
-export function weeklyCommissions(
-  lines: readonly SquadCommissionLine[],
-  now: Date,
-  weeks = 6,
-): { bars: WeekBar[]; best: { cents: number; event: string | null } | null } {
-  const last = mondayOf(spKey(now));
-  const starts = Array.from({ length: weeks }, (_, i) => addDays(last, (i - weeks + 1) * 7));
-  const sums = starts.map(() => 0);
-  const events = starts.map(() => new Map<string, number>());
-  for (const c of lines) {
-    if ((c.status !== 'released' && c.status !== 'paid' && c.status !== 'held') || !c.at) continue;
-    const i = starts.indexOf(mondayOf(spKey(new Date(c.at))));
-    if (i < 0) continue;
-    sums[i]! += c.amountCents;
-    const name = c.event.split(' · ')[0] || '';
-    if (name) events[i]!.set(name, (events[i]!.get(name) ?? 0) + c.amountCents);
-  }
-  const max = Math.max(...sums);
-  const bestIndex = max > 0 ? sums.indexOf(max) : -1;
-  const bars = starts.map((key, i) => {
-    const prev = starts[i - 1];
-    const label = i === 0 || key.slice(5, 7) !== prev!.slice(5, 7) ? dayMonth(key).replace(/^0/, '') : String(Number(key.slice(8, 10)));
-    return { label, cents: sums[i]!, pct: max > 0 ? Math.max(3, (sums[i]! / max) * 100) : 3, best: i === bestIndex };
+/** As semanas do servidor (segunda a domingo, pela confirmação do pagamento) em barras. */
+export function weekBars(weekly: SquadMember['weekly']): { bars: WeekBar[]; best: { cents: number; weekStart: string } | null } {
+  const max = Math.max(0, ...weekly.map((w) => w.cents));
+  const bestIndex = max > 0 ? weekly.findIndex((w) => w.cents === max) : -1;
+  const bars = weekly.map((w, i) => {
+    const prev = weekly[i - 1];
+    const label =
+      i === 0 || !prev || w.weekStart.slice(5, 7) !== prev.weekStart.slice(5, 7)
+        ? dayMonth(w.weekStart).replace(/^0/, '')
+        : String(Number(w.weekStart.slice(8, 10)));
+    return { label, cents: w.cents, pct: max > 0 ? Math.max(3, (w.cents / max) * 100) : 3, best: i === bestIndex };
   });
-  if (bestIndex < 0) return { bars, best: null };
-  const top = [...events[bestIndex]!.entries()].sort((a, b) => b[1] - a[1])[0];
-  return { bars, best: { cents: max, event: top?.[0] ?? null } };
+  return { bars, best: bestIndex >= 0 ? { cents: max, weekStart: weekly[bestIndex]!.weekStart } : null };
 }
 
 export type StatementFilter = 'all' | 'commissions' | 'payouts';
@@ -471,52 +460,37 @@ export interface StatementLine {
   when: string;
   title: string;
   amount: string;
-  kind: 'commission' | 'adjustment' | 'payout';
+  kind: 'commission' | 'payout';
   status: { label: string; tone: StatusTone } | null;
   struck: boolean;
 }
 
-/** Extrato da tela Ganhos: comissões, estornos e repasses para a carteira, do mais novo ao mais velho. */
-export function statementLines(
-  view: Pick<AmbassadorView, 'commissions' | 'adjustments' | 'wallet'>,
-  filter: StatementFilter,
-  now: Date,
-): StatementLine[] {
+/** Extrato da tela Ganhos: comissões e repasses para a carteira, do mais novo ao mais velho. */
+export function statementLines(m: Pick<SquadMember, 'commissions' | 'payouts'>, filter: StatementFilter, now: Date): StatementLine[] {
+  const day = (at: string | null) => whenLabel(at, now).replace(/ \d{2}:\d{2}$/, '');
   const out: StatementLine[] = [];
   if (filter !== 'payouts') {
-    for (const c of view.commissions) {
+    for (const c of m.commissions) {
       out.push({
         id: `c:${c.id}`,
         at: c.at,
-        when: whenLabel(c.at, now).replace(/ \d{2}:\d{2}$/, ''),
-        title: [c.athlete, c.event.split(' · ')[0]].filter(Boolean).join(' · '),
+        when: day(c.at),
+        title: [c.label, c.tournamentName].filter(Boolean).join(' · '),
         amount: c.status === 'canceled' ? brl(c.amountCents) : `+ ${brl(c.amountCents)}`,
         kind: 'commission',
         status: commissionStatusMeta(c.status, c.cancelReason),
         struck: c.status === 'canceled',
       });
     }
-    for (const a of view.adjustments) {
-      out.push({
-        id: `a:${a.id}`,
-        at: a.at,
-        when: whenLabel(a.at, now).replace(/ \d{2}:\d{2}$/, ''),
-        title: `Estorno · ${a.athlete}`,
-        amount: brl(a.amountCents),
-        kind: 'adjustment',
-        status: null,
-        struck: false,
-      });
-    }
   }
   if (filter !== 'commissions') {
-    for (const t of view.wallet) {
+    for (const p of m.payouts) {
       out.push({
-        id: `w:${t.id}`,
-        at: t.at,
-        when: whenLabel(t.at, now).replace(/ \d{2}:\d{2}$/, ''),
+        id: `p:${p.id}`,
+        at: p.at,
+        when: day(p.at),
         title: 'Repasse para a carteira',
-        amount: brl(-t.amountCents),
+        amount: brl(-p.amountCents),
         kind: 'payout',
         status: null,
         struck: false,
@@ -526,15 +500,8 @@ export function statementLines(
   return out.sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''));
 }
 
-/** "dias 06 e 20" / "dia 15". */
-export function payoutDaysLabel(days: readonly number[]): string {
-  const two = [...days].sort((a, b) => a - b).map((d) => String(d).padStart(2, '0'));
-  if (two.length <= 1) return `dia ${two[0] ?? '—'}`;
-  return `dias ${two.slice(0, -1).join(', ')} e ${two[two.length - 1]}`;
-}
-
 /** "10% de R$ 3.240" quando há receita; senão o texto de partida. */
-export function totalHint(view: Pick<AmbassadorView, 'totals' | 'contract'>): string {
-  if (view.totals.grossCents <= 0) return 'nenhuma inscrição paga ainda';
-  return `${view.contract.commissionPct}% de ${brl(view.totals.grossCents, false)}`;
+export function totalHint(m: Pick<SquadMember, 'earnings' | 'commissionPct'>): string {
+  if (m.earnings.revenueCents <= 0) return 'nenhuma inscrição paga ainda';
+  return `${m.commissionPct}% de ${brl(m.earnings.revenueCents, false)}`;
 }

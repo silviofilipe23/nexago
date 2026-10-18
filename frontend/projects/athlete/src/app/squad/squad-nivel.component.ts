@@ -5,7 +5,6 @@ import {
   contractPeriod,
   levelProgress,
   packageChips,
-  pointsRules,
   promotionCopy,
 } from './data/squad-model';
 import { SquadStore } from './data/squad.store';
@@ -34,37 +33,38 @@ export class SquadNivelComponent {
 
   protected readonly period = computed(() => {
     const v = this.store.ambassador();
-    return v ? contractPeriod(v.contract) : '';
+    return v ? contractPeriod(v.member) : '';
   });
   protected readonly benefits = computed(() => {
     const v = this.store.ambassador();
-    return v ? benefitsOf(v) : [];
+    return v ? benefitsOf(v.member) : [];
   });
   protected readonly level = computed(() => {
     const v = this.store.ambassador();
-    return v ? levelProgress(v.points) : null;
+    return v ? levelProgress(v.member.points) : null;
   });
-  protected readonly pointsLabel = computed(() => (this.store.ambassador()?.points.total ?? 0).toLocaleString('pt-BR'));
-  protected readonly earn = computed(() => {
-    const v = this.store.ambassador();
-    return v ? pointsRules(v.points) : [];
+  protected readonly pointsLabel = computed(() => (this.store.ambassador()?.member.points.total ?? 0).toLocaleString('pt-BR'));
+  protected readonly missingLabel = computed(() => {
+    const next = this.level()?.next;
+    return next ? `Faltam ${next.missing.toLocaleString('pt-BR')} pts para ${next.name}.` : null;
   });
+  protected readonly perConversion = computed(() => this.store.ambassador()?.member.points.perConversion ?? 0);
   protected readonly promotion = computed(() => {
     const v = this.store.ambassador();
-    return v ? promotionCopy(v.promotion) : null;
+    return v ? promotionCopy(v.member) : null;
   });
   protected readonly criteria = computed(() => {
     const v = this.store.ambassador();
-    const p = v?.promotion;
-    if (!p || p.kind !== 'promotion') return [];
-    const missing = Math.max(0, p.min - p.conversions);
+    const p = v?.member.progress;
+    if (!v || !p) return [];
+    const missing = Math.max(0, p.minConversions - p.conversions);
     return [
-      { label: `${p.min} conversões pagas`, value: `${p.conversions} de ${p.min}`, ok: missing === 0 },
-      ...p.checklist.map((item) => ({ label: item, value: 'avaliado pelo time', ok: null as boolean | null })),
+      { label: `${p.minConversions} conversões pagas`, value: `${p.conversions} de ${p.minConversions}`, ok: missing === 0 },
+      ...v.extras.promotionChecklist.map((item) => ({ label: item, value: 'avaliado pelo time', ok: null as boolean | null })),
     ];
   });
   protected readonly nextChips = computed(() => {
-    const p = this.store.ambassador()?.promotion;
-    return p?.kind === 'promotion' ? packageChips(p.nextPackage) : [];
+    const next = this.store.ambassador()?.member.nextPackage;
+    return next ? packageChips(next) : [];
   });
 }

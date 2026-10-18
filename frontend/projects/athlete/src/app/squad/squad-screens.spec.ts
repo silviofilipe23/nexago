@@ -11,7 +11,7 @@ import { SquadStore } from './data/squad.store';
 import { SquadGanhosComponent } from './squad-ganhos.component';
 import { SquadHomeComponent } from './squad-home.component';
 import { SquadNivelComponent } from './squad-nivel.component';
-import { SQUAD_TEST_NOW, ambassadorView, candidateView, commissionLine, daysAgoIso } from '../../testing/squad-fixtures';
+import { SQUAD_TEST_NOW, ambassadorView, callableResponses, candidateView, commission, daysAgoIso } from '../../testing/squad-fixtures';
 import { SquadFrameComponent } from './ui/squad-frame.component';
 
 /** A casca do portal monta o menu e ouve convites — abriria WebChannel do Firestore no Karma. */
@@ -72,12 +72,21 @@ interface FakeApi extends SquadApi {
 function fakeApi(views: Array<SquadAthleteView | Error>): FakeApi {
   const queue = [...views];
   const submitted: ApplicationAnswers[] = [];
+  let current: Promise<SquadAthleteView> = Promise.reject(new Error('sem leitura'));
+  current.catch(() => {});
   return {
     submitted,
-    fetchView: async () => {
+    fetchMySquad: async () => {
       const next = queue.length > 1 ? queue.shift()! : queue[0]!;
-      if (next instanceof Error) throw next;
-      return next;
+      current = next instanceof Error ? Promise.reject(next) : Promise.resolve(next);
+      current.catch(() => {});
+      return callableResponses(await current).mySquad;
+    },
+    fetchPortalInfo: async () => callableResponses(await current).portal,
+    fetchRanking: async () => {
+      const r = callableResponses(await current).ranking;
+      if (!r) throw Object.assign(new Error('permission'), { code: 'functions/permission-denied' });
+      return r;
     },
     submitApplication: async (answers) => {
       submitted.push(answers);
@@ -117,13 +126,13 @@ describe('Squad · Painel do embaixador', () => {
     expect(text(host.querySelector('.sq-hero-title'))).toBe('Você já trouxe 27 atletas pro NexaGO.');
     expect(text(host.querySelector('.sqp-hero'))).toContain('Piloto · dia 40 de 90');
     const stats = Array.from(host.querySelectorAll('.sqp-hero-stats .sq-stat-v')).map(text);
-    expect(stats).toEqual(['R$ 324', 'R$ 132', '11']);
+    expect(stats).toEqual(['R$ 324', 'R$ 132', '1']);
     expect(text(host.querySelector('.sqc-code'))).toBe('JOAO10');
     expect(text(host.querySelector('.sqc-link'))).toBe('atleta.nexago.com.br/?squad=JOAO10');
     expect(text(host.querySelector('.sqc-offer'))).toContain('até 10% OFF na primeira inscrição');
     const rank = Array.from(host.querySelectorAll('.sqp-rank-row')).map(words);
     expect(rank[0]).toBe('1 JV Você ▲2 1.280');
-    expect(rank[1]).toContain('Marcos R.');
+    expect(rank[1]).toBe('2 MR Marcos Reis ▼1 1.240');
     expect(text(host.querySelector('.sqp-next-count strong'))).toBe('27/30');
     expect(text(host.querySelector('.sqp-next-level'))).toContain('Nível Gold · 1.280 pts');
     expect(text(host.querySelector('.sqp-next-level'))).toContain('720 p/ Elite');
@@ -142,8 +151,7 @@ describe('Squad · Painel do embaixador', () => {
   });
 
   it('contrato pausado: aviso no topo e divulgação desligada', async () => {
-    const v = ambassadorView();
-    const { host } = await render(SquadHomeComponent, fakeApi([{ ...v, contract: { ...v.contract, status: 'paused', pausedUntil: '2026-11-01' } }]));
+    const { host } = await render(SquadHomeComponent, fakeApi([ambassadorView({ status: 'paused', pausedUntil: '2026-11-01' })]));
     expect(text(host.querySelector('.sq-notice'))).toContain('pausado até 01 nov');
     expect((host.querySelector('.sqc-share') as HTMLButtonElement).disabled).toBeTrue();
   });
@@ -199,8 +207,19 @@ describe('Squad · Entrar no Squad', () => {
     expect(host.querySelector('.sqe-fields')).toBeNull();
   });
 
+  it('ex-embaixador vê o aviso do contrato que terminou e pode se candidatar', async () => {
+    const { host } = await render(
+      SquadHomeComponent,
+      fakeApi([candidateView({ seatsLeft: 3, pastContract: { tier: 'amb', endedAt: '2026-10-14T15:00:00.000Z' } })]),
+    );
+    expect(text(host.querySelector('.sqe-rejected'))).toContain('Seu contrato de Ambassador terminou em 14 out');
+    expect(host.querySelector('.sqe-fields')).not.toBeNull();
+    expect(text(host.querySelector('.sq-callout:not(.sqe-rejected):not(.sqc-offer)'))).toContain('Restam 3 vagas do piloto');
+  });
+
   it('convite em aberto manda para o app', async () => {
-    const { host } = await render(SquadHomeComponent, fakeApi([candidateView({ invite: { tier: 'amb', expiresAt: '2026-10-22T15:00:00.000Z' } })]));
+    const invite = { id: 'i1', tier: 'amb' as const, tierLabel: 'Ambassador', expiresAt: '2026-10-22T15:00:00.000Z' };
+    const { host } = await render(SquadHomeComponent, fakeApi([candidateView({ invite })]));
     expect(text(host.querySelector('.sqe-state'))).toContain('Você foi convidado como Ambassador');
     expect(text(host.querySelector('.sqe-state'))).toContain('até 22 out');
     expect(host.querySelector('.sqe-fields')).toBeNull();
@@ -218,7 +237,7 @@ describe('Squad · Ganhos', () => {
       'Total no piloto R$ 324,00 10% de R$ 3.240',
     ]);
     expect(text(host.querySelector('.sqg-how'))).toContain('Pagamento confirmado');
-    expect(Array.from(host.querySelectorAll('.sqg-how-title')).map(text)[1]).toBe('Repasse nos dias 06 e 20');
+    expect(Array.from(host.querySelectorAll('.sqg-how-title')).map(text)[1]).toBe('Próximo repasse em 20 out');
     expect(host.querySelectorAll('.sqg-line').length).toBe(4);
     (Array.from(host.querySelectorAll('.sq-seg')).find((b) => text(b) === 'Repasses') as HTMLButtonElement).click();
     fixture.detectChanges();
@@ -229,8 +248,8 @@ describe('Squad · Ganhos', () => {
   });
 
   it('extrato longo abre com 15 linhas e "Mostrar mais" traz as próximas', async () => {
-    const many = Array.from({ length: 20 }, (_, i) => commissionLine({ id: `m${i}`, at: daysAgoIso(i + 1) }));
-    const { fixture, host } = await render(SquadGanhosComponent, fakeApi([ambassadorView({ commissions: many, wallet: [] })]));
+    const many = Array.from({ length: 20 }, (_, i) => commission({ id: `m${i}`, at: daysAgoIso(i + 1) }));
+    const { fixture, host } = await render(SquadGanhosComponent, fakeApi([ambassadorView({ commissions: many, payouts: [] })]));
     expect(host.querySelectorAll('.sqg-line').length).toBe(15);
     (host.querySelector('.sqg-more') as HTMLButtonElement).click();
     fixture.detectChanges();
@@ -256,7 +275,8 @@ describe('Squad · Nível & benefícios', () => {
     expect(benefits[2]).toContain('No pacote');
     expect(text(host.querySelector('.sqn-mine-head'))).toContain('desde 08 set · contrato até 06 dez');
     expect(words(host.querySelector('.sqn-points'))).toBe('1.280 pts · Gold');
-    expect(host.querySelectorAll('.sqn-earn-soon').length).toBe(2);
+    expect(words(host.querySelector('.sqn-earn-tile'))).toBe('+40 Conversão paga');
+    expect(host.querySelectorAll('.sqn-earn-soon').length).toBe(1);
     expect(text(host.querySelector('.sqn-promo-title'))).toBe('Faltam 3 conversões pra concorrer');
     expect(Array.from(host.querySelectorAll('.sqn-criteria li')).map(words)).toEqual([
       '30 conversões pagas 27 de 30',

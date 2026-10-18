@@ -3,15 +3,17 @@ import { RouterLink } from '@angular/router';
 import { NxToastService } from '../shared/feedback';
 import {
   ORIGIN_LABELS,
-  TIER_LABELS,
   availableHint,
   brl,
   commissionStatusMeta,
   cyclePill,
+  earnedCents,
   funnelSteps,
   levelProgress,
+  monthConversions,
   plural,
   promotionCopy,
+  rankingRows,
   tournamentShareLink,
   whenLabel,
 } from './data/squad-model';
@@ -46,37 +48,42 @@ export class SquadPainelComponent {
 
   readonly view = input.required<AmbassadorView>();
 
-  protected readonly pill = computed(() => cyclePill(this.view().cycle, this.now));
-  protected readonly totals = computed(() => this.view().totals);
-  protected readonly earned = computed(() => brl(this.totals().earnedCents, false));
-  protected readonly available = computed(() => brl(this.totals().availableCents, false));
-  protected readonly availableSub = computed(() => availableHint(this.view()));
-  protected readonly grossLabel = computed(() => brl(this.totals().grossCents, false));
-  protected readonly cycleName = computed(() => (this.view().cycle.id === 'piloto' ? 'no piloto' : 'no ciclo'));
-  protected readonly athletesLabel = computed(() => plural(this.totals().athletes, 'atleta', 'atletas'));
+  protected readonly member = computed(() => this.view().member);
+  protected readonly pill = computed(() => cyclePill(this.member(), this.now));
+  protected readonly earned = computed(() => brl(earnedCents(this.member()), false));
+  protected readonly available = computed(() => brl(this.member().earnings.availableCents, false));
+  protected readonly availableSub = computed(() => availableHint(this.member()));
+  protected readonly grossLabel = computed(() => brl(this.member().earnings.revenueCents, false));
+  protected readonly cycleName = computed(() => (this.member().cycleId === 'piloto' ? 'no piloto' : 'no ciclo'));
+  protected readonly athletesLabel = computed(() => plural(this.member().athletes, 'atleta', 'atletas'));
+  protected readonly month = computed(() => monthConversions(this.member(), this.now));
 
-  protected readonly funnel = computed(() => funnelSteps(this.view().funnel));
-  protected readonly ranking = computed(() =>
-    this.view().ranking.rows.map((r) => ({
-      ...r,
-      label: r.me ? 'Você' : r.name,
-      avatar: avatarOf(r.name),
-      deltaLabel: r.delta > 0 ? `▲${r.delta}` : r.delta < 0 ? `▼${-r.delta}` : '—',
-      deltaTone: r.delta > 0 ? 'up' : r.delta < 0 ? 'down' : 'flat',
-      pointsLabel: r.points.toLocaleString('pt-BR'),
-    })),
-  );
-  protected readonly promotion = computed(() => promotionCopy(this.view().promotion));
-  protected readonly level = computed(() => levelProgress(this.view().points));
-  protected readonly pointsLabel = computed(() => this.view().points.total.toLocaleString('pt-BR'));
-  protected readonly tierLabels = TIER_LABELS;
+  protected readonly funnel = computed(() => funnelSteps(this.member(), this.view().extras));
+  protected readonly ranking = computed(() => {
+    const r = this.view().ranking;
+    if (!r) return null;
+    return rankingRows(r.entries, r.me).map((row) => ({
+      ...row,
+      label: row.me ? 'Você' : row.name,
+      avatar: avatarOf(row.name),
+      pointsLabel: row.points.toLocaleString('pt-BR'),
+    }));
+  });
+  protected readonly promotion = computed(() => promotionCopy(this.member()));
+  protected readonly level = computed(() => levelProgress(this.member().points));
+  protected readonly pointsLabel = computed(() => this.member().points.total.toLocaleString('pt-BR'));
+  protected readonly missingLabel = computed(() => {
+    const next = this.level().next;
+    return next ? `${next.missing.toLocaleString('pt-BR')} p/ ${next.name}` : null;
+  });
 
   protected readonly recent = computed(() =>
-    this.view()
+    this.member()
       .commissions.slice(0, 5)
       .map((c) => ({
         ...c,
-        avatar: avatarOf(c.athlete),
+        event: [c.tournamentName, c.categoryName].filter(Boolean).join(' · '),
+        avatar: avatarOf(c.label),
         when: `${whenLabel(c.at, this.now)} · ${ORIGIN_LABELS[c.origin]}`,
         amount: `+${brl(c.amountCents)}`,
         meta: commissionStatusMeta(c.status, c.cancelReason),
@@ -92,7 +99,7 @@ export class SquadPainelComponent {
   }
 
   protected async shareTournament(t: PromoTournament): Promise<void> {
-    const code = this.view().contract.code;
+    const code = this.member().code;
     const out = await shareLink({
       title: t.name,
       text: `Bora jogar o ${t.name}? Use meu código ${code} na inscrição.`,

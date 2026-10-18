@@ -5,21 +5,27 @@ import { athleteFunctions } from '../../data/functions';
 import type { ApplicationAnswers } from './squad-view';
 
 /**
- * As duas portas do Squad no portal: a leitura saneada (`getMySquadView`) e a candidatura
- * (`submitSquadApplication`, já existente). O atleta não lê nenhuma coleção do Squad direto —
- * comissões e contrato guardam campos internos do time.
+ * As portas do Squad no portal: `getMySquad` e `getSquadRanking` (a visão do embaixador que o app
+ * também usa), `getSquadPortalInfo` (só do portal) e a candidatura (`submitSquadApplication`). O
+ * atleta não lê nenhuma coleção do Squad direto — comissões e contrato guardam campos internos.
  *
  * Interface para as telas serem testadas sem Firebase (o token devolve `null` sem chave).
  */
 export interface SquadApi {
-  fetchView(): Promise<unknown>;
+  fetchMySquad(): Promise<unknown>;
+  /** Só embaixador com contrato vivo: os outros recebem `permission-denied`. */
+  fetchRanking(): Promise<unknown>;
+  fetchPortalInfo(): Promise<unknown>;
   submitApplication(answers: ApplicationAnswers): Promise<void>;
 }
 
 export function firebaseSquadApi(): SquadApi {
   const fns = athleteFunctions();
+  const read = async (name: string) => (await httpsCallable(fns, name)({})).data;
   return {
-    fetchView: async () => (await httpsCallable(fns, 'getMySquadView')({})).data,
+    fetchMySquad: () => read('getMySquad'),
+    fetchRanking: () => read('getSquadRanking'),
+    fetchPortalInfo: () => read('getSquadPortalInfo'),
     submitApplication: async (answers) => {
       await httpsCallable(fns, 'submitSquadApplication')({ source: 'portal', answers });
     },

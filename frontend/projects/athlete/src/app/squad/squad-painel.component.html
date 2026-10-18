@@ -1,7 +1,7 @@
 <div class="sq-row sq-row--hero">
   <section class="sq-hero sqp-hero" aria-label="Resumo do Squad">
     <div class="sq-label">{{ pill() }}</div>
-    @if (totals().athletes > 0) {
+    @if (member().athletes > 0) {
       <h2 class="sq-hero-title">Você já trouxe <em>{{ athletesLabel() }}</em> pro NexaGO.</h2>
       <p class="sqp-hero-sub">{{ grossLabel() }} em inscrições pagas com o seu código.</p>
     } @else {
@@ -21,13 +21,13 @@
       </div>
       <div class="sq-stat">
         <div class="sq-stat-k">Este mês</div>
-        <div class="sq-stat-v">{{ totals().monthConversions }}</div>
-        <div class="sq-stat-s">{{ totals().monthConversions === 1 ? 'conversão paga' : 'conversões pagas' }}</div>
+        <div class="sq-stat-v">{{ month() }}</div>
+        <div class="sq-stat-s">{{ month() === 1 ? 'conversão paga' : 'conversões pagas' }}</div>
       </div>
     </div>
   </section>
 
-  <app-squad-code-card [view]="view()" />
+  <app-squad-code-card [member]="member()" />
 </div>
 
 <div class="sq-row sq-row--3">
@@ -47,8 +47,8 @@
       }
     </div>
     <p class="sq-dim sqp-foot">
-      @if (totals().pendingCount > 0) {
-        {{ totals().pendingCount === 1 ? '1 inscrição ainda aguarda pagamento.' : totals().pendingCount + ' inscrições ainda aguardam pagamento.' }}
+      @if (view().extras.pending > 0) {
+        {{ view().extras.pending === 1 ? '1 inscrição ainda aguarda pagamento.' : view().extras.pending + ' inscrições ainda aguardam pagamento.' }}
       }
       Cliques no link ainda não são medidos.
     </p>
@@ -59,14 +59,22 @@
       <span>Squad Ranking</span>
       <span class="sq-dim">por pontos</span>
     </h2>
-    @if (ranking().length === 0) {
+    @if (ranking() === null) {
+      <p class="sq-empty">Não deu pra carregar o ranking agora.</p>
+    } @else if (ranking()!.length === 0) {
       <p class="sq-empty">O ranking aparece quando o Squad tiver embaixadores ativos.</p>
     } @else {
       <ol class="sqp-rank">
         @for (r of ranking(); track r.position) {
           <li class="sqp-rank-row" [class.sqp-rank-row--me]="r.me">
             <span class="sqp-rank-pos">{{ r.position }}</span>
-            <span class="sq-av sqp-rank-av" [style.background]="'oklch(0.34 0.06 ' + r.avatar.hue + ')'">{{ r.avatar.initials }}</span>
+            <span class="sq-av sqp-rank-av" [style.background]="'oklch(0.34 0.06 ' + r.avatar.hue + ')'">
+              @if (r.photoUrl) {
+                <img [src]="r.photoUrl" alt="" loading="lazy" />
+              } @else {
+                {{ r.avatar.initials }}
+              }
+            </span>
             <span class="sqp-rank-name">{{ r.label }}</span>
             <span class="sqp-rank-delta" [attr.data-tone]="r.deltaTone" [attr.aria-label]="'Variação na semana: ' + r.deltaLabel">{{ r.deltaLabel }}</span>
             <span class="sqp-rank-pts">{{ r.pointsLabel }}</span>
@@ -80,7 +88,7 @@
     <h2 class="sq-h" id="sqp-next"><span>Próxima conquista</span></h2>
     @if (promotion().to; as to) {
       <div class="sqp-next-tiers">
-        <app-squad-tier [tier]="view().contract.tier" [small]="true" />
+        <app-squad-tier [tier]="member().tier" [small]="true" />
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="sq-dim" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
         <app-squad-tier [tier]="to" [small]="true" [solid]="true" />
       </div>
@@ -91,15 +99,15 @@
       <div class="sq-bar sqp-next-bar"><i [style.width.%]="promotion().pct"></i></div>
       <p class="sq-muted sqp-next-sub">{{ promotion().summary }}</p>
     } @else {
-      <div class="sqp-next-tiers"><app-squad-tier [tier]="view().contract.tier" [solid]="true" /></div>
+      <div class="sqp-next-tiers"><app-squad-tier [tier]="member().tier" [solid]="true" /></div>
       <p class="sqp-next-title">{{ promotion().title }}</p>
       <p class="sq-muted sqp-next-sub">{{ promotion().summary }}</p>
     }
     <a routerLink="/squad/nivel" class="sqp-next-level">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="sq-orange" aria-hidden="true"><path d="M3.5 8 7.5 12 12 5l4.5 7 4-4-1.8 11H5.3z" /></svg>
       <span class="sqp-next-level-text">Nível <b>{{ level().current }}</b> · {{ pointsLabel() }} pts</span>
-      @if (level().next; as next) {
-        <span class="sqp-next-level-missing">{{ next.missing.toLocaleString('pt-BR') }} p/ {{ next.name }}</span>
+      @if (missingLabel(); as missing) {
+        <span class="sqp-next-level-missing">{{ missing }}</span>
       }
     </a>
   </section>
@@ -119,7 +127,7 @@
           <div class="sqp-conv-row">
             <span class="sq-av sqp-conv-av" [style.background]="'oklch(0.34 0.06 ' + c.avatar.hue + ')'">{{ c.avatar.initials }}</span>
             <div class="sqp-conv-who">
-              <div class="sqp-conv-name">{{ c.athlete }}</div>
+              <div class="sqp-conv-name">{{ c.label }}</div>
               <div class="sqp-conv-event">{{ c.event || '—' }}</div>
             </div>
             <span class="sqp-conv-when">{{ c.when }}</span>
@@ -151,7 +159,7 @@
               <div class="sq-dim">{{ t.when }}{{ t.offer ? ' · ' + t.offer : '' }}</div>
               <div class="sqp-promo-note">{{ t.note }}</div>
             </div>
-            <button type="button" class="sq-btn sq-btn--soft sq-btn--sm" (click)="shareTournament(t)" [disabled]="view().contract.status !== 'active'" [attr.aria-label]="'Compartilhar ' + t.name + ' com o seu código'">
+            <button type="button" class="sq-btn sq-btn--soft sq-btn--sm" (click)="shareTournament(t)" [disabled]="member().status !== 'active'" [attr.aria-label]="'Compartilhar ' + t.name + ' com o seu código'">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3.5M7.5 8 12 3.5 16.5 8" /><path d="M5 12v7.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V12" /></svg>
               Compartilhar
             </button>

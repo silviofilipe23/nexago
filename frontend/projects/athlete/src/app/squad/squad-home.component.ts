@@ -13,7 +13,7 @@ import { SquadFrameComponent } from './ui/squad-frame.component';
       @if (store.ambassador(); as a) {
         <app-squad-painel [view]="a" />
       } @else if (store.candidate(); as c) {
-        <app-squad-entrar [view]="c" />
+        <app-squad-entrar [join]="c.join" />
       }
     </app-squad-frame>
   `,

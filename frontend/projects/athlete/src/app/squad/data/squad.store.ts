@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { AuthService } from '../../auth/auth.service';
 import { SQUAD_API, squadErrorMessage } from './squad-api';
-import { parseSquadView, type AmbassadorView, type ApplicationAnswers, type CandidateView, type SquadAthleteView } from './squad-view';
+import { composeSquadView, type AmbassadorView, type ApplicationAnswers, type CandidateView, type SquadAthleteView } from './squad-view';
 
 /** Depois disto, voltar ao Squad relê em segundo plano (a tela segue mostrando o que tinha). */
 const STALE_MS = 60_000;
@@ -58,7 +58,13 @@ export class SquadStore {
       return;
     }
     try {
-      const view = parseSquadView(await this.api.fetchView());
+      // O ranking só responde a quem tem contrato vivo: para os outros a recusa é esperada e vira `null`.
+      const [mySquad, portal, ranking] = await Promise.all([
+        this.api.fetchMySquad(),
+        this.api.fetchPortalInfo(),
+        this.api.fetchRanking().catch(() => null),
+      ]);
+      const view = composeSquadView(mySquad, portal, ranking);
       if (ticket !== this.ticket) return;
       if (!view) throw new Error('Resposta inesperada do servidor.');
       this.view.set(view);

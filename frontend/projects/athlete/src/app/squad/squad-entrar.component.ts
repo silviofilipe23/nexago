@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { LEADS_OPTIONS, TIER_LABELS, TIER_PROFILES, dayMonth, plural } from './data/squad-model';
 import { SquadStore } from './data/squad.store';
-import type { ApplicationAnswers, CandidateView, LeadsGroup } from './data/squad-view';
+import type { ApplicationAnswers, LeadsGroup, SquadJoinInfo } from './data/squad-view';
 import { avatarOf } from './squad-painel.component';
 import { SquadTierComponent } from './ui/squad-tier.component';
 
@@ -33,11 +33,10 @@ export function applicationErrors(a: { instagram: string; city: string; leadsGro
 export class SquadEntrarComponent {
   private readonly store = inject(SquadStore);
 
-  readonly view = input.required<CandidateView>();
+  readonly join = input.required<SquadJoinInfo>();
 
   protected readonly tierProfiles = TIER_PROFILES;
   protected readonly leadsOptions = LEADS_OPTIONS;
-  protected readonly tierLabels = TIER_LABELS;
   protected readonly whyMax = APPLICATION_LIMITS.why[1];
 
   protected readonly steps = computed(() => [
@@ -45,13 +44,13 @@ export class SquadEntrarComponent {
     {
       n: '02',
       title: 'Seu amigo ganha',
-      sub: this.view().followerDiscountPct > 0 ? `Até ${this.view().followerDiscountPct}% OFF na 1ª inscrição` : 'Inscrição pelo seu link',
+      sub: this.join().followerDiscountPct > 0 ? `Até ${this.join().followerDiscountPct}% OFF na 1ª inscrição` : 'Inscrição pelo seu link',
     },
     { n: '03', title: 'Você recebe', sub: 'Comissão após o pagamento' },
   ]);
 
   protected readonly profileLine = computed(() => {
-    const p = this.view().profile;
+    const p = this.join().profile;
     if (!p) return '';
     return [
       p.tournaments !== null ? plural(p.tournaments, 'torneio', 'torneios') : null,
@@ -61,25 +60,30 @@ export class SquadEntrarComponent {
       .filter(Boolean)
       .join(' · ');
   });
-  protected readonly avatar = computed(() => avatarOf(this.view().profile?.name ?? 'Atleta'));
+  protected readonly avatar = computed(() => avatarOf(this.join().profile?.name ?? 'Atleta'));
 
   /** O que o atleta já mandou (ou recebeu); `form` = pode se candidatar. */
   protected readonly stage = computed<'invite' | 'review' | 'invited' | 'waitlist' | 'form'>(() => {
-    const v = this.view();
+    const v = this.join();
     if (v.invite) return 'invite';
     const s = v.application?.status;
     if (s === 'review' || s === 'invited' || s === 'waitlist') return s;
     return 'form';
   });
-  protected readonly rejected = computed(() => this.view().application?.status === 'rejected');
-  protected readonly submittedLabel = computed(() => dayMonth(this.view().application?.submittedAt ?? null));
-  protected readonly nextCycleLabel = computed(() => dayMonth(this.view().nextCycleStart));
+  protected readonly rejected = computed(() => this.join().application?.status === 'rejected');
+  /** Ex-embaixador: o contrato terminou e ele pode se candidatar de novo. */
+  protected readonly pastContract = computed(() => {
+    const past = this.join().pastContract;
+    return past ? `Seu contrato de ${TIER_LABELS[past.tier]} terminou${past.endedAt ? ` em ${dayMonth(past.endedAt)}` : ''}. Quer voltar? Candidate-se para o próximo ciclo.` : null;
+  });
+  protected readonly submittedLabel = computed(() => dayMonth(this.join().application?.submittedAt ?? null));
+  protected readonly nextCycleLabel = computed(() => dayMonth(this.join().nextCycleStart));
   protected readonly inviteExpires = computed(() => {
-    const at = this.view().invite?.expiresAt;
+    const at = this.join().invite?.expiresAt;
     return at ? dayMonth(at) : null;
   });
-  protected readonly seatsFull = computed(() => this.view().seatsLeft <= 0);
-  protected readonly cycleName = computed(() => (this.view().cycle.id === 'piloto' ? 'do piloto' : 'do ciclo'));
+  protected readonly seatsFull = computed(() => this.join().seatsLeft <= 0);
+  protected readonly cycleName = computed(() => (this.join().cycle.id === 'piloto' ? 'do piloto' : 'do ciclo'));
 
   protected readonly instagram = signal('');
   protected readonly city = signal('');
@@ -98,7 +102,7 @@ export class SquadEntrarComponent {
     // Cidade do perfil já vem preenchida ("Goiânia, GO"); o atleta corrige se quiser.
     let prefilled = false;
     effect(() => {
-      const p = this.view().profile;
+      const p = this.join().profile;
       untracked(() => {
         if (prefilled) return;
         prefilled = true;

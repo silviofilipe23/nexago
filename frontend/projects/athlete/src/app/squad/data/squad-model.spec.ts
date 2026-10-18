@@ -1,4 +1,4 @@
-import { SQUAD_TEST_NOW, ambassadorView, commissionLine, daysAgoIso } from '../../../testing/squad-fixtures';
+import { SQUAD_TEST_NOW, ambassadorView, callableResponses, candidateView, commission, daysAgoIso, member, ranking } from '../../../testing/squad-fixtures';
 import {
   availableHint,
   benefitsOf,
@@ -6,19 +6,21 @@ import {
   commissionStatusMeta,
   contractNotice,
   cyclePill,
+  earnedCents,
   followerOffer,
   funnelSteps,
   levelProgress,
+  monthConversions,
   packageChips,
-  payoutDaysLabel,
-  pointsRules,
   promotionCopy,
+  rankingRows,
   shareLinks,
   statementLines,
-  weeklyCommissions,
+  totalHint,
+  weekBars,
   whenLabel,
 } from './squad-model';
-import { parseSquadView } from './squad-view';
+import { composeSquadView } from './squad-view';
 
 const NOW = SQUAD_TEST_NOW;
 
@@ -37,11 +39,10 @@ describe('squad-model', () => {
     });
   });
 
-  it('ciclo: dia do piloto pela data civil de São Paulo', () => {
-    const cycle = { id: 'piloto', start: '2026-09-08', end: '2026-12-06', seats: 20 };
-    expect(cyclePill(cycle, NOW)).toBe('Piloto · dia 40 de 90');
-    expect(cyclePill(cycle, new Date('2026-09-01T12:00:00Z'))).toBe('Piloto · começa em 08 set');
-    expect(cyclePill({ ...cycle, id: 'c2' }, new Date('2026-12-10T12:00:00Z'))).toBe('Ciclo · encerrado em 06 dez');
+  it('ciclo: dia do contrato pela data civil de São Paulo', () => {
+    expect(cyclePill(member(), NOW)).toBe('Piloto · dia 40 de 90');
+    expect(cyclePill(member(), new Date('2026-09-01T12:00:00Z'))).toBe('Piloto · começa em 08 set');
+    expect(cyclePill(member({ cycleId: 'c2' }), new Date('2026-12-10T12:00:00Z'))).toBe('Ciclo · encerrado em 06 dez');
   });
 
   it('quando: hoje com hora, ontem, data curta', () => {
@@ -50,64 +51,77 @@ describe('squad-model', () => {
     expect(whenLabel('2026-10-14T15:00:00Z', NOW)).toBe('14 out');
   });
 
-  it('o desconto do seguidor sai como "até X%" (o teto na taxa corta)', () => {
-    const offer = followerOffer(ambassadorView().contract);
+  it('o desconto do seguidor sai como "até X%" (o teto na taxa corta); 0% não promete nada', () => {
+    const offer = followerOffer(member());
     expect(offer.discount).toBe('até 10% OFF na primeira inscrição');
     expect(offer.rest).toBe('Você recebe 10% depois que o pagamento é confirmado.');
-    // Nível sem desconto do seguidor não promete "até 0% OFF".
-    const none = { ...ambassadorView().contract, followerDiscountPct: 0 };
-    expect(followerOffer(none).discount).toBeNull();
-    expect(benefitsOf({ ...ambassadorView(), contract: none }).some((b) => b.label.includes('OFF'))).toBeFalse();
+    expect(followerOffer(member({ followerDiscountPct: 0 })).discount).toBeNull();
+    expect(benefitsOf(member({ followerDiscountPct: 0 })).some((b) => b.label.includes('OFF'))).toBeFalse();
   });
 
-  it('disponível: data do repasse, acumulando abaixo do mínimo e retido', () => {
+  it('disponível: data do repasse, o que fica para depois e o mínimo', () => {
+    const m = member();
+    const withEarnings = (e: Partial<typeof m.earnings>) => member({ earnings: { ...m.earnings, ...e } });
+    expect(availableHint(m)).toBe('vai pra carteira em 20 out');
+    expect(availableHint(withEarnings({ nextPayoutCents: 100_00 }))).toBe('R$ 100,00 vão pra carteira em 20 out');
+    expect(availableHint(withEarnings({ nextPayoutCents: 0 }))).toBe('entra num próximo repasse');
+    expect(availableHint(withEarnings({ availableCents: 12_00, nextPayoutCents: 12_00 }))).toBe('acumulando · repasse a partir de R$ 20');
+    expect(availableHint(withEarnings({ availableCents: 0, nextPayoutCents: 0 }))).toBe('próximo repasse em 20 out');
+  });
+
+  it('ganho = confirmado (sem o pendente); este mês pela data da inscrição', () => {
+    expect(earnedCents(member())).toBe(324_00);
+    expect(totalHint(member())).toBe('10% de R$ 3.240');
+    // c1 está pendente; c2 (ontem) liberada; c3 cancelada.
+    expect(monthConversions(member(), NOW)).toBe(1);
+  });
+
+  it('funil: cliques sem medição ficam "—"; zero não ganha largura mínima', () => {
     const v = ambassadorView();
-    expect(availableHint(v)).toBe('vai pra carteira em 20 out');
-    expect(availableHint({ ...v, totals: { ...v.totals, availableCents: 12_00 } })).toBe('acumulando · repasse a partir de R$ 20');
-    expect(availableHint({ ...v, totals: { ...v.totals, availableCents: 0, heldCents: 14_00 } })).toBe(
-      'próximo repasse em 20 out · R$ 14,00 em revisão',
-    );
-  });
-
-  it('funil: cliques sem medição ficam "—" e sem barra', () => {
-    const steps = funnelSteps({ clicks: null, signups: 74, registrations: 31, paid: 27 });
+    const steps = funnelSteps(v.member, v.extras);
     expect(steps.map((s) => s.value)).toEqual([null, 74, 31, 27]);
     expect(steps[0]!.pct).toBe(0);
     expect(steps[1]!.pct).toBe(100);
-    // Zero não ganha a largura mínima: barra laranja em funil vazio parecia conversão.
-    expect(funnelSteps({ clicks: null, signups: 0, registrations: 0, paid: 0 }).map((s) => s.pct)).toEqual([0, 0, 0, 0]);
+    const empty = funnelSteps(member({ conversions: 0 }), { signups: 0, registrations: 0, pending: 0, promotionChecklist: [] });
+    expect(empty.map((s) => s.pct)).toEqual([0, 0, 0, 0]);
+  });
+
+  it('ranking: top 5 + o atleta no fim, seta da semana e "novo"', () => {
+    const r = ranking();
+    expect(rankingRows(r.entries, r.me).map((x) => [x.name, x.deltaLabel, x.deltaTone])).toEqual([
+      ['João Victor', '▲2', 'up'],
+      ['Marcos Reis', '▼1', 'down'],
+      ['Rayssa Brito', '—', 'flat'],
+    ]);
+    const others = Array.from({ length: 6 }, (_, i) => ({ position: i + 1, name: `A${i}`, photoUrl: null, points: 100 - i, delta: 0, me: false }));
+    const me = { position: 9, name: 'João Victor', photoUrl: null, points: 10, delta: null, me: true };
+    const rows = rankingRows(others, me);
+    expect(rows.length).toBe(6);
+    expect(rows[5]!.position).toBe(9);
+    expect(rows[5]!.deltaLabel).toBe('novo');
   });
 
   it('nível: Gold com 28% da faixa e 720 pts para Elite', () => {
-    const l = levelProgress(ambassadorView().points);
+    const l = levelProgress(member().points);
     expect(l.current).toBe('Gold');
     expect(l.next).toEqual({ name: 'Elite', missing: 720 });
     expect(l.bars.map((b) => b.pct)).toEqual([100, 100, 28, 0]);
     expect(l.bars.map((b) => b.done)).toEqual([true, true, false, false]);
-    expect(levelProgress({ total: 2400, levels: ambassadorView().points.levels }).next).toBeNull();
+    expect(levelProgress({ total: 2400, levels: member().points.levels }).next).toBeNull();
   });
 
-  it('presença e conteúdo sem fonte aparecem como "em breve"', () => {
-    expect(pointsRules(ambassadorView().points).map((r) => [r.value, r.soon])).toEqual([
-      ['+40', false],
-      ['+20', true],
-      ['+10', true],
-    ]);
-  });
-
-  it('promoção: faltam 3, sem ROI em lugar nenhum', () => {
-    const p = promotionCopy(ambassadorView().promotion);
+  it('promoção: faltam 3, sem ROI; Pro no topo e Captain paralelo', () => {
+    const p = promotionCopy(member());
     expect(p.title).toBe('Faltam 3 conversões pra concorrer');
     expect(p.summary).toBe('Mais 3 até a avaliação de 06 dez para concorrer a Pro Ambassador.');
     expect(p.pct).toBe(90);
     expect(JSON.stringify(p).toLowerCase()).not.toContain('roi');
-    expect(promotionCopy({ kind: 'top' }).title).toBe('Você está no topo do Squad');
+    expect(promotionCopy(member({ tier: 'pro', progress: null })).title).toBe('Você está no topo do Squad');
+    expect(promotionCopy(member({ tier: 'cap', progress: null })).kind).toBe('captain');
   });
 
   it('o que muda: chips do pacote do próximo nível', () => {
-    const v = ambassadorView();
-    const next = v.promotion.kind === 'promotion' ? v.promotion.nextPackage : v.package;
-    expect(packageChips(next)).toEqual([
+    expect(packageChips(member().nextPackage!)).toEqual([
       'Comissão de 10 a 15%',
       'Inscrições gratuitas',
       'Kit premium + uniforme',
@@ -118,74 +132,63 @@ describe('squad-model', () => {
   });
 
   it('benefícios: "Ativo" só no que o NexaGO opera; pausa apaga', () => {
-    const v = ambassadorView();
-    expect(benefitsOf(v).map((b) => [b.label, b.status])).toEqual([
+    expect(benefitsOf(member()).map((b) => [b.label, b.status])).toEqual([
       ['10% de comissão', 'active'],
       ['Até 10% OFF pra quem usa seu código', 'active'],
       ['1 inscrição gratuita por mês', 'package'],
       ['Kit completo', 'package'],
       ['Eventos: Prioridade', 'package'],
     ]);
-    const paused = benefitsOf({ ...v, contract: { ...v.contract, status: 'paused' } });
-    expect(paused[0]!.status).toBe('paused');
+    expect(benefitsOf(member({ status: 'paused' }))[0]!.status).toBe('paused');
   });
 
-  it('aviso de contrato: pausado, encerrado e aditivo pendente', () => {
-    const c = ambassadorView().contract;
-    expect(contractNotice(c)).toBeNull();
-    expect(contractNotice({ ...c, status: 'paused', pausedUntil: '2026-11-01' })?.text).toContain('pausado até 01 nov');
-    expect(contractNotice({ ...c, status: 'ended', endedAt: '2026-10-10T15:00:00Z' })?.text).toContain('terminou em 10 out');
-    expect(contractNotice({ ...c, pendingTier: 'pro' })?.text).toContain('Pro Ambassador');
+  it('aviso de contrato: pausado, encerramento marcado e aditivo pendente', () => {
+    expect(contractNotice(member())).toBeNull();
+    expect(contractNotice(member({ status: 'paused', pausedUntil: '2026-11-01' }))?.text).toContain('pausado até 01 nov');
+    expect(contractNotice(member({ endsAt: '2026-11-10' }))?.text).toContain('termina em 10 nov');
+    const amendment = { at: daysAgoIso(1), package: member().nextPackage! };
+    expect(contractNotice(member({ pendingAmendment: amendment }))?.text).toContain('Pro Ambassador');
   });
 
   it('status da comissão com o motivo do cancelamento', () => {
     expect(commissionStatusMeta('canceled', 'refund')).toEqual({ label: 'Cancelada · reembolso', tone: 'live' });
-    expect(commissionStatusMeta('held', null).label).toBe('Em revisão');
+    expect(commissionStatusMeta('canceled', 'chargeback').label).toBe('Cancelada · contestação');
     expect(commissionStatusMeta('pending', null).label).toBe('Aguardando pgto');
   });
 
-  it('semanas: 6 barras de segunda a domingo, a melhor com o torneio', () => {
-    const lines = [
-      commissionLine({ id: 'a', at: '2026-10-13T15:00:00Z', amountCents: 40_00, event: 'Open Errejota · Masc. C' }),
-      commissionLine({ id: 'b', at: '2026-10-14T15:00:00Z', amountCents: 44_00, event: 'Open Errejota · Fem. B' }),
-      commissionLine({ id: 'c', at: '2026-10-07T15:00:00Z', amountCents: 20_00, event: 'Copa CFC · Misto' }),
-      commissionLine({ id: 'p', at: '2026-10-16T15:00:00Z', amountCents: 99_00, status: 'pending' }),
-      commissionLine({ id: 'x', at: '2026-10-15T15:00:00Z', amountCents: 99_00, status: 'canceled' }),
-    ];
-    const w = weeklyCommissions(lines, NOW);
+  it('semanas do servidor em barras, a melhor destacada', () => {
+    const w = weekBars(member().weekly);
     expect(w.bars.map((b) => b.label)).toEqual(['7 set', '14', '21', '28', '5 out', '12']);
-    expect(w.bars.map((b) => b.cents)).toEqual([0, 0, 0, 0, 20_00, 84_00]);
-    expect(w.bars[5]!.best).toBeTrue();
-    expect(w.best).toEqual({ cents: 84_00, event: 'Open Errejota' });
-    expect(weeklyCommissions([], NOW).best).toBeNull();
+    expect(w.bars[4]!.best).toBeTrue();
+    expect(w.best).toEqual({ cents: 84_00, weekStart: '2026-10-05' });
+    expect(weekBars(member().weekly.map((x) => ({ ...x, cents: 0 }))).best).toBeNull();
   });
 
-  it('extrato: comissões, estornos e repasses do mais novo ao mais velho, com filtro', () => {
-    const v = ambassadorView({
-      adjustments: [{ id: 'adj', at: daysAgoIso(2), amountCents: -10_00, athlete: 'Henrique A.' }],
-    });
-    const all = statementLines(v, 'all', NOW);
+  it('extrato: comissões e repasses do mais novo ao mais velho, com filtro', () => {
+    const m = member({ commissions: [...member().commissions, commission({ id: 'old', at: '2026-10-01T15:00:00Z', status: 'paid' })] });
+    const all = statementLines(m, 'all', NOW);
     expect(all.map((l) => [l.title, l.amount])).toEqual([
       ['Lucas M. · Open Errejota', '+ R$ 12,00'],
       ['Tatiane R. · Liga NexaGO', '+ R$ 14,00'],
-      ['Estorno · Henrique A.', '− R$ 10,00'],
       ['Henrique A. · Open Errejota', 'R$ 10,00'],
       ['Repasse para a carteira', '− R$ 180,00'],
+      ['Lucas M. · Open Errejota', '+ R$ 12,00'],
     ]);
-    expect(all[3]!.struck).toBeTrue();
-    expect(statementLines(v, 'payouts', NOW).map((l) => l.kind)).toEqual(['payout']);
-    expect(statementLines(v, 'commissions', NOW).some((l) => l.kind === 'payout')).toBeFalse();
+    expect(all[2]!.struck).toBeTrue();
+    expect(statementLines(m, 'payouts', NOW).map((l) => l.kind)).toEqual(['payout']);
+    expect(statementLines(m, 'commissions', NOW).some((l) => l.kind === 'payout')).toBeFalse();
   });
 
-  it('dias de repasse', () => {
-    expect(payoutDaysLabel([20, 6])).toBe('dias 06 e 20');
-    expect(payoutDaysLabel([15])).toBe('dia 15');
-  });
-
-  it('resposta torta do servidor vira null', () => {
-    expect(parseSquadView(ambassadorView())?.kind).toBe('ambassador');
-    expect(parseSquadView({ kind: 'ambassador', cycle: {} })).toBeNull();
-    expect(parseSquadView(null)).toBeNull();
-    expect(parseSquadView({ kind: 'candidate', cycle: {}, seatsLeft: 3, nextCycleStart: '2026-12-07' })?.kind).toBe('candidate');
+  it('junta as três leituras; resposta torta vira null', () => {
+    const a = callableResponses(ambassadorView());
+    expect(composeSquadView(a.mySquad, a.portal, a.ranking)?.kind).toBe('ambassador');
+    // Ranking recusado não derruba a tela.
+    const noRank = composeSquadView(a.mySquad, a.portal, null);
+    expect(noRank?.kind === 'ambassador' ? noRank.ranking : 'x').toBeNull();
+    const c = callableResponses(candidateView());
+    expect(composeSquadView(c.mySquad, c.portal, null)?.kind).toBe('candidate');
+    expect(composeSquadView({ member: { tier: 'amb' } }, a.portal, null)).toBeNull();
+    expect(composeSquadView(null, a.portal, null)).toBeNull();
+    expect(composeSquadView({ member: null }, { join: null, member: null }, null)).toBeNull();
   });
 });

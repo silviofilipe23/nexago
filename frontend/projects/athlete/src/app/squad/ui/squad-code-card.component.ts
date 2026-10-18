@@ -1,9 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
+import { AuthService } from '../../auth/auth.service';
 import { NxToastService } from '../../shared/feedback';
-import { TIER_LABELS, followerOffer, shareLinks } from '../data/squad-model';
+import { followerOffer, shareLinks } from '../data/squad-model';
 import { squadQrPngDataUrl, squadQrSvgDataUrl } from '../data/squad-qr';
 import { drawSquadStoryCard, squadStoryFileName } from '../data/squad-story-card';
-import type { AmbassadorView } from '../data/squad-view';
+import type { SquadMember } from '../data/squad-view';
 import { copyText, dataUrlToBlob, downloadBlob, shareLink, shareOrDownloadFile } from './squad-share';
 
 /** "Seu código" do painel: QR, código e link com copiar, compartilhar e o card pro story. */
@@ -120,14 +121,15 @@ import { copyText, dataUrlToBlob, downloadBlob, shareLink, shareOrDownloadFile }
 })
 export class SquadCodeCardComponent {
   private readonly toast = inject(NxToastService);
+  private readonly auth = inject(AuthService);
 
-  readonly view = input.required<AmbassadorView>();
+  readonly member = input.required<SquadMember>();
 
-  protected readonly code = computed(() => this.view().contract.code);
+  protected readonly code = computed(() => this.member().code);
   protected readonly links = computed(() => shareLinks(this.code()));
-  protected readonly offer = computed(() => followerOffer(this.view().contract));
-  /** Código pausado ou encerrado não dá desconto: não faz sentido divulgar. */
-  protected readonly live = computed(() => this.view().contract.status === 'active');
+  protected readonly offer = computed(() => followerOffer(this.member()));
+  /** Código pausado não dá desconto: não faz sentido divulgar. */
+  protected readonly live = computed(() => this.member().status === 'active');
   protected readonly qrSvg = signal<string | null>(null);
   protected readonly busy = signal(false);
 
@@ -168,13 +170,13 @@ export class SquadCodeCardComponent {
     if (this.busy()) return;
     this.busy.set(true);
     try {
-      const v = this.view();
+      const m = this.member();
       const canvas = document.createElement('canvas');
       await drawSquadStoryCard(canvas, {
         code: this.code(),
         offer: this.offer().discount ?? 'na sua inscrição no NexaGO',
-        name: v.name,
-        tierLabel: TIER_LABELS[v.contract.tier],
+        name: this.auth.user()?.displayName?.trim() || 'Embaixador NexaGO',
+        tierLabel: m.tierLabel,
         qrPng: await squadQrPngDataUrl(this.links().qr, 1040),
         linkLabel: this.links().label,
       });

@@ -208,6 +208,15 @@ abstract final class AppRoutes {
   /// `url` dos pushes `cashback_released` / `cashback_expiring`.
   static const String athleteCashback = '/cashback';
 
+  /// NexaSquad (embaixadores): telas internas, fora do shell (sem tab bar).
+  /// Entrada pelo perfil e pela home; o push do convite abre [squadInvite].
+  static const String squad = '/athlete/squad';
+  static const String squadShare = '/athlete/squad/compartilhar';
+  static const String squadEarnings = '/athlete/squad/ganhos';
+  static const String squadRanking = '/athlete/squad/ranking';
+  static const String squadBenefits = '/athlete/squad/beneficios';
+  static const String squadInvite = '/athlete/squad/convite/:inviteId';
+
   /// Comunidade como página própria: com a Loja na barra inferior (flag
   /// `appConfig/store.enabled`), é o destino do "Ver todos" da Home e de
   /// `/discover?tab=comunidade`.
@@ -682,6 +691,12 @@ abstract final class AppRouteNames {
   static const String athleteSettings = 'athleteSettings';
   static const String athleteReferral = 'athleteReferral';
   static const String athleteCashback = 'athleteCashback';
+  static const String squad = 'squad';
+  static const String squadShare = 'squadShare';
+  static const String squadEarnings = 'squadEarnings';
+  static const String squadRanking = 'squadRanking';
+  static const String squadBenefits = 'squadBenefits';
+  static const String squadInvite = 'squadInvite';
   static const String community = 'community';
   static const String store = 'store';
   static const String storeSearch = 'storeSearch';

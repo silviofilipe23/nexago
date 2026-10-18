@@ -3,247 +3,289 @@ import assert from "node:assert/strict";
 import type {Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {
-  athleteStatusOf,
-  mySquadViewCore,
-  publicApplicationStatus,
-  publicPackage,
+  athletePackage,
+  inviteViewCore,
+  levelFor,
+  mySquadCore,
   squadPoints,
-  squadPromotion,
-  squadRanking,
-  squadTotals,
-  type AmbassadorView,
-  type CandidateView,
-  type CommissionInput,
+  squadRankingCore,
+  weekStartKey,
 } from "./squad-athlete";
 import {DEFAULT_SQUAD_RULES} from "./squad-rules";
 
-process.env.GCLOUD_PROJECT = "p";
-
+// Sexta, 17/10/2026 12:00 em São Paulo.
 const NOW = new Date("2026-10-17T15:00:00Z");
-const DAY = 24 * 60 * 60 * 1000;
-const daysAgo = (n: number) => new Date(NOW.getTime() - n * DAY);
+const day = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
 
-function commission(over: Partial<CommissionInput>): CommissionInput {
-  return {
-    id: "c",
-    status: "released",
-    registeredAt: daysAgo(3),
-    releasedAt: daysAgo(2),
-    payoutId: null,
-    holdPayoutDate: null,
-    amountCents: 12_00,
-    grossCents: 120_00,
-    convertedAthleteIds: ["a1"],
-    ...over,
-  };
+function setup() {
+  const fake = new FakeFirestore();
+  const db = fake as unknown as Firestore;
+  return {fake, db};
 }
 
-describe("pontos, pacote e candidatura", () => {
-  it("pontos = conversões × perConversion (+ presença e conteúdo)", () => {
-    const p = DEFAULT_SQUAD_RULES.points;
-    assert.equal(squadPoints(p, {conversions: 27, events: 0, content: 0}), 1080);
-    assert.equal(squadPoints(p, {conversions: 27, events: 5, content: 10}), 1080 + 100 + 100);
+function seedContract(fake: FakeFirestore, uid: string, extra: Record<string, unknown> = {}) {
+  fake.seedDoc(`squadAmbassadors/${uid}`, {
+    displayName: uid === "jv" ? "João Victor" : `Embaixador ${uid}`,
+    tier: "ath", code: uid.toUpperCase() + "10", commissionPct: 5, followerDiscountPct: 10,
+    rulesVersion: 1, status: "active", start: new Date("2026-09-08T03:00:00Z"),
+    end: new Date("2026-12-07T02:59:59Z"), cycleId: "piloto", amendments: [],
+    pauseReason: "motivo interno", endNote: "nota interna", ...extra,
+  });
+}
+
+let seq = 0;
+function seedCommission(fake: FakeFirestore, ambassadorId: string, status: string, extra: Record<string, unknown> = {}) {
+  seq += 1;
+  fake.seedDoc(`squadCommissions/c${seq}`, {
+    ambassadorId, status, amountCents: 1200, grossCents: 12000, netCents: 11500, convertedAthleteIds: ["a"],
+    convertedLabel: `Atleta ${seq}.`, tournamentName: "Open Errejota", categoryName: "Masc. C", origin: "code",
+    registeredAt: day(2), releasedAt: status === "released" || status === "paid" ? day(1) : null,
+    payoutId: status === "paid" ? "2026-10-06" : null, cancelReason: null, cancelNote: null, ...extra,
+  });
+}
+
+describe("pontos e nível", () => {
+  it("soma conversões, eventos e conteúdo pelos pesos das regras", () => {
+    assert.equal(squadPoints({conversions: 27}, DEFAULT_SQUAD_RULES.points), 1080);
+    assert.equal(squadPoints({conversions: 2, events: 1, content: 3}, DEFAULT_SQUAD_RULES.points), 130);
   });
 
-  it("pacote público esconde custo, SKU e o teto do ilimitado", () => {
-    const pro = publicPackage(DEFAULT_SQUAD_RULES.tiers.pro);
+  it("nível é o maior mínimo alcançado", () => {
+    const levels = DEFAULT_SQUAD_RULES.points.levels;
+    assert.equal(levelFor(0, levels), "Bronze");
+    assert.equal(levelFor(999, levels), "Silver");
+    assert.equal(levelFor(1000, levels), "Gold");
+    assert.equal(levelFor(5000, levels), "Elite");
+  });
+
+  it("semana começa na segunda", () => {
+    assert.equal(weekStartKey("2026-10-17"), "2026-10-12");
+    assert.equal(weekStartKey("2026-10-12"), "2026-10-12");
+    assert.equal(weekStartKey("2026-10-11"), "2026-10-05");
+  });
+});
+
+describe("pacote do atleta", () => {
+  it("não leva custo do kit, SKU, teto de cachê nem o teto oculto das inscrições grátis", () => {
+    const pro = athletePackage("pro", DEFAULT_SQUAD_RULES.tiers.pro);
     assert.deepEqual(pro.commissionPct, [10, 15]);
     assert.deepEqual(pro.registrations, {type: "freeUnlimited", value: null});
     assert.equal(pro.campaignFee, true);
-    assert.equal(pro.tournamentOriginBonusCents, null);
-    assert.ok(!("kitCostCents" in pro) && !("kitSku" in pro) && !("campaignFeeCapCents" in pro));
-    const cap = publicPackage(DEFAULT_SQUAD_RULES.tiers.cap);
-    assert.equal(cap.tournamentOriginBonusCents, 50_00);
-    assert.deepEqual(cap.registrations, {type: "freePerMonth", value: 1});
-  });
-
-  it("status da candidatura nunca expõe o motivo interno", () => {
-    assert.equal(publicApplicationStatus("new", ""), "review");
-    assert.equal(publicApplicationStatus("review", ""), "review");
-    assert.equal(publicApplicationStatus("invited", ""), "invited");
-    assert.equal(publicApplicationStatus("archived", "waitlist"), "waitlist");
-    assert.equal(publicApplicationStatus("archived", "rejected"), "rejected");
-    assert.equal(publicApplicationStatus("archived", "expired"), null);
-    assert.equal(publicApplicationStatus("archived", "accepted"), null);
-  });
-});
-
-describe("ranking por pontos", () => {
-  const list = [
-    {uid: "jv", name: "João V.", points: 1280, pointsWeekAgo: 1000},
-    {uid: "mr", name: "Marcos R.", points: 1240, pointsWeekAgo: 1200},
-    {uid: "rb", name: "Rayssa B.", points: 1180, pointsWeekAgo: 1180},
-    {uid: "pl", name: "Pedro L.", points: 1100, pointsWeekAgo: 900},
-    {uid: "vs", name: "Varoni S.", points: 1060, pointsWeekAgo: 1060},
-    {uid: "cm", name: "Carla M.", points: 200, pointsWeekAgo: 1300},
-  ];
-
-  it("ordena por pontos e a seta compara com 7 dias atrás", () => {
-    const rows = squadRanking(list, "jv");
-    assert.deepEqual(rows.map((r) => r.name), ["João V.", "Marcos R.", "Rayssa B.", "Pedro L.", "Varoni S."]);
-    // Uma semana atrás: Carla 1º, Marcos 2º, Rayssa 3º, Varoni 4º, João 5º, Pedro 6º.
-    assert.deepEqual(rows.map((r) => r.delta), [4, 0, 0, 2, -1]);
-    assert.equal(rows[0]!.me, true);
-  });
-
-  it("quem está fora do top entra no fim, com a posição real", () => {
-    const rows = squadRanking(list, "cm");
-    assert.equal(rows.length, 6);
-    assert.deepEqual(rows[5], {position: 6, name: "Carla M.", points: 200, delta: -5, me: true});
-  });
-});
-
-describe("totais do embaixador", () => {
-  it("separa liberada, retida, pendente, paga e cancelada", () => {
-    const totals = squadTotals({
-      commissions: [
-        commission({id: "pend", status: "pending", releasedAt: null, amountCents: 12_00}),
-        commission({id: "lib", amountCents: 14_00, grossCents: 140_00, convertedAthleteIds: ["a2", "a3"]}),
-        commission({id: "held", amountCents: 10_00, grossCents: 100_00, holdPayoutDate: "2026-10-20"}),
-        commission({id: "paid", status: "paid", payoutId: "2026-10-06", releasedAt: new Date("2026-09-30T15:00:00Z"), amountCents: 18_00}),
-        commission({id: "canc", status: "canceled", amountCents: 99_00}),
-      ],
-      openAdjustmentsCents: -5_00,
-      wallet: [{amountCents: 180_00, at: new Date("2026-10-06T12:00:00Z")}],
-      openPayout: "2026-10-20",
-      now: NOW,
-    });
-    assert.equal(totals.earnedCents, 14_00 + 10_00 + 18_00);
-    assert.equal(totals.availableCents, 14_00 - 5_00);
-    assert.equal(totals.heldCents, 10_00);
-    assert.equal(totals.pendingCents, 12_00);
-    assert.equal(totals.pendingCount, 1);
-    assert.equal(totals.receivedCents, 180_00);
-    assert.equal(totals.lastPayoutAt, "2026-10-06T12:00:00.000Z");
-    assert.equal(totals.conversions, 3);
-    assert.equal(totals.athletes, 3);
-    // A paga confirmou em setembro.
-    assert.equal(totals.monthConversions, 2);
-    assert.equal(totals.grossCents, 140_00 + 100_00 + 120_00);
-  });
-
-  it("retenção de outro repasse não vale para o aberto", () => {
-    assert.equal(athleteStatusOf({status: "released", payoutId: null, holdPayoutDate: "2026-10-06"}, "2026-10-20"), "released");
-    assert.equal(athleteStatusOf({status: "released", payoutId: null, holdPayoutDate: "2026-10-20"}, "2026-10-20"), "held");
-  });
-});
-
-describe("promoção", () => {
-  it("Ambassador → Pro: conversões e checklist, nunca o ROI", () => {
-    const p = squadPromotion({tier: "amb", conversions: 27, rules: DEFAULT_SQUAD_RULES, evaluation: "2026-12-06"});
-    assert.equal(p.kind, "promotion");
-    if (p.kind !== "promotion") return;
-    assert.equal(p.to, "pro");
-    assert.equal(p.min, 30);
-    assert.deepEqual(p.checklist, ["Influência relevante", "Participação consistente"]);
-    assert.ok(!JSON.stringify(p).toLowerCase().includes("roi"));
-  });
-
-  it("Pro está no topo e Captain é paralelo", () => {
-    assert.deepEqual(squadPromotion({tier: "pro", conversions: 50, rules: DEFAULT_SQUAD_RULES, evaluation: null}), {kind: "top"});
-    assert.deepEqual(squadPromotion({tier: "cap", conversions: 50, rules: DEFAULT_SQUAD_RULES, evaluation: null}), {kind: "captain"});
-  });
-});
-
-function seedAmbassador(fake: FakeFirestore) {
-  fake.seedDoc("users/jv", {fullName: "João Victor"});
-  fake.seedDoc("squadAmbassadors/jv", {
-    athleteId: "jv", displayName: "João Victor", tier: "amb", code: "JOAO10", commissionPct: 10,
-    followerDiscountPct: 10, rulesVersion: 1, status: "active",
-    start: new Date("2026-09-08T03:00:00Z"), end: new Date("2026-12-07T02:59:59Z"),
-    pauseReason: "segredo do time", endNote: "nota interna",
-    amendments: [{fromTier: "amb", toTier: "pro", reason: "motivo interno", by: {uid: "adm", name: "Lia"}, at: daysAgo(1)}],
-  });
-  fake.seedDoc("squadAmbassadors/mr", {displayName: "Marcos Reis", tier: "cap", code: "MARCOS10", status: "active"});
-  fake.seedDoc("squadAmbassadors/old", {displayName: "Ex Embaixador", tier: "amb", code: "OLD10", status: "ended"});
-  const base = {
-    ambassadorId: "jv", tournamentName: "Open Errejota", categoryName: "Masc. C", origin: "code",
-    payerUid: "payer", feeCents: 300, timeline: [{event: "hold", by: {name: "Lia"}, note: "suspeita"}],
-  };
-  fake.seedDoc("squadCommissions/c1", {
-    ...base, status: "pending", convertedLabel: "Lucas M.", grossCents: 120_00, amountCents: 12_00,
-    registeredAt: daysAgo(0), releasedAt: null,
-  });
-  fake.seedDoc("squadCommissions/c2", {
-    ...base, status: "released", convertedLabel: "Tatiane R.", origin: "link", grossCents: 140_00, amountCents: 14_00,
-    registeredAt: daysAgo(1), releasedAt: daysAgo(1), hold: {payoutDate: "2026-10-20", reason: "checar"},
-  });
-  fake.seedDoc("squadCommissions/c3", {
-    ...base, status: "paid", convertedLabel: "Paula N.", origin: "qr", grossCents: 140_00, amountCents: 14_00,
-    registeredAt: daysAgo(12), releasedAt: daysAgo(12), payoutId: "2026-10-06",
-  });
-  fake.seedDoc("squadCommissions/c4", {
-    ...base, status: "canceled", cancelReason: "refund", convertedLabel: "Henrique A.", grossCents: 100_00,
-    amountCents: 10_00, registeredAt: daysAgo(4), releasedAt: daysAgo(4), cancelNote: "nota interna",
-  });
-  fake.seedDoc("squadCommissions/m1", {ambassadorId: "mr", status: "released", releasedAt: daysAgo(10), amountCents: 10_00});
-  fake.seedDoc("squadCommissions/m2", {ambassadorId: "mr", status: "paid", releasedAt: daysAgo(20), amountCents: 10_00});
-  fake.seedDoc("squadCommissionAdjustments/c4_refund", {
-    commissionId: "c4", ambassadorId: "jv", amountCents: -10_00, reason: "refund", note: "nota interna",
-    payoutId: null, createdAt: daysAgo(4),
-  });
-  fake.seedDoc("squadWallets/jv", {balanceCents: 14_00});
-  fake.seedDoc("squadWallets/jv/transactions/2026-10-06", {
-    type: "squad_commission", amountCents: 14_00, label: "Repasse de 06/10 · indicações", createdAt: new Date("2026-10-06T12:00:00Z"),
-  });
-  fake.seedDoc("squadPayouts/2026-10-06", {status: "done"});
-  fake.seedDoc("squadAttributions/f1", {ambassadorId: "jv", code: "JOAO10", origin: "link"});
-  fake.seedDoc("squadAttributions/f2", {ambassadorId: "jv", code: "JOAO10", origin: "qr"});
-  fake.seedDoc("squadAttributions/f3", {ambassadorId: "mr", code: "MARCOS10", origin: "qr"});
-}
-
-describe("getMySquadView", () => {
-  it("embaixador: números, extrato saneado, ranking e promoção", async () => {
-    const fake = new FakeFirestore();
-    seedAmbassador(fake);
-    const view = (await mySquadViewCore(fake as unknown as Firestore, "jv", NOW)) as AmbassadorView;
-    assert.equal(view.kind, "ambassador");
-    assert.equal(view.contract.code, "JOAO10");
-    assert.equal(view.contract.pendingTier, "pro");
-    assert.equal(view.payout.nextDate, "2026-10-20");
-    assert.equal(view.totals.conversions, 2);
-    assert.equal(view.totals.heldCents, 14_00);
-    assert.equal(view.totals.availableCents, -10_00);
-    assert.equal(view.totals.pendingCount, 1);
-    assert.equal(view.totals.receivedCents, 14_00);
-    assert.deepEqual(view.funnel, {clicks: null, signups: 2, registrations: 4, paid: 2});
-    assert.deepEqual(view.commissions.map((c) => [c.id, c.status]), [["c1", "pending"], ["c2", "held"], ["c4", "canceled"], ["c3", "paid"]]);
-    assert.equal(view.commissions[2]!.cancelReason, "refund");
-    assert.deepEqual(view.adjustments, [{id: "c4_refund", at: daysAgo(4).toISOString(), amountCents: -10_00, athlete: "Henrique A."}]);
-    assert.equal(view.points.total, 80);
-    assert.equal(view.points.events, null);
-    // Os dois têm 2 conversões; empate desempata pelo nome. O encerrado não entra.
-    assert.equal(view.ranking.of, 2);
-    assert.deepEqual(view.ranking.rows.map((r) => [r.name, r.points, r.me]), [["João V.", 80, true], ["Marcos R.", 80, false]]);
-    assert.equal(view.promotion.kind, "promotion");
-
-    // Nada do que é interno sai na resposta.
-    const json = JSON.stringify(view);
-    for (const secret of ["segredo do time", "nota interna", "motivo interno", "checar", "suspeita", "payer", "Lia", "feeCents", "score", "roi"]) {
-      assert.ok(!json.toLowerCase().includes(secret.toLowerCase()), `vazou ${secret}`);
+    assert.equal(pro.partnerHalfOff, true);
+    const keys = Object.keys(pro);
+    for (const internal of ["kitCostCents", "kitSku", "campaignFeeCapCents"]) {
+      assert.ok(!keys.includes(internal), `${internal} vazou`);
     }
+    assert.equal(athletePackage("pro", DEFAULT_SQUAD_RULES.tiers.pro, 12).commissionPct, 12);
+    assert.equal(athletePackage("cap", DEFAULT_SQUAD_RULES.tiers.cap).tournamentOriginBonusCents, 50_00);
+    assert.deepEqual(athletePackage("amb", DEFAULT_SQUAD_RULES.tiers.amb).registrations, {type: "freePerMonth", value: 1});
+  });
+});
+
+describe("getMySquad", () => {
+  it("sem contrato: devolve o convite enviado/aberto e dentro do prazo", async () => {
+    const {fake, db} = setup();
+    fake.seedDoc("squadInvites/old", {athleteId: "caio", tier: "ath", status: "expired", sentAt: day(20)});
+    fake.seedDoc("squadInvites/late", {athleteId: "caio", tier: "amb", status: "sent", sentAt: day(9), expiresAt: day(2)});
+    fake.seedDoc("squadInvites/sched", {athleteId: "caio", tier: "pro", status: "scheduled", sentAt: null});
+    let view = await mySquadCore(db, "caio", NOW);
+    assert.equal(view.member, null);
+    assert.equal(view.invite, null, "vencido e agendado não aparecem");
+
+    fake.seedDoc("squadInvites/open", {athleteId: "caio", tier: "amb", status: "opened", sentAt: day(1), expiresAt: day(-6)});
+    fake.seedDoc("squadInvites/other", {athleteId: "outro", tier: "cap", status: "sent", sentAt: day(1), expiresAt: day(-6)});
+    view = await mySquadCore(db, "caio", NOW);
+    assert.equal(view.invite?.id, "open");
+    assert.equal(view.invite?.tierLabel, "Ambassador");
   });
 
-  it("candidato: perfil, candidatura em análise, convite em aberto e vagas", async () => {
-    const fake = new FakeFirestore();
-    fake.seedDoc("users/caio", {fullName: "Caio Teixeira", city: "Goiânia", state: "GO", mainArenaName: "Arena Errejota"});
-    fake.seedDoc("squadApplications/a1", {
-      athleteId: "caio", stage: "review", submittedAt: daysAgo(2), notes: [{text: "nota interna"}],
-      internalReason: "motivo interno", suggestedTier: "cap",
+  it("contrato encerrado não é membro", async () => {
+    const {fake, db} = setup();
+    seedContract(fake, "jv", {status: "ended"});
+    assert.equal((await mySquadCore(db, "jv", NOW)).member, null);
+  });
+
+  it("ganhos, conversões e extrato do ciclo atual", async () => {
+    const {fake, db} = setup();
+    seedContract(fake, "jv");
+    seedCommission(fake, "jv", "pending");
+    seedCommission(fake, "jv", "released", {amountCents: 1400, grossCents: 14000, convertedAthleteIds: ["a", "b"]});
+    seedCommission(fake, "jv", "released", {amountCents: 1400, grossCents: 14000, payoutId: "2026-10-20"});
+    seedCommission(fake, "jv", "paid", {amountCents: 1200});
+    seedCommission(fake, "jv", "canceled", {cancelReason: "refund", cancelNote: "nota do time"});
+    seedCommission(fake, "jv", "canceled", {cancelReason: "payment_failed"});
+    // Ciclo anterior (antes do início do contrato) e de outro embaixador: fora.
+    seedCommission(fake, "jv", "paid", {registeredAt: new Date("2026-08-01T12:00:00Z"), amountCents: 9999});
+    seedCommission(fake, "pedro", "released", {amountCents: 7777});
+    fake.seedDoc("squadCommissionAdjustments/a1", {ambassadorId: "jv", amountCents: -200, payoutId: null});
+    fake.seedDoc("squadCommissionAdjustments/a2", {ambassadorId: "jv", amountCents: -500, payoutId: "2026-10-06"});
+    fake.seedDoc("squadWallets/jv/transactions/2026-10-06", {amountCents: 1200, createdAt: day(11)});
+    fake.seedDoc("squadWallets/jv/transactions/2026-08-20", {amountCents: 9999, createdAt: new Date("2026-08-20T12:00:00Z")});
+
+    const m = (await mySquadCore(db, "jv", NOW)).member!;
+    assert.equal(m.code, "JV10");
+    assert.equal(m.tierLabel, "Athlete");
+    assert.equal(m.earnings.pendingCents, 1200);
+    assert.equal(m.earnings.availableCents, 1400 - 200, "liberada sem repasse, menos o ajuste em aberto");
+    assert.equal(m.earnings.receivedCents, 1200, "carteira só do ciclo");
+    assert.equal(m.earnings.totalCents, 1200 + 1400 + 1400 + 1200);
+    assert.equal(m.earnings.revenueCents, 14000 + 14000 + 12000);
+    assert.equal(m.earnings.nextPayoutDate, "2026-10-20");
+    assert.equal(m.earnings.minPayoutCents, 20_00);
+    assert.equal(m.earnings.nextPayoutCents, 1400 - 200);
+    assert.equal(m.conversions, 3);
+    assert.equal(m.athletes, 4);
+    assert.equal(m.commissions.length, 5, "PIX vencido não entra");
+    const canceled = m.commissions.find((c) => c.status === "canceled")!;
+    assert.equal(canceled.cancelReason, "refund");
+    assert.ok(!JSON.stringify(m).includes("nota do time"), "nota interna não sai");
+    assert.ok(!JSON.stringify(m).includes("motivo interno"), "motivo de pausa não sai");
+    assert.deepEqual(m.payouts.map((p) => p.id), ["2026-10-06"]);
+    assert.equal(m.weekly.length, 6);
+    assert.equal(m.weekly[5]!.weekStart, "2026-10-12");
+    assert.equal(m.weekly[5]!.cents, 1400 + 1400 + 1200);
+    assert.equal(m.points.total, 3 * 40);
+    assert.equal(m.points.level, "Bronze");
+    assert.deepEqual(
+      {to: m.progress?.toTier, conv: m.progress?.conversions, min: m.progress?.minConversions},
+      {to: "amb", conv: 4, min: 10},
+      "a promoção conta também a paga do ciclo anterior",
+    );
+    assert.equal(m.nextPackage?.tier, "amb");
+    assert.equal(m.package.commissionPct, 5);
+    assert.equal(m.followerDiscountFirstOnly, true);
+  });
+
+  it("reembolso parcial corrige o total; retido e liberado após o fechamento ficam fora do próximo repasse", async () => {
+    const {fake, db} = setup();
+    seedContract(fake, "jv");
+    // Paga de R$ 12 com reembolso parcial de R$ 6 (ajuste já repassado).
+    seedCommission(fake, "jv", "paid", {amountCents: 1200});
+    const paidId = `c${seq}`;
+    fake.seedDoc("squadCommissionAdjustments/p1", {
+      ambassadorId: "jv", commissionId: paidId, amountCents: -600, payoutId: "2026-10-06",
     });
-    fake.seedDoc("squadInvites/i1", {athleteId: "caio", status: "sent", tier: "amb", expiresAt: daysAgo(-5)});
-    for (let i = 0; i < 20; i++) fake.seedDoc(`squadAmbassadors/x${i}`, {status: "active", tier: "ath", code: `X${i}AAA`});
-    const view = (await mySquadViewCore(fake as unknown as Firestore, "caio", NOW)) as CandidateView;
-    assert.equal(view.kind, "candidate");
-    assert.equal(view.profile?.name, "Caio Teixeira");
-    assert.equal(view.profile?.arenaName, "Arena Errejota");
-    assert.deepEqual(view.application, {status: "review", submittedAt: daysAgo(2).toISOString()});
-    assert.deepEqual(view.invite, {tier: "amb", expiresAt: daysAgo(-5).toISOString()});
-    // 20 contratos + 1 convite enviado: piloto cheio, próximo ciclo em 07/12.
-    assert.equal(view.seatsLeft, 0);
-    assert.equal(view.nextCycleStart, "2026-12-07");
-    assert.equal(view.followerDiscountPct, 10);
-    const json = JSON.stringify(view);
-    assert.ok(!json.includes("nota interna") && !json.includes("motivo interno") && !json.includes("cap"));
+    // Cancelada depois de paga: o ajuste dela não pode descontar de novo do total.
+    seedCommission(fake, "jv", "canceled", {amountCents: 1000, cancelReason: "refund"});
+    fake.seedDoc("squadCommissionAdjustments/c1", {
+      ambassadorId: "jv", commissionId: `c${seq}`, amountCents: -1000, payoutId: "2026-10-06",
+    });
+    seedCommission(fake, "jv", "released", {amountCents: 1400});
+    seedCommission(fake, "jv", "released", {amountCents: 500, hold: {payoutDate: "2026-10-20", reason: "interno"}});
+    const m = (await mySquadCore(db, "jv", NOW)).member!;
+    assert.equal(m.earnings.totalCents, 1200 - 600 + 1400 + 500);
+    assert.equal(m.earnings.availableCents, 1400 + 500);
+    assert.equal(m.earnings.nextPayoutCents, 1400, "retida para o repasse em aberto fica de fora");
+    assert.ok(!JSON.stringify(m).includes("interno"), "motivo da retenção não sai");
+    assert.ok(m.commissions.every((c) => /^[0-9a-f]{16}$/.test(c.id)), "id opaco, sem o uid do pagador");
+  });
+
+  it("progresso de promoção conta todas as conversões, como o backoffice", async () => {
+    const {fake, db} = setup();
+    seedContract(fake, "jv");
+    seedCommission(fake, "jv", "paid", {registeredAt: new Date("2026-08-01T12:00:00Z")});
+    seedCommission(fake, "jv", "released");
+    const m = (await mySquadCore(db, "jv", NOW)).member!;
+    assert.equal(m.conversions, 1, "o ciclo conta só as do contrato atual");
+    assert.equal(m.progress?.conversions, 2);
+  });
+
+  it("Pro e Captain não têm próxima promoção; aditivo pendente vem com o pacote novo", async () => {
+    const {fake, db} = setup();
+    seedContract(fake, "jv", {tier: "pro", commissionPct: 12});
+    assert.equal((await mySquadCore(db, "jv", NOW)).member!.progress, null);
+
+    seedContract(fake, "cap1", {
+      tier: "cap",
+      amendments: [
+        {toTier: "amb", commissionPct: 10, followerDiscountPct: 10, rulesVersion: 1, at: day(3), acceptedAt: day(2), canceledAt: null},
+        {toTier: "pro", commissionPct: 13, followerDiscountPct: 15, rulesVersion: 1, at: day(1), acceptedAt: null, canceledAt: null,
+          reason: "texto interno do aditivo"},
+      ],
+    });
+    const m = (await mySquadCore(db, "cap1", NOW)).member!;
+    assert.equal(m.progress, null);
+    assert.equal(m.pendingAmendment?.package.tier, "pro");
+    assert.equal(m.pendingAmendment?.package.commissionPct, 13);
+    assert.ok(!JSON.stringify(m).includes("texto interno"), "motivo do aditivo é interno");
+  });
+
+  it("pausado continua membro, com a data de retorno", async () => {
+    const {fake, db} = setup();
+    seedContract(fake, "jv", {status: "paused", pausedUntil: "2026-11-01"});
+    const m = (await mySquadCore(db, "jv", NOW)).member!;
+    assert.equal(m.status, "paused");
+    assert.equal(m.pausedUntil, "2026-11-01");
+  });
+});
+
+describe("getSquadRanking", () => {
+  it("ordena por pontos, mostra quem subiu na semana e marca o próprio atleta", async () => {
+    const {fake, db} = setup();
+    seedContract(fake, "jv");
+    seedContract(fake, "ana");
+    seedContract(fake, "bruno", {status: "paused"});
+    seedContract(fake, "novo", {start: day(2)});
+    seedContract(fake, "fim", {status: "ended"});
+    fake.seedDoc("users/ana", {profilePhotoUrl: "https://foto/ana.jpg"});
+    // Há 7 dias: Ana 2, Bruno 1, JV 0. Agora: JV 4 (3 na semana), Ana 2, Bruno 1, Novo 1.
+    for (let i = 0; i < 2; i++) seedCommission(fake, "ana", "paid", {releasedAt: day(10), registeredAt: day(11)});
+    seedCommission(fake, "bruno", "released", {releasedAt: day(9), registeredAt: day(9)});
+    seedCommission(fake, "jv", "paid", {releasedAt: day(20), registeredAt: day(21)});
+    for (let i = 0; i < 3; i++) seedCommission(fake, "jv", "released", {releasedAt: day(1), registeredAt: day(2)});
+    seedCommission(fake, "novo", "released", {releasedAt: day(1), registeredAt: day(1)});
+    seedCommission(fake, "fim", "paid", {releasedAt: day(1)});
+    seedCommission(fake, "jv", "pending");
+
+    const view = await squadRankingCore(db, "jv", NOW);
+    assert.deepEqual(view.entries.map((e) => [e.position, e.name, e.points]), [
+      [1, "João Victor", 160],
+      [2, "Embaixador ana", 80],
+      [3, "Embaixador bruno", 40],
+      [4, "Embaixador novo", 40],
+    ]);
+    assert.equal(view.me?.position, 1);
+    assert.equal(view.me?.delta, 2, "era 3º há uma semana");
+    assert.equal(view.entries[1]!.delta, -1);
+    assert.equal(view.entries[3]!.delta, null, "assinou na semana");
+    assert.equal(view.entries[1]!.photoUrl, "https://foto/ana.jpg");
+    assert.equal(view.level, "Bronze");
+  });
+
+  it("só embaixador com contrato vivo vê o ranking", async () => {
+    const {fake, db} = setup();
+    await assert.rejects(squadRankingCore(db, "caio", NOW), /só para embaixadores/);
+    seedContract(fake, "jv", {status: "ended"});
+    await assert.rejects(squadRankingCore(db, "jv", NOW), /só para embaixadores/);
+  });
+});
+
+describe("convite (app 06)", () => {
+  it("traz o pacote vigente do nível, o código sugerido e o primeiro nome", async () => {
+    const {fake, db} = setup();
+    fake.seedDoc("users/caio", {fullName: "Caio Mendes Rocha"});
+    fake.seedDoc("artifacts/volley-track-2dd3b/public/data/athleteRankings/caio", {tournamentsCount: 11});
+    fake.seedDoc("squadInvites/i1", {
+      athleteId: "caio", tier: "ath", commissionPct: null, suggestedCode: "CAIO10", status: "sent",
+      periodStart: null, periodEnd: "2026-12-06", message: "A turma de quinta chamou atenção.", expiresAt: day(-5),
+    });
+    const v = await inviteViewCore(db, "caio", "i1", NOW);
+    assert.equal(v.status, "sent");
+    assert.equal(v.firstName, "Caio");
+    assert.equal(v.tournaments, 11);
+    assert.equal(v.suggestedCode, "CAIO10");
+    assert.equal(v.package.commissionPct, 5);
+    assert.deepEqual(v.package.registrations, {type: "discount", value: 20});
+    assert.equal(v.periodEnd, "2026-12-06");
+    assert.equal(v.followerDiscountFirstOnly, true);
+  });
+
+  it("vencido aparece como expirado; convite de outro atleta não existe", async () => {
+    const {fake, db} = setup();
+    fake.seedDoc("squadInvites/i1", {athleteId: "caio", tier: "pro", commissionPct: 12, status: "opened", expiresAt: day(1)});
+    const v = await inviteViewCore(db, "caio", "i1", NOW);
+    assert.equal(v.status, "expired");
+    assert.equal(v.package.commissionPct, 12);
+    await assert.rejects(inviteViewCore(db, "outro", "i1", NOW), /não encontrado/);
   });
 });

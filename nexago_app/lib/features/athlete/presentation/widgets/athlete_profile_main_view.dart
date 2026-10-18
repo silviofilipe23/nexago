@@ -23,6 +23,7 @@ import '../../domain/sand_rank/sand_rank_providers.dart';
 import '../sand_rank/widgets/sand_rank_avatar_frame.dart';
 import '../sand_rank/widgets/sand_rank_emblem.dart';
 import 'athlete_profile_avatar.dart';
+import '../../../squad/presentation/widgets/squad_entry_card.dart';
 import 'athlete_profile_ranking_section.dart';
 import 'athlete_profile_section_header.dart';
 import 'athlete_profile_skeleton.dart';
@@ -187,6 +188,10 @@ class AthleteProfileMainView extends StatelessWidget {
                       if (!readOnly) ...[
                         SizedBox(height: AppSpacing.md),
                         const AthleteProfileRankingSection(),
+                        // NexaSquad: embaixador ou convite em aberto (flag ligada).
+                        const SquadEntryCard(
+                          padding: EdgeInsets.only(top: AppSpacing.md),
+                        ),
                       ],
                       SizedBox(height: AppSpacing.md),
                       const _AthleteProfileStatsSection(),

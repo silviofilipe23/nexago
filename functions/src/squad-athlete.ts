@@ -1,33 +1,27 @@
 /**
- * NexaSquad no portal do atleta: Squad › Painel (01), Ganhos (02), Nível & benefícios (03) e
- * Entrar no Squad (04).
+ * NexaSquad: o que o próprio atleta vê do programa (app 01–06; portal do atleta 01–03).
  *
- * Uma callable de leitura, `getMySquadView`, monta tudo no servidor. Os docs de origem guardam o
- * que o atleta não vê — motivo de retenção, notas e timeline do time, custo, Score, ROI e as regras
- * internas — e rule não filtra campo; por isso nenhum deles ganha leitura de cliente. O que sai
- * daqui é a lista fechada de campos de `SquadAthleteView`. Nada é gravado.
+ * As rules só deixam o atleta ler o próprio convite (`squadInvites`) e a própria carteira
+ * (`squadWallets`); contrato, comissões e regras são do backoffice. Estas callables montam a visão
+ * do atleta a partir deles e devolvem só o que é dele: pontos, nível, ganhos e o pacote do nível.
+ * Nunca saem daqui Score, ROI, custo do kit, teto de cachê, motivo de pausa/encerramento, notas
+ * internas nem o teto oculto das inscrições grátis.
  *
- *   · Conversão = comissão liberada ou paga (a mesma conta do backoffice).
- *   · Pontos = conversões × `points.perConversion`. Presença em evento e conteúdo aprovado ainda
- *     não têm fonte: entram como `null` e a tela diz que a contagem vem depois.
- *   · Squad Ranking = contratos vivos ordenados por pontos, com a posição de 7 dias atrás para a
- *     seta. Nunca por Score.
- *   · Pacote do contrato = o da versão das regras congelada no aceite; promoção e pontos vêm da
- *     vigente (são internos e valem para todos a partir do salvamento).
+ *   getMySquad      — contrato, ganhos, conversões, pontos e pacote (ou o convite em aberto).
+ *   getSquadRanking — embaixadores do ciclo por pontos (só para quem tem contrato vivo).
+ *   viewSquadInvite — o convite com o pacote do nível; ver é abrir (mesmo `openInviteCore` de
+ *                     `openSquadInvite`: o card vai para Contrato enviado e o prazo conta dali).
+ *
+ * Conversão = comissão com pagamento confirmado (`released` ou `paid`), como no backoffice.
+ * Pontos = conversões × `points.perConversion` das regras vigentes. Presença em evento e conteúdo
+ * ainda não têm fonte de dados: contam zero até existirem (`squadPoints` já recebe os três).
  */
+import {createHash} from "crypto";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
-import {getFirestore, Timestamp, type Firestore} from "firebase-admin/firestore";
+import {getFirestore, type Firestore} from "firebase-admin/firestore";
+import {artifactsPublicDataBase} from "./firebase-paths";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
-import {
-  SQUAD_APPLICATIONS,
-  SQUAD_INVITES,
-  athleteSnapshot,
-  loadCurrentRules,
-  loadCycle,
-  seatsLeft,
-} from "./squad-applications";
-import {SQUAD_ATTRIBUTIONS} from "./squad-attribution";
-import {shortAthleteName} from "./squad-commission-lifecycle";
+import {SQUAD_INVITES, dateOf, loadCurrentRules, loadCycle, openInviteCore, spDateKey} from "./squad-applications";
 import {
   SQUAD_ADJUSTMENTS,
   SQUAD_AMBASSADORS,
@@ -36,197 +30,32 @@ import {
   lastDonePayout,
   loadPayoutConfig,
   openPayoutDate,
-  spDateKey,
-  type CancelReason,
+  payoutCutoff,
 } from "./squad-commissions";
-import {nextCycleStart, type Cycle} from "./squad-program";
+import {pendingAmendment} from "./squad-contracts";
 import {
   DEFAULT_SQUAD_RULES,
   SQUAD_CONFIG,
   SQUAD_RULES_DOC,
   SQUAD_RULES_VERSIONS,
   SQUAD_TIERS,
+  TIER_LABELS,
+  commissionFloor,
+  loadAttributionRules,
   type RegistrationType,
   type SquadRules,
   type SquadTier,
   type TierPackage,
 } from "./squad-rules";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-const WEEK_MS = 7 * DAY_MS;
-/** Extrato da tela Ganhos: as mais recentes bastam (o piloto inteiro cabe com folga). */
-const MAX_LINES = 200;
-/** Quantos aparecem no card do ranking (o atleta entra no fim se estiver fora). */
-const RANKING_TOP = 5;
-
 type Raw = Record<string, unknown>;
 
-// ── tipos da resposta ───────────────────────────────────────────────────────
-
-export type AthleteCommissionStatus = "pending" | "released" | "held" | "paid" | "canceled";
-export type ContractStatus = "active" | "paused" | "ended";
-
-/** O pacote como o atleta vê: sem custo do kit, SKU nem o teto oculto do "ilimitado". */
-export interface PublicPackage {
-  commissionPct: number | [number, number];
-  followerDiscountPct: number;
-  registrations: {type: RegistrationType; value: number | null};
-  kit: string;
-  events: string;
-  partnerHalfOff: boolean;
-  campaignFee: boolean;
-  tournamentOriginBonusCents: number | null;
-}
-
-export interface SquadCommissionLine {
-  id: string;
-  /** Data da inscrição (ISO). */
-  at: string | null;
-  releasedAt: string | null;
-  athlete: string;
-  event: string;
-  origin: "code" | "link" | "qr";
-  grossCents: number;
-  amountCents: number;
-  status: AthleteCommissionStatus;
-  cancelReason: CancelReason | null;
-}
-
-export interface SquadAdjustmentLine {
-  id: string;
-  at: string | null;
-  amountCents: number;
-  athlete: string;
-}
-
-export interface SquadWalletLine {
-  id: string;
-  at: string | null;
-  amountCents: number;
-  label: string;
-}
-
-export interface SquadRankRow {
-  position: number;
-  name: string;
-  points: number;
-  /** Posições ganhas (+) ou perdidas (−) em 7 dias; 0 = parado. */
-  delta: number;
-  me: boolean;
-}
-
-export interface SquadTotals {
-  /** Comissão de tudo que foi pago (liberada + paga). */
-  earnedCents: number;
-  /** Liberada e ainda fora de repasse, já com estornos em aberto. Vai no próximo repasse. */
-  availableCents: number;
-  /** Liberada mas retida pelo time para revisão neste repasse. */
-  heldCents: number;
-  /** Aguardando o pagamento do atleta. */
-  pendingCents: number;
-  pendingCount: number;
-  /** Já creditado na carteira do Squad. */
-  receivedCents: number;
-  lastPayoutAt: string | null;
-  /** Valor das inscrições pagas com o código. */
-  grossCents: number;
-  conversions: number;
-  /** Atletas distintos nas conversões (quem paga a dupla traz dois). */
-  athletes: number;
-  /** Conversões cujo pagamento foi confirmado neste mês (SP). */
-  monthConversions: number;
-}
-
-export interface SquadFunnel {
-  /** Cliques no link/QR ainda não são medidos. */
-  clicks: null;
-  signups: number;
-  registrations: number;
-  paid: number;
-}
-
-export interface SquadPoints {
-  total: number;
-  conversions: number;
-  events: number | null;
-  content: number | null;
-  perConversion: number;
-  perEvent: number;
-  perContent: number;
-  levels: Array<{name: string; min: number}>;
-}
-
-export type SquadPromotion =
-  | {
-      kind: "promotion";
-      to: SquadTier;
-      conversions: number;
-      min: number;
-      /** Critérios que o time avalia (sem ROI, que é interno). */
-      checklist: string[];
-      /** Data civil (SP) da avaliação: fim do contrato. */
-      evaluation: string | null;
-      nextPackage: PublicPackage;
-    }
-  | {kind: "top"}
-  | {kind: "captain"};
-
-export interface AmbassadorView {
-  kind: "ambassador";
-  name: string;
-  contract: {
-    tier: SquadTier;
-    code: string;
-    status: ContractStatus;
-    start: string | null;
-    end: string | null;
-    endedAt: string | null;
-    pausedUntil: string | null;
-    commissionPct: number;
-    followerDiscountPct: number;
-    followerDiscountFirstOnly: boolean;
-    /** Aditivo de nível aguardando o aceite do atleta no app. */
-    pendingTier: SquadTier | null;
-  };
-  cycle: Cycle;
-  package: PublicPackage;
-  payout: {nextDate: string; days: number[]; minNetCents: number};
-  totals: SquadTotals;
-  funnel: SquadFunnel;
-  commissions: SquadCommissionLine[];
-  adjustments: SquadAdjustmentLine[];
-  wallet: SquadWalletLine[];
-  points: SquadPoints;
-  ranking: {rows: SquadRankRow[]; of: number};
-  promotion: SquadPromotion;
-}
-
-export type PublicApplicationStatus = "review" | "invited" | "waitlist" | "rejected";
-
-export interface CandidateView {
-  kind: "candidate";
-  profile: {
-    name: string;
-    city: string | null;
-    state: string | null;
-    arenaName: string | null;
-    tournaments: number | null;
-    elo: string | null;
-    photoUrl: string | null;
-  } | null;
-  application: {status: PublicApplicationStatus; submittedAt: string | null} | null;
-  /** Convite em aberto: o aceite (código e contrato) é no app. */
-  invite: {tier: SquadTier; expiresAt: string | null} | null;
-  cycle: Cycle;
-  seatsLeft: number;
-  nextCycleStart: string;
-  /** Desconto do seguidor do Ambassador nas regras vigentes ("seu amigo ganha até X%"). */
-  followerDiscountPct: number;
-}
-
-export type SquadAthleteView = AmbassadorView | CandidateView;
-
-// ── utilidades ──────────────────────────────────────────────────────────────
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEKS = 6;
+const RECENT_MAX = 50;
+const RANKING_MAX = 100;
+const LIVE_CONTRACT = ["active", "paused"];
+const CONFIRMED = ["released", "paid"];
 
 function isObj(v: unknown): v is Raw {
   return v !== null && typeof v === "object" && !Array.isArray(v);
@@ -236,398 +65,594 @@ function str(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
 
-function cents(v: unknown): number {
+function int(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? Math.round(v) : 0;
-}
-
-function dateOf(v: unknown): Date | null {
-  if (v instanceof Date) return v;
-  if (v instanceof Timestamp) return v.toDate();
-  return v && typeof (v as {toDate?: unknown}).toDate === "function" ? (v as {toDate(): Date}).toDate() : null;
-}
-
-function iso(v: unknown): string | null {
-  return dateOf(v)?.toISOString() ?? null;
 }
 
 function isTier(v: unknown): v is SquadTier {
   return typeof v === "string" && (SQUAD_TIERS as readonly string[]).includes(v);
 }
 
-const CANCEL_REASONS: readonly CancelReason[] = ["refund", "chargeback", "payment_failed", "manual"];
-
-// ── lógica pura ─────────────────────────────────────────────────────────────
-
-export function publicPackage(pkg: TierPackage): PublicPackage {
-  const r = pkg.registrations;
-  return {
-    commissionPct: Array.isArray(pkg.commissionPct) ?
-      [pkg.commissionPct[0], pkg.commissionPct[1]] : pkg.commissionPct,
-    followerDiscountPct: pkg.followerDiscountPct,
-    registrations: {type: r.type, value: r.type === "freeUnlimited" ? null : r.value},
-    kit: pkg.kit,
-    events: pkg.events,
-    partnerHalfOff: pkg.partnerHalfOff,
-    campaignFee: (pkg.campaignFeeCapCents ?? 0) > 0,
-    tournamentOriginBonusCents: (pkg.tournamentOriginBonusCents ?? 0) > 0 ? pkg.tournamentOriginBonusCents! : null,
-  };
+function iso(d: Date | null): string | null {
+  return d ? d.toISOString() : null;
 }
 
-export function squadPoints(points: SquadRules["points"], input: {conversions: number; events: number; content: number}): number {
-  return input.conversions * points.perConversion + input.events * points.perEvent + input.content * points.perContent;
-}
+// ── pontos e nível ──────────────────────────────────────────────────────────
 
-export interface RankInput {
-  uid: string;
-  name: string;
-  points: number;
-  pointsWeekAgo: number;
-}
-
-function ordered(list: RankInput[], key: "points" | "pointsWeekAgo"): RankInput[] {
-  return [...list].sort((a, b) => b[key] - a[key] || a.name.localeCompare(b.name, "pt-BR") || a.uid.localeCompare(b.uid));
-}
-
-/** Top N por pontos + o atleta no fim, se estiver fora. A seta compara com a posição de 7 dias atrás. */
-export function squadRanking(list: RankInput[], meUid: string, top = RANKING_TOP): SquadRankRow[] {
-  const before = new Map(ordered(list, "pointsWeekAgo").map((e, i) => [e.uid, i + 1]));
-  const rows = ordered(list, "points").map((e, i) => ({
-    uid: e.uid,
-    row: {
-      position: i + 1,
-      name: e.name,
-      points: e.points,
-      delta: (before.get(e.uid) ?? i + 1) - (i + 1),
-      me: e.uid === meUid,
-    },
-  }));
-  const out = rows.slice(0, top).map((r) => r.row);
-  const mine = rows.find((r) => r.uid === meUid);
-  if (mine && mine.row.position > top) out.push(mine.row);
-  return out;
-}
-
-export interface CommissionInput {
-  id: string;
-  status: string;
-  registeredAt: Date | null;
-  releasedAt: Date | null;
-  payoutId: string | null;
-  holdPayoutDate: string | null;
-  amountCents: number;
-  grossCents: number;
-  convertedAthleteIds: string[];
-}
-
-export function athleteStatusOf(c: Pick<CommissionInput, "status" | "payoutId" | "holdPayoutDate">, openPayout: string): AthleteCommissionStatus {
-  if (c.status === "canceled") return "canceled";
-  if (c.status === "paid") return "paid";
-  if (c.status === "released") return c.payoutId === null && c.holdPayoutDate === openPayout ? "held" : "released";
-  return "pending";
-}
-
-function isConversion(status: string): boolean {
-  return status === "released" || status === "paid";
-}
-
-export function squadTotals(input: {
-  commissions: CommissionInput[];
-  openAdjustmentsCents: number;
-  wallet: Array<{amountCents: number; at: Date | null}>;
-  openPayout: string;
-  now: Date;
-}): SquadTotals {
-  const month = spDateKey(input.now).slice(0, 7);
-  const athletes = new Set<string>();
-  let earned = 0;
-  let available = input.openAdjustmentsCents;
-  let held = 0;
-  let pending = 0;
-  let pendingCount = 0;
-  let gross = 0;
-  let conversions = 0;
-  let monthConversions = 0;
-  for (const c of input.commissions) {
-    const status = athleteStatusOf(c, input.openPayout);
-    if (status === "pending") {
-      pending += c.amountCents;
-      pendingCount++;
-      continue;
-    }
-    if (!isConversion(c.status)) continue;
-    conversions++;
-    earned += c.amountCents;
-    gross += c.grossCents;
-    for (const uid of c.convertedAthleteIds) athletes.add(uid);
-    if (c.releasedAt && spDateKey(c.releasedAt).slice(0, 7) === month) monthConversions++;
-    if (status === "held") held += c.amountCents;
-    else if (status === "released") available += c.amountCents;
-  }
-  const credits = input.wallet.filter((t) => t.amountCents > 0);
-  const last = credits.map((t) => t.at).filter((d): d is Date => d !== null).sort((a, b) => b.getTime() - a.getTime())[0];
-  return {
-    earnedCents: earned,
-    availableCents: available,
-    heldCents: held,
-    pendingCents: pending,
-    pendingCount,
-    receivedCents: credits.reduce((n, t) => n + t.amountCents, 0),
-    lastPayoutAt: last?.toISOString() ?? null,
-    grossCents: gross,
-    conversions,
-    athletes: athletes.size,
-    monthConversions,
-  };
-}
-
-export function squadPromotion(input: {
-  tier: SquadTier;
+export interface PointsInput {
   conversions: number;
-  rules: SquadRules;
-  evaluation: string | null;
-}): SquadPromotion {
-  if (input.tier === "cap") return {kind: "captain"};
-  const step = input.rules.promotion.find((p) => p.from === input.tier);
-  if (!step || !input.rules.tiers[step.to]) return {kind: "top"};
+  events?: number;
+  content?: number;
+}
+
+export function squadPoints(input: PointsInput, points: SquadRules["points"]): number {
+  return input.conversions * points.perConversion +
+    (input.events ?? 0) * points.perEvent +
+    (input.content ?? 0) * points.perContent;
+}
+
+/** O maior nível cujo mínimo já foi alcançado (o primeiro começa em 0). */
+export function levelFor(total: number, levels: SquadRules["points"]["levels"]): string {
+  let name = levels[0]?.name ?? "";
+  for (const l of levels) {
+    if (total >= l.min) name = l.name;
+  }
+  return name;
+}
+
+// ── pacote do nível, sem o que é interno ────────────────────────────────────
+
+export interface AthletePackage {
+  tier: SquadTier;
+  tierLabel: string;
+  /** Exato, ou a faixa `[min, max]` do Pro antes do contrato fixar o valor. */
+  commissionPct: number | [number, number];
+  followerDiscountPct: number;
+  /** `freeUnlimited` sai sem `value`: o teto mensal é oculto por regra do programa. */
+  registrations: {type: RegistrationType; value: number | null};
+  kit: string;
+  events: string;
+  partnerHalfOff: boolean;
+  /** Pro recebe cachê por campanha; o teto do cachê é interno. */
+  campaignFee: boolean;
+  /** Captain: bônus por torneio originado. */
+  tournamentOriginBonusCents: number | null;
+}
+
+export function athletePackage(tier: SquadTier, pkg: TierPackage, commissionPct?: number | null): AthletePackage {
+  const commission: number | [number, number] = typeof commissionPct === "number" ?
+    commissionPct :
+    Array.isArray(pkg.commissionPct) ? [pkg.commissionPct[0], pkg.commissionPct[1]] : pkg.commissionPct;
+  const type = pkg.registrations?.type ?? "discount";
   return {
-    kind: "promotion",
-    to: step.to,
-    conversions: input.conversions,
-    min: step.minConversions,
-    checklist: [...step.checklist],
-    evaluation: input.evaluation,
-    nextPackage: publicPackage(input.rules.tiers[step.to]),
+    tier,
+    tierLabel: TIER_LABELS[tier],
+    commissionPct: commission,
+    followerDiscountPct: pkg.followerDiscountPct,
+    registrations: {type, value: type === "freeUnlimited" ? null : int(pkg.registrations?.value)},
+    kit: str(pkg.kit).trim(),
+    events: str(pkg.events).trim(),
+    partnerHalfOff: pkg.partnerHalfOff === true,
+    campaignFee: tier === "pro" && int(pkg.campaignFeeCapCents) > 0,
+    tournamentOriginBonusCents: tier === "cap" && int(pkg.tournamentOriginBonusCents) > 0 ?
+      int(pkg.tournamentOriginBonusCents) : null,
   };
 }
 
-/** O que a candidatura mostra ao atleta. Nota, motivo interno e nível sugerido nunca saem. */
-export function publicApplicationStatus(stage: string, archivedReason: string): PublicApplicationStatus | null {
-  if (stage === "new" || stage === "review") return "review";
-  if (stage === "invited" || stage === "contract") return "invited";
-  if (stage === "archived" && archivedReason === "waitlist") return "waitlist";
-  if (stage === "archived" && archivedReason === "rejected") return "rejected";
-  // Expirada, cancelada ou aceita: o atleta pode se candidatar de novo.
-  return null;
+function packageOf(rules: SquadRules, tier: SquadTier): TierPackage {
+  return isObj(rules.tiers?.[tier]) ? rules.tiers[tier] : DEFAULT_SQUAD_RULES.tiers[tier];
 }
 
-// ── leitura ─────────────────────────────────────────────────────────────────
-
-/** Regras de uma versão (o pacote congelado no contrato); sem o retrato, as vigentes. */
-async function rulesOfVersion(db: Firestore, version: number | null, current: SquadRules): Promise<SquadRules> {
+/** Regras de uma versão (o retrato congelado no contrato); sem retrato, as vigentes. */
+async function rulesForVersion(db: Firestore, version: number | null, current: SquadRules): Promise<SquadRules> {
   if (version === null) return current;
-  const d = (await db.collection(SQUAD_CONFIG).doc(SQUAD_RULES_DOC)
-    .collection(SQUAD_RULES_VERSIONS).doc(String(version)).get()).data();
-  const rules = d?.["rules"];
+  const snap = await db.collection(SQUAD_CONFIG).doc(SQUAD_RULES_DOC)
+    .collection(SQUAD_RULES_VERSIONS).doc(String(version)).get();
+  const rules = snap.data()?.["rules"];
   return isObj(rules) && isObj(rules["tiers"]) ? (rules as unknown as SquadRules) : current;
 }
 
-function commissionInputOf(id: string, d: Raw): CommissionInput {
-  const hold = isObj(d["hold"]) ? d["hold"] : null;
-  const converted = Array.isArray(d["convertedAthleteIds"]) ?
-    (d["convertedAthleteIds"] as unknown[]).filter((v): v is string => typeof v === "string") : [];
+// ── comissões do atleta ─────────────────────────────────────────────────────
+
+export type AthleteCommissionStatus = "pending" | "released" | "paid" | "canceled";
+
+export interface AthleteCommission {
+  id: string;
+  at: string | null;
+  /** "Lucas M." ou "Equipe CFC (4 atl.)" — o rótulo que a comissão já guarda. */
+  label: string;
+  tournamentName: string;
+  categoryName: string;
+  origin: "code" | "link" | "qr";
+  amountCents: number;
+  status: AthleteCommissionStatus;
+  /** Só para cancelada: o motivo em código. A nota escrita pelo time é interna. */
+  cancelReason: "refund" | "chargeback" | "manual" | null;
+}
+
+interface CommissionRow {
+  id: string;
+  ambassadorId: string;
+  status: string;
+  cancelReason: string;
+  registeredAt: Date | null;
+  releasedAt: Date | null;
+  amountCents: number;
+  grossCents: number;
+  converted: number;
+  payoutId: string | null;
+  raw: Raw;
+}
+
+function rowOf(id: string, d: Raw): CommissionRow {
+  const converted = Array.isArray(d["convertedAthleteIds"]) ? d["convertedAthleteIds"].length : 1;
   return {
     id,
+    ambassadorId: str(d["ambassadorId"]),
     status: str(d["status"]),
+    cancelReason: str(d["cancelReason"]),
     registeredAt: dateOf(d["registeredAt"]) ?? dateOf(d["createdAt"]),
     releasedAt: dateOf(d["releasedAt"]),
-    payoutId: str(d["payoutId"]) || null,
-    holdPayoutDate: hold ? str(hold["payoutDate"]) || null : null,
-    amountCents: cents(d["amountCents"]),
-    grossCents: cents(d["grossCents"]),
-    convertedAthleteIds: converted.length > 0 ? converted : [str(d["payerUid"])].filter(Boolean),
+    amountCents: int(d["amountCents"]),
+    grossCents: int(d["grossCents"]),
+    converted: Math.max(1, converted),
+    payoutId: typeof d["payoutId"] === "string" ? d["payoutId"] : null,
+    raw: d,
   };
 }
 
-function commissionLineOf(c: CommissionInput, d: Raw, openPayout: string): SquadCommissionLine {
-  const origin = d["origin"] === "qr" ? "qr" : d["origin"] === "link" ? "link" : "code";
-  const reason = CANCEL_REASONS.find((r) => r === d["cancelReason"]) ?? null;
+/** Comissões do contrato atual: as do ciclo anterior (contrato renovado) ficam de fora. */
+function inContract(rows: CommissionRow[], start: Date | null): CommissionRow[] {
+  if (!start) return rows;
+  return rows.filter((r) => r.registeredAt === null || r.registeredAt.getTime() >= start.getTime());
+}
+
+/**
+ * Cancelada por pagamento não concluído nunca virou venda (PIX vencido): não entra no extrato do
+ * atleta, só confundiria. Reembolso, estorno e cancelamento manual entram, riscados.
+ */
+function visibleToAthlete(r: CommissionRow): boolean {
+  return !(r.status === "canceled" && r.cancelReason === "payment_failed");
+}
+
+function athleteCommission(r: CommissionRow): AthleteCommission {
+  const origin = r.raw["origin"] === "qr" ? "qr" : r.raw["origin"] === "link" ? "link" : "code";
+  const status: AthleteCommissionStatus = r.status === "released" || r.status === "paid" || r.status === "canceled" ?
+    r.status : "pending";
+  const reason = r.cancelReason === "refund" || r.cancelReason === "chargeback" ? r.cancelReason : "manual";
   return {
-    id: c.id,
-    at: c.registeredAt?.toISOString() ?? null,
-    releasedAt: c.releasedAt?.toISOString() ?? null,
-    athlete: str(d["convertedLabel"]) || "Atleta",
-    event: [str(d["tournamentName"]), str(d["categoryName"])].filter(Boolean).join(" · "),
+    // O id do doc é `inscrição_pagador`: com ele o embaixador chegaria ao uid de quem pagou.
+    id: createHash("sha256").update(r.id).digest("hex").slice(0, 16),
+    at: iso(r.registeredAt),
+    label: str(r.raw["convertedLabel"]) || "Atleta",
+    tournamentName: str(r.raw["tournamentName"]),
+    categoryName: str(r.raw["categoryName"]),
     origin,
-    grossCents: c.grossCents,
-    amountCents: c.amountCents,
-    status: athleteStatusOf(c, openPayout),
-    cancelReason: c.status === "canceled" ? reason : null,
+    amountCents: r.amountCents,
+    status,
+    cancelReason: status === "canceled" ? reason : null,
   };
 }
 
-async function rankingOf(db: Firestore, rules: SquadRules, meUid: string, now: Date): Promise<{rows: SquadRankRow[]; of: number}> {
-  const [active, paused, released, paid] = await Promise.all([
+/** Segunda-feira (data civil de SP) da semana de `key`. */
+export function weekStartKey(key: string): string {
+  const d = new Date(`${key}T12:00:00Z`);
+  const back = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - back);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Ganhos confirmados por semana (pela data da confirmação), das últimas `weeks` semanas. */
+export function weeklyEarnings(rows: CommissionRow[], now: Date, weeks = WEEKS): Array<{weekStart: string; cents: number}> {
+  const current = weekStartKey(spDateKey(now));
+  const keys: string[] = [];
+  for (let i = weeks - 1; i >= 0; i--) {
+    const d = new Date(`${current}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - i * 7);
+    keys.push(d.toISOString().slice(0, 10));
+  }
+  const sums = new Map(keys.map((k) => [k, 0]));
+  for (const r of rows) {
+    if (!CONFIRMED.includes(r.status) || !r.releasedAt) continue;
+    const k = weekStartKey(spDateKey(r.releasedAt));
+    if (sums.has(k)) sums.set(k, sums.get(k)! + r.amountCents);
+  }
+  return keys.map((k) => ({weekStart: k, cents: sums.get(k)!}));
+}
+
+// ── visão do atleta ─────────────────────────────────────────────────────────
+
+export interface SquadInviteSummary {
+  id: string;
+  tier: SquadTier;
+  tierLabel: string;
+  expiresAt: string | null;
+}
+
+export interface SquadMemberView {
+  tier: SquadTier;
+  tierLabel: string;
+  code: string;
+  status: "active" | "paused";
+  /** Data civil de retorno da pausa, quando marcada. */
+  pausedUntil: string | null;
+  /** Data civil em que o contrato encerra antes do fim do ciclo, quando marcada. */
+  endsAt: string | null;
+  start: string | null;
+  end: string | null;
+  cycleId: string;
+  commissionPct: number;
+  followerDiscountPct: number;
+  /** "Desconto só na primeira inscrição" das regras de atribuição. */
+  followerDiscountFirstOnly: boolean;
+  pendingAmendment: null | {at: string | null; package: AthletePackage};
+  earnings: {
+    /** Pendente + liberada + paga: tudo que o código gerou no ciclo. */
+    totalCents: number;
+    /** Liberada e ainda não repassada (com os ajustes de reembolso descontados). */
+    availableCents: number;
+    /** Quanto disso entra no repasse em aberto (sem o retido para ele e o liberado após o fechamento). */
+    nextPayoutCents: number;
+    /** Aguardando o pagamento da inscrição. */
+    pendingCents: number;
+    /** O que já caiu na carteira neste ciclo. */
+    receivedCents: number;
+    /** Valor das inscrições confirmadas com o código. */
+    revenueCents: number;
+    nextPayoutDate: string;
+    minPayoutCents: number;
+  };
+  conversions: number;
+  athletes: number;
+  weekly: Array<{weekStart: string; cents: number}>;
+  commissions: AthleteCommission[];
+  payouts: Array<{id: string; at: string | null; amountCents: number}>;
+  points: {total: number; level: string; levels: Array<{name: string; min: number}>; perConversion: number};
+  /** Próxima promoção por conversões; `null` no topo da escada (Pro) e no Captain, que é paralelo. */
+  progress: null | {toTier: SquadTier; toTierLabel: string; conversions: number; minConversions: number; reviewDate: string | null};
+  package: AthletePackage;
+  nextPackage: AthletePackage | null;
+}
+
+export interface MySquadView {
+  member: SquadMemberView | null;
+  invite: SquadInviteSummary | null;
+}
+
+/** Convite enviado/aberto e dentro do prazo (o agendado ainda não chegou ao atleta). */
+export async function openInviteFor(db: Firestore, uid: string, now: Date): Promise<SquadInviteSummary | null> {
+  const snap = await db.collection(SQUAD_INVITES).where("athleteId", "==", uid).get();
+  const open = snap.docs
+    .map((d) => ({id: d.id, d: d.data() as Raw}))
+    .filter(({d}) => {
+      const expiresAt = dateOf(d["expiresAt"]);
+      return (d["status"] === "sent" || d["status"] === "opened") && (!expiresAt || expiresAt > now);
+    })
+    .sort((a, b) => (dateOf(b.d["sentAt"])?.getTime() ?? 0) - (dateOf(a.d["sentAt"])?.getTime() ?? 0));
+  const first = open[0];
+  if (!first) return null;
+  const tier = isTier(first.d["tier"]) ? first.d["tier"] : "ath";
+  return {id: first.id, tier, tierLabel: TIER_LABELS[tier], expiresAt: iso(dateOf(first.d["expiresAt"]))};
+}
+
+export async function mySquadCore(db: Firestore, uid: string, now: Date): Promise<MySquadView> {
+  const contract = (await db.collection(SQUAD_AMBASSADORS).doc(uid).get()).data();
+  if (!contract || !LIVE_CONTRACT.includes(str(contract["status"]))) {
+    return {member: null, invite: await openInviteFor(db, uid, now)};
+  }
+
+  const [{rules}, attribution, payoutConfig, lastDone, commissionsSnap, adjustmentsSnap, walletSnap, cycle] =
+    await Promise.all([
+      loadCurrentRules(db),
+      loadAttributionRules(db),
+      loadPayoutConfig(db),
+      lastDonePayout(db),
+      db.collection(SQUAD_COMMISSIONS).where("ambassadorId", "==", uid).get(),
+      db.collection(SQUAD_ADJUSTMENTS).where("ambassadorId", "==", uid).get(),
+      db.collection(SQUAD_WALLETS).doc(uid).collection("transactions").get(),
+      loadCycle(db),
+    ]);
+
+  const tier = isTier(contract["tier"]) ? contract["tier"] : "ath";
+  const start = dateOf(contract["start"]) ?? dateOf(contract["createdAt"]);
+  const end = dateOf(contract["end"]);
+  const version = typeof contract["rulesVersion"] === "number" ? contract["rulesVersion"] : null;
+  const contractRules = await rulesForVersion(db, version, rules);
+  const pkg = packageOf(contractRules, tier);
+  const commissionPct = typeof contract["commissionPct"] === "number" ?
+    contract["commissionPct"] : commissionFloor(pkg.commissionPct);
+  const followerDiscountPct = typeof contract["followerDiscountPct"] === "number" ?
+    contract["followerDiscountPct"] : pkg.followerDiscountPct;
+
+  const allRows = commissionsSnap.docs.map((d) => rowOf(d.id, d.data() as Raw));
+  const rows = inContract(allRows, start);
+  const confirmed = rows.filter((r) => CONFIRMED.includes(r.status));
+  const sum = (list: CommissionRow[], f: (r: CommissionRow) => number) => list.reduce((n, r) => n + f(r), 0);
+  const pendingCents = sum(rows.filter((r) => r.status === "pending"), (r) => r.amountCents);
+  const releasedUnpaid = rows.filter((r) => r.status === "released" && r.payoutId === null);
+  const adjustmentDocs = adjustmentsSnap.docs.map((d) => d.data() as Raw);
+  const openAdjustments = adjustmentDocs
+    .filter((a) => (a["payoutId"] ?? null) === null)
+    .reduce((n, a) => n + int(a["amountCents"]), 0);
+  // Reembolso parcial de comissão paga não mexe no `amountCents`: vira ajuste. A cancelada já
+  // saiu da soma pelo status, então só os ajustes de comissão confirmada corrigem o total.
+  const confirmedIds = new Set(confirmed.map((r) => r.id));
+  const partialRefunds = adjustmentDocs
+    .filter((a) => confirmedIds.has(str(a["commissionId"])))
+    .reduce((n, a) => n + int(a["amountCents"]), 0);
+
+  // O repasse em aberto leva o que foi liberado antes do fechamento e não está retido para ele.
+  const nextPayoutDate = openPayoutDate(spDateKey(now), lastDone, payoutConfig.days);
+  const cutoff = payoutCutoff(nextPayoutDate).getTime();
+  const goesInNext = releasedUnpaid.filter((r) => {
+    const hold = isObj(r.raw["hold"]) ? str((r.raw["hold"] as Raw)["payoutDate"]) : "";
+    return hold !== nextPayoutDate && r.releasedAt !== null && r.releasedAt.getTime() < cutoff;
+  });
+
+  const payouts = walletSnap.docs
+    .map((d) => ({id: d.id, at: dateOf((d.data() as Raw)["createdAt"]), amountCents: int((d.data() as Raw)["amountCents"])}))
+    .filter((p) => !start || !p.at || p.at.getTime() >= start.getTime())
+    .sort((a, b) => (b.at?.getTime() ?? 0) - (a.at?.getTime() ?? 0));
+
+  const conversions = confirmed.length;
+  const total = squadPoints({conversions}, rules.points);
+  // A promoção conta todas as conversões do embaixador, como o status do backoffice.
+  const allConversions = allRows.filter((r) => CONFIRMED.includes(r.status)).length;
+  const promotion = rules.promotion.find((p) => p.from === tier) ?? null;
+
+  const amendment = pendingAmendment(contract);
+  let pendingView: SquadMemberView["pendingAmendment"] = null;
+  if (amendment && isTier(amendment["toTier"])) {
+    const toTier = amendment["toTier"];
+    const aVersion = typeof amendment["rulesVersion"] === "number" ? amendment["rulesVersion"] : null;
+    const aRules = await rulesForVersion(db, aVersion, rules);
+    const aPkg = {...packageOf(aRules, toTier)};
+    if (typeof amendment["followerDiscountPct"] === "number") aPkg.followerDiscountPct = amendment["followerDiscountPct"];
+    pendingView = {
+      at: iso(dateOf(amendment["at"])),
+      package: athletePackage(toTier, aPkg, typeof amendment["commissionPct"] === "number" ? amendment["commissionPct"] : null),
+    };
+  }
+
+  return {
+    member: {
+      tier,
+      tierLabel: TIER_LABELS[tier],
+      code: str(contract["code"]),
+      status: contract["status"] === "paused" ? "paused" : "active",
+      pausedUntil: str(contract["pausedUntil"]) || null,
+      endsAt: str(contract["endsAt"]) || null,
+      start: iso(start),
+      end: iso(end),
+      cycleId: str(contract["cycleId"]) || cycle.id,
+      commissionPct,
+      followerDiscountPct,
+      followerDiscountFirstOnly: attribution.followerDiscountFirstOnly,
+      pendingAmendment: pendingView,
+      earnings: {
+        totalCents: Math.max(0, pendingCents + sum(confirmed, (r) => r.amountCents) + partialRefunds),
+        availableCents: Math.max(0, sum(releasedUnpaid, (r) => r.amountCents) + openAdjustments),
+        nextPayoutCents: Math.max(0, sum(goesInNext, (r) => r.amountCents) + openAdjustments),
+        pendingCents,
+        receivedCents: payouts.reduce((n, p) => n + p.amountCents, 0),
+        revenueCents: sum(confirmed, (r) => r.grossCents),
+        nextPayoutDate,
+        minPayoutCents: payoutConfig.minNetCents,
+      },
+      conversions,
+      athletes: sum(confirmed, (r) => r.converted),
+      weekly: weeklyEarnings(rows, now),
+      commissions: rows
+        .filter(visibleToAthlete)
+        .sort((a, b) => (b.registeredAt?.getTime() ?? 0) - (a.registeredAt?.getTime() ?? 0))
+        .slice(0, RECENT_MAX)
+        .map(athleteCommission),
+      payouts: payouts.map((p) => ({id: p.id, at: iso(p.at), amountCents: p.amountCents})),
+      points: {
+        total,
+        level: levelFor(total, rules.points.levels),
+        levels: rules.points.levels.map((l) => ({name: l.name, min: l.min})),
+        perConversion: rules.points.perConversion,
+      },
+      progress: promotion ? {
+        toTier: promotion.to,
+        toTierLabel: TIER_LABELS[promotion.to],
+        conversions: allConversions,
+        minConversions: promotion.minConversions,
+        reviewDate: iso(end),
+      } : null,
+      package: athletePackage(tier, pkg, commissionPct),
+      nextPackage: promotion ? athletePackage(promotion.to, packageOf(rules, promotion.to)) : null,
+    },
+    invite: null,
+  };
+}
+
+// ── ranking por pontos ──────────────────────────────────────────────────────
+
+export interface RankingEntry {
+  position: number;
+  name: string;
+  photoUrl: string | null;
+  points: number;
+  /** Posições ganhas na semana (negativo = caiu); `null` = não estava no ranking há 7 dias. */
+  delta: number | null;
+  me: boolean;
+}
+
+export interface SquadRankingView {
+  entries: RankingEntry[];
+  me: RankingEntry | null;
+  level: string;
+  levels: Array<{name: string; min: number}>;
+}
+
+interface Ranked {
+  uid: string;
+  name: string;
+  points: number;
+}
+
+function rankOrder(list: Ranked[]): Ranked[] {
+  return [...list].sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, "pt-BR"));
+}
+
+/**
+ * Posição de cada embaixador agora e há 7 dias. Os pontos da semana passada contam só as conversões
+ * confirmadas até aquele instante; quem assinou depois disso não tinha posição.
+ */
+export function rankSquad(input: {
+  contracts: Array<{uid: string; name: string; start: Date | null}>;
+  commissions: CommissionRow[];
+  points: SquadRules["points"];
+  now: Date;
+}): Array<Ranked & {position: number; delta: number | null}> {
+  const weekAgo = input.now.getTime() - 7 * DAY_MS;
+  const byAmbassador = new Map<string, CommissionRow[]>();
+  for (const c of input.commissions) {
+    const list = byAmbassador.get(c.ambassadorId) ?? [];
+    list.push(c);
+    byAmbassador.set(c.ambassadorId, list);
+  }
+  const nowList: Ranked[] = [];
+  const prevList: Ranked[] = [];
+  for (const contract of input.contracts) {
+    const mine = inContract(byAmbassador.get(contract.uid) ?? [], contract.start);
+    nowList.push({uid: contract.uid, name: contract.name, points: squadPoints({conversions: mine.length}, input.points)});
+    if (!contract.start || contract.start.getTime() <= weekAgo) {
+      const before = mine.filter((c) => c.releasedAt !== null && c.releasedAt.getTime() <= weekAgo);
+      prevList.push({uid: contract.uid, name: contract.name, points: squadPoints({conversions: before.length}, input.points)});
+    }
+  }
+  const prevPos = new Map(rankOrder(prevList).map((r, i) => [r.uid, i + 1]));
+  return rankOrder(nowList).map((r, i) => {
+    const prev = prevPos.get(r.uid);
+    return {...r, position: i + 1, delta: prev === undefined ? null : prev - (i + 1)};
+  });
+}
+
+function photoOf(u: Raw | undefined): string | null {
+  return str(u?.["profilePhotoUrl"]) || str(u?.["photoURL"]) || str(u?.["avatarUrl"]) || null;
+}
+
+export async function squadRankingCore(db: Firestore, uid: string, now: Date): Promise<SquadRankingView> {
+  const mine = (await db.collection(SQUAD_AMBASSADORS).doc(uid).get()).data();
+  if (!mine || !LIVE_CONTRACT.includes(str(mine["status"]))) {
+    throw new HttpsError("permission-denied", "O ranking do Squad é só para embaixadores.");
+  }
+  const [{rules}, active, paused, released, paid] = await Promise.all([
+    loadCurrentRules(db),
     db.collection(SQUAD_AMBASSADORS).where("status", "==", "active").get(),
     db.collection(SQUAD_AMBASSADORS).where("status", "==", "paused").get(),
-    db.collection(SQUAD_COMMISSIONS).where("status", "==", "released").select("ambassadorId", "releasedAt").get(),
-    db.collection(SQUAD_COMMISSIONS).where("status", "==", "paid").select("ambassadorId", "releasedAt").get(),
+    db.collection(SQUAD_COMMISSIONS).where("status", "==", "released").get(),
+    db.collection(SQUAD_COMMISSIONS).where("status", "==", "paid").get(),
   ]);
-  const weekAgo = now.getTime() - WEEK_MS;
-  const counts = new Map<string, {now: number; before: number}>();
-  for (const s of [...released.docs, ...paid.docs]) {
-    const id = str(s.data()["ambassadorId"]);
-    const at = dateOf(s.data()["releasedAt"]);
-    const c = counts.get(id) ?? {now: 0, before: 0};
-    c.now++;
-    if (at && at.getTime() < weekAgo) c.before++;
-    counts.set(id, c);
-  }
-  const zero = {conversions: 0, events: 0, content: 0};
-  const list: RankInput[] = [...active.docs, ...paused.docs].map((s) => {
-    const c = counts.get(s.id) ?? {now: 0, before: 0};
-    return {
-      uid: s.id,
-      name: shortAthleteName(str(s.data()["displayName"]) || "Atleta"),
-      points: squadPoints(rules.points, {...zero, conversions: c.now}),
-      pointsWeekAgo: squadPoints(rules.points, {...zero, conversions: c.before}),
-    };
+  const contracts = [...active.docs, ...paused.docs].map((d) => {
+    const c = d.data() as Raw;
+    return {uid: d.id, name: str(c["displayName"]) || "Embaixador", start: dateOf(c["start"]) ?? dateOf(c["createdAt"])};
   });
-  return {rows: squadRanking(list, meUid), of: list.length};
-}
-
-async function ambassadorView(db: Firestore, uid: string, contract: Raw, now: Date): Promise<AmbassadorView> {
-  const [{rules}, cycle, payoutConfig, lastDone] = await Promise.all([
-    loadCurrentRules(db), loadCycle(db), loadPayoutConfig(db), lastDonePayout(db),
-  ]);
-  const tier: SquadTier = isTier(contract["tier"]) ? contract["tier"] : "ath";
-  const version = typeof contract["rulesVersion"] === "number" ? (contract["rulesVersion"] as number) : null;
-  const frozen = await rulesOfVersion(db, version, rules);
-  const pkg = frozen.tiers[tier] ?? rules.tiers[tier] ?? DEFAULT_SQUAD_RULES.tiers[tier];
-  const openPayout = openPayoutDate(spDateKey(now), lastDone, payoutConfig.days);
-
-  const [commissionSnap, adjustmentSnap, transactionSnap, signupSnap, ranking] = await Promise.all([
-    db.collection(SQUAD_COMMISSIONS).where("ambassadorId", "==", uid).get(),
-    db.collection(SQUAD_ADJUSTMENTS).where("ambassadorId", "==", uid).get(),
-    db.collection(SQUAD_WALLETS).doc(uid).collection("transactions").get(),
-    db.collection(SQUAD_ATTRIBUTIONS).where("ambassadorId", "==", uid).select().get(),
-    rankingOf(db, rules, uid, now),
-  ]);
-
-  const raw = new Map(commissionSnap.docs.map((s) => [s.id, s.data() as Raw]));
-  const inputs = commissionSnap.docs.map((s) => commissionInputOf(s.id, s.data()));
-  const byRecent = (a: {at: string | null}, b: {at: string | null}) => (b.at ?? "").localeCompare(a.at ?? "");
-  const commissions = inputs.map((c) => commissionLineOf(c, raw.get(c.id)!, openPayout)).sort(byRecent);
-
-  const labelOf = new Map(commissions.map((c) => [c.id, c.athlete]));
-  const adjustments: SquadAdjustmentLine[] = adjustmentSnap.docs.map((s) => {
-    const d = s.data();
-    return {
-      id: s.id,
-      at: iso(d["createdAt"]),
-      amountCents: cents(d["amountCents"]),
-      athlete: labelOf.get(str(d["commissionId"])) ?? "Atleta",
-    };
-  }).sort(byRecent);
-  const openAdjustmentsCents = adjustmentSnap.docs
-    .filter((s) => !str(s.data()["payoutId"]))
-    .reduce((n, s) => n + cents(s.data()["amountCents"]), 0);
-
-  const wallet: SquadWalletLine[] = transactionSnap.docs.map((s) => {
-    const d = s.data();
-    return {id: s.id, at: iso(d["createdAt"]), amountCents: cents(d["amountCents"]), label: str(d["label"]) || "Repasse"};
-  }).sort(byRecent);
-
-  const totals = squadTotals({
-    commissions: inputs,
-    openAdjustmentsCents,
-    wallet: wallet.map((t) => ({amountCents: t.amountCents, at: t.at ? new Date(t.at) : null})),
-    openPayout,
+  const ranked = rankSquad({
+    contracts,
+    commissions: [...released.docs, ...paid.docs].map((d) => rowOf(d.id, d.data() as Raw)),
+    points: rules.points,
     now,
   });
-
-  const status: ContractStatus = contract["status"] === "paused" ? "paused" : contract["status"] === "ended" ? "ended" : "active";
-  const end = dateOf(contract["end"]);
-  const amendments = Array.isArray(contract["amendments"]) ? (contract["amendments"] as unknown[]).filter(isObj) : [];
-  const pending = amendments.find((a) => !a["acceptedAt"] && !a["canceledAt"]);
-  const attribution = isObj(rules.attribution) ? rules.attribution : DEFAULT_SQUAD_RULES.attribution;
-  const points = isObj(rules.points) ? rules.points : DEFAULT_SQUAD_RULES.points;
-
+  const top = ranked.slice(0, RANKING_MAX);
+  const meRow = ranked.find((r) => r.uid === uid) ?? null;
+  const shown = meRow && !top.includes(meRow) ? [...top, meRow] : top;
+  const users = shown.length > 0 ?
+    await db.getAll(...shown.map((r) => db.collection("users").doc(r.uid))) :
+    [];
+  const photos = new Map(users.map((s) => [s.id, photoOf(s.data() as Raw | undefined)]));
+  const entryOf = (r: (typeof ranked)[number]): RankingEntry => ({
+    position: r.position,
+    name: r.name,
+    photoUrl: photos.get(r.uid) ?? null,
+    points: r.points,
+    delta: r.delta,
+    me: r.uid === uid,
+  });
+  const me = meRow ? entryOf(meRow) : null;
   return {
-    kind: "ambassador",
-    name: str(contract["displayName"]) || "Atleta",
-    contract: {
-      tier,
-      code: str(contract["code"]),
-      status,
-      start: iso(contract["start"]),
-      end: end?.toISOString() ?? null,
-      endedAt: iso(contract["endedAt"]),
-      pausedUntil: str(contract["pausedUntil"]) || null,
-      commissionPct: typeof contract["commissionPct"] === "number" ? (contract["commissionPct"] as number) : 0,
-      followerDiscountPct: typeof contract["followerDiscountPct"] === "number" ?
-        (contract["followerDiscountPct"] as number) : pkg.followerDiscountPct,
-      followerDiscountFirstOnly: attribution.followerDiscountFirstOnly,
-      pendingTier: pending && isTier(pending["toTier"]) ? pending["toTier"] : null,
-    },
-    cycle,
-    package: publicPackage(pkg),
-    payout: {nextDate: openPayout, days: payoutConfig.days, minNetCents: payoutConfig.minNetCents},
-    totals,
-    funnel: {clicks: null, signups: signupSnap.size, registrations: inputs.length, paid: totals.conversions},
-    commissions: commissions.slice(0, MAX_LINES),
-    adjustments: adjustments.slice(0, MAX_LINES),
-    wallet: wallet.slice(0, MAX_LINES),
-    points: {
-      total: squadPoints(points, {conversions: totals.conversions, events: 0, content: 0}),
-      conversions: totals.conversions,
-      events: null,
-      content: null,
-      perConversion: points.perConversion,
-      perEvent: points.perEvent,
-      perContent: points.perContent,
-      levels: points.levels.map((l) => ({name: l.name, min: l.min})),
-    },
-    ranking: status === "ended" ? {rows: ranking.rows.filter((r) => !r.me), of: ranking.of} : ranking,
-    promotion: squadPromotion({
-      tier,
-      conversions: totals.conversions,
-      rules,
-      evaluation: end ? spDateKey(end) : cycle.end,
-    }),
+    entries: top.map(entryOf),
+    me,
+    level: levelFor(me?.points ?? 0, rules.points.levels),
+    levels: rules.points.levels.map((l) => ({name: l.name, min: l.min})),
   };
 }
 
-async function candidateView(db: Firestore, uid: string): Promise<CandidateView> {
-  const [{rules}, cycle, profile, applications, invites] = await Promise.all([
+// ── convite (app 06) ────────────────────────────────────────────────────────
+
+export interface SquadInviteView {
+  id: string;
+  /** Enviado/aberto vencido aparece como `expired` (a varredura roda de hora em hora). */
+  status: string;
+  package: AthletePackage;
+  suggestedCode: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  message: string | null;
+  expiresAt: string | null;
+  firstName: string;
+  tournaments: number | null;
+  /** "Desconto só na primeira inscrição" das regras de atribuição (resumo do contrato). */
+  followerDiscountFirstOnly: boolean;
+}
+
+/** O convite do próprio atleta, com o pacote que o aceite vai congelar (regras vigentes). */
+export async function inviteViewCore(db: Firestore, uid: string, inviteId: string, now: Date): Promise<SquadInviteView> {
+  const d = (await db.collection(SQUAD_INVITES).doc(inviteId).get()).data();
+  if (!d || d["athleteId"] !== uid) throw new HttpsError("not-found", "Convite não encontrado.");
+  const [{rules}, attribution, user, ranking] = await Promise.all([
     loadCurrentRules(db),
-    loadCycle(db),
-    athleteSnapshot(db, uid),
-    db.collection(SQUAD_APPLICATIONS).where("athleteId", "==", uid).get(),
-    db.collection(SQUAD_INVITES).where("athleteId", "==", uid).get(),
+    loadAttributionRules(db),
+    db.collection("users").doc(uid).get(),
+    db.doc(`${artifactsPublicDataBase()}/athleteRankings/${uid}`).get(),
   ]);
-  const latest = applications.docs
-    .map((s) => s.data())
-    .sort((a, b) => (dateOf(b["submittedAt"])?.getTime() ?? 0) - (dateOf(a["submittedAt"])?.getTime() ?? 0))[0];
-  const status = latest ? publicApplicationStatus(str(latest["stage"]), str(latest["archivedReason"])) : null;
-  const open = invites.docs.map((s) => s.data()).find((d) => d["status"] === "sent" || d["status"] === "opened");
+  const tier = isTier(d["tier"]) ? d["tier"] : "ath";
+  const expiresAt = dateOf(d["expiresAt"]);
+  const rawStatus = str(d["status"]);
+  const status = (rawStatus === "sent" || rawStatus === "opened") && expiresAt && now >= expiresAt ? "expired" : rawStatus;
+  const u = (user.data() ?? {}) as Raw;
+  const name = str(u["fullName"]) || str(u["name"]) || str(u["displayName"]) || str(d["athleteName"]);
+  const tournaments = ranking.data()?.["tournamentsCount"];
   return {
-    kind: "candidate",
-    profile: profile ? {
-      name: profile.name,
-      city: profile.city,
-      state: profile.state,
-      arenaName: profile.arenaName,
-      tournaments: profile.tournaments,
-      elo: profile.elo,
-      photoUrl: profile.photoUrl,
-    } : null,
-    application: latest && status ? {status, submittedAt: iso(latest["submittedAt"])} : null,
-    invite: open && isTier(open["tier"]) ? {tier: open["tier"], expiresAt: iso(open["expiresAt"])} : null,
-    cycle,
-    seatsLeft: await seatsLeft(db, cycle),
-    nextCycleStart: nextCycleStart(cycle),
-    followerDiscountPct: (rules.tiers.amb ?? DEFAULT_SQUAD_RULES.tiers.amb).followerDiscountPct,
+    id: inviteId,
+    status,
+    package: athletePackage(tier, packageOf(rules, tier), typeof d["commissionPct"] === "number" ? d["commissionPct"] : null),
+    suggestedCode: str(d["suggestedCode"]),
+    periodStart: str(d["periodStart"]) || null,
+    periodEnd: str(d["periodEnd"]) || null,
+    message: str(d["message"]) || null,
+    expiresAt: iso(expiresAt),
+    firstName: name.trim().split(/\s+/)[0] ?? "",
+    tournaments: typeof tournaments === "number" && Number.isFinite(tournaments) ? tournaments : null,
+    followerDiscountFirstOnly: attribution.followerDiscountFirstOnly,
   };
 }
 
-/** Embaixador (contrato em qualquer estado, inclusive encerrado: o extrato segue dele) ou candidato. */
-export async function mySquadViewCore(db: Firestore, uid: string, now: Date): Promise<SquadAthleteView> {
-  const contract = (await db.collection(SQUAD_AMBASSADORS).doc(uid).get()).data();
-  return contract ? ambassadorView(db, uid, contract, now) : candidateView(db, uid);
+// ── callables ───────────────────────────────────────────────────────────────
+
+const CLIENT_CALLABLE = {region: CLIENT_FACING_REGIONS, invoker: "public" as const};
+
+function athleteUid(uid: string | undefined): string {
+  if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  return uid;
 }
 
-export const getMySquadView = onCall({region: CLIENT_FACING_REGIONS, invoker: "public"}, async (request) => {
-  const uid = request.auth?.uid;
-  if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
-  return mySquadViewCore(getFirestore(), uid, new Date());
+export const getMySquad = onCall(CLIENT_CALLABLE, async (request) => {
+  return mySquadCore(getFirestore(), athleteUid(request.auth?.uid), new Date());
+});
+
+export const getSquadRanking = onCall(CLIENT_CALLABLE, async (request) => {
+  return squadRankingCore(getFirestore(), athleteUid(request.auth?.uid), new Date());
+});
+
+export const viewSquadInvite = onCall(CLIENT_CALLABLE, async (request) => {
+  const uid = athleteUid(request.auth?.uid);
+  const inviteId = (request.data ?? {}).inviteId;
+  const db = getFirestore();
+  const now = new Date();
+  await openInviteCore(db, {uid, inviteId}, now);
+  return inviteViewCore(db, uid, inviteId as string, now);
 });

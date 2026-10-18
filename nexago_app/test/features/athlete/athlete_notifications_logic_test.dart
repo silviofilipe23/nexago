@@ -362,6 +362,50 @@ void main() {
       expect(p.icon, Icons.schedule_rounded);
       expect(p.routePath, '/my-bookings');
     });
+
+    // NexaSquad: o push não manda `url`; a lista tem que chegar no mesmo destino do toque no push.
+    AthleteInboxNotification squad(String type, Map<String, String> data) =>
+        AthleteInboxNotification(
+          id: 's1',
+          title: 'NexaSquad',
+          body: 'Body',
+          type: type,
+          data: data,
+          read: false,
+          dismissed: false,
+          createdAt: now,
+        );
+
+    test('squad_program com convite abre o convite com ação Ver convite', () {
+      const data = {'kind': 'invite', 'inviteId': 'i1'};
+      final p = notificationPresentation(squad('squad_program', data));
+      expect(p.routePath, '/athlete/squad/convite/i1');
+      expect(p.actions, hasLength(1));
+      expect(p.actions.single.label, 'Ver convite');
+      expect(p.actions.single.kind, AthleteNotificationActionKind.primary);
+      expect(resolveNotificationRoute({...data, 'type': 'squad_program'}), p.routePath);
+    });
+
+    test('squad_program de aditivo abre o Squad, sem ação', () {
+      final p = notificationPresentation(squad('squad_program', const {'kind': 'amendment'}));
+      expect(p.routePath, '/athlete/squad');
+      expect(p.actions, isEmpty);
+    });
+
+    test('squad_program sem inviteId ou de outro kind não inventa destino', () {
+      final semId = notificationPresentation(squad('squad_program', const {'kind': 'invite'}));
+      expect(semId.routePath, isNull);
+      final recusada = notificationPresentation(squad('squad_program', const {'kind': 'application_rejected'}));
+      expect(recusada.routePath, isNull);
+      expect(recusada.actions, isEmpty);
+    });
+
+    test('squad_payout abre os ganhos do Squad, sem ação', () {
+      final p = notificationPresentation(squad('squad_payout', const {'amountCents': '18000'}));
+      expect(p.routePath, '/athlete/squad/ganhos');
+      expect(p.actions, isEmpty);
+      expect(p.icon, Icons.groups_rounded);
+    });
   });
 
   // O bug que isto guarda: o push resolvia o destino SÓ pelo `url`, enquanto a lista remontava

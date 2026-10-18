@@ -465,6 +465,27 @@ AthleteNotificationPresentation notificationPresentation(
               ],
         routePath: closedRoutePath,
       );
+    // NexaSquad: o push não manda `url`; o destino sai do tipo/`kind`, igual ao toque no push
+    // (convite → tela do convite, aditivo → Squad, repasse → Ganhos).
+    case 'squad_program':
+    case 'squad_payout':
+      final route = resolveNotificationRoute({...data, 'type': type});
+      final invite =
+          type == 'squad_program' && data['kind'] == 'invite' && route != null;
+      return AthleteNotificationPresentation(
+        icon: Icons.groups_rounded,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.12),
+        actions: invite
+            ? const [
+                AthleteNotificationAction(
+                  label: 'Ver convite',
+                  kind: AthleteNotificationActionKind.primary,
+                ),
+              ]
+            : const [],
+        routePath: route,
+      );
     default:
       // Mesma tradução do push: avisos do organizador (que o staff recebe aqui) traziam o
       // `url` do portal (`/painel/...`), rota que não existe no app.

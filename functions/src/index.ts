@@ -607,8 +607,10 @@ export {
 // NexaSquad: contrato do embaixador (tela 02: nível com aditivo, pausa, encerramento) e a varredura
 // de hora em hora (lembretes/expiração de convite, convite agendado, fim de contrato, retorno de pausa).
 export {acceptSquadAmendment, sweepSquadProgram, updateSquadContract} from "./squad-contracts";
-// NexaSquad no portal do atleta: painel, ganhos, nível e "Entrar no Squad" numa leitura saneada.
-export {getMySquadView} from "./squad-athlete";
+// NexaSquad: o que o atleta vê no app/portal (ganhos, pontos, ranking e o convite com o pacote).
+export {getMySquad, getSquadRanking, viewSquadInvite} from "./squad-athlete";
+// NexaSquad: o que só o portal do atleta mostra ("Entrar no Squad", cadastros do funil, checklist).
+export {getSquadPortalInfo} from "./squad-athlete-portal";
 
 // Loja: personalizados — configuração por produto (tela 11) e fila de arte (tela 10).
 export {

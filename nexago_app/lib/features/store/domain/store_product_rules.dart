@@ -262,6 +262,36 @@ int storeCartQtyOf(
   return 0;
 }
 
+/// Teto da linha comum do SKU: o saldo exposto (mínimo 1), até o teto da
+/// compra.
+int storeVariantCap(StoreVariant variant) =>
+    variant.maxQty.clamp(1, kStoreMaxQtyPerItem);
+
+/// Por que o "Adicionar" não grava.
+enum StoreCartAddBlock {
+  /// A linha comum do SKU já tem o máximo que o saldo deixa comprar.
+  lineAtMax,
+
+  /// SKU fora do carrinho e o carrinho já tem [kStoreMaxCartLines] linhas.
+  cartFull,
+}
+
+/// Confere o carrinho antes de gravar (página do produto e favoritos).
+/// `null` = pode adicionar.
+StoreCartAddBlock? storeCartAddBlock(
+  List<StoreCartItem> items, {
+  required String productId,
+  required String skuId,
+  required int cap,
+}) {
+  final inCart = storeCartQtyOf(items, productId: productId, skuId: skuId);
+  if (inCart >= cap) return StoreCartAddBlock.lineAtMax;
+  if (inCart == 0 && items.length >= kStoreMaxCartLines) {
+    return StoreCartAddBlock.cartFull;
+  }
+  return null;
+}
+
 // ── Galeria e relacionados ──────────────────────────────────────────────
 
 /// Fotos da cor escolhida seguidas das sem cor; cor sem foto própria → as

@@ -232,6 +232,10 @@ abstract final class AppRoutes {
   /// Carrinho (por enquanto, "chega na próxima etapa").
   static const String storeCart = '/loja/carrinho';
 
+  /// Favoritos da Loja (app 09), aberta pelo coração do header da vitrine.
+  /// Mesmo caminho do portal; tela interna, sem a barra inferior.
+  static const String storeFavorites = '/loja/favoritos';
+
   /// Esportes e níveis do atleta.
   static const String athleteSportsLevels = '/athlete/profile/sports-levels';
 
@@ -684,6 +688,7 @@ abstract final class AppRouteNames {
   static const String storeProduct = 'storeProduct';
   static const String storeCustomize = 'storeCustomize';
   static const String storeCart = 'storeCart';
+  static const String storeFavorites = 'storeFavorites';
   static const String athleteSportsLevels = 'athleteSportsLevels';
   static const String athleteNotificationSettings =
       'athleteNotificationSettings';

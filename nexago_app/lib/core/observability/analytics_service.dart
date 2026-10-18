@@ -150,8 +150,8 @@ class AnalyticsService {
 
   // --- Loja · produto (tela 02) ---
 
-  /// [origin]: `vitrine`, `busca`, `relacionado`, `indisponivel` ou `link`
-  /// (deep link / rota sem origem).
+  /// [origin]: `vitrine`, `busca`, `relacionado`, `indisponivel`,
+  /// `favoritos` ou `link` (deep link / rota sem origem).
   Future<void> logStoreProductView({
     required String productId,
     required String origin,
@@ -172,19 +172,23 @@ class AnalyticsService {
         parameters: storeEventParams(color: color, size: size),
       );
 
-  Future<void> logStoreNotifyMe({String? sku}) => _analytics.logEvent(
+  /// Página do produto manda o [sku]; o card dos favoritos, o [productId].
+  Future<void> logStoreNotifyMe({String? sku, String? productId}) =>
+      _analytics.logEvent(
         name: AnalyticsEvents.storeNotifyMe,
-        parameters: storeEventParams(sku: sku),
+        parameters: storeEventParams(sku: sku, productId: productId),
       );
 
   /// [priceCents] = preço unitário do SKU (com o adicional, na linha
   /// personalizada), em centavos. [customized] só vai na personalização
-  /// (`personalizado: 1`).
+  /// (`personalizado: 1`). [origin] = de onde veio o "Adicionar" (hoje só
+  /// `favoritos`; os outros pontos vão sem).
   Future<void> logStoreAddToCart({
     required String sku,
     required int qty,
     required int priceCents,
     bool? customized,
+    String? origin,
   }) =>
       _analytics.logEvent(
         name: AnalyticsEvents.storeAddToCart,
@@ -193,6 +197,7 @@ class AnalyticsService {
           qty: qty,
           priceCents: priceCents,
           customized: customized,
+          origin: origin,
         ),
       );
 
@@ -233,6 +238,16 @@ class AnalyticsService {
       _analytics.logEvent(
         name: AnalyticsEvents.storeRelatedClick,
         parameters: storeEventParams(productId: productId),
+      );
+
+  // --- Loja · Favoritos (app 09) ---
+
+  /// Uma vez por abertura, quando a lista carrega; [total] = favoritos
+  /// visíveis (os que estão no catálogo do canal).
+  Future<void> logStoreFavoritesView({required int total}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeFavoritesView,
+        parameters: storeEventParams(channel: 'app', total: total),
       );
 }
 

@@ -1,0 +1,538 @@
+@use 'loja-header';
+@use 'loja-controls';
+
+// Favoritos — desenho "07 · Favoritos" (portal web): grade de 4, foto 220, ação larga no card.
+:host {
+  display: block;
+}
+
+.lf-heart-on {
+  color: var(--nx-orange-500);
+  border-color: rgba(255, 106, 26, 0.45);
+}
+
+.lf-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 28px 40px 48px;
+
+  @media (max-width: 1100px) {
+    padding: 24px 24px 40px;
+  }
+
+  @media (max-width: 640px) {
+    padding: 16px 16px 32px;
+  }
+}
+
+// ── Barra: filtros + adicionar disponíveis ────────────────────
+.lf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lf-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--nx-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--nx-text-mute);
+  font-family: var(--nx-font-display);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &--on {
+    border-color: var(--nx-text);
+    background: var(--nx-text);
+    color: var(--nx-text-on-orange);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+  }
+}
+
+.lf-chip-count {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.lf-bulk {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--nx-line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--nx-text);
+  font-family: var(--nx-font-display);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+
+  &[aria-busy='true'] {
+    opacity: 0.6;
+    cursor: progress;
+  }
+}
+
+.lf-none {
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 14px;
+  color: var(--nx-text-dim);
+}
+
+// ── Grade ─────────────────────────────────────────────────────
+.lf-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+
+  @media (max-width: 1280px) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  @media (max-width: 900px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+
+.lf-card {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-4);
+  background: var(--nx-surface-0);
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+}
+
+.lf-media {
+  position: relative;
+  height: 220px;
+  display: grid;
+  place-items: center;
+  background-color: #121214;
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0 9px, transparent 9px 18px);
+
+  &[data-tone='warm'] {
+    background-color: #16120f;
+  }
+
+  &[data-tone='cool'] {
+    background-color: #0f1214;
+  }
+
+  img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .lf-card--out & img,
+  .lf-card--out & .lf-placeholder {
+    opacity: 0.55;
+  }
+
+  @media (max-width: 640px) {
+    height: 168px;
+  }
+}
+
+.lf-placeholder {
+  font-family: var(--nx-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(244, 244, 245, 0.32);
+}
+
+.lf-tags {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 56px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.lf-note,
+.lf-tag {
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(5, 5, 5, 0.72);
+  backdrop-filter: blur(8px);
+  font-family: var(--nx-font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nx-text);
+
+  // Card de ~150px no celular: selo numa linha só.
+  @media (max-width: 640px) {
+    height: 20px;
+    padding: 0 7px;
+    font-size: 8.5px;
+    letter-spacing: 0.05em;
+  }
+}
+
+.lf-note {
+  &[data-kind='esgotado'] {
+    color: var(--nx-text-mute);
+  }
+
+  &[data-kind='desconto'] {
+    color: var(--nx-win);
+  }
+
+  &[data-kind='ultimas'] {
+    color: var(--nx-orange-400);
+  }
+}
+
+.lf-heart {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(5, 5, 5, 0.6);
+  color: var(--nx-orange-500);
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: transform var(--nx-d-fast) var(--nx-ease-spring);
+
+  &:active {
+    transform: scale(0.9);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+  }
+}
+
+.lf-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px 16px;
+}
+
+.lf-category {
+  font-family: var(--nx-font-ui);
+  font-size: 11.5px;
+  color: var(--nx-text-dim);
+}
+
+.lf-name {
+  margin-top: 3px;
+  overflow: hidden;
+  font-family: var(--nx-font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--nx-text);
+  text-decoration: none;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+
+  &:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+.lf-price-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin-top: 10px;
+}
+
+.lf-from {
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  color: var(--nx-text-dim);
+}
+
+.lf-price {
+  font-family: var(--nx-font-display);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--nx-text);
+}
+
+.lf-strike {
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-text-dim);
+}
+
+.lf-pix {
+  margin-top: 3px;
+  font-family: var(--nx-font-ui);
+  font-size: 11.5px;
+  color: var(--nx-text-mute);
+
+  strong {
+    font-weight: 600;
+    color: var(--nx-orange-500);
+  }
+}
+
+// Ação no pé do card, alinhada entre cards de nome/preço de alturas diferentes.
+.lf-cta {
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+.lf-action {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 42px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  font-family: var(--nx-font-display);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--nx-orange-400);
+  }
+
+  &[data-kind='personalizar'],
+  &[data-kind='opcoes'] {
+    border-color: var(--nx-line);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--nx-text);
+
+    &:hover {
+      border-color: var(--nx-line-strong);
+    }
+  }
+
+  &[data-kind='avise'] {
+    border-color: var(--nx-line-strong);
+    background: transparent;
+    color: var(--nx-text);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+  }
+
+  &[aria-busy='true'] {
+    opacity: 0.6;
+    cursor: progress;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+  }
+
+  // Celular: "Avise-me" basta — o texto inteiro quebrava em duas linhas.
+  @media (max-width: 640px) {
+    .lf-long {
+      display: none;
+    }
+  }
+}
+
+// ── Combina com ───────────────────────────────────────────────
+.lf-related {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.lf-related-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+
+  h2 {
+    margin: 0;
+    font-family: var(--nx-font-display);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--nx-text);
+  }
+
+  a {
+    font-family: var(--nx-font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--nx-orange-500);
+    text-decoration: none;
+  }
+}
+
+.lf-related-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 14px;
+
+  @media (max-width: 1100px) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  @media (max-width: 640px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.lf-mini {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  color: inherit;
+  text-decoration: none;
+}
+
+.lf-mini-media {
+  position: relative;
+  height: 130px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 14px;
+  background-color: #121214;
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0 9px, transparent 9px 18px);
+
+  &[data-tone='warm'] {
+    background-color: #16120f;
+  }
+
+  &[data-tone='cool'] {
+    background-color: #0f1214;
+  }
+
+  img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.lf-mini-name {
+  margin-top: 8px;
+  overflow: hidden;
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--nx-text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.lf-mini-price {
+  margin-top: 3px;
+  font-family: var(--nx-font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--nx-text);
+}
+
+// ── Vazio ─────────────────────────────────────────────────────
+.lf-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 80px auto 0;
+  max-width: 420px;
+  text-align: center;
+
+  h2 {
+    margin: 10px 0 0;
+    font-family: var(--nx-font-display);
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--nx-text);
+  }
+
+  p {
+    margin: 0;
+    font-family: var(--nx-font-ui);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--nx-text-mute);
+  }
+
+  .lp-state-btn {
+    margin-top: 14px;
+  }
+}
+
+.lf-empty-icon {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--nx-orange-tint);
+  color: var(--nx-orange-500);
+}

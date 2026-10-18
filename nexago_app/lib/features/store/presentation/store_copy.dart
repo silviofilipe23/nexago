@@ -259,6 +259,30 @@ abstract final class StoreCopy {
   static const customizeDefectOnly =
       ' Personalizados só têm troca em caso de defeito.';
 
+  // Favoritos (app 09 / 09b vazio)
+  static const favoritesTitle = 'Favoritos';
+  static const favoritesErrorTitle = 'Não deu pra carregar seus favoritos';
+  static const favoritesEmptyTitle = 'Nada salvo ainda';
+  static const favoritesEmptyHint =
+      'Toque no coração de um produto pra guardar aqui.';
+  static const favoritesExplore = 'Explorar a loja';
+  static const favoritesCustomizableTag = 'Personalizável';
+  static const favoritesSoldOutFoot = 'Avisaremos quando voltar';
+  static const favoritesCustomizeFoot = 'Personalize com seu nome';
+  static const favoritesCustomizeImageFoot = 'Personalize com sua imagem';
+  static const favoritesAdd = 'Adicionar';
+  static const favoritesViewOptions = 'Ver opções';
+
+  /// "6 produtos" / "1 produto".
+  static String favoritesCount(int count) =>
+      '$count ${count == 1 ? 'produto' : 'produtos'}';
+
+  /// Tooltip do coração do card.
+  static String favoritesRemove(String name) => 'Tirar $name dos favoritos';
+
+  /// Faixa verde: "{nome}" em destaque + " está R$ X mais barato".
+  static String favoritesCheaper(String amount) => ' está $amount mais barato';
+
   // Próxima etapa
   static const comingSoonTitle = 'Esta parte da Loja chega na próxima etapa';
   static const comingSoonBody =

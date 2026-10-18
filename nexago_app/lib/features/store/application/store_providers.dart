@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/location/user_location_providers.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
+import '../domain/store_favorites_rules.dart';
 import '../domain/store_models.dart';
 import '../domain/store_pickup.dart';
 import '../domain/store_product_rules.dart';
@@ -101,6 +102,44 @@ final storeShopperProvider = StreamProvider.autoDispose<StoreShopper>((ref) {
   final uid = ref.watch(storeUidProvider);
   if (uid.isEmpty) return Stream.value(StoreShopper.empty);
   return ref.watch(storeRepositoryProvider).watchShopper(uid);
+});
+
+enum StoreFavoritesStatus { loading, error, ready }
+
+/// Loja · Favoritos (app 09): os favoritos do atleta lidos do MESMO catálogo
+/// da vitrine, na ordem do contrato (último favoritado primeiro).
+class StoreFavoritesView {
+  const StoreFavoritesView._(this.status, {this.products = const []});
+
+  static const StoreFavoritesView loading =
+      StoreFavoritesView._(StoreFavoritesStatus.loading);
+  static const StoreFavoritesView error =
+      StoreFavoritesView._(StoreFavoritesStatus.error);
+
+  final StoreFavoritesStatus status;
+  final List<StoreProduct> products;
+}
+
+/// Catálogo + `storeShoppers/{uid}.favoriteIds`. Cache vazio ainda não é
+/// "nada salvo": é o servidor que não respondeu (mesma regra da vitrine).
+final storeFavoritesProvider = Provider.autoDispose<StoreFavoritesView>((ref) {
+  final catalogAsync = ref.watch(storeCatalogProvider);
+  final shopperAsync = ref.watch(storeShopperProvider);
+  final catalog = catalogAsync.valueOrNull;
+  final shopper = shopperAsync.valueOrNull;
+  if ((catalog == null && catalogAsync.hasError) ||
+      (shopper == null && shopperAsync.hasError)) {
+    return StoreFavoritesView.error;
+  }
+  if (catalog == null ||
+      shopper == null ||
+      (catalog.fromCache && catalog.products.isEmpty)) {
+    return StoreFavoritesView.loading;
+  }
+  return StoreFavoritesView._(
+    StoreFavoritesStatus.ready,
+    products: orderedStoreFavorites(shopper.favoriteIds, catalog.products),
+  );
 });
 
 final storeCartProvider =

@@ -241,6 +241,7 @@ describe("convite (app 06)", () => {
     assert.equal(v.package.commissionPct, 5);
     assert.deepEqual(v.package.registrations, {type: "discount", value: 20});
     assert.equal(v.periodEnd, "2026-12-06");
+    assert.equal(v.followerDiscountFirstOnly, true);
   });
 
   it("vencido aparece como expirado; convite de outro atleta não existe", async () => {

@@ -17,6 +17,7 @@ import '../../arenas/domain/my_bookings_providers.dart';
 import '../../cashback/presentation/widgets/cashback_balance_pill.dart';
 import '../../store/application/store_providers.dart';
 import '../../store/presentation/widgets/store_home_entry.dart';
+import '../../squad/presentation/widgets/squad_entry_card.dart';
 import '../../ranking/domain/ranking_providers.dart';
 import '../../tournaments/data/my_tournament_registrations_repository.dart';
 import '../../tournaments/data/tournament_partner_invite_service.dart';
@@ -291,6 +292,16 @@ class AthleteHomePage extends ConsumerWidget {
                       // próprio respiro de baixo (desligado não deixa vão).
                       StoreHomeEntry(
                         onTap: () => _goToTab(ref, athleteShellStoreTabIndex),
+                      ),
+                      // NexaSquad: só com appConfig/squad.enabled e para quem é
+                      // embaixador ou tem convite em aberto; senão não ocupa espaço.
+                      const SquadEntryCard(
+                        padding: EdgeInsets.fromLTRB(
+                          AppSpacing.screenH,
+                          0,
+                          AppSpacing.screenH,
+                          AppSpacing.sectionGap,
+                        ),
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(

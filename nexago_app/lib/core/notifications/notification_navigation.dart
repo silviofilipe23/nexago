@@ -168,6 +168,20 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   // (item antigo do inbox), o tipo ainda leva a Meu cashback.
   if (type.startsWith('cashback_')) return AppRoutes.athleteCashback;
 
+  // NexaSquad (`notifySquad` em squad-applications.ts): convite e os lembretes
+  // dele abrem o convite; aditivo abre o Squad, onde o aceite está; repasse
+  // abre os ganhos. Candidatura recusada não tem tela própria: só abre o app.
+  if (type == 'squad_program') {
+    final kind = (data['kind'] as String?)?.trim() ?? '';
+    final inviteId = (data['inviteId'] as String?)?.trim() ?? '';
+    if (kind == 'invite' && inviteId.isNotEmpty) {
+      return AppRoutes.squadInvite.replaceAll(':inviteId', inviteId);
+    }
+    if (kind == 'amendment') return AppRoutes.squad;
+    return null;
+  }
+  if (type == 'squad_payout') return AppRoutes.squadEarnings;
+
   // Lembrete de partida: mesmo destino do item no inbox. O `url` antigo apontava pro admin web.
   if (type == 'match_reminder') {
     final matchId = (data['matchId'] as String?)?.trim() ?? '';

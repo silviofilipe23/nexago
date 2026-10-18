@@ -572,14 +572,17 @@ export interface SquadInviteView {
   expiresAt: string | null;
   firstName: string;
   tournaments: number | null;
+  /** "Desconto só na primeira inscrição" das regras de atribuição (resumo do contrato). */
+  followerDiscountFirstOnly: boolean;
 }
 
 /** O convite do próprio atleta, com o pacote que o aceite vai congelar (regras vigentes). */
 export async function inviteViewCore(db: Firestore, uid: string, inviteId: string, now: Date): Promise<SquadInviteView> {
   const d = (await db.collection(SQUAD_INVITES).doc(inviteId).get()).data();
   if (!d || d["athleteId"] !== uid) throw new HttpsError("not-found", "Convite não encontrado.");
-  const [{rules}, user, ranking] = await Promise.all([
+  const [{rules}, attribution, user, ranking] = await Promise.all([
     loadCurrentRules(db),
+    loadAttributionRules(db),
     db.collection("users").doc(uid).get(),
     db.doc(`${artifactsPublicDataBase()}/athleteRankings/${uid}`).get(),
   ]);
@@ -601,6 +604,7 @@ export async function inviteViewCore(db: Firestore, uid: string, inviteId: strin
     expiresAt: iso(expiresAt),
     firstName: name.trim().split(/\s+/)[0] ?? "",
     tournaments: typeof tournaments === "number" && Number.isFinite(tournaments) ? tournaments : null,
+    followerDiscountFirstOnly: attribution.followerDiscountFirstOnly,
   };
 }
 

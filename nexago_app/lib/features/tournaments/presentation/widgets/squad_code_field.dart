@@ -326,7 +326,7 @@ class SquadAppliedCodeCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       'Convite de $name · Squad',
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colors.onSurfaceMuted,

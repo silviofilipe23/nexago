@@ -161,7 +161,7 @@ class _EarningsHero extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '$athletes · ${formatBRLFromCents(e.revenueCents)} em inscrições',
+            '$athletes · ${formatBRLWhole(e.revenueCents / 100)} em inscrições',
             style: AppTypography.bodyS.copyWith(
               fontSize: 13,
               color: SquadStyle.mute(colors),

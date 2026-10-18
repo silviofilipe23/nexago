@@ -133,11 +133,15 @@ class _BenefitsBody extends StatelessWidget {
                           borderRadius: BorderRadius.circular(99),
                           border: Border.all(color: SquadStyle.line(colors)),
                         ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          chip,
-                          style: AppTypography.bodyS.copyWith(
-                            color: SquadStyle.mute(colors),
+                        // `widthFactor: 1`: o chip tem a largura do texto (um
+                        // `alignment` no Container o esticaria na linha toda).
+                        child: Align(
+                          widthFactor: 1,
+                          child: Text(
+                            chip,
+                            style: AppTypography.bodyS.copyWith(
+                              color: SquadStyle.mute(colors),
+                            ),
                           ),
                         ),
                       ),

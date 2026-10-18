@@ -7,8 +7,9 @@ import '../infrastructure/firebase_squad_repository.dart';
 export '../infrastructure/firebase_squad_repository.dart'
     show squadRepositoryProvider;
 
-/// Uid da sessão; vazio deslogado (nenhuma callable é chamada).
-final squadUidProvider = Provider.autoDispose<String>((ref) {
+/// Uid da sessão; vazio deslogado (nenhuma callable é chamada). Sem
+/// `autoDispose` porque [mySquadProvider], que vive a sessão toda, depende dele.
+final squadUidProvider = Provider<String>((ref) {
   return ref.watch(authProvider).valueOrNull?.uid.trim() ?? '';
 });
 

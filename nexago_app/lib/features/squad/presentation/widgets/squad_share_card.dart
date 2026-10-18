@@ -86,12 +86,13 @@ class SquadShareCard extends StatelessWidget {
                     ),
                   ),
                 ),
+              if (format == SquadShareFormat.qr) _qrBody() else _bottom(),
+              // Por último: o fundo do QR cobre o card inteiro.
               const Positioned(
                 left: 16,
                 top: 16,
                 child: SquadWordmark(size: 13, color: _fg),
               ),
-              if (format == SquadShareFormat.qr) _qrBody() else _bottom(),
             ],
           ),
         ),

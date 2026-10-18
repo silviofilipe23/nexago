@@ -22,13 +22,7 @@ class SquadInvitePage extends ConsumerWidget {
 
   final String inviteId;
 
-  void _close(BuildContext context) {
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      context.go(AppRoutes.home);
-    }
-  }
+  void _close(BuildContext context) => squadBack(context);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -201,75 +195,90 @@ class _OpenInviteState extends ConsumerState<_OpenInvite> {
     return Stack(
       children: [
         const _InviteArt(),
-        Positioned.fill(
-          child: ListView(
-            padding: EdgeInsets.fromLTRB(
-              20,
-              250,
-              20,
-              150 + MediaQuery.paddingOf(context).bottom,
+        // Como no desenho, a lista começa em 236 e corta ali (com 24px de
+        // esmaecido): rolar não leva o texto para cima da arte e da barra.
+        Positioned(
+          top: 236,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: ShaderMask(
+            blendMode: BlendMode.dstIn,
+            shaderCallback: (rect) => LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: const [Colors.transparent, Colors.white],
+              stops: [0, 24 / rect.height],
+            ).createShader(rect),
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                14,
+                20,
+                150 + MediaQuery.paddingOf(context).bottom,
+              ),
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: SquadTierBadge(pkg.tier, solid: true),
+                ),
+                const SizedBox(height: 14),
+                Text.rich(
+                  key: const Key('squad-invite-title'),
+                  TextSpan(
+                    text: name.isEmpty
+                        ? 'Você foi convidado pro '
+                        : '$name, você foi convidado pro ',
+                    children: [
+                      const TextSpan(
+                        text: 'NexaGO Squad',
+                        style: TextStyle(color: AppColors.brand),
+                      ),
+                      const TextSpan(text: '.'),
+                    ],
+                  ),
+                  style: SquadStyle.display(
+                    32,
+                    color: colors.onSurface,
+                  ).copyWith(height: 1.05),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _intro(),
+                  style: AppTypography.bodyM.copyWith(
+                    color: SquadStyle.mute(colors),
+                    height: 1.5,
+                  ),
+                ),
+                const SquadSection('O que você recebe'),
+                SquadBenefitList(
+                  benefits: squadBenefits(pkg, periodEnd: periodEnd),
+                  dividers: false,
+                ),
+                const SizedBox(height: 14),
+                _CodeBox(
+                  controller: _code,
+                  editing: _editing,
+                  error: _codeError,
+                  enabled: !_saving,
+                  onEdit: () => setState(() => _editing = true),
+                  onChanged: (_) => setState(() => _codeError = null),
+                ),
+                const SizedBox(height: 14),
+                _ContractCheck(
+                  value: _accepted,
+                  onChanged: _saving
+                      ? null
+                      : (v) => setState(() => _accepted = v),
+                  onOpenContract: () => showSquadContractSheet(
+                    context,
+                    package: pkg,
+                    followerDiscountFirstOnly: invite.followerDiscountFirstOnly,
+                    periodLabel: periodEnd == null ? null : 'até $periodEnd',
+                  ),
+                ),
+              ],
             ),
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: SquadTierBadge(pkg.tier, solid: true),
-              ),
-              const SizedBox(height: 14),
-              Text.rich(
-                key: const Key('squad-invite-title'),
-                TextSpan(
-                  text: name.isEmpty
-                      ? 'Você foi convidado pro '
-                      : '$name, você foi convidado pro ',
-                  children: [
-                    const TextSpan(
-                      text: 'NexaGO Squad',
-                      style: TextStyle(color: AppColors.brand),
-                    ),
-                    const TextSpan(text: '.'),
-                  ],
-                ),
-                style: SquadStyle.display(
-                  32,
-                  color: colors.onSurface,
-                ).copyWith(height: 1.05),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                _intro(),
-                style: AppTypography.bodyM.copyWith(
-                  color: SquadStyle.mute(colors),
-                  height: 1.5,
-                ),
-              ),
-              const SquadSection('O que você recebe'),
-              SquadBenefitList(
-                benefits: squadBenefits(pkg, periodEnd: periodEnd),
-                dividers: false,
-              ),
-              const SizedBox(height: 14),
-              _CodeBox(
-                controller: _code,
-                editing: _editing,
-                error: _codeError,
-                enabled: !_saving,
-                onEdit: () => setState(() => _editing = true),
-                onChanged: (_) => setState(() => _codeError = null),
-              ),
-              const SizedBox(height: 14),
-              _ContractCheck(
-                value: _accepted,
-                onChanged: _saving
-                    ? null
-                    : (v) => setState(() => _accepted = v),
-                onOpenContract: () => showSquadContractSheet(
-                  context,
-                  package: pkg,
-                  followerDiscountFirstOnly: invite.followerDiscountFirstOnly,
-                  periodLabel: periodEnd == null ? null : 'até $periodEnd',
-                ),
-              ),
-            ],
           ),
         ),
         _CloseButton(onTap: widget.onClose),

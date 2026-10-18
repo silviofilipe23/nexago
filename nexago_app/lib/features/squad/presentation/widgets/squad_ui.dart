@@ -1,7 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/layout/nexa_page_header.dart';
+import '../../../../core/router/navigation_helpers.dart';
+import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -86,7 +89,7 @@ class SquadScaffold extends StatelessWidget {
             SquadRoundButton(
               icon: Icons.arrow_back_rounded,
               semanticLabel: 'Voltar',
-              onTap: () => Navigator.of(context).maybePop(),
+              onTap: () => squadBack(context),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -128,6 +131,16 @@ class SquadScaffold extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Voltar das telas do Squad. Aberta por push (`router.go`, sem pilha), a
+/// tela não tem para onde voltar: cai na home.
+void squadBack(BuildContext context) {
+  if (GoRouter.maybeOf(context) == null) {
+    Navigator.of(context).maybePop();
+    return;
+  }
+  popOrGo(context, AppRoutes.home);
 }
 
 /// Botão redondo de 44px (voltar, fechar, copiar).
@@ -228,7 +241,11 @@ class SquadPrimaryButton extends StatelessWidget {
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.brand,
           foregroundColor: SquadStyle.onBrand,
-          disabledBackgroundColor: AppColors.brand.withValues(alpha: 0.4),
+          // Opaco: o botão fica sobre a lista e o conteúdo não pode vazar.
+          disabledBackgroundColor: Color.alphaBlend(
+            AppColors.brand.withValues(alpha: 0.4),
+            context.themeColors.canvas,
+          ),
           disabledForegroundColor: SquadStyle.onBrand.withValues(alpha: 0.7),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),

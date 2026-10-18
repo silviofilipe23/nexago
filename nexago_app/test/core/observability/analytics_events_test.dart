@@ -156,4 +156,37 @@ void main() {
       expect(storeEventParams(productId: 'mochila'), {'produto_id': 'mochila'});
     });
   });
+
+  group('storeEventParams (Loja · checkout e pedidos)', () {
+    test('event names match the web portal', () {
+      expect(AnalyticsEvents.storeCartView, 'loja_carrinho_view');
+      expect(AnalyticsEvents.storeCartQty, 'loja_carrinho_qtd');
+      expect(AnalyticsEvents.storeCartRemove, 'loja_carrinho_remover');
+      expect(AnalyticsEvents.storeAddressSave, 'loja_endereco_salvar');
+      expect(AnalyticsEvents.storeCouponApply, 'loja_cupom_aplicar');
+      expect(AnalyticsEvents.storeCheckoutPay, 'loja_checkout_pagar');
+      expect(AnalyticsEvents.storePixCopy, 'loja_pix_copiar');
+      expect(AnalyticsEvents.storeOrderView, 'loja_pedido_view');
+      expect(AnalyticsEvents.storeOrdersView, 'loja_pedidos_view');
+      expect(AnalyticsEvents.storeRebuy, 'loja_comprar_de_novo');
+    });
+
+    test('uses the portal param names; novo becomes 1/0', () {
+      expect(storeEventParams(units: 4), {'itens': 4});
+      expect(
+        storeEventParams(line: 'bola/unico', qty: 0),
+        {'linha': 'bola/unico', 'qtd': 0},
+      );
+      expect(storeEventParams(isNew: true), {'novo': 1});
+      expect(
+        storeEventParams(totalCents: 18040, delivery: 'arena', coupon: 'VERAO'),
+        {'total': 18040, 'entrega': 'arena', 'cupom': 'VERAO'},
+      );
+      expect(
+        storeEventParams(type: 'casa', screen: 'checkout'),
+        {'tipo': 'casa', 'tela': 'checkout'},
+      );
+      expect(storeEventParams(orderId: 'ord_1'), {'pedido_id': 'ord_1'});
+    });
+  });
 }

@@ -625,6 +625,12 @@ export {
 // Loja: personalização pelo atleta (02b/02c) — nome conferido na lista de bloqueio e a linha
 // personalizada do carrinho montada (e precificada) no servidor.
 export {addStoreCustomItemToCart, checkStoreCustomName} from "./store-custom-cart";
+export {
+  createStoreOrder,
+  expireStoreOrderPix,
+  onStoreOrderWrittenSyncView,
+  quoteStoreCheckout,
+} from "./store-checkout-endpoints";
 
 // Estoque da Loja: entrada (06a) e transferência (06b). Saldo só muda por aqui.
 export {

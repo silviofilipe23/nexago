@@ -1,0 +1,218 @@
+<app-at-panel-shell [userName]="accountLabel()" [guest]="guest()">
+  <header class="lj-header">
+    <div class="lp-heading">
+      <nav class="lp-crumbs" aria-label="Você está em">
+        <a routerLink="/loja">Loja</a>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+        <a routerLink="/loja/pedidos">Meus pedidos</a>
+      </nav>
+      <h1 class="lp-title">{{ number() ? 'Pedido #' + number() : 'Pedido' }}</h1>
+    </div>
+  </header>
+
+  <div class="pd-body">
+    @if (notFound() && !order() && !pix()) {
+      <section class="lp-state" role="alert">
+        <span class="lp-kicker">Pedido</span>
+        <h2>Não achamos esse pedido</h2>
+        <p>Confira se entrou com a mesma conta da compra. Seus pedidos ficam em "Meus pedidos".</p>
+        <a class="lp-state-btn" routerLink="/loja/pedidos">Meus pedidos</a>
+      </section>
+    } @else if (!order() && !pix()) {
+      <p class="lp-visually-hidden" role="status">Carregando o pedido…</p>
+      <div class="pd-grid" aria-hidden="true">
+        <app-nx-skeleton w="100%" [h]="420" [r]="22" />
+        <app-nx-skeleton w="100%" [h]="320" [r]="22" />
+      </div>
+    } @else {
+      <div class="pd-grid">
+        <div class="pd-main">
+          @if (pix(); as p) {
+            <!-- ── Pix (web: fim do checkout · app 06) ─────────── -->
+            @if (expired()) {
+              <section class="pd-card pd-expired" role="alert">
+                <span class="lp-kicker">Pix vencido</span>
+                <h2 class="pd-h">O prazo do Pix acabou</h2>
+                <p class="pd-text">Se você já pagou, a gente confirma em instantes. Se não, o pedido é cancelado e as peças voltam pra loja.</p>
+                <button type="button" class="pd-soft" [disabled]="rebuying() || !order()" (click)="rebuy()">Montar o carrinho de novo</button>
+              </section>
+            } @else {
+              <section class="pd-card pd-pix" aria-labelledby="pd-pix-title">
+                <div class="pd-pix-head">
+                  <div>
+                    <span class="lp-kicker">Falta pagar</span>
+                    <h2 id="pd-pix-title" class="pd-h">Pague com Pix</h2>
+                  </div>
+                  <div class="pd-timer" role="timer" aria-live="off" [attr.aria-label]="'Expira em ' + countdown()">
+                    <span>Expira em</span>
+                    <strong>{{ countdown() }}</strong>
+                  </div>
+                </div>
+                <div class="pd-pix-grid">
+                  <div class="pd-qr">
+                    @if (qrSrc(); as src) {
+                      <img [src]="src" alt="QR code do Pix" width="220" height="220" />
+                    } @else {
+                      <app-nx-skeleton [w]="220" [h]="220" [r]="12" />
+                    }
+                  </div>
+                  <div class="pd-pix-side">
+                    <div class="pd-amount">
+                      <span>Valor</span>
+                      <strong>{{ money(totalCents()) }}</strong>
+                    </div>
+                    <ol class="pd-steps">
+                      <li>Abra o app do seu banco e entre em <b>Pix</b>.</li>
+                      <li>Escolha <b>Ler QR code</b> ou <b>Pix copia e cola</b>.</li>
+                      <li>Confirme o valor. Esta tela muda sozinha quando o pagamento cair.</li>
+                    </ol>
+                  </div>
+                </div>
+                <div class="pd-copy">
+                  <input class="pd-copy-input" readonly aria-label="Código Pix copia e cola" [value]="p.copyPaste" (focus)="$any($event.target).select()" />
+                  <button type="button" class="pd-copy-btn" [class.pd-copy-btn--done]="copied()" (click)="copyPix()">
+                    {{ copied() ? 'Copiado!' : 'Copiar código' }}
+                  </button>
+                </div>
+                <p class="pd-wait" role="status">
+                  <span class="pd-wait-dot" aria-hidden="true"></span>
+                  Aguardando o pagamento…
+                </p>
+              </section>
+            }
+          } @else if (order(); as o) {
+            <!-- ── Acompanhamento ──────────────────────────────── -->
+            @if (justPaid()) {
+              <section class="pd-card pd-paid" role="status">
+                <span class="pd-paid-check" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10" /></svg>
+                </span>
+                <div>
+                  <h2 class="pd-h">Pagamento aprovado!</h2>
+                  <p class="pd-text">{{ o.delivery.type === 'arena' ? 'Avisamos quando estiver pronto pra retirar.' : 'Avisamos quando sair pra entrega.' }}</p>
+                </div>
+              </section>
+            }
+
+            @if (o.status === 'ret' && o.delivery.type === 'arena') {
+              <section class="pd-ready" aria-labelledby="pd-ready-title">
+                <span class="pd-ready-kicker">#{{ o.number }} · {{ o.delivery.placeName ?? 'Arena' }}</span>
+                <h2 id="pd-ready-title" class="pd-ready-title">Pronto pra retirar</h2>
+                <div class="pd-code">
+                  <span class="pd-code-label">Código</span>
+                  <strong class="pd-code-value">{{ o.delivery.pickupCode ?? '—' }}</strong>
+                  @if (pickupDeadline(); as d) {
+                    <small>Retire até {{ d }}</small>
+                  }
+                </div>
+                <p class="pd-ready-hint">Mostre o código no {{ o.delivery.counter ?? 'balcão da arena' }}. A retirada é com você ou com quem estiver com o código.</p>
+                @if (arenaMaps(); as url) {
+                  <a class="pd-ready-btn" [href]="url" target="_blank" rel="noopener">Como chegar</a>
+                }
+              </section>
+            }
+
+            <section class="pd-card" aria-labelledby="pd-status-title">
+              <div class="pd-status-head">
+                <h2 id="pd-status-title" class="pd-h pd-h--sm">Status</h2>
+                @if (personalized()) {
+                  <span class="pd-tag">Personalizado</span>
+                }
+                <span class="pd-spacer"></span>
+                <app-loja-order-pill [status]="o.status" />
+              </div>
+              @if (progress(); as pg) {
+                <app-loja-order-progress [steps]="pg.steps" [step]="pg.step" />
+              }
+              @if (info()) {
+                <p class="pd-text">{{ info() }}</p>
+              }
+              @if (o.status === 'can' && o.cancelReason) {
+                <p class="pd-text pd-text--dim">Motivo: {{ o.cancelReason }}</p>
+              }
+              @if (o.status === 'tra' && o.delivery.type === 'casa' && o.delivery.trackingUrl) {
+                <a class="pd-soft" [href]="o.delivery.trackingUrl" target="_blank" rel="noopener">Rastrear{{ o.delivery.carrier ? ' · ' + o.delivery.carrier : '' }}</a>
+              }
+              @if (o.status === 'ent' || o.status === 'rtd' || o.status === 'can') {
+                <button type="button" class="pd-soft" [disabled]="rebuying()" (click)="rebuy()">Comprar de novo</button>
+              }
+            </section>
+          }
+        </div>
+
+        <!-- ── Resumo do pedido ──────────────────────────────── -->
+        <aside class="pd-summary" aria-labelledby="pd-sum-title">
+          <div class="pd-sum-head">
+            <h2 id="pd-sum-title" class="ck-h2">Resumo</h2>
+            @if (createdLabel()) {
+              <span class="pd-date">{{ createdLabel() }}</span>
+            }
+          </div>
+          @if (order(); as o) {
+            <ul class="pd-items">
+              @for (i of o.items; track $index) {
+                <li class="pd-item">
+                  <span class="pd-thumb">
+                    @if (i.imageUrl; as img) {
+                      <img [src]="img" alt="" loading="lazy" />
+                    }
+                  </span>
+                  <span class="pd-item-text">
+                    <strong>{{ i.name }}</strong>
+                    <small>{{ itemDetail(i) }}</small>
+                  </span>
+                  <span class="pd-item-price">{{ money(i.totalCents) }}</span>
+                </li>
+              }
+            </ul>
+            <div class="ck-row">
+              <span>Subtotal</span>
+              <span class="ck-row-v">{{ money(o.subtotalCents) }}</span>
+            </div>
+            @if (o.couponDiscountCents > 0) {
+              <div class="ck-row">
+                <span>Cupom {{ o.couponCode }}</span>
+                <span class="ck-row-v ck-row-v--win">− {{ money(o.couponDiscountCents) }}</span>
+              </div>
+            }
+            @if (o.pixDiscountCents > 0) {
+              <div class="ck-row">
+                <span>Desconto Pix</span>
+                <span class="ck-row-v ck-row-v--win">− {{ money(o.pixDiscountCents) }}</span>
+              </div>
+            }
+            <div class="ck-row">
+              <span>{{ o.delivery.type === 'arena' ? 'Retirada na arena' : 'Frete' + (o.delivery.modeName ? ' · ' + o.delivery.modeName : '') }}</span>
+              <span class="ck-row-v" [class.ck-row-v--win]="o.shippingCents === 0">{{ o.shippingCents === 0 ? 'Grátis' : money(o.shippingCents) }}</span>
+            </div>
+            <hr class="ck-divider" />
+            <div class="ck-row ck-row--total">
+              <span>Total</span>
+              <span class="ck-total">{{ money(o.totalCents) }}</span>
+            </div>
+            <div class="pd-where">
+              <span class="ck-eyebrow">{{ o.delivery.type === 'arena' ? 'Retirada' : 'Entrega' }}</span>
+              <span>{{ where() }}</span>
+              @if (o.delivery.type === 'arena' && o.delivery.address) {
+                <small>{{ o.delivery.address }}</small>
+              }
+              @if (o.delivery.type === 'casa' && o.delivery.city) {
+                <small>{{ o.delivery.city }}{{ o.delivery.uf ? ', ' + o.delivery.uf : '' }}</small>
+              }
+            </div>
+            @if (o.refundedCents > 0) {
+              <p class="pd-text pd-text--dim">Reembolso: {{ money(o.refundedCents) }}</p>
+            }
+          } @else {
+            <div class="ck-row ck-row--total">
+              <span>Total</span>
+              <span class="ck-total">{{ money(totalCents()) }}</span>
+            </div>
+            <p class="pd-text pd-text--dim">Os detalhes do pedido aparecem em instantes.</p>
+          }
+          <a class="pd-all" routerLink="/loja/pedidos">Ver todos os pedidos</a>
+        </aside>
+      </div>
+    }
+  </div>
+</app-at-panel-shell>

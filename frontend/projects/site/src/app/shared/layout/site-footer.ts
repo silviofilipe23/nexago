@@ -30,6 +30,7 @@ const COLUMNS: FooterColumn[] = [
       { label: 'Atletas', href: 'https://linktr.ee/nexago', external: true },
       { label: 'Organizadores', href: '/organizadores' },
       { label: 'Arenas', href: '/arenas' },
+      { label: 'Embaixadores · Squad', href: '/squad' },
     ],
   },
   {

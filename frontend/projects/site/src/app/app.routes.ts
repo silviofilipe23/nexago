@@ -42,6 +42,10 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/torneios/torneio-detail.page').then((m) => m.TorneioDetailPage),
   },
   {
+    path: 'squad',
+    loadComponent: () => import('./pages/squad/squad.page').then((m) => m.SquadPage),
+  },
+  {
     path: 'ligas',
     loadComponent: () => import('./pages/ligas/ligas.page').then((m) => m.LigasPage),
   },

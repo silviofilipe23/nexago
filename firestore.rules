@@ -3194,6 +3194,32 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Planos de torneio v2 + cotas Sponsors (backoffice). Só as callables de
+    // `tournament-plans.ts` gravam. Custo e margem moram aqui: organizador NÃO lê
+    // (a vitrine de contratação, quando existir, ganha um espelho público próprio).
+    match /tournamentPlans/{planId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+
+      match /versions/{versionId} {
+        allow read: if isAdmin() || isSuperAdmin();
+        allow write: if false;
+      }
+    }
+    match /tournamentPlansConfig/{configId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+
+      match /versions/{versionId} {
+        allow read: if isAdmin() || isSuperAdmin();
+        allow write: if false;
+      }
+    }
+    match /tournamentPlansLog/{entryId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
     // NexaSquad: regras do programa (vigente + histórico de versões). Só a callable
     // `saveSquadRules` grava; contrato assinado guarda o número da versão.
     match /squadConfig/{configId} {

@@ -583,6 +583,9 @@ export {saveStoreCampaigns} from "./store-campaigns";
 // NexaSquad: regras do programa de embaixadores, versionadas. Escrita só por callable.
 export {saveSquadRules} from "./squad-rules";
 
+// Planos de torneio v2 (pacotes por quadra) e cotas Sponsors, versionados. Escrita só por callable.
+export {saveTournamentPlan, saveTournamentPlanRules, saveTournamentSponsors} from "./tournament-plans";
+
 // NexaSquad: comissões dos embaixadores e repasse quinzenal. Escrita só por callable.
 export {
   approveSquadPayout,

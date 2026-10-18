@@ -105,6 +105,19 @@ const SQUAD_GROUP: NavGroup = {
   ],
 };
 
+/** Torneios: a lista + os pacotes vendidos ao organizador (planos v2) e as cotas Sponsors. */
+const TORNEIOS_GROUP: NavGroup = {
+  kind: 'group',
+  id: 'torneios-grupo',
+  label: 'Torneios',
+  icon: 'trophy',
+  children: [
+    { kind: 'link', id: 'torneios', label: 'Todos os torneios', icon: 'trophy', route: '/painel/torneios' },
+    { kind: 'link', id: 'torneios-planos', label: 'Planos', icon: 'file', route: '/painel/torneios/planos' },
+    { kind: 'link', id: 'torneios-sponsors', label: 'Sponsors', icon: 'sponsor', route: '/painel/torneios/sponsors' },
+  ],
+};
+
 const NAV_ITEMS: readonly PanelNavItem[] = [
   { kind: 'link', id: 'inicio', label: 'Início', icon: 'home', route: '/painel' },
   { kind: 'link', id: 'arenas', label: 'Arenas', icon: 'arena', route: '/painel/arenas' },
@@ -115,7 +128,7 @@ const NAV_ITEMS: readonly PanelNavItem[] = [
     icon: 'arena',
     route: '/painel/arenas/pre-cadastro',
   },
-  { kind: 'link', id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios' },
+  TORNEIOS_GROUP,
   { kind: 'link', id: 'avaliacoes', label: 'Avaliações', icon: 'star', route: '/painel/avaliacoes' },
   {
     kind: 'link',
@@ -630,6 +643,13 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/arenas')) {
       return 'arenas';
+    }
+    // Antes de '/painel/torneios': as sub-rotas são mais específicas.
+    if (path.startsWith('/painel/torneios/planos')) {
+      return 'torneios-planos';
+    }
+    if (path.startsWith('/painel/torneios/sponsors')) {
+      return 'torneios-sponsors';
     }
     if (path.startsWith('/painel/torneios')) {
       return 'torneios';

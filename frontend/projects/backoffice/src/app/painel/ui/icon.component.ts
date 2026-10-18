@@ -44,7 +44,12 @@ export type PanelIconName =
   | 'squad'
   | 'history'
   | 'calendar'
-  | 'copy';
+  | 'copy'
+  | 'court'
+  | 'whistle'
+  | 'video'
+  | 'mic'
+  | 'sponsor';
 
 /** Ícones stroke-24 do painel (mesmo conjunto do protótipo BoIc*), um componente para evitar repetir SVG. */
 @Component({
@@ -200,6 +205,21 @@ export type PanelIconName =
         }
         @case ('copy') {
           <rect x="8.5" y="8.5" width="12" height="12" rx="2.5" /><path d="M15.5 8.5V6a2.5 2.5 0 0 0-2.5-2.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5" />
+        }
+        @case ('court') {
+          <rect x="3" y="5" width="18" height="14" rx="1.5" /><path d="M12 5v14M3 12h18" />
+        }
+        @case ('whistle') {
+          <circle cx="9" cy="14" r="5" /><path d="M13 11h8v3h-6M9 14h.01" />
+        }
+        @case ('video') {
+          <rect x="2.5" y="6" width="14" height="12" rx="2" /><path d="m16.5 10 5-3v10l-5-3" />
+        }
+        @case ('mic') {
+          <rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+        }
+        @case ('sponsor') {
+          <circle cx="12" cy="9" r="5.5" /><path d="m8.5 13.5-1.5 7.5 5-2.5 5 2.5-1.5-7.5" />
         }
       }
     </svg>

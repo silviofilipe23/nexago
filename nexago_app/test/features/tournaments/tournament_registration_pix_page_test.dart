@@ -13,6 +13,9 @@ import 'package:nexago_app/features/cashback/application/cashback_providers.dart
 import 'package:nexago_app/features/cashback/domain/cashback_models.dart';
 import 'package:nexago_app/features/cashback/presentation/cashback_copy.dart';
 import 'package:nexago_app/features/cashback/presentation/widgets/checkout_cashback_toggle.dart';
+import 'package:nexago_app/features/squad/application/squad_providers.dart';
+import 'package:nexago_app/features/squad/domain/squad_models.dart';
+import 'package:nexago_app/features/squad/domain/squad_repository.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_registration_service.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_pix_args.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_providers.dart';
@@ -199,6 +202,236 @@ void main() {
       expect(find.text(formatBRL(90)), findsOneWidget);
     });
   });
+
+  // Tela 07: "Aplicar" confere com checkSquadCode antes de cobrar; a indicação
+  // por link/QR é consultada sozinha (código vazio) quando a tela abre.
+  group('código de embaixador: Aplicar e indicação por link (tela 07)', () {
+    const joao = SquadCodeCheck(
+      ambassadorName: 'João Victor',
+      code: 'JOAO10',
+      origin: 'code',
+      discountPct: 10,
+      feePercent: 8,
+    );
+    const maria = SquadCodeCheck(
+      ambassadorName: 'Maria Souza',
+      code: 'MARIA10',
+      origin: 'link',
+      discountPct: 10,
+      feePercent: null,
+    );
+
+    Future<void> aplicar(WidgetTester tester, String code) async {
+      await tester.enterText(find.byKey(const Key('squad-code-field')), code);
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('squad-code-apply')));
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets(
+        'Aplicar confere o código, mostra o card, o resumo e a cobrança leva JOAO10',
+        (tester) async {
+      final service = _FakePaymentService(_resposta());
+      final squad = _FakeSquadRepository(check: joao);
+      await _abrirPixComCashback(
+        tester,
+        service: service,
+        config: CashbackConfig.fallback,
+        squad: squad,
+      );
+
+      await tester.tap(find.text('Tem código de embaixador?'));
+      await tester.pump();
+      await aplicar(tester, 'joao10');
+
+      final conferido = squad.calls.last;
+      expect(conferido.code, 'JOAO10');
+      expect(conferido.registrationId, 'reg-1');
+
+      expect(find.byKey(const Key('squad-code-applied')), findsOneWidget);
+      expect(find.byKey(const Key('squad-code-field')), findsNothing);
+      expect(find.text('Convite de João Victor · Squad'), findsOneWidget);
+      expect(find.text('10% OFF nesta inscrição'), findsOneWidget);
+
+      // R$ 100 × 10% = R$ 10, mas a taxa de 8% (R$ 8) é o teto do desconto.
+      expect(find.byKey(const Key('squad-summary')), findsOneWidget);
+      expect(find.text('Código JOAO10'), findsOneWidget);
+      expect(find.text('− ${formatBRLFromCents(800)}'), findsOneWidget);
+      expect(find.text(formatBRLFromCents(9200)), findsOneWidget);
+      expect(
+        find.text('${formatBRL(92)} · pagar com seu banco'),
+        findsOneWidget,
+      );
+
+      await _gerarPix(tester);
+      expect(service.squadCodeCalls, ['JOAO10']);
+    });
+
+    testWidgets('indicação por link aparece sozinha e a cobrança não manda código',
+        (tester) async {
+      final service = _FakePaymentService(_resposta());
+      final squad = _FakeSquadRepository(link: maria);
+      await _abrirPixComCashback(
+        tester,
+        service: service,
+        config: CashbackConfig.fallback,
+        squad: squad,
+      );
+
+      // A consulta da indicação vai com o código vazio, uma vez por checkout.
+      expect(squad.calls.single.code, isEmpty);
+      expect(squad.calls.single.registrationId, 'reg-1');
+      expect(find.text('Indicação por link'), findsOneWidget);
+      expect(find.text('Convite de Maria Souza · Squad'), findsOneWidget);
+      expect(find.text('Tenho outro código'), findsOneWidget);
+      expect(find.text('Tem código de embaixador?'), findsNothing);
+
+      // Sem organizador (feePercent null): sem teto, R$ 10 de desconto.
+      expect(find.text('Indicação'), findsOneWidget);
+      expect(find.text('− ${formatBRLFromCents(1000)}'), findsOneWidget);
+      expect(find.text(formatBRLFromCents(9000)), findsOneWidget);
+
+      // O servidor acha a indicação pela conta; a cobrança vai sem código.
+      await _gerarPix(tester);
+      expect(service.squadCodeCalls, ['']);
+    });
+
+    testWidgets('Remover volta ao estado sem código', (tester) async {
+      final service = _FakePaymentService(_resposta());
+      final squad = _FakeSquadRepository(check: joao);
+      await _abrirPixComCashback(
+        tester,
+        service: service,
+        config: CashbackConfig.fallback,
+        squad: squad,
+      );
+
+      await tester.tap(find.text('Tem código de embaixador?'));
+      await tester.pump();
+      await aplicar(tester, 'joao10');
+      expect(find.byKey(const Key('squad-summary')), findsOneWidget);
+
+      await tester.tap(find.text('Remover'));
+      await tester.pump();
+
+      expect(find.byKey(const Key('squad-code-applied')), findsNothing);
+      expect(find.byKey(const Key('squad-summary')), findsNothing);
+      expect(find.text('Tem código de embaixador?'), findsOneWidget);
+      expect(
+        find.text('${formatBRL(100)} · pagar com seu banco'),
+        findsOneWidget,
+      );
+
+      await _gerarPix(tester);
+      expect(service.squadCodeCalls, ['']);
+    });
+
+    testWidgets('com indicação por link, Remover o código digitado volta para ela',
+        (tester) async {
+      final service = _FakePaymentService(_resposta());
+      final squad = _FakeSquadRepository(check: joao, link: maria);
+      await _abrirPixComCashback(
+        tester,
+        service: service,
+        config: CashbackConfig.fallback,
+        squad: squad,
+      );
+
+      await tester.tap(find.text('Tenho outro código'));
+      await tester.pump();
+      await aplicar(tester, 'joao10');
+      expect(find.text('Código JOAO10'), findsOneWidget);
+      expect(find.text('Indicação por link'), findsNothing);
+
+      await tester.tap(find.text('Remover'));
+      await tester.pump();
+
+      expect(find.text('Indicação por link'), findsOneWidget);
+      expect(find.text('Indicação'), findsOneWidget);
+      expect(find.text('Código JOAO10'), findsNothing);
+    });
+
+    testWidgets(
+        'código recusado na conferência: erro no campo e a cobrança confere o digitado',
+        (tester) async {
+      final service = _FakePaymentService(_resposta());
+      final squad = _FakeSquadRepository(
+        checkError: const SquadException('Esse código não existe.'),
+      );
+      await _abrirPixComCashback(
+        tester,
+        service: service,
+        config: CashbackConfig.fallback,
+        squad: squad,
+      );
+
+      await tester.tap(find.text('Tem código de embaixador?'));
+      await tester.pump();
+      await aplicar(tester, 'joao99');
+
+      expect(find.text('Esse código não existe.'), findsOneWidget);
+      expect(find.byKey(const Key('squad-code-applied')), findsNothing);
+      expect(find.byKey(const Key('squad-summary')), findsNothing);
+
+      await tester.enterText(find.byType(TextField).first, '52998224725');
+      await tester.pump();
+      await tester.tap(find.text('Gerar PIX'));
+      await tester.pump();
+      await tester.pump();
+      expect(service.squadCodeCalls, ['JOAO99']);
+    });
+
+    testWidgets('desconto da 1ª inscrição já usado: card avisa e não há resumo',
+        (tester) async {
+      final service = _FakePaymentService(_resposta());
+      final squad = _FakeSquadRepository(
+        check: const SquadCodeCheck(
+          ambassadorName: 'João Victor',
+          code: 'JOAO10',
+          origin: 'code',
+          discountPct: 0,
+          feePercent: 8,
+        ),
+      );
+      await _abrirPixComCashback(
+        tester,
+        service: service,
+        config: CashbackConfig.fallback,
+        squad: squad,
+      );
+
+      await tester.tap(find.text('Tem código de embaixador?'));
+      await tester.pump();
+      await aplicar(tester, 'JOAO10');
+
+      expect(find.byKey(const Key('squad-code-applied')), findsOneWidget);
+      expect(
+        find.text('O desconto de indicação vale só na primeira inscrição.'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('squad-summary')), findsNothing);
+    });
+
+    testWidgets('Aplicar fica desabilitado com o campo vazio', (tester) async {
+      final squad = _FakeSquadRepository(check: joao);
+      await _abrirPixComCashback(
+        tester,
+        service: _FakePaymentService(_resposta()),
+        config: CashbackConfig.fallback,
+        squad: squad,
+      );
+
+      await tester.tap(find.text('Tem código de embaixador?'));
+      await tester.pump();
+
+      final aplicarBtn = tester.widget<OutlinedButton>(
+        find.byKey(const Key('squad-code-apply')),
+      );
+      expect(aplicarBtn.onPressed, isNull);
+      expect(squad.calls.where((c) => c.code.isNotEmpty), isEmpty);
+    });
+  });
 }
 
 const _ligado = CashbackConfig(
@@ -235,6 +468,41 @@ class _FakePaymentService implements PaymentService {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// Dublê do NexaSquad no checkout: só `checkCode` (código vazio = indicação
+/// por link/QR guardada na conta).
+class _FakeSquadRepository implements SquadRepository {
+  _FakeSquadRepository({
+    this.check = SquadCodeCheck.none,
+    this.link = SquadCodeCheck.none,
+    this.checkError,
+  });
+
+  final SquadCodeCheck check;
+  final SquadCodeCheck link;
+  final Object? checkError;
+  final calls = <({String code, List<String> athleteUids, String registrationId})>[];
+
+  @override
+  Future<SquadCodeCheck> checkCode({
+    required String code,
+    required List<String> athleteUids,
+    required String registrationId,
+  }) async {
+    calls.add((
+      code: code,
+      athleteUids: athleteUids,
+      registrationId: registrationId,
+    ));
+    if (code.isEmpty) return link;
+    final error = checkError;
+    if (error != null) throw error;
+    return check;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 ArenaBookingPixPaymentResult _resposta({double applied = 0, double? charged}) {
   return ArenaBookingPixPaymentResult(
     paymentId: 'pay_t1',
@@ -252,6 +520,7 @@ Future<void> _abrirPixComCashback(
   required _FakePaymentService service,
   CashbackConfig config = _ligado,
   int availableCents = 0,
+  SquadRepository? squad,
 }) async {
   tester.view.physicalSize = const Size(800, 2400);
   tester.view.devicePixelRatio = 1.0;
@@ -302,6 +571,7 @@ Future<void> _abrirPixComCashback(
         cashbackWalletProvider.overrideWith(
           (ref) => Stream.value(CashbackWallet(availableCents: availableCents)),
         ),
+        if (squad != null) squadRepositoryProvider.overrideWithValue(squad),
       ],
       child: MaterialApp(
         theme: AppTheme.dark,
@@ -311,6 +581,8 @@ Future<void> _abrirPixComCashback(
   );
   await tester.pump();
   await tester.pump();
+  // A consulta da indicação por link sai no primeiro frame e volta depois.
+  if (squad != null) await tester.pump();
 }
 
 Future<void> _gerarPix(WidgetTester tester) async {

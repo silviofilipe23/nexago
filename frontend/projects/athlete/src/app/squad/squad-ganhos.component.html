@@ -1,0 +1,102 @@
+<app-squad-frame tab="ganhos" [ambassadorOnly]="true">
+  @if (store.ambassador()) {
+    <div class="sq-row sq-row--4">
+      @for (c of cards(); track c.key) {
+        <section class="sq-box" [class.sq-box--hot]="c.hot">
+          <div class="sq-stat">
+            <div class="sq-stat-k">{{ c.key }}</div>
+            <div class="sq-stat-v" [class.sq-stat-v--hot]="c.hot">{{ c.value }}</div>
+            <div class="sq-stat-s">{{ c.sub }}</div>
+          </div>
+        </section>
+      }
+    </div>
+
+    <div class="sq-row sq-row--earnings">
+      <div class="sq-col">
+        <section class="sq-box" aria-labelledby="sqg-weeks">
+          <h2 class="sq-h" id="sqg-weeks"><span>Comissão por semana</span></h2>
+          <div class="sqg-bars" role="img" [attr.aria-label]="'Comissão das últimas ' + weeks().bars.length + ' semanas'">
+            @for (b of weeks().bars; track $index) {
+              <div class="sqg-bar">
+                <div class="sqg-bar-fill" [class.sqg-bar-fill--best]="b.best" [style.height.%]="b.pct"></div>
+                <span class="sqg-bar-label">{{ b.label }}</span>
+              </div>
+            }
+          </div>
+          <p class="sq-muted sqg-best">
+            @if (bestLabel(); as best) {
+              Melhor semana: <b>{{ best }}</b>{{ weeks().best?.event ? ' · ' + weeks().best?.event : '' }}
+            } @else {
+              Sem comissão nas últimas semanas ainda.
+            }
+          </p>
+        </section>
+
+        <section class="sq-box" aria-labelledby="sqg-how">
+          <h2 class="sq-h" id="sqg-how"><span>Como você recebe</span></h2>
+          @for (h of how(); track h.title) {
+            <div class="sqg-how">
+              <span class="sq-ic sqg-how-ic" aria-hidden="true">
+                @switch (h.icon) {
+                  @case ('check') {
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+                  }
+                  @case ('cal') {
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg>
+                  }
+                  @default {
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18" /></svg>
+                  }
+                }
+              </span>
+              <div>
+                <div class="sqg-how-title">{{ h.title }}</div>
+                <div class="sqg-how-sub">{{ h.sub }}</div>
+              </div>
+            </div>
+          }
+        </section>
+      </div>
+
+      <section class="sq-box" aria-labelledby="sqg-statement">
+        <div class="sqg-statement-head">
+          <h2 class="sq-h sqg-statement-title" id="sqg-statement"><span>Extrato</span></h2>
+          <div class="sqg-filters" role="group" aria-label="Filtrar extrato">
+            @for (f of filters; track f.id) {
+              <button type="button" class="sq-seg" [class.sq-seg--on]="filter() === f.id" [attr.aria-pressed]="filter() === f.id" (click)="setFilter(f.id)">{{ f.label }}</button>
+            }
+          </div>
+        </div>
+        @if (lines().length === 0) {
+          <p class="sq-empty">
+            {{ filter() === 'payouts' ? 'Nenhum repasse ainda. O primeiro sai no próximo dia de repasse com saldo liberado.' : 'Nenhuma comissão ainda. Ela aparece aqui assim que alguém se inscrever com o seu código.' }}
+          </p>
+        } @else {
+          <div class="sqg-lines">
+            @for (l of lines(); track l.id) {
+              <div class="sqg-line">
+                <span class="sqg-line-when">{{ l.when }}</span>
+                <span class="sqg-line-title" [class.sqg-line-title--strong]="l.kind === 'payout'">{{ l.title }}</span>
+                <span class="sqg-line-amount" [class.sqg-struck]="l.struck">{{ l.amount }}</span>
+                @if (l.status; as s) {
+                  <span class="sq-status" [attr.data-tone]="s.tone">{{ s.label }}</span>
+                } @else if (l.kind === 'payout') {
+                  <span class="sqg-line-wallet">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H18v3" /><rect x="3" y="8" width="18" height="12" rx="2" /><circle cx="16.5" cy="14" r="1.3" /></svg>
+                    Carteira do Squad
+                  </span>
+                } @else {
+                  <span class="sq-status" data-tone="live">Estorno</span>
+                }
+              </div>
+            }
+          </div>
+          @if (hasMore()) {
+            <button type="button" class="sq-btn sq-btn--soft sq-btn--sm sqg-more" (click)="showMore()">Mostrar mais</button>
+          }
+        }
+      </section>
+    </div>
+  }
+</app-squad-frame>

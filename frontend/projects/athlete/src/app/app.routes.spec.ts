@@ -52,6 +52,20 @@ describe('app.routes', () => {
     expect(guarded('favoritos')).toContain(authGuard);
   });
 
+  // As três abas leem UM store (a rota vazia componentless provê): trocar de aba não relê a callable.
+  it('Squad exige login e onboarding, e as abas dividem o store', async () => {
+    const route = routes.find((r) => r.path === 'squad');
+    expect(route?.canActivate).toEqual([authGuard, onboardingGuard]);
+    const [{ SQUAD_ROUTES }, { SquadStore }] = await Promise.all([
+      import('./squad/squad.routes'),
+      import('./squad/data/squad.store'),
+    ]);
+    expect(SQUAD_ROUTES.length).toBe(1);
+    expect(SQUAD_ROUTES[0]!.component).toBeUndefined();
+    expect(SQUAD_ROUTES[0]!.providers).toEqual([SquadStore]);
+    expect(SQUAD_ROUTES[0]!.children?.map((r) => r.path)).toEqual(['', 'ganhos', 'nivel']);
+  });
+
   // `webUrl: '/cashback'` dos pushes `cashback_released`/`cashback_expiring` cai aqui.
   it('Meu cashback exige login e onboarding', () => {
     const route = routes.find((r) => r.path === 'cashback');

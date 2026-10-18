@@ -1,0 +1,126 @@
+<app-squad-frame tab="nivel" [ambassadorOnly]="true">
+  @if (store.ambassador(); as a) {
+    <div class="sq-row sq-row--level">
+      <div class="sq-col">
+        <section class="sq-box sq-box--hot" aria-label="Seus benefícios">
+          <div class="sqn-mine-head">
+            <app-squad-tier [tier]="a.contract.tier" [solid]="true" />
+            <span class="sq-dim">{{ period() }}</span>
+          </div>
+          <div class="sq-rows">
+            @for (b of benefits(); track b.label) {
+              <div class="sqn-benefit">
+                <span class="sq-ic" aria-hidden="true">
+                  @switch (b.icon) {
+                    @case ('trend') {
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 17 6-6 4 4 7-7.5" /><path d="M15 7.5h5.5V13" /></svg>
+                    }
+                    @case ('bag') {
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.2 12.1a1 1 0 0 1-1 .9H7.2a1 1 0 0 1-1-.9z" /><path d="M9 8V6.5a3 3 0 0 1 6 0V8" /></svg>
+                    }
+                    @case ('star') {
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2.5 3.1 6.5 7.1 1-5.1 5 1.2 7.1L12 18.7l-6.3 3.4 1.2-7.1-5.1-5 7.1-1z" /></svg>
+                    }
+                    @default {
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="8.5" width="17" height="4" rx="1" /><path d="M5 12.5V20h14v-7.5M12 8.5V20M12 8.5C10.5 5 7 4.5 7 6.8 7 8.5 12 8.5 12 8.5zM12 8.5c1.5-3.5 5-4 5-1.7 0 1.7-5 1.7-5 1.7z" /></svg>
+                    }
+                  }
+                </span>
+                <div class="sqn-benefit-text">
+                  <div class="sqn-benefit-title">{{ b.label }}</div>
+                  <div class="sq-dim sqn-benefit-sub">{{ b.sub }}</div>
+                </div>
+                <span class="sqn-benefit-status" [attr.data-status]="b.status">{{ statusLabels[b.status] }}</span>
+              </div>
+            }
+          </div>
+        </section>
+
+        <section class="sq-box" aria-labelledby="sqn-points">
+          <h2 class="sq-h" id="sqn-points"><span>Pontos do Squad</span></h2>
+          @if (level(); as l) {
+            <div class="sqn-points">
+              <strong>{{ pointsLabel() }}</strong>
+              <span class="sq-muted">pts · {{ l.current }}</span>
+            </div>
+            <div class="sqn-levels">
+              @for (bar of l.bars; track bar.name) {
+                <div>
+                  <div class="sq-bar" [class.sq-bar--done]="bar.done"><i [style.width.%]="bar.pct"></i></div>
+                  <div class="sqn-level-name" [class.sqn-level-name--on]="bar.current">{{ bar.name }}</div>
+                </div>
+              }
+            </div>
+            @if (l.next; as next) {
+              <p class="sq-dim sqn-next">Faltam {{ next.missing.toLocaleString('pt-BR') }} pts para {{ next.name }}.</p>
+            }
+          }
+          <div class="sqn-earn">
+            @for (e of earn(); track e.label) {
+              <div class="sqn-earn-tile">
+                <div class="sqn-earn-v">{{ e.value }}</div>
+                <div class="sqn-earn-k">{{ e.label }}</div>
+                @if (e.soon) {
+                  <div class="sqn-earn-soon">contagem em breve</div>
+                }
+              </div>
+            }
+          </div>
+        </section>
+      </div>
+
+      <div class="sq-col">
+        @if (promotion(); as p) {
+          <section class="sq-box" aria-labelledby="sqn-promo">
+            <div class="sqn-promo-head">
+              @if (p.to; as to) {
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="sq-dim" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2" /><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" /></svg>
+                <app-squad-tier [tier]="to" />
+              } @else {
+                <app-squad-tier [tier]="a.contract.tier" [solid]="true" />
+              }
+            </div>
+            <h2 class="sqn-promo-title" id="sqn-promo">{{ p.title }}</h2>
+            @if (p.kind === 'promotion') {
+              <div class="sq-bar sqn-promo-bar"><i [style.width.%]="p.pct"></i></div>
+              <ul class="sqn-criteria">
+                @for (c of criteria(); track c.label) {
+                  <li>
+                    <span class="sqn-check" [class.sqn-check--ok]="c.ok === true" aria-hidden="true">
+                      @if (c.ok === true) {
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+                      } @else {
+                        <i></i>
+                      }
+                    </span>
+                    <span class="sqn-criteria-label">{{ c.label }}</span>
+                    <span class="sq-dim">{{ c.value }}</span>
+                  </li>
+                }
+              </ul>
+              <hr class="sq-line" />
+              <div class="sq-label">O que muda</div>
+              <div class="sq-chips sqn-chips">
+                @for (chip of nextChips(); track chip) {
+                  <span class="sq-chip">{{ chip }}</span>
+                }
+              </div>
+              <p class="sq-dim sqn-promo-foot">A promoção é avaliada pelo time NexaGO ao fim do ciclo.</p>
+            } @else {
+              <p class="sq-muted sqn-promo-text">{{ p.summary }}</p>
+            }
+          </section>
+        }
+
+        <section class="sq-box" aria-labelledby="sqn-rules">
+          <h2 class="sq-h" id="sqn-rules"><span>Ao divulgar</span></h2>
+          <ol class="sqn-rules">
+            @for (rule of postingRules; track $index) {
+              <li><span class="sqn-rule-n">0{{ $index + 1 }}</span>{{ rule }}</li>
+            }
+          </ol>
+        </section>
+      </div>
+    </div>
+  }
+</app-squad-frame>

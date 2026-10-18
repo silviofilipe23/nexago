@@ -242,7 +242,7 @@ export async function loadPayoutConfig(db: Firestore): Promise<PayoutConfig> {
 }
 
 /** Último repasse concluído (`done`); os repasses são poucos, então lê todos. */
-async function lastDonePayout(db: Firestore): Promise<string | null> {
+export async function lastDonePayout(db: Firestore): Promise<string | null> {
   const snap = await db.collection(SQUAD_PAYOUTS).get();
   return snap.docs
     .filter((d) => d.data()["status"] === "done")

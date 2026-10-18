@@ -151,6 +151,7 @@ import '../../features/store/domain/store_checkout_models.dart';
 import '../../features/store/presentation/store_address_page.dart';
 import '../../features/store/presentation/store_cart_page.dart';
 import '../../features/store/presentation/store_customize_page.dart';
+import '../../features/store/presentation/store_favorites_page.dart';
 import '../../features/store/presentation/store_order_page.dart';
 import '../../features/store/presentation/store_orders_page.dart';
 import '../../features/store/presentation/store_page.dart';
@@ -1117,6 +1118,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             created: extra is StoreCreatedOrder ? extra : null,
           );
         },
+      ),
+      // Favoritos (app 09): coração do header da vitrine.
+      GoRoute(
+        path: AppRoutes.storeFavorites,
+        name: AppRouteNames.storeFavorites,
+        builder: (context, state) => const StoreFavoritesPage(),
       ),
       GoRoute(
         path: AppRoutes.athleteSportsLevels,

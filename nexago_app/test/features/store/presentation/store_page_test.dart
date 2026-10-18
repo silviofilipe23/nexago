@@ -253,6 +253,21 @@ void main() {
     expect(find.byTooltip(StoreCopy.back), findsOneWidget);
   });
 
+  testWidgets('coração dos favoritos no header, entre a busca e a sacola', (
+    tester,
+  ) async {
+    await _open(tester, _repo());
+
+    final heart = find.byKey(const ValueKey('store-header-favorites'));
+    expect(heart, findsOneWidget);
+    expect(find.byTooltip(StoreCopy.favoritesTitle), findsOneWidget);
+    final search = tester.getCenter(find.byTooltip(StoreCopy.search));
+    final bag = tester.getCenter(find.byTooltip(StoreCopy.cart));
+    final center = tester.getCenter(heart);
+    expect(center.dx, greaterThan(search.dx));
+    expect(center.dx, lessThan(bag.dx));
+  });
+
   testWidgets('logado, o header tem a entrada de "Meus pedidos"', (
     tester,
   ) async {

@@ -232,6 +232,10 @@ abstract final class AppRoutes {
   /// Carrinho e checkout (app 03/04). Deep link `nexago://loja/carrinho`.
   static const String storeCart = '/loja/carrinho';
 
+  /// Favoritos da Loja (app 09), aberta pelo coração do header da vitrine.
+  /// Mesmo caminho do portal; tela interna, sem a barra inferior.
+  static const String storeFavorites = '/loja/favoritos';
+
   /// Novo endereço / editar (app 05); `?id=` edita. Devolve o id salvo.
   static const String storeAddress = '/loja/endereco';
 
@@ -694,6 +698,7 @@ abstract final class AppRouteNames {
   static const String storeProduct = 'storeProduct';
   static const String storeCustomize = 'storeCustomize';
   static const String storeCart = 'storeCart';
+  static const String storeFavorites = 'storeFavorites';
   static const String storeAddress = 'storeAddress';
   static const String storeOrders = 'storeOrders';
   static const String storeOrder = 'storeOrder';

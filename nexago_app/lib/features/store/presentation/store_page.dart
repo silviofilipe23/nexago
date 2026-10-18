@@ -23,6 +23,7 @@ import '../domain/store_pickup.dart';
 import '../domain/store_rules.dart';
 import 'store_copy.dart';
 import 'store_search_page.dart';
+import 'widgets/store_added_snack_bar.dart';
 import 'widgets/store_banner_carousel.dart';
 import 'widgets/store_filter_sheet.dart';
 import 'widgets/store_header.dart';
@@ -139,6 +140,19 @@ class _StorePageState extends ConsumerState<StorePage> {
       queryParameters: {if (_browse.hasQuery) 'q': _browse.query},
     );
     if (result == null || !mounted) return;
+    _applySearch(result);
+  }
+
+  /// A busca aberta pelos favoritos volta por aqui: o resultado é da vitrine.
+  Future<void> _openFavorites() async {
+    final result = await context.pushNamed<StoreSearchResult>(
+      AppRouteNames.storeFavorites,
+    );
+    if (result == null || !mounted) return;
+    _applySearch(result);
+  }
+
+  void _applySearch(StoreSearchResult result) {
     final categoryId = result.categoryId;
     if (categoryId != null) {
       _analytics.logStoreCategorySelect(category: categoryId);
@@ -238,31 +252,12 @@ class _StorePageState extends ConsumerState<StorePage> {
   }
 
   void _showAddedSnackBar() {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    if (messenger == null) return;
-    messenger
-      ..clearSnackBars()
-      ..showSnackBar(
-        SnackBar(
-          content: const Text(
-            StoreCopy.added,
-            style: TextStyle(fontWeight: FontWeight.w600),
-          ),
-          action: SnackBarAction(
-            label: StoreCopy.seeCart,
-            textColor: AppColors.brand,
-            onPressed: _openCart,
-          ),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          shape: const RoundedRectangleBorder(borderRadius: AppRadii.mdAll),
-          backgroundColor: AppColors.black.withValues(alpha: 0.88),
-          duration: const Duration(seconds: 4),
-          // Com ação o SnackBar fica até ser fechado (`persist` padrão) e
-          // ignora o `duration` — seguia até por cima da tela seguinte.
-          persist: false,
-        ),
-      );
+    showStoreAddedSnackBar(
+      context,
+      message: StoreCopy.added,
+      actionLabel: StoreCopy.seeCart,
+      onAction: _openCart,
+    );
   }
 
   void _openCart() => context.pushNamed(AppRouteNames.storeCart);
@@ -319,6 +314,7 @@ class _StorePageState extends ConsumerState<StorePage> {
                   ? null
                   : () => context.pushNamed(AppRouteNames.storeOrders),
               onSearch: _openSearch,
+              onFavorites: _openFavorites,
               onCart: _openCart,
             ),
             _OfflineStrip(offline: catalog?.fromCache ?? false),

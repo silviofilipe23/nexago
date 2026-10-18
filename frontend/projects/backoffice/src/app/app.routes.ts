@@ -263,7 +263,34 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/loja/campanhas/panel-campanhas.component').then((m) => m.PanelCampanhasComponent),
   },
-  { path: 'painel/squad', pathMatch: 'full', redirectTo: 'painel/squad/comissoes' },
+  { path: 'painel/squad', pathMatch: 'full', redirectTo: 'painel/squad/visao-geral' },
+  {
+    path: 'painel/squad/visao-geral',
+    title: 'NexaGO Squad — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/squad/visao-geral/panel-visao-geral.component').then((m) => m.PanelVisaoGeralComponent),
+  },
+  {
+    path: 'painel/squad/embaixadores',
+    title: 'Embaixadores — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/squad/embaixadores/panel-embaixadores.component').then((m) => m.PanelEmbaixadoresComponent),
+  },
+  {
+    path: 'painel/squad/embaixadores/:uid',
+    title: 'Perfil do embaixador — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () => import('./painel/squad/perfil/panel-perfil.component').then((m) => m.PanelPerfilComponent),
+  },
+  {
+    path: 'painel/squad/candidaturas',
+    title: 'Candidaturas & convites — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/squad/candidaturas/panel-candidaturas.component').then((m) => m.PanelCandidaturasComponent),
+  },
   {
     path: 'painel/squad/comissoes',
     title: 'Comissões — NexaGO Backoffice',

@@ -81,19 +81,18 @@ const LOJA_GROUP: NavGroup = {
   ],
 };
 
-/**
- * NexaSquad (programa de embaixadores). Visão geral, Embaixadores e Candidaturas chegam com os
- * contratos — sem badge até lá, para não exibir contagem que não existe.
- */
+/** NexaSquad (programa de embaixadores). Visão geral não tem badge: os números estão na própria tela. */
 const SQUAD_GROUP: NavGroup = {
   kind: 'group',
   id: 'squad',
   label: 'Squad',
   icon: 'squad',
   children: [
-    { kind: 'soon', id: 'squad-visao-geral', label: 'Visão geral', icon: 'trend-up' },
-    { kind: 'soon', id: 'squad-embaixadores', label: 'Embaixadores', icon: 'users' },
-    { kind: 'soon', id: 'squad-candidaturas', label: 'Candidaturas', icon: 'file' },
+    { kind: 'link', id: 'squad-visao-geral', label: 'Visão geral', icon: 'trend-up', route: '/painel/squad/visao-geral' },
+    // Badge real: contratos ativos (pausado conta; encerrado não).
+    { kind: 'link', id: 'squad-embaixadores', label: 'Embaixadores', icon: 'users', route: '/painel/squad/embaixadores' },
+    // Badge real: candidaturas na coluna Novas.
+    { kind: 'link', id: 'squad-candidaturas', label: 'Candidaturas', icon: 'file', route: '/painel/squad/candidaturas' },
     // Badge real: embaixadores com comissão liberada a repassar (SquadBadgesService).
     { kind: 'link', id: 'squad-comissoes', label: 'Comissões', icon: 'cash', route: '/painel/squad/comissoes' },
     {
@@ -602,6 +601,12 @@ export class PanelShellComponent {
     if (item.id === 'squad-comissoes') {
       return this.squadBadges.ambassadorsToPay() || undefined;
     }
+    if (item.id === 'squad-embaixadores') {
+      return this.squadBadges.activeContracts() || undefined;
+    }
+    if (item.id === 'squad-candidaturas') {
+      return this.squadBadges.newApplications() || undefined;
+    }
     return item.badge;
   }
 
@@ -644,11 +649,20 @@ export class PanelShellComponent {
     if (path.startsWith('/painel/atletas')) {
       return 'atletas';
     }
+    if (path.startsWith('/painel/squad/visao-geral')) {
+      return 'squad-visao-geral';
+    }
     if (path.startsWith('/painel/squad/niveis-regras')) {
       return 'squad-niveis-regras';
     }
     if (path.startsWith('/painel/squad/comissoes')) {
       return 'squad-comissoes';
+    }
+    if (path.startsWith('/painel/squad/embaixadores')) {
+      return 'squad-embaixadores';
+    }
+    if (path.startsWith('/painel/squad/candidaturas')) {
+      return 'squad-candidaturas';
     }
     if (path.startsWith('/painel/loja/visao-geral')) {
       return 'loja-visao-geral';

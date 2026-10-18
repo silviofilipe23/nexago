@@ -48,7 +48,7 @@ describe('PanelShellComponent', () => {
     expect(host.querySelector('.subnav')).toBeNull();
   });
 
-  it('Squad fica entre Atletas e Financeiro, com Comissões e Níveis & regras navegáveis', async () => {
+  it('Squad fica entre Atletas e Financeiro, com os cinco filhos navegáveis', async () => {
     const host = await mount();
     const top = labels(host, '.nav > .nav-item');
     expect(top.indexOf('Squad')).toBe(top.indexOf('Atletas') + 1);
@@ -64,7 +64,13 @@ describe('PanelShellComponent', () => {
       'Níveis & regras',
     ]);
     const links = [...host.querySelectorAll('.subnav a.nav-item')];
-    expect(links.map((e) => e.getAttribute('href'))).toEqual(['/painel/squad/comissoes', '/painel/squad/niveis-regras']);
+    expect(links.map((e) => e.getAttribute('href'))).toEqual([
+      '/painel/squad/visao-geral',
+      '/painel/squad/embaixadores',
+      '/painel/squad/candidaturas',
+      '/painel/squad/comissoes',
+      '/painel/squad/niveis-regras',
+    ]);
     // Sem comissão liberada: nenhuma contagem nos filhos.
     expect(host.querySelector('.subnav .badge')).toBeNull();
   });
@@ -76,6 +82,20 @@ describe('PanelShellComponent', () => {
     await TestBed.inject(ApplicationRef).whenStable();
     const item = [...host.querySelectorAll('.subnav a.nav-item')].find((e) => e.textContent!.includes('Comissões'))!;
     expect(item.querySelector('.badge')!.textContent!.trim()).toBe('14');
+  });
+
+  it('Embaixadores mostra os contratos ativos e Candidaturas as novas', async () => {
+    const host = await mount();
+    const badges = TestBed.inject(SquadBadgesService);
+    badges.setActiveContracts(20);
+    badges.setNewApplications(3);
+    groupButton(host, 'Squad').click();
+    await TestBed.inject(ApplicationRef).whenStable();
+    const badgeOf = (label: string) =>
+      [...host.querySelectorAll('.subnav a.nav-item')].find((e) => e.textContent!.includes(label))!.querySelector('.badge')
+        ?.textContent?.trim();
+    expect(badgeOf('Embaixadores')).toBe('20');
+    expect(badgeOf('Candidaturas')).toBe('3');
   });
 
   it('abre o grupo no clique e fecha no clique seguinte', async () => {

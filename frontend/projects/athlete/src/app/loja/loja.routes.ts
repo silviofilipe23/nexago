@@ -3,7 +3,7 @@ import { authGuard } from '../auth/auth.guard';
 
 /**
  * Loja do atleta. Vitrine e produto são abertos a visitante deslogado (spec); personalizar,
- * carrinho, pedidos e favoritos são do atleta e pedem login. Favoritos ainda é o destino provisório.
+ * carrinho, pedidos e favoritos são do atleta e pedem login.
  */
 export const LOJA_ROUTES: Routes = [
   {
@@ -50,6 +50,6 @@ export const LOJA_ROUTES: Routes = [
     path: 'favoritos',
     canActivate: [authGuard],
     data: { title: 'Favoritos' },
-    loadComponent: () => import('./loja-em-breve.component').then((m) => m.LojaEmBreveComponent),
+    loadComponent: () => import('./loja-favoritos.component').then((m) => m.LojaFavoritosComponent),
   },
 ];

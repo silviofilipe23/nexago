@@ -8,9 +8,11 @@ import '../../../../core/theme/app_typography.dart';
 import '../store_copy.dart';
 import 'store_style.dart';
 
-/// Header próprio da vitrine (voltar · "Loja" · pedidos · busca · sacola).
-/// Como aba da barra inferior não há para onde voltar: sem [onBack], sem o
-/// botão. "Meus pedidos" só com sessão ([onOrders]).
+/// Header próprio da vitrine (voltar · "Loja" · pedidos · busca · favoritos ·
+/// sacola) e dos favoritos (voltar · "Favoritos" + "{n} produtos" · busca ·
+/// sacola). Como aba da barra inferior não há para onde voltar: sem [onBack],
+/// sem o botão; sem [onFavorites], sem o coração; "Meus pedidos" só com sessão
+/// ([onOrders]).
 ///
 /// Não usa `NexaAppBar` de propósito: o contador da sacola é um `Stack` sobre
 /// a ação, e badge em `Stack` derruba a barra nativa Liquid Glass do iOS
@@ -19,14 +21,21 @@ import 'store_style.dart';
 class StoreHeader extends StatelessWidget {
   const StoreHeader({
     super.key,
+    this.title = StoreCopy.pageTitle,
+    this.subtitle,
     required this.cartUnits,
     required this.pulseTick,
     this.onBack,
     this.onOrders,
     required this.onSearch,
+    this.onFavorites,
     required this.onCart,
   });
 
+  final String title;
+
+  /// Linha menor embaixo do título ("6 produtos"); `null` = sem linha.
+  final String? subtitle;
   final int cartUnits;
 
   /// Muda a cada "+" que adicionou: a sacola pulsa.
@@ -36,13 +45,27 @@ class StoreHeader extends StatelessWidget {
   /// "Meus pedidos"; `null` = sem o botão (deslogado).
   final VoidCallback? onOrders;
   final VoidCallback onSearch;
+  final VoidCallback? onFavorites;
   final VoidCallback onCart;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    return SizedBox(
-      height: StoreStyle.headerButton,
+    final subtitle = this.subtitle;
+    final titleText = Text(
+      title,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: AppTypography.soraRegular(
+        fontSize: 24,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.72,
+        height: 1.1,
+        color: colors.onSurface,
+      ),
+    );
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: StoreStyle.headerButton),
       child: Row(
         children: [
           if (onBack case final back?) ...[
@@ -55,18 +78,26 @@ class StoreHeader extends StatelessWidget {
             const SizedBox(width: 12),
           ],
           Expanded(
-            child: Text(
-              StoreCopy.pageTitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.soraRegular(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.72,
-                height: 1.1,
-                color: colors.onSurface,
-              ),
-            ),
+            child: subtitle == null
+                ? titleText
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      titleText,
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.soraRegular(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w400,
+                          color: StoreStyle.tertiary(colors),
+                        ),
+                      ),
+                    ],
+                  ),
           ),
           if (onOrders case final orders?) ...[
             StoreRoundButton(
@@ -83,6 +114,15 @@ class StoreHeader extends StatelessWidget {
             onTap: onSearch,
           ),
           const SizedBox(width: 8),
+          if (onFavorites case final favorites?) ...[
+            StoreRoundButton(
+              key: const ValueKey('store-header-favorites'),
+              icon: Icons.favorite_border_rounded,
+              tooltip: StoreCopy.favoritesTitle,
+              onTap: favorites,
+            ),
+            const SizedBox(width: 8),
+          ],
           StoreBagButton(
             units: cartUnits,
             pulseTick: pulseTick,

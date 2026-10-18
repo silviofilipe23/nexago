@@ -3228,6 +3228,21 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Candidaturas do Squad (tela 04): notas internas e motivo de recusa nunca saem para o atleta,
+    // então só o backoffice lê. Escrita só pelas callables de `squad-applications.ts`.
+    match /squadApplications/{applicationId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    // Convites do Squad: o atleta convidado lê o próprio (App 06 · Convite recebido). Abrir e
+    // aceitar passam pelas callables `openSquadInvite`/`acceptSquadInvite`.
+    match /squadInvites/{inviteId} {
+      allow read: if isAdmin() || isSuperAdmin() ||
+        (request.auth != null && resource.data.athleteId == request.auth.uid);
+      allow write: if false;
+    }
+
     // Último link/QR de embaixador que o atleta abriu. Só a callable `recordSquadAttribution` grava
     // (o cliente não escolhe a quem atribuir a própria inscrição).
     match /squadAttributions/{uid} {

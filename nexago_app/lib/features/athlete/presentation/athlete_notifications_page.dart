@@ -262,9 +262,7 @@ class _AthleteNotificationsPageState
                                     ? () => _handleSecondaryAction(n)
                                     : null,
                                 onTap:
-                                    isRemoving ||
-                                        presentation.routePath == null ||
-                                        presentation.actions.isNotEmpty
+                                    isRemoving || presentation.routePath == null
                                     ? null
                                     : () => _navigateForNotification(n),
                               ),

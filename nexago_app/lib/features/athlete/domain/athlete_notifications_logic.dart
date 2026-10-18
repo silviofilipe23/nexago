@@ -152,7 +152,29 @@ String? _tournamentPartnerInviteAcceptedRoute(Map<String, String> data) {
   return null;
 }
 
+/// Apresentação + destino do toque. Todo item do inbox leva ao seu assunto: o que o tipo não
+/// resolve sozinho cai na mesma resolução do push ([resolveNotificationRoute]).
 AthleteNotificationPresentation notificationPresentation(
+  AthleteInboxNotification notification,
+) {
+  final base = _basePresentation(notification);
+  // statusLine = desfecho já registrado (ex.: convite recusado): sem destino de propósito.
+  if (base.statusLine != null) return base;
+  if (base.routePath != null && base.routePath!.isNotEmpty) return base;
+  final type = notification.type.toLowerCase();
+  final route = resolveNotificationRoute({...notification.data, 'type': type});
+  if (route == null || route.isEmpty) return base;
+  return AthleteNotificationPresentation(
+    icon: base.icon,
+    iconColor: base.iconColor,
+    iconBackground: base.iconBackground,
+    actions: base.actions,
+    statusLine: base.statusLine,
+    routePath: route,
+  );
+}
+
+AthleteNotificationPresentation _basePresentation(
   AthleteInboxNotification notification,
 ) {
   final type = notification.type.toLowerCase();
@@ -414,12 +436,14 @@ AthleteNotificationPresentation notificationPresentation(
         icon: Icons.bolt_rounded,
         iconColor: AppColors.brand,
         iconBackground: AppColors.brand.withValues(alpha: 0.15),
+        routePath: AppRoutes.athleteAchievements,
       );
     case 'ranking_up':
       return AthleteNotificationPresentation(
         icon: Icons.leaderboard_outlined,
         iconColor: AppColors.win,
         iconBackground: AppColors.win.withValues(alpha: 0.12),
+        routePath: AppRoutes.athleteRanking,
       );
     case 'tournament_review_request':
     case 'tournament_review_reminder':

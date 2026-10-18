@@ -25,30 +25,33 @@ class SquadPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(mySquadProvider);
     final member = async.valueOrNull?.member;
-    return SquadScaffold(
-      title: 'Squad',
-      trailing: member == null
-          ? null
-          : SquadTierBadge(member.tier, small: true),
-      body: async.when(
-        skipLoadingOnRefresh: true,
-        loading: () => const SquadLoadingList(),
-        error: (e, _) => SquadMessage(
-          title: 'Não foi possível abrir o Squad',
-          message: e.toString(),
-          actionLabel: 'Tentar de novo',
-          onAction: () => ref.invalidate(mySquadProvider),
-          icon: Icons.wifi_off_rounded,
+    // Aberta por push com o app vivo: pede dado fresco (mostra o cache enquanto isso).
+    return SquadFreshData(
+      child: SquadScaffold(
+        title: 'Squad',
+        trailing: member == null
+            ? null
+            : SquadTierBadge(member.tier, small: true),
+        body: async.when(
+          skipLoadingOnRefresh: true,
+          loading: () => const SquadLoadingList(),
+          error: (e, _) => SquadMessage(
+            title: 'Não foi possível abrir o Squad',
+            message: e.toString(),
+            actionLabel: 'Tentar de novo',
+            onAction: () => ref.invalidate(mySquadProvider),
+            icon: Icons.wifi_off_rounded,
+          ),
+          data: (squad) {
+            final m = squad.member;
+            if (m == null) return SquadNotMember(invite: squad.invite);
+            return RefreshIndicator(
+              color: AppColors.brand,
+              onRefresh: () => ref.refresh(mySquadProvider.future),
+              child: _SquadHome(member: m),
+            );
+          },
         ),
-        data: (squad) {
-          final m = squad.member;
-          if (m == null) return SquadNotMember(invite: squad.invite);
-          return RefreshIndicator(
-            color: AppColors.brand,
-            onRefresh: () => ref.refresh(mySquadProvider.future),
-            child: _SquadHome(member: m),
-          );
-        },
       ),
     );
   }
@@ -313,16 +316,25 @@ class SquadProgressCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              SquadTierBadge(from, small: true),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.arrow_forward_rounded,
-                size: 13,
-                color: SquadStyle.dim(colors),
+              // Wrap: em tela estreita (ou com texto ampliado) o "Pro
+              // Ambassador" desce de linha em vez de estourar.
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    SquadTierBadge(from, small: true),
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 13,
+                      color: SquadStyle.dim(colors),
+                    ),
+                    SquadTierBadge(progress.toTier, small: true, solid: true),
+                  ],
+                ),
               ),
               const SizedBox(width: 8),
-              SquadTierBadge(progress.toTier, small: true, solid: true),
-              const Spacer(),
               Text(
                 '${progress.conversions}/${progress.minConversions}',
                 style: SquadStyle.mono(12, color: colors.onSurface),

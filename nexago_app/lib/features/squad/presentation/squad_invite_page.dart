@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -165,6 +164,14 @@ class _OpenInviteState extends ConsumerState<_OpenInvite> {
         }
       });
       if (e.field != 'code') showAppSnackBar(context, e.message);
+    } catch (_) {
+      // Qualquer outra falha também devolve o botão (senão gira para sempre).
+      if (!mounted) return;
+      setState(() => _saving = false);
+      showAppSnackBar(
+        context,
+        'Não foi possível concluir agora. Tente de novo em instantes.',
+      );
     }
   }
 
@@ -349,12 +356,8 @@ class _CodeBox extends StatelessWidget {
                         autofocus: true,
                         autocorrect: false,
                         textCapitalization: TextCapitalization.characters,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(
-                            RegExp('[A-Za-z0-9]'),
-                          ),
-                          LengthLimitingTextInputFormatter(12),
-                          _UpperCase(),
+                        inputFormatters: const [
+                          SquadCodeInputFormatter(maxLength: 12),
                         ],
                         onChanged: onChanged,
                         style: codeStyle,
@@ -398,14 +401,6 @@ class _CodeBox extends StatelessWidget {
       ),
     );
   }
-}
-
-class _UpperCase extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) => newValue.copyWith(text: newValue.text.toUpperCase());
 }
 
 class _ContractCheck extends StatelessWidget {

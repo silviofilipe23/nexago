@@ -18,27 +18,30 @@ class SquadBenefitsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(mySquadProvider);
-    return SquadScaffold(
-      title: 'Benefícios',
-      body: async.when(
-        skipLoadingOnRefresh: true,
-        loading: () => const SquadLoadingList(),
-        error: (e, _) => SquadMessage(
-          title: 'Não foi possível carregar seus benefícios',
-          message: e.toString(),
-          actionLabel: 'Tentar de novo',
-          onAction: () => ref.invalidate(mySquadProvider),
-          icon: Icons.wifi_off_rounded,
+    // Aberta por push com o app vivo: pede dado fresco (mostra o cache enquanto isso).
+    return SquadFreshData(
+      child: SquadScaffold(
+        title: 'Benefícios',
+        body: async.when(
+          skipLoadingOnRefresh: true,
+          loading: () => const SquadLoadingList(),
+          error: (e, _) => SquadMessage(
+            title: 'Não foi possível carregar seus benefícios',
+            message: e.toString(),
+            actionLabel: 'Tentar de novo',
+            onAction: () => ref.invalidate(mySquadProvider),
+            icon: Icons.wifi_off_rounded,
+          ),
+          data: (squad) {
+            final m = squad.member;
+            if (m == null) return SquadNotMember(invite: squad.invite);
+            return RefreshIndicator(
+              color: AppColors.brand,
+              onRefresh: () => ref.refresh(mySquadProvider.future),
+              child: _BenefitsBody(member: m),
+            );
+          },
         ),
-        data: (squad) {
-          final m = squad.member;
-          if (m == null) return SquadNotMember(invite: squad.invite);
-          return RefreshIndicator(
-            color: AppColors.brand,
-            onRefresh: () => ref.refresh(mySquadProvider.future),
-            child: _BenefitsBody(member: m),
-          );
-        },
       ),
     );
   }

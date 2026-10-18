@@ -382,8 +382,8 @@ class _CopyField extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     return Container(
-      height: 48,
-      padding: const EdgeInsets.only(left: 14, right: 6),
+      constraints: const BoxConstraints(minHeight: 48),
+      padding: const EdgeInsets.only(left: 14, right: 6, top: 4, bottom: 4),
       decoration: BoxDecoration(
         color: colors.surfaceRaised,
         borderRadius: BorderRadius.circular(14),

@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/layout/nexa_page_header.dart';
@@ -692,6 +693,32 @@ class SquadWordmark extends StatelessWidget {
         ],
       ),
       style: SquadStyle.display(size, color: fg),
+    );
+  }
+}
+
+/// Código digitado: maiúsculo, sem acento e só A–Z/0–9 ("joão 10" → "JOAO10").
+///
+/// Normaliza ANTES de filtrar — um filtro `[A-Za-z0-9]` na frente apagava a
+/// letra acentuada ("joão10" virava "JOO10").
+class SquadCodeInputFormatter extends TextInputFormatter {
+  const SquadCodeInputFormatter({required this.maxLength});
+
+  final int maxLength;
+
+  static final RegExp _invalid = RegExp('[^A-Z0-9]');
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    var text = normalizeSquadCode(newValue.text).replaceAll(_invalid, '');
+    if (text.length > maxLength) text = text.substring(0, maxLength);
+    if (text == newValue.text) return newValue;
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 }

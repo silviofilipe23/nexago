@@ -16,6 +16,7 @@
  * Pontos = conversões × `points.perConversion` das regras vigentes. Presença em evento e conteúdo
  * ainda não têm fonte de dados: contam zero até existirem (`squadPoints` já recebe os três).
  */
+import {createHash} from "crypto";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, type Firestore} from "firebase-admin/firestore";
 import {artifactsPublicDataBase} from "./firebase-paths";
@@ -29,6 +30,7 @@ import {
   lastDonePayout,
   loadPayoutConfig,
   openPayoutDate,
+  payoutCutoff,
 } from "./squad-commissions";
 import {pendingAmendment} from "./squad-contracts";
 import {
@@ -219,7 +221,8 @@ function athleteCommission(r: CommissionRow): AthleteCommission {
     r.status : "pending";
   const reason = r.cancelReason === "refund" || r.cancelReason === "chargeback" ? r.cancelReason : "manual";
   return {
-    id: r.id,
+    // O id do doc é `inscrição_pagador`: com ele o embaixador chegaria ao uid de quem pagou.
+    id: createHash("sha256").update(r.id).digest("hex").slice(0, 16),
     at: iso(r.registeredAt),
     label: str(r.raw["convertedLabel"]) || "Atleta",
     tournamentName: str(r.raw["tournamentName"]),
@@ -288,6 +291,8 @@ export interface SquadMemberView {
     totalCents: number;
     /** Liberada e ainda não repassada (com os ajustes de reembolso descontados). */
     availableCents: number;
+    /** Quanto disso entra no repasse em aberto (sem o retido para ele e o liberado após o fechamento). */
+    nextPayoutCents: number;
     /** Aguardando o pagamento da inscrição. */
     pendingCents: number;
     /** O que já caiu na carteira neste ciclo. */
@@ -359,15 +364,30 @@ export async function mySquadCore(db: Firestore, uid: string, now: Date): Promis
   const followerDiscountPct = typeof contract["followerDiscountPct"] === "number" ?
     contract["followerDiscountPct"] : pkg.followerDiscountPct;
 
-  const rows = inContract(commissionsSnap.docs.map((d) => rowOf(d.id, d.data() as Raw)), start);
+  const allRows = commissionsSnap.docs.map((d) => rowOf(d.id, d.data() as Raw));
+  const rows = inContract(allRows, start);
   const confirmed = rows.filter((r) => CONFIRMED.includes(r.status));
   const sum = (list: CommissionRow[], f: (r: CommissionRow) => number) => list.reduce((n, r) => n + f(r), 0);
   const pendingCents = sum(rows.filter((r) => r.status === "pending"), (r) => r.amountCents);
-  const releasedUnpaid = sum(rows.filter((r) => r.status === "released" && r.payoutId === null), (r) => r.amountCents);
-  const adjustments = adjustmentsSnap.docs
-    .map((d) => d.data() as Raw)
+  const releasedUnpaid = rows.filter((r) => r.status === "released" && r.payoutId === null);
+  const adjustmentDocs = adjustmentsSnap.docs.map((d) => d.data() as Raw);
+  const openAdjustments = adjustmentDocs
     .filter((a) => (a["payoutId"] ?? null) === null)
     .reduce((n, a) => n + int(a["amountCents"]), 0);
+  // Reembolso parcial de comissão paga não mexe no `amountCents`: vira ajuste. A cancelada já
+  // saiu da soma pelo status, então só os ajustes de comissão confirmada corrigem o total.
+  const confirmedIds = new Set(confirmed.map((r) => r.id));
+  const partialRefunds = adjustmentDocs
+    .filter((a) => confirmedIds.has(str(a["commissionId"])))
+    .reduce((n, a) => n + int(a["amountCents"]), 0);
+
+  // O repasse em aberto leva o que foi liberado antes do fechamento e não está retido para ele.
+  const nextPayoutDate = openPayoutDate(spDateKey(now), lastDone, payoutConfig.days);
+  const cutoff = payoutCutoff(nextPayoutDate).getTime();
+  const goesInNext = releasedUnpaid.filter((r) => {
+    const hold = isObj(r.raw["hold"]) ? str((r.raw["hold"] as Raw)["payoutDate"]) : "";
+    return hold !== nextPayoutDate && r.releasedAt !== null && r.releasedAt.getTime() < cutoff;
+  });
 
   const payouts = walletSnap.docs
     .map((d) => ({id: d.id, at: dateOf((d.data() as Raw)["createdAt"]), amountCents: int((d.data() as Raw)["amountCents"])}))
@@ -376,6 +396,8 @@ export async function mySquadCore(db: Firestore, uid: string, now: Date): Promis
 
   const conversions = confirmed.length;
   const total = squadPoints({conversions}, rules.points);
+  // A promoção conta todas as conversões do embaixador, como o status do backoffice.
+  const allConversions = allRows.filter((r) => CONFIRMED.includes(r.status)).length;
   const promotion = rules.promotion.find((p) => p.from === tier) ?? null;
 
   const amendment = pendingAmendment(contract);
@@ -408,12 +430,13 @@ export async function mySquadCore(db: Firestore, uid: string, now: Date): Promis
       followerDiscountFirstOnly: attribution.followerDiscountFirstOnly,
       pendingAmendment: pendingView,
       earnings: {
-        totalCents: pendingCents + sum(confirmed, (r) => r.amountCents),
-        availableCents: Math.max(0, releasedUnpaid + adjustments),
+        totalCents: Math.max(0, pendingCents + sum(confirmed, (r) => r.amountCents) + partialRefunds),
+        availableCents: Math.max(0, sum(releasedUnpaid, (r) => r.amountCents) + openAdjustments),
+        nextPayoutCents: Math.max(0, sum(goesInNext, (r) => r.amountCents) + openAdjustments),
         pendingCents,
         receivedCents: payouts.reduce((n, p) => n + p.amountCents, 0),
         revenueCents: sum(confirmed, (r) => r.grossCents),
-        nextPayoutDate: openPayoutDate(spDateKey(now), lastDone, payoutConfig.days),
+        nextPayoutDate,
         minPayoutCents: payoutConfig.minNetCents,
       },
       conversions,
@@ -434,7 +457,7 @@ export async function mySquadCore(db: Firestore, uid: string, now: Date): Promis
       progress: promotion ? {
         toTier: promotion.to,
         toTierLabel: TIER_LABELS[promotion.to],
-        conversions,
+        conversions: allConversions,
         minConversions: promotion.minConversions,
         reviewDate: iso(end),
       } : null,

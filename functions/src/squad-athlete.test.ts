@@ -132,6 +132,7 @@ describe("getMySquad", () => {
     assert.equal(m.earnings.revenueCents, 14000 + 14000 + 12000);
     assert.equal(m.earnings.nextPayoutDate, "2026-10-20");
     assert.equal(m.earnings.minPayoutCents, 20_00);
+    assert.equal(m.earnings.nextPayoutCents, 1400 - 200);
     assert.equal(m.conversions, 3);
     assert.equal(m.athletes, 4);
     assert.equal(m.commissions.length, 5, "PIX vencido não entra");
@@ -147,11 +148,46 @@ describe("getMySquad", () => {
     assert.equal(m.points.level, "Bronze");
     assert.deepEqual(
       {to: m.progress?.toTier, conv: m.progress?.conversions, min: m.progress?.minConversions},
-      {to: "amb", conv: 3, min: 10},
+      {to: "amb", conv: 4, min: 10},
+      "a promoção conta também a paga do ciclo anterior",
     );
     assert.equal(m.nextPackage?.tier, "amb");
     assert.equal(m.package.commissionPct, 5);
     assert.equal(m.followerDiscountFirstOnly, true);
+  });
+
+  it("reembolso parcial corrige o total; retido e liberado após o fechamento ficam fora do próximo repasse", async () => {
+    const {fake, db} = setup();
+    seedContract(fake, "jv");
+    // Paga de R$ 12 com reembolso parcial de R$ 6 (ajuste já repassado).
+    seedCommission(fake, "jv", "paid", {amountCents: 1200});
+    const paidId = `c${seq}`;
+    fake.seedDoc("squadCommissionAdjustments/p1", {
+      ambassadorId: "jv", commissionId: paidId, amountCents: -600, payoutId: "2026-10-06",
+    });
+    // Cancelada depois de paga: o ajuste dela não pode descontar de novo do total.
+    seedCommission(fake, "jv", "canceled", {amountCents: 1000, cancelReason: "refund"});
+    fake.seedDoc("squadCommissionAdjustments/c1", {
+      ambassadorId: "jv", commissionId: `c${seq}`, amountCents: -1000, payoutId: "2026-10-06",
+    });
+    seedCommission(fake, "jv", "released", {amountCents: 1400});
+    seedCommission(fake, "jv", "released", {amountCents: 500, hold: {payoutDate: "2026-10-20", reason: "interno"}});
+    const m = (await mySquadCore(db, "jv", NOW)).member!;
+    assert.equal(m.earnings.totalCents, 1200 - 600 + 1400 + 500);
+    assert.equal(m.earnings.availableCents, 1400 + 500);
+    assert.equal(m.earnings.nextPayoutCents, 1400, "retida para o repasse em aberto fica de fora");
+    assert.ok(!JSON.stringify(m).includes("interno"), "motivo da retenção não sai");
+    assert.ok(m.commissions.every((c) => /^[0-9a-f]{16}$/.test(c.id)), "id opaco, sem o uid do pagador");
+  });
+
+  it("progresso de promoção conta todas as conversões, como o backoffice", async () => {
+    const {fake, db} = setup();
+    seedContract(fake, "jv");
+    seedCommission(fake, "jv", "paid", {registeredAt: new Date("2026-08-01T12:00:00Z")});
+    seedCommission(fake, "jv", "released");
+    const m = (await mySquadCore(db, "jv", NOW)).member!;
+    assert.equal(m.conversions, 1, "o ciclo conta só as do contrato atual");
+    assert.equal(m.progress?.conversions, 2);
   });
 
   it("Pro e Captain não têm próxima promoção; aditivo pendente vem com o pacote novo", async () => {

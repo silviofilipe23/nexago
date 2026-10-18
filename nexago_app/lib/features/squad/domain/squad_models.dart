@@ -104,6 +104,7 @@ class SquadEarnings {
   const SquadEarnings({
     required this.totalCents,
     required this.availableCents,
+    required this.nextPayoutCents,
     required this.pendingCents,
     required this.receivedCents,
     required this.revenueCents,
@@ -116,6 +117,10 @@ class SquadEarnings {
 
   /// Liberada e ainda não repassada (com ajustes de reembolso descontados).
   final int availableCents;
+
+  /// Quanto do disponível entra no repasse em aberto (o retido para ele e o
+  /// liberado depois do fechamento ficam para o seguinte).
+  final int nextPayoutCents;
 
   /// Aguardando o pagamento da inscrição.
   final int pendingCents;
@@ -135,6 +140,10 @@ class SquadEarnings {
   factory SquadEarnings.fromMap(Map<String, Object?> m) => SquadEarnings(
     totalCents: _int(m['totalCents']),
     availableCents: _int(m['availableCents']),
+    // Backend sem o campo: tudo o que está disponível vai no próximo.
+    nextPayoutCents: m['nextPayoutCents'] is num
+        ? _int(m['nextPayoutCents'])
+        : _int(m['availableCents']),
     pendingCents: _int(m['pendingCents']),
     receivedCents: _int(m['receivedCents']),
     revenueCents: _int(m['revenueCents']),

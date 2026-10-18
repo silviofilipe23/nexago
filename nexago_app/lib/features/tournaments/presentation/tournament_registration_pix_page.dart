@@ -75,11 +75,19 @@ class _TournamentRegistrationPixPageState
 
   double get _shareReais => widget.args.shareAmountReais;
 
+  /// Indicação que vale para a prévia. Código digitado e não aplicado é
+  /// conferido só na cobrança — e ele vence o link —, então até lá não há
+  /// desconto a prever.
+  SquadCodeCheck get _squadPreview =>
+      _squad.origin != 'code' && _squadCodeController.text.trim().isNotEmpty
+          ? SquadCodeCheck.none
+          : _squad;
+
   /// Prévia do desconto do código (o servidor confere e devolve o aplicado).
   int get _squadDiscountCents => squadDiscountPreviewCents(
         reaisToCents(_shareReais),
-        _squad.discountPct,
-        _squad.feePercent,
+        _squadPreview.discountPct,
+        _squadPreview.feePercent,
       );
 
   /// Código que vai na cobrança: o aplicado ou, sem ele, o que foi digitado
@@ -102,6 +110,7 @@ class _TournamentRegistrationPixPageState
   void initState() {
     super.initState();
     _cpfController.addListener(_onCpfTextChanged);
+    _squadCodeController.addListener(_onSquadCodeChanged);
     _rescheduleExpiries();
     WidgetsBinding.instance.addPostFrameCallback((_) => _prefillCpf());
   }
@@ -110,10 +119,16 @@ class _TournamentRegistrationPixPageState
     if (mounted) setState(() {});
   }
 
+  /// Digitar (ou apagar) um código muda a prévia do desconto.
+  void _onSquadCodeChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     _expiryTimer?.cancel();
     _cpfController.removeListener(_onCpfTextChanged);
+    _squadCodeController.removeListener(_onSquadCodeChanged);
     _cpfController.dispose();
     _squadCodeController.dispose();
     super.dispose();
@@ -483,8 +498,8 @@ class _TournamentRegistrationPixPageState
                             _SquadSummary(
                               priceCents: reaisToCents(_shareReais),
                               discountCents: _squadDiscountCents,
-                              discountLabel: _squad.origin == 'code'
-                                  ? 'Código ${_squad.code}'
+                              discountLabel: _squadPreview.origin == 'code'
+                                  ? 'Código ${_squadPreview.code}'
                                   : 'Indicação',
                               cashbackCents: cashbackQuote.appliedPreviewCents,
                               totalCents: cashbackQuote.chargePreviewCents,

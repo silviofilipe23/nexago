@@ -75,21 +75,32 @@ String squadThousands(int n) {
 String squadEarnedHeadline(SquadMember m) =>
     m.isPilot ? 'Você ganhou no piloto' : 'Você ganhou neste ciclo';
 
-/// Linha do repasse: data quando o disponível já passa do mínimo.
+/// Linha do repasse: data só para o que de fato entra no repasse em aberto.
 String squadPayoutLine(SquadEarnings e) {
   if (e.availableCents <= 0) {
     return 'O que for liberado cai na carteira NexaGO a cada repasse.';
+  }
+  final date = squadDayKeyLabel(e.nextPayoutDate);
+  final goes = e.nextPayoutCents > 0 && e.nextPayoutCents >= e.minPayoutCents;
+  if (goes && e.nextPayoutCents >= e.availableCents) {
+    return 'Cai na carteira NexaGO em $date';
+  }
+  if (goes) {
+    return '${formatBRLFromCents(e.nextPayoutCents)} cai na carteira NexaGO em '
+        '$date; o resto entra no repasse seguinte.';
   }
   if (e.availableCents < e.minPayoutCents) {
     return 'Repasse a partir de ${formatBRLFromCents(e.minPayoutCents)}: o '
         'saldo acumula para o próximo.';
   }
-  return 'Cai na carteira NexaGO em ${squadDayKeyLabel(e.nextPayoutDate)}';
+  return 'Entra no repasse seguinte ao de $date.';
 }
 
-/// Próximo repasse curto ("20 out"), ou "—" quando ainda não há o mínimo.
+/// Próximo repasse curto ("20 out"), ou "—" quando nada entra nele.
 String squadNextPayoutShort(SquadEarnings e) {
-  if (e.availableCents < e.minPayoutCents || e.availableCents <= 0) return '—';
+  if (e.nextPayoutCents <= 0 || e.nextPayoutCents < e.minPayoutCents) {
+    return '—';
+  }
   return squadDayKeyLabel(e.nextPayoutDate);
 }
 
@@ -404,15 +415,26 @@ String squadLinkDisplay(String link) =>
 const int _minChargeCents = 500;
 
 /// Piso da taxa por transação (`FEE_FLOOR_REAIS` de `platform-fees.ts`).
-const int _feeFloorCents = 150;
+const double _feeFloorReais = 1.5;
+
+double _roundMoney(double n) => (n * 100).round() / 100;
 
 /// Taxa da plataforma em centavos; `null` = torneio sem organizador.
+///
+/// Mesma conta, em reais e com os mesmos arredondamentos, de
+/// `computePlatformFeeReais` + `discountFeeCapCents`: feita direto em
+/// centavos, alguns preços davam 1 centavo de diferença.
 int? squadPlatformFeeCents(int priceCents, num? feePercent) {
   if (feePercent == null) return null;
-  if (priceCents <= 0 || feePercent <= 0) return 0;
-  final pctFee = (priceCents * feePercent / 100).round();
-  final fee = pctFee > _feeFloorCents ? pctFee : _feeFloorCents;
-  return fee.clamp(0, priceCents - 1);
+  final amount = priceCents / 100;
+  if (!(amount > 0) || !(feePercent > 0)) return 0;
+  final pctFee = _roundMoney(amount * feePercent / 100);
+  final withFloor = _roundMoney(
+    pctFee > _feeFloorReais ? pctFee : _feeFloorReais,
+  );
+  final ceiling = _roundMoney(amount - 0.01);
+  final capped = withFloor < ceiling ? withFloor : ceiling;
+  return ((capped < 0 ? 0 : capped) * 100).round();
 }
 
 /// Prévia do desconto do código, espelho de `followerDiscountFor` +

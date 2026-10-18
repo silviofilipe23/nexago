@@ -1,5 +1,5 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -57,7 +57,18 @@ class _SquadCodeFieldState extends ConsumerState<SquadCodeField> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadLinkReferral());
   }
 
-  /// Indicação por link/QR guardada na conta: uma consulta por checkout.
+  @override
+  void didUpdateWidget(SquadCodeField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A inscrição pode chegar depois do primeiro frame (rota aberta direto):
+    // a consulta com `athleteUids` vazio não pega a autoindicação do parceiro.
+    if (!listEquals(oldWidget.athleteUids, widget.athleteUids)) {
+      _loadLinkReferral();
+    }
+  }
+
+  /// Indicação por link/QR guardada na conta: uma consulta por checkout (e de
+  /// novo quando os atletas da inscrição chegam).
   Future<void> _loadLinkReferral() async {
     if (widget.registrationId.isEmpty) return;
     try {
@@ -68,9 +79,11 @@ class _SquadCodeFieldState extends ConsumerState<SquadCodeField> {
             athleteUids: widget.athleteUids,
             registrationId: widget.registrationId,
           );
-      if (!mounted || !check.viaLink) return;
-      setState(() => _link = check);
-      if (_applied.code == null) widget.onChanged(check);
+      if (!mounted) return;
+      final link = check.viaLink ? check : SquadCodeCheck.none;
+      if (!link.viaLink && !_link.viaLink) return;
+      setState(() => _link = link);
+      if (_applied.code == null) widget.onChanged(link);
     } catch (_) {
       // Melhor esforço: sem a consulta, o checkout segue como antes.
     }
@@ -178,11 +191,7 @@ class _SquadCodeFieldState extends ConsumerState<SquadCodeField> {
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _apply(),
                 onChanged: (_) => setState(() => _error = null),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
-                  LengthLimitingTextInputFormatter(20),
-                  _UpperCaseFormatter(),
-                ],
+                inputFormatters: const [SquadCodeInputFormatter(maxLength: 20)],
                 style: theme.textTheme.bodyLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
@@ -360,15 +369,5 @@ class SquadAppliedCodeCard extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-class _UpperCaseFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    return newValue.copyWith(text: newValue.text.toUpperCase());
   }
 }

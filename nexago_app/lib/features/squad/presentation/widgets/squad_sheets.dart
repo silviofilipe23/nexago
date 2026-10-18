@@ -174,6 +174,13 @@ class _AmendmentSheetState extends ConsumerState<_AmendmentSheet> {
       if (!mounted) return;
       setState(() => _saving = false);
       showAppSnackBar(context, e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      showAppSnackBar(
+        context,
+        'Não foi possível concluir agora. Tente de novo em instantes.',
+      );
     }
   }
 

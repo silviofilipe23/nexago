@@ -147,6 +147,12 @@ import '../../features/athlete/presentation/athlete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_settings_page.dart';
 import '../../features/athlete/presentation/athlete_referral_page.dart';
 import '../../features/cashback/presentation/cashback_page.dart';
+import '../../features/squad/presentation/squad_benefits_page.dart';
+import '../../features/squad/presentation/squad_earnings_page.dart';
+import '../../features/squad/presentation/squad_invite_page.dart';
+import '../../features/squad/presentation/squad_page.dart';
+import '../../features/squad/presentation/squad_ranking_page.dart';
+import '../../features/squad/presentation/squad_share_page.dart';
 import '../../features/store/domain/store_checkout_models.dart';
 import '../../features/store/presentation/store_address_page.dart';
 import '../../features/store/presentation/store_cart_page.dart';
@@ -1038,6 +1044,38 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.athleteCashback,
         name: AppRouteNames.athleteCashback,
         builder: (context, state) => const CashbackPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.squad,
+        name: AppRouteNames.squad,
+        builder: (context, state) => const SquadPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.squadShare,
+        name: AppRouteNames.squadShare,
+        builder: (context, state) => const SquadSharePage(),
+      ),
+      GoRoute(
+        path: AppRoutes.squadEarnings,
+        name: AppRouteNames.squadEarnings,
+        builder: (context, state) => const SquadEarningsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.squadRanking,
+        name: AppRouteNames.squadRanking,
+        builder: (context, state) => const SquadRankingPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.squadBenefits,
+        name: AppRouteNames.squadBenefits,
+        builder: (context, state) => const SquadBenefitsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.squadInvite,
+        name: AppRouteNames.squadInvite,
+        builder: (context, state) => SquadInvitePage(
+          inviteId: state.pathParameters['inviteId'] ?? '',
+        ),
       ),
       GoRoute(
         path: AppRoutes.community,

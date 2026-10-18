@@ -230,6 +230,13 @@ export const routes: Routes = [
       ),
   },
   {
+    // NexaSquad: painel do embaixador (Painel, Ganhos, Nível) ou "Entrar no Squad". As abas e o
+    // store que elas dividem moram em `squad/squad.routes.ts`, carregados sob demanda.
+    path: 'squad',
+    canActivate: [authGuard, onboardingGuard],
+    loadChildren: () => import('./squad/squad.routes').then((m) => m.SQUAD_ROUTES),
+  },
+  {
     path: 'comunidade',
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>

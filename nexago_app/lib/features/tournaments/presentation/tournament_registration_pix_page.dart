@@ -31,6 +31,8 @@ import '../../athlete/presentation/widgets/tournament_access_banner.dart';
 import '../../cashback/application/cashback_providers.dart';
 import '../../cashback/domain/cashback_rules.dart';
 import '../../cashback/presentation/widgets/checkout_cashback_toggle.dart';
+import '../../squad/domain/squad_models.dart';
+import '../../squad/domain/squad_rules.dart';
 import '../data/tournament_registration_service.dart';
 import '../domain/registration_shell_logic.dart';
 import '../domain/tournament_registration_navigation.dart';
@@ -68,13 +70,38 @@ class _TournamentRegistrationPixPageState
   bool _useCashback = false;
   Timer? _expiryTimer;
 
+  /// Indicação do NexaSquad vigente (código aplicado ou link/QR).
+  SquadCodeCheck _squad = SquadCodeCheck.none;
+
   double get _shareReais => widget.args.shareAmountReais;
 
+  /// Indicação que vale para a prévia. Código digitado e não aplicado é
+  /// conferido só na cobrança — e ele vence o link —, então até lá não há
+  /// desconto a prever.
+  SquadCodeCheck get _squadPreview =>
+      _squad.origin != 'code' && _squadCodeController.text.trim().isNotEmpty
+          ? SquadCodeCheck.none
+          : _squad;
+
+  /// Prévia do desconto do código (o servidor confere e devolve o aplicado).
+  int get _squadDiscountCents => squadDiscountPreviewCents(
+        reaisToCents(_shareReais),
+        _squadPreview.discountPct,
+        _squadPreview.feePercent,
+      );
+
+  /// Código que vai na cobrança: o aplicado ou, sem ele, o que foi digitado
+  /// (a cobrança confere). Vazio = a indicação por link, se houver, vale sozinha.
+  String get _squadCodeForCharge => _squad.origin == 'code'
+      ? (_squad.code ?? '')
+      : _squadCodeController.text;
+
   /// Prévia do cashback sobre o valor desta cobrança (parcela ou integral,
-  /// o mesmo `chargeAmount` que a callable cobra).
+  /// o mesmo `chargeAmount` que a callable cobra), depois do desconto do
+  /// código — o servidor aplica o saldo sobre o que sobra.
   CashbackCheckoutQuote _cashbackQuote(CashbackCheckoutContext? checkout) =>
       quoteCheckoutCashback(
-        priceCents: reaisToCents(_shareReais),
+        priceCents: reaisToCents(_shareReais) - _squadDiscountCents,
         checkout: checkout,
         useCashback: _useCashback,
       );
@@ -83,6 +110,7 @@ class _TournamentRegistrationPixPageState
   void initState() {
     super.initState();
     _cpfController.addListener(_onCpfTextChanged);
+    _squadCodeController.addListener(_onSquadCodeChanged);
     _rescheduleExpiries();
     WidgetsBinding.instance.addPostFrameCallback((_) => _prefillCpf());
   }
@@ -91,10 +119,16 @@ class _TournamentRegistrationPixPageState
     if (mounted) setState(() {});
   }
 
+  /// Digitar (ou apagar) um código muda a prévia do desconto.
+  void _onSquadCodeChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     _expiryTimer?.cancel();
     _cpfController.removeListener(_onCpfTextChanged);
+    _squadCodeController.removeListener(_onSquadCodeChanged);
     _cpfController.dispose();
     _squadCodeController.dispose();
     super.dispose();
@@ -194,7 +228,7 @@ class _TournamentRegistrationPixPageState
             cpfCnpj: _cpfDigits,
             amountType: widget.args.amountType,
             useCashback: useCashback,
-            squadCode: _squadCodeController.text,
+            squadCode: _squadCodeForCharge,
           );
       if (!mounted) return;
       setState(() {
@@ -453,8 +487,24 @@ class _TournamentRegistrationPixPageState
                           const SizedBox(height: 12),
                           SquadCodeField(
                             controller: _squadCodeController,
+                            registrationId: widget.args.registrationId,
+                            athleteUids: snap?.participantUids ?? const [],
                             enabled: !_loadingPix,
+                            onChanged: (check) =>
+                                setState(() => _squad = check),
                           ),
+                          if (_squadDiscountCents > 0) ...[
+                            const SizedBox(height: 16),
+                            _SquadSummary(
+                              priceCents: reaisToCents(_shareReais),
+                              discountCents: _squadDiscountCents,
+                              discountLabel: _squadPreview.origin == 'code'
+                                  ? 'Código ${_squadPreview.code}'
+                                  : 'Indicação',
+                              cashbackCents: cashbackQuote.appliedPreviewCents,
+                              totalCents: cashbackQuote.chargePreviewCents,
+                            ),
+                          ],
                           if (_pixError != null) ...[
                             SizedBox(height: 16),
                             _PixErrorCard(
@@ -590,6 +640,87 @@ class _PixErrorCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Resumo com o desconto da indicação (App 07): prévia — o valor de verdade
+/// volta na cobrança.
+class _SquadSummary extends StatelessWidget {
+  const _SquadSummary({
+    required this.priceCents,
+    required this.discountCents,
+    required this.discountLabel,
+    required this.cashbackCents,
+    required this.totalCents,
+  });
+
+  final int priceCents;
+  final int discountCents;
+  final String discountLabel;
+  final int cashbackCents;
+  final int totalCents;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final theme = Theme.of(context);
+    Widget line(String k, String v, {Color? color}) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  k,
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: colors.onSurfaceMuted),
+                ),
+              ),
+              Text(
+                v,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: color ?? colors.onSurface,
+                ),
+              ),
+            ],
+          ),
+        );
+    return Column(
+      key: const Key('squad-summary'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        line('Inscrição', formatBRLFromCents(priceCents)),
+        line(
+          discountLabel,
+          '− ${formatBRLFromCents(discountCents)}',
+          color: AppColors.win,
+        ),
+        if (cashbackCents > 0)
+          line('Cashback', '− ${formatBRLFromCents(cashbackCents)}'),
+        Divider(height: 8, color: colors.surfaceRaised),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Total',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: colors.onSurface,
+                ),
+              ),
+            ),
+            Text(
+              formatBRLFromCents(totalCents),
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: colors.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

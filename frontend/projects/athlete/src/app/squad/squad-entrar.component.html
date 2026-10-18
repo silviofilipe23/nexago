@@ -1,0 +1,164 @@
+<section class="sq-hero sqe-hero" aria-label="Programa de embaixadores">
+  <div class="sqe-hero-copy">
+    <div class="sq-label">Programa de embaixadores</div>
+    <h2 class="sq-hero-title sqe-hero-title">Traga sua galera pra areia. <em>Ganhe com isso.</em></h2>
+    <p class="sqe-hero-sub">Kit, prioridade em torneios e comissão em cada inscrição paga com o seu código. Sem mensalidade, sem meta de stories.</p>
+  </div>
+  <div class="sqe-hero-art" aria-hidden="true">
+    <span class="sqe-hero-word">SQUAD</span>
+    <div class="sqe-hero-tiers">
+      @for (p of tierProfiles; track p.tier) {
+        <app-squad-tier [tier]="p.tier" />
+      }
+    </div>
+  </div>
+</section>
+
+<div class="sq-row sq-row--half">
+  <div class="sq-col">
+    <section class="sq-box" aria-labelledby="sqe-how">
+      <h2 class="sq-h" id="sqe-how"><span>Como funciona</span></h2>
+      <div class="sqe-steps">
+        @for (s of steps(); track s.n) {
+          <div class="sqe-step">
+            <div class="sqe-step-n">{{ s.n }}</div>
+            <div class="sqe-step-title">{{ s.title }}</div>
+            <div class="sq-dim sqe-step-sub">{{ s.sub }}</div>
+          </div>
+        }
+      </div>
+    </section>
+
+    <section class="sq-box" aria-labelledby="sqe-tiers">
+      <h2 class="sq-h" id="sqe-tiers"><span>Quatro perfis</span></h2>
+      <div class="sq-rows">
+        @for (p of tierProfiles; track p.tier) {
+          <div class="sqe-tier-row">
+            <div class="sqe-tier-chip"><app-squad-tier [tier]="p.tier" /></div>
+            <span class="sqe-tier-who">{{ p.who }}</span>
+            <span class="sq-dim sqe-tier-gets">{{ p.gets }}</span>
+          </div>
+        }
+      </div>
+    </section>
+  </div>
+
+  <section class="sq-box sq-box--hot sqe-form" aria-labelledby="sqe-form-title">
+    <h2 class="sq-h" id="sqe-form-title"><span>Quero entrar no Squad</span></h2>
+
+    @if (join().profile; as p) {
+      <div class="sqe-profile">
+        <span class="sq-av sqe-profile-av" [style.background]="'oklch(0.34 0.06 ' + avatar().hue + ')'">
+          @if (p.photoUrl) {
+            <img [src]="p.photoUrl" alt="" loading="lazy" />
+          } @else {
+            {{ avatar().initials }}
+          }
+        </span>
+        <div class="sqe-profile-text">
+          <div class="sqe-profile-name">{{ p.name }}</div>
+          @if (profileLine()) {
+            <div class="sq-dim">{{ profileLine() }}</div>
+          }
+        </div>
+        <span class="sq-dim sqe-profile-tag">do seu perfil</span>
+      </div>
+    }
+
+    @switch (stage()) {
+      @case ('invite') {
+        <div class="sqe-state" role="status">
+          <div class="sqe-state-title">Você foi convidado como {{ join().invite!.tierLabel }}</div>
+          <p class="sq-muted">
+            Abra o app nexaGO para ver o contrato, escolher o seu código e aceitar{{ inviteExpires() ? ' até ' + inviteExpires() : '' }}.
+          </p>
+        </div>
+      }
+      @case ('review') {
+        <div class="sqe-state" role="status">
+          <div class="sqe-state-title">Candidatura em análise</div>
+          <p class="sq-muted">
+            Recebemos a sua candidatura em {{ submittedLabel() }}. O time NexaGO avisa você pelo app quando tiver uma resposta.
+          </p>
+        </div>
+      }
+      @case ('invited') {
+        <div class="sqe-state" role="status">
+          <div class="sqe-state-title">Candidatura aprovada</div>
+          <p class="sq-muted">
+            O seu convite sai {{ seatsFull() ? 'quando o próximo ciclo começar, em ' + nextCycleLabel() : 'em breve' }}. Ele chega pelo app nexaGO.
+          </p>
+        </div>
+      }
+      @case ('waitlist') {
+        <div class="sqe-state" role="status">
+          <div class="sqe-state-title">Você está na lista de espera</div>
+          <p class="sq-muted">O time NexaGO chama a lista de espera quando abrir vaga ou no próximo ciclo, em {{ nextCycleLabel() }}.</p>
+        </div>
+      }
+      @default {
+        @if (pastContract(); as past) {
+          <p class="sq-callout sqe-rejected">{{ past }}</p>
+        }
+        @if (rejected()) {
+          <p class="sq-callout sqe-rejected">Obrigado pelo interesse! Neste ciclo não seguimos com sua candidatura. Você pode se candidatar de novo quando quiser.</p>
+        }
+        <form class="sqe-fields" (submit)="$event.preventDefault(); submit()" novalidate>
+          <div class="sqe-pair">
+            <label class="sq-field">
+              <span class="sq-label">Instagram</span>
+              <input class="sq-input" [class.sq-input--invalid]="hasError('instagram')" type="text" name="instagram" autocomplete="off" placeholder="@seu.perfil" maxlength="61" [value]="instagram()" (input)="onInput('instagram', $event)" />
+              @if (hasError('instagram')) {
+                <span class="sq-field-error">Use de 2 a 60 caracteres.</span>
+              }
+            </label>
+            <label class="sq-field">
+              <span class="sq-label">Cidade</span>
+              <input class="sq-input" [class.sq-input--invalid]="hasError('city')" type="text" name="city" autocomplete="address-level2" placeholder="Goiânia, GO" maxlength="80" [value]="city()" (input)="onInput('city', $event)" />
+              @if (hasError('city')) {
+                <span class="sq-field-error">Diga a sua cidade.</span>
+              }
+            </label>
+          </div>
+
+          <fieldset class="sq-field sqe-fieldset">
+            <legend class="sq-label">Você lidera alguma turma?</legend>
+            <div class="sq-options">
+              @for (o of leadsOptions; track o.value) {
+                <button type="button" class="sq-option" [class.sq-option--on]="leadsGroup() === o.value" [attr.aria-pressed]="leadsGroup() === o.value" (click)="pickLeads(o.value)">{{ o.label }}</button>
+              }
+            </div>
+            @if (hasError('leadsGroup')) {
+              <span class="sq-field-error">Escolha uma opção.</span>
+            }
+          </fieldset>
+
+          <label class="sq-field">
+            <span class="sq-label">Por que você?</span>
+            <textarea class="sq-input sq-input--area" [class.sq-input--invalid]="hasError('why')" name="why" rows="4" [attr.maxlength]="whyMax" placeholder="Onde você treina, quem você puxa pra jogar, o que já organiza…" [value]="why()" (input)="onInput('why', $event)"></textarea>
+            @if (hasError('why')) {
+              <span class="sq-field-error">Conte um pouco mais (mínimo de 10 caracteres).</span>
+            }
+          </label>
+
+          <p class="sq-callout" [class.sq-callout--gold]="seatsFull()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg>
+            @if (seatsFull()) {
+              <span>As {{ join().cycle.seats }} vagas {{ cycleName() }} estão preenchidas. Sua candidatura entra para o <b>próximo ciclo, em {{ nextCycleLabel() }}</b>.</span>
+            } @else {
+              <span>{{ join().seatsLeft === 1 ? 'Resta 1 vaga' : 'Restam ' + join().seatsLeft + ' vagas' }} {{ cycleName() }}. O time NexaGO analisa cada candidatura.</span>
+            }
+          </p>
+
+          @if (sendError(); as err) {
+            <p class="sq-field-error sqe-send-error" role="alert">{{ err }}</p>
+          }
+
+          <button type="submit" class="sq-btn sq-btn--lg sq-btn--full sqe-submit" [disabled]="sending()">
+            {{ sending() ? 'Enviando…' : 'Enviar candidatura' }}
+          </button>
+        </form>
+      }
+    }
+  </section>
+</div>

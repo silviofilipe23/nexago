@@ -1,0 +1,152 @@
+:host {
+  display: block;
+}
+
+// ── Barras por semana ──────────────────────────────────────
+.sqg-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 170px;
+}
+
+.sqg-bar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sqg-bar-fill {
+  width: 100%;
+  max-height: calc(100% - 20px);
+  border-radius: 6px;
+  background: rgba(255, 106, 26, 0.22);
+
+  &.sqg-bar-fill--best {
+    background: var(--nx-orange-500);
+  }
+}
+
+.sqg-bar-label {
+  font-family: var(--nx-font-mono);
+  font-size: 9px;
+  color: var(--nx-text-dim);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sqg-best {
+  margin-top: 12px;
+  font-size: 12.5px;
+}
+
+// ── Como recebe ─────────────────────────────────────────────
+.sqg-how {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.sqg-how-ic {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+}
+
+.sqg-how-title {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 13.5px;
+}
+
+.sqg-how-sub {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--nx-text-dim);
+}
+
+// ── Extrato ─────────────────────────────────────────────────
+.sqg-statement-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sqg-statement-title {
+  flex: 1;
+  margin: 0;
+}
+
+.sqg-filters {
+  display: flex;
+  gap: 8px;
+}
+
+.sqg-line {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 120px 170px;
+  gap: 14px;
+  align-items: center;
+  min-height: 58px;
+  border-top: 1px solid var(--nx-line);
+
+  @media (max-width: 760px) {
+    grid-template-columns: 52px minmax(0, 1fr) auto;
+    padding: 10px 0;
+
+    > :last-child {
+      grid-column: 2 / 4;
+    }
+  }
+}
+
+.sqg-line-when {
+  font-size: 12.5px;
+  color: var(--nx-text-dim);
+}
+
+.sqg-line-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  min-width: 0;
+  overflow-wrap: anywhere;
+
+  &.sqg-line-title--strong {
+    font-weight: 600;
+  }
+}
+
+.sqg-line-amount {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 14px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sqg-struck {
+  color: var(--nx-text-dim);
+  text-decoration: line-through;
+}
+
+.sqg-line-wallet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nx-text-mute);
+}
+
+.sqg-more {
+  align-self: center;
+  margin-top: 14px;
+}

@@ -1,0 +1,217 @@
+<div class="mx-auto flex max-w-7xl flex-col gap-5 px-5 pb-24 pt-24 sm:px-6 sm:pt-28 lg:gap-7">
+  <!-- Topo: no celular é só texto; no desktop vira o card com o mosaico das fotos -->
+  <section class="grid overflow-hidden lg:min-h-[380px] lg:grid-cols-[1fr_1.15fr] lg:rounded-[28px] lg:border lg:border-brand/20" [class.squad-hero-bg]="desktop()">
+    <div class="flex flex-col lg:px-[52px] lg:py-12">
+      <p class="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-brand">
+        nexaGO Squad@if (desktop() && region()) {<span> · {{ region() }}</span>}
+      </p>
+      <h1 class="mt-2.5 font-display text-[34px] font-extrabold leading-[1.02] tracking-[-0.04em] text-fg lg:mt-3.5 lg:text-[56px] lg:leading-none">
+        Quem joga com <span class="whitespace-nowrap text-brand">a gente.</span>
+      </h1>
+      <p class="mt-2.5 max-w-[440px] text-sm leading-relaxed text-text-mute lg:mt-4 lg:text-base">
+        @if (desktop()) {
+          Atletas, treinadores e líderes de turma que representam o nexaGO nas arenas. Use o código de um deles e
+          ganhe desconto na sua primeira inscrição.
+        } @else {
+          Use o código de um embaixador e ganhe desconto na sua primeira inscrição.
+        }
+      </p>
+      @if (desktop() && stats().length > 0) {
+        <dl class="mt-auto flex gap-7 pt-6">
+          @for (s of stats(); track s.label) {
+            <div class="flex flex-col-reverse">
+              <dt class="text-[12.5px] text-text-dim">{{ s.label }}</dt>
+              <dd class="font-display text-[28px] font-extrabold tracking-[-0.03em] text-fg">{{ s.value }}</dd>
+            </div>
+          }
+        </dl>
+      }
+    </div>
+
+    @if (desktop()) {
+      <div class="relative min-h-[380px] overflow-hidden" aria-hidden="true">
+        @if (loading()) {
+          <div class="absolute inset-0 animate-pulse bg-surface-1"></div>
+        } @else if (mosaic().length > 0) {
+          <div class="absolute inset-0 grid grid-cols-3 grid-rows-2 gap-1">
+            @for (a of mosaic(); track a.id) {
+              <div class="overflow-hidden bg-surface-2"><app-squad-photo [ambassador]="a" textClass="text-4xl" /></div>
+            }
+          </div>
+        } @else {
+          <div class="absolute inset-0 flex items-center justify-center bg-brand-tint">
+            <svg class="size-24 text-brand/70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="9" cy="8" r="3.2" /><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+              <path d="m17.5 3.5.9 1.9 2.1.3-1.5 1.5.4 2.1-1.9-1-1.9 1 .4-2.1-1.5-1.5 2.1-.3z" />
+            </svg>
+          </div>
+        }
+        <div class="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-surface-0/80 to-transparent"></div>
+      </div>
+    }
+  </section>
+
+  <!-- Filtros -->
+  @if (!loading() && !failed() && all().length > 0) {
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-2">
+      <div
+        class="squad-chips -mx-5 flex items-center gap-2 overflow-x-auto px-5 sm:-mx-6 sm:px-6 lg:mx-0 lg:overflow-visible lg:px-0"
+        role="group"
+        aria-label="Filtrar por nível"
+      >
+        @for (c of chips; track c.id) {
+          <button
+            type="button"
+            (click)="setTier(c.id)"
+            [attr.aria-pressed]="tier() === c.id"
+            class="inline-flex h-[38px] shrink-0 items-center gap-1.5 rounded-pill border px-[15px] font-display text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand lg:h-10"
+            [class]="tier() === c.id ? 'border-fg bg-fg text-bg' : 'border-line text-text-mute hover:border-line-strong hover:text-fg'"
+          >
+            {{ c.label }}
+            <span class="font-mono text-[10.5px] opacity-60">{{ counts()[c.id] }}</span>
+          </button>
+        }
+      </div>
+
+      <div class="order-first flex gap-2 lg:order-none lg:ml-auto">
+        @if (desktop() && cities().length > 1) {
+          <label class="relative">
+            <span class="sr-only">Cidade</span>
+            <svg class="pointer-events-none absolute left-3.5 top-1/2 size-[15px] -translate-y-1/2 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+            <select
+              (change)="setCity($any($event.target).value)"
+              class="h-10 appearance-none rounded-3 border border-line bg-surface-0 pl-9 pr-9 text-[13px] text-text-mute focus-visible:border-brand/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+            >
+              <option value="" [selected]="city() === null">Todas as cidades</option>
+              @for (c of cities(); track c) {
+                <option [value]="c" [selected]="city() === c">{{ c }}</option>
+              }
+            </select>
+            <svg class="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </label>
+        }
+        <label class="relative block flex-1 lg:w-[300px] lg:flex-none">
+          <span class="sr-only">Buscar embaixador</span>
+          <svg class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-text-dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+          </svg>
+          <input
+            type="search"
+            [value]="query()"
+            (input)="setQuery($any($event.target).value)"
+            placeholder="Buscar por nome, cidade ou arena"
+            class="h-11 w-full rounded-3 border border-line bg-surface-0 pl-10 pr-3.5 text-[13.5px] text-fg placeholder:text-text-dim focus-visible:border-brand/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 lg:h-10 lg:text-[13px]"
+          />
+        </label>
+      </div>
+    </div>
+  }
+
+  @if (loading()) {
+    <ul class="grid gap-[18px] sm:grid-cols-2 lg:grid-cols-4" aria-label="Carregando embaixadores">
+      @for (i of skeletons; track i) {
+        <li class="h-[420px] animate-pulse rounded-5 bg-surface-1"></li>
+      }
+    </ul>
+  } @else if (failed()) {
+    <div class="rounded-5 border border-line bg-surface-1 p-10 text-center" role="alert">
+      <p class="font-display text-lg font-bold text-fg">Não deu para carregar os embaixadores agora</p>
+      <p class="mx-auto mt-2 max-w-sm text-sm text-text-mute">Confira sua conexão e tente de novo.</p>
+      <div class="mt-6 flex justify-center">
+        <button nxButton="secondary" type="button" (click)="load()">Tentar de novo</button>
+      </div>
+    </div>
+  } @else if (all().length === 0) {
+    <div class="rounded-5 border border-line bg-surface-1 p-10 text-center">
+      <p class="font-display text-lg font-bold text-fg">Os primeiros embaixadores chegam em breve</p>
+      <p class="mx-auto mt-2 max-w-md text-sm text-text-mute">
+        O Squad está montando o primeiro time de embaixadores. Joga, treina ou lidera uma turma? Candidate-se para
+        representar o nexaGO na sua arena.
+      </p>
+    </div>
+  } @else if (nothingFound()) {
+    <div class="rounded-5 border border-line bg-surface-1 p-10 text-center">
+      <p class="font-display text-lg font-bold text-fg">Nenhum embaixador encontrado</p>
+      <p class="mx-auto mt-2 max-w-sm text-sm text-text-mute">Tente outro nome, cidade ou nível.</p>
+      @if (hasFilters()) {
+        <div class="mt-6 flex justify-center">
+          <button nxButton="secondary" type="button" (click)="clearFilters()">Limpar filtros</button>
+        </div>
+      }
+    </div>
+  } @else {
+    @if (captains().length > 0) {
+      <section aria-labelledby="squad-captains">
+        <div class="mb-4 flex items-baseline gap-3">
+          <h2 id="squad-captains" class="font-display text-2xl font-extrabold tracking-[-0.02em] text-fg">Captains</h2>
+          <span class="text-[13.5px] text-text-dim">Lideram turmas e levam iniciantes pro primeiro torneio</span>
+        </div>
+        <ul class="grid grid-cols-3 gap-[18px]">
+          @for (a of captains(); track a.id) {
+            <li><app-squad-captain-card [ambassador]="a" /></li>
+          }
+          <!-- Fecha a linha da grade; se a linha já está cheia, vira uma faixa na linha de baixo -->
+          <li
+            class="flex gap-2 rounded-5 border border-dashed border-line-strong p-5"
+            [class]="captainStrip() ? 'col-span-3 flex-row items-center gap-x-4' : 'flex-col justify-center'"
+          >
+            <p class="font-display text-base font-bold text-fg">Lidera uma turma?</p>
+            <p class="text-[13px] leading-relaxed text-text-dim">Captains ganham por atleta trazido e por torneio originado.</p>
+            <a
+              [href]="joinUrl"
+              target="_blank"
+              rel="noopener"
+              [class.ml-auto]="captainStrip()"
+              class="mt-1 self-start font-display text-[13px] font-semibold text-brand transition-colors hover:text-brand-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:rounded-2"
+            >
+              Quero ser Captain
+            </a>
+          </li>
+        </ul>
+      </section>
+    }
+
+    @if (gridList().length > 0) {
+      <section aria-labelledby="squad-all">
+        <div class="mb-4 flex items-baseline gap-3">
+          <h2 id="squad-all" class="font-display text-[22px] font-extrabold tracking-[-0.02em] text-fg lg:text-2xl">{{ gridTitle() }}</h2>
+          <span class="text-[13.5px] text-text-dim">{{ gridCount() }}</span>
+        </div>
+        <ul class="grid gap-[18px] sm:grid-cols-2 lg:grid-cols-4">
+          @for (a of visible(); track a.id) {
+            <li><app-squad-card [ambassador]="a" /></li>
+          }
+        </ul>
+        @if (remaining() > 0) {
+          <div class="mt-[22px] flex justify-center">
+            <button nxButton="secondary" type="button" (click)="expanded.set(true)">Ver mais {{ remaining() }}</button>
+          </div>
+        }
+      </section>
+    }
+  }
+
+  <!-- Chamada para entrar no programa -->
+  <section class="flex flex-col gap-5 rounded-5 border border-line bg-surface-0 p-6 sm:flex-row sm:items-center sm:gap-6 sm:px-8 sm:py-7">
+    <div class="flex size-[52px] shrink-0 items-center justify-center rounded-4 bg-brand-tint text-brand" aria-hidden="true">
+      <svg class="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="9" cy="8" r="3.2" /><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+        <path d="m17.5 3.5.9 1.9 2.1.3-1.5 1.5.4 2.1-1.9-1-1.9 1 .4-2.1-1.5-1.5 2.1-.3z" />
+      </svg>
+    </div>
+    <div class="flex-1">
+      <h2 class="font-display text-[22px] font-extrabold tracking-[-0.02em] text-fg">Quer fazer parte do Squad?</h2>
+      <p class="mt-1 text-sm text-text-mute">Kit, prioridade em torneios e comissão por inscrição.</p>
+    </div>
+    <a nxButton="primary" [href]="joinUrl" target="_blank" rel="noopener" class="sm:min-h-[52px]">Quero ser embaixador</a>
+  </section>
+
+  <p class="text-center text-xs text-text-dim">
+    Embaixadores recebem benefícios e comissão do nexaGO. Conteúdos de divulgação são identificados como publicidade.
+  </p>
+</div>

@@ -607,6 +607,12 @@ export {
 // NexaSquad: contrato do embaixador (tela 02: nível com aditivo, pausa, encerramento) e a varredura
 // de hora em hora (lembretes/expiração de convite, convite agendado, fim de contrato, retorno de pausa).
 export {acceptSquadAmendment, sweepSquadProgram, updateSquadContract} from "./squad-contracts";
+// NexaSquad: espelho público dos embaixadores (página "Conheça o Squad" do site, sem login).
+export {
+  onAthleteRankingWrittenSyncSquadPublic,
+  onSquadAmbassadorWrittenSyncPublic,
+  onUserWrittenSyncSquadPublic,
+} from "./squad-public-sync";
 
 // Loja: personalizados — configuração por produto (tela 11) e fila de arte (tela 10).
 export {

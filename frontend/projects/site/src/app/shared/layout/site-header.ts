@@ -17,6 +17,7 @@ const NAV: NavItem[] = [
   { label: 'Ligas', href: '/ligas' },
   { label: 'Torneios', href: '/torneios' },
   { label: 'Rankings', href: '/rankings' },
+  { label: 'Squad', href: '/squad' },
   { label: 'Docs', href: '/docs' },
 ];
 
@@ -68,7 +69,7 @@ export class SiteHeader {
   protected readonly pillClasses = computed(() => {
     const compact = this.compact();
     return [
-      'mx-auto flex max-w-3xl items-center justify-between gap-4 rounded-pill border border-line bg-glass backdrop-blur-md backdrop-saturate-150 transition-all duration-300 ease-out motion-reduce:transition-none',
+      'mx-auto flex max-w-3xl lg:max-w-[52rem] items-center justify-between gap-4 rounded-pill border border-line bg-glass backdrop-blur-md backdrop-saturate-150 transition-all duration-300 ease-out motion-reduce:transition-none',
       compact ? 'h-12 px-4 shadow-elev-3' : 'h-14 px-5 shadow-elev-2',
     ].join(' ');
   });

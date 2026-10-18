@@ -3228,6 +3228,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Espelho público dos embaixadores ativos (página "Conheça o Squad" do site, sem login): nome,
+    // foto, nível, cidade, esporte, Elo, torneios e código — sem comissão, % ou score. Só os
+    // gatilhos de `squad-public-sync.ts` gravam; o contrato acima segue fechado.
+    match /squadPublic/{uid} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Candidaturas do Squad (tela 04): notas internas e motivo de recusa nunca saem para o atleta,
     // então só o backoffice lê. Escrita só pelas callables de `squad-applications.ts`.
     match /squadApplications/{applicationId} {

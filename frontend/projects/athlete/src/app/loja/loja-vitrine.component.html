@@ -66,6 +66,11 @@
     </div>
 
     <div class="lj-header-actions">
+      @if (store.signedIn()) {
+        <a class="lj-icon-btn" routerLink="/loja/pedidos" aria-label="Meus pedidos" title="Meus pedidos">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7.5 12 3l8 4.5v9L12 21l-4-2.25-4-2.25z" /><path d="m4 7.5 8 4.5 8-4.5M12 12v9" /></svg>
+        </a>
+      }
       <a class="lj-icon-btn" routerLink="/loja/favoritos" aria-label="Favoritos">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z" /></svg>
       </a>

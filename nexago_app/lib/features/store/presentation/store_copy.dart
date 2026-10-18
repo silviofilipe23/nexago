@@ -8,6 +8,7 @@ abstract final class StoreCopy {
   static const back = 'Voltar';
   static const search = 'Buscar';
   static const cart = 'Carrinho';
+  static const orders = 'Meus pedidos';
   static const allCategories = 'Tudo';
   static const filter = 'Filtrar';
 
@@ -282,12 +283,6 @@ abstract final class StoreCopy {
 
   /// Faixa verde: "{nome}" em destaque + " está R$ X mais barato".
   static String favoritesCheaper(String amount) => ' está $amount mais barato';
-
-  // Próxima etapa
-  static const comingSoonTitle = 'Esta parte da Loja chega na próxima etapa';
-  static const comingSoonBody =
-      'Por enquanto, dá pra explorar a vitrine e montar o carrinho.';
-  static const comingSoonBack = 'Voltar pra vitrine';
 
   // Home
   static const homeEntryTitle = 'Loja nexaGO';

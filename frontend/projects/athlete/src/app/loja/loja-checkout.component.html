@@ -1,0 +1,372 @@
+<app-at-panel-shell [userName]="accountLabel()" [guest]="guest()">
+  <header class="lj-header">
+    <div class="lp-heading">
+      <nav class="lp-crumbs" aria-label="Você está em">
+        <a routerLink="/loja">Loja</a>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+        <a routerLink="/loja/carrinho">Carrinho</a>
+      </nav>
+      <h1 class="lp-title">Finalizar compra</h1>
+    </div>
+    <div class="lj-header-actions">
+      <a class="lj-icon-btn" routerLink="/loja/pedidos" aria-label="Meus pedidos" title="Meus pedidos">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z" /><path d="m4 7.5 8 4.5 8-4.5M12 12v9" /></svg>
+      </a>
+      <a class="lj-icon-btn" routerLink="/loja/favoritos" aria-label="Favoritos" title="Favoritos">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z" /></svg>
+      </a>
+    </div>
+  </header>
+
+  <div class="ck-body">
+    @if (store.error(); as err) {
+      <section class="lp-state" role="alert">
+        <h2>Não deu pra carregar o carrinho</h2>
+        <p>Confira a conexão e tente de novo.</p>
+        <button type="button" class="lp-state-btn" (click)="store.retry()">Tentar de novo</button>
+        <small class="lp-state-detail">{{ err }}</small>
+      </section>
+    } @else if (!store.cartLoaded() || store.loading()) {
+      <p class="lp-visually-hidden" role="status">Carregando o carrinho…</p>
+      <div class="ck-grid" aria-hidden="true">
+        <div class="ck-main">
+          <app-nx-skeleton [w]="160" [h]="22" />
+          @for (i of lineSkeletons; track i) {
+            <app-nx-skeleton w="100%" [h]="100" [r]="18" />
+          }
+        </div>
+        <app-nx-skeleton w="100%" [h]="420" [r]="22" />
+      </div>
+    } @else if (lines().length === 0) {
+      <section class="lp-state ck-empty">
+        <span class="lp-kicker">Carrinho</span>
+        <h2>Seu carrinho está vazio</h2>
+        <p>Escolha bolas, viseiras e camisetas na vitrine — retire na arena ou receba em casa.</p>
+        <div class="ck-empty-actions">
+          <a class="lp-state-btn" routerLink="/loja">Ver a loja</a>
+          <a class="ck-ghost-btn" routerLink="/loja/pedidos">Meus pedidos</a>
+        </div>
+      </section>
+    } @else {
+      <div class="ck-grid">
+        <div class="ck-main">
+          <!-- ── Seu carrinho ───────────────────────────────── -->
+          <section class="ck-section" aria-labelledby="ck-cart-title">
+            <div class="ck-section-head">
+              <h2 id="ck-cart-title" class="ck-h2">Seu carrinho</h2>
+              <span class="ck-count">{{ units() }} {{ units() === 1 ? 'item' : 'itens' }}</span>
+            </div>
+            <ul class="ck-lines">
+              @for (line of lines(); track line.key) {
+                <li class="ck-line" [class.ck-line--problem]="line.problem">
+                  <span class="ck-thumb">
+                    @if (line.coverUrl; as cover) {
+                      <img [src]="cover" alt="" loading="lazy" />
+                    }
+                  </span>
+                  <div class="ck-line-text">
+                    @if (line.slug; as slug) {
+                      <a class="ck-line-name" [routerLink]="['/loja/p', slug]">{{ line.name }}</a>
+                    } @else {
+                      <strong class="ck-line-name">{{ line.name }}</strong>
+                    }
+                    @if (line.detail) {
+                      <small>{{ line.detail }}</small>
+                    }
+                    @if (line.problem; as problem) {
+                      <span class="ck-line-problem" role="status">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16.5v.01" /></svg>
+                        {{ problemLabel(problem) }}
+                      </span>
+                    }
+                  </div>
+                  <div class="ck-qty" role="group" [attr.aria-label]="'Quantidade de ' + line.name">
+                    <button type="button" class="ck-qty-btn" [disabled]="line.qty <= 1" aria-label="Diminuir" (click)="setQty(line, line.qty - 1)">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+                    </button>
+                    <span class="ck-qty-value" aria-live="polite">{{ line.qty }}</span>
+                    <button type="button" class="ck-qty-btn" [disabled]="line.qty >= line.maxQty" aria-label="Aumentar" (click)="setQty(line, line.qty + 1)">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                    </button>
+                  </div>
+                  <span class="ck-line-price">{{ money(line.totalCents) }}</span>
+                  <button type="button" class="ck-trash" [attr.aria-label]="'Remover ' + line.name" (click)="setQty(line, 0)">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13" /></svg>
+                  </button>
+                </li>
+              }
+            </ul>
+          </section>
+
+          <!-- ── Entrega ────────────────────────────────────── -->
+          <section class="ck-section" aria-labelledby="ck-delivery-title">
+            <h2 id="ck-delivery-title" class="ck-h2">Entrega</h2>
+            @if (arenaOption() === null && homeOption() === null) {
+              <p class="ck-note">A loja ainda não abriu retirada nem entrega. Volte em breve.</p>
+            } @else {
+              <div class="ck-options" role="radiogroup" aria-labelledby="ck-delivery-title">
+                @if (arenaOption(); as opt) {
+                  <label class="ck-opt" [class.ck-opt--on]="kind() === 'arena'">
+                    <input type="radio" class="ck-opt-input" name="ck-kind" value="arena" [checked]="kind() === 'arena'" (change)="chooseKind('arena')" />
+                    <span class="ck-radio" aria-hidden="true"></span>
+                    <span class="ck-opt-icon" aria-hidden="true">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.1-7-11.5a7 7 0 0 1 14 0C19 14.9 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></svg>
+                    </span>
+                    <span class="ck-opt-text">
+                      <strong>{{ opt.title }}</strong>
+                      <small>{{ opt.subtitle }}</small>
+                    </span>
+                    <span class="ck-opt-price ck-opt-price--free">Grátis</span>
+                  </label>
+                }
+                @if (homeOption(); as opt) {
+                  <label class="ck-opt" [class.ck-opt--on]="kind() === 'casa'">
+                    <input type="radio" class="ck-opt-input" name="ck-kind" value="casa" [checked]="kind() === 'casa'" (change)="chooseKind('casa')" />
+                    <span class="ck-radio" aria-hidden="true"></span>
+                    <span class="ck-opt-icon" aria-hidden="true">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h11v10H3z" /><path d="M14 9h4l3 3v4h-7" /><circle cx="7" cy="17.5" r="1.8" /><circle cx="17" cy="17.5" r="1.8" /></svg>
+                    </span>
+                    <span class="ck-opt-text">
+                      <strong>Receber em casa</strong>
+                      <small>{{ opt.subtitle }}</small>
+                    </span>
+                    <span class="ck-opt-price" [class.ck-opt-price--free]="opt.free">{{ opt.priceLabel }}</span>
+                  </label>
+                }
+              </div>
+
+              @if (kind() === 'arena' && arenas().length > 1) {
+                <div class="ck-arena" #arenaBox (focusout)="onArenaFocusOut($event, arenaBox)">
+                  <button type="button" class="ck-link" aria-haspopup="listbox" [attr.aria-expanded]="arenaMenuOpen()" (click)="arenaMenuOpen.set(!arenaMenuOpen())">Trocar arena</button>
+                  @if (arenaMenuOpen()) {
+                    <div class="ck-arena-menu" role="listbox" aria-label="Arena de retirada">
+                      @for (a of arenas(); track a.arenaId) {
+                        <button type="button" role="option" class="ck-arena-option" [class.ck-arena-option--on]="a.arenaId === arena()?.arenaId" [attr.aria-selected]="a.arenaId === arena()?.arenaId" (click)="chooseArena(a.arenaId)">
+                          <strong>{{ a.name }}</strong>
+                          @if (a.address || a.city) {
+                            <small>{{ a.address || a.city }}{{ a.state ? ' · ' + a.state : '' }}</small>
+                          }
+                        </button>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+
+              @if (kind() === 'casa') {
+                <div class="ck-home">
+                  <div class="ck-sub-head">
+                    <span class="ck-eyebrow">Endereço de entrega</span>
+                    <button type="button" class="ck-link ck-link--icon" (click)="openAddress(null)">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                      Novo endereço
+                    </button>
+                  </div>
+                  @if (addresses().length === 0) {
+                    <button type="button" class="ck-addr-empty" (click)="openAddress(null)">
+                      <strong>Cadastre um endereço</strong>
+                      <small>Digite o CEP e a gente preenche o resto</small>
+                    </button>
+                  } @else {
+                    <div class="ck-addrs" role="radiogroup" aria-label="Endereço de entrega">
+                      @for (a of addresses(); track a.id) {
+                        <div class="ck-addr" [class.ck-addr--on]="a.id === address()?.id">
+                          <label class="ck-addr-pick">
+                            <input type="radio" class="ck-opt-input" name="ck-addr" [value]="a.id" [checked]="a.id === address()?.id" (change)="chooseAddress(a.id)" />
+                            <span class="ck-radio" aria-hidden="true"></span>
+                            <span class="ck-addr-text">
+                              <span class="ck-addr-label">
+                                <strong>{{ a.label }}</strong>
+                                @if (a.main) {
+                                  <span class="ck-main-tag">Principal</span>
+                                }
+                              </span>
+                              <span class="ck-addr-line">{{ addressLine(a) }}</span>
+                              <small>{{ addressArea(a) }}</small>
+                            </span>
+                          </label>
+                          <button type="button" class="ck-addr-edit" [attr.aria-label]="'Editar ' + a.label" (click)="openAddress(a)">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="m13.5 6.5 4 4" /></svg>
+                          </button>
+                        </div>
+                      }
+                    </div>
+                  }
+
+                  <span class="ck-eyebrow" id="ck-mode-label">Prazo</span>
+                  <div class="ck-modes" role="radiogroup" aria-labelledby="ck-mode-label">
+                    @for (m of modes(); track m.id) {
+                      <label class="ck-opt ck-opt--compact" [class.ck-opt--on]="m.id === mode()?.id">
+                        <input type="radio" class="ck-opt-input" name="ck-mode" [value]="m.id" [checked]="m.id === mode()?.id" (change)="chooseMode(m.id)" />
+                        <span class="ck-radio" aria-hidden="true"></span>
+                        <span class="ck-opt-text">
+                          <strong>{{ m.name }}</strong>
+                          @if (m.description) {
+                            <small>{{ m.description }}</small>
+                          }
+                        </span>
+                        <span class="ck-opt-price" [class.ck-opt-price--free]="modePrice(m).free">{{ modePrice(m).label }}</span>
+                      </label>
+                    }
+                  </div>
+                  @if (freeShippingGap(); as gap) {
+                    <p class="ck-note">Faltam {{ gap }} pro frete grátis.</p>
+                  }
+                </div>
+              }
+            }
+          </section>
+
+          <!-- ── Pagamento ──────────────────────────────────── -->
+          <section class="ck-section" aria-labelledby="ck-pay-title">
+            <h2 id="ck-pay-title" class="ck-h2">Pagamento</h2>
+            <div class="ck-options ck-options--single">
+              <div class="ck-opt ck-opt--on ck-opt--static">
+                <span class="ck-radio" aria-hidden="true"></span>
+                <span class="ck-opt-icon" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 4.2 4.2-4.2 4.2-4.2-4.2zM12 12.6l4.2 4.2L12 21l-4.2-4.2zM3 12l4.2-4.2 4.2 4.2-4.2 4.2zM12.6 12l4.2-4.2L21 12l-4.2 4.2z" /></svg>
+                </span>
+                <span class="ck-opt-text">
+                  <strong>Pix</strong>
+                  <small>{{ (quote()?.pixDiscountPct ?? 0) > 0 ? quote()!.pixDiscountPct + '% de desconto · aprovação na hora' : 'Aprovação na hora' }}</small>
+                </span>
+                @if ((quote()?.pixDiscountPct ?? 0) > 0) {
+                  <span class="ck-tag">-{{ quote()!.pixDiscountPct }}%</span>
+                }
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- ── Resumo ────────────────────────────────────────── -->
+        <aside class="ck-summary" aria-labelledby="ck-sum-title">
+          <h2 id="ck-sum-title" class="ck-h2">Resumo</h2>
+          @if (quoteError(); as err) {
+            <div class="ck-quote-error" role="alert">
+              <span>{{ err }}</span>
+              <button type="button" class="ck-link" (click)="retryQuote()">Tentar de novo</button>
+            </div>
+          }
+          <div class="ck-row">
+            <span>Subtotal ({{ units() }} {{ units() === 1 ? 'item' : 'itens' }})</span>
+            <span class="ck-row-v">{{ money(quote()?.subtotalCents ?? localSubtotal()) }}</span>
+          </div>
+          @if (coupon(); as c) {
+            <div class="ck-row">
+              <span>Cupom {{ c.code }}</span>
+              <span class="ck-row-v ck-row-v--win">− {{ money(c.discountCents) }}</span>
+            </div>
+          }
+          @if ((quote()?.pixDiscountCents ?? 0) > 0) {
+            <div class="ck-row">
+              <span>Desconto Pix</span>
+              <span class="ck-row-v ck-row-v--win">− {{ money(quote()!.pixDiscountCents) }}</span>
+            </div>
+          }
+          @if (kind() === 'arena') {
+            <div class="ck-row">
+              <span>Retirada na arena</span>
+              <span class="ck-row-v ck-row-v--win">Grátis</span>
+            </div>
+          } @else if (kind() === 'casa' && mode(); as m) {
+            <div class="ck-row">
+              <span>Frete · {{ m.name }}</span>
+              <!-- Sem endereço a cotação vem sem frete: mostra o preço do modo até escolher. -->
+              @if (quote() && address()) {
+                <span class="ck-row-v" [class.ck-row-v--win]="quote()!.shippingCents === 0">{{ quote()!.shippingCents === 0 ? 'Grátis' : money(quote()!.shippingCents) }}</span>
+              } @else {
+                <span class="ck-row-v" [class.ck-row-v--win]="modePrice(m).free">{{ modePrice(m).label }}</span>
+              }
+            </div>
+          }
+
+          <!-- Qualquer código aplicado tem "Remover" (mesmo o que o servidor nem reconheceu). -->
+          @if (couponCode()) {
+            <div class="ck-coupon-applied" [class.ck-coupon-applied--bad]="couponProblem()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z" /><circle cx="7.5" cy="8.5" r="1.3" /></svg>
+              <span class="ck-coupon-code">{{ couponCode() }}</span>
+              <button type="button" class="ck-link" (click)="removeCoupon()">Remover</button>
+            </div>
+            @if (couponProblem(); as msg) {
+              <small class="ck-coupon-msg" role="alert">{{ msg }}</small>
+            }
+          } @else {
+            <form class="ck-coupon" (submit)="applyCoupon($event)">
+              <label class="ck-coupon-field">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z" /><circle cx="7.5" cy="8.5" r="1.3" /></svg>
+                <input
+                  class="ck-coupon-input"
+                  placeholder="Cupom de desconto"
+                  aria-label="Cupom de desconto"
+                  autocomplete="off"
+                  autocapitalize="characters"
+                  maxlength="30"
+                  [value]="couponInput()"
+                  (input)="couponInput.set($any($event.target).value)"
+                />
+              </label>
+              <button type="submit" class="ck-soft-btn" [disabled]="!couponInput().trim()">Aplicar</button>
+            </form>
+          }
+
+          <hr class="ck-divider" />
+          <div class="ck-row ck-row--total">
+            <span>Total</span>
+            @if (quote(); as q) {
+              <span class="ck-total" [class.ck-total--stale]="!quoteFresh()">{{ money(q.totalCents) }}</span>
+            } @else {
+              <app-nx-skeleton [w]="130" [h]="30" [r]="8" />
+            }
+          </div>
+
+          @if (needCpf()) {
+            <label class="ck-cpf">
+              <span class="ck-eyebrow">CPF de quem paga</span>
+              <input
+                class="ck-cpf-input"
+                inputmode="numeric"
+                autocomplete="off"
+                placeholder="000.000.000-00"
+                [value]="cpfLabel()"
+                [class.ck-cpf-input--invalid]="cpfError()"
+                [attr.aria-invalid]="cpfError() !== null"
+                (input)="onCpfInput($any($event.target).value)"
+              />
+              @if (cpfError(); as e) {
+                <small class="ck-cpf-error">{{ e }}</small>
+              } @else {
+                <small class="ck-cpf-hint">Sai no comprovante do Pix. Só pedimos uma vez.</small>
+              }
+            </label>
+          }
+
+          <button type="button" class="ck-pay" [disabled]="!canPay()" [attr.aria-busy]="paying()" (click)="pay()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 4.2 4.2-4.2 4.2-4.2-4.2zM12 12.6l4.2 4.2L12 21l-4.2-4.2zM3 12l4.2-4.2 4.2 4.2-4.2 4.2zM12.6 12l4.2-4.2L21 12l-4.2 4.2z" /></svg>
+            {{ paying() ? 'Gerando o Pix…' : 'Pagar com Pix' }}
+          </button>
+          @if (payError(); as e) {
+            <p class="ck-pay-error" role="alert">{{ e }}</p>
+          } @else if (blocker(); as b) {
+            <p class="ck-pay-hint" role="status">{{ b }}</p>
+          }
+          <p class="ck-safe">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 3 8.4 7 10 4-1.6 7-5.4 7-10V6z" /><path d="m9 12 2 2 4-4" /></svg>
+            Pagamento seguro · troca em {{ store.config().benefits.exchangeDays }} dias
+          </p>
+        </aside>
+      </div>
+    }
+  </div>
+
+  @if (addressModal(); as modal) {
+    <app-loja-endereco-modal
+      [address]="modal.address"
+      [first]="addresses().length === 0"
+      [defaultRecipient]="accountLabel() === 'Atleta' ? '' : accountLabel()"
+      [saving]="savingAddress()"
+      (saved)="saveAddress($event)"
+      (removed)="deleteAddress($event)"
+      (closed)="addressModal.set(null)"
+    />
+  }
+</app-at-panel-shell>

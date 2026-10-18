@@ -1,0 +1,389 @@
+// Novo endereço (web 05): modal de 620px sobre o checkout.
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.em-backdrop {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.66);
+  backdrop-filter: blur(3px);
+}
+
+.em-dialog {
+  width: min(620px, 100%);
+  overflow: hidden;
+  border: 1px solid var(--nx-line-strong);
+  border-radius: 24px;
+  background: var(--nx-surface-1);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
+}
+
+.em-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 26px;
+  border-bottom: 1px solid var(--nx-line);
+
+  @media (max-width: 640px) {
+    padding: 18px;
+  }
+}
+
+.em-head-text {
+  flex: 1;
+  min-width: 0;
+
+  h2 {
+    margin: 0;
+    font-family: var(--nx-font-display);
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--nx-text);
+  }
+
+  p {
+    margin: 3px 0 0;
+    font-family: var(--nx-font-ui);
+    font-size: 13px;
+    color: var(--nx-text-dim);
+  }
+}
+
+.em-close {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--nx-text-mute);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--nx-text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+  }
+}
+
+.em-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 26px;
+
+  @media (max-width: 640px) {
+    padding: 18px;
+  }
+}
+
+.em-row {
+  display: grid;
+  gap: 14px;
+
+  &--cep {
+    grid-template-columns: 220px 1fr;
+    align-items: start;
+  }
+
+  &--number {
+    grid-template-columns: 140px 1fr;
+  }
+
+  &--half {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  &--city {
+    grid-template-columns: 1fr 72px;
+    gap: 10px;
+  }
+
+  @media (max-width: 560px) {
+    &--cep,
+    &--number,
+    &--half {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+.em-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.em-label {
+  font-family: var(--nx-font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.em-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 48px;
+  border: 1.5px solid var(--nx-line);
+  border-radius: 13px;
+  background: var(--nx-surface-0);
+  transition: border-color var(--nx-d-fast) var(--nx-ease-out);
+
+  &:focus-within {
+    border-color: var(--nx-orange-500);
+    background: var(--nx-surface-1);
+  }
+
+  &--invalid {
+    border-color: var(--nx-live);
+  }
+}
+
+.em-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--nx-text);
+  font-family: var(--nx-font-ui);
+  font-size: 14.5px;
+  outline: none;
+
+  &::placeholder {
+    color: var(--nx-text-dim);
+  }
+
+  &--mono {
+    font-family: var(--nx-font-mono);
+  }
+
+  &--uf {
+    text-transform: uppercase;
+  }
+}
+
+.em-ok {
+  flex: none;
+  margin-right: 12px;
+  color: var(--nx-win);
+}
+
+.em-spin {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-right: 12px;
+  border: 2px solid var(--nx-line-strong);
+  border-top-color: var(--nx-orange-500);
+  border-radius: 50%;
+  animation: em-spin 0.7s linear infinite;
+}
+
+@keyframes em-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.em-hint,
+.em-error {
+  font-family: var(--nx-font-ui);
+  font-size: 11.5px;
+  color: var(--nx-text-dim);
+}
+
+.em-hint--warn {
+  color: var(--nx-pending);
+}
+
+.em-error {
+  color: var(--nx-live);
+}
+
+.em-link {
+  align-self: start;
+  margin-top: 36px;
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--nx-orange-500);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  @media (max-width: 560px) {
+    margin-top: -6px;
+  }
+}
+
+.em-foot-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.em-chips {
+  display: flex;
+  gap: 8px;
+}
+
+.em-chip {
+  height: 38px;
+  padding: 0 16px;
+  border: 1.5px solid var(--nx-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--nx-text-mute);
+  font-family: var(--nx-font-display);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+
+  &--on {
+    border-color: var(--nx-orange-500);
+    background: var(--nx-orange-tint);
+    color: var(--nx-text);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+  }
+}
+
+.em-check {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--nx-font-ui);
+  font-size: 13.5px;
+  color: var(--nx-text-mute);
+  cursor: pointer;
+
+  input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+.em-check-box {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--nx-line-strong);
+  border-radius: 6px;
+  color: transparent;
+
+  input:checked + & {
+    border-color: var(--nx-orange-500);
+    background: var(--nx-orange-500);
+    color: var(--nx-text-on-orange);
+  }
+
+  input:focus-visible + & {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+  }
+}
+
+.em-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 26px;
+  border-top: 1px solid var(--nx-line);
+  background: var(--nx-surface-0);
+
+  @media (max-width: 640px) {
+    padding: 14px 18px;
+  }
+}
+
+.em-spacer {
+  flex: 1;
+}
+
+.em-btn {
+  height: 46px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 13px;
+  font-family: var(--nx-font-display);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+  }
+
+  &--primary {
+    min-width: 180px;
+    background: var(--nx-orange-500);
+    color: var(--nx-text-on-orange);
+
+    &:hover:not(:disabled) {
+      background: var(--nx-orange-400);
+    }
+
+    @media (max-width: 480px) {
+      min-width: 0;
+    }
+  }
+
+  &--ghost {
+    background: transparent;
+    color: var(--nx-text-mute);
+
+    &:hover {
+      color: var(--nx-text);
+    }
+  }
+
+  &--danger {
+    padding: 0 10px;
+    background: transparent;
+    color: var(--nx-live);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .em-spin {
+    animation-duration: 2s;
+  }
+}

@@ -7,6 +7,7 @@ import type { OrganizerTournament, TournamentRole } from '../data/tournament.mod
 import { FinanceiroReachService } from './financeiro-reach.service';
 import { PanelShellComponent } from './panel-shell.component';
 import { PanelContextService } from './panel-context.service';
+import { PlansMenuService } from './plans-menu.service';
 import { OgBellComponent } from './og-bell.component';
 
 /** `og-bell` de verdade abre um `onSnapshot` real contra o Firestore de produção — sem sentido
@@ -74,6 +75,7 @@ function tournament(id: string, myRole: TournamentRole): OrganizerTournament {
 async function mountShell(
   compact: boolean,
   reach: ReturnType<typeof reachStub>,
+  plansMenu = false,
 ): Promise<{ fixture: ComponentFixture<PanelShellComponent>; media: ReturnType<typeof fakeMediaQueryList> }> {
   const media = fakeMediaQueryList(compact);
   spyOn(window, 'matchMedia').and.returnValue(media.mql);
@@ -87,6 +89,8 @@ async function mountShell(
       { provide: AuthService, useValue: authStub() },
       { provide: PanelContextService, useValue: ctxStub() },
       { provide: FinanceiroReachService, useValue: reach },
+      // O de verdade lê `appConfig/tournamentPlans` do Firestore.
+      { provide: PlansMenuService, useValue: { enabled: signal(plansMenu) } },
     ],
   }).compileComponents();
 
@@ -234,5 +238,23 @@ describe('PanelShellComponent — avaliações no menu', () => {
   it('nível global tem Reputação', async () => {
     const { fixture } = await mountShell(false, reachStub([]));
     expect(labels(fixture)).toContain('Reputação');
+  });
+});
+
+describe('PanelShellComponent — Planos & Sponsors no menu', () => {
+  function labels(fixture: ComponentFixture<PanelShellComponent>): string[] {
+    const host = fixture.nativeElement as HTMLElement;
+    return [...host.querySelectorAll('.og-sidebar .og-nav-item-label')].map((el) => el.textContent!.trim());
+  }
+
+  it('flag apagada esconde o item', async () => {
+    const { fixture } = await mountShell(false, reachStub([]));
+    expect(labels(fixture)).not.toContain('Planos & Sponsors');
+  });
+
+  it('flag acesa mostra o item antes do Financeiro, como no protótipo', async () => {
+    const { fixture } = await mountShell(false, reachStub([tournament('a', 'owner')]), true);
+    const visiveis = labels(fixture);
+    expect(visiveis.indexOf('Planos & Sponsors')).toBe(visiveis.indexOf('Financeiro') - 1);
   });
 });

@@ -35,7 +35,11 @@ export type LojaEvent =
   | 'loja_pix_copiar'
   | 'loja_pedido_view'
   | 'loja_pedidos_view'
-  | 'loja_comprar_de_novo';
+  | 'loja_comprar_de_novo'
+  // Avaliação da compra (`docs/business-rules/loja-avaliacoes.md`).
+  | 'loja_avaliar_open'
+  | 'loja_avaliacao_publicada'
+  | 'loja_avaliacoes_filtro';
 
 /**
  * Ponto único dos eventos da Loja no portal. O portal ainda não tem coletor de analytics

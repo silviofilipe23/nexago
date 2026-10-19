@@ -260,6 +260,7 @@ StoreProduct? storeProductFromMap(String id, Map<String, dynamic>? data) {
         : null,
     ratingAvg: _num(data['ratingAvg']),
     ratingCount: _count(data['ratingCount']),
+    reviewStats: storeReviewStatsFromMap(data['reviewStats']),
     soldLast30: _count(data['soldLast30']),
     publishedAt: _date(data['publishedAt']),
   );
@@ -267,6 +268,23 @@ StoreProduct? storeProductFromMap(String id, Map<String, dynamic>? data) {
 
 Map<String, dynamic> _map(Object? v) =>
     v is Map ? Map<String, dynamic>.from(v) : const <String, dynamic>{};
+
+/// `storeShowcase/{id}.reviewStats` (gravado por `showcaseRatingFields`).
+/// Ausente ou torto = zeros, como no servidor.
+StoreReviewStats storeReviewStatsFromMap(Object? raw) {
+  if (raw is! Map) return StoreReviewStats.empty;
+  final data = Map<String, dynamic>.from(raw);
+  final dist = data['dist'] is List ? data['dist'] as List : const [];
+  final fit = _map(data['fit']);
+  return StoreReviewStats(
+    dist: [for (var i = 0; i < 5; i++) i < dist.length ? _count(dist[i]) : 0],
+    recommend: _count(data['recommend']),
+    withPhotos: _count(data['withPhotos']),
+    fitSmall: _count(fit['pequeno']),
+    fitRight: _count(fit['certo']),
+    fitLarge: _count(fit['grande']),
+  );
+}
 
 final RegExp _hexColor = RegExp(r'^#[0-9a-f]{6}$');
 

@@ -14,6 +14,7 @@ import {withDiscountDefaults} from "./store-coupons";
 import {publicCustomization, type PublicCustomization} from "./store-custom-cart";
 import {withShippingDefaults} from "./store-pickup";
 import {withReturnsDefaults} from "./store-returns";
+import {showcaseRatingFields, type RatingStats} from "./store-reviews";
 
 export const SHOWCASE_PRODUCTS = "storeShowcase";
 export const STORE_PUBLIC = "storePublic";
@@ -84,6 +85,8 @@ export interface ShowcaseDetail {
  */
 export type ShowcaseCustomization = PublicCustomization;
 
+export type ShowcaseReviewStats = Omit<RatingStats, "count" | "sum">;
+
 export interface ShowcaseProduct {
   name: string;
   slug: string;
@@ -112,9 +115,14 @@ export interface ShowcaseProduct {
   customizable: boolean;
   /** Só com a personalização ativa. */
   customization: ShowcaseCustomization | null;
-  /** Avaliações ainda não existem: chegam `null`/0 e a vitrine esconde a nota. */
+  /**
+   * Nota das avaliações (`storeProductRatings/{id}`, refeito pelo gatilho das avaliações). `null`/0
+   * sem avaliação; a vitrine só mostra a nota a partir de 3.
+   */
   ratingAvg: number | null;
   ratingCount: number;
+  /** Distribuição, "recomendam", com foto e caimento — a seção de avaliações da tela 02. */
+  reviewStats: ShowcaseReviewStats;
   /** Unidades vendidas nos últimos 30 dias — a ordem "Mais vendidos". */
   soldLast30: number;
   publishedAt: Date;
@@ -173,6 +181,7 @@ export function buildShowcaseProduct(
   skus: {id: string; data: Data}[],
   customization: Data | null,
   now: Date,
+  ratings: Data | null = null,
 ): ShowcaseProduct | null {
   if (product === null) return null;
   if (product["status"] !== "ativo" || product["active"] !== true) return null;
@@ -208,7 +217,6 @@ export function buildShowcaseProduct(
   const compareAt = count(product["compareAtPriceCents"]);
   const photos = photosOf(product["photos"]);
   const fulfillment = (product["fulfillment"] ?? {}) as Data;
-  const rating = product["ratingAvg"];
 
   return {
     name: str(product["name"]),
@@ -234,8 +242,7 @@ export function buildShowcaseProduct(
     soldOut: !variants.some((v) => v.inStock),
     customizable: customization?.["active"] === true,
     customization: publicCustomization(customization),
-    ratingAvg: typeof rating === "number" && Number.isFinite(rating) ? rating : null,
-    ratingCount: count(product["ratingCount"]),
+    ...showcaseRatingFields(ratings),
     soldLast30: count(product["soldLast30"]),
     publishedAt,
   };

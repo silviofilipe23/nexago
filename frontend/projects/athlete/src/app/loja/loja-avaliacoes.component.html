@@ -1,0 +1,129 @@
+@if (!failed()) {
+  <section class="rv" id="avaliacoes" aria-labelledby="rv-title">
+    <div class="rv-side">
+      <h3 class="rv-title" id="rv-title">Avaliações</h3>
+
+      @if (summary().average; as avg) {
+        <div class="rv-score">
+          <span class="rv-avg">{{ avg }}</span>
+          <div>
+            <span class="rv-stars" role="img" [attr.aria-label]="'Nota ' + avg + ' de 5'">
+              @for (s of starSlots; track s) {
+                <svg width="17" height="17" viewBox="0 0 24 24" stroke-width="1.6" stroke-linejoin="round" [class.on]="s <= summary().stars" aria-hidden="true"><path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" /></svg>
+              }
+            </span>
+            <small>{{ countLabel() }} · {{ summary().recommendPct }}% recomendam</small>
+          </div>
+        </div>
+
+        <ul class="rv-dist" aria-label="Distribuição das notas">
+          @for (d of summary().distPct; track d.stars) {
+            <li>
+              <span class="rv-dist-n">{{ d.stars }}</span>
+              <span class="rv-dist-bar" aria-hidden="true"><span [style.width.%]="d.pct"></span></span>
+              <span class="rv-dist-pct">{{ d.pct }}%</span>
+              <span class="rv-sr">{{ d.stars }} estrelas: {{ d.pct }}%</span>
+            </li>
+          }
+        </ul>
+      } @else if (total() > 0) {
+        <p class="rv-few">{{ countLabel() }} até agora. A nota média aparece a partir de 3.</p>
+      }
+
+      @if (summary().fit; as fit) {
+        <div class="rv-fit">
+          <span class="rv-label">Tamanho</span>
+          <span class="rv-fit-track" role="img" [attr.aria-label]="'Caimento: ' + fit.label">
+            <span class="rv-fit-dot" [style.left.%]="fit.position"></span>
+          </span>
+          <span class="rv-fit-legend" aria-hidden="true">
+            <span>Pequeno</span>
+            <strong>{{ fit.label }}</strong>
+            <span>Grande</span>
+          </span>
+        </div>
+      }
+
+      <p class="rv-note">Só quem comprou pela NexaGO pode avaliar. Você avalia em <a routerLink="/loja/pedidos">Meus pedidos</a> depois de retirar ou receber.</p>
+    </div>
+
+    <div class="rv-main">
+      @if (!loaded()) {
+        <p class="rv-empty" role="status">Carregando as avaliações…</p>
+      } @else if (reviews().length === 0) {
+        <div class="rv-empty">
+          <strong>Ainda sem avaliações</strong>
+          <span>Quem comprar e receber esse produto conta aqui como foi.</span>
+        </div>
+      } @else {
+        <div class="rv-toolbar">
+          <div class="rv-filters" role="tablist" aria-label="Filtrar avaliações">
+            @for (c of chips(); track c.id) {
+              <button type="button" role="tab" class="rv-filter" [class.rv-filter--on]="filter() === c.id" [attr.aria-selected]="filter() === c.id" (click)="setFilter(c.id)">
+                {{ c.label }}<span>{{ c.count }}</span>
+              </button>
+            }
+          </div>
+          <label class="rv-sort">
+            <span class="rv-sr">Ordenar avaliações</span>
+            <select (change)="setSort($any($event.target).value)">
+              @for (o of sortOptions; track o.id) {
+                <option [value]="o.id" [selected]="sort() === o.id">{{ o.label }}</option>
+              }
+            </select>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+          </label>
+        </div>
+
+        @if (visible().length === 0) {
+          <p class="rv-none">Nenhuma avaliação com esse filtro.</p>
+        }
+        @for (r of visible(); track r.id) {
+          <article class="rv-card">
+            <header class="rv-card-head">
+              <span class="rv-avatar" aria-hidden="true">{{ r.authorInitials }}</span>
+              <div class="rv-who">
+                <span class="rv-who-line">
+                  <strong>{{ r.authorName }}</strong>
+                  <span class="rv-verified">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 5 6v5c0 4.4 3 8.3 7 9.5 4-1.2 7-5.1 7-9.5V6z" /><path d="m9 12 2 2 4-4" /></svg>
+                    Compra verificada
+                  </span>
+                </span>
+                <small>{{ meta(r) }}</small>
+              </div>
+              <span class="rv-stars rv-stars--sm" role="img" [attr.aria-label]="r.rating + ' de 5 estrelas'">
+                @for (s of starSlots; track s) {
+                  <svg width="14" height="14" viewBox="0 0 24 24" stroke-width="1.6" stroke-linejoin="round" [class.on]="s <= r.rating" aria-hidden="true"><path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" /></svg>
+                }
+              </span>
+            </header>
+            @if (r.comment) {
+              <p class="rv-text">{{ r.comment }}</p>
+            }
+            @if (r.photos.length > 0) {
+              <div class="rv-photos">
+                @for (url of r.photos; track url; let i = $index) {
+                  <a class="rv-photo" [href]="url" target="_blank" rel="noopener" [attr.aria-label]="'Abrir foto ' + (i + 1) + ' de ' + r.authorName">
+                    <img [src]="url" alt="" loading="lazy" decoding="async" />
+                  </a>
+                }
+              </div>
+            }
+            @if (chipsOf(r).length > 0) {
+              <div class="rv-tags">
+                @for (t of chipsOf(r); track t) {
+                  <span>{{ t }}</span>
+                }
+              </div>
+            }
+          </article>
+        }
+
+        @if (remaining() > 0) {
+          <button type="button" class="rv-more" (click)="expanded.set(true)">Ver todas as {{ filtered().length }} avaliações</button>
+        }
+      }
+    </div>
+  </section>
+}

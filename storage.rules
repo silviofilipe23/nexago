@@ -120,6 +120,23 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Fotos da avaliação da compra (Loja 06b/08b). O atleta sobe a dele; a callable
+    // submitStoreOrderReview confere dono, tipo e peso e copia pra store/reviews/{productId}
+    // (pública, sem o uid no caminho). Sem sobrescrever: cada envio é um arquivo novo.
+    match /store/review-uploads/{userId}/{fileName} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId &&
+        request.resource.size < 10 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/(jpeg|png|webp)');
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Cópia pública das fotos das avaliações publicadas. Só o servidor grava.
+    match /store/reviews/{productId}/{fileName} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Fotos dos banners de campanha da vitrine. Mesmo regime das fotos do catálogo:
     // leitura pública, escrita só admin e só imagem até 10 MB. Quem liga a foto ao
     // banner é a callable saveStoreCampaigns.

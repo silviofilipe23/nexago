@@ -1,0 +1,170 @@
+<div class="av-backdrop" (click)="onBackdrop($event)">
+  <section class="av-dialog" role="dialog" aria-modal="true" aria-labelledby="av-title">
+    <header class="av-head">
+      <div class="av-head-text">
+        <h2 id="av-title">{{ editing() ? 'Editar avaliação' : 'Avaliar compra' }}</h2>
+        <p>{{ subtitle() }}</p>
+      </div>
+      <button type="button" class="av-close" aria-label="Fechar" (click)="close()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+      </button>
+    </header>
+
+    <div class="av-body">
+      @for (t of targets(); track t.productId; let k = $index) {
+        @let it = item(t.productId);
+        <div class="av-item">
+          <div class="av-item-head">
+            <span class="av-thumb" aria-hidden="true">
+              @if (t.imageUrl) {
+                <img [src]="t.imageUrl" alt="" />
+              }
+            </span>
+            <div class="av-item-text">
+              <strong>{{ t.name }}</strong>
+              @if (t.variantLabel) {
+                <span>{{ t.variantLabel }}</span>
+              }
+            </div>
+            <div class="av-rate">
+              <div class="av-stars" role="radiogroup" [attr.aria-label]="'Nota para ' + t.name" (mouseleave)="hover.set(null)">
+                @for (s of stars; track s) {
+                  <button
+                    type="button"
+                    role="radio"
+                    class="av-star"
+                    [class.av-star--on]="s <= shown(t.productId, it.rating)"
+                    [attr.aria-checked]="it.rating === s"
+                    [attr.aria-label]="s + (s === 1 ? ' estrela' : ' estrelas') + ' · ' + ratingLabels[s]"
+                    (mouseenter)="hover.set({ key: t.productId, value: s })"
+                    (click)="rate(t.productId, s)"
+                  >
+                    <svg width="26" height="26" viewBox="0 0 24 24" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" /></svg>
+                  </button>
+                }
+              </div>
+              <span class="av-rate-label" [class.av-rate-label--empty]="!shown(t.productId, it.rating)">
+                {{ shown(t.productId, it.rating) ? ratingLabels[shown(t.productId, it.rating)] : 'Toque para dar nota' }}
+              </span>
+            </div>
+          </div>
+
+          @if (open() === t.productId) {
+            <div class="av-chips" role="group" [attr.aria-label]="'O que você mais gostou em ' + t.name">
+              @for (tag of tagsFor(t.sized); track tag.id) {
+                <button type="button" class="av-chip" [class.av-chip--on]="it.tags.includes(tag.id)" [attr.aria-pressed]="it.tags.includes(tag.id)" (click)="toggleTag(t.productId, tag.id)">
+                  @if (it.tags.includes(tag.id)) {
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg>
+                  }
+                  {{ tag.label }}
+                </button>
+              }
+            </div>
+
+            @if (t.sized) {
+              <div class="av-fit" role="group" [attr.aria-labelledby]="'av-fit-' + k">
+                <span class="av-label" [id]="'av-fit-' + k">Como ficou o tamanho?</span>
+                <div class="av-fit-options">
+                  @for (f of fitOptions; track f.id) {
+                    <button type="button" class="av-chip" [class.av-chip--on]="it.fit === f.id" [attr.aria-pressed]="it.fit === f.id" (click)="setFit(t.productId, f.id)">{{ f.label }}</button>
+                  }
+                </div>
+              </div>
+            }
+
+            <label class="av-text">
+              <span class="av-sr">Comentário sobre {{ t.name }} (opcional)</span>
+              <textarea
+                rows="3"
+                [maxLength]="maxComment"
+                placeholder="Conte como foi usar: tecido, conforto, se veste bem… (opcional)"
+                [value]="it.comment"
+                (input)="setComment(t.productId, $any($event.target).value)"
+              ></textarea>
+              <small class="av-count">{{ it.comment.length }}/{{ maxComment }}</small>
+            </label>
+
+            <div class="av-photos">
+              @for (p of it.photos; track p.preview; let i = $index) {
+                <span class="av-photo" [class.av-photo--busy]="p.uploading">
+                  <img [src]="p.preview" alt="Foto {{ i + 1 }} de {{ t.name }}" />
+                  @if (p.uploading) {
+                    <span class="av-photo-spin" role="status" aria-label="Enviando foto"></span>
+                  } @else {
+                    <button type="button" class="av-photo-x" [attr.aria-label]="'Tirar a foto ' + (i + 1)" (click)="removePhoto(t.productId, i)">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+                    </button>
+                  }
+                </span>
+              }
+              @if (it.photos.length < maxPhotos) {
+                <label class="av-photo-add">
+                  <input type="file" accept="image/jpeg,image/png,image/webp" multiple (change)="addPhotos(t.productId, $any($event.target))" />
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.6-2.5h6.8L17 8h3v11H4z" /><circle cx="12" cy="13" r="3.3" /></svg>
+                  Foto
+                </label>
+              }
+            </div>
+          } @else {
+            <div class="av-links">
+              <button type="button" class="av-link" (click)="open.set(t.productId)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                {{ it.comment ? 'Editar comentário' : 'Escrever comentário' }}
+              </button>
+              <button type="button" class="av-link" (click)="open.set(t.productId)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.6-2.5h6.8L17 8h3v11H4z" /><circle cx="12" cy="13" r="3.3" /></svg>
+                {{ it.photos.length > 0 ? it.photos.length + (it.photos.length === 1 ? ' foto' : ' fotos') : 'Adicionar foto' }}
+              </button>
+            </div>
+          }
+        </div>
+      }
+
+      @if (pickupPlace(); as place) {
+        <div class="av-pickup">
+          <span class="av-pickup-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.1-7-11.5a7 7 0 0 1 14 0C19 14.9 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></svg>
+          </span>
+          <div class="av-item-text">
+            <strong>Retirada na {{ place }}</strong>
+            <span>Como foi pegar o pedido na recepção?</span>
+          </div>
+          <div class="av-stars av-stars--sm" role="radiogroup" aria-label="Nota para a retirada" (mouseleave)="hover.set(null)">
+            @for (s of stars; track s) {
+              <button
+                type="button"
+                role="radio"
+                class="av-star"
+                [class.av-star--on]="s <= shown('pickup', pickupRating())"
+                [attr.aria-checked]="pickupRating() === s"
+                [attr.aria-label]="s + (s === 1 ? ' estrela' : ' estrelas')"
+                (mouseenter)="hover.set({ key: 'pickup', value: s })"
+                (click)="pickupRating.set(s)"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" /></svg>
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+    @if (error(); as err) {
+      <p class="av-error" role="alert">{{ err }}</p>
+    }
+    <footer class="av-actions">
+      <label class="av-check">
+        <input type="checkbox" [checked]="anonymous()" (change)="anonymous.set($any($event.target).checked)" />
+        <span class="av-check-box" aria-hidden="true">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10" /></svg>
+        </span>
+        Publicar sem meu nome
+      </label>
+      <span class="av-spacer"></span>
+      <button type="button" class="av-btn av-btn--ghost" [disabled]="submitting()" (click)="close()">Agora não</button>
+      <button type="button" class="av-btn av-btn--primary" [disabled]="!ready()" (click)="publish()">
+        {{ submitting() ? 'Publicando…' : editing() ? 'Salvar avaliação' : 'Publicar avaliação' }}
+      </button>
+    </footer>
+  </section>
+</div>

@@ -17,10 +17,13 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../application/store_checkout_providers.dart';
 import '../application/store_providers.dart';
+import '../application/store_review_providers.dart';
 import '../domain/store_checkout_models.dart';
 import '../domain/store_order_rules.dart';
+import '../domain/store_review_rules.dart';
 import 'store_checkout_copy.dart';
 import 'store_order_actions.dart';
+import 'store_review_copy.dart';
 import 'widgets/store_checkout_parts.dart';
 import 'widgets/store_order_parts.dart';
 import 'widgets/store_style.dart';
@@ -517,6 +520,14 @@ class _StoreOrderPageState extends ConsumerState<StoreOrderPage> {
     final closed = o.status == StoreOrderStatus.ent ||
         o.status == StoreOrderStatus.rtd ||
         o.status == StoreOrderStatus.can;
+    // Avaliar/editar só com a leitura da avaliação em mãos (sem ela, não dá
+    // pra saber se já foi avaliado) e dentro do prazo.
+    final reviewAsync = ref.watch(storeOrderReviewProvider(o.id));
+    final reviewState = reviewAsync.hasValue
+        ? storeOrderReviewState(o.status, reviewAsync.value, _now)
+        : null;
+    final canReview = reviewState == StoreOrderReviewState.none ||
+        reviewState == StoreOrderReviewState.editable;
     return [
       if (_justPaid) ...[
         _PaidBanner(atArena: o.atArena),
@@ -601,8 +612,25 @@ class _StoreOrderPageState extends ConsumerState<StoreOrderPage> {
                 },
               ),
             ],
-            if (closed) ...[
+            if (canReview) ...[
               const SizedBox(height: 14),
+              StoreSoftButton(
+                key: const ValueKey('store-order-review'),
+                label: reviewState == StoreOrderReviewState.none
+                    ? StoreReviewCopy.rateOrder
+                    : StoreReviewCopy.editReview,
+                icon: reviewState == StoreOrderReviewState.none
+                    ? Icons.star_rounded
+                    : Icons.star_outline_rounded,
+                primary: reviewState == StoreOrderReviewState.none,
+                onPressed: () => context.pushNamed(
+                  AppRouteNames.storeOrderReview,
+                  pathParameters: {'orderId': o.id},
+                ),
+              ),
+            ],
+            if (closed) ...[
+              SizedBox(height: canReview ? 10 : 14),
               StoreSoftButton(
                 key: const ValueKey('store-order-rebuy'),
                 label: StoreCheckoutCopy.rebuy,

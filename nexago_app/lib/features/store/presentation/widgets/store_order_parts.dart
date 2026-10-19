@@ -8,6 +8,7 @@ import '../../domain/store_checkout_models.dart';
 import '../../domain/store_order_rules.dart';
 import '../store_checkout_copy.dart';
 import 'store_checkout_parts.dart';
+import 'store_review_parts.dart';
 import 'store_style.dart';
 
 /// Cores da pílula por momento (`LJ_ORD_ST` do desenho).
@@ -348,11 +349,33 @@ class StoreOrderThumbs extends StatelessWidget {
 
 /// Uma ação do card do pedido.
 class StoreOrderAction {
-  const StoreOrderAction(this.label, this.onTap, {this.primary = false});
+  const StoreOrderAction(
+    this.label,
+    this.onTap, {
+    this.primary = false,
+    this.icon,
+    this.pill = false,
+    this.key,
+  });
 
   final String label;
   final VoidCallback? onTap;
   final bool primary;
+  final IconData? icon;
+
+  /// A pílula laranja tingida com a estrela ("Avaliar", `LjAppMeusPedidos`).
+  final bool pill;
+  final Key? key;
+
+  Widget build() => pill
+      ? StoreReviewPillButton(key: key, label: label, onPressed: onTap)
+      : StoreSoftButton(
+          key: key,
+          label: label,
+          icon: icon,
+          primary: primary,
+          onPressed: onTap,
+        );
 }
 
 /// Card de "Meus pedidos" (`LjAppOrderCard`).
@@ -419,11 +442,7 @@ class StoreOrderCard extends StatelessWidget {
     List<Widget> buttons() => [
           for (var i = 0; i < actions.length; i++) ...[
             if (i > 0) const SizedBox(width: 8),
-            StoreSoftButton(
-              label: actions[i].label,
-              primary: actions[i].primary,
-              onPressed: actions[i].onTap,
-            ),
+            actions[i].build(),
           ],
         ];
     return Material(
@@ -530,12 +549,7 @@ class StoreOrderCard extends StatelessWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    for (final a in actions)
-                      StoreSoftButton(
-                        label: a.label,
-                        primary: a.primary,
-                        onPressed: a.onTap,
-                      ),
+                    for (final a in actions) a.build(),
                   ],
                 ),
               ],

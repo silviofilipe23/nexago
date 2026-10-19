@@ -89,7 +89,7 @@ vem vazio (sem galeria extra, sem detalhes, sem personalização, sem entrega).
   (app: 4 linhas + "Ler mais").
 - Combina com: 3 (web) / até 8 (app) — mais vendidos da mesma categoria, completados pelos mais
   vendidos das outras; esgotados ficam de fora. (Escolha manual no backoffice ainda não existe.)
-- Avaliações: some sempre enquanto `ratingCount < 3` (não há avaliações ainda).
+- Avaliações: nota no topo só com `ratingCount ≥ 3`; a seção "Avaliações" (comentários, distribuição, caimento, filtros) segue `loja-avaliacoes.md`.
 - Tabela de medidas: **não aparece** — não há tabela cadastrada no backoffice.
 
 ### Estados

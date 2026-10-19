@@ -112,6 +112,20 @@
               <div class="ps-card-foot">
                 <span class="ps-info" [class.ps-info--ready]="c.order.status === 'ret'">{{ c.info }}</span>
                 <a class="ps-details" [routerLink]="['/loja/pedidos', c.order.id]">Detalhes</a>
+                @switch (c.review) {
+                  @case ('none') {
+                    <button type="button" class="ps-btn ps-btn--primary" (click)="openReview(c.order)">Avaliar compra</button>
+                  }
+                  @case ('editable') {
+                    <button type="button" class="ps-btn" (click)="openReview(c.order)">Editar avaliação</button>
+                  }
+                  @case ('locked') {
+                    <span class="ps-reviewed">
+                      <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" /></svg>
+                      Avaliado
+                    </span>
+                  }
+                }
                 @switch (c.order.status) {
                   @case ('pag') {
                     <a class="ps-btn ps-btn--primary" [routerLink]="['/loja/pedidos', c.order.id]">Pagar Pix</a>
@@ -185,4 +199,7 @@
     }
   </div>
 
+  @if (reviewing(); as o) {
+    <app-loja-avaliar-modal [order]="o" [review]="reviewOf(o.id)" [products]="productsById()" (published)="reviewing.set(null)" (closed)="reviewing.set(null)" />
+  }
 </app-at-panel-shell>

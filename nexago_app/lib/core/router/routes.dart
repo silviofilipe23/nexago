@@ -238,6 +238,12 @@ abstract final class AppRoutes {
   static const String storeCustomize =
       '/loja/produto/:productId/personalizar';
 
+  /// Todas as avaliações do produto (resumo, caimento, filtros e a lista),
+  /// aberta pelo "Ver todas" da página do produto; `?tamanho=` é o valor do
+  /// eixo Tamanho escolhido lá (liga o filtro "Tamanho M").
+  static const String storeProductReviews =
+      '/loja/produto/:productId/avaliacoes';
+
   /// Carrinho e checkout (app 03/04). Deep link `nexago://loja/carrinho`.
   static const String storeCart = '/loja/carrinho';
 
@@ -254,6 +260,10 @@ abstract final class AppRoutes {
   /// Pedido (app 06 Pix · 07 retirada). O checkout manda o Pix recém-criado
   /// pelo `extra` (o espelho `storeOrderViews` nasce ~1 s depois).
   static const String storeOrder = '/loja/pedidos/:orderId';
+
+  /// Avaliar compra (app 08b, um produto por vez) e o agradecimento (08c).
+  /// Só pedido entregue/retirado; na edição (30 dias) vem preenchida.
+  static const String storeOrderReview = '/loja/pedidos/:orderId/avaliar';
 
   /// Esportes e níveis do atleta.
   static const String athleteSportsLevels = '/athlete/profile/sports-levels';
@@ -712,11 +722,13 @@ abstract final class AppRouteNames {
   static const String storeSearch = 'storeSearch';
   static const String storeProduct = 'storeProduct';
   static const String storeCustomize = 'storeCustomize';
+  static const String storeProductReviews = 'storeProductReviews';
   static const String storeCart = 'storeCart';
   static const String storeFavorites = 'storeFavorites';
   static const String storeAddress = 'storeAddress';
   static const String storeOrders = 'storeOrders';
   static const String storeOrder = 'storeOrder';
+  static const String storeOrderReview = 'storeOrderReview';
   static const String athleteSportsLevels = 'athleteSportsLevels';
   static const String athleteNotificationSettings =
       'athleteNotificationSettings';

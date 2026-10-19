@@ -3356,6 +3356,11 @@ service cloud.firestore {
     match /storeShowcase/{productId} {
       allow read: if true;
       allow write: if false;
+      // Avaliações publicadas (seção da tela 02), escritas pelo gatilho das avaliações.
+      match /reviews/{reviewId} {
+        allow read: if true;
+        allow write: if false;
+      }
     }
     match /storePublic/{docId} {
       allow read: if true;
@@ -3424,6 +3429,19 @@ service cloud.firestore {
     match /storeOrderViews/{orderId} {
       allow get: if request.auth != null && (resource == null || resource.data.uid == request.auth.uid);
       allow list: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+
+    // Avaliação da compra (Loja 06b/08b): o dono lê a dele (Meus pedidos e edição por 30 dias).
+    // Quem grava é a callable submitStoreOrderReview; o público lê só o espelho em
+    // storeShowcase/{productId}/reviews, sem uid nem pedido.
+    match /storeOrderReviews/{orderId} {
+      allow get: if request.auth != null && (resource == null || resource.data.uid == request.auth.uid);
+      allow list: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+    match /storeProductRatings/{productId} {
+      allow read: if isAdmin() || isSuperAdmin();
       allow write: if false;
     }
 

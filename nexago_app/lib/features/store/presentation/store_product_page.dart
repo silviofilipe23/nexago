@@ -20,6 +20,7 @@ import '../../../core/ui/nexa_share.dart';
 import '../application/store_providers.dart';
 import '../domain/store_models.dart';
 import '../domain/store_product_rules.dart';
+import '../domain/store_review_rules.dart';
 import '../domain/store_rules.dart';
 import 'store_copy.dart';
 import 'widgets/store_added_snack_bar.dart';
@@ -29,6 +30,7 @@ import 'widgets/store_product_bottom_bar.dart';
 import 'widgets/store_product_card.dart';
 import 'widgets/store_product_gallery.dart';
 import 'widgets/store_product_options.dart';
+import 'widgets/store_product_reviews_section.dart';
 import 'widgets/store_product_sections.dart';
 import 'widgets/store_skeleton.dart';
 import 'widgets/store_style.dart';
@@ -156,6 +158,17 @@ class _StoreProductPageState extends ConsumerState<StoreProductPage> {
       AppRouteNames.storeProduct,
       pathParameters: {'productId': product.id},
       queryParameters: {'origem': origin},
+    );
+  }
+
+  /// "Ver todas": leva o tamanho escolhido (filtro "Tamanho M").
+  void _openReviews(StoreProduct product, Map<String, String> selected) {
+    final sizeAxis = storeReviewSizeAxis(product);
+    final size = sizeAxis == null ? null : selected[sizeAxis.id];
+    context.pushNamed(
+      AppRouteNames.storeProductReviews,
+      pathParameters: {'productId': product.id},
+      queryParameters: {if (size != null) 'tamanho': size},
     );
   }
 
@@ -794,6 +807,11 @@ class _StoreProductPageState extends ConsumerState<StoreProductPage> {
               description: product.description,
             ),
           ],
+          StoreProductReviewsSection(
+            product: product,
+            now: now,
+            onSeeAll: () => _openReviews(product, selected),
+          ),
         ],
       ),
     );

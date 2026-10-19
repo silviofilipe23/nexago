@@ -602,7 +602,8 @@ export class PanelAgendaComponent {
       .map((s) => ({
         id: s.id,
         time: s.startTime,
-        court: this.courtName(s.courtId),
+        // Reserva com esporte escolhido pelo atleta: "Quadra 1 · Beach tennis".
+        court: [this.courtName(s.courtId), this.bookingFor(s)?.sportLabel].filter((p) => !!p).join(' · '),
         client: this.clientLabelFor(s),
         status: this.slotStatusForBlock(s),
       }));

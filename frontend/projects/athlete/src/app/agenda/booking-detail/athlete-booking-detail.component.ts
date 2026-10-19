@@ -224,7 +224,7 @@ export class AthleteBookingDetailComponent {
         break;
     }
     if (b.status === 'pending_payment') return 'AGUARDANDO PAGAMENTO';
-    if (b.paymentChannel === 'pix') {
+    if (b.paymentChannel === 'pix' || b.paymentChannel === 'card') {
       const isFull = (b.paymentFraction ?? 1) >= 0.99 || b.amountDueOnsiteReais <= 0.02;
       if (b.paymentStatus === 'paid' && isFull) return 'PAGO E CONFIRMADO';
       if (b.paymentStatus === 'paid' || b.paymentStatus === 'partial') return '50% PAGO · RESTANTE NA ARENA';
@@ -292,7 +292,10 @@ export class AthleteBookingDetailComponent {
 
   protected readonly displayCode = computed(() => bookingDisplayCode(this.bookingId()));
 
-  protected readonly sportLabel = computed(() => courtSportLabel(this.arena()?.courtTypes[0]) || null);
+  /** Esporte escolhido na reserva; reserva antiga (sem `sport`) cai no 1º esporte da arena. */
+  protected readonly sportLabel = computed(
+    () => courtSportLabel(this.booking()?.sport ?? this.arena()?.courtTypes[0]) || null,
+  );
 
   /** Capa da arena pro hero — null enquanto a arena não carregou. */
   protected readonly coverUrl = computed(() => {
@@ -333,6 +336,7 @@ export class AthleteBookingDetailComponent {
     const b = this.booking();
     if (!b) return '—';
     if (b.paymentChannel === 'pix') return 'Via PIX';
+    if (b.paymentChannel === 'card') return 'Cartão de crédito';
     if (b.paymentChannel === 'onsite') return 'No local';
     return 'A confirmar';
   });

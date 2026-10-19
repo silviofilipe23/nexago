@@ -18,6 +18,20 @@ describe('parseWalletView', () => {
     expect(view.withdrawals[0].pixKey).toBe('123••••••01');
   });
 
+  it('lê o "a liberar" do cartão, e servidor sem o campo vira zero', () => {
+    const view = parseWalletView({
+      tournaments: [
+        { tournamentId: 't1', tournamentName: 'Copa A', availableReais: 0, pendingReais: 0, awaitingSettlementReais: 115.23 },
+        { tournamentId: 't2', tournamentName: 'Copa B', availableReais: 90, pendingReais: 5 },
+      ],
+      selected: { tournamentId: 't1', tournamentName: 'Copa A', availableReais: 0, pendingReais: 0, awaitingSettlementReais: 115.23 },
+    });
+
+    expect(view.selected?.awaitingSettlementReais).toBe(115.23);
+    expect(view.tournaments[0].awaitingSettlementReais).toBe(115.23);
+    expect(view.tournaments[1].awaitingSettlementReais).toBe(0);
+  });
+
   it('sem caixa acessível devolve lista vazia e selected nulo', () => {
     const view = parseWalletView({
       tournaments: [], selected: null,
@@ -47,18 +61,27 @@ describe('parseWalletView', () => {
 
 describe('walletBalanceFromDoc', () => {
   it('lê o saldo do doc do caixa', () => {
-    expect(walletBalanceFromDoc({ availableReais: 90.5, pendingReais: 40 })).toEqual({
+    expect(walletBalanceFromDoc({ availableReais: 90.5, pendingReais: 40, awaitingSettlementReais: 88.71 })).toEqual({
       availableReais: 90.5,
       pendingReais: 40,
+      awaitingSettlementReais: 88.71,
     });
   });
 
   it('doc ausente é zero de verdade — caixa que nunca creditou', () => {
-    expect(walletBalanceFromDoc(undefined)).toEqual({ availableReais: 0, pendingReais: 0 });
+    expect(walletBalanceFromDoc(undefined)).toEqual({ availableReais: 0, pendingReais: 0, awaitingSettlementReais: 0 });
+  });
+
+  it('caixa sem o campo do "a liberar" (acervo, PIX) é zero', () => {
+    expect(walletBalanceFromDoc({ availableReais: 10, pendingReais: 0 }).awaitingSettlementReais).toBe(0);
   });
 
   it('campo estranho não vira NaN', () => {
-    expect(walletBalanceFromDoc({ availableReais: 'muito' })).toEqual({ availableReais: 0, pendingReais: 0 });
+    expect(walletBalanceFromDoc({ availableReais: 'muito', awaitingSettlementReais: 'x' })).toEqual({
+      availableReais: 0,
+      pendingReais: 0,
+      awaitingSettlementReais: 0,
+    });
   });
 });
 

@@ -104,6 +104,11 @@ import '../../features/arena/presentation/arena_club_details_page.dart';
 import '../../features/arena/presentation/arena_club_form_page.dart';
 import '../../features/arena/presentation/arena_club_session_page.dart';
 import '../../features/arena/presentation/arena_clubs_page.dart';
+import '../../features/arena/presentation/aulas/arena_class_attendance_page.dart';
+import '../../features/arena/presentation/aulas/arena_class_charges_page.dart';
+import '../../features/arena/presentation/aulas/arena_class_enroll_page.dart';
+import '../../features/arena/presentation/aulas/arena_class_student_page.dart';
+import '../../features/arena/presentation/aulas/arena_classes_page.dart';
 import '../../features/arena/presentation/arena_recurring_details_page.dart';
 import '../../features/arena/presentation/arena_recurring_created_success_page.dart';
 import '../../features/arena/presentation/arena_recurring_form_page.dart';
@@ -2306,6 +2311,49 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 },
               ),
             ],
+          ),
+        ],
+      ),
+      GoRoute(
+        path: AppRoutes.arenaClasses,
+        name: AppRouteNames.arenaClasses,
+        builder: (context, state) => const ArenaClassesPage(),
+        routes: [
+          GoRoute(
+            path: 'session/:sessionId',
+            name: AppRouteNames.arenaClassSession,
+            builder: (context, state) {
+              final sessionId =
+                  state.pathParameters['sessionId']?.trim() ?? '';
+              return ArenaClassAttendancePage(sessionId: sessionId);
+            },
+          ),
+          GoRoute(
+            path: 'student/:studentId',
+            name: AppRouteNames.arenaClassStudent,
+            builder: (context, state) {
+              final studentId =
+                  state.pathParameters['studentId']?.trim() ?? '';
+              return ArenaClassStudentPage(
+                studentId: studentId,
+                classId: state.uri.queryParameters['classId'],
+              );
+            },
+          ),
+          GoRoute(
+            path: 'charges',
+            name: AppRouteNames.arenaClassCharges,
+            builder: (context, state) => const ArenaClassChargesPage(),
+          ),
+          GoRoute(
+            path: 'enroll',
+            name: AppRouteNames.arenaClassEnroll,
+            builder: (context, state) {
+              final extra = state.extra;
+              return ArenaClassEnrollPage(
+                seed: extra is ArenaClassEnrollSeed ? extra : null,
+              );
+            },
           ),
         ],
       ),

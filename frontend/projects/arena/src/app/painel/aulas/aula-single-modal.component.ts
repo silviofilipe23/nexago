@@ -64,7 +64,7 @@ const CAPACITY_BY_TYPE: Record<ClassType, number> = { turma: 6, particular: 1, d
           @if (!optionsLoaded()) {
             <p class="hint first">Carregando…</p>
           } @else if (activeTeachers().length === 0) {
-            <p class="hint first">Cadastre um professor em <a class="ar-text-link" routerLink="/painel/aulas/professores">Professores</a>.</p>
+            <p class="hint first">Cadastre (ou vincule a conta de) um professor em <a class="ar-text-link" routerLink="/painel/aulas/professores">Professores</a>.</p>
           } @else {
             <select class="input-box" (change)="teacherId.set($any($event.target).value)">
               @for (t of activeTeachers(); track t.id) {
@@ -161,7 +161,8 @@ export class AulaSingleModalComponent {
   protected readonly conflict = signal<string | null>(null);
 
   protected readonly optionsLoaded = signal(false);
-  protected readonly activeTeachers = computed(() => this.teachers().filter((t) => t.status === 'active'));
+  /** Só professor com conta NexaGO recebe aula nova. */
+  protected readonly activeTeachers = computed(() => this.teachers().filter((t) => t.status === 'active' && t.userId));
   protected readonly maxStudents = computed(() => CAPACITY_BY_TYPE[this.type()]);
   protected readonly canSave = computed(
     () =>
@@ -239,7 +240,7 @@ export class AulaSingleModalComponent {
       const [teachers, courts] = await Promise.all([fetchTeachers(db, arenaId), fetchCourtsList(db, arenaId)]);
       this.teachers.set(teachers);
       this.courts.set(courts.map((c) => ({ id: c.id, name: c.name, types: c.types })));
-      const firstTeacher = teachers.find((t) => t.status === 'active');
+      const firstTeacher = teachers.find((t) => t.status === 'active' && t.userId);
       if (firstTeacher) this.teacherId.set(firstTeacher.id);
       if (courts[0]) this.courtId.set(courts[0].id);
     } catch {

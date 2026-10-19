@@ -11,6 +11,7 @@ bool isArenaManagerPanelPath(String path) {
     AppRoutes.arenaCourts,
     AppRoutes.arenaBookings,
     AppRoutes.arenaClubs,
+    AppRoutes.arenaClasses,
     AppRoutes.arenaSettings,
     AppRoutes.arenaPayments,
     AppRoutes.arenaPlan,
@@ -66,9 +67,17 @@ const List<MapEntry<String, ArenaArea>> _arenaAreaByPrefix = [
   MapEntry('/arena/schedule', ArenaArea.agenda),
   MapEntry('/arena/bookings', ArenaArea.agenda),
   MapEntry('/arena/clubs', ArenaArea.agenda),
+  MapEntry('/arena/classes', ArenaArea.agenda),
   MapEntry('/arena/comandas', ArenaArea.comandas),
   MapEntry('/arena/products', ArenaArea.estoque),
   MapEntry('/arena/courts', ArenaArea.quadras),
+];
+
+/// Rotas que, além da area de [_arenaAreaByPrefix], tambem abrem para quem
+/// le esta outra area. Mensalidades das aulas: a recepcao (agenda) cobra no
+/// balcao e o financeiro acompanha — mesma regra de `arenaClassCharges`.
+const List<MapEntry<String, ArenaArea>> _arenaAlternateAreaByPrefix = [
+  MapEntry('/arena/classes/charges', ArenaArea.financeiro),
 ];
 
 const List<String> _arenaOwnerOnlyPrefixes = [
@@ -85,6 +94,16 @@ bool _matches(String path, String prefix) {
 ArenaArea? arenaAreaForPath(String path) {
   if (!isArenaManagerPanelPath(path)) return null;
   for (final entry in _arenaAreaByPrefix) {
+    if (_matches(path, entry.key)) return entry.value;
+  }
+  return null;
+}
+
+/// Segunda area que tambem libera a rota (ver [_arenaAlternateAreaByPrefix]);
+/// `null` quando so a area principal vale.
+ArenaArea? arenaAlternateAreaForPath(String path) {
+  if (!isArenaManagerPanelPath(path)) return null;
+  for (final entry in _arenaAlternateAreaByPrefix) {
     if (_matches(path, entry.key)) return entry.value;
   }
   return null;

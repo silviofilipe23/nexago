@@ -2,11 +2,7 @@
  * Conclusão de saque do organizador — espelha `arena-withdrawal-payout.ts`.
  * Valida a reserva, envia o PIX Asaas (com prefixo próprio) e libera o pending.
  */
-import {
-  FieldValue,
-  type DocumentReference,
-  type Firestore,
-} from "firebase-admin/firestore";
+import {type DocumentReference, type Firestore} from "firebase-admin/firestore";
 import {
   assertOrganizerWithdrawalReservationValid,
   releaseOrganizerWithdrawalReservation,
@@ -20,31 +16,21 @@ import {
   type PayoutSendResult,
   sendArenaWithdrawalPixTransfer,
 } from "./asaas-payout";
+import {
+  finalizeApprovedWithdrawal,
+  resolveWithdrawalWalletTarget,
+  type WithdrawalWalletTarget,
+} from "./withdrawal-transfer-state";
 
 export type CompleteOrganizerWithdrawalPayoutResult = PayoutSendResult & {
   withdrawalId: string;
   status: "approved";
 };
 
-/** De qual caixa o saque sai. */
-export type WithdrawalWalletTarget =
-  | {kind: "tournament"; tournamentId: string}
-  | {kind: "organizer"; organizerId: string};
-
-/**
- * De qual caixa o saque sai. Saque criado a partir de 16/09/2026 traz
- * `tournamentId`; os que ficaram pendentes antes da virada continuam debitando
- * `organizerWallets/{uid}` — é o único caminho que não deixa dinheiro preso.
- */
-export function resolveWithdrawalWalletTarget(
-  withdrawal: Record<string, unknown>,
-): WithdrawalWalletTarget {
-  const tournamentId = (withdrawal.tournamentId as string | undefined)?.trim() ?? "";
-  if (tournamentId) return {kind: "tournament", tournamentId};
-  const organizerId = (withdrawal.organizerId as string | undefined)?.trim() ?? "";
-  if (organizerId) return {kind: "organizer", organizerId};
-  throw new Error("WITHDRAWAL_DATA_INVALID");
-}
+// Moraram aqui; o webhook e a validação de saque também precisam, então foram
+// para `withdrawal-transfer-state.ts` (sem ciclo de import). Reexporta para os
+// chamadores de sempre.
+export {resolveWithdrawalWalletTarget, type WithdrawalWalletTarget};
 
 /**
  * Libera a reserva no caixa que o saque aponta — ÚNICO despacho de alvo do
@@ -107,14 +93,11 @@ export async function completeOrganizerWithdrawalPayout(
     ORGANIZER_WITHDRAWAL_REF_PREFIX,
   );
 
-  await releaseWithdrawalReservation(db, target, amountReais, true);
-
-  await withdrawalRef.update({
-    status: "approved",
+  // Consome a reserva e aprova numa transação que relê o saque: se o webhook
+  // de falha chegou entre o envio e aqui, nada é consumido.
+  await finalizeApprovedWithdrawal(db, "organizer", withdrawalRef, amountReais, {
     reviewedBy,
-    reviewedAt: FieldValue.serverTimestamp(),
-    reviewNote: reviewNote?.trim() || null,
-    updatedAt: FieldValue.serverTimestamp(),
+    reviewNote,
   });
 
   return {

@@ -34,17 +34,22 @@ import {
   resolveCategoryEntryFee,
 } from "./tournament-registration-guards";
 import {deliverNotificationToUser} from "./notification-delivery";
+import {resolveGatewayFeeReais} from "./asaas-gateway-fee";
 import {registrationHoldClearedFields} from "./tournament-registration-hold-ops";
 import {tournamentManagerUids} from "./tournament-acl";
 import {organizerTournamentNotificationLinks} from "./organizer-notification-links";
-import {creditTournamentWalletFromRegistration} from "./tournament-wallet";
+import {
+  creditTournamentWalletFromRegistration,
+  holdTournamentAwaitingSettlement,
+  organizerNetReais,
+  releaseTournamentAwaitingSettlement,
+} from "./tournament-wallet";
 import {applySquadPaymentEventQuietly, chargeDiscountCents, squadEventForStatus} from "./squad-commission-lifecycle";
 import {computePlatformFeeReais, resolveOrganizerTournamentFeePercent} from "./platform-fees";
 import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 import {
   parseRegistrationBillingType,
   resolvePaymentPhases,
-  type RegistrationBillingType,
 } from "./registration-payment-phases";
 import {DEFAULT_CASHBACK_CONFIG, readCashbackConfig} from "./cashback-config";
 import {toMillisOrNull} from "./cashback-rules";
@@ -73,30 +78,6 @@ const ASAAS_NEGATIVE_TERMINAL_STATUSES = new Set([
 
 
 
-/**
- * Taxa que o gateway cobrou nesta cobrança, para repassar ao organizador.
- *
- * Sai do próprio pagamento (`value − netValue`) em vez de uma alíquota fixa no
- * código, que envelheceria calada a cada renegociação com o Asaas. Só vale
- * para cartão: no PIX a plataforma absorve o custo, como sempre absorveu.
- */
-function resolveGatewayFeeReais(
-  payment: AsaasPaymentDetails,
-  billingType: RegistrationBillingType,
-  grossReais: number,
-): number {
-  if (billingType !== "CREDIT_CARD") return 0;
-  const net = Number(payment.netValue);
-  if (!Number.isFinite(net) || net <= 0 || net > grossReais) {
-    logger.error(
-      "Asaas tournament registration: netValue ausente/inválido no cartão — " +
-      "creditando sem descontar a taxa do gateway",
-      {paymentId: payment.id, value: grossReais, netValue: payment.netValue},
-    );
-    return 0;
-  }
-  return roundMoney(grossReais - net);
-}
 
 export interface TournamentRegistrationWebhookDeps {
   cancelCharge: (asaasPaymentId: string) => Promise<void>;
@@ -159,6 +140,7 @@ export async function processTournamentRegistrationAsaasNotification(
   const legacyApproved = outcome === "approved" && processed.confirmedAt == null;
   const alreadyConfirmed = legacyApproved || processed.confirmedAt != null;
   const alreadyCredited = legacyApproved || processed.walletCreditedAt != null;
+  const alreadyAwaitingSettlement = processed.awaitingSettlement != null;
 
   const status = (payment.status || "").toUpperCase();
   const billingType = parseRegistrationBillingType(payment.billingType);
@@ -167,11 +149,13 @@ export async function processTournamentRegistrationAsaasNotification(
     status,
     alreadyConfirmed,
     alreadyCredited,
+    alreadyAwaitingSettlement,
   });
 
   if (
     !phases.confirm &&
     !phases.credit &&
+    !phases.awaitSettlement &&
     !ASAAS_NEGATIVE_TERMINAL_STATUSES.has(status)
   ) {
     logger.info(
@@ -218,7 +202,7 @@ export async function processTournamentRegistrationAsaasNotification(
     ? 0
     : computeTournamentShareAmountReais(entryFee);
 
-  if (phases.confirm || phases.credit) {
+  if (phases.confirm || phases.credit || phases.awaitSettlement) {
     const paidOnline = roundMoney(Number(payment.value) || 0);
     if (paidOnline <= 0) {
       logger.warn(`Asaas tournament registration ${registrationId}: valor inválido`);
@@ -529,6 +513,38 @@ export async function processTournamentRegistrationAsaasNotification(
       }
     }
 
+    // "A liberar": cartão aprovado cujo dinheiro só entra no caixa na
+    // liquidação. O líquido previsto vai agora para `awaitingSettlementReais`
+    // (o organizador vê a inscrição paga E o valor a caminho) e sai de lá no
+    // mesmo lançamento que credita o caixa, pelo valor gravado no marcador.
+    // Falha aqui não pode derrubar nada: sem o marcador, o backfill (que
+    // reprocessa o `CONFIRMED`) soma depois.
+    if (phases.awaitSettlement && organizerId) {
+      if (organizerFeePercent == null) {
+        logger.warn(
+          `Asaas tournament registration ${registrationId}: taxa indisponível — ` +
+          `cartão ${paymentId} fica fora do "a liberar" nesta rodada`,
+        );
+      } else {
+        try {
+          await holdTournamentAwaitingSettlement(db, processedRef, {
+            tournamentId,
+            ownerId: organizerId,
+            netReais: organizerNetReais({
+              grossReais: grossOnline,
+              platformFeeReais: computePlatformFeeReais(grossOnline, organizerFeePercent),
+              gatewayFeeReais: resolveGatewayFeeReais(payment, billingType, paidOnline),
+            }),
+          });
+        } catch (awaitErr) {
+          logger.error(
+            `Asaas tournament registration ${registrationId}: falha ao somar o "a liberar"`,
+            awaitErr,
+          );
+        }
+      }
+    }
+
     // Credita o CAIXA DO TORNEIO (`tournamentWallets/{tournamentId}`) com o
     // líquido (bruto − taxa da plataforma − taxa do gateway). A plataforma
     // retém a sua taxa; o dono do evento e os gestores da equipe sacam depois.
@@ -555,12 +571,12 @@ export async function processTournamentRegistrationAsaasNotification(
           gatewayFeeReais: resolveGatewayFeeReais(payment, billingType, paidOnline),
           cashbackAppliedReais: appliedCents / 100,
           squadDiscountReais: squadDiscount / 100,
+          // A fase é marcada (`walletCreditedAt`) na mesma transação do
+          // crédito, só no sucesso — crédito que falhou precisa poder ser
+          // reprocessado por uma reentrega — e o "a liberar" deste cartão é
+          // abatido junto.
+          processedRef,
         });
-        // Marca a fase só no sucesso: crédito que falhou precisa poder ser
-        // reprocessado por uma reentrega do evento.
-        await processedRef.set({
-          walletCreditedAt: FieldValue.serverTimestamp(),
-        }, {merge: true});
       } catch (walletErr) {
         logger.error(
           `Asaas tournament registration ${registrationId}: tournament wallet credit failed`,
@@ -572,6 +588,7 @@ export async function processTournamentRegistrationAsaasNotification(
     logger.info(
       `Asaas tournament registration ${registrationId}: pagamento de ${payerUid} ` +
       `(${billingType}, ${status}) — confirmou=${phases.confirm} creditou=${phases.credit} ` +
+      `a_liberar=${phases.awaitSettlement} ` +
       `paidAmount=${newPaidAmount} isPaid=${isPaid}`,
     );
     return;
@@ -586,6 +603,19 @@ export async function processTournamentRegistrationAsaasNotification(
       await applySquadPaymentEventQuietly(db, {registrationId, payerUid, paymentId, event: squadEvent}, new Date());
     }
     if (alreadyConfirmed) {
+      // O cartão não vai mais liquidar como previsto: sai do "a liberar" para
+      // o organizador não esperar um dinheiro que não vem. Se o `RECEIVED`
+      // vier mesmo assim, o crédito acontece normalmente.
+      if (alreadyAwaitingSettlement && !alreadyCredited) {
+        try {
+          await releaseTournamentAwaitingSettlement(db, processedRef, status);
+        } catch (awaitErr) {
+          logger.error(
+            `Asaas tournament registration ${registrationId}: falha ao tirar ${paymentId} do "a liberar"`,
+            awaitErr,
+          );
+        }
+      }
       logger.error(
         `Asaas tournament registration ${registrationId}: pagamento ${paymentId} ` +
         `virou ${status} DEPOIS de confirmar a inscrição — vaga e carteira ` +

@@ -10,6 +10,7 @@ import {
 } from "./arena-manual-booking";
 import {
   cancelPendingArenaBookingPayment,
+  createArenaBookingCardPayment,
   createArenaBookingPixPayment,
   expirePendingArenaBookingPayments,
   requestArenaWithdrawal,
@@ -18,6 +19,7 @@ import {
 } from "./arena-booking-pix";
 import {createArenaSubscription, cancelArenaSubscription} from "./arena-subscription";
 import {asaasWebhook} from "./asaas-webhook";
+import {asaasWithdrawalValidation} from "./asaas-withdrawal-validation";
 import {onArenaBookingCanceledNotifySlotVacancyAlerts} from "./slot-vacancy-alerts";
 import {onArenaBookingStatusChangedSyncSlotHold} from "./arena-booking-slot-release";
 import {
@@ -168,6 +170,22 @@ export {
   saveArenaClassAttendance,
 } from "./arena-class";
 export {materializeArenaClassSessions} from "./arena-class-materializer";
+// Aulas fase 2 — planos, matrícula, mensalidades (cobrança manual), reposição e lista de espera.
+export {
+  upsertArenaClassPlan,
+  saveArenaClassRules,
+  previewArenaClassEnrollment,
+  createArenaClassEnrollment,
+  setArenaClassEnrollmentStatus,
+  setArenaClassChargeStatus,
+  generateArenaClassMonthlyCharges,
+} from "./arena-class-billing";
+export {
+  addArenaClassExtra,
+  removeArenaClassExtra,
+  addArenaClassWaitlist,
+  removeArenaClassWaitlist,
+} from "./arena-class-makeup";
 
 export {
   onArenaCourtCreatedCountUp,
@@ -219,6 +237,7 @@ export {
   quoteArenaManualBooking,
   createArenaManualBooking,
   cancelPendingArenaBookingPayment,
+  createArenaBookingCardPayment,
   createArenaBookingPixPayment,
   expirePendingArenaBookingPayments,
   requestArenaWithdrawal,
@@ -227,6 +246,7 @@ export {
   createArenaSubscription,
   cancelArenaSubscription,
   asaasWebhook,
+  asaasWithdrawalValidation,
   onArenaBookingCanceledNotifySlotVacancyAlerts,
   onArenaBookingStatusChangedSyncSlotHold,
   createExternalPartnerInvite,

@@ -30,3 +30,49 @@ export const MAX_CLASS_DURATION_MINUTES = 4 * 60;
 export function classSessionId(classId: string, dateKey: string): string {
   return `class_${classId.replace(/\//g, "_")}_${dateKey}`;
 }
+
+// ---------------------------------------------------------------------------
+// Fase 2 — matrícula, mensalidades, reposição
+// ---------------------------------------------------------------------------
+
+export const ARENA_CLASS_ENROLLMENTS = "arenaClassEnrollments";
+export const ARENA_CLASS_CHARGES = "arenaClassCharges";
+export const ARENA_CLASS_CREDITS = "arenaClassCredits";
+/** Subcoleções de `arenas/{arenaId}`. */
+export const CLASS_PLANS = "classPlans";
+export const CLASS_SETTINGS = "classSettings";
+export const CLASS_RULES_DOC = "rules";
+/** Subcoleção de `arenaClasses/{classId}`. */
+export const CLASS_WAITLIST = "classWaitlist";
+
+export const PLAN_KINDS = ["monthly", "package", "single"] as const;
+export type ClassPlanKind = typeof PLAN_KINDS[number];
+
+export const PAYMENT_METHODS = ["pix", "cash", "card_machine", "transfer"] as const;
+export type ClassPaymentMethod = typeof PAYMENT_METHODS[number];
+
+export interface ClassRules {
+  /** Validade do crédito de reposição (dias a partir da aula perdida). */
+  makeupValidityDays: number;
+  /** Falta justificada na chamada fechada gera crédito. */
+  excusedGeneratesCredit: boolean;
+  /** Aula cancelada pela arena gera crédito para os alunos (padrão do sheet de cancelar). */
+  arenaCancelGeneratesCredit: boolean;
+  /** Dia de vencimento sugerido na matrícula (1–28). */
+  defaultDueDay: number;
+  /** Taxa de matrícula cobrada na primeira cobrança (0 = sem taxa). */
+  enrollmentFeeReais: number;
+}
+
+export const DEFAULT_CLASS_RULES: ClassRules = {
+  makeupValidityDays: 30,
+  excusedGeneratesCredit: true,
+  arenaCancelGeneratesCredit: true,
+  defaultDueDay: 5,
+  enrollmentFeeReais: 0,
+};
+
+/** Crédito de reposição: um por aula perdida por aluno (idempotente). */
+export function makeupCreditId(sessionId: string, studentId: string): string {
+  return `${sessionId}_${studentId}`;
+}

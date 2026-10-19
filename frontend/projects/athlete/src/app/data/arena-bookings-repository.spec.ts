@@ -2,6 +2,7 @@ import type { DocumentData, DocumentSnapshot } from 'firebase/firestore';
 import {
   ArenaBookingError,
   bookingFromSnapshot,
+  bookingCardPaymentFromResponse,
   bookingPixPaymentFromResponse,
   bookingPixPaymentPayload,
 } from './arena-bookings-repository';
@@ -127,3 +128,26 @@ describe('bookingFromSnapshot — cashback', () => {
     expect(booking?.cashbackAppliedReais).toBe(0);
   });
 });
+
+describe('bookingCardPaymentFromResponse', () => {
+  const base = {
+    paymentId: 'pay_c1',
+    invoiceUrl: 'https://www.asaas.com/i/pay_c1',
+    expiresAt: '2026-10-19T20:15:00.000Z',
+    amountToPayNowReais: 60,
+  };
+
+  it('lê o checkout do Asaas e cai no preço sem chargedReais', () => {
+    const card = bookingCardPaymentFromResponse(base);
+    expect(card.invoiceUrl).toBe('https://www.asaas.com/i/pay_c1');
+    expect(card.amountToPayNowReais).toBe(60);
+    expect(card.chargedReais).toBe(60);
+    expect(card.cashbackAppliedReais).toBe(0);
+    expect(card.squadDiscountReais).toBe(0);
+  });
+
+  it('sem link do checkout não há o que abrir', () => {
+    expect(() => bookingCardPaymentFromResponse({ ...base, invoiceUrl: '' })).toThrowError(ArenaBookingError);
+  });
+});
+

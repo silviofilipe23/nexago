@@ -82,6 +82,7 @@ test('extrato segue a mesma regra do caixa', async () => {
 
 test('ninguém escreve no caixa pelo cliente', async () => {
   await assertFails(setDoc(walletOf(DONO), { availableReais: 999 }, { merge: true }));
+  await assertFails(setDoc(walletOf(GESTOR), { awaitingSettlementReais: 0 }, { merge: true }));
 });
 
 // Incoerência CONHECIDA e registrada de propósito (ver o desenho de

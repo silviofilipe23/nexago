@@ -41,6 +41,7 @@ import {
   resolveWithdrawalWalletTarget,
 } from "./organizer-withdrawal-payout";
 import {isAsaasPayoutError} from "./arena-withdrawal-payout";
+import {manualReviewBlockReason} from "./withdrawal-transfer-state";
 import {resolveWithdrawalPixFields} from "./asaas-payout";
 import {asaasArenaSecrets} from "./asaas-client";
 import {callerIsOrganizer, callerIsSuperAdmin} from "./auth-roles";
@@ -432,15 +433,18 @@ export function hasUsablePixKey(pixKey: string): boolean {
   return pixKey.length >= 5;
 }
 
-/** Linhas do seletor de caixas: o mais cheio primeiro, empate pelo nome. */
+/** Linhas do seletor de caixas: o mais cheio primeiro, empate pelo nome.
+ *  `awaitingSettlementReais` é o "a liberar" (cartão aprovado, ainda não
+ *  liquidado): informativo, não entra na ordem nem no saque. */
 export function buildWalletViewRows(
   tournaments: Array<{id: string; name: string}>,
-  wallets: Map<string, {availableReais: number; pendingReais: number}>,
+  wallets: Map<string, {availableReais: number; pendingReais: number; awaitingSettlementReais?: number}>,
 ): Array<{
   tournamentId: string;
   tournamentName: string;
   availableReais: number;
   pendingReais: number;
+  awaitingSettlementReais: number;
 }> {
   return tournaments
     .map((t) => ({
@@ -448,6 +452,7 @@ export function buildWalletViewRows(
       tournamentName: t.name,
       availableReais: wallets.get(t.id)?.availableReais ?? 0,
       pendingReais: wallets.get(t.id)?.pendingReais ?? 0,
+      awaitingSettlementReais: wallets.get(t.id)?.awaitingSettlementReais ?? 0,
     }))
     .sort((a, b) =>
       b.availableReais - a.availableReais ||
@@ -569,6 +574,7 @@ export const loadOrganizerWalletView = onCall({
       {
         availableReais: Number(snap.data()?.availableReais) || 0,
         pendingReais: Number(snap.data()?.pendingReais) || 0,
+        awaitingSettlementReais: Number(snap.data()?.awaitingSettlementReais) || 0,
       },
     ]),
   );
@@ -974,6 +980,11 @@ export const reviewOrganizerWithdrawal = onCall(
 
     const amountReais = Number(w.amountReais) || 0;
 
+    const manualBlock = decision === "approved" ? null : manualReviewBlockReason(w);
+    if (manualBlock) {
+      throw new HttpsError("failed-precondition", manualBlock);
+    }
+
     if (decision === "rejected") {
       const target = resolveWithdrawalWalletTarget(w);
       await releaseWithdrawalReservation(db, target, amountReais, false);
@@ -1020,6 +1031,15 @@ export const reviewOrganizerWithdrawal = onCall(
         throw new HttpsError(
           "failed-precondition",
           "Reserva de saldo inconsistente. Rejeite o saque e peça nova solicitação.",
+        );
+      }
+      if (msg === "WITHDRAWAL_ALREADY_REVIEWED") {
+        throw new HttpsError("failed-precondition", "Saque já foi revisado.");
+      }
+      if (msg === "TRANSFER_NOT_CONCLUDED") {
+        throw new HttpsError(
+          "failed-precondition",
+          "O Asaas não concluiu a transferência. O saque segue na fila: tente de novo ou recuse.",
         );
       }
       throw new HttpsError("internal", "Falha ao processar o saque.");

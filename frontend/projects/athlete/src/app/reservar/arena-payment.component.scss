@@ -97,6 +97,53 @@
   margin: 0;
 }
 
+// ── Esporte da reserva ───────────────────────────────────────
+.pm-sport-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pm-sport-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--nx-text-mute);
+}
+
+.pm-sport-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pm-sport-chip {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text-mute);
+  cursor: pointer;
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 13px;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    border-color: var(--nx-line-strong);
+  }
+
+  &:disabled {
+    cursor: default;
+  }
+
+  &--active {
+    background: var(--nx-orange-tint);
+    border-color: var(--nx-orange-500);
+    color: var(--nx-text);
+  }
+}
+
 // ── Payment method tabs ──────────────────────────────────────
 .pm-method-row {
   display: grid;

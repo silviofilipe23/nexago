@@ -48,6 +48,13 @@ _UpsellCopy _copyFor(ArenaCapability capability) => switch (capability) {
               'Abra um jogo recorrente com lista pública: os atletas entram '
               'na lista e pagam por sessão via PIX antecipado.',
         ),
+      ArenaCapability.aulas => (
+          icon: Icons.school_rounded,
+          title: 'Aulas',
+          description:
+              'Organize turmas e aulas avulsas com professor e chamada — o '
+              'horário da aula sai do aluguel da quadra sozinho.',
+        ),
       ArenaCapability.metricasCompletas => (
           icon: Icons.insights_rounded,
           title: 'Métricas completas',

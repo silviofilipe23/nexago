@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/core/formatting/app_currency_format.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/core/ui/app_status_views.dart';
+import 'package:nexago_app/features/organizer/data/organizer_wallet_repository.dart';
+import 'package:nexago_app/features/organizer/domain/organizer_wallet_providers.dart';
 import 'package:nexago_app/features/organizer/domain/category_ops/category_ops_models.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_ops/tournament_ops_models.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_ops/tournament_ops_providers.dart';
@@ -40,12 +43,18 @@ const _detail = OrganizerTournamentDetailState(
   isLoading: false,
 );
 
+/// Quantas vezes a tela abriu o listener do caixa — tem de ser zero para quem
+/// não vê dinheiro: a leitura do caixa também é número de dinheiro.
+int caixaAberto = 0;
+
 Future<void> abrirTela(
   WidgetTester tester, {
   required TournamentStaffRole? role,
   bool isOwner = false,
   bool roleLoaded = true,
+  double aLiberar = 0,
 }) async {
+  caixaAberto = 0;
   final espelho = StreamController<List<MyTournamentStaffEntry>>();
   addTearDown(espelho.close);
   if (roleLoaded) espelho.add(const []);
@@ -59,6 +68,18 @@ Future<void> abrirTela(
             .overrideWithValue(isOwner),
         myTournamentStaffEntriesProvider.overrideWith((ref) => espelho.stream),
         myStaffRoleForTournamentProvider(_tournamentId).overrideWithValue(role),
+        organizerCashBoxLiveProvider(_tournamentId).overrideWith((ref) {
+          caixaAberto++;
+          return Stream.value(
+            TournamentCashBox(
+              tournamentId: _tournamentId,
+              tournamentName: '',
+              availableReais: 0,
+              pendingReais: 0,
+              awaitingSettlementReais: aLiberar,
+            ),
+          );
+        }),
       ],
       child: MaterialApp(
         theme: AppTheme.dark,
@@ -84,6 +105,35 @@ void main() {
     expect(find.textContaining('Repasse líquido'), findsNothing);
     // Nenhum número de dinheiro do evento sobra na tela.
     expect(find.textContaining(r'R$'), findsNothing);
+  });
+
+  testWidgets('administrador do evento nem abre o caixa (a liberar)',
+      (tester) async {
+    await abrirTela(
+      tester,
+      role: TournamentStaffRole.eventAdmin,
+      aLiberar: 115.23,
+    );
+
+    expect(caixaAberto, 0);
+    expect(find.text('A liberar'), findsNothing);
+  });
+
+  testWidgets('gestor vê o a liberar do cartão com a explicação',
+      (tester) async {
+    await abrirTela(tester, role: TournamentStaffRole.manager, aLiberar: 115.23);
+
+    expect(find.text('A liberar'), findsOneWidget);
+    expect(find.text(formatBRL(115.23)), findsOneWidget);
+    expect(find.textContaining('cerca de 32 dias depois da aprovação'),
+        findsOneWidget);
+  });
+
+  testWidgets('sem cartão a caminho, a linha não aparece', (tester) async {
+    await abrirTela(tester, role: null, isOwner: true);
+
+    expect(find.textContaining('Repasse líquido'), findsOneWidget);
+    expect(find.text('A liberar'), findsNothing);
   });
 
   testWidgets('gestor da equipe continua vendo o financeiro do evento',

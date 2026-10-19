@@ -98,6 +98,8 @@ export interface ArenaBookingDoc {
   arenaName: string;
   courtId: string;
   courtName: string;
+  /** Esporte escolhido pelo atleta (código do catálogo) — `null` em reserva antiga. */
+  sport: string | null;
   dateKey: string;
   startTime: string;
   endTime: string;
@@ -247,6 +249,8 @@ export async function createArenaBooking(
     paymentFraction?: number;
     /** Código já validado numa cotação anterior — só é reenviado se ainda estiver aplicado. */
     couponCode?: string;
+    /** Esporte escolhido entre os da quadra (`bookingSportOptions`) — o servidor recusa outro. */
+    sport?: string;
   },
 ): Promise<CreateArenaBookingResult> {
   if (options.paymentMode === 'pix' && options.paymentFraction !== 0.5 && options.paymentFraction !== 1) {
@@ -261,6 +265,7 @@ export async function createArenaBooking(
       clientAmountReais: options.clientAmountReais,
       paymentMode: options.paymentMode,
       ...(options.paymentMode === 'pix' ? { paymentFraction: options.paymentFraction } : {}),
+      ...(options.sport?.trim() ? { sport: options.sport.trim() } : {}),
     });
     const data = result.data;
     if (!data?.bookingId || !Number.isFinite(Number(data.amountReais))) {
@@ -346,6 +351,73 @@ export async function createBookingPixPayment(
   }
 }
 
+/** Cobrança de CARTÃO da reserva: o checkout hospedado do Asaas, aberto num link real. */
+export interface ArenaBookingCardPayment {
+  paymentId: string;
+  /** Página do Asaas onde o atleta digita o cartão — nada de cartão passa pelo nexaGO. */
+  invoiceUrl: string;
+  /** ISO — o cartão tem prazo próprio (15 min desde a criação da reserva). */
+  expiresAt: string;
+  amountToPayNowReais: number;
+  cashbackAppliedReais: number;
+  chargedReais: number;
+  squadDiscountReais: number;
+}
+
+/** Valida e normaliza a resposta de `createArenaBookingCardPayment`. */
+export function bookingCardPaymentFromResponse(data: unknown): ArenaBookingCardPayment {
+  const raw = (data ?? {}) as Record<string, unknown>;
+  const paymentId = raw['paymentId'];
+  const invoiceUrl = raw['invoiceUrl'];
+  const amountToPayNowReais = Number(raw['amountToPayNowReais']);
+  if (
+    typeof paymentId !== 'string' || !paymentId ||
+    typeof invoiceUrl !== 'string' || !invoiceUrl.trim() ||
+    !Number.isFinite(amountToPayNowReais)
+  ) {
+    throw new ArenaBookingError('Resposta inválida do servidor de pagamento.');
+  }
+  return {
+    paymentId,
+    invoiceUrl: invoiceUrl.trim(),
+    expiresAt: typeof raw['expiresAt'] === 'string' ? raw['expiresAt'] : '',
+    amountToPayNowReais,
+    ...readCashbackCharge(raw, amountToPayNowReais),
+    squadDiscountReais: readSquadDiscount(raw),
+  };
+}
+
+/** Abre a cobrança da reserva no cartão de crédito (à vista). Mesmo payload do Pix. */
+export async function createBookingCardPayment(
+  functions: Functions,
+  params: BookingPixPaymentParams,
+): Promise<ArenaBookingCardPayment> {
+  try {
+    const result = await httpsCallable<Record<string, unknown>, unknown>(
+      functions,
+      'createArenaBookingCardPayment',
+    )(bookingPixPaymentPayload(params));
+    return bookingCardPaymentFromResponse(result.data);
+  } catch (err) {
+    if (err instanceof ArenaBookingError) throw err;
+    throw mapCallableError(err);
+  }
+}
+
+/**
+ * Solta a reserva `pending_payment` de uma cobrança de CARTÃO. Diferente de
+ * `cancelPendingBookingPayment`, NÃO engole `failed-precondition`: com cartão
+ * é ele que diz "o cartão já foi aprovado / está em análise" — engolido, a tela
+ * trataria como cancelada uma reserva que o servidor acabou de confirmar.
+ */
+export async function releasePendingBookingCardPayment(functions: Functions, bookingId: string): Promise<void> {
+  try {
+    await httpsCallable(functions, 'cancelPendingArenaBookingPayment')({ bookingId });
+  } catch (err) {
+    throw mapCallableError(err);
+  }
+}
+
 /** Cancela reserva `pending_payment`, removendo slots e liberando locks. */
 export async function cancelPendingBookingPayment(functions: Functions, bookingId: string): Promise<void> {
   try {
@@ -423,6 +495,7 @@ export function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): Arena
     arenaName: typeof data['arenaName'] === 'string' ? data['arenaName'] : 'Arena',
     courtId: typeof data['courtId'] === 'string' ? data['courtId'] : '',
     courtName: typeof data['courtName'] === 'string' ? data['courtName'] : 'Quadra',
+    sport: optionalStr(data['sport']),
     dateKey: bookingDateKeyOf(data),
     startTime: normTime(data['startTime']),
     endTime: normTime(data['endTime']),

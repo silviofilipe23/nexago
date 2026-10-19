@@ -16,6 +16,7 @@ import '../data/slot_service.dart';
 import '../domain/arena_access_providers.dart';
 import '../domain/arena_booking_labels.dart';
 import '../domain/arena_bookings_providers.dart';
+import '../domain/arena_manager_booking.dart';
 import '../domain/arena_recurring_form_args.dart';
 import '../domain/arena_slot_detail_args.dart';
 import '../domain/arena_slot_detail_providers.dart';
@@ -23,6 +24,7 @@ import '../domain/arena_schedule_providers.dart';
 import '../domain/arena_slot_weekday_history.dart';
 import '../domain/arena_staff_role.dart';
 import 'widgets/arena_async_state.dart';
+import 'widgets/arena_booking_class_block_card.dart';
 import 'widgets/arena_dashboard_tokens.dart';
 import 'widgets/arena_schedule_block_sheet.dart';
 
@@ -666,10 +668,24 @@ class _BookedDetails extends ConsumerWidget {
         ? ref.watch(arenaBookingDetailMapProvider(bookingId))
         : const AsyncValue<Map<String, dynamic>?>.data(null);
 
+    // Horário ocupado por uma aula: o atalho é a própria aula (chamada e
+    // cancelamento), não os dados de atleta/pagamento de uma reserva.
+    final classSessionId = bookingId != null
+        ? arenaBookingClassSessionId(bookingId, bookingAsync.valueOrNull)
+        : null;
+    if (classSessionId != null) {
+      return ArenaBookingClassBlockCard(
+        classSessionId: classSessionId,
+        className:
+            (bookingAsync.valueOrNull?['customerName'] as String?)?.trim(),
+      );
+    }
+
     final athleteUid = slot.bookingAthleteId ??
         bookingAsync.valueOrNull?['athleteId'] as String?;
     final customerName =
         (bookingAsync.valueOrNull?['customerName'] as String?)?.trim();
+    final sportLabel = arenaBookingSportLabel(bookingAsync.valueOrNull);
     final nameAsync = athleteUid != null && athleteUid.trim().isNotEmpty
         ? ref.watch(athleteDisplayLabelProvider(athleteUid))
         : AsyncValue<String>.data(
@@ -691,6 +707,10 @@ class _BookedDetails extends ConsumerWidget {
                 error: (_, __) => '—',
               ),
             ),
+            if (sportLabel != null) ...[
+              SizedBox(height: 12),
+              _LabeledRow(label: 'Esporte', value: sportLabel),
+            ],
             SizedBox(height: 12),
             _LabeledRow(
               label: 'Pagamento',

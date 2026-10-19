@@ -225,3 +225,101 @@ export class AulaEnrollModalComponent {
     }
   }
 }
+
+/** Busca de atleta NexaGO (perfil público) com seleção única — cadastro de professor. */
+@Component({
+  selector: 'ar-aula-athlete-picker',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  styleUrl: './aulas-form.scss',
+  template: `
+    <input class="input-box" type="search" [placeholder]="placeholder()" [value]="term()" (input)="onTerm($any($event.target).value)" />
+    <div class="results">
+      @if (searching()) {
+        <p class="hint">Buscando…</p>
+      }
+      @for (a of results(); track a.id) {
+        <button type="button" class="result" [class.active]="picked()?.id === a.id" (click)="pick(a)">
+          <span class="av">{{ initials(a.name) }}</span>
+          <span class="result-name">{{ a.name }}</span>
+          @if (picked()?.id === a.id) {
+            <span class="check">✓</span>
+          }
+        </button>
+      } @empty {
+        @if (term().trim().length >= 2 && !searching()) {
+          <p class="hint">Nenhum atleta encontrado. O professor precisa criar a conta no app NexaGO.</p>
+        }
+      }
+    </div>
+  `,
+  styles: `
+    :host { display: block; }
+    .results { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; max-height: 220px; overflow-y: auto; }
+    .result {
+      display: flex; align-items: center; gap: 10px; padding: 8px 10px; text-align: left; cursor: pointer;
+      border-radius: var(--nx-r-2); background: var(--nx-surface-1); border: 1px solid var(--nx-line); color: var(--nx-text);
+    }
+    .result.active { background: var(--nx-orange-tint); border-color: rgba(255, 106, 26, 0.45); }
+    .av {
+      width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none;
+      background: var(--nx-surface-2); font-family: var(--nx-font-display); font-weight: 700; font-size: 11px; color: var(--nx-text-mute);
+    }
+    .result-name { flex: 1; font-family: var(--nx-font-display); font-weight: 600; font-size: 13px; }
+    .check { color: var(--nx-orange-500); font-weight: 700; }
+  `,
+})
+export class AulaAthletePickerComponent {
+  readonly placeholder = input('Buscar atleta pelo nome');
+  readonly selected = output<AthleteSearchResult | null>();
+
+  protected readonly term = signal('');
+  protected readonly results = signal<AthleteSearchResult[]>([]);
+  protected readonly searching = signal(false);
+  protected readonly picked = signal<AthleteSearchResult | null>(null);
+
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private seq = 0;
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => {
+      if (this.timer) clearTimeout(this.timer);
+    });
+  }
+
+  protected initials(name: string): string {
+    const parts = name.trim().split(/\s+/);
+    return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1]![0] ?? '' : '')).toUpperCase();
+  }
+
+  protected pick(a: AthleteSearchResult): void {
+    this.picked.set(a);
+    this.selected.emit(a);
+  }
+
+  protected onTerm(value: string): void {
+    this.term.set(value);
+    if (this.picked()) {
+      this.picked.set(null);
+      this.selected.emit(null);
+    }
+    if (this.timer) clearTimeout(this.timer);
+    if (value.trim().length < 2) {
+      this.results.set([]);
+      return;
+    }
+    const seq = ++this.seq;
+    this.searching.set(true);
+    this.timer = setTimeout(() => {
+      searchAthletes(arenaFirestore(), value)
+        .then((r) => {
+          if (seq === this.seq) this.results.set(r);
+        })
+        .catch(() => {
+          if (seq === this.seq) this.results.set([]);
+        })
+        .finally(() => {
+          if (seq === this.seq) this.searching.set(false);
+        });
+    }, 300);
+  }
+}

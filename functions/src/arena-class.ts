@@ -55,6 +55,13 @@ import {
   type AttendanceMark,
 } from "./arena-class-constants";
 import {resolveAthleteDisplay} from "./arena-club-join";
+import {
+  classRulesRef,
+  grantCanceledSessionCredits,
+  parseClassRules,
+  readCloseEffects,
+  studentAttendsWeekday,
+} from "./arena-class-ledger";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const ARENA_BOOKINGS = "arenaBookings";
@@ -87,6 +94,8 @@ export interface ArenaClassData {
   sport: string;
   level: ArenaClassLevel;
   teacherId: string;
+  /** Conta NexaGO do professor (uid) — obrigatória para professor novo; null em legado. */
+  teacherUserId: string | null;
   teacherName: string;
   teacherColor: string;
   /** ISO 1–7 ordenados; vazio = aula avulsa (uma data só, `startDate`). */
@@ -117,6 +126,9 @@ export function parseArenaClass(data: Record<string, unknown>): ArenaClassData {
     sport: String(data["sport"] ?? ""),
     level: (CLASS_LEVELS as readonly string[]).includes(level) ? level as ArenaClassLevel : "livre",
     teacherId: String(data["teacherId"] ?? ""),
+    teacherUserId: typeof data["teacherUserId"] === "string" && data["teacherUserId"] ?
+      data["teacherUserId"] :
+      null,
     teacherName: String(data["teacherName"] ?? "Professor"),
     teacherColor: String(data["teacherColor"] ?? "#FF6A1A"),
     weekdays: Array.isArray(data["weekdays"]) ?
@@ -146,6 +158,10 @@ export interface ClassSessionData {
   blockBookingId: string;
   /** studentId → marca da chamada. */
   attendance: Record<string, {mark: AttendanceMark; name: string}>;
+  /** Encaixes (reposição/experimental) — fase 2. */
+  extras: Record<string, {name: string; kind: string; creditId: string | null; athleteId: string | null}>;
+  /** Alunos de pacote já debitados nesta aula (studentId → matrícula). */
+  packageDebits: Record<string, string>;
 }
 
 export function parseClassSession(data: Record<string, unknown>): ClassSessionData {
@@ -173,7 +189,27 @@ export function parseClassSession(data: Record<string, unknown>): ClassSessionDa
     status: String(data["status"] ?? ""),
     blockBookingId: String(data["blockBookingId"] ?? ""),
     attendance,
+    extras: parseExtras(data["extras"]),
+    packageDebits: data["packageDebits"] != null && typeof data["packageDebits"] === "object" ?
+      Object.fromEntries(Object.entries(data["packageDebits"] as Record<string, unknown>).map(([k, v]) => [k, String(v)])) :
+      {},
   };
+}
+
+function parseExtras(raw: unknown): ClassSessionData["extras"] {
+  const out: ClassSessionData["extras"] = {};
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return out;
+  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (value == null || typeof value !== "object") continue;
+    const v = value as Record<string, unknown>;
+    out[id] = {
+      name: String(v["name"] ?? "Aluno"),
+      kind: String(v["kind"] ?? "trial"),
+      creditId: typeof v["creditId"] === "string" ? v["creditId"] : null,
+      athleteId: typeof v["athleteId"] === "string" ? v["athleteId"] : null,
+    };
+  }
+  return out;
 }
 
 export function classSessionStartAt(dateKey: string, startTime: string): Date {
@@ -284,7 +320,7 @@ export interface ValidatedClassInput {
 /** "HH:mm" de relógio (00:00–23:59); fim "00:00" = meia-noite. */
 const CLOCK_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-function str(raw: unknown): string {
+export function str(raw: unknown): string {
   return typeof raw === "string" ? raw.trim() : "";
 }
 
@@ -507,6 +543,7 @@ export async function materializeClassSession(
         sport: cls.sport,
         level: cls.level,
         teacherId: cls.teacherId,
+        teacherUserId: cls.teacherUserId,
         teacherName: cls.teacherName,
         teacherColor: cls.teacherColor,
         courtId: cls.courtId,
@@ -858,6 +895,12 @@ export async function removeClassStudentCore(
     if (!studentSnap.exists || studentSnap.data()?.["status"] !== "active") {
       throw new HttpsError("not-found", "Aluno não está na turma.");
     }
+    if (typeof studentSnap.data()?.["enrollmentId"] === "string") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Este aluno tem matrícula — pause ou cancele a matrícula na página do aluno.",
+      );
+    }
     const count = Math.max(0, Number(classSnap.data()?.["studentCount"] ?? 0) - 1);
     tx.set(studentRef, {status: "removed", removedAt: FieldValue.serverTimestamp()}, {merge: true});
     tx.set(classRef, {studentCount: count, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
@@ -882,7 +925,7 @@ export async function saveClassAttendanceCore(
   sessionId: string,
   input: SaveAttendanceInput,
   todayKey: string,
-): Promise<{status: string; marked: number}> {
+): Promise<{status: string; marked: number; credited: number; debited: number}> {
   const sessionRef = db.collection(ARENA_CLASS_SESSIONS).doc(sessionId);
   // Transação: fechar a chamada não pode passar por cima de um cancelamento simultâneo.
   return db.runTransaction(async (tx: Transaction) => {
@@ -898,20 +941,39 @@ export async function saveClassAttendanceCore(
 
     const studentsCol = db.collection(ARENA_CLASSES).doc(session.classId).collection(CLASS_STUDENTS);
     const attendance: Record<string, unknown> = {};
+    const merged: Record<string, AttendanceMark> = Object.fromEntries(
+      Object.entries(session.attendance).map(([id, a]) => [id, a.mark]),
+    );
     for (const [studentId, mark] of Object.entries(input.marks)) {
-      const snap = await tx.get(studentsCol.doc(studentId));
-      if (!snap.exists) {
+      const extra = session.extras[studentId];
+      const snap = extra ? null : await tx.get(studentsCol.doc(studentId));
+      if (!extra && !snap?.exists) {
         throw new HttpsError("invalid-argument", "Aluno fora da turma na chamada.");
       }
       if (mark == null) {
         attendance[studentId] = FieldValue.delete();
+        delete merged[studentId];
         continue;
       }
       if (!(ATTENDANCE_MARKS as readonly string[]).includes(mark)) {
         throw new HttpsError("invalid-argument", "Marca de presença inválida.");
       }
-      attendance[studentId] = {mark, name: String(snap.data()?.["name"] ?? "Aluno")};
+      attendance[studentId] = {mark, name: extra ? extra.name : String(snap?.data()?.["name"] ?? "Aluno")};
+      merged[studentId] = mark;
     }
+
+    // Fechar a chamada: crédito de reposição (falta justificada) e débito de pacote.
+    const effects = input.close ?
+      await readCloseEffects(tx, db, {
+        arenaId: session.arenaId,
+        classId: session.classId,
+        sessionId,
+        date: session.date,
+        attendance: merged,
+        extraIds: new Set(Object.keys(session.extras)),
+        packageDebits: session.packageDebits,
+      }) :
+      null;
 
     const update: Record<string, unknown> = {updatedAt: FieldValue.serverTimestamp()};
     // `attendance: {}` num set com merge SUBSTITUI o mapa inteiro — só manda quando há marca.
@@ -926,9 +988,13 @@ export async function saveClassAttendanceCore(
       update["closedAt"] = FieldValue.serverTimestamp();
       update["closedByUid"] = input.uid;
     }
+    if (effects && effects.debited.length > 0) {
+      update["packageDebits"] = Object.fromEntries(effects.debited.map((id) => [id, "1"]));
+    }
     tx.set(sessionRef, update, {merge: true});
+    effects?.apply(tx);
     const marked = Object.values(input.marks).filter((m) => m != null).length;
-    return {status, marked};
+    return {status, marked, credited: effects?.credited.length ?? 0, debited: effects?.debited.length ?? 0};
   });
 }
 
@@ -970,14 +1036,21 @@ export async function cancelClassSessionCore(
   reason: string,
   note: string | null,
   deps: CancelClassSessionDeps = defaultCancelDeps,
-): Promise<{sessionId: string; notified: number}> {
+  /** Gera crédito de reposição (null = regra da arena). */
+  generateCredits: boolean | null = null,
+): Promise<{sessionId: string; notified: number; credited: number}> {
   // Uma transação cancela e libera junto; numa aula já cancelada ela só termina de
   // liberar (retry depois de falha) e não avisa de novo.
   const result = await releaseClassSession(db, sessionId, {kind: "cancel", reason, note});
   const session = result.session;
   if (!session) throw new HttpsError("not-found", "Aula não encontrada.");
-  if (result.wasCanceled) return {sessionId, notified: 0};
+  if (result.wasCanceled) return {sessionId, notified: 0, credited: 0};
 
+  const generate = generateCredits ??
+    parseClassRules((await classRulesRef(db, session.arenaId).get()).data()).arenaCancelGeneratesCredit;
+  const credited = await grantCanceledSessionCredits(db, session, sessionId, session.extras, generate);
+
+  const weekday = isoWeekdayOfDateKey(session.date);
   const studentsSnap = await db
     .collection(ARENA_CLASSES).doc(session.classId)
     .collection(CLASS_STUDENTS)
@@ -986,15 +1059,24 @@ export async function cancelClassSessionCore(
   const reasonLabel = CANCEL_REASON_LABELS[reason] ?? "";
   const body = `A aula ${session.className} de ${formatDateBr(session.date).slice(0, 5)} às ` +
     `${session.startTime} foi cancelada pela arena${reasonLabel ? ` (${reasonLabel})` : ""}.`;
-  let notified = 0;
+  const recipients = new Set<string>();
   for (const doc of studentsSnap.docs) {
     const athleteId = doc.data()["athleteId"];
     if (typeof athleteId !== "string" || !athleteId) continue;
+    if (!studentAttendsWeekday(doc.data() as Record<string, unknown>, weekday)) continue;
+    recipients.add(athleteId);
+  }
+  for (const extra of Object.values(session.extras)) {
+    if (extra.athleteId) recipients.add(extra.athleteId);
+  }
+  const creditNote = credited > 0 ? " Você ganhou 1 crédito de reposição." : "";
+  let notified = 0;
+  for (const athleteId of recipients) {
     try {
       await deps.notify({
         userId: athleteId,
         title: "Aula cancelada",
-        body,
+        body: body + creditNote,
         type: "arena_class_canceled",
         data: {classSessionId: sessionId, arenaId: session.arenaId},
       });
@@ -1003,7 +1085,7 @@ export async function cancelClassSessionCore(
       logger.warn("cancelClassSessionCore: notificação falhou", {sessionId, athleteId, error: e});
     }
   }
-  return {sessionId, notified};
+  return {sessionId, notified, credited};
 }
 
 // ---------------------------------------------------------------------------
@@ -1012,7 +1094,7 @@ export async function cancelClassSessionCore(
 
 // Aulas usam a área "agenda" (gestor/recepção escrevem; manutenção lê) — a
 // turma ocupa a quadra como uma reserva. Sem bypass de admin, como clubinho.
-async function requireClassManager(
+export async function requireClassManager(
   db: Firestore,
   arenaId: string,
   uid: string,
@@ -1025,7 +1107,7 @@ async function requireClassManager(
   return arenaSnap.data() as Record<string, unknown>;
 }
 
-function requireClassEntitlement(arenaData: Record<string, unknown>): void {
+export function requireClassEntitlement(arenaData: Record<string, unknown>): void {
   if (!isArenaEntitledPro(arenaData, Date.now())) {
     throw new HttpsError(
       "permission-denied",
@@ -1034,13 +1116,13 @@ function requireClassEntitlement(arenaData: Record<string, unknown>): void {
   }
 }
 
-function requireUid(auth: {uid?: string} | undefined): string {
+export function requireUid(auth: {uid?: string} | undefined): string {
   const uid = auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
   return uid;
 }
 
-async function loadClassOrThrow(
+export async function loadClassOrThrow(
   db: Firestore,
   classId: string,
 ): Promise<{ref: FirebaseFirestore.DocumentReference; data: Record<string, unknown>; cls: ArenaClassData}> {
@@ -1065,7 +1147,7 @@ async function resolveTeacher(
   db: Firestore,
   arenaId: string,
   teacherId: string,
-): Promise<{name: string; color: string}> {
+): Promise<{name: string; color: string; userId: string | null}> {
   const snap = await db.collection("arenas").doc(arenaId).collection(CLASS_TEACHERS).doc(teacherId).get();
   if (!snap.exists || snap.data()?.["status"] === "archived") {
     throw new HttpsError("not-found", "Professor não encontrado.");
@@ -1074,7 +1156,21 @@ async function resolveTeacher(
   return {
     name: typeof data["name"] === "string" ? data["name"] : "Professor",
     color: typeof data["color"] === "string" ? data["color"] : "#FF6A1A",
+    userId: typeof data["userId"] === "string" && data["userId"] ? data["userId"] : null,
   };
+}
+
+/** Professor de turma nova (ou trocado) precisa de conta NexaGO; legado só segue onde já estava. */
+export function requireTeacherAccount(
+  teacher: {name: string; userId: string | null},
+  isNewOrChangedTeacher: boolean,
+): void {
+  if (isNewOrChangedTeacher && teacher.userId == null) {
+    throw new HttpsError(
+      "failed-precondition",
+      `${teacher.name} ainda não tem conta NexaGO vinculada. Vincule a conta em Aulas › Professores.`,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1083,20 +1179,109 @@ async function resolveTeacher(
 
 const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/;
 
+export interface TeacherInput {
+  teacherId: string | null;
+  /** Conta NexaGO (uid). Obrigatória para cadastrar; em legado sem conta, vincula. */
+  userId: string | null;
+  specialty: string | null;
+  phone: string | null;
+  color: string;
+  status: "active" | "archived";
+}
+
+/**
+ * Cadastra/edita professor. Professor é sempre uma conta NexaGO (quase sempre atleta da
+ * própria arena): o nome e a foto vêm do perfil e cada conta entra uma vez por arena.
+ * Professor antigo, de antes da conta obrigatória, é vinculado por aqui.
+ */
+export async function upsertClassTeacherCore(
+  db: Firestore,
+  arenaId: string,
+  input: TeacherInput,
+  actorUid: string,
+): Promise<{teacherId: string}> {
+  const col = db.collection("arenas").doc(arenaId).collection(CLASS_TEACHERS);
+
+  async function profileOf(userId: string): Promise<{name: string; photoUrl: string | null}> {
+    const userSnap = await db.collection("users").doc(userId).get();
+    if (!userSnap.exists) throw new HttpsError("not-found", "Conta NexaGO não encontrada.");
+    const display = await resolveAthleteDisplay(db, userId);
+    return {name: display.name.slice(0, 60), photoUrl: display.photoUrl};
+  }
+
+  async function assertNotTeacherYet(userId: string, exceptId: string | null): Promise<void> {
+    const dup = await col.where("userId", "==", userId).get();
+    const other = dup.docs.find((d) => d.id !== exceptId);
+    if (!other) return;
+    throw new HttpsError(
+      "already-exists",
+      other.data()["status"] === "archived" ?
+        "Este atleta já é professor da arena (arquivado) — reative na lista." :
+        "Este atleta já é professor da arena.",
+    );
+  }
+
+  if (input.teacherId == null) {
+    if (!input.userId) {
+      throw new HttpsError("invalid-argument", "Escolha a conta NexaGO do professor.");
+    }
+    await assertNotTeacherYet(input.userId, null);
+    const profile = await profileOf(input.userId);
+    const ref = col.doc();
+    await ref.set({
+      arenaId,
+      userId: input.userId,
+      name: profile.name,
+      photoUrl: profile.photoUrl,
+      specialty: input.specialty,
+      phone: input.phone,
+      color: input.color,
+      status: "active",
+      createdByUid: actorUid,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return {teacherId: ref.id};
+  }
+
+  const ref = col.doc(input.teacherId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Professor não encontrado.");
+  const linked = typeof snap.data()?.["userId"] === "string" && snap.data()?.["userId"] ?
+    String(snap.data()?.["userId"]) :
+    null;
+  if (linked && input.userId && input.userId !== linked) {
+    throw new HttpsError(
+      "failed-precondition",
+      "A conta do professor não muda. Arquive este e cadastre o outro atleta.",
+    );
+  }
+  const userId = linked ?? input.userId;
+  const update: Record<string, unknown> = {
+    specialty: input.specialty,
+    phone: input.phone,
+    color: input.color,
+    status: input.status,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  if (userId) {
+    if (!linked) await assertNotTeacherYet(userId, ref.id);
+    // Nome e foto acompanham o perfil.
+    const profile = await profileOf(userId);
+    Object.assign(update, {userId, name: profile.name, photoUrl: profile.photoUrl});
+  }
+  await ref.set(update, {merge: true});
+  return {teacherId: ref.id};
+}
+
 export const upsertArenaClassTeacher = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {
   const uid = requireUid(request.auth);
   const input = (request.data ?? {}) as Record<string, unknown>;
   const arenaId = str(input["arenaId"]);
   const teacherId = str(input["teacherId"]) || null;
-  const name = str(input["name"]);
-  const specialty = str(input["specialty"]).slice(0, 60) || null;
-  const phone = str(input["phone"]).slice(0, 30) || null;
   const color = str(input["color"]) || "#FF6A1A";
   const status = str(input["status"]) || "active";
   if (!arenaId) throw new HttpsError("invalid-argument", "Arena é obrigatória.");
-  if (!name || name.length > 60) {
-    throw new HttpsError("invalid-argument", "Informe o nome do professor (até 60 caracteres).");
-  }
   if (!HEX_COLOR.test(color)) throw new HttpsError("invalid-argument", "Cor inválida.");
   if (status !== "active" && status !== "archived") {
     throw new HttpsError("invalid-argument", "Status inválido.");
@@ -1104,24 +1289,15 @@ export const upsertArenaClassTeacher = onCall({region: CLIENT_FACING_REGIONS}, a
 
   const db = getFirestore();
   const arenaData = await requireClassManager(db, arenaId, uid);
-  const col = db.collection("arenas").doc(arenaId).collection(CLASS_TEACHERS);
-
-  if (teacherId == null) {
-    requireClassEntitlement(arenaData);
-    const ref = col.doc();
-    await ref.set({
-      arenaId, name, specialty, phone, color, status: "active",
-      createdByUid: uid,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    return {teacherId: ref.id};
-  }
-
-  const ref = col.doc(teacherId);
-  if (!(await ref.get()).exists) throw new HttpsError("not-found", "Professor não encontrado.");
-  await ref.set({name, specialty, phone, color, status, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
-  return {teacherId};
+  if (teacherId == null) requireClassEntitlement(arenaData);
+  return upsertClassTeacherCore(db, arenaId, {
+    teacherId,
+    userId: str(input["userId"]) || null,
+    specialty: str(input["specialty"]).slice(0, 60) || null,
+    phone: str(input["phone"]).slice(0, 30) || null,
+    color,
+    status,
+  }, uid);
 });
 
 // ---------------------------------------------------------------------------
@@ -1156,7 +1332,7 @@ export const previewArenaClassSchedule = onCall({region: CLIENT_FACING_REGIONS},
   return {totalDates: result.dates.length, conflicts: result.conflicts};
 });
 
-interface UpsertClassStudentInput {
+export interface UpsertClassStudentInput {
   athleteId?: unknown;
   name?: unknown;
   phone?: unknown;
@@ -1176,6 +1352,7 @@ export const upsertArenaClass = onCall({region: CLIENT_FACING_REGIONS, timeoutSe
   requireClassEntitlement(arenaData);
   const courtName = await resolveCourtName(db, arenaId, v.courtId);
   const teacher = await resolveTeacher(db, arenaId, v.teacherId);
+  if (classId == null) requireTeacherAccount(teacher, true);
   const arenaName = typeof arenaData["name"] === "string" && arenaData["name"].trim() ?
     arenaData["name"].trim() :
     "Arena";
@@ -1188,6 +1365,7 @@ export const upsertArenaClass = onCall({region: CLIENT_FACING_REGIONS, timeoutSe
     sport: v.sport,
     level: v.level,
     teacherId: v.teacherId,
+    teacherUserId: teacher.userId,
     teacherName: teacher.name,
     teacherColor: teacher.color,
     weekdays: v.weekdays,
@@ -1255,6 +1433,7 @@ export const upsertArenaClass = onCall({region: CLIENT_FACING_REGIONS, timeoutSe
 
   const {ref: classRef, data: existingData, cls: existing} = await loadClassOrThrow(db, classId);
   if (existing.arenaId !== arenaId) throw new HttpsError("permission-denied", "Turma de outra arena.");
+  requireTeacherAccount(teacher, existing.teacherId !== v.teacherId);
   if (existing.status === "archived") {
     throw new HttpsError("failed-precondition", "Turma encerrada não pode ser editada.");
   }
@@ -1306,6 +1485,7 @@ async function refreshFutureSessionSnapshots(
       sport: cls.sport,
       level: cls.level,
       teacherId: cls.teacherId,
+      teacherUserId: cls.teacherUserId,
       teacherName: cls.teacherName,
       teacherColor: cls.teacherColor,
       capacity: cls.capacity,
@@ -1317,7 +1497,7 @@ async function refreshFutureSessionSnapshots(
   }
 }
 
-async function resolveStudentInput(
+export async function resolveStudentInput(
   db: Firestore,
   raw: UpsertClassStudentInput,
 ): Promise<Omit<AddClassStudentInput, "addedByUid">> {
@@ -1422,7 +1602,8 @@ export const cancelArenaClassSession = onCall({region: CLIENT_FACING_REGIONS}, a
   if (!snap.exists) throw new HttpsError("not-found", "Aula não encontrada.");
   // Sem gate de plano: cancelar e liberar a quadra vale mesmo com plano vencido.
   await requireClassManager(db, String(snap.data()?.["arenaId"] ?? ""), uid);
-  const result = await cancelClassSessionCore(db, sessionId, reason, note);
+  const generateCredits = typeof input["generateCredits"] === "boolean" ? input["generateCredits"] : null;
+  const result = await cancelClassSessionCore(db, sessionId, reason, note, undefined, generateCredits);
   logger.info("cancelArenaClassSession", result);
   return result;
 });

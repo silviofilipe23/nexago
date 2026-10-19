@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../domain/arena_booking_labels.dart';
 import '../../domain/arena_bookings_grouping.dart';
 import '../../domain/arena_manager_booking.dart';
 class ArenaBookingDetailHeader extends StatelessWidget {
@@ -34,6 +35,12 @@ class ArenaBookingDetailHeader extends StatelessWidget {
     final participants =
         (booking.data['confirmedParticipants'] as num?)?.toInt() ?? 1;
     final statusBadge = statusLabel.toUpperCase();
+    final sport = arenaBookingSportLabel(booking.data);
+    final placeLine = [
+      weekday,
+      courtName.toUpperCase(),
+      if (sport != null) sport.toUpperCase(),
+    ].where((p) => p.isNotEmpty).join(' · ');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,7 +95,7 @@ class ArenaBookingDetailHeader extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            '$weekday · ${courtName.toUpperCase()}',
+                            placeLine,
                             style: theme.textTheme.labelSmall?.copyWith(
                               color: context.themeColors.onSurfaceMuted,
                               fontWeight: FontWeight.w700,

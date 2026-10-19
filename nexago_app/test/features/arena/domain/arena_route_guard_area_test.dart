@@ -50,6 +50,31 @@ void main() {
       expect(arenaAreaForPath('/arena/clubs'), ArenaArea.agenda);
       expect(arenaAreaForPath('/arena/clubs/c1/edit'), ArenaArea.agenda);
     });
+
+    test('aulas e a chamada sao painel e mapeiam para agenda', () {
+      // Sem a rota em isArenaManagerPanelPath, /arena/classes cairia no
+      // perfil publico /arena/:arenaId e ninguem checaria a area.
+      expect(isArenaManagerPanelPath('/arena/classes'), isTrue);
+      expect(arenaAreaForPath('/arena/classes'), ArenaArea.agenda);
+      expect(
+        arenaAreaForPath('/arena/classes/session/class_c1_2026-10-19'),
+        ArenaArea.agenda,
+      );
+    });
+
+    test('mensalidades das aulas: agenda ou financeiro; o resto so agenda',
+        () {
+      expect(arenaAreaForPath('/arena/classes/charges'), ArenaArea.agenda);
+      expect(
+        arenaAlternateAreaForPath('/arena/classes/charges'),
+        ArenaArea.financeiro,
+      );
+      // Aluno e matricula leem turma/chamada: financeiro nao entra.
+      expect(arenaAreaForPath('/arena/classes/student/u1'), ArenaArea.agenda);
+      expect(arenaAlternateAreaForPath('/arena/classes/student/u1'), isNull);
+      expect(arenaAlternateAreaForPath('/arena/classes/enroll'), isNull);
+      expect(arenaAlternateAreaForPath('/arena/classes'), isNull);
+    });
   });
 
   group('isArenaOwnerOnlyPath', () {

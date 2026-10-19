@@ -5,6 +5,7 @@ import {
   attendanceCounts,
   classScheduleLabel,
   classSessionFromDoc,
+  classTeacherFromDoc,
   classesOccupancy,
   endTimeFor,
   sessionLiveState,
@@ -105,6 +106,13 @@ describe('class.model chamada e ocupação', () => {
 });
 
 describe('class.model parse', () => {
+  it('professor com conta NexaGO traz uid e foto; professor antigo fica sem conta', () => {
+    const comConta = classTeacherFromDoc(fakeDoc('t1', { name: 'Thiago', userId: 'uThiago', photoUrl: 'https://x/t.jpg', color: '#FF6A1A' }));
+    expect(comConta.userId).toBe('uThiago');
+    expect(comConta.photoUrl).toBe('https://x/t.jpg');
+    expect(classTeacherFromDoc(fakeDoc('t2', { name: 'Ju' })).userId).toBeNull();
+  });
+
   it('turma com valores fora do contrato cai nos padrões', () => {
     const cls = arenaClassFromDoc(fakeDoc('c9', { name: 'X', type: 'outro', level: '??', weekdays: [1, 9, '3'], status: 'x' }));
     expect(cls.type).toBe('turma');

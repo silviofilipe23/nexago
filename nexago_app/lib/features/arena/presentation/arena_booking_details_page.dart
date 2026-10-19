@@ -25,6 +25,7 @@ import '../domain/arena_slot_detail_providers.dart';
 import '../domain/arena_staff_role.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_booking_cancel_sheet.dart';
+import 'widgets/arena_booking_class_block_card.dart';
 import 'widgets/arena_booking_detail_athletes.dart';
 import 'widgets/arena_booking_detail_checkin.dart';
 import 'widgets/arena_booking_detail_actions.dart';
@@ -105,6 +106,35 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
         : booking;
 
     final data = merged ?? resolvedBooking.data;
+
+    // Bloqueio de quadra de uma aula: sem cancelar, check-in, pagamento ou
+    // atleta — só o que a aula é e o atalho para ela (igual ao portal).
+    final classSessionId = arenaBookingClassSessionId(id, data);
+    if (classSessionId != null) {
+      final label = (data['customerName'] as String?)?.trim();
+      return _pageShell(
+        context,
+        eyebrow: _eyebrow(resolvedBooking),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ArenaBookingDetailHeader(
+              booking: resolvedBooking,
+              bookingId: id,
+              courtName: resolvedBooking.courtName,
+              statusLabel: arenaBookingBusinessStatusLabel(data),
+              athleteName: label?.isNotEmpty == true ? label! : 'Aula',
+            ),
+            const SizedBox(height: 14),
+            ArenaBookingClassBlockCard(
+              classSessionId: classSessionId,
+              className: label,
+            ),
+          ],
+        ),
+      );
+    }
+
     final athleteId = resolvedBooking.athleteId.trim();
     final nameAsync = ref.watch(athleteDisplayLabelProvider(athleteId));
 

@@ -206,5 +206,7 @@ Future<bool> hasArenaAreaAccess(Ref ref, String path) async {
   if (area == null && !ownerOnly) return true;
   final access = await resolveArenaAccess(ref);
   if (ownerOnly) return access.isOwner;
-  return access.canRead(area!);
+  final alternate = arenaAlternateAreaForPath(path);
+  return access.canRead(area!) ||
+      (alternate != null && access.canRead(alternate));
 }

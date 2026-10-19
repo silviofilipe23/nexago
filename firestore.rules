@@ -81,15 +81,20 @@ service cloud.firestore {
     }
     /** Caixa do torneio com dinheiro dentro — excluir o evento sumiria com ele.
      *  Doc ausente conta como zerado (torneio que nunca recebeu pagamento), e
-     *  campo ausente também: os dois saldos saem por `.get(campo, 0)` porque a
+     *  campo ausente também: os saldos saem por `.get(campo, 0)` porque a
      *  migração grava `availableReais` sem tocar em `pendingReais`. Acesso
      *  direto a campo que não existe estoura a AVALIAÇÃO da regra, e aí o
      *  delete do evento ficava negado para sempre, com mensagem que não
-     *  explica nada. */
+     *  explica nada.
+     *
+     *  `awaitingSettlementReais` ("a liberar") é cartão aprovado que ainda não
+     *  liquidou: o dinheiro está a caminho e o crédito vai cair neste caixa —
+     *  sem o evento, ninguém mais alcançaria esse caixa para sacar. */
     function tournamentHasWalletBalance(tournamentId) {
       return exists(/databases/$(database)/documents/tournamentWallets/$(tournamentId)) && (
         get(/databases/$(database)/documents/tournamentWallets/$(tournamentId)).data.get('availableReais', 0) > 0 ||
-        get(/databases/$(database)/documents/tournamentWallets/$(tournamentId)).data.get('pendingReais', 0) > 0
+        get(/databases/$(database)/documents/tournamentWallets/$(tournamentId)).data.get('pendingReais', 0) > 0 ||
+        get(/databases/$(database)/documents/tournamentWallets/$(tournamentId)).data.get('awaitingSettlementReais', 0) > 0
       );
     }
     /** Campos do torneio que a EQUIPE não escreve, nem por descuido.
@@ -1205,6 +1210,15 @@ service cloud.firestore {
         isSuperAdmin()
       );
     }
+    // Aulas fase 2: planos e regras da arena (escrita via Cloud Function).
+    match /arenas/{arenaId}/classPlans/{planId} {
+      allow read: if request.auth != null && (arenaCanRead(arenaId, 'agenda') || isSuperAdmin());
+      allow create, update, delete: if false;
+    }
+    match /arenas/{arenaId}/classSettings/{docId} {
+      allow read: if request.auth != null && (arenaCanRead(arenaId, 'agenda') || isSuperAdmin());
+      allow create, update, delete: if false;
+    }
     match /arenas/{arenaId}/classTeachers/{teacherId} {
       // Professores das Aulas. Escrita via Cloud Function
       // (`upsertArenaClassTeacher`), com o gate de plano das turmas.
@@ -1837,6 +1851,34 @@ service cloud.firestore {
         );
         allow create, update, delete: if false;
       }
+      match /classWaitlist/{entryId} {
+        allow read: if request.auth != null && (
+          arenaCanRead(resource.data.arenaId, 'agenda') || isSuperAdmin()
+        );
+        allow create, update, delete: if false;
+      }
+    }
+    // Matrícula e mensalidade (cobrança manual, sem dinheiro na plataforma): quem vê a
+    // agenda (recepção cobra no balcão) ou o financeiro. Escrita só pelas functions.
+    match /arenaClassEnrollments/{enrollmentId} {
+      allow read: if request.auth != null && (
+        arenaCanRead(resource.data.arenaId, 'agenda') ||
+        arenaCanRead(resource.data.arenaId, 'financeiro') || isSuperAdmin()
+      );
+      allow create, update, delete: if false;
+    }
+    match /arenaClassCharges/{chargeId} {
+      allow read: if request.auth != null && (
+        arenaCanRead(resource.data.arenaId, 'agenda') ||
+        arenaCanRead(resource.data.arenaId, 'financeiro') || isSuperAdmin()
+      );
+      allow create, update, delete: if false;
+    }
+    match /arenaClassCredits/{creditId} {
+      allow read: if request.auth != null && (
+        arenaCanRead(resource.data.arenaId, 'agenda') || isSuperAdmin()
+      );
+      allow create, update, delete: if false;
     }
     match /arenaClassSessions/{sessionId} {
       allow read: if request.auth != null && (

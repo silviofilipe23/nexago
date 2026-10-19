@@ -187,6 +187,12 @@ function walletDoc(fake: FakeFirestore): Record<string, unknown> | undefined {
   return fake.store.get("tournamentWallets/t1");
 }
 
+function ledgerEntries(fake: FakeFirestore): Record<string, unknown>[] {
+  return [...fake.store.entries()]
+    .filter(([path]) => path.startsWith("tournamentWallets/t1/ledger/"))
+    .map(([, data]) => data);
+}
+
 describe("asaas-tournament-registration-webhook: cartão em duas fases", () => {
   it("CONFIRMED confirma a inscrição e NÃO credita a carteira", async () => {
     const {fake, db} = makeDb();
@@ -200,7 +206,9 @@ describe("asaas-tournament-registration-webhook: cartão em duas fases", () => {
 
     assert.equal(fake.store.get(REG_PATH)!["isPaid"], true);
     assert.equal(fake.store.get(PENDING_A)!["status"], "paid");
-    assert.equal(walletDoc(fake), undefined);
+    // O caixa nasce só com o "a liberar": nada disponível, nada no extrato.
+    assert.equal(walletDoc(fake)!["availableReais"], 0);
+    assert.equal(ledgerEntries(fake).length, 0);
     assert.ok(fake.store.get(PROCESSED_PATH)!["confirmedAt"]);
     assert.equal(fake.store.get(PROCESSED_PATH)!["walletCreditedAt"], undefined);
   });
@@ -283,6 +291,185 @@ describe("asaas-tournament-registration-webhook: cartão em duas fases", () => {
 
     assert.equal(walletDoc(fake)!["ownerId"], "org1");
     assert.equal(walletDoc(fake)!["tournamentId"], "t1");
+  });
+});
+
+describe("asaas-tournament-registration-webhook: \"a liberar\" do cartão", () => {
+  function awaiting(fake: FakeFirestore): unknown {
+    return walletDoc(fake)?.["awaitingSettlementReais"];
+  }
+
+  it("CONFIRMED soma o líquido previsto ao a liberar", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, CARD_PENDING_A);
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", cardPayment("CONFIRMED", {netValue: 96.71}),
+      processedRefOf(db), makeDeps().deps,
+    );
+
+    // bruto 100 − 8% da plataforma − 3,29 do cartão
+    assert.equal(awaiting(fake), 88.71);
+    assert.equal(walletDoc(fake)!["availableReais"], 0);
+    const marker = fake.store.get(PROCESSED_PATH)!["awaitingSettlement"] as Record<string, unknown>;
+    assert.equal(marker["netReais"], 88.71);
+    assert.equal(marker["tournamentId"], "t1");
+  });
+
+  it("RECEIVED credita o caixa e zera o a liberar", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, CARD_PENDING_A);
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", cardPayment("CONFIRMED", {netValue: 96.71}),
+      processedRefOf(db), makeDeps().deps,
+    );
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", cardPayment("RECEIVED", {netValue: 96.71}),
+      processedRefOf(db), makeDeps().deps,
+    );
+
+    assert.equal(walletDoc(fake)!["availableReais"], 88.71);
+    assert.equal(awaiting(fake), 0);
+    assert.equal(ledgerEntries(fake).length, 1);
+    assert.equal(fake.store.get(PROCESSED_PATH)!["awaitingSettlementReleaseReason"], "credited");
+  });
+
+  it("reentrega do CONFIRMED não soma de novo", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, CARD_PENDING_A);
+
+    const evt = cardPayment("CONFIRMED", {netValue: 96.71});
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", evt, processedRefOf(db), makeDeps().deps,
+    );
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", evt, processedRefOf(db), makeDeps().deps,
+    );
+
+    assert.equal(awaiting(fake), 88.71);
+  });
+
+  it("reentrega do RECEIVED não credita nem abate de novo", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, CARD_PENDING_A);
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", cardPayment("CONFIRMED", {netValue: 96.71}),
+      processedRefOf(db), makeDeps().deps,
+    );
+    const received = cardPayment("RECEIVED", {netValue: 96.71});
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", received, processedRefOf(db), makeDeps().deps,
+    );
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", received, processedRefOf(db), makeDeps().deps,
+    );
+
+    assert.equal(walletDoc(fake)!["availableReais"], 88.71);
+    assert.equal(awaiting(fake), 0);
+  });
+
+  it("CONFIRMED perdido: RECEIVED sozinho credita sem passar pelo a liberar", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, CARD_PENDING_A);
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", cardPayment("RECEIVED", {netValue: 96.71}),
+      processedRefOf(db), makeDeps().deps,
+    );
+
+    assert.equal(walletDoc(fake)!["availableReais"], 88.71);
+    assert.equal(awaiting(fake), undefined);
+    assert.equal(fake.store.get(PROCESSED_PATH)!["awaitingSettlement"], undefined);
+  });
+
+  it("PIX não mexe no a liberar", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, PIX_PENDING_A);
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", {...fullPayment, netValue: 96.71},
+      processedRefOf(db), makeDeps().deps,
+    );
+
+    assert.equal(walletDoc(fake)!["availableReais"], 92);
+    assert.equal(awaiting(fake), undefined);
+    assert.equal(fake.store.get(PROCESSED_PATH)!["awaitingSettlement"], undefined);
+  });
+
+  it("backfill: CONFIRMED reprocessado sem o marcador soma sem reconfirmar", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    // Cartão confirmado antes de existir o "a liberar": inscrição paga,
+    // marcador de confirmação gravado, caixa ainda sem crédito.
+    seedRegistration(fake, {sharePaidUids: ["uidA", "uidB"], paidAmount: ENTRY_FEE, isPaid: true});
+    fake.seedDoc(PENDING_A, {...CARD_PENDING_A, status: "paid"});
+    fake.seedDoc(PROCESSED_PATH, {
+      kind: "tournamentRegistration",
+      registrationId: REG_ID,
+      payerUid: "uidA",
+      outcome: "approved",
+      billingType: "CREDIT_CARD",
+      confirmedAt: Timestamp.fromMillis(Date.now() - 86_400_000),
+    });
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", cardPayment("CONFIRMED", {netValue: 96.71}),
+      processedRefOf(db), makeDeps().deps,
+    );
+
+    assert.equal(awaiting(fake), 88.71);
+    assert.equal(fake.store.get(REG_PATH)!["paidAmount"], ENTRY_FEE);
+    assert.equal(fake.store.get(PROCESSED_PATH)!["outcome"], "approved");
+    assert.equal(ledgerEntries(fake).length, 0);
+  });
+
+  it("estorno depois do CONFIRMED tira do a liberar", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, CARD_PENDING_A);
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", cardPayment("CONFIRMED", {netValue: 96.71}),
+      processedRefOf(db), makeDeps().deps,
+    );
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", cardPayment("REFUNDED"), processedRefOf(db), makeDeps().deps,
+    );
+
+    assert.equal(awaiting(fake), 0);
+    assert.equal(walletDoc(fake)!["availableReais"], 0);
+    // A vaga segue garantida: o desfazimento continua manual.
+    assert.equal(fake.store.get(REG_PATH)!["isPaid"], true);
+    assert.equal(fake.store.get(PROCESSED_PATH)!["awaitingSettlementReleaseReason"], "REFUNDED");
+  });
+
+  it("torneio sem organizador não soma (nunca vai creditar)", async () => {
+    const {fake, db} = makeDb();
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, CARD_PENDING_A);
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", cardPayment("CONFIRMED", {netValue: 96.71}),
+      processedRefOf(db), makeDeps().deps,
+    );
+
+    assert.equal(fake.store.get(REG_PATH)!["isPaid"], true);
+    assert.equal(walletDoc(fake), undefined);
   });
 });
 
@@ -472,7 +659,9 @@ describe("asaas-tournament-registration-webhook: cashback", () => {
 
     assert.equal(fake.store.get(`athleteWallets/uidA/holds/${holdId}`)!.status, "captured");
     assert.equal(fake.store.get(PROCESSED_PATH)!.cashbackStatus, "done");
-    assert.equal(walletDoc(fake), undefined);
+    // Nada disponível ainda; o "a liberar" já conta o bruto com o saldo (100 − 8%).
+    assert.equal(walletDoc(fake)!.availableReais, 0);
+    assert.equal(walletDoc(fake)!.awaitingSettlementReais, 92);
 
     // O pendente some antes da liquidação (ex.: o atleta gerou outra cobrança
     // nesse meio tempo) — o crédito tem que achar o saldo pela intenção
@@ -489,6 +678,7 @@ describe("asaas-tournament-registration-webhook: cashback", () => {
     const credit = tournamentLedger(fake).find((e) => e.type === "credit")!;
     assert.equal(credit.grossReais, 100);
     assert.equal(credit.cashbackAppliedReais, 10);
+    assert.equal(walletDoc(fake)!.awaitingSettlementReais, 0);
   });
 
   it("pagamento tardio de cobrança substituída: acha a reserva pelo id do pagamento, não pelo pendente atual", async () => {

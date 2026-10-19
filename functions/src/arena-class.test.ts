@@ -22,6 +22,9 @@ import {
   releaseClassSession,
   releaseFutureClassSessions,
   unchangedSessionDates,
+  requireTeacherAccount,
+  unchangedSessionDates,
+  upsertClassTeacherCore,
   removeClassStudentCore,
   saveClassAttendanceCore,
   validateClassInput,
@@ -42,6 +45,7 @@ function baseClass(overrides: Partial<ArenaClassData> = {}): ArenaClassData {
     sport: "beachTennis",
     level: "iniciante",
     teacherId: "t1",
+    teacherUserId: "uThiago",
     teacherName: "Thiago Mendes",
     teacherColor: "#FF6A1A",
     weekdays: [1, 3],
@@ -181,6 +185,7 @@ describe("arena-class.materializeClassSession", () => {
     assert.equal(session["status"], "scheduled");
     assert.equal(session["teacherName"], "Thiago Mendes");
     assert.equal(session["blockBookingId"], id);
+    assert.equal(session["teacherUserId"], "uThiago");
 
     const booking = fake.store.get(`arenaBookings/${id}`)!;
     assert.equal(booking["status"], "active");
@@ -444,5 +449,61 @@ describe("arena-class chamada", () => {
     assert.equal(fake.store.get(`arenaClassSessions/${id}`)!["status"], "canceled");
     assert.equal(fake.store.get(`arenaBookings/${id}`)!["status"], "cancelled");
     assert.equal(fake.store.has(`arenaSlotLocks/arena1_q2_${MONDAY}_h18`), false);
+  });
+});
+
+describe("arena-class professores (conta NexaGO obrigatória)", () => {
+  const base = {specialty: "Beach Tennis", phone: null, color: "#FF6A1A", status: "active" as const};
+
+  it("cadastra pela conta: nome do perfil e uma vez por arena", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("users/uThiago", {fullName: "Thiago Mendes", profilePhotoUrl: "https://x/t.jpg"});
+    await assert.rejects(
+      upsertClassTeacherCore(db, "arena1", {...base, teacherId: null, userId: null}, "gestor"),
+      /conta NexaGO/,
+    );
+    const {teacherId} = await upsertClassTeacherCore(db, "arena1", {...base, teacherId: null, userId: "uThiago"}, "gestor");
+    const doc = fake.store.get(`arenas/arena1/classTeachers/${teacherId}`)!;
+    assert.equal(doc["userId"], "uThiago");
+    assert.equal(doc["name"], "Thiago Mendes");
+    assert.equal(doc["photoUrl"], "https://x/t.jpg");
+    await assert.rejects(
+      upsertClassTeacherCore(db, "arena1", {...base, teacherId: null, userId: "uThiago"}, "gestor"),
+      /já é professor/,
+    );
+  });
+
+  it("conta inexistente é recusada", async () => {
+    const {db} = makeDb();
+    await assert.rejects(
+      upsertClassTeacherCore(db, "arena1", {...base, teacherId: null, userId: "fantasma"}, "gestor"),
+      /não encontrada/,
+    );
+  });
+
+  it("professor antigo sem conta é vinculado; a conta vinculada não troca", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("users/uJu", {fullName: "Juliana Rocha"});
+    fake.seedDoc("users/uOutra", {fullName: "Outra Pessoa"});
+    fake.seedDoc("arenas/arena1/classTeachers/legado", {arenaId: "arena1", name: "Ju", color: "#5B9BFF", status: "active"});
+
+    await upsertClassTeacherCore(db, "arena1", {...base, teacherId: "legado", userId: "uJu"}, "gestor");
+    const doc = fake.store.get("arenas/arena1/classTeachers/legado")!;
+    assert.equal(doc["userId"], "uJu");
+    assert.equal(doc["name"], "Juliana Rocha");
+
+    await assert.rejects(
+      upsertClassTeacherCore(db, "arena1", {...base, teacherId: "legado", userId: "uOutra"}, "gestor"),
+      /não muda/,
+    );
+    // Editar sem mandar a conta mantém o vínculo.
+    await upsertClassTeacherCore(db, "arena1", {...base, teacherId: "legado", userId: null, specialty: "Kids"}, "gestor");
+    assert.equal(fake.store.get("arenas/arena1/classTeachers/legado")!["userId"], "uJu");
+  });
+
+  it("turma nova ou professor trocado exige conta; legado segue onde já estava", () => {
+    assert.throws(() => requireTeacherAccount({name: "Ju", userId: null}, true), /Vincule a conta/);
+    assert.doesNotThrow(() => requireTeacherAccount({name: "Ju", userId: null}, false));
+    assert.doesNotThrow(() => requireTeacherAccount({name: "Thiago", userId: "uThiago"}, true));
   });
 });

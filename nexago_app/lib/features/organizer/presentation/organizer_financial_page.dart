@@ -11,6 +11,7 @@ import '../../../core/ui/app_status_views.dart';
 import '../../arena/domain/payout_pix_key_type.dart';
 import '../data/organizer_wallet_repository.dart';
 import '../domain/organizer_wallet_providers.dart';
+import 'widgets/awaiting_settlement_note.dart';
 
 /// Caixa de cada EVENTO que a pessoa alcança: saldo, extrato, saques e o
 /// pedido de saque.
@@ -501,6 +502,9 @@ class _CashBoxOption extends StatelessWidget {
     final pending = box.pendingReais > 0.001
         ? ' · ${formatBRL(box.pendingReais)} em processamento'
         : '';
+    final awaiting = hasAwaitingSettlement(box.awaitingSettlementReais)
+        ? ' · ${formatBRL(box.awaitingSettlementReais)} a liberar'
+        : '';
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -544,7 +548,7 @@ class _CashBoxOption extends StatelessWidget {
                             ),
                       ),
                       Text(
-                        '${formatBRL(box.availableReais)}$pending',
+                        '${formatBRL(box.availableReais)}$pending$awaiting',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: colors.onSurfaceMuted,
                             ),
@@ -691,6 +695,12 @@ class _BalanceCard extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
             ),
+          ],
+          if (hasAwaitingSettlement(box.awaitingSettlementReais)) ...[
+            const SizedBox(height: 14),
+            Divider(height: 1, color: colors.outline.withValues(alpha: 0.3)),
+            const SizedBox(height: 12),
+            AwaitingSettlementNote(amountReais: box.awaitingSettlementReais),
           ],
         ],
       ),
@@ -890,9 +900,13 @@ class _WithdrawalTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final (label, color) = switch (item.status) {
-      'approved' => ('Aprovado', AppColors.win),
-      'rejected' => ('Rejeitado', AppColors.live),
+    // PIX que o banco não concluiu volta como `rejected` + `failed`: o valor
+    // retorna ao caixa. `paid` só chega com a conclusão no Asaas.
+    final (label, color) = switch ((item.status, item.payoutStatus)) {
+      (_, 'failed') => ('Falhou', AppColors.live),
+      (_, 'paid') => ('Pago', AppColors.win),
+      ('approved', _) => ('Aprovado', AppColors.win),
+      ('rejected', _) => ('Rejeitado', AppColors.live),
       _ => ('Pendente', AppColors.pending),
     };
     final requester = withdrawalRequesterLabel(

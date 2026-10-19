@@ -180,7 +180,17 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
                         } @else {
                           <div class="who-id">{{ row.requesterId }}</div>
                         }
-                        @if (row.payoutError) {
+                        @if (row.payoutStatus === 'paid') {
+                          <div class="who-note">
+                            <bo-pill tone="green">PIX concluído</bo-pill>
+                            <span>Use "Aprovar e pagar" para fechar — não cria outra transferência.</span>
+                          </div>
+                        } @else if (row.payoutStatus === 'sent') {
+                          <div class="who-note">
+                            <bo-pill tone="yellow">Em andamento no Asaas</bo-pill>
+                            <span>Aguarde concluir ou falhar — ou cancele a transferência no Asaas.</span>
+                          </div>
+                        } @else if (row.payoutError) {
                           <div class="who-error">
                             <bo-pill tone="red">Falha anterior</bo-pill>
                             <span>{{ row.payoutError }}</span>
@@ -377,7 +387,8 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
       overflow-wrap: break-word;
     }
 
-    .who-error {
+    .who-error,
+    .who-note {
       display: flex;
       align-items: center;
       gap: 8px;
@@ -385,6 +396,10 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
       font-size: 11px;
       line-height: 1.4;
       color: var(--nx-live);
+    }
+
+    .who-note {
+      color: var(--nx-text-mute);
     }
 
     .cell-pix {

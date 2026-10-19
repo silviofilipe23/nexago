@@ -182,7 +182,7 @@ interface EventChip {
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
       background: var(--nx-surface-0);
       border: 1px solid var(--nx-line);
       border-radius: var(--nx-r-4);

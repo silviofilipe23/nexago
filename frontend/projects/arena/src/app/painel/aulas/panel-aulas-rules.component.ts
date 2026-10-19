@@ -11,8 +11,8 @@ import { DEFAULT_RULES, parsePrice, type ClassRules } from './billing.model';
 import { fetchRules, saveRules } from './billing-repository';
 
 /** 16 · Regras de aulas — só as que o sistema já aplica: crédito de reposição, cancelamento
- *  pela arena e cobrança. Cancelamento pelo aluno no app, QR de check-in e lembretes chegam
- *  com a matrícula pelo app. */
+ *  pela arena, cobrança e lembrete 2h antes. Cancelamento pelo aluno no app e QR de check-in
+ *  chegam com a matrícula pelo app. */
 @Component({
   selector: 'ar-panel-aulas-rules',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -64,6 +64,17 @@ import { fetchRules, saveRules } from './billing-repository';
               <ar-toggle label="Gerar crédito ao cancelar" [checked]="rules().arenaCancelGeneratesCredit" [disabled]="readOnly()" (changed)="patch({ arenaCancelGeneratesCredit: $event })" />
             </div>
             <p class="hint">Os alunos com conta NexaGO recebem aviso no app quando a aula é cancelada.</p>
+          </ar-panel-card>
+
+          <ar-panel-card title="Lembretes">
+            <div class="toggle-row">
+              <div>
+                <div class="t-title">Lembrete 2h antes da aula</div>
+                <div class="t-sub">Push para os alunos do dia com conta NexaGO (turma e encaixes) e para o professor</div>
+              </div>
+              <ar-toggle label="Lembrete 2h antes da aula" [checked]="rules().classReminderEnabled" [disabled]="readOnly()" (changed)="patch({ classReminderEnabled: $event })" />
+            </div>
+            <p class="hint">Aluno sem conta não recebe — use o WhatsApp. Aula criada com menos de 2h de antecedência sai sem lembrete.</p>
           </ar-panel-card>
 
           <ar-panel-card title="Cobrança">

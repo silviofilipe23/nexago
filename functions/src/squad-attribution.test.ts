@@ -118,7 +118,7 @@ describe("checkSquadCodeCore", () => {
     const {fake, db} = makeDb();
     assert.deepEqual(
       await checkSquadCodeCore(db, {payerUid: "atl", athleteUids: ["atl"], code: "joao10", registrationId: "reg1", feePercent: 8}, NOW),
-      {ambassadorName: "João Victor", code: "JOAO10", origin: "code", discountPct: 10, feePercent: 8},
+      {ambassadorName: "João Victor", code: "JOAO10", origin: "code", discountPct: 10, feePercent: 8, feeFloorReais: 1.5},
     );
     // Sem código: o link guardado, com o mesmo desconto.
     fake.seedDoc("squadAttributions/atl", {ambassadorId: "rb", code: "RAYSSA", origin: "link", at: NOW});
@@ -133,8 +133,39 @@ describe("checkSquadCodeCore", () => {
     const {db} = makeDb();
     assert.deepEqual(
       await checkSquadCodeCore(db, {payerUid: "atl", athleteUids: [], code: "", registrationId: "reg1"}, NOW),
-      {ambassadorName: null, code: null, origin: null, discountPct: 0, feePercent: null},
+      {ambassadorName: null, code: null, origin: null, discountPct: 0, feePercent: null, feeFloorReais: 1.5},
     );
+  });
+
+  it("reserva e clubinho: % do contrato, teto da cobrança e o piso de cada uma", async () => {
+    const {db} = makeDb();
+    const club = await checkSquadCodeCore(
+      db,
+      {payerUid: "atl", athleteUids: [], code: "JOAO10", registrationId: "", purpose: "club", feePercent: 5, feeFloorReais: 0},
+      NOW,
+    );
+    assert.equal(club.discountPct, 10);
+    assert.equal(club.feePercent, 5);
+    assert.equal(club.feeFloorReais, 0);
+    const booking = await checkSquadCodeCore(
+      db,
+      {payerUid: "atl", athleteUids: [], code: "JOAO10", registrationId: "", purpose: "booking", feePercent: 8},
+      NOW,
+    );
+    assert.equal(booking.discountPct, 10);
+    assert.equal(booking.feeFloorReais, 1.5);
+  });
+
+  it("só na primeira: reserva já usada zera a reserva, mas não o clubinho nem a inscrição", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("squadChargeDiscounts/pay-old", {
+      payerUid: "atl", ambassadorId: "jv", cents: 960, pct: 10, kind: "booking", confirmedAt: NOW,
+    });
+    const check = (purpose: "booking" | "club" | "registration") =>
+      checkSquadCodeCore(db, {payerUid: "atl", athleteUids: [], code: "JOAO10", registrationId: "reg1", purpose}, NOW);
+    assert.equal((await check("booking")).discountPct, 0);
+    assert.equal((await check("club")).discountPct, 10);
+    assert.equal((await check("registration")).discountPct, 10);
   });
 });
 

@@ -16,17 +16,27 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
 import { withCashbackCharge, type CashbackChargeFields } from './cashback-preview';
+import { readSquadDiscount } from './squad-discount';
 
 /** Clubinho (jogo aberto da arena) — leitura direta de `arenaClubSessions` (+ subcoleção
  *  `clubParticipants`) e escrita 100% via callables (`joinArenaClubSession`/
  *  `leaveArenaClubSession`): capacidade, PIX e estorno vivem no servidor. */
 
-export class ArenaClubError extends Error {}
+export class ArenaClubError extends Error {
+  constructor(
+    message: string,
+    /** Campo que o servidor apontou (`details.field`), ex.: `squadCode` no checkout. */
+    readonly field: string | null = null,
+  ) {
+    super(message);
+  }
+}
 
 function mapFunctionsError(err: unknown): ArenaClubError {
   const message =
     err instanceof Error && err.message ? err.message : 'Não foi possível concluir a operação. Tente novamente.';
-  return new ArenaClubError(message);
+  const field = (err as { details?: { field?: unknown } })?.details?.field;
+  return new ArenaClubError(message, typeof field === 'string' ? field : null);
 }
 
 export type ClubParticipantStatus =
@@ -266,6 +276,8 @@ export interface ClubJoinPixPayment {
   cashbackAppliedReais: number;
   /** O que o PIX vale de fato; `amountReais` quando o backend é antigo. */
   chargedReais: number;
+  /** Desconto do código de embaixador (NexaSquad), já fora do `chargedReais` (0 sem código). */
+  squadDiscountReais: number;
 }
 
 export interface ClubJoinParams {
@@ -273,14 +285,20 @@ export interface ClubJoinParams {
   cpfCnpj?: string;
   /** Só `true` quando o atleta ligou "Usar meu cashback" e há saldo usável. */
   useCashback?: boolean;
+  /** Código de embaixador do NexaSquad digitado (o link/QR o servidor resolve sozinho). */
+  squadCode?: string;
 }
 
 /** Corpo de `joinArenaClubSession` (PIX). CPF vazio segue indo como `undefined`, como antes. */
-export function clubJoinPayload(params: ClubJoinParams): { sessionId: string; cpfCnpj?: string; useCashback?: boolean } {
+export function clubJoinPayload(
+  params: ClubJoinParams,
+): { sessionId: string; cpfCnpj?: string; useCashback?: boolean; squadCode?: string } {
+  const squadCode = params.squadCode?.trim() ?? '';
   return {
     sessionId: params.sessionId,
     cpfCnpj: params.cpfCnpj || undefined,
     ...(params.useCashback === true ? { useCashback: true } : {}),
+    ...(squadCode ? { squadCode } : {}),
   };
 }
 
@@ -288,9 +306,9 @@ export async function joinClubSession(functions: Functions, params: ClubJoinPara
   try {
     const result = await httpsCallable<
       ReturnType<typeof clubJoinPayload>,
-      Omit<ClubJoinPixPayment, keyof CashbackChargeFields>
+      Omit<ClubJoinPixPayment, keyof CashbackChargeFields | 'squadDiscountReais'>
     >(functions, 'joinArenaClubSession')(clubJoinPayload(params));
-    return withCashbackCharge(result.data);
+    return { ...withCashbackCharge(result.data), squadDiscountReais: readSquadDiscount(result.data) };
   } catch (err) {
     throw mapFunctionsError(err);
   }

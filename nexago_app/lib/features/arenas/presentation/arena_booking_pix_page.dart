@@ -18,6 +18,10 @@ import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../cashback/application/cashback_providers.dart';
 import '../../cashback/domain/cashback_rules.dart';
 import '../../cashback/presentation/widgets/checkout_cashback_toggle.dart';
+import '../../squad/domain/squad_models.dart';
+import '../../squad/domain/squad_rules.dart';
+import '../../squad/presentation/widgets/squad_checkout_summary.dart';
+import '../../tournaments/presentation/widgets/squad_code_field.dart';
 import '../data/payment_service.dart';
 import '../domain/arena_booking_pix_amounts.dart';
 import '../domain/arena_booking_pix_args.dart';
@@ -52,6 +56,7 @@ class ArenaBookingPixPage extends ConsumerStatefulWidget {
 
 class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
   final _cpfController = TextEditingController();
+  final _squadCodeController = TextEditingController();
   ArenaBookingPixPaymentResult? _pix;
   bool _loadingPix = false;
   String? _pixError;
@@ -63,6 +68,9 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
   /// "Usar meu cashback" — começa desligado: o atleta escolhe gastar.
   bool _useCashback = false;
   double _paymentFraction = 1.0;
+
+  /// Indicação do NexaSquad vigente (código aplicado ou link/QR).
+  SquadCodeCheck _squad = SquadCodeCheck.none;
   Timer? _expiryTimer;
 
   static final _dateFmt = DateFormat('d MMM yyyy', 'pt_BR');
@@ -84,11 +92,36 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
   double get _dueOnsiteReais =>
       ArenaBookingPixAmounts.dueOnsiteReais(_totalReais, _paymentFraction);
 
+  /// Indicação que vale para a prévia. Código digitado e não aplicado é
+  /// conferido só na cobrança — e ele vence o link —, então até lá não há
+  /// desconto a prever.
+  SquadCodeCheck get _squadPreview =>
+      _squad.origin != 'code' && _squadCodeController.text.trim().isNotEmpty
+          ? SquadCodeCheck.none
+          : _squad;
+
+  /// Prévia do desconto do código sobre o que se paga AGORA (com sinal, a
+  /// metade), com teto na taxa da arena: sai da taxa da nexaGO e a arena
+  /// recebe o mesmo líquido. O servidor confere e devolve o aplicado.
+  int get _squadDiscountCents => squadDiscountPreviewCents(
+        reaisToCents(_payNowReais),
+        _squadPreview.discountPct,
+        _squadPreview.feePercent,
+        floorReais: _squadPreview.feeFloorReais,
+      );
+
+  /// Código que vai na cobrança: o aplicado ou, sem ele, o que foi digitado
+  /// (a cobrança confere). Vazio = a indicação por link, se houver, vale sozinha.
+  String get _squadCodeForCharge => _squad.origin == 'code'
+      ? (_squad.code ?? '')
+      : _squadCodeController.text;
+
   /// Prévia do cashback sobre o valor a pagar AGORA — com sinal de 50% é a
-  /// metade: o servidor reserva o saldo sobre `amountToPayNow`.
+  /// metade: o servidor reserva o saldo sobre `amountToPayNow` — depois do
+  /// desconto do código.
   CashbackCheckoutQuote _cashbackQuote(CashbackCheckoutContext? checkout) =>
       quoteCheckoutCashback(
-        priceCents: reaisToCents(_payNowReais),
+        priceCents: reaisToCents(_payNowReais) - _squadDiscountCents,
         checkout: checkout,
         useCashback: _useCashback,
       );
@@ -101,6 +134,7 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
       _paymentFraction = 1.0;
     }
     _cpfController.addListener(_onCpfTextChanged);
+    _squadCodeController.addListener(_onCpfTextChanged);
     final initialExpiry = widget.args.paymentExpiresAt;
     if (initialExpiry != null) {
       _scheduleExpiry(initialExpiry);
@@ -116,7 +150,9 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
   void dispose() {
     _expiryTimer?.cancel();
     _cpfController.removeListener(_onCpfTextChanged);
+    _squadCodeController.removeListener(_onCpfTextChanged);
     _cpfController.dispose();
+    _squadCodeController.dispose();
     super.dispose();
   }
 
@@ -175,6 +211,7 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
             cpfCnpj: _cpfDigits,
             paymentFraction: _paymentFraction,
             useCashback: useCashback,
+            squadCode: _squadCodeForCharge,
           );
       if (!mounted) return;
       setState(() {
@@ -376,6 +413,30 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
                             },
                           ),
                           SizedBox(height: 20),
+                          SquadCodeField(
+                            controller: _squadCodeController,
+                            purpose: 'booking',
+                            arenaId: widget.arenaId,
+                            enabled: !_loadingPix,
+                            onChanged: (check) =>
+                                setState(() => _squad = check),
+                          ),
+                          if (_squadDiscountCents > 0) ...[
+                            const SizedBox(height: 4),
+                            SquadCheckoutSummary(
+                              priceLabel: _paymentFraction == 0.5
+                                  ? 'Sinal (50%)'
+                                  : 'Reserva',
+                              priceCents: reaisToCents(_payNowReais),
+                              discountCents: _squadDiscountCents,
+                              discountLabel: _squadPreview.origin == 'code'
+                                  ? 'Código ${_squadPreview.code}'
+                                  : 'Indicação',
+                              cashbackCents: cashbackQuote.appliedPreviewCents,
+                              totalCents: cashbackQuote.chargePreviewCents,
+                            ),
+                          ],
+                          SizedBox(height: 20),
                           if (cashbackCtx != null &&
                               cashbackQuote.mode !=
                                   CashbackToggleMode.hidden) ...[
@@ -415,6 +476,14 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
                               amountReais: _pix?.chargedReais ?? _payNowReais,
                             ),
                             SizedBox(height: 20),
+                          ],
+                          if (_pix!.squadDiscountReais > 0) ...[
+                            SquadDiscountAppliedNote(
+                              discountCents: reaisToCents(
+                                _pix!.squadDiscountReais,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
                           ],
                           if (_pix!.cashbackAppliedReais > 0) ...[
                             CheckoutCashbackAppliedNote(

@@ -487,6 +487,8 @@ class _FakeSquadRepository implements SquadRepository {
     required String code,
     required List<String> athleteUids,
     required String registrationId,
+    String purpose = 'registration',
+    String? arenaId,
   }) async {
     calls.add((
       code: code,

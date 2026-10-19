@@ -31,7 +31,7 @@ import {
   resolveWithdrawalPixFields,
   resolveWithdrawalTransferAmount,
 } from "./asaas-payout";
-import {resolveArenaWithdrawalFeeReais} from "./arena-entitlement";
+import {resolveArenaBookingFeePercent, resolveArenaWithdrawalFeeReais} from "./arena-entitlement";
 import {AsaasApiError, asaasArenaSecrets} from "./asaas-client";
 import {
   getOrCreateAsaasCustomer,
@@ -44,7 +44,12 @@ import {
 } from "./asaas-booking-payment";
 import {callerIsOrganizer, callerIsSuperAdmin} from "./auth-roles";
 import {ARENA_BOOKING_PAYMENT_EXPIRY_MINUTES} from "./arena-booking-constants";
-import {resolveAndSyncArenaBookingChargeAmounts} from "./arena-booking-pricing";
+import {ARENA_BOOKING_PRICING, resolveAndSyncArenaBookingChargeAmounts} from "./arena-booking-pricing";
+import {
+  recordArenaSquadDiscountQuietly,
+  resolveArenaSquadDiscount,
+  squadIdempotencySuffix,
+} from "./squad-arena-discount";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {
   cashbackIdempotencyKey,
@@ -69,6 +74,8 @@ type PixPaymentResponse = {
   amountToPayNowReais: number;
   cashbackAppliedReais?: number;
   chargedReais?: number;
+  /** Desconto do código de embaixador (NexaSquad), já fora do cobrado. */
+  squadDiscountReais?: number;
 };
 
 export const createArenaBookingPixPayment = onCall({
@@ -86,6 +93,8 @@ export const createArenaBookingPixPayment = onCall({
     cpfCnpj?: string;
     paymentFraction?: number;
     useCashback?: boolean;
+    /** Código de embaixador do NexaSquad digitado no checkout (vence o link/QR). */
+    squadCode?: string;
   };
   const bookingId = typeof data.bookingId === "string" ? data.bookingId.trim() : "";
   const cpfFromRequest =
@@ -140,6 +149,18 @@ export const createArenaBookingPixPayment = onCall({
     throw new HttpsError("not-found", "Arena não encontrada");
   }
   const arena = arenaSnap.data()!;
+
+  // Embaixador do NexaSquad: código errado ou autoindicação para aqui, antes de mexer na cobrança
+  // anterior. O desconto sai da taxa da nexaGO (a arena recebe o mesmo líquido), com teto nela.
+  const squad = await resolveArenaSquadDiscount(db, {
+    kind: "booking",
+    payerUid: callerUid,
+    typedCode: data.squadCode,
+    priceReais: amountToPayNow,
+    feePercent: resolveArenaBookingFeePercent(arena, Date.now()),
+  }, new Date());
+  const squadCents = squad?.cents ?? 0;
+  const priceAfterSquad = roundMoney(amountToPayNow - squadCents / 100);
 
   let payerEmail = "pagamento@nexago.app";
   let payerName: string | undefined;
@@ -225,10 +246,11 @@ export const createArenaBookingPixPayment = onCall({
     ? booking.paymentExpiresAt.toDate()
     : new Date(Date.now() + ARENA_BOOKING_PAYMENT_EXPIRY_MINUTES * 60 * 1000);
 
+  // O desconto do seguidor sai antes do cashback: o saldo cobre o que sobra.
   const cashback = await reserveCashbackForCharge(db, {
     uid: callerUid,
     useCashback: data.useCashback,
-    priceReais: amountToPayNow,
+    priceReais: priceAfterSquad,
     sourceType: "booking",
     sourceId: bookingId,
     trackingPath: bookingRef.path,
@@ -244,7 +266,10 @@ export const createArenaBookingPixPayment = onCall({
       dueDate: expiresAtDate,
       description,
       externalReference: `${ARENA_BOOKING_PAYMENT_REF_PREFIX}${bookingId}`,
-      idempotencyKey: cashbackIdempotencyKey(`arena-booking-pix-${bookingId}`, cashback.holdId),
+      idempotencyKey: cashbackIdempotencyKey(
+        `arena-booking-pix-${bookingId}${squadIdempotencySuffix(squadCents)}`,
+        cashback.holdId,
+      ),
     });
   } catch (e) {
     await releaseCashbackHoldQuietly(db, callerUid, cashback.holdId, Date.now());
@@ -286,8 +311,19 @@ export const createArenaBookingPixPayment = onCall({
     pixCopyPaste: charge.qrCode,
     cashbackAppliedCents: cashback.appliedCents,
     cashbackHoldId: cashback.holdId,
+    // Só para exibir: o webhook lê o desconto do servidor (registro por paymentId / arenaBookingPricing).
+    squadDiscountReais: squadCents / 100,
     updatedAt: FieldValue.serverTimestamp(),
   });
+
+  await recordArenaSquadDiscountQuietly(db, {
+    kind: "booking",
+    sourceId: bookingId,
+    paymentId: charge.paymentId,
+    payerUid: callerUid,
+    discount: squad,
+    mirrorRef: db.collection(ARENA_BOOKING_PRICING).doc(bookingId),
+  }, new Date());
 
   return {
     paymentId: charge.paymentId,
@@ -296,6 +332,7 @@ export const createArenaBookingPixPayment = onCall({
     expiresAt: expiresAtDate.toISOString(),
     amountToPayNowReais: amountToPayNow,
     ...cashbackResponseFields(cashback),
+    ...(squadCents > 0 ? {squadDiscountReais: squadCents / 100} : {}),
   };
 });
 

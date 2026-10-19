@@ -175,8 +175,20 @@
                       }
                     </div>
 
+                    <app-squad-code-field
+                      purpose="booking"
+                      [arenaId]="arenaId()"
+                      [(code)]="squadCode"
+                      [(discountPct)]="squadDiscountPct"
+                      [(feePercent)]="squadFeePercent"
+                      [(feeFloorReais)]="squadFeeFloorReais"
+                      [discountReais]="squadDiscountReais()"
+                      [serverError]="squadError()"
+                      [disabled]="processing()"
+                    />
+
                     <app-checkout-cashback-toggle
-                      [priceReais]="pixAmountNow()"
+                      [priceReais]="priceAfterSquadReais()"
                       [availableCents]="cashback.availableCents()"
                       [config]="cashback.config()"
                       [(use)]="useCashback"
@@ -330,6 +342,12 @@
               <div class="pm-summary-row">
                 <span class="pm-summary-label">Cupom {{ code }}</span>
                 <span class="pm-summary-value pm-summary-value--discount">- {{ formatBRL(couponDiscountReais()) }}</span>
+              </div>
+            }
+            @if (squadDiscountReais() > 0) {
+              <div class="pm-summary-row">
+                <span class="pm-summary-label">Desconto do embaixador</span>
+                <span class="pm-summary-value pm-summary-value--discount">&minus;{{ formatBRL(squadDiscountReais()) }}</span>
               </div>
             }
             @if (cashbackAppliedReais() > 0) {

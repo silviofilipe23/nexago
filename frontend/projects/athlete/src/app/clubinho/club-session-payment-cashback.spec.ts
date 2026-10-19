@@ -8,6 +8,8 @@ import { CashbackService } from '../data/cashback.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { fakeCashbackService, type FakeCashbackService } from '../../testing/cashback-service.fake';
 import { ClubSessionPaymentComponent } from './club-session-payment.component';
+import { SquadCodeFieldComponent } from '../tournaments/registration/squad-code-field.component';
+import { SquadCodeFieldStubComponent } from '../../testing/squad-code-field.stub';
 
 /** A casca do portal monta o menu e ouve convites — abriria WebChannel do Firestore no Karma. */
 @Component({ selector: 'app-at-panel-shell', template: '<ng-content />' })
@@ -22,6 +24,8 @@ interface Internals {
   pix: WritableSignal<ClubJoinPixPayment | null>;
   confirmed: WritableSignal<boolean>;
   myMethod: WritableSignal<'pix' | 'onsite'>;
+  squadDiscountPct: WritableSignal<number>;
+  squadFeePercent: WritableSignal<number | null>;
 }
 
 const firebase = environment.firebase as { apiKey: string };
@@ -72,6 +76,7 @@ function pixPayment(overrides: Partial<ClubJoinPixPayment> = {}): ClubJoinPixPay
     amountReais: 30,
     cashbackAppliedReais: 0,
     chargedReais: 30,
+    squadDiscountReais: 0,
     ...overrides,
   };
 }
@@ -89,8 +94,8 @@ function create(
       { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ sessionId: 's1' }) } } },
     ],
   }).overrideComponent(ClubSessionPaymentComponent, {
-    remove: { imports: [AtPanelShellComponent] },
-    add: { imports: [PanelShellStubComponent] },
+    remove: { imports: [AtPanelShellComponent, SquadCodeFieldComponent] },
+    add: { imports: [PanelShellStubComponent, SquadCodeFieldStubComponent] },
   });
 
   const fixture = TestBed.createComponent(ClubSessionPaymentComponent);
@@ -200,5 +205,39 @@ describe('ClubSessionPaymentComponent — nota de cashback no sucesso', () => {
 
     expect(host(fixture).querySelector('app-cashback-earned-note')).toBeNull();
     expect(fake.lotIds).toEqual([]);
+  });
+});
+
+describe('ClubSessionPaymentComponent — desconto do embaixador (NexaSquad)', () => {
+  useBlankFirebaseKey();
+
+  it('código aplicado no PIX: 10% de R$ 30 com teto nos 5% do clubinho — R$ 1,50 fora', () => {
+    const { fixture, internals } = create(fakeCashbackService({ wallet: { availableCents: 0 } }));
+    expect(host(fixture).querySelector('app-squad-code-field')).not.toBeNull();
+    internals.squadDiscountPct.set(10);
+    internals.squadFeePercent.set(5);
+    fixture.detectChanges();
+
+    const summary = text(host(fixture).querySelector('.cp-cashback-summary'));
+    expect(summary).toContain('Desconto do embaixador −R$ 1,50');
+    expect(summary).toContain('Você paga R$ 28,50');
+  });
+
+  it('pagar na arena: sem campo e sem desconto', () => {
+    const { fixture, internals } = create(fakeCashbackService({ wallet: { availableCents: 0 } }), session(30, true));
+    internals.squadDiscountPct.set(10);
+    internals.squadFeePercent.set(5);
+    internals.method.set('onsite');
+    fixture.detectChanges();
+    expect(host(fixture).querySelector('app-squad-code-field')).toBeNull();
+    expect(host(fixture).querySelector('.cp-cashback-summary')).toBeNull();
+  });
+
+  it('PIX gerado: mostra o desconto que o servidor aplicou', () => {
+    const { fixture, internals } = create(fakeCashbackService({ wallet: { availableCents: 0 } }));
+    internals.pix.set(pixPayment({ squadDiscountReais: 1.5, chargedReais: 28.5 }));
+    fixture.detectChanges();
+    expect(text(host(fixture).querySelector('.cp-amount-row .cp-amount'))).toBe('R$ 28,50');
+    expect(text(host(fixture).querySelector('.cp-cashback-summary'))).toContain('Desconto do embaixador −R$ 1,50');
   });
 });

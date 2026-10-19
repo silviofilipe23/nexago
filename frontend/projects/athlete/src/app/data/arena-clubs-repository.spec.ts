@@ -13,5 +13,14 @@ describe('clubJoinPayload', () => {
     const payload = clubJoinPayload({ sessionId: 's1', cpfCnpj: '' });
     expect(payload).toEqual({ sessionId: 's1', cpfCnpj: undefined });
     expect('useCashback' in payload).toBeFalse();
+    expect('squadCode' in payload).toBeFalse();
+  });
+
+  it('manda o código de embaixador quando há um', () => {
+    expect(clubJoinPayload({ sessionId: 's1', squadCode: 'JOAO10' })).toEqual({
+      sessionId: 's1',
+      cpfCnpj: undefined,
+      squadCode: 'JOAO10',
+    });
   });
 });

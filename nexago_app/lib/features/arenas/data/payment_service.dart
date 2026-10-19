@@ -85,6 +85,7 @@ class PaymentService {
     String? cpfCnpj,
     double? paymentFraction,
     bool useCashback = false,
+    String? squadCode,
   }) async {
     if (bookingId.isEmpty) {
       throw PaymentException('Reserva inválida.');
@@ -104,6 +105,11 @@ class PaymentService {
       }
       if (useCashback) {
         payload['useCashback'] = true;
+      }
+      // Código de embaixador (NexaSquad); o link/QR o servidor resolve sozinho.
+      final code = squadCode?.trim().toUpperCase() ?? '';
+      if (code.isNotEmpty) {
+        payload['squadCode'] = code;
       }
       final raw = await callable.call(payload);
       return _parsePixResponse(

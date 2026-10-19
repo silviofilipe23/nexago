@@ -44,6 +44,8 @@ import { pixBookingCreateOptions } from './pix-booking-create-options';
 import { appliedPreviewCents } from '../data/cashback-preview';
 import { CashbackService } from '../data/cashback.service';
 import { CheckoutCashbackToggleComponent } from '../cashback/checkout-cashback-toggle.component';
+import { SquadCodeFieldComponent } from '../tournaments/registration/squad-code-field.component';
+import { squadDiscountPreviewCents } from '../data/squad-discount';
 import {
   NxBlockingDialogComponent,
   NxFieldErrorComponent,
@@ -146,6 +148,7 @@ function initialsOf(name: string): string {
     NxBlockingDialogComponent,
     NxFieldErrorComponent,
     CheckoutCashbackToggleComponent,
+    SquadCodeFieldComponent,
   ],
   templateUrl: './arena-payment.component.html',
   styleUrl: './arena-payment.component.scss',
@@ -294,6 +297,36 @@ export class ArenaPaymentComponent {
     Math.max(0, Math.round((this.totalPrice() - this.pixAmountNow()) * 100) / 100),
   );
 
+  /** Código de embaixador do NexaSquad já conferido (vai no Pix como `squadCode`). Só no Pix
+   *  inteiro: a cota dividida e o pagamento na arena não têm desconto. */
+  protected readonly squadCode = signal('');
+  /** Recusa do código pela cobrança (`details.field === 'squadCode'`). */
+  protected readonly squadError = signal<string | null>(null);
+  protected readonly squadDiscountPct = signal(0);
+  protected readonly squadFeePercent = signal<number | null>(null);
+  protected readonly squadFeeFloorReais = signal(1.5);
+
+  /** Desconto do embaixador nesta cobrança: depois do QR, o do servidor; antes, a prévia (% com teto
+   *  na taxa da arena — o desconto sai da taxa da nexaGO e a arena recebe o mesmo líquido). */
+  protected readonly squadDiscountReais = computed(() => {
+    const generated = this.pixPayment();
+    if (generated) return generated.squadDiscountReais;
+    if (this.selectedMethod() !== 'pix' || this.splitMode() || this.splitBookingId()) return 0;
+    return (
+      squadDiscountPreviewCents(
+        this.pixAmountNow(),
+        this.squadDiscountPct(),
+        this.squadFeePercent(),
+        Math.round(this.squadFeeFloorReais() * 100),
+      ) / 100
+    );
+  });
+
+  /** O preço depois do desconto do embaixador: é sobre ele que o cashback incide. */
+  protected readonly priceAfterSquadReais = computed(
+    () => Math.round((this.pixAmountNow() - this.squadDiscountReais()) * 100) / 100,
+  );
+
   /** "Usar meu cashback" — desligado por padrão (o atleta escolhe gastar). Vale só para
    *  "Gerar Pix": a cota dividida não aceita saldo. */
   protected readonly useCashback = signal(false);
@@ -308,7 +341,7 @@ export class ArenaPaymentComponent {
     return (
       appliedPreviewCents({
         use: this.useCashback(),
-        priceReais: this.pixAmountNow(),
+        priceReais: this.priceAfterSquadReais(),
         availableCents: this.cashback.availableCents(),
         config: this.cashback.config(),
       }) / 100
@@ -319,7 +352,7 @@ export class ArenaPaymentComponent {
   protected readonly pixChargeNow = computed(() => {
     const generated = this.pixPayment();
     if (generated) return generated.chargedReais;
-    return Math.round((this.pixAmountNow() - this.cashbackAppliedReais()) * 100) / 100;
+    return Math.round((this.priceAfterSquadReais() - this.cashbackAppliedReais()) * 100) / 100;
   });
 
   protected readonly pixAvailable = computed(() => this.arena()?.onlinePaymentEnabled ?? true);
@@ -504,6 +537,7 @@ export class ArenaPaymentComponent {
     const useCashback = this.cashbackAppliedReais() > 0;
 
     this.processing.set(true);
+    this.squadError.set(null);
     try {
       const args = this.bookingArgs();
       const resumable = await findResumablePixBooking(this.firestore, uid, args);
@@ -518,6 +552,7 @@ export class ArenaPaymentComponent {
         cpfCnpj: cpf,
         paymentFraction: this.pixFraction(),
         useCashback,
+        squadCode: this.squadCode(),
       });
 
       this.pixBookingId.set(bookingId);
@@ -527,6 +562,11 @@ export class ArenaPaymentComponent {
       this.startCountdown(pix.expiresAt);
       this.startBookingWatch(bookingId);
     } catch (err) {
+      // Código de embaixador recusado (ex.: contrato pausado): o campo mostra, sem toast.
+      if (err instanceof ArenaBookingError && err.field === 'squadCode') {
+        this.squadError.set(err.message);
+        return;
+      }
       this.toasts.error(
         'Não foi possível gerar o Pix',
         err instanceof ArenaBookingError ? err.message : 'O serviço não respondeu. Nenhum valor foi cobrado.',

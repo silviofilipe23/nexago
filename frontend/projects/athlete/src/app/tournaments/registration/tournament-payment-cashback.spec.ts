@@ -11,6 +11,8 @@ import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
 import { NxToastService } from '../../shared/feedback';
 import { fakeCashbackService, type FakeCashbackService } from '../../../testing/cashback-service.fake';
 import { TournamentPaymentComponent } from './tournament-payment.component';
+import { SquadCodeFieldComponent } from './squad-code-field.component';
+import { SquadCodeFieldStubComponent } from '../../../testing/squad-code-field.stub';
 
 /** A casca do portal monta o menu e ouve convites — abriria WebChannel do Firestore no Karma. */
 @Component({ selector: 'app-at-panel-shell', template: '<ng-content />' })
@@ -124,8 +126,8 @@ function create(
       },
     ],
   }).overrideComponent(TournamentPaymentComponent, {
-    remove: { imports: [AtPanelShellComponent] },
-    add: { imports: [PanelShellStubComponent] },
+    remove: { imports: [AtPanelShellComponent, SquadCodeFieldComponent] },
+    add: { imports: [PanelShellStubComponent, SquadCodeFieldStubComponent] },
   });
 
   const fixture = TestBed.createComponent(TournamentPaymentComponent);

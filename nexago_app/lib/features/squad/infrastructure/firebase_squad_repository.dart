@@ -83,11 +83,15 @@ class FirebaseSquadRepository implements SquadRepository {
     required String code,
     required List<String> athleteUids,
     required String registrationId,
+    String purpose = 'registration',
+    String? arenaId,
   }) async => SquadCodeCheck.fromMap(
     await _call('checkSquadCode', {
       'code': code,
       'athleteUids': athleteUids,
       'registrationId': registrationId,
+      if (purpose != 'registration') 'purpose': purpose,
+      if (arenaId != null && arenaId.isNotEmpty) 'arenaId': arenaId,
     }),
   );
 }

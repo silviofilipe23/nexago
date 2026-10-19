@@ -25,6 +25,7 @@ class ClubJoinPixResult {
     required this.expiresAt,
     required this.amountReais,
     this.cashbackAppliedReais = 0,
+    this.squadDiscountReais = 0,
     double? chargedReais,
   }) : chargedReais = chargedReais ?? amountReais;
 
@@ -40,6 +41,9 @@ class ClubJoinPixResult {
 
   /// Parte paga com o saldo de cashback (0 sem saldo).
   final double cashbackAppliedReais;
+
+  /// Desconto do código de embaixador (NexaSquad), já fora do cobrado.
+  final double squadDiscountReais;
 
   /// O que o QR cobra no PIX.
   final double chargedReais;
@@ -171,6 +175,7 @@ class ArenaClubsRepository {
     required String sessionId,
     String? cpfCnpj,
     bool useCashback = false,
+    String? squadCode,
   }) async {
     final id = sessionId.trim();
     if (id.isEmpty) {
@@ -184,6 +189,11 @@ class ArenaClubsRepository {
       }
       if (useCashback) {
         payload['useCashback'] = true;
+      }
+      // Código de embaixador (NexaSquad); o link/QR o servidor resolve sozinho.
+      final code = squadCode?.trim().toUpperCase() ?? '';
+      if (code.isNotEmpty) {
+        payload['squadCode'] = code;
       }
       final raw =
           await _functions.httpsCallable('joinArenaClubSession').call(payload);
@@ -212,6 +222,7 @@ class ArenaClubsRepository {
       // functions antigas — vale o preço).
       final applied = (map['cashbackAppliedReais'] as num?)?.toDouble() ?? 0;
       final charged = (map['chargedReais'] as num?)?.toDouble();
+      final squad = (map['squadDiscountReais'] as num?)?.toDouble() ?? 0;
       return ClubJoinPixResult(
         sessionId: (map['sessionId'] as String?)?.trim() ?? id,
         paymentId: paymentId,
@@ -221,6 +232,7 @@ class ArenaClubsRepository {
         expiresAt: expiresAt,
         amountReais: amount,
         cashbackAppliedReais: applied > 0 ? applied : 0,
+        squadDiscountReais: squad > 0 ? squad : 0,
         chargedReais: charged != null && charged > 0 ? charged : amount,
       );
     } on FirebaseFunctionsException catch (e) {

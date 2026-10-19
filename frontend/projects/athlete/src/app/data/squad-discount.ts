@@ -10,20 +10,33 @@ const MIN_CHARGE_CENTS = 500;
 /** Piso da taxa por transação — `FEE_FLOOR_REAIS` de `functions/src/platform-fees.ts`. */
 const FEE_FLOOR_CENTS = 150;
 
-/** Taxa da plataforma em centavos, como `computePlatformFeeReais`; `null` = sem organizador. */
-export function platformFeeCents(priceReais: number, feePercent: number | null): number | null {
+/**
+ * Taxa da plataforma em centavos, como `computePlatformFeeReais`; `null` = sem teto (torneio sem
+ * organizador). O piso é o da plataforma; o clubinho não tem piso (`floorCents` 0).
+ */
+export function platformFeeCents(
+  priceReais: number,
+  feePercent: number | null,
+  floorCents: number = FEE_FLOOR_CENTS,
+): number | null {
   if (feePercent === null) return null;
   if (!(priceReais > 0) || !(feePercent > 0)) return 0;
   const priceCents = Math.round(priceReais * 100);
   const pctFee = Math.round((priceCents * feePercent) / 100);
-  return Math.max(0, Math.min(priceCents - 1, Math.max(FEE_FLOOR_CENTS, pctFee)));
+  return Math.max(0, Math.min(priceCents - 1, Math.max(floorCents, pctFee)));
 }
 
-export function squadDiscountPreviewCents(priceReais: number, pct: number, feePercent: number | null = null): number {
+/** Vale para inscrição, reserva de quadra e clubinho — muda só a taxa (e o piso) da cobrança. */
+export function squadDiscountPreviewCents(
+  priceReais: number,
+  pct: number,
+  feePercent: number | null = null,
+  floorCents: number = FEE_FLOOR_CENTS,
+): number {
   if (!(pct > 0) || !(priceReais > 0)) return 0;
   const priceCents = Math.round(priceReais * 100);
   const raw = Math.round((priceCents * pct) / 100);
-  const feeCap = platformFeeCents(priceReais, feePercent) ?? Number.POSITIVE_INFINITY;
+  const feeCap = platformFeeCents(priceReais, feePercent, floorCents) ?? Number.POSITIVE_INFINITY;
   return Math.max(0, Math.min(raw, priceCents - MIN_CHARGE_CENTS, feeCap));
 }
 

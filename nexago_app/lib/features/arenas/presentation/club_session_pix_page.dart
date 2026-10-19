@@ -18,6 +18,10 @@ import '../../cashback/application/cashback_providers.dart';
 import '../../cashback/domain/cashback_rules.dart';
 import '../../cashback/presentation/widgets/cashback_earned_note.dart';
 import '../../cashback/presentation/widgets/checkout_cashback_toggle.dart';
+import '../../squad/domain/squad_models.dart';
+import '../../squad/domain/squad_rules.dart';
+import '../../squad/presentation/widgets/squad_checkout_summary.dart';
+import '../../tournaments/presentation/widgets/squad_code_field.dart';
 import 'widgets/booking_pix/booking_pix_app_bar.dart';
 import 'widgets/booking_pix/booking_pix_copy_button.dart';
 import 'widgets/booking_pix/booking_pix_cpf_field.dart';
@@ -45,6 +49,10 @@ class ClubSessionPixPage extends ConsumerStatefulWidget {
 
 class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
   final _cpfController = TextEditingController();
+  final _squadCodeController = TextEditingController();
+
+  /// Indicação do NexaSquad vigente (código aplicado ou link/QR).
+  SquadCodeCheck _squad = SquadCodeCheck.none;
   ClubJoinPixResult? _pix;
   bool _loadingPix = false;
   _ClubPayMethod _method = _ClubPayMethod.pix;
@@ -64,6 +72,7 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
   void initState() {
     super.initState();
     _cpfController.addListener(_onCpfTextChanged);
+    _squadCodeController.addListener(_onCpfTextChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _prefillCpf());
   }
 
@@ -75,7 +84,9 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
   void dispose() {
     _expiryTimer?.cancel();
     _cpfController.removeListener(_onCpfTextChanged);
+    _squadCodeController.removeListener(_onCpfTextChanged);
     _cpfController.dispose();
+    _squadCodeController.dispose();
     super.dispose();
   }
 
@@ -86,14 +97,38 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
   String? get _cpfHint =>
       CpfCnpjValidator.validationMessage(_cpfController.text);
 
+  /// Indicação que vale para a prévia. Código digitado e não aplicado é
+  /// conferido só na cobrança — e ele vence o link —, então até lá não há
+  /// desconto a prever.
+  SquadCodeCheck get _squadPreview =>
+      _squad.origin != 'code' && _squadCodeController.text.trim().isNotEmpty
+          ? SquadCodeCheck.none
+          : _squad;
+
+  /// Prévia do desconto do código sobre o preço da vaga, com teto nos 5% da
+  /// taxa do clubinho (sem piso): sai da taxa da nexaGO e a arena recebe o
+  /// mesmo líquido. Só no PIX — na arena o dinheiro nem passa pela nexaGO.
+  int _squadDiscountCents(double priceReais) => squadDiscountPreviewCents(
+        reaisToCents(priceReais),
+        _squadPreview.discountPct,
+        _squadPreview.feePercent,
+        floorReais: _squadPreview.feeFloorReais,
+      );
+
+  /// Código que vai na cobrança: o aplicado ou, sem ele, o que foi digitado
+  /// (a cobrança confere). Vazio = a indicação por link, se houver, vale sozinha.
+  String get _squadCodeForCharge => _squad.origin == 'code'
+      ? (_squad.code ?? '')
+      : _squadCodeController.text;
+
   /// Prévia do cashback sobre o preço da vaga (`session.priceReais`, o mesmo
-  /// que `joinArenaClubSession` cobra).
+  /// que `joinArenaClubSession` cobra), depois do desconto do código.
   CashbackCheckoutQuote _cashbackQuote(
     CashbackCheckoutContext? checkout,
     double priceReais,
   ) =>
       quoteCheckoutCashback(
-        priceCents: reaisToCents(priceReais),
+        priceCents: reaisToCents(priceReais) - _squadDiscountCents(priceReais),
         checkout: checkout,
         useCashback: _useCashback,
       );
@@ -150,6 +185,7 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
             sessionId: widget.sessionId,
             cpfCnpj: _cpfDigits,
             useCashback: useCashback,
+            squadCode: _squadCodeForCharge,
           );
       if (!mounted) return;
       setState(() {
@@ -387,6 +423,28 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
                         ),
                       ],
                     ] else ...[
+                      SquadCodeField(
+                        controller: _squadCodeController,
+                        purpose: 'club',
+                        enabled: !_loadingPix,
+                        onChanged: (check) => setState(() => _squad = check),
+                      ),
+                      if (_squadDiscountCents(session?.priceReais ?? 0) >
+                          0) ...[
+                        const SizedBox(height: 4),
+                        SquadCheckoutSummary(
+                          priceLabel: 'Vaga',
+                          priceCents: reaisToCents(session?.priceReais ?? 0),
+                          discountCents:
+                              _squadDiscountCents(session?.priceReais ?? 0),
+                          discountLabel: _squadPreview.origin == 'code'
+                              ? 'Código ${_squadPreview.code}'
+                              : 'Indicação',
+                          cashbackCents: cashbackQuote.appliedPreviewCents,
+                          totalCents: cashbackQuote.chargePreviewCents,
+                        ),
+                      ],
+                      const SizedBox(height: 20),
                       if (cashbackCtx != null &&
                           cashbackQuote.mode != CashbackToggleMode.hidden) ...[
                         CheckoutCashbackToggle(
@@ -421,6 +479,12 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
                       amountReais: _pix!.chargedReais,
                     ),
                     const SizedBox(height: 20),
+                    if (_pix!.squadDiscountReais > 0) ...[
+                      SquadDiscountAppliedNote(
+                        discountCents: reaisToCents(_pix!.squadDiscountReais),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     if (_pix!.cashbackAppliedReais > 0) ...[
                       CheckoutCashbackAppliedNote(
                         appliedCents: reaisToCents(_pix!.cashbackAppliedReais),

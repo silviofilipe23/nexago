@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
 import { readCashbackCharge } from './cashback-preview';
+import { readSquadDiscount } from './squad-discount';
 
 /** Reserva de quadra do atleta — espelha o `BookingService`/`PaymentService` do Flutter.
  *  A criação é 100% server-side (`createArenaBooking` valida preço, bloqueio e conflito de
@@ -87,6 +88,8 @@ export interface ArenaBookingPixPayment {
   cashbackAppliedReais: number;
   /** O que o QR vale de fato; o preço quando o backend é antigo. */
   chargedReais: number;
+  /** Desconto do código de embaixador (NexaSquad), já fora do `chargedReais` (0 sem código). */
+  squadDiscountReais: number;
 }
 
 export interface ArenaBookingDoc {
@@ -132,6 +135,8 @@ export class ArenaBookingError extends Error {
   constructor(
     message: string,
     readonly code: 'SLOT_CONFLICT' | 'BLOCKED_ATHLETE' | null = null,
+    /** Campo que o servidor apontou (`details.field`), ex.: `squadCode` no checkout. */
+    readonly field: string | null = null,
   ) {
     super(message);
   }
@@ -143,9 +148,11 @@ export class ArenaBookingError extends Error {
 
 /** Mesmo mapeamento de mensagens do `BookingService._mapFunctionsMessage` (Flutter). */
 function mapCallableError(err: unknown): ArenaBookingError {
-  const fb = err as { code?: string; message?: string };
+  const fb = err as { code?: string; message?: string; details?: { field?: unknown } };
   const code = (fb.code ?? '').replace(/^functions\//, '');
   const detail = typeof fb.message === 'string' && fb.message.trim() ? fb.message.trim() : null;
+  // Código de embaixador recusado: a mensagem vai para o campo, não para o toast.
+  if (fb.details?.field === 'squadCode' && detail) return new ArenaBookingError(detail, null, 'squadCode');
   switch (code) {
     case 'unauthenticated':
       return new ArenaBookingError('Faça login para confirmar a reserva.');
@@ -284,6 +291,8 @@ export interface BookingPixPaymentParams {
   paymentFraction?: number;
   /** Só `true` quando o atleta ligou "Usar meu cashback" e há saldo usável. */
   useCashback?: boolean;
+  /** Código de embaixador do NexaSquad digitado (o link/QR o servidor resolve sozinho). */
+  squadCode?: string;
 }
 
 /** Corpo de `createArenaBookingPixPayment`. Sem `useCashback` o backend cobra como antes. */
@@ -295,6 +304,8 @@ export function bookingPixPaymentPayload(params: BookingPixPaymentParams): Recor
     payload['paymentFraction'] = params.paymentFraction;
   }
   if (params.useCashback === true) payload['useCashback'] = true;
+  const squadCode = params.squadCode?.trim() ?? '';
+  if (squadCode) payload['squadCode'] = squadCode;
   return payload;
 }
 
@@ -314,6 +325,7 @@ export function bookingPixPaymentFromResponse(data: unknown): ArenaBookingPixPay
     expiresAt: typeof raw['expiresAt'] === 'string' ? raw['expiresAt'] : '',
     amountToPayNowReais,
     ...readCashbackCharge(raw, amountToPayNowReais),
+    squadDiscountReais: readSquadDiscount(raw),
   };
 }
 

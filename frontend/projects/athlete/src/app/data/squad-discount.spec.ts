@@ -29,6 +29,13 @@ describe('squad-discount', () => {
     expect(platformFeeCents(100, null)).toBeNull();
   });
 
+  it('clubinho: 5% sem piso — R$ 15 dá no máximo R$ 0,75', () => {
+    expect(squadDiscountPreviewCents(15, 10, 5, 0)).toBe(75);
+    expect(platformFeeCents(15, 5, 0)).toBe(75);
+    // Com o piso de R$ 1,50 da reserva, o teto do mesmo preço seria R$ 1,50.
+    expect(squadDiscountPreviewCents(15, 10, 5)).toBe(150);
+  });
+
   it('lê o desconto da resposta; ausente é zero', () => {
     expect(readSquadDiscount({ squadDiscountReais: 15 })).toBe(15);
     expect(readSquadDiscount({})).toBe(0);

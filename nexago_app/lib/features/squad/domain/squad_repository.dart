@@ -26,10 +26,14 @@ abstract interface class SquadRepository {
 
   /// `checkSquadCode`: confere o código (ou a indicação por link) antes de
   /// cobrar. [code] vazio devolve a indicação por link/QR, se houver.
+  /// [purpose] = `registration` (padrão), `booking` (com [arenaId], cuja taxa
+  /// é o teto) ou `club`.
   Future<SquadCodeCheck> checkCode({
     required String code,
     required List<String> athleteUids,
     required String registrationId,
+    String purpose = 'registration',
+    String? arenaId,
   });
 }
 

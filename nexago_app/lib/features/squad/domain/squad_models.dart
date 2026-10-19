@@ -547,7 +547,7 @@ class SquadInvite {
   );
 }
 
-/// Resposta de `checkSquadCode` no checkout da inscrição.
+/// Resposta de `checkSquadCode` no checkout (inscrição, reserva, clubinho).
 @immutable
 class SquadCodeCheck {
   const SquadCodeCheck({
@@ -556,6 +556,7 @@ class SquadCodeCheck {
     required this.origin,
     required this.discountPct,
     required this.feePercent,
+    this.feeFloorReais = 1.5,
   });
 
   static const none = SquadCodeCheck(
@@ -575,8 +576,11 @@ class SquadCodeCheck {
   /// % do desconto que vale nesta inscrição (0 = já usou o da 1ª inscrição).
   final num discountPct;
 
-  /// % da taxa da plataforma no torneio — teto do desconto. `null` = sem teto.
+  /// % da taxa da plataforma na cobrança — teto do desconto. `null` = sem teto.
   final num? feePercent;
+
+  /// Piso dessa taxa em reais (R$ 1,50; o clubinho não tem).
+  final num feeFloorReais;
 
   bool get viaLink => origin == 'link' || origin == 'qr';
 
@@ -586,6 +590,7 @@ class SquadCodeCheck {
     origin: _strOrNull(m['origin']),
     discountPct: _num(m['discountPct']),
     feePercent: m['feePercent'] is num ? m['feePercent'] as num : null,
+    feeFloorReais: m['feeFloorReais'] is num ? m['feeFloorReais'] as num : 1.5,
   );
 }
 

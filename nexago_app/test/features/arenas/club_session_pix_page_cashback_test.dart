@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/features/squad/domain/squad_models.dart';
+import 'package:nexago_app/features/squad/infrastructure/firebase_squad_repository.dart';
+import '../squad/squad_test_support.dart';
 import 'package:nexago_app/core/formatting/app_currency_format.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/data/arena_clubs_repository.dart';
@@ -29,14 +32,17 @@ class _FakeClubsRepository implements ArenaClubsRepository {
 
   final ClubJoinPixResult result;
   final useCashbackCalls = <bool>[];
+  final squadCodes = <String?>[];
 
   @override
   Future<ClubJoinPixResult> joinSession({
     required String sessionId,
     String? cpfCnpj,
     bool useCashback = false,
+    String? squadCode,
   }) async {
     useCashbackCalls.add(useCashback);
+    squadCodes.add(squadCode);
     return result;
   }
 
@@ -244,6 +250,53 @@ void main() {
 
     expect(find.text('Vaga garantida!'), findsOneWidget);
     expect(find.byType(CashbackEarnedNote), findsNothing);
+  });
+
+  group('desconto do embaixador (NexaSquad)', () {
+    const link = SquadCodeCheck(
+      ambassadorName: 'João Victor',
+      code: 'JOAO10',
+      origin: 'link',
+      discountPct: 10,
+      feePercent: 5,
+      feeFloorReais: 0,
+    );
+
+    testWidgets(
+        'indicação por link: 10% de R\$ 30 com teto nos 5% do clubinho (sem piso) — R\$ 1,50',
+        (tester) async {
+      final squad = FakeSquadRepository(linkResult: link);
+      final repo = await abrir(
+        tester,
+        session: sessao(),
+        config: CashbackConfig.fallback,
+        extraOverrides: [squadRepositoryProvider.overrideWithValue(squad)],
+      );
+
+      expect(squad.checkCalls.single.purpose, 'club');
+      expect(find.textContaining('OFF neste clubinho'), findsOneWidget);
+      expect(find.byKey(const Key('squad-summary')), findsOneWidget);
+      expect(find.text('− ${formatBRL(1.5)}'), findsOneWidget);
+      expect(find.text('${formatBRL(28.5)} · pagar com seu banco'), findsOneWidget);
+
+      await gerarPix(tester);
+      // Sem código digitado: o servidor resolve o link sozinho.
+      expect(repo.squadCodes, ['']);
+    });
+
+    testWidgets('pagar na arena: sem o campo do código', (tester) async {
+      await abrir(
+        tester,
+        session: sessao(allowOnsite: true),
+        config: CashbackConfig.fallback,
+        extraOverrides: [squadRepositoryProvider.overrideWithValue(FakeSquadRepository())],
+      );
+      expect(find.text('Tem código de embaixador?'), findsOneWidget);
+      await tester.tap(find.text('${formatBRL(30)} no dia · vaga garantida agora'));
+      await tester.pump();
+      expect(find.text('Tem código de embaixador?'), findsNothing);
+      expect(find.byKey(const Key('squad-summary')), findsNothing);
+    });
   });
 }
 

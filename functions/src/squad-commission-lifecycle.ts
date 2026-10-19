@@ -40,6 +40,25 @@ async function payerAlreadyConverted(db: Firestore, payerUid: string, exceptId: 
   return previous.docs.some((d) => d.id !== exceptId && LIVE_STATUSES.includes(String(d.data()["status"])));
 }
 
+/** % do desconto do seguidor: o do contrato, senão o do nível na versão das regras congelada nele. */
+export async function followerPctOf(
+  db: Firestore,
+  ambassador: ResolvedAttribution["ambassador"],
+): Promise<number> {
+  return ambassador.followerDiscountPct ?? await tierFollowerDiscountPct(db, ambassador.tier, ambassador.rulesVersion);
+}
+
+/**
+ * Centavos de desconto: % do preço, sem deixar a cobrança abaixo do mínimo do Asaas e sem passar da
+ * taxa da plataforma desta cobrança (`feeCapCents`; `null` = sem teto de taxa).
+ */
+export function clampFollowerDiscount(priceCents: number, pct: number, feeCapCents: number | null): number {
+  if (!(pct > 0) || !(priceCents > 0)) return 0;
+  const raw = Math.round((priceCents * pct) / 100);
+  const feeCap = feeCapCents ?? Number.POSITIVE_INFINITY;
+  return Math.max(0, Math.min(raw, priceCents - MIN_CHARGE_CENTS, feeCap));
+}
+
 /**
  * Desconto que o código dá ao seguidor nesta cobrança, em centavos do preço. Sai da taxa da
  * nexaGO: o organizador é creditado sobre o preço cheio (o webhook soma o desconto ao bruto), e
@@ -62,21 +81,40 @@ export async function followerDiscountFor(
   if (rules.followerDiscountFirstOnly && await payerAlreadyConverted(db, input.payerUid, id)) {
     return {cents: 0, pct: 0};
   }
-  const {ambassador} = input.attribution;
-  const pct = ambassador.followerDiscountPct ??
-    await tierFollowerDiscountPct(db, ambassador.tier, ambassador.rulesVersion);
-  const raw = Math.round((input.priceCents * pct) / 100);
-  const feeCap = input.feeCapCents ?? Number.POSITIVE_INFINITY;
-  const cents = Math.max(0, Math.min(raw, input.priceCents - MIN_CHARGE_CENTS, feeCap));
+  const pct = await followerPctOf(db, input.attribution.ambassador);
+  const cents = clampFollowerDiscount(input.priceCents, pct, input.feeCapCents ?? null);
   return {cents, pct: cents > 0 ? pct : 0};
 }
 
-export async function recordChargeDiscount(
-  db: Firestore,
-  input: {paymentId: string; registrationId: string; payerUid: string; ambassadorId: string; cents: number; pct: number},
-  now: Date,
-): Promise<void> {
-  await db.collection(SQUAD_CHARGE_DISCOUNTS).doc(input.paymentId).set({...input, createdAt: now});
+/** Onde o desconto foi dado: inscrição (com comissão), reserva de quadra ou clubinho (só desconto). */
+export type ChargeDiscountKind = "registration" | "booking" | "club";
+
+export interface ChargeDiscountRecord {
+  paymentId: string;
+  payerUid: string;
+  ambassadorId: string;
+  cents: number;
+  pct: number;
+  /** Ausente nos registros antigos = inscrição. */
+  kind?: ChargeDiscountKind;
+  registrationId?: string;
+  /** Reserva (`bookingId`) ou sessão do clubinho (`sessionId`). */
+  sourceId?: string;
+}
+
+export async function recordChargeDiscount(db: Firestore, input: ChargeDiscountRecord, now: Date): Promise<void> {
+  await db.collection(SQUAD_CHARGE_DISCOUNTS).doc(input.paymentId).set({
+    paymentId: input.paymentId,
+    payerUid: input.payerUid,
+    ambassadorId: input.ambassadorId,
+    cents: input.cents,
+    pct: input.pct,
+    kind: input.kind ?? "registration",
+    registrationId: input.registrationId ?? null,
+    sourceId: input.sourceId ?? null,
+    confirmedAt: null,
+    createdAt: now,
+  });
 }
 
 /** Quanto desta cobrança foi desconto do seguidor (0 sem registro). */
@@ -84,6 +122,28 @@ export async function chargeDiscountCents(db: Firestore, paymentId: string): Pro
   const d = (await db.collection(SQUAD_CHARGE_DISCOUNTS).doc(paymentId).get()).data();
   const cents = d?.["cents"];
   return typeof cents === "number" && Number.isInteger(cents) && cents > 0 ? cents : 0;
+}
+
+/** Pagamento confirmado: o desconto passa a contar como usado ("só na primeira"). */
+export async function markChargeDiscountConfirmed(db: Firestore, paymentId: string, now: Date): Promise<void> {
+  const ref = db.collection(SQUAD_CHARGE_DISCOUNTS).doc(paymentId);
+  const snap = await ref.get();
+  if (!snap.exists || snap.data()?.["confirmedAt"]) return;
+  await ref.set({confirmedAt: now}, {merge: true});
+}
+
+/** O pagador já teve desconto confirmado neste tipo de compra (outra cobrança)? */
+export async function payerUsedDiscount(
+  db: Firestore,
+  payerUid: string,
+  kind: ChargeDiscountKind,
+  exceptPaymentId = "",
+): Promise<boolean> {
+  const snap = await db.collection(SQUAD_CHARGE_DISCOUNTS).where("payerUid", "==", payerUid).get();
+  return snap.docs.some((d) => {
+    const data = d.data();
+    return d.id !== exceptPaymentId && (data["kind"] ?? "registration") === kind && !!data["confirmedAt"];
+  });
 }
 
 export function squadCommissionId(registrationId: string, payerUid: string): string {

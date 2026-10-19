@@ -7,7 +7,7 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rules = fs.readFileSync(path.join(__dirname, '../../firestore.rules'), 'utf8');
@@ -50,6 +50,14 @@ async function seed() {
     });
     await setDoc(doc(db, 'arenaClassSessions', SESSION), {
       arenaId: 'arena-pro', classId: 'c1', date: '2026-10-26', status: 'scheduled',
+    });
+    // Bloqueio da aula na agenda de reservas + uma reserva comum de comparação.
+    await setDoc(doc(db, 'arenaBookings', SESSION), {
+      arenaId: 'arena-pro', athleteId: null, status: 'active', attendanceStatus: 'pending',
+      source: 'class', isClassSession: true, classSessionId: SESSION,
+    });
+    await setDoc(doc(db, 'arenaBookings', 'reserva-comum'), {
+      arenaId: 'arena-pro', athleteId: 'atleta-x', status: 'active', attendanceStatus: 'pending',
     });
   });
 }
@@ -102,4 +110,12 @@ test('ninguém escreve direto — só as Cloud Functions', async () => {
   await assertFails(setDoc(doc(db, 'arenaClasses', 'c1', 'classStudents', 'novo'), { arenaId: 'arena-pro' }));
   await assertFails(setDoc(doc(db, 'arenaClassSessions', SESSION), { status: 'completed' }, { merge: true }));
   await assertFails(setDoc(doc(db, 'arenas', 'arena-pro', 'classTeachers', 't2'), { name: 'Y' }));
+});
+
+test('equipe não cancela o bloqueio de aula pela reserva (só pela aula); reserva comum segue', async () => {
+  for (const uid of [OWNER, RECEPCAO]) {
+    const db = as(uid);
+    await assertFails(updateDoc(doc(db, 'arenaBookings', SESSION), { status: 'canceled', canceledByRole: 'arena_manager' }));
+  }
+  await assertSucceeds(updateDoc(doc(as(RECEPCAO), 'arenaBookings', 'reserva-comum'), { status: 'canceled', canceledByRole: 'arena_manager' }));
 });

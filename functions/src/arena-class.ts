@@ -281,6 +281,9 @@ export interface ValidatedClassInput {
   notes: string | null;
 }
 
+/** "HH:mm" de relógio (00:00–23:59); fim "00:00" = meia-noite. */
+const CLOCK_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 function str(raw: unknown): string {
   return typeof raw === "string" ? raw.trim() : "";
 }
@@ -320,7 +323,7 @@ export function validateClassInput(raw: RawClassInput, todayKey: string): Valida
 
   const startTime = str(raw.startTime);
   const endTime = str(raw.endTime);
-  if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) {
+  if (!CLOCK_TIME.test(startTime) || !CLOCK_TIME.test(endTime)) {
     throw new HttpsError("invalid-argument", "Horário inválido.");
   }
   const startMin = toMinutes(startTime);
@@ -419,14 +422,11 @@ export async function materializeClassSession(
 
   try {
     return await db.runTransaction(async (tx: Transaction) => {
+      // A sessão é a fonte da verdade: sem ela, o booking `class_…` (id desta aula) é
+      // sobra — liberação interrompida ou o `merge` tardio do lembrete de 15 min, que
+      // recria um doc vazio — e é sobrescrito.
       const existing = await tx.get(sessionRef);
       if (existing.exists) return "exists" as const;
-
-      const booking = await tx.get(bookingRef);
-      if (booking.exists) {
-        const status = String(booking.data()?.["status"] ?? "").toLowerCase();
-        if (status !== "cancelled" && status !== "canceled") return "exists" as const;
-      }
 
       for (const lock of locks) {
         const snap = await tx.get(lock.ref);
@@ -566,6 +566,19 @@ export function classHorizonKey(cls: Pick<ArenaClassData, "weekdays" | "startDat
   return rolling;
 }
 
+/** `materializedUntil` de quem não tem mais nada a gerar (avulsa, turma com fim já
+ *  materializado): fica fora da query do agendador (`materializedUntil < horizonte`). */
+export const MATERIALIZED_DONE = "9999-12-31";
+
+export function materializedUntilAfter(
+  cls: Pick<ArenaClassData, "weekdays" | "endDate">,
+  horizonKey: string,
+): string {
+  if (cls.weekdays.length === 0) return MATERIALIZED_DONE;
+  if (cls.endDate != null && cls.endDate <= horizonKey) return MATERIALIZED_DONE;
+  return horizonKey;
+}
+
 /** Datas de conflito passadas ficam no histórico; as futuras são recalculadas. */
 export function mergeConflictDates(previous: string[], recomputed: string[], todayKey: string): string[] {
   return [...new Set([...previous.filter((d) => d < todayKey), ...recomputed])].sort();
@@ -575,47 +588,6 @@ export function mergeConflictDates(previous: string[], recomputed: string[], tod
 // Liberação de bloqueios
 // ---------------------------------------------------------------------------
 
-/**
- * Libera a quadra da aula: apaga `arenaSlots` e só os locks que ainda são
- * desta aula. `mode: "cancel"` deixa o booking `cancelled` (histórico e aviso
- * de vaga para quem espera horário); `"delete"` apaga o booking — usado ao
- * remarcar/pausar, quando a aula é recriada depois com o mesmo id e um
- * booking cancelado acionaria o "desfazer cancelamento" do trigger de slots.
- */
-export async function releaseClassSessionBlock(
-  db: Firestore,
-  session: Pick<ClassSessionData, "arenaId" | "courtId" | "date" | "startTime" | "endTime" | "blockBookingId">,
-  mode: "cancel" | "delete",
-  cancelReason: string,
-): Promise<void> {
-  const bookingId = session.blockBookingId;
-  if (!bookingId) return;
-  const bookingRef = db.collection(ARENA_BOOKINGS).doc(bookingId);
-  const bookingSnap = await bookingRef.get();
-  if (bookingSnap.exists) {
-    if (mode === "delete") {
-      await bookingRef.delete();
-    } else {
-      const status = String(bookingSnap.data()?.["status"] ?? "").toLowerCase();
-      if (status === "active") {
-        await bookingRef.set({
-          status: "cancelled",
-          canceledAt: FieldValue.serverTimestamp(),
-          canceledByRole: "arena_manager",
-          cancelReason,
-        }, {merge: true});
-      }
-    }
-  }
-  for (const lock of lockRefsForOccurrence(db, session, session.date)) {
-    const snap = await lock.ref.get();
-    if (snap.exists && snap.data()?.["bookingId"] === bookingId) await lock.ref.delete();
-  }
-  const slotRef = db.collection(ARENA_SLOTS).doc(bookingId);
-  const slotSnap = await slotRef.get();
-  if (slotSnap.exists && slotSnap.data()?.["bookingId"] === bookingId) await slotRef.delete();
-}
-
 /** Aula que ainda pode sair da agenda sem perder histórico. */
 export function isClassSessionReleasable(session: ClassSessionData, nowMs: number): boolean {
   if (session.status !== "scheduled") return false;
@@ -624,28 +596,134 @@ export function isClassSessionReleasable(session: ClassSessionData, nowMs: numbe
   return Number.isNaN(startAt) || startAt > nowMs;
 }
 
+export type ReleaseClassAction =
+  /** Cancela a aula do dia: sessão `canceled`, booking `cancelled` (histórico e aviso de
+   *  vaga), quadra livre. Reexecutar numa aula já cancelada só termina de liberar. */
+  | {kind: "cancel"; reason: string; note: string | null}
+  /** Tira da agenda (remarcar/pausar/encerrar): apaga sessão e booking — um booking
+   *  cancelado voltando a `active` acionaria o "desfazer" do trigger de slots. Só se a
+   *  aula ainda for liberável em `nowMs` (sem `nowMs`: descarte de turma recém-criada). */
+  | {kind: "delete"; nowMs?: number};
+
+export interface ReleaseClassResult {
+  released: boolean;
+  /** A sessão já estava cancelada antes desta chamada. */
+  wasCanceled: boolean;
+  session: ClassSessionData | null;
+}
+
 /**
- * Tira da agenda as aulas futuras da turma (remarcar, pausar, encerrar):
- * apaga a aula e o bloqueio. Aulas já começadas, com chamada ou canceladas
- * pelo gestor (feriado, chuva) ficam — a cancelada continua impedindo que a
- * série recrie aquela data.
+ * Libera a quadra da aula numa transação: sessão + booking + slot + locks. Só apaga lock
+ * e slot cujo `bookingId` ainda é o da aula (o atleta pode ter pegado a hora no
+ * intervalo). Atômico: não sobra aula sem bloqueio nem bloqueio sem aula.
+ */
+export async function releaseClassSession(
+  db: Firestore,
+  sessionId: string,
+  action: ReleaseClassAction,
+): Promise<ReleaseClassResult> {
+  const sessionRef = db.collection(ARENA_CLASS_SESSIONS).doc(sessionId);
+  return db.runTransaction(async (tx: Transaction) => {
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists) return {released: false, wasCanceled: false, session: null};
+    const session = parseClassSession(sessionSnap.data() as Record<string, unknown>);
+    const wasCanceled = session.status === "canceled";
+
+    if (action.kind === "cancel" && session.status === "completed") {
+      throw new HttpsError("failed-precondition", "A chamada desta aula já foi fechada.");
+    }
+    if (action.kind === "delete" && action.nowMs !== undefined &&
+      !isClassSessionReleasable(session, action.nowMs)) {
+      return {released: false, wasCanceled, session};
+    }
+
+    const bookingId = session.blockBookingId || sessionId;
+    const bookingRef = db.collection(ARENA_BOOKINGS).doc(bookingId);
+    const slotRef = db.collection(ARENA_SLOTS).doc(bookingId);
+    const locks = lockRefsForOccurrence(db, session, session.date);
+    // Todas as leituras antes das escritas.
+    const bookingSnap = await tx.get(bookingRef);
+    const slotSnap = await tx.get(slotRef);
+    const lockSnaps = [];
+    for (const lock of locks) lockSnaps.push(await tx.get(lock.ref));
+
+    if (action.kind === "cancel") {
+      if (!wasCanceled) {
+        tx.set(sessionRef, {
+          status: "canceled",
+          canceledAt: FieldValue.serverTimestamp(),
+          cancelReason: action.reason,
+          cancelNote: action.note,
+        }, {merge: true});
+      }
+      const status = String(bookingSnap.data()?.["status"] ?? "").toLowerCase();
+      if (bookingSnap.exists && status === "active") {
+        tx.set(bookingRef, {
+          status: "cancelled",
+          canceledAt: FieldValue.serverTimestamp(),
+          canceledByRole: "arena_manager",
+          cancelReason: "class_session_canceled",
+        }, {merge: true});
+      }
+    } else {
+      tx.delete(sessionRef);
+      if (bookingSnap.exists) tx.delete(bookingRef);
+    }
+    lockSnaps.forEach((snap, i) => {
+      if (snap.exists && snap.data()?.["bookingId"] === bookingId) tx.delete(locks[i]!.ref);
+    });
+    if (slotSnap.exists && slotSnap.data()?.["bookingId"] === bookingId) tx.delete(slotRef);
+    return {released: true, wasCanceled, session};
+  });
+}
+
+/**
+ * Tira da agenda as aulas futuras da turma (remarcar, pausar, encerrar). Aulas já
+ * começadas, com chamada ou canceladas pelo gestor (feriado, chuva) ficam — a cancelada
+ * continua impedindo que a série recrie aquela data. `keep` = datas que seguem iguais
+ * na nova agenda (estender a data de fim não solta as aulas que já existem).
  */
 export async function releaseFutureClassSessions(
   db: Firestore,
   classId: string,
   nowMs: number,
+  keep: ReadonlySet<string> = new Set(),
 ): Promise<string[]> {
   const todayKey = dayKeyFromEventDate(new Date(nowMs));
   const snap = await db.collection(ARENA_CLASS_SESSIONS).where("classId", "==", classId).get();
   const released: string[] = [];
   for (const doc of snap.docs) {
     const session = parseClassSession(doc.data() as Record<string, unknown>);
-    if (session.date < todayKey || !isClassSessionReleasable(session, nowMs)) continue;
-    await releaseClassSessionBlock(db, session, "delete", "class_rescheduled");
-    await doc.ref.delete();
-    released.push(session.date);
+    if (session.date < todayKey || keep.has(session.date)) continue;
+    if (!isClassSessionReleasable(session, nowMs)) continue;
+    const result = await releaseClassSession(db, doc.id, {kind: "delete", nowMs});
+    if (result.released) released.push(session.date);
   }
   return released.sort();
+}
+
+/** Desfaz uma turma recém-criada cuja criação falhou no meio: aulas, alunos e o doc. */
+export async function discardNewClass(db: Firestore, classId: string): Promise<void> {
+  const sessions = await db.collection(ARENA_CLASS_SESSIONS).where("classId", "==", classId).get();
+  for (const doc of sessions.docs) await releaseClassSession(db, doc.id, {kind: "delete"});
+  const classRef = db.collection(ARENA_CLASSES).doc(classId);
+  const students = await classRef.collection(CLASS_STUDENTS).get();
+  for (const doc of students.docs) await doc.ref.delete();
+  await classRef.delete();
+}
+
+/** Datas da agenda nova que não mudam (mesma quadra e horário) — não precisam ser soltas. */
+export function unchangedSessionDates(
+  before: Pick<ArenaClassData, "courtId" | "startTime" | "endTime">,
+  after: ArenaClassData,
+  fromExclusive: string,
+  untilInclusive: string,
+): Set<string> {
+  if (before.courtId !== after.courtId || before.startTime !== after.startTime ||
+    before.endTime !== after.endTime) {
+    return new Set();
+  }
+  return new Set(classOccurrenceDates(after, fromExclusive, untilInclusive));
 }
 
 // ---------------------------------------------------------------------------
@@ -806,53 +884,52 @@ export async function saveClassAttendanceCore(
   todayKey: string,
 ): Promise<{status: string; marked: number}> {
   const sessionRef = db.collection(ARENA_CLASS_SESSIONS).doc(sessionId);
-  const sessionSnap = await sessionRef.get();
-  if (!sessionSnap.exists) throw new HttpsError("not-found", "Aula não encontrada.");
-  const session = parseClassSession(sessionSnap.data() as Record<string, unknown>);
-  if (session.status === "canceled") {
-    throw new HttpsError("failed-precondition", "Esta aula foi cancelada.");
-  }
-  if (session.date > todayKey) {
-    throw new HttpsError("failed-precondition", "A chamada abre no dia da aula.");
-  }
+  // Transação: fechar a chamada não pode passar por cima de um cancelamento simultâneo.
+  return db.runTransaction(async (tx: Transaction) => {
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists) throw new HttpsError("not-found", "Aula não encontrada.");
+    const session = parseClassSession(sessionSnap.data() as Record<string, unknown>);
+    if (session.status === "canceled") {
+      throw new HttpsError("failed-precondition", "Esta aula foi cancelada.");
+    }
+    if (session.date > todayKey) {
+      throw new HttpsError("failed-precondition", "A chamada abre no dia da aula.");
+    }
 
-  const studentIds = Object.keys(input.marks);
-  const studentsCol = db.collection(ARENA_CLASSES).doc(session.classId).collection(CLASS_STUDENTS);
-  const studentSnaps = studentIds.length > 0 ?
-    await db.getAll(...studentIds.map((id) => studentsCol.doc(id))) :
-    [];
+    const studentsCol = db.collection(ARENA_CLASSES).doc(session.classId).collection(CLASS_STUDENTS);
+    const attendance: Record<string, unknown> = {};
+    for (const [studentId, mark] of Object.entries(input.marks)) {
+      const snap = await tx.get(studentsCol.doc(studentId));
+      if (!snap.exists) {
+        throw new HttpsError("invalid-argument", "Aluno fora da turma na chamada.");
+      }
+      if (mark == null) {
+        attendance[studentId] = FieldValue.delete();
+        continue;
+      }
+      if (!(ATTENDANCE_MARKS as readonly string[]).includes(mark)) {
+        throw new HttpsError("invalid-argument", "Marca de presença inválida.");
+      }
+      attendance[studentId] = {mark, name: String(snap.data()?.["name"] ?? "Aluno")};
+    }
 
-  const attendance: Record<string, unknown> = {};
-  studentSnaps.forEach((snap, i) => {
-    const studentId = studentIds[i]!;
-    if (!snap.exists) {
-      throw new HttpsError("invalid-argument", "Aluno fora da turma na chamada.");
+    const update: Record<string, unknown> = {updatedAt: FieldValue.serverTimestamp()};
+    // `attendance: {}` num set com merge SUBSTITUI o mapa inteiro — só manda quando há marca.
+    if (Object.keys(attendance).length > 0) update["attendance"] = attendance;
+    if (input.teacherNote !== undefined) {
+      update["teacherNote"] = input.teacherNote ? input.teacherNote.slice(0, 1000) : null;
     }
-    const mark = input.marks[studentId];
-    if (mark == null) {
-      attendance[studentId] = FieldValue.delete();
-      return;
+    let status = session.status;
+    if (input.close && session.status !== "completed") {
+      status = "completed";
+      update["status"] = "completed";
+      update["closedAt"] = FieldValue.serverTimestamp();
+      update["closedByUid"] = input.uid;
     }
-    if (!(ATTENDANCE_MARKS as readonly string[]).includes(mark)) {
-      throw new HttpsError("invalid-argument", "Marca de presença inválida.");
-    }
-    attendance[studentId] = {mark, name: String(snap.data()?.["name"] ?? "Aluno")};
+    tx.set(sessionRef, update, {merge: true});
+    const marked = Object.values(input.marks).filter((m) => m != null).length;
+    return {status, marked};
   });
-
-  const update: Record<string, unknown> = {attendance, updatedAt: FieldValue.serverTimestamp()};
-  if (input.teacherNote !== undefined) {
-    update["teacherNote"] = input.teacherNote ? input.teacherNote.slice(0, 1000) : null;
-  }
-  let status = session.status;
-  if (input.close && session.status !== "completed") {
-    status = "completed";
-    update["status"] = "completed";
-    update["closedAt"] = FieldValue.serverTimestamp();
-    update["closedByUid"] = input.uid;
-  }
-  await sessionRef.set(update, {merge: true});
-  const marked = Object.values(input.marks).filter((m) => m != null).length;
-  return {status, marked};
 }
 
 // ---------------------------------------------------------------------------
@@ -894,22 +971,12 @@ export async function cancelClassSessionCore(
   note: string | null,
   deps: CancelClassSessionDeps = defaultCancelDeps,
 ): Promise<{sessionId: string; notified: number}> {
-  const sessionRef = db.collection(ARENA_CLASS_SESSIONS).doc(sessionId);
-  const sessionSnap = await sessionRef.get();
-  if (!sessionSnap.exists) throw new HttpsError("not-found", "Aula não encontrada.");
-  const session = parseClassSession(sessionSnap.data() as Record<string, unknown>);
-  if (session.status === "completed") {
-    throw new HttpsError("failed-precondition", "A chamada desta aula já foi fechada.");
-  }
-  if (session.status === "canceled") return {sessionId, notified: 0};
-
-  await sessionRef.set({
-    status: "canceled",
-    canceledAt: FieldValue.serverTimestamp(),
-    cancelReason: reason,
-    cancelNote: note,
-  }, {merge: true});
-  await releaseClassSessionBlock(db, session, "cancel", "class_session_canceled");
+  // Uma transação cancela e libera junto; numa aula já cancelada ela só termina de
+  // liberar (retry depois de falha) e não avisa de novo.
+  const result = await releaseClassSession(db, sessionId, {kind: "cancel", reason, note});
+  const session = result.session;
+  if (!session) throw new HttpsError("not-found", "Aula não encontrada.");
+  if (result.wasCanceled) return {sessionId, notified: 0};
 
   const studentsSnap = await db
     .collection(ARENA_CLASSES).doc(session.classId)
@@ -1142,9 +1209,13 @@ export const upsertArenaClass = onCall({region: CLIENT_FACING_REGIONS, timeoutSe
     if (rawStudents.length > v.capacity) {
       throw new HttpsError("invalid-argument", "Mais alunos do que vagas.");
     }
-    // Valida os alunos antes de gravar qualquer coisa.
+    // Valida os alunos antes de gravar qualquer coisa (repetido derrubaria a matrícula no meio).
     const students: Array<Omit<AddClassStudentInput, "addedByUid">> = [];
     for (const raw of rawStudents) students.push(await resolveStudentInput(db, raw));
+    const athleteIds = students.map((st) => st.athleteId).filter((id): id is string => id != null);
+    if (new Set(athleteIds).size !== athleteIds.length) {
+      throw new HttpsError("invalid-argument", "O mesmo atleta aparece duas vezes.");
+    }
 
     const classRef = db.collection(ARENA_CLASSES).doc();
     await classRef.set({
@@ -1157,16 +1228,25 @@ export const upsertArenaClass = onCall({region: CLIENT_FACING_REGIONS, timeoutSe
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    const result = await materializeClassRange(db, classRef.id, next, fromKey, horizonKey);
-    if (next.weekdays.length === 0 && result.createdDates.length === 0) {
-      // Aula avulsa sem quadra não existe — desfaz em vez de deixar uma turma sem aula.
-      await classRef.delete();
-      throw new HttpsError("failed-precondition", "A quadra já está ocupada nesse horário.");
+    let result: MaterializeClassRangeResult;
+    try {
+      result = await materializeClassRange(db, classRef.id, next, fromKey, horizonKey);
+      if (next.weekdays.length === 0 && result.createdDates.length === 0) {
+        // Aula avulsa sem quadra não existe — desfaz em vez de deixar uma turma sem aula.
+        throw new HttpsError("failed-precondition", "A quadra já está ocupada nesse horário.");
+      }
+      for (const student of students) {
+        await addClassStudentCore(db, classRef.id, {...student, addedByUid: uid});
+      }
+    } catch (e) {
+      // Nada de turma órfã segurando a quadra: solta as aulas e apaga o que foi gravado.
+      await discardNewClass(db, classRef.id);
+      throw e;
     }
-    for (const student of students) {
-      await addClassStudentCore(db, classRef.id, {...student, addedByUid: uid});
-    }
-    await classRef.set({materializedUntil: horizonKey, conflictDates: result.conflictDates}, {merge: true});
+    await classRef.set({
+      materializedUntil: materializedUntilAfter(next, horizonKey),
+      conflictDates: result.conflictDates,
+    }, {merge: true});
     logger.info("upsertArenaClass: turma criada", {
       classId: classRef.id, arenaId, created: result.createdDates.length, conflicts: result.conflictDates.length,
     });
@@ -1195,10 +1275,13 @@ export const upsertArenaClass = onCall({region: CLIENT_FACING_REGIONS, timeoutSe
   }
 
   if (isClassScheduleChange(existing, updated)) {
-    await releaseFutureClassSessions(db, classId, Date.now());
+    // Mesma quadra e horário (ex.: só estendeu a data de fim): as aulas que continuam na
+    // agenda nova não são soltas — senão a quadra ficaria livre para aluguel no intervalo.
+    const keep = unchangedSessionDates(existing, updated, fromKey, horizonKey);
+    await releaseFutureClassSessions(db, classId, Date.now(), keep);
     const result = await materializeClassRange(db, classId, updated, fromKey, horizonKey);
     const conflictDates = mergeConflictDates(previousConflicts, result.conflictDates, todayKey);
-    await classRef.set({materializedUntil: horizonKey, conflictDates}, {merge: true});
+    await classRef.set({materializedUntil: materializedUntilAfter(updated, horizonKey), conflictDates}, {merge: true});
     return {classId, createdDates: result.createdDates, conflictDates: result.conflictDates};
   }
 
@@ -1269,13 +1352,21 @@ export const setArenaClassStatus = onCall({region: CLIENT_FACING_REGIONS, timeou
   if (status === "active") {
     requireClassEntitlement(arenaData);
     if (cls.status === "active") return {classId: ref.id, status, createdDates: [], conflictDates: []};
+    // Turma pausada porque a quadra foi removida: reativar exige escolher outra quadra.
+    const courtSnap = await db.collection("arenas").doc(cls.arenaId).collection("courts").doc(cls.courtId).get();
+    if (!courtSnap.exists) {
+      throw new HttpsError(
+        "failed-precondition",
+        "A quadra desta turma não existe mais. Edite a turma, escolha outra quadra e reative.",
+      );
+    }
     const horizonKey = classHorizonKey(cls, todayKey);
-    await ref.set({status, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    await ref.set({status, pausedReason: null, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
     const result = await materializeClassRange(
       db, ref.id, {...cls, status}, addDaysToDateKey(todayKey, -1), horizonKey,
     );
     const conflictDates = mergeConflictDates(asStringArray(data["conflictDates"]), result.conflictDates, todayKey);
-    await ref.set({materializedUntil: horizonKey, conflictDates}, {merge: true});
+    await ref.set({materializedUntil: materializedUntilAfter(cls, horizonKey), conflictDates}, {merge: true});
     return {classId: ref.id, status, createdDates: result.createdDates, conflictDates: result.conflictDates};
   }
 

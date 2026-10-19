@@ -2,9 +2,11 @@ import {onSchedule} from "firebase-functions/v2/scheduler";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {
+  MATERIALIZED_DONE,
   classHorizonKey,
   classScheduleLabel,
   materializeClassRange,
+  materializedUntilAfter,
   parseArenaClass,
   releaseFutureClassSessions,
 } from "./arena-class";
@@ -59,9 +61,9 @@ export const materializeArenaClassSessions = onSchedule({
     const horizonKey = classHorizonKey(cls, todayKey);
     const materializedUntil = String(data["materializedUntil"] ?? todayKey);
 
-    // Aula avulsa já materializada na criação — só sai da fila.
-    if (cls.weekdays.length === 0) {
-      await doc.ref.set({materializedUntil: horizonKey}, {merge: true});
+    // Avulsa (ou turma sem data nova a gerar): sai da fila de vez.
+    if (materializedUntilAfter(cls, materializedUntil) === MATERIALIZED_DONE) {
+      await doc.ref.set({materializedUntil: MATERIALIZED_DONE}, {merge: true});
       continue;
     }
 
@@ -99,7 +101,7 @@ export const materializeArenaClassSessions = onSchedule({
       conflicts += result.conflictDates.length;
       const previous = Array.isArray(data["conflictDates"]) ? (data["conflictDates"] as unknown[]).map(String) : [];
       await doc.ref.set({
-        materializedUntil: horizonKey,
+        materializedUntil: materializedUntilAfter(cls, horizonKey),
         conflictDates: [...new Set([...previous, ...result.conflictDates])].sort(),
       }, {merge: true});
 

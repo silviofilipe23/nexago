@@ -112,7 +112,9 @@ export function bookingIsActive(booking: Pick<ArenaBooking, 'status'>): boolean 
   return !isCancelStatus(booking.status);
 }
 
-export function bookingCanCancel(booking: Pick<ArenaBooking, 'status'>): boolean {
+export function bookingCanCancel(booking: Pick<ArenaBooking, 'status'> & Partial<Pick<ArenaBooking, 'classSessionId'>>): boolean {
+  // Bloqueio de aula só se cancela pela própria aula (a rule recusa o resto).
+  if (booking.classSessionId != null) return false;
   const s = booking.status.toLowerCase().trim();
   return s !== 'canceled' && s !== 'cancelled' && s !== 'completed';
 }

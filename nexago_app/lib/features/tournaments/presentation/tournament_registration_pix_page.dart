@@ -21,7 +21,6 @@ import '../../arenas/presentation/widgets/booking_pix/booking_pix_copy_button.da
 import '../../arenas/presentation/widgets/booking_pix/booking_pix_cpf_field.dart';
 import '../../arenas/presentation/widgets/booking_pix/booking_pix_expiry_card.dart';
 import '../../arenas/presentation/widgets/booking_pix/booking_pix_generate_bar.dart';
-import '../../arenas/presentation/widgets/booking_pix/booking_pix_method_card.dart';
 import '../../arenas/presentation/widgets/booking_pix/booking_pix_qr_card.dart';
 import '../../arenas/presentation/widgets/booking_pix/booking_pix_save_cpf_tile.dart';
 import '../../arenas/presentation/widgets/booking_pix/booking_pix_waiting_card.dart';
@@ -34,14 +33,20 @@ import '../../cashback/presentation/widgets/checkout_cashback_toggle.dart';
 import '../../squad/domain/squad_models.dart';
 import '../../squad/domain/squad_rules.dart';
 import '../data/tournament_registration_service.dart';
+import '../domain/registration_payment_method.dart';
 import '../domain/registration_shell_logic.dart';
 import '../domain/tournament_registration_navigation.dart';
 import '../domain/tournament_registration_pix_args.dart';
 import '../domain/tournament_registration_providers.dart';
 import 'widgets/registration_wizard/registration_wizard_notice.dart';
+import 'widgets/tournament_registration/registration_card_checkout_panel.dart';
+import 'widgets/tournament_registration/registration_payment_method_picker.dart';
 import 'widgets/squad_code_field.dart';
 import '../../squad/presentation/widgets/squad_checkout_summary.dart';
 
+/// Cobrança online da inscrição: PIX (QR in-app) ou cartão de crédito à vista
+/// (checkout hospedado do Asaas). O nome e a rota `/inscricao/pix` ficam por
+/// retrocompatibilidade com links e restauração de estado.
 class TournamentRegistrationPixPage extends ConsumerStatefulWidget {
   const TournamentRegistrationPixPage({
     super.key,
@@ -60,8 +65,10 @@ class _TournamentRegistrationPixPageState
   final _cpfController = TextEditingController();
   final _squadCodeController = TextEditingController();
   ArenaBookingPixPaymentResult? _pix;
-  bool _loadingPix = false;
-  String? _pixError;
+  TournamentRegistrationCardPaymentResult? _card;
+  RegistrationPaymentMethod _method = RegistrationPaymentMethod.pix;
+  bool _loadingCharge = false;
+  String? _chargeError;
   bool _navigatedBack = false;
   bool _paymentFailed = false;
   bool _cancelling = false;
@@ -75,6 +82,13 @@ class _TournamentRegistrationPixPageState
   SquadCodeCheck _squad = SquadCodeCheck.none;
 
   double get _shareReais => widget.args.shareAmountReais;
+
+  /// Meio da cobrança viva — uma por vez, como no portal; `null` sem cobrança.
+  RegistrationPaymentMethod? get _liveMethod => _pix != null
+      ? RegistrationPaymentMethod.pix
+      : (_card != null ? RegistrationPaymentMethod.card : null);
+
+  String? get _livePaymentId => _pix?.paymentId ?? _card?.paymentId;
 
   /// Indicação que vale para a prévia. Código digitado e não aplicado é
   /// conferido só na cobrança — e ele vence o link —, então até lá não há
@@ -167,14 +181,14 @@ class _TournamentRegistrationPixPageState
     return snap?.holdExpiresAt ?? widget.args.holdExpiresAt;
   }
 
-  DateTime? _resolvePixExpiresAt() {
-    return _pix?.expiresAt ?? widget.args.paymentExpiresAt;
+  DateTime? _resolveChargeExpiresAt() {
+    return _pix?.expiresAt ?? _card?.expiresAt ?? widget.args.paymentExpiresAt;
   }
 
   DateTime? _effectiveDeadline(TournamentRegistrationSnapshot? snap) {
     return registrationEffectivePaymentDeadline(
       holdExpiresAt: _resolveHoldExpiresAt(snap),
-      pixExpiresAt: _resolvePixExpiresAt(),
+      pixExpiresAt: _resolveChargeExpiresAt(),
     );
   }
 
@@ -187,7 +201,8 @@ class _TournamentRegistrationPixPageState
     _scheduleExpiry(deadline);
   }
 
-  Future<void> _loadPix() async {
+  Future<void> _loadCharge() async {
+    final isCard = _method == RegistrationPaymentMethod.card;
     final snap = ref
         .read(tournamentRegistrationSnapshotProvider(widget.args.registrationId))
         .valueOrNull;
@@ -196,9 +211,9 @@ class _TournamentRegistrationPixPageState
     // ida para voltar com o mesmo "não".
     if (!canRegeneratePix(holdExpiresAt: holdAt)) {
       setState(() {
-        _pixError = 'Não há mais tempo para concluir o pagamento. Volte à '
+        _chargeError = 'Não há mais tempo para concluir o pagamento. Volte à '
             'inscrição.';
-        _loadingPix = false;
+        _loadingCharge = false;
       });
       return;
     }
@@ -206,14 +221,17 @@ class _TournamentRegistrationPixPageState
     final cpfMsg = _cpfHint;
     if (!_hasValidCpf) {
       setState(() {
-        _pixError = cpfMsg ?? 'Informe um CPF válido para gerar o PIX.';
-        _loadingPix = false;
+        _chargeError = cpfMsg ??
+            (isCard
+                ? 'Informe um CPF válido para pagar com cartão.'
+                : 'Informe um CPF válido para gerar o PIX.');
+        _loadingCharge = false;
       });
       return;
     }
     setState(() {
-      _loadingPix = true;
-      _pixError = null;
+      _loadingCharge = true;
+      _chargeError = null;
     });
     try {
       await _saveCpfToProfileIfNeeded();
@@ -222,24 +240,40 @@ class _TournamentRegistrationPixPageState
       final useCashback = _cashbackQuote(
         ref.read(cashbackCheckoutContextProvider),
       ).sendUseCashback;
-      final pix = await ref
-          .read(paymentServiceProvider)
-          .createTournamentRegistrationPixPayment(
-            registrationId: widget.args.registrationId,
-            cpfCnpj: _cpfDigits,
-            amountType: widget.args.amountType,
-            useCashback: useCashback,
-            squadCode: _squadCodeForCharge,
-          );
+      final service = ref.read(paymentServiceProvider);
+      if (isCard) {
+        final card = await service.createTournamentRegistrationCardPayment(
+          registrationId: widget.args.registrationId,
+          cpfCnpj: _cpfDigits,
+          amountType: widget.args.amountType,
+          useCashback: useCashback,
+          squadCode: _squadCodeForCharge,
+        );
+        if (!mounted) return;
+        setState(() {
+          _card = card;
+          _loadingCharge = false;
+        });
+        _rescheduleExpiries();
+        await _openCardCheckout();
+        return;
+      }
+      final pix = await service.createTournamentRegistrationPixPayment(
+        registrationId: widget.args.registrationId,
+        cpfCnpj: _cpfDigits,
+        amountType: widget.args.amountType,
+        useCashback: useCashback,
+        squadCode: _squadCodeForCharge,
+      );
       if (!mounted) return;
       setState(() {
         _pix = pix;
-        _loadingPix = false;
+        _loadingCharge = false;
       });
       _rescheduleExpiries();
     } on PaymentException catch (e) {
       if (!mounted) return;
-      setState(() => _loadingPix = false);
+      setState(() => _loadingCharge = false);
       await pushErrorFeedback(
         context,
         title: 'Não foi possível gerar a cobrança',
@@ -259,10 +293,12 @@ class _TournamentRegistrationPixPageState
       );
     } catch (e) {
       if (!mounted) return;
-      setState(() => _loadingPix = false);
+      setState(() => _loadingCharge = false);
       await pushErrorFeedback(
         context,
-        title: 'Não foi possível gerar o PIX',
+        title: isCard
+            ? 'Não foi possível abrir o pagamento'
+            : 'Não foi possível gerar o PIX',
         description: 'Tente novamente em instantes.',
         primaryAction: FeedbackAction(
           label: 'Tentar novamente',
@@ -278,6 +314,37 @@ class _TournamentRegistrationPixPageState
         ),
       );
     }
+  }
+
+  /// Abre (ou reabre) o checkout do Asaas no navegador do app. A cobrança
+  /// segue viva se o atleta fechar sem pagar: o painel deixa reabrir.
+  Future<void> _openCardCheckout() async {
+    final card = _card;
+    if (card == null) return;
+    try {
+      await ref.read(paymentServiceProvider).openHostedCheckout(card.invoiceUrl);
+    } on PaymentException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message, isError: true);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        'Não foi possível abrir o pagamento. Tente de novo.',
+        isError: true,
+      );
+    }
+  }
+
+  /// Mata a cobrança do cartão e devolve o seletor (o atleta pode ir de PIX).
+  /// Se o cartão já tinha sido aprovado, o Asaas recusa apagar e o webhook
+  /// confirma a vaga do mesmo jeito — a tela segue ouvindo a inscrição.
+  Future<void> _cancelCardAndChooseAgain() async {
+    _expiryTimer?.cancel();
+    await _cancelPendingIfNeeded();
+    if (!mounted) return;
+    setState(() => _card = null);
+    _rescheduleExpiries();
   }
 
   void _scheduleExpiry(DateTime expiresAt) {
@@ -296,6 +363,11 @@ class _TournamentRegistrationPixPageState
     if (_navigatedBack || _paymentFailed || _cancelling) return;
     setState(() => _paymentFailed = true);
     _expiryTimer?.cancel();
+    // Checkout aberto numa cobrança que vai morrer: fecha antes de o atleta
+    // digitar o cartão à toa.
+    if (_card != null) {
+      unawaited(ref.read(paymentServiceProvider).closeHostedCheckout());
+    }
     await _cancelPendingIfNeeded();
   }
 
@@ -316,6 +388,13 @@ class _TournamentRegistrationPixPageState
     if (_navigatedBack || _paymentFailed || snap == null) return;
     final uid = ref.read(authServiceProvider).currentUser?.uid;
     if (uid == null || uid.isEmpty) return;
+
+    final confirmed = snap.isPaid || snap.athleteSharePaid(uid);
+    // Cartão aprovado com o checkout ainda na frente: fecha para o atleta ver
+    // a confirmação.
+    if (confirmed && _card != null) {
+      unawaited(ref.read(paymentServiceProvider).closeHostedCheckout());
+    }
 
     if (snap.isPaid) {
       _navigatedBack = true;
@@ -341,12 +420,12 @@ class _TournamentRegistrationPixPageState
         registrationId: widget.args.registrationId,
         tournamentName: widget.args.tournamentName,
         categoryName: widget.args.categoryName,
-        paymentId: _pix?.paymentId,
+        paymentId: _livePaymentId,
       );
       return;
     }
 
-    if (!snap.athleteSharePaid(uid)) return;
+    if (!confirmed) return;
     _navigatedBack = true;
     _expiryTimer?.cancel();
     if (!mounted) return;
@@ -386,7 +465,10 @@ class _TournamentRegistrationPixPageState
     if (!access.canAccess) {
       return Scaffold(
         backgroundColor: context.themeColors.canvas,
-        appBar: BookingPixAppBar(onBack: _onBack),
+        appBar: BookingPixAppBar(
+          onBack: _onBack,
+          title: registrationChargePageTitle(_liveMethod),
+        ),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.screenH,
@@ -408,18 +490,26 @@ class _TournamentRegistrationPixPageState
     final holdExpiresAt = _resolveHoldExpiresAt(snap);
     final hasHoldCountdown =
         holdExpiresAt != null && snap?.isPaid != true;
-    final pixExpiresAt = _resolvePixExpiresAt();
+    final chargeExpiresAt = _resolveChargeExpiresAt();
     final displayExpiresAt = registrationEffectivePaymentDeadline(
       holdExpiresAt: holdExpiresAt,
-      pixExpiresAt: pixExpiresAt,
+      pixExpiresAt: chargeExpiresAt,
     );
-    final showQr = _pix != null && !_loadingPix;
+    final liveMethod = _liveMethod;
+    final showCharge = liveMethod != null && !_loadingCharge;
     final cashbackCtx = ref.watch(cashbackCheckoutContextProvider);
     final cashbackQuote = _cashbackQuote(cashbackCtx);
+    final liveSquadDiscountReais =
+        _pix?.squadDiscountReais ?? _card?.squadDiscountReais ?? 0;
+    final liveCashbackAppliedReais =
+        _pix?.cashbackAppliedReais ?? _card?.cashbackAppliedReais ?? 0;
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
-      appBar: BookingPixAppBar(onBack: _onBack),
+      appBar: BookingPixAppBar(
+        onBack: _onBack,
+        title: registrationChargePageTitle(_liveMethod),
+      ),
       body: _paymentFailed
           ? _buildFailedBody(context)
           : Column(
@@ -444,11 +534,15 @@ class _TournamentRegistrationPixPageState
                           ),
                           const SizedBox(height: 20),
                         ],
-                        if (!showQr) ...[
-                          BookingPixMethodCard(
-                            amountLabel: BookingPixMethodCard.formatAmount(
-                              cashbackQuote.chargePreviewCents / 100,
-                            ),
+                        if (!showCharge) ...[
+                          RegistrationPaymentMethodPicker(
+                            value: _method,
+                            amountReais: cashbackQuote.chargePreviewCents / 100,
+                            enabled: !_loadingCharge,
+                            onChanged: (m) => setState(() {
+                              _method = m;
+                              _chargeError = null;
+                            }),
                           ),
                           SizedBox(height: 12),
                           Text(
@@ -469,7 +563,7 @@ class _TournamentRegistrationPixPageState
                               availableCents: cashbackCtx.availableCents,
                               config: cashbackCtx.config,
                               value: _useCashback,
-                              enabled: !_loadingPix,
+                              enabled: !_loadingCharge,
                               onChanged: (v) =>
                                   setState(() => _useCashback = v),
                             ),
@@ -478,7 +572,12 @@ class _TournamentRegistrationPixPageState
                           BookingPixCpfField(
                             controller: _cpfController,
                             errorText: _cpfHint,
-                            onSubmitted: _hasValidCpf ? _loadPix : null,
+                            onSubmitted: _hasValidCpf ? _loadCharge : null,
+                            helperText: _method ==
+                                    RegistrationPaymentMethod.card
+                                ? 'Exigido pelo emissor da cobrança no cartão.'
+                                : 'Necessário pela legislação brasileira para '
+                                    'emissão do PIX.',
                           ),
                           SizedBox(height: 12),
                           BookingPixSaveCpfTile(
@@ -490,7 +589,7 @@ class _TournamentRegistrationPixPageState
                             controller: _squadCodeController,
                             registrationId: widget.args.registrationId,
                             athleteUids: snap?.participantUids ?? const [],
-                            enabled: !_loadingPix,
+                            enabled: !_loadingCharge,
                             onChanged: (check) =>
                                 setState(() => _squad = check),
                           ),
@@ -506,25 +605,27 @@ class _TournamentRegistrationPixPageState
                               totalCents: cashbackQuote.chargePreviewCents,
                             ),
                           ],
-                          if (_pixError != null) ...[
+                          if (_chargeError != null) ...[
                             SizedBox(height: 16),
                             _PixErrorCard(
-                              message: _pixError!,
-                              onRetry: _loadPix,
+                              message: _chargeError!,
+                              onRetry: _loadCharge,
                             ),
                           ],
                         ] else ...[
                           if (displayExpiresAt != null) ...[
                             BookingPixExpiryCard(
                               expiresAt: displayExpiresAt,
-                              // O QR cobra `chargedReais` (preço − saldo).
-                              amountReais: _pix?.chargedReais ?? _shareReais,
+                              // A cobrança vale `chargedReais` (preço − saldo).
+                              amountReais: _pix?.chargedReais ??
+                                  _card?.chargedReais ??
+                                  _shareReais,
                             ),
                             const SizedBox(height: 20),
                           ],
-                          if (_pix!.squadDiscountReais > 0) ...[
+                          if (liveSquadDiscountReais > 0) ...[
                             Text(
-                              '${formatBRL(_pix!.squadDiscountReais)} de '
+                              '${formatBRL(liveSquadDiscountReais)} de '
                               'desconto pela indicação de embaixador',
                               key: const Key('squad-discount-note'),
                               textAlign: TextAlign.center,
@@ -536,51 +637,72 @@ class _TournamentRegistrationPixPageState
                             ),
                             const SizedBox(height: 12),
                           ],
-                          if (_pix!.cashbackAppliedReais > 0) ...[
+                          if (liveCashbackAppliedReais > 0) ...[
                             CheckoutCashbackAppliedNote(
                               appliedCents: reaisToCents(
-                                _pix!.cashbackAppliedReais,
+                                liveCashbackAppliedReais,
                               ),
                             ),
                             const SizedBox(height: 16),
                           ],
-                          BookingPixQrCard(
-                            base64: _pix!.qrCodeBase64,
-                            payload: _pix!.qrCode,
-                          ),
-                          SizedBox(height: 16),
-                          BookingPixCopyButton(
-                            onPressed: () async {
-                              await Clipboard.setData(
-                                ClipboardData(text: _pix!.qrCode),
-                              );
-                              if (!context.mounted) return;
-                              showAppSnackBar(context, 'Código PIX copiado.');
-                            },
-                          ),
-                          SizedBox(height: 16),
-                          const BookingPixWaitingCard(),
-                          SizedBox(height: 12),
-                          TextButton(
-                            onPressed: _cancelling
-                                ? null
-                                : () async {
-                                    await _handlePaymentNotCompleted();
-                                    if (!context.mounted) return;
-                                    context.pop();
-                                  },
-                            child: Text('Voltar sem pagar'),
-                          ),
+                          if (liveMethod == RegistrationPaymentMethod.card) ...[
+                            RegistrationCardCheckoutPanel(
+                              amountReais: _card!.chargedReais,
+                              onOpen: _openCardCheckout,
+                            ),
+                            SizedBox(height: 16),
+                            const BookingPixWaitingCard(),
+                            SizedBox(height: 12),
+                            TextButton(
+                              onPressed:
+                                  _cancelling ? null : _cancelCardAndChooseAgain,
+                              child: Text(
+                                'Cancelar e trocar o meio de pagamento',
+                              ),
+                            ),
+                          ] else ...[
+                            BookingPixQrCard(
+                              base64: _pix!.qrCodeBase64,
+                              payload: _pix!.qrCode,
+                            ),
+                            SizedBox(height: 16),
+                            BookingPixCopyButton(
+                              onPressed: () async {
+                                await Clipboard.setData(
+                                  ClipboardData(text: _pix!.qrCode),
+                                );
+                                if (!context.mounted) return;
+                                showAppSnackBar(context, 'Código PIX copiado.');
+                              },
+                            ),
+                            SizedBox(height: 16),
+                            const BookingPixWaitingCard(),
+                            SizedBox(height: 12),
+                            TextButton(
+                              onPressed: _cancelling
+                                  ? null
+                                  : () async {
+                                      await _handlePaymentNotCompleted();
+                                      if (!context.mounted) return;
+                                      context.pop();
+                                    },
+                              child: Text('Voltar sem pagar'),
+                            ),
+                          ],
                         ],
                       ],
                     ),
                   ),
                 ),
-                if (!showQr)
+                if (!showCharge)
                   BookingPixGenerateBar(
                     enabled: _hasValidCpf,
-                    loading: _loadingPix,
-                    onPressed: _loadPix,
+                    loading: _loadingCharge,
+                    onPressed: _loadCharge,
+                    label: registrationChargeButtonLabel(
+                      _method,
+                      chargeReais: cashbackQuote.chargePreviewCents / 100,
+                    ),
                   ),
               ],
             ),
@@ -596,12 +718,18 @@ class _TournamentRegistrationPixPageState
     // vaga acabou junto com a cobrança, mesmo que o relógio ainda não tenha
     // zerado.
     final outOfTime = !canRegeneratePix(holdExpiresAt: holdAt);
+    final isCard = _method == RegistrationPaymentMethod.card;
     return FeedbackPage.error(
-      title: outOfTime ? 'Prazo da vaga encerrado' : 'PIX expirado',
+      title: outOfTime
+          ? 'Prazo da vaga encerrado'
+          : (isCard ? 'Pagamento expirado' : 'PIX expirado'),
       description: outOfTime
           ? 'Não há mais tempo para concluir o pagamento e sua vaga será '
               'liberada. Volte à inscrição se ainda houver vagas.'
-          : 'Gere um novo código na tela de inscrição.',
+          : (isCard
+              ? 'O tempo para pagar acabou. Abra um novo pagamento na tela '
+                  'de inscrição.'
+              : 'Gere um novo código na tela de inscrição.'),
       primaryAction: FeedbackAction(
         label: 'Voltar à inscrição',
         onPressed: _onBack,

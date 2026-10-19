@@ -37,3 +37,20 @@ List<String> parseStringList(Object? v) {
       if (e is String && e.trim().isNotEmpty) e.trim(),
   ];
 }
+
+/// Dias ISO (1=seg … 7=dom) ordenados; `null` quando o campo não existe ou
+/// está vazio (= todos os dias, compatível com a fase 1).
+List<int>? parseWeekdaysOrNull(Object? v) {
+  if (v is! List) return null;
+  final days = <int>{
+    for (final d in v)
+      if (d is num && d.toInt() >= 1 && d.toInt() <= 7) d.toInt(),
+  }.toList()
+    ..sort();
+  return days.isEmpty ? null : days;
+}
+
+double parseDouble(Object? v, double fallback) =>
+    v is num ? v.toDouble() : fallback;
+
+int? parseIntOrNull(Object? v) => v is num ? v.toInt() : null;

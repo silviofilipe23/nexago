@@ -29,13 +29,19 @@ class ArenaClassAttendanceResult {
 
 /// Resultado de `cancelArenaClassSession`.
 class ArenaClassCancelResult {
-  const ArenaClassCancelResult(
-      {required this.sessionId, required this.notified});
+  const ArenaClassCancelResult({
+    required this.sessionId,
+    required this.notified,
+    this.credited = 0,
+  });
 
   final String sessionId;
 
   /// Alunos com conta NexaGO avisados por push.
   final int notified;
+
+  /// Créditos de reposição gerados (fase 2).
+  final int credited;
 }
 
 /// Aulas (lado arena): leitura direta de `arenaClasses`, `classStudents` e
@@ -136,10 +142,12 @@ class ArenaClassRepository {
   }
 
   /// Cancela a aula do dia: libera a quadra e avisa os alunos com conta.
+  /// [generateCredits] `null` = regra da arena (`arenaCancelGeneratesCredit`).
   Future<ArenaClassCancelResult> cancelSession({
     required String sessionId,
     required ArenaClassCancelReason reason,
     String? note,
+    bool? generateCredits,
   }) async {
     final trimmedNote = note?.trim() ?? '';
     try {
@@ -148,13 +156,57 @@ class ArenaClassRepository {
         'sessionId': sessionId,
         'reason': reason.id,
         if (trimmedNote.isNotEmpty) 'note': trimmedNote,
+        if (generateCredits != null) 'generateCredits': generateCredits,
       });
       final data = result.data;
       final map = data is Map ? Map<String, dynamic>.from(data) : const {};
       return ArenaClassCancelResult(
         sessionId: (map['sessionId'] as String?) ?? sessionId,
         notified: (map['notified'] as num?)?.toInt() ?? 0,
+        credited: (map['credited'] as num?)?.toInt() ?? 0,
       );
+    } on FirebaseFunctionsException catch (e) {
+      throw ArenaClassException(_message(e), code: e.code);
+    }
+  }
+
+  /// Encaixa na aula: reposição (usa o [creditId]) ou experimental (atleta
+  /// NexaGO por [athleteId] ou só o [name]). Ocupa a vaga do dia.
+  Future<String> addExtra({
+    required String sessionId,
+    required ArenaClassExtraKind kind,
+    String? creditId,
+    String? athleteId,
+    String? name,
+    String? phone,
+  }) async {
+    try {
+      final result = await _callables.httpsCallable('addArenaClassExtra').call({
+        'sessionId': sessionId,
+        'kind': kind.id,
+        if (creditId != null) 'creditId': creditId,
+        if (athleteId != null) 'athleteId': athleteId,
+        if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+        if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+      });
+      final data = result.data;
+      final map = data is Map ? Map<String, dynamic>.from(data) : const {};
+      return (map['studentId'] as String?) ?? '';
+    } on FirebaseFunctionsException catch (e) {
+      throw ArenaClassException(_message(e), code: e.code);
+    }
+  }
+
+  /// Tira o encaixe; a reposição devolve o crédito.
+  Future<void> removeExtra({
+    required String sessionId,
+    required String studentId,
+  }) async {
+    try {
+      await _callables.httpsCallable('removeArenaClassExtra').call({
+        'sessionId': sessionId,
+        'studentId': studentId,
+      });
     } on FirebaseFunctionsException catch (e) {
       throw ArenaClassException(_message(e), code: e.code);
     }
@@ -162,6 +214,8 @@ class ArenaClassRepository {
 
   /// As callables devolvem mensagens em português; o texto genérico do SDK
   /// ("NOT FOUND" quando a função ainda não foi deployada) vira copy.
+  static String message(FirebaseFunctionsException e) => _message(e);
+
   static String _message(FirebaseFunctionsException e) {
     final fallback = switch (e.code) {
       'unauthenticated' => 'Faça login para continuar.',

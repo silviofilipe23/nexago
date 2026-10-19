@@ -283,14 +283,17 @@ bool arenaClassAttendanceOpen(ArenaClassSession s, String todayKey) =>
     !s.isCanceled && s.date.compareTo(todayKey) <= 0;
 
 /// Prévia do push que o backend manda aos alunos com conta ao cancelar —
-/// mesma frase de `cancelClassSessionCore`.
+/// mesma frase de `cancelClassSessionCore` (com [withCredit], o trecho do
+/// crédito de reposição que ele acrescenta quando gerou algum).
 String arenaClassCancelPushBody(
   ArenaClassSession s,
-  ArenaClassCancelReason reason,
-) {
+  ArenaClassCancelReason reason, {
+  bool withCredit = false,
+}) {
   final label = reason.pushLabel;
   return 'A aula ${s.className} de ${_ddMm(s.date)} às ${s.startTime} foi '
-      'cancelada pela arena${label.isEmpty ? '' : ' ($label)'}.';
+      'cancelada pela arena${label.isEmpty ? '' : ' ($label)'}.'
+      '${withCredit ? ' Você ganhou 1 crédito de reposição.' : ''}';
 }
 
 /// Iniciais para o avatar ("Felipe Rocha" → "FR").
@@ -302,17 +305,110 @@ String arenaClassInitials(String name) {
   return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
 }
 
-/// Alunos da chamada: os ativos da turma e os que saíram mas já têm marca
-/// nesta aula (a chamada não perde histórico). Ordem alfabética.
-List<ArenaClassStudent> arenaClassAttendanceRoster(
+/// Dia da semana ISO (1=seg … 7=dom) de uma chave `YYYY-MM-DD`; `null` se
+/// a chave for inválida.
+int? arenaClassDateKeyWeekday(String dateKey) {
+  final d = DateTime.tryParse(dateKey);
+  return d == null ? null : DateTime(d.year, d.month, d.day).weekday;
+}
+
+/// "Seg", "Ter"… do dia ISO (1=seg … 7=dom).
+String arenaClassWeekdayShort(int isoWeekday) =>
+    _weekdayShort[(isoWeekday - 1).clamp(0, 6)];
+
+/// O aluno faz a turma neste dia da semana? `weekdays` ausente = todos os
+/// dias (aluno da fase 1). Espelha `studentAttendsWeekday` do backend.
+bool arenaClassStudentAttendsWeekday(ArenaClassStudent s, int weekday) {
+  final days = s.weekdays;
+  return days == null || days.isEmpty || days.contains(weekday);
+}
+
+/// Quem a aula espera hoje: alunos ativos da turma que fazem aquele dia da
+/// semana. Pausado e removido não ocupam vaga nem entram na chamada.
+List<ArenaClassStudent> arenaClassRegularsOn(
   List<ArenaClassStudent> students,
-  Map<String, AttendanceMark> attendance,
+  int? weekday,
+) =>
+    students
+        .where((s) =>
+            s.isActive &&
+            (weekday == null || arenaClassStudentAttendsWeekday(s, weekday)))
+        .toList();
+
+/// Vagas livres da aula: capacidade − alunos do dia − encaixes. Mesma conta
+/// de `addExtraCore`.
+int arenaClassSessionFreeSpots(
+  ArenaClassSession session,
+  List<ArenaClassStudent> students,
 ) {
-  final roster = students
-      .where((s) => s.isActive || attendance.containsKey(s.id))
-      .toList()
-    ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-  return roster;
+  final weekday = arenaClassDateKeyWeekday(session.date);
+  final regulars = arenaClassRegularsOn(students, weekday)
+      .where((s) => !session.extras.containsKey(s.id))
+      .length;
+  final free = session.capacity - regulars - session.extras.length;
+  return free < 0 ? 0 : free;
+}
+
+/// De onde o aluno da chamada vem.
+enum ArenaClassRosterKind { regular, makeup, trial }
+
+/// Uma linha da chamada: aluno da turma ou encaixe da aula.
+class ArenaClassRosterEntry {
+  const ArenaClassRosterEntry({
+    required this.id,
+    required this.name,
+    required this.kind,
+    this.student,
+    this.extra,
+  });
+
+  final String id;
+  final String name;
+  final ArenaClassRosterKind kind;
+
+  /// Aluno da turma (`null` em encaixe).
+  final ArenaClassStudent? student;
+
+  /// Encaixe (`null` em aluno da turma).
+  final ArenaClassExtra? extra;
+
+  bool get isExtra => extra != null;
+}
+
+/// Chamada da aula: os alunos ativos que fazem aquele dia da semana, os que
+/// saíram/pausaram mas já têm marca nesta aula (a chamada não perde
+/// histórico) e, no fim, os encaixes. Ordem alfabética em cada bloco.
+List<ArenaClassRosterEntry> arenaClassAttendanceRoster(
+  ArenaClassSession session,
+  List<ArenaClassStudent> students,
+) {
+  final weekday = arenaClassDateKeyWeekday(session.date);
+  final expected = {for (final s in arenaClassRegularsOn(students, weekday)) s.id};
+  int byName(ArenaClassRosterEntry a, ArenaClassRosterEntry b) =>
+      a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  final regulars = [
+    for (final s in students)
+      if (!session.extras.containsKey(s.id) &&
+          (expected.contains(s.id) || session.attendance.containsKey(s.id)))
+        ArenaClassRosterEntry(
+          id: s.id,
+          name: s.name,
+          kind: ArenaClassRosterKind.regular,
+          student: s,
+        ),
+  ]..sort(byName);
+  final extras = [
+    for (final e in session.extras.values)
+      ArenaClassRosterEntry(
+        id: e.studentId,
+        name: e.name,
+        kind: e.kind == ArenaClassExtraKind.makeup
+            ? ArenaClassRosterKind.makeup
+            : ArenaClassRosterKind.trial,
+        extra: e,
+      ),
+  ]..sort(byName);
+  return [...regulars, ...extras];
 }
 
 /// Contagem da chamada.

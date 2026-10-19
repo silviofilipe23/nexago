@@ -23,8 +23,8 @@ final arenaClassClockProvider =
   );
 });
 
-/// Abas da tela de Aulas no app (fase 1: só Hoje e Turmas).
-enum ArenaClassesTab { today, classes }
+/// Abas da tela de Aulas no app (fase 2 trouxe Alunos — as matrículas).
+enum ArenaClassesTab { today, classes, students }
 
 final arenaClassesTabProvider =
     StateProvider.autoDispose<ArenaClassesTab>((ref) => ArenaClassesTab.today);

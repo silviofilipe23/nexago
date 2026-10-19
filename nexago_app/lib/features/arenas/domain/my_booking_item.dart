@@ -12,6 +12,7 @@ class MyBookingItem {
     this.ownerAthleteId,
     required this.arenaName,
     this.courtName,
+    this.sport,
     this.coverUrl,
     this.logoUrl,
     required this.dateRaw,
@@ -38,6 +39,9 @@ class MyBookingItem {
   final String? ownerAthleteId;
   final String arenaName;
   final String? courtName;
+
+  /// Esporte escolhido na reserva (`sport`, código do catálogo) — `null` em reserva antiga.
+  final String? sport;
   final String? coverUrl;
   final String? logoUrl;
   /// `YYYY-MM-DD` quando disponível.
@@ -145,6 +149,7 @@ class MyBookingItem {
       ownerAthleteId: ownerAthleteId,
       arenaName: arenaName,
       courtName: courtName,
+      sport: _pickString(data['sport']),
       coverUrl: pickUrl(data['coverUrl']) ?? pickUrl(data['arenaCoverUrl']) ?? pickUrl(data['coverImageUrl']),
       logoUrl: pickUrl(data['logoUrl']) ?? pickUrl(data['arenaLogoUrl']) ?? pickUrl(data['logoImageUrl']),
       dateRaw: dateRaw,

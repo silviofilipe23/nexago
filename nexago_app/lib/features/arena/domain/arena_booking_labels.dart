@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../arenas/domain/arena_sport_codes.dart';
 import 'arena_manager_booking.dart';
 
 /// Situação de recebimento da reserva (PIX integral, sinal, pendente…).
@@ -253,6 +254,14 @@ String arenaBookingPaymentLabel(Map<String, dynamic>? data) {
     case ArenaBookingPaymentSettlement.unknown:
       return '—';
   }
+}
+
+/// Esporte escolhido pelo atleta na reserva (`sport`, gravado por `createArenaBooking`) —
+/// `null` em reserva antiga, manual, de aula ou de horário fixo.
+String? arenaBookingSportLabel(Map<String, dynamic>? data) {
+  final raw = data?['sport'];
+  final label = courtSportLabel(raw is String ? raw : null);
+  return label.isEmpty ? null : label;
 }
 
 /// Status da reserva apenas no âmbito do negócio (ativa, cancelada…).

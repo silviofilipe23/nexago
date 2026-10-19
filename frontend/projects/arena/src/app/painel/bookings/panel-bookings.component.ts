@@ -108,7 +108,7 @@ function tomorrowKey(): string {
                     </div>
                     <div class="cell-slot">
                       <span class="col-label">Quadra / horário</span>
-                      {{ b.courtName }} · {{ b.startTime }}–{{ b.endTime }}
+                      {{ b.courtName }}@if (b.sportLabel; as sport) { · {{ sport }} } · {{ b.startTime }}–{{ b.endTime }}
                     </div>
                     <div class="cell-amount right">
                       <span class="col-label">Valor</span>
@@ -140,7 +140,7 @@ function tomorrowKey(): string {
                       </div>
                       <div class="cell-slot">
                         <span class="col-label">Quadra / horário</span>
-                        {{ b.courtName }} · {{ b.startTime }}–{{ b.endTime }}
+                        {{ b.courtName }}@if (b.sportLabel; as sport) { · {{ sport }} } · {{ b.startTime }}–{{ b.endTime }}
                       </div>
                       <div class="cell-amount right">
                         <span class="col-label">Valor</span>

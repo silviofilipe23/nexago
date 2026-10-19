@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signa
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
-import { fetchArenaById, type ArenaListItem } from '@nexago/arena-discovery';
+import { courtSportLabel, fetchArenaById, type ArenaListItem } from '@nexago/arena-discovery';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
@@ -124,6 +124,8 @@ export class ArenaBookingConfirmedComponent {
         return 'Cancelada';
     }
   });
+
+  protected readonly sportLabel = computed(() => courtSportLabel(this.booking()?.sport) || null);
 
   protected readonly dateLabel = computed(() => {
     const b = this.booking();

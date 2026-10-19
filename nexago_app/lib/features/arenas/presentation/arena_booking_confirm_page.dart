@@ -21,8 +21,10 @@ import '../domain/arena_booking_confirm_args.dart';
 import '../domain/arena_booking_labels.dart';
 import '../domain/arena_booking_pix_args.dart';
 import '../domain/arena_booking_quote.dart';
+import '../domain/arena_sport_codes.dart';
 import '../domain/arenas_providers.dart';
 import '../domain/booking_providers.dart';
+import '../domain/slots_providers.dart';
 import 'booking_success_page.dart';
 import 'widgets/booking_confirm/booking_confirm_app_bar.dart';
 import 'widgets/booking_confirm/booking_confirm_cancellation_card.dart';
@@ -30,6 +32,7 @@ import 'widgets/booking_confirm/booking_confirm_coupon_field.dart';
 import 'widgets/booking_confirm/booking_confirm_hero_card.dart';
 import 'widgets/booking_confirm/booking_confirm_observations_field.dart';
 import 'widgets/booking_confirm/booking_confirm_price_summary.dart';
+import 'widgets/booking_confirm/booking_confirm_sport_picker.dart';
 import 'widgets/booking_confirm/booking_confirm_sticky_bar.dart';
 
 /// Confirmação da reserva (paridade com `ArenaBookConfirmComponent` no web).
@@ -65,6 +68,9 @@ class _ArenaBookingConfirmPageState
   String? _couponError;
   String? _appliedCouponCode;
   double _couponDiscountReais = 0;
+
+  /// Esporte escolhido (código do catálogo). Com um esporte só na quadra, vale ele sem toque.
+  String? _sport;
 
   static final _dateFmt = DateFormat('d MMM yyyy', 'pt_BR');
 
@@ -160,7 +166,10 @@ class _ArenaBookingConfirmPageState
     _loadQuote(args);
   }
 
-  Future<void> _confirmWithPix(ArenaBookingConfirmArgs args) async {
+  Future<void> _confirmWithPix(
+    ArenaBookingConfirmArgs args, {
+    required String sport,
+  }) async {
     final user = ref.read(authServiceProvider).currentUser;
     if (user == null) {
       if (!mounted) return;
@@ -182,6 +191,7 @@ class _ArenaBookingConfirmPageState
             paymentMode: 'pix',
             paymentFraction: 1.0,
             couponCode: _appliedCouponCode,
+            sport: sport,
           );
       if (!mounted) return;
 
@@ -238,7 +248,10 @@ class _ArenaBookingConfirmPageState
   }
 
   /// Reserva criada; pagamento combinado na arena (sem Mercado Pago).
-  Future<void> _finalizeBookingPayAtArena(ArenaBookingConfirmArgs args) async {
+  Future<void> _finalizeBookingPayAtArena(
+    ArenaBookingConfirmArgs args, {
+    required String sport,
+  }) async {
     final user = ref.read(authServiceProvider).currentUser;
     if (user == null) {
       if (!mounted) return;
@@ -258,6 +271,7 @@ class _ArenaBookingConfirmPageState
             args: args,
             athleteId: user.uid,
             couponCode: _appliedCouponCode,
+            sport: sport,
           );
       if (!mounted) return;
       await tryAwardReserveTodayMission(ref, dateKey: args.dateKey);
@@ -379,6 +393,29 @@ class _ArenaBookingConfirmPageState
       );
     }
 
+    // Esportes da quadra escolhida (a grade de horários já mantém o stream vivo); `null`
+    // enquanto quadra ou arena carregam.
+    final courtsAsync = ref.watch(courtsStreamProvider(widget.arenaId));
+    final courtsReady = courtsAsync.hasValue || courtsAsync.hasError;
+    final arenaReady = arena != null || !arenaAsync.isLoading;
+    List<String>? sportOptions;
+    if (courtsReady && arenaReady) {
+      final court = courtsAsync.asData?.value
+          .where((c) => c.id == args.courtId)
+          .firstOrNull;
+      sportOptions = bookingSportOptions(
+        court?.sportTypes ?? const [],
+        arena?.courtTypes ?? const [],
+      );
+    }
+    final sport = sportOptions == null
+        ? null
+        : sportOptions.contains(_sport)
+        ? _sport
+        : sportOptions.length == 1
+        ? sportOptions.first
+        : null;
+
     final timeRange = '${args.startTime} - ${args.endTime}';
     final choice = _effectivePaymentChoice(
       onsiteEnabled: onsiteEnabled,
@@ -424,6 +461,16 @@ class _ArenaBookingConfirmPageState
                                   arenaName: args.arenaName,
                                   courtName: args.courtName,
                                   courtSubtitle: args.courtSubtitle,
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 22),
+                                child: BookingConfirmSportPicker(
+                                  options: sportOptions,
+                                  selected: sport,
+                                  enabled: !_submitting,
+                                  onSelected: (code) =>
+                                      setState(() => _sport = code),
                                 ),
                               ),
                               Padding(
@@ -574,11 +621,22 @@ class _ArenaBookingConfirmPageState
                         submitting: _submitting,
                         enabled: canPayHere && !_submitting,
                         onConfirm: () {
+                          if (sport == null) {
+                            HapticFeedback.heavyImpact();
+                            showAppSnackBar(
+                              context,
+                              sportOptions == null
+                                  ? 'Carregando os esportes da quadra…'
+                                  : 'Escolha o esporte que você vai jogar.',
+                              isError: sportOptions != null,
+                            );
+                            return;
+                          }
                           HapticFeedback.mediumImpact();
                           if (choice == _PaymentChoice.pix) {
-                            _confirmWithPix(args);
+                            _confirmWithPix(args, sport: sport);
                           } else {
-                            _finalizeBookingPayAtArena(args);
+                            _finalizeBookingPayAtArena(args, sport: sport);
                           }
                         },
                       ),

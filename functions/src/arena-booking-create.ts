@@ -25,6 +25,7 @@ import {
   type CouponPricingOutcome,
 } from "./arena-coupons";
 import {ensurePeakRuleSatisfied, parsePeakRulesFromDocs} from "./arena-peak-rules";
+import {resolveBookingSport} from "./arena-booking-sport";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const ARENA_BOOKINGS = "arenaBookings";
@@ -50,6 +51,8 @@ interface BookingInput {
   paymentFraction?: number;
   /** Código de cupom de marketing digitado pelo atleta (opcional). */
   couponCode?: string;
+  /** Esporte escolhido entre os da quadra (código do catálogo). Apps antigos não enviam. */
+  sport?: string;
 }
 
 function parseDateKey(dateRaw: string): string {
@@ -237,6 +240,7 @@ export const createArenaBooking = onCall({
   await ensureNotBlocked(arenaId, athleteId);
 
   const ctx = await loadPricingContext(arenaId, courtId);
+  const sport = resolveBookingSport(input.sport, ctx.courtData);
   const paymentFlags = readArenaPaymentFlags(ctx.arenaData);
   const paymentMode: PaymentMode =
     input.paymentMode === "pix" ? "pix" : "onsite";
@@ -421,6 +425,7 @@ export const createArenaBooking = onCall({
         arenaName,
         courtId,
         courtName,
+        sport,
         date: dateKey,
         startTime,
         endTime,

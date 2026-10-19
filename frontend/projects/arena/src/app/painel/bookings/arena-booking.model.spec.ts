@@ -61,3 +61,24 @@ describe('arenaBookingFromDoc — cupom', () => {
     expect(booking.couponCode).toBeNull();
   });
 });
+
+describe('arenaBookingFromDoc — esporte', () => {
+  const base = {
+    arenaId: 'a1',
+    athleteId: 'u1',
+    courtId: 'c1',
+    date: '2026-10-20',
+    startTime: '19:00',
+    endTime: '20:00',
+  };
+
+  it('rótulo do esporte escolhido pelo atleta', () => {
+    expect(arenaBookingFromDoc(fakeDoc('b1', { ...base, sport: 'beachTennis' })).sportLabel).toBe('Beach tennis');
+    expect(arenaBookingFromDoc(fakeDoc('b2', { ...base, sport: 'Pickleball' })).sportLabel).toBe('Pickleball');
+  });
+
+  it('reserva sem esporte (antiga, manual) fica null', () => {
+    expect(arenaBookingFromDoc(fakeDoc('b3', base)).sportLabel).toBeNull();
+    expect(arenaBookingFromDoc(fakeDoc('b4', { ...base, sport: null })).sportLabel).toBeNull();
+  });
+});

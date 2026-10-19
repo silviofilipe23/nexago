@@ -685,6 +685,7 @@ class _BookedDetails extends ConsumerWidget {
         bookingAsync.valueOrNull?['athleteId'] as String?;
     final customerName =
         (bookingAsync.valueOrNull?['customerName'] as String?)?.trim();
+    final sportLabel = arenaBookingSportLabel(bookingAsync.valueOrNull);
     final nameAsync = athleteUid != null && athleteUid.trim().isNotEmpty
         ? ref.watch(athleteDisplayLabelProvider(athleteUid))
         : AsyncValue<String>.data(
@@ -706,6 +707,10 @@ class _BookedDetails extends ConsumerWidget {
                 error: (_, __) => '—',
               ),
             ),
+            if (sportLabel != null) ...[
+              SizedBox(height: 12),
+              _LabeledRow(label: 'Esporte', value: sportLabel),
+            ],
             SizedBox(height: 12),
             _LabeledRow(
               label: 'Pagamento',

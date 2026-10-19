@@ -98,6 +98,8 @@ export interface ArenaBookingDoc {
   arenaName: string;
   courtId: string;
   courtName: string;
+  /** Esporte escolhido pelo atleta (código do catálogo) — `null` em reserva antiga. */
+  sport: string | null;
   dateKey: string;
   startTime: string;
   endTime: string;
@@ -247,6 +249,8 @@ export async function createArenaBooking(
     paymentFraction?: number;
     /** Código já validado numa cotação anterior — só é reenviado se ainda estiver aplicado. */
     couponCode?: string;
+    /** Esporte escolhido entre os da quadra (`bookingSportOptions`) — o servidor recusa outro. */
+    sport?: string;
   },
 ): Promise<CreateArenaBookingResult> {
   if (options.paymentMode === 'pix' && options.paymentFraction !== 0.5 && options.paymentFraction !== 1) {
@@ -261,6 +265,7 @@ export async function createArenaBooking(
       clientAmountReais: options.clientAmountReais,
       paymentMode: options.paymentMode,
       ...(options.paymentMode === 'pix' ? { paymentFraction: options.paymentFraction } : {}),
+      ...(options.sport?.trim() ? { sport: options.sport.trim() } : {}),
     });
     const data = result.data;
     if (!data?.bookingId || !Number.isFinite(Number(data.amountReais))) {
@@ -423,6 +428,7 @@ export function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): Arena
     arenaName: typeof data['arenaName'] === 'string' ? data['arenaName'] : 'Arena',
     courtId: typeof data['courtId'] === 'string' ? data['courtId'] : '',
     courtName: typeof data['courtName'] === 'string' ? data['courtName'] : 'Quadra',
+    sport: optionalStr(data['sport']),
     dateKey: bookingDateKeyOf(data),
     startTime: normTime(data['startTime']),
     endTime: normTime(data['endTime']),

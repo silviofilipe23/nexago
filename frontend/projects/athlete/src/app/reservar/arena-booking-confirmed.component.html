@@ -69,6 +69,12 @@
           <span class="bc-row-label">Quadra</span>
           <span class="bc-row-value">{{ b.courtName }}</span>
         </div>
+        @if (sportLabel(); as sport) {
+          <div class="bc-row">
+            <span class="bc-row-label">Esporte</span>
+            <span class="bc-row-value">{{ sport }}</span>
+          </div>
+        }
         <div class="bc-row">
           <span class="bc-row-label">Data</span>
           <span class="bc-row-value">{{ dateLabel() }}</span>

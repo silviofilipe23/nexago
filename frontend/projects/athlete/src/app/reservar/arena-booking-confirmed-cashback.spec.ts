@@ -42,6 +42,7 @@ function booking(overrides: Partial<ArenaBookingDoc> = {}): ArenaBookingDoc {
     arenaName: 'Arena Sol',
     courtId: 'c1',
     courtName: 'Quadra 1',
+    sport: null,
     dateKey: '2026-10-12',
     startTime: '19:00',
     endTime: '20:00',

@@ -102,3 +102,31 @@ status: waiting|removed|enrolled`.
 
 Chamada (`saveArenaClassAttendance` com `close`) e cancelamento (`cancelArenaClassSession`, com
 `generateCredits`) passam a gerar créditos e debitar pacote conforme as regras.
+
+## 2b — Repasse do professor (tela 15)
+
+Pagamento manual, direto da arena ao professor — nada passa pela plataforma.
+
+- **Modelo no cadastro** (`classTeachers.payout {model, percent, amountReais}`, pela
+  `upsertArenaClassTeacher`): `revenue_share` (% da receita, padrão 50%), `per_class` (R$ por aula
+  dada) ou `per_student` (R$ por aluno presente). Sem modelo = "Definir repasse"; o fechamento recusa.
+- **Conta do mês** (só no servidor, `arena-class-payout.ts` — a prévia e o fechamento usam a mesma):
+  aulas = sessões `completed` do professor no mês; presenças = marcas `present` (encaixe incluso);
+  receita = cobranças `paid` com `paidOn` no mês, **sem a taxa de matrícula** (`{matrícula}_fee`, fica
+  com a arena), rateadas em centavos inteiros pelos horários da matrícula e atribuídas ao professor
+  **atual** da turma de cada horário. Aula com chamada aberta não entra (a tela avisa); cancelada não
+  entra. Composição por turma recorrente; avulsas do mesmo tipo numa linha só.
+- **Fechamento** `arenaClassPayouts/{arena}_{professor}_{AAAA-MM}`: retrato com linhas, modelo,
+  `computedReais`, ajuste manual explicado (`adjustmentReais` + `adjustmentNote`) e `amountReais`.
+  Só depois que o mês termina. Recalcular sobrescreve enquanto não está pago; pago recusa.
+- **Pagamento**: `status: closed → paid` com forma (`pix`, `transfer`, `cash`) e data; desfazer volta a
+  `closed`.
+- **Acesso**: ver = quem lê `financeiro` (dono, gestor, cargo financeiro) — rules e callables; mexer
+  (modelo, fechar, pagar) = escreve `agenda` **e** lê `financeiro` (dono e gestor). Recepção e
+  manutenção não veem quanto o professor ganha.
+
+| Callable | O que faz |
+|---|---|
+| `previewArenaClassPayouts` | conta do mês para todos os professores |
+| `closeArenaClassPayout` | fecha/recalcula o mês de um professor (com ajuste) |
+| `setArenaClassPayoutStatus` | registra o pagamento feito por fora / desfaz |

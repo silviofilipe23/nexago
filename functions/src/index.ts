@@ -186,6 +186,12 @@ export {
   addArenaClassWaitlist,
   removeArenaClassWaitlist,
 } from "./arena-class-makeup";
+// Aulas fase 2b — repasse do professor (fechamento mensal e pagamento manual).
+export {
+  previewArenaClassPayouts,
+  closeArenaClassPayout,
+  setArenaClassPayoutStatus,
+} from "./arena-class-payout";
 
 export {
   onArenaCourtCreatedCountUp,

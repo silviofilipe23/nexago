@@ -63,6 +63,11 @@ import {
   studentAttendsWeekday,
 } from "./arena-class-ledger";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {
+  requireClassPayoutManager,
+  validateTeacherPayoutModel,
+  type TeacherPayoutModel,
+} from "./arena-class-payout-model";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -71,11 +76,11 @@ const ARENA_TIMEZONE_OFFSET = "-03:00";
 /** Aula avulsa pode ser marcada até ~6 meses à frente. */
 const MAX_SINGLE_DATE_AHEAD_DAYS = 180;
 
-const WEEKDAY_SHORT_PT: Record<number, string> = {
+export const WEEKDAY_SHORT_PT: Record<number, string> = {
   1: "seg", 2: "ter", 3: "qua", 4: "qui", 5: "sex", 6: "sáb", 7: "dom",
 };
 
-const TYPE_LABEL_PT: Record<ArenaClassType, string> = {
+export const TYPE_LABEL_PT: Record<ArenaClassType, string> = {
   turma: "Turma",
   particular: "Particular",
   dupla: "Dupla",
@@ -1187,6 +1192,8 @@ export interface TeacherInput {
   phone: string | null;
   color: string;
   status: "active" | "archived";
+  /** Modelo de repasse — `undefined` mantém o gravado (só o gestor manda). */
+  payout?: TeacherPayoutModel;
 }
 
 /**
@@ -1237,6 +1244,7 @@ export async function upsertClassTeacherCore(
       phone: input.phone,
       color: input.color,
       status: "active",
+      payout: input.payout ?? null,
       createdByUid: actorUid,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -1264,6 +1272,7 @@ export async function upsertClassTeacherCore(
     status: input.status,
     updatedAt: FieldValue.serverTimestamp(),
   };
+  if (input.payout !== undefined) update["payout"] = input.payout;
   if (userId) {
     if (!linked) await assertNotTeacherYet(userId, ref.id);
     // Nome e foto acompanham o perfil.
@@ -1287,8 +1296,12 @@ export const upsertArenaClassTeacher = onCall({region: CLIENT_FACING_REGIONS}, a
     throw new HttpsError("invalid-argument", "Status inválido.");
   }
 
+  // Repasse é dinheiro: a recepção cadastra o professor, mas o modelo é do gestor.
+  const payout = input["payout"] == null ? undefined : validateTeacherPayoutModel(input["payout"]);
+
   const db = getFirestore();
   const arenaData = await requireClassManager(db, arenaId, uid);
+  if (payout !== undefined) await requireClassPayoutManager(db, arenaId, uid);
   if (teacherId == null) requireClassEntitlement(arenaData);
   return upsertClassTeacherCore(db, arenaId, {
     teacherId,
@@ -1297,6 +1310,7 @@ export const upsertArenaClassTeacher = onCall({region: CLIENT_FACING_REGIONS}, a
     phone: str(input["phone"]).slice(0, 30) || null,
     color,
     status,
+    payout,
   }, uid);
 });
 

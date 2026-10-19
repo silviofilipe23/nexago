@@ -24,6 +24,7 @@ import {
   type ClassStudent,
   type ClassTeacher,
   type ClassType,
+  type TeacherPayoutModel,
 } from './class.model';
 
 /** Leitura direta do Firestore — toda query filtra `arenaId`, porque a rule de leitura
@@ -183,6 +184,8 @@ export interface TeacherInput {
   phone?: string | null;
   color: string;
   status?: 'active' | 'archived';
+  /** Só o gestor manda (o servidor recusa o resto); ausente mantém o gravado. */
+  payout?: TeacherPayoutModel;
 }
 
 export function upsertTeacher(functions: Functions, input: TeacherInput): Promise<{ teacherId: string }> {

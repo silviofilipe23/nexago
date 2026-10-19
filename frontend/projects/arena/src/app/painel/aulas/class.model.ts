@@ -12,6 +12,15 @@ export type ClassSessionStatus = 'scheduled' | 'canceled' | 'completed';
 export type AttendanceMark = 'present' | 'absent' | 'excused';
 export type CancelReason = 'rain' | 'teacher_absent' | 'maintenance' | 'holiday' | 'other';
 
+/** Repasse do professor (fase 2b, `functions/src/arena-class-payout-model.ts`). */
+export type PayoutModelKind = 'revenue_share' | 'per_class' | 'per_student';
+
+export interface TeacherPayoutModel {
+  model: PayoutModelKind;
+  percent: number | null;
+  amountReais: number | null;
+}
+
 export interface ClassTeacher {
   id: string;
   /** Conta NexaGO do professor — obrigatória no cadastro novo; null em professor antigo. */
@@ -22,6 +31,8 @@ export interface ClassTeacher {
   phone: string | null;
   color: string;
   status: 'active' | 'archived';
+  /** Modelo de repasse (fase 2b) — null = ainda não definido pelo gestor. */
+  payout: TeacherPayoutModel | null;
 }
 
 export interface ArenaClass {
@@ -174,6 +185,18 @@ function oneOf<T extends string>(v: unknown, allowed: readonly T[], fallback: T)
 
 const TYPES: readonly ClassType[] = ['turma', 'particular', 'dupla', 'experimental'];
 
+export function payoutModelFromRaw(raw: unknown): TeacherPayoutModel | null {
+  if (raw == null || typeof raw !== 'object') return null;
+  const d = raw as Record<string, unknown>;
+  const percent = typeof d['percent'] === 'number' ? d['percent'] : 0;
+  const amount = typeof d['amountReais'] === 'number' ? d['amountReais'] : 0;
+  if (d['model'] === 'revenue_share' && percent > 0) return { model: 'revenue_share', percent, amountReais: null };
+  if ((d['model'] === 'per_class' || d['model'] === 'per_student') && amount > 0) {
+    return { model: d['model'], percent: null, amountReais: amount };
+  }
+  return null;
+}
+
 export function classTeacherFromDoc(doc: QueryDocumentSnapshot | DocumentSnapshot): ClassTeacher {
   const d = (doc.data() ?? {}) as Record<string, unknown>;
   return {
@@ -185,6 +208,7 @@ export function classTeacherFromDoc(doc: QueryDocumentSnapshot | DocumentSnapsho
     phone: optStr(d['phone']),
     color: str(d['color'], TEACHER_COLORS[0]!),
     status: d['status'] === 'archived' ? 'archived' : 'active',
+    payout: payoutModelFromRaw(d['payout']),
   };
 }
 

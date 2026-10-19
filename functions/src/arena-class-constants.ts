@@ -76,3 +76,14 @@ export const DEFAULT_CLASS_RULES: ClassRules = {
 export function makeupCreditId(sessionId: string, studentId: string): string {
   return `${sessionId}_${studentId}`;
 }
+
+// ---------------------------------------------------------------------------
+// Fase 2b — repasse do professor (pagamento manual, fora da plataforma)
+// ---------------------------------------------------------------------------
+
+/** Fechamento mensal por professor — id `{arenaId}_{teacherId}_{AAAA-MM}` (idempotente). */
+export const ARENA_CLASS_PAYOUTS = "arenaClassPayouts";
+
+export function classPayoutId(arenaId: string, teacherId: string, month: string): string {
+  return `${arenaId}_${teacherId}_${month}`;
+}

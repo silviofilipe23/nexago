@@ -28,7 +28,16 @@ A8–A12 Matrícula no app, lista de espera, créditos de reposição, matrícul
   ocupadas antes de salvar; a data em conflito não ganha aula e fica em `conflictDates`; o
   gestor libera a quadra e usa `scheduleArenaClassDate` para agendar de novo.
 - **Liberar quadra só apaga lock cujo `bookingId` é o da aula** (o clubinho apaga sem checar —
-  corrida com reserva de atleta).
+  corrida com reserva de atleta), e sessão + booking + slot + locks saem **numa transação**
+  (`releaseClassSession`): não sobra aula sem bloqueio nem bloqueio sem aula. Cancelar de novo uma
+  aula já cancelada só termina de liberar.
+- **Sessão é a fonte da verdade**: sem ela, o booking `class_…` é sobra (liberação interrompida,
+  `merge` tardio do lembrete de 15 min) e a materialização sobrescreve.
+- **Equipe não cancela o bloqueio pela tela Reservas**: a rule `arenaBookingStaffUpdateOk` recusa
+  mudar `status` de booking com `isClassSession` — senão a quadra ficaria livre com a aula de pé.
+- **Remarcar só solta o que muda**: mesma quadra e horário (ex.: estender a data de fim) mantém as
+  aulas existentes; mudar quadra/horário solta e recria as futuras sem chamada.
+- **Fila do agendador**: avulsa e turma com fim já gerado ficam com `materializedUntil = 9999-12-31`.
 - **Cancelar uma aula** deixa o booking `cancelled` (dispara aviso de vaga a quem espera
   horário) e a sessão `canceled` — a série não recria a data (feriado/chuva).
   **Remarcar/pausar/encerrar** apaga a aula e o booking (o trigger de slots trataria um

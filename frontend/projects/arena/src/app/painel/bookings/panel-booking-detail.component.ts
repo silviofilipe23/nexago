@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
@@ -37,7 +37,7 @@ const UNDO_WINDOW_SECONDS = 60;
 @Component({
   selector: 'ar-panel-booking-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, IconComponent, ModalComponent],
+  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, IconComponent, ModalComponent, RouterLink],
   template: `
     <ar-panel-shell>
       <ar-page-header [title]="headerTitle()" [subtitle]="headerSubtitle()">
@@ -70,6 +70,9 @@ const UNDO_WINDOW_SECONDS = 60;
               @if (booking()!.isRecurring) {
                 <div class="row"><span class="label">Tipo</span><span class="value">Horário fixo (mensalista)</span></div>
               }
+              @if (booking()!.classSessionId; as classSessionId) {
+                <div class="row"><span class="label">Tipo</span><span class="value">Aula (bloqueio da quadra)</span></div>
+              }
             </ar-panel-card>
 
             <ar-panel-card title="Horário">
@@ -100,6 +103,9 @@ const UNDO_WINDOW_SECONDS = 60;
                     <ar-icon name="check" [size]="14" />
                     {{ checkingIn() ? 'Registrando…' : 'Fazer check-in' }}
                   </button>
+                }
+                @if (booking()!.classSessionId; as classSessionId) {
+                  <a class="ar-mini-btn" [routerLink]="['/painel/aulas/aula', classSessionId]">Abrir aula</a>
                 }
                 @if (canCancel()) {
                   <button type="button" class="ar-ghost-btn danger-link" [disabled]="readOnly()" (click)="showCancelConfirm.set(true)">

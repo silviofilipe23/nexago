@@ -1705,7 +1705,10 @@ service cloud.firestore {
         // `pending_payment` em `active`.
         (!keys.hasAny(['statusBeforeCancel']) ||
           after.get('statusBeforeCancel', null) == before.get('status', 'active') ||
-          (!('statusBeforeCancel' in after) && keys.hasAny(['status'])));
+          (!('statusBeforeCancel' in after) && keys.hasAny(['status']))) &&
+        // Bloqueio de aula (módulo Aulas) só sai pela callable da aula: cancelar o
+        // booking direto liberaria a quadra com a aula ainda de pé na chamada.
+        (!keys.hasAny(['status']) || before.get('isClassSession', false) != true);
     }
     match /arenaBookings/{bookingId} {
       // Leitura autenticada ampla: o preview do convite compartilhado

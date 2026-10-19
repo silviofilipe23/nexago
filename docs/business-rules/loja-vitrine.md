@@ -94,8 +94,22 @@ rules: leitura só admin, escrita só pela callable `saveStoreCampaigns` (`funct
 - Nova campanha (ou cópia) entra em 1º; cópia nasce pausada.
 - **Foto**: Storage `store/campaigns/{uuid}.{ext}`, leitura pública, escrita admin, JPG/PNG/WebP
   < 10 MB. Arquivo antigo não é apagado ao trocar (pode ainda estar no espelho até o gatilho rodar).
+- **Tamanho da foto**: recomendado **1600×800 px (2:1)**, mínimo 1200×600. A vitrine corta pelo
+  centro (`object-fit: cover`): no app o card tem 196px de altura × largura da tela − 40 (1,7–2:1,
+  medido de 375 a 430px); no portal a coluna da foto vai de ~1:1 (1024px) a 1,8:1 (1440px) e
+  2,6:1 (1920px), e some abaixo de 900px. 2:1 cabe quase inteira no app e é o meio do portal — por
+  isso não 8:3. O backoffice lê os pixels antes de subir: abaixo do mínimo recusa; proporção a mais
+  de 15% de 2:1 sobe com aviso do recorte. O campo da foto é uma moldura 2:1 (o recorte que a vitrine
+  faz). **Só o backoffice confere pixels**: a rule do Storage só vê bytes e tipo, e a callable recebe
+  só a URL (`campanhas/data/campaign-image.ts`).
 - **Prévia**: web (bloco de 2 colunas do portal) e app (card de 196px, título em até 2 linhas, sem
   subtítulo nem secundário).
+- **Troca no portal** (`loja-banner.component`): os banners ficam empilhados na mesma célula (o bloco
+  tem a altura do maior; botões e indicadores alinhados pela base não pulam). Troca = crossfade: o
+  texto que sai esmaece em 240 ms, o que entra vem 60 ms depois subindo 12px (420 ms) e a foto
+  assenta de um zoom de 4%, tudo em `--nx-ease-out`. `prefers-reduced-motion` = troca seca. Os que
+  não estão no ar ficam `inert`; o seletor segue o padrão ARIA de tabs (setas, Home, End). A
+  rotação de 6 s reinicia a cada troca, manual ou automática.
 - `scripts/seed-store-campaigns.js` continua para ambiente vazio/QA; ele sobrescreve o doc sem
   `version` (vira 0): uma tela aberta que já tinha salvo recebe "Recarregar" no próximo save.
 

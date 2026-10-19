@@ -6,6 +6,15 @@ import { ToggleComponent } from '../../../ui/toggle.component';
 import { PRODUCT_CATEGORY_LABELS, PRODUCT_COLLECTIONS } from '../../produtos/data/products.repository';
 import { CTA_LABEL_MAX, KICKER_MAX, SUBTITLE_MAX, TITLE_MAX, type CampaignBanner } from '../data/campaign';
 import {
+  BANNER_IMAGE_HEIGHT,
+  BANNER_IMAGE_SPEC,
+  BANNER_IMAGE_WIDTH,
+  imageFileError,
+  imageSizeCheck,
+  readImageSize,
+  type ImageSize,
+} from '../data/campaign-image';
+import {
   emptyCampaignForm,
   formFromBanner,
   previewBanner,
@@ -20,17 +29,6 @@ export type CampaignPanelMode =
   | { kind: 'new' }
   | { kind: 'edit'; banner: CampaignBanner }
   | { kind: 'duplicate'; banner: CampaignBanner };
-
-const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-const IMAGE_MAX_BYTES = 10 * 1024 * 1024;
-
-/** O que a foto tem de errado para subir, ou `null`. Mesmo limite da rule do Storage. */
-export function imageFileError(file: File): string | null {
-  if (!IMAGE_TYPES.includes(file.type)) {
-    return 'Use JPG, PNG ou WebP.';
-  }
-  return file.size >= IMAGE_MAX_BYTES ? 'A foto passa de 10 MB.' : null;
-}
 
 /**
  * Painel lateral "Nova campanha" / edição. Recriado a cada abertura: o form nasce do `mode`.
@@ -57,11 +55,14 @@ export function imageFileError(file: File): string | null {
             (drop)="onDrop($event)"
           >
             @if (form().imageUrl; as img) {
-              <img [src]="img" alt="Foto da campanha" />
+              <img [src]="img" alt="Foto da campanha" (load)="onImageLoad($event)" />
             }
             @if (uploadProgress() !== null) {
               <div class="bar" aria-label="Enviando foto"><span [style.width.%]="uploadProgress()"></span></div>
             } @else {
+              @if (!form().imageUrl) {
+                <span class="photo-size" aria-hidden="true">{{ imageWidth }} × {{ imageHeight }} px</span>
+              }
               <div class="photo-actions">
                 <label class="bo-mini-btn">
                   <bo-icon name="camera" [size]="13" />
@@ -69,14 +70,21 @@ export function imageFileError(file: File): string | null {
                   <input type="file" hidden accept="image/jpeg,image/png,image/webp" [disabled]="saving()" (change)="onPick($event)" />
                 </label>
                 @if (form().imageUrl) {
-                  <button type="button" class="bo-mini-btn" [disabled]="saving()" (click)="patch({ imageUrl: null })">Remover</button>
+                  <button type="button" class="bo-mini-btn" [disabled]="saving()" (click)="removeImage()">Remover</button>
                 }
               </div>
             }
           </div>
-          <span class="hint" [class.err]="uploadError()">
-            {{ uploadError() || 'JPG, PNG ou WebP · até 10 MB · horizontal, assunto no centro (o app corta as bordas). Sem foto, a vitrine usa o fundo da marca.' }}
-          </span>
+          <span class="hint spec">{{ imageSpec }}</span>
+          @if (uploadError(); as err) {
+            <span class="hint err" role="alert">{{ err }}</span>
+          } @else if (imageWarning(); as warn) {
+            <span class="hint warn">{{ warn }}</span>
+          } @else if (form().imageUrl && imageSize(); as size) {
+            <span class="hint">Foto atual: {{ size.width }}×{{ size.height }} px.</span>
+          } @else {
+            <span class="hint">A moldura acima é 2:1, como a vitrine. Assunto no centro: as bordas podem ser cortadas. Sem foto, a vitrine usa o fundo da marca.</span>
+          }
         </div>
 
         <bo-field label="Chamada" [hint]="errors().kicker ?? 'Opcional · linha laranja acima do título'">
@@ -245,7 +253,9 @@ export function imageFileError(file: File): string | null {
     .group-title .dim { font-size: 10.5px; }
 
     .photo-field { display: flex; flex-direction: column; gap: 8px; }
-    .photo { position: relative; height: 150px; border: 1px dashed var(--nx-line-strong); border-radius: var(--nx-r-3); overflow: hidden; display: grid; place-items: center; background-color: #16120f; background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0 9px, transparent 9px 18px); }
+    /* Na proporção da foto (2:1): o que aparece aqui é o recorte que a vitrine faz. */
+    .photo { position: relative; aspect-ratio: 2 / 1; border: 1px dashed var(--nx-line-strong); border-radius: var(--nx-r-3); overflow: hidden; display: grid; place-items: center; align-content: center; gap: 10px; background-color: #16120f; background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0 9px, transparent 9px 18px); }
+    .photo-size { font-family: var(--nx-font-mono); font-size: 11px; letter-spacing: 0.08em; color: var(--nx-text-dim); }
     .photo.has-image { border-style: solid; border-color: var(--nx-line); }
     .photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     .photo-actions { position: relative; display: flex; gap: 8px; }
@@ -254,7 +264,9 @@ export function imageFileError(file: File): string | null {
     .bar { position: absolute; left: 16px; right: 16px; bottom: 16px; height: 4px; border-radius: var(--nx-r-pill); background: rgba(255, 255, 255, 0.15); overflow: hidden; }
     .bar span { display: block; height: 100%; background: var(--nx-orange-500); transition: width 120ms linear; }
     .hint { font-size: 11px; line-height: 1.35; color: var(--nx-text-dim); }
+    .hint.spec { color: var(--nx-text-mute); }
     .hint.err { color: var(--nx-live); }
+    .hint.warn { color: var(--nx-orange-500); }
 
     .counted { position: relative; display: block; }
     .counted .bo-input { padding-right: 58px; }
@@ -298,6 +310,20 @@ export class CampaignPanelComponent implements OnInit {
   protected readonly errors = signal<CampaignFormErrors>({});
   protected readonly uploadProgress = signal<number | null>(null);
   protected readonly uploadError = signal('');
+  /** Pixels da foto do form: do arquivo recém-enviado ou, na foto que já existia, do `<img>` carregado. */
+  protected readonly imageSize = signal<ImageSize | null>(null);
+  /** Foto já no form fora do tamanho: só aviso, não barra salvar (pode ser de antes da regra). */
+  protected readonly imageWarning = computed(() => {
+    const size = this.imageSize();
+    if (!size || !this.form().imageUrl) {
+      return null;
+    }
+    const check = imageSizeCheck(size);
+    return check.error ?? check.warning;
+  });
+  protected readonly imageSpec = BANNER_IMAGE_SPEC;
+  protected readonly imageWidth = BANNER_IMAGE_WIDTH;
+  protected readonly imageHeight = BANNER_IMAGE_HEIGHT;
 
   protected readonly title = computed(() => {
     const m = this.mode();
@@ -341,6 +367,17 @@ export class CampaignPanelComponent implements OnInit {
     }
   }
 
+  protected onImageLoad(event: Event): void {
+    const img = event.target as HTMLImageElement;
+    this.imageSize.set({ width: img.naturalWidth, height: img.naturalHeight });
+  }
+
+  protected removeImage(): void {
+    this.imageSize.set(null);
+    this.patch({ imageUrl: null });
+  }
+
+  /** Confere tipo, bytes e pixels antes de subir: foto pequena demais nem chega ao Storage. */
   private async upload(file: File): Promise<void> {
     if (this.uploadProgress() !== null) {
       return;
@@ -350,9 +387,21 @@ export class CampaignPanelComponent implements OnInit {
     if (problem) {
       return;
     }
+    // Já "enviando" durante a leitura dos pixels: outra foto escolhida no meio não sobe junto.
     this.uploadProgress.set(0);
     try {
+      const size = await readImageSize(file).catch(() => null);
+      if (!size) {
+        this.uploadError.set('Não foi possível ler a foto. Tente outro arquivo.');
+        return;
+      }
+      const tooSmall = imageSizeCheck(size).error;
+      if (tooSmall) {
+        this.uploadError.set(tooSmall);
+        return;
+      }
       const url = await this.repository.uploadImage(file, (p) => this.uploadProgress.set(p));
+      this.imageSize.set(size);
       this.patch({ imageUrl: url });
     } catch (error) {
       this.uploadError.set(`Não foi possível enviar a foto. ${callableErrorMessage(error)}`);

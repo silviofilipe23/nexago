@@ -12,7 +12,9 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {Timestamp, getFirestore, type Firestore} from "firebase-admin/firestore";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
-import {followerDiscountFor} from "./squad-commission-lifecycle";
+import {followerDiscountFor, followerPctOf, payerUsedDiscount} from "./squad-commission-lifecycle";
+import {resolveArenaBookingFeePercent} from "./arena-entitlement";
+import {CLUB_FEE_PERCENT, FEE_FLOOR_REAIS} from "./platform-fees";
 import {feePercentForRegistration} from "./squad-fee-cap";
 import {SQUAD_AMBASSADORS} from "./squad-commissions";
 import {loadAttributionRules, type SquadTier} from "./squad-rules";
@@ -171,11 +173,16 @@ export interface SquadCodeCheck {
   /** % do desconto do seguidor que vale para este atleta nesta inscrição (0 = sem desconto). */
   discountPct: number;
   /**
-   * % da taxa da plataforma neste torneio: o desconto nunca passa dela (a nexaGO banca o desconto
-   * com a própria taxa). `null` = torneio sem organizador, sem esse teto.
+   * % da taxa da plataforma nesta cobrança (torneio, reserva da arena ou clubinho): o desconto nunca
+   * passa dela (a nexaGO banca o desconto com a própria taxa). `null` = sem esse teto.
    */
   feePercent: number | null;
+  /** Piso da taxa em reais (R$ 1,50; o clubinho não tem piso). */
+  feeFloorReais: number;
 }
+
+/** Que cobrança o checkout vai gerar: inscrição (padrão), reserva de quadra ou clubinho. */
+export type SquadCheckPurpose = "registration" | "booking" | "club";
 
 /**
  * Confere o código no checkout antes de pagar ("indicação de João · 10% de desconto"). Sem código,
@@ -183,7 +190,15 @@ export interface SquadCodeCheck {
  */
 export async function checkSquadCodeCore(
   db: Firestore,
-  input: {payerUid: string; athleteUids: string[]; code: string; registrationId: string; feePercent?: number | null},
+  input: {
+    payerUid: string;
+    athleteUids: string[];
+    code: string;
+    registrationId: string;
+    feePercent?: number | null;
+    purpose?: SquadCheckPurpose;
+    feeFloorReais?: number;
+  },
   now: Date,
 ): Promise<SquadCodeCheck> {
   const resolved = await resolveRegistrationAttribution(
@@ -192,37 +207,79 @@ export async function checkSquadCodeCore(
     now,
   );
   const feePercent = input.feePercent ?? null;
-  if (!resolved) return {ambassadorName: null, code: null, origin: null, discountPct: 0, feePercent};
-  // Preço de referência só para saber se o desconto vale (primeira inscrição); o checkout aplica o %.
-  const discount = await followerDiscountFor(db, {
-    attribution: resolved,
-    payerUid: input.payerUid,
-    registrationId: input.registrationId,
-    priceCents: 1_000_00,
-  });
+  const feeFloorReais = input.feeFloorReais ?? FEE_FLOOR_REAIS;
+  if (!resolved) {
+    return {ambassadorName: null, code: null, origin: null, discountPct: 0, feePercent, feeFloorReais};
+  }
+  const purpose = input.purpose ?? "registration";
+  let discountPct: number;
+  if (purpose === "registration") {
+    // Preço de referência só para saber se o desconto vale (primeira inscrição); o checkout aplica o %.
+    const discount = await followerDiscountFor(db, {
+      attribution: resolved,
+      payerUid: input.payerUid,
+      registrationId: input.registrationId,
+      priceCents: 1_000_00,
+    });
+    discountPct = discount.pct;
+  } else {
+    // Reserva e clubinho: "só na primeira" vale por tipo de compra (primeira reserva, primeiro clubinho).
+    const rules = await loadAttributionRules(db);
+    const used = rules.followerDiscountFirstOnly && await payerUsedDiscount(db, input.payerUid, purpose);
+    discountPct = used ? 0 : await followerPctOf(db, resolved.ambassador);
+  }
   return {
     ambassadorName: resolved.ambassador.displayName,
     code: resolved.ambassador.code,
     origin: resolved.origin,
-    discountPct: discount.pct,
+    discountPct,
     feePercent,
+    feeFloorReais,
   };
+}
+
+/** Taxa da cobrança que o checkout vai gerar, para a prévia do teto do desconto. */
+async function feeOfPurpose(
+  db: Firestore,
+  purpose: SquadCheckPurpose,
+  ids: {registrationId: string; arenaId: string},
+  now: Date,
+): Promise<{feePercent: number | null; feeFloorReais: number}> {
+  if (purpose === "club") return {feePercent: CLUB_FEE_PERCENT, feeFloorReais: 0};
+  if (purpose === "booking") {
+    const arena = ids.arenaId ? (await db.collection("arenas").doc(ids.arenaId).get()).data() : undefined;
+    return {feePercent: arena ? resolveArenaBookingFeePercent(arena, now.getTime()) : null, feeFloorReais: FEE_FLOOR_REAIS};
+  }
+  return {feePercent: await feePercentForRegistration(db, ids.registrationId), feeFloorReais: FEE_FLOOR_REAIS};
 }
 
 export const checkSquadCode = onCall(CLIENT_CALLABLE, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
-  const data = (request.data ?? {}) as {code?: unknown; athleteUids?: unknown; registrationId?: unknown};
+  const data = (request.data ?? {}) as {
+    code?: unknown;
+    athleteUids?: unknown;
+    registrationId?: unknown;
+    purpose?: unknown;
+    arenaId?: unknown;
+  };
   const athleteUids = Array.isArray(data.athleteUids) ?
     data.athleteUids.filter((u): u is string => typeof u === "string").slice(0, 10) :
     [];
   const db = getFirestore();
+  const now = new Date();
   const registrationId = typeof data.registrationId === "string" ? data.registrationId : "";
+  const purpose: SquadCheckPurpose = data.purpose === "booking" || data.purpose === "club" ? data.purpose : "registration";
+  const fee = await feeOfPurpose(db, purpose, {
+    registrationId,
+    arenaId: typeof data.arenaId === "string" ? data.arenaId : "",
+  }, now);
   return checkSquadCodeCore(db, {
     payerUid: uid,
     athleteUids,
     code: typeof data.code === "string" ? data.code : "",
     registrationId,
-    feePercent: await feePercentForRegistration(db, registrationId),
-  }, new Date());
+    purpose,
+    ...fee,
+  }, now);
 });

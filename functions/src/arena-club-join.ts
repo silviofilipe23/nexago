@@ -48,6 +48,12 @@ import {
 } from "./cashback-checkout";
 import {clubCashbackLabel} from "./cashback-intent";
 import {attachHoldPayment} from "./athlete-wallet";
+import {CLUB_FEE_PERCENT} from "./platform-fees";
+import {
+  recordArenaSquadDiscountQuietly,
+  resolveArenaSquadDiscount,
+  squadDiscountMirror,
+} from "./squad-arena-discount";
 
 /** Estados a partir dos quais o atleta pode tentar entrar de novo. */
 const REJOINABLE_STATUSES = new Set(["expired", "canceled"]);
@@ -129,6 +135,8 @@ interface JoinInput {
   /** 'pix' (default, antecipado) ou 'onsite' (paga na arena, se o clubinho aceitar). */
   paymentMethod?: string;
   useCashback?: boolean;
+  /** Código de embaixador do NexaSquad (só no PIX: na arena o dinheiro nem passa pela nexaGO). */
+  squadCode?: string;
 }
 
 export const joinArenaClubSession = onCall({
@@ -381,6 +389,19 @@ export const joinArenaClubSession = onCall({
   };
 
   try {
+    // Embaixador do NexaSquad: código errado ou autoindicação para aqui (a vaga segurada volta no
+    // rollback). O desconto sai da taxa da nexaGO — 5% sem piso no clubinho —, então a arena
+    // recebe o mesmo líquido.
+    const squad = await resolveArenaSquadDiscount(db, {
+      kind: "club",
+      payerUid: uid,
+      typedCode: input.squadCode,
+      priceReais: session.priceReais,
+      feePercent: CLUB_FEE_PERCENT,
+      feeFloorReais: 0,
+    }, new Date());
+    const squadCents = squad?.cents ?? 0;
+
     // Entrada refeita: a cobrança anterior é apagada e o saldo que ela
     // reservou volta — só com prova de que morreu. Paga e ainda sem webhook,
     // a reserva fica para o webhook capturar; a nova reserva só o que sobrou.
@@ -416,10 +437,11 @@ export const joinArenaClubSession = onCall({
     const description =
       `Clubinho ${session.clubName} — ${session.arenaName} (${session.date} ${session.startTime})`;
 
+    // O desconto do seguidor sai antes do cashback: o saldo cobre o que sobra.
     cashback = await reserveCashbackForCharge(db, {
       uid,
       useCashback: input.useCashback,
-      priceReais: session.priceReais,
+      priceReais: roundMoney(session.priceReais - squadCents / 100),
       sourceType: "club",
       sourceId: sessionId,
       trackingPath: participantRef.path,
@@ -445,8 +467,21 @@ export const joinArenaClubSession = onCall({
       pixCopyPaste: charge.qrCode,
       cashbackAppliedCents: cashback.appliedCents,
       cashbackHoldId: cashback.holdId,
+      // Espelho do desconto: o participante só é gravado pelo servidor; o webhook o usa se o
+      // registro por paymentId faltar.
+      ...squadDiscountMirror(squadCents, charge.paymentId),
+      squadDiscountReais: squadCents / 100,
       updatedAt: FieldValue.serverTimestamp(),
     }, {merge: true});
+
+    await recordArenaSquadDiscountQuietly(db, {
+      kind: "club",
+      sourceId: sessionId,
+      paymentId: charge.paymentId,
+      payerUid: uid,
+      discount: squad,
+      mirrorRef: null,
+    }, new Date());
 
     return {
       sessionId,
@@ -457,6 +492,7 @@ export const joinArenaClubSession = onCall({
       expiresAt: paymentExpiresAt.toDate().toISOString(),
       amountReais: roundMoney(session.priceReais),
       ...cashbackResponseFields(cashback),
+      ...(squadCents > 0 ? {squadDiscountReais: squadCents / 100} : {}),
     };
   } catch (e) {
     await rollbackHold();

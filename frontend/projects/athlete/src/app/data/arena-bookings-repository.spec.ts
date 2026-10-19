@@ -64,6 +64,11 @@ describe('bookingPixPaymentPayload', () => {
     });
     expect('useCashback' in bookingPixPaymentPayload({ bookingId: 'b1', useCashback: false })).toBeFalse();
   });
+
+  it('manda o código de embaixador só quando há um (sem espaços)', () => {
+    expect(bookingPixPaymentPayload({ bookingId: 'b1', squadCode: ' JOAO10 ' })).toEqual({ bookingId: 'b1', squadCode: 'JOAO10' });
+    expect('squadCode' in bookingPixPaymentPayload({ bookingId: 'b1', squadCode: '' })).toBeFalse();
+  });
 });
 
 describe('bookingPixPaymentFromResponse', () => {
@@ -82,10 +87,15 @@ describe('bookingPixPaymentFromResponse', () => {
     expect(pix.chargedReais).toBe(107.6);
   });
 
+  it('lê o desconto do embaixador que o servidor aplicou', () => {
+    expect(bookingPixPaymentFromResponse({ ...base, squadDiscountReais: 9.6, chargedReais: 110.4 }).squadDiscountReais).toBe(9.6);
+  });
+
   it('backend antigo, sem os campos: o QR vale o preço', () => {
     const pix = bookingPixPaymentFromResponse(base);
     expect(pix.cashbackAppliedReais).toBe(0);
     expect(pix.chargedReais).toBe(120);
+    expect(pix.squadDiscountReais).toBe(0);
   });
 
   it('resposta sem QR é recusada como antes', () => {

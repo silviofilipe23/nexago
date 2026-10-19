@@ -720,8 +720,19 @@ export interface SquadCodeCheck {
   origin: 'code' | 'link' | 'qr' | null;
   /** % de desconto que vale para este atleta nesta inscrição (0 = sem desconto). */
   discountPct: number;
-  /** % da taxa da plataforma no torneio: teto do desconto. `null` = sem organizador (sem teto). */
+  /** % da taxa da plataforma na cobrança: teto do desconto. `null` = sem teto (torneio sem organizador). */
   feePercent: number | null;
+  /** Piso da taxa em reais (R$ 1,50; o clubinho não tem piso). */
+  feeFloorReais: number;
+}
+
+/** Que cobrança vai sair do checkout: a taxa (o teto do desconto) e o "só na primeira" mudam com ela. */
+export type SquadCheckPurpose = 'registration' | 'booking' | 'club';
+
+export interface SquadCheckContext {
+  purpose?: SquadCheckPurpose;
+  /** Reserva: a arena define a taxa (plano). */
+  arenaId?: string | null;
 }
 
 export async function checkSquadCode(
@@ -729,12 +740,16 @@ export async function checkSquadCode(
   code: string,
   athleteUids: string[],
   registrationId: string,
+  context: SquadCheckContext = {},
 ): Promise<SquadCodeCheck> {
   try {
+    const purpose = context.purpose ?? 'registration';
     const result = await httpsCallable<Record<string, unknown>, Partial<SquadCodeCheck>>(functions, 'checkSquadCode')({
       code,
       athleteUids,
       registrationId,
+      ...(purpose !== 'registration' ? { purpose } : {}),
+      ...(context.arenaId ? { arenaId: context.arenaId } : {}),
     });
     const d = result.data ?? {};
     return {
@@ -743,6 +758,8 @@ export async function checkSquadCode(
       origin: d.origin ?? null,
       discountPct: typeof d.discountPct === 'number' ? d.discountPct : 0,
       feePercent: typeof d.feePercent === 'number' ? d.feePercent : null,
+      // Backend antigo não manda o piso: o da plataforma (no clubinho ele não existe).
+      feeFloorReais: typeof d.feeFloorReais === 'number' ? d.feeFloorReais : purpose === 'club' ? 0 : 1.5,
     };
   } catch (err) {
     throw mapCallableError(err);

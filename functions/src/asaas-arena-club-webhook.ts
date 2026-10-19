@@ -22,6 +22,7 @@ import {
   parseClubSessionPaymentRef,
 } from "./arena-club-constants";
 import {creditArenaWalletFromClubPayment} from "./arena-wallet";
+import {arenaSquadDiscountCents, markArenaSquadDiscountConfirmedQuietly} from "./squad-arena-discount";
 import {CLUB_FEE_PERCENT, computePlatformFeeReais} from "./platform-fees";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import {deliverNotificationToUser} from "./notification-delivery";
@@ -126,15 +127,21 @@ export async function processArenaClubSessionAsaasNotification(
     // Saldo de cashback usado na vaga: para a arena vale como dinheiro recebido
     // (a nexaGO cobre). O Asaas só recebeu `cashPaid`. Resolve pelo id do
     // pagamento — o participante pode ter sido reescrito por uma entrada nova.
+    const participantNow = (await participantRef.get()).data();
     const {appliedCents, holdId} = await resolveCashbackForPayment(
-      db, athleteUid, paymentId, (await participantRef.get()).data(),
+      db, athleteUid, paymentId, participantNow,
+    );
+    // Desconto do código de embaixador (NexaSquad): também sai da taxa da nexaGO, então entra no
+    // bruto como o cashback — a arena recebe o mesmo líquido.
+    const squadDiscountCents = await arenaSquadDiscountCents(
+      db, paymentId, participantNow, `clubinho ${sessionId}/${athleteUid}`,
     );
     const cashPaid = roundMoney(Number(payment.value) || 0);
     if (cashPaid <= 0) {
       logger.warn(`Asaas clubinho ${sessionId}/${athleteUid}: valor inválido`);
       return;
     }
-    const paidReais = roundMoney(cashPaid + appliedCents / 100);
+    const paidReais = roundMoney(cashPaid + appliedCents / 100 + squadDiscountCents / 100);
     const platformFeeReais = computePlatformFeeReais(
       paidReais,
       CLUB_FEE_PERCENT,
@@ -184,6 +191,7 @@ export async function processArenaClubSessionAsaasNotification(
         amountReais: paidReais,
         platformFeeReais,
         netReais,
+        squadDiscountReais: squadDiscountCents / 100,
         asaasPaymentId: paymentId,
         confirmedAt: FieldValue.serverTimestamp(),
         paymentExpiresAt: null,
@@ -199,6 +207,7 @@ export async function processArenaClubSessionAsaasNotification(
     });
 
     if (outcome === "approved") {
+      await markArenaSquadDiscountConfirmedQuietly(db, paymentId, squadDiscountCents, new Date());
       const sessionData = (await sessionRef.get()).data() ?? {};
       const arenaId = String(sessionData["arenaId"] ?? "");
       if (arenaId) {
@@ -209,6 +218,7 @@ export async function processArenaClubSessionAsaasNotification(
             grossReais: paidReais,
             platformFeeReais,
             cashbackAppliedReais: appliedCents / 100,
+            squadDiscountReais: squadDiscountCents / 100,
           });
         } catch (walletErr) {
           logger.error(`Asaas clubinho ${sessionId}: wallet credit failed`, walletErr);
@@ -258,7 +268,8 @@ export async function processArenaClubSessionAsaasNotification(
         eventAtMs: toMillisOrNull(sessionData["startAt"]) ?? Date.now(),
         cashReais: cashPaid,
         appliedCents,
-        feeReais: platformFeeReais,
+        // O teto do cashback ganho é a taxa que sobrou depois do desconto do seguidor.
+        feeReais: Math.max(0, roundMoney(platformFeeReais - squadDiscountCents / 100)),
         holdId,
         config: cashbackConfig,
       });

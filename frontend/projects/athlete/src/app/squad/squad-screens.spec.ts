@@ -129,7 +129,7 @@ describe('Squad · Painel do embaixador', () => {
     expect(stats).toEqual(['R$ 324', 'R$ 132', '1']);
     expect(text(host.querySelector('.sqc-code'))).toBe('JOAO10');
     expect(text(host.querySelector('.sqc-link'))).toBe('atleta.nexago.com.br/?squad=JOAO10');
-    expect(text(host.querySelector('.sqc-offer'))).toContain('até 10% OFF na primeira inscrição');
+    expect(text(host.querySelector('.sqc-offer'))).toContain('até 10% OFF na primeira inscrição, reserva e clubinho');
     const rank = Array.from(host.querySelectorAll('.sqp-rank-row')).map(words);
     expect(rank[0]).toBe('1 JV Você ▲2 1.280');
     expect(rank[1]).toBe('2 MR Marcos Reis ▼1 1.240');

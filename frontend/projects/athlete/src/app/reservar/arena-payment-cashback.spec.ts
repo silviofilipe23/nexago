@@ -10,6 +10,8 @@ import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxToastService } from '../shared/feedback';
 import { fakeCashbackService, type FakeCashbackService } from '../../testing/cashback-service.fake';
 import { ArenaPaymentComponent } from './arena-payment.component';
+import { SquadCodeFieldComponent } from '../tournaments/registration/squad-code-field.component';
+import { SquadCodeFieldStubComponent } from '../../testing/squad-code-field.stub';
 
 /** A casca do portal monta o menu e ouve convites — abriria WebChannel do Firestore no Karma. */
 @Component({ selector: 'app-at-panel-shell', template: '<ng-content />' })
@@ -26,6 +28,10 @@ interface Internals {
   quotedTotal: WritableSignal<number | null>;
   useCashback: WritableSignal<boolean>;
   pixPayment: WritableSignal<ArenaBookingPixPayment | null>;
+  squadDiscountPct: WritableSignal<number>;
+  squadFeePercent: WritableSignal<number | null>;
+  squadError: WritableSignal<string | null>;
+  selectedMethod: WritableSignal<'pix' | 'onsite'>;
   toggleSplitMode(on: boolean): void;
 }
 
@@ -66,8 +72,8 @@ function create(fake: FakeCashbackService): { fixture: ComponentFixture<ArenaPay
       },
     ],
   }).overrideComponent(ArenaPaymentComponent, {
-    remove: { imports: [AtPanelShellComponent] },
-    add: { imports: [PanelShellStubComponent] },
+    remove: { imports: [AtPanelShellComponent, SquadCodeFieldComponent] },
+    add: { imports: [PanelShellStubComponent, SquadCodeFieldStubComponent] },
   });
 
   const fixture = TestBed.createComponent(ArenaPaymentComponent);
@@ -117,6 +123,7 @@ function pix(overrides: Partial<ArenaBookingPixPayment> = {}): ArenaBookingPixPa
     amountToPayNowReais: 120,
     cashbackAppliedReais: 0,
     chargedReais: 120,
+    squadDiscountReais: 0,
     ...overrides,
   };
 }
@@ -184,5 +191,70 @@ describe('ArenaPaymentComponent — cashback', () => {
     expect(host(fixture).querySelector('.cbt-switch, .cbt-earn')).toBeNull();
     expect(cashbackSummary(fixture)).toBeNull();
     expect(total(fixture)).toBe('R$ 120,00');
+  });
+});
+
+describe('ArenaPaymentComponent — desconto do embaixador (NexaSquad)', () => {
+  useBlankFirebaseKey();
+
+  function squadSummary(fixture: ComponentFixture<ArenaPaymentComponent>): string | null {
+    const row = Array.from(host(fixture).querySelectorAll('.pm-summary-row')).find(
+      (r) => text(r.querySelector('.pm-summary-label')) === 'Desconto do embaixador',
+    );
+    return row ? text(row.querySelector('.pm-summary-value')) : null;
+  }
+
+  it('o campo aparece no Pix inteiro, com a arena (a taxa dela é o teto)', () => {
+    const { fixture } = create(fakeCashbackService({ wallet: { availableCents: 0 } }));
+    expect(host(fixture).querySelector('.pm-pix-setup app-squad-code-field')).not.toBeNull();
+  });
+
+  it('código aplicado: 10% de R$ 120 com teto nos 8% da arena — R$ 9,60 fora do total', () => {
+    const { fixture, internals } = create(fakeCashbackService({ wallet: { availableCents: 0 } }));
+    internals.squadDiscountPct.set(10);
+    internals.squadFeePercent.set(8);
+    fixture.detectChanges();
+
+    expect(squadSummary(fixture)).toBe('−R$ 9,60');
+    expect(total(fixture)).toBe('R$ 110,40');
+    expect(text(host(fixture).querySelector('.pm-pix-setup .pm-btn-primary'))).toBe('Gerar código Pix de R$ 110,40');
+  });
+
+  it('o cashback incide sobre o que sobra depois do desconto', () => {
+    const { fixture, internals } = create(fakeCashbackService({ wallet: { availableCents: 1240 } }));
+    internals.squadDiscountPct.set(10);
+    internals.squadFeePercent.set(8);
+    internals.useCashback.set(true);
+    fixture.detectChanges();
+
+    expect(squadSummary(fixture)).toBe('−R$ 9,60');
+    expect(cashbackSummary(fixture)).toBe('−R$ 12,40');
+    expect(total(fixture)).toBe('R$ 98,00');
+  });
+
+  it('dividir com amigos ou pagar na arena: sem desconto', () => {
+    const { fixture, internals } = create(fakeCashbackService({ wallet: { availableCents: 0 } }));
+    internals.squadDiscountPct.set(10);
+    internals.squadFeePercent.set(8);
+    internals.toggleSplitMode(true);
+    fixture.detectChanges();
+    expect(squadSummary(fixture)).toBeNull();
+    expect(total(fixture)).toBe('R$ 120,00');
+
+    internals.toggleSplitMode(false);
+    internals.selectedMethod.set('onsite');
+    fixture.detectChanges();
+    expect(squadSummary(fixture)).toBeNull();
+  });
+
+  it('Pix gerado: vale o desconto que o servidor aplicou', () => {
+    const { fixture, internals } = create(fakeCashbackService({ wallet: { availableCents: 0 } }));
+    internals.squadDiscountPct.set(10);
+    internals.squadFeePercent.set(8);
+    internals.pixPayment.set(pix({ squadDiscountReais: 6, chargedReais: 114 }));
+    fixture.detectChanges();
+
+    expect(squadSummary(fixture)).toBe('−R$ 6,00');
+    expect(total(fixture)).toBe('R$ 114,00');
   });
 });

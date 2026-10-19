@@ -149,12 +149,12 @@ void main() {
           'Comissão de 10% a 15% (o valor exato fica no contrato) sobre cada',
         ),
       );
-      // Desconto em todas as inscrições: sem "na primeira inscrição".
+      // Desconto em todas as compras: sem "na primeira inscrição".
       expect(
         clauses[2],
         startsWith(
-          'Quem usar o seu código ganha 15% de '
-          'desconto. O desconto sai da taxa da NexaGO',
+          'Quem usar o seu código ganha 15% de desconto em inscrições, '
+          'reservas e clubinhos. O desconto sai da taxa da NexaGO',
         ),
       );
       expect(
@@ -172,7 +172,13 @@ void main() {
 
       expect(clauses.first, 'Nível Ambassador · até 06 dez.');
       expect(clauses[1], startsWith('Comissão de 10% sobre cada'));
-      expect(clauses[2], contains('10% de desconto na primeira inscrição.'));
+      expect(
+        clauses[2],
+        contains(
+          '10% de desconto na primeira inscrição, na primeira reserva e no '
+          'primeiro clubinho.',
+        ),
+      );
     });
   });
 }

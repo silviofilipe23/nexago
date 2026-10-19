@@ -423,14 +423,19 @@ double _roundMoney(double n) => (n * 100).round() / 100;
 ///
 /// Mesma conta, em reais e com os mesmos arredondamentos, de
 /// `computePlatformFeeReais` + `discountFeeCapCents`: feita direto em
-/// centavos, alguns preços davam 1 centavo de diferença.
-int? squadPlatformFeeCents(int priceCents, num? feePercent) {
+/// centavos, alguns preços davam 1 centavo de diferença. [floorReais] é o
+/// piso da taxa (o clubinho não tem: 0).
+int? squadPlatformFeeCents(
+  int priceCents,
+  num? feePercent, {
+  num floorReais = _feeFloorReais,
+}) {
   if (feePercent == null) return null;
   final amount = priceCents / 100;
   if (!(amount > 0) || !(feePercent > 0)) return 0;
   final pctFee = _roundMoney(amount * feePercent / 100);
   final withFloor = _roundMoney(
-    pctFee > _feeFloorReais ? pctFee : _feeFloorReais,
+    pctFee > floorReais ? pctFee : floorReais.toDouble(),
   );
   final ceiling = _roundMoney(amount - 0.01);
   final capped = withFloor < ceiling ? withFloor : ceiling;
@@ -441,10 +446,20 @@ int? squadPlatformFeeCents(int priceCents, num? feePercent) {
 /// `squad-fee-cap.ts` (e de `squad-discount.ts` do portal): % sobre o preço,
 /// nunca abaixo do mínimo do Asaas e nunca acima da taxa da plataforma — o
 /// desconto sai da taxa da nexaGO. O valor de verdade volta na cobrança.
-int squadDiscountPreviewCents(int priceCents, num pct, num? feePercent) {
+/// Vale para inscrição, reserva e clubinho: muda só a taxa (e o piso).
+int squadDiscountPreviewCents(
+  int priceCents,
+  num pct,
+  num? feePercent, {
+  num floorReais = _feeFloorReais,
+}) {
   if (pct <= 0 || priceCents <= 0) return 0;
   final raw = (priceCents * pct / 100).round();
-  final cap = squadPlatformFeeCents(priceCents, feePercent);
+  final cap = squadPlatformFeeCents(
+    priceCents,
+    feePercent,
+    floorReais: floorReais,
+  );
   var cents = raw;
   if (priceCents - _minChargeCents < cents)
     cents = priceCents - _minChargeCents;

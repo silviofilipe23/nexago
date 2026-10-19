@@ -40,6 +40,7 @@ import '../domain/tournament_registration_pix_args.dart';
 import '../domain/tournament_registration_providers.dart';
 import 'widgets/registration_wizard/registration_wizard_notice.dart';
 import 'widgets/squad_code_field.dart';
+import '../../squad/presentation/widgets/squad_checkout_summary.dart';
 
 class TournamentRegistrationPixPage extends ConsumerStatefulWidget {
   const TournamentRegistrationPixPage({
@@ -495,7 +496,7 @@ class _TournamentRegistrationPixPageState
                           ),
                           if (_squadDiscountCents > 0) ...[
                             const SizedBox(height: 16),
-                            _SquadSummary(
+                            SquadCheckoutSummary(
                               priceCents: reaisToCents(_shareReais),
                               discountCents: _squadDiscountCents,
                               discountLabel: _squadPreview.origin == 'code'
@@ -646,81 +647,3 @@ class _PixErrorCard extends StatelessWidget {
 
 /// Resumo com o desconto da indicação (App 07): prévia — o valor de verdade
 /// volta na cobrança.
-class _SquadSummary extends StatelessWidget {
-  const _SquadSummary({
-    required this.priceCents,
-    required this.discountCents,
-    required this.discountLabel,
-    required this.cashbackCents,
-    required this.totalCents,
-  });
-
-  final int priceCents;
-  final int discountCents;
-  final String discountLabel;
-  final int cashbackCents;
-  final int totalCents;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    final theme = Theme.of(context);
-    Widget line(String k, String v, {Color? color}) => Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  k,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: colors.onSurfaceMuted),
-                ),
-              ),
-              Text(
-                v,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: color ?? colors.onSurface,
-                ),
-              ),
-            ],
-          ),
-        );
-    return Column(
-      key: const Key('squad-summary'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        line('Inscrição', formatBRLFromCents(priceCents)),
-        line(
-          discountLabel,
-          '− ${formatBRLFromCents(discountCents)}',
-          color: AppColors.win,
-        ),
-        if (cashbackCents > 0)
-          line('Cashback', '− ${formatBRLFromCents(cashbackCents)}'),
-        Divider(height: 8, color: colors.surfaceRaised),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Total',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: colors.onSurface,
-                ),
-              ),
-            ),
-            Text(
-              formatBRLFromCents(totalCents),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: colors.onSurface,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}

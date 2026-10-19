@@ -4,6 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/features/squad/domain/squad_models.dart';
+import 'package:nexago_app/features/squad/infrastructure/firebase_squad_repository.dart';
+import '../squad/squad_test_support.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/formatting/app_currency_format.dart';
@@ -38,6 +41,7 @@ class _FakePaymentService implements PaymentService {
 
   final ArenaBookingPixPaymentResult result;
   final calls = <({double? fraction, bool useCashback})>[];
+  final squadCodes = <String?>[];
 
   @override
   Future<ArenaBookingPixPaymentResult> createArenaBookingPixPayment({
@@ -45,8 +49,10 @@ class _FakePaymentService implements PaymentService {
     String? cpfCnpj,
     double? paymentFraction,
     bool useCashback = false,
+    String? squadCode,
   }) async {
     calls.add((fraction: paymentFraction, useCashback: useCashback));
+    squadCodes.add(squadCode);
     return result;
   }
 
@@ -118,6 +124,7 @@ Future<void> abrirPix(
   required ArenaBookingPixArgs args,
   CashbackConfig config = ligado,
   int availableCents = 0,
+  FakeSquadRepository? squad,
 }) async {
   tester.view.physicalSize = const Size(800, 2400);
   tester.view.devicePixelRatio = 1.0;
@@ -125,11 +132,14 @@ Future<void> abrirPix(
 
   await tester.pumpWidget(
     ProviderScope(
-      overrides: overridesDaTela(
-        service,
-        config: config,
-        availableCents: availableCents,
-      ),
+      overrides: [
+        ...overridesDaTela(
+          service,
+          config: config,
+          availableCents: availableCents,
+        ),
+        if (squad != null) squadRepositoryProvider.overrideWithValue(squad),
+      ],
       child: MaterialApp(
         theme: AppTheme.dark,
         home: ArenaBookingPixPage(arenaId: 'a1', args: args),
@@ -317,6 +327,87 @@ void main() {
     expect(find.text('sucesso'), findsOneWidget);
     expect((extra! as BookingSuccessArgs).paymentId, 'pay_9');
     expect(query['paymentId'], 'pay_9');
+  });
+
+  group('desconto do embaixador (NexaSquad)', () {
+    const joao = SquadCodeCheck(
+      ambassadorName: 'João Victor',
+      code: 'JOAO10',
+      origin: 'code',
+      discountPct: 10,
+      feePercent: 8,
+    );
+
+    testWidgets(
+        'indicação por link: 10% de R\$ 100 com teto nos 8% da arena — o PIX cai para R\$ 92',
+        (tester) async {
+      final squad = FakeSquadRepository(
+        linkResult: const SquadCodeCheck(
+          ambassadorName: 'João Victor',
+          code: 'JOAO10',
+          origin: 'link',
+          discountPct: 10,
+          feePercent: 8,
+        ),
+      );
+      final service = _FakePaymentService(resposta(price: 100));
+      await abrirPix(
+        tester,
+        service: service,
+        args: reserva(),
+        config: CashbackConfig.fallback,
+        squad: squad,
+      );
+
+      // A consulta vai como reserva da arena (a taxa dela é o teto).
+      expect(squad.checkCalls.single.purpose, 'booking');
+      expect(squad.checkCalls.single.arenaId, 'a1');
+      expect(find.textContaining('OFF nesta reserva'), findsOneWidget);
+      expect(find.byKey(const Key('squad-summary')), findsOneWidget);
+      expect(find.text('− ${formatBRL(8)}'), findsOneWidget);
+      expect(find.text('${formatBRL(92)} · pagar com seu banco'), findsOneWidget);
+    });
+
+    testWidgets('código aplicado vai na cobrança e o desconto aplicado aparece com o QR',
+        (tester) async {
+      final squad = FakeSquadRepository(checkResult: joao);
+      final service = _FakePaymentService(
+        ArenaBookingPixPaymentResult(
+          paymentId: 'pay_1',
+          qrCode: '00020101021226860014br.gov.bcb.pix',
+          qrCodeBase64: '',
+          expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+          amountToPayNowReais: 100,
+          squadDiscountReais: 8,
+          chargedReais: 92,
+        ),
+      );
+      await abrirPix(
+        tester,
+        service: service,
+        args: reserva(),
+        config: CashbackConfig.fallback,
+        squad: squad,
+      );
+
+      await tester.tap(find.text('Tem código de embaixador?'));
+      await tester.pump();
+      await tester.enterText(find.byKey(const Key('squad-code-field')), 'joao10');
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('squad-code-apply')));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('− ${formatBRL(8)}'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField).first, '52998224725');
+      await tester.pump();
+      await tester.tap(find.text('Gerar PIX'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(service.squadCodes, ['JOAO10']);
+      expect(find.byKey(const Key('squad-discount-applied')), findsOneWidget);
+    });
   });
 }
 

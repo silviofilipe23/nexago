@@ -17,6 +17,8 @@ export async function creditArenaWalletFromBooking(
   grossReais: number,
   platformFeeReais: number,
   cashbackAppliedReais = 0,
+  /** Desconto do código de embaixador (NexaSquad): sai da taxa, entra no bruto como o cashback. */
+  squadDiscountReais = 0,
 ): Promise<void> {
   const netReais = roundMoney(Math.max(0, grossReais - platformFeeReais));
   const walletRef = arenaWalletRef(db, arenaId);
@@ -49,6 +51,7 @@ export async function creditArenaWalletFromBooking(
       platformFeeReais: roundMoney(platformFeeReais),
       netReais,
       cashbackAppliedReais: roundMoney(Math.max(0, cashbackAppliedReais)),
+      squadDiscountReais: roundMoney(Math.max(0, squadDiscountReais)),
       createdAt: FieldValue.serverTimestamp(),
     });
   });
@@ -68,6 +71,8 @@ export async function creditArenaWalletFromClubPayment(
     grossReais: number;
     platformFeeReais: number;
     cashbackAppliedReais?: number;
+    /** Desconto do código de embaixador (NexaSquad), já dentro do bruto. */
+    squadDiscountReais?: number;
   },
 ): Promise<void> {
   const netReais = roundMoney(Math.max(0, input.grossReais - input.platformFeeReais));
@@ -100,6 +105,7 @@ export async function creditArenaWalletFromClubPayment(
       platformFeeReais: roundMoney(input.platformFeeReais),
       netReais,
       cashbackAppliedReais: roundMoney(Math.max(0, input.cashbackAppliedReais ?? 0)),
+      squadDiscountReais: roundMoney(Math.max(0, input.squadDiscountReais ?? 0)),
       createdAt: FieldValue.serverTimestamp(),
     });
   });

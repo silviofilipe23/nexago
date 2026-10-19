@@ -10,8 +10,8 @@ import '../../../squad/domain/squad_repository.dart';
 import '../../../squad/domain/squad_rules.dart';
 import '../../../squad/presentation/widgets/squad_ui.dart';
 
-/// Código de embaixador do NexaSquad no checkout PIX da inscrição (App 07 ·
-/// Seguidor · código aplicado).
+/// Código de embaixador do NexaSquad no checkout PIX da inscrição, da reserva
+/// de quadra e do clubinho (App 07 · Seguidor · código aplicado).
 ///
 /// Recolhido em "Tem código de embaixador?" para não pesar no checkout de
 /// quem não tem. "Aplicar" confere com `checkSquadCode` antes de cobrar e
@@ -23,15 +23,26 @@ class SquadCodeField extends ConsumerStatefulWidget {
   const SquadCodeField({
     super.key,
     required this.controller,
-    required this.registrationId,
     required this.onChanged,
+    this.registrationId = '',
+    this.purpose = 'registration',
+    this.arenaId,
     this.athleteUids = const [],
     this.enabled = true,
   });
 
   /// Rascunho digitado (vai na cobrança quando nenhum código foi aplicado).
   final TextEditingController controller;
+
+  /// Inscrição sendo paga (o "só na primeira inscrição" é decidido por ela).
   final String registrationId;
+
+  /// `registration`, `booking` ou `club`: a taxa (teto do desconto) e o "só
+  /// na primeira" mudam com o tipo de compra.
+  final String purpose;
+
+  /// Reserva: a arena, cujo plano define a taxa.
+  final String? arenaId;
 
   /// Atletas da inscrição: o servidor recusa o código de qualquer um deles.
   final List<String> athleteUids;
@@ -62,15 +73,24 @@ class _SquadCodeFieldState extends ConsumerState<SquadCodeField> {
     super.didUpdateWidget(oldWidget);
     // A inscrição pode chegar depois do primeiro frame (rota aberta direto):
     // a consulta com `athleteUids` vazio não pega a autoindicação do parceiro.
-    if (!listEquals(oldWidget.athleteUids, widget.athleteUids)) {
+    if (!listEquals(oldWidget.athleteUids, widget.athleteUids) ||
+        oldWidget.arenaId != widget.arenaId) {
       _loadLinkReferral();
     }
   }
 
+  /// Já se sabe o que vai ser cobrado? Sem a arena, a prévia da reserva sairia
+  /// sem o teto da taxa.
+  bool get _ready => switch (widget.purpose) {
+    'booking' => (widget.arenaId ?? '').isNotEmpty,
+    'club' => true,
+    _ => widget.registrationId.isNotEmpty,
+  };
+
   /// Indicação por link/QR guardada na conta: uma consulta por checkout (e de
   /// novo quando os atletas da inscrição chegam).
   Future<void> _loadLinkReferral() async {
-    if (widget.registrationId.isEmpty) return;
+    if (!_ready) return;
     try {
       final check = await ref
           .read(squadRepositoryProvider)
@@ -78,6 +98,8 @@ class _SquadCodeFieldState extends ConsumerState<SquadCodeField> {
             code: '',
             athleteUids: widget.athleteUids,
             registrationId: widget.registrationId,
+            purpose: widget.purpose,
+            arenaId: widget.arenaId,
           );
       if (!mounted) return;
       final link = check.viaLink ? check : SquadCodeCheck.none;
@@ -103,6 +125,8 @@ class _SquadCodeFieldState extends ConsumerState<SquadCodeField> {
             code: code,
             athleteUids: widget.athleteUids,
             registrationId: widget.registrationId,
+            purpose: widget.purpose,
+            arenaId: widget.arenaId,
           );
       if (!mounted) return;
       setState(() {
@@ -142,6 +166,7 @@ class _SquadCodeFieldState extends ConsumerState<SquadCodeField> {
     if (_applied.code != null) {
       return SquadAppliedCodeCard(
         check: _applied,
+        purpose: widget.purpose,
         enabled: widget.enabled,
         actionLabel: 'Remover',
         onAction: _remove,
@@ -151,6 +176,7 @@ class _SquadCodeFieldState extends ConsumerState<SquadCodeField> {
       if (_link.viaLink) {
         return SquadAppliedCodeCard(
           check: _link,
+          purpose: widget.purpose,
           enabled: widget.enabled,
           actionLabel: 'Tenho outro código',
           onAction: () => setState(() => _open = true),
@@ -273,12 +299,16 @@ class SquadAppliedCodeCard extends StatelessWidget {
     required this.actionLabel,
     required this.onAction,
     this.enabled = true,
+    this.purpose = 'registration',
   });
 
   final SquadCodeCheck check;
   final String actionLabel;
   final VoidCallback onAction;
   final bool enabled;
+
+  /// `registration`, `booking` ou `club`: de qual compra o texto fala.
+  final String purpose;
 
   @override
   Widget build(BuildContext context) {
@@ -288,9 +318,14 @@ class SquadAppliedCodeCard extends StatelessWidget {
         ? check.ambassadorName!.trim()
         : 'um embaixador';
     final typed = check.origin == 'code';
+    final (here, first) = switch (purpose) {
+      'booking' => ('nesta reserva', 'na primeira reserva'),
+      'club' => ('neste clubinho', 'no primeiro clubinho'),
+      _ => ('nesta inscrição', 'na primeira inscrição'),
+    };
     final offer = check.discountPct > 0
-        ? '${squadPercent(check.discountPct)} OFF nesta inscrição'
-        : 'O desconto de indicação vale só na primeira inscrição.';
+        ? '${squadPercent(check.discountPct)} OFF $here'
+        : 'O desconto de indicação vale só $first.';
     return Container(
       key: const Key('squad-code-applied'),
       padding: const EdgeInsets.all(16),

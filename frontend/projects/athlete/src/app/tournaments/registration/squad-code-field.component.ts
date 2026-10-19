@@ -1,6 +1,11 @@
 import { ChangeDetectionStrategy, Component, effect, input, model, signal, untracked } from '@angular/core';
 import { athleteFunctions } from '../../data/functions';
-import { TournamentRegistrationError, checkSquadCode } from '../../data/tournament-registrations-repository';
+import {
+  TournamentRegistrationError,
+  checkSquadCode,
+  type SquadCheckContext,
+  type SquadCheckPurpose,
+} from '../../data/tournament-registrations-repository';
 import { NxFieldErrorComponent } from '../../shared/feedback';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 
@@ -13,7 +18,8 @@ interface LinkReferral {
 }
 
 /**
- * "Tem código de embaixador?" no checkout da inscrição. Confere com `checkSquadCode` antes de
+ * "Tem código de embaixador?" no checkout da inscrição, da reserva de quadra e do clubinho
+ * (`purpose`). Confere com `checkSquadCode` antes de
  * cobrar e devolve ao pai o código aplicado (`code`) e o % de desconto (`discountPct`). Sem
  * código digitado, mostra a indicação que veio por link/QR — o desconto também vale para ela.
  * O servidor confere tudo de novo na cobrança; o que vale é o que ele aplicar.
@@ -99,8 +105,14 @@ export class SquadCodeFieldComponent {
   readonly code = model('');
   /** % de desconto do seguidor que vale agora (código aplicado ou link), para o pai mostrar o preço. */
   readonly discountPct = model(0);
-  /** % da taxa da plataforma no torneio (teto do desconto); `null` = sem teto. */
+  /** % da taxa da plataforma na cobrança (teto do desconto); `null` = sem teto. */
   readonly feePercent = model<number | null>(null);
+  /** Piso dessa taxa em reais (o clubinho não tem). */
+  readonly feeFloorReais = model(1.5);
+  /** Inscrição (padrão), reserva ou clubinho: muda a taxa e o "só na primeira" de cada tipo. */
+  readonly purpose = input<SquadCheckPurpose>('registration');
+  /** Reserva: a arena (o plano dela define a taxa). */
+  readonly arenaId = input<string | null>(null);
   /** Atletas da inscrição: o servidor recusa o código de qualquer um deles (autoindicação). */
   readonly athleteUids = input<string[]>([]);
   /** Inscrição sendo paga: o desconto "só na primeira inscrição" é decidido por ela. */
@@ -137,21 +149,28 @@ export class SquadCodeFieldComponent {
         this.message.set(err);
       });
     });
-    // Indicação por link: uma consulta por checkout, assim que a inscrição é conhecida.
+    // Indicação por link: uma consulta por checkout, assim que se sabe o que vai ser cobrado
+    // (a inscrição; na reserva, a arena — sem ela a prévia sairia sem o teto da taxa).
     effect(() => {
-      const registrationId = this.registrationId();
-      if (!registrationId || this.linkChecked) return;
+      const purpose = this.purpose();
+      const ready = purpose === 'registration' ? !!this.registrationId() : purpose === 'booking' ? !!this.arenaId() : true;
+      if (!ready || this.linkChecked) return;
       this.linkChecked = true;
-      void untracked(() => this.loadLinkReferral(registrationId));
+      void untracked(() => this.loadLinkReferral());
     });
   }
 
-  private async loadLinkReferral(registrationId: string): Promise<void> {
+  private context(): SquadCheckContext {
+    return { purpose: this.purpose(), arenaId: this.arenaId() };
+  }
+
+  private async loadLinkReferral(): Promise<void> {
     try {
-      const result = await checkSquadCode(athleteFunctions(), '', this.athleteUids(), registrationId);
+      const result = await checkSquadCode(athleteFunctions(), '', this.athleteUids(), this.registrationId() ?? '', this.context());
       if (result.origin !== 'link' && result.origin !== 'qr') return;
       this.viaLink.set({ name: result.ambassadorName ?? 'um embaixador', pct: result.discountPct });
       this.feePercent.set(result.feePercent);
+      this.feeFloorReais.set(result.feeFloorReais);
       if (!this.code()) this.discountPct.set(result.discountPct);
     } catch {
       // Sem indicação visível: a cobrança resolve o link do mesmo jeito no servidor.
@@ -176,11 +195,18 @@ export class SquadCodeFieldComponent {
     }
     this.checking.set(true);
     try {
-      const result = await checkSquadCode(athleteFunctions(), code, this.athleteUids(), this.registrationId() ?? '');
+      const result = await checkSquadCode(
+        athleteFunctions(),
+        code,
+        this.athleteUids(),
+        this.registrationId() ?? '',
+        this.context(),
+      );
       this.ambassadorName.set(result.ambassadorName ?? 'um embaixador');
       this.code.set(result.code ?? code);
       this.discountPct.set(result.discountPct);
       this.feePercent.set(result.feePercent);
+      this.feeFloorReais.set(result.feeFloorReais);
       this.message.set(null);
     } catch (err) {
       this.message.set(

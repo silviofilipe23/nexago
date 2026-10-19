@@ -19,6 +19,8 @@ import { appliedPreviewCents } from '../data/cashback-preview';
 import { CashbackService } from '../data/cashback.service';
 import { CheckoutCashbackToggleComponent } from '../cashback/checkout-cashback-toggle.component';
 import { CashbackEarnedNoteComponent } from '../cashback/cashback-earned-note.component';
+import { SquadCodeFieldComponent } from '../tournaments/registration/squad-code-field.component';
+import { squadDiscountPreviewCents } from '../data/squad-discount';
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -41,7 +43,13 @@ function onlyDigits(v: string): string {
 @Component({
   selector: 'app-club-session-payment',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, AtPanelShellComponent, CheckoutCashbackToggleComponent, CashbackEarnedNoteComponent],
+  imports: [
+    RouterLink,
+    AtPanelShellComponent,
+    CheckoutCashbackToggleComponent,
+    CashbackEarnedNoteComponent,
+    SquadCodeFieldComponent,
+  ],
   template: `
     <app-at-panel-shell [userName]="accountLabel()">
       <div class="cp-body">
@@ -97,9 +105,14 @@ function onlyDigits(v: string): string {
                 }
               </div>
 
-              @if (cashbackAppliedReais() > 0) {
+              @if (squadDiscountReais() > 0 || cashbackAppliedReais() > 0) {
                 <div class="cp-cashback-summary">
-                  <span>Cashback <strong class="cp-cashback-discount">&minus;{{ formatBRL(cashbackAppliedReais()) }}</strong></span>
+                  @if (squadDiscountReais() > 0) {
+                    <span>Desconto do embaixador <strong class="cp-cashback-discount">&minus;{{ formatBRL(squadDiscountReais()) }}</strong></span>
+                  }
+                  @if (cashbackAppliedReais() > 0) {
+                    <span>Cashback <strong class="cp-cashback-discount">&minus;{{ formatBRL(cashbackAppliedReais()) }}</strong></span>
+                  }
                 </div>
               }
 
@@ -146,15 +159,31 @@ function onlyDigits(v: string): string {
                   (input)="onCpfInput($any($event.target).value)"
                 />
 
+                <app-squad-code-field
+                  purpose="club"
+                  [(code)]="squadCode"
+                  [(discountPct)]="squadDiscountPct"
+                  [(feePercent)]="squadFeePercent"
+                  [(feeFloorReais)]="squadFeeFloorReais"
+                  [discountReais]="squadDiscountReais()"
+                  [serverError]="squadError()"
+                  [disabled]="processing()"
+                />
+
                 <app-checkout-cashback-toggle
-                  [priceReais]="s.priceReais"
+                  [priceReais]="priceAfterSquadReais()"
                   [availableCents]="cashback.availableCents()"
                   [config]="cashback.config()"
                   [(use)]="useCashback"
                 />
-                @if (cashbackAppliedReais() > 0) {
+                @if (squadDiscountReais() > 0 || cashbackAppliedReais() > 0) {
                   <div class="cp-cashback-summary">
-                    <span>Cashback <strong class="cp-cashback-discount">&minus;{{ formatBRL(cashbackAppliedReais()) }}</strong></span>
+                    @if (squadDiscountReais() > 0) {
+                      <span>Desconto do embaixador <strong class="cp-cashback-discount">&minus;{{ formatBRL(squadDiscountReais()) }}</strong></span>
+                    }
+                    @if (cashbackAppliedReais() > 0) {
+                      <span>Cashback <strong class="cp-cashback-discount">&minus;{{ formatBRL(cashbackAppliedReais()) }}</strong></span>
+                    }
                     <span>Você paga <strong>{{ formatBRL(chargeNowReais()) }}</strong></span>
                   </div>
                 }
@@ -419,8 +448,9 @@ function onlyDigits(v: string): string {
 
     .cp-cashback-summary {
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
-      gap: 12px;
+      gap: 6px 12px;
       font-size: 13px;
       color: var(--nx-text-mute);
     }
@@ -513,6 +543,38 @@ export class ClubSessionPaymentComponent {
   protected readonly confirmed = signal(false);
   protected readonly myMethod = signal<'pix' | 'onsite'>('pix');
 
+  /** Código de embaixador do NexaSquad já conferido (vai no PIX como `squadCode`). Pagar na arena
+   *  não tem desconto: o dinheiro nem passa pela nexaGO. */
+  protected readonly squadCode = signal('');
+  /** Recusa do código pela cobrança (`details.field === 'squadCode'`). */
+  protected readonly squadError = signal<string | null>(null);
+  protected readonly squadDiscountPct = signal(0);
+  protected readonly squadFeePercent = signal<number | null>(null);
+  protected readonly squadFeeFloorReais = signal(0);
+
+  /** Desconto que a PRÓXIMA cobrança pede (% com teto nos 5% da taxa do clubinho, sem piso). */
+  private readonly squadRequestCents = computed(() => {
+    const s = this.session();
+    if (!s || this.method() !== 'pix') return 0;
+    return squadDiscountPreviewCents(
+      s.priceReais,
+      this.squadDiscountPct(),
+      this.squadFeePercent(),
+      Math.round(this.squadFeeFloorReais() * 100),
+    );
+  });
+
+  /** Antes do PIX, a prévia; depois, o que o servidor aplicou. */
+  protected readonly squadDiscountReais = computed(() => {
+    const p = this.pix();
+    return p ? p.squadDiscountReais : this.squadRequestCents() / 100;
+  });
+
+  /** Preço da vaga depois do desconto do embaixador: é sobre ele que o cashback incide. */
+  protected readonly priceAfterSquadReais = computed(
+    () => Math.round(((this.session()?.priceReais ?? 0) - this.squadRequestCents() / 100) * 100) / 100,
+  );
+
   /** "Usar meu cashback" — desligado por padrão (o atleta escolhe gastar). */
   protected readonly useCashback = signal(false);
 
@@ -523,7 +585,7 @@ export class ClubSessionPaymentComponent {
     if (!s || this.method() !== 'pix') return 0;
     return appliedPreviewCents({
       use: this.useCashback(),
-      priceReais: s.priceReais,
+      priceReais: this.priceAfterSquadReais(),
       availableCents: this.cashback.availableCents(),
       config: this.cashback.config(),
     });
@@ -536,7 +598,9 @@ export class ClubSessionPaymentComponent {
   });
 
   protected readonly chargeNowReais = computed(
-    () => Math.round(((this.session()?.priceReais ?? 0) - this.cashbackAppliedReais()) * 100) / 100,
+    () =>
+      Math.round(((this.session()?.priceReais ?? 0) - this.squadDiscountReais() - this.cashbackAppliedReais()) * 100) /
+      100,
   );
 
   constructor() {
@@ -592,16 +656,23 @@ export class ClubSessionPaymentComponent {
     }
 
     this.processing.set(true);
+    this.squadError.set(null);
     try {
       const pix = await joinClubSession(athleteFunctions(), {
         sessionId: this.sessionId,
         cpfCnpj: this.cpf(),
         useCashback: this.cashbackRequestCents() > 0,
+        squadCode: this.squadCode(),
       });
       this.pix.set(pix);
       this.pixExpired.set(false);
       this.startCountdown(pix.expiresAt);
     } catch (err) {
+      // Código de embaixador recusado: o campo mostra (a vaga segurada já voltou para a lista).
+      if (err instanceof ArenaClubError && err.field === 'squadCode') {
+        this.squadError.set(err.message);
+        return;
+      }
       this.showNotice(err instanceof ArenaClubError ? err.message : 'Não foi possível gerar o PIX agora.');
     } finally {
       this.processing.set(false);

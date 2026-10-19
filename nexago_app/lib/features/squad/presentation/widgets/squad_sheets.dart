@@ -321,8 +321,8 @@ List<String> squadContractClauses({
         'ou QR. Ela só vale com o pagamento confirmado; reembolso ou estorno '
         'cancela a comissão.',
     'Quem usar o seu código ganha $discount de desconto'
-        '${followerDiscountFirstOnly ? ' na primeira inscrição' : ''}. O '
-        'desconto sai da taxa da NexaGO: o organizador recebe o mesmo valor.',
+        '${followerDiscountFirstOnly ? ' na primeira inscrição, na primeira reserva e no primeiro clubinho' : ' em inscrições, reservas e clubinhos'}. O '
+        'desconto sai da taxa da NexaGO: organizador e arena recebem o mesmo valor.',
     'As comissões liberadas caem na carteira NexaGO nos dias de repasse do '
         'programa.',
     'Ao divulgar, identifique a parceria com #publi.',

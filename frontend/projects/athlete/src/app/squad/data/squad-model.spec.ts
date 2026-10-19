@@ -53,7 +53,7 @@ describe('squad-model', () => {
 
   it('o desconto do seguidor sai como "até X%" (o teto na taxa corta); 0% não promete nada', () => {
     const offer = followerOffer(member());
-    expect(offer.discount).toBe('até 10% OFF na primeira inscrição');
+    expect(offer.discount).toBe('até 10% OFF na primeira inscrição, reserva e clubinho');
     expect(offer.rest).toBe('Você recebe 10% depois que o pagamento é confirmado.');
     expect(followerOffer(member({ followerDiscountPct: 0 })).discount).toBeNull();
     expect(benefitsOf(member({ followerDiscountPct: 0 })).some((b) => b.label.includes('OFF'))).toBeFalse();

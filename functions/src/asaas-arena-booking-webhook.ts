@@ -9,7 +9,8 @@ import {
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {ARENA_BOOKING_PAYMENT_REF_PREFIX} from "./arena-booking-payment-constants";
-import {readArenaBookingServerAmountReais} from "./arena-booking-pricing";
+import {ARENA_BOOKING_PRICING, readArenaBookingServerAmountReais} from "./arena-booking-pricing";
+import {arenaSquadDiscountCents, markArenaSquadDiscountConfirmedQuietly} from "./squad-arena-discount";
 import {creditArenaWalletFromBooking} from "./arena-wallet";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import {resolveArenaBookingFeePercent} from "./arena-entitlement";
@@ -248,8 +249,16 @@ export async function processArenaBookingAsaasNotification(
       paymentId,
       booking,
     );
+    // Desconto do código de embaixador (NexaSquad): também sai da taxa da nexaGO, então entra no
+    // bruto como o cashback — a arena recebe o mesmo líquido. Lido do servidor, nunca da reserva.
+    const squadDiscountCents = await arenaSquadDiscountCents(
+      db,
+      paymentId,
+      (await db.collection(ARENA_BOOKING_PRICING).doc(bookingId).get()).data(),
+      `reserva ${bookingId}`,
+    );
     const cashPaid = roundMoney(amount);
-    const paidOnline = roundMoney(cashPaid + appliedCents / 100);
+    const paidOnline = roundMoney(cashPaid + appliedCents / 100 + squadDiscountCents / 100);
     const dueOnsite = roundMoney(Math.max(0, totalReais - paidOnline));
     const isPartial = fraction < 0.99 || dueOnsite > 0.02;
     const paymentStatus = isPartial ? "partial" : "paid";
@@ -273,7 +282,8 @@ export async function processArenaBookingAsaasNotification(
       eventAtMs: bookingEventAtMs(booking.date, booking.startTime) ?? Date.now(),
       cashReais: cashPaid,
       appliedCents,
-      feeReais: platformFee,
+      // O teto do cashback ganho é a taxa que sobrou depois do desconto do seguidor.
+      feeReais: Math.max(0, roundMoney(platformFee - squadDiscountCents / 100)),
       holdId,
       config: await readCashbackConfigOrOff(db, bookingId),
     });
@@ -289,6 +299,7 @@ export async function processArenaBookingAsaasNotification(
       asaasPaymentId: paymentId,
       asaasPaidAmount: cashPaid,
       cashbackAppliedReais: appliedCents / 100,
+      squadDiscountReais: squadDiscountCents / 100,
       asaasPaidAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -313,6 +324,7 @@ export async function processArenaBookingAsaasNotification(
     });
 
     await batch.commit();
+    await markArenaSquadDiscountConfirmedQuietly(db, paymentId, squadDiscountCents, new Date());
 
     if (intentHasWork(intent)) {
       await applyCashbackIntent(db, processedRef, paymentId, Date.now());
@@ -327,6 +339,7 @@ export async function processArenaBookingAsaasNotification(
           paidOnline,
           platformFee,
           appliedCents / 100,
+          squadDiscountCents / 100,
         );
       } catch (walletErr) {
         logger.error(`Asaas arena booking ${bookingId}: wallet credit failed`, walletErr);

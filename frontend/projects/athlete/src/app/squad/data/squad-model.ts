@@ -160,7 +160,8 @@ export function contractPeriod(m: Pick<SquadMember, 'start' | 'end' | 'endsAt'>)
 export function followerOffer(
   m: Pick<SquadMember, 'followerDiscountPct' | 'followerDiscountFirstOnly' | 'commissionPct'>,
 ): { discount: string | null; rest: string } {
-  const where = m.followerDiscountFirstOnly ? 'na primeira inscrição' : 'nas inscrições';
+  // O código vale na inscrição, na reserva de quadra e no clubinho ("só na primeira" = uma de cada).
+  const where = m.followerDiscountFirstOnly ? 'na primeira inscrição, reserva e clubinho' : 'em inscrições, reservas e clubinhos';
   return {
     discount: m.followerDiscountPct > 0 ? `até ${m.followerDiscountPct}% OFF ${where}` : null,
     rest: `Você recebe ${m.commissionPct}% depois que o pagamento é confirmado.`,
@@ -348,7 +349,7 @@ export function benefitsOf(
   if (m.followerDiscountPct > 0) {
     out.push({
       label: `Até ${m.followerDiscountPct}% OFF pra quem usa seu código`,
-      sub: `${m.followerDiscountFirstOnly ? 'na primeira inscrição' : 'nas inscrições'} · sai da taxa da plataforma, com teto nela`,
+      sub: `${m.followerDiscountFirstOnly ? 'na primeira inscrição, reserva e clubinho' : 'em inscrições, reservas e clubinhos'} · sai da taxa da plataforma, com teto nela`,
       icon: 'gift',
       status: live,
     });

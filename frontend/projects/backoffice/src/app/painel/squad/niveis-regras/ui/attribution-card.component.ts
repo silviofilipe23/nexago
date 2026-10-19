@@ -30,8 +30,8 @@ const ROWS: readonly RuleRow[] = [
   },
   {
     key: 'followerDiscountFirstOnly',
-    title: 'Desconto do seguidor só na primeira inscrição',
-    description: 'Evita reuso do código pela mesma pessoa',
+    title: 'Desconto do seguidor só na primeira compra',
+    description: 'Uma vez de cada: primeira inscrição, primeira reserva e primeiro clubinho',
     locked: false,
   },
   {

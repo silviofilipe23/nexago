@@ -342,6 +342,8 @@ typedef SquadCheckCall = ({
   String code,
   List<String> athleteUids,
   String registrationId,
+  String purpose,
+  String? arenaId,
 });
 
 /// Repositório do Squad em memória: devolve o que o teste configurou e
@@ -438,11 +440,15 @@ class FakeSquadRepository implements SquadRepository {
     required String code,
     required List<String> athleteUids,
     required String registrationId,
+    String purpose = 'registration',
+    String? arenaId,
   }) async {
     checkCalls.add((
       code: code,
       athleteUids: athleteUids,
       registrationId: registrationId,
+      purpose: purpose,
+      arenaId: arenaId,
     ));
     if (code.isEmpty) return linkResult;
     final error = checkError;

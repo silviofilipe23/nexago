@@ -617,6 +617,19 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
                   '· ${_slots.length} escolhido${_slots.length == 1 ? '' : 's'}',
           style: TextStyle(fontSize: 12.5, color: colors.onSurfaceMuted),
         ),
+        // O aviso fica junto do contador: tocado no topo da lista, no fim
+        // ele ficaria fora da tela.
+        if (_slotHint != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            _slotHint!,
+            style: const TextStyle(
+              color: AppColors.pending,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
         if (loading) ...[
           const SizedBox(height: 8),
           const LinearProgressIndicator(minHeight: 2),
@@ -642,17 +655,6 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
             ),
           ),
           const SizedBox(height: 8),
-        ],
-        if (_slotHint != null) ...[
-          Text(
-            _slotHint!,
-            style: const TextStyle(
-              color: AppColors.pending,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
         ],
         Text(
           'Turma lotada nesse dia? A lista de espera fica no portal da arena.',
@@ -983,12 +985,13 @@ class _ConfirmationView extends StatelessWidget {
       for (final s in named)
         if (byId[s.classId] != null) byId[s.classId]!.teacherName,
     }.join(', ');
-    final firstDate = arenaClassNextSlotDate(slots, todayKey);
-    final firstSlot = firstDate == null
-        ? null
-        : named
-            .where((s) => s.weekday == arenaClassDateKeyWeekday(firstDate))
-            .firstOrNull;
+    final now = TimeOfDay.now();
+    final first = arenaClassFirstLesson(
+      named,
+      todayKey,
+      nowHm: '${now.hour.toString().padLeft(2, '0')}:'
+          '${now.minute.toString().padLeft(2, '0')}',
+    );
     final total = totalReais ?? 0;
     final canCharge = phone != null && total > 0 && plan != null;
 
@@ -1060,11 +1063,11 @@ class _ConfirmationView extends StatelessWidget {
                   ),
                   if (teachers.isNotEmpty)
                     ArenaClassInfoRow(label: 'Professor', value: teachers),
-                  if (firstDate != null)
+                  if (first != null)
                     ArenaClassInfoRow(
                       label: '1ª aula',
-                      value: '${arenaClassWeekdayDate(firstDate)}'
-                          '${firstSlot == null || firstSlot.startTime.isEmpty ? '' : ' · ${firstSlot.startTime}'}',
+                      value: '${arenaClassWeekdayDate(first.date)}'
+                          '${first.slot.startTime.isEmpty ? '' : ' · ${first.slot.startTime}'}',
                     ),
                   ArenaClassInfoRow(
                     label: 'Pagamento',

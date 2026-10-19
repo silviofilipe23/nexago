@@ -161,6 +161,27 @@ void main() {
     });
   });
 
+  testWidgets('Hoje: o cartão conta quem vem naquele dia, não a turma toda',
+      (tester) async {
+    final repo = _chamadaRepo();
+    await pumpAulas(
+      tester,
+      repo: FakeArenaClassRepository(
+        classes: [arenaClass(id: 'c5', capacity: 4, studentCount: 3)],
+        sessionsByDate: {
+          '2026-10-19': [repo.sessionsById['s5']!]
+        },
+        students: repo.students,
+      ),
+    );
+
+    // Felipe (Seg/Qua/Sex) + Igor encaixado; Bruno é de Ter/Qui e Davi
+    // está pausado — o contador da turma (3) erraria.
+    // Aulas do dia → alunos de cada turma: uma onda a mais de stream.
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('2 alunos'), findsOneWidget);
+  });
+
   group('A7 · Mensalidades', () {
     FakeArenaClassEnrollmentRepository chargesRepo() =>
         FakeArenaClassEnrollmentRepository(

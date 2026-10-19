@@ -62,6 +62,34 @@ void main() {
       ]);
     });
 
+    test('quem vem na aula = alunos do dia + encaixes', () {
+      expect(arenaClassSessionHeadcount(session(), students), 2);
+      expect(
+        arenaClassSessionHeadcount(
+          session(extras: {'z': extra('z', 'Zeca'), 'c': extra('c', 'Caio')}),
+          students,
+        ),
+        3, // Ana + os dois encaixes (Caio não conta duas vezes)
+      );
+      // Sem a conta do dia, o cartão usa o contador da turma + encaixes.
+      final view = buildArenaClassDayView(
+        sessions: [
+          session(id: 's1', extras: {'z': extra('z', 'Zeca')}),
+          session(id: 's2', classId: 'c2'),
+        ],
+        classesById: {
+          'c1': arenaClass(id: 'c1', studentCount: 10),
+          'c2': arenaClass(id: 'c2', studentCount: 7),
+        },
+        now: DateTime(2026, 10, 19, 8),
+        headcountBySession: const {'s2': 4},
+      );
+      expect(
+        view.active.map((i) => (i.session.id, i.studentCount)),
+        [('s1', 11), ('s2', 4)],
+      );
+    });
+
     test('vagas livres = capacidade − alunos do dia − encaixes', () {
       expect(
         arenaClassSessionFreeSpots(session(capacity: 4), students),
@@ -382,9 +410,17 @@ void main() {
       );
     });
 
-    test('1ª aula = próximo dia que cai num dos horários', () {
-      expect(arenaClassNextSlotDate(slots, today), '2026-10-20');
-      expect(arenaClassNextSlotDate(slots, '2026-10-23'), '2026-10-27');
+    test('1ª aula = próximo horário a partir de agora', () {
+      expect(arenaClassFirstLesson(slots, today)?.date, '2026-10-20');
+      expect(arenaClassFirstLesson(slots, '2026-10-23')?.date, '2026-10-27');
+      // Terça antes das 19:00 ainda vale hoje; depois, só a quinta.
+      expect(
+        arenaClassFirstLesson(slots, '2026-10-20', nowHm: '18:00')?.date,
+        '2026-10-20',
+      );
+      final late = arenaClassFirstLesson(slots, '2026-10-20', nowHm: '19:30')!;
+      expect(late.date, '2026-10-22');
+      expect(late.slot.startTime, '19:00');
       expect(arenaClassWeekdayDate('2026-10-20'), 'Ter 20 out');
     });
 

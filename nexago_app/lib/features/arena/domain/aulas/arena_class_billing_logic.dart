@@ -227,22 +227,26 @@ String arenaClassSlotsLabel(
   }).join(' / ');
 }
 
-/// Próxima data (a partir de [todayKey], inclusive) que cai num dos dias
-/// da matrícula — a "1ª aula" da confirmação.
-String? arenaClassNextSlotDate(
+/// Primeira aula da matrícula: o próximo horário a partir de agora. Hoje só
+/// conta se a aula ainda não começou ([nowHm] `HH:mm`; sem ele, hoje vale).
+({String date, ArenaClassEnrollmentSlot slot})? arenaClassFirstLesson(
   List<ArenaClassEnrollmentSlot> slots,
-  String todayKey,
-) {
+  String todayKey, {
+  String? nowHm,
+}) {
   final today = _date(todayKey);
   if (today == null || slots.isEmpty) return null;
-  final days = slots.map((s) => s.weekday).toSet();
-  for (var i = 0; i < 7; i++) {
+  for (var i = 0; i < 8; i++) {
     final d = DateTime(today.year, today.month, today.day + i);
-    if (days.contains(d.weekday)) {
-      final m = d.month.toString().padLeft(2, '0');
-      final dd = d.day.toString().padLeft(2, '0');
-      return '${d.year}-$m-$dd';
-    }
+    final key = '${d.year}-${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+    final ofDay = slots
+        .where((s) =>
+            s.weekday == d.weekday &&
+            (i > 0 || nowHm == null || s.startTime.compareTo(nowHm) > 0))
+        .toList()
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+    if (ofDay.isNotEmpty) return (date: key, slot: ofDay.first);
   }
   return null;
 }

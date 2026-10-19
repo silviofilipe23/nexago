@@ -111,6 +111,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
 
       expect(find.text('CHAMADA'), findsOneWidget);
+      // A lista do dia lê os alunos de cada turma (conta do dia): deixa o
+      // agendador do Riverpod assentar antes de desmontar.
+      await tester.pump(const Duration(milliseconds: 50));
     });
   });
 

@@ -136,6 +136,7 @@ ArenaClassDayView buildArenaClassDayView({
   required List<ArenaClassSession> sessions,
   required Map<String, ArenaClass> classesById,
   required DateTime now,
+  Map<String, int> headcountBySession = const {},
 }) {
   final sorted = [...sessions]..sort(_compareSessions);
   final todayKey = calendarDateKey(now);
@@ -148,9 +149,11 @@ ArenaClassDayView buildArenaClassDayView({
 
   for (final s in sorted) {
     final phase = arenaClassSessionPhase(s, now);
-    // Turma apagada/ilegível: a chamada ainda diz quantos foram marcados.
-    final studentCount =
-        classesById[s.classId]?.studentCount ?? s.attendance.length;
+    // Sem a conta do dia: o contador da turma (+ encaixes); turma
+    // apagada/ilegível: a chamada ainda diz quantos foram marcados.
+    final studentCount = headcountBySession[s.id] ??
+        (classesById[s.classId]?.studentCount ?? s.attendance.length) +
+            s.extras.length;
     final isNext =
         !markedNext && phase == ArenaClassPhase.upcoming && s.date == todayKey;
     if (isNext) markedNext = true;
@@ -349,6 +352,18 @@ int arenaClassSessionFreeSpots(
   return free < 0 ? 0 : free;
 }
 
+/// Quem vem na aula: alunos ativos que fazem aquele dia + encaixes.
+int arenaClassSessionHeadcount(
+  ArenaClassSession session,
+  List<ArenaClassStudent> students,
+) {
+  final weekday = arenaClassDateKeyWeekday(session.date);
+  final regulars = arenaClassRegularsOn(students, weekday)
+      .where((s) => !session.extras.containsKey(s.id))
+      .length;
+  return regulars + session.extras.length;
+}
+
 /// De onde o aluno da chamada vem.
 enum ArenaClassRosterKind { regular, makeup, trial }
 
@@ -383,7 +398,9 @@ List<ArenaClassRosterEntry> arenaClassAttendanceRoster(
   List<ArenaClassStudent> students,
 ) {
   final weekday = arenaClassDateKeyWeekday(session.date);
-  final expected = {for (final s in arenaClassRegularsOn(students, weekday)) s.id};
+  final expected = {
+    for (final s in arenaClassRegularsOn(students, weekday)) s.id
+  };
   int byName(ArenaClassRosterEntry a, ArenaClassRosterEntry b) =>
       a.name.toLowerCase().compareTo(b.name.toLowerCase());
   final regulars = [

@@ -375,15 +375,19 @@ class ArenaClassGhostButton extends StatelessWidget {
                     Icon(icon, size: 15),
                     const SizedBox(width: 6),
                   ],
+                  // Encolhe em vez de cortar: "Registrar pagamento" em meia
+                  // largura de 375 pt não cabe inteiro em 12,5.
                   Flexible(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.soraRegular(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: fg,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        style: AppTypography.soraRegular(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: fg,
+                        ),
                       ),
                     ),
                   ),

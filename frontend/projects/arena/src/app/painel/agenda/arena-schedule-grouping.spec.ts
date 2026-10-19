@@ -35,6 +35,7 @@ function makeBooking(overrides: Partial<ArenaBooking> = {}): ArenaBooking {
     customerName: null,
     isRecurring: false,
     recurringBookingId: null,
+    classSessionId: null,
     amountReais: null,
     paymentChannel: null,
     paymentStatus: null,

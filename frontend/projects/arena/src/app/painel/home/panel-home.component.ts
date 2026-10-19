@@ -24,7 +24,7 @@ import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
 
 type ChartTab = 'Faturamento' | 'Reservas';
-type ReservationStatus = 'confirmada' | 'pendente' | 'checkin';
+type ReservationStatus = 'confirmada' | 'pendente' | 'checkin' | 'aula';
 
 interface ReservationRow {
   time: string;
@@ -52,12 +52,14 @@ const RESERVATION_STATUS_LABEL: Record<ReservationStatus, string> = {
   confirmada: 'Confirmada',
   pendente: 'Pendente',
   checkin: 'Check-in',
+  aula: 'Aula',
 };
 
 const RESERVATION_STATUS_TONE: Record<ReservationStatus, PillTone> = {
   confirmada: 'green',
   pendente: 'yellow',
   checkin: 'orange',
+  aula: 'dim',
 };
 
 const SHORTCUTS: Shortcut[] = [
@@ -93,10 +95,11 @@ function sumAmountForDay(bookings: readonly ArenaBooking[], dateKey: string): nu
 }
 
 function countActiveForDay(bookings: readonly ArenaBooking[], dateKey: string): number {
-  return bookings.filter((b) => b.dateKey === dateKey && bookingIsActive(b)).length;
+  return bookings.filter((b) => b.dateKey === dateKey && bookingIsActive(b) && b.classSessionId == null).length;
 }
 
 function reservationStatusOf(b: ArenaBooking): ReservationStatus {
+  if (b.classSessionId != null) return 'aula';
   if (b.attendanceStatus === 'checked_in') return 'checkin';
   if (b.attendanceStatus === 'pending') return 'pendente';
   return 'confirmada';
@@ -151,7 +154,7 @@ function formatBRL(n: number): string {
             @if (showsRevenue()) {
               <ar-kpi-card label="Faturamento hoje" [value]="formatBRL(faturamentoHoje())" [delta]="faturamentoDeltaLabel()" [deltaTone]="faturamentoDeltaTone()" />
             }
-            <ar-kpi-card label="Reservas hoje" [value]="'' + todaysBookings().length" [delta]="pendingTodayCount() + ' pendentes'" deltaTone="orange" />
+            <ar-kpi-card label="Reservas hoje" [value]="'' + todaysRentals().length" [delta]="pendingTodayCount() + ' pendentes'" deltaTone="orange" />
             <ar-kpi-card label="Torneios ativos" [value]="'' + activeTournaments().length" [delta]="activeTournamentsEnrolled() + ' inscritos'" deltaTone="flat" icon="trophy" />
             <ar-kpi-card label="Avaliação média" [value]="reviewMetrics().totalReviews > 0 ? formatRating(reviewMetrics().averageRating) : '—'" [delta]="reviewMetrics().totalReviews > 0 ? reviewMetrics().totalReviews + ' avaliações' : ''" deltaTone="flat" icon="star" />
           </div>
@@ -559,7 +562,9 @@ export class PanelHomeComponent {
   protected readonly activeChartData = computed(() => (this.chartTab() === 'Faturamento' ? this.revenueByDay() : this.countByDay()));
 
   protected readonly todaysBookings = computed(() => this.bookings().filter((b) => b.dateKey === this.todayKey() && bookingIsActive(b)));
-  protected readonly pendingTodayCount = computed(() => this.todaysBookings().filter((b) => b.attendanceStatus === 'pending').length);
+  /** Aula ocupa a quadra mas não é aluguel — fica na lista do dia, fora da contagem de reservas. */
+  protected readonly todaysRentals = computed(() => this.todaysBookings().filter((b) => b.classSessionId == null));
+  protected readonly pendingTodayCount = computed(() => this.todaysRentals().filter((b) => b.attendanceStatus === 'pending').length);
 
   protected readonly reservationRows = computed<ReservationRow[]>(() => {
     const names = this.athleteNames();

@@ -13,7 +13,8 @@ import {
 /** `available` = horário livre (clicável pra bloquear); `bloqueado` = horário específico
  *  bloqueado pelo gestor (clicável pra desbloquear); `manutencao` = quadra inteira fora do ar
  *  (não é por horário, não clicável — ver `ArenaCourt.status`). */
-export type AgendaBlockStatus = 'available' | 'confirmada' | 'pendente' | 'bloqueado' | 'manutencao';
+/** `aula` = bloqueio de uma aula do módulo Aulas (booking `source: 'class'`). */
+export type AgendaBlockStatus = 'available' | 'confirmada' | 'pendente' | 'bloqueado' | 'manutencao' | 'aula';
 
 export interface AgendaCourt {
   id: string;
@@ -334,6 +335,12 @@ const MIN_COURT_COL_PX = 120;
       background: rgba(255, 106, 26, 0.08);
       border-color: rgba(255, 106, 26, 0.3);
       border-left: 3px solid var(--nx-orange-500);
+    }
+
+    .block.tone-aula {
+      background: rgba(91, 155, 255, 0.12);
+      border-color: rgba(91, 155, 255, 0.35);
+      border-left: 3px solid #5b9bff;
     }
 
     .block.tone-manutencao {

@@ -35,6 +35,7 @@ export type PanelIconName =
   | 'chart-bar'
   | 'pause'
   | 'play'
+  | 'school'
   | 'x';
 
 /** Ícones stroke-24 do painel da arena (protótipo Ar\*\/Bo\*\/At\* Ic\*), um componente para evitar repetir SVG. */
@@ -143,6 +144,9 @@ export type PanelIconName =
         @case ('repeat') {
           <path d="M17 2.5 20.5 6 17 9.5" /><path d="M20.5 6H7a4.5 4.5 0 0 0-4.5 4.5V12" />
           <path d="M7 21.5 3.5 18 7 14.5" /><path d="M3.5 18H17a4.5 4.5 0 0 0 4.5-4.5V12" />
+        }
+        @case ('school') {
+          <path d="M2 9.5 12 5l10 4.5-10 4.5L2 9.5z" /><path d="M6 11.4v4.6c0 1.4 2.7 3 6 3s6-1.6 6-3v-4.6" />
         }
         @case ('users') {
           <circle cx="8.5" cy="8" r="3.3" /><path d="M2 20c0-3.6 2.9-6.3 6.5-6.3s6.5 2.7 6.5 6.3" />

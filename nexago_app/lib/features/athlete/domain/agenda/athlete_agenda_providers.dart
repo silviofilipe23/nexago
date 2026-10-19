@@ -25,7 +25,10 @@ class AthleteAgendaPageState {
 
 final athleteAgendaItemsProvider =
     Provider.autoDispose<AthleteAgendaPageState>((ref) {
-  final bookings = ref.watch(myBookingsStreamProvider).valueOrNull ?? const [];
+  final bookings = mergeOwnAndGuestBookings(
+    ref.watch(myBookingsStreamProvider).valueOrNull ?? const [],
+    ref.watch(myGuestBookingsStreamProvider).valueOrNull ?? const [],
+  );
   final enrollmentsState = ref.watch(myTournamentsPageStateProvider);
   final enrollments = enrollmentsState.valueOrNull?.enrollments ?? const [];
 
@@ -78,7 +81,10 @@ final athleteAgendaNeedsYouProvider =
   final invites =
       ref.watch(pendingTournamentPartnerInvitesProvider).valueOrNull ??
           const <TournamentPartnerInvite>[];
-  final bookings = ref.watch(myBookingsStreamProvider).valueOrNull ?? const [];
+  final bookings = mergeOwnAndGuestBookings(
+    ref.watch(myBookingsStreamProvider).valueOrNull ?? const [],
+    ref.watch(myGuestBookingsStreamProvider).valueOrNull ?? const [],
+  );
 
   final items = <AthleteAgendaNeedsYouItem>[...mockAgendaNeedsYouItems()];
 

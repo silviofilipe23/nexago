@@ -1,160 +1,151 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
+import '../../../core/firebase/functions_region.dart';
+import '../../tournaments/data/tournament_partner_invite_service.dart'
+    show callableErrorMessage;
 import '../domain/booking_invite_model.dart';
-import '../domain/booking_invite_status.dart';
 
+/// Convites para jogar numa reserva.
+///
+/// Escrita só pelas callables de `functions/src/arena-booking-invite.ts` (as
+/// rules fecham `bookingInvites` e a lista de jogadores da reserva para o
+/// cliente); daqui saem as chamadas e as leituras.
 class BookingInviteService {
-  const BookingInviteService(this._db);
+  BookingInviteService(this._db, {FirebaseFunctions? functions})
+      : _functions = functions ?? nexagoFunctions;
 
   final FirebaseFirestore _db;
+  final FirebaseFunctions _functions;
 
-  static const _inviteTtl = Duration(hours: 48);
   static const _collection = 'bookingInvites';
 
-  Future<BookingInvite> createInvite({
+  CollectionReference<Map<String, dynamic>> get _invites =>
+      _db.collection(_collection);
+
+  Stream<BookingInvite?> watchInvite(String inviteId) {
+    final id = inviteId.trim();
+    if (id.isEmpty || id.contains('/')) return Stream.value(null);
+    return _invites.doc(id).snapshots().map(
+          (snap) => snap.exists ? BookingInvite.fromFirestore(snap) : null,
+        );
+  }
+
+  /// Convites da reserva (dono): pendentes, respondidos e o link.
+  Stream<List<BookingInvite>> watchInvitesForBooking(String bookingId) {
+    final id = bookingId.trim();
+    if (id.isEmpty) return Stream.value(const []);
+    return _invites.where('bookingId', isEqualTo: id).snapshots().map(
+          (snap) => snap.docs
+              .map((doc) => BookingInvite.fromMap(doc.id, doc.data()))
+              .toList(),
+        );
+  }
+
+  /// Convites recebidos ainda sem resposta.
+  Stream<List<BookingInvite>> watchPendingInvitesFor(String uid) {
+    final id = uid.trim();
+    if (id.isEmpty) return Stream.value(const []);
+    return _invites
+        .where('inviteeUid', isEqualTo: id)
+        .where('status', isEqualTo: 'pending')
+        .limit(20)
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map((doc) => BookingInvite.fromMap(doc.id, doc.data()))
+              .toList(),
+        );
+  }
+
+  /// Convida atletas do nexaGO (push + inbox para cada um). Devolve quantos
+  /// convites saíram — quem já joga ou já tem convite pendente é pulado.
+  Future<int> invitePlayers({
     required String bookingId,
-    required String invitedByUid,
-    required String invitedByName,
+    required List<String> inviteeUids,
   }) async {
-    final bookingSnap = await _db.collection('arenaBookings').doc(bookingId).get();
-    if (!bookingSnap.exists) throw Exception('Reserva não encontrada');
-    final b = bookingSnap.data()!;
-
-    final now = DateTime.now();
-    final expiresAt = now.add(_inviteTtl);
-    final ref = _db.collection(_collection).doc();
-
-    await ref.set({
-      'bookingId': bookingId,
-      'arenaId': b['arenaId'] ?? '',
-      'arenaName': b['arenaName'] ?? '',
-      'courtName': b['courtName'] ?? '',
-      'courtId': b['courtId'],
-      'date': b['date'] ?? '',
-      'startTime': b['startTime'] ?? '',
-      'endTime': b['endTime'] ?? '',
-      'invitedByUid': invitedByUid,
-      'invitedByName': invitedByName,
-      'status': 'pending',
-      'createdAt': FieldValue.serverTimestamp(),
-      'expiresAt': Timestamp.fromDate(expiresAt),
-    });
-
-    return BookingInvite(
-      id: ref.id,
-      bookingId: bookingId,
-      arenaId: b['arenaId'] as String? ?? '',
-      arenaName: b['arenaName'] as String? ?? '',
-      courtName: b['courtName'] as String? ?? '',
-      courtId: b['courtId'] as String?,
-      date: b['date'] as String? ?? '',
-      startTime: b['startTime'] as String? ?? '',
-      endTime: b['endTime'] as String? ?? '',
-      invitedByUid: invitedByUid,
-      invitedByName: invitedByName,
-      status: 'pending',
-      createdAt: now,
-      expiresAt: expiresAt,
+    final data = await _call(
+      'inviteArenaBookingPlayers',
+      {'bookingId': bookingId, 'inviteeUids': inviteeUids},
+      'Não foi possível enviar o convite.',
     );
+    final invited = data['invited'];
+    return invited is List ? invited.length : 0;
   }
 
-  Future<BookingInvite?> fetchInvite(String inviteId) async {
-    final snap = await _db.collection(_collection).doc(inviteId).get();
-    if (!snap.exists) return null;
-    final invite = BookingInvite.fromFirestore(snap);
-    if (invite.bookingId.isEmpty) return invite;
-
-    // O documento do convite guarda uma cópia da reserva feita na criação;
-    // relê o status ATUAL para detectar cancelamentos posteriores (o convite
-    // sozinho não sabe disso).
-    final bookingSnap =
-        await _db.collection('arenaBookings').doc(invite.bookingId).get();
-    return invite.copyWith(
-      bookingExists: bookingSnap.exists,
-      bookingStatus: bookingSnap.data()?['status'] as String?,
+  /// Id do link multiuso da reserva (cria na primeira vez).
+  Future<String> inviteLinkId(String bookingId) async {
+    final data = await _call(
+      'getArenaBookingInviteLink',
+      {'bookingId': bookingId},
+      'Não foi possível gerar o link do convite.',
     );
-  }
-
-  Future<void> acceptInvite(
-    String inviteId, {
-    required String acceptedByUid,
-    String? acceptedByName,
-  }) async {
-    final uid = acceptedByUid.trim();
-    if (uid.isEmpty) {
-      throw Exception('Faça login para aceitar o convite.');
+    final id = data['inviteId'];
+    if (id is! String || id.trim().isEmpty) {
+      throw const BookingInviteException(
+        'Não foi possível gerar o link do convite.',
+      );
     }
-
-    // Transação: relê convite + reserva e valida ANTES de escrever, tudo
-    // atomicamente. Sem isso, duas pessoas aceitando o mesmo convite quase
-    // ao mesmo tempo conseguiam as duas "ganhar" (dupla contagem de
-    // confirmedParticipants e condição de corrida no guestAthleteId).
-    await _db.runTransaction((tx) async {
-      final inviteRef = _db.collection(_collection).doc(inviteId);
-      final inviteSnap = await tx.get(inviteRef);
-      if (!inviteSnap.exists) {
-        throw Exception('Convite não encontrado ou expirado.');
-      }
-      final invite = inviteSnap.data() ?? {};
-      final bookingId = (invite['bookingId'] as String?)?.trim() ?? '';
-      final status = (invite['status'] as String?) ?? 'pending';
-      final expiresAt = (invite['expiresAt'] as Timestamp?)?.toDate();
-
-      DocumentSnapshot<Map<String, dynamic>>? bookingSnap;
-      if (bookingId.isNotEmpty) {
-        bookingSnap =
-            await tx.get(_db.collection('arenaBookings').doc(bookingId));
-      }
-
-      final blockedReason = resolveBookingInviteBlockedReason(
-        inviteStatus: status,
-        inviteExpired:
-            expiresAt != null && DateTime.now().isAfter(expiresAt),
-        bookingExists: bookingSnap?.exists ?? false,
-        bookingStatus: bookingSnap?.data()?['status'] as String?,
-      );
-      if (blockedReason != null) {
-        throw Exception(blockedReason);
-      }
-
-      tx.update(inviteRef, {
-        'status': 'accepted',
-        'acceptedByUid': uid,
-        if (acceptedByName != null && acceptedByName.trim().isNotEmpty)
-          'acceptedByName': acceptedByName.trim(),
-        'acceptedAt': FieldValue.serverTimestamp(),
-      });
-
-      if (bookingId.isEmpty || bookingSnap == null || !bookingSnap.exists) {
-        return;
-      }
-      final booking = bookingSnap.data() ?? {};
-      final ownerId =
-          ((booking['athleteId'] ?? booking['bookingAthleteId']) as String?)
-                  ?.trim() ??
-              '';
-      if (ownerId == uid) return;
-
-      final updates = <String, dynamic>{
-        'confirmedParticipants': FieldValue.increment(1),
-        'guestAthleteId': uid,
-        if (acceptedByName != null && acceptedByName.trim().isNotEmpty)
-          'guestAthleteName': acceptedByName.trim(),
-      };
-
-      final existingGuest = (booking['guestAthleteId'] as String?)?.trim();
-      if (existingGuest != null &&
-          existingGuest.isNotEmpty &&
-          existingGuest != uid) {
-        updates.remove('guestAthleteId');
-        updates.remove('guestAthleteName');
-      }
-
-      tx.set(
-        _db.collection('arenaBookings').doc(bookingId),
-        updates,
-        SetOptions(merge: true),
-      );
-    });
+    return id.trim();
   }
+
+  /// Aceita ou recusa. Retorna o status do servidor: `accepted`, `declined`,
+  /// `already` (já estava no jogo) ou `dismissed` (recusou um link).
+  Future<String> respond(String inviteId, {required bool accept}) async {
+    final data = await _call(
+      'respondArenaBookingInvite',
+      {'inviteId': inviteId, 'accept': accept},
+      accept
+          ? 'Não foi possível aceitar o convite.'
+          : 'Não foi possível recusar o convite.',
+    );
+    return (data['status'] as String?) ?? (accept ? 'accepted' : 'declined');
+  }
+
+  /// Convidado sai do jogo; com [participantUid], o dono tira essa pessoa.
+  Future<void> leave(String bookingId, {String? participantUid}) async {
+    await _call(
+      'leaveArenaBooking',
+      {
+        'bookingId': bookingId,
+        if (participantUid != null) 'participantUid': participantUid,
+      },
+      participantUid == null
+          ? 'Não foi possível sair do jogo.'
+          : 'Não foi possível remover o jogador.',
+    );
+  }
+
+  Future<void> cancelInvite(String inviteId) async {
+    await _call(
+      'cancelArenaBookingInvite',
+      {'inviteId': inviteId},
+      'Não foi possível cancelar o convite.',
+    );
+  }
+
+  Future<Map<String, dynamic>> _call(
+    String name,
+    Map<String, dynamic> payload,
+    String fallback,
+  ) async {
+    try {
+      final result = await _functions.httpsCallable(name).call(payload);
+      final data = result.data;
+      return data is Map ? Map<String, dynamic>.from(data) : const {};
+    } on FirebaseFunctionsException catch (e) {
+      throw BookingInviteException(
+        callableErrorMessage(e.code, e.message, fallback),
+      );
+    }
+  }
+}
+
+class BookingInviteException implements Exception {
+  const BookingInviteException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }

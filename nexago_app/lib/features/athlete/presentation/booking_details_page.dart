@@ -16,6 +16,7 @@ import '../../arenas/domain/arena_booking_success_actions.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../domain/booking_attendance_providers.dart';
+import '../domain/booking_invite_status.dart' show bookingOwnerUidOf;
 import 'widgets/booking_details/booking_details_actions_section.dart';
 import 'widgets/booking_details/booking_details_app_bar.dart';
 import 'widgets/booking_details/booking_details_policy_cards.dart';
@@ -144,7 +145,16 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
         (bookingData?['recurringBookingId'] as String?)?.trim().isNotEmpty ==
             true;
 
-    final canCancel = bookingDetailsCanCancel(detailsStatus) && !isRecurring;
+    // Convidado (entrou pela lista do jogo): cancelar, pagar, confirmar
+    // presença, check-in e pedido na quadra são do dono da reserva.
+    final viewerUid = ref.watch(authProvider).valueOrNull?.uid;
+    final ownerUid =
+        bookingData == null ? null : bookingOwnerUidOf(bookingData);
+    final isGuest =
+        viewerUid != null && ownerUid != null && ownerUid != viewerUid;
+
+    final canCancel =
+        bookingDetailsCanCancel(detailsStatus) && !isRecurring && !isGuest;
     final actionsEnabled = bookingDetailsActionsEnabled(detailsStatus);
 
     return Scaffold(
@@ -166,7 +176,10 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
           const SizedBox(height: 14),
           BookingDetailsTeamSection(
             bookingId: widget.bookingId,
+            arenaName: widget.arenaName,
+            startAt: widget.startAt,
             inviteEnabled: actionsEnabled,
+            onLeft: () => Navigator.of(context).maybePop(),
           ),
           const SizedBox(height: 14),
           BookingDetailsLocationSection(
@@ -174,44 +187,48 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
             address: address,
             onOpenMaps: actionsEnabled ? () => _openMaps(address) : null,
           ),
-          const SizedBox(height: 14),
-          BookingDetailsPaymentSection(
-            startAt: widget.startAt,
-            endAt: widget.endAt,
-            amountLabel: paymentLabel,
-            paymentMethodLabel: paymentMethod,
-            showSplitCard: showSplit,
-            splitPerPersonLabel: splitLabel,
-          ),
-          const SizedBox(height: 14),
-          BookingDetailsAttendanceContent(
-            attendance: attendance,
-            bookingStatus: detailsStatus,
-            startAt: widget.startAt,
-            confirmedParticipantsFallback: widget.confirmedParticipants,
-            confirmingAttendance: _confirmingAttendance,
-            checkingIn: _checkingIn,
-            attendancePulse: _attendancePulse,
-            locationVerified: _locationVerified,
-            onConfirmAttendance: _confirmAttendance,
-            onLocationVerifiedChanged: (v) =>
-                setState(() => _locationVerified = v),
-            onCheckIn: _checkInNow,
-          ),
-          const SizedBox(height: 14),
-          if (isRecurring)
-            _RecurringBookingNoteCard(arenaName: widget.arenaName)
-          else
-            BookingDetailsCancellationCard(arenaName: widget.arenaName),
+          if (!isGuest) ...[
+            const SizedBox(height: 14),
+            BookingDetailsPaymentSection(
+              startAt: widget.startAt,
+              endAt: widget.endAt,
+              amountLabel: paymentLabel,
+              paymentMethodLabel: paymentMethod,
+              showSplitCard: showSplit,
+              splitPerPersonLabel: splitLabel,
+            ),
+            const SizedBox(height: 14),
+            BookingDetailsAttendanceContent(
+              attendance: attendance,
+              bookingStatus: detailsStatus,
+              startAt: widget.startAt,
+              confirmedParticipantsFallback: widget.confirmedParticipants,
+              confirmingAttendance: _confirmingAttendance,
+              checkingIn: _checkingIn,
+              attendancePulse: _attendancePulse,
+              locationVerified: _locationVerified,
+              onConfirmAttendance: _confirmAttendance,
+              onLocationVerifiedChanged: (v) =>
+                  setState(() => _locationVerified = v),
+              onCheckIn: _checkInNow,
+            ),
+            const SizedBox(height: 14),
+            if (isRecurring)
+              _RecurringBookingNoteCard(arenaName: widget.arenaName)
+            else
+              BookingDetailsCancellationCard(arenaName: widget.arenaName),
+          ],
           const SizedBox(height: 14),
           BookingDetailsActionsSection(
             onDirections: () => _openMaps(address),
             onShare: _shareBooking,
             onCancel: canCancel ? _cancelBooking : null,
-            onOrderAtCourt: widget.arenaId == null ? null : _openOrderAtCourt,
+            onOrderAtCourt:
+                widget.arenaId == null || isGuest ? null : _openOrderAtCourt,
             shareLoading: _sharing,
             canCancel: canCancel,
             actionsEnabled: actionsEnabled,
+            showCancel: !isGuest,
           ),
           const SizedBox(height: 88),
         ],

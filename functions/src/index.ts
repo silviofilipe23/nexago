@@ -528,6 +528,15 @@ export {
   splitArenaBookingPayment,
   expireArenaBookingPaymentShares,
 } from "./arena-booking-split";
+// Convidar jogadores para a reserva de quadra (direto, link, sair/remover, cancelamento).
+export {
+  inviteArenaBookingPlayers,
+  getArenaBookingInviteLink,
+  respondArenaBookingInvite,
+  leaveArenaBooking,
+  cancelArenaBookingInvite,
+  onArenaBookingCanceledNotifyParticipants,
+} from "./arena-booking-invite";
 // Cashback do atleta: reservas de saldo de cobranças mortas e intenções pendentes (5 min).
 export {expireCashbackHolds} from "./cashback-hold-sweeper";
 // Cashback do atleta: liberar depois do evento, vencer e avisar (diária, 10h).

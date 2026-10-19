@@ -5,6 +5,9 @@ import {deliverNotificationToUser} from "./notification-delivery";
 /**
  * Quando um convite de reserva é criado, notifica o convidado se `inviteeUid` estiver no doc.
  * Convites por link (sem inviteeUid) não geram inbox até o destinatário abrir o link.
+ *
+ * Convites gravados pelas callables de arena-booking-invite.ts (têm `kind`) avisam pela
+ * própria callable — reconvidar reabre o mesmo doc, e o create não dispararia de novo.
  */
 export const onBookingInviteCreatedNotifyInvitee = onDocumentCreated(
   "bookingInvites/{inviteId}",
@@ -13,6 +16,7 @@ export const onBookingInviteCreatedNotifyInvitee = onDocumentCreated(
     if (!snap) return;
 
     const data = snap.data();
+    if (typeof data["kind"] === "string") return;
     const inviteeUid = typeof data["inviteeUid"] === "string"
       ? data["inviteeUid"].trim()
       : "";

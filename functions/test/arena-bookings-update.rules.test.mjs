@@ -491,6 +491,30 @@ test('ninguém mais se pendura como convidado na reserva alheia', async () => {
   await assertDeniedByRule(updateDoc(bookingAs(ATLETA), { confirmedParticipants: 4 }));
 });
 
+test('lista de jogadores (arena-booking-invite.ts) é só do servidor', async () => {
+  await seedBooking(confirmed);
+  const lista = {
+    participants: [{ uid: CONVIDADO, name: 'Convidado', via: 'direct' }],
+    participantUids: [CONVIDADO],
+    confirmedParticipants: 2,
+  };
+  // Dono não põe nem tira gente; o convidado não se inclui sozinho.
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), lista));
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), { participantUids: [OUTRO_ATLETA] }));
+  await assertDeniedByRule(updateDoc(bookingAs(CONVIDADO), lista));
+  // Equipe da arena também não.
+  await assertDeniedByRule(updateDoc(bookingAs(RECEPCAO), { participantUids: [CONVIDADO] }));
+  // Com a lista gravada pelo servidor, o dono segue cancelando sem tocar nela.
+  await seedBooking({ ...confirmed, ...lista });
+  await assertSucceeds(
+    updateDoc(bookingAs(ATLETA), {
+      status: 'canceled',
+      attendanceStatus: 'canceled',
+      canceledAt: serverTimestamp(),
+    }),
+  );
+});
+
 test('bookingInvites: ninguém cria (nem o dono da reserva) nem aceita pelo cliente', async () => {
   await seedBooking(confirmed);
   const invite = {

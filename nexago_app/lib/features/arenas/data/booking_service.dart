@@ -83,6 +83,24 @@ class BookingService {
     });
   }
 
+  /// Reservas em que o atleta entrou por convite (lista gravada pelo servidor
+  /// em `participantUids` — ver `functions/src/arena-booking-invite.ts`).
+  Stream<List<MyBookingItem>> watchGuestBookings(String athleteId) {
+    if (athleteId.isEmpty) {
+      return Stream<List<MyBookingItem>>.value(const []);
+    }
+    return _firestore
+        .collection(arenaBookingsCollection)
+        .where('participantUids', arrayContains: athleteId)
+        .limit(_myBookingsLimit)
+        .snapshots()
+        .map((snapshot) {
+      final items = snapshot.docs.map(MyBookingItem.fromFirestore).toList()
+        ..sort((a, b) => b.sortMillis.compareTo(a.sortMillis));
+      return items;
+    });
+  }
+
   Stream<List<MyBookingItem>> _watchMyBookingsByField(
       String field, String athleteId) {
     return _firestore

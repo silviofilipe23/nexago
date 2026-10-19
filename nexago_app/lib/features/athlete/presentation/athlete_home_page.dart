@@ -39,6 +39,7 @@ import '../domain/athlete_notifications_providers.dart';
 import '../domain/athlete_quest/athlete_quest_logic.dart';
 import '../domain/athlete_profile_providers.dart';
 import '../domain/athlete_shell_providers.dart';
+import '../domain/booking_invite_providers.dart';
 import '../domain/community/community_feed_providers.dart';
 import '../domain/gamification_models.dart';
 import '../domain/gamification_providers.dart';
@@ -54,6 +55,7 @@ import 'widgets/athlete_home/athlete_home_focus_button.dart';
 import 'widgets/athlete_home/athlete_home_following_matches_section.dart';
 import 'widgets/athlete_home/athlete_home_hero.dart';
 import 'widgets/athlete_profile_avatar.dart';
+import 'widgets/pending_booking_invites_section.dart';
 import 'sand_rank/widgets/sand_rank_avatar_frame.dart';
 import 'sand_rank/widgets/sand_rank_emblem.dart';
 import 'widgets/athlete_home/athlete_home_kpi_grid.dart';
@@ -174,6 +176,30 @@ class AthleteHomePage extends ConsumerWidget {
                   padding: EdgeInsets.only(bottom: bottomClearance),
                   sliver: SliverList.list(
                     children: [
+                      // Convites para jogar numa reserva (recebidos e sem
+                      // resposta): o jogo tem hora marcada, então vêm antes
+                      // dos convites de dupla.
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final hasBookingInvites = (ref
+                                      .watch(pendingBookingInvitesProvider)
+                                      .valueOrNull ??
+                                  const [])
+                              .isNotEmpty;
+                          if (!hasBookingInvites) {
+                            return const SizedBox.shrink();
+                          }
+                          return const Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              AppSpacing.screenH,
+                              0,
+                              AppSpacing.screenH,
+                              AppSpacing.sectionGap,
+                            ),
+                            child: PendingBookingInvitesSection(),
+                          );
+                        },
+                      ),
                       // Convites recebidos ainda pendentes — o atleta precisa
                       // responder. Aparecem primeiro na home, logo após o
                       // header, à frente até de "meus torneios".

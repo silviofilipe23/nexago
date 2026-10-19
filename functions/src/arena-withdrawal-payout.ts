@@ -1,12 +1,6 @@
-import {
-  FieldValue,
-  type DocumentReference,
-  type Firestore,
-} from "firebase-admin/firestore";
-import {
-  assertWithdrawalReservationValid,
-  releaseWithdrawalReservation,
-} from "./arena-wallet";
+import {type DocumentReference, type Firestore} from "firebase-admin/firestore";
+import {assertWithdrawalReservationValid} from "./arena-wallet";
+import {finalizeApprovedWithdrawal} from "./withdrawal-transfer-state";
 import {
   AsaasPayoutError,
   type PayoutSendResult,
@@ -19,7 +13,7 @@ export type CompleteWithdrawalPayoutResult = PayoutSendResult & {
 };
 
 /**
- * Valida reserva, envia PIX Asaas e finaliza o saque (libera pending).
+ * Valida reserva, envia PIX Asaas e finaliza o saque (consome o pending).
  */
 export async function completeArenaWithdrawalPayout(
   db: Firestore,
@@ -37,14 +31,11 @@ export async function completeArenaWithdrawalPayout(
   await assertWithdrawalReservationValid(db, arenaId, amountReais);
 
   const payout = await sendArenaWithdrawalPixTransfer(withdrawalRef, withdrawal);
-  await releaseWithdrawalReservation(db, arenaId, amountReais, true);
-
-  await withdrawalRef.update({
-    status: "approved",
+  // Consome a reserva e aprova numa transação que relê o saque: se o webhook
+  // de falha chegou entre o envio e aqui, nada é consumido.
+  await finalizeApprovedWithdrawal(db, "arena", withdrawalRef, amountReais, {
     reviewedBy,
-    reviewedAt: FieldValue.serverTimestamp(),
-    reviewNote: reviewNote?.trim() || null,
-    updatedAt: FieldValue.serverTimestamp(),
+    reviewNote,
   });
 
   return {

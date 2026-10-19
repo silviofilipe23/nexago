@@ -3,6 +3,12 @@ import * as logger from "firebase-functions/logger";
 import {AsaasApiError, fetchAsaas} from "./asaas-client";
 import {ARENA_WITHDRAWAL_REF_PREFIX} from "./arena-booking-payment-constants";
 import {roundMoney} from "./mercadopago-arena-helpers";
+import {
+  failedTransferIds,
+  lowerStatus,
+  nextTransferAttempt,
+  transferAttempt,
+} from "./withdrawal-transfer-state";
 
 export type ResolvedWithdrawalPix = {
   pixAddressKey: string;
@@ -139,6 +145,8 @@ export function formatAsaasPayoutError(httpStatus: number, body: string): string
 type AsaasTransferResponse = {
   id?: string;
   status?: string;
+  /** `false` enquanto espera autorização por token SMS/APP no Asaas. */
+  authorized?: boolean;
 };
 
 export type WithdrawalTransferAmount = {
@@ -174,8 +182,32 @@ export function withdrawalTransferAmountIsValid(
 }
 
 /**
+ * Chave de idempotência da transferência do saque: uma por tentativa
+ * (`transferAttempt`, ver withdrawal-transfer-state.ts). Repetir a mesma
+ * tentativa devolve a mesma transferência; tentativa nova cria outra.
+ */
+export function withdrawalTransferIdempotencyKey(
+  externalRefPrefix: string,
+  withdrawalId: string,
+  withdrawal: Record<string, unknown>,
+): string {
+  const base = `withdrawal-transfer-${externalRefPrefix}${withdrawalId}`;
+  const attempt = transferAttempt(withdrawal);
+  return attempt > 0 ? `${base}-try-${attempt}` : base;
+}
+
+/**
+ * Erro do Asaas que garante que a transferência NÃO foi criada (recusa de
+ * validação, saldo, chave). Rede, 5xx, 408, 409 e 429 são incertos.
+ */
+export function asaasErrorIsDefinitiveRefusal(httpStatus: number): boolean {
+  return httpStatus >= 400 && httpStatus < 500 &&
+    httpStatus !== 408 && httpStatus !== 409 && httpStatus !== 429;
+}
+
+/**
  * Envia PIX da conta NexaGO (Asaas) para a chave do saque.
- * Idempotente se `asaasTransferId` já existir com payoutStatus sent.
+ * Idempotente se `asaasTransferId` já existir com payoutStatus sent/paid.
  */
 export async function sendArenaWithdrawalPixTransfer(
   withdrawalRef: DocumentReference,
@@ -184,7 +216,7 @@ export async function sendArenaWithdrawalPixTransfer(
 ): Promise<PayoutSendResult> {
   const existingStatus = (withdrawal.payoutStatus as string | undefined)?.toLowerCase();
   const existingId = withdrawal.asaasTransferId as string | undefined;
-  if (existingStatus === "sent" && existingId) {
+  if ((existingStatus === "sent" || existingStatus === "paid") && existingId) {
     return {payoutId: existingId, payoutStatus: "sent"};
   }
 
@@ -205,17 +237,28 @@ export async function sendArenaWithdrawalPixTransfer(
     throw new Error("AMOUNT_INVALID");
   }
 
+  // Nova tentativa depois de uma transferência morta: o id dela vai para
+  // `failedTransferIds`, para evento atrasado dela não mexer mais no saque.
+  const retiredTransferId = existingStatus === "failed" ? existingId?.trim() ?? "" : "";
   await withdrawalRef.update({
     payoutStatus: "pending",
     payoutProvider: "asaas",
     payoutError: FieldValue.delete(),
     pixKey: pixAddressKey,
     pixKeyType: pixAddressKeyType,
+    // Marca de envio em curso: a validação de saque só aprova com ela, e saque
+    // acima do limite (pending desde o pedido) só a ganha quando é aprovado.
+    transferRequestedAt: FieldValue.serverTimestamp(),
+    ...(retiredTransferId ? {
+      failedTransferIds: [...failedTransferIds(withdrawal), retiredTransferId],
+      asaasTransferId: FieldValue.delete(),
+    } : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
 
+  let data: AsaasTransferResponse;
   try {
-    const data = await fetchAsaas<AsaasTransferResponse>("/v3/transfers", {
+    data = await fetchAsaas<AsaasTransferResponse>("/v3/transfers", {
       method: "POST",
       body: {
         value: netReais,
@@ -224,29 +267,105 @@ export async function sendArenaWithdrawalPixTransfer(
         externalReference: `${externalRefPrefix}${withdrawalId}`,
         description: `Repasse NexaGO — saque ${withdrawalId}`,
       },
-      idempotencyKey: `withdrawal-transfer-${externalRefPrefix}${withdrawalId}`,
+      idempotencyKey: withdrawalTransferIdempotencyKey(externalRefPrefix, withdrawalId, withdrawal),
     });
-
-    const transferId = data.id?.trim() || withdrawalId;
-
-    await withdrawalRef.update({
-      payoutStatus: "sent",
-      asaasTransferId: transferId,
-      payoutError: FieldValue.delete(),
-      paidAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-
-    return {payoutId: transferId, payoutStatus: "sent"};
   } catch (e) {
     const httpStatus = e instanceof AsaasApiError ? e.httpStatus : 500;
     const body = e instanceof AsaasApiError ? e.body : String(e);
     logger.error("sendArenaWithdrawalPixTransfer failed:", httpStatus, body.slice(0, 500));
+    const refused = e instanceof AsaasApiError && asaasErrorIsDefinitiveRefusal(httpStatus);
     await withdrawalRef.update({
       payoutStatus: "failed",
       payoutError: `Asaas ${httpStatus}: ${body.slice(0, 500)}`,
+      // Recusa certa: a chave desta tentativa não criou nada e pode ter
+      // guardado o erro — a próxima usa outra. Incerto: mantém a chave.
+      ...(refused ? {transferAttempt: nextTransferAttempt(withdrawal)} : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     throw new AsaasPayoutError(formatAsaasPayoutError(httpStatus, body), httpStatus, body);
   }
+
+  const transferId = data.id?.trim() || withdrawalId;
+  const remoteStatus = data.status?.trim().toUpperCase() ?? "";
+  if (transferResponseIsDead(remoteStatus)) {
+    // A idempotência devolveu uma transferência que já morreu (resposta
+    // anterior perdida): não é envio. A próxima tentativa ganha chave nova.
+    await withdrawalRef.update({
+      payoutStatus: "failed",
+      asaasTransferId: transferId,
+      asaasTransferStatus: remoteStatus,
+      payoutError: `Transferência ${remoteStatus} no Asaas.`,
+      transferAttempt: nextTransferAttempt(withdrawal),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    throw new AsaasPayoutError(
+      "A transferência anterior deste saque não foi concluída no Asaas. Tente de novo.",
+      409,
+      remoteStatus,
+    );
+  }
+
+  const recorded = await recordTransferCreated(withdrawalRef, transferId, data);
+  if (recorded === "retired") {
+    throw new AsaasPayoutError(
+      "O Asaas devolveu uma transferência antiga deste saque. Tente de novo.",
+      409,
+      transferId,
+    );
+  }
+  return {payoutId: transferId, payoutStatus: "sent"};
+}
+
+/** Resposta do Asaas com uma transferência que não vai sair. */
+export function transferResponseIsDead(status: string): boolean {
+  const s = status.trim().toUpperCase();
+  return s === "CANCELLED" || s === "FAILED";
+}
+
+/**
+ * "sent" = o Asaas aceitou CRIAR a transferência, não que o dinheiro saiu: ela
+ * ainda pode esperar autorização (token SMS/APP, validação de saque) e falhar
+ * no banco. `paidAt` e `payoutStatus: "paid"` só chegam pelo `TRANSFER_DONE`
+ * (asaas-withdrawal-webhook.ts) — e se esse webhook (ou o de falha) chegou
+ * antes desta gravação, ela não o desfaz.
+ */
+async function recordTransferCreated(
+  withdrawalRef: DocumentReference,
+  transferId: string,
+  data: AsaasTransferResponse,
+): Promise<"recorded" | "settled" | "retired"> {
+  const authorized = typeof data.authorized === "boolean" ? data.authorized : null;
+  return withdrawalRef.firestore.runTransaction(async (tx) => {
+    const current = (await tx.get(withdrawalRef)).data() ?? {};
+    if (failedTransferIds(current).includes(transferId)) {
+      // Uma transferência já aposentada voltou pela chave (não deveria, com a
+      // chave por tentativa — mas aceitá-la consumiria a reserva sem PIX).
+      tx.update(withdrawalRef, {
+        payoutStatus: "failed",
+        payoutError: "O Asaas devolveu uma transferência antiga deste saque.",
+        transferAttempt: nextTransferAttempt(current),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return "retired";
+    }
+    const status = lowerStatus(current.payoutStatus);
+    const sameTransfer = ((current.asaasTransferId as string | undefined) ?? "") === transferId;
+    if ((status === "paid" || status === "failed") && sameTransfer) {
+      tx.update(withdrawalRef, {
+        asaasTransferAuthorized: authorized,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return "settled";
+    }
+    tx.update(withdrawalRef, {
+      payoutStatus: "sent",
+      asaasTransferId: transferId,
+      asaasTransferStatus: data.status?.trim() || null,
+      asaasTransferAuthorized: authorized,
+      payoutError: FieldValue.delete(),
+      sentAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return "recorded";
+  });
 }

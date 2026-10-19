@@ -101,6 +101,8 @@ bool _isWithinPeriod(DateTime? at, ArenaFinancialPeriod period, {DateTime? now})
 String withdrawalStatusLabel(ArenaWithdrawalItem item) {
   final payout = item.payoutStatus?.trim().toLowerCase() ?? '';
   if (payout == 'failed') return 'FALHOU';
+  // `paid` só chega com a conclusão da transferência no Asaas; `sent` é o PIX criado.
+  if (payout == 'paid') return 'PAGO';
   if (payout == 'sent' || item.status.trim().toLowerCase() == 'approved') {
     return 'ENVIADO';
   }

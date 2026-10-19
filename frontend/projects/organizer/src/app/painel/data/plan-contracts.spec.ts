@@ -86,6 +86,17 @@ describe('plan-contracts · leitura', () => {
     expect(s.logoStatus).toBe('missing');
     expect(s.tier.id).toBe('ouro');
     expect(s.source).toBe('organizer');
+    expect(s.logoRejectReason).toBeNull();
+  });
+
+  it('motivo da recusa só vale com a logo recusada', () => {
+    const raw = { name: 'Açaí', tierId: 'ouro', logoUrl: 'u1', logoRejectReason: '  Fundo branco some na transmissão ' };
+    expect(planSponsorFromRaw('s1', { ...raw, logoStatus: 'rejected' })!.logoRejectReason).toBe('Fundo branco some na transmissão');
+    expect(planSponsorFromRaw('s1', { ...raw, logoStatus: 'rejected', logoRejectReason: null })!.logoRejectReason).toBeNull();
+    expect(planSponsorFromRaw('s1', { ...raw, logoStatus: 'rejected', logoRejectReason: '   ' })!.logoRejectReason).toBeNull();
+    // Reenviou: o servidor volta o status pra análise e deixa o motivo antigo no doc.
+    expect(planSponsorFromRaw('s1', { ...raw, logoStatus: 'review' })!.logoRejectReason).toBeNull();
+    expect(planSponsorFromRaw('s1', { ...raw, logoStatus: 'approved' })!.logoRejectReason).toBeNull();
   });
 });
 
@@ -170,7 +181,7 @@ describe('plan-contracts · contratos e cotas', () => {
       { id: 'ouro', name: 'Ouro', color: '#F4C543', priceCents: 200_00, appearances: 50, seconds: 5, mentions: 2, maxPerEvent: 2 },
     ];
     const s = (id: string, tier: (typeof tiers)[number]): PlanSponsor => ({
-      id, name: id, tierId: tier.id, tier, logoUrl: null, logoStatus: 'missing', source: 'organizer', createdAt: null,
+      id, name: id, tierId: tier.id, tier, logoUrl: null, logoStatus: 'missing', logoRejectReason: null, source: 'organizer', createdAt: null,
     });
     const sponsors = [s('a', tiers[1]!), s('b', tiers[1]!), s('c', tiers[0]!)];
     expect(tierUsage(tiers, sponsors).map((u) => [u.used, u.left])).toEqual([[1, 7], [2, 0]]);

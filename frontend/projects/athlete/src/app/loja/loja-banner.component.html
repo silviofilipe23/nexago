@@ -1,39 +1,61 @@
-@for (b of current(); track b.id) {
-  <section class="lj-banner" [attr.aria-label]="'Campanha: ' + b.title" aria-roledescription="carrossel">
-    <div class="lj-banner-copy">
-      @if (b.kicker) {
-        <div class="lj-banner-kicker">{{ b.kicker }}</div>
-      }
-      <h2 class="lj-banner-title">{{ b.title }}</h2>
-      @if (b.subtitle) {
-        <p class="lj-banner-subtitle">{{ b.subtitle }}</p>
-      }
-      <div class="lj-banner-actions">
-        <button type="button" class="lj-btn lj-btn--primary" (click)="primaryClick.emit(b)">{{ b.primary.label }}</button>
-        @if (b.secondary; as sec) {
-          <button type="button" class="lj-btn lj-btn--ghost" (click)="secondaryClick.emit(b)">{{ sec.label }}</button>
-        }
-      </div>
-      @if (banners().length > 1) {
-        <div class="lj-banner-dots" role="tablist" aria-label="Escolher campanha">
-          @for (item of banners(); track item.id; let i = $index) {
-            <button
-              type="button"
-              role="tab"
-              class="lj-banner-dot"
-              [class.lj-banner-dot--on]="item.id === b.id"
-              [attr.aria-selected]="item.id === b.id"
-              [attr.aria-label]="'Campanha ' + (i + 1) + ': ' + item.title"
-              (click)="go(i)"
-            ></button>
+<section
+  class="lj-banner"
+  aria-roledescription="carrossel"
+  [attr.aria-label]="banners().length > 1 ? 'Campanhas da loja' : 'Campanha: ' + banners()[0]?.title"
+>
+  <div class="lj-banner-copy">
+    <!-- Anuncia a troca só quando a pessoa está no banner (pausado); a rotação sozinha fica muda. -->
+    <div class="lj-banner-slides" [attr.aria-live]="paused() ? 'polite' : 'off'">
+      @for (b of banners(); track b.id; let i = $index) {
+        <div
+          class="lj-banner-slide"
+          [class.lj-banner-slide--on]="i === active()"
+          [id]="'lj-banner-' + b.id"
+          role="group"
+          aria-roledescription="slide"
+          [attr.aria-label]="banners().length > 1 ? i + 1 + ' de ' + banners().length + ': ' + b.title : b.title"
+          [attr.aria-hidden]="i === active() ? null : 'true'"
+          [attr.inert]="i === active() ? null : ''"
+        >
+          @if (b.kicker) {
+            <div class="lj-banner-kicker">{{ b.kicker }}</div>
           }
+          <h2 class="lj-banner-title">{{ b.title }}</h2>
+          @if (b.subtitle) {
+            <p class="lj-banner-subtitle">{{ b.subtitle }}</p>
+          }
+          <div class="lj-banner-actions">
+            <button type="button" class="lj-btn lj-btn--primary" (click)="primaryClick.emit(b)">{{ b.primary.label }}</button>
+            @if (b.secondary; as sec) {
+              <button type="button" class="lj-btn lj-btn--ghost" (click)="secondaryClick.emit(b)">{{ sec.label }}</button>
+            }
+          </div>
         </div>
       }
     </div>
-    <div class="lj-banner-media" aria-hidden="true">
+    @if (banners().length > 1) {
+      <div class="lj-banner-dots" role="tablist" aria-label="Escolher campanha" (keydown)="onDotsKeydown($event)">
+        @for (item of banners(); track item.id; let i = $index) {
+          <button
+            type="button"
+            role="tab"
+            class="lj-banner-dot"
+            [class.lj-banner-dot--on]="i === active()"
+            [attr.aria-selected]="i === active()"
+            [attr.aria-controls]="'lj-banner-' + item.id"
+            [attr.aria-label]="'Campanha ' + (i + 1) + ': ' + item.title"
+            [tabIndex]="i === active() ? 0 : -1"
+            (click)="go(i)"
+          ></button>
+        }
+      </div>
+    }
+  </div>
+  <div class="lj-banner-media" aria-hidden="true">
+    @for (b of banners(); track b.id; let i = $index) {
       @if (b.imageUrl; as img) {
-        <img [src]="img" alt="" />
+        <img class="lj-banner-img" [class.lj-banner-img--on]="i === active()" [src]="img" alt="" />
       }
-    </div>
-  </section>
-}
+    }
+  </div>
+</section>

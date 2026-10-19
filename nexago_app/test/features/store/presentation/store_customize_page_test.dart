@@ -696,6 +696,28 @@ void main() {
       );
     });
 
+    testWidgets('com 4 abas, todos os rótulos no mesmo tamanho',
+        (tester) async {
+      await _open(tester, product: _camisetaWith(_withBack(_bothBack)));
+
+      const tabs = ['name', 'image', 'back', 'variant'];
+      Finder label(String tab) => find.descendant(
+            of: find.byKey(ValueKey('store-customize-tab-$tab')),
+            matching: find.byType(Text),
+          );
+      final sizes = {
+        for (final tab in tabs)
+          tester.widget<Text>(label(tab)).style!.fontSize,
+      };
+      expect(sizes, hasLength(1));
+      expect(sizes.single, lessThan(14.5));
+      // E nenhuma aba encolhe de novo sozinha (o FittedBox não entra).
+      for (final tab in tabs) {
+        final laidOut = tester.renderObject<RenderBox>(label(tab)).size.width;
+        expect(tester.getRect(label(tab)).width, closeTo(laidOut, 0.5));
+      }
+    });
+
     testWidgets(
         'entre Imagem e Cor e tam.; título, preço, hint e prévia das costas',
         (tester) async {

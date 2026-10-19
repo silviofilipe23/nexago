@@ -58,6 +58,9 @@ class StoreCustomizeTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final textScaler = MediaQuery.textScalerOf(context);
+    // O Text herda o DefaultTextStyle (letterSpacing do tema): mede com ele.
+    final inherited = DefaultTextStyle.of(context).style;
     return Container(
       height: 56,
       padding: const EdgeInsets.all(4),
@@ -65,21 +68,71 @@ class StoreCustomizeTabs extends StatelessWidget {
         color: StoreStyle.surface(colors),
         borderRadius: BorderRadius.circular(18),
       ),
-      child: Row(
-        children: [
-          for (final tab in tabs)
-            Expanded(
-              child: _TabButton(
-                key: ValueKey('store-customize-tab-${tab.name}'),
-                icon: _meta(tab).$1,
-                label: _meta(tab).$2,
-                active: tab == current,
-                done: done.contains(tab),
-                onTap: () => onTap(tab),
-              ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final layout = _layout(
+            constraints.maxWidth,
+            tabs.length,
+            (i, scale) => _TabButton.contentWidth(
+              _meta(tabs[i]).$2,
+              done: done.contains(tabs[i]),
+              inherited: inherited,
+              textScaler: textScaler,
+              scale: scale,
             ),
-        ],
+          );
+          return Row(
+            children: [
+              for (var i = 0; i < tabs.length; i++)
+                Expanded(
+                  flex: layout.flex[i],
+                  child: _TabButton(
+                    key: ValueKey('store-customize-tab-${tabs[i].name}'),
+                    icon: _meta(tabs[i]).$1,
+                    label: _meta(tabs[i]).$2,
+                    active: tabs[i] == current,
+                    done: done.contains(tabs[i]),
+                    scale: layout.scale,
+                    onTap: () => onTap(tabs[i]),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
+    );
+  }
+
+  /// Fatias iguais quando todo rótulo cabe; senão, fatias proporcionais ao
+  /// rótulo e **uma escala só** para todos (com 4 abas, cada uma encolhendo
+  /// sozinha deixava "Nome" grande e "Cor e tam." miúdo).
+  static ({List<int> flex, double scale}) _layout(
+    double width,
+    int n,
+    double Function(int i, double scale) measure,
+  ) {
+    final equal = (flex: List.filled(n, 1), scale: 1.0);
+    if (n == 0 || !width.isFinite) return equal;
+    const pad = _TabButton.horizontalPadding * 2;
+    List<double> widthsAt(double scale) =>
+        [for (var i = 0; i < n; i++) measure(i, scale)];
+    double sumOf(List<double> ws) => ws.fold(0, (a, w) => a + w);
+
+    var widths = widthsAt(1);
+    if (widths.every((w) => w <= width / n - pad)) return equal;
+    final room = width - n * pad;
+    if (room <= 0) return equal;
+    // O texto não encolhe linear com a fonte: mede de novo na escala e
+    // corrige até caber (converge em 1–2 passos).
+    var scale = 1.0;
+    for (var pass = 0; pass < 4 && sumOf(widths) > room; pass++) {
+      scale = (scale * room / sumOf(widths)).clamp(0.0, 1.0);
+      widths = widthsAt(scale);
+    }
+    final extra = ((room - sumOf(widths)) / n).clamp(0.0, double.infinity);
+    return (
+      flex: [for (final w in widths) ((w + pad + extra) * 100).floor()],
+      scale: scale,
     );
   }
 }
@@ -92,6 +145,7 @@ class _TabButton extends StatelessWidget {
     required this.active,
     required this.done,
     required this.onTap,
+    this.scale = 1,
   });
 
   final IconData icon;
@@ -99,6 +153,44 @@ class _TabButton extends StatelessWidget {
   final bool active;
   final bool done;
   final VoidCallback onTap;
+
+  /// Escala comum a todas as abas (ver [StoreCustomizeTabs._layout]).
+  final double scale;
+
+  static const double horizontalPadding = 8;
+  static const double _iconSize = 18;
+  static const double _gap = 6;
+  static const double _checkSize = 16;
+  static const double _fontSize = 14.5;
+
+  static TextStyle _labelStyle({double scale = 1, Color? color}) =>
+      AppTypography.soraRegular(
+        fontSize: _fontSize * scale,
+        fontWeight: FontWeight.w700,
+        color: color,
+      );
+
+  /// Largura do conteúdo (ícone + rótulo + ✓) na [scale].
+  static double contentWidth(
+    String label, {
+    required bool done,
+    required TextStyle inherited,
+    required TextScaler textScaler,
+    double scale = 1,
+  }) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: inherited.merge(_labelStyle(scale: scale)),
+      ),
+      textDirection: TextDirection.ltr,
+      textScaler: textScaler,
+      maxLines: 1,
+    )..layout();
+    final text = painter.width;
+    painter.dispose();
+    return (_iconSize + _gap + (done ? _gap + _checkSize : 0)) * scale + text;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -117,28 +209,28 @@ class _TabButton extends StatelessWidget {
             color: active ? AppColors.onSurface : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          padding: const EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: Center(
+            // Rede de segurança para arredondamento da medida.
             child: FittedBox(
               fit: BoxFit.scaleDown,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, size: 18, color: fg),
-                  const SizedBox(width: 6),
+                  Icon(icon, size: _iconSize * scale, color: fg),
+                  SizedBox(width: _gap * scale),
                   Text(
                     label,
-                    style: AppTypography.soraRegular(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w700,
+                    style: _labelStyle(
+                      scale: scale,
                       color: active ? StoreStyle.onBrand : colors.onSurface,
                     ),
                   ),
                   if (done) ...[
-                    const SizedBox(width: 6),
-                    const Icon(
+                    SizedBox(width: _gap * scale),
+                    Icon(
                       Icons.check_rounded,
-                      size: 16,
+                      size: _checkSize * scale,
                       color: AppColors.win,
                     ),
                   ],

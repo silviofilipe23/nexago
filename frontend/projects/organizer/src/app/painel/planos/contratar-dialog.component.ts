@@ -20,8 +20,14 @@ import {
 import { requestPlanContract } from '../data/plan-contracts-repository';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { listMyTournaments } from '../data/tournaments-repository';
-import { OgIconComponent } from '../ui/icon.component';
+import { OgIconComponent, type OgIconName } from '../ui/icon.component';
 import { OgPlanCardComponent } from './plan-card.component';
+
+interface EventChip {
+  icon: OgIconName;
+  text: string;
+  missing?: boolean;
+}
 
 /** Pedido de contratação de um plano para um evento (protótipo 04b, fora do wizard): escolhe o
  *  evento, o plano e confere o que paga. O pedido nasce `requested` — a NexaGO confirma a data
@@ -62,17 +68,23 @@ import { OgPlanCardComponent } from './plan-card.component';
           </a>
         </div>
       } @else {
-        <label class="og-field">
-          <span class="og-field-label">Evento</span>
-          <select class="og-select-el" [value]="tournamentId()" (change)="pickTournament($event)">
-            @for (t of options(); track t.id) {
-              <option [value]="t.id" [selected]="t.id === tournamentId()">{{ t.name }}</option>
-            }
-          </select>
-          @if (tournament(); as t) {
-            <span class="hint">{{ eventLine() }}</span>
+        <div class="event">
+          <label class="og-field event-field">
+            <span class="og-field-label">Evento</span>
+            <select class="og-select-el" [value]="tournamentId()" (change)="pickTournament($event)">
+              @for (t of options(); track t.id) {
+                <option [value]="t.id" [selected]="t.id === tournamentId()">{{ t.name }}</option>
+              }
+            </select>
+          </label>
+          @if (eventMeta().length > 0) {
+            <div class="chips">
+              @for (m of eventMeta(); track m.icon) {
+                <span class="chip" [class.missing]="m.missing"><og-icon [name]="m.icon" [size]="13" />{{ m.text }}</span>
+              }
+            </div>
           }
-        </label>
+        </div>
 
         <div class="og-field">
           <span class="og-field-label">Plano</span>
@@ -94,26 +106,42 @@ import { OgPlanCardComponent } from './plan-card.component';
           </div>
         </div>
 
-        @if (warning(); as w) {
-          <div class="note warn"><og-icon name="alert" [size]="15" />{{ w }}</div>
-        }
-        @for (b of blockers(); track b) {
-          <div class="note block"><og-icon name="alert" [size]="15" />{{ b }}</div>
+        @if (warning() || blockers().length > 0) {
+          <div class="notes">
+            @if (warning(); as w) {
+              <div class="note warn"><og-icon name="alert" [size]="15" />{{ w }}</div>
+            }
+            @for (b of blockers(); track b) {
+              <div class="note block"><og-icon name="alert" [size]="15" />{{ b }}</div>
+            }
+          </div>
         }
 
         @if (plan(); as p) {
-          <div class="summary">
-            <div class="summary-kicker">Resumo · quanto você paga</div>
-            <div class="row"><span>Plano</span><b>{{ p.name }} · {{ brl(p.priceCents) }}</b></div>
-            <div class="row">
-              <span>Sinal {{ p.depositPct }}%</span>
-              <b>{{ brl(amounts().depositCents) }} para reservar a data, cobrado pela NexaGO ao confirmar</b>
+          <div class="summary" role="group" aria-label="Resumo: quanto você paga">
+            <div class="cell">
+              <span class="cell-label">Plano</span>
+              <b class="cell-value">{{ brl(p.priceCents) }}</b>
+              <span class="cell-sub">{{ p.name }}, por evento</span>
             </div>
-            <div class="row"><span>Até {{ balanceDue() }}</span><b>{{ brl(amounts().balanceCents) }} restantes</b></div>
-            <div class="row"><span>Cancelamento</span><b>{{ cancelLabel() }}</b></div>
-            <div class="row">
-              <span>Comissão {{ catalog().feePercent }}%</span>
-              <b>Sobre as inscrições pagas no app, à parte do plano</b>
+            <div class="cell">
+              <span class="cell-label">Sinal {{ p.depositPct }}%</span>
+              <b class="cell-value">{{ brl(amounts().depositCents) }}</b>
+              <span class="cell-sub">Reserva a data. Cobrado pela NexaGO ao confirmar</span>
+            </div>
+            <div class="cell">
+              <span class="cell-label">Saldo até {{ balanceDue() }}</span>
+              <b class="cell-value">{{ brl(amounts().balanceCents) }}</b>
+              <span class="cell-sub">Restante do plano</span>
+            </div>
+            <div class="cell">
+              <span class="cell-label">Cancelamento</span>
+              <b class="cell-value sm">{{ cancelLabel() }}</b>
+            </div>
+            <div class="cell">
+              <span class="cell-label">Comissão {{ catalog().feePercent }}%</span>
+              <b class="cell-value sm">Sobre as inscrições</b>
+              <span class="cell-sub">Pagas no app, à parte do plano</span>
             </div>
           </div>
         }
@@ -144,17 +172,21 @@ import { OgPlanCardComponent } from './plan-card.component';
       background: rgba(7, 7, 8, 0.66);
       backdrop-filter: blur(4px);
     }
+    /* Largo de propósito: os 4 planos lado a lado e o resumo numa faixa cabem num notebook sem
+       rolar. Abaixo disso as consultas de contêiner descem pra 2 e 1 coluna. */
     .og-dialog {
-      width: min(720px, 100%);
+      container: contratar / inline-size;
+      box-sizing: border-box;
+      width: min(1080px, 100%);
       max-height: calc(100dvh - 40px);
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 16px;
       background: var(--nx-surface-0);
       border: 1px solid var(--nx-line);
       border-radius: var(--nx-r-4);
-      padding: 22px;
+      padding: 22px 24px;
       box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
     }
     .top {
@@ -164,7 +196,7 @@ import { OgPlanCardComponent } from './plan-card.component';
       gap: 12px;
     }
     .kicker,
-    .summary-kicker {
+    .cell-label {
       font-family: var(--nx-font-mono);
       font-size: 9.5px;
       font-weight: 600;
@@ -182,31 +214,64 @@ import { OgPlanCardComponent } from './plan-card.component';
     .close {
       flex: none;
     }
-    .hint,
-    .muted {
-      font-family: var(--nx-font-ui);
-      font-size: 12px;
-      color: var(--nx-text-dim);
-    }
     .muted {
       margin: 0;
+      font-family: var(--nx-font-ui);
       font-size: 13px;
+      color: var(--nx-text-dim);
+    }
+    .event {
+      display: flex;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+    }
+    .event-field {
+      flex: 1 1 320px;
+      max-width: 460px;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding-bottom: 7px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 99px;
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      font-family: var(--nx-font-ui);
+      font-size: 12.5px;
+      color: var(--nx-text);
+      white-space: nowrap;
+    }
+    .chip og-icon {
+      display: inline-flex;
+      color: var(--nx-orange-500);
+    }
+    .chip.missing {
+      color: var(--nx-text-mute);
     }
     .plans {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 14px;
       padding-top: 8px;
     }
-    @media (max-width: 560px) {
-      .plans {
-        grid-template-columns: minmax(0, 1fr);
-      }
+    .notes {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
     }
     .note {
       display: flex;
       gap: 10px;
-      padding: 11px 13px;
+      padding: 8px 13px;
       border-radius: var(--nx-r-2);
       font-family: var(--nx-font-ui);
       font-size: 12.5px;
@@ -234,39 +299,40 @@ import { OgPlanCardComponent } from './plan-card.component';
       color: var(--nx-live);
     }
     .summary {
-      display: flex;
-      flex-direction: column;
-      padding: 14px 16px;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       border-radius: var(--nx-r-3);
       background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
     }
-    .summary-kicker {
-      margin-bottom: 6px;
+    .cell {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+      padding: 13px 16px;
     }
-    .row {
-      display: grid;
-      grid-template-columns: 130px minmax(0, 1fr);
-      gap: 12px;
-      padding: 9px 0;
-      border-bottom: 1px solid var(--nx-line);
-      font-family: var(--nx-font-ui);
-      font-size: 12.5px;
+    .cell + .cell {
+      border-left: 1px solid var(--nx-line);
     }
-    .row:last-child {
-      border-bottom: none;
-    }
-    .row span {
-      color: var(--nx-text-dim);
-    }
-    .row b {
-      font-weight: 600;
+    .cell-value {
+      font-family: var(--nx-font-display);
+      font-weight: 800;
+      font-size: 19px;
+      letter-spacing: -0.02em;
       color: var(--nx-text);
     }
-    @media (max-width: 560px) {
-      .row {
-        grid-template-columns: minmax(0, 1fr);
-        gap: 2px;
-      }
+    .cell-value.sm {
+      font-size: 13.5px;
+      font-weight: 700;
+      letter-spacing: 0;
+      line-height: 1.35;
+    }
+    .cell-sub {
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      line-height: 1.4;
+      color: var(--nx-text-dim);
     }
     .empty p {
       margin: 0 0 12px;
@@ -285,6 +351,40 @@ import { OgPlanCardComponent } from './plan-card.component';
       display: flex;
       justify-content: flex-end;
       gap: 8px;
+    }
+    @container contratar (max-width: 860px) {
+      .plans {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        row-gap: 20px;
+      }
+      .summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .cell + .cell {
+        border-left: none;
+      }
+      .cell {
+        border-top: 1px solid var(--nx-line);
+      }
+      .cell:first-child,
+      .cell:nth-child(2) {
+        border-top: none;
+      }
+      .cell:nth-child(even) {
+        border-left: 1px solid var(--nx-line);
+      }
+    }
+    @container contratar (max-width: 480px) {
+      .plans,
+      .summary {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .cell:nth-child(2) {
+        border-top: 1px solid var(--nx-line);
+      }
+      .cell:nth-child(even) {
+        border-left: none;
+      }
     }
   `,
 })
@@ -323,13 +423,17 @@ export class OgContratarDialogComponent {
     return t?.startAt ? saoPauloDate(t.startAt) : null;
   });
 
-  protected readonly eventLine = computed(() => {
+  /** Data, cidade e quadras do evento escolhido — as três coisas que mudam o plano indicado. */
+  protected readonly eventMeta = computed<EventChip[]>(() => {
     const t = this.tournament();
     const start = this.startDate();
-    if (!t || !start) return '';
+    if (!t || !start) return [];
     const end = t.endAt ? saoPauloDate(t.endAt) : start;
-    const courts = `${t.courtsCount} ${t.courtsCount === 1 ? 'quadra' : 'quadras'}`;
-    return [dayRangeLabel(start, end > start ? end : start), t.city ?? 'Cidade não informada', courts].join(' · ');
+    return [
+      { icon: 'calendar', text: dayRangeLabel(start, end > start ? end : start) },
+      { icon: 'pin', text: t.city ?? 'Cidade não informada', missing: !t.city },
+      { icon: 'court', text: `${t.courtsCount} ${t.courtsCount === 1 ? 'quadra' : 'quadras'}` },
+    ];
   });
   protected readonly warning = computed(() => {
     const p = this.plan();

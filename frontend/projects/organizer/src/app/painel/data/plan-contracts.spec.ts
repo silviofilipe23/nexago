@@ -9,6 +9,7 @@ import {
   contractableTournaments,
   courtsWarning,
   dayRangeLabel,
+  extraHourLabel,
   organizerShareCents,
   planSponsorFromRaw,
   recommendedPlanId,
@@ -111,6 +112,11 @@ describe('plan-contracts · contas e datas', () => {
     expect(dayRangeLabel('2026-11-28', '2026-11-30')).toBe('28–30 Nov');
     expect(dayRangeLabel('2026-11-30', '2026-12-01')).toBe('30 Nov – 01 Dez');
     expect(dayRangeLabel('2026-11-28', '2026-11-28')).toBe('28 Nov');
+  });
+
+  it('hora extra: preço por hora, ou "Sem hora extra" quando o backoffice deixou 0', () => {
+    expect(extraHourLabel(30_00).replace(/\s/g, ' ')).toBe('Hora extra R$ 30/h');
+    expect(extraHourLabel(0)).toBe('Sem hora extra');
   });
 
   it('valor redondo sem centavos, com centavos quando há', () => {

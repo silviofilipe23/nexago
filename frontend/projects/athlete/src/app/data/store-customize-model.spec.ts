@@ -19,6 +19,7 @@ import {
   nameHintWarns,
   nameStepTitle,
   previewPhoto,
+  previewPhotoNote,
   priceBreakdown,
   productionNote,
   sanitizeNameInput,
@@ -144,10 +145,20 @@ describe('store-customize-model', () => {
       expect(nameFontFraction(12, 0.6)).toBeLessThan(0.088);
     });
 
-    it('foto do lado na cor; sem a da cor, a do lado sem cor; sem nenhuma, mockup', () => {
+    it('foto do lado na cor; senão a do lado sem cor; senão a do lado em outra cor; sem nenhuma do lado, mockup', () => {
       const p = storeProductFromDoc('cam', {
         name: 'Camiseta',
         priceCents: 12990,
+        axes: [
+          {
+            id: 'cor',
+            label: 'Cor',
+            values: [
+              { id: 'branco', label: 'Branco areia', hex: '#f1ece2' },
+              { id: 'preto', label: 'Preto', hex: '#111111' },
+            ],
+          },
+        ],
         photos: [
           { url: 'frente-preto', colorValueId: 'preto', view: 'frente' },
           { url: 'costas-geral', colorValueId: null, view: 'costas' },
@@ -156,7 +167,13 @@ describe('store-customize-model', () => {
       })!;
       expect(previewPhoto(p, 'preto', 'frente')?.url).toBe('frente-preto');
       expect(previewPhoto(p, 'preto', 'costas')?.url).toBe('costas-geral');
-      expect(previewPhoto(p, 'branco', 'frente')).toBeNull();
+      // Branco sem foto (o caso do DEV: só o preto tem frente e costas): mostra a peça, avisando a cor.
+      expect(previewPhoto(p, 'branco', 'frente')?.url).toBe('frente-preto');
+      expect(previewPhotoNote(p, 'branco', 'frente')).toBe('Foto em Preto · a sua sai em Branco areia');
+      expect(previewPhotoNote(p, 'preto', 'frente')).toBeNull();
+      expect(previewPhotoNote(p, 'branco', 'costas')).toBeNull(); // foto sem cor vale pra qualquer cor
+      const semFoto = storeProductFromDoc('cam2', { name: 'Camiseta', priceCents: 12990, photos: [{ url: 'x', colorValueId: 'preto' }] })!;
+      expect(previewPhoto(semFoto, 'branco', 'frente')).toBeNull();
     });
 
     it('nota de produção; a troca só por defeito só quando vale', () => {

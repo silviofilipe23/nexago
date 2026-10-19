@@ -356,14 +356,28 @@ export function nameFontFraction(length: number, bandWidth: number): number {
   return Math.min(0.088 * (bandWidth / 0.6), (bandWidth * 0.95) / (Math.max(1, length) * 0.85));
 }
 
-/** Foto da cor e do lado; sem a da cor, a do lado sem cor; nenhuma → `null` (fundo listrado). */
+/**
+ * Foto da cor e do lado; senão a do lado sem cor; senão a do lado em OUTRA cor (a peça cadastrada
+ * só com fotos de uma cor — a tela avisa a cor com `previewPhotoNote`); nenhuma do lado → `null`
+ * (fundo listrado na cor da peça).
+ */
 export function previewPhoto(p: StoreProduct, colorValueId: string | null, side: StorePhotoView): StorePhoto | null {
   const ofSide = p.photos.filter((ph) => ph.view === side);
   return (
     ofSide.find((ph) => colorValueId !== null && ph.colorValueId === colorValueId) ??
     ofSide.find((ph) => ph.colorValueId === null) ??
+    ofSide[0] ??
     null
   );
+}
+
+/** "Foto em Preto · a sua sai em Branco areia" quando a prévia usa a foto de outra cor; senão `null`. */
+export function previewPhotoNote(p: StoreProduct, colorValueId: string | null, side: StorePhotoView): string | null {
+  const ph = previewPhoto(p, colorValueId, side);
+  if (!ph || colorValueId === null || ph.colorValueId === null || ph.colorValueId === colorValueId) return null;
+  const label = (id: string) =>
+    p.axes.flatMap((a) => a.values).find((v) => v.id === id)?.label ?? id;
+  return `Foto em ${label(ph.colorValueId)} · a sua sai em ${label(colorValueId)}`;
 }
 
 // ── Nota de produção ──────────────────────────────────────────────

@@ -368,7 +368,7 @@ void main() {
       expect(box.height, closeTo(30 / 70, 1e-9));
     });
 
-    test('foto do lado na cor; senão a sem cor; senão listrado', () {
+    test('foto do lado na cor; senão a sem cor; senão a de outra cor', () {
       const p = StoreProduct(
         id: 'c',
         name: 'Camiseta',
@@ -412,9 +412,52 @@ void main() {
             ?.url,
         'costas',
       );
-      // Frente só tem foto da preta: azul não pega foto de outra cor.
+      // Frente só tem foto da preta (o caso do DEV): azul mostra a peça e a
+      // tela avisa a cor da foto.
       expect(
-        storeCustomPreviewPhoto(p, const {'cor': 'azul'}, StorePhotoView.front),
+        storeCustomPreviewPhoto(p, const {'cor': 'azul'}, StorePhotoView.front)
+            ?.url,
+        'preto-frente',
+      );
+      expect(
+        storeCustomPreviewPhotoNote(
+          p,
+          const {'cor': 'azul'},
+          StorePhotoView.front,
+        ),
+        'Foto em Preta · a sua sai em Azul',
+      );
+      expect(
+        storeCustomPreviewPhotoNote(
+          p,
+          const {'cor': 'preto'},
+          StorePhotoView.front,
+        ),
+        isNull,
+      );
+      // Foto sem cor vale pra qualquer cor: sem aviso.
+      expect(
+        storeCustomPreviewPhotoNote(
+          p,
+          const {'cor': 'azul'},
+          StorePhotoView.back,
+        ),
+        isNull,
+      );
+      // Nenhuma foto do lado: listrado.
+      expect(
+        storeCustomPreviewPhoto(
+          const StoreProduct(
+            id: 'c2',
+            name: 'Camiseta',
+            priceCents: 100,
+            minPriceCents: 100,
+            maxPriceCents: 100,
+            photos: [StorePhoto(url: 'capa')],
+          ),
+          const {'cor': 'azul'},
+          StorePhotoView.front,
+        ),
         isNull,
       );
     });

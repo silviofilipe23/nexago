@@ -1,7 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/auth_providers.dart';
+import '../../../core/profiles/app_user_profile.dart';
+import '../../tournaments/data/partner_search_service.dart';
 import 'booking_providers.dart';
+import 'booking_result.dart';
 import 'my_booking_confirmed_athlete.dart';
 import 'my_booking_item.dart';
 
@@ -33,4 +37,25 @@ final bookingStorySourceProvider =
     ownerUid: item.ownerAthleteId,
     confirmed: item.confirmedAthletes,
   );
+});
+
+/// Atletas do app pelo nome ou @, para o "Adicionar dupla" do pós-jogo. Usa
+/// a mesma busca do convite de dupla (mínimo de 3 letras, até 10 nomes).
+final bookingResultPlayerSearchProvider = FutureProvider.autoDispose
+    .family<List<ResultPlayer>, String>((ref, query) async {
+  if (!isPartnerQueryLongEnough(query)) return const [];
+  final uid = ref.watch(authProvider).valueOrNull?.uid ?? '';
+  final users = await ref.watch(partnerSearchServiceProvider).searchPartners(
+        currentUserId: uid,
+        categoryGenderType: null,
+        query: query,
+      );
+  return [
+    for (final u in users)
+      ResultPlayer(
+        id: u.uid,
+        name: appUserDisplayName(u),
+        avatarUrl: appUserProfilePhotoUrl(u),
+      ),
+  ];
 });

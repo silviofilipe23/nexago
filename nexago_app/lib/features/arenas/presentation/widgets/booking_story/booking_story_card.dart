@@ -32,13 +32,13 @@ class BookingStoryCard extends StatelessWidget {
   /// Fundo do tema [BookingStoryTheme.photo].
   final Uint8List? photo;
 
-  static const Color _darkInk = Color(0xFFF4F4F5);
-  static const Color _lightInk = Color(0xFF140A03);
+  static const Color darkInk = Color(0xFFF4F4F5);
+  static const Color lightInk = Color(0xFF140A03);
 
   @override
   Widget build(BuildContext context) {
     final light = theme.isLight;
-    final ink = light ? _lightInk : _darkInk;
+    final ink = light ? lightInk : darkInk;
     final sub = ink.withValues(alpha: light ? 0.72 : 0.78);
     final showSport =
         infos.contains(BookingStoryInfo.sport) && data.sportLabel != null;
@@ -54,7 +54,7 @@ class BookingStoryCard extends StatelessWidget {
           style: AppTypography.mono(
             fontSize: 10,
             letterSpacing: 1.6,
-            color: light ? _lightInk : AppColors.brandHover,
+            color: light ? lightInk : AppColors.brandHover,
           ),
         ),
       Text(
@@ -135,23 +135,83 @@ class BookingStoryCard extends StatelessWidget {
       if (showCrew) _CrewRow(crew: data.crew, light: light, ink: ink, sub: sub),
     ];
 
-    // Material próprio: a arte não herda (nem depende de) quem a hospeda.
+    return BookingStoryArtFrame(
+      theme: theme,
+      photo: photo,
+      pillLabel: 'QUADRA GARANTIDA',
+      pillColor: light ? lightInk : AppColors.win,
+      pillTextColor: light ? const Color(0xFFE9D3B0) : const Color(0xFF062514),
+      footerLabel: 'RESERVE TAMBÉM · ${AppDomains.siteHost.toUpperCase()}',
+      blocksBottom: 124,
+      blocks: blocks,
+    );
+  }
+}
+
+/// A moldura comum das artes de story (reserva e pós-jogo): fundo, marca +
+/// selo no topo (92), o bloco de conteúdo ancorado embaixo e o rodapé (92).
+/// Material próprio: a arte não herda (nem depende de) quem a hospeda.
+class BookingStoryArtFrame extends StatelessWidget {
+  const BookingStoryArtFrame({
+    super.key,
+    required this.theme,
+    required this.pillLabel,
+    required this.pillColor,
+    required this.pillTextColor,
+    required this.footerLabel,
+    required this.blocksBottom,
+    required this.blocks,
+    this.photo,
+    this.deepScrim = false,
+  });
+
+  final BookingStoryTheme theme;
+  final Uint8List? photo;
+
+  /// Escurecimento mais alto sobre a foto (o placar do pós-jogo sobe mais).
+  final bool deepScrim;
+  final String pillLabel;
+  final Color pillColor;
+  final Color pillTextColor;
+  final String footerLabel;
+
+  /// Distância do bloco até a base: foge da caixa de resposta do story.
+  final double blocksBottom;
+
+  /// Empilhados com 14 de respiro, crescendo para cima.
+  final List<Widget> blocks;
+
+  static Color inkOf(BookingStoryTheme theme) =>
+      theme.isLight ? BookingStoryCard.lightInk : BookingStoryCard.darkInk;
+
+  static Color subOf(BookingStoryTheme theme) =>
+      inkOf(theme).withValues(alpha: theme.isLight ? 0.72 : 0.78);
+
+  @override
+  Widget build(BuildContext context) {
+    final light = theme.isLight;
+    final ink = inkOf(theme);
+    final sub = subOf(theme);
     return Material(
       type: MaterialType.transparency,
       child: SizedBox.fromSize(
-        size: size,
+        size: BookingStoryCard.size,
         child: ClipRect(
           child: Stack(
             fit: StackFit.expand,
             children: [
-              BookingStoryBackground(theme: theme, photo: photo),
+              BookingStoryBackground(
+                theme: theme,
+                photo: photo,
+                deepScrim: deepScrim,
+              ),
               Positioned(
                 top: 92,
                 left: 24,
                 right: 24,
                 child: Row(
                   children: [
-                    _Wordmark(light: light, ink: ink),
+                    BookingStoryWordmark(light: light, ink: ink),
                     const Spacer(),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -159,19 +219,17 @@ class BookingStoryCard extends StatelessWidget {
                         vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: light ? _lightInk : AppColors.win,
+                        color: pillColor,
                         borderRadius: BorderRadius.circular(99),
                       ),
                       child: Text(
-                        'QUADRA GARANTIDA',
+                        pillLabel,
                         style: AppTypography.mono(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 1.08,
                           height: 1,
-                          color: light
-                              ? const Color(0xFFE9D3B0)
-                              : const Color(0xFF062514),
+                          color: pillTextColor,
                         ),
                       ),
                     ),
@@ -181,7 +239,7 @@ class BookingStoryCard extends StatelessWidget {
               Positioned(
                 left: 24,
                 right: 24,
-                bottom: 124,
+                bottom: blocksBottom,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -208,7 +266,7 @@ class BookingStoryCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          'RESERVE TAMBÉM · ${AppDomains.siteHost.toUpperCase()}',
+                          footerLabel,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -229,10 +287,18 @@ class BookingStoryCard extends StatelessWidget {
 
 /// Fundo de um tema — também é a miniatura do seletor de fundo.
 class BookingStoryBackground extends StatelessWidget {
-  const BookingStoryBackground({super.key, required this.theme, this.photo});
+  const BookingStoryBackground({
+    super.key,
+    required this.theme,
+    this.photo,
+    this.deepScrim = false,
+  });
 
   final BookingStoryTheme theme;
   final Uint8List? photo;
+
+  /// Pós-jogo: a base escurece a partir de 36% (o placar ocupa mais altura).
+  final bool deepScrim;
 
   @override
   Widget build(BuildContext context) {
@@ -249,18 +315,27 @@ class BookingStoryBackground extends StatelessWidget {
                   const ColoredBox(color: Color(0xFF0B0B0C)),
             ),
             // Escurece topo e base para o texto ler sobre qualquer foto.
-            const DecoratedBox(
+            DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0x8C050505),
-                    Color(0x00050505),
-                    Color(0x00050505),
-                    Color(0xEB050505),
-                  ],
-                  stops: [0, 0.22, 0.42, 0.82],
+                  colors: deepScrim
+                      ? const [
+                          Color(0x8C050505),
+                          Color(0x00050505),
+                          Color(0x26050505),
+                          Color(0xF0050505),
+                        ]
+                      : const [
+                          Color(0x8C050505),
+                          Color(0x00050505),
+                          Color(0x00050505),
+                          Color(0xEB050505),
+                        ],
+                  stops: deepScrim
+                      ? const [0, 0.22, 0.36, 0.72]
+                      : const [0, 0.22, 0.42, 0.82],
                 ),
               ),
             ),
@@ -309,8 +384,12 @@ class BookingStoryBackground extends StatelessWidget {
 }
 
 /// Marca + "nexaGO" com o GO laranja (escuro no fundo areia).
-class _Wordmark extends StatelessWidget {
-  const _Wordmark({required this.light, required this.ink});
+class BookingStoryWordmark extends StatelessWidget {
+  const BookingStoryWordmark({
+    super.key,
+    required this.light,
+    required this.ink,
+  });
 
   final bool light;
   final Color ink;
@@ -363,8 +442,6 @@ class _CrewRow extends StatelessWidget {
   final Color ink;
   final Color sub;
 
-  /// Matizes dos avatares sem foto, na ordem do protótipo.
-  static const List<double> _hues = [25, 130, 280, 330];
   static const int _maxAvatars = 4;
   static const double _avatar = 30;
   static const double _step = 21;
@@ -393,9 +470,10 @@ class _CrewRow extends StatelessWidget {
                 for (var i = 0; i < shown.length; i++)
                   Positioned(
                     left: _step * i,
-                    child: _Avatar(
+                    child: BookingStoryAvatar(
                       person: shown[i],
-                      hue: _hues[i % _hues.length],
+                      hue: BookingStoryAvatar
+                          .hues[i % BookingStoryAvatar.hues.length],
                       borderColor: light
                           ? const Color(0xFFD8B686)
                           : const Color(0xFF0B0B0C),
@@ -432,16 +510,23 @@ class _CrewRow extends StatelessWidget {
   }
 }
 
-class _Avatar extends StatelessWidget {
-  const _Avatar({
+/// Avatar redondo da arte: foto quando tem, senão iniciais num degradê.
+class BookingStoryAvatar extends StatelessWidget {
+  const BookingStoryAvatar({
+    super.key,
     required this.person,
     required this.hue,
     required this.borderColor,
+    this.size = 30,
   });
+
+  /// Matizes dos avatares sem foto, na ordem do protótipo.
+  static const List<double> hues = [25, 130, 280, 330];
 
   final BookingStoryPerson person;
   final double hue;
   final Color borderColor;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -460,7 +545,7 @@ class _Avatar extends StatelessWidget {
         child: Text(
           person.initials,
           style: AppTypography.soraRegular(
-            fontSize: 10,
+            fontSize: size / 3,
             fontWeight: FontWeight.w700,
             height: 1,
             color: Colors.white,
@@ -470,8 +555,8 @@ class _Avatar extends StatelessWidget {
     );
     final url = person.avatarUrl;
     return Container(
-      width: _CrewRow._avatar,
-      height: _CrewRow._avatar,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(color: borderColor, width: 2),

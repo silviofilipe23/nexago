@@ -187,16 +187,26 @@ class ArenaBookingCard extends ConsumerWidget {
                                 label: 'Horário fixo',
                                 accent: AppColors.brand,
                               ),
+                            if (booking.isClassBlock)
+                              const _MetaChip(
+                                icon: Icons.school_rounded,
+                                label: 'Aula',
+                                accent: AppColors.brand,
+                              ),
                           ],
                         ),
-                        SizedBox(height: 8),
-                        _MetaChip(
-                          icon: Icons.schedule_rounded,
-                          label: attendanceLabel,
-                          accent: isAttendancePending
-                              ? AppColors.pending
-                              : null,
-                        ),
+                        // Bloqueio de aula não tem check-in: a presença é a
+                        // chamada da aula.
+                        if (!booking.isClassBlock) ...[
+                          SizedBox(height: 8),
+                          _MetaChip(
+                            icon: Icons.schedule_rounded,
+                            label: attendanceLabel,
+                            accent: isAttendancePending
+                                ? AppColors.pending
+                                : null,
+                          ),
+                        ],
                       ],
                     ),
                   ),

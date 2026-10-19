@@ -167,16 +167,18 @@ type Confirm = 'pause' | 'resume' | 'cancel';
                 <span><i style="background: var(--nx-live)"></i>Falta</span>
                 <span><i style="background: var(--nx-surface-2)"></i>Sem chamada</span>
               </div>
-              <div class="cells">
-                @for (a of attendance(); track a.date) {
-                  <div class="cell" [title]="weekdayDate(a.date)">
-                    <div class="bar" [style.background]="markColor(a.mark)"></div>
-                    <span>{{ shortDate(a.date) }}</span>
-                  </div>
-                } @empty {
-                  <p class="hint first">Nenhuma aula nas últimas 8 semanas.</p>
-                }
-              </div>
+              @if (attendance().length > 0) {
+                <div class="cells">
+                  @for (a of attendance(); track a.date) {
+                    <div class="cell" [title]="weekdayDate(a.date)">
+                      <div class="bar" [style.background]="markColor(a.mark)"></div>
+                      <span>{{ shortDate(a.date) }}</span>
+                    </div>
+                  }
+                </div>
+              } @else {
+                <p class="hint first">Nenhuma aula nas últimas 8 semanas.</p>
+              }
             </ar-panel-card>
 
             <ar-panel-card title="Mensalidades e pagamentos">

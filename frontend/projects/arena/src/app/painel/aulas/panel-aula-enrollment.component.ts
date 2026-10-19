@@ -147,9 +147,9 @@ interface Done {
         <p class="state-text">Seu acesso à agenda é só de leitura — peça a um gestor para matricular.</p>
       } @else if (done(); as d) {
         <ar-panel-card>
-          <div class="done">
+          <div class="done-box">
             <span class="done-ic"><ar-icon name="check" [size]="26" /></span>
-            <div class="done-title">{{ d.name }} matriculado(a)</div>
+            <div class="done-title">Matrícula de {{ d.name }} confirmada</div>
             <p class="hint center">
               As vagas já estão reservadas na turma.
               @if (d.preview && d.preview.totalReais > 0) {
@@ -168,7 +168,7 @@ interface Done {
           </div>
         </ar-panel-card>
       } @else {
-        <div class="stepper">
+        <div class="wizard-steps">
           @for (s of steps; track s; let i = $index) {
             <div class="st" [class.on]="i + 1 === step()" [class.done]="i + 1 < step()">
               <span class="st-n">{{ i + 1 < step() ? '✓' : i + 1 }}</span>
@@ -355,7 +355,7 @@ interface Done {
   `,
   styles: `
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
-    .stepper { display: flex; align-items: center; gap: 10px; flex: none; }
+    .wizard-steps { display: flex; align-items: center; gap: 10px; flex: none; }
     .st { display: flex; align-items: center; gap: 9px; }
     .st-n {
       width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
@@ -419,7 +419,7 @@ interface Done {
     .total span { font-family: var(--nx-font-display); font-weight: 700; font-size: 13.5px; color: var(--nx-text); }
     .total strong { font-family: var(--nx-font-display); font-weight: 800; font-size: 22px; color: var(--nx-orange-500); }
     .nav { display: flex; gap: 8px; }
-    .done { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 24px 12px; }
+    .done-box { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 24px 12px; }
     .done-ic { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: rgba(43, 209, 126, 0.12); color: var(--nx-win); }
     .done-title { font-family: var(--nx-font-display); font-weight: 700; font-size: 18px; color: var(--nx-text); margin-top: 14px; }
     .center { max-width: 460px; text-align: center; }

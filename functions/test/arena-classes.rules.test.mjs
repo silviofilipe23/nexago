@@ -157,3 +157,39 @@ test('fase 2: matrícula e mensalidade — agenda ou financeiro leem; ninguém e
   }
   await assertSucceeds(getDocs(query(collection(as(FINANCEIRO), 'arenaClassCharges'), where('arenaId', '==', 'arena-pro'))));
 });
+
+test('fase 2b: repasse do professor — só quem lê o financeiro; ninguém escreve', async () => {
+  const GESTOR = 'gestor-uid';
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'arenas', 'arena-pro', 'staff', GESTOR), { role: 'gestor', status: 'active' });
+    await setDoc(doc(db, 'arenaClassPayouts', 'arena-pro_t1_2026-10'), {
+      arenaId: 'arena-pro', teacherId: 't1', month: '2026-10', amountReais: 80, status: 'closed',
+    });
+  });
+  const p = ['arenaClassPayouts', 'arena-pro_t1_2026-10'];
+  for (const uid of [OWNER, GESTOR, FINANCEIRO]) {
+    await assertSucceeds(getDoc(doc(as(uid), ...p)));
+    await assertSucceeds(getDocs(query(
+      collection(as(uid), 'arenaClassPayouts'),
+      where('arenaId', '==', 'arena-pro'),
+      where('month', '==', '2026-10'),
+    )));
+  }
+  // Fechamento que ainda não existe: `get` do doc é negado (a rule lê `resource.data.arenaId`),
+  // então o portal escuta por query com `arenaId` — que passa mesmo vazia.
+  await assertFails(getDoc(doc(as(OWNER), 'arenaClassPayouts', 'arena-pro_t1_2026-09')));
+  await assertSucceeds(getDocs(query(
+    collection(as(GESTOR), 'arenaClassPayouts'),
+    where('arenaId', '==', 'arena-pro'),
+    where('teacherId', '==', 't1'),
+    where('month', '==', '2026-09'),
+  )));
+  // Recepção e manutenção veem a agenda, não quanto o professor ganha.
+  for (const uid of [RECEPCAO, MANUTENCAO, ALUNO, OUTRO_DONO]) await assertFails(getDoc(doc(as(uid), ...p)));
+  await assertFails(getDocs(collection(as(OWNER), 'arenaClassPayouts')));
+  for (const uid of [OWNER, GESTOR]) {
+    await assertFails(setDoc(doc(as(uid), ...p), { status: 'paid' }, { merge: true }));
+    await assertFails(setDoc(doc(as(uid), 'arenaClassPayouts', 'arena-pro_t1_2026-11'), { arenaId: 'arena-pro', status: 'closed' }));
+  }
+});

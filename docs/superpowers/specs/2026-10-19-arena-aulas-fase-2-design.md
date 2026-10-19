@@ -28,6 +28,19 @@ Continua a [fase 1](2026-10-19-arena-aulas-fase-1-design.md). Protótipo: "NexaG
   aulas do mês nesses dias × valor) + taxa de matrícula (regra da arena, dispensável). Pacote = valor
   cheio. As mensais seguintes nascem no agendador diário com id `{matrícula}_{AAAA-MM}` (idempotente),
   vencendo no dia escolhido.
+- **Pausa (férias) não gera mensalidade, nem na volta.** Pausada, a matrícula sai da chamada e o
+  agendador não gera a mensal (ele só lê matrícula `active`). Ao reativar, na mesma transação, o
+  `billedThrough` pula para o mês da volta: os meses parados não são cobrados depois. O mês da volta
+  sai proporcional às aulas que restam a partir do dia da reativação (mesma conta e mesmo id
+  `{matrícula}_{AAAA-MM}` da 1ª cobrança, vencendo no dia da volta). Se esse mês já tem
+  mensalidade (aberta, paga ou cancelada), ela fica como está e não nasce outra. Pausa e volta no
+  mesmo mês com o mês já cobrado não mudam nada. As mensalidades em aberto de antes da pausa
+  continuam como estão (o gestor cancela à mão se quiser perdoar). Pacote não muda: o crédito e a
+  validade seguem como antes. Consequência com vencimento depois do dia 10: a mensal do mês sai
+  durante o próprio mês (10 dias antes do vencimento), então se a pausa começa antes disso esse mês
+  não é cobrado cheio: com a volta em outro mês ele fica sem cobrança; com a volta no mesmo mês ele
+  sai proporcional a partir da volta. Com vencimento até o dia 10 (padrão 5), o mês da pausa já
+  está cobrado.
 - **Pacote consome crédito na chamada fechada** (presente ou falta sem aviso), uma vez por aula
   (`packageDebits` na aula guarda quem já foi debitado — corrigir a chamada não debita de novo).
 - **Crédito de reposição**: falta justificada na chamada fechada e aula cancelada pela arena geram
@@ -81,7 +94,7 @@ status: waiting|removed|enrolled`.
 | `saveArenaClassRules` | grava as regras |
 | `previewArenaClassEnrollment` | valida horários/vagas e calcula a primeira cobrança |
 | `createArenaClassEnrollment` | matrícula: aluno em cada turma + primeiras cobranças |
-| `setArenaClassEnrollmentStatus` | pausar / reativar / cancelar (sai das turmas, cancela cobranças abertas futuras) |
+| `setArenaClassEnrollmentStatus` | pausar / reativar (mês da volta proporcional, meses parados sem cobrança) / cancelar (sai das turmas, cancela cobranças abertas futuras) |
 | `registerArenaClassPayment` / `cancelArenaClassCharge` | baixa manual / cancelamento de cobrança |
 | `addArenaClassExtra` / `removeArenaClassExtra` | encaixe de reposição (usa crédito) ou experimental |
 | `addArenaClassWaitlist` / `removeArenaClassWaitlist` | lista de espera |

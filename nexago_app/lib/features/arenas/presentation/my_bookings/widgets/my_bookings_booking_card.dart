@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
+import '../../../domain/arena_sport_codes.dart';
 import '../../../domain/my_booking_guests_providers.dart';
 import '../../../domain/my_booking_item.dart';
 import '../my_bookings_logic.dart';
@@ -19,6 +20,8 @@ class MyBookingsBookingCard extends ConsumerStatefulWidget {
   });
 
   final MyBookingItem item;
+
+  /// Esporte do perfil — só para reserva antiga, sem `sport` gravado.
   final String sportLabel;
   final VoidCallback onTap;
 
@@ -35,9 +38,11 @@ class _MyBookingsBookingCardState extends ConsumerState<MyBookingsBookingCard> {
     final theme = Theme.of(context);
     final status = myBookingStatusUi(widget.item.rawStatus);
     final court = widget.item.courtName?.trim();
+    final bookingSport = courtSportLabel(widget.item.sport);
+    final sport = bookingSport.isNotEmpty ? bookingSport : widget.sportLabel;
     final subtitle = court != null && court.isNotEmpty
-        ? '$court · ${widget.sportLabel}'
-        : widget.sportLabel;
+        ? '$court · $sport'
+        : sport;
     final guestsAsync = ref.watch(myBookingGuestDisplaysProvider(widget.item));
 
     return AnimatedScale(

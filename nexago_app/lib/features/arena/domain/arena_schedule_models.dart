@@ -11,11 +11,15 @@ class ArenaScheduleBookingSummary {
     required this.athleteId,
     required this.paymentShortLabel,
     required this.amountReais,
+    this.sportLabel,
   });
 
   final String athleteId;
   final String paymentShortLabel;
   final double? amountReais;
+
+  /// Esporte escolhido pelo atleta (`null` em reserva sem esporte gravado).
+  final String? sportLabel;
 }
 
 /// Linha de quadra dentro de um grupo horário.

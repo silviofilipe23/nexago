@@ -32,6 +32,7 @@ class ArenaBookingCard extends ConsumerWidget {
     final paymentLabel = _shortPaymentLabel(
       arenaBookingPaymentLabel(booking.data),
     );
+    final sportLabel = arenaBookingSportLabel(booking.data);
     final attendanceLabel = ArenaBookingsGrouping.attendanceChipLabel(booking);
     final isAttendancePending = attendanceLabel.toLowerCase() == 'pendente';
     final participants =
@@ -175,7 +176,9 @@ class ArenaBookingCard extends ConsumerWidget {
                           children: [
                             _MetaChip(
                               icon: Icons.sports_tennis_rounded,
-                              label: booking.courtName,
+                              label: sportLabel == null
+                                  ? booking.courtName
+                                  : '${booking.courtName} · $sportLabel',
                             ),
                             _MetaChip(
                               icon: Icons.account_balance_wallet_outlined,

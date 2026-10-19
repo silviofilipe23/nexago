@@ -125,6 +125,34 @@ void main() {
       expect(result.couponDiscountReais, 0);
     });
   });
+
+  group('BookingService.createBookingAtomically — esporte', () {
+    test('envia o esporte escolhido no payload', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'createArenaBooking': {'bookingId': 'b1', 'amountReais': 100.0},
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      await service.createBookingAtomically(
+        args: args,
+        athleteId: 'u1',
+        sport: 'beachTennis',
+      );
+
+      expect(functions.calledPayloads.first?['sport'], 'beachTennis');
+    });
+
+    test('sem esporte: payload sem a chave (servidor decide pela quadra)', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'createArenaBooking': {'bookingId': 'b1', 'amountReais': 100.0},
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      await service.createBookingAtomically(args: args, athleteId: 'u1');
+
+      expect(functions.calledPayloads.first?.containsKey('sport'), isFalse);
+    });
+  });
 }
 
 /// Fake mínimo de [FirebaseFunctions]: registra o payload de toda callable

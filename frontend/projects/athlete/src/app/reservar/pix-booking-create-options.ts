@@ -5,6 +5,7 @@ export type PixBookingCreateOptions = {
   paymentMode: ArenaBookingPaymentMode;
   paymentFraction: number;
   couponCode?: string;
+  sport?: string;
 };
 
 /** Opções de `createArenaBooking` para reserva paga por PIX — as MESMAS para "Gerar PIX" e
@@ -14,11 +15,14 @@ export function pixBookingCreateOptions(input: {
   totalPriceReais: number;
   pixFraction: number;
   couponCode: string | null;
+  /** Esporte escolhido na reserva — vale pros dois caminhos, igual ao cupom. */
+  sport?: string | null;
 }): PixBookingCreateOptions {
   return {
     clientAmountReais: input.totalPriceReais,
     paymentMode: 'pix',
     paymentFraction: input.pixFraction,
     ...(input.couponCode ? { couponCode: input.couponCode } : {}),
+    ...(input.sport ? { sport: input.sport } : {}),
   };
 }

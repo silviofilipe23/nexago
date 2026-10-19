@@ -78,6 +78,9 @@ const UNDO_WINDOW_SECONDS = 60;
             <ar-panel-card title="Horário">
               <div class="row"><span class="label">Data</span><span class="value">{{ booking()!.dateKey }}</span></div>
               <div class="row"><span class="label">Quadra</span><span class="value">{{ booking()!.courtName }}</span></div>
+              @if (booking()!.sportLabel; as sport) {
+                <div class="row"><span class="label">Esporte</span><span class="value">{{ sport }}</span></div>
+              }
               <div class="row"><span class="label">Horário</span><span class="value">{{ booking()!.startTime }}–{{ booking()!.endTime }}</span></div>
               <div class="row"><span class="label">Código</span><span class="value">{{ displayBookingCode(booking()!.id) }}</span></div>
             </ar-panel-card>

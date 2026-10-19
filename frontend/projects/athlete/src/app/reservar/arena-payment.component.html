@@ -15,7 +15,7 @@
       <div class="pm-header">
         <div>
           <h1 class="pm-title">Pagamento</h1>
-          <p class="pm-subtitle">{{ a.name }} · {{ court()?.name }} · {{ courtSportLabel() }}</p>
+          <p class="pm-subtitle">{{ headerSubtitle() }}</p>
         </div>
         <a [routerLink]="['/reservar', a.id, 'agendar']" [queryParams]="backQueryParams()" class="pm-back-link">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
@@ -25,6 +25,31 @@
 
       <div class="pm-main-grid">
         <div class="pm-col">
+          <section class="pm-card" id="pm-sport">
+            <div class="pm-sport-head">
+              <h2 class="pm-card-title">Esporte</h2>
+              <p class="pm-sport-hint">Qual esporte você vai jogar? A arena usa isso pra preparar a quadra.</p>
+            </div>
+            <div class="pm-sport-row" role="radiogroup" aria-label="Esporte da reserva">
+              @for (o of sportOptions(); track o.code) {
+                <button
+                  type="button"
+                  role="radio"
+                  class="pm-sport-chip"
+                  [class.pm-sport-chip--active]="selectedSport() === o.code"
+                  [attr.aria-checked]="selectedSport() === o.code"
+                  [disabled]="sportLocked()"
+                  (click)="selectSport(o.code)"
+                >
+                  {{ o.label }}
+                </button>
+              }
+            </div>
+            @if (sportError(); as err) {
+              <app-nx-field-error>{{ err }}</app-nx-field-error>
+            }
+          </section>
+
           <section class="pm-card">
             <h2 class="pm-card-title">Forma de pagamento</h2>
             <div class="pm-method-row">
@@ -324,7 +349,11 @@
             </div>
             <div class="pm-summary-row">
               <span class="pm-summary-label">Quadra</span>
-              <span class="pm-summary-value">{{ court()?.name }} · {{ courtSportLabel() }}</span>
+              <span class="pm-summary-value">{{ court()?.name }}</span>
+            </div>
+            <div class="pm-summary-row">
+              <span class="pm-summary-label">Esporte</span>
+              <span class="pm-summary-value">{{ selectedSportLabel() || 'Escolha o esporte' }}</span>
             </div>
             <div class="pm-summary-row">
               <span class="pm-summary-label">Data</span>

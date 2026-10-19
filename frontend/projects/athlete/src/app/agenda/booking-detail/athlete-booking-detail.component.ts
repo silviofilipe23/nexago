@@ -292,7 +292,10 @@ export class AthleteBookingDetailComponent {
 
   protected readonly displayCode = computed(() => bookingDisplayCode(this.bookingId()));
 
-  protected readonly sportLabel = computed(() => courtSportLabel(this.arena()?.courtTypes[0]) || null);
+  /** Esporte escolhido na reserva; reserva antiga (sem `sport`) cai no 1º esporte da arena. */
+  protected readonly sportLabel = computed(
+    () => courtSportLabel(this.booking()?.sport ?? this.arena()?.courtTypes[0]) || null,
+  );
 
   /** Capa da arena pro hero — null enquanto a arena não carregou. */
   protected readonly coverUrl = computed(() => {

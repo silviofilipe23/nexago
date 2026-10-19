@@ -10,7 +10,9 @@ import {
   type ArenaCourtDoc,
   type ArenaListItem,
   type ArenaSlot,
-  courtDocSportLabel,
+  bookingSportOptions,
+  courtDocSportValues,
+  courtSportLabel,
 } from '@nexago/arena-discovery';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
@@ -263,10 +265,40 @@ export class ArenaPaymentComponent {
   protected readonly splitMaxShares = SPLIT_MAX_SHARES;
   protected readonly initialsOf = initialsOf;
 
-  protected readonly courtSportLabel = computed(() => {
+  /** Esportes que o atleta escolhe pra reserva (os da quadra; ver `bookingSportOptions`). */
+  protected readonly sportOptions = computed(() => {
     const c = this.court();
-    return c ? courtDocSportLabel(c.data) : '';
+    if (!c) return [];
+    return bookingSportOptions(courtDocSportValues(c.data), this.arena()?.courtTypes ?? []).map((code) => ({
+      code,
+      label: courtSportLabel(code),
+    }));
   });
+
+  private readonly pickedSport = signal<string | null>(null);
+
+  /** Esporte da reserva: o tocado; com um esporte só na quadra, ele mesmo sem toque. */
+  protected readonly selectedSport = computed(() => {
+    const options = this.sportOptions();
+    const picked = this.pickedSport();
+    if (picked && options.some((o) => o.code === picked)) return picked;
+    return options.length === 1 ? options[0]!.code : null;
+  });
+
+  protected readonly selectedSportLabel = computed(() => {
+    const code = this.selectedSport();
+    return code ? courtSportLabel(code) : '';
+  });
+
+  protected readonly headerSubtitle = computed(() =>
+    [this.arena()?.name, this.court()?.name, this.selectedSportLabel()].filter((p) => !!p).join(' · '),
+  );
+
+  /** Erro de campo: tentou reservar sem escolher o esporte. */
+  protected readonly sportError = signal<string | null>(null);
+
+  /** Depois que a reserva existe (Pix gerado/dividido), o esporte já foi gravado. */
+  protected readonly sportLocked = computed(() => this.pixPayment() != null || this.splitBookingId() != null);
 
   protected readonly timeRangeLabel = computed(() => {
     const chain = this.chain();
@@ -496,6 +528,22 @@ export class ArenaPaymentComponent {
     };
   }
 
+  protected selectSport(code: string): void {
+    if (this.sportLocked()) return;
+    this.pickedSport.set(code);
+    this.sportError.set(null);
+  }
+
+  /** Esporte é obrigatório: sem ele, aponta o campo e não cria a reserva. */
+  private requireSport(): string | null {
+    const sport = this.selectedSport();
+    if (!sport) {
+      this.sportError.set('Escolha o esporte que você vai jogar.');
+      document.getElementById('pm-sport')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    return sport;
+  }
+
   protected selectMethod(method: PaymentMethod): void {
     if (method === 'pix' && !this.pixAvailable()) return;
     if (method === 'onsite' && !this.onsiteAvailable()) return;
@@ -516,12 +564,14 @@ export class ArenaPaymentComponent {
       totalPriceReais: this.totalPrice(),
       pixFraction: this.pixFraction(),
       couponCode: this.appliedCouponCode(),
+      sport: this.selectedSport(),
     });
   }
 
   /** Cria (ou retoma) a reserva `pending_payment` e gera o QR PIX. */
   protected async generatePix(): Promise<void> {
     if (this.processing() || this.pixPayment()) return;
+    if (!this.requireSport()) return;
     const uid = this.auth.user()?.uid;
     if (!uid) {
       this.toasts.error('Você não está conectado', 'Entre na sua conta para confirmar a reserva.');
@@ -579,6 +629,8 @@ export class ArenaPaymentComponent {
 
   protected async confirmOnsite(): Promise<void> {
     if (this.processing()) return;
+    const sport = this.requireSport();
+    if (!sport) return;
     const uid = this.auth.user()?.uid;
     if (!uid) {
       this.toasts.error('Você não está conectado', 'Entre na sua conta para confirmar a reserva.');
@@ -591,6 +643,7 @@ export class ArenaPaymentComponent {
         clientAmountReais: this.totalPrice(),
         paymentMode: 'onsite',
         couponCode: this.appliedCouponCode() ?? undefined,
+        sport,
       });
       void this.router.navigate(['/reservar', this.arenaId(), 'agendar', 'pagamento', 'confirmada'], {
         queryParams: { bookingId: result.bookingId },
@@ -734,6 +787,7 @@ export class ArenaPaymentComponent {
 
   protected async submitSplit(): Promise<void> {
     if (this.splitSubmitting() || !this.splitCanSubmit()) return;
+    if (!this.requireSport()) return;
     const uid = this.auth.user()?.uid;
     if (!uid) {
       this.toasts.error('Você não está conectado', 'Entre na sua conta para dividir o pagamento.');

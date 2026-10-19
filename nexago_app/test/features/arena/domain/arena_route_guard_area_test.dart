@@ -50,6 +50,17 @@ void main() {
       expect(arenaAreaForPath('/arena/clubs'), ArenaArea.agenda);
       expect(arenaAreaForPath('/arena/clubs/c1/edit'), ArenaArea.agenda);
     });
+
+    test('aulas e a chamada sao painel e mapeiam para agenda', () {
+      // Sem a rota em isArenaManagerPanelPath, /arena/classes cairia no
+      // perfil publico /arena/:arenaId e ninguem checaria a area.
+      expect(isArenaManagerPanelPath('/arena/classes'), isTrue);
+      expect(arenaAreaForPath('/arena/classes'), ArenaArea.agenda);
+      expect(
+        arenaAreaForPath('/arena/classes/session/class_c1_2026-10-19'),
+        ArenaArea.agenda,
+      );
+    });
   });
 
   group('isArenaOwnerOnlyPath', () {

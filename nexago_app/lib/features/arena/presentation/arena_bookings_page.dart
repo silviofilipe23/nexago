@@ -9,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../domain/arena_access_providers.dart';
 import '../domain/arena_club_admin_providers.dart';
+import '../domain/aulas/arena_class_providers.dart';
 import '../domain/arena_recurring_providers.dart';
 import '../domain/arena_bookings_grouping.dart';
 import '../domain/arena_providers.dart';
@@ -91,6 +92,10 @@ class _BookingsScrollBody extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const ArenaBookingsModeChips(),
+                  // Aulas têm visão só leitura (manutenção acompanha as aulas
+                  // do dia), então o atalho não depende de escrever agenda.
+                  const SizedBox(height: 10),
+                  const _ClassesEntryRow(),
                   if (canWrite) ...[
                     const SizedBox(height: 10),
                     const _RecurringEntryRow(),
@@ -207,6 +212,62 @@ class _ClubsEntryRow extends ConsumerWidget {
               if (activeCount != null && activeCount > 0)
                 Text(
                   '$activeCount ativo${activeCount > 1 ? 's' : ''}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.brand,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.brand,
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Atalho para as Aulas (turmas com professor, chamada do dia).
+class _ClassesEntryRow extends ConsumerWidget {
+  const _ClassesEntryRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final todayKey = arenaDateKey(arenaTodayDateOnly());
+    final today = ref.watch(arenaClassDayViewProvider(todayKey)).valueOrNull;
+    final count = today?.classCount;
+
+    return Material(
+      color: AppColors.brand.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.pushNamed(AppRouteNames.arenaClasses),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.school_rounded,
+                color: AppColors.brand,
+                size: 18,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Aulas (turmas e chamada)',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: context.themeColors.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+              if (count != null && count > 0)
+                Text(
+                  '$count hoje',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.brand,
                         fontWeight: FontWeight.w800,

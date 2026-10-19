@@ -51,6 +51,10 @@ enum ArenaCapability {
   /// Clubinho: jogo aberto com lista pública e PIX por sessão.
   clubinho,
 
+  /// Aulas: turmas e aulas avulsas com professor e chamada, que bloqueiam a
+  /// quadra na agenda. Espelha `isArenaEntitledPro` em `arena-class.ts`.
+  aulas,
+
   /// Dashboard completo: insights e seguidores.
   metricasCompletas,
 
@@ -77,6 +81,7 @@ Set<ArenaCapability> capabilitiesFor(
         ArenaCapability.estoque,
         ArenaCapability.promocoes,
         ArenaCapability.clubinho,
+        ArenaCapability.aulas,
         ArenaCapability.metricasCompletas,
         ArenaCapability.receberTorneios,
         ArenaCapability.multiUnidade,
@@ -86,6 +91,7 @@ Set<ArenaCapability> capabilitiesFor(
         ArenaCapability.estoque,
         ArenaCapability.promocoes,
         ArenaCapability.clubinho,
+        ArenaCapability.aulas,
         ArenaCapability.metricasCompletas,
         ArenaCapability.receberTorneios,
       },

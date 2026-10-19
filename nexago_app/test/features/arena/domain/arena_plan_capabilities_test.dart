@@ -45,6 +45,32 @@ void main() {
     });
   });
 
+  group('capabilitiesFor — Aulas', () {
+    test('Pro e Elite têm aulas; sem plano, Starter e sem titularidade não',
+        () {
+      expect(
+        capabilitiesFor(ArenaPlanTier.pro, entitled: true),
+        contains(ArenaCapability.aulas),
+      );
+      expect(
+        capabilitiesFor(ArenaPlanTier.elite, entitled: true),
+        contains(ArenaCapability.aulas),
+      );
+      expect(
+        capabilitiesFor(ArenaPlanTier.starter, entitled: true),
+        isNot(contains(ArenaCapability.aulas)),
+      );
+      expect(
+        capabilitiesFor(null, entitled: true),
+        isNot(contains(ArenaCapability.aulas)),
+      );
+      expect(
+        capabilitiesFor(ArenaPlanTier.pro, entitled: false),
+        isNot(contains(ArenaCapability.aulas)),
+      );
+    });
+  });
+
   group('capabilitiesFor — titularidade por tier', () {
     test('elite titular tem todas as capabilities', () {
       expect(
@@ -69,6 +95,7 @@ void main() {
         ArenaCapability.estoque,
         ArenaCapability.promocoes,
         ArenaCapability.clubinho,
+        ArenaCapability.aulas,
         ArenaCapability.metricasCompletas,
         ArenaCapability.receberTorneios,
       });

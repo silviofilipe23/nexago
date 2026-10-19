@@ -9,7 +9,7 @@ import '../../domain/arena_access_providers.dart';
 import '../../domain/arena_staff_role.dart';
 
 /// Ações rápidas operacionais no topo do Painel — o gestor age sem caçar a aba
-/// certa (abrir comanda, bloquear horário, ver as reservas de hoje).
+/// certa (abrir comanda, bloquear horário, ver as reservas e as aulas de hoje).
 ///
 /// Cada atalho só aparece pra quem tem a permissão correspondente: some quem
 /// não pode escrever (ou, no caso das reservas, nem ler) na área — a linha
@@ -42,6 +42,12 @@ class ArenaDashboardQuickActions extends ConsumerWidget {
           icon: Icons.today_rounded,
           label: 'Reservas\nde hoje',
           onTap: () => context.go(AppRoutes.arenaBookings),
+        ),
+      if (canSeeBookings)
+        _QuickAction(
+          icon: Icons.school_rounded,
+          label: 'Aulas\nde hoje',
+          onTap: () => context.pushNamed(AppRouteNames.arenaClasses),
         ),
     ];
     if (actions.isEmpty) return const SizedBox.shrink();

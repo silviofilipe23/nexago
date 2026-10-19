@@ -28,5 +28,6 @@ import type { TournamentPlan } from '../data/tournament-plans';
   `,
 })
 export class PlanSpecsComponent {
-  readonly plan = input.required<TournamentPlan>();
+  /** Também serve ao plano congelado de um contrato (Torneios › Contratos). */
+  readonly plan = input.required<Pick<TournamentPlan, 'courts' | 'refsPerCourt' | 'live' | 'narrator' | 'hours'>>();
 }

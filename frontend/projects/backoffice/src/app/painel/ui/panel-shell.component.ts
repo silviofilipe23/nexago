@@ -5,6 +5,7 @@ import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
 import { SquadBadgesService } from '../data/squad-badges.service';
 import { StoreBadgesService } from '../data/store-badges.service';
+import { TournamentBadgesService } from '../data/tournament-badges.service';
 import { IconComponent, type PanelIconName } from './icon.component';
 
 export interface NavLink {
@@ -105,7 +106,7 @@ const SQUAD_GROUP: NavGroup = {
   ],
 };
 
-/** Torneios: a lista + os pacotes vendidos ao organizador (planos v2) e as cotas Sponsors. */
+/** Torneios: a lista + os pacotes vendidos ao organizador (planos v2), os contratos pedidos e as cotas Sponsors. */
 const TORNEIOS_GROUP: NavGroup = {
   kind: 'group',
   id: 'torneios-grupo',
@@ -114,6 +115,8 @@ const TORNEIOS_GROUP: NavGroup = {
   children: [
     { kind: 'link', id: 'torneios', label: 'Todos os torneios', icon: 'trophy', route: '/painel/torneios' },
     { kind: 'link', id: 'torneios-planos', label: 'Planos', icon: 'file', route: '/painel/torneios/planos' },
+    // Badge real: pedidos de plano esperando o sinal (TournamentBadgesService).
+    { kind: 'link', id: 'torneios-contratos', label: 'Contratos', icon: 'cash', route: '/painel/torneios/contratos' },
     { kind: 'link', id: 'torneios-sponsors', label: 'Sponsors', icon: 'sponsor', route: '/painel/torneios/sponsors' },
   ],
 };
@@ -586,6 +589,7 @@ export class PanelShellComponent {
   private readonly auth = inject(AuthService);
   private readonly badges = inject(StoreBadgesService);
   private readonly squadBadges = inject(SquadBadgesService);
+  private readonly tournamentBadges = inject(TournamentBadgesService);
 
   constructor() {
     // Só com sessão: o shell monta atrás do authGuard, mas a leitura exige admin.
@@ -595,6 +599,7 @@ export class PanelShellComponent {
       void this.badges.loadOrders();
       void this.badges.loadCustom();
       void this.squadBadges.load();
+      void this.tournamentBadges.load();
     }
   }
 
@@ -619,6 +624,9 @@ export class PanelShellComponent {
     }
     if (item.id === 'squad-candidaturas') {
       return this.squadBadges.newApplications() || undefined;
+    }
+    if (item.id === 'torneios-contratos') {
+      return this.tournamentBadges.requestedContracts() || undefined;
     }
     return item.badge;
   }
@@ -647,6 +655,9 @@ export class PanelShellComponent {
     // Antes de '/painel/torneios': as sub-rotas são mais específicas.
     if (path.startsWith('/painel/torneios/planos')) {
       return 'torneios-planos';
+    }
+    if (path.startsWith('/painel/torneios/contratos')) {
+      return 'torneios-contratos';
     }
     if (path.startsWith('/painel/torneios/sponsors')) {
       return 'torneios-sponsors';

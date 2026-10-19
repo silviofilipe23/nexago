@@ -88,6 +88,20 @@ export const routes: Routes = [
       import('./painel/torneios/planos/editar/plan-editor.component').then((m) => m.PlanEditorComponent),
   },
   {
+    path: 'painel/torneios/contratos',
+    title: 'Contratos de plano — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/torneios/contratos/panel-contratos.component').then((m) => m.PanelContratosComponent),
+  },
+  {
+    path: 'painel/torneios/contratos/:id',
+    title: 'Contrato de plano — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/torneios/contratos/contrato-detail.component').then((m) => m.ContratoDetailComponent),
+  },
+  {
     path: 'painel/torneios/sponsors',
     title: 'NexaGO Sponsors — NexaGO Backoffice',
     canActivate: [authGuard],

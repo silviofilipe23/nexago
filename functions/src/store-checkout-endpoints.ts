@@ -102,20 +102,27 @@ export const createStoreOrder = onCall({...CLIENT_CALLABLE, secrets: asaasArenaS
  */
 async function attachArtUrls(db: Firestore, itemIds: string[]): Promise<void> {
   const bucket = getStorage().bucket();
+  const linkFor = async (path: string | undefined, owner: string | undefined): Promise<string | null> => {
+    if (!path || !owner || !path.startsWith(`${CUSTOM_UPLOAD_PREFIX}/${owner}/`) || path.includes("..")) return null;
+    const file = bucket.file(path);
+    const [meta] = await file.getMetadata();
+    const tokens = String(meta.metadata?.["firebaseStorageDownloadTokens"] ?? "").split(",").filter(Boolean);
+    const token = tokens[0] ?? randomUUID();
+    if (tokens.length === 0) await file.setMetadata({metadata: {firebaseStorageDownloadTokens: token}});
+    return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
+  };
   for (const id of itemIds) {
     try {
       const ref = db.collection(CUSTOM_ITEMS).doc(id);
       const item = (await ref.get()).data();
-      const path = (item?.["image"] as {path?: string} | null)?.path;
       const owner = (item?.["customer"] as {uid?: string} | undefined)?.uid;
-      if (!path || !owner || !path.startsWith(`${CUSTOM_UPLOAD_PREFIX}/${owner}/`) || path.includes("..")) continue;
-      const file = bucket.file(path);
-      const [meta] = await file.getMetadata();
-      const tokens = String(meta.metadata?.["firebaseStorageDownloadTokens"] ?? "").split(",").filter(Boolean);
-      const token = tokens[0] ?? randomUUID();
-      if (tokens.length === 0) await file.setMetadata({metadata: {firebaseStorageDownloadTokens: token}});
-      const url = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(path)}?alt=media&token=${token}`;
-      await ref.update({"image.url": url});
+      const front = await linkFor((item?.["image"] as {path?: string} | null)?.path, owner);
+      const back = item?.["back"] as {type?: string; image?: {path?: string}} | null;
+      const backUrl = back?.type === "imagem" ? await linkFor(back.image?.path, owner) : null;
+      const updates: Record<string, string> = {};
+      if (front) updates["image.url"] = front;
+      if (backUrl) updates["back.image.url"] = backUrl;
+      if (Object.keys(updates).length > 0) await ref.update(updates);
     } catch (e) {
       logger.warn("Loja: link da arte não foi gerado", {itemId: id, error: String(e)});
     }

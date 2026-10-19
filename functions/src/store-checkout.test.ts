@@ -327,6 +327,28 @@ describe("checkout · pagamento e Pix vencido", () => {
     assert.equal(await releaseCouponOnCancelCore(db, "ord_pedido_1", later), false);
   });
 
+  it("costas: número soma o preço das costas e vai para a fila de arte no formato da tela 10", async () => {
+    const s = await setup();
+    s.fake.seedDoc(`storeProductCustomization/${s.productId}`, {
+      active: true, updatedAt: NOW,
+      back: {enabled: true, allowNumber: true, allowImage: true, numberMaxDigits: 2, widthCm: 25, heightCm: 25},
+    });
+    const name = {text: "ANA", fontId: "bloco", color: "#ffffff", placement: "costas_superior"};
+    s.cart([{productId: s.productId, skuId: "m", qty: 1, lineId: "l1", customization: {configVersion: 1, name, back: {type: "numero", number: "10"}}}]);
+    const input = {channel: "web" as const, delivery: ARENA, couponCode: null};
+    const quote = await quoteCheckoutCore(s.db, "ana", input, NOW);
+    assert.equal(quote.lines[0]!.problem, null);
+    assert.equal(quote.lines[0]!.extraCents, 1490 + 990);
+    assert.equal(quote.lines[0]!.customizationLabel, "ANA · 10");
+    await createStoreOrderCore(s.db, "ana", {...input, expectedTotalCents: quote.totalCents, cpf: null}, new FakePay(), NOW, () => "ord_costas_1");
+    await confirmStoreOrderPaymentCore(s.db, "ord_costas_1", {paymentId: "pay_1", valueCents: quote.totalCents}, NOW);
+    assert.deepEqual(s.fake.store.get("storeCustomItems/ord_costas_1-1")!["back"], {type: "numero", number: "10"});
+    // Número fora do limite (adulterado no carrinho) sai do pedido.
+    s.cart([{productId: s.productId, skuId: "m", qty: 1, lineId: "l2", customization: {configVersion: 1, name, back: {type: "numero", number: "123"}}}]);
+    const bad = await quoteCheckoutCore(s.db, "ana", input, NOW);
+    assert.equal(bad.lines[0]!.problem, "personalizacao_off");
+  });
+
   it("valor menor ou cobrança de outro pedido não confirmam", async () => {
     const {db, quote} = await paidSetup();
     assert.equal((await confirmStoreOrderPaymentCore(db, "ord_pedido_1", {paymentId: "pay_1", valueCents: quote.totalCents - 1}, NOW))

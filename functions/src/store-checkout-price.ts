@@ -8,6 +8,7 @@
 import {MAX_QTY_PER_ITEM, variantLabelOf, type Axis} from "./store-catalog";
 import {
   CUSTOM_UPLOAD_PREFIX,
+  backNumberOk,
   customExtraCents,
   nameProblem,
   normalizeCustomName,
@@ -207,6 +208,16 @@ export function pixPercent(discounts: AutoDiscount[]): number | null {
   return pix?.active && pix.percent && pix.percent > 0 ? pix.percent : null;
 }
 
+/** "ANA · 10", "Imagem", "Nº 10", "Imagem nas costas": o que a linha leva, curto. */
+function customLabel(name: Data | undefined, image: Data | undefined, back: Data | undefined): string {
+  const number = back?.["type"] === "numero" ? str(back["number"]) : "";
+  const text = str(name?.["text"]);
+  if (text) return number ? `${text} · ${number}` : text;
+  if (image) return "Imagem";
+  if (number) return `Nº ${number}`;
+  return back ? "Imagem nas costas" : "Personalizada";
+}
+
 type StockSku = {stockByLocation?: Record<string, number>; reservedByLocation?: Record<string, number>};
 
 /**
@@ -261,6 +272,18 @@ function customizationValid(
     if (!path.startsWith(`${CUSTOM_UPLOAD_PREFIX}/${uid}/`) || path.includes("..")) return false;
     if (!config.image.areas.some((a) => a.id === image["areaId"])) return false;
   }
+  const back = custom["back"] as Data | undefined;
+  if (back) {
+    if (!config.back.enabled) return false;
+    if (back["type"] === "numero") {
+      if (!config.back.allowNumber || !backNumberOk(back["number"], config.back.numberMaxDigits)) return false;
+    } else if (back["type"] === "imagem") {
+      const path = str(back["path"]);
+      if (!config.back.allowImage || !path.startsWith(`${CUSTOM_UPLOAD_PREFIX}/${uid}/`) || path.includes("..")) return false;
+    } else {
+      return false;
+    }
+  }
   return true;
 }
 
@@ -279,6 +302,7 @@ function priceLine(
   const custom = line.customization ?? null;
   const name = custom?.["name"] as Data | undefined;
   const image = custom?.["image"] as Data | undefined;
+  const back = custom?.["back"] as Data | undefined;
   const personalized = custom !== null;
 
   let extraCents = 0;
@@ -300,7 +324,7 @@ function priceLine(
       !customizationValid(custom!, config, entry?.customization ?? null, owner.uid, owner.blockedTerms)) {
       problem = "personalizacao_off";
     } else {
-      extraCents = customExtraCents(config.price, hasName, hasImage);
+      extraCents = customExtraCents(config.price, hasName, hasImage, !!back);
     }
   }
 
@@ -322,7 +346,7 @@ function priceLine(
     unitCents,
     totalCents: unitCents * qty,
     personalized,
-    customizationLabel: personalized ? (str(name?.["text"]) || (image ? "Imagem" : "Personalizada")) : null,
+    customizationLabel: personalized ? customLabel(name, image, back) : null,
     problem,
   };
 }

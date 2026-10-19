@@ -14,6 +14,9 @@ export type CancelReason = 'rain' | 'teacher_absent' | 'maintenance' | 'holiday'
 
 export interface ClassTeacher {
   id: string;
+  /** Conta NexaGO do professor — obrigatória no cadastro novo; null em professor antigo. */
+  userId: string | null;
+  photoUrl: string | null;
   name: string;
   specialty: string | null;
   phone: string | null;
@@ -161,6 +164,8 @@ export function classTeacherFromDoc(doc: QueryDocumentSnapshot | DocumentSnapsho
   const d = (doc.data() ?? {}) as Record<string, unknown>;
   return {
     id: doc.id,
+    userId: optStr(d['userId']),
+    photoUrl: optStr(d['photoUrl']),
     name: str(d['name'], 'Professor'),
     specialty: optStr(d['specialty']),
     phone: optStr(d['phone']),

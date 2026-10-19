@@ -46,6 +46,11 @@ A8–A12 Matrícula no app, lista de espera, créditos de reposição, matrícul
   matriz de cargos. Financeiro não vê aulas na fase 1 (não há dinheiro nelas ainda).
 - **Plano: Pro e Elite** (`isArenaEntitledPro`), como o clubinho. Cancelar aula, chamada,
   alunos e pausar seguem livres com plano vencido (desmontar não pode travar).
+- **Professor tem conta NexaGO obrigatória** (quase sempre é atleta da própria arena): escolhido
+  pela busca de atleta, `userId` no doc, nome e foto vêm do perfil, uma conta por arena. Professor
+  antigo sem conta aparece como "Sem conta · vincular" e não recebe turma nova (`upsertArenaClass`
+  exige conta em turma nova ou troca de professor; quem já estava numa turma segue nela). Aula e
+  turma guardam `teacherUserId` — base para o professor ver as aulas no app depois.
 - **Aluno** = atleta NexaGO (docId = uid) ou nome livre (sem conta). Aluno com conta recebe
   push quando a aula é cancelada.
 - **Aula avulsa** (particular/dupla/experimental) = `arenaClasses` com `weekdays: []` e uma data
@@ -53,8 +58,8 @@ A8–A12 Matrícula no app, lista de espera, créditos de reposição, matrícul
 
 ## Modelo (escrita 100% via Cloud Functions)
 
-`arenas/{arenaId}/classTeachers/{teacherId}` — `name, specialty, phone, color (#RRGGBB),
-status: active|archived`.
+`arenas/{arenaId}/classTeachers/{teacherId}` — `userId (uid da conta NexaGO), name e photoUrl
+(do perfil), specialty, phone, color (#RRGGBB), status: active|archived`.
 
 `arenaClasses/{classId}` — `arenaId, arenaName, name, type: turma|particular|dupla|experimental,
 sport (código do catálogo), level: iniciante|intermediario|avancado|kids|livre, teacherId,
@@ -81,7 +86,7 @@ Leitura (rules): quem lê a área `agenda` da arena; toda query filtra `arenaId`
 
 | Callable | Entrada | Saída |
 |---|---|---|
-| `upsertArenaClassTeacher` | `arenaId, teacherId?, name, specialty?, phone?, color?, status?` | `{teacherId}` |
+| `upsertArenaClassTeacher` | `arenaId, teacherId?, userId (obrigatório no cadastro; vincula legado), specialty?, phone?, color?, status?` | `{teacherId}` |
 | `previewArenaClassSchedule` | campos de agenda da turma + `classId?` | `{totalDates, conflicts: [{date, label}]}` |
 | `upsertArenaClass` | `arenaId, classId?, name, type, sport, level, teacherId, weekdays, startTime, endTime, courtId, capacity, startDate?, endDate?, notes?, students?` (só na criação) | `{classId, createdDates, conflictDates}` |
 | `setArenaClassStatus` | `classId, status: active\|paused\|archived` | `{classId, status, …}` |

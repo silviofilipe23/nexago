@@ -103,13 +103,25 @@ const DURATIONS = [30, 45, 60, 75, 90, 120, 150, 180];
             } @else {
               <div class="teachers">
                 @for (t of activeTeachers(); track t.id) {
-                  <button type="button" class="pick" [class.active]="teacherId() === t.id" (click)="teacherId.set(t.id)">
+                  <button
+                    type="button"
+                    class="pick"
+                    [class.active]="teacherId() === t.id"
+                    [disabled]="!teacherSelectable(t)"
+                    (click)="teacherId.set(t.id)"
+                  >
                     <ar-teacher-avatar [name]="t.name" [color]="t.color" [size]="30" />
                     <span class="pick-name">{{ t.name }}</span>
-                    <span class="pick-sub">{{ t.specialty || 'Professor' }}</span>
+                    <span class="pick-sub" [class.warn]="!t.userId">{{ t.userId ? (t.specialty || 'Professor') : 'Sem conta NexaGO' }}</span>
                   </button>
                 }
               </div>
+              @if (hasTeachersWithoutAccount()) {
+                <p class="hint">
+                  Professor sem conta NexaGO não recebe turma nova.
+                  <a class="ar-text-link" routerLink="/painel/aulas/professores">Vincule a conta em Professores.</a>
+                </p>
+              }
             }
           </ar-panel-card>
 
@@ -235,6 +247,8 @@ const DURATIONS = [30, 45, 60, 75, 90, 120, 150, 180];
       border-radius: var(--nx-r-3); background: var(--nx-surface-1); border: 1px solid var(--nx-line); cursor: pointer;
     }
     .pick.active { background: var(--nx-orange-tint); border-color: rgba(255, 106, 26, 0.45); }
+    .pick:disabled { cursor: not-allowed; opacity: 0.5; }
+    .pick-sub.warn { color: var(--nx-pending); }
     .pick-name { font-family: var(--nx-font-display); font-weight: 600; font-size: 12.5px; color: var(--nx-text); }
     .pick-sub { font-family: var(--nx-font-mono); font-size: 10px; color: var(--nx-text-dim); }
     .weekdays { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -320,6 +334,9 @@ export class PanelAulaClassFormComponent {
   protected readonly activeTeachers = computed(() =>
     this.teachers().filter((t) => t.status === 'active' || t.id === this.teacherId()),
   );
+  /** Professor de antes da conta obrigatória só segue na turma em que já estava. */
+  private readonly originalTeacherId = signal<string | null>(null);
+  protected readonly hasTeachersWithoutAccount = computed(() => this.activeTeachers().some((t) => !t.userId));
   protected readonly endTime = computed(() => endTimeFor(this.startTime(), this.duration()));
   protected readonly durations = computed(() =>
     DURATIONS.includes(this.duration()) ? DURATIONS : [...DURATIONS, this.duration()].sort((a, b) => a - b),
@@ -412,7 +429,7 @@ export class PanelAulaClassFormComponent {
       this.teachers.set(teachers);
       this.courts.set(courts.map((c) => ({ id: c.id, name: c.name, types: c.types })));
       if (!this.isEdit()) {
-        const firstTeacher = teachers.find((t) => t.status === 'active');
+        const firstTeacher = teachers.find((t) => t.status === 'active' && t.userId);
         if (firstTeacher && !this.teacherId()) this.teacherId.set(firstTeacher.id);
         if (courts[0] && !this.courtId()) this.courtId.set(courts[0].id);
         const firstSport = courts.flatMap((c) => c.types)[0];
@@ -437,6 +454,7 @@ export class PanelAulaClassFormComponent {
       this.sport.set(cls.sport);
       this.level.set(cls.level);
       this.teacherId.set(cls.teacherId);
+      this.originalTeacherId.set(cls.teacherId);
       this.selectedDays.set(new Set(cls.weekdays));
       this.startTime.set(cls.startTime);
       let dur = minutesOf(cls.endTime) - minutesOf(cls.startTime);
@@ -450,6 +468,10 @@ export class PanelAulaClassFormComponent {
     } catch {
       this.errorMessage.set('Não foi possível carregar a turma.');
     }
+  }
+
+  protected teacherSelectable(t: ClassTeacher): boolean {
+    return t.userId != null || t.id === this.originalTeacherId();
   }
 
   protected toggleDay(day: number): void {

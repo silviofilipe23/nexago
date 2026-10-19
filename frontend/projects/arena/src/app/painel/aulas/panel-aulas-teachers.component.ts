@@ -7,20 +7,27 @@ import { IconComponent } from '../ui/icon.component';
 import { ModalComponent } from '../ui/modal.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PillComponent } from '../ui/pill.component';
+import type { AthleteSearchResult } from '../clubinho/clubs-repository';
+import { AulaAthletePickerComponent } from './aula-modals.component';
 import { AulaStatComponent, AulasPageComponent, OccupancyBarComponent, TeacherAvatarComponent } from './aulas-ui';
 import { TEACHER_COLORS, teacherStats, type ArenaClass, type ClassTeacher } from './class.model';
 import { fetchClasses, fetchTeachers, upsertTeacher } from './classes-repository';
 
 interface TeacherDraft {
   teacherId: string | null;
+  /** Conta já vinculada (edição). */
+  userId: string | null;
   name: string;
+  /** Atleta escolhido na busca (cadastro novo ou vínculo de professor antigo). */
+  picked: AthleteSearchResult | null;
   specialty: string;
   phone: string;
   color: string;
 }
 
-/** 14 · Professores — cadastro simples (nome, modalidade, contato, cor) com aulas/semana,
- *  alunos e ocupação calculados das turmas ativas. Repasse fica para a fase 2. */
+/** 14 · Professores — todo professor é uma conta NexaGO (quase sempre atleta da própria
+ *  arena): escolhido pela busca de atleta; nome e foto vêm do perfil. Aulas/semana, alunos e
+ *  ocupação saem das turmas ativas. Repasse fica para a fase 2. */
 @Component({
   selector: 'ar-panel-aulas-teachers',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -33,6 +40,7 @@ interface TeacherDraft {
     ModalComponent,
     TeacherAvatarComponent,
     OccupancyBarComponent,
+    AulaAthletePickerComponent,
   ],
   styleUrl: './aulas-form.scss',
   template: `
@@ -66,7 +74,11 @@ interface TeacherDraft {
                     <ar-teacher-avatar [name]="t.name" [color]="t.color" [size]="36" />
                     <div>
                       <div class="name">{{ t.name }}</div>
-                      <div class="sub">{{ t.phone || 'Sem telefone' }}</div>
+                      @if (t.userId) {
+                        <div class="sub ok">● Conta NexaGO{{ t.phone ? ' · ' + t.phone : '' }}</div>
+                      } @else {
+                        <button type="button" class="link-warn" [disabled]="readOnly()" (click)="openEdit(t)">Sem conta · vincular</button>
+                      }
                     </div>
                   </div>
                   <span class="cell">{{ t.specialty || '—' }}</span>
@@ -95,12 +107,20 @@ interface TeacherDraft {
     @if (draft(); as d) {
       <ar-modal (close)="closeModal()">
         <p class="modal-title">{{ d.teacherId ? 'Editar professor' : 'Novo professor' }}</p>
-        <p class="modal-sub">A cor identifica as aulas dele na agenda.</p>
+        <p class="modal-sub">O professor precisa ter conta no NexaGO — o nome e a foto vêm do perfil dele.</p>
         @if (saveError(); as err) {
           <div class="error-banner">{{ err }}</div>
         }
-        <div class="field-label spaced">Nome</div>
-        <input class="input-box" type="text" maxlength="60" [value]="d.name" (input)="patch({ name: $any($event.target).value })" />
+        @if (d.userId) {
+          <div class="field-label spaced">Professor</div>
+          <div class="account">
+            <span class="account-name">{{ d.name }}</span>
+            <span class="account-tag">Conta NexaGO</span>
+          </div>
+        } @else {
+          <div class="field-label spaced">{{ d.teacherId ? 'Vincular conta de ' + d.name : 'Conta NexaGO do professor' }}</div>
+          <ar-aula-athlete-picker placeholder="Buscar atleta pelo nome" (selected)="patch({ picked: $event })" />
+        }
         <div class="row-2">
           <div>
             <div class="field-label spaced">Modalidade</div>
@@ -125,7 +145,7 @@ interface TeacherDraft {
             <span class="grow"></span>
           }
           <button type="button" class="ar-mini-btn" (click)="closeModal()">Cancelar</button>
-          <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="saving() || d.name.trim().length < 2" (click)="save()">
+          <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="saving() || !canSave()" (click)="save()">
             {{ saving() ? 'Salvando…' : 'Salvar' }}
           </button>
         </div>
@@ -153,6 +173,17 @@ interface TeacherDraft {
     .who { display: flex; align-items: center; gap: 11px; min-width: 0; }
     .name { font-family: var(--nx-font-display); font-weight: 600; font-size: 13.5px; color: var(--nx-text); }
     .sub { font-family: var(--nx-font-mono); font-size: 10px; color: var(--nx-text-dim); margin-top: 2px; }
+    .sub.ok { color: var(--nx-win); }
+    .link-warn {
+      margin-top: 2px; padding: 0; background: none; border: none; cursor: pointer;
+      font-family: var(--nx-font-mono); font-size: 10px; color: var(--nx-pending); text-decoration: underline;
+    }
+    .account {
+      display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 12px; border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1); border: 1px solid var(--nx-line);
+    }
+    .account-name { flex: 1; font-family: var(--nx-font-display); font-weight: 600; font-size: 13.5px; color: var(--nx-text); }
+    .account-tag { font-family: var(--nx-font-mono); font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--nx-win); }
     .cell { font-size: 12.5px; color: var(--nx-text-mute); }
     .mono { font-family: var(--nx-font-mono); font-size: 12.5px; font-weight: 700; color: var(--nx-text); }
     .occ { display: flex; align-items: center; gap: 8px; }
@@ -190,6 +221,10 @@ export class PanelAulasTeachersComponent {
     }
     return { classesPerWeek, students, pct: capacity > 0 ? Math.round((students / capacity) * 100) : 0 };
   });
+  protected readonly canSave = computed(() => {
+    const d = this.draft();
+    return d != null && (d.userId != null || d.picked != null);
+  });
   protected readonly editingArchived = computed(() => {
     const id = this.draft()?.teacherId;
     return id != null && this.teachers().find((t) => t.id === id)?.status === 'archived';
@@ -222,13 +257,16 @@ export class PanelAulasTeachersComponent {
     const used = new Set(this.teachers().map((t) => t.color));
     const color = TEACHER_COLORS.find((c) => !used.has(c)) ?? TEACHER_COLORS[0]!;
     this.saveError.set(null);
-    this.draft.set({ teacherId: null, name: '', specialty: '', phone: '', color });
+    this.draft.set({ teacherId: null, userId: null, name: '', picked: null, specialty: '', phone: '', color });
   }
 
   protected openEdit(t: ClassTeacher): void {
     if (this.readOnly()) return;
     this.saveError.set(null);
-    this.draft.set({ teacherId: t.id, name: t.name, specialty: t.specialty ?? '', phone: t.phone ?? '', color: t.color });
+    this.draft.set({
+      teacherId: t.id, userId: t.userId, name: t.name, picked: null,
+      specialty: t.specialty ?? '', phone: t.phone ?? '', color: t.color,
+    });
   }
 
   protected patch(change: Partial<TeacherDraft>): void {
@@ -258,7 +296,7 @@ export class PanelAulasTeachersComponent {
       await upsertTeacher(arenaFunctions(), {
         arenaId,
         teacherId: d.teacherId ?? undefined,
-        name: d.name.trim(),
+        userId: d.userId ?? d.picked?.id,
         specialty: d.specialty.trim() || null,
         phone: d.phone.trim() || null,
         color: d.color,

@@ -160,7 +160,8 @@ export function watchSession(
 export interface TeacherInput {
   arenaId: string;
   teacherId?: string;
-  name: string;
+  /** Conta NexaGO do professor: obrigatória no cadastro; em professor antigo, vincula. */
+  userId?: string;
   specialty?: string | null;
   phone?: string | null;
   color: string;

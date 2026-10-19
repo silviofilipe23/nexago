@@ -41,7 +41,10 @@ export type OgIconName =
   | 'more'
   | 'pause'
   | 'play'
-  | 'star';
+  | 'star'
+  | 'video'
+  | 'court'
+  | 'mic';
 
 /** Ícones de contorno do design system NexaGO — mesmo traçado do protótipo (stroke 24, 1.8–2.2px). */
 @Component({
@@ -186,6 +189,15 @@ export type OgIconName =
           <circle cx="15" cy="12" r="1.2" fill="currentColor" stroke="none" />
           <circle cx="9" cy="18" r="1.2" fill="currentColor" stroke="none" />
           <circle cx="15" cy="18" r="1.2" fill="currentColor" stroke="none" />
+        }
+        @case ('video') {
+          <rect x="2.5" y="6" width="14" height="12" rx="2" /><path d="m16.5 10 5-3v10l-5-3" />
+        }
+        @case ('court') {
+          <rect x="3" y="5" width="18" height="14" rx="1.5" /><path d="M12 5v14M3 12h18" />
+        }
+        @case ('mic') {
+          <rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
         }
         @case ('share') {
           <circle cx="18" cy="5" r="2.7" /><circle cx="6" cy="12" r="2.7" /><circle cx="18" cy="19" r="2.7" />

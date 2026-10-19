@@ -3220,6 +3220,23 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Contrato de plano por evento (id = tournamentId) e as cotas de patrocínio dele. Só as
+    // callables de `tournament-plan-contracts.ts` gravam. O organizador lê os próprios; ler
+    // um id sem contrato (`resource == null`) é permitido pra tela saber que não há plano.
+    match /tournamentPlanContracts/{tournamentId} {
+      allow read: if isAdmin() || isSuperAdmin() ||
+        (request.auth != null && (resource == null || resource.data.organizerId == request.auth.uid));
+      allow write: if false;
+
+      match /sponsors/{sponsorId} {
+        allow read: if isAdmin() || isSuperAdmin() ||
+          (request.auth != null &&
+            get(/databases/$(database)/documents/tournamentPlanContracts/$(tournamentId)).data.organizerId
+              == request.auth.uid);
+        allow write: if false;
+      }
+    }
+
     // NexaSquad: regras do programa (vigente + histórico de versões). Só a callable
     // `saveSquadRules` grava; contrato assinado guarda o número da versão.
     match /squadConfig/{configId} {

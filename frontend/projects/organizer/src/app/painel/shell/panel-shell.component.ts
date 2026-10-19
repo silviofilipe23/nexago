@@ -28,6 +28,7 @@ import { OgPersonPhotoComponent } from '../ui/person-photo.component';
 import { FinanceiroReachService } from './financeiro-reach.service';
 import { OgBellComponent } from './og-bell.component';
 import { PanelContextService } from './panel-context.service';
+import { PlansMenuService } from './plans-menu.service';
 import { tournamentMenuFor } from '../data/media-access';
 
 /** Só pergunta uma vez por navegador — negou ou aceitou, não insiste de novo a cada login. */
@@ -276,6 +277,8 @@ export class PanelShellComponent {
   /** Alcance do Financeiro (item do menu no nível global) — uma leitura por uid, sem
    *  arrastar jogos de torneio nenhum pro boot do painel. */
   private readonly financeiroReach = inject(FinanceiroReachService);
+  /** "Planos & Sponsors" só com a flag `appConfig/tournamentPlans` acesa. */
+  private readonly plansMenu = inject(PlansMenuService);
 
   protected readonly url = toSignal(
     this.router.events.pipe(
@@ -460,6 +463,9 @@ export class PanelShellComponent {
         link: '/painel/novo-evento',
         matchPrefixes: ['/painel/novo-evento', '/painel/novo-torneio', '/painel/nova-liga', '/painel/nova-etapa'],
       },
+      ...(this.plansMenu.enabled()
+        ? [{ label: 'Planos & Sponsors', icon: 'video' as OgIconName, link: '/painel/planos', matchPrefixes: ['/painel/planos'] }]
+        : []),
       // Só dono/gestor de ao menos um evento — administrador do evento não vê o item.
       // Enquanto o alcance é desconhecido (carregando ou falhou) o item APARECE: a rota
       // não é bloqueada, então quem não alcança caixa cai na tela que explica de quem é o

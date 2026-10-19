@@ -136,6 +136,19 @@ export const routes: Routes = [
         loadComponent: () => import('./painel/financeiro/financeiro.component').then((m) => m.FinanceiroComponent),
       },
       {
+        // Sem guard: a flag `appConfig/tournamentPlans` só esconde o item do menu (link direto
+        // e QA funcionam). Contratar exige ser dono do evento — quem confere é a callable.
+        path: 'planos',
+        title: 'Planos & Sponsors — NexaGO Organizador',
+        loadComponent: () => import('./painel/planos/planos.component').then((m) => m.PlanosComponent),
+      },
+      {
+        path: 'planos/:tournamentId/sponsors',
+        title: 'Sponsors do evento — NexaGO Organizador',
+        loadComponent: () =>
+          import('./painel/planos/plano-sponsors.component').then((m) => m.PlanoSponsorsComponent),
+      },
+      {
         path: 'reputacao',
         title: 'Reputação — NexaGO Organizador',
         loadComponent: () => import('./painel/reputacao/reputacao.component').then((m) => m.ReputacaoComponent),

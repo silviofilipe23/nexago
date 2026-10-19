@@ -22,3 +22,13 @@ describe('bloqueio de aula na agenda de reservas', () => {
     expect(isClassBlock({ bookingId: null }, null)).toBeFalse();
   });
 });
+
+describe('reserva de aula na tela Reservas', () => {
+  it('não oferece cancelar nem check-in (só pela aula)', async () => {
+    const { bookingCanCancel, bookingShowsCheckInAction } = await import('../bookings/arena-booking.model');
+    const aula = { status: 'active', attendanceStatus: 'pending', classSessionId: 'class_c1_2026-10-26' };
+    expect(bookingCanCancel(aula)).toBeFalse();
+    expect(bookingShowsCheckInAction(aula as never)).toBeFalse();
+    expect(bookingCanCancel({ status: 'active', classSessionId: null })).toBeTrue();
+  });
+});

@@ -13,11 +13,15 @@ import {
   classScheduleLabel,
   findClassConflicts,
   isClassScheduleChange,
+  MATERIALIZED_DONE,
+  discardNewClass,
   materializeClassRange,
   materializeClassSession,
+  materializedUntilAfter,
   mergeConflictDates,
-  releaseClassSessionBlock,
+  releaseClassSession,
   releaseFutureClassSessions,
+  unchangedSessionDates,
   removeClassStudentCore,
   saveClassAttendanceCore,
   validateClassInput,
@@ -108,6 +112,12 @@ describe("arena-class.validateClassInput", () => {
     );
   });
 
+  it("recusa horário fora do relógio; fim 00:00 é meia-noite", () => {
+    assert.throws(() => validateClassInput({...valid, startTime: "22:00", endTime: "25:00"}, today), HttpsError);
+    assert.throws(() => validateClassInput({...valid, startTime: "07:75", endTime: "08:00"}, today), HttpsError);
+    assert.equal(validateClassInput({...valid, startTime: "23:00", endTime: "00:00"}, today).endTime, "00:00");
+  });
+
   it("recusa fim antes do início, aula de mais de 4h e vagas fora da faixa", () => {
     assert.throws(() => validateClassInput({...valid, endTime: "19:00"}, today), HttpsError);
     assert.throws(() => validateClassInput({...valid, startTime: "08:00", endTime: "12:30"}, today), HttpsError);
@@ -129,6 +139,22 @@ describe("arena-class rótulos e helpers", () => {
     assert.equal(isClassScheduleChange(baseClass(), baseClass({courtId: "q3"})), true);
     assert.equal(isClassScheduleChange(baseClass(), baseClass({weekdays: [1, 5]})), true);
     assert.equal(isClassScheduleChange(baseClass(), baseClass({endDate: "2026-12-20"})), true);
+  });
+
+  it("fila do agendador: avulsa e turma com fim já gerado saem de vez", () => {
+    assert.equal(materializedUntilAfter(baseClass({weekdays: []}), "2026-11-23"), MATERIALIZED_DONE);
+    assert.equal(materializedUntilAfter(baseClass({endDate: "2026-11-10"}), "2026-11-23"), MATERIALIZED_DONE);
+    assert.equal(materializedUntilAfter(baseClass({endDate: "2027-01-10"}), "2026-11-23"), "2026-11-23");
+    assert.equal(materializedUntilAfter(baseClass(), "2026-11-23"), "2026-11-23");
+  });
+
+  it("remarcar mantém as datas que não mudam só quando quadra e horário são os mesmos", () => {
+    const before = baseClass();
+    assert.deepEqual(
+      [...unchangedSessionDates(before, baseClass({endDate: "2026-12-20"}), "2026-10-25", "2026-10-28")],
+      [MONDAY, "2026-10-28"],
+    );
+    assert.equal(unchangedSessionDates(before, baseClass({startTime: "19:00"}), "2026-10-25", "2026-10-28").size, 0);
   });
 
   it("horizonte: 35 dias, ou a data da avulsa quando for mais longe", () => {
@@ -217,14 +243,66 @@ describe("arena-class liberação da quadra", () => {
     // Corrida: um atleta já pegou a hora 19 no intervalo entre o trigger e esta liberação.
     fake.seedDoc(`arenaSlotLocks/arena1_q2_${MONDAY}_h19`, {bookingId: "b-atleta"});
 
-    await releaseClassSessionBlock(db, {
-      arenaId: "arena1", courtId: "q2", date: MONDAY, startTime: "18:00", endTime: "19:30", blockBookingId: id,
-    }, "cancel", "class_session_canceled");
+    const result = await releaseClassSession(db, id, {kind: "cancel", reason: "rain", note: null});
 
+    assert.equal(result.released, true);
+    assert.equal(fake.store.get(`arenaClassSessions/${id}`)!["status"], "canceled");
     assert.equal(fake.store.get(`arenaBookings/${id}`)!["status"], "cancelled");
     assert.equal(fake.store.has(`arenaSlotLocks/arena1_q2_${MONDAY}_h18`), false);
     assert.equal(fake.store.get(`arenaSlotLocks/arena1_q2_${MONDAY}_h19`)!["bookingId"], "b-atleta");
     assert.equal(fake.store.has(`arenaSlots/${id}`), false);
+  });
+
+  it("cancelar de novo uma aula já cancelada termina de liberar a quadra, sem reavisar", async () => {
+    const {fake, db} = makeDb();
+    await materializeClassSession(db, "c1", baseClass(), MONDAY, "series");
+    const id = classSessionId("c1", MONDAY);
+    // Estado de uma liberação interrompida: sessão cancelada, bloqueio ainda de pé.
+    fake.seedDoc(`arenaClassSessions/${id}`, {...fake.store.get(`arenaClassSessions/${id}`)!, status: "canceled"});
+    fake.seedDoc("arenaClasses/c1/classStudents/u1", {name: "Carla", status: "active", athleteId: "u1"});
+    const notified: string[] = [];
+
+    const out = await cancelClassSessionCore(db, id, "rain", null, {notify: async (i) => {
+      notified.push(i.userId);
+    }});
+
+    assert.equal(out.notified, 0);
+    assert.deepEqual(notified, []);
+    assert.equal(fake.store.get(`arenaBookings/${id}`)!["status"], "cancelled");
+    assert.equal(fake.store.has(`arenaSlotLocks/arena1_q2_${MONDAY}_h18`), false);
+  });
+
+  it("aula com chamada fechada não é cancelada", async () => {
+    const {fake, db} = makeDb();
+    await materializeClassSession(db, "c1", baseClass(), MONDAY, "series");
+    const id = classSessionId("c1", MONDAY);
+    fake.seedDoc(`arenaClassSessions/${id}`, {...fake.store.get(`arenaClassSessions/${id}`)!, status: "completed"});
+    await assert.rejects(releaseClassSession(db, id, {kind: "cancel", reason: "rain", note: null}), /fechada/);
+    assert.equal(fake.store.get(`arenaBookings/${id}`)!["status"], "active");
+  });
+
+  it("sobra de booking sem sessão (lembrete tardio) não impede recriar a aula", async () => {
+    const {fake, db} = makeDb();
+    const id = classSessionId("c1", MONDAY);
+    fake.seedDoc(`arenaBookings/${id}`, {reminder15mAt: "x"});
+    assert.equal(await materializeClassSession(db, "c1", baseClass(), MONDAY, "series"), "created");
+    assert.equal(fake.store.get(`arenaBookings/${id}`)!["status"], "active");
+    assert.ok(fake.store.has(`arenaSlotLocks/arena1_q2_${MONDAY}_h18`));
+  });
+
+  it("descartar turma recém-criada solta a quadra e apaga alunos e turma", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("arenaClasses/c1", {...baseClass(), studentCount: 1});
+    fake.seedDoc("arenaClasses/c1/classStudents/u1", {name: "Carla", status: "active"});
+    await materializeClassRange(db, "c1", baseClass(), "2026-10-25", "2026-10-28");
+
+    await discardNewClass(db, "c1");
+
+    assert.equal(fake.store.has("arenaClasses/c1"), false);
+    assert.equal(fake.store.has("arenaClasses/c1/classStudents/u1"), false);
+    assert.equal(fake.store.has(`arenaClassSessions/${classSessionId("c1", MONDAY)}`), false);
+    assert.equal(fake.store.has(`arenaBookings/${classSessionId("c1", "2026-10-28")}`), false);
+    assert.equal(fake.store.has(`arenaSlotLocks/arena1_q2_${MONDAY}_h18`), false);
   });
 
   it("remarcar apaga só aulas futuras sem chamada e não canceladas", async () => {
@@ -242,6 +320,9 @@ describe("arena-class liberação da quadra", () => {
     });
 
     const now = new Date("2026-10-20T12:00:00-03:00").getTime();
+    // Só estender a data de fim: as aulas que seguem iguais não saem da agenda.
+    const kept = await releaseFutureClassSessions(db, "c1", now, new Set([MONDAY, "2026-11-04"]));
+    assert.deepEqual(kept, []);
     const released = await releaseFutureClassSessions(db, "c1", now);
 
     assert.deepEqual(released, [MONDAY, "2026-11-04"]);
@@ -314,6 +395,26 @@ describe("arena-class chamada", () => {
     assert.deepEqual((session["attendance"] as Record<string, unknown>)["u1"], {mark: "present", name: "Carla"});
     assert.equal(session["teacherNote"], "Saque viagem");
     assert.equal(session["status"], "completed");
+  });
+
+  it("salvar só a nota não apaga as marcas da chamada", async () => {
+    const {fake, db} = makeDb();
+    const id = await seedSession(fake, db);
+    await saveClassAttendanceCore(db, id, {marks: {u1: "present"}, teacherNote: undefined, close: false, uid: "g"}, "2026-10-19");
+    await saveClassAttendanceCore(db, id, {marks: {}, teacherNote: "Bolas novas", close: true, uid: "g"}, "2026-10-19");
+    const session = fake.store.get(`arenaClassSessions/${id}`)!;
+    assert.deepEqual((session["attendance"] as Record<string, unknown>)["u1"], {mark: "present", name: "Carla"});
+    assert.equal(session["status"], "completed");
+  });
+
+  it("chamada de aula cancelada é recusada", async () => {
+    const {fake, db} = makeDb();
+    const id = await seedSession(fake, db);
+    fake.seedDoc(`arenaClassSessions/${id}`, {...fake.store.get(`arenaClassSessions/${id}`)!, status: "canceled"});
+    await assert.rejects(
+      saveClassAttendanceCore(db, id, {marks: {u1: "present"}, teacherNote: undefined, close: true, uid: "g"}, "2026-10-19"),
+      /cancelada/,
+    );
   });
 
   it("não abre chamada de aula futura nem aceita aluno de fora", async () => {

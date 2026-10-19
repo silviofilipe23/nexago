@@ -56,8 +56,20 @@ export interface ClassStudent {
   name: string;
   phone: string | null;
   photoUrl: string | null;
-  status: 'active' | 'removed';
+  status: 'active' | 'paused' | 'removed';
   enrolledAt: Date | null;
+  /** Fase 2: matrícula que trouxe o aluno (null = aluno avulso da fase 1). */
+  enrollmentId: string | null;
+  /** Dias da semana que o aluno faz nesta turma (null = todos). */
+  weekdays: number[] | null;
+  planName: string | null;
+}
+
+export interface SessionExtra {
+  name: string;
+  kind: 'makeup' | 'trial';
+  creditId: string | null;
+  athleteId: string | null;
 }
 
 export interface ClassSession {
@@ -81,6 +93,8 @@ export interface ClassSession {
   attendance: Record<string, { mark: AttendanceMark; name: string }>;
   teacherNote: string | null;
   cancelReason: string | null;
+  /** Encaixes da aula (reposição/experimental). */
+  extras: Record<string, SessionExtra>;
 }
 
 // ── Rótulos ─────────────────────────────────────────────────────────────────
@@ -212,8 +226,13 @@ export function classStudentFromDoc(doc: QueryDocumentSnapshot | DocumentSnapsho
     name: str(d['name'], 'Aluno'),
     phone: optStr(d['phone']),
     photoUrl: optStr(d['photoUrl']),
-    status: d['status'] === 'removed' ? 'removed' : 'active',
+    status: d['status'] === 'removed' ? 'removed' : d['status'] === 'paused' ? 'paused' : 'active',
     enrolledAt: toDate(d['enrolledAt']),
+    enrollmentId: optStr(d['enrollmentId']),
+    weekdays: Array.isArray(d['weekdays']) && d['weekdays'].length > 0
+      ? (d['weekdays'] as unknown[]).map(Number).filter((n) => Number.isInteger(n))
+      : null,
+    planName: optStr(d['planName']),
   };
 }
 
@@ -251,7 +270,29 @@ export function classSessionFromDoc(doc: QueryDocumentSnapshot | DocumentSnapsho
     attendance,
     teacherNote: optStr(d['teacherNote']),
     cancelReason: optStr(d['cancelReason']),
+    extras: parseExtras(d['extras']),
   };
+}
+
+function parseExtras(raw: unknown): Record<string, SessionExtra> {
+  const out: Record<string, SessionExtra> = {};
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (value == null || typeof value !== 'object') continue;
+    const v = value as Record<string, unknown>;
+    out[id] = {
+      name: str(v['name'], 'Aluno'),
+      kind: v['kind'] === 'makeup' ? 'makeup' : 'trial',
+      creditId: optStr(v['creditId']),
+      athleteId: optStr(v['athleteId']),
+    };
+  }
+  return out;
+}
+
+/** O aluno faz aula nesse dia da semana? (`weekdays` null = todos — aluno da fase 1). */
+export function studentAttendsWeekday(student: Pick<ClassStudent, 'weekdays'>, weekday: number): boolean {
+  return student.weekdays == null || student.weekdays.includes(weekday);
 }
 
 // ── Regras de exibição ──────────────────────────────────────────────────────

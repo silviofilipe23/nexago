@@ -1,17 +1,25 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
+import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { arenaFunctions } from '../data/functions';
 import { searchAthletes, type AthleteSearchResult } from '../clubinho/clubs-repository';
 import { ModalComponent } from '../ui/modal.component';
+import { ToggleComponent } from '../ui/toggle.component';
+import { fetchRules } from './billing-repository';
 import { CANCEL_REASON_LABEL, weekdayDateLabel, type CancelReason, type ClassSession } from './class.model';
 import { addClassStudent, cancelClassSession } from './classes-repository';
 
-/** A4 · Cancelar aula — libera a quadra e avisa por push os alunos com conta NexaGO.
- *  Crédito de reposição fica para a fase 2. */
+export interface CancelOutcome {
+  notified: number;
+  credited: number;
+}
+
+/** A4 · Cancelar aula — libera a quadra, avisa por push os alunos com conta NexaGO e (pela
+ *  regra da arena, ajustável aqui) dá crédito de reposição aos alunos daquele dia. */
 @Component({
   selector: 'ar-aula-cancel-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ModalComponent],
+  imports: [ModalComponent, ToggleComponent],
   styleUrl: './aulas-form.scss',
   template: `
     <ar-modal (close)="dismiss()">
@@ -28,6 +36,13 @@ import { addClassStudent, cancelClassSession } from './classes-repository';
       </div>
       <div class="field-label spaced">Recado para os alunos (opcional)</div>
       <input class="input-box" type="text" maxlength="300" placeholder="Ex.: remarcamos para sábado 9h" [value]="note()" (input)="note.set($any($event.target).value)" />
+      <div class="credit-row">
+        <div>
+          <div class="c-title">Gerar crédito de reposição</div>
+          <div class="c-sub">Cada aluno do dia ganha 1 crédito para repor em outra aula</div>
+        </div>
+        <ar-toggle label="Gerar crédito de reposição" [checked]="credit()" (changed)="setCredit($event)" />
+      </div>
       <p class="hint">
         A quadra volta para o aluguel na hora e os alunos com conta NexaGO recebem um aviso no
         app. A turma segue normal nas outras datas.
@@ -42,12 +57,16 @@ import { addClassStudent, cancelClassSession } from './classes-repository';
   `,
   styles: `
     .danger { background: var(--nx-live); border-color: var(--nx-live); color: #fff; }
+    .credit-row { display: flex; align-items: center; gap: 14px; margin-top: 16px; }
+    .credit-row > div { flex: 1; min-width: 0; }
+    .c-title { font-family: var(--nx-font-display); font-weight: 600; font-size: 13px; color: var(--nx-text); }
+    .c-sub { font-size: 12px; color: var(--nx-text-dim); margin-top: 2px; }
   `,
 })
 export class AulaCancelModalComponent {
   readonly session = input.required<Pick<ClassSession, 'id' | 'className' | 'date' | 'startTime'>>();
   readonly closed = output<void>();
-  readonly canceled = output<number>();
+  readonly canceled = output<CancelOutcome>();
 
   protected readonly reasons = Object.keys(CANCEL_REASON_LABEL) as CancelReason[];
   protected readonly reasonLabel = CANCEL_REASON_LABEL;
@@ -56,17 +75,37 @@ export class AulaCancelModalComponent {
   protected readonly note = signal('');
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
+  /** Padrão vem da regra da arena (Regras → Cancelamento pela arena). */
+  protected readonly credit = signal(true);
+  private touched = false;
+
+  constructor() {
+    const arenaId = inject(ArenaContextService).arenaId();
+    if (arenaId) {
+      fetchRules(arenaFirestore(), arenaId)
+        .then((rules) => {
+          if (!this.touched) this.credit.set(rules.arenaCancelGeneratesCredit);
+        })
+        .catch(() => undefined);
+    }
+  }
+
+  protected setCredit(value: boolean): void {
+    this.touched = true;
+    this.credit.set(value);
+  }
 
   protected dismiss(): void {
     if (!this.busy()) this.closed.emit();
   }
 
   protected async confirm(): Promise<void> {
+    this.touched = true;
     this.busy.set(true);
     this.error.set(null);
     try {
-      const result = await cancelClassSession(arenaFunctions(), this.session().id, this.reason(), this.note().trim() || null);
-      this.canceled.emit(result.notified);
+      const result = await cancelClassSession(arenaFunctions(), this.session().id, this.reason(), this.note().trim() || null, this.credit());
+      this.canceled.emit({ notified: result.notified, credited: result.credited ?? 0 });
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : 'Não foi possível cancelar a aula.');
     } finally {
@@ -247,7 +286,7 @@ export class AulaEnrollModalComponent {
         </button>
       } @empty {
         @if (term().trim().length >= 2 && !searching()) {
-          <p class="hint">Nenhum atleta encontrado. O professor precisa criar a conta no app NexaGO.</p>
+          <p class="hint">{{ emptyHint() }}</p>
         }
       }
     </div>
@@ -270,6 +309,7 @@ export class AulaEnrollModalComponent {
 })
 export class AulaAthletePickerComponent {
   readonly placeholder = input('Buscar atleta pelo nome');
+  readonly emptyHint = input('Nenhum atleta encontrado. O professor precisa criar a conta no app NexaGO.');
   readonly selected = output<AthleteSearchResult | null>();
 
   protected readonly term = signal('');

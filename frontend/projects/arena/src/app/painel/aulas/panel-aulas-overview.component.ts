@@ -23,6 +23,8 @@ import {
   type SessionLiveState,
 } from './class.model';
 import { fetchClasses, fetchSessionsBetween, fetchTeachers, watchSessionsBetween } from './classes-repository';
+import { billingTotals, brl, type Charge } from './billing.model';
+import { fetchOpenCharges, fetchPaidChargesSince } from './billing-repository';
 
 const STATE_LABEL: Record<SessionLiveState, string> = { done: 'Concluída', live: 'Em andamento', next: 'Próxima', canceled: 'Cancelada' };
 const STATE_TONE = { done: 'dim', live: 'red', next: 'orange', canceled: 'dim' } as const;
@@ -33,10 +35,11 @@ interface Pending {
   sub: string;
   cta: string;
   route: unknown[];
+  query?: Record<string, string>;
 }
 
-/** 01 · Visão geral — aulas de hoje, pendências e ocupação por professor. Receita e
- *  inadimplência entram com a cobrança (fase 2). */
+/** 01 · Visão geral — aulas de hoje, receita e atraso das mensalidades, pendências e
+ *  ocupação por professor. */
 @Component({
   selector: 'ar-panel-aulas-overview',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -73,7 +76,8 @@ interface Pending {
           <ar-aula-stat label="Aulas hoje" [value]="'' + today().length" [sub]="todaySub()" />
           <ar-aula-stat label="Alunos nas turmas" [value]="'' + occupancy().students" [sub]="activeClasses().length + ' turma(s) ativa(s)'" />
           <ar-aula-stat label="Ocupação das turmas" [value]="occupancy().pct + '%'" [sub]="occupancy().students + ' de ' + occupancy().capacity + ' vagas'" tone="orange" />
-          <ar-aula-stat label="Aulas sem quadra" [value]="'' + conflictCount()" [tone]="conflictCount() > 0 ? 'red' : 'default'" sub="horário já ocupado" />
+          <ar-aula-stat label="Receita de aulas · mês" [value]="brl(monthRevenue())" tone="green" [sub]="paidCount() + ' pagamento(s) registrado(s)'" />
+          <ar-aula-stat label="Em atraso" [value]="brl(totals().overdueReais)" [tone]="totals().overdueReais > 0 ? 'red' : 'default'" [sub]="totals().overdueStudents + ' aluno(s)'" />
         </div>
 
         <div class="layout">
@@ -115,7 +119,7 @@ interface Pending {
                     <div class="pend-title">{{ p.title }}</div>
                     <div class="pend-sub">{{ p.sub }}</div>
                   </div>
-                  <button type="button" class="ar-mini-btn" (click)="go(p.route)">{{ p.cta }}</button>
+                  <button type="button" class="ar-mini-btn" (click)="go(p.route, p.query)">{{ p.cta }}</button>
                 </div>
               } @empty {
                 <p class="state-text">Tudo em dia.</p>
@@ -145,7 +149,7 @@ interface Pending {
   `,
   styles: `
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
-    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; flex: none; }
+    .stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; flex: none; }
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
     .side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
     .row {
@@ -208,16 +212,17 @@ export class PanelAulasOverviewComponent {
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
   protected readonly singleOpen = signal(false);
+  protected readonly brl = brl;
+  private readonly openCharges = signal<Charge[]>([]);
+  private readonly paidCharges = signal<Charge[]>([]);
+  protected readonly totals = computed(() => billingTotals(this.openCharges(), this.todayKey));
+  protected readonly monthRevenue = computed(() => Math.round(this.paidCharges().reduce((sum, c) => sum + c.amountReais, 0) * 100) / 100);
+  protected readonly paidCount = computed(() => this.paidCharges().length);
 
   private readonly classById = computed(() => new Map(this.classes().map((c) => [c.id, c])));
   protected readonly today = computed(() => [...this.todaySessions()].sort(compareSessions));
   protected readonly activeClasses = computed(() => this.classes().filter((c) => c.status === 'active' && c.weekdays.length > 0));
   protected readonly occupancy = computed(() => classesOccupancy(this.classes()));
-  protected readonly conflictCount = computed(() =>
-    this.classes()
-      .filter((c) => c.status === 'active')
-      .reduce((n, c) => n + c.conflictDates.filter((d) => d >= this.todayKey).length, 0),
-  );
   protected readonly nowLabel = computed(() => {
     const n = this.now();
     return `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`;
@@ -261,6 +266,17 @@ export class PanelAulasOverviewComponent {
         sub: `Mais recente: ${first.className} · ${weekdayDateLabel(first.date)}`,
         cta: 'Fazer chamada',
         route: ['/painel/aulas/aula', first.id],
+      });
+    }
+    const late = this.totals();
+    if (late.overdueStudents > 0) {
+      out.push({
+        tone: 'red',
+        title: `${late.overdueStudents} aluno${late.overdueStudents === 1 ? '' : 's'} com mensalidade em atraso`,
+        sub: `${brl(late.overdueReais)} a receber`,
+        cta: 'Cobrar',
+        route: ['/painel/aulas/alunos'],
+        query: { filtro: 'atraso' },
       });
     }
     const empty = this.activeClasses().filter((c) => c.studentCount === 0);
@@ -307,10 +323,27 @@ export class PanelAulasOverviewComponent {
       this.classes.set(classes);
       this.teachers.set(teachers.filter((t) => t.status === 'active'));
       this.recent.set(recent);
+      void this.loadBilling(arenaId);
     } catch {
       this.loadError.set('Não foi possível carregar as aulas.');
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  /** Cobrança à parte: sem ela (índice faltando, regra) a visão de aulas segue normal. */
+  private async loadBilling(arenaId: string): Promise<void> {
+    try {
+      const db = arenaFirestore();
+      const [open, paid] = await Promise.all([
+        fetchOpenCharges(db, arenaId),
+        fetchPaidChargesSince(db, arenaId, `${this.todayKey.slice(0, 7)}-01`),
+      ]);
+      this.openCharges.set(open);
+      this.paidCharges.set(paid);
+    } catch {
+      this.openCharges.set([]);
+      this.paidCharges.set([]);
     }
   }
 
@@ -326,7 +359,7 @@ export class PanelAulasOverviewComponent {
     return `${present}/${Math.max(enrolled, marked.length)}`;
   }
 
-  protected go(route: unknown[]): void {
-    void this.router.navigate(route);
+  protected go(route: unknown[], queryParams?: Record<string, string>): void {
+    void this.router.navigate(route, queryParams ? { queryParams } : undefined);
   }
 }

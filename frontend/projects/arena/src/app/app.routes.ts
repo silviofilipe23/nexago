@@ -174,6 +174,41 @@ export const routes: Routes = [
       import('./painel/aulas/panel-aulas-teachers.component').then((m) => m.PanelAulasTeachersComponent),
   },
   {
+    path: 'painel/aulas/alunos',
+    title: 'Alunos — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aulas-students.component').then((m) => m.PanelAulasStudentsComponent),
+  },
+  {
+    path: 'painel/aulas/alunos/:enrollmentId',
+    title: 'Aluno — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aula-student-detail.component').then((m) => m.PanelAulaStudentDetailComponent),
+  },
+  {
+    path: 'painel/aulas/matricula',
+    title: 'Nova matrícula — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aula-enrollment.component').then((m) => m.PanelAulaEnrollmentComponent),
+  },
+  {
+    path: 'painel/aulas/planos',
+    title: 'Planos de aula — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aulas-plans.component').then((m) => m.PanelAulasPlansComponent),
+  },
+  {
+    path: 'painel/aulas/regras',
+    title: 'Regras de aulas — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aulas-rules.component').then((m) => m.PanelAulasRulesComponent),
+  },
+  {
     path: 'painel/financeiro',
     title: 'Financeiro — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('financeiro')],

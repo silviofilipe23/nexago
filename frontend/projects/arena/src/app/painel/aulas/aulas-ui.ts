@@ -6,13 +6,16 @@ import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { CLASS_TYPE_LABEL, teacherInitials, type ClassType } from './class.model';
 
-export type AulasTab = 'visao' | 'agenda' | 'turmas' | 'professores';
+export type AulasTab = 'visao' | 'agenda' | 'turmas' | 'alunos' | 'planos' | 'professores' | 'regras';
 
 const TABS: ReadonlyArray<{ id: AulasTab; label: string; route: string }> = [
   { id: 'visao', label: 'Visão geral', route: '/painel/aulas' },
   { id: 'agenda', label: 'Agenda', route: '/painel/aulas/agenda' },
   { id: 'turmas', label: 'Turmas', route: '/painel/aulas/turmas' },
+  { id: 'alunos', label: 'Alunos', route: '/painel/aulas/alunos' },
+  { id: 'planos', label: 'Planos', route: '/painel/aulas/planos' },
   { id: 'professores', label: 'Professores', route: '/painel/aulas/professores' },
+  { id: 'regras', label: 'Regras', route: '/painel/aulas/regras' },
 ];
 
 /** Página padrão do módulo Aulas (protótipo `AuWebPage`): cabeçalho, subnavegação e o gate

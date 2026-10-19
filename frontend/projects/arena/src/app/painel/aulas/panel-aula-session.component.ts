@@ -8,13 +8,17 @@ import { arenaFunctions } from '../data/functions';
 import { IconComponent } from '../ui/icon.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PillComponent } from '../ui/pill.component';
-import { AulaCancelModalComponent } from './aula-modals.component';
+import { AulaExtraModalComponent } from './aula-extra-modal.component';
+import { AulaCancelModalComponent, type CancelOutcome } from './aula-modals.component';
+import { removeExtra } from './billing-repository';
 import { AulaTypeTagComponent, AulasPageComponent, OccupancyBarComponent } from './aulas-ui';
 import {
   ATTENDANCE_LABEL,
   CANCEL_REASON_LABEL,
   attendanceCounts,
+  isoWeekdayOf,
   sessionLiveState,
+  studentAttendsWeekday,
   teacherInitials,
   todayKeyLocal,
   weekdayDateLabel,
@@ -31,20 +35,40 @@ export interface RosterRow {
   hasAccount: boolean;
   /** Saiu da turma depois de ter presença nesta aula. */
   removed: boolean;
+  /** Aluno da turma ou encaixe desta aula. */
+  kind: 'regular' | 'makeup' | 'trial';
 }
 
-/** Lista da chamada: alunos ativos + quem já tem marca nesta aula (mesmo se saiu da turma). */
-export function buildRoster(students: readonly ClassStudent[], session: Pick<ClassSession, 'attendance'>): RosterRow[] {
+/**
+ * Lista da chamada: alunos ativos que fazem aula nesse dia da semana, encaixes da aula
+ * (reposição/experimental) e quem já tem marca nesta aula (mesmo se saiu ou pausou).
+ */
+export function buildRoster(
+  students: readonly ClassStudent[],
+  session: Pick<ClassSession, 'attendance' | 'extras' | 'date'>,
+): RosterRow[] {
+  const weekday = isoWeekdayOf(session.date);
   const rows = new Map<string, RosterRow>();
   for (const s of students) {
-    if (s.status === 'active' || session.attendance[s.id]) {
-      rows.set(s.id, { id: s.id, name: s.name, hasAccount: s.athleteId != null, removed: s.status !== 'active' });
+    const attends = s.status === 'active' && studentAttendsWeekday(s, weekday);
+    if (attends || session.attendance[s.id]) {
+      rows.set(s.id, { id: s.id, name: s.name, hasAccount: s.athleteId != null, removed: !attends, kind: 'regular' });
     }
   }
+  for (const [id, extra] of Object.entries(session.extras)) {
+    rows.set(id, { id, name: extra.name, hasAccount: extra.athleteId != null, removed: false, kind: extra.kind });
+  }
   for (const [id, a] of Object.entries(session.attendance)) {
-    if (!rows.has(id)) rows.set(id, { id, name: a.name, hasAccount: false, removed: true });
+    if (!rows.has(id)) rows.set(id, { id, name: a.name, hasAccount: false, removed: true, kind: 'regular' });
   }
   return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+}
+
+function closeNotice(credited: number, debited: number): string {
+  const parts = ['Chamada fechada'];
+  if (credited > 0) parts.push(`${credited} crédito${credited === 1 ? '' : 's'} de reposição gerado${credited === 1 ? '' : 's'}`);
+  if (debited > 0) parts.push(`${debited} aula${debited === 1 ? '' : 's'} descontada${debited === 1 ? '' : 's'} de pacote`);
+  return `${parts.join(' · ')}.`;
 }
 
 const STATE_LABEL = { live: 'Em andamento', next: 'Próxima', done: 'Concluída', canceled: 'Cancelada' } as const;
@@ -54,7 +78,7 @@ const STATE_TONE = { live: 'red', next: 'orange', done: 'dim', canceled: 'dim' }
 @Component({
   selector: 'ar-panel-aula-session',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AulasPageComponent, PanelCardComponent, PillComponent, IconComponent, AulaTypeTagComponent, OccupancyBarComponent, AulaCancelModalComponent],
+  imports: [AulasPageComponent, PanelCardComponent, PillComponent, IconComponent, AulaTypeTagComponent, OccupancyBarComponent, AulaCancelModalComponent, AulaExtraModalComponent],
   styleUrl: './aulas-form.scss',
   template: `
     <ar-aulas-page [title]="title()" [subtitle]="subtitle()">
@@ -95,21 +119,39 @@ const STATE_TONE = { live: 'red', next: 'orange', done: 'dim', canceled: 'dim' }
 
         <div class="layout">
           <ar-panel-card title="Chamada" [kicker]="kicker()">
-            @if (s.status !== 'canceled' && callOpen()) {
-              <button card-actions type="button" class="ar-mini-btn" [disabled]="readOnly() || counts().unmarked === 0" (click)="markRemainingPresent()">
-                <ar-icon name="check" [size]="14" />
-                Marcar restantes presentes
-              </button>
-            }
+            <div card-actions class="card-actions">
+              @if (canAddExtra()) {
+                <button type="button" class="ar-mini-btn" [disabled]="readOnly() || spotsLeft() === 0" [title]="spotsLeft() === 0 ? 'Aula sem vaga' : ''" (click)="extraOpen.set(true)">
+                  <ar-icon name="plus" [size]="14" />
+                  Encaixar
+                </button>
+              }
+              @if (s.status !== 'canceled' && callOpen()) {
+                <button type="button" class="ar-mini-btn" [disabled]="readOnly() || counts().unmarked === 0" (click)="markRemainingPresent()">
+                  <ar-icon name="check" [size]="14" />
+                  Marcar restantes presentes
+                </button>
+              }
+            </div>
             <div class="list">
               @for (r of roster(); track r.id; let i = $index) {
                 <div class="row">
                   <span class="num">{{ (i + 1).toString().padStart(2, '0') }}</span>
                   <div class="who">
                     <span class="av">{{ initials(r.name) }}</span>
-                    <div>
-                      <div class="name">{{ r.name }}</div>
-                      <div class="sub">{{ r.removed ? 'Saiu da turma' : r.hasAccount ? 'Conta NexaGO' : 'Sem conta' }}</div>
+                    <div class="min0">
+                      <div class="name">
+                        {{ r.name }}
+                        @if (r.kind !== 'regular') {
+                          <span class="kind" [class.trial]="r.kind === 'trial'">{{ r.kind === 'makeup' ? 'Reposição' : 'Experimental' }}</span>
+                        }
+                      </div>
+                      <div class="sub">
+                        {{ r.removed ? 'Saiu da turma' : r.hasAccount ? 'Conta NexaGO' : 'Sem conta' }}
+                        @if (r.kind !== 'regular' && s.status === 'scheduled' && !readOnly()) {
+                          · <button type="button" class="link" [disabled]="saving()" (click)="dropExtra(r.id, r.name)">tirar</button>
+                        }
+                      </div>
                     </div>
                   </div>
                   <div class="marks" role="radiogroup" [attr.aria-label]="'Presença de ' + r.name">
@@ -153,7 +195,7 @@ const STATE_TONE = { live: 'red', next: 'orange', done: 'dim', canceled: 'dim' }
             </ar-panel-card>
             <ar-panel-card title="Ao fechar a chamada">
               <p class="hint first">A presença entra na frequência de cada aluno e da turma. Dá para corrigir depois de fechada.</p>
-              <p class="hint">Crédito de reposição para falta justificada chega na próxima fase.</p>
+              <p class="hint">Falta justificada gera 1 crédito de reposição (se a regra da arena estiver ligada e dentro do limite do plano). Aluno de pacote: presença ou falta sem aviso desconta 1 aula do pacote.</p>
             </ar-panel-card>
             <ar-panel-card title="Nota do professor">
               <textarea class="input-box" maxlength="1000" placeholder="Ex.: treino de saque viagem + transição" [disabled]="readOnly() || s.status === 'canceled'" [value]="note()" (input)="setNote($any($event.target).value)"></textarea>
@@ -167,6 +209,9 @@ const STATE_TONE = { live: 'red', next: 'orange', done: 'dim', canceled: 'dim' }
 
     @if (cancelOpen() && session(); as s) {
       <ar-aula-cancel-modal [session]="s" (closed)="cancelOpen.set(false)" (canceled)="onCanceled($event)" />
+    }
+    @if (extraOpen() && session(); as s) {
+      <ar-aula-extra-modal [session]="s" [spotsLeft]="spotsLeft()" [rosterIds]="rosterIds()" (closed)="extraOpen.set(false)" (added)="onExtraAdded()" />
     }
   `,
   styles: `
@@ -187,7 +232,16 @@ const STATE_TONE = { live: 'red', next: 'orange', done: 'dim', canceled: 'dim' }
       width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none;
       background: var(--nx-surface-2); font-family: var(--nx-font-display); font-weight: 700; font-size: 11px; color: var(--nx-text-mute);
     }
-    .name { font-family: var(--nx-font-display); font-weight: 600; font-size: 13px; color: var(--nx-text); }
+    .name { font-family: var(--nx-font-display); font-weight: 600; font-size: 13px; color: var(--nx-text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .min0 { min-width: 0; }
+    .card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .kind {
+      height: 17px; padding: 0 6px; border-radius: 5px; display: inline-flex; align-items: center;
+      font-family: var(--nx-font-mono); font-size: 8.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--nx-win); background: rgba(43, 209, 126, 0.12);
+    }
+    .kind.trial { color: #f4c543; background: rgba(244, 197, 67, 0.12); }
+    .link { background: none; border: none; padding: 0; cursor: pointer; font: inherit; color: var(--nx-orange-500); text-decoration: underline; }
     .sub { font-family: var(--nx-font-mono); font-size: 10px; color: var(--nx-text-dim); margin-top: 2px; }
     .marks { display: flex; gap: 4px; }
     .mark {
@@ -241,6 +295,7 @@ export class PanelAulaSessionComponent {
   protected readonly error = signal<string | null>(null);
   protected readonly notice = signal<string | null>(null);
   protected readonly cancelOpen = signal(false);
+  protected readonly extraOpen = signal(false);
 
   protected readonly roster = computed(() => {
     const s = this.session();
@@ -253,6 +308,16 @@ export class PanelAulaSessionComponent {
     return attendanceCounts({ attendance }, this.roster().map((r) => r.id));
   });
   protected readonly presentCount = computed(() => this.counts().present);
+  protected readonly rosterIds = computed(() => this.roster().map((r) => r.id));
+  /** Vaga do dia: capacidade menos quem está na lista (alunos do dia e encaixes). */
+  protected readonly spotsLeft = computed(() => {
+    const s = this.session();
+    return s ? Math.max(0, s.capacity - this.roster().filter((r) => !r.removed).length) : 0;
+  });
+  protected readonly canAddExtra = computed(() => {
+    const s = this.session();
+    return s != null && s.status === 'scheduled' && s.date >= this.today;
+  });
   protected readonly callOpen = computed(() => {
     const s = this.session();
     return s != null && s.date <= this.today;
@@ -347,9 +412,9 @@ export class PanelAulaSessionComponent {
       // Manda a marca de todo aluno da lista (null limpa) para o servidor espelhar a tela.
       const payload: Record<string, AttendanceMark | null> = {};
       for (const r of this.roster()) payload[r.id] = this.marks()[r.id] ?? null;
-      await saveAttendance(arenaFunctions(), s.id, payload, this.note().trim() || null, close);
+      const result = await saveAttendance(arenaFunctions(), s.id, payload, this.note().trim() || null, close);
       this.dirty.set(false);
-      this.notice.set(close ? 'Chamada fechada.' : 'Chamada salva.');
+      this.notice.set(close ? closeNotice(result.credited ?? 0, result.debited ?? 0) : 'Chamada salva.');
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : 'Não foi possível salvar a chamada.');
     } finally {
@@ -357,10 +422,35 @@ export class PanelAulaSessionComponent {
     }
   }
 
-  protected onCanceled(notified: number): void {
+  protected onCanceled({ notified, credited }: CancelOutcome): void {
     this.cancelOpen.set(false);
     // O banner de aula cancelada já diz que a quadra voltou para o aluguel.
-    this.notice.set(notified > 0 ? `${notified} aluno${notified === 1 ? '' : 's'} avisado${notified === 1 ? '' : 's'} no app.` : null);
+    const parts: string[] = [];
+    if (notified > 0) parts.push(`${notified} aluno${notified === 1 ? '' : 's'} avisado${notified === 1 ? '' : 's'} no app`);
+    if (credited > 0) parts.push(`${credited} crédito${credited === 1 ? '' : 's'} de reposição gerado${credited === 1 ? '' : 's'}`);
+    this.notice.set(parts.length > 0 ? `${parts.join(' · ')}.` : null);
+  }
+
+  protected onExtraAdded(): void {
+    this.extraOpen.set(false);
+    this.notice.set('Aluno encaixado na aula.');
+  }
+
+  protected async dropExtra(studentId: string, name: string): Promise<void> {
+    const s = this.session();
+    if (!s || this.readOnly()) return;
+    this.saving.set(true);
+    this.error.set(null);
+    try {
+      await removeExtra(arenaFunctions(), s.id, studentId);
+      const { [studentId]: _, ...rest } = this.marks();
+      this.marks.set(rest);
+      this.notice.set(`${name} saiu da aula.`);
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : 'Não foi possível tirar o encaixe.');
+    } finally {
+      this.saving.set(false);
+    }
   }
 
   protected back(): void {

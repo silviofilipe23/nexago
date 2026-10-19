@@ -100,7 +100,10 @@ class AgendaTimelineRow extends ConsumerWidget {
     final item = row.item;
     final timeLabel = formatAgendaTimelineTimeLabel(item);
     final dateLabel = DateFormat('dd/MM', 'pt_BR').format(item.startsAt);
-    final accent = item.accentColor;
+    final accent = agendaCardAccent(
+      item.accentColor,
+      isDark: context.themeColors.isDark,
+    );
     final highlighted = highlightNextId == item.id;
 
     return Padding(
@@ -130,7 +133,7 @@ class AgendaTimelineRow extends ConsumerWidget {
                   Text(
                     dateLabel,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                     ),
                   ),
                 ],
@@ -223,7 +226,8 @@ class _ClubSessionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accent = item.accentColor;
+    final isDark = context.themeColors.isDark;
+    final accent = agendaCardAccent(item.accentColor, isDark: isDark);
     final sessionId = item.clubSession?.sessionId;
 
     return Material(
@@ -238,6 +242,7 @@ class _ClubSessionCard extends StatelessWidget {
           decoration: agendaTimelineCardDecoration(
             kind: AthleteAgendaItemKind.clubSession,
             accent: accent,
+            isDark: isDark,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -312,7 +317,8 @@ class _RentalCard extends ConsumerWidget {
     final showStory =
         !rental.needsPayment && isBookingStoryShareable(rental.rawStatus);
     final payLabel = agendaRentalPaymentButtonLabel(rental.amountReais);
-    final accent = item.accentColor;
+    final isDark = context.themeColors.isDark;
+    final accent = agendaCardAccent(item.accentColor, isDark: isDark);
 
     return Material(
       color: Colors.transparent,
@@ -325,6 +331,7 @@ class _RentalCard extends ConsumerWidget {
           decoration: agendaTimelineCardDecoration(
             kind: AthleteAgendaItemKind.rental,
             accent: accent,
+            isDark: isDark,
             highlighted: highlighted,
             isCanceled: isCanceled,
           ),
@@ -602,7 +609,11 @@ class _TournamentCard extends StatelessWidget {
     final theme = Theme.of(context);
     final tournament = item.tournament!;
     final isLive = tournament.isLive;
-    final accent = isLive ? AppColors.live : item.accentColor;
+    final isDark = context.themeColors.isDark;
+    final live = agendaCardAccent(AppColors.live, isDark: isDark);
+    final accent = isLive
+        ? live
+        : agendaCardAccent(item.accentColor, isDark: isDark);
 
     return Material(
       color: Colors.transparent,
@@ -612,6 +623,7 @@ class _TournamentCard extends StatelessWidget {
         decoration: agendaTimelineCardDecoration(
           kind: AthleteAgendaItemKind.tournament,
           accent: accent,
+          isDark: isDark,
           isLive: isLive,
         ),
         child: Column(
@@ -632,7 +644,7 @@ class _TournamentCard extends StatelessWidget {
                           _KindBadge(label: 'TORNEIO', color: accent),
                           const SizedBox(width: 6),
                           if (isLive)
-                            _MiniPill(label: 'AO VIVO', color: AppColors.live),
+                            _MiniPill(label: 'AO VIVO', color: live),
                           const Spacer(),
                           Text(
                             item.statusLabel.toUpperCase(),
@@ -672,10 +684,8 @@ class _TournamentCard extends StatelessWidget {
                         onPressed: () =>
                             _openAgendaTournamentBracket(context, tournament),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.live,
-                          side: BorderSide(
-                            color: AppColors.live.withValues(alpha: 0.5),
-                          ),
+                          foregroundColor: live,
+                          side: BorderSide(color: live.withValues(alpha: 0.5)),
                         ),
                         child: const Text('Bracket'),
                       ),
@@ -709,7 +719,8 @@ class _ChallengeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accent = item.accentColor;
+    final isDark = context.themeColors.isDark;
+    final accent = agendaCardAccent(item.accentColor, isDark: isDark);
 
     return Material(
       color: Colors.transparent,
@@ -727,6 +738,7 @@ class _ChallengeCard extends StatelessWidget {
           decoration: agendaTimelineCardDecoration(
             kind: AthleteAgendaItemKind.challenge,
             accent: accent,
+            isDark: isDark,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -799,7 +811,8 @@ class _FriendlyMatchCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accent = item.accentColor;
+    final isDark = context.themeColors.isDark;
+    final accent = agendaCardAccent(item.accentColor, isDark: isDark);
     final matchId = item.friendlyMatch?.matchId;
 
     return Material(
@@ -814,6 +827,7 @@ class _FriendlyMatchCard extends StatelessWidget {
           decoration: agendaTimelineCardDecoration(
             kind: AthleteAgendaItemKind.friendlyMatch,
             accent: accent,
+            isDark: isDark,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

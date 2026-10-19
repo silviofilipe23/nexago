@@ -83,6 +83,23 @@ export function watchClassStudents(
   );
 }
 
+export async function fetchClassStudent(db: Firestore, classId: string, studentId: string): Promise<ClassStudent | null> {
+  const snap = await getDoc(doc(db, 'arenaClasses', classId, 'classStudents', studentId));
+  return snap.exists() ? classStudentFromDoc(snap) : null;
+}
+
+/** Alunos ativos de uma turma, leitura única — vagas por dia na matrícula. */
+export async function fetchActiveClassStudents(db: Firestore, arenaId: string, classId: string): Promise<ClassStudent[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, 'arenaClasses', classId, 'classStudents'),
+      where('arenaId', '==', arenaId),
+      where('status', '==', 'active'),
+    ),
+  );
+  return snap.docs.map(classStudentFromDoc);
+}
+
 /** Aulas da arena entre duas datas (inclusive), ao vivo — agenda semanal e "hoje". */
 export function watchSessionsBetween(
   db: Firestore,
@@ -237,8 +254,9 @@ export function cancelClassSession(
   sessionId: string,
   reason: CancelReason,
   note: string | null,
-): Promise<{ sessionId: string; notified: number }> {
-  return call(functions, 'cancelArenaClassSession', { sessionId, reason, note });
+  generateCredits?: boolean,
+): Promise<{ sessionId: string; notified: number; credited?: number }> {
+  return call(functions, 'cancelArenaClassSession', { sessionId, reason, note, generateCredits });
 }
 
 export function addClassStudent(
@@ -259,6 +277,6 @@ export function saveAttendance(
   marks: Record<string, AttendanceMark | null>,
   teacherNote: string | null,
   close: boolean,
-): Promise<{ status: string; marked: number }> {
+): Promise<{ status: string; marked: number; credited?: number; debited?: number }> {
   return call(functions, 'saveArenaClassAttendance', { sessionId, marks, teacherNote, close });
 }

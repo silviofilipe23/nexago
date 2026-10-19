@@ -1205,6 +1205,14 @@ service cloud.firestore {
         isSuperAdmin()
       );
     }
+    match /arenas/{arenaId}/classTeachers/{teacherId} {
+      // Professores das Aulas. Escrita via Cloud Function
+      // (`upsertArenaClassTeacher`), com o gate de plano das turmas.
+      allow read: if request.auth != null && (
+        arenaCanRead(arenaId, 'agenda') || isSuperAdmin()
+      );
+      allow create, update, delete: if false;
+    }
     match /arenas/{arenaId}/coupons/{couponId} {
       // Cupom de marketing (código + validade + limite de uso) — complementar
       // às `promotions` acima. Escrita só via Cloud Functions
@@ -1806,6 +1814,31 @@ service cloud.firestore {
     match /{path=**}/clubParticipants/{athleteId} {
       allow read: if request.auth != null &&
         resource.data.athleteId == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+
+    // Aulas — turmas e aulas avulsas com professor e chamada. Escrita 100% via
+    // Cloud Functions: cada aula bloqueia a quadra (booking + slot + locks em
+    // transação) e as vagas da turma são contadas na mesma transação da
+    // matrícula. Leitura só da equipe que vê a agenda — a query precisa
+    // filtrar `arenaId` (a rule lê `resource.data.arenaId`).
+    match /arenaClasses/{classId} {
+      allow read: if request.auth != null && (
+        arenaCanRead(resource.data.arenaId, 'agenda') || isSuperAdmin()
+      );
+      allow create, update, delete: if false;
+
+      match /classStudents/{studentId} {
+        allow read: if request.auth != null && (
+          arenaCanRead(resource.data.arenaId, 'agenda') || isSuperAdmin()
+        );
+        allow create, update, delete: if false;
+      }
+    }
+    match /arenaClassSessions/{sessionId} {
+      allow read: if request.auth != null && (
+        arenaCanRead(resource.data.arenaId, 'agenda') || isSuperAdmin()
+      );
       allow create, update, delete: if false;
     }
 

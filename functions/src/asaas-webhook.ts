@@ -17,7 +17,10 @@ import {
   ARENA_SUBSCRIPTION_REF_PREFIX,
   TOURNAMENT_REGISTRATION_PAYMENT_REF_PREFIX,
 } from "./arena-booking-payment-constants";
-import {processArenaWithdrawalTransferWebhook} from "./asaas-withdrawal-webhook";
+import {
+  type AsaasTransferPayload,
+  processArenaWithdrawalTransferWebhook,
+} from "./asaas-withdrawal-webhook";
 import {processTournamentRegistrationAsaasNotification} from "./asaas-tournament-registration-webhook";
 import {processArenaSubscriptionAsaasNotification} from "./asaas-arena-subscription-webhook";
 import {processArenaClubSessionAsaasNotification} from "./asaas-arena-club-webhook";
@@ -41,7 +44,7 @@ const PAYMENT_EVENTS = new Set([
 type AsaasWebhookBody = {
   event?: string;
   payment?: {id?: string; externalReference?: string};
-  transfer?: {id?: string; externalReference?: string};
+  transfer?: AsaasTransferPayload;
 };
 
 /**

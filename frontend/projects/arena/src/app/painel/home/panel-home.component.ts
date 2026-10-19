@@ -576,7 +576,8 @@ export class PanelHomeComponent {
         time: b.startTime,
         court: b.courtName,
         client: b.customerName ?? names.get(b.athleteId) ?? 'Cliente',
-        sport: courts.get(b.courtId) ?? 'Esporte',
+        // Esporte escolhido na reserva; reserva sem (antiga, manual, aula) mostra o da quadra.
+        sport: b.sportLabel ?? courts.get(b.courtId) ?? 'Esporte',
         status: reservationStatusOf(b),
       }));
   });

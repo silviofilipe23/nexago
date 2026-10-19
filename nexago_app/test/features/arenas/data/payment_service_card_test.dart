@@ -12,6 +12,8 @@ const _card = <String, Object?>{
 };
 
 void main() {
+  bookingCardTests();
+
   group('createTournamentRegistrationCardPayment', () {
     test('chama a callable do cartão com o mesmo payload do PIX', () async {
       final functions = _FakeFirebaseFunctions(responses: {
@@ -119,12 +121,83 @@ void main() {
   });
 }
 
+void bookingCardTests() {
+  group('createArenaBookingCardPayment', () {
+    const bookingCard = <String, Object?>{
+      'paymentId': 'pay_b1',
+      'invoiceUrl': 'https://www.asaas.com/i/pay_b1',
+      'expiresAt': '2026-10-19T20:15:00.000Z',
+      'amountToPayNowReais': 60.0,
+    };
+
+    test('chama a callable da reserva com o sinal, o CPF e o código', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'createArenaBookingCardPayment': bookingCard,
+      });
+      final service = PaymentService(functions: functions);
+
+      final card = await service.createArenaBookingCardPayment(
+        bookingId: 'b1',
+        cpfCnpj: '529.982.247-25',
+        paymentFraction: 0.5,
+        useCashback: true,
+        squadCode: 'joao10',
+      );
+
+      expect(functions.calledNames, ['createArenaBookingCardPayment']);
+      expect(functions.calledPayloads.single, {
+        'bookingId': 'b1',
+        'cpfCnpj': '52998224725',
+        'paymentFraction': 0.5,
+        'useCashback': true,
+        'squadCode': 'JOAO10',
+      });
+      expect(card.invoiceUrl, 'https://www.asaas.com/i/pay_b1');
+      expect(card.amountReais, 60.0);
+      expect(card.chargedReais, 60.0);
+      expect(card.expiresAt, DateTime.utc(2026, 10, 19, 20, 15));
+    });
+
+    test('soltar a reserva do cartão repassa a recusa (cartão aprovado)', () async {
+      final functions = _FakeFirebaseFunctions(
+        responses: const {},
+        errors: {
+          'cancelPendingArenaBookingPayment': FirebaseFunctionsException(
+            code: 'failed-precondition',
+            message: 'Seu pagamento com cartão já foi aprovado — a reserva está confirmada.',
+          ),
+        },
+      );
+      final service = PaymentService(functions: functions);
+
+      await expectLater(
+        service.releasePendingArenaBookingCardPayment(bookingId: 'b1'),
+        throwsA(
+          isA<PaymentException>().having((e) => e.message, 'message', contains('já foi aprovado')),
+        ),
+      );
+    });
+
+    test('reserva vazia não chama o servidor', () async {
+      final functions = _FakeFirebaseFunctions(responses: const {});
+      final service = PaymentService(functions: functions);
+
+      expect(
+        () => service.createArenaBookingCardPayment(bookingId: ''),
+        throwsA(isA<PaymentException>()),
+      );
+      expect(functions.calledNames, isEmpty);
+    });
+  });
+}
+
 /// Mesmo dublê de `payment_service_cashback_test.dart`, guardando também o
 /// nome da callable.
 class _FakeFirebaseFunctions implements FirebaseFunctions {
-  _FakeFirebaseFunctions({required this.responses});
+  _FakeFirebaseFunctions({required this.responses, this.errors = const {}});
 
   final Map<String, Object?> responses;
+  final Map<String, FirebaseFunctionsException> errors;
   final List<String> calledNames = [];
   final List<Map<String, dynamic>?> calledPayloads = [];
 
@@ -138,6 +211,7 @@ class _FakeFirebaseFunctions implements FirebaseFunctions {
         );
       },
       result: responses[name],
+      error: errors[name],
     );
   }
 
@@ -146,14 +220,17 @@ class _FakeFirebaseFunctions implements FirebaseFunctions {
 }
 
 class _FakeHttpsCallable implements HttpsCallable {
-  _FakeHttpsCallable({required this.onCall, required this.result});
+  _FakeHttpsCallable({required this.onCall, required this.result, this.error});
 
   final void Function(dynamic parameters) onCall;
   final Object? result;
+  final FirebaseFunctionsException? error;
 
   @override
   Future<HttpsCallableResult<T>> call<T>([dynamic parameters]) async {
     onCall(parameters);
+    final e = error;
+    if (e != null) throw e;
     return _FakeHttpsCallableResult<T>(result);
   }
 

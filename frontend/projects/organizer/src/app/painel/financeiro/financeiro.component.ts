@@ -53,6 +53,8 @@ function withdrawalStatusLabel(w: Pick<OrganizerWithdrawal, 'status' | 'payoutSt
   const payout = (w.payoutStatus ?? '').trim().toLowerCase();
   const status = w.status.trim().toLowerCase();
   if (payout === 'failed' || status === 'rejected') return 'Falhou';
+  // `paid` só chega com a conclusão da transferência no Asaas; `sent` é o PIX criado.
+  if (payout === 'paid') return 'Pago';
   if (payout === 'sent' || status === 'approved') return 'Enviado';
   return 'Pendente';
 }
@@ -61,7 +63,7 @@ function withdrawalTone(w: Pick<OrganizerWithdrawal, 'status' | 'payoutStatus'>)
   const payout = (w.payoutStatus ?? '').trim().toLowerCase();
   const status = w.status.trim().toLowerCase();
   if (payout === 'failed' || status === 'rejected') return 'red';
-  if (payout === 'sent' || status === 'approved') return 'green';
+  if (payout === 'paid' || payout === 'sent' || status === 'approved') return 'green';
   return 'yellow';
 }
 

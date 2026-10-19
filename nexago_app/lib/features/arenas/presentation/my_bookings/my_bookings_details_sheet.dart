@@ -6,6 +6,7 @@ import '../../../../core/formatting/app_currency_format.dart';
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../domain/arena_sport_codes.dart';
 import '../../domain/my_booking_item.dart';
 import 'my_bookings_status.dart';
 
@@ -32,6 +33,10 @@ class BookingDetailsSheet extends StatelessWidget {
     final theme = Theme.of(context);
     final status = myBookingStatusUi(item.rawStatus);
     final canPayNow = item.rawStatus.trim().toLowerCase() == 'pending';
+    final courtLine = [
+      item.courtName?.trim() ?? '',
+      courtSportLabel(item.sport),
+    ].where((p) => p.isNotEmpty).join(' · ');
 
     return AnimatedPadding(
       duration: const Duration(milliseconds: 220),
@@ -58,10 +63,10 @@ class BookingDetailsSheet extends StatelessWidget {
                     letterSpacing: -0.2,
                   ),
                 ),
-                if (item.courtName != null && item.courtName!.isNotEmpty) ...[
+                if (courtLine.isNotEmpty) ...[
                   SizedBox(height: 4),
                   Text(
-                    item.courtName!,
+                    courtLine,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: context.themeColors.onSurfaceMuted,
                     ),

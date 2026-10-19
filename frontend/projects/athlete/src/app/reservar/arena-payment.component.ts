@@ -10,7 +10,9 @@ import {
   type ArenaCourtDoc,
   type ArenaListItem,
   type ArenaSlot,
-  courtDocSportLabel,
+  bookingSportOptions,
+  courtDocSportValues,
+  courtSportLabel,
 } from '@nexago/arena-discovery';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
@@ -21,11 +23,14 @@ import {
   ArenaBookingError,
   cancelPendingBookingPayment,
   createArenaBooking,
+  createBookingCardPayment,
   createBookingPixPayment,
+  releasePendingBookingCardPayment,
   findResumablePixBooking,
   quoteArenaBooking,
   watchArenaBooking,
   type ArenaBookingArgs,
+  type ArenaBookingCardPayment,
   type ArenaBookingPixPayment,
 } from '../data/arena-bookings-repository';
 import {
@@ -52,12 +57,12 @@ import {
   NxToastService,
 } from '../shared/feedback';
 
-/** Métodos reais do backend: PIX (Asaas, 100% ou 50% agora) e pagamento no local.
- *  **RESERVA de arena não tem pagamento por cartão** — a aba "cartão" do mock foi removida,
- *  e é isso que o backend oferece aqui. (A INSCRIÇÃO em torneio ganhou cartão em 02/09, por
- *  checkout hospedado; não confundir os dois fluxos.)
- *  "Dividir com amigos" (split de PIX) é real, ver `arena-booking-split-repository.ts`. */
-export type PaymentMethod = 'pix' | 'onsite';
+/** Métodos reais do backend: PIX (Asaas, 100% ou 50% agora), cartão de crédito à vista
+ *  (checkout hospedado do Asaas — nada de cartão passa por aqui; o horário confirma na
+ *  aprovação, ver docs/superpowers/specs/2026-10-19-reserva-quadra-cartao-design.md) e
+ *  pagamento no local. "Dividir com amigos" (split) é só PIX, ver
+ *  `arena-booking-split-repository.ts`. */
+export type PaymentMethod = 'pix' | 'card' | 'onsite';
 
 /** Participante da divisão de pagamento — sempre inclui "Você" por padrão (removível). */
 interface SplitParticipantVM {
@@ -219,6 +224,8 @@ export class ArenaPaymentComponent {
   protected readonly couponDiscountReais = signal(0);
 
   protected readonly pixPayment = signal<ArenaBookingPixPayment | null>(null);
+  /** Cobrança de cartão viva — uma por vez, como o Pix. */
+  protected readonly cardPayment = signal<ArenaBookingCardPayment | null>(null);
   protected readonly pixBookingId = signal<string | null>(null);
   protected readonly pixCountdown = signal<string>('');
   protected readonly pixExpired = signal(false);
@@ -263,10 +270,40 @@ export class ArenaPaymentComponent {
   protected readonly splitMaxShares = SPLIT_MAX_SHARES;
   protected readonly initialsOf = initialsOf;
 
-  protected readonly courtSportLabel = computed(() => {
+  /** Esportes que o atleta escolhe pra reserva (os da quadra; ver `bookingSportOptions`). */
+  protected readonly sportOptions = computed(() => {
     const c = this.court();
-    return c ? courtDocSportLabel(c.data) : '';
+    if (!c) return [];
+    return bookingSportOptions(courtDocSportValues(c.data), this.arena()?.courtTypes ?? []).map((code) => ({
+      code,
+      label: courtSportLabel(code),
+    }));
   });
+
+  private readonly pickedSport = signal<string | null>(null);
+
+  /** Esporte da reserva: o tocado; com um esporte só na quadra, ele mesmo sem toque. */
+  protected readonly selectedSport = computed(() => {
+    const options = this.sportOptions();
+    const picked = this.pickedSport();
+    if (picked && options.some((o) => o.code === picked)) return picked;
+    return options.length === 1 ? options[0]!.code : null;
+  });
+
+  protected readonly selectedSportLabel = computed(() => {
+    const code = this.selectedSport();
+    return code ? courtSportLabel(code) : '';
+  });
+
+  protected readonly headerSubtitle = computed(() =>
+    [this.arena()?.name, this.court()?.name, this.selectedSportLabel()].filter((p) => !!p).join(' · '),
+  );
+
+  /** Erro de campo: tentou reservar sem escolher o esporte. */
+  protected readonly sportError = signal<string | null>(null);
+
+  /** Depois que a reserva existe (Pix gerado/dividido), o esporte já foi gravado. */
+  protected readonly sportLocked = computed(() => this.pixPayment() != null || this.splitBookingId() != null);
 
   protected readonly timeRangeLabel = computed(() => {
     const chain = this.chain();
@@ -287,8 +324,17 @@ export class ArenaPaymentComponent {
     return chain.reduce((sum, s) => sum + (s.priceReais ?? arenaFallback), 0);
   });
 
+  /** Pix ou cartão: os dois pagam online, com sinal, código e cashback. */
+  protected readonly isOnlineMethod = computed(
+    () => this.selectedMethod() === 'pix' || this.selectedMethod() === 'card',
+  );
+  /** A cobrança viva, de qualquer meio. */
+  private readonly liveCharge = computed(() => this.pixPayment() ?? this.cardPayment());
+  /** Dividir com amigos só existe no Pix. */
+  private readonly splitting = computed(() => this.selectedMethod() === 'pix' && this.splitMode());
+
   protected readonly pixAmountNow = computed(() => {
-    const generated = this.pixPayment();
+    const generated = this.liveCharge();
     if (generated) return generated.amountToPayNowReais;
     return Math.round(this.totalPrice() * this.pixFraction() * 100) / 100;
   });
@@ -309,9 +355,9 @@ export class ArenaPaymentComponent {
   /** Desconto do embaixador nesta cobrança: depois do QR, o do servidor; antes, a prévia (% com teto
    *  na taxa da arena — o desconto sai da taxa da nexaGO e a arena recebe o mesmo líquido). */
   protected readonly squadDiscountReais = computed(() => {
-    const generated = this.pixPayment();
+    const generated = this.liveCharge();
     if (generated) return generated.squadDiscountReais;
-    if (this.selectedMethod() !== 'pix' || this.splitMode() || this.splitBookingId()) return 0;
+    if (!this.isOnlineMethod() || this.splitting() || this.splitBookingId()) return 0;
     return (
       squadDiscountPreviewCents(
         this.pixAmountNow(),
@@ -335,9 +381,9 @@ export class ArenaPaymentComponent {
    *  o número que decide se a callable recebe `useCashback: true`. `pixAmountNow` segue sendo o
    *  PREÇO — a divisão e o "Restante na arena" dependem disso. */
   protected readonly cashbackAppliedReais = computed(() => {
-    const generated = this.pixPayment();
+    const generated = this.liveCharge();
     if (generated) return generated.cashbackAppliedReais;
-    if (this.selectedMethod() !== 'pix' || this.splitMode() || this.splitBookingId()) return 0;
+    if (!this.isOnlineMethod() || this.splitting() || this.splitBookingId()) return 0;
     return (
       appliedPreviewCents({
         use: this.useCashback(),
@@ -350,7 +396,7 @@ export class ArenaPaymentComponent {
 
   /** O que sai no Pix agora: `chargedReais` do servidor, ou o valor de agora menos a prévia. */
   protected readonly pixChargeNow = computed(() => {
-    const generated = this.pixPayment();
+    const generated = this.liveCharge();
     if (generated) return generated.chargedReais;
     return Math.round((this.priceAfterSquadReais() - this.cashbackAppliedReais()) * 100) / 100;
   });
@@ -496,14 +542,32 @@ export class ArenaPaymentComponent {
     };
   }
 
+  protected selectSport(code: string): void {
+    if (this.sportLocked()) return;
+    this.pickedSport.set(code);
+    this.sportError.set(null);
+  }
+
+  /** Esporte é obrigatório: sem ele, aponta o campo e não cria a reserva. */
+  private requireSport(): string | null {
+    const sport = this.selectedSport();
+    if (!sport) {
+      this.sportError.set('Escolha o esporte que você vai jogar.');
+      document.getElementById('pm-sport')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    return sport;
+  }
+
   protected selectMethod(method: PaymentMethod): void {
-    if (method === 'pix' && !this.pixAvailable()) return;
+    if ((method === 'pix' || method === 'card') && !this.pixAvailable()) return;
     if (method === 'onsite' && !this.onsiteAvailable()) return;
+    // Cobrança viva (Pix ou cartão): sai pelos botões dela, que acertam a cobrança no servidor.
+    if (this.liveCharge()) return;
     this.selectedMethod.set(method);
   }
 
   protected selectFraction(fraction: number): void {
-    if (this.pixPayment() || (fraction !== 1 && fraction !== 0.5)) return;
+    if (this.liveCharge() || (fraction !== 1 && fraction !== 0.5)) return;
     this.pixFraction.set(fraction as 1 | 0.5);
   }
 
@@ -516,12 +580,14 @@ export class ArenaPaymentComponent {
       totalPriceReais: this.totalPrice(),
       pixFraction: this.pixFraction(),
       couponCode: this.appliedCouponCode(),
+      sport: this.selectedSport(),
     });
   }
 
   /** Cria (ou retoma) a reserva `pending_payment` e gera o QR PIX. */
   protected async generatePix(): Promise<void> {
     if (this.processing() || this.pixPayment()) return;
+    if (!this.requireSport()) return;
     const uid = this.auth.user()?.uid;
     if (!uid) {
       this.toasts.error('Você não está conectado', 'Entre na sua conta para confirmar a reserva.');
@@ -577,8 +643,121 @@ export class ArenaPaymentComponent {
     }
   }
 
+  /** Cria (ou retoma) a reserva `pending_payment` e abre a cobrança no cartão. O link do
+   *  checkout é um `<a>` real na tela: `window.open` depois do await cairia no bloqueador de
+   *  popup sem erro visível (mesmo motivo do pagamento da inscrição). */
+  protected async generateCard(): Promise<void> {
+    if (this.processing() || this.liveCharge()) return;
+    const uid = this.auth.user()?.uid;
+    if (!uid) {
+      this.toasts.error('Você não está conectado', 'Entre na sua conta para confirmar a reserva.');
+      return;
+    }
+    const cpf = this.cpf();
+    if (cpf.length > 0 && cpf.length !== 11) {
+      this.cpfError.set('CPF incompleto — informe os 11 dígitos ou deixe o campo em branco.');
+      return;
+    }
+    this.cpfError.set(null);
+    if (!this.firestore) return;
+    const useCashback = this.cashbackAppliedReais() > 0;
+
+    this.processing.set(true);
+    this.squadError.set(null);
+    try {
+      const args = this.bookingArgs();
+      const resumable = await findResumablePixBooking(this.firestore, uid, args);
+      const bookingId =
+        resumable?.id ??
+        (await createArenaBooking(athleteFunctions(), args, this.pixBookingOptions())).bookingId;
+
+      const card = await createBookingCardPayment(athleteFunctions(), {
+        bookingId,
+        cpfCnpj: cpf,
+        paymentFraction: this.pixFraction(),
+        useCashback,
+        squadCode: this.squadCode(),
+      });
+
+      this.pixBookingId.set(bookingId);
+      this.cardPayment.set(card);
+      this.pixExpired.set(false);
+      this.startCountdown(card.expiresAt);
+      this.startBookingWatch(bookingId);
+    } catch (err) {
+      if (err instanceof ArenaBookingError && err.field === 'squadCode') {
+        this.squadError.set(err.message);
+        return;
+      }
+      this.toasts.error(
+        'Não foi possível abrir o pagamento',
+        err instanceof ArenaBookingError ? err.message : 'O serviço não respondeu. Nenhum valor foi cobrado.',
+        { label: 'Tentar novamente', run: () => void this.generateCard() },
+      );
+    } finally {
+      this.processing.set(false);
+    }
+  }
+
+  /** Troca o cartão pelo Pix sem desfazer a reserva: gerar o Pix tira a cobrança do cartão
+   *  de cena no servidor (e recusa, se o cartão já foi aprovado). */
+  protected switchCardToPix(): void {
+    // A reserva segue sendo ouvida: se o cartão for aprovado (em outra aba, ou agora),
+    // a confirmação ainda leva à tela de sucesso.
+    clearInterval(this.countdownInterval);
+    this.cardPayment.set(null);
+    this.pixCountdown.set('');
+    this.pixExpired.set(false);
+    this.selectedMethod.set('pix');
+  }
+
+  /** Solta a reserva da cobrança de cartão. Recusa (cartão aprovado ou em análise) mantém a
+   *  tela ouvindo a reserva — é por ela que a confirmação chega. */
+  protected async cancelCard(): Promise<boolean> {
+    const bookingId = this.pixBookingId();
+    if (!bookingId) return false;
+    try {
+      await releasePendingBookingCardPayment(athleteFunctions(), bookingId);
+      this.resetPixState();
+      this.toasts.success('Pagamento cancelado', 'O horário voltou a ficar disponível para outras pessoas.');
+      return true;
+    } catch (err) {
+      this.toasts.error(
+        'Não foi possível cancelar',
+        err instanceof ArenaBookingError ? err.message : 'A cobrança continua ativa — tente de novo.',
+      );
+      return false;
+    }
+  }
+
+  /** Prazo do cartão acabou: solta a reserva antiga e abre outra — a menos que o cartão
+   *  tenha sido aprovado nesse meio-tempo (aí a confirmação chega pela reserva). */
+  protected async regenerateCard(): Promise<void> {
+    const bookingId = this.pixBookingId();
+    if (bookingId) {
+      try {
+        await releasePendingBookingCardPayment(athleteFunctions(), bookingId);
+      } catch (err) {
+        // Só segue se a reserva antiga já não espera pagamento (a varredura soltou). Cartão
+        // aprovado/em análise ou servidor sem resposta: para aqui — a cobrança pode estar viva.
+        const gone = err instanceof ArenaBookingError && /não está aguardando pagamento/i.test(err.message);
+        if (!gone) {
+          this.toasts.info(
+            'Pagamento em andamento',
+            err instanceof ArenaBookingError ? err.message : 'Não foi possível conferir o pagamento — tente de novo.',
+          );
+          return;
+        }
+      }
+    }
+    this.resetPixState();
+    await this.generateCard();
+  }
+
   protected async confirmOnsite(): Promise<void> {
     if (this.processing()) return;
+    const sport = this.requireSport();
+    if (!sport) return;
     const uid = this.auth.user()?.uid;
     if (!uid) {
       this.toasts.error('Você não está conectado', 'Entre na sua conta para confirmar a reserva.');
@@ -591,6 +770,7 @@ export class ArenaPaymentComponent {
         clientAmountReais: this.totalPrice(),
         paymentMode: 'onsite',
         couponCode: this.appliedCouponCode() ?? undefined,
+        sport,
       });
       void this.router.navigate(['/reservar', this.arenaId(), 'agendar', 'pagamento', 'confirmada'], {
         queryParams: { bookingId: result.bookingId },
@@ -734,6 +914,7 @@ export class ArenaPaymentComponent {
 
   protected async submitSplit(): Promise<void> {
     if (this.splitSubmitting() || !this.splitCanSubmit()) return;
+    if (!this.requireSport()) return;
     const uid = this.auth.user()?.uid;
     if (!uid) {
       this.toasts.error('Você não está conectado', 'Entre na sua conta para dividir o pagamento.');
@@ -859,6 +1040,7 @@ export class ArenaPaymentComponent {
   private resetPixState(): void {
     this.stopPixWatchers();
     this.pixPayment.set(null);
+    this.cardPayment.set(null);
     this.pixBookingId.set(null);
     this.pixCountdown.set('');
     this.pixExpired.set(false);
@@ -868,7 +1050,7 @@ export class ArenaPaymentComponent {
   /** Saídas do diálogo de pagamento expirado. */
   protected retryAfterExpiry(): void {
     this.paymentExpired.set(false);
-    void this.generatePix();
+    void (this.selectedMethod() === 'card' ? this.generateCard() : this.generatePix());
   }
 
   protected backToSlots(): void {

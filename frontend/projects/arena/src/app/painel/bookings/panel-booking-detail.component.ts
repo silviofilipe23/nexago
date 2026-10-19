@@ -31,6 +31,22 @@ const ATTENDANCE_TONE: Record<string, PillTone | undefined> = {
 
 const UNDO_WINDOW_SECONDS = 60;
 
+/** Canal da reserva para o gestor: o valor cru do doc (`pix`, `card`, `onsite`) em português. */
+export function bookingChannelLabel(channel: string | null): string {
+  switch (channel) {
+    case 'pix':
+      return 'PIX';
+    case 'card':
+      return 'Cartão de crédito';
+    case 'onsite':
+      return 'No local';
+    case null:
+      return 'Direto (sem link)';
+    default:
+      return channel;
+  }
+}
+
 /** Detalhe de uma reserva (`arenaBookings`) pro gestor: check-in manual (front desk) e
  *  cancelamento com 60s pra desfazer — espelha `ArenaBookingDetailsPage` (Flutter), sem as
  *  ações de bloqueio/contato de atleta (fora do escopo desta 1ª leva). */
@@ -78,13 +94,16 @@ const UNDO_WINDOW_SECONDS = 60;
             <ar-panel-card title="Horário">
               <div class="row"><span class="label">Data</span><span class="value">{{ booking()!.dateKey }}</span></div>
               <div class="row"><span class="label">Quadra</span><span class="value">{{ booking()!.courtName }}</span></div>
+              @if (booking()!.sportLabel; as sport) {
+                <div class="row"><span class="label">Esporte</span><span class="value">{{ sport }}</span></div>
+              }
               <div class="row"><span class="label">Horário</span><span class="value">{{ booking()!.startTime }}–{{ booking()!.endTime }}</span></div>
               <div class="row"><span class="label">Código</span><span class="value">{{ displayBookingCode(booking()!.id) }}</span></div>
             </ar-panel-card>
 
             <ar-panel-card title="Pagamento">
               <div class="row"><span class="label">Valor</span><span class="value">{{ formatBRL(booking()!.amountReais) }}</span></div>
-              <div class="row"><span class="label">Canal</span><span class="value">{{ booking()!.paymentChannel ?? 'Direto (sem link)' }}</span></div>
+              <div class="row"><span class="label">Canal</span><span class="value">{{ channelLabel(booking()!.paymentChannel) }}</span></div>
               <div class="row"><span class="label">Situação</span><span class="value">{{ booking()!.paymentStatus ?? '—' }}</span></div>
               @if (booking()!.couponCode; as code) {
                 <div class="row"><span class="label">Cupom</span><span class="value">{{ code }} (-{{ formatBRL(booking()!.couponDiscountReais) }})</span></div>
@@ -333,6 +352,7 @@ export class PanelBookingDetailComponent {
   protected readonly attendanceLabel = attendanceLabel;
   protected readonly statusLabel = bookingStatusLabel;
   protected readonly displayBookingCode = displayBookingCode;
+  protected readonly channelLabel = bookingChannelLabel;
 
   protected readonly loading = signal(true);
   protected readonly booking = signal<ArenaBooking | null>(null);

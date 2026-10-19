@@ -27,53 +27,59 @@ MyBookingPaymentDisplay myBookingPaymentDisplayFromData(
   final dueOnsite = (data['amountDueOnsiteReais'] as num?)?.toDouble() ?? 0;
   final paidOnline = (data['amountPaidOnlineReais'] as num?)?.toDouble() ?? 0;
 
+  // Cartão: `paymentChannel` vira `card` na confirmação; antes disso a
+  // cobrança aberta diz o meio (`billingType`).
+  final isCard = channel == 'card' ||
+      (data['billingType'] as String?)?.trim().toUpperCase() == 'CREDIT_CARD';
+  final method = isCard ? 'Cartão' : 'PIX';
+
   if (bookingStatus == 'pending_payment') {
-    return const MyBookingPaymentDisplay(
-      label: 'PIX · Aguardando pagamento',
+    return MyBookingPaymentDisplay(
+      label: '$method · Aguardando pagamento',
       accentColor: AppColors.pending,
     );
   }
 
-  if (channel == 'pix') {
+  if (channel == 'pix' || channel == 'card') {
     if (paymentStatus == 'paid') {
       final isFull = fraction >= 0.99 || dueOnsite <= 0.02;
       if (isFull) {
-        return const MyBookingPaymentDisplay(
-          label: 'PIX · 100% pago',
+        return MyBookingPaymentDisplay(
+          label: '$method · 100% pago',
           accentColor: AppColors.win,
         );
       }
-      return const MyBookingPaymentDisplay(
-        label: 'PIX · 50% pago · restante na arena',
+      return MyBookingPaymentDisplay(
+        label: '$method · 50% pago · restante na arena',
         accentColor: AppColors.brand,
       );
     }
     if (paymentStatus == 'partial' || (paidOnline > 0 && dueOnsite > 0.02)) {
-      return const MyBookingPaymentDisplay(
-        label: 'PIX · 50% pago · restante na arena',
+      return MyBookingPaymentDisplay(
+        label: '$method · 50% pago · restante na arena',
         accentColor: AppColors.brand,
       );
     }
     if (paymentStatus == 'pending') {
-      return const MyBookingPaymentDisplay(
-        label: 'PIX · Aguardando pagamento',
+      return MyBookingPaymentDisplay(
+        label: '$method · Aguardando pagamento',
         accentColor: AppColors.pending,
       );
     }
     if (paymentStatus == 'rejected' || paymentStatus == 'expired') {
-      return const MyBookingPaymentDisplay(
-        label: 'PIX · Não concluído',
+      return MyBookingPaymentDisplay(
+        label: '$method · Não concluído',
         accentColor: AppColors.live,
       );
     }
     if (fraction <= 0.51) {
-      return const MyBookingPaymentDisplay(
-        label: 'PIX · 50%',
+      return MyBookingPaymentDisplay(
+        label: '$method · 50%',
         accentColor: AppColors.brand,
       );
     }
-    return const MyBookingPaymentDisplay(
-      label: 'PIX · 100%',
+    return MyBookingPaymentDisplay(
+      label: '$method · 100%',
       accentColor: AppColors.onSurfaceMuted,
     );
   }

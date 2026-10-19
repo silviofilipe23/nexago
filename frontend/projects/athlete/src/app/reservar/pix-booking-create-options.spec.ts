@@ -16,4 +16,15 @@ describe('pixBookingCreateOptions', () => {
     expect('couponCode' in opts).toBeFalse();
     expect(opts.paymentFraction).toBe(0.5);
   });
+
+  it('leva o esporte escolhido pros dois caminhos (Pix e dividir)', () => {
+    const opts = pixBookingCreateOptions({
+      totalPriceReais: 100,
+      pixFraction: 1,
+      couponCode: null,
+      sport: 'beachTennis',
+    });
+    expect(opts.sport).toBe('beachTennis');
+    expect('sport' in pixBookingCreateOptions({ totalPriceReais: 100, pixFraction: 1, couponCode: null })).toBeFalse();
+  });
 });

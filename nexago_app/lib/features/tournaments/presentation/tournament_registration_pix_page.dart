@@ -65,7 +65,7 @@ class _TournamentRegistrationPixPageState
   final _cpfController = TextEditingController();
   final _squadCodeController = TextEditingController();
   ArenaBookingPixPaymentResult? _pix;
-  TournamentRegistrationCardPaymentResult? _card;
+  CardCheckoutPaymentResult? _card;
   RegistrationPaymentMethod _method = RegistrationPaymentMethod.pix;
   bool _loadingCharge = false;
   String? _chargeError;

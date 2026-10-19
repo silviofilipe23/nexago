@@ -1,4 +1,5 @@
 import { Timestamp, type QueryDocumentSnapshot } from 'firebase/firestore';
+import { courtSportLabel } from '@nexago/arena-discovery';
 
 /** Espelha `nexago_app/.../arena/domain/arena_manager_booking.dart` — schema de `arenaBookings`
  *  (coleção top-level, uma reserva de quadra por documento). */
@@ -20,6 +21,9 @@ export interface ArenaBooking {
   athleteId: string;
   courtId: string;
   courtName: string;
+  /** Esporte que o atleta escolheu ao reservar (`sport`), já como rótulo — `null` em reserva
+   *  antiga, manual, de aula ou de horário fixo. */
+  sportLabel: string | null;
   /** `YYYY-MM-DD` */
   dateKey: string;
   startTime: string;
@@ -76,6 +80,7 @@ export function arenaBookingFromDoc(doc: QueryDocumentSnapshot): ArenaBooking {
     athleteId: optionalTrimmed(d['athleteId']) ?? optionalTrimmed(d['bookingAthleteId']) ?? '',
     courtId,
     courtName: courtNameLabel && courtNameLabel !== courtId ? courtNameLabel : 'Quadra',
+    sportLabel: courtSportLabel(optionalTrimmed(d['sport'])) || null,
     dateKey: dateKeyFromDynamic(d['date']),
     startTime: timeStr(d['startTime']),
     endTime: timeStr(d['endTime']),

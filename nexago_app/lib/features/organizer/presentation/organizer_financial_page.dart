@@ -900,9 +900,13 @@ class _WithdrawalTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final (label, color) = switch (item.status) {
-      'approved' => ('Aprovado', AppColors.win),
-      'rejected' => ('Rejeitado', AppColors.live),
+    // PIX que o banco não concluiu volta como `rejected` + `failed`: o valor
+    // retorna ao caixa. `paid` só chega com a conclusão no Asaas.
+    final (label, color) = switch ((item.status, item.payoutStatus)) {
+      (_, 'failed') => ('Falhou', AppColors.live),
+      (_, 'paid') => ('Pago', AppColors.win),
+      ('approved', _) => ('Aprovado', AppColors.win),
+      ('rejected', _) => ('Rejeitado', AppColors.live),
       _ => ('Pendente', AppColors.pending),
     };
     final requester = withdrawalRequesterLabel(

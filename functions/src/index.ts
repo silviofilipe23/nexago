@@ -10,6 +10,7 @@ import {
 } from "./arena-manual-booking";
 import {
   cancelPendingArenaBookingPayment,
+  createArenaBookingCardPayment,
   createArenaBookingPixPayment,
   expirePendingArenaBookingPayments,
   requestArenaWithdrawal,
@@ -18,6 +19,7 @@ import {
 } from "./arena-booking-pix";
 import {createArenaSubscription, cancelArenaSubscription} from "./arena-subscription";
 import {asaasWebhook} from "./asaas-webhook";
+import {asaasWithdrawalValidation} from "./asaas-withdrawal-validation";
 import {onArenaBookingCanceledNotifySlotVacancyAlerts} from "./slot-vacancy-alerts";
 import {onArenaBookingStatusChangedSyncSlotHold} from "./arena-booking-slot-release";
 import {
@@ -235,6 +237,7 @@ export {
   quoteArenaManualBooking,
   createArenaManualBooking,
   cancelPendingArenaBookingPayment,
+  createArenaBookingCardPayment,
   createArenaBookingPixPayment,
   expirePendingArenaBookingPayments,
   requestArenaWithdrawal,
@@ -243,6 +246,7 @@ export {
   createArenaSubscription,
   cancelArenaSubscription,
   asaasWebhook,
+  asaasWithdrawalValidation,
   onArenaBookingCanceledNotifySlotVacancyAlerts,
   onArenaBookingStatusChangedSyncSlotHold,
   createExternalPartnerInvite,

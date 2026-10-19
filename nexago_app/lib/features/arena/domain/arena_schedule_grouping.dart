@@ -143,6 +143,7 @@ abstract final class ArenaScheduleGrouping {
         athleteId: b.athleteId,
         paymentShortLabel: paymentShort,
         amountReais: amount,
+        sportLabel: arenaBookingSportLabel(b.data),
       );
     }
     return map;

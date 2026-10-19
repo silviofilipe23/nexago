@@ -15,7 +15,7 @@
       <div class="pm-header">
         <div>
           <h1 class="pm-title">Pagamento</h1>
-          <p class="pm-subtitle">{{ a.name }} · {{ court()?.name }} · {{ courtSportLabel() }}</p>
+          <p class="pm-subtitle">{{ headerSubtitle() }}</p>
         </div>
         <a [routerLink]="['/reservar', a.id, 'agendar']" [queryParams]="backQueryParams()" class="pm-back-link">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
@@ -25,6 +25,31 @@
 
       <div class="pm-main-grid">
         <div class="pm-col">
+          <section class="pm-card" id="pm-sport">
+            <div class="pm-sport-head">
+              <h2 class="pm-card-title">Esporte</h2>
+              <p class="pm-sport-hint">Qual esporte você vai jogar? A arena usa isso pra preparar a quadra.</p>
+            </div>
+            <div class="pm-sport-row" role="radiogroup" aria-label="Esporte da reserva">
+              @for (o of sportOptions(); track o.code) {
+                <button
+                  type="button"
+                  role="radio"
+                  class="pm-sport-chip"
+                  [class.pm-sport-chip--active]="selectedSport() === o.code"
+                  [attr.aria-checked]="selectedSport() === o.code"
+                  [disabled]="sportLocked()"
+                  (click)="selectSport(o.code)"
+                >
+                  {{ o.label }}
+                </button>
+              }
+            </div>
+            @if (sportError(); as err) {
+              <app-nx-field-error>{{ err }}</app-nx-field-error>
+            }
+          </section>
+
           <section class="pm-card">
             <h2 class="pm-card-title">Forma de pagamento</h2>
             <div class="pm-method-row">
@@ -43,6 +68,18 @@
               <button
                 type="button"
                 class="pm-method-card"
+                [class.pm-method-card--active]="selectedMethod() === 'card'"
+                [class.pm-method-card--disabled]="!pixAvailable()"
+                [disabled]="!pixAvailable()"
+                (click)="selectMethod('card')"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></svg>
+                <span>Cartão de crédito</span>
+                <span class="pm-method-sub">{{ pixAvailable() ? 'À vista · checkout seguro' : 'Indisponível nesta arena' }}</span>
+              </button>
+              <button
+                type="button"
+                class="pm-method-card"
                 [class.pm-method-card--active]="selectedMethod() === 'onsite'"
                 [class.pm-method-card--disabled]="!onsiteAvailable()"
                 [disabled]="!onsiteAvailable()"
@@ -54,7 +91,7 @@
               </button>
             </div>
 
-            @if (selectedMethod() === 'pix') {
+            @if (isOnlineMethod()) {
               @if (splitBookingId()) {
                 <div class="pm-split-status">
                   <div class="pm-waiting" role="status">
@@ -74,6 +111,38 @@
                     Quem não pagar a tempo tem a fatia somada ao valor a pagar na arena — sua reserva não é cancelada por isso.
                   </p>
                 </div>
+              } @else if (cardPayment(); as card) {
+                @if (pixExpired()) {
+                  <div class="pm-placeholder-block">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+                    <p>O tempo para pagar no cartão acabou.</p>
+                    <button type="button" class="pm-btn-primary" [disabled]="processing()" (click)="regenerateCard()">
+                      {{ processing() ? 'Abrindo…' : 'Abrir novo pagamento' }}
+                    </button>
+                  </div>
+                } @else {
+                  <!-- O pagamento acontece no domínio do Asaas. Link real em vez de window.open()
+                       depois do await: o bloqueador de popup mataria a chamada sem erro visível. -->
+                  <div class="pm-pix-block">
+                    <p class="pm-pix-note">Cartão de <strong>{{ formatBRL(card.chargedReais) }}</strong> · à vista</p>
+                    <a class="pm-btn-primary pm-btn-full" [href]="card.invoiceUrl" target="_blank" rel="noopener">
+                      Abrir checkout seguro
+                    </a>
+                    <p class="pm-pix-note">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+                      Você tem <strong class="pm-countdown">{{ pixCountdown() }}</strong> para concluir
+                    </p>
+                    <p class="pm-pix-note">
+                      O pagamento acontece no ambiente do Asaas — seus dados de cartão não passam pelo nexaGO.
+                    </p>
+                    <div class="pm-waiting" role="status">
+                      <span class="pm-waiting-dot" aria-hidden="true"></span>
+                      Aguardando a aprovação do cartão — esta tela confirma sozinha.
+                    </div>
+                    <button type="button" class="pm-btn-ghost" (click)="switchCardToPix()">Pagar com Pix</button>
+                    <button type="button" class="pm-btn-ghost" (click)="cancelCard()">Cancelar</button>
+                  </div>
+                }
               } @else if (pixPayment(); as pix) {
                 @if (pixExpired()) {
                   <div class="pm-placeholder-block">
@@ -134,30 +203,33 @@
                     </button>
                   </div>
 
-                  <div class="pm-split-tabs" role="tablist" aria-label="Como pagar o Pix">
-                    <button
-                      type="button"
-                      class="pm-split-tab"
-                      [class.pm-split-tab--active]="!splitMode()"
-                      [attr.aria-selected]="!splitMode()"
-                      (click)="toggleSplitMode(false)"
-                    >
-                      Pagar sozinho
-                    </button>
-                    <button
-                      type="button"
-                      class="pm-split-tab"
-                      [class.pm-split-tab--active]="splitMode()"
-                      [attr.aria-selected]="splitMode()"
-                      (click)="toggleSplitMode(true)"
-                    >
-                      Dividir com amigos
-                    </button>
-                  </div>
+                  @if (selectedMethod() === 'pix') {
+                    <div class="pm-split-tabs" role="tablist" aria-label="Como pagar o Pix">
+                      <button
+                        type="button"
+                        class="pm-split-tab"
+                        [class.pm-split-tab--active]="!splitMode()"
+                        [attr.aria-selected]="!splitMode()"
+                        (click)="toggleSplitMode(false)"
+                      >
+                        Pagar sozinho
+                      </button>
+                      <button
+                        type="button"
+                        class="pm-split-tab"
+                        [class.pm-split-tab--active]="splitMode()"
+                        [attr.aria-selected]="splitMode()"
+                        (click)="toggleSplitMode(true)"
+                      >
+                        Dividir com amigos
+                      </button>
+                    </div>
 
-                  @if (!splitMode()) {
+                  }
+
+                  @if (!splitMode() || selectedMethod() === 'card') {
                     <div class="pm-cpf-field">
-                      <label class="pm-cpf-label" for="pm-cpf">CPF <span class="pm-cpf-optional">(opcional — sai no comprovante do Pix)</span></label>
+                      <label class="pm-cpf-label" for="pm-cpf">CPF <span class="pm-cpf-optional">{{ selectedMethod() === 'card' ? '(opcional se já estiver no seu perfil)' : '(opcional — sai no comprovante do Pix)' }}</span></label>
                       <input
                         id="pm-cpf"
                         class="pm-cpf-input"
@@ -191,12 +263,19 @@
                       [priceReais]="priceAfterSquadReais()"
                       [availableCents]="cashback.availableCents()"
                       [config]="cashback.config()"
+                      [chargeLabel]="selectedMethod() === 'card' ? 'cartão' : 'PIX'"
                       [(use)]="useCashback"
                     />
 
-                    <button type="button" class="pm-btn-primary pm-btn-full" [disabled]="processing()" (click)="generatePix()">
-                      {{ processing() ? 'Gerando…' : 'Gerar código Pix de ' + formatBRL(pixChargeNow()) }}
-                    </button>
+                    @if (selectedMethod() === 'card') {
+                      <button type="button" class="pm-btn-primary pm-btn-full" [disabled]="processing()" (click)="generateCard()">
+                        {{ processing() ? 'Abrindo…' : 'Pagar ' + formatBRL(pixChargeNow()) + ' no cartão' }}
+                      </button>
+                    } @else {
+                      <button type="button" class="pm-btn-primary pm-btn-full" [disabled]="processing()" (click)="generatePix()">
+                        {{ processing() ? 'Gerando…' : 'Gerar código Pix de ' + formatBRL(pixChargeNow()) }}
+                      </button>
+                    }
                   } @else {
                     <div class="pm-split-setup">
                       <p class="pm-split-intro">
@@ -324,7 +403,11 @@
             </div>
             <div class="pm-summary-row">
               <span class="pm-summary-label">Quadra</span>
-              <span class="pm-summary-value">{{ court()?.name }} · {{ courtSportLabel() }}</span>
+              <span class="pm-summary-value">{{ court()?.name }}</span>
+            </div>
+            <div class="pm-summary-row">
+              <span class="pm-summary-label">Esporte</span>
+              <span class="pm-summary-value">{{ selectedSportLabel() || 'Escolha o esporte' }}</span>
             </div>
             <div class="pm-summary-row">
               <span class="pm-summary-label">Data</span>
@@ -391,7 +474,7 @@
               }
             </div>
 
-            @if (selectedMethod() === 'pix' && pixFraction() === 0.5) {
+            @if (isOnlineMethod() && pixFraction() === 0.5) {
               <div class="pm-summary-row">
                 <span class="pm-summary-label">Restante na arena</span>
                 <span class="pm-summary-value">{{ formatBRL(pixAmountOnsite()) }}</span>
@@ -399,9 +482,9 @@
             }
             <div class="pm-summary-total-row">
               <span class="pm-summary-label">
-                {{ splitBookingId() ? 'Dividido com amigos' : selectedMethod() === 'pix' ? 'Você paga agora' : 'Você paga na arena' }}
+                {{ splitBookingId() ? 'Dividido com amigos' : isOnlineMethod() ? 'Você paga agora' : 'Você paga na arena' }}
               </span>
-              <strong class="pm-summary-total">{{ selectedMethod() === 'pix' ? formatBRL(pixChargeNow()) : formatBRL(totalPrice()) }}</strong>
+              <strong class="pm-summary-total">{{ isOnlineMethod() ? formatBRL(pixChargeNow()) : formatBRL(totalPrice()) }}</strong>
             </div>
 
             @if (selectedMethod() === 'onsite') {
@@ -410,7 +493,7 @@
               </button>
             } @else if (splitBookingId()) {
               <p class="pm-defer-note">Acompanhe as fatias ao lado — sua reserva já está confirmada.</p>
-            } @else if (splitMode() && !pixPayment()) {
+            } @else if (selectedMethod() === 'pix' && splitMode() && !pixPayment()) {
               <button
                 type="button"
                 class="pm-btn-primary pm-btn-full"
@@ -419,6 +502,14 @@
               >
                 {{ splitSubmitting() ? 'Enviando…' : 'Convidar e gerar Pix' }}
               </button>
+            } @else if (selectedMethod() === 'card' && !cardPayment()) {
+              <button type="button" class="pm-btn-primary pm-btn-full" [disabled]="processing()" (click)="generateCard()">
+                {{ processing() ? 'Abrindo…' : 'Pagar no cartão' }}
+              </button>
+            } @else if (selectedMethod() === 'card') {
+              @if (!pixExpired()) {
+                <p class="pm-defer-note">Pague no checkout do Asaas — assim que o cartão for aprovado, você vai direto pra confirmação.</p>
+              }
             } @else if (!pixPayment()) {
               <button type="button" class="pm-btn-primary pm-btn-full" [disabled]="processing()" (click)="generatePix()">
                 {{ processing() ? 'Gerando…' : 'Gerar código Pix' }}
@@ -435,8 +526,10 @@
   @if (paymentExpired()) {
     <app-nx-blocking-dialog
       heading="Não foi possível concluir o pagamento"
-      body="O prazo do Pix acabou e a reserva foi desfeita. Nenhum valor foi cobrado — o horário voltou a ficar disponível e pode ser pego por outra pessoa."
-      primaryLabel="Gerar novo código Pix"
+      [body]="selectedMethod() === 'card'
+        ? 'O prazo do pagamento no cartão acabou e a reserva foi desfeita. Nenhum valor foi cobrado — o horário voltou a ficar disponível e pode ser pego por outra pessoa.'
+        : 'O prazo do Pix acabou e a reserva foi desfeita. Nenhum valor foi cobrado — o horário voltou a ficar disponível e pode ser pego por outra pessoa.'"
+      [primaryLabel]="selectedMethod() === 'card' ? 'Abrir novo pagamento' : 'Gerar novo código Pix'"
       secondaryLabel="Escolher outro horário"
       (primary)="retryAfterExpiry()"
       (secondary)="backToSlots()"

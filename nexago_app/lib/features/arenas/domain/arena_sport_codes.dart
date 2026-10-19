@@ -73,3 +73,39 @@ List<String> courtTypeCodesFor(Iterable<String> stored) {
   }
   return out;
 }
+
+/// Valor de quadra/escolha → código gravado na reserva (`arenaBookings.sport`): código do
+/// catálogo, ou "Pickleball" (fora do catálogo). Superfície e vazio → `null`. Espelha
+/// `bookingSportCode` das functions (`arena-booking-sport.ts`) e de `@nexago/arena-discovery`.
+String? bookingSportCode(String? raw) {
+  final value = raw?.trim() ?? '';
+  if (value.isEmpty) return null;
+  final code = SportCatalog.resolve(value)?.code;
+  if (code != null) return code;
+  for (final o in kCourtSportOptions) {
+    if (o.value.toLowerCase() == value.toLowerCase()) return o.value;
+  }
+  return null;
+}
+
+List<String> _bookingSportCodes(Iterable<String> values) {
+  final codes = <String>[];
+  for (final raw in values) {
+    final code = bookingSportCode(raw);
+    if (code != null && !codes.contains(code)) codes.add(code);
+  }
+  return codes;
+}
+
+/// Esportes que o atleta pode escolher ao reservar: os da quadra; quadra sem esporte cadastrado
+/// → os da arena; nada → a lista do cadastro de quadra. O servidor recusa esporte fora da quadra.
+List<String> bookingSportOptions(
+  Iterable<String> courtTypes,
+  Iterable<String> arenaCourtTypes,
+) {
+  final fromCourt = _bookingSportCodes(courtTypes);
+  if (fromCourt.isNotEmpty) return fromCourt;
+  final fromArena = _bookingSportCodes(arenaCourtTypes);
+  if (fromArena.isNotEmpty) return fromArena;
+  return [for (final o in kCourtSportOptions) o.value];
+}

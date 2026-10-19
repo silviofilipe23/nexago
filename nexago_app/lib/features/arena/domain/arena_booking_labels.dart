@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../arenas/domain/arena_sport_codes.dart';
 import 'arena_manager_booking.dart';
 
 /// Situação de recebimento da reserva (PIX integral, sinal, pendente…).
@@ -102,13 +103,18 @@ ArenaBookingPaymentInfo arenaBookingPaymentInfo(Map<String, dynamic>? data) {
   final dueOnsite = _amountFromData(data, 'amountDueOnsiteReais');
   final total = _bookingTotalReais(data);
 
-  if (channel == 'pix') {
+  // Cartão: `paymentChannel` vira `card` na confirmação; antes disso a
+  // cobrança aberta diz o meio (`billingType`).
+  final isCard = channel == 'card' ||
+      (data['billingType'] as String?)?.trim().toUpperCase() == 'CREDIT_CARD';
+  if (channel == 'pix' || channel == 'card') {
+    final method = isCard ? 'Cartão' : 'PIX';
     if (ps == 'paid') {
       return ArenaBookingPaymentInfo(
         settlement: ArenaBookingPaymentSettlement.paidFullPix,
-        channel: 'PIX',
+        channel: method,
         statusBadge: 'PAGO INTEGRAL',
-        headline: 'Cliente pagou o valor integral via PIX',
+        headline: 'Cliente pagou o valor integral ${isCard ? 'no cartão' : 'via PIX'}',
         subheadline: paidOnline != null && paidOnline > 0
             ? 'Recebido online: ${_formatBrl(paidOnline)}'
             : null,
@@ -122,9 +128,9 @@ ArenaBookingPaymentInfo arenaBookingPaymentInfo(Map<String, dynamic>? data) {
       final due = dueOnsite ?? (total != null ? (total - paid).clamp(0, double.infinity) : null);
       return ArenaBookingPaymentInfo(
         settlement: ArenaBookingPaymentSettlement.paidDepositPix,
-        channel: 'PIX',
+        channel: method,
         statusBadge: 'SINAL PAGO',
-        headline: 'Cliente pagou o sinal via PIX',
+        headline: 'Cliente pagou o sinal ${isCard ? 'no cartão' : 'via PIX'}',
         subheadline: due != null && due > 0.02
             ? 'Cobrar na chegada: ${_formatBrl(due)}'
             : 'Restante a combinar na arena',
@@ -136,9 +142,11 @@ ArenaBookingPaymentInfo arenaBookingPaymentInfo(Map<String, dynamic>? data) {
     if (ps == 'pending') {
       return ArenaBookingPaymentInfo(
         settlement: ArenaBookingPaymentSettlement.pendingPix,
-        channel: 'PIX',
-        statusBadge: 'AGUARDANDO PIX',
-        headline: 'PIX ainda não foi pago pelo cliente',
+        channel: method,
+        statusBadge: isCard ? 'AGUARDANDO CARTÃO' : 'AGUARDANDO PIX',
+        headline: isCard
+            ? 'Pagamento com cartão ainda não concluído'
+            : 'PIX ainda não foi pago pelo cliente',
         subheadline: 'A reserva aguarda confirmação do pagamento online',
         totalReais: total,
       );
@@ -146,18 +154,18 @@ ArenaBookingPaymentInfo arenaBookingPaymentInfo(Map<String, dynamic>? data) {
     if (ps == 'rejected' || ps == 'expired') {
       return ArenaBookingPaymentInfo(
         settlement: ArenaBookingPaymentSettlement.failed,
-        channel: 'PIX',
-        statusBadge: 'PIX NÃO PAGO',
-        headline: 'Pagamento PIX não concluído',
+        channel: method,
+        statusBadge: isCard ? 'CARTÃO NÃO PAGO' : 'PIX NÃO PAGO',
+        headline: isCard ? 'Pagamento com cartão não concluído' : 'Pagamento PIX não concluído',
         subheadline: ps == 'expired' ? 'Cobrança expirada' : 'Pagamento recusado ou cancelado',
         totalReais: total,
       );
     }
     return ArenaBookingPaymentInfo(
       settlement: ArenaBookingPaymentSettlement.pendingPix,
-      channel: 'PIX',
-      statusBadge: 'PIX',
-      headline: 'Pagamento via PIX',
+      channel: method,
+      statusBadge: method.toUpperCase(),
+      headline: isCard ? 'Pagamento com cartão' : 'Pagamento via PIX',
       totalReais: total,
     );
   }
@@ -253,6 +261,14 @@ String arenaBookingPaymentLabel(Map<String, dynamic>? data) {
     case ArenaBookingPaymentSettlement.unknown:
       return '—';
   }
+}
+
+/// Esporte escolhido pelo atleta na reserva (`sport`, gravado por `createArenaBooking`) —
+/// `null` em reserva antiga, manual, de aula ou de horário fixo.
+String? arenaBookingSportLabel(Map<String, dynamic>? data) {
+  final raw = data?['sport'];
+  final label = courtSportLabel(raw is String ? raw : null);
+  return label.isEmpty ? null : label;
 }
 
 /// Status da reserva apenas no âmbito do negócio (ativa, cancelada…).

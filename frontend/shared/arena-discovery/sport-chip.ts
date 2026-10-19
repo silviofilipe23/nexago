@@ -229,3 +229,43 @@ export function sportFirestoreIdFromChip(chip: ArenaSportChip): string | null {
       return null;
   }
 }
+
+/** Valor de quadra/escolha → código gravado na reserva (`arenaBookings.sport`): código do catálogo,
+ *  ou "Pickleball" (fora do catálogo). Superfície e vazio → `null`. Espelha `bookingSportCode` das
+ *  functions (`arena-booking-sport.ts`) e do app. */
+export function bookingSportCode(raw: unknown): string | null {
+  if (typeof raw !== 'string' || !raw.trim()) return null;
+  const code = resolveSport(raw)?.code;
+  if (code) return code;
+  const value = raw.trim().toLowerCase();
+  return COURT_SPORT_OPTIONS.find((o) => o.value.toLowerCase() === value)?.value ?? null;
+}
+
+/** Valores de esporte de UM doc de quadra: `types` → `sportTypes` → legado `type`. */
+export function courtDocSportValues(data: Record<string, unknown>): string[] {
+  const raw = data['types'] ?? data['sportTypes'];
+  const values = Array.isArray(raw) && raw.length > 0 ? raw : [data['type']];
+  return values.filter((v): v is string => typeof v === 'string' && v.trim() !== '');
+}
+
+function bookingSportCodes(values: readonly string[]): string[] {
+  const codes: string[] = [];
+  for (const raw of values) {
+    const code = bookingSportCode(raw);
+    if (code && !codes.includes(code)) codes.push(code);
+  }
+  return codes;
+}
+
+/** Esportes que o atleta pode escolher ao reservar: os da quadra; quadra sem esporte cadastrado →
+ *  os da arena; nada → a lista do cadastro de quadra. O servidor recusa esporte fora da quadra. */
+export function bookingSportOptions(
+  courtTypes: readonly string[],
+  arenaCourtTypes: readonly string[],
+): string[] {
+  const fromCourt = bookingSportCodes(courtTypes);
+  if (fromCourt.length > 0) return fromCourt;
+  const fromArena = bookingSportCodes(arenaCourtTypes);
+  if (fromArena.length > 0) return fromArena;
+  return COURT_SPORT_OPTIONS.map((o) => o.value);
+}

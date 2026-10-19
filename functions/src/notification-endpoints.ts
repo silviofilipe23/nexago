@@ -12,6 +12,7 @@ import {
   WEB_PUSH_SUBJECT,
 } from "./notification-delivery";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {sportLabel} from "./sports/catalog";
 
 /**
  * Envia notificação push para um usuário específico
@@ -118,6 +119,7 @@ export const notifyArenaBookingCreated = onCall({
     date?: string;
     startTime?: string;
     endTime?: string;
+    sport?: string | null;
   };
 
   const athleteId = typeof booking?.athleteId === "string" ? booking.athleteId : null;
@@ -179,7 +181,10 @@ export const notifyArenaBookingCreated = onCall({
       }
     }
   }
-  const body = `Dia ${formattedDate} de  ${startTime} às ${endTime} na quadra ${courtName}.`;
+  const sport = sportLabel(booking?.sport);
+  const sportSuffix = sport ? ` · ${sport}` : "";
+  const body =
+    `Dia ${formattedDate} de  ${startTime} às ${endTime} na quadra ${courtName}${sportSuffix}.`;
 
   const notificationType = "arena_booking_created";
   const data: Record<string, string> = {

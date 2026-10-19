@@ -159,5 +159,20 @@ void main() {
         'FALHOU',
       );
     });
+
+    test('PIX criado é ENVIADO; só a conclusão no Asaas é PAGO', () {
+      expect(
+        withdrawalStatusLabel(
+          withdrawal(id: 'w2', amount: 10, at: now, payoutStatus: 'sent'),
+        ),
+        'ENVIADO',
+      );
+      expect(
+        withdrawalStatusLabel(
+          withdrawal(id: 'w3', amount: 10, at: now, payoutStatus: 'paid'),
+        ),
+        'PAGO',
+      );
+    });
   });
 }

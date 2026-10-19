@@ -355,6 +355,15 @@ abstract final class AppRoutes {
   /// Chamada de uma aula: `/arena/classes/session/:sessionId`
   static const String arenaClassSession = '/arena/classes/session/:sessionId';
 
+  /// Aluno das aulas (plano, frequência): `/arena/classes/student/:studentId`
+  static const String arenaClassStudent = '/arena/classes/student/:studentId';
+
+  /// Mensalidades das aulas: `/arena/classes/charges` (agenda ou financeiro)
+  static const String arenaClassCharges = '/arena/classes/charges';
+
+  /// Nova matrícula em 4 passos: `/arena/classes/enroll`
+  static const String arenaClassEnroll = '/arena/classes/enroll';
+
   static const String arenaSettings = '/arena/settings';
 
   /// Disponibilidade / horários na agenda (gestor). Antes de [arenaDetail].
@@ -775,6 +784,9 @@ abstract final class AppRouteNames {
   static const String arenaClubSession = 'arenaClubSession';
   static const String arenaClasses = 'arenaClasses';
   static const String arenaClassSession = 'arenaClassSession';
+  static const String arenaClassStudent = 'arenaClassStudent';
+  static const String arenaClassCharges = 'arenaClassCharges';
+  static const String arenaClassEnroll = 'arenaClassEnroll';
   static const String clubSession = 'clubSession';
   static const String clubSessionPix = 'clubSessionPix';
   static const String arenaSettings = 'arenaSettings';

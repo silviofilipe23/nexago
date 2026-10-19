@@ -617,7 +617,10 @@ export class LojaPersonalizarComponent {
     const backUp = this.backUpload();
     if (hasBack) {
       input.back =
-        this.backKind() === 'numero' ? { type: 'numero', number: this.backNumber() } : { type: 'imagem', path: backUp!.path! };
+        this.backKind() === 'numero'
+          ? { type: 'numero', number: this.backNumber() }
+          : // Inteira e centralizada na área das costas (sem ajuste fino) — igual ao app.
+            { type: 'imagem', path: backUp!.path!, transform: fitTransform(backUp!.aspect, c.back) };
     }
 
     this.adding.set(true);

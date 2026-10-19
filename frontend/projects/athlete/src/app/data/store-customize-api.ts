@@ -16,7 +16,7 @@ export interface AddCustomItemInput {
   name?: { text: string; fontId: string; color: string };
   image?: { path: string; areaId: string; transform: ImageTransform };
   /** Costas, abaixo do nome: número OU imagem (centralizada, sem ajuste fino). */
-  back?: { type: 'numero'; number: string } | { type: 'imagem'; path: string };
+  back?: { type: 'numero'; number: string } | { type: 'imagem'; path: string; transform: ImageTransform };
 }
 
 export interface AddCustomItemResult {

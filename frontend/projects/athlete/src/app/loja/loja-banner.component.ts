@@ -7,6 +7,10 @@ const ROTATE_MS = 6000;
 /**
  * Banner de campanha da vitrine web: texto à esquerda, foto à direita. Com mais de um banner,
  * troca a cada 6 s com indicadores; pausa enquanto o mouse ou o foco estão nele.
+ *
+ * Todos os banners ficam empilhados na mesma célula: a troca é um crossfade (o que entra sobe de
+ * leve e a foto assenta do zoom) e o bloco tem a altura do maior, então nada pula ao trocar. Os
+ * que não estão no ar ficam `inert` — o foco e o leitor de tela só alcançam o visível.
  */
 @Component({
   selector: 'app-loja-banner',
@@ -28,23 +32,39 @@ export class LojaBannerComponent {
 
   protected readonly index = signal(0);
   protected readonly paused = signal(false);
-  /** Lista de um item com chave no id: trocar de banner recria o bloco e o fade roda de novo. */
-  protected readonly current = computed(() => {
-    const list = this.banners();
-    const b = list[Math.min(this.index(), list.length - 1)];
-    return b ? [b] : [];
-  });
+  /** A lista pode encolher (banner saiu do ar) com o índice lá na frente. */
+  protected readonly active = computed(() => Math.min(this.index(), Math.max(this.banners().length - 1, 0)));
 
   constructor() {
+    // Relê o índice: troca manual também reinicia os 6 s, em vez de o próximo vir logo em seguida.
     effect((onCleanup) => {
       const count = this.banners().length;
+      const current = this.active();
       if (count < 2 || this.paused()) return;
-      const timer = setInterval(() => this.index.update((i) => (i + 1) % count), ROTATE_MS);
-      onCleanup(() => clearInterval(timer));
+      const timer = setTimeout(() => this.index.set((current + 1) % count), ROTATE_MS);
+      onCleanup(() => clearTimeout(timer));
     });
   }
 
   protected go(i: number): void {
     this.index.set(i);
+  }
+
+  /** Setas, Home e End no seletor de abas (padrão ARIA de tabs): troca e leva o foco junto. */
+  protected onDotsKeydown(event: KeyboardEvent): void {
+    const count = this.banners().length;
+    const current = this.active();
+    const targets: Record<string, number> = {
+      ArrowRight: (current + 1) % count,
+      ArrowLeft: (current - 1 + count) % count,
+      Home: 0,
+      End: count - 1,
+    };
+    const next = targets[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    this.go(next);
+    const dots = (event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="tab"]');
+    dots[next]?.focus();
   }
 }

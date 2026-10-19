@@ -82,6 +82,11 @@ export function isBannerLink(v: unknown): v is string {
   }
 }
 
+/**
+ * Só a URL: pixels (recomendado 1600×800, mínimo 1200×600) quem confere é o backoffice antes do
+ * upload (`campanhas/data/campaign-image.ts`) — aqui não há a imagem, e a rule do Storage só vê
+ * bytes e tipo.
+ */
 function isImageUrl(v: unknown): boolean {
   if (v === null) return true;
   if (typeof v !== "string" || v.length > 2048) return false;

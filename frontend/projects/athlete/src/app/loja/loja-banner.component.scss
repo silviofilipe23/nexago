@@ -12,24 +12,10 @@
   border-radius: var(--nx-r-5);
   background-color: var(--nx-surface-0);
   background-image: radial-gradient(110% 120% at 0% 0%, rgba(255, 106, 26, 0.26), rgba(255, 106, 26, 0.04) 60%);
-  animation: lj-banner-in var(--nx-d-slow) var(--nx-ease-out);
 
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
     min-height: 0;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    animation: none;
-  }
-}
-
-@keyframes lj-banner-in {
-  from {
-    opacity: 0.4;
-  }
-  to {
-    opacity: 1;
   }
 }
 
@@ -43,6 +29,55 @@
   @media (max-width: 640px) {
     padding: 22px 20px;
     gap: 10px;
+  }
+}
+
+// Troca: todos os banners na mesma célula (o bloco fica com a altura do maior). O texto que sai
+// esmaece rápido e o que entra vem 60 ms depois, subindo 12px — sem as duas manchetes legíveis
+// uma sobre a outra (~480 ms no total). Alinhados pela base: botões e indicadores não pulam
+// quando um banner tem subtítulo e o outro não.
+.lj-banner-slides {
+  display: grid;
+}
+
+.lj-banner-slide {
+  grid-area: 1 / 1;
+  align-self: end;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--nx-d-base) var(--nx-ease-out),
+    visibility 0s linear var(--nx-d-base);
+
+  @media (max-width: 640px) {
+    gap: 10px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+
+  &--on {
+    z-index: 1;
+    opacity: 1;
+    visibility: visible;
+    transition: none;
+    animation: lj-banner-slide-in var(--nx-d-slow) var(--nx-ease-out) 60ms both;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
+}
+
+@keyframes lj-banner-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
   }
 }
 
@@ -160,8 +195,17 @@
   background: rgba(255, 255, 255, 0.18);
   cursor: pointer;
   transition:
-    width var(--nx-d-base) var(--nx-ease-out),
-    background var(--nx-d-base) var(--nx-ease-out);
+    width var(--nx-d-slow) var(--nx-ease-out),
+    background var(--nx-d-slow) var(--nx-ease-out);
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
 
   &--on {
     width: 30px;
@@ -169,23 +213,51 @@
   }
 }
 
-// Sem foto: o fundo listrado da marca, sem texto de placeholder.
+// Sem foto: o fundo listrado da marca, sem texto de placeholder (aparece quando o banner no ar
+// não tem foto). Foto em 2:1 (1600×800, ver backoffice › Campanhas), cortada pelo centro.
 .lj-banner-media {
   position: relative;
   min-height: 300px;
+  overflow: hidden;
   background-color: #16120f;
   background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0 9px, transparent 9px 18px);
   border-left: 1px solid var(--nx-line);
 
-  img {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
   @media (max-width: 900px) {
     display: none;
+  }
+}
+
+// Mesma troca do texto: a foto que sai esmaece; a que entra esmaece de volta assentando de um
+// zoom de 4%.
+.lj-banner-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity var(--nx-d-slow) var(--nx-ease-out);
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+
+  &--on {
+    z-index: 1;
+    opacity: 1;
+    transition: none;
+    animation: lj-banner-photo-in var(--nx-d-slow) var(--nx-ease-out);
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
+}
+
+@keyframes lj-banner-photo-in {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
   }
 }

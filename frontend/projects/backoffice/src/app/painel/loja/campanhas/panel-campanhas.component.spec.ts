@@ -32,13 +32,24 @@ const LIST = [
   banner('d'),
 ];
 
+/** Foto de verdade (PNG do canvas) com os pixels pedidos, e o data URL dela como "URL do Storage". */
+async function photo(width: number, height: number): Promise<{ file: File; url: string }> {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const blob = await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'));
+  return { file: new File([blob], 'foto.png', { type: 'image/png' }), url: canvas.toDataURL('image/png') };
+}
+
 describe('PanelCampanhasComponent', () => {
   let save: jasmine.Spy<(banners: CampaignBanner[], version: number) => Promise<CampaignsState>>;
+  let uploadImage: jasmine.Spy<(file: File, onProgress: (percent: number) => void) => Promise<string>>;
 
   async function mount(list = LIST): Promise<HTMLElement> {
     save = jasmine
       .createSpy('save')
       .and.callFake((banners: CampaignBanner[], version: number) => Promise.resolve({ banners, version: version + 1 }));
+    uploadImage = jasmine.createSpy('uploadImage');
     await TestBed.configureTestingModule({
       imports: [PanelCampanhasComponent],
       providers: [
@@ -47,7 +58,7 @@ describe('PanelCampanhasComponent', () => {
         { provide: AuthService, useValue: { displayName: signal('Ana Souza'), user: signal(null) } },
         {
           provide: CampaignsRepository,
-          useValue: { load: () => Promise.resolve({ banners: list, version: 4 }), save, uploadImage: jasmine.createSpy() },
+          useValue: { load: () => Promise.resolve({ banners: list, version: 4 }), save, uploadImage },
         },
       ],
     }).compileComponents();
@@ -62,6 +73,26 @@ describe('PanelCampanhasComponent', () => {
   }
   const rows = (host: HTMLElement) => [...host.querySelectorAll<HTMLElement>('.list .row')];
   const statuses = (host: HTMLElement) => rows(host).map((r) => r.querySelector('bo-pill')!.textContent!.trim());
+  /** A leitura dos pixels (`createImageBitmap`) leva mais de um tique. */
+  async function until(done: () => boolean) {
+    for (let i = 0; i < 50 && !done(); i++) {
+      await settle();
+    }
+  }
+  function pick(host: HTMLElement, file: File) {
+    const input = host.querySelector<HTMLInputElement>('bo-campaign-panel input[type="file"]')!;
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change'));
+  }
+  async function openNew(): Promise<HTMLElement> {
+    const host = await mount();
+    (host.querySelector('bo-page-header .bo-mini-btn-primary') as HTMLButtonElement).click();
+    await settle();
+    return host;
+  }
+  const hints = (host: HTMLElement) => [...host.querySelectorAll('bo-campaign-panel .photo-field .hint')].map((h) => h.textContent!.trim());
   function type(host: HTMLElement, selector: string, value: string) {
     const el = host.querySelector<HTMLInputElement>(selector)!;
     el.value = value;
@@ -131,6 +162,47 @@ describe('PanelCampanhasComponent', () => {
     await settle();
     expect(save).not.toHaveBeenCalled();
     expect(host.querySelector('bo-campaign-panel')!.textContent).toContain('Dê um título à campanha.');
+  });
+
+  it('campo da foto mostra o tamanho recomendado e a moldura 2:1', async () => {
+    const host = await openNew();
+    expect(host.querySelector('bo-campaign-panel .photo-size')!.textContent!.trim()).toBe('1600 × 800 px');
+    expect(hints(host)[0]).toBe('Recomendado: 1600×800 px (2:1) · JPG, PNG ou WebP até 10 MB · mínimo 1200×600');
+    const box = host.querySelector<HTMLElement>('bo-campaign-panel .photo')!.getBoundingClientRect();
+    expect(box.width / box.height).toBeCloseTo(2, 1);
+  });
+
+  it('foto abaixo do mínimo não sobe', async () => {
+    const host = await openNew();
+    pick(host, (await photo(800, 400)).file);
+    await until(() => hints(host).some((h) => h.includes('mínimo é')));
+    expect(uploadImage).not.toHaveBeenCalled();
+    expect(host.querySelector('bo-campaign-panel .hint.err')!.textContent).toContain(
+      'A foto tem 800×400 px; o mínimo é 1200×600 (recomendado 1600×800).',
+    );
+  });
+
+  it('foto fora de 2:1 sobe, mas avisa do recorte', async () => {
+    const host = await openNew();
+    const { file, url } = await photo(1600, 600);
+    uploadImage.and.resolveTo(url);
+    pick(host, file);
+    await until(() => host.querySelector('bo-campaign-panel .hint.warn') !== null);
+    expect(uploadImage).toHaveBeenCalledTimes(1);
+    expect(host.querySelector('bo-campaign-panel .hint.warn')!.textContent).toContain('1600×600 px (2,67:1)');
+    expect(host.querySelector('bo-campaign-panel .hint.err')).toBeNull();
+  });
+
+  it('foto no tamanho recomendado sobe sem aviso e mostra os pixels', async () => {
+    const host = await openNew();
+    const { file, url } = await photo(1600, 800);
+    uploadImage.and.resolveTo(url);
+    pick(host, file);
+    await until(() => hints(host).some((h) => h.startsWith('Foto atual')));
+    expect(uploadImage).toHaveBeenCalledTimes(1);
+    expect(hints(host)[1]).toBe('Foto atual: 1600×800 px.');
+    expect(host.querySelector('bo-campaign-panel .hint.warn')).toBeNull();
+    expect(host.querySelector('bo-campaign-panel .photo img')!.getAttribute('src')).toBe(url);
   });
 
   it('sem campanha: estado vazio e prévia avisa que o bloco some', async () => {

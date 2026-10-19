@@ -84,6 +84,9 @@
                 <app-loja-custom-preview [side]="'costas'" [photoUrl]="photoFor('costas')" [garmentHex]="garmentHex()" [name]="previewName()" [area]="previewArea()" [image]="previewImage()" [compact]="true" />
               </button>
             </div>
+            @if (photoNote(); as note) {
+              <p class="lz-preview-hint lz-photo-note">{{ note }}</p>
+            }
             @if (previewImage() && side() === 'frente') {
               <p class="lz-preview-hint">Arraste a imagem para posicionar · puxe a bolinha para o tamanho</p>
             }

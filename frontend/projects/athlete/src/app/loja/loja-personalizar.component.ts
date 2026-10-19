@@ -32,6 +32,7 @@ import {
   nameSide,
   nameStepTitle,
   previewPhoto,
+  previewPhotoNote,
   priceBreakdown,
   productionNote,
   sanitizeNameInput,
@@ -212,6 +213,11 @@ export class LojaPersonalizarComponent {
     const p = this.product();
     return p ? (previewPhoto(p, this.colorValue()?.id ?? null, side)?.url ?? null) : null;
   }
+  /** A cor sem foto usa a de outra cor: a prévia diz qual. */
+  protected readonly photoNote = computed(() => {
+    const p = this.product();
+    return p ? previewPhotoNote(p, this.colorValue()?.id ?? null, this.side()) : null;
+  });
 
   // ── Preço ───────────────────────────────────────────────────────
   protected readonly baseCents = computed(() => {

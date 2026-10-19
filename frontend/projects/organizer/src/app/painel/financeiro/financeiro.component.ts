@@ -28,7 +28,12 @@ import {
 import { formatCentsShort } from '../data/tournament-collected';
 import { myMoneyTournaments } from '../data/tournament-role';
 import { listMyTournaments } from '../data/tournaments-repository';
-import { applyLiveBalance, shouldExplainZeroBalance, withdrawalRequesterLabel } from '../data/wallet-view';
+import {
+  applyLiveBalance,
+  hasAwaitingSettlement,
+  shouldExplainZeroBalance,
+  withdrawalRequesterLabel,
+} from '../data/wallet-view';
 import { OgBarRowComponent } from '../ui/bar-row.component';
 import { OgCardComponent } from '../ui/card.component';
 import { OgFormFieldComponent } from '../ui/form-field.component';
@@ -146,6 +151,9 @@ interface EventoArrecadacaoRow {
                     @if (c.pendingReais > 0) {
                       <span class="pend">{{ brl(c.pendingReais) }} pendente</span>
                     }
+                    @if (hasAwaitingSettlement(c)) {
+                      <span class="liberar">{{ brl(c.awaitingSettlementReais) }} a liberar</span>
+                    }
                   </span>
                 </button>
               }
@@ -164,6 +172,17 @@ interface EventoArrecadacaoRow {
           <og-card pad="sm" flex="1.2">
             <div class="og-kpi-label">Saldo disponível</div>
             <div class="og-kpi-value" style="font-size:30px">{{ saldoLabel() }}</div>
+            @if (hasAwaitingSettlement(caixa)) {
+              <div class="og-fin-a-liberar">
+                <span class="og-fin-a-liberar-value">
+                  A liberar: <strong>{{ brl(caixa.awaitingSettlementReais) }}</strong>
+                </span>
+                <p class="og-fin-saldo-note">
+                  Pagamentos no cartão caem no caixa cerca de 32 dias depois da aprovação.
+                  O valor já vem sem as taxas.
+                </p>
+              </div>
+            }
             @if (saldoZeradoPorRecebimentoDireto()) {
               <p class="og-fin-saldo-note">
                 Os {{ arrecadadoDiretoLabel() }} arrecadados foram recebidos direto com o
@@ -593,6 +612,28 @@ interface EventoArrecadacaoRow {
     .og-fin-caixa-values .pend {
       color: var(--nx-pending);
     }
+    .og-fin-caixa-values .liberar {
+      color: var(--nx-text-dim);
+    }
+    /* "A liberar": cartão aprovado que ainda não liquidou. Fica dentro do card do saldo,
+       abaixo dele, em tom neutro — é dinheiro a caminho, não sacável. */
+    .og-fin-a-liberar {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--nx-line);
+    }
+    .og-fin-a-liberar-value {
+      font-family: var(--nx-font-ui);
+      font-size: 13px;
+      color: var(--nx-text-dim);
+    }
+    .og-fin-a-liberar-value strong {
+      font-family: var(--nx-font-mono);
+      color: var(--nx-text);
+    }
+    .og-fin-a-liberar .og-fin-saldo-note {
+      margin-top: 4px;
+    }
     .og-fin-caixa-single {
       display: flex;
       align-items: center;
@@ -747,6 +788,7 @@ export class FinanceiroComponent {
   protected readonly disponivel = computed(() => this.selected()?.availableReais ?? 0);
   protected readonly saldoLabel = computed(() => BRL.format(this.disponivel()));
   protected readonly pendenteLabel = computed(() => BRL.format(this.selected()?.pendingReais ?? 0));
+  protected readonly hasAwaitingSettlement = hasAwaitingSettlement;
   /** Soma das taxas já descontadas nos créditos do caixa (campo `platformFeeReais` do ledger). */
   protected readonly taxasPlataformaLabel = computed(() =>
     BRL.format(this.ledger().reduce((sum, e) => sum + e.platformFeeReais, 0)),

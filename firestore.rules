@@ -81,15 +81,20 @@ service cloud.firestore {
     }
     /** Caixa do torneio com dinheiro dentro — excluir o evento sumiria com ele.
      *  Doc ausente conta como zerado (torneio que nunca recebeu pagamento), e
-     *  campo ausente também: os dois saldos saem por `.get(campo, 0)` porque a
+     *  campo ausente também: os saldos saem por `.get(campo, 0)` porque a
      *  migração grava `availableReais` sem tocar em `pendingReais`. Acesso
      *  direto a campo que não existe estoura a AVALIAÇÃO da regra, e aí o
      *  delete do evento ficava negado para sempre, com mensagem que não
-     *  explica nada. */
+     *  explica nada.
+     *
+     *  `awaitingSettlementReais` ("a liberar") é cartão aprovado que ainda não
+     *  liquidou: o dinheiro está a caminho e o crédito vai cair neste caixa —
+     *  sem o evento, ninguém mais alcançaria esse caixa para sacar. */
     function tournamentHasWalletBalance(tournamentId) {
       return exists(/databases/$(database)/documents/tournamentWallets/$(tournamentId)) && (
         get(/databases/$(database)/documents/tournamentWallets/$(tournamentId)).data.get('availableReais', 0) > 0 ||
-        get(/databases/$(database)/documents/tournamentWallets/$(tournamentId)).data.get('pendingReais', 0) > 0
+        get(/databases/$(database)/documents/tournamentWallets/$(tournamentId)).data.get('pendingReais', 0) > 0 ||
+        get(/databases/$(database)/documents/tournamentWallets/$(tournamentId)).data.get('awaitingSettlementReais', 0) > 0
       );
     }
     /** Campos do torneio que a EQUIPE não escreve, nem por descuido.

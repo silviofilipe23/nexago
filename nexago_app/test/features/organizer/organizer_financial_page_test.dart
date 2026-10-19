@@ -103,12 +103,14 @@ TournamentCashBox caixa(
   String nome, {
   double disponivel = 0,
   double pendente = 0,
+  double aLiberar = 0,
 }) {
   return TournamentCashBox(
     tournamentId: id,
     tournamentName: nome,
     availableReais: disponivel,
     pendingReais: pendente,
+    awaitingSettlementReais: aLiberar,
   );
 }
 
@@ -240,6 +242,94 @@ void main() {
     expect(find.text('${formatBRL(200)} em processamento'), findsOneWidget);
     expect(find.text('Caixa de Etapa Aurora'), findsOneWidget);
     expect(find.text('Caixa de um evento seu'), findsNothing);
+  });
+
+  group('"a liberar" do cartão', () {
+    testWidgets('mostra o valor ao lado do saldo, com a explicação dos ~32 '
+        'dias, sem mexer no disponível', (tester) async {
+      final repo = _FakeWalletRepository(
+        load: (_) => vista(
+          caixas: [caixa('a', 'Etapa Aurora', disponivel: 240, aLiberar: 115.23)],
+          selecionado:
+              caixa('a', 'Etapa Aurora', disponivel: 240, aLiberar: 115.23),
+          payout: payoutComChave,
+        ),
+      );
+      addTearDown(repo.closeLive);
+
+      await abrirTela(tester, repo);
+      await tester.pumpAndSettle();
+
+      expect(find.text('A liberar'), findsOneWidget);
+      expect(find.text(formatBRL(115.23)), findsOneWidget);
+      expect(find.textContaining('cerca de 32 dias depois da aprovação'),
+          findsOneWidget);
+      expect(find.text(formatBRL(240)), findsOneWidget);
+    });
+
+    testWidgets('caixa sem cartão a caminho não mostra a linha',
+        (tester) async {
+      final repo = _FakeWalletRepository(
+        load: (_) => vista(
+          caixas: [caixa('a', 'Etapa Aurora', disponivel: 240)],
+          selecionado: caixa('a', 'Etapa Aurora', disponivel: 240),
+          payout: payoutComChave,
+        ),
+      );
+      addTearDown(repo.closeLive);
+
+      await abrirTela(tester, repo);
+      await tester.pumpAndSettle();
+
+      expect(find.text('A liberar'), findsNothing);
+      expect(find.textContaining('32 dias'), findsNothing);
+    });
+
+    testWidgets('liquidação ao vivo: o valor sai do a liberar e entra no '
+        'saldo', (tester) async {
+      final repo = _FakeWalletRepository(
+        load: (_) => vista(
+          caixas: [caixa('a', 'Etapa Aurora', disponivel: 240, aLiberar: 88.71)],
+          selecionado:
+              caixa('a', 'Etapa Aurora', disponivel: 240, aLiberar: 88.71),
+          payout: payoutComChave,
+        ),
+      );
+      addTearDown(repo.closeLive);
+
+      await abrirTela(tester, repo);
+      await tester.pumpAndSettle();
+      expect(find.text('A liberar'), findsOneWidget);
+
+      repo.liveOf('a').add(caixa('a', '', disponivel: 328.71));
+      await tester.pumpAndSettle();
+
+      expect(find.text(formatBRL(328.71)), findsOneWidget);
+      expect(find.text('A liberar'), findsNothing);
+    });
+
+    testWidgets('com vários caixas, cada opção mostra o próprio a liberar',
+        (tester) async {
+      final repo = _FakeWalletRepository(
+        load: (_) => vista(
+          caixas: [
+            caixa('a', 'Etapa Aurora', disponivel: 240, aLiberar: 88.71),
+            caixa('b', 'Etapa Brisa', disponivel: 10),
+          ],
+          selecionado:
+              caixa('a', 'Etapa Aurora', disponivel: 240, aLiberar: 88.71),
+          payout: payoutComChave,
+        ),
+      );
+      addTearDown(repo.closeLive);
+
+      await abrirTela(tester, repo);
+      await tester.pumpAndSettle();
+
+      expect(find.text('${formatBRL(240)} · ${formatBRL(88.71)} a liberar'),
+          findsOneWidget);
+      expect(find.text(formatBRL(10)), findsOneWidget);
+    });
   });
 
   testWidgets('o card da chave PIX existe mesmo sem caixa nenhum',

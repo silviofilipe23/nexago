@@ -1,4 +1,10 @@
-import { applyLiveBalance, shouldExplainZeroBalance, sumWalletRows, withdrawalRequesterLabel } from './wallet-view';
+import {
+  applyLiveBalance,
+  hasAwaitingSettlement,
+  shouldExplainZeroBalance,
+  sumWalletRows,
+  withdrawalRequesterLabel,
+} from './wallet-view';
 
 describe('shouldExplainZeroBalance', () => {
   it('explica quando tudo foi recebido direto com o organizador', () => {
@@ -109,6 +115,23 @@ describe('applyLiveBalance', () => {
     expect(applyLiveBalance(row, 'outro', { availableReais: 0, pendingReais: 0 })).toBe(row);
   });
 
+  it('o "a liberar" ao vivo entra na linha e zera quando o cartão liquida', () => {
+    const comCartao = applyLiveBalance({ ...row, awaitingSettlementReais: 0 }, 't1', {
+      availableReais: 300,
+      pendingReais: 0,
+      awaitingSettlementReais: 88.71,
+    });
+    expect(comCartao.awaitingSettlementReais).toBe(88.71);
+
+    const liquidado = applyLiveBalance(comCartao, 't1', {
+      availableReais: 388.71,
+      pendingReais: 0,
+      awaitingSettlementReais: 0,
+    });
+    expect(liquidado.availableReais).toBe(388.71);
+    expect(liquidado.awaitingSettlementReais).toBe(0);
+  });
+
   it('aceita saldo PARA MENOS do caixa observado: saque reserva valor', () => {
     expect(applyLiveBalance(row, 't1', { availableReais: 0, pendingReais: 300 })).toEqual({
       tournamentId: 't1',
@@ -138,5 +161,19 @@ describe('withdrawalRequesterLabel', () => {
 
   it('sem saber quem está olhando, ninguém é "Você"', () => {
     expect(withdrawalRequesterLabel({ requestedBy: 'eu', requestedByStaff: false }, '')).toBe('Dono do evento');
+  });
+});
+
+describe('hasAwaitingSettlement', () => {
+  it('mostra com pelo menos um centavo a liberar', () => {
+    expect(hasAwaitingSettlement({ awaitingSettlementReais: 88.71 })).toBeTrue();
+    expect(hasAwaitingSettlement({ awaitingSettlementReais: 0.01 })).toBeTrue();
+  });
+
+  it('zero, resíduo de ponto flutuante, campo ausente e caixa nulo não mostram', () => {
+    expect(hasAwaitingSettlement({ awaitingSettlementReais: 0 })).toBeFalse();
+    expect(hasAwaitingSettlement({ awaitingSettlementReais: 0.000001 })).toBeFalse();
+    expect(hasAwaitingSettlement({})).toBeFalse();
+    expect(hasAwaitingSettlement(null)).toBeFalse();
   });
 });

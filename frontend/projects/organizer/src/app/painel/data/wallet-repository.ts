@@ -96,12 +96,21 @@ export interface WithdrawalRequestResult {
   message: string | null;
 }
 
+/** Saldos do caixa de um torneio. */
+export interface TournamentWalletBalance {
+  availableReais: number;
+  /** Reservado em saque em processamento. */
+  pendingReais: number;
+  /** "A liberar": líquido de cartões aprovados que ainda não liquidaram (~32 dias após a
+   *  aprovação). Informativo — não é sacável e não entra no disponível. Ausente (servidor
+   *  anterior ao campo) é zero. */
+  awaitingSettlementReais: number;
+}
+
 /** Um caixa de torneio que o usuário alcança — dono ou gestor da equipe do evento. */
-export interface TournamentWalletRow {
+export interface TournamentWalletRow extends TournamentWalletBalance {
   tournamentId: string;
   tournamentName: string;
-  availableReais: number;
-  pendingReais: number;
 }
 
 /** Chave PIX de saque de quem está logado (`organizerPayoutProfiles/{uid}`). É da
@@ -137,6 +146,7 @@ function walletRow(raw: Record<string, unknown>): TournamentWalletRow {
     tournamentName: optionalStr(raw['tournamentName']) ?? 'Torneio',
     availableReais: numberOf(raw['availableReais']),
     pendingReais: numberOf(raw['pendingReais']),
+    awaitingSettlementReais: numberOf(raw['awaitingSettlementReais']),
   };
 }
 
@@ -230,11 +240,12 @@ export async function requestWithdrawal(tournamentId: string, amountReais: numbe
 
 /** Saldo do doc do caixa. Doc ausente é zero de verdade — caixa que nunca creditou —,
  *  e é o mesmo zero que a callable devolve nesse caso (`buildWalletViewRows`). */
-export function walletBalanceFromDoc(data: Record<string, unknown> | undefined): {
-  availableReais: number;
-  pendingReais: number;
-} {
-  return { availableReais: numberOf(data?.['availableReais']), pendingReais: numberOf(data?.['pendingReais']) };
+export function walletBalanceFromDoc(data: Record<string, unknown> | undefined): TournamentWalletBalance {
+  return {
+    availableReais: numberOf(data?.['availableReais']),
+    pendingReais: numberOf(data?.['pendingReais']),
+    awaitingSettlementReais: numberOf(data?.['awaitingSettlementReais']),
+  };
 }
 
 /** Saldo do caixa ao vivo. Virou possível na Fase 1: as rules passaram a liberar
@@ -249,7 +260,7 @@ export function walletBalanceFromDoc(data: Record<string, unknown> | undefined):
  *  saldo ficar parado no valor da callable. */
 export function watchTournamentWallet(
   tournamentId: string,
-  cb: (w: { availableReais: number; pendingReais: number }) => void,
+  cb: (w: TournamentWalletBalance) => void,
 ): () => void {
   const db = organizerFirestore();
   return onSnapshot(

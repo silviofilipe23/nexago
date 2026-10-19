@@ -20,14 +20,14 @@ describe("resolvePaymentPhases: PIX segue como sempre", () => {
   it("confirma e credita no RECEIVED", () => {
     assert.deepEqual(
       resolvePaymentPhases({billingType: "PIX", status: "RECEIVED", ...FRESH}),
-      {confirm: true, credit: true},
+      {confirm: true, credit: true, awaitSettlement: false},
     );
   });
 
   it("não faz nada no CONFIRMED", () => {
     assert.deepEqual(
       resolvePaymentPhases({billingType: "PIX", status: "CONFIRMED", ...FRESH}),
-      {confirm: false, credit: false},
+      {confirm: false, credit: false, awaitSettlement: false},
     );
   });
 
@@ -38,7 +38,7 @@ describe("resolvePaymentPhases: PIX segue como sempre", () => {
         status: "RECEIVED_IN_CASH",
         ...FRESH,
       }),
-      {confirm: true, credit: true},
+      {confirm: true, credit: true, awaitSettlement: false},
     );
   });
 });
@@ -51,7 +51,7 @@ describe("resolvePaymentPhases: cartão separa autorização de liquidação", (
         status: "CONFIRMED",
         ...FRESH,
       }),
-      {confirm: true, credit: false},
+      {confirm: true, credit: false, awaitSettlement: true},
     );
   });
 
@@ -63,7 +63,7 @@ describe("resolvePaymentPhases: cartão separa autorização de liquidação", (
         alreadyConfirmed: true,
         alreadyCredited: false,
       }),
-      {confirm: false, credit: true},
+      {confirm: false, credit: true, awaitSettlement: false},
     );
   });
 
@@ -74,7 +74,7 @@ describe("resolvePaymentPhases: cartão separa autorização de liquidação", (
         status: "RECEIVED",
         ...FRESH,
       }),
-      {confirm: true, credit: true},
+      {confirm: true, credit: true, awaitSettlement: false},
     );
   });
 
@@ -86,7 +86,7 @@ describe("resolvePaymentPhases: cartão separa autorização de liquidação", (
         alreadyConfirmed: true,
         alreadyCredited: true,
       }),
-      {confirm: false, credit: false},
+      {confirm: false, credit: false, awaitSettlement: false},
     );
   });
 
@@ -97,7 +97,54 @@ describe("resolvePaymentPhases: cartão separa autorização de liquidação", (
         status: "AWAITING_RISK_ANALYSIS",
         ...FRESH,
       }),
-      {confirm: false, credit: false},
+      {confirm: false, credit: false, awaitSettlement: false},
+    );
+  });
+});
+
+describe("resolvePaymentPhases: \"a liberar\" do cartão", () => {
+  it("reentrega do CONFIRMED sem o marcador só soma o a liberar (backfill)", () => {
+    assert.deepEqual(
+      resolvePaymentPhases({
+        billingType: "CREDIT_CARD",
+        status: "CONFIRMED",
+        alreadyConfirmed: true,
+        alreadyCredited: false,
+      }),
+      {confirm: false, credit: false, awaitSettlement: true},
+    );
+  });
+
+  it("reentrega do CONFIRMED com o marcador não faz nada", () => {
+    assert.deepEqual(
+      resolvePaymentPhases({
+        billingType: "CREDIT_CARD",
+        status: "CONFIRMED",
+        alreadyConfirmed: true,
+        alreadyCredited: false,
+        alreadyAwaitingSettlement: true,
+      }),
+      {confirm: false, credit: false, awaitSettlement: false},
+    );
+  });
+
+  it("CONFIRMED atrasado, depois de liquidar, não volta para o a liberar", () => {
+    assert.deepEqual(
+      resolvePaymentPhases({
+        billingType: "CREDIT_CARD",
+        status: "CONFIRMED",
+        alreadyConfirmed: true,
+        alreadyCredited: true,
+      }),
+      {confirm: false, credit: false, awaitSettlement: false},
+    );
+  });
+
+  it("RECEIVED nunca soma: o dinheiro já está entrando no caixa", () => {
+    assert.equal(
+      resolvePaymentPhases({billingType: "CREDIT_CARD", status: "RECEIVED", ...FRESH})
+        .awaitSettlement,
+      false,
     );
   });
 });

@@ -3,18 +3,27 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
+import '../../../domain/organizer_wallet_providers.dart';
 import '../../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../../domain/tournament_ops/tournament_ops_models.dart';
+import '../../widgets/awaiting_settlement_note.dart';
 
 class OrganizerTournamentFinancialTab extends StatelessWidget {
   const OrganizerTournamentFinancialTab({
     super.key,
     required this.summary,
     required this.categories,
+    this.awaitingSettlementReais = 0,
   });
 
   final OrganizerTournamentSummary summary;
   final List<OrganizerTournamentCategorySummary> categories;
+
+  /// "A liberar" do caixa do torneio (`tournamentWallets/{id}`): cartão pago
+  /// pelo app que ainda não caiu no caixa. O repasse líquido acima conta a
+  /// inscrição assim que ela é paga; este valor diz quanto dele ainda está a
+  /// caminho.
+  final double awaitingSettlementReais;
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +48,20 @@ class OrganizerTournamentFinancialTab extends StatelessWidget {
           _AppPaymentCard(
             amountCents: breakdown.viaAppCents,
             netTransferCents: breakdown.netTransferCents,
+          ),
+        ],
+        if (hasAwaitingSettlement(awaitingSettlementReais)) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: context.themeColors.surfaceCard,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: context.themeColors.outline.withValues(alpha: 0.4),
+              ),
+            ),
+            child: AwaitingSettlementNote(amountReais: awaitingSettlementReais),
           ),
         ],
         const SizedBox(height: 24),

@@ -197,6 +197,19 @@ test('saque pendente também tranca a exclusão', async () => {
   );
 });
 
+test('cartão a liberar também tranca a exclusão', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'tournaments', 'copa-a-liberar'), { managerId: DONO, name: 'A liberar' });
+    await setDoc(doc(db, 'tournamentWallets', 'copa-a-liberar'), {
+      tournamentId: 'copa-a-liberar', availableReais: 0, pendingReais: 0, awaitingSettlementReais: 88.71,
+    });
+  });
+  await assertFails(
+    deleteDoc(doc(testEnv.authenticatedContext(DONO).firestore(), 'tournaments', 'copa-a-liberar')),
+  );
+});
+
 test('torneio com caixa zerado o dono exclui', async () => {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();

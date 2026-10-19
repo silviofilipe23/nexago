@@ -100,8 +100,15 @@ TournamentCashBox applyLiveBalance(
     tournamentName: row.tournamentName,
     availableReais: live.availableReais,
     pendingReais: live.pendingReais,
+    awaitingSettlementReais: live.awaitingSettlementReais,
   );
 }
+
+/// O "a liberar" aparece na tela? Só com pelo menos um centavo: resíduo de
+/// ponto flutuante (ou o zero do caixa sem cartão nenhum) não pode virar
+/// "A liberar: R\$ 0,00".
+bool hasAwaitingSettlement(double awaitingSettlementReais) =>
+    awaitingSettlementReais >= 0.005;
 
 /// Quem pediu o saque, do ponto de vista de quem está olhando a lista.
 ///

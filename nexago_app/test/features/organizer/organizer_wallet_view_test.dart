@@ -60,6 +60,19 @@ void main() {
       expect(view.ledger.single.createdAt, isNull);
     });
 
+    test('lê o "a liberar" do cartão; servidor sem o campo vira zero', () {
+      final view = OrganizerWalletView.fromCallable(<String, dynamic>{
+        'tournaments': [
+          {'tournamentId': 't1', 'tournamentName': 'Copa A', 'availableReais': 0, 'pendingReais': 0, 'awaitingSettlementReais': 115.23},
+          {'tournamentId': 't2', 'tournamentName': 'Copa B', 'availableReais': 90, 'pendingReais': 5},
+        ],
+        'selected': {'tournamentId': 't1', 'tournamentName': 'Copa A', 'availableReais': 0, 'pendingReais': 0, 'awaitingSettlementReais': 115.23},
+      });
+      expect(view.selected?.awaitingSettlementReais, 115.23);
+      expect(view.cashBoxes.first.awaitingSettlementReais, 115.23);
+      expect(view.cashBoxes.last.awaitingSettlementReais, 0);
+    });
+
     test('número que vem como string ainda soma', () {
       final view = OrganizerWalletView.fromCallable(<String, dynamic>{
         'tournaments': [

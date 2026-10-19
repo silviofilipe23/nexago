@@ -17,10 +17,12 @@ import '../../domain/aulas/arena_class_billing_logic.dart';
 import '../../domain/aulas/arena_class_enrollment.dart';
 import '../../domain/aulas/arena_class_enrollment_providers.dart';
 import '../../domain/aulas/arena_class_logic.dart';
+import '../../domain/aulas/arena_class_payout_providers.dart';
 import '../../domain/aulas/arena_class_providers.dart';
 import '../plan/widgets/arena_plan_gate.dart';
 import '../widgets/arena_async_state.dart';
 import '../widgets/arena_dashboard_tokens.dart';
+import 'arena_class_teachers_section.dart';
 import 'widgets/arena_class_atoms.dart';
 import 'widgets/arena_class_card.dart';
 import 'widgets/arena_class_form_atoms.dart';
@@ -29,8 +31,9 @@ import 'widgets/arena_class_week_strip.dart';
 
 /// Aulas da arena (A1 "Aulas de hoje", A5 "Turmas" e os alunos matriculados).
 ///
-/// No app: operar o dia (chamada, encaixe, cancelar), matricular e cobrar
-/// mensalidades. Turmas, professores e planos são criados no portal da arena.
+/// No app: operar o dia (chamada, encaixe, cancelar), matricular, cobrar
+/// mensalidades e, para quem lê o financeiro, o repasse dos professores.
+/// Turmas, professores e planos são criados no portal da arena.
 class ArenaClassesPage extends ConsumerWidget {
   const ArenaClassesPage({super.key});
 
@@ -127,6 +130,11 @@ class ArenaClassesPage extends ConsumerWidget {
         if (list == null) return null;
         final n = list.where((e) => e.isCurrent).length;
         return '$n MATRÍCULA${n == 1 ? '' : 'S'}';
+      case ArenaClassesTab.teachers:
+        final list = ref.watch(arenaClassTeachersProvider).valueOrNull;
+        if (list == null) return null;
+        final n = list.where((t) => t.isActive).length;
+        return '$n PROFESSOR${n == 1 ? '' : 'ES'}';
     }
   }
 }
@@ -207,6 +215,7 @@ class _Body extends ConsumerWidget {
           (ArenaClassesTab.today, 'Hoje'),
           (ArenaClassesTab.classes, 'Turmas'),
           (ArenaClassesTab.students, 'Alunos'),
+          (ArenaClassesTab.teachers, 'Professores'),
         ],
         selected: tab,
         onChanged: (t) => ref.read(arenaClassesTabProvider.notifier).state = t,
@@ -227,6 +236,16 @@ class _Body extends ConsumerWidget {
       ArenaClassesTab.today => _todaySlivers(context, ref),
       ArenaClassesTab.classes => _classesSlivers(context),
       ArenaClassesTab.students => _studentsSlivers(context, ref),
+      ArenaClassesTab.teachers => [
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: ArenaDashboardTokens.horizontalPadding,
+            ),
+            sliver: SliverToBoxAdapter(
+              child: ArenaClassTeachersSection(classes: classes),
+            ),
+          ),
+        ],
     };
 
     return CustomScrollView(

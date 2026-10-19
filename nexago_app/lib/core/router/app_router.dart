@@ -107,7 +107,9 @@ import '../../features/arena/presentation/arena_clubs_page.dart';
 import '../../features/arena/presentation/aulas/arena_class_attendance_page.dart';
 import '../../features/arena/presentation/aulas/arena_class_charges_page.dart';
 import '../../features/arena/presentation/aulas/arena_class_enroll_page.dart';
+import '../../features/arena/presentation/aulas/arena_class_payouts_page.dart';
 import '../../features/arena/presentation/aulas/arena_class_student_page.dart';
+import '../../features/arena/presentation/aulas/arena_class_teacher_payout_page.dart';
 import '../../features/arena/presentation/aulas/arena_classes_page.dart';
 import '../../features/arena/presentation/arena_recurring_details_page.dart';
 import '../../features/arena/presentation/arena_recurring_created_success_page.dart';
@@ -2354,6 +2356,24 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 seed: extra is ArenaClassEnrollSeed ? extra : null,
               );
             },
+          ),
+          // Repasse dos professores: guard de area = financeiro.
+          GoRoute(
+            path: 'payouts',
+            name: AppRouteNames.arenaClassPayouts,
+            builder: (context, state) => ArenaClassPayoutsPage(
+              month: state.uri.queryParameters['month'],
+            ),
+            routes: [
+              GoRoute(
+                path: ':teacherId',
+                name: AppRouteNames.arenaClassTeacherPayout,
+                builder: (context, state) => ArenaClassTeacherPayoutPage(
+                  teacherId: state.pathParameters['teacherId']?.trim() ?? '',
+                  month: state.uri.queryParameters['month'],
+                ),
+              ),
+            ],
           ),
         ],
       ),

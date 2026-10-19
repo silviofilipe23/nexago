@@ -248,7 +248,7 @@ class ArenaClassHeader extends StatelessWidget {
   }
 }
 
-/// Controle segmentado (Hoje | Turmas).
+/// Controle segmentado (Hoje | Turmas | Alunos | Professores).
 class ArenaClassSegmented<T> extends StatelessWidget {
   const ArenaClassSegmented({
     super.key,
@@ -292,14 +292,20 @@ class ArenaClassSegmented<T> extends StatelessWidget {
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Text(
-                      label,
-                      style: AppTypography.soraRegular(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: value == selected
-                            ? colors.onSurface
-                            : colors.onSurfaceMuted,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    // 4 abas em 375 pt: "Professores" encolhe em vez de cortar.
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        style: AppTypography.soraRegular(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: value == selected
+                              ? colors.onSurface
+                              : colors.onSurfaceMuted,
+                        ),
                       ),
                     ),
                   ),

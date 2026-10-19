@@ -9,14 +9,18 @@ import 'package:nexago_app/features/arena/domain/arena_plan_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_schedule_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_staff_role.dart';
 import 'package:nexago_app/features/arena/domain/aulas/arena_class_enrollment_providers.dart';
+import 'package:nexago_app/features/arena/domain/aulas/arena_class_payout_providers.dart';
 import 'package:nexago_app/features/arena/domain/aulas/arena_class_providers.dart';
 import 'package:nexago_app/features/arena/presentation/aulas/arena_class_attendance_page.dart';
 import 'package:nexago_app/features/arena/presentation/aulas/arena_class_charges_page.dart';
 import 'package:nexago_app/features/arena/presentation/aulas/arena_class_enroll_page.dart';
+import 'package:nexago_app/features/arena/presentation/aulas/arena_class_payouts_page.dart';
 import 'package:nexago_app/features/arena/presentation/aulas/arena_class_student_page.dart';
+import 'package:nexago_app/features/arena/presentation/aulas/arena_class_teacher_payout_page.dart';
 import 'package:nexago_app/features/arena/presentation/aulas/arena_classes_page.dart';
 
 import 'fake_arena_class_enrollment_repository.dart';
+import 'fake_arena_class_payout_repository.dart';
 import 'fake_arena_class_repository.dart';
 
 /// Plano Pro ativo (capability `aulas`).
@@ -30,6 +34,8 @@ Future<GoRouter> pumpAulas(
   ArenaStaffRole role = ArenaStaffRole.recepcao,
   ArenaPlanStatus plan = proActivePlan,
   FakeArenaClassEnrollmentRepository? enrollmentRepo,
+  FakeArenaClassPayoutRepository? payoutRepo,
+  bool owner = false,
   Object? extra,
   String initial = '/arena/classes',
 }) async {
@@ -76,6 +82,23 @@ Future<GoRouter> pumpAulas(
                   : null,
             ),
           ),
+          GoRoute(
+            path: 'payouts',
+            name: AppRouteNames.arenaClassPayouts,
+            builder: (_, state) => ArenaClassPayoutsPage(
+              month: state.uri.queryParameters['month'],
+            ),
+            routes: [
+              GoRoute(
+                path: ':teacherId',
+                name: AppRouteNames.arenaClassTeacherPayout,
+                builder: (_, state) => ArenaClassTeacherPayoutPage(
+                  teacherId: state.pathParameters['teacherId']!,
+                  month: state.uri.queryParameters['month'],
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     ],
@@ -85,10 +108,13 @@ Future<GoRouter> pumpAulas(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        ...arenaAccessOverrides(role),
+        ...arenaAccessOverrides(role, owner: owner),
         arenaClassRepositoryProvider.overrideWithValue(repo),
         arenaClassEnrollmentRepositoryProvider.overrideWithValue(
           enrollmentRepo ?? FakeArenaClassEnrollmentRepository(),
+        ),
+        arenaClassPayoutRepositoryProvider.overrideWithValue(
+          payoutRepo ?? FakeArenaClassPayoutRepository(),
         ),
         arenaClassTodayKeyProvider.overrideWith((ref) => '2026-10-19'),
         // Segunda 19/10/2026, 17:40 — o "agora" do protótipo.

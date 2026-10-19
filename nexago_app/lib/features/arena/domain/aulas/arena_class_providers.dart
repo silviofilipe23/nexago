@@ -23,8 +23,9 @@ final arenaClassClockProvider =
   );
 });
 
-/// Abas da tela de Aulas no app (fase 2 trouxe Alunos — as matrículas).
-enum ArenaClassesTab { today, classes, students }
+/// Abas da tela de Aulas no app (fase 2 trouxe Alunos — as matrículas; a 2b,
+/// Professores com o repasse).
+enum ArenaClassesTab { today, classes, students, teachers }
 
 final arenaClassesTabProvider =
     StateProvider.autoDispose<ArenaClassesTab>((ref) => ArenaClassesTab.today);

@@ -21,6 +21,7 @@ import {
   mergeConflictDates,
   releaseClassSession,
   releaseFutureClassSessions,
+  unchangedSessionDates,
   requireTeacherAccount,
   unchangedSessionDates,
   upsertClassTeacherCore,

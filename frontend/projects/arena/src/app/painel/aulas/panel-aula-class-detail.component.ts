@@ -8,17 +8,24 @@ import { arenaFunctions } from '../data/functions';
 import { IconComponent } from '../ui/icon.component';
 import { ModalComponent } from '../ui/modal.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
-import { AulaCancelModalComponent, AulaEnrollModalComponent } from './aula-modals.component';
+import type { AthleteSearchResult } from '../clubinho/clubs-repository';
+import { AulaAthletePickerComponent, AulaCancelModalComponent, AulaEnrollModalComponent } from './aula-modals.component';
 import { AulaStatComponent, AulaTypeTagComponent, AulasPageComponent, OccupancyBarComponent, TeacherAvatarComponent } from './aulas-ui';
+import { whatsappLink, type WaitlistEntry } from './billing.model';
+import { addWaitlist, removeWaitlist, watchWaitlist } from './billing-repository';
 import {
   CANCEL_REASON_LABEL,
   CLASS_LEVEL_LABEL,
+  WEEKDAY_SHORT,
   addDaysKey,
   classScheduleLabel,
+  shortDate,
   sportLabel,
+  studentAttendsWeekday,
   teacherInitials,
   todayKeyLocal,
   weekdayDateLabel,
+  weekdaysLabel,
   type ArenaClass,
   type CancelReason,
   type ClassSession,
@@ -48,6 +55,23 @@ export function studentFrequency(sessions: readonly ClassSession[], studentId: s
 
 type ConfirmAction = { kind: 'pause' | 'resume' | 'archive' } | { kind: 'remove'; student: ClassStudent };
 
+interface WaitForm {
+  mode: 'athlete' | 'guest';
+  picked: AthleteSearchResult | null;
+  name: string;
+  phone: string;
+  note: string;
+}
+
+/** Vagas por dia da semana: quem faz só terça não ocupa a quinta. */
+export function spotsByWeekday(cls: Pick<ArenaClass, 'weekdays' | 'capacity'>, students: readonly ClassStudent[]): Array<{ weekday: number; left: number }> {
+  const active = students.filter((s) => s.status === 'active');
+  return cls.weekdays.map((weekday) => ({
+    weekday,
+    left: Math.max(0, cls.capacity - active.filter((s) => studentAttendsWeekday(s, weekday)).length),
+  }));
+}
+
 /** 06 · Turma — alunos, próximas aulas e datas em conflito. */
 @Component({
   selector: 'ar-panel-aula-class-detail',
@@ -63,6 +87,7 @@ type ConfirmAction = { kind: 'pause' | 'resume' | 'archive' } | { kind: 'remove'
     OccupancyBarComponent,
     AulaCancelModalComponent,
     AulaEnrollModalComponent,
+    AulaAthletePickerComponent,
   ],
   styleUrl: './aulas-form.scss',
   template: `
@@ -82,10 +107,20 @@ type ConfirmAction = { kind: 'pause' | 'resume' | 'archive' } | { kind: 'remove'
               <ar-icon [name]="c.status === 'paused' ? 'play' : 'pause'" [size]="14" />
               {{ c.status === 'paused' ? 'Reativar' : 'Pausar' }}
             </button>
-            <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="cargoReadOnly() || full()" (click)="enrollOpen.set(true)">
-              <ar-icon name="plus" [size]="14" />
-              Matricular aluno
-            </button>
+            @if (c.weekdays.length > 0) {
+              <button type="button" class="ar-mini-btn" [disabled]="cargoReadOnly() || full()" [title]="'Aluno sem plano e sem cobrança — todos os dias da turma'" (click)="enrollOpen.set(true)">
+                Adicionar sem plano
+              </button>
+              <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="cargoReadOnly() || c.status !== 'active'" (click)="goEnroll({ classId: c.id })">
+                <ar-icon name="plus" [size]="14" />
+                Matricular aluno
+              </button>
+            } @else {
+              <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="cargoReadOnly() || full()" (click)="enrollOpen.set(true)">
+                <ar-icon name="plus" [size]="14" />
+                Adicionar aluno
+              </button>
+            }
           }
         }
       </div>
@@ -105,25 +140,30 @@ type ConfirmAction = { kind: 'pause' | 'resume' | 'archive' } | { kind: 'remove'
         }
 
         <div class="stats">
-          <ar-aula-stat label="Alunos" [value]="c.studentCount + '/' + c.capacity" [sub]="full() ? 'Turma lotada' : (c.capacity - c.studentCount) + ' vaga(s) livre(s)'" />
+          <ar-aula-stat label="Alunos" [value]="c.studentCount + '/' + c.capacity" [sub]="spotsSub()" />
           <ar-aula-stat label="Próxima aula" [value]="nextSession() ? dateLabel(nextSession()!.date) : '—'" [sub]="nextSession() ? nextSession()!.startTime + ' · ' + nextSession()!.courtName : 'Nada agendado'" />
           <ar-aula-stat label="Frequência · 30 dias" [value]="classFrequency() == null ? '—' : classFrequency() + '%'" [sub]="closedCount() + ' aula(s) com chamada'" />
           <ar-aula-stat label="Sem quadra" [value]="'' + futureConflicts().length" [tone]="futureConflicts().length > 0 ? 'red' : 'default'" sub="datas com horário ocupado" />
         </div>
 
         <div class="layout">
-          <ar-panel-card title="Alunos matriculados" [kicker]="activeStudents().length + ' de ' + c.capacity + ' vagas'">
+          <div class="main">
+          <ar-panel-card title="Alunos matriculados" [kicker]="activeStudents().length + ' aluno(s) · ' + c.capacity + ' vagas por aula'">
             <div class="ar-table-scroll" tabindex="0" role="region" aria-label="Alunos da turma">
               <div class="ar-table-inner">
-                <div class="table-head"><span>Aluno</span><span>Contato</span><span>Frequência</span><span></span></div>
-                @for (s of activeStudents(); track s.id) {
-                  <div class="table-row">
+                <div class="table-head"><span>Aluno</span><span>Plano · dias</span><span>Contato</span><span>Frequência</span><span></span></div>
+                @for (s of listedStudents(); track s.id) {
+                  <div class="table-row" [class.off]="s.status === 'paused'">
                     <div class="who">
                       <span class="av">{{ initials(s.name) }}</span>
-                      <div>
+                      <div class="min0">
                         <div class="name">{{ s.name }}</div>
-                        <div class="sub">{{ s.athleteId ? 'Conta NexaGO' : 'Sem conta' }}</div>
+                        <div class="sub">{{ s.status === 'paused' ? 'Plano pausado' : s.athleteId ? 'Conta NexaGO' : 'Sem conta' }}</div>
                       </div>
+                    </div>
+                    <div class="min0">
+                      <div class="plan">{{ s.planName ?? 'Sem plano' }}</div>
+                      <div class="sub">{{ s.weekdays ? daysLabel(s.weekdays) : 'Todos os dias' }}</div>
                     </div>
                     <span class="mono dim">{{ s.phone || '—' }}</span>
                     <div class="freq">
@@ -136,7 +176,14 @@ type ConfirmAction = { kind: 'pause' | 'resume' | 'archive' } | { kind: 'remove'
                       }
                     </div>
                     <div class="actions">
-                      <button type="button" class="ar-ghost-btn" [disabled]="cargoReadOnly()" (click)="ask({ kind: 'remove', student: s })">Remover</button>
+                      @if (s.enrollmentId) {
+                        <button type="button" class="ar-ghost-btn" (click)="openStudent(s.enrollmentId)">Ver aluno</button>
+                      } @else {
+                        @if (c.weekdays.length > 0 && c.status === 'active') {
+                          <button type="button" class="ar-ghost-btn" [disabled]="cargoReadOnly()" (click)="goEnroll({ classId: c.id, studentId: s.id })">Matricular</button>
+                        }
+                        <button type="button" class="ar-ghost-btn" [disabled]="cargoReadOnly()" (click)="ask({ kind: 'remove', student: s })">Remover</button>
+                      }
                     </div>
                   </div>
                 } @empty {
@@ -145,6 +192,34 @@ type ConfirmAction = { kind: 'pause' | 'resume' | 'archive' } | { kind: 'remove'
               </div>
             </div>
           </ar-panel-card>
+
+          @if (c.weekdays.length > 0 && c.status !== 'archived') {
+            <ar-panel-card title="Lista de espera" [kicker]="waitlist().length + ' na fila'">
+              <button card-actions type="button" class="ar-mini-btn" [disabled]="cargoReadOnly()" (click)="openWaitlistForm()">
+                <ar-icon name="plus" [size]="14" />
+                Adicionar
+              </button>
+              @for (w of waitlist(); track w.id; let i = $index) {
+                <div class="wait-row">
+                  <span class="num">{{ i + 1 }}</span>
+                  <div class="min0 grow">
+                    <div class="name">{{ w.name }}</div>
+                    <div class="sub">{{ w.note || 'Qualquer dia' }}{{ w.createdAt ? ' · desde ' + shortDate(dayKey(w.createdAt)) : '' }}{{ w.phone ? ' · ' + w.phone : '' }}</div>
+                  </div>
+                  <div class="actions">
+                    @if (offerLink(w); as link) {
+                      <a class="ar-ghost-btn small link-btn" [href]="link" target="_blank" rel="noopener">Oferecer vaga</a>
+                    }
+                    <button type="button" class="ar-mini-btn small" [disabled]="cargoReadOnly() || c.status !== 'active'" (click)="goEnroll({ classId: c.id, waitlist: w.id })">Matricular</button>
+                    <button type="button" class="ar-ghost-btn small" [disabled]="cargoReadOnly() || busy()" (click)="dropWaitlist(w)">Tirar</button>
+                  </div>
+                </div>
+              } @empty {
+                <p class="hint first">Ninguém esperando. Quando a turma lotar, anote aqui quem quer vaga e ofereça pelo WhatsApp quando abrir.</p>
+              }
+            </ar-panel-card>
+          }
+          </div>
 
           <div class="side">
             <ar-panel-card title="Próximas aulas" [kicker]="upcoming().length + ' agendadas'">
@@ -208,6 +283,38 @@ type ConfirmAction = { kind: 'pause' | 'resume' | 'archive' } | { kind: 'remove'
       }
     </ar-aulas-page>
 
+    @if (waitForm(); as f) {
+      <ar-modal (close)="waitForm.set(null)">
+        <p class="modal-title">Lista de espera</p>
+        <p class="modal-sub">{{ cls()?.name }}</p>
+        @if (waitError(); as err) {
+          <div class="error-banner">{{ err }}</div>
+        }
+        <div class="chip-row">
+          <button type="button" class="ar-chip" [class.active]="f.mode === 'athlete'" (click)="patchWait({ mode: 'athlete' })">Atleta NexaGO</button>
+          <button type="button" class="ar-chip" [class.active]="f.mode === 'guest'" (click)="patchWait({ mode: 'guest' })">Sem conta</button>
+        </div>
+        @if (f.mode === 'athlete') {
+          <div class="field-label spaced">Buscar atleta</div>
+          <ar-aula-athlete-picker placeholder="Nome do atleta" emptyHint="Nenhum atleta encontrado. Use “Sem conta” para anotar só o nome." (selected)="patchWait({ picked: $event })" />
+        } @else {
+          <div class="field-label spaced">Nome</div>
+          <input class="input-box" type="text" maxlength="80" [value]="f.name" (input)="patchWait({ name: $any($event.target).value })" />
+        }
+        <div class="field-label spaced">Telefone (WhatsApp)</div>
+        <input class="input-box" type="tel" maxlength="30" [value]="f.phone" (input)="patchWait({ phone: $any($event.target).value })" />
+        <div class="field-label spaced">Dia que prefere (opcional)</div>
+        <div class="chip-row">
+          @for (d of classWeekdays(); track d) {
+            <button type="button" class="ar-chip" [class.active]="f.note === dayName(d)" (click)="patchWait({ note: f.note === dayName(d) ? '' : dayName(d) })">{{ dayName(d) }}</button>
+          }
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="ar-mini-btn" [disabled]="busy()" (click)="waitForm.set(null)">Cancelar</button>
+          <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="busy() || !waitValid()" (click)="saveWaitlist()">{{ busy() ? 'Salvando…' : 'Adicionar' }}</button>
+        </div>
+      </ar-modal>
+    }
     @if (enrollOpen() && cls(); as c) {
       <ar-aula-enroll-modal [classId]="c.id" [className]="c.name" [spotsLeft]="c.capacity - c.studentCount" (closed)="enrollOpen.set(false)" (enrolled)="onEnrolled()" />
     }
@@ -235,7 +342,16 @@ type ConfirmAction = { kind: 'pause' | 'resume' | 'archive' } | { kind: 'remove'
     .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; flex: none; }
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
     .side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-    .table-head, .table-row { display: grid; grid-template-columns: minmax(200px, 1.4fr) 130px minmax(140px, 1fr) 90px; gap: 12px; align-items: center; }
+    .table-head, .table-row { display: grid; grid-template-columns: minmax(190px, 1.3fr) minmax(120px, 1fr) 120px minmax(120px, 1fr) 170px; gap: 12px; align-items: center; }
+    .table-row.off { opacity: 0.6; }
+    .main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    .min0 { min-width: 0; }
+    .grow { flex: 1; }
+    .plan { font-family: var(--nx-font-display); font-weight: 600; font-size: 12.5px; color: var(--nx-text); }
+    .wait-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--nx-line); }
+    .wait-row:last-child { border-bottom: none; }
+    .num { font-family: var(--nx-font-mono); font-size: 11px; color: var(--nx-text-dim); width: 18px; flex: none; }
+    .link-btn { text-decoration: none; display: inline-flex; align-items: center; }
     .table-head { padding-bottom: 9px; border-bottom: 1px solid var(--nx-line-strong); }
     .table-head span { font-family: var(--nx-font-mono); font-size: 9px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--nx-text-dim); }
     .table-row { padding: 11px 0; border-bottom: 1px solid var(--nx-line); }
@@ -251,7 +367,7 @@ type ConfirmAction = { kind: 'pause' | 'resume' | 'archive' } | { kind: 'remove'
     .mono { font-family: var(--nx-font-mono); font-size: 11.5px; font-weight: 700; color: var(--nx-text); }
     .mono.dim { font-weight: 500; color: var(--nx-text-dim); }
     .freq { display: flex; align-items: center; gap: 8px; }
-    .actions { display: flex; justify-content: flex-end; }
+    .actions { display: flex; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
     .next-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--nx-line); }
     .next-row:last-child { border-bottom: none; }
     .next-row.off { opacity: 0.55; }
@@ -297,10 +413,36 @@ export class PanelAulaClassDetailComponent {
   protected readonly retrying = signal<string | null>(null);
 
   protected readonly activeStudents = computed(() => this.students().filter((s) => s.status === 'active'));
+  protected readonly listedStudents = computed(() => this.students().filter((s) => s.status === 'active' || s.status === 'paused'));
+  protected readonly daySpots = computed(() => {
+    const c = this.cls();
+    return c ? spotsByWeekday(c, this.students()) : [];
+  });
+  /** "Adicionar sem plano" põe o aluno em todos os dias — precisa de vaga em todos. */
   protected readonly full = computed(() => {
     const c = this.cls();
-    return c != null && c.studentCount >= c.capacity;
+    if (!c) return false;
+    if (c.weekdays.length === 0) return c.studentCount >= c.capacity;
+    return this.daySpots().some((d) => d.left === 0);
   });
+  protected readonly spotsSub = computed(() => {
+    const c = this.cls();
+    if (!c) return '';
+    if (c.weekdays.length === 0) return c.studentCount >= c.capacity ? 'Turma lotada' : `${c.capacity - c.studentCount} vaga(s) livre(s)`;
+    const spots = this.daySpots();
+    if (spots.every((d) => d.left === 0)) return 'Turma lotada';
+    return 'Vagas: ' + spots.map((d) => `${WEEKDAY_SHORT[d.weekday]} ${d.left}`).join(' · ');
+  });
+  protected readonly classWeekdays = computed(() => this.cls()?.weekdays ?? []);
+  protected readonly waitlist = signal<WaitlistEntry[]>([]);
+  protected readonly waitForm = signal<WaitForm | null>(null);
+  protected readonly waitError = signal<string | null>(null);
+  protected readonly waitValid = computed(() => {
+    const f = this.waitForm();
+    if (!f) return false;
+    return f.mode === 'athlete' ? f.picked != null : f.name.trim().length >= 2;
+  });
+  protected readonly shortDate = shortDate;
   protected readonly upcoming = computed(() => this.sessions().filter((s) => s.date >= this.today));
   protected readonly past = computed(() => this.sessions().filter((s) => s.date < this.today || s.status === 'completed'));
   protected readonly nextSession = computed(() => this.upcoming().find((s) => s.status === 'scheduled') ?? null);
@@ -328,15 +470,22 @@ export class PanelAulaClassDetailComponent {
   });
 
   private unsubStudents: Unsubscribe | null = null;
+  private unsubWaitlist: Unsubscribe | null = null;
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.unsubStudents?.());
+    inject(DestroyRef).onDestroy(() => {
+      this.unsubStudents?.();
+      this.unsubWaitlist?.();
+    });
     effect(() => {
       const arenaId = this.arenaContext.arenaId();
       if (!arenaId || !this.classId) return;
       void this.load(arenaId);
+      const db = arenaFirestore();
       this.unsubStudents?.();
-      this.unsubStudents = watchClassStudents(arenaFirestore(), arenaId, this.classId, (list) => this.students.set(list));
+      this.unsubStudents = watchClassStudents(db, arenaId, this.classId, (list) => this.students.set(list));
+      this.unsubWaitlist?.();
+      this.unsubWaitlist = watchWaitlist(db, arenaId, this.classId, (list) => this.waitlist.set(list));
     });
   }
 
@@ -440,6 +589,78 @@ export class PanelAulaClassDetailComponent {
   protected onCanceled(): void {
     this.cancelTarget.set(null);
     void this.reload();
+  }
+
+  protected daysLabel(weekdays: readonly number[]): string {
+    return weekdaysLabel(weekdays);
+  }
+
+  protected dayName(weekday: number): string {
+    return WEEKDAY_SHORT[weekday] ?? '';
+  }
+
+  protected dayKey(date: Date): string {
+    return todayKeyLocal(date);
+  }
+
+  protected offerLink(w: WaitlistEntry): string | null {
+    const c = this.cls();
+    if (!c) return null;
+    const arena = this.arenaContext.arenaName() ?? 'arena';
+    return whatsappLink(
+      w.phone,
+      `Olá, ${w.name.split(' ')[0]}! Aqui é da ${arena}. Abriu vaga na turma ${c.name} (${classScheduleLabel(c)}). Quer garantir a sua?`,
+    );
+  }
+
+  protected openWaitlistForm(): void {
+    this.waitError.set(null);
+    this.waitForm.set({ mode: 'athlete', picked: null, name: '', phone: '', note: '' });
+  }
+
+  protected patchWait(change: Partial<WaitForm>): void {
+    const f = this.waitForm();
+    if (f) this.waitForm.set({ ...f, ...change });
+  }
+
+  protected async saveWaitlist(): Promise<void> {
+    const f = this.waitForm();
+    if (!f || !this.waitValid() || this.cargoReadOnly()) return;
+    this.busy.set(true);
+    this.waitError.set(null);
+    try {
+      await addWaitlist(arenaFunctions(), {
+        classId: this.classId,
+        ...(f.mode === 'athlete' ? { athleteId: f.picked!.id } : { name: f.name.trim() }),
+        phone: f.phone.trim() || undefined,
+        note: f.note || undefined,
+      });
+      this.waitForm.set(null);
+    } catch (err) {
+      this.waitError.set(err instanceof Error ? err.message : 'Não foi possível adicionar.');
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  protected async dropWaitlist(w: WaitlistEntry): Promise<void> {
+    this.busy.set(true);
+    this.actionError.set(null);
+    try {
+      await removeWaitlist(arenaFunctions(), this.classId, w.id);
+    } catch (err) {
+      this.actionError.set(err instanceof Error ? err.message : 'Não foi possível tirar da lista.');
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  protected goEnroll(params: { classId: string; studentId?: string; waitlist?: string }): void {
+    void this.router.navigate(['/painel/aulas/matricula'], { queryParams: params });
+  }
+
+  protected openStudent(enrollmentId: string): void {
+    void this.router.navigate(['/painel/aulas/alunos', enrollmentId]);
   }
 
   protected openSession(id: string): void {

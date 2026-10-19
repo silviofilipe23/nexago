@@ -874,6 +874,24 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
                       onTransform: (t) => setState(() => _transform = t),
                     ),
                   ),
+                  if (storeCustomPreviewPhotoNote(product, selected, side)
+                      case final note?)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.screenH,
+                        8,
+                        AppSpacing.screenH,
+                        0,
+                      ),
+                      child: Text(
+                        note,
+                        key: const ValueKey('store-customize-photo-note'),
+                        textAlign: TextAlign.center,
+                        style: AppTypography.bodyS.copyWith(
+                          color: StoreStyle.secondary(colors),
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 16),
                   Padding(
                     padding: const EdgeInsets.symmetric(

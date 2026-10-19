@@ -472,8 +472,10 @@ StorePreviewPoint storeNameCenter(StoreNamePlacement placement) {
   }
 }
 
-/// Foto do lado na cor escolhida; senão a do lado sem cor; `null` = fundo
-/// listrado "MOCKUP · FRENTE/COSTAS" (foto de outra cor enganaria).
+/// Foto do lado na cor escolhida; senão a do lado sem cor; senão a do lado em
+/// OUTRA cor (peça cadastrada só com fotos de uma cor — a tela avisa a cor com
+/// [storeCustomPreviewPhotoNote]); `null` = nenhuma foto do lado, fundo
+/// listrado "MOCKUP · FRENTE/COSTAS" na cor da peça.
 StorePhoto? storeCustomPreviewPhoto(
   StoreProduct p,
   Map<String, String> selected,
@@ -489,7 +491,30 @@ StorePhoto? storeCustomPreviewPhoto(
   for (final ph in ofSide) {
     if (ph.colorValueId == null) return ph;
   }
-  return null;
+  return ofSide.isEmpty ? null : ofSide.first;
+}
+
+/// "Foto em Preto · a sua sai em Branco areia" quando a prévia usa a foto de
+/// outra cor; senão `null`. Mesmo texto do portal.
+String? storeCustomPreviewPhotoNote(
+  StoreProduct p,
+  Map<String, String> selected,
+  StorePhotoView side,
+) {
+  final ph = storeCustomPreviewPhoto(p, selected, side);
+  final color = p.axes.isEmpty ? null : selected[p.axes.first.id];
+  final photoColor = ph?.colorValueId;
+  if (color == null || photoColor == null || photoColor == color) return null;
+  String label(String id) {
+    for (final a in p.axes) {
+      for (final v in a.values) {
+        if (v.id == id) return v.label;
+      }
+    }
+    return id;
+  }
+
+  return 'Foto em ${label(photoColor)} · a sua sai em ${label(color)}';
 }
 
 /// Título do passo da imagem pela área: só a manga sai da frente.

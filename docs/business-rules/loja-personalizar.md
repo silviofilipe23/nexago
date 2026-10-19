@@ -97,8 +97,10 @@ Upload pede login.
   como enviada e a equipe trata na fila (tela 10).
 
 ### Prévia (ilustrativa)
-- Foto do produto na cor escolhida e no lado (`view`); sem foto do lado, fundo listrado
-  "MOCKUP · FRENTE/COSTAS" **na cor da peça** (o `hex` da cor do SKU; sem hex, o escuro #0F1214) —
+- Foto do produto no lado (`view`): a da cor escolhida; senão a do lado sem cor; senão a do lado
+  em **outra cor**, com o aviso "Foto em Preto · a sua sai em Branco areia" sob a prévia (peça
+  cadastrada só com fotos de uma cor não pode virar tela vazia). Sem nenhuma foto do lado, fundo
+  listrado "MOCKUP · FRENTE/COSTAS" **na cor da peça** (o `hex` da cor do SKU; sem hex, o escuro #0F1214) —
   o nome padrão contrasta com a peça, e no mockup escuro um nome escuro sumia. Rótulo do mockup
   escuro em peça clara. Seletor Frente/Costas; editar o nome mostra o lado do nome, editar a
   imagem mostra a frente.

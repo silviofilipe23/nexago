@@ -328,6 +328,12 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
       border-left: 3px solid var(--nx-orange-500);
     }
 
+    .block.tone-aula {
+      background: rgba(91, 155, 255, 0.12);
+      border-color: rgba(91, 155, 255, 0.35);
+      border-left: 3px solid #5b9bff;
+    }
+
     .block.tone-manutencao {
       background: rgba(255, 255, 255, 0.05);
       border-color: rgba(255, 255, 255, 0.14);

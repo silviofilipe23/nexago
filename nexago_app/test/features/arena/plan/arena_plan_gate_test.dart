@@ -13,6 +13,7 @@ void main() {
       ArenaCapability.estoque: ('Controle de estoque', 'Planos Pro e Elite'),
       ArenaCapability.promocoes: ('Promoções de horário', 'Planos Pro e Elite'),
       ArenaCapability.clubinho: ('Clubinho', 'Planos Pro e Elite'),
+      ArenaCapability.aulas: ('Aulas', 'Planos Pro e Elite'),
       ArenaCapability.metricasCompletas: (
         'Métricas completas',
         'Planos Pro e Elite'

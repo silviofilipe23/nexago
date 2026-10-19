@@ -29,6 +29,8 @@ export interface ArenaBooking {
   customerName: string | null;
   isRecurring: boolean;
   recurringBookingId: string | null;
+  /** Bloqueio de quadra de uma aula (módulo Aulas) — id da aula em `arenaClassSessions`. */
+  classSessionId: string | null;
   amountReais: number | null;
   paymentChannel: string | null;
   paymentStatus: string | null;
@@ -82,6 +84,7 @@ export function arenaBookingFromDoc(doc: QueryDocumentSnapshot): ArenaBooking {
     customerName: optionalTrimmed(d['customerName']),
     isRecurring: d['isRecurring'] === true || optionalTrimmed(d['recurringBookingId']) != null,
     recurringBookingId: optionalTrimmed(d['recurringBookingId']),
+    classSessionId: d['isClassSession'] === true ? optionalTrimmed(d['classSessionId']) ?? doc.id : null,
     amountReais: typeof amount === 'number' ? amount : null,
     paymentChannel: optionalTrimmed(d['paymentChannel']),
     paymentStatus: optionalTrimmed(d['paymentStatus']),
@@ -109,7 +112,9 @@ export function bookingIsActive(booking: Pick<ArenaBooking, 'status'>): boolean 
   return !isCancelStatus(booking.status);
 }
 
-export function bookingCanCancel(booking: Pick<ArenaBooking, 'status'>): boolean {
+export function bookingCanCancel(booking: Pick<ArenaBooking, 'status'> & Partial<Pick<ArenaBooking, 'classSessionId'>>): boolean {
+  // Bloqueio de aula só se cancela pela própria aula (a rule recusa o resto).
+  if (booking.classSessionId != null) return false;
   const s = booking.status.toLowerCase().trim();
   return s !== 'canceled' && s !== 'cancelled' && s !== 'completed';
 }

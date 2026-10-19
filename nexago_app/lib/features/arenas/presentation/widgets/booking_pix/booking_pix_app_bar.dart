@@ -4,9 +4,16 @@ import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class BookingPixAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const BookingPixAppBar({super.key, required this.onBack});
+  const BookingPixAppBar({
+    super.key,
+    required this.onBack,
+    this.title = 'Pagamento via PIX',
+  });
 
   final VoidCallback onBack;
+
+  /// Título da barra (default: 'Pagamento via PIX').
+  final String title;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -43,7 +50,7 @@ class BookingPixAppBar extends StatelessWidget implements PreferredSizeWidget {
         ),
       ),
       title: Text(
-        'Pagamento via PIX',
+        title,
         style: theme.textTheme.titleMedium?.copyWith(
           fontWeight: FontWeight.w800,
           color: context.themeColors.onSurface,

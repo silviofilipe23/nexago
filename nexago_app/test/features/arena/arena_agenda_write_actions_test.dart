@@ -25,6 +25,9 @@ import 'package:nexago_app/features/arena/domain/arena_settings_schedule.dart';
 import 'package:nexago_app/features/arena/domain/arena_slot_detail_args.dart';
 import 'package:nexago_app/features/arena/domain/arena_slot_detail_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_staff_role.dart';
+import 'package:nexago_app/features/arena/domain/aulas/arena_class.dart';
+import 'package:nexago_app/features/arena/domain/aulas/arena_class_providers.dart';
+import 'package:nexago_app/features/arena/domain/aulas/arena_class_session.dart';
 import 'package:nexago_app/features/arena/presentation/arena_availability_settings_page.dart';
 import 'package:nexago_app/features/arena/presentation/arena_booking_details_page.dart';
 import 'package:nexago_app/features/arena/presentation/arena_bookings_page.dart';
@@ -195,6 +198,12 @@ void main() {
           managedArenaClubsProvider.overrideWith(
             (ref) => Stream.value(const <ArenaClub>[]),
           ),
+          managedArenaClassesProvider.overrideWith(
+            (ref) => Stream.value(const <ArenaClass>[]),
+          ),
+          arenaClassSessionsOnDayProvider.overrideWith(
+            (ref, dateKey) => Stream.value(const <ArenaClassSession>[]),
+          ),
         ],
         child: MaterialApp(
           theme: AppTheme.dark,
@@ -219,6 +228,16 @@ void main() {
     await pumpBookings(tester, overridesForRole(ArenaStaffRole.recepcao));
     expect(find.text('Horários fixos (mensalistas)'), findsOneWidget);
     expect(find.text('Clubinho (jogo aberto)'), findsOneWidget);
+  });
+
+  // Aulas têm visão só leitura (manutenção acompanha o dia sem fazer
+  // chamada), então o atalho aparece para quem LÊ a agenda.
+  testWidgets('manutencao e recepcao veem o atalho de Aulas', (tester) async {
+    await pumpBookings(tester, overridesForRole(ArenaStaffRole.manutencao));
+    expect(find.text('Aulas (turmas e chamada)'), findsOneWidget);
+
+    await pumpBookings(tester, overridesForRole(ArenaStaffRole.recepcao));
+    expect(find.text('Aulas (turmas e chamada)'), findsOneWidget);
   });
 
   // --- arena_recurring_list_page.dart: botão "Novo" ---

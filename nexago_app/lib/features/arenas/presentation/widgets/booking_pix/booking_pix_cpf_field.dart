@@ -10,11 +10,16 @@ class BookingPixCpfField extends StatelessWidget {
     required this.controller,
     this.errorText,
     this.onSubmitted,
+    this.helperText =
+        'Necessário pela legislação brasileira para emissão do PIX.',
   });
 
   final TextEditingController controller;
   final String? errorText;
   final VoidCallback? onSubmitted;
+
+  /// Dica abaixo do campo (some quando há erro).
+  final String helperText;
 
   @override
   Widget build(BuildContext context) {
@@ -75,7 +80,7 @@ class BookingPixCpfField extends StatelessWidget {
         if (!hasError) ...[
           SizedBox(height: 8),
           Text(
-            'Necessário pela legislação brasileira para emissão do PIX.',
+            helperText,
             style: theme.textTheme.bodySmall?.copyWith(
               color: context.themeColors.onSurfaceMuted,
               height: 1.35,

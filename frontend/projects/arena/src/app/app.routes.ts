@@ -118,6 +118,62 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'painel/aulas',
+    title: 'Aulas — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aulas-overview.component').then((m) => m.PanelAulasOverviewComponent),
+  },
+  {
+    path: 'painel/aulas/agenda',
+    title: 'Agenda de aulas — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aulas-agenda.component').then((m) => m.PanelAulasAgendaComponent),
+  },
+  {
+    path: 'painel/aulas/turmas',
+    title: 'Turmas — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aulas-classes.component').then((m) => m.PanelAulasClassesComponent),
+  },
+  {
+    path: 'painel/aulas/turmas/nova',
+    title: 'Nova turma — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aula-class-form.component').then((m) => m.PanelAulaClassFormComponent),
+  },
+  {
+    path: 'painel/aulas/turmas/:classId/editar',
+    title: 'Editar turma — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aula-class-form.component').then((m) => m.PanelAulaClassFormComponent),
+  },
+  {
+    path: 'painel/aulas/turmas/:classId',
+    title: 'Turma — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aula-class-detail.component').then((m) => m.PanelAulaClassDetailComponent),
+  },
+  {
+    path: 'painel/aulas/aula/:sessionId',
+    title: 'Aula — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aula-session.component').then((m) => m.PanelAulaSessionComponent),
+  },
+  {
+    path: 'painel/aulas/professores',
+    title: 'Professores — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aulas-teachers.component').then((m) => m.PanelAulasTeachersComponent),
+  },
+  {
     path: 'painel/financeiro',
     title: 'Financeiro — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('financeiro')],

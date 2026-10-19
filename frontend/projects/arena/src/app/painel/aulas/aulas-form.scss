@@ -1,0 +1,164 @@
+// Campos dos formulários do módulo Aulas (turma, aula avulsa, professor) — mesmo visual do
+// formulário do clubinho.
+
+.field-label {
+  font-family: var(--nx-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+  margin-bottom: 8px;
+}
+
+.field-label.spaced {
+  margin-top: 16px;
+}
+
+.input-box {
+  width: 100%;
+  height: 42px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text);
+  font-family: var(--nx-font-ui);
+  font-size: 13.5px;
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+
+textarea.input-box {
+  height: auto;
+  min-height: 72px;
+  padding: 10px 12px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.input-box:focus {
+  outline: none;
+  border-color: var(--nx-orange-500);
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--nx-text-dim);
+  margin: 10px 0 0;
+  line-height: 1.45;
+}
+
+.error-banner {
+  border-radius: var(--nx-r-2);
+  border: 1px solid var(--nx-live);
+  background: rgba(255, 59, 48, 0.08);
+  color: var(--nx-live);
+  padding: 10px 14px;
+  font-size: 12.5px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.row-2,
+.row-3,
+.row-4 {
+  display: grid;
+  gap: 14px;
+}
+
+.row-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.row-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.row-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.color-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.color-swatch.active {
+  border-color: var(--nx-text);
+  box-shadow: 0 0 0 2px var(--nx-surface-0) inset;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  height: 42px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  padding: 0 6px 0 12px;
+  box-sizing: border-box;
+}
+
+.stepper span {
+  flex: 1;
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--nx-text);
+}
+
+.stepper button {
+  width: 28px;
+  height: 28px;
+  margin-left: 4px;
+  border-radius: 7px;
+  border: none;
+  background: var(--nx-surface-2);
+  color: var(--nx-text-mute);
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.modal-title {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--nx-text);
+  margin: 0 0 4px;
+}
+
+.modal-sub {
+  font-size: 12.5px;
+  color: var(--nx-text-dim);
+  margin: 0 0 16px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+@media (max-width: 720px) {
+  .row-2,
+  .row-3,
+  .row-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

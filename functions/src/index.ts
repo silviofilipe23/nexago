@@ -155,6 +155,20 @@ export {
   expireArenaClubPendingPayments,
 } from "./arena-club-join";
 
+// Aulas — turmas e aulas avulsas com professor; bloqueiam a quadra na agenda.
+export {
+  upsertArenaClassTeacher,
+  previewArenaClassSchedule,
+  upsertArenaClass,
+  setArenaClassStatus,
+  scheduleArenaClassDate,
+  cancelArenaClassSession,
+  addArenaClassStudent,
+  removeArenaClassStudent,
+  saveArenaClassAttendance,
+} from "./arena-class";
+export {materializeArenaClassSessions} from "./arena-class-materializer";
+
 export {
   onArenaCourtCreatedCountUp,
   onArenaCourtDeletedCountDown,

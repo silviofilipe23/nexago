@@ -46,6 +46,7 @@ const STATUS_LABEL: Record<AgendaBlockStatus, string> = {
   pendente: 'Pendente',
   bloqueado: 'Bloqueado',
   manutencao: 'Manutenção',
+  aula: 'Aula',
 };
 
 const STATUS_TONE: Record<AgendaBlockStatus, PillTone> = {
@@ -54,7 +55,13 @@ const STATUS_TONE: Record<AgendaBlockStatus, PillTone> = {
   pendente: 'yellow',
   bloqueado: 'orange',
   manutencao: 'dim',
+  aula: 'dim',
 };
+
+/** Slot ocupado por aula do módulo Aulas (booking `source: 'class'`, id `class_…`). */
+export function isClassBlock(slot: Pick<ArenaSlot, 'bookingId'>, booking: Pick<ArenaBooking, 'classSessionId'> | null): boolean {
+  return booking?.classSessionId != null || (slot.bookingId?.startsWith('class_') ?? false);
+}
 
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
@@ -557,6 +564,7 @@ export class PanelAgendaComponent {
     if (slot.status === 'available') return 'available';
     if (slot.status === 'blocked') return 'bloqueado';
     const booking = this.bookingFor(slot);
+    if (isClassBlock(slot, booking)) return 'aula';
     return booking?.status === 'pending_payment' ? 'pendente' : 'confirmada';
   }
 
@@ -711,7 +719,7 @@ export class PanelAgendaComponent {
   /** Reservado só abre o detalhe (leitura); disponível/bloqueado exigem escrita em agenda. */
   protected rowClickable(status: AgendaBlockStatus): boolean {
     if (status === 'manutencao') return false;
-    if (status === 'confirmada' || status === 'pendente') return true;
+    if (status === 'confirmada' || status === 'pendente' || status === 'aula') return true;
     return !this.readOnly();
   }
 
@@ -737,7 +745,12 @@ export class PanelAgendaComponent {
     if (!slot) return;
 
     if (slot.status === 'booked') {
-      if (slot.bookingId) void this.router.navigate(['/painel/reservas', slot.bookingId]);
+      // Bloqueio de aula: o id do booking é o da aula — abre a chamada, não a reserva.
+      if (slot.bookingId && isClassBlock(slot, this.bookingFor(slot))) {
+        void this.router.navigate(['/painel/aulas/aula', slot.bookingId]);
+      } else if (slot.bookingId) {
+        void this.router.navigate(['/painel/reservas', slot.bookingId]);
+      }
       return;
     }
     // Defesa em profundidade: a grade e a lista já não emitem clique pra disponível/bloqueado

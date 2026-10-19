@@ -102,6 +102,9 @@ import { OgSponsorDialogComponent } from './sponsor-dialog.component';
                       <span [style.color]="s.tier.color">{{ s.tier.name }}</span> · {{ s.tier.appearances }} aparições ·
                       {{ s.source === 'nexago' ? 'NexaGO' : 'Você indicou' }}
                     </div>
+                    @if (s.logoRejectReason; as reason) {
+                      <div class="sponsor-reason">Motivo: {{ reason }}</div>
+                    }
                   </div>
                   <og-pill [tone]="statusView(s).tone">{{ statusView(s).label }}</og-pill>
                   @if (editable() && s.source === 'organizer') {
@@ -293,6 +296,14 @@ import { OgSponsorDialogComponent } from './sponsor-dialog.component';
       font-family: var(--nx-font-mono);
       font-size: 10px;
       color: var(--nx-text-dim);
+    }
+    .sponsor-reason {
+      margin-top: 3px;
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      line-height: 1.4;
+      color: var(--nx-live);
+      overflow-wrap: anywhere;
     }
     .sponsor-actions {
       display: flex;

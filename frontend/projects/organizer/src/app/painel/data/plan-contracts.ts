@@ -90,6 +90,9 @@ export interface PlanSponsor {
   tier: SponsorTier;
   logoUrl: string | null;
   logoStatus: SponsorLogoStatus;
+  /** O motivo que a NexaGO deu ao recusar a logo. Só vem com `logoStatus` 'rejected': depois do
+   *  reenvio o servidor não apaga o campo, mas o motivo já não vale para a logo nova. */
+  logoRejectReason: string | null;
   /** Quem trouxe o patrocinador: o organizador ou a própria NexaGO. */
   source: 'organizer' | 'nexago';
   createdAt: Date | null;
@@ -217,7 +220,8 @@ export function planSponsorFromRaw(id: string, raw: unknown): PlanSponsor | null
   const s = obj(raw);
   const name = str(s['name']).trim();
   if (!name) return null;
-  const logoStatus = str(s['logoStatus']) as SponsorLogoStatus;
+  const rawStatus = str(s['logoStatus']) as SponsorLogoStatus;
+  const logoStatus = LOGO_STATUSES.includes(rawStatus) ? rawStatus : 'missing';
   const tier = sponsorTierFromRaw({ ...obj(s['tier']), id: str(s['tierId']) || str(obj(s['tier'])['id']) });
   return {
     id,
@@ -225,7 +229,8 @@ export function planSponsorFromRaw(id: string, raw: unknown): PlanSponsor | null
     tierId: tier.id,
     tier,
     logoUrl: str(s['logoUrl']) || null,
-    logoStatus: LOGO_STATUSES.includes(logoStatus) ? logoStatus : 'missing',
+    logoStatus,
+    logoRejectReason: logoStatus === 'rejected' ? str(s['logoRejectReason']).trim() || null : null,
     source: s['source'] === 'nexago' ? 'nexago' : 'organizer',
     createdAt: dateOf(s['createdAt']),
   };

@@ -61,6 +61,20 @@ void main() {
         ArenaArea.agenda,
       );
     });
+
+    test('mensalidades das aulas: agenda ou financeiro; o resto so agenda',
+        () {
+      expect(arenaAreaForPath('/arena/classes/charges'), ArenaArea.agenda);
+      expect(
+        arenaAlternateAreaForPath('/arena/classes/charges'),
+        ArenaArea.financeiro,
+      );
+      // Aluno e matricula leem turma/chamada: financeiro nao entra.
+      expect(arenaAreaForPath('/arena/classes/student/u1'), ArenaArea.agenda);
+      expect(arenaAlternateAreaForPath('/arena/classes/student/u1'), isNull);
+      expect(arenaAlternateAreaForPath('/arena/classes/enroll'), isNull);
+      expect(arenaAlternateAreaForPath('/arena/classes'), isNull);
+    });
   });
 
   group('isArenaOwnerOnlyPath', () {

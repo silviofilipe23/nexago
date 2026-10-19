@@ -87,6 +87,7 @@ class ArenaClassSession {
     this.startAt,
     required this.status,
     required this.attendance,
+    this.extras = const {},
     this.closedAt,
     this.cancelReason,
     this.cancelNote,
@@ -119,6 +120,10 @@ class ArenaClassSession {
 
   /// studentId → marca da chamada.
   final Map<String, AttendanceMark> attendance;
+
+  /// Encaixes desta aula (reposição com crédito ou experimental) — não são
+  /// alunos da turma, mas ocupam a vaga do dia (fase 2).
+  final Map<String, ArenaClassExtra> extras;
   final DateTime? closedAt;
   final ArenaClassCancelReason? cancelReason;
   final String? cancelNote;
@@ -166,6 +171,7 @@ class ArenaClassSession {
       startAt: parseTimestamp(data['startAt']),
       status: parseString(data['status'], 'scheduled'),
       attendance: attendance,
+      extras: ArenaClassExtra.parseMap(data['extras']),
       closedAt: parseTimestamp(data['closedAt']),
       cancelReason: ArenaClassCancelReasonX.fromId(data['cancelReason']),
       cancelNote: parseStringOrNull(data['cancelNote']),
@@ -185,6 +191,9 @@ class ArenaClassStudent {
     this.photoUrl,
     required this.status,
     this.enrolledAt,
+    this.enrollmentId,
+    this.weekdays,
+    this.planName,
   });
 
   final String id;
@@ -194,11 +203,24 @@ class ArenaClassStudent {
   final String? phone;
   final String? photoUrl;
 
-  /// `active` | `removed`.
+  /// `active` | `paused` (matrícula pausada) | `removed`.
   final String status;
   final DateTime? enrolledAt;
 
+  /// Matrícula que pôs o aluno na turma (fase 2); `null` = aluno avulso da
+  /// fase 1, sem plano.
+  final String? enrollmentId;
+
+  /// Dias da semana (ISO 1=seg … 7=dom) em que o aluno faz esta turma;
+  /// `null` = todos os dias da turma (fase 1).
+  final List<int>? weekdays;
+
+  /// Nome do plano da matrícula (espelho para a chamada).
+  final String? planName;
+
   bool get isActive => status == 'active';
+  bool get isPaused => status == 'paused';
+  bool get hasEnrollment => enrollmentId != null;
 
   /// Tem conta NexaGO — recebe push quando a aula é cancelada.
   bool get hasAccount => athleteId != null;
@@ -218,6 +240,63 @@ class ArenaClassStudent {
       photoUrl: parseStringOrNull(data['photoUrl']),
       status: parseString(data['status'], 'active'),
       enrolledAt: parseTimestamp(data['enrolledAt']),
+      enrollmentId: parseStringOrNull(data['enrollmentId']),
+      weekdays: parseWeekdaysOrNull(data['weekdays']),
+      planName: parseStringOrNull(data['planName']),
     );
+  }
+}
+
+/// Tipo do encaixe na aula. Espelha `addArenaClassExtra.kind`.
+enum ArenaClassExtraKind { makeup, trial }
+
+extension ArenaClassExtraKindX on ArenaClassExtraKind {
+  String get id => name;
+
+  /// Etiqueta na chamada.
+  String get label => switch (this) {
+        ArenaClassExtraKind.makeup => 'Reposição',
+        ArenaClassExtraKind.trial => 'Experimental',
+      };
+
+  /// Valor desconhecido cai em experimental — mesmo default do backend.
+  static ArenaClassExtraKind fromId(Object? raw) =>
+      raw == 'makeup' ? ArenaClassExtraKind.makeup : ArenaClassExtraKind.trial;
+}
+
+/// Encaixe em `arenaClassSessions/{id}.extras.{studentId}`.
+class ArenaClassExtra {
+  const ArenaClassExtra({
+    required this.studentId,
+    required this.name,
+    required this.kind,
+    this.creditId,
+    this.athleteId,
+  });
+
+  final String studentId;
+  final String name;
+  final ArenaClassExtraKind kind;
+
+  /// Crédito de reposição usado (volta a valer se o encaixe sair).
+  final String? creditId;
+  final String? athleteId;
+
+  static Map<String, ArenaClassExtra> parseMap(Object? raw) {
+    if (raw is! Map) return const {};
+    final out = <String, ArenaClassExtra>{};
+    for (final entry in raw.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      if (key is! String || value is! Map) continue;
+      out[key] = ArenaClassExtra(
+        studentId: key,
+        name: parseString(value['name'], 'Aluno'),
+        kind: ArenaClassExtraKindX.fromId(value['kind']),
+        creditId: parseStringOrNull(value['creditId']),
+        athleteId: parseStringOrNull(value['athleteId']),
+      );
+    }
+    return out;
   }
 }

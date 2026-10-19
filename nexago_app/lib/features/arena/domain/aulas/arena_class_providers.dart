@@ -23,8 +23,8 @@ final arenaClassClockProvider =
   );
 });
 
-/// Abas da tela de Aulas no app (fase 1: só Hoje e Turmas).
-enum ArenaClassesTab { today, classes }
+/// Abas da tela de Aulas no app (fase 2 trouxe Alunos — as matrículas).
+enum ArenaClassesTab { today, classes, students }
 
 final arenaClassesTabProvider =
     StateProvider.autoDispose<ArenaClassesTab>((ref) => ArenaClassesTab.today);
@@ -75,11 +75,26 @@ final arenaClassDayViewProvider = Provider.autoDispose
   final classes = ref.watch(managedArenaClassesProvider).valueOrNull ??
       const <ArenaClass>[];
   final now = ref.watch(arenaClassClockProvider).valueOrNull ?? DateTime.now();
+  // Quem vem em cada aula: alunos que fazem aquele dia da semana + encaixes.
+  // O contador da turma soma todos os dias e erra quando o aluno faz só
+  // alguns (fase 2). Lista vazia (ainda carregando ou sem aluno) fica no
+  // contador da turma.
+  final headcount = <String, int>{};
+  for (final s in sessions.valueOrNull ?? const <ArenaClassSession>[]) {
+    if (s.isCanceled) continue;
+    final students = ref
+        .watch(arenaClassStudentsProvider(
+            (arenaId: s.arenaId, classId: s.classId)))
+        .valueOrNull;
+    if (students == null || students.isEmpty) continue;
+    headcount[s.id] = arenaClassSessionHeadcount(s, students);
+  }
   return sessions.whenData(
     (list) => buildArenaClassDayView(
       sessions: list,
       classesById: {for (final c in classes) c.id: c},
       now: now,
+      headcountBySession: headcount,
     ),
   );
 });

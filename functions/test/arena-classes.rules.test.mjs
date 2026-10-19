@@ -119,3 +119,41 @@ test('equipe não cancela o bloqueio de aula pela reserva (só pela aula); reser
   }
   await assertSucceeds(updateDoc(doc(as(RECEPCAO), 'arenaBookings', 'reserva-comum'), { status: 'canceled', canceledByRole: 'arena_manager' }));
 });
+
+test('fase 2: planos, regras, crédito e lista de espera — só quem vê a agenda', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'arenas', 'arena-pro', 'classPlans', 'm2'), { name: 'Mensal 2x', kind: 'monthly', status: 'active' });
+    await setDoc(doc(db, 'arenas', 'arena-pro', 'classSettings', 'rules'), { makeupValidityDays: 30 });
+    await setDoc(doc(db, 'arenaClassCredits', 'cr1'), { arenaId: 'arena-pro', studentId: ALUNO, status: 'available' });
+    await setDoc(doc(db, 'arenaClasses', 'c1', 'classWaitlist', 'w1'), { arenaId: 'arena-pro', classId: 'c1', status: 'waiting' });
+  });
+  const paths = [
+    ['arenas', 'arena-pro', 'classPlans', 'm2'],
+    ['arenas', 'arena-pro', 'classSettings', 'rules'],
+    ['arenaClassCredits', 'cr1'],
+    ['arenaClasses', 'c1', 'classWaitlist', 'w1'],
+  ];
+  for (const p of paths) {
+    await assertSucceeds(getDoc(doc(as(RECEPCAO), ...p)));
+    await assertSucceeds(getDoc(doc(as(MANUTENCAO), ...p)));
+    await assertFails(getDoc(doc(as(FINANCEIRO), ...p)));
+    await assertFails(getDoc(doc(as(ALUNO), ...p)));
+    await assertFails(setDoc(doc(as(OWNER), ...p), { x: 1 }, { merge: true }));
+  }
+});
+
+test('fase 2: matrícula e mensalidade — agenda ou financeiro leem; ninguém escreve', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'arenaClassEnrollments', 'e1'), { arenaId: 'arena-pro', studentId: ALUNO, status: 'active' });
+    await setDoc(doc(db, 'arenaClassCharges', 'e1_2026-11'), { arenaId: 'arena-pro', enrollmentId: 'e1', status: 'open' });
+  });
+  for (const p of [['arenaClassEnrollments', 'e1'], ['arenaClassCharges', 'e1_2026-11']]) {
+    for (const uid of [OWNER, RECEPCAO, FINANCEIRO]) await assertSucceeds(getDoc(doc(as(uid), ...p)));
+    await assertFails(getDoc(doc(as(ALUNO), ...p)));
+    await assertFails(getDoc(doc(as(OUTRO_DONO), ...p)));
+    await assertFails(setDoc(doc(as(OWNER), ...p), { status: 'paid' }, { merge: true }));
+  }
+  await assertSucceeds(getDocs(query(collection(as(FINANCEIRO), 'arenaClassCharges'), where('arenaId', '==', 'arena-pro'))));
+});

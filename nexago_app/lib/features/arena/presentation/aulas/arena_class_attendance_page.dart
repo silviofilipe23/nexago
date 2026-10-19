@@ -5,21 +5,26 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
+import '../../../../core/router/routes.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../data/arena_class_repository.dart';
 import '../../domain/arena_access_providers.dart';
-import '../../domain/arena_date_utils.dart';
 import '../../domain/arena_staff_role.dart';
+import '../../domain/aulas/arena_class_enrollment_providers.dart';
 import '../../domain/aulas/arena_class_logic.dart';
 import '../../domain/aulas/arena_class_providers.dart';
 import '../../domain/aulas/arena_class_session.dart';
 import '../widgets/arena_async_state.dart';
 import 'arena_class_cancel_sheet.dart';
+import 'arena_class_extra_sheet.dart';
 import 'widgets/arena_class_atoms.dart';
 
 /// Chamada de uma aula (A2): presente / falta / avisou por aluno, "Todos
 /// presentes" e "Fechar chamada" (`saveArenaClassAttendance`). O menu ⋯ abre
-/// o cancelamento (A4).
+/// o cancelamento (A4); "Encaixar aluno" abre a reposição/experimental (A3).
+///
+/// Só entra quem faz a turma naquele dia da semana (`weekdays` do aluno) e
+/// não está pausado; os encaixes da aula vêm no fim, com etiqueta.
 ///
 /// As marcas ficam num rascunho local até o gestor fechar a chamada — marcar
 /// aluno a aluno não dispara uma callable por toque.
@@ -115,8 +120,8 @@ class _ArenaClassAttendancePageState
     // mais nada — a tela mostra só o que ficou registrado.
     if (session.isCanceled) _edits.clear();
 
-    final todayKey = arenaDateKey(arenaTodayDateOnly());
-    final roster = arenaClassAttendanceRoster(students, session.attendance);
+    final todayKey = ref.watch(arenaClassTodayKeyProvider);
+    final roster = arenaClassAttendanceRoster(session, students);
     final draft = ArenaClassAttendanceDraft.fromSession(
       roster.map((s) => s.id),
       session.attendance,
@@ -131,6 +136,13 @@ class _ArenaClassAttendancePageState
     final dirty = current.differsFrom(session.attendance);
 
     final notice = _notice(session, canWrite: canWrite, open: open);
+    // Encaixe só em aula de hoje em diante que ainda vai acontecer.
+    final canAddExtra = canWrite &&
+        session.isScheduled &&
+        session.date.compareTo(todayKey) >= 0 &&
+        !_saving;
+    // Tirar encaixe: enquanto a chamada não fechou (o backend recusa depois).
+    final canRemoveExtra = canWrite && session.isScheduled && !_saving;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -157,6 +169,8 @@ class _ArenaClassAttendancePageState
                   allPresentLabel: current.hasAnyMark
                       ? 'Demais presentes'
                       : 'Todos presentes',
+                  onAddExtra:
+                      canAddExtra ? () => _openExtra(session, students) : null,
                 ),
                 if (notice != null) const SizedBox(height: 12),
               ],
@@ -166,17 +180,28 @@ class _ArenaClassAttendancePageState
                 const Padding(
                   padding: EdgeInsets.only(top: 24),
                   child: ArenaEmptyState(
-                    title: 'Nenhum aluno na turma',
-                    message: 'Matricule os alunos pelo portal da arena.',
+                    title: 'Ninguém nesta aula',
+                    message: 'Nenhum aluno faz esta turma neste dia. '
+                        'Matricule pela Nova matrícula ou encaixe uma '
+                        'reposição.',
                     icon: Icons.person_add_alt_outlined,
                   ),
                 ),
-              for (final student in roster)
+              for (final entry in roster)
                 _StudentRow(
-                  student: student,
-                  mark: current.marks[student.id],
+                  entry: entry,
+                  mark: current.marks[entry.id],
                   onMark: editable
-                      ? (mark) => setState(() => _edits[student.id] = mark)
+                      ? (mark) => setState(() => _edits[entry.id] = mark)
+                      : null,
+                  onOpen: entry.isExtra
+                      ? null
+                      : () => context.pushNamed(
+                            AppRouteNames.arenaClassStudent,
+                            pathParameters: {'studentId': entry.id},
+                          ),
+                  onRemove: entry.isExtra && canRemoveExtra
+                      ? () => _removeExtra(session, entry)
                       : null,
                 ),
             ],
@@ -320,22 +345,104 @@ class _ArenaClassAttendancePageState
             )
             .valueOrNull ??
         const <ArenaClassStudent>[];
-    final active = students.where((s) => s.isActive).toList();
+    // Quem faria esta aula: alunos do dia + encaixes (mesmo público do push
+    // de `cancelClassSessionCore`).
+    final regulars = arenaClassRegularsOn(
+      students,
+      arenaClassDateKeyWeekday(session.date),
+    ).where((s) => !session.extras.containsKey(s.id)).toList();
+    final extras = session.extras.values;
     final result = await showArenaClassCancelSheet(
       context,
       session: session,
-      studentCount: active.length,
-      studentsWithAccount: active.where((s) => s.hasAccount).length,
+      studentCount: regulars.length + extras.length,
+      studentsWithAccount: regulars.where((s) => s.hasAccount).length +
+          extras.where((e) => e.athleteId != null).length,
+      regularCount: regulars.length,
     );
     if (result == null || !mounted) return;
     final n = result.notified;
+    final c = result.credited;
+    final credits =
+        c > 0 ? ' · $c crédito${c == 1 ? '' : 's'} de reposição' : '';
     showAppSnackBar(
       context,
       n > 0
           ? 'Aula cancelada. Quadra liberada · $n aluno${n == 1 ? '' : 's'} '
-              'avisado${n == 1 ? '' : 's'}.'
-          : 'Aula cancelada. Quadra liberada na agenda.',
+              'avisado${n == 1 ? '' : 's'}$credits.'
+          : 'Aula cancelada. Quadra liberada na agenda$credits.',
     );
+  }
+
+  Future<void> _openExtra(
+    ArenaClassSession session,
+    List<ArenaClassStudent> students,
+  ) async {
+    final message = await showArenaClassExtraSheet(
+      context,
+      session: session,
+      students: students,
+    );
+    if (message == null || !mounted) return;
+    showAppSnackBar(context, message);
+  }
+
+  Future<void> _removeExtra(
+    ArenaClassSession session,
+    ArenaClassRosterEntry entry,
+  ) async {
+    final makeup = entry.kind == ArenaClassRosterKind.makeup;
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ctx.themeColors.surfaceSheet,
+        title: Text('Tirar ${entry.name} da aula?'),
+        content: Text(
+          makeup
+              ? 'O crédito de reposição volta a ficar disponível para outra '
+                  'aula.'
+              : 'A vaga da aula experimental fica livre de novo.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Tirar da aula'),
+          ),
+        ],
+      ),
+    );
+    if (go != true || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(arenaClassRepositoryProvider).removeExtra(
+            sessionId: session.id,
+            studentId: entry.id,
+          );
+      _edits.remove(entry.id);
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        makeup
+            ? '${entry.name} saiu da aula. O crédito voltou.'
+            : '${entry.name} saiu da aula.',
+      );
+    } on ArenaClassException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message, isError: true);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        'Não foi possível tirar da aula. Tente novamente.',
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 }
 
@@ -383,11 +490,15 @@ class _SummaryCard extends StatelessWidget {
     required this.summary,
     required this.onAllPresent,
     required this.allPresentLabel,
+    required this.onAddExtra,
   });
 
   final AttendanceSummary summary;
   final VoidCallback? onAllPresent;
   final String allPresentLabel;
+
+  /// "Encaixar aluno" (A3); `null` esconde.
+  final VoidCallback? onAddExtra;
 
   @override
   Widget build(BuildContext context) {
@@ -469,32 +580,64 @@ class _SummaryCard extends StatelessWidget {
               ),
             ],
           ),
-          if (onAllPresent != null) ...[
+          if (onAllPresent != null || onAddExtra != null) ...[
             const SizedBox(height: 14),
-            SizedBox(
-              height: 38,
-              child: OutlinedButton.icon(
-                onPressed: onAllPresent,
-                icon: const Icon(Icons.done_all_rounded, size: 16),
-                label: Text(allPresentLabel),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: colors.onSurface,
-                  backgroundColor: colors.surfaceRaised,
-                  side: BorderSide(
-                    color: colors.onSurfaceMuted.withValues(alpha: 0.2),
+            Row(
+              children: [
+                if (onAddExtra != null)
+                  Expanded(
+                    child: _ghost(
+                      colors,
+                      icon: Icons.add_rounded,
+                      label: 'Encaixar aluno',
+                      onPressed: onAddExtra,
+                    ),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                if (onAddExtra != null && onAllPresent != null)
+                  const SizedBox(width: 8),
+                if (onAllPresent != null)
+                  Expanded(
+                    child: _ghost(
+                      colors,
+                      icon: Icons.done_all_rounded,
+                      label: allPresentLabel,
+                      onPressed: onAllPresent,
+                    ),
                   ),
-                  textStyle: AppTypography.soraRegular(fontSize: 12.5),
-                ),
-              ),
+              ],
             ),
           ],
         ],
       ),
     );
   }
+
+  Widget _ghost(
+    AppThemeColors colors, {
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+  }) =>
+      SizedBox(
+        height: 38,
+        child: OutlinedButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 16),
+          label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: colors.onSurface,
+            backgroundColor: colors.surfaceRaised,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            side: BorderSide(
+              color: colors.onSurfaceMuted.withValues(alpha: 0.2),
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            textStyle: AppTypography.soraRegular(fontSize: 12.5),
+          ),
+        ),
+      );
 
   Widget _count(String text, Color color) => Text(
         text,
@@ -546,25 +689,99 @@ class _Notice extends StatelessWidget {
 
 class _StudentRow extends StatelessWidget {
   const _StudentRow({
-    required this.student,
+    required this.entry,
     required this.mark,
     required this.onMark,
+    required this.onOpen,
+    required this.onRemove,
   });
 
-  final ArenaClassStudent student;
+  final ArenaClassRosterEntry entry;
   final AttendanceMark? mark;
 
   /// `null` = só leitura.
   final ValueChanged<AttendanceMark?>? onMark;
 
+  /// Abre a página do aluno (alunos da turma).
+  final VoidCallback? onOpen;
+
+  /// Tira o encaixe da aula.
+  final VoidCallback? onRemove;
+
+  String get _subtitle {
+    final s = entry.student;
+    switch (entry.kind) {
+      case ArenaClassRosterKind.makeup:
+        return 'Reposição com crédito';
+      case ArenaClassRosterKind.trial:
+        return entry.extra?.athleteId != null
+            ? 'Aula experimental · Atleta NexaGO'
+            : 'Aula experimental';
+      case ArenaClassRosterKind.regular:
+        if (s == null) return '';
+        if (s.isPaused) return 'Plano pausado';
+        if (!s.isActive) return 'Saiu da turma';
+        final plan = s.planName;
+        if (plan != null) return plan;
+        return s.hasAccount ? 'Atleta NexaGO' : (s.phone ?? 'Aluno sem conta');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final subtitle = !student.isActive
-        ? 'Saiu da turma'
-        : student.hasAccount
-            ? 'Atleta NexaGO'
-            : (student.phone ?? 'Aluno sem conta');
+    final student = entry.student;
+    final tag = switch (entry.kind) {
+      ArenaClassRosterKind.makeup => const ArenaClassTag(
+          label: 'Reposição',
+          color: AppColors.win,
+        ),
+      ArenaClassRosterKind.trial => const ArenaClassTag(
+          label: 'Experimental',
+          color: AppColors.pending,
+        ),
+      ArenaClassRosterKind.regular => null,
+    };
+    final info = Row(
+      children: [
+        ArenaClassAvatar(
+          initials: arenaClassInitials(entry.name),
+          photoUrl: student?.photoUrl,
+        ),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      entry.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.soraRegular(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: colors.onSurface,
+                      ),
+                    ),
+                  ),
+                  if (tag != null) ...[const SizedBox(width: 6), tag],
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11, color: colors.onSurfaceMuted),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 9),
       decoration: BoxDecoration(
@@ -574,37 +791,33 @@ class _StudentRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          ArenaClassAvatar(
-            initials: arenaClassInitials(student.name),
-            photoUrl: student.photoUrl,
-          ),
-          const SizedBox(width: 11),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  student.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.soraRegular(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
-                    color: colors.onSurface,
+            child: onOpen == null
+                ? info
+                : Semantics(
+                    button: true,
+                    label: 'Abrir aluno ${entry.name}',
+                    child: InkWell(
+                      onTap: onOpen,
+                      borderRadius: BorderRadius.circular(12),
+                      child: info,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 11, color: colors.onSurfaceMuted),
-                ),
-              ],
-            ),
           ),
-          const SizedBox(width: 8),
-          _MarkControl(name: student.name, mark: mark, onMark: onMark),
+          if (onRemove != null)
+            IconButton(
+              onPressed: onRemove,
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Tirar ${entry.name} da aula',
+              icon: Icon(
+                Icons.remove_circle_outline_rounded,
+                size: 20,
+                color: colors.onSurfaceMuted,
+              ),
+            )
+          else
+            const SizedBox(width: 8),
+          _MarkControl(name: entry.name, mark: mark, onMark: onMark),
         ],
       ),
     );

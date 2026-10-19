@@ -1260,6 +1260,122 @@
       ]
     },
     {
+      "collectionGroup": "arenaClassCharges",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "arenaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "arenaClassCharges",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "arenaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "studentId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "arenaClassCharges",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "arenaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "paidOn",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "arenaClassCredits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiresOn",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "arenaClassCredits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "enrollmentId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "month",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "arenaClassCredits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "arenaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "arenaClassCredits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "arenaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "studentId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "classWaitlist",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "athleteId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "clubParticipants",
       "queryScope": "COLLECTION_GROUP",
       "fields": [

@@ -80,12 +80,49 @@ class FakeArenaClassRepository implements ArenaClassRepository {
     required String sessionId,
     required ArenaClassCancelReason reason,
     String? note,
+    bool? generateCredits,
   }) async {
-    canceled.add({'sessionId': sessionId, 'reason': reason.id, 'note': note});
+    canceled.add({
+      'sessionId': sessionId,
+      'reason': reason.id,
+      'note': note,
+      'generateCredits': generateCredits,
+    });
     return ArenaClassCancelResult(
       sessionId: sessionId,
       notified: notifiedOnCancel,
     );
+  }
+
+  final List<Map<String, Object?>> addedExtras = [];
+  final List<(String, String)> removedExtras = [];
+
+  @override
+  Future<String> addExtra({
+    required String sessionId,
+    required ArenaClassExtraKind kind,
+    String? creditId,
+    String? athleteId,
+    String? name,
+    String? phone,
+  }) async {
+    addedExtras.add({
+      'sessionId': sessionId,
+      'kind': kind.id,
+      'creditId': creditId,
+      'athleteId': athleteId,
+      'name': name,
+      'phone': phone,
+    });
+    return athleteId ?? 'trial_x';
+  }
+
+  @override
+  Future<void> removeExtra({
+    required String sessionId,
+    required String studentId,
+  }) async {
+    removedExtras.add((sessionId, studentId));
   }
 
   @override

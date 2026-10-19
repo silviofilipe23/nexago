@@ -169,6 +169,22 @@ export {
   saveArenaClassAttendance,
 } from "./arena-class";
 export {materializeArenaClassSessions} from "./arena-class-materializer";
+// Aulas fase 2 — planos, matrícula, mensalidades (cobrança manual), reposição e lista de espera.
+export {
+  upsertArenaClassPlan,
+  saveArenaClassRules,
+  previewArenaClassEnrollment,
+  createArenaClassEnrollment,
+  setArenaClassEnrollmentStatus,
+  setArenaClassChargeStatus,
+  generateArenaClassMonthlyCharges,
+} from "./arena-class-billing";
+export {
+  addArenaClassExtra,
+  removeArenaClassExtra,
+  addArenaClassWaitlist,
+  removeArenaClassWaitlist,
+} from "./arena-class-makeup";
 
 export {
   onArenaCourtCreatedCountUp,

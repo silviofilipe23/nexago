@@ -1,84 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
-import 'package:nexago_app/core/router/routes.dart';
-import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arena/domain/arena_plan.dart';
-import 'package:nexago_app/features/arena/domain/arena_plan_providers.dart';
-import 'package:nexago_app/features/arena/domain/arena_schedule_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_staff_role.dart';
-import 'package:nexago_app/features/arena/domain/aulas/arena_class_providers.dart';
 import 'package:nexago_app/features/arena/domain/aulas/arena_class_session.dart';
-import 'package:nexago_app/features/arena/presentation/aulas/arena_class_attendance_page.dart';
-import 'package:nexago_app/features/arena/presentation/aulas/arena_classes_page.dart';
 
 import 'arena_class_fixtures.dart';
+import 'aulas_pump.dart';
 import 'fake_arena_class_repository.dart';
-
-const _proActive = ArenaPlanStatus(tier: ArenaPlanTier.pro, status: 'active');
-
-/// Monta as telas de Aulas num GoRouter de verdade (a chamada faz `pop`).
-Future<GoRouter> pumpAulas(
-  WidgetTester tester, {
-  required FakeArenaClassRepository repo,
-  ArenaStaffRole role = ArenaStaffRole.recepcao,
-  ArenaPlanStatus plan = _proActive,
-  String initial = '/arena/classes',
-}) async {
-  tester.view.physicalSize = const Size(1170, 2532);
-  tester.view.devicePixelRatio = 3;
-  addTearDown(tester.view.reset);
-
-  final router = GoRouter(
-    initialLocation: '/',
-    routes: [
-      GoRoute(
-          path: '/', builder: (_, __) => const Scaffold(body: Text('raiz'))),
-      GoRoute(
-        path: AppRoutes.arenaClasses,
-        name: AppRouteNames.arenaClasses,
-        builder: (_, __) => const ArenaClassesPage(),
-        routes: [
-          GoRoute(
-            path: 'session/:sessionId',
-            name: AppRouteNames.arenaClassSession,
-            builder: (_, state) => ArenaClassAttendancePage(
-              sessionId: state.pathParameters['sessionId']!,
-            ),
-          ),
-        ],
-      ),
-    ],
-  );
-  addTearDown(router.dispose);
-
-  await tester.pumpWidget(
-    ProviderScope(
-      overrides: [
-        ...arenaAccessOverrides(role),
-        arenaClassRepositoryProvider.overrideWithValue(repo),
-        // Segunda 19/10/2026, 17:40 — o "agora" do protótipo.
-        arenaClassClockProvider.overrideWith(
-          (ref) => Stream.value(DateTime(2026, 10, 19, 17, 40)),
-        ),
-        arenaClassSelectedDayProvider.overrideWith(
-          (ref) => DateTime(2026, 10, 19),
-        ),
-        managedArenaPlanStatusProvider.overrideWith(
-          (ref) => Stream.value(plan),
-        ),
-        managedArenaDetailProvider.overrideWith((ref) => Stream.value(null)),
-      ],
-      child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
-    ),
-  );
-  router.push(initial);
-  await tester.pump();
-  await tester.pump(const Duration(milliseconds: 50));
-  await tester.pump(const Duration(milliseconds: 400));
-  return router;
-}
 
 FakeArenaClassRepository dayRepo() => FakeArenaClassRepository(
       classes: [
@@ -183,6 +111,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
 
       expect(find.text('CHAMADA'), findsOneWidget);
+      // A lista do dia lê os alunos de cada turma (conta do dia): deixa o
+      // agendador do Riverpod assentar antes de desmontar.
+      await tester.pump(const Duration(milliseconds: 50));
     });
   });
 
@@ -314,8 +245,8 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
-      // Fase 1 sem crédito de reposição: o que acontece é quadra + push.
-      expect(find.textContaining('crédito'), findsNothing);
+      // Fase 2: a compensação segue a regra da arena (padrão: gera crédito).
+      expect(find.text('Gerar crédito de reposição'), findsOneWidget);
       expect(
           find.textContaining('A quadra é liberada na agenda'), findsOneWidget);
       final button = find.widgetWithText(FilledButton, 'Escolha o motivo');
@@ -325,7 +256,8 @@ void main() {
       await tester.pump();
       expect(
         find.text(
-          'A aula Vôlei Avançado de 19/10 às 18:00 foi cancelada pela arena (chuva).',
+          'A aula Vôlei Avançado de 19/10 às 18:00 foi cancelada pela arena '
+          '(chuva). Você ganhou 1 crédito de reposição.',
         ),
         findsOneWidget,
       );
@@ -336,6 +268,7 @@ void main() {
 
       expect(repo.canceled.single['reason'], 'rain');
       expect(repo.canceled.single['sessionId'], 's5');
+      expect(repo.canceled.single['generateCredits'], isTrue);
       expect(
         find.text('Aula cancelada. Quadra liberada · 1 aluno avisado.'),
         findsOneWidget,

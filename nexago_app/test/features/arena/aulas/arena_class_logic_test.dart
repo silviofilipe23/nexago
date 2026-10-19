@@ -315,13 +315,13 @@ void main() {
 
     test('roster: ativos + quem saiu mas tem marca, em ordem alfabética', () {
       final roster = arenaClassAttendanceRoster(
+        session(attendance: const {'4': AttendanceMark.present}),
         [
           student('3', 'Rafael'),
           student('1', 'caio'),
           student('2', 'Bruno', status: 'removed'),
           student('4', 'Ana', status: 'removed'),
         ],
-        const {'4': AttendanceMark.present},
       );
       expect(roster.map((s) => s.id), ['4', '1', '3']);
     });

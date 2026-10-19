@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'arena_manager_booking.dart';
 
 /// Situação de recebimento da reserva (PIX integral, sinal, pendente…).
 enum ArenaBookingPaymentSettlement {
@@ -288,6 +289,11 @@ String arenaBookingStatusLabel(Map<String, dynamic>? data) {
 /// Exibe o botão de check-in do gestor apenas enquanto a presença ainda pode ser registrada.
 bool arenaBookingShowsCheckInAction(Map<String, dynamic>? data) {
   if (data == null) return false;
+  // Bloqueio de aula não tem check-in: a presença é a chamada da aula.
+  if (data['isClassSession'] == true ||
+      arenaBookingClassSessionId('', data) != null) {
+    return false;
+  }
 
   final bookingStatus =
       (data['status'] as String?)?.trim().toLowerCase() ?? '';

@@ -2,6 +2,27 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'arena_date_utils.dart';
 
+/// Id da aula (`arenaClassSessions/{id}`) quando o booking é o bloqueio de
+/// quadra de uma aula; `null` para reserva comum.
+///
+/// O backend grava `isClassSession: true` e `classSessionId` (igual ao id do
+/// booking, `class_{turma}_{data}`). Espelha `classSessionId` do portal
+/// (`arena-booking.model.ts`). Esse booking só sai pela própria aula: a rule
+/// recusa à equipe mudar o `status` dele.
+String? arenaBookingClassSessionId(
+  String bookingId,
+  Map<String, dynamic>? data,
+) {
+  if (data == null) return null;
+  final raw = data['classSessionId'];
+  final explicit = raw is String && raw.trim().isNotEmpty ? raw.trim() : null;
+  if (data['isClassSession'] == true) {
+    final id = bookingId.trim();
+    return explicit ?? (id.isEmpty ? null : id);
+  }
+  return explicit;
+}
+
 /// Documento de `arenaBookings` para o painel do gestor da arena.
 class ArenaManagerBooking {
   const ArenaManagerBooking({
@@ -54,6 +75,12 @@ class ArenaManagerBooking {
     if (raw is String && raw.trim().isNotEmpty) return raw.trim();
     return null;
   }
+
+  /// Aula dona deste bloqueio de quadra (ver [arenaBookingClassSessionId]).
+  String? get classSessionId => arenaBookingClassSessionId(id, data);
+
+  /// Bloqueio de quadra de uma aula: sem cancelar nem check-in, só "Abrir aula".
+  bool get isClassBlock => classSessionId != null;
 
   /// Mensalista sem conta no app (nome livre digitado pelo gestor).
   String? get customerName {

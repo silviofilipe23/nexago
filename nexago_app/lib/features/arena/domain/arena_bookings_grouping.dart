@@ -102,8 +102,9 @@ abstract final class ArenaBookingsGrouping {
       final s = (b.data['status'] as String?)?.toLowerCase() ?? '';
       return s == 'active' || s.isEmpty;
     }).length;
+    // Bloqueio de aula não tem check-in (a presença é a chamada da aula).
     final pendingCheckIn = bookings
-        .where((b) => b.attendanceStatus == 'pending')
+        .where((b) => !b.isClassBlock && b.attendanceStatus == 'pending')
         .length;
     final n = bookings.length;
     final reserva = n == 1 ? '1 reserva' : '$n reservas';

@@ -3,6 +3,7 @@ import {
   billingTotals,
   chargeState,
   planDetail,
+  rulesFromDoc,
   slotsLabel,
   studentPayState,
   whatsappChargeLink,
@@ -157,6 +158,12 @@ describe('cobrança de aulas (billing.model)', () => {
     expect(decodeURIComponent(link!.split('text=')[1]!)).toContain('05/11/2026');
     expect(whatsappChargeLink(null, 'Marina', charge({}), 'Arena Sol')).toBeNull();
     expect(whatsappChargeLink('1234', 'Marina', charge({}), 'Arena Sol')).toBeNull();
+  });
+
+  it('regras: lembrete 2h ligado por padrão (doc antigo sem o campo)', () => {
+    expect(rulesFromDoc(undefined).classReminderEnabled).toBeTrue();
+    expect(rulesFromDoc({ makeupValidityDays: 30 }).classReminderEnabled).toBeTrue();
+    expect(rulesFromDoc({ classReminderEnabled: false }).classReminderEnabled).toBeFalse();
   });
 
   it('rótulos de horários e plano', () => {

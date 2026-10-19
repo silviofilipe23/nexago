@@ -8,7 +8,7 @@ Continua a [fase 1](2026-10-19-arena-aulas-fase-1-design.md). Protótipo: "NexaG
 |---|---|
 | **2a (este trabalho)** — backend + portal | 07 Alunos · 08 Aluno · 09–12 Matrícula em 4 passos · 13 Planos · 16 Regras · encaixe de reposição/experimental na chamada (03) · lista de espera na turma (06) |
 | 2b | 15 Repasse do professor (+ modelo de repasse no cadastro) · app da arena A3 Encaixe, A6 Aluno, A7 Mensalidades, A8–A12 Matrícula |
-| depois | cobrança online (PIX/cartão recorrente pelo Asaas), matrícula pelo app do atleta, oferta automática da lista de espera, check-in por QR, lembrete 2h antes |
+| depois | cobrança online (PIX/cartão recorrente pelo Asaas), matrícula pelo app do atleta, oferta automática da lista de espera, check-in por QR · ~~lembrete 2h antes~~ (feito, ver abaixo) |
 
 ## Decisões
 
@@ -130,3 +130,16 @@ Pagamento manual, direto da arena ao professor — nada passa pela plataforma.
 | `previewArenaClassPayouts` | conta do mês para todos os professores |
 | `closeArenaClassPayout` | fecha/recalcula o mês de um professor (com ajuste) |
 | `setArenaClassPayoutStatus` | registra o pagamento feito por fora / desfaz |
+
+## Lembrete 2h antes (19/10)
+
+- Agendador `sendArenaClassReminders` a cada 5 min (SP), janela de 115–125 min sobre `startAt` da aula —
+  o mesmo desenho dos lembretes de reserva. Só aula `scheduled`.
+- Recebem: alunos ativos com conta NexaGO que fazem aquele dia da semana, encaixes com conta e o
+  professor (`teacherUserId`, com texto próprio e a contagem da lista). Pausado e sem conta, não.
+- Uma vez por aula: `reminder2hSentAt` gravado numa transação **antes** de enviar (um lembrete repetido
+  incomoda mais que um que falhou; falha de um aluno não trava os outros).
+- Regra `classReminderEnabled` em `classSettings/rules`, ligada por padrão (doc antigo sem o campo = ligado);
+  desligada não envia nem marca. Toggle em Regras › Lembretes no portal.
+- Push `arena_class_reminder_2h` cai na caixa de notificações do app (como `arena_class_canceled`); aula
+  criada com menos de 2h de antecedência sai sem lembrete.

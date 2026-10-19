@@ -192,6 +192,8 @@ export {
   closeArenaClassPayout,
   setArenaClassPayoutStatus,
 } from "./arena-class-payout";
+// Aulas — lembrete por push 2h antes (alunos do dia e professor).
+export {sendArenaClassReminders} from "./arena-class-reminders";
 
 export {
   onArenaCourtCreatedCountUp,

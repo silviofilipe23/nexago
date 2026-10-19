@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/domain/booking_story_providers.dart';
+import 'package:nexago_app/features/arenas/presentation/booking_result_page.dart';
 import 'package:nexago_app/features/arenas/presentation/booking_story_page.dart';
 import 'package:nexago_app/features/athlete/domain/agenda/athlete_agenda_models.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
@@ -13,8 +14,11 @@ import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_t
 AthleteAgendaTimelineRow aluguel({
   required String status,
   bool needsPayment = false,
+  AthleteAgendaBookingStage stage = AthleteAgendaBookingStage.future,
 }) {
-  final start = DateTime.now().add(const Duration(days: 2));
+  final start = DateTime.now().add(
+    Duration(days: stage == AthleteAgendaBookingStage.past ? -2 : 2),
+  );
   final end = start.add(const Duration(hours: 1));
   return AthleteAgendaTimelineRow.item(
     AthleteAgendaItem(
@@ -34,7 +38,7 @@ AthleteAgendaTimelineRow aluguel({
         endAt: end,
         rawStatus: status,
         confirmedParticipants: 1,
-        stage: AthleteAgendaBookingStage.future,
+        stage: stage,
         needsPayment: needsPayment,
       ),
     ),
@@ -113,5 +117,38 @@ void main() {
 
     expect(find.byKey(const Key('agenda-booking-story-b1')), findsNothing);
     expect(find.textContaining('Pagar'), findsOneWidget);
+  });
+
+  testWidgets('aluguel futuro: story, mas ainda sem "Postar resultado"', (
+    tester,
+  ) async {
+    await abrirAgenda(tester, aluguel(status: 'confirmed'));
+
+    expect(find.byKey(const Key('agenda-booking-result-b1')), findsNothing);
+  });
+
+  testWidgets('aluguel que já passou: "Postar resultado" abre o pós-jogo', (
+    tester,
+  ) async {
+    await abrirAgenda(
+      tester,
+      aluguel(status: 'confirmed', stage: AthleteAgendaBookingStage.past),
+    );
+
+    expect(find.byKey(const Key('agenda-booking-story-b1')), findsNothing);
+    await tester.tap(find.byKey(const Key('agenda-booking-result-b1')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BookingResultPage), findsOneWidget);
+    expect(find.text('Pós-jogo'), findsOneWidget);
+  });
+
+  testWidgets('aluguel passado cancelado: sem pós-jogo', (tester) async {
+    await abrirAgenda(
+      tester,
+      aluguel(status: 'cancelled', stage: AthleteAgendaBookingStage.canceled),
+    );
+
+    expect(find.byKey(const Key('agenda-booking-result-b1')), findsNothing);
   });
 }

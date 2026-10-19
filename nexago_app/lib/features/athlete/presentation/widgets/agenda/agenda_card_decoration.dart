@@ -8,9 +8,13 @@ import '../../../domain/agenda/athlete_agenda_models.dart';
 const agendaTimelineCardRadius = 20.0;
 
 /// Degradê no tom do tipo (accent), canto superior direito → inferior esquerdo.
+///
+/// No tema claro o degradê é claro: o texto dos cards segue `themeColors`
+/// (escuro no claro), então o fundo acompanha o tema.
 BoxDecoration agendaTimelineCardDecoration({
   required AthleteAgendaItemKind kind,
   required Color accent,
+  required bool isDark,
   bool highlighted = false,
   bool isCanceled = false,
   bool isLive = false,
@@ -20,7 +24,9 @@ BoxDecoration agendaTimelineCardDecoration({
     isCanceled: isCanceled,
     isLive: isLive,
   );
-  final (topRight, bottomLeft, borderBase) = _accentGradient(typeAccent);
+  final (topRight, bottomLeft, borderBase) = isDark
+      ? _darkAccentGradient(typeAccent)
+      : _lightAccentGradient(typeAccent);
 
   final borderColor = highlighted
       ? accent.withValues(alpha: 0.55)
@@ -42,6 +48,16 @@ BoxDecoration agendaTimelineCardDecoration({
   );
 }
 
+/// Tom do tipo para texto, selos e botões sobre o card.
+///
+/// Os acentos são pastéis pensados pro fundo escuro; no tema claro escurecem
+/// (mesmo matiz) para manter contraste ≥ 4,5:1 sobre o degradê claro.
+Color agendaCardAccent(Color accent, {required bool isDark}) {
+  if (isDark) return accent;
+  final hsl = HSLColor.fromColor(accent);
+  return hsl.withLightness(hsl.lightness * 0.42).toColor();
+}
+
 /// Cor base do degradê sempre alinhada ao tipo (não ao estado muted).
 Color _resolveTypeAccent({
   required AthleteAgendaItemKind kind,
@@ -58,7 +74,9 @@ Color _resolveTypeAccent({
   };
 }
 
-(Color topRight, Color bottomLeft, Color border) _accentGradient(Color accent) {
+(Color topRight, Color bottomLeft, Color border) _darkAccentGradient(
+  Color accent,
+) {
   const darkBase = Color(0xFF050508);
   final topRight = Color.alphaBlend(
     accent.withValues(alpha: 0.34),
@@ -72,5 +90,18 @@ Color _resolveTypeAccent({
     accent.withValues(alpha: 0.45),
     const Color(0xFF141418),
   );
+  return (topRight, bottomLeft, border);
+}
+
+(Color topRight, Color bottomLeft, Color border) _lightAccentGradient(
+  Color accent,
+) {
+  const lightBase = AppColors.white;
+  final topRight = Color.alphaBlend(accent.withValues(alpha: 0.12), lightBase);
+  final bottomLeft = Color.alphaBlend(
+    accent.withValues(alpha: 0.03),
+    lightBase,
+  );
+  final border = Color.alphaBlend(accent.withValues(alpha: 0.5), lightBase);
   return (topRight, bottomLeft, border);
 }

@@ -87,6 +87,8 @@ export interface ArenaClassData {
   sport: string;
   level: ArenaClassLevel;
   teacherId: string;
+  /** Conta NexaGO do professor (uid) — obrigatória para professor novo; null em legado. */
+  teacherUserId: string | null;
   teacherName: string;
   teacherColor: string;
   /** ISO 1–7 ordenados; vazio = aula avulsa (uma data só, `startDate`). */
@@ -117,6 +119,9 @@ export function parseArenaClass(data: Record<string, unknown>): ArenaClassData {
     sport: String(data["sport"] ?? ""),
     level: (CLASS_LEVELS as readonly string[]).includes(level) ? level as ArenaClassLevel : "livre",
     teacherId: String(data["teacherId"] ?? ""),
+    teacherUserId: typeof data["teacherUserId"] === "string" && data["teacherUserId"] ?
+      data["teacherUserId"] :
+      null,
     teacherName: String(data["teacherName"] ?? "Professor"),
     teacherColor: String(data["teacherColor"] ?? "#FF6A1A"),
     weekdays: Array.isArray(data["weekdays"]) ?
@@ -507,6 +512,7 @@ export async function materializeClassSession(
         sport: cls.sport,
         level: cls.level,
         teacherId: cls.teacherId,
+        teacherUserId: cls.teacherUserId,
         teacherName: cls.teacherName,
         teacherColor: cls.teacherColor,
         courtId: cls.courtId,
@@ -1065,7 +1071,7 @@ async function resolveTeacher(
   db: Firestore,
   arenaId: string,
   teacherId: string,
-): Promise<{name: string; color: string}> {
+): Promise<{name: string; color: string; userId: string | null}> {
   const snap = await db.collection("arenas").doc(arenaId).collection(CLASS_TEACHERS).doc(teacherId).get();
   if (!snap.exists || snap.data()?.["status"] === "archived") {
     throw new HttpsError("not-found", "Professor não encontrado.");
@@ -1074,7 +1080,21 @@ async function resolveTeacher(
   return {
     name: typeof data["name"] === "string" ? data["name"] : "Professor",
     color: typeof data["color"] === "string" ? data["color"] : "#FF6A1A",
+    userId: typeof data["userId"] === "string" && data["userId"] ? data["userId"] : null,
   };
+}
+
+/** Professor de turma nova (ou trocado) precisa de conta NexaGO; legado só segue onde já estava. */
+export function requireTeacherAccount(
+  teacher: {name: string; userId: string | null},
+  isNewOrChangedTeacher: boolean,
+): void {
+  if (isNewOrChangedTeacher && teacher.userId == null) {
+    throw new HttpsError(
+      "failed-precondition",
+      `${teacher.name} ainda não tem conta NexaGO vinculada. Vincule a conta em Aulas › Professores.`,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1083,20 +1103,109 @@ async function resolveTeacher(
 
 const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/;
 
+export interface TeacherInput {
+  teacherId: string | null;
+  /** Conta NexaGO (uid). Obrigatória para cadastrar; em legado sem conta, vincula. */
+  userId: string | null;
+  specialty: string | null;
+  phone: string | null;
+  color: string;
+  status: "active" | "archived";
+}
+
+/**
+ * Cadastra/edita professor. Professor é sempre uma conta NexaGO (quase sempre atleta da
+ * própria arena): o nome e a foto vêm do perfil e cada conta entra uma vez por arena.
+ * Professor antigo, de antes da conta obrigatória, é vinculado por aqui.
+ */
+export async function upsertClassTeacherCore(
+  db: Firestore,
+  arenaId: string,
+  input: TeacherInput,
+  actorUid: string,
+): Promise<{teacherId: string}> {
+  const col = db.collection("arenas").doc(arenaId).collection(CLASS_TEACHERS);
+
+  async function profileOf(userId: string): Promise<{name: string; photoUrl: string | null}> {
+    const userSnap = await db.collection("users").doc(userId).get();
+    if (!userSnap.exists) throw new HttpsError("not-found", "Conta NexaGO não encontrada.");
+    const display = await resolveAthleteDisplay(db, userId);
+    return {name: display.name.slice(0, 60), photoUrl: display.photoUrl};
+  }
+
+  async function assertNotTeacherYet(userId: string, exceptId: string | null): Promise<void> {
+    const dup = await col.where("userId", "==", userId).get();
+    const other = dup.docs.find((d) => d.id !== exceptId);
+    if (!other) return;
+    throw new HttpsError(
+      "already-exists",
+      other.data()["status"] === "archived" ?
+        "Este atleta já é professor da arena (arquivado) — reative na lista." :
+        "Este atleta já é professor da arena.",
+    );
+  }
+
+  if (input.teacherId == null) {
+    if (!input.userId) {
+      throw new HttpsError("invalid-argument", "Escolha a conta NexaGO do professor.");
+    }
+    await assertNotTeacherYet(input.userId, null);
+    const profile = await profileOf(input.userId);
+    const ref = col.doc();
+    await ref.set({
+      arenaId,
+      userId: input.userId,
+      name: profile.name,
+      photoUrl: profile.photoUrl,
+      specialty: input.specialty,
+      phone: input.phone,
+      color: input.color,
+      status: "active",
+      createdByUid: actorUid,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return {teacherId: ref.id};
+  }
+
+  const ref = col.doc(input.teacherId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Professor não encontrado.");
+  const linked = typeof snap.data()?.["userId"] === "string" && snap.data()?.["userId"] ?
+    String(snap.data()?.["userId"]) :
+    null;
+  if (linked && input.userId && input.userId !== linked) {
+    throw new HttpsError(
+      "failed-precondition",
+      "A conta do professor não muda. Arquive este e cadastre o outro atleta.",
+    );
+  }
+  const userId = linked ?? input.userId;
+  const update: Record<string, unknown> = {
+    specialty: input.specialty,
+    phone: input.phone,
+    color: input.color,
+    status: input.status,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  if (userId) {
+    if (!linked) await assertNotTeacherYet(userId, ref.id);
+    // Nome e foto acompanham o perfil.
+    const profile = await profileOf(userId);
+    Object.assign(update, {userId, name: profile.name, photoUrl: profile.photoUrl});
+  }
+  await ref.set(update, {merge: true});
+  return {teacherId: ref.id};
+}
+
 export const upsertArenaClassTeacher = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {
   const uid = requireUid(request.auth);
   const input = (request.data ?? {}) as Record<string, unknown>;
   const arenaId = str(input["arenaId"]);
   const teacherId = str(input["teacherId"]) || null;
-  const name = str(input["name"]);
-  const specialty = str(input["specialty"]).slice(0, 60) || null;
-  const phone = str(input["phone"]).slice(0, 30) || null;
   const color = str(input["color"]) || "#FF6A1A";
   const status = str(input["status"]) || "active";
   if (!arenaId) throw new HttpsError("invalid-argument", "Arena é obrigatória.");
-  if (!name || name.length > 60) {
-    throw new HttpsError("invalid-argument", "Informe o nome do professor (até 60 caracteres).");
-  }
   if (!HEX_COLOR.test(color)) throw new HttpsError("invalid-argument", "Cor inválida.");
   if (status !== "active" && status !== "archived") {
     throw new HttpsError("invalid-argument", "Status inválido.");
@@ -1104,24 +1213,15 @@ export const upsertArenaClassTeacher = onCall({region: CLIENT_FACING_REGIONS}, a
 
   const db = getFirestore();
   const arenaData = await requireClassManager(db, arenaId, uid);
-  const col = db.collection("arenas").doc(arenaId).collection(CLASS_TEACHERS);
-
-  if (teacherId == null) {
-    requireClassEntitlement(arenaData);
-    const ref = col.doc();
-    await ref.set({
-      arenaId, name, specialty, phone, color, status: "active",
-      createdByUid: uid,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    return {teacherId: ref.id};
-  }
-
-  const ref = col.doc(teacherId);
-  if (!(await ref.get()).exists) throw new HttpsError("not-found", "Professor não encontrado.");
-  await ref.set({name, specialty, phone, color, status, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
-  return {teacherId};
+  if (teacherId == null) requireClassEntitlement(arenaData);
+  return upsertClassTeacherCore(db, arenaId, {
+    teacherId,
+    userId: str(input["userId"]) || null,
+    specialty: str(input["specialty"]).slice(0, 60) || null,
+    phone: str(input["phone"]).slice(0, 30) || null,
+    color,
+    status,
+  }, uid);
 });
 
 // ---------------------------------------------------------------------------
@@ -1176,6 +1276,7 @@ export const upsertArenaClass = onCall({region: CLIENT_FACING_REGIONS, timeoutSe
   requireClassEntitlement(arenaData);
   const courtName = await resolveCourtName(db, arenaId, v.courtId);
   const teacher = await resolveTeacher(db, arenaId, v.teacherId);
+  if (classId == null) requireTeacherAccount(teacher, true);
   const arenaName = typeof arenaData["name"] === "string" && arenaData["name"].trim() ?
     arenaData["name"].trim() :
     "Arena";
@@ -1188,6 +1289,7 @@ export const upsertArenaClass = onCall({region: CLIENT_FACING_REGIONS, timeoutSe
     sport: v.sport,
     level: v.level,
     teacherId: v.teacherId,
+    teacherUserId: teacher.userId,
     teacherName: teacher.name,
     teacherColor: teacher.color,
     weekdays: v.weekdays,
@@ -1255,6 +1357,7 @@ export const upsertArenaClass = onCall({region: CLIENT_FACING_REGIONS, timeoutSe
 
   const {ref: classRef, data: existingData, cls: existing} = await loadClassOrThrow(db, classId);
   if (existing.arenaId !== arenaId) throw new HttpsError("permission-denied", "Turma de outra arena.");
+  requireTeacherAccount(teacher, existing.teacherId !== v.teacherId);
   if (existing.status === "archived") {
     throw new HttpsError("failed-precondition", "Turma encerrada não pode ser editada.");
   }
@@ -1306,6 +1409,7 @@ async function refreshFutureSessionSnapshots(
       sport: cls.sport,
       level: cls.level,
       teacherId: cls.teacherId,
+      teacherUserId: cls.teacherUserId,
       teacherName: cls.teacherName,
       teacherColor: cls.teacherColor,
       capacity: cls.capacity,

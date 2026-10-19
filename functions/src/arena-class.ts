@@ -1142,6 +1142,10 @@ export const upsertArenaClass = onCall({region: CLIENT_FACING_REGIONS, timeoutSe
     if (rawStudents.length > v.capacity) {
       throw new HttpsError("invalid-argument", "Mais alunos do que vagas.");
     }
+    // Valida os alunos antes de gravar qualquer coisa.
+    const students: Array<Omit<AddClassStudentInput, "addedByUid">> = [];
+    for (const raw of rawStudents) students.push(await resolveStudentInput(db, raw));
+
     const classRef = db.collection(ARENA_CLASSES).doc();
     await classRef.set({
       ...next,
@@ -1153,12 +1157,15 @@ export const upsertArenaClass = onCall({region: CLIENT_FACING_REGIONS, timeoutSe
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    for (const raw of rawStudents) {
-      const student = await resolveStudentInput(db, raw);
+    const result = await materializeClassRange(db, classRef.id, next, fromKey, horizonKey);
+    if (next.weekdays.length === 0 && result.createdDates.length === 0) {
+      // Aula avulsa sem quadra não existe — desfaz em vez de deixar uma turma sem aula.
+      await classRef.delete();
+      throw new HttpsError("failed-precondition", "A quadra já está ocupada nesse horário.");
+    }
+    for (const student of students) {
       await addClassStudentCore(db, classRef.id, {...student, addedByUid: uid});
     }
-
-    const result = await materializeClassRange(db, classRef.id, next, fromKey, horizonKey);
     await classRef.set({materializedUntil: horizonKey, conflictDates: result.conflictDates}, {merge: true});
     logger.info("upsertArenaClass: turma criada", {
       classId: classRef.id, arenaId, created: result.createdDates.length, conflicts: result.conflictDates.length,

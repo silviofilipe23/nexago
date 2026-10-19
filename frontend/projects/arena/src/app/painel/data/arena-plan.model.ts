@@ -12,6 +12,7 @@ export type ArenaCapability =
   | 'estoque'
   | 'promocoes'
   | 'clubinho'
+  | 'aulas' // aulas: turmas e aulas avulsas com professor (mesmo gate Pro/Elite do servidor)
   | 'metricasCompletas'
   | 'receberTorneios'
   | 'multiUnidade'
@@ -81,6 +82,7 @@ export function arenaCapabilitiesFor(tier: ArenaPlanTier | null, entitled: boole
         'estoque',
         'promocoes',
         'clubinho',
+        'aulas',
         'metricasCompletas',
         'receberTorneios',
         'multiUnidade',
@@ -93,6 +95,7 @@ export function arenaCapabilitiesFor(tier: ArenaPlanTier | null, entitled: boole
         'estoque',
         'promocoes',
         'clubinho',
+        'aulas',
         'metricasCompletas',
         'receberTorneios',
         'equipe',

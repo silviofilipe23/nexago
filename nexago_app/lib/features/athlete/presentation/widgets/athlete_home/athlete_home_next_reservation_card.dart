@@ -12,13 +12,15 @@ import '../../../../arenas/domain/my_booking_item.dart';
 import '../../../domain/athlete_booking_helpers.dart';
 
 /// Card "Próxima reserva" da Home (paridade com o painel web): time-box com
-/// dia + hora, status, valor e ações "Como chegar"/"Detalhes".
+/// dia + hora, status, valor e ações "Como chegar"/"Detalhes" — e o atalho do
+/// story quando [onStoryTap] vem.
 class AthleteHomeNextReservationCard extends StatelessWidget {
   const AthleteHomeNextReservationCard({
     super.key,
     required this.booking,
     required this.onDetailsTap,
     required this.onReserveTap,
+    this.onStoryTap,
     this.now,
   });
 
@@ -26,6 +28,9 @@ class AthleteHomeNextReservationCard extends StatelessWidget {
   final MyBookingItem? booking;
   final VoidCallback onDetailsTap;
   final VoidCallback onReserveTap;
+
+  /// "Postar no story"; `null` esconde o botão (reserva ainda não garantida).
+  final VoidCallback? onStoryTap;
 
   /// Injetável pra teste/preview determinístico.
   final DateTime? now;
@@ -42,6 +47,7 @@ class AthleteHomeNextReservationCard extends StatelessWidget {
           : _ReservationBody(
               booking: item,
               onDetailsTap: onDetailsTap,
+              onStoryTap: onStoryTap,
               colors: colors,
               now: now ?? DateTime.now(),
             ),
@@ -93,12 +99,14 @@ class _ReservationBody extends StatelessWidget {
   const _ReservationBody({
     required this.booking,
     required this.onDetailsTap,
+    required this.onStoryTap,
     required this.colors,
     required this.now,
   });
 
   final MyBookingItem booking;
   final VoidCallback onDetailsTap;
+  final VoidCallback? onStoryTap;
   final AppThemeColors colors;
   final DateTime now;
 
@@ -227,20 +235,46 @@ class _ReservationBody extends StatelessWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.md),
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          crossAxisAlignment: WrapCrossAlignment.center,
+        Row(
           children: [
-            _Pill(label: status.label, color: status.color),
-            if (amount != null && amount > 0)
-              _Pill(
-                label: NumberFormat.currency(
-                  locale: 'pt_BR',
-                  symbol: r'R$',
-                  decimalDigits: 0,
-                ).format(amount),
-                color: colors.onSurfaceMuted,
+            Expanded(
+              child: Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _Pill(label: status.label, color: status.color),
+                  if (amount != null && amount > 0)
+                    _Pill(
+                      label: NumberFormat.currency(
+                        locale: 'pt_BR',
+                        symbol: r'R$',
+                        decimalDigits: 0,
+                      ).format(amount),
+                      color: colors.onSurfaceMuted,
+                    ),
+                ],
+              ),
+            ),
+            // Na linha das etiquetas, não na dos botões: três botões em 375 pt
+            // quebravam o "Como chegar" em duas linhas.
+            if (onStoryTap != null)
+              Tooltip(
+                message: 'Postar no story',
+                child: TextButton.icon(
+                  key: const Key('home-next-booking-story'),
+                  onPressed: onStoryTap,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.brand,
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                    ),
+                    textStyle: AppTypography.labelL,
+                  ),
+                  icon: const Icon(Icons.amp_stories_outlined, size: 18),
+                  label: const Text('Story'),
+                ),
               ),
           ],
         ),

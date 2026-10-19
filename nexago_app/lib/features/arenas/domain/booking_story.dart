@@ -4,7 +4,9 @@ import '../../../core/brand/nexa_hashtag.dart';
 import '../../../core/profiles/app_user_profile.dart';
 import '../../../core/sports/sport_catalog.dart';
 import 'arena_booking_labels.dart';
+import 'arena_booking_success_args.dart';
 import 'my_booking_confirmed_athlete.dart';
+import 'my_booking_item.dart';
 
 /// Fundo do story da reserva (protótipo "Reservar · 5 · Compartilhar no story").
 enum BookingStoryTheme {
@@ -31,6 +33,66 @@ enum BookingStoryInfo {
   const BookingStoryInfo(this.label);
 
   final String label;
+}
+
+/// A reserva que o editor do story recebe — de onde quer que ele seja aberto
+/// (confirmação, agenda, home).
+@immutable
+class BookingStoryArgs {
+  const BookingStoryArgs({
+    required this.bookingId,
+    required this.arenaName,
+    required this.courtName,
+    required this.dateKey,
+    required this.startTime,
+    required this.endTime,
+  });
+
+  factory BookingStoryArgs.fromSuccess(BookingSuccessArgs args) {
+    return BookingStoryArgs(
+      bookingId: args.primaryBookingId ?? '',
+      arenaName: args.arenaName,
+      courtName: args.courtName,
+      dateKey: args.dateKey,
+      startTime: args.startTime,
+      endTime: args.endTime,
+    );
+  }
+
+  factory BookingStoryArgs.fromBooking(MyBookingItem booking) {
+    return BookingStoryArgs(
+      bookingId: booking.id,
+      arenaName: booking.arenaName,
+      courtName: booking.courtName ?? '',
+      dateKey: booking.dateRaw,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+    );
+  }
+
+  /// Id em `arenaBookings`: de lá vêm esporte e confirmados. Vazio = só o que
+  /// veio aqui.
+  final String bookingId;
+  final String arenaName;
+  final String courtName;
+
+  /// `yyyy-MM-dd`.
+  final String dateKey;
+  final String startTime;
+  final String endTime;
+}
+
+/// A arte diz "QUADRA GARANTIDA": cancelada ou esperando o pagamento online
+/// não oferece o story. "Pagar na arena" já é reserva feita — vale.
+bool isBookingStoryShareable(String rawStatus) {
+  const notYet = {
+    'canceled',
+    'cancelled',
+    'pending',
+    'processing',
+    'pending_payment',
+  };
+  return !notYet.contains(rawStatus.trim().toLowerCase());
 }
 
 /// Uma pessoa na linha "Galera" do story.

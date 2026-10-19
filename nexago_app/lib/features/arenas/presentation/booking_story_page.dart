@@ -16,18 +16,25 @@ import '../../../core/ui/nexa_share.dart';
 import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../data/booking_story_photo_picker.dart';
-import '../domain/arena_booking_success_args.dart';
 import '../domain/booking_story.dart';
 import '../domain/booking_story_providers.dart';
 import 'widgets/booking_story/booking_story_card.dart';
 
-/// Reservar · 11 — editor do story 9:16 depois da reserva confirmada: o atleta
+/// Abre o editor do story por cima de tudo (fora do shell com a barra).
+/// Chamado da confirmação, da agenda e do card "Próxima reserva" da home.
+Future<void> openBookingStory(BuildContext context, BookingStoryArgs args) {
+  return Navigator.of(context, rootNavigator: true).push(
+    MaterialPageRoute<void>(builder: (_) => BookingStoryPage(args: args)),
+  );
+}
+
+/// Reservar · 11 — editor do story 9:16 de uma reserva garantida: o atleta
 /// escolhe o fundo (foto da galeria ou um tema) e o que aparece na arte, e
 /// compartilha o PNG 1080×1920 pela folha nativa (Instagram → Story).
 class BookingStoryPage extends ConsumerStatefulWidget {
   const BookingStoryPage({super.key, required this.args});
 
-  final BookingSuccessArgs args;
+  final BookingStoryArgs args;
 
   @override
   ConsumerState<BookingStoryPage> createState() => _BookingStoryPageState();
@@ -130,9 +137,7 @@ class _BookingStoryPageState extends ConsumerState<BookingStoryPage> {
     final colors = context.themeColors;
     final args = widget.args;
     final profile = ref.watch(athleteProfileProvider).valueOrNull;
-    final source = ref.watch(
-      bookingStorySourceProvider(args.primaryBookingId ?? ''),
-    );
+    final source = ref.watch(bookingStorySourceProvider(args.bookingId));
     final data = bookingStoryDataFrom(
       arenaName: args.arenaName,
       courtName: args.courtName,

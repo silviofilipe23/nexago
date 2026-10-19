@@ -14,6 +14,7 @@ import '../domain/arena_booking_labels.dart';
 import '../domain/arena_booking_success_actions.dart';
 import '../domain/arena_booking_success_args.dart';
 import '../domain/arenas_providers.dart';
+import '../domain/booking_story.dart';
 import 'arena_booking_navigation.dart';
 import 'booking_story_page.dart';
 import 'widgets/booking_success/booking_success_action_grid.dart';
@@ -120,7 +121,10 @@ class BookingSuccessPage extends ConsumerWidget {
                       CashbackEarnedNote(paymentId: resolved.paymentId!),
                     SizedBox(height: 20),
                     BookingSuccessActionGrid(
-                      onStory: () => _openStory(context, resolved),
+                      onStory: () => openBookingStory(
+                        context,
+                        BookingStoryArgs.fromSuccess(resolved),
+                      ),
                       onShare: () => _shareBooking(context, resolved),
                       onDirections: () => _openMaps(
                         context,
@@ -189,14 +193,6 @@ class BookingSuccessPage extends ConsumerWidget {
     final e = end.length >= 5 ? end.substring(0, 5) : end;
     if (s.isEmpty && e.isEmpty) return '—';
     return '$s - $e'.trim();
-  }
-
-  void _openStory(BuildContext context, BookingSuccessArgs resolved) {
-    Navigator.of(context, rootNavigator: true).push(
-      MaterialPageRoute<void>(
-        builder: (_) => BookingStoryPage(args: resolved),
-      ),
-    );
   }
 
   Future<void> _shareBooking(

@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/data/booking_story_photo_picker.dart';
-import 'package:nexago_app/features/arenas/domain/arena_booking_success_args.dart';
+import 'package:nexago_app/features/arenas/domain/booking_story.dart';
 import 'package:nexago_app/features/arenas/domain/booking_story_providers.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_confirmed_athlete.dart';
 import 'package:nexago_app/features/arenas/presentation/booking_story_page.dart';
@@ -15,16 +15,13 @@ import 'package:nexago_app/features/arenas/presentation/widgets/booking_story/bo
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
 
-const args = BookingSuccessArgs(
-  arenaId: 'a1',
+const args = BookingStoryArgs(
+  bookingId: 'b1',
   arenaName: 'Arena CFC',
   courtName: 'Quadra 1',
   dateKey: '2026-05-22',
   startTime: '09:00',
   endTime: '10:30',
-  dateLabel: '22 mai 2026',
-  timeRangeLabel: '09:00 – 10:30',
-  bookingIds: ['b1'],
 );
 
 const maria = AthleteProfile(

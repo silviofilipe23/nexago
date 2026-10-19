@@ -148,3 +148,22 @@
     opacity: 0.35;
   }
 }
+
+// Costas abaixo do nome: número na fonte do nome ou a imagem inteira dentro da caixa.
+.cp-back {
+  position: absolute;
+  display: grid;
+  place-items: center;
+}
+
+.cp-back-art {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+
+.cp-back-number {
+  letter-spacing: 0.02em;
+}
+

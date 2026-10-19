@@ -26,6 +26,15 @@ export interface PreviewImage {
   transform: ImageTransform;
 }
 
+/** Costas abaixo do nome: número (na fonte e cor do nome) ou imagem, na caixa `box`. */
+export interface PreviewBack {
+  box: PreviewBox;
+  kind: 'numero' | 'imagem';
+  /** `text` vazio = exemplo apagado. */
+  number: { text: string; fontId: string; color: string } | null;
+  image: { url: string } | null;
+}
+
 /** Passo do teclado: 2% da área por seta, 5% de escala por +/−. */
 const KEY_MOVE = 0.02;
 const KEY_SCALE = 0.05;
@@ -76,6 +85,23 @@ interface Drag {
           }
         </div>
       }
+      @if (backShown(); as b) {
+        <div class="cp-back" [style]="boxStyle(b.box)">
+          @if (b.image; as img) {
+            <img class="cp-back-art" [src]="img.url" alt="Imagem das costas" draggable="false" />
+          } @else if (b.kind === 'numero' && b.number; as num) {
+            <span
+              class="cp-name cp-back-number"
+              [attr.data-font]="num.fontId"
+              [class.cp-name--empty]="!num.text"
+              [style.color]="num.color"
+              [style.font-size.cqw]="backNumberFont()"
+            >{{ num.text || '10' }}</span>
+          } @else {
+            <span class="cp-art-placeholder" aria-hidden="true">{{ compact() ? '' : 'IMAGEM DAS COSTAS' }}</span>
+          }
+        </div>
+      }
       @if (nameShown(); as n) {
         <div class="cp-name-band" [style]="boxStyle(namePreviewBox(n.placement))">
           <span
@@ -108,6 +134,8 @@ export class LojaCustomPreviewComponent {
   /** Área da imagem: sem `image`, mostra o lugar listrado "SUA IMAGEM". */
   readonly area = input<StoreCustomArea | null>(null);
   readonly image = input<PreviewImage | null>(null);
+  /** Costas abaixo do nome (só aparecem do lado das costas). */
+  readonly back = input<PreviewBack | null>(null);
   readonly interactive = input(false);
   /** Miniatura: sem rótulo no lugar da imagem. */
   readonly compact = input(false);
@@ -129,6 +157,19 @@ export class LojaCustomPreviewComponent {
     return n && nameSide(n.placement) === this.side() ? n : null;
   });
   protected readonly namePreviewBox = namePreviewBox;
+  protected readonly backShown = computed(() => (this.side() === 'costas' ? this.back() : null));
+  /**
+   * Número grande como numa camisa: 70% da altura da caixa, sem passar da largura. `cqw` é % da
+   * largura da peça, que tem 6 × 7 (a altura vale 7/6 da largura).
+   */
+  protected readonly backNumberFont = computed(() => {
+    const b = this.backShown();
+    if (!b) return 0;
+    const length = Math.max(1, [...(b.number?.text || '10')].length);
+    const byHeight = b.box.h * (7 / 6) * 100 * 0.7;
+    const byWidth = (b.box.w * 100 * 0.9) / (length * 0.62);
+    return Math.min(byHeight, byWidth);
+  });
   protected readonly nameFont = computed(() => {
     const n = this.nameShown();
     return n ? nameFontFraction([...(n.text || 'SEU NOME')].length, namePreviewBox(n.placement).w) : 0;

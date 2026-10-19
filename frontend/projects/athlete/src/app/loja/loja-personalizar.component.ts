@@ -12,6 +12,9 @@ import {
 import {
   CONTENT_TYPE_BY_FORMAT,
   areaSizeLabel,
+  backNumberHint,
+  backPreviewBox,
+  backStepTitle,
   customExtraCents,
   defaultNameColor,
   effectiveDpi,
@@ -35,6 +38,7 @@ import {
   previewPhotoNote,
   priceBreakdown,
   productionNote,
+  sanitizeBackNumber,
   sanitizeNameInput,
   soloPriceLabel,
   type ImageDims,
@@ -64,7 +68,12 @@ import {
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxToastService } from '../shared/feedback';
 import { NxSkeletonComponent } from '../shared/loading/nx-skeleton.component';
-import { LojaCustomPreviewComponent, type PreviewImage, type PreviewName } from './loja-custom-preview.component';
+import {
+  LojaCustomPreviewComponent,
+  type PreviewBack,
+  type PreviewImage,
+  type PreviewName,
+} from './loja-custom-preview.component';
 import { LojaMiniCartComponent, buildMiniCartLines } from './loja-mini-cart.component';
 import { trackLojaEvent } from './loja-telemetry';
 import { LojaVitrineStore } from './loja-vitrine.store';
@@ -86,8 +95,12 @@ interface Upload {
   path: string | null;
 }
 
+/** Arte da frente (área escolhida) ou das costas (abaixo do nome). */
+type Slot = 'front' | 'back';
+
 /**
- * Loja · Personalizar (02b, portal web): prévia ao vivo + passos Cor e tamanho · Nome · Imagem.
+ * Loja · Personalizar (02b, portal web): prévia ao vivo + passos Cor e tamanho · Nome · Imagem ·
+ * Costas.
  * O adicional e a linha do carrinho saem do servidor (`addStoreCustomItemToCart`), que revalida
  * tudo; aqui é o retorno na hora. Regras em `docs/business-rules/loja-personalizar.md`.
  */
@@ -196,6 +209,41 @@ export class LojaPersonalizarComponent {
     return { tone: q, label: imageQualityLabel(q, up.dims, area) };
   });
 
+  // ── Costas (abaixo do nome) ─────────────────────────────────────
+  protected readonly backOn = signal(true);
+  private readonly pickedBackKind = signal<'numero' | 'imagem'>('numero');
+  protected readonly backNumber = signal('');
+  protected readonly backNumberRejected = signal(false);
+  protected readonly backUpload = signal<Upload | null>(null);
+  protected readonly backImageError = signal<{ fileName: string; message: string } | null>(null);
+  protected readonly backDragOver = signal(false);
+
+  /** Número ou imagem: o que o atleta escolheu entre os liberados (um só liberado = ele). */
+  protected readonly backKind = computed<'numero' | 'imagem' | null>(() => {
+    const b = this.custom()?.back;
+    if (!b?.enabled) return null;
+    if (b.allowNumber && b.allowImage) return this.pickedBackKind();
+    return b.allowNumber ? 'numero' : 'imagem';
+  });
+  protected readonly hasBack = computed(() => {
+    const kind = this.backKind();
+    if (!kind || !this.backOn()) return false;
+    return kind === 'numero' ? this.backNumber().length > 0 : this.backUpload()?.status === 'done';
+  });
+  protected readonly backQuality = computed(() => {
+    const up = this.backUpload();
+    const b = this.custom()?.back;
+    if (!up || !b) return null;
+    const area = { id: 'costas', name: 'Costas', widthCm: b.widthCm, heightCm: b.heightCm };
+    const q = imageQuality(effectiveDpi(up.dims, area));
+    return { tone: q, label: imageQualityLabel(q, up.dims, area) };
+  });
+  /** Onde o nome fica nas costas (a caixa das costas encosta nele); `null` = sem nome nas costas. */
+  private readonly backNamePlacement = computed(() => {
+    const c = this.custom();
+    return c?.name.enabled && this.nameOn() && nameSide(c.name.placement) === 'costas' ? c.name.placement : null;
+  });
+
   // ── Prévia ──────────────────────────────────────────────────────
   protected readonly side = signal<StorePhotoView>('costas');
   protected readonly previewName = computed<PreviewName | null>(() => {
@@ -207,6 +255,19 @@ export class LojaPersonalizarComponent {
   protected readonly previewImage = computed<PreviewImage | null>(() => {
     const up = this.upload();
     return up && this.previewArea() ? { url: up.previewUrl, aspect: up.aspect, transform: this.transform() } : null;
+  });
+  protected readonly previewBack = computed<PreviewBack | null>(() => {
+    const c = this.custom();
+    const kind = this.backKind();
+    if (!c || !kind || !this.backOn()) return null;
+    const up = this.backUpload();
+    return {
+      box: backPreviewBox(c.back, this.backNamePlacement()),
+      kind,
+      // Sem nome escolhido, a cor de maior contraste com a peça (a mesma conta do nome).
+      number: kind === 'numero' ? { text: this.backNumber(), fontId: this.fontId(), color: this.nameColor() ?? '#f4f4f5' } : null,
+      image: kind === 'imagem' && up ? { url: up.previewUrl } : null,
+    };
   });
   protected readonly garmentHex = computed(() => this.colorValue()?.hex ?? null);
   protected photoFor(side: StorePhotoView): string | null {
@@ -226,7 +287,7 @@ export class LojaPersonalizarComponent {
   });
   protected readonly extraCents = computed(() => {
     const c = this.custom();
-    return c ? customExtraCents(c.price, this.hasName(), this.hasImage()) : 0;
+    return c ? customExtraCents(c.price, this.hasName(), this.hasImage(), this.hasBack()) : 0;
   });
   protected readonly unitCents = computed(() => this.baseCents() + this.extraCents());
   protected readonly breakdown = computed(() => priceBreakdown(this.baseCents(), this.extraCents()));
@@ -237,7 +298,9 @@ export class LojaPersonalizarComponent {
   protected readonly optionsTag = computed(() => {
     const c = this.custom();
     if (!c) return '';
-    return c.name.enabled && c.image.enabled ? 'Nome + imagem' : c.name.enabled ? 'Nome' : 'Imagem';
+    const parts = [c.name.enabled ? 'Nome' : '', c.image.enabled ? 'imagem' : '', c.back.enabled ? 'costas' : ''].filter(Boolean);
+    const tag = parts.join(' + ');
+    return tag.charAt(0).toUpperCase() + tag.slice(1);
   });
 
   // ── Adicionar ───────────────────────────────────────────────────
@@ -246,14 +309,18 @@ export class LojaPersonalizarComponent {
   protected readonly cartPulse = signal(false);
   protected readonly miniCartOpen = signal(false);
   protected readonly addBlocked = computed(
-    () => this.adding() || this.upload()?.status === 'uploading' || (this.hasName() && this.nameProblem() === 'blocked'),
+    () =>
+      this.adding() ||
+      this.upload()?.status === 'uploading' ||
+      this.backUpload()?.status === 'uploading' ||
+      (this.hasName() && this.nameProblem() === 'blocked'),
   );
   protected readonly miniCartLines = computed(() => buildMiniCartLines(this.store.cart(), this.store.products()));
   protected readonly miniCartSubtotal = computed(() => this.miniCartLines().reduce((t, l) => t + l.totalCents, 0));
 
   private timers: ReturnType<typeof setTimeout>[] = [];
   private miniCartTimer: ReturnType<typeof setTimeout> | null = null;
-  private task: CustomUpload | null = null;
+  private readonly tasks: Record<Slot, CustomUpload | null> = { front: null, back: null };
   private checkSeq = 0;
 
   constructor() {
@@ -287,9 +354,11 @@ export class LojaPersonalizarComponent {
     inject(DestroyRef).onDestroy(() => {
       for (const t of this.timers) clearTimeout(t);
       if (this.miniCartTimer) clearTimeout(this.miniCartTimer);
-      this.task?.cancel();
-      const up = this.upload();
-      if (up) URL.revokeObjectURL(up.previewUrl);
+      for (const slot of ['front', 'back'] as const) {
+        this.tasks[slot]?.cancel();
+        const up = this.uploadOf(slot)();
+        if (up) URL.revokeObjectURL(up.previewUrl);
+      }
     });
   }
 
@@ -402,34 +471,47 @@ export class LojaPersonalizarComponent {
     if (up) this.transform.set(fitTransform(up.aspect, area));
   }
 
-  protected onFilePicked(input: HTMLInputElement): void {
+  protected onFilePicked(input: HTMLInputElement, slot: Slot = 'front'): void {
     const file = input.files?.[0];
     input.value = '';
-    if (file) void this.takeFile(file);
+    if (file) void this.takeFile(file, slot);
   }
 
-  protected onDrop(event: DragEvent): void {
+  protected onDrop(event: DragEvent, slot: Slot = 'front'): void {
     event.preventDefault();
-    this.dragOver.set(false);
+    this.dragOf(slot).set(false);
     const file = event.dataTransfer?.files?.[0];
-    if (file) void this.takeFile(file);
+    if (file) void this.takeFile(file, slot);
   }
 
-  protected onDragOver(event: DragEvent): void {
+  protected onDragOver(event: DragEvent, slot: Slot = 'front'): void {
     event.preventDefault();
-    this.dragOver.set(true);
+    this.dragOf(slot).set(true);
   }
 
-  protected retryUpload(): void {
-    const up = this.upload();
-    if (up) this.startUpload(up);
+  protected retryUpload(slot: Slot = 'front'): void {
+    const up = this.uploadOf(slot)();
+    if (up) this.startUpload(up, slot);
   }
 
-  private async takeFile(file: File): Promise<void> {
+  private uploadOf(slot: Slot) {
+    return slot === 'front' ? this.upload : this.backUpload;
+  }
+
+  private errorOf(slot: Slot) {
+    return slot === 'front' ? this.imageError : this.backImageError;
+  }
+
+  private dragOf(slot: Slot) {
+    return slot === 'front' ? this.dragOver : this.backDragOver;
+  }
+
+  /** Mesmas regras (formato, peso, resolução) e mesmo envio para a frente e para as costas. */
+  private async takeFile(file: File, slot: Slot): Promise<void> {
     const c = this.custom();
     const uid = this.auth.user()?.uid;
     if (!c || !uid) return;
-    this.side.set('frente');
+    this.side.set(slot === 'front' ? 'frente' : 'costas');
     const format = imageFormat(file);
     const previewUrl = URL.createObjectURL(file);
     const natural = await readImageSize(previewUrl);
@@ -437,39 +519,64 @@ export class LojaPersonalizarComponent {
     const problem = imageFileProblem(file, dims, c.image);
     if (problem) {
       URL.revokeObjectURL(previewUrl);
-      this.imageError.set({ fileName: file.name, message: problem });
+      this.errorOf(slot).set({ fileName: file.name, message: problem });
       return;
     }
-    this.task?.cancel();
-    const previous = this.upload();
+    this.tasks[slot]?.cancel();
+    const previous = this.uploadOf(slot)();
     if (previous) URL.revokeObjectURL(previous.previewUrl);
     const aspect = natural && natural.heightPx > 0 ? natural.widthPx / natural.heightPx : 1;
-    this.imageError.set(null);
+    this.errorOf(slot).set(null);
     const area = this.area();
-    if (area) this.transform.set(fitTransform(aspect, area));
-    this.startUpload({ status: 'uploading', file, fileName: file.name, format: format!, previewUrl, dims, aspect, pct: 0, path: null });
+    if (slot === 'front' && area) this.transform.set(fitTransform(aspect, area));
+    this.startUpload(
+      { status: 'uploading', file, fileName: file.name, format: format!, previewUrl, dims, aspect, pct: 0, path: null },
+      slot,
+    );
   }
 
-  private startUpload(up: Upload): void {
+  private startUpload(up: Upload, slot: Slot): void {
     const uid = this.auth.user()?.uid;
     if (!uid || !this.api) {
-      this.upload.set({ ...up, status: 'error' });
+      this.uploadOf(slot).set({ ...up, status: 'error' });
       return;
     }
-    this.upload.set({ ...up, status: 'uploading', pct: 0, path: null });
+    this.uploadOf(slot).set({ ...up, status: 'uploading', pct: 0, path: null });
     const task = this.api.uploadImage(uid, up.file, up.format, CONTENT_TYPE_BY_FORMAT[up.format] ?? up.file.type, (pct) =>
-      this.patchUpload(up.previewUrl, { pct }),
+      this.patchUpload(slot, up.previewUrl, { pct }),
     );
-    this.task = task;
+    this.tasks[slot] = task;
     task.done.then(
-      (path) => this.patchUpload(up.previewUrl, { status: 'done', pct: 100, path }),
-      () => this.patchUpload(up.previewUrl, { status: 'error' }),
+      (path) => this.patchUpload(slot, up.previewUrl, { status: 'done', pct: 100, path }),
+      () => this.patchUpload(slot, up.previewUrl, { status: 'error' }),
     );
   }
 
   /** Só mexe se ainda for a mesma arte (trocar no meio do envio descarta o antigo). */
-  private patchUpload(previewUrl: string, patch: Partial<Upload>): void {
-    this.upload.update((u) => (u && u.previewUrl === previewUrl ? { ...u, ...patch } : u));
+  private patchUpload(slot: Slot, previewUrl: string, patch: Partial<Upload>): void {
+    this.uploadOf(slot).update((u) => (u && u.previewUrl === previewUrl ? { ...u, ...patch } : u));
+  }
+
+  // ── Costas ──────────────────────────────────────────────────────
+
+  protected setBackOn(on: boolean): void {
+    this.backOn.set(on);
+    if (on) this.side.set('costas');
+  }
+
+  protected chooseBackKind(kind: 'numero' | 'imagem'): void {
+    this.pickedBackKind.set(kind);
+    this.side.set('costas');
+  }
+
+  protected onBackNumberInput(input: HTMLInputElement): void {
+    const c = this.custom();
+    if (!c) return;
+    const { value, rejected } = sanitizeBackNumber(input.value, c.back.numberMaxDigits);
+    if (input.value !== value) input.value = value;
+    this.backNumberRejected.set(rejected);
+    this.backNumber.set(value);
+    this.side.set('costas');
   }
 
   // ── Carrinho ────────────────────────────────────────────────────
@@ -492,8 +599,9 @@ export class LojaPersonalizarComponent {
     }
     const hasName = this.hasName();
     const hasImage = this.hasImage();
-    if (!hasName && !hasImage) {
-      this.toast.warning('Escolha um nome ou uma imagem', 'Pra comprar sem personalizar, use a página do produto.');
+    const hasBack = this.hasBack();
+    if (!hasName && !hasImage && !hasBack) {
+      this.toast.warning('Escolha um nome, uma imagem ou as costas', 'Pra comprar sem personalizar, use a página do produto.');
       return;
     }
     if (!this.api) {
@@ -506,12 +614,18 @@ export class LojaPersonalizarComponent {
     const input: AddCustomItemInput = { productId: p.id, skuId: variant.id, qty: this.qty() };
     if (hasName) input.name = { text: finalizeName(this.nameText()), fontId: this.fontId(), color: this.nameColor()! };
     if (hasImage && up?.path && area) input.image = { path: up.path, areaId: area.id, transform: this.transform() };
+    const backUp = this.backUpload();
+    if (hasBack) {
+      input.back =
+        this.backKind() === 'numero' ? { type: 'numero', number: this.backNumber() } : { type: 'imagem', path: backUp!.path! };
+    }
 
     this.adding.set(true);
     try {
       const result = await this.api.addToCart(input);
       if (hasName) trackLojaEvent('loja_personalizar_nome', { fonte: input.name!.fontId });
       if (hasImage) trackLojaEvent('loja_personalizar_imagem', { area: area?.id ?? null, qualidade: this.quality()?.tone ?? null });
+      if (hasBack) trackLojaEvent('loja_personalizar_costas', { tipo: input.back!.type });
       trackLojaEvent('loja_add_carrinho', { sku: variant.id, qtd: input.qty, preco: result.unitPriceCents, personalizado: true });
       this.celebrate();
     } catch (e) {
@@ -572,6 +686,14 @@ export class LojaPersonalizarComponent {
     return c ? nameStepTitle(c.name.placement) : '';
   });
   protected readonly imageTitle = computed(() => imageStepTitle(this.area()));
+  protected readonly backTitle = computed(() => backStepTitle(this.backNamePlacement()));
+  protected readonly backPrice = computed(() => `+ ${formatCentsBRL(this.custom()?.price.backCents ?? 0)}`);
+  protected readonly backHint = computed(() => backNumberHint(this.custom()?.back.numberMaxDigits ?? 2));
+  /** Número do passo das costas: depois de cor, nome e imagem ligados. */
+  protected readonly backStepNumber = computed(() => {
+    const c = this.custom();
+    return c ? 2 + (c.name.enabled ? 1 : 0) + (c.image.enabled ? 1 : 0) : 0;
+  });
   protected readonly nameSolo = computed(() => soloPriceLabel(this.custom()?.price.nameOnlyCents ?? 0, 'm'));
   protected readonly imageSolo = computed(() => soloPriceLabel(this.custom()?.price.imageOnlyCents ?? 0, 'f'));
   protected readonly imageRules = computed(() => {

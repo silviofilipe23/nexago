@@ -83,6 +83,9 @@ describe('customization', () => {
     const c = customizationFromDoc({ active: true, name: { allowNumber: true } });
     expect([c.back.enabled, c.back.allowImage, c.back.allowNumber]).toEqual([true, false, true]);
     expect('allowNumber' in c.name).toBeFalse();
+    // `back: null` (seed antigo) é o mesmo caso — senão a tela mostrava as costas desligadas.
+    const nulo = customizationFromDoc({ active: true, name: { allowNumber: true }, back: null });
+    expect([nulo.back.enabled, nulo.back.allowNumber]).toEqual([true, true]);
   });
 
   it('nome de exemplo respeita o limite', () => {

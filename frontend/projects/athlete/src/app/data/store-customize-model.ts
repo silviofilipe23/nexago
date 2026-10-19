@@ -144,12 +144,18 @@ export function defaultNameColor(colors: readonly string[], garmentHex: string |
 
 // ── Preço ──────────────────────────────────────────────────────────
 
-/** Igual ao `customExtraCents` do servidor: juntos saem pelo preço de ambos. */
-export function customExtraCents(price: StoreCustomization['price'], hasName: boolean, hasImage: boolean): number {
-  if (hasName && hasImage) return price.bothCents;
-  if (hasName) return price.nameOnlyCents;
-  if (hasImage) return price.imageOnlyCents;
-  return 0;
+/** Igual ao `customExtraCents` do servidor: juntos saem pelo preço de ambos; costas somam por cima. */
+export function customExtraCents(
+  price: StoreCustomization['price'],
+  hasName: boolean,
+  hasImage: boolean,
+  hasBack = false,
+): number {
+  const back = hasBack ? price.backCents : 0;
+  if (hasName && hasImage) return price.bothCents + back;
+  if (hasName) return price.nameOnlyCents + back;
+  if (hasImage) return price.imageOnlyCents + back;
+  return back;
 }
 
 /** "+ R$ 14,90 sozinho" / "+ R$ 19,90 sozinha". */
@@ -305,6 +311,27 @@ export function fitTransform(aspect: number, area: Pick<StoreCustomArea, 'widthC
   return clampTransform({ x: 0.5, y: 0.5, scale: 1 }, aspect, area);
 }
 
+// ── Costas ─────────────────────────────────────────────────────────
+
+/** Ao digitar o número das costas: só dígitos, até o máximo. `rejected` = algo não entrou. */
+export function sanitizeBackNumber(raw: string, maxDigits: number): { value: string; rejected: boolean } {
+  const digits = raw.replace(/[^0-9]/g, '');
+  const value = digits.slice(0, maxDigits);
+  return { value, rejected: value !== raw };
+}
+
+/** "Até 2 dígitos · 0 a 99". */
+export function backNumberHint(maxDigits: number): string {
+  return `Até ${maxDigits} ${maxDigits === 1 ? 'dígito' : 'dígitos'} · 0 a ${'9'.repeat(maxDigits)}`;
+}
+
+/** "Costas · abaixo do nome" (nome embaixo nas costas → "acima"); sem nome nas costas, "Costas". */
+export function backStepTitle(namePlacement: StoreNamePlacement | null): string {
+  if (namePlacement === 'costas_superior') return 'Costas · abaixo do nome';
+  if (namePlacement === 'costas_inferior') return 'Costas · acima do nome';
+  return 'Costas';
+}
+
 // ── Prévia ─────────────────────────────────────────────────────────
 
 /** Peça de referência da prévia, em cm. */
@@ -341,6 +368,27 @@ const NAME_CENTERS: Readonly<Record<StoreNamePlacement, readonly [number, number
   frente: [0.5, 0.3],
   manga: [0.88, 0.24],
 };
+
+/**
+ * Caixa das costas: centrada, `widthCm/60 × heightCm/70`; logo abaixo da faixa do nome, logo acima
+ * com o nome embaixo, 0,45 sem nome nas costas. Sempre dentro do quadro.
+ */
+export function backPreviewBox(
+  back: Pick<StoreCustomization['back'], 'widthCm' | 'heightCm'>,
+  namePlacement: StoreNamePlacement | null,
+): PreviewBox {
+  const w = Math.min(1, back.widthCm / GARMENT_CM.width);
+  const h = Math.min(1, back.heightCm / GARMENT_CM.height);
+  const band = 0.15 / 2;
+  const gap = 0.03;
+  const cy =
+    namePlacement === 'costas_superior'
+      ? NAME_CENTERS.costas_superior[1] + band + gap + h / 2
+      : namePlacement === 'costas_inferior'
+        ? NAME_CENTERS.costas_inferior[1] - band - gap - h / 2
+        : 0.45;
+  return { cx: 0.5, cy: Math.min(1 - h / 2, Math.max(h / 2, cy)), w, h };
+}
 
 /** Faixa do nome: 60% da largura do quadro (a manga é estreita: 18%). */
 export function namePreviewBox(placement: StoreNamePlacement): PreviewBox {
@@ -400,5 +448,5 @@ export function productionNote(c: Pick<StoreCustomization, 'leadDays' | 'defectO
 
 /** Tem pelo menos uma opção que o cliente mostra. */
 export function hasCustomOptions(c: StoreCustomization | null): c is StoreCustomization {
-  return c !== null && (c.name.enabled || c.image.enabled);
+  return c !== null && (c.name.enabled || c.image.enabled || c.back.enabled);
 }

@@ -287,7 +287,7 @@ describe('LojaPersonalizarComponent', () => {
     button(el, 'Adicionar ao carrinho').click();
     await settle(harness);
     expect(api.added.length).toBe(0);
-    expect(toasts[0]).toContain('Escolha um nome ou uma imagem');
+    expect(toasts[0]).toContain('Escolha um nome, uma imagem ou as costas');
 
     type(el, 'antunes ');
     button(el, 'Clássica').click();
@@ -305,6 +305,40 @@ describe('LojaPersonalizarComponent', () => {
     harness.detectChanges();
     expect(text(el.ownerDocument.querySelector('app-loja-mini-cart .mc-line'))).toContain('Preto · M · Personalizada');
     expect(text(el.ownerDocument.querySelector('app-loja-mini-cart .mc-price'))).toBe('R$ 289,60');
+  });
+
+  it('costas: passo só com a config ligada; número só com dígitos, na prévia e no pedido com o preço', async () => {
+    const off = await render('/loja/p/camiseta-personalizada/personalizar?cor=preto&tam=m');
+    expect(off.el.querySelector('#lz-step-4')).toBeNull();
+    TestBed.resetTestingModule();
+
+    const withBack = {
+      ...CUSTOMIZATION,
+      back: { enabled: true, allowNumber: true, allowImage: true, numberMaxDigits: 2, widthCm: 25, heightCm: 25 },
+      price: { ...CUSTOMIZATION.price, backCents: 990 },
+    };
+    const { harness, el } = await render('/loja/p/camiseta-personalizada/personalizar?cor=preto&tam=m', [camiseta(withBack)]);
+    expect(text(el.querySelector('#lz-step-4'))).toBe('Costas · abaixo do nome');
+    expect([...el.querySelectorAll('.lz-tag')].map(text)).toContain('Nome + imagem + costas');
+    expect(button(el, 'Número').getAttribute('aria-checked')).toBe('true');
+
+    const number = el.querySelector('#lz-back-number') as HTMLInputElement;
+    number.value = '1a0';
+    number.dispatchEvent(new Event('input'));
+    harness.detectChanges();
+    expect(number.value).toBe('10');
+    expect(el.querySelector('.lz-hint--bad')).not.toBeNull();
+    expect(text(el.querySelector('.lz-stage-main .cp-back-number'))).toBe('10');
+    expect(text(el.querySelector('.lz-price'))).toBe('R$ 139,80');
+
+    button(el, 'Adicionar ao carrinho').click();
+    await settle(harness);
+    expect(api.added).toEqual([{ productId: 'cam', skuId: 'preto_m', qty: 1, back: { type: 'numero', number: '10' } }]);
+
+    // Imagem nas costas: o mesmo envio da frente.
+    button(el, 'Imagem').click();
+    harness.detectChanges();
+    expect(text(el.querySelector('section[aria-labelledby="lz-step-4"] .lz-drop'))).toContain('Enviar imagem das costas');
   });
 
   it('erro do servidor vira toast com a mensagem dele', async () => {

@@ -2,7 +2,12 @@ import {
   areaPreviewBox,
   clampTransform,
   contrastRatio,
+  backNumberHint,
+  backPreviewBox,
+  backStepTitle,
   customExtraCents,
+  hasCustomOptions,
+  sanitizeBackNumber,
   defaultNameColor,
   effectiveDpi,
   finalizeName,
@@ -76,12 +81,15 @@ describe('store-customize-model', () => {
   });
 
   describe('preço', () => {
-    const price = { nameOnlyCents: 1490, imageOnlyCents: 1990, bothCents: 2490 };
+    const price = { nameOnlyCents: 1490, imageOnlyCents: 1990, bothCents: 2490, backCents: 990 };
     it('juntos saem pelo preço de ambos; cada passo mostra o sozinho', () => {
       expect(customExtraCents(price, true, true)).toBe(2490);
       expect(customExtraCents(price, true, false)).toBe(1490);
       expect(customExtraCents(price, false, true)).toBe(1990);
       expect(customExtraCents(price, false, false)).toBe(0);
+      // Costas somam por cima, como no servidor.
+      expect(customExtraCents(price, true, true, true)).toBe(3480);
+      expect(customExtraCents(price, false, false, true)).toBe(990);
       expect(soloPriceLabel(1490, 'm')).toBe('+ R$ 14,90 sozinho');
       expect(soloPriceLabel(1990, 'f')).toBe('+ R$ 19,90 sozinha');
       expect(priceBreakdown(12990, 2490)).toBe('R$ 129,90 + R$ 24,90 de personalização');
@@ -183,6 +191,55 @@ describe('store-customize-model', () => {
       );
       expect(productionNote({ leadDays: 1, defectOnlyReturns: false }).days).toBe('1 dia útil');
       expect(productionNote({ leadDays: 1, defectOnlyReturns: false }).after).toBe(' depois que a arte é aprovada.');
+    });
+  });
+
+  describe('costas', () => {
+    const back = { enabled: true, allowNumber: true, allowImage: true, numberMaxDigits: 2, widthCm: 25, heightCm: 25 };
+
+    it('número: só dígitos, até o máximo; hint pelo máximo', () => {
+      expect(sanitizeBackNumber('1a0', 2)).toEqual({ value: '10', rejected: true });
+      expect(sanitizeBackNumber('123', 2)).toEqual({ value: '12', rejected: true });
+      expect(sanitizeBackNumber('7', 2)).toEqual({ value: '7', rejected: false });
+      expect(backNumberHint(2)).toBe('Até 2 dígitos · 0 a 99');
+      expect(backNumberHint(1)).toBe('Até 1 dígito · 0 a 9');
+      expect(backNumberHint(3)).toBe('Até 3 dígitos · 0 a 999');
+    });
+
+    it('título e caixa da prévia: abaixo do nome, acima com o nome embaixo, centrada sem nome', () => {
+      expect(backStepTitle('costas_superior')).toBe('Costas · abaixo do nome');
+      expect(backStepTitle('costas_inferior')).toBe('Costas · acima do nome');
+      expect(backStepTitle(null)).toBe('Costas');
+      const h = 25 / 70;
+      const below = backPreviewBox(back, 'costas_superior');
+      expect(below.cx).toBe(0.5);
+      expect(below.w).toBeCloseTo(25 / 60, 5);
+      expect(below.cy).toBeCloseTo(0.24 + 0.075 + 0.03 + h / 2, 5);
+      expect(backPreviewBox(back, 'costas_inferior').cy).toBeCloseTo(0.62 - 0.075 - 0.03 - h / 2, 5);
+      expect(backPreviewBox(back, 'frente').cy).toBe(0.45);
+      // Área enorme nunca sai do quadro.
+      const big = backPreviewBox({ ...back, heightCm: 60 }, 'costas_superior');
+      expect(big.cy + big.h / 2).toBeLessThanOrEqual(1);
+    });
+
+    it('espelho antigo sem `back` chega com as costas desligadas; só costas já abre o Personalizar', () => {
+      const old = storeProductFromDoc('cam', {
+        name: 'Camiseta',
+        priceCents: 12990,
+        customizable: true,
+        customization: { fromCents: 990, leadDays: 5, image: { formats: ['png'] } },
+      })!;
+      expect(old.customization!.back.enabled).toBeFalse();
+      const onlyBack = storeProductFromDoc('cam', {
+        name: 'Camiseta',
+        priceCents: 12990,
+        customizable: true,
+        customization: { fromCents: 990, leadDays: 5, image: { formats: ['png'] }, back: { ...back, allowImage: false }, price: { backCents: 990 } },
+      })!;
+      expect(onlyBack.customization!.back.enabled).toBeTrue();
+      expect(onlyBack.customization!.back.allowImage).toBeFalse();
+      expect(onlyBack.customization!.price.backCents).toBe(990);
+      expect(hasCustomOptions(onlyBack.customization)).toBeTrue();
     });
   });
 

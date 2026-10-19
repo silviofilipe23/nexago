@@ -123,6 +123,8 @@ describe("costas no espelho", () => {
     // Doc antigo com "número junto do nome" vira costas só com número.
     const legado = publicCustomization({active: true, name: {allowNumber: true}})!;
     assert.equal(legado.back.enabled, true);
+    // `back: null` (o doc da camiseta no DEV) é o mesmo caso.
+    assert.equal(publicCustomization({active: true, name: {allowNumber: true}, back: null})!.back.allowNumber, true);
     assert.equal(legado.back.allowNumber, true);
     assert.equal(legado.back.allowImage, false);
   });

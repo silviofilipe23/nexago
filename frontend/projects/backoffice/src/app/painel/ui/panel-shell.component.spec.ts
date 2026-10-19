@@ -166,6 +166,7 @@ describe('PanelShellComponent', () => {
       'Cupons & promoções',
       'Campanhas',
       'Trocas',
+      'Avaliações',
     ]);
     expect(links.map((e) => e.getAttribute('href'))).toEqual([
       '/painel/loja/visao-geral',
@@ -177,6 +178,7 @@ describe('PanelShellComponent', () => {
       '/painel/loja/cupons',
       '/painel/loja/campanhas',
       '/painel/loja/trocas',
+      '/painel/loja/avaliacoes',
     ]);
   });
 

@@ -182,8 +182,11 @@ void main() {
         expect(find.byKey(const ValueKey('store-review-thanks')),
             findsOneWidget);
         expect(find.text('Valeu pela avaliação!'), findsOneWidget);
-        expect(find.text('Ela já aparece na página do produto.'),
-            findsOneWidget);
+        expect(
+          find.text('Ela já aparece na página do produto. A equipe NexaGO '
+              'pode esconder avaliações fora das regras.'),
+          findsOneWidget,
+        );
         expect(find.text('Viseira Dry Fit'), findsOneWidget);
         expect(find.text('Camiseta Dry'), findsNothing);
         expect(find.text('Retirada · Arena CFC'), findsOneWidget);

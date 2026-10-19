@@ -5,6 +5,7 @@ import {FakeFirestore} from "./fake-firestore.test-helper";
 import {
   computeRatingStats,
   editableUntil,
+  parseModerationInput,
   parseReviewInput,
   ratingAverage,
   reviewAuthor,
@@ -12,6 +13,7 @@ import {
   sizeValueOf,
 } from "./store-reviews";
 import {
+  moderateReviewCore,
   submitOrderReviewCore,
   syncOrderReviewPublicCore,
   type ReviewPhotoStore,
@@ -83,6 +85,17 @@ describe("avaliações · regras puras", () => {
     });
     assert.equal(ratingAverage(stats), 3.67);
     assert.equal(ratingAverage({count: 0, sum: 0}), null);
+  });
+
+  it("moderação: esconder exige motivo (até 300); reexibir ignora o motivo", () => {
+    assert.deepEqual(parseModerationInput({orderId: "ord-1", productId: "cam", hidden: true, reason: "  Ofensivo "}),
+      {input: {orderId: "ord-1", productId: "cam", hidden: true, reason: "Ofensivo"}, fields: []});
+    assert.deepEqual(parseModerationInput({orderId: "ord-1", productId: "cam", hidden: true, reason: "  "}).fields, ["reason"]);
+    assert.deepEqual(parseModerationInput({orderId: "ord-1", productId: "cam", hidden: true, reason: "x".repeat(301)}).fields,
+      ["reason"]);
+    assert.deepEqual(parseModerationInput({orderId: "ord-1", productId: "cam", hidden: false, reason: "sobra"}).input.reason, "");
+    assert.deepEqual(parseModerationInput({orderId: "../x", productId: "", hidden: "sim"}).fields,
+      ["orderId", "productId", "hidden"]);
   });
 
   it("espelho do produto: doc ausente = sem nota", () => {
@@ -249,5 +262,110 @@ describe("avaliações · servidor", () => {
     assert.equal(mirrors("cam").length, 0);
     assert.equal(fake.store.get("storeShowcase/cam")!["ratingCount"], 0);
     assert.equal(fake.store.get("storeShowcase/cam")!["ratingAvg"], null);
+  });
+});
+
+describe("avaliações · moderação (backoffice)", () => {
+  const ADMIN = {uid: "adm1", name: "Ana Souza"};
+  const items = (doc: Record<string, unknown>) => doc["items"] as Record<string, unknown>[];
+
+  async function published() {
+    const ctx = await setup();
+    const {store} = fakePhotos();
+    await submitOrderReviewCore(ctx.db, UID, {orderId: "ord-1", items: [
+      {productId: "cam", rating: 1, comment: "Lixo"},
+      {productId: "vis", rating: 5},
+    ]}, store, NOW);
+    await syncOrderReviewPublicCore(ctx.db, "ord-1", null, NOW);
+    return ctx;
+  }
+
+  it("esconder grava quem, quando e o motivo só no item; não mexe no updatedAt do autor", async () => {
+    const {db, review} = await published();
+    const later = new Date(NOW.getTime() + 3_600_000);
+    const out = await moderateReviewCore(db, {orderId: "ord-1", productId: "cam", hidden: true, reason: "Ofensivo"}, ADMIN, later);
+    assert.deepEqual(out, {ok: true, hidden: true, changed: true});
+    const [cam, vis] = items(review());
+    assert.deepEqual(cam["hiddenAt"], later);
+    assert.deepEqual(cam["hiddenBy"], ADMIN);
+    assert.equal(cam["hiddenReason"], "Ofensivo");
+    assert.equal(vis["hiddenAt"], null);
+    assert.deepEqual(review()["updatedAt"], NOW);
+  });
+
+  it("gatilho: escondida sai da página e da nota; reexibida volta com o mesmo id público", async () => {
+    const {fake, db, review, mirrors} = await published();
+    assert.equal(fake.store.get("storeShowcase/cam")!["ratingCount"], 1);
+    const publicId = items(review())[0]["publicId"];
+
+    let before = review();
+    await moderateReviewCore(db, {orderId: "ord-1", productId: "cam", hidden: true, reason: "Ofensivo"}, ADMIN, NOW);
+    await syncOrderReviewPublicCore(db, "ord-1", before, NOW);
+    assert.equal(mirrors("cam").length, 0);
+    assert.equal(fake.store.get("storeShowcase/cam")!["ratingCount"], 0);
+    assert.equal(mirrors("vis").length, 1);
+
+    before = review();
+    const out = await moderateReviewCore(db, {orderId: "ord-1", productId: "cam", hidden: false}, ADMIN, NOW);
+    assert.equal(out.changed, true);
+    assert.deepEqual(
+      [items(review())[0]["hiddenAt"], items(review())[0]["hiddenBy"], items(review())[0]["hiddenReason"]],
+      [null, null, null]);
+    await syncOrderReviewPublicCore(db, "ord-1", before, NOW);
+    assert.equal(mirrors("cam").length, 1);
+    assert.ok(fake.store.has(`storeShowcase/cam/reviews/${publicId}`));
+    assert.equal(fake.store.get("storeShowcase/cam")!["ratingCount"], 1);
+  });
+
+  it("já no estado pedido não grava nada", async () => {
+    const {db, review} = await published();
+    await moderateReviewCore(db, {orderId: "ord-1", productId: "cam", hidden: true, reason: "Ofensivo"}, ADMIN, NOW);
+    const later = new Date(NOW.getTime() + 60_000);
+    const out = await moderateReviewCore(db, {orderId: "ord-1", productId: "cam", hidden: true, reason: "Outro"}, ADMIN, later);
+    assert.deepEqual(out, {ok: true, hidden: true, changed: false});
+    assert.equal(items(review())[0]["hiddenReason"], "Ofensivo");
+    assert.equal((await moderateReviewCore(db, {orderId: "ord-1", productId: "vis", hidden: false}, ADMIN, NOW)).changed, false);
+  });
+
+  it("pedido sem avaliação, produto fora dela e motivo vazio são recusados", async () => {
+    const {db} = await published();
+    await assert.rejects(moderateReviewCore(db, {orderId: "ord-9", productId: "cam", hidden: true, reason: "x"}, ADMIN, NOW),
+      /Avaliação não encontrada/);
+    await assert.rejects(moderateReviewCore(db, {orderId: "ord-1", productId: "bola", hidden: true, reason: "x"}, ADMIN, NOW),
+      /Avaliação não encontrada/);
+    await assert.rejects(moderateReviewCore(db, {orderId: "ord-1", productId: "cam", hidden: true}, ADMIN, NOW),
+      (err: {details?: {fields?: string[]}}) => err.details?.fields?.[0] === "reason");
+  });
+
+  it("o autor editando não desfaz a moderação — nem a que cai no meio da edição", async () => {
+    const {db, review} = await published();
+    const {store} = fakePhotos();
+    await moderateReviewCore(db, {orderId: "ord-1", productId: "cam", hidden: true, reason: "Ofensivo"}, ADMIN, NOW);
+    const later = new Date(NOW.getTime() + 86_400_000);
+    await submitOrderReviewCore(db, UID, {orderId: "ord-1", items: [
+      {productId: "cam", rating: 2, comment: "Editado"},
+      {productId: "vis", rating: 5},
+    ]}, store, later);
+    assert.equal(items(review())[0]["comment"], "Editado");
+    assert.equal(items(review())[0]["hiddenReason"], "Ofensivo");
+
+    // A foto nova é copiada entre a leitura da edição e a transação: a moderação entra ali.
+    const upload = `store/review-uploads/${UID}/c.jpg`;
+    const racing: ReviewPhotoStore = {
+      inspect: async () => ({contentType: "image/jpeg", sizeBytes: 10}),
+      publish: async (_path, productId) => {
+        await moderateReviewCore(db, {orderId: "ord-1", productId: "vis", hidden: true, reason: "Foto imprópria"}, ADMIN, later);
+        return {publicPath: `store/reviews/${productId}/r.jpg`, url: "https://cdn/r.jpg"};
+      },
+      remove: async () => undefined,
+    };
+    await submitOrderReviewCore(db, UID, {orderId: "ord-1", items: [
+      {productId: "cam", rating: 2, comment: "Editado"},
+      {productId: "vis", rating: 5, photos: [upload]},
+    ]}, racing, new Date(later.getTime() + 60_000));
+    const vis = items(review())[1];
+    assert.deepEqual((vis["photos"] as {path: string}[]).map((p) => p.path), [upload]);
+    assert.equal(vis["hiddenReason"], "Foto imprópria");
+    assert.deepEqual(vis["hiddenBy"], ADMIN);
   });
 });

@@ -12,6 +12,7 @@ import {onDocumentWritten} from "firebase-functions/v2/firestore";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {assertCatalogAdmin, type Actor} from "./store-catalog-write";
 import {ORDERS} from "./store-orders-write";
 import {
   MAX_REVIEW_PHOTO_BYTES,
@@ -26,6 +27,8 @@ import {
   computeRatingStats,
   editableUntil,
   hasSizeAxis,
+  moderationOf,
+  parseModerationInput,
   parseReviewInput,
   reviewAuthor,
   sizeValueOf,
@@ -169,7 +172,6 @@ export async function submitOrderReviewCore(
       comment: item.comment,
       photos: photosByProduct.get(item.productId) ?? [],
       publicId: str(before?.["publicId"]) || randomUUID().replace(/-/g, "").slice(0, 20),
-      hiddenAt: before?.["hiddenAt"] ?? null,
       createdAt: toDate(before?.["createdAt"]) ?? now,
       updatedAt: now,
     };
@@ -185,6 +187,9 @@ export async function submitOrderReviewCore(
       if (current.exists !== prevSnap.exists || currentUpdatedAt !== prevUpdatedAt) {
         throw new HttpsError("aborted", "A avaliação mudou enquanto você editava. Tente de novo.");
       }
+      // A moderação não mexe no `updatedAt` (é a linha do tempo do autor): o que vale é o doc lido
+      // aqui, senão esconder no meio da edição seria desfeito por ela.
+      const moderated = new Map(((current.data()?.["items"] ?? []) as Data[]).map((i) => [str(i["productId"]), i]));
       tx.set(reviewRef, {
         orderId: input.orderId,
         number: str(order["number"]),
@@ -192,7 +197,7 @@ export async function submitOrderReviewCore(
         anonymous: input.anonymous,
         authorName: author.name,
         authorInitials: author.initials,
-        items,
+        items: items.map((i) => ({...i, ...moderationOf(moderated.get(i.productId))})),
         pickup: delivery["type"] === "arena" && input.pickupRating !== null ?
           {placeName: str(delivery["placeName"]), rating: input.pickupRating} : null,
         createdAt,
@@ -266,6 +271,37 @@ export async function syncOrderReviewPublicCore(
   return {productIds};
 }
 
+/**
+ * Backoffice › Loja › Avaliações: esconde (com motivo interno) ou reexibe a avaliação de um
+ * produto do pedido. Só mexe nos campos de moderação do item; o gatilho tira/devolve o espelho
+ * público e refaz a nota. Já no estado pedido = nada é gravado (`changed: false`).
+ */
+export async function moderateReviewCore(
+  db: Firestore,
+  raw: unknown,
+  actor: Actor,
+  now: Date,
+): Promise<{ok: true; hidden: boolean; changed: boolean}> {
+  const {input, fields} = parseModerationInput(raw);
+  if (fields.length > 0) {
+    throw invalid(fields, fields.includes("reason") ? "Escreva o motivo (até 300 caracteres)." : "Confira a avaliação.");
+  }
+  const ref = db.collection(ORDER_REVIEWS).doc(input.orderId);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const items = (snap.exists ? snap.data()!["items"] : null) as Data[] | null;
+    const index = Array.isArray(items) ? items.findIndex((i) => str(i?.["productId"]) === input.productId) : -1;
+    if (!items || index < 0) throw new HttpsError("not-found", "Avaliação não encontrada. Recarregue a lista.");
+    if (Boolean(items[index]["hiddenAt"]) === input.hidden) return {ok: true as const, hidden: input.hidden, changed: false};
+    const moderation = input.hidden ?
+      {hiddenAt: now, hiddenBy: {uid: actor.uid, name: actor.name}, hiddenReason: input.reason} :
+      {hiddenAt: null, hiddenBy: null, hiddenReason: null};
+    const next = items.map((item, k) => (k === index ? {...item, ...moderation} : item));
+    tx.update(ref, {items: next});
+    return {ok: true as const, hidden: input.hidden, changed: true};
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Endpoints
 // ---------------------------------------------------------------------------
@@ -303,6 +339,16 @@ export const submitStoreOrderReview = onCall(
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta pra avaliar.");
     return submitOrderReviewCore(getFirestore(), uid, request.data, storagePhotoStore(), new Date());
+  },
+);
+
+export const moderateStoreReview = onCall(
+  {region: CLIENT_FACING_REGIONS, invoker: "public" as const},
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
+    const actor = await assertCatalogAdmin(uid);
+    return moderateReviewCore(getFirestore(), request.data, actor, new Date());
   },
 );
 

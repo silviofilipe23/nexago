@@ -79,6 +79,8 @@ const LOJA_GROUP: NavGroup = {
     { kind: 'link', id: 'loja-campanhas', label: 'Campanhas', icon: 'flag', route: '/painel/loja/campanhas' },
     // Badge real: solicitações para analisar (StoreBadgesService).
     { kind: 'link', id: 'loja-trocas', label: 'Trocas', icon: 'swap', route: '/painel/loja/trocas' },
+    // Moderação: avaliações publicam na hora; aqui o time esconde/reexibe.
+    { kind: 'link', id: 'loja-avaliacoes', label: 'Avaliações', icon: 'star', route: '/painel/loja/avaliacoes' },
   ],
 };
 
@@ -721,6 +723,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/loja/campanhas')) {
       return 'loja-campanhas';
+    }
+    if (path.startsWith('/painel/loja/avaliacoes')) {
+      return 'loja-avaliacoes';
     }
     if (path === '/painel') {
       return 'inicio';

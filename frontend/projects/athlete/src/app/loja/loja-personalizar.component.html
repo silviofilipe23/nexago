@@ -67,6 +67,7 @@
                 [name]="previewName()"
                 [area]="previewArea()"
                 [image]="previewImage()"
+                [back]="previewBack()"
                 [interactive]="side() === 'frente' && !!previewImage()"
                 (transformChanged)="transform.set($event)"
               />
@@ -81,7 +82,7 @@
                 <app-loja-custom-preview [side]="'frente'" [photoUrl]="photoFor('frente')" [garmentHex]="garmentHex()" [name]="previewName()" [area]="previewArea()" [image]="previewImage()" [compact]="true" />
               </button>
               <button type="button" class="lz-thumb" [class.lz-thumb--on]="side() === 'costas'" aria-label="Ver as costas" (click)="side.set('costas')">
-                <app-loja-custom-preview [side]="'costas'" [photoUrl]="photoFor('costas')" [garmentHex]="garmentHex()" [name]="previewName()" [area]="previewArea()" [image]="previewImage()" [compact]="true" />
+                <app-loja-custom-preview [side]="'costas'" [photoUrl]="photoFor('costas')" [garmentHex]="garmentHex()" [name]="previewName()" [area]="previewArea()" [image]="previewImage()" [back]="previewBack()" [compact]="true" />
               </button>
             </div>
             @if (photoNote(); as note) {
@@ -340,6 +341,109 @@
                   <button type="button" class="lz-collapsed" (click)="setImageOn(true)">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
                     Adicionar imagem
+                  </button>
+                }
+              </section>
+            }
+
+            <!-- 4 · Costas (abaixo do nome) -->
+            @if (c.back.enabled) {
+              <hr class="lp-divider" />
+              <section class="lz-step" aria-labelledby="lz-step-4">
+                <div class="lz-step-head">
+                  <span class="lz-step-n" aria-hidden="true">{{ backStepNumber() }}</span>
+                  <h3 class="lz-step-title" id="lz-step-4">{{ backTitle() }}</h3>
+                  <span class="lz-step-price">{{ backPrice() }}</span>
+                  @if (backOn()) {
+                    <button type="button" class="lz-skip" (click)="setBackOn(false)">Não quero</button>
+                  }
+                </div>
+                @if (backOn()) {
+                  @if (c.back.allowNumber && c.back.allowImage) {
+                    <div class="lp-sizes lz-back-kinds" role="radiogroup" aria-label="Número ou imagem nas costas">
+                      <button type="button" role="radio" class="lp-size" [class.lp-size--on]="backKind() === 'numero'" [attr.aria-checked]="backKind() === 'numero'" (click)="chooseBackKind('numero')">Número</button>
+                      <button type="button" role="radio" class="lp-size" [class.lp-size--on]="backKind() === 'imagem'" [attr.aria-checked]="backKind() === 'imagem'" (click)="chooseBackKind('imagem')">Imagem</button>
+                    </div>
+                  }
+                  @if (backKind() === 'numero') {
+                    <div class="lz-field">
+                      <label class="lp-eyebrow" for="lz-back-number">Número</label>
+                      <input
+                        #backNumberInput
+                        id="lz-back-number"
+                        class="lz-input lz-input--number"
+                        type="text"
+                        inputmode="numeric"
+                        autocomplete="off"
+                        placeholder="10"
+                        [attr.maxlength]="c.back.numberMaxDigits"
+                        [value]="backNumber()"
+                        (input)="onBackNumberInput(backNumberInput)"
+                        (focus)="side.set('costas')"
+                      />
+                      <small class="lz-hint" [class.lz-hint--bad]="backNumberRejected()">{{ backNumberRejected() ? 'Só números · ' + backHint() : backHint() }}</small>
+                    </div>
+                  } @else {
+                    <input #backFileInput type="file" class="lp-visually-hidden" [accept]="accept()" (change)="onFilePicked(backFileInput, 'back')" tabindex="-1" aria-hidden="true" />
+                    @if (backImageError(); as err) {
+                      <div class="lz-file lz-file--bad" role="alert">
+                        <span class="lz-file-thumb lz-file-thumb--bad" aria-hidden="true">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5M12 16.5h.01" /></svg>
+                        </span>
+                        <span class="lz-file-text">
+                          <strong>{{ err.fileName }}</strong>
+                          <small>{{ err.message }}</small>
+                        </span>
+                        <button type="button" class="lz-link" (click)="backFileInput.click()">Escolher outra</button>
+                      </div>
+                    } @else if (backUpload(); as up) {
+                      <div class="lz-file" [class.lz-file--bad]="up.status === 'error'">
+                        <span class="lz-file-thumb">
+                          <img [src]="up.previewUrl" alt="" />
+                        </span>
+                        <span class="lz-file-text">
+                          <strong [title]="up.fileName">{{ up.fileName }}</strong>
+                          @switch (up.status) {
+                            @case ('uploading') {
+                              <small class="lz-progress-label" aria-live="polite">Enviando… {{ up.pct }}%</small>
+                              <span class="lz-progress" aria-hidden="true"><span [style.width.%]="up.pct"></span></span>
+                            }
+                            @case ('error') {
+                              <small class="lz-q lz-q--bad">Não deu pra enviar a imagem</small>
+                            }
+                            @default {
+                              @if (backQuality(); as q) {
+                                <small class="lz-q" [class.lz-q--warn]="q.tone === 'warn'">{{ q.label }}</small>
+                              }
+                            }
+                          }
+                        </span>
+                        @if (up.status === 'error') {
+                          <button type="button" class="lz-link" (click)="retryUpload('back')">Tentar de novo</button>
+                        } @else {
+                          <button type="button" class="lz-link" (click)="backFileInput.click()">Trocar</button>
+                        }
+                      </div>
+                    } @else {
+                      <button
+                        type="button"
+                        class="lz-drop"
+                        [class.lz-drop--over]="backDragOver()"
+                        (click)="backFileInput.click()"
+                        (dragover)="onDragOver($event, 'back')"
+                        (dragleave)="backDragOver.set(false)"
+                        (drop)="onDrop($event, 'back')"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></svg>
+                        <span><strong>Enviar imagem das costas</strong> · arraste o arquivo ou clique</span>
+                      </button>
+                    }
+                    <p class="lz-rules">{{ c.back.widthCm }} × {{ c.back.heightCm }} cm · {{ imageRules() }}</p>
+                  }
+                } @else {
+                  <button type="button" class="lz-collapsed" (click)="setBackOn(true)">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                    Adicionar {{ c.back.allowNumber && !c.back.allowImage ? 'número' : c.back.allowImage && !c.back.allowNumber ? 'imagem' : 'número ou imagem' }} nas costas
                   </button>
                 }
               </section>

@@ -239,6 +239,13 @@ class AnalyticsService {
         parameters: storeEventParams(area: area, quality: quality),
       );
 
+  /// Costas preenchidas; [type] = `numero`/`imagem` (vai como `tipo`).
+  Future<void> logStoreCustomizeBack({required String type}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.storeCustomizeBack,
+        parameters: storeEventParams(type: type),
+      );
+
   Future<void> logStoreRelatedClick({required String productId}) =>
       _analytics.logEvent(
         name: AnalyticsEvents.storeRelatedClick,

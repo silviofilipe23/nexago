@@ -724,3 +724,17 @@
     box-shadow: none;
   }
 }
+
+// ── Costas ────────────────────────────────────────────────────
+.lz-back-kinds {
+  margin-bottom: 4px;
+}
+
+.lz-input--number {
+  max-width: 140px;
+  font-family: var(--nx-font-display);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-align: center;
+}

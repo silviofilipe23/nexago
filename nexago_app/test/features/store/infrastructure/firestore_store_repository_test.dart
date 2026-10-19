@@ -265,6 +265,82 @@ void main() {
       expect(c.name.placement, StoreNamePlacement.backUpper);
     });
 
+    test('costas: espelho com back e backCents; ausente = desligado', () {
+      final c = storeCustomizationFromMap({
+        'image': {
+          'enabled': false,
+          'formats': ['png', 'jpg'],
+          'areas': [],
+        },
+        'back': {
+          'enabled': true,
+          'allowNumber': true,
+          'allowImage': true,
+          'numberMaxDigits': 3,
+          'widthCm': 28,
+          'heightCm': 30,
+        },
+        'price': {'nameOnlyCents': 1490, 'backCents': 990},
+      });
+      expect(c.back.enabled, isTrue);
+      expect(c.back.allowNumber, isTrue);
+      // A imagem das costas usa os formatos do bloco Imagem, mesmo desligado.
+      expect(c.back.allowImage, isTrue);
+      expect(c.back.numberMaxDigits, 3);
+      expect(c.back.widthCm, 28);
+      expect(c.back.heightCm, 30);
+      expect(c.price.backCents, 990);
+      // Só as costas já bastam pra abrir a tela.
+      expect(c.hasOptions, isTrue);
+
+      final old = storeCustomizationFromMap({
+        'price': {'nameOnlyCents': 1490},
+      });
+      expect(old.back.enabled, isFalse);
+      expect(old.back.allowNumber, isFalse);
+      expect(old.back.allowImage, isFalse);
+      expect(old.price.backCents, 0);
+      expect(old.hasOptions, isFalse);
+    });
+
+    test('costas: sem opção válida somem; números fora do intervalo', () {
+      // Só imagem liberada, mas sem formato no bloco Imagem.
+      final noFormat = storeCustomizationFromMap({
+        'back': {'enabled': true, 'allowNumber': false, 'allowImage': true},
+      });
+      expect(noFormat.back.enabled, isFalse);
+      expect(noFormat.back.allowImage, isFalse);
+
+      final odd = storeCustomizationFromMap({
+        'back': {
+          'enabled': true,
+          'allowNumber': true,
+          'allowImage': 'sim',
+          'numberMaxDigits': 9,
+          'widthCm': -1,
+          'heightCm': 'x',
+        },
+      });
+      expect(odd.back.enabled, isTrue);
+      expect(odd.back.allowImage, isFalse);
+      expect(odd.back.numberMaxDigits, 3);
+      // Padrões do backoffice (25 × 25 cm, 2 dígitos).
+      expect(odd.back.widthCm, 25);
+      expect(odd.back.heightCm, 25);
+      expect(
+        storeCustomizationFromMap({
+          'back': {'enabled': true, 'allowNumber': true},
+        }).back.numberMaxDigits,
+        2,
+      );
+      // Desligado no espelho: nada liberado.
+      final off = storeCustomizationFromMap({
+        'back': {'enabled': false, 'allowNumber': true},
+      });
+      expect(off.back.enabled, isFalse);
+      expect(off.back.allowNumber, isFalse);
+    });
+
     test('sem nome ou sem preço é descartado', () {
       expect(storeProductFromMap('a', {'name': '', 'priceCents': 100}), isNull);
       expect(storeProductFromMap('a', {'name': 'Bola'}), isNull);

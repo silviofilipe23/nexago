@@ -1,6 +1,6 @@
-/// Loja · Personalizar (app 02b nome / 02c imagem): nome, preço, cor
-/// padrão, qualidade e validação da imagem, geometria da prévia e o ajuste
-/// fino da imagem — puras, testáveis sem Firebase.
+/// Loja · Personalizar (app 02b nome / 02c imagem / costas): nome, preço,
+/// cor padrão, qualidade e validação da imagem, número das costas, geometria
+/// da prévia e o ajuste fino da imagem — puras, testáveis sem Firebase.
 ///
 /// A fonte de verdade é `docs/business-rules/loja-personalizar.md`,
 /// compartilhada com o portal web e com a callable
@@ -116,17 +116,20 @@ StorePhotoView storeNameSide(StoreNamePlacement placement) {
 
 // ── Preço ───────────────────────────────────────────────────────────────
 
-/// `nome && imagem ? bothCents : nome ? nameOnlyCents : imagem ?
-/// imageOnlyCents : 0` — a mesma conta de `customExtraCents` do servidor.
+/// `(nome && imagem ? bothCents : nome ? nameOnlyCents : imagem ?
+/// imageOnlyCents : 0) + (costas ? backCents : 0)` — a mesma conta de
+/// `customExtraCents` do servidor.
 int storeCustomExtraCents(
   StoreCustomPrice price, {
   required bool hasName,
   required bool hasImage,
+  bool hasBack = false,
 }) {
-  if (hasName && hasImage) return price.bothCents;
-  if (hasName) return price.nameOnlyCents;
-  if (hasImage) return price.imageOnlyCents;
-  return 0;
+  final back = hasBack ? price.backCents : 0;
+  if (hasName && hasImage) return price.bothCents + back;
+  if (hasName) return price.nameOnlyCents + back;
+  if (hasImage) return price.imageOnlyCents + back;
+  return back;
 }
 
 /// Preço do SKU escolhido + adicional, por [qty] unidades.
@@ -528,6 +531,127 @@ String storeCustomizeSubtitle(StoreProduct p, Map<String, String> selected) {
   ].where((label) => label.isNotEmpty).join(' ');
   return values.isEmpty ? p.name : '${p.name} · $values';
 }
+
+// ── Costas (abaixo do nome) ─────────────────────────────────────────────
+
+/// O que vai nas costas: número OU imagem (o `type` da callable).
+enum StoreBackType {
+  number('numero'),
+  image('imagem');
+
+  const StoreBackType(this.id);
+
+  final String id;
+}
+
+/// Tipo das costas: o escolhido, se liberado; senão Número (o padrão com os
+/// dois liberados); senão Imagem.
+StoreBackType storeBackTypeOf(
+  StoreCustomBackOptions back,
+  StoreBackType? chosen,
+) {
+  if (chosen == StoreBackType.number && back.allowNumber) return chosen!;
+  if (chosen == StoreBackType.image && back.allowImage) return chosen!;
+  return back.allowNumber ? StoreBackType.number : StoreBackType.image;
+}
+
+/// "10", "7": só dígitos, até [maxDigits] — o `backNumberOk` do servidor.
+bool storeBackNumberOk(String number, int maxDigits) =>
+    RegExp(r'^[0-9]+$').hasMatch(number) && number.length <= maxDigits;
+
+/// "Costas · abaixo do nome"; com o nome em `costas_inferior`, "acima do
+/// nome"; sem nome nas costas (nome na frente/manga ou desligado), "Costas".
+String storeBackStepTitle(StoreNamePlacement? namePlacement) {
+  switch (namePlacement) {
+    case StoreNamePlacement.backUpper:
+      return 'Costas · abaixo do nome';
+    case StoreNamePlacement.backLower:
+      return 'Costas · acima do nome';
+    case StoreNamePlacement.front:
+    case StoreNamePlacement.sleeve:
+    case null:
+      return 'Costas';
+  }
+}
+
+/// Área das costas como [StoreCustomArea] (qualidade da imagem pelo dpi).
+StoreCustomArea storeBackArea(StoreCustomBackOptions back) => StoreCustomArea(
+      id: 'costas',
+      name: 'Costas',
+      widthCm: back.widthCm,
+      heightCm: back.heightCm,
+    );
+
+/// Qualidade da imagem das costas: dpi efetivo pela área das costas
+/// (`widthCm × heightCm`), como o servidor confere.
+StoreImageQuality storeBackImageQuality({
+  required int? widthPx,
+  required int? heightPx,
+  required StoreCustomBackOptions back,
+}) =>
+    storeImageQuality(
+      storeEffectiveDpi(
+        widthPx: widthPx,
+        heightPx: heightPx,
+        area: storeBackArea(back),
+      ),
+    );
+
+/// Caixa das costas na prévia, em frações do quadro: centro ([x], [y]) e
+/// tamanho.
+typedef StoreBackBox = ({double x, double y, double width, double height});
+
+/// Respiro entre a faixa do nome e a caixa das costas (fração da altura).
+const double kStoreBackNameGap = 0.03;
+
+/// Centro vertical das costas sem nome nas costas.
+const double kStoreBackDefaultCenterY = 0.45;
+
+/// Caixa centrada, `widthCm/60` × `heightCm/70` do quadro; centro vertical
+/// logo abaixo da faixa do nome (`0,24 + 0,075 + 0,03 + h/2`), ou logo
+/// acima com o nome em `costas_inferior` (`0,62 − 0,075 − 0,03 − h/2`); sem
+/// nome nas costas ([namePlacement] `null`, frente ou manga), 0,45. Sempre
+/// dentro do quadro.
+StoreBackBox storeBackBox(
+  StoreCustomBackOptions back,
+  StoreNamePlacement? namePlacement,
+) {
+  final width = (back.widthCm / kStoreGarmentWidthCm).clamp(0.0, 1.0);
+  final height = (back.heightCm / kStoreGarmentHeightCm).clamp(0.0, 1.0);
+  const halfBand = kStoreNameBandHeight / 2;
+  final double y;
+  switch (namePlacement) {
+    case StoreNamePlacement.backUpper:
+      y = storeNameCenter(StoreNamePlacement.backUpper).y +
+          halfBand +
+          kStoreBackNameGap +
+          height / 2;
+    case StoreNamePlacement.backLower:
+      y = storeNameCenter(StoreNamePlacement.backLower).y -
+          halfBand -
+          kStoreBackNameGap -
+          height / 2;
+    case StoreNamePlacement.front:
+    case StoreNamePlacement.sleeve:
+    case null:
+      y = kStoreBackDefaultCenterY;
+  }
+  return (
+    x: 0.5,
+    y: y.clamp(height / 2, 1 - height / 2).toDouble(),
+    width: width.toDouble(),
+    height: height.toDouble(),
+  );
+}
+
+/// Cor do número na prévia: a do nome; sem nome, a de maior contraste com a
+/// peça (branco ou preto; sem cor conhecida, o mockup escuro).
+String storeBackNumberColor({String? nameColor, String? garmentHex}) =>
+    nameColor ??
+    storeDefaultNameColor(
+      const ['#ffffff', '#000000'],
+      garmentHex ?? kStoreMockupBaseHex,
+    )!;
 
 // ── Ajuste fino da imagem ───────────────────────────────────────────────
 

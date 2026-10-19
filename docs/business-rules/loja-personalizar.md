@@ -18,10 +18,13 @@ name:  { enabled, maxChars, placement: 'costas_superior'|'costas_inferior'|'fren
          colors: ['#rrggbb' ...] },
 image: { enabled, formats: ['png'|'jpg'|'svg' ...], maxSizeMb, minWidthPx, minHeightPx,
          areas: [{ id, name, widthCm, heightCm }] (só as ligadas; a 1ª é o padrão) },
-price: { nameOnlyCents, imageOnlyCents, bothCents }
+back:  { enabled, allowNumber, allowImage, numberMaxDigits (1–3), widthCm, heightCm },
+price: { nameOnlyCents, imageOnlyCents, bothCents, backCents }
 ```
-`null` = sem personalização. `enabled` falso = a opção (passo/aba/preço) some. As **costas**
-(imagem ou número abaixo do nome, PR #720) ainda não têm tela no cliente — ficam fora daqui.
+`null` = sem personalização. `enabled` falso = a opção (passo/aba/preço) some. **Costas** (abaixo
+do nome, PR #720 no backoffice): o atleta escolhe número OU imagem entre os liberados; a imagem
+das costas segue formatos, peso e resolução mínima do bloco `image` (mesmo com a imagem da frente
+desligada). `back.enabled` só vem ligado se sobra uma opção válida.
 `photos[].view` (`'frente'|'costas'|null`) passou a ir no espelho: a prévia usa a foto do lado e da cor.
 
 ### Imagem do atleta
@@ -34,8 +37,9 @@ Upload pede login.
   `problem ∈ empty|chars|length|blocked|disabled`. Chamada no blur do campo. A lista de bloqueio
   não sai do servidor.
 - `addStoreCustomItemToCart({productId, skuId, qty, name?: {text, fontId, color},
-  image?: {path, areaId, transform: {x, y, scale}}})` → `{lineId, extraPriceCents, unitPriceCents,
-  quality}`. Revalida tudo (produto à venda, personalização ativa, SKU com saldo, nome, lista de
+  image?: {path, areaId, transform: {x, y, scale}},
+  back?: {type: 'numero', number} | {type: 'imagem', path, transform?}})` → `{lineId,
+  extraPriceCents, unitPriceCents, quality}` (`quality` = a pior entre frente e costas). Revalida tudo (produto à venda, personalização ativa, SKU com saldo, nome, lista de
   bloqueio, fonte e cor da config, arquivo do próprio atleta, formato, peso, resolução lida do
   arquivo, área ligada), calcula o adicional e grava a linha. Erros chegam como `HttpsError` com a
   mensagem pronta em português.
@@ -46,20 +50,25 @@ Upload pede login.
   customization: { configVersion, extraPriceCents, addedAt,
     name?:  { text, fontId, color, placement },
     image?: { path, format, sizeBytes, widthPx|null, heightPx|null, areaId, areaName,
+              transform: { x, y, scale }, quality: 'good'|'warn' },
+    back?:  { type: 'numero', number }
+          | { type: 'imagem', path, format, sizeBytes, widthPx|null, heightPx|null,
               transform: { x, y, scale }, quality: 'good'|'warn' } } }
 ```
 - **Nunca soma** com outra linha (nem com a comum do mesmo SKU): cada configuração é uma linha.
 - Quem reescreve `items` no cliente (adicionar comum, futuro carrinho) **preserva** `lineId` e
   `customization` das outras linhas — parse e escrita levam o mapa inteiro.
 - O contador da sacola soma as unidades dessas linhas também.
-- O checkout (ainda não existe) relê preço, saldo e personalização no servidor e cria o
-  `storeCustomItems` (fila de arte, tela 10).
+- O checkout (`docs/business-rules/loja-checkout.md`) relê preço, saldo e personalização no
+  servidor e, no pagamento, cria o `storeCustomItems` (fila de arte, tela 10) — com `back` no formato
+  que a fila lê: `{type:'numero', number}` ou `{type:'imagem', image:{url, path, widthPx, …}}`.
 
 ## Regras (iguais no web e no app)
 
 ### Opções e preço
-- Nome e imagem são opcionais, mas **pelo menos um** é preciso para adicionar.
-- `adicional = nome && imagem ? bothCents : nome ? nameOnlyCents : imagem ? imageOnlyCents : 0`.
+- Nome, imagem e costas são opcionais, mas **pelo menos um** é preciso para adicionar.
+- `adicional = (nome && imagem ? bothCents : nome ? nameOnlyCents : imagem ? imageOnlyCents : 0)
+  + (costas ? backCents : 0)`.
 - Total = preço do SKU escolhido + adicional; atualiza a cada mudança. Web: total grande e a
   composição "R$ 129,90 + R$ 24,90 de personalização". Cada passo mostra o preço da opção sozinha
   ("+ R$ 14,90 sozinho"). Pix (quando configurado) sobre o total.
@@ -96,6 +105,19 @@ Upload pede login.
 - **Remoção de fundo** (`removeBackground`): ainda não — precisa de serviço externo; a arte segue
   como enviada e a equipe trata na fila (tela 10).
 
+### Costas (abaixo do nome)
+- Só com `back.enabled`. Título "Costas · abaixo do nome" (nome em `costas_inferior` → "acima do
+  nome"); "+ R$ X" = `backCents`; "Não quero" como os outros passos. Editar as costas mostra as
+  costas na prévia.
+- Com número e imagem liberados, seletor **Número · Imagem** (padrão Número); com um só, só ele.
+- Número: só dígitos, até `numberMaxDigits` (hint "Até 2 dígitos · 0 a 99"); sai na prévia na
+  **fonte e na cor do nome** (sem nome: a cor de maior contraste com a peça, fonte Bloco).
+- Imagem: mesmas validações e mesmo upload da imagem da frente; qualidade pela área das costas
+  (`widthCm × heightCm`); sem ajuste fino — centralizada e inteira dentro da área.
+- Prévia: caixa centrada, `widthCm/60` × `heightCm/70` do quadro; centro vertical logo abaixo da
+  faixa do nome (`0,24 + 0,075 + 0,03 + h/2`), ou logo acima com o nome em `costas_inferior`
+  (`0,62 − 0,075 − 0,03 − h/2`); sem nome nas costas, 0,45. Sempre dentro do quadro.
+
 ### Prévia (ilustrativa)
 - Foto do produto no lado (`view`): a da cor escolhida; senão a do lado sem cor; senão a do lado
   em **outra cor**, com o aviso "Foto em Preto · a sua sai em Branco areia" sob a prévia (peça
@@ -117,21 +139,23 @@ Personalizados só têm troca em caso de defeito." — a 2ª frase só com `defe
 
 ## Web · 02b
 Grid prévia (620) + configuração; prévia grande com miniaturas frente/costas abaixo. Passos
-sempre visíveis: 1 Cor e tamanho · 2 Nome (com "Não quero") · 3 Imagem (com "Não quero") · nota ·
+sempre visíveis: 1 Cor e tamanho · 2 Nome (com "Não quero") · 3 Imagem (com "Não quero") ·
+4 Costas (só com `back.enabled`, com "Não quero") · nota ·
 quantidade + **Adicionar ao carrinho**. Passo recolhido mostra "Adicionar nome / imagem". Ao
 adicionar: mesmo retorno da página do produto (botão "✓ Adicionado", sacola pulsa, mini-carrinho).
 
 ## App · 02b/02c
 Sem tab bar. Header voltar + "Personalizar" + "{produto} · {cor} {tamanho}". Prévia (300) com
-Frente/Costas; abas Nome · Imagem · Cor e tam. (✓ verde quando preenchida; trocar de aba troca o
+Frente/Costas; abas Nome · Imagem · Costas (só com `back.enabled`) · Cor e tam. (✓ verde quando preenchida; trocar de aba troca o
 lado da prévia); "Pular" no fim de uma aba vazia; barra fixa "Com personalização · R$ X" +
 **Adicionar**. Imagem: folha Fotos · Arquivos · Câmera; compressão leve mantendo a resolução
 mínima. Voltar com alteração → folha "Descartar personalização?" (Descartar · Continuar editando).
 
 ## Fora (por enquanto)
-Remoção de fundo, editar a partir do carrinho (o carrinho não existe), checkout criando o item da
-fila de arte, reenvio de imagem pedido pela equipe, costas com imagem/número.
+Remoção de fundo, editar a partir do carrinho, reenvio de imagem pedido pela equipe, ajuste fino
+da imagem das costas.
 
 ## Analytics
 `loja_personalizar_open {produto_id, canal}` · `loja_personalizar_nome {fonte}` ·
-`loja_personalizar_imagem {area, qualidade}` · `loja_add_carrinho {sku, qtd, preco, personalizado: true}`
+`loja_personalizar_imagem {area, qualidade}` · `loja_personalizar_costas {tipo: numero|imagem}` ·
+`loja_add_carrinho {sku, qtd, preco, personalizado: true}`

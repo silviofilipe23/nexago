@@ -198,7 +198,8 @@ export function customizationErrors(c: CustomizationConfig): string[] {
 export function withCustomizationDefaults(data: Record<string, unknown> | undefined): CustomizationConfig {
   const d = (data ?? {}) as Partial<CustomizationConfig> & {name?: {allowNumber?: boolean}};
   // Doc de antes das costas com "número junto com o nome" ligado vira costas só com número.
-  const legacyNumber = d.back === undefined && d.name?.allowNumber === true;
+  // `back: null` (seed/migração antiga) conta como ausente — senão o número sumia do cliente.
+  const legacyNumber = d.back == null && d.name?.allowNumber === true;
   const {allowNumber: _legacy, ...name} = (d.name ?? {}) as Record<string, unknown>;
   return {
     ...DEFAULT_CUSTOMIZATION,

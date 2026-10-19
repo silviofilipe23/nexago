@@ -541,6 +541,8 @@ export async function confirmStoreOrderPaymentCore(
           transform: image["transform"] ?? null, quality: image["quality"] ?? null,
         } : null,
         imageArea: image ? str(image["areaId"], 40) : null,
+        // Costas abaixo do nome, no formato que a fila (tela 10) lê.
+        back: backItemOf(c["back"] as Data | undefined),
         finalFiles: [], history: [], version: 1,
         createdAt: now, slaDueAt: new Date(now.getTime() + 4 * 3_600_000), updatedAt: now,
       });
@@ -574,6 +576,18 @@ export async function recordLatePixRefundCore(
       version: ((o["version"] as number) ?? 0) + 1, updatedAt: now, updatedBy: SYSTEM_ACTOR,
     });
   });
+}
+
+function backItemOf(back: Data | undefined): Data | null {
+  if (back?.["type"] === "numero") return {type: "numero", number: str(back["number"], 3)};
+  if (back?.["type"] === "imagem") {
+    return {type: "imagem", image: {
+      url: null, path: str(back["path"], 300), widthPx: back["widthPx"] ?? null, heightPx: back["heightPx"] ?? null,
+      format: str(back["format"], 4), sizeBytes: back["sizeBytes"] ?? null, backgroundRemoved: false,
+      transform: back["transform"] ?? null, quality: back["quality"] ?? null,
+    }};
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------

@@ -202,40 +202,68 @@ const _customization = StoreCustomization(
   ),
 );
 
-final _camiseta = StoreProduct(
-  id: 'camiseta',
-  name: 'Camiseta Dry UV50',
-  category: 'vestuario',
-  priceCents: 12990,
-  minPriceCents: 12990,
-  maxPriceCents: 12990,
-  customizable: true,
-  customization: _customization,
-  axes: const [
-    StoreAxis(
-      id: 'cor',
-      label: 'Cor',
-      values: [
-        StoreAxisValue(id: 'preto', label: 'Preta', hex: '#111111'),
-        StoreAxisValue(id: 'branco', label: 'Branca', hex: '#F1ECE2'),
-      ],
-    ),
-    StoreAxis(
-      id: 'tam',
-      label: 'Tamanho',
-      values: [
-        StoreAxisValue(id: 'p', label: 'P'),
-        StoreAxisValue(id: 'm', label: 'M'),
-      ],
-    ),
-  ],
-  variants: [
-    _sku('preto', 'p'),
-    _sku('preto', 'm'),
-    _sku('branco', 'p'),
-    _sku('branco', 'm'),
-  ],
+/// A mesma config com as costas (abaixo do nome) e `backCents`.
+StoreCustomization _withBack(StoreCustomBackOptions back) => StoreCustomization(
+      fromCents: _customization.fromCents,
+      leadDays: _customization.leadDays,
+      defectOnlyReturns: _customization.defectOnlyReturns,
+      version: _customization.version,
+      name: _customization.name,
+      image: _customization.image,
+      back: back,
+      price: const StoreCustomPrice(
+        nameOnlyCents: 1490,
+        imageOnlyCents: 1990,
+        bothCents: 2490,
+        backCents: 990,
+      ),
+    );
+
+const _bothBack = StoreCustomBackOptions(
+  enabled: true,
+  allowNumber: true,
+  allowImage: true,
+  numberMaxDigits: 2,
+  widthCm: 25,
+  heightCm: 25,
 );
+
+final _camiseta = _camisetaWith(_customization);
+
+StoreProduct _camisetaWith(StoreCustomization customization) => StoreProduct(
+      id: 'camiseta',
+      name: 'Camiseta Dry UV50',
+      category: 'vestuario',
+      priceCents: 12990,
+      minPriceCents: 12990,
+      maxPriceCents: 12990,
+      customizable: true,
+      customization: customization,
+      axes: const [
+        StoreAxis(
+          id: 'cor',
+          label: 'Cor',
+          values: [
+            StoreAxisValue(id: 'preto', label: 'Preta', hex: '#111111'),
+            StoreAxisValue(id: 'branco', label: 'Branca', hex: '#F1ECE2'),
+          ],
+        ),
+        StoreAxis(
+          id: 'tam',
+          label: 'Tamanho',
+          values: [
+            StoreAxisValue(id: 'p', label: 'P'),
+            StoreAxisValue(id: 'm', label: 'M'),
+          ],
+        ),
+      ],
+      variants: [
+        _sku('preto', 'p'),
+        _sku('preto', 'm'),
+        _sku('branco', 'p'),
+        _sku('branco', 'm'),
+      ],
+    );
 
 class _Harness {
   _Harness({
@@ -256,6 +284,7 @@ Future<_Harness> _open(
   WidgetTester tester, {
   String? skuId = 'preto_m',
   _FakeCustomizeService? service,
+  StoreProduct? product,
 }) async {
   // Tela alta: prévia, abas e o painel cabem sem rolar.
   tester.view.physicalSize = const Size(390, 1500);
@@ -271,7 +300,7 @@ Future<_Harness> _open(
     ProviderScope(
       overrides: [
         storeRepositoryProvider.overrideWithValue(
-          _FakeStoreRepository(StoreCatalog(products: [_camiseta])),
+          _FakeStoreRepository(StoreCatalog(products: [product ?? _camiseta])),
         ),
         storeUidProvider.overrideWith((ref) => 'u1'),
         storeCustomizeServiceProvider.overrideWithValue(harness.service),
@@ -643,5 +672,263 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     expect(h.popped, isFalse);
     expect(find.text('abrir'), findsOneWidget);
+  });
+
+  group('aba Costas', () {
+    Finder backTab() =>
+        find.byKey(const ValueKey('store-customize-tab-back'));
+    Finder numberField() =>
+        find.byKey(const ValueKey('store-customize-back-number-field'));
+    String numberText(WidgetTester tester) =>
+        tester.widget<TextField>(numberField()).controller!.text;
+    bool backDone(WidgetTester tester) => find
+        .descendant(of: backTab(), matching: find.byIcon(Icons.check_rounded))
+        .evaluate()
+        .isNotEmpty;
+
+    testWidgets('sem back.enabled não aparece', (tester) async {
+      await _open(tester);
+
+      expect(backTab(), findsNothing);
+      expect(
+        find.byKey(const ValueKey('store-customize-tab-variant')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('com 4 abas, todos os rótulos no mesmo tamanho',
+        (tester) async {
+      await _open(tester, product: _camisetaWith(_withBack(_bothBack)));
+
+      const tabs = ['name', 'image', 'back', 'variant'];
+      Finder label(String tab) => find.descendant(
+            of: find.byKey(ValueKey('store-customize-tab-$tab')),
+            matching: find.byType(Text),
+          );
+      final sizes = {
+        for (final tab in tabs)
+          tester.widget<Text>(label(tab)).style!.fontSize,
+      };
+      expect(sizes, hasLength(1));
+      expect(sizes.single, lessThan(14.5));
+      // E nenhuma aba encolhe de novo sozinha (o FittedBox não entra).
+      for (final tab in tabs) {
+        final laidOut = tester.renderObject<RenderBox>(label(tab)).size.width;
+        expect(tester.getRect(label(tab)).width, closeTo(laidOut, 0.5));
+      }
+    });
+
+    testWidgets(
+        'entre Imagem e Cor e tam.; título, preço, hint e prévia das costas',
+        (tester) async {
+      await _open(tester, product: _camisetaWith(_withBack(_bothBack)));
+
+      double left(String tab) => tester
+          .getTopLeft(find.byKey(ValueKey('store-customize-tab-$tab')))
+          .dx;
+      expect(left('image'), lessThan(left('back')));
+      expect(left('back'), lessThan(left('variant')));
+
+      await tester.tap(backTab());
+      await tester.pump();
+
+      expect(find.text('COSTAS · ABAIXO DO NOME'), findsOneWidget);
+      expect(find.text('+ ${formatBRLFromCents(990)}'), findsOneWidget);
+      expect(find.text('MOCKUP · COSTAS'), findsOneWidget);
+      // Dois tipos liberados: seletor, com Número por padrão.
+      expect(
+        find.byKey(const ValueKey('store-customize-back-type-numero')),
+        findsOneWidget,
+      );
+      expect(numberField(), findsOneWidget);
+      expect(
+        tester.widget<TextField>(numberField()).keyboardType,
+        TextInputType.number,
+      );
+      expect(find.text('Até 2 dígitos · 0 a 99'), findsOneWidget);
+      // Vazia: "Pular" e a caixa das costas reservada na prévia.
+      expect(find.byKey(const ValueKey('store-customize-skip')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('store-customize-preview-back')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('número inválido não entra nem habilita o Adicionar', (
+      tester,
+    ) async {
+      await _open(tester, product: _camisetaWith(_withBack(_bothBack)));
+      await tester.tap(backTab());
+      await tester.pump();
+
+      await tester.enterText(numberField(), 'ab');
+      await tester.pump();
+      expect(numberText(tester), '');
+      expect(_addEnabled(tester), isFalse);
+      expect(_total(tester), formatBRLFromCents(12990));
+      expect(backDone(tester), isFalse);
+
+      // Passa do numberMaxDigits: fica nos 2 primeiros dígitos.
+      await tester.enterText(numberField(), '123');
+      await tester.pump();
+      expect(numberText(tester), '12');
+      expect(_addEnabled(tester), isTrue);
+      expect(backDone(tester), isTrue);
+    });
+
+    testWidgets('com número, Adicionar manda back numero e soma backCents', (
+      tester,
+    ) async {
+      final h = await _open(
+        tester,
+        product: _camisetaWith(_withBack(_bothBack)),
+      );
+      await tester.tap(backTab());
+      await tester.pump();
+
+      await tester.enterText(numberField(), '10');
+      await tester.pump();
+      expect(_total(tester), formatBRLFromCents(12990 + 990));
+      expect(find.text(StoreCopy.customizeWith), findsOneWidget);
+      // A prévia desenha o número na fonte e na cor do nome (camiseta
+      // preta: branco).
+      final preview = tester.widget<Text>(
+        find.byKey(const ValueKey('store-customize-preview-back-number')),
+      );
+      expect(preview.data, '10');
+      expect(preview.style?.color, const Color(0xFFFFFFFF));
+
+      // Saiu do campo: loja_personalizar_costas {tipo: numero}.
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      expect(
+        h.analytics.logged(#logStoreCustomizeBack, {#type: 'numero'}),
+        isTrue,
+      );
+
+      // Com nome também: nameOnly + backCents.
+      await tester.tap(find.byKey(const ValueKey('store-customize-tab-name')));
+      await tester.pump();
+      expect(find.text('MOCKUP · COSTAS'), findsOneWidget);
+      await tester.enterText(_nameField(), 'antunes');
+      await tester.pump();
+      expect(_total(tester), formatBRLFromCents(12990 + 1490 + 990));
+
+      await tester.tap(_addButton());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      final request = h.service.added.single;
+      expect(request.toMap()['back'], {'type': 'numero', 'number': '10'});
+      expect(request.name?.text, 'ANTUNES');
+      expect(request.image, isNull);
+      expect(h.popped, isTrue);
+    });
+
+    testWidgets('seletor Número · Imagem: imagem pelo mesmo fluxo da frente', (
+      tester,
+    ) async {
+      final h = await _open(
+        tester,
+        product: _camisetaWith(_withBack(_bothBack)),
+      );
+      await tester.tap(backTab());
+      await tester.pump();
+
+      await tester.tap(
+        find.byKey(const ValueKey('store-customize-back-type-imagem')),
+      );
+      await tester.pump();
+      expect(numberField(), findsNothing);
+      expect(find.text('Sai centralizada · 25 × 25 cm'), findsOneWidget);
+
+      // Folha Fotos · Arquivos · Câmera → Fotos.
+      await tester.tap(find.byKey(const ValueKey('store-customize-upload')));
+      await _settle(tester);
+      expect(find.text(StoreCopy.customizeSourceCamera), findsOneWidget);
+      await tester.tap(find.text(StoreCopy.customizeSourcePhotos));
+      await _settle(tester);
+      await tester.pump();
+
+      expect(h.picker.sources, [StoreImageSource.photos]);
+      expect(h.service.uploads, ['store/custom-uploads/u1/img-0.png']);
+      expect(find.text('logo-dupla.png'), findsOneWidget);
+      // 2400 px em 25 × 25 cm = 243 dpi: aviso pela área das costas.
+      expect(find.text(StoreCopy.customizeBackQualityWarn), findsOneWidget);
+      expect(_total(tester), formatBRLFromCents(12990 + 990));
+      expect(backDone(tester), isTrue);
+      expect(
+        find.byKey(const ValueKey('store-customize-preview-back-image')),
+        findsOneWidget,
+      );
+      expect(
+        h.analytics.logged(#logStoreCustomizeBack, {#type: 'imagem'}),
+        isTrue,
+      );
+      // A imagem das costas não é a da frente.
+      await tester.tap(find.byKey(const ValueKey('store-customize-tab-image')));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('store-customize-upload')), findsOneWidget);
+
+      // Voltar pro Número: a imagem não conta; vazio não habilita.
+      await tester.tap(backTab());
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('store-customize-back-type-numero')),
+      );
+      await tester.pump();
+      expect(numberField(), findsOneWidget);
+      expect(_addEnabled(tester), isFalse);
+      expect(_total(tester), formatBRLFromCents(12990));
+
+      // De novo Imagem: a escolhida continua lá e vai na callable.
+      await tester.tap(
+        find.byKey(const ValueKey('store-customize-back-type-imagem')),
+      );
+      await tester.pump();
+      expect(_addEnabled(tester), isTrue);
+      await tester.tap(_addButton());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      final request = h.service.added.single;
+      expect(request.name, isNull);
+      expect(request.image, isNull);
+      expect(request.toMap()['back'], {
+        'type': 'imagem',
+        'path': 'store/custom-uploads/u1/img-0.png',
+        // Sem ajuste fino: centralizada e inteira na área.
+        'transform': {'x': 0.5, 'y': 0.5, 'scale': 1.0},
+      });
+    });
+
+    testWidgets('um tipo só: sem seletor; hint pelo numberMaxDigits', (
+      tester,
+    ) async {
+      await _open(
+        tester,
+        product: _camisetaWith(
+          _withBack(
+            const StoreCustomBackOptions(
+              enabled: true,
+              allowNumber: true,
+              numberMaxDigits: 1,
+            ),
+          ),
+        ),
+      );
+      await tester.tap(backTab());
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('store-customize-back-type-numero')),
+        findsNothing,
+      );
+      expect(find.text('Até 1 dígito · 0 a 9'), findsOneWidget);
+      await tester.enterText(numberField(), '77');
+      await tester.pump();
+      expect(numberText(tester), '7');
+      expect(_addEnabled(tester), isTrue);
+    });
   });
 }

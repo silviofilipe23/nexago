@@ -106,7 +106,8 @@ export function customizationFromDoc(d: Raw | undefined): CustomizationConfig {
     active: d['active'] === true,
     name: { ...base.name, ...name },
     back:
-      d['back'] === undefined && legacyNumber === true
+      // `back: null` conta como ausente (mesma regra do servidor).
+      d['back'] == null && legacyNumber === true
         ? { ...base.back, enabled: true, allowImage: false, allowNumber: true }
         : { ...base.back, ...(d['back'] ?? {}) },
     image: { ...base.image, ...(d['image'] ?? {}) },

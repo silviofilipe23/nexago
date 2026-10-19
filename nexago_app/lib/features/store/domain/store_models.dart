@@ -226,22 +226,54 @@ class StoreCustomImageOptions {
   final List<StoreCustomArea> areas;
 }
 
-/// Adicional da personalização: nome e imagem juntos têm preço próprio.
+/// `customization.back` do espelho: costas, abaixo do nome — o atleta
+/// escolhe número OU imagem entre os liberados. A imagem segue formatos, peso
+/// e resolução mínima do bloco `image` (mesmo com a imagem da frente
+/// desligada). Espelho antigo (sem `back`) = desligado.
+class StoreCustomBackOptions {
+  const StoreCustomBackOptions({
+    this.enabled = false,
+    this.allowNumber = false,
+    this.allowImage = false,
+    this.numberMaxDigits = 2,
+    this.widthCm = 25,
+    this.heightCm = 25,
+  });
+
+  static const StoreCustomBackOptions disabled = StoreCustomBackOptions();
+
+  /// Só ligado quando sobra uma opção válida (número ou imagem).
+  final bool enabled;
+  final bool allowNumber;
+  final bool allowImage;
+
+  /// 1 a 3.
+  final int numberMaxDigits;
+
+  /// Área das costas, em cm (prévia e qualidade da imagem).
+  final double widthCm;
+  final double heightCm;
+}
+
+/// Adicional da personalização: nome e imagem juntos têm preço próprio; as
+/// costas somam [backCents] por cima.
 class StoreCustomPrice {
   const StoreCustomPrice({
     this.nameOnlyCents = 0,
     this.imageOnlyCents = 0,
     this.bothCents = 0,
+    this.backCents = 0,
   });
 
   final int nameOnlyCents;
   final int imageOnlyCents;
   final int bothCents;
+  final int backCents;
 }
 
 /// O pedaço público da personalização (só com ela ativa). Doc gravado antes
-/// das opções (só `fromCents`/`leadDays`/`defectOnlyReturns`) vem com nome e
-/// imagem desligados.
+/// das opções (só `fromCents`/`leadDays`/`defectOnlyReturns`) vem com nome,
+/// imagem e costas desligados.
 class StoreCustomization {
   const StoreCustomization({
     this.fromCents = 0,
@@ -250,6 +282,7 @@ class StoreCustomization {
     this.version = 0,
     this.name = StoreCustomNameOptions.disabled,
     this.image = StoreCustomImageOptions.disabled,
+    this.back = StoreCustomBackOptions.disabled,
     this.price = const StoreCustomPrice(),
   });
 
@@ -266,10 +299,11 @@ class StoreCustomization {
   final int version;
   final StoreCustomNameOptions name;
   final StoreCustomImageOptions image;
+  final StoreCustomBackOptions back;
   final StoreCustomPrice price;
 
   /// Alguma opção que o atleta consegue usar nesta tela.
-  bool get hasOptions => name.enabled || image.enabled;
+  bool get hasOptions => name.enabled || image.enabled || back.enabled;
 }
 
 class StoreProduct {

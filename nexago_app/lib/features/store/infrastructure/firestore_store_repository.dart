@@ -271,8 +271,10 @@ Map<String, dynamic> _map(Object? v) =>
 final RegExp _hexColor = RegExp(r'^#[0-9a-f]{6}$');
 
 /// `storeShowcase/{id}.customization` (gravado por `publicCustomization`).
-/// Doc anterior às opções = nome e imagem desligados. Fonte que o app não
-/// sabe desenhar fica de fora; sem fonte, sem cor ou sem área, a opção some.
+/// Doc anterior às opções = nome, imagem e costas desligados. Fonte que o app
+/// não sabe desenhar fica de fora; sem fonte, sem cor ou sem área, a opção
+/// some. Costas só ligadas com uma opção válida (a imagem das costas precisa
+/// de formato no bloco `image`).
 StoreCustomization storeCustomizationFromMap(Map<String, dynamic> data) {
   final name = _map(data['name']);
   final fonts = <StoreCustomFont>[
@@ -307,6 +309,14 @@ StoreCustomization storeCustomizationFromMap(Map<String, dynamic> data) {
   ];
   final maxSizeMb = _count(image['maxSizeMb']);
 
+  final back = _map(data['back']);
+  final backNumber = back['allowNumber'] == true;
+  final backImage = back['allowImage'] == true && formats.isNotEmpty;
+  final backOn = back['enabled'] == true && (backNumber || backImage);
+  final backDigits = _count(back['numberMaxDigits']);
+  final backWidth = _num(back['widthCm']) ?? 0;
+  final backHeight = _num(back['heightCm']) ?? 0;
+
   final price = _map(data['price']);
   return StoreCustomization(
     fromCents: _count(data['fromCents']),
@@ -329,10 +339,19 @@ StoreCustomization storeCustomizationFromMap(Map<String, dynamic> data) {
       minHeightPx: _count(image['minHeightPx']),
       areas: areas,
     ),
+    back: StoreCustomBackOptions(
+      enabled: backOn,
+      allowNumber: backOn && backNumber,
+      allowImage: backOn && backImage,
+      numberMaxDigits: backDigits < 1 ? 2 : (backDigits > 3 ? 3 : backDigits),
+      widthCm: backWidth > 0 ? backWidth : 25,
+      heightCm: backHeight > 0 ? backHeight : 25,
+    ),
     price: StoreCustomPrice(
       nameOnlyCents: _count(price['nameOnlyCents']),
       imageOnlyCents: _count(price['imageOnlyCents']),
       bothCents: _count(price['bothCents']),
+      backCents: _count(price['backCents']),
     ),
   );
 }

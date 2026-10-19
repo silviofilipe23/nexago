@@ -62,7 +62,8 @@ describe("publicCustomization", () => {
     assert.equal(out.version, Date.parse("2026-10-16T12:00:00Z"));
     assert.deepEqual(out.name.fonts, ["bloco", "mono"]);
     assert.deepEqual(out.image.areas.map((a) => a.id), ["peito_esquerdo"]);
-    assert.deepEqual(out.price, {nameOnlyCents: 1490, imageOnlyCents: 1990, bothCents: 2490});
+    assert.deepEqual(out.price, {nameOnlyCents: 1490, imageOnlyCents: 1990, bothCents: 2490, backCents: 990});
+    assert.equal(out.back.enabled, false, "costas desligadas por padrão");
     assert.ok(!JSON.stringify(out).includes("printShop"), "gráfica não vai para a vitrine");
   });
 
@@ -102,6 +103,33 @@ describe("nome", () => {
   });
 });
 
+describe("costas no espelho", () => {
+  it("ligadas com número e/ou imagem; imagem sem formato não vale; entram no 'a partir de'", () => {
+    const only = publicCustomization({
+      active: true,
+      name: {enabled: false},
+      image: {enabled: false},
+      back: {enabled: true, allowNumber: true, allowImage: false, numberMaxDigits: 2, widthCm: 25, heightCm: 25},
+      price: {backCents: 990},
+    })!;
+    assert.deepEqual(only.back, {enabled: true, allowNumber: true, allowImage: false, numberMaxDigits: 2, widthCm: 25, heightCm: 25});
+    assert.equal(only.fromCents, 990);
+    const semFormato = publicCustomization({
+      active: true,
+      image: {enabled: false, formats: []},
+      back: {enabled: true, allowNumber: false, allowImage: true},
+    })!;
+    assert.equal(semFormato.back.enabled, false);
+    // Doc antigo com "número junto do nome" vira costas só com número.
+    const legado = publicCustomization({active: true, name: {allowNumber: true}})!;
+    assert.equal(legado.back.enabled, true);
+    // `back: null` (o doc da camiseta no DEV) é o mesmo caso.
+    assert.equal(publicCustomization({active: true, name: {allowNumber: true}, back: null})!.back.allowNumber, true);
+    assert.equal(legado.back.allowNumber, true);
+    assert.equal(legado.back.allowImage, false);
+  });
+});
+
 describe("preço e qualidade", () => {
   const price = {nameOnlyCents: 1490, imageOnlyCents: 1990, bothCents: 2490};
   it("juntos saem pelo preço de ambos", () => {
@@ -109,6 +137,10 @@ describe("preço e qualidade", () => {
     assert.equal(customExtraCents(price, true, false), 1490);
     assert.equal(customExtraCents(price, false, true), 1990);
     assert.equal(customExtraCents(price, false, false), 0);
+    // As costas somam por cima de qualquer combinação.
+    const withBack = {...price, backCents: 990};
+    assert.equal(customExtraCents(withBack, true, true, true), 3480);
+    assert.equal(customExtraCents(withBack, false, false, true), 990);
   });
 
   it("dpi efetivo pelo lado mais fraco; 300 é boa qualidade", () => {
@@ -172,7 +204,7 @@ describe("addCustomItemToCartCore", () => {
       addCustomItemToCartCore(db, "ana", {productId: "cam", skuId: "preto_m", qty: 1, ...input}, upload(), NOW);
     await assert.rejects(add({name: {text: "Palavrão", fontId: "bloco", color: "#ffffff"}}), /não pode ser usado/);
     await assert.rejects(add({name: {text: "ANA", fontId: "gotica", color: "#ffffff"}}), /inválida/);
-    await assert.rejects(add({}), /nome ou uma imagem/);
+    await assert.rejects(add({}), /nome, uma imagem ou as costas/);
   });
 
   it("imagem de outro atleta, pequena demais ou de formato fora da config recusa", async () => {
@@ -195,6 +227,45 @@ describe("addCustomItemToCartCore", () => {
     await assert.rejects(addCustomItemToCartCore(esgotado.db, "ana", {productId: "cam", skuId: "preto_m", qty: 1, name}, upload(), NOW), /estoque/);
     const cheio = makeDb({cartItems: Array.from({length: 30}, (_, i) => ({productId: `p${i}`, skuId: "u", qty: 1}))});
     await assert.rejects(addCustomItemToCartCore(cheio.db, "ana", {productId: "cam", skuId: "preto_m", qty: 1, name}, upload(), NOW), /cheio/);
+  });
+
+  it("costas: número sozinho ou com nome; imagem com a qualidade pela área das costas", async () => {
+    const back = {enabled: true, allowNumber: true, allowImage: true, numberMaxDigits: 2, widthCm: 25, heightCm: 25};
+    const {fake, db} = makeDb({customization: {back}});
+    const numero = await addCustomItemToCartCore(db, "ana", {
+      productId: "cam", skuId: "preto_m", qty: 1, back: {type: "numero", number: " 10 "},
+    }, upload(), NOW, () => "line-n");
+    assert.equal(numero.extraPriceCents, 990);
+    const withName = await addCustomItemToCartCore(db, "ana", {
+      productId: "cam", skuId: "preto_m", qty: 1,
+      name: {text: "ANA", fontId: "bloco", color: "#ffffff"}, back: {type: "numero", number: "7"},
+    }, upload(), NOW, () => "line-nn");
+    assert.equal(withName.extraPriceCents, 1490 + 990);
+    // 1000 px em 25 cm = 101 dpi: imagem aceita, com aviso de qualidade.
+    const imagem = await addCustomItemToCartCore(db, "ana", {
+      productId: "cam", skuId: "preto_m", qty: 1, back: {type: "imagem", path: PATH},
+    }, upload({head: png(1000, 1000)}), NOW, () => "line-i");
+    assert.equal(imagem.quality, "warn");
+    const items = fake.store.get("storeCarts/ana")!["items"] as Array<Record<string, any>>;
+    assert.deepEqual(items[0]!["customization"]["back"], {type: "numero", number: "10"});
+    assert.equal(items[2]!["customization"]["back"]["type"], "imagem");
+    assert.equal(items[2]!["customization"]["back"]["path"], PATH);
+    assert.equal(items[2]!["customization"]["back"]["quality"], "warn");
+  });
+
+  it("costas: número longo ou com letra, tipo não liberado e costas desligadas recusam", async () => {
+    const add = (customization: Record<string, unknown>, backInput: unknown) => {
+      const {db} = makeDb({customization});
+      return addCustomItemToCartCore(db, "ana", {
+        productId: "cam", skuId: "preto_m", qty: 1, back: backInput as never,
+      }, upload(), NOW);
+    };
+    const back = {enabled: true, allowNumber: true, allowImage: false, numberMaxDigits: 2};
+    await assert.rejects(add({back}, {type: "numero", number: "100"}), /até 2 dígitos/);
+    await assert.rejects(add({back}, {type: "numero", number: "1A"}), /até 2 dígitos/);
+    await assert.rejects(add({back}, {type: "imagem", path: PATH}), /não aceita imagem nas costas/);
+    await assert.rejects(add({back: {...back, enabled: false}, name: {enabled: true}}, {type: "numero", number: "10"}), /costas/);
+    await assert.rejects(add({back}, {type: "outro"}), /inválida/);
   });
 
   it("quantidade vai até o saldo (teto 10)", async () => {

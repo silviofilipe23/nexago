@@ -29,11 +29,11 @@ import 'widgets/store_header.dart';
 import 'widgets/store_product_options.dart';
 import 'widgets/store_style.dart';
 
-/// Loja · Personalizar (app 02b nome / 02c imagem,
+/// Loja · Personalizar (app 02b nome / 02c imagem / costas,
 /// `/loja/produto/:productId/personalizar?sku=`).
 ///
-/// Lê o produto do MESMO catálogo da vitrine; nome e imagem vão para o
-/// carrinho só pela callable `addStoreCustomItemToCart`, que revalida tudo.
+/// Lê o produto do MESMO catálogo da vitrine; nome, imagem e costas vão para
+/// o carrinho só pela callable `addStoreCustomItemToCart`, que revalida tudo.
 /// Regras em `docs/business-rules/loja-personalizar.md` /
 /// `store_customize_rules.dart`.
 ///
@@ -86,6 +86,14 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
   String? _areaId;
   StoreImageTransform? _transform;
 
+  // Costas (abaixo do nome): número OU imagem
+  final TextEditingController _backNumberController = TextEditingController();
+  final FocusNode _backNumberFocus = FocusNode();
+  StoreBackType? _backType;
+  StoreImageDraft? _backImage;
+  int _backImageSeq = 0;
+  String? _loggedBack;
+
   // Cor e tamanho
   String? _missingAxisId;
   int _axisShake = 0;
@@ -102,6 +110,7 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
   void initState() {
     super.initState();
     _nameFocus.addListener(_onNameFocus);
+    _backNumberFocus.addListener(_onBackNumberFocus);
     // O formatter recebe a mudança antes do `onChanged`: guarda só o que
     // a tecla trouxe e treme o campo.
     _nameFormatter = StoreNameInputFormatter(
@@ -128,6 +137,10 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
       ..removeListener(_onNameFocus)
       ..dispose();
     _nameController.dispose();
+    _backNumberFocus
+      ..removeListener(_onBackNumberFocus)
+      ..dispose();
+    _backNumberController.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -146,14 +159,33 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
   bool get _imageReady =>
       _image?.status == StoreImageDraftStatus.ready && _image?.path != null;
 
+  String get _backNumber => _backNumberController.text.trim();
+
+  bool get _backImageReady =>
+      _backImage?.status == StoreImageDraftStatus.ready &&
+      _backImage?.path != null;
+
+  /// Costas preenchidas no tipo escolhido: número válido ou imagem enviada.
+  bool _hasBack(StoreCustomBackOptions options) {
+    if (!options.enabled) return false;
+    return storeBackTypeOf(options, _backType) == StoreBackType.number
+        ? storeBackNumberOk(_backNumber, options.numberMaxDigits)
+        : _backImageReady;
+  }
+
   /// Alteração que o "voltar" perguntaria antes de descartar.
-  bool get _hasChanges => _hasName || _image != null;
+  bool get _hasChanges =>
+      _hasName ||
+      _image != null ||
+      _backNumber.isNotEmpty ||
+      _backImage != null;
 
   List<StoreCustomizeTab> _tabs(StoreProduct product) {
     final c = product.customization!;
     return [
       if (c.name.enabled) StoreCustomizeTab.name,
       if (c.image.enabled) StoreCustomizeTab.image,
+      if (c.back.enabled) StoreCustomizeTab.back,
       if (product.axes.isNotEmpty) StoreCustomizeTab.variant,
     ];
   }
@@ -196,6 +228,7 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
       return storeNameSide(product.customization!.name.placement);
     }
     if (tab == StoreCustomizeTab.image) return StorePhotoView.front;
+    if (tab == StoreCustomizeTab.back) return StorePhotoView.back;
     return _side ?? StorePhotoView.front;
   }
 
@@ -222,10 +255,11 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
     _leave();
   }
 
-  /// Nome → lado do nome; Imagem → frente; "Cor e tam." mantém o lado que
-  /// está na prévia.
+  /// Nome → lado do nome; Imagem → frente; Costas → costas; "Cor e tam."
+  /// mantém o lado que está na prévia.
   void _selectTab(StoreProduct product, StoreCustomizeTab tab) {
     if (tab != StoreCustomizeTab.name) _nameFocus.unfocus();
+    if (tab != StoreCustomizeTab.back) _backNumberFocus.unfocus();
     final current = _tab ?? _tabs(product).first;
     final shown = _side ?? _sideFor(current, product);
     setState(() {
@@ -305,23 +339,48 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
     }
   }
 
-  // ── Imagem ────────────────────────────────────────────────────────────
+  // ── Imagem (frente e costas) ──────────────────────────────────────────
 
   double _areaAspect(StoreCustomArea area) => area.widthCm / area.heightCm;
 
-  Future<void> _pickImage(StoreProduct product) async {
+  StoreImageDraft? _draftOf({required bool back}) => back ? _backImage : _image;
+
+  /// Troca o rascunho da frente ou das costas (dentro do `setState`).
+  void _putDraft(StoreImageDraft? draft, {required bool back}) {
+    if (back) {
+      _backImage = draft;
+    } else {
+      _image = draft;
+    }
+  }
+
+  /// O envio [seq] ainda é o atual (trocar/remover a imagem invalida os
+  /// anteriores).
+  bool _isCurrent(int seq, {required bool back}) =>
+      seq == (back ? _backImageSeq : _imageSeq);
+
+  /// Frente ou costas ([back]): a mesma folha Fotos · Arquivos · Câmera, a
+  /// mesma conferência (formatos, peso e resolução do bloco Imagem) e o
+  /// mesmo envio.
+  Future<void> _pickImage(StoreProduct product, {bool back = false}) async {
     _nameFocus.unfocus();
+    _backNumberFocus.unfocus();
     final options = product.customization!.image;
     final choice = await showStoreImageSourceSheet(
       context: context,
-      canRemove: _image != null,
+      canRemove: _draftOf(back: back) != null,
     );
     if (choice == null || !mounted) return;
     if (choice.remove) {
       setState(() {
-        _imageSeq++;
-        _image = null;
-        _transform = null;
+        if (back) {
+          _backImageSeq++;
+          _backImage = null;
+        } else {
+          _imageSeq++;
+          _image = null;
+          _transform = null;
+        }
       });
       return;
     }
@@ -337,20 +396,21 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
       return;
     }
     if (picked == null || !mounted) return;
-    final seq = ++_imageSeq;
+    final seq = back ? ++_backImageSeq : ++_imageSeq;
+    final preparing = StoreImageDraft(
+      fileName: picked.fileName,
+      status: StoreImageDraftStatus.preparing,
+    );
     setState(() {
-      _image = StoreImageDraft(
-        fileName: picked!.fileName,
-        status: StoreImageDraftStatus.preparing,
-      );
-      _side = StorePhotoView.front;
+      _putDraft(preparing, back: back);
+      _side = back ? StorePhotoView.back : StorePhotoView.front;
     });
     final prepared = await prepareStoreCustomImage(
       picked.bytes,
       fileName: picked.fileName,
       options: options,
     );
-    if (!mounted || seq != _imageSeq) return;
+    if (!mounted || !_isCurrent(seq, back: back)) return;
     final problem = prepared.problem;
     final draft = StoreImageDraft(
       fileName: picked.fileName,
@@ -365,19 +425,26 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
           problem == null ? null : storeImageProblemMessage(problem, options),
     );
     setState(() {
-      _image = draft;
-      _transform = problem == null
-          ? storeDefaultImageTransform(
-              imageAspect: draft.aspect,
-              areaAspect: _areaAspect(_area(options)),
-            )
-          : null;
+      _putDraft(draft, back: back);
+      // As costas não têm ajuste fino: sempre centralizada e inteira.
+      if (!back) {
+        _transform = problem == null
+            ? storeDefaultImageTransform(
+                imageAspect: draft.aspect,
+                areaAspect: _areaAspect(_area(options)),
+              )
+            : null;
+      }
     });
-    if (problem == null) await _upload(product, seq);
+    if (problem == null) await _upload(product, seq, back: back);
   }
 
-  Future<void> _upload(StoreProduct product, int seq) async {
-    final draft = _image;
+  Future<void> _upload(
+    StoreProduct product,
+    int seq, {
+    bool back = false,
+  }) async {
+    final draft = _draftOf(back: back);
     final bytes = draft?.bytes;
     final format = draft?.format;
     if (draft == null || bytes == null || format == null) return;
@@ -389,18 +456,30 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
         bytes: bytes,
         format: format,
         onProgress: (progress) {
-          if (!mounted || seq != _imageSeq) return;
-          setState(() => _image = _image?.copyWith(progress: progress));
+          if (!mounted || !_isCurrent(seq, back: back)) return;
+          setState(() {
+            _putDraft(
+              _draftOf(back: back)?.copyWith(progress: progress),
+              back: back,
+            );
+          });
         },
       );
-      if (!mounted || seq != _imageSeq) return;
+      if (!mounted || !_isCurrent(seq, back: back)) return;
       setState(() {
-        _image = _image?.copyWith(
-          status: StoreImageDraftStatus.ready,
-          progress: 1,
-          path: path,
+        _putDraft(
+          _draftOf(back: back)?.copyWith(
+            status: StoreImageDraftStatus.ready,
+            progress: 1,
+            path: path,
+          ),
+          back: back,
         );
       });
+      if (back) {
+        _logBack(StoreBackType.image, path);
+        return;
+      }
       final area = _area(product.customization!.image);
       final dpi = storeEffectiveDpi(
         widthPx: draft.widthPx,
@@ -412,22 +491,28 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
         quality: storeImageQuality(dpi).name,
       );
     } catch (_) {
-      if (!mounted || seq != _imageSeq) return;
+      if (!mounted || !_isCurrent(seq, back: back)) return;
       setState(() {
-        _image = _image?.copyWith(status: StoreImageDraftStatus.failed);
+        _putDraft(
+          _draftOf(back: back)?.copyWith(status: StoreImageDraftStatus.failed),
+          back: back,
+        );
       });
     }
   }
 
-  void _retryUpload(StoreProduct product) {
-    final seq = ++_imageSeq;
+  void _retryUpload(StoreProduct product, {bool back = false}) {
+    final seq = back ? ++_backImageSeq : ++_imageSeq;
     setState(() {
-      _image = _image?.copyWith(
-        status: StoreImageDraftStatus.uploading,
-        progress: 0,
+      _putDraft(
+        _draftOf(back: back)?.copyWith(
+          status: StoreImageDraftStatus.uploading,
+          progress: 0,
+        ),
+        back: back,
       );
     });
-    _upload(product, seq);
+    _upload(product, seq, back: back);
   }
 
   void _selectArea(StoreCustomArea area) {
@@ -442,6 +527,56 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
         );
       }
     });
+  }
+
+  // ── Costas ────────────────────────────────────────────────────────────
+
+  void _selectBackType(StoreBackType type) {
+    if (type != StoreBackType.number) _backNumberFocus.unfocus();
+    setState(() {
+      _backType = type;
+      _side = StorePhotoView.back;
+    });
+  }
+
+  void _onBackNumberChanged(String _) => setState(() {});
+
+  /// Saiu do campo com um número válido: `loja_personalizar_costas`.
+  void _onBackNumberFocus() {
+    if (_backNumberFocus.hasFocus || !mounted) return;
+    final product = ref.read(storeProductProvider(widget.productId)).product;
+    final options = product?.customization?.back;
+    final number = _backNumber;
+    if (options == null ||
+        !options.enabled ||
+        !storeBackNumberOk(number, options.numberMaxDigits)) {
+      return;
+    }
+    _logBack(StoreBackType.number, number);
+  }
+
+  /// Uma vez por número/imagem escolhidos.
+  void _logBack(StoreBackType type, String value) {
+    final key = '${type.id}|$value';
+    if (_loggedBack == key) return;
+    _loggedBack = key;
+    _analytics.logStoreCustomizeBack(type: type.id);
+  }
+
+  /// O que vai nas costas: o número digitado ou a imagem enviada,
+  /// centralizada e inteira na área das costas (sem ajuste fino).
+  StoreCustomBackChoice _backChoice(StoreCustomBackOptions options) {
+    if (storeBackTypeOf(options, _backType) == StoreBackType.number) {
+      return StoreCustomBackChoice.number(_backNumber);
+    }
+    final image = _backImage!;
+    return StoreCustomBackChoice.image(
+      path: image.path!,
+      transform: storeDefaultImageTransform(
+        imageAspect: image.aspect,
+        areaAspect: options.widthCm / options.heightCm,
+      ),
+    );
   }
 
   // ── Cor e tamanho ─────────────────────────────────────────────────────
@@ -487,21 +622,21 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
     final customization = product.customization!;
     final hasName = _hasName && customization.name.enabled;
     final image = _imageReady ? _image : null;
-    if (!hasName && image == null) return;
+    final hasBack = _hasBack(customization.back);
+    if (!hasName && image == null && !hasBack) return;
 
     _nameFocus.unfocus();
+    _backNumberFocus.unfocus();
     final nameText = _nameText;
     final nameColor = _colorOf(product, selected);
-    final area = _area(customization.image);
-    final transform = _transform ??
-        storeDefaultImageTransform(
-          imageAspect: image?.aspect ?? 1,
-          areaAspect: _areaAspect(area),
-        );
+    // Só com imagem: produto sem imagem pode não ter área nenhuma.
+    final area = image == null ? null : _area(customization.image);
+    final back = hasBack ? _backChoice(customization.back) : null;
     final extra = storeCustomExtraCents(
       customization.price,
       hasName: hasName,
       hasImage: image != null,
+      hasBack: hasBack,
     );
     final messenger = ScaffoldMessenger.maybeOf(context);
     final router = GoRouter.maybeOf(context);
@@ -523,9 +658,14 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
               ? null
               : StoreCustomImageChoice(
                   path: image.path!,
-                  areaId: area.id,
-                  transform: transform,
+                  areaId: area!.id,
+                  transform: _transform ??
+                      storeDefaultImageTransform(
+                        imageAspect: image.aspect,
+                        areaAspect: _areaAspect(area),
+                      ),
                 ),
+          back: back,
         ),
       );
       _analytics.logStoreAddToCart(
@@ -731,6 +871,7 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
     final customization = product.customization!;
     final nameOptions = customization.name;
     final imageOptions = customization.image;
+    final backOptions = customization.back;
     final selected = _selected ??= _initialSelection(product);
     final tabs = _tabs(product);
     final tab = _tab != null && tabs.contains(_tab) ? _tab! : tabs.first;
@@ -746,10 +887,15 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
     final hasName = _hasName && nameOptions.enabled;
     final image = _image;
     final imageReady = _imageReady;
+    final backType = storeBackTypeOf(backOptions, _backType);
+    final backImage = _backImage;
+    final backNumber = _backNumber;
+    final hasBack = _hasBack(backOptions);
     final extra = storeCustomExtraCents(
       customization.price,
       hasName: hasName,
       hasImage: imageReady,
+      hasBack: hasBack,
     );
     final price = storeSelectionPrice(product, selected);
     final total = storeCustomTotalCents(
@@ -757,8 +903,25 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
       extraCents: extra,
     );
     final imageBusy = image != null && !imageReady;
-    final canAdd =
-        (hasName || imageReady) && !_nameBlocked && !imageBusy && !_adding;
+    // Costas no tipo escolhido: imagem ainda subindo/reprovada ou número que
+    // não passa travam o Adicionar.
+    final backBusy = backOptions.enabled &&
+        backType == StoreBackType.image &&
+        backImage != null &&
+        !_backImageReady;
+    final backInvalid = backOptions.enabled &&
+        backType == StoreBackType.number &&
+        backNumber.isNotEmpty &&
+        !storeBackNumberOk(backNumber, backOptions.numberMaxDigits);
+    final backEmpty = backType == StoreBackType.number
+        ? backNumber.isEmpty
+        : backImage == null;
+    final canAdd = (hasName || imageReady || hasBack) &&
+        !_nameBlocked &&
+        !imageBusy &&
+        !backBusy &&
+        !backInvalid &&
+        !_adding;
     final font = nameOptions.enabled ? _fontOf(nameOptions) : null;
     final nameColor = nameOptions.enabled ? _colorOf(product, selected) : null;
     final area = imageOptions.enabled ? _area(imageOptions) : null;
@@ -792,6 +955,23 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
           onRetry: () => _retryUpload(product),
           onArea: _selectArea,
           onSkip: image == null ? _skipFrom(product, tab) : null,
+        ),
+      StoreCustomizeTab.back => StoreCustomizeBackPanel(
+          options: backOptions,
+          title: storeBackStepTitle(
+            nameOptions.enabled ? nameOptions.placement : null,
+          ),
+          priceCents: customization.price.backCents,
+          type: backType,
+          numberController: _backNumberController,
+          numberFocus: _backNumberFocus,
+          draft: backImage,
+          imageOptions: imageOptions,
+          onType: _selectBackType,
+          onNumberChanged: _onBackNumberChanged,
+          onPick: () => _pickImage(product, back: true),
+          onRetry: () => _retryUpload(product, back: true),
+          onSkip: backEmpty ? _skipFrom(product, tab) : null,
         ),
       StoreCustomizeTab.variant => StoreProductOptions(
           product: product,
@@ -829,7 +1009,7 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
         extendBody: true,
         bottomNavigationBar: StoreCustomizeBottomBar(
           totalCents: total,
-          customized: extra > 0 || hasName || imageReady,
+          customized: extra > 0 || hasName || imageReady || hasBack,
           enabled: canAdd,
           busy: _adding,
           pixDiscountPct: config.benefits.pixDiscountPct,
@@ -872,6 +1052,40 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
                       image: previewImage,
                       imageActive: tab == StoreCustomizeTab.image,
                       onTransform: (t) => setState(() => _transform = t),
+                      back: backOptions.enabled
+                          ? StorePreviewBack(
+                              box: storeBackBox(
+                                backOptions,
+                                nameOptions.enabled
+                                    ? nameOptions.placement
+                                    : null,
+                              ),
+                              type: backType,
+                              number: backNumber,
+                              // Fonte e cor do nome; sem nome, Bloco e a cor
+                              // de maior contraste com a peça.
+                              font: font ?? StoreCustomFont.bloco,
+                              color: storeHexColor(
+                                    storeBackNumberColor(
+                                      nameColor: nameColor,
+                                      garmentHex: storeSelectedColorHex(
+                                        product,
+                                        selected,
+                                      ),
+                                    ),
+                                  ) ??
+                                  Colors.white,
+                              hasImage: backImage != null &&
+                                  backImage.status !=
+                                      StoreImageDraftStatus.invalid &&
+                                  backImage.bytes != null,
+                              imageBytes: backImage == null ||
+                                      backImage.isVector
+                                  ? null
+                                  : backImage.bytes,
+                              active: tab == StoreCustomizeTab.back,
+                            )
+                          : null,
                     ),
                   ),
                   if (storeCustomPreviewPhotoNote(product, selected, side)
@@ -903,6 +1117,7 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
                       done: {
                         if (hasName) StoreCustomizeTab.name,
                         if (imageReady) StoreCustomizeTab.image,
+                        if (hasBack) StoreCustomizeTab.back,
                       },
                       onTap: (t) => _selectTab(product, t),
                     ),

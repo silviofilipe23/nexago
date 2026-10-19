@@ -62,7 +62,20 @@ export interface PublicCustomization {
     /** Só as áreas ligadas (a primeira é o padrão). */
     areas: {id: string; name: string; widthCm: number; heightCm: number}[];
   };
-  price: {nameOnlyCents: number; imageOnlyCents: number; bothCents: number};
+  /**
+   * Costas, abaixo do nome: o atleta escolhe número OU imagem entre os liberados. A imagem segue
+   * formatos, peso e resolução mínima do bloco `image`.
+   */
+  back: {
+    enabled: boolean;
+    allowNumber: boolean;
+    allowImage: boolean;
+    numberMaxDigits: number;
+    widthCm: number;
+    heightCm: number;
+  };
+  /** `backCents` soma ao preço de nome/imagem quando o atleta preenche as costas. */
+  price: {nameOnlyCents: number; imageOnlyCents: number; bothCents: number; backCents: number};
 }
 
 function toMillis(v: unknown): number {
@@ -71,16 +84,19 @@ function toMillis(v: unknown): number {
   return typeof ts?.toMillis === "function" ? ts.toMillis() : 0;
 }
 
-/** As opções que o cliente mostra. As costas (imagem/número) ainda não têm tela no cliente. */
+/** As opções que o cliente mostra (nome, imagem e costas). */
 export function publicCustomization(raw: Data | null): PublicCustomization | null {
   if (raw?.["active"] !== true) return null;
   const c = withCustomizationDefaults(raw);
   const nameOn = c.name.enabled && c.name.fonts.some((f) => f.enabled) && c.name.colors.length > 0;
   const areas = c.image.areas.filter((a) => a.enabled);
   const imageOn = c.image.enabled && areas.length > 0 && c.image.formats.length > 0;
+  const backImage = c.back.allowImage && c.image.formats.length > 0;
+  const backOn = c.back.enabled && (c.back.allowNumber || backImage);
   const options = [
     nameOn ? c.price.nameOnlyCents : null,
     imageOn ? c.price.imageOnlyCents : null,
+    backOn ? c.price.backCents : null,
   ].filter((n): n is number => n !== null && n > 0);
   return {
     fromCents: options.length > 0 ? Math.min(...options) : 0,
@@ -102,10 +118,19 @@ export function publicCustomization(raw: Data | null): PublicCustomization | nul
       minHeightPx: c.image.minHeightPx,
       areas: areas.map(({id, name, widthCm, heightCm}) => ({id, name: name.trim(), widthCm, heightCm})),
     },
+    back: {
+      enabled: backOn,
+      allowNumber: backOn && c.back.allowNumber,
+      allowImage: backOn && backImage,
+      numberMaxDigits: c.back.numberMaxDigits,
+      widthCm: c.back.widthCm,
+      heightCm: c.back.heightCm,
+    },
     price: {
       nameOnlyCents: c.price.nameOnlyCents,
       imageOnlyCents: c.price.imageOnlyCents,
       bothCents: c.price.bothCents,
+      backCents: c.price.backCents,
     },
   };
 }
@@ -157,16 +182,26 @@ export function nameProblem(
 // Preço e qualidade
 // ---------------------------------------------------------------------------
 
-/** Nome e imagem juntos têm preço próprio (sai mais barato que somar os dois). */
+/**
+ * Nome e imagem juntos têm preço próprio (sai mais barato que somar os dois); as costas somam
+ * `backCents` por cima.
+ */
 export function customExtraCents(
-  price: {nameOnlyCents: number; imageOnlyCents: number; bothCents: number},
+  price: {nameOnlyCents: number; imageOnlyCents: number; bothCents: number; backCents?: number},
   hasName: boolean,
   hasImage: boolean,
+  hasBack = false,
 ): number {
-  if (hasName && hasImage) return price.bothCents;
-  if (hasName) return price.nameOnlyCents;
-  if (hasImage) return price.imageOnlyCents;
-  return 0;
+  const back = hasBack ? (price.backCents ?? 0) : 0;
+  if (hasName && hasImage) return price.bothCents + back;
+  if (hasName) return price.nameOnlyCents + back;
+  if (hasImage) return price.imageOnlyCents + back;
+  return back;
+}
+
+/** "10", "7": só dígitos, até o máximo do produto. */
+export function backNumberOk(number: unknown, maxDigits: number): number is string {
+  return typeof number === "string" && /^[0-9]+$/.test(number) && number.length <= maxDigits;
 }
 
 /** dpi efetivo = px ÷ (cm ÷ 2,54), no lado mais fraco. Vetor (SVG) não tem limite. */
@@ -245,6 +280,11 @@ export interface AddCustomItemInput {
   qty: number;
   name?: {text: string; fontId: string; color: string} | null;
   image?: {path: string; areaId: string; transform?: {x: number; y: number; scale: number}} | null;
+  /** Costas, abaixo do nome: número OU imagem. */
+  back?:
+    | {type: "numero"; number: string}
+    | {type: "imagem"; path: string; transform?: {x: number; y: number; scale: number}}
+    | null;
 }
 
 /** O que o Storage diz do arquivo enviado (cabeçalho = primeiros bytes, para medir). */
@@ -293,7 +333,10 @@ export async function addCustomItemToCartCore(
   }
   const wantsName = input.name != null;
   const wantsImage = input.image != null;
-  if (!wantsName && !wantsImage) throw invalid(["name", "image"], "Escolha um nome ou uma imagem.");
+  const wantsBack = input.back != null;
+  if (!wantsName && !wantsImage && !wantsBack) {
+    throw invalid(["name", "image", "back"], "Escolha um nome, uma imagem ou as costas.");
+  }
 
   const productRef = db.collection(PRODUCTS).doc(productId);
   const [productSnap, skuSnap, customSnap, blockSnap] = await Promise.all([
@@ -333,40 +376,78 @@ export async function addCustomItemToCartCore(
     customization["name"] = {text, fontId, color, placement: pub.name.placement};
   }
 
+  // Arquivo do próprio atleta, no formato, peso e resolução do bloco Imagem (frente e costas).
+  const checkUpload = async (path: string, field: string) => {
+    if (!path.startsWith(`${CUSTOM_UPLOAD_PREFIX}/${uid}/`) || path.includes("..")) throw invalid([field]);
+    const upload = await readUpload(path);
+    if (!upload) throw invalid([field], "Não achamos a imagem enviada. Envie de novo.");
+    const format = FORMAT_BY_CONTENT_TYPE[upload.contentType] ?? "";
+    if (!pub.image.formats.includes(format)) throw invalid([field], "Formato de imagem não aceito.");
+    if (upload.sizeBytes > pub.image.maxSizeMb * 1024 * 1024) throw invalid([field], "Imagem maior que o permitido.");
+    const size = format === "svg" ? null : imageSizeFromBytes(upload.head);
+    if (format !== "svg" && size === null) throw invalid([field], "Não deu pra ler a imagem.");
+    if (size && (size.widthPx < pub.image.minWidthPx || size.heightPx < pub.image.minHeightPx)) {
+      throw invalid([field], `Imagem pequena demais · mínimo ${pub.image.minWidthPx} × ${pub.image.minHeightPx} px`);
+    }
+    return {format, size, sizeBytes: upload.sizeBytes};
+  };
+  const transformOf = (t: {x?: number; y?: number; scale?: number} | undefined) =>
+    ({x: clamp01(t?.x, 0.5), y: clamp01(t?.y, 0.5), scale: Math.max(0.1, clamp01(t?.scale, 1))});
+
   let quality: "good" | "warn" | null = null;
   if (wantsImage) {
     if (!pub.image.enabled) throw invalid(["image"], "Esse produto não aceita imagem.");
     const path = typeof input.image!.path === "string" ? input.image!.path : "";
-    // Só o próprio arquivo do atleta, e nada de subir pasta.
-    if (!path.startsWith(`${CUSTOM_UPLOAD_PREFIX}/${uid}/`) || path.includes("..")) throw invalid(["image"]);
     const area = pub.image.areas.find((a) => a.id === input.image!.areaId);
     if (!area) throw invalid(["image"]);
-    const upload = await readUpload(path);
-    if (!upload) throw invalid(["image"], "Não achamos a imagem enviada. Envie de novo.");
-    const format = FORMAT_BY_CONTENT_TYPE[upload.contentType] ?? "";
-    if (!pub.image.formats.includes(format)) throw invalid(["image"], "Formato de imagem não aceito.");
-    if (upload.sizeBytes > pub.image.maxSizeMb * 1024 * 1024) throw invalid(["image"], "Imagem maior que o permitido.");
-    const size = format === "svg" ? null : imageSizeFromBytes(upload.head);
-    if (format !== "svg" && size === null) throw invalid(["image"], "Não deu pra ler a imagem.");
-    if (size && (size.widthPx < pub.image.minWidthPx || size.heightPx < pub.image.minHeightPx)) {
-      throw invalid(["image"], `Imagem pequena demais · mínimo ${pub.image.minWidthPx} × ${pub.image.minHeightPx} px`);
-    }
+    const {format, size, sizeBytes} = await checkUpload(path, "image");
     quality = imageQuality(effectiveDpi(size, area));
-    const t = input.image!.transform;
     customization["image"] = {
       path,
       format,
-      sizeBytes: upload.sizeBytes,
+      sizeBytes,
       widthPx: size?.widthPx ?? null,
       heightPx: size?.heightPx ?? null,
       areaId: area.id,
       areaName: area.name,
-      transform: {x: clamp01(t?.x, 0.5), y: clamp01(t?.y, 0.5), scale: Math.max(0.1, clamp01(t?.scale, 1))},
+      transform: transformOf(input.image!.transform),
       quality,
     };
   }
 
-  const extraPriceCents = customExtraCents(pub.price, wantsName, wantsImage);
+  if (wantsBack) {
+    if (!pub.back.enabled) throw invalid(["back"], "Esse produto não personaliza as costas.");
+    const back = input.back!;
+    if (back.type === "numero") {
+      if (!pub.back.allowNumber) throw invalid(["back"], "Esse produto não aceita número nas costas.");
+      const number = typeof back.number === "string" ? back.number.trim() : "";
+      if (!backNumberOk(number, pub.back.numberMaxDigits)) {
+        throw invalid(["back"], `Número de até ${pub.back.numberMaxDigits} ${pub.back.numberMaxDigits === 1 ? "dígito" : "dígitos"}.`);
+      }
+      customization["back"] = {type: "numero", number};
+    } else if (back.type === "imagem") {
+      if (!pub.back.allowImage) throw invalid(["back"], "Esse produto não aceita imagem nas costas.");
+      const path = typeof back.path === "string" ? back.path : "";
+      const {format, size, sizeBytes} = await checkUpload(path, "back");
+      const backQuality = imageQuality(effectiveDpi(size, pub.back));
+      // O aviso de resolução vale para a pior das duas imagens.
+      if (quality === null || backQuality === "warn") quality = backQuality;
+      customization["back"] = {
+        type: "imagem",
+        path,
+        format,
+        sizeBytes,
+        widthPx: size?.widthPx ?? null,
+        heightPx: size?.heightPx ?? null,
+        transform: transformOf(back.transform),
+        quality: backQuality,
+      };
+    } else {
+      throw invalid(["back"]);
+    }
+  }
+
+  const extraPriceCents = customExtraCents(pub.price, wantsName, wantsImage, wantsBack);
   customization["extraPriceCents"] = extraPriceCents;
   customization["addedAt"] = now;
   const ownPrice = sku["priceCents"];

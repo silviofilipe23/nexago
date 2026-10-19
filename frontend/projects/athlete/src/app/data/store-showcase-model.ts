@@ -82,7 +82,16 @@ export interface StoreCustomization {
     /** Só as ligadas; a 1ª é o padrão. */
     areas: StoreCustomArea[];
   };
-  price: { nameOnlyCents: number; imageOnlyCents: number; bothCents: number };
+  /** Costas, abaixo do nome: número OU imagem (a imagem segue as regras do bloco `image`). */
+  back: {
+    enabled: boolean;
+    allowNumber: boolean;
+    allowImage: boolean;
+    numberMaxDigits: number;
+    widthCm: number;
+    heightCm: number;
+  };
+  price: { nameOnlyCents: number; imageOnlyCents: number; bothCents: number; backCents: number };
 }
 
 export interface StoreProduct {
@@ -234,6 +243,7 @@ function customizationFromRaw(custom: Raw): StoreCustomization {
   const name = (custom['name'] ?? {}) as Raw;
   const image = (custom['image'] ?? {}) as Raw;
   const price = (custom['price'] ?? {}) as Raw;
+  const back = (custom['back'] ?? {}) as Raw;
   const fonts = strings(name['fonts']);
   const colors = strings(name['colors']).map((c) => c.toLowerCase());
   const formats = strings(image['formats']);
@@ -270,10 +280,20 @@ function customizationFromRaw(custom: Raw): StoreCustomization {
       minHeightPx: count(image['minHeightPx']),
       areas,
     },
+    back: {
+      // Espelho antigo (sem `back`) = costas desligadas.
+      enabled: back['enabled'] === true && (back['allowNumber'] === true || (back['allowImage'] === true && formats.length > 0)),
+      allowNumber: back['allowNumber'] === true,
+      allowImage: back['allowImage'] === true && formats.length > 0,
+      numberMaxDigits: Math.min(3, Math.max(1, count(back['numberMaxDigits']) || 2)),
+      widthCm: num(back['widthCm']) || 25,
+      heightCm: num(back['heightCm']) || 25,
+    },
     price: {
       nameOnlyCents: count(price['nameOnlyCents']),
       imageOnlyCents: count(price['imageOnlyCents']),
       bothCents: count(price['bothCents']),
+      backCents: count(price['backCents']),
     },
   };
 }

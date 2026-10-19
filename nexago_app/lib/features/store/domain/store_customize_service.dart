@@ -50,6 +50,34 @@ class StoreCustomImageChoice {
       };
 }
 
+/// Costas, abaixo do nome: número OU imagem já enviada ao Storage.
+class StoreCustomBackChoice {
+  const StoreCustomBackChoice.number(String this.number)
+      : type = StoreBackType.number,
+        path = null,
+        transform = null;
+
+  /// Sem ajuste fino: centralizada e inteira dentro da área ([transform]).
+  const StoreCustomBackChoice.image({
+    required String this.path,
+    required StoreImageTransform this.transform,
+  })  : type = StoreBackType.image,
+        number = null;
+
+  final StoreBackType type;
+  final String? number;
+  final String? path;
+  final StoreImageTransform? transform;
+
+  /// `{type: 'numero', number}` ou `{type: 'imagem', path, transform}`.
+  Map<String, Object> toMap() => {
+        'type': type.id,
+        if (number != null) 'number': number!,
+        if (path != null) 'path': path!,
+        if (transform != null) 'transform': transform!.toMap(),
+      };
+}
+
 /// Entrada de `addStoreCustomItemToCart`.
 class StoreCustomCartRequest {
   const StoreCustomCartRequest({
@@ -58,6 +86,7 @@ class StoreCustomCartRequest {
     this.qty = 1,
     this.name,
     this.image,
+    this.back,
   });
 
   final String productId;
@@ -65,6 +94,7 @@ class StoreCustomCartRequest {
   final int qty;
   final StoreCustomNameChoice? name;
   final StoreCustomImageChoice? image;
+  final StoreCustomBackChoice? back;
 
   Map<String, Object> toMap() => {
         'productId': productId,
@@ -72,6 +102,7 @@ class StoreCustomCartRequest {
         'qty': qty,
         if (name != null) 'name': name!.toMap(),
         if (image != null) 'image': image!.toMap(),
+        if (back != null) 'back': back!.toMap(),
       };
 }
 
@@ -88,7 +119,7 @@ class StoreCustomCartResult {
   final int extraPriceCents;
   final int unitPriceCents;
 
-  /// `null` sem imagem.
+  /// A pior entre a imagem da frente e a das costas; `null` sem imagem.
   final StoreImageQuality? quality;
 }
 

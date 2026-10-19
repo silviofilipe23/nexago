@@ -18,10 +18,10 @@ import 'store_style.dart';
 const Color kStoreErrorColor = Color(0xFFFF5A4F);
 
 /// Abas da personalização.
-enum StoreCustomizeTab { name, image, variant }
+enum StoreCustomizeTab { name, image, back, variant }
 
-/// Abas segmentadas "Nome · Imagem · Cor e tam." (ativa = pílula clara; ✓
-/// verde quando preenchida).
+/// Abas segmentadas "Nome · Imagem · Costas · Cor e tam." (ativa = pílula
+/// clara; ✓ verde quando preenchida).
 class StoreCustomizeTabs extends StatelessWidget {
   const StoreCustomizeTabs({
     super.key,
@@ -45,6 +45,10 @@ class StoreCustomizeTabs extends StatelessWidget {
             Icons.image_outlined,
             StoreCopy.customizeTabImage,
           ),
+        StoreCustomizeTab.back => (
+            Icons.tag_rounded,
+            StoreCopy.customizeTabBack,
+          ),
         StoreCustomizeTab.variant => (
             Icons.sell_outlined,
             StoreCopy.customizeTabVariant,
@@ -54,6 +58,9 @@ class StoreCustomizeTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final textScaler = MediaQuery.textScalerOf(context);
+    // O Text herda o DefaultTextStyle (letterSpacing do tema): mede com ele.
+    final inherited = DefaultTextStyle.of(context).style;
     return Container(
       height: 56,
       padding: const EdgeInsets.all(4),
@@ -61,21 +68,71 @@ class StoreCustomizeTabs extends StatelessWidget {
         color: StoreStyle.surface(colors),
         borderRadius: BorderRadius.circular(18),
       ),
-      child: Row(
-        children: [
-          for (final tab in tabs)
-            Expanded(
-              child: _TabButton(
-                key: ValueKey('store-customize-tab-${tab.name}'),
-                icon: _meta(tab).$1,
-                label: _meta(tab).$2,
-                active: tab == current,
-                done: done.contains(tab),
-                onTap: () => onTap(tab),
-              ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final layout = _layout(
+            constraints.maxWidth,
+            tabs.length,
+            (i, scale) => _TabButton.contentWidth(
+              _meta(tabs[i]).$2,
+              done: done.contains(tabs[i]),
+              inherited: inherited,
+              textScaler: textScaler,
+              scale: scale,
             ),
-        ],
+          );
+          return Row(
+            children: [
+              for (var i = 0; i < tabs.length; i++)
+                Expanded(
+                  flex: layout.flex[i],
+                  child: _TabButton(
+                    key: ValueKey('store-customize-tab-${tabs[i].name}'),
+                    icon: _meta(tabs[i]).$1,
+                    label: _meta(tabs[i]).$2,
+                    active: tabs[i] == current,
+                    done: done.contains(tabs[i]),
+                    scale: layout.scale,
+                    onTap: () => onTap(tabs[i]),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
+    );
+  }
+
+  /// Fatias iguais quando todo rótulo cabe; senão, fatias proporcionais ao
+  /// rótulo e **uma escala só** para todos (com 4 abas, cada uma encolhendo
+  /// sozinha deixava "Nome" grande e "Cor e tam." miúdo).
+  static ({List<int> flex, double scale}) _layout(
+    double width,
+    int n,
+    double Function(int i, double scale) measure,
+  ) {
+    final equal = (flex: List.filled(n, 1), scale: 1.0);
+    if (n == 0 || !width.isFinite) return equal;
+    const pad = _TabButton.horizontalPadding * 2;
+    List<double> widthsAt(double scale) =>
+        [for (var i = 0; i < n; i++) measure(i, scale)];
+    double sumOf(List<double> ws) => ws.fold(0, (a, w) => a + w);
+
+    var widths = widthsAt(1);
+    if (widths.every((w) => w <= width / n - pad)) return equal;
+    final room = width - n * pad;
+    if (room <= 0) return equal;
+    // O texto não encolhe linear com a fonte: mede de novo na escala e
+    // corrige até caber (converge em 1–2 passos).
+    var scale = 1.0;
+    for (var pass = 0; pass < 4 && sumOf(widths) > room; pass++) {
+      scale = (scale * room / sumOf(widths)).clamp(0.0, 1.0);
+      widths = widthsAt(scale);
+    }
+    final extra = ((room - sumOf(widths)) / n).clamp(0.0, double.infinity);
+    return (
+      flex: [for (final w in widths) ((w + pad + extra) * 100).floor()],
+      scale: scale,
     );
   }
 }
@@ -88,6 +145,7 @@ class _TabButton extends StatelessWidget {
     required this.active,
     required this.done,
     required this.onTap,
+    this.scale = 1,
   });
 
   final IconData icon;
@@ -95,6 +153,44 @@ class _TabButton extends StatelessWidget {
   final bool active;
   final bool done;
   final VoidCallback onTap;
+
+  /// Escala comum a todas as abas (ver [StoreCustomizeTabs._layout]).
+  final double scale;
+
+  static const double horizontalPadding = 8;
+  static const double _iconSize = 18;
+  static const double _gap = 6;
+  static const double _checkSize = 16;
+  static const double _fontSize = 14.5;
+
+  static TextStyle _labelStyle({double scale = 1, Color? color}) =>
+      AppTypography.soraRegular(
+        fontSize: _fontSize * scale,
+        fontWeight: FontWeight.w700,
+        color: color,
+      );
+
+  /// Largura do conteúdo (ícone + rótulo + ✓) na [scale].
+  static double contentWidth(
+    String label, {
+    required bool done,
+    required TextStyle inherited,
+    required TextScaler textScaler,
+    double scale = 1,
+  }) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: inherited.merge(_labelStyle(scale: scale)),
+      ),
+      textDirection: TextDirection.ltr,
+      textScaler: textScaler,
+      maxLines: 1,
+    )..layout();
+    final text = painter.width;
+    painter.dispose();
+    return (_iconSize + _gap + (done ? _gap + _checkSize : 0)) * scale + text;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -113,28 +209,28 @@ class _TabButton extends StatelessWidget {
             color: active ? AppColors.onSurface : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          padding: const EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: Center(
+            // Rede de segurança para arredondamento da medida.
             child: FittedBox(
               fit: BoxFit.scaleDown,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, size: 18, color: fg),
-                  const SizedBox(width: 6),
+                  Icon(icon, size: _iconSize * scale, color: fg),
+                  SizedBox(width: _gap * scale),
                   Text(
                     label,
-                    style: AppTypography.soraRegular(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w700,
+                    style: _labelStyle(
+                      scale: scale,
                       color: active ? StoreStyle.onBrand : colors.onSurface,
                     ),
                   ),
                   if (done) ...[
-                    const SizedBox(width: 6),
-                    const Icon(
+                    SizedBox(width: _gap * scale),
+                    Icon(
                       Icons.check_rounded,
-                      size: 16,
+                      size: _checkSize * scale,
                       color: AppColors.win,
                     ),
                   ],
@@ -619,7 +715,6 @@ class StoreCustomizeImagePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.themeColors;
     final draft = this.draft;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -645,29 +740,7 @@ class StoreCustomizeImagePanel extends StatelessWidget {
         const SizedBox(height: 12),
         _AreaCards(areas: options.areas, selected: area, onTap: onArea),
         const SizedBox(height: 18),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 1),
-              child: Icon(
-                Icons.info_outline_rounded,
-                size: 18,
-                color: AppColors.brand,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                StoreCopy.customizeReviewNotice,
-                style: AppTypography.bodyS.copyWith(
-                  fontSize: 13,
-                  color: StoreStyle.secondary(colors),
-                ),
-              ),
-            ),
-          ],
-        ),
+        const _ReviewNotice(),
         if (onSkip != null) ...[
           const SizedBox(height: 12),
           StoreCustomizeSkip(onTap: onSkip!),
@@ -753,12 +826,16 @@ class _FileCard extends StatelessWidget {
     required this.area,
     required this.onChange,
     required this.onRetry,
+    this.warnText,
   });
 
   final StoreImageDraft draft;
   final StoreCustomArea area;
   final VoidCallback onChange;
   final VoidCallback onRetry;
+
+  /// Aviso de resolução; `null` = "… no tamanho {área}".
+  final String? warnText;
 
   @override
   Widget build(BuildContext context) {
@@ -836,7 +913,7 @@ class _FileCard extends StatelessWidget {
         } else {
           status = _statusLine(
             colors,
-            StoreCopy.customizeQualityWarn(area.name),
+            warnText ?? StoreCopy.customizeQualityWarn(area.name),
             AppColors.pending,
             icon: Icons.warning_amber_rounded,
           );
@@ -936,6 +1013,249 @@ class _FileCard extends StatelessWidget {
               fontSize: 12.5,
               fontWeight: FontWeight.w500,
               color: color,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Aba Costas (abaixo do nome): seletor Número · Imagem (com os dois
+/// liberados), o número com teclado numérico ou a imagem pelo mesmo fluxo
+/// da frente — sem ajuste fino, centralizada na área das costas.
+class StoreCustomizeBackPanel extends StatelessWidget {
+  const StoreCustomizeBackPanel({
+    super.key,
+    required this.options,
+    required this.title,
+    required this.priceCents,
+    required this.type,
+    required this.numberController,
+    required this.numberFocus,
+    required this.draft,
+    required this.imageOptions,
+    required this.onType,
+    required this.onNumberChanged,
+    required this.onPick,
+    required this.onRetry,
+    this.onSkip,
+  });
+
+  final StoreCustomBackOptions options;
+  final String title;
+
+  /// `backCents`: "+ R$ X" ao lado do título.
+  final int priceCents;
+  final StoreBackType type;
+  final TextEditingController numberController;
+  final FocusNode numberFocus;
+
+  /// Imagem das costas (independente da imagem da frente).
+  final StoreImageDraft? draft;
+
+  /// Formatos, peso e resolução: os do bloco Imagem.
+  final StoreCustomImageOptions imageOptions;
+  final ValueChanged<StoreBackType> onType;
+  final ValueChanged<String> onNumberChanged;
+  final VoidCallback onPick;
+  final VoidCallback onRetry;
+
+  /// "Pular" (só com as costas vazias).
+  final VoidCallback? onSkip;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final draft = this.draft;
+    final both = options.allowNumber && options.allowImage;
+    OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: color, width: width),
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        StoreCustomizeEyebrow(
+          title,
+          trailing: priceCents > 0
+              ? StoreCopy.customizeBackPrice(priceCents)
+              : null,
+        ),
+        const SizedBox(height: 12),
+        if (both) ...[
+          _BackTypeSelector(type: type, onType: onType),
+          const SizedBox(height: 16),
+        ],
+        if (type == StoreBackType.number) ...[
+          TextField(
+            key: const ValueKey('store-customize-back-number-field'),
+            controller: numberController,
+            focusNode: numberFocus,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(options.numberMaxDigits),
+            ],
+            onChanged: onNumberChanged,
+            onSubmitted: (_) => numberFocus.unfocus(),
+            keyboardType: TextInputType.number,
+            autocorrect: false,
+            enableSuggestions: false,
+            textInputAction: TextInputAction.done,
+            style: AppTypography.soraRegular(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.4,
+              color: colors.onSurface,
+            ),
+            cursorColor: AppColors.brand,
+            decoration: InputDecoration(
+              hintText: StoreCopy.customizeBackNumberHintText,
+              hintStyle: AppTypography.soraRegular(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: StoreStyle.tertiary(colors),
+              ),
+              filled: true,
+              fillColor: StoreStyle.surface(colors),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              enabledBorder:
+                  border(colors.onSurface.withValues(alpha: 0.12), 1),
+              focusedBorder: border(AppColors.brand, 1.6),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            StoreCopy.customizeBackNumberHint(options.numberMaxDigits),
+            key: const ValueKey('store-customize-back-number-hint'),
+            style: AppTypography.soraRegular(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: StoreStyle.secondary(colors),
+            ),
+          ),
+        ] else ...[
+          if (draft == null)
+            _UploadCard(options: imageOptions, onTap: onPick)
+          else
+            _FileCard(
+              draft: draft,
+              area: storeBackArea(options),
+              onChange: onPick,
+              onRetry: onRetry,
+              warnText: StoreCopy.customizeBackQualityWarn,
+            ),
+          const SizedBox(height: 10),
+          Text(
+            StoreCopy.customizeBackImageArea(options.widthCm, options.heightCm),
+            style: AppTypography.soraRegular(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: StoreStyle.secondary(colors),
+            ),
+          ),
+          const SizedBox(height: 18),
+          const _ReviewNotice(),
+        ],
+        if (onSkip != null) ...[
+          const SizedBox(height: 12),
+          StoreCustomizeSkip(onTap: onSkip!),
+        ],
+      ],
+    );
+  }
+}
+
+/// Número · Imagem (só com os dois liberados).
+class _BackTypeSelector extends StatelessWidget {
+  const _BackTypeSelector({required this.type, required this.onType});
+
+  final StoreBackType type;
+  final ValueChanged<StoreBackType> onType;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: StoreStyle.surface(colors),
+        borderRadius: AppRadii.pillAll,
+      ),
+      child: Row(
+        children: [
+          for (final (value, label) in const [
+            (StoreBackType.number, StoreCopy.customizeBackNumber),
+            (StoreBackType.image, StoreCopy.customizeBackImage),
+          ])
+            Expanded(
+              child: Semantics(
+                button: true,
+                selected: value == type,
+                label: label,
+                child: GestureDetector(
+                  key: ValueKey('store-customize-back-type-${value.id}'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onType(value),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    decoration: BoxDecoration(
+                      color: value == type
+                          ? AppColors.onSurface
+                          : Colors.transparent,
+                      borderRadius: AppRadii.pillAll,
+                    ),
+                    child: Center(
+                      child: Text(
+                        label,
+                        style: AppTypography.soraRegular(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: value == type
+                              ? StoreStyle.onBrand
+                              : colors.onSurface,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "A equipe NexaGO revisa a arte antes de produzir…" (imagem da frente e
+/// das costas).
+class _ReviewNotice extends StatelessWidget {
+  const _ReviewNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 1),
+          child: Icon(
+            Icons.info_outline_rounded,
+            size: 18,
+            color: AppColors.brand,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            StoreCopy.customizeReviewNotice,
+            style: AppTypography.bodyS.copyWith(
+              fontSize: 13,
+              color: StoreStyle.secondary(colors),
             ),
           ),
         ),
@@ -1134,7 +1454,7 @@ class StoreCustomizeBottomBar extends StatelessWidget {
 
   final int totalCents;
 
-  /// Tem nome ou imagem: "Com personalização".
+  /// Tem nome, imagem ou costas: "Com personalização".
   final bool customized;
   final bool enabled;
   final bool busy;

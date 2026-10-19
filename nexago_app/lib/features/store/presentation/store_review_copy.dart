@@ -65,7 +65,8 @@ abstract final class StoreReviewCopy {
   static const updatedTitle = 'Avaliação atualizada';
   static String editUntil(String date) =>
       'Você pode editar em Meus pedidos até $date.';
-  static const thanksBody = 'Ela já aparece na página do produto.';
+  static const thanksBody = 'Ela já aparece na página do produto. A equipe '
+      'NexaGO pode esconder avaliações fora das regras.';
   static String pickupRow(String? placeName) {
     final place = (placeName ?? '').trim();
     return place.isEmpty ? 'Retirada' : 'Retirada · $place';

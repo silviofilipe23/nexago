@@ -110,6 +110,37 @@ export function parseReviewInput(raw: unknown): {input: ReviewInput; fields: str
   };
 }
 
+/** Motivo de esconder: interno (só o backoffice vê), obrigatório pra esconder. */
+export const MAX_HIDDEN_REASON = 300;
+
+export interface ModerationInput {
+  orderId: string;
+  productId: string;
+  hidden: boolean;
+  reason: string;
+}
+
+/** Normaliza o pedido de moderação do backoffice. `fields` não vazio = recusar. */
+export function parseModerationInput(raw: unknown): {input: ModerationInput; fields: string[]} {
+  const data = (raw ?? {}) as Data;
+  const fields: string[] = [];
+  const orderId = str(data["orderId"]);
+  const productId = str(data["productId"]);
+  if (!ID_RE.test(orderId)) fields.push("orderId");
+  if (!ID_RE.test(productId)) fields.push("productId");
+  if (typeof data["hidden"] !== "boolean") fields.push("hidden");
+  const hidden = data["hidden"] === true;
+  const reason = hidden ? str(data["reason"]) : "";
+  if (hidden && (reason === "" || reason.length > MAX_HIDDEN_REASON)) fields.push("reason");
+  return {input: {orderId, productId, hidden, reason}, fields};
+}
+
+/** Campos da moderação de um item; o autor nunca os escreve (a edição herda do doc atual). */
+export function moderationOf(item: Data | null | undefined): {hiddenAt: unknown; hiddenBy: unknown; hiddenReason: unknown} {
+  if (!item?.["hiddenAt"]) return {hiddenAt: null, hiddenBy: null, hiddenReason: null};
+  return {hiddenAt: item["hiddenAt"], hiddenBy: item["hiddenBy"] ?? null, hiddenReason: item["hiddenReason"] ?? null};
+}
+
 /** "tamanho" sem acento e caixa — a mesma conta do portal (`normalizeSearch(axis.label)`). */
 export function isSizeAxis(axis: {label?: unknown} | null | undefined): boolean {
   return str(axis?.label).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase() === "tamanho";

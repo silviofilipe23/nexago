@@ -3432,12 +3432,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Avaliação da compra (Loja 06b/08b): o dono lê a dele (Meus pedidos e edição por 30 dias).
-    // Quem grava é a callable submitStoreOrderReview; o público lê só o espelho em
+    // Avaliação da compra (Loja 06b/08b): o dono lê a dele (Meus pedidos e edição por 30 dias) e o
+    // backoffice lê todas (Loja › Avaliações, moderação). Quem grava são as callables
+    // submitStoreOrderReview e moderateStoreReview; o público lê só o espelho em
     // storeShowcase/{productId}/reviews, sem uid nem pedido.
     match /storeOrderReviews/{orderId} {
       allow get: if request.auth != null && (resource == null || resource.data.uid == request.auth.uid);
       allow list: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow read: if isAdmin() || isSuperAdmin();
       allow write: if false;
     }
     match /storeProductRatings/{productId} {

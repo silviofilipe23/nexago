@@ -186,7 +186,7 @@ export class LojaAvaliarModalComponent {
     try {
       const result = await this.api.submit(payload);
       trackLojaEvent('loja_avaliacao_publicada', { pedido_id: this.order().id, itens: payload.items.length, edicao: !result.created });
-      this.toast.success(result.created ? 'Valeu pela avaliação!' : 'Avaliação atualizada', 'Ela já aparece na página do produto.');
+      this.toast.success(result.created ? 'Valeu pela avaliação!' : 'Avaliação atualizada', 'Ela já aparece na página do produto. A equipe NexaGO pode esconder avaliações fora das regras.');
       this.published.emit(result);
     } catch (e) {
       this.error.set(reviewErrorMessage(e));

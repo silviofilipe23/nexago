@@ -40,21 +40,41 @@ A primeira publicação abre **30 dias** de edição (`editableUntil`). Editar r
 inteiro (o que vier na edição é o estado novo); depois do prazo, a callable recusa
 (`failed-precondition`) e as telas mostram só leitura.
 
-## Publicação
+## Publicação e moderação
 
-Publica **na hora**: não existe fila de moderação no backoffice. O desenho falava em "revisão
-rápida em até 24 h"; sem ninguém revisando, a cópia virou "Ela já aparece na página do produto".
-Esconder uma avaliação = gravar `items[].hiddenAt` no doc privado (console/admin) — o gatilho tira
-do espelho e refaz a nota.
+Publica **na hora**; a moderação vem depois. O desenho falava em "revisão rápida em até 24 h", mas
+não há fila prévia: a cópia diz "Ela já aparece na página do produto. A equipe NexaGO pode
+esconder avaliações fora das regras."
+
+**Backoffice › Loja › Avaliações** (`/painel/loja/avaliacoes`) lista `storeOrderReviews` pela
+última edição do autor (`updatedAt` desc, 100 pedidos por página, "Carregar mais"), uma linha por
+produto avaliado: produto, nota, comentário, fotos, autor (+ "anônima"), pedido (link pro
+detalhe), data. Abas **Publicadas / Escondidas**; filtros que se somam: **Com comentário ou
+foto** e **Nota até 2** (a contagem das abas segue os filtros).
+
+- **Esconder** pede **motivo** (obrigatório, até 300 caracteres, interno — o autor não vê nem é
+  avisado). Grava no item `hiddenAt`, `hiddenBy {uid, name}` e `hiddenReason`; o gatilho tira o
+  espelho público e refaz a nota do produto.
+- **Reexibir** limpa os três campos; o espelho volta com o **mesmo `publicId`** e a nota conta de
+  novo.
+- Quem modera: admin do backoffice (mesmo guard das callables de catálogo). Já no estado pedido =
+  nada é gravado (`changed: false`).
+- A moderação **não** mexe no `updatedAt` do doc (é a linha do tempo do autor; a lista não pula).
+- **O autor editando não desfaz a moderação**: a edição herda os campos de moderação do doc lido
+  dentro da transação — inclusive quando o esconder cai no meio da edição. A avaliação escondida
+  segue editável no prazo, mas continua fora da página.
+- A foto pública de uma avaliação escondida **continua no Storage** (link com token): sai de toda
+  página, mas um link já copiado segue abrindo. Conteúdo ilegal = apagar o arquivo pelo console.
 
 ## Dados
 
 ```
-storeOrderReviews/{orderId}          // privado: dono lê (get/list por uid), ninguém grava do cliente
+storeOrderReviews/{orderId}          // privado: dono lê (get/list por uid), admin lê tudo; ninguém grava do cliente
   orderId, number, uid, anonymous, authorName, authorInitials
   items[{productId, skuId, name, variantLabel, imageUrl, sizeValueId|null,
          rating, tags[], fit|null, comment, photos[{path, publicPath, url}],
-         publicId, hiddenAt|null, createdAt, updatedAt}]
+         publicId, createdAt, updatedAt,
+         hiddenAt|null, hiddenBy{uid, name}|null, hiddenReason|null}]   // moderação
   pickup: {placeName, rating} | null
   createdAt, updatedAt, editableUntil
 
@@ -74,6 +94,9 @@ agregado mora fora de `storeProducts` porque o save do backoffice grava o produt
 
 - **Callable** `submitStoreOrderReview({orderId, anonymous, items[{productId, rating, tags, fit,
   comment, photos[path]}], pickupRating|null})` → `{ok, created, editableUntil}`.
+- **Callable** `moderateStoreReview({orderId, productId, hidden, reason?})` (admin; `reason`
+  obrigatório quando `hidden: true`) → `{ok, hidden, changed}`. `not-found` = pedido sem avaliação
+  ou produto fora dela.
 - **Fotos**: o cliente sobe em `store/review-uploads/{uid}/{arquivo}` (só o dono); a callable
   confere dono, tipo e peso e copia para `store/reviews/{productId}/{arquivo}` (leitura pública,
   link com token). O caminho do upload é a identidade da foto na edição: foto que continua não é

@@ -60,6 +60,17 @@ test('avaliação do pedido: o dono lê a dele (e sabe que ainda não existe); n
   await assertFails(setDoc(doc(dbOf(DONO), 'storeOrderReviews', 'ord_dono'), { uid: DONO, items: [{ rating: 5 }] }));
 });
 
+test('avaliação do pedido: o backoffice lê todas (moderação), mas também não grava', async () => {
+  const admin = testEnv.authenticatedContext('admin-uid', { roles: ['admin'] }).firestore();
+  const superAdmin = testEnv.authenticatedContext('super-uid', { superAdmin: true }).firestore();
+  const organizer = testEnv.authenticatedContext('org-uid', { roles: ['organizer'] }).firestore();
+  await assertSucceeds(getDocs(query(collection(admin, 'storeOrderReviews'), orderBy('updatedAt', 'desc'))));
+  await assertSucceeds(getDoc(doc(admin, 'storeOrderReviews', 'ord_outro')));
+  await assertSucceeds(getDocs(collection(superAdmin, 'storeOrderReviews')));
+  await assertFails(getDocs(collection(organizer, 'storeOrderReviews')));
+  await assertFails(setDoc(doc(admin, 'storeOrderReviews', 'ord_dono'), { uid: DONO, items: [] }));
+});
+
 test('espelho público: qualquer um lê, ninguém grava', async () => {
   await assertSucceeds(getDocs(query(collection(anon(), 'storeShowcase', 'cam', 'reviews'), orderBy('createdAt', 'desc'))));
   await assertFails(setDoc(doc(dbOf(DONO), 'storeShowcase', 'cam', 'reviews', 'r2'), { rating: 5 }));

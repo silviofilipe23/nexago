@@ -685,7 +685,7 @@ export {
 } from "./store-showcase-sync";
 
 // Avaliação da compra da Loja (06b/08b): publica a do comprador e refaz a nota do produto.
-export {onStoreOrderReviewWrittenSyncPublic, submitStoreOrderReview} from "./store-reviews-write";
+export {moderateStoreReview, onStoreOrderReviewWrittenSyncPublic, submitStoreOrderReview} from "./store-reviews-write";
 
 // Prévia de link (OG/Twitter Card) das rotas dinâmicas do site público — a SPA Angular não
 // tem SSR, então bots de rede social são redirecionados aqui pelo .htaccess (por User-Agent).

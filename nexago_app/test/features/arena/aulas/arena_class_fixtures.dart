@@ -54,6 +54,7 @@ ArenaClass arenaClass({
   String startDate = '2026-10-01',
   List<String> conflictDates = const [],
   ArenaClassType type = ArenaClassType.turma,
+  String teacherId = 't1',
 }) {
   return ArenaClass(
     id: id,
@@ -62,7 +63,7 @@ ArenaClass arenaClass({
     type: type,
     sport: 'volei_praia',
     level: ArenaClassLevel.avancado,
-    teacherId: 't1',
+    teacherId: teacherId,
     teacherName: 'Marcos Lima',
     teacherColor: '#2BD17E',
     weekdays: weekdays,

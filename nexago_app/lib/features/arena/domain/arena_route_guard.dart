@@ -67,6 +67,9 @@ const List<MapEntry<String, ArenaArea>> _arenaAreaByPrefix = [
   MapEntry('/arena/schedule', ArenaArea.agenda),
   MapEntry('/arena/bookings', ArenaArea.agenda),
   MapEntry('/arena/clubs', ArenaArea.agenda),
+  // Repasse: quanto o professor ganha é do financeiro (rule de
+  // `arenaClassPayouts`) — antes de `/arena/classes`, que é agenda.
+  MapEntry('/arena/classes/payouts', ArenaArea.financeiro),
   MapEntry('/arena/classes', ArenaArea.agenda),
   MapEntry('/arena/comandas', ArenaArea.comandas),
   MapEntry('/arena/products', ArenaArea.estoque),

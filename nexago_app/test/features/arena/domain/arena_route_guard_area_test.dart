@@ -75,6 +75,15 @@ void main() {
       expect(arenaAlternateAreaForPath('/arena/classes/enroll'), isNull);
       expect(arenaAlternateAreaForPath('/arena/classes'), isNull);
     });
+
+    test('repasse dos professores e so do financeiro (recepcao fora)', () {
+      expect(arenaAreaForPath('/arena/classes/payouts'), ArenaArea.financeiro);
+      expect(
+        arenaAreaForPath('/arena/classes/payouts/t1'),
+        ArenaArea.financeiro,
+      );
+      expect(arenaAlternateAreaForPath('/arena/classes/payouts/t1'), isNull);
+    });
   });
 
   group('isArenaOwnerOnlyPath', () {

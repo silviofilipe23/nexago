@@ -104,7 +104,8 @@ export class ArenaBookingConfirmedComponent {
     const status = b.status.toLowerCase();
     if (status === 'canceled' || status === 'cancelled') return 'canceled';
     if (status === 'pending_payment') return 'pending';
-    if (b.paymentChannel === 'pix') {
+    // Pago online: Pix ou cartão (o cartão confirma na aprovação).
+    if (b.paymentChannel === 'pix' || b.paymentChannel === 'card') {
       return b.paymentStatus === 'partial' ? 'partial' : 'paid';
     }
     return 'onsite';

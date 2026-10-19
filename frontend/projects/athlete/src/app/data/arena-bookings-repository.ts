@@ -351,6 +351,73 @@ export async function createBookingPixPayment(
   }
 }
 
+/** Cobrança de CARTÃO da reserva: o checkout hospedado do Asaas, aberto num link real. */
+export interface ArenaBookingCardPayment {
+  paymentId: string;
+  /** Página do Asaas onde o atleta digita o cartão — nada de cartão passa pelo nexaGO. */
+  invoiceUrl: string;
+  /** ISO — o cartão tem prazo próprio (15 min desde a criação da reserva). */
+  expiresAt: string;
+  amountToPayNowReais: number;
+  cashbackAppliedReais: number;
+  chargedReais: number;
+  squadDiscountReais: number;
+}
+
+/** Valida e normaliza a resposta de `createArenaBookingCardPayment`. */
+export function bookingCardPaymentFromResponse(data: unknown): ArenaBookingCardPayment {
+  const raw = (data ?? {}) as Record<string, unknown>;
+  const paymentId = raw['paymentId'];
+  const invoiceUrl = raw['invoiceUrl'];
+  const amountToPayNowReais = Number(raw['amountToPayNowReais']);
+  if (
+    typeof paymentId !== 'string' || !paymentId ||
+    typeof invoiceUrl !== 'string' || !invoiceUrl.trim() ||
+    !Number.isFinite(amountToPayNowReais)
+  ) {
+    throw new ArenaBookingError('Resposta inválida do servidor de pagamento.');
+  }
+  return {
+    paymentId,
+    invoiceUrl: invoiceUrl.trim(),
+    expiresAt: typeof raw['expiresAt'] === 'string' ? raw['expiresAt'] : '',
+    amountToPayNowReais,
+    ...readCashbackCharge(raw, amountToPayNowReais),
+    squadDiscountReais: readSquadDiscount(raw),
+  };
+}
+
+/** Abre a cobrança da reserva no cartão de crédito (à vista). Mesmo payload do Pix. */
+export async function createBookingCardPayment(
+  functions: Functions,
+  params: BookingPixPaymentParams,
+): Promise<ArenaBookingCardPayment> {
+  try {
+    const result = await httpsCallable<Record<string, unknown>, unknown>(
+      functions,
+      'createArenaBookingCardPayment',
+    )(bookingPixPaymentPayload(params));
+    return bookingCardPaymentFromResponse(result.data);
+  } catch (err) {
+    if (err instanceof ArenaBookingError) throw err;
+    throw mapCallableError(err);
+  }
+}
+
+/**
+ * Solta a reserva `pending_payment` de uma cobrança de CARTÃO. Diferente de
+ * `cancelPendingBookingPayment`, NÃO engole `failed-precondition`: com cartão
+ * é ele que diz "o cartão já foi aprovado / está em análise" — engolido, a tela
+ * trataria como cancelada uma reserva que o servidor acabou de confirmar.
+ */
+export async function releasePendingBookingCardPayment(functions: Functions, bookingId: string): Promise<void> {
+  try {
+    await httpsCallable(functions, 'cancelPendingArenaBookingPayment')({ bookingId });
+  } catch (err) {
+    throw mapCallableError(err);
+  }
+}
+
 /** Cancela reserva `pending_payment`, removendo slots e liberando locks. */
 export async function cancelPendingBookingPayment(functions: Functions, bookingId: string): Promise<void> {
   try {

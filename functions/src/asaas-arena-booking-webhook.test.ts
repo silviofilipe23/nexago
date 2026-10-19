@@ -285,6 +285,173 @@ describe("processArenaBookingAsaasNotification — reserva sem divisão (control
   });
 });
 
+/** Cartão: autorização (`CONFIRMED`) e liquidação (`RECEIVED`) chegam separadas. */
+function cardPayment(status: string, value = 100, netValue = 96.52) {
+  return {...bookingPayment(status, value), billingType: "CREDIT_CARD", netValue};
+}
+
+function seedSlot(fake: FakeFirestore): void {
+  fake.seedDoc("arenaSlots/s1", {bookingId: "b1", status: "pending"});
+}
+
+describe("processArenaBookingAsaasNotification — cartão em duas fases", () => {
+  it("CONFIRMED garante o horário e põe o líquido no a liberar, sem creditar a carteira", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake, {billingType: "CREDIT_CARD"});
+    seedSlot(fake);
+
+    await processArenaBookingAsaasNotification(db, "orig1", cardPayment("CONFIRMED"), processedRefOf(db));
+
+    const booking = fake.store.get(BOOKING_PATH)!;
+    assert.equal(booking.status, "confirmed");
+    assert.equal(booking.paymentStatus, "paid");
+    assert.equal(booking.paymentChannel, "card");
+    assert.equal(fake.store.get("arenaSlots/s1")!.status, "booked");
+    const wallet = fake.store.get("arenaWallets/arena1") ?? {};
+    assert.equal(wallet.availableReais ?? 0, 0, "dinheiro ainda não liquidou");
+    // 100 − 8% da plataforma (arena sem plano) − 3,48 do cartão.
+    assert.equal(wallet.awaitingSettlementReais, 88.52);
+    const processed = fake.store.get(PROCESSED_PATH)!;
+    assert.equal(processed.outcome, "approved");
+    assert.ok(processed.confirmedAt);
+    assert.equal(processed.walletCreditedAt, undefined);
+  });
+
+  it("RECEIVED depois credita a carteira (com a taxa do cartão) e zera o a liberar", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake, {billingType: "CREDIT_CARD"});
+    const processedRef = processedRefOf(db);
+
+    await processArenaBookingAsaasNotification(db, "orig1", cardPayment("CONFIRMED"), processedRef);
+    await processArenaBookingAsaasNotification(db, "orig1", cardPayment("RECEIVED"), processedRef);
+    await processArenaBookingAsaasNotification(db, "orig1", cardPayment("RECEIVED"), processedRef);
+
+    const wallet = fake.store.get("arenaWallets/arena1")!;
+    assert.equal(wallet.availableReais, 88.52, "creditado uma vez só");
+    assert.equal(wallet.awaitingSettlementReais, 0);
+    const ledger = [...fake.store.entries()].filter(([path]) => path.startsWith("arenaWallets/arena1/ledger/"));
+    assert.equal(ledger.length, 1);
+    assert.equal(ledger[0]![1].gatewayFeeReais, 3.48);
+    assert.equal(fake.store.get(BOOKING_PATH)!.status, "confirmed");
+  });
+
+  it("CONFIRMED reentregue não soma o a liberar de novo", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake, {billingType: "CREDIT_CARD"});
+    const processedRef = processedRefOf(db);
+
+    await processArenaBookingAsaasNotification(db, "orig1", cardPayment("CONFIRMED"), processedRef);
+    await processArenaBookingAsaasNotification(db, "orig1", cardPayment("CONFIRMED"), processedRef);
+
+    assert.equal(fake.store.get("arenaWallets/arena1")!.awaitingSettlementReais, 88.52);
+  });
+
+  it("estorno do cartão depois de confirmar não cancela a reserva; tira do a liberar", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake, {billingType: "CREDIT_CARD"});
+    const processedRef = processedRefOf(db);
+
+    await processArenaBookingAsaasNotification(db, "orig1", cardPayment("CONFIRMED"), processedRef);
+    await processArenaBookingAsaasNotification(db, "orig1", cardPayment("REFUNDED"), processedRef);
+
+    assert.equal(fake.store.get(BOOKING_PATH)!.status, "confirmed");
+    assert.equal(fake.store.get("arenaWallets/arena1")!.awaitingSettlementReais, 0);
+    assert.equal(fake.store.get(PROCESSED_PATH)!.outcome, "approved");
+  });
+
+  it("cartão aprovado com a reserva já cancelada vira estorno, sem confirmar", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake, {billingType: "CREDIT_CARD", status: "cancelled"});
+
+    await processArenaBookingAsaasNotification(db, "orig1", cardPayment("CONFIRMED"), processedRefOf(db));
+
+    assert.equal(fake.store.get(BOOKING_PATH)!.status, "cancelled");
+    assert.equal(fake.store.get(PROCESSED_PATH)!.outcome, "paid_after_cancel");
+    assert.equal(fake.store.has("arenaWallets/arena1"), false);
+  });
+
+  it("PIX CONFIRMED segue esperando o RECEIVED, como antes", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake);
+
+    await processArenaBookingAsaasNotification(db, "orig1", bookingPayment("CONFIRMED"), processedRefOf(db));
+
+    assert.equal(fake.store.get(BOOKING_PATH)!.status, "pending_payment");
+    assert.equal(fake.store.has(PROCESSED_PATH), false);
+  });
+
+  it("PIX RECEIVED confirma e credita no mesmo evento, marcando as duas fases", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake);
+
+    await processArenaBookingAsaasNotification(db, "orig1", bookingPayment("RECEIVED"), processedRefOf(db));
+
+    const processed = fake.store.get(PROCESSED_PATH)!;
+    assert.ok(processed.confirmedAt);
+    assert.ok(processed.walletCreditedAt);
+    assert.equal(fake.store.get("arenaWallets/arena1")!.availableReais, 92);
+    assert.equal(fake.store.get(BOOKING_PATH)!.paymentChannel, "pix");
+  });
+
+  it("segundo pagamento numa reserva já confirmada por outro vira estorno, sem creditar de novo", async () => {
+    const {fake, db} = makeDb();
+    // PIX pago (aviso atrasado) e o atleta ainda pagou o cartão: a reserva já está paga pelo PIX.
+    seedPendingBooking(fake, {status: "confirmed", paymentStatus: "paid", asaasPaymentId: "pix_pago"});
+
+    await processArenaBookingAsaasNotification(db, "orig1", cardPayment("CONFIRMED"), processedRefOf(db));
+
+    const booking = fake.store.get(BOOKING_PATH)!;
+    assert.equal(booking.asaasPaymentId, "pix_pago", "não troca o pagamento da reserva");
+    assert.equal(booking.paymentChannel, "pix");
+    const processed = fake.store.get(PROCESSED_PATH)!;
+    assert.equal(processed.outcome, "duplicate_payment");
+    assert.equal(processed.refundRequired, true);
+    assert.equal(fake.store.has("arenaWallets/arena1"), false);
+  });
+
+  it("estorno de PIX já confirmado (acervo) não mexe na reserva", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake, {status: "confirmed", paymentStatus: "paid"});
+    fake.seedDoc(PROCESSED_PATH, {kind: "arenaBooking", bookingId: "b1", outcome: "approved"});
+
+    await processArenaBookingAsaasNotification(db, "orig1", bookingPayment("REFUNDED"), processedRefOf(db));
+
+    assert.equal(fake.store.get(BOOKING_PATH)!.status, "confirmed");
+    assert.equal(fake.store.get(PROCESSED_PATH)!.outcome, "approved");
+  });
+
+  it("cobrança velha vencendo não cancela a reserva já confirmada por outra", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake, {status: "confirmed", paymentStatus: "paid", asaasPaymentId: "nova"});
+    seedSlot(fake);
+
+    await processArenaBookingAsaasNotification(db, "orig1", bookingPayment("OVERDUE"), processedRefOf(db));
+
+    assert.equal(fake.store.get(BOOKING_PATH)!.status, "confirmed");
+    assert.ok(fake.store.has("arenaSlots/s1"), "horário segue reservado");
+    assert.equal(fake.store.has(PROCESSED_PATH), false);
+  });
+
+  it("cobrança velha vencendo não cancela reserva pendente que já tem outra cobrança", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake, {asaasPaymentId: "nova"});
+
+    await processArenaBookingAsaasNotification(db, "orig1", bookingPayment("OVERDUE"), processedRefOf(db));
+
+    assert.equal(fake.store.get(BOOKING_PATH)!.status, "pending_payment");
+  });
+
+  it("doc aprovado do acervo (sem marcador de fase) não é reprocessado", async () => {
+    const {fake, db} = makeDb();
+    seedPendingBooking(fake, {status: "confirmed", paymentStatus: "paid"});
+    fake.seedDoc(PROCESSED_PATH, {kind: "arenaBooking", bookingId: "b1", outcome: "approved"});
+
+    await processArenaBookingAsaasNotification(db, "orig1", bookingPayment("RECEIVED"), processedRefOf(db));
+
+    assert.equal(fake.store.has("arenaWallets/arena1"), false, "não credita de novo");
+  });
+});
+
 describe("processArenaBookingAsaasNotification — cashback", () => {
   const NOW_MS = Date.now();
 

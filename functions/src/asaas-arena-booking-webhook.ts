@@ -4,6 +4,7 @@
 
 import {
   FieldValue,
+  type DocumentData,
   type DocumentReference,
   type Firestore,
 } from "firebase-admin/firestore";
@@ -11,7 +12,19 @@ import * as logger from "firebase-functions/logger";
 import {ARENA_BOOKING_PAYMENT_REF_PREFIX} from "./arena-booking-payment-constants";
 import {ARENA_BOOKING_PRICING, readArenaBookingServerAmountReais} from "./arena-booking-pricing";
 import {arenaSquadDiscountCents, markArenaSquadDiscountConfirmedQuietly} from "./squad-arena-discount";
-import {creditArenaWalletFromBooking} from "./arena-wallet";
+import {
+  arenaBookingNetReais,
+  creditArenaWalletFromBooking,
+  creditArenaWalletFromBookingPayment,
+  holdArenaAwaitingSettlement,
+  releaseArenaAwaitingSettlement,
+} from "./arena-wallet";
+import {resolveGatewayFeeReais} from "./asaas-gateway-fee";
+import {
+  parseRegistrationBillingType,
+  resolvePaymentPhases,
+  type RegistrationBillingType,
+} from "./registration-payment-phases";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import {resolveArenaBookingFeePercent} from "./arena-entitlement";
 import {computePlatformFeeReais} from "./platform-fees";
@@ -106,6 +119,115 @@ async function readCashbackConfigOrOff(db: Firestore, context: string): Promise<
   }
 }
 
+type ConfirmArenaBookingInput = {
+  bookingRef: DocumentReference;
+  booking: DocumentData;
+  bookingId: string;
+  paymentId: string;
+  processedRef: DocumentReference;
+  billingType: RegistrationBillingType;
+  arenaId: string | null;
+  cashPaid: number;
+  paidOnline: number;
+  dueOnsite: number;
+  paymentStatus: "paid" | "partial";
+  appliedCents: number;
+  holdId: string | null;
+  squadDiscountCents: number;
+  platformFee: number;
+};
+
+/**
+ * Fase de CONFIRMAÇÃO: reserva `confirmed`, slots `booked`, doc do pagamento
+ * `approved` com `confirmedAt`, desconto do embaixador, cashback e nota fiscal.
+ * Roda uma vez por pagamento — no PIX junto com o crédito, no cartão na
+ * autorização. O crédito da carteira é a outra fase, fora daqui.
+ */
+async function confirmArenaBookingPayment(db: Firestore, input: ConfirmArenaBookingInput): Promise<void> {
+  const {booking, bookingId, paymentId, processedRef, arenaId} = input;
+  const intent = buildCashbackIntent({
+    uid: typeof booking.athleteId === "string" ? booking.athleteId : "",
+    sourceType: "booking",
+    sourceId: bookingId,
+    tournamentId: null,
+    arenaId,
+    label: bookingCashbackLabel(String(booking.arenaName ?? "Arena"), booking.date),
+    eventAtMs: bookingEventAtMs(booking.date, booking.startTime) ?? Date.now(),
+    cashReais: input.cashPaid,
+    appliedCents: input.appliedCents,
+    // O teto do cashback ganho é a taxa que sobrou depois do desconto do seguidor.
+    feeReais: Math.max(0, roundMoney(input.platformFee - input.squadDiscountCents / 100)),
+    holdId: input.holdId,
+    config: await readCashbackConfigOrOff(db, bookingId),
+  });
+
+  const batch = db.batch();
+  batch.update(input.bookingRef, {
+    status: "confirmed",
+    paymentStatus: input.paymentStatus,
+    paymentChannel: input.billingType === "CREDIT_CARD" ? "card" : (booking.paymentChannel ?? "pix"),
+    paymentProvider: "asaas",
+    amountPaidOnlineReais: input.paidOnline,
+    amountDueOnsiteReais: input.dueOnsite,
+    asaasPaymentId: paymentId,
+    asaasPaidAmount: input.cashPaid,
+    cashbackAppliedReais: input.appliedCents / 100,
+    squadDiscountReais: input.squadDiscountCents / 100,
+    asaasPaidAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  const slotsSnap = await db
+    .collection(ARENA_SLOTS)
+    .where("bookingId", "==", bookingId)
+    .get();
+  for (const doc of slotsSnap.docs) {
+    batch.update(doc.ref, {
+      status: "booked",
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+
+  batch.set(processedRef, {
+    kind: "arenaBooking",
+    bookingId,
+    outcome: "approved",
+    billingType: input.billingType,
+    confirmedAt: FieldValue.serverTimestamp(),
+    processedAt: FieldValue.serverTimestamp(),
+    ...(intentHasWork(intent) ? cashbackIntentFields(intent) : {}),
+  }, {merge: true});
+
+  await batch.commit();
+  await markArenaSquadDiscountConfirmedQuietly(db, paymentId, input.squadDiscountCents, new Date());
+
+  if (intentHasWork(intent)) {
+    await applyCashbackIntent(db, processedRef, paymentId, Date.now());
+  }
+
+  if (!arenaId) return;
+  try {
+    // A resolução do pagador custa uma busca de nome + uma de CPF: só
+    // vale a pena quando a arena realmente emite nota automaticamente.
+    const athleteId = booking.athleteId as string | undefined;
+    const payer = (await shouldAttemptFiscalInvoice(db, arenaId))
+      ? await resolvePayerForInvoice(athleteId)
+      : null;
+    if (payer) {
+      await requestInvoiceForPaidBooking(db, {
+        arenaId,
+        bookingId,
+        asaasPaymentId: paymentId,
+        grossReais: input.paidOnline,
+        tomador: {nome: payer.nome, cpfCnpj: payer.cpfCnpj},
+        tomadorUid: athleteId ?? null,
+      });
+    }
+  } catch (fiscalErr) {
+    logger.error(`Asaas arena booking ${bookingId}: fiscal request failed`, fiscalErr);
+  }
+}
+
 export async function processArenaBookingAsaasNotification(
   db: Firestore,
   paymentId: string,
@@ -118,10 +240,20 @@ export async function processArenaBookingAsaasNotification(
   }
 
   const processedSnap = await processedRef.get();
-  if (processedSnap.exists) {
+  const processed = processedSnap.data() ?? {};
+  const outcome = typeof processed.outcome === "string" ? processed.outcome : "";
+  // Desfecho terminal que não é "aprovado" (órfão, estorno marcado, recusado)
+  // encerra o assunto, como sempre encerrou.
+  if (processedSnap.exists && outcome !== "approved") {
     logger.info(`Asaas arena booking: payment ${paymentId} já processado`);
     return;
   }
+  // Aprovado SEM marcador de fase é do acervo PIX: ali confirmação e crédito
+  // sempre rodaram juntos, no mesmo evento.
+  const legacyApproved = outcome === "approved" && processed.confirmedAt == null;
+  const alreadyConfirmed = legacyApproved || processed.confirmedAt != null;
+  const alreadyCredited = legacyApproved || processed.walletCreditedAt != null;
+  const alreadyAwaitingSettlement = processed.awaitingSettlement != null;
 
   const bookingId = externalRef.slice(ARENA_BOOKING_PAYMENT_REF_PREFIX.length).trim();
   if (!bookingId) {
@@ -130,10 +262,46 @@ export async function processArenaBookingAsaasNotification(
   }
 
   const status = (payment.status || "").toUpperCase();
+  // Cartão: a autorização (`CONFIRMED`) garante o horário na hora; o dinheiro
+  // só chega na liquidação (`RECEIVED`, ~D+32), e só então a carteira da arena
+  // é creditada. PIX: as duas fases andam juntas no `RECEIVED`.
+  const billingType = parseRegistrationBillingType(payment.billingType);
+  const phases = resolvePaymentPhases({
+    billingType,
+    status,
+    alreadyConfirmed,
+    alreadyCredited,
+    alreadyAwaitingSettlement,
+  });
+  const negative = ASAAS_NEGATIVE_TERMINAL_STATUSES.has(status);
 
-  if (ASAAS_NON_TERMINAL_STATUSES.has(status)) {
+  if (!phases.confirm && !phases.credit && !phases.awaitSettlement && !negative) {
     logger.info(
       `Asaas arena booking ${bookingId}: pagamento ${paymentId} ainda ${status} — aguardando`,
+    );
+    return;
+  }
+
+  if (negative && alreadyConfirmed) {
+    // Estorno ou chargeback DEPOIS do horário garantido (cartão). Não há
+    // desfazimento automático — mesma lacuna do estorno de PIX —, mas a reserva
+    // não é cancelada por baixo do atleta, o valor sai do "a liberar" (a arena
+    // não espera um dinheiro que não vem) e o caso grita no log.
+    if (alreadyAwaitingSettlement && !alreadyCredited) {
+      try {
+        await releaseArenaAwaitingSettlement(db, processedRef, status);
+      } catch (awaitErr) {
+        logger.error(`Asaas arena booking ${bookingId}: falha ao tirar ${paymentId} do "a liberar"`, awaitErr);
+      }
+    }
+    // Cartão: estorno/chargeback depois do horário garantido é caso para uma
+    // pessoa. PIX: o acervo sempre ignorou esse evento em silêncio (estorno
+    // feito no painel do Asaas) — fica informativo para não virar ruído.
+    const log = billingType === "CREDIT_CARD" ? logger.error : logger.info;
+    log(
+      `Asaas arena booking ${bookingId}: pagamento ${paymentId} virou ${status} DEPOIS de ` +
+      "confirmar a reserva — reserva e carteira seguem como estão, resolver à mão",
+      {bookingId, paymentId, status, billingType},
     );
     return;
   }
@@ -142,6 +310,7 @@ export async function processArenaBookingAsaasNotification(
   const bookingSnap = await bookingRef.get();
   if (!bookingSnap.exists) {
     logger.warn(`Asaas arena booking: reserva ${bookingId} não encontrada`);
+    if (processedSnap.exists) return;
     await processedRef.set({
       kind: "arenaBooking",
       bookingId,
@@ -170,7 +339,10 @@ export async function processArenaBookingAsaasNotification(
   //    pagamento segue o fluxo normal de confirmação abaixo, em vez de cair aqui.
   const splitDone = booking.hasSplitShares === true;
   const splitInProgress = !splitDone && supersededPaymentIdsOf(booking).includes(paymentId);
-  const paid = ASAAS_PAID_STATUSES.has(status);
+  // "Pago" aqui é o que CONFIRMA a reserva: liquidação do PIX ou autorização
+  // do cartão. Com a reserva já confirmada (crédito do cartão chegando), as
+  // guardas de divisão e de cancelamento abaixo não se aplicam.
+  const paid = phases.confirm;
   if (splitDone && paid) {
     const paidValue = roundMoney(Number(payment.value) || 0);
     logger.error(
@@ -224,7 +396,36 @@ export async function processArenaBookingAsaasNotification(
     return;
   }
 
-  if (ASAAS_PAID_STATUSES.has(status)) {
+  // Reserva já paga por OUTRA cobrança (PIX com aviso atrasado e o atleta
+  // pagou o cartão também, ou o contrário): confirmar de novo trocaria o
+  // pagamento da reserva e creditaria a arena duas vezes. Só marca o estorno.
+  const bookingPaymentStatus = String(booking.paymentStatus ?? "").toLowerCase();
+  const confirmedByOther = typeof booking.asaasPaymentId === "string" &&
+    booking.asaasPaymentId.trim() !== "" && booking.asaasPaymentId !== paymentId;
+  if (
+    phases.confirm && bookingStatus === "confirmed" && confirmedByOther &&
+    (bookingPaymentStatus === "paid" || bookingPaymentStatus === "partial")
+  ) {
+    const paidValue = roundMoney(Number(payment.value) || 0);
+    logger.error(
+      `Asaas arena booking ${bookingId}: pagamento ${paymentId} chegou com a reserva já paga ` +
+      `por ${booking.asaasPaymentId} — estorno necessário`,
+      {paymentId, bookingId, paidValue, billingType},
+    );
+    await processedRef.set({
+      kind: "arenaBooking",
+      bookingId,
+      outcome: "duplicate_payment",
+      refundRequired: true,
+      paidValue,
+      billingType,
+      asaasPaymentStatus: status,
+      processedAt: FieldValue.serverTimestamp(),
+    });
+    return;
+  }
+
+  if (phases.confirm || phases.credit || phases.awaitSettlement) {
     const amount = Number(payment.value) || 0;
     if (amount <= 0) {
       logger.warn(`Asaas arena booking ${bookingId}: valor inválido`);
@@ -272,108 +473,89 @@ export async function processArenaBookingAsaasNotification(
       platformFee = computePlatformFeeReais(paidOnline, feePercent);
     }
 
-    const intent = buildCashbackIntent({
-      uid: typeof booking.athleteId === "string" ? booking.athleteId : "",
-      sourceType: "booking",
-      sourceId: bookingId,
-      tournamentId: null,
-      arenaId: arenaId ?? null,
-      label: bookingCashbackLabel(String(booking.arenaName ?? "Arena"), booking.date),
-      eventAtMs: bookingEventAtMs(booking.date, booking.startTime) ?? Date.now(),
-      cashReais: cashPaid,
-      appliedCents,
-      // O teto do cashback ganho é a taxa que sobrou depois do desconto do seguidor.
-      feeReais: Math.max(0, roundMoney(platformFee - squadDiscountCents / 100)),
-      holdId,
-      config: await readCashbackConfigOrOff(db, bookingId),
-    });
+    const gatewayFee = resolveGatewayFeeReais(payment, billingType, cashPaid);
 
-    const batch = db.batch();
-    batch.update(bookingRef, {
-      status: "confirmed",
-      paymentStatus,
-      paymentChannel: booking.paymentChannel ?? "pix",
-      paymentProvider: "asaas",
-      amountPaidOnlineReais: paidOnline,
-      amountDueOnsiteReais: dueOnsite,
-      asaasPaymentId: paymentId,
-      asaasPaidAmount: cashPaid,
-      cashbackAppliedReais: appliedCents / 100,
-      squadDiscountReais: squadDiscountCents / 100,
-      asaasPaidAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-
-    const slotsSnap = await db
-      .collection(ARENA_SLOTS)
-      .where("bookingId", "==", bookingId)
-      .get();
-    for (const doc of slotsSnap.docs) {
-      batch.update(doc.ref, {
-        status: "booked",
-        updatedAt: FieldValue.serverTimestamp(),
+    if (phases.confirm) {
+      await confirmArenaBookingPayment(db, {
+        bookingRef,
+        booking,
+        bookingId,
+        paymentId,
+        processedRef,
+        billingType,
+        arenaId: arenaId ?? null,
+        cashPaid,
+        paidOnline,
+        dueOnsite,
+        paymentStatus,
+        appliedCents,
+        holdId,
+        squadDiscountCents,
+        platformFee,
       });
     }
 
-    batch.set(processedRef, {
-      kind: "arenaBooking",
-      bookingId,
-      outcome: "approved",
-      processedAt: FieldValue.serverTimestamp(),
-      ...(intentHasWork(intent) ? cashbackIntentFields(intent) : {}),
-    });
-
-    await batch.commit();
-    await markArenaSquadDiscountConfirmedQuietly(db, paymentId, squadDiscountCents, new Date());
-
-    if (intentHasWork(intent)) {
-      await applyCashbackIntent(db, processedRef, paymentId, Date.now());
+    // "A liberar": cartão aprovado cujo dinheiro só entra na carteira na
+    // liquidação. Falha aqui não derruba nada — sem o marcador, uma reentrega
+    // do `CONFIRMED` soma depois.
+    if (phases.awaitSettlement && arenaId) {
+      try {
+        await holdArenaAwaitingSettlement(db, processedRef, {
+          arenaId,
+          netReais: arenaBookingNetReais({
+            grossReais: paidOnline,
+            platformFeeReais: platformFee,
+            gatewayFeeReais: gatewayFee,
+          }),
+        });
+      } catch (awaitErr) {
+        logger.error(`Asaas arena booking ${bookingId}: falha ao somar o "a liberar"`, awaitErr);
+      }
     }
 
-    if (arenaId) {
+    // Credita a carteira só na LIQUIDAÇÃO: no cartão o horário já foi garantido
+    // acima, mas o dinheiro só chega à plataforma ~D+32. Idempotente pelo doc
+    // do pagamento (`walletCreditedAt`), marcado na mesma transação do crédito.
+    if (phases.credit && arenaId) {
       try {
-        await creditArenaWalletFromBooking(
-          db,
+        await creditArenaWalletFromBookingPayment(db, {
           arenaId,
           bookingId,
-          paidOnline,
-          platformFee,
-          appliedCents / 100,
-          squadDiscountCents / 100,
-        );
+          paymentId,
+          grossReais: paidOnline,
+          platformFeeReais: platformFee,
+          gatewayFeeReais: gatewayFee,
+          cashbackAppliedReais: appliedCents / 100,
+          squadDiscountReais: squadDiscountCents / 100,
+          processedRef,
+        });
       } catch (walletErr) {
         logger.error(`Asaas arena booking ${bookingId}: wallet credit failed`, walletErr);
-      }
-
-      try {
-        // A resolução do pagador custa uma busca de nome + uma de CPF: só
-        // vale a pena quando a arena realmente emite nota automaticamente.
-        const athleteId = booking.athleteId as string | undefined;
-        const payer = (await shouldAttemptFiscalInvoice(db, arenaId))
-          ? await resolvePayerForInvoice(athleteId)
-          : null;
-        if (payer) {
-          await requestInvoiceForPaidBooking(db, {
-            arenaId,
-            bookingId,
-            asaasPaymentId: paymentId,
-            grossReais: paidOnline,
-            tomador: {nome: payer.nome, cpfCnpj: payer.cpfCnpj},
-            tomadorUid: athleteId ?? null,
-          });
-        }
-      } catch (fiscalErr) {
-        logger.error(`Asaas arena booking ${bookingId}: fiscal request failed`, fiscalErr);
       }
     }
 
     logger.info(
-      `Asaas arena booking ${bookingId}: confirmada, paymentId=${paymentId}, amount=${amount}`,
+      `Asaas arena booking ${bookingId}: pagamento ${paymentId} (${billingType}, ${status}) — ` +
+      `confirmou=${phases.confirm} creditou=${phases.credit} a_liberar=${phases.awaitSettlement} ` +
+      `amount=${amount}`,
     );
     return;
   }
 
-  if (ASAAS_NEGATIVE_TERMINAL_STATUSES.has(status)) {
+  if (negative) {
+    // Só a cobrança ATUAL de uma reserva ainda pendente solta o horário. Uma
+    // cobrança velha (trocada por outra, ou que não pôde ser apagada) vencendo
+    // no dia seguinte cancelaria uma reserva já confirmada e apagaria os locks.
+    // Sem gravar "processado": um pagamento tardio dessa cobrança ainda cai
+    // nas guardas de estorno acima.
+    const currentPaymentId = typeof booking.asaasPaymentId === "string" ? booking.asaasPaymentId.trim() : "";
+    if (bookingStatus !== "pending_payment" || (currentPaymentId && currentPaymentId !== paymentId)) {
+      logger.info(
+        `Asaas arena booking ${bookingId}: ${status} da cobrança ${paymentId} ignorado — ` +
+        `reserva ${bookingStatus || "?"}, cobrança atual ${currentPaymentId || "nenhuma"}`,
+      );
+      return;
+    }
     const mpStatus = status === "OVERDUE" ? "expired" : status.toLowerCase();
     await releaseArenaBookingHold(db, bookingRef, booking, bookingId, paymentId, mpStatus);
     await processedRef.set({

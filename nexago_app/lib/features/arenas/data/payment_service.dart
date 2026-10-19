@@ -37,8 +37,8 @@ class ArenaBookingPixPaymentResult {
 
 /// Resposta da callable de cartão da inscrição: o checkout HOSPEDADO do Asaas.
 /// Nenhum dado de cartão passa pelo app — ele só abre o link.
-class TournamentRegistrationCardPaymentResult {
-  const TournamentRegistrationCardPaymentResult({
+class CardCheckoutPaymentResult {
+  const CardCheckoutPaymentResult({
     required this.paymentId,
     required this.invoiceUrl,
     required this.expiresAt,
@@ -98,6 +98,8 @@ class PaymentService {
       'createTournamentRegistrationPixPayment';
   static const String _callableCreateTournamentRegistrationCardPayment =
       'createTournamentRegistrationCardPayment';
+  static const String _callableCreateArenaBookingCardPayment =
+      'createArenaBookingCardPayment';
   static const String _callableConfirmFreeTournamentRegistration =
       'confirmFreeTournamentRegistration';
   static const String _callableReserveDirectOrganizerRegistration =
@@ -203,7 +205,7 @@ class PaymentService {
   /// Mesmo payload do PIX; em vez do QR volta o checkout hospedado do Asaas,
   /// que o app abre com [openHostedCheckout]. A vaga confirma pelo webhook na
   /// aprovação do cartão, no mesmo doc da inscrição que a tela já ouve.
-  Future<TournamentRegistrationCardPaymentResult>
+  Future<CardCheckoutPaymentResult>
   createTournamentRegistrationCardPayment({
     required String registrationId,
     String? cpfCnpj,
@@ -228,7 +230,52 @@ class PaymentService {
           squadCode: squadCode,
         ),
       );
-      return _parseCardResponse(raw.data);
+      return _parseCardResponse(raw.data, priceKey: 'amountReais');
+    } on FirebaseFunctionsException catch (e) {
+      throw PaymentException(_mapFunctionsMessage(e));
+    } catch (e) {
+      if (e is PaymentException) rethrow;
+      throw PaymentException('Não foi possível abrir o pagamento: $e');
+    }
+  }
+
+  /// Abre a cobrança da reserva de quadra no cartão de crédito (à vista).
+  ///
+  /// Mesmo payload do PIX da reserva (sinal de 50% ou total); volta o checkout
+  /// hospedado do Asaas. O horário confirma pelo webhook na aprovação do
+  /// cartão, no doc da reserva que a tela já ouve.
+  Future<CardCheckoutPaymentResult> createArenaBookingCardPayment({
+    required String bookingId,
+    String? cpfCnpj,
+    double? paymentFraction,
+    bool useCashback = false,
+    String? squadCode,
+  }) async {
+    if (bookingId.isEmpty) {
+      throw PaymentException('Reserva inválida.');
+    }
+
+    try {
+      final callable = _functions.httpsCallable(
+        _callableCreateArenaBookingCardPayment,
+      );
+      final payload = <String, dynamic>{'bookingId': bookingId};
+      final cpf = cpfCnpj?.replaceAll(RegExp(r'\D'), '') ?? '';
+      if (cpf.length == 11 || cpf.length == 14) {
+        payload['cpfCnpj'] = cpf;
+      }
+      if (paymentFraction == 0.5 || paymentFraction == 1.0) {
+        payload['paymentFraction'] = paymentFraction;
+      }
+      if (useCashback) {
+        payload['useCashback'] = true;
+      }
+      final code = squadCode?.trim().toUpperCase() ?? '';
+      if (code.isNotEmpty) {
+        payload['squadCode'] = code;
+      }
+      final raw = await callable.call(payload);
+      return _parseCardResponse(raw.data, priceKey: 'amountToPayNowReais');
     } on FirebaseFunctionsException catch (e) {
       throw PaymentException(_mapFunctionsMessage(e));
     } catch (e) {
@@ -267,16 +314,17 @@ class PaymentService {
 
   /// Lê a resposta da callable de cartão. Sem `invoiceUrl` não há o que
   /// abrir; sem `chargedReais` (functions antigas) o cartão cobra o preço.
-  static TournamentRegistrationCardPaymentResult _parseCardResponse(
-    Object? data,
-  ) {
+  static CardCheckoutPaymentResult _parseCardResponse(
+    Object? data, {
+    required String priceKey,
+  }) {
     if (data is! Map) {
       throw PaymentException('Resposta inválida do servidor.');
     }
     final map = Map<String, dynamic>.from(data);
     final paymentId = (map['paymentId'] as String?)?.trim() ?? '';
     final invoiceUrl = (map['invoiceUrl'] as String?)?.trim() ?? '';
-    final amount = (map['amountReais'] as num?)?.toDouble();
+    final amount = (map[priceKey] as num?)?.toDouble();
     if (paymentId.isEmpty ||
         invoiceUrl.isEmpty ||
         amount == null ||
@@ -288,7 +336,7 @@ class PaymentService {
     final applied = (map['cashbackAppliedReais'] as num?)?.toDouble() ?? 0;
     final charged = (map['chargedReais'] as num?)?.toDouble();
     final squadDiscount = (map['squadDiscountReais'] as num?)?.toDouble() ?? 0;
-    return TournamentRegistrationCardPaymentResult(
+    return CardCheckoutPaymentResult(
       paymentId: paymentId,
       invoiceUrl: invoiceUrl,
       expiresAt: expiresAt,
@@ -449,6 +497,29 @@ class PaymentService {
       if (e.code == 'failed-precondition') {
         return;
       }
+      throw PaymentException(_mapFunctionsMessage(e));
+    } catch (e) {
+      if (e is PaymentException) rethrow;
+      throw PaymentException('Não foi possível cancelar o pagamento: $e');
+    }
+  }
+
+  /// Solta a reserva de uma cobrança de CARTÃO. Diferente de
+  /// [cancelPendingArenaBookingPayment], NÃO engole `failed-precondition`: com
+  /// cartão é ele que diz "o cartão já foi aprovado / está em análise" — engolido,
+  /// a tela daria como perdida uma reserva que o servidor acabou de confirmar.
+  Future<void> releasePendingArenaBookingCardPayment({
+    required String bookingId,
+  }) async {
+    if (bookingId.isEmpty) {
+      throw PaymentException('Reserva inválida.');
+    }
+    try {
+      final callable = _functions.httpsCallable(
+        _callableCancelPendingArenaBookingPayment,
+      );
+      await callable.call(<String, dynamic>{'bookingId': bookingId});
+    } on FirebaseFunctionsException catch (e) {
       throw PaymentException(_mapFunctionsMessage(e));
     } catch (e) {
       if (e is PaymentException) rethrow;

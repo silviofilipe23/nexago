@@ -10,6 +10,7 @@ import {
 } from "./arena-manual-booking";
 import {
   cancelPendingArenaBookingPayment,
+  createArenaBookingCardPayment,
   createArenaBookingPixPayment,
   expirePendingArenaBookingPayments,
   requestArenaWithdrawal,
@@ -236,6 +237,7 @@ export {
   quoteArenaManualBooking,
   createArenaManualBooking,
   cancelPendingArenaBookingPayment,
+  createArenaBookingCardPayment,
   createArenaBookingPixPayment,
   expirePendingArenaBookingPayments,
   requestArenaWithdrawal,

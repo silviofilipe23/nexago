@@ -23,6 +23,25 @@ void main() {
       expect(d.label, 'PIX · 50% pago · restante na arena');
     });
 
+    test('cartão pago aparece como Cartão', () {
+      final d = myBookingPaymentDisplayFromData({
+        'paymentChannel': 'card',
+        'paymentStatus': 'paid',
+        'paymentFraction': 1,
+        'amountDueOnsiteReais': 0,
+      });
+      expect(d.label, 'Cartão · 100% pago');
+    });
+
+    test('checkout de cartão aberto: aguardando pagamento no cartão', () {
+      final d = myBookingPaymentDisplayFromData({
+        'status': 'pending_payment',
+        'paymentChannel': 'pix',
+        'billingType': 'CREDIT_CARD',
+      });
+      expect(d.label, 'Cartão · Aguardando pagamento');
+    });
+
     test('pagamento na arena', () {
       final d = myBookingPaymentDisplayFromData({
         'paymentChannel': 'onsite',

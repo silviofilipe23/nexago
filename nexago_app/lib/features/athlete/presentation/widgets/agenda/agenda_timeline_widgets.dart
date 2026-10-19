@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/auth/auth_providers.dart';
+import '../../../../../core/formatting/app_date_format.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -11,6 +12,8 @@ import '../../../../../core/theme/app_typography.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../../arenas/domain/arenas_providers.dart';
 import '../../../../arenas/domain/booking_providers.dart';
+import '../../../../arenas/domain/booking_story.dart';
+import '../../../../arenas/presentation/booking_story_page.dart';
 import '../../../domain/agenda/athlete_agenda_logic.dart';
 import '../../../domain/agenda/athlete_agenda_models.dart';
 import '../../booking_details_page.dart';
@@ -306,6 +309,8 @@ class _RentalCard extends ConsumerWidget {
     final showWeather = rental.startAt.hour >= 17 && !isCanceled;
     final showTravel = isFuture && !isCanceled;
     final showActions = isFuture && !isCanceled;
+    final showStory =
+        !rental.needsPayment && isBookingStoryShareable(rental.rawStatus);
     final payLabel = agendaRentalPaymentButtonLabel(rental.amountReais);
     final accent = item.accentColor;
 
@@ -449,6 +454,45 @@ class _RentalCard extends ConsumerWidget {
                     //     ),
                     //   ),
                     // ),
+                    if (showStory)
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          key: Key('agenda-booking-story-${rental.bookingId}'),
+                          onPressed: () => openBookingStory(
+                            context,
+                            BookingStoryArgs(
+                              bookingId: rental.bookingId,
+                              arenaName: displayArenaName,
+                              courtName: rental.courtName,
+                              dateKey: calendarDateKey(rental.startAt),
+                              startTime: startHour,
+                              endTime: endHour,
+                            ),
+                          ),
+                          icon: const Icon(
+                            Icons.amp_stories_outlined,
+                            size: 18,
+                            color: AppColors.brand,
+                          ),
+                          label: Text(
+                            'Postar no story',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: context.themeColors.onSurface,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: context.themeColors.surfaceRaised,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: BorderSide(
+                              color: AppColors.brand.withValues(alpha: 0.4),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
                     if (rental.needsPayment) ...[
                       const SizedBox(width: 10),
                       Expanded(

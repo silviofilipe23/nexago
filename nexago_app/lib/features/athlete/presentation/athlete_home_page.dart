@@ -13,7 +13,9 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/nexa_async_view.dart';
 import '../../../core/ui/nexa_skeleton.dart';
+import '../../arenas/domain/booking_story.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
+import '../../arenas/presentation/booking_story_page.dart';
 import '../../cashback/presentation/widgets/cashback_balance_pill.dart';
 import '../../store/application/store_providers.dart';
 import '../../store/presentation/widgets/store_home_entry.dart';
@@ -326,6 +328,16 @@ class AthleteHomePage extends ConsumerWidget {
                                   context.pushNamed(AppRouteNames.myBookings),
                               onReserveTap: () =>
                                   _goToTab(ref, athleteShellReservarTabIndex),
+                              onStoryTap:
+                                  nextBooking != null &&
+                                      isBookingStoryShareable(
+                                        nextBooking.rawStatus,
+                                      )
+                                  ? () => openBookingStory(
+                                      context,
+                                      BookingStoryArgs.fromBooking(nextBooking),
+                                    )
+                                  : null,
                             );
                           },
                         ),

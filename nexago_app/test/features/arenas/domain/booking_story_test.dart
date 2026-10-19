@@ -1,7 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:nexago_app/features/arenas/domain/arena_booking_success_args.dart';
 import 'package:nexago_app/features/arenas/domain/booking_story.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_confirmed_athlete.dart';
+import 'package:nexago_app/features/arenas/domain/my_booking_item.dart';
+import 'package:nexago_app/features/arenas/domain/my_booking_payment.dart';
 
 BookingStoryPerson pessoa(String nome) =>
     BookingStoryPerson(firstName: nome, initials: nome.substring(0, 2));
@@ -180,5 +183,72 @@ void main() {
       'Quadra garantida na Arena CFC! sex · 22 mai · 09:00–10:30. '
       'Bora jogar? #vamosnexa',
     );
+  });
+
+  group('isBookingStoryShareable', () {
+    test('reserva garantida (inclusive pagar na arena) oferece o story', () {
+      for (final status in [
+        'confirmed',
+        'CONFIRMED',
+        'booked',
+        'active',
+        'pay_at_arena',
+        'checkin_open',
+      ]) {
+        expect(isBookingStoryShareable(status), isTrue, reason: status);
+      }
+    });
+
+    test('cancelada ou esperando pagamento não oferece', () {
+      for (final status in [
+        'canceled',
+        'cancelled',
+        'pending',
+        'processing',
+        'PENDING_PAYMENT',
+      ]) {
+        expect(isBookingStoryShareable(status), isFalse, reason: status);
+      }
+    });
+  });
+
+  group('BookingStoryArgs', () {
+    test('da confirmação: id da primeira reserva do lote', () {
+      final args = BookingStoryArgs.fromSuccess(
+        const BookingSuccessArgs(
+          arenaId: 'a1',
+          arenaName: 'Arena Sol',
+          courtName: 'Quadra 2',
+          dateKey: '2026-10-23',
+          startTime: '19:00',
+          endTime: '20:00',
+          dateLabel: '23 out 2026',
+          timeRangeLabel: '19:00 – 20:00',
+          bookingIds: [' b9 ', 'b10'],
+        ),
+      );
+
+      expect(args.bookingId, 'b9');
+      expect(args.arenaName, 'Arena Sol');
+      expect(args.dateKey, '2026-10-23');
+    });
+
+    test('da lista de reservas (home): quadra ausente vira vazio', () {
+      final args = BookingStoryArgs.fromBooking(
+        const MyBookingItem(
+          id: 'b7',
+          arenaName: 'Arena Sol',
+          dateRaw: '2026-10-23',
+          startTime: '19:00',
+          endTime: '20:00',
+          rawStatus: 'confirmed',
+          paymentDisplay: MyBookingPaymentDisplay(label: 'PIX'),
+        ),
+      );
+
+      expect(args.bookingId, 'b7');
+      expect(args.courtName, '');
+      expect(args.startTime, '19:00');
+    });
   });
 }

@@ -134,7 +134,14 @@
                 <a class="pd-soft" [href]="o.delivery.trackingUrl" target="_blank" rel="noopener">Rastrear{{ o.delivery.carrier ? ' · ' + o.delivery.carrier : '' }}</a>
               }
               @if (o.status === 'ent' || o.status === 'rtd' || o.status === 'can') {
-                <button type="button" class="pd-soft" [disabled]="rebuying()" (click)="rebuy()">Comprar de novo</button>
+                <div class="pd-actions">
+                  @if (reviewState() === 'none') {
+                    <button type="button" class="pd-soft pd-soft--primary" (click)="openReview()">Avaliar compra</button>
+                  } @else if (reviewState() === 'editable') {
+                    <button type="button" class="pd-soft" (click)="openReview()">Editar avaliação</button>
+                  }
+                  <button type="button" class="pd-soft" [disabled]="rebuying()" (click)="rebuy()">Comprar de novo</button>
+                </div>
               }
             </section>
           }
@@ -215,4 +222,8 @@
       </div>
     }
   </div>
+
+  @if (reviewOpen() && order(); as o) {
+    <app-loja-avaliar-modal [order]="o" [review]="review()" [products]="productsById()" (published)="reviewOpen.set(false)" (closed)="reviewOpen.set(false)" />
+  }
 </app-at-panel-shell>

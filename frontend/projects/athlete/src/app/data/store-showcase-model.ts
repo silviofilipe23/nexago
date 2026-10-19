@@ -94,6 +94,20 @@ export interface StoreCustomization {
   price: { nameOnlyCents: number; imageOnlyCents: number; bothCents: number; backCents: number };
 }
 
+export type ReviewFit = 'pequeno' | 'certo' | 'grande';
+
+/** Agregado das avaliações no espelho do produto (`reviewStats`, ver `store-reviews-model.ts`). */
+export interface ReviewStats {
+  /** Índice 0 = 1 estrela. */
+  dist: [number, number, number, number, number];
+  /** Nota 4 ou 5 — o "X% recomendam". */
+  recommend: number;
+  withPhotos: number;
+  fit: Record<ReviewFit, number>;
+}
+
+export const EMPTY_REVIEW_STATS: ReviewStats = { dist: [0, 0, 0, 0, 0], recommend: 0, withPhotos: 0, fit: { pequeno: 0, certo: 0, grande: 0 } };
+
 export interface StoreProduct {
   id: string;
   name: string;
@@ -120,6 +134,7 @@ export interface StoreProduct {
   customization: StoreCustomization | null;
   ratingAvg: number | null;
   ratingCount: number;
+  reviewStats: ReviewStats;
   soldLast30: number;
   publishedAt: Date | null;
 }
@@ -223,6 +238,19 @@ function toDate(v: unknown): Date | null {
   if (v instanceof Date) return v;
   const ts = v as { toDate?: () => Date } | null | undefined;
   return typeof ts?.toDate === 'function' ? ts.toDate() : null;
+}
+
+/** Doc antigo (sem avaliações) chega zerado. */
+function reviewStatsFromRaw(v: unknown): ReviewStats {
+  const raw = (v ?? {}) as Raw;
+  const dist = Array.isArray(raw['dist']) ? (raw['dist'] as unknown[]) : [];
+  const fit = (raw['fit'] ?? {}) as Raw;
+  return {
+    dist: [0, 1, 2, 3, 4].map((i) => count(dist[i])) as ReviewStats['dist'],
+    recommend: count(raw['recommend']),
+    withPhotos: count(raw['withPhotos']),
+    fit: { pequeno: count(fit['pequeno']), certo: count(fit['certo']), grande: count(fit['grande']) },
+  };
 }
 
 function labels(v: unknown): StoreLabel[] {
@@ -380,6 +408,7 @@ export function storeProductFromDoc(id: string, data: Raw | undefined): StorePro
       data['customizable'] === true && custom && typeof custom === 'object' ? customizationFromRaw(custom) : null,
     ratingAvg: num(data['ratingAvg']),
     ratingCount: count(data['ratingCount']),
+    reviewStats: reviewStatsFromRaw(data['reviewStats']),
     soldLast30: count(data['soldLast30']),
     publishedAt: toDate(data['publishedAt']),
   };

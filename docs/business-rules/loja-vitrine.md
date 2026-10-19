@@ -54,7 +54,7 @@ pickupArenas[{arenaId, name, address, city, state, latitude|null, longitude|null
   sem preço "de". Senão preço + "de" riscado quando houver.
 - **Pix**: `round(preço × (100 − pct) / 100)` em centavos (meio centavo sobe) —
   `pixPriceCents` em `store-showcase.ts`; web e app espelham com o mesmo teste (28990 → 27541).
-- **Nota**: só com `ratingCount ≥ 3` (ainda não há avaliações: some sempre).
+- **Nota**: só com `ratingCount ≥ 3` (avaliações em `loja-avaliacoes.md`).
 - **Esgotado**: foto a 55% de opacidade; no app o "+" vira sino ("Avise-me" — lista de espera ainda
   não existe: avisa "Em breve").
 - **Ordenação**: Mais vendidos = `soldLast30` desc, empate `publishedAt` desc · Menor/Maior preço =

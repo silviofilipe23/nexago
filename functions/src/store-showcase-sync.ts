@@ -5,7 +5,9 @@
  * gatilhos não chegam em ordem, e projetar o evento deixaria uma pausa rápida seguida de
  * reativação com o produto fora da vitrine. Toda mudança de saldo, preço ou foto passa pelo doc
  * do produto (sobe a `version`), então ouvir o produto basta — ouvir cada SKU faria uma troca de
- * grade com 100 variações reler a grade 100 vezes.
+ * grade com 100 variações reler a grade 100 vezes. A nota das avaliações mora fora do produto
+ * (`storeProductRatings`, o save do backoffice grava com merge:false) e o gatilho das avaliações
+ * chama `syncShowcaseProduct` direto (`store-reviews-write.ts`).
  */
 import {getFirestore, type Firestore} from "firebase-admin/firestore";
 import {onDocumentWritten} from "firebase-functions/v2/firestore";
@@ -19,6 +21,7 @@ import {
   buildShowcaseConfig,
   buildShowcaseProduct,
 } from "./store-showcase";
+import {PRODUCT_RATINGS} from "./store-reviews";
 
 const PRODUCTS = "storeProducts";
 const CUSTOMIZATION = "storeProductCustomization";
@@ -27,16 +30,18 @@ const CONFIG_SOURCES = new Set(["discounts", "returns", "shipping", CAMPAIGNS_CO
 
 export async function syncShowcaseProduct(db: Firestore, productId: string, now = new Date()): Promise<"set" | "deleted"> {
   const productRef = db.collection(PRODUCTS).doc(productId);
-  const [productSnap, skusSnap, customizationSnap] = await Promise.all([
+  const [productSnap, skusSnap, customizationSnap, ratingsSnap] = await Promise.all([
     productRef.get(),
     productRef.collection("skus").get(),
     db.collection(CUSTOMIZATION).doc(productId).get(),
+    db.collection(PRODUCT_RATINGS).doc(productId).get(),
   ]);
   const projection = buildShowcaseProduct(
     productSnap.exists ? productSnap.data()! : null,
     skusSnap.docs.map((d) => ({id: d.id, data: d.data()})),
     customizationSnap.exists ? customizationSnap.data()! : null,
     now,
+    ratingsSnap.exists ? ratingsSnap.data()! : null,
   );
   const ref = db.collection(SHOWCASE_PRODUCTS).doc(productId);
   if (projection === null) {

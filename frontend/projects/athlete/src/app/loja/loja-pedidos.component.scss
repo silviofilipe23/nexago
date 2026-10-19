@@ -363,6 +363,25 @@
   }
 }
 
+// Avaliação fora do prazo de edição: só o selo.
+.ps-reviewed {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--nx-orange-tint);
+  color: var(--nx-orange-400);
+  font-family: var(--nx-font-display);
+  font-size: 12px;
+  font-weight: 700;
+
+  svg {
+    fill: var(--nx-orange-500);
+  }
+}
+
 // ── Lateral ────────────────────────────────────────────────────
 .ps-side {
   position: sticky;

@@ -159,9 +159,11 @@ import '../../features/store/presentation/store_cart_page.dart';
 import '../../features/store/presentation/store_customize_page.dart';
 import '../../features/store/presentation/store_favorites_page.dart';
 import '../../features/store/presentation/store_order_page.dart';
+import '../../features/store/presentation/store_order_review_page.dart';
 import '../../features/store/presentation/store_orders_page.dart';
 import '../../features/store/presentation/store_page.dart';
 import '../../features/store/presentation/store_product_page.dart';
+import '../../features/store/presentation/store_product_reviews_page.dart';
 import '../../features/store/presentation/store_search_page.dart';
 import '../../features/athlete/presentation/athlete_active_sessions_page.dart';
 import '../../features/athlete/presentation/athlete_change_password_page.dart';
@@ -1123,6 +1125,16 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           skuId: state.uri.queryParameters['sku'],
         ),
       ),
+      // Todas as avaliações do produto: `?tamanho=` é o tamanho escolhido
+      // na página do produto (filtro "Tamanho M").
+      GoRoute(
+        path: AppRoutes.storeProductReviews,
+        name: AppRouteNames.storeProductReviews,
+        builder: (context, state) => StoreProductReviewsPage(
+          productId: state.pathParameters['productId'] ?? '',
+          sizeValueId: state.uri.queryParameters['tamanho'],
+        ),
+      ),
       // Carrinho e checkout (app 03/04): cotação no servidor, só Pix.
       GoRoute(
         path: AppRoutes.storeCart,
@@ -1156,6 +1168,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             created: extra is StoreCreatedOrder ? extra : null,
           );
         },
+      ),
+      // Avaliar compra (app 08b/08c): um produto por vez, depois a retirada.
+      GoRoute(
+        path: AppRoutes.storeOrderReview,
+        name: AppRouteNames.storeOrderReview,
+        builder: (context, state) => StoreOrderReviewPage(
+          orderId: state.pathParameters['orderId'] ?? '',
+        ),
       ),
       // Favoritos (app 09): coração do header da vitrine.
       GoRoute(

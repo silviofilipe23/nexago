@@ -11,6 +11,8 @@ import {
   type StoreProduct,
   type StoreShowcaseConfig,
 } from '../data/store-showcase-model';
+import { STORE_REVIEWS_API, type StoreReviewsApi } from '../data/store-reviews-api';
+import { publicReviewFromDoc, type PublicReview } from '../data/store-reviews-model';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxToastService } from '../shared/feedback';
 import { LojaProdutoComponent } from './loja-produto.component';
@@ -105,16 +107,26 @@ class FakeSource implements StoreShowcaseSource {
   }
 }
 
+class FakeReviews implements Partial<StoreReviewsApi> {
+  emit?: (r: PublicReview[]) => void;
+  watchProductReviews(_id: string, onChange: (r: PublicReview[]) => void) {
+    this.emit = onChange;
+    return () => undefined;
+  }
+}
+
 function text(el: Element | null | undefined): string {
   return el?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 }
 
 describe('LojaProdutoComponent', () => {
   let source: FakeSource;
+  let reviews: FakeReviews;
   let toasts: string[];
 
   async function render(url: string, user: { uid: string; displayName: string } | null = { uid: 'ana', displayName: 'Ana' }) {
     source = new FakeSource();
+    reviews = new FakeReviews();
     toasts = [];
     const record = (title: string) => toasts.push(title);
     TestBed.configureTestingModule({
@@ -135,6 +147,7 @@ describe('LojaProdutoComponent', () => {
           },
         },
         { provide: STORE_SHOWCASE_SOURCE, useValue: source },
+        { provide: STORE_REVIEWS_API, useValue: reviews },
         { provide: NxToastService, useValue: { error: record, warning: record, info: record, success: record } },
       ],
     }).overrideComponent(LojaProdutoComponent, {
@@ -311,5 +324,55 @@ describe('LojaProdutoComponent', () => {
     const el = load(harness, [other('viseira', 30), other('oculos', 20)]);
     expect(text(el.querySelector('.lp-state h2'))).toBe('Esse produto não está mais disponível');
     expect(el.querySelectorAll('app-loja-product-card').length).toBe(2);
+  });
+  describe('avaliações', () => {
+    const rv = (id: string, over: Record<string, unknown> = {}) =>
+      publicReviewFromDoc(id, { rating: 5, authorName: 'Rafaela M.', authorInitials: 'RM', variantLabel: 'Branco areia · M', createdAt: new Date('2026-10-12T15:00:00Z'), ...over })!;
+
+    it('nota média, distribuição, caimento e comentários "Compra verificada"; filtro do tamanho escolhido', async () => {
+      const harness = await render('/loja/p/camiseta-dry-uv50-areia');
+      const el = load(harness, [
+        camiseta({
+          ratingAvg: 4.8,
+          ratingCount: 5,
+          reviewStats: { dist: [0, 0, 0, 1, 4], recommend: 5, withPhotos: 1, fit: { pequeno: 0, certo: 4, grande: 0 } },
+        }),
+      ]);
+      reviews.emit!([
+        rv('a', { comment: 'Seca muito rápido.', photos: ['https://cdn/r/a.jpg'], tags: ['conforto'], fit: 'certo', sizeValueId: 'm' }),
+        rv('b', { rating: 4, sizeValueId: 'g' }),
+        rv('c'),
+        rv('d'),
+        rv('e', { sizeValueId: 'm' }),
+      ]);
+      harness.detectChanges();
+      const section = el.querySelector('app-loja-avaliacoes')!;
+      expect(text(section.querySelector('.rv-avg'))).toBe('4,8');
+      expect(text(section.querySelector('.rv-score small'))).toBe('5 avaliações · 100% recomendam');
+      expect(text(section.querySelector('.rv-fit-legend strong'))).toBe('Veste bem');
+      expect(section.querySelectorAll('.rv-card').length).toBe(3);
+      expect(text(section.querySelector('.rv-verified'))).toBe('Compra verificada');
+      expect([...section.querySelectorAll('.rv-tags span')].map(text)).toEqual(['Conforto', 'Tamanho certo']);
+      expect(text(section.querySelector('.rv-more'))).toBe('Ver todas as 5 avaliações');
+      expect([...section.querySelectorAll('.rv-filter')].map(text)).toEqual(['Todas5', 'Com foto1', '5 estrelas4']);
+
+      [...el.querySelectorAll<HTMLButtonElement>('.lp-size')].find((b) => text(b).startsWith('M'))?.click();
+      harness.detectChanges();
+      const sizeChip = [...section.querySelectorAll<HTMLButtonElement>('.rv-filter')].find((b) => text(b).startsWith('Tamanho M'));
+      expect(sizeChip).toBeTruthy();
+      sizeChip!.click();
+      harness.detectChanges();
+      expect(section.querySelectorAll('.rv-card').length).toBe(2);
+    });
+
+    it('sem avaliação: o convite curto, sem nota', async () => {
+      const harness = await render('/loja/p/camiseta-dry-uv50-areia');
+      const el = load(harness, [camiseta()]);
+      reviews.emit!([]);
+      harness.detectChanges();
+      const section = el.querySelector('app-loja-avaliacoes')!;
+      expect(section.querySelector('.rv-avg')).toBeNull();
+      expect(text(section.querySelector('.rv-empty strong'))).toBe('Ainda sem avaliações');
+    });
   });
 });

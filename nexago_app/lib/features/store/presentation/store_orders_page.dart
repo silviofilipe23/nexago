@@ -14,11 +14,15 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../application/store_checkout_providers.dart';
 import '../application/store_providers.dart';
+import '../application/store_review_providers.dart';
 import '../domain/store_checkout_models.dart';
 import '../domain/store_models.dart';
 import '../domain/store_order_rules.dart';
+import '../domain/store_review_models.dart';
+import '../domain/store_review_rules.dart';
 import 'store_checkout_copy.dart';
 import 'store_order_actions.dart';
+import 'store_review_copy.dart';
 import 'widgets/store_checkout_parts.dart';
 import 'widgets/store_order_parts.dart';
 import 'widgets/store_style.dart';
@@ -70,7 +74,46 @@ class _StoreOrdersPageState extends ConsumerState<StoreOrdersPage> {
     if (mounted) setState(() => _rebuying = null);
   }
 
-  List<StoreOrderAction> _actions(StoreOrderView o) {
+  void _review(StoreOrderView o) => context.pushNamed(
+        AppRouteNames.storeOrderReview,
+        pathParameters: {'orderId': o.id},
+      );
+
+  /// "Avaliar" (pílula), "Editar avaliação" (30 dias) ou "Avaliado". Sem a
+  /// leitura das avaliações (carregando ou rule não publicada), nada — não
+  /// dá pra saber se já foi avaliado.
+  StoreOrderAction? _reviewAction(
+    StoreOrderView o,
+    Map<String, StoreOrderReview>? reviews,
+  ) {
+    if (reviews == null) return null;
+    final key = ValueKey('store-order-review-${o.id}');
+    return switch (storeOrderReviewState(o.status, reviews[o.id], _now)) {
+      null => null,
+      StoreOrderReviewState.none => StoreOrderAction(
+          StoreReviewCopy.rate,
+          () => _review(o),
+          pill: true,
+          key: key,
+        ),
+      StoreOrderReviewState.editable => StoreOrderAction(
+          StoreReviewCopy.editReview,
+          () => _review(o),
+          key: key,
+        ),
+      StoreOrderReviewState.locked => StoreOrderAction(
+          StoreReviewCopy.reviewed,
+          null,
+          icon: Icons.star_rounded,
+          key: key,
+        ),
+    };
+  }
+
+  List<StoreOrderAction> _actions(
+    StoreOrderView o,
+    Map<String, StoreOrderReview>? reviews,
+  ) {
     final d = o.delivery;
     switch (o.status) {
       case StoreOrderStatus.pag:
@@ -104,6 +147,7 @@ class _StoreOrdersPageState extends ConsumerState<StoreOrdersPage> {
       case StoreOrderStatus.rtd:
       case StoreOrderStatus.can:
         return [
+          ?_reviewAction(o, reviews),
           StoreOrderAction(
             StoreCheckoutCopy.rebuy,
             _rebuying != null ? null : () => _rebuy(o),
@@ -121,6 +165,7 @@ class _StoreOrdersPageState extends ConsumerState<StoreOrdersPage> {
     final async = ref.watch(storeOrdersProvider);
     // O catálogo fica vivo para o "Comprar de novo".
     ref.watch(storeCatalogProvider);
+    final reviews = ref.watch(storeMyOrderReviewsProvider).valueOrNull;
     final config = ref.watch(storeShowcaseConfigProvider).valueOrNull ??
         StoreShowcaseConfig.empty;
     final orders = async.valueOrNull;
@@ -144,7 +189,7 @@ class _StoreOrdersPageState extends ConsumerState<StoreOrdersPage> {
         onAction: () => context.goNamed(AppRouteNames.store),
       );
     } else {
-      body = _list(colors, orders, config);
+      body = _list(colors, orders, config, reviews);
     }
 
     return Scaffold(
@@ -169,6 +214,7 @@ class _StoreOrdersPageState extends ConsumerState<StoreOrdersPage> {
     AppThemeColors colors,
     List<StoreOrderView> orders,
     StoreShowcaseConfig config,
+    Map<String, StoreOrderReview>? reviews,
   ) {
     final now = _now;
     final term = _search.text;
@@ -194,7 +240,7 @@ class _StoreOrdersPageState extends ConsumerState<StoreOrdersPage> {
             order: o,
             now: now,
             onOpen: () => _open(o),
-            actions: _actions(o),
+            actions: _actions(o, reviews),
           ),
         );
 

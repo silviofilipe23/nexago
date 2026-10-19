@@ -107,6 +107,17 @@
   }
 }
 
+.pd-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.pd-soft--primary {
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+}
+
 // ── Pix ────────────────────────────────────────────────────────
 .pd-pix {
   border-color: rgba(255, 106, 26, 0.35);

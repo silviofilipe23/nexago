@@ -5,6 +5,8 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { AuthService } from '../auth/auth.service';
 import { STORE_CHECKOUT_API, type StoreCheckoutApi } from '../data/store-checkout-api';
 import { orderViewFromDoc, type StoreOrderView } from '../data/store-checkout-model';
+import { STORE_REVIEWS_API, type StoreReviewsApi } from '../data/store-reviews-api';
+import { orderReviewFromDoc, type OrderReview, type SubmitReviewInput } from '../data/store-reviews-model';
 import { STORE_SHOWCASE_SOURCE, type StoreShowcaseSource } from '../data/store-showcase-repository';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxToastService } from '../shared/feedback';
@@ -47,6 +49,25 @@ class FakeApi implements Partial<StoreCheckoutApi> {
   }
 }
 
+class FakeReviews implements StoreReviewsApi {
+  mine?: (m: Map<string, OrderReview>) => void;
+  submitted: SubmitReviewInput[] = [];
+  watchMyReviews(_uid: string, onChange: (m: Map<string, OrderReview>) => void) {
+    this.mine = onChange;
+    return () => undefined;
+  }
+  watchProductReviews() {
+    return () => undefined;
+  }
+  uploadPhoto() {
+    return Promise.resolve('store/review-uploads/ana/x.jpg');
+  }
+  submit(input: SubmitReviewInput) {
+    this.submitted.push(input);
+    return Promise.resolve({ ok: true as const, created: true, editableUntil: '2026-11-18T15:00:00.000Z' });
+  }
+}
+
 const noopShowcase: StoreShowcaseSource = {
   watchProducts: () => () => undefined,
   watchConfig: () => () => undefined,
@@ -64,9 +85,11 @@ function text(el: Element | null | undefined): string {
 
 describe('Loja · pedidos', () => {
   let api: FakeApi;
+  let reviews: FakeReviews;
 
   async function render(url: string, component: typeof LojaPedidosComponent | typeof LojaPedidoComponent, state?: unknown) {
     api = new FakeApi();
+    reviews = new FakeReviews();
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
@@ -84,6 +107,7 @@ describe('Loja · pedidos', () => {
         },
         { provide: STORE_SHOWCASE_SOURCE, useValue: noopShowcase },
         { provide: STORE_CHECKOUT_API, useValue: api },
+        { provide: STORE_REVIEWS_API, useValue: reviews },
         { provide: NxToastService, useValue: { error: () => 0, warning: () => 0, info: () => 0, success: () => 0 } },
       ],
     });
@@ -113,6 +137,71 @@ describe('Loja · pedidos', () => {
     expect(el.querySelectorAll('.ps-card').length).toBe(3);
     expect(text(el.querySelector('.ps-ready .ps-code strong'))).toBe('4821');
     expect(text(el.querySelector('.ps-filter'))).toBe('Todos3');
+  });
+
+  it('entregue sem avaliação: "Avaliar compra" abre a janela e publica só o que tem nota', async () => {
+    const harness = await render('/loja/pedidos', LojaPedidosComponent);
+    api.list!([
+      order('7', {
+        status: 'rtd',
+        items: [
+          { productId: 'vis', skuId: 'preta', name: 'Viseira Pro', variantLabel: 'Preta', qty: 1 },
+          { productId: 'sq', skuId: 'g', name: 'Squeeze 750', variantLabel: 'Grafite', qty: 1 },
+        ],
+      }),
+    ]);
+    reviews.mine!(new Map());
+    harness.detectChanges();
+    const el = harness.routeNativeElement as HTMLElement;
+    const cta = [...el.querySelectorAll<HTMLButtonElement>('.ps-btn--primary')].find((b) => text(b) === 'Avaliar compra')!;
+    expect(cta).toBeTruthy();
+    cta.click();
+    harness.detectChanges();
+    const modal = el.querySelector('app-loja-avaliar-modal')!;
+    expect(text(modal.querySelector('h2'))).toBe('Avaliar compra');
+    expect(modal.querySelectorAll('.av-item').length).toBe(2);
+    const publish = modal.querySelector<HTMLButtonElement>('.av-btn--primary')!;
+    expect(publish.disabled).toBeTrue();
+
+    modal.querySelectorAll<HTMLButtonElement>('.av-item')[0]!.querySelectorAll<HTMLButtonElement>('.av-star')[4]!.click();
+    harness.detectChanges();
+    expect(text(modal.querySelector('.av-rate-label'))).toBe('Excelente');
+    modal.querySelectorAll<HTMLButtonElement>('.av-chip')[1]!.click();
+    modal.querySelectorAll<HTMLButtonElement>('.av-pickup .av-star')[3]!.click();
+    harness.detectChanges();
+    expect(publish.disabled).toBeFalse();
+    publish.click();
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+
+    expect(reviews.submitted).toEqual([
+      {
+        orderId: '7',
+        anonymous: false,
+        items: [{ productId: 'vis', rating: 5, tags: ['conforto'], fit: null, comment: '', photos: [] }],
+        pickupRating: 4,
+      },
+    ]);
+    expect(el.querySelector('app-loja-avaliar-modal')).toBeNull();
+  });
+
+  it('já avaliado: "Editar avaliação" no prazo, "Avaliado" depois', async () => {
+    const harness = await render('/loja/pedidos', LojaPedidosComponent);
+    api.list!([order('1', { status: 'ent' }), order('2', { status: 'rtd' })]);
+    const soon = new Date(Date.now() + 86_400_000);
+    const past = new Date(Date.now() - 86_400_000);
+    reviews.mine!(
+      new Map([
+        ['1', orderReviewFromDoc('1', { items: [{ productId: 'bola', rating: 4 }], editableUntil: soon })!],
+        ['2', orderReviewFromDoc('2', { items: [{ productId: 'bola', rating: 5 }], editableUntil: past })!],
+      ]),
+    );
+    harness.detectChanges();
+    const el = harness.routeNativeElement as HTMLElement;
+    const cards = [...el.querySelectorAll('.ps-card')];
+    expect(text(cards[0])).toContain('Editar avaliação');
+    expect(text(cards[0])).not.toContain('Avaliar compra');
+    expect(text(cards[1]!.querySelector('.ps-reviewed'))).toBe('Avaliado');
   });
 
   it('filtro e busca', async () => {

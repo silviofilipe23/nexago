@@ -1,4 +1,5 @@
 import {
+  EMPTY_REVIEW_STATS,
   EMPTY_SHOWCASE_CONFIG,
   cardBadge,
   cartItemsFromDoc,
@@ -46,6 +47,7 @@ function product(over: Partial<StoreProduct> = {}): StoreProduct {
     customization: null,
     ratingAvg: null,
     ratingCount: 0,
+    reviewStats: EMPTY_REVIEW_STATS,
     soldLast30: 10,
     publishedAt: new Date('2026-10-01T12:00:00Z'),
     ...over,

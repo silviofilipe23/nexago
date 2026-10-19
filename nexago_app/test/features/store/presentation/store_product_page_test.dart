@@ -7,10 +7,13 @@ import 'package:nexago_app/core/formatting/app_currency_format.dart';
 import 'package:nexago_app/core/observability/analytics_service.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/store/application/store_providers.dart';
+import 'package:nexago_app/features/store/application/store_review_providers.dart';
 import 'package:nexago_app/features/store/domain/store_models.dart';
 import 'package:nexago_app/features/store/domain/store_repository.dart';
 import 'package:nexago_app/features/store/presentation/store_copy.dart';
 import 'package:nexago_app/features/store/presentation/store_product_page.dart';
+
+import 'store_review_test_kit.dart';
 
 /// Repositório em memória: nada de Firestore no teste.
 class _FakeStoreRepository implements StoreRepository {
@@ -195,8 +198,9 @@ _FakeStoreRepository _repo() => _FakeStoreRepository(
 Future<_RecordingAnalytics> _open(
   WidgetTester tester,
   _FakeStoreRepository repo,
-  String productId,
-) async {
+  String productId, {
+  FakeStoreReviewRepository? reviews,
+}) async {
   // Tela alta: painel, eixos e "Combina com" cabem sem rolar.
   tester.view.physicalSize = const Size(390, 2400);
   tester.view.devicePixelRatio = 1.0;
@@ -211,6 +215,9 @@ Future<_RecordingAnalytics> _open(
         storeUserPositionProvider.overrideWith((ref) => null),
         storeBookingVisitsProvider.overrideWith((ref) => const []),
         analyticsServiceProvider.overrideWithValue(analytics),
+        storeReviewRepositoryProvider.overrideWithValue(
+          reviews ?? FakeStoreReviewRepository(),
+        ),
       ],
       child: MaterialApp(
         theme: AppTheme.dark,
@@ -525,5 +532,27 @@ void main() {
     await tester.tap(_cta());
     await tester.pump();
     expect(repo.added, isEmpty);
+  });
+
+  testWidgets('seção "Avaliações" depois dos detalhes (vazia: como avaliar)', (
+    tester,
+  ) async {
+    await _open(tester, _repo(), 'camiseta');
+    expect(find.byKey(const ValueKey('store-product-reviews')), findsOneWidget);
+    expect(find.text('Avaliações'), findsOneWidget);
+    expect(find.text('Ainda sem avaliações'), findsOneWidget);
+  });
+
+  testWidgets('avaliações sem leitura (rule não publicada): sem a seção', (
+    tester,
+  ) async {
+    await _open(
+      tester,
+      _repo(),
+      'camiseta',
+      reviews: FakeStoreReviewRepository(productError: StateError('denied')),
+    );
+    expect(find.byKey(const ValueKey('store-product-reviews')), findsNothing);
+    expect(find.text('Poliamida dry'), findsOneWidget);
   });
 }

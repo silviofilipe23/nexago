@@ -10,6 +10,7 @@ import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/store/application/store_checkout_providers.dart';
 import 'package:nexago_app/features/store/application/store_providers.dart';
+import 'package:nexago_app/features/store/application/store_review_providers.dart';
 import 'package:nexago_app/features/store/domain/store_checkout_models.dart';
 import 'package:nexago_app/features/store/domain/store_checkout_rules.dart';
 import 'package:nexago_app/features/store/domain/store_checkout_service.dart';
@@ -19,7 +20,12 @@ import 'package:nexago_app/features/store/domain/store_repository.dart';
 import 'package:nexago_app/features/store/presentation/store_address_page.dart';
 import 'package:nexago_app/features/store/presentation/store_cart_page.dart';
 import 'package:nexago_app/features/store/presentation/store_order_page.dart';
+import 'package:nexago_app/features/store/presentation/store_order_review_page.dart';
 import 'package:nexago_app/features/store/presentation/store_orders_page.dart';
+
+import 'store_review_test_kit.dart';
+
+export 'store_review_test_kit.dart';
 
 /// Peças em memória do carrinho/checkout/pedidos: nada de Firebase no teste.
 
@@ -271,14 +277,21 @@ class CheckoutHarness {
     ],
     List<StoreAddress> addresses = const [],
     List<StoreProduct> products = const [kBola],
+    FakeStoreReviewRepository? reviews,
   })  : store = FakeStoreRepository(cart: cart, products: products),
-        service = FakeCheckoutService() {
+        service = FakeCheckoutService(),
+        reviews = reviews ?? FakeStoreReviewRepository() {
     checkout = FakeCheckoutRepository(store, addresses: addresses);
   }
 
   final FakeStoreRepository store;
   final FakeCheckoutService service;
   late final FakeCheckoutRepository checkout;
+
+  /// Avaliações (Meus pedidos, pedido e 08b/08c).
+  final FakeStoreReviewRepository reviews;
+  final FakeStoreReviewService reviewService = FakeStoreReviewService();
+  final FakeReviewPhotoPicker photoPicker = FakeReviewPhotoPicker();
   final RecordingAnalytics analytics = RecordingAnalytics();
   final List<Uri> opened = [];
   late final GoRouter router;
@@ -332,6 +345,14 @@ class CheckoutHarness {
             );
           },
         ),
+        GoRoute(
+          path: AppRoutes.storeOrderReview,
+          name: AppRouteNames.storeOrderReview,
+          builder: (_, state) => StoreOrderReviewPage(
+            orderId: state.pathParameters['orderId'] ?? '',
+            clock: clock,
+          ),
+        ),
       ],
     );
     await tester.pumpWidget(
@@ -351,6 +372,9 @@ class CheckoutHarness {
             return true;
           }),
           analyticsServiceProvider.overrideWithValue(analytics),
+          storeReviewRepositoryProvider.overrideWithValue(reviews),
+          storeReviewServiceProvider.overrideWithValue(reviewService),
+          storeReviewPhotoPickerProvider.overrideWithValue(photoPicker),
         ],
         child: MaterialApp.router(
           theme: AppTheme.dark,

@@ -39,6 +39,8 @@ import {
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxToastService } from '../shared/feedback';
 import { NxSkeletonComponent } from '../shared/loading/nx-skeleton.component';
+import { sizeAxisOf } from '../data/store-reviews-model';
+import { LojaAvaliacoesComponent } from './loja-avaliacoes.component';
 import { LojaMiniCartComponent, buildMiniCartLines, type MiniCartLine } from './loja-mini-cart.component';
 import { LojaProdutoGalleryComponent } from './loja-produto-gallery.component';
 import { LojaProductCardComponent } from './loja-product-card.component';
@@ -74,6 +76,7 @@ interface ReceiveOption {
     LojaProdutoGalleryComponent,
     LojaProductCardComponent,
     LojaMiniCartComponent,
+    LojaAvaliacoesComponent,
   ],
   providers: [LojaVitrineStore],
   templateUrl: './loja-produto.component.html',
@@ -158,6 +161,13 @@ export class LojaProdutoComponent {
   protected readonly rating = computed(() => {
     const p = this.product();
     return p && showRating(p) ? { avg: formatRating(p.ratingAvg!), count: p.ratingCount } : null;
+  });
+  /** Tamanho escolhido — o filtro "Tamanho M" das avaliações. */
+  protected readonly reviewSize = computed(() => {
+    const axis = sizeAxisOf(this.product());
+    const valueId = axis ? this.selected()[axis.id] : undefined;
+    const value = valueId ? axis!.values.find((v) => v.id === valueId) : undefined;
+    return value ? { valueId: value.id, label: value.label } : null;
   });
   protected readonly placeholderTone = computed(() => {
     switch (this.product()?.category) {

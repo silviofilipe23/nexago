@@ -3,6 +3,8 @@ import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { formatCentsBRL } from '../data/cashback-model';
 import { STORE_CHECKOUT_API } from '../data/store-checkout-api';
+import { STORE_REVIEWS_API } from '../data/store-reviews-api';
+import { orderReviewState, type OrderReview, type OrderReviewState } from '../data/store-reviews-model';
 import {
   ORDER_FILTERS,
   formatDeadline,
@@ -21,6 +23,7 @@ import {
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxToastService } from '../shared/feedback';
 import { NxSkeletonComponent } from '../shared/loading/nx-skeleton.component';
+import { LojaAvaliarModalComponent } from './loja-avaliar-modal.component';
 import { LojaOrderPillComponent, LojaOrderProgressComponent, orderPersonalized, rebuyItems } from './loja-order-bits';
 import { trackLojaEvent } from './loja-telemetry';
 import { LojaVitrineStore } from './loja-vitrine.store';
@@ -39,15 +42,17 @@ interface OrderCard {
   progress: { steps: string[]; step: number } | null;
   personalized: boolean;
   mapsUrl: string | null;
+  review: OrderReviewState;
 }
 
 /**
  * Loja · Meus pedidos (web 06). Lista a visão dos pedidos do atleta (`storeOrderViews`, só do dono),
- * mais recentes primeiro, com filtro por momento e busca por número ou produto.
+ * mais recentes primeiro, com filtro por momento e busca por número ou produto. Pedido entregue ou
+ * retirado abre a avaliação da compra (06b) aqui mesmo.
  */
 @Component({
   selector: 'app-loja-pedidos',
-  imports: [AtPanelShellComponent, RouterLink, NxSkeletonComponent, LojaOrderPillComponent, LojaOrderProgressComponent],
+  imports: [AtPanelShellComponent, RouterLink, NxSkeletonComponent, LojaOrderPillComponent, LojaOrderProgressComponent, LojaAvaliarModalComponent],
   providers: [LojaVitrineStore],
   templateUrl: './loja-pedidos.component.html',
   styleUrl: './loja-pedidos.component.scss',
@@ -56,6 +61,7 @@ interface OrderCard {
 export class LojaPedidosComponent {
   protected readonly store = inject(LojaVitrineStore);
   private readonly api = inject(STORE_CHECKOUT_API);
+  private readonly reviewsApi = inject(STORE_REVIEWS_API);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly toast = inject(NxToastService);
@@ -72,6 +78,11 @@ export class LojaPedidosComponent {
   protected readonly filter = signal<OrderFilter>('todos');
   protected readonly search = signal('');
   protected readonly rebuying = signal<string | null>(null);
+  /** Avaliações do atleta por pedido; vazio enquanto carrega (ou sem a rule no ar). */
+  protected readonly reviews = signal<ReadonlyMap<string, OrderReview>>(new Map());
+  /** Pedido com a janela de avaliação aberta. */
+  protected readonly reviewing = signal<StoreOrderView | null>(null);
+  protected readonly productsById = computed(() => new Map(this.store.products().map((p) => [p.id, p])));
 
   protected readonly counts = computed(() => {
     const list = this.orders();
@@ -95,6 +106,7 @@ export class LojaPedidosComponent {
         progress: orderProgress(o),
         personalized: orderPersonalized(o),
         mapsUrl: o.status === 'ret' && o.delivery.type === 'arena' && o.delivery.address ? mapsUrl(o.delivery.address) : null,
+        review: orderReviewState(o, this.reviews().get(o.id), this.now),
       })),
   );
   protected readonly active = computed(() => this.cards().filter((c) => orderActive(c.order.status)));
@@ -145,7 +157,24 @@ export class LojaPedidosComponent {
       );
       onCleanup(stop);
     });
+    effect((onCleanup) => {
+      const uid = this.auth.user()?.uid ?? null;
+      untracked(() => this.reviews.set(new Map()));
+      if (!uid || !this.reviewsApi) return;
+      // Sem a avaliação no ar (rule/callable ainda não deployadas), o botão continua "Avaliar compra".
+      const stop = this.reviewsApi.watchMyReviews(uid, (map) => this.reviews.set(map), () => this.reviews.set(new Map()));
+      onCleanup(stop);
+    });
     trackLojaEvent('loja_pedidos_view');
+  }
+
+  protected openReview(order: StoreOrderView): void {
+    trackLojaEvent('loja_avaliar_open', { pedido_id: order.id, origem: 'pedidos' });
+    this.reviewing.set(order);
+  }
+
+  protected reviewOf(orderId: string): OrderReview | null {
+    return this.reviews().get(orderId) ?? null;
   }
 
   protected money(cents: number): string {

@@ -16,9 +16,12 @@ import {
   type StoreOrderItem,
   type StoreOrderView,
 } from '../data/store-checkout-model';
+import { STORE_REVIEWS_API } from '../data/store-reviews-api';
+import { orderReviewState, type OrderReview } from '../data/store-reviews-model';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxToastService } from '../shared/feedback';
 import { NxSkeletonComponent } from '../shared/loading/nx-skeleton.component';
+import { LojaAvaliarModalComponent } from './loja-avaliar-modal.component';
 import type { PixHandoff } from './loja-checkout.component';
 import { LojaOrderPillComponent, LojaOrderProgressComponent, orderPersonalized, rebuyItems } from './loja-order-bits';
 import { trackLojaEvent } from './loja-telemetry';
@@ -34,7 +37,7 @@ const NOT_FOUND_AFTER_MS = 8000;
  */
 @Component({
   selector: 'app-loja-pedido',
-  imports: [AtPanelShellComponent, RouterLink, NxSkeletonComponent, LojaOrderPillComponent, LojaOrderProgressComponent],
+  imports: [AtPanelShellComponent, RouterLink, NxSkeletonComponent, LojaOrderPillComponent, LojaOrderProgressComponent, LojaAvaliarModalComponent],
   providers: [LojaVitrineStore],
   templateUrl: './loja-pedido.component.html',
   styleUrl: './loja-pedido.component.scss',
@@ -43,6 +46,7 @@ const NOT_FOUND_AFTER_MS = 8000;
 export class LojaPedidoComponent {
   protected readonly store = inject(LojaVitrineStore);
   private readonly api = inject(STORE_CHECKOUT_API);
+  private readonly reviewsApi = inject(STORE_REVIEWS_API);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -65,6 +69,14 @@ export class LojaPedidoComponent {
   protected readonly qrSrc = signal<string | null>(null);
   protected readonly copied = signal(false);
   protected readonly rebuying = signal(false);
+  /** A avaliação da compra deste pedido (06b), se já existe. */
+  protected readonly review = signal<OrderReview | null>(null);
+  protected readonly reviewOpen = signal(false);
+  protected readonly productsById = computed(() => new Map(this.store.products().map((p) => [p.id, p])));
+  protected readonly reviewState = computed(() => {
+    const o = this.order();
+    return o ? orderReviewState(o, this.review(), this.now()) : 'unavailable';
+  });
   /** O pagamento caiu com a tela aberta: mostra o "Pagamento aprovado". */
   protected readonly justPaid = signal(false);
 
@@ -147,6 +159,15 @@ export class LojaPedidoComponent {
       });
     });
 
+    effect((onCleanup) => {
+      const id = this.orderId();
+      const uid = this.auth.user()?.uid ?? null;
+      untracked(() => this.review.set(null));
+      if (!id || !uid || !this.reviewsApi) return;
+      const stop = this.reviewsApi.watchMyReviews(uid, (map) => this.review.set(map.get(id) ?? null), () => this.review.set(null));
+      onCleanup(stop);
+    });
+
     // QR gerado no navegador a partir do copia-e-cola (vetor, nítido em qualquer tela).
     effect(() => {
       const code = this.pix()?.copyPaste ?? null;
@@ -155,6 +176,11 @@ export class LojaPedidoComponent {
         if (code) void resolvePixQrSrc({ qrCode: code }).then((src) => this.qrSrc.set(src));
       });
     });
+  }
+
+  protected openReview(): void {
+    trackLojaEvent('loja_avaliar_open', { pedido_id: this.orderId(), origem: 'pedido' });
+    this.reviewOpen.set(true);
   }
 
   protected money(cents: number): string {

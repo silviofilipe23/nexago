@@ -306,6 +306,35 @@ class StoreCustomization {
   bool get hasOptions => name.enabled || image.enabled || back.enabled;
 }
 
+/// Agregado das avaliações (`storeShowcase/{id}.reviewStats`, refeito pelo
+/// gatilho das avaliações). Espelho antigo (sem o campo) = tudo zero.
+class StoreReviewStats {
+  const StoreReviewStats({
+    this.dist = const [0, 0, 0, 0, 0],
+    this.recommend = 0,
+    this.withPhotos = 0,
+    this.fitSmall = 0,
+    this.fitRight = 0,
+    this.fitLarge = 0,
+  });
+
+  static const StoreReviewStats empty = StoreReviewStats();
+
+  /// Índice 0 = 1 estrela … 4 = 5 estrelas.
+  final List<int> dist;
+
+  /// Nota 4 ou 5 — o "X% recomendam".
+  final int recommend;
+  final int withPhotos;
+
+  /// Respostas do "Como ficou o tamanho?" (`fit.pequeno/certo/grande`).
+  final int fitSmall;
+  final int fitRight;
+  final int fitLarge;
+
+  int get fitAnswers => fitSmall + fitRight + fitLarge;
+}
+
 class StoreProduct {
   const StoreProduct({
     required this.id,
@@ -333,6 +362,7 @@ class StoreProduct {
     this.customization,
     this.ratingAvg,
     this.ratingCount = 0,
+    this.reviewStats = StoreReviewStats.empty,
     this.soldLast30 = 0,
     this.publishedAt,
   });
@@ -370,6 +400,9 @@ class StoreProduct {
   final StoreCustomization? customization;
   final double? ratingAvg;
   final int ratingCount;
+
+  /// Distribuição, recomendam e caimento (seção "Avaliações" da tela 02).
+  final StoreReviewStats reviewStats;
 
   /// Unidades vendidas nos últimos 30 dias — a ordem "Mais vendidos".
   final int soldLast30;

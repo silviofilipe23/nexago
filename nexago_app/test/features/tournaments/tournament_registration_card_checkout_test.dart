@@ -144,7 +144,7 @@ class _FakeCardPaymentService implements PaymentService {
   var cancelCalls = 0;
 
   @override
-  Future<TournamentRegistrationCardPaymentResult>
+  Future<CardCheckoutPaymentResult>
   createTournamentRegistrationCardPayment({
     required String registrationId,
     String? cpfCnpj,
@@ -157,7 +157,7 @@ class _FakeCardPaymentService implements PaymentService {
       cpfCnpj: cpfCnpj,
       amountType: amountType,
     ));
-    return TournamentRegistrationCardPaymentResult(
+    return CardCheckoutPaymentResult(
       paymentId: 'pay_c1',
       invoiceUrl: _invoiceUrl,
       expiresAt: DateTime.now().add(expiresIn),

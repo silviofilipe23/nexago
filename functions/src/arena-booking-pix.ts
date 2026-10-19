@@ -4,6 +4,9 @@ import {
   getFirestore,
   FieldValue,
   Timestamp,
+  type DocumentData,
+  type DocumentReference,
+  type Firestore,
   type QueryDocumentSnapshot,
 } from "firebase-admin/firestore";
 import {getAuth} from "firebase-admin/auth";
@@ -39,10 +42,21 @@ import {
   resolveAthleteCpfCnpj,
 } from "./asaas-customer";
 import {
+  createAsaasCardCharge,
   createAsaasPixCharge,
   deleteAsaasPaymentIfOpen,
   deleteAsaasPaymentOrThrow,
+  getAsaasPayment,
 } from "./asaas-booking-payment";
+import {
+  bookingUsesCard,
+  CARD_RETRY_BACKOFF_MS,
+  cardChargeBlockReason,
+  cardPaymentDeadline,
+  decideCardChargeBeforeRelease,
+  reconcilePaidBookingCharge,
+  settleCardChargeBeforeRelease,
+} from "./arena-booking-card";
 import {callerIsOrganizer, callerIsSuperAdmin} from "./auth-roles";
 import {ARENA_BOOKING_PAYMENT_EXPIRY_MINUTES} from "./arena-booking-constants";
 import {ARENA_BOOKING_PRICING, resolveAndSyncArenaBookingChargeAmounts} from "./arena-booking-pricing";
@@ -79,24 +93,127 @@ type PixPaymentResponse = {
   squadDiscountReais?: number;
 };
 
-export const createArenaBookingPixPayment = onCall({
-  region: CLIENT_FACING_REGIONS,
-  secrets: pixPaymentSecrets,
-}, async (request): Promise<PixPaymentResponse> => {
-  const callerUid = request.auth?.uid;
-  if (!callerUid) {
-    throw new HttpsError("unauthenticated", "Faça login para pagar.");
-  }
+/** Entrada das callables de cobrança da reserva (PIX e cartão têm a mesma). */
+type BookingChargeRequest = {
+  bookingId?: string;
+  cpf?: string;
+  cpfCnpj?: string;
+  paymentFraction?: number;
+  useCashback?: boolean;
+  /** Código de embaixador do NexaSquad digitado no checkout (vence o link/QR). */
+  squadCode?: string;
+};
 
-  const data = (request.data ?? {}) as {
-    bookingId?: string;
-    cpf?: string;
-    cpfCnpj?: string;
-    paymentFraction?: number;
-    useCashback?: boolean;
-    /** Código de embaixador do NexaSquad digitado no checkout (vence o link/QR). */
-    squadCode?: string;
-  };
+type BookingChargeMethod = "pix" | "card";
+
+/** Tudo que uma cobrança da reserva precisa, já validado e resolvido no gateway. */
+interface PreparedBookingCharge {
+  db: Firestore;
+  bookingRef: DocumentReference;
+  booking: DocumentData;
+  bookingId: string;
+  amountToPayNow: number;
+  squad: Awaited<ReturnType<typeof resolveArenaSquadDiscount>>;
+  squadCents: number;
+  priceAfterSquad: number;
+  customerId: string;
+  description: string;
+  arenaName: string;
+  dateStr: string;
+  /** Cobrança anterior apagada agora (entra na chave de idempotência). */
+  retiredPaymentId: string | null;
+}
+
+/**
+ * Tira de cena a cobrança anterior da reserva antes de gerar outra. PIX: a
+ * remoção é tentada e a falha tolerada, como sempre foi. Cartão: o Asaas é
+ * consultado — aprovada/em análise ou impossível de apagar BARRA a cobrança
+ * nova, senão o atleta poderia pagar duas vezes. O saldo de cashback da
+ * cobrança morta volta só com prova de que ela morreu (achado pelo que o
+ * servidor gravou na reserva de saldo); sem prova, a varredura de 5 min devolve.
+ */
+async function retirePreviousBookingCharge(
+  db: Firestore,
+  bookingRef: DocumentReference,
+  booking: DocumentData,
+  bookingId: string,
+  callerUid: string,
+): Promise<string | null> {
+  const existingAsaasId = (booking.asaasPaymentId as string | undefined)?.trim();
+  let deletedAsaasId: string | null = null;
+  if (existingAsaasId && bookingUsesCard(booking)) {
+    const outcome = await settleCardChargeBeforeRelease(db, existingAsaasId);
+    if (outcome === "reconciled") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Seu pagamento com cartão já foi aprovado — a reserva está confirmada.",
+      );
+    }
+    if (outcome === "wait") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Seu pagamento com cartão está em análise. Aguarde a confirmação.",
+      );
+    }
+    if (outcome === "failed") {
+      throw new HttpsError(
+        "unavailable",
+        "Não foi possível cancelar o pagamento com cartão anterior. Tente de novo.",
+      );
+    }
+    deletedAsaasId = existingAsaasId;
+  } else if (existingAsaasId) {
+    try {
+      await deleteAsaasPaymentOrThrow(existingAsaasId);
+      deletedAsaasId = existingAsaasId;
+    } catch (e) {
+      logger.warn("arena booking charge: cobrança anterior não foi apagada", {
+        bookingId,
+        asaasPaymentId: existingAsaasId,
+        error: String(e),
+      });
+      // O Asaas recusa apagar PIX já pago: com o aviso atrasado, gerar outra
+      // cobrança (PIX ou cartão) faria o atleta pagar duas vezes. Confere e,
+      // pago, confirma a reserva em vez de cobrar de novo. Sem resposta, segue
+      // tolerado como sempre foi.
+      let previous: Awaited<ReturnType<typeof getAsaasPayment>> | null = null;
+      try {
+        previous = await getAsaasPayment(existingAsaasId);
+      } catch {
+        previous = null;
+      }
+      if (previous && decideCardChargeBeforeRelease(previous.status ?? "") === "reconcile") {
+        await reconcilePaidBookingCharge(db, existingAsaasId, previous);
+        throw new HttpsError(
+          "failed-precondition",
+          "Seu pagamento anterior já foi aprovado — a reserva está confirmada.",
+        );
+      }
+    }
+  }
+  await releaseHoldsOfDeadCharge(db, callerUid, bookingRef.path, deletedAsaasId, Date.now());
+  return deletedAsaasId;
+}
+
+/**
+ * Sufixo da chave de idempotência quando uma cobrança anterior foi apagada:
+ * a mesma chave devolveria a cobrança morta em vez de criar outra.
+ */
+function retiredChargeSuffix(retiredPaymentId: string | null): string {
+  return retiredPaymentId ? `-after-${retiredPaymentId}` : "";
+}
+
+/**
+ * Tudo que vem ANTES de existir uma cobrança: titular, `pending_payment`,
+ * valor do servidor, embaixador, cobrança anterior e cliente no gateway. É
+ * idêntico para PIX e cartão — o que muda é o tipo de cobrança criada.
+ */
+async function prepareArenaBookingCharge(
+  callerUid: string,
+  data: BookingChargeRequest,
+  method: BookingChargeMethod,
+): Promise<PreparedBookingCharge> {
+  const methodLabel = method === "card" ? "cartão" : "PIX";
   const bookingId = typeof data.bookingId === "string" ? data.bookingId.trim() : "";
   const cpfFromRequest =
     typeof data.cpfCnpj === "string" ? data.cpfCnpj :
@@ -122,7 +239,7 @@ export const createArenaBookingPixPayment = onCall({
   if (status !== "pending_payment") {
     throw new HttpsError(
       "failed-precondition",
-      "Esta reserva não está aguardando pagamento PIX.",
+      "Esta reserva não está aguardando pagamento.",
     );
   }
 
@@ -131,13 +248,18 @@ export const createArenaBookingPixPayment = onCall({
     throw new HttpsError("failed-precondition", "Pagamento já registrado para esta reserva");
   }
 
+  if (method === "card") {
+    const blocked = cardChargeBlockReason(booking);
+    if (blocked) throw new HttpsError("failed-precondition", blocked);
+  }
+
   // Valor sai do total gravado pelo servidor na criação (arenaBookingPricing),
   // não do doc da reserva, que o dono já conseguiu reescrever pelo cliente.
   const {amountToPayNowReais: amountToPayNow} =
     await resolveAndSyncArenaBookingChargeAmounts(db, bookingId, booking, data.paymentFraction);
 
   if (!Number.isFinite(amountToPayNow) || amountToPayNow <= 0) {
-    throw new HttpsError("failed-precondition", "Valor PIX inválido na reserva");
+    throw new HttpsError("failed-precondition", "Valor inválido na reserva");
   }
 
   const arenaId = booking.arenaId as string | undefined;
@@ -173,26 +295,7 @@ export const createArenaBookingPixPayment = onCall({
     // fallback
   }
 
-  // PIX gerado de novo: a cobrança antiga é apagada (falha segue tolerada,
-  // como sempre foi) e o saldo que ELA reservou volta — só se o Asaas
-  // confirmou a remoção, e achado pelo que o servidor gravou na reserva de
-  // saldo, nunca pelo `cashbackHoldId` desta reserva (gravável pelo dono e
-  // pela arena). Sem prova, a varredura de 5 min confere e devolve.
-  const existingAsaasId = (booking.asaasPaymentId as string | undefined)?.trim();
-  let deletedAsaasId: string | null = null;
-  if (existingAsaasId) {
-    try {
-      await deleteAsaasPaymentOrThrow(existingAsaasId);
-      deletedAsaasId = existingAsaasId;
-    } catch (e) {
-      logger.warn("createArenaBookingPixPayment: cobrança anterior não foi apagada", {
-        bookingId,
-        asaasPaymentId: existingAsaasId,
-        error: String(e),
-      });
-    }
-  }
-  await releaseHoldsOfDeadCharge(db, callerUid, bookingRef.path, deletedAsaasId, Date.now());
+  const retiredPaymentId = await retirePreviousBookingCharge(db, bookingRef, booking, bookingId, callerUid);
 
   let cpfCnpj: string;
   try {
@@ -202,7 +305,7 @@ export const createArenaBookingPixPayment = onCall({
     if (msg === "ASAAS_CUSTOMER_CPF_REQUIRED") {
       throw new HttpsError(
         "failed-precondition",
-        "Informe seu CPF para pagar com PIX.",
+        `Informe seu CPF para pagar com ${methodLabel}.`,
       );
     }
     throw e;
@@ -227,10 +330,10 @@ export const createArenaBookingPixPayment = onCall({
     if (msg === "ASAAS_CUSTOMER_CPF_REQUIRED") {
       throw new HttpsError(
         "failed-precondition",
-        "Informe seu CPF para pagar com PIX.",
+        `Informe seu CPF para pagar com ${methodLabel}.`,
       );
     }
-    logger.error("createArenaBookingPixPayment customer failed", e);
+    logger.error("arena booking charge: customer failed", e);
     throw new HttpsError("internal", "Não foi possível preparar o pagamento.");
   }
 
@@ -242,6 +345,50 @@ export const createArenaBookingPixPayment = onCall({
   const timeStr = startTime && endTime ? `${startTime}-${endTime}` : startTime;
   const scheduleStr = [dateStr, timeStr].filter(Boolean).join(" ");
   const description = `Reserva ${arenaName} — ${courtName} - ${scheduleStr ? ` (${scheduleStr})` : ""}`;
+
+  return {
+    db, bookingRef, booking, bookingId, amountToPayNow, squad, squadCents, priceAfterSquad,
+    customerId, description, arenaName, dateStr, retiredPaymentId,
+  };
+}
+
+/** Prazo do cartão gravado numa transação que exige a reserva ainda aguardando pagamento. */
+async function extendBookingForCard(db: Firestore, bookingRef: DocumentReference): Promise<Date> {
+  return db.runTransaction(async (tx) => {
+    const current = (await tx.get(bookingRef)).data() ?? {};
+    if ((current.status as string | undefined)?.toLowerCase() !== "pending_payment") {
+      throw new HttpsError("failed-precondition", "Esta reserva não está aguardando pagamento.");
+    }
+    const currentExpiresAt = current.paymentExpiresAt instanceof Timestamp ?
+      current.paymentExpiresAt.toDate() :
+      new Date(Date.now() + ARENA_BOOKING_PAYMENT_EXPIRY_MINUTES * 60 * 1000);
+    const createdAt = current.createdAt instanceof Timestamp ? current.createdAt.toDate() : null;
+    const deadline = cardPaymentDeadline(createdAt, currentExpiresAt);
+    if (deadline.getTime() <= Date.now()) {
+      throw new HttpsError(
+        "failed-precondition",
+        "O prazo desta reserva acabou. Escolha o horário de novo.",
+      );
+    }
+    tx.update(bookingRef, {paymentExpiresAt: Timestamp.fromDate(deadline)});
+    return deadline;
+  });
+}
+
+export const createArenaBookingPixPayment = onCall({
+  region: CLIENT_FACING_REGIONS,
+  secrets: pixPaymentSecrets,
+}, async (request): Promise<PixPaymentResponse> => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Faça login para pagar.");
+  }
+
+  const data = (request.data ?? {}) as BookingChargeRequest;
+  const {
+    db, bookingRef, booking, bookingId, amountToPayNow, squad, squadCents, priceAfterSquad,
+    customerId, description, arenaName, dateStr, retiredPaymentId,
+  } = await prepareArenaBookingCharge(callerUid, data, "pix");
 
   const expiresAtDate = booking.paymentExpiresAt instanceof Timestamp
     ? booking.paymentExpiresAt.toDate()
@@ -268,7 +415,8 @@ export const createArenaBookingPixPayment = onCall({
       description,
       externalReference: `${ARENA_BOOKING_PAYMENT_REF_PREFIX}${bookingId}`,
       idempotencyKey: cashbackIdempotencyKey(
-        `arena-booking-pix-${bookingId}${squadIdempotencySuffix(squadCents)}`,
+        `arena-booking-pix-${bookingId}${squadIdempotencySuffix(squadCents)}` +
+          retiredChargeSuffix(retiredPaymentId),
         cashback.holdId,
       ),
     });
@@ -308,6 +456,8 @@ export const createArenaBookingPixPayment = onCall({
     asaasPaymentId: charge.paymentId,
     paymentProvider: "asaas",
     paymentStatus: "pending",
+    // Ausente = PIX (todo o acervo); gravado para o cartão anterior não valer mais.
+    billingType: "PIX",
     paymentReceiver: FieldValue.delete(),
     pixCopyPaste: charge.qrCode,
     cashbackAppliedCents: cashback.appliedCents,
@@ -337,7 +487,155 @@ export const createArenaBookingPixPayment = onCall({
   };
 });
 
-/** Cancela reserva PIX pendente (atleta) e libera horário + locks. */
+type CardPaymentResponse = {
+  paymentId: string;
+  /** Checkout hospedado do Asaas: o atleta digita o cartão lá, não no nexaGO. */
+  invoiceUrl: string;
+  expiresAt: string;
+  amountToPayNowReais: number;
+  cashbackAppliedReais?: number;
+  chargedReais?: number;
+  squadDiscountReais?: number;
+};
+
+/**
+ * Cobrança da reserva no cartão de crédito, à vista, pelo checkout HOSPEDADO
+ * do Asaas: nenhum dado de cartão passa por esta função. O horário é garantido
+ * na autorização (`CONFIRMED`) e a carteira da arena só é creditada na
+ * liquidação — ver asaas-arena-booking-webhook.ts. O prazo vira 15 min desde
+ * a criação da reserva (cardPaymentDeadline).
+ */
+export const createArenaBookingCardPayment = onCall({
+  region: CLIENT_FACING_REGIONS,
+  secrets: pixPaymentSecrets,
+}, async (request): Promise<CardPaymentResponse> => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Faça login para pagar.");
+  }
+
+  const data = (request.data ?? {}) as BookingChargeRequest;
+  const {
+    db, bookingRef, booking, bookingId, amountToPayNow, squad, squadCents, priceAfterSquad,
+    customerId, description, arenaName, dateStr, retiredPaymentId,
+  } = await prepareArenaBookingCharge(callerUid, data, "card");
+
+  // Reserva o prazo do cartão ANTES de cobrar (e depois do CPF e do cliente,
+  // para tentativa que falhou ali não segurar o horário): a varredura (prazo do
+  // PIX, 5 min) não solta o horário no meio da chamada ao Asaas, e reserva já
+  // cancelada ou vencida não ganha cobrança.
+  const expiresAtDate = await extendBookingForCard(db, bookingRef);
+  const expectedPreviousPaymentId = (booking.asaasPaymentId as string | undefined)?.trim() ?? null;
+
+  const cashback = await reserveCashbackForCharge(db, {
+    uid: callerUid,
+    useCashback: data.useCashback,
+    priceReais: priceAfterSquad,
+    sourceType: "booking",
+    sourceId: bookingId,
+    trackingPath: bookingRef.path,
+    label: bookingCashbackLabel(arenaName, dateStr),
+    nowMs: Date.now(),
+  });
+
+  let charge;
+  try {
+    charge = await createAsaasCardCharge({
+      customerId,
+      valueReais: cashback.chargeReais,
+      dueDate: expiresAtDate,
+      description,
+      externalReference: `${ARENA_BOOKING_PAYMENT_REF_PREFIX}${bookingId}`,
+      idempotencyKey: cashbackIdempotencyKey(
+        `arena-booking-card-${bookingId}${squadIdempotencySuffix(squadCents)}` +
+          retiredChargeSuffix(retiredPaymentId),
+        cashback.holdId,
+      ),
+    });
+  } catch (e) {
+    await releaseCashbackHoldQuietly(db, callerUid, cashback.holdId, Date.now());
+    if (e instanceof AsaasApiError) {
+      logger.error("createArenaBookingCardPayment Asaas failed:", e.httpStatus, e.body);
+      const hint = e.message.toLowerCase();
+      if (hint.includes("cpf") || hint.includes("cnpj")) {
+        throw new HttpsError("failed-precondition", e.message);
+      }
+      throw new HttpsError("internal", "Não foi possível abrir o pagamento. Tente novamente.");
+    }
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg === "ASAAS_API_KEY_MISSING") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Pagamento online temporariamente indisponível.",
+      );
+    }
+    logger.error("createArenaBookingCardPayment charge failed", e);
+    throw new HttpsError("internal", "Não foi possível abrir o pagamento. Tente novamente.");
+  }
+
+  if (cashback.holdId) {
+    await attachHoldPayment(db, callerUid, cashback.holdId, charge.paymentId);
+  }
+
+  // Grava só se a reserva ainda está esperando ESTA cobrança: cancelada no meio
+  // do caminho (outra aba, "desistir") ou com outra cobrança gerada, a nova é
+  // apagada — senão o atleta pagaria por um horário que já não é dele.
+  const attached = await db.runTransaction(async (tx) => {
+    const current = (await tx.get(bookingRef)).data() ?? {};
+    const stillPending = (current.status as string | undefined)?.toLowerCase() === "pending_payment";
+    const currentPaymentId = (current.asaasPaymentId as string | undefined)?.trim() ?? null;
+    // Chamada simultânea com a mesma chave recebeu a MESMA cobrança e já a gravou.
+    if (stillPending && currentPaymentId === charge.paymentId) return true;
+    if (!stillPending || currentPaymentId !== expectedPreviousPaymentId) return false;
+    tx.update(bookingRef, {
+      asaasPaymentId: charge.paymentId,
+      paymentProvider: "asaas",
+      paymentStatus: "pending",
+      billingType: "CREDIT_CARD",
+      paymentReceiver: FieldValue.delete(),
+      pixCopyPaste: FieldValue.delete(),
+      cashbackAppliedCents: cashback.appliedCents,
+      cashbackHoldId: cashback.holdId,
+      squadDiscountReais: squadCents / 100,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return true;
+  });
+  if (!attached) {
+    try {
+      await deleteAsaasPaymentOrThrow(charge.paymentId);
+    } catch (e) {
+      logger.error("createArenaBookingCardPayment: cobrança órfã não apagada", {
+        bookingId, paymentId: charge.paymentId, error: String(e),
+      });
+    }
+    await releaseCashbackHoldQuietly(db, callerUid, cashback.holdId, Date.now());
+    throw new HttpsError(
+      "failed-precondition",
+      "Esta reserva não está mais aguardando pagamento. Escolha o horário de novo.",
+    );
+  }
+
+  await recordArenaSquadDiscountQuietly(db, {
+    kind: "booking",
+    sourceId: bookingId,
+    paymentId: charge.paymentId,
+    payerUid: callerUid,
+    discount: squad,
+    mirrorRef: db.collection(ARENA_BOOKING_PRICING).doc(bookingId),
+  }, new Date());
+
+  return {
+    paymentId: charge.paymentId,
+    invoiceUrl: charge.invoiceUrl,
+    expiresAt: expiresAtDate.toISOString(),
+    amountToPayNowReais: amountToPayNow,
+    ...cashbackResponseFields(cashback),
+    ...(squadCents > 0 ? {squadDiscountReais: squadCents / 100} : {}),
+  };
+});
+
+/** Cancela reserva pendente de pagamento (atleta) e libera horário + locks. */
 export const cancelPendingArenaBookingPayment = onCall({
   region: CLIENT_FACING_REGIONS,
   secrets: pixPaymentSecrets,
@@ -380,7 +678,29 @@ export const cancelPendingArenaBookingPayment = onCall({
   }
 
   const asaasId = (booking.asaasPaymentId as string | undefined)?.trim();
-  if (asaasId) {
+  if (asaasId && bookingUsesCard(booking)) {
+    // Cartão: o checkout pode ter sido pago agora mesmo. Soltar o horário de
+    // um cartão aprovado daria reserva paga sem quadra.
+    const outcome = await settleCardChargeBeforeRelease(db, asaasId);
+    if (outcome === "reconciled") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Seu pagamento com cartão já foi aprovado — a reserva está confirmada.",
+      );
+    }
+    if (outcome === "wait") {
+      throw new HttpsError(
+        "failed-precondition",
+        "Seu pagamento com cartão está em análise. Aguarde a confirmação.",
+      );
+    }
+    if (outcome === "failed") {
+      throw new HttpsError(
+        "unavailable",
+        "Não foi possível cancelar o pagamento com cartão. Tente de novo.",
+      );
+    }
+  } else if (asaasId) {
     await deleteAsaasPaymentIfOpen(asaasId);
   }
 
@@ -396,7 +716,7 @@ export const cancelPendingArenaBookingPayment = onCall({
   return {bookingId, status: "cancelled"};
 });
 
-/** Expira reservas PIX não pagas e libera locks + documentos em arenaSlots. */
+/** Expira reservas não pagas (PIX ou cartão) e libera locks + documentos em arenaSlots. */
 export const expirePendingArenaBookingPayments = onSchedule(
   {
     schedule: "every 1 minutes",
@@ -417,7 +737,23 @@ export const expirePendingArenaBookingPayments = onSchedule(
       const bookingId = doc.id;
       try {
         const asaasId = (booking.asaasPaymentId as string | undefined)?.trim();
-        if (asaasId) {
+        if (asaasId && bookingUsesCard(booking)) {
+          // Cartão vencido no relógio pode estar aprovado no gateway (o
+          // `CONFIRMED` atrasou ou se perdeu): confirma em vez de soltar. Em
+          // análise ou sem resposta do Asaas, tenta na próxima volta.
+          const outcome = await settleCardChargeBeforeRelease(db, asaasId);
+          if (outcome !== "released") {
+            if (outcome !== "reconciled") {
+              // Em análise ou Asaas sem resposta: tenta de novo mais tarde, sem
+              // ficar na frente da fila das outras reservas vencidas.
+              await doc.ref.update({
+                paymentExpiresAt: Timestamp.fromMillis(Date.now() + CARD_RETRY_BACKOFF_MS),
+              });
+            }
+            logger.info(`expirePendingArenaBookingPayments: cartão ${asaasId} ${outcome} — ${bookingId} mantida`);
+            continue;
+          }
+        } else if (asaasId) {
           await deleteAsaasPaymentIfOpen(asaasId);
         }
         await releaseArenaBookingHold(

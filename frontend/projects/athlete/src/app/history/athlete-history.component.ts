@@ -89,10 +89,11 @@ function resolveRentalPaymentStatus(booking: MyBooking, doc: ArenaBookingDoc | u
   if (doc?.status === 'pending_payment') {
     return { label: 'Pendente', tone: 'pending', methodLabel: 'Pix' };
   }
-  if (doc?.paymentChannel === 'pix') {
-    if (doc.paymentStatus === 'paid') return { label: 'Pago', tone: 'paid', methodLabel: 'Pix' };
-    if (doc.paymentStatus === 'partial') return { label: '50% pago', tone: 'pending', methodLabel: 'Pix' };
-    return { label: 'Pendente', tone: 'pending', methodLabel: 'Pix' };
+  if (doc?.paymentChannel === 'pix' || doc?.paymentChannel === 'card') {
+    const methodLabel = doc.paymentChannel === 'card' ? 'Cartão' : 'Pix';
+    if (doc.paymentStatus === 'paid') return { label: 'Pago', tone: 'paid', methodLabel };
+    if (doc.paymentStatus === 'partial') return { label: '50% pago', tone: 'pending', methodLabel };
+    return { label: 'Pendente', tone: 'pending', methodLabel };
   }
   return { label: 'A pagar na arena', tone: 'pending', methodLabel: 'No local' };
 }

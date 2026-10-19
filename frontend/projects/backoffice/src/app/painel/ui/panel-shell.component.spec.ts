@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
 import { SquadBadgesService } from '../data/squad-badges.service';
 import { StoreBadgesService } from '../data/store-badges.service';
+import { TournamentBadgesService } from '../data/tournament-badges.service';
 import { PanelShellComponent } from './panel-shell.component';
 
 describe('PanelShellComponent', () => {
@@ -96,6 +97,22 @@ describe('PanelShellComponent', () => {
         ?.textContent?.trim();
     expect(badgeOf('Embaixadores')).toBe('20');
     expect(badgeOf('Candidaturas')).toBe('3');
+  });
+
+  it('Torneios lista Contratos entre Planos e Sponsors, com o badge dos pedidos novos', async () => {
+    const host = await mount();
+    TestBed.inject(TournamentBadgesService).setRequestedContracts(2);
+    groupButton(host, 'Torneios').click();
+    await TestBed.inject(ApplicationRef).whenStable();
+    const links = [...host.querySelectorAll('.subnav a.nav-item')];
+    expect(links.map((e) => e.getAttribute('href'))).toEqual([
+      '/painel/torneios',
+      '/painel/torneios/planos',
+      '/painel/torneios/contratos',
+      '/painel/torneios/sponsors',
+    ]);
+    const item = links.find((e) => e.textContent!.includes('Contratos'))!;
+    expect(item.querySelector('.badge')!.textContent!.trim()).toBe('2');
   });
 
   it('abre o grupo no clique e fecha no clique seguinte', async () => {

@@ -594,6 +594,14 @@ export {
   savePlanContractSponsor,
 } from "./tournament-plan-contracts";
 
+// Fila dos contratos de plano no backoffice: status (sinal/saldo marcados à mão), aprovação das
+// logos das cotas e patrocinadores trazidos pela NexaGO. Escrita só por callable.
+export {
+  reviewPlanContractSponsorLogo,
+  saveNexagoPlanContractSponsor,
+  setTournamentPlanContractStatus,
+} from "./tournament-plan-contracts-admin";
+
 // NexaSquad: comissões dos embaixadores e repasse quinzenal. Escrita só por callable.
 export {
   approveSquadPayout,

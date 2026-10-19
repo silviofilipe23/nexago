@@ -30,7 +30,7 @@ import { PlansLogDrawerComponent } from './ui/plans-log-drawer.component';
 /**
  * Torneios › Planos (tela 01): os pacotes por quadra, as regras que valem para todos e a
  * estrutura financeira. Os números de venda do protótipo (eventos, receita) ficam de fora:
- * a contratação pelo organizador ainda não existe.
+ * os pedidos dos organizadores vivem em Torneios › Contratos, ainda sem cobrança online.
  */
 @Component({
   selector: 'bo-panel-planos',
@@ -94,8 +94,8 @@ import { PlansLogDrawerComponent } from './ui/plans-log-drawer.component';
             </div>
             <p class="notice">
               <bo-icon name="clock" [size]="14" />
-              A contratação dos planos pelo organizador ainda não existe: eventos contratados, receita e margem realizada
-              aparecem aqui quando ela chegar.
+              Os pedidos dos organizadores ficam em <a routerLink="/painel/torneios/contratos">Contratos</a>. Eventos
+              contratados, receita e margem realizada ainda não aparecem nesta tela.
             </p>
 
             <bo-panel-card kicker="Valem para todos os planos" title="Regras gerais">
@@ -193,6 +193,7 @@ import { PlansLogDrawerComponent } from './ui/plans-log-drawer.component';
     .push { margin-left: auto; flex: none; }
     .kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
     .notice { margin: -6px 0 0; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--nx-text-dim); }
+    .notice a { color: var(--nx-orange-500); }
     .rules { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
     .rule { padding: 14px 16px; border-radius: var(--nx-r-3); background: var(--nx-surface-1); border: 1px solid var(--nx-line); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
     .k { display: flex; align-items: center; gap: 6px; font-family: var(--nx-font-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--nx-text-dim); }

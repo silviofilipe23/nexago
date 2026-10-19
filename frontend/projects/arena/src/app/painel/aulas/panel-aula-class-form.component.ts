@@ -92,7 +92,9 @@ const DURATIONS = [30, 45, 60, 75, 90, 120, 150, 180];
           </ar-panel-card>
 
           <ar-panel-card title="Professor" kicker="02">
-            @if (activeTeachers().length === 0) {
+            @if (!optionsLoaded()) {
+              <p class="hint">Carregando professores…</p>
+            } @else if (activeTeachers().length === 0) {
               <p class="hint">
                 Nenhum professor cadastrado.
                 <a class="ar-text-link" routerLink="/painel/aulas/professores">Cadastre em Professores</a>
@@ -144,7 +146,9 @@ const DURATIONS = [30, 45, 60, 75, 90, 120, 150, 180];
           </ar-panel-card>
 
           <ar-panel-card title="Quadra e vagas" kicker="04">
-            @if (courts().length === 0) {
+            @if (!optionsLoaded()) {
+              <p class="hint">Carregando quadras…</p>
+            } @else if (courts().length === 0) {
               <p class="hint">Nenhuma quadra cadastrada — cadastre em Quadras primeiro.</p>
             } @else {
               <div class="chip-row">
@@ -288,6 +292,7 @@ export class PanelAulaClassFormComponent {
 
   protected readonly teachers = signal<ClassTeacher[]>([]);
   protected readonly courts = signal<CourtOption[]>([]);
+  protected readonly optionsLoaded = signal(false);
 
   protected readonly name = signal('');
   protected readonly type = signal<ClassType>('turma');
@@ -415,6 +420,8 @@ export class PanelAulaClassFormComponent {
       }
     } catch {
       this.errorMessage.set('Não foi possível carregar professores e quadras.');
+    } finally {
+      this.optionsLoaded.set(true);
     }
   }
 

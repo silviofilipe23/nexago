@@ -61,7 +61,9 @@ const CAPACITY_BY_TYPE: Record<ClassType, number> = { turma: 6, particular: 1, d
       <div class="row-2">
         <div>
           <div class="field-label spaced">Professor</div>
-          @if (activeTeachers().length === 0) {
+          @if (!optionsLoaded()) {
+            <p class="hint first">Carregando…</p>
+          } @else if (activeTeachers().length === 0) {
             <p class="hint first">Cadastre um professor em <a class="ar-text-link" routerLink="/painel/aulas/professores">Professores</a>.</p>
           } @else {
             <select class="input-box" (change)="teacherId.set($any($event.target).value)">
@@ -158,6 +160,7 @@ export class AulaSingleModalComponent {
   protected readonly checking = signal(false);
   protected readonly conflict = signal<string | null>(null);
 
+  protected readonly optionsLoaded = signal(false);
   protected readonly activeTeachers = computed(() => this.teachers().filter((t) => t.status === 'active'));
   protected readonly maxStudents = computed(() => CAPACITY_BY_TYPE[this.type()]);
   protected readonly canSave = computed(
@@ -241,6 +244,8 @@ export class AulaSingleModalComponent {
       if (courts[0]) this.courtId.set(courts[0].id);
     } catch {
       this.error.set('Não foi possível carregar professores e quadras.');
+    } finally {
+      this.optionsLoaded.set(true);
     }
   }
 
@@ -296,7 +301,8 @@ export class AulaSingleModalComponent {
       const names = this.students().map((s) => s.name.split(' ')[0]);
       const result = await upsertClass(arenaFunctions(), {
         arenaId: this.arenaId(),
-        name: this.type() === 'experimental' ? `Experimental · ${names.join(', ')}` : names.join(' & '),
+        // O rótulo da agenda já diz o tipo ("Aula particular · …"), então o nome é só quem treina.
+        name: (this.type() === 'experimental' ? names.join(', ') : names.join(' & ')).slice(0, 60),
         type: this.type(),
         sport: court?.types[0] ?? 'beachTennis',
         level: 'livre',

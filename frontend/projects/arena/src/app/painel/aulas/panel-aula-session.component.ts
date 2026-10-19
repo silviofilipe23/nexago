@@ -359,11 +359,8 @@ export class PanelAulaSessionComponent {
 
   protected onCanceled(notified: number): void {
     this.cancelOpen.set(false);
-    this.notice.set(
-      notified > 0
-        ? `Aula cancelada. ${notified} aluno${notified === 1 ? '' : 's'} avisado${notified === 1 ? '' : 's'} no app.`
-        : 'Aula cancelada. A quadra voltou para o aluguel.',
-    );
+    // O banner de aula cancelada já diz que a quadra voltou para o aluguel.
+    this.notice.set(notified > 0 ? `${notified} aluno${notified === 1 ? '' : 's'} avisado${notified === 1 ? '' : 's'} no app.` : null);
   }
 
   protected back(): void {

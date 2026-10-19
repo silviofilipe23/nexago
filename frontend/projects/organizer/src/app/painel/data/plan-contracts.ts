@@ -298,6 +298,11 @@ export function planRefs(p: Pick<CatalogPlan, 'courts' | 'refsPerCourt'>): numbe
   return p.courts * p.refsPerCourt;
 }
 
+/** Hora extra do plano. No backoffice, 0 desativa: a cobertura é o limite do evento. */
+export function extraHourLabel(cents: number): string {
+  return cents > 0 ? `Hora extra ${brl(cents)}/h` : 'Sem hora extra';
+}
+
 /** O plano que cobre exatamente as quadras do evento; senão o menor que cobre todas; senão o maior. */
 export function recommendedPlanId(plans: readonly CatalogPlan[], courts: number): string | null {
   if (plans.length === 0) return null;

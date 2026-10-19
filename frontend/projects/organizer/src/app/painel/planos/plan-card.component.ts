@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { brl, planRefs, type CatalogPlan } from '../data/plan-contracts';
+import { brl, extraHourLabel, planRefs, type CatalogPlan } from '../data/plan-contracts';
 import { OgIconComponent } from '../ui/icon.component';
 
 /** Card de um plano NexaGO (protótipo 26a/04b). `selected === null` = vitrine, sem escolha;
@@ -50,6 +50,8 @@ import { OgIconComponent } from '../ui/icon.component';
         }
         <li><og-icon name="clock" [size]="15" />Até {{ p.hours }}h de cobertura</li>
       }
+      <!-- Fora do "Tudo do Plano N": é preço de cada plano, não escopo herdado. -->
+      <li [class.off]="p.extraHourCents === 0"><og-icon name="cash" [size]="15" />{{ extraHour() }}</li>
     </ul>
   `,
   styles: `
@@ -163,6 +165,10 @@ import { OgIconComponent } from '../ui/icon.component';
       display: inline-flex;
       color: var(--nx-orange-500);
     }
+    .specs li.off,
+    .specs li.off og-icon {
+      color: var(--nx-text-dim);
+    }
     .specs li.inherit {
       font-size: 11.5px;
       color: var(--nx-text-dim);
@@ -178,6 +184,7 @@ export class OgPlanCardComponent {
 
   protected readonly price = computed(() => brl(this.plan().priceCents));
   protected readonly refs = computed(() => planRefs(this.plan()));
+  protected readonly extraHour = computed(() => extraHourLabel(this.plan().extraHourCents));
   protected readonly inherits = computed(() => {
     const prev = this.prev();
     const p = this.plan();

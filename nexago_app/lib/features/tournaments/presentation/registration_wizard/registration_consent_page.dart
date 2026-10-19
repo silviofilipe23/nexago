@@ -317,10 +317,10 @@ Widget _wizardChrome(BuildContext context, Widget child) {
 /// Cartão "O ORGANIZADOR RECEBE": a lista real de dados compartilhados.
 ///
 /// O protótipo desta tela listava "data de nascimento e CPF" e falava em
-/// cartão — nenhum dos três chega ao organizador (CPF só existe no app como
-/// dado de pagador de reserva de arena) e não existe pagamento por cartão
-/// (só PIX). A lista abaixo é a correção deliberada; não "restaurar" o texto
-/// do protótipo.
+/// cartão — nenhum dos três chega ao organizador (CPF é dado de pagador, vai
+/// só ao gateway, e o cartão é pago no checkout hospedado do Asaas, sem passar
+/// pelo nexaGO). A lista abaixo é a correção deliberada; não "restaurar" o
+/// texto do protótipo.
 class _OrganizerReceivesCard extends StatelessWidget {
   const _OrganizerReceivesCard();
 

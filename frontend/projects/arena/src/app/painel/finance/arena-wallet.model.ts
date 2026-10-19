@@ -228,6 +228,8 @@ export function withdrawalIsFailed(item: Pick<ArenaWithdrawalItem, 'status' | 'p
 export function withdrawalStatusLabel(item: Pick<ArenaWithdrawalItem, 'status' | 'payoutStatus'>): string {
   const payout = item.payoutStatus?.trim().toLowerCase() ?? '';
   if (payout === 'failed') return 'FALHOU';
+  // `paid` só chega com a conclusão da transferência no Asaas; `sent` é o PIX criado.
+  if (payout === 'paid') return 'PAGO';
   if (payout === 'sent' || item.status.trim().toLowerCase() === 'approved') return 'ENVIADO';
   if (item.status.trim().toLowerCase() === 'rejected') return 'FALHOU';
   return 'PENDENTE';

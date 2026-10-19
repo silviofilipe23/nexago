@@ -32,6 +32,7 @@ import {
   resolveWithdrawalTransferAmount,
 } from "./asaas-payout";
 import {resolveArenaBookingFeePercent, resolveArenaWithdrawalFeeReais} from "./arena-entitlement";
+import {manualReviewBlockReason} from "./withdrawal-transfer-state";
 import {AsaasApiError, asaasArenaSecrets} from "./asaas-client";
 import {
   getOrCreateAsaasCustomer,
@@ -808,6 +809,11 @@ export const reviewArenaWithdrawal = onCall({
   const arenaId = w.arenaId as string;
   const amountReais = Number(w.amountReais) || 0;
 
+  const manualBlock = decision === "approved" ? null : manualReviewBlockReason(w);
+  if (manualBlock) {
+    throw new HttpsError("failed-precondition", manualBlock);
+  }
+
   if (decision === "rejected") {
     await releaseWithdrawalReservation(db, arenaId, amountReais, false);
     await ref.update({
@@ -865,6 +871,15 @@ export const reviewArenaWithdrawal = onCall({
       throw new HttpsError(
         "failed-precondition",
         "Reserva de saldo inconsistente. Rejeite o saque e peça nova solicitação.",
+      );
+    }
+    if (msg === "WITHDRAWAL_ALREADY_REVIEWED") {
+      throw new HttpsError("failed-precondition", "Saque já foi revisado.");
+    }
+    if (msg === "TRANSFER_NOT_CONCLUDED") {
+      throw new HttpsError(
+        "failed-precondition",
+        "O Asaas não concluiu a transferência. O saque segue na fila: tente de novo ou recuse.",
       );
     }
     if (msg === "ASAAS_API_KEY_MISSING") {

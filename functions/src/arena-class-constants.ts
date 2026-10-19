@@ -62,6 +62,8 @@ export interface ClassRules {
   defaultDueDay: number;
   /** Taxa de matrícula cobrada na primeira cobrança (0 = sem taxa). */
   enrollmentFeeReais: number;
+  /** Push 2h antes da aula para alunos com conta e o professor. */
+  classReminderEnabled: boolean;
 }
 
 export const DEFAULT_CLASS_RULES: ClassRules = {
@@ -70,6 +72,7 @@ export const DEFAULT_CLASS_RULES: ClassRules = {
   arenaCancelGeneratesCredit: true,
   defaultDueDay: 5,
   enrollmentFeeReais: 0,
+  classReminderEnabled: true,
 };
 
 /** Crédito de reposição: um por aula perdida por aluno (idempotente). */

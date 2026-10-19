@@ -32,6 +32,7 @@ export function parseClassRules(data: Record<string, unknown> | undefined): Clas
     enrollmentFeeReais: typeof d["enrollmentFeeReais"] === "number" && d["enrollmentFeeReais"] >= 0 ?
       Math.round(d["enrollmentFeeReais"] * 100) / 100 :
       DEFAULT_CLASS_RULES.enrollmentFeeReais,
+    classReminderEnabled: bool(d["classReminderEnabled"], DEFAULT_CLASS_RULES.classReminderEnabled),
   };
 }
 

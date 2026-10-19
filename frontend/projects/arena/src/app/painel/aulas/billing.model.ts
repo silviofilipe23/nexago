@@ -28,6 +28,8 @@ export interface ClassRules {
   arenaCancelGeneratesCredit: boolean;
   defaultDueDay: number;
   enrollmentFeeReais: number;
+  /** Push 2h antes da aula para alunos com conta e o professor. */
+  classReminderEnabled: boolean;
 }
 
 export const DEFAULT_RULES: ClassRules = {
@@ -36,6 +38,7 @@ export const DEFAULT_RULES: ClassRules = {
   arenaCancelGeneratesCredit: true,
   defaultDueDay: 5,
   enrollmentFeeReais: 0,
+  classReminderEnabled: true,
 };
 
 export interface EnrollmentSlot {
@@ -293,6 +296,7 @@ export function rulesFromDoc(data: Record<string, unknown> | undefined): ClassRu
     arenaCancelGeneratesCredit: typeof d['arenaCancelGeneratesCredit'] === 'boolean' ? d['arenaCancelGeneratesCredit'] : DEFAULT_RULES.arenaCancelGeneratesCredit,
     defaultDueDay: optNum(d['defaultDueDay']) ?? DEFAULT_RULES.defaultDueDay,
     enrollmentFeeReais: optNum(d['enrollmentFeeReais']) ?? DEFAULT_RULES.enrollmentFeeReais,
+    classReminderEnabled: typeof d['classReminderEnabled'] === 'boolean' ? d['classReminderEnabled'] : DEFAULT_RULES.classReminderEnabled,
   };
 }
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
+import '../../domain/organizer_wallet_providers.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../domain/tournament_staff/my_tournament_staff_providers.dart';
 import 'tabs/organizer_tournament_financial_tab.dart';
@@ -43,6 +44,15 @@ class OrganizerTournamentFinancialPage extends ConsumerWidget {
       );
     }
 
+    // Só depois do gate: o caixa é lido pelas mesmas pessoas que passam por
+    // ele (rules de `tournamentWallets`). Erro de leitura não emite, e aí a
+    // linha do "a liberar" simplesmente não aparece.
+    final awaitingSettlementReais = ref
+            .watch(organizerCashBoxLiveProvider(tournamentId))
+            .valueOrNull
+            ?.awaitingSettlementReais ??
+        0;
+
     return detailAsync.when(
       loading: () => const Scaffold(
         body: Center(child: CircularProgressIndicator()),
@@ -75,6 +85,7 @@ class OrganizerTournamentFinancialPage extends ConsumerWidget {
               child: OrganizerTournamentFinancialTab(
                 summary: state.summary!,
                 categories: state.categories,
+                awaitingSettlementReais: awaitingSettlementReais,
               ),
             ),
           ],

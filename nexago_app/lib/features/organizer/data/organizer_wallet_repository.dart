@@ -29,12 +29,20 @@ class TournamentCashBox {
     required this.tournamentName,
     required this.availableReais,
     required this.pendingReais,
+    this.awaitingSettlementReais = 0,
   });
 
   final String tournamentId;
   final String tournamentName;
   final double availableReais;
+
+  /// Reservado em saque em processamento.
   final double pendingReais;
+
+  /// "A liberar": líquido de cartões aprovados que ainda não liquidaram — o
+  /// dinheiro cai no caixa ~32 dias depois da aprovação. Informativo: não é
+  /// sacável e não entra no disponível. Servidor anterior ao campo = zero.
+  final double awaitingSettlementReais;
 
   factory TournamentCashBox.fromCallable(Map<String, dynamic> data) {
     return TournamentCashBox(
@@ -42,6 +50,7 @@ class TournamentCashBox {
       tournamentName: _asString(data['tournamentName']),
       availableReais: _asDouble(data['availableReais']),
       pendingReais: _asDouble(data['pendingReais']),
+      awaitingSettlementReais: _asDouble(data['awaitingSettlementReais']),
     );
   }
 }
@@ -349,6 +358,7 @@ class OrganizerWalletRepository {
         tournamentName: '',
         availableReais: _asDouble(d?['availableReais']),
         pendingReais: _asDouble(d?['pendingReais']),
+        awaitingSettlementReais: _asDouble(d?['awaitingSettlementReais']),
       );
     }).handleError((Object _) {});
   }

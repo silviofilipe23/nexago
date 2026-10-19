@@ -39,7 +39,21 @@ describe("buildWalletViewRows", () => {
     const rows = buildWalletViewRows([{id: "t1", name: "Copa A"}], new Map());
     assert.equal(rows.length, 1);
     assert.equal(rows[0]!.availableReais, 0);
+    assert.equal(rows[0]!.awaitingSettlementReais, 0);
     assert.equal(rows[0]!.tournamentName, "Copa A");
+  });
+
+  it("leva o a liberar do cartão sem que ele mude a ordem dos caixas", () => {
+    const rows = buildWalletViewRows(
+      [{id: "t1", name: "Copa A"}, {id: "t2", name: "Copa B"}],
+      new Map([
+        ["t1", {availableReais: 10, pendingReais: 0, awaitingSettlementReais: 500}],
+        ["t2", {availableReais: 20, pendingReais: 0}],
+      ]),
+    );
+    assert.deepEqual(rows.map((r) => r.tournamentId), ["t2", "t1"]);
+    assert.equal(rows[1]!.awaitingSettlementReais, 500);
+    assert.equal(rows[0]!.awaitingSettlementReais, 0);
   });
 
   it("empate de saldo ordena por nome", () => {

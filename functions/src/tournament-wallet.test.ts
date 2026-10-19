@@ -1,12 +1,14 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import type {Firestore} from "firebase-admin/firestore";
+import type {DocumentReference, Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {
   creditTournamentWalletFromRegistration,
   reserveTournamentWithdrawalAmount,
   releaseTournamentWithdrawalReservation,
   assertTournamentWithdrawalReservationValid,
+  holdTournamentAwaitingSettlement,
+  releaseTournamentAwaitingSettlement,
 } from "./tournament-wallet";
 
 const TOURNAMENT = "t1";
@@ -132,5 +134,181 @@ describe("reserva de saque no caixa do torneio", () => {
       ),
       /WALLET_STATE_INVALID/,
     );
+  });
+});
+
+describe("a liberar do cartão (`awaitingSettlementReais`)", () => {
+  const PROCESSED = "artifacts/p/public/data/asaas_processed_payments/pay1";
+
+  function processedRef(fake: FakeFirestore): DocumentReference {
+    return (fake as unknown as Firestore).doc(PROCESSED) as DocumentReference;
+  }
+
+  async function hold(fake: FakeFirestore, netReais: number, tournamentId = TOURNAMENT) {
+    return holdTournamentAwaitingSettlement(
+      fake as unknown as Firestore,
+      processedRef(fake),
+      {tournamentId, ownerId: OWNER, netReais},
+    );
+  }
+
+  async function creditWithMarker(fake: FakeFirestore, gatewayFeeReais = 3.29) {
+    return creditTournamentWalletFromRegistration(
+      fake as unknown as Firestore,
+      TOURNAMENT,
+      {
+        ownerId: OWNER, registrationId: "reg1", payerUid: "uidA", paymentId: "pay1",
+        grossReais: 100, platformFeeReais: 8, gatewayFeeReais,
+        processedRef: processedRef(fake),
+      },
+    );
+  }
+
+  it("soma o líquido previsto sem mexer no disponível nem no saque em processamento", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(WALLET_PATH, {availableReais: 50, pendingReais: 30, awaitingSettlementReais: 10});
+    fake.seedDoc(PROCESSED, {confirmedAt: "ts"});
+
+    assert.equal(await hold(fake, 88.71), true);
+
+    const wallet = fake.store.get(WALLET_PATH)!;
+    assert.equal(wallet["awaitingSettlementReais"], 98.71);
+    assert.equal(wallet["availableReais"], 50);
+    assert.equal(wallet["pendingReais"], 30);
+    const marker = fake.store.get(PROCESSED)!["awaitingSettlement"] as Record<string, unknown>;
+    assert.equal(marker["netReais"], 88.71);
+    assert.equal(marker["tournamentId"], TOURNAMENT);
+  });
+
+  it("cria o caixa zerado quando o torneio ainda não tinha caixa", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(PROCESSED, {confirmedAt: "ts"});
+
+    await hold(fake, 88.71);
+
+    const wallet = fake.store.get(WALLET_PATH)!;
+    assert.equal(wallet["availableReais"], 0);
+    assert.equal(wallet["pendingReais"], 0);
+    assert.equal(wallet["ownerId"], OWNER);
+    assert.equal(wallet["awaitingSettlementReais"], 88.71);
+  });
+
+  it("reentrega não soma de novo", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(PROCESSED, {confirmedAt: "ts"});
+
+    await hold(fake, 88.71);
+    assert.equal(await hold(fake, 88.71), false);
+
+    assert.equal(fake.store.get(WALLET_PATH)!["awaitingSettlementReais"], 88.71);
+  });
+
+  it("pagamento já creditado não volta para o a liberar", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(PROCESSED, {confirmedAt: "ts", walletCreditedAt: "ts"});
+
+    assert.equal(await hold(fake, 88.71), false);
+    assert.equal(fake.store.get(WALLET_PATH), undefined);
+  });
+
+  it("o crédito abate o valor que foi somado, não o recalculado", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(PROCESSED, {confirmedAt: "ts"});
+    await hold(fake, 88.71);
+
+    // A taxa real do cartão veio diferente na liquidação: o caixa recebe o
+    // líquido real, e o a liberar zera pelo valor guardado no marcador.
+    assert.equal(await creditWithMarker(fake, 3.5), true);
+
+    const wallet = fake.store.get(WALLET_PATH)!;
+    assert.equal(wallet["availableReais"], 88.5);
+    assert.equal(wallet["awaitingSettlementReais"], 0);
+    const processed = fake.store.get(PROCESSED)!;
+    assert.ok(processed["walletCreditedAt"]);
+    assert.ok(processed["awaitingSettlementReleasedAt"]);
+    assert.equal(processed["awaitingSettlementReleaseReason"], "credited");
+  });
+
+  it("crédito sem marcador (PIX ou acervo) não mexe no a liberar", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(WALLET_PATH, {availableReais: 0, pendingReais: 0, awaitingSettlementReais: 40});
+    fake.seedDoc(PROCESSED, {confirmedAt: "ts"});
+
+    await creditWithMarker(fake, 0);
+
+    const wallet = fake.store.get(WALLET_PATH)!;
+    assert.equal(wallet["availableReais"], 92);
+    assert.equal(wallet["awaitingSettlementReais"], 40);
+    assert.equal(fake.store.get(PROCESSED)!["awaitingSettlementReleasedAt"], undefined);
+  });
+
+  it("entrega concorrente que já creditou não credita nem abate de novo", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(PROCESSED, {confirmedAt: "ts"});
+    await hold(fake, 88.71);
+    await creditWithMarker(fake);
+
+    assert.equal(await creditWithMarker(fake), false);
+
+    const wallet = fake.store.get(WALLET_PATH)!;
+    assert.equal(wallet["availableReais"], 88.71);
+    assert.equal(wallet["awaitingSettlementReais"], 0);
+  });
+
+  it("estorno antes da liquidação tira do a liberar uma vez só", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(WALLET_PATH, {availableReais: 0, pendingReais: 0, awaitingSettlementReais: 20});
+    fake.seedDoc(PROCESSED, {confirmedAt: "ts"});
+    await hold(fake, 88.71);
+
+    const db = fake as unknown as Firestore;
+    assert.equal(await releaseTournamentAwaitingSettlement(db, processedRef(fake), "REFUNDED"), 88.71);
+    assert.equal(await releaseTournamentAwaitingSettlement(db, processedRef(fake), "REFUNDED"), 0);
+
+    assert.equal(fake.store.get(WALLET_PATH)!["awaitingSettlementReais"], 20);
+    assert.equal(fake.store.get(PROCESSED)!["awaitingSettlementReleaseReason"], "REFUNDED");
+  });
+
+  it("liquidação depois do estorno credita sem abater de novo", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(PROCESSED, {confirmedAt: "ts"});
+    await hold(fake, 88.71);
+    await releaseTournamentAwaitingSettlement(
+      fake as unknown as Firestore, processedRef(fake), "CHARGEBACK_REQUESTED",
+    );
+
+    await creditWithMarker(fake);
+
+    const wallet = fake.store.get(WALLET_PATH)!;
+    assert.equal(wallet["availableReais"], 88.71);
+    assert.equal(wallet["awaitingSettlementReais"], 0);
+  });
+
+  it("nunca deixa o a liberar negativo", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(WALLET_PATH, {availableReais: 0, pendingReais: 0, awaitingSettlementReais: 5});
+    fake.seedDoc(PROCESSED, {
+      confirmedAt: "ts",
+      awaitingSettlement: {tournamentId: TOURNAMENT, netReais: 88.71},
+    });
+
+    await creditWithMarker(fake);
+
+    assert.equal(fake.store.get(WALLET_PATH)!["awaitingSettlementReais"], 0);
+  });
+
+  it("abate no caixa do marcador quando ele é de outro torneio", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc("tournamentWallets/t0", {availableReais: 0, pendingReais: 0, awaitingSettlementReais: 88.71});
+    fake.seedDoc(PROCESSED, {
+      confirmedAt: "ts",
+      awaitingSettlement: {tournamentId: "t0", netReais: 88.71},
+    });
+
+    await creditWithMarker(fake);
+
+    assert.equal(fake.store.get("tournamentWallets/t0")!["awaitingSettlementReais"], 0);
+    assert.equal(fake.store.get(WALLET_PATH)!["availableReais"], 88.71);
+    assert.equal(fake.store.get(WALLET_PATH)!["awaitingSettlementReais"], undefined);
   });
 });

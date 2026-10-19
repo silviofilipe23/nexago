@@ -35,8 +35,18 @@ export function shouldExplainZeroBalance(params: {
  *  senão um saldo correto viraria R$ 0,00 na tela. */
 export function applyLiveBalance<
   T extends { tournamentId: string; availableReais: number; pendingReais: number },
->(row: T, tournamentId: string, live: { availableReais: number; pendingReais: number }): T {
+>(
+  row: T,
+  tournamentId: string,
+  live: { availableReais: number; pendingReais: number; awaitingSettlementReais?: number },
+): T {
   return row.tournamentId === tournamentId ? { ...row, ...live } : row;
+}
+
+/** O "a liberar" aparece na tela? Só com pelo menos um centavo: resíduo de ponto
+ *  flutuante (ou o zero do caixa sem cartão nenhum) não pode virar "A liberar: R$ 0,00". */
+export function hasAwaitingSettlement(row: { awaitingSettlementReais?: number } | null | undefined): boolean {
+  return (row?.awaitingSettlementReais ?? 0) >= 0.005;
 }
 
 /** Quem pediu o saque, do ponto de vista de quem está olhando a lista.

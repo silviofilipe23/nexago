@@ -98,6 +98,44 @@ void main() {
       expect(merged.availableReais, 100);
       expect(merged.pendingReais, 7);
     });
+
+    // Quando o cartão liquida, o mesmo snapshot sobe o disponível e zera o
+    // "a liberar": a fusão tem de levar os dois, senão a tela mostra o valor
+    // duas vezes (no saldo e a liberar).
+    test('leva o "a liberar" ao vivo, inclusive quando ele zera', () {
+      const comCartao = TournamentCashBox(
+        tournamentId: 't1',
+        tournamentName: '',
+        availableReais: 100,
+        pendingReais: 0,
+        awaitingSettlementReais: 88.71,
+      );
+      final antes = applyLiveBalance(box('t1', 100, 0), comCartao);
+      expect(antes.awaitingSettlementReais, 88.71);
+
+      const liquidado = TournamentCashBox(
+        tournamentId: 't1',
+        tournamentName: '',
+        availableReais: 188.71,
+        pendingReais: 0,
+      );
+      final depois = applyLiveBalance(antes, liquidado);
+      expect(depois.availableReais, 188.71);
+      expect(depois.awaitingSettlementReais, 0);
+    });
+  });
+
+  group('hasAwaitingSettlement', () {
+    test('mostra com pelo menos um centavo', () {
+      expect(hasAwaitingSettlement(88.71), isTrue);
+      expect(hasAwaitingSettlement(0.01), isTrue);
+    });
+
+    test('zero e resíduo de ponto flutuante não mostram', () {
+      expect(hasAwaitingSettlement(0), isFalse);
+      expect(hasAwaitingSettlement(0.000001), isFalse);
+      expect(hasAwaitingSettlement(box('t1', 50, 0).awaitingSettlementReais), isFalse);
+    });
   });
 
   // Regras do valor do saque: viviam no `State` da tela, fora do alcance de

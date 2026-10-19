@@ -25,6 +25,11 @@ export interface PaymentPhaseInput {
   status: string;
   alreadyConfirmed: boolean;
   alreadyCredited: boolean;
+  /**
+   * O líquido deste cartão já está no "a liberar" do caixa (marcador
+   * `awaitingSettlement` no doc processado). Ausente = não está.
+   */
+  alreadyAwaitingSettlement?: boolean;
 }
 
 export interface PaymentPhases {
@@ -32,6 +37,12 @@ export interface PaymentPhases {
   confirm: boolean;
   /** Creditar a carteira do organizador. */
   credit: boolean;
+  /**
+   * Somar o líquido previsto ao "a liberar" do caixa: cartão aprovado cujo
+   * dinheiro ainda não liquidou. Também vale numa reentrega do `CONFIRMED`
+   * sem o marcador — é assim que o backfill preenche o acervo anterior.
+   */
+  awaitSettlement: boolean;
 }
 
 const SETTLED_STATUSES = new Set(["RECEIVED", "RECEIVED_IN_CASH"]);
@@ -43,11 +54,13 @@ export function resolvePaymentPhases(input: PaymentPhaseInput): PaymentPhases {
     input.billingType === "CREDIT_CARD" && status === "CONFIRMED";
 
   if (!settled && !cardAuthorized) {
-    return {confirm: false, credit: false};
+    return {confirm: false, credit: false, awaitSettlement: false};
   }
 
   return {
     confirm: !input.alreadyConfirmed,
     credit: settled && !input.alreadyCredited,
+    awaitSettlement: cardAuthorized && !input.alreadyCredited &&
+      input.alreadyAwaitingSettlement !== true,
   };
 }

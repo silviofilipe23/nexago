@@ -174,6 +174,21 @@ export const routes: Routes = [
       import('./painel/aulas/panel-aulas-teachers.component').then((m) => m.PanelAulasTeachersComponent),
   },
   {
+    // Repasse: quanto o professor ganha é do financeiro (rule de `arenaClassPayouts`).
+    path: 'painel/aulas/repasse',
+    title: 'Repasse dos professores — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('financeiro')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aulas-payouts.component').then((m) => m.PanelAulasPayoutsComponent),
+  },
+  {
+    path: 'painel/aulas/repasse/:teacherId',
+    title: 'Repasse do professor — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('financeiro')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aula-teacher-payout.component').then((m) => m.PanelAulaTeacherPayoutComponent),
+  },
+  {
     path: 'painel/aulas/alunos',
     title: 'Alunos — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],

@@ -1874,6 +1874,16 @@ service cloud.firestore {
       );
       allow create, update, delete: if false;
     }
+    // Repasse do professor (fechamento mensal; pagamento feito por fora, sem dinheiro na
+    // plataforma). Quanto o professor ganha é dado de quem lê o financeiro (dono, gestor e
+    // cargo financeiro) — recepção e manutenção leem a agenda, não isto. Escrita só pelas
+    // functions (`arena-class-payout.ts`, gate de gestor).
+    match /arenaClassPayouts/{payoutId} {
+      allow read: if request.auth != null && (
+        arenaCanRead(resource.data.arenaId, 'financeiro') || isSuperAdmin()
+      );
+      allow create, update, delete: if false;
+    }
     match /arenaClassCredits/{creditId} {
       allow read: if request.auth != null && (
         arenaCanRead(resource.data.arenaId, 'agenda') || isSuperAdmin()

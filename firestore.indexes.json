@@ -1306,6 +1306,24 @@
       ]
     },
     {
+      "collectionGroup": "arenaClassPayouts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "arenaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "teacherId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "month",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "arenaClassCredits",
       "queryScope": "COLLECTION",
       "fields": [

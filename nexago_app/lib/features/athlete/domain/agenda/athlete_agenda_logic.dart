@@ -135,9 +135,18 @@ AthleteAgendaItem? mapBookingToAgendaItem(
   }
 
   final stage = bookingStage(clock, start, end, item.rawStatus);
-  final attendancePending =
-      !item.attendanceConfirmed && item.attendanceStatus == 'pending';
+  // Convidado (entrou pela lista `participantUids`): presença e pagamento são
+  // do dono da reserva — nada de "Pagar" nem "confirmar presença" para ele.
+  final viewer = currentAthleteUid?.trim() ?? '';
+  final owner = item.ownerAthleteId?.trim() ?? '';
+  final isGuest = viewer.isNotEmpty && owner.isNotEmpty && owner != viewer;
+  final attendancePending = !isGuest &&
+      !item.attendanceConfirmed &&
+      item.attendanceStatus == 'pending';
   final partner = pickAgendaPartnerPreview(item, currentAthleteUid);
+  final court = (item.courtName?.trim().isNotEmpty ?? false)
+      ? item.courtName!.trim()
+      : 'Locação de quadra';
 
   return AthleteAgendaItem(
     id: 'rental-${item.id}',
@@ -148,9 +157,7 @@ AthleteAgendaItem? mapBookingToAgendaItem(
     // A reserva não guarda esporte — afirmar "Vôlei de praia" mentia nas
     // quadras de beach tennis/tênis (multiesporte). Só a quadra; sem ela, um
     // genérico — o card reserva a linha do subtítulo mesmo vazia.
-    subtitle: (item.courtName?.trim().isNotEmpty ?? false)
-        ? item.courtName!.trim()
-        : 'Locação de quadra',
+    subtitle: isGuest ? '$court · convidado' : court,
     statusLabel: bookingStatusLabel(stage, start),
     accentColor: bookingStageColor(stage),
     rental: AthleteAgendaRentalPayload(
@@ -168,9 +175,24 @@ AthleteAgendaItem? mapBookingToAgendaItem(
       attendancePending: attendancePending,
       partnerName: partner?.displayName,
       partnerInitials: partner?.initials,
-      needsPayment: agendaRentalNeedsPayment(item),
+      needsPayment: !isGuest && agendaRentalNeedsPayment(item),
     ),
   );
+}
+
+/// Reservas do atleta + as de outros em que ele entrou por convite, sem
+/// repetir (a própria reserva ganha se aparecer nas duas listas).
+List<MyBookingItem> mergeOwnAndGuestBookings(
+  List<MyBookingItem> own,
+  List<MyBookingItem> asGuest,
+) {
+  if (asGuest.isEmpty) return own;
+  final ids = {for (final b in own) b.id};
+  return [
+    ...own,
+    for (final b in asGuest)
+      if (!ids.contains(b.id)) b,
+  ];
 }
 
 ({String displayName, String initials})? pickAgendaPartnerPreview(

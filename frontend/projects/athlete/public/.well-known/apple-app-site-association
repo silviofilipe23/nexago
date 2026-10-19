@@ -13,6 +13,10 @@
           {
             "/": "/torneios-convite/*",
             "comment": "Convite de dupla já criado: abre o app nexaGO quando instalado."
+          },
+          {
+            "/": "/convite/*",
+            "comment": "Convite para jogar numa reserva de quadra (direto ou link): abre o app nexaGO quando instalado."
           }
         ]
       }

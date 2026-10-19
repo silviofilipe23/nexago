@@ -13,3 +13,16 @@ final myBookingsStreamProvider =
   }
   return ref.watch(bookingServiceProvider).watchMyBookings(user.uid);
 });
+
+/// Reservas de outros atletas em que o usuário atual entrou por convite
+/// (`participantUids`). Fica fora de [myBookingsStreamProvider] de propósito:
+/// conquistas, avaliação, loja e missões contam só as reservas do próprio
+/// atleta — quem junta as duas listas é a Agenda.
+final myGuestBookingsStreamProvider =
+    StreamProvider.autoDispose<List<MyBookingItem>>((ref) {
+  final user = ref.watch(authProvider).valueOrNull;
+  if (user == null) {
+    return Stream.value(const []);
+  }
+  return ref.watch(bookingServiceProvider).watchGuestBookings(user.uid);
+});

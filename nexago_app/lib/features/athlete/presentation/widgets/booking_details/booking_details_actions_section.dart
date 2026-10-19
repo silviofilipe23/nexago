@@ -14,6 +14,7 @@ class BookingDetailsActionsSection extends StatelessWidget {
     this.shareLoading = false,
     this.canCancel = true,
     this.actionsEnabled = true,
+    this.showCancel = true,
   });
 
   final VoidCallback onDirections;
@@ -24,6 +25,9 @@ class BookingDetailsActionsSection extends StatelessWidget {
   final bool shareLoading;
   final bool canCancel;
   final bool actionsEnabled;
+
+  /// Convidado não cancela a reserva de outro atleta: o botão nem aparece.
+  final bool showCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -59,13 +63,15 @@ class BookingDetailsActionsSection extends StatelessWidget {
           icon: Icons.ios_share_rounded,
           onTap: actionsEnabled && !shareLoading ? onShare : null,
         ),
-        const SizedBox(height: 8),
-        _ActionButton(
-          label: 'Cancelar reserva',
-          icon: Icons.cancel_outlined,
-          onTap: canCancel ? onCancel : null,
-          danger: true,
-        ),
+        if (showCancel) ...[
+          const SizedBox(height: 8),
+          _ActionButton(
+            label: 'Cancelar reserva',
+            icon: Icons.cancel_outlined,
+            onTap: canCancel ? onCancel : null,
+            danger: true,
+          ),
+        ],
       ],
     );
   }

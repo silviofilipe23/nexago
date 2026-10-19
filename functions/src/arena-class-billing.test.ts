@@ -181,6 +181,92 @@ describe("billing — agendador", () => {
   });
 });
 
+describe("billing — pausa e volta", () => {
+  const chargeIds = (fake: FakeFirestore, enrollmentId: string) =>
+    [...fake.store.keys()].filter((k) => k.startsWith(`arenaClassCharges/${enrollmentId}_`))
+      .map((k) => k.slice(`arenaClassCharges/${enrollmentId}_`.length)).sort();
+
+  async function pausedInOctober(fake: FakeFirestore, db: Firestore) {
+    seedArena(fake);
+    const {enrollmentId} = await createEnrollmentCore(db, request({waiveFee: true}), athlete("u1", "Marina"), "gestor", TODAY);
+    await setEnrollmentStatusCore(db, enrollmentId, "paused", "2026-10-20");
+    await runMonthlyBilling(db, "2026-10-26"); // pausada: a de novembro não nasce
+    return enrollmentId;
+  }
+
+  it("pausa em out e volta em dez: out/nov não são cobrados; dez sai proporcional a partir da volta", async () => {
+    const {fake, db} = makeDb();
+    const enrollmentId = await pausedInOctober(fake, db);
+    await setEnrollmentStatusCore(db, enrollmentId, "active", "2026-12-10");
+
+    // Dez/2026, ter+qui: 10 aulas; de 10/12 (qui) sobram 10, 15, 17, 22, 24, 29 e 31.
+    const dec = fake.store.get(`arenaClassCharges/${enrollmentId}_2026-12`)!;
+    assert.equal(dec["amountReais"], 224);
+    assert.equal(dec["dueDate"], "2026-12-10");
+    assert.equal(dec["period"], "2026-12");
+    assert.equal(dec["status"], "open");
+    assert.equal(dec["description"], "Mensal 2x/semana · dez/2026 (7 de 10 aulas)");
+    assert.equal(fake.store.get(`arenaClassEnrollments/${enrollmentId}`)!["billedThrough"], "2026-12");
+    // A de outubro (antes da pausa) fica como estava.
+    assert.equal(fake.store.get(`arenaClassCharges/${enrollmentId}_2026-10`)!["status"], "open");
+    assert.deepEqual(chargeIds(fake, enrollmentId), ["2026-10", "2026-12"]);
+  });
+
+  it("pausa e volta no mesmo mês: nada novo, nada duplicado", async () => {
+    const {fake, db} = makeDb();
+    seedArena(fake);
+    const {enrollmentId} = await createEnrollmentCore(db, request({waiveFee: true}), athlete("u1", "Marina"), "gestor", TODAY);
+    await setEnrollmentStatusCore(db, enrollmentId, "paused", "2026-10-20");
+    await setEnrollmentStatusCore(db, enrollmentId, "active", "2026-10-23");
+
+    assert.deepEqual(chargeIds(fake, enrollmentId), ["2026-10"]);
+    assert.equal(fake.store.get(`arenaClassCharges/${enrollmentId}_2026-10`)!["amountReais"], 142.22);
+    assert.equal(fake.store.get(`arenaClassEnrollments/${enrollmentId}`)!["billedThrough"], "2026-10");
+  });
+
+  it("volta num mês que já tem mensalidade não cria outra nem mexe na que existe", async () => {
+    const {fake, db} = makeDb();
+    const enrollmentId = await pausedInOctober(fake, db);
+    // Aluno pagou dezembro adiantado, cheio, antes de voltar.
+    fake.seedDoc(`arenaClassCharges/${enrollmentId}_2026-12`, {
+      arenaId: "arena1", enrollmentId, period: "2026-12", status: "paid", dueDate: "2026-12-05", amountReais: 320,
+    });
+    await setEnrollmentStatusCore(db, enrollmentId, "active", "2026-12-10");
+
+    const dec = fake.store.get(`arenaClassCharges/${enrollmentId}_2026-12`)!;
+    assert.equal(dec["status"], "paid");
+    assert.equal(dec["amountReais"], 320);
+    assert.equal(fake.store.get(`arenaClassEnrollments/${enrollmentId}`)!["billedThrough"], "2026-12");
+    assert.deepEqual(chargeIds(fake, enrollmentId), ["2026-10", "2026-12"]);
+  });
+
+  it("depois da volta o agendador só gera o mês seguinte, no prazo normal", async () => {
+    const {fake, db} = makeDb();
+    const enrollmentId = await pausedInOctober(fake, db);
+    await setEnrollmentStatusCore(db, enrollmentId, "active", "2026-12-10");
+
+    assert.equal((await runMonthlyBilling(db, "2026-12-10")).charges, 0);
+    assert.equal((await runMonthlyBilling(db, "2026-12-25")).charges, 0);
+    assert.equal((await runMonthlyBilling(db, "2026-12-26")).charges, 1); // 10 dias antes de 05/01
+    const jan = fake.store.get(`arenaClassCharges/${enrollmentId}_2027-01`)!;
+    assert.equal(jan["amountReais"], 320);
+    assert.equal(jan["dueDate"], "2027-01-05");
+    assert.equal(fake.store.get(`arenaClassCharges/${enrollmentId}_2026-12`)!["amountReais"], 224);
+    assert.deepEqual(chargeIds(fake, enrollmentId), ["2026-10", "2026-12", "2027-01"]);
+  });
+
+  it("pacote: pausar e reativar não mexe em cobrança", async () => {
+    const {fake, db} = makeDb();
+    seedArena(fake);
+    const {enrollmentId} = await createEnrollmentCore(db, request({planId: "p8", slots: [{classId: "cB", weekday: 4}], waiveFee: true}), athlete("u4", "Caio"), "gestor", TODAY);
+    await setEnrollmentStatusCore(db, enrollmentId, "paused", "2026-10-20");
+    await setEnrollmentStatusCore(db, enrollmentId, "active", "2026-12-10");
+
+    assert.deepEqual(chargeIds(fake, enrollmentId), ["package"]);
+    assert.equal(fake.store.get(`arenaClassEnrollments/${enrollmentId}`)!["billedThrough"], null);
+  });
+});
+
 describe("reposição e pacote na chamada", () => {
   async function setup(fake: FakeFirestore, db: Firestore, date = "2026-10-20") {
     seedArena(fake);

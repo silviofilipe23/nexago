@@ -280,6 +280,50 @@ export interface PlannedCharge {
   dueDate: string;
 }
 
+/** Mensal proporcional do mês de `fromDateKey` (matrícula ou volta da pausa); null se não sobra aula. */
+function proratedMonthCharge(
+  enrollmentId: string,
+  plan: Pick<ClassPlanData, "name" | "priceReais">,
+  weekdays: readonly number[],
+  fromDateKey: string,
+): PlannedCharge | null {
+  const month = monthKeyOf(fromDateKey);
+  const pro = proratedAmount(plan.priceReais, weekdays, fromDateKey);
+  if (pro.amountReais <= 0) return null;
+  return {
+    id: `${enrollmentId}_${month}`,
+    description: `${plan.name} · ${monthLabelPt(month)} (${pro.remaining} de ${pro.total} aulas)`,
+    period: month,
+    amountReais: pro.amountReais,
+    dueDate: fromDateKey,
+  };
+}
+
+/** Doc de uma cobrança em aberto da matrícula. */
+function openChargeData(
+  enrollmentId: string,
+  owner: {arenaId: unknown; studentId: unknown; athleteId: unknown; name: unknown; phone: unknown; paymentMethod: unknown},
+  c: PlannedCharge,
+): Record<string, unknown> {
+  return {
+    arenaId: owner.arenaId,
+    enrollmentId,
+    studentId: owner.studentId,
+    athleteId: owner.athleteId ?? null,
+    name: owner.name,
+    phone: owner.phone ?? null,
+    description: c.description,
+    period: c.period,
+    amountReais: c.amountReais,
+    dueDate: c.dueDate,
+    status: "open",
+    paidAt: null,
+    paidOn: null,
+    paymentMethod: owner.paymentMethod ?? "pix",
+    createdAt: FieldValue.serverTimestamp(),
+  };
+}
+
 /** Primeiras cobranças da matrícula (sem gravar). */
 export function firstCharges(
   enrollmentId: string,
@@ -292,18 +336,9 @@ export function firstCharges(
   const charges: PlannedCharge[] = [];
   let billedThrough: string | null = null;
   if (plan.kind === "monthly") {
-    const month = monthKeyOf(todayKey);
-    const pro = proratedAmount(plan.priceReais, weekdays, todayKey);
-    if (pro.amountReais > 0) {
-      charges.push({
-        id: `${enrollmentId}_${month}`,
-        description: `${plan.name} · ${monthLabelPt(month)} (${pro.remaining} de ${pro.total} aulas)`,
-        period: month,
-        amountReais: pro.amountReais,
-        dueDate: todayKey,
-      });
-    }
-    billedThrough = month;
+    const charge = proratedMonthCharge(enrollmentId, plan, weekdays, todayKey);
+    if (charge) charges.push(charge);
+    billedThrough = monthKeyOf(todayKey);
   } else if (plan.kind === "package") {
     charges.push({
       id: `${enrollmentId}_package`,
@@ -495,23 +530,14 @@ export async function createEnrollmentCore(
     }
 
     for (const c of charges) {
-      tx.set(db.collection(ARENA_CLASS_CHARGES).doc(c.id), {
+      tx.set(db.collection(ARENA_CLASS_CHARGES).doc(c.id), openChargeData(enrollmentRef.id, {
         arenaId: req.arenaId,
-        enrollmentId: enrollmentRef.id,
         studentId,
         athleteId: student.athleteId,
         name: student.name,
         phone: student.phone,
-        description: c.description,
-        period: c.period,
-        amountReais: c.amountReais,
-        dueDate: c.dueDate,
-        status: "open",
-        paidAt: null,
-        paidOn: null,
         paymentMethod: req.paymentMethod,
-        createdAt: FieldValue.serverTimestamp(),
-      });
+      }, c));
     }
 
     if (waitlistRef && waitlistSnap?.exists) {
@@ -537,7 +563,12 @@ export const createArenaClassEnrollment = onCall({region: CLIENT_FACING_REGIONS}
   return result;
 });
 
-/** Pausar (sai da chamada, sem novas mensalidades), reativar (confere a vaga) ou cancelar. */
+/**
+ * Pausar (sai da chamada, sem novas mensalidades), reativar (confere a vaga) ou cancelar.
+ *
+ * Reativar a mensal não cobra os meses parados: `billedThrough` pula para o mês da volta, que sai
+ * proporcional às aulas restantes (como a 1ª cobrança), a menos que esse mês já tenha mensalidade.
+ */
 export async function setEnrollmentStatusCore(
   db: Firestore,
   enrollmentId: string,
@@ -568,6 +599,14 @@ export async function setEnrollmentStatusCore(
     }
     const openCharges = status === "canceled" ?
       await tx.get(db.collection(ARENA_CLASS_CHARGES).where("enrollmentId", "==", enrollmentId)) :
+      null;
+    const plan = parsePlan((data["plan"] ?? {}) as Record<string, unknown>);
+    const billedThrough = typeof data["billedThrough"] === "string" ? data["billedThrough"] : null;
+    const resumeMonth = monthKeyOf(todayKey);
+    const resumesBilling = status === "active" && plan.kind === "monthly" &&
+      (billedThrough == null || billedThrough < resumeMonth);
+    const resumeChargeSnap = resumesBilling ?
+      await tx.get(db.collection(ARENA_CLASS_CHARGES).doc(`${enrollmentId}_${resumeMonth}`)) :
       null;
 
     if (status === "active") {
@@ -607,10 +646,26 @@ export async function setEnrollmentStatusCore(
         canceledCharges += 1;
       }
     }
+
+    // Mês da volta: proporcional a partir de hoje; cobrança que já existe (aberta, paga) fica.
+    const resumeCharge = resumeChargeSnap && !resumeChargeSnap.exists ?
+      proratedMonthCharge(enrollmentId, plan, slots.map((s) => Number(s["weekday"])), todayKey) :
+      null;
+    if (resumeCharge) {
+      tx.set(db.collection(ARENA_CLASS_CHARGES).doc(resumeCharge.id), openChargeData(enrollmentId, {
+        arenaId: data["arenaId"],
+        studentId: data["studentId"],
+        athleteId: data["athleteId"],
+        name: data["name"],
+        phone: data["phone"],
+        paymentMethod: data["paymentMethod"],
+      }, resumeCharge));
+    }
     tx.set(ref, {
       status,
       ...(status === "canceled" ? {canceledAt: FieldValue.serverTimestamp()} : {}),
       ...(status === "paused" ? {pausedAt: FieldValue.serverTimestamp()} : {}),
+      ...(resumesBilling ? {billedThrough: resumeMonth} : {}),
       updatedAt: FieldValue.serverTimestamp(),
     }, {merge: true});
     return {status, canceledCharges};

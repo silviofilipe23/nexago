@@ -42,6 +42,7 @@ abstract final class AnalyticsEvents {
   // Loja · Personalizar (app 02b/02c, `docs/business-rules/loja-personalizar.md`).
   static const storeCustomizeName = 'loja_personalizar_nome';
   static const storeCustomizeImage = 'loja_personalizar_imagem';
+  static const storeCustomizeBack = 'loja_personalizar_costas';
 
   // Loja · Favoritos (app 09, `docs/business-rules/loja-favoritos.md`).
   static const storeFavoritesView = 'loja_favoritos_view';

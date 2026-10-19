@@ -251,6 +251,29 @@ abstract final class StoreCopy {
   static String customizeMockup({required bool back}) =>
       'MOCKUP · ${back ? 'COSTAS' : 'FRENTE'}';
 
+  // Personalizar · Costas (abaixo do nome)
+  static const customizeTabBack = 'Costas';
+  static const customizeBackNumber = 'Número';
+  static const customizeBackImage = 'Imagem';
+  static const customizeBackNumberHintText = 'Digite o número';
+  static const customizeBackQualityWarn =
+      'Pode ficar levemente borrada no tamanho das costas';
+  static const customizeYourNumber = 'Nº';
+
+  /// "+ R$ 9,90" (as costas somam ao nome/imagem).
+  static String customizeBackPrice(int cents) => '+ ${price(cents)}';
+
+  /// "Até 2 dígitos · 0 a 99".
+  static String customizeBackNumberHint(int maxDigits) {
+    final digits = maxDigits < 1 ? 1 : maxDigits;
+    final max = '9' * digits;
+    return 'Até $digits ${digits == 1 ? 'dígito' : 'dígitos'} · 0 a $max';
+  }
+
+  /// "Sai centralizada · 25 × 25 cm".
+  static String customizeBackImageArea(double widthCm, double heightCm) =>
+      'Sai centralizada · ${customizeAreaSize(widthCm, heightCm)}';
+
   /// "5 dias úteis".
   static String businessDays(int days) =>
       '$days ${days == 1 ? 'dia útil' : 'dias úteis'}';

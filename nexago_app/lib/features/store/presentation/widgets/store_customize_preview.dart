@@ -64,10 +64,42 @@ class StorePreviewImage {
   final StoreImageTransform transform;
 }
 
+/// O que a prévia desenha nas costas, abaixo (ou acima) do nome: o número
+/// na fonte e na cor do nome, ou a imagem centralizada e inteira na caixa.
+class StorePreviewBack {
+  const StorePreviewBack({
+    required this.box,
+    required this.type,
+    this.number = '',
+    this.font = StoreCustomFont.bloco,
+    this.color = Colors.white,
+    this.hasImage = false,
+    this.imageBytes,
+    this.active = false,
+  });
+
+  /// Caixa das costas em frações do quadro ([storeBackBox]).
+  final StoreBackBox box;
+  final StoreBackType type;
+  final String number;
+  final StoreCustomFont font;
+  final Color color;
+
+  /// Imagem escolhida, centralizada e inteira na caixa ("contain").
+  final bool hasImage;
+
+  /// `null` com [hasImage] = vetor (SVG): um bloco "SVG" no lugar.
+  final Uint8List? imageBytes;
+
+  /// Aba Costas aberta: caixa tracejada e o espaço reservado.
+  final bool active;
+}
+
 /// Prévia ilustrativa (300 de altura no desenho): foto do lado e da cor, ou
 /// listrado "MOCKUP · FRENTE/COSTAS"; o nome na faixa do placement (uma
-/// linha, fonte reduzida até caber) e a imagem na área, com arrastar e
-/// pinça presos dentro dela.
+/// linha, fonte reduzida até caber), a imagem na área, com arrastar e
+/// pinça presos dentro dela, e as costas (número ou imagem) na caixa das
+/// costas.
 ///
 /// O quadro é a peça de referência de 60 × 70 cm centrada na prévia: as
 /// áreas mantêm a proporção em cm.
@@ -88,6 +120,7 @@ class StoreCustomizePreview extends StatefulWidget {
     this.image,
     this.imageActive = false,
     this.onTransform,
+    this.back,
   });
 
   final double height;
@@ -116,6 +149,9 @@ class StoreCustomizePreview extends StatefulWidget {
   final bool imageActive;
   final ValueChanged<StoreImageTransform>? onTransform;
 
+  /// `null` = produto sem costas.
+  final StorePreviewBack? back;
+
   @override
   State<StoreCustomizePreview> createState() => _StoreCustomizePreviewState();
 }
@@ -136,6 +172,15 @@ class _StoreCustomizePreviewState extends State<StoreCustomizePreview> {
       widget.area != null &&
       widget.side == StorePhotoView.front &&
       (widget.image != null || widget.imageActive);
+
+  bool get _showBack {
+    final back = widget.back;
+    if (back == null || widget.side != StorePhotoView.back) return false;
+    if (back.active) return true;
+    return back.type == StoreBackType.number
+        ? back.number.isNotEmpty
+        : back.hasImage;
+  }
 
   bool get _canAdjust =>
       widget.imageActive &&
@@ -201,6 +246,7 @@ class _StoreCustomizePreviewState extends State<StoreCustomizePreview> {
                     ),
                   ),
                 if (_showName) _name(frame),
+                if (_showBack) _back(frame),
                 if (_showArea) ..._area(frame),
                 if (_canAdjust)
                   Positioned.fill(
@@ -298,6 +344,68 @@ class _StoreCustomizePreviewState extends State<StoreCustomizePreview> {
               child: FittedBox(fit: BoxFit.scaleDown, child: text),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Número (uma linha, fonte reduzida até caber) ou imagem inteira na
+  /// caixa das costas.
+  Widget _back(Rect frame) {
+    final back = widget.back!;
+    final rect = Rect.fromCenter(
+      center: Offset(
+        frame.left + back.box.x * frame.width,
+        frame.top + back.box.y * frame.height,
+      ),
+      width: frame.width * back.box.width,
+      height: frame.height * back.box.height,
+    );
+    final Widget content;
+    if (back.type == StoreBackType.number) {
+      final empty = back.number.isEmpty;
+      content = Padding(
+        padding: const EdgeInsets.all(4),
+        child: Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              empty ? StoreCopy.customizeYourNumber : back.number,
+              key: const ValueKey('store-customize-preview-back-number'),
+              maxLines: 1,
+              softWrap: false,
+              style: storeCustomFontStyle(
+                back.font,
+                fontSize: rect.height * 0.8,
+                color: back.color.withValues(alpha: empty ? 0.35 : 1),
+              ),
+            ),
+          ),
+        ),
+      );
+    } else {
+      final bytes = back.imageBytes;
+      content = !back.hasImage
+          ? const _ImagePlaceholder(label: StoreCopy.customizeYourImage)
+          : bytes == null
+              ? const _ImagePlaceholder(label: 'SVG')
+              : Image.memory(
+                  bytes,
+                  key: const ValueKey('store-customize-preview-back-image'),
+                  fit: BoxFit.contain,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, _, _) => const _ImagePlaceholder(label: ''),
+                );
+    }
+    return Positioned.fromRect(
+      rect: rect,
+      child: IgnorePointer(
+        child: CustomPaint(
+          key: const ValueKey('store-customize-preview-back'),
+          foregroundPainter: back.active
+              ? const _DashedBorderPainter(color: AppColors.brand)
+              : null,
+          child: content,
         ),
       ),
     );

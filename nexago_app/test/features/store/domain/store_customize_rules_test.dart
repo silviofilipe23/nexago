@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/store/domain/store_customize_rules.dart';
+import 'package:nexago_app/features/store/domain/store_customize_service.dart';
 import 'package:nexago_app/features/store/domain/store_models.dart';
 
 /// Cabeçalho de PNG com IHDR [w] × [h] (o resto do arquivo não importa).
@@ -522,6 +523,224 @@ void main() {
       );
       expect(t, const StoreImageTransform(x: 0.5, y: 0.5, scale: 1));
       expect(t.toMap(), {'x': 0.5, 'y': 0.5, 'scale': 1.0});
+    });
+  });
+
+  group('costas (abaixo do nome)', () {
+    const back = StoreCustomBackOptions(
+      enabled: true,
+      allowNumber: true,
+      allowImage: true,
+      numberMaxDigits: 2,
+      widthCm: 25,
+      heightCm: 25,
+    );
+    const price = StoreCustomPrice(
+      nameOnlyCents: 1490,
+      imageOnlyCents: 1990,
+      bothCents: 2490,
+      backCents: 990,
+    );
+
+    test('preço: costas somam backCents por cima de nome/imagem', () {
+      int extra({bool name = false, bool image = false, bool costas = false}) =>
+          storeCustomExtraCents(
+            price,
+            hasName: name,
+            hasImage: image,
+            hasBack: costas,
+          );
+      expect(extra(costas: true), 990);
+      expect(extra(name: true, costas: true), 1490 + 990);
+      expect(extra(image: true, costas: true), 1990 + 990);
+      expect(extra(name: true, image: true, costas: true), 2490 + 990);
+      // Sem costas, a conta de antes.
+      expect(extra(name: true, image: true), 2490);
+      expect(extra(), 0);
+      // Espelho antigo sem backCents: costas não mudam o preço.
+      expect(
+        storeCustomExtraCents(
+          const StoreCustomPrice(nameOnlyCents: 1490),
+          hasName: true,
+          hasImage: false,
+          hasBack: true,
+        ),
+        1490,
+      );
+    });
+
+    test('número: só dígitos, até numberMaxDigits (o backNumberOk)', () {
+      expect(storeBackNumberOk('10', 2), isTrue);
+      expect(storeBackNumberOk('7', 2), isTrue);
+      expect(storeBackNumberOk('0', 1), isTrue);
+      expect(storeBackNumberOk('07', 2), isTrue);
+      expect(storeBackNumberOk('123', 3), isTrue);
+      expect(storeBackNumberOk('100', 2), isFalse);
+      expect(storeBackNumberOk('', 2), isFalse);
+      expect(storeBackNumberOk('1a', 2), isFalse);
+      expect(storeBackNumberOk(' 1', 2), isFalse);
+      expect(storeBackNumberOk('-1', 2), isFalse);
+      expect(storeBackNumberOk('1.5', 3), isFalse);
+    });
+
+    test('tipo: o escolhido se liberado; padrão Número', () {
+      expect(storeBackTypeOf(back, null), StoreBackType.number);
+      expect(storeBackTypeOf(back, StoreBackType.image), StoreBackType.image);
+      const onlyImage = StoreCustomBackOptions(enabled: true, allowImage: true);
+      expect(storeBackTypeOf(onlyImage, null), StoreBackType.image);
+      expect(
+        storeBackTypeOf(onlyImage, StoreBackType.number),
+        StoreBackType.image,
+      );
+      const onlyNumber =
+          StoreCustomBackOptions(enabled: true, allowNumber: true);
+      expect(
+        storeBackTypeOf(onlyNumber, StoreBackType.image),
+        StoreBackType.number,
+      );
+      expect(StoreBackType.number.id, 'numero');
+      expect(StoreBackType.image.id, 'imagem');
+    });
+
+    test('título pelo lugar do nome', () {
+      expect(
+        storeBackStepTitle(StoreNamePlacement.backUpper),
+        'Costas · abaixo do nome',
+      );
+      expect(
+        storeBackStepTitle(StoreNamePlacement.backLower),
+        'Costas · acima do nome',
+      );
+      expect(storeBackStepTitle(StoreNamePlacement.front), 'Costas');
+      expect(storeBackStepTitle(null), 'Costas');
+    });
+
+    test('caixa: abaixo do nome em cima', () {
+      final box = storeBackBox(back, StoreNamePlacement.backUpper);
+      final h = 25 / 70;
+      expect(box.x, 0.5);
+      expect(box.width, closeTo(25 / 60, 1e-9));
+      expect(box.height, closeTo(h, 1e-9));
+      // 0,24 + 0,075 + 0,03 + h/2: o topo da caixa encosta 0,03 abaixo da
+      // faixa do nome.
+      expect(box.y, closeTo(0.24 + 0.075 + 0.03 + h / 2, 1e-9));
+      expect(box.y - h / 2, closeTo(0.24 + 0.075 + 0.03, 1e-9));
+    });
+
+    test('caixa: acima do nome em costas_inferior', () {
+      final box = storeBackBox(back, StoreNamePlacement.backLower);
+      final h = 25 / 70;
+      expect(box.y, closeTo(0.62 - 0.075 - 0.03 - h / 2, 1e-9));
+      expect(box.y + h / 2, closeTo(0.62 - 0.075 - 0.03, 1e-9));
+    });
+
+    test('caixa: sem nome nas costas fica em 0,45', () {
+      for (final placement in [
+        null,
+        StoreNamePlacement.front,
+        StoreNamePlacement.sleeve,
+      ]) {
+        final box = storeBackBox(back, placement);
+        expect(box.y, 0.45, reason: '$placement');
+        expect(box.x, 0.5);
+      }
+    });
+
+    test('caixa: sempre dentro do quadro', () {
+      // 40 × 60 cm abaixo do nome passaria do pé da peça.
+      const tall = StoreCustomBackOptions(
+        enabled: true,
+        allowNumber: true,
+        widthCm: 40,
+        heightCm: 60,
+      );
+      final box = storeBackBox(tall, StoreNamePlacement.backUpper);
+      expect(box.y + box.height / 2, closeTo(1, 1e-9));
+      final above = storeBackBox(tall, StoreNamePlacement.backLower);
+      expect(above.y - above.height / 2, closeTo(0, 1e-9));
+      // Maior que a peça: a caixa é o quadro inteiro.
+      const huge = StoreCustomBackOptions(
+        enabled: true,
+        allowNumber: true,
+        widthCm: 90,
+        heightCm: 90,
+      );
+      final full = storeBackBox(huge, StoreNamePlacement.backUpper);
+      expect(full.width, 1);
+      expect(full.height, 1);
+      expect(full.y, 0.5);
+    });
+
+    test('qualidade da imagem pela área das costas', () {
+      // 25 cm = 9,84 pol: 2400 px → 243 dpi (aviso); 3000 px → 305 dpi.
+      expect(
+        storeBackImageQuality(widthPx: 2400, heightPx: 2400, back: back),
+        StoreImageQuality.warn,
+      );
+      expect(
+        storeBackImageQuality(widthPx: 3000, heightPx: 3000, back: back),
+        StoreImageQuality.good,
+      );
+      // Vetor não tem limite.
+      expect(
+        storeBackImageQuality(widthPx: null, heightPx: null, back: back),
+        StoreImageQuality.good,
+      );
+      // A mesma imagem no peito (9 × 9 cm) seria boa: conta a área das costas.
+      expect(
+        storeImageQuality(
+          storeEffectiveDpi(widthPx: 2400, heightPx: 2400, area: _peito),
+        ),
+        StoreImageQuality.good,
+      );
+      final area = storeBackArea(back);
+      expect(area.widthCm, 25);
+      expect(area.heightCm, 25);
+    });
+
+    test('cor do número: a do nome; sem nome, contraste com a peça', () {
+      expect(
+        storeBackNumberColor(nameColor: '#ff6a1a', garmentHex: '#111111'),
+        '#ff6a1a',
+      );
+      expect(storeBackNumberColor(garmentHex: '#111111'), '#ffffff');
+      expect(storeBackNumberColor(garmentHex: '#F1ECE2'), '#000000');
+      // Sem cor de peça: o mockup é escuro.
+      expect(storeBackNumberColor(), '#ffffff');
+    });
+
+    test('callable recebe back número ou imagem', () {
+      expect(
+        const StoreCustomCartRequest(
+          productId: 'cam',
+          skuId: 'preto_m',
+          back: StoreCustomBackChoice.number('10'),
+        ).toMap(),
+        {
+          'productId': 'cam',
+          'skuId': 'preto_m',
+          'qty': 1,
+          'back': {'type': 'numero', 'number': '10'},
+        },
+      );
+      expect(
+        const StoreCustomBackChoice.image(
+          path: 'store/custom-uploads/u1/a.png',
+          transform: StoreImageTransform(x: 0.5, y: 0.5, scale: 1),
+        ).toMap(),
+        {
+          'type': 'imagem',
+          'path': 'store/custom-uploads/u1/a.png',
+          'transform': {'x': 0.5, 'y': 0.5, 'scale': 1.0},
+        },
+      );
+      // Sem costas, a chave nem vai.
+      expect(
+        const StoreCustomCartRequest(productId: 'cam', skuId: 'preto_m')
+            .toMap()
+            .containsKey('back'),
+        isFalse,
+      );
     });
   });
 }

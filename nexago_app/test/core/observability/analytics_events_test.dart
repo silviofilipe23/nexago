@@ -108,6 +108,7 @@ void main() {
     test('event names match the contract', () {
       expect(AnalyticsEvents.storeCustomizeName, 'loja_personalizar_nome');
       expect(AnalyticsEvents.storeCustomizeImage, 'loja_personalizar_imagem');
+      expect(AnalyticsEvents.storeCustomizeBack, 'loja_personalizar_costas');
     });
 
     test('uses the contract param names; personalizado becomes 1/0', () {
@@ -120,6 +121,7 @@ void main() {
         storeEventParams(area: 'peito_esquerdo', quality: 'good'),
         {'area': 'peito_esquerdo', 'qualidade': 'good'},
       );
+      expect(storeEventParams(type: 'numero'), {'tipo': 'numero'});
       expect(
         storeEventParams(
           sku: 'preto_m',

@@ -348,6 +348,13 @@ abstract final class AppRoutes {
   static const String arenaClubDetail = '/arena/clubs/:clubId';
   static const String arenaClubEdit = '/arena/clubs/:clubId/edit';
 
+  // --- Aulas (gestor) — literais antes de [arenaDetail] no router ---
+  /// Aulas do dia + turmas: `/arena/classes`
+  static const String arenaClasses = '/arena/classes';
+
+  /// Chamada de uma aula: `/arena/classes/session/:sessionId`
+  static const String arenaClassSession = '/arena/classes/session/:sessionId';
+
   static const String arenaSettings = '/arena/settings';
 
   /// Disponibilidade / horários na agenda (gestor). Antes de [arenaDetail].
@@ -766,6 +773,8 @@ abstract final class AppRouteNames {
   static const String arenaClubDetail = 'arenaClubDetail';
   static const String arenaClubEdit = 'arenaClubEdit';
   static const String arenaClubSession = 'arenaClubSession';
+  static const String arenaClasses = 'arenaClasses';
+  static const String arenaClassSession = 'arenaClassSession';
   static const String clubSession = 'clubSession';
   static const String clubSessionPix = 'clubSessionPix';
   static const String arenaSettings = 'arenaSettings';

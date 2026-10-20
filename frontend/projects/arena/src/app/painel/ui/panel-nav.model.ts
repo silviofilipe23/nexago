@@ -52,6 +52,8 @@ export const NAV_ITEMS: readonly PanelNavItem[] = [
   // ao trazer a main para este branch. Reativar é descomentar esta linha.
   // { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios', badge: 2, area: 'torneios', group: 'publico' },
 
+  // Vínculos professor ↔ arena: dono e gestor (área `perfil` — o professor aparece na página pública).
+  { id: 'profissionais', label: 'Profissionais', icon: 'person', route: '/painel/profissionais', badge: null, area: 'perfil', group: 'conta' },
   { id: 'equipe', label: 'Equipe', icon: 'team', route: '/painel/equipe', badge: null, area: 'owner', group: 'conta' },
   { id: 'planos', label: 'Planos', icon: 'card', route: '/painel/planos', badge: null, area: 'owner', group: 'conta' },
 ];

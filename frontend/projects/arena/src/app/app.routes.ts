@@ -438,6 +438,24 @@ export const routes: Routes = [
       import('./painel/ranking/panel-ranking.component').then((m) => m.PanelRankingComponent),
   },
   {
+    path: 'painel/profissionais',
+    title: 'Profissionais — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('perfil')],
+    loadComponent: () =>
+      import('./painel/profissionais/panel-professionals.component').then(
+        (m) => m.PanelProfessionalsComponent,
+      ),
+  },
+  {
+    path: 'painel/profissionais/:linkId',
+    title: 'Profissional — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('perfil')],
+    loadComponent: () =>
+      import('./painel/profissionais/panel-professional-detail.component').then(
+        (m) => m.PanelProfessionalDetailComponent,
+      ),
+  },
+  {
     path: 'painel/equipe',
     title: 'Equipe — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaOwnerGuard],

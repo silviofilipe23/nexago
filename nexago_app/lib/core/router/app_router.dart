@@ -111,6 +111,8 @@ import '../../features/arena/presentation/aulas/arena_class_payouts_page.dart';
 import '../../features/arena/presentation/aulas/arena_class_student_page.dart';
 import '../../features/arena/presentation/aulas/arena_class_teacher_payout_page.dart';
 import '../../features/arena/presentation/aulas/arena_classes_page.dart';
+import '../../features/arena/presentation/professionals/arena_professional_detail_page.dart';
+import '../../features/arena/presentation/professionals/arena_professionals_page.dart';
 import '../../features/arena/presentation/arena_recurring_details_page.dart';
 import '../../features/arena/presentation/arena_recurring_created_success_page.dart';
 import '../../features/arena/presentation/arena_recurring_form_page.dart';
@@ -2398,6 +2400,21 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+      // Profissionais (vínculos com professores): guard de area = perfil.
+      GoRoute(
+        path: AppRoutes.arenaProfessionals,
+        name: AppRouteNames.arenaProfessionals,
+        builder: (context, state) => const ArenaProfessionalsPage(),
+        routes: [
+          GoRoute(
+            path: ':linkId',
+            name: AppRouteNames.arenaProfessionalDetail,
+            builder: (context, state) => ArenaProfessionalDetailPage(
+              linkId: state.pathParameters['linkId']?.trim() ?? '',
+            ),
           ),
         ],
       ),

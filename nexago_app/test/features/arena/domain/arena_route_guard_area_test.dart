@@ -84,6 +84,19 @@ void main() {
       );
       expect(arenaAlternateAreaForPath('/arena/classes/payouts/t1'), isNull);
     });
+
+    test('profissionais (vinculos com professores) sao painel e area perfil',
+        () {
+      // Sem a rota em isArenaManagerPanelPath, /arena/professionals cairia
+      // no perfil publico /arena/:arenaId e recepcao/financeiro entrariam.
+      expect(isArenaManagerPanelPath('/arena/professionals'), isTrue);
+      expect(arenaAreaForPath('/arena/professionals'), ArenaArea.perfil);
+      expect(
+        arenaAreaForPath('/arena/professionals/arena-cfc_prof-1'),
+        ArenaArea.perfil,
+      );
+      expect(arenaAlternateAreaForPath('/arena/professionals'), isNull);
+    });
   });
 
   group('isArenaOwnerOnlyPath', () {

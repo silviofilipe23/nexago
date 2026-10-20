@@ -570,6 +570,31 @@ AthleteNotificationPresentation _basePresentation(
             : const [],
         routePath: resolveNotificationRoute({...data, 'type': type}),
       );
+    // Mesmo vínculo, lado da arena (dono e gestores): pedido novo, convite
+    // aceito/recusado e encerramento pelo professor abrem o vínculo no painel.
+    case 'arena_professor_request':
+    case 'arena_professor_invite_accepted':
+    case 'arena_professor_invite_declined':
+    case 'arena_professor_ended':
+      final color = switch (type) {
+        'arena_professor_request' => AppColors.pending,
+        'arena_professor_invite_accepted' => AppColors.win,
+        _ => AppColors.onSurfaceMuted,
+      };
+      return AthleteNotificationPresentation(
+        icon: Icons.school_outlined,
+        iconColor: color,
+        iconBackground: color.withValues(alpha: 0.12),
+        actions: type == 'arena_professor_request'
+            ? const [
+                AthleteNotificationAction(
+                  label: 'Analisar',
+                  kind: AthleteNotificationActionKind.primary,
+                ),
+              ]
+            : const [],
+        routePath: resolveNotificationRoute({...data, 'type': type}),
+      );
     default:
       // Mesma tradução do push: avisos do organizador (que o staff recebe aqui) traziam o
       // `url` do portal (`/painel/...`), rota que não existe no app.

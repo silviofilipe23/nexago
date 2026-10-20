@@ -40,7 +40,8 @@ String arenaProfessorStatusLabel(ArenaProfessorLinkStatus status) =>
 // ---------------------------------------------------------------------------
 
 /// Equipe da arena: as três. Independente: aulas e quadras, fora da página
-/// pública (espelho de `defaultArenaProfessorPermissions` no servidor).
+/// pública (espelho de `defaultArenaProfessorPermissions` no servidor). As
+/// Aulas da arena (matricular/agendar/cancelar) começam desligadas nos dois.
 ArenaProfessorPermissions defaultArenaProfessorPermissions(
   ArenaProfessorLinkType type,
 ) =>
@@ -55,19 +56,27 @@ ArenaProfessorPermissions arenaProfessorPermissionsWith(
   ArenaProfessorPermissionKey key,
   bool value,
 ) =>
-    ArenaProfessorPermissions(
-      canManageOwnLessons:
-          key == ArenaProfessorPermissionKey.canManageOwnLessons
-              ? value
-              : permissions.canManageOwnLessons,
-      canBookCourts: key == ArenaProfessorPermissionKey.canBookCourts
-          ? value
-          : permissions.canBookCourts,
-      canAppearInArenaProfile:
-          key == ArenaProfessorPermissionKey.canAppearInArenaProfile
-              ? value
-              : permissions.canAppearInArenaProfile,
-    );
+    permissions.withValue(key, value);
+
+/// Grupos de interruptores que a arena vê para o [type]: o das Aulas da arena
+/// só existe na equipe (o servidor recusa ligar no independente).
+List<({String? title, List<ProfessorPermissionInfo> items})>
+    arenaProfessorPermissionGroups(ArenaProfessorLinkType type) => [
+          (title: null, items: professorPermissionCatalog),
+          if (type == ArenaProfessorLinkType.arenaStaff)
+            (
+              title: professorArenaLessonsGroupTitle,
+              items: professorArenaLessonsPermissionCatalog,
+            ),
+        ];
+
+/// O que vai no convite/aprovação/reenvio: nunca `true` de chave só de
+/// equipe num vínculo independente (o servidor recusaria o pedido inteiro).
+ArenaProfessorPermissions arenaProfessorPermissionsToSend(
+  ArenaProfessorPermissions permissions,
+  ArenaProfessorLinkType type,
+) =>
+    professorPermissionsForType(permissions, type);
 
 /// Corpo `permissions` das callables (chaves do servidor).
 Map<String, bool> arenaProfessorPermissionsToMap(
@@ -92,7 +101,7 @@ ArenaProfessorPermissions arenaProfessorPermissionsShown(
   DateTime now,
 ) =>
     effectiveProfessorLinkStatus(link, now).isOpen
-        ? link.permissions
+        ? professorPermissionsForType(link.permissions, link.type)
         : ArenaProfessorPermissions.none;
 
 /// Aviso do card de permissões quando elas não estão valendo; `null` no ativo.

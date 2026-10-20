@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 import {
-  PROFESSOR_PERMISSION_COPY,
+  PROFESSOR_STAFF_ONLY_NOTE,
   PROFESSOR_TYPE_COPY,
+  permissionGroupsFor,
   arenaInitials,
   professorStatusColor,
   professorStatusLabel,
@@ -130,12 +131,20 @@ export class PfTypeTagComponent {
   protected readonly copy = computed(() => PROFESSOR_TYPE_COPY[this.type()]);
 }
 
-/** Lista das três permissões, ligadas (check verde) ou não (x apagado). */
+/** Lista das permissões, ligadas (check verde) ou não (x apagado). As três de base sempre; o
+ *  grupo "Aulas da arena" só para vínculo de equipe (`type`). */
 @Component({
   selector: 'app-pf-perm-list',
   template: `
+    @for (g of groups(); track g.title) {
+    @if (g.title) {
+      <div class="group">
+        <span class="group-title">{{ g.title }}</span>
+        <span class="group-note">{{ staffOnlyNote }}</span>
+      </div>
+    }
     <ul>
-      @for (p of rows(); track p.key) {
+      @for (p of g.rows; track p.key) {
         <li [class.on]="p.on">
           <span class="box" aria-hidden="true">
             @if (p.on) {
@@ -153,8 +162,32 @@ export class PfTypeTagComponent {
         </li>
       }
     </ul>
+    }
   `,
   styles: `
+    .group {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+      padding: 14px 0 4px;
+      border-top: 1px solid var(--nx-line-strong);
+    }
+    .group-title {
+      font-family: var(--nx-font-mono);
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+    }
+    .group-note {
+      font-family: var(--nx-font-ui);
+      font-size: 11px;
+      color: var(--nx-text-dim);
+    }
     ul {
       list-style: none;
       margin: 0;
@@ -224,9 +257,15 @@ export class PfTypeTagComponent {
 })
 export class PfPermListComponent {
   readonly perms = input.required<ProfessorPermissions>();
+  /** Tipo do vínculo: decide se o grupo "Aulas da arena" aparece. */
+  readonly type = input.required<ProfessorLinkType>();
   readonly dense = input(false);
-  protected readonly rows = computed(() =>
-    PROFESSOR_PERMISSION_COPY.map((p) => ({ ...p, on: this.perms()[p.key] === true })),
+  protected readonly staffOnlyNote = PROFESSOR_STAFF_ONLY_NOTE;
+  protected readonly groups = computed(() =>
+    permissionGroupsFor(this.type()).map((g) => ({
+      title: g.title,
+      rows: g.items.map((p) => ({ ...p, on: this.perms()[p.key] === true })),
+    })),
   );
 }
 

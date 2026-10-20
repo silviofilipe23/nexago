@@ -62,8 +62,22 @@ export const ARENA_PROFESSOR_PERMISSION_KEYS = [
   "canManageOwnLessons",
   "canBookCourts",
   "canAppearInArenaProfile",
+  "canEnrollStudents",
+  "canScheduleLessons",
+  "canCancelLessons",
 ] as const;
 export type ArenaProfessorPermissionKey = (typeof ARENA_PROFESSOR_PERMISSION_KEYS)[number];
+
+/**
+ * Agir nas Aulas da arena em nome dela (matricular, encaixar/agendar, cancelar): só o professor
+ * da EQUIPE, e só quando a arena liga — desligadas por padrão, inclusive em vínculo antigo (chave
+ * ausente). Spec: `docs/superpowers/specs/2026-10-20-professor-app-alunos-fase-2-design.md`.
+ */
+export const ARENA_STAFF_ONLY_PERMISSION_KEYS: ReadonlySet<ArenaProfessorPermissionKey> = new Set([
+  "canEnrollStudents",
+  "canScheduleLessons",
+  "canCancelLessons",
+]);
 export type ArenaProfessorPermissions = Record<ArenaProfessorPermissionKey, boolean>;
 
 /** Estados que bloqueiam um novo convite/pedido para o mesmo par. */
@@ -117,12 +131,18 @@ export function parseArenaProfessorType(raw: unknown): ArenaProfessorType {
   throw new HttpsError("invalid-argument", "Escolha o tipo de vínculo: equipe da arena ou independente.");
 }
 
-/** Equipe da arena: as três. Independente: aulas e quadras, fora da página pública. */
+/**
+ * Equipe da arena: chamada, quadras e página pública. Independente: chamada e quadras, fora da
+ * página pública. As ações nas Aulas da arena começam desligadas nos dois.
+ */
 export function defaultArenaProfessorPermissions(type: ArenaProfessorType): ArenaProfessorPermissions {
   return {
     canManageOwnLessons: true,
     canBookCourts: true,
     canAppearInArenaProfile: type === "ARENA_STAFF",
+    canEnrollStudents: false,
+    canScheduleLessons: false,
+    canCancelLessons: false,
   };
 }
 
@@ -146,6 +166,12 @@ export function parseArenaProfessorPermissions(
     if (typeof value !== "boolean") {
       throw new HttpsError("invalid-argument", "Permissões inválidas.");
     }
+    if (value && type !== "ARENA_STAFF" && ARENA_STAFF_ONLY_PERMISSION_KEYS.has(key)) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Matricular, agendar e cancelar aulas da arena é só para professor da equipe.",
+      );
+    }
     out[key] = value;
   }
   return out;
@@ -155,13 +181,18 @@ export function parseArenaProfessorPermissions(
 export function effectiveArenaProfessorPermissions(link: {
   status?: unknown;
   permissions?: unknown;
+  relationshipType?: unknown;
 }): ArenaProfessorPermissions {
   const stored = (link.permissions ?? {}) as Record<string, unknown>;
   const active = link.status === "ACTIVE";
+  const staff = active && link.relationshipType === "ARENA_STAFF";
   return {
     canManageOwnLessons: active && stored["canManageOwnLessons"] === true,
     canBookCourts: active && stored["canBookCourts"] === true,
     canAppearInArenaProfile: active && stored["canAppearInArenaProfile"] === true,
+    canEnrollStudents: staff && stored["canEnrollStudents"] === true,
+    canScheduleLessons: staff && stored["canScheduleLessons"] === true,
+    canCancelLessons: staff && stored["canCancelLessons"] === true,
   };
 }
 

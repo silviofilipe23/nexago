@@ -14,7 +14,9 @@ import {
   eventMetaLine,
   eventTitle,
   isClosedStatus,
+  defaultProfessorPermissions,
   linkActions,
+  permissionAllowedForType,
   permissionsEditable,
   permissionsStateNote,
   resendInviteInput,
@@ -152,6 +154,7 @@ interface Notice {
               }
               <ar-prof-perm-list
                 [permissions]="shownPermissions()"
+                [relationshipType]="l.relationshipType"
                 [editable]="!closed()"
                 [disabled]="!canEditPermissions()"
                 [busyKey]="saving()?.key ?? null"
@@ -357,7 +360,7 @@ export class PanelProfessionalDetailComponent {
   );
   protected readonly shownPermissions = computed<ProfessorPermissions>(() => {
     const link = this.link();
-    if (!link) return { canManageOwnLessons: false, canBookCourts: false, canAppearInArenaProfile: false };
+    if (!link) return { ...defaultProfessorPermissions('INDEPENDENT'), canManageOwnLessons: false, canBookCourts: false };
     // Fechado: mostra o que vale (nada). Aberto: a configuração, que é o que o toggle edita.
     const base = this.closed() ? effectivePermissions(link) : link.permissions;
     const saving = this.saving();
@@ -418,6 +421,8 @@ export class PanelProfessionalDetailComponent {
 
   protected async changePermission(link: ArenaProfessorLink, change: PermissionChange): Promise<void> {
     if (!this.canEditPermissions()) return;
+    // As das Aulas da arena só existem na equipe — o servidor recusaria `true` para independente.
+    if (!permissionAllowedForType(change.key, link.relationshipType)) return;
     if (this.echoTimer) clearTimeout(this.echoTimer);
     this.saving.set({ ...change, inFlight: true });
     this.permError.set(null);

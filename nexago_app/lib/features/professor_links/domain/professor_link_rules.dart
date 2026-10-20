@@ -85,6 +85,12 @@ class ProfessorPermissionInfo {
   final String shortLabel;
 }
 
+/// Título do grupo das permissões só de equipe.
+const professorArenaLessonsGroupTitle = 'Aulas da arena';
+
+/// Por que o grupo não vale para o independente.
+const professorArenaStaffOnlyHint = 'Só para professor da equipe da arena';
+
 const professorPermissionCatalog = [
   ProfessorPermissionInfo(
     key: ArenaProfessorPermissionKey.canManageOwnLessons,
@@ -106,18 +112,53 @@ const professorPermissionCatalog = [
   ),
 ];
 
+/// Ações nas Aulas da arena em nome dela — só equipe, desligadas por padrão.
+const professorArenaLessonsPermissionCatalog = [
+  ProfessorPermissionInfo(
+    key: ArenaProfessorPermissionKey.canEnrollStudents,
+    title: 'Matricular alunos',
+    description: 'Nas próprias turmas, com os planos da arena; mover de turma '
+        'e lista de espera',
+    shortLabel: 'Matrículas',
+  ),
+  ProfessorPermissionInfo(
+    key: ArenaProfessorPermissionKey.canScheduleLessons,
+    title: 'Agendar aulas e encaixes',
+    description: 'Reposição, experimental e aula avulsa na quadra que a arena '
+        'definir, usando o pacote do aluno',
+    shortLabel: 'Agenda',
+  ),
+  ProfessorPermissionInfo(
+    key: ArenaProfessorPermissionKey.canCancelLessons,
+    title: 'Cancelar aulas e avisar alunos',
+    description: 'Cancelar aulas das próprias turmas com aviso aos alunos',
+    shortLabel: 'Cancelamentos',
+  ),
+];
+
 ProfessorPermissionInfo professorPermissionInfo(
   ArenaProfessorPermissionKey key,
 ) =>
-    professorPermissionCatalog.firstWhere((info) => info.key == key);
+    [...professorPermissionCatalog, ...professorArenaLessonsPermissionCatalog]
+        .firstWhere((info) => info.key == key);
+
+/// O que a configuração vale para o [type]: no independente, as chaves só de
+/// equipe nunca valem (espelho do servidor).
+ArenaProfessorPermissions professorPermissionsForType(
+  ArenaProfessorPermissions permissions,
+  ArenaProfessorLinkType type,
+) =>
+    type == ArenaProfessorLinkType.arenaStaff
+        ? permissions
+        : permissions.withoutArenaStaffOnly();
 
 /// O que o professor pode fazer AGORA: nada fora de `ACTIVE` (suspensão
-/// revoga sem apagar a configuração).
+/// revoga sem apagar a configuração); as Aulas da arena só na equipe.
 ArenaProfessorPermissions effectiveProfessorPermissions(
   ArenaProfessorLink link,
 ) =>
     link.status == ArenaProfessorLinkStatus.active
-        ? link.permissions
+        ? professorPermissionsForType(link.permissions, link.type)
         : ArenaProfessorPermissions.none;
 
 /// Permissões da lista "Suas permissões": no convite em aberto, a proposta da
@@ -127,7 +168,7 @@ ArenaProfessorPermissions professorPermissionsToShow(
   DateTime now,
 ) =>
     effectiveProfessorLinkStatus(link, now) == ArenaProfessorLinkStatus.invited
-        ? link.permissions
+        ? professorPermissionsForType(link.permissions, link.type)
         : effectiveProfessorPermissions(link);
 
 /// Explicação abaixo das permissões; `null` quando valem (ativo).

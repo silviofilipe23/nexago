@@ -119,6 +119,9 @@ describe("regras puras do vínculo", () => {
       canManageOwnLessons: true,
       canBookCourts: true,
       canAppearInArenaProfile: true,
+      canEnrollStudents: false,
+      canScheduleLessons: false,
+      canCancelLessons: false,
     });
     assert.equal(defaultArenaProfessorPermissions("INDEPENDENT").canAppearInArenaProfile, false);
   });
@@ -128,7 +131,7 @@ describe("regras puras do vínculo", () => {
       {canBookCourts: false, isArenaAdmin: true, canSeeFinance: true},
       "ARENA_STAFF",
     );
-    assert.deepEqual(parsed, {canManageOwnLessons: true, canBookCourts: false, canAppearInArenaProfile: true});
+    assert.deepEqual(parsed, {canManageOwnLessons: true, canBookCourts: false, canAppearInArenaProfile: true, canEnrollStudents: false, canScheduleLessons: false, canCancelLessons: false});
     assert.equal("isArenaAdmin" in parsed, false);
     assert.throws(() => parseArenaProfessorPermissions({canBookCourts: "sim"}, "INDEPENDENT"), HttpsError);
     assert.throws(() => parseArenaProfessorPermissions([true], "INDEPENDENT"), HttpsError);
@@ -139,11 +142,11 @@ describe("regras puras do vínculo", () => {
     for (const status of ["INVITED", "PENDING", "SUSPENDED", "ENDED", "REJECTED", "CANCELED", "EXPIRED"]) {
       assert.deepEqual(
         effectiveArenaProfessorPermissions({status, permissions}),
-        {canManageOwnLessons: false, canBookCourts: false, canAppearInArenaProfile: false},
+        {canManageOwnLessons: false, canBookCourts: false, canAppearInArenaProfile: false, canEnrollStudents: false, canScheduleLessons: false, canCancelLessons: false},
         status,
       );
     }
-    assert.deepEqual(effectiveArenaProfessorPermissions({status: "ACTIVE", permissions}), permissions);
+    assert.deepEqual(effectiveArenaProfessorPermissions({status: "ACTIVE", relationshipType: "ARENA_STAFF", permissions}), permissions);
   });
 
   it("convite vence no prazo, e só convite vence", () => {
@@ -189,7 +192,7 @@ describe("convite pela arena", () => {
     assert.equal(doc["invitedByName"], "Ana Souza");
     assert.deepEqual(doc["professorModalities"], ["Beach tennis", "Vôlei de praia"]);
     assert.equal((doc["expiresAt"] as {toMillis(): number}).toMillis(), NOW + PROFESSOR_INVITE_TTL_MS);
-    assert.deepEqual(doc["permissions"], {canManageOwnLessons: true, canBookCourts: true, canAppearInArenaProfile: false});
+    assert.deepEqual(doc["permissions"], {canManageOwnLessons: true, canBookCourts: true, canAppearInArenaProfile: false, canEnrollStudents: false, canScheduleLessons: false, canCancelLessons: false});
     assert.deepEqual(events(fake).map((e) => e["eventType"]), ["INVITED"]);
     assert.equal(publicDoc(fake), undefined);
     assert.deepEqual(result.notices.map((n) => [n.to, n.type]), [["professor", "professor_link_invite"]]);
@@ -264,6 +267,9 @@ describe("solicitação pelo professor", () => {
       canManageOwnLessons: false,
       canBookCourts: false,
       canAppearInArenaProfile: false,
+      canEnrollStudents: false,
+      canScheduleLessons: false,
+      canCancelLessons: false,
     });
     assert.deepEqual(result.notices.map((n) => [n.to, n.type]), [["arena", "arena_professor_request"]]);
   });
@@ -447,7 +453,7 @@ describe("vínculo ativo: suspender, reativar, encerrar, permissões", () => {
       db, {linkId: LINK_A1, permissions: {canAppearInArenaProfile: false}}, OWNER, NOW,
     );
     assert.deepEqual(changed.changed, ["canAppearInArenaProfile"]);
-    assert.deepEqual(link(fake)["permissions"], {canManageOwnLessons: true, canBookCourts: true, canAppearInArenaProfile: false});
+    assert.deepEqual(link(fake)["permissions"], {canManageOwnLessons: true, canBookCourts: true, canAppearInArenaProfile: false, canEnrollStudents: false, canScheduleLessons: false, canCancelLessons: false});
     assert.equal(publicDoc(fake), undefined);
     const event = events(fake).find((e) => e["eventType"] === "PERMISSIONS_CHANGED");
     assert.deepEqual((event?.["metadata"] as DocData)["changed"], ["canAppearInArenaProfile"]);

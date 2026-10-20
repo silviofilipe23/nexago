@@ -66,7 +66,64 @@ void main() {
         'canManageOwnLessons': false,
         'canBookCourts': true,
         'canAppearInArenaProfile': false,
+        'canEnrollStudents': false,
+        'canScheduleLessons': false,
+        'canCancelLessons': false,
       });
+    });
+
+    test('Aulas da arena: desligadas no padrão dos dois tipos', () {
+      for (final type in ArenaProfessorLinkType.values) {
+        final defaults = defaultArenaProfessorPermissions(type);
+        expect(defaults.canEnrollStudents, isFalse, reason: type.wire);
+        expect(defaults.canScheduleLessons, isFalse, reason: type.wire);
+        expect(defaults.canCancelLessons, isFalse, reason: type.wire);
+      }
+    });
+
+    test('grupo "Aulas da arena" só aparece para a equipe', () {
+      final staff =
+          arenaProfessorPermissionGroups(ArenaProfessorLinkType.arenaStaff);
+      expect(staff.map((g) => g.title), [null, 'Aulas da arena']);
+      expect(staff.last.items.map((i) => i.key), [
+        ArenaProfessorPermissionKey.canEnrollStudents,
+        ArenaProfessorPermissionKey.canScheduleLessons,
+        ArenaProfessorPermissionKey.canCancelLessons,
+      ]);
+      final independent =
+          arenaProfessorPermissionGroups(ArenaProfessorLinkType.independent);
+      expect(independent.map((g) => g.title), [null]);
+      expect(
+        independent.single.items.any((i) => i.key.arenaStaffOnly),
+        isFalse,
+      );
+    });
+
+    test('convite/aprovação nunca mandam true de equipe para independente', () {
+      var proposal = defaultArenaProfessorPermissions(
+        ArenaProfessorLinkType.arenaStaff,
+      );
+      proposal = arenaProfessorPermissionsWith(
+        proposal,
+        ArenaProfessorPermissionKey.canEnrollStudents,
+        true,
+      );
+      expect(
+        arenaProfessorPermissionsToMap(
+          arenaProfessorPermissionsToSend(
+            proposal,
+            ArenaProfessorLinkType.independent,
+          ),
+        )['canEnrollStudents'],
+        isFalse,
+      );
+      expect(
+        arenaProfessorPermissionsToSend(
+          proposal,
+          ArenaProfessorLinkType.arenaStaff,
+        ).canEnrollStudents,
+        isTrue,
+      );
     });
 
     test('só ativo e suspenso são ajustáveis', () {

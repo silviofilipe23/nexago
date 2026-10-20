@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
@@ -16,6 +17,9 @@ import '../application/professor_students_providers.dart';
 import '../domain/professor_students.dart';
 import '../domain/professor_students_logic.dart';
 import '../infrastructure/professor_students_repository.dart';
+import '../domain/professor_actions.dart';
+import '../domain/professor_actions_logic.dart';
+import 'actions/professor_move_sheet.dart';
 import 'widgets/professor_students_widgets.dart';
 
 /// Aluno do professor (B3): turmas com ele, presença das últimas aulas,
@@ -96,6 +100,11 @@ class ProfessorStudentPage extends ConsumerWidget {
             _PresenceSection(student: student),
             const SizedBox(height: 22),
             _PlanSection(student: student, todayKey: snapshot!.todayKey),
+            if (snapshot.arena(arenaId)?.actions case final actions?
+                when actions.any) ...[
+              const SizedBox(height: 22),
+              _ActionsSection(student: student, actions: actions),
+            ],
             const SizedBox(height: 22),
             _NotesSection(arenaId: arenaId, studentId: studentId),
           ],
@@ -290,6 +299,73 @@ class _PlanSection extends StatelessWidget {
           'desconto vão para a gestão.',
           tone: ProfessorLinksNoteTone.neutral,
         ),
+      ],
+    );
+  }
+}
+
+/// Fase 2: o que a arena liberou para o professor fazer com este aluno.
+class _ActionsSection extends StatelessWidget {
+  const _ActionsSection({required this.student, required this.actions});
+
+  final ProfessorStudent student;
+  final ProfessorArenaActions actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = student;
+    final rows = <Widget>[
+      if (actions.canEnrollStudents)
+        ProfessorLinksGhostButton(
+          key: const Key('professor-student-enroll'),
+          label: 'Matricular em turma',
+          onPressed: () => context.pushNamed(
+            AppRouteNames.professorEnroll,
+            pathParameters: {'arenaId': s.arenaId},
+            queryParameters: {
+              'name': s.name,
+              if (s.athleteId != null) 'athleteId': s.athleteId!,
+              'studentId': s.studentId,
+            },
+          ),
+        ),
+      if (actions.canScheduleLessons && s.credits > 0)
+        ProfessorLinksGhostButton(
+          key: const Key('professor-student-makeup'),
+          label: 'Reposição · ${s.credits} crédito${s.credits == 1 ? '' : 's'}',
+          onPressed: () => context.pushNamed(
+            AppRouteNames.professorMakeup,
+            pathParameters: {'arenaId': s.arenaId, 'studentId': s.studentId},
+          ),
+        ),
+      if (actions.canScheduleLessons && professorUsablePackage(s) != null)
+        ProfessorLinksGhostButton(
+          key: const Key('professor-student-new-lesson'),
+          label: 'Nova aula com o pacote',
+          onPressed: () => context.pushNamed(
+            AppRouteNames.professorNewLesson,
+            pathParameters: {'arenaId': s.arenaId},
+            queryParameters: {'studentId': s.studentId},
+          ),
+        ),
+      if (actions.canEnrollStudents &&
+          s.classes.any((c) => c.weekdays.isNotEmpty))
+        ProfessorLinksGhostButton(
+          key: const Key('professor-student-move'),
+          label: 'Mover para outra turma',
+          onPressed: () => showProfessorMoveSheet(context, s),
+        ),
+    ];
+    if (rows.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const ProfessorLinksKicker('Ações · liberadas pela arena'),
+        const SizedBox(height: 10),
+        for (var i = 0; i < rows.length; i++) ...[
+          if (i > 0) const SizedBox(height: 8),
+          rows[i],
+        ],
       ],
     );
   }

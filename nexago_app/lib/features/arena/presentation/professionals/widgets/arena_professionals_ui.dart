@@ -70,17 +70,21 @@ class ArenaProfessorStatusLabel extends StatelessWidget {
   }
 }
 
-/// As três permissões com interruptor. [onChanged] `null` = só leitura;
-/// [busyKey] mostra um indicador na linha que está gravando.
+/// As permissões com interruptor: as três de sempre e, só no vínculo da
+/// equipe, o grupo "Aulas da arena" (independente não vê — o servidor recusa
+/// ligar). [onChanged] `null` = só leitura; [busyKey] mostra um indicador na
+/// linha que está gravando.
 class ArenaProfessorPermissionToggles extends StatelessWidget {
   const ArenaProfessorPermissionToggles({
     super.key,
+    required this.type,
     required this.permissions,
     required this.onChanged,
     this.busyKey,
     this.dense = false,
   });
 
+  final ArenaProfessorLinkType type;
   final ArenaProfessorPermissions permissions;
   final void Function(ArenaProfessorPermissionKey key, bool value)? onChanged;
   final ArenaProfessorPermissionKey? busyKey;
@@ -89,29 +93,44 @@ class ArenaProfessorPermissionToggles extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: BoxDecoration(
-        color: colors.surfaceCard,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: ProfessorLinksStyle.line(colors)),
-      ),
-      child: Column(
-        children: [
-          for (var i = 0; i < professorPermissionCatalog.length; i++)
-            _ToggleRow(
-              info: professorPermissionCatalog[i],
-              value: permissions.valueOf(professorPermissionCatalog[i].key),
-              busy: busyKey == professorPermissionCatalog[i].key,
-              divider: i > 0,
-              dense: dense,
-              onChanged: onChanged == null
-                  ? null
-                  : (value) =>
-                      onChanged!(professorPermissionCatalog[i].key, value),
+    final groups = arenaProfessorPermissionGroups(type);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final group in groups) ...[
+          if (group.title case final title?) ...[
+            SizedBox(height: dense ? 6 : 10),
+            ProfessorLinksKicker(
+              title,
+              key: const Key('arena-professor-permission-group-lessons'),
             ),
+            const SizedBox(height: 6),
+          ],
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: colors.surfaceCard,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: ProfessorLinksStyle.line(colors)),
+            ),
+            child: Column(
+              children: [
+                for (var i = 0; i < group.items.length; i++)
+                  _ToggleRow(
+                    info: group.items[i],
+                    value: permissions.valueOf(group.items[i].key),
+                    busy: busyKey == group.items[i].key,
+                    divider: i > 0,
+                    dense: dense,
+                    onChanged: onChanged == null
+                        ? null
+                        : (value) => onChanged!(group.items[i].key, value),
+                  ),
+              ],
+            ),
+          ),
         ],
-      ),
+      ],
     );
   }
 }

@@ -17,6 +17,8 @@ import '../../professor_links/domain/professor_link_rules.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../application/professor_students_providers.dart';
 import '../domain/professor_mode_logic.dart';
+import '../domain/professor_students.dart';
+import 'actions/professor_action_widgets.dart';
 import 'professor_shell_page.dart';
 import 'widgets/professor_settings_sheet.dart';
 import 'widgets/professor_students_widgets.dart';
@@ -26,6 +28,16 @@ import 'widgets/professor_students_widgets.dart';
 /// disponibilidade chegam nas próximas fases.
 class ProfessorMorePage extends ConsumerWidget {
   const ProfessorMorePage({super.key});
+
+  Future<void> _openForArena(
+    BuildContext context,
+    List<ProfessorArenaSummary> arenas,
+    String routeName,
+  ) async {
+    final arenaId = await pickProfessorActionArena(context, arenas);
+    if (arenaId == null || !context.mounted) return;
+    context.pushNamed(routeName, pathParameters: {'arenaId': arenaId});
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -45,6 +57,7 @@ class ProfessorMorePage extends ConsumerWidget {
     final classes = snapshot?.classes;
     final waiting =
         classes?.fold<int>(0, (sum, c) => sum + c.waitlistCount) ?? 0;
+    final actionArenas = snapshot?.actionArenas ?? const [];
 
     return Scaffold(
       backgroundColor: colors.canvas,
@@ -128,6 +141,50 @@ class ProfessorMorePage extends ConsumerWidget {
                 ),
               ],
             ),
+            if (actionArenas.isNotEmpty) ...[
+              const SizedBox(height: 22),
+              _Group(
+                title: 'Ações na arena',
+                rows: [
+                  if (actionArenas.any((a) =>
+                      a.actions.canEnrollStudents ||
+                      a.actions.canScheduleLessons))
+                    _MenuRow(
+                      key: const Key('professor-more-add-student'),
+                      icon: Icons.person_add_alt_1_outlined,
+                      title: 'Adicionar aluno',
+                      onTap: () =>
+                          context.pushNamed(AppRouteNames.professorAddStudent),
+                    ),
+                  if (actionArenas.any((a) => a.actions.canScheduleLessons))
+                    _MenuRow(
+                      key: const Key('professor-more-new-lesson'),
+                      icon: Icons.event_available_outlined,
+                      title: 'Nova aula',
+                      onTap: () => _openForArena(
+                        context,
+                        actionArenas
+                            .where((a) => a.actions.canScheduleLessons)
+                            .toList(),
+                        AppRouteNames.professorNewLesson,
+                      ),
+                    ),
+                  if (actionArenas.any((a) => a.actions.canCancelLessons))
+                    _MenuRow(
+                      key: const Key('professor-more-notice'),
+                      icon: Icons.campaign_outlined,
+                      title: 'Comunicado',
+                      onTap: () => _openForArena(
+                        context,
+                        actionArenas
+                            .where((a) => a.actions.canCancelLessons)
+                            .toList(),
+                        AppRouteNames.professorNotice,
+                      ),
+                    ),
+                ],
+              ),
+            ],
             const SizedBox(height: 22),
             _Group(
               title: 'Arenas',

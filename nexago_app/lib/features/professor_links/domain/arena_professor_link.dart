@@ -64,11 +64,19 @@ enum ArenaProfessorSide {
 
 /// Permissões CONFIGURADAS pela arena. O que vale de fato está em
 /// `effectiveProfessorPermissions` (só com `ACTIVE`).
+///
+/// As três das Aulas da arena (`canEnrollStudents`, `canScheduleLessons`,
+/// `canCancelLessons`) são só do professor da EQUIPE: começam desligadas nos
+/// dois tipos, vínculo antigo sem a chave lê `false` e, no independente, nunca
+/// valem (o servidor recusa gravar `true`).
 class ArenaProfessorPermissions {
   const ArenaProfessorPermissions({
     required this.canManageOwnLessons,
     required this.canBookCourts,
     required this.canAppearInArenaProfile,
+    this.canEnrollStudents = false,
+    this.canScheduleLessons = false,
+    this.canCancelLessons = false,
   });
 
   static const none = ArenaProfessorPermissions(
@@ -83,6 +91,9 @@ class ArenaProfessorPermissions {
       canManageOwnLessons: raw['canManageOwnLessons'] == true,
       canBookCourts: raw['canBookCourts'] == true,
       canAppearInArenaProfile: raw['canAppearInArenaProfile'] == true,
+      canEnrollStudents: raw['canEnrollStudents'] == true,
+      canScheduleLessons: raw['canScheduleLessons'] == true,
+      canCancelLessons: raw['canCancelLessons'] == true,
     );
   }
 
@@ -90,33 +101,89 @@ class ArenaProfessorPermissions {
   final bool canBookCourts;
   final bool canAppearInArenaProfile;
 
+  /// Matricular alunos nas turmas dele (plano da tabela da arena, mover de
+  /// turma, lista de espera). Só equipe.
+  final bool canEnrollStudents;
+
+  /// Agendar reposição/experimental e aula avulsa (quadra escolhida pela
+  /// arena, usando o pacote do aluno). Só equipe.
+  final bool canScheduleLessons;
+
+  /// Cancelar aulas e avisar os alunos. Só equipe.
+  final bool canCancelLessons;
+
   bool valueOf(ArenaProfessorPermissionKey key) => switch (key) {
         ArenaProfessorPermissionKey.canManageOwnLessons => canManageOwnLessons,
         ArenaProfessorPermissionKey.canBookCourts => canBookCourts,
         ArenaProfessorPermissionKey.canAppearInArenaProfile =>
           canAppearInArenaProfile,
+        ArenaProfessorPermissionKey.canEnrollStudents => canEnrollStudents,
+        ArenaProfessorPermissionKey.canScheduleLessons => canScheduleLessons,
+        ArenaProfessorPermissionKey.canCancelLessons => canCancelLessons,
       };
+
+  /// Cópia com [key] = [value].
+  ArenaProfessorPermissions withValue(
+    ArenaProfessorPermissionKey key,
+    bool value,
+  ) {
+    bool pick(ArenaProfessorPermissionKey k) => k == key ? value : valueOf(k);
+    return ArenaProfessorPermissions(
+      canManageOwnLessons:
+          pick(ArenaProfessorPermissionKey.canManageOwnLessons),
+      canBookCourts: pick(ArenaProfessorPermissionKey.canBookCourts),
+      canAppearInArenaProfile:
+          pick(ArenaProfessorPermissionKey.canAppearInArenaProfile),
+      canEnrollStudents: pick(ArenaProfessorPermissionKey.canEnrollStudents),
+      canScheduleLessons: pick(ArenaProfessorPermissionKey.canScheduleLessons),
+      canCancelLessons: pick(ArenaProfessorPermissionKey.canCancelLessons),
+    );
+  }
+
+  /// Sem as chaves só de equipe (o que vale para um independente).
+  ArenaProfessorPermissions withoutArenaStaffOnly() =>
+      ArenaProfessorPermissions(
+        canManageOwnLessons: canManageOwnLessons,
+        canBookCourts: canBookCourts,
+        canAppearInArenaProfile: canAppearInArenaProfile,
+      );
 
   @override
   bool operator ==(Object other) =>
       other is ArenaProfessorPermissions &&
       other.canManageOwnLessons == canManageOwnLessons &&
       other.canBookCourts == canBookCourts &&
-      other.canAppearInArenaProfile == canAppearInArenaProfile;
+      other.canAppearInArenaProfile == canAppearInArenaProfile &&
+      other.canEnrollStudents == canEnrollStudents &&
+      other.canScheduleLessons == canScheduleLessons &&
+      other.canCancelLessons == canCancelLessons;
 
   @override
-  int get hashCode =>
-      Object.hash(canManageOwnLessons, canBookCourts, canAppearInArenaProfile);
+  int get hashCode => Object.hash(
+        canManageOwnLessons,
+        canBookCourts,
+        canAppearInArenaProfile,
+        canEnrollStudents,
+        canScheduleLessons,
+        canCancelLessons,
+      );
 }
 
 enum ArenaProfessorPermissionKey {
   canManageOwnLessons('canManageOwnLessons'),
   canBookCourts('canBookCourts'),
-  canAppearInArenaProfile('canAppearInArenaProfile');
+  canAppearInArenaProfile('canAppearInArenaProfile'),
+  canEnrollStudents('canEnrollStudents', arenaStaffOnly: true),
+  canScheduleLessons('canScheduleLessons', arenaStaffOnly: true),
+  canCancelLessons('canCancelLessons', arenaStaffOnly: true);
 
-  const ArenaProfessorPermissionKey(this.wire);
+  const ArenaProfessorPermissionKey(this.wire, {this.arenaStaffOnly = false});
 
   final String wire;
+
+  /// Ações nas Aulas da arena: só valem para vínculo `ARENA_STAFF`
+  /// (espelho de `ARENA_STAFF_ONLY_PERMISSION_KEYS` no servidor).
+  final bool arenaStaffOnly;
 
   static ArenaProfessorPermissionKey? tryParse(Object? raw) {
     for (final key in values) {

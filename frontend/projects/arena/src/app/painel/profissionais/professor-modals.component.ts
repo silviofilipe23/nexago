@@ -11,6 +11,7 @@ import {
   accountLinkState,
   dayMonthLabel,
   defaultProfessorPermissions,
+  permissionsForType,
   timeLabel,
   type ArenaProfessorLink,
   type ProfessorLinkType,
@@ -108,7 +109,7 @@ const SHARED_STYLES = `
       </div>
 
       <div class="field-label spaced">3 · Permissões propostas</div>
-      <ar-prof-perm-list [permissions]="permissions()" [editable]="true" [dense]="true" [disabled]="busy()" (changed)="setPermission($event)" />
+      <ar-prof-perm-list [permissions]="permissions()" [relationshipType]="type()" [editable]="true" [dense]="true" [disabled]="busy()" (changed)="setPermission($event)" />
 
       <div class="field-label spaced">Mensagem (opcional)</div>
       <textarea
@@ -264,7 +265,7 @@ export class ProfessorInviteModalComponent {
         arenaId: this.arenaId(),
         professorUserId: picked.id,
         relationshipType: this.type(),
-        permissions: this.permissions(),
+        permissions: permissionsForType(this.permissions(), this.type()),
         message: this.message().trim() || null,
       });
       this.sent.emit(picked.name);
@@ -316,6 +317,7 @@ export class ProfessorInviteModalComponent {
       <div class="field-label spaced">Permissões ao aprovar</div>
       <ar-prof-perm-list
         [permissions]="permissions()"
+        [relationshipType]="link().relationshipType"
         [editable]="true"
         [dense]="true"
         [disabled]="busy() || !open()"
@@ -388,7 +390,7 @@ export class ProfessorAnalyzeModalComponent {
     this.busy.set(true);
     this.error.set(null);
     try {
-      await this.service.approve(this.link().id, this.permissions());
+      await this.service.approve(this.link().id, permissionsForType(this.permissions(), this.link().relationshipType));
       this.approved.emit(this.link().professorName);
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : 'Não foi possível aprovar a solicitação.');

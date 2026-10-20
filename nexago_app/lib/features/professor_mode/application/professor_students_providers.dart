@@ -1,10 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../professor_links/application/professor_links_providers.dart';
+import '../domain/professor_actions.dart';
 import '../domain/professor_students.dart';
 import '../domain/professor_students_logic.dart';
+import '../infrastructure/professor_actions_repository.dart';
 import '../infrastructure/professor_students_repository.dart';
 
+export '../infrastructure/professor_actions_repository.dart'
+    show ProfessorActionStudent, professorActionsRepositoryProvider;
 export '../infrastructure/professor_students_repository.dart'
     show professorStudentsRepositoryProvider;
 
@@ -39,3 +43,17 @@ final professorStudentNoteProvider = StreamProvider.autoDispose
         studentId: key.studentId,
       );
 });
+
+/// Turmas, aulas, espera, créditos e planos de uma arena para as telas de
+/// ação (fase 2, `getProfessorClassActions`). Some quando a tela fecha:
+/// cada ação relê o estado do servidor.
+final professorActionsContextProvider = FutureProvider.autoDispose
+    .family<ProfessorActionsContext, String>((ref, arenaId) {
+  return ref.watch(professorActionsRepositoryProvider).fetchContext(arenaId);
+});
+
+/// Depois de uma ação: relê a lista de alunos e o contexto da arena.
+void refreshProfessorAfterAction(WidgetRef ref, String arenaId) {
+  ref.invalidate(professorStudentsProvider);
+  ref.invalidate(professorActionsContextProvider(arenaId));
+}

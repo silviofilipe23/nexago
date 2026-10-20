@@ -167,6 +167,13 @@ import '../../features/squad/presentation/squad_share_page.dart';
 import '../../features/professor_links/presentation/professor_link_detail_page.dart';
 import '../../features/professor_links/presentation/professor_link_request_sent_page.dart';
 import '../../features/athlete/presentation/teacher_class_attendance_page.dart';
+import '../../features/professor_mode/presentation/actions/professor_add_student_page.dart';
+import '../../features/professor_mode/presentation/actions/professor_convert_trial_page.dart';
+import '../../features/professor_mode/presentation/actions/professor_enroll_page.dart';
+import '../../features/professor_mode/presentation/actions/professor_makeup_page.dart';
+import '../../features/professor_mode/presentation/actions/professor_new_lesson_page.dart';
+import '../../features/professor_mode/presentation/actions/professor_notice_page.dart';
+import '../../features/professor_mode/presentation/actions/professor_waitlist_page.dart';
 import '../../features/professor_mode/presentation/professor_home_page.dart';
 import '../../features/professor_mode/presentation/professor_classes_page.dart';
 import '../../features/professor_mode/presentation/professor_more_page.dart';
@@ -446,6 +453,68 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             ],
           ),
         ],
+      ),
+      // Fase 2 do modo Professor: ações nas Aulas da arena, sem a barra.
+      GoRoute(
+        path: AppRoutes.professorAddStudent,
+        name: AppRouteNames.professorAddStudent,
+        builder: (context, state) => ProfessorAddStudentPage(
+          arenaId: _queryOrNull(state, 'arenaId'),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.professorEnroll,
+        name: AppRouteNames.professorEnroll,
+        builder: (context, state) => ProfessorEnrollPage(
+          arenaId: state.pathParameters['arenaId']?.trim() ?? '',
+          studentName: _queryOrNull(state, 'name') ?? 'Aluno',
+          athleteId: _queryOrNull(state, 'athleteId'),
+          studentId: _queryOrNull(state, 'studentId'),
+          classId: _queryOrNull(state, 'classId'),
+          waitlistEntryId: _queryOrNull(state, 'entryId'),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.professorConvertTrial,
+        name: AppRouteNames.professorConvertTrial,
+        builder: (context, state) => ProfessorConvertTrialPage(
+          arenaId: state.pathParameters['arenaId']?.trim() ?? '',
+          athleteId: _queryOrNull(state, 'athleteId') ?? '',
+          name: _queryOrNull(state, 'name') ?? 'Aluno',
+          classId: _queryOrNull(state, 'classId'),
+          date: _queryOrNull(state, 'date'),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.professorNewLesson,
+        name: AppRouteNames.professorNewLesson,
+        builder: (context, state) => ProfessorNewLessonPage(
+          arenaId: state.pathParameters['arenaId']?.trim() ?? '',
+          studentId: _queryOrNull(state, 'studentId'),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.professorMakeup,
+        name: AppRouteNames.professorMakeup,
+        builder: (context, state) => ProfessorMakeupPage(
+          arenaId: state.pathParameters['arenaId']?.trim() ?? '',
+          studentId: state.pathParameters['studentId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.professorWaitlist,
+        name: AppRouteNames.professorWaitlist,
+        builder: (context, state) => ProfessorWaitlistPage(
+          arenaId: state.pathParameters['arenaId']?.trim() ?? '',
+          classId: state.pathParameters['classId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.professorNotice,
+        name: AppRouteNames.professorNotice,
+        builder: (context, state) => ProfessorNoticePage(
+          arenaId: state.pathParameters['arenaId']?.trim() ?? '',
+        ),
       ),
       GoRoute(
         path: AppRoutes.organizerHome,
@@ -2702,4 +2771,10 @@ Future<IdTokenResult?> _safeGetIdTokenResult(Ref ref, User user) async {
     }
     return null;
   }
+}
+
+/// Parâmetro de query aparado; vazio vira `null`.
+String? _queryOrNull(GoRouterState state, String key) {
+  final v = state.uri.queryParameters[key]?.trim();
+  return v == null || v.isEmpty ? null : v;
 }

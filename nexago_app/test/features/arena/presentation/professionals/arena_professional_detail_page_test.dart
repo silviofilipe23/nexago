@@ -157,6 +157,61 @@ void main() {
       await tester.pump(const Duration(seconds: 5));
     });
 
+    testWidgets('independente: sem o grupo "Aulas da arena"', (tester) async {
+      await _pumpDetail(tester, link: marcosActive());
+
+      expect(
+        find.byKey(const Key('arena-professor-permission-group-lessons')),
+        findsNothing,
+      );
+      for (final wire in [
+        'canEnrollStudents',
+        'canScheduleLessons',
+        'canCancelLessons',
+      ]) {
+        expect(_permission(wire, false), findsNothing, reason: wire);
+        expect(_permission(wire, true), findsNothing, reason: wire);
+      }
+      expect(_permission('canBookCourts', true), findsOneWidget);
+    });
+
+    testWidgets(
+        'equipe: "Aulas da arena" desligadas por padrão; o interruptor '
+        'grava a chave certa', (tester) async {
+      final repo = await _pumpDetail(
+        tester,
+        link: copyArenaLink(
+          marcosActive(),
+          type: ArenaProfessorLinkType.arenaStaff,
+        ),
+      );
+
+      expect(
+        find.byKey(const Key('arena-professor-permission-group-lessons')),
+        findsOneWidget,
+      );
+      expect(find.text('Matricular alunos'), findsOneWidget);
+      expect(find.text('Agendar aulas e encaixes'), findsOneWidget);
+      expect(find.text('Cancelar aulas e avisar alunos'), findsOneWidget);
+      expect(_permission('canScheduleLessons', false), findsOneWidget);
+      expect(_permission('canCancelLessons', false), findsOneWidget);
+
+      final enroll = _permission('canEnrollStudents', false);
+      await tester.ensureVisible(enroll);
+      await tester.tap(enroll);
+      await settleProfessorLinks(tester);
+
+      expect(repo.permissionCalls, [
+        (
+          linkId: _marcos,
+          key: ArenaProfessorPermissionKey.canEnrollStudents,
+          value: true,
+        ),
+      ]);
+      expect(_permission('canEnrollStudents', true), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
+    });
+
     testWidgets('interruptor: erro volta o valor e mostra a mensagem', (
       tester,
     ) async {

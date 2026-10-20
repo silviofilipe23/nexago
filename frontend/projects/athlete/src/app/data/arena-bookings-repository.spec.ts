@@ -5,7 +5,6 @@ import {
   bookingCardPaymentFromResponse,
   bookingPixPaymentFromResponse,
   bookingPixPaymentPayload,
-  mapCallableError,
 } from './arena-bookings-repository';
 
 function fakeSnapshot(id: string, data: Record<string, unknown> | undefined): DocumentSnapshot<DocumentData> {
@@ -152,22 +151,3 @@ describe('bookingCardPaymentFromResponse', () => {
   });
 });
 
-
-describe('mapCallableError — reserva como professor', () => {
-  for (const reason of ['no_link', 'not_active', 'permission_off']) {
-    it(`recusa do vínculo (${reason}): código próprio e a copy do servidor`, () => {
-      const err = mapCallableError({
-        code: 'functions/permission-denied',
-        message: 'A Arena CFC não liberou reservar como professor no seu vínculo. Você ainda pode reservar como atleta.',
-        details: { reason, linkId: 'a1_u1' },
-      });
-      expect(err.code).toBe('PROFESSOR_DENIED');
-      expect(err.message).toContain('Você ainda pode reservar como atleta.');
-    });
-  }
-
-  it('atleta bloqueado continua bloqueio', () => {
-    const err = mapCallableError({ code: 'permission-denied', message: 'Sua conta está bloqueada nesta arena.' });
-    expect(err.code).toBe('BLOCKED_ATHLETE');
-  });
-});

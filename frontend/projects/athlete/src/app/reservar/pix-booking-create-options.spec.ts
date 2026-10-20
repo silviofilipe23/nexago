@@ -27,13 +27,4 @@ describe('pixBookingCreateOptions', () => {
     expect(opts.sport).toBe('beachTennis');
     expect('sport' in pixBookingCreateOptions({ totalPriceReais: 100, pixFraction: 1, couponCode: null })).toBeFalse();
   });
-
-  it('reserva como professor vale pros dois caminhos; desligada não manda a chave', () => {
-    expect(
-      pixBookingCreateOptions({ totalPriceReais: 100, pixFraction: 1, couponCode: null, asProfessor: true }).asProfessor,
-    ).toBeTrue();
-    expect(
-      'asProfessor' in pixBookingCreateOptions({ totalPriceReais: 100, pixFraction: 1, couponCode: null, asProfessor: false }),
-    ).toBeFalse();
-  });
 });

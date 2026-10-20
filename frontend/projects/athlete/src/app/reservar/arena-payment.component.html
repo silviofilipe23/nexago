@@ -50,28 +50,6 @@
             }
           </section>
 
-          @if (professorOption(); as prof) {
-            <section class="pm-card pm-prof" [class.pm-prof--on]="asProfessor()">
-              <button
-                type="button"
-                role="switch"
-                class="pm-prof-toggle"
-                [attr.aria-checked]="asProfessor()"
-                [disabled]="professorLocked()"
-                (click)="toggleAsProfessor()"
-              >
-                <span class="pm-prof-text">
-                  <span class="pm-prof-title">
-                    Reservar como professor
-                    <span class="pm-prof-tag" [style.color]="prof.color" [style.background]="prof.background">{{ prof.label }}</span>
-                  </span>
-                  <span class="pm-prof-sub">A {{ a.name }} vê na agenda que o horário é seu como professor. Mesmo preço e regras.</span>
-                </span>
-                <span class="pm-prof-switch" aria-hidden="true"><span class="pm-prof-knob"></span></span>
-              </button>
-            </section>
-          }
-
           <section class="pm-card">
             <h2 class="pm-card-title">Forma de pagamento</h2>
             <div class="pm-method-row">

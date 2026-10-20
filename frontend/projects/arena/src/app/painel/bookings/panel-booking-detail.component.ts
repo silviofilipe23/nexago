@@ -89,9 +89,6 @@ export function bookingChannelLabel(channel: string | null): string {
               @if (booking()!.classSessionId; as classSessionId) {
                 <div class="row"><span class="label">Tipo</span><span class="value">Aula (bloqueio da quadra)</span></div>
               }
-              @if (booking()!.professorLabel; as prof) {
-                <div class="row"><span class="label">Reservado como</span><span class="value prof-value">{{ prof }}</span></div>
-              }
             </ar-panel-card>
 
             <ar-panel-card title="Horário">
@@ -247,10 +244,6 @@ export function bookingChannelLabel(channel: string | null): string {
       color: var(--nx-text);
       font-weight: 600;
       text-align: right;
-    }
-
-    .value.prof-value {
-      color: #5b9bff;
     }
 
     .status-row {

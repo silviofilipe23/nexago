@@ -1,5 +1,5 @@
 import { Timestamp, type QueryDocumentSnapshot } from 'firebase/firestore';
-import { arenaBookingFromDoc, professorBookingLabel } from './arena-booking.model';
+import { arenaBookingFromDoc } from './arena-booking.model';
 
 function fakeDoc(id: string, data: Record<string, unknown>): QueryDocumentSnapshot {
   return {
@@ -80,32 +80,5 @@ describe('arenaBookingFromDoc — esporte', () => {
   it('reserva sem esporte (antiga, manual) fica null', () => {
     expect(arenaBookingFromDoc(fakeDoc('b3', base)).sportLabel).toBeNull();
     expect(arenaBookingFromDoc(fakeDoc('b4', { ...base, sport: null })).sportLabel).toBeNull();
-  });
-});
-
-describe('arenaBookingFromDoc — reserva como professor', () => {
-  const base = {
-    arenaId: 'a1',
-    athleteId: 'u1',
-    courtId: 'c1',
-    date: '2026-10-21',
-    startTime: '07:00',
-    endTime: '08:00',
-  };
-
-  it('carimbo do servidor vira o rótulo com o tipo do vínculo', () => {
-    const booking = arenaBookingFromDoc(
-      fakeDoc('b1', { ...base, bookedAs: 'professor', professorLinkId: 'a1_u1', professorRelationshipType: 'INDEPENDENT' }),
-    );
-    expect(booking.professorLabel).toBe('Professor · independente');
-    expect(professorBookingLabel({ bookedAs: 'professor', professorRelationshipType: 'ARENA_STAFF' })).toBe(
-      'Professor · equipe da arena',
-    );
-    expect(professorBookingLabel({ bookedAs: 'professor' })).toBe('Professor');
-  });
-
-  it('reserva de atleta (com ou sem o campo) fica sem rótulo', () => {
-    expect(arenaBookingFromDoc(fakeDoc('b2', base)).professorLabel).toBeNull();
-    expect(professorBookingLabel({ bookedAs: 'athlete' })).toBeNull();
   });
 });

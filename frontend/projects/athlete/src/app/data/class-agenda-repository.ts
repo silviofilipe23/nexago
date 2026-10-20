@@ -1,9 +1,4 @@
 import { httpsCallable } from 'firebase/functions';
-import {
-  teacherRosterFromRaw,
-  type AttendanceMark,
-  type TeacherRoster,
-} from '../professor/teacher-attendance.model';
 import { athleteFunctions } from './functions';
 
 /**
@@ -27,9 +22,6 @@ export interface MyClassAgendaItem {
   kind: 'regular' | 'makeup' | 'trial';
   myMark: 'present' | 'absent' | 'excused' | null;
   studentCount: number | null;
-  /** Só para o professor: o vínculo com a arena libera a chamada ("Gerenciar as próprias
-   *  aulas"). Servidor antigo (sem o campo) = `false`. */
-  canManageLessons: boolean;
 }
 
 function str(v: unknown, fallback = ''): string {
@@ -55,46 +47,7 @@ export function classAgendaItemFromRaw(raw: Record<string, unknown>): MyClassAge
     kind: raw['kind'] === 'makeup' || raw['kind'] === 'trial' ? raw['kind'] : 'regular',
     myMark: mark === 'present' || mark === 'absent' || mark === 'excused' ? mark : null,
     studentCount: typeof count === 'number' ? count : null,
-    canManageLessons: raw['canManageLessons'] === true,
   };
-}
-
-/** Falha da chamada do professor, com a mensagem do servidor pronta para a tela. */
-export class TeacherClassError extends Error {}
-
-/** Mensagem do callable; quando o SDK devolve só o código ("not-found", "INTERNAL"), o texto
- *  genérico — callable fora do ar não vira infraestrutura na tela. */
-function callableMessage(err: unknown, fallback: string): string {
-  const e = err as { code?: unknown; message?: unknown };
-  const message = typeof e?.message === 'string' ? e.message.trim() : '';
-  const code = typeof e?.code === 'string' ? e.code.replace(/^functions\//, '') : '';
-  const norm = (t: string) => t.toLowerCase().replace(/[\s_-]/g, '');
-  if (!message || (code && norm(message) === norm(code)) || norm(message) === 'internal') return fallback;
-  return message;
-}
-
-/** Lista da chamada de uma aula que dou (`getMyClassSessionRoster`; só com o vínculo). */
-export async function fetchMyClassSessionRoster(sessionId: string): Promise<TeacherRoster> {
-  try {
-    const res = await httpsCallable(athleteFunctions(), 'getMyClassSessionRoster')({ sessionId });
-    return teacherRosterFromRaw(res.data);
-  } catch (err) {
-    throw new TeacherClassError(callableMessage(err, 'Não foi possível abrir a chamada agora. Tente de novo em instantes.'));
-  }
-}
-
-/** Grava a chamada pela mesma `saveArenaClassAttendance` da equipe — o servidor aceita o
- *  professor da aula com a permissão. `close` fecha (crédito de reposição e débito de pacote). */
-export async function saveTeacherClassAttendance(
-  sessionId: string,
-  marks: Record<string, AttendanceMark | null>,
-  close: boolean,
-): Promise<void> {
-  try {
-    await httpsCallable(athleteFunctions(), 'saveArenaClassAttendance')({ sessionId, marks, close });
-  } catch (err) {
-    throw new TeacherClassError(callableMessage(err, 'Não foi possível salvar a chamada. Tente novamente.'));
-  }
 }
 
 /** Intervalo padrão do servidor: 30 dias para trás, 35 para a frente. */

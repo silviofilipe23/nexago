@@ -44,9 +44,6 @@ export interface ArenaBooking {
   createdAt: Date | null;
   couponCode: string | null;
   couponDiscountReais: number | null;
-  /** Reservada como professor (vínculo com "Reservar quadras"): "Professor · independente"…
-   *  `null` na reserva de atleta. Ver `professorBookingLabel`. */
-  professorLabel: string | null;
 }
 
 function timeStr(v: unknown): string {
@@ -69,21 +66,6 @@ function optionalTrimmed(v: unknown): string | null {
   if (typeof v !== 'string') return null;
   const t = v.trim();
   return t.length > 0 ? t : null;
-}
-
-/** Reserva feita como professor: `createArenaBooking` com `asProfessor` carimba `bookedAs:
- *  "professor"` e o tipo do vínculo quando ele libera "Reservar quadras". `null` na reserva de
- *  atleta, que é tudo o que existia antes. Espelha `arenaBookingProfessorLabel` do app. */
-export function professorBookingLabel(d: Record<string, unknown>): string | null {
-  if (d['bookedAs'] !== 'professor') return null;
-  switch (d['professorRelationshipType']) {
-    case 'ARENA_STAFF':
-      return 'Professor · equipe da arena';
-    case 'INDEPENDENT':
-      return 'Professor · independente';
-    default:
-      return 'Professor';
-  }
 }
 
 export function arenaBookingFromDoc(doc: QueryDocumentSnapshot): ArenaBooking {
@@ -117,7 +99,6 @@ export function arenaBookingFromDoc(doc: QueryDocumentSnapshot): ArenaBooking {
     createdAt: toDate(d['createdAt']),
     couponCode: optionalTrimmed(d['couponCode']),
     couponDiscountReais: typeof d['couponDiscountReais'] === 'number' ? d['couponDiscountReais'] : null,
-    professorLabel: professorBookingLabel(d),
   };
 }
 

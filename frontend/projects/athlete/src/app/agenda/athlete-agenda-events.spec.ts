@@ -228,18 +228,4 @@ describe('classEntryToEvent (aulas da arena)', () => {
   it('sem data utilizável não vira evento', () => {
     expect(classEntryToEvent(classAgendaItemFromRaw({ ...base, date: '' }), NOW)).toBeNull();
   });
-
-  it('aula que dou com o vínculo liberando a chamada: o botão leva à chamada', () => {
-    const teacher = { ...base, role: 'teacher', studentCount: 3, canManageLessons: true };
-    const ev = classEntryToEvent(classAgendaItemFromRaw(teacher), NOW)!;
-    expect(ev.ctaLabel).toBe('Ver lista');
-    expect(ev.ctaPrimary).toBeTrue();
-    expect(ev.link).toEqual(['/professor', 'aulas', 'class_c1_2026-07-21']);
-    // Sem a permissão (ou servidor antigo): segue "Ver arena".
-    const off = classEntryToEvent(classAgendaItemFromRaw({ ...teacher, canManageLessons: false }), NOW)!;
-    expect(off.ctaLabel).toBe('Ver arena');
-    expect(off.link).toEqual(['/reservar', 'arena-1']);
-    const old = classEntryToEvent(classAgendaItemFromRaw({ ...base, role: 'teacher' }), NOW)!;
-    expect(old.ctaLabel).toBe('Ver arena');
-  });
 });

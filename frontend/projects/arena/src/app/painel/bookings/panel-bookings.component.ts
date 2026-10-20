@@ -105,9 +105,6 @@ function tomorrowKey(): string {
                     <div class="cell-client">
                       <span class="col-label">Cliente</span>
                       {{ customerLabel(b) }}
-                      @if (b.professorLabel; as prof) {
-                        <span class="prof-tag">{{ prof }}</span>
-                      }
                     </div>
                     <div class="cell-slot">
                       <span class="col-label">Quadra / horário</span>
@@ -140,9 +137,6 @@ function tomorrowKey(): string {
                       <div class="cell-client">
                         <span class="col-label">Cliente</span>
                         {{ customerLabel(b) }}
-                        @if (b.professorLabel; as prof) {
-                          <span class="prof-tag">{{ prof }}</span>
-                        }
                       </div>
                       <div class="cell-slot">
                         <span class="col-label">Quadra / horário</span>
@@ -172,21 +166,6 @@ function tomorrowKey(): string {
   `,
   styles: `
     @use 'breakpoints' as ar;
-
-    /* Reserva feita como professor (vínculo com "Reservar quadras"). */
-    .prof-tag {
-      display: inline-flex;
-      align-items: center;
-      margin-left: 8px;
-      padding: 2px 7px;
-      border-radius: 6px;
-      background: rgba(91, 155, 255, 0.12);
-      color: #5b9bff;
-      font-family: var(--nx-font-mono);
-      font-size: 10px;
-      font-weight: 700;
-      white-space: nowrap;
-    }
 
     .body {
       flex: 1;

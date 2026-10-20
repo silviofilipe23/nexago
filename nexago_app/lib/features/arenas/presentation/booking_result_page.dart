@@ -12,6 +12,7 @@ import '../domain/booking_result_record.dart';
 import '../domain/booking_result_record_providers.dart';
 import '../domain/booking_story.dart';
 import '../domain/booking_story_providers.dart';
+import 'booking_result_review_page.dart';
 import 'booking_result_score_page.dart';
 import 'widgets/booking_story/booking_result_card.dart';
 import 'widgets/booking_story/booking_story_editor.dart';
@@ -53,8 +54,9 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
   Future<void> _editScore(
     BookingResult result,
     List<ResultPlayer> crew,
-    String? ownerId,
-  ) async {
+    String? ownerId, {
+    required bool canSave,
+  }) async {
     final bookingId = widget.args.bookingId.trim();
     final repository = ref.read(bookingResultRepositoryProvider);
     final edited = await Navigator.of(context).push<BookingResult>(
@@ -63,10 +65,14 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
           initial: result,
           candidates: crew,
           ownerPlayerId: ownerId,
-          // Sem reserva (não acontece pela Agenda) o placar fica só na arte.
-          onSave: bookingId.isEmpty
-              ? null
-              : (r) => repository.save(bookingId, r),
+          // Só quem reservou grava (a callable confere); o convidado e o
+          // story sem reserva ficam só com a arte.
+          onSave: canSave ? (r) => repository.save(bookingId, r) : null,
+          localOnlyNotice: bookingId.isEmpty
+              ? 'O placar vai só para a arte do story: não fica salvo nem '
+                  'conta no seu histórico ou no ranking.'
+              : 'Só quem reservou a quadra salva o placar para os outros '
+                  'confirmarem. Este fica só na arte do story.',
         ),
       ),
     );
@@ -86,6 +92,11 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
       ownerAvatarUrl: profile?.avatarUrl,
       confirmed: source?.confirmed ?? const [],
     );
+    final uid = ref.watch(bookingResultUidProvider);
+    // Convidado também abre o pós-jogo pela Agenda; sem o doc da reserva
+    // (carregando, sem acesso) a callable decide.
+    final canSave = args.bookingId.trim().isNotEmpty &&
+        (source?.ownerUid == null || source!.ownerUid == uid);
     final saved = ref.watch(savedBookingResultProvider(args.bookingId));
     final result = _edited ?? saved?.result ?? initialBookingResult(crew);
     final locked = saved?.isConfirmed ?? false;
@@ -122,7 +133,7 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
         showAppSnackBar(context, 'Placar confirmado: ele não muda mais.');
         return;
       }
-      _editScore(result, crew, ownerId);
+      _editScore(result, crew, ownerId, canSave: canSave);
     }
 
     return BookingStoryEditorScaffold(
@@ -176,8 +187,31 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
         ),
         if (saved != null)
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
-            child: BookingResultStatusBadge(saved: saved),
+            padding: EdgeInsets.fromLTRB(
+              20,
+              0,
+              20,
+              saved.awaitsResponseFrom(uid) ? 4 : 18,
+            ),
+            child: BookingResultStatusBadge.forViewer(saved: saved, uid: uid),
+          ),
+        if (saved != null && saved.awaitsResponseFrom(uid))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 20, 12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                key: const Key('booking-result-open-review'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        BookingResultReviewPage(bookingId: args.bookingId),
+                  ),
+                ),
+                style: TextButton.styleFrom(foregroundColor: AppColors.brand),
+                child: const Text('Conferir e responder'),
+              ),
+            ),
           ),
       ],
       infoChips: [

@@ -10,6 +10,7 @@ import 'package:nexago_app/features/arenas/domain/booking_story.dart';
 import 'package:nexago_app/features/arenas/domain/booking_story_providers.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_confirmed_athlete.dart';
 import 'package:nexago_app/features/arenas/presentation/booking_result_page.dart';
+import 'package:nexago_app/features/arenas/presentation/booking_result_review_page.dart';
 import 'package:nexago_app/features/arenas/presentation/booking_result_score_page.dart';
 import 'package:nexago_app/features/arenas/presentation/booking_result_team_page.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/booking_story/booking_result_card.dart';
@@ -58,6 +59,7 @@ Future<FakeBookingResultRepository> abrir(
   BookingStorySource? source = galera,
   List<ResultPlayer> busca = const [],
   List<SavedBookingResult> salvos = const [],
+  String uid = 'u1',
 }) async {
   final repo = FakeBookingResultRepository(salvos);
   tester.view.physicalSize = const Size(400, 1400);
@@ -73,7 +75,7 @@ Future<FakeBookingResultRepository> abrir(
           (ref, query) async => busca,
         ),
         bookingResultRepositoryProvider.overrideWithValue(repo),
-        bookingResultUidProvider.overrideWithValue('u1'),
+        bookingResultUidProvider.overrideWithValue(uid),
       ],
       child: MaterialApp(
         theme: AppTheme.dark,
@@ -264,6 +266,40 @@ void main() {
     expect(inCard(find.text('As brabas')), findsOneWidget);
   });
 
+  group('convidado da reserva (entra pela Agenda desde o #779)', () {
+    testWidgets('monta a arte, mas não grava: só quem reservou salva', (
+      tester,
+    ) async {
+      final repo = await abrir(tester, uid: 'u3');
+
+      await tester.tap(find.byKey(const Key('booking-result-edit')));
+      await navegar(tester);
+      expect(rich('Só quem reservou a quadra salva o placar'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('SET 1-a-plus')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('booking-result-save')));
+      await navegar(tester);
+
+      expect(find.byType(BookingResultPage), findsOneWidget);
+      expect(repo.saves, isEmpty);
+      expect(cardResult(tester).games.single.scoreA, 1);
+    });
+
+    testWidgets('adversário com placar pendente vê o atalho para conferir', (
+      tester,
+    ) async {
+      await abrir(tester, uid: 'u3', salvos: [savedResult()]);
+      await tester.pump();
+
+      expect(find.textContaining('Com a sua confirmação'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('booking-result-open-review')));
+      await navegar(tester);
+      expect(find.byType(BookingResultReviewPage), findsOneWidget);
+      expect(find.byKey(const Key('booking-result-confirm')), findsOneWidget);
+    });
+  });
+
   group('placar salvo', () {
     testWidgets('o aviso cita quem confirma e o Salvar grava o placar', (
       tester,
@@ -330,7 +366,8 @@ void main() {
       await tester.pump();
 
       expect(find.byType(BookingResultScorePage), findsOneWidget);
-      expect(find.text('O placar abre quando a partida começar.'), findsOneWidget);
+      expect(
+          find.text('O placar abre quando a partida começar.'), findsOneWidget);
     });
 
     testWidgets('abre com o placar gravado e o estado pendente', (
@@ -367,7 +404,8 @@ void main() {
       await tester.tap(find.text('2–1'));
       await tester.pump();
       expect(find.byType(BookingResultScorePage), findsNothing);
-      expect(find.text('Placar confirmado: ele não muda mais.'), findsOneWidget);
+      expect(
+          find.text('Placar confirmado: ele não muda mais.'), findsOneWidget);
     });
 
     testWidgets('contestado: avisa quem contestou e reabre o editor', (
@@ -381,7 +419,8 @@ void main() {
       ]);
       await tester.pump();
 
-      expect(find.text('Rafael contestou · corrija e envie de novo'), findsOneWidget);
+      expect(find.text('Rafael contestou · corrija e envie de novo'),
+          findsOneWidget);
       await tester.tap(find.byKey(const Key('booking-result-edit')));
       await navegar(tester);
       expect(find.byType(BookingResultScorePage), findsOneWidget);

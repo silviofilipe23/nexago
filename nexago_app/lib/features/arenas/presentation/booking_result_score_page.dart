@@ -21,6 +21,8 @@ class BookingResultScorePage extends StatefulWidget {
     required this.candidates,
     this.ownerPlayerId,
     this.onSave,
+    this.localOnlyNotice = 'O placar vai só para a arte do story: não fica '
+        'salvo nem conta no seu histórico ou no ranking.',
   });
 
   final BookingResult initial;
@@ -34,6 +36,9 @@ class BookingResultScorePage extends StatefulWidget {
   /// Grava o placar; erro ([BookingResultException]) mantém a tela aberta com
   /// a mensagem. `null` só devolve o placar.
   final Future<void> Function(BookingResult result)? onSave;
+
+  /// O aviso quando não grava ([onSave] nulo).
+  final String localOnlyNotice;
 
   @override
   State<BookingResultScorePage> createState() => _BookingResultScorePageState();
@@ -119,11 +124,7 @@ class _BookingResultScorePageState extends State<BookingResultScorePage> {
       _r.teamById(ownerTeamId)?.players.length ?? 2,
     ).label.toLowerCase();
     final notice = widget.onSave == null
-        ? (
-            names: '',
-            rest: 'O placar vai só para a arte do story: não fica salvo nem '
-                'conta no seu histórico ou no ranking.',
-          )
+        ? (names: '', rest: widget.localOnlyNotice)
         : bookingResultSaveNotice([
             for (final p in bookingResultConfirmers(_r, widget.ownerPlayerId))
               p.firstName,

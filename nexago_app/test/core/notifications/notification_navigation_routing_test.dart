@@ -146,6 +146,65 @@ void main() {
     },
   );
 
+  group('fatura da mensalidade de aula', () {
+    const invoice = 'https://www.asaas.com/i/abc123';
+    const payload = <String, dynamic>{
+      'type': 'arena_class_charge_link',
+      'arenaId': 'arena1',
+      'invoiceUrl': invoice,
+      'webUrl': invoice,
+      'url': '/discover?tab=agenda',
+    };
+
+    testWidgets('o toque abre a fatura no navegador, mesmo sem sessão', (
+      tester,
+    ) async {
+      final (ref, router) = await _pumpApp(
+        tester,
+        authStream: Stream<User?>.fromFuture(
+          Future<User?>.delayed(const Duration(milliseconds: 120), () => null),
+        ),
+      );
+      final opened = <String>[];
+
+      final navigation = navigateFromNotificationData(
+        payload,
+        router,
+        ref: ref,
+        openExternal: (url) async {
+          opened.add(url);
+          return true;
+        },
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+      await navigation;
+      await tester.pumpAndSettle();
+
+      expect(opened, [invoice]);
+      // A página do Asaas não pede login: nada fica pendente para depois dele.
+      expect(ref.read(pendingDeepLinkPathProvider), isNull);
+    });
+
+    testWidgets('sem navegador, cai na agenda do atleta', (tester) async {
+      final (ref, router) = await _pumpApp(
+        tester,
+        authStream: Stream<User?>.value(MockUser(uid: 'atleta-1')),
+      );
+
+      final navigation = navigateFromNotificationData(
+        payload,
+        router,
+        ref: ref,
+        openExternal: (_) async => false,
+      );
+      await tester.pump();
+      await navigation;
+      await tester.pumpAndSettle();
+
+      expect(_location(router), athleteAgendaTabLocation);
+    });
+  });
+
   testWidgets('payload sem rota conhecida não navega', (tester) async {
     final (ref, router) = await _pumpApp(
       tester,

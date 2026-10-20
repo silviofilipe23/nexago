@@ -5,6 +5,7 @@ import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { arenaFunctions } from '../data/functions';
+import { AvatarComponent } from '../ui/avatar.component';
 import { IconComponent } from '../ui/icon.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { ToggleComponent } from '../ui/toggle.component';
@@ -16,6 +17,7 @@ import {
   PAYMENT_METHOD_LABEL,
   PLAN_GROUP_LABEL,
   brl,
+  formatPhoneBR,
   planDetail,
   planPriceUnit,
   slotsLabel,
@@ -44,7 +46,7 @@ import {
   type ArenaClass,
   type ClassStudent,
 } from './class.model';
-import { fetchActiveClassStudents, fetchClassStudent, fetchClasses } from './classes-repository';
+import { fetchActiveClassStudents, fetchClassStudent, fetchClasses, getClassAthleteContact } from './classes-repository';
 
 export interface SlotRow {
   key: string;
@@ -125,6 +127,7 @@ interface Prefill {
   studentId: string | null;
   name: string;
   phone: string | null;
+  photoUrl: string | null;
   source: 'student' | 'waitlist';
 }
 
@@ -148,7 +151,7 @@ export function cpfDigitsOk(raw: string): boolean {
 @Component({
   selector: 'ar-panel-aula-enrollment',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AulasPageComponent, PanelCardComponent, IconComponent, ToggleComponent, AulaAthletePickerComponent, TeacherAvatarComponent],
+  imports: [AulasPageComponent, PanelCardComponent, IconComponent, ToggleComponent, AulaAthletePickerComponent, TeacherAvatarComponent, AvatarComponent],
   styleUrl: './aulas-form.scss',
   template: `
     <ar-aulas-page title="Nova matrícula" [subtitle]="done() ? 'Matrícula confirmada' : 'Passo ' + step() + ' de 4 · ' + steps[step() - 1]">
@@ -214,7 +217,7 @@ export function cpfDigitsOk(raw: string): boolean {
                 <ar-panel-card title="Quem vai se matricular?" kicker="Atleta NexaGO ou contato da arena">
                   @if (prefill(); as p) {
                     <div class="pick on static">
-                      <span class="av">{{ initials(p.name) }}</span>
+                      <ar-avatar [name]="p.name" [photoUrl]="p.photoUrl" [size]="40" zoomable personRole="Aluno" />
                       <div class="grow">
                         <div class="p-title">{{ p.name }}</div>
                         <div class="sub">{{ p.athleteId ? 'Atleta NexaGO' : 'Contato da arena · sem conta' }} · {{ p.source === 'waitlist' ? 'da lista de espera' : 'já é aluno da turma' }}</div>
@@ -223,12 +226,12 @@ export function cpfDigitsOk(raw: string): boolean {
                     </div>
                   } @else {
                     <div class="chip-row">
-                      <button type="button" class="ar-chip" [class.active]="mode() === 'athlete'" (click)="mode.set('athlete')">Atleta NexaGO</button>
-                      <button type="button" class="ar-chip" [class.active]="mode() === 'guest'" (click)="mode.set('guest')">Sem conta</button>
+                      <button type="button" class="ar-chip" [class.active]="mode() === 'athlete'" (click)="setMode('athlete')">Atleta NexaGO</button>
+                      <button type="button" class="ar-chip" [class.active]="mode() === 'guest'" (click)="setMode('guest')">Sem conta</button>
                     </div>
                     @if (mode() === 'athlete') {
                       <div class="field-label spaced">Buscar atleta</div>
-                      <ar-aula-athlete-picker placeholder="Nome do atleta" emptyHint="Nenhum atleta encontrado. Cadastre como “Sem conta” ou peça para criar a conta no app." (selected)="picked.set($event)" />
+                      <ar-aula-athlete-picker placeholder="Nome do atleta" emptyHint="Nenhum atleta encontrado. Cadastre como “Sem conta” ou peça para criar a conta no app." (selected)="pickAthlete($event)" />
                     } @else {
                       <div class="field-label spaced">Nome</div>
                       <input class="input-box" type="text" maxlength="80" [value]="guestName()" (input)="guestName.set($any($event.target).value)" />
@@ -236,7 +239,11 @@ export function cpfDigitsOk(raw: string): boolean {
                   }
                   <div class="field-label spaced">Telefone (WhatsApp)</div>
                   <input class="input-box" type="tel" maxlength="30" placeholder="(11) 99999-9999" [value]="phone()" (input)="phone.set($any($event.target).value)" />
-                  <p class="hint">O telefone é usado no botão "Cobrar" — a mensagem sai pronta no WhatsApp.</p>
+                  @if (phoneFromAccount()) {
+                    <p class="hint">Telefone do cadastro do atleta no NexaGO — confira antes de cobrar.</p>
+                  } @else {
+                    <p class="hint">O telefone é usado no botão "Cobrar" — a mensagem sai pronta no WhatsApp.</p>
+                  }
                 </ar-panel-card>
               }
               @case (2) {
@@ -424,10 +431,6 @@ export function cpfDigitsOk(raw: string): boolean {
     }
     .pick.on { background: var(--nx-orange-tint); border-color: rgba(255, 106, 26, 0.5); }
     .pick.static { display: flex; align-items: center; gap: 12px; cursor: default; padding: 12px; }
-    .av {
-      width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; flex: none;
-      background: var(--nx-surface-2); font-family: var(--nx-font-display); font-weight: 700; font-size: 12px; color: var(--nx-text-mute);
-    }
     .p-title { font-family: var(--nx-font-display); font-weight: 600; font-size: 13.5px; color: var(--nx-text); }
     .p-price { font-family: var(--nx-font-display); font-weight: 800; font-size: 20px; color: var(--nx-text); margin-top: 8px; }
     .pick.on .p-price { color: var(--nx-orange-500); }
@@ -506,6 +509,10 @@ export class PanelAulaEnrollmentComponent {
   protected readonly picked = signal<AthleteSearchResult | null>(null);
   protected readonly guestName = signal('');
   protected readonly phone = signal('');
+  /** Telefone que veio do cadastro do atleta (vazio = o campo é do gestor). */
+  private readonly accountPhone = signal('');
+  protected readonly phoneFromAccount = computed(() => this.accountPhone() !== '' && this.phone() === this.accountPhone());
+  private contactSeq = 0;
   protected readonly prefill = signal<Prefill | null>(null);
 
   protected readonly plans = signal<ClassPlan[]>([]);
@@ -645,14 +652,18 @@ export class PanelAulaEnrollmentComponent {
       if (entryId) {
         const w = await fetchWaitlistEntry(db, classId, entryId);
         if (w && w.status === 'waiting') {
-          this.prefill.set({ athleteId: w.athleteId, studentId: null, name: w.name, phone: w.phone, source: 'waitlist' });
+          this.prefill.set({ athleteId: w.athleteId, studentId: null, name: w.name, phone: w.phone, photoUrl: null, source: 'waitlist' });
           this.phone.set(w.phone ?? '');
+          void this.fillAccountPhone(w.athleteId);
         }
       } else if (studentId) {
         const st = await fetchClassStudent(db, classId, studentId);
         if (st && st.status !== 'removed') {
-          this.prefill.set({ athleteId: st.athleteId, studentId: st.athleteId ? null : st.id, name: st.name, phone: st.phone, source: 'student' });
+          this.prefill.set({
+            athleteId: st.athleteId, studentId: st.athleteId ? null : st.id, name: st.name, phone: st.phone, photoUrl: st.photoUrl, source: 'student',
+          });
           this.phone.set(st.phone ?? '');
+          void this.fillAccountPhone(st.athleteId);
         }
       }
     } catch {
@@ -680,18 +691,51 @@ export class PanelAulaEnrollmentComponent {
     return name.split(' ')[0] ?? name;
   }
 
-  protected initials(name: string): string {
-    const parts = name.trim().split(/\s+/);
-    return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1]![0] ?? '' : '')).toUpperCase();
-  }
-
   protected slotBlocked(r: SlotRow): boolean {
     return r.enrolled || (r.spotsLeft === 0 && !this.selected().has(r.key));
   }
 
   protected clearPrefill(): void {
     this.prefill.set(null);
+    this.resetPhone();
+  }
+
+  protected setMode(mode: 'athlete' | 'guest'): void {
+    this.mode.set(mode);
+    // O número do cadastro é do atleta escolhido — não pode virar o do contato sem conta.
+    if (mode === 'guest') void this.fillAccountPhone(null);
+    else void this.fillAccountPhone(this.picked()?.id ?? null);
+  }
+
+  protected pickAthlete(athlete: AthleteSearchResult | null): void {
+    this.picked.set(athlete);
+    void this.fillAccountPhone(athlete?.id ?? null);
+  }
+
+  /** Preenche o telefone com o do cadastro do atleta. O que veio do cadastro de outro atleta
+   *  sai; o que o gestor digitou fica. Sem resposta, o campo fica para digitar — e a matrícula
+   *  com telefone em branco usa o do cadastro no servidor de qualquer jeito. */
+  private async fillAccountPhone(athleteId: string | null): Promise<void> {
+    const seq = ++this.contactSeq;
+    if (this.phoneFromAccount()) this.phone.set('');
+    this.accountPhone.set('');
+    const arenaId = this.arenaContext.arenaId();
+    if (!athleteId || !arenaId || this.phone().trim()) return;
+    try {
+      const { phone } = await getClassAthleteContact(arenaFunctions(), arenaId, athleteId);
+      const formatted = formatPhoneBR(phone);
+      if (seq !== this.contactSeq || !formatted || this.phone().trim()) return;
+      this.phone.set(formatted);
+      this.accountPhone.set(formatted);
+    } catch {
+      // Segue sem pré-preenchimento.
+    }
+  }
+
+  private resetPhone(): void {
+    this.contactSeq++;
     this.phone.set('');
+    this.accountPhone.set('');
   }
 
   protected toggleSlot(r: SlotRow): void {
@@ -785,7 +829,8 @@ export class PanelAulaEnrollmentComponent {
       const asaasGroupId = result.asaasGroupId ?? null;
       this.done.set({
         enrollmentId: result.enrollmentId, studentId: result.studentId, name: this.studentName(),
-        phone: input.phone ?? null, preview: this.preview(), asaasGroupId,
+        // O servidor devolve o telefone gravado (o do cadastro quando o campo ficou vazio).
+        phone: result.phone ?? input.phone ?? null, preview: this.preview(), asaasGroupId,
       });
       if (asaasGroupId) this.watchDoneCharges(input.arenaId, result.studentId);
     } catch (err) {
@@ -839,7 +884,7 @@ export class PanelAulaEnrollmentComponent {
     this.prefill.set(null);
     this.picked.set(null);
     this.guestName.set('');
-    this.phone.set('');
+    this.resetPhone();
     this.planId.set(null);
     this.selected.set(new Set());
     this.waiveFee.set(false);

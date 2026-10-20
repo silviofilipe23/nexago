@@ -26,4 +26,13 @@ describe('notificationTarget', () => {
     // Convite legado sem inviteId no payload: não navega.
     expect(notificationTarget({ ...base, inviteId: null, type: 'booking_invite' })).toBeNull();
   });
+
+  it('mensalidade de aula abre a fatura em nova aba; sem link, a Agenda', () => {
+    const base = { type: 'arena_class_charge_link', tournamentId: null };
+    expect(notificationTarget({ ...base, invoiceUrl: 'https://www.asaas.com/i/abc123' })).toEqual({
+      externalUrl: 'https://www.asaas.com/i/abc123',
+    });
+    expect(notificationTarget({ ...base, invoiceUrl: null })).toEqual({ commands: ['/agenda'] });
+    expect(notificationTarget({ ...base, invoiceUrl: 'javascript:alert(1)' })).toEqual({ commands: ['/agenda'] });
+  });
 });

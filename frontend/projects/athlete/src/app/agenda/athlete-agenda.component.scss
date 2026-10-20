@@ -868,6 +868,23 @@ $ag-kind-colors: (
   margin: 0;
 }
 
+// Mensalidade de aula: overdue no tom de alerta; cobrança manual só informa (sem botão).
+.ag-pending-avatar--charge {
+  font-size: 11px;
+}
+
+.ag-pending-schedule--overdue {
+  color: var(--nx-live);
+  font-weight: 600;
+}
+
+.ag-pending-note {
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  color: var(--nx-text-mute);
+  margin: 0;
+}
+
 .ag-pending-item--review .ag-pending-avatar--review {
   color: var(--nx-orange-500);
   font-size: 16px;

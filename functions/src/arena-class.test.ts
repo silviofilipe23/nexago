@@ -13,6 +13,7 @@ import {
   classScheduleLabel,
   findClassConflicts,
   isClassScheduleChange,
+  loadClassAthleteContactCore,
   MATERIALIZED_DONE,
   discardNewClass,
   materializeClassRange,
@@ -22,6 +23,7 @@ import {
   releaseClassSession,
   releaseFutureClassSessions,
   requireTeacherAccount,
+  resolveStudentInput,
   unchangedSessionDates,
   upsertClassTeacherCore,
   removeClassStudentCore,
@@ -376,6 +378,29 @@ describe("arena-class alunos", () => {
     assert.equal(fake.store.get("arenaClasses/c1/classStudents/u1")!["status"], "removed");
     // Vaga liberada: o mesmo atleta pode voltar.
     await addClassStudentCore(db, "c1", {...base, athleteId: "u1", name: "Carla"});
+  });
+
+  it("telefone em branco vem do cadastro do atleta; o digitado tem prioridade", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("users/u1", {fullName: "Carla Dias", phoneNumber: "+5562982406456"});
+    fake.seedDoc("users/u2", {fullName: "Bruno Lima"});
+
+    assert.equal((await resolveStudentInput(db, {athleteId: "u1"})).phone, "+5562982406456");
+    assert.equal((await resolveStudentInput(db, {athleteId: "u1", phone: "  "})).phone, "+5562982406456");
+    assert.equal((await resolveStudentInput(db, {athleteId: "u1", phone: "(62) 3333-4444"})).phone, "(62) 3333-4444");
+    assert.equal((await resolveStudentInput(db, {athleteId: "u2"})).phone, null);
+    // Sem conta não tem cadastro de onde puxar.
+    assert.equal((await resolveStudentInput(db, {name: "Ana"})).phone, null);
+  });
+
+  it("contato para a matrícula: telefone do cadastro, ou null", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("users/u1", {fullName: "Carla Dias", phoneNumber: " (62) 98240-6456 "});
+    fake.seedDoc("users/u2", {fullName: "Bruno Lima"});
+
+    assert.deepEqual(await loadClassAthleteContactCore(db, "u1"), {phone: "(62) 98240-6456"});
+    assert.deepEqual(await loadClassAthleteContactCore(db, "u2"), {phone: null});
+    await assert.rejects(loadClassAthleteContactCore(db, "nope"), /não encontrado/);
   });
 });
 

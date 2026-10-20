@@ -27,6 +27,7 @@ import {
   type PanelNavItem,
 } from './panel-nav.model';
 import { PanelNavStateService, type StoredOpenGroup } from './panel-nav-state.service';
+import { PersonPhotoComponent } from './person-photo.component';
 import { ViewportService } from './viewport.service';
 
 function pathOnly(url: string): string {
@@ -41,7 +42,7 @@ function pathOnly(url: string): string {
 @Component({
   selector: 'ar-panel-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, IconComponent, NgTemplateOutlet, DrawerComponent],
+  imports: [RouterLink, IconComponent, NgTemplateOutlet, DrawerComponent, PersonPhotoComponent],
   host: {
     '[class.compact]': 'viewport.isCompact()',
     '[class.phone]': 'viewport.isPhone()',
@@ -81,6 +82,10 @@ function pathOnly(url: string): string {
         <ng-container [ngTemplateOutlet]="navTree" />
       </ar-drawer>
     }
+
+    <!-- Foto ampliada de qualquer ar-avatar zoomable do painel — no shell para fugir de
+         stacking context de card/tabela. -->
+    <ar-person-photo />
 
     @if (viewport.isPhone()) {
       <nav class="bottom-nav" aria-label="Navegação principal">

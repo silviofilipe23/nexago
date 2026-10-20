@@ -26,16 +26,30 @@ abstract final class PeladaStyle {
   static Color mute(AppThemeColors c) =>
       c.onSurface.withValues(alpha: c.isDark ? 0.40 : 0.64);
 
-  /// Pendente: borda amarela de 25% (spec 10b).
-  static const Color pendingBorder = Color(0x40F4C543);
+  // Tons de estado escurecidos no claro, no mesmo matiz dos do escuro: no
+  // branco o verde dava ~2:1 e o vermelho ~3,5:1. Ficam ≥ 5:1 até no
+  // gradiente laranja do topo do detalhe, o fundo mais claro onde aparecem
+  // (o âmbar de antes, #9A6B00, dava 4:1 ali).
+  static const Color _winLight = Color(0xFF187345);
+  static const Color _liveLight = Color(0xFFB3261E);
+  static const Color _pendingLight = Color(0xFF845C00);
 
-  /// Âmbar escurecido no tema claro: o `#F4C543` some no fundo branco.
+  /// Vitória: `4V`, `saldo +N` e a faixa do jogo ganho.
+  static Color win(AppThemeColors c) => c.isDark ? AppColors.win : _winLight;
+
+  /// Contestação e derrota: `saldo −N`, a faixa do jogo perdido e o aviso.
+  static Color live(AppThemeColors c) => c.isDark ? AppColors.live : _liveLight;
+
+  /// Pendente: borda amarela de 25% (spec 10b). No claro ela sumia no card
+  /// branco (~1,1:1); lá vira o âmbar do selo, ≥ 3:1 no card e no creme.
+  static Color pendingBorder(AppThemeColors c) =>
+      c.isDark ? const Color(0x40F4C543) : _pendingLight;
+
   static Color toneColor(PeladaStatusTone tone, {bool isDark = true}) =>
       switch (tone) {
-        PeladaStatusTone.confirmed => AppColors.win,
-        PeladaStatusTone.pending =>
-          isDark ? AppColors.pending : const Color(0xFF9A6B00),
-        PeladaStatusTone.disputed => AppColors.live,
+        PeladaStatusTone.confirmed => isDark ? AppColors.win : _winLight,
+        PeladaStatusTone.pending => isDark ? AppColors.pending : _pendingLight,
+        PeladaStatusTone.disputed => isDark ? AppColors.live : _liveLight,
       };
 }
 
@@ -198,7 +212,7 @@ class PeladaRecord extends StatelessWidget {
             children: [
               TextSpan(
                 text: '${mine.wins}V',
-                style: const TextStyle(color: AppColors.win),
+                style: TextStyle(color: PeladaStyle.win(colors)),
               ),
               TextSpan(
                 text: ' · ',
@@ -266,7 +280,7 @@ class PeladaSessionRow extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           side: BorderSide(
             color: pending && !compact
-                ? PeladaStyle.pendingBorder
+                ? PeladaStyle.pendingBorder(colors)
                 : PeladaStyle.line(colors),
           ),
         ),

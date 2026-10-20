@@ -65,11 +65,16 @@ void main() {
           tester,
           find.byType(PeladaDetailPage),
         );
+        final mine = peladaMineOf(saved, 'u3')!;
+        expect(mine.balance, isNegative);
         expect(
           checked,
           containsAll([
             peladaFormatLine(saved),
-            peladaHeroSubtitle(peladaMineOf(saved, 'u3')!),
+            peladaHeroSubtitle(mine),
+            // Selo âmbar e saldo vermelho sobre o gradiente laranja.
+            peladaStatusTag(saved).label,
+            'saldo ${peladaBalanceLabel(mine.balance)}',
             'de 2',
             'SETS',
             'S1',
@@ -95,12 +100,62 @@ void main() {
           tester,
           find.byType(PeladaDetailPage),
         );
+        final mine = peladaMineOf(saved, 'u1')!;
         expect(
           checked,
-          containsAll(['CLASSIFICAÇÃO', 'SEUS JOGOS', '2', '3', '4', 'J1']),
+          containsAll([
+            'CLASSIFICAÇÃO',
+            'SEUS JOGOS',
+            '2',
+            '3',
+            '4',
+            'J1',
+            // Selo e saldo verdes sobre o gradiente laranja.
+            '● CONFIRMADO',
+            'saldo ${peladaBalanceLabel(mine.balance)}',
+          ]),
         );
         // O chevron da reserva (dono) é decorativo: conferido a 3:1.
         expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget);
+
+        // Faixa verde/vermelha de cada jogo de "Seus jogos" contra o card.
+        expect(
+          expectPeladaMarksVisible(tester, find.byType(PeladaDetailPage)),
+          List.filled(peladaMyGames(saved, 'u1').length, 'faixa'),
+        );
+      });
+
+      testWidgets('contestada: selo, saldo e aviso legíveis', (tester) async {
+        final saved = savedResult(
+          status: BookingResultStatus.disputed,
+          disputedBy: 'u3',
+          disputeReason: 'Placar errado',
+        );
+        await _open(tester, theme, uid: 'u1', saved: saved);
+
+        final checked = expectPeladaTonesLegible(
+          tester,
+          find.byType(PeladaDetailPage),
+        );
+        final mine = peladaMineOf(saved, 'u1')!;
+        expect(mine.balance, isPositive);
+        expect(
+          checked,
+          containsAll([
+            '✕ CONTESTADO',
+            'saldo ${peladaBalanceLabel(mine.balance)}',
+          ]),
+        );
+        // O ícone do aviso é do tom de contestado, então entrou na conta
+        // (a 3:1, sobre o vermelho translúcido do aviso).
+        final icon = tester.widget<Icon>(find.byIcon(Icons.report_outlined));
+        expect(
+          icon.color,
+          PeladaStyle.toneColor(
+            PeladaStatusTone.disputed,
+            isDark: theme.brightness == Brightness.dark,
+          ),
+        );
       });
 
       testWidgets('folha de contestar legível sobre a folha', (tester) async {
@@ -120,7 +175,7 @@ void main() {
 
   // O tema escuro é o visual de referência: o ajuste do claro não pode
   // mexer em nenhuma cor dele.
-  test('tema escuro: dim e mute idênticos aos de antes', () {
+  test('tema escuro: paleta idêntica à de antes', () {
     final dark = AppThemeColors.ofBrightness(Brightness.dark);
     expect(
       PeladaStyle.dim(dark),
@@ -129,6 +184,110 @@ void main() {
     expect(
       PeladaStyle.mute(dark),
       AppColors.onSurface.withValues(alpha: 0.40),
+    );
+    expect(PeladaStyle.win(dark), AppColors.win);
+    expect(PeladaStyle.live(dark), AppColors.live);
+    expect(PeladaStyle.pendingBorder(dark), const Color(0x40F4C543));
+    expect(
+      [
+        for (final tone in PeladaStatusTone.values)
+          PeladaStyle.toneColor(tone, isDark: true),
+      ],
+      [AppColors.win, AppColors.pending, AppColors.live],
+    );
+  });
+
+  testWidgets('tema escuro: tons do detalhe iguais aos de antes', (
+    tester,
+  ) async {
+    final saved = savedResult(
+      status: BookingResultStatus.disputed,
+      disputedBy: 'u3',
+      disputeReason: 'Placar errado',
+    );
+    await _open(tester, AppTheme.dark, uid: 'u1', saved: saved);
+
+    Color? colorOf(String text) =>
+        tester.widget<Text>(find.text(text)).style!.color;
+    final mine = peladaMineOf(saved, 'u1')!;
+    expect(colorOf('✕ CONTESTADO'), AppColors.live);
+    expect(
+      colorOf('saldo ${peladaBalanceLabel(mine.balance)}'),
+      AppColors.win,
+    );
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.report_outlined)).color,
+      AppColors.live,
+    );
+  });
+
+  testWidgets('tema escuro: faixas de "Seus jogos" iguais às de antes', (
+    tester,
+  ) async {
+    final saved = savedResult(
+      status: BookingResultStatus.confirmed,
+      result: kingOfCourtResult(),
+    );
+    await _open(tester, AppTheme.dark, uid: 'u1', saved: saved);
+
+    final stripes = {
+      for (final box in tester.widgetList<ColoredBox>(
+        find.descendant(
+          of: find.byType(PeladaDetailPage),
+          matching: find.byType(ColoredBox),
+        ),
+      ))
+        box.color,
+    };
+    expect(stripes, containsAll([AppColors.win, AppColors.live]));
+    expect(find.text('● CONFIRMADO'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.text('● CONFIRMADO')).style!.color,
+      AppColors.win,
+    );
+  });
+
+  testWidgets('tema escuro: linha da lista igual à de antes', (tester) async {
+    final saved = savedResult();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: Scaffold(
+          body: PeladaSessionRow(saved: saved, uid: 'u1', onTap: () {}),
+        ),
+      ),
+    );
+
+    final card = tester.widget<Material>(
+      find
+          .descendant(
+            of: find.byType(PeladaSessionRow),
+            matching: find.byType(Material),
+          )
+          .first,
+    );
+    expect(
+      (card.shape! as RoundedRectangleBorder).side.color,
+      const Color(0x40F4C543),
+    );
+    final record = tester.widget<RichText>(
+      find
+          .descendant(
+            of: find.byType(PeladaRecord),
+            matching: find.byType(RichText),
+          )
+          .first,
+    );
+    final label = '${peladaMineOf(saved, 'u1')!.wins}V';
+    TextSpan? wins;
+    record.text.visitChildren((span) {
+      if (span is TextSpan && span.text == label) wins = span;
+      return wins == null;
+    });
+    expect(wins?.style?.color, AppColors.win);
+    expect(
+      tester.widget<Text>(find.text(peladaStatusTag(saved).label)).style!.color,
+      AppColors.pending,
     );
   });
 

@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
-import { interval } from 'rxjs';
+import { fromEvent, interval } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
@@ -18,7 +18,14 @@ import {
   type MyBooking,
 } from '../data/my-bookings-repository';
 import { fetchMyClubParticipations, type MyClubParticipation } from '../data/arena-clubs-repository';
-import { fetchMyClassAgenda, type MyClassAgendaItem } from '../data/class-agenda-repository';
+import {
+  classChargeInfoLabel,
+  classChargeLine,
+  fetchMyClassAgenda,
+  fetchMyClassCharges,
+  type MyClassAgendaItem,
+  type MyClassChargeItem,
+} from '../data/class-agenda-repository';
 import {
   acceptPartnerInvite,
   declinePartnerInvite,
@@ -448,6 +455,10 @@ export class AthleteAgendaComponent {
 
   protected readonly loading = signal(true);
   protected readonly events = signal<AgendaEvent[]>([]);
+  /** Mensalidades de aula em aberto (`getMyClassCharges`) — entram no "Precisa de você". */
+  protected readonly classCharges = signal<MyClassChargeItem[]>([]);
+  /** Abriu uma fatura: ao voltar para a aba, relê as mensalidades (a paga sai). */
+  private reloadChargesOnReturn = false;
   protected readonly monthStats = signal<AgendaMonthStat[]>([]);
 
   private readonly partnerInvites = inject(PartnerInvitesService);
@@ -588,13 +599,16 @@ export class AthleteAgendaComponent {
     () =>
       this.pendingRequests().length +
       this.events().filter((e) => e.statusTone === 'warning').length +
-      (this.pendingReview() ? 1 : 0),
+      (this.pendingReview() ? 1 : 0) +
+      this.classCharges().length,
   );
 
   /** Contagem do badge do card "Precisa de você" — precisa bater com o que o card lista
-   *  (convites + avaliação pendente), não com `pendingActionCount()`: esse último também soma
-   *  eventos com pagamento pendente, que aparecem na lista principal, não neste card. */
-  protected readonly pendingCardCount = computed(() => this.pendingRequests().length + (this.pendingReview() ? 1 : 0));
+   *  (convites + avaliação pendente + mensalidades), não com `pendingActionCount()`: esse último
+   *  também soma eventos com pagamento pendente, que aparecem na lista principal, não neste card. */
+  protected readonly pendingCardCount = computed(
+    () => this.pendingRequests().length + (this.pendingReview() ? 1 : 0) + this.classCharges().length,
+  );
 
   constructor() {
     interval(30_000)
@@ -602,6 +616,16 @@ export class AthleteAgendaComponent {
       .subscribe(() => this.now.set(Date.now()));
 
     this.destroyRef.onDestroy(() => clearTimeout(this.noticeTimeout));
+
+    fromEvent(document, 'visibilitychange')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (document.visibilityState !== 'visible' || !this.reloadChargesOnReturn) return;
+        this.reloadChargesOnReturn = false;
+        void fetchMyClassCharges()
+          .then((charges) => this.classCharges.set(charges))
+          .catch(() => undefined);
+      });
 
     effect(() => {
       const uid = this.auth.user()?.uid ?? null;
@@ -619,6 +643,7 @@ export class AthleteAgendaComponent {
     const projectId = environment.firebase.projectId;
     if (!db || !projectId || !uid) {
       this.events.set([]);
+      this.classCharges.set([]);
       this.monthStats.set([]);
       this.loading.set(false);
       return;
@@ -627,13 +652,15 @@ export class AthleteAgendaComponent {
     this.loading.set(true);
     try {
       const clubsFrom = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
-      const [bookings, guestBookings, registrations, clubParticipations, classes] = await Promise.all([
+      const [bookings, guestBookings, registrations, clubParticipations, classes, classCharges] = await Promise.all([
         fetchMyBookings(db, uid),
         fetchMyGuestBookings(db, uid).catch(() => [] as MyBooking[]),
         fetchMyRegistrations(db, projectId, uid),
         fetchMyClubParticipations(db, uid, clubsFrom).catch(() => [] as MyClubParticipation[]),
         fetchMyClassAgenda().catch(() => [] as MyClassAgendaItem[]),
+        fetchMyClassCharges().catch(() => [] as MyClassChargeItem[]),
       ]);
+      this.classCharges.set(classCharges);
 
       const tournamentIds = [...new Set(registrations.map((r) => r.tournamentId))];
       const tournaments = await fetchTournamentSummariesByIds(db, tournamentIds);
@@ -696,6 +723,19 @@ export class AthleteAgendaComponent {
   protected goToToday(): void {
     const today = dateOnly(new Date());
     this.selectDay(isoDate(today));
+  }
+
+  protected classChargeLine(c: MyClassChargeItem): string {
+    return classChargeLine(c);
+  }
+
+  protected classChargeInfo(c: MyClassChargeItem): string | null {
+    return classChargeInfoLabel(c);
+  }
+
+  /** O link abre a fatura em nova aba; ao voltar, a lista é relida. */
+  protected onClassChargePay(): void {
+    this.reloadChargesOnReturn = true;
   }
 
   protected scrollToPending(): void {

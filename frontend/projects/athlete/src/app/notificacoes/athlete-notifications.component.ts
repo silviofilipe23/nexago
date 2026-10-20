@@ -357,7 +357,12 @@ export class AthleteNotificationsComponent {
   protected open(n: AthleteNotification): void {
     this.markRead(n);
     const target = notificationTarget(n);
-    if (target) void this.router.navigate(target.commands, { queryParams: target.queryParams });
+    if (!target) return;
+    if ('externalUrl' in target) {
+      window.open(target.externalUrl, '_blank', 'noopener');
+      return;
+    }
+    void this.router.navigate(target.commands, { queryParams: target.queryParams });
   }
 
   protected async markAll(): Promise<void> {

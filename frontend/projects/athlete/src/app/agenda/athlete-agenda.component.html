@@ -188,7 +188,26 @@
               </div>
             </div>
           }
-          @if (pendingRequests().length === 0 && !pendingReview()) {
+          @for (c of classCharges(); track c.chargeId) {
+            <div class="ag-pending-item">
+              <div class="ag-pending-row">
+                <span class="ag-pending-avatar ag-pending-avatar--charge" aria-hidden="true">R$</span>
+                <div class="ag-pending-copy">
+                  <p class="ag-pending-title">{{ c.description }}</p>
+                  <p class="ag-pending-subtitle">{{ c.arenaName }}</p>
+                </div>
+              </div>
+              <p class="ag-pending-schedule" [class.ag-pending-schedule--overdue]="c.overdue">{{ classChargeLine(c) }}</p>
+              @if (c.invoiceUrl; as invoiceUrl) {
+                <div class="ag-pending-actions">
+                  <a class="ag-btn-primary ag-btn-sm" [href]="invoiceUrl" target="_blank" rel="noopener noreferrer" (click)="onClassChargePay()">Pagar</a>
+                </div>
+              } @else {
+                <p class="ag-pending-note">{{ classChargeInfo(c) }}</p>
+              }
+            </div>
+          }
+          @if (pendingRequests().length === 0 && !pendingReview() && classCharges().length === 0) {
             <p class="ag-empty-inline">Tudo em dia por aqui.</p>
           } @else {
             @for (r of pendingRequests(); track r.id) {

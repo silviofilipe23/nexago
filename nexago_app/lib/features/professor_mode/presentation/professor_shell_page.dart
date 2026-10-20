@@ -14,11 +14,12 @@ double professorShellBottomPadding(BuildContext context) =>
 
 /// Telas empilhadas (aluno, turmas) ocupam a tela inteira, sem a barra.
 bool shouldHideProfessorTabBar(String path) =>
+    path.startsWith('${AppRoutes.professorAgenda}/') ||
     path.startsWith('${AppRoutes.professorStudents}/') ||
     path.startsWith('${AppRoutes.professorMore}/');
 
-/// Shell do modo Professor: Hoje · Alunos · Mais (a ordem é a dos branches
-/// do `StatefulShellRoute` no router).
+/// Shell do modo Professor: Hoje · Agenda · Alunos · Mais (a ordem é a dos
+/// branches do `StatefulShellRoute` no router).
 class ProfessorShellPage extends StatelessWidget {
   const ProfessorShellPage({super.key, required this.navigationShell});
 
@@ -62,6 +63,13 @@ class ProfessorTabBar extends StatelessWidget {
       selectedIcon: Icons.today_rounded,
       sfSymbol: 'calendar.day.timeline.left',
       selectedSfSymbol: 'calendar.day.timeline.left',
+    ),
+    NexaBottomNavItem(
+      label: 'Agenda',
+      icon: Icons.calendar_month_outlined,
+      selectedIcon: Icons.calendar_month_rounded,
+      sfSymbol: 'calendar',
+      selectedSfSymbol: 'calendar',
     ),
     NexaBottomNavItem(
       label: 'Alunos',

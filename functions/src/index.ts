@@ -204,6 +204,18 @@ export {getMyClassSessionRoster} from "./arena-class-teacher";
 // Alunos, aluno e turmas do professor (app, modo Professor) — mesma régua da chamada.
 export {getMyProfessorStudents} from "./professor-students";
 export {onProfessorLessonCreated} from "./professor-lessons";
+// Agenda do professor em outros apps (feed .ics com token).
+export {configureProfessorCalendarFeed, professorCalendarFeed} from "./professor-calendar";
+// Comunicados do professor para os alunos (aviso, enquete, cancelamento, financeiro).
+export {
+  deleteProfessorNotice,
+  previewProfessorNoticeAudience,
+  professorNoticeScheduler,
+  remindProfessorNotice,
+  respondProfessorNotice,
+  saveProfessorNotice,
+  sendProfessorNotice,
+} from "./professor-notices";
 // Carteira do professor independente (subconta Asaas + cobrança com split).
 export {
   archiveProfessorStudent,

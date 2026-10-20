@@ -56,6 +56,8 @@ bool isAthleteExperiencePath(String path) {
   if (path.startsWith('/convite/')) return true;
   // Convite do professor para a carteira: o atleta responde no modo Atleta.
   if (path.startsWith('/convite-professor/')) return true;
+  // Comunicado do professor: o aluno lê e responde no modo Atleta.
+  if (path.startsWith('/aviso-professor/')) return true;
   if (path.startsWith('/arena/') && !isArenaManagerPanelPath(path)) {
     return true;
   }

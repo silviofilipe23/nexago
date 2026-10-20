@@ -142,6 +142,13 @@ class ProfessorMorePage extends ConsumerWidget {
                   onTap: () =>
                       context.pushNamed(AppRouteNames.professorClasses),
                 ),
+                _MenuRow(
+                  key: const Key('professor-more-notices'),
+                  icon: Icons.campaign_outlined,
+                  title: 'Comunicados',
+                  onTap: () =>
+                      context.pushNamed(AppRouteNames.professorNotices),
+                ),
               ],
             ),
             if (actionArenas.isNotEmpty) ...[

@@ -28,6 +28,17 @@ abstract final class AppRoutes {
 
   /// Abas do modo Professor (shell com a barra inferior): Alunos e Mais.
   static const String professorStudents = '/professor/alunos';
+
+  /// Fase 5 — Agenda (aba). Telas internas sem a barra.
+  static const String professorAgenda = '/professor/agenda';
+  static const String professorAgendaSession =
+      '/professor/agenda/aula/:sessionId';
+  static const String professorAgendaLesson =
+      '/professor/agenda/particular/:bookingId';
+  static const String professorBlockNew = '/professor/agenda/bloqueio';
+  static const String professorBlockEdit =
+      '/professor/agenda/bloqueio/:blockId';
+  static const String professorCalendarSync = '/professor/agenda/sincronizar';
   static const String professorMore = '/professor/mais';
 
   /// Aluno do professor (sem a barra): `/professor/alunos/:arenaId/:studentId`.
@@ -50,6 +61,19 @@ abstract final class AppRoutes {
   static const String professorNotice = '/professor/acoes/:arenaId/comunicado';
 
   /// Fase 3 — carteira do professor independente (Mais › Dinheiro, sem a barra).
+  /// Comunicados do professor (Mais › Alunos e aulas), sem a barra.
+  static const String professorNotices = '/professor/mais/comunicados';
+  static const String professorNoticeNew = '/professor/mais/comunicados/novo';
+  static const String professorNoticeReport =
+      '/professor/mais/comunicados/:noticeId';
+  static const String professorNoticeEdit =
+      '/professor/mais/comunicados/:noticeId/editar';
+
+  /// Comunicado do professor para o ATLETA (push `professor_notice`). Abre no
+  /// modo Atleta.
+  static const String professorNoticeForStudent =
+      '/aviso-professor/:noticeId';
+
   static const String professorPayoutAccount = '/professor/mais/conta';
   static const String professorWalletPlans = '/professor/mais/planos';
   static const String professorWallet = '/professor/mais/carteira';
@@ -726,6 +750,12 @@ abstract final class AppRouteNames {
   static const String organizerHome = 'organizerHome';
   static const String professorHome = 'professorHome';
   static const String professorStudents = 'professorStudents';
+  static const String professorAgenda = 'professorAgenda';
+  static const String professorAgendaSession = 'professorAgendaSession';
+  static const String professorAgendaLesson = 'professorAgendaLesson';
+  static const String professorBlockNew = 'professorBlockNew';
+  static const String professorBlockEdit = 'professorBlockEdit';
+  static const String professorCalendarSync = 'professorCalendarSync';
   static const String professorStudent = 'professorStudent';
   static const String professorMore = 'professorMore';
   static const String professorClasses = 'professorClasses';
@@ -736,6 +766,11 @@ abstract final class AppRouteNames {
   static const String professorMakeup = 'professorMakeup';
   static const String professorWaitlist = 'professorWaitlist';
   static const String professorNotice = 'professorNotice';
+  static const String professorNotices = 'professorNotices';
+  static const String professorNoticeNew = 'professorNoticeNew';
+  static const String professorNoticeReport = 'professorNoticeReport';
+  static const String professorNoticeEdit = 'professorNoticeEdit';
+  static const String professorNoticeForStudent = 'professorNoticeForStudent';
   static const String professorPayoutAccount = 'professorPayoutAccount';
   static const String professorWalletPlans = 'professorWalletPlans';
   static const String professorWallet = 'professorWallet';

@@ -175,11 +175,21 @@ import '../../features/professor_mode/presentation/actions/professor_new_lesson_
 import '../../features/professor_mode/presentation/actions/professor_notice_page.dart';
 import '../../features/professor_mode/presentation/actions/professor_waitlist_page.dart';
 import '../../features/professor_mode/presentation/professor_home_page.dart';
+import '../../features/athlete/domain/agenda/class_agenda_entry.dart';
+import '../../features/professor_mode/presentation/agenda/professor_agenda_lesson_page.dart';
+import '../../features/professor_mode/presentation/agenda/professor_agenda_page.dart';
+import '../../features/professor_mode/presentation/agenda/professor_agenda_session_page.dart';
+import '../../features/professor_mode/presentation/agenda/professor_block_page.dart';
+import '../../features/professor_mode/presentation/agenda/professor_calendar_sync_page.dart';
 import '../../features/professor_mode/presentation/professor_classes_page.dart';
 import '../../features/professor_mode/presentation/professor_more_page.dart';
 import '../../features/professor_mode/presentation/professor_shell_page.dart';
 import '../../features/professor_mode/presentation/professor_student_page.dart';
 import '../../features/professor_mode/presentation/professor_students_page.dart';
+import '../../features/professor_mode/presentation/notices/professor_notice_editor_page.dart';
+import '../../features/professor_mode/presentation/notices/professor_notice_report_page.dart';
+import '../../features/professor_mode/presentation/notices/professor_notice_student_page.dart';
+import '../../features/professor_mode/presentation/notices/professor_notices_page.dart';
 import '../../features/professor_mode/presentation/wallet/professor_payout_account_page.dart';
 import '../../features/professor_mode/presentation/wallet/professor_student_invite_page.dart';
 import '../../features/professor_mode/presentation/wallet/professor_wallet_add_student_page.dart';
@@ -408,7 +418,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.roleSelection,
         builder: (context, state) => const RoleSelectionPage(),
       ),
-      // Modo Professor: Hoje · Alunos · Mais (a ordem dos branches é a da
+      // Modo Professor: Hoje · Agenda · Alunos · Mais (a ordem dos branches é a da
       // barra). Aluno e Turmas empilham sem a barra.
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
@@ -420,6 +430,57 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 path: AppRoutes.professorHome,
                 name: AppRouteNames.professorHome,
                 builder: (context, state) => const ProfessorHomePage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.professorAgenda,
+                name: AppRouteNames.professorAgenda,
+                builder: (context, state) => const ProfessorAgendaPage(),
+                routes: [
+                  GoRoute(
+                    path: 'aula/:sessionId',
+                    name: AppRouteNames.professorAgendaSession,
+                    builder: (context, state) => ProfessorAgendaSessionPage(
+                      sessionId:
+                          state.pathParameters['sessionId']?.trim() ?? '',
+                      entry: state.extra is ClassAgendaEntry
+                          ? state.extra! as ClassAgendaEntry
+                          : null,
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'particular/:bookingId',
+                    name: AppRouteNames.professorAgendaLesson,
+                    builder: (context, state) => ProfessorAgendaLessonPage(
+                      bookingId:
+                          state.pathParameters['bookingId']?.trim() ?? '',
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'bloqueio',
+                    name: AppRouteNames.professorBlockNew,
+                    builder: (context, state) => const ProfessorBlockPage(),
+                    routes: [
+                      GoRoute(
+                        path: ':blockId',
+                        name: AppRouteNames.professorBlockEdit,
+                        builder: (context, state) => ProfessorBlockPage(
+                          blockId:
+                              state.pathParameters['blockId']?.trim() ?? '',
+                        ),
+                      ),
+                    ],
+                  ),
+                  GoRoute(
+                    path: 'sincronizar',
+                    name: AppRouteNames.professorCalendarSync,
+                    builder: (context, state) =>
+                        const ProfessorCalendarSyncPage(),
+                  ),
+                ],
               ),
             ],
           ),
@@ -454,6 +515,39 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                     path: 'turmas',
                     name: AppRouteNames.professorClasses,
                     builder: (context, state) => const ProfessorClassesPage(),
+                  ),
+                  // Comunicados do professor (F1–F5).
+                  GoRoute(
+                    path: 'comunicados',
+                    name: AppRouteNames.professorNotices,
+                    builder: (context, state) => const ProfessorNoticesPage(),
+                    routes: [
+                      GoRoute(
+                        path: 'novo',
+                        name: AppRouteNames.professorNoticeNew,
+                        builder: (context, state) =>
+                            const ProfessorNoticeEditorPage(),
+                      ),
+                      GoRoute(
+                        path: ':noticeId',
+                        name: AppRouteNames.professorNoticeReport,
+                        builder: (context, state) => ProfessorNoticeReportPage(
+                          noticeId:
+                              state.pathParameters['noticeId']?.trim() ?? '',
+                        ),
+                        routes: [
+                          GoRoute(
+                            path: 'editar',
+                            name: AppRouteNames.professorNoticeEdit,
+                            builder: (context, state) =>
+                                ProfessorNoticeEditorPage(
+                              noticeId:
+                                  state.pathParameters['noticeId']?.trim(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                   // Fase 3: carteira do professor independente.
                   GoRoute(
@@ -2746,6 +2840,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final args = extra is BookingSuccessArgs ? extra : null;
           return BookingSuccessPage(args: args);
         },
+      ),
+      // Comunicado do professor para o aluno (push `professor_notice`).
+      GoRoute(
+        path: AppRoutes.professorNoticeForStudent,
+        name: AppRouteNames.professorNoticeForStudent,
+        builder: (context, state) => ProfessorNoticeStudentPage(
+          noticeId: state.pathParameters['noticeId']?.trim() ?? '',
+        ),
       ),
       // Convite do professor para a carteira dele (push
       // `professor_student_invite`); o atleta aceita ou recusa.

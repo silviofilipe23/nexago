@@ -20,6 +20,7 @@ class ClassAgendaEntry {
     this.myMark,
     this.studentCount,
     this.canManageLessons = false,
+    this.classType,
   });
 
   final String sessionId;
@@ -54,6 +55,10 @@ class ClassAgendaEntry {
   /// Servidor antigo (sem o campo) = `false`.
   final bool canManageLessons;
 
+  /// Tipo da turma (`turma`, `particular`, `dupla`, `experimental`).
+  /// Servidor antigo (sem o campo) = `null`.
+  final String? classType;
+
   bool get isTeacher => role == 'teacher';
   bool get isCanceled => status == 'canceled';
 
@@ -66,6 +71,7 @@ class ClassAgendaEntry {
     final startRaw = map['startAt'];
     final count = map['studentCount'];
     final mark = map['myMark'];
+    final type = map['classType'];
     return ClassAgendaEntry(
       sessionId: s('sessionId'),
       arenaId: s('arenaId'),
@@ -84,6 +90,7 @@ class ClassAgendaEntry {
       myMark: mark is String ? mark : null,
       studentCount: count is num ? count.toInt() : null,
       canManageLessons: map['canManageLessons'] == true,
+      classType: type is String && type.trim().isNotEmpty ? type.trim() : null,
     );
   }
 }

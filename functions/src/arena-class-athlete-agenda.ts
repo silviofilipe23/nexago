@@ -57,6 +57,8 @@ export interface ClassAgendaItem {
   studentCount: number | null;
   /** Só para o professor: pode fazer a chamada (vínculo com a permissão). Aluno: `null`. */
   canManageLessons: boolean | null;
+  /** Tipo da turma (`turma`, `particular`, `dupla`, `experimental`); campo novo, opcional no cliente. */
+  classType: string;
 }
 
 function str(v: unknown, fallback = ""): string {
@@ -91,6 +93,7 @@ function baseItem(
     endTime: str(d["endTime"]),
     startAt: startAt instanceof Timestamp ? startAt.toDate().toISOString() : null,
     status: status === "canceled" || status === "completed" ? status : "scheduled",
+    classType: str(d["type"], "turma"),
   };
 }
 

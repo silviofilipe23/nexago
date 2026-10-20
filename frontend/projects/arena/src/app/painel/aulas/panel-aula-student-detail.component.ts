@@ -22,6 +22,7 @@ import {
   slotsLabel,
   studentPayState,
   chargeInvoiceUrl,
+  chargeVoidsInvoice,
   onlineChargeLabel,
   whatsappChargeLink,
   whatsappLink,
@@ -219,6 +220,7 @@ type Confirm = 'pause' | 'resume' | 'cancel';
                         <a class="ar-ghost-btn small" [href]="link" target="_blank" rel="noopener">Cobrar</a>
                       }
                       <button type="button" class="ar-mini-btn small" [disabled]="readOnly()" (click)="openPay(c)">Registrar pagamento</button>
+                      <button type="button" class="ar-ghost-btn small danger" [disabled]="readOnly()" (click)="canceling.set(c)">Cancelar</button>
                     } @else if (c.status === 'paid' && c.paidVia !== 'asaas') {
                       <button type="button" class="ar-ghost-btn small" [disabled]="readOnly() || busy()" (click)="reopen(c)">Desfazer</button>
                     }
@@ -254,6 +256,21 @@ type Confirm = 'pause' | 'resume' | 'cancel';
         <div class="modal-actions">
           <button type="button" class="ar-mini-btn" [disabled]="busy()" (click)="paying.set(null)">Cancelar</button>
           <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="busy() || !payDate()" (click)="pay(c)">{{ busy() ? 'Salvando…' : 'Confirmar pagamento' }}</button>
+        </div>
+      </ar-modal>
+    }
+
+    @if (canceling(); as c) {
+      <ar-modal (close)="canceling.set(null)">
+        <p class="modal-title">Cancelar mensalidade?</p>
+        <p class="modal-sub">{{ c.description }} · {{ brl(c.amountReais) }}</p>
+        @if (voidsInvoice(c)) {
+          <p class="hint first">A fatura online também é cancelada no Asaas e o link enviado ao aluno deixa de valer. Se ela cobria outras mensalidades, o aluno recebe um link novo só com elas.</p>
+        }
+        <p class="hint">A mensalidade sai do que o aluno deve e não volta a ser cobrada.</p>
+        <div class="modal-actions">
+          <button type="button" class="ar-mini-btn" [disabled]="busy()" (click)="canceling.set(null)">Voltar</button>
+          <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="busy()" (click)="cancelCharge(c)">{{ busy() ? 'Cancelando…' : 'Cancelar mensalidade' }}</button>
         </div>
       </ar-modal>
     }
@@ -345,6 +362,8 @@ export class PanelAulaStudentDetailComponent {
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
   protected readonly paying = signal<Charge | null>(null);
+  /** Mensalidade no modal "Cancelar mensalidade?". */
+  protected readonly canceling = signal<Charge | null>(null);
   protected readonly payMethod = signal<PaymentMethod>('pix');
   protected readonly payDate = signal(this.today);
   protected readonly confirm = signal<Confirm | null>(null);
@@ -498,6 +517,25 @@ export class PanelAulaStudentDetailComponent {
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : 'Não foi possível registrar o pagamento.');
       this.paying.set(null);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  protected voidsInvoice(c: Charge): boolean {
+    return chargeVoidsInvoice(c);
+  }
+
+  /** Cancela a mensalidade; online, o servidor também anula a fatura no Asaas. */
+  protected async cancelCharge(c: Charge): Promise<void> {
+    this.busy.set(true);
+    this.error.set(null);
+    try {
+      await setChargeStatus(arenaFunctions(), c.id, 'canceled');
+      this.canceling.set(null);
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : 'Não foi possível cancelar a mensalidade.');
+      this.canceling.set(null);
     } finally {
       this.busy.set(false);
     }

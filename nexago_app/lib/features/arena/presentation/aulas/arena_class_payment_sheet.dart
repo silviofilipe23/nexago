@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/formatting/app_currency_format.dart';
 import '../../data/arena_class_repository.dart';
@@ -10,15 +11,18 @@ import '../../domain/aulas/arena_class_enrollment.dart';
 import '../../domain/aulas/arena_class_enrollment_providers.dart';
 import 'widgets/arena_class_form_atoms.dart';
 
+/// O que a folha gravou — `null` quando o gestor fechou sem mudar nada.
+enum ArenaClassChargeSheetResult { paid, canceled }
+
 /// "Registrar pagamento": o gestor recebeu direto (PIX, dinheiro,
-/// maquininha, transferência) e dá baixa na cobrança. Em mensalidade online,
-/// o servidor anula a fatura — a folha avisa antes. Devolve `true` quando
-/// gravou.
-Future<bool?> showArenaClassPaymentSheet(
+/// maquininha, transferência) e dá baixa na cobrança — ou cancela a
+/// mensalidade. Em mensalidade online, o servidor anula a fatura nos dois
+/// casos; a folha avisa antes.
+Future<ArenaClassChargeSheetResult?> showArenaClassPaymentSheet(
   BuildContext context, {
   required ArenaClassCharge charge,
 }) {
-  return showModalBottomSheet<bool>(
+  return showModalBottomSheet<ArenaClassChargeSheetResult>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
@@ -44,18 +48,19 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
   bool _sending = false;
   String? _error;
 
-  Future<void> _submit() async {
+  Future<void> _run(
+    Future<void> Function() action,
+    ArenaClassChargeSheetResult result,
+    String fallbackError,
+  ) async {
     setState(() {
       _sending = true;
       _error = null;
     });
     try {
-      await ref.read(arenaClassEnrollmentRepositoryProvider).markChargePaid(
-            chargeId: widget.charge.id,
-            method: _method,
-          );
+      await action();
       if (!mounted) return;
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pop(result);
     } on ArenaClassException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -66,9 +71,58 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
       if (!mounted) return;
       setState(() {
         _sending = false;
-        _error = 'Não foi possível registrar. Tente novamente.';
+        _error = fallbackError;
       });
     }
+  }
+
+  Future<void> _submit() => _run(
+        () => ref.read(arenaClassEnrollmentRepositoryProvider).markChargePaid(
+              chargeId: widget.charge.id,
+              method: _method,
+            ),
+        ArenaClassChargeSheetResult.paid,
+        'Não foi possível registrar. Tente novamente.',
+      );
+
+  Future<void> _cancel() async {
+    final c = widget.charge;
+    final invoice = arenaClassManualPaymentVoidsInvoice(c)
+        ? ' A fatura online também é cancelada no Asaas e o link deixa de '
+            'valer; se ela cobria outras mensalidades, o aluno recebe um link '
+            'novo só com elas.'
+        : '';
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ctx.themeColors.surfaceSheet,
+        title: const Text('Cancelar a mensalidade?'),
+        content: Text(
+          '${c.description} (${formatBRL(c.amountReais)}) sai do que '
+          '${arenaClassFirstName(c.name)} deve e não volta a ser cobrada.'
+          '$invoice',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.live),
+            child: const Text('Sim, cancelar'),
+          ),
+        ],
+      ),
+    );
+    if (go != true || !mounted) return;
+    await _run(
+      () => ref
+          .read(arenaClassEnrollmentRepositoryProvider)
+          .cancelCharge(chargeId: c.id),
+      ArenaClassChargeSheetResult.canceled,
+      'Não foi possível cancelar. Tente novamente.',
+    );
   }
 
   @override
@@ -163,6 +217,18 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
             busy: _sending,
             color: AppColors.win,
             onPressed: _submit,
+          ),
+          const SizedBox(height: 6),
+          TextButton(
+            onPressed: _sending ? null : _cancel,
+            child: Text(
+              'Cancelar mensalidade',
+              style: AppTypography.soraRegular(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: _sending ? colors.onSurfaceMuted : AppColors.live,
+              ),
+            ),
           ),
         ],
       ),

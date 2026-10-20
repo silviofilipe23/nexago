@@ -383,10 +383,14 @@ class _ArenaClassStudentPageState extends ConsumerState<ArenaClassStudentPage> {
   }
 
   Future<void> _register(BuildContext context, ArenaClassCharge c) async {
-    final ok = await showArenaClassPaymentSheet(context, charge: c);
-    if (ok == true && context.mounted) {
-      showAppSnackBar(context, 'Pagamento registrado.');
-    }
+    final result = await showArenaClassPaymentSheet(context, charge: c);
+    if (result == null || !context.mounted) return;
+    showAppSnackBar(
+      context,
+      result == ArenaClassChargeSheetResult.canceled
+          ? 'Mensalidade cancelada.'
+          : 'Pagamento registrado.',
+    );
   }
 
   Future<void> _setStatus(ArenaClassEnrollment e, String status) async {

@@ -183,6 +183,50 @@ void main() {
         );
       });
 
+      testWidgets('aba Peladas: selos, vitórias e borda de pendente', (
+        tester,
+      ) async {
+        final peladas = [
+          savedResult(
+            bookingId: 'a',
+            status: BookingResultStatus.confirmed,
+            dateKey: _day(3, 12),
+          ),
+          savedResult(bookingId: 'b', dateKey: _day(3, 11)),
+          savedResult(
+            bookingId: 'c',
+            status: BookingResultStatus.disputed,
+            disputedBy: 'u3',
+            disputeReason: 'Placar errado',
+            dateKey: _day(3, 10),
+          ),
+        ];
+        await _pumpPage(
+          tester,
+          theme,
+          tab: MatchHistoryTab.peladas,
+          peladas: peladas,
+        );
+
+        final page = find.byType(AthleteMatchHistoryPage);
+        final checked = expectPeladaTonesLegible(tester, page);
+        expect(
+          checked,
+          containsAll([
+            for (final s in peladas) peladaStatusTag(s).label,
+            '${peladaMineOf(peladas.first, 'u1')!.wins}V',
+          ]),
+        );
+        // Pendente e contestada ganham a borda; no escuro ela fica de fora
+        // da conta (amarela a 25%, como sempre foi).
+        expect(
+          expectPeladaMarksVisible(tester, page),
+          theme.brightness == Brightness.dark
+              ? isEmpty
+              : ['borda pendente', 'borda pendente'],
+        );
+      });
+
       testWidgets('aba Peladas: cabeçalho do mês legível sobre o fundo', (
         tester,
       ) async {

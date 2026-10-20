@@ -165,6 +165,30 @@ void main() {
       await _settle(tester);
       expect(copied, ['https://asaas.test/i/7']);
       expect(find.text('Link de pagamento copiado.'), findsOneWidget);
+
+      // O aluno paga com a tela aberta: o webhook grava e a tela acompanha.
+      enrollmentRepo.liveStudentCharges!.add([
+        charge(
+          id: 'e-new_2026-10',
+          studentId: 'st1',
+          status: 'paid',
+          paidOn: '2026-10-19',
+          asaas: invoice(
+            groupId: 'e-new_first',
+            state: ArenaClassAsaasState.paid,
+          ),
+          paidVia: 'asaas',
+          onlineBillingType: 'PIX',
+        ),
+      ]);
+      await _settle(tester);
+      expect(
+        find.text('Pago online · PIX · ${formatBRL(160)}'),
+        findsOneWidget,
+      );
+      expect(find.text('Copiar link'), findsNothing);
+      expect(find.text('Cobrar no WhatsApp'), findsNothing);
+      expect(find.text('Gerando o link de pagamento…'), findsNothing);
     });
 
     testWidgets('atleta com conta: CPF opcional (o servidor usa o cadastro)',
@@ -351,6 +375,72 @@ void main() {
         find.textContaining('registrar o pagamento aqui cancela o link'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('cancelar a mensalidade presa em "Gerando link…"',
+        (tester) async {
+      // O Asaas recusou (R$ 4,44 < mínimo de R$ 5): o grupo ficou sem link.
+      final enrollmentRepo = FakeArenaClassEnrollmentRepository(
+        rules: _onlineRules,
+        charges: [
+          charge(
+            id: 'stuck',
+            name: 'Diego Nunes',
+            dueDate: '2026-10-12',
+            asaas: invoice(state: ArenaClassAsaasState.pending, url: null),
+          ),
+        ],
+      );
+      await pumpAulas(
+        tester,
+        repo: FakeArenaClassRepository(),
+        enrollmentRepo: enrollmentRepo,
+        initial: '/arena/classes/charges',
+      );
+      expect(find.text('Gerando link…'), findsOneWidget);
+
+      await tester.tap(find.text('Registrar pagamento'));
+      await _settle(tester);
+      await tester.ensureVisible(find.text('Cancelar mensalidade'));
+      await tester.tap(find.text('Cancelar mensalidade'));
+      await _settle(tester);
+      expect(find.text('Cancelar a mensalidade?'), findsOneWidget);
+      expect(
+        find.textContaining('fatura online também é cancelada no Asaas'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Sim, cancelar'));
+      await _settle(tester);
+      expect(enrollmentRepo.canceled, ['stuck']);
+      expect(enrollmentRepo.paid, isEmpty);
+      expect(find.text('Mensalidade de Diego Nunes cancelada.'), findsOneWidget);
+    });
+
+    testWidgets('voltar no aviso não cancela; manual não fala de fatura',
+        (tester) async {
+      final enrollmentRepo = FakeArenaClassEnrollmentRepository(
+        charges: [
+          charge(id: 'late', name: 'Diego Nunes', dueDate: '2026-10-12'),
+        ],
+      );
+      await pumpAulas(
+        tester,
+        repo: FakeArenaClassRepository(),
+        enrollmentRepo: enrollmentRepo,
+        initial: '/arena/classes/charges',
+      );
+
+      await tester.tap(find.text('Registrar pagamento'));
+      await _settle(tester);
+      await tester.ensureVisible(find.text('Cancelar mensalidade'));
+      await tester.tap(find.text('Cancelar mensalidade'));
+      await _settle(tester);
+      expect(find.textContaining('Asaas'), findsNothing);
+
+      await tester.tap(find.text('Voltar'));
+      await _settle(tester);
+      expect(enrollmentRepo.canceled, isEmpty);
     });
 
     testWidgets('manual: sem rótulo de fatura, sem link e sem aviso',

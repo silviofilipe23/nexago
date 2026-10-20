@@ -10,11 +10,15 @@ class MatchHistoryTabSwitcher extends StatelessWidget {
     required this.matchCount,
     required this.tournamentCount,
     required this.onTabChanged,
+    this.peladaCount,
   });
 
   final MatchHistoryTab tab;
   final int matchCount;
   final int tournamentCount;
+
+  /// Peladas confirmadas no ano; `null` ainda carregando (sem número).
+  final int? peladaCount;
   final ValueChanged<MatchHistoryTab> onTabChanged;
 
   @override
@@ -42,6 +46,13 @@ class MatchHistoryTabSwitcher extends StatelessWidget {
             label: 'Torneios ($tournamentCount)',
             selected: tab == MatchHistoryTab.tournaments,
             onTap: () => onTabChanged(MatchHistoryTab.tournaments),
+          ),
+          _pill(
+            context: context,
+            theme: theme,
+            label: peladaCount == null ? 'Peladas' : 'Peladas ($peladaCount)',
+            selected: tab == MatchHistoryTab.peladas,
+            onTap: () => onTabChanged(MatchHistoryTab.peladas),
           ),
         ],
       ),

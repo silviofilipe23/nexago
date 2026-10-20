@@ -3,6 +3,8 @@ import {
   billingTotals,
   chargeInvoiceUrl,
   chargeState,
+  chargeVoidsInvoice,
+  formatPhoneBR,
   onlineChargeLabel,
   planDetail,
   rulesFromDoc,
@@ -53,6 +55,7 @@ function enrollment(over: Partial<Enrollment>): Enrollment {
     athleteId: null,
     name: 'Marina Lopes',
     phone: '11999990000',
+    photoUrl: null,
     plan: { planId: 'p1', name: 'Mensal 2x', kind: 'monthly', priceReais: 320, classesPerWeek: 2, makeupsPerMonth: 1, credits: null, validityDays: null, description: null },
     slots: [
       { classId: 'k1', className: 'Intermediário B', weekday: 2, startTime: '19:00', teacherId: 't1' },
@@ -189,6 +192,13 @@ describe('cobrança de aulas (billing.model)', () => {
     expect(chargeInvoiceUrl(charge({ ...online, status: 'paid' }))).toBeNull();
     expect(chargeInvoiceUrl(charge({ billingMode: 'asaas', asaas: { ...asaas, state: 'void' } }))).toBeNull();
 
+    // Cancelar a mensalidade derruba a fatura enquanto ela existe (ou ainda pode nascer).
+    expect(chargeVoidsInvoice(online)).toBeTrue();
+    expect(chargeVoidsInvoice(charge({ billingMode: 'asaas', asaas: { ...asaas, state: 'failed', invoiceUrl: null } }))).toBeTrue();
+    expect(chargeVoidsInvoice(charge({ billingMode: 'asaas', asaas: { ...asaas, state: 'needs_cpf' } }))).toBeFalse();
+    expect(chargeVoidsInvoice(charge({}))).toBeFalse();
+    expect(chargeVoidsInvoice(charge({ ...online, status: 'paid' }))).toBeFalse();
+
     const link = whatsappChargeLink('11999990000', 'Marina', online, 'Arena Sol', chargeInvoiceUrl(online));
     expect(decodeURIComponent(link!.split('text=')[1]!)).toContain('Pague por aqui, com PIX ou cartão: https://asaas.test/i/1');
   });
@@ -321,5 +331,20 @@ describe('Turma e chamada (fase 2)', () => {
       { date: '2026-10-13', mark: 'present' },
       { date: '2026-10-15', mark: 'excused' },
     ]);
+  });
+});
+
+describe('formatPhoneBR (telefone do cadastro do atleta)', () => {
+  it('E.164 do SMS e número cru viram o formato do campo', () => {
+    expect(formatPhoneBR('+5562982406456')).toBe('(62) 98240-6456');
+    expect(formatPhoneBR('62982406456')).toBe('(62) 98240-6456');
+    expect(formatPhoneBR('+55 62 3333-4444')).toBe('(62) 3333-4444');
+  });
+
+  it('o que não é número brasileiro reconhecível passa como veio', () => {
+    expect(formatPhoneBR(' (62) 98240-6456 ')).toBe('(62) 98240-6456');
+    expect(formatPhoneBR('+14155552671')).toBe('+14155552671');
+    expect(formatPhoneBR('ramal 22')).toBe('ramal 22');
+    expect(formatPhoneBR(null)).toBe('');
   });
 });

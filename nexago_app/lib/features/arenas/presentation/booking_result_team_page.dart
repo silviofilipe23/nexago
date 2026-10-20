@@ -25,7 +25,8 @@ class ResultTeamDraft {
 }
 
 /// Reservar · 16c — montar um time do placar: formação (dupla a sexteto),
-/// quem estava na reserva, busca de atletas do app ou um nome avulso.
+/// quem estava na reserva ou a busca de atletas do app. Pelada não tem
+/// avulso: cada jogador confirma o placar com a própria conta.
 class BookingResultTeamPage extends ConsumerStatefulWidget {
   const BookingResultTeamPage({
     super.key,
@@ -52,7 +53,6 @@ class _BookingResultTeamPageState extends ConsumerState<BookingResultTeamPage> {
   late BookingResultFormation _formation = widget.formation;
   late final List<ResultPlayer> _selected = [...?widget.editing?.players];
   late String? _customName = widget.editing?.customName;
-  final List<ResultPlayer> _guests = [];
   final _queryController = TextEditingController();
   Timer? _debounce;
   String _search = '';
@@ -90,21 +90,6 @@ class _BookingResultTeamPageState extends ConsumerState<BookingResultTeamPage> {
     });
   }
 
-  void _addGuest() {
-    final name = _query;
-    if (name.isEmpty) return;
-    final guest = ResultPlayer(
-      id: 'guest:${DateTime.now().microsecondsSinceEpoch}',
-      name: name,
-    );
-    setState(() {
-      _guests.add(guest);
-      if (!_full) _selected.add(guest);
-      _queryController.clear();
-      _search = '';
-    });
-  }
-
   Future<void> _rename() async {
     final current = _customName?.trim() ?? '';
     final name = await showDialog<String>(
@@ -123,7 +108,7 @@ class _BookingResultTeamPageState extends ConsumerState<BookingResultTeamPage> {
     final title = widget.editing == null ? 'Adicionar $label' : 'Editar time';
     final query = _query;
     final local = [
-      for (final p in [...widget.candidates, ..._guests])
+      for (final p in widget.candidates)
         if (query.isEmpty ||
             normalizeSearchTerm(p.name).contains(normalizeSearchTerm(query)))
           p,
@@ -291,7 +276,6 @@ class _BookingResultTeamPageState extends ConsumerState<BookingResultTeamPage> {
               key: const Key('booking-result-team-search'),
               controller: _queryController,
               onChanged: _onQueryChanged,
-              onSubmitted: (_) => _addGuest(),
               textCapitalization: TextCapitalization.words,
               style: AppTypography.soraRegular(
                 fontSize: 13.5,
@@ -299,7 +283,7 @@ class _BookingResultTeamPageState extends ConsumerState<BookingResultTeamPage> {
                 color: colors.onSurface,
               ),
               decoration: InputDecoration(
-                hintText: 'Buscar atleta ou digitar um nome',
+                hintText: 'Buscar atleta pelo nome ou @',
                 hintStyle: AppTypography.soraRegular(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w500,
@@ -324,11 +308,6 @@ class _BookingResultTeamPageState extends ConsumerState<BookingResultTeamPage> {
               ),
             ),
           ),
-          if (query.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
-              child: _GuestTile(name: query, onTap: _addGuest),
-            ),
           BookingStorySectionLabel(query.isEmpty ? 'Da reserva' : 'Resultados'),
           if (remote.isLoading)
             const Padding(
@@ -346,10 +325,10 @@ class _BookingResultTeamPageState extends ConsumerState<BookingResultTeamPage> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(
                 query.isEmpty
-                    ? 'Busque um atleta pelo nome ou digite o nome de quem '
-                        'não tem conta.'
+                    ? 'Busque quem jogou pelo nome ou @. Todo mundo do placar '
+                        'precisa ter conta no nexaGO para confirmar.'
                     : isPartnerQueryLongEnough(query)
-                        ? 'Ninguém com esse nome. Adicione como avulso.'
+                        ? 'Ninguém com esse nome no nexaGO.'
                         : 'Digite pelo menos 3 letras para buscar no app.',
                 style: AppTypography.soraRegular(
                   fontSize: 12.5,
@@ -576,80 +555,6 @@ class _Slot extends StatelessWidget {
   }
 }
 
-class _GuestTile extends StatelessWidget {
-  const _GuestTile({required this.name, required this.onTap});
-
-  final String name;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    return Material(
-      color: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: AppColors.brand.withValues(alpha: 0.45),
-          width: 1.5,
-        ),
-      ),
-      child: InkWell(
-        key: const Key('booking-result-add-guest'),
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.brand.withValues(alpha: 0.12),
-                ),
-                child: const Icon(
-                  Icons.add_rounded,
-                  size: 18,
-                  color: AppColors.brand,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Adicionar "$name" como avulso',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.soraRegular(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: colors.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Sem conta nexaGO · só aparece na arte',
-                      style: AppTypography.soraRegular(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w500,
-                        color: colors.onSurface.withValues(alpha: 0.55),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _PlayerRow extends StatelessWidget {
   const _PlayerRow({
     super.key,
@@ -676,11 +581,9 @@ class _PlayerRow extends StatelessWidget {
     final disabled = takenBy != null || blocked;
     final subtitle = takenBy != null
         ? 'Já em $takenBy'
-        : player.isGuest
-            ? 'Avulso'
-            : inBooking
-                ? 'Na reserva'
-                : 'Atleta nexaGO';
+        : inBooking
+            ? 'Na reserva'
+            : 'Atleta nexaGO';
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(

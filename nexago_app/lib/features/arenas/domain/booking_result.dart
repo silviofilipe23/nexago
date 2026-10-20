@@ -141,11 +141,23 @@ class ResultStanding {
     required this.team,
     required this.wins,
     required this.pointDiff,
+    this.losses = 0,
+    this.pointsFor = 0,
+    this.position = 1,
   });
 
   final ResultTeam team;
   final int wins;
+
+  /// Jogos do time que não venceu (pelada não tem empate).
+  final int losses;
   final int pointDiff;
+  final int pointsFor;
+
+  /// 1, 2, 3… — empate em vitórias, saldo e pontos feitos divide a posição.
+  final int position;
+
+  int get games => wins + losses;
 }
 
 @immutable
@@ -170,42 +182,80 @@ class BookingResult {
 
   int get _nextTeamId => teams.fold(-1, (m, t) => t.id > m ? t.id : m) + 1;
 
+  /// Classificação (spec Peladas §3): vitórias, depois saldo, depois pontos
+  /// feitos; empate nos três divide a posição. Mesma conta do servidor.
   List<ResultStanding> get standings {
     final rows = [
       for (final team in teams)
-        ResultStanding(
-          team: team,
-          wins: games.where((g) => g.winner == team.id).length,
-          pointDiff: games.where((g) => g.involves(team.id)).fold(0, (sum, g) {
-            final mine = g.scoreOf(team.id);
-            final theirs = g.teamA == team.id ? g.scoreB : g.scoreA;
-            return sum + mine - theirs;
-          }),
-        ),
+        () {
+          final mine = games.where((g) => g.involves(team.id)).toList();
+          final wins = mine.where((g) => g.winner == team.id).length;
+          final pointsFor = mine.fold(0, (sum, g) => sum + g.scoreOf(team.id));
+          final against = mine.fold(
+            0,
+            (sum, g) => sum + (g.teamA == team.id ? g.scoreB : g.scoreA),
+          );
+          return ResultStanding(
+            team: team,
+            wins: wins,
+            losses: mine.where((g) => g.winner != team.id).length,
+            pointDiff: pointsFor - against,
+            pointsFor: pointsFor,
+          );
+        }(),
     ];
+    int compare(ResultStanding x, ResultStanding y) {
+      final byWins = y.wins.compareTo(x.wins);
+      if (byWins != 0) return byWins;
+      final byDiff = y.pointDiff.compareTo(x.pointDiff);
+      if (byDiff != 0) return byDiff;
+      return y.pointsFor.compareTo(x.pointsFor);
+    }
+
     // Estável: empate total mantém a ordem dos times.
     final indexed = rows.asMap().entries.toList()
       ..sort((x, y) {
-        final byWins = y.value.wins.compareTo(x.value.wins);
-        if (byWins != 0) return byWins;
-        final byDiff = y.value.pointDiff.compareTo(x.value.pointDiff);
-        return byDiff != 0 ? byDiff : x.key.compareTo(y.key);
+        final c = compare(x.value, y.value);
+        return c != 0 ? c : x.key.compareTo(y.key);
       });
-    return [for (final e in indexed) e.value];
+    final sorted = [for (final e in indexed) e.value];
+    final out = <ResultStanding>[];
+    for (var i = 0; i < sorted.length; i++) {
+      final s = sorted[i];
+      final position =
+          i > 0 && compare(sorted[i - 1], s) == 0 ? out[i - 1].position : i + 1;
+      out.add(
+        ResultStanding(
+          team: s.team,
+          wins: s.wins,
+          losses: s.losses,
+          pointDiff: s.pointDiff,
+          pointsFor: s.pointsFor,
+          position: position,
+        ),
+      );
+    }
+    return out;
   }
 
-  /// Quem está na frente; `null` sem vitória ou empatado com o segundo em
-  /// vitórias e saldo.
+  /// Quem está na frente sozinho; `null` sem vitória ou dividindo o 1º.
   int? get leaderId {
     final rows = standings;
     if (rows.isEmpty || rows.first.wins == 0) return null;
-    if (rows.length > 1 &&
-        rows[0].wins == rows[1].wins &&
-        rows[0].pointDiff == rows[1].pointDiff) {
-      return null;
-    }
+    if (rows.length > 1 && rows[1].position == 1) return null;
     return rows.first.team.id;
   }
+
+  /// O primeiro jogo empatado (índice), ou `null` — pelada não tem empate.
+  int? get firstTiedGame {
+    for (var i = 0; i < games.length; i++) {
+      if (games[i].scoreA == games[i].scoreB) return i;
+    }
+    return null;
+  }
+
+  /// Algum time ainda sem jogador ("Adversários").
+  bool get hasEmptyTeam => teams.any((t) => t.players.isEmpty);
 
   /// Vitórias de cada time (sets, com dois times).
   int winsOf(int teamId) => games.where((g) => g.winner == teamId).length;
@@ -318,7 +368,8 @@ class BookingResult {
 }
 
 /// Quem estava na reserva, para montar os times: quem reservou primeiro, depois
-/// os confirmados, sem repetir. Confirmado sem conta vira avulso.
+/// os confirmados, sem repetir. Confirmado sem conta fica de fora — a pelada só
+/// aceita jogador com conta (cada um confirma o placar).
 List<ResultPlayer> bookingResultCrew({
   String? ownerUid,
   String? ownerName,
@@ -328,10 +379,8 @@ List<ResultPlayer> bookingResultCrew({
   final crew = <ResultPlayer>[];
   void add(String? uid, String? name, String? avatarUrl) {
     final display = name?.trim() ?? '';
-    if (display.isEmpty) return;
-    final id = (uid?.trim().isNotEmpty ?? false)
-        ? uid!.trim()
-        : 'guest:${display.toLowerCase()}';
+    final id = uid?.trim() ?? '';
+    if (display.isEmpty || id.isEmpty) return;
     if (crew.any((p) => p.id == id)) return;
     crew.add(
       ResultPlayer(

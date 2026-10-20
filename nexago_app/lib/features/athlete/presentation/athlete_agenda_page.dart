@@ -13,10 +13,12 @@ import '../../arenas/domain/my_bookings_providers.dart';
 import '../../arenas/presentation/arena_booking_navigation.dart';
 import '../../tournaments/data/my_tournament_registrations_repository.dart';
 import '../../tournaments/domain/tournament_discovery_providers.dart';
+import '../data/class_agenda_repository.dart';
 import '../domain/agenda/athlete_agenda_logic.dart';
 import '../domain/agenda/athlete_agenda_models.dart';
 import '../domain/agenda/athlete_agenda_providers.dart';
 import '../domain/agenda/class_charge_entry.dart';
+import '../domain/agenda/class_charge_payment_watch.dart';
 import '../domain/athlete_notifications_providers.dart';
 import '../domain/athlete_shell_providers.dart';
 import 'widgets/agenda/agenda_class_charges_section.dart';
@@ -48,8 +50,8 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
   String _searchQuery = '';
   bool _searchVisible = false;
 
-  /// Abriu uma fatura: ao voltar pro app, relê as mensalidades (a paga sai).
-  bool _reloadChargesOnResume = false;
+  /// Espera de pagamento em curso — um resume novo substitui o anterior.
+  int _paymentWatch = 0;
   late final AppLifecycleListener _lifecycleListener;
 
   @override
@@ -67,20 +69,42 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
     super.dispose();
   }
 
+  /// Volta ao app com mensalidade online em aberto — pagou pela agenda, pelo
+  /// inbox, pelo push ou pelo link do WhatsApp: relê na hora e segue relendo
+  /// ~1 min, porque a baixa do webhook do Asaas pode chegar depois da volta.
+  /// A agenda vive no `IndexedStack` do shell, então ouve todo resume.
   void _onResume() {
-    if (!_reloadChargesOnResume) return;
-    _reloadChargesOnResume = false;
+    final open = ref.read(myClassChargesProvider).valueOrNull ?? const [];
+    final watched = classChargesAwaitingOnlinePayment(open);
+    if (watched.isEmpty) return;
     ref.invalidate(myClassChargesProvider);
+    _watchClassPayment(watched);
+  }
+
+  Future<void> _watchClassPayment(Set<String> watched) async {
+    final run = ++_paymentWatch;
+    bool stale() => !mounted || run != _paymentWatch;
+    final paid = await watchClassChargesPaid(
+      watched: watched,
+      fetch: ref.read(classAgendaRepositoryProvider).fetchMyCharges,
+      isCancelled: stale,
+    );
+    if (paid.isEmpty || stale()) return;
+    ref.invalidate(myClassChargesProvider);
+    showAppSnackBar(
+      context,
+      paid.length == 1
+          ? 'Pagamento da mensalidade confirmado.'
+          : 'Pagamento das mensalidades confirmado.',
+    );
   }
 
   Future<void> _payClassCharge(ClassChargeEntry charge) async {
     final url = charge.invoiceUrl;
     if (url == null) return;
-    // Antes de abrir: o `launchUrl` pode resolver só depois da volta ao app.
-    _reloadChargesOnResume = true;
+    // A volta ao app ([_onResume]) relê e espera a baixa.
     final opened = await openExternalUrl(url);
     if (opened || !mounted) return;
-    _reloadChargesOnResume = false;
     showAppSnackBar(
       context,
       'Não foi possível abrir a fatura.',

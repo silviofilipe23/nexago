@@ -362,6 +362,15 @@ class ArenaClassEnrollmentRepository {
     });
   }
 
+  /// Cancela a mensalidade em aberto. Em mensalidade online, o servidor
+  /// também anula a fatura no Asaas (o link deixa de valer).
+  Future<void> cancelCharge({required String chargeId}) async {
+    await _call('setArenaClassChargeStatus', {
+      'chargeId': chargeId,
+      'status': 'canceled',
+    });
+  }
+
   Future<Map<String, dynamic>> _call(
     String name,
     Map<String, Object> payload,

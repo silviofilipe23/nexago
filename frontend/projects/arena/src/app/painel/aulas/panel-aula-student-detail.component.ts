@@ -5,6 +5,7 @@ import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { arenaFunctions } from '../data/functions';
+import { AvatarComponent } from '../ui/avatar.component';
 import { IconComponent } from '../ui/icon.component';
 import { ModalComponent } from '../ui/modal.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
@@ -19,9 +20,11 @@ import {
   chargeState,
   daysLate,
   enrollmentClassNames,
+  formatPhoneBR,
   slotsLabel,
   studentPayState,
   chargeInvoiceUrl,
+  chargeVoidsInvoice,
   onlineChargeLabel,
   whatsappChargeLink,
   whatsappLink,
@@ -35,7 +38,6 @@ import {
   addDaysKey,
   isoWeekdayOf,
   shortDate,
-  teacherInitials,
   todayKeyLocal,
   weekdayDateLabel,
   type AttendanceMark,
@@ -70,7 +72,7 @@ type Confirm = 'pause' | 'resume' | 'cancel';
 @Component({
   selector: 'ar-panel-aula-student-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AulasPageComponent, PanelCardComponent, PillComponent, IconComponent, ModalComponent, AulaStatComponent],
+  imports: [AulasPageComponent, PanelCardComponent, PillComponent, IconComponent, AvatarComponent, ModalComponent, AulaStatComponent],
   styleUrl: './aulas-form.scss',
   template: `
     <ar-aulas-page [title]="enrollment()?.name ?? 'Aluno'" [subtitle]="subtitle()">
@@ -97,10 +99,10 @@ type Confirm = 'pause' | 'resume' | 'cancel';
           <div class="col">
             <ar-panel-card>
               <div class="profile">
-                <span class="av big">{{ initials(e.name) }}</span>
+                <ar-avatar class="big" [name]="e.name" [photoUrl]="e.photoUrl" [size]="52" zoomable personRole="Aluno" [meta]="e.plan.name" />
                 <div>
                   <div class="p-name">{{ e.name }}</div>
-                  <div class="sub">{{ e.phone || 'Sem telefone' }}</div>
+                  <div class="sub">{{ e.phone ? phoneLabel(e.phone) : 'Sem telefone' }}</div>
                 </div>
               </div>
               <div class="pills">
@@ -219,6 +221,7 @@ type Confirm = 'pause' | 'resume' | 'cancel';
                         <a class="ar-ghost-btn small" [href]="link" target="_blank" rel="noopener">Cobrar</a>
                       }
                       <button type="button" class="ar-mini-btn small" [disabled]="readOnly()" (click)="openPay(c)">Registrar pagamento</button>
+                      <button type="button" class="ar-ghost-btn small danger" [disabled]="readOnly()" (click)="canceling.set(c)">Cancelar</button>
                     } @else if (c.status === 'paid' && c.paidVia !== 'asaas') {
                       <button type="button" class="ar-ghost-btn small" [disabled]="readOnly() || busy()" (click)="reopen(c)">Desfazer</button>
                     }
@@ -258,6 +261,21 @@ type Confirm = 'pause' | 'resume' | 'cancel';
       </ar-modal>
     }
 
+    @if (canceling(); as c) {
+      <ar-modal (close)="canceling.set(null)">
+        <p class="modal-title">Cancelar mensalidade?</p>
+        <p class="modal-sub">{{ c.description }} · {{ brl(c.amountReais) }}</p>
+        @if (voidsInvoice(c)) {
+          <p class="hint first">A fatura online também é cancelada no Asaas e o link enviado ao aluno deixa de valer. Se ela cobria outras mensalidades, o aluno recebe um link novo só com elas.</p>
+        }
+        <p class="hint">A mensalidade sai do que o aluno deve e não volta a ser cobrada.</p>
+        <div class="modal-actions">
+          <button type="button" class="ar-mini-btn" [disabled]="busy()" (click)="canceling.set(null)">Voltar</button>
+          <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="busy()" (click)="cancelCharge(c)">{{ busy() ? 'Cancelando…' : 'Cancelar mensalidade' }}</button>
+        </div>
+      </ar-modal>
+    }
+
     @if (confirm(); as k) {
       <ar-modal (close)="confirm.set(null)">
         <p class="modal-title">{{ k === 'pause' ? 'Pausar plano?' : k === 'resume' ? 'Reativar plano?' : 'Cancelar plano?' }}</p>
@@ -280,8 +298,7 @@ type Confirm = 'pause' | 'resume' | 'cancel';
     .layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
     .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
     .profile { display: flex; align-items: center; gap: 14px; }
-    .av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--nx-surface-2); font-family: var(--nx-font-display); font-weight: 700; font-size: 11px; color: var(--nx-text-mute); }
-    .av.big { width: 54px; height: 54px; font-size: 18px; color: var(--nx-orange-500); background: var(--nx-orange-tint); border: 1px solid rgba(255, 106, 26, 0.4); }
+    ar-avatar.big { color: var(--nx-orange-500); background: var(--nx-orange-tint); border: 1px solid rgba(255, 106, 26, 0.4); }
     .p-name { font-family: var(--nx-font-display); font-weight: 700; font-size: 17px; color: var(--nx-text); }
     .sub { font-family: var(--nx-font-mono); font-size: 10.5px; color: var(--nx-text-dim); margin-top: 3px; }
     .pills { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
@@ -345,6 +362,8 @@ export class PanelAulaStudentDetailComponent {
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
   protected readonly paying = signal<Charge | null>(null);
+  /** Mensalidade no modal "Cancelar mensalidade?". */
+  protected readonly canceling = signal<Charge | null>(null);
   protected readonly payMethod = signal<PaymentMethod>('pix');
   protected readonly payDate = signal(this.today);
   protected readonly confirm = signal<Confirm | null>(null);
@@ -424,8 +443,8 @@ export class PanelAulaStudentDetailComponent {
     }
   }
 
-  protected initials(name: string): string {
-    return teacherInitials(name);
+  protected phoneLabel(phone: string): string {
+    return formatPhoneBR(phone);
   }
 
   protected slots(e: Enrollment): string {
@@ -498,6 +517,25 @@ export class PanelAulaStudentDetailComponent {
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : 'Não foi possível registrar o pagamento.');
       this.paying.set(null);
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  protected voidsInvoice(c: Charge): boolean {
+    return chargeVoidsInvoice(c);
+  }
+
+  /** Cancela a mensalidade; online, o servidor também anula a fatura no Asaas. */
+  protected async cancelCharge(c: Charge): Promise<void> {
+    this.busy.set(true);
+    this.error.set(null);
+    try {
+      await setChargeStatus(arenaFunctions(), c.id, 'canceled');
+      this.canceling.set(null);
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : 'Não foi possível cancelar a mensalidade.');
+      this.canceling.set(null);
     } finally {
       this.busy.set(false);
     }

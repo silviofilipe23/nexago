@@ -166,6 +166,7 @@ export {
   scheduleArenaClassDate,
   cancelArenaClassSession,
   addArenaClassStudent,
+  getArenaClassAthleteContact,
   removeArenaClassStudent,
   saveArenaClassAttendance,
 } from "./arena-class";
@@ -744,7 +745,7 @@ export {
 export {moderateStoreReview, onStoreOrderReviewWrittenSyncPublic, submitStoreOrderReview} from "./store-reviews-write";
 
 // Placar do pós-jogo do aluguel: o dono salva, os adversários com conta confirmam ou contestam.
-export {respondBookingResult, saveBookingResult} from "./booking-result-write";
+export {respondBookingResult, saveBookingResult, sweepBookingResults} from "./booking-result-write";
 
 // Prévia de link (OG/Twitter Card) das rotas dinâmicas do site público — a SPA Angular não
 // tem SSR, então bots de rede social são redirecionados aqui pelo .htaccess (por User-Agent).

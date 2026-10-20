@@ -14,7 +14,11 @@ import '../../domain/athlete_public_profile_models.dart';
 import '../../domain/athlete_public_profile_providers.dart';
 import '../../domain/gamification_providers.dart';
 import '../../domain/sand_rank/sand_rank_providers.dart';
+import '../../../arenas/domain/booking_result_record.dart';
+import '../../../arenas/domain/booking_result_record_providers.dart';
+import '../../../arenas/domain/pelada.dart';
 import 'widgets/public_profile_achievements_tab.dart';
+import 'widgets/public_profile_peladas_tab.dart';
 import 'widgets/public_profile_about_section.dart';
 import 'widgets/public_profile_action_row.dart';
 import 'widgets/public_profile_header.dart';
@@ -74,6 +78,16 @@ class _AthletePublicProfilePageState
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(athleteProfileByIdProvider(widget.userId));
+    // Aba Peladas só com pelada confirmada no ano (spec 00d).
+    final peladas =
+        ref.watch(userConfirmedPeladasProvider(widget.userId)).valueOrNull ??
+            const <SavedBookingResult>[];
+    final showPeladas = peladasSummary(
+          peladasOf(peladas, widget.userId),
+          widget.userId,
+          year: DateTime.now().year,
+        ).sessions >
+        0;
     final rankingAsync = ref.watch(athletePublicRankingProvider(widget.userId));
     final partnersAsync = ref.watch(
       athletePublicPartnersProvider(widget.userId),
@@ -234,6 +248,7 @@ class _AthletePublicProfilePageState
                 SliverToBoxAdapter(
                   child: PublicProfileTabBar(
                     selected: _tab,
+                    showPeladas: showPeladas,
                     onChanged: (tab) => setState(() => _tab = tab),
                   ),
                 ),
@@ -242,6 +257,7 @@ class _AthletePublicProfilePageState
                     partners: partners,
                     ranking: ranking,
                     isSelf: isSelf,
+                    peladas: showPeladas ? peladas : null,
                   ),
                 ),
                 const SliverToBoxAdapter(child: SizedBox(height: 32)),
@@ -257,8 +273,13 @@ class _AthletePublicProfilePageState
     required List<AthletePublicPartnerEntry> partners,
     required AthletePublicRankingSnapshot ranking,
     required bool isSelf,
+    List<SavedBookingResult>? peladas,
   }) {
-    switch (_tab) {
+    // A aba some se as peladas somem (ou ainda não chegaram): volta ao início.
+    final tab = _tab == PublicProfileTab.peladas && peladas == null
+        ? PublicProfileTab.overview
+        : _tab;
+    switch (tab) {
       case PublicProfileTab.overview:
         return PublicProfileOverviewTab(
           ranking: ranking,
@@ -281,6 +302,11 @@ class _AthletePublicProfilePageState
                   );
                 }
               : null,
+        );
+      case PublicProfileTab.peladas:
+        return PublicProfilePeladasTab(
+          userId: widget.userId,
+          peladas: peladas ?? const [],
         );
       case PublicProfileTab.achievements:
         return PublicProfileAchievementsTab(userId: widget.userId);

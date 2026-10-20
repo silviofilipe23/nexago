@@ -52,6 +52,7 @@ class FakeArenaClassEnrollmentRepository
   final List<(String, String)> statusChanges = [];
   final List<(String, ArenaClassPaymentMethod)> paid = [];
   final List<(String, String)> contactCalls = [];
+  final List<String> canceled = [];
 
   @override
   Stream<List<ArenaClassPlan>> watchPlans(String arenaId) {
@@ -197,6 +198,11 @@ class FakeArenaClassEnrollmentRepository
     required ArenaClassPaymentMethod method,
   }) async {
     paid.add((chargeId, method));
+  }
+
+  @override
+  Future<void> cancelCharge({required String chargeId}) async {
+    canceled.add(chargeId);
   }
 
   @override

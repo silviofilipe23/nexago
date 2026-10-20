@@ -7,12 +7,15 @@ import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../arenas/domain/booking_result_record_providers.dart';
+import '../../arenas/domain/pelada.dart';
+import '../../arenas/presentation/arena_booking_navigation.dart';
+import '../../arenas/presentation/pelada_analytics.dart';
+import '../../arenas/presentation/peladas_list.dart';
 import '../domain/match_history/athlete_match_history_models.dart';
 import '../domain/match_history/athlete_match_history_providers.dart';
 import 'widgets/match_history/match_history_filter_chips.dart';
 import 'widgets/match_history/match_history_match_card.dart';
 import 'widgets/match_history/match_history_month_header.dart';
-import 'widgets/match_history/match_history_rental_pending_section.dart';
 import 'widgets/match_history/match_history_season_card.dart';
 import 'widgets/match_history/match_history_tab_switcher.dart';
 import 'widgets/match_history/match_history_tournament_card.dart';
@@ -108,10 +111,16 @@ class _ReadyBody extends ConsumerWidget {
       bundle: bundle,
       tab: tab,
       filter: filter,
-      rentalMatches: ref.watch(rentalMatchHistoryProvider),
     );
-    final pendingRentals = ref.watch(rentalResultsNeedingAttentionProvider);
-    final uid = ref.watch(bookingResultUidProvider);
+    // O número da aba: peladas confirmadas no ano (o mesmo do resumo).
+    final peladas = ref.watch(myBookingResultsProvider).valueOrNull;
+    final peladaCount = peladas == null
+        ? null
+        : peladasSummary(
+            peladasOf(peladas, ref.watch(bookingResultUidProvider)),
+            ref.watch(bookingResultUidProvider),
+            year: DateTime.now().year,
+          ).sessions;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
@@ -120,18 +129,21 @@ class _ReadyBody extends ConsumerWidget {
           tab: tab,
           matchCount: derived.matchCount,
           tournamentCount: derived.tournamentCount,
-          onTabChanged: (t) =>
-              ref.read(matchHistoryTabProvider.notifier).state = t,
+          peladaCount: peladaCount,
+          onTabChanged: (t) {
+            ref.read(matchHistoryTabProvider.notifier).state = t;
+            if (t == MatchHistoryTab.peladas) {
+              logPelada(ref, (a) => a.logPeladasTabViewed());
+            }
+          },
         ),
         SizedBox(height: 16),
-        if (tab == MatchHistoryTab.matches) ...[
-          MatchHistorySeasonCard(summary: derived.seasonSummary),
+        if (tab == MatchHistoryTab.peladas)
+          MyPeladasTab(
+              onReserve: () => openDiscoverReservarTab(context, ref: ref))
+        else if (tab == MatchHistoryTab.matches) ...[
+          MatchHistorySeasonCard(summary: bundle.seasonSummary),
           SizedBox(height: 16),
-          MatchHistoryRentalPendingSection(
-            results: pendingRentals,
-            uid: uid,
-            onOpen: (r) => _openRentalResult(context, r.bookingId),
-          ),
           MatchHistoryFilterChips(
             filter: filter,
             onFilterChanged: (f) =>
@@ -150,9 +162,7 @@ class _ReadyBody extends ConsumerWidget {
                 ...group.matches.map(
                   (m) => MatchHistoryMatchCard(
                     match: m,
-                    onTap: () => m.isRental
-                        ? _openRentalResult(context, m.id)
-                        : _openMatchDetail(context, m.id),
+                    onTap: () => _openMatchDetail(context, m.id),
                   ),
                 ),
               ];
@@ -168,13 +178,6 @@ class _ReadyBody extends ConsumerWidget {
           ),
         ],
       ],
-    );
-  }
-
-  void _openRentalResult(BuildContext context, String bookingId) {
-    context.push(
-      AppRoutes.bookingResultReview
-          .replaceFirst(':bookingId', Uri.encodeComponent(bookingId)),
     );
   }
 

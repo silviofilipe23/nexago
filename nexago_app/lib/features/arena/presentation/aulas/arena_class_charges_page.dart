@@ -189,10 +189,14 @@ class _Body extends ConsumerWidget {
   }
 
   Future<void> _register(BuildContext context, ArenaClassCharge c) async {
-    final ok = await showArenaClassPaymentSheet(context, charge: c);
-    if (ok == true && context.mounted) {
-      showAppSnackBar(context, 'Pagamento de ${c.name} registrado.');
-    }
+    final result = await showArenaClassPaymentSheet(context, charge: c);
+    if (result == null || !context.mounted) return;
+    showAppSnackBar(
+      context,
+      result == ArenaClassChargeSheetResult.canceled
+          ? 'Mensalidade de ${c.name} cancelada.'
+          : 'Pagamento de ${c.name} registrado.',
+    );
   }
 }
 

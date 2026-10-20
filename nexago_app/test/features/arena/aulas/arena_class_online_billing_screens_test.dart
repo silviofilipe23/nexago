@@ -165,6 +165,30 @@ void main() {
       await _settle(tester);
       expect(copied, ['https://asaas.test/i/7']);
       expect(find.text('Link de pagamento copiado.'), findsOneWidget);
+
+      // O aluno paga com a tela aberta: o webhook grava e a tela acompanha.
+      enrollmentRepo.liveStudentCharges!.add([
+        charge(
+          id: 'e-new_2026-10',
+          studentId: 'st1',
+          status: 'paid',
+          paidOn: '2026-10-19',
+          asaas: invoice(
+            groupId: 'e-new_first',
+            state: ArenaClassAsaasState.paid,
+          ),
+          paidVia: 'asaas',
+          onlineBillingType: 'PIX',
+        ),
+      ]);
+      await _settle(tester);
+      expect(
+        find.text('Pago online · PIX · ${formatBRL(160)}'),
+        findsOneWidget,
+      );
+      expect(find.text('Copiar link'), findsNothing);
+      expect(find.text('Cobrar no WhatsApp'), findsNothing);
+      expect(find.text('Gerando o link de pagamento…'), findsNothing);
     });
 
     testWidgets('atleta com conta: CPF opcional (o servidor usa o cadastro)',

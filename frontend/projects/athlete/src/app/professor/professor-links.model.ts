@@ -34,14 +34,33 @@ export type ProfessorLinkEventType =
   | 'CANCELED'
   | 'EXPIRED';
 
-export const PROFESSOR_PERMISSION_KEYS = ['canManageOwnLessons', 'canBookCourts', 'canAppearInArenaProfile'] as const;
+export const PROFESSOR_PERMISSION_KEYS = [
+  'canManageOwnLessons',
+  'canBookCourts',
+  'canAppearInArenaProfile',
+  'canEnrollStudents',
+  'canScheduleLessons',
+  'canCancelLessons',
+] as const;
 export type ProfessorPermissionKey = (typeof PROFESSOR_PERMISSION_KEYS)[number];
 export type ProfessorPermissions = Record<ProfessorPermissionKey, boolean>;
+
+/** Agir nas Aulas da arena em nome dela (matricular, encaixar/agendar, cancelar): só professor
+ *  da EQUIPE e só quando a arena liga — desligadas por padrão, inclusive em vínculo antigo sem a
+ *  chave. Espelho de `ARENA_STAFF_ONLY_PERMISSION_KEYS` no servidor. */
+export const ARENA_STAFF_ONLY_PERMISSION_KEYS: readonly ProfessorPermissionKey[] = [
+  'canEnrollStudents',
+  'canScheduleLessons',
+  'canCancelLessons',
+];
 
 export const NO_PERMISSIONS: ProfessorPermissions = {
   canManageOwnLessons: false,
   canBookCourts: false,
   canAppearInArenaProfile: false,
+  canEnrollStudents: false,
+  canScheduleLessons: false,
+  canCancelLessons: false,
 };
 
 /** Mensagem do pedido (`requestArenaProfessorLink`): o servidor corta em 500. */
@@ -147,7 +166,8 @@ export interface ProfessorPermissionCopy {
   short: string;
 }
 
-export const PROFESSOR_PERMISSION_COPY: readonly ProfessorPermissionCopy[] = [
+/** As três de qualquer vínculo. */
+export const PROFESSOR_BASE_PERMISSION_COPY: readonly ProfessorPermissionCopy[] = [
   {
     key: 'canManageOwnLessons',
     label: 'Gerenciar as próprias aulas',
@@ -167,6 +187,47 @@ export const PROFESSOR_PERMISSION_COPY: readonly ProfessorPermissionCopy[] = [
     short: 'Perfil',
   },
 ];
+
+/** Grupo "Aulas da arena": só para professor da equipe. */
+export const PROFESSOR_ARENA_LESSONS_GROUP_TITLE = 'Aulas da arena';
+export const PROFESSOR_STAFF_ONLY_NOTE = 'Só para professor da equipe';
+
+export const PROFESSOR_ARENA_LESSONS_PERMISSION_COPY: readonly ProfessorPermissionCopy[] = [
+  {
+    key: 'canEnrollStudents',
+    label: 'Matricular alunos',
+    description: 'Matricular nas suas turmas com o plano da tabela, mover de turma e lista de espera',
+    short: 'Matrículas',
+  },
+  {
+    key: 'canScheduleLessons',
+    label: 'Agendar aulas e encaixes',
+    description: 'Reposição, experimental e aula avulsa na quadra que a arena escolher, usando o pacote do aluno',
+    short: 'Agenda',
+  },
+  {
+    key: 'canCancelLessons',
+    label: 'Cancelar aulas e avisar alunos',
+    description: 'Cancelar aulas das suas turmas; os alunos recebem o aviso',
+    short: 'Cancelar',
+  },
+];
+
+export const PROFESSOR_PERMISSION_COPY: readonly ProfessorPermissionCopy[] = [
+  ...PROFESSOR_BASE_PERMISSION_COPY,
+  ...PROFESSOR_ARENA_LESSONS_PERMISSION_COPY,
+];
+
+/** Grupos de "Suas permissões aqui" pelo tipo: as de base sempre; "Aulas da arena" só na equipe. */
+export function permissionGroupsFor(
+  type: ProfessorLinkType,
+): ReadonlyArray<{ title: string | null; items: readonly ProfessorPermissionCopy[] }> {
+  const groups: Array<{ title: string | null; items: readonly ProfessorPermissionCopy[] }> = [
+    { title: null, items: PROFESSOR_BASE_PERMISSION_COPY },
+  ];
+  if (type === 'ARENA_STAFF') groups.push({ title: PROFESSOR_ARENA_LESSONS_GROUP_TITLE, items: PROFESSOR_ARENA_LESSONS_PERMISSION_COPY });
+  return groups;
+}
 
 const STATUS_LABEL: Record<ProfessorLinkStatus, string> = {
   INVITED: 'Convite recebido',
@@ -245,14 +306,30 @@ export function openLinkForArena(
   return links.find((l) => l.arenaId === arenaId && isLinkOpen(l, nowMs)) ?? null;
 }
 
-/** O que o professor pode de fato fazer agora: nada fora de `ACTIVE`. */
-export function effectivePermissions(link: Pick<ProfessorLink, 'status' | 'permissions'>): ProfessorPermissions {
+/** O que o professor pode de fato fazer agora: nada fora de `ACTIVE`; as das Aulas da arena só
+ *  na equipe (independente nunca, mesmo com a chave gravada). Espelho de
+ *  `effectiveArenaProfessorPermissions` no servidor. */
+export function effectivePermissions(
+  link: Pick<ProfessorLink, 'status' | 'permissions' | 'relationshipType'>,
+): ProfessorPermissions {
   const active = link.status === 'ACTIVE';
+  const staff = active && link.relationshipType === 'ARENA_STAFF';
+  const p = link.permissions;
   return {
-    canManageOwnLessons: active && link.permissions.canManageOwnLessons === true,
-    canBookCourts: active && link.permissions.canBookCourts === true,
-    canAppearInArenaProfile: active && link.permissions.canAppearInArenaProfile === true,
+    canManageOwnLessons: active && p.canManageOwnLessons === true,
+    canBookCourts: active && p.canBookCourts === true,
+    canAppearInArenaProfile: active && p.canAppearInArenaProfile === true,
+    canEnrollStudents: staff && p.canEnrollStudents === true,
+    canScheduleLessons: staff && p.canScheduleLessons === true,
+    canCancelLessons: staff && p.canCancelLessons === true,
   };
+}
+
+/** Configuradas, mas sem as chaves da equipe quando o vínculo é independente. */
+function permissionsForType(permissions: ProfessorPermissions, type: ProfessorLinkType): ProfessorPermissions {
+  const out = { ...permissions };
+  if (type !== 'ARENA_STAFF') for (const key of ARENA_STAFF_ONLY_PERMISSION_KEYS) out[key] = false;
+  return out;
 }
 
 /** Legenda de "Suas permissões aqui" fora do `ACTIVE` (spec: revogadas / após o aceite / após a aprovação). */
@@ -274,7 +351,7 @@ export function permissionsCaption(link: ProfessorLink, nowMs: number): string {
 /** No convite aberto a arena já propôs as permissões — mostrar o que ela oferece. Nos outros
  *  estados vale só o efetivo. */
 export function permissionsToShow(link: ProfessorLink, nowMs: number): ProfessorPermissions {
-  return isOpenInvite(link, nowMs) ? { ...link.permissions } : effectivePermissions(link);
+  return isOpenInvite(link, nowMs) ? permissionsForType(link.permissions, link.relationshipType) : effectivePermissions(link);
 }
 
 // ---------------------------------------------------------------------------
@@ -690,6 +767,9 @@ export function parseProfessorLink(id: string, data: Raw | undefined): Professor
       canManageOwnLessons: perms['canManageOwnLessons'] === true,
       canBookCourts: perms['canBookCourts'] === true,
       canAppearInArenaProfile: perms['canAppearInArenaProfile'] === true,
+      canEnrollStudents: perms['canEnrollStudents'] === true,
+      canScheduleLessons: perms['canScheduleLessons'] === true,
+      canCancelLessons: perms['canCancelLessons'] === true,
     },
     message: str(data['message']),
     cycle: typeof data['cycle'] === 'number' ? data['cycle'] : 1,

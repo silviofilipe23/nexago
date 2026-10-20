@@ -1,13 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { ToggleComponent } from '../ui/toggle.component';
 import {
-  PROFESSOR_PERMISSION_META,
+  PROFESSOR_STAFF_ONLY_NOTE,
   PROFESSOR_STATUS_META,
   PROFESSOR_TYPE_META,
   type ProfessorLinkStatus,
   type ProfessorLinkType,
   type ProfessorPermissionKey,
   type ProfessorPermissions,
+  permissionGroupsFor,
 } from './arena-professor.model';
 
 /** Tag do tipo de vínculo (protótipo `VcTipoTag`). */
@@ -73,14 +74,22 @@ export interface PermissionChange {
   value: boolean;
 }
 
-/** Lista das três permissões (protótipo `VcPermList`): com toggles quando editável, com
- *  marcação ✓/✕ quando só leitura. */
+/** Lista das permissões (protótipo `VcPermList`): com toggles quando editável, com marcação
+ *  ✓/✕ quando só leitura. As três de base sempre; o grupo "Aulas da arena" só aparece para
+ *  vínculo de equipe (`relationshipType`) — independente não tem essas chaves. */
 @Component({
   selector: 'ar-prof-perm-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ToggleComponent],
   template: `
-    @for (p of items; track p.key) {
+    @for (g of groups(); track g.title) {
+      @if (g.title) {
+        <div class="group" [class.dense]="dense()">
+          <span class="group-title">{{ g.title }}</span>
+          <span class="group-note">{{ staffOnlyNote }}</span>
+        </div>
+      }
+      @for (p of g.items; track p.key) {
       <div class="row" [class.dense]="dense()">
         @if (!editable()) {
           <span class="mark" [class.on]="permissions()[p.key]" aria-hidden="true">{{ permissions()[p.key] ? '✓' : '✕' }}</span>
@@ -100,10 +109,21 @@ export interface PermissionChange {
           />
         }
       </div>
+      }
     }
   `,
   styles: `
     :host { display: block; }
+    .group {
+      display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+      margin-top: 8px; padding: 14px 0 4px; border-top: 1px solid var(--nx-line-strong);
+    }
+    .group.dense { padding-top: 10px; }
+    .group-title {
+      font-family: var(--nx-font-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.16em;
+      text-transform: uppercase; color: var(--nx-text-dim);
+    }
+    .group-note { font-size: 11px; color: var(--nx-text-dim); }
     .row { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
     .row.dense { padding: 9px 0; }
     .row + .row { border-top: 1px solid var(--nx-line); }
@@ -121,6 +141,8 @@ export interface PermissionChange {
 })
 export class ProfessorPermListComponent {
   readonly permissions = input.required<ProfessorPermissions>();
+  /** Tipo do vínculo: decide se o grupo "Aulas da arena" aparece. */
+  readonly relationshipType = input.required<ProfessorLinkType>();
   readonly editable = input(false);
   readonly dense = input(false);
   readonly disabled = input(false);
@@ -128,7 +150,8 @@ export class ProfessorPermListComponent {
   readonly busyKey = input<ProfessorPermissionKey | null>(null);
   readonly changed = output<PermissionChange>();
 
-  protected readonly items = PROFESSOR_PERMISSION_META;
+  protected readonly groups = computed(() => permissionGroupsFor(this.relationshipType()));
+  protected readonly staffOnlyNote = PROFESSOR_STAFF_ONLY_NOTE;
 }
 
 /** Nota com filete colorido à esquerda (protótipo `VcNote`). */

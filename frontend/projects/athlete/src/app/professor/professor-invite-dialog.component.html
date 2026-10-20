@@ -43,7 +43,7 @@
     } @else {
       <div>
         <div class="pf-invite-kicker">O que a arena libera para você</div>
-        <app-pf-perm-list [perms]="link().permissions" />
+        <app-pf-perm-list [perms]="link().permissions" [type]="link().relationshipType" />
       </div>
       <p class="pf-invite-type">
         <strong>{{ typeCopy().label }}:</strong> {{ typeCopy().description }}.

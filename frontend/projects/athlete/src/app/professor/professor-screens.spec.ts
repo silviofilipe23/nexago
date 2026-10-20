@@ -21,7 +21,14 @@ function link(overrides: Partial<ProfessorLink>): ProfessorLink {
     relationshipType: 'INDEPENDENT',
     status: 'ACTIVE',
     initiatedBy: 'PROFESSOR',
-    permissions: { canManageOwnLessons: true, canBookCourts: true, canAppearInArenaProfile: false },
+    permissions: {
+      canManageOwnLessons: true,
+      canBookCourts: true,
+      canAppearInArenaProfile: false,
+      canEnrollStudents: false,
+      canScheduleLessons: false,
+      canCancelLessons: false,
+    },
     message: null,
     cycle: 1,
     arenaName: 'Arena Norte',
@@ -60,7 +67,14 @@ const LINKS: ProfessorLink[] = [
     expiresAt: new Date(Date.now() + 7 * DAY - 60_000),
     invitedByName: 'Ricardo Prado',
     message: 'Queremos você no time.',
-    permissions: { canManageOwnLessons: true, canBookCourts: true, canAppearInArenaProfile: true },
+    permissions: {
+      canManageOwnLessons: true,
+      canBookCourts: true,
+      canAppearInArenaProfile: true,
+      canEnrollStudents: true,
+      canScheduleLessons: false,
+      canCancelLessons: false,
+    },
   }),
   link({ id: 'norte_me', arenaId: 'norte' }),
   link({ id: 'lagoa_me', arenaId: 'lagoa', arenaName: 'Lagoa Beach Club', status: 'PENDING', requestedAt: new Date() }),
@@ -265,7 +279,31 @@ describe('Telas do professor (Minhas arenas e detalhe)', () => {
     expect(titles).toEqual(['Solicitação aprovada como Independente', 'Você solicitou vínculo · Independente']);
     const perms = [...host.querySelectorAll('app-pf-perm-list li')].map((li) => li.classList.contains('on'));
     expect(perms).toEqual([true, true, false]);
+    // Independente: sem o grupo "Aulas da arena".
+    expect(host.querySelector('app-pf-perm-list .group')).toBeNull();
     expect(buttons(host, 'Encerrar vínculo').length).toBe(1);
+  });
+
+  it('detalhe de vínculo da equipe: grupo "Aulas da arena" com o que a arena ligou', async () => {
+    const staff = link({
+      id: 'eq_me',
+      arenaId: 'eq',
+      arenaName: 'Arena Equipe',
+      relationshipType: 'ARENA_STAFF',
+      permissions: {
+        canManageOwnLessons: true,
+        canBookCourts: true,
+        canAppearInArenaProfile: true,
+        canEnrollStudents: true,
+        canScheduleLessons: false,
+        canCancelLessons: true,
+      },
+    });
+    const host = await open('/professor/arenas/eq_me', [...LINKS, staff], []);
+    expect(host.querySelector('app-pf-perm-list .group-title')?.textContent).toContain('Aulas da arena');
+    expect(host.querySelector('app-pf-perm-list .group-note')?.textContent).toContain('Só para professor da equipe');
+    const perms = [...host.querySelectorAll('app-pf-perm-list li')].map((li) => li.classList.contains('on'));
+    expect(perms).toEqual([true, true, true, true, false, true]);
   });
 
   it('detalhe de vínculo que não é da conta: "Vínculo não encontrado"', async () => {

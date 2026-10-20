@@ -7,6 +7,7 @@
  * mensalidade `open` com o espelho Asaas `open`, a mesma regra de `chargeInvoiceUrl` no portal da
  * arena. Cobrança manual (ou sem CPF) é só informativa: o aluno paga direto à arena.
  */
+import * as logger from "firebase-functions/logger";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, type Firestore} from "firebase-admin/firestore";
 import {ARENA_CLASS_CHARGES} from "./arena-class-constants";
@@ -92,6 +93,16 @@ export function myProfessorChargeItem(chargeId: string, data: Record<string, unk
 /** Mensalidades em aberto do atleta, da que vence primeiro (vencidas no topo). */
 export async function loadMyClassCharges(db: Firestore, uid: string, todayKey: string): Promise<MyClassChargeItem[]> {
   // Só igualdades: os índices de campo único bastam.
+  // As do professor em paralelo e tolerantes a falha: um erro nelas não pode esconder as da arena.
+  const professorQuery = db.collection(PROFESSOR_CHARGES)
+    .where("athleteId", "==", uid)
+    .where("status", "in", ["open", "creating"])
+    .limit(MAX_CHARGES)
+    .get()
+    .catch((e) => {
+      logger.warn(`loadMyClassCharges ${uid}: cobranças de professor falharam`, e);
+      return null;
+    });
   const snap = await db.collection(ARENA_CLASS_CHARGES)
     .where("athleteId", "==", uid)
     .where("status", "==", "open")
@@ -101,18 +112,14 @@ export async function loadMyClassCharges(db: Firestore, uid: string, todayKey: s
   const arenas = arenaIds.length > 0 ? await db.getAll(...arenaIds.map((id) => db.collection("arenas").doc(id))) : [];
   const arenaNames = new Map(arenas.map((a) => [a.id, str(a.data()?.["name"]) || "Arena"]));
 
-  const professorSnap = await db.collection(PROFESSOR_CHARGES)
-    .where("athleteId", "==", uid)
-    .where("status", "in", ["open", "creating"])
-    .limit(MAX_CHARGES)
-    .get();
+  const professorSnap = await professorQuery;
 
   return [
     ...snap.docs.map((d) => {
       const data = d.data() as Record<string, unknown>;
       return myClassChargeItem(d.id, data, arenaNames.get(str(data["arenaId"])) ?? "Arena", todayKey);
     }),
-    ...professorSnap.docs.map((d) => myProfessorChargeItem(d.id, d.data() as Record<string, unknown>, todayKey)),
+    ...(professorSnap?.docs ?? []).map((d) => myProfessorChargeItem(d.id, d.data() as Record<string, unknown>, todayKey)),
   ]
     .filter((item): item is MyClassChargeItem => item != null)
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.description.localeCompare(b.description, "pt-BR"));

@@ -2246,8 +2246,10 @@ service cloud.firestore {
     match /professorAsaasSecrets/{uid} {
       allow read, write: if false;
     }
+    // O atleta lê o próprio doc: é o convite que ele aceita ou recusa (por callable).
     match /professors/{uid}/students/{athleteId} {
-      allow read: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null &&
+        (request.auth.uid == uid || request.auth.uid == athleteId);
       allow write: if false;
     }
     match /professors/{uid}/plans/{planId} {

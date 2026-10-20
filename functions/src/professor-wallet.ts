@@ -14,6 +14,7 @@ import {AsaasApiError, asaasArenaSecrets, fetchAsaas, getAsaasEnvTag} from "./as
 import {deleteAsaasPaymentOrThrow, type AsaasPaymentDetails} from "./asaas-booking-payment";
 import {getOrCreateAsaasCustomer, resolveAthleteCpfCnpj} from "./asaas-customer";
 import {maskCpfCnpj} from "./arena-class-asaas-model";
+import {openSecret, PROFESSOR_SECRETS_KEY, sealSecret} from "./professor-secret-box";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {deliverNotificationToUser, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
@@ -45,14 +46,20 @@ import {
 } from "./professor-wallet-model";
 
 export const PROFESSOR_CHARGE_LINK_TYPE = "professor_charge_link";
+export const PROFESSOR_STUDENT_INVITE_TYPE = "professor_student_invite";
 /** Onde o aluno vê as cobranças no app (a mesma lista das mensalidades de aula). */
 export const PROFESSOR_CHARGE_APP_URL = "/discover?tab=agenda";
 
 export interface ProfessorWalletDeps {
   now: () => Date;
   env: () => string;
-  createAccount: (input: ProfessorAccountInput) => Promise<{accountId: string; walletId: string; apiKey: string}>;
+  createAccount: (input: ProfessorAccountInput) => Promise<{accountId: string; walletId: string; apiKey: string | null}>;
+  /** Subconta já existente com esse CPF (criada numa tentativa que não chegou a gravar). */
+  findAccountByCpf: (cpfCnpj: string) => Promise<{accountId: string; walletId: string} | null>;
   accountStatus: (apiKey: string) => Promise<{general: string; documentation: string | null}>;
+  /** Cifra/decifra a `apiKey` da subconta (`PROFESSOR_SECRETS_KEY`). */
+  sealKey: (apiKey: string) => string;
+  openKey: (sealed: string) => string;
   /** Cliente Asaas do aluno pelo CPF do cadastro; lança `ASAAS_CUSTOMER_CPF_REQUIRED` sem CPF. */
   customerFor: (athleteId: string) => Promise<string>;
   createPayment: (input: {
@@ -65,6 +72,8 @@ export interface ProfessorWalletDeps {
     splitPercent: number;
   }) => Promise<{paymentId: string; invoiceUrl: string; status: string}>;
   deletePayment: (paymentId: string) => Promise<void>;
+  /** Pagamento vivo com `professorCharge:{id}` (falha ambígua na criação). */
+  findPayment: (chargeId: string) => Promise<{paymentId: string; invoiceUrl: string} | null>;
   notify: (input: {userId: string; title: string; body: string; type: string; data: Record<string, string>}) => Promise<void>;
 }
 
@@ -108,13 +117,22 @@ export const defaultProfessorWalletDeps: ProfessorWalletDeps = {
     const accountId = created.id?.trim() ?? "";
     const walletId = created.walletId?.trim() ?? "";
     if (!accountId || !walletId) throw new Error("ASAAS_ACCOUNT_MISSING_IDS");
-    return {accountId, walletId, apiKey: apiKey.trim()};
+    return {accountId, walletId, apiKey: apiKey.trim() || null};
   },
+  findAccountByCpf: async (cpfCnpj) => {
+    const list = await fetchAsaas<{data?: Array<{id?: string; walletId?: string}>}>(
+      `/v3/accounts?cpfCnpj=${encodeURIComponent(cpfCnpj)}`);
+    const hit = (list.data ?? []).find((a) => a.id && a.walletId);
+    return hit ? {accountId: String(hit.id), walletId: String(hit.walletId)} : null;
+  },
+  sealKey: (apiKey) => sealSecret(apiKey, PROFESSOR_SECRETS_KEY.value()),
+  openKey: (sealed) => openSecret(sealed, PROFESSOR_SECRETS_KEY.value()),
   accountStatus: async (apiKey) => {
     const status = await fetchAsaas<{general?: string; documentation?: string}>("/v3/myAccount/status/", {apiKey});
     return {general: status.general ?? "PENDING", documentation: status.documentation ?? null};
   },
   customerFor: async (athleteId) => {
+    assertAsaasAllowed();
     const cpf = await resolveAthleteCpfCnpj(athleteId);
     return getOrCreateAsaasCustomer(athleteId, "", undefined, cpf);
   },
@@ -143,6 +161,12 @@ export const defaultProfessorWalletDeps: ProfessorWalletDeps = {
   deletePayment: async (paymentId) => {
     assertAsaasAllowed();
     await deleteAsaasPaymentOrThrow(paymentId);
+  },
+  findPayment: async (chargeId) => {
+    const list = await fetchAsaas<{data?: Array<{id?: string; invoiceUrl?: string; deleted?: boolean}>}>(
+      `/v3/payments?externalReference=${encodeURIComponent(`${PROFESSOR_CHARGE_REF_PREFIX}${chargeId}`)}`);
+    const hit = (list.data ?? []).find((p) => p.id && !p.deleted);
+    return hit ? {paymentId: String(hit.id), invoiceUrl: String(hit.invoiceUrl ?? "")} : null;
   },
   notify: async (input) => {
     await deliverNotificationToUser({...input, requireInteraction: false});
@@ -183,16 +207,20 @@ const studentRef = (db: Firestore, uid: string, athleteId: string) =>
 const planRef = (db: Firestore, uid: string, planId: string) =>
   db.collection(PROFESSORS).doc(uid).collection(PROFESSOR_PLANS).doc(planId);
 
-/** Professor com algum vínculo `INDEPENDENT` (ativo ou não) — a carteira é do independente. */
+/**
+ * Professor com vínculo `INDEPENDENT` ATIVO — pedido pendente, recusado ou encerrado não conta (o
+ * próprio professor cria o pedido, então sem o status qualquer conta passaria).
+ */
 async function assertIndependentProfessor(db: Firestore, uid: string): Promise<void> {
   const links = await db.collection("arenaProfessors")
     .where("professorUserId", "==", uid)
     .where("relationshipType", "==", "INDEPENDENT")
+    .where("status", "==", "ACTIVE")
     .limit(1)
     .get();
   if (links.empty) {
     throw new HttpsError("failed-precondition",
-      "A carteira própria é para professor independente. Peça um vínculo independente a uma arena.");
+      "A carteira própria é para professor independente com vínculo ativo numa arena.");
   }
 }
 
@@ -200,28 +228,53 @@ async function assertIndependentProfessor(db: Firestore, uid: string): Promise<v
 // Conta de recebimento
 // ---------------------------------------------------------------------------
 
+/** Uma tentativa de criar a conta "segura" o doc por este tempo (toque duplo, retry do app). */
+const ACCOUNT_CREATING_LOCK_MS = 2 * 60_000;
+
 export async function createProfessorPayoutAccountCore(
   db: Firestore,
   uid: string,
   raw: Record<string, unknown>,
   deps: ProfessorWalletDeps = defaultProfessorWalletDeps,
 ): Promise<{status: ProfessorAccountStatus}> {
-  const todayKey = dayKeyFromEventDate(deps.now());
-  const input = parseProfessorAccountInput(raw, todayKey);
+  const now = deps.now();
+  const input = parseProfessorAccountInput(raw, dayKeyFromEventDate(now));
   await assertIndependentProfessor(db, uid);
   const env = deps.env();
-  const existing = (await accountRef(db, uid).get()).data();
-  if (existing && existing["asaasEnv"] === env && str(existing["walletId"])) {
-    throw new HttpsError("already-exists", "Você já tem uma conta de recebimento.");
-  }
-  let created: {accountId: string; walletId: string; apiKey: string};
+  const ref = accountRef(db, uid);
+  // Marcador em transação: dois toques não criam duas subcontas.
+  await db.runTransaction(async (tx) => {
+    const existing = (await tx.get(ref)).data();
+    if (existing && existing["asaasEnv"] === env && str(existing["walletId"])) {
+      throw new HttpsError("already-exists", "Você já tem uma conta de recebimento.");
+    }
+    const lockedAt = Number(existing?.["creatingAt"] ?? 0);
+    if (existing?.["status"] === "creating" && now.getTime() - lockedAt < ACCOUNT_CREATING_LOCK_MS) {
+      throw new HttpsError("aborted", "Sua conta já está sendo criada. Aguarde um instante.");
+    }
+    tx.set(ref, {professorUserId: uid, status: "creating", creatingAt: now.getTime(), asaasEnv: env}, {merge: true});
+  });
+
+  let created: {accountId: string; walletId: string; apiKey: string | null};
   try {
     created = await deps.createAccount(input);
   } catch (e) {
-    throw asaasFailure(e, "Não foi possível criar a conta de recebimento. Tente de novo.");
+    // Tentativa anterior criou no Asaas e não gravou aqui: o CPF já tem subconta. Adota a que
+    // existe (sem a apiKey, que só vem na criação — a situação passa a ser "pendente" até o
+    // suporte conferir).
+    const adopted = e instanceof AsaasApiError && e.httpStatus === 400 ?
+      await deps.findAccountByCpf(input.cpfCnpj).catch(() => null) :
+      null;
+    if (!adopted) {
+      await ref.set({status: "failed", creatingAt: 0}, {merge: true});
+      throw asaasFailure(e, "Não foi possível criar a conta de recebimento. Tente de novo.");
+    }
+    logger.warn(`createProfessorPayoutAccount ${uid}: subconta ${adopted.accountId} já existia; adotada sem apiKey`);
+    created = {...adopted, apiKey: null};
   }
+  if (!created.apiKey) logger.error(`createProfessorPayoutAccount ${uid}: Asaas não devolveu a apiKey da subconta`);
   const batch = db.batch();
-  batch.set(accountRef(db, uid), {
+  batch.set(ref, {
     professorUserId: uid,
     status: "pending",
     asaasAccountId: created.accountId,
@@ -231,11 +284,14 @@ export async function createProfessorPayoutAccountCore(
     email: input.email,
     cpfMasked: maskCpfCnpj(input.cpfCnpj),
     documentation: null,
+    creatingAt: 0,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
     statusCheckedAt: null,
-  });
-  batch.set(secretRef(db, uid), {apiKey: created.apiKey, asaasEnv: env, createdAt: FieldValue.serverTimestamp()});
+  }, {merge: true});
+  if (created.apiKey) {
+    batch.set(secretRef(db, uid), {sealedApiKey: deps.sealKey(created.apiKey), asaasEnv: env, createdAt: FieldValue.serverTimestamp()});
+  }
   await batch.commit();
   return {status: "pending"};
 }
@@ -246,16 +302,17 @@ export async function refreshProfessorPayoutAccountStatusCore(
   deps: ProfessorWalletDeps = defaultProfessorWalletDeps,
 ): Promise<{status: ProfessorAccountStatus | null}> {
   const account = (await accountRef(db, uid).get()).data();
-  if (!account) return {status: null};
-  const apiKey = str((await secretRef(db, uid).get()).data()?.["apiKey"]);
-  if (!apiKey) return {status: (account["status"] as ProfessorAccountStatus) ?? "pending"};
+  if (!account || !str(account["walletId"])) return {status: null};
+  const current = (account["status"] as ProfessorAccountStatus) ?? "pending";
+  const sealed = str((await secretRef(db, uid).get()).data()?.["sealedApiKey"]);
+  if (!sealed) return {status: current};
   let general: string;
   let documentation: string | null;
   try {
-    ({general, documentation} = await deps.accountStatus(apiKey));
+    ({general, documentation} = await deps.accountStatus(deps.openKey(sealed)));
   } catch (e) {
     logger.warn(`refreshProfessorPayoutAccountStatus ${uid}: consulta falhou`, e);
-    return {status: (account["status"] as ProfessorAccountStatus) ?? "pending"};
+    return {status: current};
   }
   const status = professorAccountStatusFromAsaas(general);
   await accountRef(db, uid).set({
@@ -300,11 +357,17 @@ export async function upsertProfessorPlanCore(
   return {planId: ref.id};
 }
 
+/**
+ * Convida o atleta para a carteira. Ele vira aluno (`active`) só quando ACEITA
+ * (`respondProfessorStudentInvite`) — sem isso qualquer professor cobraria qualquer usuário.
+ * Reconvidar quem já é aluno só atualiza o plano padrão.
+ */
 export async function upsertProfessorStudentCore(
   db: Firestore,
   uid: string,
   raw: Record<string, unknown>,
-): Promise<{athleteId: string}> {
+  deps: ProfessorWalletDeps = defaultProfessorWalletDeps,
+): Promise<{athleteId: string; status: "invited" | "active"}> {
   await assertIndependentProfessor(db, uid);
   const athleteId = str(raw["athleteId"]);
   if (!athleteId || athleteId.includes("/")) throw new HttpsError("invalid-argument", "Aluno inválido.");
@@ -316,17 +379,59 @@ export async function upsertProfessorStudentCore(
   const planId = str(raw["planId"]) || null;
   if (planId && !(await planRef(db, uid, planId).get()).exists) throw new HttpsError("not-found", "Plano não encontrado.");
   const ref = studentRef(db, uid, athleteId);
-  const existed = (await ref.get()).exists;
+  const before = (await ref.get()).data();
+  const status = before?.["status"] === "active" ? "active" : "invited";
+  const professor = (await db.collection("users").doc(uid).get()).data();
+  const professorName = str(professor?.["fullName"]) || "Professor";
   await ref.set({
     athleteId,
     name,
     photoUrl,
     planId,
-    status: "active",
+    status,
+    professorUid: uid,
+    professorName,
+    professorPhotoUrl: str(professor?.["photoUrl"]) || str(professor?.["avatarUrl"]) || null,
     updatedAt: FieldValue.serverTimestamp(),
-    ...(existed ? {} : {createdAt: FieldValue.serverTimestamp(), recurring: null}),
+    ...(before ? {} : {createdAt: FieldValue.serverTimestamp(), recurring: null}),
+    ...(status === "invited" ? {invitedAt: FieldValue.serverTimestamp()} : {}),
   }, {merge: true});
-  return {athleteId};
+  if (status === "invited") {
+    try {
+      await deps.notify({
+        userId: athleteId,
+        title: `${professorName} quer você como aluno`,
+        body: "Aceite para receber as cobranças das aulas pelo nexaGO.",
+        type: PROFESSOR_STUDENT_INVITE_TYPE,
+        data: {professorUid: uid, url: `/convite-professor/${uid}`},
+      });
+    } catch (e) {
+      logger.warn(`upsertProfessorStudent ${uid}/${athleteId}: push falhou`, e);
+    }
+  }
+  return {athleteId, status};
+}
+
+/** O atleta aceita (vira aluno) ou recusa (o convite é arquivado) — só o próprio atleta. */
+export async function respondProfessorStudentInviteCore(
+  db: Firestore,
+  athleteUid: string,
+  professorUid: string,
+  accept: boolean,
+): Promise<{status: "active" | "declined"}> {
+  if (!professorUid || professorUid.includes("/")) throw new HttpsError("invalid-argument", "Convite inválido.");
+  const ref = studentRef(db, professorUid, athleteUid);
+  return db.runTransaction(async (tx) => {
+    const data = (await tx.get(ref)).data();
+    if (!data || data["status"] !== "invited") {
+      throw new HttpsError("failed-precondition", "Este convite não está mais disponível.");
+    }
+    const status = accept ? "active" : "declined";
+    tx.set(ref, {
+      status, respondedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    return {status};
+  });
 }
 
 export async function archiveProfessorStudentCore(db: Firestore, uid: string, athleteId: string): Promise<void> {
@@ -403,8 +508,22 @@ async function issueProfessorCharge(
       splitPercent: professorSplitPercent(),
     });
   } catch (e) {
-    await ref.delete().catch(() => undefined);
-    throw asaasFailure(e, "Não foi possível gerar a cobrança. Tente de novo.");
+    // Falha ambígua (timeout, 5xx depois de criar): a cobrança pode estar viva no Asaas. Só apaga o
+    // doc quando o Asaas confirma que não há pagamento com esta referência; senão adota o que existe.
+    const alive = await deps.findPayment(input.chargeId).catch((lookupError) => {
+      logger.error(`issueProfessorCharge ${input.chargeId}: não deu para conferir no Asaas`, lookupError);
+      return undefined;
+    });
+    if (alive === undefined) {
+      await ref.set({status: "failed", error: String((e as Error)?.message ?? e).slice(0, 200)}, {merge: true});
+      throw asaasFailure(e, "Não foi possível confirmar a cobrança. Confira em Carteira antes de cobrar de novo.");
+    }
+    if (!alive || !alive.invoiceUrl) {
+      await ref.delete().catch(() => undefined);
+      throw asaasFailure(e, "Não foi possível gerar a cobrança. Tente de novo.");
+    }
+    logger.warn(`issueProfessorCharge ${input.chargeId}: criação falhou mas o pagamento ${alive.paymentId} existe — adotado`);
+    created = alive;
   }
   await ref.set({
     status: "open", paymentId: created.paymentId, invoiceUrl: created.invoiceUrl, updatedAt: FieldValue.serverTimestamp(),
@@ -440,7 +559,9 @@ export async function createProfessorChargeCore(
   const walletId = await requireApprovedWallet(db, uid, deps.env());
   const student = (await studentRef(db, uid, req.athleteId).get()).data();
   if (!student || student["status"] !== "active") {
-    throw new HttpsError("failed-precondition", "Adicione o aluno à sua carteira antes de cobrar.");
+    throw new HttpsError("failed-precondition", student?.["status"] === "invited" ?
+      "O aluno ainda não aceitou o convite para a sua carteira." :
+      "Adicione o aluno à sua carteira antes de cobrar.");
   }
   let amountReais = req.amountReais;
   let description = req.description;
@@ -452,9 +573,9 @@ export async function createProfessorChargeCore(
   }
   if (amountReais == null || !(amountReais > 0)) throw new HttpsError("invalid-argument", "Valor inválido.");
   const period = periodOf(req.dueDate);
-  const chargeId = req.repeatMonthly ?
-    recurringChargeId(uid, req.athleteId, period) :
-    db.collection(PROFESSOR_CHARGES).doc().id;
+  // Id aleatório na cobrança manual (mesmo com "repetir"): o id determinístico é só do agendador,
+  // e `lastPeriod` abaixo impede o agendador de gerar de novo este mês.
+  const chargeId = db.collection(PROFESSOR_CHARGES).doc().id;
   const result = await issueProfessorCharge(db, {
     professorUid: uid,
     professorName: await professorDisplayName(db, uid),
@@ -492,8 +613,10 @@ export async function cancelProfessorChargeCore(
   const ref = db.collection(PROFESSOR_CHARGES).doc(id || "_");
   const charge = id ? (await ref.get()).data() : undefined;
   if (!charge || charge["professorUid"] !== uid) throw new HttpsError("not-found", "Cobrança não encontrada.");
-  if (charge["status"] !== "open") throw new HttpsError("failed-precondition", "Só dá para cancelar cobrança em aberto.");
-  const paymentId = str(charge["paymentId"]);
+  if (!["open", "creating", "failed"].includes(String(charge["status"]))) {
+    throw new HttpsError("failed-precondition", "Só dá para cancelar cobrança em aberto.");
+  }
+  const paymentId = str(charge["paymentId"]) || (await deps.findPayment(id).catch(() => null))?.paymentId || "";
   if (paymentId) {
     try {
       await deps.deletePayment(paymentId);
@@ -536,6 +659,8 @@ export async function generateProfessorMonthlyChargesCore(
       continue;
     }
     try {
+      // O vínculo pode ter sido encerrado desde que a recorrente nasceu.
+      await assertIndependentProfessor(db, professorUid);
       const walletId = await requireApprovedWallet(db, professorUid, env);
       await issueProfessorCharge(db, {
         professorUid,
@@ -592,6 +717,13 @@ export async function processProfessorChargeAsaasNotification(
     if (knownPayment && knownPayment !== paymentId) return;
     const patch: Record<string, unknown> = {asaasStatus: str(payment.status) || null, updatedAt: FieldValue.serverTimestamp()};
     if (!knownPayment) patch["paymentId"] = paymentId;
+    // A function caiu entre criar no Asaas e gravar "open": o webhook termina o serviço.
+    const invoiceUrl = str((payment as {invoiceUrl?: unknown}).invoiceUrl);
+    if ((current["status"] === "creating" || current["status"] === "failed") && !payment.deleted && invoiceUrl) {
+      patch["status"] = "open";
+      patch["invoiceUrl"] = invoiceUrl;
+      current["status"] = "open";
+    }
     if (next === "paid" && current["status"] !== "paid" && current["status"] !== "refunded") {
       patch["status"] = "paid";
       patch["paidAt"] = FieldValue.serverTimestamp();
@@ -601,7 +733,7 @@ export async function processProfessorChargeAsaasNotification(
       }
     } else if (next === "refunded" && current["status"] !== "refunded") {
       patch["status"] = "refunded";
-    } else if (next === "canceled" && current["status"] === "open") {
+    } else if (next === "canceled" && ["open", "creating", "failed"].includes(String(current["status"]))) {
       patch["status"] = "canceled";
     }
     tx.set(ref, patch, {merge: true});
@@ -613,7 +745,8 @@ export async function processProfessorChargeAsaasNotification(
 // Callables
 // ---------------------------------------------------------------------------
 
-const PROFESSOR_ASAAS_OPTS = {region: CLIENT_FACING_REGIONS, secrets: asaasArenaSecrets};
+const PROFESSOR_ASAAS_OPTS = {region: CLIENT_FACING_REGIONS, secrets: [...asaasArenaSecrets, PROFESSOR_SECRETS_KEY]};
+const PROFESSOR_PUSH_OPTS = {region: CLIENT_FACING_REGIONS, secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT]};
 const PROFESSOR_CHARGE_OPTS = {
   region: CLIENT_FACING_REGIONS,
   secrets: [...asaasArenaSecrets, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
@@ -629,8 +762,12 @@ export const refreshProfessorPayoutAccountStatus = onCall(PROFESSOR_ASAAS_OPTS, 
 export const upsertProfessorPlan = onCall({region: CLIENT_FACING_REGIONS}, async (request) =>
   upsertProfessorPlanCore(getFirestore(), requireUid(request), dataOf(request)));
 
-export const upsertProfessorStudent = onCall({region: CLIENT_FACING_REGIONS}, async (request) =>
+export const upsertProfessorStudent = onCall(PROFESSOR_PUSH_OPTS, async (request) =>
   upsertProfessorStudentCore(getFirestore(), requireUid(request), dataOf(request)));
+
+export const respondProfessorStudentInvite = onCall({region: CLIENT_FACING_REGIONS}, async (request) =>
+  respondProfessorStudentInviteCore(getFirestore(), requireUid(request), str(dataOf(request)["professorUid"]),
+    dataOf(request)["accept"] === true));
 
 export const archiveProfessorStudent = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {
   await archiveProfessorStudentCore(getFirestore(), requireUid(request), str(dataOf(request)["athleteId"]));
@@ -653,6 +790,7 @@ export const stopProfessorRecurring = onCall({region: CLIENT_FACING_REGIONS}, as
 export const generateProfessorMonthlyCharges = onSchedule({
   schedule: "every day 07:00",
   timeZone: "America/Sao_Paulo",
+  timeoutSeconds: 540,
   secrets: [...asaasArenaSecrets, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async () => {
   const result = await generateProfessorMonthlyChargesCore(getFirestore());

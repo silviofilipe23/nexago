@@ -50,13 +50,15 @@ test('ninguém lê a apiKey da subconta, nem o próprio professor', async () => 
   await assertFails(getDoc(doc(as(PROF), `professorAsaasSecrets/${PROF}`)));
 });
 
-test('aluno e arena não leem a carteira do professor', async () => {
+test('aluno e arena não leem a carteira do professor (o aluno só o próprio convite)', async () => {
   for (const uid of [ALUNO, OUTRO]) {
     const db = as(uid);
     await assertFails(getDoc(doc(db, `professorPayoutAccounts/${PROF}`)));
-    await assertFails(getDoc(doc(db, `professors/${PROF}/students/${ALUNO}`)));
     await assertFails(getDocs(collection(db, `professors/${PROF}/plans`)));
+    await assertFails(getDocs(collection(db, `professors/${PROF}/students`)));
   }
+  await assertSucceeds(getDoc(doc(as(ALUNO), `professors/${PROF}/students/${ALUNO}`)));
+  await assertFails(getDoc(doc(as(OUTRO), `professors/${PROF}/students/${ALUNO}`)));
 });
 
 test('cobrança: professor e aluno leem a deles, filtrando pelo campo; terceiro não', async () => {

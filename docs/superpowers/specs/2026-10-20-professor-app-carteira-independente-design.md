@@ -24,8 +24,12 @@ A arena não vê alunos nem valores da carteira (só as reservas de quadra que e
   Asaas** (app/site deles). A tela explica isso.
 - Gravamos `professorPayoutAccounts/{uid}` (o dono lê; só functions escrevem): `status`,
   `asaasAccountId`, `walletId`, nome, e-mail, CPF mascarado, `asaasEnv`, datas. A `apiKey` da
-  subconta (só sai na criação) vai para `professorAsaasSecrets/{uid}` — **ninguém lê pelas rules**;
-  serve só para a function consultar a situação (`GET /v3/myAccount/status`).
+  subconta (só sai na criação) vai **cifrada (AES-256-GCM, secret `PROFESSOR_SECRETS_KEY`)** para
+  `professorAsaasSecrets/{uid}` — ninguém lê pelas rules; serve só para a function consultar a
+  situação (`GET /v3/myAccount/status`).
+- Criação idempotente: marcador `creating` em transação (toque duplo recusa); se o Asaas já tem
+  subconta com o CPF (tentativa anterior que não gravou), adota a existente pelo `GET /v3/accounts`.
+- Só professor com vínculo `INDEPENDENT` **ATIVO** (pedido pendente/recusado/encerrado não conta).
 - Situação: `pending` (criada, aguardando ativação/documentos) → `approved` / `rejected`
   (`general` do status do Asaas). `refreshProfessorPayoutAccountStatus` relê ao abrir a tela.
   **Só cobra com `approved`** — split para conta não aprovada pode ser recusado/retido.
@@ -34,7 +38,10 @@ A arena não vê alunos nem valores da carteira (só as reservas de quadra que e
 ### 2. Alunos da carteira
 
 - `professors/{uid}/students/{athleteId}`: aluno **tem conta NexaGO** (busca de atleta, como nas
-  Aulas). Nome/foto copiados na entrada; `status` active/archived; plano padrão opcional; cobrança
+  Aulas). **Consentimento:** o professor convida (`invited`, push `professor_student_invite` →
+  `/convite-professor/{uid}`); o atleta aceita ou recusa (`respondProfessorStudentInvite`). Só aluno
+  `active` pode ser cobrado — sem isso qualquer professor cobraria qualquer usuário. O atleta lê o
+  próprio doc (é o convite). Nome/foto copiados na entrada; `status` active/archived; plano padrão opcional; cobrança
   recorrente opcional (`recurring: {planId, amountReais, dueDay}`).
 - Escrita por callable (`upsertProfessorStudent`, `archiveProfessorStudent`); o dono lê pelas rules.
 - Link de convite (aluno sem conta) fica para depois.
@@ -63,6 +70,9 @@ A arena não vê alunos nem valores da carteira (só as reservas de quadra que e
   na lista de cobranças da agenda (`getMyClassCharges` passa a incluir as do professor, com o nome
   dele no lugar da arena — campo novo `source`, retrocompatível).
 - `cancelProfessorCharge`: cancela no Asaas (`DELETE /v3/payments/{id}`) se ainda em aberto.
+- **Falha ambígua** (timeout/5xx ao criar): antes de apagar o doc, procura o pagamento pela
+  `externalReference`; achou → adota (abre); não conseguiu conferir → guarda `failed` e avisa para
+  conferir antes de cobrar de novo. Cobrança presa em `creating` é aberta pelo webhook.
 - **Recorrente** ("Repetir todo mês"): grava `recurring` no aluno; o agendador diário
   `generateProfessorMonthlyCharges` cria a cobrança do mês 5 dias antes do vencimento (uma por
   aluno/período, id determinístico).
@@ -70,7 +80,8 @@ A arena não vê alunos nem valores da carteira (só as reservas de quadra que e
 ### 5. Webhook
 
 Prefixo novo `professorCharge:` no `asaasWebhook`. `RECEIVED`/`CONFIRMED` → `paid` (+`netReais`,
-`paidAt`); `DELETED` → `canceled`; `REFUNDED`/chargeback → `refunded`; `OVERDUE` só espelha. O
+`paidAt`); `DELETED` → `canceled`; só `REFUNDED` → `refunded` (pedido de estorno e chargeback em
+disputa podem voltar atrás); `OVERDUE` só espelha. O agendador revalida o vínculo ativo a cada mês. O
 dinheiro já foi para a subconta pelo split: não há crédito em carteira nossa.
 
 ### 6. Telas

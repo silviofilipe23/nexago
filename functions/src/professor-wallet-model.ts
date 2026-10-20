@@ -233,7 +233,8 @@ export function recurringPeriodDue(todayKey: string, dueDay: number): string | n
 export function professorChargeStatusFromAsaas(status: string, deleted: boolean): ProfessorChargeStatus | null {
   const s = status.toUpperCase();
   if (["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"].includes(s)) return "paid";
-  if (["REFUNDED", "REFUND_REQUESTED", "CHARGEBACK_REQUESTED", "CHARGEBACK_DISPUTE"].includes(s)) return "refunded";
+  // Só o estorno concluído: pedido de estorno e chargeback em disputa podem voltar atrás.
+  if (s === "REFUNDED") return "refunded";
   if (deleted) return "canceled";
   return null;
 }

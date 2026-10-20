@@ -211,6 +211,7 @@ export {
   createProfessorPayoutAccount,
   generateProfessorMonthlyCharges,
   refreshProfessorPayoutAccountStatus,
+  respondProfessorStudentInvite,
   stopProfessorRecurring,
   upsertProfessorPlan,
   upsertProfessorStudent,

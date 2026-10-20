@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {HttpsError} from "firebase-functions/v2/https";
 import type {DocumentReference, Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
+import {AsaasApiError} from "./asaas-client";
 import {
   cancelProfessorChargeCore,
   createProfessorChargeCore,
@@ -10,6 +11,7 @@ import {
   generateProfessorMonthlyChargesCore,
   processProfessorChargeAsaasNotification,
   refreshProfessorPayoutAccountStatusCore,
+  respondProfessorStudentInviteCore,
   upsertProfessorPlanCore,
   upsertProfessorStudentCore,
   type ProfessorWalletDeps,
@@ -61,7 +63,11 @@ function recorder(overrides: Partial<ProfessorWalletDeps> = {}): Recorder {
       rec.accounts++;
       return {accountId: "acc_1", walletId: "wal_1", apiKey: "key_1"};
     },
+    findAccountByCpf: async () => null,
     accountStatus: async () => ({general: "APPROVED", documentation: "APPROVED"}),
+    sealKey: (k) => `sealed:${k}`,
+    openKey: (s) => s.replace(/^sealed:/, ""),
+    findPayment: async () => null,
     customerFor: async () => "cus_1",
     createPayment: async (input) => {
       rec.payments.push(input as unknown as Record<string, unknown>);
@@ -78,10 +84,10 @@ function recorder(overrides: Partial<ProfessorWalletDeps> = {}): Recorder {
   return rec;
 }
 
-function makeDb(opts: {independent?: boolean; approved?: boolean; student?: boolean} = {}): {fake: FakeFirestore; db: Firestore} {
+function makeDb(opts: {independent?: boolean; approved?: boolean; student?: boolean; linkStatus?: string} = {}): {fake: FakeFirestore; db: Firestore} {
   const fake = new FakeFirestore();
   if (opts.independent !== false) {
-    fake.seedDoc(`arenaProfessors/norte_${PROF}`, {professorUserId: PROF, relationshipType: "INDEPENDENT", status: "ACTIVE"});
+    fake.seedDoc(`arenaProfessors/norte_${PROF}`, {professorUserId: PROF, relationshipType: "INDEPENDENT", status: opts.linkStatus ?? "ACTIVE"});
   }
   fake.seedDoc(`users/${PROF}`, {fullName: "Thiago Mendes"});
   fake.seedDoc(`users/${ALUNO}`, {fullName: "Paulo Viana", photoUrl: "https://foto/p.jpg"});
@@ -118,11 +124,15 @@ describe("conta de recebimento (subconta Asaas)", () => {
     assert.equal(account["status"], "pending");
     assert.equal(account["cpfMasked"], "***.982.247-**");
     assert.ok(!JSON.stringify(account).includes("key_1"), "apiKey não vai no doc legível");
-    assert.equal(fake.store.get(`professorAsaasSecrets/${PROF}`)!["apiKey"], "key_1");
+    assert.equal(fake.store.get(`professorAsaasSecrets/${PROF}`)!["sealedApiKey"], "sealed:key_1");
   });
 
-  it("só professor independente; segunda conta no mesmo ambiente recusa", async () => {
+  it("só professor independente com vínculo ATIVO; segunda conta no mesmo ambiente recusa", async () => {
     const rec = recorder();
+    for (const linkStatus of ["PENDING", "REJECTED", "ENDED"]) {
+      await rejectsWith(createProfessorPayoutAccountCore(makeDb({linkStatus}).db, PROF, ACCOUNT_INPUT, rec.deps),
+        "failed-precondition", /independente/);
+    }
     await rejectsWith(createProfessorPayoutAccountCore(makeDb({independent: false}).db, PROF, ACCOUNT_INPUT, rec.deps),
       "failed-precondition", /independente/);
     const {db} = makeDb({approved: true});
@@ -139,8 +149,34 @@ describe("conta de recebimento (subconta Asaas)", () => {
     }});
     await createProfessorPayoutAccountCore(db, PROF, ACCOUNT_INPUT, rec.deps);
     assert.deepEqual(await refreshProfessorPayoutAccountStatusCore(db, PROF, rec.deps), {status: "approved"});
-    assert.deepEqual(keys, ["key_1"]);
+    assert.deepEqual(keys, ["key_1"], "decifra a apiKey antes de consultar");
     assert.equal(fake.store.get(`professorPayoutAccounts/${PROF}`)!["status"], "approved");
+  });
+
+  it("toque duplo: a segunda tentativa enquanto a primeira cria é recusada", async () => {
+    const {db} = makeDb();
+    let release: () => void = () => undefined;
+    const slow = recorder({createAccount: () => new Promise((resolve) => {
+      release = () => resolve({accountId: "acc_1", walletId: "wal_1", apiKey: "key_1"});
+    })});
+    const first = createProfessorPayoutAccountCore(db, PROF, ACCOUNT_INPUT, slow.deps);
+    await new Promise((r) => setTimeout(r, 5));
+    await rejectsWith(createProfessorPayoutAccountCore(db, PROF, ACCOUNT_INPUT, slow.deps), "aborted");
+    release();
+    await first;
+  });
+
+  it("subconta criada numa tentativa que não gravou: adota a existente pelo CPF", async () => {
+    const {fake, db} = makeDb();
+    const rec = recorder({
+      createAccount: async () => {
+        throw new AsaasApiError("CPF já cadastrado", 400, "{}");
+      },
+      findAccountByCpf: async (cpf) => (cpf === "52998224725" ? {accountId: "acc_old", walletId: "wal_old"} : null),
+    });
+    await createProfessorPayoutAccountCore(db, PROF, ACCOUNT_INPUT, rec.deps);
+    assert.equal(fake.store.get(`professorPayoutAccounts/${PROF}`)!["walletId"], "wal_old");
+    assert.equal(fake.store.has(`professorAsaasSecrets/${PROF}`), false);
   });
 
   it("valida o formulário", () => {
@@ -198,6 +234,43 @@ describe("cobrança com split para a subconta", () => {
     assert.equal(rec.payments.length, 0);
   });
 
+  it("falha ambígua no Asaas: adota o pagamento vivo em vez de apagar (sem cobrança dupla)", async () => {
+    const {fake, db} = makeDb({approved: true, student: true});
+    const rec = recorder({
+      createPayment: async () => {
+        throw new Error("timeout");
+      },
+      findPayment: async () => ({paymentId: "pay_vivo", invoiceUrl: "https://asaas.test/vivo"}),
+    });
+    const {chargeId, invoiceUrl} = await createProfessorChargeCore(db, PROF, {athleteId: ALUNO, amountReais: 100, dueDate: TODAY}, rec.deps);
+    assert.equal(invoiceUrl, "https://asaas.test/vivo");
+    assert.deepEqual([fake.store.get(`professorCharges/${chargeId}`)!["status"], fake.store.get(`professorCharges/${chargeId}`)!["paymentId"]],
+      ["open", "pay_vivo"]);
+
+    // Sem conseguir conferir: guarda como "failed" (não apaga) e avisa para conferir antes de cobrar de novo.
+    const unknown = makeDb({approved: true, student: true});
+    const blind = recorder({
+      createPayment: async () => {
+        throw new Error("timeout");
+      },
+      findPayment: async () => {
+        throw new Error("rede");
+      },
+    });
+    await rejectsWith(createProfessorChargeCore(unknown.db, PROF, {athleteId: ALUNO, amountReais: 100, dueDate: TODAY}, blind.deps),
+      "internal", /Confira/);
+    const left = [...unknown.fake.store.entries()].filter(([k]) => k.startsWith("professorCharges/"));
+    assert.equal(left.length, 1);
+    assert.equal(left[0][1]["status"], "failed");
+  });
+
+  it("aluno convidado (ainda não aceitou) não pode ser cobrado", async () => {
+    const {fake, db} = makeDb({approved: true});
+    fake.seedDoc(`professors/${PROF}/students/${ALUNO}`, {athleteId: ALUNO, name: "Paulo", status: "invited"});
+    await rejectsWith(createProfessorChargeCore(db, PROF, {athleteId: ALUNO, amountReais: 100, dueDate: TODAY}, recorder().deps),
+      "failed-precondition", /aceitou/);
+  });
+
   it("valor personalizado e vencimento no passado", async () => {
     const {db} = makeDb({approved: true, student: true});
     const rec = recorder();
@@ -226,7 +299,7 @@ describe("recorrente", () => {
     const {fake, db} = makeDb({approved: true, student: true});
     const rec = recorder();
     await createProfessorChargeCore(db, PROF, {athleteId: ALUNO, amountReais: 880, description: "Mensal", dueDate: "2026-10-25", repeatMonthly: true}, rec.deps);
-    assert.ok(fake.store.has(`professorCharges/${recurringChargeId(PROF, ALUNO, "2026-10")}`));
+    assert.equal([...fake.store.keys()].filter((k) => k.startsWith("professorCharges/")).length, 1);
     const recurring = fake.store.get(`professors/${PROF}/students/${ALUNO}`)!["recurring"] as Record<string, unknown>;
     assert.deepEqual([recurring["dueDay"], recurring["lastPeriod"], recurring["amountReais"]], [25, "2026-10", 880]);
 
@@ -238,6 +311,19 @@ describe("recorrente", () => {
     // Segundo disparo no mesmo dia: nada novo.
     assert.equal((await generateProfessorMonthlyChargesCore(db, nov.deps)).created, 0);
     assert.equal(nov.payments.length, 1);
+    assert.ok(fake.store.has(`professorCharges/${recurringChargeId(PROF, ALUNO, "2026-11")}`));
+  });
+
+  it("agendador não cobra se o vínculo independente acabou", async () => {
+    const {fake, db} = makeDb({approved: true, student: true});
+    fake.seedDoc(`professors/${PROF}/students/${ALUNO}`, {
+      athleteId: ALUNO, name: "Paulo", status: "active",
+      recurring: {amountReais: 100, description: "Mensal", dueDay: 25, lastPeriod: "2026-10"},
+    });
+    fake.seedDoc(`arenaProfessors/norte_${PROF}`, {professorUserId: PROF, relationshipType: "INDEPENDENT", status: "ENDED"});
+    const nov = recorder({now: () => new Date("2026-11-20T15:00:00Z")});
+    assert.deepEqual(await generateProfessorMonthlyChargesCore(db, nov.deps), {created: 0, skipped: 1});
+    assert.equal(nov.payments.length, 0);
   });
 
   it("regras de período", () => {
@@ -279,6 +365,17 @@ describe("webhook professorCharge:", () => {
       {status: "REFUNDED", externalReference: `professorCharge:${chargeId}`}, processedRef(fake, "pay_1"));
     assert.equal(fake.store.get(`professorCharges/${chargeId}`)!["status"], "refunded");
     assert.equal(professorChargeStatusFromAsaas("OVERDUE", false), null);
+    assert.equal(professorChargeStatusFromAsaas("REFUND_REQUESTED", false), null, "pedido de estorno pode voltar atrás");
+    assert.equal(professorChargeStatusFromAsaas("CHARGEBACK_DISPUTE", false), null);
+  });
+
+  it("cobrança presa em creating: o webhook abre com o link do Asaas", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("professorCharges/c1", {professorUid: PROF, athleteId: ALUNO, status: "creating", paymentId: null, feePercent: 5});
+    await processProfessorChargeAsaasNotification(db, "pay_9",
+      {status: "PENDING", externalReference: "professorCharge:c1", invoiceUrl: "https://asaas.test/9"} as never, processedRef(fake, "pay_9"));
+    const charge = fake.store.get("professorCharges/c1")!;
+    assert.deepEqual([charge["status"], charge["invoiceUrl"], charge["paymentId"]], ["open", "https://asaas.test/9", "pay_9"]);
   });
 
   it("o aluno vê a cobrança em aberto na lista dele, com o nome do professor", async () => {
@@ -291,12 +388,26 @@ describe("webhook professorCharge:", () => {
 });
 
 describe("alunos da carteira", () => {
-  it("copia nome e foto do atleta; recusa a si mesmo e atleta inexistente", async () => {
+  it("convida (status invited + push); o atleta aceita e vira aluno; recusa a si mesmo e inexistente", async () => {
     const {fake, db} = makeDb();
-    await upsertProfessorStudentCore(db, PROF, {athleteId: ALUNO});
+    const rec = recorder();
+    assert.deepEqual(await upsertProfessorStudentCore(db, PROF, {athleteId: ALUNO}, rec.deps), {athleteId: ALUNO, status: "invited"});
     const s = fake.store.get(`professors/${PROF}/students/${ALUNO}`)!;
-    assert.deepEqual([s["name"], s["photoUrl"], s["status"]], ["Paulo Viana", "https://foto/p.jpg", "active"]);
-    await rejectsWith(upsertProfessorStudentCore(db, PROF, {athleteId: PROF}), "invalid-argument");
-    await rejectsWith(upsertProfessorStudentCore(db, PROF, {athleteId: "ninguem"}), "not-found");
+    assert.deepEqual([s["name"], s["photoUrl"], s["status"], s["professorName"]], ["Paulo Viana", "https://foto/p.jpg", "invited", "Thiago Mendes"]);
+    assert.deepEqual([rec.pushes[0]["userId"], rec.pushes[0]["type"]], [ALUNO, "professor_student_invite"]);
+    assert.deepEqual(await respondProfessorStudentInviteCore(db, ALUNO, PROF, true), {status: "active"});
+    await rejectsWith(respondProfessorStudentInviteCore(db, ALUNO, PROF, true), "failed-precondition");
+    // Reconvidar quem já é aluno não rebaixa para convite nem manda push.
+    assert.equal((await upsertProfessorStudentCore(db, PROF, {athleteId: ALUNO}, rec.deps)).status, "active");
+    assert.equal(rec.pushes.length, 1);
+    await rejectsWith(upsertProfessorStudentCore(db, PROF, {athleteId: PROF}, rec.deps), "invalid-argument");
+    await rejectsWith(upsertProfessorStudentCore(db, PROF, {athleteId: "ninguem"}, rec.deps), "not-found");
+  });
+
+  it("recusar o convite", async () => {
+    const {fake, db} = makeDb();
+    await upsertProfessorStudentCore(db, PROF, {athleteId: ALUNO}, recorder().deps);
+    assert.deepEqual(await respondProfessorStudentInviteCore(db, ALUNO, PROF, false), {status: "declined"});
+    assert.equal(fake.store.get(`professors/${PROF}/students/${ALUNO}`)!["status"], "declined");
   });
 });

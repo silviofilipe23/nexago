@@ -231,5 +231,10 @@ void main() {
       );
       expect(inRow('professor-more-payout', 'Criar conta'), findsOneWidget);
     });
+
+    testWidgets('Comunicados em Alunos e aulas', (tester) async {
+      await openMore(tester);
+      expect(inRow('professor-more-notices', 'Comunicados'), findsOneWidget);
+    });
   });
 }

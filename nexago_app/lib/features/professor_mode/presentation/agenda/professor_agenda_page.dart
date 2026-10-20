@@ -934,8 +934,8 @@ class _MonthView extends ConsumerWidget {
 
 // ── "+" ──────────────────────────────────────────────────────────────────
 
-/// "+" da Agenda: bloquear período e, para o independente, "Nova aula" para
-/// um aluno da carteira (o fluxo da fase 4).
+/// "+" da Agenda: bloquear período, comunicado e, para o independente,
+/// "Nova aula" para um aluno da carteira (o fluxo da fase 4).
 Future<void> showProfessorAgendaAddSheet(
   BuildContext context,
   WidgetRef ref,
@@ -1006,6 +1006,17 @@ Future<void> showProfessorAgendaAddSheet(
               onTap: () {
                 Navigator.of(sheetContext).pop();
                 context.pushNamed(AppRouteNames.professorBlockNew);
+              },
+            ),
+            const SizedBox(height: 10),
+            option(
+              key: const Key('professor-agenda-add-notice'),
+              icon: Icons.campaign_outlined,
+              title: 'Comunicado',
+              subtitle: 'Aviso, enquete ou cancelamento para seus alunos',
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                context.pushNamed(AppRouteNames.professorNoticeNew);
               },
             ),
             if (independent) ...[

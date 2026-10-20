@@ -22,6 +22,9 @@ const professorChargeLinkNotificationType = 'professor_charge_link';
 /// Convite do professor para o atleta entrar na carteira dele.
 const professorStudentInviteNotificationType = 'professor_student_invite';
 
+/// Comunicado do professor para o aluno (aviso, enquete…).
+const professorNoticeNotificationType = 'professor_notice';
+
 /// Agenda do atleta — onde fica a mensalidade a pagar.
 const athleteAgendaTabLocation = '${AppRoutes.discover}?tab=agenda';
 
@@ -209,6 +212,19 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   if (type == classChargeLinkNotificationType ||
       type == professorChargeLinkNotificationType) {
     return athleteAgendaTabLocation;
+  }
+
+  // Comunicado do professor: o payload traz `url` (`/aviso-professor/{id}`);
+  // sem ele, monta pelo `noticeId`.
+  if (type == professorNoticeNotificationType) {
+    final url = appRouteForNotificationUrl(data['url'] as String?);
+    if (url != null) return url;
+    final noticeId = (data['noticeId'] as String?)?.trim() ?? '';
+    if (noticeId.isNotEmpty) {
+      return AppRoutes.professorNoticeForStudent
+          .replaceAll(':noticeId', Uri.encodeComponent(noticeId));
+    }
+    return AppRoutes.home;
   }
 
   // Convite para a carteira do professor: o payload traz `url`

@@ -186,6 +186,10 @@ import '../../features/professor_mode/presentation/professor_more_page.dart';
 import '../../features/professor_mode/presentation/professor_shell_page.dart';
 import '../../features/professor_mode/presentation/professor_student_page.dart';
 import '../../features/professor_mode/presentation/professor_students_page.dart';
+import '../../features/professor_mode/presentation/notices/professor_notice_editor_page.dart';
+import '../../features/professor_mode/presentation/notices/professor_notice_report_page.dart';
+import '../../features/professor_mode/presentation/notices/professor_notice_student_page.dart';
+import '../../features/professor_mode/presentation/notices/professor_notices_page.dart';
 import '../../features/professor_mode/presentation/wallet/professor_payout_account_page.dart';
 import '../../features/professor_mode/presentation/wallet/professor_student_invite_page.dart';
 import '../../features/professor_mode/presentation/wallet/professor_wallet_add_student_page.dart';
@@ -511,6 +515,39 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                     path: 'turmas',
                     name: AppRouteNames.professorClasses,
                     builder: (context, state) => const ProfessorClassesPage(),
+                  ),
+                  // Comunicados do professor (F1–F5).
+                  GoRoute(
+                    path: 'comunicados',
+                    name: AppRouteNames.professorNotices,
+                    builder: (context, state) => const ProfessorNoticesPage(),
+                    routes: [
+                      GoRoute(
+                        path: 'novo',
+                        name: AppRouteNames.professorNoticeNew,
+                        builder: (context, state) =>
+                            const ProfessorNoticeEditorPage(),
+                      ),
+                      GoRoute(
+                        path: ':noticeId',
+                        name: AppRouteNames.professorNoticeReport,
+                        builder: (context, state) => ProfessorNoticeReportPage(
+                          noticeId:
+                              state.pathParameters['noticeId']?.trim() ?? '',
+                        ),
+                        routes: [
+                          GoRoute(
+                            path: 'editar',
+                            name: AppRouteNames.professorNoticeEdit,
+                            builder: (context, state) =>
+                                ProfessorNoticeEditorPage(
+                              noticeId:
+                                  state.pathParameters['noticeId']?.trim(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                   // Fase 3: carteira do professor independente.
                   GoRoute(
@@ -2803,6 +2840,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final args = extra is BookingSuccessArgs ? extra : null;
           return BookingSuccessPage(args: args);
         },
+      ),
+      // Comunicado do professor para o aluno (push `professor_notice`).
+      GoRoute(
+        path: AppRoutes.professorNoticeForStudent,
+        name: AppRouteNames.professorNoticeForStudent,
+        builder: (context, state) => ProfessorNoticeStudentPage(
+          noticeId: state.pathParameters['noticeId']?.trim() ?? '',
+        ),
       ),
       // Convite do professor para a carteira dele (push
       // `professor_student_invite`); o atleta aceita ou recusa.

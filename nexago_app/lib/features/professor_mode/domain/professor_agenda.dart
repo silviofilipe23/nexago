@@ -179,8 +179,8 @@ int? professorParseMinutes(String hhmm) {
 }
 
 /// Monta a agenda: aulas de turma (só as que ele dá), da carteira e os
-/// bloqueios fatiados por dia. [classTypes] (classId → tipo) vem da lista de
-/// turmas do professor — a callable da agenda não manda o tipo.
+/// bloqueios fatiados por dia. O tipo vem do `classType` do item; servidor
+/// antigo usa [classTypes] (classId → tipo, da lista de turmas do professor).
 List<ProfessorAgendaItem> buildProfessorAgendaItems({
   required List<ClassAgendaEntry> sessions,
   required List<ProfessorLesson> lessons,
@@ -198,7 +198,7 @@ List<ProfessorAgendaItem> buildProfessorAgendaItems({
         ? 'Reposição'
         : s.kind == 'trial'
             ? 'Experimental'
-            : (classTypes[s.classId] ?? ArenaClassType.turma).label;
+            : professorSessionType(s, classTypes).label;
     final count = s.studentCount;
     items.add(ProfessorAgendaItem(
       id: 'session:${s.sessionId}',
@@ -243,6 +243,16 @@ List<ProfessorAgendaItem> buildProfessorAgendaItems({
   items.sort(_byWhen);
   return items;
 }
+
+/// Tipo da aula: o que a agenda manda (`classType`); servidor antigo cai no
+/// mapa das turmas do professor; sem nada, turma.
+ArenaClassType professorSessionType(
+  ClassAgendaEntry s,
+  Map<String, ArenaClassType> classTypes,
+) =>
+    s.classType != null
+        ? ArenaClassTypeX.fromId(s.classType)
+        : classTypes[s.classId] ?? ArenaClassType.turma;
 
 /// O bloqueio em pedaços por dia (parede SP): o primeiro dia a partir da hora
 /// de início, o último até a hora de fim, os do meio inteiros.

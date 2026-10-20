@@ -14,6 +14,7 @@ import '../../../athlete/domain/agenda/class_agenda_entry.dart';
 import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../application/professor_agenda_providers.dart';
 import '../../application/professor_students_providers.dart';
+import '../../domain/professor_agenda.dart';
 import '../../domain/professor_actions_logic.dart' show professorDayLabel;
 import '../../domain/professor_students_logic.dart'
     show professorScheduleLabel, professorShortDate;
@@ -24,7 +25,8 @@ import 'professor_agenda_widgets.dart';
 /// E4 Detalhe da aula de turma (equipe da arena): local, recorrência, alunos
 /// (quando o vínculo libera a chamada), "Abrir chamada" e "Cancelar" (com a
 /// chave "Cancelar aulas" da arena). Sem repasse nem plano da aula — não há
-/// dado para isso.
+/// dado para isso. Tipo pelo `classType` da agenda; a recorrência vem da
+/// lista de turmas do professor.
 class ProfessorAgendaSessionPage extends ConsumerWidget {
   const ProfessorAgendaSessionPage({
     super.key,
@@ -126,7 +128,9 @@ class ProfessorAgendaSessionPage extends ConsumerWidget {
                         runSpacing: 6,
                         children: [
                           ArenaClassTypeTag(
-                            type: klass?.type ?? ArenaClassType.turma,
+                            type: professorSessionType(e, {
+                              if (klass != null) e.classId: klass.type,
+                            }),
                           ),
                           if (arena?.type != null)
                             ProfessorLinkTypeTag(arena!.type!, small: true),

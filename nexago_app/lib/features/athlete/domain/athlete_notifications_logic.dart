@@ -519,6 +519,21 @@ AthleteNotificationPresentation _basePresentation(
         routePath: athleteAgendaTabLocation,
         externalUrl: invoiceUrl,
       );
+    // Comunicado do professor: abre o comunicado (lê e responde a enquete).
+    case professorNoticeNotificationType:
+      final noticeRoute = resolveNotificationRoute({...data, 'type': type});
+      return AthleteNotificationPresentation(
+        icon: Icons.campaign_outlined,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.12),
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Ver comunicado',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: noticeRoute,
+      );
     // Convite do professor para a carteira dele: abre a tela do convite.
     case professorStudentInviteNotificationType:
       final inviteRoute = resolveNotificationRoute({...data, 'type': type});

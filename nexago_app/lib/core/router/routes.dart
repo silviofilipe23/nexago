@@ -61,6 +61,19 @@ abstract final class AppRoutes {
   static const String professorNotice = '/professor/acoes/:arenaId/comunicado';
 
   /// Fase 3 — carteira do professor independente (Mais › Dinheiro, sem a barra).
+  /// Comunicados do professor (Mais › Alunos e aulas), sem a barra.
+  static const String professorNotices = '/professor/mais/comunicados';
+  static const String professorNoticeNew = '/professor/mais/comunicados/novo';
+  static const String professorNoticeReport =
+      '/professor/mais/comunicados/:noticeId';
+  static const String professorNoticeEdit =
+      '/professor/mais/comunicados/:noticeId/editar';
+
+  /// Comunicado do professor para o ATLETA (push `professor_notice`). Abre no
+  /// modo Atleta.
+  static const String professorNoticeForStudent =
+      '/aviso-professor/:noticeId';
+
   static const String professorPayoutAccount = '/professor/mais/conta';
   static const String professorWalletPlans = '/professor/mais/planos';
   static const String professorWallet = '/professor/mais/carteira';
@@ -753,6 +766,11 @@ abstract final class AppRouteNames {
   static const String professorMakeup = 'professorMakeup';
   static const String professorWaitlist = 'professorWaitlist';
   static const String professorNotice = 'professorNotice';
+  static const String professorNotices = 'professorNotices';
+  static const String professorNoticeNew = 'professorNoticeNew';
+  static const String professorNoticeReport = 'professorNoticeReport';
+  static const String professorNoticeEdit = 'professorNoticeEdit';
+  static const String professorNoticeForStudent = 'professorNoticeForStudent';
   static const String professorPayoutAccount = 'professorPayoutAccount';
   static const String professorWalletPlans = 'professorWalletPlans';
   static const String professorWallet = 'professorWallet';

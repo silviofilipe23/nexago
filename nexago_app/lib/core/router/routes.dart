@@ -20,6 +20,11 @@ abstract final class AppRoutes {
 
   /// Home do organizador de torneio.
   static const String organizerHome = '/organizer';
+
+  /// Home do modo Professor (papel `professor`): aulas de hoje, chamada,
+  /// Minhas arenas e reserva como professor. As telas de vínculo e de chamada
+  /// seguem em `/athlete/professor/...` (links de push já gravados).
+  static const String professorHome = '/professor';
   static const String organizerWallet = '/organizer/wallet';
 
   /// Editor do perfil público do organizador (logo, capa, bio, WhatsApp).
@@ -228,7 +233,7 @@ abstract final class AppRoutes {
       '/athlete/professor/arenas/:linkId/enviada';
 
   /// Chamada de uma aula que o usuário dá (vínculo com "Gerenciar as próprias
-  /// aulas"); entrada pelo "Fazer chamada" da agenda.
+  /// aulas"); entrada pelo "Fazer chamada" do modo Professor.
   static const String professorClassAttendance =
       '/athlete/professor/aulas/:sessionId';
 
@@ -680,6 +685,7 @@ abstract final class AppRouteNames {
   static const String roleSelection = 'roleSelection';
   static const String authLoading = 'authLoading';
   static const String organizerHome = 'organizerHome';
+  static const String professorHome = 'professorHome';
   static const String organizerWallet = 'organizerWallet';
   static const String organizerCreate = 'organizerCreate';
   static const String organizerTournamentCreateExpress =

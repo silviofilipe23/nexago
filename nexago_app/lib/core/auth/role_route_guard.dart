@@ -4,6 +4,26 @@ import 'app_mobile_role.dart';
 
 bool isRoleSelectionPath(String path) => path == AppRoutes.roleSelection;
 
+/// Home do modo Professor.
+bool isProfessorExperiencePath(String path) {
+  return path == AppRoutes.professorHome ||
+      path.startsWith('${AppRoutes.professorHome}/');
+}
+
+/// Telas do professor que abrem em QUALQUER papel: vínculos (Minhas arenas,
+/// detalhe — "Minhas arenas" fica nos ajustes do atleta antes do primeiro
+/// vínculo, quando ainda não há a claim) e chamada. O push `professor_link_*`
+/// abre o vínculo sem trocar de papel. Quem autoriza é o vínculo no servidor.
+bool isProfessorSharedPath(String path) {
+  return path.startsWith('/athlete/professor/');
+}
+
+/// No modo Professor seguem abertas as telas de arena do atleta (página
+/// pública e fluxo de reserva): é por elas que o professor reserva quadra.
+bool isProfessorAllowedArenaPath(String path) {
+  return path.startsWith('/arena/') && !isArenaManagerPanelPath(path);
+}
+
 bool isOrganizerExperiencePath(String path) {
   return path == AppRoutes.organizerHome || path.startsWith('/organizer/');
 }
@@ -66,7 +86,17 @@ String? redirectForActiveRole({
     return activeRole.homeRoute;
   }
 
-  if (isAthleteExperiencePath(path) && activeRole != AppMobileRole.athlete) {
+  if (isProfessorSharedPath(path)) return null;
+
+  if (isProfessorExperiencePath(path) &&
+      activeRole != AppMobileRole.professor) {
+    return activeRole.homeRoute;
+  }
+
+  if (isAthleteExperiencePath(path) &&
+      activeRole != AppMobileRole.athlete &&
+      !(activeRole == AppMobileRole.professor &&
+          isProfessorAllowedArenaPath(path))) {
     return activeRole.homeRoute;
   }
 

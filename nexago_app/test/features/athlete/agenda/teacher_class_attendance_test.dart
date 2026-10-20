@@ -8,18 +8,14 @@ import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arena/domain/aulas/arena_class_session.dart';
 import 'package:nexago_app/features/athlete/data/class_agenda_repository.dart';
-import 'package:nexago_app/features/athlete/domain/agenda/athlete_agenda_logic.dart';
-import 'package:nexago_app/features/athlete/domain/agenda/athlete_agenda_models.dart';
 import 'package:nexago_app/features/athlete/domain/agenda/class_agenda_entry.dart';
 import 'package:nexago_app/features/athlete/domain/agenda/teacher_class_roster.dart';
 import 'package:nexago_app/features/athlete/presentation/teacher_class_attendance_page.dart';
-import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_timeline_widgets.dart';
 
-/// "Fazer chamada" do professor (vínculo com "Gerenciar as próprias aulas",
-/// PR #798): `getMyClassAgenda` diz se pode (`canManageLessons`), a lista vem
-/// de `getMyClassSessionRoster` e a gravação é a `saveArenaClassAttendance`.
-
-final _now = DateTime(2026, 10, 20, 12);
+/// Chamada do professor (vínculo com "Gerenciar as próprias aulas", PR #798):
+/// `getMyClassAgenda` diz se pode (`canManageLessons`), a lista vem de
+/// `getMyClassSessionRoster` e a gravação é a `saveArenaClassAttendance`. A
+/// entrada ("Fazer chamada") fica na home do modo Professor.
 
 Map<String, Object?> _entryMap(Map<String, Object?> over) => {
       'sessionId': 'class_c1_2026-10-20',
@@ -39,10 +35,6 @@ Map<String, Object?> _entryMap(Map<String, Object?> over) => {
       'canManageLessons': true,
       ...over,
     };
-
-AthleteAgendaClassPayload _payload(Map<String, Object?> over) =>
-    mapClassEntryToAgendaItem(ClassAgendaEntry.fromMap(_entryMap(over)))!
-        .classSession!;
 
 Map<String, Object?> _rosterMap({
   String date = '2026-10-20',
@@ -96,7 +88,7 @@ void main() {
     await initializeDateFormatting('pt_BR');
   });
 
-  group('agenda: permissão e botão', () {
+  group('agenda: permissão', () {
     test('canManageLessons chega ao item; servidor antigo = false', () {
       expect(
         ClassAgendaEntry.fromMap(_entryMap({})).canManageLessons,
@@ -107,46 +99,9 @@ void main() {
             .canManageLessons,
         isFalse,
       );
-      final payload = _payload({});
-      expect(payload.arenaId, 'arena1');
-      expect(payload.date, '2026-10-20');
-      expect(payload.canManageLessons, isTrue);
     });
-
-    test('rótulo do botão por estado da aula', () {
-      expect(teacherClassAttendanceCta(_payload({}), _now), 'Fazer chamada');
-      // Ficou aberta de um dia anterior: ainda dá para fechar.
-      expect(
-        teacherClassAttendanceCta(_payload({'date': '2026-10-18'}), _now),
-        'Fazer chamada',
-      );
-      expect(
-        teacherClassAttendanceCta(_payload({'date': '2026-10-22'}), _now),
-        'Ver lista',
-      );
-      expect(
-        teacherClassAttendanceCta(_payload({'status': 'completed'}), _now),
-        'Ver chamada',
-      );
-    });
-
-    test('sem botão: aluno, aula cancelada ou vínculo sem a permissão', () {
-      expect(
-        teacherClassAttendanceCta(
-          _payload({'role': 'student', 'canManageLessons': null}),
-          _now,
-        ),
-        isNull,
-      );
-      expect(
-        teacherClassAttendanceCta(_payload({'status': 'canceled'}), _now),
-        isNull,
-      );
-      expect(
-        teacherClassAttendanceCta(_payload({'canManageLessons': false}), _now),
-        isNull,
-      );
-    });
+    // O botão "Fazer chamada" mora no modo Professor:
+    // test/features/professor_mode/.
   });
 
   group('lista da chamada', () {
@@ -211,61 +166,6 @@ void main() {
         ),
       );
     });
-  });
-
-  testWidgets('card da agenda leva à chamada', (tester) async {
-    tester.view.physicalSize = const Size(560, 1000);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.reset);
-    final today = DateTime.now();
-    final key = '${today.year.toString().padLeft(4, '0')}-'
-        '${today.month.toString().padLeft(2, '0')}-'
-        '${today.day.toString().padLeft(2, '0')}';
-    final item = mapClassEntryToAgendaItem(
-      ClassAgendaEntry.fromMap(_entryMap({'date': key})),
-    )!;
-    final router = GoRouter(
-      routes: [
-        GoRoute(
-          path: '/',
-          builder: (_, __) => Scaffold(
-            body: ListView(
-              children: [
-                AgendaTimelineRow(
-                  row: AthleteAgendaTimelineRow.item(
-                    item,
-                    isFirst: true,
-                    isLast: true,
-                  ),
-                  highlightNextId: null,
-                  onCancelBooking: (_) async {},
-                ),
-              ],
-            ),
-          ),
-        ),
-        GoRoute(
-          path: AppRoutes.professorClassAttendance,
-          name: AppRouteNames.professorClassAttendance,
-          builder: (_, state) => Scaffold(
-            body: Text('chamada ${state.pathParameters['sessionId']}'),
-          ),
-        ),
-      ],
-    );
-    addTearDown(router.dispose);
-    await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 300));
-
-    expect(find.text('Fazer chamada'), findsOneWidget);
-    await tester.tap(find.text('Fazer chamada'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('chamada class_c1_2026-10-20'), findsOneWidget);
   });
 
   group('tela da chamada', () {

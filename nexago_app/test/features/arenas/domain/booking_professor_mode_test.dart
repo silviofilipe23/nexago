@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/core/auth/app_mobile_role.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/domain/booking_professor_mode.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/booking_confirm/booking_confirm_professor_option.dart';
@@ -24,15 +25,24 @@ ArenaProfessorLink _link(
 
 void main() {
   group('canOfferBookingAsProfessor', () {
-    test('só com vínculo ativo e "Reservar quadras" ligada', () {
+    const professor = AppMobileRole.professor;
+
+    test('modo Professor + vínculo ativo com "Reservar quadras"', () {
       expect(
-        canOfferBookingAsProfessor(_link(ArenaProfessorLinkStatus.active)),
+        canOfferBookingAsProfessor(
+          _link(ArenaProfessorLinkStatus.active),
+          activeRole: professor,
+        ),
         isTrue,
       );
-      expect(canOfferBookingAsProfessor(null), isFalse);
+      expect(
+        canOfferBookingAsProfessor(null, activeRole: professor),
+        isFalse,
+      );
       expect(
         canOfferBookingAsProfessor(
           _link(ArenaProfessorLinkStatus.active, canBookCourts: false),
+          activeRole: professor,
         ),
         isFalse,
       );
@@ -42,8 +52,29 @@ void main() {
         ArenaProfessorLinkStatus.pending,
         ArenaProfessorLinkStatus.ended,
       ]) {
-        expect(canOfferBookingAsProfessor(_link(status)), isFalse,
-            reason: status.wire);
+        expect(
+          canOfferBookingAsProfessor(_link(status), activeRole: professor),
+          isFalse,
+          reason: status.wire,
+        );
+      }
+    });
+
+    test('fora do modo Professor a reserva é sempre de atleta', () {
+      for (final role in [
+        AppMobileRole.athlete,
+        AppMobileRole.arena,
+        AppMobileRole.organizer,
+        null,
+      ]) {
+        expect(
+          canOfferBookingAsProfessor(
+            _link(ArenaProfessorLinkStatus.active),
+            activeRole: role,
+          ),
+          isFalse,
+          reason: '$role',
+        );
       }
     });
   });

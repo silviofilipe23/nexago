@@ -7,6 +7,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../core/formatting/app_currency_format.dart';
 
+import '../../../core/auth/active_role_providers.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../athlete/domain/daily_mission_sync_provider.dart';
 import '../../professor_links/application/professor_links_providers.dart';
@@ -75,9 +76,10 @@ class _ArenaBookingConfirmPageState
   /// Esporte escolhido (código do catálogo). Com um esporte só na quadra, vale ele sem toque.
   String? _sport;
 
-  /// "Reservar como professor" ligado. Só vale enquanto o vínculo com a arena
-  /// libera (ver [canOfferBookingAsProfessor]); desligado é reserva de atleta.
-  bool _asProfessor = false;
+  /// "Reservar como professor" escolhido. `null` = padrão do modo Professor
+  /// (ligado: quem entrou como professor reserva como professor). Só vale
+  /// enquanto o vínculo libera ([canOfferBookingAsProfessor]).
+  bool? _asProfessor;
 
   static final _dateFmt = DateFormat('d MMM yyyy', 'pt_BR');
 
@@ -444,8 +446,11 @@ class _ArenaBookingConfirmPageState
     final professorLink = ref
         .watch(myArenaProfessorLinkProvider(widget.arenaId))
         .valueOrNull;
-    final offerProfessor = canOfferBookingAsProfessor(professorLink);
-    final asProfessor = offerProfessor && _asProfessor;
+    final offerProfessor = canOfferBookingAsProfessor(
+      professorLink,
+      activeRole: ref.watch(activeMobileRoleProvider),
+    );
+    final asProfessor = offerProfessor && (_asProfessor ?? true);
 
     final timeRange = '${args.startTime} - ${args.endTime}';
     final choice = _effectivePaymentChoice(

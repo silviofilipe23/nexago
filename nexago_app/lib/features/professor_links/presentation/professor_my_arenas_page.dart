@@ -8,6 +8,9 @@ import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
+import '../../../core/auth/active_role_providers.dart';
+import '../../../core/auth/app_mobile_role.dart';
+import '../../professor_mode/application/professor_mode_providers.dart';
 import '../application/professor_links_providers.dart';
 import '../domain/arena_professor_link.dart';
 import '../domain/professor_link_rules.dart';
@@ -66,6 +69,9 @@ class _ProfessorMyArenasPageState extends ConsumerState<ProfessorMyArenasPage> {
     final linksAsync = ref.watch(myProfessorLinksProvider);
     final now = ref.watch(professorLinksClockProvider)();
     final links = linksAsync.valueOrNull;
+    // Aceite/aprovação com o app aberto: a claim `professor` chega sem relogar.
+    ref.watch(professorRoleSyncProvider);
+    final canEnterProfessorMode = ref.watch(canEnterProfessorModeProvider);
     return ProfessorLinksScaffold(
       title: 'Minhas arenas',
       subtitle: links == null
@@ -87,6 +93,9 @@ class _ProfessorMyArenasPageState extends ConsumerState<ProfessorMyArenasPage> {
                   now: now,
                   declining: _declining,
                   onDecline: _decline,
+                  header: canEnterProfessorMode
+                      ? const _EnterProfessorModeCard()
+                      : null,
                 )
           : linksAsync.hasError
               ? AppErrorView(
@@ -107,6 +116,7 @@ class _LinksList extends StatelessWidget {
     required this.now,
     required this.declining,
     required this.onDecline,
+    this.header,
   });
 
   final List<ArenaProfessorLink> links;
@@ -114,11 +124,15 @@ class _LinksList extends StatelessWidget {
   final Set<String> declining;
   final ValueChanged<ArenaProfessorLink> onDecline;
 
+  /// "Entrar no modo Professor", quando o papel já foi liberado.
+  final Widget? header;
+
   @override
   Widget build(BuildContext context) {
     final invites = professorOpenInvites(links, now);
     final rows = professorLinkRows(links, now);
     final children = <Widget>[
+      if (header != null) header!,
       for (final invite in invites)
         _InviteCard(
           link: invite,
@@ -359,4 +373,48 @@ Future<void> _showHowToRequest(BuildContext context) {
       ],
     ),
   );
+}
+
+/// O papel `professor` já veio no token e a pessoa está em outro papel: atalho
+/// para a home do modo Professor (aulas de hoje, chamada e reserva).
+class _EnterProfessorModeCard extends ConsumerWidget {
+  const _EnterProfessorModeCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.themeColors;
+    return ProfessorLinksCard(
+      key: const Key('professor-enter-mode'),
+      borderColor: AppColors.brand.withValues(alpha: 0.45),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const ProfessorLinksKicker('Modo professor', color: AppColors.brand),
+          const SizedBox(height: 6),
+          Text(
+            'Suas aulas de hoje, a chamada e a reserva como professor ficam no '
+            'modo Professor.',
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              color: ProfessorLinksStyle.mute(colors),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ProfessorLinksPrimaryButton(
+            label: 'Entrar no modo Professor',
+            height: 46,
+            onPressed: () async {
+              await ref
+                  .read(activeMobileRoleProvider.notifier)
+                  .confirmRole(role: AppMobileRole.professor);
+              if (!context.mounted) return;
+              context.go(AppRoutes.professorHome);
+            },
+          ),
+        ],
+      ),
+    );
+  }
 }

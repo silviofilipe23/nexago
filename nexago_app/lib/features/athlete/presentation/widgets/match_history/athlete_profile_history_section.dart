@@ -84,28 +84,34 @@ class AthleteProfileHistorySection extends ConsumerWidget {
         ),
         if (peladas.isNotEmpty) ...[
           if (items.isNotEmpty) const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              'PELADAS',
-              key: const Key('profile-history-peladas-label'),
-              style: AppTypography.mono(
-                fontSize: 10,
-                letterSpacing: 1.4,
-                color: PeladaStyle.dim(context.themeColors),
+          Column(
+            key: const Key('profile-history-peladas'),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'PELADAS',
+                  key: const Key('profile-history-peladas-label'),
+                  style: AppTypography.mono(
+                    fontSize: 10,
+                    letterSpacing: 1.4,
+                    color: PeladaStyle.dim(context.themeColors),
+                  ),
+                ),
               ),
-            ),
+              for (final s in peladas)
+                PeladaSessionRow(
+                  saved: s,
+                  uid: uid,
+                  compact: true,
+                  onTap: () {
+                    logPelada(ref, (a) => a.logPeladaOpened('my_profile'));
+                    openPeladaDetail(context, s.bookingId);
+                  },
+                ),
+            ],
           ),
-          for (final s in peladas)
-            PeladaSessionRow(
-              saved: s,
-              uid: uid,
-              compact: true,
-              onTap: () {
-                logPelada(ref, (a) => a.logPeladaOpened('my_profile'));
-                openPeladaDetail(context, s.bookingId);
-              },
-            ),
         ],
       ],
     );

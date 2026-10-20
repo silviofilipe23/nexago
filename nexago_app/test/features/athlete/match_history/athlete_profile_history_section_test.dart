@@ -158,9 +158,11 @@ void main() {
         );
         expect(label.dy, greaterThan(lastMatch.dy));
 
+        // Só o bloco novo: o "V" verde do card de torneio é anterior a
+        // este PR e não é tom de pelada.
         final checked = expectPeladaTonesLegible(
           tester,
-          find.byType(AthleteProfileHistorySection),
+          find.byKey(const Key('profile-history-peladas')),
         );
         expect(checked, contains('PELADAS'));
       });
@@ -173,7 +175,7 @@ void main() {
         expect(find.byType(PeladaSessionRow), findsNWidgets(3));
         expectPeladaTonesLegible(
           tester,
-          find.byType(AthleteProfileHistorySection),
+          find.byKey(const Key('profile-history-peladas')),
         );
       });
 

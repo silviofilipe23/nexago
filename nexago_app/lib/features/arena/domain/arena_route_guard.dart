@@ -12,6 +12,7 @@ bool isArenaManagerPanelPath(String path) {
     AppRoutes.arenaBookings,
     AppRoutes.arenaClubs,
     AppRoutes.arenaClasses,
+    AppRoutes.arenaProfessionals,
     AppRoutes.arenaSettings,
     AppRoutes.arenaPayments,
     AppRoutes.arenaPlan,
@@ -71,6 +72,8 @@ const List<MapEntry<String, ArenaArea>> _arenaAreaByPrefix = [
   // `arenaClassPayouts`) — antes de `/arena/classes`, que é agenda.
   MapEntry('/arena/classes/payouts', ArenaArea.financeiro),
   MapEntry('/arena/classes', ArenaArea.agenda),
+  // Profissionais: dono + gestor, mesma área das rules de `arenaProfessors`.
+  MapEntry('/arena/professionals', ArenaArea.perfil),
   MapEntry('/arena/comandas', ArenaArea.comandas),
   MapEntry('/arena/products', ArenaArea.estoque),
   MapEntry('/arena/courts', ArenaArea.quadras),

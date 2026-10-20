@@ -371,6 +371,15 @@ abstract final class AppRoutes {
   /// Mensalidades das aulas: `/arena/classes/charges` (agenda ou financeiro)
   static const String arenaClassCharges = '/arena/classes/charges';
 
+  // --- Profissionais (vínculos com professores, gestor) — literais antes de
+  // [arenaDetail] no router ---
+  /// Lista de professores vinculados + solicitações: `/arena/professionals`
+  static const String arenaProfessionals = '/arena/professionals';
+
+  /// Detalhe do vínculo; o push `arena_professor_*` abre aqui:
+  /// `/arena/professionals/:linkId`
+  static const String arenaProfessionalDetail = '/arena/professionals/:linkId';
+
   /// Nova matrícula em 4 passos: `/arena/classes/enroll`
   static const String arenaClassEnroll = '/arena/classes/enroll';
 
@@ -820,6 +829,8 @@ abstract final class AppRouteNames {
   static const String arenaClassEnroll = 'arenaClassEnroll';
   static const String arenaClassPayouts = 'arenaClassPayouts';
   static const String arenaClassTeacherPayout = 'arenaClassTeacherPayout';
+  static const String arenaProfessionals = 'arenaProfessionals';
+  static const String arenaProfessionalDetail = 'arenaProfessionalDetail';
   static const String clubSession = 'clubSession';
   static const String clubSessionPix = 'clubSessionPix';
   static const String arenaSettings = 'arenaSettings';

@@ -69,7 +69,8 @@ void main() {
       );
     });
 
-    test('os avisos da ARENA seguem no ramo genérico (agenda do gestor)', () {
+    test('os avisos da ARENA abrem o vínculo no painel do gestor', () {
+      // Lado da arena: ver notification_navigation_arena_professor_test.dart.
       expect(
         resolveNotificationRoute({
           'type': 'arena_professor_request',
@@ -77,7 +78,7 @@ void main() {
           'arenaId': 'arena-sul',
           'webUrl': '/painel/profissionais/arena-sul_prof-1',
         }),
-        AppRoutes.arenaSchedule,
+        '/arena/professionals/arena-sul_prof-1',
       );
     });
 

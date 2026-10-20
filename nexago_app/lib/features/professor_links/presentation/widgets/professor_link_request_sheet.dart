@@ -186,7 +186,7 @@ class _ProfessorLinkRequestSheetState
           Text(
             _error!,
             key: const Key('professor-request-error'),
-            style: AppTypography.bodyS.copyWith(color: AppColors.live),
+            style: AppTypography.bodyS.copyWith(color: colors.live),
           ),
         ProfessorLinksPrimaryButton(
           key: const Key('professor-request-submit'),

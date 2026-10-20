@@ -86,7 +86,7 @@ class _CashbackLine extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(Icons.savings_outlined, size: 16, color: AppColors.win),
+        Icon(Icons.savings_outlined, size: 16, color: context.themeColors.win),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -140,9 +140,9 @@ class _ToggleCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.savings_outlined,
-                color: AppColors.win,
+                color: colors.win,
                 size: 22,
               ),
               const SizedBox(width: 12),
@@ -190,7 +190,7 @@ class _ToggleCard extends StatelessWidget {
                   CashbackCopy.summaryAmount(quote.redeemableCents),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.win,
+                    color: colors.win,
                   ),
                 ),
               ],

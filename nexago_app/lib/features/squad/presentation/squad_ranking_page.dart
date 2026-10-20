@@ -90,7 +90,7 @@ class _MoveBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final tone = up ? AppColors.win : SquadStyle.mute(colors);
+    final tone = up ? colors.win : SquadStyle.mute(colors);
     return Container(
       key: const Key('squad-ranking-move'),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -246,9 +246,9 @@ class _RankRow extends StatelessWidget {
     final deltaColor = d == null
         ? AppColors.brand
         : d > 0
-        ? AppColors.win
+        ? colors.win
         : d < 0
-        ? AppColors.live
+        ? colors.live
         : SquadStyle.dim(colors);
     return Container(
       height: 56,

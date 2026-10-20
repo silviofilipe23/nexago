@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/ui/app_snackbar.dart';
@@ -184,7 +183,7 @@ class _ProfessorInviteSheetState extends ConsumerState<ProfessorInviteSheet> {
           Text(
             _error!,
             key: const Key('professor-invite-error'),
-            style: AppTypography.bodyS.copyWith(color: AppColors.live),
+            style: AppTypography.bodyS.copyWith(color: colors.live),
           ),
         ProfessorLinksPrimaryButton(
           key: const Key('professor-invite-accept'),

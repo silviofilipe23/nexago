@@ -393,7 +393,7 @@ class _CodeBox extends StatelessWidget {
               error ??
                   '4 a 12 letras ou números. É o que seus seguidores digitam.',
               style: AppTypography.bodyS.copyWith(
-                color: error != null ? AppColors.live : SquadStyle.dim(colors),
+                color: error != null ? colors.live : SquadStyle.dim(colors),
               ),
             ),
           ],

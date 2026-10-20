@@ -408,7 +408,10 @@ class SquadTierBadge extends StatelessWidget {
             Container(
               width: 6,
               height: 6,
-              decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+              decoration: BoxDecoration(
+                color: colors.readableTone(c),
+                shape: BoxShape.circle,
+              ),
             ),
             const SizedBox(width: 6),
           ],

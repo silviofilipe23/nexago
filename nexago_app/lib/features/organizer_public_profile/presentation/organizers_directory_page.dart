@@ -339,7 +339,7 @@ class OrganizerDirectoryCard extends ConsumerWidget {
                           style: AppTypography.soraRegular(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
-                            color: AppColors.win,
+                            color: colors.win,
                           ),
                         ),
                       ),

@@ -562,10 +562,10 @@ class StoreReviewCard extends StatelessWidget {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.verified_user_outlined,
                             size: 13,
-                            color: AppColors.win,
+                            color: colors.win,
                           ),
                           const SizedBox(width: 4),
                           Text(
@@ -573,7 +573,7 @@ class StoreReviewCard extends StatelessWidget {
                             style: AppTypography.soraRegular(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color: AppColors.win,
+                              color: colors.win,
                             ),
                           ),
                         ],

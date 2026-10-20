@@ -231,7 +231,7 @@ class _TabButton extends StatelessWidget {
                     Icon(
                       Icons.check_rounded,
                       size: _checkSize * scale,
-                      color: AppColors.win,
+                      color: colors.win,
                     ),
                   ],
                 ],
@@ -1002,7 +1002,7 @@ class _FileCard extends StatelessWidget {
         if (icon != null) ...[
           Padding(
             padding: const EdgeInsets.only(top: 1),
-            child: Icon(icon, size: 15, color: color),
+            child: Icon(icon, size: 15, color: colors.readableTone(color)),
           ),
           const SizedBox(width: 6),
         ],
@@ -1012,7 +1012,7 @@ class _FileCard extends StatelessWidget {
             style: AppTypography.soraRegular(
               fontSize: 12.5,
               fontWeight: FontWeight.w500,
-              color: color,
+              color: colors.readableTone(color),
             ),
           ),
         ),

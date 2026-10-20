@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/formatting/app_currency_format.dart';
-import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 /// Resumo do checkout com o desconto do código de embaixador (NexaSquad):
@@ -61,7 +60,7 @@ class SquadCheckoutSummary extends StatelessWidget {
         line(
           discountLabel,
           '− ${formatBRLFromCents(discountCents)}',
-          color: AppColors.win,
+          color: colors.win,
         ),
         if (cashbackCents > 0)
           line('Cashback', '− ${formatBRLFromCents(cashbackCents)}'),
@@ -104,7 +103,7 @@ class SquadDiscountAppliedNote extends StatelessWidget {
     return Row(
       key: const Key('squad-discount-applied'),
       children: [
-        const Icon(Icons.sell_outlined, size: 16, color: AppColors.win),
+        Icon(Icons.sell_outlined, size: 16, color: context.themeColors.win),
         const SizedBox(width: 8),
         Expanded(
           child: Text(

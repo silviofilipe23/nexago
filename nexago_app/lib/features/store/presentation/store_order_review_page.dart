@@ -949,10 +949,10 @@ class _StoreOrderReviewPageState extends ConsumerState<StoreOrderReviewPage> {
                   color: AppColors.win.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.check_rounded,
                   size: 40,
-                  color: AppColors.win,
+                  color: colors.win,
                 ),
               ),
               const SizedBox(height: 20),

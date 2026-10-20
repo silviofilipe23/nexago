@@ -242,7 +242,7 @@ class OrganizerEventBadgeChip extends StatelessWidget {
         style: AppTypography.mono(
           fontSize: 10,
           fontWeight: FontWeight.w700,
-          color: color,
+          color: context.themeColors.readableTone(color),
           letterSpacing: 0.6,
         ),
       ),
@@ -328,10 +328,10 @@ class OrganizerCompletedEventRow extends ConsumerWidget {
                     Row(
                       children: [
                         if (champion != null) ...[
-                          const Icon(
+                          Icon(
                             Icons.emoji_events_outlined,
                             size: 14,
-                            color: AppColors.pending,
+                            color: colors.pending,
                           ),
                           const SizedBox(width: 4),
                         ],

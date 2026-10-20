@@ -306,8 +306,7 @@ class _StoreAddressPageState extends ConsumerState<StoreAddressPage> {
           dimension: 16,
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
-      _CepState.found =>
-        const Icon(Icons.check_rounded, size: 18, color: AppColors.win),
+      _CepState.found => Icon(Icons.check_rounded, size: 18, color: colors.win),
       _ => null,
     };
 
@@ -527,7 +526,7 @@ class _AddressField extends StatelessWidget {
     final helper = this.helper;
     final suffix = this.suffix ??
         (ok
-            ? const Icon(Icons.check_rounded, size: 18, color: AppColors.win)
+            ? Icon(Icons.check_rounded, size: 18, color: colors.win)
             : null);
     OutlineInputBorder border(Color color, [double width = 1.5]) =>
         OutlineInputBorder(

@@ -107,10 +107,10 @@ class _ProfessorLinkRequestSentPageState
                             color: AppColors.pending.withValues(alpha: 0.4),
                           ),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.send_rounded,
                           size: 30,
-                          color: AppColors.pending,
+                          color: colors.pending,
                         ),
                       ),
                       const SizedBox(height: 22),

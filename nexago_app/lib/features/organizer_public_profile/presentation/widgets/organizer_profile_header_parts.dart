@@ -63,10 +63,10 @@ class _Stat extends StatelessWidget {
             ),
             if (stat.isRating) ...[
               const SizedBox(width: 3),
-              const Icon(
+              Icon(
                 Icons.star_rounded,
                 size: 16,
-                color: AppColors.pending,
+                color: colors.pending,
               ),
             ],
           ],

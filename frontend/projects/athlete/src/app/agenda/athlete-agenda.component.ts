@@ -224,9 +224,11 @@ function initialsOf(name: string): string {
   return (first + last).toUpperCase() || 'AT';
 }
 
-function groupEventsByDay(events: readonly AgendaEvent[], today: Date): AgendaDayGroup[] {
+/** Dentro do dia, horário mais tarde primeiro (paridade com o app): a reserva das 21h
+ *  fica acima da das 18h que já passou. */
+export function groupEventsByDay(events: readonly AgendaEvent[], today: Date): AgendaDayGroup[] {
   const byKey = new Map<string, AgendaEvent[]>();
-  for (const ev of [...events].sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())) {
+  for (const ev of [...events].sort((a, b) => b.startsAt.getTime() - a.startsAt.getTime())) {
     const key = isoDate(ev.startsAt);
     const bucket = byKey.get(key);
     if (bucket) bucket.push(ev);
@@ -587,7 +589,10 @@ export class AthleteAgendaComponent {
     if (selectedKey === todayKey) {
       if (events.length === 0) return 'Nenhum jogo hoje';
       const nowMs = this.now();
-      const next = events.find((e) => e.startsAt.getTime() > nowMs);
+      // Mais cedo dentre os futuros — não depende da ordem da lista (que é decrescente).
+      const next = events
+        .filter((e) => e.startsAt.getTime() > nowMs)
+        .reduce<AgendaEvent | null>((best, e) => (!best || e.startsAt < best.startsAt ? e : best), null);
       const countdown = next ? ` · ${formatCountdown(next.startsAt.getTime() - nowMs)}` : '';
       return `${events.length} jogo${events.length === 1 ? '' : 's'} hoje${countdown}`;
     }

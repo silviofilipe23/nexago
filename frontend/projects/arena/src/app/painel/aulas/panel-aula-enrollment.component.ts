@@ -829,7 +829,8 @@ export class PanelAulaEnrollmentComponent {
       const asaasGroupId = result.asaasGroupId ?? null;
       this.done.set({
         enrollmentId: result.enrollmentId, studentId: result.studentId, name: this.studentName(),
-        phone: input.phone ?? null, preview: this.preview(), asaasGroupId,
+        // O servidor devolve o telefone gravado (o do cadastro quando o campo ficou vazio).
+        phone: result.phone ?? input.phone ?? null, preview: this.preview(), asaasGroupId,
       });
       if (asaasGroupId) this.watchDoneCharges(input.arenaId, result.studentId);
     } catch (err) {

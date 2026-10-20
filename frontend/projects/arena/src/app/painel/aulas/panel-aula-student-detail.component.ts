@@ -20,6 +20,7 @@ import {
   chargeState,
   daysLate,
   enrollmentClassNames,
+  formatPhoneBR,
   slotsLabel,
   studentPayState,
   chargeInvoiceUrl,
@@ -100,7 +101,7 @@ type Confirm = 'pause' | 'resume' | 'cancel';
                 <ar-avatar class="big" [name]="e.name" [photoUrl]="e.photoUrl" [size]="52" zoomable personRole="Aluno" [meta]="e.plan.name" />
                 <div>
                   <div class="p-name">{{ e.name }}</div>
-                  <div class="sub">{{ e.phone || 'Sem telefone' }}</div>
+                  <div class="sub">{{ e.phone ? phoneLabel(e.phone) : 'Sem telefone' }}</div>
                 </div>
               </div>
               <div class="pills">
@@ -421,6 +422,10 @@ export class PanelAulaStudentDetailComponent {
     } catch {
       this.error.set('Não foi possível carregar créditos e frequência.');
     }
+  }
+
+  protected phoneLabel(phone: string): string {
+    return formatPhoneBR(phone);
   }
 
   protected slots(e: Enrollment): string {

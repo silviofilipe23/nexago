@@ -10,6 +10,7 @@ import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { athleteFunctions } from '../data/functions';
 import { bookingIsActive, bookingNeedsPayment, fetchMyBookings, type MyBooking } from '../data/my-bookings-repository';
 import { fetchMyClubParticipations, type MyClubParticipation } from '../data/arena-clubs-repository';
+import { fetchMyClassAgenda, type MyClassAgendaItem } from '../data/class-agenda-repository';
 import {
   acceptPartnerInvite,
   declinePartnerInvite,
@@ -42,7 +43,7 @@ import { ArenaReviewDialogComponent } from './review/arena-review-dialog.compone
 import { reviewSessionSubtitle } from './review/arena-review-copy';
 import type { ReviewableBooking } from '../data/pending-arena-review';
 
-export type AgendaEventKind = 'tournament' | 'rental' | 'club';
+export type AgendaEventKind = 'tournament' | 'rental' | 'club' | 'class';
 export type AgendaStatusTone = 'live' | 'confirmed' | 'warning' | 'neutral';
 
 export interface AgendaEvent {
@@ -108,6 +109,7 @@ const KIND_LABEL: Record<AgendaEventKind, string> = {
   tournament: 'TORNEIO',
   rental: 'ALUGUEL',
   club: 'CLUBINHO',
+  class: 'AULA',
 };
 
 function createFirestore(): Firestore | null {
@@ -337,10 +339,59 @@ export function clubParticipationToEvent(p: MyClubParticipation, now: Date = new
   };
 }
 
-/** Agenda real: mescla reservas (`arenaBookings`) e inscrições em torneio
- *  (`inscriptions` + `tournaments`) — espelha `AthleteAgendaLogic` (Flutter). Sem "desafio"/
- *  "aula"/"liga" como tipos à parte: liga é só um torneio (etapa) por baixo, e não achei
- *  nenhuma coleção real de desafio casual ou aula agendável pro atleta. */
+const MARK_LABEL: Record<string, string> = { present: 'Presente', absent: 'Falta', excused: 'Justificada' };
+
+/** Aula da arena (turma, encaixe ou aula que dou) → evento. Hora de parede da arena. */
+export function classEntryToEvent(e: MyClassAgendaItem, now: Date = new Date()): AgendaEvent | null {
+  const [y, m, d] = e.date.split('-').map(Number);
+  if (!y || !m || !d || !e.startTime) return null;
+  const [sh, sm] = e.startTime.split(':').map(Number);
+  const [eh, em] = e.endTime.split(':').map(Number);
+  const start = new Date(y, m - 1, d, sh || 0, sm || 0);
+  let end = new Date(y, m - 1, d, eh || 0, em || 0);
+  if (end.getTime() <= start.getTime()) end = new Date(start.getTime() + 60 * 60_000);
+  const isPast = end.getTime() <= now.getTime();
+  const canceled = e.status === 'canceled';
+  const teacher = e.role === 'teacher';
+  const subtitle = teacher
+    ? `Você dá aula · ${e.studentCount ?? 0} aluno${(e.studentCount ?? 0) === 1 ? '' : 's'}`
+    : e.kind === 'makeup'
+      ? 'Reposição'
+      : e.kind === 'trial'
+        ? 'Aula experimental'
+        : e.teacherName
+          ? `Turma · Prof. ${e.teacherName.split(' ')[0]}`
+          : 'Turma';
+  const statusLabel = canceled
+    ? 'Cancelada'
+    : teacher
+      ? 'Você dá aula'
+      : e.myMark
+        ? MARK_LABEL[e.myMark]!
+        : isPast
+          ? 'Finalizada'
+          : 'Confirmada';
+
+  return {
+    id: `class_${e.sessionId}`,
+    startsAt: start,
+    durationMin: Math.round((end.getTime() - start.getTime()) / 60000),
+    kind: 'class',
+    title: `${e.className} · ${e.arenaName}`,
+    subtitle: e.courtName ? `${subtitle} · ${e.courtName}` : subtitle,
+    location: e.arenaName,
+    statusLabel,
+    statusTone: canceled || isPast ? 'neutral' : e.myMark === 'absent' ? 'warning' : 'confirmed',
+    ctaLabel: 'Ver arena',
+    ctaPrimary: false,
+    link: e.arenaId ? ['/reservar', e.arenaId] : null,
+    isPast: isPast || canceled,
+  };
+}
+
+/** Agenda real: mescla reservas (`arenaBookings`), inscrições em torneio (`inscriptions` +
+ *  `tournaments`), clubinho e aulas da arena (`getMyClassAgenda`) — espelha `AthleteAgendaLogic`
+ *  (Flutter). Sem "desafio"/"liga" como tipos à parte: liga é só um torneio (etapa) por baixo. */
 @Component({
   selector: 'app-athlete-agenda',
   standalone: true,
@@ -566,10 +617,11 @@ export class AthleteAgendaComponent {
     this.loading.set(true);
     try {
       const clubsFrom = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
-      const [bookings, registrations, clubParticipations] = await Promise.all([
+      const [bookings, registrations, clubParticipations, classes] = await Promise.all([
         fetchMyBookings(db, uid),
         fetchMyRegistrations(db, projectId, uid),
         fetchMyClubParticipations(db, uid, clubsFrom).catch(() => [] as MyClubParticipation[]),
+        fetchMyClassAgenda().catch(() => [] as MyClassAgendaItem[]),
       ]);
 
       const tournamentIds = [...new Set(registrations.map((r) => r.tournamentId))];
@@ -585,7 +637,8 @@ export class AthleteAgendaComponent {
       // Mantém eventos passados na lista (ao contrário do default `timeTab: upcoming` do
       // Flutter): o dia selecionado — inclusive hoje — precisa mostrar os jogos que já
       // aconteceram, não só os que ainda vêm. `isPast` continua disponível pra estilização.
-      this.events.set([...bookingEvents, ...registrationEvents, ...clubEvents]);
+      const classEvents = classes.map((c) => classEntryToEvent(c)).filter((e): e is AgendaEvent => e != null);
+      this.events.set([...bookingEvents, ...registrationEvents, ...clubEvents, ...classEvents]);
 
       this.monthStats.set(this.computeMonthStats(bookings, registrationEvents));
     } catch {

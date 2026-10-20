@@ -215,6 +215,7 @@ class _AgendaTimelineCard extends ConsumerWidget {
       AthleteAgendaItemKind.challenge => _ChallengeCard(item: item),
       AthleteAgendaItemKind.friendlyMatch => _FriendlyMatchCard(item: item),
       AthleteAgendaItemKind.clubSession => _ClubSessionCard(item: item),
+      AthleteAgendaItemKind.classSession => _ClassSessionCard(item: item),
     };
   }
 }
@@ -278,6 +279,66 @@ class _ClubSessionCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Aula da arena: sem tela de detalhe para o atleta — o card já diz onde, com
+/// quem e como foi a chamada.
+class _ClassSessionCard extends StatelessWidget {
+  const _ClassSessionCard({required this.item});
+
+  final AthleteAgendaItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = context.themeColors.isDark;
+    final canceled = item.isCanceled;
+    final accent = agendaCardAccent(item.accentColor, isDark: isDark);
+    final statusColor = canceled ? AppColors.live : accent;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: agendaTimelineCardDecoration(
+        kind: AthleteAgendaItemKind.classSession,
+        accent: accent,
+        isDark: isDark,
+        isCanceled: canceled,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _KindBadge(label: 'AULA', color: accent),
+              const Spacer(),
+              Text(
+                item.statusLabel,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: statusColor,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            item.title,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              decoration: canceled ? TextDecoration.lineThrough : null,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            item.subtitle,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: context.themeColors.onSurfaceMuted,
+            ),
+          ),
+        ],
       ),
     );
   }

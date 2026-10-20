@@ -1,9 +1,10 @@
+import { safeExternalUrl } from '../data/class-agenda-repository';
 import type { AthleteNotification } from '../data/notifications-repository';
 
-export interface NotificationTarget {
-  readonly commands: string[];
-  readonly queryParams?: Record<string, string>;
-}
+/** Rota do portal ou, para a fatura da mensalidade de aula, o link externo (nova aba). */
+export type NotificationTarget =
+  | { readonly commands: string[]; readonly queryParams?: Record<string, string> }
+  | { readonly externalUrl: string };
 
 /** Avisos da reserva com convidados (`functions/src/arena-booking-invite.ts`) que abrem a
  *  própria reserva: o dono vê quem aceitou/recusou/saiu; o convidado, o jogo cancelado. */
@@ -14,12 +15,19 @@ const BOOKING_DETAIL_TYPES = new Set([
   'booking_canceled_participant',
 ]);
 
-/** Para onde o toque no item do inbox leva: a avaliação do torneio e os convites para jogar
- *  numa reserva. O resto continua só marcando como lido. */
+/** Para onde o toque no item do inbox leva: a avaliação do torneio, os convites para jogar
+ *  numa reserva e a fatura da mensalidade de aula. O resto continua só marcando como lido. */
 export function notificationTarget(
-  n: Pick<AthleteNotification, 'type' | 'tournamentId'> & Partial<Pick<AthleteNotification, 'inviteId' | 'bookingId'>>,
+  n: Pick<AthleteNotification, 'type' | 'tournamentId'> &
+    Partial<Pick<AthleteNotification, 'inviteId' | 'bookingId' | 'invoiceUrl'>>,
 ): NotificationTarget | null {
   const type = n.type?.toLowerCase() ?? '';
+  // Mensalidade de aula (`ensureClassAsaasPayment`): a fatura do Asaas, como no app; sem link, a
+  // Agenda, onde a mensalidade a pagar aparece.
+  if (type === 'arena_class_charge_link') {
+    const url = safeExternalUrl(n.invoiceUrl);
+    return url ? { externalUrl: url } : { commands: ['/agenda'] };
+  }
   if ((type === 'tournament_review_request' || type === 'tournament_review_reminder') && n.tournamentId) {
     return { commands: ['/torneios', n.tournamentId, 'minha-inscricao'], queryParams: { avaliar: '1' } };
   }

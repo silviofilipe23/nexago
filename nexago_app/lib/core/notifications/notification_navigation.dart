@@ -5,10 +5,36 @@ import 'package:go_router/go_router.dart';
 
 import '../auth/auth_providers.dart';
 import '../deep_link/deep_link_providers.dart';
+import '../links/open_external_url.dart';
 import '../router/routes.dart';
 
 /// Tempo máximo esperando a sessão assentar antes de decidir o destino.
 const _sessionSettleTimeout = Duration(seconds: 8);
+
+/// Mensalidade de aula com fatura online (`ensureClassAsaasPayment` em
+/// `functions/src/asaas-class-billing.ts`): "Toque para pagar com PIX ou cartão".
+const classChargeLinkNotificationType = 'arena_class_charge_link';
+
+/// Agenda do atleta — onde fica a mensalidade a pagar.
+const athleteAgendaTabLocation = '${AppRoutes.discover}?tab=agenda';
+
+/// URL externa que o toque abre no navegador: hoje só a fatura da mensalidade
+/// de aula (`invoiceUrl`, URL absoluta do Asaas; `webUrl` é a mesma). `null` =
+/// o toque segue a rota interna de [resolveNotificationRoute].
+String? externalNotificationUrl(Map<String, dynamic> data) {
+  final type = (data['type'] as String?)?.toLowerCase().trim() ?? '';
+  if (type != classChargeLinkNotificationType) return null;
+  for (final key in const ['invoiceUrl', 'webUrl']) {
+    final raw = (data[key] as String?)?.trim() ?? '';
+    final uri = Uri.tryParse(raw);
+    if (uri != null &&
+        (uri.scheme == 'https' || uri.scheme == 'http') &&
+        uri.host.isNotEmpty) {
+      return raw;
+    }
+  }
+  return null;
+}
 
 /// Destino do toque em uma notificação, já confrontado com o estado da sessão.
 class NotificationTapDestination {
@@ -50,7 +76,13 @@ Future<void> navigateFromNotificationData(
   Map<String, dynamic> data,
   GoRouter router, {
   required WidgetRef ref,
+  Future<bool> Function(String url) openExternal = openExternalUrl,
 }) async {
+  // Fatura da mensalidade: abre direto no navegador, sem esperar a sessão (a
+  // página do Asaas não pede login). Se não abrir, segue para a rota interna.
+  final externalUrl = externalNotificationUrl(data);
+  if (externalUrl != null && await openExternal(externalUrl)) return;
+
   // Cold start (toque com o app fechado): o payload chega antes do Firebase
   // Auth restaurar a sessão. Navegar nesse instante mandava o atleta para o
   // login e o destino se perdia — o convite nunca abria.
@@ -160,6 +192,11 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
           .replaceAll(':tournamentId', closedTournamentId);
     }
   }
+
+  // Mensalidade de aula: o toque abre a fatura ([externalNotificationUrl]); a
+  // rota é o plano B (sem link ou sem navegador). Vem antes do `url` e longe do
+  // ramo genérico de `arena` lá embaixo, que mandava o atleta pra agenda do GESTOR.
+  if (type == classChargeLinkNotificationType) return athleteAgendaTabLocation;
 
   final url = appRouteForNotificationUrl(data['url'] as String?);
   if (url != null) return url;

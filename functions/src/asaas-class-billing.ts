@@ -37,6 +37,12 @@ import {addDaysToDateKey} from "./arena-recurring-booking";
 import {deliverNotificationToUser, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
 
 export const CLASS_CHARGE_LINK_TYPE = "arena_class_charge_link";
+/**
+ * Rota do app no push da fatura: a agenda do atleta (existe nos builds da loja), onde a mensalidade
+ * a pagar aparece. O app novo abre a fatura pelo tipo (antes do `url`); o antigo não conhece o tipo
+ * e caía no ramo genérico de `arena` — a agenda do GESTOR. `webUrl` segue sendo a fatura (portal).
+ */
+export const CLASS_CHARGE_APP_URL = "/discover?tab=agenda";
 
 export interface ClassAsaasDeps {
   /** Cliente Asaas do aluno; null = sem CPF (fica manual). */
@@ -199,7 +205,9 @@ export async function ensureClassAsaasPayment(
         title: "Mensalidade disponível",
         body: `${String(claimed["description"] ?? "Mensalidade")} · ${brl(amount)}. Toque para pagar com PIX ou cartão.`,
         type: CLASS_CHARGE_LINK_TYPE,
-        data: {groupId, arenaId: owner.arenaId, invoiceUrl: created.invoiceUrl, webUrl: created.invoiceUrl},
+        data: {
+          groupId, arenaId: owner.arenaId, invoiceUrl: created.invoiceUrl, webUrl: created.invoiceUrl, url: CLASS_CHARGE_APP_URL,
+        },
       });
     } catch (e) {
       logger.warn(`ensureClassAsaasPayment ${groupId}: push falhou`, e);

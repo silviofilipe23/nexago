@@ -35,9 +35,30 @@ export type ProfessorEventType =
   | 'CANCELED'
   | 'EXPIRED';
 
-export const PROFESSOR_PERMISSION_KEYS = ['canManageOwnLessons', 'canBookCourts', 'canAppearInArenaProfile'] as const;
+export const PROFESSOR_PERMISSION_KEYS = [
+  'canManageOwnLessons',
+  'canBookCourts',
+  'canAppearInArenaProfile',
+  'canEnrollStudents',
+  'canScheduleLessons',
+  'canCancelLessons',
+] as const;
 export type ProfessorPermissionKey = (typeof PROFESSOR_PERMISSION_KEYS)[number];
 export type ProfessorPermissions = Record<ProfessorPermissionKey, boolean>;
+
+/** Agir nas Aulas da arena em nome dela (matricular, encaixar/agendar, cancelar): só o professor
+ *  da EQUIPE, e só quando a arena liga — desligadas por padrão, inclusive em vínculo antigo sem a
+ *  chave. Espelho de `ARENA_STAFF_ONLY_PERMISSION_KEYS` no servidor (spec
+ *  `docs/superpowers/specs/2026-10-20-professor-app-alunos-fase-2-design.md`). */
+export const ARENA_STAFF_ONLY_PERMISSION_KEYS: readonly ProfessorPermissionKey[] = [
+  'canEnrollStudents',
+  'canScheduleLessons',
+  'canCancelLessons',
+];
+
+export function isStaffOnlyPermission(key: ProfessorPermissionKey): boolean {
+  return ARENA_STAFF_ONLY_PERMISSION_KEYS.includes(key);
+}
 
 export interface ArenaProfessorLink {
   id: string;
@@ -112,7 +133,15 @@ export const PROFESSOR_STATUS_META: Record<ProfessorLinkStatus, { label: string;
   EXPIRED: { label: 'Convite expirado', color: CLOSED_COLOR },
 };
 
-export const PROFESSOR_PERMISSION_META: ReadonlyArray<{ key: ProfessorPermissionKey; title: string; sub: string; short: string }> = [
+export interface ProfessorPermissionMeta {
+  key: ProfessorPermissionKey;
+  title: string;
+  sub: string;
+  short: string;
+}
+
+/** As três de qualquer vínculo. */
+export const PROFESSOR_BASE_PERMISSION_META: readonly ProfessorPermissionMeta[] = [
   {
     key: 'canManageOwnLessons',
     title: 'Gerenciar as próprias aulas',
@@ -133,6 +162,36 @@ export const PROFESSOR_PERMISSION_META: ReadonlyArray<{ key: ProfessorPermission
   },
 ];
 
+/** Grupo "Aulas da arena": só para professor da equipe (`ARENA_STAFF_ONLY_PERMISSION_KEYS`). */
+export const PROFESSOR_ARENA_LESSONS_GROUP_TITLE = 'Aulas da arena';
+export const PROFESSOR_STAFF_ONLY_NOTE = 'Só para professor da equipe';
+
+export const PROFESSOR_ARENA_LESSONS_PERMISSION_META: readonly ProfessorPermissionMeta[] = [
+  {
+    key: 'canEnrollStudents',
+    title: 'Matricular alunos',
+    sub: 'Matricular nas turmas dele com o plano da tabela, mover de turma e lista de espera',
+    short: 'Matrículas',
+  },
+  {
+    key: 'canScheduleLessons',
+    title: 'Agendar aulas e encaixes',
+    sub: 'Reposição, experimental e aula avulsa na quadra que a arena escolher, usando o pacote do aluno',
+    short: 'Agenda',
+  },
+  {
+    key: 'canCancelLessons',
+    title: 'Cancelar aulas e avisar alunos',
+    sub: 'Cancelar aulas das turmas dele; os alunos recebem o aviso',
+    short: 'Cancelar',
+  },
+];
+
+export const PROFESSOR_PERMISSION_META: readonly ProfessorPermissionMeta[] = [
+  ...PROFESSOR_BASE_PERMISSION_META,
+  ...PROFESSOR_ARENA_LESSONS_PERMISSION_META,
+];
+
 /** Motivos da suspensão (protótipo A5). Vão como `reason` — o servidor exige um. */
 export const SUSPENSION_REASONS: readonly string[] = [
   'Pendência de pagamento',
@@ -148,14 +207,43 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 // ── Regras ────────────────────────────────────────────────────────────────────
 
-/** Equipe da arena: as três. Independente: aulas e quadras, fora da página pública
- *  (espelho de `defaultArenaProfessorPermissions` no servidor). */
+/** Equipe da arena: as três de base. Independente: aulas e quadras, fora da página pública. As
+ *  ações nas Aulas da arena começam desligadas nos dois (espelho de
+ *  `defaultArenaProfessorPermissions` no servidor). */
 export function defaultProfessorPermissions(type: ProfessorLinkType): ProfessorPermissions {
   return {
     canManageOwnLessons: true,
     canBookCourts: true,
     canAppearInArenaProfile: type === 'ARENA_STAFF',
+    canEnrollStudents: false,
+    canScheduleLessons: false,
+    canCancelLessons: false,
   };
+}
+
+/** O que vai para o servidor: independente nunca leva `true` nas chaves da equipe — o callable
+ *  recusaria (`invalid-argument`) o convite/aprovação inteiro. */
+export function permissionsForType(permissions: ProfessorPermissions, type: ProfessorLinkType): ProfessorPermissions {
+  if (type === 'ARENA_STAFF') return { ...permissions };
+  const out = { ...permissions };
+  for (const key of ARENA_STAFF_ONLY_PERMISSION_KEYS) out[key] = false;
+  return out;
+}
+
+/** Toggle que a arena pode mexer neste tipo de vínculo (as das Aulas da arena só na equipe). */
+export function permissionAllowedForType(key: ProfessorPermissionKey, type: ProfessorLinkType): boolean {
+  return type === 'ARENA_STAFF' || !isStaffOnlyPermission(key);
+}
+
+/** Itens da lista de permissões para o tipo: as de base sempre; o grupo "Aulas da arena" só na equipe. */
+export function permissionGroupsFor(
+  type: ProfessorLinkType,
+): ReadonlyArray<{ title: string | null; items: readonly ProfessorPermissionMeta[] }> {
+  const groups: Array<{ title: string | null; items: readonly ProfessorPermissionMeta[] }> = [
+    { title: null, items: PROFESSOR_BASE_PERMISSION_META },
+  ];
+  if (type === 'ARENA_STAFF') groups.push({ title: PROFESSOR_ARENA_LESSONS_GROUP_TITLE, items: PROFESSOR_ARENA_LESSONS_PERMISSION_META });
+  return groups;
 }
 
 /** O servidor só grava `EXPIRED` quando alguém toca no vínculo; até lá a tela decide pela data. */
@@ -172,13 +260,20 @@ export function isClosedStatus(status: ProfessorLinkStatus): boolean {
   return status === 'REJECTED' || status === 'ENDED' || status === 'CANCELED' || status === 'EXPIRED';
 }
 
-/** O que o professor pode de fato fazer agora: nada fora de `ACTIVE`. */
-export function effectivePermissions(link: Pick<ArenaProfessorLink, 'status' | 'permissions'>): ProfessorPermissions {
+/** O que o professor pode de fato fazer agora: nada fora de `ACTIVE`; as das Aulas da arena só
+ *  na equipe (independente nunca, mesmo com a chave gravada). Espelho de
+ *  `effectiveArenaProfessorPermissions` no servidor. */
+export function effectivePermissions(link: Pick<ArenaProfessorLink, 'status' | 'permissions' | 'relationshipType'>): ProfessorPermissions {
   const active = link.status === 'ACTIVE';
+  const staff = active && link.relationshipType === 'ARENA_STAFF';
+  const p = link.permissions;
   return {
-    canManageOwnLessons: active && link.permissions.canManageOwnLessons,
-    canBookCourts: active && link.permissions.canBookCourts,
-    canAppearInArenaProfile: active && link.permissions.canAppearInArenaProfile,
+    canManageOwnLessons: active && p.canManageOwnLessons === true,
+    canBookCourts: active && p.canBookCourts === true,
+    canAppearInArenaProfile: active && p.canAppearInArenaProfile === true,
+    canEnrollStudents: staff && p.canEnrollStudents === true,
+    canScheduleLessons: staff && p.canScheduleLessons === true,
+    canCancelLessons: staff && p.canCancelLessons === true,
   };
 }
 
@@ -192,13 +287,18 @@ export type PermissionsCell =
   | { kind: 'pills'; items: ReadonlyArray<{ key: ProfessorPermissionKey; label: string; on: boolean }> }
   | { kind: 'text'; text: string };
 
-export function permissionsCell(link: Pick<ArenaProfessorLink, 'status' | 'expiresAt' | 'permissions'>, nowMs: number): PermissionsCell {
+/** As pílulas são só as três de base — as das Aulas da arena ficam no detalhe, para a coluna
+ *  não crescer. */
+export function permissionsCell(
+  link: Pick<ArenaProfessorLink, 'status' | 'expiresAt' | 'permissions' | 'relationshipType'>,
+  nowMs: number,
+): PermissionsCell {
   const status = displayStatus(link, nowMs);
   if (status === 'ACTIVE') {
     const effective = effectivePermissions(link);
     return {
       kind: 'pills',
-      items: PROFESSOR_PERMISSION_META.map((p) => ({ key: p.key, label: p.short, on: effective[p.key] })),
+      items: PROFESSOR_BASE_PERMISSION_META.map((p) => ({ key: p.key, label: p.short, on: effective[p.key] })),
     };
   }
   if (status === 'INVITED') return { kind: 'text', text: 'após o aceite' };
@@ -562,7 +662,7 @@ export function resendInviteInput(link: ArenaProfessorLink): {
     arenaId: link.arenaId,
     professorUserId: link.professorUserId,
     relationshipType: link.relationshipType,
-    permissions: { ...link.permissions },
+    permissions: permissionsForType(link.permissions, link.relationshipType),
     message: link.message,
   };
 }
@@ -626,7 +726,9 @@ function permissionsFromRaw(raw: unknown, type: ProfessorLinkType): ProfessorPer
   if (raw == null || typeof raw !== 'object') return out;
   const record = raw as Record<string, unknown>;
   for (const key of PROFESSOR_PERMISSION_KEYS) {
-    if (typeof record[key] === 'boolean') out[key] = record[key] as boolean;
+    if (typeof record[key] !== 'boolean') continue;
+    // Chaves da equipe: só `true` explícito liga (ausente/legado = false, já no padrão).
+    out[key] = isStaffOnlyPermission(key) ? record[key] === true : (record[key] as boolean);
   }
   return out;
 }

@@ -193,6 +193,145 @@ void main() {
       );
     });
 
+    group('Aulas da arena (só equipe)', () {
+      const allOn = ArenaProfessorPermissions(
+        canManageOwnLessons: true,
+        canBookCourts: true,
+        canAppearInArenaProfile: true,
+        canEnrollStudents: true,
+        canScheduleLessons: true,
+        canCancelLessons: true,
+      );
+      const lessonKeys = [
+        ArenaProfessorPermissionKey.canEnrollStudents,
+        ArenaProfessorPermissionKey.canScheduleLessons,
+        ArenaProfessorPermissionKey.canCancelLessons,
+      ];
+
+      test('vínculo antigo sem as chaves lê false; o servidor grava e lê', () {
+        final legacy = ArenaProfessorPermissions.fromMap(const {
+          'canManageOwnLessons': true,
+          'canBookCourts': true,
+          'canAppearInArenaProfile': true,
+        });
+        for (final key in lessonKeys) {
+          expect(legacy.valueOf(key), isFalse, reason: key.wire);
+          expect(ArenaProfessorPermissions.none.valueOf(key), isFalse);
+        }
+        final stored = ArenaProfessorPermissions.fromMap(const {
+          'canEnrollStudents': true,
+          'canScheduleLessons': 'yes',
+          'canCancelLessons': true,
+        });
+        expect(stored.canEnrollStudents, isTrue);
+        expect(stored.canScheduleLessons, isFalse, reason: 'só `== true`');
+        expect(stored.canCancelLessons, isTrue);
+      });
+
+      test('igualdade considera as chaves novas', () {
+        const base = ArenaProfessorPermissions(
+          canManageOwnLessons: true,
+          canBookCourts: true,
+          canAppearInArenaProfile: true,
+        );
+        expect(base == allOn, isFalse);
+        expect(
+          base.withValue(ArenaProfessorPermissionKey.canCancelLessons, true),
+          const ArenaProfessorPermissions(
+            canManageOwnLessons: true,
+            canBookCourts: true,
+            canAppearInArenaProfile: true,
+            canCancelLessons: true,
+          ),
+        );
+        expect(allOn.withoutArenaStaffOnly(), base);
+        expect(allOn.withoutArenaStaffOnly().hashCode, base.hashCode);
+      });
+
+      test('só as três novas são de equipe e têm título/descrição', () {
+        expect(
+          ArenaProfessorPermissionKey.values.where((k) => k.arenaStaffOnly),
+          lessonKeys,
+        );
+        expect(
+          professorArenaLessonsPermissionCatalog.map((i) => i.key),
+          lessonKeys,
+        );
+        expect(
+          professorPermissionInfo(ArenaProfessorPermissionKey.canEnrollStudents)
+              .title,
+          'Matricular alunos',
+        );
+        expect(
+          professorPermissionInfo(
+            ArenaProfessorPermissionKey.canScheduleLessons,
+          ).title,
+          'Agendar aulas e encaixes',
+        );
+        expect(
+          professorPermissionInfo(ArenaProfessorPermissionKey.canCancelLessons)
+              .title,
+          'Cancelar aulas e avisar alunos',
+        );
+        for (final info in professorArenaLessonsPermissionCatalog) {
+          expect(info.description, isNotEmpty);
+          expect(info.shortLabel, isNotEmpty);
+        }
+      });
+
+      test('efetivas: ACTIVE + equipe + gravado true', () {
+        final staff = effectiveProfessorPermissions(
+          professorLink(permissions: allOn),
+        );
+        for (final key in lessonKeys) {
+          expect(staff.valueOf(key), isTrue, reason: key.wire);
+        }
+        final suspended = effectiveProfessorPermissions(
+          professorLink(
+            status: ArenaProfessorLinkStatus.suspended,
+            permissions: allOn,
+          ),
+        );
+        expect(suspended, ArenaProfessorPermissions.none);
+      });
+
+      test('independente nunca tem as chaves de equipe efetivas', () {
+        final independent = professorLink(
+          type: ArenaProfessorLinkType.independent,
+          permissions: allOn,
+        );
+        final effective = effectiveProfessorPermissions(independent);
+        for (final key in lessonKeys) {
+          expect(effective.valueOf(key), isFalse, reason: key.wire);
+        }
+        expect(effective.canBookCourts, isTrue);
+        expect(
+          professorPermissionsForType(
+            allOn,
+            ArenaProfessorLinkType.independent,
+          ),
+          allOn.withoutArenaStaffOnly(),
+        );
+        expect(
+          professorPermissionsForType(allOn, ArenaProfessorLinkType.arenaStaff),
+          allOn,
+        );
+      });
+
+      test('convite independente não mostra as chaves de equipe', () {
+        final invite = professorLink(
+          type: ArenaProfessorLinkType.independent,
+          status: ArenaProfessorLinkStatus.invited,
+          permissions: allOn,
+          expiresAt: DateTime(2026, 10, 27),
+        );
+        expect(
+          professorPermissionsToShow(invite, now),
+          allOn.withoutArenaStaffOnly(),
+        );
+      });
+    });
+
     test('nota das permissões por estado', () {
       expect(professorPermissionsNote(ArenaProfessorLinkStatus.active), isNull);
       expect(

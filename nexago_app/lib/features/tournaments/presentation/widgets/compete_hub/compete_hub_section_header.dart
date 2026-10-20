@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 
@@ -41,7 +40,7 @@ class CompeteHubSectionHeader extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.brand,
+                    color: context.themeColors.brandText,
                     letterSpacing: 0.4,
                   ),
                 ),
@@ -49,7 +48,7 @@ class CompeteHubSectionHeader extends StatelessWidget {
                 Icon(
                   Icons.chevron_right_rounded,
                   size: 16,
-                  color: AppColors.brand,
+                  color: context.themeColors.brandText,
                 ),
               ],
             ),

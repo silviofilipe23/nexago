@@ -86,7 +86,7 @@ class CompeteHubRankingCard extends StatelessWidget {
                       _MetricColumn(
                         value: formatRankingPoints(ranking.points),
                         label: 'PONTOS',
-                        valueColor: AppColors.brand,
+                        valueColor: context.themeColors.brandText,
                       ),
                       SizedBox(width: 18),
                       _MetricColumn(
@@ -124,7 +124,7 @@ class CompeteHubRankingCard extends StatelessWidget {
                           style: AppTypography.mono(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
-                            color: AppColors.brand,
+                            color: context.themeColors.brandText,
                           ),
                         ),
                       ],

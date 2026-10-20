@@ -753,8 +753,12 @@ class _HeroXpPillState extends State<_HeroXpPill> {
         scale: _pressed ? 0.94 : 1,
         duration: AppMotion.fast,
         curve: AppMotion.curve,
+        // No claro o pé da capa é o canvas: a 55% o selo vira cinza médio e
+        // o raio laranja some (1,7:1). Mais fechado lá, ele passa de 4:1.
         child: Material(
-          color: AppColors.black.withValues(alpha: 0.55),
+          color: AppColors.black.withValues(
+            alpha: context.themeColors.isDark ? 0.55 : 0.8,
+          ),
           borderRadius: AppRadii.pillAll,
           child: InkWell(
             onTap: widget.onTap,

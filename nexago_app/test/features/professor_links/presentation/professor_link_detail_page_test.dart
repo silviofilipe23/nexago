@@ -81,6 +81,58 @@ void main() {
   setUpAll(loadProfessorLinksFonts);
 
   group('Detalhe do vínculo (M6)', () {
+    testWidgets('equipe: lista as Aulas da arena ligadas; independente nunca', (
+      tester,
+    ) async {
+      const lessons = ArenaProfessorPermissions(
+        canManageOwnLessons: true,
+        canBookCourts: true,
+        canAppearInArenaProfile: true,
+        canEnrollStudents: true,
+        canCancelLessons: true,
+      );
+      await _pumpDetail(
+        tester,
+        link: professorLink(permissions: lessons),
+      );
+      expect(
+        find.byKey(const Key('professor-permission-canEnrollStudents-on')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('professor-permission-canCancelLessons-on')),
+        findsOneWidget,
+      );
+      expect(find.text('Matricular alunos'), findsOneWidget);
+      // Desligada não entra na lista (nem como "x").
+      expect(
+        find.byKey(const Key('professor-permission-canScheduleLessons-off')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('independente com chave de equipe gravada não a mostra', (
+      tester,
+    ) async {
+      await _pumpDetail(
+        tester,
+        link: professorLink(
+          type: ArenaProfessorLinkType.independent,
+          permissions: const ArenaProfessorPermissions(
+            canManageOwnLessons: true,
+            canBookCourts: true,
+            canAppearInArenaProfile: false,
+            canEnrollStudents: true,
+          ),
+        ),
+      );
+      expect(
+        find.byKey(const Key('professor-permission-canBookCourts-on')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Matricular alunos'), findsNothing);
+    });
+
     testWidgets('ativo: tipo, status, permissões efetivas e histórico', (
       tester,
     ) async {

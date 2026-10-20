@@ -356,7 +356,8 @@ class ProfessorLinksCard extends StatelessWidget {
   }
 }
 
-/// Lista das três permissões com check/x (configuradas ou efetivas).
+/// Lista das permissões com check/x (configuradas ou efetivas): as três de
+/// sempre e, das Aulas da arena (só equipe), só as que estiverem ligadas.
 class ProfessorPermissionList extends StatelessWidget {
   const ProfessorPermissionList({
     super.key,
@@ -370,12 +371,17 @@ class ProfessorPermissionList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final rows = [
+      ...professorPermissionCatalog,
+      for (final info in professorArenaLessonsPermissionCatalog)
+        if (permissions.valueOf(info.key)) info,
+    ];
     return Column(
       children: [
-        for (var i = 0; i < professorPermissionCatalog.length; i++)
+        for (var i = 0; i < rows.length; i++)
           _PermissionRow(
-            info: professorPermissionCatalog[i],
-            on: permissions.valueOf(professorPermissionCatalog[i].key),
+            info: rows[i],
+            on: permissions.valueOf(rows[i].key),
             dense: dense,
             divider: i > 0,
             colors: colors,

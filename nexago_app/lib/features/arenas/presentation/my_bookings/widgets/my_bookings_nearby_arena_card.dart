@@ -194,14 +194,14 @@ class _PriceChevron extends StatelessWidget {
             style: TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 13,
-              color: AppColors.brand,
+              color: context.themeColors.brandText,
             ),
           ),
           SizedBox(width: 2),
           Icon(
             Icons.chevron_right_rounded,
             size: 18,
-            color: AppColors.brand,
+            color: context.themeColors.brandText,
           ),
         ],
       ),

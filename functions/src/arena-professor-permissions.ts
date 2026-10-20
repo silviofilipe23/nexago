@@ -10,6 +10,7 @@ import {HttpsError} from "firebase-functions/v2/https";
 import type {Firestore} from "firebase-admin/firestore";
 import {
   ARENA_PROFESSORS,
+  ARENA_STAFF_ONLY_PERMISSION_KEYS,
   arenaProfessorLinkId,
   effectiveArenaProfessorPermissions,
   type ArenaProfessorLinkData,
@@ -17,7 +18,7 @@ import {
   type ArenaProfessorType,
 } from "./arena-professor-links";
 
-export type ProfessorPermissionDenialReason = "no_link" | "not_active" | "permission_off";
+export type ProfessorPermissionDenialReason = "no_link" | "not_active" | "not_staff" | "permission_off";
 
 export async function loadArenaProfessorLink(
   db: Firestore,
@@ -31,11 +32,12 @@ export async function loadArenaProfessorLink(
 
 /** Por que o professor não pode usar `key` agora — `null` quando pode. */
 export function professorPermissionDenial(
-  link: Pick<ArenaProfessorLinkData, "status" | "permissions"> | null,
+  link: (Pick<ArenaProfessorLinkData, "status" | "permissions"> & {relationshipType?: unknown}) | null,
   key: ArenaProfessorPermissionKey,
 ): ProfessorPermissionDenialReason | null {
   if (!link) return "no_link";
   if (link.status !== "ACTIVE") return "not_active";
+  if (ARENA_STAFF_ONLY_PERMISSION_KEYS.has(key) && link.relationshipType !== "ARENA_STAFF") return "not_staff";
   return effectiveArenaProfessorPermissions(link)[key] ? null : "permission_off";
 }
 
@@ -43,6 +45,9 @@ const PERMISSION_COPY: Record<ArenaProfessorPermissionKey, {action: string; hint
   canBookCourts: {action: "reservar como professor", hint: " Você ainda pode reservar como atleta."},
   canManageOwnLessons: {action: "fazer a chamada das suas aulas", hint: ""},
   canAppearInArenaProfile: {action: "aparecer no perfil da arena", hint: ""},
+  canEnrollStudents: {action: "matricular alunos nas suas turmas", hint: " Peça à gestão da arena."},
+  canScheduleLessons: {action: "agendar aulas e encaixar alunos", hint: " Peça à gestão da arena."},
+  canCancelLessons: {action: "cancelar aulas e avisar os alunos", hint: " Peça à gestão da arena."},
 };
 
 export function professorPermissionError(
@@ -56,6 +61,8 @@ export function professorPermissionError(
   let message: string;
   if (reason === "no_link" || !link) {
     message = `Você não tem vínculo de professor com esta arena. Peça o vínculo na página da arena para ${action}.`;
+  } else if (reason === "not_staff") {
+    message = `Só professor da equipe da ${arena} pode ${action}.`;
   } else if (reason === "permission_off") {
     message = `A ${arena} não liberou ${action} no seu vínculo.`;
   } else if (link.status === "SUSPENDED") {

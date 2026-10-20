@@ -54,7 +54,10 @@ class _ArenaProfessorRequestSheetState
     try {
       await ref.read(arenaProfessionalsRepositoryProvider).approve(
             linkId: link.id,
-            permissions: _edited ?? link.permissions,
+            permissions: arenaProfessorPermissionsToSend(
+              _edited ?? link.permissions,
+              link.type,
+            ),
           );
       if (!mounted) return;
       Navigator.of(context).pop(ArenaProfessorRequestOutcome.approved);
@@ -157,6 +160,7 @@ class _ArenaProfessorRequestSheetState
         ),
         const ProfessorLinksKicker('Permissões ao aprovar'),
         ArenaProfessorPermissionToggles(
+          type: link.type,
           permissions: permissions,
           dense: true,
           onChanged: _busy || !open

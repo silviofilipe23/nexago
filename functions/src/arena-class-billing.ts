@@ -50,6 +50,7 @@ import {isValidCpfCnpj, normalizeCpfCnpj} from "./asaas-customer";
 import {readArenaPaymentFlags, requireArenaPayoutPixKey} from "./mercadopago-arena-helpers";
 import {classRulesRef, monthKeyOf, parseClassRules, studentAttendsWeekday} from "./arena-class-ledger";
 import {
+  authorizeClassAction,
   parseArenaClass,
   requireClassEntitlement,
   requireClassManager,
@@ -489,12 +490,36 @@ async function planEnrollment(
   return {plan, rules, classes, slots};
 }
 
+/**
+ * Matrícula pela equipe (área `agenda`) ou — fase 2 do App do Professor — pelo professor de todas
+ * as turmas do pedido com "Matricular alunos". No caminho do professor o preço é o da tabela e
+ * nada de condição especial: sem dispensar a taxa, sem CPF digitado (online só com o CPF já
+ * salvo), vencimento no padrão das Regras e forma de pagamento PIX.
+ */
+export async function authorizeEnrollment(
+  db: Firestore,
+  req: EnrollmentRequest,
+  uid: string,
+): Promise<{req: EnrollmentRequest; role: "staff" | "teacher"; arenaData: Record<string, unknown>}> {
+  // A lista de espera de onde o aluno sai também tem que ser de turma dele.
+  const classIds = [...new Set([...req.slots.map((s) => s.classId), ...(req.waitlistClassId ? [req.waitlistClassId] : [])])];
+  const snaps = await db.getAll(...classIds.map((id) => db.collection(ARENA_CLASSES).doc(id)));
+  const teachers = snaps.map((s) => (s.exists ? parseArenaClass(s.data() as Record<string, unknown>).teacherUserId : null));
+  const {role, arenaData} = await authorizeClassAction(db, req.arenaId, teachers, uid, "canEnrollStudents");
+  if (role === "staff") return {req, role, arenaData};
+  const rules = parseClassRules((await classRulesRef(db, req.arenaId).get()).data());
+  return {
+    req: {...req, waiveFee: false, cpfCnpj: null, dueDay: rules.defaultDueDay, paymentMethod: "pix"},
+    role,
+    arenaData,
+  };
+}
+
 export const previewArenaClassEnrollment = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {
   const uid = requireUid(request.auth);
   const input = (request.data ?? {}) as Record<string, unknown>;
-  const req = parseEnrollmentRequest(input);
   const db = getFirestore();
-  await requireClassManager(db, req.arenaId, uid);
+  const {req} = await authorizeEnrollment(db, parseEnrollmentRequest(input), uid);
   const studentId = str(input["studentId"]) || str(input["athleteId"]) || null;
   const planned = await planEnrollment(db, (ref) => (ref as {get: () => Promise<unknown>}).get(), req, studentId);
   const todayKey = dayKeyFromEventDate(new Date());
@@ -521,6 +546,7 @@ export async function createEnrollmentCore(
   student: {athleteId: string | null; name: string; phone: string | null; photoUrl: string | null; studentId?: string | null},
   actorUid: string,
   todayKey: string,
+  actorRole: "staff" | "teacher" = "staff",
 ): Promise<CreateEnrollmentResult> {
   const enrollmentRef = db.collection(ARENA_CLASS_ENROLLMENTS).doc();
   const studentId = student.athleteId ?? student.studentId ?? db.collection(ARENA_CLASS_ENROLLMENTS).doc().id;
@@ -568,6 +594,7 @@ export async function createEnrollmentCore(
       creditsLeft: plan.kind === "package" ? plan.credits : null,
       expiresOn: plan.kind === "package" ? addDaysToDateKey(todayKey, plan.validityDays ?? 30) : null,
       createdByUid: actorUid,
+      createdByRole: actorRole,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -670,16 +697,15 @@ async function readStoredCpfInTx(tx: Transaction, db: Firestore, uid: string): P
 export const createArenaClassEnrollment = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {
   const uid = requireUid(request.auth);
   const input = (request.data ?? {}) as Record<string, unknown>;
-  const req = parseEnrollmentRequest(input);
   const db = getFirestore();
-  const arenaData = await requireClassManager(db, req.arenaId, uid);
+  const {req, role, arenaData} = await authorizeEnrollment(db, parseEnrollmentRequest(input), uid);
   requireClassEntitlement(arenaData);
   const resolved = await resolveStudentInput(db, input as UpsertClassStudentInput);
   const result = await createEnrollmentCore(db, req, {
     ...resolved,
     studentId: resolved.athleteId ? null : str(input["studentId"]) || null,
-  }, uid, dayKeyFromEventDate(new Date()));
-  logger.info("createArenaClassEnrollment", {arenaId: req.arenaId, ...result});
+  }, uid, dayKeyFromEventDate(new Date()), role);
+  logger.info("createArenaClassEnrollment", {arenaId: req.arenaId, role, ...result});
   // Telefone gravado (o do cadastro do atleta quando veio em branco): a confirmação monta o WhatsApp.
   return {...result, phone: resolved.phone};
 });

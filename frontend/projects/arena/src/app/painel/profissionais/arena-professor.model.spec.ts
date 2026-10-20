@@ -19,7 +19,10 @@ import {
   isInviteExpired,
   linkActions,
   pendingRequests,
+  permissionAllowedForType,
+  permissionGroupsFor,
   permissionsCell,
+  permissionsForType,
   permissionsStateNote,
   professorKpis,
   resendInviteInput,
@@ -47,7 +50,14 @@ function makeLink(overrides: Partial<ArenaProfessorLink> = {}): ArenaProfessorLi
     relationshipType: 'INDEPENDENT',
     status: 'ACTIVE',
     initiatedBy: 'PROFESSOR',
-    permissions: { canManageOwnLessons: true, canBookCourts: true, canAppearInArenaProfile: false },
+    permissions: {
+      canManageOwnLessons: true,
+      canBookCourts: true,
+      canAppearInArenaProfile: false,
+      canEnrollStudents: false,
+      canScheduleLessons: false,
+      canCancelLessons: false,
+    },
     message: null,
     cycle: 1,
     professorName: 'Marcos Lima',
@@ -97,17 +107,69 @@ const openInvite = (overrides: Partial<ArenaProfessorLink> = {}) =>
   });
 
 describe('arena-professor.model · status e permissões', () => {
-  it('padrão por tipo: equipe liga as três, independente fica fora do perfil', () => {
+  it('padrão por tipo: equipe liga as três de base, independente fica fora do perfil; Aulas da arena desligadas nos dois', () => {
     expect(defaultProfessorPermissions('ARENA_STAFF')).toEqual({
       canManageOwnLessons: true,
       canBookCourts: true,
       canAppearInArenaProfile: true,
+      canEnrollStudents: false,
+      canScheduleLessons: false,
+      canCancelLessons: false,
     });
     expect(defaultProfessorPermissions('INDEPENDENT')).toEqual({
       canManageOwnLessons: true,
       canBookCourts: true,
       canAppearInArenaProfile: false,
+      canEnrollStudents: false,
+      canScheduleLessons: false,
+      canCancelLessons: false,
     });
+  });
+
+  const allOn = {
+    canManageOwnLessons: true,
+    canBookCourts: true,
+    canAppearInArenaProfile: true,
+    canEnrollStudents: true,
+    canScheduleLessons: true,
+    canCancelLessons: true,
+  };
+
+  it('Aulas da arena: efetivas só na equipe ativa; independente nunca, mesmo com a chave gravada', () => {
+    const staff = effectivePermissions(makeLink({ relationshipType: 'ARENA_STAFF', permissions: allOn }));
+    expect(staff).toEqual(allOn);
+    const independent = effectivePermissions(makeLink({ relationshipType: 'INDEPENDENT', permissions: allOn }));
+    expect(independent.canEnrollStudents).toBeFalse();
+    expect(independent.canScheduleLessons).toBeFalse();
+    expect(independent.canCancelLessons).toBeFalse();
+    expect(independent.canBookCourts).toBeTrue();
+    const suspendedStaff = effectivePermissions(makeLink({ relationshipType: 'ARENA_STAFF', status: 'SUSPENDED', permissions: allOn }));
+    expect(suspendedStaff.canEnrollStudents).toBeFalse();
+  });
+
+  it('nunca envia true das chaves da equipe para independente', () => {
+    expect(permissionsForType(allOn, 'INDEPENDENT')).toEqual({
+      ...allOn,
+      canEnrollStudents: false,
+      canScheduleLessons: false,
+      canCancelLessons: false,
+    });
+    expect(permissionsForType(allOn, 'ARENA_STAFF')).toEqual(allOn);
+    const independentInvite = openInvite({ relationshipType: 'INDEPENDENT', permissions: allOn });
+    expect(resendInviteInput(independentInvite).permissions.canEnrollStudents).toBeFalse();
+  });
+
+  it('toggle das Aulas da arena só para equipe: grupo e permissão por tipo', () => {
+    const staffGroups = permissionGroupsFor('ARENA_STAFF');
+    expect(staffGroups.map((g) => g.title)).toEqual([null, 'Aulas da arena']);
+    expect(staffGroups[1].items.map((i) => i.key)).toEqual(['canEnrollStudents', 'canScheduleLessons', 'canCancelLessons']);
+    expect(staffGroups[1].items.map((i) => i.title)).toEqual(['Matricular alunos', 'Agendar aulas e encaixes', 'Cancelar aulas e avisar alunos']);
+    const independentGroups = permissionGroupsFor('INDEPENDENT');
+    expect(independentGroups.length).toBe(1);
+    expect(independentGroups[0].items.map((i) => i.key)).toEqual(['canManageOwnLessons', 'canBookCourts', 'canAppearInArenaProfile']);
+    expect(permissionAllowedForType('canEnrollStudents', 'INDEPENDENT')).toBeFalse();
+    expect(permissionAllowedForType('canEnrollStudents', 'ARENA_STAFF')).toBeTrue();
+    expect(permissionAllowedForType('canBookCourts', 'INDEPENDENT')).toBeTrue();
   });
 
   it('convite vencido vira "expirado" na tela antes de o servidor marcar', () => {
@@ -126,7 +188,14 @@ describe('arena-professor.model · status e permissões', () => {
     const active = makeLink();
     expect(effectivePermissions(active)).toEqual(active.permissions);
     const suspended = makeLink({ status: 'SUSPENDED' });
-    expect(effectivePermissions(suspended)).toEqual({ canManageOwnLessons: false, canBookCourts: false, canAppearInArenaProfile: false });
+    expect(effectivePermissions(suspended)).toEqual({
+      canManageOwnLessons: false,
+      canBookCourts: false,
+      canAppearInArenaProfile: false,
+      canEnrollStudents: false,
+      canScheduleLessons: false,
+      canCancelLessons: false,
+    });
     expect(suspended.permissions.canBookCourts).toBeTrue();
   });
 
@@ -359,12 +428,36 @@ describe('arena-professor.model · parse e erros', () => {
         message: '   ',
       }),
     );
-    expect(link.permissions).toEqual({ canManageOwnLessons: true, canBookCourts: false, canAppearInArenaProfile: true });
+    expect(link.permissions).toEqual({
+      canManageOwnLessons: true,
+      canBookCourts: false,
+      canAppearInArenaProfile: true,
+      canEnrollStudents: false,
+      canScheduleLessons: false,
+      canCancelLessons: false,
+    });
     expect(link.professorName).toBe('Lucas Ferraz');
     expect(link.professorModalities).toEqual(['Beach Tennis']);
     expect(link.expiresAt?.getTime()).toBe(NOW + DAY);
     expect(link.message).toBeNull();
     expect(link.approvedAt).toBeNull();
+  });
+
+  it('chaves das Aulas da arena: só true explícito liga; vínculo antigo sem a chave = false', () => {
+    const doc = (permissions: Record<string, unknown>) =>
+      arenaProfessorLinkFromDoc(fakeDoc('a1_u1', { relationshipType: 'ARENA_STAFF', status: 'ACTIVE', permissions }));
+    const on = doc({ canEnrollStudents: true, canScheduleLessons: false, canCancelLessons: 'sim' });
+    expect(on.permissions.canEnrollStudents).toBeTrue();
+    expect(on.permissions.canScheduleLessons).toBeFalse();
+    expect(on.permissions.canCancelLessons).toBeFalse();
+    const legacy = doc({ canManageOwnLessons: true });
+    expect(legacy.permissions.canEnrollStudents).toBeFalse();
+    expect(effectivePermissions(legacy).canScheduleLessons).toBeFalse();
+  });
+
+  it('histórico nomeia as permissões novas', () => {
+    const event = makeEvent({ eventType: 'PERMISSIONS_CHANGED', metadata: { changed: ['canEnrollStudents'], after: { canEnrollStudents: true } } });
+    expect(eventTitle(event, makeLink())).toBe('Permissão “Matricular alunos” ligada');
   });
 
   it('evento de tipo desconhecido fica fora da linha do tempo', () => {

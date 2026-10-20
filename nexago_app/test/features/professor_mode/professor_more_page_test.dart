@@ -52,6 +52,24 @@ void main() {
   setUpAll(loadProfessorLinksFonts);
 
   group('Mais (B1)', () {
+    testWidgets('sem chave ligada pela arena, sem o grupo de ações', (tester) async {
+      await openMore(tester);
+      expect(find.text('AÇÕES NA ARENA'), findsNothing);
+    });
+
+    testWidgets('fase 2: ações aparecem conforme as chaves da arena', (tester) async {
+      final repo = FakeProfessorStudentsRepository([
+        professorStudentsSnapshot(arenas: [
+          {...arenaMap(), 'actions': {'canScheduleLessons': true}},
+        ]),
+      ]);
+      await openMore(tester, repo: repo);
+      expect(find.text('AÇÕES NA ARENA'), findsOneWidget);
+      expect(find.byKey(const Key('professor-more-add-student')), findsOneWidget);
+      expect(find.byKey(const Key('professor-more-new-lesson')), findsOneWidget);
+      expect(find.byKey(const Key('professor-more-notice')), findsNothing);
+    });
+
     testWidgets('linhas: Turmas, Minhas arenas e Sair', (tester) async {
       await openMore(tester);
 

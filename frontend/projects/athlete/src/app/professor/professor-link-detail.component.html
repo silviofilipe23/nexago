@@ -67,7 +67,7 @@
               <h2 class="pf-card-title">Suas permissões aqui</h2>
             </div>
             @if (perms(); as p) {
-              <app-pf-perm-list [perms]="p" />
+              <app-pf-perm-list [perms]="p" [type]="l.relationshipType" />
             }
           </section>
         </div>

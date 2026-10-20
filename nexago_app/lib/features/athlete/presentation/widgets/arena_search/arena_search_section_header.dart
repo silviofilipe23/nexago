@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 
@@ -47,7 +46,7 @@ class ArenaSearchSectionHeader extends StatelessWidget {
           TextButton(
             onPressed: onTrailingTap,
             style: TextButton.styleFrom(
-              foregroundColor: AppColors.brand,
+              foregroundColor: context.themeColors.brandText,
               padding: EdgeInsets.zero,
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,

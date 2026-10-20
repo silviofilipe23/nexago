@@ -157,7 +157,8 @@ class _DetailViewState extends ConsumerState<_DetailView> {
           arenaId: link.arenaId,
           professorUserId: link.professorUserId,
           type: link.type,
-          permissions: link.permissions,
+          permissions:
+              arenaProfessorPermissionsToSend(link.permissions, link.type),
           message: link.message,
         ),
         success: 'Convite reenviado para ${link.professorName}. Vale por mais '
@@ -270,6 +271,7 @@ class _DetailViewState extends ConsumerState<_DetailView> {
           ),
           const SizedBox(height: 8),
           ArenaProfessorPermissionToggles(
+            type: link.type,
             permissions: permissions,
             busyKey: saving != null && saving.inFlight ? saving.key : null,
             onChanged: editable

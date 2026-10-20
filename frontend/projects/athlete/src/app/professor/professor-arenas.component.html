@@ -76,7 +76,7 @@
                 @if (card.reason) {
                   <p class="pf-card-reason" [class.pf-card-reason--alert]="card.status === 'SUSPENDED'">{{ card.reason }}</p>
                 }
-                <app-pf-perm-list class="pf-card-perms" [perms]="card.perms" [dense]="true" />
+                <app-pf-perm-list class="pf-card-perms" [perms]="card.perms" [type]="card.link.relationshipType" [dense]="true" />
                 <div class="pf-card-actions">
                   @for (a of card.actions; track a.action) {
                     <button

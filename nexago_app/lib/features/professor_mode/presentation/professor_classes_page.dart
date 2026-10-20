@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
@@ -71,6 +72,17 @@ class ProfessorClassesPage extends ConsumerWidget {
                   cls: c,
                   todayKey: snapshot.todayKey,
                   showArena: multiArena,
+                  // Fase 2: com "Matricular alunos", abre a lista de espera.
+                  onTap: snapshot.arena(c.arenaId)?.actions.canEnrollStudents ==
+                          true
+                      ? () => context.pushNamed(
+                            AppRouteNames.professorWaitlist,
+                            pathParameters: {
+                              'arenaId': c.arenaId,
+                              'classId': c.classId,
+                            },
+                          )
+                      : null,
                 ),
                 const SizedBox(height: 12),
               ],
@@ -87,11 +99,13 @@ class _ClassCard extends StatelessWidget {
     required this.cls,
     required this.todayKey,
     required this.showArena,
+    this.onTap,
   });
 
   final ProfessorClassSummary cls;
   final String todayKey;
   final bool showArena;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -136,6 +150,7 @@ class _ClassCard extends StatelessWidget {
         );
 
     return ProfessorLinksCard(
+      onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

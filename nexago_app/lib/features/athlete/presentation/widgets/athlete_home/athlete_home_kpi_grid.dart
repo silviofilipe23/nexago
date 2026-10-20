@@ -69,7 +69,7 @@ class _KpiCard extends StatelessWidget {
                 Icon(
                   Icons.local_fire_department_rounded,
                   size: 12,
-                  color: AppColors.brand,
+                  color: colors.brandText,
                 ),
             ],
           ),
@@ -94,7 +94,7 @@ class _KpiCard extends StatelessWidget {
                       ? Icons.arrow_upward_rounded
                       : Icons.arrow_downward_rounded,
                   size: 10,
-                  color: toneColor,
+                  color: colors.readableTone(toneColor),
                 ),
                 const SizedBox(width: 1),
               ],
@@ -104,7 +104,7 @@ class _KpiCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.monoMeta.copyWith(
-                    color: toneColor,
+                    color: colors.readableTone(toneColor),
                     fontSize: 10,
                   ),
                 ),

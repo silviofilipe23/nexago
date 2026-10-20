@@ -63,8 +63,45 @@ Map<Color, String> stateTonesOf(AppThemeColors colors) => {
 ///
 /// Devolve o que conferiu, para o teste provar que cobriu o que queria: o
 /// texto de cada trecho, o [IconData] de cada ícone e `'marca'` por ponto.
-List<Object> expectStateTonesLegible(WidgetTester tester, Finder within) {
-  final tones = stateTonesOf(themeColorsOf(tester, within));
+List<Object> expectStateTonesLegible(WidgetTester tester, Finder within) =>
+    _expectTonesLegible(
+      tester,
+      within,
+      stateTonesOf(themeColorsOf(tester, within)),
+      isMark: (box) =>
+          (box.renderObject! as RenderBox).size.shortestSide <= 16,
+    );
+
+/// Laranja da marca do tema ativo; o cru entra também, como em
+/// [stateTonesOf]: no claro ele só aparece como texto se alguém pulou o
+/// [AppThemeColors.brandText], e aí reprova.
+Map<Color, String> brandTonesOf(AppThemeColors colors) => {
+      AppColors.brand: 'brand cru',
+      colors.brandText: 'brandText',
+    };
+
+/// Como [expectStateTonesLegible], para o laranja da marca: texto a 4,5:1,
+/// ícone a 3:1. Marca aqui é só o ponto redondo de até 16 px (aviso no ícone,
+/// status): barra de progresso, contador e botão cheio são preenchimento.
+List<Object> expectBrandTextLegible(WidgetTester tester, Finder within) =>
+    _expectTonesLegible(
+      tester,
+      within,
+      brandTonesOf(themeColorsOf(tester, within)),
+      isMark: (box) {
+        final decoration = (box.widget as DecoratedBox).decoration;
+        return decoration is BoxDecoration &&
+            decoration.shape == BoxShape.circle &&
+            (box.renderObject! as RenderBox).size.shortestSide <= 16;
+      },
+    );
+
+List<Object> _expectTonesLegible(
+  WidgetTester tester,
+  Finder within,
+  Map<Color, String> tones, {
+  required bool Function(Element box) isMark,
+}) {
   final checked = <Object>[];
 
   for (final rich in find
@@ -99,7 +136,7 @@ List<Object> expectStateTonesLegible(WidgetTester tester, Finder within) {
     if (decoration is! BoxDecoration) continue;
     final color = decoration.color;
     if (!tones.containsKey(color)) continue;
-    if ((box.renderObject! as RenderBox).size.shortestSide > 16) continue;
+    if (!isMark(box)) continue;
     final bg = backdropOf(box);
     expect(
       contrastRatio(color!, bg),

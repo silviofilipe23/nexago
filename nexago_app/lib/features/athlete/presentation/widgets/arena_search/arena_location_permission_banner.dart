@@ -64,13 +64,13 @@ class ArenaLocationPermissionBanner extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
-              const Text(
+              Text(
                 'ATIVAR',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0.4,
-                  color: AppColors.brand,
+                  color: colors.brandText,
                 ),
               ),
               const SizedBox(width: 8),

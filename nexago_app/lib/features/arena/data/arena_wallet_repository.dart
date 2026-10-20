@@ -6,10 +6,38 @@ class ArenaWalletSummary {
   const ArenaWalletSummary({
     required this.availableReais,
     required this.pendingReais,
+    this.awaitingSettlementReais = 0,
   });
 
   final double availableReais;
   final double pendingReais;
+
+  /// Cartão aprovado que o Asaas ainda não liquidou (reserva ou mensalidade de
+  /// aula): já vem sem as taxas e entra em [availableReais] no RECEIVED, cerca
+  /// de 32 dias depois. Não é sacável.
+  final double awaitingSettlementReais;
+
+  factory ArenaWalletSummary.fromMap(Map<String, dynamic>? d) {
+    final awaiting = (d?['awaitingSettlementReais'] as num?)?.toDouble() ?? 0;
+    return ArenaWalletSummary(
+      availableReais: (d?['availableReais'] as num?)?.toDouble() ?? 0,
+      pendingReais: (d?['pendingReais'] as num?)?.toDouble() ?? 0,
+      awaitingSettlementReais: awaiting > 0 ? awaiting : 0,
+    );
+  }
+}
+
+/// De onde veio a linha do extrato (`ledger.source`; reserva não grava o campo).
+enum ArenaLedgerSource {
+  booking,
+  classFee,
+  club;
+
+  static ArenaLedgerSource fromRaw(Object? raw) => switch (raw) {
+        'class' => ArenaLedgerSource.classFee,
+        'club' => ArenaLedgerSource.club,
+        _ => ArenaLedgerSource.booking,
+      };
 }
 
 class ArenaLedgerEntry {
@@ -19,6 +47,8 @@ class ArenaLedgerEntry {
     required this.grossReais,
     required this.bookingId,
     required this.createdAt,
+    this.type = 'credit',
+    this.source = ArenaLedgerSource.booking,
   });
 
   final String id;
@@ -27,10 +57,21 @@ class ArenaLedgerEntry {
   final String? bookingId;
   final DateTime? createdAt;
 
+  /// `credit` ou `refund` (estorno debita o líquido: valores negativos).
+  final String type;
+  final ArenaLedgerSource source;
+
+  bool get isRefund => type == 'refund' || netReais < 0;
+
   factory ArenaLedgerEntry.fromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data();
+    return ArenaLedgerEntry.fromMap(doc.id, doc.data());
+  }
+
+  factory ArenaLedgerEntry.fromMap(String id, Map<String, dynamic> d) {
     return ArenaLedgerEntry(
-      id: doc.id,
+      id: id,
+      type: (d['type'] as String?) ?? 'credit',
+      source: ArenaLedgerSource.fromRaw(d['source']),
       netReais: (d['netReais'] as num?)?.toDouble() ?? 0,
       grossReais: (d['grossReais'] as num?)?.toDouble() ?? 0,
       bookingId: d['bookingId'] as String?,
@@ -122,13 +163,11 @@ class ArenaWalletRepository {
         pendingReais: 0,
       ));
     }
-    return _firestore.collection('arenaWallets').doc(id).snapshots().map((snap) {
-      final d = snap.data();
-      return ArenaWalletSummary(
-        availableReais: (d?['availableReais'] as num?)?.toDouble() ?? 0,
-        pendingReais: (d?['pendingReais'] as num?)?.toDouble() ?? 0,
-      );
-    });
+    return _firestore
+        .collection('arenaWallets')
+        .doc(id)
+        .snapshots()
+        .map((snap) => ArenaWalletSummary.fromMap(snap.data()));
   }
 
   Stream<List<ArenaLedgerEntry>> watchLedger(String arenaId, {int limit = 20}) {

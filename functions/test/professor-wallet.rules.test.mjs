@@ -75,3 +75,13 @@ test('cliente não escreve em nada da carteira', async () => {
   await assertFails(setDoc(doc(db, `professors/${PROF}/students/${OUTRO}`), { name: 'x' }));
   await assertFails(setDoc(doc(db, 'professorCharges/c9'), { professorUid: PROF, athleteId: ALUNO, status: 'paid' }));
 });
+
+test('aula da carteira: professor e aluno leem; arena e terceiros não; ninguém escreve', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'professorLessons/b1'), { professorUid: PROF, athleteId: ALUNO, arenaId: 'a1' });
+  });
+  await assertSucceeds(getDoc(doc(as(PROF), 'professorLessons/b1')));
+  await assertSucceeds(getDocs(query(collection(as(ALUNO), 'professorLessons'), where('athleteId', '==', ALUNO))));
+  await assertFails(getDoc(doc(as(OUTRO), 'professorLessons/b1')));
+  await assertFails(setDoc(doc(as(PROF), 'professorLessons/b2'), { professorUid: PROF, athleteId: ALUNO }));
+});

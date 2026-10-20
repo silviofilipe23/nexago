@@ -2256,6 +2256,14 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow write: if false;
     }
+    // Aula da carteira (reserva como professor ligada a um aluno): professor e aluno leem.
+    match /professorLessons/{bookingId} {
+      allow read: if request.auth != null && (
+        resource.data.professorUid == request.auth.uid ||
+        resource.data.athleteId == request.auth.uid
+      );
+      allow write: if false;
+    }
     // Professor e aluno leem a cobrança deles (query precisa filtrar pelo campo).
     match /professorCharges/{chargeId} {
       allow read: if request.auth != null && (

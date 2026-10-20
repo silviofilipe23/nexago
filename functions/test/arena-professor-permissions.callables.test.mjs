@@ -109,6 +109,29 @@ describe('createArenaBooking — reservar como professor', () => {
   });
 });
 
+describe('createArenaBooking — aula para aluno da carteira (independente)', () => {
+  test('aluno ativo: a reserva sai como professor e a aula liga o aluno fora da reserva', async () => {
+    await seedLink('ACTIVE');
+    await db.doc('professors/uProf/students/uAtleta').set({athleteId: 'uAtleta', name: 'Marina Lopes', status: 'active'});
+    const res = await call(createArenaBooking, 'uProf', booking('11:00', {asProfessor: true, professorStudentId: 'uAtleta'}));
+    assert.equal(res.bookedAs, 'professor');
+    const lesson = (await db.doc(`professorLessons/${res.bookingId}`).get()).data();
+    assert.deepEqual([lesson.professorUid, lesson.athleteId, lesson.studentName, lesson.courtCostReais, lesson.startTime],
+      ['uProf', 'uAtleta', 'Marina Lopes', res.amountReais, '11:00']);
+    const bookingDoc = (await db.doc(`arenaBookings/${res.bookingId}`).get()).data();
+    assert.ok(!JSON.stringify(bookingDoc).includes('Marina'), 'a arena não vê o aluno na reserva');
+  });
+
+  test('aluno convidado, de outro professor ou reserva de atleta: recusa sem reservar', async () => {
+    await seedLink('ACTIVE');
+    await db.doc('professors/uProf/students/uAtleta').set({athleteId: 'uAtleta', name: 'Marina', status: 'invited'});
+    await rejects(call(createArenaBooking, 'uProf', booking('12:00', {asProfessor: true, professorStudentId: 'uAtleta'})), /não está ativo/);
+    await rejects(call(createArenaBooking, 'uProf', booking('12:00', {professorStudentId: 'uAtleta'})), /como professor independente/);
+    assert.equal((await db.collection('arenaBookings').where('athleteId', '==', 'uProf').get()).size, 0);
+    assert.equal((await db.collection('professorLessons').get()).size, 0);
+  });
+});
+
 describe('Aulas — chamada pelo professor e turma nova', () => {
   async function seedClassSession() {
     const cls = {

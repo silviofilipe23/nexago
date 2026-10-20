@@ -150,7 +150,7 @@ class AthleteActiveSessionsPage extends ConsumerWidget {
                           child: Text(
                             'Revogar',
                             style: theme.textTheme.labelLarge?.copyWith(
-                              color: AppColors.live,
+                              color: context.themeColors.live,
                               fontWeight: FontWeight.w800,
                             ),
                           ),

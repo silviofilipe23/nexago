@@ -40,7 +40,7 @@ class _KpiCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final toneColor = kpi.tone == AthleteHomeKpiTone.green
-        ? AppColors.win
+        ? colors.win
         : AppColors.brand;
 
     return NexaCard(

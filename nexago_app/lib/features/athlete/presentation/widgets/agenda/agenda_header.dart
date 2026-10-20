@@ -90,7 +90,7 @@ class AgendaHeader extends StatelessWidget {
                     width: 8,
                     height: 8,
                     decoration: BoxDecoration(
-                      color: AppColors.live,
+                      color: context.themeColors.live,
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: context.themeColors.canvas,

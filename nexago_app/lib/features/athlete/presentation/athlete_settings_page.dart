@@ -10,7 +10,6 @@ import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/active_role_providers.dart';
 import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/theme_mode_provider.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
@@ -361,8 +360,8 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   icon: Icons.logout_rounded,
                   title: 'Sair da conta',
                   subtitle: 'Encerrar sessão neste aparelho',
-                  titleColor: AppColors.live,
-                  iconColor: AppColors.live,
+                  titleColor: context.themeColors.live,
+                  iconColor: context.themeColors.live,
                   variant: AthleteSettingsIconVariant.neutral,
                   onTap: _signOut,
                   showDivider: true,

@@ -93,7 +93,7 @@ class _ClassChargeCard extends StatelessWidget {
               Text(
                 classChargeDueLabel(charge).toUpperCase(),
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: charge.overdue ? AppColors.live : accent,
+                  color: charge.overdue ? colors.live : accent,
                   fontWeight: FontWeight.w800,
                 ),
               ),

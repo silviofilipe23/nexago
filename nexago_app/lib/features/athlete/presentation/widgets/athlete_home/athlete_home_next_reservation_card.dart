@@ -333,7 +333,9 @@ class _Pill extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: AppTypography.labelS.copyWith(color: color),
+        style: AppTypography.labelS.copyWith(
+          color: context.themeColors.readableTone(color),
+        ),
       ),
     );
   }

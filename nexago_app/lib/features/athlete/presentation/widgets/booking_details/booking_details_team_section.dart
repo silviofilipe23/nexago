@@ -289,7 +289,7 @@ class _PillButton extends StatelessWidget {
           : Icon(icon, size: 18),
       label: Text(label),
       style: OutlinedButton.styleFrom(
-        foregroundColor: color,
+        foregroundColor: context.themeColors.readableTone(color),
         disabledForegroundColor: color.withValues(alpha: 0.4),
         side: BorderSide(
           color: onPressed == null ? color.withValues(alpha: 0.4) : color,

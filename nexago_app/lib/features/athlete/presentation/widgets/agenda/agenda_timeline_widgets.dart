@@ -297,7 +297,7 @@ class _ClassSessionCard extends StatelessWidget {
     final isDark = context.themeColors.isDark;
     final canceled = item.isCanceled;
     final accent = agendaCardAccent(item.accentColor, isDark: isDark);
-    final statusColor = canceled ? AppColors.live : accent;
+    final statusColor = canceled ? context.themeColors.live : accent;
 
     return Container(
       padding: const EdgeInsets.all(14),

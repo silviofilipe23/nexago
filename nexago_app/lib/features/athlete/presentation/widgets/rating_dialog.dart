@@ -233,7 +233,7 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
                   _ratingLabel,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.win,
+                    color: context.themeColors.win,
                   ),
                 ),
               ),

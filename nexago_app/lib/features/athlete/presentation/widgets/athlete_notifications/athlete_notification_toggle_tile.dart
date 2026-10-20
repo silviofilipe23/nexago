@@ -31,8 +31,8 @@ class AthleteNotificationToggleTile extends StatelessWidget {
   Color _iconColor(BuildContext context) {
     return switch (variant) {
       AthleteSettingsIconVariant.orange => AppColors.brand,
-      AthleteSettingsIconVariant.green => AppColors.win,
-      AthleteSettingsIconVariant.yellow => AppColors.pending,
+      AthleteSettingsIconVariant.green => context.themeColors.win,
+      AthleteSettingsIconVariant.yellow => context.themeColors.pending,
       AthleteSettingsIconVariant.neutral => context.themeColors.onSurface,
     };
   }

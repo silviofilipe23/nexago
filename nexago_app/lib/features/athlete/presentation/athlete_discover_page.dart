@@ -175,7 +175,10 @@ class _AthleteDiscoverPageState extends ConsumerState<AthleteDiscoverPage> {
                   physics: const AlwaysScrollableScrollPhysics(
                     parent: BouncingScrollPhysics(),
                   ),
-                  slivers: _buildBodySlivers(state: state),
+                  slivers: _buildBodySlivers(
+                    state: state,
+                    colors: context.themeColors,
+                  ),
                 ),
               ),
             ),
@@ -270,6 +273,7 @@ class _DiscoverAppBar extends StatelessWidget {
 
 List<Widget> _buildBodySlivers({
   required AthleteDiscoverState state,
+  required AppThemeColors colors,
 }) {
   if (state.isLoading && state.displayEntries.isEmpty) {
     return [
@@ -290,7 +294,7 @@ List<Widget> _buildBodySlivers({
             child: Text(
               'Não foi possível carregar atletas.\n${state.errorMessage}',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.live),
+              style: TextStyle(color: colors.live),
             ),
           ),
         ),

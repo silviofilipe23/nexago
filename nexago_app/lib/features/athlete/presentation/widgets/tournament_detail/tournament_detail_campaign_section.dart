@@ -123,7 +123,7 @@ class _CampaignRow extends StatelessWidget {
                             match.isWin ? 'V' : 'D',
                             style: theme.textTheme.labelLarge?.copyWith(
                               fontWeight: FontWeight.w900,
-                              color: accent,
+                              color: context.themeColors.readableTone(accent),
                             ),
                           ),
                         ),

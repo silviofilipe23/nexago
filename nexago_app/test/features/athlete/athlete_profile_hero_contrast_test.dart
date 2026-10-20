@@ -218,45 +218,45 @@ void main() {
 
         _expectIcon(tester, Icons.settings_outlined);
       });
+
+      // O CustomScrollView pinta o 1º sliver (o topo) por cima dos seguintes:
+      // se a capa passasse do topo, o fim do degradê desbotaria a faixa de
+      // XP. Ela acaba com o topo, e o "NÍVEL" e o XP ficam direto no canvas.
+      testWidgets('capa acaba no topo e "NÍVEL"/XP ficam legíveis', (
+        tester,
+      ) async {
+        await _pumpProfile(tester, theme);
+        final canvas = _colors(tester).canvas;
+        final coverBottom = tester.getRect(_coverBox).bottom;
+
+        for (final text in ['NÍVEL 4', '40 / 100 XP']) {
+          final rich = find
+              .descendant(of: find.text(text), matching: find.byType(RichText))
+              .first;
+          expect(tester.getRect(rich).top, greaterThanOrEqualTo(coverBottom));
+          final color = tester.widget<RichText>(rich).text.style!.color!;
+          expect(
+            contrastRatio(color, canvas),
+            greaterThanOrEqualTo(4.5),
+            reason: '"$text" ($color) sobre $canvas',
+          );
+        }
+
+        final bolt = find.byIcon(Icons.bolt_rounded);
+        expect(tester.getRect(bolt).top, greaterThanOrEqualTo(coverBottom));
+        final boltColor = tester.widget<Icon>(bolt).color!;
+        expect(
+          contrastRatio(boltColor, canvas),
+          greaterThanOrEqualTo(3.0),
+          reason: 'Raio ($boltColor) sobre $canvas',
+        );
+      });
     });
   }
 
-  // O CustomScrollView pinta o 1º sliver (o topo) por cima dos seguintes: se
-  // a capa passasse do topo, o fim do degradê desbotaria a faixa de XP. No
-  // claro ela acaba com o topo, e o "NÍVEL" e o XP ficam direto no canvas.
-  testWidgets('tema claro: capa acaba no topo e "NÍVEL"/XP ficam legíveis', (
-    tester,
-  ) async {
-    await _pumpProfile(tester, AppTheme.light);
-    final canvas = _colors(tester).canvas;
-    final coverBottom = tester.getRect(_coverBox).bottom;
-
-    for (final text in ['NÍVEL 4', '40 / 100 XP']) {
-      final rich = find
-          .descendant(of: find.text(text), matching: find.byType(RichText))
-          .first;
-      expect(tester.getRect(rich).top, greaterThanOrEqualTo(coverBottom));
-      final color = tester.widget<RichText>(rich).text.style!.color!;
-      expect(
-        contrastRatio(color, canvas),
-        greaterThanOrEqualTo(4.5),
-        reason: '"$text" ($color) sobre $canvas',
-      );
-    }
-
-    final bolt = find.byIcon(Icons.bolt_rounded);
-    expect(tester.getRect(bolt).top, greaterThanOrEqualTo(coverBottom));
-    final boltColor = tester.widget<Icon>(bolt).color!;
-    expect(
-      contrastRatio(boltColor, canvas),
-      greaterThanOrEqualTo(3.0),
-      reason: 'Raio ($boltColor) sobre $canvas',
-    );
-  });
-
   // O tema escuro é o visual de referência: o conserto do claro não pode
-  // mexer em nenhuma cor dele (nem na capa de 300 px, que lá segue cobrindo a
-  // faixa de XP como antes).
+  // mexer em nenhuma cor dele. Só a capa mudou: tinha 300 px e cobria a faixa
+  // de XP; agora tem a altura do topo, com o marrom indo até 70% dela.
   testWidgets('tema escuro: capa e cores idênticas às de antes', (
     tester,
   ) async {
@@ -268,7 +268,9 @@ void main() {
       const Color(0xFF2A1408),
       colors.canvas.withValues(alpha: 0),
     ]);
-    expect(tester.getSize(_coverBox).height, 300);
+    expect(_cover(tester).stops, [0.0, 0.7, 1.0]);
+    final top = find.ancestor(of: _coverBox, matching: find.byType(Stack));
+    expect(tester.getRect(_coverBox), tester.getRect(top.first));
 
     Color textColor(String text) => tester
         .widget<RichText>(

@@ -55,12 +55,15 @@ List<MatchHistoryMonthGroup> groupMatchesByMonth(
     final list = map[key]!;
     final first = list.first.playedAt;
     final wins = list.where((m) => m.isWin).length;
-    final losses = list.length - wins;
+    final losses = list.where((m) => m.isLoss).length;
+    final draws = list.length - wins - losses;
     final monthName = _monthNamePt(first.month);
     return MatchHistoryMonthGroup(
       monthKey: key,
       title: '$monthName • ${first.year}',
-      summaryLabel: '${list.length} JOGOS • ${wins}V ${losses}D',
+      summaryLabel: draws == 0
+          ? '${list.length} JOGOS • ${wins}V ${losses}D'
+          : '${list.length} JOGOS • ${wins}V ${losses}D ${draws}E',
       matches: list,
     );
   }).toList();
@@ -92,16 +95,17 @@ AthleteSeasonSummary buildSeasonSummary({
 }) {
   final yearMatches = matches.where((m) => m.playedAt.year == year).toList();
   final wins = yearMatches.where((m) => m.isWin).length;
-  final losses = yearMatches.length - wins;
-  final total = yearMatches.length;
-  final winRate = total == 0 ? 0.0 : (wins / total) * 100;
+  final losses = yearMatches.where((m) => m.isLoss).length;
+  // Empate (só no aluguel) fica fora do aproveitamento.
+  final decided = wins + losses;
+  final winRate = decided == 0 ? 0.0 : (wins / decided) * 100;
 
   final bars = <MonthlyWinLossBar>[];
   for (var month = 1; month <= 12; month++) {
     final inMonth = yearMatches.where((m) => m.playedAt.month == month);
     if (inMonth.isEmpty) continue;
     final mWins = inMonth.where((m) => m.isWin).length;
-    final mLosses = inMonth.length - mWins;
+    final mLosses = inMonth.where((m) => m.isLoss).length;
     bars.add(
       MonthlyWinLossBar(
         month: month,

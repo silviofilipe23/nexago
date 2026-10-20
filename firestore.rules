@@ -1797,6 +1797,19 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Placar do pós-jogo do aluguel (um por reserva). Só as callables gravam:
+    // `saveBookingResult` (dono da reserva) e `respondBookingResult`
+    // (adversário com conta confirma ou contesta) — o placar conta no
+    // histórico, então status, versão e quem confirmou nunca saem do cliente.
+    // Lê quem está no placar com conta (`playerUids`, gravado pelo servidor).
+    // O app escuta por QUERY (`playerUids array-contains uid`): o `get` de um
+    // placar que ainda vai nascer seria negado e mataria o listener.
+    match /bookingResults/{bookingId} {
+      allow read: if request.auth != null &&
+        request.auth.uid in resource.data.playerUids;
+      allow write: if false;
+    }
+
     // Horários fixos (mensalistas): série semanal criada pelo gestor.
     // Escrita apenas via Cloud Functions (Admin SDK) — a criação exige
     // transação com locks e validação de conflito multi-data.

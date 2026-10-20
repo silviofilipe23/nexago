@@ -1,5 +1,12 @@
 /// Modelos do histórico de partidas e torneios do atleta.
-enum AthleteMatchResult { win, loss }
+///
+/// `draw` só existe no aluguel (sets empatados, ou saldo zero na rotação);
+/// partida de torneio sempre tem vencedor.
+enum AthleteMatchResult { win, loss, draw }
+
+/// De onde veio a partida: chave de torneio ou placar de aluguel confirmado
+/// pelos adversários (`bookingResults`, não conta no ranking).
+enum AthleteMatchSource { tournament, rental }
 
 enum MatchHistoryTab { matches, tournaments }
 
@@ -17,6 +24,7 @@ class AthleteMatchHistoryItem {
     required this.scoreDisplay,
     this.setsDisplay,
     this.isMvp = false,
+    this.source = AthleteMatchSource.tournament,
   });
 
   final String id;
@@ -28,7 +36,12 @@ class AthleteMatchHistoryItem {
   final String? setsDisplay;
   final bool isMvp;
 
+  /// No aluguel, [id] é o `bookingId` do placar.
+  final AthleteMatchSource source;
+
   bool get isWin => result == AthleteMatchResult.win;
+  bool get isLoss => result == AthleteMatchResult.loss;
+  bool get isRental => source == AthleteMatchSource.rental;
 }
 
 class MonthlyWinLossBar {

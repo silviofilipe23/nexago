@@ -264,6 +264,16 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
     return '$path?$query';
   }
 
+  // Placar do pós-jogo (`booking-result-write.ts`): pendente pro adversário,
+  // confirmado/contestado pra quem lançou — todos abrem a conferência. Sem
+  // `url` no payload: o app de antes desta tela cai em Minhas reservas.
+  if (type.startsWith('booking_result_')) {
+    final bookingId = (data['bookingId'] as String?)?.trim() ?? '';
+    if (bookingId.isEmpty) return AppRoutes.athleteMatchHistory;
+    return AppRoutes.bookingResultReview
+        .replaceAll(':bookingId', Uri.encodeComponent(bookingId));
+  }
+
   if (type == 'booking_invite') {
     final inviteId = (data['inviteId'] as String?)?.trim() ?? '';
     if (inviteId.isEmpty) return null;

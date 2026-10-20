@@ -1,9 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/auth/auth_providers.dart';
+import '../../../arenas/domain/booking_result_record.dart';
+import '../../../arenas/domain/booking_result_record_providers.dart';
 import '../../data/match_history/athlete_match_history_repository.dart';
 import 'athlete_match_history_logic.dart';
 import 'athlete_match_history_models.dart';
+import 'athlete_rental_history_mapper.dart';
 
 final athleteMatchHistoryBundleProvider = FutureProvider.autoDispose
     .family<AthleteMatchHistoryBundle, String>((ref, uid) async {
@@ -23,6 +26,24 @@ final currentAthleteMatchHistoryBundleProvider =
   return ref.watch(athleteMatchHistoryBundleProvider(uid).future);
 });
 
+/// Placares de aluguel confirmados do atleta logado, como linhas do
+/// Histórico. Sem a coleção (rules ainda não publicadas, sem rede) fica vazio
+/// e o Histórico segue só com torneio.
+final rentalMatchHistoryProvider =
+    Provider.autoDispose<List<AthleteMatchHistoryItem>>((ref) {
+  final uid = ref.watch(bookingResultUidProvider);
+  final all = ref.watch(myBookingResultsProvider).valueOrNull ?? const [];
+  return rentalHistoryItems(all, uid);
+});
+
+/// Placares de aluguel para confirmar, aguardando ou contestados.
+final rentalResultsNeedingAttentionProvider =
+    Provider.autoDispose<List<SavedBookingResult>>((ref) {
+  final uid = ref.watch(bookingResultUidProvider);
+  final all = ref.watch(myBookingResultsProvider).valueOrNull ?? const [];
+  return rentalResultsNeedingAttention(all, uid);
+});
+
 final matchHistoryTabProvider = StateProvider.autoDispose<MatchHistoryTab>(
     (ref) => MatchHistoryTab.matches);
 
@@ -36,14 +57,30 @@ class MatchHistoryDerived {
     required this.bundle,
     required this.tab,
     required this.filter,
+    this.rentalMatches = const [],
   });
 
   final AthleteMatchHistoryBundle bundle;
   final MatchHistoryTab tab;
   final MatchHistoryFilter filter;
 
+  /// Aluguéis confirmados: entram na lista, no mês e na temporada do
+  /// Histórico, não em [profilePreviewMatches] nem nos números do perfil.
+  final List<AthleteMatchHistoryItem> rentalMatches;
+
+  List<AthleteMatchHistoryItem> get allMatches =>
+      rentalMatches.isEmpty ? bundle.matches : [...bundle.matches, ...rentalMatches];
+
   List<AthleteMatchHistoryItem> get filteredMatches =>
-      filterMatches(bundle.matches, filter);
+      filterMatches(allMatches, filter);
+
+  AthleteSeasonSummary get seasonSummary => rentalMatches.isEmpty
+      ? bundle.seasonSummary
+      : buildSeasonSummary(
+          matches: allMatches,
+          year: bundle.seasonSummary.year,
+          trendPercent: bundle.seasonSummary.trendPercent,
+        );
 
   List<MatchHistoryMonthGroup> get monthGroups =>
       groupMatchesByMonth(filteredMatches);
@@ -51,7 +88,7 @@ class MatchHistoryDerived {
   TournamentMedalCounts get medalCounts =>
       countTournamentMedals(bundle.tournaments);
 
-  int get matchCount => bundle.matches.length;
+  int get matchCount => allMatches.length;
 
   int get tournamentCount => bundle.tournaments.length;
 
@@ -77,6 +114,7 @@ final matchHistoryDerivedProvider =
       bundle: bundle,
       tab: ref.watch(matchHistoryTabProvider),
       filter: ref.watch(matchHistoryFilterProvider),
+      rentalMatches: ref.watch(rentalMatchHistoryProvider),
     ),
   );
 });

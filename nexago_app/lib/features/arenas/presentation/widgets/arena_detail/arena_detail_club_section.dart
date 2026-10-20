@@ -122,7 +122,7 @@ class _ClubSessionCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: isFull
-                              ? AppColors.live
+                              ? context.themeColors.live
                               : context.themeColors.onSurfaceMuted,
                           fontWeight:
                               isFull ? FontWeight.w700 : FontWeight.w500,

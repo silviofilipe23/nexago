@@ -41,7 +41,7 @@ class BookingConfirmCancellationCard extends StatelessWidget {
             ),
             child: Icon(
               Icons.shield_outlined,
-              color: AppColors.win,
+              color: context.themeColors.win,
               size: 22,
             ),
           ),

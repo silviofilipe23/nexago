@@ -282,8 +282,8 @@ class _ResultSummary extends StatelessWidget {
       outcome = bookingResultOutcome(result, ownerTeamId);
     }
     final outcomeColor = switch (outcome) {
-      'VITÓRIA' => AppColors.win,
-      'DERROTA' => AppColors.live,
+      'VITÓRIA' => colors.win,
+      'DERROTA' => colors.live,
       _ => colors.onSurfaceMuted,
     };
 
@@ -359,14 +359,14 @@ class BookingResultStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final (icon, tint) = switch (saved.status) {
-      BookingResultStatus.confirmed => (Icons.verified_rounded, AppColors.win),
+      BookingResultStatus.confirmed => (Icons.verified_rounded, colors.win),
       BookingResultStatus.disputed => (
           Icons.report_gmailerrorred_rounded,
-          AppColors.live
+          colors.live
         ),
       BookingResultStatus.pending => (
           Icons.schedule_rounded,
-          AppColors.pending
+          colors.pending
         ),
     };
     return Row(

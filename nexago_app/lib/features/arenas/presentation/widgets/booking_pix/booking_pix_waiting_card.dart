@@ -29,7 +29,7 @@ class BookingPixWaitingCard extends StatelessWidget {
             ),
             child: Icon(
               Icons.radio_button_checked_rounded,
-              color: AppColors.pending,
+              color: context.themeColors.pending,
               size: 22,
             ),
           ),

@@ -62,7 +62,7 @@ class SlotsSlotTile extends StatelessWidget {
         ? context.themeColors.onSurfaceMuted
         : occupied
             ? context.themeColors.onSurfaceMuted
-            : AppColors.win;
+            : context.themeColors.win;
 
     Widget card = Material(
       color: context.themeColors.surfaceCard,
@@ -101,7 +101,7 @@ class SlotsSlotTile extends StatelessWidget {
                       Text(
                         'ÚLTIMO SLOT',
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppColors.pending,
+                          color: context.themeColors.pending,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0.4,
                         ),

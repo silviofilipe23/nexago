@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -30,7 +29,7 @@ class FocusTournamentNumbers extends StatelessWidget {
 
     final setsColor = switch (numbers.setsWon.compareTo(numbers.setsLost)) {
       > 0 => colors.win,
-      < 0 => AppColors.live,
+      < 0 => colors.live,
       _ => colors.onSurface,
     };
 

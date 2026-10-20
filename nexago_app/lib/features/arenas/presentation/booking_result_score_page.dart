@@ -334,10 +334,10 @@ class _BookingResultScorePageState extends State<BookingResultScorePage> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.schedule_rounded,
                     size: 16,
-                    color: AppColors.pending,
+                    color: context.themeColors.pending,
                   ),
                   const SizedBox(width: 10),
                   Expanded(

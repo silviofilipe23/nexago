@@ -23,6 +23,12 @@ abstract final class AppColors {
   static const Color win = Color(0xFF2BD17E);
   static const Color pending = Color(0xFFF4C543);
 
+  // Status no tema claro: o mesmo matiz escurecido para texto e ícone (ver
+  // `AppThemeColors.win`). Os de cima somem no branco.
+  static const Color winLight = Color(0xFF187345);
+  static const Color liveLight = Color(0xFFB3261E);
+  static const Color pendingLight = Color(0xFF845C00);
+
   // Text
   static const Color onSurface = Color(0xFFF5F5F7);
   static const Color onSurfaceMuted = Color(0xFF9A9AA3);

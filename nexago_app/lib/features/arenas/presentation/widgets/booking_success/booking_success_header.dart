@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/feedback/feedback_page.dart';
 import '../../../../../core/theme/app_typography.dart';
@@ -30,7 +29,7 @@ class BookingSuccessHeader extends StatelessWidget {
           style: AppTypography.mono(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: AppColors.win,
+            color: context.themeColors.win,
             letterSpacing: 2.4,
           ),
         ),

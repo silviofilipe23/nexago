@@ -70,7 +70,7 @@ class MatchHistorySeasonCard extends StatelessWidget {
                     '+${summary.trendPercent!.round()}%',
                     style: theme.textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.win,
+                      color: context.themeColors.win,
                     ),
                   ),
                 ),

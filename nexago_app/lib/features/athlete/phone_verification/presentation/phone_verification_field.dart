@@ -77,7 +77,7 @@ class PhoneVerificationField extends StatelessWidget {
                       : Icons.chat_bubble_outline_rounded,
                   size: 20,
                   color: verified
-                      ? AppColors.win
+                      ? context.themeColors.win
                       : context.themeColors.onSurfaceMuted,
                 ),
                 SizedBox(width: 12),
@@ -106,7 +106,7 @@ class PhoneVerificationField extends StatelessWidget {
                           : 'Verificar por SMS é opcional',
                       helperStyle: theme.textTheme.bodySmall?.copyWith(
                         color: verified
-                            ? AppColors.win
+                            ? context.themeColors.win
                             : context.themeColors.onSurfaceMuted,
                       ),
                     ),
@@ -125,7 +125,7 @@ class PhoneVerificationField extends StatelessWidget {
           SizedBox(height: 6),
           Text(
             errorText!,
-            style: theme.textTheme.bodySmall?.copyWith(color: AppColors.live),
+            style: theme.textTheme.bodySmall?.copyWith(color: context.themeColors.live),
           ),
         ],
       ],

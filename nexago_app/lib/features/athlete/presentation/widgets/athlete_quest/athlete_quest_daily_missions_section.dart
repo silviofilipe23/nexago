@@ -124,7 +124,7 @@ class _MissionCard extends StatelessWidget {
             ),
             child: Icon(
               completed ? Icons.check_rounded : icon,
-              color: completed ? AppColors.win : AppColors.brand,
+              color: completed ? context.themeColors.win : AppColors.brand,
               size: 22,
             ),
           ),
@@ -137,7 +137,7 @@ class _MissionCard extends StatelessWidget {
                   title,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: completed ? AppColors.win : context.themeColors.onSurface,
+                    color: completed ? context.themeColors.win : context.themeColors.onSurface,
                   ),
                 ),
                 SizedBox(height: 2),

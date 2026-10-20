@@ -513,7 +513,9 @@ class _Hint extends StatelessWidget {
       child: Text(
         text,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: isError ? AppColors.live : context.themeColors.onSurfaceMuted,
+              color: isError
+                  ? context.themeColors.live
+                  : context.themeColors.onSurfaceMuted,
               fontWeight: isError ? FontWeight.w600 : null,
             ),
       ),

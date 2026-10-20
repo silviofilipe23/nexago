@@ -35,6 +35,10 @@ class AthleteNotificationCard extends StatelessWidget {
     final theme = Theme.of(context);
     final unread = notification.isUnread;
     final actions = presentation.actions;
+    // O ícone e a linha de status pintam o tom de estado; o fundo do ícone
+    // segue o translúcido cru.
+    final iconColor =
+        context.themeColors.readableTone(presentation.iconColor);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -89,7 +93,7 @@ class AthleteNotificationCard extends StatelessWidget {
                                 ),
                                 child: Icon(
                                   presentation.icon,
-                                  color: presentation.iconColor,
+                                  color: iconColor,
                                   size: 22,
                                 ),
                               ),
@@ -142,7 +146,7 @@ class AthleteNotificationCard extends StatelessWidget {
                                         presentation.statusLine!,
                                         style:
                                             theme.textTheme.bodySmall?.copyWith(
-                                          color: presentation.iconColor,
+                                          color: iconColor,
                                           fontWeight: FontWeight.w700,
                                           height: 1.3,
                                         ),
@@ -270,7 +274,7 @@ class _ActionButton extends StatelessWidget {
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
         foregroundColor: action.isDestructive
-            ? AppColors.live
+            ? context.themeColors.live
             : context.themeColors.onSurface,
         side: BorderSide(
           color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),

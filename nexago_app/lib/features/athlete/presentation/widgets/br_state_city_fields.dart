@@ -147,7 +147,7 @@ class _BrStateCityFieldsState extends ConsumerState<BrStateCityFields> {
       error: (e, _) => Text(
         'Não foi possível carregar cidades: $e',
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.live,
+              color: context.themeColors.live,
             ),
       ),
       data: (data) {

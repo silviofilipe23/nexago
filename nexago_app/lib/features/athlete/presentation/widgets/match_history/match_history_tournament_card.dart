@@ -110,7 +110,7 @@ class MatchHistoryTournamentCard extends StatelessWidget {
                           _MetaPill(
                             label: record,
                             background: AppColors.win.withValues(alpha: 0.12),
-                            foreground: AppColors.win,
+                            foreground: colors.win,
                             borderColor: AppColors.win.withValues(alpha: 0.22),
                             mono: true,
                           ),

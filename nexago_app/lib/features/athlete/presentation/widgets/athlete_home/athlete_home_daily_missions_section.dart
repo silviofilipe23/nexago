@@ -115,7 +115,9 @@ class _MissionRow extends StatelessWidget {
               ? Icons.check_circle_rounded
               : Icons.radio_button_unchecked_rounded,
           size: 20,
-          color: status.completed ? AppColors.win : context.themeColors.onSurfaceMuted,
+          color: status.completed
+              ? context.themeColors.win
+              : context.themeColors.onSurfaceMuted,
         ),
         SizedBox(width: 10),
         Expanded(
@@ -124,7 +126,7 @@ class _MissionRow extends StatelessWidget {
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w700,
               color:
-                  status.completed ? AppColors.win : context.themeColors.onSurface,
+                  status.completed ? context.themeColors.win : context.themeColors.onSurface,
             ),
           ),
         ),

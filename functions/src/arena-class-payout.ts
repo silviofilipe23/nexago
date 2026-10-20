@@ -616,6 +616,12 @@ export async function setTeacherPayoutStatusCore(
       return {payoutId, status: "paid"};
     }
     if (current !== "paid") return {payoutId, status: current};
+    // Pago pelo nexaGO: o valor já saiu do caixa e está no saldo do professor — desfazer aqui
+    // criaria dinheiro. Só o suporte estorna (manual).
+    if (snap.data()?.["paymentMethod"] === "nexago") {
+      throw new HttpsError("failed-precondition",
+        "Repasse pago pelo nexaGO não pode ser desfeito: o valor já está no saldo do professor.");
+    }
     tx.set(ref, {
       status: "closed",
       paidOn: null,

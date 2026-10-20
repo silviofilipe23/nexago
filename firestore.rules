@@ -2289,6 +2289,22 @@ service cloud.firestore {
         (!('note' in request.resource.data) || (request.resource.data.note is string && request.resource.data.note.size() <= 300)) &&
         request.resource.data.updatedAt == request.time;
     }
+    // Ganhos do professor de equipe (repasse pago pelo nexaGO) e os saques dele: só leitura do
+    // dono; toda escrita é das functions (professor-earnings.ts).
+    match /professorEarningsWallets/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin() || isSuperAdmin());
+      allow write: if false;
+      match /ledger/{entryId} {
+        allow read: if request.auth != null && (request.auth.uid == uid || isAdmin() || isSuperAdmin());
+        allow write: if false;
+      }
+    }
+    match /professorWithdrawals/{withdrawalId} {
+      allow read: if request.auth != null && (
+        resource.data.professorUid == request.auth.uid || isAdmin() || isSuperAdmin()
+      );
+      allow write: if false;
+    }
     // Comunicados do professor: ele lê os dele; o aluno lê o enviado em que está na lista.
     // Leitura/resposta do aluno vão por callable (respondProfessorNotice).
     match /professorNotices/{noticeId} {

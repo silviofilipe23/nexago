@@ -60,7 +60,7 @@ const ORGANIZER_WITHDRAWALS = "organizerWithdrawals";
 /** Admin `getAll` aceita no máximo 100 refs por chamada. */
 const GET_ALL_CHUNK = 100;
 
-async function assertPlatformAdmin(uid: string): Promise<void> {
+export async function assertPlatformAdmin(uid: string): Promise<void> {
   let caller;
   try {
     caller = await getAuth().getUser(uid);

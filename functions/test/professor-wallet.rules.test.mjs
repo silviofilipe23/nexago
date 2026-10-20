@@ -120,3 +120,19 @@ test('comunicado: professor lê os dele; aluno só o enviado em que está; ningu
   await assertFails(getDoc(doc(as(OUTRO), `professorNotices/n1/recipients/${ALUNO}`)));
   await assertFails(setDoc(doc(as(PROF), 'professorNotices/n3'), { professorUid: PROF, status: 'sent' }));
 });
+
+test('ganhos do professor: só o dono lê saldo, extrato e saques; ninguém escreve', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `professorEarningsWallets/${PROF}`), { availableReais: 100 });
+    await setDoc(doc(db, `professorEarningsWallets/${PROF}/ledger/l1`), { type: 'repasse' });
+    await setDoc(doc(db, 'professorWithdrawals/w1'), { professorUid: PROF, amountReais: 50 });
+  });
+  await assertSucceeds(getDoc(doc(as(PROF), `professorEarningsWallets/${PROF}`)));
+  await assertSucceeds(getDocs(collection(as(PROF), `professorEarningsWallets/${PROF}/ledger`)));
+  await assertSucceeds(getDocs(query(collection(as(PROF), 'professorWithdrawals'), where('professorUid', '==', PROF))));
+  await assertFails(getDoc(doc(as(OUTRO), `professorEarningsWallets/${PROF}`)));
+  await assertFails(getDoc(doc(as(OUTRO), 'professorWithdrawals/w1')));
+  await assertFails(setDoc(doc(as(PROF), `professorEarningsWallets/${PROF}`), { availableReais: 9999 }));
+  await assertFails(setDoc(doc(as(PROF), 'professorWithdrawals/w2'), { professorUid: PROF, amountReais: 1 }));
+});

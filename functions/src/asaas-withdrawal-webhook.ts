@@ -14,6 +14,7 @@
  * vira `rejected` — o mesmo desfecho da recusa no backoffice, que todas as
  * telas (inclusive o app já publicado) mostram como "Falhou".
  */
+import {PROFESSOR_WITHDRAWAL_REF_PREFIX, PROFESSOR_WITHDRAWALS} from "./professor-earnings-wallet";
 import {
   FieldValue,
   type DocumentReference,
@@ -62,6 +63,7 @@ export function parseWithdrawalReference(
   const prefixes: Array<[string, WithdrawalKind, string]> = [
     [ORGANIZER_WITHDRAWAL_REF_PREFIX, "organizer", ORGANIZER_WITHDRAWALS],
     [ARENA_WITHDRAWAL_REF_PREFIX, "arena", ARENA_WITHDRAWALS],
+    [PROFESSOR_WITHDRAWAL_REF_PREFIX, "professor", PROFESSOR_WITHDRAWALS],
   ];
   for (const [prefix, kind, collection] of prefixes) {
     if (!ref.startsWith(prefix)) continue;
@@ -90,6 +92,7 @@ export async function findWithdrawalForTransfer(
   const lookups: Array<[WithdrawalKind, string]> = [
     ["arena", ARENA_WITHDRAWALS],
     ["organizer", ORGANIZER_WITHDRAWALS],
+    ["professor", PROFESSOR_WITHDRAWALS],
   ];
   for (const [kind, collection] of lookups) {
     const snap = await db.collection(collection)
@@ -125,7 +128,9 @@ export const notifyWithdrawalTransferFailed: WithdrawalFailureNotifier = async (
   const w = failure.withdrawal;
   const userId = failure.kind === "arena" ?
     (w.managerUserId as string | undefined)?.trim() :
-    ((w.requestedBy as string | undefined)?.trim() || (w.organizerId as string | undefined)?.trim());
+    failure.kind === "professor" ?
+      (w.professorUid as string | undefined)?.trim() :
+      ((w.requestedBy as string | undefined)?.trim() || (w.organizerId as string | undefined)?.trim());
   if (!userId) return;
   try {
     await deliverNotificationToUser({
@@ -135,7 +140,8 @@ export const notifyWithdrawalTransferFailed: WithdrawalFailureNotifier = async (
         `Seu saque de R$ ${failure.amountReais.toFixed(2).replace(".", ",")} não foi concluído. ` +
         "O valor voltou para o seu caixa — confira a chave PIX e peça o saque de novo.",
       type: "withdrawal_transfer_failed",
-      data: failure.kind === "organizer" ? {...ORGANIZER_WALLET_NOTIFICATION_LINKS} : {},
+      data: failure.kind === "organizer" ? {...ORGANIZER_WALLET_NOTIFICATION_LINKS} :
+        failure.kind === "professor" ? {url: "/professor/mais/ganhos"} : {},
     });
   } catch (err) {
     logger.warn("notifyWithdrawalTransferFailed falhou", err);

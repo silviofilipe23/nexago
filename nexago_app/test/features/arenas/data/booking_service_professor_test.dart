@@ -44,6 +44,28 @@ void main() {
     expect(functions.payloads.first?.containsKey('asProfessor'), isFalse);
   });
 
+  test('aula da carteira: professorStudentId só junto com asProfessor',
+      () async {
+    final functions = _FakeFunctions(responses: {'createArenaBooking': ok});
+    final service = BookingService(_UnusedFirestore(), functions: functions);
+
+    await service.createBookingAtomically(
+      args: args,
+      athleteId: 'u1',
+      asProfessor: true,
+      professorStudentId: 'ath-paulo',
+    );
+    await service.createBookingAtomically(
+      args: args,
+      athleteId: 'u1',
+      professorStudentId: 'ath-paulo',
+    );
+
+    expect(functions.payloads[0]?['professorStudentId'], 'ath-paulo');
+    expect(functions.payloads[1]?.containsKey('professorStudentId'), isFalse);
+    expect(functions.payloads[1]?.containsKey('asProfessor'), isFalse);
+  });
+
   for (final reason in ['no_link', 'not_active', 'permission_off']) {
     test('recusa do vínculo ($reason): código próprio e a copy do servidor',
         () async {

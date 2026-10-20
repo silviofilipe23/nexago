@@ -12,6 +12,7 @@ import '../../../arena/domain/aulas/arena_class_logic.dart';
 import '../../../arena/presentation/aulas/widgets/arena_class_atoms.dart';
 import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../application/professor_wallet_providers.dart';
+import '../../domain/professor_lessons.dart';
 import '../../domain/professor_wallet.dart';
 import '../../domain/professor_wallet_logic.dart';
 import '../widgets/professor_students_widgets.dart';
@@ -24,8 +25,9 @@ void openProfessorWalletStudent(BuildContext context, String athleteId) =>
       pathParameters: {'athleteId': athleteId},
     );
 
-/// B16 Carteira própria: recebido no mês (líquido), a receber, atrasados com
-/// "Lembrar", alunos da carteira e as cobranças recentes.
+/// B16 Carteira própria: líquido do mês (recebido − custo de quadra), a
+/// receber, atrasados com "Lembrar", custo de quadra (reservas como
+/// professor), alunos da carteira e as cobranças recentes.
 class ProfessorWalletPage extends ConsumerWidget {
   const ProfessorWalletPage({super.key});
 
@@ -45,6 +47,11 @@ class ProfessorWalletPage extends ConsumerWidget {
         ? null
         : professorWalletSummary(charges, todayKey: todayKey);
     final month = professorMonthName(todayKey.substring(0, 7));
+    final bookingsAsync = ref.watch(professorCourtBookingsProvider);
+    final courtCost = professorCourtCostOfMonth(
+      bookingsAsync.valueOrNull ?? const [],
+      todayKey: todayKey,
+    );
 
     return ProfessorLinksScaffold(
       title: 'Carteira própria',
@@ -66,7 +73,7 @@ class ProfessorWalletPage extends ConsumerWidget {
           else if (summary == null)
             const ProfessorWalletLoading()
           else ...[
-            _Hero(summary: summary, month: month),
+            _Hero(summary: summary, month: month, courtCost: courtCost),
             if (summary.overdue.isNotEmpty) ...[
               const SizedBox(height: 22),
               ProfessorLinksKicker(
@@ -78,6 +85,27 @@ class ProfessorWalletPage extends ConsumerWidget {
                 _OverdueRow(charge: c, todayKey: todayKey),
             ],
           ],
+          const SizedBox(height: 22),
+          const ProfessorLinksKicker('Custo de quadra'),
+          const SizedBox(height: 8),
+          ProfessorRowsBlock(
+            key: const Key('professor-wallet-court-cost'),
+            children: [
+              ProfessorInfoRow(
+                key: const Key('professor-wallet-court-past'),
+                label: 'Reservas do mês',
+                value: formatBRL(courtCost.pastReais),
+                sub: _reservas(courtCost.pastCount),
+              ),
+              ProfessorInfoRow(
+                key: const Key('professor-wallet-court-upcoming'),
+                label: 'Próximas reservadas',
+                value: formatBRL(courtCost.upcomingReais),
+                sub: '${_reservas(courtCost.upcomingCount)} até o fim do mês',
+                last: true,
+              ),
+            ],
+          ),
           const SizedBox(height: 22),
           Row(
             children: [
@@ -146,11 +174,19 @@ class ProfessorWalletPage extends ConsumerWidget {
   }
 }
 
+String _reservas(int n) => '$n reserva${n == 1 ? '' : 's'} como professor';
+
+/// Líquido do mês = recebido dos alunos − custo de quadra (como no B16).
 class _Hero extends StatelessWidget {
-  const _Hero({required this.summary, required this.month});
+  const _Hero({
+    required this.summary,
+    required this.month,
+    required this.courtCost,
+  });
 
   final ProfessorWalletSummary summary;
   final String month;
+  final ProfessorCourtCost courtCost;
 
   @override
   Widget build(BuildContext context) {
@@ -172,23 +208,36 @@ class _Hero extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ProfessorLinksKicker('Recebido em $month', color: blue),
+          ProfessorLinksKicker('Líquido em $month', color: blue),
           const SizedBox(height: 8),
           Text(
-            formatBRL(summary.receivedNet),
-            key: const Key('professor-wallet-received'),
+            formatBRL(summary.receivedNet - courtCost.totalReais),
+            key: const Key('professor-wallet-net'),
             style: ProfessorLinksStyle.display(36, color: colors.onSurface),
           ),
-          const SizedBox(height: 2),
-          Text(
-            'líquido · ${summary.receivedCount} pagamento'
-            '${summary.receivedCount == 1 ? '' : 's'}',
-            style: AppTypography.bodyS.copyWith(
-              fontSize: 11.5,
-              color: ProfessorLinksStyle.dim(colors),
-            ),
-          ),
           const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _HeroFigure(
+                  value: formatBRL(summary.receivedNet),
+                  valueKey: const Key('professor-wallet-received'),
+                  label: 'recebido de alunos · ${summary.receivedCount} '
+                      'pagamento${summary.receivedCount == 1 ? '' : 's'}',
+                  color: AppColors.win,
+                ),
+              ),
+              _HeroFigure(
+                value: '− ${formatBRL(courtCost.totalReais)}',
+                valueKey: const Key('professor-wallet-court-total'),
+                label: '${courtCost.count} reserva'
+                    '${courtCost.count == 1 ? '' : 's'} de quadra',
+                color: ProfessorLinksStyle.mute(colors),
+                end: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(

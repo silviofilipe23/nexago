@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/router/routes.dart';
+import 'package:nexago_app/features/professor_links/application/professor_links_providers.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_wallet.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_students_repository.dart';
 import 'package:nexago_app/features/professor_mode/presentation/professor_student_page.dart';
@@ -28,6 +29,10 @@ Future<void> openList(
       walletRepo: wallet,
       location: AppRoutes.professorStudents,
       extraRoutes: professorWalletRoutes,
+      overrides: [
+        // O aluno da carteira (B4) lê os vínculos para "Nova aula".
+        myProfessorLinksProvider.overrideWith((ref) => Stream.value(const [])),
+      ],
     );
 
 void main() {

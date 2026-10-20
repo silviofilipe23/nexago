@@ -69,15 +69,25 @@ int professorPendingCount(List<ProfessorStudent> inScope) =>
 
 /// Subtítulo do cabeçalho: "TODAS AS ARENAS · 39 ALUNOS" /
 /// "ARENA CFC · 31 ALUNOS · 2 PENDENTES".
+/// [walletCount] soma os alunos da carteira própria (fase 3) em "Todas as
+/// arenas" e no escopo [walletScope].
 String professorStudentsHeaderSubtitle({
   required ProfessorStudentsSnapshot snapshot,
   required String? arenaId,
+  int walletCount = 0,
+  String? walletScope,
 }) {
-  final inScope = professorStudentsInScope(snapshot.students, arenaId);
-  final where = arenaId == null
-      ? 'Todas as arenas'
-      : snapshot.arena(arenaId)?.arenaName ?? 'Arena';
-  final count = inScope.length;
+  final wallet = walletScope != null && arenaId == walletScope;
+  final inScope = wallet
+      ? const <ProfessorStudent>[]
+      : professorStudentsInScope(snapshot.students, arenaId);
+  final where = wallet
+      ? 'Carteira própria'
+      : arenaId == null
+          ? 'Todas as arenas'
+          : snapshot.arena(arenaId)?.arenaName ?? 'Arena';
+  final count =
+      inScope.length + (wallet || arenaId == null ? walletCount : 0);
   final pending = professorPendingCount(inScope);
   return [
     where,

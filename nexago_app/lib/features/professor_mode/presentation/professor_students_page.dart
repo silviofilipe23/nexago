@@ -11,15 +11,22 @@ import '../../arena/domain/aulas/arena_class_logic.dart';
 import '../../arena/presentation/aulas/widgets/arena_class_atoms.dart';
 import '../../arena/presentation/aulas/widgets/arena_class_form_atoms.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
+import '../../professor_links/domain/arena_professor_link.dart';
 import '../application/professor_students_providers.dart';
+import '../application/professor_wallet_providers.dart';
 import '../domain/professor_students.dart';
 import '../domain/professor_students_logic.dart';
+import '../domain/professor_wallet.dart';
+import '../domain/professor_wallet_logic.dart';
+import 'wallet/professor_wallet_page.dart'
+    show ProfessorWalletStudentRow, openProfessorWalletStudent;
 import 'professor_shell_page.dart';
 import 'widgets/professor_students_widgets.dart';
 
 /// Aba Alunos do modo Professor (A5 + B2): os alunos das turmas em que ele
 /// dá aula, por arena ("Ver alunos de…"), com busca e chips. Toque abre o
-/// aluno (B3).
+/// aluno (B3). Os da carteira própria (fase 3) entram em "Todas as arenas"
+/// e no escopo "Carteira própria", com o selo azul; toque abre o B4.
 class ProfessorStudentsPage extends ConsumerStatefulWidget {
   const ProfessorStudentsPage({super.key});
 
@@ -49,13 +56,20 @@ class _ProfessorStudentsPageState extends ConsumerState<ProfessorStudentsPage> {
     final colors = context.themeColors;
     final async = ref.watch(professorStudentsProvider);
     final snapshot = async.valueOrNull;
+    final wallet =
+        ref.watch(professorWalletStudentsProvider).valueOrNull ?? const [];
+    // O escopo "Carteira própria" só aparece com aluno na carteira.
+    final hasWallet = wallet.isNotEmpty;
     final rawArenaId = ref.watch(professorStudentsArenaProvider);
     // A arena escolhida pode ter sumido (vínculo encerrado): volta a "todas".
-    final arenaId = snapshot != null &&
-            rawArenaId != null &&
-            snapshot.arena(rawArenaId) == null
-        ? null
-        : rawArenaId;
+    final arenaId = rawArenaId == kProfessorWalletScope
+        ? (hasWallet ? rawArenaId : null)
+        : snapshot != null &&
+                rawArenaId != null &&
+                snapshot.arena(rawArenaId) == null
+            ? null
+            : rawArenaId;
+    final scopes = (snapshot?.arenas.length ?? 0) + (hasWallet ? 1 : 0);
     final filter = ref.watch(professorStudentsFilterProvider);
 
     return Scaffold(
@@ -82,6 +96,8 @@ class _ProfessorStudentsPageState extends ConsumerState<ProfessorStudentsPage> {
                       professorStudentsHeaderSubtitle(
                         snapshot: snapshot,
                         arenaId: arenaId,
+                        walletCount: wallet.length,
+                        walletScope: kProfessorWalletScope,
                       ),
                       key: const Key('professor-students-subtitle'),
                       maxLines: 1,
@@ -95,13 +111,18 @@ class _ProfessorStudentsPageState extends ConsumerState<ProfessorStudentsPage> {
                 ],
               ),
             ),
-            if ((snapshot?.arenas.length ?? 0) > 1) ...[
+            if (scopes > 1) ...[
               const SizedBox(width: 12),
               ProfessorLinksRoundButton(
                 key: const Key('professor-students-scope'),
                 icon: Icons.swap_horiz_rounded,
                 semanticLabel: 'Ver alunos de outra arena',
-                onTap: () => _openScopeSheet(context, snapshot!, arenaId),
+                onTap: () => _openScopeSheet(
+                  context,
+                  snapshot!,
+                  arenaId,
+                  walletCount: hasWallet ? wallet.length : null,
+                ),
               ),
             ],
           ],
@@ -135,7 +156,7 @@ class _ProfessorStudentsPageState extends ConsumerState<ProfessorStudentsPage> {
                         ),
                       ),
                   ]
-                : _content(context, snapshot, arenaId, filter),
+                : _content(context, snapshot, arenaId, filter, wallet),
           ),
         ),
       ),
@@ -147,8 +168,9 @@ class _ProfessorStudentsPageState extends ConsumerState<ProfessorStudentsPage> {
     ProfessorStudentsSnapshot snapshot,
     String? arenaId,
     ProfessorStudentFilter filter,
+    List<ProfessorWalletStudent> wallet,
   ) {
-    if (snapshot.arenas.isEmpty) {
+    if (snapshot.arenas.isEmpty && wallet.isEmpty) {
       return const [
         ProfessorLinksCard(
           key: Key('professor-students-no-classes'),
@@ -159,26 +181,49 @@ class _ProfessorStudentsPageState extends ConsumerState<ProfessorStudentsPage> {
         ),
       ];
     }
-    final inScope = professorStudentsInScope(snapshot.students, arenaId);
-    final showPending = professorShowsPendingFilter(inScope);
+    final walletScope = arenaId == kProfessorWalletScope;
+    final inScope = walletScope
+        ? const <ProfessorStudent>[]
+        : professorStudentsInScope(snapshot.students, arenaId);
+    final walletInScope =
+        arenaId == null || walletScope ? wallet : const <ProfessorWalletStudent>[];
+    final charges =
+        ref.watch(professorWalletChargesProvider).valueOrNull ?? const [];
+    final todayKey = ref.watch(professorWalletTodayKeyProvider);
+    final showPending =
+        professorShowsPendingFilter(inScope) || walletInScope.isNotEmpty;
     final effectiveFilter =
         !showPending && filter == ProfessorStudentFilter.pending
             ? ProfessorStudentFilter.all
             : filter;
-    final visible = professorVisibleStudents(
-      snapshot.students,
-      arenaId: arenaId,
+    final visible = walletScope
+        ? const <ProfessorStudent>[]
+        : professorVisibleStudents(
+            snapshot.students,
+            arenaId: arenaId,
+            filter: effectiveFilter,
+            query: _search.text,
+          );
+    final visibleWallet = professorVisibleWalletStudents(
+      wallet,
+      scope: arenaId,
       filter: effectiveFilter,
       query: _search.text,
+      charges: charges,
+      todayKey: todayKey,
     );
     final blocked = [
-      for (final a in snapshot.arenas)
-        if (!a.canSeeStudents && (arenaId == null || a.arenaId == arenaId)) a,
+      if (!walletScope)
+        for (final a in snapshot.arenas)
+          if (!a.canSeeStudents && (arenaId == null || a.arenaId == arenaId))
+            a,
     ];
-    final withArena = arenaId == null && snapshot.arenas.length > 1;
+    final withArena = arenaId == null &&
+        snapshot.arenas.length + (wallet.isNotEmpty ? 1 : 0) > 1;
+    final anyInScope = inScope.isNotEmpty || walletInScope.isNotEmpty;
 
     return [
-      if (inScope.isNotEmpty) ...[
+      if (anyInScope) ...[
         _SearchField(
           controller: _search,
           onChanged: (_) => setState(() {}),
@@ -216,16 +261,21 @@ class _ProfessorStudentsPageState extends ConsumerState<ProfessorStudentsPage> {
           ),
         ),
       ],
-      if (inScope.isEmpty && blocked.isEmpty)
-        const ProfessorLinksCard(
-          child: ProfessorMutedText('Nenhum aluno nas suas turmas ainda.'),
+      if (!anyInScope && blocked.isEmpty)
+        ProfessorLinksCard(
+          child: ProfessorMutedText(
+            walletScope
+                ? 'Nenhum aluno na sua carteira ainda. Adicione em Mais › '
+                    'Carteira própria.'
+                : 'Nenhum aluno nas suas turmas ainda.',
+          ),
         )
-      else if (visible.isEmpty && inScope.isNotEmpty)
+      else if (visible.isEmpty && visibleWallet.isEmpty && anyInScope)
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 24),
           child: Center(child: ProfessorMutedText('Nenhum aluno encontrado.')),
         )
-      else
+      else ...[
         for (final s in visible)
           _StudentRow(
             key: Key('professor-student-${s.key}'),
@@ -236,17 +286,32 @@ class _ProfessorStudentsPageState extends ConsumerState<ProfessorStudentsPage> {
               pathParameters: {'arenaId': s.arenaId, 'studentId': s.studentId},
             ),
           ),
+        for (final w in visibleWallet)
+          ProfessorWalletStudentRow(
+            key: Key('professor-wallet-row-${w.athleteId}'),
+            student: w,
+            showWalletTag: true,
+            standing:
+                professorWalletStudentStanding(charges, w.athleteId, todayKey),
+            onTap: () => openProfessorWalletStudent(context, w.athleteId),
+          ),
+      ],
     ];
   }
 
   Future<void> _openScopeSheet(
     BuildContext context,
     ProfessorStudentsSnapshot snapshot,
-    String? current,
-  ) async {
+    String? current, {
+    int? walletCount,
+  }) async {
     final picked = await showProfessorLinksSheet<_ScopeChoice>(
       context,
-      builder: (_) => _ScopeSheet(snapshot: snapshot, current: current),
+      builder: (_) => _ScopeSheet(
+        snapshot: snapshot,
+        current: current,
+        walletCount: walletCount,
+      ),
     );
     if (picked == null || !mounted) return;
     ref.read(professorStudentsArenaProvider.notifier).state = picked.arenaId;
@@ -392,12 +457,20 @@ class _ScopeChoice {
   final String? arenaId;
 }
 
-/// "Ver alunos de…" (B2): todas as arenas ou uma, com o tipo do vínculo.
+/// "Ver alunos de…" (B2): todas as arenas, uma, ou a carteira própria (com
+/// o tipo do vínculo).
 class _ScopeSheet extends StatelessWidget {
-  const _ScopeSheet({required this.snapshot, required this.current});
+  const _ScopeSheet({
+    required this.snapshot,
+    required this.current,
+    this.walletCount,
+  });
 
   final ProfessorStudentsSnapshot snapshot;
   final String? current;
+
+  /// Alunos da carteira própria; `null` = sem a opção.
+  final int? walletCount;
 
   static String _count(int n) => '$n aluno${n == 1 ? '' : 's'}';
 
@@ -410,7 +483,8 @@ class _ScopeSheet extends StatelessWidget {
         ArenaClassChoiceCard(
           key: const Key('professor-scope-all'),
           title: 'Todas as arenas',
-          subtitle: '${_count(snapshot.students.length)} · visão unificada',
+          subtitle:
+              '${_count(snapshot.students.length + (walletCount ?? 0))} · visão unificada',
           selected: current == null,
           onTap: () => Navigator.of(context).pop(const _ScopeChoice(null)),
         ),
@@ -426,6 +500,19 @@ class _ScopeSheet extends StatelessWidget {
                 ? null
                 : ProfessorLinkTypeTag(a.type!, small: true),
             onTap: () => Navigator.of(context).pop(_ScopeChoice(a.arenaId)),
+          ),
+        if (walletCount != null)
+          ArenaClassChoiceCard(
+            key: const Key('professor-scope-wallet'),
+            title: 'Carteira própria',
+            subtitle: '${_count(walletCount!)} · seus preços e cobrança',
+            selected: current == kProfessorWalletScope,
+            trailing: const ProfessorLinkTypeTag(
+              ArenaProfessorLinkType.independent,
+              small: true,
+            ),
+            onTap: () => Navigator.of(context)
+                .pop(const _ScopeChoice(kProfessorWalletScope)),
           ),
       ],
     );

@@ -48,6 +48,22 @@ abstract final class AppRoutes {
   static const String professorWaitlist =
       '/professor/acoes/:arenaId/espera/:classId';
   static const String professorNotice = '/professor/acoes/:arenaId/comunicado';
+
+  /// Fase 3 — carteira do professor independente (Mais › Dinheiro, sem a barra).
+  static const String professorPayoutAccount = '/professor/mais/conta';
+  static const String professorWalletPlans = '/professor/mais/planos';
+  static const String professorWallet = '/professor/mais/carteira';
+  static const String professorWalletAddStudent =
+      '/professor/mais/carteira/adicionar';
+  static const String professorWalletStudent =
+      '/professor/mais/carteira/aluno/:athleteId';
+  static const String professorWalletCharge =
+      '/professor/mais/carteira/aluno/:athleteId/cobrar';
+
+  /// Convite do professor para o ATLETA entrar na carteira dele (push
+  /// `professor_student_invite`). Abre no modo Atleta.
+  static const String professorStudentInvite =
+      '/convite-professor/:professorUid';
   static const String organizerWallet = '/organizer/wallet';
 
   /// Editor do perfil público do organizador (logo, capa, bio, WhatsApp).
@@ -720,6 +736,13 @@ abstract final class AppRouteNames {
   static const String professorMakeup = 'professorMakeup';
   static const String professorWaitlist = 'professorWaitlist';
   static const String professorNotice = 'professorNotice';
+  static const String professorPayoutAccount = 'professorPayoutAccount';
+  static const String professorWalletPlans = 'professorWalletPlans';
+  static const String professorWallet = 'professorWallet';
+  static const String professorWalletAddStudent = 'professorWalletAddStudent';
+  static const String professorWalletStudent = 'professorWalletStudent';
+  static const String professorWalletCharge = 'professorWalletCharge';
+  static const String professorStudentInvite = 'professorStudentInvite';
   static const String organizerWallet = 'organizerWallet';
   static const String organizerCreate = 'organizerCreate';
   static const String organizerTournamentCreateExpress =

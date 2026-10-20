@@ -28,9 +28,13 @@ export const PROFESSOR_PRICE_MAX_REAIS = 10_000;
 /** A recorrente nasce N dias antes do vencimento. */
 export const PROFESSOR_RECURRING_LEAD_DAYS = 5;
 
-export type ProfessorAccountStatus = "pending" | "approved" | "rejected";
+/** `creating`/`failed`: tentativa de criar a subconta em andamento ou sem sucesso (sem `walletId`). */
+export type ProfessorAccountStatus = "creating" | "failed" | "pending" | "approved" | "rejected";
 export type ProfessorPlanKind = "single" | "package" | "monthly";
-export type ProfessorChargeStatus = "open" | "paid" | "canceled" | "refunded";
+/** `creating` → `open`; `failed` = criação no Asaas não confirmada (conferir antes de recobrar). */
+export type ProfessorChargeStatus = "creating" | "open" | "failed" | "paid" | "canceled" | "refunded";
+/** Aluno da carteira: convite enviado, aceito, recusado pelo atleta ou arquivado pelo professor. */
+export type ProfessorStudentStatus = "invited" | "active" | "declined" | "archived";
 
 function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";

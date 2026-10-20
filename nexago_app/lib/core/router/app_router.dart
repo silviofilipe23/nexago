@@ -180,6 +180,13 @@ import '../../features/professor_mode/presentation/professor_more_page.dart';
 import '../../features/professor_mode/presentation/professor_shell_page.dart';
 import '../../features/professor_mode/presentation/professor_student_page.dart';
 import '../../features/professor_mode/presentation/professor_students_page.dart';
+import '../../features/professor_mode/presentation/wallet/professor_payout_account_page.dart';
+import '../../features/professor_mode/presentation/wallet/professor_student_invite_page.dart';
+import '../../features/professor_mode/presentation/wallet/professor_wallet_add_student_page.dart';
+import '../../features/professor_mode/presentation/wallet/professor_wallet_charge_page.dart';
+import '../../features/professor_mode/presentation/wallet/professor_wallet_page.dart';
+import '../../features/professor_mode/presentation/wallet/professor_wallet_plans_page.dart';
+import '../../features/professor_mode/presentation/wallet/professor_wallet_student_page.dart';
 import '../../features/professor_links/presentation/professor_my_arenas_page.dart';
 import '../../features/store/domain/store_checkout_models.dart';
 import '../../features/store/presentation/store_address_page.dart';
@@ -447,6 +454,52 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                     path: 'turmas',
                     name: AppRouteNames.professorClasses,
                     builder: (context, state) => const ProfessorClassesPage(),
+                  ),
+                  // Fase 3: carteira do professor independente.
+                  GoRoute(
+                    path: 'conta',
+                    name: AppRouteNames.professorPayoutAccount,
+                    builder: (context, state) =>
+                        const ProfessorPayoutAccountPage(),
+                  ),
+                  GoRoute(
+                    path: 'planos',
+                    name: AppRouteNames.professorWalletPlans,
+                    builder: (context, state) =>
+                        const ProfessorWalletPlansPage(),
+                  ),
+                  GoRoute(
+                    path: 'carteira',
+                    name: AppRouteNames.professorWallet,
+                    builder: (context, state) => const ProfessorWalletPage(),
+                    routes: [
+                      GoRoute(
+                        path: 'adicionar',
+                        name: AppRouteNames.professorWalletAddStudent,
+                        builder: (context, state) =>
+                            const ProfessorWalletAddStudentPage(),
+                      ),
+                      GoRoute(
+                        path: 'aluno/:athleteId',
+                        name: AppRouteNames.professorWalletStudent,
+                        builder: (context, state) => ProfessorWalletStudentPage(
+                          athleteId:
+                              state.pathParameters['athleteId']?.trim() ?? '',
+                        ),
+                        routes: [
+                          GoRoute(
+                            path: 'cobrar',
+                            name: AppRouteNames.professorWalletCharge,
+                            builder: (context, state) =>
+                                ProfessorWalletChargePage(
+                              athleteId:
+                                  state.pathParameters['athleteId']?.trim() ??
+                                      '',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -2693,6 +2746,15 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final args = extra is BookingSuccessArgs ? extra : null;
           return BookingSuccessPage(args: args);
         },
+      ),
+      // Convite do professor para a carteira dele (push
+      // `professor_student_invite`); o atleta aceita ou recusa.
+      GoRoute(
+        path: AppRoutes.professorStudentInvite,
+        name: AppRouteNames.professorStudentInvite,
+        builder: (context, state) => ProfessorStudentInvitePage(
+          professorUid: state.pathParameters['professorUid']?.trim() ?? '',
+        ),
       ),
       GoRoute(
         path: AppRoutes.bookingInvite,

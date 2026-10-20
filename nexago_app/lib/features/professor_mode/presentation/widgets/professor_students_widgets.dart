@@ -176,7 +176,6 @@ class ProfessorInfoRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            flex: 3,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -203,7 +202,6 @@ class ProfessorInfoRow extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Flexible(
-            flex: 2,
             child: Align(
               alignment: Alignment.centerRight,
               child: Text(

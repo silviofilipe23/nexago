@@ -9,6 +9,10 @@ abstract final class AppColors {
   static const Color brandHover = Color(0xFFFF8A4A);
   static const Color brandPressed = Color(0xFFE5560E);
 
+  // Laranja da marca como texto e ícone no tema claro (ver
+  // `AppThemeColors.brandText`). O de cima dá 2,9:1 no branco.
+  static const Color brandTextLight = Color(0xFFAE3A0A);
+
   // Surfaces — Dark (native)
   static const Color canvas = Color(0xFF050505);
   static const Color surfaceCard = Color(0xFF0B0B0C);

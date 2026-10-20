@@ -30,7 +30,7 @@ class MyBookingsStreakBanner extends StatelessWidget {
             ),
             child: Icon(
               Icons.local_fire_department_rounded,
-              color: AppColors.brand,
+              color: context.themeColors.brandText,
               size: 22,
             ),
           ),

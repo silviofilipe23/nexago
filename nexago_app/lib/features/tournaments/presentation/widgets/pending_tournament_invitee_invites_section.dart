@@ -314,7 +314,8 @@ class _InviteeInviteCardState extends ConsumerState<_InviteeInviteCard> {
                           Icon(
                             Icons.timer_outlined,
                             size: 14,
-                            color: AppColors.brand.withValues(alpha: 0.9),
+                            color: context.themeColors.brandText
+                                .withValues(alpha: 0.9),
                           ),
                           const SizedBox(width: 6),
                           Flexible(
@@ -323,7 +324,7 @@ class _InviteeInviteCardState extends ConsumerState<_InviteeInviteCard> {
                               style: AppTypography.mono(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.brand,
+                                color: context.themeColors.brandText,
                                 letterSpacing: 0.3,
                               ),
                               maxLines: 1,
@@ -339,13 +340,13 @@ class _InviteeInviteCardState extends ConsumerState<_InviteeInviteCard> {
                     'Toque para visualizar',
                     style: theme.textTheme.labelMedium?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.brand,
+                      color: context.themeColors.brandText,
                     ),
                   ),
                   Icon(
                     Icons.chevron_right_rounded,
                     size: 18,
-                    color: AppColors.brand,
+                    color: context.themeColors.brandText,
                   ),
                 ],
               ),
@@ -375,8 +376,8 @@ class _PendingStatusBadge extends StatelessWidget {
           Container(
             width: 6,
             height: 6,
-            decoration: const BoxDecoration(
-              color: AppColors.brand,
+            decoration: BoxDecoration(
+              color: context.themeColors.brandText,
               shape: BoxShape.circle,
             ),
           ),
@@ -386,7 +387,7 @@ class _PendingStatusBadge extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 9,
               fontWeight: FontWeight.w700,
-              color: AppColors.brand,
+              color: context.themeColors.brandText,
               letterSpacing: 0.4,
             ),
           ),
@@ -554,7 +555,7 @@ class _InviteeAvatar extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.brand,
+                    color: context.themeColors.brandText,
                   ),
                 ),
               ),

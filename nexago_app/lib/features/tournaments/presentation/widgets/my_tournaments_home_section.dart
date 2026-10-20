@@ -346,7 +346,7 @@ class _StaffRow extends StatelessWidget {
                     entry.role == TournamentStaffRole.scorer
                         ? Icons.scoreboard_rounded
                         : Icons.manage_accounts_rounded,
-                    color: AppColors.brand,
+                    color: context.themeColors.brandText,
                     size: 22,
                   ),
                 ),
@@ -394,7 +394,7 @@ class _StaffRow extends StatelessWidget {
                     'STAFF',
                     style: theme.textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.brand,
+                      color: context.themeColors.brandText,
                       fontSize: 9,
                       letterSpacing: 0.2,
                     ),
@@ -506,7 +506,7 @@ class _RegistrationRow extends StatelessWidget {
                     badgeLabel.toUpperCase(),
                     style: theme.textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: badgeColor,
+                      color: context.themeColors.readableTone(badgeColor),
                       fontSize: 9,
                       letterSpacing: 0.2,
                     ),

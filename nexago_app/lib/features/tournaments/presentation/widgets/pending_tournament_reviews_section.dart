@@ -65,7 +65,7 @@ class _ReviewInviteCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(Icons.star_rounded, color: AppColors.brand),
+              Icon(Icons.star_rounded, color: colors.brandText),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 /// Cabeçalho de seção reutilizado no perfil do atleta.
@@ -43,7 +42,7 @@ class AthleteProfileSectionHeader extends StatelessWidget {
             onPressed: onTap,
             style: TextButton.styleFrom(
               foregroundColor: trailingBrand
-                  ? AppColors.brand
+                  ? context.themeColors.brandText
                   : context.themeColors.onSurfaceMuted,
               padding: EdgeInsets.zero,
               minimumSize: Size.zero,
@@ -63,7 +62,7 @@ class AthleteProfileSectionHeader extends StatelessWidget {
                   Icons.chevron_right_rounded,
                   size: 18,
                   color: trailingBrand
-                      ? AppColors.brand
+                      ? context.themeColors.brandText
                       : context.themeColors.onSurfaceMuted,
                 ),
               ],

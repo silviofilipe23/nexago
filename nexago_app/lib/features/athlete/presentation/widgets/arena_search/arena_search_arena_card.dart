@@ -147,7 +147,7 @@ class ArenaSearchArenaCard extends StatelessWidget {
                                 Icon(
                                   Icons.emoji_events_outlined,
                                   size: 16,
-                                  color: AppColors.brand,
+                                  color: context.themeColors.brandText,
                                 ),
                                 SizedBox(width: 4),
                                 Text(
@@ -162,7 +162,7 @@ class ArenaSearchArenaCard extends StatelessWidget {
                                   '$score',
                                   style: theme.textTheme.labelSmall?.copyWith(
                                     fontWeight: FontWeight.w900,
-                                    color: AppColors.brand,
+                                    color: context.themeColors.brandText,
                                   ),
                                 ),
                               ],
@@ -230,7 +230,7 @@ class ArenaSearchArenaCard extends StatelessWidget {
                           ),
                           child: Icon(
                             arenaSearchSportChipIcon(selectedSportChip),
-                            color: AppColors.brand,
+                            color: context.themeColors.brandText,
                             size: 20,
                           ),
                         ),
@@ -246,7 +246,7 @@ class ArenaSearchArenaCard extends StatelessWidget {
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   fontWeight: FontWeight.w800,
                                   color: result.hasAvailability
-                                      ? AppColors.brand
+                                      ? context.themeColors.brandText
                                       : context.themeColors.onSurfaceMuted,
                                 ),
                               ),

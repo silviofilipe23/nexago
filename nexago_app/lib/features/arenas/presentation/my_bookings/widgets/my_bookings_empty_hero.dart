@@ -74,7 +74,7 @@ class MyBookingsEmptyHero extends ConsumerWidget {
               style: AppTypography.mono(
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
-                color: AppColors.brand,
+                color: context.themeColors.brandText,
                 letterSpacing: 1.2,
               ),
             ),
@@ -111,7 +111,7 @@ class MyBookingsEmptyHero extends ConsumerWidget {
                     style: AppTypography.mono(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.brand,
+                      color: context.themeColors.brandText,
                       letterSpacing: 0.2,
                     ),
                   ),

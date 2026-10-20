@@ -324,10 +324,10 @@ class _ArenaClassTeacherPayoutPageState
                   'Fechado com o modelo anterior — hoje o cadastro diz '
                   '${arenaClassPayoutModelLabel(currentModel)}. Recalcule '
                   'para aplicar.',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11.5,
                     height: 1.4,
-                    color: AppColors.pending,
+                    color: colors.pending,
                   ),
                 ),
               ],
@@ -639,7 +639,7 @@ class _Composition extends StatelessWidget {
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: adjustment < 0
-                                ? AppColors.live
+                                ? colors.live
                                 : colors.onSurface,
                           ),
                         ),
@@ -662,7 +662,7 @@ class _Composition extends StatelessWidget {
                     style: AppTypography.mono(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: adjustment < 0 ? AppColors.live : AppColors.win,
+                      color: adjustment < 0 ? colors.live : colors.win,
                     ),
                   ),
                 ],
@@ -750,7 +750,7 @@ class _HistoryRow extends StatelessWidget {
                   : 'A pagar',
               style: AppTypography.mono(
                 fontSize: 10.5,
-                color: h.isPaid ? AppColors.win : AppColors.pending,
+                color: h.isPaid ? colors.win : colors.pending,
               ),
             ),
             const SizedBox(width: 12),

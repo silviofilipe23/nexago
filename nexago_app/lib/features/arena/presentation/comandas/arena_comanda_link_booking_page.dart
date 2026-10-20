@@ -259,7 +259,7 @@ class _BookingOptionCard extends StatelessWidget {
                     Text(
                       '+ ${formatComandaReais(rentalCents)} locação · ${ArenaBookingsGrouping.displayCode(booking.id)}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.win,
+                            color: context.themeColors.win,
                             fontWeight: FontWeight.w700,
                           ),
                     ),

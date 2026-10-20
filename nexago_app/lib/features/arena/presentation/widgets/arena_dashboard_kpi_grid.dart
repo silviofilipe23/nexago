@@ -138,11 +138,11 @@ class _KpiBadgeChip extends StatelessWidget {
     final (bg, fg) = switch (badge.tone) {
       ArenaDashboardKpiBadgeTone.positive => (
           AppColors.win.withValues(alpha: 0.18),
-          AppColors.win,
+          context.themeColors.win,
         ),
       ArenaDashboardKpiBadgeTone.negative => (
           AppColors.live.withValues(alpha: 0.18),
-          AppColors.live,
+          context.themeColors.live,
         ),
       ArenaDashboardKpiBadgeTone.neutral => (
           context.themeColors.surfaceRaised,

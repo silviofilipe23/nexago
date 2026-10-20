@@ -6,6 +6,7 @@ import '../../../../core/formatting/app_currency_format.dart';
 
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_theme_colors.dart';
 import '../../../athlete/domain/athlete_profile.dart';
 import '../../../athlete/domain/athlete_profile_providers.dart';
 import '../../domain/arena_booking_labels.dart';
@@ -67,7 +68,7 @@ class ArenaBookingCard extends ConsumerWidget {
                     child: Container(
                       width: 3,
                       decoration: BoxDecoration(
-                        color: statusColor,
+                        color: context.themeColors.readableTone(statusColor),
                         borderRadius: BorderRadius.circular(999),
                       ),
                     ),
@@ -287,6 +288,7 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ink = context.themeColors.readableTone(color);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -300,13 +302,13 @@ class _StatusBadge extends StatelessWidget {
           Container(
             width: 6,
             height: 6,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: ink, shape: BoxShape.circle),
           ),
           SizedBox(width: 5),
           Text(
             label,
             style: TextStyle(
-              color: color,
+              color: ink,
               fontWeight: FontWeight.w800,
               fontSize: 10,
               letterSpacing: 0.5,
@@ -359,7 +361,7 @@ class _AthleteAvatarRow extends StatelessWidget {
                 size: 32,
                 borderColor: AppColors.surfaceCard,
                 backgroundColor: AppColors.win.withValues(alpha: 0.25),
-                foregroundColor: AppColors.win,
+                foregroundColor: context.themeColors.win,
               ),
             ),
         ],
@@ -470,7 +472,9 @@ class _MetaChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = accent ?? AppColors.onSurfaceMuted;
+    final fg = context.themeColors.readableTone(
+      accent ?? AppColors.onSurfaceMuted,
+    );
     final bg = accent != null
         ? accent!.withValues(alpha: 0.14)
         : AppColors.surfaceRaised;

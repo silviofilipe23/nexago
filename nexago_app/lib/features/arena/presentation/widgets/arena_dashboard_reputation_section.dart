@@ -263,7 +263,7 @@ class _ReputationSummary extends StatelessWidget {
                       Text(
                         replyLabel,
                         style: theme.textTheme.labelMedium?.copyWith(
-                          color: replyColor,
+                          color: context.themeColors.readableTone(replyColor),
                           fontWeight: FontWeight.w700,
                         ),
                       ),

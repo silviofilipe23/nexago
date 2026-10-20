@@ -173,8 +173,8 @@ class _ArenaRestockPageState extends ConsumerState<ArenaRestockPage> {
                                       'novo total: $newTotal un',
                                       style: TextStyle(
                                         color: newTotal < 0
-                                            ? AppColors.live
-                                            : AppColors.win,
+                                            ? context.themeColors.live
+                                            : context.themeColors.win,
                                         fontWeight: FontWeight.w700,
                                         fontSize: 14,
                                       ),
@@ -572,7 +572,7 @@ class _ProductStockCard extends StatelessWidget {
                   Text(
                     statusLabel,
                     style: AppTypography.mono(
-                      color: statusColor,
+                      color: context.themeColors.readableTone(statusColor),
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.6,
@@ -645,7 +645,7 @@ class _MovementTypeChip extends StatelessWidget {
             child: Text(
               label,
               style: AppTypography.soraRegular(
-                color: selected ? AppColors.win : colors.onSurfaceMuted,
+                color: selected ? colors.win : colors.onSurfaceMuted,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
               ),
@@ -738,7 +738,7 @@ class _MovementTile extends StatelessWidget {
           Text(
             formatMovementDelta(movement),
             style: AppTypography.mono(
-              color: _deltaColor(movement),
+              color: context.themeColors.readableTone(_deltaColor(movement)),
               fontSize: 14,
               fontWeight: FontWeight.w700,
             ),

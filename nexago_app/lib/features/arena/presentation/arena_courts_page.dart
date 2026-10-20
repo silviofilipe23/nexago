@@ -342,7 +342,7 @@ class _CourtCard extends StatelessWidget {
             SizedBox(width: 6),
             _CourtActionButton(
               icon: Icons.delete_outline_rounded,
-              iconColor: AppColors.live,
+              iconColor: context.themeColors.live,
               onTap: onDelete,
             ),
           ],
@@ -396,7 +396,11 @@ class _CourtStatusBadge extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-          color: color.withValues(alpha: 0.95),
+          // A 95% o tom do claro fica abaixo de 4,5:1 sobre o card elevado:
+          // no claro ele vai opaco. O escuro segue como era.
+          color: context.themeColors.isDark
+              ? color.withValues(alpha: 0.95)
+              : context.themeColors.readableTone(color),
           fontWeight: FontWeight.w800,
           fontSize: 9,
           letterSpacing: 0.3,

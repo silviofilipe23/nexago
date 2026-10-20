@@ -235,7 +235,10 @@ class _ActivationTitle extends StatelessWidget {
         ),
         children: [
           TextSpan(text: prefix),
-          TextSpan(text: planName, style: TextStyle(color: accent)),
+          TextSpan(
+            text: planName,
+            style: TextStyle(color: colors.readableTone(accent)),
+          ),
           TextSpan(text: suffix),
         ],
       ),
@@ -360,7 +363,7 @@ class _HighlightRow extends StatelessWidget {
                       style: AppTypography.soraRegular(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.win,
+                        color: colors.win,
                       ),
                     ),
                   ],

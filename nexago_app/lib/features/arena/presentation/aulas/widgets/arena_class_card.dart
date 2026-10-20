@@ -101,7 +101,7 @@ class ArenaClassCard extends StatelessWidget {
                 '${cls.studentCount}/${cls.capacity}',
                 style: AppTypography.mono(
                   fontSize: 12,
-                  color: cls.isFull ? AppColors.win : colors.onSurface,
+                  color: cls.isFull ? colors.win : colors.onSurface,
                 ),
               ),
             ],
@@ -140,7 +140,7 @@ class ArenaClassCard extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.pending,
+                    color: colors.pending,
                   ),
                 ),
             ],

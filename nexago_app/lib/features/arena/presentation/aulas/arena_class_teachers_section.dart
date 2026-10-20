@@ -365,7 +365,7 @@ class _ModelCell extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
-                  color: undefined ? AppColors.pending : colors.onSurface,
+                  color: undefined ? colors.pending : colors.onSurface,
                 ),
               ),
             ),
@@ -374,7 +374,7 @@ class _ModelCell extends StatelessWidget {
               Icon(
                 Icons.edit_outlined,
                 size: 14,
-                color: undefined ? AppColors.pending : AppColors.brand,
+                color: undefined ? colors.pending : AppColors.brand,
                 semanticLabel: 'Alterar repasse',
               ),
             ],

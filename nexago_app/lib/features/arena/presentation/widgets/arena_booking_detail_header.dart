@@ -263,7 +263,7 @@ class _StatusPill extends StatelessWidget {
             width: 6,
             height: 6,
             decoration: BoxDecoration(
-              color: AppColors.win,
+              color: context.themeColors.win,
               shape: BoxShape.circle,
             ),
           ),
@@ -271,7 +271,7 @@ class _StatusPill extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: AppColors.win,
+              color: context.themeColors.win,
               fontWeight: FontWeight.w800,
               fontSize: 11,
               letterSpacing: 0.5,

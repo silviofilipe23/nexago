@@ -103,7 +103,7 @@ class _ArenaBookingCancelSheetState
                   ),
                   child: Icon(
                     Icons.warning_amber_rounded,
-                    color: AppColors.live,
+                    color: context.themeColors.live,
                     size: 24,
                   ),
                 ),
@@ -430,6 +430,11 @@ class _DirectPaymentNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // A 95% o âmbar do claro fica abaixo de 4,5:1 sobre a folha: no claro ele
+    // vai opaco. O escuro segue como era.
+    final ink = context.themeColors.isDark
+        ? AppColors.pending.withValues(alpha: 0.95)
+        : context.themeColors.pending;
 
     return Container(
       width: double.infinity,
@@ -447,7 +452,7 @@ class _DirectPaymentNotice extends StatelessWidget {
           Icon(
             Icons.info_outline_rounded,
             size: 20,
-            color: AppColors.pending.withValues(alpha: 0.95),
+            color: ink,
           ),
           SizedBox(width: 10),
           Expanded(
@@ -466,7 +471,7 @@ class _DirectPaymentNotice extends StatelessWidget {
                   TextSpan(
                     text: 'Resolva com o atleta presencialmente.',
                     style: TextStyle(
-                      color: AppColors.pending.withValues(alpha: 0.95),
+                      color: ink,
                       fontWeight: FontWeight.w800,
                     ),
                   ),

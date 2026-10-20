@@ -183,7 +183,7 @@ class _GuestAthleteCard extends StatelessWidget {
                 '+1',
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
-                  color: AppColors.win,
+                  color: context.themeColors.win,
                 ),
               ),
             ),

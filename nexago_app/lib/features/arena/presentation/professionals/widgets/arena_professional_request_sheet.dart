@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../../professor_links/domain/arena_professor_link.dart';
@@ -187,7 +186,7 @@ class _ArenaProfessorRequestSheetState
               child: ProfessorLinksGhostButton(
                 key: const Key('arena-professor-request-reject'),
                 label: 'Rejeitar',
-                color: AppColors.live,
+                color: colors.live,
                 height: 46,
                 onPressed: _busy || !open
                     ? null

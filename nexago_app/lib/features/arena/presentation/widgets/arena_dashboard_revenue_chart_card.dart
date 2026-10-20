@@ -106,7 +106,7 @@ class _TrendBadge extends StatelessWidget {
       child: Text(
         '${positive ? '▲' : '▼'} ${percent.abs().toStringAsFixed(0)}%',
         style: TextStyle(
-          color: color,
+          color: context.themeColors.readableTone(color),
           fontWeight: FontWeight.w700,
           fontSize: 12,
         ),

@@ -142,10 +142,10 @@ class _ArenaClubSessionPageState extends ConsumerState<ArenaClubSessionPage> {
                           color: AppColors.live.withValues(alpha: 0.14),
                           borderRadius: BorderRadius.circular(999),
                         ),
-                        child: const Text(
+                        child: Text(
                           'CANCELADA',
                           style: TextStyle(
-                            color: AppColors.live,
+                            color: context.themeColors.live,
                             fontWeight: FontWeight.w800,
                             fontSize: 10,
                             letterSpacing: 0.4,
@@ -277,7 +277,7 @@ class _ArenaClubSessionPageState extends ConsumerState<ArenaClubSessionPage> {
                 ? null
                 : () => _confirmCancel(session, confirmedPix),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.live,
+              foregroundColor: context.themeColors.live,
               side: BorderSide(color: AppColors.live.withValues(alpha: 0.5)),
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
@@ -545,7 +545,7 @@ class _CounterPill extends StatelessWidget {
               Text(
                 value,
                 style: TextStyle(
-                  color: color,
+                  color: context.themeColors.readableTone(color),
                   fontWeight: FontWeight.w900,
                   fontSize: 15,
                 ),
@@ -648,10 +648,10 @@ class _ParticipantRow extends StatelessWidget {
                   color: AppColors.pending.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: const Text(
+                child: Text(
                   'Paga na arena',
                   style: TextStyle(
-                    color: AppColors.pending,
+                    color: context.themeColors.pending,
                     fontWeight: FontWeight.w800,
                     fontSize: 10,
                     letterSpacing: 0.2,
@@ -670,7 +670,7 @@ class _ParticipantRow extends StatelessWidget {
               child: Text(
                 participant.statusLabel,
                 style: TextStyle(
-                  color: statusColor,
+                  color: context.themeColors.readableTone(statusColor),
                   fontWeight: FontWeight.w800,
                   fontSize: 10,
                   letterSpacing: 0.2,
@@ -879,8 +879,8 @@ class _AddParticipantSheetState extends ConsumerState<_AddParticipantSheet> {
                     const SizedBox(height: 12),
                     Text(
                       _error!,
-                      style: const TextStyle(
-                        color: AppColors.live,
+                      style: TextStyle(
+                        color: colors.live,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),

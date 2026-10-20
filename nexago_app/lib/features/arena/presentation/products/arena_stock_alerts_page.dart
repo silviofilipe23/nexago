@@ -311,7 +311,8 @@ class _StockSummaryCard extends StatelessWidget {
             child: _SummaryMetric(
               label: 'GIRO 7D',
               value: turnoverLabel,
-              valueColor: turnoverAsync.hasValue ? AppColors.win : null,
+              valueColor:
+                  turnoverAsync.hasValue ? context.themeColors.win : null,
               alignEnd: true,
             ),
           ),
@@ -389,7 +390,7 @@ class _OutSectionTitle extends StatelessWidget {
           child: Text(
             'bloqueia venda',
             style: AppTypography.mono(
-              color: AppColors.live,
+              color: context.themeColors.live,
               fontSize: 10,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.4,
@@ -423,7 +424,7 @@ class _LowSectionTitle extends StatelessWidget {
           Text(
             '$count',
             style: TextStyle(
-              color: AppColors.pending,
+              color: context.themeColors.pending,
               fontSize: 18,
               fontWeight: FontWeight.w800,
             ),
@@ -503,7 +504,7 @@ class _AlertRow extends StatelessWidget {
                   Text(
                     '● ${product.stockQuantity} un • mín ${product.minStockQuantity}',
                     style: AppTypography.mono(
-                      color: stockColor,
+                      color: context.themeColors.readableTone(stockColor),
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),

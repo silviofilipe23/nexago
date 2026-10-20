@@ -125,7 +125,9 @@ class _HistoryBookingRow extends StatelessWidget {
           child: Text(
             status,
             style: theme.textTheme.labelMedium?.copyWith(
-              color: statusColor.withValues(alpha: 0.95),
+              color: context.themeColors
+                  .readableTone(statusColor)
+                  .withValues(alpha: 0.95),
               fontWeight: FontWeight.w700,
             ),
           ),

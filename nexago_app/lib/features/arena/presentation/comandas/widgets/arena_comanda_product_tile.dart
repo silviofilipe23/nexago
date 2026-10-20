@@ -95,7 +95,7 @@ class ArenaComandaProductTile extends StatelessWidget {
                             : '${product.stockQuantity} em estoque',
                         style: AppTypography.mono(
                           color: isOut
-                              ? AppColors.live
+                              ? context.themeColors.live
                               : context.themeColors.onSurfaceMuted,
                           fontSize: 10,
                           fontWeight: FontWeight.w700,

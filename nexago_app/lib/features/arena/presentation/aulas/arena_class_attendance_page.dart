@@ -467,15 +467,15 @@ class _MoreMenu extends StatelessWidget {
           icon: Icon(Icons.more_vert_rounded, color: colors.onSurface),
           color: colors.surfaceSheet,
           onSelected: (_) => onCancel(),
-          itemBuilder: (_) => const [
+          itemBuilder: (_) => [
             PopupMenuItem<String>(
               value: 'cancel',
               child: Row(
                 children: [
                   Icon(Icons.event_busy_rounded,
-                      color: AppColors.live, size: 18),
-                  SizedBox(width: 10),
-                  Text('Cancelar aula'),
+                      color: colors.live, size: 18),
+                  const SizedBox(width: 10),
+                  const Text('Cancelar aula'),
                 ],
               ),
             ),

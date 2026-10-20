@@ -233,7 +233,7 @@ class _ArenaComandaPaymentPageState
                                         .textTheme
                                         .bodySmall
                                         ?.copyWith(
-                                          color: AppColors.win,
+                                          color: context.themeColors.win,
                                           fontWeight: FontWeight.w700,
                                         ),
                                   ),
@@ -420,8 +420,11 @@ class _PaymentHistoryTile extends StatelessWidget {
               color: AppColors.win.withValues(alpha: 0.16),
               shape: BoxShape.circle,
             ),
-            child:
-                const Icon(Icons.check_rounded, color: AppColors.win, size: 20),
+            child: Icon(
+              Icons.check_rounded,
+              color: context.themeColors.win,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -448,7 +451,7 @@ class _PaymentHistoryTile extends StatelessWidget {
             formatComandaReais(payment.amountCents),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: AppColors.win,
+                  color: context.themeColors.win,
                 ),
           ),
         ],

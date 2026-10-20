@@ -39,7 +39,9 @@ class ArenaPlatformPixCard extends StatelessWidget {
               children: [
                 Icon(
                   hasKey ? Icons.pix_rounded : Icons.warning_amber_rounded,
-                  color: hasKey ? AppColors.win : AppColors.pending,
+                  color: hasKey
+                      ? context.themeColors.win
+                      : context.themeColors.pending,
                   size: 22,
                 ),
                 SizedBox(width: 10),

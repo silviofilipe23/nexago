@@ -28,6 +28,7 @@ import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
 import { SandRankCardComponent } from './sand-rank-card.component';
 import { ACHIEVEMENT_CATALOG, buildAchievementViewModels } from './achievement-catalog';
 import { AthleteGamificationService } from './athlete-gamification.service';
+import { ProfessorLinksService } from '../professor/professor-links.service';
 import { buildPublicProfileId, buildSportLevels, initialsOf, joinCityState, nameFromEmail, primarySportLabel, slugify, type SportLevelEntry } from './profile-format';
 import { athleteFunctions } from '../data/functions';
 import {
@@ -163,6 +164,8 @@ export class AthleteProfileSettingsComponent {
   protected readonly brLocations = inject(BrLocationsService);
   private readonly router = inject(Router);
   private readonly firestore = createFirestore();
+  /** Convites de arena em aberto — o card "Minhas arenas" é a entrada de professor no celular. */
+  protected readonly professorInvites = inject(ProfessorLinksService).openInviteCount;
 
   protected readonly isEditing = signal(false);
   protected readonly loading = signal(true);

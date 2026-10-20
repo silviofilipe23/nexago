@@ -1,0 +1,92 @@
+<div class="pf-backdrop" (click)="dismiss()" aria-hidden="true"></div>
+
+<div class="pf-dialog" role="dialog" aria-modal="true" aria-labelledby="pf-invite-title">
+  <div class="pf-dialog-head">
+    <div class="pf-dialog-titles">
+      <h2 id="pf-invite-title" class="pf-dialog-title">Convite da {{ link().arenaName }}</h2>
+      <p class="pf-dialog-sub">{{ sentLine() }}</p>
+    </div>
+    <button type="button" class="pf-dialog-close" aria-label="Fechar" [disabled]="busy() !== null" (click)="dismiss()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+    </button>
+  </div>
+
+  <div class="pf-dialog-body">
+    <div class="pf-invite-arena">
+      <app-pf-arena-mark [name]="link().arenaName" [logoUrl]="link().arenaLogoUrl" [size]="52" />
+      <div class="pf-invite-arena-copy">
+        <div class="pf-invite-arena-name">{{ link().arenaName }}</div>
+        @if (link().arenaCity; as city) {
+          <div class="pf-invite-arena-city">{{ city }}</div>
+        }
+      </div>
+      <app-pf-type-tag [type]="link().relationshipType" />
+    </div>
+
+    @if (link().message; as message) {
+      <blockquote class="pf-invite-quote">“{{ message }}”</blockquote>
+    }
+
+    @if (declining() && open()) {
+      <label class="pf-invite-field">
+        <span>Motivo da recusa (opcional)</span>
+        <textarea
+          rows="3"
+          [attr.maxlength]="reasonMax"
+          placeholder="Se quiser, conte o motivo para a arena."
+          [value]="reason()"
+          [disabled]="busy() !== null"
+          (input)="reason.set($any($event.target).value)"
+        ></textarea>
+      </label>
+      <app-pf-note>A arena recebe um aviso. Se mudar de ideia, peça vínculo pela página dela.</app-pf-note>
+    } @else {
+      <div>
+        <div class="pf-invite-kicker">O que a arena libera para você</div>
+        <app-pf-perm-list [perms]="link().permissions" />
+      </div>
+      <p class="pf-invite-type">
+        <strong>{{ typeCopy().label }}:</strong> {{ typeCopy().description }}.
+      </p>
+      <app-pf-note>{{ note() }}</app-pf-note>
+    }
+
+    @if (error(); as message) {
+      <app-nx-inline-message tone="error" [heading]="expired() ? 'Convite expirado' : 'Não deu certo'" [body]="message" />
+    } @else if (!open()) {
+      <app-nx-inline-message
+        tone="warning"
+        heading="Este convite não está mais aberto"
+        body="Peça à arena um convite novo ou solicite vínculo pela página dela."
+      />
+    }
+  </div>
+
+  <div class="pf-dialog-foot">
+    @if (!open()) {
+      <button type="button" class="pf-btn pf-btn--primary" (click)="dismiss()">Fechar</button>
+    } @else if (declining()) {
+      <button type="button" class="pf-btn pf-btn--ghost" [disabled]="busy() !== null" (click)="backToInvite()">
+        Voltar ao convite
+      </button>
+      <span class="pf-spacer"></span>
+      <button type="button" class="pf-btn pf-btn--solid-danger" [disabled]="busy() !== null" (click)="confirmDecline()">
+        @if (busy() === 'decline') {
+          <app-nx-spinner [size]="13" />
+        }
+        {{ busy() === 'decline' ? 'Recusando…' : 'Confirmar recusa' }}
+      </button>
+    } @else {
+      <button type="button" class="pf-btn pf-btn--danger" [disabled]="busy() !== null" (click)="startDecline()">
+        Recusar convite
+      </button>
+      <span class="pf-spacer"></span>
+      <button type="button" class="pf-btn pf-btn--primary" [disabled]="busy() !== null" (click)="accept()">
+        @if (busy() === 'accept') {
+          <app-nx-spinner [size]="13" tone="dark" />
+        }
+        {{ busy() === 'accept' ? 'Aceitando…' : acceptLabel() }}
+      </button>
+    }
+  </div>
+</div>

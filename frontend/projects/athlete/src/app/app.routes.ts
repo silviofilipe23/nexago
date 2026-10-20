@@ -296,6 +296,13 @@ export const routes: Routes = [
     loadChildren: () => import('./loja/loja.routes').then((m) => m.LOJA_ROUTES),
   },
   {
+    // Área do professor: vínculos com arenas (Minhas arenas e o detalhe de cada vínculo). Mora no
+    // portal do atleta porque é a mesma conta global — não existe portal do professor.
+    path: 'professor',
+    canActivate: [authGuard, onboardingGuard],
+    loadChildren: () => import('./professor/professor.routes').then((m) => m.PROFESSOR_ROUTES),
+  },
+  {
     path: 'perfil',
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>

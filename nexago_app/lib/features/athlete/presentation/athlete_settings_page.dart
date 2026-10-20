@@ -19,6 +19,7 @@ import '../../auth/auth_legal_urls.dart';
 import '../../auth/presentation/role_selection_page.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../../cashback/presentation/widgets/cashback_settings_tile.dart';
+import '../../professor_links/presentation/widgets/professor_links_settings_group.dart';
 import '../domain/achievements/achievement_providers.dart';
 import '../domain/athlete_profile.dart';
 import '../domain/athlete_display_name.dart';
@@ -247,6 +248,9 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                 ),
               ],
             ),
+            SizedBox(height: AthleteSettingsTokens.sectionGap),
+            // Vínculos professor ↔ arena (Minhas arenas).
+            const ProfessorLinksSettingsGroup(),
             SizedBox(height: AthleteSettingsTokens.sectionGap),
             if (canSwitchRole) ...[
               AthleteSettingsGroup(

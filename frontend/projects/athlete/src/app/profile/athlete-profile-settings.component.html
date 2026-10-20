@@ -359,6 +359,28 @@
             }
           </section>
 
+          <!-- Professor: no celular a sidebar some, e este card é a entrada de "Minhas arenas". -->
+          <section class="at-card">
+            <div class="at-card-head">
+              <div>
+                <p class="at-card-kicker">
+                  @if (professorInvites() > 0) {
+                    {{ professorInvites() === 1 ? '1 convite de arena' : professorInvites() + ' convites de arena' }}
+                  } @else {
+                    Para quem dá aulas
+                  }
+                </p>
+                <span class="at-card-title">Minhas arenas</span>
+              </div>
+              <a class="at-mini-btn" [class.at-mini-btn--primary]="professorInvites() > 0" routerLink="/professor/arenas">
+                {{ professorInvites() > 0 ? 'Ver convite' : 'Abrir' }}
+              </a>
+            </div>
+            <p class="at-profile-referral-text">
+              Seus vínculos de professor com arenas — na equipe ou como independente, com a mesma conta.
+            </p>
+          </section>
+
           <section class="at-card">
             <div class="at-card-head">
               <span class="at-card-title">Segurança</span>

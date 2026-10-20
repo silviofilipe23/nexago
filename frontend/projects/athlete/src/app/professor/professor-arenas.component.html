@@ -1,0 +1,109 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  <header class="pf-page-header">
+    <div class="pf-page-titles">
+      <h1>Minhas arenas</h1>
+      <div class="pf-page-sub">{{ subtitle() }}</div>
+    </div>
+    <button type="button" class="pf-btn pf-btn--primary" (click)="ctrl.openRequest()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+      Solicitar vínculo
+    </button>
+  </header>
+
+  <div class="pf-body">
+    @if (!service.loaded()) {
+      <app-nx-page-loading title="Carregando suas arenas…" subtitle="Vínculos de professor" />
+    } @else if (service.loadError()) {
+      <app-nx-inline-message
+        tone="error"
+        heading="Não deu para carregar seus vínculos"
+        body="Verifique a conexão e recarregue a página."
+      />
+    } @else {
+      @for (inv of invites(); track inv.link.id) {
+        <section class="pf-invite-banner" [attr.aria-label]="inv.title">
+          <app-pf-arena-mark [name]="inv.link.arenaName" [logoUrl]="inv.link.arenaLogoUrl" [size]="40" />
+          <div class="pf-invite-banner-copy">
+            <div class="pf-invite-banner-title">{{ inv.title }}</div>
+            @if (inv.subtitle) {
+              <div class="pf-invite-banner-sub">{{ inv.subtitle }}</div>
+            }
+          </div>
+          <div class="pf-invite-banner-actions">
+            <button type="button" class="pf-btn pf-btn--ghost" (click)="act(inv.link, 'decline')">Recusar</button>
+            <button type="button" class="pf-btn pf-btn--primary" (click)="act(inv.link, 'accept')">Ver convite</button>
+          </div>
+        </section>
+      }
+
+      @if (service.links().length === 0) {
+        <section class="pf-empty">
+          <span class="pf-empty-icon" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18" /><path d="M5 21V8l7-5 7 5v13" /><path d="M9 21v-6h6v6" /></svg>
+          </span>
+          <h2>Você ainda não tem vínculos com arenas</h2>
+          <p>
+            Dá aulas? Peça vínculo à arena — na equipe dela ou como independente. Em Reservar, abra a página da
+            arena e use “Solicitar vínculo”, ou busque a arena por aqui. Quando uma arena convidar você, o convite
+            aparece nesta tela.
+          </p>
+          <div class="pf-empty-actions">
+            <button type="button" class="pf-btn pf-btn--primary pf-btn--lg" (click)="ctrl.openRequest()">Solicitar vínculo</button>
+            <a routerLink="/reservar" class="pf-btn pf-btn--ghost pf-btn--lg">Ver arenas</a>
+          </div>
+        </section>
+      } @else {
+        @if (cards().length > 0) {
+          <div class="pf-grid">
+            @for (card of cards(); track card.link.id) {
+              <article class="pf-card" [class.pf-card--off]="card.closed">
+                <div class="pf-card-head">
+                  <app-pf-arena-mark [name]="card.link.arenaName" [logoUrl]="card.link.arenaLogoUrl" [size]="44" />
+                  <div class="pf-card-titles">
+                    <h2 class="pf-card-name">{{ card.link.arenaName }}</h2>
+                    @if (card.link.arenaCity) {
+                      <div class="pf-card-city">{{ card.link.arenaCity }}</div>
+                    }
+                  </div>
+                  <app-pf-status [status]="card.status" />
+                </div>
+                <div class="pf-card-meta">
+                  <app-pf-type-tag [type]="card.link.relationshipType" [small]="true" />
+                  @if (card.dateLine) {
+                    <span>{{ card.dateLine }}</span>
+                  }
+                </div>
+                @if (card.reason) {
+                  <p class="pf-card-reason" [class.pf-card-reason--alert]="card.status === 'SUSPENDED'">{{ card.reason }}</p>
+                }
+                <app-pf-perm-list class="pf-card-perms" [perms]="card.perms" [dense]="true" />
+                <div class="pf-card-actions">
+                  @for (a of card.actions; track a.action) {
+                    <button
+                      type="button"
+                      class="pf-btn"
+                      [class.pf-btn--primary]="a.primary"
+                      [class.pf-btn--ghost]="!a.primary && !a.danger"
+                      [class.pf-btn--danger]="a.danger"
+                      [attr.aria-label]="a.label + ' — ' + card.link.arenaName"
+                      (click)="act(card.link, a.action)"
+                    >
+                      {{ a.label }}
+                    </button>
+                  }
+                </div>
+              </article>
+            }
+          </div>
+        }
+
+        <app-pf-note>
+          Cada arena define o tipo de vínculo e as permissões só para ela. Suspensão ou encerramento numa arena não
+          afeta as outras.
+        </app-pf-note>
+      }
+    }
+  </div>
+
+  <app-professor-dialogs />
+</app-at-panel-shell>

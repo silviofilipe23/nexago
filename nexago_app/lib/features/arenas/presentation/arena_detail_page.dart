@@ -20,6 +20,8 @@ import '../domain/arena_detail_logic.dart';
 import '../domain/arenas_providers.dart';
 import '../../athlete/domain/arena_review.dart';
 import '../domain/nearby_arenas_logic.dart';
+import '../../professor_links/presentation/widgets/arena_professor_link_card.dart';
+import '../../professor_links/presentation/widgets/arena_public_professors_section.dart';
 import 'arena_booking_navigation.dart';
 import 'widgets/arena_detail/arena_detail_amenity_chips.dart';
 import 'widgets/arena_detail/arena_detail_bottom_cta.dart';
@@ -359,6 +361,8 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                           ],
                         ],
                       ArenaDetailClubSection(arenaId: arena.id),
+                      // Vínculos ativos com "Aparecer no perfil da arena".
+                      ArenaPublicProfessorsSection(arenaId: arena.id),
                       SizedBox(height: 28),
                       if (widget.reviewsLoading && reviews.isEmpty)
                         Center(
@@ -386,6 +390,13 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                                   )
                               : null,
                         ),
+                      // "Você é professor?" — por último, depois do que é da
+                      // reserva; com vínculo em aberto vira o status dele.
+                      ArenaProfessorLinkCard(
+                        arenaId: arena.id,
+                        arenaName: arena.name,
+                        arenaLogoUrl: arena.logoUrl,
+                      ),
                     ]),
                   ),
                 ),

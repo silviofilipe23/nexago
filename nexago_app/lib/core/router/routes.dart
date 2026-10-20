@@ -217,6 +217,16 @@ abstract final class AppRoutes {
   static const String squadBenefits = '/athlete/squad/beneficios';
   static const String squadInvite = '/athlete/squad/convite/:inviteId';
 
+  /// Vínculos professor ↔ arena, lado do professor (Minhas arenas, detalhe e
+  /// "Solicitação enviada"). Fora de `/arena/...` de propósito: lá
+  /// `/arena/:arenaId` é a página pública da arena e engoliria estas rotas.
+  /// Entrada pelos ajustes e pela página da arena; o push `professor_link_*`
+  /// abre o detalhe.
+  static const String professorArenas = '/athlete/professor/arenas';
+  static const String professorArenaLink = '/athlete/professor/arenas/:linkId';
+  static const String professorLinkRequestSent =
+      '/athlete/professor/arenas/:linkId/enviada';
+
   /// Comunidade como página própria: com a Loja na barra inferior (flag
   /// `appConfig/store.enabled`), é o destino do "Ver todos" da Home e de
   /// `/discover?tab=comunidade`.
@@ -751,6 +761,9 @@ abstract final class AppRouteNames {
   static const String squadRanking = 'squadRanking';
   static const String squadBenefits = 'squadBenefits';
   static const String squadInvite = 'squadInvite';
+  static const String professorArenas = 'professorArenas';
+  static const String professorArenaLink = 'professorArenaLink';
+  static const String professorLinkRequestSent = 'professorLinkRequestSent';
   static const String community = 'community';
   static const String store = 'store';
   static const String storeSearch = 'storeSearch';

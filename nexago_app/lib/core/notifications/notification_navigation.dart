@@ -198,6 +198,18 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   // ramo genérico de `arena` lá embaixo, que mandava o atleta pra agenda do GESTOR.
   if (type == classChargeLinkNotificationType) return athleteAgendaTabLocation;
 
+  // Vínculo professor ↔ arena (`arenaProfessorNotices` em
+  // arena-professor-links.ts): convite, aprovação, recusa, suspensão,
+  // reativação, encerramento e permissões abrem o vínculo. O payload vem SEM
+  // `url` e sem `arenaId` de propósito — o app antigo cairia na agenda do
+  // GESTOR pelo ramo genérico de arena lá embaixo; este build resolve pelo tipo.
+  if (type.startsWith('professor_link_')) {
+    final linkId = (data['linkId'] as String?)?.trim() ?? '';
+    if (linkId.isEmpty) return AppRoutes.professorArenas;
+    return AppRoutes.professorArenaLink
+        .replaceAll(':linkId', Uri.encodeComponent(linkId));
+  }
+
   final url = appRouteForNotificationUrl(data['url'] as String?);
   if (url != null) return url;
 

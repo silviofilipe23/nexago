@@ -77,6 +77,16 @@
         <span>Perfil</span>
       </a>
 
+      <!-- Para todos: qualquer conta pode dar aulas. No celular a entrada é o card do /perfil. -->
+      <div class="at-nav-label at-nav-label--section">Professor</div>
+      <a routerLink="/professor/arenas" routerLinkActive="at-nav-item--active" class="at-nav-item">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18" /><path d="M5 21V8l7-5 7 5v13" /><path d="M9 21v-6h6v6" /></svg>
+        <span>Minhas arenas</span>
+        @if (professorInvites() > 0) {
+          <span class="at-nav-badge" [attr.aria-label]="professorInvites() + ' convite(s) de arena'">{{ professorInvites() }}</span>
+        }
+      </a>
+
       @if (staffCount() > 0) {
         <!-- Só pra quem é equipe de algum torneio EM ANDAMENTO: a maioria dos atletas nunca
              opera nada, e o menu não é lugar de item que abre tela vazia. -->
@@ -171,7 +181,13 @@
       </a>
     }
     <a routerLink="/perfil" routerLinkActive="at-bottom-nav-item--active" class="at-bottom-nav-item">
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.9 3.6-7 8-7s8 3.1 8 7" /></svg>
+      <span class="at-bottom-nav-icon">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-3.9 3.6-7 8-7s8 3.1 8 7" /></svg>
+        <!-- Convite de arena em aberto: no celular "Minhas arenas" mora no card do /perfil. -->
+        @if (professorInvites() > 0) {
+          <span class="at-bottom-nav-dot"></span>
+        }
+      </span>
       <span>Perfil</span>
     </a>
   </nav>

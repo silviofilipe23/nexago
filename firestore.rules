@@ -1227,6 +1227,36 @@ service cloud.firestore {
       );
       allow create, update, delete: if false;
     }
+    // Vínculos professor ↔ arena (`arena-professor-links.ts`): um doc por par
+    // `{arenaId}_{professorUserId}`. Lê o próprio professor (nunca os vínculos de
+    // outro) e a arena dona do vínculo — dono ou gestor (área `perfil`). Status,
+    // tipo e permissões só mudam por Cloud Function, que valida a transição.
+    match /arenaProfessors/{linkId} {
+      // `resource == null`: a página da arena lê o par `{arenaId}_{uid}` antes de
+      // existir vínculo — só o próprio professor, então a inexistência não vaza.
+      allow read: if request.auth != null && (
+        (resource == null && linkId.matches('^.+_' + request.auth.uid + '$')) ||
+        resource.data.professorUserId == request.auth.uid ||
+        arenaCanRead(resource.data.arenaId, 'perfil') ||
+        isSuperAdmin()
+      );
+      allow create, update, delete: if false;
+      // Histórico imutável do vínculo — mesma leitura do pai.
+      match /events/{eventId} {
+        allow read: if request.auth != null && (
+          get(/databases/$(database)/documents/arenaProfessors/$(linkId)).data.professorUserId == request.auth.uid ||
+          arenaCanRead(get(/databases/$(database)/documents/arenaProfessors/$(linkId)).data.arenaId, 'perfil') ||
+          isSuperAdmin()
+        );
+        allow create, update, delete: if false;
+      }
+    }
+    // Professores que a arena exibe na página pública (vínculo ACTIVE com
+    // "Aparecer no perfil da arena"). Espelho mantido pelas Cloud Functions.
+    match /arenas/{arenaId}/publicProfessors/{professorUserId} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
     match /arenas/{arenaId}/coupons/{couponId} {
       // Cupom de marketing (código + validade + limite de uso) — complementar
       // às `promotions` acima. Escrita só via Cloud Functions

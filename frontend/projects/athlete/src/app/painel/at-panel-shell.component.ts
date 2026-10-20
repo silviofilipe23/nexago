@@ -19,6 +19,7 @@ import { fetchMyAthleteProfile } from '../data/my-athlete-profile-repository';
 import { PartnerInvitesService } from '../data/partner-invites.service';
 import { StaffTournamentsService } from '../data/staff-tournaments.service';
 import { StoreFlagService } from '../data/store-flag.service';
+import { ProfessorLinksService } from '../professor/professor-links.service';
 import { NxBannerComponent } from '../shared/feedback';
 import { AtInviteAnnouncerComponent } from '../shared/partner-invite/at-invite-announcer.component';
 
@@ -85,6 +86,10 @@ export class AtPanelShellComponent {
 
   /** Item "Loja" — atrás de `appConfig/store.enabled` enquanto o checkout não existe. */
   protected readonly storeEnabled = inject(StoreFlagService).enabled;
+
+  /** Convites de arena em aberto (vínculo de professor) — badge de "Minhas arenas". O item
+   *  aparece para todos: qualquer conta pode ser professor. */
+  protected readonly professorInvites = inject(ProfessorLinksService).openInviteCount;
 
 
   constructor() {

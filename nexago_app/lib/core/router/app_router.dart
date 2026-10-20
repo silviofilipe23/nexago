@@ -162,6 +162,9 @@ import '../../features/squad/presentation/squad_invite_page.dart';
 import '../../features/squad/presentation/squad_page.dart';
 import '../../features/squad/presentation/squad_ranking_page.dart';
 import '../../features/squad/presentation/squad_share_page.dart';
+import '../../features/professor_links/presentation/professor_link_detail_page.dart';
+import '../../features/professor_links/presentation/professor_link_request_sent_page.dart';
+import '../../features/professor_links/presentation/professor_my_arenas_page.dart';
 import '../../features/store/domain/store_checkout_models.dart';
 import '../../features/store/presentation/store_address_page.dart';
 import '../../features/store/presentation/store_cart_page.dart';
@@ -1086,6 +1089,25 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.squadInvite,
         builder: (context, state) => SquadInvitePage(
           inviteId: state.pathParameters['inviteId'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.professorArenas,
+        name: AppRouteNames.professorArenas,
+        builder: (context, state) => const ProfessorMyArenasPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.professorArenaLink,
+        name: AppRouteNames.professorArenaLink,
+        builder: (context, state) => ProfessorLinkDetailPage(
+          linkId: state.pathParameters['linkId'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.professorLinkRequestSent,
+        name: AppRouteNames.professorLinkRequestSent,
+        builder: (context, state) => ProfessorLinkRequestSentPage(
+          linkId: state.pathParameters['linkId'] ?? '',
         ),
       ),
       GoRoute(

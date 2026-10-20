@@ -32,6 +32,7 @@ const SHELL_ROUTE_PREFIXES = [
   '/loja',
   '/squad',
   '/convite',
+  '/professor',
 ];
 const AUTH_ROUTES = [
   '/entrar',

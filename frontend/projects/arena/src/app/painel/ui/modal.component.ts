@@ -1,12 +1,13 @@
-import { ChangeDetectionStrategy, Component, HostListener, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, input, output } from '@angular/core';
 
-/** Overlay de modal genérico (protótipo ArModal): scrim + painel centralizado, conteúdo projetado. Fecha no scrim, no X ou em Escape. */
+/** Overlay de modal genérico (protótipo ArModal): scrim + painel centralizado, conteúdo projetado. Fecha no scrim, no X ou em Escape.
+ *  `size="lg"` abre o painel até 600px, para formulários com duas colunas (ex.: convite de professor). */
 @Component({
   selector: 'ar-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="scrim" (click)="close.emit()">
-      <div class="panel" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+      <div class="panel" [class.lg]="size() === 'lg'" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
         <ng-content />
       </div>
     </div>
@@ -36,6 +37,10 @@ import { ChangeDetectionStrategy, Component, HostListener, output } from '@angul
       animation: ar-panel-in 220ms var(--nx-ease-out);
     }
 
+    .panel.lg {
+      max-width: 600px;
+    }
+
     @keyframes ar-scrim-in {
       from {
         opacity: 0;
@@ -52,6 +57,7 @@ import { ChangeDetectionStrategy, Component, HostListener, output } from '@angul
 })
 export class ModalComponent {
   readonly close = output<void>();
+  readonly size = input<'md' | 'lg'>('md');
 
   @HostListener('document:keydown.escape')
   protected onEscape(): void {

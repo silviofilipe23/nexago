@@ -1,0 +1,250 @@
+@use 'professor-ui' as pf;
+
+@include pf.buttons;
+
+:host {
+  display: block;
+}
+
+// ── Cabeçalho (desenho de `history`/`cashback`, com ação à direita) ──
+.pf-page-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--nx-line);
+
+  h1 {
+    margin: 0;
+    font-family: var(--nx-font-display);
+    font-weight: 800;
+    font-size: 21px;
+    letter-spacing: -0.02em;
+    color: var(--nx-text);
+  }
+
+  @media (max-width: 640px) {
+    padding: 16px;
+    flex-wrap: wrap;
+  }
+}
+
+.pf-page-titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pf-page-sub {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.pf-body {
+  padding: 22px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  @media (max-width: 640px) {
+    padding: 16px 16px 32px;
+  }
+}
+
+// ── Banner do convite ───────────────────────────────────────
+.pf-invite-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: var(--nx-r-4);
+  background: rgba(91, 155, 255, 0.08);
+  border: 1px solid rgba(91, 155, 255, 0.35);
+
+  @media (max-width: 640px) {
+    flex-wrap: wrap;
+    padding: 14px;
+  }
+}
+
+.pf-invite-banner-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.pf-invite-banner-title {
+  font-family: var(--nx-font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--nx-text);
+  overflow-wrap: anywhere;
+}
+
+.pf-invite-banner-sub {
+  margin-top: 2px;
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  color: var(--nx-text-dim);
+}
+
+.pf-invite-banner-actions {
+  display: flex;
+  gap: 8px;
+
+  @media (max-width: 640px) {
+    width: 100%;
+
+    .pf-btn {
+      flex: 1;
+    }
+  }
+}
+
+// ── Grade de cards (VcArenaCard) ────────────────────────────
+.pf-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+
+  @media (max-width: 1180px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: 700px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.pf-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+  border-radius: var(--nx-r-5);
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+}
+
+.pf-card--off {
+  opacity: 0.6;
+}
+
+.pf-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pf-card-titles {
+  flex: 1;
+  min-width: 0;
+}
+
+.pf-card-name {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--nx-text);
+  overflow-wrap: anywhere;
+}
+
+.pf-card-city {
+  margin-top: 2px;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  color: var(--nx-text-dim);
+}
+
+.pf-card-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  font-family: var(--nx-font-mono);
+  font-size: 10.5px;
+  color: var(--nx-text-dim);
+}
+
+.pf-card-reason {
+  margin: 10px 0 0;
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--nx-text-mute);
+  overflow-wrap: anywhere;
+}
+
+.pf-card-reason--alert {
+  color: #ff6b61;
+}
+
+.pf-card-perms {
+  display: block;
+  margin: 10px 0 12px;
+}
+
+// `margin-top: auto`: na grade os cards têm a mesma altura e as ações alinham no rodapé.
+.pf-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--nx-line);
+}
+
+// ── Vazio ───────────────────────────────────────────────────
+.pf-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 24px;
+  text-align: center;
+  border-radius: var(--nx-r-5);
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+
+  h2 {
+    margin: 6px 0 0;
+    font-family: var(--nx-font-display);
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--nx-text);
+  }
+
+  p {
+    margin: 0;
+    max-width: 520px;
+    font-family: var(--nx-font-ui);
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--nx-text-mute);
+  }
+}
+
+.pf-empty-icon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: var(--nx-orange-tint);
+  color: var(--nx-orange-500);
+}
+
+.pf-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}

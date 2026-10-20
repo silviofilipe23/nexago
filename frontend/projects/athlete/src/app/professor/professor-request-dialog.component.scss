@@ -1,0 +1,298 @@
+@use 'professor-ui' as pf;
+
+@include pf.dialog(580px);
+@include pf.buttons;
+
+.pf-req-kicker {
+  @include pf.kicker;
+  display: block;
+  margin-bottom: 8px;
+}
+
+// ── Arena escolhida / busca ─────────────────────────────────
+.pf-req-arena {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-orange-500);
+}
+
+.pf-req-arena-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.pf-req-arena-name {
+  font-family: var(--nx-font-display);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--nx-text);
+  overflow-wrap: anywhere;
+}
+
+.pf-req-arena-city {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  color: var(--nx-text-dim);
+}
+
+.pf-req-link {
+  flex: none;
+  padding: 4px 2px;
+  border: none;
+  background: none;
+  color: var(--nx-orange-500);
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pf-req-search input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line-strong);
+  color: var(--nx-text);
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+
+  &:focus {
+    outline: none;
+    border-color: var(--nx-orange-500);
+  }
+}
+
+.pf-req-hint {
+  margin: 8px 0 0;
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--nx-text-dim);
+}
+
+.pf-req-results {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.pf-req-result {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--nx-r-2);
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--nx-surface-1);
+    border-color: var(--nx-line);
+  }
+}
+
+// ── Tipo (VcRadioCard) ──────────────────────────────────────
+.pf-req-types {
+  display: flex;
+  gap: 10px;
+
+  @media (max-width: 520px) {
+    flex-direction: column;
+  }
+}
+
+.pf-req-type {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 11px;
+  padding: 14px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
+.pf-req-type--on {
+  background: rgba(255, 106, 26, 0.08);
+  border-color: rgba(255, 106, 26, 0.5);
+}
+
+.pf-req-radio {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin-top: 1px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--nx-line-strong);
+
+  span {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: transparent;
+  }
+}
+
+.pf-req-type--on .pf-req-radio {
+  border-color: var(--nx-orange-500);
+
+  span {
+    background: var(--nx-orange-500);
+  }
+}
+
+.pf-req-type-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pf-req-type-label {
+  font-family: var(--nx-font-display);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--nx-text);
+}
+
+.pf-req-type-desc {
+  font-family: var(--nx-font-ui);
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--nx-text-dim);
+}
+
+// ── Mensagem ────────────────────────────────────────────────
+.pf-req-field {
+  display: flex;
+  flex-direction: column;
+
+  textarea {
+    @include pf.textarea;
+  }
+}
+
+.pf-req-count {
+  align-self: flex-end;
+  margin-top: 4px;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  color: var(--nx-text-dim);
+}
+
+// ── Enviada (M4) e duplicado (M5) ───────────────────────────
+.pf-req-sent {
+  align-items: center;
+  text-align: center;
+}
+
+.pf-req-sent-icon {
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  border-radius: 22px;
+  background: rgba(244, 197, 67, 0.12);
+  border: 1px solid rgba(244, 197, 67, 0.4);
+  color: #f4c543;
+}
+
+.pf-req-sent-text,
+.pf-req-dup-text {
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--nx-text-mute);
+}
+
+.pf-req-card {
+  align-self: stretch;
+  padding: 14px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  text-align: left;
+}
+
+.pf-req-card--row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pf-req-card-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pf-req-card-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.pf-req-card-name {
+  font-family: var(--nx-font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--nx-text);
+}
+
+.pf-req-card-line {
+  font-family: var(--nx-font-ui);
+  font-size: 11.5px;
+  color: var(--nx-text-dim);
+}
+
+.pf-req-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  color: var(--nx-text-dim);
+}
+
+.pf-req-card-foot {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--nx-line);
+  font-family: var(--nx-font-ui);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--nx-text-dim);
+}

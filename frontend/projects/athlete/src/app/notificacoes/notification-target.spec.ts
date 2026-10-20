@@ -35,4 +35,17 @@ describe('notificationTarget', () => {
     expect(notificationTarget({ ...base, invoiceUrl: null })).toEqual({ commands: ['/agenda'] });
     expect(notificationTarget({ ...base, invoiceUrl: 'javascript:alert(1)' })).toEqual({ commands: ['/agenda'] });
   });
+
+  it('avisos do vínculo de professor abrem o vínculo (ou Minhas arenas sem linkId)', () => {
+    for (const type of ['professor_link_invite', 'professor_link_approved', 'professor_link_suspended']) {
+      expect(notificationTarget({ type, tournamentId: null, linkId: 'a1_u1' })).toEqual({
+        commands: ['/professor/arenas', 'a1_u1'],
+      });
+    }
+    expect(notificationTarget({ type: 'professor_link_ended', tournamentId: null, linkId: null })).toEqual({
+      commands: ['/professor/arenas'],
+    });
+    // O lado da arena (`arena_professor_*`) é do painel da arena, não do portal do atleta.
+    expect(notificationTarget({ type: 'arena_professor_request', tournamentId: null, linkId: 'a1_u1' })).toBeNull();
+  });
 });

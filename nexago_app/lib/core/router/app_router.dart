@@ -168,6 +168,11 @@ import '../../features/professor_links/presentation/professor_link_detail_page.d
 import '../../features/professor_links/presentation/professor_link_request_sent_page.dart';
 import '../../features/athlete/presentation/teacher_class_attendance_page.dart';
 import '../../features/professor_mode/presentation/professor_home_page.dart';
+import '../../features/professor_mode/presentation/professor_classes_page.dart';
+import '../../features/professor_mode/presentation/professor_more_page.dart';
+import '../../features/professor_mode/presentation/professor_shell_page.dart';
+import '../../features/professor_mode/presentation/professor_student_page.dart';
+import '../../features/professor_mode/presentation/professor_students_page.dart';
 import '../../features/professor_links/presentation/professor_my_arenas_page.dart';
 import '../../features/store/domain/store_checkout_models.dart';
 import '../../features/store/presentation/store_address_page.dart';
@@ -389,10 +394,58 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.roleSelection,
         builder: (context, state) => const RoleSelectionPage(),
       ),
-      GoRoute(
-        path: AppRoutes.professorHome,
-        name: AppRouteNames.professorHome,
-        builder: (context, state) => const ProfessorHomePage(),
+      // Modo Professor: Hoje · Alunos · Mais (a ordem dos branches é a da
+      // barra). Aluno e Turmas empilham sem a barra.
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) =>
+            ProfessorShellPage(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.professorHome,
+                name: AppRouteNames.professorHome,
+                builder: (context, state) => const ProfessorHomePage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.professorStudents,
+                name: AppRouteNames.professorStudents,
+                builder: (context, state) => const ProfessorStudentsPage(),
+                routes: [
+                  GoRoute(
+                    path: ':arenaId/:studentId',
+                    name: AppRouteNames.professorStudent,
+                    builder: (context, state) => ProfessorStudentPage(
+                      arenaId: state.pathParameters['arenaId']?.trim() ?? '',
+                      studentId:
+                          state.pathParameters['studentId']?.trim() ?? '',
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.professorMore,
+                name: AppRouteNames.professorMore,
+                builder: (context, state) => const ProfessorMorePage(),
+                routes: [
+                  GoRoute(
+                    path: 'turmas',
+                    name: AppRouteNames.professorClasses,
+                    builder: (context, state) => const ProfessorClassesPage(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.organizerHome,

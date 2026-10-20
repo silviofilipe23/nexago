@@ -719,6 +719,8 @@ Future<T?> showProfessorLinksSheet<T>(
   final colors = context.themeColors;
   return showModalBottomSheet<T>(
     context: context,
+    // Acima da barra de abas do modo Professor (a aba tem navegador próprio).
+    useRootNavigator: true,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: colors.surfaceSheet,

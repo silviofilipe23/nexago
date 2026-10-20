@@ -15,6 +15,7 @@ import '../../professor_links/domain/professor_link_rules.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../application/professor_mode_providers.dart';
 import '../domain/professor_mode_logic.dart';
+import 'professor_shell_page.dart';
 import 'widgets/professor_settings_sheet.dart';
 
 /// Home do modo Professor (papel `professor`): as aulas de hoje com a chamada,
@@ -76,7 +77,12 @@ class ProfessorHomePage extends ConsumerWidget {
           },
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+            padding: EdgeInsets.fromLTRB(
+              20,
+              8,
+              20,
+              professorShellBottomPadding(context),
+            ),
             children: [
               _ClassesSection(classesAsync: classesAsync, now: now),
               const SizedBox(height: 26),

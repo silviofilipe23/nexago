@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_match_history_models.dart';
 
@@ -28,7 +27,7 @@ class MatchHistoryTournamentStatsRow extends StatelessWidget {
           child: _StatMiniCard(
             label: 'OUROS',
             value: '${counts.gold}',
-            color: AppColors.pending,
+            color: context.themeColors.pending,
           ),
         ),
         SizedBox(width: 8),

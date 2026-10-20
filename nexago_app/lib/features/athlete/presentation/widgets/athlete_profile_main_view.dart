@@ -1377,6 +1377,7 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tone = context.themeColors.readableTone(color);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -1391,7 +1392,7 @@ class _StatusPill extends StatelessWidget {
             Container(
               width: 5,
               height: 5,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              decoration: BoxDecoration(color: tone, shape: BoxShape.circle),
             ),
             SizedBox(width: 4),
           ],
@@ -1399,7 +1400,7 @@ class _StatusPill extends StatelessWidget {
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w800,
-              color: dot ? color : context.themeColors.onSurface,
+              color: dot ? tone : context.themeColors.onSurface,
               fontSize: 10,
             ),
           ),

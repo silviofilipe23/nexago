@@ -115,7 +115,7 @@ class _AthletePublicProfilePageState
             child: Text(
               'Não foi possível carregar o perfil.\n$e',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.live),
+              style: TextStyle(color: context.themeColors.live),
             ),
           ),
         ),

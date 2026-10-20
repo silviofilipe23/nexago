@@ -368,7 +368,7 @@ class _AthleteOnboardingProfileStepState
             const SizedBox(height: 8),
             Text(
               'Selecione o gênero',
-              style: theme.textTheme.bodySmall?.copyWith(color: AppColors.live),
+              style: theme.textTheme.bodySmall?.copyWith(color: context.themeColors.live),
             ),
           ],
           SizedBox(height: 16),
@@ -473,7 +473,7 @@ class _PhotoPickerCard extends StatelessWidget {
                             : 'JPG ou PNG · recorte circular',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: missing
-                          ? AppColors.live
+                          ? context.themeColors.live
                           : context.themeColors.onSurfaceMuted,
                     ),
                   ),

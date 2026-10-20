@@ -122,7 +122,7 @@ class _TrackerBlock extends StatelessWidget {
             const SizedBox(height: AppSpacing.xs),
             Text(
               'Lista de espera',
-              style: AppTypography.labelS.copyWith(color: AppColors.pending),
+              style: AppTypography.labelS.copyWith(color: context.themeColors.pending),
             ),
           ],
           const SizedBox(height: AppSpacing.md),

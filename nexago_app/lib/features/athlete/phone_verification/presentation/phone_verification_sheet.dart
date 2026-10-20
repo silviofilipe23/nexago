@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../auth/widgets/auth_form_widgets.dart';
 import '../../domain/profile_completion_models.dart';
@@ -236,7 +235,7 @@ class _PhoneVerificationSheetState
                 Text(
                   _error!,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.live,
+                    color: context.themeColors.live,
                   ),
                 ),
               ],

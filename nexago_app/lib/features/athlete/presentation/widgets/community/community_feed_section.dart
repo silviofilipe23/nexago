@@ -142,7 +142,7 @@ class _CommunityFeedRow extends StatelessWidget {
               color: badge.color.withValues(alpha: 0.13),
               borderRadius: AppRadii.mdAll,
             ),
-            child: Icon(badge.icon, size: 18, color: badge.color),
+            child: Icon(badge.icon, size: 18, color: colors.readableTone(badge.color)),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(

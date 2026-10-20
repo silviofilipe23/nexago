@@ -243,7 +243,7 @@ class ProfileCompletionStepTile extends StatelessWidget {
                 ),
                 child: Icon(
                   done ? Icons.check_rounded : step.icon,
-                  color: done ? AppColors.win : AppColors.brand,
+                  color: done ? context.themeColors.win : AppColors.brand,
                   size: 22,
                 ),
               ),

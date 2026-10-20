@@ -33,7 +33,7 @@ class ArenaSearchFlexibleBanner extends StatelessWidget {
         children: [
           Icon(
             Icons.bolt_rounded,
-            color: AppColors.pending,
+            color: context.themeColors.pending,
             size: 22,
           ),
           SizedBox(width: 10),
@@ -52,7 +52,7 @@ class ArenaSearchFlexibleBanner extends StatelessWidget {
                     text: '+$boostPercent% opções',
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.pending,
+                      color: context.themeColors.pending,
                     ),
                   ),
                   const TextSpan(text: ' nas arenas próximas.'),

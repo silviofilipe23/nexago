@@ -120,8 +120,8 @@ class AthleteSettingsTile extends StatelessWidget {
       iconColor ??
       switch (variant) {
         AthleteSettingsIconVariant.orange => AppColors.brand,
-        AthleteSettingsIconVariant.green => AppColors.win,
-        AthleteSettingsIconVariant.yellow => AppColors.pending,
+        AthleteSettingsIconVariant.green => context.themeColors.win,
+        AthleteSettingsIconVariant.yellow => context.themeColors.pending,
         AthleteSettingsIconVariant.neutral => context.themeColors.onSurface,
       };
 
@@ -252,7 +252,11 @@ class AthleteSettingsToggleTile extends StatelessWidget {
                   color: context.themeColors.surfaceSheet,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(Icons.face_rounded, color: AppColors.win, size: 22),
+                child: Icon(
+                  Icons.face_rounded,
+                  color: context.themeColors.win,
+                  size: 22,
+                ),
               ),
               SizedBox(width: 12),
               Expanded(

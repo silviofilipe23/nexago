@@ -107,13 +107,14 @@ class _UnlockedContent extends StatelessWidget {
             Icon(
               Icons.check_circle_rounded,
               size: 16,
-              color: AppColors.win,
+              color: context.themeColors.win,
             ),
             SizedBox(width: 5),
             Text(
               '+${def.xpReward} XP',
               style: AppTypography.xpReward(
                 fontSize: theme.textTheme.labelLarge?.fontSize ?? 14,
+                color: context.themeColors.win,
               ),
             ),
           ],

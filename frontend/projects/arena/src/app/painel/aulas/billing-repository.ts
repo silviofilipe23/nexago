@@ -181,7 +181,7 @@ export function previewEnrollment(functions: Functions, input: EnrollmentInput):
 export function createEnrollment(
   functions: Functions,
   input: EnrollmentInput,
-): Promise<{ enrollmentId: string; studentId: string; chargeIds: string[]; asaasGroupId?: string | null }> {
+): Promise<{ enrollmentId: string; studentId: string; chargeIds: string[]; asaasGroupId?: string | null; phone?: string | null }> {
   return call(functions, 'createArenaClassEnrollment', input);
 }
 

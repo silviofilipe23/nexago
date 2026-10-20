@@ -71,6 +71,8 @@ export interface Enrollment {
   athleteId: string | null;
   name: string;
   phone: string | null;
+  /** Foto do atleta NexaGO no momento da matrícula. */
+  photoUrl: string | null;
   plan: Omit<ClassPlan, 'id' | 'status'> & { planId: string };
   slots: EnrollmentSlot[];
   status: EnrollmentStatus;
@@ -258,6 +260,19 @@ function round2(n: number): number {
 
 /** Link do WhatsApp com a mensagem de cobrança pronta (telefone com DDD, só dígitos); com a fatura
  *  online, a mensagem leva o link de pagamento (PIX ou cartão). */
+/** Telefone do cadastro do atleta no formato do campo: `+5562982406456` → `(62) 98240-6456`.
+ *  O cadastro é texto livre (SMS grava E.164, o antigo o que foi digitado), então o que não
+ *  for número brasileiro reconhecível passa como veio. */
+export function formatPhoneBR(raw: string | null): string {
+  const text = (raw ?? '').trim();
+  if (text.startsWith('+') && !text.startsWith('+55')) return text;
+  let digits = text.replace(/\D/g, '');
+  if (digits.length >= 12 && digits.startsWith('55')) digits = digits.slice(2);
+  if (digits.length !== 10 && digits.length !== 11) return text;
+  const split = digits.length === 11 ? 7 : 6;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, split)}-${digits.slice(split)}`;
+}
+
 export function whatsappChargeLink(
   phone: string | null,
   name: string,
@@ -343,6 +358,7 @@ export function enrollmentFromDoc(doc: Snap): Enrollment {
     athleteId: optStr(d['athleteId']),
     name: str(d['name'], 'Aluno'),
     phone: optStr(d['phone']),
+    photoUrl: optStr(d['photoUrl']),
     plan: {
       planId: str(p['planId']),
       name: str(p['name'], 'Plano'),

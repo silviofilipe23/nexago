@@ -5,6 +5,7 @@ import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { arenaFunctions } from '../data/functions';
+import { AvatarComponent } from '../ui/avatar.component';
 import { IconComponent } from '../ui/icon.component';
 import { ModalComponent } from '../ui/modal.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
@@ -22,7 +23,6 @@ import {
   shortDate,
   sportLabel,
   studentAttendsWeekday,
-  teacherInitials,
   todayKeyLocal,
   weekdayDateLabel,
   weekdaysLabel,
@@ -80,6 +80,7 @@ export function spotsByWeekday(cls: Pick<ArenaClass, 'weekdays' | 'capacity'>, s
     AulasPageComponent,
     PanelCardComponent,
     IconComponent,
+    AvatarComponent,
     ModalComponent,
     AulaStatComponent,
     AulaTypeTagComponent,
@@ -155,7 +156,7 @@ export function spotsByWeekday(cls: Pick<ArenaClass, 'weekdays' | 'capacity'>, s
                 @for (s of listedStudents(); track s.id) {
                   <div class="table-row" [class.off]="s.status === 'paused'">
                     <div class="who">
-                      <span class="av">{{ initials(s.name) }}</span>
+                      <ar-avatar [name]="s.name" [photoUrl]="s.photoUrl" [size]="32" zoomable personRole="Aluno" [meta]="s.planName" />
                       <div class="min0">
                         <div class="name">{{ s.name }}</div>
                         <div class="sub">{{ s.status === 'paused' ? 'Plano pausado' : s.athleteId ? 'Conta NexaGO' : 'Sem conta' }}</div>
@@ -358,10 +359,6 @@ export function spotsByWeekday(cls: Pick<ArenaClass, 'weekdays' | 'capacity'>, s
     .table-row:last-child { border-bottom: none; }
     .who, .teacher { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .teacher > div { flex: 1; min-width: 0; }
-    .av {
-      width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none;
-      background: var(--nx-surface-2); font-family: var(--nx-font-display); font-weight: 700; font-size: 11px; color: var(--nx-text-mute);
-    }
     .name { font-family: var(--nx-font-display); font-weight: 600; font-size: 13px; color: var(--nx-text); }
     .sub { font-family: var(--nx-font-mono); font-size: 10px; color: var(--nx-text-dim); margin-top: 2px; }
     .mono { font-family: var(--nx-font-mono); font-size: 11.5px; font-weight: 700; color: var(--nx-text); }
@@ -517,10 +514,6 @@ export class PanelAulaClassDetailComponent {
 
   protected frequency(studentId: string): number | null {
     return studentFrequency(this.past(), studentId);
-  }
-
-  protected initials(name: string): string {
-    return teacherInitials(name);
   }
 
   protected reasonLabel(reason: string): string {

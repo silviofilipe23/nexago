@@ -274,7 +274,11 @@ describe("buildProfessorActionsContext", () => {
       ]]]),
       sessions: [
         {id: "s1", data: {classId: "c1", arenaId: "a1", className: "Iniciante A", date: "2026-10-21", startTime: "07:00", endTime: "08:00", status: "scheduled", capacity: 2, extras: {t1: {name: "João", kind: "trial"}}}},
-        {id: "s0", data: {classId: "c1", arenaId: "a1", className: "Iniciante A", date: "2026-10-19", status: "completed"}},
+        {id: "s0", data: {
+          classId: "c1", arenaId: "a1", className: "Iniciante A", date: "2026-10-19", startTime: "07:00", status: "completed",
+          extras: {uT: {name: "João", kind: "trial", athleteId: "uT"}, u2: {name: "Bruno", kind: "trial", athleteId: "u2"}},
+          attendance: {uT: {mark: "present", name: "João"}},
+        }},
       ],
       waitlist: [],
       credits: [
@@ -290,5 +294,7 @@ describe("buildProfessorActionsContext", () => {
     // 2026-10-21 é quarta (3): só u2 faz quarta + 1 encaixe.
     assert.deepEqual(ctx.sessions.map((s) => [s.sessionId, s.taken, s.studentCount]), [["s1", 2, 1]]);
     assert.deepEqual(ctx.credits.map((c) => c.creditId), ["k1"]);
+    // Experimental de ontem vira candidato a conversão; quem já é aluno (u2) não.
+    assert.deepEqual(ctx.trials.map((t) => [t.athleteId, t.mark]), [["uT", "present"]]);
   });
 });

@@ -53,6 +53,8 @@ import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /** Janela das aulas que as telas do professor oferecem (encaixe, reposição, aviso). */
 export const PROFESSOR_ACTIONS_WINDOW_DAYS = 14;
+/** Experimentais dos últimos dias que ainda dá para converter (B7). */
+export const PROFESSOR_TRIALS_WINDOW_DAYS = 14;
 /** Aviso aos alunos: aulas por envio e tamanho da mensagem. */
 export const MAX_NOTICE_SESSIONS = 10;
 export const MAX_NOTICE_LENGTH = 300;
@@ -557,6 +559,8 @@ export interface ProfessorActionsContext {
   sessions: Array<{sessionId: string; classId: string; className: string; type: string; date: string; startTime: string; endTime: string; courtName: string; capacity: number; taken: number; studentCount: number; extras: Array<{studentId: string; name: string; kind: string; athleteId: string | null}>}>;
   waitlist: Array<{entryId: string; classId: string; name: string; athleteId: string | null; note: string | null; since: string | null}>;
   credits: Array<{creditId: string; studentId: string; name: string; expiresOn: string | null; sourceDate: string | null}>;
+  /** Experimentais com conta das aulas dele (últimos dias até hoje) que ainda não são alunos dele. */
+  trials: Array<{sessionId: string; classId: string; className: string; date: string; startTime: string; studentId: string; athleteId: string; name: string; mark: string | null}>;
 }
 
 /** Monta o contexto a partir do que foi lido (pura — os testes chamam direto). */
@@ -641,6 +645,7 @@ export function buildProfessorActionsContext(input: {
       })
       .sort((a, b) => a._order - b._order)
       .map(({_order, ...rest}) => rest),
+    trials: trialsOf(input.sessions, myStudents, input.todayKey),
     credits: input.credits
       .filter((d) => str(d.data["status"]) === "available" && myStudents.has(str(d.data["studentId"])))
       .filter((d) => !str(d.data["expiresOn"]) || str(d.data["expiresOn"]) >= input.todayKey)
@@ -652,6 +657,29 @@ export function buildProfessorActionsContext(input: {
   };
 }
 
+function trialsOf(
+  sessions: Array<{id: string; data: Data}>,
+  myStudents: Set<string>,
+  todayKey: string,
+): ProfessorActionsContext["trials"] {
+  const fromKey = addDaysToDateKey(todayKey, -PROFESSOR_TRIALS_WINDOW_DAYS);
+  const latest = new Map<string, ProfessorActionsContext["trials"][number]>();
+  const ordered = sessions
+    .map((d) => ({id: d.id, s: parseClassSession(d.data)}))
+    .filter(({s}) => s.status !== "canceled" && s.date >= fromKey && s.date <= todayKey)
+    .sort((a, b) => a.s.date.localeCompare(b.s.date) || a.s.startTime.localeCompare(b.s.startTime));
+  for (const {id, s} of ordered) {
+    for (const [studentId, extra] of Object.entries(s.extras)) {
+      if (extra.kind !== "trial" || !extra.athleteId || myStudents.has(extra.athleteId)) continue;
+      latest.set(extra.athleteId, {
+        sessionId: id, classId: s.classId, className: s.className, date: s.date, startTime: s.startTime,
+        studentId, athleteId: extra.athleteId, name: extra.name, mark: s.attendance[studentId]?.mark ?? null,
+      });
+    }
+  }
+  return [...latest.values()].sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name, "pt-BR"));
+}
+
 export async function loadProfessorActionsContextCore(
   db: Firestore,
   uid: string,
@@ -661,10 +689,11 @@ export async function loadProfessorActionsContextCore(
   // Mesma porta de entrada da tela de alunos: vínculo ativo + "Gerenciar as próprias aulas".
   const link = await requireArenaProfessorPermission(db, arenaId, uid, "canManageOwnLessons");
   const untilKey = addDaysToDateKey(todayKey, PROFESSOR_ACTIONS_WINDOW_DAYS);
+  const fromKey = addDaysToDateKey(todayKey, -PROFESSOR_TRIALS_WINDOW_DAYS);
   const [classSnap, sessionSnap, planSnap, rulesSnap, creditSnap] = await Promise.all([
     db.collection(ARENA_CLASSES).where("teacherUserId", "==", uid).where("arenaId", "==", arenaId).get(),
     db.collection(ARENA_CLASS_SESSIONS).where("teacherUserId", "==", uid)
-      .where("date", ">=", todayKey).where("date", "<=", untilKey).get(),
+      .where("date", ">=", fromKey).where("date", "<=", untilKey).get(),
     db.collection("arenas").doc(arenaId).collection(CLASS_PLANS).get(),
     classRulesRef(db, arenaId).get(),
     db.collection(ARENA_CLASS_CREDITS).where("arenaId", "==", arenaId).where("status", "==", "available").get(),

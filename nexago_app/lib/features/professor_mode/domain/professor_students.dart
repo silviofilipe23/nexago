@@ -1,5 +1,6 @@
 import '../../arena/domain/aulas/arena_class.dart';
 import '../../professor_links/domain/arena_professor_link.dart';
+import 'professor_actions.dart';
 
 /// Alunos do professor, como a callable `getMyProfessorStudents` entrega:
 /// as arenas em que ele dá aula, as turmas dele e os alunos dessas turmas —
@@ -43,6 +44,10 @@ class ProfessorStudentsSnapshot {
     return null;
   }
 
+  /// Arenas em que o professor pode agir nas Aulas (alguma chave ligada).
+  List<ProfessorArenaSummary> get actionArenas =>
+      arenas.where((a) => a.canSeeStudents && a.actions.any).toList();
+
   ProfessorStudent? student(String arenaId, String studentId) {
     for (final s in students) {
       if (s.arenaId == arenaId && s.studentId == studentId) return s;
@@ -59,6 +64,7 @@ class ProfessorArenaSummary {
     required this.canSeeStudents,
     required this.studentCount,
     required this.classCount,
+    this.actions = ProfessorArenaActions.none,
   });
 
   factory ProfessorArenaSummary.fromMap(Map<String, Object?> map) {
@@ -70,6 +76,7 @@ class ProfessorArenaSummary {
       canSeeStudents: map['canSeeStudents'] == true,
       studentCount: _int(map['studentCount']) ?? 0,
       classCount: _int(map['classCount']) ?? 0,
+      actions: ProfessorArenaActions.fromMap(map['actions']),
     );
   }
 
@@ -81,6 +88,9 @@ class ProfessorArenaSummary {
   final bool canSeeStudents;
   final int studentCount;
   final int classCount;
+
+  /// Fase 2: o que a arena liberou (só equipe; servidor ausente = nada).
+  final ProfessorArenaActions actions;
 }
 
 class ProfessorClassSummary {

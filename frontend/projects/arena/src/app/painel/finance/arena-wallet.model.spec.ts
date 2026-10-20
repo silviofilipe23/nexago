@@ -59,4 +59,26 @@ describe('carteira da arena: a liberar e origem do extrato', () => {
     const credit = { ...ledgerEntryFromData('c', { type: 'credit', source: 'club', grossReais: 30, netReais: 28.2 }), createdAt: new Date() };
     expect(computeFinancialPeriodStats([credit, refund], [], 30).receivedReais).toBe(0);
   });
+
+  it('repasse de aulas pago pelo nexaGO é saída "Repasse · professor · mês", não estorno', () => {
+    const payout = {
+      ...ledgerEntryFromData('p', {
+        type: 'class_payout', payoutId: 'a_t_2026-09', teacherUserId: 'u1', teacherName: 'Ana Lima', month: '2026-09',
+        grossReais: 450, platformFeeReais: 0, netReais: -450,
+      }),
+      createdAt: new Date(),
+    };
+    const [m] = buildFinancialMovements([payout], [], 'Arena');
+    expect(m!.title).toBe('Repasse · Ana Lima · setembro/2026');
+    expect(m!.title).not.toContain('Estorno');
+    expect(m!.kind).toBe('withdrawal');
+    expect(m!.isPositive).toBeFalse();
+    expect(m!.amountReais).toBe(450);
+    expect(m!.statusLabel).toBe('PAGO');
+    // Conta como saída do período, não desconta o "Recebido".
+    const credit = { ...ledgerEntryFromData('c', { type: 'credit', source: 'class', grossReais: 500, netReais: 500 }), createdAt: new Date() };
+    const stats = computeFinancialPeriodStats([credit, payout], [], 30);
+    expect(stats.receivedReais).toBe(500);
+    expect(stats.withdrawnReais).toBe(450);
+  });
 });

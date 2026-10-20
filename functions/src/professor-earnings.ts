@@ -35,8 +35,6 @@ import {
   PROFESSOR_WITHDRAWAL_REF_PREFIX,
   PROFESSOR_WITHDRAWALS,
   professorEarningsWalletRef,
-  releaseProfessorWithdrawalReservation,
-  reserveProfessorWithdrawalAmount,
 } from "./professor-earnings-wallet";
 import {finalizeApprovedWithdrawal, manualReviewBlockReason} from "./withdrawal-transfer-state";
 
@@ -76,6 +74,12 @@ export async function payArenaClassPayoutViaNexagoCore(
   const arenaId = str(first["arenaId"]);
   await requireClassPayoutManager(db, arenaId, actorUid);
   const arena = (await db.collection("arenas").doc(arenaId).get()).data();
+  // Mover dinheiro do caixa é do DONO — a mesma régua do saque da arena (`requestArenaWithdrawal`).
+  // Gestor da equipe fecha o repasse, mas não paga pelo nexaGO: senão escalaria a própria conta
+  // como professor e sacaria o caixa.
+  if (str(arena?.["managerUserId"]) !== actorUid) {
+    throw new HttpsError("permission-denied", "Só o dono da arena paga repasse pelo nexaGO.");
+  }
   const arenaName = str(arena?.["name"]) || "Arena";
   const todayKey = dayKeyFromEventDate(now);
 
@@ -90,8 +94,18 @@ export async function payArenaClassPayoutViaNexagoCore(
       throw new HttpsError("failed-precondition",
         "Este professor não tem conta nexaGO ligada às Aulas — pague por fora (PIX, transferência ou dinheiro).");
     }
+    if (professorUid === actorUid) {
+      throw new HttpsError("failed-precondition", "Você não pode pagar repasse para a sua própria conta.");
+    }
     const amount = roundMoney(Number(payout["amountReais"]) || 0);
     if (!(amount > 0)) throw new HttpsError("failed-precondition", "Repasse sem valor a pagar.");
+    // O professor aceitou trabalhar para a arena (vínculo ATIVO): conta escalada nas Aulas sem o
+    // consentimento dele não recebe dinheiro do caixa.
+    const link = await tx.get(db.collection("arenaProfessors").doc(`${arenaId}_${professorUid}`));
+    if (!link.exists || link.data()?.["status"] !== "ACTIVE") {
+      throw new HttpsError("failed-precondition",
+        "O professor precisa de vínculo ativo com a arena (Profissionais) para receber pelo nexaGO.");
+    }
 
     const arenaWalletDoc = arenaWalletRef(db, arenaId);
     const professorWalletDoc = professorEarningsWalletRef(db, professorUid);
@@ -256,28 +270,32 @@ export async function requestProfessorWithdrawalCore(
   const {pixAddressKey, pixAddressKeyType} = resolveWithdrawalPixFields(profile.pixKey, profile.pixKeyType || undefined);
   if (pixAddressKey.length < 5) throw new HttpsError("invalid-argument", "Chave PIX inválida.");
 
-  const pending = await db.collection(PROFESSOR_WITHDRAWALS)
-    .where("professorUid", "==", uid).where("status", "==", "pending").limit(1).get();
-  if (!pending.empty) {
-    throw new HttpsError("failed-precondition", "Você já tem um saque em andamento. Aguarde ele terminar.");
-  }
-
-  try {
-    await reserveProfessorWithdrawalAmount(db, uid, amount);
-  } catch (e) {
-    if (e instanceof Error && e.message === "INSUFFICIENT_BALANCE") {
-      throw new HttpsError("failed-precondition", "Saldo insuficiente para este saque.");
-    }
-    throw e;
-  }
-
   const autoEligible = amount <= ARENA_WITHDRAWAL_AUTO_MAX_REAIS + 0.001;
   const processingMode = autoEligible ? "auto" : "manual_review";
   const withdrawalRef = db.collection(PROFESSOR_WITHDRAWALS).doc();
   const withdrawalData = buildProfessorWithdrawalDoc({
     professorUid: uid, amountReais: amount, pixKey: pixAddressKey, pixKeyType: pixAddressKeyType, processingMode,
   });
-  await withdrawalRef.set({...withdrawalData, createdAt: FieldValue.serverTimestamp()});
+  // "Um saque por vez", reserva e criação do doc NA MESMA transação: dois pedidos simultâneos
+  // não passam juntos pela checagem.
+  const walletRef = professorEarningsWalletRef(db, uid);
+  await db.runTransaction(async (tx) => {
+    const open = await tx.get(db.collection(PROFESSOR_WITHDRAWALS)
+      .where("professorUid", "==", uid).where("status", "==", "pending").limit(1));
+    if (!open.empty) {
+      throw new HttpsError("failed-precondition", "Você já tem um saque em andamento. Aguarde ele terminar.");
+    }
+    const w = (await tx.get(walletRef)).data() ?? {};
+    const available = Number(w["availableReais"]) || 0;
+    if (available + 0.001 < amount) throw new HttpsError("failed-precondition", "Saldo insuficiente para este saque.");
+    tx.set(walletRef, {
+      professorUid: uid,
+      availableReais: roundMoney(available - amount),
+      pendingReais: roundMoney((Number(w["pendingReais"]) || 0) + amount),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    tx.set(withdrawalRef, {...withdrawalData, createdAt: FieldValue.serverTimestamp()});
+  });
 
   if (!autoEligible) {
     return {
@@ -313,7 +331,10 @@ export async function reviewProfessorWithdrawalCore(
   input: {withdrawalId: string; decision: string; note?: string},
   sendPixTransfer: ProfessorPixSender = sendArenaWithdrawalPixTransfer,
 ): Promise<Record<string, unknown>> {
-  const ref = db.collection(PROFESSOR_WITHDRAWALS).doc(input.withdrawalId || "_");
+  if (!input.withdrawalId || input.withdrawalId.includes("/")) {
+    throw new HttpsError("invalid-argument", "withdrawalId inválido");
+  }
+  const ref = db.collection(PROFESSOR_WITHDRAWALS).doc(input.withdrawalId);
   const snap = await ref.get();
   if (!input.withdrawalId || !snap.exists) throw new HttpsError("not-found", "Solicitação de saque não encontrada");
   const w = snap.data()!;
@@ -327,18 +348,39 @@ export async function reviewProfessorWithdrawalCore(
   const amount = Number(w["amountReais"]) || 0;
   const professorUid = str(w["professorUid"]);
   const note = input.note?.trim() ?? "";
-  if (decision === "rejected") {
-    await releaseProfessorWithdrawalReservation(db, professorUid, amount, false);
-    await ref.update({status: "rejected", reviewedBy: adminUid, reviewedAt: FieldValue.serverTimestamp(), reviewNote: note || null});
-    return {withdrawalId: ref.id, status: "rejected"};
-  }
-  if (decision === "approved_manual") {
-    await releaseProfessorWithdrawalReservation(db, professorUid, amount, true);
-    await ref.update({
-      status: "approved", payoutStatus: "manual", payoutError: FieldValue.delete(), reviewedBy: adminUid,
-      reviewedAt: FieldValue.serverTimestamp(), reviewNote: note || "PIX enviado manualmente fora do sistema",
+  if (decision === "rejected" || decision === "approved_manual") {
+    // Releitura, devolução/consumo e status numa transação só: dois cliques, ou recusar enquanto o
+    // PIX automático está saindo, não devolvem o dinheiro duas vezes.
+    return db.runTransaction(async (tx) => {
+      const fresh = (await tx.get(ref)).data() ?? {};
+      if (str(fresh["status"]).toLowerCase() !== "pending") {
+        throw new HttpsError("failed-precondition", "Saque já foi revisado.");
+      }
+      const blockNow = manualReviewBlockReason(fresh);
+      if (blockNow) throw new HttpsError("failed-precondition", blockNow);
+      const payoutStatus = str(fresh["payoutStatus"]).toLowerCase();
+      if (fresh["transferRequestedAt"] && payoutStatus !== "failed") {
+        throw new HttpsError("failed-precondition",
+          "Há um envio de PIX deste saque em andamento. Aguarde ele concluir ou falhar antes de recusar.");
+      }
+      const walletRef = professorEarningsWalletRef(db, professorUid);
+      const wallet = (await tx.get(walletRef)).data() ?? {};
+      const pendingNow = Number(wallet["pendingReais"]) || 0;
+      tx.set(walletRef, {
+        pendingReais: roundMoney(Math.max(0, pendingNow - amount)),
+        ...(decision === "rejected" ? {availableReais: roundMoney((Number(wallet["availableReais"]) || 0) + amount)} : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+      if (decision === "rejected") {
+        tx.update(ref, {status: "rejected", reviewedBy: adminUid, reviewedAt: FieldValue.serverTimestamp(), reviewNote: note || null});
+        return {withdrawalId: ref.id, status: "rejected"};
+      }
+      tx.update(ref, {
+        status: "approved", payoutStatus: "manual", payoutError: FieldValue.delete(), reviewedBy: adminUid,
+        reviewedAt: FieldValue.serverTimestamp(), reviewNote: note || "PIX enviado manualmente fora do sistema",
+      });
+      return {withdrawalId: ref.id, status: "approved", payoutStatus: "manual"};
     });
-    return {withdrawalId: ref.id, status: "approved", payoutStatus: "manual"};
   }
   try {
     const result = await completeProfessorWithdrawalPayout(db, ref, w, adminUid, note, sendPixTransfer);

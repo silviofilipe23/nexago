@@ -43,6 +43,40 @@ beforeEach(async () => {
     amountReais: 1680, status: 'closed',
   });
   await db.doc('organizerPayoutProfiles/uProf').set({payoutPixKey: '52998224725', payoutPixKeyType: 'CPF'});
+  await db.doc('arenaProfessors/cfc_uProf').set({arenaId: 'cfc', professorUserId: 'uProf', relationshipType: 'ARENA_STAFF', status: 'ACTIVE'});
+  await db.doc('arenas/cfc/staff/uGestor').set({role: 'gestor', status: 'active'});
+});
+
+test('só o dono paga pelo nexaGO; sem vínculo ativo ou para si mesmo, recusa', async () => {
+  await assert.rejects(payArenaClassPayoutViaNexagoCore(db, 'uGestor', 'cfc_t1_2026-10', NOW), /dono da arena|permiss|acesso/i);
+  await db.doc('arenaProfessors/cfc_uProf').set({status: 'SUSPENDED'}, {merge: true});
+  await assert.rejects(payArenaClassPayoutViaNexagoCore(db, 'uOwner', 'cfc_t1_2026-10', NOW), /vínculo ativo/);
+  await db.doc('arenaClassPayouts/cfc_t1_2026-10').set({teacherUserId: 'uOwner'}, {merge: true});
+  await assert.rejects(payArenaClassPayoutViaNexagoCore(db, 'uOwner', 'cfc_t1_2026-10', NOW), /própria conta/);
+  assert.equal((await wallet('arenaWallets/cfc')).availableReais, 5000, 'nada saiu do caixa');
+});
+
+test('dois pedidos de saque ao mesmo tempo: um passa, o outro é recusado', async () => {
+  await payArenaClassPayoutViaNexagoCore(db, 'uOwner', 'cfc_t1_2026-10', NOW);
+  const results = await Promise.allSettled([
+    requestProfessorWithdrawalCore(db, 'uProf', 1000, fakePix([])),
+    requestProfessorWithdrawalCore(db, 'uProf', 600, fakePix([])),
+  ]);
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+  const w = await wallet('professorEarningsWallets/uProf');
+  assert.equal(roundTwo(w.availableReais + w.pendingReais), 1680, 'o total nunca muda');
+});
+
+function roundTwo(n) { return Math.round(n * 100) / 100; }
+
+test('recusar com PIX em voo é bloqueado (não devolve dinheiro que está saindo)', async () => {
+  await payArenaClassPayoutViaNexagoCore(db, 'uOwner', 'cfc_t1_2026-10', NOW);
+  const big = await requestProfessorWithdrawalCore(db, 'uProf', 1000, fakePix([]));
+  await db.doc(`professorWithdrawals/${big.withdrawalId}`).update({payoutStatus: 'pending', transferRequestedAt: FieldValue.serverTimestamp()});
+  await assert.rejects(reviewProfessorWithdrawalCore(db, 'uAdmin', {withdrawalId: big.withdrawalId, decision: 'rejected'}), /em andamento/);
+  await assert.rejects(reviewProfessorWithdrawalCore(db, 'uAdmin', {withdrawalId: 'a/b', decision: 'rejected'}), /inválido/);
+  const w = await wallet('professorEarningsWallets/uProf');
+  assert.deepEqual([w.availableReais, w.pendingReais], [680, 1000]);
 });
 
 test('arena paga pelo nexaGO: caixa desce, saldo do professor sobe, repasse pago e travado', async () => {

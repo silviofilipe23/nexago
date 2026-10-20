@@ -13,15 +13,19 @@ import { AulaStatComponent, AulasPageComponent } from './aulas-ui';
 import { brl } from './billing.model';
 import { shortDate, todayKeyLocal, type ClassTeacher } from './class.model';
 import { fetchTeachers } from './classes-repository';
-import { closePayout, previewPayouts, setPayoutStatus, watchTeacherPayout, watchTeacherPayoutHistory } from './payout-repository';
+import { watchArenaWallet } from '../finance/arena-wallet-repository';
+import { closePayout, payPayoutViaNexago, previewPayouts, setPayoutStatus, watchTeacherPayout, watchTeacherPayoutHistory } from './payout-repository';
 import {
   PAYOUT_METHODS,
   PAYOUT_METHOD_LABEL,
   PAYOUT_STATE_LABEL,
+  canPayViaNexago,
   defaultPayoutMonth,
+  isPaidViaNexago,
   isMonthKey,
   monthLastDay,
   monthLongLabel,
+  paidLabel,
   parseDecimalInput,
   payoutColumnLabel,
   payoutModelLabel,
@@ -34,10 +38,11 @@ import {
   type TeacherPayoutPreview,
 } from './payout.model';
 
-type Dialog = 'close' | 'pay' | 'undo';
+type Dialog = 'close' | 'pay' | 'nexago' | 'undo';
 
 /** 15 · Repasse do professor no mês — composição, regra, histórico. O gestor fecha o mês
- *  (com ajuste explicado), registra o pagamento feito por fora e pode desfazer. */
+ *  (com ajuste explicado) e paga pelo nexaGO (sai do caixa da arena para a carteira do professor,
+ *  sem desfazer) ou registra o pagamento feito por fora (esse pode desfazer). */
 @Component({
   selector: 'ar-panel-aula-teacher-payout',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -66,10 +71,19 @@ type Dialog = 'close' | 'pay' | 'undo';
             }
             @case ('closed') {
               <button type="button" class="ar-mini-btn" (click)="openClose()">Recalcular</button>
-              <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="openPay()">Registrar pagamento</button>
+              @if (canPayNexago()) {
+                <button type="button" class="ar-mini-btn" (click)="openPay()">Registrar pagamento</button>
+                <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="openPayNexago()">Pagar pelo nexaGO</button>
+              } @else {
+                <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="openPay()">Registrar pagamento</button>
+              }
             }
             @case ('paid') {
-              <button type="button" class="ar-mini-btn" (click)="dialog.set('undo')">Desfazer pagamento</button>
+              @if (paidViaNexago()) {
+                <span class="paid-tag">Pago pelo nexaGO</span>
+              } @else {
+                <button type="button" class="ar-mini-btn" (click)="dialog.set('undo')">Desfazer pagamento</button>
+              }
             }
           }
         }
@@ -169,7 +183,7 @@ type Dialog = 'close' | 'pay' | 'undo';
               @for (h of history(); track h.id) {
                 <a class="hist" [class.current]="h.month === month()" [routerLink]="[]" [queryParams]="{ mes: h.month }">
                   <span class="h-month">{{ monthName(h.month) }}</span>
-                  <span class="h-state" [class.paid]="h.status === 'paid'">{{ h.status === 'paid' ? 'Pago ' + (h.paidOn ? shortDate(h.paidOn) : '') : 'A pagar' }}</span>
+                  <span class="h-state" [class.paid]="h.status === 'paid'">{{ h.status === 'paid' ? paidLabel(h, shortDate) : 'A pagar' }}</span>
                   <span class="mono">{{ brl(h.amountReais) }}</span>
                 </a>
               } @empty {
@@ -237,6 +251,32 @@ type Dialog = 'close' | 'pay' | 'undo';
           </div>
         </ar-modal>
       }
+      @case ('nexago') {
+        <ar-modal (close)="closeDialog()">
+          <p class="modal-title">Pagar pelo nexaGO</p>
+          <p class="modal-sub">{{ teacher()?.name }} · repasse de {{ monthName(month()) }}</p>
+          @if (error(); as err) {
+            <div class="error-banner">{{ err }}</div>
+          }
+          <div class="facts">
+            <div><span>Valor do repasse</span><strong>{{ brl(amount()) }}</strong></div>
+            <div>
+              <span>Disponível no caixa</span>
+              <strong [class.neg]="walletShort()">{{ walletAvailable() == null ? 'Carregando…' : brl(walletAvailable()!) }}</strong>
+            </div>
+          </div>
+          @if (walletShort()) {
+            <div class="info-banner warn spaced-top">O saldo disponível do caixa não cobre o repasse. Aguarde os recebimentos liberarem ou registre um pagamento feito por fora.</div>
+          }
+          <p class="hint">O valor sai do saldo disponível do caixa da arena e cai na carteira nexaGO do professor, que saca por PIX. Depois de pago, não dá para desfazer.</p>
+          <div class="modal-actions">
+            <button type="button" class="ar-mini-btn" [disabled]="busy()" (click)="closeDialog()">Cancelar</button>
+            <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="busy() || walletShort()" (click)="confirmPayNexago()">
+              {{ busy() ? 'Pagando…' : 'Pagar ' + brl(amount()) }}
+            </button>
+          </div>
+        </ar-modal>
+      }
       @case ('undo') {
         <ar-modal (close)="closeDialog()">
           <p class="modal-title">Desfazer o pagamento?</p>
@@ -291,6 +331,8 @@ type Dialog = 'close' | 'pay' | 'undo';
     .h-state { font-family: var(--nx-font-mono); font-size: 10.5px; color: var(--nx-pending); }
     .h-state.paid { color: var(--nx-win); }
     .mono-input { font-family: var(--nx-font-mono); }
+    .paid-tag { font-family: var(--nx-font-mono); font-size: 11px; font-weight: 600; color: var(--nx-win); padding: 0 4px; }
+    .spaced-top { margin-top: 12px; }
     .sum { display: flex; justify-content: space-between; align-items: baseline; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--nx-line-strong); }
     .sum span { font-family: var(--nx-font-display); font-weight: 700; font-size: 13.5px; color: var(--nx-text); }
     .sum strong { font-family: var(--nx-font-display); font-weight: 800; font-size: 22px; color: var(--nx-orange-500); }
@@ -329,6 +371,9 @@ export class PanelAulaTeacherPayoutComponent {
   protected readonly adjustmentNote = signal('');
   protected readonly payMethod = signal<PayoutMethod>('pix');
   protected readonly payDate = signal(this.today);
+  /** Saldo disponível do caixa da arena, lido ao vivo só enquanto o modal do nexaGO está aberto. */
+  protected readonly walletAvailable = signal<number | null>(null);
+  private unsubWallet: Unsubscribe | null = null;
 
   protected readonly model = computed(() => this.closed()?.model ?? this.teacher()?.payout ?? null);
   protected readonly state = computed(() => payoutState(this.closed(), this.model(), this.month(), this.today));
@@ -345,6 +390,13 @@ export class PanelAulaTeacherPayoutComponent {
     };
   });
   protected readonly amount = computed(() => this.figures().amountReais);
+  protected readonly canPayNexago = computed(() => canPayViaNexago(this.closed()));
+  protected readonly paidViaNexago = computed(() => isPaidViaNexago(this.closed()));
+  protected readonly walletShort = computed(() => {
+    const available = this.walletAvailable();
+    return available != null && available + 0.001 < this.amount();
+  });
+  protected readonly paidLabel = paidLabel;
   /** No % da receita a base é sem a taxa da NexaGO das mensalidades pagas online. */
   protected readonly revenueSub = computed(() => {
     const f = this.figures();
@@ -382,6 +434,7 @@ export class PanelAulaTeacherPayoutComponent {
   });
   protected readonly amountSub = computed(() => {
     const c = this.closed();
+    if (isPaidViaNexago(c)) return `Pago pelo nexaGO${c!.paidOn ? ' · ' + shortDate(c!.paidOn) : ''}`;
     if (c?.status === 'paid') return `${c.paymentMethod ? PAYOUT_METHOD_LABEL[c.paymentMethod] : ''} · ${c.paidOn ? shortDate(c.paidOn) : ''}`;
     return PAYOUT_STATE_LABEL[this.state()];
   });
@@ -398,7 +451,10 @@ export class PanelAulaTeacherPayoutComponent {
   private loadSeq = 0;
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.unsubs.forEach((u) => u()));
+    inject(DestroyRef).onDestroy(() => {
+      this.unsubs.forEach((u) => u());
+      this.stopWallet();
+    });
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       const raw = params.get('mes');
       if (isMonthKey(raw) && raw <= this.currentMonth) this.month.set(raw);
@@ -446,6 +502,7 @@ export class PanelAulaTeacherPayoutComponent {
 
   protected stateText(): string {
     const c = this.closed();
+    if (isPaidViaNexago(c)) return `pago pelo nexaGO${c!.paidOn ? ' em ' + shortDate(c!.paidOn) : ''}`;
     if (c?.status === 'paid' && c.paidOn) return `pago em ${shortDate(c.paidOn)}`;
     return PAYOUT_STATE_LABEL[this.state()].toLowerCase();
   }
@@ -464,6 +521,12 @@ export class PanelAulaTeacherPayoutComponent {
     if (this.busy()) return;
     this.dialog.set(null);
     this.error.set(null);
+    this.stopWallet();
+  }
+
+  private stopWallet(): void {
+    this.unsubWallet?.();
+    this.unsubWallet = null;
   }
 
   protected async openClose(): Promise<void> {
@@ -485,6 +548,23 @@ export class PanelAulaTeacherPayoutComponent {
     this.payDate.set(this.today);
     this.error.set(null);
     this.dialog.set('pay');
+  }
+
+  protected openPayNexago(): void {
+    const arenaId = this.arenaContext.arenaId();
+    if (!arenaId) return;
+    this.error.set(null);
+    this.walletAvailable.set(null);
+    this.stopWallet();
+    this.unsubWallet = watchArenaWallet(arenaFirestore(), arenaId, (w) => this.walletAvailable.set(w.availableReais));
+    this.dialog.set('nexago');
+  }
+
+  protected async confirmPayNexago(): Promise<void> {
+    const c = this.closed();
+    if (!c || !canPayViaNexago(c)) return;
+    await this.run(() => payPayoutViaNexago(arenaFunctions(), c.id));
+    if (this.dialog() === null) this.stopWallet();
   }
 
   protected async confirmClose(): Promise<void> {

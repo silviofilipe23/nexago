@@ -166,6 +166,7 @@ export {
   scheduleArenaClassDate,
   cancelArenaClassSession,
   addArenaClassStudent,
+  getArenaClassAthleteContact,
   removeArenaClassStudent,
   saveArenaClassAttendance,
 } from "./arena-class";

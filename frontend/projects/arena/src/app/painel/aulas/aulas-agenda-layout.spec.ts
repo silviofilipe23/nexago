@@ -56,7 +56,7 @@ describe('buildRoster (chamada)', () => {
       session({ g1: { mark: 'present', name: 'Bruno' }, old: { mark: 'absent', name: 'Ana' } }),
     );
     expect(rows.map((r) => r.name)).toEqual(['Ana', 'Bruno', 'Carla']);
-    expect(rows.find((r) => r.id === 'u1')).toEqual({ id: 'u1', name: 'Carla', hasAccount: true, removed: false, kind: 'regular' });
+    expect(rows.find((r) => r.id === 'u1')).toEqual({ id: 'u1', name: 'Carla', hasAccount: true, photoUrl: null, removed: false, kind: 'regular' });
     expect(rows.find((r) => r.id === 'g1')!.removed).toBeTrue();
   });
 });

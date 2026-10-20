@@ -680,7 +680,8 @@ export const createArenaClassEnrollment = onCall({region: CLIENT_FACING_REGIONS}
     studentId: resolved.athleteId ? null : str(input["studentId"]) || null,
   }, uid, dayKeyFromEventDate(new Date()));
   logger.info("createArenaClassEnrollment", {arenaId: req.arenaId, ...result});
-  return result;
+  // Telefone gravado (o do cadastro do atleta quando veio em branco): a confirmação monta o WhatsApp.
+  return {...result, phone: resolved.phone};
 });
 
 /**

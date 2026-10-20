@@ -5,6 +5,7 @@ import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { arenaFunctions } from '../data/functions';
+import { AvatarComponent } from '../ui/avatar.component';
 import { IconComponent } from '../ui/icon.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PillComponent } from '../ui/pill.component';
@@ -19,7 +20,6 @@ import {
   isoWeekdayOf,
   sessionLiveState,
   studentAttendsWeekday,
-  teacherInitials,
   todayKeyLocal,
   weekdayDateLabel,
   type AttendanceMark,
@@ -33,6 +33,8 @@ export interface RosterRow {
   id: string;
   name: string;
   hasAccount: boolean;
+  /** Foto do aluno da turma (encaixe e quem só ficou na chamada não trazem). */
+  photoUrl: string | null;
   /** Saiu da turma depois de ter presença nesta aula. */
   removed: boolean;
   /** Aluno da turma ou encaixe desta aula. */
@@ -52,14 +54,14 @@ export function buildRoster(
   for (const s of students) {
     const attends = s.status === 'active' && studentAttendsWeekday(s, weekday);
     if (attends || session.attendance[s.id]) {
-      rows.set(s.id, { id: s.id, name: s.name, hasAccount: s.athleteId != null, removed: !attends, kind: 'regular' });
+      rows.set(s.id, { id: s.id, name: s.name, hasAccount: s.athleteId != null, photoUrl: s.photoUrl, removed: !attends, kind: 'regular' });
     }
   }
   for (const [id, extra] of Object.entries(session.extras)) {
-    rows.set(id, { id, name: extra.name, hasAccount: extra.athleteId != null, removed: false, kind: extra.kind });
+    rows.set(id, { id, name: extra.name, hasAccount: extra.athleteId != null, photoUrl: null, removed: false, kind: extra.kind });
   }
   for (const [id, a] of Object.entries(session.attendance)) {
-    if (!rows.has(id)) rows.set(id, { id, name: a.name, hasAccount: false, removed: true, kind: 'regular' });
+    if (!rows.has(id)) rows.set(id, { id, name: a.name, hasAccount: false, photoUrl: null, removed: true, kind: 'regular' });
   }
   return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 }
@@ -78,7 +80,7 @@ const STATE_TONE = { live: 'red', next: 'orange', done: 'dim', canceled: 'dim' }
 @Component({
   selector: 'ar-panel-aula-session',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AulasPageComponent, PanelCardComponent, PillComponent, IconComponent, AulaTypeTagComponent, OccupancyBarComponent, AulaCancelModalComponent, AulaExtraModalComponent],
+  imports: [AulasPageComponent, PanelCardComponent, PillComponent, IconComponent, AvatarComponent, AulaTypeTagComponent, OccupancyBarComponent, AulaCancelModalComponent, AulaExtraModalComponent],
   styleUrl: './aulas-form.scss',
   template: `
     <ar-aulas-page [title]="title()" [subtitle]="subtitle()">
@@ -138,7 +140,7 @@ const STATE_TONE = { live: 'red', next: 'orange', done: 'dim', canceled: 'dim' }
                 <div class="row">
                   <span class="num">{{ (i + 1).toString().padStart(2, '0') }}</span>
                   <div class="who">
-                    <span class="av">{{ initials(r.name) }}</span>
+                    <ar-avatar [name]="r.name" [photoUrl]="r.photoUrl" [size]="32" zoomable personRole="Aluno" />
                     <div class="min0">
                       <div class="name">
                         {{ r.name }}
@@ -228,10 +230,6 @@ const STATE_TONE = { live: 'red', next: 'orange', done: 'dim', canceled: 'dim' }
     .row:last-child { border-bottom: none; }
     .num { font-family: var(--nx-font-mono); font-size: 11px; color: var(--nx-text-dim); }
     .who { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .av {
-      width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none;
-      background: var(--nx-surface-2); font-family: var(--nx-font-display); font-weight: 700; font-size: 11px; color: var(--nx-text-mute);
-    }
     .name { font-family: var(--nx-font-display); font-weight: 600; font-size: 13px; color: var(--nx-text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .min0 { min-width: 0; }
     .card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -372,10 +370,6 @@ export class PanelAulaSessionComponent {
       this.studentsFor = s.classId;
       this.unsubs.push(watchClassStudents(arenaFirestore(), arenaId, s.classId, (list) => this.students.set(list)));
     });
-  }
-
-  protected initials(name: string): string {
-    return teacherInitials(name);
   }
 
   protected cancelLabel(reason: string | null): string {

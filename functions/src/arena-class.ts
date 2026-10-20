@@ -64,6 +64,10 @@ import {
 } from "./arena-class-ledger";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {
+  assertTeacherLinkAllowsNewClass,
+  requireArenaProfessorPermission,
+} from "./arena-professor-permissions";
+import {
   requireClassPayoutManager,
   validateTeacherPayoutModel,
   type TeacherPayoutModel,
@@ -917,11 +921,15 @@ export async function removeClassStudentCore(
 // Chamada
 // ---------------------------------------------------------------------------
 
+export type ClassAttendanceActorRole = "staff" | "teacher";
+
 export interface SaveAttendanceInput {
   marks: Record<string, AttendanceMark | null>;
   teacherNote: string | null | undefined;
   close: boolean;
   uid: string;
+  /** Quem grava (`authorizeClassAttendance`). Ausente = equipe. */
+  actorRole?: ClassAttendanceActorRole;
 }
 
 /** Grava presença por aluno (null apaga a marca) e, se pedido, fecha a chamada. */
@@ -937,6 +945,10 @@ export async function saveClassAttendanceCore(
     const sessionSnap = await tx.get(sessionRef);
     if (!sessionSnap.exists) throw new HttpsError("not-found", "Aula não encontrada.");
     const session = parseClassSession(sessionSnap.data() as Record<string, unknown>);
+    // Professor trocado entre a autorização e a gravação: a aula deixou de ser dele.
+    if (input.actorRole === "teacher" && sessionSnap.data()?.["teacherUserId"] !== input.uid) {
+      throw new HttpsError("permission-denied", "Esta aula não é mais sua.");
+    }
     if (session.status === "canceled") {
       throw new HttpsError("failed-precondition", "Esta aula foi cancelada.");
     }
@@ -992,6 +1004,7 @@ export async function saveClassAttendanceCore(
       update["status"] = "completed";
       update["closedAt"] = FieldValue.serverTimestamp();
       update["closedByUid"] = input.uid;
+      update["closedByRole"] = input.actorRole ?? "staff";
     }
     if (effects && effects.debited.length > 0) {
       update["packageDebits"] = Object.fromEntries(effects.debited.map((id) => [id, "1"]));
@@ -1112,6 +1125,28 @@ export async function requireClassManager(
   return arenaSnap.data() as Record<string, unknown>;
 }
 
+/**
+ * Quem grava a chamada: a equipe da arena (área `agenda`) ou o professor da própria aula, com
+ * vínculo `ACTIVE` e "Gerenciar as próprias aulas" naquela arena. Professor sem vínculo (o das
+ * Aulas de hoje) segue só vendo a aula na agenda.
+ */
+export async function authorizeClassAttendance(
+  db: Firestore,
+  session: Record<string, unknown>,
+  uid: string,
+): Promise<ClassAttendanceActorRole> {
+  const arenaId = str(session["arenaId"]);
+  try {
+    await requireClassManager(db, arenaId, uid);
+    return "staff";
+  } catch (error) {
+    const denied = error instanceof HttpsError && error.code === "permission-denied";
+    if (!denied || str(session["teacherUserId"]) !== uid) throw error;
+  }
+  await requireArenaProfessorPermission(db, arenaId, uid, "canManageOwnLessons");
+  return "teacher";
+}
+
 export function requireClassEntitlement(arenaData: Record<string, unknown>): void {
   if (!isArenaEntitledPro(arenaData, Date.now())) {
     throw new HttpsError(
@@ -1163,6 +1198,20 @@ async function resolveTeacher(
     color: typeof data["color"] === "string" ? data["color"] : "#FF6A1A",
     userId: typeof data["userId"] === "string" && data["userId"] ? data["userId"] : null,
   };
+}
+
+/**
+ * Professor de turma nova (ou trocado): conta NexaGO e vínculo com a arena que não esteja
+ * suspenso nem encerrado. O que já existe segue onde estava.
+ */
+export async function requireTeacherForClass(
+  db: Firestore,
+  arenaId: string,
+  teacher: {name: string; userId: string | null},
+  isNewOrChangedTeacher: boolean,
+): Promise<void> {
+  requireTeacherAccount(teacher, isNewOrChangedTeacher);
+  if (isNewOrChangedTeacher) await assertTeacherLinkAllowsNewClass(db, arenaId, teacher);
 }
 
 /** Professor de turma nova (ou trocado) precisa de conta NexaGO; legado só segue onde já estava. */
@@ -1366,7 +1415,7 @@ export const upsertArenaClass = onCall({region: CLIENT_FACING_REGIONS, timeoutSe
   requireClassEntitlement(arenaData);
   const courtName = await resolveCourtName(db, arenaId, v.courtId);
   const teacher = await resolveTeacher(db, arenaId, v.teacherId);
-  if (classId == null) requireTeacherAccount(teacher, true);
+  if (classId == null) await requireTeacherForClass(db, arenaId, teacher, true);
   const arenaName = typeof arenaData["name"] === "string" && arenaData["name"].trim() ?
     arenaData["name"].trim() :
     "Arena";
@@ -1447,7 +1496,7 @@ export const upsertArenaClass = onCall({region: CLIENT_FACING_REGIONS, timeoutSe
 
   const {ref: classRef, data: existingData, cls: existing} = await loadClassOrThrow(db, classId);
   if (existing.arenaId !== arenaId) throw new HttpsError("permission-denied", "Turma de outra arena.");
-  requireTeacherAccount(teacher, existing.teacherId !== v.teacherId);
+  await requireTeacherForClass(db, arenaId, teacher, existing.teacherId !== v.teacherId);
   if (existing.status === "archived") {
     throw new HttpsError("failed-precondition", "Turma encerrada não pode ser editada.");
   }
@@ -1696,11 +1745,12 @@ export const saveArenaClassAttendance = onCall({region: CLIENT_FACING_REGIONS}, 
   const db = getFirestore();
   const snap = await db.collection(ARENA_CLASS_SESSIONS).doc(sessionId).get();
   if (!snap.exists) throw new HttpsError("not-found", "Aula não encontrada.");
-  await requireClassManager(db, String(snap.data()?.["arenaId"] ?? ""), uid);
+  const actorRole = await authorizeClassAttendance(db, snap.data() ?? {}, uid);
   return saveClassAttendanceCore(db, sessionId, {
     marks,
     teacherNote,
     close: input["close"] === true,
     uid,
+    actorRole,
   }, dayKeyFromEventDate(new Date()));
 });

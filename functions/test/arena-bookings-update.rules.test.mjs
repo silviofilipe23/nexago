@@ -247,6 +247,27 @@ test('dono cancela reserva confirmada', async () => {
   await assertSucceeds(updateDoc(bookingAs(ATLETA), ownerCancel()));
 });
 
+// Reserva "como professor" (vínculo com "Reservar quadras"): o carimbo é gravado só por
+// createArenaBooking, que confere o vínculo. Nenhum cliente forja, troca ou apaga.
+test('carimbo de professor: dono e equipe NÃO forjam, trocam nem apagam; cancelar segue', async () => {
+  await seedBooking(confirmed);
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), { bookedAs: 'professor' }));
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), { professorLinkId: `arena-pro_${ATLETA}` }));
+  await assertDeniedByRule(updateDoc(bookingAs(RECEPCAO), { bookedAs: 'professor' }));
+
+  await seedBooking({
+    ...confirmed,
+    bookedAs: 'professor',
+    professorLinkId: `arena-pro_${ATLETA}`,
+    professorRelationshipType: 'INDEPENDENT',
+  });
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), { bookedAs: deleteField() }));
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), { professorRelationshipType: 'ARENA_STAFF' }));
+  await assertDeniedByRule(updateDoc(bookingAs(RECEPCAO), { bookedAs: deleteField() }));
+  await assertSucceeds(updateDoc(bookingAs(ATLETA), ownerCancel()));
+  assert((await stored()).bookedAs === 'professor');
+});
+
 test('dono cancela de novo uma reserva já cancelada (mesmos valores reenviados)', async () => {
   await seedBooking({ ...confirmed, status: 'canceled', attendanceStatus: 'canceled' });
   await assertSucceeds(updateDoc(bookingAs(ATLETA), ownerCancel()));

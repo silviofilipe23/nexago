@@ -16,6 +16,7 @@ import * as logger from "firebase-functions/logger";
 import {assertArenaAreaAccess} from "./arena-area-access";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {grantProfessorRoleSafely, type ProfessorRoleGranter} from "./professor-role";
 import {resolveSport, sportLabel} from "./sports/catalog";
 
 export const ARENA_PROFESSORS = "arenaProfessors";
@@ -741,6 +742,7 @@ export async function respondToArenaProfessorInviteCore(
   input: {linkId: string; accept: unknown; reason?: unknown},
   caller: CallerContext,
   nowMs: number,
+  grantRole: ProfessorRoleGranter = grantProfessorRoleSafely,
 ): Promise<LinkResult> {
   if (typeof input.accept !== "boolean") throw new HttpsError("invalid-argument", "Resposta inválida.");
   const current = await readLink(db, input.linkId);
@@ -781,6 +783,7 @@ export async function respondToArenaProfessorInviteCore(
       {linkId: input.linkId, status: "EXPIRED"},
     );
   }
+  if (after.status === "ACTIVE") await grantRole(db, after.professorUserId);
   return {
     linkId: input.linkId,
     status: after.status,
@@ -794,6 +797,7 @@ export async function decideArenaProfessorRequestCore(
   input: {linkId: string; approve: boolean; permissions?: unknown; reason?: unknown},
   caller: CallerContext,
   nowMs: number,
+  grantRole: ProfessorRoleGranter = grantProfessorRoleSafely,
 ): Promise<LinkResult> {
   const current = await readLink(db, input.linkId);
   const actor = await arenaSideActor(db, current.arenaId, caller);
@@ -820,6 +824,7 @@ export async function decideArenaProfessorRequestCore(
       event: {eventType: "APPROVED", actor, metadata: {permissions}},
     };
   });
+  if (after.status === "ACTIVE") await grantRole(db, after.professorUserId);
   return {
     linkId: input.linkId,
     status: after.status,
@@ -866,6 +871,7 @@ export async function reactivateArenaProfessorLinkCore(
   input: {linkId: string},
   caller: CallerContext,
   nowMs: number,
+  grantRole: ProfessorRoleGranter = grantProfessorRoleSafely,
 ): Promise<LinkResult> {
   const current = await readLink(db, input.linkId);
   const actor = await arenaSideActor(db, current.arenaId, caller);
@@ -876,6 +882,8 @@ export async function reactivateArenaProfessorLinkCore(
       event: {eventType: "REACTIVATED", actor},
     };
   });
+  // Autocura: se a concessão da ativação falhou, a reativação concede de novo.
+  await grantRole(db, after.professorUserId);
   return {
     linkId: input.linkId,
     status: after.status,

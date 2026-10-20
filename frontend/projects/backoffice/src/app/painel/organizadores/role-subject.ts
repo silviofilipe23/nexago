@@ -8,6 +8,7 @@ const ROLE_LABEL: Record<string, string> = {
   athlete: 'Atleta',
   arena: 'Gestor de arena',
   coach: 'Treinador',
+  professor: 'Professor',
 };
 
 export function roleLabels(roles: readonly string[]): string {

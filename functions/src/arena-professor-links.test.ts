@@ -527,3 +527,60 @@ describe("isolamento entre arenas", () => {
     await rejectsWith(suspendArenaProfessorLinkCore(db, {linkId: LINK_A2, reason: "x"}, OWNER, NOW), "permission-denied");
   });
 });
+
+describe("papel professor (claim) ao ativar o vínculo", () => {
+  function spyGranter(): {granted: string[]; grant: (db: Firestore, uid: string) => Promise<void>} {
+    const granted: string[] = [];
+    return {granted, grant: async (_db, uid) => {
+      granted.push(uid);
+    }};
+  }
+
+  it("aceite do convite concede; recusa não", async () => {
+    const {db} = makeDb();
+    await invite(db);
+    const spy = spyGranter();
+    await respondToArenaProfessorInviteCore(db, {linkId: LINK_A1, accept: true}, PROF, NOW, spy.grant);
+    assert.deepEqual(spy.granted, ["uProf"]);
+
+    const other = makeDb();
+    await invite(other.db);
+    const declined = spyGranter();
+    await respondToArenaProfessorInviteCore(other.db, {linkId: LINK_A1, accept: false}, PROF, NOW, declined.grant);
+    assert.deepEqual(declined.granted, []);
+  });
+
+  it("convite vencido não concede", async () => {
+    const {db} = makeDb();
+    await invite(db);
+    const spy = spyGranter();
+    await rejectsWith(
+      respondToArenaProfessorInviteCore(db, {linkId: LINK_A1, accept: true}, PROF, NOW + PROFESSOR_INVITE_TTL_MS, spy.grant),
+      "failed-precondition",
+    );
+    assert.deepEqual(spy.granted, []);
+  });
+
+  it("aprovação do pedido concede ao professor (não a quem aprovou); rejeição não", async () => {
+    const {db} = makeDb();
+    await request(db);
+    const spy = spyGranter();
+    await decideArenaProfessorRequestCore(db, {linkId: LINK_A1, approve: true}, GESTOR, NOW, spy.grant);
+    assert.deepEqual(spy.granted, ["uProf"]);
+
+    const other = makeDb();
+    await request(other.db);
+    const rejected = spyGranter();
+    await decideArenaProfessorRequestCore(other.db, {linkId: LINK_A1, approve: false}, OWNER, NOW, rejected.grant);
+    assert.deepEqual(rejected.granted, []);
+  });
+
+  it("reativação concede de novo (autocura se a concessão da ativação falhou)", async () => {
+    const {db} = makeDb();
+    await activeStaffLink(db);
+    await suspendArenaProfessorLinkCore(db, {linkId: LINK_A1, reason: "Pendência"}, OWNER, NOW);
+    const spy = spyGranter();
+    await reactivateArenaProfessorLinkCore(db, {linkId: LINK_A1}, OWNER, NOW, spy.grant);
+    assert.deepEqual(spy.granted, ["uProf"]);
+  });
+});

@@ -1,7 +1,12 @@
 import type {UserRecord} from "firebase-admin/auth";
 import {FieldValue} from "firebase-admin/firestore";
 
-export const ALLOWED_APP_ROLES = ["admin", "organizer", "athlete", "arena", "coach"] as const;
+/**
+ * `professor` = professor com vínculo com alguma arena (`arenaProfessors`): concedido pelo servidor
+ * quando um vínculo vira `ACTIVE` (`professor-role.ts`). Só escolhe o modo do app — nunca autoriza
+ * nada; rules e callables conferem o vínculo. Diferente de `coach` (portal do treinador de equipes).
+ */
+export const ALLOWED_APP_ROLES = ["admin", "organizer", "athlete", "arena", "coach", "professor"] as const;
 export type AppRole = (typeof ALLOWED_APP_ROLES)[number];
 
 export function isAllowedRole(r: string): r is AppRole {

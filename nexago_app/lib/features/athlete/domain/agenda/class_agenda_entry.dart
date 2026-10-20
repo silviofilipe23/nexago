@@ -19,6 +19,7 @@ class ClassAgendaEntry {
     required this.kind,
     this.myMark,
     this.studentCount,
+    this.canManageLessons = false,
   });
 
   final String sessionId;
@@ -47,6 +48,11 @@ class ClassAgendaEntry {
   final String kind;
   final String? myMark;
   final int? studentCount;
+
+  /// Só para o professor: o vínculo com a arena libera "Gerenciar as próprias
+  /// aulas" — a chamada (`getMyClassSessionRoster` + `saveArenaClassAttendance`).
+  /// Servidor antigo (sem o campo) = `false`.
+  final bool canManageLessons;
 
   bool get isTeacher => role == 'teacher';
   bool get isCanceled => status == 'canceled';
@@ -77,6 +83,7 @@ class ClassAgendaEntry {
       kind: s('kind', 'regular'),
       myMark: mark is String ? mark : null,
       studentCount: count is num ? count.toInt() : null,
+      canManageLessons: map['canManageLessons'] == true,
     );
   }
 }

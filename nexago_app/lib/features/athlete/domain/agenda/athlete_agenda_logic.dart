@@ -367,6 +367,7 @@ AthleteAgendaItem? mapClassEntryToAgendaItem(ClassAgendaEntry e) {
     accentColor: athleteAgendaClassSessionAccent,
     classSession: AthleteAgendaClassPayload(
       sessionId: e.sessionId,
+      arenaId: e.arenaId,
       arenaName: e.arenaName,
       className: e.className,
       teacherName: e.teacherName,
@@ -376,8 +377,28 @@ AthleteAgendaItem? mapClassEntryToAgendaItem(ClassAgendaEntry e) {
       myMark: e.myMark,
       studentCount: e.studentCount,
       canceled: e.isCanceled,
+      date: e.date,
+      status: e.status,
+      canManageLessons: e.canManageLessons,
     ),
   );
+}
+
+/// Botão da aula que eu dou, quando o vínculo com a arena libera a chamada:
+/// "Fazer chamada" no dia (ou depois, se ficou aberta), "Ver chamada" depois
+/// de fechada e "Ver lista" antes do dia — a chamada só abre no dia da aula.
+/// `null` sem o botão (aluno, aula cancelada, vínculo sem a permissão).
+String? teacherClassAttendanceCta(
+  AthleteAgendaClassPayload c,
+  DateTime now,
+) {
+  if (!c.isTeacher || !c.canManageLessons || c.canceled) return null;
+  if (c.status == 'completed') return 'Ver chamada';
+  final today = '${now.year.toString().padLeft(4, '0')}-'
+      '${now.month.toString().padLeft(2, '0')}-'
+      '${now.day.toString().padLeft(2, '0')}';
+  if (c.date.isNotEmpty && c.date.compareTo(today) > 0) return 'Ver lista';
+  return 'Fazer chamada';
 }
 
 String classAgendaSubtitle(ClassAgendaEntry e) {

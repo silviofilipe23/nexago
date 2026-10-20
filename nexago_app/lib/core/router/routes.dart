@@ -227,6 +227,11 @@ abstract final class AppRoutes {
   static const String professorLinkRequestSent =
       '/athlete/professor/arenas/:linkId/enviada';
 
+  /// Chamada de uma aula que o usuário dá (vínculo com "Gerenciar as próprias
+  /// aulas"); entrada pelo "Fazer chamada" da agenda.
+  static const String professorClassAttendance =
+      '/athlete/professor/aulas/:sessionId';
+
   /// Comunidade como página própria: com a Loja na barra inferior (flag
   /// `appConfig/store.enabled`), é o destino do "Ver todos" da Home e de
   /// `/discover?tab=comunidade`.
@@ -773,6 +778,7 @@ abstract final class AppRouteNames {
   static const String professorArenas = 'professorArenas';
   static const String professorArenaLink = 'professorArenaLink';
   static const String professorLinkRequestSent = 'professorLinkRequestSent';
+  static const String professorClassAttendance = 'professorClassAttendance';
   static const String community = 'community';
   static const String store = 'store';
   static const String storeSearch = 'storeSearch';

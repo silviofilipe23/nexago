@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -67,6 +68,7 @@ class MyBookingStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.themeColors;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -80,7 +82,7 @@ class MyBookingStatusBadge extends StatelessWidget {
             width: 6,
             height: 6,
             decoration: BoxDecoration(
-              color: ui.dotColor,
+              color: colors.readableTone(ui.dotColor),
               shape: BoxShape.circle,
             ),
           ),
@@ -91,7 +93,7 @@ class MyBookingStatusBadge extends StatelessWidget {
               fontSize: 10,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.6,
-              color: ui.textColor,
+              color: colors.readableTone(ui.textColor),
             ),
           ),
         ],

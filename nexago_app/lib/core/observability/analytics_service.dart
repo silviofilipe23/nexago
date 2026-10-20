@@ -340,7 +340,7 @@ class AnalyticsService {
         parameters: {'filter': filter},
       );
 
-  /// [source]: `history` · `profile` · `push`.
+  /// [source]: `history` · `profile` · `my_profile` · `push`.
   Future<void> logPeladaOpened(String source) => _analytics.logEvent(
         name: AnalyticsEvents.peladaOpened,
         parameters: {'source': source},

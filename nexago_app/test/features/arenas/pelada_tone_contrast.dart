@@ -5,42 +5,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/features/arenas/domain/pelada.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/pelada/pelada_widgets.dart';
 
-/// Razão de contraste WCAG entre o texto [fg] (composto sobre [bg]) e [bg].
-double _contrastRatio(Color fg, Color bg) {
-  final a = Color.alphaBlend(fg, bg).computeLuminance();
-  final b = bg.computeLuminance();
-  final (hi, lo) = a > b ? (a, b) : (b, a);
-  return (hi + 0.05) / (lo + 0.05);
-}
-
-/// Fundo opaco por trás de [element]: compõe, de fora para dentro, o que os
-/// ancestrais pintam (Material, DecoratedBox, ColoredBox). Do gradiente vale
-/// a primeira cor, a ponta mais forte nos cartões das Peladas.
-Color _backdropOf(Element element) {
-  final fills = <Color>[];
-  element.visitAncestorElements((e) {
-    final fill = switch (e.widget) {
-      Material(:final type, :final color?)
-          when type != MaterialType.transparency =>
-        color,
-      DecoratedBox(
-        position: DecorationPosition.background,
-        decoration: BoxDecoration(:final color?),
-      ) =>
-        color,
-      DecoratedBox(
-        position: DecorationPosition.background,
-        decoration: BoxDecoration(gradient: Gradient(:final colors)),
-      ) =>
-        colors.first,
-      ColoredBox(:final color) => color,
-      _ => null,
-    };
-    if (fill != null) fills.add(fill);
-    return true;
-  });
-  return fills.reversed.reduce((bg, fill) => Color.alphaBlend(fill, bg));
-}
+import '../../core/theme/state_tone_contrast.dart';
 
 /// Separadores (`·`, `–`) e ícones só enfeitam: 3:1 basta.
 bool _decorative(Element rich, String text) =>
@@ -58,9 +23,6 @@ Map<Color, String> _tones(AppThemeColors colors) => {
         PeladaStyle.toneColor(tone, isDark: colors.isDark): tone.name,
     };
 
-AppThemeColors _colorsOf(WidgetTester tester, Finder within) =>
-    AppThemeColors(Theme.of(tester.element(within.first)).colorScheme);
-
 /// Confere cada trecho pintado com [PeladaStyle.dim], [PeladaStyle.mute] ou
 /// um tom de estado ([PeladaStyle.toneColor]: vitória, pendente, contestado)
 /// sob [within] contra o fundo em que ele está: 4,5:1 para texto e 3:1 para
@@ -73,7 +35,7 @@ List<String> expectPeladaTonesLegible(
   WidgetTester tester,
   Finder within,
 ) {
-  final colors = _colorsOf(tester, within);
+  final colors = themeColorsOf(tester, within);
   final mute = PeladaStyle.mute(colors);
   final palette = {
     ..._tones(colors),
@@ -85,7 +47,7 @@ List<String> expectPeladaTonesLegible(
   for (final rich in find
       .descendant(of: within, matching: find.byType(RichText))
       .evaluate()) {
-    final bg = _backdropOf(rich);
+    final bg = backdropOf(rich);
     void visit(InlineSpan span, Color? inherited) {
       final color = span.style?.color ?? inherited;
       if (span is! TextSpan) return;
@@ -94,7 +56,7 @@ List<String> expectPeladaTonesLegible(
         final decorative = _decorative(rich, text);
         final min = decorative || (color == mute && colors.isDark) ? 3.0 : 4.5;
         expect(
-          _contrastRatio(color!, bg),
+          contrastRatio(color!, bg),
           greaterThanOrEqualTo(min),
           reason: '"$text" (${palette[color]}) sobre $bg',
         );
@@ -118,7 +80,7 @@ List<String> expectPeladaTonesLegible(
 /// No escuro a borda segue amarela a 25% (~1,8:1), como a spec 10b pede: o
 /// escuro é a referência e não muda aqui, então ela não entra na conta.
 List<String> expectPeladaMarksVisible(WidgetTester tester, Finder within) {
-  final colors = _colorsOf(tester, within);
+  final colors = themeColorsOf(tester, within);
   final tones = _tones(colors);
   final checked = <String>[];
 
@@ -127,9 +89,9 @@ List<String> expectPeladaMarksVisible(WidgetTester tester, Finder within) {
       .evaluate()) {
     final color = (box.widget as ColoredBox).color;
     if (!tones.containsKey(color)) continue;
-    final bg = _backdropOf(box);
+    final bg = backdropOf(box);
     expect(
-      _contrastRatio(color, bg),
+      contrastRatio(color, bg),
       greaterThanOrEqualTo(3.0),
       reason: 'Faixa (${tones[color]}) sobre $bg',
     );
@@ -144,12 +106,12 @@ List<String> expectPeladaMarksVisible(WidgetTester tester, Finder within) {
     final widget = material.widget as Material;
     final shape = widget.shape;
     if (shape is! OutlinedBorder || shape.side.color != border) continue;
-    final outside = _backdropOf(material);
+    final outside = backdropOf(material);
     final inside = Color.alphaBlend(widget.color!, outside);
     final stroke = Color.alphaBlend(border, inside);
     for (final (where, bg) in [('card', inside), ('fundo', outside)]) {
       expect(
-        _contrastRatio(stroke, bg),
+        contrastRatio(stroke, bg),
         greaterThanOrEqualTo(3.0),
         reason: 'Borda pendente ($stroke) contra o $where $bg',
       );

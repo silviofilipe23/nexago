@@ -78,7 +78,7 @@ class SlotsNotifyWhenAvailableCard extends StatelessWidget {
             OutlinedButton(
               onPressed: onToggle,
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.win,
+                foregroundColor: context.themeColors.win,
                 side: BorderSide(color: AppColors.win.withValues(alpha: 0.5)),
               ),
               child: Text('Ativo'),

@@ -46,7 +46,7 @@ class ArenaDetailCourtCard extends StatelessWidget {
       final n = summary.freeSlotsToday;
       statusText =
           '$n horário${n == 1 ? '' : 's'} livre${n == 1 ? '' : 's'} hoje';
-      statusColor = AppColors.win;
+      statusColor = context.themeColors.win;
     } else {
       statusText = 'Lotada hoje';
       statusColor = context.themeColors.onSurfaceMuted;

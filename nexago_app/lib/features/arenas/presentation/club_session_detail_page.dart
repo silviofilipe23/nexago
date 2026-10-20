@@ -444,8 +444,11 @@ class _CanceledBanner extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            const Icon(Icons.event_busy_rounded,
-                color: AppColors.live, size: 18),
+            Icon(
+              Icons.event_busy_rounded,
+              color: context.themeColors.live,
+              size: 18,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -515,10 +518,10 @@ class _ParticipantTile extends StatelessWidget {
                 ),
               ),
             ),
-            const Icon(
+            Icon(
               Icons.check_circle_rounded,
               size: 18,
-              color: AppColors.win,
+              color: context.themeColors.win,
             ),
           ],
         ),
@@ -559,9 +562,9 @@ class _BottomCta extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
+              Icon(
                 Icons.check_circle_rounded,
-                color: AppColors.win,
+                color: context.themeColors.win,
                 size: 18,
               ),
               const SizedBox(width: 6),
@@ -572,7 +575,7 @@ class _BottomCta extends StatelessWidget {
                       : 'Você está na lista',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.win,
+                    color: context.themeColors.win,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -583,7 +586,7 @@ class _BottomCta extends StatelessWidget {
           OutlinedButton(
             onPressed: leaving ? null : onLeave,
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.live,
+              foregroundColor: context.themeColors.live,
               side: BorderSide(color: AppColors.live.withValues(alpha: 0.5)),
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
@@ -679,7 +682,7 @@ class _BottomCta extends StatelessWidget {
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                       color: session.isFull
-                          ? AppColors.live
+                          ? context.themeColors.live
                           : AppColors.brand,
                     ),
                   ),

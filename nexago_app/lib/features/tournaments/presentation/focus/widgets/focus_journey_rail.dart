@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -66,8 +65,8 @@ class _Step extends StatelessWidget {
   /// é uma decisão só, aplicada em três lugares.
   Color _accent(AppThemeColors colors) => switch (step.status) {
     JourneyStepStatus.win => colors.win,
-    JourneyStepStatus.loss => AppColors.live,
-    JourneyStepStatus.live => AppColors.live,
+    JourneyStepStatus.loss => colors.live,
+    JourneyStepStatus.live => colors.live,
     JourneyStepStatus.next => colors.brand,
     JourneyStepStatus.upcoming => colors.outline,
   };
@@ -164,7 +163,7 @@ class _Step extends StatelessWidget {
                           style: AppTypography.monoStat.copyWith(
                             color: switch (step.status) {
                               JourneyStepStatus.win => colors.win,
-                              JourneyStepStatus.loss => AppColors.live,
+                              JourneyStepStatus.loss => colors.live,
                               _ => colors.onSurfaceMuted,
                             },
                             fontSize: 18,

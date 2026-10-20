@@ -230,7 +230,7 @@ class _BookingLiveStatusState extends State<BookingLiveStatus> {
       case _LiveBookingState.ongoing:
         return _LiveChip(
           text: 'Em andamento',
-          fg: AppColors.win,
+          fg: context.themeColors.win,
           bg: AppColors.win.withValues(alpha: 0.12),
         );
       case _LiveBookingState.future:

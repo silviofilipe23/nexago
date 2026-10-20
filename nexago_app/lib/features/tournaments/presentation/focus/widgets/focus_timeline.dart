@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -69,7 +68,7 @@ class _Row extends StatelessWidget {
     final colors = context.themeColors;
     final isNext = entry.state == TimelineState.next;
     final isLive = entry.state == TimelineState.live;
-    final accent = isLive ? AppColors.live : colors.brand;
+    final accent = isLive ? colors.live : colors.brand;
     final highlight = isNext || isLive;
     final muted = entry.state == TimelineState.upcoming;
 
@@ -185,7 +184,7 @@ class _Mark extends StatelessWidget {
         size: 15,
         color: colors.win,
       ),
-      TimelineState.live => const _Dot(color: AppColors.live),
+      TimelineState.live => _Dot(color: colors.live),
       TimelineState.next => _Dot(color: colors.brand),
       TimelineState.upcoming => _Ring(color: colors.outline),
     };

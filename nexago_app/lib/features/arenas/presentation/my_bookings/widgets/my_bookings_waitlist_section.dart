@@ -88,6 +88,9 @@ class _WaitlistEntryCardState extends State<_WaitlistEntryCard> {
     final entry = widget.entry;
     final notified = entry.isNotified;
     final accent = notified ? AppColors.win : AppColors.brand;
+    // Ícone e texto: o tom do tema, legível no claro. A borda e o fundo do
+    // ícone seguem no cru, translúcidos.
+    final ink = notified ? context.themeColors.win : AppColors.brand;
     final dateLabel = formatBookingDateHeader(entry.dateKey);
     final remaining = entry.remainingNotifyWindow;
 
@@ -110,7 +113,7 @@ class _WaitlistEntryCardState extends State<_WaitlistEntryCard> {
             ),
             child: Icon(
               notified ? Icons.notifications_active_rounded : Icons.hourglass_top_rounded,
-              color: accent,
+              color: ink,
               size: 20,
             ),
           ),
@@ -146,7 +149,7 @@ class _WaitlistEntryCardState extends State<_WaitlistEntryCard> {
                       : 'Aguardando vaga — avisamos por notificação.',
                   style: theme.textTheme.labelSmall?.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: accent,
+                    color: ink,
                   ),
                 ),
               ],

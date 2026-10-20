@@ -42,7 +42,7 @@ class SlotsFullyBookedBanner extends StatelessWidget {
             ),
             child: Icon(
               Icons.remove_rounded,
-              color: AppColors.live,
+              color: context.themeColors.live,
               size: 28,
             ),
           ),

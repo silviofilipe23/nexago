@@ -281,6 +281,58 @@
             }
           </div>
 
+          <!-- Peladas (placar confirmado dos aluguéis de quadra): só com pelada confirmada no
+               ano, como a aba do perfil público do app (spec 00d). -->
+          @if (peladasSummary(); as summary) {
+            @if (summary.sessions > 0) {
+              <div class="pp-card" data-testid="pp-peladas">
+                <div class="pp-card-head">
+                  <div class="pp-card-head-titles">
+                    <span class="pp-card-kicker">Jogos avulsos · {{ summary.year }}</span>
+                    <h2 class="pp-card-title">Peladas</h2>
+                  </div>
+                  @if (hasMorePeladas()) {
+                    <button type="button" class="pp-card-action" (click)="toggleAllPeladas()">
+                      {{ showAllPeladas() ? 'Ver menos' : 'Ver tudo' }}
+                    </button>
+                  }
+                </div>
+                <div class="pp-pelada-stats">
+                  <div class="pp-pelada-stat">
+                    <strong>{{ summary.sessions }}</strong>
+                    <span>{{ summary.sessions === 1 ? 'Horário' : 'Horários' }}</span>
+                  </div>
+                  <div class="pp-pelada-stat pp-pelada-stat--accent">
+                    <strong>{{ summary.winRatePercent }}%</strong>
+                    <span>Vitórias</span>
+                  </div>
+                  <div class="pp-pelada-stat">
+                    <strong>{{ summary.firstPlaces }}</strong>
+                    <span>Vezes 1º</span>
+                  </div>
+                </div>
+                <div class="pp-match-list">
+                  @for (row of visiblePeladaRows(); track row.id) {
+                    <div class="pp-match-row">
+                      <span class="pp-pelada-date" [attr.aria-label]="row.weekday + ' ' + row.day + ' ' + row.month">
+                        <strong>{{ row.day }}</strong>
+                        <span>{{ row.month }}</span>
+                      </span>
+                      <div class="pp-match-info">
+                        <p class="pp-match-opponent">{{ row.arenaName }}</p>
+                        <p class="pp-match-context">{{ row.placeLabel }}</p>
+                      </div>
+                      <div class="pp-match-meta">
+                        <span class="pp-match-score">{{ row.recordLabel }}</span>
+                        <span class="pp-pelada-position" [class.pp-pelada-position--first]="row.isFirst">{{ row.positionLabel }}</span>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          }
+
           <div class="pp-card">
             <span class="pp-card-kicker">Pra combinar desafios e jogos avulsos</span>
             <h2 class="pp-card-title">Disponibilidade</h2>

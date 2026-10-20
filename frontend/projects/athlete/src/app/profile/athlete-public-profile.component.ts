@@ -25,6 +25,14 @@ import {
   type PublicProfileMatchRow,
 } from './public-profile-activity';
 import type { ProfileGamificationExtras } from './public-profile-extras.models';
+import {
+  buildPeladaRow,
+  loadConfirmedPeladas,
+  peladasOf,
+  peladasSummary,
+  type PublicProfilePeladaRow,
+  type SavedPelada,
+} from './public-profile-peladas';
 
 /** Escopo do ranking publico: hub inteiro, liga ou arena especifica. */
 export type PublicRankingScope = 'global' | 'league' | 'arena';
@@ -364,6 +372,9 @@ function initialsOf(name: string): string {
 /** Janela padrão do card "Histórico de partidas"; "Ver tudo" abre o histórico inteiro. */
 const RECENT_MATCH_DAYS = 30;
 
+/** Peladas no card antes do "Ver tudo" — as três últimas, como no perfil público do app. */
+const RECENT_PELADAS = 3;
+
 export interface ProfileStatRow {
   label: string;
   value: string;
@@ -401,6 +412,9 @@ export class AthletePublicProfileComponent {
   protected readonly activity = signal<PublicProfileActivity | null>(null);
   protected readonly activityLoading = signal(true);
   protected readonly showAllMatches = signal(false);
+  /** Peladas confirmadas (`bookingResults`) — só chegam com login, pela rule. */
+  private readonly peladas = signal<readonly SavedPelada[]>([]);
+  protected readonly showAllPeladas = signal(false);
   /** Follow: `users/{atleta}/followers/{viewer}` + `users/{viewer}/following/{atleta}`. */
   protected readonly isFollowing = signal(false);
   protected readonly followBusy = signal(false);
@@ -547,6 +561,26 @@ export class AthletePublicProfileComponent {
     }
     return rows;
   });
+
+  private readonly myPeladas = computed(() => {
+    const uid = this.profile()?.uid;
+    return uid ? peladasOf(this.peladas(), uid) : [];
+  });
+
+  private readonly peladasYear = new Date().getFullYear();
+
+  /** Números do ano. O card só aparece com pelada confirmada no ano (spec 00d, igual ao app). */
+  protected readonly peladasSummary = computed(() =>
+    peladasSummary(this.myPeladas(), this.profile()?.uid ?? '', this.peladasYear),
+  );
+
+  protected readonly visiblePeladaRows = computed<readonly PublicProfilePeladaRow[]>(() => {
+    const uid = this.profile()?.uid ?? '';
+    const list = this.showAllPeladas() ? this.myPeladas() : this.myPeladas().slice(0, RECENT_PELADAS);
+    return list.map((p) => buildPeladaRow(p, uid)).filter((row): row is PublicProfilePeladaRow => row != null);
+  });
+
+  protected readonly hasMorePeladas = computed(() => this.myPeladas().length > RECENT_PELADAS);
 
   protected readonly firstName = computed(() => this.profile()?.fullName.split(/\s+/)[0] ?? 'atleta');
 
@@ -744,8 +778,9 @@ export class AthletePublicProfileComponent {
         rankings: buildPublicRankingsList(rankingData),
       });
 
-      // Duplas/partidas são leituras públicas independentes — não seguram o render do perfil.
+      // Duplas/partidas/peladas são leituras independentes — não seguram o render do perfil.
       void this.loadActivity(docSnap.id);
+      void this.loadPeladas(docSnap.id);
     } catch (error) {
       if (!environment.production) {
         console.error('[athlete-public-profile] load error', error);
@@ -766,6 +801,11 @@ export class AthletePublicProfileComponent {
     // `loadPublicProfileActivity` já absorve erro de leitura e devolve atividade vazia.
     this.activity.set(await loadPublicProfileActivity(this.firestore, projectId, uid));
     this.activityLoading.set(false);
+  }
+
+  private async loadPeladas(uid: string): Promise<void> {
+    if (!this.firestore) return;
+    this.peladas.set(await loadConfirmedPeladas(this.firestore, uid));
   }
 
   /** Resolve `public_profiles/{uid}` pelo uid direto ou, em links legados, pelo slug em
@@ -809,5 +849,9 @@ export class AthletePublicProfileComponent {
 
   protected toggleAllMatches(): void {
     this.showAllMatches.update((v) => !v);
+  }
+
+  protected toggleAllPeladas(): void {
+    this.showAllPeladas.update((v) => !v);
   }
 }

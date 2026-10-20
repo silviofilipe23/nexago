@@ -4,19 +4,23 @@ import '../../../core/layout/nexa_app_bar.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/ui/app_snackbar.dart';
 import '../domain/booking_result.dart';
+import '../domain/booking_result_record.dart';
 import 'booking_result_team_page.dart';
 import 'widgets/booking_story/booking_result_card.dart';
 import 'widgets/booking_story/booking_story_editor.dart';
 
 /// Reservar · 16b — editar placar: sets entre dois times ou, com três ou mais,
-/// os jogos da rotação e a classificação. Devolve o placar no "Salvar".
+/// os jogos da rotação e a classificação. O "Salvar" grava ([onSave]) e
+/// devolve o placar; os adversários com conta recebem para confirmar.
 class BookingResultScorePage extends StatefulWidget {
   const BookingResultScorePage({
     super.key,
     required this.initial,
     required this.candidates,
     this.ownerPlayerId,
+    this.onSave,
   });
 
   final BookingResult initial;
@@ -27,14 +31,41 @@ class BookingResultScorePage extends StatefulWidget {
   /// Quem posta: o time dele não sai da lista.
   final String? ownerPlayerId;
 
+  /// Grava o placar; erro ([BookingResultException]) mantém a tela aberta com
+  /// a mensagem. `null` só devolve o placar.
+  final Future<void> Function(BookingResult result)? onSave;
+
   @override
   State<BookingResultScorePage> createState() => _BookingResultScorePageState();
 }
 
 class _BookingResultScorePageState extends State<BookingResultScorePage> {
   late BookingResult _r = widget.initial;
+  bool _saving = false;
 
   static const int _maxScore = 99;
+
+  Future<void> _save() async {
+    if (_saving) return;
+    final save = widget.onSave;
+    if (save != null) {
+      // O servidor recusa placar zerado (não teria o que confirmar).
+      if (!_r.hasScore) {
+        showAppSnackBar(context, 'Lance o placar de pelo menos um set.');
+        return;
+      }
+      setState(() => _saving = true);
+      try {
+        await save(_r);
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _saving = false);
+        showAppErrorSnackBar(context, e);
+        return;
+      }
+    }
+    if (mounted) Navigator.of(context).pop(_r);
+  }
 
   Future<void> _openTeam({ResultTeam? editing}) async {
     final owner = _r.teamById(resultOwnerTeamId(_r, widget.ownerPlayerId));
@@ -87,6 +118,16 @@ class _BookingResultScorePageState extends State<BookingResultScorePage> {
     final addLabel = BookingResultFormation.forPlayers(
       _r.teamById(ownerTeamId)?.players.length ?? 2,
     ).label.toLowerCase();
+    final notice = widget.onSave == null
+        ? (
+            names: '',
+            rest: 'O placar vai só para a arte do story: não fica salvo nem '
+                'conta no seu histórico ou no ranking.',
+          )
+        : bookingResultSaveNotice([
+            for (final p in bookingResultConfirmers(_r, widget.ownerPlayerId))
+              p.firstName,
+          ]);
 
     return Scaffold(
       backgroundColor: colors.canvas,
@@ -111,7 +152,9 @@ class _BookingResultScorePageState extends State<BookingResultScorePage> {
             height: 54,
             child: FilledButton(
               key: const Key('booking-result-save'),
-              onPressed: () => Navigator.of(context).pop(_r),
+              // Desabilitado o botão ficaria cinza e o spinner sumiria; o
+              // `_save` já ignora o toque repetido.
+              onPressed: _save,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.brand,
                 foregroundColor: const Color(0xFF0A0A0A),
@@ -123,9 +166,18 @@ class _BookingResultScorePageState extends State<BookingResultScorePage> {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              child: Text(
-                'Salvar placar · $count ${count == 1 ? unit : '${unit}s'}',
-              ),
+              child: _saving
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        color: Color(0xFF0A0A0A),
+                      ),
+                    )
+                  : Text(
+                      'Salvar placar · $count ${count == 1 ? unit : '${unit}s'}',
+                    ),
             ),
           ),
         ),
@@ -245,15 +297,27 @@ class _BookingResultScorePageState extends State<BookingResultScorePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Icon(
-                    Icons.info_outline_rounded,
+                    Icons.schedule_rounded,
                     size: 16,
                     color: AppColors.pending,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      'O placar vai só para a arte do story: não fica salvo '
-                      'nem conta no seu histórico ou no ranking.',
+                    child: Text.rich(
+                      key: const Key('booking-result-save-notice'),
+                      TextSpan(
+                        children: [
+                          if (notice.names.isNotEmpty)
+                            TextSpan(
+                              text: notice.names,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: colors.onSurface,
+                              ),
+                            ),
+                          TextSpan(text: notice.rest),
+                        ],
+                      ),
                       style: AppTypography.soraRegular(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,

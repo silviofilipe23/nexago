@@ -4,9 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/ui/app_snackbar.dart';
 import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../domain/booking_result.dart';
+import '../domain/booking_result_record.dart';
+import '../domain/booking_result_record_providers.dart';
 import '../domain/booking_story.dart';
 import '../domain/booking_story_providers.dart';
 import 'booking_result_score_page.dart';
@@ -21,7 +24,9 @@ Future<void> openBookingResult(BuildContext context, BookingStoryArgs args) {
 }
 
 /// Reservar · 16 — pós-jogo: o atleta lança o placar da partida que jogou na
-/// quadra reservada e posta o resultado no story. O placar não é gravado.
+/// quadra reservada e posta o resultado no story. "Salvar placar" grava em
+/// `bookingResults`: os adversários com conta confirmam, e só então o placar
+/// conta no histórico. Confirmado, não muda mais.
 class BookingResultPage extends ConsumerStatefulWidget {
   const BookingResultPage({super.key, required this.args});
 
@@ -33,8 +38,9 @@ class BookingResultPage extends ConsumerStatefulWidget {
 
 class _BookingResultPageState extends ConsumerState<BookingResultPage>
     with BookingStoryEditorMixin {
-  /// `null` até o atleta salvar um placar: enquanto isso o inicial acompanha
-  /// a galera da reserva, que chega aos poucos (perfil, doc da reserva).
+  /// `null` até o atleta salvar um placar nesta tela: enquanto isso vale o
+  /// placar já gravado ou, sem ele, o inicial pela galera da reserva, que
+  /// chega aos poucos (perfil, doc da reserva).
   BookingResult? _edited;
   final Set<BookingResultInfo> _hidden = {};
 
@@ -49,12 +55,18 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
     List<ResultPlayer> crew,
     String? ownerId,
   ) async {
+    final bookingId = widget.args.bookingId.trim();
+    final repository = ref.read(bookingResultRepositoryProvider);
     final edited = await Navigator.of(context).push<BookingResult>(
       MaterialPageRoute(
         builder: (_) => BookingResultScorePage(
           initial: result,
           candidates: crew,
           ownerPlayerId: ownerId,
+          // Sem reserva (não acontece pela Agenda) o placar fica só na arte.
+          onSave: bookingId.isEmpty
+              ? null
+              : (r) => repository.save(bookingId, r),
         ),
       ),
     );
@@ -74,7 +86,9 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
       ownerAvatarUrl: profile?.avatarUrl,
       confirmed: source?.confirmed ?? const [],
     );
-    final result = _edited ?? initialBookingResult(crew);
+    final saved = ref.watch(savedBookingResultProvider(args.bookingId));
+    final result = _edited ?? saved?.result ?? initialBookingResult(crew);
+    final locked = saved?.isConfirmed ?? false;
     final story = bookingStoryDataFrom(
       arenaName: args.arenaName,
       courtName: args.courtName,
@@ -103,7 +117,13 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
       for (final info in available)
         if (!_hidden.contains(info)) info,
     };
-    void edit() => _editScore(result, crew, ownerId);
+    void edit() {
+      if (locked) {
+        showAppSnackBar(context, 'Placar confirmado: ele não muda mais.');
+        return;
+      }
+      _editScore(result, crew, ownerId);
+    }
 
     return BookingStoryEditorScaffold(
       title: 'Pós-jogo',
@@ -128,7 +148,9 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
       header: [
         BookingStorySectionLabel(
           result.isRotation ? 'Classificação' : 'Resultado',
-          action: TextButton(
+          action: locked
+              ? null
+              : TextButton(
             key: const Key('booking-result-edit'),
             onPressed: edit,
             style: TextButton.styleFrom(
@@ -145,13 +167,18 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
+          padding: EdgeInsets.fromLTRB(20, 0, 20, saved == null ? 18 : 10),
           child: _ResultSummary(
             result: result,
             ownerTeamId: resultOwnerTeamId(result, ownerId),
             onTap: edit,
           ),
         ),
+        if (saved != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
+            child: BookingResultStatusBadge(saved: saved),
+          ),
       ],
       infoChips: [
         for (final info in available)
@@ -256,6 +283,56 @@ class _ResultSummary extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Pendente / confirmado / contestado do placar salvo — para quem lançou ou,
+/// com [forViewer], para quem está vendo (adversário, companheiro).
+class BookingResultStatusBadge extends StatelessWidget {
+  const BookingResultStatusBadge({super.key, required this.saved})
+      : viewerUid = null;
+
+  const BookingResultStatusBadge.forViewer({
+    super.key,
+    required this.saved,
+    required String uid,
+  }) : viewerUid = uid;
+
+  final SavedBookingResult saved;
+  final String? viewerUid;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final (icon, tint) = switch (saved.status) {
+      BookingResultStatus.confirmed => (Icons.verified_rounded, AppColors.win),
+      BookingResultStatus.disputed => (Icons.report_gmailerrorred_rounded, AppColors.live),
+      BookingResultStatus.pending => (Icons.schedule_rounded, AppColors.pending),
+    };
+    return Row(
+      key: Key('booking-result-status-${saved.status.name}'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(icon, size: 15, color: tint),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            viewerUid == null
+                ? bookingResultStatusLine(saved)
+                : bookingResultViewerStatusLine(saved, viewerUid!),
+            style: AppTypography.soraRegular(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              height: 1.4,
+              color: colors.onSurface.withValues(alpha: 0.78),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

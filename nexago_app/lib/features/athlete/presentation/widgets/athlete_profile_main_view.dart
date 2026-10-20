@@ -333,15 +333,10 @@ class _ProfileHeaderSection extends StatelessWidget {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Positioned(
-          left: 0,
-          right: 0,
-          top: 0,
-          // Os 300 px passam do topo, e o 1º sliver é pintado por cima dos
-          // seguintes: o fim do degradê cobre a faixa de XP. No claro isso
-          // desbotava o "NÍVEL" e o XP, então lá a capa acaba com o topo.
-          height: isDark ? 300 : null,
-          bottom: isDark ? null : 0,
+        // A capa acaba com o topo. O 1º sliver é pintado por cima dos
+        // seguintes: uma capa mais alta (eram 300 px) cobria a faixa de XP com
+        // o fim do degradê e desbotava o "NÍVEL" e o XP.
+        Positioned.fill(
           child: CustomPaint(
             painter: _ProfileHeaderWavesPainter(),
             child: DecoratedBox(
@@ -354,7 +349,11 @@ class _ProfileHeaderSection extends StatelessWidget {
                     isDark ? _headerOrangeMid : _headerPeachMid,
                     context.themeColors.canvas.withValues(alpha: 0),
                   ],
-                  stops: const [0.0, 0.55, 1.0],
+                  // No escuro o marrom vai até 70% do topo: com a capa mais
+                  // curta, os 55% de antes apagavam o marrom cedo demais.
+                  stops: isDark
+                      ? const [0.0, 0.7, 1.0]
+                      : const [0.0, 0.55, 1.0],
                 ),
               ),
             ),

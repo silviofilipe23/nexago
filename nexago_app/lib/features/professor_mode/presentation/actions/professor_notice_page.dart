@@ -112,6 +112,15 @@ class _ProfessorNoticePageState extends ConsumerState<ProfessorNoticePage> {
       builder: (context, ctx) {
         final sessions = professorNoticeSessions(ctx);
         final reach = professorNoticeReach(sessions, _selected);
+        final titleStyle = ProfessorLinksStyle.display(
+          13.5,
+          weight: FontWeight.w600,
+          color: colors.onSurface,
+        );
+        final subStyle = AppTypography.bodyS.copyWith(
+          fontSize: 11.5,
+          color: ProfessorLinksStyle.dim(colors),
+        );
         return [
           const ProfessorLinksKicker('Modelo'),
           Wrap(
@@ -168,18 +177,22 @@ class _ProfessorNoticePageState extends ConsumerState<ProfessorNoticePage> {
                   onChanged: ctx.permissions.canCancelLessons
                       ? (v) => setState(() => _cancel = v)
                       : null,
-                  title: const Text('Cancelar as aulas selecionadas'),
-                  subtitle: const Text('Libera a quadra na agenda da arena'),
+                  title:
+                      Text('Cancelar as aulas selecionadas', style: titleStyle),
+                  subtitle: Text('Libera a quadra na agenda da arena',
+                      style: subStyle),
                 ),
                 if (_cancel)
                   SwitchListTile.adaptive(
                     key: const Key('professor-notice-credits'),
                     value: _credits ?? ctx.cancelGeneratesCredit,
                     onChanged: (v) => setState(() => _credits = v),
-                    title: const Text('Gerar crédito de reposição'),
+                    title:
+                        Text('Gerar crédito de reposição', style: titleStyle),
                     subtitle: Text(
                       '$reach aluno${reach == 1 ? '' : 's'} · validade '
                       '${ctx.makeupValidityDays} dias',
+                      style: subStyle,
                     ),
                   ),
               ],

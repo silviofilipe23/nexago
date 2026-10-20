@@ -143,12 +143,14 @@ class _ProfessorConvertTrialPageState
           for (final c in classes)
             ArenaClassChoiceCard(
               key: Key('professor-convert-class-${c.classId}'),
-              title:
-                  '${c.name} · ${professorScheduleLabel(c.weekdays, c.startTime)}',
-              subtitle: c.isFull
-                  ? 'Turma lotada · entra na lista de espera '
-                      '(${ctx.waitlistOf(c.classId).length + 1}º)'
-                  : '${c.level.label} · ${c.freeSpots} vaga${c.freeSpots == 1 ? '' : 's'}',
+              title: c.name,
+              subtitle: [
+                professorScheduleLabel(c.weekdays, c.startTime),
+                c.isFull
+                    ? 'entra na espera '
+                        '(${ctx.waitlistOf(c.classId).length + 1}º)'
+                    : c.level.label,
+              ].join(' · '),
               selected: _classId == c.classId,
               trailing: ProfessorSpotsBadge(free: c.freeSpots),
               onTap: () => setState(() => _classId = c.classId),

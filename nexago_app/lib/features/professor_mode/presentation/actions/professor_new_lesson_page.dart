@@ -234,7 +234,7 @@ class _ProfessorNewLessonPageState
             label: 'Cobrança',
             value: _type == ArenaClassType.experimental
                 ? 'Regra da arena'
-                : 'Usa 1 aula do pacote',
+                : '1 aula do pacote',
             sub: _type == ArenaClassType.experimental
                 ? 'A recepção cobra a experimental, se houver preço'
                 : picked.map(_packageLabel).join(' · '),

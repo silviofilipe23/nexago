@@ -266,7 +266,7 @@ void main() {
       await tap(tester, const Key('professor-add-trial-ath-rafa'));
       expect(find.text('Converter experimental'), findsOneWidget);
       expect(
-          find.textContaining('entra na lista de espera (3º)'), findsOneWidget);
+          find.textContaining('entra na espera (3º)'), findsOneWidget);
       await tap(tester, const Key('professor-convert-class-c1'));
       expect(find.text('Pôr na lista de espera'), findsOneWidget);
       await tap(tester, const Key('professor-convert-submit'));

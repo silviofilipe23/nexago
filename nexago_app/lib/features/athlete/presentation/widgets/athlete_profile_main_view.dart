@@ -32,6 +32,10 @@ import '../../../../core/sports/sport_catalog.dart';
 
 const _locationFallback = 'Aparecida de Goiânia · GO';
 
+/// Laranja da marca como texto no tema claro: o #FF6A1A dá 2,7:1 no fundo
+/// claro; este é o laranja profundo que o site usa como marca no claro.
+const _brandOnLight = Color(0xFFC2410C);
+
 class _PlayPartner {
   const _PlayPartner({
     required this.userId,
@@ -280,7 +284,7 @@ class AthleteProfileMainView extends StatelessWidget {
   }
 }
 
-/// Topo do perfil: gradiente laranja, ondas e barra de ações.
+/// Topo do perfil: gradiente laranja (pêssego no claro), ondas e barra de ações.
 class _ProfileHeaderSection extends StatelessWidget {
   const _ProfileHeaderSection({
     required this.embedded,
@@ -319,18 +323,24 @@ class _ProfileHeaderSection extends StatelessWidget {
   static const _headerOrangeTop = Color(0xFF4A2410);
   static const _headerOrangeMid = Color(0xFF2A1408);
 
+  // No claro a capa marrom deixava o nome a 1,3:1 e a cidade a 2,5:1. Lá ela
+  // vira pêssego claro (como no CompeteHubRankingCard): com as duas pontas
+  // claras, o texto do tema fica legível em qualquer altura da capa.
+  static const _headerPeachTop = Color(0xFFFFEFE4);
+  static const _headerPeachMid = Color(0xFFFFF5ED);
+
   @override
   Widget build(BuildContext context) {
     final hPad = ArenaDashboardTokens.horizontalPadding;
+    final isDark = context.themeColors.isDark;
 
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Positioned(
-          left: 0,
-          right: 0,
-          top: 0,
-          height: 300,
+        // A capa acaba com o topo. O 1º sliver é pintado por cima dos
+        // seguintes: uma capa mais alta (eram 300 px) cobria a faixa de XP com
+        // o fim do degradê e desbotava o "NÍVEL" e o XP.
+        Positioned.fill(
           child: CustomPaint(
             painter: _ProfileHeaderWavesPainter(),
             child: DecoratedBox(
@@ -339,11 +349,15 @@ class _ProfileHeaderSection extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    _headerOrangeTop,
-                    _headerOrangeMid,
+                    isDark ? _headerOrangeTop : _headerPeachTop,
+                    isDark ? _headerOrangeMid : _headerPeachMid,
                     context.themeColors.canvas.withValues(alpha: 0),
                   ],
-                  stops: const [0.0, 0.55, 1.0],
+                  // No escuro o marrom vai até 70% do topo: com a capa mais
+                  // curta, os 55% de antes apagavam o marrom cedo demais.
+                  stops: isDark
+                      ? const [0.0, 0.7, 1.0]
+                      : const [0.0, 0.55, 1.0],
                 ),
               ),
             ),
@@ -666,22 +680,32 @@ class _SportTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A pílula marrom é da capa escura; na capa clara vira chip claro, par do
+    // de nível, com o laranja profundo.
+    final isDark = context.themeColors.isDark;
+    final accent = isDark ? AppColors.brand : _brandOnLight;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: const Color(0xFF2E1A0C),
+        color: isDark
+            ? const Color(0xFF2E1A0C)
+            : context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(20),
+        border: isDark
+            ? null
+            : Border.all(color: AppColors.brand.withValues(alpha: 0.35)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.hexagon, size: 10, color: AppColors.brand),
+          Icon(Icons.hexagon, size: 10, color: accent),
           SizedBox(width: 6),
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w800,
-              color: AppColors.brand,
+              color: accent,
             ),
           ),
         ],
@@ -905,18 +929,19 @@ class _XpLevelSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final accent = context.themeColors.isDark ? AppColors.brand : _brandOnLight;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           children: [
-            Icon(Icons.bolt_rounded, size: 16, color: AppColors.brand),
+            Icon(Icons.bolt_rounded, size: 16, color: accent),
             SizedBox(width: 4),
             Text(
               'NÍVEL $level',
               style: theme.textTheme.labelSmall?.copyWith(
-                color: AppColors.brand,
+                color: accent,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 0.6,
               ),

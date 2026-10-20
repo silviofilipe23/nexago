@@ -271,6 +271,18 @@ String? arenaBookingSportLabel(Map<String, dynamic>? data) {
   return label.isEmpty ? null : label;
 }
 
+/// Reserva feita como professor (`bookedAs: "professor"`, carimbada por `createArenaBooking`
+/// com `asProfessor` quando o vínculo libera "Reservar quadras"): "Professor · equipe da arena" /
+/// "Professor · independente". `null` na reserva de atleta, que é tudo o que existia antes.
+String? arenaBookingProfessorLabel(Map<String, dynamic>? data) {
+  if (data?['bookedAs'] != 'professor') return null;
+  return switch (data?['professorRelationshipType']) {
+    'ARENA_STAFF' => 'Professor · equipe da arena',
+    'INDEPENDENT' => 'Professor · independente',
+    _ => 'Professor',
+  };
+}
+
 /// Status da reserva apenas no âmbito do negócio (ativa, cancelada…).
 String arenaBookingBusinessStatusLabel(Map<String, dynamic>? data) {
   if (data == null) return '—';

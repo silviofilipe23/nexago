@@ -82,6 +82,10 @@ class ArenaManagerBooking {
   /// Bloqueio de quadra de uma aula: sem cancelar nem check-in, só "Abrir aula".
   bool get isClassBlock => classSessionId != null;
 
+  /// Reservada como professor (vínculo com "Reservar quadras"); ver
+  /// `arenaBookingProfessorLabel`.
+  bool get bookedAsProfessor => data['bookedAs'] == 'professor';
+
   /// Mensalista sem conta no app (nome livre digitado pelo gestor).
   String? get customerName {
     final raw = data['customerName'];

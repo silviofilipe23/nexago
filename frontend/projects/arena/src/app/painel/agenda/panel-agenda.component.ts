@@ -5,7 +5,7 @@ import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { fetchCourtsList } from '../courts/courts-repository';
 import type { ArenaCourt } from '../courts/court.model';
-import { bookingIsActive, dateKeyOf, type ArenaBooking } from '../bookings/arena-booking.model';
+import { PROFESSOR_BOOKING_TAG, PROFESSOR_BOOKING_TAG_SHORT, bookingIsActive, dateKeyOf, type ArenaBooking } from '../bookings/arena-booking.model';
 import { resolveAthleteLabel, watchBookingsForArena } from '../bookings/bookings-repository';
 import { ManualBookingModalComponent } from '../bookings/manual-booking-modal.component';
 import { applyBookingsOverlay, applyScheduleFilters, scheduleDayStats, type ArenaScheduleStatusFilter } from './arena-schedule-grouping';
@@ -31,6 +31,8 @@ interface AgendaListRow {
   court: string;
   client: string;
   status: AgendaBlockStatus;
+  /** "Professor" na reserva feita como professor. */
+  tag: string | null;
 }
 
 const STATUS_FILTERS: { id: ArenaScheduleStatusFilter; label: string }[] = [
@@ -61,6 +63,18 @@ const STATUS_TONE: Record<AgendaBlockStatus, PillTone> = {
 /** Slot ocupado por aula do módulo Aulas (booking `source: 'class'`, id `class_…`). */
 export function isClassBlock(slot: Pick<ArenaSlot, 'bookingId'>, booking: Pick<ArenaBooking, 'classSessionId'> | null): boolean {
   return booking?.classSessionId != null || (slot.bookingId?.startsWith('class_') ?? false);
+}
+
+/** Selo do horário na agenda: "Professor" ("Prof" na grade da semana, `short`) quando o slot
+ *  está ocupado por reserva feita como professor. Horário livre/bloqueado ou reserva de atleta:
+ *  sem selo. */
+export function agendaSlotTag(
+  slot: Pick<ArenaSlot, 'status'>,
+  booking: Pick<ArenaBooking, 'bookedAsProfessor'> | null,
+  short = false,
+): string | null {
+  if (slot.status !== 'booked' || !booking?.bookedAsProfessor) return null;
+  return short ? PROFESSOR_BOOKING_TAG_SHORT : PROFESSOR_BOOKING_TAG;
 }
 
 function timeToMinutes(time: string): number {
@@ -171,6 +185,9 @@ function timeToMinutes(time: string): number {
                   <div class="agenda-body">
                     <div class="agenda-title">{{ r.court }}{{ r.client ? ' · ' + r.client : '' }}</div>
                   </div>
+                  @if (r.tag) {
+                    <ar-pill tone="blue">{{ r.tag }}</ar-pill>
+                  }
                   <ar-pill [tone]="statusTone[r.status]">{{ statusLabel[r.status] }}</ar-pill>
                 </div>
               } @empty {
@@ -534,7 +551,7 @@ export class PanelAgendaComponent {
       const start = timeToMinutes(s.startTime);
       let end = timeToMinutes(s.endTime);
       if (end <= start) end += 24 * 60;
-      blocks.push({ id: s.id, dateKey: s.dateKey, courtId: s.courtId, start, dur: end - start, status: this.slotStatusForBlock(s), client: this.clientLabelFor(s) });
+      blocks.push({ id: s.id, dateKey: s.dateKey, courtId: s.courtId, start, dur: end - start, status: this.slotStatusForBlock(s), client: this.clientLabelFor(s), tag: this.tagFor(s, true) });
     }
     const showMaintenance = this.statusFilter() === 'all' || this.statusFilter() === 'blocked';
     if (showMaintenance) {
@@ -568,6 +585,11 @@ export class PanelAgendaComponent {
     return booking?.status === 'pending_payment' ? 'pendente' : 'confirmada';
   }
 
+  /** Selo da reserva feita como professor (`bookedAs`), na grade e na lista. */
+  private tagFor(slot: ArenaSlot, short = false): string | null {
+    return agendaSlotTag(slot, this.bookingFor(slot), short);
+  }
+
   private clientLabelFor(slot: ArenaSlot): string {
     const booking = this.bookingFor(slot);
     if (!booking) return '';
@@ -582,7 +604,7 @@ export class PanelAgendaComponent {
       const start = timeToMinutes(s.startTime);
       let end = timeToMinutes(s.endTime);
       if (end <= start) end += 24 * 60;
-      blocks.push({ id: s.id, courtId: s.courtId, start, dur: end - start, status: this.slotStatusForBlock(s), client: this.clientLabelFor(s) });
+      blocks.push({ id: s.id, courtId: s.courtId, start, dur: end - start, status: this.slotStatusForBlock(s), client: this.clientLabelFor(s), tag: this.tagFor(s) });
     }
     const showMaintenance = this.statusFilter() === 'all' || this.statusFilter() === 'blocked';
     if (showMaintenance) {
@@ -606,13 +628,14 @@ export class PanelAgendaComponent {
         court: [this.courtName(s.courtId), this.bookingFor(s)?.sportLabel].filter((p) => !!p).join(' · '),
         client: this.clientLabelFor(s),
         status: this.slotStatusForBlock(s),
+        tag: this.tagFor(s),
       }));
     const showMaintenance = this.statusFilter() === 'all' || this.statusFilter() === 'blocked';
     if (showMaintenance) {
       for (const c of this.courts()) {
         if (c.status !== 'maintenance') continue;
         if (this.courtFilter() && this.courtFilter() !== c.id) continue;
-        rows.push({ id: `maint-${c.id}`, time: '—', court: c.name, client: 'Quadra em manutenção', status: 'manutencao' });
+        rows.push({ id: `maint-${c.id}`, time: '—', court: c.name, client: 'Quadra em manutenção', status: 'manutencao', tag: null });
       }
     }
     rows.sort((a, b) => a.time.localeCompare(b.time));

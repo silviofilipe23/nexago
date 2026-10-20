@@ -1,0 +1,162 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  @if (loading() && !roster()) {
+    <app-nx-page-loading title="Carregando a chamada…" subtitle="Agenda" />
+  } @else if (loadError(); as err) {
+    <header class="pf-page-header">
+      <div class="pf-page-titles">
+        <nav class="pf-crumbs" aria-label="Você está em">
+          <a routerLink="/agenda">Agenda</a>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+          <h1>Chamada</h1>
+        </nav>
+      </div>
+    </header>
+    <div class="pf-body">
+      <app-nx-inline-message
+        [tone]="err.isPermissionDenied ? 'warning' : 'error'"
+        [heading]="err.isPermissionDenied ? 'Você não pode fazer esta chamada' : 'Não deu para abrir a chamada'"
+        [body]="err.message"
+        [actionLabel]="err.isPermissionDenied ? null : 'Tentar novamente'"
+        (action)="load()"
+      />
+    </div>
+  } @else if (session(); as s) {
+    <header class="pf-page-header">
+      <div class="pf-page-titles">
+        <nav class="pf-crumbs" aria-label="Você está em">
+          <a routerLink="/agenda">Agenda</a>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+          <h1>{{ s.className }}</h1>
+        </nav>
+        <div class="pf-page-sub">{{ subtitle() }}</div>
+      </div>
+      @if (!canceled() && s.attendanceOpen) {
+        <div class="pf-page-actions">
+          <button type="button" class="pf-btn pf-btn--primary" [disabled]="primaryDisabled()" (click)="requestClose()">
+            {{ saving() ? 'Salvando…' : primaryLabel() }}
+          </button>
+        </div>
+      }
+    </header>
+
+    <div class="pf-body">
+      @if (canceled()) {
+        <div class="ta-banner">Aula cancelada pela arena — não há chamada.</div>
+      } @else if (!s.attendanceOpen) {
+        <div class="ta-banner">A chamada abre no dia da aula. A lista abaixo é de quem está matriculado hoje.</div>
+      } @else if (completed()) {
+        <div class="ta-banner ta-banner--done">Chamada fechada. Ainda dá para corrigir uma marca.</div>
+      }
+      @if (saveError(); as msg) {
+        <app-nx-inline-message class="ta-error" tone="error" heading="A chamada não foi salva" [body]="msg" />
+      }
+
+      <div class="ta-layout">
+        <section class="pf-card">
+          <div class="ta-card-head">
+            <div class="pf-card-head">
+              <span class="pf-kicker">{{ countsLine() }}</span>
+              <h2 class="pf-card-title">Chamada</h2>
+            </div>
+            @if (editable()) {
+              <button type="button" class="pf-btn pf-btn--ghost" [disabled]="counts().unmarked === 0" (click)="markRemaining()">
+                Marcar restantes presentes
+              </button>
+            }
+          </div>
+
+          <ul class="ta-list">
+            @for (st of students(); track st.studentId; let i = $index) {
+              <li class="ta-row">
+                <span class="ta-num">{{ (i + 1).toString().padStart(2, '0') }}</span>
+                <div class="ta-who">
+                  @if (st.photoUrl) {
+                    <img class="ta-avatar" [src]="st.photoUrl" alt="" width="32" height="32" loading="lazy" />
+                  } @else {
+                    <span class="ta-avatar ta-avatar--initials" aria-hidden="true">{{ initialsOf(st.name) }}</span>
+                  }
+                  <span class="ta-name">
+                    {{ st.name }}
+                    @if (st.kind !== 'regular') {
+                      <span class="ta-kind" [class.ta-kind--trial]="st.kind === 'trial'">{{ st.kind === 'makeup' ? 'Reposição' : 'Experimental' }}</span>
+                    }
+                  </span>
+                </div>
+                <div class="ta-marks" role="radiogroup" [attr.aria-label]="'Presença de ' + st.name">
+                  @for (m of marks; track m) {
+                    <button
+                      type="button"
+                      role="radio"
+                      [class]="'ta-mark ta-mark--' + m"
+                      [class.ta-mark--on]="markOf(st.studentId) === m"
+                      [attr.aria-checked]="markOf(st.studentId) === m"
+                      [disabled]="!editable()"
+                      (click)="toggle(st.studentId, m)"
+                    >
+                      {{ markLabel[m] }}
+                    </button>
+                  }
+                </div>
+              </li>
+            } @empty {
+              <li class="ta-empty">Nenhum aluno nesta aula. Quem matricula e encaixa é a arena.</li>
+            }
+          </ul>
+
+          @if (dirty() && editable() && !completed()) {
+            <div class="ta-dirty">
+              <span>Alterações ainda não salvas.</span>
+              <button type="button" class="pf-btn pf-btn--ghost" [disabled]="saving()" (click)="save(false)">
+                {{ saving() ? 'Salvando…' : 'Salvar sem fechar' }}
+              </button>
+            </div>
+          }
+        </section>
+
+        <div class="pf-col">
+          <section class="pf-card">
+            <div class="ta-big">{{ counts().present }}<span>/{{ students().length }}</span></div>
+            <div class="ta-mono">presentes</div>
+            <dl class="ta-facts">
+              <div><dt>Arena</dt><dd>{{ s.arenaName }}</dd></div>
+              <div><dt>Quadra</dt><dd>{{ s.courtName }}</dd></div>
+              <div><dt>Horário</dt><dd>{{ s.startTime }}–{{ s.endTime }}</dd></div>
+            </dl>
+          </section>
+          <section class="pf-card">
+            <h2 class="pf-card-title">Ao fechar a chamada</h2>
+            <p class="ta-hint">A presença entra na frequência de cada aluno e da turma. Dá para corrigir depois de fechada.</p>
+            <p class="ta-hint">Falta justificada pode gerar crédito de reposição, e presença ou falta sem aviso desconta aula de pacote — conforme as regras da arena.</p>
+          </section>
+          <section class="pf-card">
+            <label class="pf-card-title" for="ta-note">Nota da aula</label>
+            <textarea
+              id="ta-note"
+              class="ta-note"
+              maxlength="1000"
+              placeholder="Ex.: treino de saque viagem + transição"
+              [disabled]="!editable()"
+              [value]="note()"
+              (input)="onNoteInput($any($event.target).value)"
+            ></textarea>
+          </section>
+        </div>
+      </div>
+    </div>
+  }
+</app-at-panel-shell>
+
+@if (confirmClose()) {
+  <app-nx-blocking-dialog
+    tone="warning"
+    [role]="'dialog'"
+    heading="Fechar com alunos sem marca?"
+    [body]="unmarkedBody()"
+    primaryLabel="Fechar chamada"
+    secondaryLabel="Voltar"
+    [dismissible]="true"
+    (primary)="confirmAndClose()"
+    (secondary)="confirmClose.set(false)"
+    (dismissed)="confirmClose.set(false)"
+  />
+}

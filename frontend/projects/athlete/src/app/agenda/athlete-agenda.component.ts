@@ -26,6 +26,7 @@ import {
   type MyClassAgendaItem,
   type MyClassChargeItem,
 } from '../data/class-agenda-repository';
+import { localDateKey, teacherClassCta } from '../professor/aulas/teacher-attendance.model';
 import {
   acceptPartnerInvite,
   declinePartnerInvite,
@@ -372,6 +373,7 @@ export function classEntryToEvent(e: MyClassAgendaItem, now: Date = new Date()):
   const isPast = end.getTime() <= now.getTime();
   const canceled = e.status === 'canceled';
   const teacher = e.role === 'teacher';
+  const attendance = teacherClassCta(e, localDateKey(now));
   const subtitle = teacher
     ? `Você dá aula · ${e.studentCount ?? 0} aluno${(e.studentCount ?? 0) === 1 ? '' : 's'}`
     : e.kind === 'makeup'
@@ -401,9 +403,10 @@ export function classEntryToEvent(e: MyClassAgendaItem, now: Date = new Date()):
     location: e.arenaName,
     statusLabel,
     statusTone: canceled || isPast ? 'neutral' : e.myMark === 'absent' ? 'warning' : 'confirmed',
-    ctaLabel: 'Ver arena',
-    ctaPrimary: false,
-    link: e.arenaId ? ['/reservar', e.arenaId] : null,
+    // Aula minha com a chamada liberada pelo vínculo: o botão leva à chamada.
+    ...(attendance
+      ? { ctaLabel: attendance.label, ctaPrimary: attendance.primary, link: ['/professor', 'aulas', e.sessionId] }
+      : { ctaLabel: 'Ver arena', ctaPrimary: false, link: e.arenaId ? ['/reservar', e.arenaId] : null }),
     isPast: isPast || canceled,
   };
 }

@@ -7,7 +7,9 @@
  * - aluno: aulas das turmas em que está (`classStudents.athleteId`), nos dias da semana que faz —
  *   futura só como ativo (pausado não, como nos lembretes); passada só se tem marca na chamada;
  * - encaixe: aulas com o atleta em `extraAthleteIds` (reposição/experimental);
- * - professor: aulas com `teacherUserId` = ele, com a contagem da lista (sem nomes).
+ * - professor: aulas com `teacherUserId` = ele, com a contagem da lista (sem nomes) e
+ *   `canManageLessons` — vínculo `ACTIVE` com "Gerenciar as próprias aulas" naquela arena, que
+ *   libera a chamada (`getMyClassSessionRoster` + `saveArenaClassAttendance`).
  */
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, Timestamp, type Firestore} from "firebase-admin/firestore";
@@ -16,6 +18,7 @@ import {ARENA_CLASSES, ARENA_CLASS_SESSIONS, CLASS_STUDENTS} from "./arena-class
 import {studentAttendsWeekday} from "./arena-class-ledger";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {arenasWithProfessorPermission} from "./arena-professor-permissions";
 
 export const MAX_AGENDA_RANGE_DAYS = 100;
 const MAX_CLASSES = 30;
@@ -52,6 +55,8 @@ export interface ClassAgendaItem {
   myMark: "present" | "absent" | "excused" | null;
   /** Só para o professor: alunos do dia + encaixes. */
   studentCount: number | null;
+  /** Só para o professor: pode fazer a chamada (vínculo com a permissão). Aluno: `null`. */
+  canManageLessons: boolean | null;
 }
 
 function str(v: unknown, fallback = ""): string {
@@ -67,7 +72,9 @@ function markOf(attendance: Record<string, Record<string, unknown>>, studentId: 
   return mark === "present" || mark === "absent" || mark === "excused" ? mark : null;
 }
 
-function baseItem(s: AgendaSession): Omit<ClassAgendaItem, "role" | "kind" | "myMark" | "studentCount"> {
+function baseItem(
+  s: AgendaSession,
+): Omit<ClassAgendaItem, "role" | "kind" | "myMark" | "studentCount" | "canManageLessons"> {
   const d = s.data;
   const startAt = d["startAt"];
   const status = str(d["status"]);
@@ -100,6 +107,8 @@ export function buildClassAgendaItems(input: {
   extraSessions: readonly AgendaSession[];
   teacherSessions: readonly AgendaSession[];
   rosterCounts: ReadonlyMap<string, ReadonlyMap<number, number>>;
+  /** Arenas em que o professor tem vínculo com "Gerenciar as próprias aulas". */
+  lessonArenaIds?: ReadonlySet<string>;
 }): ClassAgendaItem[] {
   const items = new Map<string, ClassAgendaItem>();
   const byClass = new Map<string, ClassMembership[]>();
@@ -114,7 +123,10 @@ export function buildClassAgendaItems(input: {
         attendance[m.studentId] != null :
         m.status === "active" && studentAttendsWeekday({weekdays: m.weekdays ?? undefined}, weekday);
       if (!show) continue;
-      items.set(s.id, {...baseItem(s), role: "student", kind: "regular", myMark: markOf(attendance, m.studentId), studentCount: null});
+      items.set(s.id, {
+        ...baseItem(s), role: "student", kind: "regular", myMark: markOf(attendance, m.studentId), studentCount: null,
+        canManageLessons: null,
+      });
     }
   }
 
@@ -127,6 +139,7 @@ export function buildClassAgendaItems(input: {
     const kind = extra["kind"] === "trial" ? "trial" : "makeup";
     items.set(s.id, {
       ...baseItem(s), role: "student", kind, myMark: markOf(recordOf(s.data["attendance"]), studentId), studentCount: null,
+      canManageLessons: null,
     });
   }
 
@@ -138,7 +151,10 @@ export function buildClassAgendaItems(input: {
     const marked = Object.keys(recordOf(s.data["attendance"])).length;
     // Aula passada com chamada: quem estava na lista daquele dia; futura: a turma de hoje.
     const count = str(s.data["date"]) < input.todayKey && marked > 0 ? marked : regulars + extras;
-    items.set(s.id, {...baseItem(s), role: "teacher", kind: "regular", myMark: null, studentCount: count});
+    items.set(s.id, {
+      ...baseItem(s), role: "teacher", kind: "regular", myMark: null, studentCount: count,
+      canManageLessons: input.lessonArenaIds?.has(str(s.data["arenaId"])) ?? false,
+    });
   }
 
   return [...items.values()].sort((a, b) =>
@@ -184,6 +200,13 @@ export async function loadClassAgenda(db: Firestore, uid: string, fromKey: strin
     rosterCounts.set(classId, perDay);
   }));
 
+  const lessonArenaIds = await arenasWithProfessorPermission(
+    db,
+    teacherSnap.docs.filter((d) => d.data()["teacherUserId"] === uid).map((d) => str(d.data()["arenaId"])),
+    uid,
+    "canManageOwnLessons",
+  );
+
   const toSessions = (docs: FirebaseFirestore.QueryDocumentSnapshot[]): AgendaSession[] =>
     docs.map((d) => ({id: d.id, data: d.data() as Record<string, unknown>}));
   return buildClassAgendaItems({
@@ -194,6 +217,7 @@ export async function loadClassAgenda(db: Firestore, uid: string, fromKey: strin
     extraSessions: toSessions(extraSnap.docs),
     teacherSessions: toSessions(teacherSnap.docs),
     rosterCounts,
+    lessonArenaIds,
   });
 }
 

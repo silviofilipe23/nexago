@@ -27,6 +27,7 @@ import {
 import {ensurePeakRuleSatisfied, parsePeakRulesFromDocs} from "./arena-peak-rules";
 import {resolveBookingSport} from "./arena-booking-sport";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {resolveProfessorBookingStamp} from "./arena-professor-permissions";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -53,6 +54,11 @@ interface BookingInput {
   couponCode?: string;
   /** Esporte escolhido entre os da quadra (código do catálogo). Apps antigos não enviam. */
   sport?: string;
+  /**
+   * Reservar como professor (vínculo `ACTIVE` com "Reservar quadras" naquela arena). Ausente =
+   * reserva de atleta, como sempre. Mesmo preço e regras; só carimba a reserva para a arena ver.
+   */
+  asProfessor?: boolean;
 }
 
 function parseDateKey(dateRaw: string): string {
@@ -238,6 +244,12 @@ export const createArenaBooking = onCall({
   }
 
   await ensureNotBlocked(arenaId, athleteId);
+  const professorStamp = await resolveProfessorBookingStamp(
+    getFirestore(),
+    arenaId,
+    athleteId,
+    input.asProfessor,
+  );
 
   const ctx = await loadPricingContext(arenaId, courtId);
   const sport = resolveBookingSport(input.sport, ctx.courtData);
@@ -446,6 +458,7 @@ export const createArenaBooking = onCall({
             ? Timestamp.fromDate(paymentExpiresAt)
             : null,
         source: "platform",
+        ...(professorStamp ?? {}),
         appliedPromotionIds: total.appliedPromotionIds,
         couponId: couponOutcome.couponId,
         couponCode: couponOutcome.couponCode,
@@ -519,5 +532,6 @@ export const createArenaBooking = onCall({
     couponApplied: couponOutcome.couponApplied,
     couponId: couponOutcome.couponId,
     couponDiscountReais: couponOutcome.couponDiscountReais,
+    bookedAs: professorStamp?.bookedAs ?? "athlete",
   };
 });

@@ -46,11 +46,16 @@ class ArenaClassEnrollmentCreated {
     required this.enrollmentId,
     required this.studentId,
     required this.chargeIds,
+    this.asaasGroupId,
   });
 
   final String enrollmentId;
   final String studentId;
   final List<String> chargeIds;
+
+  /// Grupo da 1ª fatura online (`null` = cobrança manual ou nada a cobrar).
+  /// O link chega depois, no espelho `asaas` das mensalidades.
+  final String? asaasGroupId;
 }
 
 /// Pedido de matrícula — o mesmo payload vale para a prévia e para gravar.
@@ -61,6 +66,8 @@ class ArenaClassEnrollmentRequest {
     required this.slots,
     required this.dueDay,
     required this.paymentMethod,
+    this.billingMode = ArenaClassBillingMode.manual,
+    this.cpfCnpj,
     this.waiveFee = false,
     this.athleteId,
     this.studentId,
@@ -73,6 +80,14 @@ class ArenaClassEnrollmentRequest {
   final List<ArenaClassEnrollmentSlot> slots;
   final int dueDay;
   final ArenaClassPaymentMethod paymentMethod;
+
+  /// `asaas` = mensalidade online (o backend exige a regra ligada e CPF).
+  final ArenaClassBillingMode billingMode;
+
+  /// CPF/CNPJ de quem paga, normalizado. Fica no servidor (perfil de
+  /// cobrança), nunca no cadastro do atleta. Omitido = o servidor usa o já
+  /// salvo ou o do cadastro NexaGO.
+  final String? cpfCnpj;
   final bool waiveFee;
 
   /// Atleta NexaGO (o backend resolve nome e foto).
@@ -92,6 +107,8 @@ class ArenaClassEnrollmentRequest {
       'slots': [for (final s in slots) s.toPayload()],
       'dueDay': dueDay,
       'paymentMethod': paymentMethod.id,
+      'billingMode': billingMode.id,
+      if (cpfCnpj != null) 'cpfCnpj': cpfCnpj!,
       'waiveFee': waiveFee,
       if (athleteId != null) 'athleteId': athleteId!,
       if (studentId != null) 'studentId': studentId!,
@@ -103,7 +120,8 @@ class ArenaClassEnrollmentRequest {
 
 /// Aulas fase 2 (lado arena): planos, regras, matrículas, mensalidades e
 /// créditos de reposição. Leitura direta do Firestore e escrita via callables
-/// — cobrança manual, nada passa pela plataforma.
+/// — na cobrança manual nada passa pela plataforma; na online, a fatura e a
+/// baixa são do servidor (o app só lê o espelho).
 ///
 /// Toda query de coleção raiz filtra `arenaId`: a rule lê
 /// `resource.data.arenaId` para checar a área (`agenda`, e `financeiro` em
@@ -284,6 +302,7 @@ class ArenaClassEnrollmentRepository {
   ) async {
     final map = await _call('createArenaClassEnrollment', request.toPayload());
     final ids = map['chargeIds'];
+    final groupId = map['asaasGroupId'];
     return ArenaClassEnrollmentCreated(
       enrollmentId: (map['enrollmentId'] as String?) ?? '',
       studentId: (map['studentId'] as String?) ?? '',
@@ -292,6 +311,7 @@ class ArenaClassEnrollmentRepository {
           for (final id in ids)
             if (id is String) id,
       ],
+      asaasGroupId: groupId is String && groupId.isNotEmpty ? groupId : null,
     );
   }
 
@@ -308,7 +328,8 @@ class ArenaClassEnrollmentRepository {
     return (map['canceledCharges'] as num?)?.toInt() ?? 0;
   }
 
-  /// Registra o pagamento recebido direto pela arena.
+  /// Registra o pagamento recebido direto pela arena. Em mensalidade online,
+  /// o servidor também anula a fatura (o link deixa de valer).
   Future<void> markChargePaid({
     required String chargeId,
     required ArenaClassPaymentMethod method,

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -12,6 +13,7 @@ import '../../../../../core/profiles/users_repository.dart';
 import '../../../../../core/search/search_keywords.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../../arenas/domain/arena_booking_success_actions.dart';
+import '../../../domain/aulas/arena_class_billing_logic.dart';
 import '../../../domain/aulas/arena_class_logic.dart';
 import 'arena_class_atoms.dart';
 
@@ -696,6 +698,25 @@ Future<void> openArenaClassWhatsApp(
         isError: true);
   }
 }
+
+/// Copia o link da fatura online para a arena mandar por onde quiser.
+Future<void> copyArenaClassInvoiceLink(BuildContext context, String url) async {
+  await Clipboard.setData(ClipboardData(text: url));
+  if (context.mounted) showAppSnackBar(context, 'Link de pagamento copiado.');
+}
+
+/// Cor do rótulo da fatura online ("Fatura vencida" em vermelho…).
+Color arenaClassOnlineToneColor(
+  BuildContext context,
+  ArenaClassOnlineTone tone,
+) =>
+    switch (tone) {
+      ArenaClassOnlineTone.info => AppColors.brand,
+      ArenaClassOnlineTone.muted => context.themeColors.onSurfaceMuted,
+      ArenaClassOnlineTone.warning => AppColors.pending,
+      ArenaClassOnlineTone.danger => AppColors.live,
+      ArenaClassOnlineTone.success => AppColors.win,
+    };
 
 /// Barra de passos da matrícula (4 segmentos).
 class ArenaClassStepBar extends StatelessWidget {

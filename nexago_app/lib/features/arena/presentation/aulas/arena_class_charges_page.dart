@@ -23,10 +23,10 @@ import 'widgets/arena_class_form_atoms.dart';
 /// Mensalidades das aulas (A7): recebido no mês, a receber, em atraso e as
 /// abas Em atraso / Vencendo / Pagos.
 ///
-/// Cobrança manual: "Cobrar" abre o WhatsApp com a mensagem pronta e
-/// "Registrar pagamento" dá baixa no que a arena recebeu direto. Lê quem vê a
-/// agenda ou o financeiro; registrar exige escrever na agenda (recepção cobra
-/// no balcão).
+/// "Cobrar" abre o WhatsApp com a mensagem pronta — com o link da fatura
+/// quando a mensalidade é online — e "Registrar pagamento" dá baixa no que a
+/// arena recebeu direto (na online, cancela o link). Lê quem vê a agenda ou o
+/// financeiro; registrar exige escrever na agenda (recepção cobra no balcão).
 class ArenaClassChargesPage extends ConsumerWidget {
   const ArenaClassChargesPage({super.key});
 
@@ -78,6 +78,9 @@ class _Body extends ConsumerWidget {
     final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
     final canOpenStudent = ref.watch(arenaCanReadProvider(ArenaArea.agenda));
     final arenaName = ref.watch(managedArenaDetailProvider).valueOrNull?.name;
+    final onlineOn =
+        ref.watch(arenaClassRulesProvider).valueOrNull?.onlineBillingEnabled ??
+            false;
     final list = view.of(tab);
     final month = arenaClassMonthName(todayKey);
 
@@ -160,12 +163,20 @@ class _Body extends ConsumerWidget {
                   : null,
               onRegister:
                   c.isOpen && canWrite ? () => _register(context, c) : null,
+              onCopyLink: switch (arenaClassChargeInvoiceUrl(c)) {
+                final url? => () => copyArenaClassInvoiceLink(context, url),
+                null => null,
+              },
             ),
           ),
         const SizedBox(height: 8),
         Text(
-          'Cobrança manual: a arena recebe direto (PIX, dinheiro, maquininha '
-          'ou transferência) e registra aqui. Nada passa pela plataforma.',
+          onlineOn || list.any((c) => c.isOnline)
+              ? 'Online: o aluno paga pelo link (PIX ou cartão) e a baixa é '
+                  'automática. Manual: a arena recebe direto e registra aqui.'
+              : 'Cobrança manual: a arena recebe direto (PIX, dinheiro, '
+                  'maquininha ou transferência) e registra aqui. Nada passa '
+                  'pela plataforma.',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 11.5,
@@ -290,6 +301,7 @@ class _ChargeCard extends StatelessWidget {
     required this.onOpen,
     required this.onRemind,
     required this.onRegister,
+    required this.onCopyLink,
   });
 
   final ArenaClassCharge charge;
@@ -297,6 +309,9 @@ class _ChargeCard extends StatelessWidget {
   final VoidCallback? onOpen;
   final VoidCallback? onRemind;
   final VoidCallback? onRegister;
+
+  /// "Copiar link": só com a fatura online aberta.
+  final VoidCallback? onCopyLink;
 
   @override
   Widget build(BuildContext context) {
@@ -309,6 +324,7 @@ class _ChargeCard extends StatelessWidget {
             : c.dueDate == todayKey
                 ? AppColors.pending
                 : colors.onSurfaceMuted;
+    final online = arenaClassOnlineChargeStatus(c);
     final header = Row(
       children: [
         ArenaClassAvatar(initials: arenaClassInitials(c.name)),
@@ -371,6 +387,8 @@ class _ChargeCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               child: header,
             ),
+          if (online != null)
+            _OnlineStatusRow(status: online, onCopyLink: onCopyLink),
           if (onRemind != null || onRegister != null) ...[
             const SizedBox(height: 11),
             Row(
@@ -398,6 +416,52 @@ class _ChargeCard extends StatelessWidget {
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Situação da fatura online no cartão ("Fatura enviada") e "Copiar link".
+class _OnlineStatusRow extends StatelessWidget {
+  const _OnlineStatusRow({required this.status, required this.onCopyLink});
+
+  final ArenaClassOnlineStatus status;
+  final VoidCallback? onCopyLink;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = arenaClassOnlineToneColor(context, status.tone);
+    return Padding(
+      padding: EdgeInsets.only(top: onCopyLink == null ? 10 : 4),
+      child: Row(
+        children: [
+          Icon(Icons.bolt_rounded, size: 14, color: color),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              status.label,
+              style: AppTypography.mono(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ),
+          if (onCopyLink != null)
+            TextButton.icon(
+              onPressed: onCopyLink,
+              icon: const Icon(Icons.link_rounded, size: 15),
+              label: const Text('Copiar link'),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                // Sem a família, o estilo trocaria a Sora do tema pela do sistema.
+                textStyle: AppTypography.soraRegular(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
         ],
       ),
     );

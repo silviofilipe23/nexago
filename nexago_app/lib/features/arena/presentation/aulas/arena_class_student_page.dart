@@ -29,7 +29,8 @@ import 'widgets/arena_class_form_atoms.dart';
 const int _frequencyWeeks = 8;
 
 /// Página do aluno (A6): plano e horários fixos, créditos de reposição,
-/// frequência das últimas 8 semanas, últimas aulas, mensalidades e
+/// frequência das últimas 8 semanas, últimas aulas, mensalidades (com a
+/// situação da fatura online, "Cobrar" e "Copiar link") e
 /// pausar/reativar/cancelar o plano (`setArenaClassEnrollmentStatus`).
 ///
 /// [studentId] é o id do doc em `classStudents` (uid do atleta ou id
@@ -71,6 +72,7 @@ class _ArenaClassStudentPageState extends ConsumerState<ArenaClassStudentPage> {
     final classes = ref.watch(managedArenaClassesProvider).valueOrNull ??
         const <ArenaClass>[];
     final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
+    final arenaName = ref.watch(managedArenaDetailProvider).valueOrNull?.name;
 
     final enrollments = enrollmentsAsync.valueOrNull;
     final enrollment = enrollments == null ? null : _pick(enrollments);
@@ -280,6 +282,21 @@ class _ArenaClassStudentPageState extends ConsumerState<ArenaClassStudentPage> {
                 todayKey: todayKey,
                 onRegister:
                     canWrite && c.isOpen ? () => _register(context, c) : null,
+                onRemind: c.isOpen && (c.phone ?? phone) != null
+                    ? () => openArenaClassWhatsApp(
+                          context,
+                          phone: c.phone ?? phone,
+                          message: arenaClassChargeReminderMessage(
+                            c,
+                            todayKey: todayKey,
+                            arenaName: arenaName,
+                          ),
+                        )
+                    : null,
+                onCopyLink: switch (arenaClassChargeInvoiceUrl(c)) {
+                  final url? => () => copyArenaClassInvoiceLink(context, url),
+                  null => null,
+                },
               ),
           ],
           if (canWrite && enrollment != null && enrollment.isCurrent) ...[
@@ -549,6 +566,7 @@ class _PlanCard extends StatelessWidget {
     final next =
         open.where((c) => !arenaClassChargeIsOverdue(c, todayKey)).firstOrNull;
     final isPackage = e.plan.kind == ArenaClassPlanKind.package;
+    final online = e.billingMode == ArenaClassBillingMode.asaas;
 
     return ArenaClassPanel(
       child: Column(
@@ -606,8 +624,19 @@ class _PlanCard extends StatelessWidget {
           ] else
             ArenaClassInfoRow(
               label: 'Vencimento',
-              value: 'dia ${e.dueDay} · ${e.paymentMethod.label}',
+              // Online: a forma é escolhida pelo aluno na fatura.
+              value: online
+                  ? 'dia ${e.dueDay}'
+                  : 'dia ${e.dueDay} · ${e.paymentMethod.label}',
             ),
+          if (online) ...[
+            const ArenaClassInfoRow(
+              label: 'Cobrança',
+              value: 'Online (PIX ou cartão)',
+            ),
+            if (e.cpfMasked != null)
+              ArenaClassInfoRow(label: 'CPF do pagador', value: e.cpfMasked!),
+          ],
           if (overdue.isNotEmpty)
             ArenaClassInfoRow(
               label: 'Em atraso',
@@ -764,11 +793,19 @@ class _ChargeRow extends StatelessWidget {
     required this.charge,
     required this.todayKey,
     required this.onRegister,
+    required this.onRemind,
+    required this.onCopyLink,
   });
 
   final ArenaClassCharge charge;
   final String todayKey;
   final VoidCallback? onRegister;
+
+  /// "Cobrar": WhatsApp com a mensagem (e o link, se a fatura estiver aberta).
+  final VoidCallback? onRemind;
+
+  /// "Copiar link": só com a fatura online aberta.
+  final VoidCallback? onCopyLink;
 
   @override
   Widget build(BuildContext context) {
@@ -779,6 +816,29 @@ class _ChargeRow extends StatelessWidget {
         : arenaClassChargeIsOverdue(c, todayKey)
             ? AppColors.live
             : colors.onSurfaceMuted;
+    final online = arenaClassOnlineChargeStatus(c);
+    Widget action(String label, IconData icon, VoidCallback onTap) =>
+        TextButton.icon(
+          onPressed: onTap,
+          icon: Icon(icon, size: 15),
+          label: Text(label),
+          style: TextButton.styleFrom(
+            visualDensity: VisualDensity.compact,
+            // Sem a família, o estilo trocaria a Sora do tema pela do sistema.
+            textStyle: AppTypography.soraRegular(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        );
+    final actions = [
+      if (onRemind != null)
+        action('Cobrar', Icons.chat_bubble_outline_rounded, onRemind!),
+      if (onCopyLink != null)
+        action('Copiar link', Icons.link_rounded, onCopyLink!),
+      if (onRegister != null)
+        action('Registrar', Icons.payments_outlined, onRegister!),
+    ];
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 9),
       decoration: BoxDecoration(
@@ -786,35 +846,41 @@ class _ChargeRow extends StatelessWidget {
           bottom: BorderSide(color: colors.onSurface.withValues(alpha: 0.05)),
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  c.description,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.soraRegular(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: colors.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${formatBRL(c.amountReais)} · '
-                  '${arenaClassChargeStatusLabel(c, todayKey)}',
-                  style: AppTypography.mono(fontSize: 10.5, color: color),
-                ),
-              ],
+          Text(
+            c.description,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.soraRegular(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: colors.onSurface,
             ),
           ),
-          if (onRegister != null)
-            TextButton(
-              onPressed: onRegister,
-              child: const Text('Registrar'),
+          const SizedBox(height: 2),
+          Text(
+            '${formatBRL(c.amountReais)} · '
+            '${arenaClassChargeStatusLabel(c, todayKey)}',
+            style: AppTypography.mono(fontSize: 10.5, color: color),
+          ),
+          if (online != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              online.label,
+              style: AppTypography.mono(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                color: arenaClassOnlineToneColor(context, online.tone),
+              ),
+            ),
+          ],
+          if (actions.isNotEmpty)
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 2,
+              children: actions,
             ),
         ],
       ),

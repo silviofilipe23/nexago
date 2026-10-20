@@ -465,6 +465,7 @@ void main() {
         ],
         'dueDay': 5,
         'paymentMethod': 'transfer',
+        'billingMode': 'manual',
         'waiveFee': false,
         'studentId': 'st1',
         'name': 'Marina Teles',

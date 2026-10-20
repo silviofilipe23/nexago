@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/layout/nexa_page_header.dart';
+import '../../../core/links/open_external_url.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../../arenas/presentation/arena_booking_navigation.dart';
@@ -14,8 +16,10 @@ import '../../tournaments/domain/tournament_discovery_providers.dart';
 import '../domain/agenda/athlete_agenda_logic.dart';
 import '../domain/agenda/athlete_agenda_models.dart';
 import '../domain/agenda/athlete_agenda_providers.dart';
+import '../domain/agenda/class_charge_entry.dart';
 import '../domain/athlete_notifications_providers.dart';
 import '../domain/athlete_shell_providers.dart';
+import 'widgets/agenda/agenda_class_charges_section.dart';
 import 'widgets/agenda/agenda_day_strip.dart';
 import 'widgets/agenda/agenda_empty_day_view.dart';
 import 'widgets/agenda/agenda_empty_state.dart';
@@ -44,20 +48,48 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
   String _searchQuery = '';
   bool _searchVisible = false;
 
+  /// Abriu uma fatura: ao voltar pro app, relê as mensalidades (a paga sai).
+  bool _reloadChargesOnResume = false;
+  late final AppLifecycleListener _lifecycleListener;
+
   @override
   void initState() {
     super.initState();
     _selectedDay = dateOnly(DateTime.now());
     _visibleMonth = startOfMonth(_selectedDay);
+    _lifecycleListener = AppLifecycleListener(onResume: _onResume);
   }
 
   @override
   void dispose() {
+    _lifecycleListener.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
+  void _onResume() {
+    if (!_reloadChargesOnResume) return;
+    _reloadChargesOnResume = false;
+    ref.invalidate(myClassChargesProvider);
+  }
+
+  Future<void> _payClassCharge(ClassChargeEntry charge) async {
+    final url = charge.invoiceUrl;
+    if (url == null) return;
+    // Antes de abrir: o `launchUrl` pode resolver só depois da volta ao app.
+    _reloadChargesOnResume = true;
+    final opened = await openExternalUrl(url);
+    if (opened || !mounted) return;
+    _reloadChargesOnResume = false;
+    showAppSnackBar(
+      context,
+      'Não foi possível abrir a fatura.',
+      isError: true,
+    );
+  }
+
   Future<void> _refresh() async {
+    ref.invalidate(myClassChargesProvider);
     ref.invalidate(myBookingsStreamProvider);
     ref.invalidate(myTournamentRegistrationsProvider);
     ref.invalidate(discoveryTournamentsProvider);
@@ -134,6 +166,8 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
     final now = DateTime.now();
     final bookingsAsync = ref.watch(myBookingsStreamProvider);
     final pageState = ref.watch(athleteAgendaItemsProvider);
+    final classCharges =
+        ref.watch(myClassChargesProvider).valueOrNull ?? const [];
     final unreadNotifications = ref.watch(
       athleteUnreadNotificationsCountProvider,
     );
@@ -282,6 +316,13 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
                               controller: _searchController,
                               onChanged: (value) =>
                                   setState(() => _searchQuery = value),
+                            ),
+                          ),
+                        if (classCharges.isNotEmpty)
+                          SliverToBoxAdapter(
+                            child: AgendaClassChargesSection(
+                              charges: classCharges,
+                              onPay: _payClassCharge,
                             ),
                           ),
                         SliverToBoxAdapter(

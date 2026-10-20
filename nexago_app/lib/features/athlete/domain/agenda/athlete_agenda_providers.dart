@@ -12,6 +12,7 @@ import '../../data/mock_athlete_agenda_data.dart';
 import 'athlete_agenda_logic.dart';
 import 'athlete_agenda_models.dart';
 import 'class_agenda_entry.dart';
+import 'class_charge_entry.dart';
 
 /// Aulas da arena do atleta (aluno, encaixe ou professor) — `getMyClassAgenda`.
 /// Falha vira lista vazia: a agenda segue com o resto.
@@ -21,6 +22,19 @@ final myClassAgendaProvider =
   if (uid == null || uid.isEmpty) return const [];
   try {
     return await ref.read(classAgendaRepositoryProvider).fetchMyClasses();
+  } catch (_) {
+    return const [];
+  }
+});
+
+/// Mensalidades de aula em aberto do atleta — `getMyClassCharges`.
+/// Falha vira lista vazia: a agenda segue sem a seção.
+final myClassChargesProvider =
+    FutureProvider.autoDispose<List<ClassChargeEntry>>((ref) async {
+  final uid = ref.watch(authProvider).valueOrNull?.uid;
+  if (uid == null || uid.isEmpty) return const [];
+  try {
+    return await ref.read(classAgendaRepositoryProvider).fetchMyCharges();
   } catch (_) {
     return const [];
   }

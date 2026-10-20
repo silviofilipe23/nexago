@@ -179,7 +179,7 @@ class ArenaSettingsProfileBadge extends StatelessWidget {
       child: Text(
         'PERFIL DA ARENA',
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppColors.win,
+              color: context.themeColors.win,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.3,
               fontSize: 9,
@@ -238,7 +238,7 @@ class ArenaSettingsArenaLogo extends StatelessWidget {
               width: 12,
               height: 12,
               decoration: BoxDecoration(
-                color: AppColors.win,
+                color: context.themeColors.win,
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: context.themeColors.surfaceRaised,

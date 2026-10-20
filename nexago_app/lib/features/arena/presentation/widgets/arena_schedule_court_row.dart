@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/formatting/app_currency_format.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_theme_colors.dart';
 import '../../../arenas/domain/arena_slot.dart';
 import '../../../arenas/domain/arena_slot_block_reason.dart';
 import '../../domain/arena_schedule_models.dart';
@@ -99,7 +100,7 @@ class ArenaScheduleCourtTile extends ConsumerWidget {
                       child: Text(
                         statusLabel,
                         style: TextStyle(
-                          color: statusColor,
+                          color: context.themeColors.readableTone(statusColor),
                           fontWeight: FontWeight.w800,
                           fontSize: 10,
                           letterSpacing: 0.4,

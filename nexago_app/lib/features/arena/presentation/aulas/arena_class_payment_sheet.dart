@@ -159,10 +159,10 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.link_off_rounded,
                     size: 18,
-                    color: AppColors.pending,
+                    color: colors.pending,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -204,8 +204,8 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
             const SizedBox(height: 10),
             Text(
               _error!,
-              style: const TextStyle(
-                color: AppColors.live,
+              style: TextStyle(
+                color: colors.live,
                 fontWeight: FontWeight.w600,
                 fontSize: 12.5,
               ),
@@ -226,7 +226,7 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
               style: AppTypography.soraRegular(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: _sending ? colors.onSurfaceMuted : AppColors.live,
+                color: _sending ? colors.onSurfaceMuted : colors.live,
               ),
             ),
           ),

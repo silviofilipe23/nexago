@@ -330,12 +330,16 @@ class _ArenaSettingsLogoutSection extends ConsumerWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.logout_rounded, color: AppColors.live, size: 20),
+              Icon(
+                Icons.logout_rounded,
+                color: context.themeColors.live,
+                size: 20,
+              ),
               SizedBox(width: 8),
               Text(
                 'Sair',
                 style: TextStyle(
-                  color: AppColors.live,
+                  color: context.themeColors.live,
                   fontWeight: FontWeight.w800,
                   fontSize: 16,
                 ),

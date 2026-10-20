@@ -114,7 +114,7 @@ class _FollowersBody extends ConsumerWidget {
                 child: Text(
                   '${insights.qualityBookedPercent.toStringAsFixed(0)}% já reservaram',
                   style: TextStyle(
-                    color: AppColors.win,
+                    color: context.themeColors.win,
                     fontWeight: FontWeight.w700,
                     fontSize: 12,
                   ),

@@ -88,7 +88,9 @@ class _ArenaMercadoPagoConnectCardState extends ConsumerState<ArenaMercadoPagoCo
                   children: [
                     Icon(
                       connected ? Icons.check_circle_rounded : Icons.link_rounded,
-                      color: connected ? AppColors.win : AppColors.brand,
+                      color: connected
+                          ? context.themeColors.win
+                          : AppColors.brand,
                       size: 22,
                     ),
                     SizedBox(width: 10),

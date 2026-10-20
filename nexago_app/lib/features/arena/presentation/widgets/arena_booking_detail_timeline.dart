@@ -239,9 +239,9 @@ class _TimelineRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final dotColor = event.isPending
-        ? AppColors.pending
+        ? context.themeColors.pending
         : isDone
-            ? AppColors.win
+            ? context.themeColors.win
             : context.themeColors.onSurfaceMuted;
 
     return IntrinsicHeight(
@@ -367,7 +367,7 @@ class _PendingEventBody extends StatelessWidget {
                   Text(
                     event.subtitle,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.pending,
+                      color: context.themeColors.pending,
                       fontWeight: FontWeight.w700,
                     ),
                   ),

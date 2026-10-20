@@ -324,6 +324,7 @@ class _SlotStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ink = context.themeColors.readableTone(color);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -337,13 +338,13 @@ class _SlotStatusPill extends StatelessWidget {
           Container(
             width: 6,
             height: 6,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: ink, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
           Text(
             label,
             style: TextStyle(
-              color: color,
+              color: ink,
               fontWeight: FontWeight.w800,
               fontSize: 11,
               letterSpacing: 0.5,

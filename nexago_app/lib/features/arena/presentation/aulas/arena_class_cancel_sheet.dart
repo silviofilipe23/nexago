@@ -329,8 +329,8 @@ class _ArenaClassCancelSheetState extends ConsumerState<ArenaClassCancelSheet> {
               const SizedBox(height: 12),
               Text(
                 _error!,
-                style: const TextStyle(
-                  color: AppColors.live,
+                style: TextStyle(
+                  color: colors.live,
                   fontWeight: FontWeight.w600,
                   fontSize: 12.5,
                 ),

@@ -73,7 +73,7 @@ class ArenaBookingDetailPayment extends StatelessWidget {
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                     color: payment.isPaidOnline
-                        ? payment.accentColor
+                        ? context.themeColors.readableTone(payment.accentColor)
                         : AppColors.brand,
                     height: 1,
                     letterSpacing: -0.5,
@@ -106,7 +106,7 @@ class ArenaBookingDetailPayment extends StatelessWidget {
               Text(
                 'Recebido via PIX: ${formatBRL(payment.paidOnlineReais!)}',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.win,
+                  color: context.themeColors.win,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -157,7 +157,11 @@ class _PaymentStatusBanner extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(info.statusIcon, size: 22, color: color),
+            Icon(
+              info.statusIcon,
+              size: 22,
+              color: context.themeColors.readableTone(color),
+            ),
             SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -218,10 +222,10 @@ class _PaymentBreakdown extends StatelessWidget {
           SizedBox(height: 8),
           _BreakdownRow(
             icon: Icons.storefront_rounded,
-            iconColor: AppColors.pending,
+            iconColor: context.themeColors.pending,
             label: 'Restante na chegada',
             value: formatBRL(due),
-            valueColor: AppColors.pending,
+            valueColor: context.themeColors.pending,
           ),
         ],
         if (info.totalReais != null) ...[
@@ -300,7 +304,7 @@ class _PaymentStatusBadge extends StatelessWidget {
       child: Text(
         info.statusBadge,
         style: TextStyle(
-          color: color,
+          color: context.themeColors.readableTone(color),
           fontWeight: FontWeight.w800,
           fontSize: 10,
           letterSpacing: 0.4,

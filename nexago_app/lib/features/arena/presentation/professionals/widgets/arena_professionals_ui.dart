@@ -47,7 +47,9 @@ class ArenaProfessorStatusLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = ProfessorLinksStyle.statusColor(status, context.themeColors);
+    final colors = context.themeColors;
+    final color =
+        colors.readableTone(ProfessorLinksStyle.statusColor(status, colors));
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -794,7 +796,7 @@ class ArenaProfessorRequestCard extends StatelessWidget {
                   child: ProfessorLinksGhostButton(
                     key: Key('arena-professor-reject-${link.id}'),
                     label: 'Rejeitar',
-                    color: AppColors.live,
+                    color: colors.live,
                     height: 42,
                     loading: busy,
                     onPressed: onReject,
@@ -830,7 +832,7 @@ class ArenaProfessorErrorBanner extends StatelessWidget {
         style: AppTypography.bodyS.copyWith(
           fontSize: 12.5,
           height: 1.4,
-          color: AppColors.live,
+          color: context.themeColors.live,
         ),
       ),
     );

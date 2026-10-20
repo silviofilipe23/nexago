@@ -599,9 +599,9 @@ class _FormBody extends StatelessWidget {
                           color: AppColors.live.withValues(alpha: 0.65),
                         ),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.delete_outline_rounded,
-                        color: AppColors.live,
+                        color: context.themeColors.live,
                         size: 22,
                       ),
                     ),

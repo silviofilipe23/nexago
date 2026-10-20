@@ -50,7 +50,7 @@ class ArenaProfilePage extends ConsumerWidget {
               'Não foi possível carregar o perfil.\n$e',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppColors.live,
+                    color: context.themeColors.live,
                   ),
             ),
           ),
@@ -351,7 +351,7 @@ class _PublicProfileStatus extends StatelessWidget {
           width: 8,
           height: 8,
           decoration: BoxDecoration(
-            color: AppColors.win,
+            color: context.themeColors.win,
             shape: BoxShape.circle,
           ),
         ),
@@ -359,7 +359,7 @@ class _PublicProfileStatus extends StatelessWidget {
         Text(
           'PERFIL PÚBLICO ATIVO',
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: AppColors.win,
+                color: context.themeColors.win,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.5,
                 fontSize: 10,

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
@@ -28,7 +27,8 @@ class ArenaProductSummaryRow extends StatelessWidget {
             child: _SummaryTile(
               value: '${summary.lowCount}',
               label: 'BAIXO',
-              valueColor: summary.lowCount > 0 ? AppColors.pending : null,
+              valueColor:
+                  summary.lowCount > 0 ? context.themeColors.pending : null,
             ),
           ),
           const SizedBox(width: 8),
@@ -36,7 +36,8 @@ class ArenaProductSummaryRow extends StatelessWidget {
             child: _SummaryTile(
               value: '${summary.outCount}',
               label: 'ESGOT.',
-              valueColor: summary.outCount > 0 ? AppColors.live : null,
+              valueColor:
+                  summary.outCount > 0 ? context.themeColors.live : null,
             ),
           ),
           const SizedBox(width: 8),

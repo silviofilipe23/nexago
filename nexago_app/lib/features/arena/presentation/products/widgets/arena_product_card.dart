@@ -79,7 +79,7 @@ class ArenaProductCard extends StatelessWidget {
                         Text(
                           '${product.stockQuantity} un',
                           style: AppTypography.mono(
-                            color: stockColor,
+                            color: context.themeColors.readableTone(stockColor),
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),

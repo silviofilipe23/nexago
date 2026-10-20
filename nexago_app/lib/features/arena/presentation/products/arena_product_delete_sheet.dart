@@ -115,9 +115,9 @@ class _ArenaProductDeleteSheetState
                       color: AppColors.live.withValues(alpha: 0.55),
                     ),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.delete_outline_rounded,
-                    color: AppColors.live,
+                    color: context.themeColors.live,
                     size: 22,
                   ),
                 ),
@@ -142,14 +142,14 @@ class _ArenaProductDeleteSheetState
                             fontWeight: FontWeight.w500,
                             height: 1.4,
                           ),
-                          children: const [
-                            TextSpan(
+                          children: [
+                            const TextSpan(
                               text: 'Sai do catálogo e do cardápio de vendas. ',
                             ),
                             TextSpan(
                               text: 'Não dá pra reverter.',
                               style: TextStyle(
-                                color: AppColors.live,
+                                color: context.themeColors.live,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -391,7 +391,7 @@ class _ProductSummaryCard extends StatelessWidget {
             child: Text(
               stockLabel,
               style: AppTypography.mono(
-                color: AppColors.pending,
+                color: context.themeColors.pending,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
@@ -430,7 +430,11 @@ class _ConsequenceRow extends StatelessWidget {
             color: iconBackground,
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: iconColor, size: 18),
+          child: Icon(
+            icon,
+            color: context.themeColors.readableTone(iconColor),
+            size: 18,
+          ),
         ),
         const SizedBox(width: 12),
         Expanded(

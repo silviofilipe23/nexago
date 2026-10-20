@@ -447,8 +447,8 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
                     if (_error != null) ...[
                       Text(
                         _error!,
-                        style: const TextStyle(
-                          color: AppColors.live,
+                        style: TextStyle(
+                          color: colors.live,
                           fontWeight: FontWeight.w600,
                           fontSize: 12.5,
                         ),
@@ -731,8 +731,8 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
           const SizedBox(height: 6),
           Text(
             _slotHint!,
-            style: const TextStyle(
-              color: AppColors.pending,
+            style: TextStyle(
+              color: colors.pending,
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
             ),
@@ -758,7 +758,7 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
               style: AppTypography.mono(
                 fontSize: 10.5,
                 fontWeight: FontWeight.w700,
-                color: o.isFull ? AppColors.live : AppColors.win,
+                color: o.isFull ? colors.live : colors.win,
               ),
             ),
           ),
@@ -945,8 +945,8 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
                       children: [
                         Text(
                           _previewError ?? 'Calculando a cobrança...',
-                          style: const TextStyle(
-                            color: AppColors.live,
+                          style: TextStyle(
+                            color: colors.live,
                             fontWeight: FontWeight.w600,
                             fontSize: 12.5,
                           ),
@@ -1032,8 +1032,8 @@ class _PayerCpfField extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             error,
-            style: const TextStyle(
-              color: AppColors.live,
+            style: TextStyle(
+              color: colors.live,
               fontWeight: FontWeight.w600,
               fontSize: 12,
             ),
@@ -1101,7 +1101,7 @@ class _PreviewSummary extends StatelessWidget {
         if (p != null) line(p.name, arenaClassPlanPrice(p)),
         for (final c in preview.charges)
           line(c.description, formatBRL(c.amountReais)),
-        if (waived) line('Taxa de matrícula', 'Isenta', color: AppColors.win),
+        if (waived) line('Taxa de matrícula', 'Isenta', color: colors.win),
         Container(
           margin: const EdgeInsets.only(top: 8),
           padding: const EdgeInsets.only(top: 10),
@@ -1257,10 +1257,10 @@ class _ConfirmationView extends ConsumerWidget {
                     color: AppColors.win.withValues(alpha: 0.35),
                   ),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.check_rounded,
                   size: 40,
-                  color: AppColors.win,
+                  color: colors.win,
                 ),
               ),
             ),
@@ -1416,10 +1416,10 @@ class _InvoicePending extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           else
-            const Icon(
+            Icon(
               Icons.info_outline_rounded,
               size: 18,
-              color: AppColors.pending,
+              color: colors.pending,
             ),
           const SizedBox(width: 10),
           Expanded(

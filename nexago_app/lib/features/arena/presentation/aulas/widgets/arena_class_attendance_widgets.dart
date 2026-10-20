@@ -92,10 +92,10 @@ class ArenaClassAttendanceSummaryCard extends StatelessWidget {
                 children: [
                   _count(
                     '${summary.absent} falta${summary.absent == 1 ? '' : 's'}',
-                    AppColors.live,
+                    colors.live,
                   ),
                   const SizedBox(height: 4),
-                  _count('${summary.excused} avisou', AppColors.pending),
+                  _count('${summary.excused} avisou', colors.pending),
                   const SizedBox(height: 4),
                   _count(
                     '${summary.unmarked} sem marcar',
@@ -194,7 +194,7 @@ class ArenaClassAttendanceNotice extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 18),
+          Icon(icon, color: context.themeColors.readableTone(color), size: 18),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -262,6 +262,8 @@ class ArenaClassMarkControl extends StatelessWidget {
     }
 
     final color = colorOf(current);
+    // Ícone e rótulo no tom legível do tema; fundo e borda ficam no cru.
+    final ink = colors.readableTone(color);
     final pill = Container(
       height: 40,
       constraints: const BoxConstraints(minWidth: 92),
@@ -276,13 +278,13 @@ class ArenaClassMarkControl extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           if (current == AttendanceMark.present)
-            Icon(Icons.check_rounded, size: 15, color: color)
+            Icon(Icons.check_rounded, size: 15, color: ink)
           else if (current == AttendanceMark.absent)
-            Icon(Icons.close_rounded, size: 15, color: color),
+            Icon(Icons.close_rounded, size: 15, color: ink),
           if (current != AttendanceMark.excused) const SizedBox(width: 6),
           Text(
             current.label,
-            style: AppTypography.soraRegular(fontSize: 12.5, color: color),
+            style: AppTypography.soraRegular(fontSize: 12.5, color: ink),
           ),
         ],
       ),
@@ -298,7 +300,10 @@ class ArenaClassMarkControl extends StatelessWidget {
           if (m != current)
             PopupMenuItem(
               value: _MarkChoice(m),
-              child: Text(m.label, style: TextStyle(color: colorOf(m))),
+              child: Text(
+                m.label,
+                style: TextStyle(color: colors.readableTone(colorOf(m))),
+              ),
             ),
         const PopupMenuItem(
           value: _MarkChoice(null),

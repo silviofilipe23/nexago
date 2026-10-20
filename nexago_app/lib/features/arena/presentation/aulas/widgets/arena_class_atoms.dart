@@ -68,7 +68,7 @@ class ArenaClassTag extends StatelessWidget {
         child: Text(
           label.toUpperCase(),
           style: AppTypography.mono(
-            color: color,
+            color: context.themeColors.readableTone(color),
             fontSize: 8.5,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.9,
@@ -127,7 +127,7 @@ class ArenaClassAvatar extends StatelessWidget {
     final trimmed = photoUrl?.trim() ?? '';
     final url = trimmed.isEmpty ? null : trimmed;
     final name = zoomName?.trim() ?? '';
-    final avatar = _avatar(url);
+    final avatar = _avatar(url, context.themeColors.readableTone(color));
     if (url == null || name.isEmpty) return avatar;
     // Nó próprio: sem ele o rótulo se funde com o nome ao lado e o leitor
     // de tela (e o toque pela semântica) cai fora da foto.
@@ -149,7 +149,8 @@ class ArenaClassAvatar extends StatelessWidget {
     );
   }
 
-  Widget _avatar(String? url) {
+  /// [ink]: as iniciais no tom legível do tema; o disco fica no cru.
+  Widget _avatar(String? url, Color ink) {
     return Container(
       width: size,
       height: size,
@@ -166,18 +167,18 @@ class ArenaClassAvatar extends StatelessWidget {
               width: size,
               height: size,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _initials(),
+              errorBuilder: (_, __, ___) => _initials(ink),
             )
-          : _initials(),
+          : _initials(ink),
     );
   }
 
-  Widget _initials() => Text(
+  Widget _initials(Color ink) => Text(
         initials,
         style: AppTypography.soraRegular(
           fontSize: size * 0.34,
           fontWeight: FontWeight.w700,
-          color: color,
+          color: ink,
         ),
       );
 }

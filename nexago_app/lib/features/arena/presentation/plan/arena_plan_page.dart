@@ -702,7 +702,7 @@ class _PlanPillBadge extends StatelessWidget {
         style: AppTypography.soraRegular(
           fontSize: 10,
           fontWeight: FontWeight.w800,
-          color: foreground,
+          color: context.themeColors.readableTone(foreground),
           letterSpacing: 0.4,
         ),
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class ArenaStockStatusBadge extends StatelessWidget {
   const ArenaStockStatusBadge({
@@ -31,7 +32,7 @@ class ArenaStockStatusBadge extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-          color: color,
+          color: context.themeColors.readableTone(color),
           fontSize: 11,
           fontWeight: FontWeight.w700,
         ),

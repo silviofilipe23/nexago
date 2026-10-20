@@ -303,7 +303,8 @@ class _ClubCard extends StatelessWidget {
                             child: Text(
                               club.statusLabel.toUpperCase(),
                               style: TextStyle(
-                                color: statusColor,
+                                color: context.themeColors
+                                    .readableTone(statusColor),
                                 fontWeight: FontWeight.w800,
                                 fontSize: 9,
                                 letterSpacing: 0.4,

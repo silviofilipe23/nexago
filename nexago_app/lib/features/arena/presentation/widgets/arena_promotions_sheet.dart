@@ -355,7 +355,8 @@ class _PromotionTile extends StatelessWidget {
                         child: Text(
                           statusLabel,
                           style: theme.textTheme.labelSmall?.copyWith(
-                            color: statusColor,
+                            color: context.themeColors
+                                .readableTone(statusColor),
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -392,7 +393,7 @@ class _PromotionTile extends StatelessWidget {
                       TextButton.icon(
                         onPressed: busy ? null : onDelete,
                         style: TextButton.styleFrom(
-                          foregroundColor: AppColors.live,
+                          foregroundColor: context.themeColors.live,
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,

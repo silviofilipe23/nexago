@@ -121,7 +121,7 @@ class ArenaComandaSummaryCard extends StatelessWidget {
                   child: Text(
                     comanda.bookingDisplayCode!,
                     style: AppTypography.mono(
-                      color: AppColors.win,
+                      color: context.themeColors.win,
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                     ),
@@ -172,6 +172,7 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tone = context.themeColors.readableTone(color);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -184,13 +185,13 @@ class _StatusPill extends StatelessWidget {
           Container(
             width: 6,
             height: 6,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: tone, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
           Text(
             label,
             style: AppTypography.mono(
-              color: color,
+              color: tone,
               fontSize: 10,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.5,

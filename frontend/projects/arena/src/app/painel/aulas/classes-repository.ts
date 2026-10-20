@@ -270,6 +270,15 @@ export function addClassStudent(
   return call(functions, 'addArenaClassStudent', { classId, ...input });
 }
 
+/** Telefone do cadastro do atleta NexaGO, para pré-preencher a matrícula (gestor da agenda). */
+export function getClassAthleteContact(
+  functions: Functions,
+  arenaId: string,
+  athleteId: string,
+): Promise<{ phone: string | null }> {
+  return call(functions, 'getArenaClassAthleteContact', { arenaId, athleteId });
+}
+
 export function removeClassStudent(functions: Functions, classId: string, studentId: string): Promise<{ studentCount: number }> {
   return call(functions, 'removeArenaClassStudent', { classId, studentId });
 }

@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
+import { AvatarComponent } from '../ui/avatar.component';
 import { IconComponent } from '../ui/icon.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PillComponent } from '../ui/pill.component';
@@ -21,7 +22,7 @@ import {
   type StudentPayState,
 } from './billing.model';
 import { fetchAvailableCredits, fetchEnrollments, fetchOpenCharges } from './billing-repository';
-import { addDaysKey, shortDate, teacherInitials, todayKeyLocal } from './class.model';
+import { addDaysKey, shortDate, todayKeyLocal } from './class.model';
 
 export type StudentFilter = 'todos' | 'atraso' | 'vencendo' | 'creditos' | 'pausados' | 'encerrados';
 
@@ -87,7 +88,7 @@ const FILTERS: ReadonlyArray<{ id: StudentFilter; label: string }> = [
 @Component({
   selector: 'ar-panel-aulas-students',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AulasPageComponent, PanelCardComponent, PillComponent, IconComponent, AulaStatComponent],
+  imports: [AulasPageComponent, PanelCardComponent, PillComponent, IconComponent, AvatarComponent, AulaStatComponent],
   template: `
     <ar-aulas-page title="Aulas" subtitle="Alunos matriculados, planos, créditos e mensalidades" tab="alunos" [empty]="!loading() && enrollments().length === 0">
       <button page-actions type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="readOnly()" (click)="go(['/painel/aulas/matricula'])">
@@ -127,7 +128,8 @@ const FILTERS: ReadonlyArray<{ id: StudentFilter; label: string }> = [
               @for (r of visible(); track r.enrollment.id) {
                 <button type="button" class="table-row" (click)="go(['/painel/aulas/alunos', r.enrollment.id])">
                   <span class="who">
-                    <span class="av">{{ initials(r.enrollment.name) }}</span>
+                    <!-- A linha inteira é um botão: aqui a foto só aparece; ampliar fica na ficha. -->
+                    <ar-avatar [name]="r.enrollment.name" [photoUrl]="r.enrollment.photoUrl" [size]="32" />
                     <span>
                       <span class="name">{{ r.enrollment.name }}</span>
                       <span class="sub">{{ r.enrollment.athleteId ? 'Conta NexaGO' : (r.enrollment.phone || 'Sem conta') }}</span>
@@ -176,10 +178,6 @@ const FILTERS: ReadonlyArray<{ id: StudentFilter; label: string }> = [
     .table-row:hover .name { color: var(--nx-orange-500); }
     .who { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .who > span:last-child { display: flex; flex-direction: column; min-width: 0; }
-    .av {
-      width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none;
-      background: var(--nx-surface-2); font-family: var(--nx-font-display); font-weight: 700; font-size: 11px; color: var(--nx-text-mute);
-    }
     .name { font-family: var(--nx-font-display); font-weight: 600; font-size: 13px; color: var(--nx-text); }
     .sub { font-family: var(--nx-font-mono); font-size: 9.5px; color: var(--nx-text-dim); margin-top: 2px; }
     .cell { font-size: 12.5px; color: var(--nx-text-mute); }
@@ -254,10 +252,6 @@ export class PanelAulasStudentsComponent {
     } finally {
       this.loading.set(false);
     }
-  }
-
-  protected initials(name: string): string {
-    return teacherInitials(name);
   }
 
   protected classNames(e: Enrollment): string {

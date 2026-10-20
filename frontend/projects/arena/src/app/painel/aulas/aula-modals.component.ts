@@ -3,6 +3,7 @@ import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { arenaFunctions } from '../data/functions';
 import { searchAthletes, type AthleteSearchResult } from '../clubinho/clubs-repository';
+import { AvatarComponent } from '../ui/avatar.component';
 import { ModalComponent } from '../ui/modal.component';
 import { ToggleComponent } from '../ui/toggle.component';
 import { fetchRules } from './billing-repository';
@@ -118,7 +119,7 @@ export class AulaCancelModalComponent {
 @Component({
   selector: 'ar-aula-enroll-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ModalComponent],
+  imports: [ModalComponent, AvatarComponent],
   styleUrl: './aulas-form.scss',
   template: `
     <ar-modal (close)="dismiss()">
@@ -140,7 +141,7 @@ export class AulaCancelModalComponent {
           }
           @for (a of results(); track a.id) {
             <button type="button" class="result" [class.active]="picked()?.id === a.id" (click)="picked.set(a)">
-              <span class="av">{{ initials(a.name) }}</span>
+              <ar-avatar [name]="a.name" [photoUrl]="a.photoUrl" />
               <span class="result-name">{{ a.name }}</span>
               @if (picked()?.id === a.id) {
                 <span class="check">✓</span>
@@ -175,10 +176,6 @@ export class AulaCancelModalComponent {
       border-radius: var(--nx-r-2); background: var(--nx-surface-1); border: 1px solid var(--nx-line); color: var(--nx-text);
     }
     .result.active { background: var(--nx-orange-tint); border-color: rgba(255, 106, 26, 0.45); }
-    .av {
-      width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none;
-      background: var(--nx-surface-2); font-family: var(--nx-font-display); font-weight: 700; font-size: 11px; color: var(--nx-text-mute);
-    }
     .result-name { flex: 1; font-family: var(--nx-font-display); font-weight: 600; font-size: 13px; }
     .check { color: var(--nx-orange-500); font-weight: 700; }
   `,
@@ -211,11 +208,6 @@ export class AulaEnrollModalComponent {
     inject(DestroyRef).onDestroy(() => {
       if (this.timer) clearTimeout(this.timer);
     });
-  }
-
-  protected initials(name: string): string {
-    const parts = name.trim().split(/\s+/);
-    return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1]![0] ?? '' : '')).toUpperCase();
   }
 
   protected onTerm(value: string): void {
@@ -269,6 +261,7 @@ export class AulaEnrollModalComponent {
 @Component({
   selector: 'ar-aula-athlete-picker',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [AvatarComponent],
   styleUrl: './aulas-form.scss',
   template: `
     <input class="input-box" type="search" [placeholder]="placeholder()" [value]="term()" (input)="onTerm($any($event.target).value)" />
@@ -277,13 +270,16 @@ export class AulaEnrollModalComponent {
         <p class="hint">Buscando…</p>
       }
       @for (a of results(); track a.id) {
-        <button type="button" class="result" [class.active]="picked()?.id === a.id" (click)="pick(a)">
-          <span class="av">{{ initials(a.name) }}</span>
-          <span class="result-name">{{ a.name }}</span>
-          @if (picked()?.id === a.id) {
-            <span class="check">✓</span>
-          }
-        </button>
+        <!-- Avatar fora do botão de escolher: ele mesmo é o botão que amplia a foto. -->
+        <div class="result" [class.active]="picked()?.id === a.id">
+          <ar-avatar [name]="a.name" [photoUrl]="a.photoUrl" zoomable />
+          <button type="button" class="result-pick" [attr.aria-pressed]="picked()?.id === a.id" (click)="pick(a)">
+            <span class="result-name">{{ a.name }}</span>
+            @if (picked()?.id === a.id) {
+              <span class="check">✓</span>
+            }
+          </button>
+        </div>
       } @empty {
         @if (term().trim().length >= 2 && !searching()) {
           <p class="hint">{{ emptyHint() }}</p>
@@ -295,13 +291,13 @@ export class AulaEnrollModalComponent {
     :host { display: block; }
     .results { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; max-height: 220px; overflow-y: auto; }
     .result {
-      display: flex; align-items: center; gap: 10px; padding: 8px 10px; text-align: left; cursor: pointer;
+      display: flex; align-items: center; gap: 10px; padding-left: 10px;
       border-radius: var(--nx-r-2); background: var(--nx-surface-1); border: 1px solid var(--nx-line); color: var(--nx-text);
     }
     .result.active { background: var(--nx-orange-tint); border-color: rgba(255, 106, 26, 0.45); }
-    .av {
-      width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none;
-      background: var(--nx-surface-2); font-family: var(--nx-font-display); font-weight: 700; font-size: 11px; color: var(--nx-text-mute);
+    .result-pick {
+      flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 0;
+      background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
     }
     .result-name { flex: 1; font-family: var(--nx-font-display); font-weight: 600; font-size: 13px; }
     .check { color: var(--nx-orange-500); font-weight: 700; }
@@ -324,11 +320,6 @@ export class AulaAthletePickerComponent {
     inject(DestroyRef).onDestroy(() => {
       if (this.timer) clearTimeout(this.timer);
     });
-  }
-
-  protected initials(name: string): string {
-    const parts = name.trim().split(/\s+/);
-    return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1]![0] ?? '' : '')).toUpperCase();
   }
 
   protected pick(a: AthleteSearchResult): void {

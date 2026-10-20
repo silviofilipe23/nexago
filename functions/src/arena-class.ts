@@ -1511,6 +1511,20 @@ async function refreshFutureSessionSnapshots(
   }
 }
 
+/** Telefone do cadastro do atleta (`users.phoneNumber`). Texto livre: quem verificou por SMS
+ *  tem E.164 (`+5562…`), cadastro antigo tem o que o atleta digitou. */
+export function athleteAccountPhone(userData: Record<string, unknown> | undefined): string | null {
+  return str(userData?.["phoneNumber"]).slice(0, 30) || null;
+}
+
+/** Contato do atleta para pré-preencher a matrícula — a matrícula grava esse telefone de
+ *  qualquer jeito, então a porta é a mesma dela (gestor da agenda, plano com Aulas). */
+export async function loadClassAthleteContactCore(db: Firestore, athleteId: string): Promise<{phone: string | null}> {
+  const snap = await db.collection("users").doc(athleteId).get();
+  if (!snap.exists) throw new HttpsError("not-found", "Atleta não encontrado.");
+  return {phone: athleteAccountPhone(snap.data())};
+}
+
 export async function resolveStudentInput(
   db: Firestore,
   raw: UpsertClassStudentInput,
@@ -1521,7 +1535,8 @@ export async function resolveStudentInput(
     const userSnap = await db.collection("users").doc(athleteId).get();
     if (!userSnap.exists) throw new HttpsError("not-found", "Atleta não encontrado.");
     const display = await resolveAthleteDisplay(db, athleteId);
-    return {athleteId, name: display.name.slice(0, 80), phone, photoUrl: display.photoUrl};
+    // Telefone em branco = o do cadastro do atleta (o "Cobrar" no WhatsApp depende dele).
+    return {athleteId, name: display.name.slice(0, 80), phone: phone ?? athleteAccountPhone(userSnap.data()), photoUrl: display.photoUrl};
   }
   const name = str(raw.name).slice(0, 80);
   if (!name) throw new HttpsError("invalid-argument", "Informe o nome do aluno.");
@@ -1635,6 +1650,17 @@ export const addArenaClassStudent = onCall({region: CLIENT_FACING_REGIONS}, asyn
   const student = await resolveStudentInput(db, input as UpsertClassStudentInput);
   const result = await addClassStudentCore(db, ref.id, {...student, addedByUid: uid});
   return {classId: ref.id, ...result};
+});
+
+export const getArenaClassAthleteContact = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {
+  const uid = requireUid(request.auth);
+  const input = (request.data ?? {}) as Record<string, unknown>;
+  const arenaId = str(input["arenaId"]);
+  const athleteId = str(input["athleteId"]);
+  if (!arenaId || !athleteId) throw new HttpsError("invalid-argument", "Atleta inválido.");
+  const db = getFirestore();
+  requireClassEntitlement(await requireClassManager(db, arenaId, uid));
+  return loadClassAthleteContactCore(db, athleteId);
 });
 
 export const removeArenaClassStudent = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {

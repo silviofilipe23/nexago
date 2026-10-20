@@ -210,6 +210,17 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
         .replaceAll(':linkId', Uri.encodeComponent(linkId));
   }
 
+  // Lado da arena do mesmo vínculo (`arena_professor_request`,
+  // `_invite_accepted`, `_invite_declined`, `_ended`), para dono e gestores: o
+  // payload traz `arenaId` e nenhum `url`, então sem este caso o ramo genérico
+  // de arena lá embaixo abria a agenda. Este build abre o vínculo.
+  if (type.startsWith('arena_professor_')) {
+    final linkId = (data['linkId'] as String?)?.trim() ?? '';
+    if (linkId.isEmpty) return AppRoutes.arenaProfessionals;
+    return AppRoutes.arenaProfessionalDetail
+        .replaceAll(':linkId', Uri.encodeComponent(linkId));
+  }
+
   final url = appRouteForNotificationUrl(data['url'] as String?);
   if (url != null) return url;
 

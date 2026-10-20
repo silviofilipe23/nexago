@@ -15,8 +15,9 @@ import {
   where,
 } from 'firebase/firestore';
 
-// Placar do pós-jogo do aluguel: lê quem está no placar com conta; ninguém
-// grava pelo cliente (status, versão e quem confirmou só pelas callables).
+// Placar do pós-jogo do aluguel (pelada): lê quem está no placar; os outros
+// atletas só o confirmado (perfil público). Ninguém grava pelo cliente
+// (status, versão e confirmações só pelas callables e pela varredura).
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rules = fs.readFileSync(path.join(__dirname, '../../firestore.rules'), 'utf8');
@@ -26,6 +27,7 @@ const ADVERSARIO = 'rafael';
 const COMPANHEIRO = 'enzo';
 const ESTRANHO = 'bia';
 const RESULT_PATH = 'bookingResults/bk1';
+const CONFIRMED_PATH = 'bookingResults/bk-ok';
 
 const testEnv = await initializeTestEnvironment({
   projectId: 'nexago-booking-results-test',
@@ -52,6 +54,7 @@ function resultDoc(over = {}) {
 before(async () => {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), RESULT_PATH), resultDoc());
+    await setDoc(doc(ctx.firestore(), CONFIRMED_PATH), resultDoc({ bookingId: 'bk-ok', status: 'confirmed' }));
   });
 });
 
@@ -80,8 +83,29 @@ for (const uid of [DONA, ADVERSARIO, COMPANHEIRO]) {
   });
 }
 
-test('quem não está no placar não lê', async () => {
+test('quem não está no placar não lê o pendente', async () => {
   await assertDeniedByRule(getDoc(doc(db(ESTRANHO), RESULT_PATH)));
+});
+
+test('quem não está no placar lê o confirmado (perfil público, link)', async () => {
+  await assertSucceeds(getDoc(doc(db(ESTRANHO), CONFIRMED_PATH)));
+});
+
+test('a query do perfil público (playerUids + status confirmado) passa para qualquer atleta', async () => {
+  const q = query(
+    collection(db(ESTRANHO), 'bookingResults'),
+    where('playerUids', 'array-contains', DONA),
+    where('status', '==', 'confirmed'),
+  );
+  const snap = await assertSucceeds(getDocs(q));
+  if (snap.size !== 1) throw new Error(`esperava 1 placar confirmado, veio ${snap.size}`);
+});
+
+test('a mesma query sem o filtro de confirmado é negada para quem não está no placar', async () => {
+  await assertDeniedByRule(getDocs(query(
+    collection(db(ESTRANHO), 'bookingResults'),
+    where('playerUids', 'array-contains', DONA),
+  )));
 });
 
 test('sem login não lê', async () => {
@@ -91,7 +115,7 @@ test('sem login não lê', async () => {
 test('a query do app (playerUids array-contains uid) passa', async () => {
   const q = query(collection(db(ADVERSARIO), 'bookingResults'), where('playerUids', 'array-contains', ADVERSARIO));
   const snap = await assertSucceeds(getDocs(q));
-  if (snap.size !== 1) throw new Error(`esperava 1 placar, veio ${snap.size}`);
+  if (snap.size !== 2) throw new Error(`esperava 2 placares, veio ${snap.size}`);
 });
 
 test('a mesma query de quem não tem placar nenhum volta vazia (não é negada)', async () => {

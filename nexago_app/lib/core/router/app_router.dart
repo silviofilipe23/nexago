@@ -146,7 +146,8 @@ import '../../features/athlete/presentation/athlete_complete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_edit_profile_page.dart';
 import '../../features/athlete/presentation/athlete_profile_goals_page.dart';
 import '../../features/athlete/presentation/booking_invite_page.dart';
-import '../../features/arenas/presentation/booking_result_review_page.dart';
+import '../../features/arenas/presentation/pelada_detail_page.dart';
+import '../../features/arenas/presentation/peladas_list.dart';
 import '../../features/friendly_match/presentation/friendly_match_detail_page.dart';
 import '../../features/friendly_match/presentation/friendly_match_hub_page.dart';
 import '../../features/friendly_match/presentation/friendly_match_invite_builder_page.dart';
@@ -2526,11 +2527,26 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           return BookingInvitePage(inviteId: inviteId);
         },
       ),
+      // Endereço do #781 ("Conferir placar"): push antigo ainda aponta pra cá.
       GoRoute(
         path: AppRoutes.bookingResultReview,
         name: AppRouteNames.bookingResultReview,
-        builder: (context, state) => BookingResultReviewPage(
+        builder: (context, state) => PeladaDetailPage(
           bookingId: state.pathParameters['bookingId'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.peladaDetail,
+        name: AppRouteNames.peladaDetail,
+        builder: (context, state) => PeladaDetailPage(
+          bookingId: state.pathParameters['bookingId'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.athletePeladas,
+        name: AppRouteNames.athletePeladas,
+        builder: (context, state) => PeladasHistoryPage(
+          userId: state.uri.queryParameters['userId'] ?? '',
         ),
       ),
       // Bora Jogar — hub, builder (literal antes do :matchId) e detalhe.

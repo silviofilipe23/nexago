@@ -30,14 +30,19 @@ class MatchHistoryMonthHeader extends StatelessWidget {
             ),
           ),
           SizedBox(width: 10),
-          Text(
-            title,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: context.themeColors.onSurface,
+          // Título cede espaço ao resumo em tela estreita (em vez de estourar).
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: context.themeColors.onSurface,
+              ),
             ),
           ),
-          Spacer(),
+          SizedBox(width: 8),
           Text(
             summaryLabel,
             style: theme.textTheme.labelSmall?.copyWith(

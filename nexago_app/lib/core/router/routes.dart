@@ -481,6 +481,12 @@ abstract final class AppRoutes {
   /// Conferir o placar do pós-jogo do aluguel (confirmar / contestar).
   static const String bookingResultReview = '/reservar/resultado/:bookingId';
 
+  /// Detalhe da pelada (10c) — o placar do pós-jogo de uma reserva.
+  static const String peladaDetail = '/peladas/:bookingId';
+
+  /// Peladas confirmadas de outro atleta (`?userId=`), do perfil público.
+  static const String athletePeladas = '/athlete/peladas';
+
   /// Bora Jogar (match finder): hub, builder e detalhe.
   /// `friendlyMatchNew` é literal e deve vir ANTES de [friendlyMatchDetail]
   /// no router (senão "novo" casa como :matchId).
@@ -847,6 +853,8 @@ abstract final class AppRouteNames {
   static const String bookingSuccess = 'bookingSuccess';
   static const String bookingInvite = 'bookingInvite';
   static const String bookingResultReview = 'bookingResultReview';
+  static const String peladaDetail = 'peladaDetail';
+  static const String athletePeladas = 'athletePeladas';
   static const String friendlyMatchHub = 'friendlyMatchHub';
   static const String friendlyMatchNew = 'friendlyMatchNew';
   static const String friendlyMatchDetail = 'friendlyMatchDetail';

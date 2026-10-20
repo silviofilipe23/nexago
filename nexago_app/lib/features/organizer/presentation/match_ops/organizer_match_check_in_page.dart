@@ -606,6 +606,8 @@ class _ToleranceCardState extends State<_ToleranceCard> {
     }
 
     final accent = expired ? AppColors.live : AppColors.pending;
+    // Ícone e texto no tom legível do tema; fundo e borda seguem no cru.
+    final accentText = context.themeColors.readableTone(accent);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -619,7 +621,7 @@ class _ToleranceCardState extends State<_ToleranceCard> {
           Icon(
             expired ? Icons.flag_rounded : Icons.schedule_rounded,
             size: 20,
-            color: accent,
+            color: accentText,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -631,7 +633,7 @@ class _ToleranceCardState extends State<_ToleranceCard> {
                   style: AppTypography.soraRegular(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
-                    color: accent,
+                    color: accentText,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -682,7 +684,7 @@ class _SectionHeader extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: AppColors.win,
+              color: context.themeColors.win,
               letterSpacing: 0.4,
             ),
           ),
@@ -1052,6 +1054,8 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Ícone e texto no tom legível do tema; fundo e borda seguem no cru.
+    final tone = context.themeColors.readableTone(color);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -1062,14 +1066,14 @@ class _StatusPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: color),
+          Icon(icon, size: 12, color: tone),
           const SizedBox(width: 4),
           Text(
             label,
             style: AppTypography.mono(
               fontSize: 11,
               fontWeight: FontWeight.w800,
-              color: color,
+              color: tone,
             ),
           ),
         ],
@@ -1095,8 +1099,11 @@ class _WoIconButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.live.withValues(alpha: 0.3)),
         ),
-        child:
-            const Icon(Icons.close_rounded, size: 16, color: AppColors.live),
+        child: Icon(
+          Icons.close_rounded,
+          size: 16,
+          color: context.themeColors.live,
+        ),
       ),
     );
   }

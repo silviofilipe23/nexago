@@ -156,7 +156,7 @@ class OrganizerTournamentCategoryCard extends StatelessWidget {
                   Text(
                     categoryReadyHint(category),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.win,
+                      color: context.themeColors.win,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -186,8 +186,8 @@ class _LotadoBadge extends StatelessWidget {
           Container(
             width: 5,
             height: 5,
-            decoration: const BoxDecoration(
-              color: AppColors.win,
+            decoration: BoxDecoration(
+              color: context.themeColors.win,
               shape: BoxShape.circle,
             ),
           ),
@@ -197,7 +197,7 @@ class _LotadoBadge extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: AppColors.win,
+              color: context.themeColors.win,
             ),
           ),
         ],
@@ -282,7 +282,7 @@ class _StatChip extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: color),
+        Icon(icon, size: 14, color: context.themeColors.readableTone(color)),
         const SizedBox(width: 4),
         Text(
           label,

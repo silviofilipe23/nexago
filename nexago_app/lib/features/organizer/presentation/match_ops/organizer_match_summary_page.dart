@@ -303,14 +303,14 @@ class _ValidatedBadge extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.check_rounded, size: 12, color: AppColors.win),
+        Icon(Icons.check_rounded, size: 12, color: context.themeColors.win),
         const SizedBox(width: 4),
         Text(
           'VALIDADA',
           style: AppTypography.mono(
             fontSize: 9,
             fontWeight: FontWeight.w800,
-            color: AppColors.win,
+            color: context.themeColors.win,
             letterSpacing: 0.4,
           ),
         ),
@@ -378,7 +378,9 @@ class _SummaryTeamRow extends StatelessWidget {
           style: AppTypography.mono(
             fontSize: 28,
             fontWeight: FontWeight.w800,
-            color: isWinner ? AppColors.win : context.themeColors.onSurface,
+            color: isWinner
+                ? context.themeColors.win
+                : context.themeColors.onSurface,
             height: 1,
           ),
         ),
@@ -544,7 +546,11 @@ class _AuditLogEntryTile extends StatelessWidget {
               color: style.color.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: Icon(style.icon, size: 16, color: style.color),
+            child: Icon(
+              style.icon,
+              size: 16,
+              color: context.themeColors.readableTone(style.color),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(

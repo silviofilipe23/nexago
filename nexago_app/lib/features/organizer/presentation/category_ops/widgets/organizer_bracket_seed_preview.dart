@@ -134,7 +134,7 @@ class _SeedRow extends StatelessWidget {
                 style: AppTypography.mono(
                   fontSize: 9,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.win,
+                  color: context.themeColors.win,
                   letterSpacing: 0.4,
                 ),
               ),

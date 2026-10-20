@@ -108,7 +108,9 @@ class _StatChip extends StatelessWidget {
             value,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w800,
-              color: accent ?? context.themeColors.onSurface,
+              color: accent == null
+                  ? context.themeColors.onSurface
+                  : context.themeColors.readableTone(accent!),
               letterSpacing: -0.3,
             ),
           ),

@@ -255,9 +255,9 @@ class _OrganizerSettingsLogoutRow extends StatelessWidget {
                   color: AppColors.live.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.logout_rounded,
-                  color: AppColors.live,
+                  color: context.themeColors.live,
                   size: 22,
                 ),
               ),
@@ -270,7 +270,7 @@ class _OrganizerSettingsLogoutRow extends StatelessWidget {
                       'Sair da conta',
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w800,
-                            color: AppColors.live,
+                            color: context.themeColors.live,
                           ),
                     ),
                     const SizedBox(height: 2),

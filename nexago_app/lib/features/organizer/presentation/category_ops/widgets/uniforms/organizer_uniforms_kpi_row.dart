@@ -110,7 +110,7 @@ class _KpiCard extends StatelessWidget {
             style: AppTypography.soraRegular(
               fontSize: 22,
               fontWeight: FontWeight.w900,
-              color: valueColor,
+              color: context.themeColors.readableTone(valueColor),
               height: 1,
             ),
           ),
@@ -120,7 +120,9 @@ class _KpiCard extends StatelessWidget {
             style: AppTypography.soraRegular(
               fontSize: 10,
               fontWeight: FontWeight.w600,
-              color: subtitleColor ?? context.themeColors.onSurfaceMuted,
+              color: subtitleColor == null
+                  ? context.themeColors.onSurfaceMuted
+                  : context.themeColors.readableTone(subtitleColor!),
             ),
           ),
         ],

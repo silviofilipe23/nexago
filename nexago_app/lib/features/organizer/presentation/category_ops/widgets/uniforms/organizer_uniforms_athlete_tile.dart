@@ -212,7 +212,7 @@ class _PendingBadge extends StatelessWidget {
           style: AppTypography.mono(
             fontSize: 10,
             fontWeight: FontWeight.w800,
-            color: AppColors.pending,
+            color: context.themeColors.pending,
             letterSpacing: 0.3,
           ),
         ),

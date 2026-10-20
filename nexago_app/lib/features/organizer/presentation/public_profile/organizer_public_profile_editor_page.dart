@@ -528,7 +528,7 @@ class _FieldError extends StatelessWidget {
         style: AppTypography.soraRegular(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: AppColors.live,
+          color: context.themeColors.live,
         ),
       ),
     );

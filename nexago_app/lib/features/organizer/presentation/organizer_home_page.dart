@@ -1111,7 +1111,7 @@ class _OrganizerEventCard extends StatelessWidget {
                     _Metric(
                       label: revenueLabel,
                       caption: 'Arrecadado',
-                      valueColor: AppColors.win,
+                      valueColor: context.themeColors.win,
                     ),
                   ],
                 ),

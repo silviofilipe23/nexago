@@ -103,7 +103,7 @@ class _OrganizerCategoryPaymentsTabState
                 label: 'PENDENTES',
                 count: pending.length,
                 actionLabel: 'Cobrar todas',
-                actionColor: AppColors.pending,
+                actionColor: context.themeColors.pending,
                 onAction: () => _chargeAll(pending),
               ),
               const SizedBox(height: 10),
@@ -190,7 +190,7 @@ class _CollectedSummaryCard extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: AppColors.win,
+              color: context.themeColors.win,
               letterSpacing: 0.6,
             ),
           ),
@@ -278,7 +278,7 @@ class _CollectedSummaryCard extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.pending,
+                    color: context.themeColors.pending,
                   ),
                 ),
             ],
@@ -457,7 +457,7 @@ class _PendingPaymentTile extends StatelessWidget {
             onPressed: onCharge,
             style: TextButton.styleFrom(
               backgroundColor: AppColors.brand.withValues(alpha: 0.18),
-              foregroundColor: AppColors.pending,
+              foregroundColor: context.themeColors.pending,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -470,7 +470,7 @@ class _PendingPaymentTile extends StatelessWidget {
               style: AppTypography.mono(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
-                color: AppColors.pending,
+                color: context.themeColors.pending,
               ),
             ),
           ),
@@ -540,7 +540,7 @@ class _ReceivedPaymentTile extends StatelessWidget {
                 style: AppTypography.soraRegular(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.win,
+                  color: context.themeColors.win,
                 ),
               ),
               Text(

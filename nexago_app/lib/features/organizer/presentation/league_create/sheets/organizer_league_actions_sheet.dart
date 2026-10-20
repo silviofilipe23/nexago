@@ -216,7 +216,9 @@ class _ActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = destructive ? AppColors.live : context.themeColors.onSurface;
+    final color = destructive
+        ? context.themeColors.live
+        : context.themeColors.onSurface;
 
     return ListTile(
       contentPadding: EdgeInsets.zero,

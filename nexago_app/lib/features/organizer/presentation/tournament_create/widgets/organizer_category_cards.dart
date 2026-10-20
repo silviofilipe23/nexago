@@ -117,13 +117,13 @@ class OrganizerCategoryCard extends StatelessWidget {
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
                     onTap: onRemove,
-                    child: const SizedBox(
+                    child: SizedBox(
                       width: 40,
                       height: 40,
                       child: Icon(
                         Icons.delete_outline_rounded,
                         size: 18,
-                        color: AppColors.live,
+                        color: context.themeColors.live,
                       ),
                     ),
                   ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nexago_app/core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 import '../../../domain/tournament_create/tournament_create_draft.dart';
 import '../../../domain/tournament_create/tournament_create_logic.dart';
@@ -67,7 +67,7 @@ class _TournamentCreatePrizesPageState
                 Text(
                   '${formatCents(draft.totalPrizeCents)} no total',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: AppColors.win,
+                        color: context.themeColors.win,
                         fontWeight: FontWeight.w800,
                       ),
                 ),

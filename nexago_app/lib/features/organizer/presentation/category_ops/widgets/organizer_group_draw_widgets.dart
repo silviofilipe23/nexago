@@ -564,8 +564,8 @@ class OrganizerGroupDrawCard extends StatelessWidget {
               Container(
                 width: 6,
                 height: 6,
-                decoration: const BoxDecoration(
-                  color: AppColors.win,
+                decoration: BoxDecoration(
+                  color: context.themeColors.win,
                   shape: BoxShape.circle,
                 ),
               ),

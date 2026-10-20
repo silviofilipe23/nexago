@@ -279,7 +279,7 @@ class _KocPlanCard extends StatelessWidget {
               Icon(
                 invalid ? Icons.error_outline : Icons.schedule_outlined,
                 size: 18,
-                color: accent,
+                color: colors.readableTone(accent),
               ),
               const SizedBox(width: 8),
               Text(
@@ -311,7 +311,7 @@ class _KocPlanCard extends StatelessWidget {
               style: AppTypography.soraRegular(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: accent,
+                color: colors.readableTone(accent),
               ),
             ),
           ],

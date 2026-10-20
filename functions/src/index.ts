@@ -203,6 +203,12 @@ export {getMyClassAgenda} from "./arena-class-athlete-agenda";
 export {getMyClassSessionRoster} from "./arena-class-teacher";
 // Alunos, aluno e turmas do professor (app, modo Professor) — mesma régua da chamada.
 export {getMyProfessorStudents} from "./professor-students";
+export {
+  createArenaClassLesson,
+  getProfessorClassActions,
+  moveArenaClassStudent,
+  sendArenaClassNotice,
+} from "./arena-class-professor-actions";
 export {getMyClassCharges} from "./arena-class-athlete-charges";
 
 export {

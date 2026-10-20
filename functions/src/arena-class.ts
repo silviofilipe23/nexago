@@ -844,6 +844,8 @@ export interface AddClassStudentInput {
   phone: string | null;
   photoUrl: string | null;
   addedByUid: string;
+  /** Aluno sem conta que já existe na arena (mantém o mesmo id em outra turma). */
+  studentId?: string | null;
 }
 
 /** Matricula na turma com checagem de vagas na mesma transação do contador. */
@@ -855,7 +857,7 @@ export async function addClassStudentCore(
   const classRef = db.collection(ARENA_CLASSES).doc(classId);
   const studentRef = input.athleteId ?
     classRef.collection(CLASS_STUDENTS).doc(input.athleteId) :
-    classRef.collection(CLASS_STUDENTS).doc();
+    input.studentId ? classRef.collection(CLASS_STUDENTS).doc(input.studentId) : classRef.collection(CLASS_STUDENTS).doc();
 
   return db.runTransaction(async (tx: Transaction) => {
     const classSnap = await tx.get(classRef);
@@ -1048,6 +1050,27 @@ const defaultCancelDeps: CancelClassSessionDeps = {
  * Cancela a aula do dia: libera a quadra e avisa por push os alunos com conta
  * NexaGO. A aula fica `canceled` (a série não recria a data).
  */
+/** Contas que estão na aula: alunos ativos da turma que fazem aquele dia + encaixes. */
+export async function classSessionRecipients(db: Firestore, session: ClassSessionData): Promise<Set<string>> {
+  const weekday = isoWeekdayOfDateKey(session.date);
+  const studentsSnap = await db
+    .collection(ARENA_CLASSES).doc(session.classId)
+    .collection(CLASS_STUDENTS)
+    .where("status", "==", "active")
+    .get();
+  const recipients = new Set<string>();
+  for (const doc of studentsSnap.docs) {
+    const athleteId = doc.data()["athleteId"];
+    if (typeof athleteId !== "string" || !athleteId) continue;
+    if (!studentAttendsWeekday(doc.data() as Record<string, unknown>, weekday)) continue;
+    recipients.add(athleteId);
+  }
+  for (const extra of Object.values(session.extras)) {
+    if (extra.athleteId) recipients.add(extra.athleteId);
+  }
+  return recipients;
+}
+
 export async function cancelClassSessionCore(
   db: Firestore,
   sessionId: string,
@@ -1056,6 +1079,8 @@ export async function cancelClassSessionCore(
   deps: CancelClassSessionDeps = defaultCancelDeps,
   /** Gera crédito de reposição (null = regra da arena). */
   generateCredits: boolean | null = null,
+  /** Recado de quem cancelou (comunicado do professor) — vai no fim do aviso. */
+  message: string | null = null,
 ): Promise<{sessionId: string; notified: number; credited: number}> {
   // Uma transação cancela e libera junto; numa aula já cancelada ela só termina de
   // liberar (retry depois de falha) e não avisa de novo.
@@ -1068,26 +1093,12 @@ export async function cancelClassSessionCore(
     parseClassRules((await classRulesRef(db, session.arenaId).get()).data()).arenaCancelGeneratesCredit;
   const credited = await grantCanceledSessionCredits(db, session, sessionId, session.extras, generate);
 
-  const weekday = isoWeekdayOfDateKey(session.date);
-  const studentsSnap = await db
-    .collection(ARENA_CLASSES).doc(session.classId)
-    .collection(CLASS_STUDENTS)
-    .where("status", "==", "active")
-    .get();
+  const recipients = await classSessionRecipients(db, session);
   const reasonLabel = CANCEL_REASON_LABELS[reason] ?? "";
   const body = `A aula ${session.className} de ${formatDateBr(session.date).slice(0, 5)} às ` +
     `${session.startTime} foi cancelada pela arena${reasonLabel ? ` (${reasonLabel})` : ""}.`;
-  const recipients = new Set<string>();
-  for (const doc of studentsSnap.docs) {
-    const athleteId = doc.data()["athleteId"];
-    if (typeof athleteId !== "string" || !athleteId) continue;
-    if (!studentAttendsWeekday(doc.data() as Record<string, unknown>, weekday)) continue;
-    recipients.add(athleteId);
-  }
-  for (const extra of Object.values(session.extras)) {
-    if (extra.athleteId) recipients.add(extra.athleteId);
-  }
-  const creditNote = credited > 0 ? " Você ganhou 1 crédito de reposição." : "";
+  const creditNote = (credited > 0 ? " Você ganhou 1 crédito de reposição." : "") +
+    (message ? ` ${message}` : "");
   let notified = 0;
   for (const athleteId of recipients) {
     try {
@@ -1145,6 +1156,31 @@ export async function authorizeClassAttendance(
   }
   await requireArenaProfessorPermission(db, arenaId, uid, "canManageOwnLessons");
   return "teacher";
+}
+
+/**
+ * Quem age nas Aulas em nome da arena (matricular, encaixar, agendar avulsa, cancelar): a equipe
+ * (área `agenda`) ou — fase 2 do App do Professor — o professor de TODAS as turmas envolvidas,
+ * com vínculo `ACTIVE` de equipe e a chave que a arena ligou. Turma de outro professor nunca
+ * passa. Spec: `docs/superpowers/specs/2026-10-20-professor-app-alunos-fase-2-design.md`.
+ */
+export async function authorizeClassAction(
+  db: Firestore,
+  arenaId: string,
+  teacherUserIds: ReadonlyArray<string | null>,
+  uid: string,
+  key: "canEnrollStudents" | "canScheduleLessons" | "canCancelLessons",
+): Promise<{role: ClassAttendanceActorRole; arenaData: Record<string, unknown>}> {
+  try {
+    return {role: "staff", arenaData: await requireClassManager(db, arenaId, uid)};
+  } catch (error) {
+    const denied = error instanceof HttpsError && error.code === "permission-denied";
+    const ownsAll = teacherUserIds.length > 0 && teacherUserIds.every((t) => t === uid);
+    if (!denied || !ownsAll) throw error;
+  }
+  await requireArenaProfessorPermission(db, arenaId, uid, key);
+  const arenaSnap = await db.collection("arenas").doc(arenaId).get();
+  return {role: "teacher", arenaData: (arenaSnap.data() ?? {}) as Record<string, unknown>};
 }
 
 export function requireClassEntitlement(arenaData: Record<string, unknown>): void {
@@ -1679,10 +1715,14 @@ export const cancelArenaClassSession = onCall({region: CLIENT_FACING_REGIONS}, a
   const snap = await db.collection(ARENA_CLASS_SESSIONS).doc(sessionId).get();
   if (!snap.exists) throw new HttpsError("not-found", "Aula não encontrada.");
   // Sem gate de plano: cancelar e liberar a quadra vale mesmo com plano vencido.
-  await requireClassManager(db, String(snap.data()?.["arenaId"] ?? ""), uid);
+  const session = snap.data() ?? {};
+  const {role} = await authorizeClassAction(
+    db, str(session["arenaId"]), [str(session["teacherUserId"]) || null], uid, "canCancelLessons",
+  );
   const generateCredits = typeof input["generateCredits"] === "boolean" ? input["generateCredits"] : null;
-  const result = await cancelClassSessionCore(db, sessionId, reason, note, undefined, generateCredits);
-  logger.info("cancelArenaClassSession", result);
+  const message = str(input["message"]).slice(0, 300) || null;
+  const result = await cancelClassSessionCore(db, sessionId, reason, note, undefined, generateCredits, message);
+  logger.info("cancelArenaClassSession", {...result, role});
   return result;
 });
 

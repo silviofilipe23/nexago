@@ -21,7 +21,7 @@ import {
 } from "./arena-class-constants";
 import {parseArenaClass, parseClassSession} from "./arena-class";
 import {addDaysToDateKey} from "./arena-recurring-booking";
-import {type ArenaProfessorLinkData} from "./arena-professor-links";
+import {effectiveArenaProfessorPermissions, type ArenaProfessorLinkData} from "./arena-professor-links";
 import {loadArenaProfessorLink, professorPermissionDenial} from "./arena-professor-permissions";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
@@ -44,6 +44,8 @@ export interface ProfessorArenaSummary {
   relationshipType: ProfessorRelationshipType | null;
   /** Vínculo `ACTIVE` com "Gerenciar as próprias aulas" — sem isso não há nomes. */
   canSeeStudents: boolean;
+  /** Fase 2: o que a arena liberou (efetivo — só equipe da arena, só `ACTIVE`). */
+  actions: {canEnrollStudents: boolean; canScheduleLessons: boolean; canCancelLessons: boolean};
   studentCount: number;
   classCount: number;
 }
@@ -374,11 +376,17 @@ export function buildProfessorStudents(input: ProfessorStudentsInput): Professor
     const link = input.links.get(arenaId) ?? null;
     const name = link?.arenaName || classes.find((c) => c.cls.arenaId === arenaId)?.cls.arenaName || "Arena";
     const type = link?.relationshipType;
+    const effective = effectiveArenaProfessorPermissions(link ?? {});
     return {
       arenaId,
       arenaName: name,
       relationshipType: type === "ARENA_STAFF" || type === "INDEPENDENT" ? type : null,
       canSeeStudents: allowed.has(arenaId),
+      actions: {
+        canEnrollStudents: effective.canEnrollStudents,
+        canScheduleLessons: effective.canScheduleLessons,
+        canCancelLessons: effective.canCancelLessons,
+      },
       studentCount: studentList.filter((s) => s.arenaId === arenaId).length,
       classCount: classes.filter((c) => c.cls.arenaId === arenaId).length,
     };

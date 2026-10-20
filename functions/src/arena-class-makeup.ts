@@ -16,15 +16,16 @@ import {
 } from "./arena-class-constants";
 import {studentAttendsWeekday} from "./arena-class-ledger";
 import {
+  authorizeClassAction,
   loadClassOrThrow,
   parseClassSession,
-  requireClassManager,
   requireUid,
   resolveStudentInput,
   str,
   type UpsertClassStudentInput,
 } from "./arena-class";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {assertTeacherCanUseCredit} from "./arena-class-professor-actions";
 
 export interface AddExtraInput {
   kind: "makeup" | "trial";
@@ -125,11 +126,16 @@ export async function removeExtraCore(db: Firestore, sessionId: string, studentI
   });
 }
 
-async function sessionArenaOrThrow(db: Firestore, sessionId: string): Promise<string> {
+/** Encaixe: equipe da arena ou o professor da aula com "Agendar aulas" (fase 2). */
+async function authorizeSessionExtra(db: Firestore, sessionId: string, uid: string): Promise<"staff" | "teacher"> {
   if (!sessionId) throw new HttpsError("invalid-argument", "Aula inválida.");
   const snap = await db.collection(ARENA_CLASS_SESSIONS).doc(sessionId).get();
   if (!snap.exists) throw new HttpsError("not-found", "Aula não encontrada.");
-  return String(snap.data()?.["arenaId"] ?? "");
+  const data = snap.data() ?? {};
+  const {role} = await authorizeClassAction(
+    db, str(data["arenaId"]), [str(data["teacherUserId"]) || null], uid, "canScheduleLessons",
+  );
+  return role;
 }
 
 export const addArenaClassExtra = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {
@@ -139,7 +145,9 @@ export const addArenaClassExtra = onCall({region: CLIENT_FACING_REGIONS}, async 
   const kind = str(input["kind"]);
   if (kind !== "makeup" && kind !== "trial") throw new HttpsError("invalid-argument", "Tipo de encaixe inválido.");
   const db = getFirestore();
-  await requireClassManager(db, await sessionArenaOrThrow(db, sessionId), uid);
+  const role = await authorizeSessionExtra(db, sessionId, uid);
+  // O professor só usa crédito de aluno dele.
+  if (role === "teacher" && kind === "makeup") await assertTeacherCanUseCredit(db, uid, str(input["creditId"]));
   let student = {athleteId: null as string | null, name: "Aluno"};
   if (kind === "trial") {
     const resolved = await resolveStudentInput(db, input as UpsertClassStudentInput);
@@ -159,13 +167,14 @@ export const removeArenaClassExtra = onCall({region: CLIENT_FACING_REGIONS}, asy
   const studentId = str(input["studentId"]);
   if (!studentId) throw new HttpsError("invalid-argument", "Aluno inválido.");
   const db = getFirestore();
-  await requireClassManager(db, await sessionArenaOrThrow(db, sessionId), uid);
+  await authorizeSessionExtra(db, sessionId, uid);
   await removeExtraCore(db, sessionId, studentId);
   return {sessionId, studentId};
 });
 
 // ---------------------------------------------------------------------------
-// Lista de espera (manual — a oferta da vaga é pelo WhatsApp)
+// Lista de espera (manual — a oferta da vaga é pelo WhatsApp). Equipe da arena ou o professor
+// da turma com "Matricular alunos" (fase 2).
 // ---------------------------------------------------------------------------
 
 export const addArenaClassWaitlist = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {
@@ -173,7 +182,7 @@ export const addArenaClassWaitlist = onCall({region: CLIENT_FACING_REGIONS}, asy
   const input = (request.data ?? {}) as Record<string, unknown>;
   const db = getFirestore();
   const {ref: classRef, cls} = await loadClassOrThrow(db, str(input["classId"]));
-  await requireClassManager(db, cls.arenaId, uid);
+  await authorizeClassAction(db, cls.arenaId, [cls.teacherUserId], uid, "canEnrollStudents");
   const student = await resolveStudentInput(db, input as UpsertClassStudentInput);
   const col = classRef.collection(CLASS_WAITLIST);
   if (student.athleteId) {
@@ -196,7 +205,7 @@ export const removeArenaClassWaitlist = onCall({region: CLIENT_FACING_REGIONS}, 
   if (!entryId) throw new HttpsError("invalid-argument", "Entrada inválida.");
   const db = getFirestore();
   const {ref: classRef, cls} = await loadClassOrThrow(db, str(input["classId"]));
-  await requireClassManager(db, cls.arenaId, uid);
+  await authorizeClassAction(db, cls.arenaId, [cls.teacherUserId], uid, "canEnrollStudents");
   const ref = classRef.collection(CLASS_WAITLIST).doc(entryId);
   if (!(await ref.get()).exists) throw new HttpsError("not-found", "Entrada não encontrada.");
   await ref.set({status: "removed", updatedAt: FieldValue.serverTimestamp()}, {merge: true});

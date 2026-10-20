@@ -18,6 +18,7 @@ import '../domain/arena_staff_role.dart';
 import '../domain/products/arena_product_logic.dart';
 import '../domain/products/arena_product_providers.dart';
 import '../domain/arena_shell_providers.dart';
+import 'professionals/widgets/arena_professionals_settings_tile.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_dashboard_tokens.dart';
 import 'widgets/arena_settings_group.dart';
@@ -149,6 +150,9 @@ class _SettingsBody extends ConsumerWidget {
                   onTap: () => context.pushNamed(AppRouteNames.arenaCourts),
                   showDivider: !isLast,
                 ),
+          // Vínculos com professores: dono + gestor (área `perfil`).
+          if (canReadPerfil)
+            (isLast) => ArenaProfessionalsSettingsTile(showDivider: !isLast),
           if (canReadEstoque)
             (isLast) => ArenaSettingsTile(
                   icon: Icons.inventory_2_outlined,

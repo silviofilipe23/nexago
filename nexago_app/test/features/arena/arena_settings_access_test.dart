@@ -5,10 +5,13 @@ import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arena/domain/arena_access_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_staff_role.dart';
+import 'package:nexago_app/features/arena/domain/professionals/arena_professionals_providers.dart';
 import 'package:nexago_app/features/arena/domain/products/arena_product_logic.dart';
 import 'package:nexago_app/features/arena/domain/products/arena_product_providers.dart';
 import 'package:nexago_app/features/arena/presentation/arena_settings_page.dart';
 import 'package:nexago_app/features/athlete/domain/favorites_providers.dart';
+
+import 'presentation/professionals/arena_professionals_test_support.dart';
 
 /// Overrides das duas fontes-folha: nenhuma ida ao Firestore.
 ///
@@ -49,6 +52,10 @@ void main() {
             (ref) async => ArenaSettingsScheduleState.initial(),
           ),
           arenaManagedCourtsProvider.overrideWith((ref) => Stream.value(const [])),
+          // Profissionais (dono + gestor): os vínculos do protótipo.
+          arenaProfessionalLinksProvider('a1').overrideWith(
+            (ref) => Stream.value(prototypeArenaLinks()),
+          ),
           managedArenaProductSummaryProvider.overrideWith(
             (ref) => const ArenaProductSummary(
               activeCount: 0,
@@ -80,6 +87,7 @@ void main() {
     expect(find.text('Plano'), findsNothing);
     expect(find.text('Pagamentos'), findsNothing);
     expect(find.text('Equipe'), findsNothing);
+    expect(find.text('Profissionais'), findsNothing);
   });
 
   testWidgets('manutencao ve Quadras e Produtos, sem agenda de escrita',
@@ -96,5 +104,20 @@ void main() {
     for (final t in ['Quadras', 'Relatórios', 'Plano', 'Pagamentos', 'Equipe']) {
       expect(find.text(t), findsOneWidget);
     }
+  });
+
+  testWidgets('gestor ve Profissionais com os pedidos para analisar',
+      (tester) async {
+    await pumpSettings(tester, overridesForRole(ArenaStaffRole.gestor));
+    // O stream do dublê emite num microtask depois do primeiro frame.
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Profissionais'), findsOneWidget);
+    expect(find.text('2 solicitações para analisar'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+  });
+
+  testWidgets('financeiro nao ve Profissionais', (tester) async {
+    await pumpSettings(tester, overridesForRole(ArenaStaffRole.financeiro));
+    expect(find.text('Profissionais'), findsNothing);
   });
 }

@@ -90,7 +90,7 @@ type Dialog = 'close' | 'pay' | 'undo';
 
         <div class="kpis">
           <ar-aula-stat label="Aulas dadas" [value]="'' + figures().classesGiven" [sub]="classesSub()" />
-          <ar-aula-stat label="Receita gerada" [value]="brl(figures().revenueReais)" tone="green" [sub]="model()?.model === 'revenue_share' ? 'base do repasse' : 'mensalidades pagas no mês'" />
+          <ar-aula-stat label="Receita gerada" [value]="brl(figures().grossRevenueReais)" tone="green" [sub]="revenueSub()" />
           @if (closed()?.adjustmentReais) {
             <ar-aula-stat label="Ajuste" [value]="signedBrl(closed()!.adjustmentReais)" [tone]="closed()!.adjustmentReais < 0 ? 'red' : 'green'" [sub]="closed()!.adjustmentNote ?? ''" />
           } @else {
@@ -112,7 +112,12 @@ type Dialog = 'close' | 'pay' | 'undo';
                     <span class="cell">{{ l.detail }}{{ l.payingStudents ? ' · ' + l.payingStudents + ' pagante' + (l.payingStudents === 1 ? '' : 's') : '' }}</span>
                     <span class="mono dim">{{ l.classes }}</span>
                     <span class="mono dim">{{ l.presences }}</span>
-                    <span class="mono dim">{{ brl(l.revenueReais) }}</span>
+                    <span class="mono dim">
+                      {{ brl(l.revenueReais) }}
+                      @if (l.platformFeeReais > 0) {
+                        <span class="fee-note">{{ brl(l.grossRevenueReais) }} − {{ brl(l.platformFeeReais) }} taxa NexaGO</span>
+                      }
+                    </span>
                     <span class="mono">{{ brl(l.amountReais) }}</span>
                   </div>
                 } @empty {
@@ -270,6 +275,7 @@ type Dialog = 'close' | 'pay' | 'undo';
     .span-4 { grid-column: span 4; }
     .mono { font-family: var(--nx-font-mono); font-size: 12.5px; font-weight: 700; color: var(--nx-text); }
     .mono.dim { font-weight: 500; color: var(--nx-text-mute); }
+    .fee-note { display: block; font-family: var(--nx-font-ui); font-size: 10.5px; font-weight: 500; color: var(--nx-text-mute); margin-top: 2px; }
     .neg { color: var(--nx-live); }
     .total { display: flex; justify-content: flex-end; align-items: baseline; gap: 16px; padding-top: 14px; }
     .total span { font-family: var(--nx-font-display); font-weight: 700; font-size: 14px; color: var(--nx-text); }
@@ -334,10 +340,19 @@ export class PanelAulaTeacherPayoutComponent {
     const t = this.teacher();
     return {
       teacherId: this.teacherId, teacherName: t?.name ?? 'Professor', teacherColor: t?.color ?? '#FF6A1A', model: t?.payout ?? null,
-      classesGiven: 0, presences: 0, students: 0, pendingSessions: 0, revenueReais: 0, amountReais: 0, lines: [],
+      classesGiven: 0, presences: 0, students: 0, pendingSessions: 0,
+      grossRevenueReais: 0, platformFeeReais: 0, revenueReais: 0, amountReais: 0, lines: [],
     };
   });
   protected readonly amount = computed(() => this.figures().amountReais);
+  /** No % da receita a base é sem a taxa da NexaGO das mensalidades pagas online. */
+  protected readonly revenueSub = computed(() => {
+    const f = this.figures();
+    if (f.platformFeeReais > 0) {
+      return `− ${brl(f.platformFeeReais)} taxa NexaGO = ${brl(f.revenueReais)}${this.model()?.model === 'revenue_share' ? ' (base do repasse)' : ''}`;
+    }
+    return this.model()?.model === 'revenue_share' ? 'base do repasse' : 'mensalidades pagas no mês';
+  });
   protected readonly stale = computed(() => {
     const c = this.closed();
     const p = this.previewFigures();

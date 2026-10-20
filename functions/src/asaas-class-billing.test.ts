@@ -282,6 +282,11 @@ describe("cobrança online — webhook e caixa", () => {
     const ledger = [...fake.store.entries()].filter(([k]) => k.startsWith("arenaWallets/arena1/ledger/"));
     assert.equal(ledger.length, 1);
     assert.equal(ledger[0]![1]["source"], "class");
+    // A taxa do pagamento (11,53) fica repartida nas mensalidades: o repasse desconta a parte de cada uma.
+    const month = fake.store.get(`arenaClassCharges/${out.enrollmentId}_2026-10`)!;
+    const fee = fake.store.get(`arenaClassCharges/${out.enrollmentId}_fee`)!;
+    assert.equal(month["platformFeeReais"], 8.53);
+    assert.equal(fee["platformFeeReais"], 3);
   });
 
   it("cartão: autorizado paga e segura no 'a liberar'; liquidado credita e solta", async () => {

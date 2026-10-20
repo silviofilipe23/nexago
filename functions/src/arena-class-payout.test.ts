@@ -7,6 +7,7 @@ import {
   computeTeacherPayouts,
   isEnrollmentFeeCharge,
   loadPayoutInputs,
+  payoutChargesFromData,
   setTeacherPayoutStatusCore,
   type PayoutClassInfo,
   type PayoutInputs,
@@ -22,6 +23,7 @@ import {
 } from "./arena-class-payout-model";
 import {upsertClassTeacherCore} from "./arena-class";
 import {classPayoutId} from "./arena-class-constants";
+import {allocateCents} from "./arena-class-asaas-model";
 
 function makeDb(): {fake: FakeFirestore; db: Firestore} {
   const fake = new FakeFirestore();
@@ -129,7 +131,7 @@ describe("repasse — cálculo do mês", () => {
       classes: new Map([["cA", cls("t1", "Iniciante A", [2])], ["cB", cls("t2", "Intermediário B", [4])]]),
       // Ter na turma do Thiago, Qui na da Juliana.
       enrollments: new Map([["e1", {slots: [{classId: "cA", teacherId: "t1"}, {classId: "cB", teacherId: "t2"}]}]]),
-      charges: [{id: "e1_2026-10", enrollmentId: "e1", studentId: "s1", amountReais: 320}],
+      charges: [{id: "e1_2026-10", enrollmentId: "e1", studentId: "s1", amountReais: 320, platformFeeReais: 0}],
     }));
     const [ju, th] = out.teachers;
     assert.equal(th!.teacherName, "Thiago");
@@ -154,9 +156,9 @@ describe("repasse — cálculo do mês", () => {
         ["e2", {slots: []}],
       ]),
       charges: [
-        {id: "e1_2026-10", enrollmentId: "e1", studentId: "s1", amountReais: 142.22},
-        {id: "e1_fee", enrollmentId: "e1", studentId: "s1", amountReais: 50},
-        {id: "e2_package", enrollmentId: "e2", studentId: "s2", amountReais: 360},
+        {id: "e1_2026-10", enrollmentId: "e1", studentId: "s1", amountReais: 142.22, platformFeeReais: 0},
+        {id: "e1_fee", enrollmentId: "e1", studentId: "s1", amountReais: 50, platformFeeReais: 0},
+        {id: "e2_package", enrollmentId: "e2", studentId: "s2", amountReais: 360, platformFeeReais: 0},
       ],
     }));
     assert.equal(out.feesReais, 50);
@@ -173,7 +175,7 @@ describe("repasse — cálculo do mês", () => {
       enrollments: new Map([["e1", {slots: [
         {classId: "cA", teacherId: "t1"}, {classId: "cB", teacherId: "t2"}, {classId: "cC", teacherId: "t2"},
       ]}]]),
-      charges: [{id: "e1_2026-10", enrollmentId: "e1", studentId: "s1", amountReais: 100}],
+      charges: [{id: "e1_2026-10", enrollmentId: "e1", studentId: "s1", amountReais: 100, platformFeeReais: 0}],
     }));
     assert.equal(out.teachers[0]!.revenueReais, 33.34);
     assert.equal(out.teachers[1]!.revenueReais, 66.66);
@@ -184,7 +186,7 @@ describe("repasse — cálculo do mês", () => {
       teachers: [teacher("t1", "Thiago", share(50)), teacher("t2", "Juliana", share(50))],
       classes: new Map([["cA", cls("t2", "Iniciante A", [2])]]),
       enrollments: new Map([["e1", {slots: [{classId: "cA", teacherId: "t1"}]}]]),
-      charges: [{id: "e1_2026-10", enrollmentId: "e1", studentId: "s1", amountReais: 200}],
+      charges: [{id: "e1_2026-10", enrollmentId: "e1", studentId: "s1", amountReais: 200, platformFeeReais: 0}],
     }));
     const byName = Object.fromEntries(out.teachers.map((t) => [t.teacherName, t.amountReais]));
     assert.deepEqual(byName, {Juliana: 100, Thiago: 0});
@@ -338,5 +340,62 @@ describe("repasse — leitura, fechamento e pagamento", () => {
     assert.deepEqual([undone["status"], undone["paidOn"], undone["paymentMethod"]], ["closed", null, null]);
     // Desfazer de novo não muda nada.
     assert.deepEqual(await setTeacherPayoutStatusCore(db, id, {status: "closed", paymentMethod: null, paidOn: null}, "gestor", TODAY), {payoutId: id, status: "closed"});
+  });
+});
+
+describe("repasse — taxa da NexaGO na base", () => {
+  it("% da receita desconta a taxa da NexaGO da mensalidade online; manual segue cheia", () => {
+    const out = computeTeacherPayouts(inputs({
+      teachers: [teacher("t1", "Thiago", share(50))],
+      classes: new Map([["cA", cls("t1", "Iniciante A", [2, 4])]]),
+      enrollments: new Map([
+        ["e1", {slots: [{classId: "cA", teacherId: "t1"}, {classId: "cA", teacherId: "t1"}]}],
+        ["e2", {slots: [{classId: "cA", teacherId: "t1"}]}],
+      ]),
+      charges: [
+        // Online, Pro 6%: 320 − 19,20.
+        {id: "e1_2026-10", enrollmentId: "e1", studentId: "s1", amountReais: 320, platformFeeReais: 19.2},
+        // Manual: sem taxa.
+        {id: "e2_2026-10", enrollmentId: "e2", studentId: "s2", amountReais: 180, platformFeeReais: 0},
+      ],
+    }));
+    const t = out.teachers[0]!;
+    assert.equal(t.grossRevenueReais, 500);
+    assert.equal(t.platformFeeReais, 19.2);
+    assert.equal(t.revenueReais, 480.8);
+    assert.equal(t.amountReais, 240.4);
+    assert.deepEqual(t.lines.map((l) => [l.grossRevenueReais, l.platformFeeReais, l.revenueReais]), [[500, 19.2, 480.8]]);
+    assert.equal(out.revenueReais, 500);
+    assert.equal(out.platformFeesReais, 19.2);
+  });
+
+  it("por aula e por aluno não mudam com a taxa", () => {
+    const out = computeTeacherPayouts(inputs({
+      teachers: [teacher("t3", "Marcos", perClass(45))],
+      classes: new Map([["cV", cls("t3", "Vôlei", [1])]]),
+      sessions: [session("cV", "t3", "2026-10-05", "completed", ["a"])],
+      enrollments: new Map([["e1", {slots: [{classId: "cV", teacherId: "t3"}]}]]),
+      charges: [{id: "e1_2026-10", enrollmentId: "e1", studentId: "s1", amountReais: 200, platformFeeReais: 12}],
+    }));
+    assert.equal(out.teachers[0]!.amountReais, 45);
+    assert.equal(out.teachers[0]!.revenueReais, 188);
+  });
+
+  it("taxa gravada na baixa vale; online antiga sem taxa é estimada por pagamento; manual = 0", () => {
+    const charges = payoutChargesFromData([
+      {id: "a_2026-10", data: {enrollmentId: "a", amountReais: 320, paidVia: "asaas", platformFeeReais: 19.2}},
+      // Pagamento antigo com 2 mensalidades (R$ 10 + R$ 15): 6% = 1,50 → o mínimo vale para o pagamento.
+      {id: "b_2026-10", data: {enrollmentId: "b", amountReais: 10, paidVia: "asaas", asaas: {groupId: "g1"}}},
+      {id: "b_2026-11", data: {enrollmentId: "b", amountReais: 15, paidVia: "asaas", asaas: {groupId: "g1"}}},
+      {id: "c_2026-10", data: {enrollmentId: "c", amountReais: 180, paidVia: "pix"}},
+    ], 6);
+    assert.deepEqual(charges.map((c) => c.platformFeeReais), [19.2, 0.6, 0.9, 0]);
+  });
+
+  it("allocateCents fecha a soma exata", () => {
+    assert.deepEqual(allocateCents(1153, [14222, 5000]), [853, 300]);
+    assert.deepEqual(allocateCents(100, [1, 1, 1]), [34, 33, 33]);
+    assert.deepEqual(allocateCents(150, [0, 0]), [150, 0]);
+    assert.deepEqual(allocateCents(5, []), []);
   });
 });

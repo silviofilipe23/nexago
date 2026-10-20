@@ -17,6 +17,11 @@ export interface PayoutLine {
   classes: number;
   presences: number;
   payingStudents: number;
+  /** Mensalidades rateadas para a linha, valor cheio. */
+  grossRevenueReais: number;
+  /** Taxa da NexaGO dessas mensalidades (cobrança online). */
+  platformFeeReais: number;
+  /** Receita sem a taxa da NexaGO — a base do % da receita. */
   revenueReais: number;
   amountReais: number;
 }
@@ -31,6 +36,9 @@ export interface TeacherPayoutFigures {
   presences: number;
   students: number;
   pendingSessions: number;
+  grossRevenueReais: number;
+  platformFeeReais: number;
+  /** Sem a taxa da NexaGO (ver `PayoutLine.revenueReais`). */
   revenueReais: number;
   amountReais: number;
   lines: PayoutLine[];
@@ -43,7 +51,10 @@ export interface TeacherPayoutPreview extends TeacherPayoutFigures {
 
 export interface ArenaPayoutPreview {
   month: string;
+  /** Receita de aulas do mês, valor cheio. */
   revenueReais: number;
+  /** Taxa da NexaGO dessa receita (cobrança online). */
+  platformFeesReais: number;
   feesReais: number;
   unassignedReais: number;
   teachers: TeacherPayoutPreview[];
@@ -100,6 +111,18 @@ export function payoutBaseLabel(f: Pick<TeacherPayoutFigures, 'model' | 'revenue
   if (model === 'per_class') return `${f.classesGiven} aula${f.classesGiven === 1 ? '' : 's'}`;
   if (model === 'per_student') return `${f.presences} presença${f.presences === 1 ? '' : 's'}`;
   return `${brl(f.revenueReais)} receita`;
+}
+
+/** Valor cheio e taxa: retrato fechado antes da taxa entrar na conta não traz os campos —
+ *  ali a receita era o valor cheio, sem taxa descontada. */
+function revenueFields(d: Record<string, unknown>): { grossRevenueReais: number; platformFeeReais: number; revenueReais: number } {
+  const revenueReais = num(d['revenueReais']);
+  const hasGross = typeof d['grossRevenueReais'] === 'number';
+  return {
+    grossRevenueReais: hasGross ? num(d['grossRevenueReais']) : revenueReais,
+    platformFeeReais: hasGross ? num(d['platformFeeReais']) : 0,
+    revenueReais,
+  };
 }
 
 /** Cabeçalho da coluna de repasse na composição. */
@@ -286,7 +309,7 @@ function linesFromRaw(raw: unknown): PayoutLine[] {
     classes: num(l['classes']),
     presences: num(l['presences']),
     payingStudents: num(l['payingStudents']),
-    revenueReais: num(l['revenueReais']),
+    ...revenueFields(l),
     amountReais: num(l['amountReais']),
   }));
 }
@@ -297,6 +320,7 @@ export function payoutPreviewFromRaw(raw: unknown): ArenaPayoutPreview {
   return {
     month: str(d['month']),
     revenueReais: num(d['revenueReais']),
+    platformFeesReais: num(d['platformFeesReais']),
     feesReais: num(d['feesReais']),
     unassignedReais: num(d['unassignedReais']),
     teachers: teachers.map((t) => ({
@@ -310,7 +334,7 @@ export function payoutPreviewFromRaw(raw: unknown): ArenaPayoutPreview {
       students: num(t['students']),
       pendingSessions: num(t['pendingSessions']),
       canceledSessions: num(t['canceledSessions']),
-      revenueReais: num(t['revenueReais']),
+      ...revenueFields(t),
       amountReais: num(t['amountReais']),
       lines: linesFromRaw(t['lines']),
     })),
@@ -332,7 +356,7 @@ export function classPayoutFromDoc(doc: QueryDocumentSnapshot | DocumentSnapshot
     presences: num(d['presences']),
     students: num(d['students']),
     pendingSessions: num(d['pendingSessions']),
-    revenueReais: num(d['revenueReais']),
+    ...revenueFields(d),
     computedReais: num(d['computedReais']),
     adjustmentReais: num(d['adjustmentReais']),
     adjustmentNote: typeof d['adjustmentNote'] === 'string' && d['adjustmentNote'] ? d['adjustmentNote'] : null,

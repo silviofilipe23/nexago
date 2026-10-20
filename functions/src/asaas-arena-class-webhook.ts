@@ -11,7 +11,7 @@
 import * as logger from "firebase-functions/logger";
 import {FieldValue, type DocumentReference, type Firestore, type Transaction} from "firebase-admin/firestore";
 import {ARENA_CLASS_ASAAS_PAYMENTS, ARENA_CLASS_CHARGES, CLASS_PAYMENT_REF_PREFIX} from "./arena-class-constants";
-import {chargeAsaasMirror} from "./arena-class-asaas-model";
+import {allocateCents, chargeAsaasMirror} from "./arena-class-asaas-model";
 import {resolveArenaBookingFeePercent} from "./arena-entitlement";
 import {
   creditArenaWalletFromBookingPayment,
@@ -121,6 +121,7 @@ export async function processArenaClassAsaasNotification(
       const group = groupSnap.data() as Record<string, unknown>;
       const ids = Array.isArray(group["chargeIds"]) ? (group["chargeIds"] as unknown[]).map(String) : [];
       const chargeSnaps = await Promise.all(ids.map((id) => tx.get(db.collection(ARENA_CLASS_CHARGES).doc(id))));
+      const arenaSnap = await tx.get(db.collection("arenas").doc(String(group["arenaId"] ?? "_")));
       const state = String(group["state"] ?? "");
       const stale = state === "void" || state === "voiding" ||
         chargeSnaps.some((c) => !c.exists || c.data()?.["status"] !== "open");
@@ -138,8 +139,15 @@ export async function processArenaClassAsaasNotification(
         tx.set(groupRef, {asaasStatus: status, paymentId, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
         return {kind: "stale" as const, base};
       }
-      for (const c of chargeSnaps) {
+      // Taxa da NexaGO do pagamento (plano da arena agora, mesma conta do crédito no caixa),
+      // repartida pelas mensalidades: o repasse do professor desconta a parte de cada uma.
+      const feeCents = Math.round(
+        computePlatformFeeReais(gross, resolveArenaBookingFeePercent(arenaSnap.data() ?? {}, deps.now().getTime())) * 100,
+      );
+      const feeShares = allocateCents(feeCents, chargeSnaps.map((c) => Math.round(Number(c.data()?.["amountReais"] ?? 0) * 100)));
+      for (const [i, c] of chargeSnaps.entries()) {
         tx.set(c.ref, {
+          platformFeeReais: (feeShares[i] ?? 0) / 100,
           status: "paid",
           paidOn: todayKey,
           paidAt: FieldValue.serverTimestamp(),

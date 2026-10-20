@@ -93,3 +93,27 @@ export function maskCpfCnpj(digits: string): string {
   if (d.length === 14) return `**.***.${d.slice(5, 8)}/${d.slice(8, 12)}-**`;
   return "";
 }
+
+/**
+ * Reparte `totalCents` pelos pesos (centavos de cada mensalidade do pagamento), pelo maior resto:
+ * a soma fecha exata, sem criar nem perder centavo. É como a taxa da NexaGO de um pagamento (1º mês
+ * + taxa de matrícula juntos) vira a taxa de cada mensalidade — o repasse do professor desconta só
+ * a parte da mensalidade dele.
+ */
+export function allocateCents(totalCents: number, weightsCents: readonly number[]): number[] {
+  const total = Math.max(0, Math.round(totalCents));
+  const weights = weightsCents.map((w) => Math.max(0, Math.round(w)));
+  const sum = weights.reduce((a, b) => a + b, 0);
+  if (weights.length === 0) return [];
+  if (sum === 0) return weights.map((_, i) => (i === 0 ? total : 0));
+  const exact = weights.map((w) => (total * w) / sum);
+  const out = exact.map(Math.floor);
+  let left = total - out.reduce((a, b) => a + b, 0);
+  const order = exact.map((x, i) => ({i, frac: x - Math.floor(x)})).sort((a, b) => b.frac - a.frac || a.i - b.i);
+  for (const {i} of order) {
+    if (left <= 0) break;
+    out[i]! += 1;
+    left -= 1;
+  }
+  return out;
+}

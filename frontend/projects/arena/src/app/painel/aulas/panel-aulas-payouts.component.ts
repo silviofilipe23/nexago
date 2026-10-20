@@ -100,6 +100,7 @@ import {
           </div>
           <p class="hint">
             Receita = mensalidades e pacotes pagos no mês, rateados pelos horários de cada aluno entre os professores.
+            No % da receita, a base desconta a taxa NexaGO das mensalidades pagas online (a manual não tem taxa).
             Aulas e presenças contam só com a chamada fechada.
             @if ((preview()?.unassignedReais ?? 0) > 0) {
               {{ brl(preview()!.unassignedReais) }} de receita sem horário na matrícula não entram em repasse.
@@ -169,7 +170,12 @@ export class PanelAulasPayoutsComponent {
   protected readonly closingDay = computed(() => shortMonthDay(monthLastDay(this.month())));
   protected readonly revenueSub = computed(() => {
     const fees = this.preview()?.feesReais ?? 0;
-    return fees > 0 ? `sem ${brl(fees)} de taxa de matrícula` : 'mensalidades pagas no mês';
+    const nexa = this.preview()?.platformFeesReais ?? 0;
+    const parts = [
+      ...(fees > 0 ? [`sem ${brl(fees)} de taxa de matrícula`] : []),
+      ...(nexa > 0 ? [`${brl(nexa)} de taxa NexaGO`] : []),
+    ];
+    return parts.length ? parts.join(' · ') : 'mensalidades pagas no mês';
   });
 
   private unsub: Unsubscribe | null = null;

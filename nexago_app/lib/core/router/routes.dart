@@ -20,6 +20,11 @@ abstract final class AppRoutes {
 
   /// Home do organizador de torneio.
   static const String organizerHome = '/organizer';
+
+  /// Home do modo Professor (papel `professor`): aulas de hoje, chamada,
+  /// Minhas arenas e reserva como professor. As telas de vínculo e de chamada
+  /// seguem em `/athlete/professor/...` (links de push já gravados).
+  static const String professorHome = '/professor';
   static const String organizerWallet = '/organizer/wallet';
 
   /// Editor do perfil público do organizador (logo, capa, bio, WhatsApp).
@@ -226,6 +231,11 @@ abstract final class AppRoutes {
   static const String professorArenaLink = '/athlete/professor/arenas/:linkId';
   static const String professorLinkRequestSent =
       '/athlete/professor/arenas/:linkId/enviada';
+
+  /// Chamada de uma aula que o usuário dá (vínculo com "Gerenciar as próprias
+  /// aulas"); entrada pelo "Fazer chamada" do modo Professor.
+  static const String professorClassAttendance =
+      '/athlete/professor/aulas/:sessionId';
 
   /// Comunidade como página própria: com a Loja na barra inferior (flag
   /// `appConfig/store.enabled`), é o destino do "Ver todos" da Home e de
@@ -675,6 +685,7 @@ abstract final class AppRouteNames {
   static const String roleSelection = 'roleSelection';
   static const String authLoading = 'authLoading';
   static const String organizerHome = 'organizerHome';
+  static const String professorHome = 'professorHome';
   static const String organizerWallet = 'organizerWallet';
   static const String organizerCreate = 'organizerCreate';
   static const String organizerTournamentCreateExpress =
@@ -773,6 +784,7 @@ abstract final class AppRouteNames {
   static const String professorArenas = 'professorArenas';
   static const String professorArenaLink = 'professorArenaLink';
   static const String professorLinkRequestSent = 'professorLinkRequestSent';
+  static const String professorClassAttendance = 'professorClassAttendance';
   static const String community = 'community';
   static const String store = 'store';
   static const String storeSearch = 'storeSearch';

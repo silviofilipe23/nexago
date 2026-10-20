@@ -166,6 +166,8 @@ import '../../features/squad/presentation/squad_ranking_page.dart';
 import '../../features/squad/presentation/squad_share_page.dart';
 import '../../features/professor_links/presentation/professor_link_detail_page.dart';
 import '../../features/professor_links/presentation/professor_link_request_sent_page.dart';
+import '../../features/athlete/presentation/teacher_class_attendance_page.dart';
+import '../../features/professor_mode/presentation/professor_home_page.dart';
 import '../../features/professor_links/presentation/professor_my_arenas_page.dart';
 import '../../features/store/domain/store_checkout_models.dart';
 import '../../features/store/presentation/store_address_page.dart';
@@ -386,6 +388,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.roleSelection,
         name: AppRouteNames.roleSelection,
         builder: (context, state) => const RoleSelectionPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.professorHome,
+        name: AppRouteNames.professorHome,
+        builder: (context, state) => const ProfessorHomePage(),
       ),
       GoRoute(
         path: AppRoutes.organizerHome,
@@ -1110,6 +1117,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.professorLinkRequestSent,
         builder: (context, state) => ProfessorLinkRequestSentPage(
           linkId: state.pathParameters['linkId'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.professorClassAttendance,
+        name: AppRouteNames.professorClassAttendance,
+        builder: (context, state) => TeacherClassAttendancePage(
+          sessionId: state.pathParameters['sessionId']?.trim() ?? '',
         ),
       ),
       GoRoute(

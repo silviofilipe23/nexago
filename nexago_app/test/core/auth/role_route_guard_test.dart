@@ -222,4 +222,86 @@ void main() {
       );
     });
   });
+
+  group('modo Professor', () {
+    const both = [AppMobileRole.athlete, AppMobileRole.professor];
+
+    String? go(String path, AppMobileRole active) => redirectForActiveRole(
+          path: path,
+          activeRole: active,
+          availableRoles: both,
+          needsRoleSelection: false,
+        );
+
+    test('home do Professor só no papel Professor', () {
+      expect(go(AppRoutes.professorHome, AppMobileRole.professor), isNull);
+      expect(
+        go(AppRoutes.professorHome, AppMobileRole.athlete),
+        AppRoutes.discover,
+      );
+      expect(
+        redirectForActiveRole(
+          path: AppRoutes.professorHome,
+          activeRole: AppMobileRole.arena,
+          availableRoles: const [AppMobileRole.arena, AppMobileRole.professor],
+          needsRoleSelection: false,
+        ),
+        AppRoutes.arenaDashboard,
+      );
+    });
+
+    test('Professor não abre o fluxo do atleta (volta para a home dele)', () {
+      for (final path in [
+        AppRoutes.discover,
+        AppRoutes.home,
+        AppRoutes.myBookings,
+        AppRoutes.athleteCashback,
+      ]) {
+        expect(
+          go(path, AppMobileRole.professor),
+          AppRoutes.professorHome,
+          reason: path,
+        );
+      }
+    });
+
+    test('Professor reserva pelas telas de arena do atleta', () {
+      for (final path in [
+        '/arena/a1',
+        '/arena/a1/slots',
+        '/arena/a1/book/confirm',
+        '/arena/a1/book/pix',
+        '/arena/a1/book/success',
+      ]) {
+        expect(go(path, AppMobileRole.professor), isNull, reason: path);
+      }
+      // O painel do gestor continua só do papel Gestor.
+      expect(
+        go(AppRoutes.arenaDashboard, AppMobileRole.professor),
+        AppRoutes.professorHome,
+      );
+    });
+
+    test('vínculos e chamada abrem em qualquer papel (push sem trocar)', () {
+      for (final path in [
+        '/athlete/professor/arenas',
+        '/athlete/professor/arenas/a1_u1',
+        '/athlete/professor/arenas/a1_u1/enviada',
+        '/athlete/professor/aulas/class_c1_2026-10-20',
+      ]) {
+        for (final role in AppMobileRole.values) {
+          expect(
+            redirectForActiveRole(
+              path: path,
+              activeRole: role,
+              availableRoles: AppMobileRole.values,
+              needsRoleSelection: false,
+            ),
+            isNull,
+            reason: '$path · $role',
+          );
+        }
+      }
+    });
+  });
 }

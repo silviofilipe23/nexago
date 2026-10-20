@@ -6,6 +6,7 @@ import 'app_mobile_role.dart';
 const String kArenaAppRole = 'arena';
 const String kAthleteAppRole = 'athlete';
 const String kOrganizerAppRole = 'organizer';
+const String kProfessorAppRole = 'professor';
 
 /// Extrai papéis do token (claim `roles`).
 List<String> appRolesFromIdToken(IdTokenResult result) {
@@ -39,6 +40,10 @@ bool userHasAthleteRole(IdTokenResult result) {
 
 bool userHasOrganizerRole(IdTokenResult result) {
   return appRolesFromIdToken(result).contains(kOrganizerAppRole);
+}
+
+bool userHasProfessorRole(IdTokenResult result) {
+  return appRolesFromIdToken(result).contains(kProfessorAppRole);
 }
 
 /// Papéis mobile a partir do token (`admin` é ignorado).

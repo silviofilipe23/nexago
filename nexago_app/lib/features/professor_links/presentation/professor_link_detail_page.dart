@@ -9,6 +9,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../application/professor_links_providers.dart';
+import '../../professor_mode/application/professor_mode_providers.dart';
 import '../domain/arena_professor_link.dart';
 import '../domain/professor_link_rules.dart';
 import '../domain/professor_links_repository.dart';
@@ -27,6 +28,8 @@ class ProfessorLinkDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final linkAsync = ref.watch(professorLinkProvider(linkId));
+    // Aceite/aprovação com o app aberto: a claim `professor` chega sem relogar.
+    ref.watch(professorRoleSyncProvider);
     final link = linkAsync.valueOrNull;
     if (link != null) return _DetailView(link: link);
     final loading = linkAsync.isLoading && !linkAsync.hasError;

@@ -12,6 +12,7 @@ import '../../domain/arena_booking_labels.dart';
 import '../../domain/arena_bookings_grouping.dart';
 import '../../domain/arena_manager_booking.dart';
 import '../../domain/arena_slot_detail_providers.dart';
+import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
 import 'arena_dashboard_tokens.dart';
 
 class ArenaBookingCard extends ConsumerWidget {
@@ -195,6 +196,13 @@ class ArenaBookingCard extends ConsumerWidget {
                                 icon: Icons.school_rounded,
                                 label: 'Aula',
                                 accent: AppColors.brand,
+                              ),
+                            if (arenaBookingProfessorLabel(booking.data)
+                                case final professor?)
+                              _MetaChip(
+                                icon: Icons.school_outlined,
+                                label: professor,
+                                accent: ProfessorLinksStyle.blue,
                               ),
                           ],
                         ),

@@ -13,6 +13,7 @@ import 'athlete_agenda_logic.dart';
 import 'athlete_agenda_models.dart';
 import 'class_agenda_entry.dart';
 import 'class_charge_entry.dart';
+import 'teacher_class_roster.dart';
 
 /// Aulas da arena do atleta (aluno, encaixe ou professor) — `getMyClassAgenda`.
 /// Falha vira lista vazia: a agenda segue com o resto.
@@ -25,6 +26,13 @@ final myClassAgendaProvider =
   } catch (_) {
     return const [];
   }
+});
+
+/// Lista da chamada de uma aula que dou como professor
+/// (`getMyClassSessionRoster`). Erro chega à tela com a mensagem do servidor.
+final teacherClassRosterProvider = FutureProvider.autoDispose
+    .family<TeacherClassRoster, String>((ref, sessionId) {
+  return ref.watch(classAgendaRepositoryProvider).fetchTeacherRoster(sessionId);
 });
 
 /// Mensalidades de aula em aberto do atleta — `getMyClassCharges`.

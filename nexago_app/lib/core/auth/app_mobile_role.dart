@@ -4,7 +4,11 @@ import '../../core/router/routes.dart';
 enum AppMobileRole {
   athlete,
   arena,
-  organizer;
+  organizer,
+
+  /// Professor com vínculo com alguma arena. A claim `professor` só escolhe o
+  /// modo do app — quem autoriza chamada e reserva é o vínculo, no servidor.
+  professor;
 
   String get claimValue => name;
 
@@ -12,12 +16,14 @@ enum AppMobileRole {
         AppMobileRole.athlete => 'Atleta',
         AppMobileRole.arena => 'Gestor de arena',
         AppMobileRole.organizer => 'Organizador de torneio',
+        AppMobileRole.professor => 'Professor',
       };
 
   String get categoryLabel => switch (this) {
         AppMobileRole.athlete => 'COMPETIR & JOGAR',
         AppMobileRole.arena => 'QUADRAS & AGENDA',
         AppMobileRole.organizer => 'CRIAR & GERIR EVENTOS',
+        AppMobileRole.professor => 'AULAS & ARENAS',
       };
 
   String get description => switch (this) {
@@ -27,6 +33,9 @@ enum AppMobileRole {
           'Administre quadras, horários, aluguéis e a agenda da sua arena.',
         AppMobileRole.organizer =>
           'Crie ligas e torneios, gerencie inscrições, chaves e premiação.',
+        AppMobileRole.professor =>
+          'Faça a chamada das suas aulas, reserve quadras como professor e '
+              'cuide dos vínculos com as arenas.',
       };
 
   /// Label minúsculo para o CTA «Continuar como …».
@@ -34,12 +43,14 @@ enum AppMobileRole {
         AppMobileRole.athlete => 'atleta',
         AppMobileRole.arena => 'gestor de arena',
         AppMobileRole.organizer => 'organizador de torneio',
+        AppMobileRole.professor => 'professor',
       };
 
   String get homeRoute => switch (this) {
         AppMobileRole.athlete => AppRoutes.discover,
         AppMobileRole.arena => AppRoutes.arenaDashboard,
         AppMobileRole.organizer => AppRoutes.organizerHome,
+        AppMobileRole.professor => AppRoutes.professorHome,
       };
 
   static AppMobileRole? fromClaim(String claim) {
@@ -50,6 +61,8 @@ enum AppMobileRole {
         return AppMobileRole.arena;
       case 'organizer':
         return AppMobileRole.organizer;
+      case 'professor':
+        return AppMobileRole.professor;
       default:
         return null;
     }

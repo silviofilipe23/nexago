@@ -7,6 +7,8 @@ import '../../arena/domain/arena_access_providers.dart';
 import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../athlete/domain/athlete_public_profile_providers.dart';
+import '../../professor_links/application/professor_links_providers.dart';
+import '../../professor_mode/domain/professor_mode_logic.dart';
 
 /// Metadados exibidos no rodapé do card de seleção de papel.
 final roleSelectionFooterProvider =
@@ -32,6 +34,9 @@ final roleSelectionFooterProvider =
       return first.name.toUpperCase();
     case AppMobileRole.organizer:
       return 'GESTÃO DE TORNEIOS EM BREVE NO APP';
+    case AppMobileRole.professor:
+      final links = await ref.watch(myProfessorLinksProvider.future);
+      return professorRoleFooter(links, ref.read(professorLinksClockProvider)());
   }
 });
 

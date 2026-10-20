@@ -179,6 +179,7 @@ const BO_ROLE_SEARCH_LABEL: Record<AppRole, string> = {
   athlete: "atleta",
   arena: "arena gestor",
   coach: "treinador",
+  professor: "professor aulas",
 };
 
 function backofficeUserMatchesSearch(

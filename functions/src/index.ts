@@ -199,6 +199,8 @@ export {sendArenaClassReminders} from "./arena-class-reminders";
 export {onArenaClassAsaasPaymentWritten, reconcileArenaClassAsaasPayments} from "./asaas-class-billing";
 // Aulas na agenda do atleta (leitura só por callable — as coleções de aula são da equipe).
 export {getMyClassAgenda} from "./arena-class-athlete-agenda";
+// Aulas pelo professor com vínculo ("Gerenciar as próprias aulas"): lista da chamada.
+export {getMyClassSessionRoster} from "./arena-class-teacher";
 export {getMyClassCharges} from "./arena-class-athlete-charges";
 
 export {

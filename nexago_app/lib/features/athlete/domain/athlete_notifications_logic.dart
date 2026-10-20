@@ -8,6 +8,9 @@ import 'athlete_inbox_notification.dart';
 /// Fundo do ícone em notificações de reserva/lembrete (protótipo).
 const _bookingIconBackground = Color(0xFF2B1A12);
 
+/// Azul do convite de arena para o professor (protótipo dos vínculos).
+const _professorInviteBlue = Color(0xFF5B9BFF);
+
 enum AthleteNotificationActionKind {
   primary,
   secondary,
@@ -534,6 +537,38 @@ AthleteNotificationPresentation _basePresentation(
               ]
             : const [],
         routePath: route,
+      );
+    // Vínculo professor ↔ arena: o push não manda `url`; o destino sai do tipo
+    // (o vínculo pelo `linkId`), igual ao toque no push. O tom segue o status
+    // do protótipo: azul convite, verde ativo, vermelho suspenso.
+    case 'professor_link_invite':
+    case 'professor_link_approved':
+    case 'professor_link_reactivated':
+    case 'professor_link_suspended':
+    case 'professor_link_rejected':
+    case 'professor_link_ended':
+    case 'professor_link_permissions_changed':
+      final color = switch (type) {
+        'professor_link_invite' => _professorInviteBlue,
+        'professor_link_approved' ||
+        'professor_link_reactivated' => AppColors.win,
+        'professor_link_suspended' => AppColors.live,
+        'professor_link_permissions_changed' => AppColors.brand,
+        _ => AppColors.onSurfaceMuted,
+      };
+      return AthleteNotificationPresentation(
+        icon: Icons.school_outlined,
+        iconColor: color,
+        iconBackground: color.withValues(alpha: 0.12),
+        actions: type == 'professor_link_invite'
+            ? const [
+                AthleteNotificationAction(
+                  label: 'Ver convite',
+                  kind: AthleteNotificationActionKind.primary,
+                ),
+              ]
+            : const [],
+        routePath: resolveNotificationRoute({...data, 'type': type}),
       );
     default:
       // Mesma tradução do push: avisos do organizador (que o staff recebe aqui) traziam o

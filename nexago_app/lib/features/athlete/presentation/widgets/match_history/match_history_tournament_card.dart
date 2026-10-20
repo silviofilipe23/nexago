@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/match_history/athlete_match_history_models.dart';
 
@@ -16,7 +17,12 @@ class MatchHistoryTournamentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rankStyle = _rankStyle(tournament.medal, tournament.placement);
+    final colors = context.themeColors;
+    final rankStyle = _rankStyle(
+      tournament.medal,
+      tournament.placement,
+      colors,
+    );
     final venue = tournament.venue.trim();
     final period = tournament.periodLabel.trim();
     final categoryTag = _categoryTag();
@@ -25,7 +31,7 @@ class MatchHistoryTournamentCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: AppColors.surfaceCard,
+        color: colors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onTap,
@@ -34,7 +40,7 @@ class MatchHistoryTournamentCard extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.surfaceRaised),
+              border: Border.all(color: colors.surfaceRaised),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -54,7 +60,7 @@ class MatchHistoryTournamentCard extends StatelessWidget {
                         style: AppTypography.soraRegular(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.onSurface,
+                          color: colors.onSurface,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -66,7 +72,7 @@ class MatchHistoryTournamentCard extends StatelessWidget {
                             Icon(
                               Icons.location_on_outlined,
                               size: 14,
-                              color: AppColors.onSurfaceMuted.withValues(
+                              color: colors.onSurfaceMuted.withValues(
                                 alpha: 0.85,
                               ),
                             ),
@@ -77,7 +83,7 @@ class MatchHistoryTournamentCard extends StatelessWidget {
                                 style: AppTypography.soraRegular(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
-                                  color: AppColors.onSurfaceMuted,
+                                  color: colors.onSurfaceMuted,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -94,12 +100,12 @@ class MatchHistoryTournamentCard extends StatelessWidget {
                           if (period.isNotEmpty)
                             _MetaPill(
                               label: period,
-                              foreground: AppColors.onSurface,
+                              foreground: colors.onSurface,
                             ),
                           if (categoryTag.isNotEmpty)
                             _MetaPill(
                               label: categoryTag,
-                              foreground: AppColors.onSurface,
+                              foreground: colors.onSurface,
                             ),
                           _MetaPill(
                             label: record,
@@ -116,7 +122,7 @@ class MatchHistoryTournamentCard extends StatelessWidget {
                 SizedBox(width: 4),
                 Icon(
                   Icons.chevron_right_rounded,
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.55),
+                  color: colors.onSurfaceMuted.withValues(alpha: 0.55),
                   size: 22,
                 ),
               ],
@@ -190,7 +196,8 @@ class _MetaPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: background ?? AppColors.surfaceRaised.withValues(alpha: 0.65),
+        color: background ??
+            context.themeColors.surfaceRaised.withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(6),
         border: borderColor != null ? Border.all(color: borderColor!) : null,
       ),
@@ -226,7 +233,11 @@ class _RankStyle {
   final Color foreground;
 }
 
-_RankStyle _rankStyle(TournamentPlacement medal, int placement) {
+_RankStyle _rankStyle(
+  TournamentPlacement medal,
+  int placement,
+  AppThemeColors colors,
+) {
   final label = placement > 0 ? '$placementº' : '—';
 
   return switch (medal) {
@@ -247,8 +258,8 @@ _RankStyle _rankStyle(TournamentPlacement medal, int placement) {
     ),
     TournamentPlacement.other => _RankStyle(
       label: label,
-      background: AppColors.surfaceRaised,
-      foreground: AppColors.onSurfaceMuted,
+      background: colors.surfaceRaised,
+      foreground: colors.onSurfaceMuted,
     ),
   };
 }

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../arenas/domain/booking_result_record_providers.dart';
 import '../../arenas/domain/pelada.dart';
@@ -29,13 +29,14 @@ class AthleteMatchHistoryPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bundleAsync = ref.watch(currentAthleteMatchHistoryBundleProvider);
     final theme = Theme.of(context);
+    final colors = context.themeColors;
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
-      appBar: _appBar(context, theme),
+      backgroundColor: colors.canvas,
+      appBar: _appBar(context, theme, colors),
       body: bundleAsync.when(
         loading: () =>
-            Center(child: CircularProgressIndicator(color: AppColors.brand)),
+            Center(child: CircularProgressIndicator(color: colors.brand)),
         error: (e, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -43,7 +44,7 @@ class AthleteMatchHistoryPage extends ConsumerWidget {
               'Não foi possível carregar o histórico.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyLarge?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: colors.onSurfaceMuted,
               ),
             ),
           ),
@@ -53,9 +54,13 @@ class AthleteMatchHistoryPage extends ConsumerWidget {
     );
   }
 
-  PreferredSizeWidget _appBar(BuildContext context, ThemeData theme) {
+  PreferredSizeWidget _appBar(
+    BuildContext context,
+    ThemeData theme,
+    AppThemeColors colors,
+  ) {
     return NexaAppBar(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: colors.canvas,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: true,
@@ -63,7 +68,7 @@ class AthleteMatchHistoryPage extends ConsumerWidget {
         padding: const EdgeInsets.only(left: 12),
         child: Center(
           child: Material(
-            color: AppColors.surfaceRaised,
+            color: colors.surfaceRaised,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: () {
@@ -79,7 +84,7 @@ class AthleteMatchHistoryPage extends ConsumerWidget {
                 height: 40,
                 child: Icon(
                   Icons.chevron_left_rounded,
-                  color: AppColors.onSurface,
+                  color: colors.onSurface,
                 ),
               ),
             ),
@@ -90,7 +95,7 @@ class AthleteMatchHistoryPage extends ConsumerWidget {
         'Histórico',
         style: theme.textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w800,
-          color: AppColors.onSurface,
+          color: colors.onSurface,
           letterSpacing: -0.3,
         ),
       ),
@@ -151,7 +156,7 @@ class _ReadyBody extends ConsumerWidget {
           ),
           SizedBox(height: 16),
           if (derived.monthGroups.isEmpty)
-            _emptyState('Nenhuma partida neste filtro.')
+            _emptyState(context, 'Nenhuma partida neste filtro.')
           else
             ...derived.monthGroups.expand((group) {
               return [
@@ -202,11 +207,14 @@ class _ReadyBody extends ConsumerWidget {
     );
   }
 
-  Widget _emptyState(String message) {
+  Widget _emptyState(BuildContext context, String message) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 32),
       child: Center(
-        child: Text(message, style: TextStyle(color: AppColors.onSurfaceMuted)),
+        child: Text(
+          message,
+          style: TextStyle(color: context.themeColors.onSurfaceMuted),
+        ),
       ),
     );
   }

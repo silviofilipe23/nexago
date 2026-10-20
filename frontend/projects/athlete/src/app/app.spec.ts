@@ -50,4 +50,12 @@ describe('chromeHiddenForUrl', () => {
     expect(chromeHiddenForUrl('/squad/nivel')).toBe(true);
     expect(chromeHiddenForUrl('/squads')).toBe(false);
   });
+
+  // Link do convite para jogar (WhatsApp/push): sem o prefixo a página ficava centralizada no
+  // .container-nexago, com faixas dos lados em tela larga.
+  it('usa a moldura do painel no convite para jogar', () => {
+    expect(chromeHiddenForUrl('/convite/link_b1')).toBe(true);
+    expect(chromeHiddenForUrl('/convite/b1_uid?x=1')).toBe(true);
+    expect(chromeHiddenForUrl('/convites')).toBe(false);
+  });
 });

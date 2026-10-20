@@ -66,6 +66,15 @@ describe('app.routes', () => {
     expect(SQUAD_ROUTES[0]!.children?.map((r) => r.path)).toEqual(['', 'ganhos', 'nivel']);
   });
 
+  // `/convite/:id` caía no `**` → painel; o push `booking_invite` manda `webUrl: '/convite/{id}'`
+  // e o link do WhatsApp aponta pra cá. Deslogado, os guards devolvem o atleta via ?redirect=.
+  it('convite para jogar tem rota própria, com login e onboarding', () => {
+    const route = routes.find((r) => r.path === 'convite/:inviteId');
+    expect(route).toBeDefined();
+    expect(route!.canActivate).toEqual([authGuard, onboardingGuard]);
+    expect(routes.indexOf(route!)).toBeLessThan(routes.findIndex((r) => r.path === '**'));
+  });
+
   // `webUrl: '/cashback'` dos pushes `cashback_released`/`cashback_expiring` cai aqui.
   it('Meu cashback exige login e onboarding', () => {
     const route = routes.find((r) => r.path === 'cashback');

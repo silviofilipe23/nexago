@@ -68,7 +68,7 @@
           <div class="bd-card">
             <div class="bd-card-head">
               <span class="bd-card-kicker">{{ team().length }} vagas · {{ openSlots() }} aberta{{ openSlots() === 1 ? '' : 's' }}</span>
-              <h2 class="bd-card-title">Equipe</h2>
+              <h2 class="bd-card-title">{{ isOwner() ? 'Sua equipe' : 'Quem vai jogar' }}</h2>
             </div>
             <div class="bd-team-list">
               @for (m of team(); track m.id) {
@@ -80,23 +80,88 @@
                       <p class="bd-team-subtitle">{{ m.subtitle }}</p>
                     </div>
                     @if (canInvite()) {
-                      <button type="button" class="bd-btn-primary bd-btn-sm" (click)="inviteGuest()">Convidar</button>
+                      <button type="button" class="bd-btn-primary bd-btn-sm" (click)="openInviteDialog()">Convidar</button>
                     }
                   </div>
                 } @else {
                   <div class="bd-team-row">
-                    <span class="bd-team-avatar">{{ m.initials }}</span>
+                    @if (m.avatarUrl) {
+                      <img class="bd-team-avatar bd-team-avatar--photo" [src]="m.avatarUrl" alt="" />
+                    } @else {
+                      <span class="bd-team-avatar">{{ m.initials }}</span>
+                    }
                     <div class="bd-team-info">
-                      <p class="bd-team-name">{{ m.isOrganizer ? 'Você' : m.displayName }}</p>
+                      <p class="bd-team-name">{{ m.displayName }}</p>
                       <p class="bd-team-subtitle">{{ m.subtitle }}</p>
                     </div>
-                    @if (m.showPaidBadge) {
+                    @if (m.showPaidBadge && isOwner()) {
                       <span class="bd-pill bd-pill--paid">Pago</span>
                     }
+                    @if (m.removable && confirmingRemoveUid() !== m.uid) {
+                      <button type="button" class="bd-link-danger" [disabled]="isBusy(m.uid)" (click)="askRemove(m)">Tirar</button>
+                    }
                   </div>
+                  @if (m.removable && confirmingRemoveUid() === m.uid) {
+                    <div class="bd-cancel-confirm">
+                      <p>Tirar {{ m.displayName }} do jogo? A vaga volta a ficar aberta e {{ m.displayName }} recebe um aviso.</p>
+                      <div class="bd-cancel-confirm-actions">
+                        <button type="button" class="bd-btn-ghost bd-btn-sm" [disabled]="isBusy(m.uid)" (click)="cancelRemove()">Voltar</button>
+                        <button type="button" class="bd-btn-danger bd-btn-sm" [disabled]="isBusy(m.uid)" (click)="confirmRemove(m)">
+                          {{ isBusy(m.uid) ? 'Tirando…' : 'Tirar do jogo' }}
+                        </button>
+                      </div>
+                    </div>
+                  }
                 }
               }
             </div>
+
+            @if (isOwner() && pendingInvites().length > 0) {
+              <div class="bd-pending">
+                <span class="bd-card-kicker">Aguardando resposta</span>
+                @for (inv of pendingInvites(); track inv.id) {
+                  <div class="bd-team-row">
+                    @if (inv.inviteeAvatarUrl) {
+                      <img class="bd-team-avatar bd-team-avatar--photo" [src]="inv.inviteeAvatarUrl" alt="" />
+                    } @else {
+                      <span class="bd-team-avatar bd-team-avatar--empty" aria-hidden="true">{{ initialsOf(inv.inviteeName ?? 'Atleta') }}</span>
+                    }
+                    <div class="bd-team-info">
+                      <p class="bd-team-name">{{ inv.inviteeName ?? 'Atleta convidado' }}</p>
+                      <p class="bd-team-subtitle">Convite enviado</p>
+                    </div>
+                    <button type="button" class="bd-btn-ghost bd-btn-sm" [disabled]="isBusy(inv.id)" (click)="cancelInvite(inv)">
+                      {{ isBusy(inv.id) ? 'Cancelando…' : 'Cancelar' }}
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+
+            @if (isOwner() && gameOpen()) {
+              @if (awaitingPayment()) {
+                <p class="bd-notice bd-team-note">Conclua o pagamento da reserva para convidar jogadores.</p>
+              } @else {
+                <button type="button" class="bd-btn-primary bd-btn-full" [disabled]="!canInvite()" (click)="openInviteDialog()">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.4" /><path d="M2.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5" /><path d="M19 8v6M16 11h6" /></svg>
+                  <span>{{ openSlots() > 0 ? 'Convidar jogadores' : 'Quadra completa' }}</span>
+                </button>
+              }
+            } @else if (isParticipant() && gameOpen()) {
+              @if (confirmingLeave()) {
+                <div class="bd-cancel-confirm">
+                  <p>Sair do jogo? Sua vaga fica aberta para outra pessoa e quem reservou recebe um aviso.</p>
+                  <div class="bd-cancel-confirm-actions">
+                    <button type="button" class="bd-btn-ghost bd-btn-sm" [disabled]="isBusy('leave')" (click)="confirmingLeave.set(false)">Voltar</button>
+                    <button type="button" class="bd-btn-danger bd-btn-sm" [disabled]="isBusy('leave')" (click)="leaveGame()">
+                      {{ isBusy('leave') ? 'Saindo…' : 'Sair do jogo' }}
+                    </button>
+                  </div>
+                </div>
+              } @else {
+                <button type="button" class="bd-btn-ghost bd-btn-full bd-btn-leave" (click)="confirmingLeave.set(true)">Sair do jogo</button>
+              }
+            }
           </div>
 
           @if (showSplitCard()) {
@@ -131,6 +196,7 @@
             </a>
           </div>
 
+          @if (isOwner()) {
           <div class="bd-card">
             <span class="bd-card-kicker">Pagamento</span>
             <div class="bd-payment-row">
@@ -148,7 +214,9 @@
               </div>
             }
           </div>
+          }
 
+          @if (isOwner() || canAddToAgenda()) {
           <div class="bd-card">
             <span class="bd-card-kicker">Gerenciar</span>
             @if (canAddToAgenda()) {
@@ -178,7 +246,7 @@
               </div>
             }
 
-            @if (isRecurring()) {
+            @if (isRecurring() && isOwner()) {
               <div class="bd-recurring-note">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2.1 21 6l-4 3.9" /><path d="M3 12a9 9 0 0 1 15-6.7L21 6" /><path d="M7 21.9 3 18l4-3.9" /><path d="M21 12a9 9 0 0 1-15 6.7L3 18" /></svg>
                 <p>Esta reserva faz parte do seu horário fixo semanal. Para alterações ou cancelamento, fale direto com {{ b.arenaName }}.</p>
@@ -205,9 +273,22 @@
               }
             }
           </div>
+          }
         </div>
       </div>
     </div>
+  }
+
+  @if (inviteDialogOpen()) {
+    @if (booking(); as inviteBooking) {
+      <app-booking-invite-dialog
+        [booking]="inviteBooking"
+        [openSlots]="openSlots()"
+        [pendingUids]="pendingInviteeUids()"
+        (invited)="onPlayerInvited($event)"
+        (dismissed)="closeInviteDialog()"
+      />
+    }
   }
 
   @if (reviewDialogOpen()) {

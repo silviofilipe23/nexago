@@ -1,5 +1,5 @@
 import { bookingToEvent, registrationToEvent } from './athlete-agenda.component';
-import type { MyBooking } from '../data/my-bookings-repository';
+import { mergeOwnAndGuestBookings, type MyBooking } from '../data/my-bookings-repository';
 import { EMPTY_UNIFORM_SLOT, type AthleteTournamentRegistration } from '../data/tournament-registrations-repository';
 import type { TournamentSummary } from '../data/tournaments-repository';
 
@@ -15,6 +15,7 @@ function makeBooking(overrides: Partial<MyBooking> = {}): MyBooking {
     startTime: '10:00',
     endTime: '11:00',
     status: 'active',
+    ownerAthleteId: null,
     attendanceConfirmed: false,
     amountReais: null,
     createdAt: null,
@@ -135,6 +136,32 @@ describe('bookingToEvent', () => {
     const event = bookingToEvent(booking, NOW);
     expect(event?.statusLabel).toBe('Pagamento pendente');
     expect(event?.statusTone).toBe('warning');
+  });
+
+  // Convidado (entrou pela lista `participantUids`): pagamento e presença são do dono.
+  it('convidado vê o jogo sem "Pagamento pendente" nem CTA de pagar', () => {
+    const booking = makeBooking({ dateKey: '2026-07-25', status: 'pending_payment', ownerAthleteId: 'dono' });
+    const event = bookingToEvent(booking, NOW, 'convidado');
+    expect(event?.subtitle).toBe('Jogo como convidado');
+    expect(event?.statusLabel).toBe('Confirmado');
+    expect(event?.ctaPrimary).toBe(false);
+    expect(event?.link).toEqual(['/agenda/reserva', 'b1']);
+  });
+
+  it('o dono continua vendo a própria reserva como antes', () => {
+    const booking = makeBooking({ dateKey: '2026-07-25', status: 'pending_payment', ownerAthleteId: 'dono' });
+    const event = bookingToEvent(booking, NOW, 'dono');
+    expect(event?.subtitle).toBe('Reserva de quadra');
+    expect(event?.statusLabel).toBe('Pagamento pendente');
+  });
+});
+
+describe('mergeOwnAndGuestBookings', () => {
+  it('junta as próprias e as de convidado sem repetir a mesma reserva', () => {
+    const own = [makeBooking({ id: 'b1', ownerAthleteId: 'eu' })];
+    const guest = [makeBooking({ id: 'b1', ownerAthleteId: 'eu' }), makeBooking({ id: 'b2', ownerAthleteId: 'dono' })];
+    expect(mergeOwnAndGuestBookings(own, guest).map((b) => b.id)).toEqual(['b1', 'b2']);
+    expect(mergeOwnAndGuestBookings(own, [])).toEqual(own);
   });
 });
 

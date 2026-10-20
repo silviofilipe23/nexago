@@ -3,6 +3,7 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
+import '../../../../athlete/presentation/public_profile/widgets/profile_photo_viewer.dart';
 import '../../../domain/aulas/arena_class.dart';
 
 /// Azul do tipo "Dupla" no protótipo (não existe token equivalente).
@@ -96,6 +97,11 @@ class ArenaClassTeacherDot extends StatelessWidget {
 }
 
 /// Avatar redondo: foto do atleta ou iniciais na cor de destaque.
+///
+/// Com [zoomName], o avatar COM foto vira botão e abre a foto inteira para a
+/// arena conferir quem é a pessoa ([zoomRole] e [zoomMeta] saem junto do
+/// nome). Sem foto não há o que ampliar: as iniciais seguem sem toque. Dentro
+/// de uma linha tocável, o toque no avatar abre a foto e não a linha.
 class ArenaClassAvatar extends StatelessWidget {
   const ArenaClassAvatar({
     super.key,
@@ -103,16 +109,47 @@ class ArenaClassAvatar extends StatelessWidget {
     this.photoUrl,
     this.size = 38,
     this.color = AppColors.brand,
+    this.zoomName,
+    this.zoomRole = 'Aluno',
+    this.zoomMeta,
   });
 
   final String initials;
   final String? photoUrl;
   final double size;
   final Color color;
+  final String? zoomName;
+  final String zoomRole;
+  final String? zoomMeta;
 
   @override
   Widget build(BuildContext context) {
-    final url = photoUrl;
+    final trimmed = photoUrl?.trim() ?? '';
+    final url = trimmed.isEmpty ? null : trimmed;
+    final name = zoomName?.trim() ?? '';
+    final avatar = _avatar(url);
+    if (url == null || name.isEmpty) return avatar;
+    // Nó próprio: sem ele o rótulo se funde com o nome ao lado e o leitor
+    // de tela (e o toque pela semântica) cai fora da foto.
+    return Semantics(
+      container: true,
+      button: true,
+      label: 'Ver foto de $name',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => openProfilePhotoViewer(
+          context,
+          photoUrls: [url],
+          name: name,
+          role: zoomRole,
+          meta: zoomMeta,
+        ),
+        child: avatar,
+      ),
+    );
+  }
+
+  Widget _avatar(String? url) {
     return Container(
       width: size,
       height: size,

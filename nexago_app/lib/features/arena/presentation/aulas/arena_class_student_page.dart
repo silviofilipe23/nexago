@@ -175,6 +175,8 @@ class _ArenaClassStudentPageState extends ConsumerState<ArenaClassStudentPage> {
                 initials: arenaClassInitials(name),
                 photoUrl: photoUrl,
                 size: 60,
+                zoomName: name,
+                zoomMeta: enrollment?.plan.name ?? anyDoc?.planName,
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -236,6 +238,7 @@ class _ArenaClassStudentPageState extends ConsumerState<ArenaClassStudentPage> {
                           studentId: widget.studentId,
                           name: name,
                           phone: phone,
+                          photoUrl: photoUrl,
                         ),
                       ),
                       style: FilledButton.styleFrom(

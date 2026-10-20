@@ -38,6 +38,7 @@ Future<GoRouter> pumpAulas(
   bool owner = false,
   Object? extra,
   String initial = '/arena/classes',
+  List<Override> overrides = const [],
 }) async {
   tester.view.physicalSize = const Size(1170, 2532);
   tester.view.devicePixelRatio = 3;
@@ -128,6 +129,7 @@ Future<GoRouter> pumpAulas(
           (ref) => Stream.value(plan),
         ),
         managedArenaDetailProvider.overrideWith((ref) => Stream.value(null)),
+        ...overrides,
       ],
       child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
     ),

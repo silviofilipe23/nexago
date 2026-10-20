@@ -88,6 +88,7 @@ ArenaClassStudent student(
   List<int>? weekdays,
   String? enrollmentId,
   String? planName,
+  String? photoUrl,
 }) {
   return ArenaClassStudent(
     id: id,
@@ -98,6 +99,7 @@ ArenaClassStudent student(
     weekdays: weekdays,
     enrollmentId: enrollmentId,
     planName: planName,
+    photoUrl: photoUrl,
   );
 }
 
@@ -169,6 +171,7 @@ ArenaClassEnrollment enrollment({
   String? expiresOn,
   ArenaClassBillingMode billingMode = ArenaClassBillingMode.manual,
   String? cpfMasked,
+  String? photoUrl,
 }) {
   return ArenaClassEnrollment(
     id: id,
@@ -177,6 +180,7 @@ ArenaClassEnrollment enrollment({
     athleteId: athleteId,
     name: name,
     phone: phone,
+    photoUrl: photoUrl,
     plan: withPlan ?? plan(),
     slots: slots,
     status: status,

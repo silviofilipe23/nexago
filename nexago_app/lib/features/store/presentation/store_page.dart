@@ -806,10 +806,10 @@ class _OfflineStripState extends State<_OfflineStrip> {
         ),
         child: Row(
           children: [
-            const Icon(
+            Icon(
               Icons.cloud_off_rounded,
               size: 16,
-              color: AppColors.pending,
+              color: colors.pending,
             ),
             const SizedBox(width: 8),
             Expanded(

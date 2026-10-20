@@ -36,8 +36,9 @@ class StoreOrderPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (fg, bg) =
-        storeOrderToneColors(storeOrderTone(status), context.themeColors);
+    final colors = context.themeColors;
+    final (fg, bg) = storeOrderToneColors(storeOrderTone(status), colors);
+    final ink = colors.readableTone(fg);
     return Container(
       height: height,
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -51,7 +52,7 @@ class StoreOrderPill extends StatelessWidget {
           Container(
             width: 6,
             height: 6,
-            decoration: BoxDecoration(color: fg, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: ink, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
           Flexible(
@@ -62,7 +63,7 @@ class StoreOrderPill extends StatelessWidget {
               style: AppTypography.soraRegular(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: fg,
+                color: ink,
               ),
             ),
           ),

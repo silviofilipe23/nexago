@@ -363,7 +363,7 @@ class StoreChoicePrice extends StatelessWidget {
       style: AppTypography.soraRegular(
         fontSize: 13.5,
         fontWeight: FontWeight.w700,
-        color: free ? AppColors.win : context.themeColors.onSurface,
+        color: free ? context.themeColors.win : context.themeColors.onSurface,
       ),
     );
   }
@@ -489,7 +489,7 @@ class StoreSummaryRow extends StatelessWidget {
           style: AppTypography.soraRegular(
             fontSize: 13.5,
             fontWeight: FontWeight.w600,
-            color: win ? AppColors.win : colors.onSurface,
+            color: win ? colors.win : colors.onSurface,
           ),
         ),
       ],

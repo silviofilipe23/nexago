@@ -49,7 +49,11 @@ class CashbackEarnedNote extends ConsumerWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.savings_rounded, size: 20, color: accent),
+            Icon(
+              Icons.savings_rounded,
+              size: 20,
+              color: colors.readableTone(accent),
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(

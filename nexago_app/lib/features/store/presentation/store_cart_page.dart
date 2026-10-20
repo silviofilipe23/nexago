@@ -996,7 +996,11 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 else
-                  Icon(Icons.sell_outlined, size: 17, color: tone),
+                  Icon(
+                    Icons.sell_outlined,
+                    size: 17,
+                    color: colors.readableTone(tone),
+                  ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(

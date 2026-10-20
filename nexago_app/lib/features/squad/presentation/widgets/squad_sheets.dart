@@ -72,7 +72,7 @@ class SquadBenefitList extends StatelessWidget {
                     style: SquadStyle.mono(
                       9.5,
                       color: status == 'Ativo'
-                          ? AppColors.win
+                          ? colors.win
                           : SquadStyle.dim(colors),
                     ).copyWith(letterSpacing: 1),
                   ),

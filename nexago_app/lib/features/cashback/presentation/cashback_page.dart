@@ -120,7 +120,7 @@ class _BalanceHero extends StatelessWidget {
           Text(
             CashbackCopy.pendingLine(wallet.pendingCents),
             style: AppTypography.bodyS.copyWith(
-              color: AppColors.pending,
+              color: colors.pending,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -268,7 +268,11 @@ class _LedgerRow extends StatelessWidget {
               color: color.withValues(alpha: 0.14),
               shape: BoxShape.circle,
             ),
-            child: Icon(_iconFor(entry.type), size: 18, color: color),
+            child: Icon(
+              _iconFor(entry.type),
+              size: 18,
+              color: colors.readableTone(color),
+            ),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
@@ -301,7 +305,7 @@ class _LedgerRow extends StatelessWidget {
               Text(
                 CashbackCopy.signedAmount(entry),
                 style: AppTypography.bodyM.copyWith(
-                  color: color,
+                  color: colors.readableTone(color),
                   fontWeight: FontWeight.w800,
                   decoration: entry.type == CashbackLedgerType.cancel
                       ? TextDecoration.lineThrough
@@ -313,7 +317,7 @@ class _LedgerRow extends StatelessWidget {
                   meta,
                   style: AppTypography.labelS.copyWith(
                     color: entry.type == CashbackLedgerType.earn
-                        ? AppColors.pending
+                        ? colors.pending
                         : colors.onSurfaceMuted,
                   ),
                 ),

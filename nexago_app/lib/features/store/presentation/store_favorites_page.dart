@@ -353,7 +353,7 @@ class _HighlightStrip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
-              const Icon(Icons.sell_outlined, size: 18, color: AppColors.win),
+              Icon(Icons.sell_outlined, size: 18, color: colors.win),
               const SizedBox(width: 12),
               Expanded(
                 child: Text.rich(

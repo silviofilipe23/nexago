@@ -279,7 +279,9 @@ class ProfessorLinkStatusLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = ProfessorLinksStyle.statusColor(status, context.themeColors);
+    final colors = context.themeColors;
+    final color =
+        colors.readableTone(ProfessorLinksStyle.statusColor(status, colors));
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -435,7 +437,7 @@ class _PermissionRow extends StatelessWidget {
             child: Icon(
               on ? Icons.check_rounded : Icons.close_rounded,
               size: on ? 13 : 12,
-              color: on ? AppColors.win : ProfessorLinksStyle.dim(colors),
+              color: on ? colors.win : ProfessorLinksStyle.dim(colors),
             ),
           ),
           const SizedBox(width: 12),
@@ -507,7 +509,7 @@ class ProfessorLinksNote extends StatelessWidget {
             Container(
               width: 3,
               decoration: BoxDecoration(
-                color: bar,
+                color: colors.readableTone(bar),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -607,7 +609,7 @@ class ProfessorLinksGhostButton extends StatelessWidget {
       child: OutlinedButton(
         onPressed: loading ? null : onPressed,
         style: OutlinedButton.styleFrom(
-          foregroundColor: fg,
+          foregroundColor: colors.readableTone(fg),
           backgroundColor: ProfessorLinksStyle.soft(colors),
           side: BorderSide(color: ProfessorLinksStyle.line2(colors)),
           padding: const EdgeInsets.symmetric(horizontal: 12),

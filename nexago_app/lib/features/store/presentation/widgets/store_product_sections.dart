@@ -614,7 +614,7 @@ class _ReceiveOptionTile extends StatelessWidget {
                   style: AppTypography.soraRegular(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: option.free ? AppColors.win : colors.onSurface,
+                    color: option.free ? colors.win : colors.onSurface,
                   ),
                 ),
               ],

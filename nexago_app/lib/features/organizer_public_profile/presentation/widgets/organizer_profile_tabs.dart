@@ -390,10 +390,10 @@ class _ResultCardBody extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.emoji_events_outlined,
                     size: 15,
-                    color: AppColors.pending,
+                    color: colors.pending,
                   ),
                   const SizedBox(width: 6),
                   Expanded(
@@ -518,10 +518,10 @@ class OrganizerReviewsTab extends StatelessWidget {
                               ],
                             ),
                           ),
-                          const Icon(
+                          Icon(
                             Icons.star_rounded,
                             size: 16,
-                            color: AppColors.pending,
+                            color: colors.pending,
                           ),
                           const SizedBox(width: 3),
                           Text(
@@ -746,7 +746,7 @@ class OrganizerStars extends StatelessWidget {
                 ? Icons.star_half_rounded
                 : Icons.star_outline_rounded,
             size: size,
-            color: average >= i - 0.75 ? AppColors.pending : muted,
+            color: average >= i - 0.75 ? context.themeColors.pending : muted,
           ),
       ],
     );

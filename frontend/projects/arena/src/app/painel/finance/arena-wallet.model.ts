@@ -8,10 +8,19 @@ import { Timestamp, type QueryDocumentSnapshot } from 'firebase/firestore';
 export interface ArenaWalletSummary {
   availableReais: number;
   pendingReais: number;
+  /** Cartão aprovado que o Asaas ainda não liquidou (reserva ou mensalidade): já vem sem as
+   *  taxas e entra em `availableReais` no RECEIVED, cerca de 32 dias depois. Não é sacável. */
+  awaitingSettlementReais: number;
 }
+
+/** De onde veio a linha do extrato (`ledger.source`; reserva não grava o campo). */
+export type ArenaLedgerSource = 'booking' | 'class' | 'club';
 
 export interface ArenaLedgerEntry {
   id: string;
+  /** `credit` ou `refund` (estorno debita o líquido: valores negativos). */
+  type: string;
+  source: ArenaLedgerSource;
   netReais: number;
   grossReais: number;
   bookingId: string | null;
@@ -48,16 +57,28 @@ function toDate(v: unknown): Date | null {
 }
 
 export function walletSummaryFromData(data: Record<string, unknown> | undefined): ArenaWalletSummary {
+  const awaiting = data?.['awaitingSettlementReais'];
   return {
     availableReais: typeof data?.['availableReais'] === 'number' ? data['availableReais'] : 0,
     pendingReais: typeof data?.['pendingReais'] === 'number' ? data['pendingReais'] : 0,
+    awaitingSettlementReais: typeof awaiting === 'number' && awaiting > 0 ? awaiting : 0,
   };
+}
+
+function ledgerSourceOf(raw: unknown): ArenaLedgerSource {
+  return raw === 'class' || raw === 'club' ? raw : 'booking';
 }
 
 export function ledgerEntryFromDoc(doc: QueryDocumentSnapshot): ArenaLedgerEntry {
   const d = doc.data() as Record<string, unknown>;
+  return ledgerEntryFromData(doc.id, d);
+}
+
+export function ledgerEntryFromData(id: string, d: Record<string, unknown>): ArenaLedgerEntry {
   return {
-    id: doc.id,
+    id,
+    type: typeof d['type'] === 'string' ? d['type'] : 'credit',
+    source: ledgerSourceOf(d['source']),
     netReais: typeof d['netReais'] === 'number' ? d['netReais'] : 0,
     grossReais: typeof d['grossReais'] === 'number' ? d['grossReais'] : 0,
     bookingId: typeof d['bookingId'] === 'string' ? d['bookingId'] : null,
@@ -235,23 +256,34 @@ export function withdrawalStatusLabel(item: Pick<ArenaWithdrawalItem, 'status' |
   return 'PENDENTE';
 }
 
+const LEDGER_SOURCE_LABEL: Record<ArenaLedgerSource, string> = {
+  booking: 'Reserva',
+  class: 'Mensalidade de aula',
+  club: 'Clubinho',
+};
+
+/** Linha do extrato: origem no título e, quando houve taxa, o bruto e quanto ficou nela (o
+ *  valor da linha é sempre o líquido que entrou no saldo). Estorno sai como débito. */
+export function ledgerMovement(entry: ArenaLedgerEntry, arenaLabel: string): FinancialMovement {
+  const refund = entry.type === 'refund' || entry.netReais < 0;
+  const base = entry.source === 'booking' ? `Reserva · ${arenaLabel}` : LEDGER_SOURCE_LABEL[entry.source];
+  const fees = Math.round((entry.grossReais - entry.netReais) * 100) / 100;
+  return {
+    id: `ledger-${entry.id}`,
+    kind: 'receipt',
+    title: refund ? `Estorno · ${LEDGER_SOURCE_LABEL[entry.source]}` : base,
+    at: entry.createdAt,
+    amountReais: Math.abs(entry.netReais),
+    note: !refund && fees > 0 ? `Bruto ${formatBRL(entry.grossReais)} · taxas ${formatBRL(fees)}` : null,
+    statusLabel: refund ? 'ESTORNADO' : 'RECEBIDO',
+    isPositive: !refund,
+    isFailed: false,
+  };
+}
+
 export function buildFinancialMovements(ledger: readonly ArenaLedgerEntry[], withdrawals: readonly ArenaWithdrawalItem[], arenaName: string): FinancialMovement[] {
   const arenaLabel = arenaName.trim() || 'Arena';
-  const items: FinancialMovement[] = [];
-
-  for (const entry of ledger) {
-    items.push({
-      id: `ledger-${entry.id}`,
-      kind: 'receipt',
-      title: `Reserva · ${arenaLabel}`,
-      at: entry.createdAt,
-      amountReais: entry.netReais,
-      note: null,
-      statusLabel: 'RECEBIDO',
-      isPositive: true,
-      isFailed: false,
-    });
-  }
+  const items: FinancialMovement[] = ledger.map((entry) => ledgerMovement(entry, arenaLabel));
 
   for (const w of withdrawals) {
     const { amountReais, note } = withdrawalMovementAmounts(w);

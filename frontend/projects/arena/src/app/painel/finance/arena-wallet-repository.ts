@@ -23,7 +23,7 @@ export function watchArenaWallet(db: Firestore, arenaId: string, onChange: (wall
   return onSnapshot(
     doc(db, 'arenaWallets', arenaId),
     (snap) => onChange(walletSummaryFromData(snap.data() as Record<string, unknown> | undefined)),
-    () => onChange({ availableReais: 0, pendingReais: 0 }),
+    () => onChange({ availableReais: 0, pendingReais: 0, awaitingSettlementReais: 0 }),
   );
 }
 

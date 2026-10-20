@@ -99,6 +99,15 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
                   </div>
                 </div>
                 <div class="balance-value">{{ formatBRL(wallet().availableReais) }}</div>
+                @if (wallet().awaitingSettlementReais > 0) {
+                  <div class="a-liberar">
+                    <span class="a-liberar-value">A liberar: <strong>{{ formatBRL(wallet().awaitingSettlementReais) }}</strong></span>
+                    <p class="a-liberar-note">
+                      Pagamentos no cartão (reservas e mensalidades de aula) caem no saldo cerca de 32 dias depois da
+                      aprovação. O valor já vem sem as taxas.
+                    </p>
+                  </div>
+                }
                 <div class="balance-stats">
                   <div class="balance-stat">
                     <span class="stat-label">Recebido</span>
@@ -316,6 +325,11 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
       color: var(--nx-text);
       margin-top: 10px;
     }
+    /* "A liberar": cartão aprovado que ainda não liquidou — dinheiro a caminho, não sacável. */
+    .a-liberar { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--nx-line); }
+    .a-liberar-value { font-family: var(--nx-font-ui); font-size: 13px; color: var(--nx-text-dim); }
+    .a-liberar-value strong { font-family: var(--nx-font-display); font-weight: 700; color: var(--nx-text); }
+    .a-liberar-note { margin: 4px 0 0; font-family: var(--nx-font-ui); font-size: 12px; line-height: 1.45; color: var(--nx-text-mute); }
 
     .balance-stats {
       display: flex;
@@ -645,7 +659,7 @@ export class PanelFinanceComponent {
   protected readonly arenaName = computed(() => this.arenaContext.arenaName() ?? 'Arena');
 
   protected readonly loading = signal(true);
-  protected readonly wallet = signal<ArenaWalletSummary>({ availableReais: 0, pendingReais: 0 });
+  protected readonly wallet = signal<ArenaWalletSummary>({ availableReais: 0, pendingReais: 0, awaitingSettlementReais: 0 });
   protected readonly ledger = signal<ArenaLedgerEntry[]>([]);
   protected readonly withdrawals = signal<ArenaWithdrawalItem[]>([]);
   protected readonly period = signal<FinancialPeriod>(30);

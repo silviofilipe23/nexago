@@ -31,7 +31,7 @@ class BookingPixMethodCard extends StatelessWidget {
             ),
             child: Icon(
               Icons.pix_rounded,
-              color: AppColors.win,
+              color: context.themeColors.win,
               size: 26,
             ),
           ),

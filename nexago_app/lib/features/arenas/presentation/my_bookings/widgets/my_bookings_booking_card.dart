@@ -223,7 +223,7 @@ class _ConfirmedGuestRow extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.win,
+                    color: context.themeColors.win,
                   ),
                 )
               : null,

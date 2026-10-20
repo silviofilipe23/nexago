@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../../core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/my_booking_payment.dart';
 
@@ -22,7 +23,7 @@ class MyBookingsPaymentChip extends StatelessWidget {
         style: AppTypography.mono(
           fontSize: 9,
           fontWeight: FontWeight.w700,
-          color: payment.accentColor,
+          color: context.themeColors.readableTone(payment.accentColor),
           letterSpacing: 0.35,
         ),
       ),

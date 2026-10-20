@@ -124,7 +124,9 @@ class BookingConfirmCouponField extends StatelessWidget {
           SizedBox(height: 8),
           Text(
             errorText!,
-            style: theme.textTheme.bodySmall?.copyWith(color: AppColors.live),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: context.themeColors.live,
+            ),
           ),
         ],
       ],

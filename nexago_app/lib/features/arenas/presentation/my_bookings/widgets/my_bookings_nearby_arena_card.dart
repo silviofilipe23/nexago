@@ -109,7 +109,7 @@ class MyBookingsNearbyArenaCard extends StatelessWidget {
                           style: AppTypography.mono(
                             fontSize: 9,
                             fontWeight: FontWeight.w700,
-                            color: AppColors.win,
+                            color: context.themeColors.win,
                             letterSpacing: 0.5,
                           ),
                         ),
@@ -149,7 +149,7 @@ class MyBookingsNearbyArenaCard extends StatelessWidget {
                           style: AppTypography.mono(
                             fontSize: 9,
                             fontWeight: FontWeight.w700,
-                            color: AppColors.pending,
+                            color: context.themeColors.pending,
                             letterSpacing: 0.5,
                           ),
                         ),

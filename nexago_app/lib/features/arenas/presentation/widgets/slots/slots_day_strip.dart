@@ -105,8 +105,8 @@ class _SlotsDayStripState extends State<SlotsDayStrip> {
           final dotColor = isSelected
               ? AppColors.brand
               : status?.availability.hasAnyFree == true
-                  ? AppColors.win
-                  : AppColors.live;
+                  ? context.themeColors.win
+                  : context.themeColors.live;
 
           return Material(
             color: Colors.transparent,

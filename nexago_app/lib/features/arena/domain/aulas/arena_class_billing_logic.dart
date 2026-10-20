@@ -346,8 +346,9 @@ ArenaClassOnlineStatus? arenaClassOnlineChargeStatus(ArenaClassCharge c) {
   };
 }
 
-/// Dar baixa manual nesta mensalidade cancela a fatura online (o servidor
-/// anula o grupo): ainda existe, ou vai existir, um link vivo no Asaas.
+/// Dar baixa manual nesta mensalidade (ou cancelá-la) cancela a fatura online
+/// (o servidor anula o grupo): ainda existe, ou vai existir, um link vivo no
+/// Asaas.
 bool arenaClassManualPaymentVoidsInvoice(ArenaClassCharge c) =>
     c.isOpen && c.isOnline && (c.asaas?.state.isLive ?? false);
 

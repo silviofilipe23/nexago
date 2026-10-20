@@ -353,6 +353,72 @@ void main() {
       );
     });
 
+    testWidgets('cancelar a mensalidade presa em "Gerando link…"',
+        (tester) async {
+      // O Asaas recusou (R$ 4,44 < mínimo de R$ 5): o grupo ficou sem link.
+      final enrollmentRepo = FakeArenaClassEnrollmentRepository(
+        rules: _onlineRules,
+        charges: [
+          charge(
+            id: 'stuck',
+            name: 'Diego Nunes',
+            dueDate: '2026-10-12',
+            asaas: invoice(state: ArenaClassAsaasState.pending, url: null),
+          ),
+        ],
+      );
+      await pumpAulas(
+        tester,
+        repo: FakeArenaClassRepository(),
+        enrollmentRepo: enrollmentRepo,
+        initial: '/arena/classes/charges',
+      );
+      expect(find.text('Gerando link…'), findsOneWidget);
+
+      await tester.tap(find.text('Registrar pagamento'));
+      await _settle(tester);
+      await tester.ensureVisible(find.text('Cancelar mensalidade'));
+      await tester.tap(find.text('Cancelar mensalidade'));
+      await _settle(tester);
+      expect(find.text('Cancelar a mensalidade?'), findsOneWidget);
+      expect(
+        find.textContaining('fatura online também é cancelada no Asaas'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Sim, cancelar'));
+      await _settle(tester);
+      expect(enrollmentRepo.canceled, ['stuck']);
+      expect(enrollmentRepo.paid, isEmpty);
+      expect(find.text('Mensalidade de Diego Nunes cancelada.'), findsOneWidget);
+    });
+
+    testWidgets('voltar no aviso não cancela; manual não fala de fatura',
+        (tester) async {
+      final enrollmentRepo = FakeArenaClassEnrollmentRepository(
+        charges: [
+          charge(id: 'late', name: 'Diego Nunes', dueDate: '2026-10-12'),
+        ],
+      );
+      await pumpAulas(
+        tester,
+        repo: FakeArenaClassRepository(),
+        enrollmentRepo: enrollmentRepo,
+        initial: '/arena/classes/charges',
+      );
+
+      await tester.tap(find.text('Registrar pagamento'));
+      await _settle(tester);
+      await tester.ensureVisible(find.text('Cancelar mensalidade'));
+      await tester.tap(find.text('Cancelar mensalidade'));
+      await _settle(tester);
+      expect(find.textContaining('Asaas'), findsNothing);
+
+      await tester.tap(find.text('Voltar'));
+      await _settle(tester);
+      expect(enrollmentRepo.canceled, isEmpty);
+    });
+
     testWidgets('manual: sem rótulo de fatura, sem link e sem aviso',
         (tester) async {
       await pumpAulas(

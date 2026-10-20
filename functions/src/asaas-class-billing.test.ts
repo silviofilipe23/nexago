@@ -219,6 +219,46 @@ describe("cobrança online — worker", () => {
   });
 });
 
+describe("cobrança online — cancelar mensalidade", () => {
+  it("presa em 'gerando link' (o Asaas recusou): cancelar anula o grupo e a varredura para", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    const out = await createEnrollmentCore(db, request({waiveFee: true}), marina, "gestor", TODAY);
+    const groupId = out.asaasGroupId!;
+    let attempts = 0;
+    const rejected = fakeDeps({createPayment: async () => {
+      attempts += 1;
+      throw new Error("O valor mínimo para cobranças com a forma de pagamento Pergunte ao Cliente é R$ 5,00.");
+    }});
+    assert.equal((await ensureClassAsaasPayment(db, groupId, rejected.deps)).state, "failed");
+
+    const chargeId = `${out.enrollmentId}_2026-10`;
+    await setChargeStatusCore(db, chargeId, {status: "canceled", paymentMethod: null, paidOn: null, actorUid: "g"}, TODAY);
+    assert.equal(fake.store.get(`arenaClassCharges/${chargeId}`)!["status"], "canceled");
+    assert.equal(fake.store.get(`arenaClassAsaasPayments/${groupId}`)!["state"], "voiding");
+
+    const voided = await voidClassAsaasPayment(db, groupId, rejected.deps);
+    assert.deepEqual(voided, {state: "void", regroupedAs: null});
+    assert.deepEqual(rejected.calls.deleted, []); // nada nasceu no Asaas
+    await reconcileClassAsaasPayments(db, NOW, rejected.deps);
+    assert.equal(attempts, 1);
+  });
+
+  it("cancelar uma das mensalidades da fatura: apaga no Asaas e o resto ganha link novo", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    const {out, deps, calls} = await enrollAndOpen(fake, db);
+    const groupId = out.asaasGroupId!;
+    await setChargeStatusCore(db, `${out.enrollmentId}_fee`, {status: "canceled", paymentMethod: null, paidOn: null, actorUid: "g"}, TODAY);
+
+    const voided = await voidClassAsaasPayment(db, groupId, deps);
+    assert.deepEqual(calls.deleted, [`pay_${groupId}`]);
+    assert.equal(voided.regroupedAs, `${groupId}_v1`);
+    assert.deepEqual(fake.store.get(`arenaClassAsaasPayments/${groupId}_v1`)!["chargeIds"], [`${out.enrollmentId}_2026-10`]);
+    assert.equal((fake.store.get(`arenaClassCharges/${out.enrollmentId}_fee`)!["asaas"] as Record<string, unknown>)["state"], "void");
+  });
+});
+
 describe("cobrança online — webhook e caixa", () => {
   it("PIX recebido: mensalidades pagas e caixa creditado com a taxa do plano (Pro 6%)", async () => {
     const {fake, db} = makeDb();

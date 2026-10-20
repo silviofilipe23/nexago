@@ -3,6 +3,7 @@ import {
   billingTotals,
   chargeInvoiceUrl,
   chargeState,
+  chargeVoidsInvoice,
   formatPhoneBR,
   onlineChargeLabel,
   planDetail,
@@ -190,6 +191,13 @@ describe('cobrança de aulas (billing.model)', () => {
     expect(chargeInvoiceUrl(online)).toBe('https://asaas.test/i/1');
     expect(chargeInvoiceUrl(charge({ ...online, status: 'paid' }))).toBeNull();
     expect(chargeInvoiceUrl(charge({ billingMode: 'asaas', asaas: { ...asaas, state: 'void' } }))).toBeNull();
+
+    // Cancelar a mensalidade derruba a fatura enquanto ela existe (ou ainda pode nascer).
+    expect(chargeVoidsInvoice(online)).toBeTrue();
+    expect(chargeVoidsInvoice(charge({ billingMode: 'asaas', asaas: { ...asaas, state: 'failed', invoiceUrl: null } }))).toBeTrue();
+    expect(chargeVoidsInvoice(charge({ billingMode: 'asaas', asaas: { ...asaas, state: 'needs_cpf' } }))).toBeFalse();
+    expect(chargeVoidsInvoice(charge({}))).toBeFalse();
+    expect(chargeVoidsInvoice(charge({ ...online, status: 'paid' }))).toBeFalse();
 
     const link = whatsappChargeLink('11999990000', 'Marina', online, 'Arena Sol', chargeInvoiceUrl(online));
     expect(decodeURIComponent(link!.split('text=')[1]!)).toContain('Pague por aqui, com PIX ou cartão: https://asaas.test/i/1');

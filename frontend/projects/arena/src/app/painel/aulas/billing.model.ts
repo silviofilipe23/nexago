@@ -459,6 +459,14 @@ export function waitlistFromDoc(doc: Snap): WaitlistEntry {
 
 // ── Cobrança online ─────────────────────────────────────────────────────────
 
+/** Grupo com pagamento vivo (ou a caminho) no Asaas — espelha `LIVE_ASAAS_STATES` do backend. */
+const LIVE_ASAAS_STATES: readonly AsaasState[] = ['pending', 'creating', 'open', 'failed'];
+
+/** Cancelar esta mensalidade também cancela a fatura online no Asaas (o link deixa de valer). */
+export function chargeVoidsInvoice(charge: Pick<Charge, 'status' | 'billingMode' | 'asaas'>): boolean {
+  return charge.status === 'open' && charge.billingMode === 'asaas' && charge.asaas != null && LIVE_ASAAS_STATES.includes(charge.asaas.state);
+}
+
 /** Link da fatura online pronto para mandar (só com a mensalidade em aberto). */
 export function chargeInvoiceUrl(charge: Pick<Charge, 'status' | 'asaas'>): string | null {
   return charge.status === 'open' && charge.asaas?.state === 'open' ? charge.asaas.invoiceUrl : null;

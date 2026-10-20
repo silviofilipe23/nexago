@@ -29,7 +29,7 @@ function preview(over: Partial<TeacherPayoutPreview>): TeacherPayoutPreview {
   return {
     teacherId: 't1', teacherName: 'Thiago', teacherColor: '#FF6A1A', teacherStatus: 'active', model: SHARE,
     classesGiven: 8, presences: 40, students: 6, pendingSessions: 0, canceledSessions: 0,
-    revenueReais: 1600, amountReais: 800, lines: [],
+    grossRevenueReais: 1600, platformFeeReais: 0, revenueReais: 1600, amountReais: 800, lines: [],
     ...over,
   };
 }
@@ -115,12 +115,30 @@ describe('repasse do professor — helpers', () => {
 
   it('lê a prévia da callable e o id do fechamento é o do servidor', () => {
     const out = payoutPreviewFromRaw({
-      month: '2026-10', revenueReais: 320, feesReais: 50, unassignedReais: 0,
+      month: '2026-10', revenueReais: 320, platformFeesReais: 0, feesReais: 50, unassignedReais: 0,
       teachers: [{ teacherId: 't1', teacherName: 'Thiago', model: { model: 'per_class', amountReais: 45 }, classesGiven: 2, lines: [{ key: 'cA', label: 'Iniciante A', classes: 2 }] }],
     });
     expect(out.teachers[0]!.model).toEqual(PER_CLASS);
     expect(out.teachers[0]!.lines[0]!.classes).toBe(2);
     expect(out.teachers[0]!.amountReais).toBe(0);
     expect(classPayoutId('arena1', 't1', '2026-10')).toBe('arena1_t1_2026-10');
+  });
+
+  it('taxa NexaGO: lê bruto, taxa e base; retrato antigo sem os campos = valor cheio sem taxa', () => {
+    const out = payoutPreviewFromRaw({
+      month: '2026-10', revenueReais: 500, platformFeesReais: 19.2,
+      teachers: [{
+        teacherId: 't1', grossRevenueReais: 500, platformFeeReais: 19.2, revenueReais: 480.8,
+        lines: [{ key: 'cA', grossRevenueReais: 500, platformFeeReais: 19.2, revenueReais: 480.8 }],
+      }, {
+        teacherId: 't2', revenueReais: 160, lines: [{ key: 'cB', revenueReais: 160 }],
+      }],
+    });
+    expect(out.platformFeesReais).toBe(19.2);
+    const [novo, antigo] = out.teachers;
+    expect([novo!.grossRevenueReais, novo!.platformFeeReais, novo!.revenueReais]).toEqual([500, 19.2, 480.8]);
+    expect(novo!.lines[0]!.platformFeeReais).toBe(19.2);
+    expect([antigo!.grossRevenueReais, antigo!.platformFeeReais, antigo!.revenueReais]).toEqual([160, 0, 160]);
+    expect(antigo!.lines[0]!.grossRevenueReais).toBe(160);
   });
 });

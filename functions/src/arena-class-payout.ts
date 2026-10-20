@@ -28,6 +28,9 @@ import {
   type ArenaClassType,
 } from "./arena-class-constants";
 import {monthKeyOf} from "./arena-class-ledger";
+import {allocateCents} from "./arena-class-asaas-model";
+import {resolveArenaBookingFeePercent} from "./arena-entitlement";
+import {computePlatformFeeReais} from "./platform-fees";
 import {
   TYPE_LABEL_PT,
   WEEKDAY_SHORT_PT,
@@ -84,6 +87,8 @@ export interface PayoutChargeInfo {
   enrollmentId: string;
   studentId: string;
   amountReais: number;
+  /** Taxa da NexaGO desta mensalidade (cobrança online, pelo plano da arena); manual = 0. */
+  platformFeeReais: number;
 }
 
 export interface PayoutInputs {
@@ -106,6 +111,12 @@ export interface PayoutLine {
   classes: number;
   presences: number;
   payingStudents: number;
+  /** Mensalidades pagas no mês rateadas para a linha, valor cheio. */
+  grossRevenueReais: number;
+  /** Taxa da NexaGO dessas mensalidades (só as pagas online). */
+  platformFeeReais: number;
+  /** Receita líquida da taxa da NexaGO: a base do repasse em % (`grossRevenueReais − platformFeeReais`).
+   *  Fica com esse nome para o app/portal antigos, que mostram "receita · base do repasse". */
   revenueReais: number;
   amountReais: number;
 }
@@ -124,6 +135,9 @@ export interface TeacherPayout {
   /** Aulas do mês até hoje com a chamada aberta — não entram no repasse. */
   pendingSessions: number;
   canceledSessions: number;
+  grossRevenueReais: number;
+  platformFeeReais: number;
+  /** Líquida da taxa da NexaGO (ver `PayoutLine.revenueReais`). */
   revenueReais: number;
   amountReais: number;
   lines: PayoutLine[];
@@ -131,8 +145,10 @@ export interface TeacherPayout {
 
 export interface ArenaPayoutSummary {
   month: string;
-  /** Receita de aulas paga no mês, sem taxa de matrícula. */
+  /** Receita de aulas paga no mês, sem taxa de matrícula (valor cheio). */
   revenueReais: number;
+  /** Taxa da NexaGO sobre essa receita (cobrança online). */
+  platformFeesReais: number;
   feesReais: number;
   /** Receita de matrícula sem horário (não entra em repasse). */
   unassignedReais: number;
@@ -183,6 +199,7 @@ interface LineAcc {
   presences: number;
   payingStudents: Set<string>;
   revenueCents: number;
+  feeCents: number;
 }
 
 interface TeacherAcc {
@@ -228,6 +245,7 @@ export function computeTeacherPayouts(inputs: PayoutInputs): ArenaPayoutSummary 
         presences: 0,
         payingStudents: new Set(),
         revenueCents: 0,
+        feeCents: 0,
       };
       acc.lines.set(key, line);
     }
@@ -252,25 +270,31 @@ export function computeTeacherPayouts(inputs: PayoutInputs): ArenaPayoutSummary 
   }
 
   let revenueCents = 0;
+  let platformFeeCents = 0;
   let feesCents = 0;
   let unassignedCents = 0;
+  // Centavos inteiros por horário; a sobra vai para os primeiros (não perde nem cria dinheiro).
+  const splitCents = (cents: number, parts: number, i: number): number => {
+    const base = Math.floor(cents / parts);
+    return base + (i < cents - base * parts ? 1 : 0);
+  };
   for (const c of inputs.charges) {
     const cents = Math.round(c.amountReais * 100);
     if (isEnrollmentFeeCharge(c)) {
       feesCents += cents;
       continue;
     }
+    // A taxa nunca passa do valor (mensalidade estornada pela metade, dado torto).
+    const feeCents = Math.min(cents, Math.max(0, Math.round(c.platformFeeReais * 100)));
     revenueCents += cents;
+    platformFeeCents += feeCents;
     const slots = inputs.enrollments.get(c.enrollmentId)?.slots ?? [];
     if (slots.length === 0) {
       unassignedCents += cents;
       continue;
     }
-    // Centavos inteiros por horário; a sobra vai para os primeiros (não perde nem cria dinheiro).
-    const base = Math.floor(cents / slots.length);
-    const extra = cents - base * slots.length;
     for (const [i, slot] of slots.entries()) {
-      const share = base + (i < extra ? 1 : 0);
+      const share = splitCents(cents, slots.length, i);
       const cls = inputs.classes.get(slot.classId);
       const teacherId = cls?.teacherId || slot.teacherId;
       if (!teacherId) {
@@ -280,6 +304,7 @@ export function computeTeacherPayouts(inputs: PayoutInputs): ArenaPayoutSummary 
       const acc = teacherAcc(teacherId, cls?.teacherName ?? "Professor", cls?.teacherColor ?? "#FF6A1A");
       const line = lineAcc(acc, slot.classId, cls?.type ?? "turma");
       line.revenueCents += share;
+      line.feeCents += splitCents(feeCents, slots.length, i);
       line.payingStudents.add(c.studentId);
     }
   }
@@ -292,7 +317,8 @@ export function computeTeacherPayouts(inputs: PayoutInputs): ArenaPayoutSummary 
     const lines: PayoutLine[] = [...acc.lines.values()]
       .sort((a, b) => (a.recurring === b.recurring ? a.label.localeCompare(b.label, "pt-BR") : a.recurring ? -1 : 1))
       .map((l) => {
-        const revenueReais = l.revenueCents / 100;
+        // A base em % é a receita sem a taxa da NexaGO: é o que a arena de fato recebeu.
+        const revenueReais = (l.revenueCents - l.feeCents) / 100;
         const base = {revenueReais, classes: l.classes, presences: l.presences};
         return {
           key: l.key,
@@ -301,6 +327,8 @@ export function computeTeacherPayouts(inputs: PayoutInputs): ArenaPayoutSummary 
           classes: l.classes,
           presences: l.presences,
           payingStudents: l.payingStudents.size,
+          grossRevenueReais: l.revenueCents / 100,
+          platformFeeReais: l.feeCents / 100,
           revenueReais,
           amountReais: model ? payoutLineAmount(model, base) : 0,
         };
@@ -318,6 +346,8 @@ export function computeTeacherPayouts(inputs: PayoutInputs): ArenaPayoutSummary 
       pendingSessions: acc.pendingSessions,
       canceledSessions: acc.canceledSessions,
       // Soma das linhas arredondadas: a composição da tela fecha com o total.
+      grossRevenueReais: round2(lines.reduce((s, l) => s + l.grossRevenueReais, 0)),
+      platformFeeReais: round2(lines.reduce((s, l) => s + l.platformFeeReais, 0)),
       revenueReais: round2(lines.reduce((s, l) => s + l.revenueReais, 0)),
       amountReais: round2(lines.reduce((s, l) => s + l.amountReais, 0)),
       lines,
@@ -328,6 +358,7 @@ export function computeTeacherPayouts(inputs: PayoutInputs): ArenaPayoutSummary 
   return {
     month: inputs.month,
     revenueReais: revenueCents / 100,
+    platformFeesReais: platformFeeCents / 100,
     feesReais: feesCents / 100,
     unassignedReais: unassignedCents / 100,
     teachers: out,
@@ -337,6 +368,38 @@ export function computeTeacherPayouts(inputs: PayoutInputs): ArenaPayoutSummary 
 // ---------------------------------------------------------------------------
 // Leitura do mês
 // ---------------------------------------------------------------------------
+
+/**
+ * Mensalidades pagas no mês com a taxa da NexaGO de cada uma: a gravada na baixa online
+ * (`platformFeeReais`). Paga online antes de a baixa gravar a taxa: estimada pelo plano atual da
+ * arena, por pagamento (o mínimo de R$ 1,50 vale por pagamento, não por mensalidade). Manual = 0.
+ */
+export function payoutChargesFromData(
+  rows: ReadonlyArray<{id: string; data: Record<string, unknown>}>,
+  feePercent: number,
+): PayoutChargeInfo[] {
+  const charges = rows.map(({id, data: d}) => ({
+    id,
+    enrollmentId: typeof d["enrollmentId"] === "string" ? d["enrollmentId"] : "",
+    studentId: typeof d["studentId"] === "string" ? d["studentId"] : "",
+    amountReais: typeof d["amountReais"] === "number" ? d["amountReais"] : 0,
+    platformFeeReais: typeof d["platformFeeReais"] === "number" ? Math.max(0, d["platformFeeReais"]) : 0,
+  }));
+  const legacy = new Map<string, number[]>();
+  rows.forEach(({data: d}, i) => {
+    if (d["paidVia"] !== "asaas" || typeof d["platformFeeReais"] === "number") return;
+    const groupId = String((d["asaas"] as Record<string, unknown> | undefined)?.["groupId"] ?? `_${i}`);
+    legacy.set(groupId, [...(legacy.get(groupId) ?? []), i]);
+  });
+  for (const idx of legacy.values()) {
+    const cents = idx.map((i) => Math.round(charges[i]!.amountReais * 100));
+    const feeCents = Math.round(computePlatformFeeReais(cents.reduce((a, b) => a + b, 0) / 100, feePercent) * 100);
+    allocateCents(feeCents, cents).forEach((fee, k) => {
+      charges[idx[k]!]!.platformFeeReais = fee / 100;
+    });
+  }
+  return charges;
+}
 
 const GET_ALL_CHUNK = 100;
 
@@ -348,7 +411,8 @@ export async function loadPayoutInputs(
 ): Promise<PayoutInputs> {
   const from = `${month}-01`;
   const to = `${month}-31`;
-  const [teachersSnap, classesSnap, sessionsSnap, chargesSnap] = await Promise.all([
+  const [arenaSnap, teachersSnap, classesSnap, sessionsSnap, chargesSnap] = await Promise.all([
+    db.collection("arenas").doc(arenaId).get(),
     db.collection("arenas").doc(arenaId).collection(CLASS_TEACHERS).get(),
     db.collection(ARENA_CLASSES).where("arenaId", "==", arenaId).get(),
     db.collection(ARENA_CLASS_SESSIONS)
@@ -401,15 +465,10 @@ export async function loadPayoutInputs(
     };
   });
 
-  const charges: PayoutChargeInfo[] = chargesSnap.docs.map((doc) => {
-    const d = doc.data() as Record<string, unknown>;
-    return {
-      id: doc.id,
-      enrollmentId: typeof d["enrollmentId"] === "string" ? d["enrollmentId"] : "",
-      studentId: typeof d["studentId"] === "string" ? d["studentId"] : "",
-      amountReais: typeof d["amountReais"] === "number" ? d["amountReais"] : 0,
-    };
-  });
+  const charges = payoutChargesFromData(
+    chargesSnap.docs.map((doc) => ({id: doc.id, data: doc.data() as Record<string, unknown>})),
+    resolveArenaBookingFeePercent(arenaSnap.data() ?? {}, Date.now()),
+  );
 
   // Só as matrículas das cobranças pagas no mês (a coleção cresce com as canceladas).
   const enrollments: PayoutInputs["enrollments"] = new Map();
@@ -495,6 +554,8 @@ export async function closeTeacherPayoutCore(
       presences: t.presences,
       students: t.students,
       pendingSessions: t.pendingSessions,
+      grossRevenueReais: t.grossRevenueReais,
+      platformFeeReais: t.platformFeeReais,
       revenueReais: t.revenueReais,
       computedReais: t.amountReais,
       adjustmentReais,

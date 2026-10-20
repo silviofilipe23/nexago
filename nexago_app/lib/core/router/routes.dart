@@ -28,6 +28,17 @@ abstract final class AppRoutes {
 
   /// Abas do modo Professor (shell com a barra inferior): Alunos e Mais.
   static const String professorStudents = '/professor/alunos';
+
+  /// Fase 5 — Agenda (aba). Telas internas sem a barra.
+  static const String professorAgenda = '/professor/agenda';
+  static const String professorAgendaSession =
+      '/professor/agenda/aula/:sessionId';
+  static const String professorAgendaLesson =
+      '/professor/agenda/particular/:bookingId';
+  static const String professorBlockNew = '/professor/agenda/bloqueio';
+  static const String professorBlockEdit =
+      '/professor/agenda/bloqueio/:blockId';
+  static const String professorCalendarSync = '/professor/agenda/sincronizar';
   static const String professorMore = '/professor/mais';
 
   /// Aluno do professor (sem a barra): `/professor/alunos/:arenaId/:studentId`.
@@ -726,6 +737,12 @@ abstract final class AppRouteNames {
   static const String organizerHome = 'organizerHome';
   static const String professorHome = 'professorHome';
   static const String professorStudents = 'professorStudents';
+  static const String professorAgenda = 'professorAgenda';
+  static const String professorAgendaSession = 'professorAgendaSession';
+  static const String professorAgendaLesson = 'professorAgendaLesson';
+  static const String professorBlockNew = 'professorBlockNew';
+  static const String professorBlockEdit = 'professorBlockEdit';
+  static const String professorCalendarSync = 'professorCalendarSync';
   static const String professorStudent = 'professorStudent';
   static const String professorMore = 'professorMore';
   static const String professorClasses = 'professorClasses';

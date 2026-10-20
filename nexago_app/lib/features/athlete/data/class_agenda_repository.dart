@@ -20,6 +20,9 @@ class TeacherClassException implements Exception {
   String toString() => message;
 }
 
+/// Teto do intervalo de `getMyClassAgenda` (`MAX_AGENDA_RANGE_DAYS`).
+const int kMaxClassAgendaRangeDays = 100;
+
 /// Aulas da arena na agenda do atleta, pelas callables `getMyClassAgenda` e
 /// `getMyClassCharges` (as coleções de aula são só da equipe da arena — o
 /// atleta não lê direto).
@@ -30,10 +33,22 @@ class ClassAgendaRepository {
   final FirebaseFunctions _functions;
 
   /// Intervalo padrão do servidor: 30 dias para trás, 35 para a frente.
-  Future<List<ClassAgendaEntry>> fetchMyClasses() async {
-    final result = await _functions
-        .httpsCallable('getMyClassAgenda')
-        .call<Object?>(const <String, Object?>{});
+  Future<List<ClassAgendaEntry>> fetchMyClasses() =>
+      _fetchClasses(const <String, Object?>{});
+
+  /// Aulas de [fromKey] a [toKey] (`YYYY-MM-DD`, inclusivo; o servidor aceita
+  /// até [kMaxClassAgendaRangeDays] dias) — a Agenda do professor.
+  Future<List<ClassAgendaEntry>> fetchMyClassesInRange({
+    required String fromKey,
+    required String toKey,
+  }) =>
+      _fetchClasses(<String, Object?>{'fromKey': fromKey, 'toKey': toKey});
+
+  Future<List<ClassAgendaEntry>> _fetchClasses(
+    Map<String, Object?> data,
+  ) async {
+    final result =
+        await _functions.httpsCallable('getMyClassAgenda').call<Object?>(data);
     final raw = result.data;
     final items = raw is Map ? raw['items'] : null;
     if (items is! List) return const [];

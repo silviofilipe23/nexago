@@ -190,7 +190,7 @@ class _DirectOrganizerHint extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline_rounded, size: 20, color: AppColors.pending),
+          Icon(Icons.info_outline_rounded, size: 20, color: context.themeColors.pending),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -521,7 +521,7 @@ class _OrganizerContactCard extends StatelessWidget {
                     Icon(
                       Icons.verified_rounded,
                       size: 16,
-                      color: AppColors.win,
+                      color: context.themeColors.win,
                     ),
                   ],
                 ),
@@ -532,7 +532,7 @@ class _OrganizerContactCard extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: () => _contactOrganizer(context),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.win,
+              foregroundColor: context.themeColors.win,
               side: BorderSide(color: AppColors.win.withValues(alpha: 0.45)),
               backgroundColor: AppColors.win.withValues(alpha: 0.1),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

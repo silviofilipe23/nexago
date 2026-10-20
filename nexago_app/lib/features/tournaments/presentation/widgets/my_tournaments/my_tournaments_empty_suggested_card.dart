@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/my_tournaments_models.dart';
@@ -94,7 +93,7 @@ class MyTournamentsEmptySuggestedCard extends StatelessWidget {
                         style: AppTypography.mono(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.win,
+                          color: context.themeColors.win,
                         ),
                       ),
                     ],

@@ -152,8 +152,8 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                           color: registrationIncomplete
-                              ? AppColors.pending
-                              : AppColors.win,
+                              ? context.themeColors.pending
+                              : context.themeColors.win,
                           letterSpacing: 0.3,
                         ),
                       ),
@@ -164,7 +164,7 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
                         style: AppTypography.mono(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.live,
+                          color: context.themeColors.live,
                           letterSpacing: 0.3,
                         ),
                       ),
@@ -196,7 +196,7 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
                   registrationIncomplete
                       ? Icons.arrow_forward_rounded
                       : Icons.verified_rounded,
-                  color: registeredColor,
+                  color: context.themeColors.readableTone(registeredColor),
                   size: 22,
                 )
               else if (selected)

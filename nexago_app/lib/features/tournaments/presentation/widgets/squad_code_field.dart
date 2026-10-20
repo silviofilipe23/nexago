@@ -360,10 +360,10 @@ class SquadAppliedCodeCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        const Icon(
+                        Icon(
                           Icons.check_rounded,
                           size: 16,
-                          color: AppColors.win,
+                          color: colors.win,
                         ),
                       ],
                     ),
@@ -397,7 +397,7 @@ class SquadAppliedCodeCard extends StatelessWidget {
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
               color: check.discountPct > 0
-                  ? AppColors.win
+                  ? colors.win
                   : colors.onSurfaceMuted,
             ),
           ),

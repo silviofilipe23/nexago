@@ -483,7 +483,7 @@ class _RuleRow extends StatelessWidget {
             borderRadius: AppRadii.mdAll,
             border: Border.fromBorderSide(AppBorders.subtleSide(colors)),
           ),
-          child: Icon(icon, size: 18, color: iconColor),
+          child: Icon(icon, size: 18, color: colors.readableTone(iconColor)),
         ),
         const SizedBox(width: AppSpacing.md),
         Expanded(

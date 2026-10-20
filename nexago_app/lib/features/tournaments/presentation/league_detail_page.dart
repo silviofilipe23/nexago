@@ -62,7 +62,7 @@ class _LeagueDetailPageState extends ConsumerState<LeagueDetailPage>
         error: (e, _) => Center(
           child: Text(
             'Não foi possível carregar a liga.\n$e',
-            style: theme.textTheme.bodyLarge?.copyWith(color: AppColors.live),
+            style: theme.textTheme.bodyLarge?.copyWith(color: context.themeColors.live),
           ),
         ),
         data: (league) {
@@ -120,7 +120,7 @@ class _LeagueDetailPageState extends ConsumerState<LeagueDetailPage>
                     child: Text(
                       listingBanner,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.live,
+                        color: context.themeColors.live,
                         fontWeight: FontWeight.w600,
                       ),
                     ),

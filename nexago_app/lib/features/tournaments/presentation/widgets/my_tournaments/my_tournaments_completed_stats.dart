@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/my_tournaments_models.dart';
@@ -51,7 +50,7 @@ class MyTournamentsCompletedStats extends StatelessWidget {
                 child: _StatColumn(
                   value: rankingPointsDisplay,
                   label: 'PTS RANKING',
-                  valueColor: AppColors.win,
+                  valueColor: context.themeColors.win,
                 ),
               ),
             ],

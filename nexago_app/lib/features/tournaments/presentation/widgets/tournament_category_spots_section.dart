@@ -171,7 +171,7 @@ class _CategorySpotsRow extends StatelessWidget {
               style: AppTypography.soraRegular(
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
-                color: color,
+                color: context.themeColors.readableTone(color),
               ),
             ),
           ),

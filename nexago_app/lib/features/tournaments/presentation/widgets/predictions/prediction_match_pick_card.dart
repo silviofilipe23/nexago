@@ -437,7 +437,7 @@ class _Badge extends StatelessWidget {
         style: AppTypography.mono(
           fontSize: 8,
           fontWeight: FontWeight.w700,
-          color: color,
+          color: context.themeColors.readableTone(color),
           letterSpacing: 0.3,
         ),
       ),

@@ -56,7 +56,9 @@ class _StatPill extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: AppTypography.monoMeta.copyWith(color: color),
+        style: AppTypography.monoMeta.copyWith(
+          color: context.themeColors.readableTone(color),
+        ),
       ),
     );
   }

@@ -129,7 +129,7 @@ class TournamentSubstitutionSuccessPage extends StatelessWidget {
                 ),
                 _SummaryRow(
                   icon: Icons.check_rounded,
-                  iconColor: AppColors.win,
+                  iconColor: colors.win,
                   title: '$inName entrou',
                   subtitle: inSubtitle,
                 ),

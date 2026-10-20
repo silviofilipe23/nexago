@@ -207,7 +207,7 @@ class _LeagueDetailRankingSectionState
             'Não foi possível carregar o ranking.',
             style: Theme.of(
               context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.live),
+            ).textTheme.bodyMedium?.copyWith(color: context.themeColors.live),
           ),
           data: (rows) {
             if (rows.isEmpty) {

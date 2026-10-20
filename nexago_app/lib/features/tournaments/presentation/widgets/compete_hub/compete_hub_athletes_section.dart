@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
-import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
@@ -175,7 +174,7 @@ class _AthleteChipState extends State<_AthleteChip> {
                         width: 12,
                         height: 12,
                         decoration: BoxDecoration(
-                          color: AppColors.win,
+                          color: context.themeColors.win,
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: context.themeColors.canvas,

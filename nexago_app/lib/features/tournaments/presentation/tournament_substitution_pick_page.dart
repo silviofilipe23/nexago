@@ -507,10 +507,10 @@ class _PaymentNotice extends StatelessWidget {
               color: AppColors.pending.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.help_outline_rounded,
               size: 14,
-              color: AppColors.pending,
+              color: colors.pending,
             ),
           ),
           const SizedBox(width: AppSpacing.sm),

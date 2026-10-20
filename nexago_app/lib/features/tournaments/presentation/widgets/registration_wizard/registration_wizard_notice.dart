@@ -106,7 +106,7 @@ class _InfoBody extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20, color: accent),
+        Icon(icon, size: 20, color: context.themeColors.readableTone(accent)),
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: DefaultTextStyle.merge(
@@ -155,6 +155,8 @@ class _CountdownBody extends StatelessWidget {
     final clockLabel = expired
         ? '00:00'
         : _remainingClockLabel(remaining);
+    // Ícone, título e relógio pintam o âmbar; borda e barra seguem o cru.
+    final tone = context.themeColors.readableTone(accent);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -162,7 +164,7 @@ class _CountdownBody extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(Icons.notifications_none_rounded, size: 20, color: accent),
+            Icon(Icons.notifications_none_rounded, size: 20, color: tone),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -170,7 +172,7 @@ class _CountdownBody extends StatelessWidget {
                 style: AppTypography.mono(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: accent,
+                  color: tone,
                   letterSpacing: 0.6,
                 ),
               ),
@@ -180,7 +182,7 @@ class _CountdownBody extends StatelessWidget {
               style: AppTypography.mono(
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
-                color: accent,
+                color: tone,
                 letterSpacing: 0.5,
                 height: 1,
               ),

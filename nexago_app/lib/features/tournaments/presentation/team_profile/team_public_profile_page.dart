@@ -61,7 +61,7 @@ class _TeamPublicProfilePageState extends ConsumerState<TeamPublicProfilePage> {
             child: Text(
               'Não foi possível carregar a equipe.\n$e',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.live),
+              style: TextStyle(color: context.themeColors.live),
             ),
           ),
         ),

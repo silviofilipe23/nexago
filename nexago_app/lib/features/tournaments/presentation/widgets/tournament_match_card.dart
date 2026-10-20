@@ -197,12 +197,12 @@ class _StateChip extends StatelessWidget {
       TournamentMatchRowState.done => (
           AppColors.win.withValues(alpha: 0.16),
           AppColors.win.withValues(alpha: 0.3),
-          AppColors.win,
+          colors.win,
         ),
       TournamentMatchRowState.scheduled || TournamentMatchRowState.tbd => (
           AppColors.pending.withValues(alpha: 0.12),
           AppColors.pending.withValues(alpha: 0.3),
-          AppColors.pending,
+          colors.pending,
         ),
       TournamentMatchRowState.canceled => (
           Colors.transparent,
@@ -321,7 +321,7 @@ class _TeamRow extends StatelessWidget {
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
                 color: side.won
-                    ? AppColors.win
+                    ? colors.win
                     : side.lost
                         ? colors.onSurfaceMuted
                         : side.leading
@@ -380,7 +380,7 @@ class _Pills extends StatelessWidget {
                 style: AppTypography.mono(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
-                  color: pill.current ? AppColors.brand : AppColors.win,
+                  color: pill.current ? AppColors.brand : colors.win,
                 ),
               ),
             ),

@@ -19,11 +19,22 @@ class MatchHistoryMatchCard extends StatelessWidget {
   final bool compact;
   final VoidCallback? onTap;
 
+  // No claro os tons crus somem no card branco e no fundo menta do selo (o
+  // "V" dava ~1,8:1, o "D" ~2,9:1 e o "MVP" ~1,6:1). Texto, faixa e estrela
+  // usam lá o mesmo matiz escurecido das Peladas (`PeladaStyle`), ≥ 4,5:1.
+  static const Color _winLight = Color(0xFF187345);
+  static const Color _liveLight = Color(0xFFB3261E);
+  static const Color _pendingLight = Color(0xFF845C00);
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isWin = match.isWin;
-    final accent = isWin ? AppColors.win : AppColors.live;
+    final isDark = context.themeColors.isDark;
+    // O fundo translúcido do selo fica no tom cru nos dois temas.
+    final tone = isWin ? AppColors.win : AppColors.live;
+    final accent = isDark ? tone : (isWin ? _winLight : _liveLight);
+    final mvpColor = isDark ? AppColors.pending : _pendingLight;
     final resultLabel = isWin ? 'V' : 'D';
     final dateStr =
         DateFormat('d MMM', 'pt_BR').format(toNexagoEventLocal(match.playedAt));
@@ -68,7 +79,7 @@ class MatchHistoryMatchCard extends StatelessWidget {
                                 height: compact ? 28 : 32,
                                 alignment: Alignment.center,
                                 decoration: BoxDecoration(
-                                  color: accent.withValues(alpha: 0.15),
+                                  color: tone.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
@@ -148,14 +159,14 @@ class MatchHistoryMatchCard extends StatelessWidget {
                                 Icon(
                                   Icons.star_rounded,
                                   size: compact ? 14 : 16,
-                                  color: AppColors.pending,
+                                  color: mvpColor,
                                 ),
                                 SizedBox(width: 4),
                                 Text(
                                   'MVP',
                                   style: theme.textTheme.labelSmall?.copyWith(
                                     fontWeight: FontWeight.w800,
-                                    color: AppColors.pending,
+                                    color: mvpColor,
                                   ),
                                 ),
                               ],

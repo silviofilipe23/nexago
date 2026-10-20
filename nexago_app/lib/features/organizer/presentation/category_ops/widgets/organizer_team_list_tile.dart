@@ -144,14 +144,18 @@ class _CancellationPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.event_busy_rounded, size: 11, color: AppColors.live),
+          Icon(
+            Icons.event_busy_rounded,
+            size: 11,
+            color: context.themeColors.live,
+          ),
           const SizedBox(width: 3),
           Text(
             'CANCELAMENTO',
             style: AppTypography.mono(
               fontSize: 8,
               fontWeight: FontWeight.w700,
-              color: AppColors.live,
+              color: context.themeColors.live,
             ),
           ),
         ],
@@ -198,14 +202,14 @@ class _LgpdPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 11, color: fg),
+          Icon(icon, size: 11, color: context.themeColors.readableTone(fg)),
           const SizedBox(width: 3),
           Text(
             'LGPD',
             style: AppTypography.mono(
               fontSize: 8,
               fontWeight: FontWeight.w700,
-              color: fg,
+              color: context.themeColors.readableTone(fg),
             ),
           ),
         ],
@@ -232,14 +236,18 @@ class _PartialPaymentPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.pie_chart_outline_rounded, size: 11, color: AppColors.pending),
+          Icon(
+            Icons.pie_chart_outline_rounded,
+            size: 11,
+            color: context.themeColors.pending,
+          ),
           const SizedBox(width: 3),
           Text(
             teamPartialPaymentLabel(team),
             style: AppTypography.mono(
               fontSize: 8,
               fontWeight: FontWeight.w700,
-              color: AppColors.pending,
+              color: context.themeColors.pending,
             ),
           ),
         ],
@@ -263,7 +271,7 @@ class _StatusPill extends StatelessWidget {
       return _pill(
         label: 'A conferir',
         bg: AppColors.pending.withValues(alpha: 0.15),
-        fg: AppColors.pending,
+        fg: context.themeColors.pending,
         icon: Icons.fact_check_outlined,
       );
     }
@@ -288,7 +296,12 @@ class _StatusPill extends StatelessWidget {
       ),
     };
 
-    return _pill(label: label, bg: bg, fg: fg, icon: icon);
+    return _pill(
+      label: label,
+      bg: bg,
+      fg: context.themeColors.readableTone(fg),
+      icon: icon,
+    );
   }
 
   Widget _pill({

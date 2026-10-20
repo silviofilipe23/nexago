@@ -101,8 +101,8 @@ class ScheduleGridHeader extends StatelessWidget {
                       Container(
                         width: 5,
                         height: 5,
-                        decoration: const BoxDecoration(
-                          color: AppColors.live,
+                        decoration: BoxDecoration(
+                          color: context.themeColors.live,
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -112,7 +112,7 @@ class ScheduleGridHeader extends StatelessWidget {
                         style: AppTypography.mono(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.live,
+                          color: context.themeColors.live,
                         ),
                       ),
                     ],
@@ -707,21 +707,21 @@ class ScheduleGridNowLine extends StatelessWidget {
           style: AppTypography.mono(
             fontSize: 10,
             fontWeight: FontWeight.w800,
-            color: AppColors.live,
+            color: context.themeColors.live,
           ),
         ),
         Expanded(
           child: Container(
             height: 2,
             margin: const EdgeInsets.symmetric(horizontal: 6),
-            color: AppColors.live,
+            color: context.themeColors.live,
           ),
         ),
         Container(
           width: 8,
           height: 8,
-          decoration: const BoxDecoration(
-            color: AppColors.live,
+          decoration: BoxDecoration(
+            color: context.themeColors.live,
             shape: BoxShape.circle,
           ),
         ),
@@ -1172,8 +1172,8 @@ class _ScheduleGridMatchCard extends StatelessWidget {
                             Container(
                               width: 5,
                               height: 5,
-                              decoration: const BoxDecoration(
-                                color: AppColors.live,
+                              decoration: BoxDecoration(
+                                color: context.themeColors.live,
                                 shape: BoxShape.circle,
                               ),
                             ),

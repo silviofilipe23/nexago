@@ -169,7 +169,7 @@ class _SchedulePickTabButton extends StatelessWidget {
                   color: selected
                       ? Colors.white
                       : (tab == SchedulePickTab.ready && count > 0
-                            ? AppColors.pending
+                            ? context.themeColors.pending
                             : context.themeColors.onSurfaceMuted),
                 ),
               ),
@@ -302,8 +302,8 @@ class SchedulePickSectionHeader extends StatelessWidget {
                 Container(
                   width: 5,
                   height: 5,
-                  decoration: const BoxDecoration(
-                    color: AppColors.win,
+                  decoration: BoxDecoration(
+                    color: context.themeColors.win,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -313,7 +313,7 @@ class SchedulePickSectionHeader extends StatelessWidget {
                   style: AppTypography.soraRegular(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.win,
+                    color: context.themeColors.win,
                   ),
                 ),
               ],
@@ -541,15 +541,18 @@ class SchedulePickMatchCard extends StatelessWidget {
       );
     }
     if (SchedulePickLogic.isPartiallyScheduled(match)) {
-      return (SchedulePickLogic.partialReason.toUpperCase(), AppColors.pending);
+      return (
+        SchedulePickLogic.partialReason.toUpperCase(),
+        context.themeColors.pending,
+      );
     }
     if (SchedulePickLogic.isTentative(match)) {
       return (
         SchedulePickLogic.tentativeReason.toUpperCase(),
-        AppColors.pending,
+        context.themeColors.pending,
       );
     }
-    return ('PRONTA', AppColors.win);
+    return ('PRONTA', context.themeColors.win);
   }
 }
 

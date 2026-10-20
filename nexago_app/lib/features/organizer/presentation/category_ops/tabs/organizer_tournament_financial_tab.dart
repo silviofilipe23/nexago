@@ -231,7 +231,7 @@ class _HeroStat extends StatelessWidget {
           style: AppTypography.soraRegular(
             fontSize: 16,
             fontWeight: FontWeight.w800,
-            color: valueColor,
+            color: context.themeColors.readableTone(valueColor),
             height: 1.1,
           ),
         ),
@@ -319,7 +319,11 @@ class _PaymentChannelCard extends StatelessWidget {
               color: accent.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, size: 20, color: accent),
+            child: Icon(
+              icon,
+              size: 20,
+              color: context.themeColors.readableTone(accent),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -356,7 +360,7 @@ class _PaymentChannelCard extends StatelessWidget {
                         style: AppTypography.mono(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
-                          color: accent,
+                          color: context.themeColors.readableTone(accent),
                           letterSpacing: 0.4,
                         ),
                       ),
@@ -540,7 +544,10 @@ class _CategoryStatusDot extends StatelessWidget {
         Container(
           width: 6,
           height: 6,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          decoration: BoxDecoration(
+            color: context.themeColors.readableTone(color),
+            shape: BoxShape.circle,
+          ),
         ),
         const SizedBox(width: 6),
         Text(
@@ -548,7 +555,7 @@ class _CategoryStatusDot extends StatelessWidget {
           style: AppTypography.soraRegular(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: textColor,
+            color: context.themeColors.readableTone(textColor),
           ),
         ),
       ],

@@ -214,7 +214,7 @@ class _CallQueueHeader extends StatelessWidget {
                 style: AppTypography.mono(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.pending,
+                  color: context.themeColors.pending,
                 ),
               ),
             ),
@@ -322,10 +322,10 @@ class _CallQueueMatchActions extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.schedule_rounded,
                     size: 12,
-                    color: AppColors.pending,
+                    color: context.themeColors.pending,
                   ),
                   const SizedBox(width: 4),
                   Text(
@@ -333,7 +333,7 @@ class _CallQueueMatchActions extends StatelessWidget {
                     style: AppTypography.mono(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.pending,
+                      color: context.themeColors.pending,
                     ),
                   ),
                 ],

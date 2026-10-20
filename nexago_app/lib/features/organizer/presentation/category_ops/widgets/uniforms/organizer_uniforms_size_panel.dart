@@ -290,7 +290,7 @@ class _PendingChip extends StatelessWidget {
           style: AppTypography.mono(
             fontSize: 11,
             fontWeight: FontWeight.w700,
-            color: AppColors.pending,
+            color: context.themeColors.pending,
           ),
         ),
       ),

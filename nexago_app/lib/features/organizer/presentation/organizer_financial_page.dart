@@ -411,8 +411,7 @@ class _StaleDataWarning extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded,
-              size: 18, color: AppColors.pending),
+          Icon(Icons.warning_amber_rounded, size: 18, color: colors.pending),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -691,7 +690,7 @@ class _BalanceCard extends StatelessWidget {
             Text(
               '${formatBRL(box.pendingReais)} em processamento',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.pending,
+                    color: colors.pending,
                     fontWeight: FontWeight.w600,
                   ),
             ),
@@ -957,7 +956,7 @@ class _WithdrawalTile extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                color: color,
+                color: colors.readableTone(color),
                 fontWeight: FontWeight.w700,
                 fontSize: 11,
               ),
@@ -1002,7 +1001,7 @@ class _LedgerTile extends StatelessWidget {
                   '+ ${formatBRL(entry.netReais)}',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppColors.win,
+                        color: colors.win,
                       ),
                 ),
                 Text(

@@ -149,14 +149,14 @@ class OrganizerCategoryKpiRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
-      _KpiItem('Confirmadas', '$confirmedCount', AppColors.win),
+      _KpiItem('Confirmadas', '$confirmedCount', context.themeColors.win),
       _KpiItem('Pendentes', '$pendingCount', AppColors.brand),
       _KpiItem('Lista espera', '$waitlistCount', null),
       if (showCollected)
         _KpiItem(
           'Arrecadado',
           formatOrganizerMoneyCents(collectedCents),
-          AppColors.win,
+          context.themeColors.win,
         ),
     ];
 

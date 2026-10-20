@@ -387,6 +387,8 @@ class _MatchStatusBadge extends StatelessWidget {
     final showDot =
         presentation.phase == _MatchCardPhase.live ||
         presentation.phase == _MatchCardPhase.onCourt;
+    // Ponto e rótulo no tom legível do tema; fundo e borda seguem no cru.
+    final tone = context.themeColors.readableTone(presentation.statusColor);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -405,7 +407,7 @@ class _MatchStatusBadge extends StatelessWidget {
               width: 5,
               height: 5,
               decoration: BoxDecoration(
-                color: presentation.statusColor,
+                color: tone,
                 shape: BoxShape.circle,
               ),
             ),
@@ -414,7 +416,7 @@ class _MatchStatusBadge extends StatelessWidget {
           Text(
             presentation.statusLabel,
             style: AppTypography.mono(
-              color: presentation.statusColor,
+              color: tone,
               fontSize: 9,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.5,
@@ -504,7 +506,7 @@ class _CenterTeamRow extends StatelessWidget {
               fontSize: 28,
               fontWeight: FontWeight.w800,
               color: primaryScoreIsWin
-                  ? AppColors.win
+                  ? context.themeColors.win
                   : context.themeColors.onSurface,
               height: 1,
             ),
@@ -629,8 +631,8 @@ class _MatchCardFooter extends StatelessWidget {
                       Container(
                         width: 5,
                         height: 5,
-                        decoration: const BoxDecoration(
-                          color: AppColors.live,
+                        decoration: BoxDecoration(
+                          color: context.themeColors.live,
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -640,7 +642,7 @@ class _MatchCardFooter extends StatelessWidget {
                         style: AppTypography.mono(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.live,
+                          color: context.themeColors.live,
                         ),
                       ),
                     ],
@@ -770,7 +772,7 @@ class _SetColumn extends StatelessWidget {
               color: isCurrent
                   ? context.themeColors.onSurface
                   : teamAWon
-                  ? AppColors.win
+                  ? context.themeColors.win
                   : context.themeColors.onSurfaceMuted,
             ),
           ),
@@ -783,7 +785,7 @@ class _SetColumn extends StatelessWidget {
               color: isCurrent
                   ? context.themeColors.onSurface
                   : !teamAWon && set.b > set.a
-                  ? AppColors.win
+                  ? context.themeColors.win
                   : context.themeColors.onSurfaceMuted,
             ),
           ),

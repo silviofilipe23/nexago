@@ -349,7 +349,11 @@ class _OrganizerTeamActionsSheetState
                     ? 'Os atletas declararam ter pago · $paymentSubtitle'
                     : 'Marcar como pago · $paymentSubtitle',
                 trailing: isPaid
-                    ? Icon(Icons.check_rounded, color: AppColors.win, size: 20)
+                    ? Icon(
+                        Icons.check_rounded,
+                        color: context.themeColors.win,
+                        size: 20,
+                      )
                     : null,
                 onTap: isPaid
                     ? null
@@ -588,7 +592,11 @@ class _AthletePaymentTile extends StatelessWidget {
                     const SizedBox(height: 3),
                     Row(
                       children: [
-                        Icon(icon, size: 12, color: tone),
+                        Icon(
+                          icon,
+                          size: 12,
+                          color: context.themeColors.readableTone(tone),
+                        ),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
@@ -596,7 +604,7 @@ class _AthletePaymentTile extends StatelessWidget {
                             style: AppTypography.soraRegular(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color: tone,
+                              color: context.themeColors.readableTone(tone),
                               height: 1.3,
                             ),
                           ),
@@ -648,7 +656,7 @@ class _PartialPaymentNotice extends StatelessWidget {
             child: Icon(
               Icons.info_outline_rounded,
               size: 20,
-              color: AppColors.pending,
+              color: context.themeColors.pending,
             ),
           ),
           const SizedBox(width: 12),
@@ -661,7 +669,7 @@ class _PartialPaymentNotice extends StatelessWidget {
                   style: AppTypography.soraRegular(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.pending,
+                    color: context.themeColors.pending,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -967,7 +975,11 @@ class _ActionRow extends StatelessWidget {
                           valueColor: AlwaysStoppedAnimation<Color>(fg),
                         ),
                       )
-                    : Icon(icon, size: 20, color: fg),
+                    : Icon(
+                        icon,
+                        size: 20,
+                        color: context.themeColors.readableTone(fg),
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -979,7 +991,9 @@ class _ActionRow extends StatelessWidget {
                       style: AppTypography.soraRegular(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: titleColor ?? context.themeColors.onSurface,
+                        color: titleColor == null
+                            ? context.themeColors.onSurface
+                            : context.themeColors.readableTone(titleColor!),
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -1022,7 +1036,7 @@ class _StatusPill extends StatelessWidget {
       return _pill(
         label: 'A conferir',
         bg: AppColors.pending.withValues(alpha: 0.15),
-        fg: AppColors.pending,
+        fg: context.themeColors.pending,
         icon: Icons.fact_check_outlined,
       );
     }
@@ -1047,7 +1061,12 @@ class _StatusPill extends StatelessWidget {
         ),
     };
 
-    return _pill(label: label, bg: bg, fg: fg, icon: icon);
+    return _pill(
+      label: label,
+      bg: bg,
+      fg: context.themeColors.readableTone(fg),
+      icon: icon,
+    );
   }
 
   Widget _pill({
@@ -1115,7 +1134,11 @@ class _CancellationRequestCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.event_busy_rounded, size: 16, color: AppColors.live),
+              Icon(
+                Icons.event_busy_rounded,
+                size: 16,
+                color: context.themeColors.live,
+              ),
               const SizedBox(width: 6),
               Text(
                 'Pedido de cancelamento',

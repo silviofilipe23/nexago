@@ -791,7 +791,7 @@ class _LiveTable extends StatelessWidget {
             'Empate na vaga de classificação — bola de ouro entre as empatadas.',
             style: AppTypography.soraRegular(
               fontSize: 12,
-              color: AppColors.pending,
+              color: context.themeColors.pending,
             ),
           ),
           if (onGolden != null) ...[
@@ -801,7 +801,7 @@ class _LiveTable extends StatelessWidget {
               style: AppTypography.mono(
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
-                color: AppColors.pending,
+                color: context.themeColors.pending,
                 letterSpacing: 1,
               ),
             ),
@@ -883,7 +883,7 @@ class _TableRow extends StatelessWidget {
                 'empate',
                 style: AppTypography.soraRegular(
                   fontSize: 11,
-                  color: AppColors.pending,
+                  color: context.themeColors.pending,
                 ),
               ),
             ),

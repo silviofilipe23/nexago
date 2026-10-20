@@ -208,9 +208,10 @@ class _ExitOptionTile extends StatelessWidget {
     final iconBg = destructive
         ? AppColors.live.withValues(alpha: 0.12)
         : context.themeColors.surfaceRaised;
-    final iconColor = destructive ? AppColors.live : context.themeColors.onSurface;
+    final iconColor =
+        destructive ? context.themeColors.live : context.themeColors.onSurface;
     final titleColor =
-        destructive ? AppColors.live : context.themeColors.onSurface;
+        destructive ? context.themeColors.live : context.themeColors.onSurface;
     final subtitleColor = destructive
         ? AppColors.live.withValues(alpha: 0.75)
         : context.themeColors.onSurfaceMuted;

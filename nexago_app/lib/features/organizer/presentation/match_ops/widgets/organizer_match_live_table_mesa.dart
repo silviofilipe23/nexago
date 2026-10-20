@@ -262,7 +262,7 @@ class _PortraitHeader extends StatelessWidget {
                           fontWeight: FontWeight.w800,
                           color: MesaSun.isOn(context)
                               ? MesaSun.live
-                              : AppColors.live,
+                              : context.themeColors.live,
                           letterSpacing: 0.8,
                         ),
                       ),
@@ -801,7 +801,7 @@ class _NetContent extends StatelessWidget {
       return chip(
         net.finishText!,
         MesaSun.winFill,
-        AppColors.win,
+        context.themeColors.win,
         net.finishKit,
       );
     }
@@ -819,7 +819,7 @@ class _NetContent extends StatelessWidget {
       return chip(
         '⇄ TROCA NO PRÓXIMO PONTO',
         MesaSun.pendingFill,
-        AppColors.pending,
+        context.themeColors.pending,
       );
     }
     final filled = net.total % interval;
@@ -839,7 +839,7 @@ class _NetContent extends StatelessWidget {
             decoration: BoxDecoration(
               color: sun
                   ? (i < filled ? MesaSun.ink : MesaSun.markEmpty)
-                  : (i < filled ? AppColors.pending : _nxMarkEmpty),
+                  : (i < filled ? context.themeColors.pending : _nxMarkEmpty),
               borderRadius: BorderRadius.circular(3),
             ),
           ),
@@ -1046,6 +1046,7 @@ class _Landscape extends StatelessWidget {
     final status = finished
         ? 'Fim do jogo${statusTeam == null ? '' : ' · $statusTeam'}'
         : (net.setPointTeam == null ? null : 'Set point · ${net.setPointTeam}');
+    // Pinta a pílula `_nxInk` (escura fixa): fica no cru em qualquer tema.
     final statusColor = finished ? AppColors.win : AppColors.brandHover;
     final statusFill = finished ? MesaSun.winFill : MesaSun.orange;
     final until = net.untilSwitch;
@@ -1125,7 +1126,7 @@ class _Landscape extends StatelessWidget {
                               color: sun
                                   ? MesaSun.ink
                                   : (net.switchNext
-                                        ? AppColors.pending
+                                        ? colors.pending
                                         : colors.onSurfaceMuted),
                               letterSpacing: 1,
                             ),
@@ -1188,6 +1189,7 @@ class _Landscape extends StatelessWidget {
                               color: AppColors.live.withValues(alpha: 0.5),
                             ),
                     ),
+                    // Pílula `_nxInk` (escura fixa): o vermelho fica no cru.
                     child: Text(
                       '● $headerText',
                       style: AppTypography.mono(
@@ -1285,7 +1287,7 @@ class _SwitchDialog extends StatelessWidget {
                         style: AppTypography.mono(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: sun ? MesaSun.ink : AppColors.pending,
+                          color: sun ? MesaSun.ink : colors.pending,
                           letterSpacing: 1.2,
                         ),
                       ),
@@ -1313,7 +1315,7 @@ class _SwitchDialog extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(horizontal: 10),
                             child: Icon(
                               Icons.swap_horiz_rounded,
-                              color: sun ? MesaSun.ink : AppColors.pending,
+                              color: sun ? MesaSun.ink : colors.pending,
                             ),
                           ),
                           Expanded(

@@ -90,7 +90,10 @@ class _StatusBadge extends StatelessWidget {
           Container(
             width: 6,
             height: 6,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: context.themeColors.readableTone(color),
+              shape: BoxShape.circle,
+            ),
           ),
           const SizedBox(width: 6),
           Text(
@@ -98,7 +101,7 @@ class _StatusBadge extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: color,
+              color: context.themeColors.readableTone(color),
             ),
           ),
         ],
@@ -167,7 +170,7 @@ class OrganizerTournamentKpiRow extends StatelessWidget {
                   item.value,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: item.accent ? AppColors.win : null,
+                    color: item.accent ? context.themeColors.win : null,
                     fontSize: 12,
                   ),
                 ),

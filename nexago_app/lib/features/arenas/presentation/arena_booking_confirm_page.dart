@@ -9,6 +9,7 @@ import '../../../core/formatting/app_currency_format.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../athlete/domain/daily_mission_sync_provider.dart';
+import '../../professor_links/application/professor_links_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
@@ -23,6 +24,7 @@ import '../domain/arena_booking_pix_args.dart';
 import '../domain/arena_booking_quote.dart';
 import '../domain/arena_sport_codes.dart';
 import '../domain/arenas_providers.dart';
+import '../domain/booking_professor_mode.dart';
 import '../domain/booking_providers.dart';
 import '../domain/slots_providers.dart';
 import 'booking_success_page.dart';
@@ -32,6 +34,7 @@ import 'widgets/booking_confirm/booking_confirm_coupon_field.dart';
 import 'widgets/booking_confirm/booking_confirm_hero_card.dart';
 import 'widgets/booking_confirm/booking_confirm_observations_field.dart';
 import 'widgets/booking_confirm/booking_confirm_price_summary.dart';
+import 'widgets/booking_confirm/booking_confirm_professor_option.dart';
 import 'widgets/booking_confirm/booking_confirm_sport_picker.dart';
 import 'widgets/booking_confirm/booking_confirm_sticky_bar.dart';
 
@@ -71,6 +74,10 @@ class _ArenaBookingConfirmPageState
 
   /// Esporte escolhido (código do catálogo). Com um esporte só na quadra, vale ele sem toque.
   String? _sport;
+
+  /// "Reservar como professor" ligado. Só vale enquanto o vínculo com a arena
+  /// libera (ver [canOfferBookingAsProfessor]); desligado é reserva de atleta.
+  bool _asProfessor = false;
 
   static final _dateFmt = DateFormat('d MMM yyyy', 'pt_BR');
 
@@ -169,6 +176,7 @@ class _ArenaBookingConfirmPageState
   Future<void> _confirmWithPix(
     ArenaBookingConfirmArgs args, {
     required String sport,
+    required bool asProfessor,
   }) async {
     final user = ref.read(authServiceProvider).currentUser;
     if (user == null) {
@@ -192,6 +200,7 @@ class _ArenaBookingConfirmPageState
             paymentFraction: 1.0,
             couponCode: _appliedCouponCode,
             sport: sport,
+            asProfessor: asProfessor,
           );
       if (!mounted) return;
 
@@ -224,6 +233,13 @@ class _ArenaBookingConfirmPageState
       );
     } on BookingException catch (e) {
       if (!mounted) return;
+      if (e.isProfessorDenied) {
+        // O vínculo não deixa agora: volta para reserva de atleta, que segue
+        // valendo — a mensagem do servidor já diz o motivo.
+        setState(() => _asProfessor = false);
+        showAppSnackBar(context, e.message, isError: true);
+        return;
+      }
       if (e.isBlockedAthlete) {
         final uri = Uri(
           path: AppRoutes.arenaBookingBlocked.replaceAll(
@@ -251,6 +267,7 @@ class _ArenaBookingConfirmPageState
   Future<void> _finalizeBookingPayAtArena(
     ArenaBookingConfirmArgs args, {
     required String sport,
+    required bool asProfessor,
   }) async {
     final user = ref.read(authServiceProvider).currentUser;
     if (user == null) {
@@ -272,6 +289,7 @@ class _ArenaBookingConfirmPageState
             athleteId: user.uid,
             couponCode: _appliedCouponCode,
             sport: sport,
+            asProfessor: asProfessor,
           );
       if (!mounted) return;
       await tryAwardReserveTodayMission(ref, dateKey: args.dateKey);
@@ -317,6 +335,13 @@ class _ArenaBookingConfirmPageState
       );
     } on BookingException catch (e) {
       if (!mounted) return;
+      if (e.isProfessorDenied) {
+        // O vínculo não deixa agora: volta para reserva de atleta, que segue
+        // valendo — a mensagem do servidor já diz o motivo.
+        setState(() => _asProfessor = false);
+        showAppSnackBar(context, e.message, isError: true);
+        return;
+      }
       if (e.isBlockedAthlete) {
         final uri = Uri(
           path: AppRoutes.arenaBookingBlocked.replaceAll(
@@ -416,6 +441,12 @@ class _ArenaBookingConfirmPageState
         ? sportOptions.first
         : null;
 
+    final professorLink = ref
+        .watch(myArenaProfessorLinkProvider(widget.arenaId))
+        .valueOrNull;
+    final offerProfessor = canOfferBookingAsProfessor(professorLink);
+    final asProfessor = offerProfessor && _asProfessor;
+
     final timeRange = '${args.startTime} - ${args.endTime}';
     final choice = _effectivePaymentChoice(
       onsiteEnabled: onsiteEnabled,
@@ -473,6 +504,18 @@ class _ArenaBookingConfirmPageState
                                       setState(() => _sport = code),
                                 ),
                               ),
+                              if (offerProfessor)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 22),
+                                  child: BookingConfirmProfessorOption(
+                                    arenaName: args.arenaName,
+                                    type: professorLink!.type,
+                                    value: asProfessor,
+                                    enabled: !_submitting,
+                                    onChanged: (value) =>
+                                        setState(() => _asProfessor = value),
+                                  ),
+                                ),
                               Padding(
                                 padding: const EdgeInsets.only(top: 18),
                                 child: BookingConfirmPriceSummary(
@@ -634,9 +677,17 @@ class _ArenaBookingConfirmPageState
                           }
                           HapticFeedback.mediumImpact();
                           if (choice == _PaymentChoice.pix) {
-                            _confirmWithPix(args, sport: sport);
+                            _confirmWithPix(
+                              args,
+                              sport: sport,
+                              asProfessor: asProfessor,
+                            );
                           } else {
-                            _finalizeBookingPayAtArena(args, sport: sport);
+                            _finalizeBookingPayAtArena(
+                              args,
+                              sport: sport,
+                              asProfessor: asProfessor,
+                            );
                           }
                         },
                       ),

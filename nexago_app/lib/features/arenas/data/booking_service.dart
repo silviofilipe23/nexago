@@ -31,6 +31,10 @@ class BookingService {
   static const String slotConflictCode = 'SLOT_CONFLICT';
   static const String blockedAthleteCode = 'BLOCKED_ATHLETE';
 
+  /// Reserva como professor recusada (`details.reason` = `no_link`,
+  /// `not_active` ou `permission_off`): dá para reservar como atleta.
+  static const String professorDeniedCode = 'PROFESSOR_DENIED';
+
   static const int _myBookingsLimit = 64;
   static const int _arenaBookingsLimit = 256;
 
@@ -210,6 +214,7 @@ class BookingService {
     double paymentFraction = 1.0,
     String? couponCode,
     String? sport,
+    bool asProfessor = false,
   }) async {
     if (athleteId.isEmpty) {
       throw BookingException('Faça login para confirmar a reserva.');
@@ -235,6 +240,9 @@ class BookingService {
       if (paymentMode == 'pix') {
         payload['paymentFraction'] = paymentFraction;
       }
+      // Só com o vínculo liberando "Reservar quadras"; sem a chave é reserva
+      // de atleta, como sempre (o servidor relê o vínculo e decide).
+      if (asProfessor) payload['asProfessor'] = true;
 
       final result =
           await _functions.httpsCallable('createArenaBooking').call(payload);
@@ -363,6 +371,13 @@ class BookingService {
       case 'already-exists':
         return slotConflictCode;
       case 'permission-denied':
+        final details = e.details;
+        final reason = details is Map ? details['reason'] : null;
+        if (reason == 'no_link' ||
+            reason == 'not_active' ||
+            reason == 'permission_off') {
+          return professorDeniedCode;
+        }
         final msg = e.message ?? '';
         if (msg.contains('bloqueada')) return blockedAthleteCode;
         return null;
@@ -799,6 +814,7 @@ class BookingException implements Exception {
 
   bool get isSlotConflict => code == BookingService.slotConflictCode;
   bool get isBlockedAthlete => code == BookingService.blockedAthleteCode;
+  bool get isProfessorDenied => code == BookingService.professorDeniedCode;
 
   @override
   String toString() => message;

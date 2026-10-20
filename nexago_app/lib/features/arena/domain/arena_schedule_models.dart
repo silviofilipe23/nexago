@@ -12,6 +12,7 @@ class ArenaScheduleBookingSummary {
     required this.paymentShortLabel,
     required this.amountReais,
     this.sportLabel,
+    this.asProfessor = false,
   });
 
   final String athleteId;
@@ -20,6 +21,9 @@ class ArenaScheduleBookingSummary {
 
   /// Esporte escolhido pelo atleta (`null` em reserva sem esporte gravado).
   final String? sportLabel;
+
+  /// Reservada como professor (vínculo com "Reservar quadras").
+  final bool asProfessor;
 }
 
 /// Linha de quadra dentro de um grupo horário.

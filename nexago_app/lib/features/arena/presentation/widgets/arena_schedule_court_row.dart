@@ -160,6 +160,7 @@ class _SubtitleBuilder {
                   ).format(slot.priceReais)
                 : '');
       final parts = <String>[name];
+      if (booking?.asProfessor == true) parts.add('Professor');
       final sport = booking?.sportLabel;
       if (sport != null) parts.add(sport);
       if (pay.isNotEmpty && money.isNotEmpty) {

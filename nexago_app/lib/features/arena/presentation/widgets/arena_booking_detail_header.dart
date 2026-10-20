@@ -6,6 +6,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/arena_booking_labels.dart';
 import '../../domain/arena_bookings_grouping.dart';
 import '../../domain/arena_manager_booking.dart';
+import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
 class ArenaBookingDetailHeader extends StatelessWidget {
   const ArenaBookingDetailHeader({
     super.key,
@@ -36,6 +37,7 @@ class ArenaBookingDetailHeader extends StatelessWidget {
         (booking.data['confirmedParticipants'] as num?)?.toInt() ?? 1;
     final statusBadge = statusLabel.toUpperCase();
     final sport = arenaBookingSportLabel(booking.data);
+    final professor = arenaBookingProfessorLabel(booking.data);
     final placeLine = [
       weekday,
       courtName.toUpperCase(),
@@ -132,6 +134,31 @@ class ArenaBookingDetailHeader extends StatelessWidget {
                           color: AppColors.brand,
                           fontWeight: FontWeight.w800,
                         ),
+                      ),
+                    ],
+                    // Reserva feita como professor (vínculo com "Reservar
+                    // quadras"): a arena vê que o horário é de aula dele.
+                    if (professor != null) ...[
+                      SizedBox(height: 12),
+                      Row(
+                        key: const Key('arena-booking-professor'),
+                        children: [
+                          Icon(
+                            Icons.school_outlined,
+                            size: 16,
+                            color: ProfessorLinksStyle.blue,
+                          ),
+                          SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              professor,
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: ProfessorLinksStyle.blue,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ],

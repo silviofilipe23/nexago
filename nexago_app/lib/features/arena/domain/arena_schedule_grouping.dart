@@ -144,6 +144,7 @@ abstract final class ArenaScheduleGrouping {
         paymentShortLabel: paymentShort,
         amountReais: amount,
         sportLabel: arenaBookingSportLabel(b.data),
+        asProfessor: b.bookedAsProfessor,
       );
     }
     return map;

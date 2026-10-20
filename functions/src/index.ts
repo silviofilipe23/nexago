@@ -194,6 +194,8 @@ export {
 } from "./arena-class-payout";
 // Aulas — lembrete por push 2h antes (alunos do dia e professor).
 export {sendArenaClassReminders} from "./arena-class-reminders";
+// Aulas — cobrança online pelo Asaas (worker do grupo + varredura).
+export {onArenaClassAsaasPaymentWritten, reconcileArenaClassAsaasPayments} from "./asaas-class-billing";
 // Aulas na agenda do atleta (leitura só por callable — as coleções de aula são da equipe).
 export {getMyClassAgenda} from "./arena-class-athlete-agenda";
 
@@ -739,6 +741,9 @@ export {
 
 // Avaliação da compra da Loja (06b/08b): publica a do comprador e refaz a nota do produto.
 export {moderateStoreReview, onStoreOrderReviewWrittenSyncPublic, submitStoreOrderReview} from "./store-reviews-write";
+
+// Placar do pós-jogo do aluguel: o dono salva, os adversários com conta confirmam ou contestam.
+export {respondBookingResult, saveBookingResult} from "./booking-result-write";
 
 // Prévia de link (OG/Twitter Card) das rotas dinâmicas do site público — a SPA Angular não
 // tem SSR, então bots de rede social são redirecionados aqui pelo .htaccess (por User-Agent).

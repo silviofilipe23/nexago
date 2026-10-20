@@ -31,6 +31,7 @@ const SHELL_ROUTE_PREFIXES = [
   '/organizadores',
   '/loja',
   '/squad',
+  '/convite',
 ];
 const AUTH_ROUTES = [
   '/entrar',

@@ -1708,6 +1708,20 @@
       ]
     },
     {
+      "collectionGroup": "arenaClassAsaasPayments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dueDate",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "arenaClassSessions",
       "queryScope": "COLLECTION",
       "fields": [

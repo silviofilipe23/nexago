@@ -146,6 +146,7 @@ import '../../features/athlete/presentation/athlete_complete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_edit_profile_page.dart';
 import '../../features/athlete/presentation/athlete_profile_goals_page.dart';
 import '../../features/athlete/presentation/booking_invite_page.dart';
+import '../../features/arenas/presentation/booking_result_review_page.dart';
 import '../../features/friendly_match/presentation/friendly_match_detail_page.dart';
 import '../../features/friendly_match/presentation/friendly_match_hub_page.dart';
 import '../../features/friendly_match/presentation/friendly_match_invite_builder_page.dart';
@@ -2524,6 +2525,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final inviteId = state.pathParameters['inviteId']!;
           return BookingInvitePage(inviteId: inviteId);
         },
+      ),
+      GoRoute(
+        path: AppRoutes.bookingResultReview,
+        name: AppRouteNames.bookingResultReview,
+        builder: (context, state) => BookingResultReviewPage(
+          bookingId: state.pathParameters['bookingId'] ?? '',
+        ),
       ),
       // Bora Jogar — hub, builder (literal antes do :matchId) e detalhe.
       GoRoute(

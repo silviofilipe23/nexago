@@ -1,0 +1,107 @@
+<div class="biv-backdrop" (click)="dismiss()" aria-hidden="true"></div>
+
+<div class="biv-dialog" role="dialog" aria-modal="true" aria-labelledby="biv-title">
+  <div class="biv-head">
+    <div class="biv-head-text">
+      <span class="biv-eyebrow">{{ slotsLabel() }} · quem aceitar primeiro entra</span>
+      <h2 id="biv-title" class="biv-title">Convidar jogadores</h2>
+    </div>
+    <button type="button" class="biv-close" aria-label="Fechar" (click)="dismiss()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+    </button>
+  </div>
+
+  @if (error(); as message) {
+    <p class="biv-error" role="alert">{{ message }}</p>
+  }
+
+  <section class="biv-link">
+    <div class="biv-link-head">
+      <span class="biv-link-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5" /><path d="M14 10a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5" /></svg>
+      </span>
+      <div class="biv-link-text">
+        <p class="biv-link-title">Compartilhar link do jogo</p>
+        <p class="biv-link-sub">Mande no grupo do WhatsApp — quem tocar confirma a vaga.</p>
+      </div>
+    </div>
+
+    @if (linkUrl(); as url) {
+      <div class="biv-link-box">
+        <span class="biv-link-url">{{ url }}</span>
+      </div>
+      <div class="biv-link-actions">
+        @if (whatsappUrl(); as wa) {
+          <a class="biv-btn biv-btn--primary" [href]="wa" target="_blank" rel="noopener">WhatsApp</a>
+        }
+        <button type="button" class="biv-btn biv-btn--ghost" (click)="copyLink()">
+          {{ linkCopied() ? 'Copiado!' : 'Copiar convite' }}
+        </button>
+      </div>
+    } @else {
+      <button type="button" class="biv-btn biv-btn--primary biv-btn--full" [disabled]="linkLoading()" (click)="shareLink()">
+        @if (linkLoading()) {
+          <app-nx-spinner [size]="16" />
+        }
+        {{ linkLoading() ? 'Gerando link…' : 'Compartilhar link do jogo' }}
+      </button>
+    }
+  </section>
+
+  <section class="biv-search">
+    <p class="biv-section-label">Ou chame quem já está no nexaGO</p>
+    <label class="biv-field">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+      <input
+        #searchInput
+        type="search"
+        autocomplete="off"
+        placeholder="Buscar atleta por nome ou apelido"
+        aria-label="Buscar atleta por nome ou apelido"
+        [value]="query()"
+        (input)="onQueryInput($any($event.target).value)"
+      />
+      @if (searching()) {
+        <app-nx-spinner [size]="16" />
+      }
+    </label>
+
+    @if (searchHint(); as hint) {
+      <p class="biv-hint">{{ hint }}</p>
+    }
+
+    @if (results().length > 0) {
+      <ul class="biv-results">
+        @for (profile of results(); track profile.id) {
+          <li class="biv-row">
+            @if (profile.avatarUrl) {
+              <img class="biv-avatar" [src]="profile.avatarUrl" alt="" />
+            } @else {
+              <span class="biv-avatar" aria-hidden="true">{{ initialsOf(profile.displayName) }}</span>
+            }
+            <div class="biv-row-text">
+              <p class="biv-row-name">{{ profile.displayName }}</p>
+              @if (rowSubtitle(profile); as sub) {
+                <p class="biv-row-sub">{{ sub }}</p>
+              }
+            </div>
+            @switch (rowState(profile)) {
+              @case ('playing') {
+                <span class="biv-tag">No jogo</span>
+              }
+              @case ('invited') {
+                <span class="biv-tag biv-tag--ok">Convidado</span>
+              }
+              @case ('sending') {
+                <app-nx-spinner [size]="18" />
+              }
+              @default {
+                <button type="button" class="biv-btn biv-btn--primary biv-btn--sm" (click)="invite(profile)">Convidar</button>
+              }
+            }
+          </li>
+        }
+      </ul>
+    }
+  </section>
+</div>

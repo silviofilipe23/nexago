@@ -27,6 +27,9 @@ export interface AthleteNotification {
   unread: boolean;
   /** `data.tournamentId` do payload — o inbox usa para abrir a avaliação do torneio. */
   tournamentId: string | null;
+  /** `data.inviteId`/`data.bookingId` dos avisos de convite para jogar numa reserva. */
+  inviteId: string | null;
+  bookingId: string | null;
 }
 
 function str(value: unknown): string | null {
@@ -58,6 +61,8 @@ function fromDoc(snap: QueryDocumentSnapshot<DocumentData>): AthleteNotification
     dismissed,
     unread: !read && !dismissed,
     tournamentId: str(notifData?.['tournamentId']),
+    inviteId: str(notifData?.['inviteId']),
+    bookingId: str(notifData?.['bookingId']),
   };
 }
 

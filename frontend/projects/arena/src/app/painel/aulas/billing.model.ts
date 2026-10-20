@@ -8,6 +8,18 @@ export type PlanKind = 'monthly' | 'package' | 'single';
 export type PaymentMethod = 'pix' | 'cash' | 'card_machine' | 'transfer';
 export type EnrollmentStatus = 'active' | 'paused' | 'canceled' | 'ended';
 export type ChargeStatus = 'open' | 'paid' | 'canceled';
+/** `asaas` = mensalidade cobrada online (fatura Asaas: PIX ou cartão). */
+export type BillingMode = 'manual' | 'asaas';
+export type AsaasState = 'pending' | 'creating' | 'open' | 'paid' | 'voiding' | 'void' | 'failed' | 'needs_cpf';
+
+/** Espelho da fatura Asaas na mensalidade (o grupo de pagamento é só do servidor). */
+export interface ChargeAsaas {
+  groupId: string;
+  state: AsaasState;
+  invoiceUrl: string | null;
+  /** Status cru do Asaas (`PENDING`, `OVERDUE`, `RECEIVED`…). */
+  status: string | null;
+}
 
 export interface ClassPlan {
   id: string;
@@ -30,6 +42,8 @@ export interface ClassRules {
   enrollmentFeeReais: number;
   /** Push 2h antes da aula para alunos com conta e o professor. */
   classReminderEnabled: boolean;
+  /** Mensalidade cobrada online pelo Asaas (PIX ou cartão na fatura). */
+  onlineBillingEnabled: boolean;
 }
 
 export const DEFAULT_RULES: ClassRules = {
@@ -39,6 +53,7 @@ export const DEFAULT_RULES: ClassRules = {
   defaultDueDay: 5,
   enrollmentFeeReais: 0,
   classReminderEnabled: true,
+  onlineBillingEnabled: false,
 };
 
 export interface EnrollmentSlot {
@@ -61,6 +76,9 @@ export interface Enrollment {
   status: EnrollmentStatus;
   dueDay: number;
   paymentMethod: PaymentMethod;
+  billingMode: BillingMode;
+  /** CPF do pagador mascarado (`***.456.789-**`), só na cobrança online. */
+  cpfMasked: string | null;
   startDate: string;
   creditsLeft: number | null;
   expiresOn: string | null;
@@ -82,6 +100,11 @@ export interface Charge {
   status: ChargeStatus;
   paidOn: string | null;
   paymentMethod: PaymentMethod;
+  billingMode: BillingMode;
+  asaas: ChargeAsaas | null;
+  /** `asaas` = pago pela fatura online; `manual` = baixa do gestor. */
+  paidVia: 'asaas' | 'manual' | null;
+  onlineBillingType: 'PIX' | 'CREDIT_CARD' | null;
 }
 
 export interface MakeupCredit {
@@ -233,14 +256,22 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-/** Link do WhatsApp com a mensagem de cobrança pronta (telefone com DDD, só dígitos). */
-export function whatsappChargeLink(phone: string | null, name: string, charge: Pick<Charge, 'description' | 'amountReais' | 'dueDate'>, arenaName: string): string | null {
+/** Link do WhatsApp com a mensagem de cobrança pronta (telefone com DDD, só dígitos); com a fatura
+ *  online, a mensagem leva o link de pagamento (PIX ou cartão). */
+export function whatsappChargeLink(
+  phone: string | null,
+  name: string,
+  charge: Pick<Charge, 'description' | 'amountReais' | 'dueDate'>,
+  arenaName: string,
+  invoiceUrl: string | null = null,
+): string | null {
   const digits = (phone ?? '').replace(/\D/g, '');
   if (digits.length < 10) return null;
   const number = digits.length <= 11 ? `55${digits}` : digits;
   const [y, m, d] = charge.dueDate.split('-');
+  const pay = invoiceUrl ? ` Pague por aqui, com PIX ou cartão: ${invoiceUrl}` : '';
   const text = `Olá, ${name.split(' ')[0]}! Aqui é da ${arenaName}. Segue a cobrança "${charge.description}" ` +
-    `(${brl(charge.amountReais)}), com vencimento em ${d}/${m}/${y}. Qualquer dúvida, é só chamar.`;
+    `(${brl(charge.amountReais)}), com vencimento em ${d}/${m}/${y}.${pay} Qualquer dúvida, é só chamar.`;
   return `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
 }
 
@@ -297,6 +328,7 @@ export function rulesFromDoc(data: Record<string, unknown> | undefined): ClassRu
     defaultDueDay: optNum(d['defaultDueDay']) ?? DEFAULT_RULES.defaultDueDay,
     enrollmentFeeReais: optNum(d['enrollmentFeeReais']) ?? DEFAULT_RULES.enrollmentFeeReais,
     classReminderEnabled: typeof d['classReminderEnabled'] === 'boolean' ? d['classReminderEnabled'] : DEFAULT_RULES.classReminderEnabled,
+    onlineBillingEnabled: d['onlineBillingEnabled'] === true,
   };
 }
 
@@ -332,6 +364,8 @@ export function enrollmentFromDoc(doc: Snap): Enrollment {
     status: oneOf(d['status'], ['active', 'paused', 'canceled', 'ended'] as const, 'active'),
     dueDay: optNum(d['dueDay']) ?? 5,
     paymentMethod: oneOf(d['paymentMethod'], PAYMENT_METHODS, 'pix'),
+    billingMode: d['billingMode'] === 'asaas' ? 'asaas' : 'manual',
+    cpfMasked: optStr(d['cpfMasked']),
     startDate: str(d['startDate']),
     creditsLeft: optNum(d['creditsLeft']),
     expiresOn: optStr(d['expiresOn']),
@@ -356,6 +390,25 @@ export function chargeFromDoc(doc: Snap): Charge {
     status: oneOf(d['status'], ['open', 'paid', 'canceled'] as const, 'open'),
     paidOn: optStr(d['paidOn']),
     paymentMethod: oneOf(d['paymentMethod'], PAYMENT_METHODS, 'pix'),
+    billingMode: d['billingMode'] === 'asaas' ? 'asaas' : 'manual',
+    asaas: chargeAsaasFromDoc(d['asaas']),
+    paidVia: d['paidVia'] === 'asaas' ? 'asaas' : d['paidVia'] === 'manual' ? 'manual' : null,
+    onlineBillingType: d['onlineBillingType'] === 'CREDIT_CARD' ? 'CREDIT_CARD' : d['onlineBillingType'] === 'PIX' ? 'PIX' : null,
+  };
+}
+
+const ASAAS_STATES: readonly AsaasState[] = ['pending', 'creating', 'open', 'paid', 'voiding', 'void', 'failed', 'needs_cpf'];
+
+function chargeAsaasFromDoc(raw: unknown): ChargeAsaas | null {
+  if (raw == null || typeof raw !== 'object') return null;
+  const a = raw as Record<string, unknown>;
+  const groupId = str(a['groupId']);
+  if (!groupId) return null;
+  return {
+    groupId,
+    state: oneOf(a['state'], ASAAS_STATES, 'pending'),
+    invoiceUrl: optStr(a['invoiceUrl']),
+    status: optStr(a['status']),
   };
 }
 
@@ -386,4 +439,35 @@ export function waitlistFromDoc(doc: Snap): WaitlistEntry {
     status: oneOf(d['status'], ['waiting', 'removed', 'enrolled'] as const, 'waiting'),
     createdAt: toDate(d['createdAt']),
   };
+}
+
+// ── Cobrança online ─────────────────────────────────────────────────────────
+
+/** Link da fatura online pronto para mandar (só com a mensalidade em aberto). */
+export function chargeInvoiceUrl(charge: Pick<Charge, 'status' | 'asaas'>): string | null {
+  return charge.status === 'open' && charge.asaas?.state === 'open' ? charge.asaas.invoiceUrl : null;
+}
+
+/** Situação da fatura online para a tela (null = cobrança manual ou fatura resolvida). */
+export function onlineChargeLabel(charge: Pick<Charge, 'status' | 'billingMode' | 'asaas' | 'paidVia' | 'onlineBillingType'>): string | null {
+  if (charge.billingMode !== 'asaas') return null;
+  if (charge.status === 'paid') {
+    if (charge.paidVia !== 'asaas') return 'Baixa manual';
+    return charge.onlineBillingType === 'CREDIT_CARD' ? 'Pago online · cartão' : 'Pago online · PIX';
+  }
+  if (charge.status !== 'open') return null;
+  switch (charge.asaas?.state) {
+    case 'open':
+      return charge.asaas.status === 'OVERDUE' ? 'Fatura vencida' : 'Fatura enviada';
+    case 'pending':
+    case 'creating':
+    case 'voiding':
+      return 'Gerando link…';
+    case 'failed':
+      return 'Falha ao gerar link — tentando de novo';
+    case 'needs_cpf':
+      return 'Sem CPF — cobre manualmente';
+    default:
+      return 'Cobrança manual';
+  }
 }

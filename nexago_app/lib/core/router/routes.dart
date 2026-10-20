@@ -478,6 +478,9 @@ abstract final class AppRoutes {
   /// Convite para jogar: `/convite/:inviteId`
   static const String bookingInvite = '/convite/:inviteId';
 
+  /// Conferir o placar do pós-jogo do aluguel (confirmar / contestar).
+  static const String bookingResultReview = '/reservar/resultado/:bookingId';
+
   /// Bora Jogar (match finder): hub, builder e detalhe.
   /// `friendlyMatchNew` é literal e deve vir ANTES de [friendlyMatchDetail]
   /// no router (senão "novo" casa como :matchId).
@@ -843,6 +846,7 @@ abstract final class AppRouteNames {
   static const String arenaBookingBlocked = 'arenaBookingBlocked';
   static const String bookingSuccess = 'bookingSuccess';
   static const String bookingInvite = 'bookingInvite';
+  static const String bookingResultReview = 'bookingResultReview';
   static const String friendlyMatchHub = 'friendlyMatchHub';
   static const String friendlyMatchNew = 'friendlyMatchNew';
   static const String friendlyMatchDetail = 'friendlyMatchDetail';

@@ -89,6 +89,16 @@ export const routes: Routes = [
       ),
   },
   {
+    // Convite para jogar numa reserva: o link do WhatsApp (`link_{bookingId}`) ou o push de um
+    // convite direto. Sem esta rota o link caía no `**` → painel. Os guards devolvem o atleta
+    // pra cá pelo `?redirect=` depois do login/onboarding. `/convite/*` também abre o app
+    // (App Link no Android, AASA no iOS) — quem cai aqui está no navegador.
+    path: 'convite/:inviteId',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./convite/booking-invite-page.component').then((m) => m.BookingInvitePageComponent),
+  },
+  {
     path: 'painel',
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>

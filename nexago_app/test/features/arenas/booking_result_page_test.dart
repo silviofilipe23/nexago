@@ -4,15 +4,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result.dart';
+import 'package:nexago_app/features/arenas/domain/booking_result_record.dart';
+import 'package:nexago_app/features/arenas/domain/booking_result_record_providers.dart';
 import 'package:nexago_app/features/arenas/domain/booking_story.dart';
 import 'package:nexago_app/features/arenas/domain/booking_story_providers.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_confirmed_athlete.dart';
 import 'package:nexago_app/features/arenas/presentation/booking_result_page.dart';
+import 'package:nexago_app/features/arenas/presentation/booking_result_review_page.dart';
 import 'package:nexago_app/features/arenas/presentation/booking_result_score_page.dart';
 import 'package:nexago_app/features/arenas/presentation/booking_result_team_page.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/booking_story/booking_result_card.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
+
+import 'fake_booking_result_repository.dart';
 
 const args = BookingStoryArgs(
   bookingId: 'b1',
@@ -49,11 +54,14 @@ Finder inCard(Finder f) =>
 BookingResult cardResult(WidgetTester tester) =>
     tester.widget<BookingResultCard>(find.byType(BookingResultCard)).result;
 
-Future<void> abrir(
+Future<FakeBookingResultRepository> abrir(
   WidgetTester tester, {
   BookingStorySource? source = galera,
   List<ResultPlayer> busca = const [],
+  List<SavedBookingResult> salvos = const [],
+  String uid = 'u1',
 }) async {
+  final repo = FakeBookingResultRepository(salvos);
   tester.view.physicalSize = const Size(400, 1400);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
@@ -66,6 +74,8 @@ Future<void> abrir(
         bookingResultPlayerSearchProvider.overrideWith(
           (ref, query) async => busca,
         ),
+        bookingResultRepositoryProvider.overrideWithValue(repo),
+        bookingResultUidProvider.overrideWithValue(uid),
       ],
       child: MaterialApp(
         theme: AppTheme.dark,
@@ -74,6 +84,7 @@ Future<void> abrir(
     ),
   );
   await tester.pump();
+  return repo;
 }
 
 /// Espera a transição de rota terminar: tocar durante a saída de uma tela
@@ -176,6 +187,9 @@ void main() {
 
       expect(find.text('CLASSIFICAÇÃO'), findsOneWidget);
       expect(find.text('JOGOS'), findsOneWidget);
+      // Placar zerado não grava: o servidor recusaria.
+      await tester.tap(find.byKey(const Key('JOGO 1-a-plus')));
+      await tester.pump();
       await tester.tap(find.byKey(const Key('booking-result-save')));
       await navegar(tester);
 
@@ -244,9 +258,175 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('booking-result-team-done')));
     await navegar(tester);
+    await tester.tap(find.byKey(const Key('SET 1-b-plus')));
+    await tester.pump();
     await tester.tap(find.byKey(const Key('booking-result-save')));
     await navegar(tester);
 
     expect(inCard(find.text('As brabas')), findsOneWidget);
+  });
+
+  group('convidado da reserva (entra pela Agenda desde o #779)', () {
+    testWidgets('monta a arte, mas não grava: só quem reservou salva', (
+      tester,
+    ) async {
+      final repo = await abrir(tester, uid: 'u3');
+
+      await tester.tap(find.byKey(const Key('booking-result-edit')));
+      await navegar(tester);
+      expect(rich('Só quem reservou a quadra salva o placar'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('SET 1-a-plus')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('booking-result-save')));
+      await navegar(tester);
+
+      expect(find.byType(BookingResultPage), findsOneWidget);
+      expect(repo.saves, isEmpty);
+      expect(cardResult(tester).games.single.scoreA, 1);
+    });
+
+    testWidgets('adversário com placar pendente vê o atalho para conferir', (
+      tester,
+    ) async {
+      await abrir(tester, uid: 'u3', salvos: [savedResult()]);
+      await tester.pump();
+
+      expect(find.textContaining('Com a sua confirmação'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('booking-result-open-review')));
+      await navegar(tester);
+      expect(find.byType(BookingResultReviewPage), findsOneWidget);
+      expect(find.byKey(const Key('booking-result-confirm')), findsOneWidget);
+    });
+  });
+
+  group('placar salvo', () {
+    testWidgets('o aviso cita quem confirma e o Salvar grava o placar', (
+      tester,
+    ) async {
+      final repo = await abrir(tester);
+
+      await tester.tap(find.byKey(const Key('booking-result-edit')));
+      await navegar(tester);
+      // Galera com conta: Rafael e Lia (u3, u4) estão no outro time.
+      expect(
+        rich('Rafael e Lia recebem o placar para confirmar. Só depois ele '
+            'conta no seu histórico.'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('SET 1-a-plus')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('booking-result-save')));
+      await navegar(tester);
+
+      expect(find.byType(BookingResultPage), findsOneWidget);
+      expect(repo.saves.single.$1, 'b1');
+      expect(repo.saves.single.$2.games.single.scoreA, 1);
+      expect(
+        [for (final p in repo.saves.single.$2.teams[1].players) p.id],
+        ['u3', 'u4'],
+      );
+    });
+
+    testWidgets('avulso do outro lado: o aviso diz que não conta', (
+      tester,
+    ) async {
+      await abrir(tester, source: null);
+
+      await tester.tap(find.byKey(const Key('booking-result-edit')));
+      await navegar(tester);
+      expect(rich('Ninguém do outro lado tem conta no nexaGO'), findsOneWidget);
+    });
+
+    testWidgets('placar zerado não grava e a tela fica', (tester) async {
+      final repo = await abrir(tester);
+
+      await tester.tap(find.byKey(const Key('booking-result-edit')));
+      await navegar(tester);
+      await tester.tap(find.byKey(const Key('booking-result-save')));
+      await tester.pump();
+
+      expect(repo.saves, isEmpty);
+      expect(find.byType(BookingResultScorePage), findsOneWidget);
+      expect(find.text('Lance o placar de pelo menos um set.'), findsOneWidget);
+    });
+
+    testWidgets('erro do servidor mantém o editor aberto com a mensagem', (
+      tester,
+    ) async {
+      final repo = await abrir(tester);
+      repo.saveError = 'O placar abre quando a partida começar.';
+
+      await tester.tap(find.byKey(const Key('booking-result-edit')));
+      await navegar(tester);
+      await tester.tap(find.byKey(const Key('SET 1-a-plus')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('booking-result-save')));
+      await tester.pump();
+
+      expect(find.byType(BookingResultScorePage), findsOneWidget);
+      expect(
+          find.text('O placar abre quando a partida começar.'), findsOneWidget);
+    });
+
+    testWidgets('abre com o placar gravado e o estado pendente', (
+      tester,
+    ) async {
+      await abrir(tester, salvos: [savedResult()]);
+      await tester.pump();
+
+      expect(find.text('2–1'), findsOneWidget);
+      expect(
+        find.byKey(const Key('booking-result-status-pending')),
+        findsOneWidget,
+      );
+      expect(find.text('Aguardando Rafael confirmar'), findsOneWidget);
+      expect(inCard(find.text('Maria & Enzo')), findsOneWidget);
+    });
+
+    testWidgets('confirmado: mostra quem confirmou e não edita mais', (
+      tester,
+    ) async {
+      await abrir(tester, salvos: [
+        savedResult(
+          status: BookingResultStatus.confirmed,
+          respondedByName: 'Rafael Souza',
+        ),
+      ]);
+      await tester.pump();
+
+      expect(
+        find.text('Confirmado por Rafael · já conta no seu histórico'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('booking-result-edit')), findsNothing);
+      await tester.tap(find.text('2–1'));
+      await tester.pump();
+      expect(find.byType(BookingResultScorePage), findsNothing);
+      expect(
+          find.text('Placar confirmado: ele não muda mais.'), findsOneWidget);
+    });
+
+    testWidgets('contestado: avisa quem contestou e reabre o editor', (
+      tester,
+    ) async {
+      await abrir(tester, salvos: [
+        savedResult(
+          status: BookingResultStatus.disputed,
+          respondedByName: 'Rafael Souza',
+        ),
+      ]);
+      await tester.pump();
+
+      expect(find.text('Rafael contestou · corrija e envie de novo'),
+          findsOneWidget);
+      await tester.tap(find.byKey(const Key('booking-result-edit')));
+      await navegar(tester);
+      expect(find.byType(BookingResultScorePage), findsOneWidget);
+      // O editor parte do placar gravado (21–18, 17–21, 15–12).
+      expect(find.text('18'), findsOneWidget);
+      expect(find.text('SET 3'), findsOneWidget);
+    });
   });
 }

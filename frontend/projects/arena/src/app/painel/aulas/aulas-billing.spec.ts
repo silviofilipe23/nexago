@@ -1,7 +1,9 @@
 import { usableCredits } from './aula-extra-modal.component';
 import {
   billingTotals,
+  chargeInvoiceUrl,
   chargeState,
+  onlineChargeLabel,
   planDetail,
   rulesFromDoc,
   slotsLabel,
@@ -12,7 +14,7 @@ import {
   type MakeupCredit,
 } from './billing.model';
 import type { ArenaClass, ClassSession, ClassStudent } from './class.model';
-import { buildSlotRows, slotSelectionError } from './panel-aula-enrollment.component';
+import { buildSlotRows, cpfDigitsOk, slotSelectionError } from './panel-aula-enrollment.component';
 import { spotsByWeekday } from './panel-aula-class-detail.component';
 import { studentAttendance } from './panel-aula-student-detail.component';
 import { buildStudentRows, filterStudentRows } from './panel-aulas-students.component';
@@ -35,6 +37,10 @@ function charge(over: Partial<Charge>): Charge {
     status: 'open',
     paidOn: null,
     paymentMethod: 'pix',
+    billingMode: 'manual',
+    asaas: null,
+    paidVia: null,
+    onlineBillingType: null,
     ...over,
   };
 }
@@ -55,6 +61,8 @@ function enrollment(over: Partial<Enrollment>): Enrollment {
     status: 'active',
     dueDay: 5,
     paymentMethod: 'pix',
+    billingMode: 'manual',
+    cpfMasked: null,
     startDate: '2026-10-01',
     creditsLeft: null,
     expiresOn: null,
@@ -164,6 +172,33 @@ describe('cobrança de aulas (billing.model)', () => {
     expect(rulesFromDoc(undefined).classReminderEnabled).toBeTrue();
     expect(rulesFromDoc({ makeupValidityDays: 30 }).classReminderEnabled).toBeTrue();
     expect(rulesFromDoc({ classReminderEnabled: false }).classReminderEnabled).toBeFalse();
+  });
+
+  it('cobrança online: rótulo da fatura, link só em aberto e mensagem com o link', () => {
+    const asaas = { groupId: 'e1_first', state: 'open' as const, invoiceUrl: 'https://asaas.test/i/1', status: 'PENDING' };
+    const online = charge({ billingMode: 'asaas', asaas });
+    expect(onlineChargeLabel(charge({}))).toBeNull();
+    expect(onlineChargeLabel(online)).toBe('Fatura enviada');
+    expect(onlineChargeLabel(charge({ billingMode: 'asaas', asaas: { ...asaas, status: 'OVERDUE' } }))).toBe('Fatura vencida');
+    expect(onlineChargeLabel(charge({ billingMode: 'asaas', asaas: { ...asaas, state: 'pending', invoiceUrl: null } }))).toBe('Gerando link…');
+    expect(onlineChargeLabel(charge({ billingMode: 'asaas', asaas: { ...asaas, state: 'needs_cpf' } }))).toBe('Sem CPF — cobre manualmente');
+    expect(onlineChargeLabel(charge({ billingMode: 'asaas', status: 'paid', paidVia: 'asaas', onlineBillingType: 'CREDIT_CARD' }))).toBe('Pago online · cartão');
+    expect(onlineChargeLabel(charge({ billingMode: 'asaas', status: 'paid', paidVia: 'manual' }))).toBe('Baixa manual');
+
+    expect(chargeInvoiceUrl(online)).toBe('https://asaas.test/i/1');
+    expect(chargeInvoiceUrl(charge({ ...online, status: 'paid' }))).toBeNull();
+    expect(chargeInvoiceUrl(charge({ billingMode: 'asaas', asaas: { ...asaas, state: 'void' } }))).toBeNull();
+
+    const link = whatsappChargeLink('11999990000', 'Marina', online, 'Arena Sol', chargeInvoiceUrl(online));
+    expect(decodeURIComponent(link!.split('text=')[1]!)).toContain('Pague por aqui, com PIX ou cartão: https://asaas.test/i/1');
+  });
+
+  it('regras: cobrança online desligada por padrão; CPF/CNPJ por quantidade de dígitos', () => {
+    expect(rulesFromDoc(undefined).onlineBillingEnabled).toBeFalse();
+    expect(rulesFromDoc({ onlineBillingEnabled: true }).onlineBillingEnabled).toBeTrue();
+    expect(cpfDigitsOk('529.982.247-25')).toBeTrue();
+    expect(cpfDigitsOk('12.345.678/0001-90')).toBeTrue();
+    expect(cpfDigitsOk('1234')).toBeFalse();
   });
 
   it('rótulos de horários e plano', () => {

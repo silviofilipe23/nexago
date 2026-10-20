@@ -1,10 +1,14 @@
 /**
- * Aulas — fase 2: planos, regras, matrícula e mensalidades (cobrança manual).
+ * Aulas — fase 2: planos, regras, matrícula e mensalidades.
  *
  * Matrícula = aluno + plano + horários fixos (turma × dia da semana). Ela escreve o aluno em
  * `classStudents` de cada turma com os `weekdays` dele e gera as primeiras cobranças. As mensais
- * seguintes saem do agendador diário (id `{matrícula}_{AAAA-MM}`, idempotente). Nenhum dinheiro
- * passa pela plataforma: o gestor registra o pagamento recebido direto.
+ * seguintes saem do agendador diário (id `{matrícula}_{AAAA-MM}`, idempotente).
+ *
+ * Cobrança `manual` (padrão): o gestor registra o pagamento recebido direto. Cobrança `asaas`
+ * (regra `onlineBillingEnabled`): cada mensalidade entra num grupo `arenaClassAsaasPayments`
+ * em estado `pending`, gravado NA MESMA transação; quem fala com o Asaas é o worker de
+ * `asaas-class-billing.ts` (nunca dentro de transação nem no loop do agendador).
  */
 
 import {onCall, HttpsError} from "firebase-functions/v2/https";
@@ -15,18 +19,35 @@ import {dayKeyFromEventDate} from "./event-timezone";
 import {addDaysToDateKey, isValidDateKey, isoWeekdayOfDateKey} from "./arena-recurring-booking";
 import {
   ARENA_CLASSES,
+  ARENA_CLASS_ASAAS_PAYMENTS,
+  ARENA_CLASS_BILLING_PROFILES,
   ARENA_CLASS_CHARGES,
   ARENA_CLASS_CREDITS,
   ARENA_CLASS_ENROLLMENTS,
   CLASS_PLANS,
   CLASS_STUDENTS,
   CLASS_WAITLIST,
+  DEFAULT_CLASS_RULES,
   PAYMENT_METHODS,
   PLAN_KINDS,
+  billingProfileId,
+  parseBillingMode,
+  type ClassBillingMode,
   type ClassPaymentMethod,
   type ClassPlanKind,
   type ClassRules,
 } from "./arena-class-constants";
+import {
+  LIVE_ASAAS_STATES,
+  chargeAsaasMirror,
+  classAsaasGroupData,
+  firstGroupId,
+  maskCpfCnpj,
+  resumeGroupId,
+  type ClassAsaasState,
+} from "./arena-class-asaas-model";
+import {isValidCpfCnpj, normalizeCpfCnpj} from "./asaas-customer";
+import {readArenaPaymentFlags, requireArenaPayoutPixKey} from "./mercadopago-arena-helpers";
 import {classRulesRef, monthKeyOf, parseClassRules, studentAttendsWeekday} from "./arena-class-ledger";
 import {
   parseArenaClass,
@@ -201,7 +222,10 @@ export const saveArenaClassRules = onCall({region: CLIENT_FACING_REGIONS}, async
   const input = (request.data ?? {}) as Record<string, unknown>;
   const arenaId = str(input["arenaId"]);
   if (!arenaId) throw new HttpsError("invalid-argument", "Arena é obrigatória.");
-  const rules = parseClassRules(input);
+  const db = getFirestore();
+  const arenaData = await requireClassManager(db, arenaId, uid);
+  const stored = parseClassRules((await classRulesRef(db, arenaId).get()).data());
+  const rules = mergeClassRulesInput(stored, input);
   // `parseClassRules` cai no padrão em valor fora da faixa — aqui isso é erro, não silêncio.
   const checks: Array<[keyof ClassRules, boolean]> = [
     ["makeupValidityDays", input["makeupValidityDays"] === undefined || rules.makeupValidityDays === input["makeupValidityDays"]],
@@ -210,11 +234,31 @@ export const saveArenaClassRules = onCall({region: CLIENT_FACING_REGIONS}, async
   if (checks.some(([, ok]) => !ok)) {
     throw new HttpsError("invalid-argument", "Validade do crédito (1–365 dias) ou vencimento (dia 1–28) inválido.");
   }
-  const db = getFirestore();
-  await requireClassManager(db, arenaId, uid);
+  if (rules.onlineBillingEnabled && !stored.onlineBillingEnabled) assertArenaCanBillOnline(arenaData);
   await classRulesRef(db, arenaId).set({...rules, updatedAt: FieldValue.serverTimestamp(), updatedByUid: uid});
   return rules;
 });
+
+/** App antigo não manda os campos novos: o que não veio fica como estava (senão desligaria a
+ *  cobrança online ou o lembrete calado). */
+export function mergeClassRulesInput(stored: ClassRules, input: Record<string, unknown>): ClassRules {
+  const given = Object.fromEntries(
+    Object.keys(DEFAULT_CLASS_RULES).filter((k) => input[k] !== undefined).map((k) => [k, input[k]]),
+  );
+  return parseClassRules({...stored, ...given});
+}
+
+/** Cobrança online cai no caixa da arena, como o aluguel online: precisa do pagamento online e do PIX de repasse. */
+export function assertArenaCanBillOnline(arena: Record<string, unknown>): void {
+  if (!readArenaPaymentFlags(arena).onlinePaymentEnabled) {
+    throw new HttpsError("failed-precondition", "Ative o pagamento online da arena antes de cobrar as aulas online.");
+  }
+  try {
+    requireArenaPayoutPixKey(arena);
+  } catch {
+    throw new HttpsError("failed-precondition", "Cadastre a chave PIX de repasse da arena para receber as aulas online.");
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Matrícula
@@ -234,6 +278,10 @@ export interface EnrollmentRequest {
   waiveFee: boolean;
   waitlistClassId: string | null;
   waitlistEntryId: string | null;
+  /** `asaas` = mensalidade cobrada online (precisa da regra ligada e de CPF). */
+  billingMode: ClassBillingMode;
+  /** CPF digitado pela arena (só dígitos) — vai para o perfil de cobrança, nunca para o atleta. */
+  cpfCnpj: string | null;
 }
 
 export function parseEnrollmentRequest(input: Record<string, unknown>): EnrollmentRequest {
@@ -269,7 +317,16 @@ export function parseEnrollmentRequest(input: Record<string, unknown>): Enrollme
     waiveFee: input["waiveFee"] === true,
     waitlistClassId: str(input["waitlistClassId"]) || null,
     waitlistEntryId: str(input["waitlistEntryId"]) || null,
+    billingMode: parseBillingMode(input["billingMode"]),
+    cpfCnpj: parseOptionalCpf(input["cpfCnpj"]),
   };
+}
+
+function parseOptionalCpf(raw: unknown): string | null {
+  const digits = normalizeCpfCnpj(typeof raw === "string" ? raw : undefined);
+  if (!digits) return null;
+  if (!isValidCpfCnpj(digits)) throw new HttpsError("invalid-argument", "CPF/CNPJ inválido.");
+  return digits;
 }
 
 export interface PlannedCharge {
@@ -299,13 +356,16 @@ function proratedMonthCharge(
   };
 }
 
-/** Doc de uma cobrança em aberto da matrícula. */
+/** Doc de uma cobrança em aberto da matrícula (`groupId` = cobrança online no grupo Asaas). */
 function openChargeData(
   enrollmentId: string,
   owner: {arenaId: unknown; studentId: unknown; athleteId: unknown; name: unknown; phone: unknown; paymentMethod: unknown},
   c: PlannedCharge,
+  groupId: string | null = null,
 ): Record<string, unknown> {
   return {
+    billingMode: groupId ? "asaas" : "manual",
+    ...(groupId ? {asaas: chargeAsaasMirror(groupId, "pending")} : {}),
     arenaId: owner.arenaId,
     enrollmentId,
     studentId: owner.studentId,
@@ -393,6 +453,9 @@ async function planEnrollment(
     );
   }
   const rules = parseClassRules((await get(classRulesRef(db, req.arenaId)) as FirebaseFirestore.DocumentSnapshot).data());
+  if (req.billingMode === "asaas" && !rules.onlineBillingEnabled) {
+    throw new HttpsError("failed-precondition", "A cobrança online está desligada nas Regras de aulas.");
+  }
 
   const classes: EnrollmentPlan["classes"] = new Map();
   const students = new Map<string, FirebaseFirestore.QueryDocumentSnapshot[]>();
@@ -447,6 +510,8 @@ export interface CreateEnrollmentResult {
   enrollmentId: string;
   studentId: string;
   chargeIds: string[];
+  /** Grupo Asaas do 1º pagamento (cobrança online), ou null. */
+  asaasGroupId: string | null;
 }
 
 /** Grava a matrícula numa transação: aluno nas turmas, vagas conferidas, primeiras cobranças. */
@@ -476,6 +541,9 @@ export async function createEnrollmentCore(
       db.collection(ARENA_CLASSES).doc(req.waitlistClassId).collection(CLASS_WAITLIST).doc(req.waitlistEntryId) :
       null;
     const waitlistSnap = waitlistRef ? await tx.get(waitlistRef) : null;
+    const online = req.billingMode === "asaas" ?
+      await resolveOnlineBilling(tx, db, req, studentId, student.athleteId) :
+      null;
 
     const weekdays = planned.slots.map((s) => s.weekday);
     const {charges, billedThrough} = firstCharges(enrollmentRef.id, planned.plan, weekdays, todayKey, planned.rules, req.waiveFee);
@@ -493,6 +561,8 @@ export async function createEnrollmentCore(
       status: "active",
       dueDay: req.dueDay,
       paymentMethod: req.paymentMethod,
+      billingMode: req.billingMode,
+      cpfMasked: online?.cpfMasked ?? null,
       startDate: todayKey,
       billedThrough,
       creditsLeft: plan.kind === "package" ? plan.credits : null,
@@ -529,6 +599,8 @@ export async function createEnrollmentCore(
       }
     }
 
+    // Online: 1º mês + taxa saem juntos num pagamento só.
+    const groupId = online && charges.length > 0 ? firstGroupId(enrollmentRef.id) : null;
     for (const c of charges) {
       tx.set(db.collection(ARENA_CLASS_CHARGES).doc(c.id), openChargeData(enrollmentRef.id, {
         arenaId: req.arenaId,
@@ -537,14 +609,62 @@ export async function createEnrollmentCore(
         name: student.name,
         phone: student.phone,
         paymentMethod: req.paymentMethod,
-      }, c));
+      }, c, groupId));
     }
+    if (groupId) {
+      tx.set(db.collection(ARENA_CLASS_ASAAS_PAYMENTS).doc(groupId), classAsaasGroupData({
+        arenaId: req.arenaId, enrollmentId: enrollmentRef.id, studentId, athleteId: student.athleteId, name: student.name,
+      }, charges));
+    }
+    if (online?.profile) tx.set(online.profile.ref, online.profile.data, {merge: true});
 
     if (waitlistRef && waitlistSnap?.exists) {
       tx.set(waitlistRef, {status: "enrolled", enrollmentId: enrollmentRef.id, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
     }
-    return {enrollmentId: enrollmentRef.id, studentId, chargeIds: charges.map((c) => c.id)};
+    return {enrollmentId: enrollmentRef.id, studentId, chargeIds: charges.map((c) => c.id), asaasGroupId: groupId};
   });
+}
+
+/**
+ * CPF de quem vai pagar online, lido na transação: o digitado pela arena (vai para o perfil de
+ * cobrança, só do servidor — não escreve no cadastro do atleta), o perfil já salvo ou o CPF do
+ * próprio atleta. Sem nenhum, não há como cobrar online.
+ */
+async function resolveOnlineBilling(
+  tx: Transaction,
+  db: Firestore,
+  req: EnrollmentRequest,
+  studentId: string,
+  athleteId: string | null,
+): Promise<{cpfMasked: string; profile: {ref: FirebaseFirestore.DocumentReference; data: Record<string, unknown>} | null}> {
+  const profileRef = db.collection(ARENA_CLASS_BILLING_PROFILES).doc(billingProfileId(req.arenaId, studentId));
+  const profileSnap = await tx.get(profileRef);
+  const profileCpf = normalizeCpfCnpj(profileSnap.data()?.["cpfCnpj"] as string | undefined);
+  let cpf = req.cpfCnpj ?? "";
+  if (!cpf && isValidCpfCnpj(profileCpf)) cpf = profileCpf;
+  if (!cpf && athleteId) cpf = await readStoredCpfInTx(tx, db, athleteId);
+  if (!cpf) throw new HttpsError("failed-precondition", "Informe o CPF do aluno para cobrar online.");
+  return {
+    cpfMasked: maskCpfCnpj(cpf),
+    profile: req.cpfCnpj ? {
+      ref: profileRef,
+      data: {
+        arenaId: req.arenaId, studentId, athleteId, cpfCnpj: req.cpfCnpj,
+        // Outro CPF = outro cliente no Asaas.
+        ...(profileCpf && profileCpf !== req.cpfCnpj ? {asaasCustomerId: null, asaasEnv: null} : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+    } : null,
+  };
+}
+
+async function readStoredCpfInTx(tx: Transaction, db: Firestore, uid: string): Promise<string> {
+  for (const col of ["athletes", "users"]) {
+    const data = (await tx.get(db.collection(col).doc(uid))).data() ?? {};
+    const digits = normalizeCpfCnpj((data["cpfCnpj"] ?? data["cpf"] ?? data["document"]) as string | undefined);
+    if (isValidCpfCnpj(digits)) return digits;
+  }
+  return "";
 }
 
 export const createArenaClassEnrollment = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {
@@ -639,19 +759,25 @@ export async function setEnrollmentStatusCore(
     }
 
     let canceledCharges = 0;
+    const voidGroups = new Set<string>();
     for (const c of openCharges?.docs ?? []) {
       // Cancelar a matrícula não perdoa o que já venceu — só o que ainda ia vencer.
       if (c.data()["status"] === "open" && String(c.data()["dueDate"] ?? "") > todayKey) {
         tx.set(c.ref, {status: "canceled", canceledAt: FieldValue.serverTimestamp()}, {merge: true});
         canceledCharges += 1;
+        const groupId = liveGroupIdOf(c.data());
+        if (groupId) voidGroups.add(groupId);
       }
     }
+    // O worker apaga o pagamento no Asaas e reagrupa o que ainda estiver em aberto no grupo.
+    for (const groupId of voidGroups) requestGroupVoid(tx, db, groupId, "enrollment_canceled");
 
     // Mês da volta: proporcional a partir de hoje; cobrança que já existe (aberta, paga) fica.
     const resumeCharge = resumeChargeSnap && !resumeChargeSnap.exists ?
       proratedMonthCharge(enrollmentId, plan, slots.map((s) => Number(s["weekday"])), todayKey) :
       null;
     if (resumeCharge) {
+      const groupId = parseBillingMode(data["billingMode"]) === "asaas" ? resumeGroupId(enrollmentId, resumeMonth) : null;
       tx.set(db.collection(ARENA_CLASS_CHARGES).doc(resumeCharge.id), openChargeData(enrollmentId, {
         arenaId: data["arenaId"],
         studentId: data["studentId"],
@@ -659,7 +785,13 @@ export async function setEnrollmentStatusCore(
         name: data["name"],
         phone: data["phone"],
         paymentMethod: data["paymentMethod"],
-      }, resumeCharge));
+      }, resumeCharge, groupId));
+      if (groupId) {
+        tx.set(db.collection(ARENA_CLASS_ASAAS_PAYMENTS).doc(groupId), classAsaasGroupData({
+          arenaId: String(data["arenaId"] ?? ""), enrollmentId, studentId,
+          athleteId: typeof data["athleteId"] === "string" ? data["athleteId"] : null, name: String(data["name"] ?? ""),
+        }, [resumeCharge]));
+      }
     }
     tx.set(ref, {
       status,
@@ -670,6 +802,24 @@ export async function setEnrollmentStatusCore(
     }, {merge: true});
     return {status, canceledCharges};
   });
+}
+
+/** Grupo Asaas ainda vivo de uma mensalidade online (null = manual ou já resolvido). */
+export function liveGroupIdOf(charge: Record<string, unknown>): string | null {
+  if (parseBillingMode(charge["billingMode"]) !== "asaas") return null;
+  const asaas = (charge["asaas"] ?? {}) as Record<string, unknown>;
+  const groupId = typeof asaas["groupId"] === "string" ? asaas["groupId"] : "";
+  const state = String(asaas["state"] ?? "") as ClassAsaasState;
+  return groupId && LIVE_ASAAS_STATES.includes(state) ? groupId : null;
+}
+
+/** Pede ao worker que apague o pagamento do grupo no Asaas (fora da transação) e reagrupe o resto. */
+export function requestGroupVoid(tx: Transaction, db: Firestore, groupId: string, reason: string): void {
+  tx.set(db.collection(ARENA_CLASS_ASAAS_PAYMENTS).doc(groupId), {
+    state: "voiding" as const,
+    voidReason: reason,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, {merge: true});
 }
 
 export const setArenaClassEnrollmentStatus = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {
@@ -702,30 +852,84 @@ export const setArenaClassChargeStatus = onCall({region: CLIENT_FACING_REGIONS},
     throw new HttpsError("invalid-argument", "Status inválido.");
   }
   const db = getFirestore();
-  const ref = db.collection(ARENA_CLASS_CHARGES).doc(chargeId);
-  const snap = await ref.get();
+  const snap = await db.collection(ARENA_CLASS_CHARGES).doc(chargeId).get();
   if (!snap.exists) throw new HttpsError("not-found", "Cobrança não encontrada.");
   await requireClassManager(db, String(snap.data()?.["arenaId"] ?? ""), uid);
-  const todayKey = dayKeyFromEventDate(new Date());
-  if (status === "paid") {
-    const method = str(input["paymentMethod"]) || String(snap.data()?.["paymentMethod"] ?? "pix");
-    if (!(PAYMENT_METHODS as readonly string[]).includes(method)) {
-      throw new HttpsError("invalid-argument", "Forma de pagamento inválida.");
-    }
-    const paidOn = str(input["paidOn"]) || todayKey;
-    if (!isValidDateKey(paidOn) || paidOn > todayKey) throw new HttpsError("invalid-argument", "Data do pagamento inválida.");
-    await ref.set({
-      status: "paid", paidOn, paidAt: FieldValue.serverTimestamp(), paymentMethod: method, registeredByUid: uid,
-    }, {merge: true});
-  } else {
-    await ref.set({
-      status,
-      ...(status === "open" ? {paidOn: null, paidAt: null} : {canceledAt: FieldValue.serverTimestamp()}),
-      registeredByUid: uid,
-    }, {merge: true});
-  }
-  return {chargeId, status};
+  return setChargeStatusCore(db, chargeId, {
+    status,
+    paymentMethod: str(input["paymentMethod"]) || null,
+    paidOn: str(input["paidOn"]) || null,
+    actorUid: uid,
+  }, dayKeyFromEventDate(new Date()));
 });
+
+/**
+ * Baixa manual, desfazer ou cancelar uma mensalidade. Mensalidade online: a baixa manual (ou o
+ * cancelamento) manda apagar o pagamento do Asaas — o worker reagrupa o que sobrar em aberto no
+ * grupo; desfazer gera um link novo; pago online não se desfaz por aqui (é estorno).
+ */
+export async function setChargeStatusCore(
+  db: Firestore,
+  chargeId: string,
+  input: {status: "paid" | "open" | "canceled"; paymentMethod: string | null; paidOn: string | null; actorUid: string},
+  todayKey: string,
+): Promise<{chargeId: string; status: string}> {
+  const ref = db.collection(ARENA_CLASS_CHARGES).doc(chargeId);
+  return db.runTransaction(async (tx: Transaction) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "Cobrança não encontrada.");
+    const data = snap.data() as Record<string, unknown>;
+    if (data["paidVia"] === "asaas" && input.status !== "paid") {
+      throw new HttpsError("failed-precondition", "Pago online pelo Asaas — para devolver, faça o estorno.");
+    }
+    const online = parseBillingMode(data["billingMode"]) === "asaas";
+    const liveGroup = liveGroupIdOf(data);
+
+    if (input.status === "paid") {
+      const method = input.paymentMethod || String(data["paymentMethod"] ?? "pix");
+      if (!(PAYMENT_METHODS as readonly string[]).includes(method)) {
+        throw new HttpsError("invalid-argument", "Forma de pagamento inválida.");
+      }
+      const paidOn = input.paidOn || todayKey;
+      if (!isValidDateKey(paidOn) || paidOn > todayKey) throw new HttpsError("invalid-argument", "Data do pagamento inválida.");
+      if (data["status"] === "paid") return {chargeId, status: "paid"};
+      if (liveGroup) requestGroupVoid(tx, db, liveGroup, "paid_manually");
+      tx.set(ref, {
+        status: "paid", paidOn, paidAt: FieldValue.serverTimestamp(), paymentMethod: method, paidVia: "manual",
+        registeredByUid: input.actorUid,
+        ...(liveGroup ? {asaas: {...(data["asaas"] as Record<string, unknown>), state: "void"}} : {}),
+      }, {merge: true});
+      return {chargeId, status: "paid"};
+    }
+
+    if (input.status === "canceled") {
+      if (liveGroup) requestGroupVoid(tx, db, liveGroup, "charge_canceled");
+      tx.set(ref, {
+        status: "canceled", canceledAt: FieldValue.serverTimestamp(), registeredByUid: input.actorUid,
+        ...(liveGroup ? {asaas: {...(data["asaas"] as Record<string, unknown>), state: "void"}} : {}),
+      }, {merge: true});
+      return {chargeId, status: "canceled"};
+    }
+
+    // Desfazer (volta a "em aberto"): online ganha um link novo, num grupo só dela.
+    const reopenGroupId = online && !liveGroup ? `${chargeId}_r${Date.now().toString(36)}` : null;
+    tx.set(ref, {
+      status: "open", paidOn: null, paidAt: null, paidVia: null, registeredByUid: input.actorUid,
+      ...(reopenGroupId ? {asaas: chargeAsaasMirror(reopenGroupId, "pending")} : {}),
+    }, {merge: true});
+    if (reopenGroupId) {
+      tx.set(db.collection(ARENA_CLASS_ASAAS_PAYMENTS).doc(reopenGroupId), classAsaasGroupData({
+        arenaId: String(data["arenaId"] ?? ""), enrollmentId: String(data["enrollmentId"] ?? ""),
+        studentId: String(data["studentId"] ?? ""),
+        athleteId: typeof data["athleteId"] === "string" ? data["athleteId"] : null, name: String(data["name"] ?? ""),
+      }, [{
+        id: chargeId, description: String(data["description"] ?? "Mensalidade"),
+        amountReais: Number(data["amountReais"] ?? 0), dueDate: String(data["dueDate"] ?? todayKey),
+      }]));
+    }
+    return {chargeId, status: "open"};
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Agendador: mensal do mês, créditos e pacotes vencidos
@@ -759,16 +963,30 @@ export async function runMonthlyBilling(db: Firestore, todayKey: string): Promis
         String(data["startDate"] ?? todayKey), dueDay, todayKey,
       );
       for (const month of months) {
-        const ref = db.collection(ARENA_CLASS_CHARGES).doc(`${doc.id}_${month}`);
+        const chargeId = `${doc.id}_${month}`;
+        const ref = db.collection(ARENA_CLASS_CHARGES).doc(chargeId);
         if (!(await ref.get()).exists) {
-          await ref.set({
-            arenaId: data["arenaId"], enrollmentId: doc.id, studentId: data["studentId"],
-            athleteId: data["athleteId"] ?? null, name: data["name"], phone: data["phone"] ?? null,
+          // Online: a mensalidade é o próprio grupo; o Asaas é chamado pelo worker, não aqui.
+          const groupId = parseBillingMode(data["billingMode"]) === "asaas" ? chargeId : null;
+          const charge: PlannedCharge = {
+            id: chargeId,
             description: `${String(plan["name"] ?? "Mensalidade")} · ${monthLabelPt(month)}`,
-            period: month, amountReais: Number(plan["priceReais"] ?? 0), dueDate: dueDateFor(month, dueDay),
-            status: "open", paidAt: null, paidOn: null, paymentMethod: data["paymentMethod"] ?? "pix",
-            createdAt: FieldValue.serverTimestamp(),
-          });
+            period: month,
+            amountReais: Number(plan["priceReais"] ?? 0),
+            dueDate: dueDateFor(month, dueDay),
+          };
+          const batch = db.batch();
+          batch.set(ref, openChargeData(doc.id, {
+            arenaId: data["arenaId"], studentId: data["studentId"], athleteId: data["athleteId"],
+            name: data["name"], phone: data["phone"], paymentMethod: data["paymentMethod"],
+          }, charge, groupId));
+          if (groupId) {
+            batch.set(db.collection(ARENA_CLASS_ASAAS_PAYMENTS).doc(groupId), classAsaasGroupData({
+              arenaId: String(data["arenaId"] ?? ""), enrollmentId: doc.id, studentId: String(data["studentId"] ?? ""),
+              athleteId: typeof data["athleteId"] === "string" ? data["athleteId"] : null, name: String(data["name"] ?? ""),
+            }, [charge]));
+          }
+          await batch.commit();
           charges += 1;
         }
         await doc.ref.set({billedThrough: month}, {merge: true});

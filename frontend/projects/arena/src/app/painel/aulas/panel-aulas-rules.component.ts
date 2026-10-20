@@ -66,6 +66,22 @@ import { fetchRules, saveRules } from './billing-repository';
             <p class="hint">Os alunos com conta NexaGO recebem aviso no app quando a aula é cancelada.</p>
           </ar-panel-card>
 
+          <ar-panel-card title="Cobrança online">
+            <div class="toggle-row">
+              <div>
+                <div class="t-title">Cobrar mensalidades pelo Asaas</div>
+                <div class="t-sub">Na matrícula, escolha "Online": cada mensalidade vira uma fatura e o aluno paga com PIX ou cartão pelo link</div>
+              </div>
+              <ar-toggle label="Cobrar mensalidades pelo Asaas" [checked]="rules().onlineBillingEnabled" [disabled]="readOnly()" (changed)="patch({ onlineBillingEnabled: $event })" />
+            </div>
+            <p class="hint">
+              O link vai no "Cobrar" do WhatsApp e por push para quem tem conta NexaGO. O valor cai no caixa
+              da arena com a taxa do pagamento online (Pro 6%, Elite 5%, mínimo R$ 1,50; no cartão, desconta
+              também a tarifa do cartão). Precisa do pagamento online ativo e da chave PIX de repasse no perfil
+              da arena. Cobrança manual continua sem taxa.
+            </p>
+          </ar-panel-card>
+
           <ar-panel-card title="Lembretes">
             <div class="toggle-row">
               <div>
@@ -89,8 +105,9 @@ import { fetchRules, saveRules } from './billing-repository';
               </div>
             </div>
             <p class="hint">
-              A mensalidade é gerada pelo sistema 10 dias antes do vencimento e o pagamento é registrado
-              por aqui — PIX direto, dinheiro ou maquininha. Nada passa pela plataforma.
+              A mensalidade é gerada pelo sistema 10 dias antes do vencimento. Na cobrança manual, o
+              pagamento é registrado por aqui (PIX direto, dinheiro ou maquininha) e nada passa pela
+              plataforma; na online, a baixa é automática.
             </p>
           </ar-panel-card>
         </div>

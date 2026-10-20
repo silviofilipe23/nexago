@@ -207,6 +207,41 @@ export async function createAsaasCardCharge(params: {
 }
 
 /**
+ * Cobrança com a fatura hospedada do Asaas em que o pagador escolhe a forma (`UNDEFINED`: PIX ou
+ * cartão, e o que mais a conta aceitar). Usada nas mensalidades de aula — o link vai por WhatsApp
+ * e push, então não há QR para buscar aqui. `dueDate` em YYYY-MM-DD; passado vira hoje.
+ */
+export async function createAsaasInvoiceCharge(params: {
+  customerId: string;
+  valueReais: number;
+  dueDate: string;
+  description: string;
+  externalReference: string;
+  idempotencyKey: string;
+}): Promise<{paymentId: string; invoiceUrl: string; status: string}> {
+  const today = todayBrazil();
+  const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(params.dueDate) && params.dueDate > today ? params.dueDate : today;
+  const payment = await fetchAsaas<AsaasPaymentResponse>("/v3/payments", {
+    method: "POST",
+    body: {
+      customer: params.customerId,
+      billingType: "UNDEFINED",
+      value: params.valueReais,
+      dueDate,
+      description: params.description.slice(0, 500),
+      externalReference: params.externalReference,
+    },
+    idempotencyKey: params.idempotencyKey,
+  });
+  const paymentId = payment.id?.trim() ?? "";
+  if (!paymentId) throw new Error("ASAAS_PAYMENT_MISSING_ID");
+  const invoiceUrl = payment.invoiceUrl?.trim() ?? "";
+  if (!invoiceUrl) throw new Error("ASAAS_INVOICE_URL_MISSING");
+  logger.info(`createAsaasInvoiceCharge: payment ${paymentId} status=${payment.status ?? "?"} dueDate=${dueDate}`);
+  return {paymentId, invoiceUrl, status: payment.status ?? "PENDING"};
+}
+
+/**
  * Estorna um pagamento recebido (PIX volta integral ao pagador). Estorno já
  * feito é tratado como sucesso — o fluxo de cancelamento fica idempotente.
  */

@@ -8,7 +8,15 @@ import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { athleteFunctions } from '../data/functions';
-import { bookingIsActive, bookingNeedsPayment, fetchMyBookings, type MyBooking } from '../data/my-bookings-repository';
+import {
+  bookingIsActive,
+  bookingNeedsPayment,
+  bookingViewerIsGuest,
+  fetchMyBookings,
+  fetchMyGuestBookings,
+  mergeOwnAndGuestBookings,
+  type MyBooking,
+} from '../data/my-bookings-repository';
 import { fetchMyClubParticipations, type MyClubParticipation } from '../data/arena-clubs-repository';
 import { fetchMyClassAgenda, type MyClassAgendaItem } from '../data/class-agenda-repository';
 import {
@@ -256,7 +264,8 @@ function buildIcsCalendar(events: readonly AgendaEvent[]): string {
   return lines.join('\r\n');
 }
 
-export function bookingToEvent(booking: MyBooking, now: Date = new Date()): AgendaEvent | null {
+/** `viewerUid` diferente do dono = convidado: o jogo aparece, mas pagamento é do dono. */
+export function bookingToEvent(booking: MyBooking, now: Date = new Date(), viewerUid: string | null = null): AgendaEvent | null {
   if (booking.dateKey.length < 10) return null;
   const [y, m, d] = booking.dateKey.split('-').map(Number);
   const [sh, sm] = booking.startTime.split(':').map(Number);
@@ -266,7 +275,8 @@ export function bookingToEvent(booking: MyBooking, now: Date = new Date()): Agen
   let end = new Date(y, m - 1, d, eh || 0, em || 0);
   if (end.getTime() <= start.getTime()) end = new Date(end.getTime() + 24 * 60 * 60_000);
   const active = bookingIsActive(booking);
-  const needsPayment = bookingNeedsPayment(booking);
+  const isGuest = bookingViewerIsGuest(booking, viewerUid);
+  const needsPayment = !isGuest && bookingNeedsPayment(booking);
   const isPast = end.getTime() <= now.getTime();
 
   return {
@@ -275,7 +285,7 @@ export function bookingToEvent(booking: MyBooking, now: Date = new Date()): Agen
     durationMin: Math.round((end.getTime() - start.getTime()) / 60000),
     kind: 'rental',
     title: `${booking.arenaName} · ${booking.courtName}`,
-    subtitle: active ? 'Reserva de quadra' : 'Reserva cancelada',
+    subtitle: !active ? 'Reserva cancelada' : isGuest ? 'Jogo como convidado' : 'Reserva de quadra',
     location: booking.arenaName,
     statusLabel: !active ? 'Cancelada' : isPast ? 'Finalizada' : needsPayment ? 'Pagamento pendente' : 'Confirmado',
     statusTone: !active ? 'neutral' : isPast ? 'neutral' : needsPayment ? 'warning' : 'confirmed',
@@ -617,8 +627,9 @@ export class AthleteAgendaComponent {
     this.loading.set(true);
     try {
       const clubsFrom = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
-      const [bookings, registrations, clubParticipations, classes] = await Promise.all([
+      const [bookings, guestBookings, registrations, clubParticipations, classes] = await Promise.all([
         fetchMyBookings(db, uid),
+        fetchMyGuestBookings(db, uid).catch(() => [] as MyBooking[]),
         fetchMyRegistrations(db, projectId, uid),
         fetchMyClubParticipations(db, uid, clubsFrom).catch(() => [] as MyClubParticipation[]),
         fetchMyClassAgenda().catch(() => [] as MyClassAgendaItem[]),
@@ -627,7 +638,10 @@ export class AthleteAgendaComponent {
       const tournamentIds = [...new Set(registrations.map((r) => r.tournamentId))];
       const tournaments = await fetchTournamentSummariesByIds(db, tournamentIds);
 
-      const bookingEvents = bookings.filter(bookingIsActive).map((b) => bookingToEvent(b)).filter((e): e is AgendaEvent => e != null);
+      const bookingEvents = mergeOwnAndGuestBookings(bookings, guestBookings)
+        .filter(bookingIsActive)
+        .map((b) => bookingToEvent(b, new Date(), uid))
+        .filter((e): e is AgendaEvent => e != null);
       const registrationEvents = registrations
         .map((r) => registrationToEvent(r, tournaments.get(r.tournamentId)))
         .filter((e): e is AgendaEvent => e != null);

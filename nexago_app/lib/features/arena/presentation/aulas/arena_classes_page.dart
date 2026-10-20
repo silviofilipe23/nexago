@@ -119,7 +119,7 @@ class ArenaClassesPage extends ConsumerWidget {
         if (classes == null) return null;
         final list = arenaClassesForList(
           classes,
-          arenaDateKey(arenaTodayDateOnly()),
+          ref.watch(arenaClassTodayKeyProvider),
         );
         final turmas = list.where((c) => !c.isSingle).length;
         final students = list.fold<int>(0, (sum, c) => sum + c.studentCount);
@@ -234,7 +234,7 @@ class _Body extends ConsumerWidget {
 
     final slivers = switch (tab) {
       ArenaClassesTab.today => _todaySlivers(context, ref),
-      ArenaClassesTab.classes => _classesSlivers(context),
+      ArenaClassesTab.classes => _classesSlivers(context, ref),
       ArenaClassesTab.students => _studentsSlivers(context, ref),
       ArenaClassesTab.teachers => [
           SliverPadding(
@@ -268,10 +268,11 @@ class _Body extends ConsumerWidget {
 
   List<Widget> _todaySlivers(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(arenaClassSelectedDayProvider);
-    final today = arenaTodayDateOnly();
+    final todayKey = ref.watch(arenaClassTodayKeyProvider);
+    final today = DateTime.parse(todayKey);
     final dateKey = arenaDateKey(selected);
     final viewAsync = ref.watch(arenaClassDayViewProvider(dateKey));
-    final isToday = dateKey == arenaDateKey(today);
+    final isToday = dateKey == todayKey;
 
     final top = <Widget>[
       ArenaClassWeekStrip(
@@ -346,8 +347,8 @@ class _Body extends ConsumerWidget {
     );
   }
 
-  List<Widget> _classesSlivers(BuildContext context) {
-    final todayKey = arenaDateKey(arenaTodayDateOnly());
+  List<Widget> _classesSlivers(BuildContext context, WidgetRef ref) {
+    final todayKey = ref.watch(arenaClassTodayKeyProvider);
     final list = arenaClassesForList(classes, todayKey);
     final weekly = list.where((c) => !c.isSingle).toList();
     final single = list.where((c) => c.isSingle).toList();

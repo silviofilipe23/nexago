@@ -245,6 +245,9 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
+      // "hoje" vem do dia fixado pelos testes, não do relógio da máquina.
+      expect(
+          find.textContaining('Vôlei Avançado · hoje 18:00'), findsOneWidget);
       // Fase 2: a compensação segue a regra da arena (padrão: gera crédito).
       expect(find.text('Gerar crédito de reposição'), findsOneWidget);
       expect(

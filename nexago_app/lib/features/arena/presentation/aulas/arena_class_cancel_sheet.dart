@@ -115,10 +115,9 @@ class _ArenaClassCancelSheetState extends ConsumerState<ArenaClassCancelSheet> {
 
   String _when() {
     final s = widget.session;
-    final today = arenaDateKey(arenaTodayDateOnly());
-    final tomorrow = arenaDateKey(
-      DateTime.now().add(const Duration(days: 1)),
-    );
+    final today = ref.watch(arenaClassTodayKeyProvider);
+    final t = DateTime.parse(today);
+    final tomorrow = arenaDateKey(DateTime(t.year, t.month, t.day + 1));
     final day = s.date == today
         ? 'hoje'
         : s.date == tomorrow

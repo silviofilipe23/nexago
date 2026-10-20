@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import type { AthleteSearchResult } from '../clubinho/clubs-repository';
 import { ArenaAccessService } from '../data/arena-access.service';
@@ -20,6 +20,7 @@ import {
   planPriceUnit,
   slotsLabel,
   whatsappChargeLink,
+  type Charge,
   type ClassPlan,
   type ClassRules,
   type PaymentMethod,
@@ -32,6 +33,7 @@ import {
   fetchRules,
   fetchWaitlistEntry,
   previewEnrollment,
+  watchStudentCharges,
   type EnrollmentInput,
   type EnrollmentPreview,
 } from './billing-repository';
@@ -128,9 +130,18 @@ interface Prefill {
 
 interface Done {
   enrollmentId: string;
+  studentId: string;
   name: string;
   phone: string | null;
   preview: EnrollmentPreview | null;
+  /** Grupo da 1ª fatura online (null = cobrança manual). */
+  asaasGroupId: string | null;
+}
+
+/** CPF (11) ou CNPJ (14) só com dígitos — a validação completa é do servidor. */
+export function cpfDigitsOk(raw: string): boolean {
+  const d = raw.replace(/\D/g, '');
+  return d.length === 11 || d.length === 14;
 }
 
 /** 09–12 · Nova matrícula: aluno → plano → horários fixos → pagamento (cobrança manual). */
@@ -153,12 +164,24 @@ interface Done {
             <p class="hint center">
               As vagas já estão reservadas na turma.
               @if (d.preview && d.preview.totalReais > 0) {
-                Cobrança em aberto: <strong>{{ brl(d.preview.totalReais) }}</strong> — registre o pagamento no perfil do aluno quando receber.
+                @if (d.asaasGroupId) {
+                  Cobrança online de <strong>{{ brl(d.preview.totalReais) }}</strong>:
+                  @if (doneInvoiceUrl()) {
+                    o link está pronto — o aluno paga com PIX ou cartão e a baixa é automática.
+                  } @else {
+                    gerando o link de pagamento…
+                  }
+                } @else {
+                  Cobrança em aberto: <strong>{{ brl(d.preview.totalReais) }}</strong> — registre o pagamento no perfil do aluno quando receber.
+                }
               } @else {
                 Nada a cobrar agora — a próxima mensalidade é gerada 10 dias antes do vencimento.
               }
             </p>
             <div class="done-actions">
+              @if (doneInvoiceUrl(); as url) {
+                <button type="button" class="ar-mini-btn" (click)="copyLink(url)">{{ copied() ? 'Link copiado ✓' : 'Copiar link' }}</button>
+              }
               @if (doneWhatsapp(); as link) {
                 <a class="ar-mini-btn" [href]="link" target="_blank" rel="noopener">Cobrar no WhatsApp</a>
               }
@@ -284,15 +307,33 @@ interface Done {
                 </ar-panel-card>
               }
               @case (4) {
-                <ar-panel-card title="Pagamento" kicker="Recebido direto pela arena">
-                  <div class="method-grid">
-                    @for (m of methods; track m) {
-                      <button type="button" class="pick" [class.on]="method() === m" (click)="method.set(m)">
-                        <div class="p-title">{{ methodLabel[m] }}</div>
-                        <div class="sub">{{ methodHint[m] }}</div>
+                <ar-panel-card title="Pagamento" [kicker]="billingMode() === 'asaas' ? 'Online pelo Asaas' : 'Recebido direto pela arena'">
+                  @if (rules().onlineBillingEnabled) {
+                    <div class="mode-grid">
+                      <button type="button" class="pick" [class.on]="billingMode() === 'asaas'" (click)="setBillingMode('asaas')">
+                        <div class="p-title">Online</div>
+                        <div class="sub">PIX ou cartão pelo link · baixa automática</div>
                       </button>
-                    }
-                  </div>
+                      <button type="button" class="pick" [class.on]="billingMode() === 'manual'" (click)="setBillingMode('manual')">
+                        <div class="p-title">Manual</div>
+                        <div class="sub">Você registra ao receber</div>
+                      </button>
+                    </div>
+                  }
+                  @if (billingMode() === 'asaas') {
+                    <div class="field-label spaced">CPF de quem paga {{ studentHasAccount() ? '(opcional se já estiver no cadastro NexaGO)' : '' }}</div>
+                    <input class="input-box" type="text" inputmode="numeric" maxlength="18" placeholder="000.000.000-00" [value]="cpf()" (input)="cpf.set($any($event.target).value)" />
+                    <p class="hint">O CPF fica guardado só no servidor, para emitir a fatura — não aparece na tela nem no cadastro do atleta.</p>
+                  } @else {
+                    <div class="method-grid" [class.spaced-row]="rules().onlineBillingEnabled">
+                      @for (m of methods; track m) {
+                        <button type="button" class="pick" [class.on]="method() === m" (click)="method.set(m)">
+                          <div class="p-title">{{ methodLabel[m] }}</div>
+                          <div class="sub">{{ methodHint[m] }}</div>
+                        </button>
+                      }
+                    </div>
+                  }
                   <div class="row-2 spaced-row">
                     @if (plan()?.kind === 'monthly') {
                       <div>
@@ -314,7 +355,11 @@ interface Done {
                       <ar-toggle label="Isentar taxa de matrícula" [checked]="waiveFee()" (changed)="setWaive($event)" />
                     </div>
                   }
-                  <p class="hint">Sem cobrança online: a plataforma gera as mensalidades e você registra o pagamento ao receber.</p>
+                  @if (billingMode() === 'asaas') {
+                    <p class="hint">Cada mensalidade vira uma fatura (PIX ou cartão). O link vai no "Cobrar" e por push para quem tem conta; o valor cai no caixa da arena com a taxa do pagamento online.</p>
+                  } @else {
+                    <p class="hint">A plataforma gera as mensalidades e você registra o pagamento ao receber.</p>
+                  }
                 </ar-panel-card>
               }
             }
@@ -390,6 +435,7 @@ interface Done {
     .sub { margin-top: 4px; }
     .group { margin-bottom: 14px; }
     .plan-grid, .method-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .mode-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .method-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .spaced-btn { margin-top: 12px; }
     .spaced-row { margin-top: 16px; }
@@ -471,6 +517,11 @@ export class PanelAulaEnrollmentComponent {
   protected readonly planId = signal<string | null>(null);
   protected readonly selected = signal<ReadonlySet<string>>(new Set());
   protected readonly method = signal<PaymentMethod>('pix');
+  protected readonly billingMode = signal<'manual' | 'asaas'>('manual');
+  protected readonly cpf = signal('');
+  protected readonly copied = signal(false);
+  private readonly doneCharges = signal<Charge[]>([]);
+  private unsubDone: (() => void) | null = null;
   protected readonly dueDay = signal(DEFAULT_RULES.defaultDueDay);
   protected readonly waiveFee = signal(false);
   protected readonly preview = signal<EnrollmentPreview | null>(null);
@@ -523,21 +574,38 @@ export class PanelAulaEnrollmentComponent {
         return this.slotError() == null;
       default: {
         const d = this.dueDay();
-        return this.preview() != null && !this.previewing() && Number.isInteger(d) && d >= 1 && d <= 28;
+        const cpfOk = this.billingMode() !== 'asaas' || cpfDigitsOk(this.cpf()) ||
+          (this.cpf().trim() === '' && this.studentHasAccount());
+        return this.preview() != null && !this.previewing() && Number.isInteger(d) && d >= 1 && d <= 28 && cpfOk;
       }
     }
+  });
+  /** Link da 1ª fatura online, quando o worker termina de gerar (a mensalidade é escutada ao vivo). */
+  protected readonly doneInvoiceUrl = computed(() => {
+    const groupId = this.done()?.asaasGroupId;
+    if (!groupId) return null;
+    const c = this.doneCharges().find((x) => x.asaas?.groupId === groupId && x.asaas.state === 'open');
+    return c?.asaas?.invoiceUrl ?? null;
   });
   protected readonly doneWhatsapp = computed(() => {
     const d = this.done();
     const pv = d?.preview;
     if (!d || !pv || pv.charges.length === 0 || pv.totalReais <= 0) return null;
+    // Online: só depois que o link existe — a mensagem leva o link.
+    if (d.asaasGroupId && !this.doneInvoiceUrl()) return null;
     const charge = { description: pv.charges.map((c) => c.description).join(' + '), amountReais: pv.totalReais, dueDate: pv.charges[0]!.dueDate };
-    return whatsappChargeLink(d.phone, d.name, charge, this.arenaContext.arenaName() ?? 'arena');
+    return whatsappChargeLink(d.phone, d.name, charge, this.arenaContext.arenaName() ?? 'arena', this.doneInvoiceUrl());
+  });
+  /** O aluno tem conta NexaGO (o CPF pode vir do cadastro dele). */
+  protected readonly studentHasAccount = computed(() => {
+    const p = this.prefill();
+    return p ? p.athleteId != null : this.mode() === 'athlete' && this.picked() != null;
   });
 
   private previewSeq = 0;
 
   constructor() {
+    inject(DestroyRef).onDestroy(() => this.unsubDone?.());
     effect(() => {
       const arenaId = this.arenaContext.arenaId();
       if (arenaId) void this.load(arenaId);
@@ -552,6 +620,8 @@ export class PanelAulaEnrollmentComponent {
       const [plans, rules, classes] = await Promise.all([fetchPlans(db, arenaId), fetchRules(db, arenaId), fetchClasses(db, arenaId)]);
       this.plans.set(plans.filter((p) => p.status === 'active' && (p.kind === 'monthly' || p.kind === 'package')));
       this.rules.set(rules);
+      // A arena ligou a cobrança online para usar: vira o padrão da matrícula.
+      this.billingMode.set(rules.onlineBillingEnabled ? 'asaas' : 'manual');
       this.dueDay.set(rules.defaultDueDay);
       const recurring = classes.filter((c) => c.status === 'active' && c.weekdays.length > 0);
       this.classes.set(recurring);
@@ -678,6 +748,8 @@ export class PanelAulaEnrollmentComponent {
       dueDay: plan.kind === 'monthly' ? this.dueDay() : this.rules().defaultDueDay,
       paymentMethod: this.method(),
       waiveFee: this.waiveFee(),
+      billingMode: this.billingMode(),
+      ...(this.billingMode() === 'asaas' && this.cpf().trim() ? { cpfCnpj: this.cpf().replace(/\D/g, '') } : {}),
       ...student,
       ...(p?.source === 'waitlist' && this.classIdParam
         ? { waitlistClassId: this.classIdParam, waitlistEntryId: this.params.get('waitlist') ?? undefined }
@@ -710,7 +782,12 @@ export class PanelAulaEnrollmentComponent {
     this.error.set(null);
     try {
       const result = await createEnrollment(arenaFunctions(), input);
-      this.done.set({ enrollmentId: result.enrollmentId, name: this.studentName(), phone: input.phone ?? null, preview: this.preview() });
+      const asaasGroupId = result.asaasGroupId ?? null;
+      this.done.set({
+        enrollmentId: result.enrollmentId, studentId: result.studentId, name: this.studentName(),
+        phone: input.phone ?? null, preview: this.preview(), asaasGroupId,
+      });
+      if (asaasGroupId) this.watchDoneCharges(input.arenaId, result.studentId);
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : 'Não foi possível concluir a matrícula.');
     } finally {
@@ -738,7 +815,26 @@ export class PanelAulaEnrollmentComponent {
     }
   }
 
+  private watchDoneCharges(arenaId: string, studentId: string): void {
+    this.unsubDone?.();
+    this.unsubDone = watchStudentCharges(arenaFirestore(), arenaId, studentId, (list) => this.doneCharges.set(list));
+  }
+
+  protected setBillingMode(mode: 'manual' | 'asaas'): void {
+    this.billingMode.set(mode);
+    void this.refreshPreview();
+  }
+
+  protected copyLink(url: string): void {
+    void navigator.clipboard?.writeText(url).then(() => this.copied.set(true), () => undefined);
+  }
+
   protected restart(): void {
+    this.unsubDone?.();
+    this.unsubDone = null;
+    this.doneCharges.set([]);
+    this.copied.set(false);
+    this.cpf.set('');
     this.done.set(null);
     this.prefill.set(null);
     this.picked.set(null);

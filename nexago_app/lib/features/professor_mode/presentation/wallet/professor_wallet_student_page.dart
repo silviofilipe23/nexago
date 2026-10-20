@@ -13,18 +13,21 @@ import '../../../arena/presentation/aulas/widgets/arena_class_atoms.dart';
 import '../../../professor_links/domain/arena_professor_link.dart';
 import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../application/professor_wallet_providers.dart';
+import '../../domain/professor_lessons.dart';
 import '../../domain/professor_wallet.dart';
 import '../../domain/professor_students_logic.dart' show professorShortDate;
 import '../../domain/professor_wallet_logic.dart';
 import '../widgets/professor_students_widgets.dart';
+import 'professor_wallet_lessons.dart';
 import 'professor_wallet_widgets.dart';
 
 /// Regra fixa do aluno da carteira.
 const kProfessorWalletStudentRule =
     'Aluno da sua carteira: a arena não vê dados nem valores.';
 
-/// B4 Aluno da carteira (independente): o combinado (plano e recorrência),
-/// os pagamentos e "Cobrar" (B15). Arquivar fica no menu.
+/// B4 Aluno da carteira (independente): o combinado (plano, recorrência e
+/// custo de quadra do mês), as aulas (com "Nova aula", B9), os pagamentos
+/// e "Cobrar" (B15). Arquivar fica no menu.
 class ProfessorWalletStudentPage extends ConsumerWidget {
   const ProfessorWalletStudentPage({super.key, required this.athleteId});
 
@@ -121,6 +124,17 @@ class ProfessorWalletStudentPage extends ConsumerWidget {
     final mine =
         charges == null ? null : professorStudentCharges(charges, athleteId);
     final plan = professorPlanById(plans, s.planId);
+    final bookings =
+        ref.watch(professorCourtBookingsProvider).valueOrNull ?? const [];
+    final lessonsAsync = ref.watch(professorLessonsProvider);
+    final lessons = lessonsAsync.valueOrNull == null
+        ? null
+        : professorStudentLessons(
+            lessonsAsync.valueOrNull!,
+            athleteId: athleteId,
+            todayKey: todayKey,
+            bookingStatus: professorBookingStatusById(bookings),
+          );
 
     return ProfessorLinksScaffold(
       title: s.name,
@@ -163,13 +177,11 @@ class ProfessorWalletStudentPage extends ConsumerWidget {
                       label: 'Seu plano',
                       value: plan?.name ?? 'Sem plano padrão',
                       sub: plan == null ? null : professorPlanSubtitle(plan),
-                      last: plan == null && s.recurring == null,
                     ),
                     if (plan != null)
                       ProfessorInfoRow(
                         label: 'Valor',
                         value: formatBRL(plan.priceReais),
-                        last: s.recurring == null,
                       ),
                     if (s.recurring != null)
                       ProfessorInfoRow(
@@ -177,8 +189,17 @@ class ProfessorWalletStudentPage extends ConsumerWidget {
                         label: 'Cobrança recorrente',
                         value: formatBRL(s.recurring!.amountReais),
                         sub: professorRecurringLabel(s.recurring!),
-                        last: true,
                       ),
+                    ProfessorInfoRow(
+                      key: const Key('professor-wallet-student-court-cost'),
+                      label: 'Custo de quadra no mês',
+                      value: lessons == null
+                          ? '—'
+                          : '− ${formatBRL(lessons.monthCourtCostReais)}',
+                      valueColor: ProfessorLinksStyle.dim(context.themeColors),
+                      sub: 'reservas das aulas dele',
+                      last: true,
+                    ),
                   ],
                 ),
                 if (s.recurring != null) ...[
@@ -191,6 +212,8 @@ class ProfessorWalletStudentPage extends ConsumerWidget {
                     onPressed: () => _stopRecurring(context, ref, s),
                   ),
                 ],
+                const SizedBox(height: 22),
+                ProfessorWalletLessonsSection(student: s, lessons: lessons),
                 const SizedBox(height: 22),
                 const ProfessorLinksKicker('Pagamentos'),
                 const SizedBox(height: 4),

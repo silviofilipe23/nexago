@@ -1,3 +1,4 @@
+import {recordProfessorLesson, resolveProfessorLessonStudent} from "./professor-lessons";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {
   getFirestore,
@@ -59,6 +60,11 @@ interface BookingInput {
    * reserva de atleta, como sempre. Mesmo preço e regras; só carimba a reserva para a arena ver.
    */
   asProfessor?: boolean;
+  /**
+   * Aula para um aluno da carteira (professor independente, só com `asProfessor`). A ligação vai
+   * para `professorLessons/{bookingId}` — a reserva em si não leva o aluno.
+   */
+  professorStudentId?: string;
 }
 
 function parseDateKey(dateRaw: string): string {
@@ -249,6 +255,12 @@ export const createArenaBooking = onCall({
     arenaId,
     athleteId,
     input.asProfessor,
+  );
+  const lessonStudent = await resolveProfessorLessonStudent(
+    getFirestore(),
+    athleteId,
+    input.professorStudentId,
+    professorStamp,
   );
 
   const ctx = await loadPricingContext(arenaId, courtId);
@@ -517,6 +529,21 @@ export const createArenaBooking = onCall({
     if (e instanceof HttpsError) throw e;
     logger.error("createArenaBooking transaction failed", e);
     throw new HttpsError("internal", "Não foi possível concluir a reserva.");
+  }
+
+  if (lessonStudent) {
+    await recordProfessorLesson(getFirestore(), {
+      bookingId,
+      professorUid: athleteId,
+      student: lessonStudent,
+      arenaId,
+      arenaName,
+      courtName,
+      date: dateKey,
+      startTime,
+      endTime,
+      courtCostReais: amountReais,
+    });
   }
 
   return {

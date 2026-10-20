@@ -6,6 +6,7 @@ import '../../../core/firebase/firebase_providers.dart';
 import '../../../core/firebase/functions_region.dart';
 import '../../tournaments/data/tournament_partner_invite_service.dart'
     show callableErrorMessage;
+import '../domain/professor_lessons.dart';
 import '../domain/professor_wallet.dart';
 import 'professor_students_repository.dart' show ProfessorStudentsException;
 
@@ -45,6 +46,21 @@ abstract class ProfessorWalletRepository {
   Future<void> cancelCharge(String chargeId);
 
   Future<void> stopRecurring(String athleteId);
+
+  // ── aulas e custo de quadra (fase 4) ──
+
+  /// Aulas da carteira (`professorLessons` do professor, sem ordem).
+  Stream<List<ProfessorLesson>> watchLessons(String uid);
+
+  /// Reservas que o professor fez como professor (custo de quadra e a
+  /// situação das aulas).
+  /// Reservas como professor com `date` entre [fromKey] e [toKey]
+  /// (`YYYY-MM-DD`, inclusive) — índice `athleteId + bookedAs + date`.
+  Stream<List<ProfessorCourtBooking>> watchProfessorBookings(
+    String uid, {
+    required String fromKey,
+    required String toKey,
+  });
 
   // ── lado do atleta ──
 
@@ -198,6 +214,35 @@ class FirebaseProfessorWalletRepository implements ProfessorWalletRepository {
         {'athleteId': athleteId},
         'Não foi possível parar a recorrência.',
       );
+
+  // A rule só deixa ler filtrando pelo professor; sem orderBy (sem índice).
+  @override
+  Stream<List<ProfessorLesson>> watchLessons(String uid) => _firestore
+      .collection('professorLessons')
+      .where('professorUid', isEqualTo: uid)
+      .snapshots()
+      .map((q) => [
+            for (final d in q.docs) ProfessorLesson.fromMap(d.id, d.data()),
+          ]);
+
+  // Só igualdades (sem índice composto); o mês é filtrado na tela.
+  @override
+  Stream<List<ProfessorCourtBooking>> watchProfessorBookings(
+    String uid, {
+    required String fromKey,
+    required String toKey,
+  }) =>
+      _firestore
+          .collection('arenaBookings')
+          .where('athleteId', isEqualTo: uid)
+          .where('bookedAs', isEqualTo: 'professor')
+          .where('date', isGreaterThanOrEqualTo: fromKey)
+          .where('date', isLessThanOrEqualTo: toKey)
+          .snapshots()
+          .map((q) => [
+                for (final d in q.docs)
+                  ProfessorCourtBooking.fromMap(d.id, d.data()),
+              ]);
 
   @override
   Stream<ProfessorWalletStudent?> watchInvite({

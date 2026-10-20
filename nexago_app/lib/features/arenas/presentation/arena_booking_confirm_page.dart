@@ -11,6 +11,9 @@ import '../../../core/auth/active_role_providers.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../athlete/domain/daily_mission_sync_provider.dart';
 import '../../professor_links/application/professor_links_providers.dart';
+import '../../professor_links/domain/arena_professor_link.dart';
+import '../../professor_mode/application/professor_wallet_providers.dart';
+import '../../professor_mode/domain/professor_wallet.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
@@ -33,6 +36,7 @@ import 'widgets/booking_confirm/booking_confirm_app_bar.dart';
 import 'widgets/booking_confirm/booking_confirm_cancellation_card.dart';
 import 'widgets/booking_confirm/booking_confirm_coupon_field.dart';
 import 'widgets/booking_confirm/booking_confirm_hero_card.dart';
+import 'widgets/booking_confirm/booking_confirm_lesson_student_picker.dart';
 import 'widgets/booking_confirm/booking_confirm_observations_field.dart';
 import 'widgets/booking_confirm/booking_confirm_price_summary.dart';
 import 'widgets/booking_confirm/booking_confirm_professor_option.dart';
@@ -81,6 +85,10 @@ class _ArenaBookingConfirmPageState
   /// enquanto o vínculo libera ([canOfferBookingAsProfessor]).
   bool? _asProfessor;
 
+  /// Aluno da carteira da aula (professor independente; `null` = nenhum).
+  /// Começa com o escolhido em "Nova aula" ([professorLessonStudentProvider]).
+  String? _lessonStudentId;
+
   static final _dateFmt = DateFormat('d MMM yyyy', 'pt_BR');
 
   @override
@@ -88,6 +96,14 @@ class _ArenaBookingConfirmPageState
     super.initState();
     _observationsController = TextEditingController();
     _couponController = TextEditingController();
+    _lessonStudentId = ref.read(professorLessonStudentProvider);
+  }
+
+  /// Reserva feita: o aluno escolhido em "Nova aula" já foi usado.
+  void _clearLessonStudent() {
+    if (ref.read(professorLessonStudentProvider) != null) {
+      ref.read(professorLessonStudentProvider.notifier).state = null;
+    }
   }
 
   @override
@@ -179,6 +195,7 @@ class _ArenaBookingConfirmPageState
     ArenaBookingConfirmArgs args, {
     required String sport,
     required bool asProfessor,
+    String? lessonStudentId,
   }) async {
     final user = ref.read(authServiceProvider).currentUser;
     if (user == null) {
@@ -203,7 +220,9 @@ class _ArenaBookingConfirmPageState
             couponCode: _appliedCouponCode,
             sport: sport,
             asProfessor: asProfessor,
+            professorStudentId: lessonStudentId,
           );
+      if (resumed == null) _clearLessonStudent();
       if (!mounted) return;
 
       final expiresAt = created.paymentExpiresAt != null
@@ -270,6 +289,7 @@ class _ArenaBookingConfirmPageState
     ArenaBookingConfirmArgs args, {
     required String sport,
     required bool asProfessor,
+    String? lessonStudentId,
   }) async {
     final user = ref.read(authServiceProvider).currentUser;
     if (user == null) {
@@ -292,7 +312,9 @@ class _ArenaBookingConfirmPageState
             couponCode: _appliedCouponCode,
             sport: sport,
             asProfessor: asProfessor,
+            professorStudentId: lessonStudentId,
           );
+      _clearLessonStudent();
       if (!mounted) return;
       await tryAwardReserveTodayMission(ref, dateKey: args.dateKey);
       if (!mounted) return;
@@ -451,6 +473,22 @@ class _ArenaBookingConfirmPageState
       activeRole: ref.watch(activeMobileRoleProvider),
     );
     final asProfessor = offerProfessor && (_asProfessor ?? true);
+    // Aula da carteira: só como professor de vínculo independente, entre os
+    // alunos ativos (o servidor confere de novo).
+    final lessonStudents = asProfessor &&
+            professorLink?.type == ArenaProfessorLinkType.independent
+        ? <({String id, String name})>[
+            for (final s in ref
+                    .watch(professorWalletStudentsProvider)
+                    .valueOrNull ??
+                const <ProfessorWalletStudent>[])
+              if (s.active) (id: s.athleteId, name: s.name),
+          ]
+        : const <({String id, String name})>[];
+    final lessonStudentId =
+        lessonStudents.any((s) => s.id == _lessonStudentId)
+            ? _lessonStudentId
+            : null;
 
     final timeRange = '${args.startTime} - ${args.endTime}';
     final choice = _effectivePaymentChoice(
@@ -519,6 +557,17 @@ class _ArenaBookingConfirmPageState
                                     enabled: !_submitting,
                                     onChanged: (value) =>
                                         setState(() => _asProfessor = value),
+                                  ),
+                                ),
+                              if (lessonStudents.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 18),
+                                  child: BookingConfirmLessonStudentPicker(
+                                    students: lessonStudents,
+                                    selectedId: lessonStudentId,
+                                    enabled: !_submitting,
+                                    onSelected: (id) =>
+                                        setState(() => _lessonStudentId = id),
                                   ),
                                 ),
                               Padding(
@@ -686,12 +735,14 @@ class _ArenaBookingConfirmPageState
                               args,
                               sport: sport,
                               asProfessor: asProfessor,
+                              lessonStudentId: lessonStudentId,
                             );
                           } else {
                             _finalizeBookingPayAtArena(
                               args,
                               sport: sport,
                               asProfessor: asProfessor,
+                              lessonStudentId: lessonStudentId,
                             );
                           }
                         },

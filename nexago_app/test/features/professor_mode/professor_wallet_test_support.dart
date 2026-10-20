@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/features/professor_links/application/professor_links_providers.dart';
+import 'package:nexago_app/features/professor_links/domain/arena_professor_link.dart';
+import 'package:nexago_app/features/professor_mode/domain/professor_lessons.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_wallet.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_students_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_wallet_repository.dart';
@@ -112,6 +114,40 @@ ProfessorCharge walletCharge({
       paidAt: paidAt,
     );
 
+ProfessorLesson walletLesson({
+  String bookingId = 'bk-1',
+  String athleteId = 'ath-paulo',
+  String date = '2026-10-22',
+  String startTime = '19:00',
+  double cost = 60,
+}) =>
+    ProfessorLesson(
+      bookingId: bookingId,
+      athleteId: athleteId,
+      studentName: 'Paulo Viana',
+      arenaId: 'arena-norte',
+      arenaName: 'Arena Norte',
+      courtName: 'Quadra 2',
+      date: date,
+      startTime: startTime,
+      endTime: '20:00',
+      courtCostReais: cost,
+    );
+
+ProfessorCourtBooking walletBooking({
+  String id = 'bk-1',
+  String date = '2026-10-22',
+  double amount = 60,
+  String status = 'booked',
+}) =>
+    ProfessorCourtBooking(
+      id: id,
+      date: date,
+      startTime: '19:00',
+      amountReais: amount,
+      status: status,
+    );
+
 typedef WalletCall = ({String name, Object? data});
 
 /// Repositório em memória: as callables gravam em [calls], mudam o estado e
@@ -123,8 +159,12 @@ class FakeProfessorWalletRepository implements ProfessorWalletRepository {
     List<ProfessorWalletStudent>? students,
     List<ProfessorCharge>? charges,
     Map<String, ProfessorWalletStudent>? invites,
+    List<ProfessorLesson>? lessons,
+    List<ProfessorCourtBooking>? bookings,
     this.refreshStatus,
-  })  : plans = plans ?? [],
+  })  : lessons = lessons ?? [],
+        bookings = bookings ?? [],
+        plans = plans ?? [],
         students = students ?? [],
         charges = charges ?? [],
         invites = invites ?? {};
@@ -133,6 +173,8 @@ class FakeProfessorWalletRepository implements ProfessorWalletRepository {
   List<ProfessorWalletPlan> plans;
   List<ProfessorWalletStudent> students;
   List<ProfessorCharge> charges;
+  List<ProfessorLesson> lessons;
+  List<ProfessorCourtBooking> bookings;
 
   /// Convites do lado do atleta, por `professorUid`.
   Map<String, ProfessorWalletStudent> invites;
@@ -322,6 +364,18 @@ class FakeProfessorWalletRepository implements ProfessorWalletRepository {
   }
 
   @override
+  Stream<List<ProfessorLesson>> watchLessons(String uid) =>
+      _watch(() => List.of(lessons));
+
+  @override
+  Stream<List<ProfessorCourtBooking>> watchProfessorBookings(
+    String uid, {
+    required String fromKey,
+    required String toKey,
+  }) =>
+      _watch(() => List.of(bookings));
+
+  @override
   Stream<ProfessorWalletStudent?> watchInvite({
     required String professorUid,
     required String athleteUid,
@@ -361,6 +415,12 @@ List<RouteBase> get professorWalletRoutes => [
         path: AppRoutes.home,
         name: AppRouteNames.home,
         builder: (_, __) => _stub('home'),
+      ),
+      GoRoute(
+        path: AppRoutes.arenaDetail,
+        name: AppRouteNames.arenaDetail,
+        builder: (_, state) =>
+            _stub('arena ${state.pathParameters['arenaId']}'),
       ),
       GoRoute(
         path: AppRoutes.professorPayoutAccount,
@@ -416,6 +476,9 @@ Future<GoRouter> pumpProfessorWalletApp(
   required String location,
   List<String> initialStack = const [],
   List<Override> overrides = const [],
+
+  /// Vínculos do professor (Nova aula e o grupo Dinheiro).
+  List<ArenaProfessorLink> links = const [],
 }) async {
   sharedReminders.clear();
   final router = await pumpProfessorStudentsApp(
@@ -426,6 +489,7 @@ Future<GoRouter> pumpProfessorWalletApp(
     extraRoutes: professorWalletRoutes,
     overrides: [
       professorLinksClockProvider.overrideWithValue(() => professorTestNow),
+      myProfessorLinksProvider.overrideWith((ref) => Stream.value(links)),
       professorReminderSharerProvider.overrideWithValue(
         (_, text) async => sharedReminders.add(text),
       ),

@@ -215,6 +215,10 @@ class BookingService {
     String? couponCode,
     String? sport,
     bool asProfessor = false,
+
+    /// Aula para um aluno da carteira (professor independente). Só vai junto
+    /// com [asProfessor]; o servidor confere vínculo e aluno ativo.
+    String? professorStudentId,
   }) async {
     if (athleteId.isEmpty) {
       throw BookingException('Faça login para confirmar a reserva.');
@@ -242,7 +246,11 @@ class BookingService {
       }
       // Só com o vínculo liberando "Reservar quadras"; sem a chave é reserva
       // de atleta, como sempre (o servidor relê o vínculo e decide).
-      if (asProfessor) payload['asProfessor'] = true;
+      if (asProfessor) {
+        payload['asProfessor'] = true;
+        final studentId = professorStudentId?.trim() ?? '';
+        if (studentId.isNotEmpty) payload['professorStudentId'] = studentId;
+      }
 
       final result =
           await _functions.httpsCallable('createArenaBooking').call(payload);

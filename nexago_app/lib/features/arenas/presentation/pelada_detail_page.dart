@@ -445,7 +445,9 @@ class _Hero extends StatelessWidget {
                       style: AppTypography.mono(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        color: balance >= 0 ? AppColors.win : AppColors.live,
+                        color: balance >= 0
+                            ? PeladaStyle.win(colors)
+                            : PeladaStyle.live(colors),
                       ),
                     ),
                   ],
@@ -478,7 +480,11 @@ class _DisputeBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.report_outlined, size: 18, color: AppColors.live),
+          Icon(
+            Icons.report_outlined,
+            size: 18,
+            color: PeladaStyle.live(context.themeColors),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -653,7 +659,10 @@ class _GameRow extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(width: 3, color: won ? AppColors.win : AppColors.live),
+              Container(
+                width: 3,
+                color: won ? PeladaStyle.win(colors) : PeladaStyle.live(colors),
+              ),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),

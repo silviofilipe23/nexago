@@ -23,6 +23,8 @@ export interface MyBooking {
   startTime: string;
   endTime: string;
   status: string;
+  /** Dono (`athleteId`, ou `bookingAthleteId` nas antigas). Diferente de quem vê = convidado. */
+  ownerAthleteId: string | null;
   attendanceConfirmed: boolean;
   amountReais: number | null;
   createdAt: Date | null;
@@ -50,6 +52,7 @@ function bookingFromDoc(id: string, data: Record<string, unknown>): MyBooking {
     startTime: timeStr(data['startTime']),
     endTime: timeStr(data['endTime']),
     status: optionalStr(data['status']) ?? 'active',
+    ownerAthleteId: optionalStr(data['athleteId']) ?? optionalStr(data['bookingAthleteId']),
     attendanceConfirmed: data['attendanceConfirmed'] === true,
     amountReais: typeof data['amountReais'] === 'number' ? data['amountReais'] : typeof data['priceReais'] === 'number' ? (data['priceReais'] as number) : null,
     createdAt: toDate(data['createdAt']),
@@ -105,6 +108,26 @@ export async function fetchMyBookings(db: Firestore, uid: string): Promise<MyBoo
     byId.set(d.id, bookingFromDoc(d.id, d.data() as Record<string, unknown>));
   }
   return [...byId.values()];
+}
+
+/** Reservas de OUTROS atletas em que `uid` entrou por convite (`participantUids`, gravado só
+ *  pelas callables de `arena-booking-invite.ts`). Fica fora de {@link fetchMyBookings} de
+ *  propósito, como no app: histórico, gasto e avaliação contam só as reservas do próprio atleta —
+ *  quem junta as duas listas é a Agenda. `array-contains` simples dispensa índice composto. */
+export async function fetchMyGuestBookings(db: Firestore, uid: string): Promise<MyBooking[]> {
+  const snap = await getDocs(query(collection(db, 'arenaBookings'), where('participantUids', 'array-contains', uid)));
+  return snap.docs.map((d) => bookingFromDoc(d.id, d.data() as Record<string, unknown>));
+}
+
+/** Próprias + como convidado, sem repetir (a própria ganha se aparecer nas duas). */
+export function mergeOwnAndGuestBookings(own: readonly MyBooking[], asGuest: readonly MyBooking[]): MyBooking[] {
+  const ids = new Set(own.map((b) => b.id));
+  return [...own, ...asGuest.filter((b) => !ids.has(b.id))];
+}
+
+/** O atleta está nesta reserva como convidado de outro (não é o dono). */
+export function bookingViewerIsGuest(booking: Pick<MyBooking, 'ownerAthleteId'>, viewerUid: string | null): boolean {
+  return viewerUid != null && booking.ownerAthleteId != null && booking.ownerAthleteId !== viewerUid;
 }
 
 /** Versão realtime de {@link fetchMyBookings}: um listener por campo de dono, mesclados

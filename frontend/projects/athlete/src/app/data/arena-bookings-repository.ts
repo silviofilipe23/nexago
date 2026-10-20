@@ -15,6 +15,7 @@ import {
   type Timestamp,
 } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
+import { bookingParticipantsOf, type BookingParticipant } from './booking-invite-model';
 import { readCashbackCharge } from './cashback-preview';
 import { readSquadDiscount } from './squad-discount';
 
@@ -120,6 +121,11 @@ export interface ArenaBookingDoc {
   confirmedParticipants: number;
   guestAthleteId: string | null;
   guestAthleteName: string | null;
+  /** Quem entrou por convite (`participants`, gravado só pelas callables de
+   *  `arena-booking-invite.ts`). Não inclui o dono. */
+  participants: BookingParticipant[];
+  /** `participantUids` — a mesma lista em uids (é o campo que a Agenda consulta). */
+  participantUids: string[];
   /** Ocorrência de horário fixo (mensalista) — gerida pela arena, sem cancelamento pelo app. */
   recurringBookingId: string | null;
   createdAt: Date | null;
@@ -486,6 +492,14 @@ function optionalStr(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
+function participantUidsOf(data: Record<string, unknown>): string[] {
+  const raw = data['participantUids'];
+  const uids = Array.isArray(raw)
+    ? raw.filter((v): v is string => typeof v === 'string').map((v) => v.trim())
+    : bookingParticipantsOf(data['participants']).map((p) => p.uid);
+  return [...new Set(uids.filter((uid) => uid.length > 0))];
+}
+
 export function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): ArenaBookingDoc | null {
   const data = snap.data();
   if (!data) return null;
@@ -513,6 +527,8 @@ export function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): Arena
     confirmedParticipants: Math.max(1, Number(data['confirmedParticipants']) || 1),
     guestAthleteId: optionalStr(data['guestAthleteId']),
     guestAthleteName: optionalStr(data['guestAthleteName']),
+    participants: bookingParticipantsOf(data['participants']),
+    participantUids: participantUidsOf(data),
     recurringBookingId: optionalStr(data['recurringBookingId']),
     createdAt: toDateOrNull(data['createdAt']),
     couponCode: optionalStr(data['couponCode']),

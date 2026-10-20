@@ -1,0 +1,100 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  <div class="cv-body">
+    @if (loading()) {
+      <div class="cv-card cv-card--skeleton" aria-busy="true" aria-label="Carregando o convite"></div>
+    } @else if (invite(); as inv) {
+      @if (gate(); as g) {
+        @if (g.gate === 'blocked') {
+          <section class="cv-card cv-card--message">
+            <span class="cv-eyebrow">Convite para jogar</span>
+            <h1 class="cv-title">Convite indisponível</h1>
+            <p class="cv-subtitle">{{ g.message }}</p>
+            <a routerLink="/painel" class="cv-btn cv-btn--ghost">Voltar ao painel</a>
+          </section>
+        } @else {
+          <section class="cv-card">
+            <header class="cv-hero" [attr.data-gate]="g.gate">
+              <span class="cv-eyebrow">Convite para jogar</span>
+              @switch (g.gate) {
+                @case ('owner') {
+                  <h1 class="cv-title">Este jogo é seu</h1>
+                  <p class="cv-subtitle">Mande o link para quem vai jogar com você — quem tocar confirma a vaga.</p>
+                }
+                @case ('joined') {
+                  <h1 class="cv-title">Você está no jogo!</h1>
+                  <p class="cv-subtitle">O jogo já está na sua agenda. Para sair, abra a reserva por lá.</p>
+                }
+                @case ('signIn') {
+                  <h1 class="cv-title">Te chamaram para jogar!</h1>
+                  <p class="cv-subtitle">Entre no nexaGO para ver o convite e confirmar sua vaga.</p>
+                }
+                @default {
+                  <h1 class="cv-title">Você foi convidado!</h1>
+                  <p class="cv-subtitle">{{ inviterName() }} quer jogar com você.</p>
+                }
+              }
+            </header>
+
+            <div class="cv-details">
+              <p class="cv-arena">{{ inv.arenaName || 'Arena' }}</p>
+              @if (inv.courtName) {
+                <p class="cv-court">{{ inv.courtName }}</p>
+              }
+              <ul class="cv-info">
+                <li>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
+                  <span>{{ whenLabel() }}</span>
+                </li>
+                <li>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                  <span>{{ hourLabel() }}</span>
+                </li>
+                <li>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2" /><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" /><circle cx="17" cy="9" r="2.6" /><path d="M16 14.2c2.8.2 5 2.6 5 5.8" /></svg>
+                  <span>{{ playersLabel() }}</span>
+                </li>
+              </ul>
+            </div>
+
+            @if (error(); as message) {
+              <p class="cv-error" role="alert">{{ message }}</p>
+            }
+
+            <div class="cv-actions">
+              @switch (g.gate) {
+                @case ('owner') {
+                  <a class="cv-btn cv-btn--primary" [routerLink]="['/agenda/reserva', inv.bookingId]">Abrir a reserva</a>
+                }
+                @case ('joined') {
+                  <a class="cv-btn cv-btn--primary" [routerLink]="['/agenda/reserva', inv.bookingId]">Ver o jogo</a>
+                }
+                @case ('signIn') {
+                  <a class="cv-btn cv-btn--primary" routerLink="/entrar" [queryParams]="{ redirect: signInLink() }">Entrar</a>
+                }
+                @default {
+                  <button type="button" class="cv-btn cv-btn--primary" [disabled]="responding() != null" (click)="respond(true)">
+                    {{ responding() === 'accept' ? 'Confirmando…' : 'Quero jogar!' }}
+                  </button>
+                  @if (isShareLink()) {
+                    <button type="button" class="cv-btn cv-btn--ghost" [disabled]="responding() != null" (click)="dismissLink()">Agora não</button>
+                  } @else {
+                    <button type="button" class="cv-btn cv-btn--ghost" [disabled]="responding() != null" (click)="respond(false)">
+                      {{ responding() === 'decline' ? 'Recusando…' : 'Não vou poder' }}
+                    </button>
+                  }
+                }
+              }
+            </div>
+          </section>
+        }
+      }
+    } @else {
+      <section class="cv-card cv-card--message">
+        <span class="cv-eyebrow">Convite para jogar</span>
+        <h1 class="cv-title">{{ loadError() ?? 'Convite não encontrado' }}</h1>
+        <p class="cv-subtitle">Confira o link com quem te chamou — ele pode ter sido digitado errado.</p>
+        <a routerLink="/painel" class="cv-btn cv-btn--ghost">Voltar ao painel</a>
+      </section>
+    }
+  </div>
+</app-at-panel-shell>

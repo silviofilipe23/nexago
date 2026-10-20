@@ -456,6 +456,10 @@
   flex: none;
 }
 
+.bd-team-avatar--photo {
+  object-fit: cover;
+}
+
 .bd-team-avatar--empty {
   background: transparent;
   border: 1.5px dashed var(--nx-line-strong);
@@ -510,6 +514,23 @@
   background: rgba(43, 209, 126, 0.14);
   border: 1px solid rgba(43, 209, 126, 0.32);
   color: var(--nx-win);
+}
+
+// Convites sem resposta (só o dono vê): mesma lista da equipe, com o rótulo em cima.
+.bd-pending {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--nx-line);
+  padding-top: 12px;
+}
+
+.bd-team-note {
+  margin: 0;
+}
+
+// Composto: sem ele o .bd-btn-ghost, declarado depois, devolve a cor do texto.
+.bd-btn-ghost.bd-btn-leave {
+  color: var(--nx-live);
 }
 
 // ── Split / pagamento ────────────────────────────────────────

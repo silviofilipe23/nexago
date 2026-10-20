@@ -5,30 +5,30 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { fetchArenaById, arenaListItemImageUrl, courtSportLabel, type ArenaListItem } from '@nexago/arena-discovery';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
-import { cancelBooking, fetchArenaBooking, type ArenaBookingDoc } from '../../data/arena-bookings-repository';
+import { cancelBooking, fetchArenaBooking, watchArenaBooking, type ArenaBookingDoc } from '../../data/arena-bookings-repository';
 import { REVIEW_ALREADY_SENT_MESSAGE } from '../../data/arena-reviews-repository';
-import { fetchAcceptedBookingInviteGuestUids } from '../../data/booking-invites-repository';
+import { BOOKING_MAX_PLAYERS, type BookingInvite } from '../../data/booking-invite-model';
+import {
+  cancelArenaBookingInvite,
+  fetchAcceptedBookingInviteGuestUids,
+  leaveArenaBooking,
+  watchBookingInvitesOfBooking,
+} from '../../data/booking-invites-repository';
+import { athleteFunctions } from '../../data/functions';
 import { bookingIsReviewCandidate } from '../../data/pending-arena-review';
 import { PendingArenaReviewService } from '../../data/pending-arena-review.service';
 import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../../data/public-profiles-repository';
 import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
+import { NxToastService } from '../../shared/feedback';
 import { LocationMapComponent } from '../../shared/location-map/location-map.component';
 import { ArenaReviewDialogComponent } from '../review/arena-review-dialog.component';
+import { BookingInviteDialogComponent } from './booking-invite-dialog.component';
+import { buildBookingTeam, initialsOf, viewerIsBookingOwner, type BookingTeamMember, type LegacyBookingGuest } from './booking-team';
 
 /** Vagas fixas por reserva (organizador + convidados) — espelha `kBookingTeamSlots` (Flutter). */
-const TEAM_SLOTS = 4;
+const TEAM_SLOTS = BOOKING_MAX_PLAYERS;
 
 export type BookingLifecycle = 'future' | 'current' | 'past' | 'canceled';
-
-export interface BookingTeamMember {
-  id: string;
-  displayName: string;
-  subtitle: string;
-  initials: string;
-  isOrganizer: boolean;
-  isEmptySlot: boolean;
-  showPaidBadge: boolean;
-}
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -49,14 +49,6 @@ function titleCase(input: string): string {
 function nameFromEmail(email: string | null | undefined): string {
   const local = email?.split('@')[0]?.trim();
   return local ? titleCase(local) : 'Atleta';
-}
-
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
-  return (first + last || first).toUpperCase();
 }
 
 function parseDateKey(value: string): Date | null {
@@ -108,12 +100,14 @@ function bookingLifecycle(now: Date, start: Date, end: Date, rawStatus: string):
 }
 
 /** Tela de detalhe de uma reserva a partir da Agenda — lê a reserva REAL
- *  (`arenaBookings/{bookingId}`), a arena (endereço/rota) e a equipe confirmada
- *  (participantes gravados na própria reserva + convites aceitos em `bookingInvites`). */
+ *  (`arenaBookings/{bookingId}`, ao vivo), a arena (endereço/rota) e a equipe: `participants`
+ *  gravados pelas callables de convite, mais o legado (`guestAthleteId` e convites aceitos do
+ *  app 1.0.1). Quem vê pode ser o dono ou um convidado: pagamento, cancelamento e avaliação são
+ *  do dono; o convidado vê o dono pelo nome e pode sair do jogo. */
 @Component({
   selector: 'app-athlete-booking-detail',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, LocationMapComponent, ArenaReviewDialogComponent],
+  imports: [RouterLink, AtPanelShellComponent, LocationMapComponent, ArenaReviewDialogComponent, BookingInviteDialogComponent],
   templateUrl: './athlete-booking-detail.component.html',
   styleUrl: './athlete-booking-detail.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -125,16 +119,21 @@ export class AthleteBookingDetailComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
   private readonly reviewStore = inject(PendingArenaReviewService);
+  private readonly toasts = inject(NxToastService);
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
+  private stopWatching: (() => void)[] = [];
+  private destroyed = false;
 
   protected readonly reviewDialogOpen = signal(false);
   /** Marcado no envio desta sessão — evita depender de um `refresh()` do store pra trocar o
    *  botão por "Avaliação enviada". */
   protected readonly reviewSentHere = signal(false);
 
+  /** A avaliação é uma por reserva (`arena_reviews` por `bookingId`): fica com o dono — a do
+   *  convidado bloquearia a dele. */
   protected readonly canReview = computed(() => {
     const b = this.booking();
-    if (!b || this.reviewSentHere()) return false;
+    if (!b || this.reviewSentHere() || !this.isOwner()) return false;
     if (this.reviewStore.isReviewed(b.id)) return false;
     return bookingIsReviewCandidate(b, this.now());
   });
@@ -161,7 +160,6 @@ export class AthleteBookingDetailComponent {
   protected readonly error = signal<string | null>(null);
   protected readonly booking = signal<ArenaBookingDoc | null>(null);
   protected readonly arena = signal<ArenaListItem | null>(null);
-  protected readonly team = signal<BookingTeamMember[]>([]);
   protected readonly notice = signal<string | null>(null);
   protected readonly confirmingCancel = signal(false);
   protected readonly canceling = signal(false);
@@ -199,16 +197,76 @@ export class AthleteBookingDetailComponent {
 
   protected readonly isRecurring = computed(() => this.booking()?.recurringBookingId != null);
 
-  protected readonly canCancel = computed(() => this.lifecycle() === 'future' && !this.isRecurring());
+  private readonly viewerUid = computed(() => this.auth.user()?.uid ?? null);
 
-  /** Convidar só faz sentido enquanto a reserva ainda está ativa (futura ou em andamento). */
-  protected readonly canInvite = computed(() => {
+  /** Dono da reserva (sem dono gravado ou sem sessão, a tela segue como antes: é o dono). */
+  protected readonly isOwner = computed(() =>
+    viewerIsBookingOwner(this.booking()?.ownerAthleteId ?? null, this.viewerUid()),
+  );
+
+  /** Entrou por convite (`participantUids`) — pode sair do jogo. */
+  protected readonly isParticipant = computed(() => {
+    const uid = this.viewerUid();
+    return !this.isOwner() && uid != null && (this.booking()?.participantUids.includes(uid) ?? false);
+  });
+
+  protected readonly canCancel = computed(
+    () => this.isOwner() && this.lifecycle() === 'future' && !this.isRecurring(),
+  );
+
+  /** Entrar, sair, tirar e convidar valem até o FIM do horário (futura ou em andamento). */
+  protected readonly gameOpen = computed(() => {
     const life = this.lifecycle();
     return life === 'future' || life === 'current';
   });
 
+  /** Reserva aguardando PIX não convida (a callable recusa com a mesma frase). */
+  protected readonly awaitingPayment = computed(() => this.booking()?.status === 'pending_payment');
+
+  protected readonly canInvite = computed(
+    () => this.isOwner() && this.gameOpen() && !this.awaitingPayment() && this.openSlots() > 0,
+  );
+
   /** Exportar ICS só enquanto o horário ainda não passou / não foi cancelado. */
-  protected readonly canAddToAgenda = computed(() => this.canInvite());
+  protected readonly canAddToAgenda = computed(() => this.gameOpen());
+
+  /** Nome e foto de quem reservou — só buscados quando quem vê é convidado. */
+  private readonly ownerProfile = signal<{ name: string; avatarUrl: string | null } | null>(null);
+  /** Convidados de reserva antiga (sem `participants`), com o nome já resolvido. */
+  private readonly legacyGuests = signal<LegacyBookingGuest[]>([]);
+  /** Convites da reserva, ao vivo (só o dono assina). */
+  private readonly invites = signal<BookingInvite[]>([]);
+
+  protected readonly team = computed<BookingTeamMember[]>(() => {
+    const b = this.booking();
+    if (!b) return [];
+    const owner = this.ownerProfile();
+    return buildBookingTeam({
+      ownerUid: b.ownerAthleteId,
+      viewerUid: this.viewerUid(),
+      viewerName: this.accountLabel(),
+      ownerName: owner?.name ?? null,
+      ownerAvatarUrl: owner?.avatarUrl ?? null,
+      ownerPaid: b.paymentStatus === 'paid' || b.amountPaidOnlineReais > 0.02,
+      participants: b.participants,
+      legacyGuests: this.legacyGuests(),
+      canRemove: this.isOwner() && this.gameOpen(),
+    });
+  });
+
+  /** Convites diretos sem resposta de quem ainda não entrou (o link multiuso fica de fora). */
+  protected readonly pendingInvites = computed(() => {
+    const playing = new Set(this.booking()?.participantUids ?? []);
+    return this.invites().filter((i) => i.status === 'pending' && i.inviteeUid != null && !playing.has(i.inviteeUid));
+  });
+
+  protected readonly pendingInviteeUids = computed(() => this.pendingInvites().map((i) => i.inviteeUid!));
+
+  protected readonly inviteDialogOpen = signal(false);
+  /** Uid (ou id do convite) com ação em andamento — desliga o botão da linha. */
+  protected readonly busy = signal<ReadonlySet<string>>(new Set());
+  protected readonly confirmingRemoveUid = signal<string | null>(null);
+  protected readonly confirmingLeave = signal(false);
 
   protected readonly statusBadgeLabel = computed(() => {
     const b = this.booking();
@@ -223,6 +281,8 @@ export class AthleteBookingDetailComponent {
       case 'future':
         break;
     }
+    // Pagamento é assunto do dono; o convidado só precisa saber que o jogo está de pé.
+    if (!this.isOwner()) return 'CONFIRMADA';
     if (b.status === 'pending_payment') return 'AGUARDANDO PAGAMENTO';
     if (b.paymentChannel === 'pix' || b.paymentChannel === 'card') {
       const isFull = (b.paymentFraction ?? 1) >= 0.99 || b.amountDueOnsiteReais <= 0.02;
@@ -242,7 +302,7 @@ export class AthleteBookingDetailComponent {
         return 'live';
       case 'future': {
         const b = this.booking();
-        if (b?.status === 'pending_payment') return 'warning';
+        if (b?.status === 'pending_payment' && this.isOwner()) return 'warning';
         return 'confirmed';
       }
     }
@@ -321,7 +381,7 @@ export class AthleteBookingDetailComponent {
 
   protected readonly showSplitCard = computed(() => {
     const b = this.booking();
-    if (!b) return false;
+    if (!b || !this.isOwner()) return false;
     const ps = b.paymentStatus.toLowerCase();
     return ps === 'partial' || b.amountPaidOnlineReais > 0.02;
   });
@@ -345,7 +405,11 @@ export class AthleteBookingDetailComponent {
 
   constructor() {
     void this.load();
-    this.destroyRef.onDestroy(() => clearTimeout(this.noticeTimeout));
+    this.destroyRef.onDestroy(() => {
+      this.destroyed = true;
+      clearTimeout(this.noticeTimeout);
+      for (const stop of this.stopWatching) stop();
+    });
   }
 
   private async load(): Promise<void> {
@@ -371,9 +435,10 @@ export class AthleteBookingDetailComponent {
       this.now.set(new Date());
 
       const arenaPromise = booking.arenaId ? fetchArenaById(db, booking.arenaId) : Promise.resolve(null);
-      const teamPromise = this.loadTeam(db, booking);
+      const teamPromise = this.loadTeamExtras(db, booking);
       const [arena] = await Promise.all([arenaPromise, teamPromise]);
       this.arena.set(arena);
+      this.watchLive(db, bookingId);
       void this.reviewStore.refresh();
     } catch (err) {
       if (!environment.production) {
@@ -385,70 +450,124 @@ export class AthleteBookingDetailComponent {
     }
   }
 
-  private async loadTeam(db: Firestore, booking: ArenaBookingDoc): Promise<void> {
-    const organizerName = this.accountLabel();
-    const members: BookingTeamMember[] = [
-      {
-        id: 'organizer',
-        displayName: 'Você',
-        subtitle: 'organizador',
-        initials: initialsOf(organizerName),
-        isOrganizer: true,
-        isEmptySlot: false,
-        showPaidBadge: booking.paymentStatus === 'paid' || booking.amountPaidOnlineReais > 0.02,
-      },
-    ];
-
+  /** O que a equipe precisa além do doc: o nome de quem reservou (para o convidado) e os
+   *  convidados de reserva antiga. Reserva nova traz tudo em `participants`. */
+  private async loadTeamExtras(db: Firestore, booking: ArenaBookingDoc): Promise<void> {
     const ownerId = booking.ownerAthleteId;
-    const guestUids = new Set<string>();
-    if (booking.guestAthleteId && booking.guestAthleteId !== ownerId) {
-      guestUids.add(booking.guestAthleteId);
+    const lookups = new Set<string>();
+    if (ownerId && !this.isOwner()) lookups.add(ownerId);
+
+    // Legado: o par `guestAthleteId`/`guestAthleteName` (app 1.0.1) e, se ainda faltar gente
+    // para o `confirmedParticipants`, os convites aceitos — como o app faz. Quem também está em
+    // `participants` sai repetido daqui e o `buildBookingTeam` descarta.
+    const legacyUids = new Set<string>();
+    if (booking.guestAthleteId && booking.guestAthleteId !== ownerId) legacyUids.add(booking.guestAthleteId);
+    if (booking.participants.length + legacyUids.size < booking.confirmedParticipants - 1) {
+      for (const uid of await fetchAcceptedBookingInviteGuestUids(db, booking.id)) {
+        if (uid !== ownerId) legacyUids.add(uid);
+      }
     }
-    for (const uid of await fetchAcceptedBookingInviteGuestUids(db, booking.id)) {
-      if (uid !== ownerId) guestUids.add(uid);
+    for (const uid of legacyUids) {
+      if (!booking.participantUids.includes(uid)) lookups.add(uid);
     }
 
-    const profiles: Map<string, AthletePublicProfile> =
-      guestUids.size > 0 ? await fetchPublicProfilesByIds(db, [...guestUids]) : new Map();
-    for (const uid of guestUids) {
-      const name = profiles.get(uid)?.displayName ?? booking.guestAthleteName ?? 'Jogador confirmado';
-      members.push({
-        id: uid,
-        displayName: name,
-        subtitle: 'Confirmado',
-        initials: initialsOf(name),
-        isOrganizer: false,
-        isEmptySlot: false,
-        showPaidBadge: false,
-      });
+    const profiles = lookups.size > 0 ? await fetchPublicProfilesByIds(db, [...lookups]) : new Map<string, AthletePublicProfile>();
+    if (ownerId && !this.isOwner()) {
+      const owner = profiles.get(ownerId);
+      this.ownerProfile.set(owner ? { name: owner.displayName, avatarUrl: owner.avatarUrl } : null);
     }
+    const legacy: LegacyBookingGuest[] = [...legacyUids].map((uid) => ({
+      uid,
+      name: profiles.get(uid)?.displayName ?? booking.guestAthleteName ?? 'Jogador confirmado',
+    }));
     // Convidado sem uid resolvido (nome só, veio direto do doc da reserva).
-    if (guestUids.size === 0 && booking.guestAthleteName) {
-      members.push({
-        id: 'guest-name-only',
-        displayName: booking.guestAthleteName,
-        subtitle: 'Confirmado',
-        initials: initialsOf(booking.guestAthleteName),
-        isOrganizer: false,
-        isEmptySlot: false,
-        showPaidBadge: false,
-      });
-    }
-
-    for (let i = members.length; i < TEAM_SLOTS; i++) {
-      members.push({
-        id: `empty-${i}`,
-        displayName: 'Vaga aberta',
-        subtitle: 'Convide alguém da sua rede',
-        initials: '+',
-        isOrganizer: false,
-        isEmptySlot: true,
-        showPaidBadge: false,
-      });
-    }
-
-    this.team.set(members);
+    if (legacyUids.size === 0 && booking.guestAthleteName) legacy.push({ uid: null, name: booking.guestAthleteName });
+    this.legacyGuests.set(legacy);
   }
+
+  /** Mantém a lista viva: alguém aceita o link enquanto o dono está com a tela aberta. */
+  private watchLive(db: Firestore, bookingId: string): void {
+    // A carga é assíncrona: fechada a tela antes, ninguém mais desligaria o listener.
+    if (this.destroyed) return;
+    this.stopWatching.push(
+      watchArenaBooking(db, bookingId, (booking) => {
+        if (booking) this.booking.set(booking);
+      }),
+    );
+    if (this.isOwner()) {
+      this.stopWatching.push(watchBookingInvitesOfBooking(db, bookingId, (list) => this.invites.set(list)));
+    }
+  }
+
+  protected openInviteDialog(): void {
+    if (this.canInvite()) this.inviteDialogOpen.set(true);
+  }
+
+  protected closeInviteDialog(): void {
+    this.inviteDialogOpen.set(false);
+  }
+
+  protected onPlayerInvited(name: string): void {
+    this.showNotice(`Convite enviado para ${name}.`);
+  }
+
+  protected askRemove(member: BookingTeamMember): void {
+    this.confirmingRemoveUid.set(member.uid);
+  }
+
+  protected cancelRemove(): void {
+    this.confirmingRemoveUid.set(null);
+  }
+
+  protected async confirmRemove(member: BookingTeamMember): Promise<void> {
+    const b = this.booking();
+    const uid = member.uid;
+    if (!b || !uid) return;
+    await this.runBusy(uid, async () => {
+      await leaveArenaBooking(athleteFunctions(), { bookingId: b.id, participantUid: uid });
+      this.confirmingRemoveUid.set(null);
+      this.showNotice(`${member.displayName} saiu do jogo.`);
+    });
+  }
+
+  protected async cancelInvite(invite: BookingInvite): Promise<void> {
+    await this.runBusy(invite.id, async () => {
+      await cancelArenaBookingInvite(athleteFunctions(), invite.id);
+      this.showNotice('Convite cancelado.');
+    });
+  }
+
+  protected async leaveGame(): Promise<void> {
+    const b = this.booking();
+    if (!b) return;
+    await this.runBusy('leave', async () => {
+      await leaveArenaBooking(athleteFunctions(), { bookingId: b.id });
+      this.toasts.success('Você saiu do jogo.', 'Avisamos quem reservou.');
+      void this.router.navigate(['/agenda']);
+    });
+  }
+
+  private async runBusy(key: string, action: () => Promise<void>): Promise<void> {
+    if (this.busy().has(key)) return;
+    this.busy.update((s) => new Set(s).add(key));
+    try {
+      await action();
+    } catch (err) {
+      this.showNotice(err instanceof Error ? err.message : 'Não foi possível concluir agora.');
+    } finally {
+      this.busy.update((s) => {
+        const next = new Set(s);
+        next.delete(key);
+        return next;
+      });
+    }
+  }
+
+  protected isBusy(key: string | null): boolean {
+    return key != null && this.busy().has(key);
+  }
+
+  protected readonly initialsOf = initialsOf;
 
   protected addToAgenda(): void {
     const b = this.booking();
@@ -487,26 +606,6 @@ export class AthleteBookingDetailComponent {
       this.showNotice('Copie a cobrança manualmente: ' + text);
     } catch {
       // usuário bloqueou a área de transferência — nada a fazer
-    }
-  }
-
-  protected async inviteGuest(): Promise<void> {
-    const b = this.booking();
-    if (!b) return;
-    const text = `Bora jogar comigo na ${b.arenaName}, ${this.dateEyebrow()} às ${b.startTime}?`;
-    try {
-      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-        await navigator.share({ text });
-        return;
-      }
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(text);
-        this.showNotice('Convite copiado — cole numa conversa para chamar alguém.');
-        return;
-      }
-      this.showNotice('Copie o convite manualmente: ' + text);
-    } catch {
-      // usuário cancelou o compartilhamento nativo — nada a fazer
     }
   }
 

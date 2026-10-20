@@ -17,6 +17,7 @@ function booking(overrides: Partial<MyBooking> = {}): MyBooking {
     startTime: '19:00',
     endTime: '20:30',
     status: 'confirmed',
+    ownerAthleteId: null,
     attendanceConfirmed: false,
     amountReais: 68,
     createdAt: null,

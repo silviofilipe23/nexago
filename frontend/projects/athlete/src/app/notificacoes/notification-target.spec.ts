@@ -15,4 +15,15 @@ describe('notificationTarget', () => {
     expect(notificationTarget({ type: 'tournament_cancelled', tournamentId: 't1' })).toBeNull();
     expect(notificationTarget({ type: null, tournamentId: 't1' })).toBeNull();
   });
+
+  it('convite para jogar abre /convite/{id}; avisos da reserva abrem a reserva', () => {
+    const base = { tournamentId: null, inviteId: 'b1_ana', bookingId: 'b1' };
+    expect(notificationTarget({ ...base, type: 'booking_invite' })).toEqual({ commands: ['/convite', 'b1_ana'] });
+    for (const type of ['booking_invite_accepted', 'booking_invite_declined', 'booking_participant_left', 'booking_canceled_participant']) {
+      expect(notificationTarget({ ...base, type })).toEqual({ commands: ['/agenda/reserva', 'b1'] });
+    }
+    expect(notificationTarget({ ...base, type: 'booking_participant_removed' })).toEqual({ commands: ['/agenda'] });
+    // Convite legado sem inviteId no payload: não navega.
+    expect(notificationTarget({ ...base, inviteId: null, type: 'booking_invite' })).toBeNull();
+  });
 });

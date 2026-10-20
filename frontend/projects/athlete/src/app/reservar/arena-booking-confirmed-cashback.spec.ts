@@ -60,6 +60,8 @@ function booking(overrides: Partial<ArenaBookingDoc> = {}): ArenaBookingDoc {
     confirmedParticipants: 1,
     guestAthleteId: null,
     guestAthleteName: null,
+    participants: [],
+    participantUids: [],
     recurringBookingId: null,
     createdAt: null,
     couponCode: null,

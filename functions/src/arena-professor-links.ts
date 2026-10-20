@@ -526,7 +526,9 @@ async function openLink(
         actor: {uid: "system", name: "NexaGO", role: "SYSTEM"},
         fromStatus: "INVITED",
         toStatus: "EXPIRED",
-        nowMs: input.nowMs,
+        // 1 ms antes da abertura gravada na mesma transação: o histórico ordena por
+        // `createdAt` e o empate deixaria a ordem por id (aleatória).
+        nowMs: input.nowMs - 1,
       });
     }
     const inviting = input.side === "ARENA";

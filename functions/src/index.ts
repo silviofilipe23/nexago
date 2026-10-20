@@ -201,6 +201,8 @@ export {onArenaClassAsaasPaymentWritten, reconcileArenaClassAsaasPayments} from 
 export {getMyClassAgenda} from "./arena-class-athlete-agenda";
 // Aulas pelo professor com vínculo ("Gerenciar as próprias aulas"): lista da chamada.
 export {getMyClassSessionRoster} from "./arena-class-teacher";
+// Alunos, aluno e turmas do professor (app, modo Professor) — mesma régua da chamada.
+export {getMyProfessorStudents} from "./professor-students";
 export {getMyClassCharges} from "./arena-class-athlete-charges";
 
 export {

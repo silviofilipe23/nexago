@@ -2219,6 +2219,22 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Anotação do professor sobre um aluno ("Suas anotações · só você vê", app do
+    // Professor). Doc `{arenaId}_{studentId}`; nem a arena nem o aluno leem.
+    // Ver docs/superpowers/specs/2026-10-20-professor-app-alunos-fase-1-design.md
+    match /users/{userId}/professorStudentNotes/{noteId} {
+      allow read, delete: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null &&
+        request.auth.uid == userId &&
+        request.resource.data.keys().hasOnly(['arenaId', 'studentId', 'text', 'updatedAt']) &&
+        request.resource.data.arenaId is string &&
+        request.resource.data.studentId is string &&
+        noteId == request.resource.data.arenaId + '_' + request.resource.data.studentId &&
+        request.resource.data.text is string &&
+        request.resource.data.text.size() <= 2000 &&
+        request.resource.data.updatedAt == request.time;
+    }
+
     match /users/{userId}/followers/{followerId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null &&

@@ -60,14 +60,24 @@ class _ProfessorSettingsSheet extends ConsumerWidget {
           title: 'Sair',
           subtitle: 'Você precisará entrar de novo',
           danger: true,
-          onTap: () => _confirmSignOut(context, ref),
+          onTap: () => confirmProfessorSignOut(
+            context,
+            ref,
+            beforeSignOut: () => Navigator.of(context).pop(),
+          ),
         ),
       ],
     );
   }
 }
 
-Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
+/// "Sair da conta?" do modo Professor (folha de ajustes e aba Mais).
+/// [beforeSignOut] fecha quem chamou (a folha) antes de sair.
+Future<void> confirmProfessorSignOut(
+  BuildContext context,
+  WidgetRef ref, {
+  VoidCallback? beforeSignOut,
+}) async {
   final theme = Theme.of(context);
   final confirm = await showDialog<bool>(
     context: context,
@@ -91,7 +101,7 @@ Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
     ),
   );
   if (confirm != true || !context.mounted) return;
-  Navigator.of(context).pop();
+  beforeSignOut?.call();
   await ref.read(appSignOutProvider)();
   if (!context.mounted) return;
   context.go(AppRoutes.login);

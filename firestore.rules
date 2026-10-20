@@ -1874,6 +1874,15 @@ service cloud.firestore {
       );
       allow create, update, delete: if false;
     }
+    // Cobrança online das mensalidades (Asaas): o grupo de pagamento e o CPF do aluno são só do
+    // servidor — portal e app leem o espelho `asaas` na mensalidade. O catch-all no fim já nega;
+    // a regra explícita documenta que é de propósito (CPF de aluno sem conta, LGPD).
+    match /arenaClassAsaasPayments/{groupId} {
+      allow read, write: if false;
+    }
+    match /arenaClassBillingProfiles/{profileId} {
+      allow read, write: if false;
+    }
     // Repasse do professor (fechamento mensal; pagamento feito por fora, sem dinheiro na
     // plataforma). Quanto o professor ganha é dado de quem lê o financeiro (dono, gestor e
     // cargo financeiro) — recepção e manutenção leem a agenda, não isto. Escrita só pelas

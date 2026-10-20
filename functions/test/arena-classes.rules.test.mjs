@@ -193,3 +193,22 @@ test('fase 2b: repasse do professor — só quem lê o financeiro; ninguém escr
     await assertFails(setDoc(doc(as(uid), 'arenaClassPayouts', 'arena-pro_t1_2026-11'), { arenaId: 'arena-pro', status: 'closed' }));
   }
 });
+
+test('cobrança online: grupo de pagamento e CPF do aluno são só do servidor', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'arenaClassAsaasPayments', 'e1_first'), {
+      arenaId: 'arena-pro', enrollmentId: 'e1', studentId: ALUNO, athleteId: ALUNO, state: 'open', amountReais: 192.22,
+    });
+    await setDoc(doc(db, 'arenaClassBillingProfiles', `arena-pro_${ALUNO}`), {
+      arenaId: 'arena-pro', studentId: ALUNO, cpfCnpj: '52998224725',
+    });
+  });
+  for (const p of [['arenaClassAsaasPayments', 'e1_first'], ['arenaClassBillingProfiles', `arena-pro_${ALUNO}`]]) {
+    for (const uid of [OWNER, FINANCEIRO, RECEPCAO, ALUNO]) {
+      await assertFails(getDoc(doc(as(uid), ...p)));
+      await assertFails(setDoc(doc(as(uid), ...p), { state: 'paid' }, { merge: true }));
+    }
+  }
+  await assertFails(getDocs(query(collection(as(OWNER), 'arenaClassAsaasPayments'), where('arenaId', '==', 'arena-pro'))));
+});

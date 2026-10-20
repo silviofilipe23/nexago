@@ -6,6 +6,8 @@ import 'arena_class_parse.dart';
 // reposição. Espelha `functions/src/arena-class-billing.ts` e
 // `arena-class-ledger.ts`. Cobrança manual: o sistema gera as mensalidades e o
 // gestor registra o pagamento recebido direto — nada passa pela plataforma.
+// Cobrança online (regra `onlineBillingEnabled`): cada mensalidade vira uma
+// fatura Asaas (PIX ou cartão) e a mensalidade guarda o espelho `asaas`.
 // O app só lê; toda escrita é por callable.
 
 /// Tipo do plano. Espelha `PLAN_KINDS`.
@@ -46,6 +48,91 @@ extension ArenaClassPaymentMethodX on ArenaClassPaymentMethod {
       if (m.id == raw) return m;
     }
     return ArenaClassPaymentMethod.pix;
+  }
+}
+
+/// Como a mensalidade é cobrada. Espelha `ClassBillingMode`. Fica fora de
+/// `paymentMethod` de propósito: build antigo leria valor desconhecido como
+/// PIX.
+enum ArenaClassBillingMode { manual, asaas }
+
+extension ArenaClassBillingModeX on ArenaClassBillingMode {
+  String get id => name;
+
+  /// Ausente/desconhecido = manual (doc anterior à cobrança online).
+  static ArenaClassBillingMode fromId(Object? raw) => raw == 'asaas'
+      ? ArenaClassBillingMode.asaas
+      : ArenaClassBillingMode.manual;
+}
+
+/// Situação da fatura online. Espelha `ClassAsaasState` (`void` vira
+/// [voided] — palavra reservada em Dart).
+enum ArenaClassAsaasState {
+  pending,
+  creating,
+  open,
+  paid,
+  voiding,
+  voided,
+  failed,
+  needsCpf,
+}
+
+extension ArenaClassAsaasStateX on ArenaClassAsaasState {
+  /// Desconhecido cai em `pending` — mesmo default do portal.
+  static ArenaClassAsaasState fromId(Object? raw) => switch (raw) {
+        'creating' => ArenaClassAsaasState.creating,
+        'open' => ArenaClassAsaasState.open,
+        'paid' => ArenaClassAsaasState.paid,
+        'voiding' => ArenaClassAsaasState.voiding,
+        'void' => ArenaClassAsaasState.voided,
+        'failed' => ArenaClassAsaasState.failed,
+        'needs_cpf' => ArenaClassAsaasState.needsCpf,
+        _ => ArenaClassAsaasState.pending,
+      };
+
+  /// Ainda existe (ou vai existir) um pagamento vivo no Asaas. Espelha
+  /// `LIVE_ASAAS_STATES`.
+  bool get isLive => switch (this) {
+        ArenaClassAsaasState.pending ||
+        ArenaClassAsaasState.creating ||
+        ArenaClassAsaasState.open ||
+        ArenaClassAsaasState.failed =>
+          true,
+        _ => false,
+      };
+}
+
+/// Espelho da fatura online na mensalidade (`asaas`). O grupo de pagamento
+/// (`arenaClassAsaasPayments`) é só do servidor.
+class ArenaClassChargeAsaas {
+  const ArenaClassChargeAsaas({
+    required this.groupId,
+    required this.state,
+    this.invoiceUrl,
+    this.status,
+  });
+
+  final String groupId;
+  final ArenaClassAsaasState state;
+
+  /// Fatura hospedada (o aluno escolhe PIX ou cartão).
+  final String? invoiceUrl;
+
+  /// Status cru do Asaas (`PENDING`, `OVERDUE`, `RECEIVED`…).
+  final String? status;
+
+  /// `null` sem mapa ou sem `groupId` (mensalidade manual).
+  static ArenaClassChargeAsaas? fromMap(Object? raw) {
+    if (raw is! Map) return null;
+    final groupId = parseStringOrNull(raw['groupId']);
+    if (groupId == null) return null;
+    return ArenaClassChargeAsaas(
+      groupId: groupId,
+      state: ArenaClassAsaasStateX.fromId(raw['state']),
+      invoiceUrl: parseStringOrNull(raw['invoiceUrl']),
+      status: parseStringOrNull(raw['status']),
+    );
   }
 }
 
@@ -121,6 +208,7 @@ class ArenaClassRules {
     this.arenaCancelGeneratesCredit = true,
     this.defaultDueDay = 5,
     this.enrollmentFeeReais = 0,
+    this.onlineBillingEnabled = false,
   });
 
   static const ArenaClassRules defaults = ArenaClassRules();
@@ -134,6 +222,10 @@ class ArenaClassRules {
 
   /// Taxa de matrícula (0 = sem taxa).
   final double enrollmentFeeReais;
+
+  /// Mensalidade cobrada online pelo Asaas (PIX ou cartão na fatura).
+  /// Desligada por padrão; o app só lê (a tela de Regras é do portal).
+  final bool onlineBillingEnabled;
 
   factory ArenaClassRules.fromMap(Map<String, dynamic>? data) {
     final d = data ?? const <String, dynamic>{};
@@ -149,6 +241,7 @@ class ArenaClassRules {
       arenaCancelGeneratesCredit: boolOr(d['arenaCancelGeneratesCredit'], true),
       defaultDueDay: intIn(d['defaultDueDay'], 5, 1, 28),
       enrollmentFeeReais: fee is num && fee >= 0 ? fee.toDouble() : 0,
+      onlineBillingEnabled: d['onlineBillingEnabled'] == true,
     );
   }
 }
@@ -213,6 +306,8 @@ class ArenaClassEnrollment {
     required this.status,
     required this.dueDay,
     required this.paymentMethod,
+    this.billingMode = ArenaClassBillingMode.manual,
+    this.cpfMasked,
     required this.startDate,
     this.creditsLeft,
     this.expiresOn,
@@ -237,6 +332,10 @@ class ArenaClassEnrollment {
   final String status;
   final int dueDay;
   final ArenaClassPaymentMethod paymentMethod;
+  final ArenaClassBillingMode billingMode;
+
+  /// CPF do pagador mascarado (`***.456.789-**`), só na cobrança online.
+  final String? cpfMasked;
 
   /// `YYYY-MM-DD`.
   final String startDate;
@@ -280,6 +379,8 @@ class ArenaClassEnrollment {
       status: parseString(data['status'], 'active'),
       dueDay: parseInt(data['dueDay'], 5),
       paymentMethod: ArenaClassPaymentMethodX.fromId(data['paymentMethod']),
+      billingMode: ArenaClassBillingModeX.fromId(data['billingMode']),
+      cpfMasked: parseStringOrNull(data['cpfMasked']),
       startDate: parseString(data['startDate'], ''),
       creditsLeft: parseIntOrNull(data['creditsLeft']),
       expiresOn: parseStringOrNull(data['expiresOn']),
@@ -305,6 +406,10 @@ class ArenaClassCharge {
     required this.status,
     this.paidOn,
     required this.paymentMethod,
+    this.billingMode = ArenaClassBillingMode.manual,
+    this.asaas,
+    this.paidVia,
+    this.onlineBillingType,
   });
 
   final String id;
@@ -328,12 +433,25 @@ class ArenaClassCharge {
   /// `open` | `paid` | `canceled`.
   final String status;
 
-  /// `YYYY-MM-DD` em que o gestor registrou o recebimento.
+  /// `YYYY-MM-DD` em que o gestor registrou o recebimento (ou o Asaas
+  /// confirmou).
   final String? paidOn;
   final ArenaClassPaymentMethod paymentMethod;
+  final ArenaClassBillingMode billingMode;
+
+  /// Espelho da fatura online (`null` na cobrança manual).
+  final ArenaClassChargeAsaas? asaas;
+
+  /// `asaas` = pago pela fatura online; `manual` = baixa do gestor.
+  final String? paidVia;
+
+  /// `PIX` | `CREDIT_CARD` — como o aluno pagou a fatura online.
+  final String? onlineBillingType;
 
   bool get isOpen => status == 'open';
   bool get isPaid => status == 'paid';
+  bool get isOnline => billingMode == ArenaClassBillingMode.asaas;
+  bool get isPaidOnline => isPaid && paidVia == 'asaas';
 
   factory ArenaClassCharge.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -356,6 +474,18 @@ class ArenaClassCharge {
       status: parseString(data['status'], 'open'),
       paidOn: parseStringOrNull(data['paidOn']),
       paymentMethod: ArenaClassPaymentMethodX.fromId(data['paymentMethod']),
+      billingMode: ArenaClassBillingModeX.fromId(data['billingMode']),
+      asaas: ArenaClassChargeAsaas.fromMap(data['asaas']),
+      paidVia: switch (data['paidVia']) {
+        'asaas' => 'asaas',
+        'manual' => 'manual',
+        _ => null,
+      },
+      onlineBillingType: switch (data['onlineBillingType']) {
+        'PIX' => 'PIX',
+        'CREDIT_CARD' => 'CREDIT_CARD',
+        _ => null,
+      },
     );
   }
 }

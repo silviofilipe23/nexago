@@ -1,13 +1,14 @@
 import '../../../../core/formatting/app_currency_format.dart';
+import '../../../../core/validation/cpf_cnpj.dart';
 import 'arena_class.dart';
 import 'arena_class_enrollment.dart';
 import 'arena_class_logic.dart';
 import 'arena_class_session.dart';
 
 // Regras puras da fase 2 de Aulas no app da arena: mensalidades (atraso,
-// totais do mês), vaga por dia na matrícula, reposição para encaixar,
-// frequência do aluno e textos de WhatsApp. Sem Flutter/Firestore — tudo
-// testável com `todayKey` fixo.
+// totais do mês, fatura online), vaga por dia na matrícula, reposição para
+// encaixar, frequência do aluno e textos de WhatsApp. Sem Flutter/Firestore —
+// tudo testável com `todayKey` fixo.
 
 const List<String> _monthShort = [
   'jan', 'fev', 'mar', 'abr', 'mai', 'jun', //
@@ -269,10 +270,15 @@ int arenaClassChargeDaysOverdue(ArenaClassCharge c, String todayKey) =>
         : 0;
 
 /// Linha de status do cartão: "7 dias em atraso", "vence hoje",
-/// "vence 05 nov", "pago 12 out · PIX".
+/// "vence 05 nov", "pago 12 out · PIX". Pago online sai sem a forma — o
+/// `paymentMethod` é o da matrícula; como o aluno pagou fica no rótulo da
+/// fatura ([arenaClassOnlineChargeStatus]).
 String arenaClassChargeStatusLabel(ArenaClassCharge c, String todayKey) {
   if (c.isPaid) {
     final on = c.paidOn;
+    if (c.isPaidOnline) {
+      return on == null ? 'pago' : 'pago ${arenaClassShortDate(on)}';
+    }
     return on == null
         ? 'pago · ${c.paymentMethod.label}'
         : 'pago ${arenaClassShortDate(on)} · ${c.paymentMethod.label}';
@@ -283,6 +289,92 @@ String arenaClassChargeStatusLabel(ArenaClassCharge c, String todayKey) {
   if (c.dueDate == todayKey) return 'vence hoje';
   return 'vence ${arenaClassShortDate(c.dueDate)}';
 }
+
+// ---------------------------------------------------------------------------
+// Cobrança online (Asaas)
+// ---------------------------------------------------------------------------
+
+/// Tom do rótulo da fatura online — a tela escolhe a cor.
+enum ArenaClassOnlineTone { info, muted, warning, danger, success }
+
+/// Situação da fatura online de uma mensalidade.
+typedef ArenaClassOnlineStatus = ({String label, ArenaClassOnlineTone tone});
+
+/// Link da fatura online pronto para mandar: só com a mensalidade em aberto
+/// e a fatura aberta no Asaas. Espelha `chargeInvoiceUrl` do portal.
+String? arenaClassChargeInvoiceUrl(ArenaClassCharge c) {
+  final a = c.asaas;
+  return c.isOpen && a != null && a.state == ArenaClassAsaasState.open
+      ? a.invoiceUrl
+      : null;
+}
+
+/// Situação da fatura para a tela (`null` = cobrança manual ou mensalidade
+/// cancelada). Mesmos textos de `onlineChargeLabel` no portal.
+ArenaClassOnlineStatus? arenaClassOnlineChargeStatus(ArenaClassCharge c) {
+  if (!c.isOnline) return null;
+  if (c.isPaid) {
+    if (!c.isPaidOnline) {
+      return (label: 'Baixa manual', tone: ArenaClassOnlineTone.muted);
+    }
+    return (
+      label: c.onlineBillingType == 'CREDIT_CARD'
+          ? 'Pago online · cartão'
+          : 'Pago online · PIX',
+      tone: ArenaClassOnlineTone.success,
+    );
+  }
+  if (!c.isOpen) return null;
+  final a = c.asaas;
+  return switch (a?.state) {
+    ArenaClassAsaasState.open => a!.status == 'OVERDUE'
+        ? (label: 'Fatura vencida', tone: ArenaClassOnlineTone.danger)
+        : (label: 'Fatura enviada', tone: ArenaClassOnlineTone.info),
+    ArenaClassAsaasState.pending ||
+    ArenaClassAsaasState.creating ||
+    ArenaClassAsaasState.voiding =>
+      (label: 'Gerando link…', tone: ArenaClassOnlineTone.muted),
+    ArenaClassAsaasState.failed => (
+        label: 'Falha ao gerar link — tentando de novo',
+        tone: ArenaClassOnlineTone.warning,
+      ),
+    ArenaClassAsaasState.needsCpf => (
+        label: 'Sem CPF — cobre manualmente',
+        tone: ArenaClassOnlineTone.warning,
+      ),
+    _ => (label: 'Cobrança manual', tone: ArenaClassOnlineTone.muted),
+  };
+}
+
+/// Dar baixa manual nesta mensalidade cancela a fatura online (o servidor
+/// anula o grupo): ainda existe, ou vai existir, um link vivo no Asaas.
+bool arenaClassManualPaymentVoidsInvoice(ArenaClassCharge c) =>
+    c.isOpen && c.isOnline && (c.asaas?.state.isLive ?? false);
+
+/// Mensalidade do grupo da 1ª fatura (confirmação da matrícula): a que já
+/// tem link, senão qualquer uma do grupo; `null` enquanto nenhuma chegou.
+ArenaClassCharge? arenaClassGroupCharge(
+  List<ArenaClassCharge> charges,
+  String groupId,
+) {
+  final inGroup = charges.where((c) => c.asaas?.groupId == groupId).toList();
+  return inGroup
+          .where((c) => arenaClassChargeInvoiceUrl(c) != null)
+          .firstOrNull ??
+      inGroup.firstOrNull;
+}
+
+/// CPF de quem paga na matrícula online: vazio só vale para atleta com
+/// conta (o servidor usa o do cadastro); digitado, tem de ser CPF/CNPJ
+/// válido. O servidor confere de novo.
+bool arenaClassEnrollmentCpfOk(String raw, {required bool hasAccount}) {
+  if (CpfCnpjValidator.normalize(raw).isEmpty) return hasAccount;
+  return CpfCnpjValidator.isValid(raw);
+}
+
+/// Frase do link nas mensagens de WhatsApp — a mesma do portal.
+String arenaClassInvoiceSentence(String invoiceUrl) =>
+    'Pague por aqui, com PIX ou cartão: $invoiceUrl';
 
 /// Mensalidades do mês separadas por aba, com os totais do topo.
 class ArenaClassChargesView {
@@ -396,8 +488,8 @@ String arenaClassFirstName(String name) {
   return parts.isEmpty || parts.first.isEmpty ? name : parts.first;
 }
 
-/// Mensagem do "Cobrar" (WhatsApp). Cobrança manual: diz como pagar na
-/// arena, sem link.
+/// Mensagem do "Cobrar" (WhatsApp). Com a fatura online aberta, leva o link
+/// (PIX ou cartão); sem ela, diz como pagar na arena.
 String arenaClassChargeReminderMessage(
   ArenaClassCharge c, {
   required String todayKey,
@@ -413,25 +505,34 @@ String arenaClassChargeReminderMessage(
   final from = arenaName == null || arenaName.trim().isEmpty
       ? ''
       : ' — ${arenaName.trim()}';
+  final url = arenaClassChargeInvoiceUrl(c);
+  // Sem ponto depois do link: o WhatsApp levaria o ponto junto na URL.
+  final how = url == null
+      ? 'Pode pagar por ${c.paymentMethod.label} ou direto na recepção.'
+      : arenaClassInvoiceSentence(url);
   return 'Olá, $who! Tudo bem? Passando para lembrar da cobrança '
-      '"${c.description}" ($amount), $when. Pode pagar por '
-      '${c.paymentMethod.label} ou direto na recepção. Obrigado!$from';
+      '"${c.description}" ($amount), $when. $how Obrigado!$from';
 }
 
-/// Mensagem do "Cobrar no WhatsApp" logo depois da matrícula.
+/// Mensagem do "Cobrar no WhatsApp" logo depois da matrícula. Na cobrança
+/// online, leva o link da 1ª fatura ([invoiceUrl]).
 String arenaClassEnrollmentChargeMessage({
   required String studentName,
   required String planName,
   required double totalReais,
   required ArenaClassPaymentMethod method,
   String? arenaName,
+  String? invoiceUrl,
 }) {
   final from = arenaName == null || arenaName.trim().isEmpty
       ? ''
       : ' — ${arenaName.trim()}';
+  final how = invoiceUrl == null
+      ? ' — pode pagar por ${method.label} ou direto na recepção.'
+      : '. ${arenaClassInvoiceSentence(invoiceUrl)}';
   return 'Olá, ${arenaClassFirstName(studentName)}! Sua matrícula no plano '
-      '$planName está feita. O valor de hoje é ${formatBRL(totalReais)} — '
-      'pode pagar por ${method.label} ou direto na recepção. Até a aula!$from';
+      '$planName está feita. O valor de hoje é ${formatBRL(totalReais)}$how '
+      'Até a aula!$from';
 }
 
 // ---------------------------------------------------------------------------

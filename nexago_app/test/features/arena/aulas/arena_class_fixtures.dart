@@ -167,6 +167,8 @@ ArenaClassEnrollment enrollment({
   String startDate = '2026-09-01',
   int? creditsLeft,
   String? expiresOn,
+  ArenaClassBillingMode billingMode = ArenaClassBillingMode.manual,
+  String? cpfMasked,
 }) {
   return ArenaClassEnrollment(
     id: id,
@@ -180,6 +182,8 @@ ArenaClassEnrollment enrollment({
     status: status,
     dueDay: dueDay,
     paymentMethod: ArenaClassPaymentMethod.pix,
+    billingMode: billingMode,
+    cpfMasked: cpfMasked,
     startDate: startDate,
     creditsLeft: creditsLeft,
     expiresOn: expiresOn,
@@ -197,6 +201,9 @@ ArenaClassCharge charge({
   String status = 'open',
   String? paidOn,
   ArenaClassPaymentMethod method = ArenaClassPaymentMethod.pix,
+  ArenaClassChargeAsaas? asaas,
+  String? paidVia,
+  String? onlineBillingType,
 }) {
   return ArenaClassCharge(
     id: id,
@@ -211,8 +218,28 @@ ArenaClassCharge charge({
     status: status,
     paidOn: paidOn,
     paymentMethod: method,
+    billingMode: asaas == null
+        ? ArenaClassBillingMode.manual
+        : ArenaClassBillingMode.asaas,
+    asaas: asaas,
+    paidVia: paidVia,
+    onlineBillingType: onlineBillingType,
   );
 }
+
+/// Espelho da fatura online (`asaas`) de uma mensalidade.
+ArenaClassChargeAsaas invoice({
+  String groupId = 'e1_first',
+  ArenaClassAsaasState state = ArenaClassAsaasState.open,
+  String? url = 'https://asaas.test/i/1',
+  String? status = 'PENDING',
+}) =>
+    ArenaClassChargeAsaas(
+      groupId: groupId,
+      state: state,
+      invoiceUrl: url,
+      status: status,
+    );
 
 ArenaClassCredit credit({
   String id = 'cr1',

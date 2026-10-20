@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:nexago_app/features/arena/data/arena_class_enrollment_repository.dart';
 import 'package:nexago_app/features/arena/domain/aulas/arena_class_enrollment.dart';
 import 'package:nexago_app/features/arena/domain/aulas/arena_class_session.dart';
@@ -27,6 +29,10 @@ class FakeArenaClassEnrollmentRepository
   final List<ArenaClassCredit> credits;
   final Map<String, List<ArenaClassSession>> sessionsByClass;
   ArenaClassEnrollmentPreview preview;
+
+  /// Mensalidades ao vivo do aluno (o worker grava o link depois da
+  /// matrícula). Sem ele, [charges] é estático.
+  StreamController<List<ArenaClassCharge>>? liveStudentCharges;
 
   /// Toda leitura anota o `arenaId` usado.
   final List<String> arenaIdsRead = [];
@@ -89,6 +95,11 @@ class FakeArenaClassEnrollmentRepository
     required String studentId,
   }) {
     arenaIdsRead.add(arenaId);
+    final live = liveStudentCharges;
+    if (live != null) {
+      return live.stream
+          .map((list) => list.where((c) => c.studentId == studentId).toList());
+    }
     return Stream.value(
         charges.where((c) => c.studentId == studentId).toList());
   }
@@ -140,6 +151,10 @@ class FakeArenaClassEnrollmentRepository
       enrollmentId: 'e-new',
       studentId: request.athleteId ?? request.studentId ?? 'st-new',
       chargeIds: const ['e-new_2026-10'],
+      // Online: 1º mês + taxa num grupo só (`{matrícula}_first`).
+      asaasGroupId: request.billingMode == ArenaClassBillingMode.asaas
+          ? 'e-new_first'
+          : null,
     );
   }
 

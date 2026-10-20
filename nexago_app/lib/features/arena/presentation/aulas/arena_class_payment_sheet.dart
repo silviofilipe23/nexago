@@ -5,12 +5,14 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 import '../../../../core/formatting/app_currency_format.dart';
 import '../../data/arena_class_repository.dart';
+import '../../domain/aulas/arena_class_billing_logic.dart';
 import '../../domain/aulas/arena_class_enrollment.dart';
 import '../../domain/aulas/arena_class_enrollment_providers.dart';
 import 'widgets/arena_class_form_atoms.dart';
 
 /// "Registrar pagamento": o gestor recebeu direto (PIX, dinheiro,
-/// maquininha, transferência) e dá baixa na cobrança. Devolve `true` quando
+/// maquininha, transferência) e dá baixa na cobrança. Em mensalidade online,
+/// o servidor anula a fatura — a folha avisa antes. Devolve `true` quando
 /// gravou.
 Future<bool?> showArenaClassPaymentSheet(
   BuildContext context, {
@@ -89,6 +91,41 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
             c.description,
             style: TextStyle(fontSize: 12.5, color: colors.onSurfaceMuted),
           ),
+          if (arenaClassManualPaymentVoidsInvoice(c)) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.pending.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.pending.withValues(alpha: 0.35),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.link_off_rounded,
+                    size: 18,
+                    color: AppColors.pending,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Esta mensalidade tem fatura online: registrar o '
+                      'pagamento aqui cancela o link enviado ao aluno.',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.4,
+                        color: colors.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           const ArenaClassKicker('Como foi pago'),
           for (final m in ArenaClassPaymentMethod.values) ...[

@@ -9,6 +9,7 @@ import '../../../../core/formatting/app_currency_format.dart';
 import '../../../../core/formatting/br_phone_format.dart';
 import '../../../../core/profiles/app_user_profile.dart';
 import '../../../../core/router/routes.dart';
+import '../../../../core/validation/cpf_cnpj.dart';
 import '../../data/arena_class_enrollment_repository.dart';
 import '../../data/arena_class_repository.dart';
 import '../../domain/arena_schedule_providers.dart';
@@ -44,8 +45,9 @@ class ArenaClassEnrollSeed {
 /// confirmação. Prévia com `previewArenaClassEnrollment`, grava com
 /// `createArenaClassEnrollment`.
 ///
-/// Sem cobrança online nesta fase: a primeira cobrança fica em aberto em
-/// Mensalidades e o gestor pode mandar o valor pelo WhatsApp.
+/// Com a regra `onlineBillingEnabled`, o pagamento escolhe Online (padrão:
+/// fatura Asaas, PIX ou cartão, com CPF de quem paga) ou Manual (a cobrança
+/// fica em aberto em Mensalidades e a arena registra ao receber).
 class ArenaClassEnrollPage extends ConsumerStatefulWidget {
   const ArenaClassEnrollPage({super.key, this.seed});
 
@@ -75,6 +77,12 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
 
   // Passo 4 — pagamento.
   ArenaClassPaymentMethod _method = ArenaClassPaymentMethod.pix;
+
+  /// Online ou Manual; `null` = o padrão da regra (online quando ligada).
+  ArenaClassBillingMode? _billingMode;
+
+  /// CPF/CNPJ de quem paga a fatura online.
+  final _cpf = TextEditingController();
   int? _dueDay;
   bool _waiveFee = false;
   ArenaClassEnrollmentPreview? _preview;
@@ -105,6 +113,7 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
   void dispose() {
     _guestName.dispose();
     _phone.dispose();
+    _cpf.dispose();
     super.dispose();
   }
 
@@ -131,6 +140,20 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
   ArenaClassPlan? _plan(List<ArenaClassPlan> plans) =>
       plans.where((p) => p.id == _planId).firstOrNull;
 
+  /// Com a regra desligada é sempre manual — mesmo que a escolha tenha sido
+  /// online antes de a arena desligar.
+  ArenaClassBillingMode _billingModeFor(ArenaClassRules rules) =>
+      rules.onlineBillingEnabled
+          ? _billingMode ?? ArenaClassBillingMode.asaas
+          : ArenaClassBillingMode.manual;
+
+  /// Atleta NexaGO: o servidor pode usar o CPF do cadastro.
+  bool get _hasAccount => _athleteId != null;
+
+  bool _cpfReady(ArenaClassRules rules) =>
+      _billingModeFor(rules) != ArenaClassBillingMode.asaas ||
+      arenaClassEnrollmentCpfOk(_cpf.text, hasAccount: _hasAccount);
+
   ArenaClassEnrollmentRequest? _request({
     required String arenaId,
     required ArenaClassRules rules,
@@ -138,12 +161,20 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
     final planId = _planId;
     if (planId == null || _slots.isEmpty) return null;
     final athleteId = _athleteId;
+    final billingMode = _billingModeFor(rules);
+    // Só vai CPF completo e válido: incompleto derrubaria a prévia.
+    final cpf = billingMode == ArenaClassBillingMode.asaas &&
+            CpfCnpjValidator.isValid(_cpf.text)
+        ? CpfCnpjValidator.normalize(_cpf.text)
+        : null;
     return ArenaClassEnrollmentRequest(
       arenaId: arenaId,
       planId: planId,
       slots: _slots.toList(),
       dueDay: _dueDay ?? rules.defaultDueDay,
       paymentMethod: _method,
+      billingMode: billingMode,
+      cpfCnpj: cpf,
       waiveFee: _waiveFee,
       athleteId: athleteId,
       studentId: athleteId == null ? _seed?.studentId : null,
@@ -225,6 +256,8 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
       _slots.clear();
       _slotHint = null;
       _method = ArenaClassPaymentMethod.pix;
+      _billingMode = null;
+      _cpf.clear();
       _dueDay = null;
       _waiveFee = false;
       _preview = null;
@@ -292,7 +325,8 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
           request != null &&
               _preview != null &&
               !_previewLoading &&
-              _previewError == null,
+              _previewError == null &&
+              _cpfReady(rules),
         ),
     };
 
@@ -699,31 +733,65 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
     final monthly = plan?.kind == ArenaClassPlanKind.monthly;
     final dueDay = _dueDay ?? rules.defaultDueDay;
     final preview = _preview;
+    final online = _billingModeFor(rules) == ArenaClassBillingMode.asaas;
 
     void refresh() {
       final r = _request(arenaId: arenaId, rules: rules);
       if (r != null) _loadPreview(r);
     }
 
+    void setMode(ArenaClassBillingMode mode) {
+      if (mode == _billingModeFor(rules)) return;
+      setState(() => _billingMode = mode);
+      // O servidor confere a regra na prévia: refaz com o modo novo.
+      refresh();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const ArenaClassKicker('Como o aluno paga'),
-        for (final m in ArenaClassPaymentMethod.values) ...[
+        if (rules.onlineBillingEnabled) ...[
+          const ArenaClassKicker('Como cobrar'),
           const SizedBox(height: 8),
           ArenaClassChoiceCard(
-            title: m.label,
-            subtitle: switch (m) {
-              ArenaClassPaymentMethod.pix => 'Chave PIX da arena',
-              ArenaClassPaymentMethod.cash => 'Na recepção',
-              ArenaClassPaymentMethod.cardMachine =>
-                'Débito ou crédito no balcão',
-              ArenaClassPaymentMethod.transfer =>
-                'TED/DOC para a conta da arena',
-            },
-            selected: m == _method,
-            onTap: () => setState(() => _method = m),
+            title: 'Online',
+            subtitle: 'PIX ou cartão pelo link · baixa automática',
+            selected: online,
+            onTap: () => setMode(ArenaClassBillingMode.asaas),
           ),
+          const SizedBox(height: 8),
+          ArenaClassChoiceCard(
+            title: 'Manual',
+            subtitle: 'Você registra ao receber',
+            selected: !online,
+            onTap: () => setMode(ArenaClassBillingMode.manual),
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (online)
+          _PayerCpfField(
+            controller: _cpf,
+            hasAccount: _hasAccount,
+            onChanged: () => setState(() {}),
+          )
+        else ...[
+          const ArenaClassKicker('Como o aluno paga'),
+          for (final m in ArenaClassPaymentMethod.values) ...[
+            const SizedBox(height: 8),
+            ArenaClassChoiceCard(
+              title: m.label,
+              subtitle: switch (m) {
+                ArenaClassPaymentMethod.pix => 'Chave PIX da arena',
+                ArenaClassPaymentMethod.cash => 'Na recepção',
+                ArenaClassPaymentMethod.cardMachine =>
+                  'Débito ou crédito no balcão',
+                ArenaClassPaymentMethod.transfer =>
+                  'TED/DOC para a conta da arena',
+              },
+              selected: m == _method,
+              onTap: () => setState(() => _method = m),
+            ),
+          ],
         ],
         if (monthly) ...[
           const SizedBox(height: 16),
@@ -828,11 +896,82 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
         ),
         const SizedBox(height: 10),
         Text(
-          'A cobrança fica em aberto em Mensalidades. Quando o aluno pagar '
-          'direto à arena, registre o pagamento por lá.',
+          online
+              ? 'Cada mensalidade vira uma fatura (PIX ou cartão). O link vai '
+                  'no "Cobrar" e por push para quem tem conta; o valor cai no '
+                  'caixa da arena com a taxa do pagamento online.'
+              : 'A cobrança fica em aberto em Mensalidades. Quando o aluno '
+                  'pagar direto à arena, registre o pagamento por lá.',
           style: TextStyle(
             fontSize: 11.5,
             height: 1.45,
+            color: colors.onSurfaceMuted,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// CPF/CNPJ de quem paga a fatura online. Opcional para atleta com conta (o
+/// servidor usa o do cadastro); o que for digitado fica só no servidor.
+class _PayerCpfField extends StatelessWidget {
+  const _PayerCpfField({
+    required this.controller,
+    required this.hasAccount,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final bool hasAccount;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final text = controller.text;
+    final error = CpfCnpjValidator.hasCompleteLength(text)
+        ? CpfCnpjValidator.validationMessage(text)
+        : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ArenaClassKicker(
+          hasAccount ? 'CPF de quem paga · opcional' : 'CPF de quem paga',
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          inputFormatters: [CpfCnpjInputFormatter()],
+          onChanged: (_) => onChanged(),
+          style: TextStyle(fontSize: 14, color: colors.onSurface),
+          decoration: arenaClassInputDecoration(
+            context,
+            hint: hasAccount
+                ? 'Vazio = CPF do cadastro NexaGO'
+                : '000.000.000-00',
+            icon: Icons.badge_outlined,
+          ),
+        ),
+        if (error != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            error,
+            style: const TextStyle(
+              color: AppColors.live,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+        ],
+        const SizedBox(height: 6),
+        Text(
+          'O CPF fica guardado só no servidor, para emitir a fatura — não '
+          'aparece na tela nem no cadastro do atleta.',
+          style: TextStyle(
+            fontSize: 11.5,
+            height: 1.4,
             color: colors.onSurfaceMuted,
           ),
         ),
@@ -937,10 +1076,11 @@ class _PreviewSummary extends StatelessWidget {
   }
 }
 
-/// Confirmação (A12): resumo e próximos passos — sem link de pagamento:
-/// "Cobrar no WhatsApp" manda o valor, e o pagamento é registrado em
-/// Mensalidades.
-class _ConfirmationView extends StatelessWidget {
+/// Confirmação (A12): resumo e próximos passos. Manual: "Cobrar no WhatsApp"
+/// manda o valor e o pagamento é registrado em Mensalidades. Online: escuta
+/// as mensalidades do aluno até o worker gravar o link da 1ª fatura e então
+/// mostra "Copiar link" e o WhatsApp com o link.
+class _ConfirmationView extends ConsumerWidget {
   const _ConfirmationView({
     required this.created,
     required this.studentName,
@@ -968,8 +1108,32 @@ class _ConfirmationView extends StatelessWidget {
   final VoidCallback onNew;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.themeColors;
+    final groupId = created.asaasGroupId;
+    final online = groupId != null;
+    final groupCharge = groupId == null
+        ? null
+        : arenaClassGroupCharge(
+            ref
+                    .watch(arenaClassStudentChargesProvider(created.studentId))
+                    .valueOrNull ??
+                const <ArenaClassCharge>[],
+            groupId,
+          );
+    final invoiceUrl =
+        groupCharge == null ? null : arenaClassChargeInvoiceUrl(groupCharge);
+    final onlineStatus =
+        groupCharge == null ? null : arenaClassOnlineChargeStatus(groupCharge);
+    // Mensalidade ainda não chegou, ou o worker ainda não gravou o link.
+    final generating = groupCharge == null ||
+        switch (groupCharge.asaas?.state) {
+          ArenaClassAsaasState.pending ||
+          ArenaClassAsaasState.creating ||
+          ArenaClassAsaasState.voiding =>
+            true,
+          _ => false,
+        };
     final byId = {for (final c in classes) c.id: c};
     final named = [
       for (final s in slots)
@@ -993,7 +1157,12 @@ class _ConfirmationView extends StatelessWidget {
           '${now.minute.toString().padLeft(2, '0')}',
     );
     final total = totalReais ?? 0;
-    final canCharge = phone != null && total > 0 && plan != null;
+    // Online: o WhatsApp só sai depois do link — a mensagem leva o link.
+    final canCharge = phone != null &&
+        total > 0 &&
+        plan != null &&
+        (!online || invoiceUrl != null);
+    final who = arenaClassFirstName(studentName);
 
     return Scaffold(
       backgroundColor: colors.canvas,
@@ -1032,12 +1201,15 @@ class _ConfirmationView extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              total > 0
-                  ? '${arenaClassFirstName(studentName)} já entra na chamada '
-                      'dos dias escolhidos. A cobrança de hoje ficou em aberto '
-                      'em Mensalidades — registre quando receber.'
-                  : '${arenaClassFirstName(studentName)} já entra na chamada '
-                      'dos dias escolhidos.',
+              total <= 0
+                  ? '$who já entra na chamada dos dias escolhidos.'
+                  : online
+                      ? '$who já entra na chamada dos dias escolhidos. A '
+                          'cobrança de hoje vai por link: o aluno paga com PIX '
+                          'ou cartão e a baixa é automática.'
+                      : '$who já entra na chamada dos dias escolhidos. A '
+                          'cobrança de hoje ficou em aberto em Mensalidades — '
+                          'registre quando receber.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
@@ -1071,15 +1243,26 @@ class _ConfirmationView extends StatelessWidget {
                     ),
                   ArenaClassInfoRow(
                     label: 'Pagamento',
-                    value: total > 0
-                        ? 'Em aberto · ${formatBRL(total)}'
-                        : 'Nada a cobrar hoje',
+                    value: total <= 0
+                        ? 'Nada a cobrar hoje'
+                        : online
+                            ? 'Online · ${formatBRL(total)}'
+                            : 'Em aberto · ${formatBRL(total)}',
                     valueColor: total > 0 ? AppColors.pending : AppColors.win,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 26),
+            if (online && invoiceUrl == null) ...[
+              _InvoicePending(
+                label: generating
+                    ? 'Gerando o link de pagamento…'
+                    : onlineStatus?.label ?? 'Cobrança manual',
+                busy: generating,
+              ),
+              const SizedBox(height: 12),
+            ],
             if (canCharge) ...[
               ArenaClassPrimaryButton(
                 label: 'Cobrar no WhatsApp',
@@ -1093,8 +1276,18 @@ class _ConfirmationView extends StatelessWidget {
                     totalReais: total,
                     method: method,
                     arenaName: arenaName,
+                    invoiceUrl: invoiceUrl,
                   ),
                 ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            if (invoiceUrl != null) ...[
+              ArenaClassGhostButton(
+                label: 'Copiar link',
+                icon: Icons.link_rounded,
+                height: 50,
+                onPressed: () => copyArenaClassInvoiceLink(context, invoiceUrl),
               ),
               const SizedBox(height: 8),
             ],
@@ -1117,6 +1310,48 @@ class _ConfirmationView extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Enquanto o worker não grava o link da 1ª fatura (ou quando ele falha).
+class _InvoicePending extends StatelessWidget {
+  const _InvoicePending({required this.label, required this.busy});
+
+  final String label;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return ArenaClassPanel(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        children: [
+          if (busy)
+            const SizedBox.square(
+              dimension: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            const Icon(
+              Icons.info_outline_rounded,
+              size: 18,
+              color: AppColors.pending,
+            ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.4,
+                color: colors.onSurfaceMuted,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

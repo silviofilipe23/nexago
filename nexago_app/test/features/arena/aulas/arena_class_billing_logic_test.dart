@@ -300,6 +300,253 @@ void main() {
     });
   });
 
+  group('cobrança online (Asaas)', () {
+    final online = charge(asaas: invoice());
+
+    test('rótulo da fatura: mesmos textos do portal', () {
+      String? label(ArenaClassCharge c) =>
+          arenaClassOnlineChargeStatus(c)?.label;
+      expect(label(charge()), isNull); // manual
+      expect(label(online), 'Fatura enviada');
+      expect(
+          label(charge(asaas: invoice(status: 'OVERDUE'))), 'Fatura vencida');
+      expect(
+        label(charge(
+            asaas: invoice(state: ArenaClassAsaasState.pending, url: null))),
+        'Gerando link…',
+      );
+      expect(
+          label(charge(asaas: invoice(state: ArenaClassAsaasState.creating))),
+          'Gerando link…');
+      expect(label(charge(asaas: invoice(state: ArenaClassAsaasState.failed))),
+          'Falha ao gerar link — tentando de novo');
+      expect(
+          label(charge(asaas: invoice(state: ArenaClassAsaasState.needsCpf))),
+          'Sem CPF — cobre manualmente');
+      expect(label(charge(asaas: invoice(state: ArenaClassAsaasState.voided))),
+          'Cobrança manual');
+      expect(
+        label(charge(
+          status: 'paid',
+          paidOn: '2026-10-12',
+          asaas: invoice(state: ArenaClassAsaasState.paid),
+          paidVia: 'asaas',
+          onlineBillingType: 'CREDIT_CARD',
+        )),
+        'Pago online · cartão',
+      );
+      expect(
+        label(charge(
+          status: 'paid',
+          asaas: invoice(state: ArenaClassAsaasState.paid),
+          paidVia: 'asaas',
+          onlineBillingType: 'PIX',
+        )),
+        'Pago online · PIX',
+      );
+      expect(
+        label(charge(
+          status: 'paid',
+          asaas: invoice(state: ArenaClassAsaasState.voided),
+          paidVia: 'manual',
+        )),
+        'Baixa manual',
+      );
+      expect(label(charge(status: 'canceled', asaas: invoice())), isNull);
+    });
+
+    test('pago online: a linha de status não repete a forma da matrícula', () {
+      final paid = charge(
+        status: 'paid',
+        paidOn: '2026-10-12',
+        method: ArenaClassPaymentMethod.cash,
+        asaas: invoice(state: ArenaClassAsaasState.paid),
+        paidVia: 'asaas',
+      );
+      expect(arenaClassChargeStatusLabel(paid, today), 'pago 12 out');
+      final manual = charge(
+        status: 'paid',
+        paidOn: '2026-10-12',
+        method: ArenaClassPaymentMethod.cash,
+        asaas: invoice(state: ArenaClassAsaasState.voided),
+        paidVia: 'manual',
+      );
+      expect(
+          arenaClassChargeStatusLabel(manual, today), 'pago 12 out · Dinheiro');
+    });
+
+    test('link só com a mensalidade e a fatura em aberto', () {
+      expect(arenaClassChargeInvoiceUrl(online), 'https://asaas.test/i/1');
+      expect(arenaClassChargeInvoiceUrl(charge()), isNull);
+      expect(
+        arenaClassChargeInvoiceUrl(charge(status: 'paid', asaas: invoice())),
+        isNull,
+      );
+      for (final state in ArenaClassAsaasState.values) {
+        if (state == ArenaClassAsaasState.open) continue;
+        expect(
+          arenaClassChargeInvoiceUrl(charge(asaas: invoice(state: state))),
+          isNull,
+          reason: '$state',
+        );
+      }
+    });
+
+    test('baixa manual cancela o link só com fatura viva', () {
+      expect(arenaClassManualPaymentVoidsInvoice(online), isTrue);
+      expect(
+        arenaClassManualPaymentVoidsInvoice(
+            charge(asaas: invoice(state: ArenaClassAsaasState.pending))),
+        isTrue,
+      );
+      expect(arenaClassManualPaymentVoidsInvoice(charge()), isFalse);
+      expect(
+        arenaClassManualPaymentVoidsInvoice(
+            charge(asaas: invoice(state: ArenaClassAsaasState.needsCpf))),
+        isFalse,
+      );
+      expect(
+        arenaClassManualPaymentVoidsInvoice(
+            charge(asaas: invoice(state: ArenaClassAsaasState.voided))),
+        isFalse,
+      );
+    });
+
+    test('mensagem do Cobrar leva o link com a frase do portal', () {
+      final msg = arenaClassChargeReminderMessage(
+        charge(dueDate: '2026-10-25', amount: 180, asaas: invoice()),
+        todayKey: today,
+        arenaName: 'Vegeton',
+      );
+      expect(
+          msg,
+          contains(
+              'Pague por aqui, com PIX ou cartão: https://asaas.test/i/1'));
+      expect(msg, isNot(contains('recepção')));
+      // Sem ponto colado no link (o WhatsApp levaria junto).
+      expect(msg, isNot(contains('https://asaas.test/i/1.')));
+      expect(msg, endsWith('— Vegeton'));
+
+      // Fatura ainda sem link: cai na mensagem manual.
+      final pending = arenaClassChargeReminderMessage(
+        charge(asaas: invoice(state: ArenaClassAsaasState.pending, url: null)),
+        todayKey: today,
+      );
+      expect(pending, contains('direto na recepção'));
+    });
+
+    test('mensagem da matrícula: link online ou forma manual', () {
+      final withLink = arenaClassEnrollmentChargeMessage(
+        studentName: 'Marina Teles',
+        planName: 'Mensal 2x/semana',
+        totalReais: 160,
+        method: ArenaClassPaymentMethod.pix,
+        invoiceUrl: 'https://asaas.test/i/9',
+      );
+      expect(
+        withLink,
+        'Olá, Marina! Sua matrícula no plano Mensal 2x/semana está feita. '
+        'O valor de hoje é ${formatBRL(160)}. Pague por aqui, com PIX ou '
+        'cartão: https://asaas.test/i/9 Até a aula!',
+      );
+      final manual = arenaClassEnrollmentChargeMessage(
+        studentName: 'Marina Teles',
+        planName: 'Mensal 2x/semana',
+        totalReais: 160,
+        method: ArenaClassPaymentMethod.cash,
+        arenaName: 'Vegeton',
+      );
+      expect(
+        manual,
+        'Olá, Marina! Sua matrícula no plano Mensal 2x/semana está feita. '
+        'O valor de hoje é ${formatBRL(160)} — pode pagar por Dinheiro ou '
+        'direto na recepção. Até a aula! — Vegeton',
+      );
+    });
+
+    test('confirmação acha a mensalidade do grupo, a com link primeiro', () {
+      final fee = charge(
+          id: 'fee', asaas: invoice(state: ArenaClassAsaasState.pending));
+      final month = charge(id: 'month', asaas: invoice());
+      final other = charge(id: 'x', asaas: invoice(groupId: 'outro'));
+      expect(arenaClassGroupCharge([fee, other], 'e1_first')?.id, 'fee');
+      expect(
+          arenaClassGroupCharge([fee, month, other], 'e1_first')?.id, 'month');
+      expect(arenaClassGroupCharge([other], 'e1_first'), isNull);
+    });
+
+    test('CPF do pagador: vazio só para atleta com conta', () {
+      expect(arenaClassEnrollmentCpfOk('', hasAccount: true), isTrue);
+      expect(arenaClassEnrollmentCpfOk('', hasAccount: false), isFalse);
+      expect(arenaClassEnrollmentCpfOk('529.982.247-25', hasAccount: false),
+          isTrue);
+      expect(arenaClassEnrollmentCpfOk('529.982.247-24', hasAccount: true),
+          isFalse);
+      expect(arenaClassEnrollmentCpfOk('5299', hasAccount: true), isFalse);
+      expect(arenaClassEnrollmentCpfOk('11.222.333/0001-81', hasAccount: false),
+          isTrue);
+    });
+
+    test('regra e espelho lidos do Firestore', () {
+      expect(ArenaClassRules.fromMap(null).onlineBillingEnabled, isFalse);
+      expect(
+        ArenaClassRules.fromMap(const {'onlineBillingEnabled': 'sim'})
+            .onlineBillingEnabled,
+        isFalse,
+      );
+      expect(
+        ArenaClassRules.fromMap(const {'onlineBillingEnabled': true})
+            .onlineBillingEnabled,
+        isTrue,
+      );
+
+      final c = ArenaClassCharge.fromMap('ch', const {
+        'status': 'paid',
+        'billingMode': 'asaas',
+        'paymentMethod': 'pix',
+        'paidVia': 'asaas',
+        'onlineBillingType': 'CREDIT_CARD',
+        'asaas': {
+          'groupId': 'e1_first',
+          'state': 'void',
+          'invoiceUrl': 'https://asaas.test/i/1',
+          'status': 'RECEIVED',
+        },
+      });
+      expect(c.isOnline, isTrue);
+      expect(c.isPaidOnline, isTrue);
+      expect(c.onlineBillingType, 'CREDIT_CARD');
+      expect(c.asaas?.state, ArenaClassAsaasState.voided);
+      expect(c.asaas?.status, 'RECEIVED');
+
+      // Doc antigo: manual, sem espelho; espelho sem grupo é ignorado.
+      final old = ArenaClassCharge.fromMap('old', const {
+        'asaas': {'state': 'open'},
+        'paidVia': 'pix',
+        'onlineBillingType': 'BOLETO',
+      });
+      expect(old.billingMode, ArenaClassBillingMode.manual);
+      expect(old.asaas, isNull);
+      expect(old.paidVia, isNull);
+      expect(old.onlineBillingType, isNull);
+      expect(
+        ArenaClassChargeAsaas.fromMap(const {'groupId': 'g', 'state': '??'})
+            ?.state,
+        ArenaClassAsaasState.pending,
+      );
+
+      final e = ArenaClassEnrollment.fromMap('e1', const {
+        'billingMode': 'asaas',
+        'cpfMasked': '***.982.247-**',
+        // valor novo nunca entra em paymentMethod (build antigo leria PIX).
+        'paymentMethod': 'pix',
+      });
+      expect(e.billingMode, ArenaClassBillingMode.asaas);
+      expect(e.cpfMasked, '***.982.247-**');
+      expect(e.paymentMethod, ArenaClassPaymentMethod.pix);
+    });
+  });
+
   group('reposição para encaixar', () {
     test('um por aluno (o que vence antes), sem quem já está na aula', () {
       final options = arenaClassMakeupOptions(

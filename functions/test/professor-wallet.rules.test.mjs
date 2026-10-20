@@ -85,3 +85,21 @@ test('aula da carteira: professor e aluno leem; arena e terceiros não; ninguém
   await assertFails(getDoc(doc(as(OUTRO), 'professorLessons/b1')));
   await assertFails(setDoc(doc(as(PROF), 'professorLessons/b2'), { professorUid: PROF, athleteId: ALUNO }));
 });
+
+test('bloqueio de período: só o dono grava e lê, com campos validados', async () => {
+  const { Timestamp, serverTimestamp } = await import('firebase/firestore');
+  const block = (extra = {}) => ({
+    reason: 'torneio', reasonLabel: 'Torneio',
+    startAt: Timestamp.fromDate(new Date('2026-10-23T17:00:00Z')),
+    endAt: Timestamp.fromDate(new Date('2026-10-23T21:00:00Z')),
+    updatedAt: serverTimestamp(), ...extra,
+  });
+  await assertSucceeds(setDoc(doc(as(PROF), `users/${PROF}/professorBlocks/b1`), block()));
+  await assertSucceeds(getDoc(doc(as(PROF), `users/${PROF}/professorBlocks/b1`)));
+  await assertFails(getDoc(doc(as(OUTRO), `users/${PROF}/professorBlocks/b1`)));
+  await assertFails(setDoc(doc(as(OUTRO), `users/${PROF}/professorBlocks/b2`), block()));
+  await assertFails(setDoc(doc(as(PROF), `users/${PROF}/professorBlocks/b3`), block({ reason: 'festa' })));
+  await assertFails(setDoc(doc(as(PROF), `users/${PROF}/professorBlocks/b4`), block({ endAt: Timestamp.fromDate(new Date('2026-10-23T16:00:00Z')) })));
+  await assertFails(setDoc(doc(as(PROF), `users/${PROF}/professorBlocks/b5`), block({ endAt: Timestamp.fromDate(new Date('2027-01-30T16:00:00Z')) })));
+  await assertFails(getDoc(doc(as(PROF), `professorCalendarFeeds/${PROF}`)));
+});

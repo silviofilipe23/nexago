@@ -2273,6 +2273,27 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Bloqueio de período do professor (folga, torneio, viagem…) — Agenda E7. Pessoal: só o
+    // dono lê e grava. Entra no feed de calendário (professorCalendarFeed).
+    match /users/{userId}/professorBlocks/{blockId} {
+      allow read, delete: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null &&
+        request.auth.uid == userId &&
+        request.resource.data.keys().hasOnly(['reason', 'reasonLabel', 'startAt', 'endAt', 'note', 'createdAt', 'updatedAt']) &&
+        request.resource.data.reason in ['folga', 'torneio', 'viagem', 'saude', 'outro'] &&
+        request.resource.data.reasonLabel is string && request.resource.data.reasonLabel.size() <= 40 &&
+        request.resource.data.startAt is timestamp &&
+        request.resource.data.endAt is timestamp &&
+        request.resource.data.endAt > request.resource.data.startAt &&
+        request.resource.data.endAt < request.resource.data.startAt + duration.value(62, 'd') &&
+        (!('note' in request.resource.data) || (request.resource.data.note is string && request.resource.data.note.size() <= 300)) &&
+        request.resource.data.updatedAt == request.time;
+    }
+    // Token do feed .ics do professor: só functions.
+    match /professorCalendarFeeds/{uid} {
+      allow read, write: if false;
+    }
+
     match /users/{userId}/followers/{followerId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null &&

@@ -32,10 +32,6 @@ import '../../../../core/sports/sport_catalog.dart';
 
 const _locationFallback = 'Aparecida de Goiânia · GO';
 
-/// Laranja da marca como texto no tema claro: o #FF6A1A dá 2,7:1 no fundo
-/// claro; este é o laranja profundo que o site usa como marca no claro.
-const _brandOnLight = Color(0xFFC2410C);
-
 class _PlayPartner {
   const _PlayPartner({
     required this.userId,
@@ -474,7 +470,7 @@ class _HeaderActionButton extends StatelessWidget {
                       width: 7,
                       height: 7,
                       decoration: BoxDecoration(
-                        color: AppColors.brand,
+                        color: context.themeColors.brandText,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -684,7 +680,7 @@ class _SportTag extends StatelessWidget {
     // A pílula marrom é da capa escura; na capa clara vira chip claro, par do
     // de nível, com o laranja profundo.
     final isDark = context.themeColors.isDark;
-    final accent = isDark ? AppColors.brand : _brandOnLight;
+    final accent = context.themeColors.brandText;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -830,7 +826,7 @@ class _CompleteProfileCard extends StatelessWidget {
                             TextSpan(
                               text: '+$xpBonus XP',
                               style: TextStyle(
-                                color: AppColors.brand,
+                                color: context.themeColors.brandText,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
@@ -930,7 +926,7 @@ class _XpLevelSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accent = context.themeColors.isDark ? AppColors.brand : _brandOnLight;
+    final accent = context.themeColors.brandText;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1051,7 +1047,7 @@ class _StatsGrid extends StatelessWidget {
             value: '${stats.streak}',
             label: 'SEQUÊNCIA',
             icon: Icons.local_fire_department_rounded,
-            iconColor: AppColors.brand,
+            iconColor: context.themeColors.brandText,
           ),
         ),
         SizedBox(width: 8),
@@ -1165,7 +1161,7 @@ class _NextBookingEmptyCard extends StatelessWidget {
                     'PRÓXIMA RESERVA',
                     style: AppTypography.soraRegular(
                       fontSize: 10,
-                      color: AppColors.brand,
+                      color: context.themeColors.brandText,
                       letterSpacing: 0.6,
                     ),
                   ),
@@ -1192,7 +1188,7 @@ class _NextBookingEmptyCard extends StatelessWidget {
                       'Reserve uma quadra agora',
                       style: theme.textTheme.labelLarge?.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: AppColors.brand,
+                        color: context.themeColors.brandText,
                       ),
                     ),
                   ],
@@ -1298,7 +1294,7 @@ class _NextBookingCard extends StatelessWidget {
                       Text(
                         'PRÓXIMA RESERVA',
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppColors.brand,
+                          color: context.themeColors.brandText,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0.8,
                           fontSize: 10,
@@ -1497,7 +1493,7 @@ class _AchievementTile extends StatelessWidget {
                       item.icon,
                       size: 28,
                       color: unlocked
-                          ? AppColors.brand
+                          ? context.themeColors.brandText
                           : context.themeColors.onSurfaceMuted.withValues(
                               alpha: 0.35,
                             ),

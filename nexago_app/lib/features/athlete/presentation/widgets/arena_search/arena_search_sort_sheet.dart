@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../arenas/domain/arena_search_filters.dart';
 
@@ -53,7 +52,10 @@ Future<ArenaSearchSortBy?> showArenaSearchSortSheet({
                     ),
                   ),
                   trailing: current == sort
-                      ? Icon(Icons.check_rounded, color: AppColors.brand)
+                      ? Icon(
+                          Icons.check_rounded,
+                          color: context.themeColors.brandText,
+                        )
                       : null,
                   onTap: () => Navigator.pop(context, sort),
                 ),

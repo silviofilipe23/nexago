@@ -72,7 +72,7 @@ class TournamentAccessBanner extends StatelessWidget {
                       child: Icon(
                         Icons.circle,
                         size: 6,
-                        color: AppColors.brand,
+                        color: context.themeColors.brandText,
                       ),
                     ),
                     SizedBox(width: 10),

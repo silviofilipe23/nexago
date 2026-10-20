@@ -179,10 +179,10 @@ class _RecurringChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
+          Icon(
             Icons.event_repeat_rounded,
             size: 12,
-            color: AppColors.brand,
+            color: context.themeColors.brandText,
           ),
           const SizedBox(width: 4),
           Text(
@@ -190,7 +190,7 @@ class _RecurringChip extends StatelessWidget {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: AppColors.brand,
+              color: context.themeColors.brandText,
             ),
           ),
         ],

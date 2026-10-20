@@ -186,7 +186,7 @@ class _ReservationBody extends StatelessWidget {
                     (start != null ? _dayLabel(start, now) : 'Próxima')
                         .toUpperCase(),
                     style:
-                        AppTypography.eyebrow.copyWith(color: AppColors.brand),
+                        AppTypography.eyebrow.copyWith(color: colors.brandText),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
@@ -265,7 +265,7 @@ class _ReservationBody extends StatelessWidget {
                   key: const Key('home-next-booking-story'),
                   onPressed: onStoryTap,
                   style: TextButton.styleFrom(
-                    foregroundColor: AppColors.brand,
+                    foregroundColor: colors.brandText,
                     minimumSize: const Size(0, 36),
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.sm,
@@ -333,7 +333,9 @@ class _Pill extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: AppTypography.labelS.copyWith(color: color),
+        style: AppTypography.labelS.copyWith(
+          color: context.themeColors.readableTone(color),
+        ),
       ),
     );
   }

@@ -361,7 +361,7 @@ class _Hero extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 10.5,
                     letterSpacing: 1,
-                    color: AppColors.brand,
+                    color: colors.brandText,
                   ),
                 ),
               ),
@@ -559,7 +559,7 @@ class _StandingsCard extends StatelessWidget {
                       style: AppTypography.mono(
                         fontSize: 12,
                         color: s.position == 1
-                            ? AppColors.brand
+                            ? colors.brandText
                             : PeladaStyle.mute(colors),
                       ),
                     ),
@@ -601,7 +601,7 @@ class _StandingsCard extends StatelessWidget {
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                         color: s.team.id == leader
-                            ? AppColors.brand
+                            ? colors.brandText
                             : colors.onSurface.withValues(alpha: 0.6),
                       ),
                     ),
@@ -749,7 +749,7 @@ class _SetsCard extends StatelessWidget {
                 style: AppTypography.mono(
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.brand,
+                  color: colors.brandText,
                 ),
               ),
               Expanded(child: name(b, TextAlign.right)),

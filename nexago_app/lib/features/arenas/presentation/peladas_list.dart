@@ -235,10 +235,10 @@ class PeladasEmptyState extends StatelessWidget {
               shape: BoxShape.circle,
               color: AppColors.brand.withValues(alpha: 0.10),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.sports_volleyball_outlined,
               size: 30,
-              color: AppColors.brand,
+              color: colors.brandText,
             ),
           ),
           const SizedBox(height: 16),
@@ -301,7 +301,9 @@ class _FilterEmpty extends StatelessWidget {
           TextButton(
             key: const Key('peladas-clear-filter'),
             onPressed: onClear,
-            style: TextButton.styleFrom(foregroundColor: AppColors.brand),
+            style: TextButton.styleFrom(
+              foregroundColor: context.themeColors.brandText,
+            ),
             child: const Text('Limpar filtro'),
           ),
         ],
@@ -331,7 +333,9 @@ class PeladasError extends StatelessWidget {
           ),
           TextButton(
             onPressed: onRetry,
-            style: TextButton.styleFrom(foregroundColor: AppColors.brand),
+            style: TextButton.styleFrom(
+              foregroundColor: context.themeColors.brandText,
+            ),
             child: const Text('Tentar de novo'),
           ),
         ],

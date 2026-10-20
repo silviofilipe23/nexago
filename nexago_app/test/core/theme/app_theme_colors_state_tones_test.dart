@@ -17,7 +17,12 @@ void main() {
     expect(dark.win, AppColors.win);
     expect(dark.live, AppColors.live);
     expect(dark.pending, AppColors.pending);
-    for (final tone in [AppColors.win, AppColors.live, AppColors.pending]) {
+    for (final tone in [
+      AppColors.win,
+      AppColors.live,
+      AppColors.pending,
+      AppColors.brand,
+    ]) {
       expect(dark.readableTone(tone), tone);
     }
   });
@@ -29,12 +34,13 @@ void main() {
     expect(light.readableTone(AppColors.win), AppColors.winLight);
     expect(light.readableTone(AppColors.live), AppColors.liveLight);
     expect(light.readableTone(AppColors.pending), AppColors.pendingLight);
+    expect(light.readableTone(AppColors.brand), AppColors.brandTextLight);
   });
 
-  test('readableTone devolve igual o que não é tom de estado', () {
+  test('readableTone devolve igual o que não é tom de estado nem marca', () {
     for (final colors in [dark, light]) {
       for (final other in [
-        AppColors.brand,
+        AppColors.brandHover,
         AppColors.onSurfaceMuted,
         AppColors.win.withValues(alpha: 0.12),
       ]) {

@@ -139,7 +139,7 @@ class ArenaSearchUnclaimedCard extends StatelessWidget {
                         ),
                         child: Icon(
                           Icons.chat_rounded,
-                          color: AppColors.brand,
+                          color: colors.brandText,
                           size: 20,
                         ),
                       ),

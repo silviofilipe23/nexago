@@ -105,9 +105,9 @@ class _BookingInviteCard extends StatelessWidget {
                   color: AppColors.brand.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.sports_volleyball_outlined,
-                  color: AppColors.brand,
+                  color: colors.brandText,
                   size: 20,
                 ),
               ),
@@ -138,9 +138,9 @@ class _BookingInviteCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(
+              Icon(
                 Icons.chevron_right_rounded,
-                color: AppColors.brand,
+                color: colors.brandText,
               ),
             ],
           ),

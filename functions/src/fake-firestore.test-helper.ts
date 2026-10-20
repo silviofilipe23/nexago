@@ -52,6 +52,7 @@ function fieldAt(doc: DocData | undefined, field: string): unknown {
 
 function matchesWhere(actual: unknown, op: string, value: unknown): boolean {
   if (op === "array-contains") return Array.isArray(actual) && actual.includes(value);
+  if (op === "in") return Array.isArray(value) && value.includes(actual);
   if (op === "<" || op === "<=" || op === ">" || op === ">=") {
     if (actual == null) return false;
     const a = orderValue(actual);

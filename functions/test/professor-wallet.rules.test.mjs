@@ -1,0 +1,75 @@
+/**
+ * Carteira do professor independente: o dono lê conta, alunos e planos; professor e aluno leem a
+ * cobrança deles; ninguém lê a apiKey da subconta; ninguém escreve pelo cliente.
+ * Uso: `npm run test:rules`.
+ */
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { after, beforeEach, test } from 'node:test';
+import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
+import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const rules = fs.readFileSync(path.join(__dirname, '../../firestore.rules'), 'utf8');
+
+const PROF = 'prof-uid';
+const ALUNO = 'aluno-uid';
+const OUTRO = 'outro-uid';
+
+const testEnv = await initializeTestEnvironment({
+  projectId: 'nexago-professor-wallet-test',
+  firestore: { rules },
+});
+
+after(() => testEnv.cleanup());
+
+beforeEach(async () => {
+  await testEnv.clearFirestore();
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `professorPayoutAccounts/${PROF}`), { status: 'approved', walletId: 'w1' });
+    await setDoc(doc(db, `professorAsaasSecrets/${PROF}`), { apiKey: 'segredo' });
+    await setDoc(doc(db, `professors/${PROF}/students/${ALUNO}`), { name: 'Paulo', status: 'active' });
+    await setDoc(doc(db, `professors/${PROF}/plans/p1`), { name: 'Mensal', priceReais: 880 });
+    await setDoc(doc(db, 'professorCharges/c1'), { professorUid: PROF, athleteId: ALUNO, status: 'open', amountReais: 880 });
+    await setDoc(doc(db, 'professorCharges/c2'), { professorUid: OUTRO, athleteId: OUTRO, status: 'open', amountReais: 10 });
+  });
+});
+
+const as = (uid) => testEnv.authenticatedContext(uid).firestore();
+
+test('o professor lê a própria conta, alunos e planos', async () => {
+  const db = as(PROF);
+  await assertSucceeds(getDoc(doc(db, `professorPayoutAccounts/${PROF}`)));
+  await assertSucceeds(getDoc(doc(db, `professors/${PROF}/students/${ALUNO}`)));
+  await assertSucceeds(getDocs(collection(db, `professors/${PROF}/plans`)));
+});
+
+test('ninguém lê a apiKey da subconta, nem o próprio professor', async () => {
+  await assertFails(getDoc(doc(as(PROF), `professorAsaasSecrets/${PROF}`)));
+});
+
+test('aluno e arena não leem a carteira do professor', async () => {
+  for (const uid of [ALUNO, OUTRO]) {
+    const db = as(uid);
+    await assertFails(getDoc(doc(db, `professorPayoutAccounts/${PROF}`)));
+    await assertFails(getDoc(doc(db, `professors/${PROF}/students/${ALUNO}`)));
+    await assertFails(getDocs(collection(db, `professors/${PROF}/plans`)));
+  }
+});
+
+test('cobrança: professor e aluno leem a deles, filtrando pelo campo; terceiro não', async () => {
+  await assertSucceeds(getDocs(query(collection(as(PROF), 'professorCharges'), where('professorUid', '==', PROF))));
+  await assertSucceeds(getDocs(query(collection(as(ALUNO), 'professorCharges'), where('athleteId', '==', ALUNO))));
+  await assertFails(getDoc(doc(as(OUTRO), 'professorCharges/c1')));
+  await assertFails(getDocs(collection(as(PROF), 'professorCharges')));
+});
+
+test('cliente não escreve em nada da carteira', async () => {
+  const db = as(PROF);
+  await assertFails(setDoc(doc(db, `professorPayoutAccounts/${PROF}`), { status: 'approved' }));
+  await assertFails(setDoc(doc(db, `professors/${PROF}/plans/p2`), { name: 'x', priceReais: 1 }));
+  await assertFails(setDoc(doc(db, `professors/${PROF}/students/${OUTRO}`), { name: 'x' }));
+  await assertFails(setDoc(doc(db, 'professorCharges/c9'), { professorUid: PROF, athleteId: ALUNO, status: 'paid' }));
+});

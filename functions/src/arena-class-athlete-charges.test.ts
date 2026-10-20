@@ -65,7 +65,7 @@ describe("mensalidades a pagar do atleta", () => {
     const [item] = await loadMyClassCharges(db, UID, TODAY);
 
     assert.deepEqual(Object.keys(item!).sort(), [
-      "amountReais", "arenaId", "arenaName", "chargeId", "description", "dueDate", "invoiceUrl", "overdue", "payment",
+      "amountReais", "arenaId", "arenaName", "chargeId", "description", "dueDate", "invoiceUrl", "overdue", "payment", "source",
     ]);
   });
 

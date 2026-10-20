@@ -1,3 +1,5 @@
+import {PROFESSOR_CHARGE_REF_PREFIX} from "./professor-wallet-model";
+import {processProfessorChargeAsaasNotification} from "./professor-wallet";
 import {onRequest} from "firebase-functions/v2/https";
 import {getFirestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
@@ -150,6 +152,9 @@ export const asaasWebhook = onRequest({
       await processStoreOrderAsaasNotification(db, paymentId, payment, processedRef);
     } else if (externalRef.startsWith(ARENA_CLUB_SESSION_PAYMENT_REF_PREFIX)) {
       await processArenaClubSessionAsaasNotification(db, paymentId, payment, processedRef);
+    } else if (externalRef.startsWith(PROFESSOR_CHARGE_REF_PREFIX)) {
+      // Cobrança do professor independente (split para a subconta dele).
+      await processProfessorChargeAsaasNotification(db, paymentId, payment, processedRef);
     } else if (externalRef.startsWith(CLASS_PAYMENT_REF_PREFIX)) {
       // Mensalidade de aula — antes do ramo genérico de assinatura (`|| subscriptionRef`).
       await processArenaClassAsaasNotification(db, paymentId, payment, processedRef);

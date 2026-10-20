@@ -10,6 +10,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, type Firestore} from "firebase-admin/firestore";
 import {ARENA_CLASS_CHARGES} from "./arena-class-constants";
+import {PROFESSOR_CHARGES} from "./professor-wallet-model";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 
@@ -30,6 +31,8 @@ export interface MyClassChargeItem {
   /** `online` = fatura pronta (`invoiceUrl`); `preparing` = link sendo gerado; `manual` = paga direto à arena. */
   payment: "online" | "preparing" | "manual";
   invoiceUrl: string | null;
+  /** `professor`: cobrança do professor independente (`arenaName` = "Prof. Fulano", sem arena). */
+  source: "arena" | "professor";
 }
 
 function str(v: unknown): string {
@@ -62,6 +65,27 @@ export function myClassChargeItem(
     overdue: dueDate !== "" && dueDate < todayKey,
     payment: invoiceUrl ? "online" : PREPARING_STATES.has(state) ? "preparing" : "manual",
     invoiceUrl,
+    source: "arena",
+  };
+}
+
+/** Cobrança em aberto do professor independente (`professorCharges`); `null` fora de "em aberto". */
+export function myProfessorChargeItem(chargeId: string, data: Record<string, unknown>, todayKey: string): MyClassChargeItem | null {
+  const status = data["status"];
+  if (status !== "open" && status !== "creating") return null;
+  const invoiceUrl = status === "open" ? str(data["invoiceUrl"]) || null : null;
+  const dueDate = str(data["dueDate"]);
+  return {
+    chargeId,
+    arenaId: "",
+    arenaName: `Prof. ${str(data["professorName"]) || "Professor"}`,
+    description: str(data["description"]) || "Aula",
+    amountReais: Number(data["amountReais"] ?? 0),
+    dueDate,
+    overdue: dueDate !== "" && dueDate < todayKey,
+    payment: invoiceUrl ? "online" : "preparing",
+    invoiceUrl,
+    source: "professor",
   };
 }
 
@@ -77,11 +101,19 @@ export async function loadMyClassCharges(db: Firestore, uid: string, todayKey: s
   const arenas = arenaIds.length > 0 ? await db.getAll(...arenaIds.map((id) => db.collection("arenas").doc(id))) : [];
   const arenaNames = new Map(arenas.map((a) => [a.id, str(a.data()?.["name"]) || "Arena"]));
 
-  return snap.docs
-    .map((d) => {
+  const professorSnap = await db.collection(PROFESSOR_CHARGES)
+    .where("athleteId", "==", uid)
+    .where("status", "in", ["open", "creating"])
+    .limit(MAX_CHARGES)
+    .get();
+
+  return [
+    ...snap.docs.map((d) => {
       const data = d.data() as Record<string, unknown>;
       return myClassChargeItem(d.id, data, arenaNames.get(str(data["arenaId"])) ?? "Arena", todayKey);
-    })
+    }),
+    ...professorSnap.docs.map((d) => myProfessorChargeItem(d.id, d.data() as Record<string, unknown>, todayKey)),
+  ]
     .filter((item): item is MyClassChargeItem => item != null)
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.description.localeCompare(b.description, "pt-BR"));
 }

@@ -162,6 +162,10 @@ export interface EnrollmentInput {
   phone?: string;
   waitlistClassId?: string;
   waitlistEntryId?: string;
+  /** `asaas` = mensalidade cobrada online (regra ligada + CPF). */
+  billingMode?: 'manual' | 'asaas';
+  /** CPF do pagador (só dígitos ou formatado) — fica no servidor, fora do cadastro do atleta. */
+  cpfCnpj?: string;
 }
 
 export interface EnrollmentPreview {
@@ -177,7 +181,7 @@ export function previewEnrollment(functions: Functions, input: EnrollmentInput):
 export function createEnrollment(
   functions: Functions,
   input: EnrollmentInput,
-): Promise<{ enrollmentId: string; studentId: string; chargeIds: string[] }> {
+): Promise<{ enrollmentId: string; studentId: string; chargeIds: string[]; asaasGroupId?: string | null }> {
   return call(functions, 'createArenaClassEnrollment', input);
 }
 

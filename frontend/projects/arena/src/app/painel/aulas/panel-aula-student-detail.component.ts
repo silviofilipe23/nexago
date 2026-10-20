@@ -21,6 +21,8 @@ import {
   enrollmentClassNames,
   slotsLabel,
   studentPayState,
+  chargeInvoiceUrl,
+  onlineChargeLabel,
   whatsappChargeLink,
   whatsappLink,
   type Charge,
@@ -121,7 +123,14 @@ type Confirm = 'pause' | 'resume' | 'cancel';
                   <div><span>Próx. cobrança</span><strong>{{ nextChargeLabel() }}</strong></div>
                   <div><span>Vencimento</span><strong>todo dia {{ e.dueDay }}</strong></div>
                 }
-                <div><span>Forma</span><strong>{{ methodLabel[e.paymentMethod] }}</strong></div>
+                @if (e.billingMode === 'asaas') {
+                  <div><span>Cobrança</span><strong>Online (PIX ou cartão)</strong></div>
+                  @if (e.cpfMasked) {
+                    <div><span>CPF do pagador</span><strong class="mono-v">{{ e.cpfMasked }}</strong></div>
+                  }
+                } @else {
+                  <div><span>Forma</span><strong>{{ methodLabel[e.paymentMethod] }}</strong></div>
+                }
                 <div><span>Horários fixos</span><strong>{{ slots(e) }}</strong></div>
                 <div><span>Turma</span><strong>{{ classNames(e) }}</strong></div>
               </div>
@@ -189,7 +198,13 @@ type Confirm = 'pause' | 'resume' | 'cancel';
                     <div class="sub">
                       Vence {{ shortDate(c.dueDate) }}
                       @if (c.status === 'paid') {
-                        · pago {{ shortDate(c.paidOn ?? c.dueDate) }} ({{ methodLabel[c.paymentMethod] }})
+                        · pago {{ shortDate(c.paidOn ?? c.dueDate) }}
+                        @if (c.paidVia !== 'asaas') {
+                          ({{ methodLabel[c.paymentMethod] }})
+                        }
+                      }
+                      @if (onlineLabel(c); as ol) {
+                        · <span class="online">{{ ol }}</span>
                       }
                     </div>
                   </div>
@@ -197,11 +212,14 @@ type Confirm = 'pause' | 'resume' | 'cancel';
                   <ar-pill [tone]="chargeTone(c)">{{ chargeLabel(c) }}</ar-pill>
                   <div class="pay-actions">
                     @if (c.status === 'open') {
+                      @if (invoiceUrl(c); as url) {
+                        <button type="button" class="ar-ghost-btn small" (click)="copyLink(url)">{{ copied() === url ? 'Copiado ✓' : 'Copiar link' }}</button>
+                      }
                       @if (chargeLink(c); as link) {
                         <a class="ar-ghost-btn small" [href]="link" target="_blank" rel="noopener">Cobrar</a>
                       }
                       <button type="button" class="ar-mini-btn small" [disabled]="readOnly()" (click)="openPay(c)">Registrar pagamento</button>
-                    } @else if (c.status === 'paid') {
+                    } @else if (c.status === 'paid' && c.paidVia !== 'asaas') {
                       <button type="button" class="ar-ghost-btn small" [disabled]="readOnly() || busy()" (click)="reopen(c)">Desfazer</button>
                     }
                   </div>
@@ -221,6 +239,9 @@ type Confirm = 'pause' | 'resume' | 'cancel';
       <ar-modal (close)="paying.set(null)">
         <p class="modal-title">Registrar pagamento</p>
         <p class="modal-sub">{{ c.description }} · {{ brl(c.amountReais) }}</p>
+        @if (c.billingMode === 'asaas' && c.asaas?.state === 'open') {
+          <p class="hint first">Esta mensalidade tem fatura online: registrar o pagamento aqui cancela o link enviado ao aluno.</p>
+        }
         <div class="field-label">Forma</div>
         <div class="chip-row">
           @for (m of methods; track m) {
@@ -289,7 +310,9 @@ type Confirm = 'pause' | 'resume' | 'cancel';
     .pay-row:last-child { border-bottom: none; }
     .pay-row.off { opacity: 0.5; }
     .mono { font-family: var(--nx-font-mono); font-size: 12px; font-weight: 700; color: var(--nx-text); text-align: right; }
-    .pay-actions { display: flex; gap: 6px; justify-content: flex-end; }
+    .pay-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+    .online { color: var(--nx-orange-500); }
+    .mono-v { font-family: var(--nx-font-mono); font-size: 12px; }
     .small { height: 28px; font-size: 11.5px; text-decoration: none; display: inline-flex; align-items: center; }
     @media (max-width: 1180px) { .layout { grid-template-columns: minmax(0, 1fr); } }
     @media (max-width: 720px) {
@@ -325,6 +348,7 @@ export class PanelAulaStudentDetailComponent {
   protected readonly payMethod = signal<PaymentMethod>('pix');
   protected readonly payDate = signal(this.today);
   protected readonly confirm = signal<Confirm | null>(null);
+  protected readonly copied = signal<string | null>(null);
 
   protected readonly availableCredits = computed(() => this.credits().filter((c) => c.status === 'available'));
   protected readonly attendance = computed(() => {
@@ -439,7 +463,19 @@ export class PanelAulaStudentDetailComponent {
   }
 
   protected chargeLink(c: Charge): string | null {
-    return whatsappChargeLink(c.phone ?? this.enrollment()?.phone ?? null, c.name, c, this.arenaContext.arenaName() ?? 'arena');
+    return whatsappChargeLink(c.phone ?? this.enrollment()?.phone ?? null, c.name, c, this.arenaContext.arenaName() ?? 'arena', chargeInvoiceUrl(c));
+  }
+
+  protected invoiceUrl(c: Charge): string | null {
+    return chargeInvoiceUrl(c);
+  }
+
+  protected onlineLabel(c: Charge): string | null {
+    return onlineChargeLabel(c);
+  }
+
+  protected copyLink(url: string): void {
+    void navigator.clipboard?.writeText(url).then(() => this.copied.set(url), () => undefined);
   }
 
   protected markColor(mark: AttendanceMark | null): string {

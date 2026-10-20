@@ -114,6 +114,7 @@ class AthleteAgendaClubSessionPayload {
 class AthleteAgendaClassPayload {
   const AthleteAgendaClassPayload({
     required this.sessionId,
+    this.arenaId = '',
     required this.arenaName,
     required this.className,
     required this.teacherName,
@@ -123,9 +124,13 @@ class AthleteAgendaClassPayload {
     this.myMark,
     this.studentCount,
     this.canceled = false,
+    this.date = '',
+    this.status = 'scheduled',
+    this.canManageLessons = false,
   });
 
   final String sessionId;
+  final String arenaId;
   final String arenaName;
   final String className;
   final String teacherName;
@@ -139,6 +144,15 @@ class AthleteAgendaClassPayload {
   final String? myMark;
   final int? studentCount;
   final bool canceled;
+
+  /// `YYYY-MM-DD` (dia da aula no fuso da arena).
+  final String date;
+
+  /// `scheduled`, `canceled` ou `completed`.
+  final String status;
+
+  /// Professor com vínculo que libera a chamada (`canManageLessons`).
+  final bool canManageLessons;
 }
 
 class AthleteAgendaItem {

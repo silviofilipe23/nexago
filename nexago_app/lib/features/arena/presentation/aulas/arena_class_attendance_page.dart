@@ -18,6 +18,7 @@ import '../widgets/arena_async_state.dart';
 import 'arena_class_cancel_sheet.dart';
 import 'arena_class_extra_sheet.dart';
 import 'widgets/arena_class_atoms.dart';
+import 'widgets/arena_class_attendance_widgets.dart';
 
 /// Chamada de uma aula (A2): presente / falta / avisou por aluno, "Todos
 /// presentes" e "Fechar chamada" (`saveArenaClassAttendance`). O menu ⋯ abre
@@ -152,7 +153,7 @@ class _ArenaClassAttendancePageState
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
             children: [
               if (!session.isCanceled) ...[
-                _SummaryCard(
+                ArenaClassAttendanceSummaryCard(
                   summary: summary,
                   onAllPresent: editable && summary.unmarked > 0
                       ? () => setState(() {
@@ -208,7 +209,7 @@ class _ArenaClassAttendancePageState
           ),
         ),
         if (canWrite && open)
-          _Footer(
+          ArenaClassAttendanceFooter(
             label: session.isCompleted
                 ? 'Salvar alterações'
                 : 'Fechar chamada · ${summary.present} '
@@ -233,7 +234,7 @@ class _ArenaClassAttendancePageState
           ? ''
           : ' (${reason.label.toLowerCase()})';
       final note = session.cancelNote;
-      return _Notice(
+      return ArenaClassAttendanceNotice(
         color: AppColors.live,
         icon: Icons.event_busy_rounded,
         text: 'Aula cancelada$why. A quadra foi liberada na agenda.'
@@ -244,7 +245,7 @@ class _ArenaClassAttendancePageState
       final d = session.date;
       final label =
           d.length == 10 ? '${d.substring(8)}/${d.substring(5, 7)}' : d;
-      return _Notice(
+      return ArenaClassAttendanceNotice(
         color: context.themeColors.onSurfaceMuted,
         icon: Icons.lock_clock_outlined,
         text: 'A chamada abre no dia da aula ($label).',
@@ -256,7 +257,7 @@ class _ArenaClassAttendancePageState
           ? ''
           : ' às ${closed.hour.toString().padLeft(2, '0')}:'
               '${closed.minute.toString().padLeft(2, '0')}';
-      return _Notice(
+      return ArenaClassAttendanceNotice(
         color: AppColors.win,
         icon: Icons.check_circle_outline_rounded,
         text: 'Chamada fechada$at.'
@@ -264,7 +265,7 @@ class _ArenaClassAttendancePageState
       );
     }
     if (!canWrite) {
-      return _Notice(
+      return ArenaClassAttendanceNotice(
         color: context.themeColors.onSurfaceMuted,
         icon: Icons.visibility_outlined,
         text: 'Só leitura — sua função na arena não registra chamada.',
@@ -485,208 +486,6 @@ class _MoreMenu extends StatelessWidget {
   }
 }
 
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.summary,
-    required this.onAllPresent,
-    required this.allPresentLabel,
-    required this.onAddExtra,
-  });
-
-  final AttendanceSummary summary;
-  final VoidCallback? onAllPresent;
-  final String allPresentLabel;
-
-  /// "Encaixar aluno" (A3); `null` esconde.
-  final VoidCallback? onAddExtra;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.brand.withValues(alpha: 0.25)),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          stops: const [0, 0.6],
-          colors: [
-            AppColors.brand.withValues(alpha: 0.18),
-            colors.surfaceCard,
-          ],
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'PRESENTES',
-                      style: AppTypography.mono(
-                        fontSize: 9.5,
-                        letterSpacing: 1.5,
-                        color: AppColors.brandHover,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text.rich(
-                      TextSpan(
-                        text: '${summary.present}',
-                        style: AppTypography.soraRegular(
-                          fontSize: 40,
-                          fontWeight: FontWeight.w800,
-                          color: colors.onSurface,
-                          letterSpacing: -1.5,
-                          height: 1,
-                        ),
-                        children: [
-                          TextSpan(
-                            text: '/${summary.total}',
-                            style: AppTypography.soraRegular(
-                              fontSize: 20,
-                              color: colors.onSurfaceMuted,
-                              letterSpacing: 0,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  _count(
-                    '${summary.absent} falta${summary.absent == 1 ? '' : 's'}',
-                    AppColors.live,
-                  ),
-                  const SizedBox(height: 4),
-                  _count('${summary.excused} avisou', AppColors.pending),
-                  const SizedBox(height: 4),
-                  _count(
-                    '${summary.unmarked} sem marcar',
-                    colors.onSurfaceMuted,
-                  ),
-                ],
-              ),
-            ],
-          ),
-          if (onAllPresent != null || onAddExtra != null) ...[
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                if (onAddExtra != null)
-                  Expanded(
-                    child: _ghost(
-                      colors,
-                      icon: Icons.add_rounded,
-                      label: 'Encaixar aluno',
-                      onPressed: onAddExtra,
-                    ),
-                  ),
-                if (onAddExtra != null && onAllPresent != null)
-                  const SizedBox(width: 8),
-                if (onAllPresent != null)
-                  Expanded(
-                    child: _ghost(
-                      colors,
-                      icon: Icons.done_all_rounded,
-                      label: allPresentLabel,
-                      onPressed: onAllPresent,
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _ghost(
-    AppThemeColors colors, {
-    required IconData icon,
-    required String label,
-    required VoidCallback? onPressed,
-  }) =>
-      SizedBox(
-        height: 38,
-        child: OutlinedButton.icon(
-          onPressed: onPressed,
-          icon: Icon(icon, size: 16),
-          label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: colors.onSurface,
-            backgroundColor: colors.surfaceRaised,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            side: BorderSide(
-              color: colors.onSurfaceMuted.withValues(alpha: 0.2),
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            textStyle: AppTypography.soraRegular(fontSize: 12.5),
-          ),
-        ),
-      );
-
-  Widget _count(String text, Color color) => Text(
-        text,
-        style: AppTypography.mono(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w600,
-          color: color,
-        ),
-      );
-}
-
-class _Notice extends StatelessWidget {
-  const _Notice({required this.color, required this.icon, required this.text});
-
-  final Color color;
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 12.5,
-                height: 1.35,
-                fontWeight: FontWeight.w600,
-                color: context.themeColors.onSurface,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _StudentRow extends StatelessWidget {
   const _StudentRow({
     required this.entry,
@@ -819,204 +618,8 @@ class _StudentRow extends StatelessWidget {
             )
           else
             const SizedBox(width: 8),
-          _MarkControl(name: entry.name, mark: mark, onMark: onMark),
+          ArenaClassMarkControl(name: entry.name, mark: mark, onMark: onMark),
         ],
-      ),
-    );
-  }
-}
-
-/// Sem marca: dois botões (falta ✗ e presente ✓). Com marca: a etiqueta, que
-/// abre o menu para trocar (inclusive "Avisou") ou limpar.
-class _MarkControl extends StatelessWidget {
-  const _MarkControl({
-    required this.name,
-    required this.mark,
-    required this.onMark,
-  });
-
-  final String name;
-  final AttendanceMark? mark;
-  final ValueChanged<AttendanceMark?>? onMark;
-
-  static Color colorOf(AttendanceMark mark) => switch (mark) {
-        AttendanceMark.present => AppColors.win,
-        AttendanceMark.absent => AppColors.live,
-        AttendanceMark.excused => AppColors.pending,
-      };
-
-  @override
-  Widget build(BuildContext context) {
-    final current = mark;
-    final colors = context.themeColors;
-    if (current == null) {
-      if (onMark == null) {
-        return Text(
-          '—',
-          style: AppTypography.mono(color: colors.onSurfaceMuted),
-        );
-      }
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _SquareButton(
-            icon: Icons.close_rounded,
-            semanticLabel: 'Marcar falta de $name',
-            onTap: () => onMark!(AttendanceMark.absent),
-          ),
-          const SizedBox(width: 6),
-          _SquareButton(
-            icon: Icons.check_rounded,
-            semanticLabel: 'Marcar presença de $name',
-            onTap: () => onMark!(AttendanceMark.present),
-          ),
-        ],
-      );
-    }
-
-    final color = colorOf(current);
-    final pill = Container(
-      height: 40,
-      constraints: const BoxConstraints(minWidth: 92),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (current == AttendanceMark.present)
-            Icon(Icons.check_rounded, size: 15, color: color)
-          else if (current == AttendanceMark.absent)
-            Icon(Icons.close_rounded, size: 15, color: color),
-          if (current != AttendanceMark.excused) const SizedBox(width: 6),
-          Text(
-            current.label,
-            style: AppTypography.soraRegular(fontSize: 12.5, color: color),
-          ),
-        ],
-      ),
-    );
-    if (onMark == null) return pill;
-    return PopupMenuButton<_MarkChoice>(
-      tooltip: 'Trocar marca de $name',
-      color: colors.surfaceSheet,
-      position: PopupMenuPosition.under,
-      onSelected: (choice) => onMark!(choice.mark),
-      itemBuilder: (_) => [
-        for (final m in AttendanceMark.values)
-          if (m != current)
-            PopupMenuItem(
-              value: _MarkChoice(m),
-              child: Text(m.label, style: TextStyle(color: colorOf(m))),
-            ),
-        const PopupMenuItem(
-          value: _MarkChoice(null),
-          child: Text('Limpar marca'),
-        ),
-      ],
-      child: pill,
-    );
-  }
-}
-
-/// Embrulho para o `PopupMenuButton` distinguir "limpar" (null) de nada
-/// escolhido.
-class _MarkChoice {
-  const _MarkChoice(this.mark);
-
-  final AttendanceMark? mark;
-}
-
-class _SquareButton extends StatelessWidget {
-  const _SquareButton({
-    required this.icon,
-    required this.semanticLabel,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String semanticLabel;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    return Semantics(
-      button: true,
-      label: semanticLabel,
-      excludeSemantics: true,
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: colors.onSurfaceMuted.withValues(alpha: 0.25),
-              ),
-            ),
-            child: Icon(icon, size: 17, color: colors.onSurfaceMuted),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Footer extends StatelessWidget {
-  const _Footer({
-    required this.label,
-    required this.saving,
-    required this.onPressed,
-  });
-
-  final String label;
-  final bool saving;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-      decoration: BoxDecoration(
-        color: context.themeColors.canvas,
-        border: Border(
-          top: BorderSide(
-            color: context.themeColors.onSurface.withValues(alpha: 0.06),
-          ),
-        ),
-      ),
-      child: SizedBox(
-        height: 50,
-        child: FilledButton(
-          onPressed: onPressed,
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.brand,
-            foregroundColor: AppColors.black,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
-          child: saving
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.black,
-                  ),
-                )
-              : Text(label, style: AppTypography.soraRegular(fontSize: 15)),
-        ),
       ),
     );
   }

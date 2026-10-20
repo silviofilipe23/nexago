@@ -285,7 +285,8 @@ class _ClubSessionCard extends StatelessWidget {
 }
 
 /// Aula da arena: sem tela de detalhe para o atleta — o card já diz onde, com
-/// quem e como foi a chamada.
+/// quem e como foi a chamada. Na aula que dou, com o vínculo liberando a
+/// chamada, o card leva à chamada ("Fazer chamada").
 class _ClassSessionCard extends StatelessWidget {
   const _ClassSessionCard({required this.item});
 
@@ -298,6 +299,10 @@ class _ClassSessionCard extends StatelessWidget {
     final canceled = item.isCanceled;
     final accent = agendaCardAccent(item.accentColor, isDark: isDark);
     final statusColor = canceled ? AppColors.live : accent;
+    final classSession = item.classSession;
+    final attendanceCta = classSession == null
+        ? null
+        : teacherClassAttendanceCta(classSession, DateTime.now());
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -338,6 +343,36 @@ class _ClassSessionCard extends StatelessWidget {
               color: context.themeColors.onSurfaceMuted,
             ),
           ),
+          if (attendanceCta != null && classSession != null) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 38,
+              child: FilledButton.icon(
+                key: Key('agenda-class-attendance-${classSession.sessionId}'),
+                onPressed: () => context.pushNamed(
+                  AppRouteNames.professorClassAttendance,
+                  pathParameters: {'sessionId': classSession.sessionId},
+                ),
+                icon: const Icon(Icons.fact_check_outlined, size: 16),
+                label: Text(
+                  attendanceCta,
+                  style: AppTypography.soraRegular(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.black,
+                  ),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: accent,
+                  foregroundColor: AppColors.black,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

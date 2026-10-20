@@ -6,6 +6,8 @@
 // irmão `myBookingGuestDisplaysProvider`) para não sumir com gente da
 // equipe.
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' show User;
+import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/auth/auth_providers.dart';
@@ -27,6 +29,7 @@ ProviderContainer _buildContainer({
   List<Map<String, dynamic>> acceptedInvites = const [],
   Map<String, AthleteProfile?> profilesByUid = const {},
   void Function(String path)? onCollection,
+  User? viewer,
 }) {
   final firestore = _FakeFirestoreForInvites(
     acceptedInvites
@@ -37,7 +40,8 @@ ProviderContainer _buildContainer({
 
   return ProviderContainer(
     overrides: [
-      authProvider.overrideWith((ref) => Stream.value(null)),
+      authProvider.overrideWith((ref) => Stream.value(viewer)),
+      athleteProfileProvider.overrideWith((ref) => Stream.value(null)),
       arenaBookingDocProvider.overrideWith(
         (ref, id) => Stream.value(_FakeDocSnapshot(bookingData)),
       ),
@@ -215,6 +219,79 @@ void main() {
       );
     },
   );
+
+  test(
+    'convidado (lista do servidor) vê o dono pelo nome e a si mesmo como '
+    '"Você"; não convida, pode sair',
+    () async {
+      final container = _buildContainer(
+        viewer: MockUser(uid: 'guest1'),
+        bookingData: const {
+          'athleteId': 'owner1',
+          'confirmedParticipants': 2,
+          'participants': [
+            {'uid': 'guest1', 'name': 'Bob Guest', 'via': 'link'},
+          ],
+          'participantUids': ['guest1'],
+        },
+        profilesByUid: const {
+          'owner1': AthleteProfile(
+            id: 'owner1',
+            name: 'Dona Reserva',
+            sport: '',
+            level: '',
+            city: '',
+          ),
+        },
+      );
+      addTearDown(container.dispose);
+
+      final state = await _readTeam(container, _bookingId);
+
+      expect(state.viewerIsOwner, isFalse);
+      expect(state.viewerIsParticipant, isTrue);
+      expect(state.participantUids, ['guest1']);
+      expect(state.ownerUid, 'owner1');
+      final organizer = state.members.first;
+      expect(organizer.isOrganizer, isTrue);
+      expect(organizer.displayName, 'Dona Reserva');
+      expect(organizer.isViewer, isFalse);
+      final me = state.members.firstWhere((m) => m.uid == 'guest1');
+      expect(me.displayName, 'Você');
+      expect(me.isViewer, isTrue);
+      expect(state.openSlots, 2);
+      expect(
+        state.members.where((m) => m.isEmptySlot).map((m) => m.subtitle),
+        everyElement('Esperando mais gente'),
+      );
+    },
+  );
+
+  test('dono logado: ele é "Você · organizador" e vê a lista do servidor',
+      () async {
+    final container = _buildContainer(
+      viewer: MockUser(uid: 'owner1', displayName: 'Dono'),
+      bookingData: const {
+        'athleteId': 'owner1',
+        'confirmedParticipants': 2,
+        'participants': [
+          {'uid': 'guest1', 'name': 'Bob Guest', 'via': 'direct'},
+        ],
+        'participantUids': ['guest1'],
+      },
+    );
+    addTearDown(container.dispose);
+
+    final state = await _readTeam(container, _bookingId);
+
+    expect(state.viewerIsOwner, isTrue);
+    expect(state.viewerIsParticipant, isFalse);
+    expect(state.members.first.displayName, 'Você');
+    expect(
+      state.members.where((m) => !m.isOrganizer && !m.isEmptySlot).single.displayName,
+      'Bob Guest',
+    );
+  });
 }
 
 class _FakeDocSnapshot implements DocumentSnapshot<Map<String, dynamic>> {

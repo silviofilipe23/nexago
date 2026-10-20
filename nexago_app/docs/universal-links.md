@@ -22,8 +22,9 @@ expiração de 7 dias são as travas: quem receber o link encaminhado e resgatar
 primeiro vira o convidado, e por isso o convite continua exigindo aceite e
 podendo ser cancelado por quem convidou.
 | `/torneios-convite/:id` | Convite **já criado**, compartilhado para cutucar quem ainda não respondeu. |
+| `/convite/:id` | Convite para jogar numa **reserva de quadra**: `{bookingId}_{uid}` (direto) ou `link_{bookingId}` (link multiuso, até lotar). O Android já reivindicava desde o 1.0.1; o iOS passou a reivindicar em 19/10/2026. |
 
-O portal do atleta ainda não renderiza esses dois paths: quem abrir sem o app
+O portal do atleta ainda não renderiza esses paths: quem abrir sem o app
 instalado cai na rota desconhecida da SPA. Vale servir neles uma página de
 "abra no app / baixe o app".
 

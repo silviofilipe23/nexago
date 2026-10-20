@@ -4,8 +4,9 @@ import '../../../../../core/formatting/app_currency_format.dart';
 
 import '../../../../arenas/domain/arena_booking_cancellation_policy.dart';
 import '../../../../arenas/domain/arena_booking_success_actions.dart';
+import '../../../domain/booking_invite_status.dart' show kBookingMaxPlayers;
 
-const kBookingTeamSlots = 4;
+const kBookingTeamSlots = kBookingMaxPlayers;
 
 enum BookingDetailsStatus { future, current, past, canceled }
 

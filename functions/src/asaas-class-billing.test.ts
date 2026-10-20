@@ -178,6 +178,8 @@ describe("cobrança online — worker", () => {
     }
     assert.deepEqual(calls.pushes.map((p) => p.userId), ["uMarina"]);
     assert.equal(calls.pushes[0]!.data["invoiceUrl"], `https://asaas.test/i/${out.asaasGroupId}`);
+    // App antigo não conhece o tipo: `url` leva à agenda do atleta, não à da arena.
+    assert.equal(calls.pushes[0]!.data["url"], "/discover?tab=agenda");
   });
 
   it("sem CPF fica needs_cpf; falha do Asaas fica failed e a varredura tenta de novo", async () => {

@@ -630,12 +630,15 @@ class _GameRow extends StatelessWidget {
     final oppId = game.teamA == myTeamId ? game.teamB : game.teamA;
     final mine = game.scoreOf(myTeamId);
     final theirs = game.scoreOf(oppId);
+    // Placar perdido: no claro, 45% dava ~2,9:1 no card branco.
     TextStyle score(bool winner) => AppTypography.mono(
           fontSize: 15,
           fontWeight: FontWeight.w700,
           color: winner
               ? colors.onSurface
-              : colors.onSurface.withValues(alpha: 0.45),
+              : (colors.isDark
+                  ? colors.onSurface.withValues(alpha: 0.45)
+                  : PeladaStyle.mute(colors)),
         );
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),

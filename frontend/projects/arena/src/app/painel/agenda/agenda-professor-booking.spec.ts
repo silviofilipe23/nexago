@@ -42,6 +42,7 @@ describe('reserva feita como professor (bookedAs)', () => {
 
   it('selo na agenda só no horário ocupado pela reserva de professor', () => {
     expect(agendaSlotTag({ status: 'booked' }, { bookedAsProfessor: true })).toBe('Professor');
+    expect(agendaSlotTag({ status: 'booked' }, { bookedAsProfessor: true }, true)).toBe('Prof');
     expect(agendaSlotTag({ status: 'booked' }, { bookedAsProfessor: false })).toBeNull();
     expect(agendaSlotTag({ status: 'booked' }, null)).toBeNull();
     expect(agendaSlotTag({ status: 'available' }, { bookedAsProfessor: true })).toBeNull();
@@ -72,9 +73,9 @@ describe('selo "Professor" nas grades da agenda', () => {
     const fixture = TestBed.createComponent(AgendaWeekGridComponent);
     fixture.componentRef.setInput('weekDays', [{ dateKey: '2026-10-20', date: new Date(2026, 9, 20), isToday: false }]);
     fixture.componentRef.setInput('courts', [{ id: 'c1', name: 'Quadra 1', sport: 'Beach tennis' }]);
-    fixture.componentRef.setInput('blocks', [{ ...block, dateKey: '2026-10-20' }]);
+    fixture.componentRef.setInput('blocks', [{ ...block, dateKey: '2026-10-20', tag: 'Prof' }]);
     fixture.componentRef.setInput('selectedDateKey', '2026-10-20');
     await fixture.whenStable();
-    expect((fixture.nativeElement as HTMLElement).querySelector('.block-tag')?.textContent?.trim()).toBe('Professor');
+    expect((fixture.nativeElement as HTMLElement).querySelector('.block-tag')?.textContent?.trim()).toBe('Prof');
   });
 });

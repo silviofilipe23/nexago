@@ -123,6 +123,8 @@ function professorBookingFields(d: Record<string, unknown>): Pick<ArenaBooking, 
 
 /** Selo curto da reserva de professor na agenda e na lista. */
 export const PROFESSOR_BOOKING_TAG = 'Professor';
+/** Na grade da semana a coluna é estreita demais para "Professor". */
+export const PROFESSOR_BOOKING_TAG_SHORT = 'Prof';
 
 /** "Professor · equipe da arena" / "Professor · independente" (mesmo texto do app,
  *  `arenaBookingProfessorLabel`). `null` na reserva de atleta, que é tudo o que existia antes. */

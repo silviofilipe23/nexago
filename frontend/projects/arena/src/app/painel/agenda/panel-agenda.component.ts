@@ -5,7 +5,7 @@ import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { fetchCourtsList } from '../courts/courts-repository';
 import type { ArenaCourt } from '../courts/court.model';
-import { PROFESSOR_BOOKING_TAG, bookingIsActive, dateKeyOf, type ArenaBooking } from '../bookings/arena-booking.model';
+import { PROFESSOR_BOOKING_TAG, PROFESSOR_BOOKING_TAG_SHORT, bookingIsActive, dateKeyOf, type ArenaBooking } from '../bookings/arena-booking.model';
 import { resolveAthleteLabel, watchBookingsForArena } from '../bookings/bookings-repository';
 import { ManualBookingModalComponent } from '../bookings/manual-booking-modal.component';
 import { applyBookingsOverlay, applyScheduleFilters, scheduleDayStats, type ArenaScheduleStatusFilter } from './arena-schedule-grouping';
@@ -65,13 +65,16 @@ export function isClassBlock(slot: Pick<ArenaSlot, 'bookingId'>, booking: Pick<A
   return booking?.classSessionId != null || (slot.bookingId?.startsWith('class_') ?? false);
 }
 
-/** Selo do horário na agenda: "Professor" quando o slot está ocupado por reserva feita como
- *  professor. Horário livre/bloqueado ou reserva de atleta: sem selo. */
+/** Selo do horário na agenda: "Professor" ("Prof" na grade da semana, `short`) quando o slot
+ *  está ocupado por reserva feita como professor. Horário livre/bloqueado ou reserva de atleta:
+ *  sem selo. */
 export function agendaSlotTag(
   slot: Pick<ArenaSlot, 'status'>,
   booking: Pick<ArenaBooking, 'bookedAsProfessor'> | null,
+  short = false,
 ): string | null {
-  return slot.status === 'booked' && booking?.bookedAsProfessor ? PROFESSOR_BOOKING_TAG : null;
+  if (slot.status !== 'booked' || !booking?.bookedAsProfessor) return null;
+  return short ? PROFESSOR_BOOKING_TAG_SHORT : PROFESSOR_BOOKING_TAG;
 }
 
 function timeToMinutes(time: string): number {
@@ -548,7 +551,7 @@ export class PanelAgendaComponent {
       const start = timeToMinutes(s.startTime);
       let end = timeToMinutes(s.endTime);
       if (end <= start) end += 24 * 60;
-      blocks.push({ id: s.id, dateKey: s.dateKey, courtId: s.courtId, start, dur: end - start, status: this.slotStatusForBlock(s), client: this.clientLabelFor(s), tag: this.tagFor(s) });
+      blocks.push({ id: s.id, dateKey: s.dateKey, courtId: s.courtId, start, dur: end - start, status: this.slotStatusForBlock(s), client: this.clientLabelFor(s), tag: this.tagFor(s, true) });
     }
     const showMaintenance = this.statusFilter() === 'all' || this.statusFilter() === 'blocked';
     if (showMaintenance) {
@@ -583,8 +586,8 @@ export class PanelAgendaComponent {
   }
 
   /** Selo da reserva feita como professor (`bookedAs`), na grade e na lista. */
-  private tagFor(slot: ArenaSlot): string | null {
-    return agendaSlotTag(slot, this.bookingFor(slot));
+  private tagFor(slot: ArenaSlot, short = false): string | null {
+    return agendaSlotTag(slot, this.bookingFor(slot), short);
   }
 
   private clientLabelFor(slot: ArenaSlot): string {

@@ -105,7 +105,7 @@ export class TeacherAttendanceComponent {
   constructor() {
     effect(() => {
       const id = this.sessionId();
-      untracked(() => void this.load(id));
+      if (id) untracked(() => void this.load(id));
     });
   }
 

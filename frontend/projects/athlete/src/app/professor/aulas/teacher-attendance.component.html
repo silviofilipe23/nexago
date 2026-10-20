@@ -30,7 +30,7 @@
         </nav>
         <div class="pf-page-sub">{{ subtitle() }}</div>
       </div>
-      @if (!canceled()) {
+      @if (!canceled() && s.attendanceOpen) {
         <div class="pf-page-actions">
           <button type="button" class="pf-btn pf-btn--primary" [disabled]="primaryDisabled()" (click)="requestClose()">
             {{ saving() ? 'Salvando…' : primaryLabel() }}

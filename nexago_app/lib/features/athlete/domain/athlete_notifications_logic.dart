@@ -34,6 +34,7 @@ class AthleteNotificationPresentation {
     this.actions = const [],
     this.routePath,
     this.statusLine,
+    this.externalUrl,
   });
 
   final IconData icon;
@@ -42,6 +43,10 @@ class AthleteNotificationPresentation {
   final List<AthleteNotificationAction> actions;
   final String? routePath;
   final String? statusLine;
+
+  /// Aberta no navegador antes da rota (fatura da mensalidade de aula); se não
+  /// abrir, vale [routePath]. Mesmo destino do push ([externalNotificationUrl]).
+  final String? externalUrl;
 }
 
 class AthleteNotificationSection {
@@ -171,6 +176,7 @@ AthleteNotificationPresentation notificationPresentation(
     actions: base.actions,
     statusLine: base.statusLine,
     routePath: route,
+    externalUrl: base.externalUrl,
   );
 }
 
@@ -488,6 +494,25 @@ AthleteNotificationPresentation _basePresentation(
                 ),
               ],
         routePath: closedRoutePath,
+      );
+    // Mensalidade de aula: "Pagar" abre a fatura no navegador, como o push; sem
+    // link (ou sem navegador), a agenda — onde a mensalidade a pagar aparece.
+    case classChargeLinkNotificationType:
+      final invoiceUrl = externalNotificationUrl({...data, 'type': type});
+      return AthleteNotificationPresentation(
+        icon: Icons.payments_outlined,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.12),
+        actions: invoiceUrl == null
+            ? const []
+            : const [
+                AthleteNotificationAction(
+                  label: 'Pagar',
+                  kind: AthleteNotificationActionKind.primary,
+                ),
+              ],
+        routePath: athleteAgendaTabLocation,
+        externalUrl: invoiceUrl,
       );
     // NexaSquad: o push não manda `url`; o destino sai do tipo/`kind`, igual ao toque no push
     // (convite → tela do convite, aditivo → Squad, repasse → Ganhos).

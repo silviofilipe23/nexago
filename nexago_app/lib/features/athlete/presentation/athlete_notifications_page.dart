@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/links/open_external_url.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
@@ -81,8 +82,23 @@ class _AthleteNotificationsPageState
   void _navigateForNotification(AthleteInboxNotification notification) {
     final presentation = notificationPresentation(notification);
     final path = presentation.routePath;
-    if (path == null || path.isEmpty) return;
+    if ((path == null || path.isEmpty) && presentation.externalUrl == null) {
+      return;
+    }
     _markRead(notification);
+    _openPresentation(presentation);
+  }
+
+  /// Link externo primeiro (fatura da mensalidade); se não abrir, a rota.
+  Future<void> _openPresentation(
+    AthleteNotificationPresentation presentation,
+  ) async {
+    final externalUrl = presentation.externalUrl;
+    if (externalUrl != null && await openExternalUrl(externalUrl)) {
+      return;
+    }
+    final path = presentation.routePath;
+    if (!mounted || path == null || path.isEmpty) return;
     context.push(path);
   }
 
@@ -103,9 +119,7 @@ class _AthleteNotificationsPageState
     }
 
     if (!mounted) return;
-    if (presentation.routePath != null) {
-      context.push(presentation.routePath!);
-    }
+    await _openPresentation(presentation);
   }
 
   Future<void> _handleSecondaryAction(
@@ -261,8 +275,9 @@ class _AthleteNotificationsPageState
                                         !isRemoving
                                     ? () => _handleSecondaryAction(n)
                                     : null,
-                                onTap:
-                                    isRemoving || presentation.routePath == null
+                                onTap: isRemoving ||
+                                        (presentation.routePath == null &&
+                                            presentation.externalUrl == null)
                                     ? null
                                     : () => _navigateForNotification(n),
                               ),

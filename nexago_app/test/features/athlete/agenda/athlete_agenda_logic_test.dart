@@ -210,6 +210,28 @@ void main() {
       expect(upcoming.any((i) => i.id == 'past-rental-${DateTime(2025, 5, 26, 10).millisecondsSinceEpoch}'), true);
     });
 
+    test('upcoming tab + day mode lists the latest time first', () {
+      // Reserva das 18h já jogada e a das 21h ainda por vir: a das 21h vem
+      // no topo, sem o atleta rolar por cima do que já passou.
+      final now = DateTime(2025, 5, 26, 19);
+      final items = [
+        pastRentalAt(DateTime(2025, 5, 26, 18)),
+        rentalAt(DateTime(2025, 5, 26, 21)),
+      ];
+
+      final upcoming = filterAgendaItems(
+        items: items,
+        filter: AthleteAgendaFilter.all,
+        viewMode: AthleteAgendaViewMode.day,
+        selectedDay: baseDay,
+        visibleMonth: startOfMonth(baseDay),
+        timeTab: AthleteAgendaTimeTab.upcoming,
+        now: now,
+      );
+
+      expect(upcoming.map((i) => i.startsAt.hour).toList(), [21, 18]);
+    });
+
     test('past tab lists all past items regardless of selected day', () {
       final now = DateTime(2025, 5, 26, 15);
       final items = [

@@ -1,4 +1,4 @@
-import { bookingToEvent, classEntryToEvent, registrationToEvent } from './athlete-agenda.component';
+import { bookingToEvent, classEntryToEvent, groupEventsByDay, registrationToEvent } from './athlete-agenda.component';
 import { classAgendaItemFromRaw } from '../data/class-agenda-repository';
 import { mergeOwnAndGuestBookings, type MyBooking } from '../data/my-bookings-repository';
 import { EMPTY_UNIFORM_SLOT, type AthleteTournamentRegistration } from '../data/tournament-registrations-repository';
@@ -154,6 +154,19 @@ describe('bookingToEvent', () => {
     const event = bookingToEvent(booking, NOW, 'dono');
     expect(event?.subtitle).toBe('Reserva de quadra');
     expect(event?.statusLabel).toBe('Pagamento pendente');
+  });
+});
+
+describe('groupEventsByDay', () => {
+  it('lista o horário mais tarde primeiro dentro do dia (21h acima da 18h que já passou)', () => {
+    const at19 = new Date(2026, 6, 20, 19, 0, 0);
+    const early = bookingToEvent(makeBooking({ id: 'b18', startTime: '18:00', endTime: '19:00' }), at19)!;
+    const late = bookingToEvent(makeBooking({ id: 'b21', startTime: '21:00', endTime: '22:00' }), at19)!;
+
+    const groups = groupEventsByDay([early, late], new Date(2026, 6, 20));
+
+    expect(groups.length).toBe(1);
+    expect(groups[0]!.events.map((e) => e.id)).toEqual(['b21', 'b18']);
   });
 });
 

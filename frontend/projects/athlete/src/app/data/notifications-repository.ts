@@ -30,6 +30,8 @@ export interface AthleteNotification {
   /** `data.inviteId`/`data.bookingId` dos avisos de convite para jogar numa reserva. */
   inviteId: string | null;
   bookingId: string | null;
+  /** `data.invoiceUrl` da mensalidade de aula com fatura online (`arena_class_charge_link`). */
+  invoiceUrl: string | null;
 }
 
 function str(value: unknown): string | null {
@@ -63,6 +65,7 @@ function fromDoc(snap: QueryDocumentSnapshot<DocumentData>): AthleteNotification
     tournamentId: str(notifData?.['tournamentId']),
     inviteId: str(notifData?.['inviteId']),
     bookingId: str(notifData?.['bookingId']),
+    invoiceUrl: str(notifData?.['invoiceUrl']),
   };
 }
 

@@ -585,12 +585,10 @@ List<AthleteAgendaItem> filterAgendaItems({
     );
   }
 
+  // Horário mais tarde primeiro, em qualquer aba: no dia, a reserva das 21h
+  // fica acima da das 18h que já passou.
   final copy = filtered.toList()
-    ..sort(
-      (a, b) => timeTab == AthleteAgendaTimeTab.past
-          ? b.startsAt.compareTo(a.startsAt)
-          : a.startsAt.compareTo(b.startsAt),
-    );
+    ..sort((a, b) => b.startsAt.compareTo(a.startsAt));
   return copy;
 }
 

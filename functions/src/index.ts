@@ -504,6 +504,18 @@ export {
   onArenaDeletedCleanupStaff,
   sweepExpiredArenaStaffInvites,
 } from "./arena-staff-sync";
+export {
+  createArenaProfessorInvite,
+  requestArenaProfessorLink,
+  respondToArenaProfessorInvite,
+  approveArenaProfessorRequest,
+  rejectArenaProfessorRequest,
+  suspendArenaProfessorLink,
+  reactivateArenaProfessorLink,
+  endArenaProfessorLink,
+  cancelArenaProfessorLink,
+  updateArenaProfessorPermissions,
+} from "./arena-professor-links";
 export {completeOrganizerSignup} from "./organizer-signup";
 export {grantAthleteRole} from "./athlete-signup";
 export {confirmPhoneVerification} from "./athlete-phone-verification";

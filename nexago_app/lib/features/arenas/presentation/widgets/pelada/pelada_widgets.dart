@@ -14,8 +14,17 @@ abstract final class PeladaStyle {
   PeladaStyle._();
 
   static Color line(AppThemeColors c) => c.onSurface.withValues(alpha: 0.06);
-  static Color dim(AppThemeColors c) => c.onSurface.withValues(alpha: 0.55);
-  static Color mute(AppThemeColors c) => c.onSurface.withValues(alpha: 0.40);
+
+  /// No claro, 55% dava ~3,8:1 sobre o creme/branco; 72% fica ≥ 5,9:1 até
+  /// na folha (#E8E4DE) e no gradiente laranja do topo. Escuro inalterado.
+  static Color dim(AppThemeColors c) =>
+      c.onSurface.withValues(alpha: c.isDark ? 0.55 : 0.72);
+
+  /// Também é texto (saldo, posição, J1, S1, set perdido), não só
+  /// separador: no claro, 40% dava ~2,5:1; 64% fica ≥ 4,8:1 no creme e nos
+  /// cards. Escuro inalterado.
+  static Color mute(AppThemeColors c) =>
+      c.onSurface.withValues(alpha: c.isDark ? 0.40 : 0.64);
 
   /// Pendente: borda amarela de 25% (spec 10b).
   static const Color pendingBorder = Color(0x40F4C543);

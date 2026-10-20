@@ -7,6 +7,7 @@ import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result_record.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result_record_providers.dart';
+import 'package:nexago_app/features/arenas/domain/pelada.dart';
 import 'package:nexago_app/features/athlete/domain/match_history/athlete_match_history_models.dart';
 import 'package:nexago_app/features/athlete/domain/match_history/athlete_match_history_providers.dart';
 import 'package:nexago_app/features/athlete/presentation/athlete_match_history_page.dart';
@@ -14,6 +15,7 @@ import 'package:nexago_app/features/athlete/presentation/widgets/match_history/m
 import 'package:nexago_app/features/athlete/presentation/widgets/match_history/match_history_tournament_card.dart';
 
 import '../../arenas/fake_booking_result_repository.dart';
+import '../../arenas/pelada_tone_contrast.dart';
 
 /// Razão de contraste WCAG entre o texto [fg] (composto sobre [bg]) e [bg].
 double contrastRatio(Color fg, Color bg) {
@@ -210,16 +212,46 @@ void main() {
       testWidgets('aba Peladas: vazio legível sobre o fundo', (tester) async {
         await _pumpPage(tester, theme, tab: MatchHistoryTab.peladas);
 
-        // O tom é o `PeladaStyle.dim` da feature Peladas (onSurface a 55%):
-        // no claro dá ~3,8:1. Aqui só se garante que o texto acompanha o
-        // fundo do tema — sobre o fundo escuro fixo ele ficava em 1,1:1.
-        final color =
-            _richTextColor(tester, find.byKey(const Key('peladas-empty')));
-        final bg = _pageBackground(tester);
+        _expectLegible(
+          _richTextColor(tester, find.byKey(const Key('peladas-empty'))),
+          _pageBackground(tester),
+          'Vazio das peladas',
+        );
+      });
+
+      testWidgets('aba Peladas: resumo, filtros e linha legíveis', (
+        tester,
+      ) async {
+        final saved = savedResult(
+          bookingId: 'a',
+          status: BookingResultStatus.confirmed,
+          dateKey: _day(3, 10),
+        );
+        await _pumpPage(
+          tester,
+          theme,
+          tab: MatchHistoryTab.peladas,
+          peladas: [saved],
+        );
+
+        final checked = expectPeladaTonesLegible(
+          tester,
+          find.byType(AthleteMatchHistoryPage),
+        );
+        final mine = peladaMineOf(saved, 'u1')!;
         expect(
-          contrastRatio(color, bg),
-          greaterThanOrEqualTo(3.0),
-          reason: 'Vazio das peladas ($color) sobre $bg',
+          checked,
+          containsAll([
+            // Resumo do ano (sobre o gradiente) e as caixas de números.
+            'horário jogado · ${peladaHoursLabel(saved.minutes)} em quadra',
+            'Mais jogada: ',
+            'JOGOS',
+            // Linha da pelada.
+            peladaDayParts(saved).weekday,
+            '${peladaTimeRange(saved)} · Quadra 1',
+            'saldo ${peladaBalanceLabel(mine.balance)}',
+            'de ${mine.teamsCount}',
+          ]),
         );
       });
 

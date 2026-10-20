@@ -390,7 +390,8 @@ export class PanelAulaTeacherPayoutComponent {
     };
   });
   protected readonly amount = computed(() => this.figures().amountReais);
-  protected readonly canPayNexago = computed(() => canPayViaNexago(this.closed()));
+  /** Só o dono move dinheiro do caixa (o servidor também recusa o gestor). */
+  protected readonly canPayNexago = computed(() => this.access.isOwner() && canPayViaNexago(this.closed()));
   protected readonly paidViaNexago = computed(() => isPaidViaNexago(this.closed()));
   protected readonly walletShort = computed(() => {
     const available = this.walletAvailable();

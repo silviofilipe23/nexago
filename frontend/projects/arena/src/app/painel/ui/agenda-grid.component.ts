@@ -29,6 +29,8 @@ export interface AgendaBlock {
   dur: number;
   status: AgendaBlockStatus;
   client: string;
+  /** Selo curto no bloco (ex.: "Professor" na reserva feita como professor). */
+  tag?: string | null;
 }
 
 interface PositionedBlock extends AgendaBlock {
@@ -105,7 +107,12 @@ const MIN_COURT_COL_PX = 120;
                     [style.height.px]="b.height"
                     (click)="isClickable(b.status) && blockClick.emit(b.id)"
                   >
-                    <div class="block-title">{{ b.label }}</div>
+                    <div class="block-head">
+                      @if (b.tag) {
+                        <span class="block-tag">{{ b.tag }}</span>
+                      }
+                      <div class="block-title">{{ b.label }}</div>
+                    </div>
                     @if (b.height > 30) {
                       <div class="block-time">{{ b.timeLabel }}</div>
                     }
@@ -347,6 +354,35 @@ const MIN_COURT_COL_PX = 120;
       background: rgba(255, 255, 255, 0.05);
       border-color: rgba(255, 255, 255, 0.14);
       border-left: 3px solid var(--nx-text-dim);
+    }
+
+    .block-head {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .block-head .block-title {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Selo da reserva de professor — azul do vínculo, como no app. */
+    .block-tag {
+      flex: none;
+      height: 15px;
+      padding: 0 5px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      font-family: var(--nx-font-mono);
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #5b9bff;
+      background: rgba(91, 155, 255, 0.16);
     }
 
     .block-title {

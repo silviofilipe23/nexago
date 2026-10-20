@@ -15,6 +15,9 @@ export const BOOKING_VIEW_MODE_LABEL: Record<ArenaBookingViewMode, string> = {
 
 export type ArenaBookingAttendanceStatus = 'pending' | 'confirmed' | 'checked_in' | 'no_show' | string;
 
+/** Tipo do vínculo professor ↔ arena carimbado na reserva (`professorRelationshipType`). */
+export type ProfessorBookingType = 'ARENA_STAFF' | 'INDEPENDENT';
+
 export interface ArenaBooking {
   id: string;
   arenaId: string;
@@ -44,6 +47,12 @@ export interface ArenaBooking {
   createdAt: Date | null;
   couponCode: string | null;
   couponDiscountReais: number | null;
+  /** Reserva feita como professor (`bookedAs: "professor"`): `createArenaBooking` carimba quando o
+   *  vínculo com a arena libera "Reservar quadras" e o professor escolhe reservar assim. O
+   *  carimbo é o fato da hora da reserva — suspender o vínculo depois não o apaga. */
+  bookedAsProfessor: boolean;
+  /** Tipo do vínculo naquele momento — `null` em reserva de atleta (ou carimbo sem tipo). */
+  professorRelationshipType: ProfessorBookingType | null;
 }
 
 function timeStr(v: unknown): string {
@@ -99,7 +108,36 @@ export function arenaBookingFromDoc(doc: QueryDocumentSnapshot): ArenaBooking {
     createdAt: toDate(d['createdAt']),
     couponCode: optionalTrimmed(d['couponCode']),
     couponDiscountReais: typeof d['couponDiscountReais'] === 'number' ? d['couponDiscountReais'] : null,
+    ...professorBookingFields(d),
   };
+}
+
+function professorBookingFields(d: Record<string, unknown>): Pick<ArenaBooking, 'bookedAsProfessor' | 'professorRelationshipType'> {
+  if (d['bookedAs'] !== 'professor') return { bookedAsProfessor: false, professorRelationshipType: null };
+  const type = d['professorRelationshipType'];
+  return {
+    bookedAsProfessor: true,
+    professorRelationshipType: type === 'ARENA_STAFF' || type === 'INDEPENDENT' ? type : null,
+  };
+}
+
+/** Selo curto da reserva de professor na agenda e na lista. */
+export const PROFESSOR_BOOKING_TAG = 'Professor';
+
+/** "Professor · equipe da arena" / "Professor · independente" (mesmo texto do app,
+ *  `arenaBookingProfessorLabel`). `null` na reserva de atleta, que é tudo o que existia antes. */
+export function professorBookingLabel(
+  booking: Pick<ArenaBooking, 'bookedAsProfessor' | 'professorRelationshipType'>,
+): string | null {
+  if (!booking.bookedAsProfessor) return null;
+  switch (booking.professorRelationshipType) {
+    case 'ARENA_STAFF':
+      return 'Professor · equipe da arena';
+    case 'INDEPENDENT':
+      return 'Professor · independente';
+    default:
+      return 'Professor';
+  }
 }
 
 export function enrichCourtName(booking: ArenaBooking, namesByCourtId: ReadonlyMap<string, string>): ArenaBooking {

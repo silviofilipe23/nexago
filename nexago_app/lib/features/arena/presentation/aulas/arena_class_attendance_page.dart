@@ -747,6 +747,8 @@ class _StudentRow extends StatelessWidget {
         ArenaClassAvatar(
           initials: arenaClassInitials(entry.name),
           photoUrl: student?.photoUrl,
+          zoomName: entry.name,
+          zoomMeta: student?.planName,
         ),
         const SizedBox(width: 11),
         Expanded(

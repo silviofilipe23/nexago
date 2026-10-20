@@ -646,10 +646,13 @@ class _ArenaClassAthleteSearchState
             subtitle: _subtitle(user),
             selected: user.uid == widget.selectedUid,
             onTap: widget.enabled ? () => widget.onSelect(user) : null,
+            // A foto ampliada ajuda a achar o atleta certo antes de escolher.
             trailing: ArenaClassAvatar(
               initials: arenaClassInitials(arenaClassAthleteName(user)),
               photoUrl: user.profilePhotoUrl,
               size: 32,
+              zoomName: arenaClassAthleteName(user),
+              zoomRole: 'Atleta',
             ),
           ),
         ],

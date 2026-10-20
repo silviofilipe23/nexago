@@ -20,6 +20,8 @@ class FakeArenaClassEnrollmentRepository
       totalReais: 0,
       enrollmentFeeReais: 0,
     ),
+    this.contactPhones = const {},
+    this.createdPhone,
   });
 
   final List<ArenaClassPlan> plans;
@@ -29,6 +31,15 @@ class FakeArenaClassEnrollmentRepository
   final List<ArenaClassCredit> credits;
   final Map<String, List<ArenaClassSession>> sessionsByClass;
   ArenaClassEnrollmentPreview preview;
+
+  /// `users.phoneNumber` por atleta (`getArenaClassAthleteContact`).
+  final Map<String, String> contactPhones;
+
+  /// Resposta segurada por atleta — testa a troca antes de o número chegar.
+  final Map<String, Completer<String?>> contactGates = {};
+
+  /// `phone` devolvido por `createArenaClassEnrollment` (servidor do #788).
+  final String? createdPhone;
 
   /// Mensalidades ao vivo do aluno (o worker grava o link depois da
   /// matrícula). Sem ele, [charges] é estático.
@@ -40,6 +51,7 @@ class FakeArenaClassEnrollmentRepository
   final List<ArenaClassEnrollmentRequest> created = [];
   final List<(String, String)> statusChanges = [];
   final List<(String, ArenaClassPaymentMethod)> paid = [];
+  final List<(String, String)> contactCalls = [];
   final List<String> canceled = [];
 
   @override
@@ -156,7 +168,19 @@ class FakeArenaClassEnrollmentRepository
       asaasGroupId: request.billingMode == ArenaClassBillingMode.asaas
           ? 'e-new_first'
           : null,
+      phone: createdPhone,
     );
+  }
+
+  @override
+  Future<String?> fetchAthleteContactPhone({
+    required String arenaId,
+    required String athleteId,
+  }) async {
+    contactCalls.add((arenaId, athleteId));
+    final gate = contactGates[athleteId];
+    if (gate != null) return gate.future;
+    return contactPhones[athleteId];
   }
 
   @override

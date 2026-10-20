@@ -373,6 +373,26 @@ bool arenaClassEnrollmentCpfOk(String raw, {required bool hasAccount}) {
   return CpfCnpjValidator.isValid(raw);
 }
 
+/// Telefone do cadastro do atleta (`users.phoneNumber`) no formato do campo
+/// da matrícula: `+5562982406456` → `(62) 98240-6456`. Mesma regra de
+/// `formatPhoneBR` do portal: o cadastro é texto livre (SMS grava E.164, o
+/// antigo o que foi digitado), então o que não for número brasileiro
+/// reconhecível passa como veio. `null` = nada a pré-preencher: sem telefone
+/// ou curto demais para o campo, que exige DDD.
+String? arenaClassAccountPhone(String? raw) {
+  final text = (raw ?? '').trim();
+  var digits = text.replaceAll(RegExp(r'\D'), '');
+  if (digits.length < 10) return null;
+  if (text.startsWith('+') && !text.startsWith('+55')) return text;
+  if (digits.length >= 12 && digits.startsWith('55')) {
+    digits = digits.substring(2);
+  }
+  if (digits.length != 10 && digits.length != 11) return text;
+  final split = digits.length == 11 ? 7 : 6;
+  return '(${digits.substring(0, 2)}) ${digits.substring(2, split)}-'
+      '${digits.substring(split)}';
+}
+
 /// Frase do link nas mensagens de WhatsApp — a mesma do portal.
 String arenaClassInvoiceSentence(String invoiceUrl) =>
     'Pague por aqui, com PIX ou cartão: $invoiceUrl';

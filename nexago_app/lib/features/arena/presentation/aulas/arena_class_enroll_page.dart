@@ -31,6 +31,7 @@ class ArenaClassEnrollSeed {
     this.studentId,
     required this.name,
     this.phone,
+    this.photoUrl,
   });
 
   final String? athleteId;
@@ -39,6 +40,7 @@ class ArenaClassEnrollSeed {
   final String? studentId;
   final String name;
   final String? phone;
+  final String? photoUrl;
 }
 
 /// Nova matrícula (A8–A12): aluno → plano → horários → pagamento →
@@ -67,6 +69,10 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
   bool _guest = false;
   final _guestName = TextEditingController();
   final _phone = TextEditingController();
+
+  /// Telefone que veio do cadastro do atleta (`null` = o campo é da arena).
+  String? _accountPhone;
+  int _contactRequest = 0;
 
   // Passo 2 — plano.
   String? _planId;
@@ -100,6 +106,20 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
   void initState() {
     super.initState();
     _applySeed(widget.seed);
+    final athleteId = widget.seed?.athleteId;
+    if (athleteId != null && _phone.text.isEmpty) {
+      // Vindo da ficha do aluno o id da arena pode ainda estar carregando.
+      var asked = false;
+      ref.listenManual<AsyncValue<String?>>(
+        managedArenaIdProvider,
+        (_, next) {
+          if (asked || (next.valueOrNull ?? '').isEmpty) return;
+          asked = true;
+          if (_seed?.athleteId == athleteId) _fillAccountPhone(athleteId);
+        },
+        fireImmediately: true,
+      );
+    }
   }
 
   void _applySeed(ArenaClassEnrollSeed? seed) {
@@ -107,6 +127,47 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
     if (seed?.phone != null) {
       _phone.text = formatPhoneBrDisplay(seed!.phone) ?? seed.phone!;
     }
+  }
+
+  bool get _phoneFromAccount =>
+      _accountPhone != null && _phone.text == _accountPhone;
+
+  /// Preenche o telefone com o do cadastro do atleta (`null` = nenhum atleta,
+  /// ou "Sem conta"). O que veio do cadastro de outro atleta sai; o que a
+  /// arena digitou fica. Sem resposta o campo fica para digitar — e a
+  /// matrícula com telefone em branco usa o do cadastro no servidor.
+  Future<void> _fillAccountPhone(String? athleteId) async {
+    final request = ++_contactRequest;
+    if (_phoneFromAccount) _phone.clear();
+    _accountPhone = null;
+    final arenaId = ref.read(managedArenaIdProvider).valueOrNull ?? '';
+    if (athleteId == null || arenaId.isEmpty || _phone.text.trim().isNotEmpty) {
+      return;
+    }
+    try {
+      final raw = await ref
+          .read(arenaClassEnrollmentRepositoryProvider)
+          .fetchAthleteContactPhone(arenaId: arenaId, athleteId: athleteId);
+      final phone = arenaClassAccountPhone(raw);
+      if (!mounted ||
+          request != _contactRequest ||
+          phone == null ||
+          _phone.text.trim().isNotEmpty) {
+        return;
+      }
+      setState(() {
+        _phone.text = phone;
+        _accountPhone = phone;
+      });
+    } catch (_) {
+      // Segue sem pré-preenchimento.
+    }
+  }
+
+  void _resetPhone() {
+    _contactRequest++;
+    _accountPhone = null;
+    _phone.clear();
   }
 
   @override
@@ -251,7 +312,7 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
       _athlete = null;
       _guest = false;
       _guestName.clear();
-      _phone.clear();
+      _resetPhone();
       _planId = null;
       _slots.clear();
       _slotHint = null;
@@ -298,7 +359,9 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
       return _ConfirmationView(
         created: created,
         studentName: _studentName ?? 'Aluno',
-        phone: _phoneDigits.isEmpty ? null : _phoneDigits,
+        // O servidor devolve o telefone gravado (o do cadastro quando o
+        // campo foi em branco).
+        phone: created.phone ?? (_phoneDigits.isEmpty ? null : _phoneDigits),
         plan: plan,
         slots: _slots.toList(),
         classes: classes,
@@ -457,15 +520,19 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
             onTap: null,
             trailing: ArenaClassAvatar(
               initials: arenaClassInitials(name),
-              photoUrl: _athlete?.profilePhotoUrl,
+              photoUrl: seed?.photoUrl ?? _athlete?.profilePhotoUrl,
               size: 32,
+              zoomName: name,
             ),
           ),
           const SizedBox(height: 10),
           phoneField,
           const SizedBox(height: 6),
           Text(
-            'Usado no "Cobrar" das mensalidades.',
+            _phoneFromAccount
+                ? 'Telefone do cadastro do atleta no NexaGO — confira antes '
+                    'de cobrar.'
+                : 'Usado no "Cobrar" das mensalidades.',
             style: TextStyle(fontSize: 11.5, color: colors.onSurfaceMuted),
           ),
           const SizedBox(height: 10),
@@ -473,9 +540,15 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
               onPressed: () => setState(() {
+                // O telefone do aluno da ficha é dele; o do atleta buscado
+                // sai só se veio do cadastro.
+                if (_seed != null) {
+                  _resetPhone();
+                } else {
+                  _fillAccountPhone(null);
+                }
                 _seed = null;
                 _athlete = null;
-                _phone.clear();
               }),
               icon: const Icon(Icons.swap_horiz_rounded, size: 16),
               label: const Text('Trocar aluno'),
@@ -533,20 +606,21 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
         ArenaClassAthleteSearch(
           selectedUid: _athlete?.uid,
           autofocus: true,
-          onSelect: (u) => setState(() {
-            _athlete = u;
-            final phone = u.phoneNumber;
-            if (_phone.text.isEmpty && phone != null) {
-              _phone.text = formatPhoneBrDisplay(phone) ?? '';
-            }
-          }),
+          onSelect: (u) {
+            setState(() => _athlete = u);
+            _fillAccountPhone(u.uid);
+          },
         ),
         const SizedBox(height: 12),
         ArenaClassGhostButton(
           label: 'Cadastrar aluno sem conta',
           icon: Icons.add_rounded,
           height: 44,
-          onPressed: () => setState(() => _guest = true),
+          onPressed: () => setState(() {
+            // O número do cadastro é do atleta — não vira o do sem conta.
+            _fillAccountPhone(null);
+            _guest = true;
+          }),
         ),
       ],
     );

@@ -547,6 +547,31 @@ void main() {
     });
   });
 
+  group('telefone do cadastro na matrícula', () {
+    test('E.164 do SMS e número com DDD saem na máscara do campo', () {
+      expect(arenaClassAccountPhone('+5562982406456'), '(62) 98240-6456');
+      expect(arenaClassAccountPhone('+55 62 98240-6456'), '(62) 98240-6456');
+      expect(arenaClassAccountPhone('5562982406456'), '(62) 98240-6456');
+      expect(arenaClassAccountPhone(' 62982406456 '), '(62) 98240-6456');
+      expect(arenaClassAccountPhone('6233334444'), '(62) 3333-4444');
+      expect(arenaClassAccountPhone('(62) 3333-4444'), '(62) 3333-4444');
+    });
+
+    test('estrangeiro e texto livre passam como vieram', () {
+      expect(arenaClassAccountPhone('+14155551234'), '+14155551234');
+      expect(arenaClassAccountPhone('+351 912 345 678'), '+351 912 345 678');
+      expect(arenaClassAccountPhone('55629824064561'), '55629824064561');
+    });
+
+    test('sem telefone ou sem DDD não pré-preenche', () {
+      expect(arenaClassAccountPhone(null), isNull);
+      expect(arenaClassAccountPhone(''), isNull);
+      expect(arenaClassAccountPhone('   '), isNull);
+      expect(arenaClassAccountPhone('98240-6456'), isNull);
+      expect(arenaClassAccountPhone('+1 555'), isNull);
+    });
+  });
+
   group('reposição para encaixar', () {
     test('um por aluno (o que vence antes), sem quem já está na aula', () {
       final options = arenaClassMakeupOptions(

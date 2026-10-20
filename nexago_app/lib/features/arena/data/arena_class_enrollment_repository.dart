@@ -47,6 +47,7 @@ class ArenaClassEnrollmentCreated {
     required this.studentId,
     required this.chargeIds,
     this.asaasGroupId,
+    this.phone,
   });
 
   final String enrollmentId;
@@ -56,6 +57,10 @@ class ArenaClassEnrollmentCreated {
   /// Grupo da 1ª fatura online (`null` = cobrança manual ou nada a cobrar).
   /// O link chega depois, no espelho `asaas` das mensalidades.
   final String? asaasGroupId;
+
+  /// Telefone gravado na matrícula: o do cadastro do atleta quando o campo
+  /// foi em branco. `null` em servidor anterior ao campo — vale o digitado.
+  final String? phone;
 }
 
 /// Pedido de matrícula — o mesmo payload vale para a prévia e para gravar.
@@ -303,6 +308,7 @@ class ArenaClassEnrollmentRepository {
     final map = await _call('createArenaClassEnrollment', request.toPayload());
     final ids = map['chargeIds'];
     final groupId = map['asaasGroupId'];
+    final phone = map['phone'];
     return ArenaClassEnrollmentCreated(
       enrollmentId: (map['enrollmentId'] as String?) ?? '',
       studentId: (map['studentId'] as String?) ?? '',
@@ -312,7 +318,22 @@ class ArenaClassEnrollmentRepository {
             if (id is String) id,
       ],
       asaasGroupId: groupId is String && groupId.isNotEmpty ? groupId : null,
+      phone: phone is String && phone.trim().isNotEmpty ? phone.trim() : null,
     );
+  }
+
+  /// Telefone do cadastro do atleta NexaGO (`users.phoneNumber`, texto livre)
+  /// para pré-preencher a matrícula; `null` = cadastro sem telefone.
+  Future<String?> fetchAthleteContactPhone({
+    required String arenaId,
+    required String athleteId,
+  }) async {
+    final map = await _call('getArenaClassAthleteContact', {
+      'arenaId': arenaId,
+      'athleteId': athleteId,
+    });
+    final phone = map['phone'];
+    return phone is String && phone.trim().isNotEmpty ? phone.trim() : null;
   }
 
   /// Pausar (`paused`), reativar (`active`) ou cancelar (`canceled`).

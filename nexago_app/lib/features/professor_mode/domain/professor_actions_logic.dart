@@ -21,9 +21,8 @@ String professorDayLabel(String dateKey, String todayKey) {
 }
 
 /// "4 VAGAS" / "1 VAGA" / "LOTADA".
-String professorSpotsLabel(int free) => free <= 0
-    ? 'LOTADA'
-    : '$free VAGA${free == 1 ? '' : 'S'}';
+String professorSpotsLabel(int free) =>
+    free <= 0 ? 'LOTADA' : '$free VAGA${free == 1 ? '' : 'S'}';
 
 /// Planos que servem para [weekdayCount] dias por semana: mensais do mesmo
 /// número de aulas primeiro, depois os pacotes (qualquer quantidade).
@@ -74,7 +73,8 @@ String? professorEnrollmentBlocker(
 }
 
 /// "R$ 320,00/mês" (mensal) / "R$ 440,00 · 4 aulas" (pacote).
-String professorPlanPriceLabel(ProfessorPlanOption p, String Function(num) brl) {
+String professorPlanPriceLabel(
+    ProfessorPlanOption p, String Function(num) brl) {
   if (p.isMonthly) return '${brl(p.priceReais)}/mês';
   final n = p.credits;
   return n == null ? brl(p.priceReais) : '${brl(p.priceReais)} · $n aulas';
@@ -128,8 +128,22 @@ ProfessorStudentPlan? professorUsablePackage(ProfessorStudent s) {
 
 /// Horários oferecidos na aula avulsa (a arena confirma a quadra na hora).
 const List<String> kProfessorLessonStartTimes = [
-  '06:00', '07:00', '08:00', '09:00', '10:00', '11:00', '12:00', '13:00',
-  '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00',
+  '06:00',
+  '07:00',
+  '08:00',
+  '09:00',
+  '10:00',
+  '11:00',
+  '12:00',
+  '13:00',
+  '14:00',
+  '15:00',
+  '16:00',
+  '17:00',
+  '18:00',
+  '19:00',
+  '20:00',
+  '21:00',
 ];
 
 /// "07:00" + 90 → "08:30" (até 24:00).

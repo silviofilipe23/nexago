@@ -36,6 +36,18 @@ abstract final class AppRoutes {
 
   /// Minhas turmas (sem a barra), aberta pelo Mais.
   static const String professorClasses = '/professor/mais/turmas';
+
+  /// Fase 2 — ações do professor da equipe nas Aulas da arena (sem a barra).
+  static const String professorAddStudent = '/professor/acoes/adicionar';
+  static const String professorEnroll = '/professor/acoes/:arenaId/matricular';
+  static const String professorConvertTrial =
+      '/professor/acoes/:arenaId/experimental';
+  static const String professorNewLesson = '/professor/acoes/:arenaId/nova-aula';
+  static const String professorMakeup =
+      '/professor/acoes/:arenaId/reposicao/:studentId';
+  static const String professorWaitlist =
+      '/professor/acoes/:arenaId/espera/:classId';
+  static const String professorNotice = '/professor/acoes/:arenaId/comunicado';
   static const String organizerWallet = '/organizer/wallet';
 
   /// Editor do perfil público do organizador (logo, capa, bio, WhatsApp).
@@ -701,6 +713,13 @@ abstract final class AppRouteNames {
   static const String professorStudent = 'professorStudent';
   static const String professorMore = 'professorMore';
   static const String professorClasses = 'professorClasses';
+  static const String professorAddStudent = 'professorAddStudent';
+  static const String professorEnroll = 'professorEnroll';
+  static const String professorConvertTrial = 'professorConvertTrial';
+  static const String professorNewLesson = 'professorNewLesson';
+  static const String professorMakeup = 'professorMakeup';
+  static const String professorWaitlist = 'professorWaitlist';
+  static const String professorNotice = 'professorNotice';
   static const String organizerWallet = 'organizerWallet';
   static const String organizerCreate = 'organizerCreate';
   static const String organizerTournamentCreateExpress =

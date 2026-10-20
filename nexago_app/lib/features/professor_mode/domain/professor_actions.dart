@@ -188,8 +188,7 @@ class ProfessorActionSession {
       capacity: _int(map['capacity']) ?? 0,
       taken: _int(map['taken']) ?? 0,
       studentCount: _int(map['studentCount']) ?? 0,
-      extras:
-          _maps(map['extras']).map(ProfessorSessionExtra.fromMap).toList(),
+      extras: _maps(map['extras']).map(ProfessorSessionExtra.fromMap).toList(),
     );
   }
 
@@ -343,8 +342,10 @@ class ProfessorActionsContext {
           _maps(map['sessions']).map(ProfessorActionSession.fromMap).toList(),
       waitlist:
           _maps(map['waitlist']).map(ProfessorWaitlistEntry.fromMap).toList(),
-      credits: _maps(map['credits']).map(ProfessorMakeupCredit.fromMap).toList(),
-      trials: _maps(map['trials']).map(ProfessorTrialCandidate.fromMap).toList(),
+      credits:
+          _maps(map['credits']).map(ProfessorMakeupCredit.fromMap).toList(),
+      trials:
+          _maps(map['trials']).map(ProfessorTrialCandidate.fromMap).toList(),
     );
   }
 
@@ -378,7 +379,8 @@ class ProfessorActionsContext {
 
 /// Prévia da 1ª cobrança da matrícula (servidor).
 class ProfessorEnrollmentPreview {
-  const ProfessorEnrollmentPreview({required this.charges, required this.total});
+  const ProfessorEnrollmentPreview(
+      {required this.charges, required this.total});
 
   factory ProfessorEnrollmentPreview.fromMap(Map<String, Object?> map) {
     return ProfessorEnrollmentPreview(

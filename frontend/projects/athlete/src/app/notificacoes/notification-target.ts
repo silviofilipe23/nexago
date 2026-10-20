@@ -16,10 +16,11 @@ const BOOKING_DETAIL_TYPES = new Set([
 ]);
 
 /** Para onde o toque no item do inbox leva: a avaliação do torneio, os convites para jogar
- *  numa reserva e a fatura da mensalidade de aula. O resto continua só marcando como lido. */
+ *  numa reserva, a fatura da mensalidade de aula e o vínculo de professor. O resto continua só
+ *  marcando como lido. */
 export function notificationTarget(
   n: Pick<AthleteNotification, 'type' | 'tournamentId'> &
-    Partial<Pick<AthleteNotification, 'inviteId' | 'bookingId' | 'invoiceUrl'>>,
+    Partial<Pick<AthleteNotification, 'inviteId' | 'bookingId' | 'invoiceUrl' | 'linkId'>>,
 ): NotificationTarget | null {
   const type = n.type?.toLowerCase() ?? '';
   // Mensalidade de aula (`ensureClassAsaasPayment`): a fatura do Asaas, como no app; sem link, a
@@ -35,5 +36,10 @@ export function notificationTarget(
   if (BOOKING_DETAIL_TYPES.has(type) && n.bookingId) return { commands: ['/agenda/reserva', n.bookingId] };
   // Quem foi tirado do jogo não está mais na reserva: a Agenda é o lugar.
   if (type === 'booking_participant_removed') return { commands: ['/agenda'] };
+  // Vínculo professor ↔ arena (convite, aprovação, suspensão…): o próprio vínculo, como o
+  // `webUrl` do push; sem `linkId`, a lista de Minhas arenas.
+  if (type.startsWith('professor_link_')) {
+    return n.linkId ? { commands: ['/professor/arenas', n.linkId] } : { commands: ['/professor/arenas'] };
+  }
   return null;
 }

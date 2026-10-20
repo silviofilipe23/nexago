@@ -1,0 +1,190 @@
+<div class="pf-backdrop" (click)="dismiss()" aria-hidden="true"></div>
+
+<div class="pf-dialog" role="dialog" aria-modal="true" aria-labelledby="pf-req-title">
+  <div class="pf-dialog-head">
+    <div class="pf-dialog-titles">
+      <h2 id="pf-req-title" class="pf-dialog-title">{{ title() }}</h2>
+      @if (!sent() && !duplicate()) {
+        <p class="pf-dialog-sub">A arena analisa e responde pelo app.</p>
+      } @else if (duplicate() && arena(); as a) {
+        <p class="pf-dialog-sub">{{ a.name }}</p>
+      }
+    </div>
+    <button type="button" class="pf-dialog-close" aria-label="Fechar" [disabled]="busy()" (click)="dismiss()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+    </button>
+  </div>
+
+  @if (sent(); as s) {
+    <!-- M4: Solicitação enviada -->
+    <div class="pf-dialog-body pf-req-sent" role="status">
+      <span class="pf-req-sent-icon" aria-hidden="true">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4z" /><path d="M22 2 11 13" /></svg>
+      </span>
+      <p class="pf-req-sent-text">
+        A {{ s.arena.name }} vai analisar seu pedido. Você recebe uma notificação com a resposta.
+      </p>
+      <div class="pf-req-card">
+        <div class="pf-req-card-row">
+          <app-pf-arena-mark [name]="s.arena.name" [logoUrl]="s.arena.logoUrl" [size]="40" />
+          <div class="pf-req-card-copy">
+            <div class="pf-req-card-name">{{ s.arena.name }}</div>
+            <app-pf-status status="PENDING" [small]="true" />
+          </div>
+        </div>
+        <div class="pf-req-card-meta">
+          <app-pf-type-tag [type]="s.type" [small]="true" />
+          <span>Pedido em {{ sentDate() }}</span>
+        </div>
+        <p class="pf-req-card-foot">Sem permissões até a aprovação: você ainda não pode reservar quadras aqui.</p>
+      </div>
+    </div>
+    <div class="pf-dialog-foot">
+      <button type="button" class="pf-btn pf-btn--ghost" (click)="dismiss()">Fechar</button>
+      <button type="button" class="pf-btn pf-btn--primary" (click)="goToList()">Ver minhas arenas</button>
+    </div>
+  } @else if (duplicate(); as dup) {
+    <!-- M5: já existe vínculo em aberto com esta arena -->
+    <div class="pf-dialog-body">
+      @if (arena(); as a) {
+        <div class="pf-req-card pf-req-card--row">
+          <app-pf-arena-mark [name]="a.name" [logoUrl]="a.logoUrl" [size]="38" />
+          <div class="pf-req-card-copy">
+            <app-pf-status [status]="dup.status" [small]="true" />
+            @if (duplicateLine(); as line) {
+              <div class="pf-req-card-line">{{ line }}</div>
+            }
+          </div>
+        </div>
+      }
+      <p class="pf-req-dup-text">{{ duplicateText()?.body }}</p>
+    </div>
+    <div class="pf-dialog-foot">
+      @if (!lockArena()) {
+        <button type="button" class="pf-btn pf-btn--ghost" (click)="changeArena()">Escolher outra arena</button>
+        <span class="pf-spacer"></span>
+      } @else {
+        <button type="button" class="pf-btn pf-btn--ghost" (click)="dismiss()">Fechar</button>
+      }
+      <button type="button" class="pf-btn pf-btn--primary" (click)="goToLink(dup.linkId)">
+        {{ duplicateText()?.actionLabel }}
+      </button>
+    </div>
+  } @else {
+    <div class="pf-dialog-body">
+      <div>
+        <div class="pf-req-kicker">Arena</div>
+        @if (arena(); as a) {
+          <div class="pf-req-arena">
+            <app-pf-arena-mark [name]="a.name" [logoUrl]="a.logoUrl" [size]="36" />
+            <div class="pf-req-arena-copy">
+              <div class="pf-req-arena-name">{{ a.name }}</div>
+              @if (a.city) {
+                <div class="pf-req-arena-city">{{ a.city }}</div>
+              }
+            </div>
+            @if (!lockArena()) {
+              <button type="button" class="pf-req-link" [disabled]="busy()" (click)="changeArena()">Trocar</button>
+            }
+          </div>
+        } @else {
+          <div class="pf-req-search">
+            <input
+              type="search"
+              placeholder="Buscar arena pelo nome ou cidade"
+              aria-label="Buscar arena"
+              autocomplete="off"
+              [value]="term()"
+              (input)="term.set($any($event.target).value)"
+            />
+          </div>
+          @if (loadingOptions()) {
+            <p class="pf-req-hint">Carregando arenas…</p>
+          } @else if (optionsError()) {
+            <app-nx-inline-message
+              tone="error"
+              heading="Não deu para carregar as arenas"
+              body="Verifique a conexão e tente de novo."
+              actionLabel="Tentar de novo"
+              (action)="loadOptions()"
+            />
+          } @else if (term().trim().length < 2) {
+            <p class="pf-req-hint">Digite ao menos 2 letras. Também dá para pedir pela página da arena, em Reservar.</p>
+          } @else if (results().length === 0) {
+            <p class="pf-req-hint">Nenhuma arena com esse nome na NexaGO.</p>
+          } @else {
+            <ul class="pf-req-results" aria-label="Arenas encontradas">
+              @for (o of results(); track o.id) {
+                <li>
+                  <button type="button" class="pf-req-result" (click)="pick(o)">
+                    <app-pf-arena-mark [name]="o.name" [logoUrl]="o.logoUrl" [size]="32" />
+                    <span class="pf-req-arena-copy">
+                      <span class="pf-req-arena-name">{{ o.name }}</span>
+                      @if (o.city) {
+                        <span class="pf-req-arena-city">{{ o.city }}</span>
+                      }
+                    </span>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        }
+      </div>
+
+      <div>
+        <div class="pf-req-kicker" id="pf-req-type-label">Como você quer atuar</div>
+        <div class="pf-req-types" role="radiogroup" aria-labelledby="pf-req-type-label">
+          @for (t of types; track t) {
+            <button
+              type="button"
+              class="pf-req-type"
+              role="radio"
+              [attr.data-type]="t"
+              [class.pf-req-type--on]="type() === t"
+              [attr.aria-checked]="type() === t"
+              [attr.tabindex]="type() === t ? 0 : -1"
+              [disabled]="busy()"
+              (click)="chooseType(t)"
+              (keydown)="onTypeKeydown($event)"
+            >
+              <span class="pf-req-radio" aria-hidden="true"><span></span></span>
+              <span class="pf-req-type-copy">
+                <span class="pf-req-type-label">{{ typeCopy[t].label }}</span>
+                <span class="pf-req-type-desc">{{ typeCopy[t].description }}</span>
+              </span>
+            </button>
+          }
+        </div>
+      </div>
+
+      <label class="pf-req-field">
+        <span class="pf-req-kicker">Mensagem para a arena</span>
+        <textarea
+          rows="3"
+          [attr.maxlength]="messageMax"
+          placeholder="Opcional — conte sobre suas aulas e quando quer usar a arena."
+          [value]="message()"
+          [disabled]="busy()"
+          (input)="message.set($any($event.target).value)"
+        ></textarea>
+        <span class="pf-req-count">{{ message().length }}/{{ messageMax }}</span>
+      </label>
+
+      <app-pf-note tone="yellow">Até a aprovação você não pode reservar quadras nem aparecer no perfil da arena.</app-pf-note>
+
+      @if (error(); as message) {
+        <app-nx-inline-message tone="error" heading="Não deu certo" [body]="message" />
+      }
+    </div>
+    <div class="pf-dialog-foot">
+      <button type="button" class="pf-btn pf-btn--ghost" [disabled]="busy()" (click)="dismiss()">Cancelar</button>
+      <button type="button" class="pf-btn pf-btn--primary" [disabled]="!canSubmit()" (click)="submit()">
+        @if (busy()) {
+          <app-nx-spinner [size]="13" tone="dark" />
+        }
+        {{ busy() ? 'Enviando…' : 'Enviar solicitação' }}
+      </button>
+    </div>
+  }
+</div>

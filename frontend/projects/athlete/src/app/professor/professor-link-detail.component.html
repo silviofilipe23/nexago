@@ -1,0 +1,101 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  @if (!service.loaded()) {
+    <app-nx-page-loading title="Carregando o vínculo…" subtitle="Minhas arenas" />
+  } @else if (link(); as l) {
+    <header class="pf-page-header">
+      <div class="pf-page-titles">
+        <nav class="pf-crumbs" aria-label="Você está em">
+          <a routerLink="/professor/arenas">Minhas arenas</a>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+          <h1>{{ l.arenaName }}</h1>
+        </nav>
+        <div class="pf-page-sub">{{ subtitle() }}</div>
+      </div>
+      @if (actions().length > 0) {
+        <div class="pf-page-actions">
+          @for (a of actions(); track a.action) {
+            <button
+              type="button"
+              class="pf-btn"
+              [class.pf-btn--primary]="a.primary"
+              [class.pf-btn--danger]="a.danger"
+              [class.pf-btn--ghost]="!a.primary && !a.danger"
+              (click)="act(a.action)"
+            >
+              {{ a.label }}
+            </button>
+          }
+        </div>
+      }
+    </header>
+
+    <div class="pf-body">
+      <div class="pf-detail-grid">
+        <div class="pf-col">
+          <section class="pf-card">
+            <div class="pf-arena-row">
+              <app-pf-arena-mark [name]="l.arenaName" [logoUrl]="l.arenaLogoUrl" [size]="56" />
+              <div class="pf-arena-copy">
+                <div class="pf-arena-name">{{ l.arenaName }}</div>
+                @if (l.arenaCity) {
+                  <div class="pf-arena-city">{{ l.arenaCity }}</div>
+                }
+              </div>
+              @if (status(); as st) {
+                <app-pf-status [status]="st" />
+              }
+            </div>
+            <div class="pf-type-row">
+              <app-pf-type-tag [type]="l.relationshipType" />
+              <span>{{ typeCopy()?.description }}</span>
+            </div>
+            @if (reason(); as r) {
+              <app-pf-note [tone]="status() === 'SUSPENDED' ? 'red' : 'dim'">{{ r }}</app-pf-note>
+            }
+            @if (l.message) {
+              <div class="pf-message">
+                <div class="pf-kicker">{{ messageLabel() }}</div>
+                <blockquote>“{{ l.message }}”</blockquote>
+              </div>
+            }
+            <a class="pf-arena-link" [routerLink]="['/reservar', l.arenaId]">Ver página da arena</a>
+          </section>
+
+          <section class="pf-card">
+            <div class="pf-card-head">
+              <span class="pf-kicker">{{ permsCaption() }}</span>
+              <h2 class="pf-card-title">Suas permissões aqui</h2>
+            </div>
+            @if (perms(); as p) {
+              <app-pf-perm-list [perms]="p" />
+            }
+          </section>
+        </div>
+
+        <section class="pf-card pf-card--history">
+          <h2 class="pf-card-title">Histórico do vínculo</h2>
+          @if (!eventsLoaded()) {
+            <p class="pf-muted">Carregando histórico…</p>
+          } @else if (eventsError()) {
+            <app-nx-inline-message tone="error" heading="Não deu para carregar o histórico" body="Recarregue a página para tentar de novo." />
+          } @else if (timeline().length === 0) {
+            <p class="pf-muted">Nada registrado ainda.</p>
+          } @else {
+            <app-pf-timeline [items]="timeline()" />
+          }
+          <div class="pf-history-note">
+            <app-pf-note>Encerrar aqui não afeta seus vínculos com outras arenas.</app-pf-note>
+          </div>
+        </section>
+      </div>
+    </div>
+  } @else {
+    <div class="pf-notfound">
+      <h1>Vínculo não encontrado</h1>
+      <p>Ele pode ter sido de outra conta, ou o link está incompleto.</p>
+      <a routerLink="/professor/arenas" class="pf-btn pf-btn--ghost pf-btn--lg">Voltar a Minhas arenas</a>
+    </div>
+  }
+
+  <app-professor-dialogs />
+</app-at-panel-shell>

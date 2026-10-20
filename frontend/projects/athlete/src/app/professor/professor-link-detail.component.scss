@@ -1,0 +1,248 @@
+@use 'professor-ui' as pf;
+
+@include pf.buttons;
+
+:host {
+  display: block;
+}
+
+.pf-page-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--nx-line);
+
+  @media (max-width: 640px) {
+    padding: 16px;
+    flex-wrap: wrap;
+  }
+}
+
+.pf-page-titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pf-crumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--nx-text-dim);
+
+  a {
+    font-family: var(--nx-font-display);
+    font-weight: 600;
+    font-size: 21px;
+    letter-spacing: -0.02em;
+    color: var(--nx-text-dim);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--nx-text);
+    }
+  }
+
+  h1 {
+    margin: 0;
+    font-family: var(--nx-font-display);
+    font-weight: 800;
+    font-size: 21px;
+    letter-spacing: -0.02em;
+    color: var(--nx-text);
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 640px) {
+    a,
+    h1 {
+      font-size: 18px;
+    }
+  }
+}
+
+.pf-page-sub {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.pf-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pf-body {
+  padding: 22px 24px 40px;
+
+  @media (max-width: 640px) {
+    padding: 16px 16px 32px;
+  }
+}
+
+.pf-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+
+  @media (max-width: 900px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.pf-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pf-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px;
+  border-radius: var(--nx-r-5);
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+
+  @media (max-width: 640px) {
+    padding: 18px;
+  }
+}
+
+.pf-card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pf-kicker {
+  @include pf.kicker;
+}
+
+.pf-card-title {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--nx-text);
+}
+
+.pf-arena-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pf-arena-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.pf-arena-name {
+  font-family: var(--nx-font-display);
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--nx-text);
+  overflow-wrap: anywhere;
+}
+
+.pf-arena-city {
+  margin-top: 3px;
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  color: var(--nx-text-dim);
+}
+
+.pf-type-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  color: var(--nx-text-dim);
+}
+
+.pf-message {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  blockquote {
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: var(--nx-r-3);
+    background: var(--nx-surface-1);
+    border: 1px solid var(--nx-line);
+    font-family: var(--nx-font-ui);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--nx-text);
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+  }
+}
+
+.pf-arena-link {
+  align-self: flex-start;
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nx-orange-500);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.pf-card--history {
+  gap: 16px;
+}
+
+.pf-history-note {
+  margin-top: auto;
+}
+
+.pf-muted {
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-text-dim);
+}
+
+.pf-notfound {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 60px 24px;
+  text-align: center;
+
+  h1 {
+    margin: 0;
+    font-family: var(--nx-font-display);
+    font-size: 19px;
+    font-weight: 800;
+    color: var(--nx-text);
+  }
+
+  p {
+    margin: 0 0 8px;
+    font-family: var(--nx-font-ui);
+    font-size: 13px;
+    color: var(--nx-text-mute);
+  }
+}

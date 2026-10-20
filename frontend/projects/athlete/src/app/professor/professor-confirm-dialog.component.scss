@@ -1,0 +1,26 @@
+@use 'professor-ui' as pf;
+
+@include pf.dialog(460px);
+@include pf.buttons;
+
+.pf-confirm-body {
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--nx-text-mute);
+}
+
+.pf-confirm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  span {
+    @include pf.kicker;
+  }
+
+  textarea {
+    @include pf.textarea;
+  }
+}

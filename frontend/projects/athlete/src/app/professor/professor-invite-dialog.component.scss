@@ -1,0 +1,82 @@
+@use 'professor-ui' as pf;
+
+@include pf.dialog(560px);
+@include pf.buttons;
+
+.pf-invite-arena {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pf-invite-arena-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.pf-invite-arena-name {
+  font-family: var(--nx-font-display);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--nx-text);
+  overflow-wrap: anywhere;
+}
+
+.pf-invite-arena-city {
+  margin-top: 3px;
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  color: var(--nx-text-dim);
+}
+
+.pf-invite-quote {
+  margin: 0;
+  padding: 14px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--nx-text);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.pf-invite-kicker {
+  @include pf.kicker;
+  margin-bottom: 2px;
+}
+
+.pf-invite-type {
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--nx-text-dim);
+
+  strong {
+    color: var(--nx-text-mute);
+    font-weight: 600;
+  }
+}
+
+.pf-invite-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  span {
+    @include pf.kicker;
+  }
+
+  textarea {
+    @include pf.textarea;
+  }
+}
+
+@media (max-width: 480px) {
+  .pf-invite-arena {
+    flex-wrap: wrap;
+  }
+}

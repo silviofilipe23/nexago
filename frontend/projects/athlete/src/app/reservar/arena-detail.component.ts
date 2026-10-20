@@ -23,6 +23,8 @@ import { AuthService } from '../auth/auth.service';
 import { LocationMapComponent } from '../shared/location-map/location-map.component';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { clubSpotsLeft, fetchUpcomingClubSessions, type ClubSession } from '../data/arena-clubs-repository';
+import { ProfessorArenaCardComponent } from '../professor/professor-arena-card.component';
+import { arenaOptionCity } from '../professor/professor-links.model';
 
 export interface ArenaCourtView {
   id: string;
@@ -113,7 +115,7 @@ function courtHourlyPrice(data: Record<string, unknown>, arenaFallbackReais: num
 @Component({
   selector: 'app-arena-detail',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, LocationMapComponent],
+  imports: [RouterLink, AtPanelShellComponent, LocationMapComponent, ProfessorArenaCardComponent],
   templateUrl: './arena-detail.component.html',
   styleUrl: './arena-detail.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -218,6 +220,10 @@ export class ArenaDetailComponent {
   protected readonly heroGradient = heroGradient;
   protected readonly ratingLabel = ratingLabel;
   protected readonly arenaInitials = initialsOf;
+  /** Cidade no formato que o vínculo de professor guarda ("Goiânia · GO"). */
+  protected arenaCity(a: ArenaListItem): string | null {
+    return arenaOptionCity(a.city, a.state);
+  }
 
   constructor() {
     void this.load();

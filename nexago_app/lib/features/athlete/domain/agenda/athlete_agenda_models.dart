@@ -6,6 +6,7 @@ enum AthleteAgendaItemKind {
   challenge,
   friendlyMatch,
   clubSession,
+  classSession,
 }
 
 enum AthleteAgendaFilter { all, rentals, tournaments, challenges }
@@ -109,6 +110,37 @@ class AthleteAgendaClubSessionPayload {
   final bool pendingPayment;
 }
 
+/// Aula da arena (turma em que estou, encaixe ou aula que dou como professor).
+class AthleteAgendaClassPayload {
+  const AthleteAgendaClassPayload({
+    required this.sessionId,
+    required this.arenaName,
+    required this.className,
+    required this.teacherName,
+    required this.courtName,
+    required this.isTeacher,
+    required this.kind,
+    this.myMark,
+    this.studentCount,
+    this.canceled = false,
+  });
+
+  final String sessionId;
+  final String arenaName;
+  final String className;
+  final String teacherName;
+  final String courtName;
+  final bool isTeacher;
+
+  /// `regular`, `makeup` (reposição) ou `trial` (experimental).
+  final String kind;
+
+  /// `present`, `absent`, `excused` ou null (sem chamada).
+  final String? myMark;
+  final int? studentCount;
+  final bool canceled;
+}
+
 class AthleteAgendaItem {
   const AthleteAgendaItem({
     required this.id,
@@ -124,6 +156,7 @@ class AthleteAgendaItem {
     this.challenge,
     this.friendlyMatch,
     this.clubSession,
+    this.classSession,
     this.isMock = false,
   });
 
@@ -140,9 +173,12 @@ class AthleteAgendaItem {
   final AthleteAgendaChallengePayload? challenge;
   final AthleteAgendaFriendlyMatchPayload? friendlyMatch;
   final AthleteAgendaClubSessionPayload? clubSession;
+  final AthleteAgendaClassPayload? classSession;
   final bool isMock;
 
-  bool get isCanceled => rental?.stage == AthleteAgendaBookingStage.canceled;
+  bool get isCanceled =>
+      rental?.stage == AthleteAgendaBookingStage.canceled ||
+      classSession?.canceled == true;
 }
 
 class AthleteAgendaDaySummary {

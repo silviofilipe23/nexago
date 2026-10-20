@@ -196,6 +196,8 @@ export {
 export {sendArenaClassReminders} from "./arena-class-reminders";
 // Aulas — cobrança online pelo Asaas (worker do grupo + varredura).
 export {onArenaClassAsaasPaymentWritten, reconcileArenaClassAsaasPayments} from "./asaas-class-billing";
+// Aulas na agenda do atleta (leitura só por callable — as coleções de aula são da equipe).
+export {getMyClassAgenda} from "./arena-class-athlete-agenda";
 
 export {
   onArenaCourtCreatedCountUp,

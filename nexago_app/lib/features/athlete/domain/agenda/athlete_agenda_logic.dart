@@ -11,6 +11,7 @@ import '../../../tournaments/domain/my_tournaments_models.dart';
 import '../../../tournaments/domain/tournament_discovery_models.dart';
 import '../../../tournaments/domain/tournament_listing_status.dart';
 import 'athlete_agenda_models.dart';
+import 'class_agenda_entry.dart';
 
 /// Cores por tipo de evento (strip, cards, chips).
 const athleteAgendaRentalAccent = Color(0xFF6EB5FF);
@@ -18,6 +19,7 @@ const athleteAgendaTournamentAccent = Color(0xFF9B8CFF);
 const athleteAgendaChallengeAccent = Color(0xFFFF6B9D);
 const athleteAgendaFriendlyMatchAccent = Color(0xFF57C785);
 const athleteAgendaClubSessionAccent = Color(0xFFFFB74D);
+const athleteAgendaClassSessionAccent = Color(0xFF4FC3F7);
 
 final _weekdayFmt = DateFormat('EEE', 'pt_BR');
 final _sectionDateFmt = DateFormat('dd/MM', 'pt_BR');
@@ -348,6 +350,66 @@ AthleteAgendaItem? mapClubParticipationToAgendaItem(ClubParticipant p) {
   );
 }
 
+/// Converte uma aula de `getMyClassAgenda` em item da agenda. Usa data e hora
+/// de parede da arena (não o `startAt` UTC). `null` sem horário utilizável.
+AthleteAgendaItem? mapClassEntryToAgendaItem(ClassAgendaEntry e) {
+  final start = parseBookingDateTime(e.date, e.startTime);
+  if (start == null) return null;
+  final end = parseBookingDateTime(e.date, e.endTime);
+  return AthleteAgendaItem(
+    id: 'class-${e.sessionId}',
+    kind: AthleteAgendaItemKind.classSession,
+    startsAt: start,
+    endsAt: end != null && end.isAfter(start) ? end : null,
+    title: e.className,
+    subtitle: classAgendaSubtitle(e),
+    statusLabel: classAgendaStatusLabel(e),
+    accentColor: athleteAgendaClassSessionAccent,
+    classSession: AthleteAgendaClassPayload(
+      sessionId: e.sessionId,
+      arenaName: e.arenaName,
+      className: e.className,
+      teacherName: e.teacherName,
+      courtName: e.courtName,
+      isTeacher: e.isTeacher,
+      kind: e.kind,
+      myMark: e.myMark,
+      studentCount: e.studentCount,
+      canceled: e.isCanceled,
+    ),
+  );
+}
+
+String classAgendaSubtitle(ClassAgendaEntry e) {
+  final parts = <String>[
+    e.arenaName,
+    if (e.courtName.isNotEmpty) e.courtName,
+    if (e.isTeacher)
+      '${e.studentCount ?? 0} aluno${(e.studentCount ?? 0) == 1 ? '' : 's'}'
+    else if (e.teacherName.isNotEmpty)
+      'Prof. ${e.teacherName.split(' ').first}',
+  ];
+  return parts.join(' · ');
+}
+
+String classAgendaStatusLabel(ClassAgendaEntry e) {
+  if (e.isCanceled) return 'CANCELADA';
+  if (e.isTeacher) return 'VOCÊ DÁ AULA';
+  switch (e.myMark) {
+    case 'present':
+      return 'PRESENTE';
+    case 'absent':
+      return 'FALTA';
+    case 'excused':
+      return 'JUSTIFICADA';
+  }
+  return switch (e.kind) {
+    'makeup' => 'REPOSIÇÃO',
+    'trial' => 'EXPERIMENTAL',
+    _ => 'AULA',
+  };
+}
+
 bool isAgendaTournamentAllDayStart(DateTime startsAt) =>
     startsAt.hour == 0 && startsAt.minute == 0;
 
@@ -365,6 +427,7 @@ List<AthleteAgendaItem> mergeAgendaItems({
   required List<AthleteAgendaItem> challenges,
   List<AthleteAgendaItem> friendlyMatches = const [],
   List<AthleteAgendaItem> clubSessions = const [],
+  List<AthleteAgendaItem> classSessions = const [],
 }) {
   final merged = [
     ...bookings,
@@ -372,6 +435,7 @@ List<AthleteAgendaItem> mergeAgendaItems({
     ...challenges,
     ...friendlyMatches,
     ...clubSessions,
+    ...classSessions,
   ];
   merged.sort((a, b) => a.startsAt.compareTo(b.startsAt));
   return merged;
@@ -385,6 +449,7 @@ AthleteAgendaFilterCounts countAgendaFilters(List<AthleteAgendaItem> items) {
     switch (item.kind) {
       case AthleteAgendaItemKind.rental:
       case AthleteAgendaItemKind.clubSession:
+      case AthleteAgendaItemKind.classSession:
         rentals++;
       case AthleteAgendaItemKind.tournament:
         tournaments++;
@@ -487,7 +552,8 @@ List<AthleteAgendaItem> filterAgendaItems({
     AthleteAgendaFilter.rentals => filtered.where(
         (i) =>
             i.kind == AthleteAgendaItemKind.rental ||
-            i.kind == AthleteAgendaItemKind.clubSession,
+            i.kind == AthleteAgendaItemKind.clubSession ||
+            i.kind == AthleteAgendaItemKind.classSession,
       ),
     AthleteAgendaFilter.tournaments => filtered.where(
         (i) => i.kind == AthleteAgendaItemKind.tournament,
@@ -548,6 +614,7 @@ AthleteAgendaDaySummary buildDaySummary(
     switch (item.kind) {
       case AthleteAgendaItemKind.rental:
       case AthleteAgendaItemKind.clubSession:
+      case AthleteAgendaItemKind.classSession:
         rentals++;
       case AthleteAgendaItemKind.tournament:
         tournaments++;
@@ -597,6 +664,7 @@ List<AthleteAgendaMonthDay> buildAgendaMonthDayMarkers({
       switch (item.kind) {
         case AthleteAgendaItemKind.rental:
         case AthleteAgendaItemKind.clubSession:
+        case AthleteAgendaItemKind.classSession:
           rentals++;
         case AthleteAgendaItemKind.tournament:
           tournaments++;
@@ -648,6 +716,7 @@ Color dominantAgendaKindColor(List<AthleteAgendaItem> items) {
     switch (item.kind) {
       case AthleteAgendaItemKind.rental:
       case AthleteAgendaItemKind.clubSession:
+      case AthleteAgendaItemKind.classSession:
         rentals++;
       case AthleteAgendaItemKind.tournament:
         tournaments++;
@@ -681,6 +750,7 @@ String buildMonthSummaryDescription(List<AthleteAgendaItem> items) {
       AthleteAgendaItemKind.challenge => 'Desafio',
       AthleteAgendaItemKind.friendlyMatch => 'Jogo',
       AthleteAgendaItemKind.clubSession => 'Clubinho',
+      AthleteAgendaItemKind.classSession => 'Aula',
     };
     parts.add('$label · ${item.title}');
   }
@@ -798,6 +868,7 @@ List<AthleteAgendaWeekDay> buildWeekDayStrip({
       switch (item.kind) {
         case AthleteAgendaItemKind.rental:
         case AthleteAgendaItemKind.clubSession:
+        case AthleteAgendaItemKind.classSession:
           rentals++;
         case AthleteAgendaItemKind.tournament:
           tournaments++;

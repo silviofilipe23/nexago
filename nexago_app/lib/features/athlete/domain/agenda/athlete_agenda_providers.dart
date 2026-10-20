@@ -7,9 +7,24 @@ import '../../../friendly_match/domain/friendly_match_providers.dart';
 import '../../../tournaments/domain/my_tournaments_providers.dart';
 import '../../../tournaments/domain/tournament_partner_invite.dart';
 import '../../../tournaments/domain/tournament_partner_invite_providers.dart';
+import '../../data/class_agenda_repository.dart';
 import '../../data/mock_athlete_agenda_data.dart';
 import 'athlete_agenda_logic.dart';
 import 'athlete_agenda_models.dart';
+import 'class_agenda_entry.dart';
+
+/// Aulas da arena do atleta (aluno, encaixe ou professor) — `getMyClassAgenda`.
+/// Falha vira lista vazia: a agenda segue com o resto.
+final myClassAgendaProvider =
+    FutureProvider.autoDispose<List<ClassAgendaEntry>>((ref) async {
+  final uid = ref.watch(authProvider).valueOrNull?.uid;
+  if (uid == null || uid.isEmpty) return const [];
+  try {
+    return await ref.read(classAgendaRepositoryProvider).fetchMyClasses();
+  } catch (_) {
+    return const [];
+  }
+});
 
 class AthleteAgendaPageState {
   const AthleteAgendaPageState({
@@ -60,12 +75,18 @@ final athleteAgendaItemsProvider =
           .whereType<AthleteAgendaItem>()
           .toList();
 
+  final classItems = (ref.watch(myClassAgendaProvider).valueOrNull ?? const [])
+      .map(mapClassEntryToAgendaItem)
+      .whereType<AthleteAgendaItem>()
+      .toList();
+
   final allItems = mergeAgendaItems(
     bookings: rentalItems,
     tournaments: tournamentItems,
     challenges: const [],
     friendlyMatches: friendlyItems,
     clubSessions: clubItems,
+    classSessions: classItems,
   );
 
   return AthleteAgendaPageState(

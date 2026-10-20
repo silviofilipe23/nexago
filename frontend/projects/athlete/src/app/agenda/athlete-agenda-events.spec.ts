@@ -1,4 +1,5 @@
-import { bookingToEvent, registrationToEvent } from './athlete-agenda.component';
+import { bookingToEvent, classEntryToEvent, registrationToEvent } from './athlete-agenda.component';
+import { classAgendaItemFromRaw } from '../data/class-agenda-repository';
 import { mergeOwnAndGuestBookings, type MyBooking } from '../data/my-bookings-repository';
 import { EMPTY_UNIFORM_SLOT, type AthleteTournamentRegistration } from '../data/tournament-registrations-repository';
 import type { TournamentSummary } from '../data/tournaments-repository';
@@ -176,5 +177,42 @@ describe('registrationToEvent', () => {
     const tournament = makeTournament({ rawStatus: 'open', startAt: new Date(2026, 7, 5) });
     const event = registrationToEvent(makeRegistration(), tournament, NOW);
     expect(event?.isPast).toBe(false);
+  });
+});
+
+describe('classEntryToEvent (aulas da arena)', () => {
+  const base = {
+    sessionId: 'class_c1_2026-07-21', arenaId: 'arena-1', arenaName: 'Arena Sol', classId: 'c1',
+    className: 'Intermediário B', teacherName: 'Carla Dias', courtName: 'Quadra 2',
+    date: '2026-07-21', startTime: '19:00', endTime: '20:00', status: 'scheduled', role: 'student', kind: 'regular',
+  };
+
+  it('aula futura do aluno: hora de parede, turma com professor e "Ver arena"', () => {
+    const ev = classEntryToEvent(classAgendaItemFromRaw(base), NOW)!;
+    expect(ev.kind).toBe('class');
+    expect(ev.startsAt).toEqual(new Date(2026, 6, 21, 19, 0));
+    expect(ev.durationMin).toBe(60);
+    expect(ev.title).toBe('Intermediário B · Arena Sol');
+    expect(ev.subtitle).toBe('Turma · Prof. Carla · Quadra 2');
+    expect(ev.statusLabel).toBe('Confirmada');
+    expect(ev.link).toEqual(['/reservar', 'arena-1']);
+    expect(ev.isPast).toBeFalse();
+  });
+
+  it('chamada, encaixe, cancelada e professor', () => {
+    const past = { ...base, date: '2026-07-14' };
+    expect(classEntryToEvent(classAgendaItemFromRaw({ ...past, myMark: 'excused' }), NOW)!.statusLabel).toBe('Justificada');
+    expect(classEntryToEvent(classAgendaItemFromRaw(past), NOW)!.statusLabel).toBe('Finalizada');
+    expect(classEntryToEvent(classAgendaItemFromRaw({ ...base, kind: 'trial' }), NOW)!.subtitle).toBe('Aula experimental · Quadra 2');
+    const canceled = classEntryToEvent(classAgendaItemFromRaw({ ...base, status: 'canceled' }), NOW)!;
+    expect(canceled.statusLabel).toBe('Cancelada');
+    expect(canceled.isPast).toBeTrue();
+    const teacher = classEntryToEvent(classAgendaItemFromRaw({ ...base, role: 'teacher', studentCount: 3 }), NOW)!;
+    expect(teacher.subtitle).toBe('Você dá aula · 3 alunos · Quadra 2');
+    expect(teacher.statusLabel).toBe('Você dá aula');
+  });
+
+  it('sem data utilizável não vira evento', () => {
+    expect(classEntryToEvent(classAgendaItemFromRaw({ ...base, date: '' }), NOW)).toBeNull();
   });
 });

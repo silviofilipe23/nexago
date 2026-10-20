@@ -46,6 +46,9 @@ import {
 } from '../data/arena-booking-split-repository';
 import { searchAthleteDirectory, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { pixBookingCreateOptions } from './pix-booking-create-options';
+import { bookingProfessorLink } from './booking-as-professor';
+import { BookingProfessorOptionComponent } from './booking-professor-option.component';
+import { ProfessorLinksService } from '../professor/professor-links.service';
 import { appliedPreviewCents } from '../data/cashback-preview';
 import { CashbackService } from '../data/cashback.service';
 import { CheckoutCashbackToggleComponent } from '../cashback/checkout-cashback-toggle.component';
@@ -154,6 +157,7 @@ function initialsOf(name: string): string {
     NxFieldErrorComponent,
     CheckoutCashbackToggleComponent,
     SquadCodeFieldComponent,
+    BookingProfessorOptionComponent,
   ],
   templateUrl: './arena-payment.component.html',
   styleUrl: './arena-payment.component.scss',
@@ -167,6 +171,7 @@ export class ArenaPaymentComponent {
   private readonly firestore = createFirestore();
   private readonly toasts = inject(NxToastService);
   protected readonly cashback = inject(CashbackService);
+  private readonly professorLinks = inject(ProfessorLinksService);
   private countdownInterval: ReturnType<typeof setInterval> | undefined;
   private unwatchBooking: (() => void) | undefined;
 
@@ -304,6 +309,15 @@ export class ArenaPaymentComponent {
 
   /** Depois que a reserva existe (Pix gerado/dividido), o esporte já foi gravado. */
   protected readonly sportLocked = computed(() => this.pixPayment() != null || this.splitBookingId() != null);
+
+  /** Vínculo com esta arena que deixa reservar como professor agora — sem ele a opção some. */
+  protected readonly professorLink = computed(() => bookingProfessorLink(this.professorLinks.links(), this.arenaId()));
+  /** "Reservar como professor" (começa desligado: o professor também joga). */
+  protected readonly bookAsProfessor = signal(false);
+  /** O que vai para `createArenaBooking`: a chave só vale enquanto o vínculo deixa. */
+  private readonly asProfessor = computed(() => this.bookAsProfessor() && this.professorLink() != null);
+  /** Reserva já criada (Pix, cartão ou divisão): o carimbo foi gravado com ela. */
+  protected readonly professorLocked = computed(() => this.pixBookingId() != null || this.splitBookingId() != null);
 
   protected readonly timeRangeLabel = computed(() => {
     const chain = this.chain();
@@ -581,7 +595,17 @@ export class ArenaPaymentComponent {
       pixFraction: this.pixFraction(),
       couponCode: this.appliedCouponCode(),
       sport: this.selectedSport(),
+      asProfessor: this.asProfessor(),
     });
+  }
+
+  /** O vínculo recusou "Reservar como professor": volta para reserva de atleta, que segue
+   *  valendo — a mensagem do servidor já diz o motivo. `true` quando tratou o erro. */
+  private handleProfessorDenied(err: unknown): boolean {
+    if (!(err instanceof ArenaBookingError) || !err.isProfessorDenied) return false;
+    this.bookAsProfessor.set(false);
+    this.toasts.error('Não deu para reservar como professor', err.message);
+    return true;
   }
 
   /** Cria (ou retoma) a reserva `pending_payment` e gera o QR PIX. */
@@ -633,6 +657,7 @@ export class ArenaPaymentComponent {
         this.squadError.set(err.message);
         return;
       }
+      if (this.handleProfessorDenied(err)) return;
       this.toasts.error(
         'Não foi possível gerar o Pix',
         err instanceof ArenaBookingError ? err.message : 'O serviço não respondeu. Nenhum valor foi cobrado.',
@@ -689,6 +714,7 @@ export class ArenaPaymentComponent {
         this.squadError.set(err.message);
         return;
       }
+      if (this.handleProfessorDenied(err)) return;
       this.toasts.error(
         'Não foi possível abrir o pagamento',
         err instanceof ArenaBookingError ? err.message : 'O serviço não respondeu. Nenhum valor foi cobrado.',
@@ -771,11 +797,16 @@ export class ArenaPaymentComponent {
         paymentMode: 'onsite',
         couponCode: this.appliedCouponCode() ?? undefined,
         sport,
+        asProfessor: this.asProfessor(),
       });
       void this.router.navigate(['/reservar', this.arenaId(), 'agendar', 'pagamento', 'confirmada'], {
         queryParams: { bookingId: result.bookingId },
       });
     } catch (err) {
+      if (this.handleProfessorDenied(err)) {
+        this.processing.set(false);
+        return;
+      }
       this.toasts.error(
         'Não foi possível concluir a reserva',
         err instanceof ArenaBookingError ? err.message : 'O serviço não respondeu e o horário segue livre.',
@@ -941,6 +972,7 @@ export class ArenaPaymentComponent {
       this.splitBookingId.set(bookingId);
       this.startSplitWatch(bookingId);
     } catch (err) {
+      if (this.handleProfessorDenied(err)) return;
       this.toasts.error(
         'Não foi possível dividir o pagamento',
         err instanceof ArenaBookingSplitError ? err.message : 'O serviço não respondeu. Nenhum valor foi cobrado.',

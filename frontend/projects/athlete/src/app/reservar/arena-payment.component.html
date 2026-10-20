@@ -50,6 +50,17 @@
             }
           </section>
 
+          @if (professorLink(); as link) {
+            <section class="pm-card" id="pm-professor">
+              <app-booking-professor-option
+                [arenaName]="a.name"
+                [type]="link.relationshipType"
+                [disabled]="professorLocked() || processing()"
+                [(checked)]="bookAsProfessor"
+              />
+            </section>
+          }
+
           <section class="pm-card">
             <h2 class="pm-card-title">Forma de pagamento</h2>
             <div class="pm-method-row">

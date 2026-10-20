@@ -14,6 +14,8 @@ import {
   displayBookingCode,
   enrichCourtName,
   formatBRL,
+  PROFESSOR_BOOKING_TAG,
+  professorBookingLabel,
   sectionTitleForDateKey,
   type ArenaBooking,
   type ArenaBookingViewMode,
@@ -104,6 +106,9 @@ function tomorrowKey(): string {
                   <div class="table-row" [class.row-canceled]="!bookingIsActive(b)" (click)="open(b.id)">
                     <div class="cell-client">
                       <span class="col-label">Cliente</span>
+                      @if (b.bookedAsProfessor) {
+                        <ar-pill tone="blue" [title]="professorLabel(b)">{{ professorTag }}</ar-pill>
+                      }
                       {{ customerLabel(b) }}
                     </div>
                     <div class="cell-slot">
@@ -136,6 +141,9 @@ function tomorrowKey(): string {
                     <div class="table-row" [class.row-canceled]="!bookingIsActive(b)" (click)="open(b.id)">
                       <div class="cell-client">
                         <span class="col-label">Cliente</span>
+                        @if (b.bookedAsProfessor) {
+                          <ar-pill tone="blue" [title]="professorLabel(b)">{{ professorTag }}</ar-pill>
+                        }
                         {{ customerLabel(b) }}
                       </div>
                       <div class="cell-slot">
@@ -317,6 +325,12 @@ function tomorrowKey(): string {
       text-overflow: ellipsis;
     }
 
+    /* Selo antes do nome: nome longo corta com reticências, o selo não. */
+    .cell-client ar-pill {
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+
     .cell-slot,
     .cell-status {
       font-size: 13px;
@@ -479,6 +493,13 @@ export class PanelBookingsComponent {
         this.athleteLabels.update((current) => ({ ...current, [athleteId]: label }));
       });
     }
+  }
+
+  protected readonly professorTag = PROFESSOR_BOOKING_TAG;
+
+  /** "Professor · independente" — dica do selo na lista. */
+  protected professorLabel(booking: ArenaBooking): string {
+    return professorBookingLabel(booking) ?? '';
   }
 
   protected customerLabel(booking: ArenaBooking): string {

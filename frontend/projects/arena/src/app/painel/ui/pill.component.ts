@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-export type PillTone = 'orange' | 'green' | 'yellow' | 'red' | 'dim';
+export type PillTone = 'orange' | 'green' | 'yellow' | 'red' | 'dim' | 'blue';
 
 /** Pill de status (protótipo BoPill/ArPill). */
 @Component({
@@ -56,6 +56,13 @@ export type PillTone = 'orange' | 'green' | 'yellow' | 'red' | 'dim';
       background: var(--nx-surface-1);
       border-color: var(--nx-line-strong);
       color: var(--nx-text-mute);
+    }
+
+    /* Professor (mesmo azul do selo de vínculo e do bloco de aula). */
+    .tone-blue {
+      background: rgba(91, 155, 255, 0.1);
+      border-color: rgba(91, 155, 255, 0.3);
+      color: #5b9bff;
     }
   `,
 })

@@ -46,6 +46,8 @@ function makeBooking(overrides: Partial<ArenaBooking> = {}): ArenaBooking {
     couponCode: null,
     couponDiscountReais: null,
     sportLabel: null,
+    bookedAsProfessor: false,
+    professorRelationshipType: null,
     ...overrides,
   };
 }

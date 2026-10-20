@@ -228,4 +228,46 @@ describe('classEntryToEvent (aulas da arena)', () => {
   it('sem data utilizável não vira evento', () => {
     expect(classEntryToEvent(classAgendaItemFromRaw({ ...base, date: '' }), NOW)).toBeNull();
   });
+
+  describe('professor com a chamada liberada (canManageLessons)', () => {
+    const teacher = { ...base, role: 'teacher', studentCount: 3, canManageLessons: true };
+
+    it('aula de hoje ou passada sem chamada: "Fazer chamada" em destaque, leva à chamada', () => {
+      for (const date of ['2026-07-20', '2026-07-14']) {
+        const ev = classEntryToEvent(classAgendaItemFromRaw({ ...teacher, date }), NOW)!;
+        expect(ev.ctaLabel).toBe('Fazer chamada');
+        expect(ev.ctaPrimary).toBeTrue();
+        expect(ev.link).toEqual(['/professor', 'aulas', 'class_c1_2026-07-21']);
+      }
+    });
+
+    it('aula futura abre a lista; chamada fechada, "Ver chamada"', () => {
+      const future = classEntryToEvent(classAgendaItemFromRaw(teacher), NOW)!;
+      expect(future.ctaLabel).toBe('Ver lista');
+      expect(future.ctaPrimary).toBeFalse();
+      expect(future.link).toEqual(['/professor', 'aulas', 'class_c1_2026-07-21']);
+      const done = classEntryToEvent(classAgendaItemFromRaw({ ...teacher, date: '2026-07-14', status: 'completed' }), NOW)!;
+      expect(done.ctaLabel).toBe('Ver chamada');
+    });
+
+    it('sem a permissão, aula cancelada ou aluno: segue "Ver arena"', () => {
+      const cases = [
+        { ...teacher, canManageLessons: false },
+        { ...teacher, canManageLessons: undefined },
+        { ...teacher, status: 'canceled' },
+        { ...base, canManageLessons: true },
+      ];
+      for (const raw of cases) {
+        const ev = classEntryToEvent(classAgendaItemFromRaw(raw), NOW)!;
+        expect(ev.ctaLabel).toBe('Ver arena');
+        expect(ev.link).toEqual(['/reservar', 'arena-1']);
+      }
+    });
+  });
+
+  it('canManageLessons: booleano do servidor; ausente (servidor antigo) = null', () => {
+    expect(classAgendaItemFromRaw({ ...base, role: 'teacher', canManageLessons: true }).canManageLessons).toBeTrue();
+    expect(classAgendaItemFromRaw({ ...base, role: 'teacher', canManageLessons: false }).canManageLessons).toBeFalse();
+    expect(classAgendaItemFromRaw(base).canManageLessons).toBeNull();
+  });
 });

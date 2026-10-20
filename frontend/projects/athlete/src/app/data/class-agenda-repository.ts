@@ -22,6 +22,9 @@ export interface MyClassAgendaItem {
   kind: 'regular' | 'makeup' | 'trial';
   myMark: 'present' | 'absent' | 'excused' | null;
   studentCount: number | null;
+  /** Só no item de professor: o vínculo com a arena libera a chamada ("Gerenciar as próprias
+   *  aulas") — o servidor deixaria `getMyClassSessionRoster`. Aluno (e servidor antigo): `null`. */
+  canManageLessons: boolean | null;
 }
 
 function str(v: unknown, fallback = ''): string {
@@ -32,6 +35,7 @@ export function classAgendaItemFromRaw(raw: Record<string, unknown>): MyClassAge
   const status = raw['status'];
   const mark = raw['myMark'];
   const count = raw['studentCount'];
+  const canManage = raw['canManageLessons'];
   return {
     sessionId: str(raw['sessionId']),
     arenaId: str(raw['arenaId']),
@@ -47,6 +51,7 @@ export function classAgendaItemFromRaw(raw: Record<string, unknown>): MyClassAge
     kind: raw['kind'] === 'makeup' || raw['kind'] === 'trial' ? raw['kind'] : 'regular',
     myMark: mark === 'present' || mark === 'absent' || mark === 'excused' ? mark : null,
     studentCount: typeof count === 'number' ? count : null,
+    canManageLessons: typeof canManage === 'boolean' ? canManage : null,
   };
 }
 

@@ -9,12 +9,16 @@ import { ModalComponent } from '../ui/modal.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PillComponent } from '../ui/pill.component';
 import type { AthleteSearchResult } from '../clubinho/clubs-repository';
+import type { ArenaProfessorLink } from '../profissionais/arena-professor.model';
+import { ArenaProfessorsService } from '../profissionais/arena-professors.service';
+import { AvatarComponent } from '../ui/avatar.component';
 import { AulaAthletePickerComponent } from './aula-modals.component';
 import { AulaStatComponent, AulasPageComponent, OccupancyBarComponent, TeacherAvatarComponent } from './aulas-ui';
 import { brl } from './billing.model';
 import { TEACHER_COLORS, teacherStats, todayKeyLocal, type ArenaClass, type ClassTeacher } from './class.model';
 import { fetchClasses, fetchTeachers, upsertTeacher } from './classes-repository';
 import { previewPayouts } from './payout-repository';
+import { teacherSuggestionsFromLinks } from './teacher-link-suggestions';
 import {
   DEFAULT_PAYOUT_MODEL,
   PAYOUT_MODELS,
@@ -60,6 +64,7 @@ interface TeacherDraft {
     TeacherAvatarComponent,
     OccupancyBarComponent,
     AulaAthletePickerComponent,
+    AvatarComponent,
     RouterLink,
   ],
   styleUrl: './aulas-form.scss',
@@ -160,6 +165,24 @@ interface TeacherDraft {
             <span class="account-tag">Conta NexaGO</span>
           </div>
         } @else {
+          @if (linkSuggestions().length > 0) {
+            <div class="field-label spaced">Professores com vínculo</div>
+            <div class="suggest-row">
+              @for (s of linkSuggestions(); track s.id) {
+                <button
+                  type="button"
+                  class="ar-chip suggest"
+                  [class.active]="d.picked?.id === s.id"
+                  [attr.aria-pressed]="d.picked?.id === s.id"
+                  (click)="patch({ picked: s })"
+                >
+                  <ar-avatar [name]="s.name" [photoUrl]="s.photoUrl" [size]="20" />
+                  {{ s.name }}
+                </button>
+              }
+            </div>
+            <p class="hint">Vínculo ativo em Profissionais. Para outra conta, busque abaixo.</p>
+          }
           <div class="field-label spaced">{{ d.teacherId ? 'Vincular conta de ' + d.name : 'Conta NexaGO do professor' }}</div>
           <ar-aula-athlete-picker placeholder="Buscar atleta pelo nome" (selected)="patch({ picked: $event })" />
         }
@@ -261,6 +284,8 @@ interface TeacherDraft {
     .prefix, .suffix { font-family: var(--nx-font-mono); font-size: 11px; color: var(--nx-text-dim); }
     .actions { display: flex; justify-content: flex-end; }
     .grow { flex: 1; }
+    .suggest-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .suggest { display: inline-flex; align-items: center; gap: 6px; }
     @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   `,
 })
@@ -269,6 +294,7 @@ export class PanelAulasTeachersComponent {
   private readonly access = inject(ArenaAccessService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly professors = inject(ArenaProfessorsService);
 
   protected readonly colors = TEACHER_COLORS;
   protected readonly brl = brl;
@@ -295,6 +321,14 @@ export class PanelAulasTeachersComponent {
   protected readonly saveError = signal<string | null>(null);
 
   protected readonly activeTeachers = computed(() => this.teachers().filter((t) => t.status === 'active'));
+  /** Vínculos com professores (Profissionais) — só para sugerir no "Novo professor". */
+  private readonly links = signal<ArenaProfessorLink[]>([]);
+  protected readonly linkSuggestions = computed(() =>
+    teacherSuggestionsFromLinks(
+      this.links(),
+      this.teachers().map((t) => t.userId),
+    ),
+  );
   protected readonly payoutTotal = computed(() =>
     Math.round((this.payout()?.teachers ?? []).reduce((s, t) => s + t.amountReais, 0) * 100) / 100,
   );
@@ -333,6 +367,18 @@ export class PanelAulasTeachersComponent {
     effect(() => {
       const arenaId = this.arenaContext.arenaId();
       if (arenaId) void this.load(arenaId);
+    });
+    // Profissionais é área `perfil` (dono + gestor); quem não lê fica sem sugestão.
+    effect((onCleanup) => {
+      const arenaId = this.arenaContext.arenaId();
+      this.links.set([]);
+      if (!arenaId || !this.access.canRead('perfil')) return;
+      const stop = this.professors.watchLinks(
+        arenaId,
+        (links) => this.links.set(links),
+        () => this.links.set([]),
+      );
+      onCleanup(stop);
     });
   }
 

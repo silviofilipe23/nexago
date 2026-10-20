@@ -18,6 +18,7 @@ import {
   displayBookingCode,
   enrichCourtName,
   formatBRL,
+  professorBookingLabel,
   type ArenaBooking,
 } from './arena-booking.model';
 import { cancelBookingByManager, checkInBookingByManager, resolveAthleteLabel, restoreBookingByManager, watchBooking } from './bookings-repository';
@@ -88,6 +89,10 @@ export function bookingChannelLabel(channel: string | null): string {
               }
               @if (booking()!.classSessionId; as classSessionId) {
                 <div class="row"><span class="label">Tipo</span><span class="value">Aula (bloqueio da quadra)</span></div>
+              }
+              @if (professorLabel(); as professor) {
+                <!-- Reserva feita como professor (vínculo com "Reservar quadras"): o horário é de aula dele. -->
+                <div class="row"><span class="label">Reservou como</span><span class="value"><ar-pill tone="blue">{{ professor }}</ar-pill></span></div>
               }
             </ar-panel-card>
 
@@ -402,6 +407,12 @@ export class PanelBookingDetailComponent {
   protected readonly headerSubtitle = computed(() => {
     const b = this.resolvedBooking();
     return b ? `${b.courtName} · ${b.dateKey} · ${b.startTime}–${b.endTime}` : '';
+  });
+
+  /** Reserva feita como professor: "Professor · equipe da arena" / "Professor · independente". */
+  protected readonly professorLabel = computed(() => {
+    const b = this.resolvedBooking();
+    return b ? professorBookingLabel(b) : null;
   });
 
   protected readonly customerLabel = computed(() => {

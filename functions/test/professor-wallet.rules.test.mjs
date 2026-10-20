@@ -103,3 +103,20 @@ test('bloqueio de período: só o dono grava e lê, com campos validados', async
   await assertFails(setDoc(doc(as(PROF), `users/${PROF}/professorBlocks/b5`), block({ endAt: Timestamp.fromDate(new Date('2027-01-30T16:00:00Z')) })));
   await assertFails(getDoc(doc(as(PROF), `professorCalendarFeeds/${PROF}`)));
 });
+
+test('comunicado: professor lê os dele; aluno só o enviado em que está; ninguém escreve', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'professorNotices/n1'), { professorUid: PROF, status: 'sent', recipientIds: [ALUNO] });
+    await setDoc(doc(db, 'professorNotices/n2'), { professorUid: PROF, status: 'draft', recipientIds: [ALUNO] });
+    await setDoc(doc(db, `professorNotices/n1/recipients/${ALUNO}`), { readAt: new Date() });
+  });
+  await assertSucceeds(getDocs(query(collection(as(PROF), 'professorNotices'), where('professorUid', '==', PROF))));
+  await assertSucceeds(getDoc(doc(as(ALUNO), 'professorNotices/n1')));
+  await assertFails(getDoc(doc(as(ALUNO), 'professorNotices/n2')));
+  await assertFails(getDoc(doc(as(OUTRO), 'professorNotices/n1')));
+  await assertSucceeds(getDoc(doc(as(PROF), `professorNotices/n1/recipients/${ALUNO}`)));
+  await assertSucceeds(getDoc(doc(as(ALUNO), `professorNotices/n1/recipients/${ALUNO}`)));
+  await assertFails(getDoc(doc(as(OUTRO), `professorNotices/n1/recipients/${ALUNO}`)));
+  await assertFails(setDoc(doc(as(PROF), 'professorNotices/n3'), { professorUid: PROF, status: 'sent' }));
+});

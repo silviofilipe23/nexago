@@ -2289,6 +2289,22 @@ service cloud.firestore {
         (!('note' in request.resource.data) || (request.resource.data.note is string && request.resource.data.note.size() <= 300)) &&
         request.resource.data.updatedAt == request.time;
     }
+    // Comunicados do professor: ele lê os dele; o aluno lê o enviado em que está na lista.
+    // Leitura/resposta do aluno vão por callable (respondProfessorNotice).
+    match /professorNotices/{noticeId} {
+      allow read: if request.auth != null && (
+        resource.data.professorUid == request.auth.uid ||
+        (resource.data.status == 'sent' && request.auth.uid in resource.data.recipientIds)
+      );
+      allow write: if false;
+      match /recipients/{athleteId} {
+        allow read: if request.auth != null && (
+          request.auth.uid == athleteId ||
+          get(/databases/$(database)/documents/professorNotices/$(noticeId)).data.professorUid == request.auth.uid
+        );
+        allow write: if false;
+      }
+    }
     // Token do feed .ics do professor: só functions.
     match /professorCalendarFeeds/{uid} {
       allow read, write: if false;

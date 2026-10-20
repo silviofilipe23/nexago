@@ -194,6 +194,8 @@ export {
 } from "./arena-class-payout";
 // Aulas — lembrete por push 2h antes (alunos do dia e professor).
 export {sendArenaClassReminders} from "./arena-class-reminders";
+// Aulas na agenda do atleta (leitura só por callable — as coleções de aula são da equipe).
+export {getMyClassAgenda} from "./arena-class-athlete-agenda";
 
 export {
   onArenaCourtCreatedCountUp,

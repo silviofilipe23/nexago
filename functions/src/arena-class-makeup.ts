@@ -32,6 +32,11 @@ export interface AddExtraInput {
   student: {athleteId: string | null; name: string};
 }
 
+/** Contas dos encaixes da aula, sem repetição (array explícito — nada de `arrayUnion`). */
+export function extraAthleteIdsOf(extras: Record<string, {athleteId?: string | null}>): string[] {
+  return [...new Set(Object.values(extras).map((e) => e.athleteId).filter((id): id is string => typeof id === "string" && id !== ""))].sort();
+}
+
 /** Encaixa na aula: confere aula futura/de hoje, vaga do dia e (reposição) crédito válido. */
 export async function addExtraCore(
   db: Firestore,
@@ -84,6 +89,8 @@ export async function addExtraCore(
 
     tx.set(sessionRef, {
       extras: {[studentId]: {name, kind: input.kind, creditId: input.creditId, athleteId}},
+      // Quem tem conta acha a aula na agenda por aqui (`getMyClassAgenda`).
+      extraAthleteIds: extraAthleteIdsOf({...session.extras, [studentId]: {athleteId}}),
       updatedAt: FieldValue.serverTimestamp(),
     }, {merge: true});
     if (creditRef) {
@@ -103,9 +110,11 @@ export async function removeExtraCore(db: Firestore, sessionId: string, studentI
     const extra = session.extras[studentId];
     if (!extra) throw new HttpsError("not-found", "Encaixe não encontrado.");
     if (session.status === "completed") throw new HttpsError("failed-precondition", "A chamada já foi fechada.");
+    const remaining = Object.fromEntries(Object.entries(session.extras).filter(([id]) => id !== studentId));
     tx.set(sessionRef, {
       extras: {[studentId]: FieldValue.delete()},
       attendance: {[studentId]: FieldValue.delete()},
+      extraAthleteIds: extraAthleteIdsOf(remaining),
       updatedAt: FieldValue.serverTimestamp(),
     }, {merge: true});
     if (extra.kind === "makeup" && extra.creditId) {

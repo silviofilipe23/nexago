@@ -15,15 +15,25 @@ const _sessionSettleTimeout = Duration(seconds: 8);
 /// `functions/src/asaas-class-billing.ts`): "Toque para pagar com PIX ou cartão".
 const classChargeLinkNotificationType = 'arena_class_charge_link';
 
+/// Cobrança do professor independente (`createProfessorCharge` em
+/// `functions/src/professor-wallet.ts`): mesma fatura online do Asaas.
+const professorChargeLinkNotificationType = 'professor_charge_link';
+
+/// Convite do professor para o atleta entrar na carteira dele.
+const professorStudentInviteNotificationType = 'professor_student_invite';
+
 /// Agenda do atleta — onde fica a mensalidade a pagar.
 const athleteAgendaTabLocation = '${AppRoutes.discover}?tab=agenda';
 
-/// URL externa que o toque abre no navegador: hoje só a fatura da mensalidade
-/// de aula (`invoiceUrl`, URL absoluta do Asaas; `webUrl` é a mesma). `null` =
+/// URL externa que o toque abre no navegador: a fatura da mensalidade de aula
+/// ou da cobrança do professor (`invoiceUrl`, URL absoluta do Asaas; `webUrl` é a mesma). `null` =
 /// o toque segue a rota interna de [resolveNotificationRoute].
 String? externalNotificationUrl(Map<String, dynamic> data) {
   final type = (data['type'] as String?)?.toLowerCase().trim() ?? '';
-  if (type != classChargeLinkNotificationType) return null;
+  if (type != classChargeLinkNotificationType &&
+      type != professorChargeLinkNotificationType) {
+    return null;
+  }
   for (final key in const ['invoiceUrl', 'webUrl']) {
     final raw = (data[key] as String?)?.trim() ?? '';
     final uri = Uri.tryParse(raw);
@@ -196,7 +206,23 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   // Mensalidade de aula: o toque abre a fatura ([externalNotificationUrl]); a
   // rota é o plano B (sem link ou sem navegador). Vem antes do `url` e longe do
   // ramo genérico de `arena` lá embaixo, que mandava o atleta pra agenda do GESTOR.
-  if (type == classChargeLinkNotificationType) return athleteAgendaTabLocation;
+  if (type == classChargeLinkNotificationType ||
+      type == professorChargeLinkNotificationType) {
+    return athleteAgendaTabLocation;
+  }
+
+  // Convite para a carteira do professor: o payload traz `url`
+  // (`/convite-professor/{uid}`); sem ele, monta pelo `professorUid`.
+  if (type == professorStudentInviteNotificationType) {
+    final url = appRouteForNotificationUrl(data['url'] as String?);
+    if (url != null) return url;
+    final professorUid = (data['professorUid'] as String?)?.trim() ?? '';
+    if (professorUid.isNotEmpty) {
+      return AppRoutes.professorStudentInvite
+          .replaceAll(':professorUid', Uri.encodeComponent(professorUid));
+    }
+    return AppRoutes.home;
+  }
 
   // Vínculo professor ↔ arena (`arenaProfessorNotices` em
   // arena-professor-links.ts): convite, aprovação, recusa, suspensão,

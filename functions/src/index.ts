@@ -203,6 +203,19 @@ export {getMyClassAgenda} from "./arena-class-athlete-agenda";
 export {getMyClassSessionRoster} from "./arena-class-teacher";
 // Alunos, aluno e turmas do professor (app, modo Professor) — mesma régua da chamada.
 export {getMyProfessorStudents} from "./professor-students";
+// Carteira do professor independente (subconta Asaas + cobrança com split).
+export {
+  archiveProfessorStudent,
+  cancelProfessorCharge,
+  createProfessorCharge,
+  createProfessorPayoutAccount,
+  generateProfessorMonthlyCharges,
+  refreshProfessorPayoutAccountStatus,
+  respondProfessorStudentInvite,
+  stopProfessorRecurring,
+  upsertProfessorPlan,
+  upsertProfessorStudent,
+} from "./professor-wallet";
 export {
   createArenaClassLesson,
   getProfessorClassActions,

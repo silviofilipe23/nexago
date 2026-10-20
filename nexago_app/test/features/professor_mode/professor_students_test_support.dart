@@ -9,9 +9,12 @@ import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/professor_links/application/professor_links_providers.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_students.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_students_repository.dart';
+import 'package:nexago_app/features/professor_mode/infrastructure/professor_wallet_repository.dart';
 import 'package:nexago_app/features/professor_mode/presentation/professor_classes_page.dart';
 import 'package:nexago_app/features/professor_mode/presentation/professor_student_page.dart';
 import 'package:nexago_app/features/professor_mode/presentation/professor_students_page.dart';
+
+import 'professor_wallet_test_support.dart';
 
 /// Apoio dos testes de Alunos/Aluno/Turmas do modo Professor: payload
 /// realista da callable `getMyProfessorStudents`, o dublê do repositório e o
@@ -246,11 +249,15 @@ class FakeProfessorStudentsRepository implements ProfessorStudentsRepository {
 
 Widget _stub(String label) => Scaffold(body: Center(child: Text(label)));
 
-/// App mínimo com as rotas reais de Alunos, Aluno e Turmas.
+/// App mínimo com as rotas reais de Alunos, Aluno e Turmas (a carteira
+/// própria vem de [walletRepo], vazia por padrão).
 Future<GoRouter> pumpProfessorStudentsApp(
   WidgetTester tester, {
   required FakeProfessorStudentsRepository repo,
   required String location,
+
+  /// Carteira própria (fase 3); sem ela, vazia.
+  ProfessorWalletRepository? walletRepo,
   String uid = professorStudentsTestUid,
   List<Override> overrides = const [],
   List<RouteBase> extraRoutes = const [],
@@ -295,6 +302,8 @@ Future<GoRouter> pumpProfessorStudentsApp(
     ProviderScope(
       overrides: [
         professorStudentsRepositoryProvider.overrideWithValue(repo),
+        professorWalletRepositoryProvider
+            .overrideWithValue(walletRepo ?? FakeProfessorWalletRepository()),
         professorLinksUidProvider.overrideWithValue(uid),
         ...overrides,
       ],

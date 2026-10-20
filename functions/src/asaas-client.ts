@@ -100,9 +100,11 @@ export async function fetchAsaas<T>(
     method?: string;
     body?: unknown;
     idempotencyKey?: string;
+    /** Chave de outra conta (subconta do professor); padrão = a da plataforma. */
+    apiKey?: string;
   } = {},
 ): Promise<T> {
-  const apiKey = getAsaasApiKey();
+  const apiKey = options.apiKey || getAsaasApiKey();
   const base = getAsaasApiBaseUrl();
   const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
   const method = (options.method ?? "GET").toUpperCase();

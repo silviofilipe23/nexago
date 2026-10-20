@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/active_role_providers.dart';
+import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/layout/nexa_page_header.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -16,6 +17,9 @@ import '../../professor_links/application/professor_links_providers.dart';
 import '../../professor_links/domain/professor_link_rules.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../application/professor_students_providers.dart';
+import '../application/professor_wallet_providers.dart';
+import '../domain/professor_wallet.dart';
+import '../domain/professor_wallet_logic.dart';
 import '../domain/professor_mode_logic.dart';
 import '../domain/professor_students.dart';
 import 'actions/professor_action_widgets.dart';
@@ -23,9 +27,8 @@ import 'professor_shell_page.dart';
 import 'widgets/professor_settings_sheet.dart';
 import 'widgets/professor_students_widgets.dart';
 
-/// Aba Mais do modo Professor (B1): o professor, Turmas, Minhas arenas e a
-/// conta. Só entra o que existe — avaliações, cobranças, ganhos e
-/// disponibilidade chegam nas próximas fases.
+/// Aba Mais do modo Professor (B1): o professor, Turmas, o dinheiro da
+/// carteira própria (só independente), Minhas arenas e a conta.
 class ProfessorMorePage extends ConsumerWidget {
   const ProfessorMorePage({super.key});
 
@@ -185,6 +188,10 @@ class ProfessorMorePage extends ConsumerWidget {
                 ],
               ),
             ],
+            if (ref.watch(professorWalletVisibleProvider)) ...[
+              const SizedBox(height: 22),
+              const _MoneyGroup(),
+            ],
             const SizedBox(height: 22),
             _Group(
               title: 'Arenas',
@@ -226,6 +233,70 @@ class ProfessorMorePage extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Mais › Dinheiro (fase 3): conta Asaas, planos e a carteira própria.
+class _MoneyGroup extends ConsumerWidget {
+  const _MoneyGroup();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final accountAsync = ref.watch(professorPayoutAccountProvider);
+    final account = accountAsync.valueOrNull;
+    final plans = ref.watch(professorWalletPlansProvider).valueOrNull;
+    final charges = ref.watch(professorWalletChargesProvider).valueOrNull;
+    final todayKey = ref.watch(professorWalletTodayKeyProvider);
+    final activePlans = plans?.where((p) => p.active).length;
+    final summary = charges == null
+        ? null
+        : professorWalletSummary(charges, todayKey: todayKey);
+    final accountColor = switch (account?.status) {
+      ProfessorAccountStatus.approved => AppColors.win,
+      ProfessorAccountStatus.rejected => AppColors.live,
+      ProfessorAccountStatus.pending ||
+      ProfessorAccountStatus.creating =>
+        AppColors.pending,
+      ProfessorAccountStatus.failed || null => AppColors.brandHover,
+    };
+    return _Group(
+      title: 'Dinheiro',
+      rows: [
+        _MenuRow(
+          key: const Key('professor-more-payout'),
+          icon: Icons.account_balance_outlined,
+          title: 'Receber pelo nexaGO',
+          trailing: !accountAsync.hasValue
+              ? null
+              : account == null ||
+                      account.status == ProfessorAccountStatus.failed
+                  ? 'Criar conta'
+                  : professorAccountStatusLabel(account.status),
+          trailingColor: accountColor,
+          onTap: () => context.pushNamed(AppRouteNames.professorPayoutAccount),
+        ),
+        _MenuRow(
+          key: const Key('professor-more-plans'),
+          icon: Icons.sell_outlined,
+          title: 'Meus planos e preços',
+          trailing: activePlans == null
+              ? null
+              : '$activePlans plano${activePlans == 1 ? '' : 's'}',
+          onTap: () => context.pushNamed(AppRouteNames.professorWalletPlans),
+        ),
+        _MenuRow(
+          key: const Key('professor-more-wallet'),
+          icon: Icons.account_balance_wallet_outlined,
+          title: 'Carteira própria',
+          trailing: summary == null || summary.toReceive <= 0
+              ? null
+              : '${formatBRL(summary.toReceive)} a receber',
+          trailingColor:
+              (summary?.overdue.isNotEmpty ?? false) ? AppColors.live : null,
+          onTap: () => context.pushNamed(AppRouteNames.professorWallet),
+        ),
+      ],
     );
   }
 }

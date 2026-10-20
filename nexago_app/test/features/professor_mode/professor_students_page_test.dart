@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/router/routes.dart';
+import 'package:nexago_app/features/professor_mode/domain/professor_wallet.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_students_repository.dart';
 import 'package:nexago_app/features/professor_mode/presentation/professor_student_page.dart';
 
 import '../professor_links/professor_links_test_support.dart'
     show loadProfessorLinksFonts;
 import 'professor_students_test_support.dart';
+import 'professor_wallet_test_support.dart';
 
 Finder row(String arenaId, String studentId) =>
     find.byKey(Key('professor-student-$arenaId::$studentId'));
@@ -17,12 +19,15 @@ String subtitle(WidgetTester tester) => tester
 
 Future<void> openList(
   WidgetTester tester,
-  FakeProfessorStudentsRepository repo,
-) =>
+  FakeProfessorStudentsRepository repo, {
+  FakeProfessorWalletRepository? wallet,
+}) =>
     pumpProfessorStudentsApp(
       tester,
       repo: repo,
+      walletRepo: wallet,
       location: AppRoutes.professorStudents,
+      extraRoutes: professorWalletRoutes,
     );
 
 void main() {
@@ -374,6 +379,86 @@ void main() {
       );
       // A tela do aluno lê do mesmo resultado: sem outra ida ao servidor.
       expect(repo.fetchCount, 1);
+    });
+
+    group('fase 3: carteira própria', () {
+      FakeProfessorWalletRepository wallet() => FakeProfessorWalletRepository(
+            plans: walletPlans(),
+            students: [
+              walletStudent(),
+              walletStudent(
+                athleteId: 'ath-rafa',
+                name: 'Rafaela Torres',
+                status: ProfessorWalletStudentStatus.invited,
+              ),
+              walletStudent(
+                athleteId: 'ath-velho',
+                name: 'Arquivado',
+                status: ProfessorWalletStudentStatus.archived,
+              ),
+            ],
+          );
+
+      testWidgets('"Todas as arenas" inclui os da carteira com o selo azul',
+          (tester) async {
+        await openList(
+          tester,
+          FakeProfessorStudentsRepository([professorStudentsSnapshot()]),
+          wallet: wallet(),
+        );
+        expect(subtitle(tester), 'TODAS AS ARENAS · 5 ALUNOS · 1 PENDENTE');
+        expect(find.byKey(const Key('professor-wallet-row-ath-paulo')),
+            findsOneWidget);
+        expect(find.byKey(const Key('professor-wallet-row-ath-rafa')),
+            findsOneWidget);
+        expect(find.byKey(const Key('professor-wallet-row-ath-velho')),
+            findsNothing);
+        expect(find.text('CARTEIRA'), findsNWidgets(2));
+        expect(find.text('CONVITE ENVIADO'), findsOneWidget);
+        // Os das turmas continuam lá.
+        expect(row('arena-cfc', 's1'), findsOneWidget);
+
+        await tester.ensureVisible(
+            find.byKey(const Key('professor-wallet-row-ath-paulo')));
+        await tester
+            .tap(find.byKey(const Key('professor-wallet-row-ath-paulo')));
+        await settleProfessorStudents(tester);
+        expect(find.text('CARTEIRA PRÓPRIA'), findsOneWidget);
+        expect(find.text('Paulo Viana'), findsOneWidget);
+      });
+
+      testWidgets('escopo "Carteira própria" na folha', (tester) async {
+        await openList(
+          tester,
+          FakeProfessorStudentsRepository([professorStudentsSnapshot()]),
+          wallet: wallet(),
+        );
+        await tester.tap(find.byKey(const Key('professor-students-scope')));
+        await settleProfessorStudents(tester);
+        expect(find.byKey(const Key('professor-scope-wallet')), findsOneWidget);
+        await tester.tap(find.byKey(const Key('professor-scope-wallet')));
+        await settleProfessorStudents(tester);
+
+        expect(subtitle(tester), 'CARTEIRA PRÓPRIA · 2 ALUNOS');
+        expect(row('arena-cfc', 's1'), findsNothing);
+        expect(find.byKey(const Key('professor-wallet-row-ath-paulo')),
+            findsOneWidget);
+      });
+
+      testWidgets('só carteira (sem turmas): lista os da carteira',
+          (tester) async {
+        await openList(
+          tester,
+          FakeProfessorStudentsRepository([
+            professorStudentsSnapshot(arenas: [], classes: [], students: []),
+          ]),
+          wallet: wallet(),
+        );
+        expect(find.byKey(const Key('professor-students-no-classes')),
+            findsNothing);
+        expect(find.byKey(const Key('professor-wallet-row-ath-paulo')),
+            findsOneWidget);
+      });
     });
   });
 }

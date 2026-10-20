@@ -498,9 +498,11 @@ AthleteNotificationPresentation _basePresentation(
               ],
         routePath: closedRoutePath,
       );
-    // Mensalidade de aula: "Pagar" abre a fatura no navegador, como o push; sem
-    // link (ou sem navegador), a agenda — onde a mensalidade a pagar aparece.
+    // Mensalidade de aula (ou cobrança do professor independente): "Pagar"
+    // abre a fatura no navegador, como o push; sem link (ou sem navegador), a
+    // agenda — onde a cobrança a pagar aparece.
     case classChargeLinkNotificationType:
+    case professorChargeLinkNotificationType:
       final invoiceUrl = externalNotificationUrl({...data, 'type': type});
       return AthleteNotificationPresentation(
         icon: Icons.payments_outlined,
@@ -516,6 +518,21 @@ AthleteNotificationPresentation _basePresentation(
               ],
         routePath: athleteAgendaTabLocation,
         externalUrl: invoiceUrl,
+      );
+    // Convite do professor para a carteira dele: abre a tela do convite.
+    case professorStudentInviteNotificationType:
+      final inviteRoute = resolveNotificationRoute({...data, 'type': type});
+      return AthleteNotificationPresentation(
+        icon: Icons.school_outlined,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.12),
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Ver convite',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: inviteRoute,
       );
     // NexaSquad: o push não manda `url`; o destino sai do tipo/`kind`, igual ao toque no push
     // (convite → tela do convite, aditivo → Squad, repasse → Ganhos).

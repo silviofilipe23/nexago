@@ -45,6 +45,7 @@ function makeBooking(overrides: Partial<ArenaBooking> = {}): ArenaBooking {
     createdAt: null,
     couponCode: null,
     couponDiscountReais: null,
+    professorLabel: null,
     sportLabel: null,
     ...overrides,
   };

@@ -573,7 +573,9 @@ export class PanelAgendaComponent {
     if (!booking) return '';
     if (booking.customerName) return booking.customerName;
     if (!booking.athleteId) return 'Cliente';
-    return this.athleteLabels()[booking.athleteId] ?? 'Carregando…';
+    const name = this.athleteLabels()[booking.athleteId] ?? 'Carregando…';
+    // Reserva feita como professor: a arena vê que o horário é de aula dele.
+    return booking.professorLabel ? `${name} · Professor` : name;
   }
 
   protected readonly agendaBlocks = computed<AgendaBlock[]>(() => {

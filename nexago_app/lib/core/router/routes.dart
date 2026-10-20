@@ -25,6 +25,17 @@ abstract final class AppRoutes {
   /// Minhas arenas e reserva como professor. As telas de vínculo e de chamada
   /// seguem em `/athlete/professor/...` (links de push já gravados).
   static const String professorHome = '/professor';
+
+  /// Abas do modo Professor (shell com a barra inferior): Alunos e Mais.
+  static const String professorStudents = '/professor/alunos';
+  static const String professorMore = '/professor/mais';
+
+  /// Aluno do professor (sem a barra): `/professor/alunos/:arenaId/:studentId`.
+  static const String professorStudent =
+      '/professor/alunos/:arenaId/:studentId';
+
+  /// Minhas turmas (sem a barra), aberta pelo Mais.
+  static const String professorClasses = '/professor/mais/turmas';
   static const String organizerWallet = '/organizer/wallet';
 
   /// Editor do perfil público do organizador (logo, capa, bio, WhatsApp).
@@ -686,6 +697,10 @@ abstract final class AppRouteNames {
   static const String authLoading = 'authLoading';
   static const String organizerHome = 'organizerHome';
   static const String professorHome = 'professorHome';
+  static const String professorStudents = 'professorStudents';
+  static const String professorStudent = 'professorStudent';
+  static const String professorMore = 'professorMore';
+  static const String professorClasses = 'professorClasses';
   static const String organizerWallet = 'organizerWallet';
   static const String organizerCreate = 'organizerCreate';
   static const String organizerTournamentCreateExpress =

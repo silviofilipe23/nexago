@@ -64,7 +64,7 @@ class TournamentRegistrationRosterCard extends StatelessWidget {
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   color: remainingSlots == 0
-                      ? AppColors.win
+                      ? colors.win
                       : colors.onSurfaceMuted,
                   letterSpacing: 0.4,
                 ),
@@ -130,7 +130,7 @@ class TournamentRegistrationRosterCard extends StatelessWidget {
                   : TextButton(
                       onPressed: onLeaveTeam,
                       style: TextButton.styleFrom(
-                        foregroundColor: AppColors.live,
+                        foregroundColor: context.themeColors.live,
                         padding: EdgeInsets.zero,
                       ),
                       child: const Text('Sair da equipe'),

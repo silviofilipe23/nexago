@@ -92,7 +92,7 @@ class CompeteHubRankingCard extends StatelessWidget {
                       _MetricColumn(
                         value: '${ranking.tournamentsCount}',
                         label: 'TORNEIOS',
-                        valueColor: AppColors.win,
+                        valueColor: context.themeColors.win,
                       ),
                     ],
                   ),

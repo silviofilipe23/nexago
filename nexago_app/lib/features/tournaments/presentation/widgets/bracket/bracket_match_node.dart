@@ -306,7 +306,7 @@ class _LiveScoreLine extends StatelessWidget {
       style: AppTypography.mono(
         fontSize: 9,
         fontWeight: FontWeight.w700,
-        color: AppColors.live,
+        color: context.themeColors.live,
         letterSpacing: 0.2,
       ),
       maxLines: 1,

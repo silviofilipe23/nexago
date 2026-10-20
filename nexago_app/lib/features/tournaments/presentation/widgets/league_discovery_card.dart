@@ -77,7 +77,7 @@ class LeagueDiscoveryCard extends StatelessWidget {
                     else if (open)
                       _TopPill(
                         label: 'Inscrições abertas',
-                        fg: AppColors.win,
+                        fg: context.themeColors.win,
                         bg: Colors.transparent,
                         border: AppColors.win.withValues(alpha: 0.65),
                       ),

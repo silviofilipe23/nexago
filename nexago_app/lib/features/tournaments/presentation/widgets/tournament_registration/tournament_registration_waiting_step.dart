@@ -86,7 +86,9 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: inviteAccepted ? AppColors.win : AppColors.pending,
+                    color: inviteAccepted
+                        ? context.themeColors.win
+                        : context.themeColors.pending,
                     letterSpacing: 0.4,
                   ),
                 ),
@@ -135,7 +137,7 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
                                   TextSpan(
                                     text: reservationHoursLabel,
                                     style: TextStyle(
-                                      color: AppColors.pending,
+                                      color: context.themeColors.pending,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
@@ -393,7 +395,7 @@ class _DuoRow extends StatelessWidget {
                   subtitle,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: dashedAvatar
-                        ? AppColors.pending
+                        ? context.themeColors.pending
                         : context.themeColors.onSurfaceMuted,
                     fontWeight: FontWeight.w500,
                   ),
@@ -412,7 +414,7 @@ class _DuoRow extends StatelessWidget {
             child: Icon(
               Icons.check_rounded,
               size: 16,
-              color: AppColors.win,
+              color: context.themeColors.win,
             ),
           ),
       ],

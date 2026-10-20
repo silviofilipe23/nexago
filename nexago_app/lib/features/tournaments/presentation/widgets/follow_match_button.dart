@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/deep_link/deep_link_providers.dart';
 import '../../../../core/router/routes.dart';
-import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../organizer/presentation/match_ops/organizer_match_navigation.dart';
 import '../../domain/followed_match.dart';
 import '../../domain/followed_matches_providers.dart';
@@ -91,7 +91,7 @@ class FollowMatchButton extends ConsumerWidget {
           : const Icon(Icons.notifications_none_rounded, size: 18),
       label: Text(label),
       style: TextButton.styleFrom(
-        foregroundColor: following ? AppColors.live : null,
+        foregroundColor: following ? context.themeColors.live : null,
       ),
     );
   }

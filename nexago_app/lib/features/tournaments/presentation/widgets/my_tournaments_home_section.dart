@@ -506,7 +506,7 @@ class _RegistrationRow extends StatelessWidget {
                     badgeLabel.toUpperCase(),
                     style: theme.textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: badgeColor,
+                      color: context.themeColors.readableTone(badgeColor),
                       fontSize: 9,
                       letterSpacing: 0.2,
                     ),

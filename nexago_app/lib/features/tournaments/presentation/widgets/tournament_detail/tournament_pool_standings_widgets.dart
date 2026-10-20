@@ -168,7 +168,7 @@ class TournamentPoolStandingsCard extends StatelessWidget {
                         style: AppTypography.mono(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
-                          color: statusColor,
+                          color: context.themeColors.readableTone(statusColor),
                           letterSpacing: 0.4,
                         ),
                       ),
@@ -352,15 +352,16 @@ class _StandingsTableRow extends StatelessWidget {
   /// Mesmo código de cores da tela de grupos do portal do organizador: saldo
   /// positivo em verde, negativo em vermelho, zero sem destaque.
   Color _pointsDiffColor(BuildContext context) {
-    if (row.pointsDiff > 0) return AppColors.win;
-    if (row.pointsDiff < 0) return AppColors.live;
+    if (row.pointsDiff > 0) return context.themeColors.win;
+    if (row.pointsDiff < 0) return context.themeColors.live;
     return context.themeColors.onSurfaceMuted;
   }
 
   @override
   Widget build(BuildContext context) {
     final qualifies = highlightQualifiers && row.qualifies;
-    final rankColor = qualifies ? AppColors.win : context.themeColors.onSurfaceMuted;
+    final rankColor =
+        qualifies ? context.themeColors.win : context.themeColors.onSurfaceMuted;
     final statColor = context.themeColors.onSurfaceMuted;
     final ptsColor = context.themeColors.onSurface;
 
@@ -404,7 +405,7 @@ class _StandingsTableRow extends StatelessWidget {
               Container(
                 width: 3,
                 decoration: BoxDecoration(
-                  color: AppColors.win,
+                  color: context.themeColors.win,
                   borderRadius: const BorderRadius.horizontal(
                     left: Radius.circular(6),
                   ),
@@ -507,8 +508,8 @@ class _StandingsCardFooter extends StatelessWidget {
           width: 5,
           height: 5,
           margin: const EdgeInsets.only(top: 4),
-          decoration: const BoxDecoration(
-            color: AppColors.win,
+          decoration: BoxDecoration(
+            color: context.themeColors.win,
             shape: BoxShape.circle,
           ),
         ),

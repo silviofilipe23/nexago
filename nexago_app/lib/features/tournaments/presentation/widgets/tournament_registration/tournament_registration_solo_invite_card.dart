@@ -50,10 +50,10 @@ class TournamentRegistrationSoloInviteCard extends StatelessWidget {
                     color: AppColors.pending.withValues(alpha: 0.16),
                     borderRadius: BorderRadius.circular(11),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.hourglass_top_rounded,
                     size: 20,
-                    color: AppColors.pending,
+                    color: context.themeColors.pending,
                   ),
                 ),
                 const SizedBox(width: 12),

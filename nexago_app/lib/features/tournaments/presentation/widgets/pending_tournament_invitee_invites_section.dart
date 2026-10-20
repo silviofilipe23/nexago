@@ -495,7 +495,7 @@ class _InviterAvatar extends StatelessWidget {
             width: 14,
             height: 14,
             decoration: BoxDecoration(
-              color: AppColors.win,
+              color: context.themeColors.win,
               shape: BoxShape.circle,
               border: Border.all(
                 color: context.themeColors.surfaceCard,

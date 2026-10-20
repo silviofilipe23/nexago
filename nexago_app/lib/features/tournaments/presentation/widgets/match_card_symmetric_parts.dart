@@ -99,11 +99,11 @@ class _StateMark extends StatelessWidget {
     final isLive = row.state == TournamentMatchRowState.live;
 
     final color = switch (row.state) {
-      TournamentMatchRowState.live => AppColors.live,
-      TournamentMatchRowState.done => AppColors.win,
+      TournamentMatchRowState.live => colors.live,
+      TournamentMatchRowState.done => colors.win,
       TournamentMatchRowState.scheduled ||
       TournamentMatchRowState.tbd =>
-        AppColors.pending,
+        colors.pending,
       TournamentMatchRowState.canceled => colors.onSurfaceMuted,
     };
 

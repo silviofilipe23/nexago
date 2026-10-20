@@ -203,7 +203,7 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
               Icon(
                 Icons.handshake_outlined,
                 size: 20,
-                color: AppColors.pending,
+                color: context.themeColors.pending,
               ),
               SizedBox(width: 8),
               Expanded(
@@ -268,7 +268,7 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
               progressLabel!,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: isFullyPaid
-                    ? AppColors.win
+                    ? context.themeColors.win
                     : context.themeColors.onSurface,
                 fontWeight: FontWeight.w600,
               ),

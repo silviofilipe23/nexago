@@ -459,7 +459,7 @@ class _PendingBody extends ConsumerWidget {
               child: OutlinedButton(
                 onPressed: cancelling ? null : onCancel,
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.live,
+                  foregroundColor: context.themeColors.live,
                   side:
                       BorderSide(color: AppColors.live.withValues(alpha: 0.4)),
                   shape: RoundedRectangleBorder(
@@ -931,15 +931,15 @@ class _ReservedSlotBox extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.lock_clock_outlined,
                 size: 16,
-                color: AppColors.pending,
+                color: colors.pending,
               ),
               const SizedBox(width: 6),
               Text(
                 'VAGA RESERVADA',
-                style: AppTypography.eyebrow.copyWith(color: AppColors.pending),
+                style: AppTypography.eyebrow.copyWith(color: colors.pending),
               ),
               const Spacer(),
               Text(
@@ -947,7 +947,7 @@ class _ReservedSlotBox extends StatelessWidget {
                 style: AppTypography.mono(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.pending,
+                  color: colors.pending,
                 ),
               ),
             ],

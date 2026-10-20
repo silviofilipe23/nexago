@@ -90,7 +90,7 @@ class _InviteCard extends StatelessWidget {
                 ),
                 child: Icon(
                   isPending ? Icons.schedule_rounded : Icons.payments_outlined,
-                  color: accent,
+                  color: context.themeColors.readableTone(accent),
                 ),
               ),
               SizedBox(width: 12),

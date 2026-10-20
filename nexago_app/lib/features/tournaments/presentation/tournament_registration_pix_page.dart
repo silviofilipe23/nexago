@@ -631,7 +631,7 @@ class _TournamentRegistrationPixPageState
                               textAlign: TextAlign.center,
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
-                                    color: AppColors.win,
+                                    color: context.themeColors.win,
                                     fontWeight: FontWeight.w600,
                                   ),
                             ),

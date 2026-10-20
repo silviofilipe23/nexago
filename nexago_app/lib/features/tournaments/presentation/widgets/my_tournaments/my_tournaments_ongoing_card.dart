@@ -209,7 +209,7 @@ class _StatusPill extends StatelessWidget {
         style: AppTypography.mono(
           fontSize: 9,
           fontWeight: FontWeight.w700,
-          color: color,
+          color: context.themeColors.readableTone(color),
           letterSpacing: 0.2,
         ),
       ),

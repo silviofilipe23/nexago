@@ -179,7 +179,7 @@ class TournamentDetailCategoryPickSection extends StatelessWidget {
                   style: AppTypography.soraRegular(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
-                    color: vacancy.captionColor,
+                    color: context.themeColors.readableTone(vacancy.captionColor),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -203,7 +203,7 @@ class TournamentDetailCategoryPickSection extends StatelessWidget {
                           style: AppTypography.mono(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
-                            color: AppColors.win,
+                            color: context.themeColors.win,
                             letterSpacing: 0.4,
                           ),
                         ),

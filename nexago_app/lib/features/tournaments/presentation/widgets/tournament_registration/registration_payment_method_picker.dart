@@ -122,7 +122,11 @@ class _MethodTile extends StatelessWidget {
                     color: accent.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, color: accent, size: 24),
+                  child: Icon(
+                    icon,
+                    color: context.themeColors.readableTone(accent),
+                    size: 24,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

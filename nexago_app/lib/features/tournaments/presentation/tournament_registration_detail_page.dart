@@ -359,7 +359,9 @@ class _StatusCard extends StatelessWidget {
             children: [
               Text(
                 _badgeLabel,
-                style: AppTypography.eyebrow.copyWith(color: accent),
+                style: AppTypography.eyebrow.copyWith(
+                  color: colors.readableTone(accent),
+                ),
               ),
               const SizedBox(height: AppSpacing.md),
               Row(

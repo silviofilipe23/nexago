@@ -168,7 +168,12 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
                 physics: const AlwaysScrollableScrollPhysics(
                   parent: BouncingScrollPhysics(),
                 ),
-                slivers: [..._buildBodySlivers(state: state)],
+                slivers: [
+                  ..._buildBodySlivers(
+                    state: state,
+                    colors: context.themeColors,
+                  ),
+                ],
               ),
             ),
           ),
@@ -267,7 +272,10 @@ class _DiscoverAppBar extends StatelessWidget {
   }
 }
 
-List<Widget> _buildBodySlivers({required TeamDiscoverState state}) {
+List<Widget> _buildBodySlivers({
+  required TeamDiscoverState state,
+  required AppThemeColors colors,
+}) {
   if (state.isLoading && state.displayEntries.isEmpty) {
     return const [SliverFillRemaining(child: TeamDiscoverListSkeleton())];
   }
@@ -282,7 +290,7 @@ List<Widget> _buildBodySlivers({required TeamDiscoverState state}) {
             child: Text(
               'Não foi possível carregar equipes.\n${state.errorMessage}',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.live),
+              style: TextStyle(color: colors.live),
             ),
           ),
         ),

@@ -137,7 +137,7 @@ class _ArenaProfessorInviteSheetState
             arenaId: widget.arenaId,
             professorUserId: picked.uid,
             type: _type,
-            permissions: _permissions,
+            permissions: arenaProfessorPermissionsToSend(_permissions, _type),
             message: _message.text,
           );
       if (!mounted) return;
@@ -245,6 +245,7 @@ class _ArenaProfessorInviteSheetState
         const SizedBox(height: 2),
         const ProfessorLinksKicker('3 · Permissões propostas'),
         ArenaProfessorPermissionToggles(
+          type: _type,
           permissions: _permissions,
           dense: true,
           onChanged: _sending

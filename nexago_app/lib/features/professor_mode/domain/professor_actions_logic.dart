@@ -1,3 +1,4 @@
+import '../../arena/domain/aulas/arena_class.dart';
 import '../../arena/domain/aulas/arena_class_logic.dart';
 import 'professor_actions.dart';
 import 'professor_students.dart';
@@ -90,7 +91,7 @@ List<ProfessorActionSession> professorMakeupSessions(
   final list = [
     for (final s in ctx.sessions)
       if (s.free > 0 &&
-          s.type.id == 'turma' &&
+          s.type == ArenaClassType.turma &&
           (until == null || s.date.compareTo(until) <= 0) &&
           !s.extras.any((e) => e.studentId == studentId))
         s

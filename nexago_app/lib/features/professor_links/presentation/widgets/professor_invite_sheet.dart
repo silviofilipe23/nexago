@@ -163,7 +163,8 @@ class _ProfessorInviteSheetState extends ConsumerState<ProfessorInviteSheet> {
             border: Border.all(color: ProfessorLinksStyle.line(colors)),
           ),
           child: ProfessorPermissionList(
-            permissions: link.permissions,
+            permissions:
+                professorPermissionsForType(link.permissions, link.type),
             dense: true,
           ),
         ),

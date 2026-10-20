@@ -142,7 +142,9 @@ export interface ArenaBookingDoc {
 export class ArenaBookingError extends Error {
   constructor(
     message: string,
-    readonly code: 'SLOT_CONFLICT' | 'BLOCKED_ATHLETE' | null = null,
+    /** `PROFESSOR_DENIED`: a reserva como professor foi recusada pelo vínculo (`details.reason`
+     *  = `no_link` / `not_active` / `permission_off`) — dá para reservar como atleta. */
+    readonly code: 'SLOT_CONFLICT' | 'BLOCKED_ATHLETE' | 'PROFESSOR_DENIED' | null = null,
     /** Campo que o servidor apontou (`details.field`), ex.: `squadCode` no checkout. */
     readonly field: string | null = null,
   ) {
@@ -155,8 +157,8 @@ export class ArenaBookingError extends Error {
 }
 
 /** Mesmo mapeamento de mensagens do `BookingService._mapFunctionsMessage` (Flutter). */
-function mapCallableError(err: unknown): ArenaBookingError {
-  const fb = err as { code?: string; message?: string; details?: { field?: unknown } };
+export function mapCallableError(err: unknown): ArenaBookingError {
+  const fb = err as { code?: string; message?: string; details?: { field?: unknown; reason?: unknown } };
   const code = (fb.code ?? '').replace(/^functions\//, '');
   const detail = typeof fb.message === 'string' && fb.message.trim() ? fb.message.trim() : null;
   // Código de embaixador recusado: a mensagem vai para o campo, não para o toast.
@@ -164,11 +166,16 @@ function mapCallableError(err: unknown): ArenaBookingError {
   switch (code) {
     case 'unauthenticated':
       return new ArenaBookingError('Faça login para confirmar a reserva.');
-    case 'permission-denied':
+    case 'permission-denied': {
+      const reason = fb.details?.reason;
+      if (reason === 'no_link' || reason === 'not_active' || reason === 'permission_off') {
+        return new ArenaBookingError(detail ?? 'Seu vínculo não libera reservar como professor.', 'PROFESSOR_DENIED');
+      }
       return new ArenaBookingError(
         detail ?? 'Sem permissão para concluir a reserva.',
         detail?.includes('bloqueada') ? 'BLOCKED_ATHLETE' : null,
       );
+    }
     case 'not-found':
       return new ArenaBookingError(detail ?? 'Arena ou quadra não encontrada.');
     case 'invalid-argument':
@@ -257,6 +264,8 @@ export async function createArenaBooking(
     couponCode?: string;
     /** Esporte escolhido entre os da quadra (`bookingSportOptions`) — o servidor recusa outro. */
     sport?: string;
+    /** Reservar como professor (vínculo com "Reservar quadras"); ausente = reserva de atleta. */
+    asProfessor?: boolean;
   },
 ): Promise<CreateArenaBookingResult> {
   if (options.paymentMode === 'pix' && options.paymentFraction !== 0.5 && options.paymentFraction !== 1) {
@@ -272,6 +281,7 @@ export async function createArenaBooking(
       paymentMode: options.paymentMode,
       ...(options.paymentMode === 'pix' ? { paymentFraction: options.paymentFraction } : {}),
       ...(options.sport?.trim() ? { sport: options.sport.trim() } : {}),
+      ...(options.asProfessor ? { asProfessor: true } : {}),
     });
     const data = result.data;
     if (!data?.bookingId || !Number.isFinite(Number(data.amountReais))) {

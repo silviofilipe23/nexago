@@ -26,6 +26,7 @@ import {
   type MyClassAgendaItem,
   type MyClassChargeItem,
 } from '../data/class-agenda-repository';
+import { teacherAttendanceCta } from '../professor/teacher-attendance.model';
 import {
   acceptPartnerInvite,
   declinePartnerInvite,
@@ -401,11 +402,19 @@ export function classEntryToEvent(e: MyClassAgendaItem, now: Date = new Date()):
     location: e.arenaName,
     statusLabel,
     statusTone: canceled || isPast ? 'neutral' : e.myMark === 'absent' ? 'warning' : 'confirmed',
-    ctaLabel: 'Ver arena',
-    ctaPrimary: false,
-    link: e.arenaId ? ['/reservar', e.arenaId] : null,
+    ...classEventCta(e, now),
     isPast: isPast || canceled,
   };
+}
+
+/** Aula que dou, com o vínculo liberando a chamada: o botão leva à chamada. Fora disso, à
+ *  página da arena, como sempre. */
+function classEventCta(e: MyClassAgendaItem, now: Date): Pick<AgendaEvent, 'ctaLabel' | 'ctaPrimary' | 'link'> {
+  const attendance = teacherAttendanceCta(e, now);
+  if (attendance && e.sessionId) {
+    return { ctaLabel: attendance, ctaPrimary: true, link: ['/professor', 'aulas', e.sessionId] };
+  }
+  return { ctaLabel: 'Ver arena', ctaPrimary: false, link: e.arenaId ? ['/reservar', e.arenaId] : null };
 }
 
 /** Agenda real: mescla reservas (`arenaBookings`), inscrições em torneio (`inscriptions` +

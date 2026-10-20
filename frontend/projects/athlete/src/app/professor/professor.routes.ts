@@ -13,4 +13,11 @@ export const PROFESSOR_ROUTES: Routes = [
     path: 'arenas/:linkId',
     loadComponent: () => import('./professor-link-detail.component').then((m) => m.ProfessorLinkDetailComponent),
   },
+  // Chamada de uma aula que dou (vínculo com "Gerenciar as próprias aulas"); entrada pelo
+  // "Fazer chamada" da agenda.
+  {
+    path: 'aulas/:sessionId',
+    loadComponent: () =>
+      import('./teacher-class-attendance.component').then((m) => m.TeacherClassAttendanceComponent),
+  },
 ];

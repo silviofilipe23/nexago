@@ -15,13 +15,15 @@ describe('rotas do professor', () => {
   });
 
   it('lista e detalhe nas URLs dos avisos', () => {
-    expect(PROFESSOR_ROUTES.map((r) => r.path)).toEqual(['', 'arenas', 'arenas/:linkId']);
+    expect(PROFESSOR_ROUTES.map((r) => r.path)).toEqual(['', 'arenas', 'arenas/:linkId', 'aulas/:sessionId']);
     expect(PROFESSOR_ROUTES[0]!.redirectTo).toBe('arenas');
   });
 
   it('usam a moldura do painel (sem o container da raiz)', () => {
     expect(chromeHiddenForUrl('/professor/arenas')).toBe(true);
     expect(chromeHiddenForUrl('/professor/arenas/a1_u1')).toBe(true);
+    // Chamada das aulas que dou ("Fazer chamada" da agenda).
+    expect(chromeHiddenForUrl('/professor/aulas/class_c1_2026-10-20')).toBe(true);
     expect(chromeHiddenForUrl('/professores')).toBe(false);
   });
 });

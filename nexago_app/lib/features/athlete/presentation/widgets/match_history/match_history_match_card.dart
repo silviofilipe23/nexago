@@ -22,11 +22,9 @@ class MatchHistoryMatchCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final (accent, resultLabel) = switch (match.result) {
-      AthleteMatchResult.win => (AppColors.win, 'V'),
-      AthleteMatchResult.loss => (AppColors.live, 'D'),
-      AthleteMatchResult.draw => (context.themeColors.onSurfaceMuted, 'E'),
-    };
+    final isWin = match.isWin;
+    final accent = isWin ? AppColors.win : AppColors.live;
+    final resultLabel = isWin ? 'V' : 'D';
     final dateStr =
         DateFormat('d MMM', 'pt_BR').format(toNexagoEventLocal(match.playedAt));
     final radius = compact ? 12.0 : 14.0;

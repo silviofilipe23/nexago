@@ -21,6 +21,7 @@ class BookingResultScorePage extends StatefulWidget {
     required this.candidates,
     this.ownerPlayerId,
     this.onSave,
+    this.confirmBeforeSave,
     this.localOnlyNotice = 'O placar vai só para a arte do story: não fica '
         'salvo nem conta no seu histórico ou no ranking.',
   });
@@ -40,6 +41,10 @@ class BookingResultScorePage extends StatefulWidget {
   /// O aviso quando não grava ([onSave] nulo).
   final String localOnlyNotice;
 
+  /// Pergunta antes de gravar (edição de pelada já salva: as confirmações
+  /// voltam a zero). `null` grava direto.
+  final String? confirmBeforeSave;
+
   @override
   State<BookingResultScorePage> createState() => _BookingResultScorePageState();
 }
@@ -54,10 +59,42 @@ class _BookingResultScorePageState extends State<BookingResultScorePage> {
     if (_saving) return;
     final save = widget.onSave;
     if (save != null) {
-      // O servidor recusa placar zerado (não teria o que confirmar).
-      if (!_r.hasScore) {
-        showAppSnackBar(context, 'Lance o placar de pelo menos um set.');
+      // Mesmas recusas do servidor, antes de ir até ele: pelada não tem
+      // empate, e todo time precisa de jogador com conta.
+      final tie = _r.firstTiedGame;
+      if (tie != null) {
+        showAppSnackBar(
+          context,
+          'O ${_r.isRotation ? 'jogo' : 'set'} ${tie + 1} está empatado: '
+          'ajuste o placar.',
+        );
         return;
+      }
+      if (_r.hasEmptyTeam) {
+        showAppSnackBar(context, 'Monte todos os times antes de salvar.');
+        return;
+      }
+      final ask = widget.confirmBeforeSave;
+      if (ask != null) {
+        final ok = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Salvar o placar novo?'),
+            content: Text(ask),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Voltar'),
+              ),
+              FilledButton(
+                key: const Key('booking-result-save-confirm'),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Salvar'),
+              ),
+            ],
+          ),
+        );
+        if (ok != true || !mounted) return;
       }
       setState(() => _saving = true);
       try {

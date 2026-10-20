@@ -10,6 +10,15 @@ abstract final class AnalyticsEvents {
   static const tournamentRegistrationConfirmed =
       'tournament_registration_confirmed';
 
+  // Peladas (placar do pós-jogo, spec "Peladas" §10).
+  static const peladasTabViewed = 'peladas_tab_viewed';
+  static const peladaFilterApplied = 'pelada_filter_applied';
+  static const peladaOpened = 'pelada_opened';
+  static const peladaConfirmed = 'pelada_confirmed';
+  static const peladaDisputed = 'pelada_disputed';
+  static const peladaEdited = 'pelada_edited';
+  static const peladaShared = 'pelada_shared';
+
   // Funil do Bora Jogar (match finder):
   // builder aberto → convite enviado → aceito → check-in → avaliação.
   static const friendlyMatchBuilderOpened = 'friendly_match_builder_opened';

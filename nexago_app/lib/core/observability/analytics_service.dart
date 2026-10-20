@@ -329,6 +329,38 @@ class AnalyticsService {
         name: AnalyticsEvents.storeRebuy,
         parameters: storeEventParams(orderId: orderId),
       );
+
+  // --- Peladas ---
+
+  Future<void> logPeladasTabViewed() =>
+      _analytics.logEvent(name: AnalyticsEvents.peladasTabViewed);
+
+  Future<void> logPeladaFilterApplied(String filter) => _analytics.logEvent(
+        name: AnalyticsEvents.peladaFilterApplied,
+        parameters: {'filter': filter},
+      );
+
+  /// [source]: `history` · `profile` · `push`.
+  Future<void> logPeladaOpened(String source) => _analytics.logEvent(
+        name: AnalyticsEvents.peladaOpened,
+        parameters: {'source': source},
+      );
+
+  Future<void> logPeladaConfirmed() =>
+      _analytics.logEvent(name: AnalyticsEvents.peladaConfirmed);
+
+  Future<void> logPeladaDisputed(String reason) => _analytics.logEvent(
+        name: AnalyticsEvents.peladaDisputed,
+        parameters: {'reason': reason.length > 100 ? reason.substring(0, 100) : reason},
+      );
+
+  Future<void> logPeladaEdited(int version) => _analytics.logEvent(
+        name: AnalyticsEvents.peladaEdited,
+        parameters: {'version': version},
+      );
+
+  Future<void> logPeladaShared() =>
+      _analytics.logEvent(name: AnalyticsEvents.peladaShared);
 }
 
 final analyticsServiceProvider = Provider<AnalyticsService>(

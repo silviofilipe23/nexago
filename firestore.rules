@@ -1804,9 +1804,13 @@ service cloud.firestore {
     // Lê quem está no placar com conta (`playerUids`, gravado pelo servidor).
     // O app escuta por QUERY (`playerUids array-contains uid`): o `get` de um
     // placar que ainda vai nascer seria negado e mataria o listener.
+    // Placar do pós-jogo (pelada): quem está no placar lê sempre; os outros
+    // atletas só o confirmado (perfil público e link de compartilhar).
     match /bookingResults/{bookingId} {
-      allow read: if request.auth != null &&
-        request.auth.uid in resource.data.playerUids;
+      allow read: if request.auth != null && (
+        request.auth.uid in resource.data.playerUids ||
+        resource.data.status == 'confirmed'
+      );
       allow write: if false;
     }
 

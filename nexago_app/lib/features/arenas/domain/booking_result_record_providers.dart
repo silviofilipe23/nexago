@@ -38,3 +38,17 @@ final savedBookingResultProvider =
 final myBookingResultsLoadedProvider = Provider.autoDispose<bool>(
   (ref) => ref.watch(myBookingResultsProvider).hasValue,
 );
+
+/// Uma pelada pelo id (detalhe 10c), ao vivo. `null` sem doc ou sem acesso.
+final peladaProvider = StreamProvider.autoDispose
+    .family<SavedBookingResult?, String>((ref, bookingId) {
+      return ref.watch(bookingResultRepositoryProvider).watchOne(bookingId);
+    });
+
+/// As peladas confirmadas de outro atleta (perfil público, 10b de terceiros).
+final userConfirmedPeladasProvider = StreamProvider.autoDispose
+    .family<List<SavedBookingResult>, String>((ref, userId) {
+      return ref
+          .watch(bookingResultRepositoryProvider)
+          .watchConfirmedOf(userId);
+    });

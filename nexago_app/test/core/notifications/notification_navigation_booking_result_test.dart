@@ -2,19 +2,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/notifications/notification_navigation.dart';
 import 'package:nexago_app/core/router/routes.dart';
 
-/// Pushes do placar do pós-jogo (`booking-result-write.ts`): só `bookingId`,
-/// sem `url` — o app de antes da tela cai no fallback de reserva.
+/// Pushes da pelada (`booking-result-write.ts`): só `bookingId`, sem `url` —
+/// o app de antes da tela cai no fallback de reserva.
 void main() {
   group('resolveNotificationRoute — placar do pós-jogo', () {
     for (final type in [
       'booking_result_pending',
-      'booking_result_confirmed',
+      'booking_result_reminder',
       'booking_result_disputed',
+      // Do #781 (não sai mais, mas pode estar na bandeja).
+      'booking_result_confirmed',
     ]) {
-      test('$type abre a conferência do placar', () {
+      test('$type abre o detalhe da pelada', () {
         expect(
           resolveNotificationRoute({'type': type, 'bookingId': ' bk 1 '}),
-          '/reservar/resultado/bk%201',
+          '/peladas/bk%201',
         );
       });
     }

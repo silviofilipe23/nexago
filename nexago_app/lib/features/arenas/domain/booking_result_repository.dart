@@ -12,11 +12,20 @@ abstract class BookingResultRepository {
   /// "Salvar placar": cria ou corrige o placar da reserva [bookingId].
   Future<void> save(String bookingId, BookingResult result);
 
-  /// O adversário confirma (`confirm: true`) ou contesta a [version] que viu.
+  /// Uma pelada pelo id, ao vivo — para quem está nela ou, confirmada, para
+  /// qualquer atleta (link, perfil público). `null` sem doc ou sem acesso.
+  Stream<SavedBookingResult?> watchOne(String bookingId);
+
+  /// As peladas CONFIRMADAS de outro atleta (perfil público), ao vivo.
+  Stream<List<SavedBookingResult>> watchConfirmedOf(String userId);
+
+  /// Quem está no placar confirma (`confirm: true`) ou contesta a [version]
+  /// que viu; contestar exige [reason].
   Future<void> respond(
     String bookingId, {
     required bool confirm,
     required int version,
+    String? reason,
   });
 }
 

@@ -10,21 +10,27 @@ import '../../../domain/match_history/athlete_match_history_logic.dart';
 import '../../widgets/athlete_profile_avatar.dart';
 import '../../widgets/match_history/match_history_match_card.dart';
 
-enum PublicProfileTab { overview, matches, achievements }
+enum PublicProfileTab { overview, matches, peladas, achievements }
 
 class PublicProfileTabBar extends StatelessWidget {
   const PublicProfileTabBar({
     super.key,
     required this.selected,
     required this.onChanged,
+    this.showPeladas = false,
   });
 
   final PublicProfileTab selected;
   final ValueChanged<PublicProfileTab> onChanged;
 
+  /// Só com pelada confirmada no ano (spec 00d).
+  final bool showPeladas;
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    // Com a aba Peladas são quatro: rola na horizontal em vez de estourar.
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       child: Row(
         children: [
@@ -40,6 +46,15 @@ class PublicProfileTabBar extends StatelessWidget {
             onTap: () => onChanged(PublicProfileTab.matches),
           ),
           SizedBox(width: 8),
+          if (showPeladas) ...[
+            _TabChip(
+              key: const Key('public-profile-tab-peladas'),
+              label: 'Peladas',
+              selected: selected == PublicProfileTab.peladas,
+              onTap: () => onChanged(PublicProfileTab.peladas),
+            ),
+            SizedBox(width: 8),
+          ],
           _TabChip(
             label: 'Conquistas',
             selected: selected == PublicProfileTab.achievements,
@@ -53,6 +68,7 @@ class PublicProfileTabBar extends StatelessWidget {
 
 class _TabChip extends StatelessWidget {
   const _TabChip({
+    super.key,
     required this.label,
     required this.selected,
     required this.onTap,

@@ -175,7 +175,7 @@ class _PodiumRow extends StatelessWidget {
               style: AppTypography.mono(
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
-                color: AppColors.win,
+                color: context.themeColors.win,
               ),
             ),
           ),

@@ -54,9 +54,9 @@ class StoreHomeEntry extends ConsumerWidget {
                     color: AppColors.brand.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.shopping_bag_outlined,
-                    color: AppColors.brand,
+                    color: colors.brandText,
                     size: 22,
                   ),
                 ),

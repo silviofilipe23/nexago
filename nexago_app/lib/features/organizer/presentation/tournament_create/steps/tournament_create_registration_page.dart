@@ -314,9 +314,9 @@ class _RegistrationWarning extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
+          Icon(
             Icons.warning_amber_rounded,
-            color: AppColors.pending,
+            color: context.themeColors.pending,
             size: 18,
           ),
           const SizedBox(width: 10),

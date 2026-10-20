@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 import '../../../domain/tournament_partner_invite.dart';
@@ -109,7 +108,7 @@ class TournamentRegistrationSentInvitesList extends StatelessWidget {
                         ? () => onCancel(invite)
                         : null,
                     style: TextButton.styleFrom(
-                      foregroundColor: AppColors.live,
+                      foregroundColor: context.themeColors.live,
                     ),
                     child: const Text('Cancelar'),
                   ),

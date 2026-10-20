@@ -413,10 +413,10 @@ class ScheduleTimeConflictCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(
+            Icon(
               Icons.notifications_none_rounded,
               size: 18,
-              color: AppColors.pending,
+              color: context.themeColors.pending,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -428,7 +428,7 @@ class ScheduleTimeConflictCard extends StatelessWidget {
                     style: AppTypography.soraRegular(
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.pending,
+                      color: context.themeColors.pending,
                     ),
                   ),
                   const SizedBox(height: 6),

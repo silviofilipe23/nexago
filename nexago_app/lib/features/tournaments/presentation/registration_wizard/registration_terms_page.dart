@@ -267,7 +267,7 @@ class _RegistrationTermsPageState extends ConsumerState<RegistrationTermsPage> {
                     style: AppTypography.mono(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.pending,
+                      color: context.themeColors.pending,
                       letterSpacing: 1.2,
                     ),
                   ),
@@ -380,7 +380,7 @@ class _GuaranteeRow extends StatelessWidget {
             borderRadius: AppRadii.mdAll,
             border: Border.fromBorderSide(AppBorders.subtleSide(colors)),
           ),
-          child: Icon(icon, size: 18, color: iconColor),
+          child: Icon(icon, size: 18, color: colors.readableTone(iconColor)),
         ),
         const SizedBox(width: AppSpacing.md),
         Expanded(

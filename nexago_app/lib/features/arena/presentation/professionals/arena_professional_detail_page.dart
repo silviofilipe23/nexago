@@ -503,7 +503,7 @@ class _Actions extends StatelessWidget {
           secondary.add(ProfessorLinksGhostButton(
             key: const Key('arena-professor-action-end'),
             label: 'Encerrar vínculo',
-            color: AppColors.live,
+            color: context.themeColors.live,
             height: 46,
             onPressed: busy ? null : onEnd,
           ));
@@ -511,7 +511,7 @@ class _Actions extends StatelessWidget {
           secondary.add(ProfessorLinksGhostButton(
             key: const Key('arena-professor-action-cancel'),
             label: 'Cancelar convite',
-            color: AppColors.live,
+            color: context.themeColors.live,
             height: 46,
             onPressed: busy ? null : onCancelInvite,
           ));

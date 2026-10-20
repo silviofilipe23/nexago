@@ -236,7 +236,7 @@ class TournamentDiscoveryCard extends StatelessWidget {
                           Text(
                             total > 0 ? '$used/$total DUPLAS' : '',
                             style: AppTypography.mono(
-                              color: statusColor,
+                              color: context.themeColors.readableTone(statusColor),
                               fontWeight: FontWeight.w500,
                               letterSpacing: 0.6,
                             ),
@@ -275,7 +275,7 @@ class TournamentDiscoveryCard extends StatelessWidget {
                       Text(
                         '${tournament.liveMatchesNow} jogos ao vivo agora',
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppColors.live,
+                          color: context.themeColors.live,
                           fontWeight: FontWeight.w700,
                         ),
                       ),

@@ -289,7 +289,9 @@ class _ValidateTeamRow extends StatelessWidget {
           style: AppTypography.mono(
             fontSize: 28,
             fontWeight: FontWeight.w800,
-            color: setsWonIsWin ? AppColors.win : context.themeColors.onSurface,
+            color: setsWonIsWin
+                ? context.themeColors.win
+                : context.themeColors.onSurface,
             height: 1,
           ),
         ),
@@ -379,7 +381,7 @@ class _ValidateSetCard extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                     color: aWins
-                        ? AppColors.win
+                        ? context.themeColors.win
                         : context.themeColors.onSurface,
                   ),
                 ),
@@ -397,7 +399,7 @@ class _ValidateSetCard extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                     color: !aWins && scoreB! > scoreA!
-                        ? AppColors.win
+                        ? context.themeColors.win
                         : context.themeColors.onSurface,
                   ),
                 ),
@@ -460,7 +462,7 @@ class _ValidateConfirmationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = confirmed
-        ? AppColors.win
+        ? context.themeColors.win
         : context.themeColors.onSurfaceMuted;
 
     return Container(

@@ -251,7 +251,7 @@ class _AvatarColumn extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 9,
               fontWeight: FontWeight.w700,
-              color: statusColor,
+              color: context.themeColors.readableTone(statusColor),
               letterSpacing: 0.3,
             ),
           ),

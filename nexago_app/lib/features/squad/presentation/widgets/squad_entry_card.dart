@@ -87,7 +87,7 @@ class SquadEntryCard extends ConsumerWidget {
                     member != null
                         ? Icons.groups_rounded
                         : Icons.mail_outline_rounded,
-                    color: AppColors.brand,
+                    color: colors.brandText,
                     size: 22,
                   ),
                 ),

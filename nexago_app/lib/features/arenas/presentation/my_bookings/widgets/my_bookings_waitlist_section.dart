@@ -31,7 +31,11 @@ class MyBookingsWaitlistSection extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.hourglass_top_rounded, size: 18, color: AppColors.brand),
+              Icon(
+                Icons.hourglass_top_rounded,
+                size: 18,
+                color: context.themeColors.brandText,
+              ),
               SizedBox(width: 8),
               Text(
                 'Minha lista de espera',
@@ -90,7 +94,8 @@ class _WaitlistEntryCardState extends State<_WaitlistEntryCard> {
     final accent = notified ? AppColors.win : AppColors.brand;
     // Ícone e texto: o tom do tema, legível no claro. A borda e o fundo do
     // ícone seguem no cru, translúcidos.
-    final ink = notified ? context.themeColors.win : AppColors.brand;
+    final ink =
+        notified ? context.themeColors.win : context.themeColors.brandText;
     final dateLabel = formatBookingDateHeader(entry.dateKey);
     final remaining = entry.remainingNotifyWindow;
 

@@ -85,7 +85,11 @@ class ArenaPlanStatusBanner extends ConsumerWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(content.icon, color: content.color, size: 22),
+                Icon(
+                  content.icon,
+                  color: context.themeColors.readableTone(content.color),
+                  size: 22,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(

@@ -44,12 +44,12 @@ Widget _hint(BuildContext context, String text) => Text(
       ),
     );
 
-Widget _errorLine(String text) => Padding(
+Widget _errorLine(BuildContext context, String text) => Padding(
       padding: const EdgeInsets.only(top: 10),
       child: Text(
         text,
-        style: const TextStyle(
-          color: AppColors.live,
+        style: TextStyle(
+          color: context.themeColors.live,
           fontWeight: FontWeight.w600,
           fontSize: 12.5,
         ),
@@ -214,7 +214,7 @@ class _PayoutModelSheetState extends ConsumerState<_PayoutModelSheet> {
             'rateada pelos horários. A taxa de matrícula fica com a arena. O '
             'pagamento ao professor é feito por fora — o app só registra.',
           ),
-          if (_error != null) _errorLine(_error!),
+          if (_error != null) _errorLine(context, _error!),
           const SizedBox(height: 14),
           ArenaClassPrimaryButton(
             label: 'Salvar repasse',
@@ -372,10 +372,10 @@ class _CloseSheetState extends ConsumerState<_CloseSheet> {
             Text(
               '${figures!.pendingSessions} aula(s) do mês estão com a chamada '
               'aberta e não entram. Feche a chamada antes, se for o caso.',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 height: 1.4,
-                color: AppColors.pending,
+                color: colors.pending,
               ),
             ),
           ],
@@ -448,7 +448,7 @@ class _CloseSheetState extends ConsumerState<_CloseSheet> {
             'O fechamento grava um retrato do mês. Até registrar o pagamento, '
             'dá para recalcular.',
           ),
-          if (_error != null) _errorLine(_error!),
+          if (_error != null) _errorLine(context, _error!),
           const SizedBox(height: 14),
           ArenaClassPrimaryButton(
             label: recalc ? 'Recalcular' : 'Fechar mês',
@@ -609,7 +609,7 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
             context,
             'O pagamento é feito direto ao professor — o app só registra.',
           ),
-          if (_error != null) _errorLine(_error!),
+          if (_error != null) _errorLine(context, _error!),
           const SizedBox(height: 14),
           ArenaClassPrimaryButton(
             label: 'Confirmar pagamento',

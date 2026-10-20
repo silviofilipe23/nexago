@@ -175,9 +175,9 @@ class _ArenaClubFormPageState extends ConsumerState<ArenaClubFormPage> {
               padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.info_outline_rounded,
-                    color: AppColors.pending,
+                    color: context.themeColors.pending,
                     size: 18,
                   ),
                   const SizedBox(width: 10),

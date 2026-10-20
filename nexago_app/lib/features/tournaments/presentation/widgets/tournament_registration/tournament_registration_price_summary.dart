@@ -49,7 +49,7 @@ class TournamentRegistrationPriceSummary extends StatelessWidget {
                     : formatRegistrationMoney(quote.entryFee),
                 valueStyle: theme.textTheme.bodyLarge?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: isFree ? AppColors.win : context.themeColors.onSurface,
+                  color: isFree ? context.themeColors.win : context.themeColors.onSurface,
                 ),
               ),
               if (!isFree) ...[
@@ -91,7 +91,7 @@ class TournamentRegistrationPriceSummary extends StatelessWidget {
                       style: AppTypography.mono(
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
-                        color: isFree ? AppColors.win : AppColors.brand,
+                        color: isFree ? context.themeColors.win : AppColors.brand,
                         letterSpacing: -0.5,
                       ),
                     ),

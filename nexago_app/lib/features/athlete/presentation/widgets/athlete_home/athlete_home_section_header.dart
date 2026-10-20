@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 
@@ -40,7 +39,7 @@ class AthleteHomeSectionHeader extends StatelessWidget {
               fontSize: 12,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.2,
-              color: AppColors.brand,
+              color: context.themeColors.brandText,
             ),
           ),
         ],

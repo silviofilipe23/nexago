@@ -113,7 +113,9 @@ class _TrackerBlock extends StatelessWidget {
                 ),
                 child: Text(
                   'PASSO ${item.currentStep}/${item.totalSteps}',
-                  style: AppTypography.eyebrow.copyWith(color: AppColors.brand),
+                  style: AppTypography.eyebrow.copyWith(
+                    color: colors.brandText,
+                  ),
                 ),
               ),
             ],

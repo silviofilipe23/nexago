@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
@@ -43,7 +42,7 @@ class RegistrationWizardSpecRow extends StatelessWidget {
               textAlign: TextAlign.right,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: highlight
-                    ? AppColors.pending
+                    ? context.themeColors.pending
                     : context.themeColors.onSurface,
                 fontWeight: FontWeight.w800,
               ),

@@ -590,8 +590,8 @@ class _UniformSaveBadge extends StatelessWidget {
     final (label, color, icon) = switch (state) {
       UniformSaveState.idle => ('Escolha para salvar', colors.onSurfaceMuted, Icons.edit_outlined),
       UniformSaveState.saving => ('Salvando...', colors.onSurfaceMuted, Icons.sync_rounded),
-      UniformSaveState.saved => ('Salvo', AppColors.win, Icons.check_circle_outline_rounded),
-      UniformSaveState.failed => ('Não salvou', AppColors.live, Icons.error_outline_rounded),
+      UniformSaveState.saved => ('Salvo', colors.win, Icons.check_circle_outline_rounded),
+      UniformSaveState.failed => ('Não salvou', colors.live, Icons.error_outline_rounded),
     };
 
     return Row(

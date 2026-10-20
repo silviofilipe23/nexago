@@ -369,7 +369,7 @@ class ArenaFinancialWithdrawSection extends StatelessWidget {
                 child: Icon(
                   Icons.diamond_rounded,
                   size: 14,
-                  color: AppColors.win,
+                  color: context.themeColors.win,
                 ),
               ),
               const SizedBox(width: 10),
@@ -588,7 +588,7 @@ class ArenaFinancialMovementTile extends StatelessWidget {
                   ? Icons.arrow_downward_rounded
                   : Icons.arrow_upward_rounded,
               size: 18,
-              color: iconColor,
+              color: context.themeColors.readableTone(iconColor),
             ),
           ),
           const SizedBox(width: 12),
@@ -632,7 +632,7 @@ class ArenaFinancialMovementTile extends StatelessWidget {
                         style: AppTypography.mono(
                           fontSize: 8,
                           fontWeight: FontWeight.w800,
-                          color: badgeColor,
+                          color: context.themeColors.readableTone(badgeColor),
                           letterSpacing: 0.4,
                         ),
                       ),
@@ -664,7 +664,7 @@ class ArenaFinancialMovementTile extends StatelessWidget {
               fontSize: 13,
               fontWeight: FontWeight.w700,
               color: movement.isPositive
-                  ? AppColors.win
+                  ? context.themeColors.win
                   : context.themeColors.onSurface,
             ),
           ),
@@ -895,7 +895,7 @@ class _BalanceStatColumn extends StatelessWidget {
           style: AppTypography.mono(
             fontSize: 11,
             fontWeight: FontWeight.w700,
-            color: valueColor,
+            color: context.themeColors.readableTone(valueColor),
           ),
         ),
       ],

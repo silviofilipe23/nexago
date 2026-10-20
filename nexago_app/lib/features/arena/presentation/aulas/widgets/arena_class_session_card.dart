@@ -153,7 +153,7 @@ class ArenaClassSessionCard extends StatelessWidget {
                                     style: AppTypography.mono(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w600,
-                                      color: note.$2,
+                                      color: colors.readableTone(note.$2),
                                     ),
                                   ),
                                 ],
@@ -205,14 +205,15 @@ class _LiveBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final live = context.themeColors.live;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 6,
           height: 6,
-          decoration: const BoxDecoration(
-            color: AppColors.live,
+          decoration: BoxDecoration(
+            color: live,
             shape: BoxShape.circle,
           ),
         ),
@@ -221,7 +222,7 @@ class _LiveBadge extends StatelessWidget {
           'AGORA',
           style: AppTypography.mono(
             fontSize: 9,
-            color: AppColors.live,
+            color: live,
             letterSpacing: 0.9,
           ),
         ),

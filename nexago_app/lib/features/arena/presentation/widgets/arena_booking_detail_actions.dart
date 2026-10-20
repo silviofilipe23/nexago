@@ -114,7 +114,11 @@ class _ActionRowTile extends StatelessWidget {
                     color: context.themeColors.surfaceSheet,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, color: iconColor, size: 22),
+                  child: Icon(
+                    icon,
+                    color: context.themeColors.readableTone(iconColor),
+                    size: 22,
+                  ),
                 ),
                 SizedBox(width: 12),
                 Expanded(

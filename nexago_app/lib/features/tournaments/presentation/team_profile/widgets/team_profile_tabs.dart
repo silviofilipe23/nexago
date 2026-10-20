@@ -295,7 +295,7 @@ class _CampaignCard extends StatelessWidget {
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
                 color: entry.resultLabel == '1º'
-                    ? AppColors.win
+                    ? context.themeColors.win
                     : context.themeColors.onSurface,
               ),
             ),

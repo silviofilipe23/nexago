@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
-import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -143,7 +142,7 @@ class _ConfirmedRegistrationCard extends StatelessWidget {
     final colors = context.themeColors;
     final categoryName = registration.category?.name ?? 'Categoria';
     final statusColor =
-        registration.isPaid ? AppColors.win : AppColors.pending;
+        registration.isPaid ? colors.win : colors.pending;
 
     return NexaCard(
       onTap: () => _openRegistrationDetail(context),

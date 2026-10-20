@@ -485,7 +485,7 @@ class _OrganizerMatchQuickScorePageState
                   _declareWalkover(match.teamBId);
                 },
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.live,
+                  foregroundColor: context.themeColors.live,
                   side: BorderSide(
                     color: AppColors.live.withValues(alpha: 0.4),
                   ),
@@ -500,7 +500,7 @@ class _OrganizerMatchQuickScorePageState
                   _declareWalkover(match.teamAId);
                 },
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.live,
+                  foregroundColor: context.themeColors.live,
                   side: BorderSide(
                     color: AppColors.live.withValues(alpha: 0.4),
                   ),
@@ -651,7 +651,7 @@ class _MatchSummaryCard extends StatelessWidget {
                             fontSize: 36,
                             fontWeight: FontWeight.w800,
                             color: aWins
-                                ? AppColors.win
+                                ? context.themeColors.win
                                 : context.themeColors.onSurface,
                             height: 1,
                           ),
@@ -698,7 +698,7 @@ class _MatchSummaryCard extends StatelessWidget {
                             fontSize: 36,
                             fontWeight: FontWeight.w800,
                             color: bWins
-                                ? AppColors.win
+                                ? context.themeColors.win
                                 : context.themeColors.onSurface,
                             height: 1,
                           ),
@@ -969,7 +969,9 @@ class _ScoreControl extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 30,
               fontWeight: FontWeight.w800,
-              color: isWinning ? AppColors.win : context.themeColors.onSurface,
+              color: isWinning
+                  ? context.themeColors.win
+                  : context.themeColors.onSurface,
               height: 1,
             ),
           ),

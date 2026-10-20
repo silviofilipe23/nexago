@@ -183,7 +183,7 @@ class _CategoryRow extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.win,
+                    color: context.themeColors.win,
                     letterSpacing: 0.4,
                   ),
                 ),
@@ -206,7 +206,7 @@ class _CategoryRow extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: status.color,
+                    color: context.themeColors.readableTone(status.color),
                     letterSpacing: 0.4,
                   ),
                 ),
@@ -217,7 +217,7 @@ class _CategoryRow extends StatelessWidget {
                 style: AppTypography.soraRegular(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
-                  color: status.color,
+                  color: context.themeColors.readableTone(status.color),
                 ),
               ),
           ],

@@ -194,8 +194,8 @@ class _Effect extends StatelessWidget {
           width: 6,
           height: 6,
           margin: const EdgeInsets.only(top: 7, right: 10),
-          decoration: const BoxDecoration(
-            color: AppColors.live,
+          decoration: BoxDecoration(
+            color: colors.live,
             shape: BoxShape.circle,
           ),
         ),

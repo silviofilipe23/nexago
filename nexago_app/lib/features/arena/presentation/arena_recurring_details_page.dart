@@ -257,7 +257,7 @@ class _SeriesDetails extends ConsumerWidget {
           OutlinedButton.icon(
             onPressed: () => _confirmCancelSeries(context, ref),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.live,
+              foregroundColor: context.themeColors.live,
               side: BorderSide(color: AppColors.live.withValues(alpha: 0.5)),
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
@@ -489,6 +489,7 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ink = context.themeColors.readableTone(color);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -502,13 +503,13 @@ class _StatusPill extends StatelessWidget {
           Container(
             width: 6,
             height: 6,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: ink, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
           Text(
             label,
             style: TextStyle(
-              color: color,
+              color: ink,
               fontWeight: FontWeight.w800,
               fontSize: 11,
               letterSpacing: 0.5,

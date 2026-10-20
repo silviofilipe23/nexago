@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
-import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../../arenas/domain/booking_result_record.dart';
 import '../../../../arenas/domain/pelada.dart';
@@ -82,7 +82,7 @@ class PublicProfilePeladasTab extends StatelessWidget {
                 ).toString(),
               ),
               style: TextButton.styleFrom(
-                foregroundColor: AppColors.brand,
+                foregroundColor: context.themeColors.brandText,
                 padding: EdgeInsets.zero,
                 textStyle: AppTypography.soraRegular(
                   fontSize: 13,

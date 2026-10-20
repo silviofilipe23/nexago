@@ -334,7 +334,7 @@ class _Header extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
-                    color: sun ? MesaSun.live : AppColors.live,
+                    color: sun ? MesaSun.live : colors.live,
                     letterSpacing: 0.8,
                   ),
                 ),

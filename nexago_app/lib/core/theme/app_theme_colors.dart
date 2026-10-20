@@ -26,6 +26,13 @@ class AppThemeColors {
   Color get brandHover => AppColors.brandHover;
   Color get brandPressed => AppColors.brandPressed;
 
+  /// Laranja da marca para texto e ícone sobre as superfícies do tema. No
+  /// escuro é o [brand]; no claro, um laranja profundo: o [brand] dá 2,9:1 no
+  /// branco e 2,5:1 na superfície elevada, e o #C2410C do site ainda fica em
+  /// 4,4:1 nela. Este dá ≥ 5:1 no canvas e no card e ≥ 4,5:1 no resto, como
+  /// os tons de estado abaixo. Botão cheio e fundo laranja seguem no [brand].
+  Color get brandText => isDark ? AppColors.brand : AppColors.brandTextLight;
+
   // Tons de estado para texto, ícone e marca sobre as superfícies do tema.
   // No escuro são os do [AppColors]; no claro, o mesmo matiz escurecido: no
   // branco o verde cru dá ~1,9:1, o vermelho ~3,5:1 e o âmbar ~1,6:1. Os do
@@ -46,13 +53,15 @@ class AppThemeColors {
   /// Pendente, aguardando, atenção.
   Color get pending => isDark ? AppColors.pending : AppColors.pendingLight;
 
-  /// [tone] na versão de [win], [live] ou [pending] do tema ativo quando é um
-  /// desses tons crus do [AppColors]; qualquer outra cor volta igual. Para a
-  /// cor que chega pronta de um modelo e pinta texto ou ícone.
+  /// [tone] na versão de [win], [live], [pending] ou [brandText] do tema
+  /// ativo quando é um desses tons crus do [AppColors]; qualquer outra cor
+  /// volta igual. Para a cor que chega pronta de um modelo e pinta texto ou
+  /// ícone.
   Color readableTone(Color tone) {
     if (tone == AppColors.win) return win;
     if (tone == AppColors.live) return live;
     if (tone == AppColors.pending) return pending;
+    if (tone == AppColors.brand) return brandText;
     return tone;
   }
 

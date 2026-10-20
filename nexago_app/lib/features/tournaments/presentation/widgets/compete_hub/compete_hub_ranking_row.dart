@@ -41,7 +41,7 @@ class CompeteHubRankingRow extends StatelessWidget {
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
                 color: entry.rank <= 3
-                    ? AppColors.brand
+                    ? context.themeColors.brandText
                     : context.themeColors.onSurfaceMuted,
               ),
             ),
@@ -69,8 +69,9 @@ class CompeteHubRankingRow extends StatelessWidget {
                 style: AppTypography.soraRegular(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
-                  color:
-                      entry.rank == 1 ? AppColors.brand : context.themeColors.onSurface,
+                  color: entry.rank == 1
+                      ? context.themeColors.brandText
+                      : context.themeColors.onSurface,
                 ),
               ),
               if (entry.tournamentsCount > 0)

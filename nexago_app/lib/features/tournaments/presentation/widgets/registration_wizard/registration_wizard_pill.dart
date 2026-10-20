@@ -30,7 +30,7 @@ class RegistrationWizardPill extends StatelessWidget {
       ),
       RegistrationWizardPillTone.warn => (
         AppColors.pending.withValues(alpha: 0.16),
-        AppColors.pending,
+        colors.pending,
         AppColors.pending.withValues(alpha: 0.35),
       ),
       RegistrationWizardPillTone.neutral => (

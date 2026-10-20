@@ -206,7 +206,7 @@ class _ArenaProfessorInviteSheetState
               const SizedBox(height: 8),
               Text(
                 _searchError!,
-                style: AppTypography.bodyS.copyWith(color: AppColors.live),
+                style: AppTypography.bodyS.copyWith(color: colors.live),
               ),
             ] else if (isSearchTermLongEnough(term) &&
                 !_searching &&

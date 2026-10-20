@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 /// Ponto pulsante do "ao vivo" (porte de `nx-live-pulse` do portal). Para de
 /// pulsar com "reduzir movimento" ligado no sistema.
@@ -49,7 +50,10 @@ class _TournamentMatchCardLiveDotState extends State<TournamentMatchCardLiveDot>
     final dot = Container(
       width: widget.size,
       height: widget.size,
-      decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
+      decoration: BoxDecoration(
+        color: context.themeColors.readableTone(widget.color),
+        shape: BoxShape.circle,
+      ),
     );
 
     return FadeTransition(

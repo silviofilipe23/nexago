@@ -238,7 +238,7 @@ class _Hero extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: color,
+                    color: colors.readableTone(color),
                   ),
                 ),
               ),
@@ -372,7 +372,10 @@ class _ChargeCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               arenaClassChargeStatusLabel(c, todayKey),
-              style: AppTypography.mono(fontSize: 10, color: statusColor),
+              style: AppTypography.mono(
+                fontSize: 10,
+                color: colors.readableTone(statusColor),
+              ),
             ),
           ],
         ),
@@ -435,7 +438,9 @@ class _OnlineStatusRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = arenaClassOnlineToneColor(context, status.tone);
+    // Só pinta ícone e texto: vai no tom legível do tema.
+    final color = context.themeColors
+        .readableTone(arenaClassOnlineToneColor(context, status.tone));
     return Padding(
       padding: EdgeInsets.only(top: onCopyLink == null ? 10 : 4),
       child: Row(

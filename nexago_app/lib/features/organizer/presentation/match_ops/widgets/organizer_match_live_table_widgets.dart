@@ -111,26 +111,26 @@ class LiveTableHeader extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _LiveDot(color: AppColors.live),
+                    _LiveDot(color: context.themeColors.live),
                     const SizedBox(width: 6),
                     Text(
                       'MESA AO VIVO',
                       style: AppTypography.mono(
                         fontSize: 9,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.live,
+                        color: context.themeColors.live,
                         letterSpacing: 0.8,
                       ),
                     ),
                     const SizedBox(width: 6),
-                    _LiveDot(color: AppColors.live),
+                    _LiveDot(color: context.themeColors.live),
                     const SizedBox(width: 6),
                     Text(
                       court,
                       style: AppTypography.mono(
                         fontSize: 9,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.live,
+                        color: context.themeColors.live,
                         letterSpacing: 0.8,
                       ),
                     ),
@@ -158,7 +158,7 @@ class LiveTableHeader extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 14,
               fontWeight: FontWeight.w800,
-              color: AppColors.live,
+              color: context.themeColors.live,
             ),
           ),
           if (onToggleFullMode != null) ...[
@@ -300,7 +300,7 @@ class _SetStripCard extends StatelessWidget {
               fontSize: 9,
               fontWeight: FontWeight.w800,
               color: isActive
-                  ? AppColors.live
+                  ? context.themeColors.live
                   : context.themeColors.onSurfaceMuted,
               letterSpacing: 0.4,
             ),
@@ -324,8 +324,9 @@ class _SetStripCard extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
-                    color:
-                        aWins ? AppColors.win : context.themeColors.onSurface,
+                    color: aWins
+                        ? context.themeColors.win
+                        : context.themeColors.onSurface,
                   ),
                 ),
                 Text(
@@ -342,7 +343,7 @@ class _SetStripCard extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                     color: !aWins && scoreB! > scoreA!
-                        ? AppColors.win
+                        ? context.themeColors.win
                         : context.themeColors.onSurface,
                   ),
                 ),
@@ -899,7 +900,7 @@ class LiveTableActionBar extends StatelessWidget {
                 child: _ActionBarButton(
                   label: 'Tempo médico',
                   icon: Icons.medical_services_outlined,
-                  iconColor: AppColors.live,
+                  iconColor: context.themeColors.live,
                   enabled: enabled && medicalTimeoutEnabled,
                   onPressed: onMedicalTimeout,
                   borderColor: AppColors.live.withValues(alpha: 0.28),
@@ -1613,6 +1614,7 @@ class LiveTableTechnicalTimeoutOverlay extends StatelessWidget {
     final isEnded = timeout.phase == LiveTableTimeoutPhase.ended;
     final isCritical =
         !isEnded && timeout.remainingSeconds <= _criticalThresholdSeconds;
+    // Tudo aqui fica sobre o véu preto fixo: o tom é o cru em qualquer tema.
     final ringColor = isEnded
         ? AppColors.win
         : (isCritical ? AppColors.live : AppColors.brand);
@@ -2887,7 +2889,7 @@ class _MedicalOptionCard extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     color: option.used
                         ? context.themeColors.onSurfaceMuted
-                        : AppColors.win,
+                        : context.themeColors.win,
                   ),
                 ),
               ],
@@ -2938,6 +2940,7 @@ class LiveTableMedicalTimeoutOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCritical =
         !timeout.ended && timeout.remainingSeconds <= _criticalThresholdSeconds;
+    // Tudo aqui fica sobre o véu preto fixo: o tom é o cru em qualquer tema.
     final ringColor = timeout.ended
         ? AppColors.win
         : (isCritical ? AppColors.live : AppColors.brand);
@@ -3374,7 +3377,7 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
                   _declareWalkover(widget.match.teamBId);
                 },
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.live,
+                  foregroundColor: context.themeColors.live,
                   side: BorderSide(
                     color: AppColors.live.withValues(alpha: 0.4),
                   ),
@@ -3389,7 +3392,7 @@ class _LiveTableQuickScoreSheetState extends State<LiveTableQuickScoreSheet> {
                   _declareWalkover(widget.match.teamAId);
                 },
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.live,
+                  foregroundColor: context.themeColors.live,
                   side: BorderSide(
                     color: AppColors.live.withValues(alpha: 0.4),
                   ),
@@ -3683,8 +3686,9 @@ class _QuickScoreSummaryCard extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 32,
                     fontWeight: FontWeight.w800,
-                    color:
-                        aWins ? AppColors.win : context.themeColors.onSurface,
+                    color: aWins
+                        ? context.themeColors.win
+                        : context.themeColors.onSurface,
                   ),
                 ),
                 Text(
@@ -3717,8 +3721,9 @@ class _QuickScoreSummaryCard extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 32,
                     fontWeight: FontWeight.w800,
-                    color:
-                        bWins ? AppColors.win : context.themeColors.onSurface,
+                    color: bWins
+                        ? context.themeColors.win
+                        : context.themeColors.onSurface,
                   ),
                 ),
                 Text(
@@ -3915,7 +3920,7 @@ class _QuickScoreSetRow extends StatelessWidget {
               style: AppTypography.mono(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
-                color: AppColors.live,
+                color: context.themeColors.live,
                 height: 1.3,
               ),
             ),
@@ -4031,9 +4036,9 @@ class _QuickScoreNumericFieldState extends State<_QuickScoreNumericField> {
           fontSize: 24,
           fontWeight: FontWeight.w800,
           color: widget.hasError
-              ? AppColors.live
+              ? context.themeColors.live
               : widget.isWinning
-                  ? AppColors.win
+                  ? context.themeColors.win
                   : context.themeColors.onSurface,
           height: 1.1,
         ),

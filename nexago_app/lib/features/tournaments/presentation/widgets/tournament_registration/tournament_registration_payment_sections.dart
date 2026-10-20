@@ -131,7 +131,7 @@ class TournamentRegistrationDuoSummaryCard extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.win,
+                    color: colors.win,
                     letterSpacing: 1.1,
                   ),
                 ),
@@ -369,7 +369,7 @@ class TournamentRegistrationPaymentSummaryCard extends StatelessWidget {
             subtitle: payFull ? 'inscrição inteira · Pix ou cartão' : 'sua metade · Pix ou cartão',
             amount: payFull ? totalLabel : shareLabel,
             badge: isFullyPaid || mySharePaid ? 'PAGO' : 'A PAGAR',
-            badgeColor: isFullyPaid || mySharePaid ? AppColors.win : AppColors.brand,
+            badgeColor: isFullyPaid || mySharePaid ? colors.win : AppColors.brand,
           ),
           if (!payFull && !quote.isTeamCategory) ...[
             Divider(
@@ -382,7 +382,7 @@ class TournamentRegistrationPaymentSummaryCard extends StatelessWidget {
               amount: shareLabel,
               badge: partnerSharePaid || isFullyPaid ? 'CONFIRMADO' : 'AGUARDANDO',
               badgeColor: partnerSharePaid || isFullyPaid
-                  ? AppColors.win
+                  ? colors.win
                   : colors.onSurfaceMuted,
             ),
           ],

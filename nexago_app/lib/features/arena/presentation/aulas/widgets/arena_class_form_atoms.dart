@@ -35,7 +35,8 @@ class ArenaClassKicker extends StatelessWidget {
         fontSize: 9.5,
         letterSpacing: 1.5,
         fontWeight: FontWeight.w700,
-        color: color ?? context.themeColors.onSurfaceMuted,
+        color: context.themeColors
+            .readableTone(color ?? context.themeColors.onSurfaceMuted),
       ),
     );
   }
@@ -351,12 +352,14 @@ class ArenaClassGhostButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final fg = color ?? colors.onSurface;
+    // Texto e ícone no tom legível do tema; o spinner fica no cru.
+    final ink = colors.readableTone(fg);
     return SizedBox(
       height: height,
       child: OutlinedButton(
         onPressed: busy ? null : onPressed,
         style: OutlinedButton.styleFrom(
-          foregroundColor: fg,
+          foregroundColor: ink,
           backgroundColor: colors.surfaceRaised,
           padding: const EdgeInsets.symmetric(horizontal: 10),
           side: BorderSide(color: colors.onSurfaceMuted.withValues(alpha: 0.2)),
@@ -388,7 +391,7 @@ class ArenaClassGhostButton extends StatelessWidget {
                         style: AppTypography.soraRegular(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,
-                          color: fg,
+                          color: ink,
                         ),
                       ),
                     ),
@@ -456,7 +459,9 @@ class ArenaClassSheetHeader extends StatelessWidget {
                         fontWeight: subtitleColor == null
                             ? FontWeight.w400
                             : FontWeight.w600,
-                        color: subtitleColor ?? colors.onSurfaceMuted,
+                        color: colors.readableTone(
+                          subtitleColor ?? colors.onSurfaceMuted,
+                        ),
                       ),
                     ),
                   ],
@@ -624,8 +629,8 @@ class _ArenaClassAthleteSearchState
           const SizedBox(height: 8),
           Text(
             _error!,
-            style: const TextStyle(
-              color: AppColors.live,
+            style: TextStyle(
+              color: colors.live,
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
             ),
@@ -783,7 +788,7 @@ class ArenaClassInfoRow extends StatelessWidget {
               style: AppTypography.soraRegular(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
-                color: valueColor ?? colors.onSurface,
+                color: colors.readableTone(valueColor ?? colors.onSurface),
               ),
             ),
           ),

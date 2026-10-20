@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/text/safe_display_text.dart';
-import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/theme/app_theme_colors.dart';
 
 TextSpan buildArenaSearchHighlightedName(
   BuildContext context,
@@ -11,6 +11,7 @@ TextSpan buildArenaSearchHighlightedName(
   Color? highlightColor,
 }) {
   final theme = Theme.of(context);
+  final accent = highlightColor ?? context.themeColors.brandText;
   final safe = sanitizeUtf16(value);
   final q = query.trim();
   final base = baseStyle ??
@@ -35,10 +36,9 @@ TextSpan buildArenaSearchHighlightedName(
       TextSpan(
         text: safe.substring(i, end),
         style: base?.copyWith(
-          color: highlightColor ?? AppColors.brand,
+          color: accent,
           decoration: TextDecoration.underline,
-          decorationColor:
-              (highlightColor ?? AppColors.brand).withValues(alpha: 0.55),
+          decorationColor: accent.withValues(alpha: 0.55),
         ),
       ),
       if (end < safe.length) TextSpan(text: safe.substring(end)),

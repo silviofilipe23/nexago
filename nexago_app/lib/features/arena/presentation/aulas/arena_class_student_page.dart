@@ -765,7 +765,7 @@ class _LessonRow extends StatelessWidget {
             decoration: BoxDecoration(
               color: mark == null
                   ? colors.onSurfaceMuted.withValues(alpha: 0.4)
-                  : _markColor(context, mark),
+                  : colors.readableTone(_markColor(context, mark)),
               shape: BoxShape.circle,
             ),
           ),
@@ -870,7 +870,10 @@ class _ChargeRow extends StatelessWidget {
           Text(
             '${formatBRL(c.amountReais)} · '
             '${arenaClassChargeStatusLabel(c, todayKey)}',
-            style: AppTypography.mono(fontSize: 10.5, color: color),
+            style: AppTypography.mono(
+              fontSize: 10.5,
+              color: colors.readableTone(color),
+            ),
           ),
           if (online != null) ...[
             const SizedBox(height: 2),
@@ -879,7 +882,9 @@ class _ChargeRow extends StatelessWidget {
               style: AppTypography.mono(
                 fontSize: 10.5,
                 fontWeight: FontWeight.w700,
-                color: arenaClassOnlineToneColor(context, online.tone),
+                color: colors.readableTone(
+                  arenaClassOnlineToneColor(context, online.tone),
+                ),
               ),
             ),
           ],

@@ -108,7 +108,7 @@ class _CourtCard extends StatelessWidget {
                   child: Text(
                     isFree ? 'LIVRE' : 'AO VIVO',
                     style: TextStyle(
-                      color: isFree ? AppColors.win : AppColors.brand,
+                      color: isFree ? context.themeColors.win : AppColors.brand,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),

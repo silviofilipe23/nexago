@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nexago_app/core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 import '../../../domain/tournament_create/tournament_create_draft.dart';
 import '../../../domain/tournament_create/tournament_create_logic.dart';
@@ -33,7 +33,9 @@ Future<void> _confirmRemoveCategory(
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(true),
-          style: TextButton.styleFrom(foregroundColor: AppColors.live),
+          style: TextButton.styleFrom(
+            foregroundColor: context.themeColors.live,
+          ),
           child: const Text('Remover'),
         ),
       ],

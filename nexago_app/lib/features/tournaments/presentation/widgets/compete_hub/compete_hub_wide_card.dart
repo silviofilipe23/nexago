@@ -46,7 +46,7 @@ class CompeteHubWideCard extends StatelessWidget {
                   color: AppColors.brand.withValues(alpha: 0.14),
                   borderRadius: AppRadii.mdAll,
                 ),
-                child: Icon(icon, color: AppColors.brand, size: 22),
+                child: Icon(icon, color: colors.brandText, size: 22),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(

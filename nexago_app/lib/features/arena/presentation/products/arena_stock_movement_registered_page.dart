@@ -409,14 +409,14 @@ class _StockChangeCard extends StatelessWidget {
                 ),
                 Icon(
                   Icons.arrow_forward_rounded,
-                  color: accentColor,
+                  color: context.themeColors.readableTone(accentColor),
                   size: 22,
                 ),
                 Expanded(
                   child: _StockQuantityColumn(
                     label: 'AGORA',
                     quantity: quantityAfter,
-                    labelColor: accentColor,
+                    labelColor: context.themeColors.readableTone(accentColor),
                     alignEnd: true,
                   ),
                 ),
@@ -506,7 +506,9 @@ class _DetailRow extends StatelessWidget {
               value,
               textAlign: TextAlign.end,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: valueColor ?? context.themeColors.onSurface,
+                    color: valueColor == null
+                        ? context.themeColors.onSurface
+                        : context.themeColors.readableTone(valueColor!),
                     fontWeight: FontWeight.w700,
                   ),
             ),

@@ -211,8 +211,8 @@ class ArenaPlanReadOnlyBanner extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              const Icon(Icons.lock_outline_rounded,
-                  color: AppColors.pending, size: 18),
+              Icon(Icons.lock_outline_rounded,
+                  color: colors.pending, size: 18),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(

@@ -413,7 +413,7 @@ class _OrganizerReceivesRow extends StatelessWidget {
             borderRadius: AppRadii.smAll,
             border: Border.fromBorderSide(AppBorders.subtleSide(colors)),
           ),
-          child: Icon(icon, size: 15, color: iconColor),
+          child: Icon(icon, size: 15, color: colors.readableTone(iconColor)),
         ),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
@@ -480,7 +480,8 @@ class _PrivacyRightsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final resolvedIconColor = iconColor ?? colors.onSurfaceMuted;
+    final resolvedIconColor =
+        colors.readableTone(iconColor ?? colors.onSurfaceMuted);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -688,7 +689,7 @@ class _RequiredBadge extends StatelessWidget {
         style: AppTypography.mono(
           fontSize: 9,
           fontWeight: FontWeight.w700,
-          color: AppColors.pending,
+          color: context.themeColors.pending,
           letterSpacing: 1.0,
         ),
       ),

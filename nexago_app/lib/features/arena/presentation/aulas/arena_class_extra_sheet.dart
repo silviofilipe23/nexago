@@ -254,8 +254,8 @@ class _ArenaClassExtraSheetState extends ConsumerState<ArenaClassExtraSheet> {
                   if (_error != null) ...[
                     Text(
                       _error!,
-                      style: const TextStyle(
-                        color: AppColors.live,
+                      style: TextStyle(
+                        color: colors.live,
                         fontWeight: FontWeight.w600,
                         fontSize: 12.5,
                       ),

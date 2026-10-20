@@ -128,7 +128,7 @@ class PeladaPositionBadge extends StatelessWidget {
               fontSize: 14 * scale,
               fontWeight: FontWeight.w800,
               height: 1,
-              color: first ? AppColors.brand : colors.onSurface,
+              color: first ? colors.brandText : colors.onSurface,
             ),
           ),
           SizedBox(height: 2 * scale),
@@ -413,7 +413,7 @@ class PeladasSummaryCard extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 10,
               letterSpacing: 1.4,
-              color: AppColors.brand,
+              color: colors.brandText,
             ),
           ),
           const SizedBox(height: 6),
@@ -475,10 +475,10 @@ class PeladasSummaryCard extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.place_rounded,
                   size: 14,
-                  color: AppColors.brand,
+                  color: colors.brandText,
                 ),
                 const SizedBox(width: 6),
                 Expanded(
@@ -544,7 +544,7 @@ class PeladaStatBox extends StatelessWidget {
               fontSize: 19,
               fontWeight: FontWeight.w800,
               height: 1.1,
-              color: accent ? AppColors.brand : colors.onSurface,
+              color: accent ? colors.brandText : colors.onSurface,
             ),
           ),
           const SizedBox(height: 4),
@@ -633,7 +633,7 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final fg = selected ? AppColors.brand : colors.onSurface;
+    final fg = selected ? colors.brandText : colors.onSurface;
     return Material(
       color: selected
           ? AppColors.brand.withValues(alpha: 0.12)
@@ -667,7 +667,8 @@ class _Chip extends StatelessWidget {
                 style: AppTypography.mono(
                   fontSize: 10.5,
                   color: selected
-                      ? AppColors.brand.withValues(alpha: 0.85)
+                      ? colors.brandText
+                          .withValues(alpha: colors.isDark ? 0.85 : 1)
                       : PeladaStyle.dim(colors),
                 ),
               ),

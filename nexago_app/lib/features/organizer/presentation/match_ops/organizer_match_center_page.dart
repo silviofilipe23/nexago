@@ -131,7 +131,7 @@ class _OrganizerMatchCenterPageState
                       _SectionHeader(
                         title: 'ACONTECENDO AGORA',
                         trailing: '${state.sections.live.length} ao vivo',
-                        trailingDotColor: AppColors.live,
+                        trailingDotColor: context.themeColors.live,
                       ),
                       for (final row in state.sections.live)
                         OrganizerMatchCard(
@@ -325,8 +325,8 @@ class _MatchCenterHeader extends StatelessWidget {
                   Container(
                     width: 6,
                     height: 6,
-                    decoration: const BoxDecoration(
-                      color: AppColors.live,
+                    decoration: BoxDecoration(
+                      color: context.themeColors.live,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -413,7 +413,7 @@ class _StatusFilterRow extends StatelessWidget {
           _FilterChip(
             label: 'Ao vivo',
             count: liveCount,
-            dotColor: AppColors.live,
+            dotColor: context.themeColors.live,
             selected: filter == OrganizerMatchCenterFilter.live,
             onTap: () => onFilter(OrganizerMatchCenterFilter.live),
           ),
@@ -421,7 +421,7 @@ class _StatusFilterRow extends StatelessWidget {
           _FilterChip(
             label: 'Em quadra',
             count: onCourtCount,
-            dotColor: AppColors.pending,
+            dotColor: context.themeColors.pending,
             selected: filter == OrganizerMatchCenterFilter.onCourt,
             onTap: () => onFilter(OrganizerMatchCenterFilter.onCourt),
           ),

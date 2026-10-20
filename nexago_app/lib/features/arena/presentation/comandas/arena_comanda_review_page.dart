@@ -163,7 +163,7 @@ class _ArenaComandaReviewPageState
                   _ReviewRow(
                     label: 'Reserva',
                     value: ArenaBookingsGrouping.displayCode(booking.id),
-                    valueColor: AppColors.win,
+                    valueColor: context.themeColors.win,
                   ),
                 ],
                 _ReviewDivider(),

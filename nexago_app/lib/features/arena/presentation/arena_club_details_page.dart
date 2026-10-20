@@ -160,7 +160,7 @@ class _ArenaClubDetailsPageState extends ConsumerState<ArenaClubDetailsPage> {
                       club.isPaused ? 'active' : 'paused',
                     ),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.pending,
+              foregroundColor: context.themeColors.pending,
               side: BorderSide(
                 color: AppColors.pending.withValues(alpha: 0.5),
               ),
@@ -180,7 +180,7 @@ class _ArenaClubDetailsPageState extends ConsumerState<ArenaClubDetailsPage> {
           OutlinedButton.icon(
             onPressed: _busy ? null : () => _confirmArchive(club),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.live,
+              foregroundColor: context.themeColors.live,
               side: BorderSide(color: AppColors.live.withValues(alpha: 0.5)),
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
@@ -463,7 +463,7 @@ class _ClubHeroCard extends StatelessWidget {
                   child: Text(
                     club.statusLabel.toUpperCase(),
                     style: TextStyle(
-                      color: statusColor,
+                      color: context.themeColors.readableTone(statusColor),
                       fontWeight: FontWeight.w800,
                       fontSize: 10,
                       letterSpacing: 0.5,
@@ -544,7 +544,7 @@ class _SessionTile extends StatelessWidget {
                       : Icons.event_rounded,
                   size: 18,
                   color: canceled
-                      ? AppColors.live
+                      ? context.themeColors.live
                       : context.themeColors.onSurfaceMuted,
                 ),
                 const SizedBox(width: 12),
@@ -569,7 +569,7 @@ class _SessionTile extends StatelessWidget {
                                 'confirmados · $spots',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: canceled
-                              ? AppColors.live
+                              ? context.themeColors.live
                               : context.themeColors.onSurfaceMuted,
                         ),
                       ),

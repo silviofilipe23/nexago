@@ -374,9 +374,9 @@ class _OrganizerMatchLiveTablePageState
                     ),
                     if (!match.isCompleted)
                       ListTile(
-                        leading: const Icon(
+                        leading: Icon(
                           Icons.medical_services_outlined,
-                          color: AppColors.live,
+                          color: AppThemeColors(pageTheme.colorScheme).live,
                         ),
                         title: const Text('Tempo médico'),
                         subtitle: const Text(

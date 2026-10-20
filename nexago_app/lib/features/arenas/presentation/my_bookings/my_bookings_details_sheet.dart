@@ -238,7 +238,9 @@ class _BookingLiveStatusState extends State<BookingLiveStatus> {
         final urgent = diff.inMinutes <= 10;
         return _LiveChip(
           text: _formatCountdown(diff),
-          fg: urgent ? AppColors.brand : const Color(0xFF5B9FFF),
+          fg: urgent
+              ? context.themeColors.brandText
+              : const Color(0xFF5B9FFF),
           bg: (urgent ? AppColors.brand : const Color(0xFF5B9FFF))
               .withValues(alpha: 0.12),
         );

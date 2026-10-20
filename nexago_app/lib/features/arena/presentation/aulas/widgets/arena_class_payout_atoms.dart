@@ -98,7 +98,7 @@ class ArenaClassInfoBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final color = warn ? AppColors.pending : colors.onSurfaceMuted;
+    final color = warn ? colors.pending : colors.onSurfaceMuted;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
       decoration: BoxDecoration(
@@ -169,7 +169,7 @@ class ArenaClassPayoutStat extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: color ?? colors.onSurface,
+              color: colors.readableTone(color ?? colors.onSurface),
             ),
           ),
         ),

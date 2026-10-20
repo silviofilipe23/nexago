@@ -338,7 +338,7 @@ class _PayoutRowCard extends StatelessWidget {
                   warn,
                   style: AppTypography.mono(
                     fontSize: 10,
-                    color: AppColors.pending,
+                    color: colors.pending,
                   ),
                 ),
               ],

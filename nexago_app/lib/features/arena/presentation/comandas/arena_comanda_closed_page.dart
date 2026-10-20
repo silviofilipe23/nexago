@@ -43,9 +43,9 @@ class ArenaComandaClosedPage extends StatelessWidget {
                           color: AppColors.win.withValues(alpha: 0.16),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.check_rounded,
-                          color: AppColors.win,
+                          color: context.themeColors.win,
                           size: 36,
                         ),
                       ),
@@ -113,7 +113,7 @@ class ArenaComandaClosedPage extends StatelessWidget {
                                     formatComandaReais(payment.amountCents),
                                     style: theme.textTheme.bodyMedium?.copyWith(
                                       fontWeight: FontWeight.w800,
-                                      color: AppColors.win,
+                                      color: context.themeColors.win,
                                     ),
                                   ),
                                 ],
@@ -134,9 +134,9 @@ class ArenaComandaClosedPage extends StatelessWidget {
                         ),
                         child: Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.sports_tennis_rounded,
-                              color: AppColors.win,
+                              color: context.themeColors.win,
                             ),
                             const SizedBox(width: 12),
                             Expanded(

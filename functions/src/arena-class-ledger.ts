@@ -33,6 +33,7 @@ export function parseClassRules(data: Record<string, unknown> | undefined): Clas
       Math.round(d["enrollmentFeeReais"] * 100) / 100 :
       DEFAULT_CLASS_RULES.enrollmentFeeReais,
     classReminderEnabled: bool(d["classReminderEnabled"], DEFAULT_CLASS_RULES.classReminderEnabled),
+    onlineBillingEnabled: bool(d["onlineBillingEnabled"], DEFAULT_CLASS_RULES.onlineBillingEnabled),
   };
 }
 

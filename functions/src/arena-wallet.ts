@@ -188,6 +188,8 @@ export async function creditArenaWalletFromBookingPayment(
     /** Desconto do código de embaixador (NexaSquad): sai da taxa, entra no bruto. */
     squadDiscountReais?: number;
     processedRef: DocumentReference;
+    /** Campos a mais na linha do extrato (ex.: mensalidade de aula: `source`, `classChargeIds`). */
+    ledgerExtra?: Record<string, unknown>;
   },
 ): Promise<boolean> {
   const gatewayFeeReais = roundMoney(Math.max(0, params.gatewayFeeReais ?? 0));
@@ -224,6 +226,7 @@ export async function creditArenaWalletFromBookingPayment(
       netReais,
       cashbackAppliedReais: roundMoney(Math.max(0, params.cashbackAppliedReais ?? 0)),
       squadDiscountReais: roundMoney(Math.max(0, params.squadDiscountReais ?? 0)),
+      ...(params.ledgerExtra ?? {}),
       createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(

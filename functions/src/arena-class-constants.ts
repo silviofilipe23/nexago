@@ -64,6 +64,8 @@ export interface ClassRules {
   enrollmentFeeReais: number;
   /** Push 2h antes da aula para alunos com conta e o professor. */
   classReminderEnabled: boolean;
+  /** Mensalidade cobrada online pelo Asaas (PIX ou cartão na fatura). Liga por arena. */
+  onlineBillingEnabled: boolean;
 }
 
 export const DEFAULT_CLASS_RULES: ClassRules = {
@@ -73,6 +75,7 @@ export const DEFAULT_CLASS_RULES: ClassRules = {
   defaultDueDay: 5,
   enrollmentFeeReais: 0,
   classReminderEnabled: true,
+  onlineBillingEnabled: false,
 };
 
 /** Crédito de reposição: um por aula perdida por aluno (idempotente). */
@@ -89,4 +92,26 @@ export const ARENA_CLASS_PAYOUTS = "arenaClassPayouts";
 
 export function classPayoutId(arenaId: string, teacherId: string, month: string): string {
   return `${arenaId}_${teacherId}_${month}`;
+}
+
+// ---------------------------------------------------------------------------
+// Cobrança online (Asaas)
+// ---------------------------------------------------------------------------
+
+/** Um pagamento Asaas por grupo de mensalidades (1º mês + taxa saem juntos). Só o servidor lê. */
+export const ARENA_CLASS_ASAAS_PAYMENTS = "arenaClassAsaasPayments";
+/** CPF do aluno para cobrar online (aluno sem conta ou sem CPF no perfil). Só o servidor lê. */
+export const ARENA_CLASS_BILLING_PROFILES = "arenaClassBillingProfiles";
+/** `externalReference` das cobranças Asaas de aula: `arenaClassPayment:{groupId}`. */
+export const CLASS_PAYMENT_REF_PREFIX = "arenaClassPayment:";
+
+export const BILLING_MODES = ["manual", "asaas"] as const;
+export type ClassBillingMode = typeof BILLING_MODES[number];
+
+export function parseBillingMode(raw: unknown): ClassBillingMode {
+  return raw === "asaas" ? "asaas" : "manual";
+}
+
+export function billingProfileId(arenaId: string, studentId: string): string {
+  return `${arenaId}_${studentId}`;
 }

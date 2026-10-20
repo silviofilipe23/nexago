@@ -194,6 +194,8 @@ export {
 } from "./arena-class-payout";
 // Aulas — lembrete por push 2h antes (alunos do dia e professor).
 export {sendArenaClassReminders} from "./arena-class-reminders";
+// Aulas — cobrança online pelo Asaas (worker do grupo + varredura).
+export {onArenaClassAsaasPaymentWritten, reconcileArenaClassAsaasPayments} from "./asaas-class-billing";
 
 export {
   onArenaCourtCreatedCountUp,

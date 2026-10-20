@@ -119,6 +119,10 @@ class ArenaFinancialBalanceCard extends StatelessWidget {
               height: 1.1,
             ),
           ),
+          if (wallet.awaitingSettlementReais > 0)
+            _AwaitingSettlementNote(
+              amountReais: wallet.awaitingSettlementReais,
+            ),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -146,6 +150,65 @@ class ArenaFinancialBalanceCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "A liberar": cartão aprovado que ainda não liquidou — dinheiro a caminho,
+/// não sacável.
+class _AwaitingSettlementNote extends StatelessWidget {
+  const _AwaitingSettlementNote({required this.amountReais});
+
+  final double amountReais;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = context.themeColors.onSurfaceMuted;
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.only(top: 10),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: muted.withValues(alpha: 0.16)),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text.rich(
+            TextSpan(
+              text: 'A liberar: ',
+              children: [
+                TextSpan(
+                  text: formatBRL(amountReais),
+                  style: AppTypography.soraRegular(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: context.themeColors.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            style: AppTypography.soraRegular(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: muted,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Pagamentos no cartão (reservas e mensalidades de aula) caem no '
+            'saldo cerca de 32 dias depois da aprovação. O valor já vem sem '
+            'as taxas.',
+            style: AppTypography.soraRegular(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: muted,
+              height: 1.45,
+            ),
           ),
         ],
       ),
@@ -503,7 +566,9 @@ class ArenaFinancialMovementTile extends StatelessWidget {
             : context.themeColors.onSurfaceMuted;
     final badgeColor = movement.isFailed
         ? AppColors.live
-        : AppColors.win;
+        : movement.isRefund
+            ? context.themeColors.onSurfaceMuted
+            : AppColors.win;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -574,8 +639,8 @@ class ArenaFinancialMovementTile extends StatelessWidget {
                     ),
                   ],
                 ),
-                // Saque com tarifa: o valor acima é o líquido recebido, esta
-                // linha mostra de onde saiu a diferença.
+                // Saque com tarifa ou recebimento com taxas: o valor ao lado é
+                // o líquido, esta linha mostra de onde saiu a diferença.
                 if (movement.note case final note?) ...[
                   const SizedBox(height: 4),
                   Text(

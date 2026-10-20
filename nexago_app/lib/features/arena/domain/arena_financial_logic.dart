@@ -61,8 +61,52 @@ class ArenaFinancialMovement {
   final bool isPositive;
   final bool isFailed;
 
-  /// Detalhe do saque ("bruto · tarifa"); `null` em docs antigos, sem tarifa.
+  /// Detalhe da linha: no saque "bruto · tarifa", no recebimento "bruto ·
+  /// taxas"; `null` quando não houve desconto (ou em docs antigos).
   final String? note;
+
+  /// Estorno: recebimento que saiu do saldo (sem verde no selo).
+  bool get isRefund =>
+      kind == ArenaFinancialMovementKind.receipt && !isPositive;
+}
+
+const _ledgerSourceLabel = {
+  ArenaLedgerSource.booking: 'Reserva',
+  ArenaLedgerSource.classFee: 'Mensalidade de aula',
+  ArenaLedgerSource.club: 'Clubinho',
+};
+
+/// Linha do extrato: origem no título e, quando houve taxa, o bruto e quanto
+/// ficou nela (o valor da linha é sempre o líquido que entrou no saldo).
+/// Estorno sai como débito. Espelha `ledgerMovement` no painel Angular.
+ArenaFinancialMovement ledgerMovement(
+  ArenaLedgerEntry entry,
+  String arenaLabel,
+) {
+  final refund = entry.isRefund;
+  final sourceLabel = _ledgerSourceLabel[entry.source]!;
+  final fees = ((entry.grossReais - entry.netReais) * 100).round() / 100;
+  final String title;
+  if (refund) {
+    title = 'Estorno · $sourceLabel';
+  } else if (entry.source == ArenaLedgerSource.booking) {
+    title = 'Reserva · $arenaLabel';
+  } else {
+    title = sourceLabel;
+  }
+  return ArenaFinancialMovement(
+    id: 'ledger-${entry.id}',
+    kind: ArenaFinancialMovementKind.receipt,
+    title: title,
+    at: entry.createdAt,
+    amountReais: entry.netReais.abs(),
+    note: !refund && fees > 0
+        ? 'Bruto ${formatBRL(entry.grossReais)} · taxas ${formatBRL(fees)}'
+        : null,
+    statusLabel: refund ? 'ESTORNADO' : 'RECEBIDO',
+    isPositive: !refund,
+    isFailed: false,
+  );
 }
 
 /// Extrato do saque: mostra o líquido que caiu na conta e de onde saiu a
@@ -122,22 +166,9 @@ List<ArenaFinancialMovement> buildFinancialMovements({
   required String arenaName,
 }) {
   final arenaLabel = arenaName.trim().isEmpty ? 'Arena' : arenaName.trim();
-  final items = <ArenaFinancialMovement>[];
-
-  for (final entry in ledger) {
-    items.add(
-      ArenaFinancialMovement(
-        id: 'ledger-${entry.id}',
-        kind: ArenaFinancialMovementKind.receipt,
-        title: 'Reserva · $arenaLabel',
-        at: entry.createdAt,
-        amountReais: entry.netReais,
-        statusLabel: 'RECEBIDO',
-        isPositive: true,
-        isFailed: false,
-      ),
-    );
-  }
+  final items = [
+    for (final entry in ledger) ledgerMovement(entry, arenaLabel),
+  ];
 
   for (final w in withdrawals) {
     final failed = withdrawalIsFailed(w);
@@ -193,6 +224,7 @@ ArenaFinancialPeriodStats computeFinancialPeriodStats({
   var received = 0.0;
   var withdrawn = 0.0;
 
+  // Estorno grava `netReais` negativo: o "Recebido" já sai descontado.
   for (final entry in ledger) {
     if (_isWithinPeriod(entry.createdAt, period, now: now)) {
       received += entry.netReais;

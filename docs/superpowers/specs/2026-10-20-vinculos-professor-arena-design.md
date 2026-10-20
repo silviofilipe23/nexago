@@ -27,9 +27,10 @@ Origem: `nexago_vinculos_professores_arenas.md` (especificação funcional) + pr
    - `canAppearInArenaProfile` já tem efeito: espelho público
      `arenas/{arenaId}/publicProfessors/{uid}` (nome, foto, modalidades, tipo) mantido pelo backend
      a cada transição; seção "Professores" na página da arena no app.
-   - `canBookCourts` e `canManageOwnLessons` ficam gravadas e visíveis; a aplicação na reserva e
-     nas Aulas é a etapa seguinte (fora do escopo da spec §5.2). `classTeachers` (Aulas) segue
-     independente.
+   - `canBookCourts` e `canManageOwnLessons`: aplicação na reserva ("reservar como professor") e
+     nas Aulas (chamada pelo professor; vínculo suspenso/encerrado trava turma nova) em
+     `2026-10-20-vinculos-permissoes-reserva-aulas-design.md`. `classTeachers` se liga ao vínculo
+     pela conta (`userId`), sem ser criado automaticamente.
 5. **Convite só para conta NexaGO existente** (busca em `public_profiles`, como Aulas/Clubinho).
    "Não tem conta?" orienta a criar a conta e pedir vínculo pela página da arena (copiar link).
    Convite por e-mail sem conta fica para depois (não há envio de e-mail nem verificação).
@@ -106,8 +107,7 @@ Todas as callables em `CLIENT_FACING_REGIONS`; respostas `{linkId, status}`.
 
 ## Fora desta etapa
 
-Lado da arena no app; aplicação de `canBookCourts`/`canManageOwnLessons` em reservas e Aulas;
-convite por e-mail sem conta; perfil profissional (bio, certificações); métricas operacionais.
+Lado da arena no app; convite por e-mail sem conta; perfil profissional (bio, certificações); métricas operacionais.
 
 ## Contrato para os clientes (portal da arena, portal do atleta, app)
 

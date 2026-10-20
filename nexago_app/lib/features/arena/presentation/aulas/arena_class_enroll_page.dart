@@ -1125,6 +1125,8 @@ class _ConfirmationView extends ConsumerWidget {
         groupCharge == null ? null : arenaClassChargeInvoiceUrl(groupCharge);
     final onlineStatus =
         groupCharge == null ? null : arenaClassOnlineChargeStatus(groupCharge);
+    // O aluno pagou com a tela aberta: o webhook grava e o listener mostra.
+    final paidOnline = groupCharge?.isPaidOnline ?? false;
     // Mensalidade ainda não chegou, ou o worker ainda não gravou o link.
     final generating = groupCharge == null ||
         switch (groupCharge.asaas?.state) {
@@ -1245,16 +1247,21 @@ class _ConfirmationView extends ConsumerWidget {
                     label: 'Pagamento',
                     value: total <= 0
                         ? 'Nada a cobrar hoje'
-                        : online
-                            ? 'Online · ${formatBRL(total)}'
-                            : 'Em aberto · ${formatBRL(total)}',
-                    valueColor: total > 0 ? AppColors.pending : AppColors.win,
+                        : paidOnline
+                            ? '${onlineStatus?.label ?? 'Pago online'} · '
+                                '${formatBRL(total)}'
+                            : online
+                                ? 'Online · ${formatBRL(total)}'
+                                : 'Em aberto · ${formatBRL(total)}',
+                    valueColor: total > 0 && !paidOnline
+                        ? AppColors.pending
+                        : AppColors.win,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 26),
-            if (online && invoiceUrl == null) ...[
+            if (online && invoiceUrl == null && !paidOnline) ...[
               _InvoicePending(
                 label: generating
                     ? 'Gerando o link de pagamento…'

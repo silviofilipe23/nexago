@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/brand/nexa_hashtag.dart';
+import '../../../../core/sports/sport_catalog.dart';
 import '../../../arenas/domain/arena_booking_labels.dart';
 import '../../../arenas/domain/booking_story.dart';
 import 'athlete_agenda_logic.dart';
@@ -164,6 +165,22 @@ String pickClassStoryHeadline({Random? random, String? avoid}) {
   return pool[(random ?? Random()).nextInt(pool.length)];
 }
 
+/// Sorteia a frase do próximo story, sempre diferente da do anterior (vale
+/// para os três editores: aluno, professor e repost do marcado).
+String drawClassStoryHeadline({Random? random}) =>
+    _lastHeadline = pickClassStoryHeadline(random: random, avoid: _lastHeadline);
+
+String? _lastHeadline;
+
+/// Linha de cima da arte: o esporte da turma e o nome da aula —
+/// `BEACH TENNIS · TREINO TÉCNICO`. Sem esporte do catálogo (aula antiga ou
+/// valor livre), `AULA · TREINO TÉCNICO`.
+String classStoryKicker({String? sport, required String className}) {
+  final label = SportCatalog.resolve(sport)?.label.toUpperCase() ?? 'AULA';
+  final name = className.trim();
+  return name.isEmpty ? label : '$label · ${name.toUpperCase()}';
+}
+
 /// Tudo o que a arte do story do treino escreve — já formatado.
 @immutable
 class ClassStoryData {
@@ -180,7 +197,7 @@ class ClassStoryData {
     this.footer,
   });
 
-  /// `AULA · TREINO TÉCNICO`.
+  /// `BEACH TENNIS · TREINO TÉCNICO` — ver [classStoryKicker].
   final String kicker;
 
   /// `[('90', 'MIN'), ('12º', 'DO MÊS'), ('4', 'SEM. SEGUIDAS')]`.
@@ -236,7 +253,7 @@ ClassStoryData classStoryDataFrom({
   ];
 
   return ClassStoryData(
-    kicker: className.isEmpty ? 'AULA' : 'AULA · ${className.toUpperCase()}',
+    kicker: classStoryKicker(sport: session.sport, className: className),
     stats: [
       if (stats.minutes != null) ('${stats.minutes}', 'MIN'),
       ('${stats.monthOrdinal}º', 'DO MÊS'),

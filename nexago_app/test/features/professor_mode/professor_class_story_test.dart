@@ -215,6 +215,48 @@ void main() {
       expect(classStoryInfosFor(data), ClassStoryInfo.values);
     });
 
+    test('esporte da turma no kicker: chamada, arte do professor e repost',
+        () {
+      final r = TeacherClassRoster.fromMap({
+        'session': {'sessionId': 's1', 'sport': 'beachTennis'},
+        'students': const [],
+      });
+      expect(r.session.sport, 'beachTennis');
+      expect(roster().session.sport, isNull);
+
+      final data = professorClassStoryData(
+        className: 'Intermediário B',
+        sport: r.session.sport,
+        arenaName: 'Arena CFC',
+        courtName: 'Quadra 2',
+        date: '2026-10-20',
+        startTime: '19:00',
+        endTime: '20:00',
+        presentCount: 0,
+        plan: const [],
+        tagged: const [],
+        teacherName: 'Thiago Mendes',
+      );
+      expect(data.kicker, 'BEACH TENNIS · INTERMEDIÁRIO B');
+
+      final repost = taggedClassStoryData(
+        tag: ClassStoryTag.fromMap('t1', {
+          'className': 'Intermediário B',
+          'sport': 'beachVolleyball',
+        }),
+        athleteName: 'Marina Torres',
+      );
+      expect(repost.kicker, 'VÔLEI DE PRAIA · INTERMEDIÁRIO B');
+      // Card gravado antes do campo segue com "AULA".
+      expect(
+        taggedClassStoryData(
+          tag: ClassStoryTag.fromMap('t2', {'className': 'Turma'}),
+          athleteName: 'Marina',
+        ).kicker,
+        'AULA · TURMA',
+      );
+    });
+
     test('sem plano nem marcados: os chips somem', () {
       final data = professorClassStoryData(
         className: 'Turma',

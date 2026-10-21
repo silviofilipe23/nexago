@@ -41,6 +41,7 @@ class ClassStoryTag {
     required this.id,
     required this.className,
     required this.classType,
+    this.sport,
     required this.arenaName,
     required this.courtName,
     required this.date,
@@ -85,6 +86,7 @@ class ClassStoryTag {
       id: id,
       className: s('className'),
       classType: s('classType').isEmpty ? 'turma' : s('classType'),
+      sport: s('sport').isEmpty ? null : s('sport'),
       arenaName: s('arenaName'),
       courtName: s('courtName'),
       date: s('date'),
@@ -113,6 +115,9 @@ class ClassStoryTag {
   final String id;
   final String className;
   final String classType;
+
+  /// Esporte da turma; `null` em card gravado antes do campo.
+  final String? sport;
   final String arenaName;
   final String courtName;
   final String date;
@@ -150,6 +155,7 @@ class ClassStoryTag {
 ({String kicker, List<(String, String)> stats, String placeLine, String when})
     _classStoryCommon({
   required String className,
+  required String? sport,
   required String courtName,
   required String date,
   required String startTime,
@@ -162,7 +168,7 @@ class ClassStoryTag {
   final start = startTime.length >= 5 ? startTime.substring(0, 5) : startTime;
   final minutes = classMinutesBetween(startTime, endTime);
   return (
-    kicker: name.isEmpty ? 'AULA' : 'AULA · ${name.toUpperCase()}',
+    kicker: classStoryKicker(sport: sport, className: name),
     stats: [
       if (minutes != null) ('$minutes', 'MIN'),
       if (presentCount > 0)
@@ -192,6 +198,7 @@ String classStoryWithLine(List<BookingStoryPerson> people, {int? total}) {
 /// G2 — a arte do PROFESSOR: o @ dele, os alunos marcados nos avatares.
 ClassStoryData professorClassStoryData({
   required String className,
+  String? sport,
   required String arenaName,
   required String courtName,
   required String date,
@@ -205,6 +212,7 @@ ClassStoryData professorClassStoryData({
 }) {
   final common = _classStoryCommon(
     className: className,
+    sport: sport,
     courtName: courtName,
     date: date,
     startTime: startTime,
@@ -241,6 +249,7 @@ ClassStoryData taggedClassStoryData({
 }) {
   final common = _classStoryCommon(
     className: tag.className,
+    sport: tag.sport,
     courtName: tag.courtName,
     date: tag.date,
     startTime: tag.startTime,

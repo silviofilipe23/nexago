@@ -59,6 +59,8 @@ export interface ClassAgendaItem {
   canManageLessons: boolean | null;
   /** Tipo da turma (`turma`, `particular`, `dupla`, `experimental`); campo novo, opcional no cliente. */
   classType: string;
+  /** Esporte da turma (código do catálogo); vazio em aula antiga. Campo novo, opcional no cliente. */
+  sport: string;
 }
 
 function str(v: unknown, fallback = ""): string {
@@ -94,6 +96,7 @@ function baseItem(
     startAt: startAt instanceof Timestamp ? startAt.toDate().toISOString() : null,
     status: status === "canceled" || status === "completed" ? status : "scheduled",
     classType: str(d["type"], "turma"),
+    sport: str(d["sport"]),
   };
 }
 

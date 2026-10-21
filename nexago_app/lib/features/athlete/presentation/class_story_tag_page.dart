@@ -11,6 +11,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../arenas/presentation/widgets/booking_story/booking_story_card.dart';
 import '../../arenas/presentation/widgets/booking_story/booking_story_editor.dart';
 import '../data/class_story_tag_repository.dart';
+import '../domain/agenda/class_story.dart';
 import '../domain/agenda/class_story_tag.dart';
 import '../domain/athlete_display_name.dart';
 import '../domain/athlete_profile_providers.dart';
@@ -34,6 +35,9 @@ class ClassStoryTagPage extends ConsumerStatefulWidget {
 
 class _ClassStoryTagPageState extends ConsumerState<ClassStoryTagPage>
     with BookingStoryEditorMixin {
+  /// Sorteada uma vez por abertura, como nos outros editores do treino.
+  late final String _headline = drawClassStoryHeadline();
+
   void _close() => popOrGo(context, AppRoutes.home);
 
   @override
@@ -143,6 +147,7 @@ class _ClassStoryTagPageState extends ConsumerState<ClassStoryTagPage>
                             data: data,
                             theme: storyTheme,
                             infos: tag.infos,
+                            headline: _headline,
                           ),
                         ),
                       ),

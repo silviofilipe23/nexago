@@ -41,6 +41,9 @@ class _ProfessorClassStoryPageState
   final Set<ClassStoryInfo> _hidden = {};
   bool _tagging = false;
 
+  /// Sorteada uma vez por abertura: mexer em fundo ou chips não troca a frase.
+  late final String _headline = drawClassStoryHeadline();
+
   void _toggleInfo(ClassStoryInfo info) {
     setState(() {
       if (!_hidden.remove(info)) _hidden.add(info);
@@ -92,6 +95,7 @@ class _ProfessorClassStoryPageState
     final taggable = professorStoryTaggable(widget.roster);
     final data = professorClassStoryData(
       className: session.className,
+      sport: session.sport,
       arenaName: session.arenaName,
       courtName: session.courtName,
       date: session.date,
@@ -140,6 +144,7 @@ class _ProfessorClassStoryPageState
         theme: storyTheme,
         infos: infos,
         photo: storyPhoto,
+        headline: _headline,
       ),
       theme: storyTheme,
       photo: storyPhoto,

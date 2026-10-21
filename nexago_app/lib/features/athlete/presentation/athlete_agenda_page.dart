@@ -178,6 +178,8 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
     switch (_filter) {
       case AthleteAgendaFilter.rentals:
         openDiscoverReservarTab(context, ref: ref);
+      case AthleteAgendaFilter.trainings:
+        context.pushNamed(AppRouteNames.athleteTrainings);
       case AthleteAgendaFilter.tournaments:
         openDiscoverCompeteTab(context, ref: ref);
       case AthleteAgendaFilter.challenges:

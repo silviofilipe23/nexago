@@ -123,6 +123,14 @@ _AgendaEmptyCopy _copyForFilter({
           actionLabel: '',
           actionIcon: Icons.history_rounded,
         ),
+      AthleteAgendaFilter.trainings => _AgendaEmptyCopy(
+          icon: Icons.history_rounded,
+          title: 'Nenhum treino passado $scope',
+          hint: 'Altere o dia, o mês ou o filtro para ver outros treinos.',
+          showAction: false,
+          actionLabel: '',
+          actionIcon: Icons.history_rounded,
+        ),
       AthleteAgendaFilter.tournaments => _AgendaEmptyCopy(
           icon: Icons.history_rounded,
           title: 'Nenhum torneio passado $scope',
@@ -160,6 +168,14 @@ _AgendaEmptyCopy _copyForFilter({
         showAction: true,
         actionLabel: 'Agendar quadra',
         actionIcon: Icons.calendar_month_outlined,
+      ),
+    AthleteAgendaFilter.trainings => _AgendaEmptyCopy(
+        icon: Icons.fitness_center_rounded,
+        title: 'Nenhum treino $scope',
+        hint: 'Suas aulas com professor aparecem aqui.',
+        showAction: true,
+        actionLabel: 'Ver treinos',
+        actionIcon: Icons.fitness_center_rounded,
       ),
     AthleteAgendaFilter.tournaments => _AgendaEmptyCopy(
         icon: Icons.emoji_events_outlined,

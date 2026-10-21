@@ -444,14 +444,16 @@ List<AthleteAgendaItem> mergeAgendaItems({
 
 AthleteAgendaFilterCounts countAgendaFilters(List<AthleteAgendaItem> items) {
   var rentals = 0;
+  var trainings = 0;
   var tournaments = 0;
   var challenges = 0;
   for (final item in items) {
     switch (item.kind) {
       case AthleteAgendaItemKind.rental:
       case AthleteAgendaItemKind.clubSession:
-      case AthleteAgendaItemKind.classSession:
         rentals++;
+      case AthleteAgendaItemKind.classSession:
+        trainings++;
       case AthleteAgendaItemKind.tournament:
         tournaments++;
       case AthleteAgendaItemKind.challenge:
@@ -462,6 +464,7 @@ AthleteAgendaFilterCounts countAgendaFilters(List<AthleteAgendaItem> items) {
   return AthleteAgendaFilterCounts(
     all: items.length,
     rentals: rentals,
+    trainings: trainings,
     tournaments: tournaments,
     challenges: challenges,
   );
@@ -553,8 +556,10 @@ List<AthleteAgendaItem> filterAgendaItems({
     AthleteAgendaFilter.rentals => filtered.where(
         (i) =>
             i.kind == AthleteAgendaItemKind.rental ||
-            i.kind == AthleteAgendaItemKind.clubSession ||
-            i.kind == AthleteAgendaItemKind.classSession,
+            i.kind == AthleteAgendaItemKind.clubSession,
+      ),
+    AthleteAgendaFilter.trainings => filtered.where(
+        (i) => i.kind == AthleteAgendaItemKind.classSession,
       ),
     AthleteAgendaFilter.tournaments => filtered.where(
         (i) => i.kind == AthleteAgendaItemKind.tournament,

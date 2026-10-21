@@ -173,6 +173,27 @@ export async function createProfessorOwnClassCore(db: Firestore, uid: string, ra
   const seriesIds: Record<string, string> = {};
   const created: string[] = [];
   const skipped: string[] = [];
+  // A turma nasce antes das séries: se algo falhar no meio, o professor ainda a encerra (e libera a quadra).
+  await classRef.set({
+    professorUid: uid,
+    name: input.name,
+    arenaId: input.arenaId,
+    arenaName: priced.arenaName,
+    courtId: input.courtId,
+    courtName: priced.courtName,
+    weekdays: input.weekdays,
+    startTime: input.startTime,
+    endTime: input.endTime,
+    capacity: input.capacity,
+    monthlyPriceReais: input.monthlyPriceReais,
+    pricePerOccurrenceReais: priced.pricePerOccurrence,
+    startDate: input.startDate,
+    seriesIds: {},
+    studentIds: [],
+    status: "active",
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
   for (const weekday of input.weekdays) {
     const seriesRef = db.collection(ARENA_RECURRING_BOOKINGS).doc();
     const series: RecurringSeriesData = {
@@ -206,6 +227,7 @@ export async function createProfessorOwnClassCore(db: Firestore, uid: string, ra
       canceledAt: null,
       cancelReason: null,
     });
+    await classRef.update({[`seriesIds.${weekday}`]: seriesRef.id});
     const result = await materializeSeriesOccurrences(db, seriesRef.id, series, addDaysToDateKey(todayKey, -1), horizonKey);
     await seriesRef.set({
       materializedUntil: horizonKey,
@@ -215,26 +237,6 @@ export async function createProfessorOwnClassCore(db: Firestore, uid: string, ra
     created.push(...result.createdDates);
     skipped.push(...result.skippedDates);
   }
-  await classRef.set({
-    professorUid: uid,
-    name: input.name,
-    arenaId: input.arenaId,
-    arenaName: priced.arenaName,
-    courtId: input.courtId,
-    courtName: priced.courtName,
-    weekdays: input.weekdays,
-    startTime: input.startTime,
-    endTime: input.endTime,
-    capacity: input.capacity,
-    monthlyPriceReais: input.monthlyPriceReais,
-    pricePerOccurrenceReais: priced.pricePerOccurrence,
-    startDate: input.startDate,
-    seriesIds,
-    studentIds: [],
-    status: "active",
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  });
   await notifyManagerSafe(str(priced.arena["managerUserId"]), {
     title: "Horário fixo de professor",
     body: `${professorName} reservou ${priced.courtName} para a turma ${input.name} (${input.startTime}–${input.endTime}).`,

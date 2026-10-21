@@ -170,6 +170,16 @@ class FirebaseArenaProfessionalsRepository
         'linkId': linkId,
         'permissions': {key.wire: value},
       });
+
+  @override
+  Future<ProfessorLinkResult> updateCourtDiscount({
+    required String linkId,
+    required int courtDiscountPercent,
+  }) =>
+      _call('updateArenaProfessorCourtDiscount', {
+        'linkId': linkId,
+        'courtDiscountPercent': courtDiscountPercent,
+      });
 }
 
 /// Repositório da tela Profissionais. Testes e o harness de QA trocam por um

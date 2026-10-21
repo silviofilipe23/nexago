@@ -33,6 +33,9 @@ const Map<String, dynamic> _professorData = {
   'bookedAs': 'professor',
   'professorLinkId': 'a1_ath1',
   'professorRelationshipType': 'INDEPENDENT',
+  // Desconto do vínculo aplicado (gravado só quando venceu promoção/cupom).
+  'professorDiscountPercent': 20,
+  'professorDiscountReais': 30,
 };
 
 const _professorBooking = ArenaManagerBooking(
@@ -95,6 +98,34 @@ void main() {
       expect(arenaBookingProfessorLabel(null), isNull);
       expect(_professorBooking.bookedAsProfessor, isTrue);
       expect(_athleteBooking.bookedAsProfessor, isFalse);
+    });
+
+    test('desconto de professor: só na reserva de professor com % > 0', () {
+      expect(
+        arenaBookingProfessorDiscountLabel(_professorData),
+        'Desconto professor \u221220%',
+      );
+      expect(_professorBooking.professorDiscountPercent, 20);
+      expect(_athleteBooking.professorDiscountPercent, 0);
+      expect(
+        arenaBookingProfessorDiscountLabel(const {'bookedAs': 'professor'}),
+        isNull,
+      );
+      expect(
+        arenaBookingProfessorDiscountLabel(const {
+          'bookedAs': 'professor',
+          'professorDiscountPercent': 0,
+        }),
+        isNull,
+      );
+      expect(
+        arenaBookingProfessorDiscountLabel(const {
+          'bookedAs': 'athlete',
+          'professorDiscountPercent': 20,
+        }),
+        isNull,
+      );
+      expect(arenaBookingProfessorDiscountLabel(null), isNull);
     });
 
     test('resumo da grade marca a reserva de professor', () {
@@ -174,6 +205,11 @@ void main() {
 
     expect(find.byKey(const Key('arena-booking-professor')), findsOneWidget);
     expect(find.text('Professor · independente'), findsOneWidget);
+    expect(
+      find.byKey(const Key('arena-booking-professor-discount')),
+      findsOneWidget,
+    );
+    expect(find.text('Desconto professor \u221220%'), findsOneWidget);
   });
 
   testWidgets('horário da agenda: "Reservado como" professor', (tester) async {
@@ -223,5 +259,10 @@ void main() {
 
     expect(find.text('Reservado como'), findsOneWidget);
     expect(find.text('Professor · independente'), findsOneWidget);
+    expect(
+      find.byKey(const Key('arena-slot-professor-discount')),
+      findsOneWidget,
+    );
+    expect(find.text('Desconto professor \u221220%'), findsOneWidget);
   });
 }

@@ -69,6 +69,14 @@
             @if (perms(); as p) {
               <app-pf-perm-list [perms]="p" [type]="l.relationshipType" />
             }
+            @if (courtDiscount(); as discount) {
+              <div class="pf-discount">
+                <app-pf-note tone="blue">
+                  <strong>{{ discount }}</strong> — vale quando você reserva quadra como professor. Não soma com promoção nem
+                  cupom: fica o menor preço.
+                </app-pf-note>
+              </div>
+            }
           </section>
         </div>
 

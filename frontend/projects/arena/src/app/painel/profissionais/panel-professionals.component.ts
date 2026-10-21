@@ -207,6 +207,9 @@ const TYPE_CHIPS: ReadonlyArray<{ id: ProfessorLinkType; label: string; color: s
                             @for (p of pills; track p.key) {
                               <span class="perm" [class.perm-off]="!p.on">{{ p.label }}</span>
                             }
+                            @if (row.link.courtDiscountPercent > 0) {
+                              <span class="perm" title="Desconto no aluguel de quadra">−{{ row.link.courtDiscountPercent }}% quadra</span>
+                            }
                           } @else if (row.canResend && canWrite()) {
                             <button
                               type="button"

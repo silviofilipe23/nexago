@@ -20,7 +20,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
 initializeApp({projectId: PROJECT_ID});
 const db = getFirestore();
 
-const {createArenaBooking} = await import('../lib/arena-booking-create.js');
+const {createArenaBooking, quoteArenaBooking} = await import('../lib/arena-booking-create.js');
 const {saveArenaClassAttendance, upsertArenaClass, materializeClassSession} = await import('../lib/arena-class.js');
 const {getMyClassSessionRoster} = await import('../lib/arena-class-teacher.js');
 const {classSessionId} = await import('../lib/arena-class-constants.js');
@@ -57,8 +57,9 @@ async function seedArena() {
   }
 }
 
-async function seedLink(status, permissions = {}) {
+async function seedLink(status, permissions = {}, extra = {}) {
   await db.doc('arenaProfessors/a1_uProf').set({
+    ...extra,
     arenaId: 'a1', professorUserId: 'uProf', relationshipType: 'INDEPENDENT', status, initiatedBy: 'PROFESSOR',
     permissions: {canManageOwnLessons: true, canBookCourts: true, canAppearInArenaProfile: false, ...permissions},
     arenaName: 'Arena CFC', professorName: 'Thiago Mendes',
@@ -106,6 +107,33 @@ describe('createArenaBooking — reservar como professor', () => {
 
     const asAthlete = await call(createArenaBooking, 'uProf', booking('10:00'));
     assert.equal(asAthlete.bookedAs, 'athlete');
+  });
+});
+
+describe('desconto do professor no aluguel de quadra', () => {
+  test('cotação e reserva como professor saem com o desconto; como atleta, preço cheio', async () => {
+    await seedLink('ACTIVE', {}, {courtDiscountPercent: 20});
+    const quoteProf = await call(quoteArenaBooking, 'uProf', booking('13:00', {asProfessor: true}));
+    const quoteAthlete = await call(quoteArenaBooking, 'uProf', booking('13:00'));
+    assert.deepEqual([quoteProf.amountReais, quoteProf.professorDiscountPercent, quoteProf.professorDiscountReais], [80, 20, 20]);
+    assert.deepEqual([quoteAthlete.amountReais, quoteAthlete.professorDiscountPercent], [100, 0]);
+
+    const res = await call(createArenaBooking, 'uProf', booking('13:00', {asProfessor: true}));
+    assert.deepEqual([res.amountReais, res.professorDiscountPercent, res.professorDiscountReais], [80, 20, 20]);
+    const doc = (await db.doc(`arenaBookings/${res.bookingId}`).get()).data();
+    assert.deepEqual([doc.amountReais, doc.amountDueOnsiteReais, doc.professorDiscountPercent, doc.professorDiscountReais], [80, 80, 20, 20]);
+    assert.equal((await db.doc(`arenaBookingPricing/${res.bookingId}`).get()).data().amountReais, 80);
+
+    const asAthlete = await call(createArenaBooking, 'uProf', booking('14:00'));
+    assert.equal(asAthlete.amountReais, 100);
+    const athleteDoc = (await db.doc(`arenaBookings/${asAthlete.bookingId}`).get()).data();
+    assert.equal('professorDiscountPercent' in athleteDoc, false);
+  });
+
+  test('vínculo suspenso: cotação "como professor" mostra preço cheio em vez de erro', async () => {
+    await seedLink('SUSPENDED', {}, {courtDiscountPercent: 20});
+    const quote = await call(quoteArenaBooking, 'uProf', booking('15:00', {asProfessor: true}));
+    assert.deepEqual([quote.amountReais, quote.professorDiscountPercent], [100, 0]);
   });
 });
 

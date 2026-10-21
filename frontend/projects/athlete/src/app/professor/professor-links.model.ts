@@ -31,6 +31,7 @@ export type ProfessorLinkEventType =
   | 'REACTIVATED'
   | 'ENDED'
   | 'PERMISSIONS_CHANGED'
+  | 'COURT_DISCOUNT_CHANGED'
   | 'CANCELED'
   | 'EXPIRED';
 
@@ -84,6 +85,9 @@ export interface ProfessorLink {
   initiatedBy: ProfessorLinkSide;
   /** Configuradas pela arena — só valem com `ACTIVE` (ver `effectivePermissions`). */
   permissions: ProfessorPermissions;
+  /** Desconto (% inteiro, 0 = sem) que a arena dá no aluguel de quadra reservado "como professor".
+   *  Não soma com promoção nem cupom — vale o menor preço (o servidor decide na cotação). */
+  courtDiscountPercent: number;
   message: string | null;
   cycle: number;
   arenaName: string;
@@ -685,6 +689,26 @@ function permissionChangeTitle(metadata: Record<string, unknown>): string {
   return parts.length > 0 ? parts.join(' · ') : 'Permissões atualizadas';
 }
 
+function discountMeta(raw: unknown): number {
+  return typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? Math.round(raw) : 0;
+}
+
+function courtDiscountChangeTitle(metadata: Record<string, unknown>): string {
+  const before = discountMeta(metadata['before']);
+  const after = discountMeta(metadata['after']);
+  if (after === 0) return 'Desconto no aluguel removido';
+  return before > 0 ? `Desconto no aluguel: ${before}% → ${after}%` : `Desconto no aluguel: ${after}%`;
+}
+
+/** "Desconto no aluguel de quadra: 20%" no detalhe do vínculo; `null` sem desconto. Só enquanto o
+ *  vínculo deixa reservar como professor — fora disso o desconto não vale. */
+export function courtDiscountLine(link: Pick<ProfessorLink, 'courtDiscountPercent' | 'status' | 'expiresAt'>, nowMs: number): string | null {
+  if (link.courtDiscountPercent <= 0) return null;
+  const status = displayStatus(link, nowMs);
+  if (status !== 'ACTIVE' && status !== 'SUSPENDED') return null;
+  return `Desconto no aluguel de quadra: ${link.courtDiscountPercent}%`;
+}
+
 /** Linha de cima do histórico, do ponto de vista do professor. */
 export function eventTitle(event: ProfessorLinkEvent, link: Pick<ProfessorLink, 'relationshipType'>): string {
   const type = typeLabelOf(event.metadata['relationshipType'], link.relationshipType);
@@ -711,6 +735,8 @@ export function eventTitle(event: ProfessorLinkEvent, link: Pick<ProfessorLink, 
     }
     case 'PERMISSIONS_CHANGED':
       return permissionChangeTitle(event.metadata);
+    case 'COURT_DISCOUNT_CHANGED':
+      return courtDiscountChangeTitle(event.metadata);
     case 'CANCELED':
       return event.metadata['side'] === 'ARENA' ? 'Convite cancelado' : 'Pedido cancelado';
     case 'EXPIRED':
@@ -769,9 +795,16 @@ const EVENT_TYPES: ReadonlySet<string> = new Set([
   'REACTIVATED',
   'ENDED',
   'PERMISSIONS_CHANGED',
+  'COURT_DISCOUNT_CHANGED',
   'CANCELED',
   'EXPIRED',
 ]);
+
+/** Espelho de `storedCourtDiscountPercent` (servidor): ausente ou fora de 0–90 = sem desconto. */
+function courtDiscountOf(raw: unknown): number {
+  if (typeof raw !== 'number' || !Number.isInteger(raw)) return 0;
+  return raw >= 0 && raw <= 90 ? raw : 0;
+}
 
 function statusOrNull(raw: unknown): ProfessorLinkStatus | null {
   return typeof raw === 'string' && STATUSES.has(raw) ? (raw as ProfessorLinkStatus) : null;
@@ -803,6 +836,7 @@ export function parseProfessorLink(id: string, data: Raw | undefined): Professor
       canCancelLessons: perms['canCancelLessons'] === true,
       canBookRecurring: perms['canBookRecurring'] === true,
     },
+    courtDiscountPercent: courtDiscountOf(data['courtDiscountPercent']),
     message: str(data['message']),
     cycle: typeof data['cycle'] === 'number' ? data['cycle'] : 1,
     arenaName: str(data['arenaName']) ?? 'Arena',

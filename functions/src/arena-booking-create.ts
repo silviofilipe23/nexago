@@ -28,7 +28,8 @@ import {
 import {ensurePeakRuleSatisfied, parsePeakRulesFromDocs} from "./arena-peak-rules";
 import {resolveBookingSport} from "./arena-booking-sport";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
-import {resolveProfessorBookingStamp} from "./arena-professor-permissions";
+import {professorCourtDiscountForQuote, resolveProfessorBooking} from "./arena-professor-permissions";
+import {applyProfessorCourtDiscount, type ProfessorCourtDiscountOutcome} from "./arena-professor-court-discount";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -57,7 +58,9 @@ interface BookingInput {
   sport?: string;
   /**
    * Reservar como professor (vínculo `ACTIVE` com "Reservar quadras" naquela arena). Ausente =
-   * reserva de atleta, como sempre. Mesmo preço e regras; só carimba a reserva para a arena ver.
+   * reserva de atleta, como sempre. Mesmas regras; carimba a reserva para a arena ver e aplica o
+   * desconto do vínculo no aluguel (`courtDiscountPercent`), se a arena deu um. Na cotação só
+   * aplica o desconto (sem vínculo válido, preço de atleta).
    */
   asProfessor?: boolean;
   /**
@@ -155,7 +158,7 @@ async function ensureNotBlocked(arenaId: string, athleteId: string): Promise<voi
 async function quoteInternal(
   input: BookingInput,
   athleteId: string,
-): Promise<BookingTotalResult & CouponPricingOutcome> {
+): Promise<BookingTotalResult & CouponPricingOutcome & ProfessorCourtDiscountOutcome> {
   const arenaId = input.arenaId?.trim();
   const courtId = input.courtId?.trim();
   const dateKey = parseDateKey(input.date ?? "");
@@ -190,14 +193,21 @@ async function quoteInternal(
     selectionStartTimes: promoTotal.lineItems.map((l) => l.startTime),
   });
 
-  const {result, coupon} = await resolveCouponForBooking({
+  const withCoupon = await resolveCouponForBooking({
     db: getFirestore(),
     arenaId,
     athleteId,
     couponCode: input.couponCode,
     promoTotal,
   });
-  return {...result, ...coupon};
+  const discountPercent = await professorCourtDiscountForQuote(
+    getFirestore(),
+    arenaId,
+    athleteId,
+    input.asProfessor,
+  );
+  const {result, coupon, professor} = applyProfessorCourtDiscount(withCoupon, discountPercent);
+  return {...result, ...coupon, ...professor};
 }
 
 function assertPositiveBookingTotal(total: BookingTotalResult): void {
@@ -225,6 +235,8 @@ export const quoteArenaBooking = onCall({
     couponApplied: total.couponApplied,
     couponId: total.couponId,
     couponDiscountReais: total.couponDiscountReais,
+    professorDiscountPercent: total.professorDiscountPercent,
+    professorDiscountReais: total.professorDiscountReais,
   };
 });
 
@@ -250,12 +262,13 @@ export const createArenaBooking = onCall({
   }
 
   await ensureNotBlocked(arenaId, athleteId);
-  const professorStamp = await resolveProfessorBookingStamp(
+  const professorBooking = await resolveProfessorBooking(
     getFirestore(),
     arenaId,
     athleteId,
     input.asProfessor,
   );
+  const professorStamp = professorBooking?.stamp ?? null;
   const lessonStudent = await resolveProfessorLessonStudent(
     getFirestore(),
     athleteId,
@@ -323,13 +336,20 @@ export const createArenaBooking = onCall({
     promotions: ctx.promotions,
     selectedSlotStartTimes: input.selectedSlotStartTimes,
   });
-  const {result: total, coupon: couponOutcome} = await resolveCouponForBooking({
-    db,
-    arenaId,
-    athleteId,
-    couponCode: input.couponCode,
-    promoTotal,
-  });
+  const {
+    result: total,
+    coupon: couponOutcome,
+    professor: professorDiscount,
+  } = applyProfessorCourtDiscount(
+    await resolveCouponForBooking({
+      db,
+      arenaId,
+      athleteId,
+      couponCode: input.couponCode,
+      promoTotal,
+    }),
+    professorBooking?.courtDiscountPercent ?? 0,
+  );
 
   assertPositiveBookingTotal(total);
 
@@ -475,6 +495,7 @@ export const createArenaBooking = onCall({
         couponId: couponOutcome.couponId,
         couponCode: couponOutcome.couponCode,
         couponDiscountReais: couponOutcome.couponDiscountReais,
+        ...(professorDiscount.professorDiscountPercent > 0 ? professorDiscount : {}),
         pricingLineItems: total.lineItems.map((l) => ({
           startTime: l.startTime,
           endTime: l.endTime,
@@ -559,6 +580,8 @@ export const createArenaBooking = onCall({
     couponApplied: couponOutcome.couponApplied,
     couponId: couponOutcome.couponId,
     couponDiscountReais: couponOutcome.couponDiscountReais,
+    professorDiscountPercent: professorDiscount.professorDiscountPercent,
+    professorDiscountReais: professorDiscount.professorDiscountReais,
     bookedAs: professorStamp?.bookedAs ?? "athlete",
   };
 });

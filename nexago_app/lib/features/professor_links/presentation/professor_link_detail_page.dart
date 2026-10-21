@@ -123,6 +123,7 @@ class _DetailViewState extends ConsumerState<_DetailView> {
         ref.watch(professorLinkEventsProvider(link.id)).valueOrNull ??
             const <ArenaProfessorLinkEvent>[];
     final action = professorLinkAction(link, now);
+    final courtDiscount = professorCourtDiscountLabel(link, status);
 
     return ProfessorLinksScaffold(
       title: link.arenaName,
@@ -198,6 +199,16 @@ class _DetailViewState extends ConsumerState<_DetailView> {
                 fontSize: 11.5,
                 color: ProfessorLinksStyle.dim(colors),
               ),
+            ),
+          ],
+          if (courtDiscount != null) ...[
+            const SizedBox(height: 12),
+            ProfessorLinksNote(
+              '$courtDiscount — vale nas reservas feitas como professor, sobre '
+              'o preço cheio. Não soma com promoção ou cupom: vale o menor '
+              'preço.',
+              key: const Key('professor-link-court-discount'),
+              tone: ProfessorLinksNoteTone.blue,
             ),
           ],
           if (events.isNotEmpty) ...[

@@ -253,6 +253,7 @@ class ArenaProfessorLink {
     this.suspensionDetails,
     this.endedReason,
     this.endedBySide,
+    this.courtDiscountPercent = 0,
   });
 
   factory ArenaProfessorLink.fromMap(String id, Map<String, dynamic> data) {
@@ -291,6 +292,9 @@ class ArenaProfessorLink {
       suspensionDetails: _string(data['suspensionDetails']),
       endedReason: _string(data['endedReason']),
       endedBySide: ArenaProfessorSide.tryParse(data['endedBySide']),
+      courtDiscountPercent: parseProfessorCourtDiscountPercent(
+        data['courtDiscountPercent'],
+      ),
     );
   }
 
@@ -333,6 +337,20 @@ class ArenaProfessorLink {
   final String? suspensionDetails;
   final String? endedReason;
   final ArenaProfessorSide? endedBySide;
+
+  /// Desconto (%) da arena no aluguel de quadra reservado "como professor".
+  /// Inteiro 0–90; ausente = 0 (sem desconto).
+  final int courtDiscountPercent;
+}
+
+/// Teto do desconto do professor no aluguel (espelho do servidor).
+const kProfessorCourtDiscountMaxPercent = 90;
+
+/// `courtDiscountPercent` do doc: inteiro 0–90; qualquer outra coisa vira 0
+/// ou é presa ao intervalo.
+int parseProfessorCourtDiscountPercent(Object? raw) {
+  if (raw is! num || !raw.isFinite) return 0;
+  return raw.round().clamp(0, kProfessorCourtDiscountMaxPercent);
 }
 
 /// Linha imutável do histórico (`arenaProfessors/{id}/events/{eventId}`).
@@ -374,7 +392,8 @@ class ArenaProfessorLinkEvent {
   final String id;
 
   /// `INVITED`, `REQUESTED`, `ACCEPTED`, `REJECTED`, `APPROVED`, `SUSPENDED`,
-  /// `REACTIVATED`, `ENDED`, `PERMISSIONS_CHANGED`, `CANCELED`, `EXPIRED`.
+  /// `REACTIVATED`, `ENDED`, `PERMISSIONS_CHANGED`, `COURT_DISCOUNT_CHANGED`,
+  /// `CANCELED`, `EXPIRED`.
   final String eventType;
   final String actorUserId;
   final String actorName;

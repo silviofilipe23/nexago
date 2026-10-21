@@ -150,8 +150,10 @@ export class BookingProfessorOptionComponent {
   readonly arenaName = input<string | null>(null);
   readonly type = input.required<ProfessorLinkType>();
   readonly disabled = input(false);
+  /** Desconto do vínculo no aluguel (%), só para a dica — o preço vem da cotação. */
+  readonly discountPercent = input(0);
   readonly checked = model(false);
 
   protected readonly subId = `bpo-sub-${nextId++}`;
-  protected readonly hint = computed(() => bookingAsProfessorHint(this.arenaName()));
+  protected readonly hint = computed(() => bookingAsProfessorHint(this.arenaName(), this.discountPercent()));
 }

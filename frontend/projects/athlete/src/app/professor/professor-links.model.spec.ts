@@ -2,6 +2,7 @@ import {
   NO_PERMISSIONS,
   acceptInviteLabel,
   arenaInitials,
+  courtDiscountLine,
   displayStatus,
   duplicateCopy,
   duplicateFromError,
@@ -51,6 +52,7 @@ function link(overrides: Partial<ProfessorLink> = {}): ProfessorLink {
     status: 'ACTIVE',
     initiatedBy: 'PROFESSOR',
     permissions: { ...NO_PERMISSIONS, canManageOwnLessons: true, canBookCourts: true, canAppearInArenaProfile: true },
+    courtDiscountPercent: 0,
     message: null,
     cycle: 1,
     arenaName: 'Arena Sul',
@@ -458,6 +460,15 @@ describe('professor-links.model — histórico', () => {
     expect(title).toBe('Permissão “Reservar quadras” ligada · Permissão “Aparecer no perfil da arena” removida');
   });
 
+  it('desconto no aluguel: definido, alterado e removido', () => {
+    const title = (before: unknown, after: unknown) =>
+      eventTitle(event({ eventType: 'COURT_DISCOUNT_CHANGED', actorRole: 'ARENA', metadata: { before, after } }), link());
+    expect(title(0, 20)).toBe('Desconto no aluguel: 20%');
+    expect(title(10, 20)).toBe('Desconto no aluguel: 10% → 20%');
+    expect(title(20, 0)).toBe('Desconto no aluguel removido');
+    expect(title(undefined, 15)).toBe('Desconto no aluguel: 15%');
+  });
+
   it('linha de baixo: código · autor · data', () => {
     expect(eventMetaLine(event({ eventType: 'APPROVED', actorName: 'Ana Souza', createdAt: new Date(2025, 7, 4) }))).toBe(
       'APPROVED · Ana Souza · 04 ago 2025',
@@ -499,6 +510,27 @@ describe('professor-links.model — leitura do Firestore', () => {
     expect(parsed?.permissions.canCancelLessons).toBeFalse();
     const legacy = parseProfessorLink('a_p', { arenaId: 'a', relationshipType: 'ARENA_STAFF', status: 'ACTIVE', permissions: { canBookCourts: true } });
     expect(legacy?.permissions.canEnrollStudents).toBeFalse();
+  });
+
+  it('desconto no aluguel: % inteiro de 0 a 90; ausente ou fora da faixa = 0', () => {
+    const discount = (raw: unknown) =>
+      parseProfessorLink('a_p', { arenaId: 'a', status: 'ACTIVE', courtDiscountPercent: raw })?.courtDiscountPercent;
+    expect(discount(20)).toBe(20);
+    expect(discount(undefined)).toBe(0);
+    expect(discount('20')).toBe(0);
+    expect(discount(12.5)).toBe(0);
+    expect(discount(95)).toBe(0);
+    expect(discount(-1)).toBe(0);
+    expect(parseProfessorLinkEvent('e', { eventType: 'COURT_DISCOUNT_CHANGED', metadata: { before: 0, after: 20 } })?.eventType).toBe(
+      'COURT_DISCOUNT_CHANGED',
+    );
+  });
+
+  it('linha do desconto no detalhe: só com desconto e vínculo aberto (ativo ou suspenso)', () => {
+    expect(courtDiscountLine(link({ courtDiscountPercent: 20 }), NOW)).toBe('Desconto no aluguel de quadra: 20%');
+    expect(courtDiscountLine(link({ courtDiscountPercent: 20, status: 'SUSPENDED' }), NOW)).toBe('Desconto no aluguel de quadra: 20%');
+    expect(courtDiscountLine(link({ courtDiscountPercent: 0 }), NOW)).toBeNull();
+    expect(courtDiscountLine(link({ courtDiscountPercent: 20, status: 'ENDED' }), NOW)).toBeNull();
   });
 
   it('descarta doc sem status conhecido ou sem arena', () => {

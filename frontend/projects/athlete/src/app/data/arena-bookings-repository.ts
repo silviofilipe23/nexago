@@ -59,6 +59,10 @@ export interface ArenaBookingQuote {
   couponApplied: boolean;
   couponId: string | null;
   couponDiscountReais: number;
+  /** Desconto do professor (`asProfessor`) — 0 quando não houve ou a promoção/cupom já saía mais
+   *  barato. Quando vale, a cotação vem sem promoção e sem cupom (não acumulam). */
+  professorDiscountPercent: number;
+  professorDiscountReais: number;
 }
 
 export interface CreateArenaBookingResult {
@@ -73,6 +77,9 @@ export interface CreateArenaBookingResult {
   couponApplied: boolean;
   couponId: string | null;
   couponDiscountReais: number;
+  /** Ausentes em servidor antigo — trate como 0. */
+  professorDiscountPercent?: number;
+  professorDiscountReais?: number;
 }
 
 export interface ArenaBookingPixPayment {
@@ -216,17 +223,30 @@ function callablePayload(args: ArenaBookingArgs, couponCode?: string): Record<st
 /** Cota autoritativa (preço por quadra + promoções + cupom) — a mesma que o servidor cobra.
  *  `couponCode` é opcional: se informado e inválido/expirado/esgotado, o callable lança
  *  `not-found`/`failed-precondition` com mensagem pronta pro atleta — quem chama decide se
- *  isso trava a cotação ou só mostra o erro perto do campo de cupom. */
+ *  isso trava a cotação ou só mostra o erro perto do campo de cupom. `asProfessor` cota com o
+ *  desconto do vínculo; sem vínculo válido o servidor devolve o preço de atleta, calado. */
 export async function quoteArenaBooking(
   functions: Functions,
   args: ArenaBookingArgs,
   couponCode?: string,
+  options: { asProfessor?: boolean } = {},
 ): Promise<ArenaBookingQuote> {
   try {
     const result = await httpsCallable<
       Record<string, unknown>,
-      { amountReais: number; lineItems?: unknown[]; couponApplied?: boolean; couponId?: string | null; couponDiscountReais?: number }
-    >(functions, 'quoteArenaBooking')(callablePayload(args, couponCode));
+      {
+        amountReais: number;
+        lineItems?: unknown[];
+        couponApplied?: boolean;
+        couponId?: string | null;
+        couponDiscountReais?: number;
+        professorDiscountPercent?: number;
+        professorDiscountReais?: number;
+      }
+    >(functions, 'quoteArenaBooking')({
+      ...callablePayload(args, couponCode),
+      ...(options.asProfessor === true ? { asProfessor: true } : {}),
+    });
     const amount = Number(result.data.amountReais);
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new ArenaBookingError('Configure o preço da quadra antes de reservar.');
@@ -250,6 +270,8 @@ export async function quoteArenaBooking(
       couponApplied: result.data.couponApplied === true,
       couponId: typeof result.data.couponId === 'string' ? result.data.couponId : null,
       couponDiscountReais: Number(result.data.couponDiscountReais) || 0,
+      professorDiscountPercent: Number(result.data.professorDiscountPercent) || 0,
+      professorDiscountReais: Number(result.data.professorDiscountReais) || 0,
     };
   } catch (err) {
     if (err instanceof ArenaBookingError) throw err;

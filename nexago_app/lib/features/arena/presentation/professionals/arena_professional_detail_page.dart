@@ -187,6 +187,24 @@ class _DetailViewState extends ConsumerState<_DetailView> {
         fallback: 'Não foi possível reenviar o convite.',
       );
 
+  Future<void> _editCourtDiscount(ArenaProfessorLink link) async {
+    final percent = await askArenaProfessorCourtDiscount(
+      context,
+      professorName: link.professorName,
+      current: link.courtDiscountPercent,
+    );
+    if (percent == null || !mounted) return;
+    if (percent == link.courtDiscountPercent) return;
+    await _run(
+      () => _repo.updateCourtDiscount(
+        linkId: link.id,
+        courtDiscountPercent: percent,
+      ),
+      success: arenaProfessorCourtDiscountSavedMessage(percent),
+      fallback: 'Não foi possível salvar o desconto.',
+    );
+  }
+
   Future<void> _togglePermission(
     ArenaProfessorLink link,
     ArenaProfessorPermissionKey key,
@@ -258,6 +276,8 @@ class _DetailViewState extends ConsumerState<_DetailView> {
         arenaProfessorPermissionsEditable(status) &&
         saving == null;
     final permissionsNote = arenaProfessorPermissionsNote(link, now);
+    final discountEditable = arenaProfessorCourtDiscountEditable(status);
+    final showDiscount = discountEditable || link.courtDiscountPercent > 0;
 
     return ProfessorLinksScaffold(
       title: link.professorName,
@@ -338,6 +358,27 @@ class _DetailViewState extends ConsumerState<_DetailView> {
             'Sem acesso a financeiro, preços ou administração da arena — '
             'independentemente do tipo de vínculo.',
           ),
+          if (showDiscount) ...[
+            const SizedBox(height: 24),
+            const ArenaProfessorSectionHead(
+              title: 'Desconto no aluguel de quadra',
+              hint: 'Reserva como professor',
+            ),
+            const SizedBox(height: 8),
+            _CourtDiscountCard(
+              percent: link.courtDiscountPercent,
+              busy: _busy,
+              onEdit: canManage && discountEditable
+                  ? () => _editCourtDiscount(link)
+                  : null,
+            ),
+            const SizedBox(height: 10),
+            const ProfessorLinksNote(
+              'Vale quando o professor reserva quadra “como professor”, sobre '
+              'o preço cheio de cada horário. Não soma com promoção ou cupom: '
+              'vale o menor preço.',
+            ),
+          ],
           const SizedBox(height: 24),
           const ArenaProfessorSectionHead(
               title: 'Histórico', hint: 'Eventos imutáveis'),
@@ -443,6 +484,67 @@ class _ProfileCard extends StatelessWidget {
             _Block(
               label: byArena ? 'Mensagem do convite' : 'Mensagem do pedido',
               text: '“$message”',
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Valor atual do desconto e o "Alterar" (só quem administra, com o vínculo
+/// ativo ou suspenso).
+class _CourtDiscountCard extends StatelessWidget {
+  const _CourtDiscountCard({
+    required this.percent,
+    required this.busy,
+    required this.onEdit,
+  });
+
+  final int percent;
+  final bool busy;
+  final VoidCallback? onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return ProfessorLinksCard(
+      key: const Key('arena-professor-court-discount'),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  arenaProfessorCourtDiscountValueLabel(percent),
+                  key: const Key('arena-professor-court-discount-value'),
+                  style: ProfessorLinksStyle.display(
+                    18,
+                    color: percent > 0
+                        ? colors.onSurface
+                        : ProfessorLinksStyle.dim(colors),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Sobre o preço cheio do horário',
+                  style: AppTypography.bodyS.copyWith(
+                    fontSize: 11.5,
+                    color: ProfessorLinksStyle.dim(colors),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (onEdit != null)
+            SizedBox(
+              width: 110,
+              child: ProfessorLinksGhostButton(
+                key: const Key('arena-professor-court-discount-edit'),
+                label: 'Alterar',
+                height: 40,
+                onPressed: busy ? null : onEdit,
+              ),
             ),
         ],
       ),

@@ -126,6 +126,82 @@ void main() {
     });
   });
 
+  group('BookingService — desconto de professor', () {
+    test('quote como professor manda asProfessor e lê o desconto', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'quoteArenaBooking': {
+          'amountReais': 80.0,
+          'lineItems': <dynamic>[],
+          'couponApplied': false,
+          'professorDiscountPercent': 20,
+          'professorDiscountReais': 20.0,
+        },
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      final quote = await service.quoteBooking(args: args, asProfessor: true);
+
+      expect(functions.calledPayloads.single?['asProfessor'], isTrue);
+      expect(quote.professorDiscountPercent, 20);
+      expect(quote.professorDiscountReais, 20.0);
+      expect(quote.hasProfessorDiscount, isTrue);
+      expect(quote.amountBeforeProfessorDiscountReais, 100.0);
+    });
+
+    test('quote de atleta: sem asProfessor e desconto zero', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'quoteArenaBooking': {'amountReais': 100.0, 'lineItems': <dynamic>[]},
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      final quote = await service.quoteBooking(args: args);
+
+      expect(
+        functions.calledPayloads.single?.containsKey('asProfessor'),
+        isFalse,
+      );
+      expect(quote.professorDiscountPercent, 0);
+      expect(quote.professorDiscountReais, 0);
+      expect(quote.hasProfessorDiscount, isFalse);
+      expect(quote.professorDiscountLabel, isNull);
+    });
+
+    test('createArenaBooking devolve o desconto aplicado', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'createArenaBooking': {
+          'bookingId': 'b1',
+          'amountReais': 80.0,
+          'professorDiscountPercent': 20,
+          'professorDiscountReais': 20.0,
+        },
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      final result = await service.createBookingAtomically(
+        args: args,
+        athleteId: 'u1',
+        asProfessor: true,
+      );
+
+      expect(functions.calledPayloads.first?['asProfessor'], isTrue);
+      expect(result.professorDiscountPercent, 20);
+      expect(result.professorDiscountReais, 20.0);
+    });
+
+    test('createArenaBooking sem desconto: zeros', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'createArenaBooking': {'bookingId': 'b1', 'amountReais': 100.0},
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      final result =
+          await service.createBookingAtomically(args: args, athleteId: 'u1');
+
+      expect(result.professorDiscountPercent, 0);
+      expect(result.professorDiscountReais, 0);
+    });
+  });
+
   group('BookingService.createBookingAtomically — esporte', () {
     test('envia o esporte escolhido no payload', () async {
       final functions = _FakeFirebaseFunctions(responses: {

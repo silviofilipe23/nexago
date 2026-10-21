@@ -100,6 +100,31 @@ bool arenaProfessorPermissionsEditable(ArenaProfessorLinkStatus status) =>
     status == ArenaProfessorLinkStatus.active ||
     status == ArenaProfessorLinkStatus.suspended;
 
+/// Desconto no aluguel de quadra: a callable só aceita vínculo `ACTIVE` ou
+/// `SUSPENDED` (mesma janela das permissões).
+bool arenaProfessorCourtDiscountEditable(ArenaProfessorLinkStatus status) =>
+    arenaProfessorPermissionsEditable(status);
+
+/// "20%" ou "Sem desconto".
+String arenaProfessorCourtDiscountValueLabel(int percent) =>
+    percent > 0 ? '$percent%' : 'Sem desconto';
+
+/// Texto digitado → inteiro 0–90; `null` quando inválido (vazio conta como 0).
+int? parseArenaProfessorCourtDiscountInput(String raw) {
+  final text = raw.trim().replaceAll('%', '').trim();
+  if (text.isEmpty) return 0;
+  final value = int.tryParse(text);
+  if (value == null || value < 0 || value > kProfessorCourtDiscountMaxPercent) {
+    return null;
+  }
+  return value;
+}
+
+/// Snackbar depois de gravar.
+String arenaProfessorCourtDiscountSavedMessage(int percent) => percent > 0
+    ? 'Desconto de $percent% no aluguel salvo. O professor foi avisado.'
+    : 'Desconto no aluguel removido. O professor foi avisado.';
+
 /// O que o card de permissões do detalhe mostra: fechado = o que vale (nada);
 /// aberto = a configuração, que é o que o toggle edita (no convite e no
 /// pedido, a proposta).
@@ -656,6 +681,8 @@ String arenaProfessorEventTitle(
         ? withReason('Vínculo encerrado pelo professor')
         : withReason('Vínculo encerrado'),
     'PERMISSIONS_CHANGED' => _permissionsChangedTitle(event.metadata),
+    'COURT_DISCOUNT_CHANGED' =>
+      professorCourtDiscountChangedTitle(event.metadata),
     'CANCELED' => byProfessor || event.metadata['side'] == 'PROFESSOR'
         ? 'Pedido cancelado'
         : 'Convite cancelado',

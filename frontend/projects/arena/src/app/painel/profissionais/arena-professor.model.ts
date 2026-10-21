@@ -32,6 +32,7 @@ export type ProfessorEventType =
   | 'REACTIVATED'
   | 'ENDED'
   | 'PERMISSIONS_CHANGED'
+  | 'COURT_DISCOUNT_CHANGED'
   | 'CANCELED'
   | 'EXPIRED';
 
@@ -84,6 +85,8 @@ export interface ArenaProfessorLink {
   initiatedBy: ProfessorLinkSide;
   /** Configuradas — só valem com `ACTIVE` (ver `effectivePermissions`). */
   permissions: ProfessorPermissions;
+  /** Desconto (% inteiro, 0 = sem) no aluguel de quadra reservado "como professor". */
+  courtDiscountPercent: number;
   message: string | null;
   cycle: number;
   professorName: string;
@@ -324,6 +327,23 @@ export function effectivePermissions(link: Pick<ArenaProfessorLink, 'status' | '
 /** Só vínculo ativo ou suspenso tem permissões ajustáveis (`updateArenaProfessorPermissions`). */
 export function permissionsEditable(status: ProfessorLinkStatus): boolean {
   return status === 'ACTIVE' || status === 'SUSPENDED';
+}
+
+/** Teto do desconto no aluguel — espelho de `MAX_COURT_DISCOUNT_PERCENT` no servidor. */
+export const MAX_COURT_DISCOUNT_PERCENT = 90;
+
+/** `20%` ou `Sem desconto`. */
+export function courtDiscountLabel(percent: number): string {
+  return percent > 0 ? `${percent}%` : 'Sem desconto';
+}
+
+/** Valor digitado no campo do desconto: inteiro de 0 a 90 (vazio = 0); `null` quando inválido. */
+export function parseCourtDiscountInput(raw: string): number | null {
+  const text = raw.trim().replace(/%$/, '').trim();
+  if (text === '') return 0;
+  if (!/^\d+$/.test(text)) return null;
+  const value = Number(text);
+  return value <= MAX_COURT_DISCOUNT_PERCENT ? value : null;
 }
 
 /** Coluna "Permissões" da lista: pílulas só com vínculo ativo; antes do aceite, nada vale. */
@@ -643,6 +663,10 @@ function permissionTitle(key: string): string {
   return PROFESSOR_PERMISSION_META.find((p) => p.key === key)?.title ?? key;
 }
 
+function discountMeta(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.round(v) : 0;
+}
+
 /** Linha principal do evento (tabela da spec). */
 export function eventTitle(event: ArenaProfessorEvent, link: Pick<ArenaProfessorLink, 'relationshipType' | 'professorName'>): string {
   const meta = event.metadata;
@@ -668,6 +692,12 @@ export function eventTitle(event: ArenaProfessorEvent, link: Pick<ArenaProfessor
       return meta['side'] === 'PROFESSOR' ? 'Pedido cancelado' : 'Convite cancelado';
     case 'EXPIRED':
       return 'Convite expirou';
+    case 'COURT_DISCOUNT_CHANGED': {
+      const before = discountMeta(meta['before']);
+      const after = discountMeta(meta['after']);
+      if (after === 0) return 'Desconto no aluguel removido';
+      return before > 0 ? `Desconto no aluguel: ${before}% → ${after}%` : `Desconto no aluguel: ${after}%`;
+    }
     case 'PERMISSIONS_CHANGED': {
       const changed = Array.isArray(meta['changed']) ? (meta['changed'] as unknown[]).filter((k): k is string => typeof k === 'string') : [];
       const after = (meta['after'] ?? {}) as Record<string, unknown>;
@@ -761,6 +791,7 @@ const EVENT_TYPES: readonly ProfessorEventType[] = [
   'REACTIVATED',
   'ENDED',
   'PERMISSIONS_CHANGED',
+  'COURT_DISCOUNT_CHANGED',
   'CANCELED',
   'EXPIRED',
 ];
@@ -777,6 +808,12 @@ function permissionsFromRaw(raw: unknown, type: ProfessorLinkType): ProfessorPer
   return out;
 }
 
+/** Espelho de `storedCourtDiscountPercent`: ausente (vínculo antigo) ou fora da faixa = 0. */
+function courtDiscountFromRaw(raw: unknown): number {
+  if (typeof raw !== 'number' || !Number.isInteger(raw)) return 0;
+  return raw >= 0 && raw <= MAX_COURT_DISCOUNT_PERCENT ? raw : 0;
+}
+
 export function arenaProfessorLinkFromDoc(doc: QueryDocumentSnapshot | DocumentSnapshot): ArenaProfessorLink {
   const d = (doc.data() ?? {}) as Record<string, unknown>;
   const relationshipType = oneOf<ProfessorLinkType>(d['relationshipType'], ['ARENA_STAFF', 'INDEPENDENT'], 'INDEPENDENT');
@@ -791,6 +828,7 @@ export function arenaProfessorLinkFromDoc(doc: QueryDocumentSnapshot | DocumentS
     status: oneOf(d['status'], STATUSES, 'PENDING'),
     initiatedBy: oneOf<ProfessorLinkSide>(d['initiatedBy'], ['ARENA', 'PROFESSOR'], 'PROFESSOR'),
     permissions: permissionsFromRaw(d['permissions'], relationshipType),
+    courtDiscountPercent: courtDiscountFromRaw(d['courtDiscountPercent']),
     message: optStr(d['message']),
     cycle: typeof d['cycle'] === 'number' ? d['cycle'] : 1,
     professorName: optStr(d['professorName']) ?? 'Professor',

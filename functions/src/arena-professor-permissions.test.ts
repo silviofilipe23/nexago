@@ -6,8 +6,10 @@ import {FakeFirestore} from "./fake-firestore.test-helper";
 import {
   arenasWithProfessorPermission,
   assertTeacherLinkAllowsNewClass,
+  professorCourtDiscountForQuote,
   professorPermissionDenial,
   requireArenaProfessorPermission,
+  resolveProfessorBooking,
   resolveProfessorBookingStamp,
 } from "./arena-professor-permissions";
 import {
@@ -18,6 +20,7 @@ import {
   reactivateArenaProfessorLinkCore,
   requestArenaProfessorLinkCore,
   suspendArenaProfessorLinkCore,
+  updateArenaProfessorCourtDiscountCore,
   updateArenaProfessorPermissionsCore,
   type ArenaProfessorPermissions,
   type ArenaProfessorStatus,
@@ -163,6 +166,62 @@ describe("reserva como professor (canBookCourts)", () => {
     assert.equal(detailsOf(error).reason, "permission_off");
     // Atleta continua reservando.
     assert.equal(await resolveProfessorBookingStamp(db, "a1", "uProf", undefined), null);
+  });
+});
+
+describe("desconto do professor no aluguel de quadra", () => {
+  it("vínculo antigo (sem o campo) não tem desconto", async () => {
+    const {fake, db} = makeDb();
+    seedLink(fake, "ACTIVE");
+    assert.equal((await resolveProfessorBooking(db, "a1", "uProf", true))?.courtDiscountPercent, 0);
+    assert.equal(await professorCourtDiscountForQuote(db, "a1", "uProf", true), 0);
+  });
+
+  it("a arena define o %; vale na reserva e na cotação só como professor", async () => {
+    const {fake, db} = makeDb();
+    seedLink(fake, "ACTIVE");
+    const out = await updateArenaProfessorCourtDiscountCore(db, {linkId: "a1_uProf", courtDiscountPercent: 25}, OWNER, NOW);
+    assert.equal(out.changed, true);
+    assert.deepEqual(out.notices.map((n) => n.type), ["professor_link_court_discount_changed"]);
+    assert.match(out.notices[0]!.body, /25% de desconto/);
+    assert.equal((await resolveProfessorBooking(db, "a1", "uProf", true))?.courtDiscountPercent, 25);
+    assert.equal(await professorCourtDiscountForQuote(db, "a1", "uProf", true), 25);
+    assert.equal(await professorCourtDiscountForQuote(db, "a1", "uProf", undefined), 0);
+    assert.equal(await resolveProfessorBooking(db, "a1", "uProf", false), null);
+  });
+
+  it("cotação não lança: sem vínculo válido é preço de atleta", async () => {
+    const {fake, db} = makeDb();
+    assert.equal(await professorCourtDiscountForQuote(db, "a1", "uProf", true), 0);
+    fake.seedDoc("arenaProfessors/a1_uProf", {
+      arenaId: "a1", professorUserId: "uProf", relationshipType: "INDEPENDENT", status: "SUSPENDED",
+      permissions: defaultArenaProfessorPermissions("INDEPENDENT"), courtDiscountPercent: 30,
+    });
+    assert.equal(await professorCourtDiscountForQuote(db, "a1", "uProf", true), 0);
+  });
+
+  it("valida a faixa, o papel e o status; sem mudança não grava evento", async () => {
+    const {fake, db} = makeDb();
+    seedLink(fake, "ACTIVE");
+    for (const bad of [-1, 91, 12.5, "20", null]) {
+      await rejectsWith(
+        updateArenaProfessorCourtDiscountCore(db, {linkId: "a1_uProf", courtDiscountPercent: bad}, OWNER, NOW),
+        "invalid-argument",
+      );
+    }
+    await rejectsWith(
+      updateArenaProfessorCourtDiscountCore(db, {linkId: "a1_uProf", courtDiscountPercent: 20}, PROF, NOW),
+      "permission-denied",
+    );
+    const noop = await updateArenaProfessorCourtDiscountCore(db, {linkId: "a1_uProf", courtDiscountPercent: 0}, OWNER, NOW);
+    assert.equal(noop.changed, false);
+    assert.deepEqual(noop.notices, []);
+
+    seedLink(fake, "PENDING");
+    await rejectsWith(
+      updateArenaProfessorCourtDiscountCore(db, {linkId: "a1_uProf", courtDiscountPercent: 20}, OWNER, NOW),
+      "failed-precondition",
+    );
   });
 });
 

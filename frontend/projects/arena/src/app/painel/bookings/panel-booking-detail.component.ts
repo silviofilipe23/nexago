@@ -19,6 +19,7 @@ import {
   enrichCourtName,
   formatBRL,
   professorBookingLabel,
+  professorDiscountLabel,
   type ArenaBooking,
 } from './arena-booking.model';
 import { cancelBookingByManager, checkInBookingByManager, resolveAthleteLabel, restoreBookingByManager, watchBooking } from './bookings-repository';
@@ -110,6 +111,13 @@ export function bookingChannelLabel(channel: string | null): string {
               <div class="row"><span class="label">Valor</span><span class="value">{{ formatBRL(booking()!.amountReais) }}</span></div>
               <div class="row"><span class="label">Canal</span><span class="value">{{ channelLabel(booking()!.paymentChannel) }}</span></div>
               <div class="row"><span class="label">Situação</span><span class="value">{{ booking()!.paymentStatus ?? '—' }}</span></div>
+              @if (professorDiscount(); as discount) {
+                <!-- Desconto do vínculo do professor: substitui promoção e cupom (vale o menor preço). -->
+                <div class="row">
+                  <span class="label">Desconto professor</span>
+                  <span class="value">{{ discount }}@if (booking()!.professorDiscountReais; as reais) { (-{{ formatBRL(reais) }})}</span>
+                </div>
+              }
               @if (booking()!.couponCode; as code) {
                 <div class="row"><span class="label">Cupom</span><span class="value">{{ code }} (-{{ formatBRL(booking()!.couponDiscountReais) }})</span></div>
               }
@@ -410,6 +418,10 @@ export class PanelBookingDetailComponent {
   });
 
   /** Reserva feita como professor: "Professor · equipe da arena" / "Professor · independente". */
+  protected readonly professorDiscount = computed(() => {
+    const b = this.booking();
+    return b ? professorDiscountLabel(b) : null;
+  });
   protected readonly professorLabel = computed(() => {
     const b = this.resolvedBooking();
     return b ? professorBookingLabel(b) : null;

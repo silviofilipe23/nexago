@@ -481,4 +481,120 @@ void main() {
       expect(find.text('Adicione seu primeiro professor'), findsOneWidget);
     });
   });
+
+  group('Desconto no aluguel de quadra', () {
+    testWidgets('ativo sem desconto: mostra "Sem desconto" e a dica',
+        (tester) async {
+      await _pumpDetail(tester, link: marcosActive());
+
+      expect(find.text('DESCONTO NO ALUGUEL DE QUADRA'), findsOneWidget);
+      expect(
+        find.byKey(const Key('arena-professor-court-discount-value')),
+        findsOneWidget,
+      );
+      expect(find.text('Sem desconto'), findsOneWidget);
+      expect(find.textContaining('vale o menor preço'), findsOneWidget);
+      expect(
+        find.byKey(const Key('arena-professor-court-discount-edit')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('alterar grava pela callable e mostra o valor novo',
+        (tester) async {
+      final repo = await _pumpDetail(
+        tester,
+        link: arenaLink(
+          uid: 'marcos',
+          name: 'Marcos Lima',
+          courtDiscountPercent: 10,
+        ),
+      );
+      expect(find.text('10%'), findsOneWidget);
+
+      await _tapKey(tester, 'arena-professor-court-discount-edit');
+      final input = find.byKey(const Key('arena-professor-court-discount-input'));
+      expect(input, findsOneWidget);
+
+      // Fora do intervalo: erro no campo, nada gravado.
+      await tester.enterText(input, '95');
+      await tester.tap(
+        find.byKey(const Key('arena-professor-court-discount-save')),
+      );
+      await settleProfessorLinks(tester);
+      expect(find.text('Use um número inteiro de 0 a 90.'), findsOneWidget);
+      expect(repo.courtDiscountCalls, isEmpty);
+
+      await tester.enterText(input, '20');
+      await tester.tap(
+        find.byKey(const Key('arena-professor-court-discount-save')),
+      );
+      await settleProfessorSheet(tester);
+
+      expect(repo.courtDiscountCalls, [
+        (linkId: _marcos, courtDiscountPercent: 20),
+      ]);
+      expect(find.text('20%'), findsOneWidget);
+      expect(
+        find.text(
+          'Desconto de 20% no aluguel salvo. O professor foi avisado.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('suspenso também edita', (tester) async {
+      await _pumpDetail(tester, link: brunaSuspended());
+      expect(
+        find.byKey(const Key('arena-professor-court-discount-edit')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('encerrado sem desconto: seção some', (tester) async {
+      await _pumpDetail(tester, link: pauloEnded());
+      expect(
+        find.byKey(const Key('arena-professor-court-discount')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('só leitura: mostra o valor sem "Alterar"', (tester) async {
+      await _pumpDetail(
+        tester,
+        link: arenaLink(
+          uid: 'marcos',
+          name: 'Marcos Lima',
+          courtDiscountPercent: 15,
+        ),
+        canManage: false,
+      );
+      expect(find.text('15%'), findsOneWidget);
+      expect(
+        find.byKey(const Key('arena-professor-court-discount-edit')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('histórico mostra a mudança de desconto', (tester) async {
+      await _pumpDetail(
+        tester,
+        link: marcosActive(),
+        events: {
+          _marcos: [
+            ArenaProfessorLinkEvent(
+              id: 'd1',
+              eventType: 'COURT_DISCOUNT_CHANGED',
+              actorRole: 'ARENA',
+              actorName: 'Ana Souza',
+              metadata: const {'before': 10, 'after': 20},
+              createdAt: DateTime(2026, 9, 2),
+            ),
+          ],
+        },
+      );
+      expect(find.text('Desconto no aluguel: 10% → 20%'), findsOneWidget);
+    });
+  });
 }

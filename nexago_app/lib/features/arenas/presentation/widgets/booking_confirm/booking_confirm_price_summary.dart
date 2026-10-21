@@ -10,11 +10,20 @@ class BookingConfirmPriceSummary extends StatelessWidget {
     required this.courtLineLabel,
     required this.courtAmountLabel,
     this.platformFeeLabel = 'Grátis',
+    this.discountLineLabel,
+    this.discountAmountLabel,
+    this.totalAmountLabel,
   });
 
   final String courtLineLabel;
   final String courtAmountLabel;
   final String platformFeeLabel;
+
+  /// Desconto de professor ("Desconto de professor (20%)" / "−R$ 20,00").
+  /// Com os dois, o resumo mostra a linha do desconto e o total.
+  final String? discountLineLabel;
+  final String? discountAmountLabel;
+  final String? totalAmountLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +59,29 @@ class BookingConfirmPriceSummary extends StatelessWidget {
                   color: context.themeColors.onSurface,
                 ),
               ),
+              if (discountLineLabel != null && discountAmountLabel != null) ...[
+                const SizedBox(height: 10),
+                _PriceRow(
+                  key: const Key('booking-confirm-professor-discount'),
+                  label: discountLineLabel!,
+                  value: discountAmountLabel!,
+                  valueStyle: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: context.themeColors.readableTone(AppColors.win),
+                  ),
+                ),
+                if (totalAmountLabel != null) ...[
+                  const SizedBox(height: 10),
+                  _PriceRow(
+                    label: 'Total',
+                    value: totalAmountLabel!,
+                    valueStyle: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: context.themeColors.onSurface,
+                    ),
+                  ),
+                ],
+              ],
               // SizedBox(height: 12),
               // _PriceRow(
               //   label: 'Taxa de plataforma',
@@ -68,7 +100,12 @@ class BookingConfirmPriceSummary extends StatelessWidget {
 }
 
 class _PriceRow extends StatelessWidget {
-  const _PriceRow({required this.label, required this.value, this.valueStyle});
+  const _PriceRow({
+    super.key,
+    required this.label,
+    required this.value,
+    this.valueStyle,
+  });
 
   final String label;
   final String value;

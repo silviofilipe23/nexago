@@ -18,6 +18,7 @@ function link(over: Partial<ArenaProfessorLink>): ArenaProfessorLink {
       canCancelLessons: false,
       canBookRecurring: false,
     },
+    courtDiscountPercent: 0,
     message: null,
     cycle: 1,
     professorName: 'Professor',

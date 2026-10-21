@@ -86,6 +86,14 @@ class ArenaManagerBooking {
   /// `arenaBookingProfessorLabel`.
   bool get bookedAsProfessor => data['bookedAs'] == 'professor';
 
+  /// Desconto (%) do vínculo aplicado na reserva de professor; 0 sem desconto.
+  int get professorDiscountPercent {
+    final raw = data['professorDiscountPercent'];
+    return bookedAsProfessor && raw is num && raw.isFinite && raw > 0
+        ? raw.round()
+        : 0;
+  }
+
   /// Mensalista sem conta no app (nome livre digitado pelo gestor).
   String? get customerName {
     final raw = data['customerName'];

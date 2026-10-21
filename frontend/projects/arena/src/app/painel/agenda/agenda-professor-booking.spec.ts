@@ -1,7 +1,7 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
-import { arenaBookingFromDoc, professorBookingLabel } from '../bookings/arena-booking.model';
+import { arenaBookingFromDoc, professorBookingLabel, professorDiscountLabel } from '../bookings/arena-booking.model';
 import { AgendaGridComponent, type AgendaBlock } from '../ui/agenda-grid.component';
 import { AgendaWeekGridComponent } from '../ui/agenda-week-grid.component';
 import { agendaSlotTag } from './panel-agenda.component';
@@ -27,6 +27,25 @@ describe('reserva feita como professor (bookedAs)', () => {
     const unknownType = arenaBookingFromDoc(fakeDoc('b4', { bookedAs: 'professor', professorRelationshipType: 'X' }));
     expect(unknownType.bookedAsProfessor).toBeTrue();
     expect(unknownType.professorRelationshipType).toBeNull();
+  });
+
+  it('desconto do professor: lê % e valor só na reserva de professor; rótulo só com desconto', () => {
+    const discounted = arenaBookingFromDoc(
+      fakeDoc('b5', { bookedAs: 'professor', professorDiscountPercent: 20, professorDiscountReais: 24 }),
+    );
+    expect(discounted.professorDiscountPercent).toBe(20);
+    expect(discounted.professorDiscountReais).toBe(24);
+    expect(professorDiscountLabel(discounted)).toBe('−20%');
+
+    const plain = arenaBookingFromDoc(fakeDoc('b6', { bookedAs: 'professor' }));
+    expect(plain.professorDiscountPercent).toBe(0);
+    expect(plain.professorDiscountReais).toBeNull();
+    expect(professorDiscountLabel(plain)).toBeNull();
+
+    // Fora da reserva de professor o campo não conta.
+    const athlete = arenaBookingFromDoc(fakeDoc('b7', { professorDiscountPercent: 20 }));
+    expect(athlete.professorDiscountPercent).toBe(0);
+    expect(professorDiscountLabel(athlete)).toBeNull();
   });
 
   it('rótulo do detalhe: mesmo texto do app, por tipo', () => {

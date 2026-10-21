@@ -9,6 +9,8 @@ import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import {
+  MAX_COURT_DISCOUNT_PERCENT,
+  courtDiscountLabel,
   detailSubtitle,
   displayStatus,
   effectivePermissions,
@@ -17,6 +19,7 @@ import {
   isClosedStatus,
   defaultProfessorPermissions,
   linkActions,
+  parseCourtDiscountInput,
   permissionAllowedForType,
   permissionsEditable,
   permissionsStateNote,
@@ -183,6 +186,50 @@ interface Notice {
               @if (permNote(); as note) {
                 <ar-prof-note tone="yellow" class="card-note">{{ note }}</ar-prof-note>
               }
+              <div class="discount">
+                <div class="discount-head">
+                  <div class="discount-text">
+                    <div class="discount-title">Desconto no aluguel de quadra</div>
+                    @if (!discountEditing()) {
+                      <div class="discount-value" [class.off]="shownDiscount() === 0">{{ discountLabel() }}</div>
+                    }
+                  </div>
+                  @if (!discountEditing() && canEditDiscount()) {
+                    <button type="button" class="ar-mini-btn" (click)="startDiscountEdit(l)">Alterar</button>
+                  }
+                </div>
+                @if (discountEditing()) {
+                  <form class="discount-form" (submit)="$event.preventDefault(); saveDiscount(l)">
+                    <label class="discount-field">
+                      <input
+                        class="discount-input"
+                        type="text"
+                        inputmode="numeric"
+                        maxlength="3"
+                        aria-label="Desconto em porcentagem"
+                        [value]="discountDraft()"
+                        [disabled]="discountBusy()"
+                        (input)="discountDraft.set($any($event.target).value)"
+                      />
+                      <span class="discount-suffix">%</span>
+                    </label>
+                    <button type="submit" class="ar-mini-btn ar-mini-btn-primary" [disabled]="discountBusy() || discountInvalid()">
+                      {{ discountBusy() ? 'Salvando…' : 'Salvar' }}
+                    </button>
+                    <button type="button" class="ar-mini-btn" [disabled]="discountBusy()" (click)="cancelDiscountEdit()">Cancelar</button>
+                  </form>
+                  @if (discountInvalid()) {
+                    <div class="discount-error">Use um número inteiro de 0 a {{ maxDiscount }}. 0 remove o desconto.</div>
+                  }
+                }
+                @if (discountError(); as err) {
+                  <div class="discount-error">{{ err }}</div>
+                }
+                <p class="discount-hint">
+                  Vale quando o professor reserva quadra “como professor”, sobre o preço cheio do horário. Não soma com promoção
+                  nem cupom — vale o menor preço.
+                </p>
+              </div>
               <ar-prof-note class="card-note">
                 Sem acesso a financeiro, preços ou administração da arena — independentemente do tipo de vínculo.
               </ar-prof-note>
@@ -305,6 +352,26 @@ interface Notice {
 
     .card-note { margin-top: 14px; }
 
+    .discount { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--nx-line); }
+    .discount-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .discount-text { min-width: 0; }
+    .discount-title { font-size: 13px; font-weight: 600; color: var(--nx-text); }
+    .discount-value { font-family: var(--nx-font-mono); font-size: 13px; font-weight: 700; color: var(--nx-text); margin-top: 3px; }
+    .discount-value.off { color: var(--nx-text-mute); font-family: var(--nx-font-ui); font-weight: 500; }
+    .discount-form { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .discount-field {
+      display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; box-sizing: border-box;
+      border-radius: var(--nx-r-2); border: 1px solid var(--nx-line); background: var(--nx-surface-1);
+    }
+    .discount-field:focus-within { border-color: var(--nx-orange-500); }
+    .discount-input {
+      width: 40px; border: none; background: transparent; color: var(--nx-text); outline: none; text-align: right;
+      font-family: var(--nx-font-mono); font-size: 14px; font-weight: 700;
+    }
+    .discount-suffix { font-family: var(--nx-font-mono); font-size: 13px; color: var(--nx-text-dim); }
+    .discount-error { font-size: 12px; color: var(--nx-live); margin-top: 8px; }
+    .discount-hint { font-size: 12px; color: var(--nx-text-mute); line-height: 1.45; margin: 10px 0 0; }
+
     .tabs { flex: none; display: flex; gap: 8px; }
     .tab-msg { display: inline-flex; align-items: center; gap: 7px; }
     .tab-badge {
@@ -411,6 +478,20 @@ export class PanelProfessionalDetailComponent {
     const saving = this.saving();
     return saving ? { ...base, [saving.key]: saving.value } : base;
   });
+  /** Desconto no aluguel: edição inline (valor ↔ campo + Salvar/Cancelar). O valor salvo fica
+   *  na tela até o listener trazer o doc alterado, como os toggles das permissões. */
+  protected readonly maxDiscount = MAX_COURT_DISCOUNT_PERCENT;
+  protected readonly discountEditing = signal(false);
+  protected readonly discountDraft = signal('');
+  protected readonly discountBusy = signal(false);
+  protected readonly discountError = signal<string | null>(null);
+  private readonly discountPending = signal<number | null>(null);
+  private discountEchoTimer: ReturnType<typeof setTimeout> | null = null;
+  protected readonly canEditDiscount = computed(() => this.canWrite() && permissionsEditable(this.status()));
+  protected readonly shownDiscount = computed(() => this.discountPending() ?? this.link()?.courtDiscountPercent ?? 0);
+  protected readonly discountLabel = computed(() => courtDiscountLabel(this.shownDiscount()));
+  protected readonly discountInvalid = computed(() => parseCourtDiscountInput(this.discountDraft()) == null);
+
   protected readonly permNote = computed(() => {
     const link = this.link();
     return link ? permissionsStateNote(link, this.now()) : null;
@@ -460,10 +541,22 @@ export class PanelProfessionalDetailComponent {
       if (saving && !saving.inFlight && (!link || link.permissions[saving.key] === saving.value)) this.saving.set(null);
     });
 
+    effect(() => {
+      const pending = this.discountPending();
+      const link = this.link();
+      if (pending != null && !this.discountBusy() && (!link || link.courtDiscountPercent === pending)) this.discountPending.set(null);
+    });
+
+    // Vínculo fechado (ou sem acesso) no meio da edição: o campo some.
+    effect(() => {
+      if (!this.canEditDiscount() && !this.discountBusy()) this.discountEditing.set(false);
+    });
+
     const tick = setInterval(() => this.now.set(Date.now()), 60_000);
     inject(DestroyRef).onDestroy(() => {
       clearInterval(tick);
       if (this.echoTimer) clearTimeout(this.echoTimer);
+      if (this.discountEchoTimer) clearTimeout(this.discountEchoTimer);
     });
   }
 
@@ -494,6 +587,42 @@ export class PanelProfessionalDetailComponent {
     } catch (err) {
       this.saving.set(null);
       this.permError.set(err instanceof Error ? err.message : 'Não foi possível alterar a permissão.');
+    }
+  }
+
+  protected startDiscountEdit(link: ArenaProfessorLink): void {
+    if (!this.canEditDiscount()) return;
+    this.discountDraft.set(String(link.courtDiscountPercent));
+    this.discountError.set(null);
+    this.discountEditing.set(true);
+  }
+
+  protected cancelDiscountEdit(): void {
+    if (this.discountBusy()) return;
+    this.discountEditing.set(false);
+    this.discountError.set(null);
+  }
+
+  protected async saveDiscount(link: ArenaProfessorLink): Promise<void> {
+    const percent = parseCourtDiscountInput(this.discountDraft());
+    if (percent == null || this.discountBusy() || !this.canEditDiscount()) return;
+    if (percent === link.courtDiscountPercent) {
+      this.discountEditing.set(false);
+      return;
+    }
+    if (this.discountEchoTimer) clearTimeout(this.discountEchoTimer);
+    this.discountBusy.set(true);
+    this.discountError.set(null);
+    try {
+      await this.service.updateCourtDiscount(link.id, percent);
+      this.discountPending.set(percent);
+      this.discountEditing.set(false);
+      // Rede de segurança: se o snapshot não vier (listener caiu), o valor não fica preso.
+      this.discountEchoTimer = setTimeout(() => this.discountPending.set(null), 4000);
+    } catch (err) {
+      this.discountError.set(err instanceof Error ? err.message : 'Não foi possível alterar o desconto.');
+    } finally {
+      this.discountBusy.set(false);
     }
   }
 

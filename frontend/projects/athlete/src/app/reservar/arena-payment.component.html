@@ -55,6 +55,7 @@
               <app-booking-professor-option
                 [arenaName]="a.name"
                 [type]="link.relationshipType"
+                [discountPercent]="link.courtDiscountPercent"
                 [disabled]="professorLocked() || processing()"
                 [(checked)]="bookAsProfessor"
               />
@@ -432,6 +433,12 @@
               <span class="pm-summary-label">Valor da reserva</span>
               <span class="pm-summary-value">{{ formatBRL(totalPrice()) }}</span>
             </div>
+            @if (professorDiscountReais() > 0) {
+              <div class="pm-summary-row">
+                <span class="pm-summary-label">{{ professorDiscountLabel() }}</span>
+                <span class="pm-summary-value pm-summary-value--discount">&minus;{{ formatBRL(professorDiscountReais()) }}</span>
+              </div>
+            }
             @if (appliedCouponCode(); as code) {
               <div class="pm-summary-row">
                 <span class="pm-summary-label">Cupom {{ code }}</span>

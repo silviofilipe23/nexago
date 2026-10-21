@@ -140,18 +140,24 @@ class BookingService {
   }
 
   /// Cota autoritativa (promoções + preço por quadra + cupom) via Cloud Function.
+  ///
+  /// [asProfessor] pede o preço "como professor": o servidor aplica o desconto
+  /// do vínculo (`courtDiscountPercent`) quando ele vence promoção/cupom; sem
+  /// vínculo válido volta o preço de atleta, sem erro.
   Future<ArenaBookingQuote> quoteBooking({
     required ArenaBookingConfirmArgs args,
     String? couponCode,
+    bool asProfessor = false,
   }) async {
     if (!args.isValid) {
       throw BookingException(
           'Dados da reserva inválidos. Volte e escolha outro horário.');
     }
     try {
-      final result = await _functions.httpsCallable('quoteArenaBooking').call(
-        _bookingCallablePayload(args, couponCode: couponCode),
-      );
+      final payload = _bookingCallablePayload(args, couponCode: couponCode);
+      if (asProfessor) payload['asProfessor'] = true;
+      final result =
+          await _functions.httpsCallable('quoteArenaBooking').call(payload);
       return _parseQuoteResponse(result.data);
     } on FirebaseFunctionsException catch (e) {
       throw BookingException(_mapFunctionsMessage(e), code: _functionsCode(e));
@@ -203,6 +209,10 @@ class BookingService {
       couponApplied: map['couponApplied'] == true,
       couponId: map['couponId'] as String?,
       couponDiscountReais: (map['couponDiscountReais'] as num?)?.toDouble() ?? 0,
+      professorDiscountPercent:
+          (map['professorDiscountPercent'] as num?)?.round() ?? 0,
+      professorDiscountReais:
+          (map['professorDiscountReais'] as num?)?.toDouble() ?? 0,
     );
   }
 
@@ -283,6 +293,10 @@ class BookingService {
         couponId: data['couponId'] as String?,
         couponDiscountReais:
             (data['couponDiscountReais'] as num?)?.toDouble() ?? 0,
+        professorDiscountPercent:
+            (data['professorDiscountPercent'] as num?)?.round() ?? 0,
+        professorDiscountReais:
+            (data['professorDiscountReais'] as num?)?.toDouble() ?? 0,
       );
     } on FirebaseFunctionsException catch (e) {
       throw BookingException(_mapFunctionsMessage(e), code: _functionsCode(e));
@@ -798,6 +812,8 @@ class CreateBookingResult {
     this.couponApplied = false,
     this.couponId,
     this.couponDiscountReais = 0,
+    this.professorDiscountPercent = 0,
+    this.professorDiscountReais = 0,
   });
 
   final String bookingId;
@@ -810,6 +826,10 @@ class CreateBookingResult {
   final bool couponApplied;
   final String? couponId;
   final double couponDiscountReais;
+
+  /// Desconto do professor aplicado (0 quando não aplicado).
+  final int professorDiscountPercent;
+  final double professorDiscountReais;
 
   bool get isPix => paymentMode == 'pix';
 }

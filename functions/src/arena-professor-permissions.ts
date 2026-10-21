@@ -14,6 +14,7 @@ import {
   INDEPENDENT_ONLY_PERMISSION_KEYS,
   arenaProfessorLinkId,
   effectiveArenaProfessorPermissions,
+  storedCourtDiscountPercent,
   type ArenaProfessorLinkData,
   type ArenaProfessorPermissionKey,
   type ArenaProfessorType,
@@ -131,13 +132,42 @@ export async function resolveProfessorBookingStamp(
   uid: string,
   asProfessor: unknown,
 ): Promise<ProfessorBookingStamp | null> {
+  return (await resolveProfessorBooking(db, arenaId, uid, asProfessor))?.stamp ?? null;
+}
+
+/** Carimbo + desconto do vínculo no aluguel de quadra (`createArenaBooking`). */
+export async function resolveProfessorBooking(
+  db: Firestore,
+  arenaId: string,
+  uid: string,
+  asProfessor: unknown,
+): Promise<{stamp: ProfessorBookingStamp; courtDiscountPercent: number} | null> {
   if (asProfessor !== true) return null;
   const link = await requireArenaProfessorPermission(db, arenaId, uid, "canBookCourts");
   return {
-    bookedAs: "professor",
-    professorLinkId: arenaProfessorLinkId(arenaId, uid),
-    professorRelationshipType: link.relationshipType,
+    stamp: {
+      bookedAs: "professor",
+      professorLinkId: arenaProfessorLinkId(arenaId, uid),
+      professorRelationshipType: link.relationshipType,
+    },
+    courtDiscountPercent: storedCourtDiscountPercent(link),
   };
+}
+
+/**
+ * Desconto para a COTAÇÃO: não lança — quem não pode reservar como professor vê o preço de atleta
+ * e o erro com o motivo chega só na confirmação (`createArenaBooking`).
+ */
+export async function professorCourtDiscountForQuote(
+  db: Firestore,
+  arenaId: string,
+  uid: string,
+  asProfessor: unknown,
+): Promise<number> {
+  if (asProfessor !== true || !arenaId) return 0;
+  const link = await loadArenaProfessorLink(db, arenaId, uid);
+  if (professorPermissionDenial(link, "canBookCourts")) return 0;
+  return storedCourtDiscountPercent(link as ArenaProfessorLinkData);
 }
 
 // ---------------------------------------------------------------------------

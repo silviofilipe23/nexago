@@ -67,4 +67,12 @@ abstract interface class ArenaProfessionalsRepository {
     required ArenaProfessorPermissionKey key,
     required bool value,
   });
+
+  /// `updateArenaProfessorCourtDiscount` — desconto (%) inteiro 0–90 no
+  /// aluguel de quadra reservado "como professor". Só com o vínculo `ACTIVE`
+  /// ou `SUSPENDED`.
+  Future<ProfessorLinkResult> updateCourtDiscount({
+    required String linkId,
+    required int courtDiscountPercent,
+  });
 }

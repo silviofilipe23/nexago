@@ -16,7 +16,7 @@
  */
 import * as logger from "firebase-functions/logger";
 import {onCall, HttpsError, type CallableRequest} from "firebase-functions/v2/https";
-import {FieldValue, getFirestore, type Firestore} from "firebase-admin/firestore";
+import {FieldValue, getFirestore, Timestamp, type Firestore} from "firebase-admin/firestore";
 import {ARENA_CLASSES, ARENA_CLASS_SESSIONS} from "./arena-class-constants";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
@@ -216,6 +216,9 @@ export function studentViewOf(plan: {objective: string; tags: string[]; blocks: 
   };
 }
 
+/** Campos do plano na visão quando o aluno não deve mais vê-lo (o feedback fica). */
+const HIDDEN_PLAN = {objective: "", tags: [], blocks: [], durationMin: 0, myFocus: null, planVisible: false};
+
 export interface LessonPlanDeps {
   now: () => Date;
   notify: (input: {userId: string; title: string; body: string; type: string; data: Record<string, string>}) => Promise<void>;
@@ -274,6 +277,7 @@ export async function saveLessonPlanCore(
     for (const s of lesson.students) {
       const id = lessonPlanViewId(planId, s.athleteId);
       keep.add(id);
+      // merge: o feedback pós-aula (H7) que já estiver na visão fica.
       batch.set(db.collection(LESSON_PLAN_VIEWS).doc(id), {
         planId,
         athleteId: s.athleteId,
@@ -287,11 +291,17 @@ export async function saveLessonPlanCore(
         arenaName: lesson.arenaName,
         place: lesson.place,
         ...studentViewOf({...input, focus}, s.athleteId),
+        planVisible: true,
         updatedAt: FieldValue.serverTimestamp(),
-      });
+      }, {merge: true});
     }
   }
-  for (const d of existing.docs) if (!keep.has(d.id)) batch.delete(d.ref);
+  // Fora da lista: com feedback já enviado, só tira o plano (o feedback é do aluno); sem, apaga.
+  for (const d of existing.docs) {
+    if (keep.has(d.id)) continue;
+    if (d.data()["feedback"]) batch.update(d.ref, {...HIDDEN_PLAN, updatedAt: FieldValue.serverTimestamp()});
+    else batch.delete(d.ref);
+  }
   await batch.commit();
 
   if (firstPublish && lesson.date >= dayKeyFromEventDate(now)) {
@@ -319,7 +329,11 @@ export async function deleteLessonPlanCore(db: Firestore, uid: string, raw: Reco
   if (!plan || plan["professorUid"] !== uid) throw new HttpsError("not-found", "Plano não encontrado.");
   const views = await db.collection(LESSON_PLAN_VIEWS).where("planId", "==", planId).get();
   const batch = db.batch();
-  for (const d of views.docs) batch.delete(d.ref);
+  // O feedback já enviado é do aluno: fica, sem o plano.
+  for (const d of views.docs) {
+    if (d.data()["feedback"]) batch.update(d.ref, {...HIDDEN_PLAN, updatedAt: FieldValue.serverTimestamp()});
+    else batch.delete(d.ref);
+  }
   batch.delete(ref);
   await batch.commit();
 }
@@ -353,3 +367,126 @@ export const deleteLessonPlan = onCall({region: CLIENT_FACING_REGIONS}, async (r
 
 export const getLessonStudents = onCall({region: CLIENT_FACING_REGIONS}, async (r) =>
   getLessonStudentsCore(getFirestore(), requireUid(r), dataOf(r)));
+
+// ---------------------------------------------------------------------------
+// Pós-aula (H7) e o feedback recebido pelo aluno (H9)
+
+export const LESSON_FEEDBACK_PUSH_TYPE = "lesson_feedback";
+export const BLOCK_RATINGS = ["ok", "adjust", "no", "skipped"] as const;
+
+export interface ReviewInput {
+  planId: string;
+  blockRatings: Record<string, string>;
+  generalNote: string;
+  feedback: Array<{athleteId: string; text: string; send: boolean; homework: {name: string; detail: string} | null}>;
+}
+
+export function parseReviewInput(raw: Record<string, unknown>): ReviewInput {
+  const planId = cleanId(raw["planId"], "Plano inválido.");
+  const ratingsRaw = (raw["blockRatings"] ?? {}) as Record<string, unknown>;
+  const blockRatings: Record<string, string> = {};
+  for (const [k, v] of Object.entries(ratingsRaw).slice(0, MAX_BLOCKS)) {
+    if ((BLOCK_RATINGS as readonly string[]).includes(str(v)) && k.length <= 40) blockRatings[k] = str(v);
+  }
+  const fbRaw = Array.isArray(raw["feedback"]) ? raw["feedback"].slice(0, MAX_FOCUS) : [];
+  const seen = new Set<string>();
+  const feedback: ReviewInput["feedback"] = [];
+  for (const f of fbRaw) {
+    const r = (f ?? {}) as Record<string, unknown>;
+    const athleteId = str(r["athleteId"]);
+    const text = str(r["text"]).slice(0, 1000);
+    if (!athleteId || athleteId.includes("/") || !text || seen.has(athleteId)) continue;
+    seen.add(athleteId);
+    const hw = (r["homework"] ?? null) as Record<string, unknown> | null;
+    const hwName = hw ? str(hw["name"]).slice(0, 80) : "";
+    feedback.push({
+      athleteId, text, send: r["send"] === true,
+      homework: hwName ? {name: hwName, detail: str(hw!["detail"]).slice(0, 200)} : null,
+    });
+  }
+  return {planId, blockRatings, generalNote: str(raw["generalNote"]).slice(0, 2000), feedback};
+}
+
+/**
+ * Salva o registro da aula (avaliação dos blocos e anotação geral — privados) e envia o feedback
+ * marcado "Enviar" para cada aluno: vai para a visão dele (cria se o plano não foi publicado, sem
+ * o plano) e avisa por push. Feedback já enviado com o mesmo texto não é reenviado.
+ */
+export async function saveLessonReviewCore(
+  db: Firestore, uid: string, raw: Record<string, unknown>, deps: LessonPlanDeps = defaultDeps,
+): Promise<{sent: number}> {
+  const input = parseReviewInput(raw);
+  const ref = db.collection(LESSON_PLANS).doc(input.planId);
+  const plan = (await ref.get()).data();
+  if (!plan || plan["professorUid"] !== uid) throw new HttpsError("not-found", "Plano não encontrado.");
+  const lesson = await resolveLesson(db, uid, plan["kind"] as LessonPlanKind, str(plan["refId"]));
+  const students = new Map(lesson.students.map((s) => [s.athleteId, s.name]));
+  const now = deps.now();
+  const professor = (await db.collection("users").doc(uid).get()).data();
+  const professorName = str(professor?.["fullName"]) || str(professor?.["nickname"]) || "Seu professor";
+  const previous = ((plan["review"] as Record<string, unknown> | undefined)?.["feedback"] ?? []) as Array<Record<string, unknown>>;
+  const alreadySent = new Map(previous.filter((f) => f["sentAt"]).map((f) => [str(f["athleteId"]), str(f["text"])]));
+
+  const toSend = input.feedback.filter((f) => f.send && students.has(f.athleteId) && alreadySent.get(f.athleteId) !== f.text);
+  await ref.update({
+    review: {
+      blockRatings: input.blockRatings,
+      generalNote: input.generalNote,
+      feedback: input.feedback.filter((f) => students.has(f.athleteId)).map((f) => ({
+        ...f,
+        name: students.get(f.athleteId),
+        sentAt: toSend.some((x) => x.athleteId === f.athleteId) ? Timestamp.fromDate(now) :
+          (alreadySent.get(f.athleteId) === f.text ? previous.find((p) => str(p["athleteId"]) === f.athleteId)?.["sentAt"] ?? null : null),
+      })),
+      reviewedAt: Timestamp.fromDate(now),
+    },
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  for (const f of toSend) {
+    const viewRef = db.collection(LESSON_PLAN_VIEWS).doc(lessonPlanViewId(input.planId, f.athleteId));
+    const exists = (await viewRef.get()).exists;
+    await viewRef.set({
+      ...(exists ? {} : {
+        planId: input.planId, athleteId: f.athleteId, professorUid: uid, professorName,
+        lessonTitle: lesson.title, kind: plan["kind"], date: lesson.date, startTime: lesson.startTime,
+        endTime: lesson.endTime, arenaName: lesson.arenaName, place: lesson.place, ...HIDDEN_PLAN,
+      }),
+      feedback: {text: f.text, homework: f.homework, sentAt: Timestamp.fromDate(now)},
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    try {
+      await deps.notify({
+        userId: f.athleteId,
+        title: `Feedback da aula · ${professorName}`,
+        body: f.text.slice(0, 140),
+        type: LESSON_FEEDBACK_PUSH_TYPE,
+        data: {viewId: viewRef.id, url: `/aula/plano/${viewRef.id}`},
+      });
+    } catch (e) {
+      logger.warn(`lessonReview ${input.planId}: push para ${f.athleteId} falhou`, e);
+    }
+  }
+  return {sent: toSend.length};
+}
+
+/** Aluno dá de 1 a 5 estrelas ao feedback recebido (o professor vê no registro da aula). */
+export async function rateLessonFeedbackCore(db: Firestore, uid: string, raw: Record<string, unknown>, now: Date): Promise<void> {
+  const viewId = cleanId(raw["viewId"], "Aula inválida.");
+  const stars = Number(raw["stars"]);
+  if (!Number.isInteger(stars) || stars < 1 || stars > 5) invalid("Dê de 1 a 5 estrelas.");
+  const viewRef = db.collection(LESSON_PLAN_VIEWS).doc(viewId);
+  const view = (await viewRef.get()).data();
+  if (!view || view["athleteId"] !== uid || !view["feedback"]) throw new HttpsError("not-found", "Feedback não encontrado.");
+  await viewRef.update({rating: {stars, ratedAt: Timestamp.fromDate(now)}});
+  await db.collection(LESSON_PLANS).doc(str(view["planId"])).update({[`ratings.${uid}`]: stars}).catch(() => undefined);
+}
+
+export const saveLessonReview = onCall({
+  region: CLIENT_FACING_REGIONS, timeoutSeconds: 60, secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
+}, async (r) => saveLessonReviewCore(getFirestore(), requireUid(r), dataOf(r)));
+
+export const rateLessonFeedback = onCall({region: CLIENT_FACING_REGIONS}, async (r) => {
+  await rateLessonFeedbackCore(getFirestore(), requireUid(r), dataOf(r), new Date());
+  return {ok: true};
+});

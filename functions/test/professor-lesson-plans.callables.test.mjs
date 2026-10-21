@@ -94,3 +94,60 @@ test('particular e turma própria resolvem os alunos', async () => {
   assert.deepEqual(o.students, [{athleteId: 'a4', name: 'Lucas Prado'}]);
   await assert.rejects(lp.getLessonStudentsCore(db, 'uOutro', {kind: 'booking', refId: 'bk1'}), /não encontrada/);
 });
+
+const review = (over = {}) => ({
+  planId: 'uProf_session_s1',
+  blockRatings: {b1: 'ok', b2: 'adjust', hack: 'xx'},
+  generalNote: 'Zonas difíceis para metade da turma',
+  feedback: [
+    {athleteId: 'a1', text: 'Joelho bem melhor!', send: true, homework: {name: 'Lançamento + flexão', detail: '3×10 sem bola'}},
+    {athleteId: 'a2', text: 'Ombro ok — reavaliar', send: false},
+    {athleteId: 'intruso', text: 'x', send: true},
+  ],
+  ...over,
+});
+
+test('pós-aula: registro privado; feedback só de quem foi marcado, uma vez; aluno avalia', async () => {
+  await lp.saveLessonPlanCore(db, 'uProf', plan(), deps());
+  await assert.rejects(lp.saveLessonReviewCore(db, 'uOutro', review(), deps()), /não encontrado/);
+  const d = deps();
+  assert.equal((await lp.saveLessonReviewCore(db, 'uProf', review(), d)).sent, 1);
+  assert.deepEqual([d.pushes[0].userId, d.pushes[0].type], ['a1', 'lesson_feedback']);
+  const full = (await db.doc('lessonPlans/uProf_session_s1').get()).data();
+  assert.deepEqual(full.review.blockRatings, {b1: 'ok', b2: 'adjust'});
+  assert.deepEqual(full.review.feedback.map((f) => f.athleteId), ['a1', 'a2']);
+  const v1 = (await db.doc('lessonPlanViews/uProf_session_s1_a1').get()).data();
+  assert.equal(v1.feedback.text, 'Joelho bem melhor!');
+  assert.equal(v1.feedback.homework.name, 'Lançamento + flexão');
+  assert.equal(v1.objective, 'Saque com direção', 'o plano publicado continua');
+  const v2 = (await db.doc('lessonPlanViews/uProf_session_s1_a2').get()).data();
+  assert.equal(v2.feedback, undefined, 'feedback não marcado não vai');
+  assert.ok(!JSON.stringify(v1).includes('Zonas difíceis'), 'anotação geral é privada');
+  // Reenviar o mesmo texto não avisa de novo.
+  assert.equal((await lp.saveLessonReviewCore(db, 'uProf', review(), deps())).sent, 0);
+  // Aluno avalia; estranho não.
+  await assert.rejects(lp.rateLessonFeedbackCore(db, 'a2', {viewId: 'uProf_session_s1_a2', stars: 4}, NOW), /não encontrado/);
+  await lp.rateLessonFeedbackCore(db, 'a1', {viewId: 'uProf_session_s1_a1', stars: 4}, NOW);
+  assert.equal((await db.doc('lessonPlans/uProf_session_s1').get()).data().ratings.a1, 4);
+});
+
+test('plano não publicado: feedback cria a visão sem o plano; despublicar depois preserva o feedback', async () => {
+  await lp.saveLessonPlanCore(db, 'uProf', plan({published: false}), deps());
+  await lp.saveLessonReviewCore(db, 'uProf', review(), deps());
+  const v = (await db.doc('lessonPlanViews/uProf_session_s1_a1').get()).data();
+  assert.equal(v.planVisible, false);
+  assert.equal(v.objective, '');
+  assert.deepEqual(v.blocks, []);
+  assert.equal(v.feedback.text, 'Joelho bem melhor!');
+  // Publica e despublica: o feedback continua lá; o plano some.
+  await lp.saveLessonPlanCore(db, 'uProf', plan(), deps());
+  assert.equal((await db.doc('lessonPlanViews/uProf_session_s1_a1').get()).data().feedback.text, 'Joelho bem melhor!');
+  await lp.saveLessonPlanCore(db, 'uProf', plan({published: false}), deps());
+  const after = (await db.doc('lessonPlanViews/uProf_session_s1_a1').get()).data();
+  assert.equal(after.feedback.text, 'Joelho bem melhor!');
+  assert.deepEqual(after.blocks, []);
+  assert.equal((await db.doc('lessonPlanViews/uProf_session_s1_a2').get()).exists, false);
+  // Apagar o plano também preserva o feedback.
+  await lp.deleteLessonPlanCore(db, 'uProf', {planId: 'uProf_session_s1'});
+  assert.equal((await db.doc('lessonPlanViews/uProf_session_s1_a1').get()).data().feedback.text, 'Joelho bem melhor!');
+});

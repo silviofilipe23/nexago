@@ -210,7 +210,7 @@ export {configureProfessorCalendarFeed, professorCalendarFeed} from "./professor
 // Avaliação do aluno pelo professor (fundamentos, nota geral, foco).
 export {deleteProfessorEvaluation, saveProfessorEvaluation} from "./professor-evaluations";
 // Plano de aula do professor (H1–H5) e a visão do aluno (H8).
-export {deleteLessonPlan, getLessonStudents, saveLessonPlan} from "./professor-lesson-plans";
+export {deleteLessonPlan, getLessonStudents, rateLessonFeedback, saveLessonPlan, saveLessonReview} from "./professor-lesson-plans";
 // Turma própria do professor independente com horário fixo de quadra (B10).
 export {
   createProfessorOwnClass,

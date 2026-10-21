@@ -137,6 +137,7 @@ class AthletePrivacyPreferencesNotifier
     bool? achievementsAndLevel,
     bool? upcomingBookings,
     bool? frequentPartners,
+    bool? storyTags,
   }) {
     if (!state.canEdit) return;
     final next = state.prefs.copyWith(
@@ -144,6 +145,7 @@ class AthletePrivacyPreferencesNotifier
         achievementsAndLevel: achievementsAndLevel,
         upcomingBookings: upcomingBookings,
         frequentPartners: frequentPartners,
+        storyTags: storyTags,
       ),
     );
     _applyPrefs(next);

@@ -119,6 +119,7 @@ class BookingStoryEditorScaffold extends StatelessWidget {
     required this.onPost,
     required this.infoChips,
     this.header = const [],
+    this.infoFooter,
   });
 
   /// Prévia em 0,6× da base 360×640, como no protótipo.
@@ -140,6 +141,9 @@ class BookingStoryEditorScaffold extends StatelessWidget {
 
   /// Entre a prévia e o "Fundo" (o resultado do pós-jogo).
   final List<Widget> header;
+
+  /// Embaixo dos chips (a nota de quem é marcado, no story do professor).
+  final Widget? infoFooter;
 
   @override
   Widget build(BuildContext context) {
@@ -237,6 +241,11 @@ class BookingStoryEditorScaffold extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Wrap(spacing: 8, runSpacing: 8, children: infoChips),
           ),
+          if (infoFooter != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+              child: infoFooter,
+            ),
         ],
       ),
     );

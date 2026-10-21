@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
@@ -267,7 +268,13 @@ class _TeacherClassAttendancePageState
       );
       ref.invalidate(teacherClassRosterProvider(widget.sessionId));
       ref.invalidate(myClassAgendaProvider);
-      if (closing) _back();
+      // Fechou a chamada: "Treino encerrado", com o "Compartilhar no story".
+      if (closing) {
+        context.pushReplacementNamed(
+          AppRouteNames.professorClassClosed,
+          pathParameters: {'sessionId': session.sessionId},
+        );
+      }
     } on TeacherClassException catch (e) {
       if (!mounted) return;
       showAppSnackBar(context, e.message, isError: true);

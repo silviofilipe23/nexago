@@ -71,6 +71,51 @@ class ClassStoryCard extends StatelessWidget {
             ],
           ],
         ),
+      if (infos.contains(ClassStoryInfo.plan) && data.plan.isNotEmpty)
+        Container(
+          padding: const EdgeInsets.only(top: 11),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: rule)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < data.plan.length; i++)
+                Padding(
+                  padding: EdgeInsets.only(top: i == 0 ? 0 : 5),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 30,
+                        child: Text(
+                          data.plan[i].$1,
+                          style: AppTypography.mono(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: accent,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          data.plan[i].$2,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.soraRegular(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w500,
+                            color: ink,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
       if (infos.contains(ClassStoryInfo.place) && data.arenaName.isNotEmpty)
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,7 +197,8 @@ class ClassStoryCard extends StatelessWidget {
       pillLabel: 'TREINO FEITO',
       pillColor: light ? BookingStoryCard.lightInk : AppColors.win,
       pillTextColor: light ? const Color(0xFFE9D3B0) : const Color(0xFF062514),
-      footerLabel: 'TREINE TAMBÉM · ${AppDomains.siteHost.toUpperCase()}',
+      footerLabel: data.footer ??
+          'TREINE TAMBÉM · ${AppDomains.siteHost.toUpperCase()}',
       blocksBottom: 124,
       blocks: blocks,
     );

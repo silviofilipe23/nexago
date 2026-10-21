@@ -339,6 +339,14 @@ abstract final class AppRoutes {
   static const String professorClassAttendance =
       '/athlete/professor/aulas/:sessionId';
 
+  /// G1 · Treino encerrado (depois da chamada / aula que já terminou) →
+  /// "Compartilhar no story".
+  static const String professorClassClosed =
+      '/athlete/professor/aulas/:sessionId/encerrado';
+
+  /// G3 · Aluno marcado no story do treino (push `class_story_tag`).
+  static const String classStoryTag = '/story-do-treino/:tagId';
+
   /// Comunidade como página própria: com a Loja na barra inferior (flag
   /// `appConfig/store.enabled`), é o destino do "Ver todos" da Home e de
   /// `/discover?tab=comunidade`.
@@ -938,6 +946,8 @@ abstract final class AppRouteNames {
   static const String professorArenaLink = 'professorArenaLink';
   static const String professorLinkRequestSent = 'professorLinkRequestSent';
   static const String professorClassAttendance = 'professorClassAttendance';
+  static const String professorClassClosed = 'professorClassClosed';
+  static const String classStoryTag = 'classStoryTag';
   static const String community = 'community';
   static const String store = 'store';
   static const String storeSearch = 'storeSearch';

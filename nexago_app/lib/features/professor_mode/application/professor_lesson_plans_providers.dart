@@ -89,7 +89,27 @@ final lessonPlanUpcomingRangeProvider =
   );
 });
 
-/// Aulas dos próximos 7 dias (turmas, carteira e particulares do app).
+/// Turma de cada reserva de turma própria das últimas 4 semanas até o fim
+/// da aba Próximas (o "Repetir anterior" da turma própria: o plano guarda só
+/// a reserva).
+final professorLessonPlanBookingClassIdsProvider =
+    Provider.autoDispose<Map<String, String>>((ref) {
+  final upcoming = ref.watch(lessonPlanUpcomingRangeProvider);
+  final range = (
+    fromKey: professorShiftDay(upcoming.fromKey, -kLessonPlanHistoryDays),
+    toKey: upcoming.toKey,
+  );
+  final bookings =
+      ref.watch(professorAgendaBookingsProvider(range)).valueOrNull ??
+          const [];
+  return {
+    for (final b in bookings)
+      if (b.professorClassId case final classId?) b.id: classId,
+  };
+});
+
+/// Aulas dos próximos 7 dias (turmas, carteira, particulares do app e
+/// turma própria).
 final professorPlannableLessonsProvider =
     Provider.autoDispose<AsyncValue<List<PlannableLesson>>>((ref) {
   final range = ref.watch(lessonPlanUpcomingRangeProvider);
@@ -107,8 +127,14 @@ final professorLessonPlanRowsProvider =
     Provider.autoDispose<AsyncValue<List<LessonPlanRow>>>((ref) {
   final uid = ref.watch(professorLinksUidProvider);
   final plans = ref.watch(professorLessonPlansProvider).valueOrNull ?? const [];
+  final bookingClassIds = ref.watch(professorLessonPlanBookingClassIdsProvider);
   return ref.watch(professorPlannableLessonsProvider).whenData(
-        (lessons) => lessonPlanRows(lessons: lessons, plans: plans, uid: uid),
+        (lessons) => lessonPlanRows(
+          lessons: lessons,
+          plans: plans,
+          uid: uid,
+          bookingClassIds: bookingClassIds,
+        ),
       );
 });
 

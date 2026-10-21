@@ -11,17 +11,23 @@ import '../../../arena/domain/aulas/arena_class_logic.dart'
     show arenaClassInitials;
 import '../../../arena/presentation/aulas/widgets/arena_class_atoms.dart';
 import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
+import '../../application/professor_agenda_providers.dart'
+    show professorAgendaNowProvider, professorOwnClassNextBookingProvider;
 import '../../application/professor_own_classes_providers.dart';
 import '../../application/professor_wallet_providers.dart';
+import '../../domain/professor_actions_logic.dart' show professorDayLabel;
+import '../../domain/professor_lesson_plans.dart' show LessonPlanKind;
 import '../../domain/professor_own_classes.dart';
 import '../../domain/professor_students_logic.dart' show professorShortDate;
 import '../../domain/professor_wallet.dart';
+import '../lesson_plans/lesson_plan_agenda_card.dart';
 import '../wallet/professor_wallet_widgets.dart';
 import '../widgets/professor_students_widgets.dart';
 import 'professor_own_class_widgets.dart';
 
-/// Detalhe da turma própria: dias, horário, quadra, mensalidade, os alunos
-/// da carteira, "Editar alunos" e "Encerrar turma".
+/// Detalhe da turma própria: dias, horário, a situação de cada série na
+/// arena, quadra, mensalidade, o plano da próxima aula, os alunos da
+/// carteira, "Editar alunos" e "Encerrar turma".
 class ProfessorOwnClassPage extends ConsumerStatefulWidget {
   const ProfessorOwnClassPage({super.key, required this.classId});
 
@@ -83,6 +89,10 @@ class _ProfessorOwnClassPageState extends ConsumerState<ProfessorOwnClassPage> {
     final colors = context.themeColors;
     final async = ref.watch(professorOwnClassProvider(widget.classId));
     final cls = async.valueOrNull;
+    final todayKey = ref.watch(professorAgendaNowProvider).todayKey;
+    final next = cls != null && cls.isActive
+        ? ref.watch(professorOwnClassNextBookingProvider(cls.id))
+        : null;
     final wallet = {
       for (final s
           in ref.watch(professorWalletAllStudentsProvider).valueOrNull ??
@@ -127,7 +137,11 @@ class _ProfessorOwnClassPageState extends ConsumerState<ProfessorOwnClassPage> {
                         const SizedBox(height: 10),
                         ProfessorLinksNote(
                           professorOwnClassEndedLabel(cls.endedReason),
-                          tone: ProfessorLinksNoteTone.neutral,
+                          key: const Key('professor-own-class-ended-note'),
+                          tone: cls.endedReason ==
+                                  kProfessorOwnClassArenaCanceled
+                              ? ProfessorLinksNoteTone.red
+                              : ProfessorLinksNoteTone.neutral,
                         ),
                       ],
                       const SizedBox(height: 12),
@@ -166,6 +180,29 @@ class _ProfessorOwnClassPageState extends ConsumerState<ProfessorOwnClassPage> {
                             ),
                         ],
                       ),
+                      if (cls.weekdays.isNotEmpty) ...[
+                        const SizedBox(height: 18),
+                        const ProfessorLinksKicker('Horário fixo na arena'),
+                        const SizedBox(height: 8),
+                        ProfessorOwnClassSeriesChips(
+                          key: const Key('professor-own-class-series'),
+                          cls: cls,
+                        ),
+                      ],
+                      if (next != null) ...[
+                        const SizedBox(height: 18),
+                        ProfessorMutedText(
+                          'Próxima aula · '
+                          '${professorDayLabel(next.date, todayKey)}'
+                          ' · ${next.startTime}',
+                          key: const Key('professor-own-class-next'),
+                        ),
+                        const SizedBox(height: 8),
+                        LessonPlanAgendaCard(
+                          kind: LessonPlanKind.booking,
+                          refId: next.id,
+                        ),
+                      ],
                       const SizedBox(height: 18),
                       ProfessorLinksKicker(
                         'Alunos · ${cls.studentCount} de ${cls.capacity}',

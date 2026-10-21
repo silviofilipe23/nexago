@@ -7,8 +7,11 @@ import '../../athlete/domain/agenda/teacher_class_roster.dart';
 import '../../professor_links/application/professor_links_providers.dart';
 import '../domain/professor_agenda.dart';
 import '../domain/professor_lessons.dart';
+import '../domain/professor_own_classes.dart'
+    show professorOwnClassNextBooking;
 import '../infrastructure/professor_agenda_repository.dart';
 import 'professor_availability_providers.dart';
+import 'professor_own_classes_providers.dart';
 import 'professor_students_providers.dart';
 import 'professor_wallet_providers.dart';
 
@@ -66,9 +69,53 @@ final professorClassTypesProvider =
   return {for (final c in snap?.classes ?? const []) c.classId: c.type};
 });
 
+/// Reservas como professor no intervalo da visão: as ocorrências de turma
+/// própria e a situação das aulas da carteira. Mesma consulta da carteira
+/// (índice `athleteId + bookedAs + date`), com o intervalo da visão.
+final professorAgendaBookingsProvider = StreamProvider.autoDispose
+    .family<List<ProfessorCourtBooking>, ProfessorAgendaRange>((ref, range) {
+  final uid = ref.watch(professorLinksUidProvider);
+  if (uid.isEmpty) return Stream.value(const []);
+  return ref.watch(professorWalletRepositoryProvider).watchProfessorBookings(
+        uid,
+        fromKey: range.fromKey,
+        toKey: range.toKey,
+      );
+});
+
+/// Nome de cada turma própria (o título da ocorrência na agenda).
+final professorOwnClassNamesProvider =
+    Provider.autoDispose<Map<String, String>>((ref) {
+  final all = ref.watch(professorOwnClassesProvider).valueOrNull ?? const [];
+  return {for (final c in all) c.id: c.name};
+});
+
+/// Quantos dias à frente o detalhe da turma própria procura a próxima aula.
+const int kProfessorOwnClassNextDays = 28;
+
+/// Próxima ocorrência da turma própria [classId] (o "Plano da aula" do
+/// detalhe). `null` = nenhuma nas próximas 4 semanas (ou carregando).
+final professorOwnClassNextBookingProvider = Provider.autoDispose
+    .family<ProfessorCourtBooking?, String>((ref, classId) {
+  final now = ref.watch(professorAgendaNowProvider);
+  final range = (
+    fromKey: now.todayKey,
+    toKey: professorShiftDay(now.todayKey, kProfessorOwnClassNextDays - 1),
+  );
+  final bookings =
+      ref.watch(professorAgendaBookingsProvider(range)).valueOrNull ??
+          const <ProfessorCourtBooking>[];
+  return professorOwnClassNextBooking(
+    bookings,
+    classId: classId,
+    todayKey: now.todayKey,
+    nowMin: now.nowMin,
+  );
+});
+
 /// Itens do intervalo: aulas de turma + carteira + particulares do app +
-/// bloqueios. Espera as aulas de turma (o erro chega à tela); o resto entra
-/// quando chega.
+/// turma própria + bloqueios. Espera as aulas de turma (o erro chega à
+/// tela); o resto entra quando chega.
 final professorAgendaItemsProvider = Provider.autoDispose
     .family<AsyncValue<List<ProfessorAgendaItem>>, ProfessorAgendaRange>(
         (ref, range) {
@@ -76,6 +123,10 @@ final professorAgendaItemsProvider = Provider.autoDispose
   final lessons = ref.watch(professorLessonsProvider).valueOrNull ?? const [];
   final bookings =
       ref.watch(professorCourtBookingsProvider).valueOrNull ?? const [];
+  final rangeBookings =
+      ref.watch(professorAgendaBookingsProvider(range)).valueOrNull ??
+          const <ProfessorCourtBooking>[];
+  final ownNames = ref.watch(professorOwnClassNamesProvider);
   final blocks = ref.watch(professorBlocksProvider).valueOrNull ?? const [];
   final types = ref.watch(professorClassTypesProvider);
   final privates =
@@ -84,10 +135,15 @@ final professorAgendaItemsProvider = Provider.autoDispose
     final all = buildProfessorAgendaItems(
       sessions: list,
       lessons: lessons,
-      bookingStatus: professorBookingStatusById(bookings),
+      bookingStatus: professorBookingStatusById([
+        ...bookings,
+        ...rangeBookings,
+      ]),
       blocks: blocks,
       classTypes: types,
       privateLessons: privates,
+      courtBookings: rangeBookings,
+      ownClassNames: ownNames,
     );
     return [
       for (final i in all)
@@ -106,10 +162,12 @@ final professorArenaPaletteProvider =
   final links = ref.watch(myProfessorLinksProvider).valueOrNull ?? const [];
   final snap = ref.watch(professorStudentsProvider).valueOrNull;
   final lessons = ref.watch(professorLessonsProvider).valueOrNull ?? const [];
+  final own = ref.watch(professorOwnClassesProvider).valueOrNull ?? const [];
   return professorArenaPalette([
     for (final l in links) l.arenaId,
     for (final a in snap?.arenas ?? const []) a.arenaId,
     for (final l in lessons) l.arenaId,
+    for (final c in own) c.arenaId,
   ]);
 });
 

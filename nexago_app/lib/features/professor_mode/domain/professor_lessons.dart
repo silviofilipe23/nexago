@@ -65,6 +65,9 @@ class ProfessorCourtBooking {
     required this.status,
     this.arenaName = 'Arena',
     this.courtName,
+    this.endTime = '',
+    this.arenaId,
+    this.professorClassId,
   });
 
   factory ProfessorCourtBooking.fromMap(String id, Map<String, Object?> map) =>
@@ -76,6 +79,9 @@ class ProfessorCourtBooking {
         status: _str(map['status'], 'active').toLowerCase(),
         arenaName: _str(map['arenaName'], 'Arena'),
         courtName: _strOrNull(map['courtName']),
+        endTime: _str(map['endTime']),
+        arenaId: _strOrNull(map['arenaId']),
+        professorClassId: _strOrNull(map['professorClassId']),
       );
 
   final String id;
@@ -85,8 +91,14 @@ class ProfessorCourtBooking {
   final String status;
   final String arenaName;
   final String? courtName;
+  final String endTime;
+  final String? arenaId;
+
+  /// Ocorrência de turma própria (B10): o id da turma.
+  final String? professorClassId;
 
   bool get isVoid => professorBookingIsVoid(status);
+  bool get isOwnClass => professorClassId != null;
 }
 
 /// Reserva que não vale: cancelada, PIX expirado ou recusado.

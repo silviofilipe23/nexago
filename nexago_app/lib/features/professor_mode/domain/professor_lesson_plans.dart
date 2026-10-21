@@ -1051,7 +1051,7 @@ class PlannableLesson {
   final LessonPlanKind kind;
   final String refId;
 
-  /// Turma (só nas aulas de turma): o "Repetir anterior".
+  /// Turma (aula de turma da arena ou turma própria): o "Repetir anterior".
   final String? classId;
   final String date;
   final int startMin;
@@ -1093,6 +1093,11 @@ List<PlannableLesson> plannableLessonsFrom(
           LessonPlanKind.privateLesson,
           i.privateLesson!.id,
           null,
+        ),
+      ProfessorAgendaKind.ownClass => (
+          LessonPlanKind.booking,
+          i.booking?.id ?? '',
+          i.ownClassId,
         ),
       ProfessorAgendaKind.block => (LessonPlanKind.session, '', null),
     };
@@ -1140,18 +1145,27 @@ class LessonPlanRow {
 }
 
 /// O plano mais recente de outra aula da mesma turma antes de [lesson]
-/// (com blocos). Só aulas de turma.
+/// (com blocos). Aulas de turma (a turma sai do id da aula) e de turma
+/// própria (a turma de cada reserva vem de [bookingClassIds]).
 LessonPlan? previousLessonPlanFor(
   PlannableLesson lesson,
-  Iterable<LessonPlan> plans,
-) {
+  Iterable<LessonPlan> plans, {
+  Map<String, String> bookingClassIds = const {},
+}) {
   final classId = lesson.classId;
-  if (lesson.kind != LessonPlanKind.session || classId == null) return null;
+  if (classId == null) return null;
+  if (lesson.kind != LessonPlanKind.session &&
+      lesson.kind != LessonPlanKind.booking) {
+    return null;
+  }
+  String? classOf(LessonPlan p) => p.kind == LessonPlanKind.session
+      ? lessonPlanSessionClassId(p.refId)
+      : bookingClassIds[p.refId];
   LessonPlan? best;
   for (final p in plans) {
-    if (p.kind != LessonPlanKind.session || p.refId == lesson.refId) continue;
+    if (p.kind != lesson.kind || p.refId == lesson.refId) continue;
     if (p.blocks.isEmpty || p.date.compareTo(lesson.date) > 0) continue;
-    if (lessonPlanSessionClassId(p.refId) != classId) continue;
+    if (classOf(p) != classId) continue;
     if (best == null || p.date.compareTo(best.date) > 0) best = p;
   }
   return best;
@@ -1161,6 +1175,7 @@ List<LessonPlanRow> lessonPlanRows({
   required List<PlannableLesson> lessons,
   required List<LessonPlan> plans,
   required String uid,
+  Map<String, String> bookingClassIds = const {},
 }) {
   final byId = {for (final p in plans) p.id: p};
   return [
@@ -1169,7 +1184,11 @@ List<LessonPlanRow> lessonPlanRows({
         lesson: l,
         plan: byId[l.planId(uid)],
         previous: byId[l.planId(uid)] == null
-            ? previousLessonPlanFor(l, plans)
+            ? previousLessonPlanFor(
+                l,
+                plans,
+                bookingClassIds: bookingClassIds,
+              )
             : null,
       ),
   ];

@@ -56,7 +56,8 @@ const conversationMessageNotificationType = 'conversation_message';
 const arenaProfessorNoticeNotificationType = 'arena_professor_notice';
 
 /// Turma própria do professor encerrada pelo agendador (vínculo ou horário
-/// fixo caíram): o payload traz `url: /professor/mais/turmas`.
+/// fixo caíram) — `url: /professor/mais/turmas` — ou série mexida pela arena
+/// (cancelou, pausou, retomou) — `url: /professor/mais/turmas/propria/{id}`.
 const professorOwnClassEndedNotificationType = 'professor_own_class_ended';
 
 /// Professor independente reservou horário fixo para turma própria — vai
@@ -358,10 +359,16 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
     return AppRoutes.home;
   }
 
-  // Turma própria encerrada: `url` (Minhas turmas); sem ele, a mesma tela.
+  // Turma própria encerrada ou série mexida pela arena: `url` (Minhas turmas
+  // ou o detalhe da turma); sem ele, o detalhe pelo `professorClassId` e, sem
+  // nada, Minhas turmas.
   if (type == professorOwnClassEndedNotificationType) {
-    return appRouteForNotificationUrl(data['url'] as String?) ??
-        AppRoutes.professorClasses;
+    final url = appRouteForNotificationUrl(data['url'] as String?);
+    if (url != null) return url;
+    final classId = (data['professorClassId'] as String?)?.trim() ?? '';
+    if (classId.isEmpty) return AppRoutes.professorClasses;
+    return AppRoutes.professorOwnClass
+        .replaceAll(':classId', Uri.encodeComponent(classId));
   }
 
   // Horário fixo de turma própria (gestor): o payload traz `arenaId` e nenhum

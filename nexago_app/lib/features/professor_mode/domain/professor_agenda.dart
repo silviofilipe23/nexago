@@ -100,8 +100,13 @@ String? validateProfessorBlock({
 
 // ── itens da agenda ──────────────────────────────────────────────────────
 
-/// `privateLesson` = particular pedida pelo aluno no app (fase 10).
-enum ProfessorAgendaKind { session, lesson, block, privateLesson }
+/// `privateLesson` = particular pedida pelo aluno no app (fase 10);
+/// `ownClass` = ocorrência de turma própria (B10, `arenaBookings` com
+/// `professorClassId`).
+enum ProfessorAgendaKind { session, lesson, block, privateLesson, ownClass }
+
+/// Rótulo do tipo da ocorrência de turma própria.
+const String kProfessorOwnClassTypeLabel = 'Turma própria';
 
 /// Uma aula (ou um pedaço de bloqueio) num dia, em minutos do dia (SP).
 class ProfessorAgendaItem {
@@ -121,10 +126,11 @@ class ProfessorAgendaItem {
     this.lesson,
     this.block,
     this.privateLesson,
+    this.booking,
   });
 
   /// `session:{id}`, `lesson:{bookingId}`, `block:{id}:{date}`,
-  /// `private:{id}`.
+  /// `private:{id}`, `own:{bookingId}`.
   final String id;
   final ProfessorAgendaKind kind;
 
@@ -134,7 +140,8 @@ class ProfessorAgendaItem {
   final int endMin;
   final String title;
 
-  /// "Turma", "Particular", "Dupla", "Experimental", "Reposição", "Bloqueio".
+  /// "Turma", "Particular", "Dupla", "Experimental", "Reposição", "Bloqueio",
+  /// "Turma própria".
   final String typeLabel;
 
   /// `null` no bloqueio.
@@ -149,6 +156,12 @@ class ProfessorAgendaItem {
   final ProfessorBlock? block;
   final PrivateLesson? privateLesson;
 
+  /// A reserva da ocorrência de turma própria.
+  final ProfessorCourtBooking? booking;
+
+  /// Turma própria da ocorrência (`null` nos outros tipos).
+  String? get ownClassId => booking?.professorClassId;
+
   bool get isBlock => kind == ProfessorAgendaKind.block;
   int get durationMin => endMin - startMin;
   String get startLabel => professorMinutesLabel(startMin);
@@ -162,6 +175,7 @@ class ProfessorAgendaItem {
         'Experimental' => 'E',
         'Reposição' => 'R',
         'Bloqueio' => 'B',
+        kProfessorOwnClassTypeLabel => 'T',
         _ => 'A',
       };
 }
@@ -184,8 +198,14 @@ int? professorParseMinutes(String hhmm) {
 }
 
 /// Monta a agenda: aulas de turma (só as que ele dá), da carteira, as
-/// particulares CONFIRMADAS do app e os bloqueios fatiados por dia. O tipo vem do `classType` do item; servidor
+/// particulares CONFIRMADAS do app, as ocorrências de turma própria e os
+/// bloqueios fatiados por dia. O tipo vem do `classType` do item; servidor
 /// antigo usa [classTypes] (classId → tipo, da lista de turmas do professor).
+///
+/// [courtBookings] são as reservas como professor: só as com
+/// `professorClassId` viram item (turma própria, nome por [ownClassNames]);
+/// canceladas ficam de fora e uma reserva que já é aula da carteira não
+/// entra duas vezes.
 List<ProfessorAgendaItem> buildProfessorAgendaItems({
   required List<ClassAgendaEntry> sessions,
   required List<ProfessorLesson> lessons,
@@ -193,8 +213,36 @@ List<ProfessorAgendaItem> buildProfessorAgendaItems({
   required List<ProfessorBlock> blocks,
   Map<String, ArenaClassType> classTypes = const {},
   List<PrivateLesson> privateLessons = const [],
+  List<ProfessorCourtBooking> courtBookings = const [],
+  Map<String, String> ownClassNames = const {},
 }) {
   final items = <ProfessorAgendaItem>[];
+  final lessonBookingIds = {for (final l in lessons) l.bookingId};
+  final seenBookings = <String>{};
+  for (final b in courtBookings) {
+    final classId = b.professorClassId;
+    if (classId == null || b.isVoid) continue;
+    if (lessonBookingIds.contains(b.id) || !seenBookings.add(b.id)) continue;
+    final start = professorParseMinutes(b.startTime);
+    if (start == null || b.date.length != 10) continue;
+    final end = professorParseMinutes(b.endTime) ?? start + 60;
+    items.add(ProfessorAgendaItem(
+      id: 'own:${b.id}',
+      kind: ProfessorAgendaKind.ownClass,
+      date: b.date,
+      startMin: start,
+      endMin: end > start ? end : start + 60,
+      title: ownClassNames[classId] ?? kProfessorOwnClassTypeLabel,
+      typeLabel: kProfessorOwnClassTypeLabel,
+      arenaId: b.arenaId,
+      arenaName: b.arenaName,
+      place: [
+        if (b.courtName != null) b.courtName!,
+        b.arenaName,
+      ].join(' · '),
+      booking: b,
+    ));
+  }
   for (final s in sessions) {
     if (!s.isTeacher) continue;
     final start = professorParseMinutes(s.startTime);

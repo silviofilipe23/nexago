@@ -5,6 +5,8 @@ import '../../arena/domain/aulas/arena_class_logic.dart'
 import '../../professor_links/domain/arena_professor_link.dart';
 import '../../professor_links/domain/professor_link_rules.dart';
 import 'professor_actions_logic.dart' show professorAddMinutes;
+import 'professor_agenda.dart' show professorParseMinutes;
+import 'professor_lessons.dart' show ProfessorCourtBooking;
 
 /// Turma própria do professor independente com horário fixo de quadra (B10).
 ///
@@ -19,6 +21,20 @@ enum ProfessorOwnClassStatus {
 
   static ProfessorOwnClassStatus parse(Object? raw) =>
       raw == 'ended' ? ended : active;
+}
+
+/// Situação da série (horário fixo) de um dia da semana, espelhada pelo
+/// gatilho quando a arena cancela, pausa ou retoma (`seriesStatus`).
+enum ProfessorOwnClassSeriesStatus {
+  active,
+  paused,
+  canceled;
+
+  static ProfessorOwnClassSeriesStatus parse(Object? raw) => switch (raw) {
+        'paused' => paused,
+        'canceled' || 'cancelled' => canceled,
+        _ => active,
+      };
 }
 
 /// `professors/{uid}/ownClasses/{classId}`.
@@ -41,6 +57,7 @@ class ProfessorOwnClass {
     this.status = ProfessorOwnClassStatus.active,
     this.endedReason,
     this.createdAt,
+    this.seriesStatus = const {},
   });
 
   factory ProfessorOwnClass.fromMap(String id, Map<String, Object?> map) =>
@@ -66,6 +83,7 @@ class ProfessorOwnClass {
         status: ProfessorOwnClassStatus.parse(map['status']),
         endedReason: _strOrNull(map['endedReason']),
         createdAt: _date(map['createdAt']),
+        seriesStatus: _seriesStatus(map['seriesStatus']),
       );
 
   final String id;
@@ -92,11 +110,18 @@ class ProfessorOwnClass {
   final List<String> studentIds;
   final ProfessorOwnClassStatus status;
 
-  /// `professor_ended` ou `link_or_permission` (o agendador encerrou).
+  /// `professor_ended`, `link_or_permission` (o agendador encerrou) ou
+  /// `arena_canceled` (a arena cancelou todas as séries).
   final String? endedReason;
   final DateTime? createdAt;
 
+  /// Dia da semana (ISO) → situação da série. Dia ausente = ativa.
+  final Map<int, ProfessorOwnClassSeriesStatus> seriesStatus;
+
   bool get isActive => status == ProfessorOwnClassStatus.active;
+
+  ProfessorOwnClassSeriesStatus seriesStatusOf(int weekday) =>
+      seriesStatus[weekday] ?? ProfessorOwnClassSeriesStatus.active;
   int get studentCount => studentIds.length;
 }
 
@@ -370,8 +395,67 @@ String professorOwnClassScheduleLabel(ProfessorOwnClass c) {
 String professorOwnClassEndedLabel(String? reason) => switch (reason) {
       'link_or_permission' =>
         'Encerrada: o vínculo ou o horário fixo deixaram de valer.',
+      kProfessorOwnClassArenaCanceled =>
+        'A arena cancelou o horário fixo desta turma.',
       _ => 'Turma encerrada. As datas futuras foram liberadas na arena.',
     };
+
+/// `endedReason` quando a arena cancelou todas as séries.
+const String kProfessorOwnClassArenaCanceled = 'arena_canceled';
+
+/// "Ter · ativo" / "Ter · pausado pela arena" / "Ter · cancelado pela arena".
+String professorOwnClassSeriesLabel(
+  int weekday,
+  ProfessorOwnClassSeriesStatus status,
+) {
+  final day = arenaClassWeekdayShort(weekday);
+  return switch (status) {
+    ProfessorOwnClassSeriesStatus.active => '$day · ativo',
+    ProfessorOwnClassSeriesStatus.paused => '$day · pausado pela arena',
+    ProfessorOwnClassSeriesStatus.canceled => '$day · cancelado pela arena',
+  };
+}
+
+/// Selo do cartão da turma ativa quando a arena mexeu em alguma série:
+/// "PAUSADA" (nenhum dia ativo) ou "PARCIAL" (só alguns). `null` = tudo
+/// ativo, ou turma encerrada (já tem o selo dela).
+String? professorOwnClassSeriesTag(ProfessorOwnClass c) {
+  if (!c.isActive || c.weekdays.isEmpty) return null;
+  final active = c.weekdays
+      .where((d) => c.seriesStatusOf(d) == ProfessorOwnClassSeriesStatus.active)
+      .length;
+  if (active == c.weekdays.length) return null;
+  return active == 0 ? 'PAUSADA' : 'PARCIAL';
+}
+
+/// A próxima ocorrência da turma (a que ainda não terminou): reservas
+/// canceladas ficam de fora. `null` = nenhuma no que foi carregado.
+ProfessorCourtBooking? professorOwnClassNextBooking(
+  Iterable<ProfessorCourtBooking> bookings, {
+  required String classId,
+  required String todayKey,
+  required int nowMin,
+}) {
+  ProfessorCourtBooking? best;
+  for (final b in bookings) {
+    if (b.professorClassId != classId || b.isVoid || b.date.length != 10) {
+      continue;
+    }
+    final cmp = b.date.compareTo(todayKey);
+    if (cmp < 0) continue;
+    if (cmp == 0) {
+      final start = professorParseMinutes(b.startTime) ?? 0;
+      final end = professorParseMinutes(b.endTime) ?? start + 60;
+      if (end <= nowMin) continue;
+    }
+    if (best == null ||
+        b.date.compareTo(best.date) < 0 ||
+        (b.date == best.date && b.startTime.compareTo(best.startTime) < 0)) {
+      best = b;
+    }
+  }
+  return best;
+}
 
 /// Snackbar do sucesso ao criar.
 String professorOwnClassCreatedMessage(ProfessorOwnClassCreated r) {
@@ -410,6 +494,15 @@ List<int> _weekdays(Object? v) {
   }.toList()
     ..sort();
   return out;
+}
+
+Map<int, ProfessorOwnClassSeriesStatus> _seriesStatus(Object? v) {
+  if (v is! Map) return const {};
+  return {
+    for (final e in v.entries)
+      if (int.tryParse('${e.key}') case final d? when d >= 1 && d <= 7)
+        d: ProfessorOwnClassSeriesStatus.parse(e.value),
+  };
 }
 
 List<String> _strings(Object? v) => [

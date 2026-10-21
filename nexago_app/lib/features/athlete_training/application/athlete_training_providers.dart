@@ -9,6 +9,8 @@ import '../../professor_links/application/professor_links_providers.dart';
 import '../../professor_mode/application/professor_availability_providers.dart';
 import '../../professor_mode/application/professor_lesson_plans_providers.dart';
 import '../domain/athlete_training.dart';
+import '../domain/training_plans.dart';
+import '../infrastructure/training_plans_repository.dart';
 import '../domain/class_presence.dart';
 import '../infrastructure/class_presence_repository.dart';
 
@@ -118,3 +120,13 @@ void refreshAthleteClassPresence(WidgetRef ref) {
   ref.invalidate(myClassAgendaProvider);
   ref.invalidate(athleteClassCreditsProvider);
 }
+
+/// T14 · planos ativos (arena e professor) e últimos pagamentos. Erro chega
+/// à tela (que mostra "tentar de novo"); o hub lê só `valueOrNull`.
+final athleteTrainingPlansProvider =
+    FutureProvider.autoDispose<MyTrainingPlans>((ref) {
+  if (ref.watch(professorLinksUidProvider).isEmpty) {
+    return Future.value(const MyTrainingPlans());
+  }
+  return ref.read(trainingPlansRepositoryProvider).fetch();
+});

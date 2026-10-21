@@ -208,6 +208,8 @@ export {
   bookArenaClassMakeup,
   joinArenaClassMakeupWaitlist,
 } from "./arena-class-athlete-actions";
+// T14 · Planos e pagamentos do aluno (matrícula da arena + carteira do professor).
+export {getMyTrainingPlans} from "./arena-class-athlete-plans";
 // QR de check-in por quadra (portal da arena gera; o aluno lê no app).
 export {getArenaCourtCheckinQr} from "./arena-court-checkin-qr";
 // Aulas pelo professor com vínculo ("Gerenciar as próprias aulas"): lista da chamada.

@@ -23,6 +23,7 @@ import 'actions/professor_move_sheet.dart';
 import 'widgets/professor_students_widgets.dart';
 import '../../messages/presentation/messages_widgets.dart';
 import 'evaluations/professor_evaluations_page.dart';
+import 'lesson_plans/professor_homework_widgets.dart';
 
 /// Aluno do professor (B3): turmas com ele, presença das últimas aulas,
 /// plano e situação do pagamento (só equipe da arena) e as anotações que só
@@ -111,6 +112,10 @@ class ProfessorStudentPage extends ConsumerWidget {
             ],
             const SizedBox(height: 22),
             _PresenceSection(student: student),
+            if (student.athleteId?.isNotEmpty ?? false) ...[
+              const SizedBox(height: 22),
+              ProfessorStudentHomeworkSection(athleteId: student.athleteId!),
+            ],
             const SizedBox(height: 22),
             _PlanSection(student: student, todayKey: snapshot!.todayKey),
             if (snapshot.arena(arenaId)?.actions case final actions?

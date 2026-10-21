@@ -20,6 +20,7 @@ import '../wallet/professor_wallet_widgets.dart';
 import '../widgets/professor_students_widgets.dart';
 import '../availability/availability_widgets.dart' show AvailabilityChoiceChip;
 import 'lesson_plan_widgets.dart';
+import 'professor_homework_widgets.dart';
 
 Color lessonBlockRatingColor(LessonBlockRating r) => switch (r) {
       LessonBlockRating.ok => AppColors.win,
@@ -73,6 +74,15 @@ class _FeedbackState {
         send: send,
         homework: homework,
       );
+
+  /// Quando a tarefa atual chegou ao aluno (`null` = ainda não enviada ou
+  /// trocada desde o envio).
+  DateTime? get sentHomeworkAt {
+    final sentAt = previous?.sentAt;
+    final hw = homework;
+    if (sentAt == null || hw == null) return null;
+    return previous!.homework?.name == hw.name ? sentAt : null;
+  }
 
   /// Enviado e o texto não mudou.
   bool get alreadySent =>
@@ -312,6 +322,7 @@ class _ProfessorLessonReviewPageState
                   ),
                 for (final f in _feedback.values) ...[
                   _FeedbackCard(
+                    planId: p.id,
                     state: f,
                     stars: p.ratings[f.athleteId],
                     onChanged: () => setState(() {}),
@@ -465,12 +476,14 @@ class _RateRow extends StatelessWidget {
 
 class _FeedbackCard extends StatelessWidget {
   const _FeedbackCard({
+    required this.planId,
     required this.state,
     required this.onChanged,
     required this.onHomework,
     this.stars,
   });
 
+  final String planId;
   final _FeedbackState state;
   final int? stars;
   final VoidCallback onChanged;
@@ -616,6 +629,13 @@ class _FeedbackCard extends StatelessWidget {
                             color: ProfessorLinksStyle.dim(colors),
                           ),
                         ),
+                        // T9: o que o aluno já marcou da tarefa enviada.
+                        if (f.sentHomeworkAt case final sentAt?)
+                          ProfessorHomeworkProgressLine(
+                            viewId: lessonPlanViewId(planId, f.athleteId),
+                            homework: f.homework!,
+                            sentAt: sentAt,
+                          ),
                       ],
                     ),
                   ),

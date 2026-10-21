@@ -9,6 +9,7 @@ import 'package:nexago_app/features/athlete/domain/agenda/class_agenda_entry.dar
 import 'package:nexago_app/features/professor_mode/application/professor_lesson_plans_providers.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_agenda.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_lesson_plans.dart';
+import 'package:nexago_app/features/professor_mode/infrastructure/professor_homework_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_lesson_plans_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_own_classes_repository.dart';
 import 'package:nexago_app/features/professor_mode/presentation/lesson_plans/athlete_lesson_plan_pages.dart';
@@ -478,6 +479,7 @@ Future<GoRouter> pumpLessonPlansApp(
   List<Override> overrides = const [],
   FakeProfessorWalletRepository? wallet,
   ProfessorOwnClassesRepository? ownClasses,
+  ProfessorHomeworkRepository? homework,
   List<RouteBase> extraRoutes = const [],
 }) =>
     pumpProfessorAgendaApp(
@@ -490,6 +492,7 @@ Future<GoRouter> pumpLessonPlansApp(
       lessonPlans: plans,
       wallet: wallet,
       ownClasses: ownClasses,
+      homework: homework,
       extraRoutes: [...lessonPlanRoutes, ...extraRoutes],
       uid: uid,
       extraOverrides: [

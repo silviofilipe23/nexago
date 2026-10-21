@@ -38,9 +38,16 @@ class ClassStoryPage extends ConsumerStatefulWidget {
   ConsumerState<ClassStoryPage> createState() => _ClassStoryPageState();
 }
 
+/// A frase do último story aberto: a próxima abertura sorteia outra.
+String? _lastHeadline;
+
 class _ClassStoryPageState extends ConsumerState<ClassStoryPage>
     with BookingStoryEditorMixin {
   final Set<ClassStoryInfo> _hidden = {};
+
+  /// Sorteada uma vez por abertura: mexer em fundo ou chips não troca a frase.
+  late final String _headline = _lastHeadline =
+      pickClassStoryHeadline(avoid: _lastHeadline);
 
   void _toggleInfo(ClassStoryInfo info) {
     setState(() {
@@ -77,6 +84,7 @@ class _ClassStoryPageState extends ConsumerState<ClassStoryPage>
         theme: storyTheme,
         infos: infos,
         photo: storyPhoto,
+        headline: _headline,
       ),
       theme: storyTheme,
       photo: storyPhoto,

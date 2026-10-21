@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/features/athlete/domain/agenda/class_agenda_entry.dart';
@@ -142,6 +144,19 @@ void main() {
       // Sem duração e sem sequência de 2+ semanas, sobra o treino do mês.
       expect(data.stats, [('1º', 'DO MÊS')]);
     });
+  });
+
+  test('sorteio nunca devolve a frase anterior e cobre a lista', () {
+    final random = Random(7);
+    final seen = <String>{};
+    var last = kClassStoryHeadlines.first;
+    for (var i = 0; i < 500; i++) {
+      final next = pickClassStoryHeadline(random: random, avoid: last);
+      expect(next, isNot(last));
+      seen.add(next);
+      last = next;
+    }
+    expect(seen, kClassStoryHeadlines.toSet());
   });
 
   test('legenda leva a arena, a aula e a hashtag', () {

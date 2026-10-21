@@ -19,7 +19,8 @@ const athleteAgendaTournamentAccent = Color(0xFF9B8CFF);
 const athleteAgendaChallengeAccent = Color(0xFFFF6B9D);
 const athleteAgendaFriendlyMatchAccent = Color(0xFF57C785);
 const athleteAgendaClubSessionAccent = Color(0xFFFFB74D);
-const athleteAgendaClassSessionAccent = Color(0xFF4FC3F7);
+/// Aulas/treinos: verde-limão, longe dos azuis do aluguel e do verde do amistoso.
+const athleteAgendaClassSessionAccent = Color(0xFFD4E157);
 
 final _weekdayFmt = DateFormat('EEE', 'pt_BR');
 final _sectionDateFmt = DateFormat('dd/MM', 'pt_BR');
@@ -604,6 +605,7 @@ AthleteAgendaDaySummary buildDaySummary(
 }) {
   final clock = now ?? DateTime.now();
   var rentals = 0;
+  var trainings = 0;
   var tournaments = 0;
   var challenges = 0;
   DateTime? nextStart;
@@ -618,8 +620,9 @@ AthleteAgendaDaySummary buildDaySummary(
     switch (item.kind) {
       case AthleteAgendaItemKind.rental:
       case AthleteAgendaItemKind.clubSession:
-      case AthleteAgendaItemKind.classSession:
         rentals++;
+      case AthleteAgendaItemKind.classSession:
+        trainings++;
       case AthleteAgendaItemKind.tournament:
         tournaments++;
       case AthleteAgendaItemKind.challenge:
@@ -633,12 +636,13 @@ AthleteAgendaDaySummary buildDaySummary(
     }
   }
 
-  final total = rentals + tournaments + challenges;
+  final total = rentals + trainings + tournaments + challenges;
   final nextMinutes = nextStart?.difference(clock).inMinutes;
 
   return AthleteAgendaDaySummary(
     totalToday: total,
     rentalsToday: rentals,
+    trainingsToday: trainings,
     tournamentsToday: tournaments,
     challengesToday: challenges,
     nextInMinutes: nextMinutes != null && nextMinutes >= 0 ? nextMinutes : null,
@@ -662,14 +666,16 @@ List<AthleteAgendaMonthDay> buildAgendaMonthDayMarkers({
     final dayItems =
         items.where((i) => isSameDay(i.startsAt, date)).toList(growable: false);
     var rentals = 0;
+    var trainings = 0;
     var tournaments = 0;
     var challenges = 0;
     for (final item in dayItems) {
       switch (item.kind) {
         case AthleteAgendaItemKind.rental:
         case AthleteAgendaItemKind.clubSession:
-        case AthleteAgendaItemKind.classSession:
           rentals++;
+        case AthleteAgendaItemKind.classSession:
+          trainings++;
         case AthleteAgendaItemKind.tournament:
           tournaments++;
         case AthleteAgendaItemKind.challenge:
@@ -683,6 +689,7 @@ List<AthleteAgendaMonthDay> buildAgendaMonthDayMarkers({
       isToday: isSameDay(date, today),
       isSelected: isSameDay(date, anchor),
       rentalDots: rentals,
+      trainingDots: trainings,
       tournamentDots: tournaments,
       challengeDots: challenges,
       eventCount: dayItems.length,
@@ -714,14 +721,16 @@ int countFreeDaysInMonth(
 
 Color dominantAgendaKindColor(List<AthleteAgendaItem> items) {
   var rentals = 0;
+  var trainings = 0;
   var tournaments = 0;
   var challenges = 0;
   for (final item in items) {
     switch (item.kind) {
       case AthleteAgendaItemKind.rental:
       case AthleteAgendaItemKind.clubSession:
-      case AthleteAgendaItemKind.classSession:
         rentals++;
+      case AthleteAgendaItemKind.classSession:
+        trainings++;
       case AthleteAgendaItemKind.tournament:
         tournaments++;
       case AthleteAgendaItemKind.challenge:
@@ -729,10 +738,15 @@ Color dominantAgendaKindColor(List<AthleteAgendaItem> items) {
         challenges++;
     }
   }
-  if (tournaments >= rentals && tournaments >= challenges) {
+  if (tournaments >= rentals &&
+      tournaments >= trainings &&
+      tournaments >= challenges) {
     return athleteAgendaTournamentAccent;
   }
-  if (rentals >= challenges) return athleteAgendaRentalAccent;
+  if (rentals >= trainings && rentals >= challenges) {
+    return athleteAgendaRentalAccent;
+  }
+  if (trainings >= challenges) return athleteAgendaClassSessionAccent;
   return athleteAgendaChallengeAccent;
 }
 
@@ -866,14 +880,16 @@ List<AthleteAgendaWeekDay> buildWeekDayStrip({
     final dayItems =
         items.where((i) => isSameDay(i.startsAt, date)).toList(growable: false);
     var rentals = 0;
+    var trainings = 0;
     var tournaments = 0;
     var challenges = 0;
     for (final item in dayItems) {
       switch (item.kind) {
         case AthleteAgendaItemKind.rental:
         case AthleteAgendaItemKind.clubSession:
-        case AthleteAgendaItemKind.classSession:
           rentals++;
+        case AthleteAgendaItemKind.classSession:
+          trainings++;
         case AthleteAgendaItemKind.tournament:
           tournaments++;
         case AthleteAgendaItemKind.challenge:
@@ -889,6 +905,7 @@ List<AthleteAgendaWeekDay> buildWeekDayStrip({
       isPast: date.isBefore(today),
       isSelected: isSameDay(date, anchor),
       rentalDots: rentals,
+      trainingDots: trainings,
       tournamentDots: tournaments,
       challengeDots: challenges,
       eventCount: dayItems.length,

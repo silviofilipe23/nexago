@@ -79,6 +79,11 @@ class AgendaSummaryCard extends StatelessWidget {
                       label: '${summary.challengesToday} desafio',
                       color: athleteAgendaChallengeAccent,
                     ),
+                  if (summary.trainingsToday > 0)
+                    _SummaryPill(
+                      label: '${summary.trainingsToday} treino',
+                      color: athleteAgendaClassSessionAccent,
+                    ),
                   if (summary.rentalsToday > 0)
                     _SummaryPill(
                       label: '${summary.rentalsToday} aluguel',

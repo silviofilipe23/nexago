@@ -15,6 +15,7 @@ import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../application/professor_agenda_providers.dart';
 import '../../application/professor_students_providers.dart';
 import '../../domain/professor_agenda.dart';
+import '../../domain/professor_class_story.dart';
 import '../../domain/professor_actions_logic.dart' show professorDayLabel;
 import '../../domain/professor_students_logic.dart'
     show professorScheduleLabel, professorShortDate;
@@ -105,6 +106,10 @@ class ProfessorAgendaSessionPage extends ConsumerWidget {
     final canCancel =
         !e.isCanceled && upcoming && (arena?.actions.canCancelLessons ?? false);
     final canAttendance = !e.isCanceled && e.canManageLessons;
+    // Aula que já terminou: o "Story do treino" (G1) entra no lugar do
+    // "Cancelar".
+    final canStory = isProfessorClassStoryAvailable(e, now);
+    final showCancel = canCancel && !canStory;
 
     return ProfessorLinksScaffold(
       title: e.className,
@@ -199,14 +204,14 @@ class ProfessorAgendaSessionPage extends ConsumerWidget {
             ),
           ),
           // Sem rodapé: aula passada/cancelada ou vínculo sem as chaves.
-          if (canCancel || canAttendance)
+          if (showCancel || canAttendance)
             SafeArea(
               top: false,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
                 child: Row(
                   children: [
-                    if (canCancel)
+                    if (showCancel)
                       Expanded(
                         child: ProfessorLinksGhostButton(
                           key: const Key('professor-agenda-session-cancel'),
@@ -216,7 +221,19 @@ class ProfessorAgendaSessionPage extends ConsumerWidget {
                           onPressed: () => _cancel(context, ref),
                         ),
                       ),
-                    if (canCancel && canAttendance) const SizedBox(width: 8),
+                    if (canStory)
+                      Expanded(
+                        child: ProfessorLinksGhostButton(
+                          key: const Key('professor-agenda-session-story'),
+                          label: 'Story',
+                          height: 52,
+                          onPressed: () => context.pushNamed(
+                            AppRouteNames.professorClassClosed,
+                            pathParameters: {'sessionId': e.sessionId},
+                          ),
+                        ),
+                      ),
+                    if (showCancel || canStory) const SizedBox(width: 8),
                     if (canAttendance)
                       Expanded(
                         flex: 2,

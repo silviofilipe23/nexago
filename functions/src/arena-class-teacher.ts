@@ -22,6 +22,12 @@ export interface TeacherRosterStudent {
   photoUrl: string | null;
   kind: "regular" | "makeup" | "trial";
   mark: AttendanceMark | null;
+  /**
+   * Aluno com conta que liberou aparecer em story de treino
+   * (`privacyPreferences.showOthers.storyTags`) — o professor só marca esses. Só o booleano: a
+   * preferência em si e o uid não saem daqui.
+   */
+  storyTaggable: boolean;
 }
 
 export interface TeacherRosterSession {
@@ -64,6 +70,7 @@ export function buildTeacherRoster(
       photoUrl: str(data["photoUrl"]) || null,
       kind: "regular",
       mark: markOf(id),
+      storyTaggable: false,
     }))
     .sort(byName);
   const extras = Object.entries(session.extras)
@@ -73,18 +80,63 @@ export function buildTeacherRoster(
       photoUrl: null,
       kind: extra.kind === "makeup" ? "makeup" : "trial",
       mark: markOf(id),
+      storyTaggable: false,
     }))
     .sort(byName);
   return [...regulars, ...extras];
 }
 
-/** Só o professor da aula, com a permissão valendo agora naquela arena. */
-export async function loadTeacherClassSessionRosterCore(
+/** Conta NexaGO de cada linha da chamada (aluno da turma ou encaixe), quando há. */
+export function rosterAthleteIds(
+  session: ClassSessionData,
+  students: ReadonlyArray<{id: string; data: Record<string, unknown>}>,
+): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const {id, data} of students) {
+    const athleteId = str(data["athleteId"]);
+    if (athleteId) out.set(id, athleteId);
+  }
+  for (const [id, extra] of Object.entries(session.extras)) {
+    if (extra.athleteId) out.set(id, extra.athleteId);
+  }
+  return out;
+}
+
+/** Liberou aparecer em story de treino de outra pessoa? Opt-in: sem a chave, não. */
+export function allowsStoryTags(user: Record<string, unknown> | undefined): boolean {
+  const privacy = user?.["privacyPreferences"];
+  if (!privacy || typeof privacy !== "object") return false;
+  const showOthers = (privacy as Record<string, unknown>)["showOthers"];
+  if (!showOthers || typeof showOthers !== "object") return false;
+  return (showOthers as Record<string, unknown>)["storyTags"] === true;
+}
+
+/** Quais dessas contas liberaram a marcação no story (uma leitura em lote dos perfis). */
+export async function storyTaggableAthletes(db: Firestore, athleteIds: Iterable<string>): Promise<Set<string>> {
+  const ids = [...new Set(athleteIds)];
+  if (ids.length === 0) return new Set();
+  const snaps = await db.getAll(...ids.map((id) => db.collection("users").doc(id)));
+  const out = new Set<string>();
+  snaps.forEach((snap, i) => {
+    if (snap.exists && allowsStoryTags(snap.data() as Record<string, unknown>)) out.add(ids[i]!);
+  });
+  return out;
+}
+
+export interface TeacherClassSessionContext {
+  data: Record<string, unknown>;
+  session: ClassSessionData;
+  students: TeacherRosterStudent[];
+  /** Linha da chamada → conta do aluno. Fica no servidor: não vai na resposta. */
+  athleteIds: Map<string, string>;
+}
+
+/** Aula + chamada, só para o professor da aula com a permissão valendo agora naquela arena. */
+export async function loadTeacherClassSessionContext(
   db: Firestore,
   sessionId: string,
   uid: string,
-  todayKey: string,
-): Promise<{session: TeacherRosterSession; students: TeacherRosterStudent[]}> {
+): Promise<TeacherClassSessionContext> {
   if (!sessionId) throw new HttpsError("invalid-argument", "Aula inválida.");
   const snap = await db.collection(ARENA_CLASS_SESSIONS).doc(sessionId).get();
   if (!snap.exists) throw new HttpsError("not-found", "Aula não encontrada.");
@@ -96,10 +148,28 @@ export async function loadTeacherClassSessionRosterCore(
   await requireArenaProfessorPermission(db, session.arenaId, uid, "canManageOwnLessons");
 
   const studentsSnap = await db.collection(ARENA_CLASSES).doc(session.classId).collection(CLASS_STUDENTS).get();
-  const students = buildTeacherRoster(
-    session,
-    studentsSnap.docs.map((d) => ({id: d.id, data: d.data() as Record<string, unknown>})),
-  );
+  const docs = studentsSnap.docs.map((d) => ({id: d.id, data: d.data() as Record<string, unknown>}));
+  const roster = buildTeacherRoster(session, docs);
+  const athleteIds = rosterAthleteIds(session, docs);
+  const taggable = await storyTaggableAthletes(db, roster.flatMap((s) => {
+    const athleteId = athleteIds.get(s.studentId);
+    return athleteId ? [athleteId] : [];
+  }));
+  const students = roster.map((s) => {
+    const athleteId = athleteIds.get(s.studentId);
+    return {...s, storyTaggable: athleteId != null && taggable.has(athleteId)};
+  });
+  return {data, session, students, athleteIds};
+}
+
+/** Só o professor da aula, com a permissão valendo agora naquela arena. */
+export async function loadTeacherClassSessionRosterCore(
+  db: Firestore,
+  sessionId: string,
+  uid: string,
+  todayKey: string,
+): Promise<{session: TeacherRosterSession; students: TeacherRosterStudent[]}> {
+  const {data, session, students} = await loadTeacherClassSessionContext(db, sessionId, uid);
   const status = session.status === "canceled" || session.status === "completed" ? session.status : "scheduled";
   return {
     session: {

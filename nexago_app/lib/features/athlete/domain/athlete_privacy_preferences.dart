@@ -28,11 +28,16 @@ class AthletePrivacyShowOthers {
     this.achievementsAndLevel = true,
     this.upcomingBookings = false,
     this.frequentPartners = true,
+    this.storyTags = false,
   });
 
   final bool achievementsAndLevel;
   final bool upcomingBookings;
   final bool frequentPartners;
+
+  /// Liberou o professor a marcar no story do treino (nome e foto na arte).
+  /// Opt-in: sem a chave é `false` — `shareClassStory` lê esta mesma chave.
+  final bool storyTags;
 
   factory AthletePrivacyShowOthers.fromFirestore(dynamic raw) {
     if (raw is! Map) return const AthletePrivacyShowOthers();
@@ -41,6 +46,7 @@ class AthletePrivacyShowOthers {
       achievementsAndLevel: map['achievementsAndLevel'] as bool? ?? true,
       upcomingBookings: map['upcomingBookings'] as bool? ?? false,
       frequentPartners: map['frequentPartners'] as bool? ?? true,
+      storyTags: map['storyTags'] as bool? ?? false,
     );
   }
 
@@ -48,17 +54,20 @@ class AthletePrivacyShowOthers {
         'achievementsAndLevel': achievementsAndLevel,
         'upcomingBookings': upcomingBookings,
         'frequentPartners': frequentPartners,
+        'storyTags': storyTags,
       };
 
   AthletePrivacyShowOthers copyWith({
     bool? achievementsAndLevel,
     bool? upcomingBookings,
     bool? frequentPartners,
+    bool? storyTags,
   }) {
     return AthletePrivacyShowOthers(
       achievementsAndLevel: achievementsAndLevel ?? this.achievementsAndLevel,
       upcomingBookings: upcomingBookings ?? this.upcomingBookings,
       frequentPartners: frequentPartners ?? this.frequentPartners,
+      storyTags: storyTags ?? this.storyTags,
     );
   }
 
@@ -67,12 +76,13 @@ class AthletePrivacyShowOthers {
     return other is AthletePrivacyShowOthers &&
         other.achievementsAndLevel == achievementsAndLevel &&
         other.upcomingBookings == upcomingBookings &&
-        other.frequentPartners == frequentPartners;
+        other.frequentPartners == frequentPartners &&
+        other.storyTags == storyTags;
   }
 
   @override
-  int get hashCode =>
-      Object.hash(achievementsAndLevel, upcomingBookings, frequentPartners);
+  int get hashCode => Object.hash(
+      achievementsAndLevel, upcomingBookings, frequentPartners, storyTags);
 }
 
 class AthletePrivacyPreferences {

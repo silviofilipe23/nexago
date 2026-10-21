@@ -9,6 +9,8 @@ import 'class_agenda_entry.dart';
 /// Informações que o atleta liga/desliga no story do treino, na ordem dos
 /// chips (Agenda · F3).
 enum ClassStoryInfo {
+  /// Só o story do professor tem plano (o atleta não tem de onde tirar).
+  plan('Plano do treino'),
   numbers('Números'),
   place('Arena e horário'),
   people('Coach e turma');
@@ -17,6 +19,18 @@ enum ClassStoryInfo {
 
   final String label;
 }
+
+/// Chips que fazem sentido para estes dados: sem plano não há "Plano do
+/// treino"; sem gente, nem "Coach e turma"/"Marcar alunos".
+List<ClassStoryInfo> classStoryInfosFor(ClassStoryData data) => [
+      for (final info in ClassStoryInfo.values)
+        if (switch (info) {
+          ClassStoryInfo.plan => data.plan.isNotEmpty,
+          ClassStoryInfo.people => data.people.isNotEmpty,
+          _ => true,
+        })
+          info,
+    ];
 
 /// O story do treino é do ALUNO, numa aula que já acabou e em que ele não
 /// levou falta: "Treino pago." não vale para aula cancelada, futura ou com
@@ -83,7 +97,7 @@ ClassStoryStats classStoryStats(
   }
 
   return ClassStoryStats(
-    minutes: _minutesBetween(session.startTime, session.endTime),
+    minutes: classMinutesBetween(session.startTime, session.endTime),
     monthOrdinal: monthKeys.isEmpty ? 1 : monthKeys.length,
     weekStreak: streak < 1 ? 1 : streak,
   );
@@ -101,7 +115,8 @@ String _weekKey(DateTime day) {
   return '${m.year}-${m.month}-${m.day}';
 }
 
-int? _minutesBetween(String start, String end) {
+/// Minutos entre `HH:mm` e `HH:mm`; `null` sem fim depois do início.
+int? classMinutesBetween(String start, String end) {
   int? toMinutes(String v) {
     final parts = v.trim().split(':');
     if (parts.length < 2) return null;
@@ -128,6 +143,8 @@ class ClassStoryData {
     required this.withLine,
     required this.noPeopleLine,
     this.people = const [],
+    this.plan = const [],
+    this.footer,
   });
 
   /// `AULA · TREINO TÉCNICO`.
@@ -151,6 +168,12 @@ class ClassStoryData {
 
   /// O atleta e o professor (só iniciais: o servidor não manda foto dele).
   final List<BookingStoryPerson> people;
+
+  /// Blocos do plano: `[('10′', 'Aquecimento'), …]` (story do professor).
+  final List<(String, String)> plan;
+
+  /// Rodapé da arte; `null` = `TREINE TAMBÉM · NEXAGO.APP`.
+  final String? footer;
 }
 
 ClassStoryData classStoryDataFrom({
@@ -163,7 +186,7 @@ ClassStoryData classStoryDataFrom({
   final className = session.className.trim();
   final teacher = session.teacherName.trim();
   final teacherFirst = teacher.split(RegExp(r'\s+')).first;
-  final weekday = _weekdayShort(session.date);
+  final weekday = classWeekdayShort(session.date);
   final start = session.startTime.length >= 5
       ? session.startTime.substring(0, 5)
       : session.startTime.trim();
@@ -203,19 +226,19 @@ ClassStoryData classStoryDataFrom({
       if (name.isNotEmpty)
         BookingStoryPerson(
           firstName: firstName,
-          initials: _initials(name),
+          initials: classStoryInitials(name),
           avatarUrl: (athleteAvatarUrl?.trim() ?? '').isEmpty
               ? null
               : athleteAvatarUrl,
         ),
       if (teacher.isNotEmpty)
         BookingStoryPerson(
-            firstName: teacherFirst, initials: _initials(teacher)),
+            firstName: teacherFirst, initials: classStoryInitials(teacher)),
     ],
   );
 }
 
-String _initials(String name) {
+String classStoryInitials(String name) {
   final parts =
       name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
   if (parts.isEmpty) return '?';
@@ -225,7 +248,7 @@ String _initials(String name) {
 }
 
 /// `2026-05-26` → `Ter`.
-String _weekdayShort(String dateKey) {
+String classWeekdayShort(String dateKey) {
   final compact = formatTicketDateCompact(dateKey);
   final idx = compact.indexOf('•');
   if (idx <= 0) return '';

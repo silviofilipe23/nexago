@@ -273,6 +273,12 @@ List<RouteBase> get professorAgendaRoutes => [
         builder: (_, state) =>
             _stub('chamada ${state.pathParameters['sessionId']}'),
       ),
+      GoRoute(
+        path: AppRoutes.professorClassClosed,
+        name: AppRouteNames.professorClassClosed,
+        builder: (_, state) =>
+            _stub('encerrado ${state.pathParameters['sessionId']}'),
+      ),
     ];
 
 /// URIs abertas pelo "Assinar" (no lugar do url_launcher).

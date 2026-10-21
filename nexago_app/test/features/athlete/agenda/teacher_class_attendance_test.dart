@@ -195,6 +195,13 @@ void main() {
               sessionId: state.pathParameters['sessionId'] ?? '',
             ),
           ),
+          GoRoute(
+            path: AppRoutes.professorClassClosed,
+            name: AppRouteNames.professorClassClosed,
+            builder: (_, state) => Scaffold(
+              body: Text('encerrado ${state.pathParameters['sessionId']}'),
+            ),
+          ),
         ],
       );
       addTearDown(router.dispose);
@@ -244,8 +251,8 @@ void main() {
       });
       expect(repo.saves.single.close, isTrue);
       expect(find.text('Chamada fechada · 2 presentes.'), findsOneWidget);
-      // Volta para a agenda (sem pilha, cai na aba da agenda).
-      expect(find.textContaining('agenda'), findsOneWidget);
+      // Segue para o "Treino encerrado" (G1), com o story do treino.
+      expect(find.text('encerrado class_c1_2026-10-20'), findsOneWidget);
     });
 
     testWidgets('fechar com aluno sem marca pede confirmação', (tester) async {

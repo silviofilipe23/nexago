@@ -5,6 +5,7 @@ import '../../../core/firebase/functions_region.dart';
 import '../../tournaments/data/tournament_partner_invite_service.dart'
     show callableErrorMessage;
 import '../domain/professor_actions.dart';
+import '../domain/professor_cancel.dart';
 import 'professor_students_repository.dart' show ProfessorStudentsException;
 
 /// Aluno escolhido numa ação: com conta (`athleteId`) ou só da arena
@@ -80,11 +81,18 @@ abstract class ProfessorActionsRepository {
     required String message,
   });
 
-  Future<void> cancelSession({
+  Future<ProfessorSessionCancelResult> cancelSession({
     required String sessionId,
     required String reason,
     required bool generateCredits,
     String? message,
+  });
+
+  /// Depois de cancelar a reserva da aula da carteira: avisa o aluno com o
+  /// motivo (`notifyProfessorLessonCanceled`). Devolve se avisou.
+  Future<bool> notifyLessonCanceled({
+    required String bookingId,
+    required String reason,
   });
 }
 
@@ -284,13 +292,13 @@ class FirebaseProfessorActionsRepository implements ProfessorActionsRepository {
   }
 
   @override
-  Future<void> cancelSession({
+  Future<ProfessorSessionCancelResult> cancelSession({
     required String sessionId,
     required String reason,
     required bool generateCredits,
     String? message,
-  }) =>
-      _call(
+  }) async =>
+      ProfessorSessionCancelResult.fromMap(await _call(
         'cancelArenaClassSession',
         {
           'sessionId': sessionId,
@@ -299,7 +307,20 @@ class FirebaseProfessorActionsRepository implements ProfessorActionsRepository {
           if (message != null && message.isNotEmpty) 'message': message,
         },
         'Não foi possível cancelar a aula.',
-      );
+      ));
+
+  @override
+  Future<bool> notifyLessonCanceled({
+    required String bookingId,
+    required String reason,
+  }) async {
+    final out = await _call(
+      'notifyProfessorLessonCanceled',
+      {'bookingId': bookingId, 'reason': reason},
+      'Não foi possível avisar o aluno.',
+    );
+    return out['notified'] is num && (out['notified']! as num) > 0;
+  }
 }
 
 final professorActionsRepositoryProvider = Provider<ProfessorActionsRepository>(

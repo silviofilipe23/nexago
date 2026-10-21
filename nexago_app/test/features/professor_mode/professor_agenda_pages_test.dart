@@ -223,13 +223,33 @@ void main() {
 
       await tap(
           tester, find.byKey(const Key('professor-agenda-session-cancel')));
-      await tap(
-          tester, find.byKey(const Key('professor-agenda-cancel-credits')));
-      await tap(
-          tester, find.byKey(const Key('professor-agenda-cancel-confirm')));
+      expect(find.text('Cancelar aula?'), findsOneWidget);
+      expect(find.text('MOTIVO · OS ALUNOS VEEM'), findsOneWidget);
+      // Sem motivo não cancela.
+      expect(
+        tester
+            .widget<FilledButton>(
+                find.byKey(const Key('professor-cancel-confirm')))
+            .onPressed,
+        isNull,
+      );
+      expect(find.text('+1 crédito'), findsOneWidget);
+      expect(find.text('Liberada'), findsOneWidget);
+      await tap(tester, find.byKey(const Key('professor-cancel-reason-health')));
+      await tap(tester, find.byKey(const Key('professor-cancel-toggle')));
+      expect(find.text('Sem crédito'), findsOneWidget);
+      await tap(tester, find.byKey(const Key('professor-cancel-confirm')));
       expect(actions.cancels.single.sessionId, 'noite');
       expect(actions.cancels.single.credits, isFalse);
-      expect(actions.cancels.single.reason, 'teacher_absent');
+      expect(actions.cancels.single.reason, 'health');
+      // E5d com os números do servidor.
+      expect(find.text('Aula cancelada'), findsOneWidget);
+      expect(find.text('6/6'), findsOneWidget);
+      expect(find.text('Valem 30 dias'), findsOneWidget);
+      expect(find.text('Gestão da arena avisada'), findsOneWidget);
+      expect(find.textContaining('Desfazer'), findsNothing);
+      await tap(tester, find.byKey(const Key('professor-cancel-done-back')));
+      expect(find.text('Aula cancelada'), findsNothing);
     });
 
     testWidgets('sem a chave e sem a chamada: só a informação', (tester) async {
@@ -316,11 +336,13 @@ void main() {
 
     testWidgets('reserva, cobrança e cancelar dentro do prazo', (tester) async {
       final bookings = FakeBookingService();
+      final actions = FakeProfessorActionsRepository();
       await pumpProfessorAgendaApp(
         tester,
         agenda: FakeProfessorAgendaRepository(),
         wallet: wallet(),
         bookings: bookings,
+        actions: actions,
         location: AppRoutes.professorAgendaLesson
             .replaceAll(':bookingId', 'bk-amanha'),
       );
@@ -340,18 +362,28 @@ void main() {
       );
       await tap(
           tester, find.byKey(const Key('professor-agenda-lesson-cancel')));
-      await tap(tester, find.byKey(const Key('professor-wallet-confirm')));
+      expect(find.text('Cancelar aula?'), findsOneWidget);
+      expect(find.text('Sem multa'), findsOneWidget);
+      await tap(tester, find.byKey(const Key('professor-cancel-reason-rain')));
+      await tap(tester, find.byKey(const Key('professor-cancel-confirm')));
       expect(bookings.canceled.single,
           (bookingId: 'bk-amanha', athleteId: professorStudentsTestUid));
+      expect(actions.lessonCancelNotices.single,
+          (bookingId: 'bk-amanha', reason: 'rain'));
+      expect(find.text('Aula cancelada'), findsOneWidget);
+      expect(find.text('Avisado'), findsOneWidget);
     });
 
-    testWidgets('fora do prazo grátis: avisa e não cancela', (tester) async {
+    testWidgets('fora do prazo: avisa a retenção e cancela só no "mesmo"',
+        (tester) async {
       final bookings = FakeBookingService();
+      final actions = FakeProfessorActionsRepository();
       await pumpProfessorAgendaApp(
         tester,
         agenda: FakeProfessorAgendaRepository(),
         wallet: wallet(),
         bookings: bookings,
+        actions: actions,
         location:
             AppRoutes.professorAgendaLesson.replaceAll(':bookingId', 'bk-logo'),
       );
@@ -362,9 +394,20 @@ void main() {
       );
       await tap(
           tester, find.byKey(const Key('professor-agenda-lesson-cancel')));
-      expect(find.textContaining('Cancelamento disponível apenas até'),
+      expect(find.text('Fora do prazo'), findsOneWidget);
+      expect(find.textContaining('começa em 3h'), findsOneWidget);
+      expect(find.textContaining('a arena retém 50% do valor pago'),
           findsOneWidget);
+      expect(find.text('Retém 50%'), findsOneWidget);
+      // Sem chips: o motivo vai como "outro".
+      expect(find.byKey(const Key('professor-cancel-reason-rain')),
+          findsNothing);
+      expect(find.text('Falar com Paulo'), findsOneWidget);
       expect(bookings.canceled, isEmpty);
+      await tap(tester, find.byKey(const Key('professor-cancel-confirm')));
+      expect(bookings.canceled.single.bookingId, 'bk-logo');
+      expect(actions.lessonCancelNotices.single.reason, 'other');
+      expect(find.text('Fora do prazo · a arena retém 50%'), findsOneWidget);
     });
 
     testWidgets('aula da carteira aparece no Dia e abre o detalhe',

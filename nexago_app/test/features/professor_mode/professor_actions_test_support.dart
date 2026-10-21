@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_actions.dart';
+import 'package:nexago_app/features/professor_mode/domain/professor_cancel.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_actions_repository.dart';
 import 'package:nexago_app/features/professor_mode/presentation/actions/professor_add_student_page.dart';
 import 'package:nexago_app/features/professor_mode/presentation/actions/professor_convert_trial_page.dart';
@@ -312,7 +313,7 @@ class FakeProfessorActionsRepository implements ProfessorActionsRepository {
   }
 
   @override
-  Future<void> cancelSession({
+  Future<ProfessorSessionCancelResult> cancelSession({
     required String sessionId,
     required String reason,
     required bool generateCredits,
@@ -325,6 +326,27 @@ class FakeProfessorActionsRepository implements ProfessorActionsRepository {
       credits: generateCredits,
       message: message
     ));
+    return cancelResult;
+  }
+
+  ProfessorSessionCancelResult cancelResult = const ProfessorSessionCancelResult(
+    notified: 6,
+    credited: 6,
+    recipients: 6,
+    creditValidityDays: 30,
+    managerNotified: true,
+  );
+
+  final lessonCancelNotices = <({String bookingId, String reason})>[];
+
+  @override
+  Future<bool> notifyLessonCanceled({
+    required String bookingId,
+    required String reason,
+  }) async {
+    await _maybeFail();
+    lessonCancelNotices.add((bookingId: bookingId, reason: reason));
+    return true;
   }
 }
 

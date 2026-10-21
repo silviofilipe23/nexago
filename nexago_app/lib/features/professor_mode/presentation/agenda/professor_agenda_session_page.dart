@@ -15,6 +15,7 @@ import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../application/professor_agenda_providers.dart';
 import '../../application/professor_students_providers.dart';
 import '../../domain/professor_agenda.dart';
+import '../../domain/professor_cancel.dart';
 import '../../domain/professor_class_story.dart';
 import '../../domain/professor_actions_logic.dart' show professorDayLabel;
 import '../../domain/professor_students_logic.dart'
@@ -25,6 +26,8 @@ import '../../../messages/presentation/messages_widgets.dart';
 import '../../domain/professor_lesson_plans.dart' show LessonPlanKind;
 import '../lesson_plans/lesson_plan_agenda_card.dart';
 import 'professor_agenda_widgets.dart';
+import 'professor_cancel_done_page.dart';
+import 'professor_cancel_sheet.dart';
 
 /// E4 Detalhe da aula de turma (equipe da arena): local, recorrência, alunos
 /// (quando o vínculo libera a chamada), "Abrir chamada" e "Cancelar" (com a
@@ -46,24 +49,72 @@ class ProfessorAgendaSessionPage extends ConsumerWidget {
   void _back(BuildContext context) =>
       popOrGo(context, AppRoutes.professorAgenda);
 
-  Future<void> _cancel(BuildContext context, WidgetRef ref) async {
+  /// E5a → E5d: folha com motivo e o que acontece; cancelada, a
+  /// confirmação com os números do servidor.
+  Future<void> _cancel(
+    BuildContext context,
+    WidgetRef ref, {
+    required String dayLabel,
+  }) async {
     final e = entry!;
-    final credits = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => _CancelDialog(entry: e),
+    final students = e.studentCount;
+    final studentsLabel = students == null
+        ? 'Alunos'
+        : '$students aluno${students == 1 ? '' : 's'}';
+    final arena = e.arenaName.trim().isEmpty ? 'arena' : e.arenaName.trim();
+    final court = e.courtName.trim().isEmpty ? 'Quadra' : e.courtName.trim();
+    final choice = await showProfessorCancelSheet(
+      context,
+      title: 'Cancelar aula?',
+      subtitle: [
+        e.className,
+        '$dayLabel ${e.startTime}',
+        if (students != null) studentsLabel,
+      ].join(' · '),
+      toggle: const ProfessorCancelToggle(
+        label: 'Dar crédito de reposição',
+        sub: 'Cada aluno pode repor em outra turma',
+      ),
+      impacts: (credits) => [
+        ProfessorCancelImpact(
+          title: studentsLabel,
+          sub: credits
+              ? 'Reposição no prazo da arena'
+              : 'Avisados pelo app, sem reposição',
+          value: credits ? '+1 crédito' : 'Sem crédito',
+        ),
+        ProfessorCancelImpact(
+          title: court,
+          sub: 'Gestão da $arena é avisada',
+          value: 'Liberada',
+        ),
+      ],
+      confirmLabel:
+          students == null ? 'Cancelar e avisar' : 'Cancelar e avisar $students',
     );
-    if (credits == null || !context.mounted) return;
+    if (choice == null || !context.mounted) return;
     try {
-      await ref.read(professorActionsRepositoryProvider).cancelSession(
-            sessionId: e.sessionId,
-            reason: 'teacher_absent',
-            generateCredits: credits,
-          );
+      final result =
+          await ref.read(professorActionsRepositoryProvider).cancelSession(
+                sessionId: e.sessionId,
+                reason: choice.reason.id,
+                generateCredits: choice.toggle,
+              );
       ref.invalidate(professorAgendaSessionsProvider);
       ref.invalidate(professorStudentsProvider);
       if (!context.mounted) return;
-      showAppSnackBar(context, 'Aula cancelada. Os alunos foram avisados.');
-      _back(context);
+      await Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ProfessorCancelDonePage(
+            message: professorSessionCanceledMessage(
+              className: e.className,
+              when: '${dayLabel.toLowerCase()} ${e.startTime}',
+              result: result,
+            ),
+            rows: professorSessionCanceledRows(court: court, result: result),
+          ),
+        ),
+      );
     } catch (err) {
       if (!context.mounted) return;
       showAppSnackBar(
@@ -227,7 +278,11 @@ class ProfessorAgendaSessionPage extends ConsumerWidget {
                           label: canAttendance ? 'Cancelar' : 'Cancelar aula',
                           height: 52,
                           color: AppColors.live,
-                          onPressed: () => _cancel(context, ref),
+                          onPressed: () => _cancel(
+                            context,
+                            ref,
+                            dayLabel: professorDayLabel(e.date, now.todayKey),
+                          ),
                         ),
                       ),
                     if (canStory)
@@ -334,59 +389,6 @@ class _Roster extends ConsumerWidget {
               ],
             ),
           ),
-      ],
-    );
-  }
-}
-
-/// Confirma o cancelamento; devolve se dá crédito de reposição (`null` =
-/// desistiu).
-class _CancelDialog extends StatefulWidget {
-  const _CancelDialog({required this.entry});
-
-  final ClassAgendaEntry entry;
-
-  @override
-  State<_CancelDialog> createState() => _CancelDialogState();
-}
-
-class _CancelDialogState extends State<_CancelDialog> {
-  bool _credits = true;
-
-  @override
-  Widget build(BuildContext context) {
-    final e = widget.entry;
-    return AlertDialog(
-      title: const Text('Cancelar esta aula?'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${e.className} de ${professorShortDate(e.date)} às '
-            '${e.startTime}. Os alunos são avisados pelo app.',
-          ),
-          const SizedBox(height: 8),
-          CheckboxListTile(
-            key: const Key('professor-agenda-cancel-credits'),
-            contentPadding: EdgeInsets.zero,
-            value: _credits,
-            onChanged: (v) => setState(() => _credits = v ?? true),
-            title: const Text('Dar crédito de reposição'),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Voltar'),
-        ),
-        FilledButton(
-          key: const Key('professor-agenda-cancel-confirm'),
-          style: FilledButton.styleFrom(backgroundColor: AppColors.live),
-          onPressed: () => Navigator.pop(context, _credits),
-          child: const Text('Cancelar aula'),
-        ),
       ],
     );
   }

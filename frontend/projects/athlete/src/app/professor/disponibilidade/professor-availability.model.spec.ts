@@ -12,6 +12,7 @@ import {
   lessonQueues,
   optionsWith,
   paintModeFor,
+  parseArenaClasses,
   parseOwnClass,
   parsePrivateLesson,
   sameSettings,
@@ -190,6 +191,38 @@ describe('disponibilidade do professor — modelo', () => {
       expect(ov.get(cellKey(4, 19))?.kind).toBe('class');
       expect(ov.has(cellKey(4, 20))).toBeFalse();
       expect(ov.has(cellKey(3, 18))).toBeFalse();
+    });
+
+    it('turmas da arena (getMyProfessorStudents) somam às próprias; arquivada e malformada ficam fora', () => {
+      const arena = parseArenaClasses({
+        todayKey: '2026-10-22',
+        classes: [
+          { classId: 'k1', arenaId: 'a', arenaName: 'Arena Norte', name: 'Avançado', weekdays: [1], startTime: '07:00', endTime: '08:00', status: 'active' },
+          { classId: 'k2', arenaName: 'Arena Norte', name: 'Velha', weekdays: [1], startTime: '09:00', endTime: '10:00', status: 'archived' },
+          { classId: 'k3', name: 'Sem dia', weekdays: [], startTime: '09:00', endTime: '10:00', status: 'active' },
+          { name: 'Sem id', weekdays: [1], startTime: '11:00', endTime: '12:00', status: 'active' },
+        ],
+      });
+      expect(arena.map((c) => c.id)).toEqual(['arena:k1']);
+      expect(parseArenaClasses(null)).toEqual([]);
+      expect(parseArenaClasses({ classes: 'x' })).toEqual([]);
+
+      const own = parseOwnClass('c1', { name: 'Iniciantes', weekdays: [1], startTime: '18:00', endTime: '19:00' })!;
+      const ov = buildOverlay(week, {
+        ownClasses: [own],
+        arenaClasses: arena,
+        lessons: [lesson({ startAt: spInstant('2026-10-19', 7), endAt: spInstant('2026-10-19', 8) })],
+        blocks: [{ id: 'b', reasonLabel: 'Folga', startAt: spInstant('2026-10-19', 6), endAt: spInstant('2026-10-19', 20) }],
+      });
+      // Particular > turma > bloqueio.
+      expect(ov.get(cellKey(1, 7))?.kind).toBe('lesson');
+      expect(ov.get(cellKey(1, 18))).toEqual(jasmine.objectContaining({ kind: 'class', label: 'Iniciantes' }));
+      expect(ov.get(cellKey(1, 6))?.kind).toBe('block');
+      expect(ov.get(cellKey(1, 9))?.kind).toBe('block');
+
+      const noLesson = buildOverlay(week, { ownClasses: [], arenaClasses: arena, lessons: [], blocks: [] });
+      expect(noLesson.get(cellKey(1, 7))).toEqual(jasmine.objectContaining({ kind: 'class', label: 'Avançado' }));
+      expect(noLesson.get(cellKey(1, 7))?.detail).toContain('Arena Norte');
     });
 
     it('particular ativa marca com o primeiro nome; cancelada e de outra semana não', () => {

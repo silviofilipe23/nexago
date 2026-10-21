@@ -96,6 +96,7 @@ export class ProfessorAvailabilityComponent {
   protected readonly settings = signal<AvailabilitySettings>(DEFAULT_SETTINGS);
 
   private readonly ownClasses = signal<readonly OwnClassSlot[]>([]);
+  private readonly arenaClasses = signal<readonly OwnClassSlot[]>([]);
   private readonly blocks = signal<readonly BusyBlock[]>([]);
   private readonly lessons = signal<readonly PrivateLesson[]>([]);
 
@@ -114,7 +115,12 @@ export class ProfessorAvailabilityComponent {
   protected readonly whenLabel = whenLabel;
 
   protected readonly overlay = computed(() =>
-    buildOverlay(this.week(), { ownClasses: this.ownClasses(), lessons: this.lessons(), blocks: this.blocks() }),
+    buildOverlay(this.week(), {
+      ownClasses: this.ownClasses(),
+      arenaClasses: this.arenaClasses(),
+      lessons: this.lessons(),
+      blocks: this.blocks(),
+    }),
   );
 
   protected readonly rows = computed(() => {
@@ -168,6 +174,7 @@ export class ProfessorAvailabilityComponent {
       const from = this.weekStart();
       if (!uid) return;
       void this.load(uid, from);
+      void this.loadArenaClasses();
       const stop = this.service.watchLessons(
         uid,
         from,
@@ -200,6 +207,15 @@ export class ProfessorAvailabilityComponent {
       this.loadError.set(true);
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  /** Uma vez por carga; se falhar, a grade segue sem as turmas da arena (sem aviso). */
+  private async loadArenaClasses(): Promise<void> {
+    try {
+      this.arenaClasses.set(await this.service.loadArenaClasses());
+    } catch {
+      this.arenaClasses.set([]);
     }
   }
 

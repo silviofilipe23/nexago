@@ -16,6 +16,7 @@ import { athleteFunctions } from '../../data/functions';
 import {
   availabilityFromDoc,
   availabilityPayload,
+  parseArenaClasses,
   parseBlock,
   parseOwnClass,
   parsePrivateLesson,
@@ -32,8 +33,8 @@ import {
  *
  * Leituras liberadas ao próprio professor pelas rules: `professorAvailability/{uid}`,
  * `professorPrivateLessons where professorUid == uid`, `professors/{uid}/ownClasses` e
- * `users/{uid}/professorBlocks`. As turmas da ARENA (`arenaClasses`) ficam de fora: a rule só
- * libera a equipe da arena que vê a agenda.
+ * `users/{uid}/professorBlocks`. As turmas da ARENA vêm da callable `getMyProfessorStudents`
+ * (a rule de `arenaClasses` só libera a equipe da arena que vê a agenda).
  *
  * Escrita só pelas callables.
  */
@@ -53,6 +54,12 @@ export class ProfessorAvailabilityService {
       query(collection(this.db, 'professors', uid, 'ownClasses'), where('status', '==', 'active')),
     );
     return snap.docs.map((d) => parseOwnClass(d.id, d.data())).filter((c): c is OwnClassSlot => c !== null);
+  }
+
+  /** Turmas da arena pela mesma callable do app (`getMyProfessorStudents`): a rule de
+   *  `arenaClasses` não libera o professor, e o servidor já aplica o vínculo. */
+  async loadArenaClasses(): Promise<OwnClassSlot[]> {
+    return parseArenaClasses(await this.call('getMyProfessorStudents', {}));
   }
 
   async loadBlocks(uid: string, fromMs: number): Promise<BusyBlock[]> {

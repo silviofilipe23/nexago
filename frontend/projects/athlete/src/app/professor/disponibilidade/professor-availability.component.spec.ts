@@ -41,6 +41,7 @@ function fakeService(doc: Record<string, unknown> | null, lessons: PrivateLesson
     loadAvailability: jasmine.createSpy('loadAvailability').and.resolveTo(availabilityFromDoc(doc)),
     loadOwnClasses: jasmine.createSpy('loadOwnClasses').and.resolveTo([]),
     loadBlocks: jasmine.createSpy('loadBlocks').and.resolveTo([]),
+    loadArenaClasses: jasmine.createSpy('loadArenaClasses').and.rejectWith(new Error('offline')),
     watchLessons: jasmine
       .createSpy('watchLessons')
       .and.callFake((_uid: string, _from: number, onChange: (l: PrivateLesson[]) => void) => {

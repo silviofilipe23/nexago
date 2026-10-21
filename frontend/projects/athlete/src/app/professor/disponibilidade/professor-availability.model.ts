@@ -250,9 +250,12 @@ export interface PrivateLesson {
   reschedule: LessonReschedule | null;
 }
 
+/** Turma fixa do professor: própria (`ownClasses`) ou da arena (`getMyProfessorStudents`). */
 export interface OwnClassSlot {
   id: string;
   name: string;
+  /** Só nas turmas da arena. */
+  arenaName?: string;
   weekdays: readonly number[];
   startTime: string;
   endTime: string;
@@ -309,6 +312,25 @@ export function parseOwnClass(id: string, raw: Record<string, unknown>): OwnClas
   return { id, name: str(raw['name']) || 'Turma', weekdays, startTime, endTime: str(raw['endTime']) };
 }
 
+/**
+ * Turmas da arena vindas de `getMyProfessorStudents` (`classes`). A callable já aplica o vínculo
+ * do professor; aqui só se descarta arquivada e o que vier malformado.
+ */
+export function parseArenaClasses(data: unknown): OwnClassSlot[] {
+  const list = (data as { classes?: unknown } | null)?.classes;
+  if (!Array.isArray(list)) return [];
+  const out: OwnClassSlot[] = [];
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue;
+    const raw = item as Record<string, unknown>;
+    if (str(raw['status']) === 'archived') continue;
+    const id = str(raw['classId']);
+    const cls = id ? parseOwnClass(`arena:${id}`, raw) : null;
+    if (cls) out.push({ ...cls, arenaName: str(raw['arenaName']) || undefined });
+  }
+  return out;
+}
+
 export function parseBlock(id: string, raw: Record<string, unknown>): BusyBlock | null {
   const startAt = toMillis(raw['startAt']);
   const endAt = toMillis(raw['endAt']);
@@ -349,7 +371,12 @@ export const isActiveLesson = (l: PrivateLesson): boolean => l.status === 'pendi
  */
 export function buildOverlay(
   week: readonly WeekDay[],
-  input: { ownClasses: readonly OwnClassSlot[]; lessons: readonly PrivateLesson[]; blocks: readonly BusyBlock[] },
+  input: {
+    ownClasses: readonly OwnClassSlot[];
+    arenaClasses?: readonly OwnClassSlot[];
+    lessons: readonly PrivateLesson[];
+    blocks: readonly BusyBlock[];
+  },
 ): Map<string, OverlayCell> {
   const out = new Map<string, OverlayCell>();
   const put = (isoDay: number, hour: number, cell: OverlayCell) => {
@@ -365,11 +392,12 @@ export function buildOverlay(
     }
   };
 
-  for (const c of input.ownClasses) {
+  for (const c of [...input.ownClasses, ...(input.arenaClasses ?? [])]) {
     const start = minutesOf(c.startTime);
     if (start == null) continue;
     const end = Math.max(minutesOf(c.endTime) ?? start + 60, start + 60);
-    const cell: OverlayCell = { kind: 'class', label: c.name, detail: `Turma fixa · ${c.name} · ${c.startTime}` };
+    const where = c.arenaName ? ` · ${c.arenaName}` : '';
+    const cell: OverlayCell = { kind: 'class', label: c.name, detail: `Turma fixa · ${c.name}${where} · ${c.startTime}` };
     for (const d of week) if (c.weekdays.includes(d.isoDay)) fill(d.isoDay, start, end, cell);
   }
 

@@ -171,6 +171,8 @@ class _DotRow extends StatelessWidget {
     final dotColors = <Color>[];
     final rentalColor =
         selected ? AppColors.black : athleteAgendaRentalAccent;
+    final trainingColor =
+        selected ? AppColors.black : athleteAgendaClassSessionAccent;
     final tournamentColor =
         selected ? AppColors.black : athleteAgendaTournamentAccent;
     final challengeColor =
@@ -178,6 +180,9 @@ class _DotRow extends StatelessWidget {
 
     for (var i = 0; i < day.rentalDots; i++) {
       dotColors.add(rentalColor);
+    }
+    for (var i = 0; i < day.trainingDots; i++) {
+      dotColors.add(trainingColor);
     }
     for (var i = 0; i < day.tournamentDots; i++) {
       dotColors.add(tournamentColor);

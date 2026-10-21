@@ -99,4 +99,32 @@ void main() {
       expect(countFor(AthleteAgendaFilter.all), 1);
     });
   });
+  group('cor própria de treino', () {
+    test('aula marca ponto, resumo e cor de treino, não de aluguel', () {
+      final item = mapClassEntryToAgendaItem(entry({}))!;
+      expect(item.accentColor, isNot(athleteAgendaRentalAccent));
+
+      final day = DateTime(2026, 10, 20);
+      final week = buildWeekDayStrip(selectedDay: day, items: [item], now: day);
+      final selected = week.firstWhere((d) => d.isSelected);
+      expect(selected.trainingDots, 1);
+      expect(selected.rentalDots, 0);
+
+      final month = buildAgendaMonthDayMarkers(
+        visibleMonth: DateTime(2026, 10),
+        selectedDay: day,
+        items: [item],
+        now: day,
+      );
+      expect(month[19].trainingDots, 1);
+      expect(month[19].rentalDots, 0);
+
+      final summary = buildDaySummary([item], now: DateTime(2026, 10, 20, 8));
+      expect(summary.trainingsToday, 1);
+      expect(summary.rentalsToday, 0);
+      expect(summary.totalToday, 1);
+
+      expect(dominantAgendaKindColor([item]), athleteAgendaClassSessionAccent);
+    });
+  });
 }

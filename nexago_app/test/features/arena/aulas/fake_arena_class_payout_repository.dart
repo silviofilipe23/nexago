@@ -28,6 +28,10 @@ class FakeArenaClassPayoutRepository implements ArenaClassPayoutRepository {
   final List<Map<String, Object?>> closeCalls = [];
   final List<(String, ArenaClassPayoutMethod, String)> paidCalls = [];
   final List<String> undoCalls = [];
+  final List<String> nexagoCalls = [];
+
+  /// Erro de `payPayoutViaNexago` (mensagem do servidor).
+  Object? nexagoError;
   final List<(String, ArenaClassTeacher, ArenaClassTeacherPayoutModel)>
       savedModels = [];
 
@@ -114,6 +118,14 @@ class FakeArenaClassPayoutRepository implements ArenaClassPayoutRepository {
     required String paidOn,
   }) async {
     paidCalls.add((payoutId, method, paidOn));
+  }
+
+  @override
+  Future<double> payPayoutViaNexago(String payoutId) async {
+    final e = nexagoError;
+    if (e != null) throw e;
+    nexagoCalls.add(payoutId);
+    return 0;
   }
 
   @override

@@ -7,7 +7,8 @@ import 'arena_class_teacher.dart';
 // arena-class-payout.ts`. A conta do mês é só do servidor
 // (`previewArenaClassPayouts`); o app lê a prévia e os fechamentos gravados
 // em `arenaClassPayouts` e manda fechar/pagar por callable. Pagamento manual,
-// direto da arena ao professor — nada passa pela plataforma.
+// direto da arena ao professor, ou pelo nexaGO (sai do caixa da arena e cai
+// no saldo de ganhos do professor — `payArenaClassPayoutViaNexago`).
 
 /// Forma do pagamento ao professor (sem maquininha). Espelha `PAYOUT_METHODS`.
 enum ArenaClassPayoutMethod { pix, transfer, cash }
@@ -218,6 +219,8 @@ class ArenaClassPayout extends ArenaClassPayoutFigures {
     this.closedAt,
     this.paidOn,
     this.paymentMethod,
+    this.teacherUserId,
+    this.paidViaNexago = false,
   });
 
   final String id;
@@ -241,7 +244,19 @@ class ArenaClassPayout extends ArenaClassPayoutFigures {
   final String? paidOn;
   final ArenaClassPayoutMethod? paymentMethod;
 
+  /// Conta nexaGO do professor (`teacherUserId`): sem ela, só pagamento por
+  /// fora. Com ela, a arena pode pagar pelo nexaGO (sai do caixa).
+  final String? teacherUserId;
+
+  /// Pago pelo nexaGO (`paymentMethod: nexago`): saiu do caixa e caiu no
+  /// saldo de ganhos do professor — não dá para desfazer.
+  final bool paidViaNexago;
+
   bool get isPaid => status == 'paid';
+
+  /// Dá para oferecer "Pagar pelo nexaGO".
+  bool get canPayViaNexago =>
+      !isPaid && (teacherUserId?.isNotEmpty ?? false) && amountReais > 0;
 
   factory ArenaClassPayout.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -271,6 +286,8 @@ class ArenaClassPayout extends ArenaClassPayoutFigures {
       closedAt: parseTimestamp(d['closedAt']),
       paidOn: parseStringOrNull(d['paidOn']),
       paymentMethod: ArenaClassPayoutMethodX.fromId(d['paymentMethod']),
+      teacherUserId: parseStringOrNull(d['teacherUserId']),
+      paidViaNexago: d['paymentMethod'] == 'nexago',
     );
   }
 }

@@ -111,6 +111,8 @@ ArenaClassPayout payout({
   String? paidOn,
   ArenaClassPayoutMethod? method,
   ArenaClassTeacherPayoutModel? model,
+  String? teacherUserId,
+  bool paidViaNexago = false,
 }) {
   return ArenaClassPayout(
     id: 'a1_${teacherId}_$month',
@@ -133,6 +135,8 @@ ArenaClassPayout payout({
     closedAt: DateTime(2026, 11, 1, 9),
     paidOn: paidOn,
     paymentMethod: method,
+    teacherUserId: teacherUserId,
+    paidViaNexago: paidViaNexago,
   );
 }
 

@@ -6,7 +6,9 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/formatting/app_currency_format.dart';
 import '../../data/arena_class_repository.dart';
+import '../../domain/arena_access_providers.dart';
 import '../../domain/arena_schedule_providers.dart';
+import '../../domain/arena_wallet_providers.dart';
 import '../../domain/aulas/arena_class_billing_logic.dart';
 import '../../domain/aulas/arena_class_payout.dart';
 import '../../domain/aulas/arena_class_payout_logic.dart';
@@ -489,6 +491,10 @@ class _PaySheet extends ConsumerStatefulWidget {
 
 class _PaySheetState extends ConsumerState<_PaySheet> {
   ArenaClassPayoutMethod _method = ArenaClassPayoutMethod.pix;
+
+  /// "Pagar pelo nexaGO" (só com a conta do professor ligada): o padrão
+  /// quando dá — sai do caixa e cai no saldo do professor.
+  late bool _viaNexago = widget.payout.canPayViaNexago;
   late String _paidOn = widget.todayKey;
   bool _sending = false;
   String? _error;
@@ -507,6 +513,52 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
     setState(() => _paidOn = '${picked.year.toString().padLeft(4, '0')}-'
         '${picked.month.toString().padLeft(2, '0')}-'
         '${picked.day.toString().padLeft(2, '0')}');
+  }
+
+  Future<void> _payViaNexago(double? available) async {
+    final p = widget.payout;
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ctx.themeColors.surfaceSheet,
+        title: const Text('Pagar pelo nexaGO?'),
+        content: Text(
+          '${formatBRL(p.amountReais)} saem do saldo disponível do caixa'
+          '${available == null ? '' : ' (${formatBRL(available)})'} e caem '
+          'na hora no saldo de ${p.teacherName} no nexaGO. Não dá para '
+          'desfazer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            key: const Key('arena-payout-nexago-confirm'),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Pagar'),
+          ),
+        ],
+      ),
+    );
+    if (go != true || !mounted) return;
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+    try {
+      await ref
+          .read(arenaClassPayoutRepositoryProvider)
+          .payPayoutViaNexago(p.id);
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _sending = false;
+        _error = _errorText(e);
+      });
+    }
   }
 
   Future<void> _submit() async {
@@ -536,6 +588,22 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
     final colors = context.themeColors;
     final p = widget.payout;
     final isToday = _paidOn == widget.todayKey;
+    // Só o DONO da arena paga pelo nexaGO (o servidor recusa gestor e
+    // equipe); quem não é dono vê só uma nota.
+    final membership = p.canPayViaNexago
+        ? ref.watch(arenaAccessProvider).valueOrNull?.membership
+        : null;
+    final owner = membership != null &&
+        membership.isOwner &&
+        membership.arenaId == p.arenaId;
+    final viaNexago = owner && _viaNexago;
+    final available = owner
+        ? ref
+            .watch(arenaWalletSummaryProvider(p.arenaId))
+            .valueOrNull
+            ?.availableReais
+        : null;
+    final short = available != null && available + 0.001 < p.amountReais;
     return SingleChildScrollView(
       padding: _sheetPadding(context),
       child: Column(
@@ -550,73 +618,121 @@ class _PaySheetState extends ConsumerState<_PaySheet> {
             onClose: _sending ? () {} : null,
           ),
           const SizedBox(height: 14),
-          const ArenaClassKicker('Como foi pago'),
+          if (owner) ...[
+            ArenaClassChoiceCard(
+              key: const Key('arena-payout-nexago'),
+              title: 'Pagar pelo nexaGO',
+              subtitle: 'Sai do saldo do caixa, cai no saldo do professor'
+                  '${available == null ? '' : ' · caixa ${formatBRL(available)}'}',
+              selected: viaNexago,
+              trailing: const Icon(Icons.bolt_rounded, color: AppColors.brand),
+              onTap: _sending ? null : () => setState(() => _viaNexago = true),
+            ),
+            const SizedBox(height: 14),
+            const ArenaClassKicker('Ou registre o que foi pago por fora'),
+          ] else ...[
+            if (p.canPayViaNexago) ...[
+              _hint(
+                context,
+                'Só o dono da arena paga repasse pelo nexaGO. Aqui você '
+                'registra o pagamento feito por fora.',
+              ),
+              const SizedBox(height: 12),
+            ],
+            const ArenaClassKicker('Como foi pago'),
+          ],
           for (final m in ArenaClassPayoutMethod.values) ...[
             const SizedBox(height: 8),
             ArenaClassChoiceCard(
               title: m.label,
-              selected: m == _method,
-              onTap: _sending ? null : () => setState(() => _method = m),
+              selected: !viaNexago && m == _method,
+              onTap: _sending
+                  ? null
+                  : () => setState(() {
+                        _method = m;
+                        _viaNexago = false;
+                      }),
             ),
           ],
-          const SizedBox(height: 14),
-          const ArenaClassKicker('Data do pagamento'),
-          const SizedBox(height: 8),
-          Material(
-            color: colors.surfaceRaised,
-            borderRadius: BorderRadius.circular(13),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: _sending ? null : _pickDate,
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 13, vertical: 13),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.event_rounded,
-                      size: 18,
-                      color: colors.onSurfaceMuted,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        isToday
-                            ? 'Hoje · ${arenaClassShortDate(_paidOn)}'
-                            : arenaClassShortDate(_paidOn),
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w600,
-                          color: colors.onSurface,
+          if (viaNexago) ...[
+            const SizedBox(height: 12),
+            _hint(
+              context,
+              short
+                  ? 'O saldo disponível do caixa (${formatBRL(available)}) não '
+                      'cobre o repasse. Registre um pagamento por fora.'
+                  : 'O valor sai na hora do caixa da arena e entra no saldo '
+                      'do professor, que saca por PIX. Não dá para desfazer.',
+            ),
+            if (_error != null) _errorLine(context, _error!),
+            const SizedBox(height: 14),
+            ArenaClassPrimaryButton(
+              key: const Key('arena-payout-nexago-submit'),
+              label: 'Pagar ${formatBRL(p.amountReais)} pelo nexaGO',
+              busy: _sending,
+              color: AppColors.win,
+              onPressed: short ? null : () => _payViaNexago(available),
+            ),
+          ] else ...[
+            const SizedBox(height: 14),
+            const ArenaClassKicker('Data do pagamento'),
+            const SizedBox(height: 8),
+            Material(
+              color: colors.surfaceRaised,
+              borderRadius: BorderRadius.circular(13),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: _sending ? null : _pickDate,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 13, vertical: 13),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.event_rounded,
+                        size: 18,
+                        color: colors.onSurfaceMuted,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          isToday
+                              ? 'Hoje · ${arenaClassShortDate(_paidOn)}'
+                              : arenaClassShortDate(_paidOn),
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: colors.onSurface,
+                          ),
                         ),
                       ),
-                    ),
-                    Text(
-                      'Alterar',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.brand,
+                      Text(
+                        'Alterar',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.brand,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          _hint(
-            context,
-            'O pagamento é feito direto ao professor — o app só registra.',
-          ),
-          if (_error != null) _errorLine(context, _error!),
-          const SizedBox(height: 14),
-          ArenaClassPrimaryButton(
-            label: 'Confirmar pagamento',
-            busy: _sending,
-            color: AppColors.win,
-            onPressed: _submit,
-          ),
+            const SizedBox(height: 12),
+            _hint(
+              context,
+              'O pagamento é feito direto ao professor — o app só registra.',
+            ),
+            if (_error != null) _errorLine(context, _error!),
+            const SizedBox(height: 14),
+            ArenaClassPrimaryButton(
+              label: 'Confirmar pagamento',
+              busy: _sending,
+              color: AppColors.win,
+              onPressed: _submit,
+            ),
+          ],
         ],
       ),
     );

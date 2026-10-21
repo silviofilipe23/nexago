@@ -179,11 +179,19 @@ void main() {
       expect(find.text('minhas arenas'), findsOneWidget);
     });
 
-    testWidgets('fase 3: sem vínculo independente nem conta, sem Dinheiro',
+    testWidgets('sem vínculo nenhum nem conta, sem Dinheiro', (tester) async {
+      await openMore(tester);
+      expect(find.text('DINHEIRO'), findsNothing);
+    });
+
+    testWidgets('fase 6: equipe da arena vê só Ganhos em Dinheiro',
         (tester) async {
       await openMore(tester, links: [professorLink()]);
-      expect(find.text('DINHEIRO'), findsNothing);
+      expect(find.text('DINHEIRO'), findsOneWidget);
+      expect(find.byKey(const Key('professor-more-earnings')), findsOneWidget);
+      // Itens da carteira são só do independente.
       expect(find.byKey(const Key('professor-more-payout')), findsNothing);
+      expect(find.byKey(const Key('professor-more-wallet')), findsNothing);
     });
 
     testWidgets('fase 3: independente vê Dinheiro com conta, planos e a receber',

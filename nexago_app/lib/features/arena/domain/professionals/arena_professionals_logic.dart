@@ -120,10 +120,58 @@ int? parseArenaProfessorCourtDiscountInput(String raw) {
   return value;
 }
 
+/// Linha de apoio do card: "Das 08:00 às 17:00 · sobre o preço cheio" ou
+/// "O dia todo · sobre o preço cheio" (sem desconto, só a base do cálculo).
+String arenaProfessorCourtDiscountWindowLabel(
+  int percent, {
+  String? startTime,
+  String? endTime,
+}) {
+  if (percent <= 0) return 'Sobre o preço cheio do horário';
+  final window = parseProfessorCourtDiscountWindow(startTime, endTime);
+  if (window == null) return 'O dia todo · sobre o preço cheio';
+  return 'Das ${window.startTime} às ${window.endTime} · sobre o preço cheio';
+}
+
+/// `TimeOfDay` do seletor → "HH:mm". No fim, 00:00 é a meia-noite do fim do
+/// dia ("24:00").
+String arenaProfessorCourtDiscountTimeValue(
+  int hour,
+  int minute, {
+  required bool isEnd,
+}) {
+  if (isEnd && hour == 0 && minute == 0) return '24:00';
+  return '${hour.toString().padLeft(2, '0')}:'
+      '${minute.toString().padLeft(2, '0')}';
+}
+
+/// Erro da faixa "Só em um horário" ou `null` quando vale.
+String? arenaProfessorCourtDiscountWindowError(
+  String startTime,
+  String endTime,
+) {
+  if (parseProfessorCourtDiscountWindow(startTime, endTime) != null) {
+    return null;
+  }
+  return 'O início do horário precisa ser antes do fim.';
+}
+
 /// Snackbar depois de gravar.
-String arenaProfessorCourtDiscountSavedMessage(int percent) => percent > 0
-    ? 'Desconto de $percent% no aluguel salvo. O professor foi avisado.'
-    : 'Desconto no aluguel removido. O professor foi avisado.';
+String arenaProfessorCourtDiscountSavedMessage(
+  int percent, {
+  String? startTime,
+  String? endTime,
+}) {
+  if (percent <= 0) {
+    return 'Desconto no aluguel removido. O professor foi avisado.';
+  }
+  final rule = professorCourtDiscountRuleLabel(
+    percent,
+    startTime: startTime,
+    endTime: endTime,
+  );
+  return 'Desconto de $rule no aluguel salvo. O professor foi avisado.';
+}
 
 /// O que o card de permissões do detalhe mostra: fechado = o que vale (nada);
 /// aberto = a configuração, que é o que o toggle edita (no convite e no

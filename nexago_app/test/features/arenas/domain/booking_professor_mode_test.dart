@@ -109,5 +109,32 @@ void main() {
     await tester.tap(find.byType(Switch));
     await tester.pump();
     expect(value, isFalse);
+    expect(find.textContaining('Mesmo preço e regras'), findsOneWidget);
+  });
+
+  testWidgets('opção na confirmação: cita o desconto com a faixa do dia',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: Scaffold(
+          body: BookingConfirmProfessorOption(
+            arenaName: 'Arena Beach',
+            type: ArenaProfessorLinkType.independent,
+            value: true,
+            onChanged: (_) {},
+            courtDiscountLabel: '20% das 08:00 às 17:00',
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.textContaining(
+        'Desconto de 20% das 08:00 às 17:00 no aluguel, sobre o preço cheio.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Mesmo preço'), findsNothing);
   });
 }

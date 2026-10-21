@@ -175,10 +175,16 @@ class FirebaseArenaProfessionalsRepository
   Future<ProfessorLinkResult> updateCourtDiscount({
     required String linkId,
     required int courtDiscountPercent,
+    String? courtDiscountStartTime,
+    String? courtDiscountEndTime,
   }) =>
+      // As duas chaves sempre vão: `null` nas duas = o dia todo (ausentes, o
+      // servidor manteria a faixa gravada).
       _call('updateArenaProfessorCourtDiscount', {
         'linkId': linkId,
         'courtDiscountPercent': courtDiscountPercent,
+        'courtDiscountStartTime': courtDiscountStartTime,
+        'courtDiscountEndTime': courtDiscountEndTime,
       });
 }
 

@@ -407,6 +407,51 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('com faixa do dia: a nota mostra o horário', (tester) async {
+      await _pumpDetail(
+        tester,
+        link: professorLink(
+          courtDiscountPercent: 20,
+          courtDiscountStartTime: '08:00',
+          courtDiscountEndTime: '17:00',
+        ),
+        events: {
+          arenaProfessorLinkIdFor('arena-sul', professorTestUid): [
+            ArenaProfessorLinkEvent(
+              id: 'd1',
+              eventType: 'COURT_DISCOUNT_CHANGED',
+              actorRole: 'ARENA',
+              actorName: 'Carla N.',
+              metadata: const {
+                'before': 0,
+                'after': 20,
+                'beforeStartTime': null,
+                'beforeEndTime': null,
+                'afterStartTime': '08:00',
+                'afterEndTime': '17:00',
+              },
+              createdAt: DateTime(2026, 9, 2),
+            ),
+          ],
+        },
+      );
+      expect(
+        find.textContaining(
+          'Desconto no aluguel de quadra: 20% das 08:00 às 17:00 — vale',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Só os horários inteiros dentro da faixa'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Desconto no aluguel: 20% das 08:00 às 17:00'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('sem desconto: nada aparece', (tester) async {
       await _pumpDetail(tester, link: professorLink());
       expect(

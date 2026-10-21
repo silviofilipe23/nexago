@@ -74,6 +74,9 @@
                 <app-pf-note tone="blue">
                   <strong>{{ discount }}</strong> — vale quando você reserva quadra como professor. Não soma com promoção nem
                   cupom: fica o menor preço.
+                  @if (l.courtDiscountStartTime && l.courtDiscountEndTime) {
+                    Só os horários inteiros dentro da faixa têm desconto.
+                  }
                 </app-pf-note>
               </div>
             }

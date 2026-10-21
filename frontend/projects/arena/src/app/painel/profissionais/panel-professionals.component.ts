@@ -15,6 +15,7 @@ import {
   PROFESSOR_TYPE_META,
   activeKpiSub,
   arenaProfessorRequestUrl,
+  courtDiscountPillLabel,
   displayStatus,
   filterProfessorRows,
   inviteKpiSub,
@@ -208,7 +209,7 @@ const TYPE_CHIPS: ReadonlyArray<{ id: ProfessorLinkType; label: string; color: s
                               <span class="perm" [class.perm-off]="!p.on">{{ p.label }}</span>
                             }
                             @if (row.link.courtDiscountPercent > 0) {
-                              <span class="perm" title="Desconto no aluguel de quadra">−{{ row.link.courtDiscountPercent }}% quadra</span>
+                              <span class="perm" title="Desconto no aluguel de quadra">{{ row.discountPill }}</span>
                             }
                           } @else if (row.canResend && canWrite()) {
                             <button
@@ -513,6 +514,10 @@ export class PanelProfessionalsComponent {
           dateLine: statusDateLine(link, now),
           pills: cell.kind === 'pills' ? cell.items : null,
           permText: cell.kind === 'text' ? cell.text : '',
+          discountPill: courtDiscountPillLabel(link.courtDiscountPercent, {
+            startTime: link.courtDiscountStartTime,
+            endTime: link.courtDiscountEndTime,
+          }),
           canResend,
           unread: this.unreadMap()[link.id] ?? 0,
           unreadLabel: unreadBadge(this.unreadMap()[link.id] ?? 0),

@@ -166,6 +166,14 @@ describe('ArenaPaymentComponent — reservar como professor', () => {
     expect(section.textContent).toContain('Desconto de professor de 20% (não soma com promoção ou cupom).');
   });
 
+  it('dica da opção avisa a faixa do dia do desconto', () => {
+    const { fixture } = create(
+      signal([link({ courtDiscountPercent: 20, courtDiscountStartTime: '08:00', courtDiscountEndTime: '17:00' })]),
+    );
+    const section = (fixture.nativeElement as HTMLElement).querySelector('#pm-professor')!;
+    expect(section.textContent).toContain('Desconto de professor de 20% das 08:00 às 17:00 (não soma com promoção ou cupom).');
+  });
+
   it('cotação com desconto de professor: linha no resumo e total da cotação', () => {
     const { fixture, internals } = create(signal([link({ courtDiscountPercent: 20 })]));
     internals.applyQuote(quote({ amountReais: 96, professorDiscountPercent: 20, professorDiscountReais: 24 }));
@@ -218,6 +226,15 @@ describe('bookingProfessorLink', () => {
       'A Arena Sol vê na agenda que o horário é seu como professor. Desconto de professor de 20% (não soma com promoção ou cupom).',
     );
     expect(professorDiscountSummaryLabel(20)).toBe('Desconto de professor (20%)');
+  });
+
+  it('com faixa no desconto, a dica diz o horário; faixa vazia = o dia todo', () => {
+    expect(bookingAsProfessorHint('Arena Sol', 20, { startTime: '08:00', endTime: '17:00' })).toBe(
+      'A Arena Sol vê na agenda que o horário é seu como professor. Desconto de professor de 20% das 08:00 às 17:00 (não soma com promoção ou cupom).',
+    );
+    expect(bookingAsProfessorHint('Arena Sol', 20, { startTime: null, endTime: null })).toBe(
+      'A Arena Sol vê na agenda que o horário é seu como professor. Desconto de professor de 20% (não soma com promoção ou cupom).',
+    );
   });
 });
 

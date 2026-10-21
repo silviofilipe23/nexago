@@ -173,8 +173,8 @@ describe("desconto do professor no aluguel de quadra", () => {
   it("vínculo antigo (sem o campo) não tem desconto", async () => {
     const {fake, db} = makeDb();
     seedLink(fake, "ACTIVE");
-    assert.equal((await resolveProfessorBooking(db, "a1", "uProf", true))?.courtDiscountPercent, 0);
-    assert.equal(await professorCourtDiscountForQuote(db, "a1", "uProf", true), 0);
+    assert.equal((await resolveProfessorBooking(db, "a1", "uProf", true))?.courtDiscount.percent, 0);
+    assert.equal((await professorCourtDiscountForQuote(db, "a1", "uProf", true))?.percent, 0);
   });
 
   it("a arena define o %; vale na reserva e na cotação só como professor", async () => {
@@ -184,20 +184,53 @@ describe("desconto do professor no aluguel de quadra", () => {
     assert.equal(out.changed, true);
     assert.deepEqual(out.notices.map((n) => n.type), ["professor_link_court_discount_changed"]);
     assert.match(out.notices[0]!.body, /25% de desconto/);
-    assert.equal((await resolveProfessorBooking(db, "a1", "uProf", true))?.courtDiscountPercent, 25);
-    assert.equal(await professorCourtDiscountForQuote(db, "a1", "uProf", true), 25);
-    assert.equal(await professorCourtDiscountForQuote(db, "a1", "uProf", undefined), 0);
+    assert.equal((await resolveProfessorBooking(db, "a1", "uProf", true))?.courtDiscount.percent, 25);
+    assert.equal((await professorCourtDiscountForQuote(db, "a1", "uProf", true))?.percent, 25);
+    assert.equal(await professorCourtDiscountForQuote(db, "a1", "uProf", undefined), null);
     assert.equal(await resolveProfessorBooking(db, "a1", "uProf", false), null);
   });
 
   it("cotação não lança: sem vínculo válido é preço de atleta", async () => {
     const {fake, db} = makeDb();
-    assert.equal(await professorCourtDiscountForQuote(db, "a1", "uProf", true), 0);
+    assert.equal(await professorCourtDiscountForQuote(db, "a1", "uProf", true), null);
     fake.seedDoc("arenaProfessors/a1_uProf", {
       arenaId: "a1", professorUserId: "uProf", relationshipType: "INDEPENDENT", status: "SUSPENDED",
       permissions: defaultArenaProfessorPermissions("INDEPENDENT"), courtDiscountPercent: 30,
     });
-    assert.equal(await professorCourtDiscountForQuote(db, "a1", "uProf", true), 0);
+    assert.equal(await professorCourtDiscountForQuote(db, "a1", "uProf", true), null);
+  });
+
+  it("faixa de horário: grava, mantém quando o cliente antigo manda só o %, limpa com null e com 0%", async () => {
+    const {fake, db} = makeDb();
+    seedLink(fake, "ACTIVE");
+    const link = () => fake.store.get("arenaProfessors/a1_uProf") as Record<string, unknown>;
+    const set = await updateArenaProfessorCourtDiscountCore(db, {
+      linkId: "a1_uProf", courtDiscountPercent: 20, courtDiscountStartTime: "08:00", courtDiscountEndTime: "17:00",
+    }, OWNER, NOW);
+    assert.match(set.notices[0]!.body, /20% das 08:00 às 17:00/);
+    assert.deepEqual((await resolveProfessorBooking(db, "a1", "uProf", true))?.courtDiscount,
+      {percent: 20, startTime: "08:00", endTime: "17:00"});
+
+    await updateArenaProfessorCourtDiscountCore(db, {linkId: "a1_uProf", courtDiscountPercent: 25}, OWNER, NOW + 1);
+    assert.deepEqual([link()["courtDiscountPercent"], link()["courtDiscountStartTime"], link()["courtDiscountEndTime"]],
+      [25, "08:00", "17:00"]);
+
+    await updateArenaProfessorCourtDiscountCore(db, {
+      linkId: "a1_uProf", courtDiscountPercent: 25, courtDiscountStartTime: null, courtDiscountEndTime: null,
+    }, OWNER, NOW + 2);
+    assert.equal(link()["courtDiscountStartTime"], null);
+
+    await updateArenaProfessorCourtDiscountCore(db, {
+      linkId: "a1_uProf", courtDiscountPercent: 10, courtDiscountStartTime: "18:00", courtDiscountEndTime: "24:00",
+    }, OWNER, NOW + 3);
+    await updateArenaProfessorCourtDiscountCore(db, {linkId: "a1_uProf", courtDiscountPercent: 0}, OWNER, NOW + 4);
+    assert.deepEqual([link()["courtDiscountStartTime"], link()["courtDiscountEndTime"]], [null, null]);
+
+    for (const [start, end] of [["17:00", "08:00"], ["08:00", null], ["8h", "17:00"], ["24:00", "24:00"], ["08:00", "08:00"]]) {
+      await rejectsWith(updateArenaProfessorCourtDiscountCore(db, {
+        linkId: "a1_uProf", courtDiscountPercent: 20, courtDiscountStartTime: start, courtDiscountEndTime: end,
+      }, OWNER, NOW + 5), "invalid-argument");
+    }
   });
 
   it("valida a faixa, o papel e o status; sem mudança não grava evento", async () => {

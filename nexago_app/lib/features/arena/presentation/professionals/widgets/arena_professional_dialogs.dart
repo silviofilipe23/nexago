@@ -5,6 +5,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/professionals/arena_professionals_logic.dart';
+import '../../../../professor_links/domain/arena_professor_link.dart';
 import '../../../../professor_links/presentation/widgets/professor_links_ui.dart';
 
 /// Confirmações das ações irreversíveis do gestor (copy do portal da arena).
@@ -69,18 +70,30 @@ Future<bool> confirmCancelArenaProfessorInvite(
   return result == true;
 }
 
-/// Desconto (%) no aluguel de quadra: devolve o inteiro 0–90 escolhido ou
+/// Desconto escolhido no diálogo: % (0 = remover) e a faixa do dia em que
+/// vale (`null` nas duas = o dia todo).
+typedef ArenaProfessorCourtDiscountChoice = ({
+  int percent,
+  String? startTime,
+  String? endTime,
+});
+
+/// Desconto (%) no aluguel de quadra e a faixa do dia em que vale. Devolve
 /// `null` quando o gestor desistiu. Vazio = remover (0).
-Future<int?> askArenaProfessorCourtDiscount(
+Future<ArenaProfessorCourtDiscountChoice?> askArenaProfessorCourtDiscount(
   BuildContext context, {
   required String professorName,
   required int current,
+  String? currentStartTime,
+  String? currentEndTime,
 }) =>
-    showDialog<int>(
+    showDialog<ArenaProfessorCourtDiscountChoice>(
       context: context,
       builder: (_) => _CourtDiscountDialog(
         professorName: professorName,
         current: current,
+        currentStartTime: currentStartTime,
+        currentEndTime: currentEndTime,
       ),
     );
 
@@ -88,10 +101,14 @@ class _CourtDiscountDialog extends StatefulWidget {
   const _CourtDiscountDialog({
     required this.professorName,
     required this.current,
+    required this.currentStartTime,
+    required this.currentEndTime,
   });
 
   final String professorName;
   final int current;
+  final String? currentStartTime;
+  final String? currentEndTime;
 
   @override
   State<_CourtDiscountDialog> createState() => _CourtDiscountDialogState();
@@ -101,7 +118,15 @@ class _CourtDiscountDialogState extends State<_CourtDiscountDialog> {
   late final _percent = TextEditingController(
     text: widget.current > 0 ? '${widget.current}' : '',
   );
+  late final _currentWindow = parseProfessorCourtDiscountWindow(
+    widget.currentStartTime,
+    widget.currentEndTime,
+  );
+  late bool _onlyWindow = _currentWindow != null;
+  late String _startTime = _currentWindow?.startTime ?? '08:00';
+  late String _endTime = _currentWindow?.endTime ?? '17:00';
   String? _error;
+  String? _windowError;
 
   @override
   void dispose() {
@@ -115,7 +140,49 @@ class _CourtDiscountDialogState extends State<_CourtDiscountDialog> {
       setState(() => _error = 'Use um número inteiro de 0 a 90.');
       return;
     }
-    Navigator.pop(context, value);
+    // Sem desconto, a faixa não importa: o servidor apaga.
+    if (value == 0 || !_onlyWindow) {
+      Navigator.pop(context, (percent: value, startTime: null, endTime: null));
+      return;
+    }
+    final windowError =
+        arenaProfessorCourtDiscountWindowError(_startTime, _endTime);
+    if (windowError != null) {
+      setState(() => _windowError = windowError);
+      return;
+    }
+    Navigator.pop(
+      context,
+      (percent: value, startTime: _startTime, endTime: _endTime),
+    );
+  }
+
+  Future<void> _pickTime({required bool isEnd}) async {
+    final current = isEnd ? _endTime : _startTime;
+    final minutes = professorCourtDiscountTimeToMinutes(current) ?? 0;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: (minutes ~/ 60) % 24, minute: minutes % 60),
+      helpText: isEnd ? 'Fim do desconto' : 'Início do desconto',
+      builder: (ctx, child) => MediaQuery(
+        data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true),
+        child: child ?? const SizedBox.shrink(),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    final value = arenaProfessorCourtDiscountTimeValue(
+      picked.hour,
+      picked.minute,
+      isEnd: isEnd,
+    );
+    setState(() {
+      if (isEnd) {
+        _endTime = value;
+      } else {
+        _startTime = value;
+      }
+      _windowError = null;
+    });
   }
 
   @override
@@ -157,6 +224,66 @@ class _CourtDiscountDialogState extends State<_CourtDiscountDialog> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+            const ProfessorLinksKicker('Vale em'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ChoiceChip(
+                  key: const Key('arena-professor-court-discount-all-day'),
+                  label: const Text('O dia todo'),
+                  selected: !_onlyWindow,
+                  onSelected: (_) => setState(() {
+                    _onlyWindow = false;
+                    _windowError = null;
+                  }),
+                ),
+                ChoiceChip(
+                  key: const Key('arena-professor-court-discount-window'),
+                  label: const Text('Só em um horário'),
+                  selected: _onlyWindow,
+                  onSelected: (_) => setState(() => _onlyWindow = true),
+                ),
+              ],
+            ),
+            if (_onlyWindow) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _TimeField(
+                      key: const Key('arena-professor-court-discount-start'),
+                      label: 'Início',
+                      value: _startTime,
+                      onTap: () => _pickTime(isEnd: false),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _TimeField(
+                      key: const Key('arena-professor-court-discount-end'),
+                      label: 'Fim',
+                      value: _endTime,
+                      onTap: () => _pickTime(isEnd: true),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _windowError ??
+                    'Só os horários inteiros dentro da faixa têm desconto.',
+                key: const Key('arena-professor-court-discount-window-hint'),
+                style: AppTypography.bodyS.copyWith(
+                  fontSize: 11.5,
+                  color: _windowError != null
+                      ? AppColors.live
+                      : ProfessorLinksStyle.dim(colors),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -172,6 +299,39 @@ class _CourtDiscountDialogState extends State<_CourtDiscountDialog> {
           child: const Text('Salvar'),
         ),
       ],
+    );
+  }
+}
+
+/// Campo de horário (abre o seletor 24h).
+class _TimeField extends StatelessWidget {
+  const _TimeField({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          suffixIcon: const Icon(Icons.schedule_rounded, size: 18),
+        ),
+        child: Text(
+          value,
+          style: AppTypography.bodyM.copyWith(color: colors.onSurface),
+        ),
+      ),
     );
   }
 }

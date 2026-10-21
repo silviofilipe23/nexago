@@ -116,6 +116,9 @@ export interface ArenaProfessorLinkData {
   approvedAt?: Timestamp | null;
   /** Desconto no aluguel de quadra (% inteiro); ausente = 0. Ver `storedCourtDiscountPercent`. */
   courtDiscountPercent?: number;
+  /** Faixa do dia em que o desconto vale ("HH:mm"); ausentes = o dia todo. */
+  courtDiscountStartTime?: string | null;
+  courtDiscountEndTime?: string | null;
   [key: string]: unknown;
 }
 
@@ -237,6 +240,73 @@ export function storedCourtDiscountPercent(link: {courtDiscountPercent?: unknown
   return raw >= 0 && raw <= MAX_COURT_DISCOUNT_PERCENT ? raw : 0;
 }
 
+/** Desconto do vínculo: % e a faixa do dia em que vale (`null` = o dia todo). */
+export interface CourtDiscountRule {
+  percent: number;
+  startTime: string | null;
+  endTime: string | null;
+}
+
+const NO_COURT_DISCOUNT: CourtDiscountRule = {percent: 0, startTime: null, endTime: null};
+
+/** "HH:mm" → minutos do dia; "24:00" vale como fim. `null` quando não é horário. */
+export function courtDiscountTimeToMinutes(raw: unknown): number | null {
+  if (typeof raw !== "string") return null;
+  const m = /^([01]\d|2[0-4]):([0-5]\d)$/.exec(raw.trim());
+  if (!m) return null;
+  const minutes = Number(m[1]) * 60 + Number(m[2]);
+  return minutes <= 24 * 60 ? minutes : null;
+}
+
+function validWindow(start: unknown, end: unknown): {startTime: string; endTime: string} | null {
+  const s = courtDiscountTimeToMinutes(start);
+  const e = courtDiscountTimeToMinutes(end);
+  if (s == null || e == null || s >= e || s === 24 * 60) return null;
+  return {startTime: (start as string).trim(), endTime: (end as string).trim()};
+}
+
+/** O gravado no vínculo, já saneado: faixa inválida ou pela metade vira "o dia todo". */
+export function storedCourtDiscount(link: {
+  courtDiscountPercent?: unknown;
+  courtDiscountStartTime?: unknown;
+  courtDiscountEndTime?: unknown;
+}): CourtDiscountRule {
+  const percent = storedCourtDiscountPercent(link);
+  if (percent === 0) return NO_COURT_DISCOUNT;
+  const window = validWindow(link.courtDiscountStartTime, link.courtDiscountEndTime);
+  return {percent, startTime: window?.startTime ?? null, endTime: window?.endTime ?? null};
+}
+
+/**
+ * Faixa enviada pelo cliente. Chaves ausentes = mantém a gravada (cliente antigo só manda o %);
+ * `null` nas duas = o dia todo. Desconto 0 apaga a faixa.
+ */
+export function parseCourtDiscountWindow(
+  input: {courtDiscountStartTime?: unknown; courtDiscountEndTime?: unknown},
+  current: {startTime: string | null; endTime: string | null},
+): {startTime: string | null; endTime: string | null} {
+  const hasStart = input.courtDiscountStartTime !== undefined;
+  const hasEnd = input.courtDiscountEndTime !== undefined;
+  if (!hasStart && !hasEnd) return {startTime: current.startTime, endTime: current.endTime};
+  if (input.courtDiscountStartTime == null && input.courtDiscountEndTime == null) {
+    return {startTime: null, endTime: null};
+  }
+  const window = validWindow(input.courtDiscountStartTime, input.courtDiscountEndTime);
+  if (!window) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Informe o horário do desconto como início e fim (HH:mm), com o início antes do fim.",
+    );
+  }
+  return window;
+}
+
+/** "20%" ou "20% das 08:00 às 17:00" — para aviso e textos. */
+export function courtDiscountLabel(rule: CourtDiscountRule): string {
+  if (rule.startTime && rule.endTime) return `${rule.percent}% das ${rule.startTime} às ${rule.endTime}`;
+  return `${rule.percent}%`;
+}
+
 export function changedPermissionKeys(
   before: ArenaProfessorPermissions,
   after: ArenaProfessorPermissions,
@@ -333,7 +403,11 @@ export const TYPE_LABEL: Record<ArenaProfessorType, string> = {
  */
 export function arenaProfessorNotices(
   event: ArenaProfessorEventType,
-  link: Pick<ArenaProfessorLinkData, "arenaName" | "professorName" | "relationshipType"> & {courtDiscountPercent?: unknown},
+  link: Pick<ArenaProfessorLinkData, "arenaName" | "professorName" | "relationshipType"> & {
+    courtDiscountPercent?: unknown;
+    courtDiscountStartTime?: unknown;
+    courtDiscountEndTime?: unknown;
+  },
   actorSide: ArenaProfessorSide | "ADMIN",
   reason: string | null,
 ): ArenaProfessorNotice[] {
@@ -420,12 +494,12 @@ export function arenaProfessorNotices(
       type: "professor_link_permissions_changed",
     }];
   case "COURT_DISCOUNT_CHANGED": {
-    const percent = storedCourtDiscountPercent(link);
+    const rule = storedCourtDiscount(link);
     return [{
       to: "professor",
       title: "Desconto no aluguel de quadra",
-      body: percent > 0 ?
-        `${arena} te deu ${percent}% de desconto no aluguel de quadra quando você reserva como professor.` :
+      body: rule.percent > 0 ?
+        `${arena} te deu ${courtDiscountLabel(rule)} de desconto no aluguel de quadra quando você reserva como professor.` :
         `${arena} encerrou seu desconto no aluguel de quadra.`,
       type: "professor_link_court_discount_changed",
     }];
@@ -1079,7 +1153,12 @@ export async function updateArenaProfessorPermissionsCore(
 
 export async function updateArenaProfessorCourtDiscountCore(
   db: Firestore,
-  input: {linkId: string; courtDiscountPercent: unknown},
+  input: {
+    linkId: string;
+    courtDiscountPercent: unknown;
+    courtDiscountStartTime?: unknown;
+    courtDiscountEndTime?: unknown;
+  },
   caller: CallerContext,
   nowMs: number,
 ): Promise<LinkResult & {changed: boolean}> {
@@ -1091,12 +1170,32 @@ export async function updateArenaProfessorCourtDiscountCore(
     if (link.status !== "ACTIVE" && link.status !== "SUSPENDED") {
       throw wrongStatus("O desconto só muda em vínculo ativo ou suspenso.", link);
     }
-    const before = storedCourtDiscountPercent(link);
-    changed = before !== percent;
+    const before = storedCourtDiscount(link);
+    const window = percent === 0 ?
+      {startTime: null, endTime: null} :
+      parseCourtDiscountWindow(input, before);
+    const next: CourtDiscountRule = {percent, ...window};
+    changed = before.percent !== next.percent || before.startTime !== next.startTime || before.endTime !== next.endTime;
     if (!changed) return {patch: {}, event: null};
     return {
-      patch: {courtDiscountPercent: percent},
-      event: {eventType: "COURT_DISCOUNT_CHANGED", actor, metadata: {before, after: percent}},
+      patch: {
+        courtDiscountPercent: next.percent,
+        courtDiscountStartTime: next.startTime,
+        courtDiscountEndTime: next.endTime,
+      },
+      // `before`/`after` seguem sendo o % (histórico antigo); a faixa vai ao lado.
+      event: {
+        eventType: "COURT_DISCOUNT_CHANGED",
+        actor,
+        metadata: {
+          before: before.percent,
+          after: next.percent,
+          beforeStartTime: before.startTime,
+          beforeEndTime: before.endTime,
+          afterStartTime: next.startTime,
+          afterEndTime: next.endTime,
+        },
+      },
     };
   });
   const notices = changed && after.status === "ACTIVE" ?
@@ -1294,5 +1393,7 @@ export const updateArenaProfessorCourtDiscount = onCall({region: CLIENT_FACING_R
   return run(caller, (db) => updateArenaProfessorCourtDiscountCore(db, {
     linkId: strField(data, "linkId"),
     courtDiscountPercent: data?.["courtDiscountPercent"],
+    courtDiscountStartTime: data?.["courtDiscountStartTime"],
+    courtDiscountEndTime: data?.["courtDiscountEndTime"],
   }, caller, Date.now()));
 });

@@ -614,19 +614,32 @@ String professorLinkEventTitle(
   };
 }
 
-/// Evento `COURT_DISCOUNT_CHANGED` (`metadata: {before, after}`), igual para
-/// arena e professor: "Desconto no aluguel: 20%", "Desconto no aluguel
-/// removido" ou "Desconto no aluguel: 10% → 20%".
+/// Evento `COURT_DISCOUNT_CHANGED` (`metadata: {before, after,
+/// beforeStartTime, beforeEndTime, afterStartTime, afterEndTime}`; eventos
+/// antigos só têm o %), igual para arena e professor: "Desconto no aluguel:
+/// 20% das 08:00 às 17:00", "Desconto no aluguel removido" ou "Desconto no
+/// aluguel: 20% → 20% das 08:00 às 17:00".
 String professorCourtDiscountChangedTitle(Map<String, Object?> metadata) {
   final before = parseProfessorCourtDiscountPercent(metadata['before']);
   final after = parseProfessorCourtDiscountPercent(metadata['after']);
   if (after == 0) return 'Desconto no aluguel removido';
-  if (before == 0) return 'Desconto no aluguel: $after%';
-  return 'Desconto no aluguel: $before% → $after%';
+  final afterLabel = professorCourtDiscountRuleLabel(
+    after,
+    startTime: metadata['afterStartTime'],
+    endTime: metadata['afterEndTime'],
+  );
+  if (before == 0) return 'Desconto no aluguel: $afterLabel';
+  final beforeLabel = professorCourtDiscountRuleLabel(
+    before,
+    startTime: metadata['beforeStartTime'],
+    endTime: metadata['beforeEndTime'],
+  );
+  return 'Desconto no aluguel: $beforeLabel → $afterLabel';
 }
 
-/// "Desconto no aluguel de quadra: 20%" — `null` sem desconto ou com o
-/// vínculo fora de `ACTIVE`/`SUSPENDED` ([status] = status efetivo).
+/// "Desconto no aluguel de quadra: 20%" (ou "… 20% das 08:00 às 17:00") —
+/// `null` sem desconto ou com o vínculo fora de `ACTIVE`/`SUSPENDED`
+/// ([status] = status efetivo).
 String? professorCourtDiscountLabel(
   ArenaProfessorLink link,
   ArenaProfessorLinkStatus status,
@@ -634,7 +647,7 @@ String? professorCourtDiscountLabel(
   final open = status == ArenaProfessorLinkStatus.active ||
       status == ArenaProfessorLinkStatus.suspended;
   if (!open || link.courtDiscountPercent <= 0) return null;
-  return 'Desconto no aluguel de quadra: ${link.courtDiscountPercent}%';
+  return 'Desconto no aluguel de quadra: ${link.courtDiscountRuleLabel}';
 }
 
 ArenaProfessorLinkType? _eventType(ArenaProfessorLinkEvent event) {

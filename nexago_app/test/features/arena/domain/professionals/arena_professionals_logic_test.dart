@@ -685,6 +685,61 @@ void main() {
         arenaProfessorCourtDiscountSavedMessage(0),
         'Desconto no aluguel removido. O professor foi avisado.',
       );
+      expect(
+        arenaProfessorCourtDiscountSavedMessage(20),
+        'Desconto de 20% no aluguel salvo. O professor foi avisado.',
+      );
+      expect(
+        arenaProfessorCourtDiscountSavedMessage(
+          20,
+          startTime: '08:00',
+          endTime: '17:00',
+        ),
+        'Desconto de 20% das 08:00 às 17:00 no aluguel salvo. O professor '
+        'foi avisado.',
+      );
+    });
+
+    test('linha da faixa do dia no card', () {
+      expect(
+        arenaProfessorCourtDiscountWindowLabel(20),
+        'O dia todo · sobre o preço cheio',
+      );
+      expect(
+        arenaProfessorCourtDiscountWindowLabel(
+          20,
+          startTime: '08:00',
+          endTime: '17:00',
+        ),
+        'Das 08:00 às 17:00 · sobre o preço cheio',
+      );
+      // Faixa inválida = o dia todo; sem desconto, só a base do cálculo.
+      expect(
+        arenaProfessorCourtDiscountWindowLabel(
+          20,
+          startTime: '17:00',
+          endTime: '08:00',
+        ),
+        'O dia todo · sobre o preço cheio',
+      );
+      expect(
+        arenaProfessorCourtDiscountWindowLabel(0),
+        'Sobre o preço cheio do horário',
+      );
+    });
+
+    test('faixa do dia: valor do seletor e validação', () {
+      expect(arenaProfessorCourtDiscountTimeValue(8, 0, isEnd: false), '08:00');
+      expect(arenaProfessorCourtDiscountTimeValue(17, 30, isEnd: true), '17:30');
+      // 00:00 no fim = meia-noite do fim do dia.
+      expect(arenaProfessorCourtDiscountTimeValue(0, 0, isEnd: true), '24:00');
+      expect(arenaProfessorCourtDiscountTimeValue(0, 0, isEnd: false), '00:00');
+
+      expect(arenaProfessorCourtDiscountWindowError('08:00', '17:00'), isNull);
+      expect(arenaProfessorCourtDiscountWindowError('18:00', '24:00'), isNull);
+      const error = 'O início do horário precisa ser antes do fim.';
+      expect(arenaProfessorCourtDiscountWindowError('17:00', '08:00'), error);
+      expect(arenaProfessorCourtDiscountWindowError('08:00', '08:00'), error);
     });
 
     test('título do evento no histórico da arena', () {

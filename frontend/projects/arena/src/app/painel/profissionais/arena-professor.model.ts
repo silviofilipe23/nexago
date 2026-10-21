@@ -87,6 +87,9 @@ export interface ArenaProfessorLink {
   permissions: ProfessorPermissions;
   /** Desconto (% inteiro, 0 = sem) no aluguel de quadra reservado "como professor". */
   courtDiscountPercent: number;
+  /** Faixa do dia em que o desconto vale ("HH:mm"; fim pode ser "24:00"). `null` = o dia todo. */
+  courtDiscountStartTime: string | null;
+  courtDiscountEndTime: string | null;
   message: string | null;
   cycle: number;
   professorName: string;
@@ -335,6 +338,71 @@ export const MAX_COURT_DISCOUNT_PERCENT = 90;
 /** `20%` ou `Sem desconto`. */
 export function courtDiscountLabel(percent: number): string {
   return percent > 0 ? `${percent}%` : 'Sem desconto';
+}
+
+/** Faixa do dia do desconto; `null` nas duas pontas = o dia todo. */
+export interface CourtDiscountWindow {
+  startTime: string | null;
+  endTime: string | null;
+}
+
+/** "HH:mm" → minutos do dia ("24:00" vale como fim); espelho de `courtDiscountTimeToMinutes`. */
+export function courtDiscountTimeToMinutes(raw: unknown): number | null {
+  if (typeof raw !== 'string') return null;
+  const m = /^([01]\d|2[0-4]):([0-5]\d)$/.exec(raw.trim());
+  if (!m) return null;
+  const minutes = Number(m[1]) * 60 + Number(m[2]);
+  return minutes <= 24 * 60 ? minutes : null;
+}
+
+/** Espelho do saneamento do servidor: faixa inválida ou pela metade = o dia todo. */
+export function courtDiscountWindowFromRaw(start: unknown, end: unknown): CourtDiscountWindow {
+  const s = courtDiscountTimeToMinutes(start);
+  const e = courtDiscountTimeToMinutes(end);
+  if (s == null || e == null || s >= e || s === 24 * 60) return { startTime: null, endTime: null };
+  return { startTime: (start as string).trim(), endTime: (end as string).trim() };
+}
+
+function hasWindow(w: CourtDiscountWindow): w is { startTime: string; endTime: string } {
+  return !!w.startTime && !!w.endTime;
+}
+
+/** `20% · das 08:00 às 17:00`, `20% · o dia todo` ou `Sem desconto` (detalhe do vínculo). */
+export function courtDiscountValueLabel(percent: number, window: CourtDiscountWindow): string {
+  if (percent <= 0) return 'Sem desconto';
+  return hasWindow(window) ? `${percent}% · das ${window.startTime} às ${window.endTime}` : `${percent}% · o dia todo`;
+}
+
+/** Pílula da lista: `−20% quadra` ou `−20% quadra 08–17h` (minutos só quando não são cheios). */
+export function courtDiscountPillLabel(percent: number, window: CourtDiscountWindow): string {
+  if (!hasWindow(window)) return `−${percent}% quadra`;
+  const short = (t: string) => (t.endsWith(':00') ? t.slice(0, 2) : t);
+  return `−${percent}% quadra ${short(window.startTime)}–${short(window.endTime)}h`;
+}
+
+/** "20%" ou "20% das 08:00 às 17:00" — mesmo texto do aviso do servidor. */
+function courtDiscountRuleText(percent: number, window: CourtDiscountWindow): string {
+  return hasWindow(window) ? `${percent}% das ${window.startTime} às ${window.endTime}` : `${percent}%`;
+}
+
+export const COURT_DISCOUNT_WINDOW_ERROR = 'Informe o início e o fim do horário, com o início antes do fim.';
+
+/**
+ * Horário digitado no editor (`<input type="time">`). `allDay` = `{null, null}`. O campo de hora não
+ * aceita 24:00, então fim "00:00" vale como meia-noite ("24:00"). `null` quando inválido.
+ */
+export function parseCourtDiscountWindowInput(allDay: boolean, start: string, end: string): CourtDiscountWindow | null {
+  if (allDay) return { startTime: null, endTime: null };
+  const startTime = start.trim();
+  const endTime = end.trim() === '00:00' ? '24:00' : end.trim();
+  const window = courtDiscountWindowFromRaw(startTime, endTime);
+  return hasWindow(window) ? window : null;
+}
+
+/** Valor do fim para o `<input type="time">` ("24:00" não cabe no campo → "00:00"). */
+export function courtDiscountTimeInputValue(time: string | null): string {
+  if (!time) return '';
+  return time === '24:00' ? '00:00' : time;
 }
 
 /** Valor digitado no campo do desconto: inteiro de 0 a 90 (vazio = 0); `null` quando inválido. */
@@ -696,7 +764,10 @@ export function eventTitle(event: ArenaProfessorEvent, link: Pick<ArenaProfessor
       const before = discountMeta(meta['before']);
       const after = discountMeta(meta['after']);
       if (after === 0) return 'Desconto no aluguel removido';
-      return before > 0 ? `Desconto no aluguel: ${before}% → ${after}%` : `Desconto no aluguel: ${after}%`;
+      // Evento antigo não tem a faixa: lê como o dia todo (era o único jeito).
+      const beforeText = courtDiscountRuleText(before, courtDiscountWindowFromRaw(meta['beforeStartTime'], meta['beforeEndTime']));
+      const afterText = courtDiscountRuleText(after, courtDiscountWindowFromRaw(meta['afterStartTime'], meta['afterEndTime']));
+      return before > 0 ? `Desconto no aluguel: ${beforeText} → ${afterText}` : `Desconto no aluguel: ${afterText}`;
     }
     case 'PERMISSIONS_CHANGED': {
       const changed = Array.isArray(meta['changed']) ? (meta['changed'] as unknown[]).filter((k): k is string => typeof k === 'string') : [];
@@ -814,6 +885,15 @@ function courtDiscountFromRaw(raw: unknown): number {
   return raw >= 0 && raw <= MAX_COURT_DISCOUNT_PERCENT ? raw : 0;
 }
 
+/** Espelho de `storedCourtDiscount`: sem desconto não tem faixa; faixa inválida = o dia todo. */
+function courtDiscountFromDoc(
+  d: Record<string, unknown>,
+): Pick<ArenaProfessorLink, 'courtDiscountPercent' | 'courtDiscountStartTime' | 'courtDiscountEndTime'> {
+  const percent = courtDiscountFromRaw(d['courtDiscountPercent']);
+  const window = percent > 0 ? courtDiscountWindowFromRaw(d['courtDiscountStartTime'], d['courtDiscountEndTime']) : { startTime: null, endTime: null };
+  return { courtDiscountPercent: percent, courtDiscountStartTime: window.startTime, courtDiscountEndTime: window.endTime };
+}
+
 export function arenaProfessorLinkFromDoc(doc: QueryDocumentSnapshot | DocumentSnapshot): ArenaProfessorLink {
   const d = (doc.data() ?? {}) as Record<string, unknown>;
   const relationshipType = oneOf<ProfessorLinkType>(d['relationshipType'], ['ARENA_STAFF', 'INDEPENDENT'], 'INDEPENDENT');
@@ -828,7 +908,7 @@ export function arenaProfessorLinkFromDoc(doc: QueryDocumentSnapshot | DocumentS
     status: oneOf(d['status'], STATUSES, 'PENDING'),
     initiatedBy: oneOf<ProfessorLinkSide>(d['initiatedBy'], ['ARENA', 'PROFESSOR'], 'PROFESSOR'),
     permissions: permissionsFromRaw(d['permissions'], relationshipType),
-    courtDiscountPercent: courtDiscountFromRaw(d['courtDiscountPercent']),
+    ...courtDiscountFromDoc(d),
     message: optStr(d['message']),
     cycle: typeof d['cycle'] === 'number' ? d['cycle'] : 1,
     professorName: optStr(d['professorName']) ?? 'Professor',

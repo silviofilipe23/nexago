@@ -130,6 +130,14 @@ describe('desconto do professor no aluguel de quadra', () => {
     assert.equal('professorDiscountPercent' in athleteDoc, false);
   });
 
+  test('faixa 08:00–17:00: 16h–18h paga desconto só na primeira hora; 18h fica cheio', async () => {
+    await seedLink('ACTIVE', {}, {courtDiscountPercent: 20, courtDiscountStartTime: '08:00', courtDiscountEndTime: '17:00'});
+    const crossing = await call(createArenaBooking, 'uProf', booking('16:00', {asProfessor: true, endTime: '18:00'}));
+    assert.deepEqual([crossing.amountReais, crossing.professorDiscountReais], [180, 20]);
+    const outside = await call(quoteArenaBooking, 'uProf', booking('18:00', {asProfessor: true}));
+    assert.deepEqual([outside.amountReais, outside.professorDiscountPercent], [100, 0]);
+  });
+
   test('vínculo suspenso: cotação "como professor" mostra preço cheio em vez de erro', async () => {
     await seedLink('SUSPENDED', {}, {courtDiscountPercent: 20});
     const quote = await call(quoteArenaBooking, 'uProf', booking('15:00', {asProfessor: true}));

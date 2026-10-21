@@ -597,6 +597,11 @@ class _ArenaBookingConfirmPageState
                                   child: BookingConfirmProfessorOption(
                                     arenaName: args.arenaName,
                                     type: professorLink!.type,
+                                    courtDiscountLabel:
+                                        professorLink.courtDiscountPercent > 0
+                                            ? professorLink
+                                                .courtDiscountRuleLabel
+                                            : null,
                                     value: asProfessor,
                                     enabled: !_submitting,
                                     onChanged: (value) =>

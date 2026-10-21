@@ -500,7 +500,7 @@ class _ProfessorEvaluatePageState extends ConsumerState<ProfessorEvaluatePage> {
                     Expanded(
                       child: ProfessorLinksGhostButton(
                         key: const Key('evaluation-save-draft'),
-                        label: 'Salvar rascunho',
+                        label: 'Rascunho',
                         height: 52,
                         loading: _saving,
                         onPressed: () =>

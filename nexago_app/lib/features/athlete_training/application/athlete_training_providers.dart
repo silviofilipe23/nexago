@@ -8,7 +8,10 @@ import '../../athlete/domain/agenda/class_agenda_entry.dart';
 import '../../professor_links/application/professor_links_providers.dart';
 import '../../professor_mode/application/professor_availability_providers.dart';
 import '../../professor_mode/application/professor_lesson_plans_providers.dart';
+import '../../../core/location/user_location_providers.dart';
 import '../domain/athlete_training.dart';
+import '../domain/public_professor.dart';
+import '../infrastructure/public_professor_repository.dart';
 import '../domain/class_presence.dart';
 import '../infrastructure/class_presence_repository.dart';
 
@@ -118,3 +121,32 @@ void refreshAthleteClassPresence(WidgetRef ref) {
   ref.invalidate(myClassAgendaProvider);
   ref.invalidate(athleteClassCreditsProvider);
 }
+
+/// Onde o atleta está, para ordenar professores por distância: GPS só se a
+/// permissão já existe (nunca pede) e a cidade do perfil para o subtítulo.
+/// `null` enquanto carrega.
+final athleteSearchOriginProvider =
+    Provider.autoDispose<({double? lat, double? lng, String city})?>((ref) {
+  final loc = ref.watch(userLocationProvider).valueOrNull;
+  if (loc == null) return null;
+  return loc.hasCoordinates
+      ? (lat: loc.latitude, lng: loc.longitude, city: loc.city)
+      : (lat: null, lng: null, city: loc.city);
+});
+
+/// T13 · resultado da busca de professores.
+final professorSearchProvider = FutureProvider.autoDispose
+    .family<ProfessorSearchResult, ProfessorSearchQuery>((ref, q) {
+  return ref.read(publicProfessorRepositoryProvider).search(q);
+});
+
+/// T11 · perfil do professor (com a distância das arenas, quando houver GPS).
+final publicProfessorProvider = FutureProvider.autoDispose
+    .family<PublicProfessor, String>((ref, professorUid) {
+  final origin = ref.watch(athleteSearchOriginProvider);
+  return ref.read(publicProfessorRepositoryProvider).profile(
+        professorUid,
+        lat: origin?.lat,
+        lng: origin?.lng,
+      );
+});

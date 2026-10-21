@@ -209,6 +209,8 @@ import '../../features/athlete_training/presentation/athlete_training_evolution_
 import '../../features/athlete_training/presentation/athlete_training_feedbacks_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_hub_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_makeup_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_find_professor_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_professor_profile_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_professors_page.dart';
 import '../../features/professor_mode/presentation/evaluations/athlete_evaluations_pages.dart';
 import '../../features/professor_mode/presentation/evaluations/professor_evaluations_page.dart';
@@ -3103,6 +3105,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             path: 'professores',
             name: AppRouteNames.athleteTrainingProfessors,
             builder: (context, state) => const AthleteTrainingProfessorsPage(),
+          ),
+          GoRoute(
+            path: 'encontrar',
+            name: AppRouteNames.athleteTrainingFindProfessor,
+            builder: (context, state) =>
+                const AthleteTrainingFindProfessorPage(),
+          ),
+          GoRoute(
+            path: 'professor/:professorUid',
+            name: AppRouteNames.athleteTrainingProfessorProfile,
+            builder: (context, state) => AthleteTrainingProfessorProfilePage(
+              professorUid: state.pathParameters['professorUid']?.trim() ?? '',
+            ),
           ),
           GoRoute(
             path: 'reposicao',

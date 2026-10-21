@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
@@ -19,6 +20,7 @@ import '../../professor_mode/presentation/widgets/professor_students_widgets.dar
 import '../../../core/time/nexago_event_timezone.dart';
 import '../application/athlete_training_providers.dart';
 import '../domain/athlete_training.dart';
+import 'athlete_training_find_professor_page.dart' show openProfessorProfile;
 
 /// T10 · Meus professores — quem dá aula para o atleta (`getMyProfessors`:
 /// turma da arena ou carteira do professor), o próximo treino com cada um e
@@ -74,6 +76,13 @@ class AthleteTrainingProfessorsPage extends ConsumerWidget {
               ),
               const SizedBox(height: 10),
             ],
+          const SizedBox(height: 6),
+          ProfessorLinksGhostButton(
+            key: const Key('training-professors-find'),
+            label: 'Encontrar professor',
+            onPressed: () => context
+                .pushNamed(AppRouteNames.athleteTrainingFindProfessor),
+          ),
         ],
       ),
     );
@@ -127,6 +136,7 @@ class _ProfessorCardState extends ConsumerState<_ProfessorCard> {
     final todayKey = nexagoEventDayKey(widget.now);
     return ProfessorLinksCard(
       key: Key('training-professor-${p.professorUid}'),
+      onTap: () => openProfessorProfile(context, p.professorUid),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

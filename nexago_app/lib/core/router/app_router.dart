@@ -203,10 +203,12 @@ import '../../features/professor_mode/presentation/professor_shell_page.dart';
 import '../../features/professor_mode/presentation/professor_student_page.dart';
 import '../../features/professor_mode/presentation/professor_students_page.dart';
 import '../../features/professor_mode/presentation/earnings/professor_earnings_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_checkin_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_classes_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_evolution_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_feedbacks_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_hub_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_makeup_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_professors_page.dart';
 import '../../features/professor_mode/presentation/evaluations/athlete_evaluations_pages.dart';
 import '../../features/professor_mode/presentation/evaluations/professor_evaluations_page.dart';
@@ -3101,6 +3103,20 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             path: 'professores',
             name: AppRouteNames.athleteTrainingProfessors,
             builder: (context, state) => const AthleteTrainingProfessorsPage(),
+          ),
+          GoRoute(
+            path: 'reposicao',
+            name: AppRouteNames.athleteTrainingMakeup,
+            builder: (context, state) => AthleteTrainingMakeupPage(
+              creditId: state.uri.queryParameters['credito']?.trim(),
+            ),
+          ),
+          GoRoute(
+            path: 'checkin/:sessionId',
+            name: AppRouteNames.athleteTrainingCheckIn,
+            builder: (context, state) => AthleteTrainingCheckInPage(
+              sessionId: state.pathParameters['sessionId']?.trim() ?? '',
+            ),
           ),
         ],
       ),

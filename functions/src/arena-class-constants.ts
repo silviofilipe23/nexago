@@ -66,6 +66,8 @@ export interface ClassRules {
   classReminderEnabled: boolean;
   /** Mensalidade cobrada online pelo Asaas (PIX ou cartão na fatura). Liga por arena. */
   onlineBillingEnabled: boolean;
+  /** "Não vou" pelo app do aluno com ao menos esta antecedência (horas) vira falta avisada com crédito. */
+  makeupNoticeHours: number;
 }
 
 export const DEFAULT_CLASS_RULES: ClassRules = {
@@ -76,6 +78,7 @@ export const DEFAULT_CLASS_RULES: ClassRules = {
   enrollmentFeeReais: 0,
   classReminderEnabled: true,
   onlineBillingEnabled: false,
+  makeupNoticeHours: 4,
 };
 
 /** Crédito de reposição: um por aula perdida por aluno (idempotente). */

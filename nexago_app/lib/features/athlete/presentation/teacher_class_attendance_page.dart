@@ -318,6 +318,7 @@ class _StudentRow extends StatelessWidget {
         ),
       _ => (null, 'Aluno da turma'),
     };
+    final appStatus = teacherRosterAppStatus(student);
     return Container(
       key: Key('teacher-attendance-${student.studentId}'),
       padding: const EdgeInsets.symmetric(vertical: 9),
@@ -362,6 +363,22 @@ class _StudentRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: 11, color: colors.onSurfaceMuted),
                 ),
+                if (appStatus != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    appStatus.text,
+                    key: Key('teacher-attendance-app-${student.studentId}'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: colors.readableTone(
+                        appStatus.positive ? AppColors.win : AppColors.live,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

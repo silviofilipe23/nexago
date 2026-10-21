@@ -34,6 +34,7 @@ export function parseClassRules(data: Record<string, unknown> | undefined): Clas
       DEFAULT_CLASS_RULES.enrollmentFeeReais,
     classReminderEnabled: bool(d["classReminderEnabled"], DEFAULT_CLASS_RULES.classReminderEnabled),
     onlineBillingEnabled: bool(d["onlineBillingEnabled"], DEFAULT_CLASS_RULES.onlineBillingEnabled),
+    makeupNoticeHours: int(d["makeupNoticeHours"], DEFAULT_CLASS_RULES.makeupNoticeHours, 0, 72),
   };
 }
 

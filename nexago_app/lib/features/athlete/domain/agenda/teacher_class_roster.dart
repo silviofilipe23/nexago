@@ -111,6 +111,10 @@ class TeacherClassRosterStudent {
     this.photoUrl,
     this.mark,
     this.storyTaggable = false,
+    this.rsvp,
+    this.rsvpReason,
+    this.rsvpMessage,
+    this.checkedIn = false,
   });
 
   factory TeacherClassRosterStudent.fromMap(Map<String, Object?> map) {
@@ -125,8 +129,17 @@ class TeacherClassRosterStudent {
       kind: kind == 'makeup' || kind == 'trial' ? kind! as String : 'regular',
       mark: AttendanceMarkX.fromId(map['mark']),
       storyTaggable: map['storyTaggable'] == true,
+      rsvp: map['rsvp'] == 'going' || map['rsvp'] == 'not_going'
+          ? map['rsvp']! as String
+          : null,
+      rsvpReason: _text(map['rsvpReason']),
+      rsvpMessage: _text(map['rsvpMessage']),
+      checkedIn: map['checkedIn'] == true,
     );
   }
+
+  static String? _text(Object? v) =>
+      v is String && v.trim().isNotEmpty ? v.trim() : null;
 
   final String studentId;
   final String name;
@@ -140,5 +153,45 @@ class TeacherClassRosterStudent {
   /// confere de novo ao marcar). Servidor antigo não manda: `false`.
   final bool storyTaggable;
 
+  /// Resposta do aluno pelo app: `going`, `not_going` ou `null` (não
+  /// respondeu). Servidor antigo não manda: `null`.
+  final String? rsvp;
+
+  /// Motivo do "Não vou": `work`, `health`, `travel` ou `other`.
+  final String? rsvpReason;
+  final String? rsvpMessage;
+
+  /// Fez check-in na arena pelo app.
+  final bool checkedIn;
+
   bool get isPresent => mark == AttendanceMark.present;
+}
+
+/// Rótulo do motivo do "Não vou" (o mesmo texto que o aluno escolheu).
+String classRsvpReasonLabel(String? reason) => switch (reason) {
+      'work' => 'Trabalho',
+      'health' => 'Saúde / lesão',
+      'travel' => 'Viagem',
+      _ => 'Outro',
+    };
+
+/// O que o aluno disse pelo app, para a linha da chamada do professor —
+/// `null` quando não respondeu nada.
+({String text, bool positive})? teacherRosterAppStatus(
+  TeacherClassRosterStudent s,
+) {
+  if (s.checkedIn) return (text: 'Fez check-in na arena', positive: true);
+  if (s.rsvp == 'going') return (text: 'Confirmou presença', positive: true);
+  if (s.rsvp == 'not_going') {
+    final message = s.rsvpMessage;
+    return (
+      text: [
+        'Não vai',
+        classRsvpReasonLabel(s.rsvpReason),
+        if (message != null) '“$message”',
+      ].join(' · '),
+      positive: false,
+    );
+  }
+  return null;
 }

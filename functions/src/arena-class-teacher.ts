@@ -7,7 +7,7 @@
  * (`authorizeClassAttendance`). Spec: `docs/superpowers/specs/2026-10-20-vinculos-permissoes-reserva-aulas-design.md`.
  */
 import {onCall, HttpsError} from "firebase-functions/v2/https";
-import {getFirestore, type Firestore} from "firebase-admin/firestore";
+import {getFirestore, Timestamp, type Firestore} from "firebase-admin/firestore";
 import {ARENA_CLASSES, ARENA_CLASS_SESSIONS, CLASS_STUDENTS, type AttendanceMark} from "./arena-class-constants";
 import {parseClassSession, str, type ClassSessionData} from "./arena-class";
 import {studentAttendsWeekday} from "./arena-class-ledger";
@@ -28,6 +28,15 @@ export interface TeacherRosterStudent {
    * preferência em si e o uid não saem daqui.
    */
   storyTaggable: boolean;
+  /** Resposta do aluno pelo app ("Vou"/"Não vou"); `null` = não respondeu. */
+  rsvp: "going" | "not_going" | null;
+  /** Motivo do "Não vou": `work`, `health`, `travel` ou `other`. */
+  rsvpReason: string | null;
+  rsvpMessage: string | null;
+  /** Fez check-in na arena pelo app. */
+  checkedIn: boolean;
+  /** Hora do check-in (ISO 8601). */
+  checkedInAt: string | null;
 }
 
 export interface TeacherRosterSession {
@@ -56,10 +65,12 @@ export interface TeacherRosterSession {
 export function buildTeacherRoster(
   session: ClassSessionData,
   students: ReadonlyArray<{id: string; data: Record<string, unknown>}>,
+  raw: Record<string, unknown> = {},
 ): TeacherRosterStudent[] {
   const weekday = isoWeekdayOfDateKey(session.date);
   const byName = (a: TeacherRosterStudent, b: TeacherRosterStudent) => a.name.localeCompare(b.name, "pt-BR");
   const markOf = (id: string) => session.attendance[id]?.mark ?? null;
+  const fromApp = (id: string) => athleteResponseOf(raw, id);
   const regulars = students
     .filter(({id, data}) => {
       if (session.extras[id]) return false;
@@ -73,6 +84,7 @@ export function buildTeacherRoster(
       kind: "regular",
       mark: markOf(id),
       storyTaggable: false,
+      ...fromApp(id),
     }))
     .sort(byName);
   const extras = Object.entries(session.extras)
@@ -83,9 +95,33 @@ export function buildTeacherRoster(
       kind: extra.kind === "makeup" ? "makeup" : "trial",
       mark: markOf(id),
       storyTaggable: false,
+      ...fromApp(id),
     }))
     .sort(byName);
   return [...regulars, ...extras];
+}
+
+/** O que o aluno disse pelo app (`respondArenaClassSession`/`checkInArenaClassSession`). */
+export function athleteResponseOf(
+  raw: Record<string, unknown>,
+  studentId: string,
+): Pick<TeacherRosterStudent, "rsvp" | "rsvpReason" | "rsvpMessage" | "checkedIn" | "checkedInAt"> {
+  const entry = (field: string): Record<string, unknown> | null => {
+    const map = raw[field];
+    const v = map != null && typeof map === "object" ? (map as Record<string, unknown>)[studentId] : null;
+    return v != null && typeof v === "object" ? v as Record<string, unknown> : null;
+  };
+  const rsvp = entry("rsvps");
+  const response = rsvp?.["response"];
+  const checkIn = entry("checkIns");
+  const at = checkIn?.["at"];
+  return {
+    rsvp: response === "going" || response === "not_going" ? response : null,
+    rsvpReason: response === "not_going" ? str(rsvp?.["reason"]) || null : null,
+    rsvpMessage: response === "not_going" ? str(rsvp?.["message"]) || null : null,
+    checkedIn: checkIn != null,
+    checkedInAt: at instanceof Timestamp ? at.toDate().toISOString() : null,
+  };
 }
 
 /** Conta NexaGO de cada linha da chamada (aluno da turma ou encaixe), quando há. */
@@ -151,7 +187,7 @@ export async function loadTeacherClassSessionContext(
 
   const studentsSnap = await db.collection(ARENA_CLASSES).doc(session.classId).collection(CLASS_STUDENTS).get();
   const docs = studentsSnap.docs.map((d) => ({id: d.id, data: d.data() as Record<string, unknown>}));
-  const roster = buildTeacherRoster(session, docs);
+  const roster = buildTeacherRoster(session, docs, data);
   const athleteIds = rosterAthleteIds(session, docs);
   const taggable = await storyTaggableAthletes(db, roster.flatMap((s) => {
     const athleteId = athleteIds.get(s.studentId);

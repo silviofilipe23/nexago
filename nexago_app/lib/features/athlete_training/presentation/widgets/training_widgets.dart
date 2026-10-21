@@ -93,6 +93,7 @@ class TrainingNextCard extends StatelessWidget {
     this.plan,
     this.big = false,
     this.badge = 0,
+    this.presence,
   });
 
   final TrainingSession training;
@@ -101,6 +102,11 @@ class TrainingNextCard extends StatelessWidget {
   final bool big;
   final String primaryLabel;
   final VoidCallback onPrimary;
+
+  /// Botão de presença da aula da turma ("Confirmar presença", "Vou",
+  /// check-in). Com ele, o botão da direita é a presença e a ação principal
+  /// vira o botão fantasma (ou o toque no cartão, quando há plano).
+  final Widget? presence;
 
   /// Feedbacks novos (bolinha no botão principal).
   final int badge;
@@ -113,7 +119,7 @@ class TrainingNextCard extends StatelessWidget {
     final focus = plan?.myFocus;
     final hasPlan = plan != null && plan!.planVisible;
     final sub = [t.title, t.placeLabel].where((s) => s.isNotEmpty).join(' · ');
-    return Container(
+    final card = Container(
       key: const Key('training-next-card'),
       padding: EdgeInsets.all(big ? 16 : 14),
       decoration: BoxDecoration(
@@ -141,6 +147,12 @@ class TrainingNextCard extends StatelessWidget {
                   color: colors.brandText,
                 ).copyWith(letterSpacing: 0.4),
               ),
+              // Sem botão principal (presença + plano), o badge sobe para cá.
+              if (presence != null && hasPlan && badge > 0) ...[
+                const SizedBox(width: 8),
+                TrainingBadge(
+                    key: const Key('training-next-badge'), count: badge),
+              ],
               const Spacer(),
               TrainingTypeTag(t),
             ],
@@ -193,54 +205,99 @@ class TrainingNextCard extends StatelessWidget {
           ),
           if (focus != null) ...[
             const SizedBox(height: 12),
-            _FocusNote(focus: focus),
+            TrainingFocusNote(focus: focus),
           ],
           const SizedBox(height: 12),
-          Row(
-            children: [
-              if (hasPlan) ...[
+          if (presence != null)
+            Row(
+              children: [
                 Expanded(
-                  child: ProfessorLinksGhostButton(
-                    key: const Key('training-next-plan'),
-                    label: 'Ver plano da aula',
-                    height: 44,
-                    onPressed: () => openAthleteLessonPlan(context, plan!.id),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      hasPlan
+                          ? ProfessorLinksGhostButton(
+                              key: const Key('training-next-plan'),
+                              label: 'Ver plano da aula',
+                              height: 44,
+                              onPressed: () =>
+                                  openAthleteLessonPlan(context, plan!.id),
+                            )
+                          : ProfessorLinksGhostButton(
+                              key: const Key('training-next-primary'),
+                              label: primaryLabel,
+                              height: 44,
+                              onPressed: onPrimary,
+                            ),
+                      if (badge > 0 && !hasPlan)
+                        Positioned(
+                          top: -5,
+                          right: -4,
+                          child: TrainingBadge(count: badge),
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 8),
+                Expanded(child: presence!),
               ],
-              Expanded(
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    ProfessorLinksPrimaryButton(
-                      key: const Key('training-next-primary'),
-                      label: primaryLabel,
+            )
+          else
+            Row(
+              children: [
+                if (hasPlan) ...[
+                  Expanded(
+                    child: ProfessorLinksGhostButton(
+                      key: const Key('training-next-plan'),
+                      label: 'Ver plano da aula',
                       height: 44,
-                      onPressed: onPrimary,
+                      onPressed: () => openAthleteLessonPlan(context, plan!.id),
                     ),
-                    if (badge > 0)
-                      Positioned(
-                        top: -5,
-                        right: -4,
-                        child: TrainingBadge(count: badge),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      ProfessorLinksPrimaryButton(
+                        key: const Key('training-next-primary'),
+                        label: primaryLabel,
+                        height: 44,
+                        onPressed: onPrimary,
                       ),
-                  ],
+                      if (badge > 0)
+                        Positioned(
+                          top: -5,
+                          right: -4,
+                          child: TrainingBadge(count: badge),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
+    );
+    // Presença + plano ocupam os dois botões: o cartão leva à ação principal.
+    if (presence == null || !hasPlan) return card;
+    return GestureDetector(
+      key: const Key('training-next-card-tap'),
+      behavior: HitTestBehavior.opaque,
+      onTap: onPrimary,
+      child: card,
     );
   }
 }
 
 /// "SEU FOCO" — o foco do aluno no plano publicado.
-class _FocusNote extends StatelessWidget {
-  const _FocusNote({required this.focus});
+class TrainingFocusNote extends StatelessWidget {
+  const TrainingFocusNote(
+      {super.key, required this.focus, this.label = 'SEU FOCO'});
 
   final String focus;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -266,7 +323,7 @@ class _FocusNote extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'SEU FOCO',
+                  label,
                   style: ProfessorLinksStyle.mono(9, color: colors.brandText),
                 ),
                 const SizedBox(height: 3),

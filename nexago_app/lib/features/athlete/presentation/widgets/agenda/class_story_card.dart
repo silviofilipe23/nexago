@@ -36,8 +36,9 @@ class ClassStoryCard extends StatelessWidget {
     final ink = BookingStoryArtFrame.inkOf(theme);
     final sub = BookingStoryArtFrame.subOf(theme);
     final accent = light ? BookingStoryCard.lightInk : AppColors.brandHover;
-    final rule =
-        light ? const Color(0x2E140A03) : Colors.white.withValues(alpha: 0.16);
+    final rule = light
+        ? const Color(0x2E140A03)
+        : Colors.white.withValues(alpha: 0.16);
     final showPeople =
         infos.contains(ClassStoryInfo.people) && data.people.isNotEmpty;
 
@@ -73,10 +74,11 @@ class ClassStoryCard extends StatelessWidget {
             for (var i = 0; i < data.stats.length; i++) ...[
               if (i > 0) const SizedBox(width: 20),
               _Stat(
-                  value: data.stats[i].$1,
-                  label: data.stats[i].$2,
-                  ink: ink,
-                  sub: sub),
+                value: data.stats[i].$1,
+                label: data.stats[i].$2,
+                ink: ink,
+                sub: sub,
+              ),
             ],
           ],
         ),
@@ -174,8 +176,10 @@ class ClassStoryCard extends StatelessWidget {
                     children: [
                       TextSpan(
                         text: data.handle,
-                        style:
-                            TextStyle(fontWeight: FontWeight.w700, color: ink),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: ink,
+                        ),
                       ),
                       if ((showPeople ? data.withLine : data.noPeopleLine)
                           .isNotEmpty)
@@ -203,11 +207,11 @@ class ClassStoryCard extends StatelessWidget {
     return BookingStoryArtFrame(
       theme: theme,
       photo: photo,
-      pillLabel: 'TREINO FEITO',
+      pillLabel: 'TREINO FINALIZADO',
       pillColor: light ? BookingStoryCard.lightInk : AppColors.win,
       pillTextColor: light ? const Color(0xFFE9D3B0) : const Color(0xFF062514),
-      footerLabel: data.footer ??
-          'TREINE TAMBÉM · ${AppDomains.siteHost.toUpperCase()}',
+      footerLabel:
+          data.footer ?? 'TREINE TAMBÉM · ${AppDomains.siteHost.toUpperCase()}',
       blocksBottom: 124,
       blocks: blocks,
     );
@@ -281,8 +285,9 @@ class _Avatars extends StatelessWidget {
                 size: _size,
                 hue:
                     BookingStoryAvatar.hues[i % BookingStoryAvatar.hues.length],
-                borderColor:
-                    light ? const Color(0xFFD8B686) : const Color(0xFF0B0B0C),
+                borderColor: light
+                    ? const Color(0xFFD8B686)
+                    : const Color(0xFF0B0B0C),
               ),
             ),
         ],

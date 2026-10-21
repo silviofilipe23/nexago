@@ -60,10 +60,10 @@ ClassAgendaEntry aula({
 }
 
 List<Override> overrides() => [
-      athleteProfileProvider.overrideWith((ref) => Stream.value(mariana)),
-      myClassAgendaProvider.overrideWith((ref) async => const []),
-      classStoryHistoryProvider.overrideWith((ref, _) async => const []),
-    ];
+  athleteProfileProvider.overrideWith((ref) => Stream.value(mariana)),
+  myClassAgendaProvider.overrideWith((ref) async => const []),
+  classStoryHistoryProvider.overrideWith((ref, _) async => const []),
+];
 
 Future<void> abrirAgenda(WidgetTester tester, ClassAgendaEntry e) async {
   tester.view.physicalSize = const Size(400, 1000);
@@ -120,7 +120,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('TREINO FEITO'), findsOneWidget);
+    expect(find.text('TREINO FINALIZADO'), findsOneWidget);
     expect(find.text('AULA · TREINO TÉCNICO'), findsOneWidget);
     expect(
       find.textContaining('@ma.beach', findRichText: true),

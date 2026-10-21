@@ -13,6 +13,8 @@ import 'package:nexago_app/features/professor_links/application/professor_links_
 import '../professor_links/professor_links_test_support.dart'
     show FakeProfessorLinksRepository;
 
+import '../professor_mode/professor_availability_test_support.dart'
+    show FakeProfessorAvailabilityRepository;
 import '../professor_mode/professor_students_test_support.dart';
 import '../professor_mode/professor_wallet_test_support.dart';
 
@@ -109,6 +111,7 @@ ChatMessage msg(
   DateTime? at,
   String name = '',
   bool auto = false,
+  ChatMessageCard? card,
 }) =>
     ChatMessage(
       id: id,
@@ -117,6 +120,7 @@ ChatMessage msg(
       text: text,
       createdAt: at ?? DateTime.utc(2026, 10, 20, 14),
       auto: auto,
+      card: card,
     );
 
 class FakeMessagesRepository implements MessagesRepository {
@@ -294,13 +298,22 @@ Future<GoRouter> pumpMessagesApp(
   required String location,
   FakeProfessorWalletRepository? wallet,
   FakeProfessorLinksRepository? links,
+  FakeProfessorAvailabilityRepository? availability,
+  String uid = professorStudentsTestUid,
+  List<RouteBase> extraRoutes = const [],
 }) =>
     pumpProfessorStudentsApp(
       tester,
       repo: FakeProfessorStudentsRepository([professorStudentsSnapshot()]),
       walletRepo: wallet,
+      availabilityRepo: availability,
+      uid: uid,
       location: location,
-      extraRoutes: [...messagesRoutes, ...professorWalletRoutes],
+      extraRoutes: [
+        ...messagesRoutes,
+        ...professorWalletRoutes,
+        ...extraRoutes,
+      ],
       overrides: [
         messagesRepositoryProvider.overrideWithValue(messages),
         professorLinksRepositoryProvider

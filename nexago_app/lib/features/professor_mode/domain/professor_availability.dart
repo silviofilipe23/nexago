@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/time/nexago_event_timezone.dart';
+import '../../arena/domain/aulas/arena_class_logic.dart'
+    show arenaClassDateKeyWeekday, arenaClassWeekdayShort;
 import 'professor_actions_logic.dart' show professorDayLabel;
 import 'professor_agenda.dart';
 import 'professor_students.dart';
@@ -180,6 +182,7 @@ class PrivateLesson {
     this.note = '',
     this.canceledBy,
     this.lateCancel = false,
+    this.reschedule,
   });
 
   static PrivateLesson? fromMap(String id, Map<String, Object?> map) {
@@ -204,6 +207,7 @@ class PrivateLesson {
       canceledBy:
           canceledBy is String && canceledBy.isNotEmpty ? canceledBy : null,
       lateCancel: map['lateCancel'] == true,
+      reschedule: PrivateLessonReschedule.fromMap(map['reschedule']),
     );
   }
 
@@ -225,6 +229,16 @@ class PrivateLesson {
   final String? canceledBy;
   final bool lateCancel;
 
+  /// Último pedido de remarcação (`null` = nunca pediram).
+  final PrivateLessonReschedule? reschedule;
+
+  /// Pedido de remarcação esperando resposta.
+  PrivateLessonReschedule? get pendingReschedule =>
+      reschedule?.status == LessonRescheduleStatus.pending ? reschedule : null;
+
+  /// Ativa e ainda não começou: dá para propor outro horário.
+  bool canRescheduleAt(DateTime now) => isActive && startAt.isAfter(now);
+
   bool get isActive =>
       status == PrivateLessonStatus.pending ||
       status == PrivateLessonStatus.confirmed;
@@ -234,6 +248,67 @@ class PrivateLesson {
 
   /// Ainda dá para cancelar (ativa e antes do início).
   bool canCancelAt(DateTime now) => isActive && startAt.isAfter(now);
+}
+
+// ── remarcação (D3) ─────────────────────────────────────────────────────
+
+/// Situação do pedido de remarcação — na aula (`reschedule.status`) e no
+/// cartão da conversa (`card.status`, que também pode virar `replaced`).
+enum LessonRescheduleStatus { pending, accepted, declined, replaced }
+
+LessonRescheduleStatus parseLessonRescheduleStatus(Object? raw) =>
+    switch (raw) {
+      'accepted' => LessonRescheduleStatus.accepted,
+      'declined' => LessonRescheduleStatus.declined,
+      'replaced' => LessonRescheduleStatus.replaced,
+      _ => LessonRescheduleStatus.pending,
+    };
+
+/// `professorPrivateLessons/{id}.reschedule` (só o servidor grava,
+/// `functions/src/professor-lesson-reschedule.ts`).
+class PrivateLessonReschedule {
+  const PrivateLessonReschedule({
+    required this.requestedBy,
+    required this.startAt,
+    required this.endAt,
+    required this.status,
+    this.messageId = '',
+    this.conversationId = '',
+  });
+
+  static PrivateLessonReschedule? fromMap(Object? raw) {
+    if (raw is! Map) return null;
+    final start = _instant(raw['startAt']);
+    if (start == null) return null;
+    return PrivateLessonReschedule(
+      requestedBy: _str(raw['requestedBy']),
+      startAt: start,
+      endAt: _instant(raw['endAt']) ?? start,
+      status: parseLessonRescheduleStatus(raw['status']),
+      messageId: _str(raw['messageId']),
+      conversationId: _str(raw['conversationId']),
+    );
+  }
+
+  /// Uid de quem pediu (aluno ou professor).
+  final String requestedBy;
+
+  /// Novo horário proposto (instantes UTC).
+  final DateTime startAt;
+  final DateTime endAt;
+  final LessonRescheduleStatus status;
+  final String messageId;
+  final String conversationId;
+}
+
+/// "Qui 22 · 07:00" (parede SP, sem "Hoje"/"Amanhã": o cartão fica na
+/// conversa e não pode envelhecer).
+String rescheduleSlotLabel(DateTime instant) {
+  final key = nexagoEventDayKey(instant);
+  final weekday = arenaClassDateKeyWeekday(key);
+  final day = int.tryParse(key.substring(8, 10)) ?? 0;
+  final wd = weekday == null ? '' : '${arenaClassWeekdayShort(weekday)} ';
+  return '$wd$day · ${privateLessonTimeLabel(instant)}';
 }
 
 /// "Sofia R." de "Sofia Ramos" (só o nome quando é um só).

@@ -15,7 +15,6 @@ import '../../../messages/domain/messages.dart';
 import '../../../professor_links/application/professor_links_providers.dart';
 import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../application/professor_availability_providers.dart';
-import '../../domain/professor_actions_logic.dart' show professorDayLabel;
 import '../../domain/professor_availability.dart';
 import '../../infrastructure/professor_students_repository.dart'
     show ProfessorStudentsException;
@@ -28,6 +27,7 @@ import '../lesson_plans/athlete_lesson_plan_pages.dart'
 import '../wallet/professor_wallet_widgets.dart';
 import '../widgets/professor_students_widgets.dart';
 import 'availability_widgets.dart';
+import 'reschedule_widgets.dart';
 
 /// Lado do ATLETA (fase 10): as particulares dele com os professores e o
 /// atalho para agendar com cada professor.
@@ -80,6 +80,15 @@ class _AthletePrivateLessonsPageState
     if (mounted) setState(() => _busyId = null);
   }
 
+  Future<void> _reschedule(PrivateLesson l) => requestLessonRescheduleFlow(
+        context,
+        ref,
+        lessonId: l.id,
+        professorUid: l.professorUid,
+        currentStartAt: l.startAt,
+        successMessage: 'Pedido enviado ao professor',
+      );
+
   @override
   Widget build(BuildContext context) {
     final now = ref.watch(professorLinksClockProvider)();
@@ -93,6 +102,8 @@ class _AthletePrivateLessonsPageState
 
     Widget lessonCard(PrivateLesson l, {required bool upcoming}) {
       final canCancel = upcoming && l.canCancelAt(now);
+      final canReschedule = upcoming && l.canRescheduleAt(now);
+      final pendingReschedule = upcoming ? l.pendingReschedule : null;
       // Plano publicado pelo professor para esta particular (H8).
       final plan = upcoming
           ? lessonPlanViewFor(planViews, LessonPlanKind.privateLesson, l.id)
@@ -101,41 +112,67 @@ class _AthletePrivateLessonsPageState
         key: Key('athlete-private-${l.id}'),
         lesson: l,
         now: now,
-        builder: (late) => PrivateLessonCard(
-          lesson: l,
-          title: l.professorName,
-          todayKey: todayKey,
-          showStatus: true,
-          footer: canCancel && late
-              ? const ProfessorLinksNote(
-                  'Dentro do prazo de cancelamento com custo.',
-                  key: Key('athlete-private-late-warning'),
-                  tone: ProfessorLinksNoteTone.yellow,
-                )
-              : l.status == PrivateLessonStatus.canceled && l.lateCancel
-                  ? const ProfessorMutedText(
-                      'Cancelada fora do prazo sem custo.')
-                  : null,
-          actions: [
-            if (plan != null)
-              ProfessorLinksGhostButton(
-                key: Key('athlete-lesson-plan-link-${l.id}'),
-                label: 'Ver plano',
-                height: 42,
-                onPressed: () => openAthleteLessonPlan(context, plan.id),
+        builder: (late) {
+          final notes = <Widget>[
+            if (pendingReschedule != null)
+              _ReschedulePendingNote(
+                key: Key('athlete-private-reschedule-pending-${l.id}'),
+                reschedule: pendingReschedule,
+                byMe: pendingReschedule.requestedBy == l.athleteId,
               ),
-            if (canCancel)
-              ProfessorLinksGhostButton(
-                key: Key('athlete-private-cancel-${l.id}'),
-                label: 'Cancelar',
-                color: AppColors.live,
-                height: 42,
-                loading: _busyId == l.id,
-                onPressed:
-                    _busyId == null ? () => _cancel(l, late: late) : null,
-              ),
-          ],
-        ),
+            if (canCancel && late)
+              const ProfessorLinksNote(
+                'Dentro do prazo de cancelamento com custo.',
+                key: Key('athlete-private-late-warning'),
+                tone: ProfessorLinksNoteTone.yellow,
+              )
+            else if (l.status == PrivateLessonStatus.canceled && l.lateCancel)
+              const ProfessorMutedText('Cancelada fora do prazo sem custo.'),
+          ];
+          return PrivateLessonCard(
+            lesson: l,
+            title: l.professorName,
+            todayKey: todayKey,
+            showStatus: true,
+            footer: notes.isEmpty
+                ? null
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (var i = 0; i < notes.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 8),
+                        notes[i],
+                      ],
+                    ],
+                  ),
+            actions: [
+              if (plan != null)
+                ProfessorLinksGhostButton(
+                  key: Key('athlete-lesson-plan-link-${l.id}'),
+                  label: 'Ver plano',
+                  height: 42,
+                  onPressed: () => openAthleteLessonPlan(context, plan.id),
+                ),
+              if (canReschedule)
+                ProfessorLinksGhostButton(
+                  key: Key('athlete-private-reschedule-${l.id}'),
+                  label: 'Remarcar',
+                  height: 42,
+                  onPressed: _busyId == null ? () => _reschedule(l) : null,
+                ),
+              if (canCancel)
+                ProfessorLinksGhostButton(
+                  key: Key('athlete-private-cancel-${l.id}'),
+                  label: 'Cancelar',
+                  color: AppColors.live,
+                  height: 42,
+                  loading: _busyId == l.id,
+                  onPressed:
+                      _busyId == null ? () => _cancel(l, late: late) : null,
+                ),
+            ],
+          );
+        },
       );
     }
 
@@ -225,6 +262,39 @@ class _LessonWithPolicy extends ConsumerWidget {
           );
     }
     return builder(late);
+  }
+}
+
+/// "Remarcação pendente" e o horário pedido (o professor sugeriu → a
+/// resposta é na conversa).
+class _ReschedulePendingNote extends StatelessWidget {
+  const _ReschedulePendingNote({
+    super.key,
+    required this.reschedule,
+    required this.byMe,
+  });
+
+  final PrivateLessonReschedule reschedule;
+  final bool byMe;
+
+  @override
+  Widget build(BuildContext context) {
+    final when = rescheduleSlotLabel(reschedule.startAt);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const ArenaClassTag(
+          label: 'Remarcação pendente',
+          color: AppColors.pending,
+        ),
+        const SizedBox(height: 6),
+        ProfessorMutedText(
+          byMe
+              ? 'Você pediu $when · aguardando o professor.'
+              : 'O professor sugeriu $when. Responda na conversa.',
+        ),
+      ],
+    );
   }
 }
 
@@ -415,43 +485,18 @@ class _AthletePrivateLessonBookPageState
             child: ListView(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
               children: [
-                const ProfessorLinksKicker('Dia'),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 36,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: days.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 6),
-                    itemBuilder: (_, i) => AvailabilityChoiceChip(
-                      key: Key('private-book-day-${days[i].dateKey}'),
-                      label: professorDayLabel(days[i].dateKey, todayKey),
-                      selected: days[i].dateKey == selectedDay.dateKey,
-                      onTap: () => setState(() {
-                        _dayKey = days[i].dateKey;
-                        _slot = null;
-                      }),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                ProfessorLinksKicker(
-                  'Horário · ${availabilityDurationLabel(info.durationMin)}',
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final s in selectedDay.slots)
-                      AvailabilityChoiceChip(
-                        key: Key(
-                            'private-book-slot-${s.startAt.toIso8601String()}'),
-                        label: s.timeLabel,
-                        selected: _slot?.startAt == s.startAt,
-                        onTap: () => setState(() => _slot = s),
-                      ),
-                  ],
+                OpenSlotDayTimePicker(
+                  days: days,
+                  selectedDay: selectedDay,
+                  selectedSlot: _slot,
+                  todayKey: todayKey,
+                  durationMin: info.durationMin,
+                  keyPrefix: 'private-book',
+                  onDay: (d) => setState(() {
+                    _dayKey = d.dateKey;
+                    _slot = null;
+                  }),
+                  onSlot: (s) => setState(() => _slot = s),
                 ),
                 const SizedBox(height: 18),
                 if (info.acceptPairs) ...[

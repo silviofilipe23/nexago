@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
@@ -10,11 +11,18 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../arena/presentation/aulas/widgets/arena_class_form_atoms.dart';
 import '../../professor_links/application/professor_links_providers.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
+import '../../professor_mode/application/professor_availability_providers.dart';
+import '../../professor_mode/application/professor_evaluations_providers.dart';
 import '../../professor_mode/application/professor_wallet_providers.dart';
+import '../../professor_mode/domain/professor_availability.dart';
+import '../../professor_mode/presentation/availability/reschedule_widgets.dart';
+import '../../professor_mode/presentation/evaluations/professor_evaluations_page.dart'
+    show openProfessorEvaluate;
 import '../application/messages_providers.dart';
 import '../domain/messages.dart';
 import '../infrastructure/messages_repository.dart';
 import 'messages_widgets.dart';
+import 'reschedule_card.dart';
 
 /// D2 Grupo da turma / D3 conversa com aluno (e o lado do aluno): bolhas,
 /// separador de dia e composer. Envio por callable
@@ -106,6 +114,85 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
     ref.read(messagesRepositoryProvider).countTemplateUse(uid, t).ignore();
   }
 
+  /// Atalhos da conversa direta (D3): o professor remarca, cobra e avalia
+  /// o aluno; o aluno remarca. Só aparece o que se aplica.
+  List<Widget> _actionChips(Conversation c, String uid, DateTime now) {
+    if (c.isGroup || c.isArena) return const [];
+    Widget chip(String key, String label, VoidCallback onTap) => Padding(
+          padding: const EdgeInsets.only(right: 6),
+          child: ArenaClassChip(
+            key: Key('chat-action-$key'),
+            label: label,
+            selected: false,
+            onTap: onTap,
+          ),
+        );
+    if (widget.professorMode) {
+      final athleteId = c.athleteUid ?? c.otherUid(uid) ?? '';
+      if (athleteId.isEmpty) return const [];
+      final lessons = [
+        for (final l
+            in ref.watch(professorPrivateLessonsProvider).valueOrNull ??
+                const <PrivateLesson>[])
+          if (l.athleteId == athleteId && l.canRescheduleAt(now)) l,
+      ];
+      final walletActive = (ref
+                  .watch(professorWalletStudentsProvider)
+                  .valueOrNull ??
+              const [])
+          .any((s) => s.active && s.athleteId == athleteId);
+      final evaluable = ref
+          .watch(evaluableStudentsProvider)
+          .any((s) => s.athleteId == athleteId);
+      return [
+        if (lessons.isNotEmpty)
+          chip(
+            'reschedule',
+            'Remarcar',
+            () => rescheduleOneOfLessonsFlow(
+              context,
+              ref,
+              lessons: lessons,
+              successMessage: 'Pedido enviado ao aluno',
+            ),
+          ),
+        if (walletActive)
+          chip(
+            'charge',
+            'Cobrar',
+            () => context.pushNamed(
+              AppRouteNames.professorWalletCharge,
+              pathParameters: {'athleteId': athleteId},
+            ),
+          ),
+        if (evaluable)
+          chip(
+            'evaluate',
+            'Enviar avaliação',
+            () => openProfessorEvaluate(context, athleteId),
+          ),
+      ];
+    }
+    final lessons = [
+      for (final l in ref.watch(athletePrivateLessonsProvider).valueOrNull ??
+          const <PrivateLesson>[])
+        if (l.professorUid == c.professorUid && l.canRescheduleAt(now)) l,
+    ]..sort((a, b) => a.startAt.compareTo(b.startAt));
+    return [
+      if (lessons.isNotEmpty)
+        chip(
+          'reschedule',
+          'Remarcar',
+          () => rescheduleOneOfLessonsFlow(
+            context,
+            ref,
+            lessons: lessons,
+            successMessage: 'Pedido enviado ao professor',
+          ),
+        ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final uid = ref.watch(messagesUidProvider);
@@ -184,6 +271,7 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
     } else {
       subtitle = 'Professor';
     }
+    final actions = c.closed ? const <Widget>[] : _actionChips(c, uid, now);
     final templates = widget.professorMode && !c.isArena
         ? ref.watch(messageTemplatesProvider).valueOrNull ?? const []
         : const <MessageTemplate>[];
@@ -197,6 +285,22 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
         rows.add(ChatDaySeparator(messageDayLabel(m.createdAt ?? now, now)));
       }
       final mine = m.senderUid == uid;
+      final card = m.card;
+      if (card is RescheduleCard) {
+        rows.add(Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: RescheduleCardView(
+            key: Key('reschedule-card-${m.id}'),
+            messageId: m.id,
+            card: card,
+            viewerUid: uid,
+            professorUid: c.professorUid,
+            mine: mine,
+            time: messageTimeLabel(m.createdAt),
+          ),
+        ));
+        continue;
+      }
       rows.add(Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: ChatBubble(
@@ -272,6 +376,7 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
                       ? 'Mensagem para o professor'
                       : 'Mensagem para a gestão')
                   : 'Mensagem',
+              actions: actions,
               templates: templates,
               onTemplate: (t) => _useTemplate(t, c, uid),
               onSend: _send,
@@ -286,6 +391,7 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
 class _Composer extends StatelessWidget {
   const _Composer({
     required this.controller,
+    this.actions = const [],
     required this.templates,
     required this.onTemplate,
     required this.onSend,
@@ -294,6 +400,9 @@ class _Composer extends StatelessWidget {
   });
 
   final String hint;
+
+  /// Atalhos da conversa (Remarcar, Cobrar, Enviar avaliação).
+  final List<Widget> actions;
   final TextEditingController controller;
   final List<MessageTemplate> templates;
   final ValueChanged<MessageTemplate> onTemplate;
@@ -319,6 +428,14 @@ class _Composer extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (actions.isNotEmpty) ...[
+                SingleChildScrollView(
+                  key: const Key('chat-actions'),
+                  scrollDirection: Axis.horizontal,
+                  child: Row(children: actions),
+                ),
+                const SizedBox(height: 8),
+              ],
               if (templates.isNotEmpty) ...[
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,

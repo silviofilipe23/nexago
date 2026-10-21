@@ -23,6 +23,9 @@ import 'package:nexago_app/features/professor_mode/application/professor_lesson_
 import 'package:nexago_app/features/professor_mode/domain/professor_availability.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_evaluations.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_lesson_plans.dart';
+import 'package:nexago_app/features/athlete/domain/agenda/class_charge_entry.dart';
+import 'package:nexago_app/features/athlete_training/domain/training_plans.dart';
+import 'package:nexago_app/features/athlete_training/presentation/athlete_training_plans_page.dart';
 
 // Qua 21/10/2026 12:00 em São Paulo.
 final _now = DateTime.utc(2026, 10, 21, 15);
@@ -114,7 +117,12 @@ class _Data {
     this.views = const [],
     this.evaluations = const [],
     this.professors = const [],
+    this.plans = const MyTrainingPlans(),
+    this.charges = const [],
   });
+
+  final MyTrainingPlans plans;
+  final List<ClassChargeEntry> charges;
 
   final List<ClassAgendaEntry> classes;
   final List<ClassAgendaEntry> history;
@@ -169,6 +177,11 @@ Future<GoRouter> _pump(
             name: AppRouteNames.athleteTrainingProfessors,
             builder: (_, __) => const AthleteTrainingProfessorsPage(),
           ),
+          GoRoute(
+            path: 'planos',
+            name: AppRouteNames.athleteTrainingPlans,
+            builder: (_, __) => const AthleteTrainingPlansPage(),
+          ),
         ],
       ),
       GoRoute(
@@ -196,6 +209,11 @@ Future<GoRouter> _pump(
             _stub('avaliacao ${s.pathParameters['evaluationId']}'),
       ),
       GoRoute(
+        path: AppRoutes.lessonPaymentReceipt,
+        name: AppRouteNames.lessonPaymentReceipt,
+        builder: (_, s) => _stub('comprovante ${s.pathParameters['chargeId']}'),
+      ),
+      GoRoute(
         path: AppRoutes.athleteMessages,
         name: AppRouteNames.athleteMessages,
         builder: (_, __) => _stub('mensagens'),
@@ -219,7 +237,8 @@ Future<GoRouter> _pump(
         receivedEvaluationsProvider
             .overrideWith((ref) => Stream.value(data.evaluations)),
         myProfessorsProvider.overrideWith((ref) async => data.professors),
-        myClassChargesProvider.overrideWith((ref) async => const []),
+        myClassChargesProvider.overrideWith((ref) async => data.charges),
+        athleteTrainingPlansProvider.overrideWith((ref) async => data.plans),
         unreadMessagesCountProvider.overrideWith((ref) => 0),
       ],
       child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
@@ -488,6 +507,131 @@ void main() {
       );
       expect(
           find.byKey(const Key('training-professors-empty')), findsOneWidget);
+    });
+  });
+
+  group('T14 · planos e pagamentos', () {
+    const plans = MyTrainingPlans(
+      arenaPlans: [
+        ArenaTrainingPlan(
+          enrollmentId: 'e1',
+          arenaName: 'Arena CFC',
+          planName: 'Trimestral',
+          kind: 'monthly',
+          priceReais: 373.33,
+          paymentMethod: 'pix',
+          billingMode: 'asaas',
+          billedThrough: '2026-11-14',
+          dueDay: 15,
+          makeupCredits: 1,
+          slots: [
+            ArenaPlanSlot(
+              className: 'Intermediário B',
+              weekday: 2,
+              startTime: '19:00',
+              teacherName: 'Thiago Mendes',
+            ),
+            ArenaPlanSlot(
+              className: 'Intermediário B',
+              weekday: 4,
+              startTime: '19:00',
+              teacherName: 'Thiago Mendes',
+            ),
+          ],
+        ),
+      ],
+      professorPlans: [
+        ProfessorTrainingPlan(
+          professorUid: 'tm',
+          professorName: 'Thiago Mendes',
+          planName: 'Pacote 8 aulas/mês',
+          kind: 'monthly',
+          classes: 8,
+          recurringReais: 880,
+          recurringDueDay: 21,
+        ),
+      ],
+      payments: [
+        TrainingPayment(
+          fromProfessor: true,
+          chargeId: 'pc1',
+          payee: 'Prof. Thiago Mendes',
+          description: 'Particular · novembro',
+          amountReais: 880,
+          paidOn: '2026-10-21',
+          method: 'Pix',
+        ),
+        TrainingPayment(
+          fromProfessor: false,
+          chargeId: 'm1',
+          payee: 'Arena CFC',
+          description: 'Turma trimestral',
+          amountReais: 373.33,
+          paidOn: '2026-10-15',
+          method: 'Online',
+        ),
+      ],
+    );
+
+    testWidgets('arena e professor lado a lado, pagamentos e comprovante',
+        (tester) async {
+      await _pump(
+        tester,
+        location: AppRoutes.athleteTrainingPlans,
+        data: _Data(
+          plans: plans,
+          charges: const [
+            ClassChargeEntry(
+              chargeId: 'c9',
+              arenaId: 'arena1',
+              arenaName: 'Arena CFC',
+              description: 'Mensalidade dez',
+              amountReais: 373.33,
+              dueDate: '2026-10-20',
+              overdue: true,
+              payment: 'online',
+            ),
+          ],
+        ),
+      );
+      expect(find.text('2 ATIVOS · 1 EM ABERTO'), findsOneWidget);
+      expect(find.byKey(const Key('training-plans-open-c9')), findsOneWidget);
+      expect(find.byKey(const Key('training-plan-arena-e1')), findsOneWidget);
+      expect(find.text('COBRADO PELA ARENA CFC'), findsOneWidget);
+      expect(find.text('Turma Intermediário B'), findsOneWidget);
+      expect(find.text('Ter e Qui · 19:00 · Prof. Thiago Mendes'),
+          findsOneWidget);
+      expect(find.text('1 disponível'), findsOneWidget);
+      expect(find.byKey(const Key('training-plan-professor-tm')),
+          findsOneWidget);
+      expect(find.text('COBRADO PELO PROF. THIAGO MENDES'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('training-payment-pc1')));
+      await _settle(tester);
+      expect(find.text('comprovante pc1'), findsOneWidget);
+    });
+
+    testWidgets('sem plano', (tester) async {
+      await _pump(
+        tester,
+        location: AppRoutes.athleteTrainingPlans,
+        data: _Data(),
+      );
+      expect(find.byKey(const Key('training-plans-empty')), findsOneWidget);
+    });
+
+    testWidgets('hub mostra Meus planos e leva aos pagamentos',
+        (tester) async {
+      final router = await _pump(
+        tester,
+        location: AppRoutes.athleteTrainings,
+        data: _Data(plans: plans),
+      );
+      expect(find.byKey(const Key('training-hub-plan-e1')), findsOneWidget);
+      expect(find.byKey(const Key('training-hub-plan-tm')), findsOneWidget);
+      await tester.tap(find.text('Pagamentos'));
+      await _settle(tester);
+      expect(router.state.uri.path, AppRoutes.athleteTrainingPlans);
     });
   });
 }

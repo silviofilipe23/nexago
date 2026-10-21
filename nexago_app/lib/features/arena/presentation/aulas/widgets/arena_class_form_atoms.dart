@@ -35,8 +35,9 @@ class ArenaClassKicker extends StatelessWidget {
         fontSize: 9.5,
         letterSpacing: 1.5,
         fontWeight: FontWeight.w700,
-        color: context.themeColors
-            .readableTone(color ?? context.themeColors.onSurfaceMuted),
+        color: context.themeColors.readableTone(
+          color ?? context.themeColors.onSurfaceMuted,
+        ),
       ),
     );
   }
@@ -116,7 +117,7 @@ class ArenaClassChip extends StatelessWidget {
           onTap: onTap,
           child: Container(
             height: 32,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
@@ -130,7 +131,7 @@ class ArenaClassChip extends StatelessWidget {
               child: Text(
                 label,
                 style: AppTypography.soraRegular(
-                  fontSize: 12.5,
+                  fontSize: 9,
                   fontWeight: FontWeight.w600,
                   color: selected ? AppColors.black : colors.onSurfaceMuted,
                 ),
@@ -185,18 +186,21 @@ class ArenaClassChoiceCard extends StatelessWidget {
       ),
       child: selected
           ? (multi
-              ? const Icon(Icons.check_rounded,
-                  size: 14, color: AppColors.black)
-              : Center(
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: const BoxDecoration(
-                      color: AppColors.brand,
-                      shape: BoxShape.circle,
+                ? const Icon(
+                    Icons.check_rounded,
+                    size: 14,
+                    color: AppColors.black,
+                  )
+                : Center(
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: const BoxDecoration(
+                        color: AppColors.brand,
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                  ),
-                ))
+                  ))
           : null,
     );
     return Opacity(
@@ -535,6 +539,7 @@ class ArenaClassAthleteSearch extends ConsumerStatefulWidget {
     this.hint = 'Buscar atleta NexaGO por nome ou apelido',
     this.enabled = true,
     this.autofocus = false,
+    this.collapseOnSelect = false,
   });
 
   final String? selectedUid;
@@ -545,6 +550,9 @@ class ArenaClassAthleteSearch extends ConsumerStatefulWidget {
   final String hint;
   final bool enabled;
   final bool autofocus;
+
+  /// Escolheu: some a busca e a lista, fica só o atleta escolhido (com "Trocar aluno").
+  final bool collapseOnSelect;
 
   @override
   ConsumerState<ArenaClassAthleteSearch> createState() =>
@@ -558,6 +566,18 @@ class _ArenaClassAthleteSearchState
   List<AppUserProfile> _results = const [];
   bool _searching = false;
   String? _error;
+
+  /// Atleta tocado por último (para mostrar sozinho quando recolhe).
+  AppUserProfile? _picked;
+  bool _collapsed = false;
+
+  void _pick(AppUserProfile user) {
+    setState(() {
+      _picked = user;
+      _collapsed = widget.collapseOnSelect;
+    });
+    widget.onSelect(user);
+  }
 
   @override
   void dispose() {
@@ -604,6 +624,26 @@ class _ArenaClassAthleteSearchState
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final term = _controller.text;
+    final picked = _picked;
+    if (_collapsed && picked != null && picked.uid == widget.selectedUid) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _card(picked),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              key: const Key('arena-class-athlete-search-change'),
+              onPressed: widget.enabled
+                  ? () => setState(() => _collapsed = false)
+                  : null,
+              child: const Text('Trocar aluno'),
+            ),
+          ),
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -646,24 +686,26 @@ class _ArenaClassAthleteSearchState
         ],
         for (final user in _results) ...[
           const SizedBox(height: 8),
-          ArenaClassChoiceCard(
-            title: arenaClassAthleteName(user),
-            subtitle: _subtitle(user),
-            selected: user.uid == widget.selectedUid,
-            onTap: widget.enabled ? () => widget.onSelect(user) : null,
-            // A foto ampliada ajuda a achar o atleta certo antes de escolher.
-            trailing: ArenaClassAvatar(
-              initials: arenaClassInitials(arenaClassAthleteName(user)),
-              photoUrl: user.profilePhotoUrl,
-              size: 32,
-              zoomName: arenaClassAthleteName(user),
-              zoomRole: 'Atleta',
-            ),
-          ),
+          _card(user),
         ],
       ],
     );
   }
+
+  Widget _card(AppUserProfile user) => ArenaClassChoiceCard(
+        title: arenaClassAthleteName(user),
+        subtitle: _subtitle(user),
+        selected: user.uid == widget.selectedUid,
+        onTap: widget.enabled ? () => _pick(user) : null,
+        // A foto ampliada ajuda a achar o atleta certo antes de escolher.
+        trailing: ArenaClassAvatar(
+          initials: arenaClassInitials(arenaClassAthleteName(user)),
+          photoUrl: user.profilePhotoUrl,
+          size: 32,
+          zoomName: arenaClassAthleteName(user),
+          zoomRole: 'Atleta',
+        ),
+      );
 
   String _subtitle(AppUserProfile user) {
     final full = user.fullName?.trim() ?? '';
@@ -699,11 +741,16 @@ Future<void> openArenaClassWhatsApp(
     );
     return;
   }
-  final ok =
-      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  final ok = await launchUrl(
+    Uri.parse(url),
+    mode: LaunchMode.externalApplication,
+  );
   if (!ok && context.mounted) {
-    showAppSnackBar(context, 'Não foi possível abrir o WhatsApp.',
-        isError: true);
+    showAppSnackBar(
+      context,
+      'Não foi possível abrir o WhatsApp.',
+      isError: true,
+    );
   }
 }
 
@@ -717,14 +764,13 @@ Future<void> copyArenaClassInvoiceLink(BuildContext context, String url) async {
 Color arenaClassOnlineToneColor(
   BuildContext context,
   ArenaClassOnlineTone tone,
-) =>
-    switch (tone) {
-      ArenaClassOnlineTone.info => AppColors.brand,
-      ArenaClassOnlineTone.muted => context.themeColors.onSurfaceMuted,
-      ArenaClassOnlineTone.warning => AppColors.pending,
-      ArenaClassOnlineTone.danger => AppColors.live,
-      ArenaClassOnlineTone.success => AppColors.win,
-    };
+) => switch (tone) {
+  ArenaClassOnlineTone.info => AppColors.brand,
+  ArenaClassOnlineTone.muted => context.themeColors.onSurfaceMuted,
+  ArenaClassOnlineTone.warning => AppColors.pending,
+  ArenaClassOnlineTone.danger => AppColors.live,
+  ArenaClassOnlineTone.success => AppColors.win,
+};
 
 /// Barra de passos da matrícula (4 segmentos).
 class ArenaClassStepBar extends StatelessWidget {

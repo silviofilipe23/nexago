@@ -12,6 +12,8 @@ import '../../../core/location/user_location_providers.dart';
 import '../domain/athlete_training.dart';
 import '../domain/public_professor.dart';
 import '../infrastructure/public_professor_repository.dart';
+import '../domain/training_plans.dart';
+import '../infrastructure/training_plans_repository.dart';
 import '../domain/class_presence.dart';
 import '../infrastructure/class_presence_repository.dart';
 
@@ -149,4 +151,14 @@ final publicProfessorProvider = FutureProvider.autoDispose
         lat: origin?.lat,
         lng: origin?.lng,
       );
+});
+
+/// T14 · planos ativos (arena e professor) e últimos pagamentos. Erro chega
+/// à tela (que mostra "tentar de novo"); o hub lê só `valueOrNull`.
+final athleteTrainingPlansProvider =
+    FutureProvider.autoDispose<MyTrainingPlans>((ref) {
+  if (ref.watch(professorLinksUidProvider).isEmpty) {
+    return Future.value(const MyTrainingPlans());
+  }
+  return ref.read(trainingPlansRepositoryProvider).fetch();
 });

@@ -141,6 +141,7 @@ abstract final class AppRoutes {
   static const String athleteTrainingFindProfessor = '/treinos/encontrar';
   static const String athleteTrainingProfessorProfile =
       '/treinos/professor/:professorUid';
+  static const String athleteTrainingPlans = '/treinos/planos';
 
   /// Escolher reposição com o crédito (T7, `?credito=`) e check-in na arena
   /// (T5).
@@ -898,6 +899,7 @@ abstract final class AppRouteNames {
       'athleteTrainingFindProfessor';
   static const String athleteTrainingProfessorProfile =
       'athleteTrainingProfessorProfile';
+  static const String athleteTrainingPlans = 'athleteTrainingPlans';
   static const String athleteTrainingMakeup = 'athleteTrainingMakeup';
   static const String athleteTrainingCheckIn = 'athleteTrainingCheckIn';
   static const String athleteLessonPlans = 'athleteLessonPlans';

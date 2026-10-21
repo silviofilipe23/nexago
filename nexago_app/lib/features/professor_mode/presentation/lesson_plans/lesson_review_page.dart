@@ -18,6 +18,7 @@ import '../../infrastructure/professor_students_repository.dart'
     show ProfessorStudentsException;
 import '../wallet/professor_wallet_widgets.dart';
 import '../widgets/professor_students_widgets.dart';
+import '../availability/availability_widgets.dart' show AvailabilityChoiceChip;
 import 'lesson_plan_widgets.dart';
 
 Color lessonBlockRatingColor(LessonBlockRating r) => switch (r) {
@@ -605,6 +606,16 @@ class _FeedbackCard extends StatelessWidget {
                               color: ProfessorLinksStyle.dim(colors),
                             ),
                           ),
+                        Text(
+                          '${f.homework!.sets} '
+                          '${f.homework!.sets == 1 ? 'série' : 'séries'}/dia · '
+                          '${f.homework!.daysTarget} '
+                          '${f.homework!.daysTarget == 1 ? 'dia' : 'dias'} na semana',
+                          style: ProfessorLinksStyle.mono(
+                            10,
+                            color: ProfessorLinksStyle.dim(colors),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -637,6 +648,8 @@ class _HomeworkSheet extends ConsumerStatefulWidget {
 class _HomeworkSheetState extends ConsumerState<_HomeworkSheet> {
   final _name = TextEditingController();
   final _detail = TextEditingController();
+  int _sets = kLessonHomeworkDefaultSets;
+  int _days = kLessonHomeworkDefaultDays;
 
   @override
   void dispose() {
@@ -667,6 +680,20 @@ class _HomeworkSheetState extends ConsumerState<_HomeworkSheet> {
           hint: 'Ex.: 3×10 sem bola',
           maxLength: 200,
         ),
+        _HomeworkDose(
+          label: 'Séries por dia',
+          keyPrefix: 'lesson-homework-sets',
+          options: const [1, 2, 3, 4, 5],
+          value: _sets,
+          onChanged: (v) => setState(() => _sets = v),
+        ),
+        _HomeworkDose(
+          label: 'Dias na semana',
+          keyPrefix: 'lesson-homework-days',
+          options: const [1, 2, 3, 4, 5, 6, 7],
+          value: _days,
+          onChanged: (v) => setState(() => _days = v),
+        ),
         ProfessorLinksPrimaryButton(
           key: const Key('lesson-homework-use'),
           label: 'Usar este exercício',
@@ -677,6 +704,8 @@ class _HomeworkSheetState extends ConsumerState<_HomeworkSheet> {
               LessonHomework(
                 name: _name.text.trim(),
                 detail: _detail.text.trim(),
+                sets: _sets,
+                daysTarget: _days,
               ),
             );
           },
@@ -691,6 +720,11 @@ class _HomeworkSheetState extends ConsumerState<_HomeworkSheet> {
               LessonHomework(
                 name: e.name,
                 detail: e.steps.isNotEmpty ? e.steps.first : e.detail,
+                sets: _sets,
+                daysTarget: _days,
+                category: e.category,
+                videoUrl:
+                    e.videoUrl.startsWith('https://') ? e.videoUrl : null,
               ),
             ),
             child: Row(
@@ -710,6 +744,47 @@ class _HomeworkSheetState extends ConsumerState<_HomeworkSheet> {
               ],
             ),
           ),
+      ],
+    );
+  }
+}
+
+/// "Séries por dia" / "Dias na semana" da tarefa (o aluno marca no app, T9).
+class _HomeworkDose extends StatelessWidget {
+  const _HomeworkDose({
+    required this.label,
+    required this.keyPrefix,
+    required this.options,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String keyPrefix;
+  final List<int> options;
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ProfessorLinksKicker(label),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final o in options)
+              AvailabilityChoiceChip(
+                key: Key('$keyPrefix-$o'),
+                label: '$o',
+                selected: o == value,
+                onTap: () => onChanged(o),
+              ),
+          ],
+        ),
       ],
     );
   }

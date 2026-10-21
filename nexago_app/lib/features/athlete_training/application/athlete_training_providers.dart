@@ -12,6 +12,8 @@ import '../../../core/location/user_location_providers.dart';
 import '../domain/athlete_training.dart';
 import '../domain/public_professor.dart';
 import '../infrastructure/public_professor_repository.dart';
+import '../domain/homework_progress.dart';
+import '../infrastructure/homework_progress_repository.dart';
 import '../domain/training_plans.dart';
 import '../infrastructure/training_plans_repository.dart';
 import '../domain/class_presence.dart';
@@ -151,6 +153,15 @@ final publicProfessorProvider = FutureProvider.autoDispose
         lat: origin?.lat,
         lng: origin?.lng,
       );
+});
+
+/// T9 · progresso do treino em casa da visão [viewId].
+final homeworkProgressProvider = StreamProvider.autoDispose
+    .family<HomeworkProgress, String>((ref, viewId) {
+  if (viewId.isEmpty || ref.watch(professorLinksUidProvider).isEmpty) {
+    return Stream.value(const HomeworkProgress());
+  }
+  return ref.watch(homeworkProgressRepositoryProvider).watch(viewId);
 });
 
 /// T14 · planos ativos (arena e professor) e últimos pagamentos. Erro chega

@@ -207,6 +207,11 @@ void main() {
               .firstWhere((e) => e.id == 'nexago-saque-zonas')
               .steps
               .first,
+          // Dose da tarefa (T9): padrão 3 séries × 3 dias; categoria da
+          // biblioteca.
+          'sets': 3,
+          'daysTarget': 3,
+          'category': 'saque',
         },
       });
       expect(fb[1], {

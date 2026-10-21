@@ -74,6 +74,11 @@ abstract final class AppRoutes {
   static const String professorNoticeForStudent =
       '/aviso-professor/:noticeId';
 
+  /// Ganhos do repasse (equipe da arena): saldo e saque por PIX.
+  static const String professorEarnings = '/professor/mais/ganhos';
+  static const String professorWithdraw = '/professor/mais/ganhos/sacar';
+  static const String professorPixKey = '/professor/mais/ganhos/chave-pix';
+  static const String professorWithdrawals = '/professor/mais/ganhos/saques';
   static const String professorPayoutAccount = '/professor/mais/conta';
   static const String professorWalletPlans = '/professor/mais/planos';
   static const String professorWallet = '/professor/mais/carteira';
@@ -771,6 +776,10 @@ abstract final class AppRouteNames {
   static const String professorNoticeReport = 'professorNoticeReport';
   static const String professorNoticeEdit = 'professorNoticeEdit';
   static const String professorNoticeForStudent = 'professorNoticeForStudent';
+  static const String professorEarnings = 'professorEarnings';
+  static const String professorWithdraw = 'professorWithdraw';
+  static const String professorPixKey = 'professorPixKey';
+  static const String professorWithdrawals = 'professorWithdrawals';
   static const String professorPayoutAccount = 'professorPayoutAccount';
   static const String professorWalletPlans = 'professorWalletPlans';
   static const String professorWallet = 'professorWallet';

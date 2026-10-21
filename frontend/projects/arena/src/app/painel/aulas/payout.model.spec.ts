@@ -1,6 +1,9 @@
 import {
   buildPayoutRows,
+  canPayViaNexago,
   classPayoutId,
+  isPaidViaNexago,
+  paidLabel,
   defaultPayoutMonth,
   isMonthKey,
   monthLastDay,
@@ -39,7 +42,7 @@ function closed(over: Partial<ClassPayout>): ClassPayout {
     ...preview({}),
     id: 'arena1_t1_2026-10', arenaId: 'arena1', month: '2026-10',
     computedReais: 800, adjustmentReais: 0, adjustmentNote: null, status: 'closed',
-    closedAt: null, paidOn: null, paymentMethod: null,
+    closedAt: null, paidOn: null, paymentMethod: null, teacherUserId: null,
     ...over,
   };
 }
@@ -140,5 +143,20 @@ describe('repasse do professor — helpers', () => {
     expect(novo!.lines[0]!.platformFeeReais).toBe(19.2);
     expect([antigo!.grossRevenueReais, antigo!.platformFeeReais, antigo!.revenueReais]).toEqual([160, 0, 160]);
     expect(antigo!.lines[0]!.grossRevenueReais).toBe(160);
+  });
+
+  it('pagar pelo nexaGO: só fechado, com conta do professor e valor; pago assim não desfaz', () => {
+    expect(canPayViaNexago(closed({ teacherUserId: 'u1' }))).toBeTrue();
+    expect(canPayViaNexago(closed({ teacherUserId: null }))).toBeFalse();
+    expect(canPayViaNexago(closed({ teacherUserId: 'u1', amountReais: 0 }))).toBeFalse();
+    expect(canPayViaNexago(closed({ teacherUserId: 'u1', status: 'paid' }))).toBeFalse();
+    expect(canPayViaNexago(null)).toBeFalse();
+
+    const viaNexago = closed({ status: 'paid', paymentMethod: 'nexago', paidOn: '2026-11-03', teacherUserId: 'u1' });
+    const manual = closed({ status: 'paid', paymentMethod: 'pix', paidOn: '2026-11-03' });
+    expect(isPaidViaNexago(viaNexago)).toBeTrue();
+    expect(isPaidViaNexago(manual)).toBeFalse();
+    expect(paidLabel(viaNexago, (k) => k.slice(8))).toBe('Pago pelo nexaGO');
+    expect(paidLabel(manual, (k) => k.slice(8))).toBe('Pago 03');
   });
 });

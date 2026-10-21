@@ -206,6 +206,15 @@ export {getMyProfessorStudents} from "./professor-students";
 export {onProfessorLessonCreated} from "./professor-lessons";
 // Agenda do professor em outros apps (feed .ics com token).
 export {configureProfessorCalendarFeed, professorCalendarFeed} from "./professor-calendar";
+// Ganhos do professor de equipe: repasse pago pelo nexaGO + saque PIX.
+export {
+  getMyPendingClassPayouts,
+  listPendingProfessorWithdrawals,
+  payArenaClassPayoutViaNexago,
+  requestProfessorWithdrawal,
+  reviewProfessorWithdrawal,
+  setProfessorPayoutPixKey,
+} from "./professor-earnings";
 // Comunicados do professor para os alunos (aviso, enquete, cancelamento, financeiro).
 export {
   deleteProfessorNotice,

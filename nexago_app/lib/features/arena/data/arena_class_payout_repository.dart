@@ -145,6 +145,16 @@ class ArenaClassPayoutRepository {
     });
   }
 
+  /// Paga pelo nexaGO: sai do saldo disponível do caixa da arena e entra no
+  /// saldo de ganhos do professor (`payArenaClassPayoutViaNexago`). Não tem
+  /// volta. Devolve o valor pago.
+  Future<double> payPayoutViaNexago(String payoutId) async {
+    final map = await _call('payArenaClassPayoutViaNexago', {
+      'payoutId': payoutId,
+    });
+    return (map['amountReais'] as num?)?.toDouble() ?? 0;
+  }
+
   /// Desfaz o pagamento registrado por engano (volta para "a pagar").
   Future<void> undoPayoutPayment(String payoutId) async {
     await _call('setArenaClassPayoutStatus', {

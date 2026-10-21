@@ -29,7 +29,15 @@ interface KindTab {
 const TABS: KindTab[] = [
   { kind: 'organizer', label: 'Organizadores' },
   { kind: 'arena', label: 'Arenas' },
+  { kind: 'professor', label: 'Professores' },
 ];
+
+/** Coleção de cada fila — aparece como "kicker" do card. */
+const KIND_COLLECTION: Record<WithdrawalKind, string> = {
+  organizer: 'organizerWithdrawals',
+  arena: 'arenaWithdrawals',
+  professor: 'professorWithdrawals',
+};
 
 type LoadState =
   | { kind: 'loading' }
@@ -79,7 +87,7 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
   minute: '2-digit',
 });
 
-/** Fila de saques pendentes (organizadores e arenas) com revisão pelo admin da plataforma. */
+/** Fila de saques pendentes (organizadores, arenas e professores) com revisão pelo admin da plataforma. */
 @Component({
   selector: 'bo-panel-financeiro',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -147,7 +155,7 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
 
           <bo-panel-card
             pad="sm"
-            [kicker]="activeKind() === 'organizer' ? 'organizerWithdrawals' : 'arenaWithdrawals'"
+            [kicker]="kindCollection[activeKind()]"
             title="Saques aguardando revisão"
           >
             @switch (state().kind) {
@@ -515,6 +523,7 @@ export class PanelFinanceiroComponent {
 
   protected readonly tabs = TABS;
   protected readonly copy = DECISION_COPY;
+  protected readonly kindCollection = KIND_COLLECTION;
 
   protected readonly page = signal<PageTab>('overview');
   protected readonly activeKind = signal<WithdrawalKind>('organizer');

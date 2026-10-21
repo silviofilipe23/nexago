@@ -49,6 +49,8 @@ class ArenaLedgerEntry {
     required this.createdAt,
     this.type = 'credit',
     this.source = ArenaLedgerSource.booking,
+    this.teacherName,
+    this.month,
   });
 
   final String id;
@@ -57,11 +59,18 @@ class ArenaLedgerEntry {
   final String? bookingId;
   final DateTime? createdAt;
 
-  /// `credit` ou `refund` (estorno debita o líquido: valores negativos).
+  /// `credit`, `refund` (estorno debita o líquido: valores negativos) ou
+  /// `class_payout` (repasse pago pelo nexaGO — saída, não estorno).
   final String type;
   final ArenaLedgerSource source;
 
-  bool get isRefund => type == 'refund' || netReais < 0;
+  /// Repasse: professor e mês (`YYYY-MM`).
+  final String? teacherName;
+  final String? month;
+
+  bool get isClassPayout => type == 'class_payout';
+
+  bool get isRefund => !isClassPayout && (type == 'refund' || netReais < 0);
 
   factory ArenaLedgerEntry.fromDoc(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     return ArenaLedgerEntry.fromMap(doc.id, doc.data());
@@ -76,6 +85,8 @@ class ArenaLedgerEntry {
       grossReais: (d['grossReais'] as num?)?.toDouble() ?? 0,
       bookingId: d['bookingId'] as String?,
       createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
+      teacherName: d['teacherName'] as String?,
+      month: d['month'] as String?,
     );
   }
 }

@@ -3,7 +3,14 @@ import { httpsCallable } from 'firebase/functions';
 import { backofficeFunctions } from '../../data/firebase';
 
 /** Origem do saque — cada uma tem seu par de callables, com o mesmo contrato. */
-export type WithdrawalKind = 'organizer' | 'arena';
+export type WithdrawalKind = 'organizer' | 'arena' | 'professor';
+
+/** Rótulo curto da origem do saque (aba da fila e textos). */
+export const WITHDRAWAL_KIND_LABEL: Record<WithdrawalKind, string> = {
+  organizer: 'Organizador',
+  arena: 'Arena',
+  professor: 'Professor',
+};
 
 /** Decisões aceitas por `review*Withdrawal`. */
 export type WithdrawalDecision = 'approved' | 'approved_manual' | 'rejected';
@@ -42,7 +49,7 @@ interface ListResponse {
   items?: unknown;
 }
 
-const CALLABLES: Record<WithdrawalKind, { list: string; review: string }> = {
+export const CALLABLES: Record<WithdrawalKind, { list: string; review: string }> = {
   organizer: {
     list: 'listPendingOrganizerWithdrawals',
     review: 'reviewOrganizerWithdrawal',
@@ -51,6 +58,19 @@ const CALLABLES: Record<WithdrawalKind, { list: string; review: string }> = {
     list: 'listPendingArenaWithdrawals',
     review: 'reviewArenaWithdrawal',
   },
+  // Ganhos do repasse de aulas (`functions/src/professor-earnings.ts`): mesma semântica do
+  // organizador — recusar devolve o valor para a carteira do professor.
+  professor: {
+    list: 'listPendingProfessorWithdrawals',
+    review: 'reviewProfessorWithdrawal',
+  },
+};
+
+/** Campos de nome/id de quem pediu, por origem — cada callable devolve os seus. */
+const REQUESTER_FIELDS: Record<WithdrawalKind, { name: string; id: string }> = {
+  organizer: { name: 'organizerName', id: 'organizerId' },
+  arena: { name: 'arenaName', id: 'arenaId' },
+  professor: { name: 'professorName', id: 'professorUid' },
 };
 
 function str(value: unknown): string {
@@ -61,7 +81,7 @@ function nullableStr(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
 
-function toWithdrawal(raw: unknown, kind: WithdrawalKind): PendingWithdrawal | null {
+export function toWithdrawal(raw: unknown, kind: WithdrawalKind): PendingWithdrawal | null {
   if (raw == null || typeof raw !== 'object') {
     return null;
   }
@@ -75,8 +95,8 @@ function toWithdrawal(raw: unknown, kind: WithdrawalKind): PendingWithdrawal | n
   return {
     id,
     kind,
-    requesterName: str(kind === 'arena' ? row['arenaName'] : row['organizerName']) || id,
-    requesterId: str(kind === 'arena' ? row['arenaId'] : row['organizerId']),
+    requesterName: str(row[REQUESTER_FIELDS[kind].name]) || id,
+    requesterId: str(row[REQUESTER_FIELDS[kind].id]),
     tournamentName: str(row['tournamentName']),
     requestedByName: str(row['requestedByName']),
     requestedByStaff: row['requestedByStaff'] === true,
@@ -201,6 +221,7 @@ export function withdrawalDecisionMessage(
  */
 @Injectable({ providedIn: 'root' })
 export class WithdrawalsRepository {
+
   async listPending(kind: WithdrawalKind): Promise<PendingWithdrawal[]> {
     const callable = httpsCallable<Record<string, unknown>, ListResponse>(
       backofficeFunctions(),

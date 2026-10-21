@@ -8,7 +8,11 @@ export { payoutModelFromRaw, type PayoutModelKind, type TeacherPayoutModel };
  *  (fase 2b). A conta do mês é do servidor (`previewArenaClassPayouts`); aqui só leitura,
  *  rótulos e a situação de cada professor no mês. Pagamento manual, fora da plataforma. */
 
+/** Formas que o gestor registra à mão (pagou por fora). */
 export type PayoutMethod = 'pix' | 'transfer' | 'cash';
+/** Como o repasse foi pago: à mão ou `nexago` (saiu do caixa da arena para a carteira do
+ *  professor via `payArenaClassPayoutViaNexago` — não dá para desfazer). */
+export type PaidPayoutMethod = PayoutMethod | 'nexago';
 
 export interface PayoutLine {
   key: string;
@@ -70,7 +74,9 @@ export interface ClassPayout extends TeacherPayoutFigures {
   status: 'closed' | 'paid';
   closedAt: Date | null;
   paidOn: string | null;
-  paymentMethod: PayoutMethod | null;
+  paymentMethod: PaidPayoutMethod | null;
+  /** Conta nexaGO do professor no fechamento; sem ela não dá para pagar pelo nexaGO. */
+  teacherUserId: string | null;
 }
 
 // ── Rótulos ─────────────────────────────────────────────────────────────────
@@ -85,11 +91,28 @@ export const PAYOUT_MODEL_LABEL: Record<PayoutModelKind, string> = {
 
 export const PAYOUT_METHODS: readonly PayoutMethod[] = ['pix', 'transfer', 'cash'];
 
-export const PAYOUT_METHOD_LABEL: Record<PayoutMethod, string> = {
+export const PAYOUT_METHOD_LABEL: Record<PaidPayoutMethod, string> = {
   pix: 'PIX',
   transfer: 'Transferência',
   cash: 'Dinheiro',
+  nexago: 'nexaGO',
 };
+
+/** Pago pelo nexaGO: o valor já está na carteira do professor — não tem "desfazer". */
+export function isPaidViaNexago(p: Pick<ClassPayout, 'status' | 'paymentMethod'> | null): boolean {
+  return p?.status === 'paid' && p.paymentMethod === 'nexago';
+}
+
+/** Fechado, a pagar e com conta nexaGO do professor: dá para pagar pelo caixa da arena. */
+export function canPayViaNexago(p: Pick<ClassPayout, 'status' | 'teacherUserId' | 'amountReais'> | null): boolean {
+  return p?.status === 'closed' && !!p.teacherUserId && p.amountReais > 0;
+}
+
+/** Rótulo do pago na lista/histórico: "Pago pelo nexaGO" ou "Pago 05/10". */
+export function paidLabel(p: Pick<ClassPayout, 'status' | 'paymentMethod' | 'paidOn'>, formatDay: (key: string) => string): string {
+  if (isPaidViaNexago(p)) return 'Pago pelo nexaGO';
+  return p.paidOn ? `Pago ${formatDay(p.paidOn)}` : 'Pago';
+}
 
 /** Padrão do cadastro: % da receita (50%, como no protótipo). */
 export const DEFAULT_PAYOUT_MODEL: TeacherPayoutModel = { model: 'revenue_share', percent: 50, amountReais: null };
@@ -365,6 +388,7 @@ export function classPayoutFromDoc(doc: QueryDocumentSnapshot | DocumentSnapshot
     status: d['status'] === 'paid' ? 'paid' : 'closed',
     closedAt: d['closedAt'] instanceof Timestamp ? d['closedAt'].toDate() : null,
     paidOn: typeof d['paidOn'] === 'string' ? d['paidOn'] : null,
-    paymentMethod: method === 'pix' || method === 'transfer' || method === 'cash' ? method : null,
+    paymentMethod: method === 'pix' || method === 'transfer' || method === 'cash' || method === 'nexago' ? method : null,
+    teacherUserId: typeof d['teacherUserId'] === 'string' && d['teacherUserId'] ? d['teacherUserId'] : null,
   };
 }

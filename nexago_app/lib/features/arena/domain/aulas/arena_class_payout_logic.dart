@@ -199,7 +199,10 @@ String arenaClassPayoutAmountSub(
 ) {
   if (closed != null && closed.isPaid) {
     return [
-      if (closed.paymentMethod != null) closed.paymentMethod!.label,
+      if (closed.paidViaNexago)
+        'Pago pelo nexaGO'
+      else if (closed.paymentMethod != null)
+        closed.paymentMethod!.label,
       if (closed.paidOn != null) arenaClassShortDate(closed.paidOn!),
     ].join(' · ');
   }

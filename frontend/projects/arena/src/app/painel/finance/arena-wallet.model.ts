@@ -18,12 +18,16 @@ export type ArenaLedgerSource = 'booking' | 'class' | 'club';
 
 export interface ArenaLedgerEntry {
   id: string;
-  /** `credit` ou `refund` (estorno debita o líquido: valores negativos). */
+  /** `credit`, `refund` (estorno debita o líquido: valores negativos) ou `class_payout`
+   *  (repasse de aulas pago ao professor pelo nexaGO — também negativo, mas não é estorno). */
   type: string;
   source: ArenaLedgerSource;
   netReais: number;
   grossReais: number;
   bookingId: string | null;
+  /** Só em `class_payout`: professor e mês (`YYYY-MM`) do repasse. */
+  teacherName: string | null;
+  month: string | null;
   createdAt: Date | null;
 }
 
@@ -82,6 +86,8 @@ export function ledgerEntryFromData(id: string, d: Record<string, unknown>): Are
     netReais: typeof d['netReais'] === 'number' ? d['netReais'] : 0,
     grossReais: typeof d['grossReais'] === 'number' ? d['grossReais'] : 0,
     bookingId: typeof d['bookingId'] === 'string' ? d['bookingId'] : null,
+    teacherName: typeof d['teacherName'] === 'string' && d['teacherName'] ? d['teacherName'] : null,
+    month: typeof d['month'] === 'string' && d['month'] ? d['month'] : null,
     createdAt: toDate(d['createdAt']),
   };
 }
@@ -262,9 +268,37 @@ const LEDGER_SOURCE_LABEL: Record<ArenaLedgerSource, string> = {
   club: 'Clubinho',
 };
 
+const MONTH_NAMES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+/** `2026-09` → "setembro/2026" (o mesmo jeito que a tela de repasse escreve o mês). */
+function payoutMonthLabel(month: string | null): string | null {
+  const m = /^(\d{4})-(\d{2})$/.exec(month ?? '');
+  const name = m ? MONTH_NAMES[Number(m[2]) - 1] : undefined;
+  return m && name ? `${name}/${m[1]}` : null;
+}
+
+export function isClassPayoutEntry(entry: Pick<ArenaLedgerEntry, 'type'>): boolean {
+  return entry.type === 'class_payout';
+}
+
 /** Linha do extrato: origem no título e, quando houve taxa, o bruto e quanto ficou nela (o
- *  valor da linha é sempre o líquido que entrou no saldo). Estorno sai como débito. */
+ *  valor da linha é sempre o líquido que entrou no saldo). Estorno sai como débito; repasse de
+ *  aulas pago pelo nexaGO sai como saída paga ("Repasse · professor · mês"), não como estorno. */
 export function ledgerMovement(entry: ArenaLedgerEntry, arenaLabel: string): FinancialMovement {
+  if (isClassPayoutEntry(entry)) {
+    const title = ['Repasse', entry.teacherName ?? 'Professor', payoutMonthLabel(entry.month)].filter(Boolean).join(' · ');
+    return {
+      id: `ledger-${entry.id}`,
+      kind: 'withdrawal',
+      title,
+      at: entry.createdAt,
+      amountReais: Math.abs(entry.netReais),
+      note: 'Pago pelo nexaGO',
+      statusLabel: 'PAGO',
+      isPositive: false,
+      isFailed: false,
+    };
+  }
   const refund = entry.type === 'refund' || entry.netReais < 0;
   const base = entry.source === 'booking' ? `Reserva · ${arenaLabel}` : LEDGER_SOURCE_LABEL[entry.source];
   const fees = Math.round((entry.grossReais - entry.netReais) * 100) / 100;
@@ -324,7 +358,10 @@ export function computeFinancialPeriodStats(ledger: readonly ArenaLedgerEntry[],
   let received = 0;
   let withdrawn = 0;
   for (const entry of ledger) {
-    if (isWithinPeriod(entry.createdAt, period)) received += entry.netReais;
+    if (!isWithinPeriod(entry.createdAt, period)) continue;
+    // Repasse ao professor é saída do caixa, não "recebimento" negativo.
+    if (isClassPayoutEntry(entry)) withdrawn += Math.abs(entry.netReais);
+    else received += entry.netReais;
   }
   for (const w of withdrawals) {
     if (!isWithinPeriod(w.createdAt, period) || withdrawalIsFailed(w)) continue;

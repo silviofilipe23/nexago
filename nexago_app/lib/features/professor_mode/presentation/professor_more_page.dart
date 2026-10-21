@@ -16,6 +16,7 @@ import '../../auth/presentation/role_selection_page.dart';
 import '../../professor_links/application/professor_links_providers.dart';
 import '../../professor_links/domain/professor_link_rules.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
+import '../application/professor_earnings_providers.dart';
 import '../application/professor_students_providers.dart';
 import '../application/professor_wallet_providers.dart';
 import '../domain/professor_wallet.dart';
@@ -195,7 +196,8 @@ class ProfessorMorePage extends ConsumerWidget {
                 ],
               ),
             ],
-            if (ref.watch(professorWalletVisibleProvider)) ...[
+            if (ref.watch(professorWalletVisibleProvider) ||
+                ref.watch(professorEarningsVisibleProvider)) ...[
               const SizedBox(height: 22),
               const _MoneyGroup(),
             ],
@@ -244,12 +246,17 @@ class ProfessorMorePage extends ConsumerWidget {
   }
 }
 
-/// Mais › Dinheiro (fase 3): conta Asaas, planos e a carteira própria.
+/// Mais › Dinheiro: Ganhos do repasse (equipe da arena, fase 6) e, só para
+/// o independente, conta Asaas, planos e a carteira própria (fase 3).
 class _MoneyGroup extends ConsumerWidget {
   const _MoneyGroup();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final earnings = ref.watch(professorEarningsVisibleProvider);
+    final wallet = ref.watch(professorWalletVisibleProvider);
+    final available =
+        ref.watch(professorEarningsWalletProvider).valueOrNull?.availableReais;
     final accountAsync = ref.watch(professorPayoutAccountProvider);
     final account = accountAsync.valueOrNull;
     final plans = ref.watch(professorWalletPlansProvider).valueOrNull;
@@ -270,6 +277,18 @@ class _MoneyGroup extends ConsumerWidget {
     return _Group(
       title: 'Dinheiro',
       rows: [
+        if (earnings)
+          _MenuRow(
+            key: const Key('professor-more-earnings'),
+            icon: Icons.savings_outlined,
+            title: 'Ganhos',
+            trailing: available == null || available <= 0
+                ? null
+                : '${formatBRL(available)} para sacar',
+            trailingColor: AppColors.win,
+            onTap: () => context.pushNamed(AppRouteNames.professorEarnings),
+          ),
+        if (wallet) ...[
         _MenuRow(
           key: const Key('professor-more-payout'),
           icon: Icons.account_balance_outlined,
@@ -303,6 +322,7 @@ class _MoneyGroup extends ConsumerWidget {
               (summary?.overdue.isNotEmpty ?? false) ? AppColors.live : null,
           onTap: () => context.pushNamed(AppRouteNames.professorWallet),
         ),
+        ],
       ],
     );
   }

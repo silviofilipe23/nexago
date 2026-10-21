@@ -8,9 +8,11 @@ import {FieldValue, type DocumentReference, type Firestore} from "firebase-admin
 import {arenaWalletRef} from "./arena-wallet";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import {organizerWalletRef} from "./organizer-wallet";
+import {professorEarningsWalletRef} from "./professor-earnings-wallet";
 import {tournamentWalletRef} from "./tournament-wallet";
 
-export type WithdrawalKind = "arena" | "organizer";
+/** `professor`: saque dos ganhos de repasse (`professorEarningsWallets`). */
+export type WithdrawalKind = "arena" | "organizer" | "professor";
 
 /** De qual caixa o saque de organizador sai. */
 export type WithdrawalWalletTarget =
@@ -38,6 +40,11 @@ export function withdrawalWalletRef(
   kind: WithdrawalKind,
   withdrawal: Record<string, unknown>,
 ): DocumentReference {
+  if (kind === "professor") {
+    const professorUid = (withdrawal.professorUid as string | undefined)?.trim() ?? "";
+    if (!professorUid) throw new Error("WITHDRAWAL_DATA_INVALID");
+    return professorEarningsWalletRef(db, professorUid);
+  }
   if (kind === "arena") {
     const arenaId = (withdrawal.arenaId as string | undefined)?.trim() ?? "";
     if (!arenaId) throw new Error("WITHDRAWAL_DATA_INVALID");

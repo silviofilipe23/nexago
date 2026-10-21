@@ -411,13 +411,25 @@ class _ArenaClassTeacherPayoutPageState
             ),
           ],
         ),
-      ArenaClassPayoutState.paid => ArenaClassGhostButton(
-          label: 'Desfazer pagamento',
-          icon: Icons.undo_rounded,
-          height: 46,
-          busy: _busy,
-          onPressed: () => _undo(closed!),
-        ),
+      // Pago pelo nexaGO já está no saldo do professor: não tem volta.
+      ArenaClassPayoutState.paid => closed?.paidViaNexago ?? false
+          ? Text(
+              'Pago pelo nexaGO: o valor saiu do caixa e entrou no saldo do '
+              'professor. Não dá para desfazer.',
+              key: const Key('arena-payout-paid-nexago'),
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.45,
+                color: context.themeColors.onSurfaceMuted,
+              ),
+            )
+          : ArenaClassGhostButton(
+              label: 'Desfazer pagamento',
+              icon: Icons.undo_rounded,
+              height: 46,
+              busy: _busy,
+              onPressed: () => _undo(closed!),
+            ),
       ArenaClassPayoutState.partial => null,
     };
     return row == null ? const [] : [const SizedBox(height: 12), row];

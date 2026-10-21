@@ -83,6 +83,7 @@ ArenaFinancialMovement ledgerMovement(
   ArenaLedgerEntry entry,
   String arenaLabel,
 ) {
+  if (entry.isClassPayout) return _classPayoutMovement(entry);
   final refund = entry.isRefund;
   final sourceLabel = _ledgerSourceLabel[entry.source]!;
   final fees = ((entry.grossReais - entry.netReais) * 100).round() / 100;
@@ -105,6 +106,48 @@ ArenaFinancialMovement ledgerMovement(
         : null,
     statusLabel: refund ? 'ESTORNADO' : 'RECEBIDO',
     isPositive: !refund,
+    isFailed: false,
+  );
+}
+
+const _monthShort = [
+  'jan',
+  'fev',
+  'mar',
+  'abr',
+  'mai',
+  'jun',
+  'jul',
+  'ago',
+  'set',
+  'out',
+  'nov',
+  'dez',
+];
+
+/// "out/2026" de `YYYY-MM`.
+String _monthLabel(String? month) {
+  final m = month == null || month.length < 7
+      ? null
+      : int.tryParse(month.substring(5, 7));
+  if (m == null || m < 1 || m > 12) return month ?? '';
+  return '${_monthShort[m - 1]}/${month!.substring(0, 4)}';
+}
+
+/// Repasse do professor pago pelo nexaGO: saída do caixa (não estorno).
+ArenaFinancialMovement _classPayoutMovement(ArenaLedgerEntry entry) {
+  final teacher = (entry.teacherName?.trim().isNotEmpty ?? false)
+      ? entry.teacherName!.trim()
+      : 'Professor';
+  final month = _monthLabel(entry.month);
+  return ArenaFinancialMovement(
+    id: 'ledger-${entry.id}',
+    kind: ArenaFinancialMovementKind.withdrawal,
+    title: ['Repasse', teacher, if (month.isNotEmpty) month].join(' · '),
+    at: entry.createdAt,
+    amountReais: entry.netReais.abs(),
+    statusLabel: 'PAGO',
+    isPositive: false,
     isFailed: false,
   );
 }
@@ -226,6 +269,8 @@ ArenaFinancialPeriodStats computeFinancialPeriodStats({
 
   // Estorno grava `netReais` negativo: o "Recebido" já sai descontado.
   for (final entry in ledger) {
+    // Repasse pago pelo nexaGO é saída do caixa, não recebimento.
+    if (entry.isClassPayout) continue;
     if (_isWithinPeriod(entry.createdAt, period, now: now)) {
       received += entry.netReais;
     }

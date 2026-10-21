@@ -98,3 +98,12 @@ export function setPayoutStatus(
 ): Promise<{ payoutId: string; status: string }> {
   return call(functions, 'setArenaClassPayoutStatus', { payoutId, status, paymentMethod, paidOn });
 }
+
+/** Paga o repasse fechado pelo nexaGO: sai do saldo disponível do caixa da arena e entra na
+ *  carteira do professor (`functions/src/professor-earnings.ts`). Não tem desfazer. */
+export function payPayoutViaNexago(
+  functions: Functions,
+  payoutId: string,
+): Promise<{ payoutId: string; status: 'paid'; paymentMethod: 'nexago'; amountReais: number }> {
+  return call(functions, 'payArenaClassPayoutViaNexago', { payoutId });
+}

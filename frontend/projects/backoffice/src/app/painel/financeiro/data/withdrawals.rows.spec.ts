@@ -1,4 +1,7 @@
 import {
+  CALLABLES,
+  toWithdrawal,
+  WITHDRAWAL_KIND_LABEL,
   withdrawalDecisionMessage,
   withdrawalEventName,
   withdrawalQueueSubtitle,
@@ -167,6 +170,38 @@ describe('withdrawalDecisionMessage', () => {
   it('saque de arena aprovado mantém a frase original, sem evento nem gestor', () => {
     expect(withdrawalDecisionMessage(arenaRow, 'approved', 'R$ 600,00')).toBe(
       'PIX de R$ 600,00 enviado para Arena Central.',
+    );
+  });
+});
+
+describe('saque de professor', () => {
+  it('usa as callables próprias e o rótulo "Professor"', () => {
+    expect(CALLABLES.professor).toEqual({
+      list: 'listPendingProfessorWithdrawals',
+      review: 'reviewProfessorWithdrawal',
+    });
+    expect(WITHDRAWAL_KIND_LABEL.professor).toBe('Professor');
+  });
+
+  it('lê nome e uid do professor da resposta da callable', () => {
+    const row = toWithdrawal({
+      id: 'w1', professorUid: 'u1', professorName: 'Ana Lima', amountReais: 450, pixKey: 'ana@x.com',
+      status: 'pending', payoutStatus: null, payoutError: null, asaasTransferId: null, createdAt: '2026-10-20T12:00:00.000Z',
+    }, 'professor');
+    expect(row).not.toBeNull();
+    expect(row!.kind).toBe('professor');
+    expect(row!.requesterName).toBe('Ana Lima');
+    expect(row!.requesterId).toBe('u1');
+    expect(row!.amountReais).toBe(450);
+    expect(row!.createdAt?.toISOString()).toBe('2026-10-20T12:00:00.000Z');
+  });
+
+  it('sem nome cai no id; recusar fala da carteira, sem evento', () => {
+    const row = toWithdrawal({ id: 'w2', professorUid: 'u2', amountReais: 10 }, 'professor')!;
+    expect(row.requesterName).toBe('w2');
+    expect(withdrawalQueueSubtitle(row)).toBe('w2');
+    expect(withdrawalDecisionMessage({ ...row, requesterName: 'Ana' }, 'rejected', 'R$ 10,00')).toBe(
+      'Saque de R$ 10,00 de Ana recusado — o valor voltou para a carteira.',
     );
   });
 });

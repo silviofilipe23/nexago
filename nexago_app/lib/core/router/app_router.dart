@@ -186,6 +186,9 @@ import '../../features/professor_mode/presentation/professor_more_page.dart';
 import '../../features/professor_mode/presentation/professor_shell_page.dart';
 import '../../features/professor_mode/presentation/professor_student_page.dart';
 import '../../features/professor_mode/presentation/professor_students_page.dart';
+import '../../features/professor_mode/presentation/earnings/professor_earnings_page.dart';
+import '../../features/professor_mode/presentation/earnings/professor_withdraw_page.dart';
+import '../../features/professor_mode/presentation/earnings/professor_withdrawals_page.dart';
 import '../../features/professor_mode/presentation/notices/professor_notice_editor_page.dart';
 import '../../features/professor_mode/presentation/notices/professor_notice_report_page.dart';
 import '../../features/professor_mode/presentation/notices/professor_notice_student_page.dart';
@@ -546,6 +549,32 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                             ),
                           ),
                         ],
+                      ),
+                    ],
+                  ),
+                  // Fase 6: ganhos do repasse (equipe) e saque por PIX.
+                  GoRoute(
+                    path: 'ganhos',
+                    name: AppRouteNames.professorEarnings,
+                    builder: (context, state) => const ProfessorEarningsPage(),
+                    routes: [
+                      GoRoute(
+                        path: 'sacar',
+                        name: AppRouteNames.professorWithdraw,
+                        builder: (context, state) =>
+                            const ProfessorWithdrawPage(),
+                      ),
+                      GoRoute(
+                        path: 'chave-pix',
+                        name: AppRouteNames.professorPixKey,
+                        builder: (context, state) =>
+                            const ProfessorPixKeyPage(),
+                      ),
+                      GoRoute(
+                        path: 'saques',
+                        name: AppRouteNames.professorWithdrawals,
+                        builder: (context, state) =>
+                            const ProfessorWithdrawalsPage(),
                       ),
                     ],
                   ),

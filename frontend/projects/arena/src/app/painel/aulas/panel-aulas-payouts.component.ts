@@ -21,6 +21,7 @@ import {
   monthLongLabel,
   monthShortLabel,
   payoutBaseLabel,
+  paidLabel,
   payoutModelLabel,
   payoutTotals,
   shiftMonth,
@@ -235,7 +236,7 @@ export class PanelAulasPayoutsComponent {
   }
 
   protected stateText(r: PayoutRow): string {
-    if (r.state === 'paid' && r.closed?.paidOn) return `Pago ${shortDate(r.closed.paidOn)}`;
+    if (r.state === 'paid' && r.closed) return paidLabel(r.closed, shortDate);
     return PAYOUT_STATE_LABEL[r.state];
   }
 }

@@ -34,6 +34,11 @@ const classStoryTagNotificationType = 'class_story_tag';
 /// Avaliação do professor enviada ao aluno.
 const professorEvaluationNotificationType = 'professor_evaluation';
 
+/// Particular pedida/confirmada/recusada/cancelada (fase 10). O `url` já
+/// vem do lado certo: `/professor/mais/disponibilidade` para o professor,
+/// `/particulares` para o aluno.
+const professorPrivateLessonNotificationType = 'professor_private_lesson';
+
 /// Mensagem nova numa conversa professor ↔ aluno (ou no canal professor ↔
 /// gestão da arena).
 const conversationMessageNotificationType = 'conversation_message';
@@ -249,6 +254,13 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
         ? AppRoutes.athleteEvaluations
         : AppRoutes.athleteEvaluation
             .replaceAll(':evaluationId', Uri.encodeComponent(id));
+  }
+
+  // Particular: `url` decide o lado (professor ou aluno); sem ele, as
+  // particulares do aluno. Caso próprio, antes de qualquer ramo genérico.
+  if (type == professorPrivateLessonNotificationType) {
+    return appRouteForNotificationUrl(data['url'] as String?) ??
+        AppRoutes.athletePrivateLessons;
   }
 
   // Mensagem: `url` já vem do lado certo (`/professor/mensagens/{id}`,

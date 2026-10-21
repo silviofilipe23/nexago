@@ -19,9 +19,13 @@ class ClassStoryCard extends StatelessWidget {
     required this.theme,
     required this.infos,
     this.photo,
+    this.headline = 'Treino\npago.',
   });
 
   final ClassStoryData data;
+
+  /// A frase grande (duas linhas) — ver [kClassStoryHeadlines].
+  final String headline;
   final BookingStoryTheme theme;
   final Set<ClassStoryInfo> infos;
   final Uint8List? photo;
@@ -48,14 +52,19 @@ class ClassStoryCard extends StatelessWidget {
           color: accent,
         ),
       ),
-      Text(
-        'Treino\npago.',
-        style: AppTypography.soraRegular(
-          fontSize: 54,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -2.16,
-          height: 0.92,
-          color: ink,
+      // Encolhe em vez de quebrar se uma frase nova passar da largura.
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(
+          headline,
+          style: AppTypography.soraRegular(
+            fontSize: 54,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -2.16,
+            height: 0.92,
+            color: ink,
+          ),
         ),
       ),
       if (infos.contains(ClassStoryInfo.numbers) && data.stats.isNotEmpty)

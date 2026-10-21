@@ -524,6 +524,22 @@ class _StudentNewMessageSheet extends ConsumerWidget {
                   professorMode: false,
                 );
               },
+              // Fase 10: agendar particular com o professor.
+              trailing: IconButton(
+                key: Key('new-message-book-${p.professorUid}'),
+                tooltip: 'Agendar particular',
+                icon: const Icon(Icons.event_available_outlined, size: 20),
+                color: AppColors.brandHover,
+                onPressed: () {
+                  final outer = Navigator.of(context).context;
+                  Navigator.of(context).pop();
+                  outer.pushNamed(
+                    AppRouteNames.athletePrivateLessonBook,
+                    pathParameters: {'professorUid': p.professorUid},
+                    extra: p.name,
+                  );
+                },
+              ),
             ),
       ],
     );
@@ -540,10 +556,14 @@ class _PickRow extends StatelessWidget {
     this.group = false,
     this.arena = false,
     this.avatarName,
+    this.trailing,
   });
 
   final String name;
   final String sub;
+
+  /// Ação à direita (agendar particular).
+  final Widget? trailing;
   final String? photoUrl;
   final bool group;
   final bool arena;
@@ -591,6 +611,7 @@ class _PickRow extends StatelessWidget {
                 ],
               ),
             ),
+            if (trailing != null) trailing!,
           ],
         ),
       ),

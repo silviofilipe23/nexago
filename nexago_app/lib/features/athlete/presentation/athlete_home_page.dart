@@ -31,6 +31,7 @@ import '../../tournaments/presentation/widgets/my_tournaments_home_section.dart'
 import '../../tournaments/presentation/widgets/pending_tournament_invitee_invites_section.dart';
 import '../../tournaments/presentation/widgets/pending_tournament_inviter_invites_section.dart';
 import '../../tournaments/presentation/widgets/pending_tournament_reviews_section.dart';
+import '../../athlete_training/presentation/widgets/athlete_training_home_entry.dart';
 import '../../messages/application/messages_providers.dart';
 import '../domain/athlete_booking_helpers.dart';
 import '../domain/athlete_display_name.dart';
@@ -66,7 +67,8 @@ import 'widgets/athlete_home/athlete_home_shortcuts_grid.dart';
 
 /// Aba Início do atleta — convites de dupla recebidos aparecem primeiro,
 /// logo após o header (pedido do dono, 27/08); em seguida convites enviados
-/// por mim (aguardando parceiro). Depois o mesmo padrão de layout do painel
+/// por mim (aguardando parceiro) e o próximo treino com professor. Depois o
+/// mesmo padrão de layout do painel
 /// do portal web no mobile: meus torneios (quando ativa, em destaque no
 /// topo) → Modo Focus (no dia do evento) → KPIs → acompanhamento de
 /// inscrição → competições → próxima reserva → evolução → comunidade →
@@ -281,6 +283,10 @@ class AthleteHomePage extends ConsumerWidget {
                           );
                         },
                       ),
+                      // Próximo treino com o professor (aula da turma ou
+                      // particular): hora marcada, como os convites acima.
+                      // Some para quem não treina com professor.
+                      const AthleteTrainingHomeEntry(),
                       const Padding(
                         padding: EdgeInsets.symmetric(
                           horizontal: AppSpacing.screenH,

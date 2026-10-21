@@ -203,6 +203,11 @@ import '../../features/professor_mode/presentation/professor_shell_page.dart';
 import '../../features/professor_mode/presentation/professor_student_page.dart';
 import '../../features/professor_mode/presentation/professor_students_page.dart';
 import '../../features/professor_mode/presentation/earnings/professor_earnings_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_classes_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_evolution_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_feedbacks_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_hub_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_professors_page.dart';
 import '../../features/professor_mode/presentation/evaluations/athlete_evaluations_pages.dart';
 import '../../features/professor_mode/presentation/evaluations/professor_evaluations_page.dart';
 import '../../features/professor_mode/presentation/availability/athlete_private_lessons_pages.dart';
@@ -3070,6 +3075,34 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => AthleteEvaluationPage(
           evaluationId: state.pathParameters['evaluationId']?.trim() ?? '',
         ),
+      ),
+      // Treinos do atleta: hub (entrada pela Início) e as telas dele.
+      GoRoute(
+        path: AppRoutes.athleteTrainings,
+        name: AppRouteNames.athleteTrainings,
+        builder: (context, state) => const AthleteTrainingHubPage(),
+        routes: [
+          GoRoute(
+            path: 'aulas',
+            name: AppRouteNames.athleteTrainingClasses,
+            builder: (context, state) => const AthleteTrainingClassesPage(),
+          ),
+          GoRoute(
+            path: 'feedbacks',
+            name: AppRouteNames.athleteTrainingFeedbacks,
+            builder: (context, state) => const AthleteTrainingFeedbacksPage(),
+          ),
+          GoRoute(
+            path: 'evolucao',
+            name: AppRouteNames.athleteTrainingEvolution,
+            builder: (context, state) => const AthleteTrainingEvolutionPage(),
+          ),
+          GoRoute(
+            path: 'professores',
+            name: AppRouteNames.athleteTrainingProfessors,
+            builder: (context, state) => const AthleteTrainingProfessorsPage(),
+          ),
+        ],
       ),
       // Plano da aula publicado pelo professor (push `lesson_plan_published`).
       GoRoute(

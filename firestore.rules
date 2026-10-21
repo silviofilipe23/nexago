@@ -2269,6 +2269,33 @@ service cloud.firestore {
         (request.auth.uid == uid || request.auth.uid in resource.data.studentIds);
       allow write: if false;
     }
+    // Plano de aula (H1–H5): o completo só o professor lê; o aluno lê só a visão DELE (gerada pela
+    // callable saveLessonPlan, sem nota privada nem foco de outro aluno). Só functions gravam.
+    match /lessonPlans/{planId} {
+      allow read: if request.auth != null && resource.data.professorUid == request.auth.uid;
+      allow write: if false;
+    }
+    match /lessonPlanViews/{viewId} {
+      allow read: if request.auth != null &&
+        (resource.data.athleteId == request.auth.uid || resource.data.professorUid == request.auth.uid);
+      allow write: if false;
+    }
+    // Modelos de aula e exercícios do professor (H1/H3/H4): privados do dono.
+    match /professors/{uid}/lessonTemplates/{templateId} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly(['name', 'level', 'objective', 'tags', 'blocks', 'uses', 'createdAt', 'updatedAt']) &&
+        request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 60 &&
+        request.resource.data.blocks is list && request.resource.data.blocks.size() <= 20;
+    }
+    match /professors/{uid}/exercises/{exerciseId} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly(['name', 'category', 'minutes', 'players', 'level', 'equipment', 'steps', 'easier', 'harder', 'attention', 'videoUrl', 'uses', 'createdAt', 'updatedAt']) &&
+        request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80 &&
+        request.resource.data.minutes is int && request.resource.data.minutes >= 1 && request.resource.data.minutes <= 120 &&
+        request.resource.data.steps is list && request.resource.data.steps.size() <= 12;
+    }
     // Aula da carteira (reserva como professor ligada a um aluno): professor e aluno leem.
     match /professorLessons/{bookingId} {
       allow read: if request.auth != null && (

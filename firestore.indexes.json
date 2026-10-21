@@ -1910,6 +1910,34 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "lessonPlans",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "professorUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "lessonPlanViews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "athleteId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [

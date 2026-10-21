@@ -208,6 +208,8 @@ export {
   bookArenaClassMakeup,
   joinArenaClassMakeupWaitlist,
 } from "./arena-class-athlete-actions";
+// T11/T13 · Perfil público do professor, busca de professores e "Pedir contato".
+export {searchProfessors, getProfessorPublicProfile, requestProfessorContact} from "./professor-public-profile";
 // T9 · Treino em casa: o aluno marca as séries da tarefa do professor.
 export {saveHomeworkProgress} from "./homework-progress";
 // T14 · Planos e pagamentos do aluno (matrícula da arena + carteira do professor).

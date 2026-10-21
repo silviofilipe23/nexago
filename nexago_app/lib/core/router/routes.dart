@@ -138,6 +138,9 @@ abstract final class AppRoutes {
   static const String athleteTrainingFeedbacks = '/treinos/feedbacks';
   static const String athleteTrainingEvolution = '/treinos/evolucao';
   static const String athleteTrainingProfessors = '/treinos/professores';
+  static const String athleteTrainingFindProfessor = '/treinos/encontrar';
+  static const String athleteTrainingProfessorProfile =
+      '/treinos/professor/:professorUid';
   static const String athleteTrainingHomework = '/treinos/tarefa/:viewId';
   static const String athleteTrainingPlans = '/treinos/planos';
 
@@ -893,6 +896,10 @@ abstract final class AppRouteNames {
   static const String athleteTrainingFeedbacks = 'athleteTrainingFeedbacks';
   static const String athleteTrainingEvolution = 'athleteTrainingEvolution';
   static const String athleteTrainingProfessors = 'athleteTrainingProfessors';
+  static const String athleteTrainingFindProfessor =
+      'athleteTrainingFindProfessor';
+  static const String athleteTrainingProfessorProfile =
+      'athleteTrainingProfessorProfile';
   static const String athleteTrainingHomework = 'athleteTrainingHomework';
   static const String athleteTrainingPlans = 'athleteTrainingPlans';
   static const String athleteTrainingMakeup = 'athleteTrainingMakeup';

@@ -2,8 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/notifications/notification_navigation.dart'
-    show athleteAgendaTabLocation;
+import '../domain/training_plans.dart';
+
+import '../../../core/theme/app_typography.dart';
+
+import '../../../core/theme/app_theme_colors.dart';
+
+import '../../../core/formatting/app_currency_format.dart';
+
 import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -43,6 +49,7 @@ class AthleteTrainingHubPage extends ConsumerWidget {
         ref.watch(receivedEvaluationsProvider).valueOrNull ?? const [];
     final professors = ref.watch(myProfessorsProvider).valueOrNull;
     final charges = ref.watch(myClassChargesProvider).valueOrNull ?? const [];
+    final plans = ref.watch(athleteTrainingPlansProvider).valueOrNull;
     final unread = ref.watch(unreadMessagesCountProvider);
     final credits =
         ref.watch(athleteClassCreditsProvider).valueOrNull ?? const [];
@@ -88,6 +95,7 @@ class AthleteTrainingHubPage extends ConsumerWidget {
           ref.invalidate(myClassAgendaProvider);
           ref.invalidate(myProfessorsProvider);
           ref.invalidate(myClassChargesProvider);
+          ref.invalidate(athleteTrainingPlansProvider);
           ref.invalidate(athleteClassCreditsProvider);
           await ref.read(myClassAgendaProvider.future);
         },
@@ -183,22 +191,34 @@ class AthleteTrainingHubPage extends ConsumerWidget {
                 const SizedBox(height: 8),
               ],
             ],
-            if (charges.isNotEmpty) ...[
-              const TrainingSectionTitle('Pagamentos'),
-              TrainingTilesBlock(
-                children: [
-                  TrainingListTile(
-                    key: const Key('training-hub-charges'),
-                    icon: Icons.receipt_long_outlined,
-                    title: charges.length == 1
-                        ? '1 mensalidade em aberto'
-                        : '${charges.length} mensalidades em aberto',
-                    subtitle: charges.first.description,
-                    highlight: charges.any((c) => c.overdue),
-                    onTap: () => context.go(athleteAgendaTabLocation),
-                  ),
-                ],
+            if (charges.isNotEmpty ||
+                (plans != null && plans.activeCount > 0)) ...[
+              TrainingSectionTitle(
+                'Meus planos',
+                action: 'Pagamentos',
+                onAction: () =>
+                    context.pushNamed(AppRouteNames.athleteTrainingPlans),
               ),
+              if (charges.isNotEmpty) ...[
+                TrainingTilesBlock(
+                  children: [
+                    TrainingListTile(
+                      key: const Key('training-hub-charges'),
+                      icon: Icons.receipt_long_outlined,
+                      title: charges.length == 1
+                          ? '1 mensalidade em aberto'
+                          : '${charges.length} mensalidades em aberto',
+                      subtitle: charges.first.description,
+                      highlight: charges.any((c) => c.overdue),
+                      onTap: () =>
+                          context.pushNamed(AppRouteNames.athleteTrainingPlans),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+              if (plans != null && plans.activeCount > 0)
+                _PlanMiniRow(plans: plans),
             ],
             const TrainingSectionTitle('Tudo sobre seus treinos'),
             TrainingTilesBlock(
@@ -235,6 +255,14 @@ class AthleteTrainingHubPage extends ConsumerWidget {
                   subtitle: 'Mensagem e agendamento',
                   onTap: () => context
                       .pushNamed(AppRouteNames.athleteTrainingProfessors),
+                ),
+                TrainingListTile(
+                  key: const Key('training-hub-plans'),
+                  icon: Icons.credit_card_outlined,
+                  title: 'Planos e pagamentos',
+                  subtitle: 'Arena e professor, lado a lado',
+                  onTap: () =>
+                      context.pushNamed(AppRouteNames.athleteTrainingPlans),
                 ),
                 TrainingListTile(
                   key: const Key('training-hub-private'),
@@ -341,6 +369,151 @@ class _NoNextTraining extends StatelessWidget {
                   context.pushNamed(AppRouteNames.athletePrivateLessons),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// "Meus planos" no hub: até dois cartões lado a lado (arena e professor).
+class _PlanMiniRow extends StatelessWidget {
+  const _PlanMiniRow({required this.plans});
+
+  final MyTrainingPlans plans;
+
+  @override
+  Widget build(BuildContext context) {
+    final cards = <Widget>[
+      for (final p in plans.arenaPlans)
+        _PlanMini(
+          key: Key('training-hub-plan-${p.enrollmentId}'),
+          color: AppColors.brand,
+          payer: 'Pago à ${p.arenaName}',
+          title: p.slots.isEmpty
+              ? p.planName
+              : 'Turma ${p.slots.first.className}',
+          subtitle: p.isPackage && p.expiresOn != null
+              ? '${p.planName} · até ${trainingPlanShortDate(p.expiresOn!)}'
+              : p.planName,
+          usage: p.isPackage && p.credits != null && p.creditsLeft != null
+              ? (p.credits! - p.creditsLeft!, p.credits!)
+              : null,
+          footer: arenaPlanScheduleLabel(p.slots).toUpperCase(),
+        ),
+      for (final p in plans.professorPlans)
+        _PlanMini(
+          key: Key('training-hub-plan-${p.professorUid}'),
+          color: ProfessorLinksStyle.blue,
+          payer: 'Pago ao professor',
+          title: p.planName ?? 'Particular ${p.professorName.split(' ').first}',
+          subtitle: p.recurringReais != null
+              ? '${formatBRL(p.recurringReais!)}/mês'
+              : trainingPlanKindLabel(p.kind),
+          footer: p.professorName.toUpperCase(),
+        ),
+    ].take(2).toList();
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => context.pushNamed(AppRouteNames.athleteTrainingPlans),
+      child: TrainingStatRow(children: cards),
+    );
+  }
+}
+
+class _PlanMini extends StatelessWidget {
+  const _PlanMini({
+    super.key,
+    required this.color,
+    required this.payer,
+    required this.title,
+    required this.subtitle,
+    required this.footer,
+    this.usage,
+  });
+
+  final Color color;
+  final String payer;
+  final String title;
+  final String subtitle;
+  final String footer;
+  final (int, int)? usage;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final tone = colors.readableTone(color);
+    return ProfessorLinksCard(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            payer.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: ProfessorLinksStyle.mono(9, color: tone)
+                .copyWith(letterSpacing: 0.3),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: ProfessorLinksStyle.display(
+              13,
+              weight: FontWeight.w700,
+              color: colors.onSurface,
+            ).copyWith(height: 1.25),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.bodyS.copyWith(
+              fontSize: 11,
+              color: ProfessorLinksStyle.dim(colors),
+            ),
+          ),
+          const Spacer(),
+          const SizedBox(height: 8),
+          if (usage != null && usage!.$2 > 0)
+            Row(
+              children: [
+                for (var i = 0; i < usage!.$2; i++) ...[
+                  if (i > 0) const SizedBox(width: 2),
+                  Expanded(
+                    child: Container(
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: i < usage!.$1 ? color : colors.surfaceRaised,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            )
+          else
+            Container(
+              height: 4,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          const SizedBox(height: 6),
+          Text(
+            usage != null
+                ? '${usage!.$2 - usage!.$1} RESTANTES'
+                : footer,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: ProfessorLinksStyle.mono(
+              9.5,
+              color: ProfessorLinksStyle.mute(colors),
+            ),
+          ),
         ],
       ),
     );

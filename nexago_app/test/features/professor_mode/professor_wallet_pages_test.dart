@@ -51,7 +51,10 @@ class _FakeUsers implements UsersRepository {
     String term, {
     int max = 25,
   }) async =>
-      const [AppUserProfile(uid: 'ath-rafa', fullName: 'Rafaela Torres')];
+      const [
+        AppUserProfile(uid: 'ath-rafa', fullName: 'Rafaela Torres'),
+        AppUserProfile(uid: 'ath-bruno', fullName: 'Bruno Lima'),
+      ];
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -529,6 +532,35 @@ void main() {
       await tap(tester, find.byKey(const Key('professor-wallet-add-submit')));
       expect(wallet.callsOf('upsertStudent').single.data,
           {'athleteId': 'ath-rafa', 'planId': 'p-mensal'});
+    });
+
+    testWidgets('escolher recolhe a lista; "Trocar aluno" volta à busca',
+        (tester) async {
+      await pumpProfessorWalletApp(
+        tester,
+        wallet: FakeProfessorWalletRepository(plans: walletPlans()),
+        location: AppRoutes.professorWalletAddStudent,
+        overrides: [usersRepositoryProvider.overrideWithValue(_FakeUsers())],
+      );
+      await tester.enterText(find.byType(TextField).first, 'a');
+      await tester.enterText(find.byType(TextField).first, 'Ra');
+      await tester.pump(const Duration(milliseconds: 400));
+      await settleProfessorStudents(tester);
+      expect(find.text('Bruno Lima'), findsOneWidget);
+      await tap(tester, find.text('Rafaela Torres'));
+      // Só o escolhido, sem a busca.
+      expect(find.text('Rafaela Torres'), findsOneWidget);
+      expect(find.text('Bruno Lima'), findsNothing);
+      expect(find.widgetWithText(TextField, 'Nome ou apelido do atleta'),
+          findsNothing);
+      expect(enabled(tester, 'professor-wallet-add-submit'), isTrue);
+
+      await tap(tester,
+          find.byKey(const Key('arena-class-athlete-search-change')));
+      expect(find.text('Bruno Lima'), findsOneWidget);
+      await tap(tester, find.text('Bruno Lima'));
+      expect(find.text('Rafaela Torres'), findsNothing);
+      expect(find.text('Bruno Lima'), findsOneWidget);
     });
   });
 

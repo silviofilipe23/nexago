@@ -136,3 +136,24 @@ test('ganhos do professor: só o dono lê saldo, extrato e saques; ninguém escr
   await assertFails(setDoc(doc(as(PROF), `professorEarningsWallets/${PROF}`), { availableReais: 9999 }));
   await assertFails(setDoc(doc(as(PROF), 'professorWithdrawals/w2'), { professorUid: PROF, amountReais: 1 }));
 });
+
+test('mensagens: só membros leem e mandam a PRÓPRIA mensagem validada', async () => {
+  const { serverTimestamp, addDoc } = await import('firebase/firestore');
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'conversations/d_p_a'), { kind: 'direct', memberIds: [PROF, ALUNO], professorUid: PROF });
+  });
+  const msg = (uid, extra = {}) => ({ senderUid: uid, senderName: 'X', text: 'Oi', createdAt: serverTimestamp(), ...extra });
+  await assertSucceeds(getDoc(doc(as(ALUNO), 'conversations/d_p_a')));
+  await assertSucceeds(addDoc(collection(as(ALUNO), 'conversations/d_p_a/messages'), msg(ALUNO)));
+  await assertSucceeds(getDocs(collection(as(PROF), 'conversations/d_p_a/messages')));
+  await assertFails(getDoc(doc(as(OUTRO), 'conversations/d_p_a')));
+  await assertFails(getDocs(collection(as(OUTRO), 'conversations/d_p_a/messages')));
+  await assertFails(addDoc(collection(as(OUTRO), 'conversations/d_p_a/messages'), msg(OUTRO)));
+  await assertFails(addDoc(collection(as(ALUNO), 'conversations/d_p_a/messages'), msg(PROF)), 'não fala em nome do professor');
+  await assertFails(addDoc(collection(as(ALUNO), 'conversations/d_p_a/messages'), msg(ALUNO, { auto: true })));
+  await assertFails(addDoc(collection(as(ALUNO), 'conversations/d_p_a/messages'), msg(ALUNO, { text: '' })));
+  await assertFails(setDoc(doc(as(PROF), 'conversations/d_p_a'), { memberIds: [PROF, ALUNO, OUTRO] }));
+  await assertSucceeds(setDoc(doc(as(PROF), `users/${PROF}/messagingPrefs/settings`), { quietEnabled: true, from: '06:00', to: '21:30', days: [1, 2], autoReplyEnabled: false, autoReplyText: '' }));
+  await assertFails(setDoc(doc(as(OUTRO), `users/${PROF}/messagingPrefs/settings`), { quietEnabled: true, from: '06:00', to: '21:30', days: [], autoReplyEnabled: false, autoReplyText: '' }));
+  await assertSucceeds(setDoc(doc(as(PROF), `users/${PROF}/messageTemplates/t1`), { title: 'Chuva', body: 'Aula de {data} cancelada', uses: 0 }));
+});

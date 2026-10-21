@@ -206,6 +206,15 @@ export {getMyProfessorStudents} from "./professor-students";
 export {onProfessorLessonCreated} from "./professor-lessons";
 // Agenda do professor em outros apps (feed .ics com token).
 export {configureProfessorCalendarFeed, professorCalendarFeed} from "./professor-calendar";
+// Mensagens professor ↔ aluno e grupo da turma.
+export {
+  getMyProfessors,
+  markConversationRead,
+  onConversationMessageCreated,
+  openClassConversation,
+  openProfessorConversation,
+  openStudentConversation,
+} from "./professor-messages";
 // Ganhos do professor de equipe: repasse pago pelo nexaGO + saque PIX.
 export {
   getMyPendingClassPayouts,

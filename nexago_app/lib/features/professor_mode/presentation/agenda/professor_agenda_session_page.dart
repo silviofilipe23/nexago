@@ -22,13 +22,15 @@ import '../../domain/professor_students_logic.dart'
 import '../../infrastructure/professor_students_repository.dart';
 import '../widgets/professor_students_widgets.dart';
 import '../../../messages/presentation/messages_widgets.dart';
+import '../../domain/professor_lesson_plans.dart' show LessonPlanKind;
+import '../lesson_plans/lesson_plan_agenda_card.dart';
 import 'professor_agenda_widgets.dart';
 
 /// E4 Detalhe da aula de turma (equipe da arena): local, recorrência, alunos
 /// (quando o vínculo libera a chamada), "Abrir chamada" e "Cancelar" (com a
-/// chave "Cancelar aulas" da arena). Sem repasse nem plano da aula — não há
-/// dado para isso. Tipo pelo `classType` da agenda; a recorrência vem da
-/// lista de turmas do professor.
+/// chave "Cancelar aulas" da arena) e o "Plano da aula" (H2). Sem repasse —
+/// não há dado para isso. Tipo pelo `classType` da agenda; a recorrência vem
+/// da lista de turmas do professor.
 class ProfessorAgendaSessionPage extends ConsumerWidget {
   const ProfessorAgendaSessionPage({
     super.key,
@@ -173,6 +175,13 @@ class ProfessorAgendaSessionPage extends ConsumerWidget {
                     ],
                   ),
                 ),
+                if (!e.isCanceled) ...[
+                  const SizedBox(height: 18),
+                  LessonPlanAgendaCard(
+                    kind: LessonPlanKind.session,
+                    refId: e.sessionId,
+                  ),
+                ],
                 const SizedBox(height: 22),
                 OpenConversationButton(
                   key: const Key('professor-agenda-class-chat'),

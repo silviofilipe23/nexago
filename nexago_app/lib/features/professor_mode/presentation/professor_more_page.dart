@@ -149,6 +149,13 @@ class ProfessorMorePage extends ConsumerWidget {
                       context.pushNamed(AppRouteNames.professorClasses),
                 ),
                 _MenuRow(
+                  key: const Key('professor-more-lesson-plans'),
+                  icon: Icons.edit_note_rounded,
+                  title: 'Planos de aula',
+                  onTap: () =>
+                      context.pushNamed(AppRouteNames.professorLessonPlans),
+                ),
+                _MenuRow(
                   key: const Key('professor-more-evaluations'),
                   icon: Icons.insights_rounded,
                   title: 'Avaliações',

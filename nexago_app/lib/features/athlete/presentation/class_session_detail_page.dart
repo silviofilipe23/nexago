@@ -7,6 +7,10 @@ import '../../../core/theme/app_typography.dart';
 import '../../arena/domain/aulas/arena_class.dart';
 import '../../arena/presentation/aulas/widgets/arena_class_atoms.dart';
 import '../../arenas/domain/arena_booking_labels.dart';
+import '../../professor_mode/domain/professor_lesson_plans.dart'
+    show LessonPlanKind;
+import '../../professor_mode/presentation/lesson_plans/athlete_lesson_plan_pages.dart'
+    show AthleteLessonPlanLink;
 import '../domain/agenda/athlete_agenda_logic.dart';
 import '../domain/agenda/class_agenda_entry.dart';
 import '../domain/agenda/class_story.dart';
@@ -119,6 +123,15 @@ class ClassSessionDetailPage extends ConsumerWidget {
                     icon: Icons.fact_check_outlined,
                     text: _attendanceText(session),
                   ),
+                  // Plano da aula publicado pelo professor (H8).
+                  if (!session.isCanceled)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: AthleteLessonPlanLink(
+                        kind: LessonPlanKind.session,
+                        refId: session.sessionId,
+                      ),
+                    ),
                 ],
               ),
             ),

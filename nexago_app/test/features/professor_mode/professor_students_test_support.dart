@@ -12,6 +12,7 @@ import 'package:nexago_app/features/professor_mode/infrastructure/professor_avai
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_students_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_earnings_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_evaluations_repository.dart';
+import 'package:nexago_app/features/professor_mode/infrastructure/professor_lesson_plans_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_own_classes_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_wallet_repository.dart';
 import 'package:nexago_app/features/professor_mode/presentation/professor_classes_page.dart';
@@ -21,6 +22,7 @@ import 'package:nexago_app/features/professor_mode/presentation/professor_studen
 import 'professor_availability_test_support.dart';
 import 'professor_earnings_test_support.dart';
 import 'professor_evaluations_test_support.dart';
+import 'professor_lesson_plans_test_support.dart';
 import 'professor_own_classes_test_support.dart';
 import 'professor_wallet_test_support.dart';
 
@@ -277,6 +279,9 @@ Future<GoRouter> pumpProfessorStudentsApp(
   ProfessorOwnClassesRepository? ownClassesRepo,
   /// Disponibilidade e particulares (fase 10); sem ele, nenhuma.
   ProfessorAvailabilityRepository? availabilityRepo,
+
+  /// Plano de aula (H1–H8); sem ele, nenhum.
+  ProfessorLessonPlansRepository? lessonPlansRepo,
   String uid = professorStudentsTestUid,
   List<Override> overrides = const [],
   List<RouteBase> extraRoutes = const [],
@@ -331,6 +336,8 @@ Future<GoRouter> pumpProfessorStudentsApp(
             ownClassesRepo ?? FakeProfessorOwnClassesRepository()),
         professorAvailabilityRepositoryProvider.overrideWithValue(
             availabilityRepo ?? FakeProfessorAvailabilityRepository()),
+        professorLessonPlansRepositoryProvider.overrideWithValue(
+            lessonPlansRepo ?? FakeProfessorLessonPlansRepository()),
         professorLinksUidProvider.overrideWithValue(uid),
         ...overrides,
       ],

@@ -263,6 +263,16 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   variant: AthleteSettingsIconVariant.neutral,
                   onTap: () =>
                       context.pushNamed(AppRouteNames.athletePrivateLessons),
+                  showDivider: true,
+                ),
+                AthleteSettingsTile(
+                  key: const Key('athlete-settings-lesson-plans'),
+                  icon: Icons.edit_note_rounded,
+                  title: 'Planos das aulas',
+                  subtitle: 'O roteiro que o professor publicou',
+                  variant: AthleteSettingsIconVariant.neutral,
+                  onTap: () =>
+                      context.pushNamed(AppRouteNames.athleteLessonPlans),
                   showDivider: false,
                 ),
               ],

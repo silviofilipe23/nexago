@@ -198,3 +198,21 @@ test('disponibilidade: publicada qualquer logado lê; rascunho só o dono; parti
   await assertFails(getDoc(doc(as(OUTRO), 'professorPrivateLessons/l1')));
   await assertFails(setDoc(doc(as(ALUNO), 'professorPrivateLessons/l2'), { professorUid: PROF, athleteId: ALUNO, status: 'confirmed' }));
 });
+
+test('plano de aula: completo só o professor; visão só o aluno dela; modelos e exercícios do dono', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'lessonPlans/p1'), { professorUid: PROF, focus: [] });
+    await setDoc(doc(ctx.firestore(), 'lessonPlanViews/p1_a'), { planId: 'p1', professorUid: PROF, athleteId: ALUNO, date: '2026-10-22' });
+  });
+  await assertSucceeds(getDoc(doc(as(PROF), 'lessonPlans/p1')));
+  await assertFails(getDoc(doc(as(ALUNO), 'lessonPlans/p1')));
+  await assertSucceeds(getDoc(doc(as(ALUNO), 'lessonPlanViews/p1_a')));
+  await assertSucceeds(getDocs(query(collection(as(ALUNO), 'lessonPlanViews'), where('athleteId', '==', ALUNO))));
+  await assertFails(getDoc(doc(as(OUTRO), 'lessonPlanViews/p1_a')));
+  await assertFails(setDoc(doc(as(PROF), 'lessonPlans/p2'), { professorUid: PROF }));
+  await assertSucceeds(setDoc(doc(as(PROF), `professors/${PROF}/exercises/e1`), { name: 'Saque em zonas', category: 'saque', minutes: 15, steps: ['a'] }));
+  await assertFails(setDoc(doc(as(PROF), `professors/${PROF}/exercises/e2`), { name: 'x', minutes: 15, steps: [], hack: true }));
+  await assertFails(getDoc(doc(as(OUTRO), `professors/${PROF}/exercises/e1`)));
+  await assertSucceeds(setDoc(doc(as(PROF), `professors/${PROF}/lessonTemplates/t1`), { name: 'Saque + devolução', blocks: [] }));
+  await assertFails(setDoc(doc(as(OUTRO), `professors/${PROF}/lessonTemplates/t2`), { name: 'x', blocks: [] }));
+});

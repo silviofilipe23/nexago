@@ -6,6 +6,7 @@ import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_helpers.dart';
 import '../domain/tournament_discovery_models.dart';
 import 'nexago_artifacts_paths.dart';
+import 'tournament_detail_lookup.dart';
 import 'tournament_document_mapper.dart';
 import '../domain/tournament_listing_status.dart';
 
@@ -40,10 +41,10 @@ class TournamentsRepository {
       if (doc.exists) {
         return TournamentDocumentMapper.detailFromSnapshot(doc);
       }
-      final legacy = await _firestore
-          .doc(NexagoArtifactsPaths.legacyTournamentDoc(id))
-          .get();
-      return TournamentDocumentMapper.detailFromSnapshot(legacy);
+      final legacy = await getLegacyTournamentDoc(_firestore, id);
+      return legacy == null
+          ? null
+          : TournamentDocumentMapper.detailFromSnapshot(legacy);
     });
   }
 
@@ -52,12 +53,9 @@ class TournamentsRepository {
     final names = <String, String>{};
     for (final id in ids) {
       if (id.trim().isEmpty) continue;
-      var doc = await _root.doc(id).get();
-      if (!doc.exists) {
-        doc = await _firestore
-            .doc(NexagoArtifactsPaths.legacyTournamentDoc(id))
-            .get();
-      }
+      DocumentSnapshot<Map<String, dynamic>>? doc = await _root.doc(id).get();
+      if (!doc.exists) doc = await getLegacyTournamentDoc(_firestore, id);
+      if (doc == null) continue;
       final detail = TournamentDocumentMapper.detailFromSnapshot(doc);
       if (detail != null) names[id] = detail.name;
     }
@@ -111,12 +109,9 @@ class TournamentsRepository {
     final details = <String, TournamentDetail>{};
     for (final id in ids) {
       if (id.trim().isEmpty) continue;
-      var doc = await _root.doc(id).get();
-      if (!doc.exists) {
-        doc = await _firestore
-            .doc(NexagoArtifactsPaths.legacyTournamentDoc(id))
-            .get();
-      }
+      DocumentSnapshot<Map<String, dynamic>>? doc = await _root.doc(id).get();
+      if (!doc.exists) doc = await getLegacyTournamentDoc(_firestore, id);
+      if (doc == null) continue;
       final detail = TournamentDocumentMapper.detailFromSnapshot(doc);
       if (detail != null) details[id] = detail;
     }

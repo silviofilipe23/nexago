@@ -15,8 +15,11 @@ import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
 import 'package:nexago_app/features/athlete/presentation/class_story_tag_page.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/agenda/class_story_card.dart';
+import 'package:nexago_app/features/professor_links/application/professor_links_providers.dart';
 import 'package:nexago_app/features/professor_mode/application/professor_agenda_providers.dart';
+import 'package:nexago_app/features/professor_mode/application/professor_lesson_plans_providers.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_class_story.dart';
+import 'package:nexago_app/features/professor_mode/domain/professor_lesson_plans.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_class_story_repository.dart';
 import 'package:nexago_app/features/professor_mode/presentation/story/professor_class_closed_page.dart';
 import 'package:nexago_app/features/professor_mode/presentation/story/professor_class_story_page.dart';
@@ -131,6 +134,26 @@ ClassStoryTag tag() => ClassStoryTag.fromMap('s1_uMarina', {
       'taggedCount': 2,
     });
 
+LessonPlan lessonPlan(List<(String, int)> blocks, {LessonReview? review}) =>
+    LessonPlan(
+      id: 'uThiago_session_s1',
+      kind: LessonPlanKind.session,
+      refId: 's1',
+      title: 'Intermediário B',
+      date: '2026-10-20',
+      blocks: [
+        for (var i = 0; i < blocks.length; i++)
+          LessonPlanBlock(
+            id: 'b$i',
+            name: blocks[i].$1,
+            minutes: blocks[i].$2,
+            category: LessonPlanCategory.jogo,
+            note: 'nota privada $i',
+          ),
+      ],
+      review: review,
+    );
+
 void main() {
   setUpAll(() => initializeDateFormatting('pt_BR'));
 
@@ -215,8 +238,7 @@ void main() {
       expect(classStoryInfosFor(data), ClassStoryInfo.values);
     });
 
-    test('esporte da turma no kicker: chamada, arte do professor e repost',
-        () {
+    test('esporte da turma no kicker: chamada, arte do professor e repost', () {
       final r = TeacherClassRoster.fromMap({
         'session': {'sessionId': 's1', 'sport': 'beachTennis'},
         'students': const [],
@@ -303,10 +325,51 @@ void main() {
     });
   });
 
+  group('plano de aula → plano do story', () {
+    test('tira "Não rolou" e "Pulado", corta o nome e não leva a nota', () {
+      final r = classStoryPlanFromLessonPlan(lessonPlan(
+        [
+          ('Aquecimento', 10),
+          ('Saque', 15),
+          ('  ', 5),
+          ('Devolução cruzada com deslocamento lateral e volta ao centro', 20),
+          ('Jogo reduzido', 20),
+        ],
+        review: const LessonReview(blockRatings: {
+          'b1': LessonBlockRating.skipped,
+          'b4': LessonBlockRating.ok,
+        }),
+      ));
+      expect(r.blocks.map((b) => b.label), [
+        'Aquecimento',
+        'Devolução cruzada com deslocamento later',
+        'Jogo reduzido',
+      ]);
+      expect(r.blocks[1].label.length, lessThanOrEqualTo(40));
+      expect(r.left, 0);
+      final r2 = classStoryPlanFromLessonPlan(lessonPlan(
+        [('Saque', 10)],
+        review: const LessonReview(blockRatings: {'b0': LessonBlockRating.no}),
+      ));
+      expect(r2.blocks, isEmpty);
+    });
+
+    test('cabe 5 no story; o resto conta em left', () {
+      final r = classStoryPlanFromLessonPlan(
+          lessonPlan([for (var i = 0; i < 7; i++) ('Bloco $i', 10)]));
+      expect(r.blocks, hasLength(5));
+      expect(r.left, 2);
+    });
+  });
+
   group('G1 · Treino encerrado → G2', () {
     late _FakeStoryRepo repo;
 
-    Future<void> pump(WidgetTester tester, {ThemeData? theme}) async {
+    Future<void> pump(
+      WidgetTester tester, {
+      ThemeData? theme,
+      List<LessonPlan> plans = const [],
+    }) async {
       tester.view.physicalSize = const Size(400, 1300);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -318,6 +381,9 @@ void main() {
                 .overrideWith((ref, _) async => roster()),
             athleteProfileProvider.overrideWith((ref) => Stream.value(thiago)),
             professorClassStoryRepositoryProvider.overrideWithValue(repo),
+            professorLinksUidProvider.overrideWithValue('uThiago'),
+            professorLessonPlansProvider
+                .overrideWith((ref) => Stream.value(plans)),
           ],
           child: MaterialApp(
             theme: theme ?? AppTheme.dark,
@@ -344,6 +410,66 @@ void main() {
       );
       expect(find.text('Pode ser marcado no story'), findsNWidgets(2));
       expect(find.text('Não liberou o story'), findsOneWidget);
+    });
+
+    testWidgets('com plano de aula da turma: o plano já vem preenchido',
+        (tester) async {
+      await pump(tester, plans: [
+        lessonPlan([
+          for (var i = 0; i < 7; i++) ('Bloco $i', 10),
+        ]),
+        // Plano de outra aula não entra.
+        LessonPlan(
+          id: 'uThiago_session_s2',
+          kind: LessonPlanKind.session,
+          refId: 's2',
+          title: 'Outra',
+          date: '2026-10-21',
+          blocks: const [
+            LessonPlanBlock(
+                id: 'x',
+                name: 'Intruso',
+                minutes: 5,
+                category: LessonPlanCategory.jogo),
+          ],
+        ),
+      ]);
+      for (var i = 0; i < 5; i++) {
+        expect(
+            find.byKey(Key('professor-class-closed-plan-$i')), findsOneWidget);
+      }
+      expect(
+          find.byKey(const Key('professor-class-closed-plan-5')), findsNothing);
+      expect(find.text('Intruso'), findsNothing);
+      expect(find.textContaining('nota privada'), findsNothing);
+      expect(
+        find.textContaining('Veio do seu plano de aula — o story cabe 5 '
+            'blocos, 2 ficaram de fora'),
+        findsOneWidget,
+      );
+      // Cheio: sem "Adicionar bloco"; tirar um não traz o plano de volta.
+      expect(find.byKey(const Key('professor-class-closed-add-block')),
+          findsNothing);
+      await tester.tap(find.byTooltip('Tirar bloco').first);
+      await tester.pump();
+      expect(
+          find.byKey(const Key('professor-class-closed-plan-4')), findsNothing);
+      expect(find.text('Bloco 0'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('professor-class-closed-share')));
+      await tester.pumpAndSettle();
+      expect(
+          find.byKey(const Key('professor-story-info-plan')), findsOneWidget);
+      expect(find.text('Bloco 1'), findsOneWidget);
+    });
+
+    testWidgets('sem plano de aula: começa vazio, com "Montar o plano"',
+        (tester) async {
+      await pump(tester);
+      expect(
+          find.byKey(const Key('professor-class-closed-plan-0')), findsNothing);
+      expect(find.text('Montar o plano'), findsOneWidget);
+      expect(find.textContaining('Opcional.'), findsOneWidget);
     });
 
     testWidgets('monta o plano e abre o editor com os quatro chips',

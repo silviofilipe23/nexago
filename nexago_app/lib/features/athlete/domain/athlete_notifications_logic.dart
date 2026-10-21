@@ -533,6 +533,21 @@ AthleteNotificationPresentation _basePresentation(
         ],
         routePath: resolveNotificationRoute({...data, 'type': type}),
       );
+    // Avaliação do professor: abre o detalhe.
+    case professorEvaluationNotificationType:
+      final evaluationRoute = resolveNotificationRoute({...data, 'type': type});
+      return AthleteNotificationPresentation(
+        icon: Icons.insights_rounded,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.12),
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Ver avaliação',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: evaluationRoute,
+      );
     // Mensagem de conversa: abre a conversa.
     case conversationMessageNotificationType:
       final chatRoute = resolveNotificationRoute({...data, 'type': type});

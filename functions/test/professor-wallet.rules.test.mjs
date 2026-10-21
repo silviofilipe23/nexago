@@ -158,3 +158,16 @@ test('mensagens: só membros leem e mandam a PRÓPRIA mensagem validada', async 
   await assertFails(setDoc(doc(as(PROF), `users/${PROF}/messagingPrefs/settings`), { quietEnabled: true, from: '06:00', to: '21:30', days: [], autoReplyEnabled: false, autoReplyText: '' }));
   await assertSucceeds(setDoc(doc(as(PROF), `users/${PROF}/messageTemplates/t1`), { title: 'Chuva', body: 'Aula de {data} cancelada', uses: 0 }));
 });
+
+test('avaliação: professor lê as dele; aluno só a enviada dele; ninguém escreve', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'professorEvaluations/e1'), { professorUid: PROF, athleteId: ALUNO, status: 'sent' });
+    await setDoc(doc(ctx.firestore(), 'professorEvaluations/e2'), { professorUid: PROF, athleteId: ALUNO, status: 'draft' });
+  });
+  await assertSucceeds(getDoc(doc(as(PROF), 'professorEvaluations/e2')));
+  await assertSucceeds(getDoc(doc(as(ALUNO), 'professorEvaluations/e1')));
+  await assertSucceeds(getDocs(query(collection(as(ALUNO), 'professorEvaluations'), where('athleteId', '==', ALUNO), where('status', '==', 'sent'))));
+  await assertFails(getDoc(doc(as(ALUNO), 'professorEvaluations/e2')));
+  await assertFails(getDoc(doc(as(OUTRO), 'professorEvaluations/e1')));
+  await assertFails(setDoc(doc(as(PROF), 'professorEvaluations/e3'), { professorUid: PROF, athleteId: ALUNO, status: 'sent' }));
+});

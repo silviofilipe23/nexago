@@ -22,6 +22,7 @@ import '../domain/professor_actions_logic.dart';
 import 'actions/professor_move_sheet.dart';
 import 'widgets/professor_students_widgets.dart';
 import '../../messages/presentation/messages_widgets.dart';
+import 'evaluations/professor_evaluations_page.dart';
 
 /// Aluno do professor (B3): turmas com ele, presença das últimas aulas,
 /// plano e situação do pagamento (só equipe da arena) e as anotações que só
@@ -105,6 +106,8 @@ class ProfessorStudentPage extends ConsumerWidget {
                 open: (repo) =>
                     repo.openProfessorConversation(student.athleteId!),
               ),
+              const SizedBox(height: 10),
+              StudentEvaluationStrip(athleteId: student.athleteId!),
             ],
             const SizedBox(height: 22),
             _PresenceSection(student: student),

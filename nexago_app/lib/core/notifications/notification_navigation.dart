@@ -28,6 +28,9 @@ const professorStudentInviteNotificationType = 'professor_student_invite';
 /// Comunicado do professor para o aluno (aviso, enquete…).
 const professorNoticeNotificationType = 'professor_notice';
 
+/// Avaliação do professor enviada ao aluno.
+const professorEvaluationNotificationType = 'professor_evaluation';
+
 /// Mensagem nova numa conversa professor ↔ aluno.
 const conversationMessageNotificationType = 'conversation_message';
 
@@ -227,6 +230,17 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   if (type == classChargeLinkNotificationType ||
       type == professorChargeLinkNotificationType) {
     return athleteAgendaTabLocation;
+  }
+
+  // Avaliação: `url` (`/avaliacao/{id}`); sem ele, monta pelo id.
+  if (type == professorEvaluationNotificationType) {
+    final url = appRouteForNotificationUrl(data['url'] as String?);
+    if (url != null) return url;
+    final id = (data['evaluationId'] as String?)?.trim() ?? '';
+    return id.isEmpty
+        ? AppRoutes.athleteEvaluations
+        : AppRoutes.athleteEvaluation
+            .replaceAll(':evaluationId', Uri.encodeComponent(id));
   }
 
   // Mensagem: `url` já vem do lado certo (`/professor/mensagens/{id}` ou

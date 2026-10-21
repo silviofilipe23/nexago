@@ -2289,6 +2289,15 @@ service cloud.firestore {
         (!('note' in request.resource.data) || (request.resource.data.note is string && request.resource.data.note.size() <= 300)) &&
         request.resource.data.updatedAt == request.time;
     }
+    // Avaliação do aluno pelo professor: o professor lê as dele; o aluno só as ENVIADAS dele
+    // (query precisa filtrar athleteId e status). Só a callable grava.
+    match /professorEvaluations/{evaluationId} {
+      allow read: if request.auth != null && (
+        resource.data.professorUid == request.auth.uid ||
+        (resource.data.athleteId == request.auth.uid && resource.data.status == 'sent')
+      );
+      allow write: if false;
+    }
     // Mensagens professor ↔ aluno e grupo da turma. Só os membros leem; tudo é escrito pelas
     // functions (o envio é a callable sendConversationMessage).
     match /conversations/{conversationId} {

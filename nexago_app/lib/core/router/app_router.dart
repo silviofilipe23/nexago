@@ -192,6 +192,8 @@ import '../../features/professor_mode/presentation/professor_shell_page.dart';
 import '../../features/professor_mode/presentation/professor_student_page.dart';
 import '../../features/professor_mode/presentation/professor_students_page.dart';
 import '../../features/professor_mode/presentation/earnings/professor_earnings_page.dart';
+import '../../features/professor_mode/presentation/evaluations/athlete_evaluations_pages.dart';
+import '../../features/professor_mode/presentation/evaluations/professor_evaluations_page.dart';
 import '../../features/professor_mode/presentation/earnings/professor_withdraw_page.dart';
 import '../../features/professor_mode/presentation/earnings/professor_withdrawals_page.dart';
 import '../../features/professor_mode/presentation/notices/professor_notice_editor_page.dart';
@@ -586,6 +588,24 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                             ),
                           ),
                         ],
+                      ),
+                    ],
+                  ),
+                  // Fase 8: avaliação dos alunos.
+                  GoRoute(
+                    path: 'avaliacoes',
+                    name: AppRouteNames.professorEvaluations,
+                    builder: (context, state) =>
+                        const ProfessorEvaluationsPage(),
+                    routes: [
+                      GoRoute(
+                        path: ':athleteId',
+                        name: AppRouteNames.professorEvaluate,
+                        builder: (context, state) => ProfessorEvaluatePage(
+                          athleteId:
+                              state.pathParameters['athleteId']?.trim() ?? '',
+                          period: state.uri.queryParameters['period'],
+                        ),
                       ),
                     ],
                   ),
@@ -2906,6 +2926,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final args = extra is BookingSuccessArgs ? extra : null;
           return BookingSuccessPage(args: args);
         },
+      ),
+      // Avaliações recebidas pelo atleta (push `professor_evaluation`).
+      GoRoute(
+        path: AppRoutes.athleteEvaluations,
+        name: AppRouteNames.athleteEvaluations,
+        builder: (context, state) => const AthleteEvaluationsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteEvaluation,
+        name: AppRouteNames.athleteEvaluation,
+        builder: (context, state) => AthleteEvaluationPage(
+          evaluationId: state.pathParameters['evaluationId']?.trim() ?? '',
+        ),
       ),
       // Mensagens do atleta com os professores (modo Atleta).
       GoRoute(

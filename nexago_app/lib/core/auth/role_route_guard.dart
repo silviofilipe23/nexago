@@ -62,6 +62,8 @@ bool isAthleteExperiencePath(String path) {
   if (path.startsWith('/pagamento-aula/')) return true;
   // Mensagens do atleta com os professores.
   if (path == '/mensagens' || path.startsWith('/mensagens/')) return true;
+  // Avaliações dos professores.
+  if (path == '/avaliacoes' || path.startsWith('/avaliacao/')) return true;
   if (path.startsWith('/arena/') && !isArenaManagerPanelPath(path)) {
     return true;
   }

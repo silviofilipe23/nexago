@@ -94,6 +94,15 @@ abstract final class AppRoutes {
   static const String lessonPaymentReceipt =
       '/pagamento-aula/:chargeId/comprovante';
 
+  /// Avaliações dos alunos (fase 8), sem a barra.
+  static const String professorEvaluations = '/professor/mais/avaliacoes';
+  static const String professorEvaluate =
+      '/professor/mais/avaliacoes/:athleteId';
+
+  /// Avaliações recebidas pelo ATLETA (modo Atleta).
+  static const String athleteEvaluations = '/avaliacoes';
+  static const String athleteEvaluation = '/avaliacao/:evaluationId';
+
   /// Ganhos do repasse (equipe da arena): saldo e saque por PIX.
   static const String professorEarnings = '/professor/mais/ganhos';
   static const String professorWithdraw = '/professor/mais/ganhos/sacar';
@@ -804,6 +813,10 @@ abstract final class AppRouteNames {
   static const String professorNoticeForStudent = 'professorNoticeForStudent';
   static const String lessonPaymentConfirmed = 'lessonPaymentConfirmed';
   static const String lessonPaymentReceipt = 'lessonPaymentReceipt';
+  static const String professorEvaluations = 'professorEvaluations';
+  static const String professorEvaluate = 'professorEvaluate';
+  static const String athleteEvaluations = 'athleteEvaluations';
+  static const String athleteEvaluation = 'athleteEvaluation';
   static const String professorEarnings = 'professorEarnings';
   static const String professorWithdraw = 'professorWithdraw';
   static const String professorPixKey = 'professorPixKey';

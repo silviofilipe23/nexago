@@ -265,6 +265,14 @@ class AthleteTrainingHubPage extends ConsumerWidget {
                       context.pushNamed(AppRouteNames.athleteTrainingPlans),
                 ),
                 TrainingListTile(
+                  key: const Key('training-hub-find'),
+                  icon: Icons.person_search_outlined,
+                  title: 'Encontrar professor',
+                  subtitle: 'Professores das arenas perto de você',
+                  onTap: () => context
+                      .pushNamed(AppRouteNames.athleteTrainingFindProfessor),
+                ),
+                TrainingListTile(
                   key: const Key('training-hub-private'),
                   icon: Icons.event_available_outlined,
                   title: 'Aulas particulares',

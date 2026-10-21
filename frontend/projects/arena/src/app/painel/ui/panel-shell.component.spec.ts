@@ -20,7 +20,13 @@ function configure(opts: { compact: boolean; phone: boolean }): void {
     providers: [
       provideZonelessChangeDetection(),
       provideRouter([{ path: '**', component: RouteStubComponent }]),
-      { provide: AuthService, useValue: { user: () => ({ email: 'dono@arena.com' }) } },
+      {
+        provide: AuthService,
+        useValue: {
+          user: () => ({ email: 'dono@arena.com' }),
+          signOutUser: jasmine.createSpy('signOutUser').and.resolveTo(),
+        },
+      },
       {
         provide: ArenaContextService,
         useValue: {
@@ -352,4 +358,26 @@ describe('PanelShellComponent', () => {
       .withContext('a regra .bottom-nav não declara env(safe-area-inset-bottom)')
       .toContain('safe-area-inset-bottom');
   });
+
+  for (const compact of [false, true]) {
+    it(`botão Sair desloga e volta pro login (${compact ? 'drawer' : 'sidebar'})`, async () => {
+      const fixture = mount({ compact, phone: compact });
+      const router = TestBed.inject(Router);
+      const navigate = spyOn(router, 'navigate').and.resolveTo(true);
+      const auth = TestBed.inject(AuthService) as unknown as { signOutUser: jasmine.Spy };
+
+      if (compact) {
+        (fixture.nativeElement.querySelector('[data-nav-trigger]') as HTMLButtonElement).click();
+        fixture.detectChanges();
+      }
+      const botao = fixture.nativeElement.querySelector('[data-signout]') as HTMLButtonElement | null;
+      expect(botao).withContext('botão Sair não renderizou').toBeTruthy();
+
+      botao!.click();
+      await fixture.whenStable();
+
+      expect(auth.signOutUser).toHaveBeenCalledTimes(1);
+      expect(navigate).toHaveBeenCalledWith(['/entrar']);
+    });
+  }
 });

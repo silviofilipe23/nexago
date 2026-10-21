@@ -73,8 +73,8 @@ class ProfessorTabBar extends StatelessWidget {
       label: 'Hoje',
       icon: Icons.today_outlined,
       selectedIcon: Icons.today_rounded,
-      sfSymbol: 'calendar.day.timeline.left',
-      selectedSfSymbol: 'calendar.day.timeline.left',
+      sfSymbol: 'list.bullet.clipboard',
+      selectedSfSymbol: 'pencil.and.list.clipboard',
     ),
     NexaBottomNavItem(
       label: 'Agenda',
@@ -95,14 +95,14 @@ class ProfessorTabBar extends StatelessWidget {
       icon: Icons.chat_bubble_outline_rounded,
       selectedIcon: Icons.chat_bubble_rounded,
       sfSymbol: 'bubble.left',
-      selectedSfSymbol: 'bubble.left.fill',
+      selectedSfSymbol: 'captions.bubble.fill',
     ),
     NexaBottomNavItem(
       label: 'Mais',
-      icon: Icons.menu_rounded,
-      selectedIcon: Icons.menu_rounded,
-      sfSymbol: 'line.3.horizontal',
-      selectedSfSymbol: 'line.3.horizontal',
+      icon: Icons.more_horiz_rounded,
+      selectedIcon: Icons.more_horiz_rounded,
+      sfSymbol: 'ellipsis',
+      selectedSfSymbol: 'ellipsis.fill',
     ),
   ];
 

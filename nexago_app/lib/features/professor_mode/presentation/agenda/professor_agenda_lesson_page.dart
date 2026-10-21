@@ -28,7 +28,13 @@ import '../widgets/professor_students_widgets.dart';
 import '../wallet/professor_wallet_widgets.dart';
 import '../../domain/professor_lesson_plans.dart' show LessonPlanKind;
 import '../lesson_plans/lesson_plan_agenda_card.dart';
+import '../../../messages/infrastructure/messages_repository.dart';
+import '../../../messages/presentation/messages_widgets.dart';
+import '../../domain/professor_cancel.dart';
+import '../../infrastructure/professor_actions_repository.dart';
 import 'professor_agenda_widgets.dart';
+import 'professor_cancel_done_page.dart';
+import 'professor_cancel_sheet.dart';
 
 /// Início da aula como instante (o horário da reserva é parede de SP).
 DateTime? professorLessonStart(ProfessorLesson l) {
@@ -89,33 +95,85 @@ class _ProfessorAgendaLessonPageState
     }
   }
 
-  Future<void> _cancel(ProfessorLesson l, {required bool free}) async {
-    if (!free) {
-      showAppSnackBar(
+  /// E5b (no prazo) / E5c (fora do prazo) → E5d. A reserva cai como antes
+  /// (`cancelBooking`, a rule de dono confere) e o aluno é avisado com o
+  /// motivo (`notifyProfessorLessonCanceled`).
+  Future<void> _cancel(
+    ProfessorLesson l, {
+    required bool free,
+    required String dayLabel,
+    required String startsIn,
+  }) async {
+    const freeHours =
+        ArenaBookingCancellationPolicy.freeCancellationHoursBeforeStart;
+    const retention =
+        ArenaBookingCancellationPolicy.lateCancellationRetentionPercent;
+    final first = l.studentName.trim().split(RegExp(r'\s+')).first;
+    final arena = l.arenaName.trim().isEmpty ? 'A arena' : l.arenaName.trim();
+    final studentRow = ProfessorCancelImpact(
+      title: l.studentName,
+      sub: 'Recebe o aviso com o motivo',
+      value: 'Avisado',
+    );
+    final choice = free
+        ? await showProfessorCancelSheet(
+            context,
+            title: 'Cancelar aula?',
+            subtitle: '${l.studentName} · $dayLabel ${l.startTime} · '
+                '${l.arenaName}',
+            impacts: (_) => [
+              ProfessorCancelImpact(
+                title: 'Reserva ${l.courtName} · ${l.arenaName}',
+                sub: 'Dentro do prazo · até ${freeHours}h antes',
+                value: 'Sem multa',
+                tone: ProfessorCancelTone.win,
+              ),
+              studentRow,
+            ],
+            confirmLabel: 'Cancelar e avisar',
+          )
+        : await showProfessorCancelSheet(
+            context,
+            late: true,
+            title: 'Fora do prazo',
+            subtitle: '${l.studentName} · $dayLabel ${l.startTime} · '
+                '$startsIn',
+            message: '$arena só cancela sem custo até ${freeHours}h antes. '
+                'Se cancelar agora, a arena retém $retention% do valor '
+                'pago. Combinar outro horário com $first mantém a reserva.',
+            fixedReason: ProfessorCancelReason.other,
+            impacts: (_) => [
+              ProfessorCancelImpact(
+                title: 'Reserva ${l.courtName}',
+                sub: 'Fora do prazo grátis',
+                value: 'Retém $retention%',
+                tone: ProfessorCancelTone.live,
+              ),
+              studentRow,
+            ],
+            confirmLabel: 'Cancelar mesmo',
+            alternativeLabel: 'Falar com $first',
+          );
+    if (choice == null || !mounted) return;
+    if (choice.alternative) {
+      await openConversationWith(
         context,
-        ArenaBookingCancellationPolicy.blockedCancellationMessage(
-          arenaName: l.arenaName,
-        ),
+        () => ref
+            .read(messagesRepositoryProvider)
+            .openProfessorConversation(l.athleteId),
+        professorMode: true,
       );
       return;
     }
-    final ok = await confirmProfessorWalletAction(
-      context,
-      title: 'Cancelar aula e reserva?',
-      body: 'A reserva da ${l.courtName} na ${l.arenaName} é cancelada e o '
-          'horário volta para a arena. Avise ${l.studentName}.',
-      confirmLabel: 'Cancelar aula',
-    );
-    if (!ok || !mounted) return;
     setState(() => _canceling = true);
     try {
       await ref.read(bookingServiceProvider).cancelBooking(
             bookingId: l.bookingId,
             athleteId: ref.read(professorLinksUidProvider),
           );
-      if (mounted) showAppSnackBar(context, 'Aula e reserva canceladas.');
     } catch (e) {
       if (mounted) {
+        setState(() => _canceling = false);
         showAppSnackBar(
           context,
           e is BookingException
@@ -124,9 +182,48 @@ class _ProfessorAgendaLessonPageState
           isError: true,
         );
       }
-    } finally {
-      if (mounted) setState(() => _canceling = false);
+      return;
     }
+    var notified = false;
+    try {
+      notified = await ref
+          .read(professorActionsRepositoryProvider)
+          .notifyLessonCanceled(
+            bookingId: l.bookingId,
+            reason: choice.reason.id,
+          );
+    } catch (_) {
+      // A aula já caiu; o quadro diz que o aluno não foi avisado.
+    }
+    if (!mounted) return;
+    setState(() => _canceling = false);
+    await Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProfessorCancelDonePage(
+          message: '${l.studentName} · ${dayLabel.toLowerCase()} '
+              '${l.startTime}. A reserva da ${l.courtName} foi cancelada.',
+          rows: [
+            ProfessorCancelImpact(
+              title: first,
+              sub: notified
+                  ? 'Aviso pelo app, com o motivo'
+                  : 'Não deu para avisar — mande uma mensagem',
+              value: notified ? 'Avisado' : 'Sem aviso',
+              tone: notified
+                  ? ProfessorCancelTone.win
+                  : ProfessorCancelTone.live,
+            ),
+            ProfessorCancelImpact(
+              title: 'Reserva ${l.courtName} · ${l.arenaName}',
+              sub: free
+                  ? 'Dentro do prazo grátis'
+                  : 'Fora do prazo · a arena retém $retention%',
+              value: 'Cancelada',
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -301,7 +398,12 @@ class _ProfessorAgendaLessonPageState
                   color: AppColors.live,
                   height: 52,
                   loading: _canceling,
-                  onPressed: () => _cancel(l, free: free),
+                  onPressed: () => _cancel(
+                    l,
+                    free: free,
+                    dayLabel: professorDayLabel(l.date, now.todayKey),
+                    startsIn: professorStartsInLabel(start, clock),
+                  ),
                 ),
               ),
             ),

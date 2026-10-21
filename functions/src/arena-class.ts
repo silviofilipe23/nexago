@@ -1040,6 +1040,9 @@ export const CANCEL_REASON_LABELS: Record<string, string> = {
   teacher_absent: "ausência do professor",
   maintenance: "manutenção da quadra",
   holiday: "feriado",
+  /** Do app do professor (E5a): chips "Imprevisto pessoal" e "Saúde". */
+  personal: "imprevisto pessoal",
+  health: "saúde",
   other: "",
 };
 
@@ -1094,22 +1097,42 @@ export async function cancelClassSessionCore(
   generateCredits: boolean | null = null,
   /** Recado de quem cancelou (comunicado do professor) — vai no fim do aviso. */
   message: string | null = null,
-): Promise<{sessionId: string; notified: number; credited: number}> {
+  /**
+   * Quem cancelou: o aviso diz "pela arena" ou "pelo professor"; cancelada pelo professor, o
+   * gestor da arena (`managerUserId`) também é avisado.
+   */
+  canceledBy: "arena" | "teacher" = "arena",
+): Promise<{
+  sessionId: string;
+  notified: number;
+  credited: number;
+  /** Alunos com conta na aula (o "6" de "6/6 avisados"). */
+  recipients: number;
+  /** Validade do crédito de reposição (regra da arena). */
+  creditValidityDays: number;
+  managerNotified: boolean;
+}> {
   // Uma transação cancela e libera junto; numa aula já cancelada ela só termina de
   // liberar (retry depois de falha) e não avisa de novo.
   const result = await releaseClassSession(db, sessionId, {kind: "cancel", reason, note});
   const session = result.session;
   if (!session) throw new HttpsError("not-found", "Aula não encontrada.");
-  if (result.wasCanceled) return {sessionId, notified: 0, credited: 0};
+  const rules = parseClassRules((await classRulesRef(db, session.arenaId).get()).data());
+  if (result.wasCanceled) {
+    return {
+      sessionId, notified: 0, credited: 0, recipients: 0,
+      creditValidityDays: rules.makeupValidityDays, managerNotified: false,
+    };
+  }
 
-  const generate = generateCredits ??
-    parseClassRules((await classRulesRef(db, session.arenaId).get()).data()).arenaCancelGeneratesCredit;
+  const generate = generateCredits ?? rules.arenaCancelGeneratesCredit;
   const credited = await grantCanceledSessionCredits(db, session, sessionId, session.extras, generate);
 
   const recipients = await classSessionRecipients(db, session);
   const reasonLabel = CANCEL_REASON_LABELS[reason] ?? "";
   const body = `A aula ${session.className} de ${formatDateBr(session.date).slice(0, 5)} às ` +
-    `${session.startTime} foi cancelada pela arena${reasonLabel ? ` (${reasonLabel})` : ""}.`;
+    `${session.startTime} foi cancelada ${canceledBy === "teacher" ? "pelo professor" : "pela arena"}` +
+    `${reasonLabel ? ` (${reasonLabel})` : ""}.`;
   const creditNote = (credited > 0 ? " Você ganhou 1 crédito de reposição." : "") +
     (message ? ` ${message}` : "");
   let notified = 0;
@@ -1127,7 +1150,31 @@ export async function cancelClassSessionCore(
       logger.warn("cancelClassSessionCore: notificação falhou", {sessionId, athleteId, error: e});
     }
   }
-  return {sessionId, notified, credited};
+
+  // Cancelada pelo professor: a gestão da arena fica sabendo (a quadra já voltou para a agenda).
+  let managerNotified = false;
+  if (canceledBy === "teacher") {
+    const managerUserId = str((await db.collection("arenas").doc(session.arenaId).get()).data()?.["managerUserId"]);
+    if (managerUserId) {
+      try {
+        await deps.notify({
+          userId: managerUserId,
+          title: "Aula cancelada pelo professor",
+          body: `${session.className} de ${formatDateBr(session.date).slice(0, 5)} às ${session.startTime}` +
+            `${reasonLabel ? ` (${reasonLabel})` : ""}. A quadra foi liberada.`,
+          type: "arena_class_canceled_by_teacher",
+          data: {classSessionId: sessionId, arenaId: session.arenaId},
+        });
+        managerNotified = true;
+      } catch (e) {
+        logger.warn("cancelClassSessionCore: aviso à gestão falhou", {sessionId, error: e});
+      }
+    }
+  }
+  return {
+    sessionId, notified, credited, recipients: recipients.size,
+    creditValidityDays: rules.makeupValidityDays, managerNotified,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1734,7 +1781,9 @@ export const cancelArenaClassSession = onCall({region: CLIENT_FACING_REGIONS}, a
   );
   const generateCredits = typeof input["generateCredits"] === "boolean" ? input["generateCredits"] : null;
   const message = str(input["message"]).slice(0, 300) || null;
-  const result = await cancelClassSessionCore(db, sessionId, reason, note, undefined, generateCredits, message);
+  const result = await cancelClassSessionCore(
+    db, sessionId, reason, note, undefined, generateCredits, message, role === "teacher" ? "teacher" : "arena",
+  );
   logger.info("cancelArenaClassSession", {...result, role});
   return result;
 });

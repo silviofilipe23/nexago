@@ -278,9 +278,9 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
               ],
             ),
             SizedBox(height: AthleteSettingsTokens.sectionGap),
-            // Vínculos professor ↔ arena (Minhas arenas).
+            // Vínculos professor ↔ arena (Minhas arenas) — só com vínculo;
+            // traz o próprio espaçamento.
             const ProfessorLinksSettingsGroup(),
-            SizedBox(height: AthleteSettingsTokens.sectionGap),
             if (canSwitchRole) ...[
               AthleteSettingsGroup(
                 sectionLabel: 'ACESSO',

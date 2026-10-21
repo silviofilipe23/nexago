@@ -237,16 +237,33 @@ void main() {
       await settleProfessorLinks(tester);
     }
 
-    testWidgets('sem vínculos: título e explicação', (tester) async {
+    testWidgets('sem vínculos: o grupo some (atleta que só joga)', (
+      tester,
+    ) async {
       await pumpGroup(tester, FakeProfessorLinksRepository());
+
+      expect(find.text('PROFESSOR'), findsNothing);
+      expect(find.text('Minhas arenas'), findsNothing);
+      expect(find.byKey(const Key('professor-links-settings-tile')), findsNothing);
+    });
+
+    testWidgets('vínculo encerrado: o grupo continua (histórico)', (
+      tester,
+    ) async {
+      await pumpGroup(
+        tester,
+        FakeProfessorLinksRepository(
+          links: [
+            professorLink(
+              status: ArenaProfessorLinkStatus.ended,
+              endedAt: DateTime(2026, 9, 1),
+            ),
+          ],
+        ),
+      );
 
       expect(find.text('PROFESSOR'), findsOneWidget);
       expect(find.text('Minhas arenas'), findsOneWidget);
-      expect(
-        find.text('Vínculos com as arenas onde você dá aula'),
-        findsOneWidget,
-      );
-      expect(find.text('1 CONVITE'), findsNothing);
     });
 
     testWidgets('convite em aberto: subtítulo e selo; o toque abre', (

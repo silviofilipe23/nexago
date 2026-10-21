@@ -85,6 +85,7 @@ class _ProfessorWalletAddStudentPageState
                 const SizedBox(height: 8),
                 ArenaClassAthleteSearch(
                   selectedUid: _uid,
+          collapseOnSelect: true,
                   excludeUids: already,
                   hint: 'Nome ou apelido do atleta',
                   onSelect: (u) => setState(() {

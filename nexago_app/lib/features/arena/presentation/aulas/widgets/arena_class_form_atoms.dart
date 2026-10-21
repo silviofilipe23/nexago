@@ -539,6 +539,7 @@ class ArenaClassAthleteSearch extends ConsumerStatefulWidget {
     this.hint = 'Buscar atleta NexaGO por nome ou apelido',
     this.enabled = true,
     this.autofocus = false,
+    this.collapseOnSelect = false,
   });
 
   final String? selectedUid;
@@ -549,6 +550,9 @@ class ArenaClassAthleteSearch extends ConsumerStatefulWidget {
   final String hint;
   final bool enabled;
   final bool autofocus;
+
+  /// Escolheu: some a busca e a lista, fica só o atleta escolhido (com "Trocar aluno").
+  final bool collapseOnSelect;
 
   @override
   ConsumerState<ArenaClassAthleteSearch> createState() =>
@@ -562,6 +566,18 @@ class _ArenaClassAthleteSearchState
   List<AppUserProfile> _results = const [];
   bool _searching = false;
   String? _error;
+
+  /// Atleta tocado por último (para mostrar sozinho quando recolhe).
+  AppUserProfile? _picked;
+  bool _collapsed = false;
+
+  void _pick(AppUserProfile user) {
+    setState(() {
+      _picked = user;
+      _collapsed = widget.collapseOnSelect;
+    });
+    widget.onSelect(user);
+  }
 
   @override
   void dispose() {
@@ -608,6 +624,26 @@ class _ArenaClassAthleteSearchState
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final term = _controller.text;
+    final picked = _picked;
+    if (_collapsed && picked != null && picked.uid == widget.selectedUid) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _card(picked),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              key: const Key('arena-class-athlete-search-change'),
+              onPressed: widget.enabled
+                  ? () => setState(() => _collapsed = false)
+                  : null,
+              child: const Text('Trocar aluno'),
+            ),
+          ),
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -650,24 +686,26 @@ class _ArenaClassAthleteSearchState
         ],
         for (final user in _results) ...[
           const SizedBox(height: 8),
-          ArenaClassChoiceCard(
-            title: arenaClassAthleteName(user),
-            subtitle: _subtitle(user),
-            selected: user.uid == widget.selectedUid,
-            onTap: widget.enabled ? () => widget.onSelect(user) : null,
-            // A foto ampliada ajuda a achar o atleta certo antes de escolher.
-            trailing: ArenaClassAvatar(
-              initials: arenaClassInitials(arenaClassAthleteName(user)),
-              photoUrl: user.profilePhotoUrl,
-              size: 32,
-              zoomName: arenaClassAthleteName(user),
-              zoomRole: 'Atleta',
-            ),
-          ),
+          _card(user),
         ],
       ],
     );
   }
+
+  Widget _card(AppUserProfile user) => ArenaClassChoiceCard(
+        title: arenaClassAthleteName(user),
+        subtitle: _subtitle(user),
+        selected: user.uid == widget.selectedUid,
+        onTap: widget.enabled ? () => _pick(user) : null,
+        // A foto ampliada ajuda a achar o atleta certo antes de escolher.
+        trailing: ArenaClassAvatar(
+          initials: arenaClassInitials(arenaClassAthleteName(user)),
+          photoUrl: user.profilePhotoUrl,
+          size: 32,
+          zoomName: arenaClassAthleteName(user),
+          zoomRole: 'Atleta',
+        ),
+      );
 
   String _subtitle(AppUserProfile user) {
     final full = user.fullName?.trim() ?? '';

@@ -1,7 +1,9 @@
 import '../../../core/brand/nexa_hashtag.dart';
 import '../../athlete/domain/agenda/class_agenda_entry.dart';
 import '../../athlete/domain/agenda/class_story.dart';
+import '../../athlete/domain/agenda/class_story_tag.dart';
 import '../../athlete/domain/agenda/teacher_class_roster.dart';
+import 'professor_lesson_plans.dart';
 
 /// "Story do treino" no detalhe da aula (E4): aula dele, não cancelada, com a
 /// chamada liberada pelo vínculo e que já TERMINOU (hoje depois do fim ou
@@ -54,4 +56,31 @@ String professorClassStoryShareText(TeacherClassRosterSession s) {
   final where = s.arenaName.trim().isEmpty ? '' : ' na ${s.arenaName.trim()}';
   final what = s.className.trim().isEmpty ? '' : ' ${s.className.trim()}.';
   return withNexaHashtag('Treino pago$where!$what');
+}
+
+/// O plano de aula da turma (H1–H5) no "Treino encerrado": os blocos que de
+/// fato rolaram — com registro pós-aula, sai o que ficou "Não rolou" ou
+/// "Pulado" — com minutos e nome (nota e foco nunca vão para o story). A arte
+/// cabe [kClassStoryPlanMaxBlocks]; [left] conta os que ficaram de fora.
+({List<ClassStoryPlanBlock> blocks, int left}) classStoryPlanFromLessonPlan(
+  LessonPlan plan,
+) {
+  final ratings = plan.review?.blockRatings ?? const {};
+  final done = <ClassStoryPlanBlock>[];
+  for (final b in plan.blocks) {
+    final rating = ratings[b.id];
+    if (rating == LessonBlockRating.no || rating == LessonBlockRating.skipped) {
+      continue;
+    }
+    final name = b.name.trim();
+    if (name.isEmpty) continue;
+    done.add(ClassStoryPlanBlock(
+      minutes: b.minutes.clamp(1, 240),
+      label: name.length > kClassStoryPlanLabelMax
+          ? name.substring(0, kClassStoryPlanLabelMax).trim()
+          : name,
+    ));
+  }
+  final shown = done.take(kClassStoryPlanMaxBlocks).toList();
+  return (blocks: shown, left: done.length - shown.length);
 }

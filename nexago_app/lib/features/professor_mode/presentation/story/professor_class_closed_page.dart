@@ -12,8 +12,10 @@ import '../../../athlete/domain/agenda/class_story_tag.dart';
 import '../../../athlete/domain/agenda/teacher_class_roster.dart';
 import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../application/professor_agenda_providers.dart';
+import '../../application/professor_lesson_plans_providers.dart';
 import '../../domain/professor_actions_logic.dart' show professorDayLabel;
 import '../../domain/professor_class_story.dart';
+import '../../domain/professor_lesson_plans.dart';
 import '../../infrastructure/professor_students_repository.dart';
 import '../widgets/professor_students_widgets.dart';
 import 'professor_class_story_page.dart';
@@ -35,6 +37,39 @@ class ProfessorClassClosedPage extends ConsumerStatefulWidget {
 class _ProfessorClassClosedPageState
     extends ConsumerState<ProfessorClassClosedPage> {
   final List<ClassStoryPlanBlock> _plan = [];
+
+  /// O plano de aula da turma já foi olhado (preenche uma vez só, e nunca por
+  /// cima do que o professor montou aqui).
+  bool _seeded = false;
+  bool _fromLessonPlan = false;
+
+  /// Blocos do plano de aula que não couberam no story.
+  int _planLeft = 0;
+
+  String get _planNote {
+    if (!_fromLessonPlan) {
+      return 'Opcional. O plano aparece no story e no card dos alunos '
+          'marcados.';
+    }
+    final left = _planLeft == 0
+        ? ''
+        : ' — o story cabe $kClassStoryPlanMaxBlocks blocos, $_planLeft '
+            '${_planLeft == 1 ? 'ficou' : 'ficaram'} de fora';
+    return 'Veio do seu plano de aula$left. Tirar ou trocar um bloco aqui só '
+        'muda o story.';
+  }
+
+  void _seedFromLessonPlan(AsyncValue<LessonPlan?> lessonPlan) {
+    if (_seeded || !lessonPlan.hasValue) return;
+    _seeded = true;
+    final plan = lessonPlan.value;
+    if (plan == null || _plan.isNotEmpty) return;
+    final r = classStoryPlanFromLessonPlan(plan);
+    if (r.blocks.isEmpty) return;
+    _plan.addAll(r.blocks);
+    _fromLessonPlan = true;
+    _planLeft = r.left;
+  }
 
   void _close() => popOrGo(context, AppRoutes.professorAgenda);
 
@@ -60,6 +95,10 @@ class _ProfessorClassClosedPageState
 
   @override
   Widget build(BuildContext context) {
+    // Plano de aula da turma (H1–H5): vira o plano do treino daqui.
+    _seedFromLessonPlan(ref.watch(professorLessonPlanProvider(
+      (kind: LessonPlanKind.session, refId: widget.sessionId),
+    )));
     final async = ref.watch(professorSessionRosterProvider(widget.sessionId));
     final roster = async.valueOrNull;
     final now = ref.watch(professorAgendaNowProvider);
@@ -264,9 +303,9 @@ class _ProfessorClassClosedPageState
                 ),
               ),
               const SizedBox(height: 8),
-              const ProfessorMutedText(
-                'Opcional. O plano aparece no story e no card dos alunos '
-                'marcados.',
+              ProfessorMutedText(
+                _planNote,
+                key: const Key('professor-class-closed-plan-note'),
               ),
             ],
           ),

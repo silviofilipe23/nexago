@@ -64,6 +64,8 @@ bool isAthleteExperiencePath(String path) {
   if (path == '/mensagens' || path.startsWith('/mensagens/')) return true;
   // Avaliações dos professores.
   if (path == '/avaliacoes' || path.startsWith('/avaliacao/')) return true;
+  // Plano da aula publicado pelo professor (H8) e a lista deles.
+  if (path.startsWith('/aula/')) return true;
   // Particulares com o professor (minhas e agendar).
   if (path == AppRoutes.athletePrivateLessons ||
       path.startsWith('${AppRoutes.athletePrivateLessons}/')) {

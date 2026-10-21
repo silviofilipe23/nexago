@@ -170,6 +170,11 @@ import '../../features/professor_links/presentation/professor_link_detail_page.d
 import '../../features/professor_links/presentation/professor_link_request_sent_page.dart';
 import '../../features/athlete/presentation/teacher_class_attendance_page.dart';
 import '../../features/athlete/presentation/class_story_tag_page.dart';
+import '../../features/professor_mode/domain/professor_lesson_plans.dart'
+    show LessonPlanContent, LessonPlanKind;
+import '../../features/professor_mode/presentation/lesson_plans/athlete_lesson_plan_pages.dart';
+import '../../features/professor_mode/presentation/lesson_plans/lesson_plan_editor_page.dart';
+import '../../features/professor_mode/presentation/lesson_plans/lesson_plans_page.dart';
 import '../../features/professor_mode/presentation/story/professor_class_closed_page.dart';
 import '../../features/professor_mode/presentation/actions/professor_add_student_page.dart';
 import '../../features/professor_mode/presentation/actions/professor_convert_trial_page.dart';
@@ -632,6 +637,34 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                             ),
                           ),
                         ],
+                      ),
+                    ],
+                  ),
+                  // Plano de aula (H1–H5).
+                  GoRoute(
+                    path: 'planos-de-aula',
+                    name: AppRouteNames.professorLessonPlans,
+                    builder: (context, state) =>
+                        const ProfessorLessonPlansPage(),
+                    routes: [
+                      GoRoute(
+                        path: 'editar',
+                        name: AppRouteNames.professorLessonPlanEditor,
+                        builder: (context, state) {
+                          final kind = LessonPlanKind.parse(
+                                state.uri.queryParameters['kind'],
+                              ) ??
+                              LessonPlanKind.session;
+                          return ProfessorLessonPlanEditorPage(
+                            kind: kind,
+                            refId:
+                                state.uri.queryParameters['refId']?.trim() ??
+                                    '',
+                            prefill: state.extra is LessonPlanContent
+                                ? state.extra! as LessonPlanContent
+                                : null,
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -3018,6 +3051,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.athleteEvaluation,
         builder: (context, state) => AthleteEvaluationPage(
           evaluationId: state.pathParameters['evaluationId']?.trim() ?? '',
+        ),
+      ),
+      // Plano da aula publicado pelo professor (push `lesson_plan_published`).
+      GoRoute(
+        path: AppRoutes.athleteLessonPlans,
+        name: AppRouteNames.athleteLessonPlans,
+        builder: (context, state) => const AthleteLessonPlansPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteLessonPlan,
+        name: AppRouteNames.athleteLessonPlan,
+        builder: (context, state) => AthleteLessonPlanPage(
+          viewId: state.pathParameters['viewId']?.trim() ?? '',
         ),
       ),
       // Particulares do atleta (push `professor_private_lesson`) e o

@@ -85,6 +85,8 @@ class ProfessorHomePage extends ConsumerWidget {
             ),
             children: [
               _ClassesSection(classesAsync: classesAsync, now: now),
+              const SizedBox(height: 14),
+              const _LessonPlansShortcut(),
               const SizedBox(height: 26),
               _BookSection(links: links),
               const SizedBox(height: 26),
@@ -386,6 +388,51 @@ class _UpcomingRow extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Atalho para os planos de aula (H1).
+class _LessonPlansShortcut extends StatelessWidget {
+  const _LessonPlansShortcut();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return ProfessorLinksCard(
+      key: const Key('professor-home-lesson-plans'),
+      onTap: () => context.pushNamed(AppRouteNames.professorLessonPlans),
+      child: Row(
+        children: [
+          Icon(Icons.edit_note_rounded,
+              size: 22, color: colors.readableTone(AppColors.brandHover)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Planos de aula',
+                  style: ProfessorLinksStyle.display(
+                    14,
+                    color: colors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Monte o roteiro das próximas aulas',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: ProfessorLinksStyle.mute(colors),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right_rounded,
+              color: ProfessorLinksStyle.dim(colors)),
+        ],
       ),
     );
   }

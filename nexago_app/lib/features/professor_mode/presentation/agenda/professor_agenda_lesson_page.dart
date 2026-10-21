@@ -26,6 +26,8 @@ import '../../domain/professor_wallet.dart';
 import '../../domain/professor_wallet_logic.dart';
 import '../widgets/professor_students_widgets.dart';
 import '../wallet/professor_wallet_widgets.dart';
+import '../../domain/professor_lesson_plans.dart' show LessonPlanKind;
+import '../lesson_plans/lesson_plan_agenda_card.dart';
 import 'professor_agenda_widgets.dart';
 
 /// Início da aula como instante (o horário da reserva é parede de SP).
@@ -248,6 +250,13 @@ class _ProfessorAgendaLessonPageState
                     ],
                   ),
                 ),
+                if (!canceled) ...[
+                  const SizedBox(height: 18),
+                  LessonPlanAgendaCard(
+                    kind: LessonPlanKind.lesson,
+                    refId: l.bookingId,
+                  ),
+                ],
                 const SizedBox(height: 14),
                 Row(
                   children: [

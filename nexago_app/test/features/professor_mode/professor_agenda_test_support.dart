@@ -17,6 +17,7 @@ import 'package:nexago_app/features/professor_mode/application/professor_student
 import 'package:nexago_app/features/professor_mode/domain/professor_agenda.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_students.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_agenda_repository.dart';
+import 'package:nexago_app/features/professor_mode/infrastructure/professor_lesson_plans_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_students_repository.dart';
 import 'package:nexago_app/features/professor_mode/presentation/agenda/professor_agenda_lesson_page.dart';
 import 'package:nexago_app/features/professor_mode/presentation/agenda/professor_agenda_page.dart';
@@ -295,6 +296,9 @@ Future<GoRouter> pumpProfessorAgendaApp(
   BookingService? bookings,
   DateTime? now,
   Size size = const Size(390, 1800),
+  ProfessorLessonPlansRepository? lessonPlans,
+  List<RouteBase> extraRoutes = const [],
+  String uid = professorStudentsTestUid,
 }) {
   openedCalendarUris.clear();
   return pumpProfessorStudentsApp(
@@ -302,9 +306,15 @@ Future<GoRouter> pumpProfessorAgendaApp(
     repo: FakeProfessorStudentsRepository(
         [snapshot ?? professorStudentsSnapshot()]),
     walletRepo: wallet ?? FakeProfessorWalletRepository(),
+    lessonPlansRepo: lessonPlans,
     location: location,
     size: size,
-    extraRoutes: [...professorAgendaRoutes, ...professorWalletRoutes],
+    uid: uid,
+    extraRoutes: [
+      ...professorAgendaRoutes,
+      ...professorWalletRoutes,
+      ...extraRoutes,
+    ],
     overrides: [
       professorAgendaRepositoryProvider.overrideWithValue(agenda),
       professorLinksClockProvider.overrideWithValue(() => now ?? agendaNow),

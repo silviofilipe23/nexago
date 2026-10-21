@@ -121,6 +121,17 @@ abstract final class AppRoutes {
   static const String athletePrivateLessonBook =
       '/particulares/agendar/:professorUid';
 
+  /// Planos de aula (H1) e o editor (H2, `?kind=&refId=`), sem a barra.
+  /// `/professor/mais/planos` já é dos planos de cobrança da carteira.
+  static const String professorLessonPlans = '/professor/mais/planos-de-aula';
+  static const String professorLessonPlanEditor =
+      '/professor/mais/planos-de-aula/editar';
+
+  /// Plano da aula publicado para o ATLETA (H8, push
+  /// `lesson_plan_published`) e a lista deles. Abrem no modo Atleta.
+  static const String athleteLessonPlans = '/aula/planos';
+  static const String athleteLessonPlan = '/aula/plano/:viewId';
+
   /// Ganhos do repasse (equipe da arena): saldo e saque por PIX.
   static const String professorEarnings = '/professor/mais/ganhos';
   static const String professorWithdraw = '/professor/mais/ganhos/sacar';
@@ -854,6 +865,10 @@ abstract final class AppRouteNames {
   static const String professorAvailability = 'professorAvailability';
   static const String athletePrivateLessons = 'athletePrivateLessons';
   static const String athletePrivateLessonBook = 'athletePrivateLessonBook';
+  static const String professorLessonPlans = 'professorLessonPlans';
+  static const String professorLessonPlanEditor = 'professorLessonPlanEditor';
+  static const String athleteLessonPlans = 'athleteLessonPlans';
+  static const String athleteLessonPlan = 'athleteLessonPlan';
   static const String professorEarnings = 'professorEarnings';
   static const String professorWithdraw = 'professorWithdraw';
   static const String professorPixKey = 'professorPixKey';

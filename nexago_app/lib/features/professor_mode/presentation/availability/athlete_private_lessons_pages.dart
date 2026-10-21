@@ -19,6 +19,12 @@ import '../../domain/professor_actions_logic.dart' show professorDayLabel;
 import '../../domain/professor_availability.dart';
 import '../../infrastructure/professor_students_repository.dart'
     show ProfessorStudentsException;
+import '../../application/professor_lesson_plans_providers.dart'
+    show athleteLessonPlanViewsProvider;
+import '../../domain/professor_lesson_plans.dart'
+    show LessonPlanKind, lessonPlanViewFor;
+import '../lesson_plans/athlete_lesson_plan_pages.dart'
+    show openAthleteLessonPlan;
 import '../wallet/professor_wallet_widgets.dart';
 import '../widgets/professor_students_widgets.dart';
 import 'availability_widgets.dart';
@@ -82,9 +88,15 @@ class _AthletePrivateLessonsPageState
     final list = async.valueOrNull;
     final professors = ref.watch(myProfessorsProvider).valueOrNull;
     final split = list == null ? null : splitPrivateLessons(list, now);
+    final planViews =
+        ref.watch(athleteLessonPlanViewsProvider).valueOrNull ?? const [];
 
     Widget lessonCard(PrivateLesson l, {required bool upcoming}) {
       final canCancel = upcoming && l.canCancelAt(now);
+      // Plano publicado pelo professor para esta particular (H8).
+      final plan = upcoming
+          ? lessonPlanViewFor(planViews, LessonPlanKind.privateLesson, l.id)
+          : null;
       return _LessonWithPolicy(
         key: Key('athlete-private-${l.id}'),
         lesson: l,
@@ -105,6 +117,13 @@ class _AthletePrivateLessonsPageState
                       'Cancelada fora do prazo sem custo.')
                   : null,
           actions: [
+            if (plan != null)
+              ProfessorLinksGhostButton(
+                key: Key('athlete-lesson-plan-link-${l.id}'),
+                label: 'Ver plano',
+                height: 42,
+                onPressed: () => openAthleteLessonPlan(context, plan.id),
+              ),
             if (canCancel)
               ProfessorLinksGhostButton(
                 key: Key('athlete-private-cancel-${l.id}'),

@@ -13,7 +13,8 @@
  * Quem fala com quem: a mesma régua de quem o professor VÊ (`loadProfessorStudentsCore`: turmas
  * com vínculo `ACTIVE` + "Gerenciar as próprias aulas") e a carteira ATIVA. Acabou o vínculo, a
  * conversa fecha (`closed`) e o aluno sai de `memberIds` (deixa de ler). A arena não lê nada.
- * Canal com a gestão da arena (D4) e cartões de remarcação ficam para depois.
+ * O canal com a gestão da arena (D4, `kind: "arena"`) abre em `arena-professor-channel.ts` e usa
+ * este mesmo envio. Cartões de remarcação ficam para depois.
  */
 import * as logger from "firebase-functions/logger";
 import {onCall, HttpsError, type CallableRequest} from "firebase-functions/v2/https";
@@ -21,6 +22,7 @@ import {FieldValue, getFirestore, Timestamp, type DocumentReference, type Firest
 import {dayKeyFromEventDate, EVENT_TIME_ZONE} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {deliverNotificationToUser, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
+import {activeArenaLink, arenaChannelMembership} from "./arena-professor-channel";
 import {loadProfessorStudentsCore} from "./professor-students";
 import {PROFESSORS, PROFESSOR_STUDENTS} from "./professor-wallet-model";
 
@@ -237,9 +239,20 @@ const defaultDeps: MessageDeps = {
 /** O remetente ainda pode falar nesta conversa? Fecha/poda quando o vínculo acabou. */
 async function verifyMember(db: Firestore, ref: DocumentReference, c: Record<string, unknown>, uid: string, now: Date): Promise<void> {
   const verifiedAt = (c["verifiedAt"] as Record<string, Timestamp> | undefined)?.[uid];
-  if (verifiedAt instanceof Timestamp && now.getTime() - verifiedAt.toMillis() < VERIFY_EVERY_MS) return;
+  // Canal da arena: a equipe muda sem aviso — refaz a lista a cada envio (volume baixo).
+  if (c["kind"] !== "arena" && verifiedAt instanceof Timestamp && now.getTime() - verifiedAt.toMillis() < VERIFY_EVERY_MS) return;
   const professorUid = str(c["professorUid"]);
-  if (c["kind"] === "direct") {
+  if (c["kind"] === "arena") {
+    const arenaId = str(c["arenaId"]);
+    if (!(await activeArenaLink(db, arenaId, professorUid))) {
+      await ref.update({closed: true, closedAt: FieldValue.serverTimestamp()});
+      throw new HttpsError("failed-precondition", "Este canal foi encerrado: o vínculo com a arena acabou.");
+    }
+    const m = await arenaChannelMembership(db, arenaId, professorUid, now.getTime());
+    await ref.update({memberIds: m.memberIds, memberNames: m.memberNames, memberPhotos: m.memberPhotos});
+    c["memberIds"] = m.memberIds;
+    if (!m.memberIds.includes(uid)) throw new HttpsError("permission-denied", "Você não faz mais parte da gestão desta arena.");
+  } else if (c["kind"] === "direct") {
     const athleteUid = str(c["athleteUid"]);
     if (!(await isStudentOfProfessor(db, professorUid, athleteUid, now))) {
       await closeDirectConversation(db, professorUid, athleteUid);
@@ -307,13 +320,22 @@ export async function sendConversationMessageCore(
   const professorUid = str(conversation["professorUid"]);
   const prefs = parseMessagingPrefs((await db.collection("users").doc(professorUid).collection(MESSAGING_PREFS).doc("settings").get()).data());
   const professorOff = prefs != null && !withinServiceHours(prefs, now);
-  const title = conversation["kind"] === "class" ? `${str(conversation["title"])} · ${senderName}` : senderName;
+  const isArena = conversation["kind"] === "arena";
+  const title = conversation["kind"] === "class" || isArena ? `${str(conversation["title"])} · ${senderName}` : senderName;
+  const urlFor = (userId: string): Record<string, string> => {
+    if (userId === professorUid) return {url: `/professor/mensagens/${conversationId}`};
+    if (isArena) {
+      const linkId = str(conversation["linkId"]);
+      return {url: `/arena/professionals/${linkId}/conversa`, webUrl: `/painel/profissionais/${linkId}?aba=mensagens`};
+    }
+    return {url: `/mensagens/${conversationId}`};
+  };
   await Promise.all(members.filter((m) => m !== uid).map(async (userId) => {
     if (userId === professorUid && professorOff && prefs!.quietEnabled) return;
     try {
       await deps.notify({
         userId, title, body: text.slice(0, 140), type: MESSAGE_PUSH_TYPE,
-        data: {conversationId, url: userId === professorUid ? `/professor/mensagens/${conversationId}` : `/mensagens/${conversationId}`},
+        data: {conversationId, ...urlFor(userId)},
       });
     } catch (e) {
       logger.warn(`conversation ${conversationId}: push para ${userId} falhou`, e);

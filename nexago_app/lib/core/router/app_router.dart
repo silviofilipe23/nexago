@@ -196,6 +196,9 @@ import '../../features/professor_mode/presentation/evaluations/athlete_evaluatio
 import '../../features/professor_mode/presentation/evaluations/professor_evaluations_page.dart';
 import '../../features/professor_mode/presentation/earnings/professor_withdraw_page.dart';
 import '../../features/professor_mode/presentation/earnings/professor_withdrawals_page.dart';
+import '../../features/professor_mode/domain/professor_notices.dart'
+    show ProfessorNoticePrefill;
+import '../../features/professor_mode/presentation/notices/professor_arena_notice_page.dart';
 import '../../features/professor_mode/presentation/notices/professor_notice_editor_page.dart';
 import '../../features/professor_mode/presentation/notices/professor_notice_report_page.dart';
 import '../../features/professor_mode/presentation/notices/professor_notice_student_page.dart';
@@ -567,8 +570,23 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                       GoRoute(
                         path: 'novo',
                         name: AppRouteNames.professorNoticeNew,
-                        builder: (context, state) =>
-                            const ProfessorNoticeEditorPage(),
+                        // Repassar o comunicado da arena (F6) chega
+                        // preenchido pelo `extra`.
+                        builder: (context, state) => ProfessorNoticeEditorPage(
+                          prefill: state.extra is ProfessorNoticePrefill
+                              ? state.extra! as ProfessorNoticePrefill
+                              : null,
+                        ),
+                      ),
+                      // F6: comunicado da gestão da arena (literal antes de
+                      // `:noticeId`).
+                      GoRoute(
+                        path: 'arena/:noticeId',
+                        name: AppRouteNames.professorArenaNotice,
+                        builder: (context, state) => ProfessorArenaNoticePage(
+                          noticeId:
+                              state.pathParameters['noticeId']?.trim() ?? '',
+                        ),
                       ),
                       GoRoute(
                         path: ':noticeId',
@@ -2784,6 +2802,16 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => ArenaProfessionalDetailPage(
               linkId: state.pathParameters['linkId']?.trim() ?? '',
             ),
+            routes: [
+              // D4: canal com o professor (push `conversation_message`).
+              GoRoute(
+                path: 'conversa',
+                name: AppRouteNames.arenaProfessionalConversation,
+                builder: (context, state) => ConversationPage.arena(
+                  linkId: state.pathParameters['linkId']?.trim() ?? '',
+                ),
+              ),
+            ],
           ),
         ],
       ),

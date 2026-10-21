@@ -4,9 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/features/professor_links/application/professor_links_providers.dart';
+import 'package:nexago_app/features/professor_mode/domain/arena_professor_notices.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_notices.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_students.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_notices_repository.dart';
+import 'package:nexago_app/features/professor_mode/presentation/notices/professor_arena_notice_page.dart';
 import 'package:nexago_app/features/professor_mode/presentation/notices/professor_notice_editor_page.dart';
 import 'package:nexago_app/features/professor_mode/presentation/notices/professor_notice_report_page.dart';
 import 'package:nexago_app/features/professor_mode/presentation/notices/professor_notice_student_page.dart';
@@ -56,14 +58,46 @@ ProfessorNotice notice({
       answers: answers,
     );
 
+/// Comunicado da gestão da Arena CFC para o professor (F6).
+ArenaProfessorNotice arenaNotice({
+  String id = 'an1',
+  String arenaId = 'arena-cfc',
+  String arenaName = 'Arena CFC',
+  ArenaProfessorNoticeKind kind = ArenaProfessorNoticeKind.evento,
+  String title = 'Torneio interno 15/11 · inscrições abertas',
+  DateTime? sentAt,
+}) =>
+    ArenaProfessorNotice(
+      id: id,
+      arenaId: arenaId,
+      arenaName: arenaName,
+      kind: kind,
+      title: title,
+      body: 'Inscrição R\$ 60 por dupla até 08/11.',
+      authorUid: 'staff-ana',
+      authorName: 'Ana Souza',
+      recipientIds: const [professorStudentsTestUid],
+      recipientCount: 3,
+      sentAt: sentAt ?? DateTime.utc(2026, 10, 20, 14, 20),
+    );
+
 /// Repositório em memória: grava as chamadas e muda o estado.
 class FakeProfessorNoticesRepository implements ProfessorNoticesRepository {
   FakeProfessorNoticesRepository({
     List<ProfessorNotice>? notices,
     Map<String, List<ProfessorNoticeRecipient>>? recipients,
+    List<ArenaProfessorNotice>? arenaNotices,
+    Set<String>? arenaRead,
     this.previewCount = 7,
   })  : notices = notices ?? [],
-        recipients = recipients ?? {};
+        recipients = recipients ?? {},
+        arenaNotices = arenaNotices ?? [],
+        arenaRead = arenaRead ?? {};
+
+  /// Da gestão da arena (F6) e os já lidos (recibo no servidor).
+  List<ArenaProfessorNotice> arenaNotices;
+  Set<String> arenaRead;
+  final arenaMarked = <String>[];
 
   List<ProfessorNotice> notices;
   Map<String, List<ProfessorNoticeRecipient>> recipients;
@@ -159,6 +193,30 @@ class FakeProfessorNoticesRepository implements ProfessorNoticesRepository {
     _changes.add(null);
     return myReplies[noticeId]!.answer;
   }
+
+  @override
+  Stream<List<ArenaProfessorNotice>> watchArenaNotices(String uid) =>
+      _watch(() => List.of(arenaNotices));
+
+  @override
+  Stream<ArenaProfessorNotice?> watchArenaNotice(String noticeId) =>
+      _watch(() {
+        for (final n in arenaNotices) {
+          if (n.id == noticeId) return n;
+        }
+        return null;
+      });
+
+  @override
+  Stream<bool> watchArenaNoticeRead(String noticeId, String uid) =>
+      _watch(() => arenaRead.contains(noticeId));
+
+  @override
+  Future<void> markArenaNoticeRead(String noticeId) async {
+    arenaMarked.add(noticeId);
+    arenaRead.add(noticeId);
+    _changes.add(null);
+  }
 }
 
 List<RouteBase> get professorNoticeRoutes => [
@@ -170,7 +228,18 @@ List<RouteBase> get professorNoticeRoutes => [
       GoRoute(
         path: AppRoutes.professorNoticeNew,
         name: AppRouteNames.professorNoticeNew,
-        builder: (_, __) => const ProfessorNoticeEditorPage(),
+        builder: (_, state) => ProfessorNoticeEditorPage(
+          prefill: state.extra is ProfessorNoticePrefill
+              ? state.extra! as ProfessorNoticePrefill
+              : null,
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.professorArenaNotice,
+        name: AppRouteNames.professorArenaNotice,
+        builder: (_, state) => ProfessorArenaNoticePage(
+          noticeId: state.pathParameters['noticeId'] ?? '',
+        ),
       ),
       GoRoute(
         path: AppRoutes.professorNoticeEdit,

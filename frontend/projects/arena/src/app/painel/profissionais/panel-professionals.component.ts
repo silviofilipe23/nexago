@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
+import { AuthService } from '../../auth/auth.service';
 import { AulaStatComponent } from '../aulas/aulas-ui';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
@@ -32,6 +33,8 @@ import {
   type ProfessorTypeFilter,
 } from './arena-professor.model';
 import { ArenaProfessorsService } from './arena-professors.service';
+import { unreadBadge, unreadByLinkId, type ArenaChannel } from './arena-professor-channel.model';
+import { ArenaProfessorChannelService } from './arena-professor-channel.service';
 import {
   ProfessorAnalyzeModalComponent,
   ProfessorConfirmModalComponent,
@@ -80,6 +83,10 @@ const TYPE_CHIPS: ReadonlyArray<{ id: ProfessorLinkType; label: string; color: s
           </label>
         }
         @if (canWrite()) {
+          <button type="button" class="ar-mini-btn" [disabled]="!arenaId()" (click)="openNotices()">
+            <ar-icon name="bell" [size]="14" />
+            Comunicados
+          </button>
           <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="!arenaId()" (click)="inviteOpen.set(true)">
             <ar-icon name="plus" [size]="14" />
             Convidar professor
@@ -173,7 +180,20 @@ const TYPE_CHIPS: ReadonlyArray<{ id: ProfessorLinkType; label: string; color: s
                         <div class="cell-prof">
                           <ar-avatar [name]="row.link.professorName" [photoUrl]="row.link.professorPhotoUrl" [size]="32" />
                           <div class="prof-text">
-                            <div class="prof-name">{{ row.link.professorName }}</div>
+                            <div class="prof-name-row">
+                              <span class="prof-name">{{ row.link.professorName }}</span>
+                              @if (row.unread > 0) {
+                                <button
+                                  type="button"
+                                  class="unread"
+                                  [attr.aria-label]="row.unread + ' mensagens não lidas de ' + row.link.professorName"
+                                  (click)="$event.stopPropagation(); openMessages(row.link.id)"
+                                  (keydown.enter)="$event.stopPropagation()"
+                                >
+                                  <ar-icon name="mail" [size]="11" />{{ row.unreadLabel }}
+                                </button>
+                              }
+                            </div>
                             <div class="prof-mod">{{ row.modalities }}</div>
                           </div>
                         </div>
@@ -343,7 +363,16 @@ const TYPE_CHIPS: ReadonlyArray<{ id: ProfessorLinkType; label: string; color: s
 
     .cell-prof { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .prof-text { min-width: 0; }
+    .prof-name-row { display: flex; align-items: center; gap: 7px; min-width: 0; }
+    .unread {
+      flex: none; height: 18px; padding: 0 6px; border-radius: 9px; border: none; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 4px;
+      background: var(--nx-orange-500); color: var(--nx-text-on-orange);
+      font-family: var(--nx-font-mono); font-size: 10px; font-weight: 800;
+    }
+    .unread:focus-visible { outline: 2px solid var(--nx-text); outline-offset: 1px; }
     .prof-name {
+      min-width: 0;
       font-family: var(--nx-font-display); font-weight: 600; font-size: 13px; color: var(--nx-text);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
@@ -406,6 +435,8 @@ export class PanelProfessionalsComponent {
   private readonly access = inject(ArenaAccessService);
   private readonly service = inject(ArenaProfessorsService);
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+  private readonly channelService = inject(ArenaProfessorChannelService);
 
   protected readonly typeChips = TYPE_CHIPS;
   protected readonly statusChips = PROFESSOR_STATUS_FILTERS;
@@ -415,6 +446,10 @@ export class PanelProfessionalsComponent {
   protected readonly canWrite = computed(() => this.access.ready() && this.access.canWrite('perfil'));
 
   protected readonly links = signal<ArenaProfessorLink[]>([]);
+  /** Canais em que o usuário é membro (só a gestão com escrita em `perfil`): badge de não lidas. */
+  private readonly channels = signal<ArenaChannel[]>([]);
+  private readonly uid = computed(() => this.auth.user()?.uid ?? null);
+  private readonly unreadMap = computed(() => unreadByLinkId(this.channels(), this.uid()));
   private readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
   protected readonly loadingView = computed(() => this.arenaContext.loading() || this.loading());
@@ -476,6 +511,8 @@ export class PanelProfessionalsComponent {
           pills: cell.kind === 'pills' ? cell.items : null,
           permText: cell.kind === 'text' ? cell.text : '',
           canResend,
+          unread: this.unreadMap()[link.id] ?? 0,
+          unreadLabel: unreadBadge(this.unreadMap()[link.id] ?? 0),
         };
       },
     );
@@ -511,8 +548,24 @@ export class PanelProfessionalsComponent {
       onCleanup(stop);
     });
 
+    effect((onCleanup) => {
+      const arenaId = this.arenaContext.arenaId();
+      const uid = this.uid();
+      this.channels.set([]);
+      if (!arenaId || !uid || !this.canWrite()) return;
+      onCleanup(this.channelService.watchArenaChannels(arenaId, uid, (channels) => this.channels.set(channels)));
+    });
+
     const tick = setInterval(() => this.now.set(Date.now()), 60_000);
     inject(DestroyRef).onDestroy(() => clearInterval(tick));
+  }
+
+  protected openMessages(linkId: string): void {
+    void this.router.navigate(['/painel/profissionais', linkId], { queryParams: { aba: 'mensagens' } });
+  }
+
+  protected openNotices(): void {
+    void this.router.navigate(['/painel/profissionais/comunicados']);
   }
 
   protected pendingSub(link: ArenaProfessorLink): string {

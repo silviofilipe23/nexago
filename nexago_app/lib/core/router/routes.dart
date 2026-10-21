@@ -82,6 +82,11 @@ abstract final class AppRoutes {
   static const String professorNoticeEdit =
       '/professor/mais/comunicados/:noticeId/editar';
 
+  /// Comunicado da gestão da arena para o professor (F6, push
+  /// `arena_professor_notice`).
+  static const String professorArenaNotice =
+      '/professor/mais/comunicados/arena/:noticeId';
+
   /// Comunicado do professor para o ATLETA (push `professor_notice`). Abre no
   /// modo Atleta.
   static const String professorNoticeForStudent =
@@ -487,6 +492,11 @@ abstract final class AppRoutes {
   /// `/arena/professionals/:linkId`
   static const String arenaProfessionalDetail = '/arena/professionals/:linkId';
 
+  /// Canal com o professor (D4, lado da gestão); push `conversation_message`
+  /// do canal abre aqui: `/arena/professionals/:linkId/conversa`
+  static const String arenaProfessionalConversation =
+      '/arena/professionals/:linkId/conversa';
+
   /// Nova matrícula em 4 passos: `/arena/classes/enroll`
   static const String arenaClassEnroll = '/arena/classes/enroll';
 
@@ -810,6 +820,7 @@ abstract final class AppRouteNames {
   static const String professorNoticeNew = 'professorNoticeNew';
   static const String professorNoticeReport = 'professorNoticeReport';
   static const String professorNoticeEdit = 'professorNoticeEdit';
+  static const String professorArenaNotice = 'professorArenaNotice';
   static const String professorNoticeForStudent = 'professorNoticeForStudent';
   static const String lessonPaymentConfirmed = 'lessonPaymentConfirmed';
   static const String lessonPaymentReceipt = 'lessonPaymentReceipt';
@@ -985,6 +996,8 @@ abstract final class AppRouteNames {
   static const String arenaClassTeacherPayout = 'arenaClassTeacherPayout';
   static const String arenaProfessionals = 'arenaProfessionals';
   static const String arenaProfessionalDetail = 'arenaProfessionalDetail';
+  static const String arenaProfessionalConversation =
+      'arenaProfessionalConversation';
   static const String clubSession = 'clubSession';
   static const String clubSessionPix = 'clubSessionPix';
   static const String arenaSettings = 'arenaSettings';

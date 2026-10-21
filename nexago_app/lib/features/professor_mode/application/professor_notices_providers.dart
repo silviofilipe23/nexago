@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../professor_links/application/professor_links_providers.dart';
+import '../domain/arena_professor_notices.dart';
 import '../domain/professor_notices.dart';
 import '../infrastructure/professor_notices_repository.dart';
 import 'professor_students_providers.dart';
@@ -27,6 +28,55 @@ final professorNoticeRecipientsProvider = StreamProvider.autoDispose
 /// Aba da lista (F1).
 final professorNoticesTabProvider =
     StateProvider<ProfessorNoticeStatus>((ref) => ProfessorNoticeStatus.sent);
+
+/// "Da gestão" (F6) no lugar das abas do professor.
+final professorNoticesArenaTabProvider = StateProvider<bool>((ref) => false);
+
+// ── da gestão da arena (F6) ──
+
+/// Comunicados das arenas para o professor, mais novos primeiro.
+final arenaProfessorNoticesProvider =
+    StreamProvider.autoDispose<List<ArenaProfessorNotice>>((ref) {
+  final uid = ref.watch(professorLinksUidProvider);
+  if (uid.isEmpty) return Stream.value(const []);
+  return ref
+      .watch(professorNoticesRepositoryProvider)
+      .watchArenaNotices(uid)
+      .map(sortArenaProfessorNotices);
+});
+
+final arenaProfessorNoticeProvider = StreamProvider.autoDispose
+    .family<ArenaProfessorNotice?, String>((ref, noticeId) {
+  if (ref.watch(professorLinksUidProvider).isEmpty || noticeId.isEmpty) {
+    return Stream.value(null);
+  }
+  return ref
+      .watch(professorNoticesRepositoryProvider)
+      .watchArenaNotice(noticeId);
+});
+
+/// Lidos nesta sessão (marca na hora, antes do snapshot do recibo).
+final arenaProfessorNoticesReadLocallyProvider =
+    StateProvider<Set<String>>((ref) => const {});
+
+/// Já leu? O recibo do servidor ou a marca local.
+final arenaProfessorNoticeReadProvider =
+    Provider.autoDispose.family<bool, String>((ref, noticeId) {
+  if (ref.watch(arenaProfessorNoticesReadLocallyProvider).contains(noticeId)) {
+    return true;
+  }
+  // Carregando ou sem leitura: sem ponto (não pisca "não lido").
+  return ref.watch(_arenaNoticeReceiptProvider(noticeId)).valueOrNull ?? true;
+});
+
+final _arenaNoticeReceiptProvider =
+    StreamProvider.autoDispose.family<bool, String>((ref, noticeId) {
+  final uid = ref.watch(professorLinksUidProvider);
+  if (uid.isEmpty || noticeId.isEmpty) return Stream.value(false);
+  return ref
+      .watch(professorNoticesRepositoryProvider)
+      .watchArenaNoticeRead(noticeId, uid);
+});
 
 /// Turmas que podem receber (F3): as das arenas em que o professor vê os
 /// alunos — a mesma régua do servidor.

@@ -21,10 +21,20 @@ Future<void> openConversationWith(
   BuildContext context,
   Future<String> Function() open, {
   required bool professorMode,
+
+  /// Lado da gestão da arena (canal D4): abre a conversa do vínculo.
+  String? arenaLinkId,
 }) async {
   try {
     final id = await open();
     if (!context.mounted) return;
+    if (arenaLinkId != null) {
+      context.pushNamed(
+        AppRouteNames.arenaProfessionalConversation,
+        pathParameters: {'linkId': arenaLinkId},
+      );
+      return;
+    }
     context.pushNamed(
       professorMode
           ? AppRouteNames.professorConversation
@@ -41,23 +51,29 @@ Future<void> openConversationWith(
   }
 }
 
-/// Avatar da conversa: foto/iniciais na direta, quadrado com sigla no grupo.
+/// Avatar da conversa: foto/iniciais na direta, quadrado com sigla no grupo,
+/// a marca da arena no canal com a gestão.
 class ConversationAvatar extends StatelessWidget {
   const ConversationAvatar({
     super.key,
     required this.name,
     this.photoUrl,
     this.group = false,
+    this.arena = false,
     this.size = 44,
   });
 
   final String name;
   final String? photoUrl;
   final bool group;
+
+  /// [name] é o nome da arena (iniciais no degradê).
+  final bool arena;
   final double size;
 
   @override
   Widget build(BuildContext context) {
+    if (arena) return ProfessorArenaMark(name: name, size: size);
     if (!group) {
       return ArenaClassAvatar(
         initials: arenaClassInitials(name),
@@ -111,6 +127,7 @@ class ConversationTile extends StatelessWidget {
     final c = conversation;
     final unread = c.unreadFor(viewerUid);
     final title = c.titleFor(viewerUid);
+    final arenaMark = c.isArena && !c.viewedByArenaStaff(viewerUid);
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -123,9 +140,11 @@ class ConversationTile extends StatelessWidget {
         child: Row(
           children: [
             ConversationAvatar(
-              name: title,
+              key: Key('conversation-avatar-${c.id}'),
+              name: arenaMark ? (c.arenaName ?? title) : title,
               photoUrl: c.photoFor(viewerUid),
               group: c.isGroup,
+              arena: arenaMark,
             ),
             const SizedBox(width: 12),
             Expanded(

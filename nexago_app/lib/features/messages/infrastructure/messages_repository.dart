@@ -41,6 +41,11 @@ abstract class MessagesRepository {
 
   Future<String> openClassConversation(String classId);
 
+  /// Canal com a gestão da arena (D4, `openArenaChannel`): o professor abre o
+  /// dele só com [arenaId]; a gestão passa o [professorUid]. Exige vínculo
+  /// ativo (o servidor recusa com a mensagem pronta).
+  Future<String> openArenaChannel(String arenaId, {String? professorUid});
+
   Future<void> markRead(String conversationId);
 
   Future<List<MyProfessor>> getMyProfessors();
@@ -166,6 +171,13 @@ class FirebaseMessagesRepository implements MessagesRepository {
   @override
   Future<String> openClassConversation(String classId) =>
       _open('openClassConversation', {'classId': classId});
+
+  @override
+  Future<String> openArenaChannel(String arenaId, {String? professorUid}) =>
+      _open('openArenaChannel', {
+        'arenaId': arenaId,
+        if (professorUid != null) 'professorUid': professorUid,
+      });
 
   @override
   Future<void> markRead(String conversationId) => _call(

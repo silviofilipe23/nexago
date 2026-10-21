@@ -36,10 +36,12 @@ typedef ProfessorNoticeTiming = ({DateTime? scheduledAt, DateTime? remindAt});
 /// F2 Novo comunicado → F3 Para quem → F4 Quando enviar. Um editor só, em
 /// dois passos (conteúdo e destinatários) e a folha do envio. Também edita
 /// rascunho/agendado ([noticeId]) e salva rascunho a qualquer momento.
+/// [prefill] abre o novo já preenchido (repasse do comunicado da arena, F6).
 class ProfessorNoticeEditorPage extends ConsumerStatefulWidget {
-  const ProfessorNoticeEditorPage({super.key, this.noticeId});
+  const ProfessorNoticeEditorPage({super.key, this.noticeId, this.prefill});
 
   final String? noticeId;
+  final ProfessorNoticePrefill? prefill;
 
   @override
   ConsumerState<ProfessorNoticeEditorPage> createState() =>
@@ -63,6 +65,18 @@ class _ProfessorNoticeEditorPageState
   String? _error;
   int? _count;
   int _countToken = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.prefill;
+    if (p != null && widget.noticeId == null) {
+      _kind = p.kind;
+      _title.text = p.title;
+      _body.text = p.body;
+      _audience = p.audience;
+    }
+  }
 
   @override
   void dispose() {
@@ -180,6 +194,7 @@ class _ProfessorNoticeEditorPageState
       final r = await ref.read(professorNoticesRepositoryProvider).send(input);
       if (!mounted) return;
       ref.read(professorNoticesTabProvider.notifier).state = r.status;
+      ref.read(professorNoticesArenaTabProvider.notifier).state = false;
       showAppSnackBar(
         context,
         r.status == ProfessorNoticeStatus.scheduled

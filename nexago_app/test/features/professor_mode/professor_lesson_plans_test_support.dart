@@ -10,6 +10,7 @@ import 'package:nexago_app/features/professor_mode/application/professor_lesson_
 import 'package:nexago_app/features/professor_mode/domain/professor_agenda.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_lesson_plans.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_lesson_plans_repository.dart';
+import 'package:nexago_app/features/professor_mode/infrastructure/professor_own_classes_repository.dart';
 import 'package:nexago_app/features/professor_mode/presentation/lesson_plans/athlete_lesson_plan_pages.dart';
 import 'package:nexago_app/features/professor_mode/presentation/lesson_plans/lesson_live_page.dart';
 import 'package:nexago_app/features/professor_mode/presentation/lesson_plans/lesson_plan_editor_page.dart';
@@ -18,6 +19,7 @@ import 'package:nexago_app/features/professor_mode/presentation/lesson_plans/les
 
 import 'professor_agenda_test_support.dart';
 import 'professor_students_test_support.dart';
+import 'professor_wallet_test_support.dart';
 
 /// Apoio dos testes do plano de aula (H1–H5, H8). Agora = Ter 20/10/2026
 /// 12:00 em SP ([agendaNow]).
@@ -474,6 +476,9 @@ Future<GoRouter> pumpLessonPlansApp(
   String uid = lessonPlanUid,
   DateTime Function()? liveClock,
   List<Override> overrides = const [],
+  FakeProfessorWalletRepository? wallet,
+  ProfessorOwnClassesRepository? ownClasses,
+  List<RouteBase> extraRoutes = const [],
 }) =>
     pumpProfessorAgendaApp(
       tester,
@@ -483,7 +488,9 @@ Future<GoRouter> pumpLessonPlansApp(
       ),
       location: location,
       lessonPlans: plans,
-      extraRoutes: lessonPlanRoutes,
+      wallet: wallet,
+      ownClasses: ownClasses,
+      extraRoutes: [...lessonPlanRoutes, ...extraRoutes],
       uid: uid,
       extraOverrides: [
         lessonLiveWakelockProvider.overrideWithValue((_) async {}),

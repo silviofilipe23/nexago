@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/routes.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../arena/domain/aulas/arena_class_logic.dart'
@@ -91,6 +92,72 @@ class ProfessorOwnClassBadge extends StatelessWidget {
       );
 }
 
+/// Cor da situação da série: ativa em verde, pausada em amarelo, cancelada
+/// em vermelho.
+Color professorOwnClassSeriesColor(ProfessorOwnClassSeriesStatus s) =>
+    switch (s) {
+      ProfessorOwnClassSeriesStatus.active => AppColors.win,
+      ProfessorOwnClassSeriesStatus.paused => AppColors.pending,
+      ProfessorOwnClassSeriesStatus.canceled => AppColors.live,
+    };
+
+/// Um chip por dia da turma com a situação da série na arena ("Ter · ativo",
+/// "Qui · pausado pela arena"…).
+class ProfessorOwnClassSeriesChips extends StatelessWidget {
+  const ProfessorOwnClassSeriesChips({super.key, required this.cls});
+
+  final ProfessorOwnClass cls;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final d in cls.weekdays)
+          Builder(builder: (context) {
+            final status = cls.seriesStatusOf(d);
+            final tone = colors.readableTone(
+              professorOwnClassSeriesColor(status),
+            );
+            return Container(
+              key: Key('professor-own-class-series-$d'),
+              padding: const EdgeInsets.fromLTRB(8, 5, 10, 5),
+              decoration: BoxDecoration(
+                color: professorOwnClassSeriesColor(status)
+                    .withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration:
+                        BoxDecoration(color: tone, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    professorOwnClassSeriesLabel(d, status),
+                    style: AppTypography.bodyS.copyWith(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: status == ProfessorOwnClassSeriesStatus.active
+                          ? colors.onSurface
+                          : tone,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+      ],
+    );
+  }
+}
+
 /// Arena da turma: com uma só, vai direto; com mais, pergunta numa folha.
 Future<String?> pickProfessorOwnClassArena(
   BuildContext context,
@@ -176,6 +243,14 @@ class ProfessorOwnClassCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
+              if (professorOwnClassSeriesTag(c) case final tag?) ...[
+                ArenaClassTag(
+                  key: Key('professor-own-class-series-tag-${c.id}'),
+                  label: tag,
+                  color: AppColors.pending,
+                ),
+                const SizedBox(width: 6),
+              ],
               if (c.isActive)
                 const ProfessorOwnClassBadge()
               else

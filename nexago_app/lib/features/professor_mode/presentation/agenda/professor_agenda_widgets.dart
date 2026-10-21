@@ -45,8 +45,9 @@ Color professorItemColor(Map<String, int> palette, ProfessorAgendaItem i) =>
             ? AppColors.brandHover
             : professorArenaColor(palette, i.arenaId);
 
-/// Abre o detalhe do item: turma (E4), particular (E5), o bloqueio (E7) ou,
-/// para a particular do app, a Disponibilidade (pedidos e próximas).
+/// Abre o detalhe do item: turma (E4), particular (E5), o bloqueio (E7),
+/// para a particular do app a Disponibilidade (pedidos e próximas) e, na
+/// turma própria, o detalhe da turma.
 void openProfessorAgendaItem(BuildContext context, ProfessorAgendaItem i) {
   switch (i.kind) {
     case ProfessorAgendaKind.session:
@@ -67,6 +68,13 @@ void openProfessorAgendaItem(BuildContext context, ProfessorAgendaItem i) {
       );
     case ProfessorAgendaKind.privateLesson:
       context.pushNamed(AppRouteNames.professorAvailability);
+    case ProfessorAgendaKind.ownClass:
+      final classId = i.ownClassId;
+      if (classId == null) return;
+      context.pushNamed(
+        AppRouteNames.professorOwnClass,
+        pathParameters: {'classId': classId},
+      );
   }
 }
 
@@ -81,7 +89,7 @@ class ProfessorAgendaTypeTag extends StatelessWidget {
     final color = switch (label) {
       'Bloqueio' => kProfessorBlockColor,
       'Particular' => AppColors.brandHover,
-      'Dupla' => ProfessorLinksStyle.blue,
+      'Dupla' || kProfessorOwnClassTypeLabel => ProfessorLinksStyle.blue,
       'Experimental' || 'Reposição' => AppColors.pending,
       _ => context.themeColors.onSurface,
     };

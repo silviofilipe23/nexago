@@ -13,6 +13,7 @@
  */
 import * as logger from "firebase-functions/logger";
 import {onCall, HttpsError, type CallableRequest} from "firebase-functions/v2/https";
+import {onDocumentUpdated} from "firebase-functions/v2/firestore";
 import {FieldValue, getFirestore, type Firestore} from "firebase-admin/firestore";
 import {isArenaEntitledPro} from "./arena-entitlement";
 import {readArenaFallbackPrice, readCourtHourlyBase, resolveSlotPrice} from "./arena-pricing";
@@ -260,6 +261,8 @@ export async function endProfessorOwnClass(db: Firestore, professorUid: string, 
   const data = (await ref.get()).data();
   if (!data) throw new HttpsError("not-found", "Turma não encontrada.");
   if (data["status"] === "ended") return;
+  // Encerra antes de cancelar as séries: o gatilho da série vê a turma encerrada e não avisa.
+  await ref.update({status: "ended", endedReason: reason, endedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()});
   for (const seriesId of Object.values((data["seriesIds"] ?? {}) as Record<string, string>)) {
     const seriesRef = db.collection(ARENA_RECURRING_BOOKINGS).doc(seriesId);
     if ((await seriesRef.get()).data()?.["status"] !== "canceled") {
@@ -267,7 +270,6 @@ export async function endProfessorOwnClass(db: Firestore, professorUid: string, 
     }
     await cancelFutureOccurrences(db, seriesId, `professor_own_class_${reason}`);
   }
-  await ref.update({status: "ended", endedReason: reason, endedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp()});
 }
 
 export async function endProfessorOwnClassCore(db: Firestore, uid: string, raw: Record<string, unknown>): Promise<void> {
@@ -342,3 +344,66 @@ export const endProfessorOwnClassCallable = onCall(OPTS, async (r) => {
 
 export const setProfessorOwnClassStudents = onCall({region: CLIENT_FACING_REGIONS}, async (r) =>
   setProfessorOwnClassStudentsCore(getFirestore(), requireUid(r), dataOf(r)));
+
+// ---------------------------------------------------------------------------
+// A arena mexeu na série (cancelar, pausar, retomar pela lista de Horários fixos, ou quadra
+// removida): a turma própria acompanha. `seriesStatus.{dia}` espelha a série; todas canceladas =
+// turma encerrada. O professor é avisado — a não ser que a mudança tenha vindo dele mesmo (turma já
+// encerrada pelo professor ou pelo agendador).
+
+const WEEKDAY_SHORT: Record<number, string> = {1: "seg", 2: "ter", 3: "qua", 4: "qui", 5: "sex", 6: "sáb", 7: "dom"};
+
+export async function syncOwnClassWithSeriesCore(
+  db: Firestore,
+  before: Record<string, unknown> | undefined,
+  after: Record<string, unknown> | undefined,
+  notify: (input: {userId: string; title: string; body: string; type: string; data: Record<string, string>}) => Promise<void>,
+): Promise<"skip" | "updated" | "ended"> {
+  if (!before || !after || after["bookedAs"] !== "professor") return "skip";
+  const classId = str(after["professorClassId"]);
+  const professorUid = str(after["athleteId"]);
+  const status = str(after["status"]);
+  if (!classId || !professorUid || str(before["status"]) === status) return "skip";
+  // Cancelamento do próprio fluxo da turma (professor encerrou / agendador): não é da arena.
+  if (["professor_ended", "link_or_permission"].includes(str(after["cancelReason"]))) return "skip";
+  const ref = db.collection(PROFESSORS).doc(professorUid).collection(PROFESSOR_OWN_CLASSES).doc(classId);
+  const cls = (await ref.get()).data();
+  if (!cls || cls["status"] === "ended") return "skip";
+  const weekday = Number(after["weekday"]);
+  const seriesIds = (cls["seriesIds"] ?? {}) as Record<string, string>;
+  const statuses = {...((cls["seriesStatus"] ?? {}) as Record<string, string>), [String(weekday)]: status};
+  const allCanceled = Object.keys(seriesIds).length > 0 && Object.keys(seriesIds).every((d) => (statuses[d] ?? "active") === "canceled");
+  await ref.update({
+    seriesStatus: statuses,
+    updatedAt: FieldValue.serverTimestamp(),
+    ...(allCanceled ? {status: "ended", endedReason: "arena_canceled", endedAt: FieldValue.serverTimestamp()} : {}),
+  });
+  const day = WEEKDAY_SHORT[weekday] ?? "um dia";
+  const name = str(cls["name"]) || "sua turma";
+  const arena = str(cls["arenaName"]) || "A arena";
+  const body = allCanceled ?
+    `${arena} cancelou o horário fixo e a turma ${name} foi encerrada.` :
+    status === "canceled" ? `${arena} cancelou o horário fixo de ${day} da turma ${name}.` :
+      status === "paused" ? `${arena} pausou o horário fixo de ${day} da turma ${name}.` :
+        `${arena} retomou o horário fixo de ${day} da turma ${name}.`;
+  try {
+    await notify({
+      userId: professorUid,
+      title: allCanceled ? "Turma própria encerrada" : "Horário fixo da turma mudou",
+      body, type: "professor_own_class_ended",
+      data: {professorClassId: classId, url: `/professor/mais/turmas/propria/${classId}`},
+    });
+  } catch (e) {
+    logger.warn(`ownClass ${classId}: aviso ao professor falhou`, e);
+  }
+  return allCanceled ? "ended" : "updated";
+}
+
+export const onProfessorRecurringSeriesChanged = onDocumentUpdated(`${ARENA_RECURRING_BOOKINGS}/{seriesId}`, async (event) => {
+  await syncOwnClassWithSeriesCore(
+    getFirestore(), event.data?.before.data(), event.data?.after.data(),
+    async (input) => {
+      await deliverNotificationToUser({...input, requireInteraction: false});
+    },
+  );
+});

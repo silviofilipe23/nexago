@@ -17,11 +17,31 @@ void main() {
       );
     });
 
-    test('sem url, ainda abre Minhas turmas', () {
+    test('url do detalhe (série mexida pela arena) abre a turma', () {
+      expect(
+        resolveNotificationRoute(const {
+          'type': professorOwnClassEndedNotificationType,
+          'professorClassId': 'oc-1',
+          'url': '/professor/mais/turmas/propria/oc-1',
+        }),
+        AppRoutes.professorOwnClass.replaceAll(':classId', 'oc-1'),
+      );
+    });
+
+    test('sem url, o detalhe pelo professorClassId', () {
       expect(
         resolveNotificationRoute(const {
           'type': 'professor_own_class_ended',
           'professorClassId': 'oc-1',
+        }),
+        '/professor/mais/turmas/propria/oc-1',
+      );
+    });
+
+    test('sem url nem turma, Minhas turmas', () {
+      expect(
+        resolveNotificationRoute(const {
+          'type': 'professor_own_class_ended',
         }),
         AppRoutes.professorClasses,
       );

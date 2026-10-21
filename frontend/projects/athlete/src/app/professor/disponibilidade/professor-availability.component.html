@@ -1,0 +1,288 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  <header class="pf-page-header">
+    <div class="pf-page-titles">
+      <h1>Disponibilidade</h1>
+      <div class="pf-page-sub">Horários abertos para particulares no app</div>
+    </div>
+    @if (!loading() && !loadError()) {
+      <span class="av-state" [class.av-state--dirty]="dirty()">
+        <span class="av-state-dot" aria-hidden="true"></span>
+        {{ dirty() ? (savedPublished() ? 'Alterações não publicadas' : 'Não publicado') : 'Publicado' }}
+      </span>
+      <button type="button" class="pf-btn pf-btn--primary" [disabled]="publishing()" (click)="publish()">
+        @if (publishing()) {
+          <app-nx-spinner [size]="13" tone="dark" />
+          Publicando…
+        } @else {
+          Publicar horários
+        }
+      </button>
+    }
+  </header>
+
+  @if (publishedBanner()) {
+    <app-nx-banner tone="success" [dismissible]="true" (dismiss)="publishedBanner.set(false)">
+      Horários publicados. Seus alunos já veem os horários livres no app.
+    </app-nx-banner>
+  }
+
+  <div class="pf-body">
+    @if (loading()) {
+      <app-nx-page-loading title="Carregando sua disponibilidade…" subtitle="Professor" />
+    } @else if (loadError()) {
+      <app-nx-inline-message
+        tone="error"
+        heading="Não deu para carregar sua disponibilidade"
+        body="Verifique a conexão e tente de novo."
+        actionLabel="Tentar de novo"
+        (action)="retry()"
+      />
+    } @else {
+      @if (publishError(); as message) {
+        <app-nx-inline-message tone="error" heading="Horários não publicados" [body]="message" />
+      }
+
+      <div class="av-layout">
+        <section class="av-card av-grid-card" aria-label="Grade semanal">
+          <div class="av-legend">
+            <span class="av-legend-item"><span class="av-swatch av-swatch--class"></span>Turma fixa</span>
+            <span class="av-legend-item"><span class="av-swatch av-swatch--open"></span>Livre p/ particular</span>
+            <span class="av-legend-item"><span class="av-swatch av-swatch--lesson"></span>Particular agendada</span>
+            <span class="av-legend-item"><span class="av-swatch av-swatch--block"></span>Bloqueado</span>
+            <span class="av-legend-hint">Clique e arraste para abrir/fechar</span>
+          </div>
+
+          <div class="av-grid-scroll">
+            <div class="av-grid" role="grid" aria-label="Horas abertas para particular nesta semana">
+              <div class="av-corner" aria-hidden="true"></div>
+              @for (d of week(); track d.dayKey) {
+                <div class="av-day" [class.av-day--today]="d.today" role="columnheader">
+                  <span class="av-day-name">{{ d.short }}</span>
+                  <span class="av-day-date">{{ d.dateLabel }}</span>
+                </div>
+              }
+              @for (row of rows(); track row.hour) {
+                <div class="av-hour" role="rowheader">{{ row.label }}</div>
+                @for (cell of row.cells; track cell.day) {
+                  <button
+                    type="button"
+                    role="gridcell"
+                    class="av-cell"
+                    [class.av-cell--open]="cell.open && !cell.overlay"
+                    [class.av-cell--class]="cell.overlay?.kind === 'class'"
+                    [class.av-cell--lesson]="cell.overlay?.kind === 'lesson'"
+                    [class.av-cell--pending]="cell.overlay?.pending"
+                    [class.av-cell--block]="cell.overlay?.kind === 'block'"
+                    [class.av-cell--under-open]="cell.open && !!cell.overlay"
+                    [attr.aria-pressed]="cell.overlay ? null : cell.open"
+                    [attr.aria-disabled]="cell.overlay ? true : null"
+                    [attr.aria-label]="cell.label"
+                    [attr.title]="cell.overlay?.detail ?? null"
+                    (pointerdown)="onPointerDown($event, cell)"
+                    (pointerenter)="onPointerEnter(cell)"
+                    (pointerup)="onPointerUp($event, cell)"
+                    (pointercancel)="onPointerCancel()"
+                    (keydown.enter)="onKeyToggle($event, cell)"
+                    (keydown.space)="onKeyToggle($event, cell)"
+                  >
+                    @if (cell.overlay; as ov) {
+                      {{ ov.kind === 'lesson' && ov.pending ? ov.label + ' ?' : ov.label }}
+                    } @else if (cell.open) {
+                      Livre
+                    }
+                  </button>
+                }
+              }
+            </div>
+          </div>
+          <p class="av-foot-note">
+            A grade vale para todas as semanas; as ocupações mostradas são desta semana. Horário com turma,
+            particular ou bloqueio não fica livre para o aluno, mesmo aberto.
+          </p>
+        </section>
+
+        <div class="av-side">
+          <section class="av-card">
+            <h2 class="av-card-title">Regras de agendamento</h2>
+            <div class="av-fields">
+              <label class="av-field">
+                <span>Duração padrão</span>
+                <select [value]="settings().durationMin" (change)="setNumber('durationMin', $any($event.target).value)">
+                  @for (o of durationOptions(); track o) {
+                    <option [value]="o" [selected]="o === settings().durationMin">{{ durationLabel(o) }}</option>
+                  }
+                </select>
+              </label>
+              <label class="av-field">
+                <span>Antecedência mínima</span>
+                <select
+                  [value]="settings().minNoticeHours"
+                  (change)="setNumber('minNoticeHours', $any($event.target).value)"
+                >
+                  @for (o of noticeOptions(); track o) {
+                    <option [value]="o" [selected]="o === settings().minNoticeHours">{{ noticeLabel(o) }}</option>
+                  }
+                </select>
+              </label>
+              <label class="av-field">
+                <span>Cancelamento sem custo até</span>
+                <select
+                  [value]="settings().freeCancelHours"
+                  (change)="setNumber('freeCancelHours', $any($event.target).value)"
+                >
+                  @for (o of cancelOptions(); track o) {
+                    <option [value]="o" [selected]="o === settings().freeCancelHours">{{ freeCancelLabel(o) }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+
+            <div class="av-toggles">
+              <button type="button" class="av-toggle" role="switch" [attr.aria-checked]="settings().autoConfirm" (click)="toggle('autoConfirm')">
+                <span class="av-toggle-copy">
+                  <span class="av-toggle-title">Aluno agenda direto pelo app</span>
+                  <span class="av-toggle-sub">
+                    {{ settings().autoConfirm ? 'Sem precisar da sua aprovação' : 'Cada pedido espera você aceitar' }}
+                  </span>
+                </span>
+                <span class="av-track" [class.av-track--on]="settings().autoConfirm" aria-hidden="true"><span class="av-knob"></span></span>
+              </button>
+              <button type="button" class="av-toggle" role="switch" [attr.aria-checked]="settings().acceptPairs" (click)="toggle('acceptPairs')">
+                <span class="av-toggle-copy">
+                  <span class="av-toggle-title">Aceitar duplas</span>
+                  <span class="av-toggle-sub">O aluno pode marcar a particular em dupla</span>
+                </span>
+                <span class="av-track" [class.av-track--on]="settings().acceptPairs" aria-hidden="true"><span class="av-knob"></span></span>
+              </button>
+              <button type="button" class="av-toggle" role="switch" [attr.aria-checked]="settings().showOnProfile" (click)="toggle('showOnProfile')">
+                <span class="av-toggle-copy">
+                  <span class="av-toggle-title">Mostrar no perfil público</span>
+                  <span class="av-toggle-sub">Seus horários aparecem para quem visita seu perfil</span>
+                </span>
+                <span class="av-track" [class.av-track--on]="settings().showOnProfile" aria-hidden="true"><span class="av-knob"></span></span>
+              </button>
+            </div>
+          </section>
+
+          <section class="av-card">
+            <div class="av-kicker">Esta semana</div>
+            <div class="av-stats">
+              <div>
+                <div class="av-stat av-stat--free">{{ stats().free }}</div>
+                <div class="av-stat-label">livres p/ particular</div>
+              </div>
+              <div>
+                <div class="av-stat av-stat--booked">{{ stats().booked }}</div>
+                <div class="av-stat-label">já agendadas</div>
+              </div>
+            </div>
+            @if (openCount() === 0) {
+              <p class="av-stat-hint">Nenhuma hora aberta ainda. Clique nas células da grade para abrir horários.</p>
+            }
+          </section>
+        </div>
+      </div>
+
+      <section class="av-card av-lessons" aria-labelledby="av-lessons-title">
+        <h2 id="av-lessons-title" class="av-card-title">Pedidos e próximas particulares</h2>
+        @if (lessonsError()) {
+          <app-nx-inline-message
+            tone="error"
+            heading="Não deu para carregar suas particulares"
+            body="Recarregue a página para tentar de novo."
+          />
+        } @else if (!hasQueue()) {
+          <p class="av-empty">Nenhum pedido nem particular marcada daqui pra frente.</p>
+        } @else {
+          @if (queues().requests.length) {
+            <div class="av-kicker">Pedidos pendentes</div>
+            <ul class="av-list">
+              @for (l of queues().requests; track l.id) {
+                <li class="av-item">
+                  <div class="av-item-copy">
+                    <div class="av-item-title">{{ l.athleteName }}@if (l.pair) {<span class="av-tag">Dupla</span>}</div>
+                    <div class="av-item-sub">{{ whenLabel(l.startAt) }} · {{ l.durationMin }} min</div>
+                    @if (l.note) {
+                      <div class="av-item-note">“{{ l.note }}”</div>
+                    }
+                  </div>
+                  <div class="av-item-actions">
+                    <button type="button" class="pf-btn pf-btn--ghost" [disabled]="!!acting()" (click)="respond(l, false)">
+                      @if (isActing(l, 'decline')) { <app-nx-spinner [size]="12" /> }
+                      Recusar
+                    </button>
+                    <button type="button" class="pf-btn pf-btn--primary" [disabled]="!!acting()" (click)="respond(l, true)">
+                      @if (isActing(l, 'accept')) { <app-nx-spinner [size]="12" tone="dark" /> }
+                      Aceitar
+                    </button>
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+
+          @if (queues().reschedules.length) {
+            <div class="av-kicker">Pedidos de remarcação</div>
+            <ul class="av-list">
+              @for (l of queues().reschedules; track l.id) {
+                <li class="av-item">
+                  <div class="av-item-copy">
+                    <div class="av-item-title">{{ l.athleteName }}</div>
+                    <div class="av-item-sub">
+                      <s>{{ whenLabel(l.startAt) }}</s> → <strong>{{ whenLabel(l.reschedule!.startAt) }}</strong>
+                    </div>
+                  </div>
+                  <div class="av-item-actions">
+                    <button type="button" class="pf-btn pf-btn--ghost" [disabled]="!!acting()" (click)="respondReschedule(l, false)">
+                      @if (isActing(l, 'r-decline')) { <app-nx-spinner [size]="12" /> }
+                      Recusar
+                    </button>
+                    <button type="button" class="pf-btn pf-btn--primary" [disabled]="!!acting()" (click)="respondReschedule(l, true)">
+                      @if (isActing(l, 'r-accept')) { <app-nx-spinner [size]="12" tone="dark" /> }
+                      Aceitar
+                    </button>
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+
+          @if (queues().upcoming.length) {
+            <div class="av-kicker">Próximas particulares</div>
+            <ul class="av-list">
+              @for (l of queues().upcoming; track l.id) {
+                <li class="av-item">
+                  <div class="av-item-copy">
+                    <div class="av-item-title">{{ l.athleteName }}@if (l.pair) {<span class="av-tag">Dupla</span>}</div>
+                    <div class="av-item-sub">{{ whenLabel(l.startAt) }} · {{ l.durationMin }} min</div>
+                    @if (ownReschedule(l); as r) {
+                      <div class="av-item-note">Você propôs {{ whenLabel(r.startAt) }} — aguardando o aluno.</div>
+                    }
+                  </div>
+                  <div class="av-item-actions">
+                    <button type="button" class="pf-btn pf-btn--danger" [disabled]="!!acting()" (click)="askCancel(l)">Cancelar</button>
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+        }
+      </section>
+    }
+  </div>
+</app-at-panel-shell>
+
+@if (cancelTarget(); as l) {
+  <app-professor-confirm-dialog
+    [heading]="'Cancelar a particular com ' + l.athleteName + '?'"
+    [subtitle]="whenLabel(l.startAt)"
+    body="O aluno recebe um aviso e o horário volta a ficar livre na sua grade."
+    confirmLabel="Cancelar particular"
+    cancelLabel="Manter"
+    busyLabel="Cancelando…"
+    [busy]="!!acting()"
+    [error]="cancelError()"
+    (confirmed)="confirmCancel()"
+    (dismissed)="closeCancel()"
+  />
+}

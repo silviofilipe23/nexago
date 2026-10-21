@@ -174,13 +174,26 @@ function pathOnly(url: string): string {
         <span>Configurações</span>
       </div>
 
-      <a class="user-row" routerLink="/painel/perfil" title="Ver perfil">
-        <div class="avatar" aria-hidden="true">{{ userInitials() }}</div>
-        <div class="who">
-          <div class="who-name">{{ displayName() }}</div>
-          <div class="who-role">Gestor</div>
-        </div>
-      </a>
+      <div class="user-row">
+        <a class="user-link" routerLink="/painel/perfil" title="Ver perfil">
+          <div class="avatar" aria-hidden="true">{{ userInitials() }}</div>
+          <div class="who">
+            <div class="who-name">{{ displayName() }}</div>
+            <div class="who-role">Gestor</div>
+          </div>
+        </a>
+        <button
+          type="button"
+          class="signout"
+          data-signout
+          title="Sair da conta"
+          aria-label="Sair da conta"
+          [disabled]="signingOut()"
+          (click)="signOut()"
+        >
+          <ar-icon name="log-out" [size]="16" [strokeWidth]="1.9" />
+        </button>
+      </div>
     </ng-template>
 
     <ng-template #navLink let-item>
@@ -506,16 +519,51 @@ function pathOnly(url: string): string {
       border-top: 1px solid var(--nx-line);
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 6px;
       flex: none;
+    }
+
+    .user-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      min-width: 0;
       cursor: pointer;
       text-decoration: none;
       border-radius: var(--nx-r-2);
       transition: background 140ms var(--nx-ease-out);
     }
 
-    .user-row:hover {
+    .user-link:hover {
       background: var(--nx-surface-1);
+    }
+
+    .signout {
+      width: 32px;
+      height: 32px;
+      flex: none;
+      display: grid;
+      place-items: center;
+      border: 1px solid transparent;
+      border-radius: var(--nx-r-2);
+      background: none;
+      color: var(--nx-text-dim);
+      cursor: pointer;
+      transition:
+        background 140ms var(--nx-ease-out),
+        color 140ms var(--nx-ease-out);
+    }
+
+    .signout:hover:not(:disabled) {
+      background: var(--nx-surface-1);
+      border-color: var(--nx-line);
+      color: var(--nx-text);
+    }
+
+    .signout:disabled {
+      opacity: 0.5;
+      cursor: default;
     }
 
     .avatar {
@@ -667,7 +715,7 @@ function pathOnly(url: string): string {
         gap: var(--ar-tap-gap);
       }
 
-      /* .switch-arena-link e .user-row não usam --ar-nav-item-h (esse token
+      /* .switch-arena-link e .user-link não usam --ar-nav-item-h (esse token
          só cobre .nav-item/.nav-group-head) -- por isso o alvo de toque de
          44px da Task 2 nunca alcançava os dois. min-height (não height) para
          não brigar com o conteúdo intrínseco se algum dia crescer; os dois já
@@ -678,8 +726,13 @@ function pathOnly(url: string): string {
         margin-top: var(--ar-tap-gap);
       }
 
-      .user-row {
+      .user-link {
         min-height: var(--ar-tap);
+      }
+
+      .signout {
+        width: var(--ar-tap);
+        height: var(--ar-tap);
       }
     }
   `,
@@ -693,6 +746,19 @@ export class PanelShellComponent implements OnDestroy {
   protected readonly viewport = inject(ViewportService);
 
   protected readonly drawerOpen = signal(false);
+  protected readonly signingOut = signal(false);
+
+  protected async signOut(): Promise<void> {
+    if (this.signingOut()) return;
+    this.signingOut.set(true);
+    try {
+      await this.auth.signOutUser();
+      this.drawerOpen.set(false);
+      void this.router.navigate(['/entrar']);
+    } finally {
+      this.signingOut.set(false);
+    }
+  }
 
   /** Itens fixos da bottom-nav, na ordem. O slot que o cargo não alcança cai
    *  para o próximo permitido, para nunca sobrar buraco; "Mais" é um botão à

@@ -10,6 +10,11 @@ import { AulasPageComponent } from './aulas-ui';
 import { DEFAULT_RULES, parsePrice, type ClassRules } from './billing.model';
 import { fetchRules, saveRules } from './billing-repository';
 
+/** Faixa que `saveArenaClassRules` aceita para `makeupNoticeHours` (0–72 h, inteiro). */
+export function isValidNoticeHours(hours: number): boolean {
+  return Number.isInteger(hours) && hours >= 0 && hours <= 72;
+}
+
 /** 16 · Regras de aulas — só as que o sistema já aplica: crédito de reposição, cancelamento
  *  pela arena, cobrança e lembrete 2h antes. Cancelamento pelo aluno no app e QR de check-in
  *  chegam com a matrícula pelo app. */
@@ -52,6 +57,15 @@ import { fetchRules, saveRules } from './billing-repository';
                 <div class="t-sub">Ao fechar a chamada, quem avisou ganha 1 crédito para repor em outra aula</div>
               </div>
               <ar-toggle label="Falta justificada gera crédito" [checked]="rules().excusedGeneratesCredit" [disabled]="readOnly()" (changed)="patch({ excusedGeneratesCredit: $event })" />
+            </div>
+            <div class="notice-field">
+              <div class="field-label">Antecedência mínima para o aviso de falta gerar crédito (horas)</div>
+              <input class="input-box notice-hours" type="number" min="0" max="72" step="1" [class.invalid]="!noticeHoursValid()" [disabled]="readOnly()" [value]="rules().makeupNoticeHours" (input)="setNoticeHours($any($event.target).value)" />
+              @if (noticeHoursValid()) {
+                <p class="hint">Quem toca em "Não vou" no app com pelo menos essa antecedência fica com falta avisada e ganha 1 crédito. Depois disso, conta como falta. Use 0 para aceitar até a hora da aula.</p>
+              } @else {
+                <p class="hint field-error">Informe um número inteiro de 0 a 72 horas.</p>
+              }
             </div>
           </ar-panel-card>
 
@@ -117,6 +131,10 @@ import { fetchRules, saveRules } from './billing-repository';
   styles: `
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
     .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+    .notice-field { padding-top: 14px; }
+    .notice-hours { max-width: 140px; }
+    .notice-hours.invalid { border-color: var(--nx-live); }
+    .field-error { color: var(--nx-live); }
     .static { display: flex; align-items: center; color: var(--nx-text-dim); }
     .toggle-row { display: flex; align-items: center; gap: 14px; padding: 14px 0 2px; }
     .toggle-row > div { flex: 1; min-width: 0; }
@@ -143,9 +161,10 @@ export class PanelAulasRulesComponent {
   protected readonly notice = signal<string | null>(null);
 
   protected readonly dirty = computed(() => JSON.stringify(this.rules()) !== JSON.stringify(this.saved()));
+  protected readonly noticeHoursValid = computed(() => isValidNoticeHours(this.rules().makeupNoticeHours));
   protected readonly valid = computed(() => {
     const r = this.rules();
-    return Number.isInteger(r.makeupValidityDays) && r.makeupValidityDays >= 1 && r.makeupValidityDays <= 365 &&
+    return this.noticeHoursValid() && Number.isInteger(r.makeupValidityDays) && r.makeupValidityDays >= 1 && r.makeupValidityDays <= 365 &&
       Number.isInteger(r.defaultDueDay) && r.defaultDueDay >= 1 && r.defaultDueDay <= 28 &&
       Number.isFinite(r.enrollmentFeeReais) && r.enrollmentFeeReais >= 0;
   });
@@ -174,6 +193,11 @@ export class PanelAulasRulesComponent {
   protected patch(change: Partial<ClassRules>): void {
     this.rules.set({ ...this.rules(), ...change });
     this.notice.set(null);
+  }
+
+  /** Campo vazio fica inválido em vez de virar 0 h calado. */
+  protected setNoticeHours(raw: string): void {
+    this.patch({ makeupNoticeHours: raw.trim() === '' ? Number.NaN : Number(raw) });
   }
 
   protected setFee(raw: string): void {

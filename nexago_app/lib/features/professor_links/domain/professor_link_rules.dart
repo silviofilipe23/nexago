@@ -605,11 +605,36 @@ String professorLinkEventTitle(
         ? withReason('Você encerrou o vínculo')
         : withReason('Vínculo encerrado pela arena'),
     'PERMISSIONS_CHANGED' => _permissionsChangedTitle(event.metadata),
+    'COURT_DISCOUNT_CHANGED' =>
+      professorCourtDiscountChangedTitle(event.metadata),
     'CANCELED' =>
       byProfessor ? 'Você cancelou o pedido' : 'Convite cancelado pela arena',
     'EXPIRED' => 'Convite expirou',
     _ => event.eventType,
   };
+}
+
+/// Evento `COURT_DISCOUNT_CHANGED` (`metadata: {before, after}`), igual para
+/// arena e professor: "Desconto no aluguel: 20%", "Desconto no aluguel
+/// removido" ou "Desconto no aluguel: 10% → 20%".
+String professorCourtDiscountChangedTitle(Map<String, Object?> metadata) {
+  final before = parseProfessorCourtDiscountPercent(metadata['before']);
+  final after = parseProfessorCourtDiscountPercent(metadata['after']);
+  if (after == 0) return 'Desconto no aluguel removido';
+  if (before == 0) return 'Desconto no aluguel: $after%';
+  return 'Desconto no aluguel: $before% → $after%';
+}
+
+/// "Desconto no aluguel de quadra: 20%" — `null` sem desconto ou com o
+/// vínculo fora de `ACTIVE`/`SUSPENDED` ([status] = status efetivo).
+String? professorCourtDiscountLabel(
+  ArenaProfessorLink link,
+  ArenaProfessorLinkStatus status,
+) {
+  final open = status == ArenaProfessorLinkStatus.active ||
+      status == ArenaProfessorLinkStatus.suspended;
+  if (!open || link.courtDiscountPercent <= 0) return null;
+  return 'Desconto no aluguel de quadra: ${link.courtDiscountPercent}%';
 }
 
 ArenaProfessorLinkType? _eventType(ArenaProfessorLinkEvent event) {

@@ -283,6 +283,18 @@ String? arenaBookingProfessorLabel(Map<String, dynamic>? data) {
   };
 }
 
+/// Desconto do vínculo aplicado na reserva de professor (`professorDiscountPercent`, gravado
+/// por `createArenaBooking` só quando o desconto venceu promoção/cupom): "Desconto professor
+/// −20%". `null` sem desconto ou fora de reserva de professor.
+String? arenaBookingProfessorDiscountLabel(Map<String, dynamic>? data) {
+  if (data?['bookedAs'] != 'professor') return null;
+  final raw = data?['professorDiscountPercent'];
+  if (raw is! num || !raw.isFinite) return null;
+  final percent = raw.round();
+  if (percent <= 0) return null;
+  return 'Desconto professor \u2212$percent%';
+}
+
 /// Status da reserva apenas no âmbito do negócio (ativa, cancelada…).
 String arenaBookingBusinessStatusLabel(Map<String, dynamic>? data) {
   if (data == null) return '—';

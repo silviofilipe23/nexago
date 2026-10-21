@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
+import '../../../domain/professionals/arena_professionals_logic.dart';
 import '../../../../professor_links/presentation/widgets/professor_links_ui.dart';
 
 /// Confirmações das ações irreversíveis do gestor (copy do portal da arena).
@@ -65,6 +67,113 @@ Future<bool> confirmCancelArenaProfessorInvite(
     ),
   );
   return result == true;
+}
+
+/// Desconto (%) no aluguel de quadra: devolve o inteiro 0–90 escolhido ou
+/// `null` quando o gestor desistiu. Vazio = remover (0).
+Future<int?> askArenaProfessorCourtDiscount(
+  BuildContext context, {
+  required String professorName,
+  required int current,
+}) =>
+    showDialog<int>(
+      context: context,
+      builder: (_) => _CourtDiscountDialog(
+        professorName: professorName,
+        current: current,
+      ),
+    );
+
+class _CourtDiscountDialog extends StatefulWidget {
+  const _CourtDiscountDialog({
+    required this.professorName,
+    required this.current,
+  });
+
+  final String professorName;
+  final int current;
+
+  @override
+  State<_CourtDiscountDialog> createState() => _CourtDiscountDialogState();
+}
+
+class _CourtDiscountDialogState extends State<_CourtDiscountDialog> {
+  late final _percent = TextEditingController(
+    text: widget.current > 0 ? '${widget.current}' : '',
+  );
+  String? _error;
+
+  @override
+  void dispose() {
+    _percent.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final value = parseArenaProfessorCourtDiscountInput(_percent.text);
+    if (value == null) {
+      setState(() => _error = 'Use um número inteiro de 0 a 90.');
+      return;
+    }
+    Navigator.pop(context, value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return AlertDialog(
+      title: const Text('Desconto no aluguel de quadra'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Vale quando ${widget.professorName} reservar quadra como '
+              'professor. Deixe vazio ou 0 para remover.',
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              key: const Key('arena-professor-court-discount-input'),
+              controller: _percent,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(2),
+              ],
+              onSubmitted: (_) => _save(),
+              onChanged: (_) {
+                if (_error != null) setState(() => _error = null);
+              },
+              style: AppTypography.bodyM.copyWith(color: colors.onSurface),
+              decoration: InputDecoration(
+                labelText: 'Desconto (%)',
+                hintText: '0 a 90',
+                suffixText: '%',
+                errorText: _error,
+                hintStyle: AppTypography.bodyS.copyWith(
+                  color: ProfessorLinksStyle.dim(colors),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Voltar'),
+        ),
+        FilledButton(
+          key: const Key('arena-professor-court-discount-save'),
+          style: FilledButton.styleFrom(backgroundColor: AppColors.brand),
+          onPressed: _save,
+          child: const Text('Salvar'),
+        ),
+      ],
+    );
+  }
 }
 
 class _ReasonDialog extends StatefulWidget {

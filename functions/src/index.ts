@@ -603,6 +603,7 @@ export {
   endArenaProfessorLink,
   cancelArenaProfessorLink,
   updateArenaProfessorPermissions,
+  updateArenaProfessorCourtDiscount,
 } from "./arena-professor-links";
 export {completeOrganizerSignup} from "./organizer-signup";
 export {grantAthleteRole} from "./athlete-signup";

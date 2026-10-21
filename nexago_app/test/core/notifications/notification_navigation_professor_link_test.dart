@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/notifications/notification_navigation.dart';
 import 'package:nexago_app/core/router/routes.dart';
@@ -16,6 +17,7 @@ const _types = [
   'professor_link_reactivated',
   'professor_link_ended',
   'professor_link_permissions_changed',
+  'professor_link_court_discount_changed',
 ];
 
 void main() {
@@ -128,6 +130,7 @@ void main() {
           reason: type,
         );
         expect(presentation.actions, isEmpty, reason: type);
+        expect(presentation.icon, Icons.school_outlined, reason: type);
       }
     });
   });

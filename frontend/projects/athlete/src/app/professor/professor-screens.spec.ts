@@ -30,6 +30,7 @@ function link(overrides: Partial<ProfessorLink>): ProfessorLink {
       canCancelLessons: false,
       canBookRecurring: false,
     },
+    courtDiscountPercent: 0,
     message: null,
     cycle: 1,
     arenaName: 'Arena Norte',

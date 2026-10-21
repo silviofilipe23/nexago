@@ -52,6 +52,7 @@ export type ArenaProfessorEventType =
   | "REACTIVATED"
   | "ENDED"
   | "PERMISSIONS_CHANGED"
+  | "COURT_DISCOUNT_CHANGED"
   | "CANCELED"
   | "EXPIRED";
 
@@ -113,6 +114,8 @@ export interface ArenaProfessorLinkData {
   arenaCity: string | null;
   expiresAt?: Timestamp | null;
   approvedAt?: Timestamp | null;
+  /** Desconto no aluguel de quadra (% inteiro); ausente = 0. Ver `storedCourtDiscountPercent`. */
+  courtDiscountPercent?: number;
   [key: string]: unknown;
 }
 
@@ -207,6 +210,31 @@ export function effectiveArenaProfessorPermissions(link: {
     canCancelLessons: staff && stored["canCancelLessons"] === true,
     canBookRecurring: active && link.relationshipType === "INDEPENDENT" && stored["canBookRecurring"] === true,
   };
+}
+
+/**
+ * Desconto no aluguel de quadra que a arena dá ao professor do vínculo (`courtDiscountPercent`, %
+ * inteiro). Vale só na reserva "como professor" (`asProfessor`), com o vínculo ACTIVE e
+ * `canBookCourts` — ver `arena-professor-court-discount.ts`. Teto de 90%: reserva de R$ 0 não fecha.
+ */
+export const MAX_COURT_DISCOUNT_PERCENT = 90;
+
+/** Entrada do cliente: inteiro de 0 a `MAX_COURT_DISCOUNT_PERCENT`, senão `invalid-argument`. */
+export function parseCourtDiscountPercent(raw: unknown): number {
+  if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 0 || raw > MAX_COURT_DISCOUNT_PERCENT) {
+    throw new HttpsError(
+      "invalid-argument",
+      `O desconto no aluguel de quadra vai de 0% a ${MAX_COURT_DISCOUNT_PERCENT}%, em números inteiros.`,
+    );
+  }
+  return raw;
+}
+
+/** O gravado no vínculo; ausente (vínculo antigo) ou fora da faixa = sem desconto. */
+export function storedCourtDiscountPercent(link: {courtDiscountPercent?: unknown}): number {
+  const raw = link.courtDiscountPercent;
+  if (typeof raw !== "number" || !Number.isInteger(raw)) return 0;
+  return raw >= 0 && raw <= MAX_COURT_DISCOUNT_PERCENT ? raw : 0;
 }
 
 export function changedPermissionKeys(
@@ -305,7 +333,7 @@ export const TYPE_LABEL: Record<ArenaProfessorType, string> = {
  */
 export function arenaProfessorNotices(
   event: ArenaProfessorEventType,
-  link: Pick<ArenaProfessorLinkData, "arenaName" | "professorName" | "relationshipType">,
+  link: Pick<ArenaProfessorLinkData, "arenaName" | "professorName" | "relationshipType"> & {courtDiscountPercent?: unknown},
   actorSide: ArenaProfessorSide | "ADMIN",
   reason: string | null,
 ): ArenaProfessorNotice[] {
@@ -391,6 +419,17 @@ export function arenaProfessorNotices(
       body: `${arena} mudou o que você pode fazer na arena. Confira em Minhas arenas.`,
       type: "professor_link_permissions_changed",
     }];
+  case "COURT_DISCOUNT_CHANGED": {
+    const percent = storedCourtDiscountPercent(link);
+    return [{
+      to: "professor",
+      title: "Desconto no aluguel de quadra",
+      body: percent > 0 ?
+        `${arena} te deu ${percent}% de desconto no aluguel de quadra quando você reserva como professor.` :
+        `${arena} encerrou seu desconto no aluguel de quadra.`,
+      type: "professor_link_court_discount_changed",
+    }];
+  }
   default:
     return [];
   }
@@ -1038,6 +1077,34 @@ export async function updateArenaProfessorPermissionsCore(
   return {linkId: input.linkId, status: after.status, link: after, notices, changed};
 }
 
+export async function updateArenaProfessorCourtDiscountCore(
+  db: Firestore,
+  input: {linkId: string; courtDiscountPercent: unknown},
+  caller: CallerContext,
+  nowMs: number,
+): Promise<LinkResult & {changed: boolean}> {
+  const percent = parseCourtDiscountPercent(input.courtDiscountPercent);
+  const current = await readLink(db, input.linkId);
+  const actor = await arenaSideActor(db, current.arenaId, caller);
+  let changed = false;
+  const {after} = await transitionLink(db, input.linkId, nowMs, (link) => {
+    if (link.status !== "ACTIVE" && link.status !== "SUSPENDED") {
+      throw wrongStatus("O desconto só muda em vínculo ativo ou suspenso.", link);
+    }
+    const before = storedCourtDiscountPercent(link);
+    changed = before !== percent;
+    if (!changed) return {patch: {}, event: null};
+    return {
+      patch: {courtDiscountPercent: percent},
+      event: {eventType: "COURT_DISCOUNT_CHANGED", actor, metadata: {before, after: percent}},
+    };
+  });
+  const notices = changed && after.status === "ACTIVE" ?
+    arenaProfessorNotices("COURT_DISCOUNT_CHANGED", after, "ARENA", null) :
+    [];
+  return {linkId: input.linkId, status: after.status, link: after, notices, changed};
+}
+
 // ---------------------------------------------------------------------------
 // Entrega dos avisos (fora da transação; falha não desfaz a transição)
 // ---------------------------------------------------------------------------
@@ -1218,5 +1285,14 @@ export const updateArenaProfessorPermissions = onCall({region: CLIENT_FACING_REG
   return run(caller, (db) => updateArenaProfessorPermissionsCore(db, {
     linkId: strField(data, "linkId"),
     permissions: data?.["permissions"],
+  }, caller, Date.now()));
+});
+
+export const updateArenaProfessorCourtDiscount = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {
+  const caller = callerOf(request.auth);
+  const data = request.data as Record<string, unknown> | null;
+  return run(caller, (db) => updateArenaProfessorCourtDiscountCore(db, {
+    linkId: strField(data, "linkId"),
+    courtDiscountPercent: data?.["courtDiscountPercent"],
   }, caller, Date.now()));
 });

@@ -53,6 +53,10 @@ export interface ArenaBooking {
   bookedAsProfessor: boolean;
   /** Tipo do vínculo naquele momento — `null` em reserva de atleta (ou carimbo sem tipo). */
   professorRelationshipType: ProfessorBookingType | null;
+  /** Desconto do professor no aluguel (% do vínculo) — só gravado quando venceu a promoção/cupom;
+   *  0 sem desconto ou em reserva de atleta. */
+  professorDiscountPercent: number;
+  professorDiscountReais: number | null;
 }
 
 function timeStr(v: unknown): string {
@@ -112,13 +116,29 @@ export function arenaBookingFromDoc(doc: QueryDocumentSnapshot): ArenaBooking {
   };
 }
 
-function professorBookingFields(d: Record<string, unknown>): Pick<ArenaBooking, 'bookedAsProfessor' | 'professorRelationshipType'> {
-  if (d['bookedAs'] !== 'professor') return { bookedAsProfessor: false, professorRelationshipType: null };
+type ProfessorBookingFields = Pick<
+  ArenaBooking,
+  'bookedAsProfessor' | 'professorRelationshipType' | 'professorDiscountPercent' | 'professorDiscountReais'
+>;
+
+function professorBookingFields(d: Record<string, unknown>): ProfessorBookingFields {
+  if (d['bookedAs'] !== 'professor') {
+    return { bookedAsProfessor: false, professorRelationshipType: null, professorDiscountPercent: 0, professorDiscountReais: null };
+  }
   const type = d['professorRelationshipType'];
+  const percent = d['professorDiscountPercent'];
+  const reais = d['professorDiscountReais'];
   return {
     bookedAsProfessor: true,
     professorRelationshipType: type === 'ARENA_STAFF' || type === 'INDEPENDENT' ? type : null,
+    professorDiscountPercent: typeof percent === 'number' && percent > 0 ? Math.round(percent) : 0,
+    professorDiscountReais: typeof reais === 'number' && reais > 0 ? reais : null,
   };
+}
+
+/** "−20%" no detalhe da reserva de professor com desconto; `null` sem desconto. */
+export function professorDiscountLabel(booking: Pick<ArenaBooking, 'bookedAsProfessor' | 'professorDiscountPercent'>): string | null {
+  return booking.bookedAsProfessor && booking.professorDiscountPercent > 0 ? `−${booking.professorDiscountPercent}%` : null;
 }
 
 /** Selo curto da reserva de professor na agenda e na lista. */

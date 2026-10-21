@@ -10,6 +10,7 @@ import { ProfessorDialogsComponent, ProfessorDialogsController } from './profess
 import {
   PROFESSOR_ACTION_LABEL,
   PROFESSOR_TYPE_COPY,
+  courtDiscountLine,
   displayStatus,
   eventMetaLine,
   eventTitle,
@@ -102,6 +103,10 @@ export class ProfessorLinkDetailComponent {
   protected readonly permsCaption = computed(() => {
     const link = this.link();
     return link ? permissionsCaption(link, this.now()) : '';
+  });
+  protected readonly courtDiscount = computed(() => {
+    const link = this.link();
+    return link ? courtDiscountLine(link, this.now()) : null;
   });
   /** Quem escreveu a mensagem da rodada: convite é da arena, pedido é do professor. */
   protected readonly messageLabel = computed(() =>

@@ -909,4 +909,62 @@ void main() {
       expect(sorted.map((e) => e.name), ['juliana', 'Thiago', 'Ana', 'marcos']);
     });
   });
+
+  group('desconto no aluguel de quadra', () {
+    test('fromMap lê courtDiscountPercent; ausente ou inválido = 0', () {
+      Map<String, dynamic> doc(Object? raw) => {
+            'arenaId': 'arena-1',
+            'professorUserId': 'prof-1',
+            'status': 'ACTIVE',
+            if (raw != null) 'courtDiscountPercent': raw,
+          };
+      expect(
+        ArenaProfessorLink.fromMap('l', doc(20)).courtDiscountPercent,
+        20,
+      );
+      expect(ArenaProfessorLink.fromMap('l', doc(null)).courtDiscountPercent, 0);
+      expect(ArenaProfessorLink.fromMap('l', doc('20')).courtDiscountPercent, 0);
+      expect(ArenaProfessorLink.fromMap('l', doc(-5)).courtDiscountPercent, 0);
+      expect(ArenaProfessorLink.fromMap('l', doc(150)).courtDiscountPercent, 90);
+    });
+
+    test('título do evento COURT_DISCOUNT_CHANGED', () {
+      String title(Object? before, Object? after) => professorLinkEventTitle(
+            ArenaProfessorLinkEvent(
+              id: 'e',
+              eventType: 'COURT_DISCOUNT_CHANGED',
+              actorRole: 'ARENA',
+              metadata: {'before': before, 'after': after},
+            ),
+            linkType: ArenaProfessorLinkType.independent,
+          );
+      expect(title(0, 20), 'Desconto no aluguel: 20%');
+      expect(title(null, 15), 'Desconto no aluguel: 15%');
+      expect(title(20, 0), 'Desconto no aluguel removido');
+      expect(title(10, 20), 'Desconto no aluguel: 10% → 20%');
+    });
+
+    test('rótulo só com desconto e vínculo ativo/suspenso', () {
+      final link = professorLink(courtDiscountPercent: 20);
+      expect(
+        professorCourtDiscountLabel(link, ArenaProfessorLinkStatus.active),
+        'Desconto no aluguel de quadra: 20%',
+      );
+      expect(
+        professorCourtDiscountLabel(link, ArenaProfessorLinkStatus.suspended),
+        isNotNull,
+      );
+      expect(
+        professorCourtDiscountLabel(link, ArenaProfessorLinkStatus.ended),
+        isNull,
+      );
+      expect(
+        professorCourtDiscountLabel(
+          professorLink(),
+          ArenaProfessorLinkStatus.active,
+        ),
+        isNull,
+      );
+    });
+  });
 }

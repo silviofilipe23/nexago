@@ -689,6 +689,8 @@ class _BookedDetails extends ConsumerWidget {
     final sportLabel = arenaBookingSportLabel(bookingAsync.valueOrNull);
     final professorLabel =
         arenaBookingProfessorLabel(bookingAsync.valueOrNull);
+    final professorDiscountLabel =
+        arenaBookingProfessorDiscountLabel(bookingAsync.valueOrNull);
     final nameAsync = athleteUid != null && athleteUid.trim().isNotEmpty
         ? ref.watch(athleteDisplayLabelProvider(athleteUid))
         : AsyncValue<String>.data(
@@ -713,6 +715,14 @@ class _BookedDetails extends ConsumerWidget {
             if (professorLabel != null) ...[
               SizedBox(height: 12),
               _LabeledRow(label: 'Reservado como', value: professorLabel),
+            ],
+            if (professorDiscountLabel != null) ...[
+              SizedBox(height: 12),
+              _LabeledRow(
+                key: const Key('arena-slot-professor-discount'),
+                label: 'Aluguel',
+                value: professorDiscountLabel,
+              ),
             ],
             if (sportLabel != null) ...[
               SizedBox(height: 12),
@@ -820,7 +830,7 @@ class _BlockedDetailsState extends ConsumerState<_BlockedDetails> {
 }
 
 class _LabeledRow extends StatelessWidget {
-  const _LabeledRow({required this.label, required this.value});
+  const _LabeledRow({super.key, required this.label, required this.value});
 
   final String label;
   final String value;

@@ -38,6 +38,7 @@ class ArenaBookingDetailHeader extends StatelessWidget {
     final statusBadge = statusLabel.toUpperCase();
     final sport = arenaBookingSportLabel(booking.data);
     final professor = arenaBookingProfessorLabel(booking.data);
+    final professorDiscount = arenaBookingProfessorDiscountLabel(booking.data);
     final placeLine = [
       weekday,
       courtName.toUpperCase(),
@@ -160,6 +161,17 @@ class ArenaBookingDetailHeader extends StatelessWidget {
                           ),
                         ],
                       ),
+                      if (professorDiscount != null) ...[
+                        SizedBox(height: 4),
+                        Text(
+                          professorDiscount,
+                          key: const Key('arena-booking-professor-discount'),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: context.themeColors.onSurfaceMuted,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ],
                   ],
                 ),

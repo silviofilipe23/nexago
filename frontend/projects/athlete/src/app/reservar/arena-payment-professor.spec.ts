@@ -4,7 +4,7 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import type { ArenaCourtDoc, ArenaListItem, ArenaSlot } from '@nexago/arena-discovery';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
-import { ArenaBookingError, mapCallableError } from '../data/arena-bookings-repository';
+import { ArenaBookingError, mapCallableError, type ArenaBookingQuote } from '../data/arena-bookings-repository';
 import { CashbackService } from '../data/cashback.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { parseProfessorLink, type ProfessorLink } from '../professor/professor-links.model';
@@ -14,7 +14,7 @@ import { fakeCashbackService } from '../../testing/cashback-service.fake';
 import { SquadCodeFieldStubComponent } from '../../testing/squad-code-field.stub';
 import { SquadCodeFieldComponent } from '../tournaments/registration/squad-code-field.component';
 import { ArenaPaymentComponent } from './arena-payment.component';
-import { bookingAsProfessorHint, bookingProfessorLink } from './booking-as-professor';
+import { bookingAsProfessorHint, bookingProfessorLink, professorDiscountSummaryLabel } from './booking-as-professor';
 import { pixBookingCreateOptions } from './pix-booking-create-options';
 
 /** A casca do portal monta o menu e ouve convites — abriria WebChannel do Firestore no Karma. */
@@ -34,6 +34,22 @@ interface Internals {
   bookAsProfessor: WritableSignal<boolean>;
   pixBookingOptions(): { asProfessor?: boolean };
   handleProfessorDenied(err: unknown): boolean;
+  loadQuote(): Promise<void>;
+  applyQuote(quote: ArenaBookingQuote): void;
+  totalPrice(): number;
+}
+
+function quote(overrides: Partial<ArenaBookingQuote> = {}): ArenaBookingQuote {
+  return {
+    amountReais: 120,
+    lineItems: [],
+    couponApplied: false,
+    couponId: null,
+    couponDiscountReais: 0,
+    professorDiscountPercent: 0,
+    professorDiscountReais: 0,
+    ...overrides,
+  };
 }
 
 function link(overrides: Record<string, unknown> = {}): ProfessorLink {
@@ -133,6 +149,37 @@ describe('ArenaPaymentComponent — reservar como professor', () => {
     expect('asProfessor' in internals.pixBookingOptions()).toBeFalse();
   });
 
+  it('ligar/desligar "como professor" cota de novo (o desconto do vínculo muda o preço)', () => {
+    const { fixture, internals } = create(signal([link({ courtDiscountPercent: 20 })]));
+    const requote = spyOn(internals, 'loadQuote').and.resolveTo();
+    option(fixture)!.click();
+    fixture.detectChanges();
+    expect(requote).toHaveBeenCalledTimes(1);
+    option(fixture)!.click();
+    fixture.detectChanges();
+    expect(requote).toHaveBeenCalledTimes(2);
+  });
+
+  it('dica da opção avisa o desconto do vínculo', () => {
+    const { fixture } = create(signal([link({ courtDiscountPercent: 20 })]));
+    const section = (fixture.nativeElement as HTMLElement).querySelector('#pm-professor')!;
+    expect(section.textContent).toContain('Desconto de professor de 20% (não soma com promoção ou cupom).');
+  });
+
+  it('cotação com desconto de professor: linha no resumo e total da cotação', () => {
+    const { fixture, internals } = create(signal([link({ courtDiscountPercent: 20 })]));
+    internals.applyQuote(quote({ amountReais: 96, professorDiscountPercent: 20, professorDiscountReais: 24 }));
+    fixture.detectChanges();
+    const summary = (fixture.nativeElement as HTMLElement).querySelector('.pm-summary-card')!.textContent ?? '';
+    expect(summary).toContain('Desconto de professor (20%)');
+    expect(summary).toContain('24,00');
+    expect(internals.totalPrice()).toBe(96);
+
+    internals.applyQuote(quote({ amountReais: 120 }));
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.pm-summary-card')!.textContent).not.toContain('Desconto de professor');
+  });
+
   it('trava depois que a reserva existe (o carimbo foi gravado com ela)', () => {
     const { fixture, internals } = create(signal([link()]));
     internals.pixBookingId.set('b1');
@@ -164,6 +211,13 @@ describe('bookingProfessorLink', () => {
 
   it('texto da opção cai em "A arena" sem nome', () => {
     expect(bookingAsProfessorHint('  ')).toBe('A arena vê na agenda que o horário é seu como professor. Mesmo preço e regras.');
+  });
+
+  it('com desconto no vínculo, a dica troca "mesmo preço" pelo desconto', () => {
+    expect(bookingAsProfessorHint('Arena Sol', 20)).toBe(
+      'A Arena Sol vê na agenda que o horário é seu como professor. Desconto de professor de 20% (não soma com promoção ou cupom).',
+    );
+    expect(professorDiscountSummaryLabel(20)).toBe('Desconto de professor (20%)');
   });
 });
 

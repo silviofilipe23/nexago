@@ -646,4 +646,68 @@ void main() {
       );
     });
   });
+
+  group('desconto no aluguel de quadra', () {
+    test('editável só com o vínculo ativo ou suspenso', () {
+      expect(
+        arenaProfessorCourtDiscountEditable(ArenaProfessorLinkStatus.active),
+        isTrue,
+      );
+      expect(
+        arenaProfessorCourtDiscountEditable(ArenaProfessorLinkStatus.suspended),
+        isTrue,
+      );
+      for (final status in [
+        ArenaProfessorLinkStatus.invited,
+        ArenaProfessorLinkStatus.pending,
+        ArenaProfessorLinkStatus.ended,
+      ]) {
+        expect(arenaProfessorCourtDiscountEditable(status), isFalse);
+      }
+    });
+
+    test('entrada: inteiro 0–90; vazio = 0; resto inválido', () {
+      expect(parseArenaProfessorCourtDiscountInput('20'), 20);
+      expect(parseArenaProfessorCourtDiscountInput(' 15% '), 15);
+      expect(parseArenaProfessorCourtDiscountInput(''), 0);
+      expect(parseArenaProfessorCourtDiscountInput('0'), 0);
+      expect(parseArenaProfessorCourtDiscountInput('90'), 90);
+      expect(parseArenaProfessorCourtDiscountInput('91'), isNull);
+      expect(parseArenaProfessorCourtDiscountInput('-1'), isNull);
+      expect(parseArenaProfessorCourtDiscountInput('12.5'), isNull);
+      expect(parseArenaProfessorCourtDiscountInput('abc'), isNull);
+    });
+
+    test('rótulos', () {
+      expect(arenaProfessorCourtDiscountValueLabel(20), '20%');
+      expect(arenaProfessorCourtDiscountValueLabel(0), 'Sem desconto');
+      expect(
+        arenaProfessorCourtDiscountSavedMessage(0),
+        'Desconto no aluguel removido. O professor foi avisado.',
+      );
+    });
+
+    test('título do evento no histórico da arena', () {
+      ArenaProfessorLinkEvent event(int before, int after) =>
+          ArenaProfessorLinkEvent(
+            id: 'e',
+            eventType: 'COURT_DISCOUNT_CHANGED',
+            actorRole: 'ARENA',
+            metadata: {'before': before, 'after': after},
+          );
+      final link = marcosActive();
+      expect(
+        arenaProfessorEventTitle(event(0, 20), link),
+        'Desconto no aluguel: 20%',
+      );
+      expect(
+        arenaProfessorEventTitle(event(20, 0), link),
+        'Desconto no aluguel removido',
+      );
+      expect(
+        arenaProfessorEventTitle(event(10, 20), link),
+        'Desconto no aluguel: 10% → 20%',
+      );
+    });
+  });
 }

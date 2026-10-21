@@ -116,26 +116,62 @@ class _ArenaBookingConfirmPageState
   double _displayAmount(ArenaBookingConfirmArgs args) =>
       _quote?.amountReais ?? args.amountReais;
 
-  void _maybeLoadQuote(ArenaBookingConfirmArgs args) {
+  /// Cotação pedida "como professor" (a chave da cotação inclui a escolha:
+  /// trocar o interruptor recota).
+  bool _quoteAsProfessor = false;
+
+  /// Descarta resposta de cotação antiga que chega depois de uma nova.
+  int _quoteSeq = 0;
+
+  void _maybeLoadQuote(
+    ArenaBookingConfirmArgs args, {
+    required bool asProfessor,
+  }) {
     final slotsKey = args.selectedSlotStartTimes.join(',');
     final key =
-        '${args.courtId}_${args.dateKey}_${args.startTime}_${args.endTime}_$slotsKey';
-    if (_lastQuoteKey == key || _quoting) return;
+        '${args.courtId}_${args.dateKey}_${args.startTime}_${args.endTime}_${slotsKey}_$asProfessor';
+    if (_lastQuoteKey == key) return;
     _lastQuoteKey = key;
+    _quoteAsProfessor = asProfessor;
     _loadQuote(args);
   }
 
+  /// Mensagem quando o cupom não entrou: o desconto de professor ou a
+  /// promoção já deixam a reserva mais barata (não acumulam).
+  static String _couponNotBetterMessage(ArenaBookingQuote quote) =>
+      quote.hasProfessorDiscount
+          ? 'O desconto de professor já deixa esta reserva mais barata que o cupom.'
+          : 'Este cupom não é mais vantajoso do que a promoção já aplicada nesta quadra.';
+
   Future<void> _loadQuote(ArenaBookingConfirmArgs args) async {
+    final seq = ++_quoteSeq;
+    final coupon = _appliedCouponCode;
     setState(() => _quoting = true);
     try {
       final quote = await ref
           .read(bookingServiceProvider)
-          .quoteBooking(args: args);
-      if (mounted) setState(() => _quote = quote);
+          .quoteBooking(
+            args: args,
+            couponCode: coupon,
+            asProfessor: _quoteAsProfessor,
+          );
+      if (!mounted || seq != _quoteSeq) return;
+      setState(() {
+        _quote = quote;
+        // Recotou com o cupom e ele deixou de valer (ex.: desconto de
+        // professor venceu): o cupom sai e o motivo fica perto do campo.
+        if (coupon != null && !quote.couponApplied) {
+          _appliedCouponCode = null;
+          _couponDiscountReais = 0;
+          _couponError = _couponNotBetterMessage(quote);
+        } else if (coupon != null) {
+          _couponDiscountReais = quote.couponDiscountReais;
+        }
+      });
     } catch (_) {
       // Mantém total calculado no cliente se a cota falhar.
     } finally {
-      if (mounted) setState(() => _quoting = false);
+      if (mounted && seq == _quoteSeq) setState(() => _quoting = false);
     }
   }
 
@@ -147,6 +183,7 @@ class _ArenaBookingConfirmPageState
     final code = _couponController.text.trim();
     if (code.isEmpty || _couponApplying) return;
 
+    final seq = ++_quoteSeq;
     setState(() {
       _couponApplying = true;
       _couponError = null;
@@ -154,8 +191,12 @@ class _ArenaBookingConfirmPageState
     try {
       final quote = await ref
           .read(bookingServiceProvider)
-          .quoteBooking(args: args, couponCode: code);
-      if (!mounted) return;
+          .quoteBooking(
+            args: args,
+            couponCode: code,
+            asProfessor: _quoteAsProfessor,
+          );
+      if (!mounted || seq != _quoteSeq) return;
       setState(() {
         _quote = quote;
         if (quote.couponApplied) {
@@ -164,8 +205,7 @@ class _ArenaBookingConfirmPageState
         } else {
           _appliedCouponCode = null;
           _couponDiscountReais = 0;
-          _couponError =
-              'Este cupom não é mais vantajoso do que a promoção já aplicada nesta quadra.';
+          _couponError = _couponNotBetterMessage(quote);
         }
       });
     } on BookingException catch (e) {
@@ -423,10 +463,6 @@ class _ArenaBookingConfirmPageState
     final fromQuery = ArenaBookingConfirmArgs.tryParseQuery(state.uri);
     final args = fromExtra ?? fromQuery;
 
-    if (args != null && args.isValid) {
-      _maybeLoadQuote(args);
-    }
-
     if (args == null || !args.isValid || args.arenaId != widget.arenaId) {
       return Scaffold(
         backgroundColor: context.themeColors.canvas,
@@ -473,6 +509,7 @@ class _ArenaBookingConfirmPageState
       activeRole: ref.watch(activeMobileRoleProvider),
     );
     final asProfessor = offerProfessor && (_asProfessor ?? true);
+    _maybeLoadQuote(args, asProfessor: asProfessor);
     // Aula da carteira: só como professor de vínculo independente, entre os
     // alunos ativos (o servidor confere de novo).
     final lessonStudents = asProfessor &&
@@ -496,6 +533,13 @@ class _ArenaBookingConfirmPageState
       onlineEnabled: onlineEnabled,
     );
     final displayTotal = _displayAmount(args);
+    // O desconto de professor só aparece na cotação pedida como professor
+    // (troca do interruptor = "Calculando…" até a nova chegar).
+    final quote = _quote;
+    final professorDiscount = !_quoting &&
+        asProfessor &&
+        quote != null &&
+        quote.hasProfessorDiscount;
     final durationCompact = formatCourtDurationLabel(args);
     final courtLineLabel = durationCompact.isEmpty
         ? 'Quadra'
@@ -576,7 +620,21 @@ class _ArenaBookingConfirmPageState
                                   courtLineLabel: courtLineLabel,
                                   courtAmountLabel: _quoting
                                       ? 'Calculando…'
-                                      : formatBRL(displayTotal),
+                                      : formatBRL(
+                                          professorDiscount
+                                              ? quote
+                                                  .amountBeforeProfessorDiscountReais
+                                              : displayTotal,
+                                        ),
+                                  discountLineLabel: professorDiscount
+                                      ? quote.professorDiscountLabel
+                                      : null,
+                                  discountAmountLabel: professorDiscount
+                                      ? quote.professorDiscountValueLabel
+                                      : null,
+                                  totalAmountLabel: professorDiscount
+                                      ? formatBRL(displayTotal)
+                                      : null,
                                 ),
                               ),
                               Padding(

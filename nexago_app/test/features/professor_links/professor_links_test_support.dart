@@ -50,6 +50,7 @@ ArenaProfessorLink professorLink({
   String? suspensionReason,
   ArenaProfessorSide? endedBySide,
   String? endedReason,
+  int courtDiscountPercent = 0,
 }) =>
     ArenaProfessorLink(
       id: arenaProfessorLinkIdFor(arenaId, professorTestUid),
@@ -74,6 +75,7 @@ ArenaProfessorLink professorLink({
       suspensionReason: suspensionReason,
       endedBySide: endedBySide,
       endedReason: endedReason,
+      courtDiscountPercent: courtDiscountPercent,
     );
 
 /// Convite de equipe da Arena Sul, mandado hoje às 10:42, vence em 7 dias.

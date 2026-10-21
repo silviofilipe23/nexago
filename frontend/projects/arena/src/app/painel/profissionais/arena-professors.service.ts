@@ -141,4 +141,9 @@ export class ArenaProfessorsService {
   updatePermissions(linkId: string, permissions: Partial<ProfessorPermissions>): Promise<ProfessorLinkResult> {
     return call('updateArenaProfessorPermissions', { linkId, permissions });
   }
+
+  /** % inteiro de 0 a 90 (0 = sem desconto); vale na reserva "como professor". */
+  updateCourtDiscount(linkId: string, courtDiscountPercent: number): Promise<ProfessorLinkResult> {
+    return call('updateArenaProfessorCourtDiscount', { linkId, courtDiscountPercent });
+  }
 }

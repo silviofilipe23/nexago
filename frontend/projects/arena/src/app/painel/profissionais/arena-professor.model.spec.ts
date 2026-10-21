@@ -6,6 +6,7 @@ import {
   arenaProfessorLinkFromDoc,
   arenaProfessorRequestUrl,
   callableErrorMessage,
+  courtDiscountLabel,
   dayMonthLabel,
   defaultProfessorPermissions,
   detailSubtitle,
@@ -18,6 +19,7 @@ import {
   inviteKpiSub,
   isInviteExpired,
   linkActions,
+  parseCourtDiscountInput,
   pendingRequests,
   permissionAllowedForType,
   permissionGroupsFor,
@@ -59,6 +61,7 @@ function makeLink(overrides: Partial<ArenaProfessorLink> = {}): ArenaProfessorLi
       canCancelLessons: false,
       canBookRecurring: false,
     },
+    courtDiscountPercent: 0,
     message: null,
     cycle: 1,
     professorName: 'Marcos Lima',
@@ -485,6 +488,43 @@ describe('arena-professor.model · parse e erros', () => {
   it('histórico nomeia as permissões novas', () => {
     const event = makeEvent({ eventType: 'PERMISSIONS_CHANGED', metadata: { changed: ['canEnrollStudents'], after: { canEnrollStudents: true } } });
     expect(eventTitle(event, makeLink())).toBe('Permissão “Matricular alunos” ligada');
+  });
+
+  it('desconto no aluguel: lê o % do vínculo; ausente, quebrado ou fora da faixa = 0', () => {
+    const doc = (extra: Record<string, unknown>) =>
+      arenaProfessorLinkFromDoc(fakeDoc('a1_u1', { relationshipType: 'INDEPENDENT', status: 'ACTIVE', ...extra }));
+    expect(doc({ courtDiscountPercent: 20 }).courtDiscountPercent).toBe(20);
+    expect(doc({}).courtDiscountPercent).toBe(0);
+    expect(doc({ courtDiscountPercent: '20' }).courtDiscountPercent).toBe(0);
+    expect(doc({ courtDiscountPercent: 12.5 }).courtDiscountPercent).toBe(0);
+    expect(doc({ courtDiscountPercent: 95 }).courtDiscountPercent).toBe(0);
+    expect(doc({ courtDiscountPercent: -5 }).courtDiscountPercent).toBe(0);
+  });
+
+  it('desconto no aluguel: rótulo e campo de edição (inteiro 0–90, vazio = 0)', () => {
+    expect(courtDiscountLabel(20)).toBe('20%');
+    expect(courtDiscountLabel(0)).toBe('Sem desconto');
+    expect(parseCourtDiscountInput('20')).toBe(20);
+    expect(parseCourtDiscountInput(' 15% ')).toBe(15);
+    expect(parseCourtDiscountInput('')).toBe(0);
+    expect(parseCourtDiscountInput('90')).toBe(90);
+    expect(parseCourtDiscountInput('91')).toBeNull();
+    expect(parseCourtDiscountInput('12,5')).toBeNull();
+    expect(parseCourtDiscountInput('-1')).toBeNull();
+    expect(parseCourtDiscountInput('abc')).toBeNull();
+  });
+
+  it('histórico do desconto no aluguel: definido, alterado e removido', () => {
+    const link = makeLink();
+    const event = (before: unknown, after: unknown) =>
+      eventTitle(makeEvent({ eventType: 'COURT_DISCOUNT_CHANGED', metadata: { before, after } }), link);
+    expect(event(0, 20)).toBe('Desconto no aluguel: 20%');
+    expect(event(10, 20)).toBe('Desconto no aluguel: 10% → 20%');
+    expect(event(20, 0)).toBe('Desconto no aluguel removido');
+    expect(event(undefined, 15)).toBe('Desconto no aluguel: 15%');
+    expect(arenaProfessorEventFromDoc(fakeDoc('e3', { eventType: 'COURT_DISCOUNT_CHANGED', metadata: { before: 0, after: 20 } }))?.eventType).toBe(
+      'COURT_DISCOUNT_CHANGED',
+    );
   });
 
   it('evento de tipo desconhecido fica fora da linha do tempo', () => {

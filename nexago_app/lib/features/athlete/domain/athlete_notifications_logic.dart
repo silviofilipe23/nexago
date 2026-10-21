@@ -624,12 +624,14 @@ AthleteNotificationPresentation _basePresentation(
     case 'professor_link_rejected':
     case 'professor_link_ended':
     case 'professor_link_permissions_changed':
+    case 'professor_link_court_discount_changed':
       final color = switch (type) {
         'professor_link_invite' => _professorInviteBlue,
         'professor_link_approved' ||
         'professor_link_reactivated' => AppColors.win,
         'professor_link_suspended' => AppColors.live,
-        'professor_link_permissions_changed' => AppColors.brand,
+        'professor_link_permissions_changed' ||
+        'professor_link_court_discount_changed' => AppColors.brand,
         _ => AppColors.onSurfaceMuted,
       };
       return AthleteNotificationPresentation(

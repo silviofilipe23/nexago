@@ -60,6 +60,7 @@ ArenaProfessorLink arenaLink({
   String? endedReason,
   ArenaProfessorSide? endedBySide,
   int cycle = 1,
+  int courtDiscountPercent = 0,
 }) =>
     ArenaProfessorLink(
       id: arenaProfessorLinkIdFor(arenaTestId, uid),
@@ -90,6 +91,7 @@ ArenaProfessorLink arenaLink({
       suspensionDetails: suspensionDetails,
       endedReason: endedReason,
       endedBySide: endedBySide,
+      courtDiscountPercent: courtDiscountPercent,
     );
 
 /// Mesmo vínculo com outros campos — o que o servidor gravaria numa transição.
@@ -113,6 +115,7 @@ ArenaProfessorLink copyArenaLink(
   String? endedReason,
   String? rejectionReason,
   ArenaProfessorSide? endedBySide,
+  int? courtDiscountPercent,
 }) =>
     ArenaProfessorLink(
       id: link.id,
@@ -144,6 +147,7 @@ ArenaProfessorLink copyArenaLink(
       suspensionDetails: suspensionDetails ?? link.suspensionDetails,
       endedReason: endedReason ?? link.endedReason,
       endedBySide: endedBySide ?? link.endedBySide,
+      courtDiscountPercent: courtDiscountPercent ?? link.courtDiscountPercent,
     );
 
 // ── vínculos do protótipo A1 ────────────────────────────────────────────────
@@ -258,6 +262,7 @@ typedef InviteCall = ({
 typedef ApproveCall = ({String linkId, ArenaProfessorPermissions permissions});
 typedef ReasonCall = ({String linkId, String? reason});
 typedef SuspendCall = ({String linkId, String reason, String? details});
+typedef CourtDiscountCall = ({String linkId, int courtDiscountPercent});
 typedef PermissionCall = ({
   String linkId,
   ArenaProfessorPermissionKey key,
@@ -296,6 +301,7 @@ class FakeArenaProfessionalsRepository implements ArenaProfessionalsRepository {
   final endCalls = <ReasonCall>[];
   final cancelCalls = <String>[];
   final permissionCalls = <PermissionCall>[];
+  final courtDiscountCalls = <CourtDiscountCall>[];
   final searchCalls = <String>[];
 
   final _changes = StreamController<void>.broadcast();
@@ -535,6 +541,24 @@ class FakeArenaProfessionalsRepository implements ArenaProfessionalsRepository {
             ),
           ));
       holdPermissionEcho ? _heldEchoes.add(echo) : echo();
+    }
+    return _result(linkId, current?.status ?? ArenaProfessorLinkStatus.active);
+  }
+
+  @override
+  Future<ProfessorLinkResult> updateCourtDiscount({
+    required String linkId,
+    required int courtDiscountPercent,
+  }) async {
+    courtDiscountCalls
+        .add((linkId: linkId, courtDiscountPercent: courtDiscountPercent));
+    _throwIfError();
+    final current = find(linkId);
+    if (current != null) {
+      _replace(copyArenaLink(
+        current,
+        courtDiscountPercent: courtDiscountPercent,
+      ));
     }
     return _result(linkId, current?.status ?? ArenaProfessorLinkStatus.active);
   }

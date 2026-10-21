@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
@@ -30,6 +30,7 @@ import {
   quoteArenaBooking,
   watchArenaBooking,
   type ArenaBookingArgs,
+  type ArenaBookingQuote,
   type ArenaBookingCardPayment,
   type ArenaBookingPixPayment,
 } from '../data/arena-bookings-repository';
@@ -46,7 +47,7 @@ import {
 } from '../data/arena-booking-split-repository';
 import { searchAthleteDirectory, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { pixBookingCreateOptions } from './pix-booking-create-options';
-import { bookingProfessorLink } from './booking-as-professor';
+import { bookingProfessorLink, professorDiscountSummaryLabel } from './booking-as-professor';
 import { BookingProfessorOptionComponent } from './booking-professor-option.component';
 import { ProfessorLinksService } from '../professor/professor-links.service';
 import { appliedPreviewCents } from '../data/cashback-preview';
@@ -227,6 +228,14 @@ export class ArenaPaymentComponent {
   protected readonly couponError = signal<string | null>(null);
   protected readonly appliedCouponCode = signal<string | null>(null);
   protected readonly couponDiscountReais = signal(0);
+
+  /** Desconto do professor na cotação (`asProfessor`). Não soma com promoção nem cupom: quando
+   *  vale, o servidor cota sem os dois (vale o menor preço). */
+  protected readonly professorDiscountPercent = signal(0);
+  protected readonly professorDiscountReais = signal(0);
+  protected readonly professorDiscountLabel = computed(() => professorDiscountSummaryLabel(this.professorDiscountPercent()));
+  /** Só a cotação mais recente vale — ligar/desligar "como professor" rápido dispara várias. */
+  private quoteSeq = 0;
 
   protected readonly pixPayment = signal<ArenaBookingPixPayment | null>(null);
   /** Cobrança de cartão viva — uma por vez, como o Pix. */
@@ -427,6 +436,17 @@ export class ArenaPaymentComponent {
 
   constructor() {
     void this.load();
+    // "Como professor" muda o preço (desconto do vínculo): cota de novo a cada troca. A primeira
+    // cota sai do `load()`; antes da cadeia de horários não há o que cotar.
+    let lastAsProfessor = false;
+    effect(() => {
+      const asProfessor = this.asProfessor();
+      if (asProfessor === lastAsProfessor) return;
+      lastAsProfessor = asProfessor;
+      untracked(() => {
+        if (this.chain().length > 0 && !this.professorLocked()) void this.loadQuote();
+      });
+    });
     this.destroyRef.onDestroy(() => {
       clearTimeout(this.splitFriendDebounce);
       this.stopPixWatchers();
@@ -492,10 +512,24 @@ export class ArenaPaymentComponent {
     }
   }
 
+  /** Cota de novo com o cupom já aplicado (se houver) e o "como professor" atual. */
   private async loadQuote(): Promise<void> {
+    const seq = ++this.quoteSeq;
+    const coupon = this.appliedCouponCode() ?? undefined;
     try {
-      const quote = await quoteArenaBooking(athleteFunctions(), this.bookingArgs());
-      this.quotedTotal.set(quote.amountReais);
+      const quote = await quoteArenaBooking(athleteFunctions(), this.bookingArgs(), coupon, { asProfessor: this.asProfessor() });
+      if (seq !== this.quoteSeq) return;
+      this.applyQuote(quote);
+      if (coupon && !quote.couponApplied) {
+        // O desconto de professor saiu mais barato: o cupom cai (e não é consumido).
+        this.appliedCouponCode.set(null);
+        this.couponDiscountReais.set(0);
+        this.couponError.set(
+          quote.professorDiscountReais > 0
+            ? 'O desconto de professor já sai mais barato que este cupom.'
+            : 'Este cupom não é mais vantajoso do que a promoção já aplicada nesta quadra.',
+        );
+      }
     } catch (err) {
       if (!environment.production) {
         console.error('[arena-payment] quote error', err);
@@ -514,15 +548,21 @@ export class ArenaPaymentComponent {
     this.couponApplying.set(true);
     this.couponError.set(null);
     try {
-      const quote = await quoteArenaBooking(athleteFunctions(), this.bookingArgs(), code);
-      this.quotedTotal.set(quote.amountReais);
+      const seq = ++this.quoteSeq;
+      const quote = await quoteArenaBooking(athleteFunctions(), this.bookingArgs(), code, { asProfessor: this.asProfessor() });
+      if (seq !== this.quoteSeq) return;
+      this.applyQuote(quote);
       if (quote.couponApplied) {
         this.appliedCouponCode.set(code.toUpperCase());
         this.couponDiscountReais.set(quote.couponDiscountReais);
       } else {
         this.appliedCouponCode.set(null);
         this.couponDiscountReais.set(0);
-        this.couponError.set('Este cupom não é mais vantajoso do que a promoção já aplicada nesta quadra.');
+        this.couponError.set(
+          quote.professorDiscountReais > 0
+            ? 'O desconto de professor já sai mais barato que este cupom.'
+            : 'Este cupom não é mais vantajoso do que a promoção já aplicada nesta quadra.',
+        );
       }
     } catch (err) {
       this.appliedCouponCode.set(null);
@@ -532,6 +572,12 @@ export class ArenaPaymentComponent {
     } finally {
       this.couponApplying.set(false);
     }
+  }
+
+  private applyQuote(quote: ArenaBookingQuote): void {
+    this.quotedTotal.set(quote.amountReais);
+    this.professorDiscountPercent.set(quote.professorDiscountPercent);
+    this.professorDiscountReais.set(quote.professorDiscountReais);
   }
 
   protected removeCoupon(): void {

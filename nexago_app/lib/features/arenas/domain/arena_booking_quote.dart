@@ -23,6 +23,8 @@ class ArenaBookingQuote {
     this.couponApplied = false,
     this.couponId,
     this.couponDiscountReais = 0,
+    this.professorDiscountPercent = 0,
+    this.professorDiscountReais = 0,
   });
 
   final double amountReais;
@@ -34,6 +36,29 @@ class ArenaBookingQuote {
   final bool couponApplied;
   final String? couponId;
   final double couponDiscountReais;
+
+  /// Desconto do professor no aluguel (`asProfessor`) — 0 quando não se
+  /// aplicou (sem vínculo, sem desconto ou promoção/cupom mais barato). Não
+  /// soma com promoção nem cupom: incide sobre o preço cheio.
+  final int professorDiscountPercent;
+  final double professorDiscountReais;
+
+  bool get hasProfessorDiscount =>
+      professorDiscountPercent > 0 && professorDiscountReais > 0;
+
+  /// Preço cheio antes do desconto do professor (total + desconto).
+  double get amountBeforeProfessorDiscountReais =>
+      ((amountReais + professorDiscountReais) * 100).roundToDouble() / 100;
+
+  /// "Desconto de professor (20%)" — `null` sem desconto.
+  String? get professorDiscountLabel => hasProfessorDiscount
+      ? 'Desconto de professor ($professorDiscountPercent%)'
+      : null;
+
+  /// "−R$ 20,00" — `null` sem desconto.
+  String? get professorDiscountValueLabel => hasProfessorDiscount
+      ? '\u2212${formatBRL(professorDiscountReais)}'
+      : null;
 
   /// Preço horário médio (soma dos slots ÷ horas cobradas).
   double? get impliedHourlyRateReais {

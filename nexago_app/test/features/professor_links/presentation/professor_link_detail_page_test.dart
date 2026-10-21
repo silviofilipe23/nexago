@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/professor_links/domain/arena_professor_link.dart';
+import 'package:nexago_app/features/professor_links/domain/professor_link_rules.dart';
 import 'package:nexago_app/features/professor_links/domain/professor_links_repository.dart';
 import 'package:nexago_app/features/professor_links/presentation/widgets/professor_invite_sheet.dart';
 import 'package:nexago_app/features/professor_links/presentation/widgets/professor_link_request_sheet.dart';
@@ -373,6 +374,45 @@ void main() {
 
       expect(find.text('Vínculo não encontrado'), findsOneWidget);
       expect(find.text('Ver minhas arenas'), findsOneWidget);
+    });
+  });
+
+  group('Desconto no aluguel de quadra', () {
+    testWidgets('ativo com desconto: mostra o percentual', (tester) async {
+      await _pumpDetail(
+        tester,
+        link: professorLink(courtDiscountPercent: 20),
+        events: {
+          arenaProfessorLinkIdFor('arena-sul', professorTestUid): [
+            ArenaProfessorLinkEvent(
+              id: 'd1',
+              eventType: 'COURT_DISCOUNT_CHANGED',
+              actorRole: 'ARENA',
+              actorName: 'Carla N.',
+              metadata: const {'before': 0, 'after': 20},
+              createdAt: DateTime(2026, 9, 2),
+            ),
+          ],
+        },
+      );
+      expect(
+        find.byKey(const Key('professor-link-court-discount')),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Desconto no aluguel de quadra: 20%'),
+        findsOneWidget,
+      );
+      expect(find.text('Desconto no aluguel: 20%'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('sem desconto: nada aparece', (tester) async {
+      await _pumpDetail(tester, link: professorLink());
+      expect(
+        find.byKey(const Key('professor-link-court-discount')),
+        findsNothing,
+      );
     });
   });
 }

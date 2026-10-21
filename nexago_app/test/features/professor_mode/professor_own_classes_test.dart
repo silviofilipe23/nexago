@@ -474,6 +474,8 @@ void main() {
       expect(inCard('Ter e Qui · 07:00–08:00'), findsOneWidget);
       expect(inCard('Quadra 1 · Arena Norte'), findsOneWidget);
       expect(inCard('1/4'), findsOneWidget);
+      // A contagem do cabeçalho soma a turma própria ATIVA (a encerrada não).
+      expect(find.text('1 TURMA · 1 ALUNO'), findsOneWidget);
       // Com turma própria, o vazio das turmas da arena some.
       expect(find.byKey(const Key('professor-classes-empty')), findsNothing);
 

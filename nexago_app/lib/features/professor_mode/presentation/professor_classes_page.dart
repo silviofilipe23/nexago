@@ -33,7 +33,15 @@ class ProfessorClassesPage extends ConsumerWidget {
 
     return ProfessorLinksScaffold(
       title: 'Minhas turmas',
-      subtitle: snapshot == null ? null : professorClassesSubtitle(classes),
+      subtitle: snapshot == null
+          ? null
+          : professorClassesSubtitle(
+              classes,
+              ownActive: ownClasses.where((c) => c.isActive).length,
+              ownStudents: ownClasses
+                  .where((c) => c.isActive)
+                  .fold<int>(0, (sum, c) => sum + c.studentCount),
+            ),
       onBack: () => popOrGo(context, AppRoutes.professorMore),
       body: RefreshIndicator(
         color: AppColors.brand,

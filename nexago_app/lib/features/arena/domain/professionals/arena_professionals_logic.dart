@@ -59,7 +59,8 @@ ArenaProfessorPermissions arenaProfessorPermissionsWith(
     permissions.withValue(key, value);
 
 /// Grupos de interruptores que a arena vê para o [type]: o das Aulas da arena
-/// só existe na equipe (o servidor recusa ligar no independente).
+/// só existe na equipe e o da Turma própria (horário fixo) só no
+/// independente (o servidor recusa ligar no tipo errado).
 List<({String? title, List<ProfessorPermissionInfo> items})>
     arenaProfessorPermissionGroups(ArenaProfessorLinkType type) => [
           (title: null, items: professorPermissionCatalog),
@@ -68,10 +69,16 @@ List<({String? title, List<ProfessorPermissionInfo> items})>
               title: professorArenaLessonsGroupTitle,
               items: professorArenaLessonsPermissionCatalog,
             ),
+          if (type == ArenaProfessorLinkType.independent)
+            (
+              title: professorIndependentGroupTitle,
+              items: professorIndependentPermissionCatalog,
+            ),
         ];
 
 /// O que vai no convite/aprovação/reenvio: nunca `true` de chave só de
-/// equipe num vínculo independente (o servidor recusaria o pedido inteiro).
+/// equipe num vínculo independente, nem de chave só do independente num de
+/// equipe (o servidor recusaria o pedido inteiro).
 ArenaProfessorPermissions arenaProfessorPermissionsToSend(
   ArenaProfessorPermissions permissions,
   ArenaProfessorLinkType type,

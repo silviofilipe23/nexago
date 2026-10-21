@@ -19,9 +19,16 @@ import 'professor_wallet_widgets.dart';
 /// vencimento e "Repetir todo mês". Sai uma fatura do Asaas (PIX ou cartão)
 /// com o split para a conta do professor; só com a conta aprovada.
 class ProfessorWalletChargePage extends ConsumerStatefulWidget {
-  const ProfessorWalletChargePage({super.key, required this.athleteId});
+  const ProfessorWalletChargePage({
+    super.key,
+    required this.athleteId,
+    this.prefill,
+  });
 
   final String athleteId;
+
+  /// Mensalidade da turma própria: começa no valor personalizado.
+  final ProfessorChargePrefill? prefill;
 
   @override
   ConsumerState<ProfessorWalletChargePage> createState() =>
@@ -39,6 +46,18 @@ class _ProfessorWalletChargePageState
   String? _dueDate;
   bool _repeat = false;
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.prefill;
+    if (p != null) {
+      _choice = _custom;
+      _amount.text = professorMoneyInputText(p.amountReais);
+      _description.text = p.description;
+      _repeat = p.repeatMonthly;
+    }
+  }
 
   @override
   void dispose() {

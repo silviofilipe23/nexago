@@ -12,6 +12,7 @@ import {
 } from "./arena-recurring-booking";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {dayKeyFromEventDate} from "./event-timezone";
+import {professorSeriesStillAllowed} from "./professor-own-classes";
 
 async function notifyManagerSafe(
   managerUserId: string,
@@ -90,6 +91,12 @@ export const materializeArenaRecurringBookings = onSchedule({
         type: "recurring_series_court_deleted",
         data: {recurringBookingId: doc.id, arenaId: series.arenaId},
       });
+      autoCanceled += 1;
+      continue;
+    }
+
+    // Turma própria do professor: sem vínculo independente ativo + chave, a turma encerra.
+    if (!(await professorSeriesStillAllowed(db, series))) {
       autoCanceled += 1;
       continue;
     }

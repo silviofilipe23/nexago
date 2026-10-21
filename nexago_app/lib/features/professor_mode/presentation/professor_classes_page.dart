@@ -10,9 +10,11 @@ import '../../../core/theme/app_typography.dart';
 import '../../arena/domain/aulas/arena_class.dart';
 import '../../arena/presentation/aulas/widgets/arena_class_atoms.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
+import '../application/professor_own_classes_providers.dart';
 import '../application/professor_students_providers.dart';
 import '../domain/professor_students.dart';
 import '../domain/professor_students_logic.dart';
+import 'own_classes/professor_own_classes_section.dart';
 import 'widgets/professor_students_widgets.dart';
 
 /// Minhas turmas (A4), aberta pelo Mais: as turmas em que o professor dá
@@ -26,14 +28,25 @@ class ProfessorClassesPage extends ConsumerWidget {
     final snapshot = async.valueOrNull;
     final classes = snapshot?.classes ?? const <ProfessorClassSummary>[];
     final multiArena = (snapshot?.arenas.length ?? 0) > 1;
+    final ownClasses =
+        ref.watch(professorOwnClassesProvider).valueOrNull ?? const [];
 
     return ProfessorLinksScaffold(
       title: 'Minhas turmas',
-      subtitle: snapshot == null ? null : professorClassesSubtitle(classes),
+      subtitle: snapshot == null
+          ? null
+          : professorClassesSubtitle(
+              classes,
+              ownActive: ownClasses.where((c) => c.isActive).length,
+              ownStudents: ownClasses
+                  .where((c) => c.isActive)
+                  .fold<int>(0, (sum, c) => sum + c.studentCount),
+            ),
       onBack: () => popOrGo(context, AppRoutes.professorMore),
       body: RefreshIndicator(
         color: AppColors.brand,
         onRefresh: () async {
+          ref.invalidate(professorOwnClassesProvider);
           ref.invalidate(professorStudentsProvider);
           await ref
               .read(professorStudentsProvider.future)
@@ -43,6 +56,8 @@ class ProfessorClassesPage extends ConsumerWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
           children: [
+            // Turmas próprias do independente (B10), antes das da arena.
+            const ProfessorOwnClassesSection(),
             if (snapshot == null)
               async.hasError
                   ? ProfessorRetryCard(
@@ -57,7 +72,7 @@ class ProfessorClassesPage extends ConsumerWidget {
                         ),
                       ),
                     )
-            else if (classes.isEmpty)
+            else if (classes.isEmpty && ownClasses.isEmpty)
               const ProfessorLinksCard(
                 key: Key('professor-classes-empty'),
                 child: ProfessorMutedText(
@@ -65,7 +80,11 @@ class ProfessorClassesPage extends ConsumerWidget {
                   'escala você e o vínculo libera "Gerenciar as próprias aulas".',
                 ),
               )
-            else
+            else ...[
+              if (ownClasses.isNotEmpty && classes.isNotEmpty) ...[
+                const ProfessorLinksKicker('Turmas da arena'),
+                const SizedBox(height: 8),
+              ],
               for (final c in classes) ...[
                 _ClassCard(
                   key: Key('professor-class-${c.classId}'),
@@ -86,6 +105,7 @@ class ProfessorClassesPage extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
               ],
+            ],
           ],
         ),
       ),

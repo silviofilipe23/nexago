@@ -28,6 +28,7 @@ function link(overrides: Partial<ProfessorLink>): ProfessorLink {
       canEnrollStudents: false,
       canScheduleLessons: false,
       canCancelLessons: false,
+      canBookRecurring: false,
     },
     message: null,
     cycle: 1,
@@ -74,6 +75,7 @@ const LINKS: ProfessorLink[] = [
       canEnrollStudents: true,
       canScheduleLessons: false,
       canCancelLessons: false,
+      canBookRecurring: false,
     },
   }),
   link({ id: 'norte_me', arenaId: 'norte' }),
@@ -278,9 +280,12 @@ describe('Telas do professor (Minhas arenas e detalhe)', () => {
     const titles = [...host.querySelectorAll('app-pf-timeline .title')].map((e) => e.textContent?.trim());
     expect(titles).toEqual(['Solicitação aprovada como Independente', 'Você solicitou vínculo · Independente']);
     const perms = [...host.querySelectorAll('app-pf-perm-list li')].map((li) => li.classList.contains('on'));
-    expect(perms).toEqual([true, true, false]);
-    // Independente: sem o grupo "Aulas da arena".
-    expect(host.querySelector('app-pf-perm-list .group')).toBeNull();
+    expect(perms).toEqual([true, true, false, false]);
+    // Independente: sem o grupo "Aulas da arena"; com o "Turma própria" (horário fixo, desligado).
+    const groupTitles = [...host.querySelectorAll('app-pf-perm-list .group-title')].map((e) => e.textContent?.trim());
+    expect(groupTitles).toEqual(['Turma própria']);
+    expect(host.querySelector('app-pf-perm-list .group-note')?.textContent).toContain('Só para professor independente');
+    expect(host.querySelector('app-pf-perm-list')?.textContent).toContain('Horário fixo (turma própria)');
     expect(buttons(host, 'Encerrar vínculo').length).toBe(1);
   });
 
@@ -297,6 +302,7 @@ describe('Telas do professor (Minhas arenas e detalhe)', () => {
         canEnrollStudents: true,
         canScheduleLessons: false,
         canCancelLessons: true,
+        canBookRecurring: false,
       },
     });
     const host = await open('/professor/arenas/eq_me', [...LINKS, staff], []);

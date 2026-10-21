@@ -187,6 +187,8 @@ import '../../features/professor_mode/presentation/agenda/professor_agenda_sessi
 import '../../features/professor_mode/presentation/agenda/professor_block_page.dart';
 import '../../features/professor_mode/presentation/agenda/professor_calendar_sync_page.dart';
 import '../../features/professor_mode/presentation/professor_classes_page.dart';
+import '../../features/professor_mode/presentation/own_classes/professor_own_class_new_page.dart';
+import '../../features/professor_mode/presentation/own_classes/professor_own_class_page.dart';
 import '../../features/professor_mode/presentation/professor_more_page.dart';
 import '../../features/professor_mode/presentation/professor_shell_page.dart';
 import '../../features/professor_mode/presentation/professor_student_page.dart';
@@ -208,6 +210,8 @@ import '../../features/professor_mode/presentation/notices/professor_notices_pag
 import '../../features/professor_mode/presentation/wallet/professor_payout_account_page.dart';
 import '../../features/professor_mode/presentation/wallet/professor_student_invite_page.dart';
 import '../../features/professor_mode/presentation/wallet/professor_wallet_add_student_page.dart';
+import '../../features/professor_mode/domain/professor_wallet.dart'
+    show ProfessorChargePrefill;
 import '../../features/professor_mode/presentation/wallet/professor_wallet_charge_page.dart';
 import '../../features/professor_mode/presentation/wallet/professor_wallet_page.dart';
 import '../../features/professor_mode/presentation/wallet/professor_wallet_plans_page.dart';
@@ -562,6 +566,24 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                     path: 'turmas',
                     name: AppRouteNames.professorClasses,
                     builder: (context, state) => const ProfessorClassesPage(),
+                    routes: [
+                      // Turma própria do independente (B10).
+                      GoRoute(
+                        path: 'nova-propria',
+                        name: AppRouteNames.professorOwnClassNew,
+                        builder: (context, state) => ProfessorOwnClassNewPage(
+                          arenaId: state.uri.queryParameters['arenaId'],
+                        ),
+                      ),
+                      GoRoute(
+                        path: 'propria/:classId',
+                        name: AppRouteNames.professorOwnClass,
+                        builder: (context, state) => ProfessorOwnClassPage(
+                          classId:
+                              state.pathParameters['classId']?.trim() ?? '',
+                        ),
+                      ),
+                    ],
                   ),
                   // Comunicados do professor (F1–F5).
                   GoRoute(
@@ -702,6 +724,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                               athleteId:
                                   state.pathParameters['athleteId']?.trim() ??
                                       '',
+                              // Mensalidade da turma própria chega
+                              // preenchida pelo `extra`.
+                              prefill: state.extra is ProfessorChargePrefill
+                                  ? state.extra! as ProfessorChargePrefill
+                                  : null,
                             ),
                           ),
                         ],

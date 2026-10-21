@@ -43,6 +43,8 @@ export interface RecurringSeriesData {
   startDate: string;
   endDate: string | null;
   skippedDates: string[];
+  /** Turma própria do professor independente (B10): a quadra é dele, carimbada nas ocorrências. */
+  professorStamp?: {professorUid: string; professorLinkId: string; professorClassId: string} | null;
 }
 
 /** Reconstrói `RecurringSeriesData` a partir do doc cru de `arenaRecurringBookings`
@@ -65,6 +67,11 @@ export function parseRecurringSeriesData(data: Record<string, unknown>): Recurri
     skippedDates: Array.isArray(data["skippedDates"]) ?
       (data["skippedDates"] as unknown[]).map(String) :
       [],
+    professorStamp: data["bookedAs"] === "professor" && typeof data["professorClassId"] === "string" ? {
+      professorUid: String(data["athleteId"] ?? ""),
+      professorLinkId: String(data["professorLinkId"] ?? ""),
+      professorClassId: String(data["professorClassId"]),
+    } : null,
   };
 }
 
@@ -327,7 +334,13 @@ export async function materializeSeriesOccurrences(
           source: "platform",
           isRecurring: true,
           recurringBookingId: seriesId,
-          createdByRole: "arena_manager",
+          createdByRole: series.professorStamp ? "professor" : "arena_manager",
+          ...(series.professorStamp ? {
+            bookedAs: "professor",
+            professorLinkId: series.professorStamp.professorLinkId,
+            professorRelationshipType: "INDEPENDENT",
+            professorClassId: series.professorStamp.professorClassId,
+          } : {}),
           createdAt: FieldValue.serverTimestamp(),
         });
 

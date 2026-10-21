@@ -22,6 +22,8 @@ import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {deliverNotificationToUser, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
 import {PROFESSOR_BLOCKS} from "./professor-calendar";
 import {PROFESSOR_LESSONS} from "./professor-lessons";
+import {PROFESSOR_OWN_CLASSES} from "./professor-own-classes";
+import {PROFESSORS} from "./professor-wallet-model";
 import {isStudentOfProfessor} from "./professor-messages";
 
 export const PROFESSOR_AVAILABILITY = "professorAvailability";
@@ -155,15 +157,17 @@ async function loadBusy(db: Firestore, uid: string, days: string[], tx?: Transac
   const lessonsQuery = db.collection(PROFESSOR_PRIVATE_LESSONS).where("professorUid", "==", uid)
     .where("startAt", ">=", Timestamp.fromDate(new Date(first.getTime() - 4 * 3600_000)))
     .where("startAt", "<=", Timestamp.fromDate(last));
-  const [classes, blocks, courtLessons, privates] = await Promise.all([
+  const [classes, ownClasses, blocks, courtLessons, privates] = await Promise.all([
     db.collection("arenaClasses").where("teacherUserId", "==", uid).get(),
+    db.collection(PROFESSORS).doc(uid).collection(PROFESSOR_OWN_CLASSES).where("status", "==", "active").get(),
     db.collection("users").doc(uid).collection(PROFESSOR_BLOCKS).where("endAt", ">", Timestamp.fromDate(first)).get(),
     db.collection(PROFESSOR_LESSONS).where("professorUid", "==", uid).get(),
     tx ? tx.get(lessonsQuery) : lessonsQuery.get(),
   ]);
   const busy: Interval[] = [];
   const daySet = new Set(days);
-  for (const c of classes.docs) {
+  // Turmas da arena e turmas próprias (B10) ocupam o horário do mesmo jeito.
+  for (const c of [...classes.docs, ...ownClasses.docs]) {
     const cls = c.data();
     if (str(cls["status"]) === "archived") continue;
     const weekdays = Array.isArray(cls["weekdays"]) ? (cls["weekdays"] as unknown[]).map(Number) : [];

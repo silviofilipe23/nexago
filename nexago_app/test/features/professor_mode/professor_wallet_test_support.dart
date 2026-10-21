@@ -454,6 +454,9 @@ List<RouteBase> get professorWalletRoutes => [
         name: AppRouteNames.professorWalletCharge,
         builder: (_, state) => ProfessorWalletChargePage(
           athleteId: state.pathParameters['athleteId'] ?? '',
+          prefill: state.extra is ProfessorChargePrefill
+              ? state.extra! as ProfessorChargePrefill
+              : null,
         ),
       ),
       GoRoute(

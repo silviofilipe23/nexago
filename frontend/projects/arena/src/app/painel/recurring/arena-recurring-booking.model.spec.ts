@@ -36,6 +36,14 @@ describe('arenaRecurringBookingFromDoc — status/pagamento/pausa', () => {
     expect(paused.pausedAt?.getTime()).toBe(when.getTime());
     expect(notPaused.pausedAt).toBeNull();
   });
+
+  it('bookedAs professor marca a série de turma própria; ausente = não', () => {
+    const prof = arenaRecurringBookingFromDoc(fakeDoc('s7', { bookedAs: 'professor', customerName: 'Marcos · Turma A' }));
+    expect(prof.bookedAsProfessor).toBeTrue();
+    expect(prof.customerName).toBe('Marcos · Turma A');
+    expect(arenaRecurringBookingFromDoc(fakeDoc('s8', {})).bookedAsProfessor).toBeFalse();
+    expect(arenaRecurringBookingFromDoc(fakeDoc('s9', { bookedAs: 'athlete' })).bookedAsProfessor).toBeFalse();
+  });
 });
 
 describe('estimateMonthlyReais', () => {

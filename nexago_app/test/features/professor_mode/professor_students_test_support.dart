@@ -12,6 +12,7 @@ import 'package:nexago_app/features/professor_mode/infrastructure/professor_avai
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_students_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_earnings_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_evaluations_repository.dart';
+import 'package:nexago_app/features/professor_mode/infrastructure/professor_own_classes_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_wallet_repository.dart';
 import 'package:nexago_app/features/professor_mode/presentation/professor_classes_page.dart';
 import 'package:nexago_app/features/professor_mode/presentation/professor_student_page.dart';
@@ -20,6 +21,7 @@ import 'package:nexago_app/features/professor_mode/presentation/professor_studen
 import 'professor_availability_test_support.dart';
 import 'professor_earnings_test_support.dart';
 import 'professor_evaluations_test_support.dart';
+import 'professor_own_classes_test_support.dart';
 import 'professor_wallet_test_support.dart';
 
 /// Apoio dos testes de Alunos/Aluno/Turmas do modo Professor: payload
@@ -271,6 +273,8 @@ Future<GoRouter> pumpProfessorStudentsApp(
   /// Avaliações (fase 8); sem ele, nenhuma.
   ProfessorEvaluationsRepository? evaluationsRepo,
 
+  /// Turmas próprias (B10); sem ele, nenhuma.
+  ProfessorOwnClassesRepository? ownClassesRepo,
   /// Disponibilidade e particulares (fase 10); sem ele, nenhuma.
   ProfessorAvailabilityRepository? availabilityRepo,
   String uid = professorStudentsTestUid,
@@ -323,6 +327,8 @@ Future<GoRouter> pumpProfessorStudentsApp(
             earningsRepo ?? FakeProfessorEarningsRepository()),
         professorEvaluationsRepositoryProvider.overrideWithValue(
             evaluationsRepo ?? FakeProfessorEvaluationsRepository()),
+        professorOwnClassesRepositoryProvider.overrideWithValue(
+            ownClassesRepo ?? FakeProfessorOwnClassesRepository()),
         professorAvailabilityRepositoryProvider.overrideWithValue(
             availabilityRepo ?? FakeProfessorAvailabilityRepository()),
         professorLinksUidProvider.overrideWithValue(uid),

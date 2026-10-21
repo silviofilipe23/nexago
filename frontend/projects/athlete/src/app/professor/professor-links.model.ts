@@ -41,6 +41,7 @@ export const PROFESSOR_PERMISSION_KEYS = [
   'canEnrollStudents',
   'canScheduleLessons',
   'canCancelLessons',
+  'canBookRecurring',
 ] as const;
 export type ProfessorPermissionKey = (typeof PROFESSOR_PERMISSION_KEYS)[number];
 export type ProfessorPermissions = Record<ProfessorPermissionKey, boolean>;
@@ -54,6 +55,10 @@ export const ARENA_STAFF_ONLY_PERMISSION_KEYS: readonly ProfessorPermissionKey[]
   'canCancelLessons',
 ];
 
+/** Horário fixo de quadra para a turma própria: só professor INDEPENDENTE, desligada por padrão.
+ *  Espelho de `INDEPENDENT_ONLY_PERMISSION_KEYS` no servidor. */
+export const INDEPENDENT_ONLY_PERMISSION_KEYS: readonly ProfessorPermissionKey[] = ['canBookRecurring'];
+
 export const NO_PERMISSIONS: ProfessorPermissions = {
   canManageOwnLessons: false,
   canBookCourts: false,
@@ -61,6 +66,7 @@ export const NO_PERMISSIONS: ProfessorPermissions = {
   canEnrollStudents: false,
   canScheduleLessons: false,
   canCancelLessons: false,
+  canBookRecurring: false,
 };
 
 /** Mensagem do pedido (`requestArenaProfessorLink`): o servidor corta em 500. */
@@ -213,19 +219,41 @@ export const PROFESSOR_ARENA_LESSONS_PERMISSION_COPY: readonly ProfessorPermissi
   },
 ];
 
+/** Grupo "Turma própria": só para professor independente. */
+export const PROFESSOR_OWN_CLASS_GROUP_TITLE = 'Turma própria';
+export const PROFESSOR_INDEPENDENT_ONLY_NOTE = 'Só para professor independente';
+
+export const PROFESSOR_OWN_CLASS_PERMISSION_COPY: readonly ProfessorPermissionCopy[] = [
+  {
+    key: 'canBookRecurring',
+    label: 'Horário fixo (turma própria)',
+    description: 'Pode reservar a quadra toda semana para uma turma dele. A reserva aparece nos horários fixos da arena.',
+    short: 'Horário fixo',
+  },
+];
+
 export const PROFESSOR_PERMISSION_COPY: readonly ProfessorPermissionCopy[] = [
   ...PROFESSOR_BASE_PERMISSION_COPY,
   ...PROFESSOR_ARENA_LESSONS_PERMISSION_COPY,
+  ...PROFESSOR_OWN_CLASS_PERMISSION_COPY,
 ];
 
-/** Grupos de "Suas permissões aqui" pelo tipo: as de base sempre; "Aulas da arena" só na equipe. */
-export function permissionGroupsFor(
-  type: ProfessorLinkType,
-): ReadonlyArray<{ title: string | null; items: readonly ProfessorPermissionCopy[] }> {
-  const groups: Array<{ title: string | null; items: readonly ProfessorPermissionCopy[] }> = [
-    { title: null, items: PROFESSOR_BASE_PERMISSION_COPY },
-  ];
-  if (type === 'ARENA_STAFF') groups.push({ title: PROFESSOR_ARENA_LESSONS_GROUP_TITLE, items: PROFESSOR_ARENA_LESSONS_PERMISSION_COPY });
+export interface ProfessorPermissionGroup {
+  title: string | null;
+  /** Para quem o grupo vale (ex.: "Só para professor da equipe"). */
+  note: string | null;
+  items: readonly ProfessorPermissionCopy[];
+}
+
+/** Grupos de "Suas permissões aqui" pelo tipo: as de base sempre; "Aulas da arena" só na equipe;
+ *  "Turma própria" só no independente. */
+export function permissionGroupsFor(type: ProfessorLinkType): readonly ProfessorPermissionGroup[] {
+  const groups: ProfessorPermissionGroup[] = [{ title: null, note: null, items: PROFESSOR_BASE_PERMISSION_COPY }];
+  if (type === 'ARENA_STAFF') {
+    groups.push({ title: PROFESSOR_ARENA_LESSONS_GROUP_TITLE, note: PROFESSOR_STAFF_ONLY_NOTE, items: PROFESSOR_ARENA_LESSONS_PERMISSION_COPY });
+  } else {
+    groups.push({ title: PROFESSOR_OWN_CLASS_GROUP_TITLE, note: PROFESSOR_INDEPENDENT_ONLY_NOTE, items: PROFESSOR_OWN_CLASS_PERMISSION_COPY });
+  }
   return groups;
 }
 
@@ -307,7 +335,8 @@ export function openLinkForArena(
 }
 
 /** O que o professor pode de fato fazer agora: nada fora de `ACTIVE`; as das Aulas da arena só
- *  na equipe (independente nunca, mesmo com a chave gravada). Espelho de
+ *  na equipe (independente nunca, mesmo com a chave gravada); o horário fixo só no independente.
+ *  Espelho de
  *  `effectiveArenaProfessorPermissions` no servidor. */
 export function effectivePermissions(
   link: Pick<ProfessorLink, 'status' | 'permissions' | 'relationshipType'>,
@@ -322,13 +351,15 @@ export function effectivePermissions(
     canEnrollStudents: staff && p.canEnrollStudents === true,
     canScheduleLessons: staff && p.canScheduleLessons === true,
     canCancelLessons: staff && p.canCancelLessons === true,
+    canBookRecurring: active && link.relationshipType === 'INDEPENDENT' && p.canBookRecurring === true,
   };
 }
 
-/** Configuradas, mas sem as chaves da equipe quando o vínculo é independente. */
+/** Configuradas, sem as chaves do outro tipo (as da equipe no independente; o horário fixo na equipe). */
 function permissionsForType(permissions: ProfessorPermissions, type: ProfessorLinkType): ProfessorPermissions {
   const out = { ...permissions };
-  if (type !== 'ARENA_STAFF') for (const key of ARENA_STAFF_ONLY_PERMISSION_KEYS) out[key] = false;
+  const foreign = type === 'ARENA_STAFF' ? INDEPENDENT_ONLY_PERMISSION_KEYS : ARENA_STAFF_ONLY_PERMISSION_KEYS;
+  for (const key of foreign) out[key] = false;
   return out;
 }
 
@@ -770,6 +801,7 @@ export function parseProfessorLink(id: string, data: Raw | undefined): Professor
       canEnrollStudents: perms['canEnrollStudents'] === true,
       canScheduleLessons: perms['canScheduleLessons'] === true,
       canCancelLessons: perms['canCancelLessons'] === true,
+      canBookRecurring: perms['canBookRecurring'] === true,
     },
     message: str(data['message']),
     cycle: typeof data['cycle'] === 'number' ? data['cycle'] : 1,

@@ -104,7 +104,11 @@ class ArenaProfessorPermissionToggles extends StatelessWidget {
             SizedBox(height: dense ? 6 : 10),
             ProfessorLinksKicker(
               title,
-              key: const Key('arena-professor-permission-group-lessons'),
+              key: Key(
+                title == professorArenaLessonsGroupTitle
+                    ? 'arena-professor-permission-group-lessons'
+                    : 'arena-professor-permission-group-recurring',
+              ),
             ),
             const SizedBox(height: 6),
           ],

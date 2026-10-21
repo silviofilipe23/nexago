@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { ToggleComponent } from '../ui/toggle.component';
 import {
-  PROFESSOR_STAFF_ONLY_NOTE,
   PROFESSOR_STATUS_META,
   PROFESSOR_TYPE_META,
   type ProfessorLinkStatus,
@@ -86,7 +85,9 @@ export interface PermissionChange {
       @if (g.title) {
         <div class="group" [class.dense]="dense()">
           <span class="group-title">{{ g.title }}</span>
-          <span class="group-note">{{ staffOnlyNote }}</span>
+          @if (g.note) {
+            <span class="group-note">{{ g.note }}</span>
+          }
         </div>
       }
       @for (p of g.items; track p.key) {
@@ -141,7 +142,7 @@ export interface PermissionChange {
 })
 export class ProfessorPermListComponent {
   readonly permissions = input.required<ProfessorPermissions>();
-  /** Tipo do vínculo: decide se o grupo "Aulas da arena" aparece. */
+  /** Tipo do vínculo: decide qual grupo restrito aparece ("Aulas da arena" ou "Turma própria"). */
   readonly relationshipType = input.required<ProfessorLinkType>();
   readonly editable = input(false);
   readonly dense = input(false);
@@ -151,7 +152,6 @@ export class ProfessorPermListComponent {
   readonly changed = output<PermissionChange>();
 
   protected readonly groups = computed(() => permissionGroupsFor(this.relationshipType()));
-  protected readonly staffOnlyNote = PROFESSOR_STAFF_ONLY_NOTE;
 }
 
 /** Nota com filete colorido à esquerda (protótipo `VcNote`). */

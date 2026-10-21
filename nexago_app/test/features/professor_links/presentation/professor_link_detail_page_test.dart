@@ -133,6 +133,46 @@ void main() {
       expect(find.textContaining('Matricular alunos'), findsNothing);
     });
 
+    testWidgets('independente vê o horário fixo ligado; equipe nunca', (
+      tester,
+    ) async {
+      const recurring = ArenaProfessorPermissions(
+        canManageOwnLessons: true,
+        canBookCourts: true,
+        canAppearInArenaProfile: false,
+        canBookRecurring: true,
+      );
+      await _pumpDetail(
+        tester,
+        link: professorLink(
+          type: ArenaProfessorLinkType.independent,
+          permissions: recurring,
+        ),
+      );
+      expect(
+        find.byKey(const Key('professor-permission-canBookRecurring-on')),
+        findsOneWidget,
+      );
+      expect(find.text('Horário fixo (turma própria)'), findsOneWidget);
+    });
+
+    testWidgets('equipe com horário fixo gravado não o mostra', (
+      tester,
+    ) async {
+      await _pumpDetail(
+        tester,
+        link: professorLink(
+          permissions: const ArenaProfessorPermissions(
+            canManageOwnLessons: true,
+            canBookCourts: true,
+            canAppearInArenaProfile: true,
+            canBookRecurring: true,
+          ),
+        ),
+      );
+      expect(find.textContaining('Horário fixo'), findsNothing);
+    });
+
     testWidgets('ativo: tipo, status, permissões efetivas e histórico', (
       tester,
     ) async {

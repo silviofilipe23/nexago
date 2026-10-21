@@ -375,7 +375,10 @@ class ProfessorPermissionList extends StatelessWidget {
     final colors = context.themeColors;
     final rows = [
       ...professorPermissionCatalog,
-      for (final info in professorArenaLessonsPermissionCatalog)
+      for (final info in [
+        ...professorArenaLessonsPermissionCatalog,
+        ...professorIndependentPermissionCatalog,
+      ])
         if (permissions.valueOf(info.key)) info,
     ];
     return Column(

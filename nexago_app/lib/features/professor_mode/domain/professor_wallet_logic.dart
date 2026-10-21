@@ -83,6 +83,11 @@ String? professorBirthDateKey(String input) {
   return _key(date);
 }
 
+/// Reais no campo de valor: 260 → "260"; 260.5 → "260,50".
+String professorMoneyInputText(double reais) => reais == reais.roundToDouble()
+    ? reais.round().toString()
+    : reais.toStringAsFixed(2).replaceAll('.', ',');
+
 /// "120", "120,50", "1.200,50", "R$ 80" → reais; `null` se não for número.
 double? professorParseMoney(String input) {
   var s = input.replaceAll(RegExp(r'[R$\s]'), '');

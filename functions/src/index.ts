@@ -208,6 +208,13 @@ export {onProfessorLessonCreated} from "./professor-lessons";
 export {configureProfessorCalendarFeed, professorCalendarFeed} from "./professor-calendar";
 // Avaliação do aluno pelo professor (fundamentos, nota geral, foco).
 export {deleteProfessorEvaluation, saveProfessorEvaluation} from "./professor-evaluations";
+// Turma própria do professor independente com horário fixo de quadra (B10).
+export {
+  createProfessorOwnClass,
+  endProfessorOwnClassCallable as endProfessorOwnClass,
+  previewProfessorOwnClass,
+  setProfessorOwnClassStudents,
+} from "./professor-own-classes";
 // Disponibilidade do professor e aulas particulares agendadas pelo aluno (A10).
 export {
   cancelPrivateLesson,

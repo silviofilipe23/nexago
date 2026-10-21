@@ -61,6 +61,12 @@ abstract final class AppRoutes {
   /// Minhas turmas (sem a barra), aberta pelo Mais.
   static const String professorClasses = '/professor/mais/turmas';
 
+  /// Turma própria do independente com horário fixo de quadra (B10).
+  static const String professorOwnClassNew =
+      '/professor/mais/turmas/nova-propria';
+  static const String professorOwnClass =
+      '/professor/mais/turmas/propria/:classId';
+
   /// Fase 2 — ações do professor da equipe nas Aulas da arena (sem a barra).
   static const String professorAddStudent = '/professor/acoes/adicionar';
   static const String professorEnroll = '/professor/acoes/:arenaId/matricular';
@@ -816,6 +822,8 @@ abstract final class AppRouteNames {
   static const String professorStudent = 'professorStudent';
   static const String professorMore = 'professorMore';
   static const String professorClasses = 'professorClasses';
+  static const String professorOwnClassNew = 'professorOwnClassNew';
+  static const String professorOwnClass = 'professorOwnClass';
   static const String professorAddStudent = 'professorAddStudent';
   static const String professorEnroll = 'professorEnroll';
   static const String professorConvertTrial = 'professorConvertTrial';

@@ -239,9 +239,15 @@ String? professorNextClassLabel(
 }
 
 /// Subtítulo do Minhas turmas: "4 TURMAS · 21 ALUNOS".
-String professorClassesSubtitle(List<ProfessorClassSummary> classes) {
-  final students = classes.fold<int>(0, (sum, c) => sum + c.activeCount);
-  final n = classes.length;
+/// `ownActive`/`ownStudents`: turmas próprias ativas (B10) e seus alunos, somados às da arena.
+String professorClassesSubtitle(
+  List<ProfessorClassSummary> classes, {
+  int ownActive = 0,
+  int ownStudents = 0,
+}) {
+  final students =
+      classes.fold<int>(0, (sum, c) => sum + c.activeCount) + ownStudents;
+  final n = classes.length + ownActive;
   return '$n turma${n == 1 ? '' : 's'} · $students aluno${students == 1 ? '' : 's'}'
       .toUpperCase();
 }

@@ -44,6 +44,15 @@ const conversationMessageNotificationType = 'conversation_message';
 /// `arena_professor_` mas NÃO é do vínculo: tem caso próprio antes.
 const arenaProfessorNoticeNotificationType = 'arena_professor_notice';
 
+/// Turma própria do professor encerrada pelo agendador (vínculo ou horário
+/// fixo caíram): o payload traz `url: /professor/mais/turmas`.
+const professorOwnClassEndedNotificationType = 'professor_own_class_ended';
+
+/// Professor independente reservou horário fixo para turma própria — vai
+/// para o gestor da arena, que vê a série nos horários fixos.
+const professorOwnClassRecurringNotificationType =
+    'professor_own_class_recurring';
+
 /// Agenda do atleta — onde fica a mensalidade a pagar.
 const athleteAgendaTabLocation = '${AppRoutes.discover}?tab=agenda';
 
@@ -310,6 +319,18 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
           .replaceAll(':professorUid', Uri.encodeComponent(professorUid));
     }
     return AppRoutes.home;
+  }
+
+  // Turma própria encerrada: `url` (Minhas turmas); sem ele, a mesma tela.
+  if (type == professorOwnClassEndedNotificationType) {
+    return appRouteForNotificationUrl(data['url'] as String?) ??
+        AppRoutes.professorClasses;
+  }
+
+  // Horário fixo de turma própria (gestor): o payload traz `arenaId` e nenhum
+  // `url` — sem este caso, o ramo genérico de arena abria a agenda do dia.
+  if (type == professorOwnClassRecurringNotificationType) {
+    return AppRoutes.arenaRecurring;
   }
 
   // Vínculo professor ↔ arena (`arenaProfessorNotices` em

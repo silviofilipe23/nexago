@@ -172,6 +172,17 @@ test('avaliação: professor lê as dele; aluno só a enviada dele; ninguém esc
   await assertFails(setDoc(doc(as(PROF), 'professorEvaluations/e3'), { professorUid: PROF, athleteId: ALUNO, status: 'sent' }));
 });
 
+test('turma própria: professor e alunos dela leem; ninguém grava', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), `professors/${PROF}/ownClasses/t1`), { professorUid: PROF, studentIds: [ALUNO], status: 'active' });
+  });
+  await assertSucceeds(getDoc(doc(as(PROF), `professors/${PROF}/ownClasses/t1`)));
+  await assertSucceeds(getDoc(doc(as(ALUNO), `professors/${PROF}/ownClasses/t1`)));
+  await assertSucceeds(getDocs(query(collection(as(ALUNO), `professors/${PROF}/ownClasses`), where('studentIds', 'array-contains', ALUNO))));
+  await assertFails(getDoc(doc(as(OUTRO), `professors/${PROF}/ownClasses/t1`)));
+  await assertFails(setDoc(doc(as(PROF), `professors/${PROF}/ownClasses/t2`), { professorUid: PROF, studentIds: [] }));
+});
+
 test('disponibilidade: publicada qualquer logado lê; rascunho só o dono; particulares só os dois lados', async () => {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), `professorAvailability/${PROF}`), { published: true, weekly: {} });

@@ -2256,6 +2256,12 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow write: if false;
     }
+    // Turma própria do professor independente (B10): o professor e os alunos dela leem; só functions gravam.
+    match /professors/{uid}/ownClasses/{classId} {
+      allow read: if request.auth != null &&
+        (request.auth.uid == uid || request.auth.uid in resource.data.studentIds);
+      allow write: if false;
+    }
     // Aula da carteira (reserva como professor ligada a um aluno): professor e aluno leem.
     match /professorLessons/{bookingId} {
       allow read: if request.auth != null && (

@@ -37,6 +37,10 @@ test('publicar exige papel de professor; aluno vê só os horários livres; estr
   await av.saveProfessorAvailabilityCore(db, 'uProf', {weekly: {'3': [8, 9, 10, 19]}, minNoticeHours: 4});
   const r = await av.getProfessorOpenSlotsCore(db, 'u1', {professorUid: 'uProf', days: 7}, NOW);
   assert.deepEqual(r.slots.map((s) => s.startAt), [iso('2026-10-21', 8), iso('2026-10-21', 10)], '9h bloqueado, 19h turma');
+  // Turma própria (B10) na quarta 10h também ocupa.
+  await db.doc('professors/uProf/ownClasses/oc1').set({status: 'active', weekdays: [3], startTime: '10:00', endTime: '11:00'});
+  const r2 = await av.getProfessorOpenSlotsCore(db, 'u1', {professorUid: 'uProf', days: 7}, NOW);
+  assert.deepEqual(r2.slots.map((s) => s.startAt), [iso('2026-10-21', 8)]);
   await assert.rejects(av.getProfessorOpenSlotsCore(db, 'u9', {professorUid: 'uProf'}, NOW), /Só alunos/);
 });
 

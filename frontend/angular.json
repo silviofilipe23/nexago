@@ -121,7 +121,8 @@
             ],
             "styles": [
               "projects/arena/src/styles.scss"
-            ]
+            ],
+            "allowedCommonJsDependencies": ["qrcode", "dijkstrajs"]
           },
           "configurations": {
             "production": {

@@ -87,7 +87,7 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>O Nexago precisa acessar suas fotos para definir a foto do perfil.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>O NexaGO usa a câmera para tirar fotos de perfil e imagens de capa de torneios e ligas.</string>
+	<string>O NexaGO usa a câmera para tirar fotos de perfil e imagens de capa de torneios e ligas, e para ler o QR de check-in da quadra.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>O Nexago usa Face ID para proteger o acesso à sua conta neste aparelho.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

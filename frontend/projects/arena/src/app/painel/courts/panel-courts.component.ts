@@ -9,6 +9,7 @@ import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
 import { ARENA_COURT_STATUS_LABEL, type ArenaCourt, type ArenaCourtStatus } from './court.model';
+import { CourtCheckinQrModalComponent } from './court-checkin-qr-modal.component';
 import { fetchCourtsList } from './courts-repository';
 
 const STATUS_TONE: Record<ArenaCourtStatus, PillTone> = { active: 'green', maintenance: 'yellow' };
@@ -24,7 +25,15 @@ function formatBRL(n: number): string {
 @Component({
   selector: 'ar-panel-courts',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, IconComponent, RouterLink],
+  imports: [
+    PanelShellComponent,
+    PageHeaderComponent,
+    PanelCardComponent,
+    PillComponent,
+    IconComponent,
+    RouterLink,
+    CourtCheckinQrModalComponent,
+  ],
   template: `
     <ar-panel-shell>
       <ar-page-header title="Quadras" [subtitle]="headerSubtitle()">
@@ -87,6 +96,7 @@ function formatBRL(n: number): string {
                       <ar-icon name="edit" [size]="13" />
                       Editar
                     </button>
+                    <button type="button" class="ar-mini-btn" (click)="qrCourt.set(c)">QR de check-in</button>
                   </div>
                 </div>
               } @empty {
@@ -96,6 +106,15 @@ function formatBRL(n: number): string {
           </div>
         }
       </div>
+
+      @if (qrCourt(); as c) {
+        <ar-court-checkin-qr-modal
+          [arenaId]="arenaContext.arenaId() ?? ''"
+          [courtId]="c.id"
+          [courtName]="c.name"
+          (close)="qrCourt.set(null)"
+        />
+      }
     </ar-panel-shell>
   `,
   styles: `
@@ -265,7 +284,7 @@ function formatBRL(n: number): string {
   `,
 })
 export class PanelCourtsComponent {
-  private readonly arenaContext = inject(ArenaContextService);
+  protected readonly arenaContext = inject(ArenaContextService);
   private readonly router = inject(Router);
 
   protected readonly statusLabel = ARENA_COURT_STATUS_LABEL;
@@ -276,6 +295,8 @@ export class PanelCourtsComponent {
   protected readonly arenaNotFound = computed(() => this.arenaContext.notFound());
 
   protected readonly courts = signal<ArenaCourt[]>([]);
+  /** Quadra com o modal do QR de check-in aberto. */
+  protected readonly qrCourt = signal<ArenaCourt | null>(null);
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
 

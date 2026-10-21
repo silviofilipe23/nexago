@@ -11,7 +11,8 @@
  * - "Não vou" com a antecedência da arena (`makeupNoticeHours`, padrão 4h) marca `excused` na
  *   chamada e cria o crédito com o MESMO id que a chamada fechada criaria (`makeupCreditId`) — o
  *   fechamento não duplica;
- * - check-in grava `present` na chamada e `checkIns.{studentId}`.
+ * - check-in (GPS no raio da arena ou QR da quadra — `arena-court-checkin-qr.ts`) grava `present`
+ *   na chamada e `checkIns.{studentId}` com o método.
  * O professor vê tudo isso em `getMyClassSessionRoster`.
  */
 import {onCall, HttpsError} from "firebase-functions/v2/https";
@@ -32,6 +33,7 @@ import {classSessionStartAt, parseClassSession, requireUid, resolveStudentInput,
 import {addExtraCore, removeExtraCore} from "./arena-class-makeup";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {parseCourtQrPayload, resolveCourtCheckinToken} from "./arena-court-checkin-qr";
 
 export const RSVP_REASONS = ["work", "health", "travel", "other"] as const;
 export type RsvpReason = typeof RSVP_REASONS[number];
@@ -374,24 +376,45 @@ export function arenaPoint(arena: Record<string, unknown> | undefined): {lat: nu
 export interface CheckInInput {
   sessionId: string;
   uid: string;
-  lat: number;
-  lng: number;
-  accuracy: number | null;
+  /** Localização (método `location`) — ignorada quando vem `qrToken`. */
+  lat?: number;
+  lng?: number;
+  accuracy?: number | null;
+  /** Token do QR da quadra (método `qr`), já sem o prefixo do payload. */
+  qrToken?: string | null;
   now: Date;
 }
 
 export interface CheckInResult {
   mark: "present" | "absent" | "excused";
-  distanceMeters: number;
+  method: "location" | "qr";
+  /** Só no método `location`. */
+  distanceMeters: number | null;
   /** Já tinha marca do professor: o check-in fica registrado, a marca não muda. */
   alreadyMarked: boolean;
 }
 
-export async function checkInClassSessionCore(db: Firestore, input: CheckInInput): Promise<CheckInResult> {
-  const sessionRef = db.collection(ARENA_CLASS_SESSIONS).doc(input.sessionId);
-  const pre = await sessionRef.get();
-  if (!pre.exists) throw new HttpsError("not-found", "Aula não encontrada.");
-  const arena = await db.collection("arenas").doc(str(pre.data()?.["arenaId"])).get();
+/** Prova de que o aluno está na arena: QR de uma quadra da arena da aula, ou o GPS no raio. */
+async function verifyCheckInProof(
+  db: Firestore,
+  arenaId: string,
+  input: CheckInInput,
+): Promise<{method: "location" | "qr"; record: Record<string, unknown>; distance: number | null}> {
+  if (input.qrToken) {
+    const court = await resolveCourtCheckinToken(db, input.qrToken);
+    if (!court) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Este QR não vale mais. Peça à recepção o QR atual da quadra.",
+        {reason: "qr_invalid"},
+      );
+    }
+    if (court.arenaId !== arenaId) {
+      throw new HttpsError("failed-precondition", "Este QR é de outra arena.", {reason: "qr_other_arena"});
+    }
+    return {method: "qr", record: {courtId: court.courtId, courtName: court.courtName}, distance: null};
+  }
+  const arena = await db.collection("arenas").doc(arenaId).get();
   const point = arenaPoint(arena.data());
   if (!point) {
     throw new HttpsError(
@@ -399,15 +422,23 @@ export async function checkInClassSessionCore(db: Firestore, input: CheckInInput
       "A arena ainda não tem a localização cadastrada. Peça ao professor para marcar sua presença.",
     );
   }
-  const distance = Math.round(distanceMeters(point, {lat: input.lat, lng: input.lng}));
+  const distance = Math.round(distanceMeters(point, {lat: input.lat ?? NaN, lng: input.lng ?? NaN}));
   const slack = Math.min(Math.max(input.accuracy ?? 0, 0), CHECKIN_MAX_ACCURACY_SLACK_METERS);
-  if (distance - slack > CHECKIN_RADIUS_METERS) {
+  if (!(distance - slack <= CHECKIN_RADIUS_METERS)) {
     throw new HttpsError(
       "failed-precondition",
       `Você está a ${formatDistance(distance)} da arena. O check-in abre a até ${CHECKIN_RADIUS_METERS} m.`,
       {reason: "too_far", distanceMeters: distance},
     );
   }
+  return {method: "location", record: {distanceMeters: distance}, distance};
+}
+
+export async function checkInClassSessionCore(db: Firestore, input: CheckInInput): Promise<CheckInResult> {
+  const sessionRef = db.collection(ARENA_CLASS_SESSIONS).doc(input.sessionId);
+  const pre = await sessionRef.get();
+  if (!pre.exists) throw new HttpsError("not-found", "Aula não encontrada.");
+  const proof = await verifyCheckInProof(db, str(pre.data()?.["arenaId"]), input);
 
   return db.runTransaction(async (tx: Transaction) => {
     const snap = await tx.get(sessionRef);
@@ -435,7 +466,7 @@ export async function checkInClassSessionCore(db: Firestore, input: CheckInInput
     undo?.apply(tx);
     tx.set(sessionRef, {
       checkIns: {[seat.studentId]: {
-        at: FieldValue.serverTimestamp(), method: "location", distanceMeters: distance, athleteId: input.uid,
+        at: FieldValue.serverTimestamp(), method: proof.method, ...proof.record, athleteId: input.uid,
       }},
       ...(alreadyMarked ? {} : {attendance: {[seat.studentId]: {mark: "present", name: seat.name}}}),
       rsvps: {[seat.studentId]: {
@@ -444,7 +475,8 @@ export async function checkInClassSessionCore(db: Firestore, input: CheckInInput
       }},
       updatedAt: FieldValue.serverTimestamp(),
     }, {merge: true});
-    return {mark: alreadyMarked ? current : "present", distanceMeters: distance, alreadyMarked};
+    const mark = (alreadyMarked ? current : "present") as CheckInResult["mark"];
+    return {mark, method: proof.method, distanceMeters: proof.distance, alreadyMarked};
   });
 }
 
@@ -454,17 +486,29 @@ function formatDistance(meters: number): string {
 
 export const checkInArenaClassSession = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {
   const uid = requireUid(request.auth);
-  const data = (request.data ?? {}) as Record<string, unknown>;
+  const input = parseCheckInInput((request.data ?? {}) as Record<string, unknown>);
+  return checkInClassSessionCore(getFirestore(), {...input, uid, now: new Date()});
+});
+
+/** `method: "qr"` + `qr` (o texto lido) ou, por padrão, `lat`/`lng`/`accuracy`. */
+export function parseCheckInInput(data: Record<string, unknown>): Omit<CheckInInput, "uid" | "now"> {
   const sessionId = str(data["sessionId"]);
+  if (!sessionId) throw new HttpsError("invalid-argument", "Aula inválida.");
+  if (data["method"] === "qr") {
+    const qrToken = parseCourtQrPayload(str(data["qr"]));
+    if (!qrToken) {
+      throw new HttpsError("invalid-argument", "Este QR não é de check-in do nexaGO.", {reason: "qr_unknown"});
+    }
+    return {sessionId, qrToken};
+  }
   const lat = data["lat"];
   const lng = data["lng"];
-  if (!sessionId) throw new HttpsError("invalid-argument", "Aula inválida.");
   if (typeof lat !== "number" || typeof lng !== "number" || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
     throw new HttpsError("invalid-argument", "Localização inválida.");
   }
   const accuracy = typeof data["accuracy"] === "number" ? data["accuracy"] : null;
-  return checkInClassSessionCore(getFirestore(), {sessionId, uid, lat, lng, accuracy, now: new Date()});
-});
+  return {sessionId, lat, lng, accuracy};
+}
 
 // ---------------------------------------------------------------------------
 // Créditos e reposição

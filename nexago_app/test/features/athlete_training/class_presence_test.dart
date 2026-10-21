@@ -17,6 +17,7 @@ import 'package:nexago_app/features/athlete_training/domain/athlete_training.dar
 import 'package:nexago_app/features/athlete_training/domain/class_presence.dart';
 import 'package:nexago_app/features/athlete_training/infrastructure/class_presence_repository.dart';
 import 'package:nexago_app/features/athlete_training/presentation/athlete_training_checkin_page.dart';
+import 'package:nexago_app/features/athlete_training/presentation/widgets/court_qr_scanner.dart';
 import 'package:nexago_app/features/athlete_training/presentation/athlete_training_classes_page.dart';
 import 'package:nexago_app/features/athlete_training/presentation/athlete_training_hub_page.dart';
 import 'package:nexago_app/features/athlete_training/presentation/athlete_training_makeup_page.dart';
@@ -155,6 +156,15 @@ class _FakeRepo extends Fake implements ClassPresenceRepository {
   }
 
   @override
+  Future<void> checkInWithQr({
+    required String sessionId,
+    required String qr,
+  }) async {
+    calls.add('checkInQr $sessionId $qr');
+    if (checkInError != null) throw checkInError!;
+  }
+
+  @override
   Future<List<ClassMakeupCredit>> fetchCredits() async => store.credits;
 
   @override
@@ -207,6 +217,7 @@ Future<GoRouter> _pump(
   required String location,
   required _FakeRepo repo,
   _FakeLocation? gps,
+  String? scannedQr,
 }) async {
   tester.view.physicalSize = const Size(400, 1800);
   tester.view.devicePixelRatio = 1.0;
@@ -280,6 +291,8 @@ Future<GoRouter> _pump(
         unreadMessagesCountProvider.overrideWith((ref) => 0),
         classPresenceRepositoryProvider.overrideWithValue(repo),
         userLocationServiceProvider.overrideWithValue(gps ?? _FakeLocation()),
+        courtQrScanLauncherProvider
+            .overrideWithValue((_) async => scannedQr),
       ],
       child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
     ),
@@ -670,6 +683,60 @@ void main() {
           find.byKey(const Key('training-checkin-settings')), findsOneWidget);
     });
 
+    const courtQr = 'nexago-checkin:v1:AbCdEfGhIjKlMnOpQrStUv';
+
+    testWidgets('QR da quadra: presença registrada sem pedir localização',
+        (tester) async {
+      final repo = _FakeRepo(_Store([inWindow]));
+      await _pump(tester,
+          location: checkInPath,
+          repo: repo,
+          scannedQr: courtQr,
+          gps: _FakeLocation(status: LocationPermissionStatus.deniedForever));
+      await _tap(tester, find.byKey(const Key('training-checkin-qr')));
+      expect(repo.calls, ['checkInQr s1 $courtQr']);
+      expect(find.byKey(const Key('training-checkin-done')), findsOneWidget);
+    });
+
+    testWidgets('QR que não é do nexaGO: avisa e nem chama o servidor',
+        (tester) async {
+      final repo = _FakeRepo(_Store([inWindow]));
+      await _pump(tester,
+          location: checkInPath,
+          repo: repo,
+          scannedQr: 'https://cardapio.example/mesa/4');
+      await _tap(tester, find.byKey(const Key('training-checkin-qr')));
+      expect(repo.calls, isEmpty);
+      expect(find.textContaining('não é de check-in do nexaGO'),
+          findsOneWidget);
+    });
+
+    testWidgets('QR trocado pela arena: mostra a mensagem do servidor',
+        (tester) async {
+      final repo = _FakeRepo(_Store([inWindow]))
+        ..checkInError = const ClassPresenceException(
+            'Este QR não vale mais. Peça à recepção o QR atual da quadra.');
+      await _pump(tester,
+          location: checkInPath, repo: repo, scannedQr: courtQr);
+      await _tap(tester, find.byKey(const Key('training-checkin-qr')));
+      expect(find.textContaining('não vale mais'), findsOneWidget);
+      expect(find.byKey(const Key('training-checkin-done')), findsNothing);
+    });
+
+    testWidgets('leitor fechado sem ler: nada acontece', (tester) async {
+      final repo = _FakeRepo(_Store([inWindow]));
+      await _pump(tester, location: checkInPath, repo: repo);
+      await _tap(tester, find.byKey(const Key('training-checkin-qr')));
+      expect(repo.calls, isEmpty);
+      expect(find.byKey(const Key('training-checkin-error')), findsNothing);
+    });
+
+    test('isCourtCheckinQr só aceita o prefixo v1 com token', () {
+      expect(isCourtCheckinQr('  $courtQr\n'), isTrue);
+      expect(isCourtCheckinQr('nexago-checkin:v1:'), isFalse);
+      expect(isCourtCheckinQr('arena1_q2'), isFalse);
+    });
+
     testWidgets('fora da janela: botão desligado e aviso', (tester) async {
       final repo = _FakeRepo(_Store([_class('s1', '2026-10-22')]));
       await _pump(tester, location: checkInPath, repo: repo);
@@ -680,6 +747,11 @@ void main() {
         matching: find.byType(FilledButton),
       ));
       expect(button.onPressed, isNull);
+      final qr = tester.widget<OutlinedButton>(find.descendant(
+        of: find.byKey(const Key('training-checkin-qr')),
+        matching: find.byType(OutlinedButton),
+      ));
+      expect(qr.onPressed, isNull);
     });
   });
 }

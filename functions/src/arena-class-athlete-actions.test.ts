@@ -12,6 +12,7 @@ import {
   joinMakeupWaitlistCore,
   loadMakeupOptionsCore,
   loadMyClassCredits,
+  parseCheckInInput,
   parseRespondInput,
   respondClassSessionCore,
 } from "./arena-class-athlete-actions";
@@ -271,7 +272,7 @@ describe("check-in na arena (checkInArenaClassSession)", () => {
     const id = seedMyClass(fake);
     const result = await checkInClassSessionCore(db, checkIn(id, hoursBefore(0.2)));
     assert.deepEqual([result.mark, result.alreadyMarked], ["present", false]);
-    assert.ok(result.distanceMeters < 40);
+    assert.ok((result.distanceMeters ?? Infinity) < 40);
     const s = session(fake, id);
     assert.deepEqual(field(s, "attendance", "s_me"), {mark: "present", name: "Marcelo Alves"});
     assert.equal((field(s, "checkIns", "s_me") as Record<string, unknown>)["method"], "location");
@@ -323,6 +324,58 @@ describe("check-in na arena (checkInArenaClassSession)", () => {
     const {fake, db} = makeDb();
     const id = seedMyClass(fake);
     await rejectsWith(checkInClassSessionCore(db, {...checkIn(id, hoursBefore(0.2)), uid: "uIntruso"}), "permission-denied");
+  });
+});
+
+describe("check-in pelo QR da quadra", () => {
+  const TOKEN = "AbCdEfGhIjKlMnOpQrStUv";
+  const qr = (sessionId: string, now: Date, token = TOKEN) => ({sessionId, uid: ME, qrToken: token, now});
+  const seedCode = (fake: FakeFirestore, arenaId = "arena1") =>
+    fake.seedDoc(`arenaCourtCheckinCodes/${arenaId}_q2`, {arenaId, courtId: "q2", courtName: "Quadra 2", token: TOKEN});
+
+  it("QR válido da arena da aula: presença sem pedir localização", async () => {
+    const {fake, db} = makeDb();
+    const id = seedMyClass(fake);
+    seedCode(fake);
+    fake.seedDoc("arenas/arena1", {name: "Arena CFC"}); // sem ponto: o QR não depende do GPS
+    const result = await checkInClassSessionCore(db, qr(id, hoursBefore(0.2)));
+    assert.deepEqual([result.mark, result.method, result.distanceMeters], ["present", "qr", null]);
+    const s = session(fake, id);
+    assert.deepEqual(field(s, "attendance", "s_me"), {mark: "present", name: "Marcelo Alves"});
+    const record = field(s, "checkIns", "s_me") as Record<string, unknown>;
+    assert.deepEqual([record["method"], record["courtId"], record["courtName"]], ["qr", "q2", "Quadra 2"]);
+  });
+
+  it("token desconhecido ou trocado é recusado", async () => {
+    const {fake, db} = makeDb();
+    const id = seedMyClass(fake);
+    const error = await rejectsWith(checkInClassSessionCore(db, qr(id, hoursBefore(0.2))), "failed-precondition", /não vale mais/);
+    assert.equal((error.details as {reason?: string}).reason, "qr_invalid");
+  });
+
+  it("QR de quadra de outra arena não vale", async () => {
+    const {fake, db} = makeDb();
+    const id = seedMyClass(fake);
+    seedCode(fake, "arena2");
+    await rejectsWith(checkInClassSessionCore(db, qr(id, hoursBefore(0.2))), "failed-precondition", /outra arena/);
+  });
+
+  it("mesma janela e mesmo vínculo do GPS", async () => {
+    const {fake, db} = makeDb();
+    const id = seedMyClass(fake);
+    seedCode(fake);
+    await rejectsWith(checkInClassSessionCore(db, qr(id, hoursBefore(1.5))), "failed-precondition", /abre 60 min/);
+    await rejectsWith(checkInClassSessionCore(db, {...qr(id, hoursBefore(0.2)), uid: "uIntruso"}), "permission-denied");
+  });
+
+  it("entrada da callable: qr exige o payload v1; sem método segue a localização", () => {
+    assert.deepEqual(parseCheckInInput({sessionId: "s1", method: "qr", qr: `nexago-checkin:v1:${TOKEN}`}),
+      {sessionId: "s1", qrToken: TOKEN});
+    assert.throws(() => parseCheckInInput({sessionId: "s1", method: "qr", qr: "arena1_q2"}),
+      (e: unknown) => e instanceof HttpsError && e.code === "invalid-argument");
+    assert.deepEqual(parseCheckInInput({sessionId: "s1", lat: -16.6, lng: -49.2}),
+      {sessionId: "s1", lat: -16.6, lng: -49.2, accuracy: null});
+    assert.throws(() => parseCheckInInput({sessionId: "s1"}), (e: unknown) => e instanceof HttpsError);
   });
 });
 

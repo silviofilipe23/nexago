@@ -330,15 +330,18 @@ class AvailabilityChoiceChip extends StatelessWidget {
           child: Container(
             height: 36,
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            alignment: Alignment.center,
-            child: Text(
-              label,
-              style: ProfessorLinksStyle.mono(
-                11,
-                weight: FontWeight.w700,
-                color: selected
-                    ? ProfessorLinksStyle.onBrand
-                    : ProfessorLinksStyle.mute(colors),
+            // `widthFactor: 1`: no Wrap o chip fica do tamanho do texto (alinhar estica).
+            child: Center(
+              widthFactor: 1,
+              child: Text(
+                label,
+                style: ProfessorLinksStyle.mono(
+                  11,
+                  weight: FontWeight.w700,
+                  color: selected
+                      ? ProfessorLinksStyle.onBrand
+                      : ProfessorLinksStyle.mute(colors),
+                ),
               ),
             ),
           ),

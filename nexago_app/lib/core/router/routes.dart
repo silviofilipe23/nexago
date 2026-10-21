@@ -29,6 +29,19 @@ abstract final class AppRoutes {
   /// Abas do modo Professor (shell com a barra inferior): Alunos e Mais.
   static const String professorStudents = '/professor/alunos';
 
+  /// Fase 7 — Mensagens (aba). Conversa, modelos e horário sem a barra.
+  static const String professorMessages = '/professor/mensagens';
+  static const String professorMessageTemplates =
+      '/professor/mensagens/respostas-rapidas';
+  static const String professorServiceHours =
+      '/professor/mensagens/atendimento';
+  static const String professorConversation =
+      '/professor/mensagens/:conversationId';
+
+  /// Mensagens do ATLETA com os professores (modo Atleta).
+  static const String athleteMessages = '/mensagens';
+  static const String athleteConversation = '/mensagens/:conversationId';
+
   /// Fase 5 — Agenda (aba). Telas internas sem a barra.
   static const String professorAgenda = '/professor/agenda';
   static const String professorAgendaSession =
@@ -755,6 +768,12 @@ abstract final class AppRouteNames {
   static const String organizerHome = 'organizerHome';
   static const String professorHome = 'professorHome';
   static const String professorStudents = 'professorStudents';
+  static const String professorMessages = 'professorMessages';
+  static const String professorMessageTemplates = 'professorMessageTemplates';
+  static const String professorServiceHours = 'professorServiceHours';
+  static const String professorConversation = 'professorConversation';
+  static const String athleteMessages = 'athleteMessages';
+  static const String athleteConversation = 'athleteConversation';
   static const String professorAgenda = 'professorAgenda';
   static const String professorAgendaSession = 'professorAgendaSession';
   static const String professorAgendaLesson = 'professorAgendaLesson';

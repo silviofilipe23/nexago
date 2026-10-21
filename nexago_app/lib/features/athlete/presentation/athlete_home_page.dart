@@ -31,6 +31,7 @@ import '../../tournaments/presentation/widgets/my_tournaments_home_section.dart'
 import '../../tournaments/presentation/widgets/pending_tournament_invitee_invites_section.dart';
 import '../../tournaments/presentation/widgets/pending_tournament_inviter_invites_section.dart';
 import '../../tournaments/presentation/widgets/pending_tournament_reviews_section.dart';
+import '../../messages/application/messages_providers.dart';
 import '../domain/athlete_booking_helpers.dart';
 import '../domain/athlete_display_name.dart';
 import '../domain/athlete_home_dashboard_logic.dart';
@@ -148,11 +149,19 @@ class AthleteHomePage extends ConsumerWidget {
                         // A primeira seção sobe para cima da arte: a caixa do
                         // hero encolhe, a pintura não.
                         bleedBelow: _heroOverlap,
-                        topRight: _HeroBell(
-                          unreadCount: unreadNotifications,
-                          onTap: () => context.pushNamed(
-                            AppRouteNames.athleteNotifications,
-                          ),
+                        topRight: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Conversas com os professores (fase 7).
+                            const _HeroMessages(),
+                            const SizedBox(width: 8),
+                            _HeroBell(
+                              unreadCount: unreadNotifications,
+                              onTap: () => context.pushNamed(
+                                AppRouteNames.athleteNotifications,
+                              ),
+                            ),
+                          ],
                         ),
                         // Pílula do cashback à esquerda da de XP; o encaixe
                         // some sozinho com o recurso desligado ou sem saldo.
@@ -641,6 +650,54 @@ String _firstName(String displayName) {
 /// Sino do hero. Fundo preto translúcido em vez de `surfaceRaised`: ele cai
 /// sobre a parte mais clara da arte (medi p95 164 no masculino) e no tema
 /// claro uma superfície de tema clarearia ainda mais.
+/// Mensagens com os professores, ao lado do sino — mesmo desenho, com o
+/// contador de não lidas.
+class _HeroMessages extends ConsumerWidget {
+  const _HeroMessages();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unread = ref.watch(unreadMessagesCountProvider);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Material(
+          color: AppColors.black.withValues(alpha: 0.45),
+          borderRadius: AppRadii.mdAll,
+          child: InkWell(
+            key: const Key('athlete-home-messages'),
+            onTap: () => context.pushNamed(AppRouteNames.athleteMessages),
+            borderRadius: AppRadii.mdAll,
+            child: Container(
+              width: 42,
+              height: 42,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: AppRadii.mdAll,
+                border: Border.all(
+                  color: AppColors.white.withValues(alpha: 0.14),
+                ),
+              ),
+              child: const Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 20,
+                color: AppColors.white,
+                semanticLabel: 'Mensagens',
+              ),
+            ),
+          ),
+        ),
+        if (unread > 0)
+          Positioned(
+            right: -5,
+            top: -5,
+            child: _HeroNotificationBadge(count: unread),
+          ),
+      ],
+    );
+  }
+}
+
 class _HeroBell extends StatelessWidget {
   const _HeroBell({required this.unreadCount, required this.onTap});
 

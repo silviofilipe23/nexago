@@ -144,6 +144,20 @@ class ProfessorMorePage extends ConsumerWidget {
                       context.pushNamed(AppRouteNames.professorClasses),
                 ),
                 _MenuRow(
+                  key: const Key('professor-more-templates'),
+                  icon: Icons.bolt_outlined,
+                  title: 'Respostas rápidas',
+                  onTap: () => context
+                      .pushNamed(AppRouteNames.professorMessageTemplates),
+                ),
+                _MenuRow(
+                  key: const Key('professor-more-service-hours'),
+                  icon: Icons.schedule_outlined,
+                  title: 'Horário de atendimento',
+                  onTap: () =>
+                      context.pushNamed(AppRouteNames.professorServiceHours),
+                ),
+                _MenuRow(
                   key: const Key('professor-more-notices'),
                   icon: Icons.campaign_outlined,
                   title: 'Comunicados',

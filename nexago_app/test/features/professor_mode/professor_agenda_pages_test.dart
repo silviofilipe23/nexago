@@ -68,9 +68,9 @@ FakeProfessorAgendaRepository agendaRepo() => FakeProfessorAgendaRepository(
 void main() {
   setUpAll(loadProfessorLinksFonts);
 
-  test('barra com a aba Agenda: Hoje · Agenda · Alunos · Mais', () {
+  test('barra: Hoje · Agenda · Alunos · Mensagens · Mais', () {
     expect(ProfessorTabBar.items.map((i) => i.label),
-        ['Hoje', 'Agenda', 'Alunos', 'Mais']);
+        ['Hoje', 'Agenda', 'Alunos', 'Mensagens', 'Mais']);
   });
 
   group('E1 Dia', () {

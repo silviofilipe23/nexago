@@ -132,6 +132,13 @@ abstract final class AppRoutes {
   static const String professorLessonReview =
       '/professor/mais/planos-de-aula/registro';
 
+  /// Treinos do ATLETA (canvas "Atleta — Treinos"): hub e as telas dele.
+  static const String athleteTrainings = '/treinos';
+  static const String athleteTrainingClasses = '/treinos/aulas';
+  static const String athleteTrainingFeedbacks = '/treinos/feedbacks';
+  static const String athleteTrainingEvolution = '/treinos/evolucao';
+  static const String athleteTrainingProfessors = '/treinos/professores';
+
   /// Plano da aula publicado para o ATLETA (H8, push
   /// `lesson_plan_published`) e a lista deles. Abrem no modo Atleta.
   static const String athleteLessonPlans = '/aula/planos';
@@ -874,6 +881,11 @@ abstract final class AppRouteNames {
   static const String professorLessonPlanEditor = 'professorLessonPlanEditor';
   static const String professorLessonLive = 'professorLessonLive';
   static const String professorLessonReview = 'professorLessonReview';
+  static const String athleteTrainings = 'athleteTrainings';
+  static const String athleteTrainingClasses = 'athleteTrainingClasses';
+  static const String athleteTrainingFeedbacks = 'athleteTrainingFeedbacks';
+  static const String athleteTrainingEvolution = 'athleteTrainingEvolution';
+  static const String athleteTrainingProfessors = 'athleteTrainingProfessors';
   static const String athleteLessonPlans = 'athleteLessonPlans';
   static const String athleteLessonPlan = 'athleteLessonPlan';
   static const String professorEarnings = 'professorEarnings';

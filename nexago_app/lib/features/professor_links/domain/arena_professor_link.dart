@@ -69,6 +69,9 @@ enum ArenaProfessorSide {
 /// `canCancelLessons`) são só do professor da EQUIPE: começam desligadas nos
 /// dois tipos, vínculo antigo sem a chave lê `false` e, no independente, nunca
 /// valem (o servidor recusa gravar `true`).
+///
+/// `canBookRecurring` (horário fixo para turma própria, B10) é o inverso: só
+/// do INDEPENDENTE, desligada por padrão; na equipe nunca vale.
 class ArenaProfessorPermissions {
   const ArenaProfessorPermissions({
     required this.canManageOwnLessons,
@@ -77,6 +80,7 @@ class ArenaProfessorPermissions {
     this.canEnrollStudents = false,
     this.canScheduleLessons = false,
     this.canCancelLessons = false,
+    this.canBookRecurring = false,
   });
 
   static const none = ArenaProfessorPermissions(
@@ -94,6 +98,7 @@ class ArenaProfessorPermissions {
       canEnrollStudents: raw['canEnrollStudents'] == true,
       canScheduleLessons: raw['canScheduleLessons'] == true,
       canCancelLessons: raw['canCancelLessons'] == true,
+      canBookRecurring: raw['canBookRecurring'] == true,
     );
   }
 
@@ -112,6 +117,9 @@ class ArenaProfessorPermissions {
   /// Cancelar aulas e avisar os alunos. Só equipe.
   final bool canCancelLessons;
 
+  /// Reservar horário fixo de quadra para uma turma própria. Só independente.
+  final bool canBookRecurring;
+
   bool valueOf(ArenaProfessorPermissionKey key) => switch (key) {
         ArenaProfessorPermissionKey.canManageOwnLessons => canManageOwnLessons,
         ArenaProfessorPermissionKey.canBookCourts => canBookCourts,
@@ -120,6 +128,7 @@ class ArenaProfessorPermissions {
         ArenaProfessorPermissionKey.canEnrollStudents => canEnrollStudents,
         ArenaProfessorPermissionKey.canScheduleLessons => canScheduleLessons,
         ArenaProfessorPermissionKey.canCancelLessons => canCancelLessons,
+        ArenaProfessorPermissionKey.canBookRecurring => canBookRecurring,
       };
 
   /// Cópia com [key] = [value].
@@ -137,6 +146,7 @@ class ArenaProfessorPermissions {
       canEnrollStudents: pick(ArenaProfessorPermissionKey.canEnrollStudents),
       canScheduleLessons: pick(ArenaProfessorPermissionKey.canScheduleLessons),
       canCancelLessons: pick(ArenaProfessorPermissionKey.canCancelLessons),
+      canBookRecurring: pick(ArenaProfessorPermissionKey.canBookRecurring),
     );
   }
 
@@ -146,7 +156,12 @@ class ArenaProfessorPermissions {
         canManageOwnLessons: canManageOwnLessons,
         canBookCourts: canBookCourts,
         canAppearInArenaProfile: canAppearInArenaProfile,
+        canBookRecurring: canBookRecurring,
       );
+
+  /// Sem as chaves só do independente (o que vale para a equipe).
+  ArenaProfessorPermissions withoutIndependentOnly() =>
+      withValue(ArenaProfessorPermissionKey.canBookRecurring, false);
 
   @override
   bool operator ==(Object other) =>
@@ -156,7 +171,8 @@ class ArenaProfessorPermissions {
       other.canAppearInArenaProfile == canAppearInArenaProfile &&
       other.canEnrollStudents == canEnrollStudents &&
       other.canScheduleLessons == canScheduleLessons &&
-      other.canCancelLessons == canCancelLessons;
+      other.canCancelLessons == canCancelLessons &&
+      other.canBookRecurring == canBookRecurring;
 
   @override
   int get hashCode => Object.hash(
@@ -166,6 +182,7 @@ class ArenaProfessorPermissions {
         canEnrollStudents,
         canScheduleLessons,
         canCancelLessons,
+        canBookRecurring,
       );
 }
 
@@ -175,15 +192,24 @@ enum ArenaProfessorPermissionKey {
   canAppearInArenaProfile('canAppearInArenaProfile'),
   canEnrollStudents('canEnrollStudents', arenaStaffOnly: true),
   canScheduleLessons('canScheduleLessons', arenaStaffOnly: true),
-  canCancelLessons('canCancelLessons', arenaStaffOnly: true);
+  canCancelLessons('canCancelLessons', arenaStaffOnly: true),
+  canBookRecurring('canBookRecurring', independentOnly: true);
 
-  const ArenaProfessorPermissionKey(this.wire, {this.arenaStaffOnly = false});
+  const ArenaProfessorPermissionKey(
+    this.wire, {
+    this.arenaStaffOnly = false,
+    this.independentOnly = false,
+  });
 
   final String wire;
 
   /// Ações nas Aulas da arena: só valem para vínculo `ARENA_STAFF`
   /// (espelho de `ARENA_STAFF_ONLY_PERMISSION_KEYS` no servidor).
   final bool arenaStaffOnly;
+
+  /// Horário fixo para turma própria: só vale para vínculo `INDEPENDENT`
+  /// (espelho de `INDEPENDENT_ONLY_PERMISSION_KEYS` no servidor).
+  final bool independentOnly;
 
   static ArenaProfessorPermissionKey? tryParse(Object? raw) {
     for (final key in values) {

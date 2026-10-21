@@ -136,20 +136,39 @@ const professorArenaLessonsPermissionCatalog = [
   ),
 ];
 
+/// Título do grupo das permissões só do independente.
+const professorIndependentGroupTitle = 'Turma própria';
+
+/// Horário fixo de quadra para turma própria (B10) — só independente,
+/// desligada por padrão.
+const professorIndependentPermissionCatalog = [
+  ProfessorPermissionInfo(
+    key: ArenaProfessorPermissionKey.canBookRecurring,
+    title: 'Horário fixo (turma própria)',
+    description: 'Pode reservar a quadra toda semana para uma turma dele. A '
+        'reserva aparece nos horários fixos da arena.',
+    shortLabel: 'Horário fixo',
+  ),
+];
+
 ProfessorPermissionInfo professorPermissionInfo(
   ArenaProfessorPermissionKey key,
 ) =>
-    [...professorPermissionCatalog, ...professorArenaLessonsPermissionCatalog]
-        .firstWhere((info) => info.key == key);
+    [
+      ...professorPermissionCatalog,
+      ...professorArenaLessonsPermissionCatalog,
+      ...professorIndependentPermissionCatalog,
+    ].firstWhere((info) => info.key == key);
 
 /// O que a configuração vale para o [type]: no independente, as chaves só de
-/// equipe nunca valem (espelho do servidor).
+/// equipe nunca valem; na equipe, as só do independente (espelho do
+/// servidor).
 ArenaProfessorPermissions professorPermissionsForType(
   ArenaProfessorPermissions permissions,
   ArenaProfessorLinkType type,
 ) =>
     type == ArenaProfessorLinkType.arenaStaff
-        ? permissions
+        ? permissions.withoutIndependentOnly()
         : permissions.withoutArenaStaffOnly();
 
 /// O que o professor pode fazer AGORA: nada fora de `ACTIVE` (suspensão

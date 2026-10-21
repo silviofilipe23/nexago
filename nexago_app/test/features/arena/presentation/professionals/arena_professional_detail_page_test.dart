@@ -176,6 +176,54 @@ void main() {
     });
 
     testWidgets(
+        'independente: "Horário fixo (turma própria)" desligado; o '
+        'interruptor grava canBookRecurring', (tester) async {
+      final repo = await _pumpDetail(tester, link: marcosActive());
+
+      expect(
+        find.byKey(const Key('arena-professor-permission-group-recurring')),
+        findsOneWidget,
+      );
+      expect(find.text('Horário fixo (turma própria)'), findsOneWidget);
+      expect(
+        find.text('Pode reservar a quadra toda semana para uma turma dele. A '
+            'reserva aparece nos horários fixos da arena.'),
+        findsOneWidget,
+      );
+      final toggle = _permission('canBookRecurring', false);
+      expect(toggle, findsOneWidget);
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      await settleProfessorLinks(tester);
+
+      expect(repo.permissionCalls, [
+        (
+          linkId: _marcos,
+          key: ArenaProfessorPermissionKey.canBookRecurring,
+          value: true,
+        ),
+      ]);
+      expect(_permission('canBookRecurring', true), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
+    });
+
+    testWidgets('equipe: sem o "Horário fixo (turma própria)"', (tester) async {
+      await _pumpDetail(
+        tester,
+        link: copyArenaLink(
+          marcosActive(),
+          type: ArenaProfessorLinkType.arenaStaff,
+        ),
+      );
+      expect(
+        find.byKey(const Key('arena-professor-permission-group-recurring')),
+        findsNothing,
+      );
+      expect(_permission('canBookRecurring', false), findsNothing);
+      expect(_permission('canBookRecurring', true), findsNothing);
+    });
+
+    testWidgets(
         'equipe: "Aulas da arena" desligadas por padrão; o interruptor '
         'grava a chave certa', (tester) async {
       final repo = await _pumpDetail(

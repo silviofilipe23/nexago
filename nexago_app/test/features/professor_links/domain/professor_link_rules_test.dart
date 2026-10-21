@@ -332,6 +332,75 @@ void main() {
       });
     });
 
+    group('Horário fixo (só independente)', () {
+      const withKey = ArenaProfessorPermissions(
+        canManageOwnLessons: true,
+        canBookCourts: true,
+        canAppearInArenaProfile: false,
+        canBookRecurring: true,
+      );
+
+      test('lê do Firestore; vínculo antigo sem a chave lê false', () {
+        expect(
+          ArenaProfessorPermissions.fromMap(const {'canBookRecurring': true})
+              .canBookRecurring,
+          isTrue,
+        );
+        expect(
+          ArenaProfessorPermissions.fromMap(const {'canBookCourts': true})
+              .canBookRecurring,
+          isFalse,
+        );
+        expect(ArenaProfessorPermissionKey.canBookRecurring.independentOnly,
+            isTrue);
+        expect(ArenaProfessorPermissionKey.canBookRecurring.arenaStaffOnly,
+            isFalse);
+        expect(
+          ArenaProfessorPermissionKey.values.where((k) => k.independentOnly),
+          [ArenaProfessorPermissionKey.canBookRecurring],
+        );
+        expect(
+          professorPermissionInfo(ArenaProfessorPermissionKey.canBookRecurring)
+              .title,
+          'Horário fixo (turma própria)',
+        );
+      });
+
+      test('efetiva só no independente ativo', () {
+        expect(
+          effectiveProfessorPermissions(professorLink(
+            type: ArenaProfessorLinkType.independent,
+            permissions: withKey,
+          )).canBookRecurring,
+          isTrue,
+        );
+        expect(
+          effectiveProfessorPermissions(professorLink(permissions: withKey))
+              .canBookRecurring,
+          isFalse,
+          reason: 'equipe',
+        );
+        expect(
+          effectiveProfessorPermissions(professorLink(
+            type: ArenaProfessorLinkType.independent,
+            status: ArenaProfessorLinkStatus.suspended,
+            permissions: withKey,
+          )).canBookRecurring,
+          isFalse,
+        );
+        expect(withKey.withoutArenaStaffOnly().canBookRecurring, isTrue);
+        expect(withKey.withoutIndependentOnly().canBookRecurring, isFalse);
+        expect(
+          withKey ==
+              withKey.withValue(
+                ArenaProfessorPermissionKey.canBookRecurring,
+                false,
+              ),
+          isFalse,
+        );
+      });
+    });
+
     test('nota das permissões por estado', () {
       expect(professorPermissionsNote(ArenaProfessorLinkStatus.active), isNull);
       expect(

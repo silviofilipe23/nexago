@@ -369,6 +369,20 @@ class ProfessorPlanInput {
       };
 }
 
+/// Nova cobrança já preenchida (mensalidade da turma própria): valor
+/// personalizado, descrição e "Repetir todo mês" ligado.
+class ProfessorChargePrefill {
+  const ProfessorChargePrefill({
+    required this.amountReais,
+    required this.description,
+    this.repeatMonthly = true,
+  });
+
+  final double amountReais;
+  final String description;
+  final bool repeatMonthly;
+}
+
 /// `createProfessorCharge`: plano OU valor personalizado.
 class ProfessorChargeInput {
   const ProfessorChargeInput({

@@ -214,9 +214,13 @@ class ProfessorWalletField extends StatelessWidget {
     this.textCapitalization = TextCapitalization.none,
     this.maxLength,
     this.onChanged,
+    this.trailing,
   });
 
   final String label;
+
+  /// Rótulo à direita dentro do campo ("SEU PREÇO").
+  final Widget? trailing;
   final TextEditingController controller;
   final String? hint;
   final String? error;
@@ -250,6 +254,13 @@ class ProfessorWalletField extends StatelessWidget {
             isDense: true,
             hintText: hint,
             counterText: '',
+            suffixIcon: trailing == null
+                ? null
+                : Padding(
+                    padding: const EdgeInsets.only(right: 13),
+                    child: Center(widthFactor: 1, child: trailing),
+                  ),
+            suffixIconConstraints: const BoxConstraints(minHeight: 0),
             hintStyle: AppTypography.bodyM.copyWith(
               color: ProfessorLinksStyle.dim(colors),
             ),

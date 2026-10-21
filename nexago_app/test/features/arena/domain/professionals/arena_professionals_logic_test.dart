@@ -69,6 +69,7 @@ void main() {
         'canEnrollStudents': false,
         'canScheduleLessons': false,
         'canCancelLessons': false,
+        'canBookRecurring': false,
       });
     });
 
@@ -92,10 +93,51 @@ void main() {
       ]);
       final independent =
           arenaProfessorPermissionGroups(ArenaProfessorLinkType.independent);
-      expect(independent.map((g) => g.title), [null]);
+      expect(independent.map((g) => g.title), [null, 'Turma própria']);
       expect(
-        independent.single.items.any((i) => i.key.arenaStaffOnly),
+        independent.expand((g) => g.items).any((i) => i.key.arenaStaffOnly),
         isFalse,
+      );
+    });
+
+    test('grupo "Turma própria" só aparece para o independente', () {
+      final independent =
+          arenaProfessorPermissionGroups(ArenaProfessorLinkType.independent);
+      expect(independent.last.title, 'Turma própria');
+      expect(independent.last.items.map((i) => i.key),
+          [ArenaProfessorPermissionKey.canBookRecurring]);
+      final staff =
+          arenaProfessorPermissionGroups(ArenaProfessorLinkType.arenaStaff);
+      expect(
+        staff.expand((g) => g.items).any((i) => i.key.independentOnly),
+        isFalse,
+      );
+      // Desligada por padrão nos dois tipos.
+      for (final type in ArenaProfessorLinkType.values) {
+        expect(defaultArenaProfessorPermissions(type).canBookRecurring,
+            isFalse);
+      }
+    });
+
+    test('convite de equipe nunca manda o horário fixo ligado', () {
+      final proposal = arenaProfessorPermissionsWith(
+        defaultArenaProfessorPermissions(ArenaProfessorLinkType.arenaStaff),
+        ArenaProfessorPermissionKey.canBookRecurring,
+        true,
+      );
+      expect(
+        arenaProfessorPermissionsToSend(
+          proposal,
+          ArenaProfessorLinkType.arenaStaff,
+        ).canBookRecurring,
+        isFalse,
+      );
+      expect(
+        arenaProfessorPermissionsToSend(
+          proposal,
+          ArenaProfessorLinkType.independent,
+        ).canBookRecurring,
+        isTrue,
       );
     });
 

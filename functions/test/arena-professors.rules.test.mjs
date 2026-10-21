@@ -135,3 +135,24 @@ test('página pública lê os professores da arena sem login', async () => {
   await assertSucceeds(getDocs(collection(anon, 'arenas', 'arena-pro', 'publicProfessors')));
   await assertFails(getDoc(doc(anon, 'arenaProfessors', LINK)));
 });
+
+test('comunicados da arena aos professores: destinatário e gestão leem; recepção/estranho não; ninguém grava', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'arenaProfessorNotices', 'n1'), {arenaId: 'arena-pro', recipientIds: [PROF], title: 'Aviso'});
+    await setDoc(doc(db, 'arenaProfessorNotices', 'n1', 'recipients', PROF), {professorUid: PROF});
+  });
+  const as = (uid) => testEnv.authenticatedContext(uid).firestore();
+  await assertSucceeds(getDoc(doc(as(PROF), 'arenaProfessorNotices', 'n1')));
+  await assertSucceeds(getDocs(query(collection(as(PROF), 'arenaProfessorNotices'), where('recipientIds', 'array-contains', PROF))));
+  await assertSucceeds(getDoc(doc(as(GESTOR), 'arenaProfessorNotices', 'n1')));
+  await assertSucceeds(getDocs(query(collection(as(OWNER), 'arenaProfessorNotices'), where('arenaId', '==', 'arena-pro'))));
+  await assertSucceeds(getDocs(collection(as(OWNER), 'arenaProfessorNotices', 'n1', 'recipients')));
+  await assertSucceeds(getDoc(doc(as(PROF), 'arenaProfessorNotices', 'n1', 'recipients', PROF)));
+  await assertFails(getDoc(doc(as(OUTRO_PROF), 'arenaProfessorNotices', 'n1')));
+  await assertFails(getDoc(doc(as(RECEPCAO), 'arenaProfessorNotices', 'n1')));
+  await assertFails(getDoc(doc(as(OUTRO_DONO), 'arenaProfessorNotices', 'n1')));
+  await assertFails(getDocs(collection(as(OUTRO_PROF), 'arenaProfessorNotices', 'n1', 'recipients')));
+  await assertFails(setDoc(doc(as(OWNER), 'arenaProfessorNotices', 'n2'), {arenaId: 'arena-pro', recipientIds: [PROF]}));
+  await assertFails(setDoc(doc(as(PROF), 'arenaProfessorNotices', 'n1', 'recipients', PROF), {professorUid: PROF}));
+});

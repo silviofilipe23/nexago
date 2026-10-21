@@ -2311,6 +2311,23 @@ service cloud.firestore {
         allow update, delete: if false;
       }
     }
+    // Comunicados da arena para os professores (F6): o professor destinatário e a gestão (perfil)
+    // leem; só a callable sendArenaProfessorNotice grava. Leitura por markArenaProfessorNoticeRead.
+    match /arenaProfessorNotices/{noticeId} {
+      allow read: if request.auth != null && (
+        request.auth.uid in resource.data.recipientIds ||
+        arenaCanRead(resource.data.arenaId, 'perfil') ||
+        isSuperAdmin()
+      );
+      allow write: if false;
+      match /recipients/{professorUid} {
+        allow read: if request.auth != null && (
+          request.auth.uid == professorUid ||
+          arenaCanRead(get(/databases/$(database)/documents/arenaProfessorNotices/$(noticeId)).data.arenaId, 'perfil')
+        );
+        allow write: if false;
+      }
+    }
     // Respostas rápidas e horário de atendimento do professor (D6/D7): do dono.
     match /users/{userId}/messageTemplates/{templateId} {
       allow read, delete: if request.auth != null && request.auth.uid == userId;

@@ -88,7 +88,12 @@ import type { AthleteCandidate } from './athlete-search-filter';
                     @for (s of series(); track s.id) {
                       <div class="table-row">
                         <div class="cell-client">
-                          {{ customerLabel(s) }}
+                          <div class="client-name">
+                            {{ customerLabel(s) }}
+                            @if (s.bookedAsProfessor) {
+                              <ar-pill tone="blue">Professor</ar-pill>
+                            }
+                          </div>
                           @if (s.status === 'paused') {
                             <div class="paused-hint">
                               <ar-status-dot tone="yellow" [size]="6" />
@@ -338,6 +343,13 @@ import type { AthleteCandidate } from './athlete-search-filter';
       font-weight: 700;
       font-size: 13.5px;
       color: var(--nx-text);
+    }
+
+    .client-name {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
     }
 
     .cell-slot,

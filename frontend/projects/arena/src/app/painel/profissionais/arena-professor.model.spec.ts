@@ -57,6 +57,7 @@ function makeLink(overrides: Partial<ArenaProfessorLink> = {}): ArenaProfessorLi
       canEnrollStudents: false,
       canScheduleLessons: false,
       canCancelLessons: false,
+      canBookRecurring: false,
     },
     message: null,
     cycle: 1,
@@ -115,6 +116,7 @@ describe('arena-professor.model · status e permissões', () => {
       canEnrollStudents: false,
       canScheduleLessons: false,
       canCancelLessons: false,
+      canBookRecurring: false,
     });
     expect(defaultProfessorPermissions('INDEPENDENT')).toEqual({
       canManageOwnLessons: true,
@@ -123,6 +125,7 @@ describe('arena-professor.model · status e permissões', () => {
       canEnrollStudents: false,
       canScheduleLessons: false,
       canCancelLessons: false,
+      canBookRecurring: false,
     });
   });
 
@@ -133,28 +136,30 @@ describe('arena-professor.model · status e permissões', () => {
     canEnrollStudents: true,
     canScheduleLessons: true,
     canCancelLessons: true,
+    canBookRecurring: true,
   };
 
   it('Aulas da arena: efetivas só na equipe ativa; independente nunca, mesmo com a chave gravada', () => {
     const staff = effectivePermissions(makeLink({ relationshipType: 'ARENA_STAFF', permissions: allOn }));
-    expect(staff).toEqual(allOn);
+    expect(staff).toEqual({ ...allOn, canBookRecurring: false });
     const independent = effectivePermissions(makeLink({ relationshipType: 'INDEPENDENT', permissions: allOn }));
     expect(independent.canEnrollStudents).toBeFalse();
     expect(independent.canScheduleLessons).toBeFalse();
     expect(independent.canCancelLessons).toBeFalse();
     expect(independent.canBookCourts).toBeTrue();
+    expect(independent.canBookRecurring).toBeTrue();
     const suspendedStaff = effectivePermissions(makeLink({ relationshipType: 'ARENA_STAFF', status: 'SUSPENDED', permissions: allOn }));
     expect(suspendedStaff.canEnrollStudents).toBeFalse();
   });
 
-  it('nunca envia true das chaves da equipe para independente', () => {
+  it('nunca envia true das chaves da equipe para independente, nem do horário fixo para a equipe', () => {
     expect(permissionsForType(allOn, 'INDEPENDENT')).toEqual({
       ...allOn,
       canEnrollStudents: false,
       canScheduleLessons: false,
       canCancelLessons: false,
     });
-    expect(permissionsForType(allOn, 'ARENA_STAFF')).toEqual(allOn);
+    expect(permissionsForType(allOn, 'ARENA_STAFF')).toEqual({ ...allOn, canBookRecurring: false });
     const independentInvite = openInvite({ relationshipType: 'INDEPENDENT', permissions: allOn });
     expect(resendInviteInput(independentInvite).permissions.canEnrollStudents).toBeFalse();
   });
@@ -164,9 +169,18 @@ describe('arena-professor.model · status e permissões', () => {
     expect(staffGroups.map((g) => g.title)).toEqual([null, 'Aulas da arena']);
     expect(staffGroups[1].items.map((i) => i.key)).toEqual(['canEnrollStudents', 'canScheduleLessons', 'canCancelLessons']);
     expect(staffGroups[1].items.map((i) => i.title)).toEqual(['Matricular alunos', 'Agendar aulas e encaixes', 'Cancelar aulas e avisar alunos']);
+    expect(staffGroups[1].note).toBe('Só para professor da equipe');
     const independentGroups = permissionGroupsFor('INDEPENDENT');
-    expect(independentGroups.length).toBe(1);
+    expect(independentGroups.map((g) => g.title)).toEqual([null, 'Turma própria']);
     expect(independentGroups[0].items.map((i) => i.key)).toEqual(['canManageOwnLessons', 'canBookCourts', 'canAppearInArenaProfile']);
+    expect(independentGroups[1].items.map((i) => i.key)).toEqual(['canBookRecurring']);
+    expect(independentGroups[1].items[0].title).toBe('Horário fixo (turma própria)');
+    expect(independentGroups[1].items[0].sub).toBe(
+      'Pode reservar a quadra toda semana para uma turma dele. A reserva aparece nos horários fixos da arena.',
+    );
+    expect(independentGroups[1].note).toBe('Só para professor independente');
+    expect(permissionAllowedForType('canBookRecurring', 'INDEPENDENT')).toBeTrue();
+    expect(permissionAllowedForType('canBookRecurring', 'ARENA_STAFF')).toBeFalse();
     expect(permissionAllowedForType('canEnrollStudents', 'INDEPENDENT')).toBeFalse();
     expect(permissionAllowedForType('canEnrollStudents', 'ARENA_STAFF')).toBeTrue();
     expect(permissionAllowedForType('canBookCourts', 'INDEPENDENT')).toBeTrue();
@@ -195,6 +209,7 @@ describe('arena-professor.model · status e permissões', () => {
       canEnrollStudents: false,
       canScheduleLessons: false,
       canCancelLessons: false,
+      canBookRecurring: false,
     });
     expect(suspended.permissions.canBookCourts).toBeTrue();
   });
@@ -435,6 +450,7 @@ describe('arena-professor.model · parse e erros', () => {
       canEnrollStudents: false,
       canScheduleLessons: false,
       canCancelLessons: false,
+      canBookRecurring: false,
     });
     expect(link.professorName).toBe('Lucas Ferraz');
     expect(link.professorModalities).toEqual(['Beach Tennis']);
@@ -453,6 +469,17 @@ describe('arena-professor.model · parse e erros', () => {
     const legacy = doc({ canManageOwnLessons: true });
     expect(legacy.permissions.canEnrollStudents).toBeFalse();
     expect(effectivePermissions(legacy).canScheduleLessons).toBeFalse();
+  });
+
+  it('horário fixo: só true explícito liga; vale só no independente ativo', () => {
+    const doc = (relationshipType: string, permissions: Record<string, unknown>) =>
+      arenaProfessorLinkFromDoc(fakeDoc('a1_u1', { relationshipType, status: 'ACTIVE', permissions }));
+    expect(doc('INDEPENDENT', { canBookRecurring: true }).permissions.canBookRecurring).toBeTrue();
+    expect(doc('INDEPENDENT', { canBookRecurring: 'sim' }).permissions.canBookRecurring).toBeFalse();
+    expect(doc('INDEPENDENT', {}).permissions.canBookRecurring).toBeFalse();
+    expect(effectivePermissions(doc('ARENA_STAFF', { canBookRecurring: true })).canBookRecurring).toBeFalse();
+    const suspended = makeLink({ status: 'SUSPENDED', permissions: { ...makeLink().permissions, canBookRecurring: true } });
+    expect(effectivePermissions(suspended).canBookRecurring).toBeFalse();
   });
 
   it('histórico nomeia as permissões novas', () => {

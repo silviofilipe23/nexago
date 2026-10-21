@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 import {
-  PROFESSOR_STAFF_ONLY_NOTE,
   PROFESSOR_TYPE_COPY,
   permissionGroupsFor,
   arenaInitials,
@@ -132,7 +131,7 @@ export class PfTypeTagComponent {
 }
 
 /** Lista das permissões, ligadas (check verde) ou não (x apagado). As três de base sempre; o
- *  grupo "Aulas da arena" só para vínculo de equipe (`type`). */
+ *  grupo "Aulas da arena" só para vínculo de equipe; o "Turma própria" só no independente (`type`). */
 @Component({
   selector: 'app-pf-perm-list',
   template: `
@@ -140,7 +139,9 @@ export class PfTypeTagComponent {
     @if (g.title) {
       <div class="group">
         <span class="group-title">{{ g.title }}</span>
-        <span class="group-note">{{ staffOnlyNote }}</span>
+        @if (g.note) {
+          <span class="group-note">{{ g.note }}</span>
+        }
       </div>
     }
     <ul>
@@ -257,13 +258,13 @@ export class PfTypeTagComponent {
 })
 export class PfPermListComponent {
   readonly perms = input.required<ProfessorPermissions>();
-  /** Tipo do vínculo: decide se o grupo "Aulas da arena" aparece. */
+  /** Tipo do vínculo: decide qual grupo restrito aparece ("Aulas da arena" ou "Turma própria"). */
   readonly type = input.required<ProfessorLinkType>();
   readonly dense = input(false);
-  protected readonly staffOnlyNote = PROFESSOR_STAFF_ONLY_NOTE;
   protected readonly groups = computed(() =>
     permissionGroupsFor(this.type()).map((g) => ({
       title: g.title,
+      note: g.note,
       rows: g.items.map((p) => ({ ...p, on: this.perms()[p.key] === true })),
     })),
   );

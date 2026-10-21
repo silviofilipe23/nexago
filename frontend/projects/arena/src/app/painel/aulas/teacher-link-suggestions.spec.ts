@@ -16,6 +16,7 @@ function link(over: Partial<ArenaProfessorLink>): ArenaProfessorLink {
       canEnrollStudents: false,
       canScheduleLessons: false,
       canCancelLessons: false,
+      canBookRecurring: false,
     },
     message: null,
     cycle: 1,

@@ -40,6 +40,9 @@ export interface ArenaRecurringBooking {
   endTime: string;
   athleteId: string | null;
   customerName: string | null;
+  /** Série de turma própria de professor independente (`bookedAs: 'professor'`): o
+   *  `customerName` já vem "Professor · Turma". */
+  bookedAsProfessor: boolean;
   amountReais: number;
   status: ArenaRecurringStatus;
   paymentType: ArenaRecurringPaymentType;
@@ -90,6 +93,7 @@ export function arenaRecurringBookingFromDoc(doc: QueryDocumentSnapshot): ArenaR
     endTime: time(d['endTime']),
     athleteId: optional(d['athleteId']),
     customerName: optional(d['customerName']),
+    bookedAsProfessor: d['bookedAs'] === 'professor',
     amountReais: typeof d['amountReais'] === 'number' ? d['amountReais'] : 0,
     status: parseStatus(d['status']),
     paymentType: parsePaymentType(d['paymentType']),

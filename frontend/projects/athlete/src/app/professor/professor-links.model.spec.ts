@@ -147,10 +147,11 @@ describe('professor-links.model — estado na visão do professor', () => {
     canEnrollStudents: true,
     canScheduleLessons: true,
     canCancelLessons: true,
+    canBookRecurring: true,
   };
 
   it('Aulas da arena: efetivas só na equipe ativa; independente nunca, mesmo com a chave gravada', () => {
-    expect(effectivePermissions(link({ relationshipType: 'ARENA_STAFF', permissions: lessonsOn }))).toEqual(lessonsOn);
+    expect(effectivePermissions(link({ relationshipType: 'ARENA_STAFF', permissions: lessonsOn }))).toEqual({ ...lessonsOn, canBookRecurring: false });
     const independent = effectivePermissions(link({ relationshipType: 'INDEPENDENT', permissions: lessonsOn }));
     expect(independent).toEqual({ ...lessonsOn, canEnrollStudents: false, canScheduleLessons: false, canCancelLessons: false });
     expect(effectivePermissions(link({ relationshipType: 'ARENA_STAFF', status: 'SUSPENDED', permissions: lessonsOn })).canEnrollStudents).toBeFalse();
@@ -159,11 +160,35 @@ describe('professor-links.model — estado na visão do professor', () => {
     expect(permissionsToShow(invite({ relationshipType: 'ARENA_STAFF', permissions: lessonsOn }), NOW).canScheduleLessons).toBeTrue();
   });
 
-  it('grupo "Aulas da arena" só para equipe', () => {
+  it('horário fixo: efetivo só no independente ativo; equipe nunca, mesmo com a chave gravada', () => {
+    expect(effectivePermissions(link({ relationshipType: 'INDEPENDENT', permissions: lessonsOn })).canBookRecurring).toBeTrue();
+    expect(effectivePermissions(link({ relationshipType: 'INDEPENDENT', status: 'SUSPENDED', permissions: lessonsOn })).canBookRecurring).toBeFalse();
+    expect(effectivePermissions(link({ relationshipType: 'ARENA_STAFF', permissions: lessonsOn })).canBookRecurring).toBeFalse();
+    expect(permissionsToShow(invite({ relationshipType: 'ARENA_STAFF', permissions: lessonsOn }), NOW).canBookRecurring).toBeFalse();
+    expect(permissionsToShow(invite({ relationshipType: 'INDEPENDENT', permissions: lessonsOn }), NOW).canBookRecurring).toBeTrue();
+    const parsed = (permissions: Record<string, unknown>) =>
+      parseProfessorLink('a_p', { arenaId: 'a', relationshipType: 'INDEPENDENT', status: 'ACTIVE', permissions })?.permissions.canBookRecurring;
+    expect(parsed({ canBookRecurring: true })).toBeTrue();
+    expect(parsed({ canBookRecurring: 'sim' })).toBeFalse();
+    expect(parsed({})).toBeFalse();
+  });
+
+  it('grupo "Aulas da arena" só para equipe; "Turma própria" só no independente', () => {
     const staff = permissionGroupsFor('ARENA_STAFF');
     expect(staff.map((g) => g.title)).toEqual([null, 'Aulas da arena']);
     expect(staff[1].items.map((i) => i.label)).toEqual(['Matricular alunos', 'Agendar aulas e encaixes', 'Cancelar aulas e avisar alunos']);
-    expect(permissionGroupsFor('INDEPENDENT').map((g) => g.items.length)).toEqual([3]);
+    expect(staff[1].note).toBe('Só para professor da equipe');
+    const independent = permissionGroupsFor('INDEPENDENT');
+    expect(independent.map((g) => g.title)).toEqual([null, 'Turma própria']);
+    expect(independent.map((g) => g.items.length)).toEqual([3, 1]);
+    expect(independent[1].items[0]).toEqual(
+      jasmine.objectContaining({
+        key: 'canBookRecurring',
+        label: 'Horário fixo (turma própria)',
+        description: 'Pode reservar a quadra toda semana para uma turma dele. A reserva aparece nos horários fixos da arena.',
+      }),
+    );
+    expect(independent[1].note).toBe('Só para professor independente');
   });
 
   it('convite aberto mostra o que a arena propõe; suspenso mostra tudo desligado', () => {

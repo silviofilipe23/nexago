@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 
 import '../../../../core/brand/nexa_hashtag.dart';
@@ -114,6 +116,37 @@ int? _minutesBetween(String start, String end) {
   final e = toMinutes(end);
   if (s == null || e == null || e <= s) return null;
   return e - s;
+}
+
+/// Frases grandes da arte, sorteadas a cada story para não sair sempre a
+/// mesma. Duas linhas curtas cada: na Sora 54 ExtraBold a mais larga
+/// ("Missão cumprida.") ocupa ~270 dos 312 px da arte — frase nova tem de
+/// passar no teste de largura (`agenda_class_story_test`).
+const List<String> kClassStoryHeadlines = [
+  'Treino\npago.',
+  'Missão\ncumprida.',
+  'Suor\nem dia.',
+  'Areia\nno pé.',
+  'Mais um\nno bolso.',
+  'Hoje\nteve.',
+  'Foco\nna areia.',
+  'Treinou,\nevoluiu.',
+  'Evolução\nem dia.',
+  'Rumo ao\npódio.',
+  'Hoje foi\npuxado.',
+  'Sem\ndesculpa.',
+  'Batendo\nponto.',
+  'Um passo\nà frente.',
+];
+
+/// Sorteia uma frase de [kClassStoryHeadlines], diferente de [avoid] (a do
+/// story anterior) para duas aberturas seguidas não repetirem.
+String pickClassStoryHeadline({Random? random, String? avoid}) {
+  final pool = [
+    for (final h in kClassStoryHeadlines)
+      if (h != avoid) h,
+  ];
+  return pool[(random ?? Random()).nextInt(pool.length)];
 }
 
 /// Tudo o que a arte do story do treino escreve — já formatado.

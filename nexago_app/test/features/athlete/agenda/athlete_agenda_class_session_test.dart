@@ -75,7 +75,7 @@ void main() {
           isNull);
     });
 
-    test('aula conta e filtra junto com aluguel e clubinho', () {
+    test('aula conta e filtra no pill Treinos, fora de Aluguéis', () {
       final item = mapClassEntryToAgendaItem(entry({}))!;
       final merged = mergeAgendaItems(
           bookings: const [],
@@ -83,19 +83,20 @@ void main() {
           challenges: const [],
           classSessions: [item]);
       expect(merged.single.kind, AthleteAgendaItemKind.classSession);
-      expect(countAgendaFilters(merged).rentals, 1);
-      expect(
-        filterAgendaItems(
-          items: merged,
-          filter: AthleteAgendaFilter.rentals,
-          viewMode: AthleteAgendaViewMode.day,
-          selectedDay: DateTime(2026, 10, 20),
-          visibleMonth: DateTime(2026, 10),
-          timeTab: AthleteAgendaTimeTab.upcoming,
-          now: DateTime(2026, 10, 19, 12),
-        ).length,
-        1,
-      );
+      expect(countAgendaFilters(merged).trainings, 1);
+      expect(countAgendaFilters(merged).rentals, 0);
+      int countFor(AthleteAgendaFilter filter) => filterAgendaItems(
+            items: merged,
+            filter: filter,
+            viewMode: AthleteAgendaViewMode.day,
+            selectedDay: DateTime(2026, 10, 20),
+            visibleMonth: DateTime(2026, 10),
+            timeTab: AthleteAgendaTimeTab.upcoming,
+            now: DateTime(2026, 10, 19, 12),
+          ).length;
+      expect(countFor(AthleteAgendaFilter.trainings), 1);
+      expect(countFor(AthleteAgendaFilter.rentals), 0);
+      expect(countFor(AthleteAgendaFilter.all), 1);
     });
   });
 }

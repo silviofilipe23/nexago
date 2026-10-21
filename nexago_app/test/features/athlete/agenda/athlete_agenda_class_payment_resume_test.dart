@@ -86,6 +86,7 @@ Future<_FakeClassAgendaRepository> _pumpAgenda(
             filterCounts: AthleteAgendaFilterCounts(
               all: 0,
               rentals: 0,
+              trainings: 0,
               tournaments: 0,
               challenges: 0,
             ),

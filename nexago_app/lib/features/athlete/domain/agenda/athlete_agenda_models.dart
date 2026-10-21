@@ -11,7 +11,7 @@ enum AthleteAgendaItemKind {
   classSession,
 }
 
-enum AthleteAgendaFilter { all, rentals, tournaments, challenges }
+enum AthleteAgendaFilter { all, rentals, trainings, tournaments, challenges }
 
 enum AthleteAgendaViewMode { day, month }
 
@@ -339,12 +339,16 @@ class AthleteAgendaFilterCounts {
   const AthleteAgendaFilterCounts({
     required this.all,
     required this.rentals,
+    required this.trainings,
     required this.tournaments,
     required this.challenges,
   });
 
   final int all;
   final int rentals;
+
+  /// Aulas (turma da arena ou particular): saem de "Aluguéis" pro pill Treinos.
+  final int trainings;
   final int tournaments;
   final int challenges;
 }

@@ -43,6 +43,14 @@ class AgendaFilterChips extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           _Chip(
+            label: 'Treinos',
+            count: counts.trainings,
+            dotColor: athleteAgendaClassSessionAccent,
+            selected: selected == AthleteAgendaFilter.trainings,
+            onTap: () => onSelected(AthleteAgendaFilter.trainings),
+          ),
+          const SizedBox(width: 8),
+          _Chip(
             label: 'Torneios',
             count: counts.tournaments,
             dotColor: athleteAgendaTournamentAccent,

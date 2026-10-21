@@ -201,6 +201,7 @@ import '../../features/professor_mode/presentation/own_classes/professor_own_cla
 import '../../features/professor_mode/presentation/professor_more_page.dart';
 import '../../features/professor_mode/presentation/professor_shell_page.dart';
 import '../../features/professor_mode/presentation/professor_student_page.dart';
+import '../../features/professor_mode/presentation/professor_student_profile_page.dart';
 import '../../features/professor_mode/presentation/professor_students_page.dart';
 import '../../features/professor_mode/presentation/earnings/professor_earnings_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_checkin_page.dart';
@@ -538,6 +539,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                       studentId:
                           state.pathParameters['studentId']?.trim() ?? '',
                     ),
+                    routes: [
+                      GoRoute(
+                        path: 'perfil/:athleteId',
+                        name: AppRouteNames.professorStudentProfile,
+                        builder: (context, state) =>
+                            ProfessorStudentProfilePage(
+                          athleteId:
+                              state.pathParameters['athleteId']?.trim() ?? '',
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -780,6 +792,16 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                               state.pathParameters['athleteId']?.trim() ?? '',
                         ),
                         routes: [
+                          GoRoute(
+                            path: 'perfil',
+                            name: AppRouteNames.professorWalletStudentProfile,
+                            builder: (context, state) =>
+                                ProfessorStudentProfilePage(
+                              athleteId:
+                                  state.pathParameters['athleteId']?.trim() ??
+                                      '',
+                            ),
+                          ),
                           GoRoute(
                             path: 'cobrar',
                             name: AppRouteNames.professorWalletCharge,

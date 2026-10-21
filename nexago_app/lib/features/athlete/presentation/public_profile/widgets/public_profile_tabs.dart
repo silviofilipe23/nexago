@@ -10,7 +10,7 @@ import '../../../domain/match_history/athlete_match_history_logic.dart';
 import '../../widgets/athlete_profile_avatar.dart';
 import '../../widgets/match_history/match_history_match_card.dart';
 
-enum PublicProfileTab { overview, matches, peladas, achievements }
+enum PublicProfileTab { overview, matches, tournaments, peladas, achievements }
 
 class PublicProfileTabBar extends StatelessWidget {
   const PublicProfileTabBar({
@@ -18,6 +18,7 @@ class PublicProfileTabBar extends StatelessWidget {
     required this.selected,
     required this.onChanged,
     this.showPeladas = false,
+    this.showTournaments = false,
   });
 
   final PublicProfileTab selected;
@@ -25,6 +26,9 @@ class PublicProfileTabBar extends StatelessWidget {
 
   /// Só com pelada confirmada no ano (spec 00d).
   final bool showPeladas;
+
+  /// Aba Torneios — por ora só na visão do professor.
+  final bool showTournaments;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +50,15 @@ class PublicProfileTabBar extends StatelessWidget {
             onTap: () => onChanged(PublicProfileTab.matches),
           ),
           SizedBox(width: 8),
+          if (showTournaments) ...[
+            _TabChip(
+              key: const Key('public-profile-tab-tournaments'),
+              label: 'Torneios',
+              selected: selected == PublicProfileTab.tournaments,
+              onTap: () => onChanged(PublicProfileTab.tournaments),
+            ),
+            SizedBox(width: 8),
+          ],
           if (showPeladas) ...[
             _TabChip(
               key: const Key('public-profile-tab-peladas'),

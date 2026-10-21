@@ -212,24 +212,34 @@ class BookingStoryArtFrame extends StatelessWidget {
                 child: Row(
                   children: [
                     BookingStoryWordmark(light: light, ink: ink),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: pillColor,
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                      child: Text(
-                        pillLabel,
-                        style: AppTypography.mono(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.08,
-                          height: 1,
-                          color: pillTextColor,
+                    const SizedBox(width: 12),
+                    // Rótulos longos ("TREINO FINALIZADO") encolhem em vez de
+                    // estourar a linha da marca.
+                    Flexible(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: pillColor,
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: Text(
+                              pillLabel,
+                              style: AppTypography.mono(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.08,
+                                height: 1,
+                                color: pillTextColor,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),

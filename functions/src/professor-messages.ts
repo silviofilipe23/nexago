@@ -239,7 +239,8 @@ const defaultDeps: MessageDeps = {
 /** O remetente ainda pode falar nesta conversa? Fecha/poda quando o vínculo acabou. */
 async function verifyMember(db: Firestore, ref: DocumentReference, c: Record<string, unknown>, uid: string, now: Date): Promise<void> {
   const verifiedAt = (c["verifiedAt"] as Record<string, Timestamp> | undefined)?.[uid];
-  if (verifiedAt instanceof Timestamp && now.getTime() - verifiedAt.toMillis() < VERIFY_EVERY_MS) return;
+  // Canal da arena: a equipe muda sem aviso — refaz a lista a cada envio (volume baixo).
+  if (c["kind"] !== "arena" && verifiedAt instanceof Timestamp && now.getTime() - verifiedAt.toMillis() < VERIFY_EVERY_MS) return;
   const professorUid = str(c["professorUid"]);
   if (c["kind"] === "arena") {
     const arenaId = str(c["arenaId"]);

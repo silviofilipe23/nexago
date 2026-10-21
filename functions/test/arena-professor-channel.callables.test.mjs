@@ -73,9 +73,11 @@ test('canal: envio pelos dois lados com push para o lugar certo; vínculo encerr
   assert.equal(conv.unread.uAna, 1);
   assert.equal(conv.unread.uProf, 1);
 
-  // Ana saiu da equipe: a revalidação (passadas 6 h) tira ela do canal.
+  // Ana saiu da equipe: o próximo envio (de qualquer um) já refaz a lista e ela sai do canal.
   await db.doc('arenas/cfc/staff/uAna').update({status: 'removed'});
-  await assert.rejects(m.sendConversationMessageCore(db, 'uAna', conversationId, 'oi', deps(later(NOON, 7 * 3600_000))), /não faz mais parte/);
+  await m.sendConversationMessageCore(db, 'uOwner', conversationId, 'Ana saiu', deps(later(NOON, 4000)));
+  assert.ok(!(await db.doc(`conversations/${conversationId}`).get()).data().memberIds.includes('uAna'));
+  await assert.rejects(m.sendConversationMessageCore(db, 'uAna', conversationId, 'oi', deps(later(NOON, 7 * 3600_000))), /não encontrada/);
   assert.ok(!(await db.doc(`conversations/${conversationId}`).get()).data().memberIds.includes('uAna'));
 
   // Vínculo encerrado: o canal fecha para todos.

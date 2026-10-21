@@ -139,6 +139,7 @@ export async function shareClassStoryCore(
     classId: session.classId,
     className: session.className,
     classType: str(data["type"]) || "turma",
+    sport: str(data["sport"]),
     date: session.date,
     startTime: session.startTime,
     endTime: session.endTime,

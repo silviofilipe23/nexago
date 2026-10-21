@@ -146,6 +146,44 @@ void main() {
     });
   });
 
+  group('esporte no kicker', () {
+    test('esporte do catálogo vai na frente do nome da aula', () {
+      expect(
+        classStoryKicker(sport: 'beachTennis', className: 'Treino técnico'),
+        'BEACH TENNIS · TREINO TÉCNICO',
+      );
+      expect(classStoryKicker(sport: 'beachTennis', className: ''),
+          'BEACH TENNIS');
+    });
+
+    test('sem esporte ou com valor fora do catálogo: AULA', () {
+      expect(classStoryKicker(className: 'Treino técnico'),
+          'AULA · TREINO TÉCNICO');
+      expect(classStoryKicker(sport: 'aula', className: 'Treino'),
+          'AULA · TREINO');
+    });
+
+    test('a agenda lê o esporte e a arte do aluno usa', () {
+      final e = ClassAgendaEntry.fromMap({
+        'sessionId': 's1',
+        'className': 'Treino técnico',
+        'sport': 'beachVolleyball',
+      });
+      expect(e.sport, 'beachVolleyball');
+      expect(ClassAgendaEntry.fromMap({'sessionId': 's1'}).sport, isNull);
+      final data = classStoryDataFrom(
+        session: e,
+        stats: const ClassStoryStats(
+          minutes: null,
+          monthOrdinal: 1,
+          weekStreak: 1,
+        ),
+        athleteName: 'Mariana',
+      );
+      expect(data.kicker, 'VÔLEI DE PRAIA · TREINO TÉCNICO');
+    });
+  });
+
   test('sorteio nunca devolve a frase anterior e cobre a lista', () {
     final random = Random(7);
     final seen = <String>{};

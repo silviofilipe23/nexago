@@ -40,6 +40,8 @@ export interface TeacherRosterSession {
   startTime: string;
   endTime: string;
   courtName: string;
+  /** Esporte da turma (código do catálogo); vazio em aula antiga. */
+  sport: string;
   status: "scheduled" | "canceled" | "completed";
   teacherNote: string | null;
   /** A chamada abre no dia da aula e fica fechada em aula cancelada (`saveClassAttendanceCore`). */
@@ -182,6 +184,7 @@ export async function loadTeacherClassSessionRosterCore(
       startTime: session.startTime,
       endTime: session.endTime,
       courtName: str(data["courtName"]) || "Quadra",
+      sport: str(data["sport"]),
       status,
       teacherNote: str(data["teacherNote"]) || null,
       attendanceOpen: status !== "canceled" && session.date <= todayKey,

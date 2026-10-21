@@ -50,6 +50,7 @@ class TeacherClassRosterSession {
     required this.status,
     required this.attendanceOpen,
     this.teacherNote,
+    this.sport,
   });
 
   factory TeacherClassRosterSession.fromMap(Map<String, Object?> map) {
@@ -72,6 +73,7 @@ class TeacherClassRosterSession {
       status: s('status', 'scheduled'),
       attendanceOpen: map['attendanceOpen'] == true,
       teacherNote: note.isEmpty ? null : note,
+      sport: s('sport').isEmpty ? null : s('sport'),
     );
   }
 
@@ -93,6 +95,9 @@ class TeacherClassRosterSession {
   /// A chamada abre no dia da aula e fica fechada em aula cancelada.
   final bool attendanceOpen;
   final String? teacherNote;
+
+  /// Esporte da turma (código do catálogo); `null` em aula antiga.
+  final String? sport;
 
   bool get isCanceled => status == 'canceled';
   bool get isCompleted => status == 'completed';

@@ -53,6 +53,17 @@ describe("aulas na agenda do atleta", () => {
     assert.ok(items.every((i) => !("attendance" in i) && !("extras" in i)));
   });
 
+  it("leva o esporte da turma; aula antiga sem esporte sai vazia", async () => {
+    const {fake, db} = makeDb();
+    student(fake, UID, {athleteId: UID});
+    session(fake, "2026-10-20", {sport: "beachTennis"});
+    session(fake, "2026-10-22");
+
+    const items = await loadClassAgenda(db, UID, "2026-10-01", "2026-10-31", TODAY);
+
+    assert.deepEqual(items.map((i) => [i.date, i.sport]), [["2026-10-20", "beachTennis"], ["2026-10-22", ""]]);
+  });
+
   it("pausado não vê as próximas, mas mantém o histórico", async () => {
     const {fake, db} = makeDb();
     student(fake, UID, {athleteId: UID, status: "paused"});

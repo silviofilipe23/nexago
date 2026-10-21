@@ -315,6 +315,8 @@ export interface DeliverNotificationInput {
   requireInteraction?: boolean;
   /** Se true, grava apenas inbox (sem FCM/Web Push). */
   skipPush?: boolean;
+  /** Se true, não grava no histórico in-app (chat: a conversa já é o histórico). */
+  skipHistory?: boolean;
 }
 
 /**
@@ -323,7 +325,7 @@ export interface DeliverNotificationInput {
 export async function deliverNotificationToUser(
   input: DeliverNotificationInput
 ): Promise<{sent: number; failed: number}> {
-  const {userId, title, body, type, data, requireInteraction = true, skipPush = false} = input;
+  const {userId, title, body, type, data, requireInteraction = true, skipPush = false, skipHistory = false} = input;
 
   let fcmSuccessful = 0;
   let fcmFailed = 0;
@@ -354,6 +356,7 @@ export async function deliverNotificationToUser(
   const sent = fcmSuccessful + webPushResult.sent;
   const failed = fcmFailed + webPushResult.failed;
 
+  if (skipHistory) return {sent, failed};
   try {
     await getFirestore().collection(`users/${userId}/notifications`).add({
       userId,

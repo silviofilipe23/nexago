@@ -21,6 +21,7 @@ import '../domain/professor_actions.dart';
 import '../domain/professor_actions_logic.dart';
 import 'actions/professor_move_sheet.dart';
 import 'widgets/professor_students_widgets.dart';
+import '../../messages/presentation/messages_widgets.dart';
 
 /// Aluno do professor (B3): turmas com ele, presença das últimas aulas,
 /// plano e situação do pagamento (só equipe da arena) e as anotações que só
@@ -96,6 +97,15 @@ class ProfessorStudentPage extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
           children: [
             _HeaderCard(student: student),
+            if (student.athleteId?.isNotEmpty ?? false) ...[
+              const SizedBox(height: 12),
+              OpenConversationButton(
+                key: const Key('professor-student-message'),
+                label: 'Mensagem',
+                open: (repo) =>
+                    repo.openProfessorConversation(student.athleteId!),
+              ),
+            ],
             const SizedBox(height: 22),
             _PresenceSection(student: student),
             const SizedBox(height: 22),

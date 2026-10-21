@@ -20,6 +20,7 @@ import '../../domain/professor_students_logic.dart'
     show professorScheduleLabel, professorShortDate;
 import '../../infrastructure/professor_students_repository.dart';
 import '../widgets/professor_students_widgets.dart';
+import '../../../messages/presentation/messages_widgets.dart';
 import 'professor_agenda_widgets.dart';
 
 /// E4 Detalhe da aula de turma (equipe da arena): local, recorrência, alunos
@@ -166,6 +167,13 @@ class ProfessorAgendaSessionPage extends ConsumerWidget {
                       ),
                     ],
                   ),
+                ),
+                const SizedBox(height: 22),
+                OpenConversationButton(
+                  key: const Key('professor-agenda-class-chat'),
+                  label: 'Grupo da turma',
+                  icon: Icons.forum_outlined,
+                  open: (repo) => repo.openClassConversation(e.classId),
                 ),
                 const SizedBox(height: 22),
                 const ProfessorLinksKicker('Alunos'),

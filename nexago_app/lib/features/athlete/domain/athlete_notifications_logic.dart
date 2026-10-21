@@ -519,6 +519,21 @@ AthleteNotificationPresentation _basePresentation(
         routePath: athleteAgendaTabLocation,
         externalUrl: invoiceUrl,
       );
+    // Mensagem de conversa: abre a conversa.
+    case conversationMessageNotificationType:
+      final chatRoute = resolveNotificationRoute({...data, 'type': type});
+      return AthleteNotificationPresentation(
+        icon: Icons.chat_bubble_outline_rounded,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.12),
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Ver conversa',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: chatRoute,
+      );
     // Comunicado do professor: abre o comunicado (lê e responde a enquete).
     case professorNoticeNotificationType:
       final noticeRoute = resolveNotificationRoute({...data, 'type': type});

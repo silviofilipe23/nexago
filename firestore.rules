@@ -2289,6 +2289,38 @@ service cloud.firestore {
         (!('note' in request.resource.data) || (request.resource.data.note is string && request.resource.data.note.size() <= 300)) &&
         request.resource.data.updatedAt == request.time;
     }
+    // Mensagens professor ↔ aluno e grupo da turma. Só os membros leem; tudo é escrito pelas
+    // functions (o envio é a callable sendConversationMessage).
+    match /conversations/{conversationId} {
+      allow read: if request.auth != null && request.auth.uid in resource.data.memberIds;
+      allow write: if false;
+      match /messages/{messageId} {
+        allow read: if request.auth != null &&
+          request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.memberIds;
+        // Envio só pela callable sendConversationMessage (revalida vínculo, nome e frequência).
+        allow create: if false;
+        allow update, delete: if false;
+      }
+    }
+    // Respostas rápidas e horário de atendimento do professor (D6/D7): do dono.
+    match /users/{userId}/messageTemplates/{templateId} {
+      allow read, delete: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null && request.auth.uid == userId &&
+        request.resource.data.keys().hasOnly(['title', 'body', 'uses', 'updatedAt']) &&
+        request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 60 &&
+        request.resource.data.body is string && request.resource.data.body.size() > 0 && request.resource.data.body.size() <= 1000 &&
+        (!('uses' in request.resource.data) || request.resource.data.uses is int);
+    }
+    match /users/{userId}/messagingPrefs/{docId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId && docId == 'settings' &&
+        request.resource.data.keys().hasOnly(['quietEnabled', 'from', 'to', 'days', 'autoReplyEnabled', 'autoReplyText', 'updatedAt']) &&
+        request.resource.data.from is string && request.resource.data.from.matches('^[0-2][0-9]:[0-5][0-9]$') &&
+        request.resource.data.to is string && request.resource.data.to.matches('^[0-2][0-9]:[0-5][0-9]$') &&
+        request.resource.data.quietEnabled is bool && request.resource.data.autoReplyEnabled is bool &&
+        request.resource.data.days is list && request.resource.data.days.size() > 0 && request.resource.data.days.size() <= 7 &&
+        request.resource.data.autoReplyText is string && request.resource.data.autoReplyText.size() <= 500;
+    }
     // Ganhos do professor de equipe (repasse pago pelo nexaGO) e os saques dele: só leitura do
     // dono; toda escrita é das functions (professor-earnings.ts).
     match /professorEarningsWallets/{uid} {

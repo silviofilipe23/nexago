@@ -175,6 +175,9 @@ import '../../features/professor_mode/presentation/actions/professor_new_lesson_
 import '../../features/professor_mode/presentation/actions/professor_notice_page.dart';
 import '../../features/professor_mode/presentation/actions/professor_waitlist_page.dart';
 import '../../features/professor_mode/presentation/professor_home_page.dart';
+import '../../features/messages/presentation/conversation_page.dart';
+import '../../features/messages/presentation/messages_inbox_page.dart';
+import '../../features/messages/presentation/messaging_settings_pages.dart';
 import '../../features/athlete/domain/agenda/class_agenda_entry.dart';
 import '../../features/professor_mode/presentation/agenda/professor_agenda_lesson_page.dart';
 import '../../features/professor_mode/presentation/agenda/professor_agenda_page.dart';
@@ -421,7 +424,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.roleSelection,
         builder: (context, state) => const RoleSelectionPage(),
       ),
-      // Modo Professor: Hoje · Agenda · Alunos · Mais (a ordem dos branches é a da
+      // Modo Professor: Hoje · Agenda · Alunos · Mensagens · Mais (a ordem dos branches é a da
       // barra). Aluno e Turmas empilham sem a barra.
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
@@ -501,6 +504,38 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                       arenaId: state.pathParameters['arenaId']?.trim() ?? '',
                       studentId:
                           state.pathParameters['studentId']?.trim() ?? '',
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.professorMessages,
+                name: AppRouteNames.professorMessages,
+                builder: (context, state) =>
+                    const MessagesInboxPage(professorMode: true),
+                routes: [
+                  // Literais antes de `:conversationId`.
+                  GoRoute(
+                    path: 'respostas-rapidas',
+                    name: AppRouteNames.professorMessageTemplates,
+                    builder: (context, state) => const MessageTemplatesPage(),
+                  ),
+                  GoRoute(
+                    path: 'atendimento',
+                    name: AppRouteNames.professorServiceHours,
+                    builder: (context, state) => const ServiceHoursPage(),
+                  ),
+                  GoRoute(
+                    path: ':conversationId',
+                    name: AppRouteNames.professorConversation,
+                    builder: (context, state) => ConversationPage(
+                      conversationId:
+                          state.pathParameters['conversationId']?.trim() ?? '',
+                      professorMode: true,
                     ),
                   ),
                 ],
@@ -2869,6 +2904,24 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final args = extra is BookingSuccessArgs ? extra : null;
           return BookingSuccessPage(args: args);
         },
+      ),
+      // Mensagens do atleta com os professores (modo Atleta).
+      GoRoute(
+        path: AppRoutes.athleteMessages,
+        name: AppRouteNames.athleteMessages,
+        builder: (context, state) =>
+            const MessagesInboxPage(professorMode: false),
+        routes: [
+          GoRoute(
+            path: ':conversationId',
+            name: AppRouteNames.athleteConversation,
+            builder: (context, state) => ConversationPage(
+              conversationId:
+                  state.pathParameters['conversationId']?.trim() ?? '',
+              professorMode: false,
+            ),
+          ),
+        ],
       ),
       // Comunicado do professor para o aluno (push `professor_notice`).
       GoRoute(

@@ -25,6 +25,9 @@ const professorStudentInviteNotificationType = 'professor_student_invite';
 /// Comunicado do professor para o aluno (aviso, enquete…).
 const professorNoticeNotificationType = 'professor_notice';
 
+/// Mensagem nova numa conversa professor ↔ aluno.
+const conversationMessageNotificationType = 'conversation_message';
+
 /// Agenda do atleta — onde fica a mensalidade a pagar.
 const athleteAgendaTabLocation = '${AppRoutes.discover}?tab=agenda';
 
@@ -212,6 +215,18 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   if (type == classChargeLinkNotificationType ||
       type == professorChargeLinkNotificationType) {
     return athleteAgendaTabLocation;
+  }
+
+  // Mensagem: `url` já vem do lado certo (`/professor/mensagens/{id}` ou
+  // `/mensagens/{id}`); sem ele, a conversa no modo Atleta.
+  if (type == conversationMessageNotificationType) {
+    final url = appRouteForNotificationUrl(data['url'] as String?);
+    if (url != null) return url;
+    final id = (data['conversationId'] as String?)?.trim() ?? '';
+    return id.isEmpty
+        ? AppRoutes.athleteMessages
+        : AppRoutes.athleteConversation
+            .replaceAll(':conversationId', Uri.encodeComponent(id));
   }
 
   // Comunicado do professor: o payload traz `url` (`/aviso-professor/{id}`);

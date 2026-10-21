@@ -5,6 +5,7 @@ import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../arena/presentation/aulas/widgets/arena_class_atoms.dart';
 import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
+import '../../domain/professor_actions_logic.dart' show professorDayLabel;
 import '../../domain/professor_availability.dart';
 
 /// Peças da Disponibilidade (A10) e das particulares do aluno.
@@ -347,6 +348,76 @@ class AvailabilityChoiceChip extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Dia (chips na horizontal) e horário (chips em grade) dos horários livres
+/// do professor — o agendamento e a remarcação usam o mesmo par. Chaves:
+/// `{keyPrefix}-day-{YYYY-MM-DD}` e `{keyPrefix}-slot-{ISO do início}`.
+class OpenSlotDayTimePicker extends StatelessWidget {
+  const OpenSlotDayTimePicker({
+    super.key,
+    required this.days,
+    required this.selectedDay,
+    required this.selectedSlot,
+    required this.todayKey,
+    required this.durationMin,
+    required this.keyPrefix,
+    required this.onDay,
+    required this.onSlot,
+  });
+
+  final List<OpenSlotDay> days;
+  final OpenSlotDay selectedDay;
+  final OpenSlot? selectedSlot;
+  final String todayKey;
+  final int durationMin;
+  final String keyPrefix;
+  final ValueChanged<OpenSlotDay> onDay;
+  final ValueChanged<OpenSlot> onSlot;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const ProfessorLinksKicker('Dia'),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 36,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: days.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 6),
+            itemBuilder: (_, i) => AvailabilityChoiceChip(
+              key: Key('$keyPrefix-day-${days[i].dateKey}'),
+              label: professorDayLabel(days[i].dateKey, todayKey),
+              selected: days[i].dateKey == selectedDay.dateKey,
+              onTap: () => onDay(days[i]),
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+        ProfessorLinksKicker(
+          'Horário · ${availabilityDurationLabel(durationMin)}',
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final s in selectedDay.slots)
+              AvailabilityChoiceChip(
+                key: Key('$keyPrefix-slot-${s.startAt.toIso8601String()}'),
+                label: s.timeLabel,
+                selected: selectedSlot?.startAt == s.startAt,
+                onTap: () => onSlot(s),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

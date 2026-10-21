@@ -18,6 +18,7 @@ import '../../infrastructure/professor_availability_repository.dart';
 import '../wallet/professor_wallet_widgets.dart';
 import '../widgets/professor_students_widgets.dart';
 import 'availability_widgets.dart';
+import 'reschedule_widgets.dart';
 
 const List<String> _weekdayShort = [
   'Seg',
@@ -110,6 +111,86 @@ class _ProfessorAvailabilityPageState
     if (mounted) setState(() => _busyId = null);
   }
 
+  Future<void> _reschedule(PrivateLesson l) => requestLessonRescheduleFlow(
+        context,
+        ref,
+        lessonId: l.id,
+        professorUid: l.professorUid,
+        currentStartAt: l.startAt,
+        successMessage: 'Pedido enviado ao aluno',
+      );
+
+  Future<void> _respondReschedule(PrivateLesson l, {required bool accept}) async {
+    setState(() => _busyId = l.id);
+    await respondLessonRescheduleFlow(
+      context,
+      ref,
+      lessonId: l.id,
+      accept: accept,
+    );
+    if (mounted) setState(() => _busyId = null);
+  }
+
+  /// Próxima particular: "Remarcar"/"Cancelar"; com pedido de remarcação do
+  /// aluno, "Recusar"/"Aceitar" (o mesmo que o cartão da conversa).
+  Widget _upcomingCard(PrivateLesson l, String todayKey) {
+    final r = l.pendingReschedule;
+    final athleteAsked = r != null && r.requestedBy != l.professorUid;
+    final idle = _busyId == null;
+    return PrivateLessonCard(
+      key: Key('availability-upcoming-${l.id}'),
+      lesson: l,
+      title: l.athleteName,
+      todayKey: todayKey,
+      footer: r == null
+          ? null
+          : ProfessorLinksNote(
+              athleteAsked
+                  ? 'Pedido de remarcação: ${rescheduleSlotLabel(r.startAt)}'
+                  : 'Você sugeriu ${rescheduleSlotLabel(r.startAt)} · '
+                      'aguardando o aluno.',
+              key: Key('availability-reschedule-note-${l.id}'),
+              tone: ProfessorLinksNoteTone.yellow,
+            ),
+      actions: athleteAsked
+          ? [
+              ProfessorLinksGhostButton(
+                key: Key('availability-reschedule-decline-${l.id}'),
+                label: 'Recusar',
+                color: AppColors.live,
+                height: 42,
+                onPressed: idle
+                    ? () => _respondReschedule(l, accept: false)
+                    : null,
+              ),
+              ProfessorLinksPrimaryButton(
+                key: Key('availability-reschedule-accept-${l.id}'),
+                label: 'Aceitar',
+                height: 42,
+                loading: _busyId == l.id,
+                onPressed:
+                    idle ? () => _respondReschedule(l, accept: true) : null,
+              ),
+            ]
+          : [
+              ProfessorLinksGhostButton(
+                key: Key('availability-reschedule-${l.id}'),
+                label: 'Remarcar',
+                height: 42,
+                onPressed: idle ? () => _reschedule(l) : null,
+              ),
+              ProfessorLinksGhostButton(
+                key: Key('availability-cancel-${l.id}'),
+                label: 'Cancelar',
+                color: AppColors.live,
+                height: 42,
+                loading: _busyId == l.id,
+                onPressed: idle ? () => _cancel(l) : null,
+              ),
+            ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
@@ -198,22 +279,7 @@ class _ProfessorAvailabilityPageState
                   const ProfessorLinksKicker('Próximas particulares'),
                   const SizedBox(height: 8),
                   for (final l in upcoming) ...[
-                    PrivateLessonCard(
-                      key: Key('availability-upcoming-${l.id}'),
-                      lesson: l,
-                      title: l.athleteName,
-                      todayKey: todayKey,
-                      actions: [
-                        ProfessorLinksGhostButton(
-                          key: Key('availability-cancel-${l.id}'),
-                          label: 'Cancelar',
-                          color: AppColors.live,
-                          height: 42,
-                          loading: _busyId == l.id,
-                          onPressed: _busyId == null ? () => _cancel(l) : null,
-                        ),
-                      ],
-                    ),
+                    _upcomingCard(l, todayKey),
                     const SizedBox(height: 10),
                   ],
                   const SizedBox(height: 12),

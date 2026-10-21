@@ -73,7 +73,7 @@ async function writeConversation(ref: DocumentReference, data: Record<string, un
   }
 }
 
-async function upsertDirect(db: Firestore, professorUid: string, athleteUid: string): Promise<string> {
+export async function upsertDirect(db: Firestore, professorUid: string, athleteUid: string): Promise<string> {
   const id = directConversationId(professorUid, athleteUid);
   const [prof, athlete] = await Promise.all([userCard(db, professorUid), userCard(db, athleteUid)]);
   await writeConversation(db.collection(CONVERSATIONS).doc(id), {

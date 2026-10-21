@@ -27,12 +27,16 @@ PrivateLesson privateLesson({
   String note = '',
   bool lateCancel = false,
   String professorUid = 'prof-1',
+  String athleteId = 'ath-1',
+
+  /// `reschedule` cru do documento (remarcação, D3).
+  Map<String, Object?>? reschedule,
 }) {
   final start = startAt ?? spInstant(21, 10);
   return PrivateLesson.fromMap(id, {
     'professorUid': professorUid,
     'professorName': professorName,
-    'athleteId': 'ath-1',
+    'athleteId': athleteId,
     'athleteName': athleteName,
     'startAt': start,
     'endAt': start.add(Duration(minutes: durationMin)),
@@ -41,6 +45,7 @@ PrivateLesson privateLesson({
     'pair': pair,
     'note': note,
     'lateCancel': lateCancel,
+    if (reschedule != null) 'reschedule': reschedule,
   })!;
 }
 
@@ -66,6 +71,9 @@ class FakeProfessorAvailabilityRepository
   final requests = <Map<String, Object?>>[];
   final responses = <({String lessonId, bool accept})>[];
   final canceled = <String>[];
+  String? rescheduleError;
+  final rescheduleRequests = <({String lessonId, DateTime startAt})>[];
+  final rescheduleResponses = <({String lessonId, bool accept})>[];
   final _changes = StreamController<void>.broadcast();
 
   Stream<T> _watch<T>(T Function() read) async* {
@@ -151,6 +159,27 @@ class FakeProfessorAvailabilityRepository
     canceled.add(lessonId);
     _replace(lessonId, 'canceled');
     return lateCancel;
+  }
+
+  @override
+  Future<String> requestReschedule(String lessonId, DateTime startAt) async {
+    rescheduleRequests.add((lessonId: lessonId, startAt: startAt));
+    final e = rescheduleError;
+    if (e != null) throw ProfessorStudentsException(e);
+    return 'd_prof-1_ath-1';
+  }
+
+  @override
+  Future<LessonRescheduleStatus> respondReschedule(
+    String lessonId, {
+    required bool accept,
+  }) async {
+    rescheduleResponses.add((lessonId: lessonId, accept: accept));
+    final e = rescheduleError;
+    if (e != null) throw ProfessorStudentsException(e);
+    return accept
+        ? LessonRescheduleStatus.accepted
+        : LessonRescheduleStatus.declined;
   }
 }
 

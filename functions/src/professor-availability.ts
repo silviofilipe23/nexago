@@ -87,7 +87,7 @@ export function parseAvailability(raw: Record<string, unknown>): Availability {
 }
 
 /** Lê a disponibilidade gravada (sem validar de novo; doc só nasce pela callable). */
-function storedAvailability(data: Record<string, unknown> | undefined): Availability | null {
+export function storedAvailability(data: Record<string, unknown> | undefined): Availability | null {
   if (!data) return null;
   try {
     return parseAvailability(data);
@@ -149,8 +149,11 @@ export function computeOpenSlots(
   return out;
 }
 
-/** Ocupações do professor na janela: turmas, bloqueios, aulas com quadra e particulares ativas. */
-async function loadBusy(db: Firestore, uid: string, days: string[], tx?: Transaction): Promise<Interval[]> {
+/**
+ * Ocupações do professor na janela: turmas, bloqueios, aulas com quadra e particulares ativas.
+ * `excludeLessonId`: ignora essa particular (remarcação — o horário atual dela não conta como ocupado).
+ */
+export async function loadBusy(db: Firestore, uid: string, days: string[], tx?: Transaction, excludeLessonId?: string): Promise<Interval[]> {
   if (!days.length) return [];
   const first = eventDateFromDayKeyAndTime(days[0], 0, 0);
   const last = eventDateFromDayKeyAndTime(days[days.length - 1], 23, 59);
@@ -197,6 +200,7 @@ async function loadBusy(db: Firestore, uid: string, days: string[], tx?: Transac
     busy.push({start, end: Math.max(eventDateFromDayKeyAndTime(str(l["date"]), eh, em).getTime(), start + 1800_000)});
   });
   for (const p of privates.docs) {
+    if (p.id === excludeLessonId) continue;
     const l = p.data();
     if (!ACTIVE_STATUSES.includes(str(l["status"]))) continue;
     const s = l["startAt"];

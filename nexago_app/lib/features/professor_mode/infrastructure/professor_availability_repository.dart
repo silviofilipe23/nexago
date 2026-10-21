@@ -39,6 +39,16 @@ abstract class ProfessorAvailabilityRepository {
 
   /// Devolve `lateCancel`.
   Future<bool> cancel(String lessonId, {String? reason});
+
+  /// `requestLessonReschedule` (aluno ou professor): propõe [startAt] (um
+  /// horário livre do professor) e devolve a conversa onde o cartão caiu.
+  Future<String> requestReschedule(String lessonId, DateTime startAt);
+
+  /// `respondLessonReschedule` (só o lado que NÃO pediu).
+  Future<LessonRescheduleStatus> respondReschedule(
+    String lessonId, {
+    required bool accept,
+  });
 }
 
 class FirebaseProfessorAvailabilityRepository
@@ -160,6 +170,32 @@ class FirebaseProfessorAvailabilityRepository
       'Não foi possível cancelar a aula.',
     );
     return res['lateCancel'] == true;
+  }
+
+  @override
+  Future<String> requestReschedule(String lessonId, DateTime startAt) async {
+    final res = await _call(
+      'requestLessonReschedule',
+      {'lessonId': lessonId, 'startAt': startAt.toUtc().toIso8601String()},
+      'Não foi possível pedir a remarcação.',
+    );
+    final id = res['conversationId'];
+    return id is String ? id : '';
+  }
+
+  @override
+  Future<LessonRescheduleStatus> respondReschedule(
+    String lessonId, {
+    required bool accept,
+  }) async {
+    final res = await _call(
+      'respondLessonReschedule',
+      {'lessonId': lessonId, 'accept': accept},
+      'Não foi possível responder a remarcação.',
+    );
+    return parseLessonRescheduleStatus(
+      res['status'] ?? (accept ? 'accepted' : 'declined'),
+    );
   }
 }
 

@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/search/search_keywords.dart';
 import '../../../core/time/nexago_event_timezone.dart';
+import '../../professor_mode/domain/professor_availability.dart'
+    show LessonRescheduleStatus, parseLessonRescheduleStatus;
 
 /// Mensagens professor ↔ aluno (D1–D3, D5–D7): conversa direta e grupo da
 /// turma. A conversa é das functions (`functions/src/professor-messages.ts`);
@@ -186,6 +188,7 @@ class ChatMessage {
     this.senderName = '',
     this.createdAt,
     this.auto = false,
+    this.card,
   });
 
   factory ChatMessage.fromMap(String id, Map<String, Object?> map) =>
@@ -196,6 +199,7 @@ class ChatMessage {
         text: _str(map['text']),
         createdAt: _date(map['createdAt']),
         auto: map['auto'] == true,
+        card: ChatMessageCard.parse(map['card']),
       );
 
   final String id;
@@ -208,6 +212,70 @@ class ChatMessage {
 
   /// Resposta automática do horário de atendimento.
   final bool auto;
+
+  /// Cartão gravado pelo servidor (remarcação…); `null` = bolha de texto.
+  /// Tipo desconhecido também cai na bolha, com o [text].
+  final ChatMessageCard? card;
+}
+
+/// Cartão de ação dentro da conversa (`messages/{id}.card`, só o servidor
+/// grava).
+sealed class ChatMessageCard {
+  const ChatMessageCard();
+
+  static ChatMessageCard? parse(Object? raw) {
+    if (raw is! Map) return null;
+    return switch (raw['type']) {
+      'reschedule' => RescheduleCard.fromMap(raw),
+      _ => null,
+    };
+  }
+}
+
+/// Pedido de remarcação de uma particular (D3,
+/// `functions/src/professor-lesson-reschedule.ts`).
+class RescheduleCard extends ChatMessageCard {
+  const RescheduleCard({
+    required this.lessonId,
+    required this.status,
+    required this.requestedBy,
+    required this.fromStartAt,
+    required this.toStartAt,
+    this.toEndAt,
+    this.respondedBy,
+  });
+
+  static RescheduleCard? fromMap(Map<Object?, Object?> raw) {
+    final lessonId = _str(raw['lessonId']);
+    final from = _date(raw['fromStartAt']);
+    final to = _date(raw['toStartAt']);
+    if (lessonId.isEmpty || from == null || to == null) return null;
+    return RescheduleCard(
+      lessonId: lessonId,
+      status: parseLessonRescheduleStatus(raw['status']),
+      requestedBy: _str(raw['requestedBy']),
+      fromStartAt: from.toUtc(),
+      toStartAt: to.toUtc(),
+      toEndAt: _date(raw['toEndAt'])?.toUtc(),
+      respondedBy: _strOrNull(raw['respondedBy']),
+    );
+  }
+
+  final String lessonId;
+  final LessonRescheduleStatus status;
+  final String requestedBy;
+
+  /// Horário de antes e o proposto (instantes UTC).
+  final DateTime fromStartAt;
+  final DateTime toStartAt;
+  final DateTime? toEndAt;
+  final String? respondedBy;
+
+  bool get isPending => status == LessonRescheduleStatus.pending;
+
+  /// Aceitar/Sugerir outro/Recusar: só o lado que não pediu, só pendente.
+  bool canRespond(String viewerUid) =>
+      isPending && viewerUid.isNotEmpty && requestedBy != viewerUid;
 }
 
 /// `users/{uid}/messageTemplates/{id}` (D6).

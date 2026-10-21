@@ -8,6 +8,7 @@ import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/professor_links/application/professor_links_providers.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_students.dart';
+import 'package:nexago_app/features/professor_mode/infrastructure/professor_availability_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_students_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_earnings_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_evaluations_repository.dart';
@@ -17,6 +18,7 @@ import 'package:nexago_app/features/professor_mode/presentation/professor_classe
 import 'package:nexago_app/features/professor_mode/presentation/professor_student_page.dart';
 import 'package:nexago_app/features/professor_mode/presentation/professor_students_page.dart';
 
+import 'professor_availability_test_support.dart';
 import 'professor_earnings_test_support.dart';
 import 'professor_evaluations_test_support.dart';
 import 'professor_own_classes_test_support.dart';
@@ -273,6 +275,8 @@ Future<GoRouter> pumpProfessorStudentsApp(
 
   /// Turmas próprias (B10); sem ele, nenhuma.
   ProfessorOwnClassesRepository? ownClassesRepo,
+  /// Disponibilidade e particulares (fase 10); sem ele, nenhuma.
+  ProfessorAvailabilityRepository? availabilityRepo,
   String uid = professorStudentsTestUid,
   List<Override> overrides = const [],
   List<RouteBase> extraRoutes = const [],
@@ -325,6 +329,8 @@ Future<GoRouter> pumpProfessorStudentsApp(
             evaluationsRepo ?? FakeProfessorEvaluationsRepository()),
         professorOwnClassesRepositoryProvider.overrideWithValue(
             ownClassesRepo ?? FakeProfessorOwnClassesRepository()),
+        professorAvailabilityRepositoryProvider.overrideWithValue(
+            availabilityRepo ?? FakeProfessorAvailabilityRepository()),
         professorLinksUidProvider.overrideWithValue(uid),
         ...overrides,
       ],

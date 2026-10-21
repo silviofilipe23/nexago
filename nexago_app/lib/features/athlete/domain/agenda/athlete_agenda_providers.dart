@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../arenas/domain/arena_club_providers.dart';
 import '../../../arenas/domain/my_bookings_providers.dart';
 import '../../../../core/auth/auth_providers.dart';
+import '../../../../core/formatting/app_date_format.dart';
 import '../../../friendly_match/domain/friendly_match_providers.dart';
 import '../../../tournaments/domain/my_tournaments_providers.dart';
 import '../../../tournaments/domain/tournament_partner_invite.dart';
@@ -23,6 +24,29 @@ final myClassAgendaProvider =
   if (uid == null || uid.isEmpty) return const [];
   try {
     return await ref.read(classAgendaRepositoryProvider).fetchMyClasses();
+  } catch (_) {
+    return const [];
+  }
+});
+
+/// Aulas do atleta nos ~14 semanas até [dateKey] (`YYYY-MM-DD`, inclusivo) —
+/// os números do story do treino (treino do mês e semanas seguidas). A agenda
+/// só traz 30 dias para trás, pouco para uma sequência longa. Falha vira lista
+/// vazia: o story sai com o que a agenda já tem.
+final classStoryHistoryProvider = FutureProvider.autoDispose
+    .family<List<ClassAgendaEntry>, String>((ref, dateKey) async {
+  final day = parseBookingDateOnly(dateKey);
+  if (day == null) return const [];
+  final from = DateTime(
+    day.year,
+    day.month,
+    day.day - (kMaxClassAgendaRangeDays - 2),
+  );
+  try {
+    return await ref.read(classAgendaRepositoryProvider).fetchMyClassesInRange(
+          fromKey: calendarDateKey(from),
+          toKey: dateKey,
+        );
   } catch (_) {
     return const [];
   }

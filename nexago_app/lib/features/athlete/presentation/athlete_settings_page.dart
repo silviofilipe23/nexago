@@ -253,6 +253,16 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   variant: AthleteSettingsIconVariant.neutral,
                   onTap: () =>
                       context.pushNamed(AppRouteNames.athleteEvaluations),
+                  showDivider: true,
+                ),
+                AthleteSettingsTile(
+                  key: const Key('athlete-settings-private-lessons'),
+                  icon: Icons.event_available_outlined,
+                  title: 'Aulas particulares',
+                  subtitle: 'Agende com seus professores',
+                  variant: AthleteSettingsIconVariant.neutral,
+                  onTap: () =>
+                      context.pushNamed(AppRouteNames.athletePrivateLessons),
                   showDivider: false,
                 ),
               ],

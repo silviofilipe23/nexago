@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/time/nexago_event_timezone.dart';
 import '../../arena/domain/aulas/arena_class.dart';
 import '../../athlete/domain/agenda/class_agenda_entry.dart';
+import 'professor_availability.dart';
 import 'professor_lessons.dart';
 
 /// Agenda do professor (fase 5, E1–E8): aulas de turma que ele dá
@@ -99,7 +100,8 @@ String? validateProfessorBlock({
 
 // ── itens da agenda ──────────────────────────────────────────────────────
 
-enum ProfessorAgendaKind { session, lesson, block }
+/// `privateLesson` = particular pedida pelo aluno no app (fase 10).
+enum ProfessorAgendaKind { session, lesson, block, privateLesson }
 
 /// Uma aula (ou um pedaço de bloqueio) num dia, em minutos do dia (SP).
 class ProfessorAgendaItem {
@@ -118,9 +120,11 @@ class ProfessorAgendaItem {
     this.session,
     this.lesson,
     this.block,
+    this.privateLesson,
   });
 
-  /// `session:{id}`, `lesson:{bookingId}`, `block:{id}:{date}`.
+  /// `session:{id}`, `lesson:{bookingId}`, `block:{id}:{date}`,
+  /// `private:{id}`.
   final String id;
   final ProfessorAgendaKind kind;
 
@@ -143,6 +147,7 @@ class ProfessorAgendaItem {
   final ClassAgendaEntry? session;
   final ProfessorLesson? lesson;
   final ProfessorBlock? block;
+  final PrivateLesson? privateLesson;
 
   bool get isBlock => kind == ProfessorAgendaKind.block;
   int get durationMin => endMin - startMin;
@@ -178,8 +183,8 @@ int? professorParseMinutes(String hhmm) {
   return h * 60 + m;
 }
 
-/// Monta a agenda: aulas de turma (só as que ele dá), da carteira e os
-/// bloqueios fatiados por dia. O tipo vem do `classType` do item; servidor
+/// Monta a agenda: aulas de turma (só as que ele dá), da carteira, as
+/// particulares CONFIRMADAS do app e os bloqueios fatiados por dia. O tipo vem do `classType` do item; servidor
 /// antigo usa [classTypes] (classId → tipo, da lista de turmas do professor).
 List<ProfessorAgendaItem> buildProfessorAgendaItems({
   required List<ClassAgendaEntry> sessions,
@@ -187,6 +192,7 @@ List<ProfessorAgendaItem> buildProfessorAgendaItems({
   required Map<String, String> bookingStatus,
   required List<ProfessorBlock> blocks,
   Map<String, ArenaClassType> classTypes = const {},
+  List<PrivateLesson> privateLessons = const [],
 }) {
   final items = <ProfessorAgendaItem>[];
   for (final s in sessions) {
@@ -235,6 +241,25 @@ List<ProfessorAgendaItem> buildProfessorAgendaItems({
       place: '${l.courtName} · reservada por você',
       canceled: professorBookingIsVoid(bookingStatus[l.bookingId]),
       lesson: l,
+    ));
+  }
+  for (final p in privateLessons) {
+    if (p.status != PrivateLessonStatus.confirmed) continue;
+    final start = toNexagoEventLocal(p.startAt);
+    final startMin = start.hour * 60 + start.minute;
+    items.add(ProfessorAgendaItem(
+      id: 'private:${p.id}',
+      kind: ProfessorAgendaKind.privateLesson,
+      date: p.dateKey,
+      startMin: startMin,
+      endMin: (startMin + p.durationMin).clamp(startMin + 1, 24 * 60),
+      title: 'Particular · ${privateLessonShortName(p.athleteName)}',
+      typeLabel: p.pair ? 'Dupla' : 'Particular',
+      place: [
+        'Pelo app',
+        if (p.pair) 'em dupla',
+      ].join(' · '),
+      privateLesson: p,
     ));
   }
   for (final b in blocks) {
@@ -389,7 +414,7 @@ List<ProfessorDayEntry> professorDayEntries(
   final out = <ProfessorDayEntry>[];
   ProfessorAgendaItem? lastLesson;
   for (final i in professorItemsOn(items, dateKey)) {
-    if (!i.isBlock && !i.canceled) {
+    if (!i.isBlock && !i.canceled && i.arenaId != null) {
       final prev = lastLesson;
       if (prev != null && prev.arenaId != i.arenaId) {
         out.add(ProfessorDayEntry.travel(

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'class_agenda_entry.dart';
+
 enum AthleteAgendaItemKind {
   rental,
   tournament,
@@ -123,6 +125,7 @@ class AthleteAgendaClassPayload {
     this.myMark,
     this.studentCount,
     this.canceled = false,
+    this.entry,
   });
 
   final String sessionId;
@@ -139,6 +142,10 @@ class AthleteAgendaClassPayload {
   final String? myMark;
   final int? studentCount;
   final bool canceled;
+
+  /// A aula como veio de `getMyClassAgenda` — o detalhe e o story do treino
+  /// leem data, horário e tipo daqui.
+  final ClassAgendaEntry? entry;
 }
 
 class AthleteAgendaItem {

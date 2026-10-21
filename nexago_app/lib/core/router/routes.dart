@@ -114,6 +114,13 @@ abstract final class AppRoutes {
   static const String athleteEvaluations = '/avaliacoes';
   static const String athleteEvaluation = '/avaliacao/:evaluationId';
 
+  /// Fase 10 — Disponibilidade para particulares (A10, Mais › Alunos e
+  /// aulas) e, no modo Atleta, as particulares do aluno e o agendamento.
+  static const String professorAvailability = '/professor/mais/disponibilidade';
+  static const String athletePrivateLessons = '/particulares';
+  static const String athletePrivateLessonBook =
+      '/particulares/agendar/:professorUid';
+
   /// Ganhos do repasse (equipe da arena): saldo e saque por PIX.
   static const String professorEarnings = '/professor/mais/ganhos';
   static const String professorWithdraw = '/professor/mais/ganhos/sacar';
@@ -836,6 +843,9 @@ abstract final class AppRouteNames {
   static const String professorEvaluate = 'professorEvaluate';
   static const String athleteEvaluations = 'athleteEvaluations';
   static const String athleteEvaluation = 'athleteEvaluation';
+  static const String professorAvailability = 'professorAvailability';
+  static const String athletePrivateLessons = 'athletePrivateLessons';
+  static const String athletePrivateLessonBook = 'athletePrivateLessonBook';
   static const String professorEarnings = 'professorEarnings';
   static const String professorWithdraw = 'professorWithdraw';
   static const String professorPixKey = 'professorPixKey';

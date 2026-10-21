@@ -17,7 +17,10 @@ import '../../../../arenas/presentation/booking_result_page.dart';
 import '../../../../arenas/presentation/booking_story_page.dart';
 import '../../../domain/agenda/athlete_agenda_logic.dart';
 import '../../../domain/agenda/athlete_agenda_models.dart';
+import '../../../domain/agenda/class_story.dart';
 import '../../booking_details_page.dart';
+import '../../class_session_detail_page.dart';
+import '../../class_story_page.dart';
 import 'agenda_card_decoration.dart';
 
 class AgendaTimelineSectionHeader extends StatelessWidget {
@@ -284,8 +287,9 @@ class _ClubSessionCard extends StatelessWidget {
   }
 }
 
-/// Aula da arena: sem tela de detalhe para o atleta — o card já diz onde, com
-/// quem e como foi a chamada.
+/// Aula da arena. Aluno: o toque abre o detalhe do treino e, com a aula
+/// concluída, o card ganha "Postar no story" (Agenda · F1). Professor: o card
+/// só diz onde e com quantos alunos.
 class _ClassSessionCard extends StatelessWidget {
   const _ClassSessionCard({required this.item});
 
@@ -298,47 +302,67 @@ class _ClassSessionCard extends StatelessWidget {
     final canceled = item.isCanceled;
     final accent = agendaCardAccent(item.accentColor, isDark: isDark);
     final statusColor = canceled ? context.themeColors.live : accent;
+    final entry = item.classSession?.entry;
+    final student = entry != null && !entry.isTeacher;
+    final shareable =
+        entry != null && isClassStoryShareable(entry, DateTime.now());
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: agendaTimelineCardDecoration(
-        kind: AthleteAgendaItemKind.classSession,
-        accent: accent,
-        isDark: isDark,
-        isCanceled: canceled,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: student ? () => openClassSessionDetail(context, entry) : null,
+        borderRadius: BorderRadius.circular(agendaTimelineCardRadius),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: agendaTimelineCardDecoration(
+            kind: AthleteAgendaItemKind.classSession,
+            accent: accent,
+            isDark: isDark,
+            isCanceled: canceled,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _KindBadge(label: 'AULA', color: accent),
-              const Spacer(),
+              Row(
+                children: [
+                  _KindBadge(label: 'AULA', color: accent),
+                  const Spacer(),
+                  Text(
+                    item.statusLabel,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: statusColor,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
               Text(
-                item.statusLabel,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: statusColor,
+                item.title,
+                style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w800,
+                  decoration: canceled ? TextDecoration.lineThrough : null,
                 ),
               ),
+              const SizedBox(height: 4),
+              Text(
+                item.subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: context.themeColors.onSurfaceMuted,
+                ),
+              ),
+              if (shareable) ...[
+                const SizedBox(height: 14),
+                _ShareActionButton(
+                  key: Key('agenda-class-story-${entry.sessionId}'),
+                  icon: Icons.amp_stories_outlined,
+                  label: 'Postar no story',
+                  onPressed: () => openClassStory(context, entry),
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            item.title,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              decoration: canceled ? TextDecoration.lineThrough : null,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            item.subtitle,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: context.themeColors.onSurfaceMuted,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -617,7 +641,7 @@ class _RentalCard extends ConsumerWidget {
   }
 }
 
-/// Atalho de compartilhamento do card de aluguel (story / resultado).
+/// Atalho de compartilhamento dos cards (story / resultado).
 class _ShareActionButton extends StatelessWidget {
   const _ShareActionButton({
     super.key,

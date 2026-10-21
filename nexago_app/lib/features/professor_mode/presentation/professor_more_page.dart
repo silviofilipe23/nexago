@@ -16,6 +16,7 @@ import '../../auth/presentation/role_selection_page.dart';
 import '../../professor_links/application/professor_links_providers.dart';
 import '../../professor_links/domain/professor_link_rules.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
+import '../application/professor_availability_providers.dart';
 import '../application/professor_earnings_providers.dart';
 import '../application/professor_evaluations_providers.dart';
 import '../application/professor_students_providers.dart';
@@ -56,6 +57,8 @@ class ProfessorMorePage extends ConsumerWidget {
     final snapshot = ref.watch(professorStudentsProvider).valueOrNull;
     final canSwitchRole = ref.watch(hasMultipleMobileRolesProvider);
     final pendingEvaluations = ref.watch(evaluationPendingProvider).length;
+    final privateRequests =
+        ref.watch(professorPendingPrivateLessonsProvider).length;
 
     final invites = links == null ? 0 : professorOpenInvites(links, now).length;
     final activeArenas =
@@ -156,6 +159,18 @@ class ProfessorMorePage extends ConsumerWidget {
                   trailingColor: AppColors.pending,
                   onTap: () =>
                       context.pushNamed(AppRouteNames.professorEvaluations),
+                ),
+                _MenuRow(
+                  key: const Key('professor-more-availability'),
+                  icon: Icons.event_available_outlined,
+                  title: 'Disponibilidade',
+                  trailing: privateRequests == 0
+                      ? null
+                      : '$privateRequests pedido'
+                          '${privateRequests == 1 ? '' : 's'}',
+                  trailingColor: AppColors.pending,
+                  onTap: () =>
+                      context.pushNamed(AppRouteNames.professorAvailability),
                 ),
                 _MenuRow(
                   key: const Key('professor-more-templates'),

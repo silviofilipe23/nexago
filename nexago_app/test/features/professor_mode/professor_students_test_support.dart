@@ -12,6 +12,7 @@ import 'package:nexago_app/features/professor_mode/infrastructure/professor_avai
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_students_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_earnings_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_evaluations_repository.dart';
+import 'package:nexago_app/features/professor_mode/infrastructure/professor_homework_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_lesson_plans_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_own_classes_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_wallet_repository.dart';
@@ -22,6 +23,7 @@ import 'package:nexago_app/features/professor_mode/presentation/professor_studen
 import 'professor_availability_test_support.dart';
 import 'professor_earnings_test_support.dart';
 import 'professor_evaluations_test_support.dart';
+import 'professor_homework_test_support.dart';
 import 'professor_lesson_plans_test_support.dart';
 import 'professor_own_classes_test_support.dart';
 import 'professor_wallet_test_support.dart';
@@ -282,6 +284,9 @@ Future<GoRouter> pumpProfessorStudentsApp(
 
   /// Plano de aula (H1–H8); sem ele, nenhum.
   ProfessorLessonPlansRepository? lessonPlansRepo,
+
+  /// Treino em casa (T9); sem ele, nada.
+  ProfessorHomeworkRepository? homeworkRepo,
   String uid = professorStudentsTestUid,
   List<Override> overrides = const [],
   List<RouteBase> extraRoutes = const [],
@@ -338,6 +343,8 @@ Future<GoRouter> pumpProfessorStudentsApp(
             availabilityRepo ?? FakeProfessorAvailabilityRepository()),
         professorLessonPlansRepositoryProvider.overrideWithValue(
             lessonPlansRepo ?? FakeProfessorLessonPlansRepository()),
+        professorHomeworkRepositoryProvider
+            .overrideWithValue(homeworkRepo ?? FakeProfessorHomeworkRepository()),
         professorLinksUidProvider.overrideWithValue(uid),
         ...overrides,
       ],

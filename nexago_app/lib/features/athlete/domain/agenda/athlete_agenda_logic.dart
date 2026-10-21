@@ -376,6 +376,7 @@ AthleteAgendaItem? mapClassEntryToAgendaItem(ClassAgendaEntry e) {
       myMark: e.myMark,
       studentCount: e.studentCount,
       canceled: e.isCanceled,
+      entry: e,
     ),
   );
 }

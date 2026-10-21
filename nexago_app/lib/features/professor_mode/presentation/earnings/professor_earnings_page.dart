@@ -11,6 +11,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../application/professor_earnings_providers.dart';
 import '../../application/professor_wallet_providers.dart';
+import '../../../arena/domain/payout_pix_key_type.dart';
 import '../../domain/professor_earnings.dart';
 import '../../domain/professor_students_logic.dart' show professorShortDate;
 import '../../domain/professor_wallet_logic.dart' show professorMonthName;
@@ -70,7 +71,9 @@ class ProfessorWithdrawalRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Pix · ${w.pixKey.isEmpty ? 'chave' : w.pixKey}',
+                      w.pixKey.isEmpty
+                          ? 'Pix'
+                          : 'Pix · ${professorMaskedPixKey(w.pixKey, PayoutPixKeyType.initial(storedType: w.pixKeyType, pixKey: w.pixKey))}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: ProfessorLinksStyle.display(

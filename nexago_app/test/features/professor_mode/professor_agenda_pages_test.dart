@@ -263,6 +263,39 @@ void main() {
           tester, find.byKey(const Key('professor-agenda-session-attendance')));
       expect(find.text('chamada noite'), findsOneWidget);
     });
+
+    testWidgets('aula que já terminou: "Story" no lugar de "Cancelar"',
+        (tester) async {
+      await pumpProfessorAgendaApp(
+        tester,
+        agenda: agendaRepo(),
+        location: AppRoutes.professorAgenda,
+        snapshot: professorStudentsSnapshot(arenas: [
+          {
+            ...arenaMap(),
+            'actions': {'canCancelLessons': true},
+          },
+        ]),
+      );
+      await tap(
+          tester, find.byKey(const Key('professor-agenda-item-session:manha')));
+      expect(find.byKey(const Key('professor-agenda-session-cancel')),
+          findsNothing);
+      await tap(tester, find.byKey(const Key('professor-agenda-session-story')));
+      expect(find.text('encerrado manha'), findsOneWidget);
+    });
+
+    testWidgets('aula de mais tarde: sem "Story"', (tester) async {
+      await pumpProfessorAgendaApp(
+        tester,
+        agenda: agendaRepo(),
+        location: AppRoutes.professorAgenda,
+      );
+      await tap(
+          tester, find.byKey(const Key('professor-agenda-item-session:noite')));
+      expect(find.byKey(const Key('professor-agenda-session-story')),
+          findsNothing);
+    });
   });
 
   group('E5 Particular da carteira', () {

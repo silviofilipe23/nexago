@@ -125,6 +125,16 @@ class _AthletePrivacySecurityPageState
                         enabled: ui.canEdit,
                         onChanged: (v) =>
                             notifier.setShowOthers(frequentPartners: v),
+                      ),
+                      AthleteNotificationToggleTile(
+                        key: const Key('privacy-story-tags'),
+                        icon: Icons.photo_camera_front_outlined,
+                        title: 'Marcação no story do treino',
+                        subtitle: 'Seu professor pode pôr seu nome e foto '
+                            'no story da aula',
+                        value: ui.prefs.showOthers.storyTags,
+                        enabled: ui.canEdit,
+                        onChanged: (v) => notifier.setShowOthers(storyTags: v),
                         showDivider: false,
                       ),
                     ],

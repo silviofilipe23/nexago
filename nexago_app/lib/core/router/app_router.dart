@@ -169,6 +169,8 @@ import '../../features/squad/presentation/squad_share_page.dart';
 import '../../features/professor_links/presentation/professor_link_detail_page.dart';
 import '../../features/professor_links/presentation/professor_link_request_sent_page.dart';
 import '../../features/athlete/presentation/teacher_class_attendance_page.dart';
+import '../../features/athlete/presentation/class_story_tag_page.dart';
+import '../../features/professor_mode/presentation/story/professor_class_closed_page.dart';
 import '../../features/professor_mode/presentation/actions/professor_add_student_page.dart';
 import '../../features/professor_mode/presentation/actions/professor_convert_trial_page.dart';
 import '../../features/professor_mode/presentation/actions/professor_enroll_page.dart';
@@ -1533,6 +1535,20 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.professorClassAttendance,
         builder: (context, state) => TeacherClassAttendancePage(
           sessionId: state.pathParameters['sessionId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.professorClassClosed,
+        name: AppRouteNames.professorClassClosed,
+        builder: (context, state) => ProfessorClassClosedPage(
+          sessionId: state.pathParameters['sessionId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.classStoryTag,
+        name: AppRouteNames.classStoryTag,
+        builder: (context, state) => ClassStoryTagPage(
+          tagId: state.pathParameters['tagId']?.trim() ?? '',
         ),
       ),
       GoRoute(

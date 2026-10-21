@@ -67,10 +67,7 @@ class _ClassStoryPageState extends ConsumerState<ClassStoryPage>
       athleteNickname: profile?.nickname,
       athleteAvatarUrl: profile?.avatarUrl,
     );
-    final available = [
-      for (final info in ClassStoryInfo.values)
-        if (info != ClassStoryInfo.people || data.people.isNotEmpty) info,
-    ];
+    final available = classStoryInfosFor(data);
     final infos = {
       for (final info in available)
         if (!_hidden.contains(info)) info,

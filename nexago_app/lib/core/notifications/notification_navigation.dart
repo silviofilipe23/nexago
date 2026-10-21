@@ -28,6 +28,9 @@ const professorStudentInviteNotificationType = 'professor_student_invite';
 /// Comunicado do professor para o aluno (aviso, enquete…).
 const professorNoticeNotificationType = 'professor_notice';
 
+/// O professor marcou o aluno no story do treino (`shareClassStory`).
+const classStoryTagNotificationType = 'class_story_tag';
+
 /// Avaliação do professor enviada ao aluno.
 const professorEvaluationNotificationType = 'professor_evaluation';
 
@@ -281,6 +284,17 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
         ? AppRoutes.athleteMessages
         : AppRoutes.athleteConversation
             .replaceAll(':conversationId', Uri.encodeComponent(id));
+  }
+
+  // Story do treino: `url` (`/story-do-treino/{id}`); sem ele, pelo `tagId`.
+  if (type == classStoryTagNotificationType) {
+    final url = appRouteForNotificationUrl(data['url'] as String?);
+    if (url != null) return url;
+    final tagId = (data['tagId'] as String?)?.trim() ?? '';
+    return tagId.isEmpty
+        ? AppRoutes.home
+        : AppRoutes.classStoryTag
+            .replaceAll(':tagId', Uri.encodeComponent(tagId));
   }
 
   // Comunicado do professor: o payload traz `url` (`/aviso-professor/{id}`);

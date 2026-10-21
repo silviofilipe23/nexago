@@ -105,6 +105,7 @@ class TeacherClassRosterStudent {
     required this.kind,
     this.photoUrl,
     this.mark,
+    this.storyTaggable = false,
   });
 
   factory TeacherClassRosterStudent.fromMap(Map<String, Object?> map) {
@@ -118,6 +119,7 @@ class TeacherClassRosterStudent {
           photo is String && photo.trim().isNotEmpty ? photo.trim() : null,
       kind: kind == 'makeup' || kind == 'trial' ? kind! as String : 'regular',
       mark: AttendanceMarkX.fromId(map['mark']),
+      storyTaggable: map['storyTaggable'] == true,
     );
   }
 
@@ -128,4 +130,10 @@ class TeacherClassRosterStudent {
   /// `regular`, `makeup` (reposição) ou `trial` (experimental).
   final String kind;
   final AttendanceMark? mark;
+
+  /// Aluno com conta que liberou a marcação no story do treino (servidor
+  /// confere de novo ao marcar). Servidor antigo não manda: `false`.
+  final bool storyTaggable;
+
+  bool get isPresent => mark == AttendanceMark.present;
 }

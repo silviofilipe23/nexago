@@ -173,7 +173,9 @@ import '../../features/athlete/presentation/class_story_tag_page.dart';
 import '../../features/professor_mode/domain/professor_lesson_plans.dart'
     show LessonPlanContent, LessonPlanKind;
 import '../../features/professor_mode/presentation/lesson_plans/athlete_lesson_plan_pages.dart';
+import '../../features/professor_mode/presentation/lesson_plans/lesson_live_page.dart';
 import '../../features/professor_mode/presentation/lesson_plans/lesson_plan_editor_page.dart';
+import '../../features/professor_mode/presentation/lesson_plans/lesson_review_page.dart';
 import '../../features/professor_mode/presentation/lesson_plans/lesson_plans_page.dart';
 import '../../features/professor_mode/presentation/story/professor_class_closed_page.dart';
 import '../../features/professor_mode/presentation/actions/professor_add_student_page.dart';
@@ -665,6 +667,22 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                                 : null,
                           );
                         },
+                      ),
+                      GoRoute(
+                        path: 'aula',
+                        name: AppRouteNames.professorLessonLive,
+                        builder: (context, state) => ProfessorLessonLivePage(
+                          planId:
+                              state.uri.queryParameters['planId']?.trim() ?? '',
+                        ),
+                      ),
+                      GoRoute(
+                        path: 'registro',
+                        name: AppRouteNames.professorLessonReview,
+                        builder: (context, state) => ProfessorLessonReviewPage(
+                          planId:
+                              state.uri.queryParameters['planId']?.trim() ?? '',
+                        ),
                       ),
                     ],
                   ),

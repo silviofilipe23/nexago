@@ -16,6 +16,7 @@ import '../../infrastructure/professor_students_repository.dart'
 import '../wallet/professor_wallet_widgets.dart';
 import '../widgets/professor_students_widgets.dart';
 import 'lesson_exercise_pages.dart';
+import 'lesson_live_page.dart' show LessonPlanDayActions;
 import 'lesson_plan_comments_sheet.dart';
 import 'lesson_plan_widgets.dart';
 
@@ -383,6 +384,11 @@ class _ProfessorLessonPlanEditorPageState
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
             children: [
+              if (ref.watch(professorLessonPlanProvider(_key)).valueOrNull
+                  case final saved?) ...[
+                LessonPlanDayActions(plan: saved),
+                const SizedBox(height: 12),
+              ],
               ProfessorLinksCard(
                 padding: const EdgeInsets.all(13),
                 child: Column(

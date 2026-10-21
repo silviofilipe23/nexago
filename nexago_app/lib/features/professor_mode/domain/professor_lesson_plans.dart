@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../../arena/domain/aulas/arena_class_logic.dart'
     show arenaClassDateKeyWeekday, arenaClassWeekdayShort;
 import 'professor_agenda.dart';
@@ -224,6 +226,8 @@ class LessonPlan {
     this.focus = const [],
     this.published = false,
     this.status = LessonPlanStatus.draft,
+    this.review,
+    this.ratings = const {},
   });
 
   static LessonPlan? fromMap(String id, Map<String, Object?> map) {
@@ -262,6 +266,15 @@ class LessonPlan {
       status: map['status'] == 'ready'
           ? LessonPlanStatus.ready
           : LessonPlanStatus.draft,
+      review: map['review'] is Map
+          ? LessonReview.fromMap(_map(map['review']))
+          : null,
+      ratings: map['ratings'] is Map
+          ? {
+              for (final e in _map(map['ratings']).entries)
+                if (e.value is num) e.key: (e.value! as num).toInt(),
+            }
+          : const {},
     );
   }
 
@@ -284,7 +297,14 @@ class LessonPlan {
   final bool published;
   final LessonPlanStatus status;
 
+  /// Registro pós-aula (H7), só do professor.
+  final LessonReview? review;
+
+  /// Estrelas que cada aluno deu ao feedback (athleteId → 1..5).
+  final Map<String, int> ratings;
+
   bool get isReady => status == LessonPlanStatus.ready;
+  bool get hasReview => review != null;
   int get totalMinutes => lessonPlanTotalMinutes(blocks);
   int get lessonDurationMin => lessonDurationFromTimes(startTime, endTime);
 
@@ -447,6 +467,9 @@ class LessonPlanView {
     this.blocks = const [],
     this.durationMin = 0,
     this.myFocus,
+    this.planVisible = true,
+    this.feedback,
+    this.ratingStars,
   });
 
   factory LessonPlanView.fromMap(String id, Map<String, Object?> map) {
@@ -475,6 +498,17 @@ class LessonPlanView {
           : const [],
       durationMin: _int(map['durationMin'], 0),
       myFocus: focus.isEmpty ? null : focus,
+      // Visão antiga (sem o campo) só existia com o plano publicado.
+      planVisible: map['planVisible'] != false,
+      feedback: map['feedback'] is Map
+          ? LessonViewFeedback.fromMap(_map(map['feedback']))
+          : null,
+      ratingStars: map['rating'] is Map
+          ? switch (_map(map['rating'])['stars']) {
+              final num n when n >= 1 && n <= 5 => n.toInt(),
+              _ => null,
+            }
+          : null,
     );
   }
 
@@ -497,6 +531,15 @@ class LessonPlanView {
 
   /// `null` sem foco ou com o foco privado.
   final String? myFocus;
+
+  /// `false` = só o feedback (plano não publicado, despublicado ou apagado).
+  final bool planVisible;
+
+  /// Feedback do professor depois da aula (H9).
+  final LessonViewFeedback? feedback;
+
+  /// Estrelas que o aluno deu ao feedback.
+  final int? ratingStars;
 
   int get totalMinutes => blocks.fold(0, (s, b) => s + b.minutes);
   int get lessonDurationMin => lessonDurationFromTimes(startTime, endTime);
@@ -1197,6 +1240,220 @@ class LessonPlanLesson {
   int get durationMin => lessonDurationFromTimes(startTime, endTime);
 }
 
+// ── pós-aula (H7) e feedback (H9) ────────────────────────────────────────
+
+/// Como foi cada bloco.
+enum LessonBlockRating {
+  ok('Funcionou'),
+  adjust('Ajustar'),
+  no('Não rolou'),
+  skipped('Pulado');
+
+  const LessonBlockRating(this.label);
+
+  final String label;
+
+  static LessonBlockRating? parse(Object? raw) {
+    for (final r in values) {
+      if (r.name == raw) return r;
+    }
+    return null;
+  }
+}
+
+/// "Para treinar até a próxima".
+class LessonHomework {
+  const LessonHomework({required this.name, this.detail = ''});
+
+  static LessonHomework? fromMap(Object? raw) {
+    if (raw is! Map) return null;
+    final m = _map(raw);
+    final name = _str(m['name']);
+    return name.isEmpty
+        ? null
+        : LessonHomework(name: name, detail: _str(m['detail']));
+  }
+
+  final String name;
+  final String detail;
+
+  Map<String, Object?> toMap() =>
+      {'name': name.trim(), 'detail': detail.trim()};
+}
+
+/// Feedback de um aluno no registro (H7).
+class LessonFeedbackEntry {
+  const LessonFeedbackEntry({
+    required this.athleteId,
+    required this.name,
+    this.text = '',
+    this.send = true,
+    this.homework,
+    this.sentAt,
+  });
+
+  factory LessonFeedbackEntry.fromMap(Map<String, Object?> map) =>
+      LessonFeedbackEntry(
+        athleteId: _str(map['athleteId']),
+        name: _str(map['name'], 'Aluno'),
+        text: _str(map['text']),
+        send: map['send'] == true,
+        homework: LessonHomework.fromMap(map['homework']),
+        sentAt: _instant(map['sentAt']),
+      );
+
+  final String athleteId;
+  final String name;
+  final String text;
+  final bool send;
+  final LessonHomework? homework;
+
+  /// Quando o texto atual foi enviado (`null` = nunca).
+  final DateTime? sentAt;
+}
+
+/// `lessonPlans/{planId}.review`.
+class LessonReview {
+  const LessonReview({
+    this.blockRatings = const {},
+    this.generalNote = '',
+    this.feedback = const [],
+    this.reviewedAt,
+  });
+
+  factory LessonReview.fromMap(Map<String, Object?> map) {
+    final ratings = map['blockRatings'];
+    final feedback = map['feedback'];
+    return LessonReview(
+      blockRatings: ratings is Map
+          ? {
+              for (final e in _map(ratings).entries)
+                if (LessonBlockRating.parse(e.value) case final r?) e.key: r,
+            }
+          : const {},
+      generalNote: _str(map['generalNote']),
+      feedback: feedback is List
+          ? [
+              for (final f in feedback)
+                if (f is Map) LessonFeedbackEntry.fromMap(_map(f)),
+            ]
+          : const [],
+      reviewedAt: _instant(map['reviewedAt']),
+    );
+  }
+
+  final Map<String, LessonBlockRating> blockRatings;
+  final String generalNote;
+  final List<LessonFeedbackEntry> feedback;
+  final DateTime? reviewedAt;
+
+  LessonFeedbackEntry? feedbackOf(String athleteId) {
+    for (final f in feedback) {
+      if (f.athleteId == athleteId) return f;
+    }
+    return null;
+  }
+}
+
+/// O que o registro manda a `saveLessonReview`.
+class LessonReviewDraft {
+  const LessonReviewDraft({
+    required this.planId,
+    this.blockRatings = const {},
+    this.generalNote = '',
+    this.feedback = const [],
+  });
+
+  final String planId;
+  final Map<String, LessonBlockRating> blockRatings;
+  final String generalNote;
+  final List<LessonFeedbackEntry> feedback;
+
+  Map<String, Object?> toPayload() => {
+        'planId': planId,
+        'blockRatings': {
+          for (final e in blockRatings.entries) e.key: e.value.name,
+        },
+        'generalNote': generalNote.trim(),
+        'feedback': [
+          for (final f in feedback)
+            if (f.text.trim().isNotEmpty)
+              {
+                'athleteId': f.athleteId,
+                'text': f.text.trim(),
+                'send': f.send,
+                'homework': f.homework?.toMap(),
+              },
+        ],
+      };
+}
+
+/// O feedback de [entry] sai agora? Marcado para enviar, com texto, e o
+/// texto mudou desde o último envio ([previous]).
+bool lessonFeedbackWillSend(
+  LessonFeedbackEntry entry,
+  LessonFeedbackEntry? previous,
+) =>
+    entry.send &&
+    entry.text.trim().isNotEmpty &&
+    !(previous?.sentAt != null && previous!.text == entry.text.trim());
+
+/// Quantos feedbacks o "Salvar e enviar" manda.
+int lessonReviewSendCount(LessonReviewDraft draft, LessonReview? previous) =>
+    draft.feedback
+        .where(
+            (f) => lessonFeedbackWillSend(f, previous?.feedbackOf(f.athleteId)))
+        .length;
+
+/// `lessonPlanViews/{viewId}.feedback`.
+class LessonViewFeedback {
+  const LessonViewFeedback({required this.text, this.homework, this.sentAt});
+
+  factory LessonViewFeedback.fromMap(Map<String, Object?> map) =>
+      LessonViewFeedback(
+        text: _str(map['text']),
+        homework: LessonHomework.fromMap(map['homework']),
+        sentAt: _instant(map['sentAt']),
+      );
+
+  final String text;
+  final LessonHomework? homework;
+  final DateTime? sentAt;
+}
+
+/// "há 12 min", "há 3 h", "há 2 dias", "agora".
+String lessonRelativeAgo(DateTime at, DateTime now) {
+  final d = now.difference(at);
+  if (d.inMinutes < 1) return 'agora';
+  if (d.inMinutes < 60) return 'há ${d.inMinutes} min';
+  if (d.inHours < 24) return 'há ${d.inHours} h';
+  final days = d.inDays;
+  return 'há $days dia${days == 1 ? '' : 's'}';
+}
+
+/// "QUI 22".
+String lessonPlanWeekdayDay(String dateKey) {
+  final w = arenaClassDateKeyWeekday(dateKey);
+  final d = DateTime.tryParse(dateKey);
+  if (w == null || d == null) return dateKey;
+  return '${arenaClassWeekdayShort(w)} ${d.day}'.toUpperCase();
+}
+
+// ── modo aula (H6) ───────────────────────────────────────────────────────
+
+/// Quanto falta no bloco (negativo = passou do tempo).
+Duration lessonLiveRemaining(int blockMinutes, Duration elapsed) =>
+    Duration(minutes: blockMinutes) - elapsed;
+
+/// "12:47" ou, passado do tempo, "+01:05".
+String lessonLiveClockLabel(Duration remaining) {
+  final over = remaining.isNegative;
+  final s = remaining.abs().inSeconds;
+  final mm = (s ~/ 60).toString().padLeft(2, '0');
+  final ss = (s % 60).toString().padLeft(2, '0');
+  return '${over ? '+' : ''}$mm:$ss';
+}
+
 // ── auxiliares ───────────────────────────────────────────────────────────
 
 String _str(Object? v, [String fallback = '']) =>
@@ -1230,3 +1487,9 @@ String _fold(String s) {
   }
   return b.toString();
 }
+
+DateTime? _instant(Object? v) => switch (v) {
+      Timestamp t => t.toDate().toUtc(),
+      DateTime d => d.toUtc(),
+      _ => null,
+    };

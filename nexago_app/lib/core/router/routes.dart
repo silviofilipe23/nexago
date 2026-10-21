@@ -127,6 +127,11 @@ abstract final class AppRoutes {
   static const String professorLessonPlanEditor =
       '/professor/mais/planos-de-aula/editar';
 
+  /// Modo aula (H6, `?planId=`) e o registro pós-aula (H7, `?planId=`).
+  static const String professorLessonLive = '/professor/mais/planos-de-aula/aula';
+  static const String professorLessonReview =
+      '/professor/mais/planos-de-aula/registro';
+
   /// Plano da aula publicado para o ATLETA (H8, push
   /// `lesson_plan_published`) e a lista deles. Abrem no modo Atleta.
   static const String athleteLessonPlans = '/aula/planos';
@@ -867,6 +872,8 @@ abstract final class AppRouteNames {
   static const String athletePrivateLessonBook = 'athletePrivateLessonBook';
   static const String professorLessonPlans = 'professorLessonPlans';
   static const String professorLessonPlanEditor = 'professorLessonPlanEditor';
+  static const String professorLessonLive = 'professorLessonLive';
+  static const String professorLessonReview = 'professorLessonReview';
   static const String athleteLessonPlans = 'athleteLessonPlans';
   static const String athleteLessonPlan = 'athleteLessonPlan';
   static const String professorEarnings = 'professorEarnings';

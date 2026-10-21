@@ -1,14 +1,19 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/features/athlete/domain/agenda/class_agenda_entry.dart';
+import 'package:nexago_app/features/professor_mode/application/professor_lesson_plans_providers.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_agenda.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_lesson_plans.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_lesson_plans_repository.dart';
 import 'package:nexago_app/features/professor_mode/presentation/lesson_plans/athlete_lesson_plan_pages.dart';
+import 'package:nexago_app/features/professor_mode/presentation/lesson_plans/lesson_live_page.dart';
 import 'package:nexago_app/features/professor_mode/presentation/lesson_plans/lesson_plan_editor_page.dart';
+import 'package:nexago_app/features/professor_mode/presentation/lesson_plans/lesson_review_page.dart';
 import 'package:nexago_app/features/professor_mode/presentation/lesson_plans/lesson_plans_page.dart';
 
 import 'professor_agenda_test_support.dart';
@@ -46,6 +51,8 @@ LessonPlan lessonPlan({
   List<LessonPlanFocus> focus = const [],
   LessonPlanStatus status = LessonPlanStatus.ready,
   bool published = true,
+  LessonReview? review,
+  Map<String, int> ratings = const {},
 }) =>
     LessonPlan(
       id: lessonPlanId(lessonPlanUid, kind, refId),
@@ -71,6 +78,8 @@ LessonPlan lessonPlan({
       focus: focus,
       published: published,
       status: status,
+      review: review,
+      ratings: ratings,
     );
 
 LessonPlanView lessonView({
@@ -79,6 +88,9 @@ LessonPlanView lessonView({
   String? myFocus,
   String date = '2026-10-22',
   List<LessonPlanViewBlock>? blocks,
+  LessonViewFeedback? feedback,
+  bool planVisible = true,
+  int? ratingStars,
 }) {
   final planId = lessonPlanId('prof-9', LessonPlanKind.session, refId);
   return LessonPlanView(
@@ -111,6 +123,9 @@ LessonPlanView lessonView({
         ],
     durationMin: 30,
     myFocus: myFocus,
+    feedback: feedback,
+    planVisible: planVisible,
+    ratingStars: ratingStars,
   );
 }
 
@@ -207,6 +222,56 @@ class FakeProfessorLessonPlansRepository
         if (p.id != planId) p,
     ];
     _changes.add(null);
+  }
+
+  final savedReviews = <LessonReviewDraft>[];
+  final ratings = <({String viewId, int stars})>[];
+  Object? rateError;
+
+  @override
+  Future<int> saveReview(LessonReviewDraft draft) async {
+    savedReviews.add(draft);
+    LessonPlan? plan;
+    for (final p in plans) {
+      if (p.id == draft.planId) plan = p;
+    }
+    final sent = lessonReviewSendCount(draft, plan?.review);
+    if (plan != null) {
+      final p = plan;
+      plans = [
+        for (final x in plans)
+          if (x.id != p.id) x,
+        LessonPlan(
+          id: p.id,
+          kind: p.kind,
+          refId: p.refId,
+          title: p.title,
+          date: p.date,
+          startTime: p.startTime,
+          endTime: p.endTime,
+          objective: p.objective,
+          tags: p.tags,
+          blocks: p.blocks,
+          focus: p.focus,
+          published: p.published,
+          status: p.status,
+          review: LessonReview(
+            blockRatings: draft.blockRatings,
+            generalNote: draft.generalNote,
+            feedback: draft.feedback,
+          ),
+        ),
+      ];
+      _changes.add(null);
+    }
+    return sent;
+  }
+
+  @override
+  Future<void> rateFeedback(String viewId, int stars) async {
+    final e = rateError;
+    if (e != null) throw e;
+    ratings.add((viewId: viewId, stars: stars));
   }
 
   @override
@@ -339,6 +404,27 @@ List<RouteBase> get lessonPlanRoutes => [
         ),
       ),
       GoRoute(
+        path: AppRoutes.professorLessonLive,
+        name: AppRouteNames.professorLessonLive,
+        builder: (_, state) => ProfessorLessonLivePage(
+          planId: state.uri.queryParameters['planId'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.professorLessonReview,
+        name: AppRouteNames.professorLessonReview,
+        builder: (_, state) => ProfessorLessonReviewPage(
+          planId: state.uri.queryParameters['planId'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteConversation,
+        name: AppRouteNames.athleteConversation,
+        builder: (_, state) => Scaffold(
+          body: Text('conversa ${state.pathParameters['conversationId']}'),
+        ),
+      ),
+      GoRoute(
         path: AppRoutes.athleteLessonPlans,
         name: AppRouteNames.athleteLessonPlans,
         builder: (_, __) => const AthleteLessonPlansPage(),
@@ -386,6 +472,8 @@ Future<GoRouter> pumpLessonPlansApp(
   List<ClassAgendaEntry>? sessions,
   ProfessorBlock? block,
   String uid = lessonPlanUid,
+  DateTime Function()? liveClock,
+  List<Override> overrides = const [],
 }) =>
     pumpProfessorAgendaApp(
       tester,
@@ -397,4 +485,10 @@ Future<GoRouter> pumpLessonPlansApp(
       lessonPlans: plans,
       extraRoutes: lessonPlanRoutes,
       uid: uid,
+      extraOverrides: [
+        lessonLiveWakelockProvider.overrideWithValue((_) async {}),
+        if (liveClock != null)
+          lessonLiveClockProvider.overrideWithValue(liveClock),
+        ...overrides,
+      ],
     );

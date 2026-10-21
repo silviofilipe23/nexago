@@ -85,11 +85,15 @@ class LessonPlanTimeBar extends StatelessWidget {
     required this.segments,
     required this.durationMin,
     this.height = 10,
+    this.activeIndex,
   });
 
   final List<LessonPlanBarSegment> segments;
   final int durationMin;
   final double height;
+
+  /// Modo aula: o bloco em andamento aceso, os feitos e os próximos apagados.
+  final int? activeIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -106,7 +110,14 @@ class LessonPlanTimeBar extends StatelessWidget {
               flex: segments[i].minutes.clamp(1, 1000),
               child: Container(
                 decoration: BoxDecoration(
-                  color: lessonPlanCategoryColor(segments[i].category),
+                  color:
+                      lessonPlanCategoryColor(segments[i].category).withValues(
+                    alpha: activeIndex == null || i == activeIndex
+                        ? 1
+                        : i < activeIndex!
+                            ? 0.35
+                            : 0.18,
+                  ),
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),

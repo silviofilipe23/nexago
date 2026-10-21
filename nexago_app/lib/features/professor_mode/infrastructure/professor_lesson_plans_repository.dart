@@ -28,6 +28,12 @@ abstract class ProfessorLessonPlansRepository {
     String refId,
   );
 
+  /// Registro pós-aula (H7); devolve quantos feedbacks saíram.
+  Future<int> saveReview(LessonReviewDraft draft);
+
+  /// Aluno dá de 1 a 5 estrelas ao feedback (H9).
+  Future<void> rateFeedback(String viewId, int stars);
+
   Stream<List<LessonTemplate>> watchTemplates(String uid);
 
   Future<void> saveTemplate(
@@ -143,6 +149,24 @@ class FirebaseProfessorLessonPlansRepository
         'deleteLessonPlan',
         {'planId': planId},
         'Não foi possível apagar o plano.',
+      );
+
+  @override
+  Future<int> saveReview(LessonReviewDraft draft) async {
+    final r = await _call(
+      'saveLessonReview',
+      draft.toPayload(),
+      'Não foi possível salvar o registro da aula.',
+    );
+    final sent = r['sent'];
+    return sent is num ? sent.toInt() : 0;
+  }
+
+  @override
+  Future<void> rateFeedback(String viewId, int stars) => _call(
+        'rateLessonFeedback',
+        {'viewId': viewId, 'stars': stars},
+        'Não foi possível salvar sua avaliação.',
       );
 
   @override

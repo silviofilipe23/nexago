@@ -7,6 +7,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../application/professor_lesson_plans_providers.dart';
 import '../../domain/professor_lesson_plans.dart';
+import 'lesson_live_page.dart' show LessonPlanDayActions;
 import 'lesson_plan_widgets.dart';
 
 /// "Plano da aula" no detalhe da aula da agenda (E4/E5): os blocos (tempo e
@@ -107,6 +108,10 @@ class LessonPlanAgendaCard extends ConsumerWidget {
                   ],
                 ),
         ),
+        if (plan != null) ...[
+          const SizedBox(height: 8),
+          LessonPlanDayActions(plan: plan),
+        ],
       ],
     );
   }

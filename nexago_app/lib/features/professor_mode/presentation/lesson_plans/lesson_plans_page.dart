@@ -16,6 +16,7 @@ import '../agenda/professor_agenda_widgets.dart' show ProfessorAgendaTypeTag;
 import '../wallet/professor_wallet_widgets.dart';
 import '../widgets/professor_students_widgets.dart';
 import 'lesson_exercise_pages.dart';
+import 'lesson_live_page.dart' show LessonPlanDayActions, openLessonReview;
 import 'lesson_plan_editor_page.dart' show LessonTemplateNameDialog;
 import 'lesson_plan_widgets.dart';
 
@@ -176,9 +177,21 @@ class _ProfessorLessonPlansPageState
   Widget _upcoming(AsyncValue<List<LessonPlanRow>> async) {
     final rows = async.valueOrNull;
     final today = ref.watch(professorAgendaNowProvider).todayKey;
+    final toReview = ref.watch(professorLessonPlansToReviewProvider);
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
       children: [
+        if (toReview.isNotEmpty) ...[
+          const ProfessorLinksKicker('Para registrar'),
+          const SizedBox(height: 8),
+          for (final p in toReview) ...[
+            _ReviewTile(plan: p, todayKey: today),
+            const SizedBox(height: 8),
+          ],
+          const SizedBox(height: 10),
+          const ProfessorLinksKicker('Próximos 7 dias'),
+          const SizedBox(height: 8),
+        ],
         if (rows == null && async.hasError)
           ProfessorRetryCard(
             message: 'Não foi possível carregar suas aulas.',
@@ -417,6 +430,10 @@ class _RowTile extends StatelessWidget {
                     height: 6,
                   ),
                 ],
+                if (plan != null && l.date == todayKey) ...[
+                  const SizedBox(height: 10),
+                  LessonPlanDayActions(plan: plan),
+                ],
                 if (plan == null) ...[
                   const SizedBox(height: 10),
                   Wrap(
@@ -450,6 +467,60 @@ class _RowTile extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Aula passada sem registro: "Registrar aula".
+class _ReviewTile extends StatelessWidget {
+  const _ReviewTile({required this.plan, required this.todayKey});
+
+  final LessonPlan plan;
+  final String todayKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return ProfessorLinksCard(
+      key: Key('lesson-plan-to-review-${plan.refId}'),
+      padding: const EdgeInsets.fromLTRB(13, 11, 13, 11),
+      onTap: () => openLessonReview(context, plan.id),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  [
+                    professorDayLabel(plan.date, todayKey),
+                    if (plan.startTime.isNotEmpty) plan.startTime,
+                  ].join(' · ').toUpperCase(),
+                  style: ProfessorLinksStyle.mono(
+                    9.5,
+                    color: ProfessorLinksStyle.dim(colors),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  plan.title,
+                  style: ProfessorLinksStyle.display(
+                    13.5,
+                    weight: FontWeight.w700,
+                    color: colors.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          LessonPlanSmallButton(
+            key: Key('lesson-plan-review-${plan.refId}'),
+            label: 'Registrar aula',
+            icon: Icons.fact_check_outlined,
+            onTap: () => openLessonReview(context, plan.id),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../professor_links/application/professor_links_providers.dart';
 import '../domain/professor_agenda.dart';
@@ -41,6 +42,39 @@ final professorLessonPlanProvider = Provider.autoDispose
     return null;
   });
 });
+
+/// Um plano pelo id (modo aula, registro). `null` = não está nos carregados.
+final professorLessonPlanByIdProvider =
+    Provider.autoDispose.family<AsyncValue<LessonPlan?>, String>((ref, id) {
+  return ref.watch(professorLessonPlansProvider).whenData((plans) {
+    for (final p in plans) {
+      if (p.id == id) return p;
+    }
+    return null;
+  });
+});
+
+/// Planos que já aconteceram (até hoje) e ainda não têm registro (H7).
+final professorLessonPlansToReviewProvider =
+    Provider.autoDispose<List<LessonPlan>>((ref) {
+  final today = ref.watch(professorAgendaNowProvider).todayKey;
+  final plans = ref.watch(professorLessonPlansProvider).valueOrNull ?? const [];
+  return [
+    for (final p in plans.reversed)
+      if (p.date.compareTo(today) < 0 && !p.hasReview) p,
+  ];
+});
+
+/// Relógio do modo aula (H6). Injetável em teste.
+final lessonLiveClockProvider = Provider<DateTime Function()>(
+  (ref) => ref.watch(professorLinksClockProvider),
+);
+
+/// Tela ligada no modo aula (`wakelock_plus`). Injetável em teste.
+final lessonLiveWakelockProvider = Provider<Future<void> Function(bool on)>(
+  (ref) => (on) => (on ? WakelockPlus.enable() : WakelockPlus.disable())
+      .catchError((Object _) {}),
+);
 
 /// A aula do plano: `kind` + `refId`.
 typedef LessonPlanRef = ({LessonPlanKind kind, String refId});

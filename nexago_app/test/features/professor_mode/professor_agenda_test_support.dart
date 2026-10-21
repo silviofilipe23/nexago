@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/router/routes.dart';
@@ -299,6 +300,7 @@ Future<GoRouter> pumpProfessorAgendaApp(
   ProfessorLessonPlansRepository? lessonPlans,
   List<RouteBase> extraRoutes = const [],
   String uid = professorStudentsTestUid,
+  List<Override> extraOverrides = const [],
 }) {
   openedCalendarUris.clear();
   return pumpProfessorStudentsApp(
@@ -328,6 +330,7 @@ Future<GoRouter> pumpProfessorAgendaApp(
         openedCalendarUris.add(uri);
         return true;
       }),
+      ...extraOverrides,
     ],
   );
 }

@@ -43,6 +43,10 @@ const professorPrivateLessonNotificationType = 'professor_private_lesson';
 /// `url: /aula/plano/{viewId}` e o `viewId`.
 const lessonPlanPublishedNotificationType = 'lesson_plan_published';
 
+/// Feedback da aula enviado pelo professor (`saveLessonReview`): mesmo
+/// destino (`url: /aula/plano/{viewId}`).
+const lessonFeedbackNotificationType = 'lesson_feedback';
+
 /// Mensagem nova numa conversa professor ↔ aluno (ou no canal professor ↔
 /// gestão da arena).
 const conversationMessageNotificationType = 'conversation_message';
@@ -276,10 +280,12 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
         AppRoutes.athletePrivateLessons;
   }
 
-  // Plano da aula: `url` (`/aula/plano/{viewId}`); sem ele, pelo `viewId`,
+  // Plano da aula e feedback da aula: `url` (`/aula/plano/{viewId}`); sem
+  // ele, pelo `viewId`,
   // e sem nada a lista de planos do aluno. Caso próprio, antes dos ramos
   // genéricos (o tipo tem "lesson" e o payload nenhum `arenaId`).
-  if (type == lessonPlanPublishedNotificationType) {
+  if (type == lessonPlanPublishedNotificationType ||
+      type == lessonFeedbackNotificationType) {
     final url = appRouteForNotificationUrl(data['url'] as String?);
     if (url != null) return url;
     final viewId = (data['viewId'] as String?)?.trim() ?? '';

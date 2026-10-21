@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { AuthService } from '../../auth/auth.service';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { AvatarComponent } from '../ui/avatar.component';
@@ -26,6 +27,9 @@ import {
   type ProfessorPermissions,
 } from './arena-professor.model';
 import { ArenaProfessorsService } from './arena-professors.service';
+import { arenaChannelConversationId, unreadBadge, unreadFor, type ArenaChannel } from './arena-professor-channel.model';
+import { ArenaProfessorChannelService } from './arena-professor-channel.service';
+import { ProfessorChannelComponent } from './professor-channel.component';
 import {
   ProfessorAnalyzeModalComponent,
   ProfessorConfirmModalComponent,
@@ -67,6 +71,7 @@ interface Notice {
     ProfessorAnalyzeModalComponent,
     ProfessorSuspendModalComponent,
     ProfessorConfirmModalComponent,
+    ProfessorChannelComponent,
   ],
   template: `
     <ar-panel-shell>
@@ -120,6 +125,21 @@ interface Notice {
             </div>
           }
 
+          <div class="tabs" role="tablist" aria-label="Seções do vínculo">
+            <button type="button" role="tab" class="ar-chip" [class.active]="tab() === 'vinculo'" [attr.aria-selected]="tab() === 'vinculo'" (click)="selectTab('vinculo')">
+              Vínculo
+            </button>
+            <button type="button" role="tab" class="ar-chip tab-msg" [class.active]="tab() === 'mensagens'" [attr.aria-selected]="tab() === 'mensagens'" (click)="selectTab('mensagens')">
+              Mensagens
+              @if (unread() > 0) {
+                <span class="tab-badge" [attr.aria-label]="unread() + ' não lidas'">{{ unreadLabel() }}</span>
+              }
+            </button>
+          </div>
+
+          @if (tab() === 'mensagens') {
+            <ar-prof-channel [link]="l" [canWrite]="canWrite()" />
+          } @else {
           <div class="grid">
             <ar-panel-card pad="lg">
               <div class="who">
@@ -176,6 +196,7 @@ interface Notice {
               }
             </ar-panel-card>
           </div>
+          }
         }
       </div>
 
@@ -284,6 +305,15 @@ interface Notice {
 
     .card-note { margin-top: 14px; }
 
+    .tabs { flex: none; display: flex; gap: 8px; }
+    .tab-msg { display: inline-flex; align-items: center; gap: 7px; }
+    .tab-badge {
+      min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; box-sizing: border-box;
+      background: var(--nx-orange-500); color: var(--nx-text-on-orange);
+      font-family: var(--nx-font-mono); font-size: 10px; font-weight: 800; display: inline-grid; place-items: center;
+    }
+    .ar-chip.active .tab-badge { background: var(--nx-text-on-orange); color: var(--nx-orange-500); }
+
     @include ar.below(lg) {
       .grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
       .grid > :first-child { grid-column: 1 / -1; }
@@ -299,9 +329,24 @@ export class PanelProfessionalDetailComponent {
   private readonly access = inject(ArenaAccessService);
   private readonly service = inject(ArenaProfessorsService);
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+  private readonly channelService = inject(ArenaProfessorChannelService);
 
   /** Da rota `painel/profissionais/:linkId` (`withComponentInputBinding`). */
   readonly linkId = input.required<string>();
+  /** Query param `?aba=mensagens` (link do push de mensagem do professor). */
+  readonly aba = input<string | undefined>();
+
+  protected readonly tab = computed<'vinculo' | 'mensagens'>(() => (this.aba() === 'mensagens' ? 'mensagens' : 'vinculo'));
+  /** Doc do canal só para o badge da aba — quem não é membro recebe `null` (rule nega a leitura). */
+  private readonly channel = signal<ArenaChannel | null>(null);
+  /** String: o efeito só reassina quando muda o canal, não a cada snapshot do vínculo. */
+  private readonly conversationId = computed(() => {
+    const link = this.link();
+    return link && this.canWrite() ? arenaChannelConversationId(link.arenaId, link.professorUserId) : null;
+  });
+  protected readonly unread = computed(() => unreadFor(this.channel(), this.auth.user()?.uid ?? null));
+  protected readonly unreadLabel = computed(() => unreadBadge(this.unread()));
 
   private readonly rawLink = signal<ArenaProfessorLink | null>(null);
   private readonly loading = signal(true);
@@ -402,6 +447,13 @@ export class PanelProfessionalDetailComponent {
       });
     });
 
+    effect((onCleanup) => {
+      const conversationId = this.conversationId();
+      this.channel.set(null);
+      if (!conversationId) return;
+      onCleanup(this.channelService.watchChannel(conversationId, (c) => this.channel.set(c)));
+    });
+
     effect(() => {
       const saving = this.saving();
       const link = this.link();
@@ -412,6 +464,14 @@ export class PanelProfessionalDetailComponent {
     inject(DestroyRef).onDestroy(() => {
       clearInterval(tick);
       if (this.echoTimer) clearTimeout(this.echoTimer);
+    });
+  }
+
+  protected selectTab(tab: 'vinculo' | 'mensagens'): void {
+    void this.router.navigate([], {
+      queryParams: { aba: tab === 'mensagens' ? 'mensagens' : null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
     });
   }
 

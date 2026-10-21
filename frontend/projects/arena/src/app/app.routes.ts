@@ -447,6 +447,16 @@ export const routes: Routes = [
       ),
   },
   {
+    // Antes de `:linkId` — senão "comunicados" casaria como id de vínculo.
+    path: 'painel/profissionais/comunicados',
+    title: 'Comunicados aos professores — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('perfil')],
+    loadComponent: () =>
+      import('./painel/profissionais/panel-professor-notices.component').then(
+        (m) => m.PanelProfessorNoticesComponent,
+      ),
+  },
+  {
     path: 'painel/profissionais/:linkId',
     title: 'Profissional — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('perfil')],

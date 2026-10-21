@@ -92,6 +92,13 @@ abstract final class AppRoutes {
   static const String professorNoticeForStudent =
       '/aviso-professor/:noticeId';
 
+  /// Pagamento ao professor independente confirmado (B17) e o comprovante
+  /// (B19), no modo Atleta. Abre pela Agenda (volta do Asaas) e pelo push
+  /// `professor_charge_paid`.
+  static const String lessonPaymentConfirmed = '/pagamento-aula/:chargeId';
+  static const String lessonPaymentReceipt =
+      '/pagamento-aula/:chargeId/comprovante';
+
   /// Avaliações dos alunos (fase 8), sem a barra.
   static const String professorEvaluations = '/professor/mais/avaliacoes';
   static const String professorEvaluate =
@@ -815,6 +822,8 @@ abstract final class AppRouteNames {
   static const String professorNoticeEdit = 'professorNoticeEdit';
   static const String professorArenaNotice = 'professorArenaNotice';
   static const String professorNoticeForStudent = 'professorNoticeForStudent';
+  static const String lessonPaymentConfirmed = 'lessonPaymentConfirmed';
+  static const String lessonPaymentReceipt = 'lessonPaymentReceipt';
   static const String professorEvaluations = 'professorEvaluations';
   static const String professorEvaluate = 'professorEvaluate';
   static const String athleteEvaluations = 'athleteEvaluations';

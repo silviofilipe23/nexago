@@ -19,6 +19,9 @@ const classChargeLinkNotificationType = 'arena_class_charge_link';
 /// `functions/src/professor-wallet.ts`): mesma fatura online do Asaas.
 const professorChargeLinkNotificationType = 'professor_charge_link';
 
+/// Cobrança do professor paga (webhook do Asaas): abre "Pagamento confirmado".
+const professorChargePaidNotificationType = 'professor_charge_paid';
+
 /// Convite do professor para o atleta entrar na carteira dele.
 const professorStudentInviteNotificationType = 'professor_student_invite';
 
@@ -215,6 +218,15 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
       return AppRoutes.organizerTournamentReviews
           .replaceAll(':tournamentId', closedTournamentId);
     }
+  }
+
+  // Pagamento ao professor confirmado: o `url` do payload é a Agenda (app
+  // antigo, sem a tela); este build abre a confirmação pelo `chargeId`.
+  if (type == professorChargePaidNotificationType) {
+    final chargeId = (data['chargeId'] as String?)?.trim() ?? '';
+    if (chargeId.isEmpty) return athleteAgendaTabLocation;
+    return AppRoutes.lessonPaymentConfirmed
+        .replaceAll(':chargeId', Uri.encodeComponent(chargeId));
   }
 
   // Mensalidade de aula: o toque abre a fatura ([externalNotificationUrl]); a

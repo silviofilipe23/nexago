@@ -58,6 +58,8 @@ bool isAthleteExperiencePath(String path) {
   if (path.startsWith('/convite-professor/')) return true;
   // Comunicado do professor: o aluno lê e responde no modo Atleta.
   if (path.startsWith('/aviso-professor/')) return true;
+  // Pagamento ao professor confirmado e comprovante (modo Atleta).
+  if (path.startsWith('/pagamento-aula/')) return true;
   // Mensagens do atleta com os professores.
   if (path == '/mensagens' || path.startsWith('/mensagens/')) return true;
   // Avaliações dos professores.

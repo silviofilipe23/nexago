@@ -14,6 +14,7 @@ class ClassChargeEntry {
     required this.overdue,
     required this.payment,
     this.invoiceUrl,
+    this.source = 'arena',
   });
 
   final String chargeId;
@@ -31,6 +32,12 @@ class ClassChargeEntry {
 
   /// Fatura do Asaas (PIX ou cartão) — só http(s).
   final String? invoiceUrl;
+
+  /// `arena` (mensalidade da arena) ou `professor` (cobrança do professor
+  /// independente — `chargeId` é o doc em `professorCharges`).
+  final String source;
+
+  bool get isProfessorCharge => source == 'professor';
 
   bool get canPayOnline => invoiceUrl != null;
 
@@ -55,6 +62,7 @@ class ClassChargeEntry {
       overdue: map['overdue'] == true,
       payment: s('payment', 'manual'),
       invoiceUrl: validUrl ? url.toString() : null,
+      source: s('source', 'arena'),
     );
   }
 }

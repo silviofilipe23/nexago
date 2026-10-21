@@ -378,7 +378,46 @@ export interface ReviewInput {
   planId: string;
   blockRatings: Record<string, string>;
   generalNote: string;
-  feedback: Array<{athleteId: string; text: string; send: boolean; homework: {name: string; detail: string} | null}>;
+  feedback: Array<{athleteId: string; text: string; send: boolean; homework: LessonHomework | null}>;
+}
+
+/** Tarefa para casa (H7 → T9). `sets`/`daysTarget` alimentam o progresso do aluno. */
+export interface LessonHomework {
+  name: string;
+  detail: string;
+  /** Séries por dia (1–10). */
+  sets: number;
+  /** Dias na semana (1–7). */
+  daysTarget: number;
+  category: string | null;
+  /** Vídeo do exercício (só `https://`). */
+  videoUrl: string | null;
+}
+
+export const HOMEWORK_DEFAULT_SETS = 3;
+export const HOMEWORK_DEFAULT_DAYS = 3;
+
+function intIn(v: unknown, min: number, max: number, fallback: number): number {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= min && n <= max ? n : fallback;
+}
+
+/** Tarefa do registro: sem nome = sem tarefa. Cliente antigo (só nome/detalhe) ganha o padrão 3×3. */
+export function parseHomework(raw: unknown): LessonHomework | null {
+  if (raw == null || typeof raw !== "object") return null;
+  const hw = raw as Record<string, unknown>;
+  const name = str(hw["name"]).slice(0, 80);
+  if (!name) return null;
+  const category = str(hw["category"]);
+  const videoUrl = str(hw["videoUrl"]);
+  return {
+    name,
+    detail: str(hw["detail"]).slice(0, 200),
+    sets: intIn(hw["sets"], 1, 10, HOMEWORK_DEFAULT_SETS),
+    daysTarget: intIn(hw["daysTarget"], 1, 7, HOMEWORK_DEFAULT_DAYS),
+    category: (LESSON_PLAN_CATEGORIES as readonly string[]).includes(category) ? category : null,
+    videoUrl: /^https:\/\//.test(videoUrl) && videoUrl.length <= 500 ? videoUrl : null,
+  };
 }
 
 export function parseReviewInput(raw: Record<string, unknown>): ReviewInput {
@@ -397,12 +436,7 @@ export function parseReviewInput(raw: Record<string, unknown>): ReviewInput {
     const text = str(r["text"]).slice(0, 1000);
     if (!athleteId || athleteId.includes("/") || !text || seen.has(athleteId)) continue;
     seen.add(athleteId);
-    const hw = (r["homework"] ?? null) as Record<string, unknown> | null;
-    const hwName = hw ? str(hw["name"]).slice(0, 80) : "";
-    feedback.push({
-      athleteId, text, send: r["send"] === true,
-      homework: hwName ? {name: hwName, detail: str(hw!["detail"]).slice(0, 200)} : null,
-    });
+    feedback.push({athleteId, text, send: r["send"] === true, homework: parseHomework(r["homework"])});
   }
   return {planId, blockRatings, generalNote: str(raw["generalNote"]).slice(0, 2000), feedback};
 }

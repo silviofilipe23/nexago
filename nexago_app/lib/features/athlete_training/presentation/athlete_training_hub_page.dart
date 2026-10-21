@@ -29,6 +29,7 @@ import '../application/athlete_training_providers.dart';
 import '../domain/athlete_training.dart';
 import '../domain/class_presence.dart';
 import 'widgets/class_presence_widgets.dart';
+import 'athlete_training_homework_page.dart' show openTrainingHomework;
 import 'widgets/training_widgets.dart';
 
 /// T2 · Meus treinos — o hub do aluno: próximo treino, números do mês, o que
@@ -313,7 +314,7 @@ class AthleteTrainingHubPage extends ConsumerWidget {
               ? trainingFirstName(homework.professorName)
               : homework.feedback!.homework!.detail,
           highlight: trainingFeedbackIsNew(homework, now),
-          onTap: () => openAthleteLessonPlan(context, homework.id),
+          onTap: () => openTrainingHomework(context, homework.id),
         ),
       if (evaluation != null)
         TrainingListTile(

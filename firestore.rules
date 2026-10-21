@@ -2285,6 +2285,13 @@ service cloud.firestore {
         (resource.data.athleteId == request.auth.uid || resource.data.professorUid == request.auth.uid);
       allow write: if false;
     }
+    // Treino em casa (T9): progresso da tarefa do feedback. Aluno e professor da visão leem; só a
+    // callable saveHomeworkProgress grava (confere dono, tarefa e prazo).
+    match /homeworkProgress/{viewId} {
+      allow read: if request.auth != null &&
+        (resource.data.athleteId == request.auth.uid || resource.data.professorUid == request.auth.uid);
+      allow write: if false;
+    }
     // Modelos de aula e exercícios do professor (H1/H3/H4): privados do dono.
     match /professors/{uid}/lessonTemplates/{templateId} {
       allow read, delete: if request.auth != null && request.auth.uid == uid;

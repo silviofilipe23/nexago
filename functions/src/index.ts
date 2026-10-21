@@ -208,6 +208,8 @@ export {
   bookArenaClassMakeup,
   joinArenaClassMakeupWaitlist,
 } from "./arena-class-athlete-actions";
+// T9 · Treino em casa: o aluno marca as séries da tarefa do professor.
+export {saveHomeworkProgress} from "./homework-progress";
 // T14 · Planos e pagamentos do aluno (matrícula da arena + carteira do professor).
 export {getMyTrainingPlans} from "./arena-class-athlete-plans";
 // QR de check-in por quadra (portal da arena gera; o aluno lê no app).

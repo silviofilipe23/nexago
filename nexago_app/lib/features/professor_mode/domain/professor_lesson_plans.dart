@@ -1282,23 +1282,68 @@ enum LessonBlockRating {
 
 /// "Para treinar até a próxima".
 class LessonHomework {
-  const LessonHomework({required this.name, this.detail = ''});
+  const LessonHomework({
+    required this.name,
+    this.detail = '',
+    this.sets = kLessonHomeworkDefaultSets,
+    this.daysTarget = kLessonHomeworkDefaultDays,
+    this.category,
+    this.videoUrl,
+  });
 
   static LessonHomework? fromMap(Object? raw) {
     if (raw is! Map) return null;
     final m = _map(raw);
     final name = _str(m['name']);
-    return name.isEmpty
-        ? null
-        : LessonHomework(name: name, detail: _str(m['detail']));
+    if (name.isEmpty) return null;
+    final category = _str(m['category']);
+    final video = _str(m['videoUrl']);
+    return LessonHomework(
+      name: name,
+      detail: _str(m['detail']),
+      // Tarefa antiga (só nome e detalhe) = o padrão 3×3 do servidor.
+      sets: _int(m['sets'], kLessonHomeworkDefaultSets).clamp(1, 10),
+      daysTarget: _int(m['daysTarget'], kLessonHomeworkDefaultDays).clamp(1, 7),
+      category: category.isEmpty ? null : LessonPlanCategory.parse(category),
+      videoUrl: video.startsWith('https://') ? video : null,
+    );
   }
 
   final String name;
   final String detail;
 
-  Map<String, Object?> toMap() =>
-      {'name': name.trim(), 'detail': detail.trim()};
+  /// Séries por dia (T9).
+  final int sets;
+
+  /// Dias na semana (T9).
+  final int daysTarget;
+  final LessonPlanCategory? category;
+
+  /// Vídeo do exercício da biblioteca (`https://`).
+  final String? videoUrl;
+
+  LessonHomework copyWith({int? sets, int? daysTarget}) => LessonHomework(
+        name: name,
+        detail: detail,
+        sets: sets ?? this.sets,
+        daysTarget: daysTarget ?? this.daysTarget,
+        category: category,
+        videoUrl: videoUrl,
+      );
+
+  Map<String, Object?> toMap() => {
+        'name': name.trim(),
+        'detail': detail.trim(),
+        'sets': sets,
+        'daysTarget': daysTarget,
+        if (category != null) 'category': category!.name,
+        if (videoUrl != null) 'videoUrl': videoUrl,
+      };
 }
+
+/// Padrão do servidor (`HOMEWORK_DEFAULT_SETS` / `_DAYS`).
+const int kLessonHomeworkDefaultSets = 3;
+const int kLessonHomeworkDefaultDays = 3;
 
 /// Feedback de um aluno no registro (H7).
 class LessonFeedbackEntry {

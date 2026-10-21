@@ -9,6 +9,8 @@ import '../../professor_links/application/professor_links_providers.dart';
 import '../../professor_mode/application/professor_availability_providers.dart';
 import '../../professor_mode/application/professor_lesson_plans_providers.dart';
 import '../domain/athlete_training.dart';
+import '../domain/homework_progress.dart';
+import '../infrastructure/homework_progress_repository.dart';
 import '../domain/training_plans.dart';
 import '../infrastructure/training_plans_repository.dart';
 import '../domain/class_presence.dart';
@@ -120,6 +122,15 @@ void refreshAthleteClassPresence(WidgetRef ref) {
   ref.invalidate(myClassAgendaProvider);
   ref.invalidate(athleteClassCreditsProvider);
 }
+
+/// T9 · progresso do treino em casa da visão [viewId].
+final homeworkProgressProvider = StreamProvider.autoDispose
+    .family<HomeworkProgress, String>((ref, viewId) {
+  if (viewId.isEmpty || ref.watch(professorLinksUidProvider).isEmpty) {
+    return Stream.value(const HomeworkProgress());
+  }
+  return ref.watch(homeworkProgressRepositoryProvider).watch(viewId);
+});
 
 /// T14 · planos ativos (arena e professor) e últimos pagamentos. Erro chega
 /// à tela (que mostra "tentar de novo"); o hub lê só `valueOrNull`.

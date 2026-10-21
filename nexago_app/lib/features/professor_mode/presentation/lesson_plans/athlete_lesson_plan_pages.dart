@@ -645,9 +645,16 @@ class _LessonFeedbackSectionState extends ConsumerState<LessonFeedbackSection> {
           ProfessorLinksCard(
             key: const Key('lesson-feedback-homework'),
             padding: const EdgeInsets.all(12),
+            // T9: marca as séries do dia no Treino em casa.
+            onTap: () => context.pushNamed(
+              AppRouteNames.athleteTrainingHomework,
+              pathParameters: {'viewId': v.id},
+            ),
             child: Row(
               children: [
-                const LessonExerciseThumb(category: LessonPlanCategory.outro),
+                LessonExerciseThumb(
+                  category: hw.category ?? LessonPlanCategory.outro,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -671,8 +678,21 @@ class _LessonFeedbackSectionState extends ConsumerState<LessonFeedbackSection> {
                           ),
                         ),
                       ],
+                      const SizedBox(height: 4),
+                      Text(
+                        'MARCAR TREINO · ${hw.sets}×/DIA',
+                        style: ProfessorLinksStyle.mono(
+                          9.5,
+                          color: colors.brandText,
+                        ),
+                      ),
                     ],
                   ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: ProfessorLinksStyle.dim(colors),
                 ),
               ],
             ),

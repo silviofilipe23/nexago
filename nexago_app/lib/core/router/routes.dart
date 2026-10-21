@@ -138,6 +138,7 @@ abstract final class AppRoutes {
   static const String athleteTrainingFeedbacks = '/treinos/feedbacks';
   static const String athleteTrainingEvolution = '/treinos/evolucao';
   static const String athleteTrainingProfessors = '/treinos/professores';
+  static const String athleteTrainingHomework = '/treinos/tarefa/:viewId';
   static const String athleteTrainingPlans = '/treinos/planos';
 
   /// Escolher reposição com o crédito (T7, `?credito=`) e check-in na arena
@@ -892,6 +893,7 @@ abstract final class AppRouteNames {
   static const String athleteTrainingFeedbacks = 'athleteTrainingFeedbacks';
   static const String athleteTrainingEvolution = 'athleteTrainingEvolution';
   static const String athleteTrainingProfessors = 'athleteTrainingProfessors';
+  static const String athleteTrainingHomework = 'athleteTrainingHomework';
   static const String athleteTrainingPlans = 'athleteTrainingPlans';
   static const String athleteTrainingMakeup = 'athleteTrainingMakeup';
   static const String athleteTrainingCheckIn = 'athleteTrainingCheckIn';

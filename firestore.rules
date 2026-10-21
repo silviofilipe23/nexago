@@ -2311,6 +2311,18 @@ service cloud.firestore {
         allow update, delete: if false;
       }
     }
+    // Disponibilidade do professor (A10): o dono lê sempre; publicada, qualquer logado lê (grade
+    // semanal, sem aluno). Os horários livres de verdade vêm da callable getProfessorOpenSlots.
+    match /professorAvailability/{professorUid} {
+      allow read: if request.auth != null && (request.auth.uid == professorUid || resource.data.published == true);
+      allow write: if false;
+    }
+    // Particulares agendadas: só o professor e o aluno da aula leem; só functions gravam.
+    match /professorPrivateLessons/{lessonId} {
+      allow read: if request.auth != null &&
+        (resource.data.professorUid == request.auth.uid || resource.data.athleteId == request.auth.uid);
+      allow write: if false;
+    }
     // Comunicados da arena para os professores (F6): o professor destinatário e a gestão (perfil)
     // leem; só a callable sendArenaProfessorNotice grava. Leitura por markArenaProfessorNoticeRead.
     match /arenaProfessorNotices/{noticeId} {

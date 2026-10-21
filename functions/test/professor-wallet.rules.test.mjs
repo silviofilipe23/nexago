@@ -171,3 +171,19 @@ test('avaliação: professor lê as dele; aluno só a enviada dele; ninguém esc
   await assertFails(getDoc(doc(as(OUTRO), 'professorEvaluations/e1')));
   await assertFails(setDoc(doc(as(PROF), 'professorEvaluations/e3'), { professorUid: PROF, athleteId: ALUNO, status: 'sent' }));
 });
+
+test('disponibilidade: publicada qualquer logado lê; rascunho só o dono; particulares só os dois lados', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), `professorAvailability/${PROF}`), { published: true, weekly: {} });
+    await setDoc(doc(ctx.firestore(), `professorAvailability/${OUTRO}`), { published: false, weekly: {} });
+    await setDoc(doc(ctx.firestore(), 'professorPrivateLessons/l1'), { professorUid: PROF, athleteId: ALUNO, status: 'confirmed' });
+  });
+  await assertSucceeds(getDoc(doc(as(ALUNO), `professorAvailability/${PROF}`)));
+  await assertSucceeds(getDoc(doc(as(OUTRO), `professorAvailability/${OUTRO}`)));
+  await assertFails(getDoc(doc(as(ALUNO), `professorAvailability/${OUTRO}`)));
+  await assertFails(setDoc(doc(as(PROF), `professorAvailability/${PROF}`), { published: true }));
+  await assertSucceeds(getDoc(doc(as(PROF), 'professorPrivateLessons/l1')));
+  await assertSucceeds(getDocs(query(collection(as(ALUNO), 'professorPrivateLessons'), where('athleteId', '==', ALUNO))));
+  await assertFails(getDoc(doc(as(OUTRO), 'professorPrivateLessons/l1')));
+  await assertFails(setDoc(doc(as(ALUNO), 'professorPrivateLessons/l2'), { professorUid: PROF, athleteId: ALUNO, status: 'confirmed' }));
+});

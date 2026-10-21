@@ -194,6 +194,8 @@ import '../../features/professor_mode/presentation/professor_students_page.dart'
 import '../../features/professor_mode/presentation/earnings/professor_earnings_page.dart';
 import '../../features/professor_mode/presentation/evaluations/athlete_evaluations_pages.dart';
 import '../../features/professor_mode/presentation/evaluations/professor_evaluations_page.dart';
+import '../../features/professor_mode/presentation/availability/athlete_private_lessons_pages.dart';
+import '../../features/professor_mode/presentation/availability/professor_availability_page.dart';
 import '../../features/professor_mode/presentation/earnings/professor_withdraw_page.dart';
 import '../../features/professor_mode/presentation/earnings/professor_withdrawals_page.dart';
 import '../../features/professor_mode/domain/professor_notices.dart'
@@ -608,6 +610,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                         ],
                       ),
                     ],
+                  ),
+                  // Fase 10: disponibilidade para particulares (A10).
+                  GoRoute(
+                    path: 'disponibilidade',
+                    name: AppRouteNames.professorAvailability,
+                    builder: (context, state) =>
+                        const ProfessorAvailabilityPage(),
                   ),
                   // Fase 8: avaliação dos alunos.
                   GoRoute(
@@ -2967,6 +2976,26 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => AthleteEvaluationPage(
           evaluationId: state.pathParameters['evaluationId']?.trim() ?? '',
         ),
+      ),
+      // Particulares do atleta (push `professor_private_lesson`) e o
+      // agendamento com um professor.
+      GoRoute(
+        path: AppRoutes.athletePrivateLessons,
+        name: AppRouteNames.athletePrivateLessons,
+        builder: (context, state) => const AthletePrivateLessonsPage(),
+        routes: [
+          GoRoute(
+            path: 'agendar/:professorUid',
+            name: AppRouteNames.athletePrivateLessonBook,
+            builder: (context, state) => AthletePrivateLessonBookPage(
+              professorUid:
+                  state.pathParameters['professorUid']?.trim() ?? '',
+              professorName: state.extra is String
+                  ? state.extra! as String
+                  : null,
+            ),
+          ),
+        ],
       ),
       // Mensagens do atleta com os professores (modo Atleta).
       GoRoute(

@@ -208,6 +208,14 @@ export {onProfessorLessonCreated} from "./professor-lessons";
 export {configureProfessorCalendarFeed, professorCalendarFeed} from "./professor-calendar";
 // Avaliação do aluno pelo professor (fundamentos, nota geral, foco).
 export {deleteProfessorEvaluation, saveProfessorEvaluation} from "./professor-evaluations";
+// Disponibilidade do professor e aulas particulares agendadas pelo aluno (A10).
+export {
+  cancelPrivateLesson,
+  getProfessorOpenSlots,
+  requestPrivateLesson,
+  respondPrivateLesson,
+  saveProfessorAvailability,
+} from "./professor-availability";
 // Canal professor ↔ gestão da arena (D4) e comunicados da arena para os professores (F6).
 export {markArenaProfessorNoticeRead, openArenaChannel, sendArenaProfessorNotice} from "./arena-professor-channel";
 // Mensagens professor ↔ aluno e grupo da turma.

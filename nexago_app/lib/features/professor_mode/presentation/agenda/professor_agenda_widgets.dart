@@ -37,10 +37,16 @@ Color professorArenaColor(Map<String, int> palette, String? arenaId) {
   return kProfessorArenaColors[i % kProfessorArenaColors.length];
 }
 
+/// Particular do app: sem arena, laranja.
 Color professorItemColor(Map<String, int> palette, ProfessorAgendaItem i) =>
-    i.isBlock ? kProfessorBlockColor : professorArenaColor(palette, i.arenaId);
+    i.isBlock
+        ? kProfessorBlockColor
+        : i.kind == ProfessorAgendaKind.privateLesson
+            ? AppColors.brandHover
+            : professorArenaColor(palette, i.arenaId);
 
-/// Abre o detalhe do item: turma (E4), particular (E5) ou o bloqueio (E7).
+/// Abre o detalhe do item: turma (E4), particular (E5), o bloqueio (E7) ou,
+/// para a particular do app, a Disponibilidade (pedidos e próximas).
 void openProfessorAgendaItem(BuildContext context, ProfessorAgendaItem i) {
   switch (i.kind) {
     case ProfessorAgendaKind.session:
@@ -59,6 +65,8 @@ void openProfessorAgendaItem(BuildContext context, ProfessorAgendaItem i) {
         AppRouteNames.professorBlockEdit,
         pathParameters: {'blockId': i.block!.id},
       );
+    case ProfessorAgendaKind.privateLesson:
+      context.pushNamed(AppRouteNames.professorAvailability);
   }
 }
 

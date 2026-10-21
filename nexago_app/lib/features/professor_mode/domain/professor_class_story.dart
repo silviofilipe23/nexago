@@ -84,3 +84,91 @@ String professorClassStoryShareText(TeacherClassRosterSession s) {
   final shown = done.take(kClassStoryPlanMaxBlocks).toList();
   return (blocks: shown, left: done.length - shown.length);
 }
+
+/// Minutos somados do plano do story.
+int classStoryPlanMinutes(Iterable<ClassStoryPlanBlock> plan) =>
+    plan.fold(0, (sum, b) => sum + b.minutes);
+
+/// Uma sugestão do "Novo bloco" (G1b): o nome, os minutos de costume e o selo
+/// (`TÉCNICA`, `FÍSICO`, `JOGO` ou vazio).
+typedef ClassStoryBlockSuggestion = ({String label, int minutes, String tag});
+
+/// Selo da categoria do plano de aula na sugestão.
+String classStoryCategoryTag(LessonPlanCategory c) => switch (c) {
+      LessonPlanCategory.fisico => 'FÍSICO',
+      LessonPlanCategory.jogo => 'JOGO',
+      LessonPlanCategory.outro => '',
+      _ => 'TÉCNICA',
+    };
+
+/// Para quem ainda não tem plano de aula nenhum.
+const List<ClassStoryBlockSuggestion> kClassStoryDefaultSuggestions = [
+  (label: 'Aquecimento', minutes: 10, tag: 'FÍSICO'),
+  (label: 'Saque cruzado', minutes: 15, tag: 'TÉCNICA'),
+  (label: 'Devolução', minutes: 15, tag: 'TÉCNICA'),
+  (label: 'Voleio de rede', minutes: 10, tag: 'TÉCNICA'),
+  (label: 'Jogo reduzido 2×2', minutes: 20, tag: 'JOGO'),
+  (label: 'Pontos corridos', minutes: 10, tag: 'JOGO'),
+];
+
+/// Os blocos que o professor mais usa nos planos de aula (nome igual sem
+/// diferença de caixa), com os minutos e a categoria mais frequentes de
+/// cada. Empate: o que apareceu primeiro. `fromHistory: false` = ainda sem
+/// planos, vão as sugestões padrão.
+({List<ClassStoryBlockSuggestion> items, bool fromHistory})
+    classStoryBlockSuggestions(Iterable<LessonPlan> plans, {int max = 6}) {
+  final byKey = <String,
+      ({
+    String label,
+    Map<int, int> minutes,
+    Map<LessonPlanCategory, int> cats,
+    int count,
+    int order
+  })>{};
+  var order = 0;
+  for (final plan in plans) {
+    for (final b in plan.blocks) {
+      var name = b.name.trim();
+      if (name.isEmpty) continue;
+      if (name.length > kClassStoryPlanLabelMax) {
+        name = name.substring(0, kClassStoryPlanLabelMax).trim();
+      }
+      final key = name.toLowerCase();
+      final prev = byKey[key];
+      final minutes = {...?prev?.minutes};
+      minutes[b.minutes] = (minutes[b.minutes] ?? 0) + 1;
+      final cats = {...?prev?.cats};
+      cats[b.category] = (cats[b.category] ?? 0) + 1;
+      byKey[key] = (
+        label: prev?.label ?? name,
+        minutes: minutes,
+        cats: cats,
+        count: (prev?.count ?? 0) + 1,
+        order: prev?.order ?? order++,
+      );
+    }
+  }
+  if (byKey.isEmpty) {
+    return (
+      items: kClassStoryDefaultSuggestions.take(max).toList(),
+      fromHistory: false,
+    );
+  }
+  K top<K>(Map<K, int> counts) =>
+      counts.entries.reduce((a, b) => b.value > a.value ? b : a).key;
+  final sorted = byKey.values.toList()
+    ..sort((a, b) => a.count != b.count
+        ? b.count.compareTo(a.count)
+        : a.order.compareTo(b.order));
+  return (
+    items: [
+      for (final s in sorted.take(max))
+        (
+          label: s.label,
+          minutes: top(s.minutes).clamp(1, 240),
+          tag: classStoryCategoryTag(top(s.cats)),
+        ),
+    ],
+    fromHistory: true,
+  );
+}

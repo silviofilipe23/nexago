@@ -362,6 +362,60 @@ void main() {
     });
   });
 
+  group('G1b · sugestões do novo bloco', () {
+    test('blocos mais usados, com minutos e categoria mais frequentes', () {
+      LessonPlan p(String id, List<(String, int, LessonPlanCategory)> b) =>
+          LessonPlan(
+            id: id,
+            kind: LessonPlanKind.session,
+            refId: id,
+            title: 'T',
+            date: '2026-10-20',
+            blocks: [
+              for (var i = 0; i < b.length; i++)
+                LessonPlanBlock(
+                  id: 'b$i',
+                  name: b[i].$1,
+                  minutes: b[i].$2,
+                  category: b[i].$3,
+                ),
+            ],
+          );
+      final r = classStoryBlockSuggestions([
+        p('a', [
+          ('Aquecimento', 10, LessonPlanCategory.fisico),
+          ('Saque cruzado', 15, LessonPlanCategory.saque),
+        ]),
+        p('b', [
+          ('saque cruzado', 15, LessonPlanCategory.saque),
+          ('Jogo reduzido', 20, LessonPlanCategory.jogo),
+        ]),
+        p('c', [
+          ('Saque Cruzado', 20, LessonPlanCategory.saque),
+          ('  ', 5, LessonPlanCategory.outro),
+          ('Outro', 5, LessonPlanCategory.outro),
+        ]),
+      ]);
+      expect(r.fromHistory, isTrue);
+      expect(
+          r.items.first, (label: 'Saque cruzado', minutes: 15, tag: 'TÉCNICA'));
+      expect(r.items.map((i) => i.label),
+          ['Saque cruzado', 'Aquecimento', 'Jogo reduzido', 'Outro']);
+      expect(r.items[1].tag, 'FÍSICO');
+      expect(r.items[2].tag, 'JOGO');
+      expect(r.items[3].tag, '');
+      expect(classStoryBlockSuggestions(const [], max: 3).items, hasLength(3));
+      expect(classStoryBlockSuggestions(const []).fromHistory, isFalse);
+      expect(
+        classStoryPlanMinutes(const [
+          ClassStoryPlanBlock(minutes: 10, label: 'a'),
+          ClassStoryPlanBlock(minutes: 15, label: 'b'),
+        ]),
+        25,
+      );
+    });
+  });
+
   group('G1 · Treino encerrado → G2', () {
     late _FakeStoryRepo repo;
 
@@ -410,6 +464,112 @@ void main() {
       );
       expect(find.text('Pode ser marcado no story'), findsNWidgets(2));
       expect(find.text('Não liberou o story'), findsOneWidget);
+    });
+
+    testWidgets('folha do novo bloco: atalhos, ±, sugestão, outro e NOVO',
+        (tester) async {
+      await pump(tester);
+      await tester
+          .tap(find.byKey(const Key('professor-class-closed-add-block')));
+      await tester.pumpAndSettle();
+      expect(find.text('Novo bloco'), findsOneWidget);
+      expect(find.text('Restam 60 min dos 60 do treino', findRichText: true),
+          findsOneWidget);
+      expect(find.text('10′'), findsWidgets);
+
+      await tester.tap(find.byKey(const Key('professor-plan-block-quick-15')));
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('professor-plan-block-minutes')))
+            .data,
+        '15′',
+      );
+      await tester.tap(find.byKey(const Key('professor-plan-block-plus')));
+      await tester.pump();
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('professor-plan-block-minutes')))
+            .data,
+        '20′',
+      );
+      // Sem nome não adiciona.
+      expect(
+        tester
+            .widget<FilledButton>(
+                find.byKey(const Key('professor-plan-block-save')))
+            .onPressed,
+        isNull,
+      );
+
+      // Sem planos de aula: sugestões padrão; tocar preenche nome e minutos.
+      expect(find.text('SUGESTÕES'), findsOneWidget);
+      await tester.tap(find
+          .byKey(const Key('professor-plan-block-suggestion-Saque cruzado')));
+      await tester.pump();
+      expect(find.text('13/40'), findsOneWidget);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('professor-plan-block-minutes')))
+            .data,
+        '15′',
+      );
+      expect(find.text('PRÉVIA NO STORY'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('professor-plan-block-another')));
+      await tester.pumpAndSettle();
+      // Segue aberta, limpa, com o restante descontado.
+      expect(find.text('Novo bloco'), findsOneWidget);
+      expect(find.text('0/40'), findsOneWidget);
+      expect(find.text('Restam 45 min dos 60 do treino', findRichText: true),
+          findsOneWidget);
+
+      await tester.enterText(
+          find.byKey(const Key('professor-plan-block-label')), 'Jogo longo');
+      await tester.tap(find.byKey(const Key('professor-plan-block-quick-20')));
+      await tester.pump();
+      for (var i = 0; i < 6; i++) {
+        await tester.tap(find.byKey(const Key('professor-plan-block-plus')));
+      }
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('professor-plan-block-save')));
+      await tester.pumpAndSettle();
+      expect(find.text('Novo bloco'), findsNothing);
+
+      expect(find.text('Saque cruzado'), findsOneWidget);
+      expect(find.text('Jogo longo'), findsOneWidget);
+      expect(find.byKey(const Key('professor-class-closed-plan-new')),
+          findsNWidgets(2));
+      // 15 + 50 = 65 de 60: o total passa (vermelho).
+      expect(find.text('65/60 MIN'), findsOneWidget);
+    });
+
+    testWidgets('arrastar pela alça muda a ordem do plano', (tester) async {
+      await pump(tester, plans: [
+        lessonPlan([('Primeiro', 10), ('Segundo', 10), ('Terceiro', 10)]),
+      ]);
+      expect(find.text('30/60 MIN'), findsOneWidget);
+      String rowText(int i) => tester
+          .widgetList<Text>(find.descendant(
+            of: find.byKey(Key('professor-class-closed-plan-$i')),
+            matching: find.byType(Text),
+          ))
+          .map((t) => t.data)
+          .join(' ');
+      expect(rowText(0), contains('Primeiro'));
+      final handle = find.byIcon(Icons.drag_indicator_rounded).first;
+      final gesture = await tester.startGesture(tester.getCenter(handle));
+      await tester.pump(const Duration(milliseconds: 100));
+      // Uma linha (~40 px) e um pouco: troca com o segundo.
+      for (var i = 0; i < 5; i++) {
+        await gesture.moveBy(const Offset(0, 11));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(rowText(0), contains('Segundo'));
+      expect(rowText(1), contains('Primeiro'));
+      expect(rowText(2), contains('Terceiro'));
     });
 
     testWidgets('com plano de aula da turma: o plano já vem preenchido',

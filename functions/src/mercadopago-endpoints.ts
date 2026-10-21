@@ -12,23 +12,18 @@ import {
   processArenaBookingMercadoPagoNotification,
 } from "./mercadopago-arena-booking-webhook";
 import {getFirebaseProjectId} from "./firebase-paths";
-import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {CLIENT_FACING_REGIONS, DEFAULT_REGION} from "./function-regions";
 
 /**
  * A região que aparece nas URLs que saem daqui para o Mercado Pago.
  *
- * NÃO é a região onde a função roda — `mercadopagoOAuthCallback` e
- * `mercadopagoWebhook` atendem nas duas (`function-regions.ts`). É a região
- * que está CADASTRADA do lado de lá: o `redirect_uri` precisa bater caractere
- * por caractere com o registrado no app OAuth, e o `notification_url` é para
- * onde eles postam a confirmação de pagamento.
- *
- * Trocar isto para `southamerica-east1` sem antes atualizar o cadastro no
- * painel do Mercado Pago derruba o OAuth e faz pagamento confirmado nunca
- * chegar. A ordem é: cadastrar a URL nova lá, depois mudar aqui, depois tirar
- * `us-central1` de `CLIENT_FACING_REGIONS`.
+ * Tem de bater com o que está CADASTRADO do lado de lá: o `redirect_uri`
+ * precisa ser igual caractere por caractere ao registrado no app OAuth do
+ * Mercado Pago, e o `notification_url` é para onde eles postam a confirmação
+ * de pagamento. Mudar isto sem atualizar o cadastro derruba o OAuth e faz
+ * pagamento confirmado nunca chegar.
  */
-const MERCADOPAGO_PUBLIC_REGION = "us-central1";
+const MERCADOPAGO_PUBLIC_REGION = DEFAULT_REGION;
 
 // Segredos do Mercado Pago (marketplace / split)
 const MERCADOPAGO_APP_ID = defineSecret("MERCADOPAGO_APP_ID");

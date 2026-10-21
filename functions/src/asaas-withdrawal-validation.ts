@@ -11,8 +11,7 @@
  * dinheiro da conta.
  *
  * Configuração (Menu do usuário › Integrações › Mecanismos de segurança):
- *   - URL: esta função em southamerica-east1 (a de us-central1 existe só pela
- *     política de região do projeto);
+ *   - URL: esta função em southamerica-east1;
  *   - token: o MESMO valor de ASAAS_WEBHOOK_ACCESS_TOKEN;
  *   - NÃO ligar "validar também operações da interface", estornos Pix nem
  *     splits: o nexaGO não as reconhece e recusaria todas.

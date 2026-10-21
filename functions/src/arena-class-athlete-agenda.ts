@@ -14,8 +14,8 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, Timestamp, type Firestore} from "firebase-admin/firestore";
 import {addDaysToDateKey, isValidDateKey, isoWeekdayOfDateKey} from "./arena-recurring-booking";
-import {ARENA_CLASSES, ARENA_CLASS_SESSIONS, CLASS_STUDENTS} from "./arena-class-constants";
-import {studentAttendsWeekday} from "./arena-class-ledger";
+import {ARENA_CLASSES, ARENA_CLASS_SESSIONS, CLASS_STUDENTS, DEFAULT_CLASS_RULES} from "./arena-class-constants";
+import {classRulesRef, parseClassRules, studentAttendsWeekday} from "./arena-class-ledger";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {arenasWithProfessorPermission} from "./arena-professor-permissions";
@@ -61,6 +61,12 @@ export interface ClassAgendaItem {
   classType: string;
   /** Esporte da turma (código do catálogo); vazio em aula antiga. Campo novo, opcional no cliente. */
   sport: string;
+  /** Só para o aluno: o que respondeu pelo app (`respondArenaClassSession`). Professor: `null`. */
+  myRsvp: "going" | "not_going" | null;
+  /** Só para o aluno: já fez check-in na arena (`checkInArenaClassSession`). */
+  checkedIn: boolean;
+  /** Só para o aluno: antecedência (h) que a arena pede no "Não vou" para dar crédito. Professor: `null`. */
+  makeupNoticeHours: number | null;
 }
 
 function str(v: unknown, fallback = ""): string {
@@ -78,7 +84,8 @@ function markOf(attendance: Record<string, Record<string, unknown>>, studentId: 
 
 function baseItem(
   s: AgendaSession,
-): Omit<ClassAgendaItem, "role" | "kind" | "myMark" | "studentCount" | "canManageLessons"> {
+): Omit<ClassAgendaItem, "role" | "kind" | "myMark" | "studentCount" | "canManageLessons" | "myRsvp" | "checkedIn" |
+  "makeupNoticeHours"> {
   const d = s.data;
   const startAt = d["startAt"];
   const status = str(d["status"]);
@@ -100,6 +107,20 @@ function baseItem(
   };
 }
 
+/** Resposta e check-in do aluno nesta aula (gravados pelo app — `arena-class-athlete-actions.ts`). */
+function studentAppState(
+  s: AgendaSession,
+  studentId: string,
+  noticeHours: ReadonlyMap<string, number> | undefined,
+): Pick<ClassAgendaItem, "myRsvp" | "checkedIn" | "makeupNoticeHours"> {
+  const response = recordOf(s.data["rsvps"])[studentId]?.["response"];
+  return {
+    myRsvp: response === "going" || response === "not_going" ? response : null,
+    checkedIn: recordOf(s.data["checkIns"])[studentId] != null,
+    makeupNoticeHours: noticeHours?.get(str(s.data["arenaId"])) ?? DEFAULT_CLASS_RULES.makeupNoticeHours,
+  };
+}
+
 /**
  * Itens da agenda, um por aula (professor ganha de aluno se for os dois), em ordem de horário.
  * `rosterCounts`: classId → alunos ativos por dia da semana (para o professor).
@@ -115,6 +136,8 @@ export function buildClassAgendaItems(input: {
   rosterCounts: ReadonlyMap<string, ReadonlyMap<number, number>>;
   /** Arenas em que o professor tem vínculo com "Gerenciar as próprias aulas". */
   lessonArenaIds?: ReadonlySet<string>;
+  /** arenaId → `makeupNoticeHours` das regras da arena (ausente = padrão). */
+  noticeHoursByArena?: ReadonlyMap<string, number>;
 }): ClassAgendaItem[] {
   const items = new Map<string, ClassAgendaItem>();
   const byClass = new Map<string, ClassMembership[]>();
@@ -131,7 +154,7 @@ export function buildClassAgendaItems(input: {
       if (!show) continue;
       items.set(s.id, {
         ...baseItem(s), role: "student", kind: "regular", myMark: markOf(attendance, m.studentId), studentCount: null,
-        canManageLessons: null,
+        canManageLessons: null, ...studentAppState(s, m.studentId, input.noticeHoursByArena),
       });
     }
   }
@@ -145,7 +168,7 @@ export function buildClassAgendaItems(input: {
     const kind = extra["kind"] === "trial" ? "trial" : "makeup";
     items.set(s.id, {
       ...baseItem(s), role: "student", kind, myMark: markOf(recordOf(s.data["attendance"]), studentId), studentCount: null,
-      canManageLessons: null,
+      canManageLessons: null, ...studentAppState(s, studentId, input.noticeHoursByArena),
     });
   }
 
@@ -160,6 +183,7 @@ export function buildClassAgendaItems(input: {
     items.set(s.id, {
       ...baseItem(s), role: "teacher", kind: "regular", myMark: null, studentCount: count,
       canManageLessons: input.lessonArenaIds?.has(str(s.data["arenaId"])) ?? false,
+      myRsvp: null, checkedIn: false, makeupNoticeHours: null,
     });
   }
 
@@ -213,6 +237,16 @@ export async function loadClassAgenda(db: Firestore, uid: string, fromKey: strin
     "canManageOwnLessons",
   );
 
+  // Regras de aula das arenas onde é aluno: antecedência do "Não vou" (crédito de reposição).
+  const studentArenaIds = [...new Set([
+    ...memberships.map((m) => m.arenaId),
+    ...extraSnap.docs.map((d) => str(d.data()["arenaId"])),
+  ].filter(Boolean))];
+  const noticeHoursByArena = new Map<string, number>();
+  await Promise.all(studentArenaIds.map(async (arenaId) => {
+    noticeHoursByArena.set(arenaId, parseClassRules((await classRulesRef(db, arenaId).get()).data()).makeupNoticeHours);
+  }));
+
   const toSessions = (docs: FirebaseFirestore.QueryDocumentSnapshot[]): AgendaSession[] =>
     docs.map((d) => ({id: d.id, data: d.data() as Record<string, unknown>}));
   return buildClassAgendaItems({
@@ -224,6 +258,7 @@ export async function loadClassAgenda(db: Firestore, uid: string, fromKey: strin
     teacherSessions: toSessions(teacherSnap.docs),
     rosterCounts,
     lessonArenaIds,
+    noticeHoursByArena,
   });
 }
 

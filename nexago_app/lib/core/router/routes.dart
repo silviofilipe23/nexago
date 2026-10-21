@@ -139,6 +139,11 @@ abstract final class AppRoutes {
   static const String athleteTrainingEvolution = '/treinos/evolucao';
   static const String athleteTrainingProfessors = '/treinos/professores';
 
+  /// Escolher reposição com o crédito (T7, `?credito=`) e check-in na arena
+  /// (T5).
+  static const String athleteTrainingMakeup = '/treinos/reposicao';
+  static const String athleteTrainingCheckIn = '/treinos/checkin/:sessionId';
+
   /// Plano da aula publicado para o ATLETA (H8, push
   /// `lesson_plan_published`) e a lista deles. Abrem no modo Atleta.
   static const String athleteLessonPlans = '/aula/planos';
@@ -886,6 +891,8 @@ abstract final class AppRouteNames {
   static const String athleteTrainingFeedbacks = 'athleteTrainingFeedbacks';
   static const String athleteTrainingEvolution = 'athleteTrainingEvolution';
   static const String athleteTrainingProfessors = 'athleteTrainingProfessors';
+  static const String athleteTrainingMakeup = 'athleteTrainingMakeup';
+  static const String athleteTrainingCheckIn = 'athleteTrainingCheckIn';
   static const String athleteLessonPlans = 'athleteLessonPlans';
   static const String athleteLessonPlan = 'athleteLessonPlan';
   static const String professorEarnings = 'professorEarnings';

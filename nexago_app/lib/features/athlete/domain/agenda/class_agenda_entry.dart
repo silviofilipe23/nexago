@@ -22,6 +22,9 @@ class ClassAgendaEntry {
     this.canManageLessons = false,
     this.classType,
     this.sport,
+    this.myRsvp,
+    this.checkedIn = false,
+    this.makeupNoticeHours,
   });
 
   final String sessionId;
@@ -64,6 +67,17 @@ class ClassAgendaEntry {
   /// sem esporte = `null`.
   final String? sport;
 
+  /// Só aluno: o que respondeu pelo app — `going`, `not_going` ou `null`.
+  /// Servidor antigo (sem o campo) = `null`.
+  final String? myRsvp;
+
+  /// Só aluno: já fez check-in na arena pelo app.
+  final bool checkedIn;
+
+  /// Só aluno: antecedência (h) que a arena pede no "Não vou" para dar crédito
+  /// de reposição. Servidor antigo = `null` (o app usa o padrão).
+  final int? makeupNoticeHours;
+
   bool get isTeacher => role == 'teacher';
   bool get isCanceled => status == 'canceled';
 
@@ -78,6 +92,8 @@ class ClassAgendaEntry {
     final mark = map['myMark'];
     final type = map['classType'];
     final sport = map['sport'];
+    final rsvp = map['myRsvp'];
+    final notice = map['makeupNoticeHours'];
     return ClassAgendaEntry(
       sessionId: s('sessionId'),
       arenaId: s('arenaId'),
@@ -98,6 +114,9 @@ class ClassAgendaEntry {
       canManageLessons: map['canManageLessons'] == true,
       classType: type is String && type.trim().isNotEmpty ? type.trim() : null,
       sport: sport is String && sport.trim().isNotEmpty ? sport.trim() : null,
+      myRsvp: rsvp == 'going' || rsvp == 'not_going' ? rsvp as String : null,
+      checkedIn: map['checkedIn'] == true,
+      makeupNoticeHours: notice is num ? notice.toInt() : null,
     );
   }
 }

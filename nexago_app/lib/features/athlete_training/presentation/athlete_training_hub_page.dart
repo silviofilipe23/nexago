@@ -21,6 +21,8 @@ import '../../professor_mode/presentation/lesson_plans/athlete_lesson_plan_pages
 import '../../professor_mode/presentation/widgets/professor_students_widgets.dart';
 import '../application/athlete_training_providers.dart';
 import '../domain/athlete_training.dart';
+import '../domain/class_presence.dart';
+import 'widgets/class_presence_widgets.dart';
 import 'widgets/training_widgets.dart';
 
 /// T2 · Meus treinos — o hub do aluno: próximo treino, números do mês, o que
@@ -41,6 +43,8 @@ class AthleteTrainingHubPage extends ConsumerWidget {
     final professors = ref.watch(myProfessorsProvider).valueOrNull;
     final charges = ref.watch(myClassChargesProvider).valueOrNull ?? const [];
     final unread = ref.watch(unreadMessagesCountProvider);
+    final credits =
+        ref.watch(athleteClassCreditsProvider).valueOrNull ?? const [];
 
     final upcoming = trainings == null
         ? const <TrainingSession>[]
@@ -83,6 +87,7 @@ class AthleteTrainingHubPage extends ConsumerWidget {
           ref.invalidate(myClassAgendaProvider);
           ref.invalidate(myProfessorsProvider);
           ref.invalidate(myClassChargesProvider);
+          ref.invalidate(athleteClassCreditsProvider);
           await ref.read(myClassAgendaProvider.future);
         },
         child: ListView(
@@ -103,6 +108,9 @@ class AthleteTrainingHubPage extends ConsumerWidget {
                 plan: lessonPlanViewFor(views, next.planKind, next.id),
                 primaryLabel: 'Detalhes',
                 onPrimary: () => openTraining(context, next),
+                presence: TrainingPresenceButton.appliesTo(next, now)
+                    ? TrainingPresenceButton(training: next)
+                    : null,
               )
             else
               _NoNextTraining(
@@ -131,6 +139,28 @@ class AthleteTrainingHubPage extends ConsumerWidget {
                         ? 'treino no mês'
                         : 'treinos no mês',
                     color: ProfessorLinksStyle.blue,
+                  ),
+                ],
+              ),
+            ],
+            if (credits.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              TrainingTilesBlock(
+                children: [
+                  TrainingListTile(
+                    key: const Key('training-hub-credits'),
+                    icon: Icons.autorenew_rounded,
+                    highlight: true,
+                    title: credits.length == 1
+                        ? '1 crédito de reposição'
+                        : '${credits.length} créditos de reposição',
+                    subtitle: 'Válido até '
+                        '${classDayMonthLabel(credits.first.expiresOn)} · '
+                        'escolher horário',
+                    onTap: () => openTrainingMakeup(
+                      context,
+                      creditId: credits.first.creditId,
+                    ),
                   ),
                 ],
               ),

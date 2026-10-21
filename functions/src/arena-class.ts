@@ -40,6 +40,7 @@ import {
 } from "./arena-recurring-booking";
 import {
   ARENA_CLASSES,
+  ARENA_CLASS_CREDITS,
   ARENA_CLASS_SESSIONS,
   ATTENDANCE_MARKS,
   CLASS_HORIZON_DAYS,
@@ -50,6 +51,7 @@ import {
   MAX_CLASS_CAPACITY,
   MAX_CLASS_DURATION_MINUTES,
   classSessionId,
+  makeupCreditId,
   type ArenaClassLevel,
   type ArenaClassType,
   type AttendanceMark,
@@ -963,6 +965,7 @@ export async function saveClassAttendanceCore(
     const merged: Record<string, AttendanceMark> = Object.fromEntries(
       Object.entries(session.attendance).map(([id, a]) => [id, a.mark]),
     );
+    const revokedCredits: FirebaseFirestore.DocumentReference[] = [];
     for (const [studentId, mark] of Object.entries(input.marks)) {
       const extra = session.extras[studentId];
       const snap = extra ? null : await tx.get(studentsCol.doc(studentId));
@@ -979,6 +982,15 @@ export async function saveClassAttendanceCore(
       }
       attendance[studentId] = {mark, name: extra ? extra.name : String(snap?.data()?.["name"] ?? "Aluno")};
       merged[studentId] = mark;
+      // Avisou "não vou" pelo app (crédito na hora) e veio, ou faltou sem a falta avisada valer:
+      // o crédito do aviso, se ainda não foi usado, sai.
+      if (mark !== "excused" && !extra) {
+        const creditRef = db.collection(ARENA_CLASS_CREDITS).doc(makeupCreditId(sessionId, studentId));
+        const credit = await tx.get(creditRef);
+        if (credit.exists && credit.data()?.["reason"] === "notice" && credit.data()?.["status"] === "available") {
+          revokedCredits.push(creditRef);
+        }
+      }
     }
 
     // Fechar a chamada: crédito de reposição (falta justificada) e débito de pacote.
@@ -1013,6 +1025,7 @@ export async function saveClassAttendanceCore(
     }
     tx.set(sessionRef, update, {merge: true});
     effects?.apply(tx);
+    for (const ref of revokedCredits) tx.delete(ref);
     const marked = Object.values(input.marks).filter((m) => m != null).length;
     return {status, marked, credited: effects?.credited.length ?? 0, debited: effects?.debited.length ?? 0};
   });

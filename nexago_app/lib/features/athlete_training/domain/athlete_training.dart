@@ -111,6 +111,10 @@ TrainingSession? trainingFromClass(ClassAgendaEntry e, DateTime now) {
       'present' => TrainingState.present,
       'absent' => TrainingState.absent,
       'excused' => TrainingState.excused,
+      // Sem marca na chamada: o que o aluno fez pelo app vale até o professor
+      // marcar (check-in = presente; "não vou" em cima da hora = avisou).
+      _ when e.checkedIn => TrainingState.present,
+      _ when e.myRsvp == 'not_going' => TrainingState.excused,
       _ => past || e.status == 'completed'
           ? TrainingState.done
           : TrainingState.scheduled,
@@ -424,7 +428,9 @@ String trainingWeekdayDay(String dateKey) {
 
 /// Rótulo curto do estado (pílula mono).
 String trainingStateLabel(TrainingSession t) => switch (t.state) {
-      TrainingState.scheduled => t.isPrivate ? 'CONFIRMADA' : 'AGENDADA',
+      TrainingState.scheduled => t.isPrivate || t.classEntry?.myRsvp == 'going'
+          ? 'CONFIRMADA'
+          : 'AGENDADA',
       TrainingState.awaitingProfessor => 'AGUARDANDO',
       TrainingState.canceled => 'CANCELADA',
       TrainingState.present => 'PRESENTE',

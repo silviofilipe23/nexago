@@ -267,10 +267,12 @@ void main() {
       expect(find.text('Amanhã · 19:00'), findsOneWidget);
       expect(find.text('Flexionar o joelho no saque'), findsOneWidget);
       expect(find.text('Feedback novo do Thiago'), findsOneWidget);
-      // Badge do feedback novo no botão principal.
+      // Badge do feedback novo (com plano + presença, no cabeçalho do cartão).
       expect(find.text('1'), findsOneWidget);
+      expect(find.byKey(const Key('training-presence-confirm')), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('training-next-primary')));
+      // Plano e presença ocupam os botões: o cartão leva ao hub.
+      await tester.tap(find.text('Amanhã · 19:00'));
       await _settle(tester);
       expect(router.state.uri.path, AppRoutes.athleteTrainings);
     });

@@ -9,6 +9,8 @@ import '../../professor_links/application/professor_links_providers.dart';
 import '../../professor_mode/application/professor_availability_providers.dart';
 import '../../professor_mode/application/professor_lesson_plans_providers.dart';
 import '../domain/athlete_training.dart';
+import '../domain/class_presence.dart';
+import '../infrastructure/class_presence_repository.dart';
 
 /// Treinos da janela curta: aulas da agenda (30 dias para trás, 35 para a
 /// frente — o mesmo `myClassAgendaProvider` da aba Agenda) + particulares.
@@ -92,3 +94,27 @@ final athleteHasTrainingsProvider = Provider.autoDispose<bool>((ref) {
   final views = ref.watch(athleteLessonPlanViewsProvider).valueOrNull;
   return views != null && views.isNotEmpty;
 });
+
+/// Créditos de reposição disponíveis (`getMyClassCredits`). Falha = lista
+/// vazia (a tela de reposição mostra o próprio erro ao abrir as opções).
+final athleteClassCreditsProvider =
+    FutureProvider.autoDispose<List<ClassMakeupCredit>>((ref) async {
+  if (ref.watch(professorLinksUidProvider).isEmpty) return const [];
+  try {
+    return await ref.read(classPresenceRepositoryProvider).fetchCredits();
+  } catch (_) {
+    return const [];
+  }
+});
+
+/// Aulas onde o crédito pode ser usado.
+final athleteClassMakeupOptionsProvider = FutureProvider.autoDispose
+    .family<List<ClassMakeupOption>, String>((ref, creditId) {
+  return ref.read(classPresenceRepositoryProvider).fetchMakeupOptions(creditId);
+});
+
+/// Depois de uma ação na aula: agenda, histórico e créditos voltam do servidor.
+void refreshAthleteClassPresence(WidgetRef ref) {
+  ref.invalidate(myClassAgendaProvider);
+  ref.invalidate(athleteClassCreditsProvider);
+}

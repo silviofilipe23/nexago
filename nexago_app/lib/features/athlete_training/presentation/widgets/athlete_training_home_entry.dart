@@ -18,6 +18,7 @@ import '../../../professor_mode/presentation/lesson_plans/athlete_lesson_plan_pa
     show openAthleteLessonPlan;
 import '../../application/athlete_training_providers.dart';
 import '../../domain/athlete_training.dart';
+import 'class_presence_widgets.dart';
 import 'training_widgets.dart';
 
 /// T1 · Entrada de Treinos na aba Início: o cartão "Próximo treino" (ou, sem
@@ -62,6 +63,9 @@ class AthleteTrainingHomeEntry extends ConsumerWidget {
               primaryLabel: 'Meus treinos',
               badge: badge,
               onPrimary: openHub,
+              presence: TrainingPresenceButton.appliesTo(next, now)
+                  ? TrainingPresenceButton(training: next)
+                  : null,
             )
           else
             _HubShortcut(badge: badge, onTap: openHub),

@@ -231,9 +231,13 @@ export const saveArenaClassRules = onCall({region: CLIENT_FACING_REGIONS}, async
   const checks: Array<[keyof ClassRules, boolean]> = [
     ["makeupValidityDays", input["makeupValidityDays"] === undefined || rules.makeupValidityDays === input["makeupValidityDays"]],
     ["defaultDueDay", input["defaultDueDay"] === undefined || rules.defaultDueDay === input["defaultDueDay"]],
+    ["makeupNoticeHours", input["makeupNoticeHours"] === undefined || rules.makeupNoticeHours === input["makeupNoticeHours"]],
   ];
   if (checks.some(([, ok]) => !ok)) {
-    throw new HttpsError("invalid-argument", "Validade do crédito (1–365 dias) ou vencimento (dia 1–28) inválido.");
+    throw new HttpsError(
+      "invalid-argument",
+      "Validade do crédito (1–365 dias), vencimento (dia 1–28) ou antecedência do aviso (0–72 h) inválido.",
+    );
   }
   if (rules.onlineBillingEnabled && !stored.onlineBillingEnabled) assertArenaCanBillOnline(arenaData);
   await classRulesRef(db, arenaId).set({...rules, updatedAt: FieldValue.serverTimestamp(), updatedByUid: uid});

@@ -12,6 +12,8 @@ import '../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../professor_mode/presentation/widgets/professor_students_widgets.dart';
 import '../application/athlete_training_providers.dart';
 import '../domain/athlete_training.dart';
+import '../domain/class_presence.dart';
+import 'widgets/class_presence_widgets.dart';
 import 'widgets/training_widgets.dart';
 
 enum _Tab { upcoming, history }
@@ -19,8 +21,8 @@ enum _Tab { upcoming, history }
 /// T3 · Minhas aulas — próximas e histórico (presença, falta, falta avisada,
 /// reposição), turmas e particulares juntas, com filtro por professor.
 ///
-/// Confirmar/recusar presença do protótipo depende de backend que ainda não
-/// existe (a chamada é só do professor) — as aulas aparecem com o estado.
+/// Nas aulas da turma, "Vou / Não vou" (o professor vê na chamada) e o
+/// check-in na janela da aula.
 class AthleteTrainingClassesPage extends ConsumerStatefulWidget {
   const AthleteTrainingClassesPage({super.key});
 
@@ -63,7 +65,7 @@ class _AthleteTrainingClassesPageState
           ? null
           : upcoming.isEmpty
               ? 'NENHUMA AULA MARCADA'
-              : '${upcoming.length} ${upcoming.length == 1 ? 'PRÓXIMA' : 'PRÓXIMAS'}',
+              : _subtitle(upcoming, now),
       onBack: () => popOrGo(context, AppRoutes.athleteTrainings),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
@@ -136,7 +138,10 @@ class _AthleteTrainingClassesPageState
                 onTap: () => openTraining(context, t),
                 footer: t.state == TrainingState.awaitingProfessor
                     ? const _Note('O professor ainda vai confirmar o horário.')
-                    : null,
+                    : _tab == _Tab.upcoming &&
+                            TrainingRsvpFooter.appliesTo(t, now)
+                        ? TrainingRsvpFooter(training: t)
+                        : null,
               ),
               const SizedBox(height: 8),
             ],
@@ -158,6 +163,15 @@ class _AthleteTrainingClassesPageState
       ),
     );
   }
+}
+
+/// "3 PRÓXIMAS · 2 A CONFIRMAR".
+String _subtitle(List<TrainingSession> upcoming, DateTime now) {
+  final pending = upcoming.where((t) => trainingAwaitsResponse(t, now)).length;
+  return [
+    '${upcoming.length} ${upcoming.length == 1 ? 'PRÓXIMA' : 'PRÓXIMAS'}',
+    if (pending > 0) '$pending A CONFIRMAR',
+  ].join(' · ');
 }
 
 String _monthLabel(String monthKey) {

@@ -15,6 +15,12 @@ export const PROFESSOR_ROUTES: Routes = [
     loadComponent: () => import('./professor-link-detail.component').then((m) => m.ProfessorLinkDetailComponent),
   },
   {
+    // Grade de horas abertas para particular, regras e pedidos (`PrDisponibilidadeScreen`).
+    path: 'disponibilidade',
+    loadComponent: () =>
+      import('./disponibilidade/professor-availability.component').then((m) => m.ProfessorAvailabilityComponent),
+  },
+  {
     // Chamada de uma aula minha — o "Fazer chamada" da agenda (vínculo com "Gerenciar as
     // próprias aulas"; o servidor decide).
     path: 'aulas/:sessionId',

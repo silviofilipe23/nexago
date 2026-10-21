@@ -20,6 +20,10 @@ describe("horário de atendimento", () => {
     assert.equal(withinServiceHours(night, at("2026-10-21T02:00:00Z")), true, "23:00");
     assert.equal(withinServiceHours(night, at("2026-10-20T15:00:00Z")), false, "12:00");
   });
+  it("Das == Até é dia inteiro", () => {
+    const allDay = parseMessagingPrefs({from: "06:00", to: "06:00", days: [2]})!;
+    assert.equal(withinServiceHours(allDay, at("2026-10-21T02:00:00Z")), true);
+  });
   it("sem prefs = null", () => {
     assert.equal(parseMessagingPrefs(undefined), null);
   });

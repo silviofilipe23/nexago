@@ -44,19 +44,49 @@ test('professor abre com aluno da turma e da carteira; estranho é recusado', as
   assert.deepEqual((await m.loadMyProfessorsCore(db, 'u2', NOON)).map((p) => p.professorUid), ['uProf']);
 });
 
-test('grupo da turma tem o professor e os alunos com conta; mensagem soma não lidas e avisa', async () => {
+const later = (d, ms) => new Date(d.getTime() + ms);
+
+test('grupo: só alunos com conta ativos nesta turma; envio põe o nome do servidor e soma não lidas', async () => {
+  await db.doc('arenaClasses/c1/classStudents/u3').set({name: 'Pausado', status: 'paused', athleteId: 'u3'});
   const {conversationId, memberCount} = await m.openClassConversationCore(db, 'uProf', 'c1', NOON);
   assert.equal(memberCount, 1);
   const d = deps(NOON);
-  const ref = await db.collection(`conversations/${conversationId}/messages`).add({senderUid: 'uProf', senderName: 'Thiago', text: 'Treino de saque hoje', createdAt: Timestamp.fromDate(NOON)});
-  await m.handleConversationMessageCore(db, conversationId, ref.id, (await ref.get()).data(), d);
+  await m.sendConversationMessageCore(db, 'uProf', conversationId, 'Treino de saque hoje', d);
   const conv = (await db.doc(`conversations/${conversationId}`).get()).data();
   assert.equal(conv.unread.u1, 1);
-  assert.equal(conv.lastMessage.text, 'Treino de saque hoje');
+  assert.equal(conv.lastMessage.senderName, 'Thiago Mendes');
   assert.deepEqual(d.pushes.map((p) => [p.userId, p.data.url]), [['u1', `/mensagens/${conversationId}`]]);
   await m.markConversationReadCore(db, 'u1', conversationId);
   assert.equal((await db.doc(`conversations/${conversationId}`).get()).data().unread.u1, 0);
   await assert.rejects(m.markConversationReadCore(db, 'u9', conversationId), /não encontrada/);
+  await assert.rejects(m.sendConversationMessageCore(db, 'u9', conversationId, 'oi', deps(NOON)), /não encontrada/);
+});
+
+test('limite de frequência: 1 por segundo', async () => {
+  const {conversationId} = await m.openStudentConversationCore(db, 'u1', 'uProf', NOON);
+  await m.sendConversationMessageCore(db, 'u1', conversationId, 'um', deps(NOON));
+  await assert.rejects(m.sendConversationMessageCore(db, 'u1', conversationId, 'dois', deps(later(NOON, 200))), /rápido demais/);
+  await m.sendConversationMessageCore(db, 'u1', conversationId, 'três', deps(later(NOON, 1500)));
+  const msgs = (await db.collection(`conversations/${conversationId}/messages`).get()).docs.map((x) => x.data());
+  assert.deepEqual(msgs.map((x) => x.senderName), ['Carla Dias', 'Carla Dias']);
+});
+
+test('aluno arquivado da carteira: conversa fecha e ele deixa de ser membro', async () => {
+  const {conversationId} = await m.openProfessorConversationCore(db, 'uProf', 'u2', NOON);
+  await db.doc('arenaProfessors/norte_uProf').set({professorUserId: 'uProf', relationshipType: 'INDEPENDENT', status: 'ACTIVE'});
+  const {archiveProfessorStudentCore} = await import('../lib/professor-wallet.js');
+  await archiveProfessorStudentCore(db, 'uProf', 'u2');
+  const conv = (await db.doc(`conversations/${conversationId}`).get()).data();
+  assert.equal(conv.closed, true);
+  assert.deepEqual(conv.memberIds, ['uProf']);
+  await assert.rejects(m.sendConversationMessageCore(db, 'u2', conversationId, 'oi', deps(NOON)), /não encontrada/);
+});
+
+test('aluno que saiu da turma: na revalidação o grupo o tira da lista', async () => {
+  const {conversationId} = await m.openClassConversationCore(db, 'uProf', 'c1', NOON);
+  await db.doc('arenaClasses/c1/classStudents/u1').set({status: 'removed'}, {merge: true});
+  await m.sendConversationMessageCore(db, 'uProf', conversationId, 'oi turma', deps(NOON));
+  assert.deepEqual((await db.doc(`conversations/${conversationId}`).get()).data().memberIds, ['uProf']);
 });
 
 test('fora do horário: sem push ao professor e resposta automática uma vez', async () => {
@@ -64,15 +94,10 @@ test('fora do horário: sem push ao professor e resposta automática uma vez', a
     quietEnabled: true, from: '06:00', to: '21:30', days: [1, 2, 3, 4, 5, 6], autoReplyEnabled: true, autoReplyText: 'Respondo a partir das 06:00.',
   });
   const {conversationId} = await m.openStudentConversationCore(db, 'u1', 'uProf', NIGHT);
-  const send = async (text) => {
-    const r = await db.collection(`conversations/${conversationId}/messages`).add({senderUid: 'u1', senderName: 'Carla', text, createdAt: Timestamp.fromDate(NIGHT)});
-    const d = deps(NIGHT);
-    await m.handleConversationMessageCore(db, conversationId, r.id, (await r.get()).data(), d);
-    return d;
-  };
-  const first = await send('Prof, posso trocar o horário?');
+  const first = deps(NIGHT);
+  await m.sendConversationMessageCore(db, 'u1', conversationId, 'Prof, posso trocar o horário?', first);
   assert.equal(first.pushes.length, 0, 'professor silenciado');
-  await send('Obrigada!');
+  await m.sendConversationMessageCore(db, 'u1', conversationId, 'Obrigada!', deps(later(NIGHT, 5000)));
   const msgs = (await db.collection(`conversations/${conversationId}/messages`).get()).docs.map((x) => x.data());
   assert.equal(msgs.filter((x) => x.auto === true).length, 1, 'uma resposta automática só');
   assert.equal(msgs.find((x) => x.auto).senderUid, 'uProf');

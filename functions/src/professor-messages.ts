@@ -2,20 +2,22 @@
  * Mensagens do professor (canvas D1–D3, D5–D7): conversa direta professor ↔ aluno e grupo da turma.
  *
  * - `conversations/{id}`: `kind` direct|class, `professorUid`, `memberIds`, resumo (`lastMessage`,
- *   `lastAt`), `unread.{uid}`. Só os membros leem (rules); só functions escrevem.
+ *   `lastAt`), `unread.{uid}`, `closed`. Só os membros leem (rules); só functions escrevem.
  *   Ids determinísticos: `d_{professorUid}_{athleteUid}` e `c_{classId}`.
- * - `conversations/{id}/messages/{msgId}`: o MEMBRO grava a própria mensagem direto (rules validam
- *   remetente, campos e tamanho); o trigger `onConversationMessageCreated` atualiza o resumo, soma as
- *   não lidas, manda o push e cuida do horário de atendimento (silêncio + resposta automática).
+ * - `conversations/{id}/messages/{msgId}`: só functions gravam. O envio é a callable
+ *   `sendConversationMessage`, que revalida o vínculo (no máx. a cada 6 h por membro), põe o nome do
+ *   remetente (nunca o do cliente), limita a frequência e manda o push (sem poluir o histórico de
+ *   notificações). Horário de atendimento: fora dele o professor não recebe push e o aluno recebe uma
+ *   resposta automática (no máx. 1 a cada 12 h por conversa).
  *
  * Quem fala com quem: a mesma régua de quem o professor VÊ (`loadProfessorStudentsCore`: turmas
- * com vínculo `ACTIVE` + "Gerenciar as próprias aulas") e a carteira ATIVA. A arena não lê nada.
+ * com vínculo `ACTIVE` + "Gerenciar as próprias aulas") e a carteira ATIVA. Acabou o vínculo, a
+ * conversa fecha (`closed`) e o aluno sai de `memberIds` (deixa de ler). A arena não lê nada.
  * Canal com a gestão da arena (D4) e cartões de remarcação ficam para depois.
  */
 import * as logger from "firebase-functions/logger";
 import {onCall, HttpsError, type CallableRequest} from "firebase-functions/v2/https";
-import {onDocumentCreated} from "firebase-functions/v2/firestore";
-import {FieldValue, getFirestore, Timestamp, type Firestore} from "firebase-admin/firestore";
+import {FieldValue, getFirestore, Timestamp, type DocumentReference, type Firestore} from "firebase-admin/firestore";
 import {dayKeyFromEventDate, EVENT_TIME_ZONE} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {deliverNotificationToUser, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
@@ -27,6 +29,10 @@ export const CONVERSATION_MESSAGES = "messages";
 export const MESSAGING_PREFS = "messagingPrefs";
 export const MESSAGE_PUSH_TYPE = "conversation_message";
 const AUTO_REPLY_COOLDOWN_MS = 12 * 3600_000;
+const VERIFY_EVERY_MS = 6 * 3600_000;
+const MIN_GAP_MS = 1000;
+const MAX_PER_MINUTE = 30;
+const MAX_TEXT = 2000;
 
 function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
@@ -52,20 +58,31 @@ export async function isStudentOfProfessor(db: Firestore, professorUid: string, 
   return students.some((s) => s.athleteId === athleteUid);
 }
 
+/** Grava a conversa substituindo os mapas de nomes/fotos (sem `merge` neles: ex-membro não fica). */
+async function writeConversation(ref: DocumentReference, data: Record<string, unknown>): Promise<void> {
+  const snap = await ref.get();
+  if (snap.exists) {
+    await ref.update({...data, updatedAt: FieldValue.serverTimestamp()});
+  } else {
+    await ref.set({
+      ...data, closed: false, lastAt: null, lastMessage: null, unread: {}, verifiedAt: {},
+      createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+}
+
 async function upsertDirect(db: Firestore, professorUid: string, athleteUid: string): Promise<string> {
   const id = directConversationId(professorUid, athleteUid);
-  const ref = db.collection(CONVERSATIONS).doc(id);
-  const [prof, athlete, snap] = await Promise.all([userCard(db, professorUid), userCard(db, athleteUid), ref.get()]);
-  await ref.set({
+  const [prof, athlete] = await Promise.all([userCard(db, professorUid), userCard(db, athleteUid)]);
+  await writeConversation(db.collection(CONVERSATIONS).doc(id), {
     kind: "direct",
     professorUid,
     athleteUid,
     memberIds: [professorUid, athleteUid],
     memberNames: {[professorUid]: prof.name, [athleteUid]: athlete.name},
     memberPhotos: {[professorUid]: prof.photoUrl, [athleteUid]: athlete.photoUrl},
-    updatedAt: FieldValue.serverTimestamp(),
-    ...(snap.exists ? {} : {createdAt: FieldValue.serverTimestamp(), lastAt: null, lastMessage: null, unread: {}}),
-  }, {merge: true});
+    closed: false,
+  });
   return id;
 }
 
@@ -87,20 +104,23 @@ export async function openStudentConversationCore(db: Firestore, uid: string, pr
   return {conversationId: await upsertDirect(db, professorUid, uid)};
 }
 
+/** Alunos com conta ATIVOS NESTA turma (status da própria turma, não o agregado). */
+async function classMemberIds(db: Firestore, classId: string): Promise<string[]> {
+  const snap = await db.collection("arenaClasses").doc(classId).collection("classStudents").where("status", "==", "active").get();
+  return [...new Set(snap.docs.map((d) => str(d.data()["athleteId"])).filter(Boolean))];
+}
+
 /** Grupo da turma: professor + alunos com conta (a lista é refeita a cada abertura). */
 export async function openClassConversationCore(db: Firestore, uid: string, classId: string, now: Date): Promise<{conversationId: string; memberCount: number}> {
   if (!classId || classId.includes("/")) throw new HttpsError("invalid-argument", "Turma inválida.");
-  const {classes, students} = await loadProfessorStudentsCore(db, uid, dayKeyFromEventDate(now));
+  const {classes} = await loadProfessorStudentsCore(db, uid, dayKeyFromEventDate(now));
   const cls = classes.find((c) => c.classId === classId);
   if (!cls) throw new HttpsError("permission-denied", "Turma não encontrada entre as suas.");
-  const athleteIds = [...new Set(students
-    .filter((s) => s.athleteId && s.status === "active" && s.classes.some((c) => c.classId === classId))
-    .map((s) => s.athleteId as string))];
+  const athleteIds = (await classMemberIds(db, classId)).filter((a) => a !== uid);
   const memberIds = [uid, ...athleteIds];
   const cards = await Promise.all(memberIds.map((m) => userCard(db, m)));
   const ref = db.collection(CONVERSATIONS).doc(classConversationId(classId));
-  const snap = await ref.get();
-  await ref.set({
+  await writeConversation(ref, {
     kind: "class",
     professorUid: uid,
     classId,
@@ -110,10 +130,16 @@ export async function openClassConversationCore(db: Firestore, uid: string, clas
     memberIds,
     memberNames: Object.fromEntries(memberIds.map((m, i) => [m, cards[i].name])),
     memberPhotos: Object.fromEntries(memberIds.map((m, i) => [m, cards[i].photoUrl])),
-    updatedAt: FieldValue.serverTimestamp(),
-    ...(snap.exists ? {} : {createdAt: FieldValue.serverTimestamp(), lastAt: null, lastMessage: null, unread: {}}),
-  }, {merge: true});
+    closed: false,
+  });
   return {conversationId: ref.id, memberCount: athleteIds.length};
+}
+
+/** Fecha a conversa direta (vínculo acabou): só o professor continua vendo o histórico. */
+export async function closeDirectConversation(db: Firestore, professorUid: string, athleteUid: string): Promise<void> {
+  const ref = db.collection(CONVERSATIONS).doc(directConversationId(professorUid, athleteUid));
+  if (!(await ref.get()).exists) return;
+  await ref.update({closed: true, memberIds: [professorUid], closedAt: FieldValue.serverTimestamp()});
 }
 
 export async function markConversationReadCore(db: Firestore, uid: string, conversationId: string): Promise<void> {
@@ -127,7 +153,7 @@ export async function markConversationReadCore(db: Firestore, uid: string, conve
 /** Professores com quem o atleta pode conversar (turmas liberadas + carteira ativa). */
 export async function loadMyProfessorsCore(db: Firestore, uid: string, now: Date): Promise<Array<{professorUid: string; name: string; photoUrl: string | null}>> {
   const [memberships, wallets] = await Promise.all([
-    // Só igualdade em `athleteId` (índice de grupo que já existe para a agenda); status filtrado aqui.
+    // Só igualdade em `athleteId` (índice de grupo); status filtrado aqui.
     db.collectionGroup("classStudents").where("athleteId", "==", uid).get(),
     db.collectionGroup(PROFESSOR_STUDENTS).where("athleteId", "==", uid).get(),
   ]);
@@ -145,12 +171,10 @@ export async function loadMyProfessorsCore(db: Firestore, uid: string, now: Date
     const segs = w.ref.path.split("/");
     if (segs.length === 4 && segs[0] === PROFESSORS && segs[1] !== uid) candidates.add(segs[1]);
   }
-  const out: Array<{professorUid: string; name: string; photoUrl: string | null}> = [];
-  for (const professorUid of [...candidates].slice(0, 20)) {
-    if (!(await isStudentOfProfessor(db, professorUid, uid, now))) continue;
-    out.push({professorUid, ...(await userCard(db, professorUid))});
-  }
-  return out.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  const checked = await Promise.all([...candidates].slice(0, 20).map(async (professorUid) =>
+    (await isStudentOfProfessor(db, professorUid, uid, now)) ? {professorUid, ...(await userCard(db, professorUid))} : null));
+  return checked.filter((p): p is {professorUid: string; name: string; photoUrl: string | null} => p != null)
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 }
 
 // ---------------------------------------------------------------------------
@@ -170,17 +194,18 @@ export interface MessagingPrefs {
 export function parseMessagingPrefs(raw: Record<string, unknown> | undefined): MessagingPrefs | null {
   if (!raw) return null;
   const hhmm = (v: unknown, d: string) => (typeof v === "string" && /^\d{2}:\d{2}$/.test(v) ? v : d);
+  const days = Array.isArray(raw["days"]) ? (raw["days"] as unknown[]).map(Number).filter((n) => n >= 1 && n <= 7) : [];
   return {
     quietEnabled: raw["quietEnabled"] === true,
     from: hhmm(raw["from"], "06:00"),
     to: hhmm(raw["to"], "22:00"),
-    days: Array.isArray(raw["days"]) ? (raw["days"] as unknown[]).map(Number).filter((n) => n >= 1 && n <= 7) : [1, 2, 3, 4, 5, 6],
+    days: days.length ? days : [1, 2, 3, 4, 5, 6, 7],
     autoReplyEnabled: raw["autoReplyEnabled"] === true,
     autoReplyText: str(raw["autoReplyText"]).slice(0, 500),
   };
 }
 
-/** Dentro do horário de atendimento (fuso de São Paulo)? Janela que vira a noite também vale. */
+/** Dentro do horário (fuso de São Paulo)? "Das" == "Até" = dia inteiro; janela pode virar a noite. */
 export function withinServiceHours(prefs: MessagingPrefs, now: Date): boolean {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: EVENT_TIME_ZONE, weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false,
@@ -189,11 +214,12 @@ export function withinServiceHours(prefs: MessagingPrefs, now: Date): boolean {
   const weekday = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(get("weekday")) + 1;
   const hm = `${get("hour").replace("24", "00")}:${get("minute")}`;
   if (!prefs.days.includes(weekday)) return false;
-  return prefs.from <= prefs.to ? hm >= prefs.from && hm < prefs.to : hm >= prefs.from || hm < prefs.to;
+  if (prefs.from === prefs.to) return true;
+  return prefs.from < prefs.to ? hm >= prefs.from && hm < prefs.to : hm >= prefs.from || hm < prefs.to;
 }
 
 // ---------------------------------------------------------------------------
-// Trigger
+// Envio
 // ---------------------------------------------------------------------------
 
 export interface MessageDeps {
@@ -204,39 +230,86 @@ export interface MessageDeps {
 const defaultDeps: MessageDeps = {
   now: () => new Date(),
   notify: async (input) => {
-    await deliverNotificationToUser({...input, requireInteraction: false});
+    await deliverNotificationToUser({...input, requireInteraction: false, skipHistory: true});
   },
 };
 
-export async function handleConversationMessageCore(
+/** O remetente ainda pode falar nesta conversa? Fecha/poda quando o vínculo acabou. */
+async function verifyMember(db: Firestore, ref: DocumentReference, c: Record<string, unknown>, uid: string, now: Date): Promise<void> {
+  const verifiedAt = (c["verifiedAt"] as Record<string, Timestamp> | undefined)?.[uid];
+  if (verifiedAt instanceof Timestamp && now.getTime() - verifiedAt.toMillis() < VERIFY_EVERY_MS) return;
+  const professorUid = str(c["professorUid"]);
+  if (c["kind"] === "direct") {
+    const athleteUid = str(c["athleteUid"]);
+    if (!(await isStudentOfProfessor(db, professorUid, athleteUid, now))) {
+      await closeDirectConversation(db, professorUid, athleteUid);
+      throw new HttpsError("failed-precondition", "Esta conversa foi encerrada: o vínculo de aula acabou.");
+    }
+  } else {
+    const classId = str(c["classId"]);
+    const {classes} = await loadProfessorStudentsCore(db, professorUid, dayKeyFromEventDate(now));
+    if (!classes.some((x) => x.classId === classId)) {
+      await ref.update({closed: true, memberIds: [professorUid], closedAt: FieldValue.serverTimestamp()});
+      throw new HttpsError("failed-precondition", "Este grupo foi encerrado: a turma não está mais com você.");
+    }
+    const current = await classMemberIds(db, classId);
+    const memberIds = [professorUid, ...current.filter((a) => a !== professorUid)];
+    const before = (c["memberIds"] as string[] | undefined) ?? [];
+    if (before.length !== memberIds.length || before.some((m) => !memberIds.includes(m))) {
+      await ref.update({memberIds});
+      c["memberIds"] = memberIds;
+    }
+    if (!memberIds.includes(uid)) throw new HttpsError("permission-denied", "Você não faz mais parte desta turma.");
+  }
+  await ref.update({[`verifiedAt.${uid}`]: Timestamp.fromDate(now)});
+}
+
+export async function sendConversationMessageCore(
   db: Firestore,
+  uid: string,
   conversationId: string,
-  messageId: string,
-  message: Record<string, unknown>,
+  rawText: unknown,
   deps: MessageDeps = defaultDeps,
-): Promise<void> {
+): Promise<{messageId: string}> {
+  if (!conversationId || conversationId.includes("/")) throw new HttpsError("invalid-argument", "Conversa inválida.");
+  const text = str(rawText);
+  if (!text || text.length > MAX_TEXT) throw new HttpsError("invalid-argument", `Mensagem de 1 a ${MAX_TEXT} caracteres.`);
+  const now = deps.now();
   const ref = db.collection(CONVERSATIONS).doc(conversationId);
-  const conversation = (await ref.get()).data();
-  if (!conversation) return;
-  const senderUid = str(message["senderUid"]);
-  const members = (conversation["memberIds"] as string[] | undefined) ?? [];
-  if (!members.includes(senderUid)) return;
-  const text = str(message["text"]);
-  const senderName = str(message["senderName"]) || (conversation["memberNames"] as Record<string, string> | undefined)?.[senderUid] || "";
-  const others = members.filter((m) => m !== senderUid);
-  await ref.update({
-    lastMessage: {text: text.slice(0, 140), senderUid, senderName, messageId},
-    lastAt: message["createdAt"] instanceof Timestamp ? message["createdAt"] : FieldValue.serverTimestamp(),
-    ...Object.fromEntries(others.map((m) => [`unread.${m}`, FieldValue.increment(1)])),
+  const first = (await ref.get()).data();
+  if (!first || !(first["memberIds"] as string[] | undefined)?.includes(uid)) throw new HttpsError("not-found", "Conversa não encontrada.");
+  if (first["closed"] === true) throw new HttpsError("failed-precondition", "Esta conversa foi encerrada.");
+  await verifyMember(db, ref, first, uid, now);
+
+  const msgRef = ref.collection(CONVERSATION_MESSAGES).doc();
+  const sent = await db.runTransaction(async (tx) => {
+    const c = (await tx.get(ref)).data() ?? {};
+    const members = (c["memberIds"] as string[] | undefined) ?? [];
+    if (!members.includes(uid) || c["closed"] === true) throw new HttpsError("failed-precondition", "Esta conversa foi encerrada.");
+    const rate = ((c["rate"] as Record<string, {windowStart?: number; count?: number; lastAt?: number}> | undefined) ?? {})[uid] ?? {};
+    const t = now.getTime();
+    if (rate.lastAt && t - rate.lastAt < MIN_GAP_MS) throw new HttpsError("resource-exhausted", "Você está enviando rápido demais.");
+    const inWindow = rate.windowStart && t - rate.windowStart < 60_000;
+    const count = inWindow ? (rate.count ?? 0) + 1 : 1;
+    if (count > MAX_PER_MINUTE) throw new HttpsError("resource-exhausted", "Você está enviando rápido demais.");
+    const senderName = (c["memberNames"] as Record<string, string> | undefined)?.[uid] || "Atleta";
+    tx.create(msgRef, {senderUid: uid, senderName, text, createdAt: Timestamp.fromDate(now)});
+    tx.update(ref, {
+      lastMessage: {text: text.slice(0, 140), senderUid: uid, senderName, messageId: msgRef.id},
+      lastAt: Timestamp.fromDate(now),
+      [`rate.${uid}`]: {windowStart: inWindow ? rate.windowStart : t, count, lastAt: t},
+      ...Object.fromEntries(members.filter((m) => m !== uid).map((m) => [`unread.${m}`, FieldValue.increment(1)])),
+    });
+    return {conversation: c, senderName, members};
   });
 
+  const {conversation, senderName, members} = sent;
   const professorUid = str(conversation["professorUid"]);
   const prefs = parseMessagingPrefs((await db.collection("users").doc(professorUid).collection(MESSAGING_PREFS).doc("settings").get()).data());
-  const now = deps.now();
   const professorOff = prefs != null && !withinServiceHours(prefs, now);
   const title = conversation["kind"] === "class" ? `${str(conversation["title"])} · ${senderName}` : senderName;
-  for (const userId of others) {
-    if (userId === professorUid && professorOff && prefs!.quietEnabled) continue;
+  await Promise.all(members.filter((m) => m !== uid).map(async (userId) => {
+    if (userId === professorUid && professorOff && prefs!.quietEnabled) return;
     try {
       await deps.notify({
         userId, title, body: text.slice(0, 140), type: MESSAGE_PUSH_TYPE,
@@ -245,31 +318,26 @@ export async function handleConversationMessageCore(
     } catch (e) {
       logger.warn(`conversation ${conversationId}: push para ${userId} falhou`, e);
     }
-  }
+  }));
 
   // Resposta automática: só na conversa direta, quando o ALUNO escreve fora do horário.
-  if (message["auto"] === true || conversation["kind"] !== "direct" || senderUid === professorUid) return;
-  if (!prefs?.autoReplyEnabled || !prefs.autoReplyText || !professorOff) return;
-  const last = conversation["autoReplyAt"] instanceof Timestamp ? conversation["autoReplyAt"].toMillis() : 0;
-  if (now.getTime() - last < AUTO_REPLY_COOLDOWN_MS) return;
-  await ref.update({autoReplyAt: Timestamp.fromDate(now)});
-  await ref.collection(CONVERSATION_MESSAGES).add({
-    senderUid: professorUid,
-    senderName: (conversation["memberNames"] as Record<string, string> | undefined)?.[professorUid] ?? "Professor",
-    text: prefs.autoReplyText,
-    auto: true,
-    createdAt: FieldValue.serverTimestamp(),
-  });
+  if (conversation["kind"] === "direct" && uid !== professorUid && prefs?.autoReplyEnabled && prefs.autoReplyText && professorOff) {
+    await db.runTransaction(async (tx) => {
+      const c = (await tx.get(ref)).data() ?? {};
+      const last = c["autoReplyAt"] instanceof Timestamp ? c["autoReplyAt"].toMillis() : 0;
+      if (now.getTime() - last < AUTO_REPLY_COOLDOWN_MS) return;
+      const autoRef = ref.collection(CONVERSATION_MESSAGES).doc();
+      const name = (c["memberNames"] as Record<string, string> | undefined)?.[professorUid] ?? "Professor";
+      tx.create(autoRef, {senderUid: professorUid, senderName: name, text: prefs.autoReplyText, auto: true, createdAt: Timestamp.fromDate(new Date(now.getTime() + 1))});
+      tx.update(ref, {
+        autoReplyAt: Timestamp.fromDate(now),
+        lastMessage: {text: prefs.autoReplyText.slice(0, 140), senderUid: professorUid, senderName: name, messageId: autoRef.id},
+        [`unread.${uid}`]: FieldValue.increment(1),
+      });
+    });
+  }
+  return {messageId: msgRef.id};
 }
-
-export const onConversationMessageCreated = onDocumentCreated({
-  document: `${CONVERSATIONS}/{conversationId}/${CONVERSATION_MESSAGES}/{messageId}`,
-  secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
-}, async (event) => {
-  const data = event.data?.data();
-  if (!data) return;
-  await handleConversationMessageCore(getFirestore(), event.params.conversationId, event.params.messageId, data);
-});
 
 // ---------------------------------------------------------------------------
 
@@ -289,6 +357,10 @@ export const openStudentConversation = onCall(OPTS, async (r) =>
 
 export const openClassConversation = onCall(OPTS, async (r) =>
   openClassConversationCore(getFirestore(), requireUid(r), str(dataOf(r)["classId"]), new Date()));
+
+export const sendConversationMessage = onCall({
+  ...OPTS, secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
+}, async (r) => sendConversationMessageCore(getFirestore(), requireUid(r), str(dataOf(r)["conversationId"]), dataOf(r)["text"]));
 
 export const markConversationRead = onCall({region: CLIENT_FACING_REGIONS}, async (r) => {
   await markConversationReadCore(getFirestore(), requireUid(r), str(dataOf(r)["conversationId"]));

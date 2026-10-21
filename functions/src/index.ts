@@ -210,10 +210,10 @@ export {configureProfessorCalendarFeed, professorCalendarFeed} from "./professor
 export {
   getMyProfessors,
   markConversationRead,
-  onConversationMessageCreated,
   openClassConversation,
   openProfessorConversation,
   openStudentConversation,
+  sendConversationMessage,
 } from "./professor-messages";
 // Ganhos do professor de equipe: repasse pago pelo nexaGO + saque PIX.
 export {

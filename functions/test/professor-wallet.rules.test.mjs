@@ -144,7 +144,7 @@ test('mensagens: só membros leem e mandam a PRÓPRIA mensagem validada', async 
   });
   const msg = (uid, extra = {}) => ({ senderUid: uid, senderName: 'X', text: 'Oi', createdAt: serverTimestamp(), ...extra });
   await assertSucceeds(getDoc(doc(as(ALUNO), 'conversations/d_p_a')));
-  await assertSucceeds(addDoc(collection(as(ALUNO), 'conversations/d_p_a/messages'), msg(ALUNO)));
+  await assertFails(addDoc(collection(as(ALUNO), 'conversations/d_p_a/messages'), msg(ALUNO)), 'envio só por callable');
   await assertSucceeds(getDocs(collection(as(PROF), 'conversations/d_p_a/messages')));
   await assertFails(getDoc(doc(as(OUTRO), 'conversations/d_p_a')));
   await assertFails(getDocs(collection(as(OUTRO), 'conversations/d_p_a/messages')));
@@ -154,6 +154,7 @@ test('mensagens: só membros leem e mandam a PRÓPRIA mensagem validada', async 
   await assertFails(addDoc(collection(as(ALUNO), 'conversations/d_p_a/messages'), msg(ALUNO, { text: '' })));
   await assertFails(setDoc(doc(as(PROF), 'conversations/d_p_a'), { memberIds: [PROF, ALUNO, OUTRO] }));
   await assertSucceeds(setDoc(doc(as(PROF), `users/${PROF}/messagingPrefs/settings`), { quietEnabled: true, from: '06:00', to: '21:30', days: [1, 2], autoReplyEnabled: false, autoReplyText: '' }));
-  await assertFails(setDoc(doc(as(OUTRO), `users/${PROF}/messagingPrefs/settings`), { quietEnabled: true, from: '06:00', to: '21:30', days: [], autoReplyEnabled: false, autoReplyText: '' }));
+  await assertFails(setDoc(doc(as(OUTRO), `users/${PROF}/messagingPrefs/settings`), { quietEnabled: true, from: '06:00', to: '21:30', days: [1], autoReplyEnabled: false, autoReplyText: '' }));
+  await assertFails(setDoc(doc(as(PROF), `users/${PROF}/messagingPrefs/settings`), { quietEnabled: true, from: '06:00', to: '21:30', days: [], autoReplyEnabled: false, autoReplyText: '' }));
   await assertSucceeds(setDoc(doc(as(PROF), `users/${PROF}/messageTemplates/t1`), { title: 'Chuva', body: 'Aula de {data} cancelada', uses: 0 }));
 });

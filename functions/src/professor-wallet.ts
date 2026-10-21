@@ -14,6 +14,7 @@ import {AsaasApiError, asaasArenaSecrets, fetchAsaas, getAsaasEnvTag} from "./as
 import {deleteAsaasPaymentOrThrow, type AsaasPaymentDetails} from "./asaas-booking-payment";
 import {getOrCreateAsaasCustomer, resolveAthleteCpfCnpj} from "./asaas-customer";
 import {maskCpfCnpj} from "./arena-class-asaas-model";
+import {closeDirectConversation, isStudentOfProfessor} from "./professor-messages";
 import {openSecret, PROFESSOR_SECRETS_KEY, sealSecret} from "./professor-secret-box";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
@@ -438,6 +439,8 @@ export async function archiveProfessorStudentCore(db: Firestore, uid: string, at
   const ref = studentRef(db, uid, str(athleteId));
   if (!athleteId || !(await ref.get()).exists) throw new HttpsError("not-found", "Aluno não encontrado.");
   await ref.set({status: "archived", recurring: null, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+  // Saiu da carteira: a conversa direta fecha (o aluno deixa de ler) — se não for aluno de turma.
+  if (!(await isStudentOfProfessor(db, uid, athleteId, new Date()))) await closeDirectConversation(db, uid, athleteId);
 }
 
 // ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ import '../../professor_links/application/professor_links_providers.dart';
 import '../domain/professor_agenda.dart';
 import '../domain/professor_lessons.dart';
 import '../infrastructure/professor_agenda_repository.dart';
+import 'professor_availability_providers.dart';
 import 'professor_students_providers.dart';
 import 'professor_wallet_providers.dart';
 
@@ -65,9 +66,9 @@ final professorClassTypesProvider =
   return {for (final c in snap?.classes ?? const []) c.classId: c.type};
 });
 
-/// Itens do intervalo: aulas de turma + carteira + bloqueios. Espera as
-/// aulas de turma (o erro chega à tela); carteira e bloqueios entram quando
-/// chegam.
+/// Itens do intervalo: aulas de turma + carteira + particulares do app +
+/// bloqueios. Espera as aulas de turma (o erro chega à tela); o resto entra
+/// quando chega.
 final professorAgendaItemsProvider = Provider.autoDispose
     .family<AsyncValue<List<ProfessorAgendaItem>>, ProfessorAgendaRange>(
         (ref, range) {
@@ -77,6 +78,8 @@ final professorAgendaItemsProvider = Provider.autoDispose
       ref.watch(professorCourtBookingsProvider).valueOrNull ?? const [];
   final blocks = ref.watch(professorBlocksProvider).valueOrNull ?? const [];
   final types = ref.watch(professorClassTypesProvider);
+  final privates =
+      ref.watch(professorPrivateLessonsProvider).valueOrNull ?? const [];
   return sessions.whenData((list) {
     final all = buildProfessorAgendaItems(
       sessions: list,
@@ -84,6 +87,7 @@ final professorAgendaItemsProvider = Provider.autoDispose
       bookingStatus: professorBookingStatusById(bookings),
       blocks: blocks,
       classTypes: types,
+      privateLessons: privates,
     );
     return [
       for (final i in all)

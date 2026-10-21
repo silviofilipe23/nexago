@@ -48,6 +48,8 @@ import {
 
 export const PROFESSOR_CHARGE_LINK_TYPE = "professor_charge_link";
 export const PROFESSOR_STUDENT_INVITE_TYPE = "professor_student_invite";
+/** Cobrança do professor paga: o app abre "Pagamento confirmado" (B17). */
+export const PROFESSOR_CHARGE_PAID_TYPE = "professor_charge_paid";
 /** Onde o aluno vê as cobranças no app (a mesma lista das mensalidades de aula). */
 export const PROFESSOR_CHARGE_APP_URL = "/discover?tab=agenda";
 
@@ -703,22 +705,24 @@ export async function processProfessorChargeAsaasNotification(
   paymentId: string,
   payment: AsaasPaymentDetails,
   processedRef: DocumentReference,
+  notify: ProfessorWalletDeps["notify"] = defaultProfessorWalletDeps.notify,
 ): Promise<void> {
   const chargeId = parseProfessorChargeRef(str(payment.externalReference));
   if (!chargeId) return;
   const ref = db.collection(PROFESSOR_CHARGES).doc(chargeId);
   const next = professorChargeStatusFromAsaas(str(payment.status), payment.deleted === true);
-  await db.runTransaction(async (tx) => {
+  const paidNow = await db.runTransaction(async (tx): Promise<Record<string, unknown> | null> => {
     const snap = await tx.get(ref);
     if (!snap.exists) {
       logger.warn(`Asaas professor: cobrança ${chargeId} (payment ${paymentId}) não existe`);
       tx.set(processedRef, {outcome: "orphan", updatedAt: FieldValue.serverTimestamp()}, {merge: true});
-      return;
+      return null;
     }
     const current = snap.data() as Record<string, unknown>;
     const knownPayment = str(current["paymentId"]);
-    if (knownPayment && knownPayment !== paymentId) return;
+    if (knownPayment && knownPayment !== paymentId) return null;
     const patch: Record<string, unknown> = {asaasStatus: str(payment.status) || null, updatedAt: FieldValue.serverTimestamp()};
+    let paid = false;
     if (!knownPayment) patch["paymentId"] = paymentId;
     // A function caiu entre criar no Asaas e gravar "open": o webhook termina o serviço.
     const invoiceUrl = str((payment as {invoiceUrl?: unknown}).invoiceUrl);
@@ -734,6 +738,9 @@ export async function processProfessorChargeAsaasNotification(
       if (typeof payment.netValue === "number") {
         patch["netReais"] = Math.round(payment.netValue * professorSplitPercent(Number(current["feePercent"] ?? PROFESSOR_CHARGE_FEE_PERCENT))) / 100;
       }
+      // Comprovante do aluno (B19): o que o Asaas devolve de como foi pago.
+      patch["receipt"] = professorChargeReceiptFromAsaas(payment);
+      paid = true;
     } else if (next === "refunded" && current["status"] !== "refunded") {
       patch["status"] = "refunded";
     } else if (next === "canceled" && ["open", "creating", "failed"].includes(String(current["status"]))) {
@@ -741,7 +748,43 @@ export async function processProfessorChargeAsaasNotification(
     }
     tx.set(ref, patch, {merge: true});
     tx.set(processedRef, {outcome: "approved", professorChargeId: chargeId, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    return paid ? current : null;
   });
+  if (!paidNow) return;
+  // Fora da transação; só a virada para `paid` chega aqui, então a releitura do webhook não repete o push.
+  const amount = typeof paidNow["amountReais"] === "number" ? paidNow["amountReais"] as number : Number(payment.value ?? 0);
+  const professorName = str(paidNow["professorName"]) || "seu professor";
+  try {
+    await notify({
+      userId: str(paidNow["athleteId"]),
+      title: "Pagamento confirmado",
+      body: `${brl(amount)} pagos para ${professorName}. Suas aulas estão garantidas.`,
+      type: PROFESSOR_CHARGE_PAID_TYPE,
+      // `url` é a Agenda para o app antigo (sem a tela); este build abre a confirmação pelo tipo.
+      data: {chargeId, url: PROFESSOR_CHARGE_APP_URL},
+    });
+  } catch (e) {
+    logger.warn(`Asaas professor: push de pagamento da cobrança ${chargeId} falhou`, e);
+  }
+}
+
+/** Campos do comprovante tirados do pagamento do Asaas (só os que vierem). */
+export function professorChargeReceiptFromAsaas(payment: AsaasPaymentDetails): Record<string, string> {
+  const p = payment as AsaasPaymentDetails & {
+    creditCard?: {creditCardNumber?: unknown; creditCardBrand?: unknown};
+    transactionReceiptUrl?: unknown;
+    invoiceNumber?: unknown;
+  };
+  const out: Record<string, string> = {};
+  const last4 = str(p.creditCard?.creditCardNumber).replace(/\D/g, "").slice(-4);
+  if (last4) out["cardLast4"] = last4;
+  const brand = str(p.creditCard?.creditCardBrand);
+  if (brand) out["cardBrand"] = brand;
+  const receiptUrl = str(p.transactionReceiptUrl);
+  if (/^https:\/\//.test(receiptUrl)) out["receiptUrl"] = receiptUrl;
+  const invoiceNumber = str(p.invoiceNumber);
+  if (invoiceNumber) out["invoiceNumber"] = invoiceNumber;
+  return out;
 }
 
 // ---------------------------------------------------------------------------

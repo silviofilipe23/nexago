@@ -144,6 +144,8 @@ import '../../features/athlete/onboarding/presentation/athlete_onboarding_welcom
 import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_level_step.dart';
 import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_primary_sport_step.dart';
 import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_profile_step.dart';
+import '../../features/athlete/presentation/lesson_payment/lesson_payment_confirmed_page.dart';
+import '../../features/athlete/presentation/lesson_payment/lesson_payment_receipt_page.dart';
 import '../../features/athlete/presentation/athlete_complete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_edit_profile_page.dart';
 import '../../features/athlete/presentation/athlete_profile_goals_page.dart';
@@ -2929,6 +2931,21 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.professorNoticeForStudent,
         builder: (context, state) => ProfessorNoticeStudentPage(
           noticeId: state.pathParameters['noticeId']?.trim() ?? '',
+        ),
+      ),
+      // Pagamento ao professor confirmado (B17) e comprovante (B19).
+      GoRoute(
+        path: AppRoutes.lessonPaymentConfirmed,
+        name: AppRouteNames.lessonPaymentConfirmed,
+        builder: (context, state) => LessonPaymentConfirmedPage(
+          chargeId: state.pathParameters['chargeId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.lessonPaymentReceipt,
+        name: AppRouteNames.lessonPaymentReceipt,
+        builder: (context, state) => LessonPaymentReceiptPage(
+          chargeId: state.pathParameters['chargeId']?.trim() ?? '',
         ),
       ),
       // Convite do professor para a carteira dele (push

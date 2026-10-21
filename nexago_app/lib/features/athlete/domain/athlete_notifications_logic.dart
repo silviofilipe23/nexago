@@ -519,6 +519,20 @@ AthleteNotificationPresentation _basePresentation(
         routePath: athleteAgendaTabLocation,
         externalUrl: invoiceUrl,
       );
+    // Pagamento ao professor confirmado: abre a confirmação (e o comprovante).
+    case professorChargePaidNotificationType:
+      return AthleteNotificationPresentation(
+        icon: Icons.check_circle_outline_rounded,
+        iconColor: AppColors.win,
+        iconBackground: AppColors.win.withValues(alpha: 0.12),
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Ver pagamento',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: resolveNotificationRoute({...data, 'type': type}),
+      );
     // Mensagem de conversa: abre a conversa.
     case conversationMessageNotificationType:
       final chatRoute = resolveNotificationRoute({...data, 'type': type});

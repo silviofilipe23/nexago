@@ -89,4 +89,32 @@ void main() {
       );
     });
   });
+
+  group('professor_charge_paid', () {
+    const payload = <String, String>{
+      'type': 'professor_charge_paid',
+      'chargeId': 'c1',
+      'url': '/discover?tab=agenda',
+    };
+
+    test('abre "Pagamento confirmado" pelo chargeId (url é do app antigo)', () {
+      expect(externalNotificationUrl(payload), isNull);
+      expect(resolveNotificationRoute(payload), '/pagamento-aula/c1');
+      expect(
+        resolveNotificationRoute(const {'type': 'professor_charge_paid'}),
+        athleteAgendaTabLocation,
+      );
+    });
+
+    test('no inbox: "Ver pagamento" leva à confirmação', () {
+      final p = notificationPresentation(_inbox('professor_charge_paid', payload));
+      expect(p.actions.single.label, 'Ver pagamento');
+      expect(p.routePath, '/pagamento-aula/c1');
+    });
+
+    test('confirmação e comprovante são do modo Atleta', () {
+      expect(isAthleteExperiencePath('/pagamento-aula/c1'), isTrue);
+      expect(isAthleteExperiencePath('/pagamento-aula/c1/comprovante'), isTrue);
+    });
+  });
 }

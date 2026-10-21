@@ -2,8 +2,10 @@ import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/auth/auth_providers.dart';
+import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/domain/my_bookings_providers.dart';
 import 'package:nexago_app/features/athlete/data/class_agenda_repository.dart';
@@ -13,8 +15,13 @@ import 'package:nexago_app/features/athlete/domain/agenda/class_charge_entry.dar
 import 'package:nexago_app/features/athlete/domain/athlete_notifications_providers.dart';
 import 'package:nexago_app/features/athlete/presentation/athlete_agenda_page.dart';
 
-ClassChargeEntry _charge(String id, {String payment = 'online'}) =>
+ClassChargeEntry _charge(
+  String id, {
+  String payment = 'online',
+  String source = 'arena',
+}) =>
     ClassChargeEntry.fromMap({
+      'source': source,
       'chargeId': id,
       'arenaId': 'arena1',
       'arenaName': 'Arena CFC',
@@ -54,8 +61,9 @@ Future<void> _backToApp(WidgetTester tester) async {
 
 Future<_FakeClassAgendaRepository> _pumpAgenda(
   WidgetTester tester,
-  List<ClassChargeEntry> open,
-) async {
+  List<ClassChargeEntry> open, {
+  GoRouter? router,
+}) async {
   tester.view.physicalSize = const Size(1170, 2532);
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
@@ -85,10 +93,12 @@ Future<_FakeClassAgendaRepository> _pumpAgenda(
         ),
         athleteUnreadNotificationsCountProvider.overrideWith((ref) => 0),
       ],
-      child: MaterialApp(
-        theme: AppTheme.dark,
-        home: const Scaffold(body: AthleteAgendaPage()),
-      ),
+      child: router != null
+          ? MaterialApp.router(theme: AppTheme.dark, routerConfig: router)
+          : MaterialApp(
+              theme: AppTheme.dark,
+              home: const Scaffold(body: AthleteAgendaPage()),
+            ),
     ),
   );
   await tester.pump();
@@ -135,5 +145,33 @@ void main() {
     await _backToApp(tester);
     await tester.pump(const Duration(minutes: 2));
     expect(repo.reads, before);
+  });
+
+  testWidgets(
+      'cobrança do professor paga na volta ao app: abre "Pagamento '
+      'confirmado" no lugar do aviso', (tester) async {
+    final router = GoRouter(routes: [
+      GoRoute(
+        path: '/',
+        builder: (_, __) => const Scaffold(body: AthleteAgendaPage()),
+      ),
+      GoRoute(
+        path: AppRoutes.lessonPaymentConfirmed,
+        builder: (_, state) =>
+            Text('confirmado:${state.pathParameters['chargeId']}'),
+      ),
+    ]);
+    addTearDown(router.dispose);
+    final repo = await _pumpAgenda(
+      tester,
+      [_charge('pc1', source: 'professor')],
+      router: router,
+    );
+    await _backToApp(tester);
+    repo.open = const [];
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('confirmado:pc1'), findsOneWidget);
+    expect(find.text('Pagamento da mensalidade confirmado.'), findsNothing);
   });
 }

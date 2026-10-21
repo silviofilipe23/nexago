@@ -87,6 +87,13 @@ abstract final class AppRoutes {
   static const String professorNoticeForStudent =
       '/aviso-professor/:noticeId';
 
+  /// Pagamento ao professor independente confirmado (B17) e o comprovante
+  /// (B19), no modo Atleta. Abre pela Agenda (volta do Asaas) e pelo push
+  /// `professor_charge_paid`.
+  static const String lessonPaymentConfirmed = '/pagamento-aula/:chargeId';
+  static const String lessonPaymentReceipt =
+      '/pagamento-aula/:chargeId/comprovante';
+
   /// Ganhos do repasse (equipe da arena): saldo e saque por PIX.
   static const String professorEarnings = '/professor/mais/ganhos';
   static const String professorWithdraw = '/professor/mais/ganhos/sacar';
@@ -795,6 +802,8 @@ abstract final class AppRouteNames {
   static const String professorNoticeReport = 'professorNoticeReport';
   static const String professorNoticeEdit = 'professorNoticeEdit';
   static const String professorNoticeForStudent = 'professorNoticeForStudent';
+  static const String lessonPaymentConfirmed = 'lessonPaymentConfirmed';
+  static const String lessonPaymentReceipt = 'lessonPaymentReceipt';
   static const String professorEarnings = 'professorEarnings';
   static const String professorWithdraw = 'professorWithdraw';
   static const String professorPixKey = 'professorPixKey';

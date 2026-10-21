@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/router/navigation_helpers.dart';
@@ -19,6 +18,7 @@ import '../../domain/professor_lesson_plans.dart';
 import '../../infrastructure/professor_students_repository.dart';
 import '../widgets/professor_students_widgets.dart';
 import 'professor_class_story_page.dart';
+import 'professor_plan_block_sheet.dart';
 
 /// G1 · Treino encerrado — fecha a aula com os números da chamada, os
 /// presentes e o plano do treino (opcional, o professor monta aqui e ele vai
@@ -36,7 +36,11 @@ class ProfessorClassClosedPage extends ConsumerStatefulWidget {
 
 class _ProfessorClassClosedPageState
     extends ConsumerState<ProfessorClassClosedPage> {
-  final List<ClassStoryPlanBlock> _plan = [];
+  /// O plano do story, na ordem da arte (arrastar reordena).
+  final List<_PlanEntry> _plan = [];
+  int _nextKey = 0;
+
+  List<ClassStoryPlanBlock> get _blocks => [for (final e in _plan) e.block];
 
   /// O plano de aula da turma já foi olhado (preenche uma vez só, e nunca por
   /// cima do que o professor montou aqui).
@@ -66,20 +70,35 @@ class _ProfessorClassClosedPageState
     if (plan == null || _plan.isNotEmpty) return;
     final r = classStoryPlanFromLessonPlan(plan);
     if (r.blocks.isEmpty) return;
-    _plan.addAll(r.blocks);
+    _plan.addAll([for (final b in r.blocks) _PlanEntry(_nextKey++, b)]);
     _fromLessonPlan = true;
     _planLeft = r.left;
   }
 
   void _close() => popOrGo(context, AppRoutes.professorAgenda);
 
-  Future<void> _addBlock() async {
-    final block = await showDialog<ClassStoryPlanBlock>(
-      context: context,
-      builder: (_) => const _PlanBlockDialog(),
+  /// G1b — a folha do "Novo bloco"; cada bloco entra na hora, com o selo
+  /// NOVO.
+  Future<void> _addBlock(int totalMinutes) {
+    final plans = ref.read(professorLessonPlansProvider).valueOrNull ??
+        const <LessonPlan>[];
+    final suggestions = classStoryBlockSuggestions(plans);
+    return showProfessorPlanBlockSheet(
+      context,
+      totalMinutes: totalMinutes,
+      plan: _blocks,
+      suggestions: suggestions.items,
+      suggestionsFromHistory: suggestions.fromHistory,
+      onAdd: (block) {
+        if (!mounted) return;
+        setState(() => _plan.add(_PlanEntry(_nextKey++, block, isNew: true)));
+      },
     );
-    if (block == null || !mounted) return;
-    setState(() => _plan.add(block));
+  }
+
+  /// `onReorderItem` já desconta o item tirado de [from].
+  void _reorder(int from, int to) {
+    setState(() => _plan.insert(to, _plan.removeAt(from)));
   }
 
   void _openStory(TeacherClassRoster roster) {
@@ -87,7 +106,7 @@ class _ProfessorClassClosedPageState
       MaterialPageRoute<void>(
         builder: (_) => ProfessorClassStoryPage(
           roster: roster,
-          plan: List.unmodifiable(_plan),
+          plan: List.unmodifiable(_blocks),
         ),
       ),
     );
@@ -147,6 +166,8 @@ class _ProfessorClassClosedPageState
         if (s.isPresent) s,
     ];
     final canShare = !roster.session.isCanceled;
+    final totalMinutes = summary.minutes ?? 60;
+    final used = classStoryPlanMinutes(_blocks);
 
     return Column(
       children: [
@@ -235,67 +256,71 @@ class _ProfessorClassClosedPageState
                     ),
                   ),
               const SizedBox(height: 22),
-              const ProfessorLinksKicker('Plano do treino'),
+              Row(
+                children: [
+                  const Expanded(
+                    child: ProfessorLinksKicker('Plano do treino'),
+                  ),
+                  if (_plan.isNotEmpty)
+                    Text(
+                      '$used/$totalMinutes MIN',
+                      key: const Key('professor-class-closed-plan-total'),
+                      style: ProfessorLinksStyle.mono(
+                        10,
+                        weight: FontWeight.w700,
+                        color: used > totalMinutes
+                            ? colors.live
+                            : colors.onSurfaceMuted,
+                      ),
+                    ),
+                ],
+              ),
               const SizedBox(height: 8),
               ProfessorLinksCard(
                 key: const Key('professor-class-closed-plan'),
-                padding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
+                padding: const EdgeInsets.fromLTRB(4, 6, 6, 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (var i = 0; i < _plan.length; i++)
-                      Row(
-                        key: Key('professor-class-closed-plan-$i'),
-                        children: [
-                          SizedBox(
-                            width: 34,
-                            child: Text(
-                              _plan[i].artLine.$1,
-                              style: ProfessorLinksStyle.mono(
-                                11,
-                                color: colors.brandText,
-                                weight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Text(
-                              _plan[i].label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: ProfessorLinksStyle.display(
-                                12.5,
-                                weight: FontWeight.w500,
-                                color: colors.onSurface,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: 'Tirar bloco',
-                            visualDensity: VisualDensity.compact,
-                            icon: Icon(
-                              Icons.close_rounded,
-                              size: 16,
-                              color: colors.onSurfaceMuted,
-                            ),
-                            onPressed: () => setState(() => _plan.removeAt(i)),
-                          ),
-                        ],
+                    ReorderableListView(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      buildDefaultDragHandles: false,
+                      onReorderItem: _reorder,
+                      proxyDecorator: (child, _, __) => Material(
+                        color: Colors.transparent,
+                        child: child,
                       ),
+                      children: [
+                        for (var i = 0; i < _plan.length; i++)
+                          _PlanRow(
+                            key: ValueKey(_plan[i].key),
+                            rowKey: Key('professor-class-closed-plan-$i'),
+                            index: i,
+                            entry: _plan[i],
+                            onRemove: () => setState(() => _plan.removeAt(i)),
+                          ),
+                      ],
+                    ),
                     if (_plan.length < kClassStoryPlanMaxBlocks)
-                      TextButton.icon(
-                        key: const Key('professor-class-closed-add-block'),
-                        onPressed: _addBlock,
-                        style: TextButton.styleFrom(
-                          foregroundColor: colors.brandText,
-                          padding: EdgeInsets.zero,
-                        ),
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: Text(
-                          _plan.isEmpty ? 'Montar o plano' : 'Adicionar bloco',
-                          style: ProfessorLinksStyle.display(
-                            13,
-                            weight: FontWeight.w600,
+                      Padding(
+                        padding: const EdgeInsets.only(left: 10),
+                        child: TextButton.icon(
+                          key: const Key('professor-class-closed-add-block'),
+                          onPressed: () => _addBlock(totalMinutes),
+                          style: TextButton.styleFrom(
+                            foregroundColor: colors.brandText,
+                            padding: EdgeInsets.zero,
+                          ),
+                          icon: const Icon(Icons.add_rounded, size: 18),
+                          label: Text(
+                            _plan.isEmpty
+                                ? 'Montar o plano'
+                                : 'Adicionar bloco',
+                            style: ProfessorLinksStyle.display(
+                              13,
+                              weight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
@@ -396,83 +421,111 @@ class _Stat extends StatelessWidget {
   }
 }
 
-/// Um bloco novo do plano: minutos + o que foi feito.
-class _PlanBlockDialog extends StatefulWidget {
-  const _PlanBlockDialog();
+/// Um bloco do plano do story; [key] fica com ele ao reordenar.
+class _PlanEntry {
+  _PlanEntry(this.key, this.block, {this.isNew = false});
 
-  @override
-  State<_PlanBlockDialog> createState() => _PlanBlockDialogState();
+  final int key;
+  final ClassStoryPlanBlock block;
+
+  /// Entrou agora pelo "Novo bloco" (selo NOVO).
+  final bool isNew;
 }
 
-class _PlanBlockDialogState extends State<_PlanBlockDialog> {
-  final _minutes = TextEditingController(text: '10');
-  final _label = TextEditingController();
+/// G1c — uma linha do plano: alça de arrastar, minutos, nome, NOVO e tirar.
+class _PlanRow extends StatelessWidget {
+  const _PlanRow({
+    super.key,
+    required this.rowKey,
+    required this.index,
+    required this.entry,
+    required this.onRemove,
+  });
 
-  @override
-  void dispose() {
-    _minutes.dispose();
-    _label.dispose();
-    super.dispose();
-  }
-
-  ClassStoryPlanBlock? get _block {
-    final minutes = int.tryParse(_minutes.text.trim());
-    final label = _label.text.trim();
-    if (minutes == null || minutes < 1 || minutes > 240 || label.isEmpty) {
-      return null;
-    }
-    return ClassStoryPlanBlock(minutes: minutes, label: label);
-  }
+  final Key rowKey;
+  final int index;
+  final _PlanEntry entry;
+  final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
-    final block = _block;
-    return AlertDialog(
-      backgroundColor: context.themeColors.surfaceSheet,
-      title: const Text('Bloco do treino'),
-      content: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 72,
-            child: TextField(
-              key: const Key('professor-plan-block-minutes'),
-              controller: _minutes,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(3),
-              ],
-              decoration: const InputDecoration(labelText: 'Min'),
-              onChanged: (_) => setState(() {}),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              key: const Key('professor-plan-block-label'),
-              controller: _label,
-              autofocus: true,
-              maxLength: kClassStoryPlanLabelMax,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                labelText: 'O que foi feito',
-                hintText: 'Ex.: saque cruzado',
+    final colors = context.themeColors;
+    return Row(
+      key: rowKey,
+      children: [
+        ReorderableDragStartListener(
+          index: index,
+          child: Semantics(
+            label: 'Arrastar para mudar a ordem',
+            child: SizedBox(
+              width: 30,
+              height: 40,
+              child: Icon(
+                Icons.drag_indicator_rounded,
+                size: 16,
+                color: colors.onSurface.withValues(alpha: 0.35),
               ),
-              onChanged: (_) => setState(() {}),
             ),
           ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Voltar'),
         ),
-        FilledButton(
-          key: const Key('professor-plan-block-save'),
-          onPressed: block == null ? null : () => Navigator.pop(context, block),
-          child: const Text('Adicionar'),
+        SizedBox(
+          width: 34,
+          child: Text(
+            entry.block.artLine.$1,
+            style: ProfessorLinksStyle.mono(
+              11,
+              color: colors.brandText,
+              weight: FontWeight.w700,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  entry.block.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: ProfessorLinksStyle.display(
+                    12.5,
+                    weight: FontWeight.w500,
+                    color: colors.onSurface,
+                  ),
+                ),
+              ),
+              if (entry.isNew) ...[
+                const SizedBox(width: 8),
+                Container(
+                  key: const Key('professor-class-closed-plan-new'),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.brand.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    'NOVO',
+                    style: ProfessorLinksStyle.mono(
+                      8.5,
+                      weight: FontWeight.w700,
+                      color: colors.brandText,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        IconButton(
+          tooltip: 'Tirar bloco',
+          visualDensity: VisualDensity.compact,
+          icon: Icon(
+            Icons.close_rounded,
+            size: 16,
+            color: colors.onSurfaceMuted,
+          ),
+          onPressed: onRemove,
         ),
       ],
     );

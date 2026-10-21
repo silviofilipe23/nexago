@@ -38,6 +38,8 @@ export interface ClassRules {
   makeupValidityDays: number;
   excusedGeneratesCredit: boolean;
   arenaCancelGeneratesCredit: boolean;
+  /** Horas de antecedência para o "Não vou" do aluno virar falta avisada com crédito (0–72). */
+  makeupNoticeHours: number;
   defaultDueDay: number;
   enrollmentFeeReais: number;
   /** Push 2h antes da aula para alunos com conta e o professor. */
@@ -50,6 +52,7 @@ export const DEFAULT_RULES: ClassRules = {
   makeupValidityDays: 30,
   excusedGeneratesCredit: true,
   arenaCancelGeneratesCredit: true,
+  makeupNoticeHours: 4,
   defaultDueDay: 5,
   enrollmentFeeReais: 0,
   classReminderEnabled: true,
@@ -340,6 +343,7 @@ export function rulesFromDoc(data: Record<string, unknown> | undefined): ClassRu
     makeupValidityDays: optNum(d['makeupValidityDays']) ?? DEFAULT_RULES.makeupValidityDays,
     excusedGeneratesCredit: typeof d['excusedGeneratesCredit'] === 'boolean' ? d['excusedGeneratesCredit'] : DEFAULT_RULES.excusedGeneratesCredit,
     arenaCancelGeneratesCredit: typeof d['arenaCancelGeneratesCredit'] === 'boolean' ? d['arenaCancelGeneratesCredit'] : DEFAULT_RULES.arenaCancelGeneratesCredit,
+    makeupNoticeHours: optNum(d['makeupNoticeHours']) ?? DEFAULT_RULES.makeupNoticeHours,
     defaultDueDay: optNum(d['defaultDueDay']) ?? DEFAULT_RULES.defaultDueDay,
     enrollmentFeeReais: optNum(d['enrollmentFeeReais']) ?? DEFAULT_RULES.enrollmentFeeReais,
     classReminderEnabled: typeof d['classReminderEnabled'] === 'boolean' ? d['classReminderEnabled'] : DEFAULT_RULES.classReminderEnabled,

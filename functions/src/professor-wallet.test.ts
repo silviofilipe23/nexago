@@ -10,6 +10,7 @@ import {
   createProfessorPayoutAccountCore,
   generateProfessorMonthlyChargesCore,
   processProfessorChargeAsaasNotification,
+  professorChargeReceiptFromAsaas,
   refreshProfessorPayoutAccountStatusCore,
   respondProfessorStudentInviteCore,
   upsertProfessorPlanCore,
@@ -340,17 +341,42 @@ describe("webhook professorCharge:", () => {
     const world = makeDb({approved: true, student: true});
     const rec = recorder();
     const {chargeId} = await createProfessorChargeCore(world.db, PROF, {athleteId: ALUNO, amountReais: 100, dueDate: TODAY}, rec.deps);
-    return {...world, chargeId};
+    rec.pushes.length = 0;
+    return {...world, chargeId, rec, notify: rec.deps.notify};
   }
 
   it("pago marca paid e guarda a parte do professor (95% do líquido)", async () => {
-    const {fake, db, chargeId} = await openCharge();
+    const {fake, db, chargeId, notify} = await openCharge();
     await processProfessorChargeAsaasNotification(db, "pay_1",
-      {status: "RECEIVED", billingType: "PIX", netValue: 99.01, externalReference: `professorCharge:${chargeId}`}, processedRef(fake, "pay_1"));
+      {status: "RECEIVED", billingType: "PIX", netValue: 99.01, externalReference: `professorCharge:${chargeId}`}, processedRef(fake, "pay_1"), notify);
     const charge = fake.store.get(`professorCharges/${chargeId}`)!;
     assert.equal(charge["status"], "paid");
     assert.equal(charge["netReais"], 94.06);
     assert.equal(fake.store.get("processed/pay_1")!["outcome"], "approved");
+  });
+
+  it("pago guarda o comprovante e avisa o aluno uma vez só", async () => {
+    const {fake, db, chargeId, rec, notify} = await openCharge();
+    const paid = {
+      status: "CONFIRMED", billingType: "CREDIT_CARD", value: 100, netValue: 97, externalReference: `professorCharge:${chargeId}`,
+      creditCard: {creditCardNumber: "4471", creditCardBrand: "VISA"},
+      transactionReceiptUrl: "https://asaas.test/comprovantes/1", invoiceNumber: "08241",
+    } as never;
+    await processProfessorChargeAsaasNotification(db, "pay_1", paid, processedRef(fake, "pay_1"), notify);
+    await processProfessorChargeAsaasNotification(db, "pay_1", {...(paid as object), status: "RECEIVED"} as never, processedRef(fake, "pay_1"), notify);
+    assert.deepEqual(fake.store.get(`professorCharges/${chargeId}`)!["receipt"], {
+      cardLast4: "4471", cardBrand: "VISA", receiptUrl: "https://asaas.test/comprovantes/1", invoiceNumber: "08241",
+    });
+    assert.equal(rec.pushes.length, 1, "a releitura do webhook não repete o push");
+    assert.equal(rec.pushes[0]["userId"], ALUNO);
+    assert.equal(rec.pushes[0]["type"], "professor_charge_paid");
+    assert.deepEqual(rec.pushes[0]["data"], {chargeId, url: "/discover?tab=agenda"});
+    assert.match(String(rec.pushes[0]["body"]), /pagos para Thiago Mendes/);
+  });
+
+  it("comprovante: só os campos que o Asaas devolve; recibo sem https fica de fora", () => {
+    assert.deepEqual(professorChargeReceiptFromAsaas({status: "RECEIVED", billingType: "PIX"}), {});
+    assert.deepEqual(professorChargeReceiptFromAsaas({transactionReceiptUrl: "http://x", creditCard: {creditCardNumber: "**** 1234"}} as never), {cardLast4: "1234"});
   });
 
   it("estorno vira refunded; apagado em aberto vira canceled; pagamento de outra tentativa é ignorado", async () => {

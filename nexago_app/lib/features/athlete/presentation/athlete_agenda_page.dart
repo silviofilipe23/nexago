@@ -78,10 +78,16 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
     final watched = classChargesAwaitingOnlinePayment(open);
     if (watched.isEmpty) return;
     ref.invalidate(myClassChargesProvider);
-    _watchClassPayment(watched);
+    _watchClassPayment(watched, professorChargeIds: {
+      for (final c in open)
+        if (c.isProfessorCharge) c.chargeId,
+    });
   }
 
-  Future<void> _watchClassPayment(Set<String> watched) async {
+  Future<void> _watchClassPayment(
+    Set<String> watched, {
+    Set<String> professorChargeIds = const {},
+  }) async {
     final run = ++_paymentWatch;
     bool stale() => !mounted || run != _paymentWatch;
     final paid = await watchClassChargesPaid(
@@ -91,6 +97,16 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
     );
     if (paid.isEmpty || stale()) return;
     ref.invalidate(myClassChargesProvider);
+    // Pagou o professor independente: a tela de confirmação (B17) no lugar
+    // do aviso — ela traz o comprovante.
+    final professorPaid = paid.where(professorChargeIds.contains);
+    if (professorPaid.isNotEmpty) {
+      context.push(
+        AppRoutes.lessonPaymentConfirmed
+            .replaceAll(':chargeId', Uri.encodeComponent(professorPaid.first)),
+      );
+      return;
+    }
     showAppSnackBar(
       context,
       paid.length == 1

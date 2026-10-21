@@ -11,6 +11,7 @@ import type {Firestore} from "firebase-admin/firestore";
 import {
   ARENA_PROFESSORS,
   ARENA_STAFF_ONLY_PERMISSION_KEYS,
+  INDEPENDENT_ONLY_PERMISSION_KEYS,
   arenaProfessorLinkId,
   effectiveArenaProfessorPermissions,
   type ArenaProfessorLinkData,
@@ -18,7 +19,7 @@ import {
   type ArenaProfessorType,
 } from "./arena-professor-links";
 
-export type ProfessorPermissionDenialReason = "no_link" | "not_active" | "not_staff" | "permission_off";
+export type ProfessorPermissionDenialReason = "no_link" | "not_active" | "not_staff" | "not_independent" | "permission_off";
 
 export async function loadArenaProfessorLink(
   db: Firestore,
@@ -38,6 +39,7 @@ export function professorPermissionDenial(
   if (!link) return "no_link";
   if (link.status !== "ACTIVE") return "not_active";
   if (ARENA_STAFF_ONLY_PERMISSION_KEYS.has(key) && link.relationshipType !== "ARENA_STAFF") return "not_staff";
+  if (INDEPENDENT_ONLY_PERMISSION_KEYS.has(key) && link.relationshipType !== "INDEPENDENT") return "not_independent";
   return effectiveArenaProfessorPermissions(link)[key] ? null : "permission_off";
 }
 
@@ -48,6 +50,7 @@ const PERMISSION_COPY: Record<ArenaProfessorPermissionKey, {action: string; hint
   canEnrollStudents: {action: "matricular alunos nas suas turmas", hint: " Peça à gestão da arena."},
   canScheduleLessons: {action: "agendar aulas e encaixar alunos", hint: " Peça à gestão da arena."},
   canCancelLessons: {action: "cancelar aulas e avisar os alunos", hint: " Peça à gestão da arena."},
+  canBookRecurring: {action: "reservar horário fixo para turma própria", hint: " Peça à gestão da arena."},
 };
 
 export function professorPermissionError(
@@ -63,6 +66,8 @@ export function professorPermissionError(
     message = `Você não tem vínculo de professor com esta arena. Peça o vínculo na página da arena para ${action}.`;
   } else if (reason === "not_staff") {
     message = `Só professor da equipe da ${arena} pode ${action}.`;
+  } else if (reason === "not_independent") {
+    message = `Só professor independente da ${arena} pode ${action}.`;
   } else if (reason === "permission_off") {
     message = `A ${arena} não liberou ${action} no seu vínculo.`;
   } else if (link.status === "SUSPENDED") {

@@ -65,6 +65,7 @@ export const ARENA_PROFESSOR_PERMISSION_KEYS = [
   "canEnrollStudents",
   "canScheduleLessons",
   "canCancelLessons",
+  "canBookRecurring",
 ] as const;
 export type ArenaProfessorPermissionKey = (typeof ARENA_PROFESSOR_PERMISSION_KEYS)[number];
 
@@ -77,6 +78,13 @@ export const ARENA_STAFF_ONLY_PERMISSION_KEYS: ReadonlySet<ArenaProfessorPermiss
   "canEnrollStudents",
   "canScheduleLessons",
   "canCancelLessons",
+]);
+/**
+ * Horário fixo de quadra para turma PRÓPRIA (B10): só o professor independente, e só quando a arena
+ * liga — prende a grade da arena por meses. Desligada por padrão.
+ */
+export const INDEPENDENT_ONLY_PERMISSION_KEYS: ReadonlySet<ArenaProfessorPermissionKey> = new Set([
+  "canBookRecurring",
 ]);
 export type ArenaProfessorPermissions = Record<ArenaProfessorPermissionKey, boolean>;
 
@@ -143,6 +151,7 @@ export function defaultArenaProfessorPermissions(type: ArenaProfessorType): Aren
     canEnrollStudents: false,
     canScheduleLessons: false,
     canCancelLessons: false,
+    canBookRecurring: false,
   };
 }
 
@@ -172,6 +181,9 @@ export function parseArenaProfessorPermissions(
         "Matricular, agendar e cancelar aulas da arena é só para professor da equipe.",
       );
     }
+    if (value && type !== "INDEPENDENT" && INDEPENDENT_ONLY_PERMISSION_KEYS.has(key)) {
+      throw new HttpsError("invalid-argument", "Horário fixo para turma própria é só para professor independente.");
+    }
     out[key] = value;
   }
   return out;
@@ -193,6 +205,7 @@ export function effectiveArenaProfessorPermissions(link: {
     canEnrollStudents: staff && stored["canEnrollStudents"] === true,
     canScheduleLessons: staff && stored["canScheduleLessons"] === true,
     canCancelLessons: staff && stored["canCancelLessons"] === true,
+    canBookRecurring: active && link.relationshipType === "INDEPENDENT" && stored["canBookRecurring"] === true,
   };
 }
 

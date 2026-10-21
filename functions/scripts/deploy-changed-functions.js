@@ -11,13 +11,8 @@
  *   node scripts/deploy-changed-functions.js --project dev --dry-run
  *
  * SOBRE REGIÃO: o script NUNCA passa região no comando, e isso é deliberado.
- * A região de cada função mora no código (`function-regions.ts`):
- * `southamerica-east1` é a casa, e as callables ainda respondem TAMBÉM em
- * `us-central1` enquanto a migração não termina. Um deploy restrito a São Paulo
- * APAGARIA o endpoint de Iowa — e nesse instante o app publicado na loja passa
- * a receber NOT FOUND em toda callable, e os webhooks de Asaas, Mercado Pago e
- * emissor fiscal param de chegar. Quem tira Iowa é o rollout descrito em
- * `function-regions.ts`, editando `CLIENT_FACING_REGIONS` — não uma flag aqui.
+ * A região de cada função mora no código (`function-regions.ts`), e mudar
+ * região é mudar o código — não uma flag aqui.
  */
 
 const {execFileSync} = require("node:child_process");
@@ -36,7 +31,7 @@ const PROJECTS = {
 };
 
 /** Regiões que o código pode declarar. Qualquer outra é erro de digitação. */
-const ALLOWED_REGIONS = ["southamerica-east1", "us-central1"];
+const ALLOWED_REGIONS = ["southamerica-east1"];
 
 // ─── Argumentos ─────────────────────────────────────────────────────────────
 

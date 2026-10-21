@@ -22,14 +22,10 @@ por `saveSecretToSecretManager` e lido por `readIssuerTokenFromSecretManager`)
 
 ## Webhook
 
-URL: `https://us-central1-<PROJECT_ID>.cloudfunctions.net/fiscalIssuerWebhook`
+URL: `https://southamerica-east1-<PROJECT_ID>.cloudfunctions.net/fiscalIssuerWebhook`
 
-> **Migração de região em curso.** A função atende em `us-central1` **e** em
-> `southamerica-east1` (ver `src/function-regions.ts`). A URL acima é a que está
-> cadastrada hoje e continua válida. Quando o cadastro for atualizado para
-> `southamerica-east1`, avise o time para tirar `us-central1` de
-> `CLIENT_FACING_REGIONS` — enquanto o cadastro apontar para Iowa, remover a
-> região faz o webhook cair em silêncio e pagamento confirmado nunca chegar.
+> A função roda só em `southamerica-east1` (ver `src/function-regions.ts`).
+> A antiga URL em `us-central1` não existe mais.
 
 
 No painel da Focus, cadastre essa URL para o callback assíncrono de NFS-e e

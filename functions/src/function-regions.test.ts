@@ -62,12 +62,8 @@ describe("política de região", () => {
     assert.equal(DEFAULT_REGION, "southamerica-east1");
   });
 
-  it("São Paulo é o destino, us-central1 é a ponte", () => {
-    assert.equal(CLIENT_FACING_REGIONS[0], DEFAULT_REGION);
-    assert.ok(
-      CLIENT_FACING_REGIONS.includes("us-central1"),
-      "apagar Iowa antes da hora derruba o app publicado e os webhooks",
-    );
+  it("callables e endpoints HTTP só em São Paulo, sem ponte", () => {
+    assert.deepEqual(CLIENT_FACING_REGIONS, [DEFAULT_REGION]);
   });
 
   it("o bundle expõe os endpoints esperados", () => {
@@ -75,7 +71,7 @@ describe("política de região", () => {
   });
 });
 
-describe("callables e endpoints HTTP atendem nas duas regiões", () => {
+describe("callables e endpoints HTTP atendem em São Paulo", () => {
   const names = [...ENDPOINTS].filter(([, e]) => clientFacing(e)).map(([n]) => n).sort();
 
   it("há callables e endpoints HTTP para checar", () => {
@@ -87,7 +83,7 @@ describe("callables e endpoints HTTP atendem nas duas regiões", () => {
       assert.deepEqual(
         ENDPOINTS.get(name)!.region,
         CLIENT_FACING_REGIONS,
-        `${name} tem cliente do outro lado e precisa das duas regiões`,
+        `${name} tem cliente do outro lado e precisa declarar a região`,
       );
     });
   }

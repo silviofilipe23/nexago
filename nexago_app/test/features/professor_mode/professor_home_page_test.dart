@@ -287,7 +287,7 @@ void main() {
       final router = await _pump(tester, now: _sp(5, 20), sessions: _day());
       expect(find.byKey(const Key('professor-today-now')), findsNothing);
       expect(find.text('3 aulas'), findsOneWidget);
-      expect(find.text('07:00 → 21:00'), findsOneWidget);
+      expect(find.text('07:00 às 21:00'), findsOneWidget);
       expect(find.text('PRIMEIRA AULA · EM 1H40'), findsOneWidget);
       // Faixa das horas: 07h ocupada, 10h livre.
       final strip7 = tester
@@ -434,7 +434,7 @@ void main() {
       expect(find.text('Chamada pendente · Sábado'), findsOneWidget);
       expect(find.text('João P. pediu uma particular'), findsOneWidget);
       expect(find.text('Paulo V. pediu para remarcar'), findsOneWidget);
-      expect(find.text('Qui 22 · 06:00 → Qui 22 · 07:00'), findsOneWidget);
+      expect(find.text('De Qui 22 · 06:00 para Qui 22 · 07:00'), findsOneWidget);
       expect(find.text('3 mensagens não lidas'), findsOneWidget);
       // 19:00 e 20:00 ainda vêm e não têm plano (a das 07:00 já passou).
       expect(find.text('2 aulas hoje sem plano'), findsOneWidget);

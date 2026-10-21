@@ -206,7 +206,7 @@ ProfessorTodayStats professorTodayStats(
   );
 }
 
-/// "06:00 → 21:00" (do início da primeira ao fim da última).
+/// "06:00 às 21:00" (do início da primeira ao fim da última). Sem "→": a Sora não tem a seta.
 String professorDayRangeLabel(List<ProfessorAgendaItem> lessons) {
   if (lessons.isEmpty) return '';
   var start = lessons.first.startMin, end = lessons.first.endMin;
@@ -214,7 +214,7 @@ String professorDayRangeLabel(List<ProfessorAgendaItem> lessons) {
     if (i.startMin < start) start = i.startMin;
     if (i.endMin > end) end = i.endMin;
   }
-  return '${professorMinutesLabel(start)} → ${professorMinutesLabel(end)}';
+  return '${professorMinutesLabel(start)} às ${professorMinutesLabel(end)}';
 }
 
 /// Faixa de horas do "Seu dia".
@@ -368,10 +368,9 @@ List<ProfessorTodayPending> professorTodayPendings({
       title: n == 1
           ? '${privateLessonShortName(first.athleteName)} pediu para remarcar'
           : '$n pedidos de remarcação',
-      subtitle: [
-        rescheduleSlotLabel(first.startAt),
-        if (to != null) rescheduleSlotLabel(to),
-      ].join(' → '),
+      subtitle: to == null
+          ? rescheduleSlotLabel(first.startAt)
+          : 'De ${rescheduleSlotLabel(first.startAt)} para ${rescheduleSlotLabel(to)}',
       cta: 'Ver',
       targetId: first.id,
     ));

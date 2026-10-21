@@ -154,6 +154,7 @@ class _ProfessorAddStudentPageState
         const ProfessorLinksKicker('Atleta NexaGO'),
         ArenaClassAthleteSearch(
           selectedUid: _uid,
+          collapseOnSelect: true,
           hint: 'Nome ou apelido do atleta',
           onSelect: (u) => setState(() {
             _uid = u.uid;

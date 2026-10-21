@@ -10,10 +10,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 const kFunctionsRegion = 'southamerica-east1';
 
 /// A instância que TODA feature deve usar — nunca `FirebaseFunctions.instance`,
-/// que silenciosamente volta para Iowa.
-///
-/// As functions atendem nas duas regiões durante a travessia
-/// (`functions/src/function-regions.ts`), então uma versão antiga do app
-/// instalada por aí continua funcionando enquanto esta sobe para a loja.
+/// que silenciosamente volta para Iowa — onde as functions não existem mais
+/// (`functions/src/function-regions.ts`) e toda chamada recebe NOT FOUND.
 FirebaseFunctions get nexagoFunctions =>
     FirebaseFunctions.instanceFor(region: kFunctionsRegion);

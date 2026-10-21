@@ -308,7 +308,7 @@ export const sendBulkNotification = onCall({
  * - Cloud Scheduler > Create Job
  * - Schedule: "0 * * * *" (a cada hora)
  * - Target: HTTP
- * - URL: https://us-central1-[PROJECT_ID].cloudfunctions.net/sendMatchReminders
+ * - URL: https://southamerica-east1-[PROJECT_ID].cloudfunctions.net/sendMatchReminders
  *   (Substitua [PROJECT_ID] pelo ID do projeto onde a função está deployada)
  */
 export const sendMatchReminders = onRequest({

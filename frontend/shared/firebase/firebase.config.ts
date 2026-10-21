@@ -28,8 +28,8 @@ export const webPushVapidPublicKey =
  * em São Paulo. No portal do organizador isso colocava um piso de ~800 ms em operações que fazem
  * duas leituras e uma escrita.
  *
- * Passe SEMPRE como segundo argumento de `getFunctions(app, FUNCTIONS_REGION)`. As funções
- * atendem nas duas regiões durante a travessia (`functions/src/function-regions.ts`), então
- * bundle antigo em cache e o app Flutter continuam funcionando em Iowa enquanto os portais vêm.
+ * Passe SEMPRE como segundo argumento de `getFunctions(app, FUNCTIONS_REGION)`. As funções só
+ * existem em São Paulo (`functions/src/function-regions.ts`): sem a região, a chamada vai para
+ * Iowa e recebe NOT FOUND.
  */
 export const FUNCTIONS_REGION = 'southamerica-east1';

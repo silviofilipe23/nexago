@@ -13,6 +13,7 @@ import '../../domain/athlete_profile_providers.dart';
 import '../../domain/athlete_public_profile_models.dart';
 import '../../domain/athlete_public_profile_providers.dart';
 import '../../domain/gamification_providers.dart';
+import '../../domain/public_profile_game_summary.dart';
 import '../../domain/sand_rank/sand_rank_providers.dart';
 import '../../../arenas/domain/booking_result_record.dart';
 import '../../../arenas/domain/booking_result_record_providers.dart';
@@ -23,14 +24,31 @@ import 'widgets/public_profile_about_section.dart';
 import 'widgets/public_profile_action_row.dart';
 import 'widgets/public_profile_header.dart';
 import 'widgets/public_profile_highlights_section.dart';
+import 'widgets/public_profile_professor_widgets.dart';
 import 'widgets/public_profile_sports_section.dart';
 import 'widgets/public_profile_stats_row.dart';
 import 'widgets/public_profile_tabs.dart';
+import 'widgets/public_profile_tournaments_tab.dart';
 
 class AthletePublicProfilePage extends ConsumerStatefulWidget {
-  const AthletePublicProfilePage({super.key, required this.userId});
+  const AthletePublicProfilePage({
+    super.key,
+    required this.userId,
+    this.professorView = false,
+    this.onProfessorEvaluate,
+  });
 
   final String userId;
+
+  /// Aberto pelo professor a partir do aluno (I1–I6). Mostra a faixa "visto
+  /// como professor", a aba Torneios e a nota com os números do aluno; troca
+  /// as ações sociais (seguir, convidar) por nada. NÃO libera dado nenhum:
+  /// a privacidade é a mesma de qualquer visitante (ver
+  /// [publicProfileVisibilityFor]).
+  final bool professorView;
+
+  /// Ação "Avaliar aluno" da nota do professor.
+  final VoidCallback? onProfessorEvaluate;
 
   @override
   ConsumerState<AthletePublicProfilePage> createState() =>
@@ -129,7 +147,18 @@ class _AthletePublicProfilePageState
             );
           }
 
-          if (profile.privacyPreferences.isProfilePrivate && !isSelf) {
+          final visibility = publicProfileVisibilityFor(
+            profile.privacyPreferences,
+            isSelf: isSelf,
+            professorView: widget.professorView,
+          );
+          if (visibility.blocked) {
+            if (widget.professorView) {
+              return PublicProfileRestrictedView(
+                profile: profile,
+                onBack: () => context.pop(),
+              );
+            }
             return _PrivateBlocked(onBack: () => context.pop());
           }
 
@@ -148,10 +177,12 @@ class _AthletePublicProfilePageState
             ref.watch(athleteSportRanksProvider(widget.userId)).valueOrNull ??
                 const {},
           );
-          final partners = partnersAsync.maybeWhen(
-            data: (value) => value,
-            orElse: () => const <AthletePublicPartnerEntry>[],
-          );
+          final partners = visibility.showPartners
+              ? partnersAsync.maybeWhen(
+                  data: (value) => value,
+                  orElse: () => const <AthletePublicPartnerEntry>[],
+                )
+              : const <AthletePublicPartnerEntry>[];
           final followers = followersAsync.maybeWhen(
             data: (value) => value,
             orElse: () => 0,
@@ -195,38 +226,43 @@ class _AthletePublicProfilePageState
                     sandRankFrameId: sandRankInfo?.cosmetics.frameId,
                   ),
                 ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: PublicProfileActionRow(
-                      isFollowing: isFollowing,
-                      isSelf: isSelf,
-                      followLoading: _followLoading,
-                      onFollow: _toggleFollow,
-                      onInvite: () {
-                        if (isSelf) {
-                          context.pushNamed(AppRouteNames.athleteProfileEdit);
-                          return;
-                        }
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Convite para dupla em breve.'),
-                          ),
-                        );
-                      },
-                      onShare: () {
-                        final nome = athleteDisplayName(profile);
-                        final url = athletePublicProfileUrl(profile);
-                        // Segue por `nexaShareText`, e não por `nexaShareUri`,
-                        // porque é ele quem acrescenta a hashtag da campanha.
-                        nexaShareText(
-                          context,
-                          'Confira o perfil de $nome no NexaGO. $url',
-                        );
-                      },
+                if (widget.professorView)
+                  const SliverToBoxAdapter(
+                    child: PublicProfileProfessorBanner(),
+                  )
+                else
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: PublicProfileActionRow(
+                        isFollowing: isFollowing,
+                        isSelf: isSelf,
+                        followLoading: _followLoading,
+                        onFollow: _toggleFollow,
+                        onInvite: () {
+                          if (isSelf) {
+                            context.pushNamed(AppRouteNames.athleteProfileEdit);
+                            return;
+                          }
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Convite para dupla em breve.'),
+                            ),
+                          );
+                        },
+                        onShare: () {
+                          final nome = athleteDisplayName(profile);
+                          final url = athletePublicProfileUrl(profile);
+                          // Segue por `nexaShareText`, e não por `nexaShareUri`,
+                          // porque é ele quem acrescenta a hashtag da campanha.
+                          nexaShareText(
+                            context,
+                            'Confira o perfil de $nome no NexaGO. $url',
+                          );
+                        },
+                      ),
                     ),
                   ),
-                ),
                 SliverToBoxAdapter(
                   child: PublicProfileStatsRow(
                     followers: followers,
@@ -249,6 +285,7 @@ class _AthletePublicProfilePageState
                   child: PublicProfileTabBar(
                     selected: _tab,
                     showPeladas: showPeladas,
+                    showTournaments: widget.professorView,
                     onChanged: (tab) => setState(() => _tab = tab),
                   ),
                 ),
@@ -258,6 +295,7 @@ class _AthletePublicProfilePageState
                     ranking: ranking,
                     isSelf: isSelf,
                     peladas: showPeladas ? peladas : null,
+                    partnersHidden: !visibility.showPartners,
                   ),
                 ),
                 const SliverToBoxAdapter(child: SizedBox(height: 32)),
@@ -274,14 +312,16 @@ class _AthletePublicProfilePageState
     required AthletePublicRankingSnapshot ranking,
     required bool isSelf,
     List<SavedBookingResult>? peladas,
+    bool partnersHidden = false,
   }) {
     // A aba some se as peladas somem (ou ainda não chegaram): volta ao início.
-    final tab = _tab == PublicProfileTab.peladas && peladas == null
+    final tab = (_tab == PublicProfileTab.peladas && peladas == null) ||
+            (_tab == PublicProfileTab.tournaments && !widget.professorView)
         ? PublicProfileTab.overview
         : _tab;
     switch (tab) {
       case PublicProfileTab.overview:
-        return PublicProfileOverviewTab(
+        final overview = PublicProfileOverviewTab(
           ranking: ranking,
           partners: partners,
           onPartnerTap: (uid) {
@@ -291,6 +331,28 @@ class _AthletePublicProfilePageState
             );
           },
         );
+        if (!widget.professorView) return overview;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            PublicProfileProfessorSummary(
+              userId: widget.userId,
+              ranking: ranking,
+              onEvaluate: widget.onProfessorEvaluate,
+            ),
+            overview,
+            if (partnersHidden)
+              const Padding(
+                key: Key('public-profile-partners-hidden'),
+                padding: EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: PublicProfileHiddenSection(
+                  message: 'Parceiros frequentes ocultos pelo atleta.',
+                ),
+              ),
+          ],
+        );
+      case PublicProfileTab.tournaments:
+        return PublicProfileTournamentsTab(userId: widget.userId);
       case PublicProfileTab.matches:
         return PublicProfileMatchesTab(
           userId: widget.userId,

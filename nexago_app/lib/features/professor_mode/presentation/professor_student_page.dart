@@ -20,6 +20,7 @@ import '../infrastructure/professor_students_repository.dart';
 import '../domain/professor_actions.dart';
 import '../domain/professor_actions_logic.dart';
 import 'actions/professor_move_sheet.dart';
+import 'widgets/professor_student_profile_entry.dart';
 import 'widgets/professor_students_widgets.dart';
 import '../../messages/presentation/messages_widgets.dart';
 import 'evaluations/professor_evaluations_page.dart';
@@ -99,6 +100,18 @@ class ProfessorStudentPage extends ConsumerWidget {
           children: [
             _HeaderCard(student: student),
             if (student.athleteId?.isNotEmpty ?? false) ...[
+              const SizedBox(height: 12),
+              ProfessorStudentProfileEntry(
+                athleteId: student.athleteId!,
+                onOpen: () => context.pushNamed(
+                  AppRouteNames.professorStudentProfile,
+                  pathParameters: {
+                    'arenaId': arenaId,
+                    'studentId': studentId,
+                    'athleteId': student.athleteId!,
+                  },
+                ),
+              ),
               const SizedBox(height: 12),
               OpenConversationButton(
                 key: const Key('professor-student-message'),

@@ -17,6 +17,7 @@ import '../../domain/professor_lessons.dart';
 import '../../domain/professor_wallet.dart';
 import '../../domain/professor_students_logic.dart' show professorShortDate;
 import '../../domain/professor_wallet_logic.dart';
+import '../widgets/professor_student_profile_entry.dart';
 import '../widgets/professor_students_widgets.dart';
 import '../../../messages/presentation/messages_widgets.dart';
 import '../evaluations/professor_evaluations_page.dart';
@@ -162,6 +163,14 @@ class ProfessorWalletStudentPage extends ConsumerWidget {
               children: [
                 _Header(student: s),
                 if (s.active) ...[
+                  const SizedBox(height: 12),
+                  ProfessorStudentProfileEntry(
+                    athleteId: athleteId,
+                    onOpen: () => context.pushNamed(
+                      AppRouteNames.professorWalletStudentProfile,
+                      pathParameters: {'athleteId': athleteId},
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   OpenConversationButton(
                     key: const Key('professor-wallet-student-message'),

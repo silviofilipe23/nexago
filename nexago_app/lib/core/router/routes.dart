@@ -58,6 +58,10 @@ abstract final class AppRoutes {
   static const String professorStudent =
       '/professor/alunos/:arenaId/:studentId';
 
+  /// Perfil público do aluno aberto pelo professor (I2–I6).
+  static const String professorStudentProfile =
+      '/professor/alunos/:arenaId/:studentId/perfil/:athleteId';
+
   /// Minhas turmas (sem a barra), aberta pelo Mais.
   static const String professorClasses = '/professor/mais/turmas';
 
@@ -165,6 +169,10 @@ abstract final class AppRoutes {
       '/professor/mais/carteira/aluno/:athleteId';
   static const String professorWalletCharge =
       '/professor/mais/carteira/aluno/:athleteId/cobrar';
+
+  /// Perfil público do aluno da carteira, aberto pelo professor (I2–I6).
+  static const String professorWalletStudentProfile =
+      '/professor/mais/carteira/aluno/:athleteId/perfil';
 
   /// Convite do professor para o ATLETA entrar na carteira dele (push
   /// `professor_student_invite`). Abre no modo Atleta.
@@ -858,6 +866,7 @@ abstract final class AppRouteNames {
   static const String professorBlockEdit = 'professorBlockEdit';
   static const String professorCalendarSync = 'professorCalendarSync';
   static const String professorStudent = 'professorStudent';
+  static const String professorStudentProfile = 'professorStudentProfile';
   static const String professorMore = 'professorMore';
   static const String professorClasses = 'professorClasses';
   static const String professorOwnClassNew = 'professorOwnClassNew';
@@ -908,6 +917,8 @@ abstract final class AppRouteNames {
   static const String professorWallet = 'professorWallet';
   static const String professorWalletAddStudent = 'professorWalletAddStudent';
   static const String professorWalletStudent = 'professorWalletStudent';
+  static const String professorWalletStudentProfile =
+      'professorWalletStudentProfile';
   static const String professorWalletCharge = 'professorWalletCharge';
   static const String professorStudentInvite = 'professorStudentInvite';
   static const String organizerWallet = 'organizerWallet';

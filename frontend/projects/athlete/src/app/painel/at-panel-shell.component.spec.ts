@@ -5,6 +5,8 @@ import { AuthService } from '../auth/auth.service';
 import { PartnerInvitesService } from '../data/partner-invites.service';
 import { StaffTournamentsService } from '../data/staff-tournaments.service';
 import { StoreFlagService } from '../data/store-flag.service';
+import { ProfessorLinksService } from '../professor/professor-links.service';
+import type { ProfessorLink } from '../professor/professor-links.model';
 import { AtPanelShellComponent } from './at-panel-shell.component';
 
 /** A Mesa é item condicional das DUAS navegações: só existe pra quem é equipe de torneio EM
@@ -270,5 +272,52 @@ describe('AtPanelShellComponent — Loja', () => {
     const host = await render(false);
     expect(host.querySelector('.at-nav-item--logout')).not.toBeNull();
     expect(host.querySelector('.at-nav-item--login')).toBeNull();
+  });
+});
+
+/** "Minhas arenas" só para quem tem vínculo de professor: o atleta que só joga não vê nada de
+ *  professor. A porta antes do primeiro vínculo é o card da página da arena. */
+describe('AtPanelShellComponent — item Minhas arenas', () => {
+  let fixture: ComponentFixture<AtPanelShellComponent>;
+  let links: ReturnType<typeof signal<readonly ProfessorLink[]>>;
+
+  function arenasItem(): HTMLAnchorElement | null {
+    return (fixture.nativeElement as HTMLElement).querySelector('.at-nav a[href="/professor/arenas"]');
+  }
+
+  function availabilityItem(): HTMLAnchorElement | null {
+    return (fixture.nativeElement as HTMLElement).querySelector('.at-nav a[href="/professor/disponibilidade"]');
+  }
+
+  beforeEach(async () => {
+    links = signal<readonly ProfessorLink[]>([]);
+    await TestBed.configureTestingModule({
+      imports: [AtPanelShellComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([]),
+        { provide: StaffTournamentsService, useValue: { count: signal(0) } },
+        { provide: PartnerInvitesService, useValue: { pending: signal([]), pendingCount: signal(0), markAnswered: () => {} } },
+        { provide: AuthService, useValue: { user: signal(null) } },
+        { provide: ProfessorLinksService, useValue: { links, openInviteCount: signal(0) } },
+      ],
+    }).compileComponents();
+    fixture = TestBed.createComponent(AtPanelShellComponent);
+    await fixture.whenStable();
+  });
+
+  afterEach(() => fixture?.destroy());
+
+  it('some para quem não tem nenhum vínculo', () => {
+    expect(arenasItem()).toBeNull();
+    expect(availabilityItem()).toBeNull();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.at-nav')?.textContent).not.toContain('Professor');
+  });
+
+  it('aparece assim que existe um vínculo (convite, pedido, ativo ou encerrado)', async () => {
+    links.set([{ id: 'arena-sul_u1' } as ProfessorLink]);
+    await fixture.whenStable();
+    expect(arenasItem()?.textContent).toContain('Minhas arenas');
+    expect(availabilityItem()?.textContent).toContain('Disponibilidade');
   });
 });

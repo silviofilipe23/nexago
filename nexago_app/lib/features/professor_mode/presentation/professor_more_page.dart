@@ -17,6 +17,7 @@ import '../../professor_links/application/professor_links_providers.dart';
 import '../../professor_links/domain/professor_link_rules.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../application/professor_earnings_providers.dart';
+import '../application/professor_evaluations_providers.dart';
 import '../application/professor_students_providers.dart';
 import '../application/professor_wallet_providers.dart';
 import '../domain/professor_wallet.dart';
@@ -54,6 +55,7 @@ class ProfessorMorePage extends ConsumerWidget {
     final links = ref.watch(myProfessorLinksProvider).valueOrNull;
     final snapshot = ref.watch(professorStudentsProvider).valueOrNull;
     final canSwitchRole = ref.watch(hasMultipleMobileRolesProvider);
+    final pendingEvaluations = ref.watch(evaluationPendingProvider).length;
 
     final invites = links == null ? 0 : professorOpenInvites(links, now).length;
     final activeArenas =
@@ -142,6 +144,18 @@ class ProfessorMorePage extends ConsumerWidget {
                   trailingColor: waiting > 0 ? AppColors.pending : null,
                   onTap: () =>
                       context.pushNamed(AppRouteNames.professorClasses),
+                ),
+                _MenuRow(
+                  key: const Key('professor-more-evaluations'),
+                  icon: Icons.insights_rounded,
+                  title: 'Avaliações',
+                  trailing: pendingEvaluations == 0
+                      ? null
+                      : '$pendingEvaluations pendente'
+                          '${pendingEvaluations == 1 ? '' : 's'}',
+                  trailingColor: AppColors.pending,
+                  onTap: () =>
+                      context.pushNamed(AppRouteNames.professorEvaluations),
                 ),
                 _MenuRow(
                   key: const Key('professor-more-templates'),

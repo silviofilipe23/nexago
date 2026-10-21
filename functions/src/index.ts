@@ -206,6 +206,8 @@ export {getMyProfessorStudents} from "./professor-students";
 export {onProfessorLessonCreated} from "./professor-lessons";
 // Agenda do professor em outros apps (feed .ics com token).
 export {configureProfessorCalendarFeed, professorCalendarFeed} from "./professor-calendar";
+// Avaliação do aluno pelo professor (fundamentos, nota geral, foco).
+export {deleteProfessorEvaluation, saveProfessorEvaluation} from "./professor-evaluations";
 // Mensagens professor ↔ aluno e grupo da turma.
 export {
   getMyProfessors,

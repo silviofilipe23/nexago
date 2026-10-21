@@ -243,6 +243,16 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   subtitle: matchHistorySubtitle,
                   onTap: () =>
                       context.pushNamed(AppRouteNames.athleteMatchHistory),
+                  showDivider: true,
+                ),
+                AthleteSettingsTile(
+                  key: const Key('athlete-settings-evaluations'),
+                  icon: Icons.insights_rounded,
+                  title: 'Avaliações dos professores',
+                  subtitle: 'Notas e comentários da sua evolução',
+                  variant: AthleteSettingsIconVariant.neutral,
+                  onTap: () =>
+                      context.pushNamed(AppRouteNames.athleteEvaluations),
                   showDivider: false,
                 ),
               ],

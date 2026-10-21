@@ -145,6 +145,46 @@ void main() {
 
       expect(regs, isEmpty);
     });
+
+    test(
+      'torneio apagado (legado negado pelas rules) não derruba a lista',
+      () async {
+        const uid = 'athlete-1';
+        final firestore = _FakeFirestore()
+          // Caminho legado sem rule própria: cai no catch-all `false`.
+          ..deniedCollections.add(
+            '${NexagoArtifactsPaths.publicDataBase}/tournaments',
+          );
+
+        firestore.seedDoc(
+          NexagoArtifactsPaths.inscriptionsCollection(),
+          'reg-orfa',
+          {
+            'tournamentId': 't-apagado',
+            'participantUids': [uid],
+            'isPaid': true,
+          },
+        );
+        firestore.seedDoc(
+          NexagoArtifactsPaths.inscriptionsCollection(),
+          'reg-ok',
+          {
+            'tournamentId': 't1',
+            'participantUids': [uid],
+            'isPaid': true,
+          },
+        );
+        firestore.seedDoc('tournaments', 't1', {
+          'name': 'Copa Teste',
+          'listingStatus': 'open',
+        });
+
+        final repo = MyTournamentRegistrationsRepository(firestore);
+        final regs = await repo.watchForUser(uid).first;
+
+        expect(regs.map((r) => r.registrationId), ['reg-ok']);
+      },
+    );
   });
 }
 
@@ -155,6 +195,9 @@ void main() {
 /// `MyTournamentRegistrationsRepository` de ponta a ponta sem backend real.
 class _FakeFirestore implements FirebaseFirestore {
   final Map<String, Map<String, Map<String, dynamic>>> _collections = {};
+
+  /// Coleções cuja leitura de doc responde `permission-denied`.
+  final Set<String> deniedCollections = {};
 
   void seedDoc(
     String collectionPath,
@@ -342,6 +385,12 @@ class _FakeDocRef implements DocumentReference<Map<String, dynamic>> {
   @override
   Future<DocumentSnapshot<Map<String, dynamic>>> get(
       [GetOptions? options]) async {
+    if (_firestore.deniedCollections.contains(_collectionPath)) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'permission-denied',
+      );
+    }
     final data = _firestore._collections[_collectionPath]?[id];
     return _FakeDocSnapshot(id, data);
   }

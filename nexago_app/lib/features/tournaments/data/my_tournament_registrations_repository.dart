@@ -8,7 +8,6 @@ import '../domain/tournament_detail_logic.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_listing_status.dart';
-import '../domain/tournament_payment_mode.dart';
 import '../domain/tournament_uniform_selection.dart';
 import 'nexago_artifacts_paths.dart';
 import 'tournament_detail_lookup.dart';
@@ -101,10 +100,12 @@ class MyTournamentRegistrationsRepository {
       if (tournamentId.isEmpty) continue;
 
       final tournament = await _loadTournamentDetail(tournamentId);
+      // Torneio apagado: a inscrição ficou órfã e não leva a lugar nenhum.
+      if (tournament == null) continue;
       final isPaid = data['isPaid'] == true;
       final isWaitlist = data['waitlist'] == true;
       final categoryId = data['categoryId'] as String? ?? '';
-      final listingRaw = tournament?.listingStatusRaw;
+      final listingRaw = tournament.listingStatusRaw;
       final sharePaidUids = _sharePaidUidsFromData(data);
       final athleteHasReserved = sharePaidUids.contains(uid);
       final teamSizeRaw = data['teamSize'];
@@ -113,8 +114,8 @@ class MyTournamentRegistrationsRepository {
         MyTournamentRegistration(
           registrationId: doc.id,
           tournamentId: tournamentId,
-          tournamentName: tournament?.name ?? 'Torneio',
-          dateLabel: tournament?.dateLabel ?? '',
+          tournamentName: tournament.name,
+          dateLabel: tournament.dateLabel,
           statusLabel: athleteRegistrationStatusLabel(
             isPaid: isPaid,
             isWaitlist: isWaitlist,
@@ -122,9 +123,9 @@ class MyTournamentRegistrationsRepository {
           ),
           isPaid: isPaid,
           categoryId: categoryId,
-          startDate: tournament?.startDate,
-          endDate: tournament?.endDate,
-          listingStatus: tournament?.status,
+          startDate: tournament.startDate,
+          endDate: tournament.endDate,
+          listingStatus: tournament.status,
           listingStatusRaw: listingRaw,
           teamId: teamId,
           locationLine: _tournamentLocationLine(tournament),
@@ -145,7 +146,7 @@ class MyTournamentRegistrationsRepository {
           uniformByUid: _uniformByUidFromData(data['uniformByUid']),
           category: _resolveCategory(tournament, categoryId),
           paymentMode:
-              tournament?.paymentMode ?? TournamentPaymentMode.appPixCard,
+              tournament.paymentMode,
           tournamentIsCancelled: isCancelledListing(listingRaw),
           captainUid: (data['captainUid'] as String?)?.trim().isNotEmpty == true
               ? (data['captainUid'] as String).trim()

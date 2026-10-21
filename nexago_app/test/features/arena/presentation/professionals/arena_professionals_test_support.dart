@@ -11,6 +11,7 @@ import 'package:nexago_app/features/arena/domain/professionals/arena_professiona
 import 'package:nexago_app/features/arena/domain/professionals/arena_professionals_repository.dart';
 import 'package:nexago_app/features/arena/presentation/professionals/arena_professional_detail_page.dart';
 import 'package:nexago_app/features/arena/presentation/professionals/arena_professionals_page.dart';
+import 'package:nexago_app/features/messages/presentation/conversation_page.dart';
 import 'package:nexago_app/features/professor_links/domain/arena_professor_link.dart';
 import 'package:nexago_app/features/professor_links/domain/professor_link_rules.dart';
 
@@ -553,6 +554,9 @@ Future<GoRouter> pumpArenaProfessionalsApp(
   bool canManage = true,
   AsyncValue<ArenaProfessionalsScope?>? scope,
   Size size = const Size(390, 1800),
+
+  /// Extras (ex.: o repositório de mensagens do canal com o professor).
+  List<Override> overrides = const [],
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
@@ -577,6 +581,15 @@ Future<GoRouter> pumpArenaProfessionalsApp(
             builder: (_, state) => ArenaProfessionalDetailPage(
               linkId: state.pathParameters['linkId'] ?? '',
             ),
+            routes: [
+              GoRoute(
+                path: 'conversa',
+                name: AppRouteNames.arenaProfessionalConversation,
+                builder: (_, state) => ConversationPage.arena(
+                  linkId: state.pathParameters['linkId'] ?? '',
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -602,6 +615,7 @@ Future<GoRouter> pumpArenaProfessionalsApp(
           canManage ? const {arenaTestId} : const <String>{},
         ),
         arenaProfessionalsClockProvider.overrideWithValue(() => arenaTestNow),
+        ...overrides,
       ],
       child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
     ),

@@ -193,6 +193,22 @@ class ProfessorNoticeRecipient {
   bool get read => readAt != null;
 }
 
+/// Rascunho com que o editor (F2) abre: o "Repassar aos meus alunos" do
+/// comunicado da arena (F6) traz título, mensagem e as turmas DAQUELA arena.
+class ProfessorNoticePrefill {
+  const ProfessorNoticePrefill({
+    required this.title,
+    required this.body,
+    this.kind = ProfessorNoticeKind.aviso,
+    this.audience = const ProfessorNoticeAudience(),
+  });
+
+  final ProfessorNoticeKind kind;
+  final String title;
+  final String body;
+  final ProfessorNoticeAudience audience;
+}
+
 /// O que vai para `saveProfessorNotice`/`sendProfessorNotice`.
 class ProfessorNoticeInput {
   const ProfessorNoticeInput({

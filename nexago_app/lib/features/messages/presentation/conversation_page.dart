@@ -21,15 +21,27 @@ import 'messages_widgets.dart';
 /// (`sendConversationMessage`), com a bolha "enviando…" até o snapshot
 /// trazer a mensagem. Abrir e chegar mensagem com a tela aberta marcam lida.
 /// Conversa encerrada: histórico só leitura, sem composer.
+/// D4 Canal com a arena: a mesma tela, para o professor (aba Mensagens) e
+/// para a gestão ([ConversationPage.arena], a partir do vínculo).
 class ConversationPage extends ConsumerStatefulWidget {
   const ConversationPage({
     super.key,
     required this.conversationId,
     required this.professorMode,
-  });
+  }) : arenaLinkId = null;
+
+  /// Lado da gestão da arena: o canal do vínculo [linkId], sem as abas do
+  /// professor; voltar leva ao vínculo.
+  ConversationPage.arena({super.key, required String linkId})
+      : conversationId = arenaChannelConversationId(linkId),
+        professorMode = false,
+        arenaLinkId = linkId;
 
   final String conversationId;
   final bool professorMode;
+
+  /// Preenchido no lado da gestão da arena.
+  final String? arenaLinkId;
 
   @override
   ConsumerState<ConversationPage> createState() => _ConversationPageState();
@@ -84,7 +96,8 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
   }
 
   void _useTemplate(MessageTemplate t, Conversation c, String uid) {
-    final recipient = c.isGroup ? null : c.nameOf(c.otherUid(uid) ?? '');
+    final recipient =
+        c.showsSenderNames ? null : c.nameOf(c.otherUid(uid) ?? '');
     final filled = applyTemplate(t.body, recipientName: recipient);
     final current = _text.text.trim();
     _text.text = current.isEmpty ? filled : '$current $filled';
@@ -116,11 +129,15 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
       }
     }
 
+    final arenaLinkId = widget.arenaLinkId;
     void back() => popOrGo(
           context,
-          widget.professorMode
-              ? AppRoutes.professorMessages
-              : AppRoutes.athleteMessages,
+          arenaLinkId != null
+              ? AppRoutes.arenaProfessionalDetail
+                  .replaceAll(':linkId', Uri.encodeComponent(arenaLinkId))
+              : widget.professorMode
+                  ? AppRoutes.professorMessages
+                  : AppRoutes.athleteMessages,
         );
 
     if (conversation == null) {
@@ -142,7 +159,8 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
     }
 
     final c = conversation;
-    final walletIds = widget.professorMode && !c.isGroup
+    final staffSide = c.viewedByArenaStaff(uid);
+    final walletIds = widget.professorMode && !c.isGroup && !c.isArena
         ? {
             for (final s
                 in ref.watch(professorWalletStudentsProvider).valueOrNull ??
@@ -150,15 +168,23 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
               if (s.active) s.athleteId,
           }
         : const <String>{};
-    final subtitle = c.isGroup
-        ? [
-            '${c.studentCount} aluno${c.studentCount == 1 ? '' : 's'}',
-            if (c.arenaName != null) c.arenaName!,
-          ].join(' · ')
-        : widget.professorMode
-            ? (walletIds.contains(c.athleteUid) ? 'Carteira própria' : 'Aluno')
-            : 'Professor';
-    final templates = widget.professorMode
+    final String subtitle;
+    if (c.isArena) {
+      subtitle = staffSide
+          ? 'Canal com o professor · ${c.arenaName ?? 'arena'}'
+          : 'Canal com a arena · equipe';
+    } else if (c.isGroup) {
+      subtitle = [
+        '${c.studentCount} aluno${c.studentCount == 1 ? '' : 's'}',
+        if (c.arenaName != null) c.arenaName!,
+      ].join(' · ');
+    } else if (widget.professorMode) {
+      subtitle =
+          walletIds.contains(c.athleteUid) ? 'Carteira própria' : 'Aluno';
+    } else {
+      subtitle = 'Professor';
+    }
+    final templates = widget.professorMode && !c.isArena
         ? ref.watch(messageTemplatesProvider).valueOrNull ?? const []
         : const <MessageTemplate>[];
 
@@ -179,7 +205,7 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
           mine: mine,
           time: messageTimeLabel(m.createdAt),
           auto: m.auto,
-          sender: c.isGroup && !mine
+          sender: c.showsSenderNames && !mine
               ? (m.senderName.isEmpty ? c.nameOf(m.senderUid) : m.senderName)
               : null,
         ),
@@ -223,20 +249,29 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
                       ),
           ),
           if (c.closed)
-            const SafeArea(
+            SafeArea(
               top: false,
               child: Padding(
-                padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                 child: ProfessorLinksNote(
-                  'Conversa encerrada: o histórico fica aqui, mas não dá para '
-                  'mandar mensagens.',
-                  key: Key('conversation-closed'),
+                  c.isArena
+                      ? 'Canal encerrado: o vínculo com a arena acabou. O '
+                          'histórico fica aqui, mas não dá para mandar '
+                          'mensagens.'
+                      : 'Conversa encerrada: o histórico fica aqui, mas não '
+                          'dá para mandar mensagens.',
+                  key: const Key('conversation-closed'),
                 ),
               ),
             )
           else
             _Composer(
               controller: _text,
+              hint: c.isArena
+                  ? (staffSide
+                      ? 'Mensagem para o professor'
+                      : 'Mensagem para a gestão')
+                  : 'Mensagem',
               templates: templates,
               onTemplate: (t) => _useTemplate(t, c, uid),
               onSend: _send,
@@ -255,8 +290,10 @@ class _Composer extends StatelessWidget {
     required this.onTemplate,
     required this.onSend,
     required this.onChanged,
+    this.hint = 'Mensagem',
   });
 
+  final String hint;
   final TextEditingController controller;
   final List<MessageTemplate> templates;
   final ValueChanged<MessageTemplate> onTemplate;
@@ -327,7 +364,7 @@ class _Composer extends StatelessWidget {
                       decoration: InputDecoration(
                         counterText: '',
                         isDense: true,
-                        hintText: 'Mensagem',
+                        hintText: hint,
                         filled: true,
                         fillColor: ProfessorLinksStyle.soft(colors),
                         contentPadding: const EdgeInsets.symmetric(

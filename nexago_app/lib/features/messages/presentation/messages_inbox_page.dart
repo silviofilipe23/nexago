@@ -11,6 +11,8 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/search/search_keywords.dart';
 import '../../arena/presentation/aulas/widgets/arena_class_form_atoms.dart';
 import '../../professor_links/application/professor_links_providers.dart';
+import '../../professor_links/domain/arena_professor_link.dart';
+import '../../professor_links/domain/professor_link_rules.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../professor_mode/application/professor_students_providers.dart';
 import '../../professor_mode/application/professor_wallet_providers.dart';
@@ -21,8 +23,9 @@ import '../domain/messages.dart';
 import 'messages_widgets.dart';
 
 /// D1 Caixa de entrada — do professor (aba Mensagens) e do aluno
-/// (`/mensagens`, modo Atleta). Busca, chips Todas/Não lidas/Turmas e "+"
-/// para começar uma conversa (D5).
+/// (`/mensagens`, modo Atleta). Busca, chips Todas/Não lidas/Turmas/Arenas e
+/// "+" para começar uma conversa (D5). O canal com a gestão da arena (D4)
+/// chega pela mesma consulta de `memberIds`.
 class MessagesInboxPage extends ConsumerStatefulWidget {
   const MessagesInboxPage({super.key, required this.professorMode});
 
@@ -41,12 +44,24 @@ class _MessagesInboxPageState extends ConsumerState<MessagesInboxPage> {
     super.dispose();
   }
 
-  void _open(String conversationId) => context.pushNamed(
-        widget.professorMode
-            ? AppRouteNames.professorConversation
-            : AppRouteNames.athleteConversation,
-        pathParameters: {'conversationId': conversationId},
+  void _open(Conversation c, String uid) {
+    // Da gestão da arena (e também atleta/professor noutra conta de papel):
+    // o canal abre do lado da arena, sem as abas do professor.
+    final linkId = c.linkId;
+    if (c.viewedByArenaStaff(uid) && linkId != null) {
+      context.pushNamed(
+        AppRouteNames.arenaProfessionalConversation,
+        pathParameters: {'linkId': linkId},
       );
+      return;
+    }
+    context.pushNamed(
+      widget.professorMode
+          ? AppRouteNames.professorConversation
+          : AppRouteNames.athleteConversation,
+      pathParameters: {'conversationId': c.id},
+    );
+  }
 
   void _new() => widget.professorMode
       ? showProfessorNewMessageSheet(context)
@@ -158,6 +173,9 @@ class _MessagesInboxPageState extends ConsumerState<MessagesInboxPage> {
                 unreadConvs == 0 ? 'Não lidas' : 'Não lidas · $unreadConvs',
               ),
               (InboxFilter.classes, 'Turmas'),
+              if (widget.professorMode ||
+                  (all ?? const <Conversation>[]).any((c) => c.isArena))
+                (InboxFilter.arenas, 'Arenas'),
             ])
               ArenaClassChip(
                 key: Key('messages-filter-${f.name}'),
@@ -189,7 +207,8 @@ class _MessagesInboxPageState extends ConsumerState<MessagesInboxPage> {
                 (all ?? const []).isEmpty
                     ? (widget.professorMode
                         ? 'Nenhuma conversa ainda. Toque em "+" para falar com '
-                            'um aluno ou com o grupo de uma turma.'
+                            'um aluno, o grupo de uma turma ou a gestão de '
+                            'uma arena.'
                         : 'Nenhuma conversa ainda. Toque em "+" para falar com '
                             'seu professor.')
                     : 'Nada por aqui.',
@@ -206,7 +225,7 @@ class _MessagesInboxPageState extends ConsumerState<MessagesInboxPage> {
               walletDot: !c.isGroup &&
                   c.athleteUid != null &&
                   walletIds.contains(c.athleteUid),
-              onTap: () => _open(c.id),
+              onTap: () => _open(c, uid),
             ),
         if (walletIds.isNotEmpty &&
             (visible ?? const []).any(
@@ -274,8 +293,9 @@ class _MessagesInboxPageState extends ConsumerState<MessagesInboxPage> {
 
 // ── D5 Nova mensagem ─────────────────────────────────────────────────────
 
-/// Professor: alunos (turmas liberadas + carteira ativa) e turmas, com
-/// busca; atalho para Comunicados.
+/// Professor: alunos (turmas liberadas + carteira ativa), turmas e as arenas
+/// com vínculo ATIVO (canal com a gestão, D4), com busca; atalho para
+/// Comunicados.
 Future<void> showProfessorNewMessageSheet(BuildContext context) =>
     showProfessorLinksSheet<void>(
       context,
@@ -339,11 +359,20 @@ class _ProfessorNewMessageSheetState
       for (final e in students.entries)
         if (match(e.value.name)) e,
     ]..sort((a, b) => a.value.name.compareTo(b.value.name));
+    final now = ref.watch(professorLinksClockProvider)();
+    final arenas = [
+      for (final l
+          in ref.watch(myProfessorLinksProvider).valueOrNull ?? const [])
+        if (effectiveProfessorLinkStatus(l, now) ==
+                ArenaProfessorLinkStatus.active &&
+            match(l.arenaName))
+          l,
+    ]..sort((a, b) => a.arenaName.compareTo(b.arenaName));
     final repo = ref.read(messagesRepositoryProvider);
 
     return ProfessorLinksSheetBody(
       title: 'Nova mensagem',
-      subtitle: 'Para um aluno ou o grupo de uma turma',
+      subtitle: 'Para alunos, turmas ou arena',
       children: [
         const SizedBox(height: 12),
         TextField(
@@ -387,7 +416,20 @@ class _ProfessorNewMessageSheetState
               onTap: () => _go(() => repo.openProfessorConversation(e.key)),
             ),
         ],
-        if (classes.isEmpty && people.isEmpty) ...[
+        if (arenas.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          const ProfessorLinksKicker('Arenas'),
+          for (final l in arenas)
+            _PickRow(
+              key: Key('new-message-arena-${l.arenaId}'),
+              name: 'Gestão ${l.arenaName}',
+              avatarName: l.arenaName,
+              arena: true,
+              sub: 'Canal com a equipe da arena',
+              onTap: () => _go(() => repo.openArenaChannel(l.arenaId)),
+            ),
+        ],
+        if (classes.isEmpty && people.isEmpty && arenas.isEmpty) ...[
           const SizedBox(height: 16),
           const ProfessorMutedText('Ninguém encontrado.'),
         ],
@@ -496,12 +538,18 @@ class _PickRow extends StatelessWidget {
     required this.onTap,
     this.photoUrl,
     this.group = false,
+    this.arena = false,
+    this.avatarName,
   });
 
   final String name;
   final String sub;
   final String? photoUrl;
   final bool group;
+  final bool arena;
+
+  /// Nome do avatar quando difere do título (iniciais da arena).
+  final String? avatarName;
   final VoidCallback onTap;
 
   @override
@@ -514,9 +562,10 @@ class _PickRow extends StatelessWidget {
         child: Row(
           children: [
             ConversationAvatar(
-              name: name,
+              name: avatarName ?? name,
               photoUrl: photoUrl,
               group: group,
+              arena: arena,
               size: 38,
             ),
             const SizedBox(width: 11),

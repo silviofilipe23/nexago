@@ -10,6 +10,9 @@ import 'package:nexago_app/features/messages/presentation/messages_inbox_page.da
 import 'package:nexago_app/features/messages/presentation/messaging_settings_pages.dart';
 import 'package:nexago_app/features/professor_links/application/professor_links_providers.dart';
 
+import '../professor_links/professor_links_test_support.dart'
+    show FakeProfessorLinksRepository;
+
 import '../professor_mode/professor_students_test_support.dart';
 import '../professor_mode/professor_wallet_test_support.dart';
 
@@ -68,6 +71,35 @@ Conversation classConv({
       ),
       lastAt: lastAt ?? DateTime.utc(2026, 10, 20, 13),
       unread: {me: unread},
+    );
+
+/// Canal com a gestão da Arena CFC (D4): o professor e a Ana, da gestão.
+Conversation arenaConv({
+  String arenaId = 'arena-cfc',
+  String arenaName = 'Arena CFC',
+  int unread = 0,
+  bool closed = false,
+  DateTime? lastAt,
+  String staffUid = 'staff-ana',
+}) =>
+    Conversation(
+      id: 'a_${arenaId}_$me',
+      kind: ConversationKind.arena,
+      professorUid: me,
+      arenaId: arenaId,
+      arenaName: arenaName,
+      linkId: '${arenaId}_$me',
+      title: 'Gestão $arenaName',
+      memberIds: [me, staffUid],
+      memberNames: {me: 'Carlos', staffUid: 'Ana Souza · gestão'},
+      lastMessage: ConversationPreview(
+        text: 'Quadra 2 em manutenção amanhã',
+        senderUid: staffUid,
+        senderName: 'Ana Souza · gestão',
+      ),
+      lastAt: lastAt ?? DateTime.utc(2026, 10, 20, 12),
+      unread: {me: unread},
+      closed: closed,
     );
 
 ChatMessage msg(
@@ -168,6 +200,13 @@ class FakeMessagesRepository implements MessagesRepository {
   }
 
   @override
+  Future<String> openArenaChannel(String arenaId, {String? professorUid}) async {
+    final professor = professorUid ?? me;
+    opened.add('arena:$arenaId${professorUid == null ? '' : ':$professorUid'}');
+    return 'a_${arenaId}_$professor';
+  }
+
+  @override
   Future<void> markRead(String conversationId) async =>
       reads.add(conversationId);
 
@@ -254,6 +293,7 @@ Future<GoRouter> pumpMessagesApp(
   required FakeMessagesRepository messages,
   required String location,
   FakeProfessorWalletRepository? wallet,
+  FakeProfessorLinksRepository? links,
 }) =>
     pumpProfessorStudentsApp(
       tester,
@@ -263,6 +303,8 @@ Future<GoRouter> pumpMessagesApp(
       extraRoutes: [...messagesRoutes, ...professorWalletRoutes],
       overrides: [
         messagesRepositoryProvider.overrideWithValue(messages),
+        professorLinksRepositoryProvider
+            .overrideWithValue(links ?? FakeProfessorLinksRepository()),
         professorLinksClockProvider.overrideWithValue(() => messagesNow),
       ],
     );

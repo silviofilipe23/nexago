@@ -7,8 +7,22 @@ import '../../../core/time/nexago_event_timezone.dart';
 /// turma. A conversa é das functions (`functions/src/professor-messages.ts`);
 /// a mensagem o MEMBRO grava direto (rules validam remetente, campos e
 /// tamanho). Respostas rápidas e horário de atendimento são do professor.
+/// O canal com a gestão da arena (D4, `kind: "arena"`) usa o mesmo motor
+/// (`functions/src/arena-professor-channel.ts`).
 
-enum ConversationKind { direct, classGroup }
+enum ConversationKind {
+  direct,
+  classGroup,
+
+  /// Canal professor ↔ gestão da arena (D4).
+  arena;
+
+  static ConversationKind parse(Object? raw) => switch (raw) {
+        'class' => classGroup,
+        'arena' => arena,
+        _ => direct,
+      };
+}
 
 /// Última mensagem (resumo na caixa).
 class ConversationPreview {
@@ -43,6 +57,7 @@ class Conversation {
     this.classId,
     this.arenaId,
     this.arenaName,
+    this.linkId,
     this.title,
     this.memberNames = const {},
     this.memberPhotos = const {},
@@ -67,14 +82,13 @@ class Conversation {
     final members = map['memberIds'];
     return Conversation(
       id: id,
-      kind: map['kind'] == 'class'
-          ? ConversationKind.classGroup
-          : ConversationKind.direct,
+      kind: ConversationKind.parse(map['kind']),
       professorUid: _str(map['professorUid']),
       athleteUid: _strOrNull(map['athleteUid']),
       classId: _strOrNull(map['classId']),
       arenaId: _strOrNull(map['arenaId']),
       arenaName: _strOrNull(map['arenaName']),
+      linkId: _strOrNull(map['linkId']),
       title: _strOrNull(map['title']),
       memberIds:
           members is List ? members.whereType<String>().toList() : const [],
@@ -95,7 +109,10 @@ class Conversation {
   final String? arenaId;
   final String? arenaName;
 
-  /// Nome da turma (grupo).
+  /// Vínculo professor ↔ arena do canal (`{arenaId}_{professorUid}`).
+  final String? linkId;
+
+  /// Nome da turma (grupo) ou "Gestão {arena}" (canal com a arena).
   final String? title;
   final List<String> memberIds;
   final Map<String, String> memberNames;
@@ -109,6 +126,15 @@ class Conversation {
   final bool closed;
 
   bool get isGroup => kind == ConversationKind.classGroup;
+
+  bool get isArena => kind == ConversationKind.arena;
+
+  /// Mais de dois lados: a bolha recebida leva o nome de quem mandou.
+  bool get showsSenderNames => isGroup || isArena;
+
+  /// No canal com a arena, quem está vendo é da gestão (não o professor).
+  bool viewedByArenaStaff(String viewerUid) =>
+      isArena && viewerUid != professorUid;
 
   /// Alunos no grupo (sem o professor).
   int get studentCount => memberIds.where((m) => m != professorUid).length;
@@ -125,18 +151,31 @@ class Conversation {
 
   String titleFor(String viewerUid) {
     if (isGroup) return title ?? 'Turma';
+    if (isArena) {
+      if (viewerUid == professorUid) {
+        return title ?? 'Gestão ${arenaName ?? 'da arena'}';
+      }
+      return memberNames[professorUid] ?? 'Professor';
+    }
     final other = otherUid(viewerUid);
     return (other == null ? null : memberNames[other]) ?? 'Conversa';
   }
 
   String? photoFor(String viewerUid) {
     if (isGroup) return null;
+    if (isArena) {
+      return viewerUid == professorUid ? null : memberPhotos[professorUid];
+    }
     final other = otherUid(viewerUid);
     return other == null ? null : memberPhotos[other];
   }
 
   String nameOf(String uid) => memberNames[uid] ?? 'Aluno';
 }
+
+/// Id do canal com a arena a partir do vínculo: `a_{arenaId}_{professorUid}`
+/// = `a_{linkId}` (mesma conta do servidor).
+String arenaChannelConversationId(String linkId) => 'a_$linkId';
 
 /// `conversations/{id}/messages/{id}`.
 class ChatMessage {
@@ -278,7 +317,7 @@ final RegExp kHhMm = RegExp(r'^[0-2][0-9]:[0-5][0-9]$');
 
 // ── caixa (D1) ───────────────────────────────────────────────────────────
 
-enum InboxFilter { all, unread, classes }
+enum InboxFilter { all, unread, classes, arenas }
 
 /// Mais recentes primeiro; conversa sem mensagem vai para o fim.
 List<Conversation> sortInbox(List<Conversation> list) =>
@@ -303,6 +342,7 @@ List<Conversation> filterInbox(
             InboxFilter.all => true,
             InboxFilter.unread => c.unreadFor(viewerUid) > 0,
             InboxFilter.classes => c.isGroup,
+            InboxFilter.arenas => c.isArena,
           } &&
           (term.isEmpty ||
               normalizeSearchTerm(c.titleFor(viewerUid)).contains(term)))
@@ -322,10 +362,11 @@ int unreadConversations(List<Conversation> list, String viewerUid) =>
 String inboxPreview(Conversation c, String viewerUid) {
   final m = c.lastMessage;
   if (m == null || m.text.isEmpty) {
+    if (c.isArena) return 'Canal com a arena';
     return c.isGroup ? 'Grupo criado' : 'Nova conversa';
   }
   if (m.senderUid == viewerUid) return 'Você: ${m.text}';
-  if (c.isGroup) {
+  if (c.showsSenderNames) {
     final name =
         firstName(m.senderName.isEmpty ? c.nameOf(m.senderUid) : m.senderName);
     return '$name: ${m.text}';

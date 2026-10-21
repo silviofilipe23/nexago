@@ -11,6 +11,8 @@ import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../../../core/ui/app_status_views.dart';
+import '../../../messages/infrastructure/messages_repository.dart';
+import '../../../messages/presentation/messages_widgets.dart';
 import '../../../professor_links/domain/arena_professor_link.dart';
 import '../../../professor_links/domain/professor_link_rules.dart';
 import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
@@ -25,6 +27,7 @@ import 'widgets/arena_professionals_ui.dart';
 /// A4 · Detalhe do vínculo (lado da arena): ficha, ações do estado (analisar,
 /// suspender, reativar, encerrar, cancelar/reenviar convite), permissões com
 /// interruptor e o histórico imutável. O push `arena_professor_*` abre aqui.
+/// "Conversar" abre o canal com o professor (D4) — só com o vínculo ativo.
 class ArenaProfessionalDetailPage extends ConsumerWidget {
   const ArenaProfessionalDetailPage({super.key, required this.linkId});
 
@@ -72,6 +75,7 @@ class _DetailView extends ConsumerStatefulWidget {
 
 class _DetailViewState extends ConsumerState<_DetailView> {
   bool _busy = false;
+  bool _opening = false;
 
   /// Interruptor em gravação: mostra o valor novo até o doc voltar já
   /// alterado — soltar na resposta da callable faria o toggle piscar de volta
@@ -103,6 +107,23 @@ class _DetailViewState extends ConsumerState<_DetailView> {
       fallback: fallback,
     );
     if (mounted) setState(() => _busy = false);
+  }
+
+  /// Canal com o professor (D4): `openArenaChannel` (refaz a lista da
+  /// gestão) e abre a conversa do lado da arena.
+  Future<void> _converse(ArenaProfessorLink link) async {
+    if (_opening) return;
+    setState(() => _opening = true);
+    await openConversationWith(
+      context,
+      () => ref.read(messagesRepositoryProvider).openArenaChannel(
+            link.arenaId,
+            professorUid: link.professorUserId,
+          ),
+      professorMode: false,
+      arenaLinkId: link.id,
+    );
+    if (mounted) setState(() => _opening = false);
   }
 
   void _setBusy(bool busy) {
@@ -246,6 +267,29 @@ class _DetailViewState extends ConsumerState<_DetailView> {
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
         children: [
           _ProfileCard(link: link, status: status),
+          if (canManage) ...[
+            const SizedBox(height: 14),
+            ProfessorLinksGhostButton(
+              key: const Key('arena-professor-converse'),
+              label: 'Conversar',
+              height: 46,
+              loading: _opening,
+              onPressed: status == ArenaProfessorLinkStatus.active
+                  ? () => _converse(link)
+                  : null,
+            ),
+            if (status != ArenaProfessorLinkStatus.active) ...[
+              const SizedBox(height: 8),
+              Text(
+                'O canal com o professor abre com o vínculo ativo.',
+                key: const Key('arena-professor-converse-hint'),
+                style: AppTypography.bodyS.copyWith(
+                  fontSize: 11.5,
+                  color: ProfessorLinksStyle.dim(colors),
+                ),
+              ),
+            ],
+          ],
           if (actions.isNotEmpty) ...[
             const SizedBox(height: 14),
             _Actions(

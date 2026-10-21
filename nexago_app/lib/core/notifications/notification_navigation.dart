@@ -28,8 +28,13 @@ const professorNoticeNotificationType = 'professor_notice';
 /// Avaliação do professor enviada ao aluno.
 const professorEvaluationNotificationType = 'professor_evaluation';
 
-/// Mensagem nova numa conversa professor ↔ aluno.
+/// Mensagem nova numa conversa professor ↔ aluno (ou no canal professor ↔
+/// gestão da arena).
 const conversationMessageNotificationType = 'conversation_message';
+
+/// Comunicado da gestão da arena para o professor (F6). Começa com
+/// `arena_professor_` mas NÃO é do vínculo: tem caso próprio antes.
+const arenaProfessorNoticeNotificationType = 'arena_professor_notice';
 
 /// Agenda do atleta — onde fica a mensalidade a pagar.
 const athleteAgendaTabLocation = '${AppRoutes.discover}?tab=agenda';
@@ -231,8 +236,10 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
             .replaceAll(':evaluationId', Uri.encodeComponent(id));
   }
 
-  // Mensagem: `url` já vem do lado certo (`/professor/mensagens/{id}` ou
-  // `/mensagens/{id}`); sem ele, a conversa no modo Atleta.
+  // Mensagem: `url` já vem do lado certo (`/professor/mensagens/{id}`,
+  // `/mensagens/{id}` ou, para a gestão no canal com a arena,
+  // `/arena/professionals/{linkId}/conversa`); sem ele, a conversa no modo
+  // Atleta.
   if (type == conversationMessageNotificationType) {
     final url = appRouteForNotificationUrl(data['url'] as String?);
     if (url != null) return url;
@@ -254,6 +261,18 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
           .replaceAll(':noticeId', Uri.encodeComponent(noticeId));
     }
     return AppRoutes.home;
+  }
+
+  // Comunicado da arena para o professor: `url`
+  // (`/professor/mais/comunicados/arena/{id}`); sem ele, monta pelo
+  // `noticeId`. Antes do ramo `arena_professor_` (vínculo) lá embaixo.
+  if (type == arenaProfessorNoticeNotificationType) {
+    final url = appRouteForNotificationUrl(data['url'] as String?);
+    if (url != null) return url;
+    final noticeId = (data['noticeId'] as String?)?.trim() ?? '';
+    if (noticeId.isEmpty) return AppRoutes.professorNotices;
+    return AppRoutes.professorArenaNotice
+        .replaceAll(':noticeId', Uri.encodeComponent(noticeId));
   }
 
   // Convite para a carteira do professor: o payload traz `url`

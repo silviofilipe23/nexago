@@ -6,6 +6,7 @@ import '../../../core/firebase/firebase_providers.dart';
 import '../../../core/firebase/functions_region.dart';
 import '../../tournaments/data/tournament_partner_invite_service.dart'
     show callableErrorMessage;
+import '../domain/arena_professor_notices.dart';
 import '../domain/professor_notices.dart';
 import 'professor_students_repository.dart' show ProfessorStudentsException;
 
@@ -46,6 +47,20 @@ abstract class ProfessorNoticesRepository {
 
   /// Sem [answer] só marca lido. Devolve a resposta valendo.
   Future<String?> respond(String noticeId, {String? answer});
+
+  // ── da gestão da arena para o professor (F6) ──
+
+  /// Os que [uid] recebeu, mais novos primeiro.
+  Stream<List<ArenaProfessorNotice>> watchArenaNotices(String uid);
+
+  /// `null` = não existe ou não é para quem está logado.
+  Stream<ArenaProfessorNotice?> watchArenaNotice(String noticeId);
+
+  /// Já leu? (`recipients/{uid}` existe).
+  Stream<bool> watchArenaNoticeRead(String noticeId, String uid);
+
+  /// `markArenaProfessorNoticeRead` (uma vez; conta para a arena).
+  Future<void> markArenaNoticeRead(String noticeId);
 }
 
 class FirebaseProfessorNoticesRepository implements ProfessorNoticesRepository {
@@ -60,6 +75,9 @@ class FirebaseProfessorNoticesRepository implements ProfessorNoticesRepository {
 
   CollectionReference<Map<String, dynamic>> get _notices =>
       _firestore.collection('professorNotices');
+
+  CollectionReference<Map<String, dynamic>> get _arenaNotices =>
+      _firestore.collection('arenaProfessorNotices');
 
   Future<Map<String, Object?>> _call(
     String name,
@@ -179,6 +197,42 @@ class FirebaseProfessorNoticesRepository implements ProfessorNoticesRepository {
     final a = r['answer'];
     return a is String && a.isNotEmpty ? a : null;
   }
+
+  // Índice `recipientIds` (array) + `sentAt` desc vai com o backend.
+  @override
+  Stream<List<ArenaProfessorNotice>> watchArenaNotices(String uid) =>
+      _arenaNotices
+          .where('recipientIds', arrayContains: uid)
+          .orderBy('sentAt', descending: true)
+          .limit(30)
+          .snapshots()
+          .map((q) => [
+                for (final d in q.docs)
+                  ArenaProfessorNotice.fromMap(d.id, d.data()),
+              ]);
+
+  @override
+  Stream<ArenaProfessorNotice?> watchArenaNotice(String noticeId) =>
+      _arenaNotices.doc(noticeId).snapshots().map((s) {
+        final data = s.data();
+        return data == null ? null : ArenaProfessorNotice.fromMap(s.id, data);
+      });
+
+  @override
+  Stream<bool> watchArenaNoticeRead(String noticeId, String uid) =>
+      _arenaNotices
+          .doc(noticeId)
+          .collection('recipients')
+          .doc(uid)
+          .snapshots()
+          .map((s) => s.exists);
+
+  @override
+  Future<void> markArenaNoticeRead(String noticeId) => _call(
+        'markArenaProfessorNoticeRead',
+        {'noticeId': noticeId},
+        'Não foi possível marcar como lido.',
+      );
 }
 
 final professorNoticesRepositoryProvider =

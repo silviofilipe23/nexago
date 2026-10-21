@@ -192,6 +192,7 @@ class AthleteAgendaDaySummary {
   const AthleteAgendaDaySummary({
     required this.totalToday,
     required this.rentalsToday,
+    this.trainingsToday = 0,
     required this.tournamentsToday,
     required this.challengesToday,
     this.nextInMinutes,
@@ -199,6 +200,7 @@ class AthleteAgendaDaySummary {
 
   final int totalToday;
   final int rentalsToday;
+  final int trainingsToday;
   final int tournamentsToday;
   final int challengesToday;
   final int? nextInMinutes;
@@ -222,6 +224,7 @@ class AthleteAgendaWeekDay {
     required this.isPast,
     required this.isSelected,
     required this.rentalDots,
+    required this.trainingDots,
     required this.tournamentDots,
     required this.challengeDots,
     required this.eventCount,
@@ -234,13 +237,15 @@ class AthleteAgendaWeekDay {
   final bool isPast;
   final bool isSelected;
   final int rentalDots;
+  final int trainingDots;
   final int tournamentDots;
   final int challengeDots;
 
   /// Total de eventos no dia.
   final int eventCount;
 
-  int get totalDots => rentalDots + tournamentDots + challengeDots;
+  int get totalDots =>
+      rentalDots + trainingDots + tournamentDots + challengeDots;
 }
 
 class AthleteAgendaMonthDay {
@@ -250,6 +255,7 @@ class AthleteAgendaMonthDay {
     required this.isToday,
     required this.isSelected,
     required this.rentalDots,
+    required this.trainingDots,
     required this.tournamentDots,
     required this.challengeDots,
     required this.eventCount,
@@ -260,6 +266,7 @@ class AthleteAgendaMonthDay {
   final bool isToday;
   final bool isSelected;
   final int rentalDots;
+  final int trainingDots;
   final int tournamentDots;
   final int challengeDots;
   final int eventCount;

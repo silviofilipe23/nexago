@@ -208,6 +208,8 @@ export {
   bookArenaClassMakeup,
   joinArenaClassMakeupWaitlist,
 } from "./arena-class-athlete-actions";
+// QR de check-in por quadra (portal da arena gera; o aluno lê no app).
+export {getArenaCourtCheckinQr} from "./arena-court-checkin-qr";
 // Aulas pelo professor com vínculo ("Gerenciar as próprias aulas"): lista da chamada.
 export {getMyClassSessionRoster} from "./arena-class-teacher";
 export {shareClassStory} from "./class-story-share";

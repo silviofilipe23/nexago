@@ -18,14 +18,13 @@ import '../application/athlete_training_providers.dart';
 import '../domain/athlete_training.dart';
 import '../domain/class_presence.dart';
 import '../infrastructure/class_presence_repository.dart';
+import 'widgets/court_qr_scanner.dart';
 import 'widgets/training_widgets.dart';
 
-/// T5 · Check-in na arena pela localização do aparelho (até 100 m da arena,
-/// de 60 min antes até o fim da aula). Grava "presente" na chamada — o
-/// professor vê na hora.
-///
-/// QR da quadra fica para depois: o app não tem leitor de QR e a arena não
-/// tem QR impresso por quadra. Sem localização, o professor marca na chamada.
+/// T5 · Check-in na arena (de 60 min antes até o fim da aula) pela localização
+/// do aparelho (até 100 m da arena) ou pelo QR da quadra, que a arena imprime
+/// no portal (Quadras → QR de check-in). Grava "presente" na chamada — o
+/// professor vê na hora. Sem nenhum dos dois, o professor marca na chamada.
 class AthleteTrainingCheckInPage extends ConsumerStatefulWidget {
   const AthleteTrainingCheckInPage({super.key, required this.sessionId});
 
@@ -41,6 +40,7 @@ enum _Problem { permission, settings, noPosition }
 class _AthleteTrainingCheckInPageState
     extends ConsumerState<AthleteTrainingCheckInPage> {
   bool _busy = false;
+  bool _busyQr = false;
   DateTime? _doneAt;
   String? _error;
   _Problem? _problem;
@@ -85,6 +85,35 @@ class _AthleteTrainingCheckInPageState
       setState(() => _error = e.message);
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _checkInWithQr(TrainingSession t) async {
+    final raw = await ref.read(courtQrScanLauncherProvider)(context);
+    if (raw == null || !mounted) return;
+    if (!isCourtCheckinQr(raw)) {
+      setState(() {
+        _problem = null;
+        _error = 'Este QR não é de check-in do nexaGO. Procure o QR da quadra '
+            'com a recepção.';
+      });
+      return;
+    }
+    setState(() {
+      _busyQr = true;
+      _error = null;
+      _problem = null;
+    });
+    try {
+      await ref
+          .read(classPresenceRepositoryProvider)
+          .checkInWithQr(sessionId: t.id, qr: raw);
+      refreshAthleteClassPresence(ref);
+      setState(() => _doneAt = ref.read(professorLinksClockProvider)());
+    } on ClassPresenceException catch (e) {
+      setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _busyQr = false);
     }
   }
 
@@ -199,12 +228,27 @@ class _AthleteTrainingCheckInPageState
                       onPressed: () =>
                           popOrGo(context, AppRoutes.athleteTrainings),
                     ))
-              : ProfessorLinksPrimaryButton(
-                  key: const Key('training-checkin-submit'),
-                  label: 'Fazer check-in',
-                  height: 56,
-                  loading: _busy,
-                  onPressed: open ? () => _checkIn(t) : null,
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ProfessorLinksPrimaryButton(
+                      key: const Key('training-checkin-submit'),
+                      label: 'Fazer check-in',
+                      height: 56,
+                      loading: _busy,
+                      onPressed: open && !_busyQr ? () => _checkIn(t) : null,
+                    ),
+                    const SizedBox(height: 8),
+                    ProfessorLinksGhostButton(
+                      key: const Key('training-checkin-qr'),
+                      label: 'Ler QR da quadra',
+                      height: 48,
+                      loading: _busyQr,
+                      onPressed:
+                          open && !_busy ? () => _checkInWithQr(t) : null,
+                    ),
+                  ],
                 ),
         ),
       ],
@@ -304,7 +348,7 @@ class _Hero extends StatelessWidget {
           if (!done) ...[
             const SizedBox(height: 8),
             Text(
-              'USAMOS SUA LOCALIZAÇÃO · ATÉ 100 M DA ARENA',
+              'LOCALIZAÇÃO ATÉ 100 M DA ARENA · OU QR DA QUADRA',
               textAlign: TextAlign.center,
               style: ProfessorLinksStyle.mono(
                 10,
@@ -318,8 +362,8 @@ class _Hero extends StatelessWidget {
   }
 }
 
-/// Sem localização: o professor marca na chamada (QR da quadra ainda não
-/// existe).
+/// Sem localização: o QR da quadra resolve; sem QR, o professor marca na
+/// chamada.
 class _NoSignal extends StatelessWidget {
   const _NoSignal();
 
@@ -355,7 +399,8 @@ class _NoSignal extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Avise o professor: ele marca sua presença na chamada.',
+                  'Leia o QR da quadra ou avise o professor: ele marca sua '
+                  'presença na chamada.',
                   style: AppTypography.bodyS.copyWith(
                     fontSize: 11.5,
                     color: ProfessorLinksStyle.dim(colors),

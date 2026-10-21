@@ -65,6 +65,18 @@ bool trainingCanCheckIn(TrainingSession t, DateTime now) {
   return !now.isAfter(t.endAt);
 }
 
+/// Prefixo do QR de check-in impresso por quadra (`arena-court-checkin-qr.ts`).
+/// O resto é um token aleatório que só o servidor conhece.
+const String kCourtQrPrefix = 'nexago-checkin:v1:';
+
+/// O QR lido é de check-in do nexaGO? Só filtra QR alheio (cardápio, Pix…)
+/// antes de chamar o servidor — quem decide se o token vale é a callable.
+bool isCourtCheckinQr(String raw) {
+  final text = raw.trim();
+  return text.startsWith(kCourtQrPrefix) &&
+      text.length > kCourtQrPrefix.length;
+}
+
 String notGoingReasonLabel(String id) => kNotGoingReasons
     .firstWhere((r) => r.$1 == id, orElse: () => kNotGoingReasons.last)
     .$2;

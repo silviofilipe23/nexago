@@ -64,6 +64,16 @@ class ClassPresenceRepository {
           },
           'Não foi possível fazer o check-in. Tente novamente.');
 
+  /// Check-in pelo QR da quadra — `qr` é o texto lido, como veio da câmera.
+  Future<void> checkInWithQr({
+    required String sessionId,
+    required String qr,
+  }) =>
+      _call(
+          'checkInArenaClassSession',
+          {'sessionId': sessionId, 'method': 'qr', 'qr': qr.trim()},
+          'Não foi possível fazer o check-in. Tente novamente.');
+
   Future<List<ClassMakeupCredit>> fetchCredits() async {
     final raw = await _call('getMyClassCredits', const {},
         'Não foi possível carregar seus créditos.');

@@ -1952,6 +1952,11 @@ service cloud.firestore {
       );
       allow create, update, delete: if false;
     }
+    // Código do QR de check-in de cada quadra (functions/src/arena-court-checkin-qr.ts). Só o
+    // servidor lê: o token é o que impede forjar o QR com os ids da arena e da quadra.
+    match /arenaCourtCheckinCodes/{codeId} {
+      allow read, write: if false;
+    }
     // Story do treino (App do Professor · G3): um doc por aluno marcado, gravado só pela
     // `shareClassStory` (functions/src/class-story-share.ts). Cada aluno lê o PRÓPRIO — os
     // colegas da turma não aparecem por uid nem leem o doc um do outro.

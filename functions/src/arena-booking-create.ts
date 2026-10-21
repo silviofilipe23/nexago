@@ -200,13 +200,13 @@ async function quoteInternal(
     couponCode: input.couponCode,
     promoTotal,
   });
-  const discountPercent = await professorCourtDiscountForQuote(
+  const discount = await professorCourtDiscountForQuote(
     getFirestore(),
     arenaId,
     athleteId,
     input.asProfessor,
   );
-  const {result, coupon, professor} = applyProfessorCourtDiscount(withCoupon, discountPercent);
+  const {result, coupon, professor} = applyProfessorCourtDiscount(withCoupon, discount);
   return {...result, ...coupon, ...professor};
 }
 
@@ -348,7 +348,7 @@ export const createArenaBooking = onCall({
       couponCode: input.couponCode,
       promoTotal,
     }),
-    professorBooking?.courtDiscountPercent ?? 0,
+    professorBooking?.courtDiscount ?? null,
   );
 
   assertPositiveBookingTotal(total);

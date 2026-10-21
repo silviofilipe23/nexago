@@ -70,9 +70,12 @@ abstract interface class ArenaProfessionalsRepository {
 
   /// `updateArenaProfessorCourtDiscount` — desconto (%) inteiro 0–90 no
   /// aluguel de quadra reservado "como professor". Só com o vínculo `ACTIVE`
-  /// ou `SUSPENDED`.
+  /// ou `SUSPENDED`. [courtDiscountStartTime]/[courtDiscountEndTime] ("HH:mm",
+  /// fim até "24:00") limitam a faixa do dia; as duas `null` = o dia todo.
   Future<ProfessorLinkResult> updateCourtDiscount({
     required String linkId,
     required int courtDiscountPercent,
+    String? courtDiscountStartTime,
+    String? courtDiscountEndTime,
   });
 }

@@ -18,6 +18,7 @@ class BookingConfirmProfessorOption extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.enabled = true,
+    this.courtDiscountLabel,
   });
 
   final String arenaName;
@@ -25,6 +26,10 @@ class BookingConfirmProfessorOption extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
   final bool enabled;
+
+  /// Desconto do vínculo no aluguel ("20%" ou "20% das 08:00 às 17:00");
+  /// `null` = sem desconto (mesmo preço).
+  final String? courtDiscountLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -101,8 +106,14 @@ class BookingConfirmProfessorOption extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '$arena vê na agenda que o horário é seu como '
-                            'professor. Mesmo preço e regras.',
+                            courtDiscountLabel == null
+                                ? '$arena vê na agenda que o horário é seu '
+                                    'como professor. Mesmo preço e regras.'
+                                : '$arena vê na agenda que o horário é seu '
+                                    'como professor. Desconto de '
+                                    '$courtDiscountLabel no aluguel, sobre o '
+                                    'preço cheio.',
+                            key: const Key('booking-confirm-as-professor-hint'),
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurface.withValues(
                                 alpha: 0.64,

@@ -7,6 +7,9 @@ import {
   arenaProfessorRequestUrl,
   callableErrorMessage,
   courtDiscountLabel,
+  courtDiscountPillLabel,
+  courtDiscountTimeInputValue,
+  courtDiscountValueLabel,
   dayMonthLabel,
   defaultProfessorPermissions,
   detailSubtitle,
@@ -20,6 +23,7 @@ import {
   isInviteExpired,
   linkActions,
   parseCourtDiscountInput,
+  parseCourtDiscountWindowInput,
   pendingRequests,
   permissionAllowedForType,
   permissionGroupsFor,
@@ -62,6 +66,8 @@ function makeLink(overrides: Partial<ArenaProfessorLink> = {}): ArenaProfessorLi
       canBookRecurring: false,
     },
     courtDiscountPercent: 0,
+    courtDiscountStartTime: null,
+    courtDiscountEndTime: null,
     message: null,
     cycle: 1,
     professorName: 'Marcos Lima',
@@ -524,6 +530,68 @@ describe('arena-professor.model · parse e erros', () => {
     expect(event(undefined, 15)).toBe('Desconto no aluguel: 15%');
     expect(arenaProfessorEventFromDoc(fakeDoc('e3', { eventType: 'COURT_DISCOUNT_CHANGED', metadata: { before: 0, after: 20 } }))?.eventType).toBe(
       'COURT_DISCOUNT_CHANGED',
+    );
+  });
+
+  it('desconto no aluguel: faixa do dia saneada como no servidor', () => {
+    const doc = (extra: Record<string, unknown>) =>
+      arenaProfessorLinkFromDoc(fakeDoc('a1_u1', { relationshipType: 'INDEPENDENT', status: 'ACTIVE', courtDiscountPercent: 20, ...extra }));
+    const win = (extra: Record<string, unknown>) => {
+      const l = doc(extra);
+      return [l.courtDiscountStartTime, l.courtDiscountEndTime];
+    };
+    expect(win({ courtDiscountStartTime: '08:00', courtDiscountEndTime: '17:00' })).toEqual(['08:00', '17:00']);
+    expect(win({ courtDiscountStartTime: '18:00', courtDiscountEndTime: '24:00' })).toEqual(['18:00', '24:00']);
+    expect(win({})).toEqual([null, null]);
+    expect(win({ courtDiscountStartTime: '08:00', courtDiscountEndTime: null })).toEqual([null, null]);
+    expect(win({ courtDiscountStartTime: '17:00', courtDiscountEndTime: '08:00' })).toEqual([null, null]);
+    expect(win({ courtDiscountStartTime: '8h', courtDiscountEndTime: '17:00' })).toEqual([null, null]);
+    expect(win({ courtDiscountStartTime: '24:00', courtDiscountEndTime: '24:00' })).toEqual([null, null]);
+    // Sem desconto não tem faixa.
+    const zero = arenaProfessorLinkFromDoc(
+      fakeDoc('a1_u1', { courtDiscountPercent: 0, courtDiscountStartTime: '08:00', courtDiscountEndTime: '17:00' }),
+    );
+    expect([zero.courtDiscountStartTime, zero.courtDiscountEndTime]).toEqual([null, null]);
+  });
+
+  it('desconto no aluguel: valor do detalhe e pílula da lista com e sem faixa', () => {
+    const allDay = { startTime: null, endTime: null };
+    const window = { startTime: '08:00', endTime: '17:00' };
+    expect(courtDiscountValueLabel(20, allDay)).toBe('20% · o dia todo');
+    expect(courtDiscountValueLabel(20, window)).toBe('20% · das 08:00 às 17:00');
+    expect(courtDiscountValueLabel(0, window)).toBe('Sem desconto');
+    expect(courtDiscountPillLabel(20, allDay)).toBe('−20% quadra');
+    expect(courtDiscountPillLabel(20, window)).toBe('−20% quadra 08–17h');
+    expect(courtDiscountPillLabel(15, { startTime: '08:30', endTime: '24:00' })).toBe('−15% quadra 08:30–24h');
+  });
+
+  it('desconto no aluguel: horário do editor (início antes do fim; fim 00:00 = meia-noite)', () => {
+    expect(parseCourtDiscountWindowInput(true, '', '')).toEqual({ startTime: null, endTime: null });
+    expect(parseCourtDiscountWindowInput(true, '17:00', '08:00')).toEqual({ startTime: null, endTime: null });
+    expect(parseCourtDiscountWindowInput(false, '08:00', '17:00')).toEqual({ startTime: '08:00', endTime: '17:00' });
+    expect(parseCourtDiscountWindowInput(false, '18:00', '00:00')).toEqual({ startTime: '18:00', endTime: '24:00' });
+    expect(parseCourtDiscountWindowInput(false, '', '17:00')).toBeNull();
+    expect(parseCourtDiscountWindowInput(false, '08:00', '')).toBeNull();
+    expect(parseCourtDiscountWindowInput(false, '17:00', '08:00')).toBeNull();
+    expect(parseCourtDiscountWindowInput(false, '08:00', '08:00')).toBeNull();
+    expect(courtDiscountTimeInputValue('24:00')).toBe('00:00');
+    expect(courtDiscountTimeInputValue('08:00')).toBe('08:00');
+    expect(courtDiscountTimeInputValue(null)).toBe('');
+  });
+
+  it('histórico do desconto no aluguel: com faixa do dia', () => {
+    const link = makeLink();
+    const event = (metadata: Record<string, unknown>) => eventTitle(makeEvent({ eventType: 'COURT_DISCOUNT_CHANGED', metadata }), link);
+    const w = { afterStartTime: '08:00', afterEndTime: '17:00' };
+    expect(event({ before: 0, after: 20, beforeStartTime: null, beforeEndTime: null, ...w })).toBe('Desconto no aluguel: 20% das 08:00 às 17:00');
+    expect(event({ before: 20, after: 20, beforeStartTime: null, beforeEndTime: null, ...w })).toBe(
+      'Desconto no aluguel: 20% → 20% das 08:00 às 17:00',
+    );
+    expect(
+      event({ before: 20, after: 20, beforeStartTime: '08:00', beforeEndTime: '17:00', afterStartTime: null, afterEndTime: null }),
+    ).toBe('Desconto no aluguel: 20% das 08:00 às 17:00 → 20%');
+    expect(event({ before: 20, after: 0, beforeStartTime: '08:00', beforeEndTime: '17:00', afterStartTime: null, afterEndTime: null })).toBe(
+      'Desconto no aluguel removido',
     );
   });
 

@@ -88,6 +88,10 @@ export interface ProfessorLink {
   /** Desconto (% inteiro, 0 = sem) que a arena dá no aluguel de quadra reservado "como professor".
    *  Não soma com promoção nem cupom — vale o menor preço (o servidor decide na cotação). */
   courtDiscountPercent: number;
+  /** Faixa do dia em que o desconto vale ("HH:mm"; fim pode ser "24:00"). `null` = o dia todo.
+   *  Só horários INTEIROS dentro dela têm desconto (o servidor decide na cotação). */
+  courtDiscountStartTime: string | null;
+  courtDiscountEndTime: string | null;
   message: string | null;
   cycle: number;
   arenaName: string;
@@ -693,20 +697,55 @@ function discountMeta(raw: unknown): number {
   return typeof raw === 'number' && Number.isFinite(raw) && raw > 0 ? Math.round(raw) : 0;
 }
 
+/** Faixa do dia do desconto; `null` nas duas pontas = o dia todo. */
+export interface CourtDiscountWindow {
+  startTime: string | null;
+  endTime: string | null;
+}
+
+/** "HH:mm" → minutos do dia ("24:00" vale como fim); espelho de `courtDiscountTimeToMinutes`. */
+function courtDiscountTimeToMinutes(raw: unknown): number | null {
+  if (typeof raw !== 'string') return null;
+  const m = /^([01]\d|2[0-4]):([0-5]\d)$/.exec(raw.trim());
+  if (!m) return null;
+  const minutes = Number(m[1]) * 60 + Number(m[2]);
+  return minutes <= 24 * 60 ? minutes : null;
+}
+
+/** Espelho do saneamento do servidor: faixa inválida ou pela metade = o dia todo. */
+export function courtDiscountWindowOf(start: unknown, end: unknown): CourtDiscountWindow {
+  const s = courtDiscountTimeToMinutes(start);
+  const e = courtDiscountTimeToMinutes(end);
+  if (s == null || e == null || s >= e || s === 24 * 60) return { startTime: null, endTime: null };
+  return { startTime: (start as string).trim(), endTime: (end as string).trim() };
+}
+
+/** "20%" ou "20% das 08:00 às 17:00" — mesmo texto do aviso do servidor (`courtDiscountLabel`). */
+export function courtDiscountRuleLabel(percent: number, window: CourtDiscountWindow | null | undefined): string {
+  return window?.startTime && window.endTime ? `${percent}% das ${window.startTime} às ${window.endTime}` : `${percent}%`;
+}
+
 function courtDiscountChangeTitle(metadata: Record<string, unknown>): string {
   const before = discountMeta(metadata['before']);
   const after = discountMeta(metadata['after']);
   if (after === 0) return 'Desconto no aluguel removido';
-  return before > 0 ? `Desconto no aluguel: ${before}% → ${after}%` : `Desconto no aluguel: ${after}%`;
+  // Evento antigo não tem a faixa: lê como o dia todo (era o único jeito).
+  const beforeText = courtDiscountRuleLabel(before, courtDiscountWindowOf(metadata['beforeStartTime'], metadata['beforeEndTime']));
+  const afterText = courtDiscountRuleLabel(after, courtDiscountWindowOf(metadata['afterStartTime'], metadata['afterEndTime']));
+  return before > 0 ? `Desconto no aluguel: ${beforeText} → ${afterText}` : `Desconto no aluguel: ${afterText}`;
 }
 
-/** "Desconto no aluguel de quadra: 20%" no detalhe do vínculo; `null` sem desconto. Só enquanto o
- *  vínculo deixa reservar como professor — fora disso o desconto não vale. */
-export function courtDiscountLine(link: Pick<ProfessorLink, 'courtDiscountPercent' | 'status' | 'expiresAt'>, nowMs: number): string | null {
+/** "Desconto no aluguel de quadra: 20% das 08:00 às 17:00" no detalhe do vínculo; `null` sem
+ *  desconto. Só enquanto o vínculo deixa reservar como professor — fora disso o desconto não vale. */
+export function courtDiscountLine(
+  link: Pick<ProfessorLink, 'courtDiscountPercent' | 'courtDiscountStartTime' | 'courtDiscountEndTime' | 'status' | 'expiresAt'>,
+  nowMs: number,
+): string | null {
   if (link.courtDiscountPercent <= 0) return null;
   const status = displayStatus(link, nowMs);
   if (status !== 'ACTIVE' && status !== 'SUSPENDED') return null;
-  return `Desconto no aluguel de quadra: ${link.courtDiscountPercent}%`;
+  const window = { startTime: link.courtDiscountStartTime, endTime: link.courtDiscountEndTime };
+  return `Desconto no aluguel de quadra: ${courtDiscountRuleLabel(link.courtDiscountPercent, window)}`;
 }
 
 /** Linha de cima do histórico, do ponto de vista do professor. */
@@ -806,6 +845,15 @@ function courtDiscountOf(raw: unknown): number {
   return raw >= 0 && raw <= 90 ? raw : 0;
 }
 
+/** Espelho de `storedCourtDiscount`: sem desconto não tem faixa; faixa inválida = o dia todo. */
+function courtDiscountFieldsOf(
+  data: Record<string, unknown>,
+): Pick<ProfessorLink, 'courtDiscountPercent' | 'courtDiscountStartTime' | 'courtDiscountEndTime'> {
+  const percent = courtDiscountOf(data['courtDiscountPercent']);
+  const window = percent > 0 ? courtDiscountWindowOf(data['courtDiscountStartTime'], data['courtDiscountEndTime']) : { startTime: null, endTime: null };
+  return { courtDiscountPercent: percent, courtDiscountStartTime: window.startTime, courtDiscountEndTime: window.endTime };
+}
+
 function statusOrNull(raw: unknown): ProfessorLinkStatus | null {
   return typeof raw === 'string' && STATUSES.has(raw) ? (raw as ProfessorLinkStatus) : null;
 }
@@ -836,7 +884,7 @@ export function parseProfessorLink(id: string, data: Raw | undefined): Professor
       canCancelLessons: perms['canCancelLessons'] === true,
       canBookRecurring: perms['canBookRecurring'] === true,
     },
-    courtDiscountPercent: courtDiscountOf(data['courtDiscountPercent']),
+    ...courtDiscountFieldsOf(data),
     message: str(data['message']),
     cycle: typeof data['cycle'] === 'number' ? data['cycle'] : 1,
     arenaName: str(data['arenaName']) ?? 'Arena',

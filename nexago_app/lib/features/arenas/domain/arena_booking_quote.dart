@@ -50,10 +50,26 @@ class ArenaBookingQuote {
   double get amountBeforeProfessorDiscountReais =>
       ((amountReais + professorDiscountReais) * 100).roundToDouble() / 100;
 
-  /// "Desconto de professor (20%)" — `null` sem desconto.
-  String? get professorDiscountLabel => hasProfessorDiscount
-      ? 'Desconto de professor ($professorDiscountPercent%)'
-      : null;
+  /// O desconto cobriu só parte dos horários (faixa do vínculo, ex.:
+  /// 08:00–17:00): tirou menos que o % sobre o preço cheio de todas as linhas.
+  /// Sem linhas, não dá para saber — conta como inteiro.
+  bool get professorDiscountIsPartial {
+    if (!hasProfessorDiscount || lineItems.isEmpty) return false;
+    final fullBase =
+        lineItems.fold<double>(0, (sum, l) => sum + l.baseSlotPriceReais);
+    final fullDiscount = fullBase * professorDiscountPercent / 100;
+    // Cada linha arredonda em centavos: folga de 1 centavo por linha.
+    return professorDiscountReais < fullDiscount - 0.01 * lineItems.length;
+  }
+
+  /// "Desconto de professor (20%)" ou, quando só parte dos horários entrou
+  /// na faixa do desconto, "Desconto de professor (20% em parte dos
+  /// horários)" — `null` sem desconto.
+  String? get professorDiscountLabel {
+    if (!hasProfessorDiscount) return null;
+    final scope = professorDiscountIsPartial ? ' em parte dos horários' : '';
+    return 'Desconto de professor ($professorDiscountPercent%$scope)';
+  }
 
   /// "−R$ 20,00" — `null` sem desconto.
   String? get professorDiscountValueLabel => hasProfessorDiscount

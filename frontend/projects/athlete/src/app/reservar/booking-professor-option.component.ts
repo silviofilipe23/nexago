@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, model } from '@angular/core';
-import type { ProfessorLinkType } from '../professor/professor-links.model';
+import type { CourtDiscountWindow, ProfessorLinkType } from '../professor/professor-links.model';
 import { PfTypeTagComponent } from '../professor/ui/professor-ui.components';
 import { bookingAsProfessorHint } from './booking-as-professor';
 
@@ -152,8 +152,10 @@ export class BookingProfessorOptionComponent {
   readonly disabled = input(false);
   /** Desconto do vínculo no aluguel (%), só para a dica — o preço vem da cotação. */
   readonly discountPercent = input(0);
+  /** Faixa do dia do desconto (`null` = o dia todo). */
+  readonly discountWindow = input<CourtDiscountWindow | null>(null);
   readonly checked = model(false);
 
   protected readonly subId = `bpo-sub-${nextId++}`;
-  protected readonly hint = computed(() => bookingAsProfessorHint(this.arenaName(), this.discountPercent()));
+  protected readonly hint = computed(() => bookingAsProfessorHint(this.arenaName(), this.discountPercent(), this.discountWindow()));
 }

@@ -188,19 +188,31 @@ class _DetailViewState extends ConsumerState<_DetailView> {
       );
 
   Future<void> _editCourtDiscount(ArenaProfessorLink link) async {
-    final percent = await askArenaProfessorCourtDiscount(
+    final choice = await askArenaProfessorCourtDiscount(
       context,
       professorName: link.professorName,
       current: link.courtDiscountPercent,
+      currentStartTime: link.courtDiscountStartTime,
+      currentEndTime: link.courtDiscountEndTime,
     );
-    if (percent == null || !mounted) return;
-    if (percent == link.courtDiscountPercent) return;
+    if (choice == null || !mounted) return;
+    final unchanged = choice.percent == link.courtDiscountPercent &&
+        (choice.percent == 0 ||
+            (choice.startTime == link.courtDiscountStartTime &&
+                choice.endTime == link.courtDiscountEndTime));
+    if (unchanged) return;
     await _run(
       () => _repo.updateCourtDiscount(
         linkId: link.id,
-        courtDiscountPercent: percent,
+        courtDiscountPercent: choice.percent,
+        courtDiscountStartTime: choice.startTime,
+        courtDiscountEndTime: choice.endTime,
       ),
-      success: arenaProfessorCourtDiscountSavedMessage(percent),
+      success: arenaProfessorCourtDiscountSavedMessage(
+        choice.percent,
+        startTime: choice.startTime,
+        endTime: choice.endTime,
+      ),
       fallback: 'Não foi possível salvar o desconto.',
     );
   }
@@ -367,6 +379,8 @@ class _DetailViewState extends ConsumerState<_DetailView> {
             const SizedBox(height: 8),
             _CourtDiscountCard(
               percent: link.courtDiscountPercent,
+              startTime: link.courtDiscountStartTime,
+              endTime: link.courtDiscountEndTime,
               busy: _busy,
               onEdit: canManage && discountEditable
                   ? () => _editCourtDiscount(link)
@@ -376,7 +390,8 @@ class _DetailViewState extends ConsumerState<_DetailView> {
             const ProfessorLinksNote(
               'Vale quando o professor reserva quadra “como professor”, sobre '
               'o preço cheio de cada horário. Não soma com promoção ou cupom: '
-              'vale o menor preço.',
+              'vale o menor preço. Só os horários inteiros dentro da faixa '
+              'têm desconto.',
             ),
           ],
           const SizedBox(height: 24),
@@ -496,11 +511,15 @@ class _ProfileCard extends StatelessWidget {
 class _CourtDiscountCard extends StatelessWidget {
   const _CourtDiscountCard({
     required this.percent,
+    required this.startTime,
+    required this.endTime,
     required this.busy,
     required this.onEdit,
   });
 
   final int percent;
+  final String? startTime;
+  final String? endTime;
   final bool busy;
   final VoidCallback? onEdit;
 
@@ -527,7 +546,12 @@ class _CourtDiscountCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Sobre o preço cheio do horário',
+                  arenaProfessorCourtDiscountWindowLabel(
+                    percent,
+                    startTime: startTime,
+                    endTime: endTime,
+                  ),
+                  key: const Key('arena-professor-court-discount-window-label'),
                   style: AppTypography.bodyS.copyWith(
                     fontSize: 11.5,
                     color: ProfessorLinksStyle.dim(colors),

@@ -1,4 +1,4 @@
-import { effectivePermissions, type ProfessorLink } from '../professor/professor-links.model';
+import { courtDiscountRuleLabel, effectivePermissions, type CourtDiscountWindow, type ProfessorLink } from '../professor/professor-links.model';
 
 /**
  * Vínculo do professor logado com ESTA arena quando ele deixa reservar como professor agora
@@ -12,12 +12,17 @@ export function bookingProfessorLink(links: readonly ProfessorLink[], arenaId: s
 }
 
 /** "A Arena Sol vê na agenda que o horário é seu como professor. Mesmo preço e regras." — com
- *  desconto no vínculo, o preço muda: "… Desconto de professor de 20% (não soma com promoção ou cupom)." */
-export function bookingAsProfessorHint(arenaName: string | null | undefined, discountPercent = 0): string {
+ *  desconto no vínculo, o preço muda: "… Desconto de professor de 20% (não soma com promoção ou cupom)."
+ *  Com faixa: "… de 20% das 08:00 às 17:00 (…)" — só os horários inteiros dentro dela. */
+export function bookingAsProfessorHint(
+  arenaName: string | null | undefined,
+  discountPercent = 0,
+  discountWindow: CourtDiscountWindow | null = null,
+): string {
   const name = arenaName?.trim();
   const who = `${name ? `A ${name}` : 'A arena'} vê na agenda que o horário é seu como professor.`;
   return discountPercent > 0
-    ? `${who} Desconto de professor de ${discountPercent}% (não soma com promoção ou cupom).`
+    ? `${who} Desconto de professor de ${courtDiscountRuleLabel(discountPercent, discountWindow)} (não soma com promoção ou cupom).`
     : `${who} Mesmo preço e regras.`;
 }
 

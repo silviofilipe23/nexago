@@ -14,8 +14,9 @@ import {
   INDEPENDENT_ONLY_PERMISSION_KEYS,
   arenaProfessorLinkId,
   effectiveArenaProfessorPermissions,
-  storedCourtDiscountPercent,
+  storedCourtDiscount,
   type ArenaProfessorLinkData,
+  type CourtDiscountRule,
   type ArenaProfessorPermissionKey,
   type ArenaProfessorType,
 } from "./arena-professor-links";
@@ -141,7 +142,7 @@ export async function resolveProfessorBooking(
   arenaId: string,
   uid: string,
   asProfessor: unknown,
-): Promise<{stamp: ProfessorBookingStamp; courtDiscountPercent: number} | null> {
+): Promise<{stamp: ProfessorBookingStamp; courtDiscount: CourtDiscountRule} | null> {
   if (asProfessor !== true) return null;
   const link = await requireArenaProfessorPermission(db, arenaId, uid, "canBookCourts");
   return {
@@ -150,7 +151,7 @@ export async function resolveProfessorBooking(
       professorLinkId: arenaProfessorLinkId(arenaId, uid),
       professorRelationshipType: link.relationshipType,
     },
-    courtDiscountPercent: storedCourtDiscountPercent(link),
+    courtDiscount: storedCourtDiscount(link),
   };
 }
 
@@ -163,11 +164,11 @@ export async function professorCourtDiscountForQuote(
   arenaId: string,
   uid: string,
   asProfessor: unknown,
-): Promise<number> {
-  if (asProfessor !== true || !arenaId) return 0;
+): Promise<CourtDiscountRule | null> {
+  if (asProfessor !== true || !arenaId) return null;
   const link = await loadArenaProfessorLink(db, arenaId, uid);
-  if (professorPermissionDenial(link, "canBookCourts")) return 0;
-  return storedCourtDiscountPercent(link as ArenaProfessorLinkData);
+  if (professorPermissionDenial(link, "canBookCourts")) return null;
+  return storedCourtDiscount(link as ArenaProfessorLinkData);
 }
 
 // ---------------------------------------------------------------------------

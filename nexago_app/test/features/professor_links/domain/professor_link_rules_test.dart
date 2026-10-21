@@ -928,6 +928,109 @@ void main() {
       expect(ArenaProfessorLink.fromMap('l', doc(150)).courtDiscountPercent, 90);
     });
 
+    test('fromMap lê a faixa do desconto, saneada como no servidor', () {
+      ArenaProfessorLink link(
+        Object? start,
+        Object? end, {
+        int percent = 20,
+      }) =>
+          ArenaProfessorLink.fromMap('l', {
+            'arenaId': 'arena-1',
+            'professorUserId': 'prof-1',
+            'status': 'ACTIVE',
+            'courtDiscountPercent': percent,
+            if (start != null) 'courtDiscountStartTime': start,
+            if (end != null) 'courtDiscountEndTime': end,
+          });
+      ({String? start, String? end}) window(ArenaProfessorLink l) =>
+          (start: l.courtDiscountStartTime, end: l.courtDiscountEndTime);
+      const allDay = (start: null, end: null);
+
+      expect(window(link('08:00', '17:00')), (start: '08:00', end: '17:00'));
+      expect(window(link(' 18:00 ', '24:00')), (start: '18:00', end: '24:00'));
+      expect(window(link(null, null)), allDay);
+      // Pela metade, invertida, vazia ou fora do formato = o dia todo.
+      expect(window(link('08:00', null)), allDay);
+      expect(window(link('17:00', '08:00')), allDay);
+      expect(window(link('08:00', '08:00')), allDay);
+      expect(window(link('24:00', '24:00')), allDay);
+      expect(window(link('8:00', '17:00')), allDay);
+      expect(window(link('08:00', '25:00')), allDay);
+      expect(window(link('08:00', '24:30')), allDay);
+      expect(window(link(800, 1700)), allDay);
+      // Sem desconto, a faixa não vale.
+      expect(window(link('08:00', '17:00', percent: 0)), allDay);
+
+      expect(link('08:00', '17:00').courtDiscountRuleLabel,
+          '20% das 08:00 às 17:00');
+      expect(link(null, null).courtDiscountRuleLabel, '20%');
+    });
+
+    test('horário do desconto em minutos', () {
+      expect(professorCourtDiscountTimeToMinutes('00:00'), 0);
+      expect(professorCourtDiscountTimeToMinutes('08:30'), 510);
+      expect(professorCourtDiscountTimeToMinutes('24:00'), 1440);
+      expect(professorCourtDiscountTimeToMinutes('24:01'), isNull);
+      expect(professorCourtDiscountTimeToMinutes('7:00'), isNull);
+      expect(professorCourtDiscountTimeToMinutes(null), isNull);
+    });
+
+    test('título do evento com a faixa do dia', () {
+      String title(Map<String, Object?> metadata) => professorLinkEventTitle(
+            ArenaProfessorLinkEvent(
+              id: 'e',
+              eventType: 'COURT_DISCOUNT_CHANGED',
+              actorRole: 'ARENA',
+              metadata: metadata,
+            ),
+            linkType: ArenaProfessorLinkType.independent,
+          );
+      expect(
+        title({
+          'before': 0,
+          'after': 20,
+          'beforeStartTime': null,
+          'beforeEndTime': null,
+          'afterStartTime': '08:00',
+          'afterEndTime': '17:00',
+        }),
+        'Desconto no aluguel: 20% das 08:00 às 17:00',
+      );
+      expect(
+        title({
+          'before': 20,
+          'after': 20,
+          'beforeStartTime': null,
+          'beforeEndTime': null,
+          'afterStartTime': '08:00',
+          'afterEndTime': '17:00',
+        }),
+        'Desconto no aluguel: 20% → 20% das 08:00 às 17:00',
+      );
+      expect(
+        title({
+          'before': 20,
+          'after': 30,
+          'beforeStartTime': '08:00',
+          'beforeEndTime': '17:00',
+          'afterStartTime': null,
+          'afterEndTime': null,
+        }),
+        'Desconto no aluguel: 20% das 08:00 às 17:00 → 30%',
+      );
+      expect(
+        title({
+          'before': 20,
+          'after': 0,
+          'beforeStartTime': '08:00',
+          'beforeEndTime': '17:00',
+          'afterStartTime': null,
+          'afterEndTime': null,
+        }),
+        'Desconto no aluguel removido',
+      );
+    });
+
     test('título do evento COURT_DISCOUNT_CHANGED', () {
       String title(Object? before, Object? after) => professorLinkEventTitle(
             ArenaProfessorLinkEvent(
@@ -953,6 +1056,17 @@ void main() {
       expect(
         professorCourtDiscountLabel(link, ArenaProfessorLinkStatus.suspended),
         isNotNull,
+      );
+      expect(
+        professorCourtDiscountLabel(
+          professorLink(
+            courtDiscountPercent: 20,
+            courtDiscountStartTime: '08:00',
+            courtDiscountEndTime: '17:00',
+          ),
+          ArenaProfessorLinkStatus.active,
+        ),
+        'Desconto no aluguel de quadra: 20% das 08:00 às 17:00',
       );
       expect(
         professorCourtDiscountLabel(link, ArenaProfessorLinkStatus.ended),

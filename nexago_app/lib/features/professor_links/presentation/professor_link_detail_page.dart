@@ -206,7 +206,9 @@ class _DetailViewState extends ConsumerState<_DetailView> {
             ProfessorLinksNote(
               '$courtDiscount — vale nas reservas feitas como professor, sobre '
               'o preço cheio. Não soma com promoção ou cupom: vale o menor '
-              'preço.',
+              'preço.'
+              '${link.courtDiscountStartTime != null ? ' Só os horários '
+                  'inteiros dentro da faixa têm desconto.' : ''}',
               key: const Key('professor-link-court-discount'),
               tone: ProfessorLinksNoteTone.blue,
             ),

@@ -61,6 +61,8 @@ ArenaProfessorLink arenaLink({
   ArenaProfessorSide? endedBySide,
   int cycle = 1,
   int courtDiscountPercent = 0,
+  String? courtDiscountStartTime,
+  String? courtDiscountEndTime,
 }) =>
     ArenaProfessorLink(
       id: arenaProfessorLinkIdFor(arenaTestId, uid),
@@ -92,6 +94,8 @@ ArenaProfessorLink arenaLink({
       endedReason: endedReason,
       endedBySide: endedBySide,
       courtDiscountPercent: courtDiscountPercent,
+      courtDiscountStartTime: courtDiscountStartTime,
+      courtDiscountEndTime: courtDiscountEndTime,
     );
 
 /// Mesmo vínculo com outros campos — o que o servidor gravaria numa transição.
@@ -116,6 +120,9 @@ ArenaProfessorLink copyArenaLink(
   String? rejectionReason,
   ArenaProfessorSide? endedBySide,
   int? courtDiscountPercent,
+  // Faixa do desconto: só muda quando [courtDiscountPercent] vem junto.
+  String? courtDiscountStartTime,
+  String? courtDiscountEndTime,
 }) =>
     ArenaProfessorLink(
       id: link.id,
@@ -148,6 +155,12 @@ ArenaProfessorLink copyArenaLink(
       endedReason: endedReason ?? link.endedReason,
       endedBySide: endedBySide ?? link.endedBySide,
       courtDiscountPercent: courtDiscountPercent ?? link.courtDiscountPercent,
+      courtDiscountStartTime: courtDiscountPercent != null
+          ? courtDiscountStartTime
+          : link.courtDiscountStartTime,
+      courtDiscountEndTime: courtDiscountPercent != null
+          ? courtDiscountEndTime
+          : link.courtDiscountEndTime,
     );
 
 // ── vínculos do protótipo A1 ────────────────────────────────────────────────
@@ -262,7 +275,12 @@ typedef InviteCall = ({
 typedef ApproveCall = ({String linkId, ArenaProfessorPermissions permissions});
 typedef ReasonCall = ({String linkId, String? reason});
 typedef SuspendCall = ({String linkId, String reason, String? details});
-typedef CourtDiscountCall = ({String linkId, int courtDiscountPercent});
+typedef CourtDiscountCall = ({
+  String linkId,
+  int courtDiscountPercent,
+  String? startTime,
+  String? endTime,
+});
 typedef PermissionCall = ({
   String linkId,
   ArenaProfessorPermissionKey key,
@@ -549,15 +567,25 @@ class FakeArenaProfessionalsRepository implements ArenaProfessionalsRepository {
   Future<ProfessorLinkResult> updateCourtDiscount({
     required String linkId,
     required int courtDiscountPercent,
+    String? courtDiscountStartTime,
+    String? courtDiscountEndTime,
   }) async {
-    courtDiscountCalls
-        .add((linkId: linkId, courtDiscountPercent: courtDiscountPercent));
+    courtDiscountCalls.add((
+      linkId: linkId,
+      courtDiscountPercent: courtDiscountPercent,
+      startTime: courtDiscountStartTime,
+      endTime: courtDiscountEndTime,
+    ));
     _throwIfError();
     final current = find(linkId);
     if (current != null) {
       _replace(copyArenaLink(
         current,
         courtDiscountPercent: courtDiscountPercent,
+        courtDiscountStartTime:
+            courtDiscountPercent > 0 ? courtDiscountStartTime : null,
+        courtDiscountEndTime:
+            courtDiscountPercent > 0 ? courtDiscountEndTime : null,
       ));
     }
     return _result(linkId, current?.status ?? ArenaProfessorLinkStatus.active);

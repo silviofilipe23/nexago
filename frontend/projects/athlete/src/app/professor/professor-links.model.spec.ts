@@ -53,6 +53,8 @@ function link(overrides: Partial<ProfessorLink> = {}): ProfessorLink {
     initiatedBy: 'PROFESSOR',
     permissions: { ...NO_PERMISSIONS, canManageOwnLessons: true, canBookCourts: true, canAppearInArenaProfile: true },
     courtDiscountPercent: 0,
+    courtDiscountStartTime: null,
+    courtDiscountEndTime: null,
     message: null,
     cycle: 1,
     arenaName: 'Arena Sul',
@@ -469,6 +471,21 @@ describe('professor-links.model — histórico', () => {
     expect(title(undefined, 15)).toBe('Desconto no aluguel: 15%');
   });
 
+  it('desconto no aluguel com faixa do dia', () => {
+    const title = (metadata: Record<string, unknown>) =>
+      eventTitle(event({ eventType: 'COURT_DISCOUNT_CHANGED', actorRole: 'ARENA', metadata }), link());
+    const none = { beforeStartTime: null, beforeEndTime: null };
+    expect(title({ before: 0, after: 20, ...none, afterStartTime: '08:00', afterEndTime: '17:00' })).toBe(
+      'Desconto no aluguel: 20% das 08:00 às 17:00',
+    );
+    expect(title({ before: 20, after: 20, ...none, afterStartTime: '08:00', afterEndTime: '17:00' })).toBe(
+      'Desconto no aluguel: 20% → 20% das 08:00 às 17:00',
+    );
+    expect(title({ before: 20, after: 25, beforeStartTime: '08:00', beforeEndTime: '17:00', afterStartTime: null, afterEndTime: null })).toBe(
+      'Desconto no aluguel: 20% das 08:00 às 17:00 → 25%',
+    );
+  });
+
   it('linha de baixo: código · autor · data', () => {
     expect(eventMetaLine(event({ eventType: 'APPROVED', actorName: 'Ana Souza', createdAt: new Date(2025, 7, 4) }))).toBe(
       'APPROVED · Ana Souza · 04 ago 2025',
@@ -523,6 +540,33 @@ describe('professor-links.model — leitura do Firestore', () => {
     expect(discount(-1)).toBe(0);
     expect(parseProfessorLinkEvent('e', { eventType: 'COURT_DISCOUNT_CHANGED', metadata: { before: 0, after: 20 } })?.eventType).toBe(
       'COURT_DISCOUNT_CHANGED',
+    );
+  });
+
+  it('desconto no aluguel: faixa do dia saneada como no servidor', () => {
+    const win = (extra: Record<string, unknown>) => {
+      const l = parseProfessorLink('a_p', { arenaId: 'a', status: 'ACTIVE', courtDiscountPercent: 20, ...extra })!;
+      return [l.courtDiscountStartTime, l.courtDiscountEndTime];
+    };
+    expect(win({ courtDiscountStartTime: '08:00', courtDiscountEndTime: '17:00' })).toEqual(['08:00', '17:00']);
+    expect(win({ courtDiscountStartTime: '18:00', courtDiscountEndTime: '24:00' })).toEqual(['18:00', '24:00']);
+    expect(win({})).toEqual([null, null]);
+    expect(win({ courtDiscountStartTime: '08:00' })).toEqual([null, null]);
+    expect(win({ courtDiscountStartTime: '17:00', courtDiscountEndTime: '08:00' })).toEqual([null, null]);
+    expect(win({ courtDiscountStartTime: '25:00', courtDiscountEndTime: '26:00' })).toEqual([null, null]);
+    const zero = parseProfessorLink('a_p', {
+      arenaId: 'a',
+      status: 'ACTIVE',
+      courtDiscountPercent: 0,
+      courtDiscountStartTime: '08:00',
+      courtDiscountEndTime: '17:00',
+    })!;
+    expect([zero.courtDiscountStartTime, zero.courtDiscountEndTime]).toEqual([null, null]);
+  });
+
+  it('linha do desconto no detalhe mostra a faixa do dia', () => {
+    expect(courtDiscountLine(link({ courtDiscountPercent: 20, courtDiscountStartTime: '08:00', courtDiscountEndTime: '17:00' }), NOW)).toBe(
+      'Desconto no aluguel de quadra: 20% das 08:00 às 17:00',
     );
   });
 

@@ -254,9 +254,21 @@ class ArenaProfessorLink {
     this.endedReason,
     this.endedBySide,
     this.courtDiscountPercent = 0,
+    this.courtDiscountStartTime,
+    this.courtDiscountEndTime,
   });
 
   factory ArenaProfessorLink.fromMap(String id, Map<String, dynamic> data) {
+    final courtDiscountPercent =
+        parseProfessorCourtDiscountPercent(data['courtDiscountPercent']);
+    // Sem desconto, a faixa não vale; faixa inválida ou pela metade = o dia
+    // todo (mesmo saneamento do servidor).
+    final courtDiscountWindow = courtDiscountPercent > 0
+        ? parseProfessorCourtDiscountWindow(
+            data['courtDiscountStartTime'],
+            data['courtDiscountEndTime'],
+          )
+        : null;
     return ArenaProfessorLink(
       id: id,
       arenaId: _string(data['arenaId']) ?? '',
@@ -292,9 +304,9 @@ class ArenaProfessorLink {
       suspensionDetails: _string(data['suspensionDetails']),
       endedReason: _string(data['endedReason']),
       endedBySide: ArenaProfessorSide.tryParse(data['endedBySide']),
-      courtDiscountPercent: parseProfessorCourtDiscountPercent(
-        data['courtDiscountPercent'],
-      ),
+      courtDiscountPercent: courtDiscountPercent,
+      courtDiscountStartTime: courtDiscountWindow?.startTime,
+      courtDiscountEndTime: courtDiscountWindow?.endTime,
     );
   }
 
@@ -341,6 +353,19 @@ class ArenaProfessorLink {
   /// Desconto (%) da arena no aluguel de quadra reservado "como professor".
   /// Inteiro 0–90; ausente = 0 (sem desconto).
   final int courtDiscountPercent;
+
+  /// Faixa do dia em que o desconto vale ("HH:mm"; o fim pode ser "24:00").
+  /// As duas `null` = o dia todo. Só horários inteiros dentro da faixa têm
+  /// desconto.
+  final String? courtDiscountStartTime;
+  final String? courtDiscountEndTime;
+
+  /// "20%" ou "20% das 08:00 às 17:00".
+  String get courtDiscountRuleLabel => professorCourtDiscountRuleLabel(
+        courtDiscountPercent,
+        startTime: courtDiscountStartTime,
+        endTime: courtDiscountEndTime,
+      );
 }
 
 /// Teto do desconto do professor no aluguel (espelho do servidor).
@@ -351,6 +376,44 @@ const kProfessorCourtDiscountMaxPercent = 90;
 int parseProfessorCourtDiscountPercent(Object? raw) {
   if (raw is! num || !raw.isFinite) return 0;
   return raw.round().clamp(0, kProfessorCourtDiscountMaxPercent);
+}
+
+final _courtDiscountTimePattern = RegExp(r'^([01]\d|2[0-4]):([0-5]\d)$');
+
+/// "HH:mm" → minutos do dia; "24:00" vale como fim. `null` quando não é
+/// horário (espelho de `courtDiscountTimeToMinutes` do servidor).
+int? professorCourtDiscountTimeToMinutes(Object? raw) {
+  if (raw is! String) return null;
+  final m = _courtDiscountTimePattern.firstMatch(raw.trim());
+  if (m == null) return null;
+  final minutes = int.parse(m.group(1)!) * 60 + int.parse(m.group(2)!);
+  return minutes <= 24 * 60 ? minutes : null;
+}
+
+/// Faixa do desconto (`courtDiscountStartTime`/`courtDiscountEndTime`) com
+/// início antes do fim; qualquer outra coisa = `null` (o dia todo).
+({String startTime, String endTime})? parseProfessorCourtDiscountWindow(
+  Object? start,
+  Object? end,
+) {
+  final s = professorCourtDiscountTimeToMinutes(start);
+  final e = professorCourtDiscountTimeToMinutes(end);
+  if (s == null || e == null || s >= e || s == 24 * 60) return null;
+  return (
+    startTime: (start as String).trim(),
+    endTime: (end as String).trim(),
+  );
+}
+
+/// "20%" ou "20% das 08:00 às 17:00" (faixa inválida = só o %).
+String professorCourtDiscountRuleLabel(
+  int percent, {
+  Object? startTime,
+  Object? endTime,
+}) {
+  final window = parseProfessorCourtDiscountWindow(startTime, endTime);
+  if (window == null) return '$percent%';
+  return '$percent% das ${window.startTime} às ${window.endTime}';
 }
 
 /// Linha imutável do histórico (`arenaProfessors/{id}/events/{eventId}`).

@@ -533,15 +533,152 @@ void main() {
       await settleProfessorSheet(tester);
 
       expect(repo.courtDiscountCalls, [
-        (linkId: _marcos, courtDiscountPercent: 20),
+        (
+          linkId: _marcos,
+          courtDiscountPercent: 20,
+          startTime: null,
+          endTime: null,
+        ),
       ]);
       expect(find.text('20%'), findsOneWidget);
+      expect(find.text('O dia todo · sobre o preço cheio'), findsOneWidget);
       expect(
         find.text(
           'Desconto de 20% no aluguel salvo. O professor foi avisado.',
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets('só em um horário: valida início < fim e grava a faixa',
+        (tester) async {
+      final repo = await _pumpDetail(
+        tester,
+        link: arenaLink(
+          uid: 'marcos',
+          name: 'Marcos Lima',
+          courtDiscountPercent: 20,
+        ),
+      );
+      expect(find.textContaining('Só os horários inteiros'), findsOneWidget);
+
+      await _tapKey(tester, 'arena-professor-court-discount-edit');
+      // Padrão: o dia todo, sem campos de horário.
+      expect(
+        find.byKey(const Key('arena-professor-court-discount-start')),
+        findsNothing,
+      );
+      await tester.tap(
+        find.byKey(const Key('arena-professor-court-discount-window')),
+      );
+      await settleProfessorLinks(tester);
+      expect(find.text('08:00'), findsOneWidget);
+      expect(find.text('17:00'), findsOneWidget);
+
+      Future<void> pickTime(String fieldKey, String hour) async {
+        await tester.tap(find.byKey(Key(fieldKey)));
+        await settleProfessorLinks(tester);
+        await tester.tap(find.byIcon(Icons.keyboard_outlined));
+        await settleProfessorLinks(tester);
+        final fields = find.descendant(
+          of: find.byType(TimePickerDialog),
+          matching: find.byType(TextField),
+        );
+        await tester.enterText(fields.at(0), hour);
+        await tester.enterText(fields.at(1), '00');
+        await tester.tap(find.text('OK'));
+        await settleProfessorLinks(tester);
+      }
+
+      // Início depois do fim: erro no diálogo, nada gravado.
+      await pickTime('arena-professor-court-discount-start', '18');
+      expect(find.text('18:00'), findsOneWidget);
+      await tester.tap(
+        find.byKey(const Key('arena-professor-court-discount-save')),
+      );
+      await settleProfessorLinks(tester);
+      expect(
+        find.text('O início do horário precisa ser antes do fim.'),
+        findsOneWidget,
+      );
+      expect(repo.courtDiscountCalls, isEmpty);
+
+      // 00:00 no fim = meia-noite do fim do dia.
+      await pickTime('arena-professor-court-discount-end', '0');
+      expect(find.text('24:00'), findsOneWidget);
+      await tester.tap(
+        find.byKey(const Key('arena-professor-court-discount-save')),
+      );
+      await settleProfessorSheet(tester);
+
+      expect(repo.courtDiscountCalls, [
+        (
+          linkId: _marcos,
+          courtDiscountPercent: 20,
+          startTime: '18:00',
+          endTime: '24:00',
+        ),
+      ]);
+      expect(
+        find.text('Das 18:00 às 24:00 · sobre o preço cheio'),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Desconto de 20% das 18:00 às 24:00 no aluguel salvo. O professor '
+          'foi avisado.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('faixa gravada: abre marcada e volta para o dia todo',
+        (tester) async {
+      final repo = await _pumpDetail(
+        tester,
+        link: arenaLink(
+          uid: 'marcos',
+          name: 'Marcos Lima',
+          courtDiscountPercent: 20,
+          courtDiscountStartTime: '08:00',
+          courtDiscountEndTime: '17:00',
+        ),
+      );
+      expect(
+        find.text('Das 08:00 às 17:00 · sobre o preço cheio'),
+        findsOneWidget,
+      );
+
+      await _tapKey(tester, 'arena-professor-court-discount-edit');
+      expect(
+        find.byKey(const Key('arena-professor-court-discount-start')),
+        findsOneWidget,
+      );
+      // Salvar sem mudar nada não chama a callable.
+      await tester.tap(
+        find.byKey(const Key('arena-professor-court-discount-save')),
+      );
+      await settleProfessorSheet(tester);
+      expect(repo.courtDiscountCalls, isEmpty);
+
+      await _tapKey(tester, 'arena-professor-court-discount-edit');
+      await tester.tap(
+        find.byKey(const Key('arena-professor-court-discount-all-day')),
+      );
+      await settleProfessorLinks(tester);
+      await tester.tap(
+        find.byKey(const Key('arena-professor-court-discount-save')),
+      );
+      await settleProfessorSheet(tester);
+      expect(repo.courtDiscountCalls, [
+        (
+          linkId: _marcos,
+          courtDiscountPercent: 20,
+          startTime: null,
+          endTime: null,
+        ),
+      ]);
+      expect(find.text('O dia todo · sobre o preço cheio'), findsOneWidget);
     });
 
     testWidgets('suspenso também edita', (tester) async {
@@ -591,10 +728,29 @@ void main() {
               metadata: const {'before': 10, 'after': 20},
               createdAt: DateTime(2026, 9, 2),
             ),
+            ArenaProfessorLinkEvent(
+              id: 'd2',
+              eventType: 'COURT_DISCOUNT_CHANGED',
+              actorRole: 'ARENA',
+              actorName: 'Ana Souza',
+              metadata: const {
+                'before': 20,
+                'after': 20,
+                'beforeStartTime': null,
+                'beforeEndTime': null,
+                'afterStartTime': '08:00',
+                'afterEndTime': '17:00',
+              },
+              createdAt: DateTime(2026, 9, 3),
+            ),
           ],
         },
       );
       expect(find.text('Desconto no aluguel: 10% → 20%'), findsOneWidget);
+      expect(
+        find.text('Desconto no aluguel: 20% → 20% das 08:00 às 17:00'),
+        findsOneWidget,
+      );
     });
   });
 }

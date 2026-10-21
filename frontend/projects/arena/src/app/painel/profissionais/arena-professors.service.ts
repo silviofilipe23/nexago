@@ -11,6 +11,7 @@ import {
   sortEventsDesc,
   type ArenaProfessorEvent,
   type ArenaProfessorLink,
+  type CourtDiscountWindow,
   type ProfessorLinkStatus,
   type ProfessorLinkType,
   type ProfessorPermissions,
@@ -142,8 +143,16 @@ export class ArenaProfessorsService {
     return call('updateArenaProfessorPermissions', { linkId, permissions });
   }
 
-  /** % inteiro de 0 a 90 (0 = sem desconto); vale na reserva "como professor". */
-  updateCourtDiscount(linkId: string, courtDiscountPercent: number): Promise<ProfessorLinkResult> {
-    return call('updateArenaProfessorCourtDiscount', { linkId, courtDiscountPercent });
+  /**
+   * % inteiro de 0 a 90 (0 = sem desconto); vale na reserva "como professor". A faixa vai sempre:
+   * `null`/`null` = o dia todo; "HH:mm" nas duas = só os horários inteiros dentro dela.
+   */
+  updateCourtDiscount(linkId: string, courtDiscountPercent: number, window: CourtDiscountWindow): Promise<ProfessorLinkResult> {
+    return call('updateArenaProfessorCourtDiscount', {
+      linkId,
+      courtDiscountPercent,
+      courtDiscountStartTime: window.startTime,
+      courtDiscountEndTime: window.endTime,
+    });
   }
 }

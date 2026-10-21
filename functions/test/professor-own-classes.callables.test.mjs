@@ -90,3 +90,34 @@ test('agendador: vínculo caiu → a turma encerra; vínculo ok segue', async ()
   assert.equal(await oc.professorSeriesStillAllowed(db, series), false);
   assert.equal((await db.doc(`professors/uProf/ownClasses/${r.classId}`).get()).data().status, 'ended');
 });
+
+test('arena mexe na série: turma acompanha e o professor é avisado; encerrar pelo professor não avisa', async () => {
+  const r = await oc.createProfessorOwnClassCore(db, 'uProf', input, NOW);
+  const cls = (await db.doc(`professors/uProf/ownClasses/${r.classId}`).get()).data();
+  const pushes = [];
+  const notify = async (p) => { pushes.push(p); };
+  const seriesTue = (await db.doc(`arenaRecurringBookings/${cls.seriesIds['2']}`).get()).data();
+  // Arena pausa a terça.
+  assert.equal(await oc.syncOwnClassWithSeriesCore(db, seriesTue, {...seriesTue, status: 'paused'}, notify), 'updated');
+  let c = (await db.doc(`professors/uProf/ownClasses/${r.classId}`).get()).data();
+  assert.equal(c.seriesStatus['2'], 'paused');
+  assert.equal(c.status, 'active');
+  assert.match(pushes[0].body, /pausou o horário fixo de ter/);
+  // Arena cancela as duas: turma encerrada.
+  await oc.syncOwnClassWithSeriesCore(db, seriesTue, {...seriesTue, status: 'canceled', cancelReason: 'manual'}, notify);
+  const seriesThu = (await db.doc(`arenaRecurringBookings/${cls.seriesIds['4']}`).get()).data();
+  assert.equal(await oc.syncOwnClassWithSeriesCore(db, seriesThu, {...seriesThu, status: 'canceled'}, notify), 'ended');
+  c = (await db.doc(`professors/uProf/ownClasses/${r.classId}`).get()).data();
+  assert.equal(c.status, 'ended');
+  assert.equal(c.endedReason, 'arena_canceled');
+  assert.equal(pushes.length, 3);
+
+  // Professor encerra a dele: o gatilho pula.
+  const r2 = await oc.createProfessorOwnClassCore(db, 'uProf', {...input, name: 'Noite', startTime: '20:00', endTime: '21:00'}, NOW);
+  const c2 = (await db.doc(`professors/uProf/ownClasses/${r2.classId}`).get()).data();
+  const s2 = (await db.doc(`arenaRecurringBookings/${c2.seriesIds['2']}`).get()).data();
+  await oc.endProfessorOwnClassCore(db, 'uProf', {classId: r2.classId});
+  const after2 = (await db.doc(`arenaRecurringBookings/${c2.seriesIds['2']}`).get()).data();
+  assert.equal(await oc.syncOwnClassWithSeriesCore(db, s2, after2, notify), 'skip');
+  assert.equal(pushes.length, 3);
+});

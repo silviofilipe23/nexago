@@ -217,6 +217,7 @@ export {deleteLessonPlan, getLessonStudents, rateLessonFeedback, saveLessonPlan,
 export {
   createProfessorOwnClass,
   endProfessorOwnClassCallable as endProfessorOwnClass,
+  onProfessorRecurringSeriesChanged,
   previewProfessorOwnClass,
   setProfessorOwnClassStudents,
 } from "./professor-own-classes";

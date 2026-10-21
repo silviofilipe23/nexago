@@ -164,8 +164,11 @@ export class AthleteProfileSettingsComponent {
   protected readonly brLocations = inject(BrLocationsService);
   private readonly router = inject(Router);
   private readonly firestore = createFirestore();
+  private readonly professorLinks = inject(ProfessorLinksService);
   /** Convites de arena em aberto — o card "Minhas arenas" é a entrada de professor no celular. */
-  protected readonly professorInvites = inject(ProfessorLinksService).openInviteCount;
+  protected readonly professorInvites = this.professorLinks.openInviteCount;
+  /** O card só aparece com algum vínculo de professor (mesma regra da sidebar). */
+  protected readonly hasProfessorLinks = computed(() => this.professorLinks.links().length > 0);
 
   protected readonly isEditing = signal(false);
   protected readonly loading = signal(true);

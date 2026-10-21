@@ -87,9 +87,13 @@ export class AtPanelShellComponent {
   /** Item "Loja" — atrás de `appConfig/store.enabled` enquanto o checkout não existe. */
   protected readonly storeEnabled = inject(StoreFlagService).enabled;
 
-  /** Convites de arena em aberto (vínculo de professor) — badge de "Minhas arenas". O item
-   *  aparece para todos: qualquer conta pode ser professor. */
-  protected readonly professorInvites = inject(ProfessorLinksService).openInviteCount;
+  private readonly professorLinks = inject(ProfessorLinksService);
+  /** Convites de arena em aberto (vínculo de professor) — badge de "Minhas arenas". */
+  protected readonly professorInvites = this.professorLinks.openInviteCount;
+  /** "Minhas arenas" só para quem tem algum vínculo (convite, pedido, ativo ou encerrado): o
+   *  atleta que só joga não vê nada de professor. A porta antes do primeiro vínculo é o card
+   *  "Você é professor?" da página da arena e o convite da arena (que já cria o vínculo). */
+  protected readonly hasProfessorLinks = computed(() => this.professorLinks.links().length > 0);
 
 
   constructor() {

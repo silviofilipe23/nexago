@@ -10,12 +10,14 @@ import 'package:nexago_app/features/professor_links/application/professor_links_
 import 'package:nexago_app/features/professor_mode/domain/professor_students.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_students_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_earnings_repository.dart';
+import 'package:nexago_app/features/professor_mode/infrastructure/professor_evaluations_repository.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_wallet_repository.dart';
 import 'package:nexago_app/features/professor_mode/presentation/professor_classes_page.dart';
 import 'package:nexago_app/features/professor_mode/presentation/professor_student_page.dart';
 import 'package:nexago_app/features/professor_mode/presentation/professor_students_page.dart';
 
 import 'professor_earnings_test_support.dart';
+import 'professor_evaluations_test_support.dart';
 import 'professor_wallet_test_support.dart';
 
 /// Apoio dos testes de Alunos/Aluno/Turmas do modo Professor: payload
@@ -263,6 +265,9 @@ Future<GoRouter> pumpProfessorStudentsApp(
 
   /// Ganhos do repasse (fase 6); sem ele, vazio.
   ProfessorEarningsRepository? earningsRepo,
+
+  /// Avaliações (fase 8); sem ele, nenhuma.
+  ProfessorEvaluationsRepository? evaluationsRepo,
   String uid = professorStudentsTestUid,
   List<Override> overrides = const [],
   List<RouteBase> extraRoutes = const [],
@@ -311,6 +316,8 @@ Future<GoRouter> pumpProfessorStudentsApp(
             .overrideWithValue(walletRepo ?? FakeProfessorWalletRepository()),
         professorEarningsRepositoryProvider.overrideWithValue(
             earningsRepo ?? FakeProfessorEarningsRepository()),
+        professorEvaluationsRepositoryProvider.overrideWithValue(
+            evaluationsRepo ?? FakeProfessorEvaluationsRepository()),
         professorLinksUidProvider.overrideWithValue(uid),
         ...overrides,
       ],

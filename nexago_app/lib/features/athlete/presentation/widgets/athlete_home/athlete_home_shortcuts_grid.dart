@@ -8,24 +8,27 @@ import '../../../../../core/theme/app_radii.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../athlete_training/application/athlete_training_providers.dart';
+import '../../../../squad/application/squad_providers.dart';
 
-/// Linha de atalhos da Home: Reservar, Ranking, Treinos, Torneios e Meus
-/// torneios. O atalho
-/// com novidade (contador > 0) ganha destaque laranja e o selo do contador.
+/// Linha de atalhos da Home: Reservar, Ranking, Treinos, Meus torneios e —
+/// para embaixador ou convidado do NexaSquad — Squad. O atalho com novidade
+/// (contador > 0) ganha destaque laranja e o selo do contador.
 class AthleteHomeShortcutsGrid extends ConsumerWidget {
   const AthleteHomeShortcutsGrid({
     super.key,
     required this.onReserveTap,
-    required this.onCompeteTap,
   });
 
-  /// Abas do shell — atalho troca de aba em vez de empilhar rota.
+  /// Aba Reservar do shell — atalho troca de aba em vez de empilhar rota.
   final VoidCallback onReserveTap;
-  final VoidCallback onCompeteTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final trainingBadge = ref.watch(athleteTrainingNewFeedbackCountProvider);
+    // Mesma regra do card do Squad: só com o recurso ligado e para quem é
+    // embaixador (abre o Squad) ou tem convite em aberto (abre o convite).
+    final squad = ref.watch(squadEntryProvider);
+    final squadInvite = squad.member == null ? squad.invite : null;
     final shortcuts = <_Shortcut>[
       _Shortcut(
         key: const Key('home-shortcut-reserve'),
@@ -47,17 +50,26 @@ class AthleteHomeShortcutsGrid extends ConsumerWidget {
         onTap: () => context.pushNamed(AppRouteNames.athleteTrainings),
       ),
       _Shortcut(
-        key: const Key('home-shortcut-tournaments'),
-        icon: Icons.emoji_events_outlined,
-        label: 'Torneios',
-        onTap: onCompeteTap,
-      ),
-      _Shortcut(
         key: const Key('home-shortcut-my-tournaments'),
         icon: Icons.confirmation_number_outlined,
         label: 'Meus torneios',
         onTap: () => context.pushNamed(AppRouteNames.myTournaments),
       ),
+      // "NexaSquad" (69px na Sora) não cabe no tile de 5 colunas.
+      if (squad.member != null || squadInvite != null)
+        _Shortcut(
+          key: const Key('home-shortcut-squad'),
+          icon: Icons.groups_rounded,
+          label: 'Squad',
+          // Convite em aberto pede resposta: destaque e selo.
+          badge: squadInvite != null ? 1 : 0,
+          onTap: () => squadInvite != null
+              ? context.pushNamed(
+                  AppRouteNames.squadInvite,
+                  pathParameters: {'inviteId': squadInvite.id},
+                )
+              : context.pushNamed(AppRouteNames.squad),
+        ),
     ];
 
     return Row(

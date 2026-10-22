@@ -61,7 +61,7 @@ function strOrNull(d: Data, k: string): string | null {
   return typeof v === 'string' && v ? v : null;
 }
 
-function bool(d: Data, k: string, fallback = false): boolean {
+export function bool(d: Data, k: string, fallback = false): boolean {
   const v = d[k];
   return typeof v === 'boolean' ? v : fallback;
 }

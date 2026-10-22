@@ -224,6 +224,12 @@ export {
   refreshTrainingCenterReceivingStatus,
   sweepTrainingCenterReceiving,
 } from "./training-center-receiving";
+// Centro de Treinamento — repasse ao professor pago pelo NexaGO (transferência Asaas centro → professor).
+export {
+  payTrainingCenterPayout,
+  resolveTrainingCenterPayoutTransfer,
+  sweepTrainingCenterPayoutTransfers,
+} from "./training-center-payout-transfer";
 // Centro de Treinamento — efeitos da chamada (créditos de pacote e de reposição).
 export {onTrainingCenterSessionWritten} from "./training-center-attendance";
 // Centro de Treinamento — oferta automática da vaga ao 1º da lista de espera.

@@ -19,6 +19,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { area: 'classes', label: 'Turmas', icon: 'team', path: 'turmas' },
       { area: 'enrollments', label: 'Matrículas', icon: 'clipboard', path: 'matriculas' },
       { area: 'students', label: 'Alunos', icon: 'person', path: 'alunos' },
+      { area: 'myPayouts', label: 'Meus repasses', icon: 'payout', path: 'meus-repasses' },
     ],
   },
   {

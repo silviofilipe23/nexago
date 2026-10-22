@@ -159,6 +159,18 @@ Protótipo: seção "Locais · fixo e itinerante" (L1–L5 web; L6–L7 são do 
   os próprios repasses (rules). Pagamento em si é por fora (fase 2: transferência Asaas centro →
   professor; automação: split na cobrança ou fechamento automático).
 
+## Repasse pago pelo NexaGO (fase 2)
+
+- Owner clica "Pagar pelo NexaGO" num repasse fechado → `payTrainingCenterPayout` cria uma
+  transferência Asaas da subconta do centro (chave cifrada) para `professorPayoutAccounts/{uid}`
+  (conta de recebimento do professor, que precisa estar aprovada). Só fica `paid` no DONE.
+- `transferStatus`: requested → pending (pode aguardar o SMS no app do Asaas do centro) → done |
+  failed (libera para tentar de novo/pagar por fora) | unknown (rede/5xx: não repete sozinho; owner
+  confere o extrato e resolve "saiu"/"não saiu"). Varredura de 15 min consulta as pendentes.
+- Professor de CT (vínculo ativo `coach`) pode criar a conta de recebimento — em "Meus repasses" no
+  portal, onde também vê os próprios repasses.
+- Conta do centro conectada à mão pelo time NexaGO (sem chave) não transfere: só "marcar pago".
+
 ## Fora do MVP (follow-ups)
 
 - Oferecer a vaga liberada ao próximo da fila automaticamente (hoje a varredura só libera; a

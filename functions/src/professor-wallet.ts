@@ -227,6 +227,15 @@ async function assertIndependentProfessor(db: Firestore, uid: string): Promise<v
   }
 }
 
+/** Professor ativo em algum Centro de Treinamento (recebe repasse do centro). */
+export async function isTrainingCenterCoach(db: Firestore, uid: string): Promise<boolean> {
+  const snap = await db.collectionGroup("centerMembers").where("uid", "==", uid).get();
+  return snap.docs.some((d) => {
+    const parts = d.ref.path.split("/");
+    return parts[0] === "trainingCenters" && d.data()["status"] === "active" && d.data()["role"] === "coach";
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Conta de recebimento
 // ---------------------------------------------------------------------------
@@ -242,7 +251,9 @@ export async function createProfessorPayoutAccountCore(
 ): Promise<{status: ProfessorAccountStatus}> {
   const now = deps.now();
   const input = parseProfessorAccountInput(raw, dayKeyFromEventDate(now));
-  await assertIndependentProfessor(db, uid);
+  // A conta que recebe serve ao independente (carteira própria) e ao professor de Centro de
+  // Treinamento (repasse do centro). Planos/alunos/cobranças seguem só do independente.
+  if (!(await isTrainingCenterCoach(db, uid))) await assertIndependentProfessor(db, uid);
   const env = deps.env();
   const ref = accountRef(db, uid);
   // Marcador em transação: dois toques não criam duas subcontas.

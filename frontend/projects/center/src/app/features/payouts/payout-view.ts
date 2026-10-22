@@ -1,6 +1,6 @@
 import { formatDayKey } from '../../domain/dates';
 import { formatBRL } from '../../domain/money';
-import { PAY_RULE_LABEL, describeRule, type Payout, type PayoutCalc, type PayoutLine, type PayoutStatus, type PayRule } from '../../domain/payouts';
+import { PAY_RULE_LABEL, describeRule, transferLocked, type Payout, type PayoutCalc, type PayoutLine, type PayoutStatus, type PayRule } from '../../domain/payouts';
 import type { CsvCell } from '../../ui/csv';
 
 export interface PayoutRow {
@@ -81,7 +81,7 @@ export function payoutTotals(rows: readonly PayoutRow[]): PayoutTotals {
 
 /** Pode fechar: tem regra, valor, e ainda não foi pago. */
 export function canClose(r: PayoutRow): boolean {
-  return r.status !== 'paid' && r.rule.kind !== 'none' && (r.status === 'open' ? r.liveTotalCents > 0 : r.outdated);
+  return r.status !== 'paid' && !transferLocked(r.payout) && r.rule.kind !== 'none' && (r.status === 'open' ? r.liveTotalCents > 0 : r.outdated);
 }
 
 export function payoutsCsv(month: string, rows: readonly PayoutRow[]): CsvCell[][] {

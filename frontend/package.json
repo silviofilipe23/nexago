@@ -14,6 +14,8 @@
     "build:arena": "ng build arena --configuration production",
     "start:coach": "ng serve coach",
     "build:coach": "ng build coach --configuration production",
+    "start:center": "ng serve center",
+    "build:center": "ng build center --configuration production",
     "start:organizer": "ng serve organizer",
     "build:organizer": "ng build organizer --configuration production",
     "start:site": "ng serve site",
@@ -25,7 +27,7 @@
     "build:bplay": "rm -rf ../dist/bplay && mkdir -p ../dist/bplay && cp -R projects/bplay/. ../dist/bplay/ && rm -f ../dist/bplay/README.md",
     "start:cfc": "npx --yes serve projects/cfc -l 8124",
     "build:cfc": "rm -rf ../dist/cfc && mkdir -p ../dist/cfc && cp -R projects/cfc/. ../dist/cfc/ && rm -f ../dist/cfc/README.md",
-    "build:all": "ng run backoffice:build:production && ng run site:build:production && ng run arena:build:production && ng run athlete:build:production && ng run coach:build:production && ng run organizer:build:production && npm run build:vegeton && npm run build:bplay && npm run build:cfc",
+    "build:all": "ng run backoffice:build:production && ng run site:build:production && ng run arena:build:production && ng run athlete:build:production && ng run coach:build:production && ng run center:build:production && ng run organizer:build:production && npm run build:vegeton && npm run build:bplay && npm run build:cfc",
     "watch": "ng build backoffice --watch --configuration development",
     "test": "ng test backoffice",
     "test:backoffice": "ng test backoffice"

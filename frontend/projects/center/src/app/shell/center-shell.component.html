@@ -1,0 +1,139 @@
+@switch (phase()) {
+  @case ('loading') {
+    <div class="state"><span class="ct-spinner light" aria-hidden="true"></span><span class="ct-dim">Carregando o centro…</span></div>
+  }
+  @case ('no-member') {
+    <div class="state">
+      <div class="lock"><ct-icon name="shield" [size]="28" /></div>
+      <div class="ct-kick red">Acesso negado · 403</div>
+      <h1>Você não tem vínculo com este centro</h1>
+      <p>O acesso ao centro de treinamento é por convite. Peça ao owner do centro para te convidar com o e-mail da sua conta.</p>
+      <div class="ct-row ct-wrap center">
+        <a class="ct-mini-btn ct-mini-btn-primary" routerLink="/centros">Ver meus centros</a>
+      </div>
+    </div>
+  }
+  @case ('revoked') {
+    <div class="state">
+      <div class="lock"><ct-icon name="lock" [size]="26" /></div>
+      <div class="ct-kick red">Acesso revogado</div>
+      <h1>Seu acesso a {{ me()?.centerName || 'este centro' }} foi revogado</h1>
+      <p>Chamadas e registros que você fez continuam com o centro. Se foi engano, fale com o owner do centro para receber um novo convite.</p>
+      <div class="ct-row ct-wrap center">
+        <a class="ct-mini-btn ct-mini-btn-primary" routerLink="/centros">Ver meus centros</a>
+      </div>
+    </div>
+  }
+  @case ('missing') {
+    <div class="state">
+      <div class="ct-kick">Centro indisponível</div>
+      <h1>Não foi possível abrir este centro</h1>
+      <p>Ele pode ter sido removido ou você está sem conexão.</p>
+      <a class="ct-mini-btn" routerLink="/centros">Voltar</a>
+    </div>
+  }
+  @default {
+    <div class="shell">
+      <header class="topbar">
+        <button type="button" class="icon-btn" aria-label="Abrir menu" aria-controls="ct-nav" [attr.aria-expanded]="menuOpen()" (click)="menuOpen.set(!menuOpen())">
+          <ct-icon name="menu" [size]="20" />
+        </button>
+        <ct-center-avatar [id]="centerId()" [name]="center()!.name" [size]="26" />
+        <span class="top-name">{{ center()!.name }}</span>
+      </header>
+
+      @if (menuOpen()) {
+        <div class="backdrop" (click)="closeAll()" aria-hidden="true"></div>
+      }
+
+      <aside id="ct-nav" class="sidebar" [class.open]="menuOpen()">
+        <div class="brand">
+          <img class="mark" src="/brand/logo.png" alt="" width="30" height="30" />
+          <div class="wordmark">
+            <div class="name">nexa<span>GO</span></div>
+            <div class="tag">Centro de Treinamento</div>
+          </div>
+        </div>
+
+        <div class="switch-wrap">
+          <button type="button" class="switcher" [class.open]="switcherOpen()" [attr.aria-expanded]="switcherOpen()" (click)="switcherOpen.set(!switcherOpen())">
+            <ct-center-avatar [id]="centerId()" [name]="center()!.name" [size]="28" />
+            <span class="sw-body">
+              <span class="sw-name">{{ center()!.name }}</span>
+              <span class="sw-meta">{{ roleLabel().toUpperCase() }} · {{ otherCenters().length }} {{ otherCenters().length === 1 ? 'CENTRO' : 'CENTROS' }}</span>
+            </span>
+            <ct-icon name="chevron" [size]="13" class="sw-chev" />
+          </button>
+
+          @if (switcherOpen()) {
+            <div class="pop-backdrop" (click)="switcherOpen.set(false)"></div>
+            <div class="pop" role="menu">
+              <div class="ct-kick pop-kick">Seus centros · {{ otherCenters().length }} {{ otherCenters().length === 1 ? 'vínculo' : 'vínculos' }}</div>
+              @for (m of otherCenters(); track m.centerId) {
+                <button type="button" class="pop-item" role="menuitem" [class.on]="m.centerId === centerId()" (click)="switchTo(m.centerId)">
+                  <ct-center-avatar [id]="m.centerId" [name]="m.centerName || 'Centro'" [size]="36" />
+                  <span class="pop-txt">
+                    <span class="pop-name">{{ m.centerName || 'Centro' }}</span>
+                    <span class="pop-sub">{{ m.centerId === centerId() && ctx.isSuspended() ? 'Suspenso · somente leitura' : 'Papel e permissões deste centro' }}</span>
+                  </span>
+                  <span class="ct-tag" [class.orange]="m.role === 'center_owner'" [class.blue]="m.role === 'coach'">{{ roleLabels[m.role] }}</span>
+                </button>
+              }
+              <div class="pop-note">Cada centro tem papel e permissões próprios. Ao trocar, agenda, alunos e financeiro passam a mostrar só os dados do centro escolhido.</div>
+              <div class="ct-row pop-actions">
+                <a class="ct-mini-btn" routerLink="/centros">Todos os centros</a>
+                <a class="ct-mini-btn" routerLink="/centros/novo">Cadastrar novo centro</a>
+              </div>
+            </div>
+          }
+        </div>
+
+        <nav class="nav" aria-label="Painel do centro">
+          @for (g of groups(); track g.title) {
+            <div class="group">
+              <div class="ct-kick group-kick">{{ g.title }}</div>
+              @for (item of g.items; track item.area) {
+                <a class="nav-item" [routerLink]="['/centro', centerId(), item.path]" routerLinkActive="active" (click)="closeAll()">
+                  <ct-icon [name]="item.icon" [size]="17" />
+                  <span class="ct-grow">{{ item.label }}</span>
+                  @if (item.badge > 0) {
+                    <span class="badge">{{ item.badge }}</span>
+                  }
+                </a>
+              }
+            </div>
+          }
+        </nav>
+
+        <div class="spacer"></div>
+
+        <div class="user-row">
+          <span class="avatar" aria-hidden="true">{{ initials() }}</span>
+          <span class="who">
+            <span class="who-name">{{ displayName() }}</span>
+            <span class="ct-kick">{{ roleLabel() }}</span>
+          </span>
+          <button type="button" class="icon-btn small" aria-label="Sair" title="Sair" (click)="signOut()">
+            <ct-icon name="logout" [size]="15" />
+          </button>
+        </div>
+      </aside>
+
+      <main class="main">
+        @if (ctx.isSuspended()) {
+          <ct-banner tone="red" title="Centro suspenso · somente leitura">
+            A assinatura NexaGO está em atraso. Novas matrículas, cobranças e chamadas estão bloqueadas. Nenhum histórico foi apagado.
+          </ct-banner>
+        } @else if (ctx.isPending()) {
+          <ct-banner tone="orange" title="Centro pendente de ativação">
+            Dá para convidar a equipe e montar turmas e planos. Matrículas e cobranças liberam depois da ativação.
+            @if (ctx.isManager()) {
+              <a action class="ct-mini-btn" [routerLink]="['/centro', centerId(), 'ativacao']">Ver passos</a>
+            }
+          </ct-banner>
+        }
+        <router-outlet />
+      </main>
+    </div>
+  }
+}

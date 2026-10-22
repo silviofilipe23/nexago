@@ -1,0 +1,136 @@
+<ct-page-header title="Modalidades e níveis" [subtitle]="subtitle()">
+  @if (canEdit()) {
+    <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="openProgram(null)"><ct-icon name="plus" [size]="14" />Nova modalidade</button>
+  }
+</ct-page-header>
+
+<div class="page">
+  @if (!store.loaded.programs()) {
+    <div class="ct-empty">Carregando modalidades…</div>
+  } @else if (cards().length === 0) {
+    <div class="ct-card ct-empty">
+      Nenhuma modalidade ainda. Modalidade é o esporte (ex.: Beach Tennis) com os níveis em ordem de progressão — as turmas são criadas a partir dela.
+      @if (canEdit()) {
+        <div style="margin-top: 12px"><button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="openProgram(null)">Criar a primeira modalidade</button></div>
+      }
+    </div>
+  } @else {
+    <div class="cards">
+      @for (c of cards(); track c.program.id) {
+        <div class="ct-card">
+          <div class="ct-row">
+            <span class="sw" [style.background]="c.program.color"></span>
+            <span class="pname ct-grow ct-ellipsis">{{ c.program.name }}</span>
+            @if (canEdit()) {
+              <button type="button" class="ct-ghost-btn" (click)="openProgram(c.program)"><ct-icon name="edit" [size]="13" />Editar</button>
+            }
+          </div>
+          <div class="ct-row" style="gap: 20px; margin-top: 12px">
+            <div><div class="big">{{ c.classes }}</div><div class="ct-mono">turmas</div></div>
+            <div><div class="big">{{ seesEnrollments() ? c.students : '—' }}</div><div class="ct-mono">alunos</div></div>
+          </div>
+          <div class="ct-kick" style="margin: 16px 0 8px">Níveis · ordem de progressão</div>
+          @for (l of c.levels; track l.name; let i = $index) {
+            <div class="level">
+              <span class="idx">{{ (i + 1).toString().padStart(2, '0') }}</span>
+              <span class="ct-disp ct-grow ct-ellipsis">{{ l.name }}</span>
+              <span class="ct-mono">{{ l.classes }} turma(s)</span>
+            </div>
+          } @empty {
+            <div class="ct-dim">Sem níveis.</div>
+          }
+        </div>
+      }
+    </div>
+  }
+
+  <div class="ct-card">
+    <div class="ct-card-head">
+      <div class="ct-grow"><div class="ct-kick">Usadas para detectar conflitos de horário</div><div class="ct-card-title">Quadras e recursos</div></div>
+      @if (canEdit()) {
+        <button type="button" class="ct-mini-btn" (click)="openCourt(null)"><ct-icon name="plus" [size]="14" />Nova quadra</button>
+      }
+    </div>
+    <div class="courts">
+      @for (x of courtCards(); track x.court.id) {
+        @if (canEdit()) {
+          <button type="button" class="court" (click)="openCourt(x.court)">
+            <div class="ct-row"><span class="ct-disp ct-grow ct-ellipsis">{{ x.court.name }}</span><span class="ct-strong-mono">{{ x.inMaintenance ? '—' : x.occ.pct + '%' }}</span></div>
+            <div class="ct-dim" style="margin-top: 3px">{{ x.sub || 'Sem descrição' }}</div>
+          </button>
+        } @else {
+          <div class="court">
+            <div class="ct-row"><span class="ct-disp ct-grow ct-ellipsis">{{ x.court.name }}</span><span class="ct-strong-mono">{{ x.inMaintenance ? '—' : x.occ.pct + '%' }}</span></div>
+            <div class="ct-dim" style="margin-top: 3px">{{ x.sub || 'Sem descrição' }}</div>
+          </div>
+        }
+      } @empty {
+        <div class="ct-dim">Nenhuma quadra cadastrada. Sem quadra, a agenda não consegue avisar quando duas turmas disputam o mesmo espaço.</div>
+      }
+    </div>
+    @if (courtCards().length) {
+      <div class="ct-dim" style="margin-top: 12px">
+        Ocupação semanal = horas de aula por semana das turmas ativas na quadra ÷ horas disponíveis (06h–22h × 7 dias = 112 h). Rascunhos não entram.
+      </div>
+    }
+  </div>
+</div>
+
+@if (editingProgram(); as target) {
+  <ct-modal kicker="Modalidades" [title]="target === 'new' ? 'Nova modalidade' : 'Editar modalidade'" [width]="560" (closed)="editingProgram.set(null)">
+    <div class="ct-field"><label for="pg-name">Nome</label><input id="pg-name" class="ct-input" placeholder="Ex.: Beach Tennis" [value]="pName()" (input)="pName.set(value($event))" /></div>
+    <div class="ct-field">
+      <span class="ct-label">Cor na agenda</span>
+      <div class="colors">
+        @for (col of colors; track col) {
+          <button type="button" class="color" [class.on]="pColor() === col" [style.background]="col" [attr.aria-label]="'Cor ' + col" (click)="pColor.set(col)"></button>
+        }
+      </div>
+    </div>
+    <div class="ct-field">
+      <span class="ct-label">Níveis · do iniciante ao avançado</span>
+      @for (l of pLevels(); track $index; let i = $index; let first = $first; let last = $last) {
+        <div class="level">
+          <span class="idx">{{ (i + 1).toString().padStart(2, '0') }}</span>
+          <input class="ct-input ct-grow" [attr.aria-label]="'Nível ' + (i + 1)" [value]="l.name" [disabled]="levelUse(l) > 0" (input)="renameLevel(i, value($event))" />
+          <button type="button" class="ct-mini-btn icon-btn" aria-label="Subir nível" [disabled]="first" (click)="moveLevel(i, -1)">↑</button>
+          <button type="button" class="ct-mini-btn icon-btn" aria-label="Descer nível" [disabled]="last" (click)="moveLevel(i, 1)">↓</button>
+          <button type="button" class="ct-mini-btn icon-btn danger" aria-label="Remover nível" [disabled]="levelUse(l) > 0" [title]="levelUse(l) > 0 ? 'Usado por ' + levelUse(l) + ' turma(s)' : 'Remover'" (click)="removeLevel(i)"><ct-icon name="trash" [size]="13" /></button>
+        </div>
+      }
+      <div class="ct-row" style="margin-top: 6px">
+        <input class="ct-input ct-grow" placeholder="Novo nível (ex.: Intermediário)" aria-label="Novo nível" [value]="newLevel()" (input)="newLevel.set(value($event))" (keydown.enter)="addLevel()" />
+        <button type="button" class="ct-mini-btn" [disabled]="!newLevel().trim()" (click)="addLevel()"><ct-icon name="plus" [size]="13" />Adicionar nível</button>
+      </div>
+      <div class="ct-dim">Nível usado por turma não pode ser renomeado nem removido (a turma guarda o nome). Reordenar é livre.</div>
+    </div>
+    @if (error()) {
+      <div class="ct-error-text">{{ error() }}</div>
+    }
+    <div footer>
+      <button type="button" class="ct-mini-btn" (click)="editingProgram.set(null)">Cancelar</button>
+      <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="saveProgram()">{{ busy() ? 'Salvando…' : 'Salvar' }}</button>
+    </div>
+  </ct-modal>
+}
+
+@if (editingCourt(); as target) {
+  <ct-modal kicker="Quadras e recursos" [title]="target === 'new' ? 'Nova quadra' : 'Editar quadra'" [width]="500" (closed)="editingCourt.set(null)">
+    <div class="ct-field"><label for="ct-name">Nome</label><input id="ct-name" class="ct-input" placeholder="Ex.: Quadra 1" [value]="cName()" (input)="cName.set(value($event))" /></div>
+    <div class="ct-field"><label for="ct-desc">Descrição</label><input id="ct-desc" class="ct-input" placeholder="Ex.: Areia · coberta" [value]="cDesc()" (input)="cDesc.set(value($event))" /></div>
+    <div class="ct-form-grid">
+      <button type="button" class="ct-option" [class.on]="cStatus() === 'active'" (click)="cStatus.set('active')"><strong>Ativa</strong><span>Disponível para turmas</span></button>
+      <button type="button" class="ct-option" [class.on]="cStatus() === 'maintenance'" (click)="cStatus.set('maintenance')"><strong>Em manutenção</strong><span>Some das sugestões de horário</span></button>
+    </div>
+    @if (cStatus() === 'maintenance') {
+      <div class="ct-field"><label for="ct-until">Manutenção até</label><input id="ct-until" class="ct-input mono" type="date" [value]="cUntil()" (input)="cUntil.set(value($event))" /></div>
+    }
+    @if (error()) {
+      <div class="ct-error-text">{{ error() }}</div>
+    }
+    <div footer>
+      <button type="button" class="ct-mini-btn" (click)="editingCourt.set(null)">Cancelar</button>
+      <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="saveCourt()">{{ busy() ? 'Salvando…' : 'Salvar' }}</button>
+    </div>
+  </ct-modal>
+}

@@ -1,0 +1,102 @@
+<div class="page">
+  <header class="top">
+    <img class="mark" src="/brand/logo.png" alt="" width="30" height="30" />
+    <div class="wordmark">
+      <div class="name">nexa<span>GO</span></div>
+      <div class="ct-kick">Centro de Treinamento</div>
+    </div>
+    <div class="ct-grow"></div>
+    <span class="ct-mono who">{{ auth.email() }}</span>
+    <button type="button" class="ct-ghost-btn" (click)="signOut()"><ct-icon name="logout" [size]="15" />Sair</button>
+  </header>
+
+  <main class="body">
+    <div class="ct-kick">Olá, {{ auth.displayName() }}</div>
+    <h1>Seus centros</h1>
+    <p class="ct-muted lead">Cada centro tem papel e permissões próprios. A mesma conta NexaGO serve para os torneios no app.</p>
+
+    @if (error(); as err) {
+      <div class="ct-alert" role="alert">{{ err }}</div>
+    }
+    @if (info(); as msg) {
+      <div class="ct-box green note" role="status">{{ msg }}</div>
+    }
+
+    @if (!ctx.ready()) {
+      <div class="ct-empty"><span class="ct-spinner spin" aria-hidden="true"></span></div>
+    } @else {
+      @if (ctx.pendingInvites().length > 0) {
+        <section class="ct-card">
+          <div class="ct-card-head">
+            <div class="ct-grow">
+              <div class="ct-kick">Convites para {{ auth.email() }}</div>
+              <div class="ct-card-title">{{ ctx.pendingInvites().length }} {{ ctx.pendingInvites().length === 1 ? 'convite pendente' : 'convites pendentes' }}</div>
+            </div>
+          </div>
+          @if (!auth.emailVerified()) {
+            <div class="ct-box yellow verify">
+              <div class="ct-disp">Confirme seu e-mail para aceitar</div>
+              <div class="ct-dim">O convite foi enviado para este e-mail; confirmamos que ele é seu antes de liberar o acesso ao centro.</div>
+              <div class="ct-row ct-wrap">
+                <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="verifying()" (click)="resendVerification()">Enviar link de confirmação</button>
+                <button type="button" class="ct-mini-btn" [disabled]="verifying()" (click)="checkVerified()">Já confirmei</button>
+              </div>
+            </div>
+          }
+          @for (inv of ctx.pendingInvites(); track inv.id) {
+            <div class="ct-list-row">
+              <ct-center-avatar [id]="inv.centerId" [name]="inv.centerName || 'Centro'" [size]="40" />
+              <div class="ct-grow">
+                <div class="ct-disp">{{ inv.centerName || 'Centro de treinamento' }}</div>
+                <div class="ct-dim">Convite de {{ inv.invitedByName || 'um gestor' }} · papel <b>{{ roleLabels[inv.role] }}</b></div>
+              </div>
+              <div class="ct-row">
+                <button type="button" class="ct-ghost-btn" [disabled]="busyInvite() === inv.id" (click)="decline(inv)">Recusar</button>
+                <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busyInvite() === inv.id || !auth.emailVerified()" (click)="accept(inv)">Aceitar</button>
+              </div>
+            </div>
+          }
+        </section>
+      }
+
+      <section class="grid">
+        @for (m of memberships(); track m.centerId) {
+          @if (m.status === 'active') {
+            <a class="center" [routerLink]="['/centro', m.centerId, 'dashboard']">
+              <ct-center-avatar [id]="m.centerId" [name]="m.centerName || 'Centro'" [size]="44" />
+              <div class="ct-grow">
+                <div class="c-name">{{ m.centerName || 'Centro' }}</div>
+                <div class="ct-dim">Desde {{ m.joinedAt ? (m.joinedAt.getFullYear()) : '—' }}</div>
+              </div>
+              <span class="ct-tag" [class.orange]="m.role === 'center_owner'" [class.blue]="m.role === 'coach'">{{ roleLabels[m.role] }}</span>
+              <ct-icon name="chevron" [size]="14" class="chev" />
+            </a>
+          } @else {
+            <div class="center off">
+              <ct-center-avatar [id]="m.centerId" [name]="m.centerName || 'Centro'" [size]="44" />
+              <div class="ct-grow">
+                <div class="c-name">{{ m.centerName || 'Centro' }}</div>
+                <div class="ct-dim">Acesso revogado</div>
+              </div>
+              <span class="ct-tag red">Revogado</span>
+            </div>
+          }
+        }
+
+        <a class="center add" routerLink="/centros/novo">
+          <span class="plus"><ct-icon name="plus" [size]="18" /></span>
+          <div class="ct-grow">
+            <div class="c-name">Cadastrar novo centro</div>
+            <div class="ct-dim">Você vira owner. Ativação feita pelo time NexaGO.</div>
+          </div>
+        </a>
+      </section>
+
+      @if (memberships().length === 0 && ctx.pendingInvites().length === 0) {
+        <p class="ct-dim empty-note">
+          Você ainda não faz parte de nenhum centro. Se é professor ou recepção, peça ao owner do centro um convite para <b>{{ auth.email() }}</b>.
+        </p>
+      }
+    }
+  </main>
+</div>

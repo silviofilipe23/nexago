@@ -1,0 +1,138 @@
+<ct-modal [kicker]="cls() ? 'Turmas · ' + (locked() ? 'detalhes' : 'edição') : 'Turmas · nova'" [title]="title()" [width]="640" (closed)="closed.emit()">
+  @if (readonly() && !isEnded()) {
+    <div class="ct-dim">Somente leitura — turmas são editadas pelo owner ou admin do centro.</div>
+  }
+  <fieldset [disabled]="locked() || busy()">
+    <div class="ct-form-grid">
+      <div class="ct-field"><label for="cf-name">Nome</label><input id="cf-name" class="ct-input" placeholder="Ex.: BT Intermediário C" [value]="name()" (input)="name.set(value($event))" /></div>
+      <div class="ct-field">
+        <label for="cf-prog">Modalidade</label>
+        <select id="cf-prog" class="ct-input" [value]="programId()" (change)="setProgram(value($event))">
+          @for (p of store.programs(); track p.id) {
+            <option [value]="p.id" [selected]="p.id === programId()">{{ p.name }}</option>
+          }
+        </select>
+      </div>
+      <div class="ct-field">
+        <label for="cf-level">Nível</label>
+        <select id="cf-level" class="ct-input" [value]="level()" (change)="level.set(value($event))">
+          @for (l of levels(); track l) {
+            <option [value]="l" [selected]="l === level()">{{ l }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <div class="ct-form-grid">
+      <div class="ct-field">
+        <label for="cf-coach">Professor</label>
+        <select id="cf-coach" class="ct-input" [value]="coachUid()" (change)="coachUid.set(value($event))">
+          <option value="" [selected]="!coachUid()">Escolha…</option>
+          @for (m of store.coaches(); track m.uid) {
+            <option [value]="m.uid" [selected]="m.uid === coachUid()">{{ m.displayName }}</option>
+          }
+        </select>
+      </div>
+      <div class="ct-field"><label for="cf-cap">Capacidade (alunos)</label><input id="cf-cap" class="ct-input mono" type="number" [min]="minCapacity()" max="60" [value]="capacity()" (input)="capacity.set(numberValue($event))" /></div>
+      <div class="ct-field"><label for="cf-dur">Duração (min)</label><input id="cf-dur" class="ct-input mono" type="number" min="15" max="300" step="15" [value]="duration()" (input)="duration.set(numberValue($event))" /></div>
+    </div>
+
+    <div class="ct-field">
+      <span class="ct-label">Dias e horário</span>
+      <div class="days">
+        @for (w of week; track w.d) {
+          <button type="button" class="ct-day" [class.on]="weekdays().includes(w.d)" [attr.aria-pressed]="weekdays().includes(w.d)" (click)="toggleDay(w.d)">{{ w.label }}</button>
+        }
+        <input class="ct-input mono time" type="time" aria-label="Horário" [value]="startTime()" (input)="startTime.set(value($event))" />
+      </div>
+    </div>
+
+    <div class="ct-form-grid">
+      <div class="ct-field">
+        <label for="cf-court">Quadra</label>
+        <select id="cf-court" class="ct-input" [value]="courtId()" (change)="courtId.set(value($event))">
+          <option value="" [selected]="!courtId()">Escolha…</option>
+          @for (q of activeCourts(); track q.id) {
+            <option [value]="q.id" [selected]="q.id === courtId()">{{ q.name }}</option>
+          }
+        </select>
+      </div>
+      <div class="ct-field"><label for="cf-start">Início</label><input id="cf-start" class="ct-input mono" type="date" [disabled]="isActive()" [value]="startDate()" (input)="startDate.set(value($event))" /></div>
+      <div class="ct-field"><label for="cf-end">Fim (opcional)</label><input id="cf-end" class="ct-input mono" type="date" [value]="endDate()" (input)="endDate.set(value($event))" /></div>
+    </div>
+  </fieldset>
+
+  @if (store.coaches().length === 0 || store.courts().length === 0) {
+    <div class="ct-box yellow ct-dim">Para criar turma é preciso ter pelo menos um professor (Equipe) e uma quadra (Modalidades e níveis).</div>
+  }
+
+  @if (conflicts().length) {
+    <div class="ct-box red">
+      <div class="ct-row" style="gap: 8px"><ct-icon name="alert" [size]="16" style="color: var(--nx-live)" /><span class="conflict-title">{{ conflicts().length }} conflito{{ conflicts().length > 1 ? 's' : '' }} de horário</span></div>
+      @for (c of conflicts(); track $index) {
+        <div class="ct-row" style="margin-top: 8px; align-items: flex-start"><span class="ct-tag red">{{ c.kind }}</span><span class="ct-muted">{{ c.text }}</span></div>
+      }
+      @if (suggestions().length) {
+        <div class="ct-kick" style="margin: 14px 0 6px">Sugestões sem conflito</div>
+        <div class="ct-row ct-wrap" style="gap: 8px">
+          @for (s of suggestions(); track s.label) {
+            <button type="button" class="ct-chip" (click)="applySuggestion(s)">{{ s.label }}</button>
+          }
+        </div>
+      }
+    </div>
+  }
+
+  @if (seriesChanged()) {
+    <div class="ct-box series ct-col" style="gap: 12px">
+      <div class="ct-muted">Turma ativa: a mudança reescreve as aulas a partir da data abaixo. Aulas passadas, já realizadas ou alteradas uma a uma não mudam.</div>
+      <div class="ct-form-grid">
+        <div class="ct-field"><label for="cf-from">Vale a partir de</label><input id="cf-from" class="ct-input mono" type="date" [min]="today()" [value]="seriesFrom()" (input)="seriesFrom.set(value($event))" /></div>
+        <div class="ct-field"><label for="cf-reason">Motivo</label><input id="cf-reason" class="ct-input" placeholder="Fica na trilha de auditoria" [value]="reason()" (input)="reason.set(value($event))" /></div>
+      </div>
+    </div>
+  }
+
+  @if (!locked()) {
+    <div class="ct-dim">As aulas são geradas para as próximas 8 semanas e estendidas automaticamente ao abrir a agenda.</div>
+  }
+
+  @if (closing()) {
+    <div class="ct-box red ct-col" style="gap: 12px">
+      <div class="ct-muted">
+        Encerrar tira a turma da agenda daqui pra frente (aulas futuras sem chamada são removidas).
+        @if ((cls()?.seatsTaken ?? 0) > 0) {
+          {{ cls()!.seatsTaken }} matrícula(s) ainda ocupam vaga — cancele ou transfira em Matrículas.
+        }
+      </div>
+      <div class="ct-field"><label for="cf-close">Motivo do encerramento</label><input id="cf-close" class="ct-input" [value]="closeReason()" (input)="closeReason.set(value($event))" /></div>
+    </div>
+  }
+
+  @if (tried() && problems().length && !closing()) {
+    <div class="ct-error-text">{{ problems()[0] }}</div>
+  }
+  @if (error()) {
+    <div class="ct-error-text">{{ error() }}</div>
+  }
+
+  <div footer>
+    @if (locked()) {
+      <button type="button" class="ct-mini-btn" (click)="closed.emit()">Fechar</button>
+    } @else if (closing()) {
+      <button type="button" class="ct-mini-btn" (click)="closing.set(false)">Voltar</button>
+      <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="closeClass()">{{ busy() ? 'Encerrando…' : 'Encerrar turma' }}</button>
+    } @else {
+      @if (cls()) {
+        <button type="button" class="ct-ghost-btn danger" style="margin-right: auto" (click)="closing.set(true); error.set('')">Encerrar turma</button>
+      }
+      <button type="button" class="ct-mini-btn" (click)="closed.emit()">Cancelar</button>
+      @if (isActive()) {
+        <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="save(false)">{{ busy() ? 'Salvando…' : 'Salvar alterações' }}</button>
+      } @else {
+        <button type="button" class="ct-mini-btn" [disabled]="busy()" (click)="save(false)">{{ cls() ? 'Salvar rascunho' : 'Salvar como rascunho' }}</button>
+        <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="save(true)">{{ busy() ? 'Salvando…' : cls() ? 'Ativar e gerar aulas' : 'Criar e gerar aulas' }}</button>
+      }
+    }
+  </div>
+</ct-modal>

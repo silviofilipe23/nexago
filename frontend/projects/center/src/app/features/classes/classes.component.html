@@ -1,0 +1,65 @@
+<ct-page-header title="Turmas" [subtitle]="subtitle()">
+  @if (canEdit()) {
+    <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="store.programs().length === 0" (click)="open(null)"><ct-icon name="plus" [size]="14" />Nova turma</button>
+  }
+</ct-page-header>
+
+<div class="page">
+  <div class="ct-filter-bar">
+    <button type="button" class="ct-chip" [class.active]="program() === null" (click)="program.set(null)">Todas</button>
+    @for (p of store.programs(); track p.id) {
+      <button type="button" class="ct-chip" [class.active]="program() === p.id" (click)="program.set(p.id)"><span class="dot" [style.background]="p.color"></span>{{ p.name }}</button>
+    }
+    @if (isCoach()) {
+      <button type="button" class="ct-chip" [class.active]="onlyMine()" (click)="onlyMine.set(!onlyMine())">Só as minhas</button>
+    }
+    <div class="spacer"></div>
+    <ct-segmented [options]="tabs" [(value)]="tab" />
+  </div>
+
+  @if (!store.loaded.classes()) {
+    <div class="ct-empty">Carregando turmas…</div>
+  } @else if (store.classes().length === 0) {
+    <div class="ct-card ct-empty">
+      @if (store.programs().length === 0) {
+        Antes da primeira turma, cadastre uma modalidade com níveis em “Modalidades e níveis”.
+      } @else {
+        Nenhuma turma ainda. A turma é a regra (dias, horário, quadra, professor); as aulas são geradas a partir dela.
+        @if (canEdit()) {
+          <div style="margin-top: 12px"><button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="open(null)">Criar a primeira turma</button></div>
+        }
+      }
+    </div>
+  } @else {
+    <div class="grid">
+      @for (x of visible(); track x.c.id) {
+        <button type="button" class="card" (click)="open(x.c)">
+          <div class="ct-row" style="gap: 7px">
+            <span class="sw" [style.background]="x.program?.color || '#9AA0A6'"></span>
+            <span class="prog ct-grow ct-ellipsis">{{ x.program?.name || 'Modalidade removida' }} · {{ x.c.level }}</span>
+            <span class="ct-pill" [class]="'ct-pill ' + statusLabel[x.c.status][1]">{{ statusLabel[x.c.status][0] }}</span>
+          </div>
+          <div class="name">{{ x.c.name }}</div>
+          <div class="ct-mono rule">{{ x.rule }}</div>
+          <div class="ct-row" style="margin-top: 14px">
+            <ct-person class="ct-grow" [name]="x.c.coachName || 'Sem professor'" [colorKey]="x.c.coachUid" [size]="24" />
+            <div class="ct-bar bar" [class.full]="x.full"><span [style.width.%]="x.pct"></span></div>
+            <span class="seats" [class.full]="x.full">{{ x.c.seatsTaken }}/{{ x.c.capacity }}</span>
+          </div>
+          @if (x.waitlist > 0) {
+            <div class="wait">{{ x.full ? 'LOTADA · ' : '' }}{{ x.waitlist }} NA LISTA DE ESPERA</div>
+            <div class="ct-dim">Fila: {{ x.waitNames }}{{ x.waitlist > 3 ? '…' : '' }}</div>
+          } @else if (x.full && x.c.status === 'active') {
+            <div class="wait">LOTADA</div>
+          }
+        </button>
+      } @empty {
+        <div class="ct-empty">Nenhuma turma nesta aba.</div>
+      }
+    </div>
+  }
+</div>
+
+@if (modal(); as m) {
+  <ct-class-form-modal [cls]="m === 'new' ? null : m" [fromDate]="modalFrom()" [readonly]="!canEdit()" (closed)="close()" />
+}

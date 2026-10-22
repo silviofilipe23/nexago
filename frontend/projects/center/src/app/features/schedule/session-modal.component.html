@@ -1,0 +1,92 @@
+<ct-modal [kicker]="kicker()" [title]="session().className + (editable() && session().status !== 'cancelled' ? ' · alterar esta aula' : '')" [width]="560" (closed)="closed.emit()">
+  @if (session().status === 'cancelled') {
+    <div class="ct-box red">
+      <div class="ct-disp" style="color: var(--nx-live)">Aula cancelada</div>
+      @if (session().changeReason) {
+        <div class="ct-muted" style="margin-top: 4px">“{{ session().changeReason }}”</div>
+      }
+      <div class="ct-dim" style="margin-top: 6px">Reabrir não devolve créditos de reposição já concedidos.</div>
+    </div>
+  } @else if (!editable()) {
+    <div class="ct-box">
+      <div class="ct-kv"><span>Professor</span><span>{{ session().coachName || '—' }}</span></div>
+      <div class="ct-kv"><span>Quadra</span><span>{{ session().courtName || '—' }}</span></div>
+      <div class="ct-kv"><span>Chamada</span><span>{{ marked() ? marked() + ' marcação(ões)' : 'Não registrada' }}</span></div>
+      @if (session().changed) {
+        <div class="ct-kv"><span>Alterada</span><span>{{ session().changeReason || 'Sim' }}</span></div>
+      }
+    </div>
+    @if (canEdit() && isPast()) {
+      <div class="ct-dim">Aula passada ou já realizada — não dá para cancelar nem alterar.</div>
+    }
+  } @else {
+    <div class="ct-field">
+      <span class="ct-label">Aplicar em</span>
+      <div class="ct-form-grid">
+        <button type="button" class="ct-option on"><strong>Só esta aula</strong><span>{{ kicker().split(' · ')[0] }}</span></button>
+        <button type="button" class="ct-option" (click)="series.emit(session().date)"><strong>Esta e as próximas</strong><span>Edita a turma a partir desta data</span></button>
+      </div>
+    </div>
+    <div class="ct-row ct-wrap" style="gap: 8px">
+      @for (a of actionOptions; track a.value) {
+        <button type="button" class="ct-chip" [class.active]="action() === a.value" (click)="action.set(a.value); error.set('')">{{ a.label }}</button>
+      }
+    </div>
+
+    @switch (action()) {
+      @case ('time') {
+        <div class="ct-field"><label for="ss-time">Novo horário</label><input id="ss-time" class="ct-input mono" type="time" [value]="newTime()" (input)="newTime.set(value($event))" /></div>
+      }
+      @case ('coach') {
+        <div class="ct-field">
+          <label for="ss-coach">Professor substituto</label>
+          <select id="ss-coach" class="ct-input" [value]="newCoach()" (change)="newCoach.set(value($event))">
+            @for (m of store.coaches(); track m.uid) {
+              <option [value]="m.uid" [selected]="m.uid === newCoach()">{{ m.displayName }}</option>
+            }
+          </select>
+        </div>
+      }
+      @case ('court') {
+        <div class="ct-field">
+          <label for="ss-court">Outra quadra</label>
+          <select id="ss-court" class="ct-input" [value]="newCourt()" (change)="newCourt.set(value($event))">
+            @for (q of store.courts(); track q.id) {
+              <option [value]="q.id" [selected]="q.id === newCourt()" [disabled]="q.status === 'maintenance'">{{ q.name }}{{ q.status === 'maintenance' ? ' (manutenção)' : '' }}</option>
+            }
+          </select>
+        </div>
+      }
+    }
+
+    @if (clash()) {
+      <div class="ct-box red"><span class="ct-tag red">Conflito</span> <span class="ct-muted">{{ clash() }}</span></div>
+    }
+
+    <div class="ct-field">
+      <label for="ss-reason">Motivo (aparece para os alunos)</label>
+      <input id="ss-reason" class="ct-input" placeholder="Ex.: professor convocado para arbitrar torneio" [value]="reason()" (input)="reason.set(value($event))" />
+    </div>
+
+    <div class="ct-box">
+      <div class="ct-kv"><span>Alunos afetados</span><span>{{ enrolled() }} matriculado{{ enrolled() === 1 ? '' : 's' }}{{ makeups() ? ' + ' + makeups() + ' reposição' : '' }}</span></div>
+      @if (action() === 'cancel') {
+        <div class="ct-kv"><span>Créditos</span><span>{{ autoMakeup() ? 'Nenhum consumido · +' + (enrolled() + makeups()) + ' reposições' : 'Nenhum consumido · reposição manual' }}</span></div>
+      }
+      <div class="ct-kv"><span>Aulas passadas e outras datas</span><span>Não mudam</span></div>
+    </div>
+  }
+
+  @if (error()) {
+    <div class="ct-error-text">{{ error() }}</div>
+  }
+
+  <div footer>
+    <button type="button" class="ct-mini-btn" (click)="closed.emit()">Voltar</button>
+    @if (canEdit() && session().status === 'cancelled' && !isPast()) {
+      <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="restore()">{{ busy() ? 'Reabrindo…' : 'Reabrir aula' }}</button>
+    } @else if (editable() && session().status !== 'cancelled') {
+      <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy() || !!clash()" (click)="submit()">{{ busy() ? 'Salvando…' : primaryLabel() }}</button>
+    }
+  </div>
+</ct-modal>

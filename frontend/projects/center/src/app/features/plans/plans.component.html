@@ -1,0 +1,87 @@
+<ct-page-header title="Planos e pacotes" [subtitle]="subtitle()">
+  @if (canEdit()) {
+    <button type="button" class="ct-mini-btn" (click)="creating.set('class_pack')"><ct-icon name="plus" [size]="14" /> Novo pacote</button>
+    <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="creating.set('monthly')"><ct-icon name="plus" [size]="14" /> Novo plano mensal</button>
+  }
+</ct-page-header>
+
+<div class="page">
+  @if (error()) {
+    <div class="ct-error-text">{{ error() }}</div>
+  }
+
+  <div class="ct-kick">Mensalidades · aulas por semana</div>
+  <div class="grid">
+    @for (p of monthly(); track p.id) {
+      <ng-container [ngTemplateOutlet]="card" [ngTemplateOutletContext]="{ $implicit: p }" />
+    } @empty {
+      <div class="ct-dim">Nenhum plano mensal ainda.{{ canEdit() ? ' Crie o primeiro em “Novo plano mensal”.' : '' }}</div>
+    }
+  </div>
+
+  <div class="ct-kick" style="margin-top: 6px">Pacotes · créditos com validade</div>
+  <div class="grid">
+    @for (p of packs(); track p.id) {
+      <ng-container [ngTemplateOutlet]="card" [ngTemplateOutletContext]="{ $implicit: p }" />
+    } @empty {
+      <div class="ct-dim">Nenhum pacote ainda.{{ canEdit() ? ' Crie o primeiro em “Novo pacote”.' : '' }}</div>
+    }
+  </div>
+
+  <div class="explain">
+    <div>
+      <div class="ct-disp" style="font-weight: 700">Mensal</div>
+      <div class="ct-muted" style="margin-top: 4px">Vaga fixa na turma, renova todo mês. Falta não justificada conta como aula usada; justificada gera reposição.</div>
+    </div>
+    <div>
+      <div class="ct-disp" style="font-weight: 700">Pacote</div>
+      <div class="ct-muted" style="margin-top: 4px">Créditos usados em qualquer turma elegível com vaga. Cada aula consome 1 crédito; vencidos expiram.</div>
+    </div>
+  </div>
+</div>
+
+<ng-template #card let-p>
+  <div class="plan" [class.top]="p.featured && p.status === 'active'" [class.arch]="p.status === 'archived'">
+    <div class="ct-row" style="gap: 8px">
+      <span [class]="'ct-tag ' + (p.type === 'class_pack' ? 'blue' : 'orange')">{{ p.type === 'class_pack' ? 'Pacote' : 'Mensal' }}</span>
+      @if (p.featured) {
+        <span class="ct-tag green">Mais vendido</span>
+      }
+      @if (p.status === 'archived') {
+        <span class="ct-tag">Arquivado</span>
+      }
+      <span class="ct-grow"></span>
+      @if (seesContracts()) {
+        <span class="ct-mono" style="font-size: 10.5px">{{ contractCount(p) }} contrato{{ contractCount(p) === 1 ? '' : 's' }}</span>
+      }
+    </div>
+    <div class="name">{{ p.name }}</div>
+    <div class="price"><b>{{ formatBRL(priceNow(p)) }}</b><span class="ct-mono">{{ priceSuffix(p.type) }}</span></div>
+    @if (scheduled(p); as s) {
+      <div class="sched">{{ formatBRL(s.priceCents) }} a partir de {{ formatDayKey(s.effectiveFrom, true) }}</div>
+    }
+    <div class="rule">{{ planRule(p) }}</div>
+    <div class="ct-mono" style="margin-top: 4px; font-size: 10.5px">{{ programNames(p) }}</div>
+    @if (canEdit()) {
+      <div class="acts">
+        @if (p.status === 'active') {
+          <button type="button" class="ct-mini-btn" (click)="editing.set(p)"><ct-icon name="edit" [size]="13" /> Editar</button>
+          <button type="button" class="ct-mini-btn" (click)="pricing.set(p)">Alterar preço</button>
+        }
+        <button type="button" class="ct-ghost-btn" [disabled]="busyId() === p.id" (click)="toggleArchived(p)">
+          {{ busyId() === p.id ? 'Salvando…' : p.status === 'archived' ? 'Restaurar' : 'Arquivar' }}
+        </button>
+      </div>
+    }
+  </div>
+</ng-template>
+
+@if (creating(); as type) {
+  <ct-plan-form [type]="type" [plan]="null" (closed)="creating.set(null)" />
+}
+@if (editing(); as p) {
+  <ct-plan-form [type]="p.type" [plan]="p" (closed)="editing.set(null)" />
+}
+@if (pricing(); as p) {
+  <ct-plan-price [plan]="p" [contracts]="contracts().get(p.id) ?? null" [seesContracts]="seesContracts()" (closed)="pricing.set(null)" />
+}

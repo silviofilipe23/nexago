@@ -1,0 +1,133 @@
+<ct-page-header title="Equipe" [subtitle]="summary()">
+  @if (canInvite()) {
+    <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="inviteOpen.set(true)"><ct-icon name="mail" [size]="14" />Convidar pessoa</button>
+  }
+</ct-page-header>
+
+<div class="body">
+  <div class="ct-grid-aside">
+    <section class="ct-card flush">
+      @if (!store.loaded.members()) {
+        <div class="ct-empty">Carregando…</div>
+      } @else {
+        <div class="ct-table" style="--cols: minmax(180px, 1.5fr) 100px minmax(140px, 1fr) 100px 100px; --min-w: 720px">
+          <div class="ct-thead"><span>Pessoa</span><span>Papel</span><span>Modalidades</span><span>Situação</span><span>Desde</span></div>
+          @for (r of rows(); track r.key) {
+            <button type="button" class="ct-tr" [class.hi]="selected()?.key === r.key" [attr.aria-pressed]="selected()?.key === r.key" (click)="select(r.key)">
+              <ct-person [name]="r.name" [sub]="r.email" [colorKey]="r.kind === 'member' ? r.member.uid : r.email" />
+              <span><span class="ct-tag" [class]="'ct-tag ' + roleTone[r.role]">{{ roleLabels[r.role] }}</span></span>
+              <span class="ct-ellipsis">
+                <span style="color: var(--nx-text)">{{ programNames(r.programIds) || '—' }}</span>
+                @if (extrasShort(r); as x) {
+                  <span class="ct-mono" style="display: block">{{ x }}</span>
+                }
+              </span>
+              <span><span class="ct-pill" [class]="'ct-pill ' + statusLabel[r.status][1]">{{ statusLabel[r.status][0] }}</span></span>
+              <span class="ct-mono">{{ day(r.since) }}</span>
+            </button>
+          } @empty {
+            <div class="ct-empty">Ninguém na equipe ainda. Convide professores e recepção.</div>
+          }
+        </div>
+      }
+    </section>
+
+    <div class="ct-col">
+      @if (selected(); as r) {
+        <section class="ct-card">
+          <div class="ct-card-head">
+            <div class="ct-grow">
+              <div class="ct-kick">{{ r.kind === 'invite' ? 'Convite pendente · ' : '' }}{{ roleLabels[r.role] }}{{ selectedPrograms() ? ' · ' + selectedPrograms() : '' }}</div>
+              <div class="ct-card-title">{{ r.name }}</div>
+            </div>
+            @if (r.kind === 'member' && r.status === 'active' && canManageSelected()) {
+              <button type="button" class="ct-ghost-btn danger" [disabled]="busy()" (click)="openRevoke()">Revogar</button>
+            }
+          </div>
+
+          @if (r.kind === 'member') {
+            @if (r.status === 'revoked') {
+              <p class="ct-muted">Acesso revogado em {{ instant(r.member.revokedAt) }}. Chamadas e histórico registrados continuam com o centro.</p>
+            } @else {
+              <p class="ct-muted">Conta NexaGO única — a mesma pessoa pode ter vínculo com outros centros ou jogar torneios como atleta. Papel e permissões abaixo valem só neste centro.</p>
+            }
+            <div class="ct-kick sec">Permissões neste centro</div>
+            @for (p of perms(); track p.perm) {
+              <div class="perm" [class.on]="p.on">
+                <span class="ct-grow">{{ permLabels[p.perm] }}</span>
+                @if (p.extra) {
+                  <span class="ct-tag orange">Extra</span>
+                }
+                <ct-toggle
+                  [on]="p.on"
+                  [label]="permLabels[p.perm]"
+                  [disabled]="p.isDefault || !canManageSelected() || r.status !== 'active' || busy()"
+                  (onChange)="togglePerm(p.perm, $event)"
+                />
+              </div>
+            }
+            @if (!canManageSelected() && r.status === 'active') {
+              <p class="ct-dim" style="margin-top: 10px">
+                @if (r.member.uid === ctx.me()?.uid) {
+                  Estas são as suas permissões; outra pessoa da gestão é quem altera.
+                } @else {
+                  Seu papel não altera as permissões desta pessoa.
+                }
+              </p>
+            }
+            @if (selectedClasses().length) {
+              <div class="ct-mono" style="margin-top: 10px">Turmas: {{ selectedClasses().join(', ') }}</div>
+            }
+          } @else {
+            <div class="ct-kv"><span>E-mail</span><span>{{ r.email }}</span></div>
+            <div class="ct-kv"><span>Enviado</span><span>{{ instant(r.invite.createdAt) }}</span></div>
+            <div class="ct-kv"><span>Por</span><span>{{ r.invite.invitedByName || '—' }}</span></div>
+            <p class="ct-dim" style="margin-top: 12px">O vínculo nasce quando a pessoa entra com esse e-mail e aceita o convite. Permissões extras podem ser liberadas depois.</p>
+            @if (canManageSelected()) {
+              <div class="ct-row ct-wrap" style="margin-top: 14px">
+                <button type="button" class="ct-mini-btn danger" [disabled]="busy()" (click)="cancelInvite()">
+                  {{ busy() ? 'Cancelando…' : confirmCancel() ? 'Confirmar cancelamento' : 'Cancelar convite' }}
+                </button>
+                @if (confirmCancel() && !busy()) {
+                  <button type="button" class="ct-ghost-btn" (click)="confirmCancel.set(false)">Manter</button>
+                }
+              </div>
+            }
+          }
+          @if (error()) {
+            <p class="ct-error-text" role="alert" style="margin-top: 10px">{{ error() }}</p>
+          }
+        </section>
+      } @else {
+        <section class="ct-card">
+          <div class="ct-card-title">Selecione uma pessoa</div>
+          <p class="ct-dim" style="margin-top: 6px">Veja papel, modalidades e permissões de quem está na equipe ou foi convidado.</p>
+        </section>
+      }
+      <ct-banner tone="yellow" [inline]="true" title="Revogar tem efeito imediato">
+        A pessoa perde o acesso na próxima ação, mesmo com o app aberto. Chamadas e histórico já registrados continuam com o centro.
+      </ct-banner>
+    </div>
+  </div>
+</div>
+
+@if (inviteOpen()) {
+  <ct-invite-modal (closed)="inviteOpen.set(false)" (invited)="onInvited($event)" />
+}
+
+@if (revokeOpen() && selected(); as r) {
+  <ct-modal kicker="Equipe" [title]="'Revogar acesso de ' + r.name" [width]="480" (closed)="closeRevoke()">
+    <p class="ct-muted" style="margin: 0">O acesso a {{ ctx.center()?.name }} termina na hora. A conta NexaGO da pessoa e o histórico do centro continuam.</p>
+    <div class="ct-field">
+      <label for="rv-reason">Motivo</label>
+      <textarea id="rv-reason" class="ct-input" [value]="revokeReason()" (input)="revokeReason.set(inputValue($event))" [disabled]="busy()"></textarea>
+    </div>
+    @if (revokeError()) {
+      <p class="ct-error-text" role="alert" style="margin: 0">{{ revokeError() }}</p>
+    }
+    <div footer>
+      <button type="button" class="ct-mini-btn" [disabled]="busy()" (click)="closeRevoke()">Voltar</button>
+      <button type="button" class="ct-mini-btn danger" [disabled]="busy()" (click)="revoke()">{{ busy() ? 'Revogando…' : 'Revogar acesso' }}</button>
+    </div>
+  </ct-modal>
+}

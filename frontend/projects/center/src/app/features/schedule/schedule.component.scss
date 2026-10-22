@@ -1,0 +1,62 @@
+.page { padding: 20px var(--ct-gutter) 26px; display: flex; flex-direction: column; gap: 16px; }
+.nav { display: flex; align-items: center; gap: 6px; }
+.icon { width: 32px; padding: 0; justify-content: center; }
+.range { margin-left: 6px; }
+.sel { width: 220px; height: 34px; }
+
+.grid-card { padding: 0; position: relative; }
+// Semana rola na horizontal dentro do card (no mobile a visão Dia é a padrão).
+.scroller { overflow-x: auto; }
+.inner { --n: 7; min-width: 0; }
+.inner.week { min-width: 820px; }
+.head, .body { display: grid; grid-template-columns: 56px repeat(var(--n), minmax(0, 1fr)); }
+.head { border-bottom: 1px solid var(--nx-line); }
+.dh { padding: 11px 12px; border-left: 1px solid var(--nx-line); display: flex; align-items: baseline; gap: 8px; }
+.dn { font-family: var(--nx-font-display); font-weight: 800; font-size: 17px; color: var(--nx-text); }
+.dh.today .ct-kick, .dh.today .dn { color: var(--nx-orange-500); }
+.body { position: relative; }
+.hr { font-family: var(--nx-font-mono); font-size: 10px; color: var(--nx-text-dim); text-align: right; padding: 4px 10px 0 0; }
+.col { position: relative; border-left: 1px solid var(--nx-line); }
+.col.today { background: rgba(255, 106, 26, 0.03); }
+.slot { border-top: 1px solid rgba(255, 255, 255, 0.04); }
+.slot.first { border-top: none; }
+
+.ev {
+  position: absolute;
+  border-radius: 9px;
+  padding: 4px 7px;
+  overflow: hidden;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--nx-text);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: color-mix(in srgb, var(--c) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c) 33%, transparent);
+}
+.ev:hover { border-color: var(--c); }
+.ev .t { font-family: var(--nx-font-mono); font-size: 9px; font-weight: 700; color: var(--c); white-space: nowrap; }
+.ev .n { font-family: var(--nx-font-display); font-weight: 600; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev .s { font-size: 10.5px; color: var(--nx-text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev.changed { box-shadow: inset 3px 0 0 var(--nx-pending); }
+.ev.changed .t { color: var(--nx-pending); }
+.ev.draft { background: color-mix(in srgb, var(--c) 5%, transparent); border-style: dashed; }
+.ev.cancel {
+  background: repeating-linear-gradient(135deg, rgba(255, 59, 48, 0.1) 0 5px, transparent 5px 10px);
+  border-color: rgba(255, 59, 48, 0.4);
+  box-shadow: none;
+}
+.ev.cancel .t { color: var(--nx-live); }
+.ev.cancel .n { text-decoration: line-through; color: var(--nx-text-mute); }
+
+.now { position: absolute; left: 0; right: 0; height: 2px; background: var(--nx-live); pointer-events: none; z-index: 2; }
+.now::before { content: ''; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--nx-live); }
+
+.empty { position: absolute; inset: 60px 16px auto; display: grid; place-items: center; pointer-events: none; }
+.empty .ct-card { pointer-events: auto; text-align: center; max-width: 360px; background: var(--nx-surface-1); }
+
+@media (max-width: 700px) {
+  .sel { width: 100%; }
+}

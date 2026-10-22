@@ -1,0 +1,169 @@
+import { Injectable } from '@angular/core';
+import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { DEFAULT_POLICIES, PROGRAM_COLORS, slugify, type CenterPolicies, type TrainingCenter } from '../../domain/models';
+import { CENTERS, db } from '../firebase';
+import { CenterActionsBase } from './actor';
+
+export interface NewCenterInput {
+  name: string;
+  legalName: string;
+  cnpj: string;
+  contactEmail: string;
+  contactPhone: string;
+  city: string;
+  state: string;
+  address: string;
+  sports: string[];
+}
+
+export type CenterProfilePatch = Pick<
+  TrainingCenter,
+  'name' | 'legalName' | 'cnpj' | 'contactEmail' | 'contactPhone' | 'city' | 'state' | 'address' | 'timezone'
+>;
+
+const DEFAULT_LEVELS = ['Iniciante', 'Intermediário', 'Avançado'];
+
+const POLICY_LABELS: Partial<Record<keyof CenterPolicies, string>> = {
+  activation: 'Ativação da matrícula',
+  unexcusedAbsenceConsumes: 'Falta não justificada',
+  excusedAbsenceMakeup: 'Falta justificada',
+  makeupValidityDays: 'Validade da reposição',
+  cancelledClassMakeup: 'Aula cancelada pelo centro',
+  makeupScope: 'Onde repor',
+  monthlyCancellation: 'Cancelamento de plano mensal',
+  allowPause: 'Pausa de matrícula',
+  waitlistEnabled: 'Lista de espera',
+  pendingHoldHours: 'Reserva da vaga pendente',
+};
+
+/** Cadastro e configurações do centro. */
+@Injectable({ providedIn: 'root' })
+export class CenterActions extends CenterActionsBase {
+  /**
+   * Cria o centro em situação PENDENTE com o usuário como owner. Dois passos porque as rules das
+   * subcoleções exigem o vínculo já gravado: (1) centro + vínculo do owner num batch, (2)
+   * modalidades iniciais + auditoria. Ativar é do backoffice NexaGO.
+   */
+  async createCenter(input: NewCenterInput): Promise<string> {
+    const a = this.actor();
+    const email = this.auth.email() ?? '';
+    const centerRef = doc(collection(db(), CENTERS));
+    const id = centerRef.id;
+    const name = input.name.trim();
+
+    const b1 = writeBatch(db());
+    b1.set(centerRef, {
+      name,
+      legalName: input.legalName.trim(),
+      cnpj: input.cnpj.trim(),
+      slug: slugify(name) || id,
+      timezone: 'America/Sao_Paulo',
+      sports: input.sports,
+      status: 'pending',
+      ownerUid: a.uid,
+      ownerName: this.auth.displayName(),
+      contactEmail: input.contactEmail.trim().toLowerCase(),
+      contactPhone: input.contactPhone.trim(),
+      city: input.city.trim(),
+      state: input.state.trim().toUpperCase(),
+      address: input.address.trim(),
+      policies: { ...DEFAULT_POLICIES },
+      receivingConnected: false,
+      subscription: null,
+      createdAt: serverTimestamp(),
+    });
+    b1.set(doc(db(), CENTERS, id, 'centerMembers', a.uid), {
+      uid: a.uid,
+      centerId: id,
+      centerName: name,
+      role: 'center_owner',
+      status: 'active',
+      displayName: this.auth.displayName(),
+      email,
+      extraPerms: [],
+      programIds: [],
+      inviteId: null,
+      joinedAt: serverTimestamp(),
+    });
+    await b1.commit();
+
+    const b2 = writeBatch(db());
+    input.sports.forEach((sport, i) => {
+      b2.set(doc(collection(db(), CENTERS, id, 'programs')), {
+        name: sport,
+        color: PROGRAM_COLORS[i % PROGRAM_COLORS.length],
+        levels: [...DEFAULT_LEVELS],
+        order: i,
+      });
+    });
+    b2.set(doc(collection(db(), CENTERS, id, 'auditLogs')), {
+      at: serverTimestamp(),
+      actorUid: a.uid,
+      actorName: this.auth.displayName(),
+      action: 'center.created',
+      entity: 'center',
+      entityId: id,
+      detail: `Centro criado · ${name}`,
+      reason: '',
+    });
+    await b2.commit();
+    return id;
+  }
+
+  async updateProfile(patch: CenterProfilePatch): Promise<void> {
+    const b = writeBatch(db());
+    b.update(this.centerRef(), {
+      ...patch,
+      name: patch.name.trim(),
+      contactEmail: patch.contactEmail.trim().toLowerCase(),
+      state: patch.state.trim().toUpperCase(),
+    });
+    const audit = this.auditDoc({ action: 'center.profile', entity: 'center', entityId: this.centerId(), detail: 'Dados do centro atualizados' });
+    b.set(audit.ref, audit.data);
+    await b.commit();
+  }
+
+  /** Políticas valem para NOVOS contratos — matrículas guardam a cópia do dia da contratação. */
+  async updatePolicies(before: CenterPolicies, next: CenterPolicies, reason: string): Promise<void> {
+    const changed = (Object.keys(next) as (keyof CenterPolicies)[]).filter((k) => before[k] !== next[k]);
+    if (changed.length === 0) {
+      return;
+    }
+    const b = writeBatch(db());
+    b.update(this.centerRef(), { policies: next });
+    const detail = changed
+      .map((k) => `${POLICY_LABELS[k] ?? k}: ${String(before[k])} → ${String(next[k])}`)
+      .join(' · ');
+    const audit = this.auditDoc({ action: 'center.policies', entity: 'center', entityId: this.centerId(), detail, reason });
+    b.set(audit.ref, audit.data);
+    await b.commit();
+  }
+
+  async requestActivation(): Promise<void> {
+    const b = writeBatch(db());
+    b.update(this.centerRef(), { activationRequestedAt: serverTimestamp() });
+    const audit = this.auditDoc({ action: 'center.activation_requested', entity: 'center', entityId: this.centerId(), detail: 'Ativação solicitada ao time NexaGO' });
+    b.set(audit.ref, audit.data);
+    await b.commit();
+  }
+
+  /**
+   * Registra a tentativa de acesso negado (W6). Qualquer membro ativo pode criar a linha; se o
+   * usuário nem tem vínculo com o centro, a rule nega e a falha é silenciosa.
+   */
+  async logDenied(centerId: string, area: string, roleLabel: string): Promise<void> {
+    const a = this.actor();
+    const b = writeBatch(db());
+    b.set(doc(collection(db(), CENTERS, centerId, 'auditLogs')), {
+      at: serverTimestamp(),
+      actorUid: a.uid,
+      actorName: this.auth.displayName(),
+      action: 'access.denied',
+      entity: 'area',
+      entityId: area,
+      detail: `Acesso negado a ${area} (papel: ${roleLabel})`,
+      reason: '',
+    });
+    await b.commit();
+  }
+}

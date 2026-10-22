@@ -1,0 +1,152 @@
+import { Routes } from '@angular/router';
+import { areaGuard, authGuard, centersHomeGuard, guestGuard } from './core/guards';
+
+const T = (t: string) => `${t} — NexaGO Centro de Treinamento`;
+
+export const routes: Routes = [
+  { path: '', pathMatch: 'full', redirectTo: 'centros' },
+  {
+    path: 'entrar',
+    title: T('Entrar'),
+    canActivate: [guestGuard],
+    loadComponent: () => import('./auth/login.component').then((m) => m.LoginComponent),
+  },
+  {
+    path: 'entrar/recuperar',
+    title: T('Recuperar senha'),
+    loadComponent: () => import('./auth/forgot-password.component').then((m) => m.ForgotPasswordComponent),
+  },
+  {
+    path: 'entrar/enviado',
+    title: T('E-mail enviado'),
+    loadComponent: () => import('./auth/email-sent.component').then((m) => m.EmailSentComponent),
+  },
+  {
+    path: 'entrar/redefinir',
+    title: T('Redefinir senha'),
+    loadComponent: () => import('./auth/reset-password.component').then((m) => m.ResetPasswordComponent),
+  },
+  {
+    path: 'cadastro',
+    title: T('Criar conta'),
+    canActivate: [guestGuard],
+    loadComponent: () => import('./auth/signup.component').then((m) => m.SignupComponent),
+  },
+  {
+    path: 'centros',
+    title: T('Seus centros'),
+    canActivate: [authGuard, centersHomeGuard],
+    loadComponent: () => import('./features/centers/centers-home.component').then((m) => m.CentersHomeComponent),
+  },
+  {
+    path: 'centros/novo',
+    title: T('Cadastrar centro'),
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/centers/new-center.component').then((m) => m.NewCenterComponent),
+  },
+  {
+    path: 'centro/:centerId',
+    canActivate: [authGuard],
+    loadComponent: () => import('./shell/center-shell.component').then((m) => m.CenterShellComponent),
+    children: [
+      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+      {
+        path: 'dashboard',
+        title: T('Dashboard'),
+        canActivate: [areaGuard],
+        data: { area: 'dashboard' },
+        loadComponent: () => import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
+      },
+      {
+        path: 'agenda',
+        title: T('Agenda'),
+        canActivate: [areaGuard],
+        data: { area: 'schedule' },
+        loadComponent: () => import('./features/schedule/schedule.component').then((m) => m.ScheduleComponent),
+      },
+      {
+        path: 'turmas',
+        title: T('Turmas'),
+        canActivate: [areaGuard],
+        data: { area: 'classes' },
+        loadComponent: () => import('./features/classes/classes.component').then((m) => m.ClassesComponent),
+      },
+      {
+        path: 'matriculas',
+        title: T('Matrículas'),
+        canActivate: [areaGuard],
+        data: { area: 'enrollments' },
+        loadComponent: () => import('./features/enrollments/enrollments.component').then((m) => m.EnrollmentsComponent),
+      },
+      {
+        path: 'alunos',
+        title: T('Alunos'),
+        canActivate: [areaGuard],
+        data: { area: 'students' },
+        loadComponent: () => import('./features/students/students.component').then((m) => m.StudentsComponent),
+      },
+      {
+        path: 'alunos/:studentId',
+        title: T('Aluno'),
+        canActivate: [areaGuard],
+        data: { area: 'students' },
+        loadComponent: () => import('./features/students/student-detail.component').then((m) => m.StudentDetailComponent),
+      },
+      {
+        path: 'planos',
+        title: T('Planos e pacotes'),
+        canActivate: [areaGuard],
+        data: { area: 'plans' },
+        loadComponent: () => import('./features/plans/plans.component').then((m) => m.PlansComponent),
+      },
+      {
+        path: 'financeiro',
+        title: T('Financeiro'),
+        canActivate: [areaGuard],
+        data: { area: 'finance' },
+        loadComponent: () => import('./features/finance/finance.component').then((m) => m.FinanceComponent),
+      },
+      {
+        path: 'relatorios',
+        title: T('Relatórios'),
+        canActivate: [areaGuard],
+        data: { area: 'reports' },
+        loadComponent: () => import('./features/reports/reports.component').then((m) => m.ReportsComponent),
+      },
+      {
+        path: 'modalidades',
+        title: T('Modalidades e níveis'),
+        canActivate: [areaGuard],
+        data: { area: 'programs' },
+        loadComponent: () => import('./features/programs/programs.component').then((m) => m.ProgramsComponent),
+      },
+      {
+        path: 'equipe',
+        title: T('Equipe'),
+        canActivate: [areaGuard],
+        data: { area: 'members' },
+        loadComponent: () => import('./features/members/members.component').then((m) => m.MembersComponent),
+      },
+      {
+        path: 'configuracoes',
+        title: T('Configurações'),
+        canActivate: [areaGuard],
+        data: { area: 'settings' },
+        loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent),
+      },
+      {
+        path: 'ativacao',
+        title: T('Ativar centro'),
+        canActivate: [areaGuard],
+        data: { area: 'settings' },
+        loadComponent: () => import('./features/settings/activation.component').then((m) => m.ActivationComponent),
+      },
+      {
+        path: 'acesso-negado',
+        title: T('Acesso negado'),
+        loadComponent: () => import('./features/access/denied.component').then((m) => m.DeniedComponent),
+      },
+    ],
+  },
+  { path: '**', redirectTo: 'centros' },
+];

@@ -1,0 +1,256 @@
+<ct-page-header title="Configurações do centro" subtitle="Dados · Políticas · Quadras · Assinatura NexaGO">
+  @if (ctx.isPending() && ctx.isManager()) {
+    <a class="ct-mini-btn" [routerLink]="['/centro', centerId(), 'ativacao']">Passos da ativação</a>
+  }
+</ct-page-header>
+
+<div class="body">
+  <div class="tabs"><ct-segmented [options]="tabs" [value]="tab()" (valueChange)="selectTab($event)" /></div>
+
+  @if (!editable() && tab() !== 'assinatura' && tab() !== 'quadras') {
+    <ct-banner tone="blue" [inline]="true" title="Somente leitura">
+      @if (ctx.isSuspended()) {
+        Centro suspenso: as configurações voltam a ser editáveis quando a assinatura for regularizada.
+      } @else {
+        Só owner e admin do centro alteram estas configurações.
+      }
+    </ct-banner>
+  }
+
+  @if (ctx.center(); as c) {
+    @switch (tab()) {
+      @case ('dados') {
+        <div class="ct-grid-aside">
+          <form class="ct-card" [formGroup]="form" (ngSubmit)="saveProfile()">
+            <div class="ct-card-head">
+              <div class="ct-grow">
+                <div class="ct-kick">Cadastro</div>
+                <div class="ct-card-title">Dados do centro</div>
+              </div>
+            </div>
+            <div class="ct-form-grid">
+              <div class="ct-field wide">
+                <label for="st-name">Nome do centro</label>
+                <input id="st-name" class="ct-input" formControlName="name" [class.invalid]="invalidCtl('name')" />
+                @if (invalidCtl('name')) {
+                  <span class="ct-field-error">Informe o nome do centro.</span>
+                }
+              </div>
+              <div class="ct-field">
+                <label for="st-legal">Razão social</label>
+                <input id="st-legal" class="ct-input" formControlName="legalName" />
+              </div>
+              <div class="ct-field">
+                <label for="st-cnpj">CNPJ</label>
+                <input id="st-cnpj" class="ct-input mono" formControlName="cnpj" inputmode="numeric" />
+              </div>
+              <div class="ct-field">
+                <label for="st-email">E-mail de contato</label>
+                <input id="st-email" class="ct-input" type="email" formControlName="contactEmail" [class.invalid]="invalidCtl('contactEmail')" />
+                @if (invalidCtl('contactEmail')) {
+                  <span class="ct-field-error">E-mail inválido.</span>
+                }
+              </div>
+              <div class="ct-field">
+                <label for="st-phone">Telefone</label>
+                <input id="st-phone" class="ct-input" type="tel" formControlName="contactPhone" />
+              </div>
+              <div class="ct-field wide">
+                <label for="st-address">Endereço</label>
+                <input id="st-address" class="ct-input" formControlName="address" />
+              </div>
+              <div class="ct-field">
+                <label for="st-city">Cidade</label>
+                <input id="st-city" class="ct-input" formControlName="city" />
+              </div>
+              <div class="ct-field">
+                <label for="st-state">UF</label>
+                <input id="st-state" class="ct-input" formControlName="state" maxlength="2" />
+              </div>
+              <div class="ct-field">
+                <label for="st-tz">Fuso horário</label>
+                <select id="st-tz" class="ct-input" formControlName="timezone">
+                  @for (z of tzOptions(); track z) {
+                    <option [value]="z">{{ z }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+            @if (editable()) {
+              <div class="save">
+                <button type="submit" class="ct-mini-btn ct-mini-btn-primary" [disabled]="profileBusy() || form.pristine">
+                  {{ profileBusy() ? 'Salvando…' : 'Salvar alterações' }}
+                </button>
+                @if (form.dirty) {
+                  <button type="button" class="ct-ghost-btn" [disabled]="profileBusy()" (click)="discardProfile()">Descartar</button>
+                }
+                @if (profileSaved() && form.pristine) {
+                  <span class="ct-dim">Dados salvos.</span>
+                }
+              </div>
+              @if (profileError()) {
+                <p class="ct-error-text" role="alert">{{ profileError() }}</p>
+              }
+            }
+          </form>
+
+          <section class="ct-card">
+            <div class="ct-card-head">
+              <div class="ct-grow">
+                <div class="ct-kick">Centro</div>
+                <div class="ct-card-title">{{ c.name }}</div>
+              </div>
+              <span class="ct-pill" [class]="'ct-pill ' + statusLabel[c.status][1]">{{ statusLabel[c.status][0] }}</span>
+            </div>
+            <div class="ct-kv"><span>Responsável</span><span>{{ c.ownerName || '—' }}</span></div>
+            <div class="ct-kv mono"><span>Identificador</span><span>{{ c.slug }}</span></div>
+            <div class="ct-kv mono"><span>Fuso</span><span>{{ c.timezone }}</span></div>
+            <div class="ct-kv"><span>Criado em</span><span>{{ dates().created }}</span></div>
+            <div class="ct-kv"><span>Ativado em</span><span>{{ dates().activated }}</span></div>
+          </section>
+        </div>
+      }
+
+      @case ('politicas') {
+        <div class="ct-grid-aside">
+          <section class="ct-card">
+            <div class="ct-card-head">
+              <div class="ct-grow">
+                <div class="ct-kick">Decisões comerciais · valem para novos contratos</div>
+                <div class="ct-card-title">Regras de matrícula, presença e cancelamento</div>
+              </div>
+            </div>
+            @for (v of policyView(); track v.row.key) {
+              <div class="policy" [class.off]="v.off">
+                <div class="ct-grow">
+                  <div class="ct-disp">{{ v.title }}</div>
+                  <div class="ct-dim" style="margin-top: 3px">{{ v.hint }}</div>
+                </div>
+                @if (v.row.kind === 'choice') {
+                  <ct-segmented [options]="v.options" [value]="v.value" [disabled]="!editable() || policiesBusy()" (valueChange)="setChoice(v.row.key, $event)" />
+                } @else {
+                  <label class="num">
+                    <input
+                      class="ct-input mono"
+                      type="number"
+                      inputmode="numeric"
+                      [attr.aria-label]="v.title"
+                      [value]="v.value"
+                      [disabled]="!editable() || policiesBusy() || v.off"
+                      (input)="setNumber(v.row.key, $event)"
+                    />
+                    <span class="ct-mono">{{ v.unit }}</span>
+                  </label>
+                }
+              </div>
+            }
+            @if (editable()) {
+              <div class="save">
+                <input class="ct-input" placeholder="Motivo da mudança (vai para a auditoria)" [value]="reason()" (input)="reason.set(inputValue($event))" [disabled]="policiesBusy()" />
+                <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="policiesBusy() || changed().length === 0" (click)="savePolicies()">
+                  {{ policiesBusy() ? 'Salvando…' : changed().length ? 'Salvar ' + changed().length + (changed().length === 1 ? ' mudança' : ' mudanças') : 'Salvar' }}
+                </button>
+                @if (changed().length) {
+                  <button type="button" class="ct-ghost-btn" [disabled]="policiesBusy()" (click)="discardPolicies()">Descartar</button>
+                }
+              </div>
+              @if (policiesErr() || invalid()) {
+                <p class="ct-error-text" role="alert">{{ policiesErr() || invalid() }}</p>
+              } @else if (policiesSaved() && changed().length === 0) {
+                <p class="ct-dim">Políticas salvas. Valem a partir dos próximos contratos.</p>
+              }
+            }
+          </section>
+
+          <section class="ct-card">
+            <div class="ct-card-head">
+              <div class="ct-grow">
+                <div class="ct-kick">Integridade dos contratos</div>
+                <div class="ct-card-title">Como as regras se aplicam</div>
+              </div>
+            </div>
+            <p class="ct-muted">
+              Mudanças valem para <strong>novos contratos</strong>.
+              @if (seesEnrollments()) {
+                @if (activeContracts() === 0) {
+                  Ainda não há contratos ativos.
+                } @else {
+                  {{ activeContracts() === 1 ? 'O contrato ativo guarda' : 'Os ' + activeContracts() + ' contratos ativos guardam' }} as regras e o preço do dia da contratação.
+                }
+              } @else {
+                Contratos já feitos guardam as regras e o preço do dia da contratação.
+              }
+            </p>
+            @if (ctx.isManager()) {
+              <div style="margin-top: 14px"><ct-audit-trail [rows]="policyAudit()" /></div>
+            }
+          </section>
+        </div>
+      }
+
+      @case ('quadras') {
+        <section class="ct-card">
+          <div class="ct-card-head">
+            <div class="ct-grow">
+              <div class="ct-kick">{{ store.courts().length }} {{ store.courts().length === 1 ? 'quadra' : 'quadras' }}</div>
+              <div class="ct-card-title">Quadras e recursos</div>
+            </div>
+            @if (ctx.can('programs')) {
+              <a class="ct-mini-btn" [routerLink]="['/centro', centerId(), 'modalidades']">Gerenciar quadras</a>
+            }
+          </div>
+          <p class="ct-muted">Quadras são cadastradas junto com as modalidades e níveis, em <strong>Modalidades e níveis</strong>.</p>
+          <div style="margin-top: 10px">
+            @for (q of store.courts(); track q.id) {
+              <div class="ct-list-row">
+                <span class="ct-grow">
+                  <span class="ct-disp">{{ q.name }}</span>
+                  @if (q.description) {
+                    <span class="ct-dim" style="display: block">{{ q.description }}</span>
+                  }
+                </span>
+                <span class="ct-pill" [class]="q.status === 'active' ? 'ct-pill green' : 'ct-pill yellow'">{{ q.status === 'active' ? 'Ativa' : 'Manutenção' }}</span>
+              </div>
+            } @empty {
+              <div class="ct-dim">Nenhuma quadra cadastrada.</div>
+            }
+          </div>
+        </section>
+      }
+
+      @case ('assinatura') {
+        <div class="ct-grid-aside">
+          <ct-subscription-card [sub]="c.subscription" />
+          <section class="ct-card">
+            <div class="ct-card-head">
+              <div class="ct-grow">
+                <div class="ct-kick">Situação do centro</div>
+                <div class="ct-card-title">{{ statusLabel[c.status][0] }}</div>
+              </div>
+              <span class="ct-pill" [class]="'ct-pill ' + statusLabel[c.status][1]">{{ statusLabel[c.status][0] }}</span>
+            </div>
+            @switch (c.status) {
+              @case ('active') {
+                <p class="ct-muted">Centro ativo desde {{ dates().activated }}. Matrículas, cobranças e chamadas liberadas.</p>
+              }
+              @case ('pending') {
+                <p class="ct-muted">O time NexaGO ativa o centro depois de conectar o recebimento e liberar a assinatura.</p>
+                @if (ctx.isManager()) {
+                  <a class="ct-mini-btn" style="margin-top: 12px" [routerLink]="['/centro', centerId(), 'ativacao']">Ver passos da ativação</a>
+                }
+              }
+              @case ('suspended') {
+                <p class="ct-muted">Somente leitura até a assinatura ser regularizada. Nenhum histórico foi apagado.</p>
+                @if (c.suspendedReason) {
+                  <p class="ct-dim" style="margin-top: 8px">Motivo: {{ c.suspendedReason }}</p>
+                }
+              }
+            }
+          </section>
+        </div>
+      }
+    }
+  } @else {
+    <div class="ct-empty">Carregando…</div>
+  }
+</div>

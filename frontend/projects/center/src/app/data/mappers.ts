@@ -1,0 +1,403 @@
+import { Timestamp } from 'firebase/firestore';
+import type { Weekday } from '../domain/dates';
+import {
+  DEFAULT_POLICIES,
+  type AttendanceMark,
+  type AuditEntry,
+  type CenterInvite,
+  type CenterMember,
+  type CenterPolicies,
+  type ClassSession,
+  type ContractSnapshot,
+  type Court,
+  type Enrollment,
+  type Invoice,
+  type InvoiceEvent,
+  type Plan,
+  type PriceChange,
+  type Program,
+  type Student,
+  type TrainingCenter,
+  type TrainingClass,
+} from '../domain/models';
+import { PERMISSION_ORDER, type CenterPermission, type CenterRole } from '../domain/roles';
+
+/**
+ * Leitura defensiva: documento antigo ou incompleto nunca derruba a tela — cada campo cai num
+ * padrão seguro.
+ */
+type Data = Record<string, unknown>;
+
+export function str(d: Data, k: string, fallback = ''): string {
+  const v = d[k];
+  return typeof v === 'string' ? v : fallback;
+}
+
+export function num(d: Data, k: string, fallback = 0): number {
+  const v = d[k];
+  return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+}
+
+function numOrNull(d: Data, k: string): number | null {
+  const v = d[k];
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+function strOrNull(d: Data, k: string): string | null {
+  const v = d[k];
+  return typeof v === 'string' && v ? v : null;
+}
+
+function bool(d: Data, k: string, fallback = false): boolean {
+  const v = d[k];
+  return typeof v === 'boolean' ? v : fallback;
+}
+
+function strings(d: Data, k: string): string[] {
+  const v = d[k];
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+}
+
+export function date(v: unknown): Date | null {
+  if (v instanceof Timestamp) {
+    return v.toDate();
+  }
+  if (v instanceof Date) {
+    return v;
+  }
+  return null;
+}
+
+function obj(d: Data, k: string): Data | null {
+  const v = d[k];
+  return v && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Timestamp) ? (v as Data) : null;
+}
+
+const ROLES: CenterRole[] = ['center_owner', 'center_admin', 'coach', 'receptionist'];
+
+function role(v: unknown): CenterRole {
+  return ROLES.includes(v as CenterRole) ? (v as CenterRole) : 'coach';
+}
+
+export function readPolicies(raw: Data | null): CenterPolicies {
+  if (!raw) {
+    return { ...DEFAULT_POLICIES };
+  }
+  const p = { ...DEFAULT_POLICIES };
+  for (const key of Object.keys(DEFAULT_POLICIES) as (keyof CenterPolicies)[]) {
+    const v = raw[key];
+    if (typeof v === typeof DEFAULT_POLICIES[key]) {
+      (p as Record<string, unknown>)[key] = v;
+    }
+  }
+  return p;
+}
+
+export function readCenter(id: string, d: Data): TrainingCenter {
+  const sub = obj(d, 'subscription');
+  const status = str(d, 'status');
+  return {
+    id,
+    name: str(d, 'name', 'Centro'),
+    legalName: str(d, 'legalName'),
+    cnpj: str(d, 'cnpj'),
+    slug: str(d, 'slug', id),
+    timezone: str(d, 'timezone', 'America/Sao_Paulo'),
+    sports: strings(d, 'sports'),
+    status: status === 'active' || status === 'suspended' ? status : 'pending',
+    ownerUid: str(d, 'ownerUid'),
+    ownerName: str(d, 'ownerName'),
+    contactEmail: str(d, 'contactEmail'),
+    contactPhone: str(d, 'contactPhone'),
+    city: str(d, 'city'),
+    state: str(d, 'state'),
+    address: str(d, 'address'),
+    policies: readPolicies(obj(d, 'policies')),
+    receivingConnected: bool(d, 'receivingConnected'),
+    subscription: sub
+      ? {
+          plan: str(sub, 'plan', 'NexaGO Centro'),
+          status: (['trial', 'active', 'past_due', 'cancelled'].includes(str(sub, 'status'))
+            ? str(sub, 'status')
+            : 'trial') as 'trial' | 'active' | 'past_due' | 'cancelled',
+          openInvoiceCents: numOrNull(sub, 'openInvoiceCents'),
+          dueDate: strOrNull(sub, 'dueDate'),
+          attempts: strOrNull(sub, 'attempts'),
+        }
+      : null,
+    activationRequestedAt: date(d['activationRequestedAt']),
+    createdAt: date(d['createdAt']),
+    activatedAt: date(d['activatedAt']),
+    suspendedAt: date(d['suspendedAt']),
+    suspendedReason: str(d, 'suspendedReason'),
+  };
+}
+
+export function readMember(uid: string, d: Data): CenterMember {
+  const status = str(d, 'status');
+  return {
+    uid,
+    centerId: str(d, 'centerId'),
+    centerName: str(d, 'centerName'),
+    role: role(d['role']),
+    status: status === 'invited' || status === 'revoked' ? status : 'active',
+    displayName: str(d, 'displayName', 'Membro'),
+    email: str(d, 'email'),
+    extraPerms: strings(d, 'extraPerms').filter((p): p is CenterPermission =>
+      PERMISSION_ORDER.includes(p as CenterPermission),
+    ),
+    programIds: strings(d, 'programIds'),
+    joinedAt: date(d['joinedAt']),
+    revokedAt: date(d['revokedAt']),
+    inviteId: strOrNull(d, 'inviteId'),
+  };
+}
+
+export function readInvite(id: string, d: Data): CenterInvite {
+  const status = str(d, 'status');
+  return {
+    id,
+    centerId: str(d, 'centerId'),
+    centerName: str(d, 'centerName'),
+    email: str(d, 'email'),
+    displayName: str(d, 'displayName'),
+    role: role(d['role']),
+    programIds: strings(d, 'programIds'),
+    classIds: strings(d, 'classIds'),
+    status: status === 'accepted' || status === 'cancelled' || status === 'declined' ? status : 'pending',
+    invitedByUid: str(d, 'invitedByUid'),
+    invitedByName: str(d, 'invitedByName'),
+    createdAt: date(d['createdAt']),
+  };
+}
+
+export function readProgram(id: string, d: Data): Program {
+  return {
+    id,
+    name: str(d, 'name', 'Modalidade'),
+    color: str(d, 'color', '#FF8A4A'),
+    levels: strings(d, 'levels'),
+    order: num(d, 'order'),
+  };
+}
+
+export function readCourt(id: string, d: Data): Court {
+  return {
+    id,
+    name: str(d, 'name', 'Quadra'),
+    description: str(d, 'description'),
+    status: str(d, 'status') === 'maintenance' ? 'maintenance' : 'active',
+    maintenanceUntil: strOrNull(d, 'maintenanceUntil'),
+  };
+}
+
+export function readClass(id: string, d: Data): TrainingClass {
+  const status = str(d, 'status');
+  const weekdays = Array.isArray(d['weekdays'])
+    ? (d['weekdays'] as unknown[]).filter((x): x is Weekday => typeof x === 'number' && x >= 0 && x <= 6)
+    : [];
+  return {
+    id,
+    name: str(d, 'name', 'Turma'),
+    programId: str(d, 'programId'),
+    level: str(d, 'level'),
+    coachUid: str(d, 'coachUid'),
+    coachName: str(d, 'coachName'),
+    weekdays,
+    startTime: str(d, 'startTime', '08:00'),
+    durationMin: num(d, 'durationMin', 60),
+    courtId: str(d, 'courtId'),
+    courtName: str(d, 'courtName'),
+    capacity: num(d, 'capacity', 1),
+    seatsTaken: num(d, 'seatsTaken'),
+    startDate: str(d, 'startDate'),
+    endDate: strOrNull(d, 'endDate'),
+    status: status === 'active' || status === 'closed' || status === 'cancelled' ? status : 'draft',
+    generatedUntil: strOrNull(d, 'generatedUntil'),
+  };
+}
+
+export function readSession(id: string, d: Data): ClassSession {
+  const status = str(d, 'status');
+  const att = obj(d, 'attendance') ?? {};
+  const attendance: Record<string, AttendanceMark> = {};
+  for (const [k, v] of Object.entries(att)) {
+    if (v === 'present' || v === 'excused' || v === 'absent') {
+      attendance[k] = v;
+    }
+  }
+  return {
+    id,
+    classId: str(d, 'classId'),
+    className: str(d, 'className'),
+    programId: str(d, 'programId'),
+    date: str(d, 'date'),
+    startTime: str(d, 'startTime', '08:00'),
+    durationMin: num(d, 'durationMin', 60),
+    coachUid: str(d, 'coachUid'),
+    coachName: str(d, 'coachName'),
+    courtId: str(d, 'courtId'),
+    courtName: str(d, 'courtName'),
+    status: status === 'cancelled' || status === 'done' ? status : 'scheduled',
+    changed: bool(d, 'changed'),
+    changeReason: str(d, 'changeReason'),
+    attendance,
+    makeupStudentIds: strings(d, 'makeupStudentIds'),
+  };
+}
+
+export function readStudent(id: string, d: Data): Student {
+  const status = str(d, 'status');
+  const g = obj(d, 'guardian');
+  return {
+    id,
+    uid: strOrNull(d, 'uid'),
+    name: str(d, 'name', 'Aluno'),
+    email: str(d, 'email'),
+    phone: str(d, 'phone'),
+    status: status === 'invited' || status === 'inactive' || status === 'blocked' ? status : 'active',
+    isMinor: bool(d, 'isMinor'),
+    birthDate: strOrNull(d, 'birthDate'),
+    guardian: g
+      ? { name: str(g, 'name'), relation: str(g, 'relation'), email: str(g, 'email'), phone: str(g, 'phone') }
+      : null,
+    lgpdConsentAt: date(d['lgpdConsentAt']),
+    imageUseAllowed: bool(d, 'imageUseAllowed'),
+    notifyClasses: bool(d, 'notifyClasses', true),
+    emergencyName: str(d, 'emergencyName'),
+    emergencyPhone: str(d, 'emergencyPhone'),
+    medicalNotes: str(d, 'medicalNotes'),
+    makeupCredits: num(d, 'makeupCredits'),
+    createdAt: date(d['createdAt']),
+  };
+}
+
+function readPriceChange(raw: unknown): PriceChange | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const d = raw as Data;
+  return {
+    priceCents: num(d, 'priceCents'),
+    effectiveFrom: str(d, 'effectiveFrom'),
+    byName: str(d, 'byName'),
+    at: date(d['at']),
+  };
+}
+
+export function readPlan(id: string, d: Data): Plan {
+  const history = Array.isArray(d['priceHistory'])
+    ? (d['priceHistory'] as unknown[]).map(readPriceChange).filter((x): x is PriceChange => x != null)
+    : [];
+  return {
+    id,
+    name: str(d, 'name', 'Plano'),
+    type: str(d, 'type') === 'class_pack' ? 'class_pack' : 'monthly',
+    priceCents: num(d, 'priceCents'),
+    classesPerWeek: numOrNull(d, 'classesPerWeek'),
+    makeupsPerMonth: numOrNull(d, 'makeupsPerMonth'),
+    credits: numOrNull(d, 'credits'),
+    validityDays: numOrNull(d, 'validityDays'),
+    programIds: strings(d, 'programIds'),
+    status: str(d, 'status') === 'archived' ? 'archived' : 'active',
+    featured: bool(d, 'featured'),
+    priceHistory: history,
+    scheduledPrice: readPriceChange(d['scheduledPrice']),
+  };
+}
+
+function readContract(raw: Data | null): ContractSnapshot | null {
+  if (!raw) {
+    return null;
+  }
+  return {
+    planName: str(raw, 'planName'),
+    planType: str(raw, 'planType') === 'class_pack' ? 'class_pack' : 'monthly',
+    priceCents: num(raw, 'priceCents'),
+    classesPerWeek: numOrNull(raw, 'classesPerWeek'),
+    makeupsPerMonth: numOrNull(raw, 'makeupsPerMonth'),
+    credits: numOrNull(raw, 'credits'),
+    validityDays: numOrNull(raw, 'validityDays'),
+    policies: readPolicies(obj(raw, 'policies')),
+    contractedAt: str(raw, 'contractedAt'),
+  };
+}
+
+export function readEnrollment(id: string, d: Data): Enrollment {
+  const status = str(d, 'status');
+  const known = ['pending', 'active', 'paused', 'cancelled', 'completed', 'waitlisted'];
+  return {
+    id,
+    studentId: str(d, 'studentId'),
+    studentName: str(d, 'studentName', 'Aluno'),
+    classId: str(d, 'classId'),
+    className: str(d, 'className'),
+    planId: strOrNull(d, 'planId'),
+    contract: readContract(obj(d, 'contract')),
+    status: (known.includes(status) ? status : 'pending') as Enrollment['status'],
+    startDate: str(d, 'startDate'),
+    holdUntil: date(d['holdUntil']),
+    pausedUntil: strOrNull(d, 'pausedUntil'),
+    pauseReason: str(d, 'pauseReason'),
+    creditsLeft: numOrNull(d, 'creditsLeft'),
+    waitlistedAt: date(d['waitlistedAt']),
+    notifyOnSeat: bool(d, 'notifyOnSeat'),
+    endedAt: date(d['endedAt']),
+    createdAt: date(d['createdAt']),
+    createdByName: str(d, 'createdByName'),
+  };
+}
+
+function readEvent(raw: unknown): InvoiceEvent | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const d = raw as Data;
+  const types = ['created', 'provider', 'webhook', 'duplicate', 'query', 'manual_confirm', 'refund', 'cancel', 'note'];
+  const type = str(d, 'type');
+  return {
+    at: date(d['at']),
+    type: (types.includes(type) ? type : 'note') as InvoiceEvent['type'],
+    title: str(d, 'title'),
+    detail: str(d, 'detail'),
+    byName: str(d, 'byName'),
+  };
+}
+
+export function readInvoice(id: string, d: Data): Invoice {
+  const status = str(d, 'status');
+  const known = ['pending', 'approved', 'disputed', 'refunded', 'failed', 'cancelled'];
+  const method = str(d, 'method');
+  return {
+    id,
+    studentId: strOrNull(d, 'studentId'),
+    enrollmentId: strOrNull(d, 'enrollmentId'),
+    payerName: str(d, 'payerName', 'Pagador'),
+    reference: str(d, 'reference'),
+    amountCents: num(d, 'amountCents'),
+    dueDate: str(d, 'dueDate'),
+    status: (known.includes(status) ? status : 'pending') as Invoice['status'],
+    method: (['pix', 'card', 'cash', 'transfer', 'other'].includes(method) ? method : null) as Invoice['method'],
+    providerRef: str(d, 'providerRef'),
+    events: Array.isArray(d['events'])
+      ? (d['events'] as unknown[]).map(readEvent).filter((x): x is InvoiceEvent => x != null)
+      : [],
+    approvedAt: date(d['approvedAt']),
+    refundedCents: num(d, 'refundedCents'),
+    createdAt: date(d['createdAt']),
+  };
+}
+
+export function readAudit(id: string, d: Data): AuditEntry {
+  return {
+    id,
+    at: date(d['at']),
+    actorUid: str(d, 'actorUid'),
+    actorName: str(d, 'actorName', 'Sistema'),
+    action: str(d, 'action'),
+    entity: str(d, 'entity'),
+    entityId: str(d, 'entityId'),
+    detail: str(d, 'detail'),
+    reason: str(d, 'reason'),
+  };
+}

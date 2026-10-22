@@ -1,0 +1,189 @@
+import type { CenterPolicies } from '../../domain/models';
+
+type ChoiceKey = {
+  [K in keyof CenterPolicies]: CenterPolicies[K] extends number ? never : K;
+}[keyof CenterPolicies];
+type NumberKey = {
+  [K in keyof CenterPolicies]: CenterPolicies[K] extends number ? K : never;
+}[keyof CenterPolicies];
+
+export interface ChoiceRow {
+  kind: 'choice';
+  key: ChoiceKey;
+  title: (p: CenterPolicies) => string;
+  hint: (p: CenterPolicies) => string;
+  options: { value: string; label: string }[];
+}
+
+export interface NumberRow {
+  kind: 'number';
+  key: NumberKey;
+  title: (p: CenterPolicies) => string;
+  hint: (p: CenterPolicies) => string;
+  unit: string;
+  min: number;
+  max: number;
+  /** Só faz sentido com esta política ligada. */
+  dependsOn?: ChoiceKey;
+}
+
+export type PolicyRow = ChoiceRow | NumberRow;
+
+const on = (yes: string, no: string) => [
+  { value: 'true', label: yes },
+  { value: 'false', label: no },
+];
+
+/** Linhas da aba "Políticas comerciais" (protótipo W4), na ordem de exibição. */
+export const POLICY_ROWS: PolicyRow[] = [
+  {
+    kind: 'choice',
+    key: 'activation',
+    title: () => 'Ativação da matrícula',
+    hint: () => 'Quando a matrícula passa de pendente para ativa',
+    options: [
+      { value: 'after_payment', label: 'Após pagamento' },
+      { value: 'on_confirmation', label: 'Na confirmação' },
+    ],
+  },
+  {
+    kind: 'number',
+    key: 'pendingHoldHours',
+    title: () => 'Reserva da vaga pendente',
+    hint: (p) => `A vaga fica guardada por ${p.pendingHoldHours}h enquanto a matrícula está pendente`,
+    unit: 'horas',
+    min: 1,
+    max: 336,
+  },
+  {
+    kind: 'choice',
+    key: 'unexcusedAbsenceConsumes',
+    title: () => 'Falta não justificada',
+    hint: () => 'Mensal: conta como aula usada · Pacote: consome 1 crédito',
+    options: on('Consome', 'Não consome'),
+  },
+  {
+    kind: 'choice',
+    key: 'excusedAbsenceMakeup',
+    title: (p) => `Falta justificada (até ${p.excusedNoticeHours}h antes)`,
+    hint: (p) => (p.excusedAbsenceMakeup ? `Gera crédito de reposição com validade de ${p.makeupValidityDays} dias` : 'Não gera crédito de reposição'),
+    options: on('Gera reposição', 'Não gera'),
+  },
+  {
+    kind: 'number',
+    key: 'excusedNoticeHours',
+    title: () => 'Antecedência da falta justificada',
+    hint: () => 'Avisos dentro desse prazo contam como falta justificada',
+    unit: 'horas',
+    min: 0,
+    max: 72,
+    dependsOn: 'excusedAbsenceMakeup',
+  },
+  {
+    kind: 'number',
+    key: 'makeupValidityDays',
+    title: () => 'Validade da reposição',
+    hint: () => 'Prazo para usar o crédito de reposição',
+    unit: 'dias',
+    min: 1,
+    max: 365,
+  },
+  {
+    kind: 'choice',
+    key: 'cancelledClassMakeup',
+    title: () => 'Aula cancelada pelo centro ou professor',
+    hint: (p) => (p.cancelledClassMakeup === 'auto' ? 'Nunca consome crédito; gera reposição automática para todos os matriculados' : 'Nunca consome crédito; a reposição é lançada manualmente'),
+    options: [
+      { value: 'auto', label: 'Reposição auto' },
+      { value: 'manual', label: 'Manual' },
+    ],
+  },
+  {
+    kind: 'choice',
+    key: 'makeupScope',
+    title: () => 'Onde repor',
+    hint: (p) => (p.makeupScope === 'same_level' ? 'Turmas da mesma modalidade e nível, com vaga livre' : 'Qualquer turma com vaga livre'),
+    options: [
+      { value: 'same_level', label: 'Mesmo nível' },
+      { value: 'any_class', label: 'Qualquer turma' },
+    ],
+  },
+  {
+    kind: 'choice',
+    key: 'monthlyCancellation',
+    title: () => 'Cancelamento de plano mensal',
+    hint: (p) => (p.monthlyCancellation === 'end_of_cycle' ? 'Acesso segue até o fim do ciclo pago; sem multa' : 'Acesso termina na hora do cancelamento'),
+    options: [
+      { value: 'end_of_cycle', label: 'Fim do ciclo' },
+      { value: 'immediate', label: 'Imediato' },
+    ],
+  },
+  {
+    kind: 'choice',
+    key: 'allowPause',
+    title: () => 'Pausa de matrícula',
+    hint: (p) => (p.allowPause ? `Até ${p.pauseMaxDaysPerYear} dias por ano, mantendo a vaga na turma` : 'O aluno não pode pausar a matrícula'),
+    options: on('Permitir', 'Não permitir'),
+  },
+  {
+    kind: 'number',
+    key: 'pauseMaxDaysPerYear',
+    title: () => 'Limite de pausa',
+    hint: () => 'Total de dias de pausa por ano',
+    unit: 'dias/ano',
+    min: 1,
+    max: 365,
+    dependsOn: 'allowPause',
+  },
+  {
+    kind: 'choice',
+    key: 'waitlistEnabled',
+    title: () => 'Lista de espera',
+    hint: (p) => (p.waitlistEnabled ? `Ao liberar vaga, o 1º da fila tem ${p.waitlistAcceptHours}h para aceitar` : 'Turma lotada não aceita fila'),
+    options: on('Ativa', 'Desligada'),
+  },
+  {
+    kind: 'number',
+    key: 'waitlistAcceptHours',
+    title: () => 'Prazo para aceitar a vaga',
+    hint: () => 'Depois disso a vaga passa para o próximo da fila',
+    unit: 'horas',
+    min: 1,
+    max: 168,
+    dependsOn: 'waitlistEnabled',
+  },
+];
+
+/** Valor da política como string do segmentado. */
+export function choiceValue(p: CenterPolicies, key: ChoiceKey): string {
+  return String(p[key]);
+}
+
+/** Aplica a escolha do segmentado preservando o tipo (boolean ou união de strings). */
+export function applyChoice(p: CenterPolicies, key: ChoiceKey, value: string): CenterPolicies {
+  const next = typeof p[key] === 'boolean' ? value === 'true' : value;
+  return { ...p, [key]: next } as CenterPolicies;
+}
+
+export function applyNumber(p: CenterPolicies, key: NumberKey, raw: string): CenterPolicies {
+  const n = raw.trim() === '' ? Number.NaN : Number(raw);
+  return { ...p, [key]: n };
+}
+
+export function changedPolicies(before: CenterPolicies, next: CenterPolicies): (keyof CenterPolicies)[] {
+  return (Object.keys(next) as (keyof CenterPolicies)[]).filter((k) => before[k] !== next[k]);
+}
+
+/** Primeiro erro de validação (números inteiros dentro da faixa), ou null. */
+export function policiesError(p: CenterPolicies): string | null {
+  for (const row of POLICY_ROWS) {
+    if (row.kind !== 'number') {
+      continue;
+    }
+    const v = p[row.key];
+    if (!Number.isInteger(v) || v < row.min || v > row.max) {
+      return `${row.title(p)}: informe um número inteiro entre ${row.min} e ${row.max}.`;
+    }
+  }
+  return null;
+}

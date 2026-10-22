@@ -1,0 +1,70 @@
+<ct-page-header title="Alunos" [subtitle]="subtitle()">
+  <button type="button" class="ct-mini-btn" [disabled]="filtered().length === 0" (click)="exportCsv()">
+    <ct-icon name="download" [size]="14" />Exportar
+  </button>
+  @if (canAdd()) {
+    <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="adding.set(true)">
+      <ct-icon name="plus" [size]="14" />Adicionar aluno
+    </button>
+  }
+</ct-page-header>
+
+<div class="page">
+  <div class="ct-filter-bar">
+    <input class="ct-input search" type="search" placeholder="Buscar por nome ou e-mail" aria-label="Buscar aluno" [value]="term()" (input)="term.set(value($event))" />
+    @for (c of visibleChips(); track c.value) {
+      <button type="button" class="ct-chip" [class.active]="filter() === c.value" (click)="filter.set(c.value)">
+        @if (c.dot) {
+          <span class="dot" [style.background]="c.dot"></span>
+        }
+        {{ c.label }}
+      </button>
+    }
+  </div>
+
+  <div class="ct-card flush">
+    @if (!store.loaded.students()) {
+      <div class="ct-empty">Carregando alunos…</div>
+    } @else if (store.students().length === 0) {
+      <div class="ct-empty">
+        Nenhum aluno ainda. {{ canAdd() ? 'Adicione o primeiro pelo botão "Adicionar aluno" — por conta NexaGO ou convite por e-mail.' : '' }}
+      </div>
+    } @else {
+      <div class="ct-table" style="--cols: minmax(200px, 1.5fr) 100px minmax(120px, 1.2fr) minmax(110px, 1.1fr) 60px 56px minmax(130px, 1fr); --min-w: 900px">
+        <div class="ct-thead">
+          <span>Aluno</span><span>Situação</span><span>Turma</span><span>Plano</span><span>Freq.</span><span>Créd.</span><span>Financeiro</span>
+        </div>
+        @for (r of filtered(); track r.student.id) {
+          <a class="ct-tr" [routerLink]="['/centro', centerId(), 'alunos', r.student.id]">
+            <ct-person [name]="r.student.name" [colorKey]="r.student.id" [sub]="r.student.isMinor && r.student.guardian ? 'Resp. ' + r.student.guardian.name : r.student.email">
+              @if (r.student.isMinor) {
+                <span class="ct-tag blue">Menor</span>
+              }
+            </ct-person>
+            <span><span class="ct-pill" [class]="'ct-pill ' + statusLabel[r.student.status][1]">{{ statusLabel[r.student.status][0] }}</span></span>
+            <span class="ct-ellipsis cls">{{ r.className }}</span>
+            <span class="ct-ellipsis">{{ r.planName }}</span>
+            <span class="num" [class.none]="r.freq === null" [class.freq-low]="r.freq !== null && r.freq < 70">{{ r.freq === null ? '—' : r.freq + '%' }}</span>
+            <span class="num" [class.none]="!r.student.makeupCredits" [class.cred]="r.student.makeupCredits > 0">{{ r.student.makeupCredits }}</span>
+            <span class="ct-row">
+              @if (!seesFinance()) {
+                <span class="ct-dim">—</span>
+              } @else if (r.finance) {
+                <span class="ct-pill" [class]="'ct-pill ' + financeLabel[r.finance.state][1]">{{ financeLabel[r.finance.state][0] }}</span>
+                <span class="ct-mono">{{ r.finance.note }}</span>
+              } @else {
+                <span class="ct-dim">Sem cobranças</span>
+              }
+            </span>
+          </a>
+        } @empty {
+          <div class="ct-empty">Nenhum aluno com esse filtro.</div>
+        }
+      </div>
+    }
+  </div>
+</div>
+
+@if (adding()) {
+  <ct-add-student-modal (closed)="closeAdd()" (added)="added($event)" />
+}

@@ -1,0 +1,90 @@
+<div class="page">
+  <div class="wrap">
+    <a class="ct-back-link" routerLink="/centros" [queryParams]="{ lista: 1 }">
+      <ct-icon name="arrowLeft" [size]="14" />
+      Voltar
+    </a>
+    <header class="ct-form-header">
+      <span class="ct-kicker">Cadastrar centro</span>
+      <h1>Seu centro de treinamento no NexaGO.</h1>
+      <p>Você ({{ auth.displayName() }}) fica como <strong>owner</strong>. O centro começa pendente: monte equipe, modalidades, turmas e planos enquanto o time NexaGO ativa o recebimento e a assinatura.</p>
+    </header>
+
+    @if (error(); as err) {
+      <div class="ct-alert" role="alert">{{ err }}</div>
+    }
+
+    <form class="ct-col" [formGroup]="form" (ngSubmit)="submit()">
+      <section class="ct-card ct-col">
+        <div class="ct-kick">Dados do centro</div>
+        <div class="ct-field">
+          <label for="nc-name">Nome do centro</label>
+          <input id="nc-name" class="ct-input" formControlName="name" placeholder="CT Maré Alta" [class.invalid]="invalid('name')" />
+          @if (invalid('name')) { <span class="ct-field-error">Informe o nome do centro.</span> }
+        </div>
+        <div class="ct-form-grid">
+          <div class="ct-field">
+            <label for="nc-legal">Razão social</label>
+            <input id="nc-legal" class="ct-input" formControlName="legalName" placeholder="Maré Alta Esportes LTDA" [class.invalid]="invalid('legalName')" />
+            @if (invalid('legalName')) { <span class="ct-field-error">Informe a razão social.</span> }
+          </div>
+          <div class="ct-field">
+            <label for="nc-cnpj">CNPJ</label>
+            <input id="nc-cnpj" class="ct-input mono" formControlName="cnpj" placeholder="00.000.000/0000-00" inputmode="numeric" [class.invalid]="cnpjInvalid()" />
+            @if (cnpjInvalid()) { <span class="ct-field-error">CNPJ inválido.</span> }
+          </div>
+        </div>
+        <div class="ct-form-grid">
+          <div class="ct-field">
+            <label for="nc-email">E-mail de contato</label>
+            <input id="nc-email" class="ct-input" type="email" formControlName="contactEmail" [class.invalid]="invalid('contactEmail')" />
+            @if (invalid('contactEmail')) { <span class="ct-field-error">E-mail inválido.</span> }
+          </div>
+          <div class="ct-field">
+            <label for="nc-phone">Telefone</label>
+            <input id="nc-phone" class="ct-input" type="tel" formControlName="contactPhone" placeholder="(21) 99999-0000" [class.invalid]="invalid('contactPhone')" />
+            @if (invalid('contactPhone')) { <span class="ct-field-error">Informe o telefone.</span> }
+          </div>
+        </div>
+        <div class="ct-form-grid three">
+          <div class="ct-field">
+            <label for="nc-city">Cidade</label>
+            <input id="nc-city" class="ct-input" formControlName="city" [class.invalid]="invalid('city')" />
+          </div>
+          <div class="ct-field">
+            <label for="nc-state">UF</label>
+            <input id="nc-state" class="ct-input mono" formControlName="state" maxlength="2" placeholder="RJ" [class.invalid]="invalid('state')" />
+          </div>
+          <div class="ct-field">
+            <label for="nc-address">Endereço</label>
+            <input id="nc-address" class="ct-input" formControlName="address" placeholder="Opcional" />
+          </div>
+        </div>
+        @if (invalid('city') || invalid('state')) { <span class="ct-field-error">Informe cidade e UF (2 letras).</span> }
+      </section>
+
+      <section class="ct-card ct-col">
+        <div>
+          <div class="ct-kick">Modalidades</div>
+          <div class="ct-dim">Cada uma nasce com os níveis Iniciante, Intermediário e Avançado — dá para editar depois.</div>
+        </div>
+        <div class="ct-row ct-wrap">
+          @for (s of sports; track s) {
+            <button type="button" class="ct-chip" [class.active]="selected().includes(s)" [attr.aria-pressed]="selected().includes(s)" (click)="toggleSport(s)">{{ s }}</button>
+          }
+        </div>
+        @if (sportsError()) { <span class="ct-field-error">Escolha pelo menos uma modalidade.</span> }
+      </section>
+
+      <button class="ct-btn-primary" type="submit" [disabled]="saving()">
+        @if (saving()) {
+          <span class="ct-spinner" aria-hidden="true"></span>
+          Cadastrando…
+        } @else {
+          Cadastrar centro
+        }
+      </button>
+      <p class="ct-fine">A mensalidade dos alunos vai para a conta do centro. A assinatura NexaGO é um contrato separado.</p>
+    </form>
+  </div>
+</div>

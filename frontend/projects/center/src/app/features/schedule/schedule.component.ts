@@ -4,7 +4,7 @@ import { CenterContextService } from '../../core/center-context.service';
 import { CenterStore } from '../../data/center-store.service';
 import { writeErrorMessage } from '../../data/actions/actor';
 import { ClassesActions } from '../../data/actions/classes.actions';
-import { addDays, formatDayKey, parseDayKey, todayKey, wallClock, WEEKDAY_SHORT, weekdayOf } from '../../domain/dates';
+import { addDays, addMonths, formatDayKey, monthKey, monthLabel, parseDayKey, todayKey, wallClock, WEEKDAY_SHORT, weekdayOf } from '../../domain/dates';
 import { placeLabel } from '../../domain/locations';
 import type { ClassSession, TrainingClass } from '../../domain/models';
 import { horizonEnd, occurrences } from '../../domain/schedule';
@@ -12,6 +12,8 @@ import { IconComponent } from '../../ui/icon.component';
 import { PageHeaderComponent, SegmentedComponent } from '../../ui/kit';
 import { AttendanceModalComponent } from './attendance-modal.component';
 import { SessionModalComponent } from './session-modal.component';
+import { ReportsService } from '../reports/reports.service';
+import { monthCells, monthRange } from './month-layout';
 import { GRID_HOURS, GRID_START_MIN, layoutDay, nowOffset, weekDays } from './week-layout';
 
 /** Altura de uma hora na grade (px). */
@@ -31,6 +33,8 @@ interface ScheduleItem {
   cancelled: boolean;
   changed: boolean;
   draft: boolean;
+  /** Além do que já foi gerado: ocorrência prevista de turma ativa. */
+  projected: boolean;
   session: ClassSession | null;
   cls: TrainingClass | null;
 }
@@ -47,6 +51,7 @@ export class ScheduleComponent {
   protected readonly ctx = inject(CenterContextService);
   protected readonly store = inject(CenterStore);
   private readonly actions = inject(ClassesActions);
+  private readonly reports = inject(ReportsService);
   private readonly router = inject(Router);
 
   readonly centerId = input.required<string>();
@@ -57,7 +62,9 @@ export class ScheduleComponent {
   protected readonly viewOptions = [
     { value: 'day', label: 'Dia' },
     { value: 'week', label: 'Semana' },
+    { value: 'month', label: 'Mês' },
   ];
+  protected readonly monthHead = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
   protected readonly scopeOptions = [
     { value: 'center', label: 'Centro' },
     { value: 'coach', label: 'Professor' },
@@ -96,14 +103,32 @@ export class ScheduleComponent {
     return this.view() === 'week' ? weekDays(a) : [a];
   });
 
+  /** Faixa de datas da visão atual (no mês, inclui as bordas de outros meses na grade). */
+  private readonly range = computed(() => {
+    if (this.view() === 'month') return monthRange(this.anchor() || this.today());
+    const d = this.days();
+    return { first: d[0]!, last: d[d.length - 1]! };
+  });
+
+  /**
+   * O store só mantém ao vivo ~6 semanas para trás até o horizonte gerado. No mês, as aulas da
+   * grade inteira vêm de uma leitura avulsa; as que o store tem (ao vivo) prevalecem.
+   */
+  private readonly monthFetched = signal<{ key: string; sessions: ClassSession[] }>({ key: '', sessions: [] });
+  protected readonly monthLoading = signal(false);
+
+  private readonly sessionsInRange = computed(() => {
+    const { first, last } = this.range();
+    const live = this.store.sessions().filter((s) => s.date >= first && s.date <= last);
+    if (this.view() !== 'month') return live;
+    const liveIds = new Set(live.map((s) => s.id));
+    return [...live, ...this.monthFetched().sessions.filter((s) => !liveIds.has(s.id) && s.date >= first && s.date <= last)];
+  });
+
   private readonly items = computed<ScheduleItem[]>(() => {
-    const days = this.days();
-    const first = days[0]!;
-    const last = days[days.length - 1]!;
+    const { first, last } = this.range();
     const color = (programId: string) => this.store.programById(programId)?.color ?? '#9AA0A6';
-    const sessions: ScheduleItem[] = this.store
-      .sessions()
-      .filter((s) => s.date >= first && s.date <= last)
+    const sessions: ScheduleItem[] = this.sessionsInRange()
       .map((s) => ({
         key: s.id,
         date: s.date,
@@ -116,6 +141,7 @@ export class ScheduleComponent {
         cancelled: s.status === 'cancelled',
         changed: s.changed,
         draft: false,
+        projected: false,
         session: s,
         cls: this.store.classById(s.classId) ?? null,
       }));
@@ -136,13 +162,41 @@ export class ScheduleComponent {
           cancelled: false,
           changed: false,
           draft: true,
+          projected: false,
           session: null,
           cls: c,
         })),
       );
+    // Além do horizonte gerado: o que a turma ativa ainda vai gerar, tracejado (em qualquer visão,
+    // para o dia aberto a partir do mês mostrar o mesmo que a célula).
+    const today = this.today();
+    const projected: ScheduleItem[] = this.store
+      .classes()
+      .filter((c) => c.status === 'active' && c.weekdays.length)
+      .flatMap((c) => {
+        const from = [first, today, c.generatedUntil ? addDays(c.generatedUntil, 1) : today].sort().pop()!;
+        return from > last
+          ? []
+          : occurrences(c, from, last).map((date) => ({
+              key: `proj_${c.id}_${date}`,
+              date,
+              startTime: c.startTime,
+              durationMin: c.durationMin,
+              title: c.name,
+              color: color(c.programId),
+              coachName: c.coachName,
+              place: placeLabel(c),
+              cancelled: false,
+              changed: false,
+              draft: false,
+              projected: true,
+              session: null,
+              cls: c,
+            }));
+      });
     const p = this.program();
     const scope = this.scope();
-    return [...sessions, ...drafts].filter((it) => {
+    return [...sessions, ...drafts, ...projected].filter((it) => {
       const programId = it.session?.programId ?? it.cls?.programId;
       if (p && programId !== p) return false;
       if (scope === 'coach' && this.coachFilter() && (it.session?.coachUid ?? it.cls?.coachUid) !== this.coachFilter()) return false;
@@ -177,7 +231,12 @@ export class ScheduleComponent {
   });
   protected readonly nowColumn = computed(() => this.days().indexOf(this.today()));
 
+  protected readonly monthGrid = computed(() =>
+    this.view() === 'month' ? monthCells(this.anchor() || this.today(), this.items()) : [],
+  );
+
   protected readonly rangeLabel = computed(() => {
+    if (this.view() === 'month') return monthLabel(monthKey(this.anchor() || this.today()), true);
     const d = this.days();
     const a = d[0]!;
     const b = d[d.length - 1]!;
@@ -186,10 +245,12 @@ export class ScheduleComponent {
   });
 
   protected readonly subtitle = computed(() => {
-    const it = this.items().filter((i) => !i.draft);
+    const it = this.items().filter((i) => !i.draft && !i.projected);
     const cancelled = it.filter((i) => i.cancelled).length;
     const changed = it.filter((i) => i.changed && !i.cancelled).length;
-    return `${this.rangeLabel()} · ${it.length} aula${it.length === 1 ? '' : 's'} · ${cancelled} cancelada${cancelled === 1 ? '' : 's'} · ${changed} alterada${changed === 1 ? '' : 's'}`;
+    const projected = this.items().filter((i) => i.projected).length;
+    const ahead = projected ? ` · ${projected} prevista${projected === 1 ? '' : 's'}` : '';
+    return `${this.rangeLabel()} · ${it.length} aula${it.length === 1 ? '' : 's'}${ahead} · ${cancelled} cancelada${cancelled === 1 ? '' : 's'} · ${changed} alterada${changed === 1 ? '' : 's'}`;
   });
 
   protected readonly generatedUntil = computed(() => {
@@ -201,11 +262,30 @@ export class ScheduleComponent {
     return keys.length ? formatDayKey(keys[0]!) : null;
   });
 
-  protected readonly isEmpty = computed(() => this.store.loaded.sessions() && this.items().length === 0);
+  protected readonly isEmpty = computed(() => this.store.loaded.sessions() && !this.monthLoading() && this.items().length === 0);
 
   constructor() {
     const timer = setInterval(() => this.now.set(new Date()), 60_000);
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
+
+    // Mês: lê as aulas da grade inteira (uma leitura por mês visitado).
+    effect(() => {
+      if (this.view() !== 'month') return;
+      const { first, last } = this.range();
+      const centerId = this.centerId();
+      const key = `${centerId}|${first}|${last}`;
+      if (this.monthFetched().key === key) return;
+      untracked(() => {
+        this.monthLoading.set(true);
+        this.reports
+          .sessionsBetween(centerId, first, last)
+          .then((sessions) => {
+            if (this.range().first === first) this.monthFetched.set({ key, sessions });
+          })
+          .catch((err) => this.ensureError.set(`Não foi possível carregar o mês: ${writeErrorMessage(err)}`))
+          .finally(() => this.monthLoading.set(false));
+      });
+    });
 
     // Professor começa vendo só as próprias aulas.
     effect(() => {
@@ -256,7 +336,17 @@ export class ScheduleComponent {
 
   protected shift(dir: -1 | 1): void {
     const a = this.anchor() || this.today();
+    if (this.view() === 'month') {
+      this.anchor.set(`${addMonths(monthKey(a), dir)}-01`);
+      return;
+    }
     this.anchor.set(addDays(a, dir * (this.view() === 'week' ? 7 : 1)));
+  }
+
+  /** Do mês para o dia: clique no número do dia ou no "+N". */
+  protected openDay(day: string): void {
+    this.anchor.set(day === this.today() ? '' : day);
+    this.view.set('day');
   }
 
   protected goToday(): void {
@@ -301,6 +391,6 @@ export class ScheduleComponent {
   }
 
   protected blockLabel(it: ScheduleItem): string {
-    return it.cancelled ? ' · CANCELADA' : it.draft ? ' · RASCUNHO' : it.changed ? ' · ALTERADA' : '';
+    return it.cancelled ? ' · CANCELADA' : it.draft ? ' · RASCUNHO' : it.projected ? ' · PREVISTA' : it.changed ? ' · ALTERADA' : '';
   }
 }

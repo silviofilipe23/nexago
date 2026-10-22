@@ -60,3 +60,43 @@
 @media (max-width: 700px) {
   .sel { width: 100%; }
 }
+
+// ── Mês ────────────────────────────────────────────────────
+.month-card { padding: 0; }
+.mhead, .mweek { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.mhead { border-bottom: 1px solid var(--nx-line); }
+.mhead > * { padding: 10px 10px 8px; }
+.mweek + .mweek, .mhead + .mweek { border-top: 1px solid var(--nx-line); }
+.mcell { position: relative; min-height: 112px; padding: 6px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mcell + .mcell { border-left: 1px solid var(--nx-line); }
+.mcell.outside { background: rgba(255, 255, 255, 0.015); }
+.mcell.outside .mday, .mcell.outside .mev { opacity: 0.45; }
+.mcell.today { background: rgba(255, 106, 26, 0.04); }
+.mday {
+  align-self: flex-start; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 999px; border: none; background: transparent; cursor: pointer;
+  font-family: var(--nx-font-display); font-weight: 700; font-size: 12.5px; color: var(--nx-text-mute);
+  &:hover { background: var(--nx-surface-2); color: var(--nx-text); }
+}
+.mcell.today .mday { background: var(--nx-orange-500); color: var(--nx-text-on-orange); }
+.mev {
+  display: flex; gap: 5px; align-items: baseline; width: 100%; min-width: 0; padding: 2px 6px; border-radius: 6px; cursor: pointer; text-align: left;
+  background: color-mix(in srgb, var(--c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); color: var(--nx-text);
+  &.draft { border-style: dashed; background: transparent; }
+  &.changed { border-color: var(--nx-pending); }
+  &.cancel { opacity: 0.55; text-decoration: line-through; border-color: rgba(255, 59, 48, 0.4); background: transparent; }
+}
+.mt { font-family: var(--nx-font-mono); font-size: 9.5px; font-weight: 700; color: var(--c); flex: none; }
+.mn { font-family: var(--nx-font-display); font-weight: 600; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mmore { align-self: flex-start; border: none; background: transparent; padding: 0 6px; cursor: pointer; font-family: var(--nx-font-mono); font-size: 10px; color: var(--nx-orange-400); }
+.mcount { display: none; }
+.mload { padding: 10px 14px; }
+
+// No celular a célula mostra só quantas aulas tem; tocar no dia abre a visão Dia.
+@media (max-width: 700px) {
+  .mcell { min-height: 58px; padding: 4px; }
+  .mev, .mmore { display: none; }
+  .mcount {
+    display: grid; place-items: center; align-self: center; margin-top: 2px; min-width: 20px; height: 20px; border-radius: 999px;
+    background: var(--nx-orange-tint); color: var(--nx-orange-400); font-family: var(--nx-font-mono); font-size: 10px; font-weight: 700;
+  }
+}

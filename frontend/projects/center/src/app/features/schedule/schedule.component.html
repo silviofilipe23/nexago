@@ -48,6 +48,50 @@
     <div class="ct-error-text">{{ ensureError() }}</div>
   }
 
+  @if (view() === 'month') {
+    <div class="ct-card flush month-card">
+      <div class="mhead">
+        @for (h of monthHead; track h) {
+          <div class="ct-kick">{{ h }}</div>
+        }
+      </div>
+      @for (week of monthGrid(); track week[0]!.day) {
+        <div class="mweek">
+          @for (cell of week; track cell.day) {
+            <div class="mcell" [class.outside]="cell.outside" [class.today]="cell.day === today()">
+              <button type="button" class="mday" [attr.aria-label]="'Ver o dia ' + cell.day" (click)="openDay(cell.day)">{{ +cell.day.slice(8) }}</button>
+              @for (it of cell.items; track it.key) {
+                <button
+                  type="button"
+                  class="mev"
+                  [class.cancel]="it.cancelled"
+                  [class.draft]="it.draft || it.projected"
+                  [class.changed]="it.changed"
+                  [style.--c]="it.color"
+                  [title]="it.title + ' · ' + it.startTime + blockLabel(it) + ' · ' + (it.coachName || 'sem professor') + ' · ' + it.place"
+                  (click)="open(it)"
+                >
+                  <span class="mt">{{ it.startTime }}</span><span class="mn">{{ it.title }}</span>
+                </button>
+              }
+              @if (cell.more) {
+                <button type="button" class="mmore" (click)="openDay(cell.day)">+{{ cell.more }} {{ cell.more === 1 ? 'aula' : 'aulas' }}</button>
+              }
+              @if (cell.items.length) {
+                <span class="mcount">{{ cell.items.length + cell.more }}</span>
+              }
+            </div>
+          }
+        </div>
+      }
+      @if (monthLoading()) {
+        <div class="ct-dim mload">Carregando o mês…</div>
+      }
+      @if (isEmpty()) {
+        <div class="ct-empty">Nenhuma aula neste mês{{ store.classes().length ? ' com estes filtros' : '' }}.</div>
+      }
+    </div>
+  } @else {
   <div class="ct-card flush grid-card">
     <div class="scroller">
       <div class="inner" [class.week]="days().length > 1" [style.--n]="days().length">
@@ -73,7 +117,7 @@
                   type="button"
                   class="ev"
                   [class.cancel]="b.item.cancelled"
-                  [class.draft]="b.item.draft"
+                  [class.draft]="b.item.draft || b.item.projected"
                   [class.changed]="b.item.changed"
                   [style.top.px]="b.topPx"
                   [style.height.px]="b.heightPx"
@@ -112,6 +156,7 @@
       </div>
     }
   </div>
+  }
 </div>
 
 @if (selected(); as s) {

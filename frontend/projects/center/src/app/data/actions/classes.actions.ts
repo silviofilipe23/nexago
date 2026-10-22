@@ -8,7 +8,7 @@ import { CenterStore } from '../center-store.service';
 import { CENTERS, db } from '../firebase';
 import { CenterActionsBase } from './actor';
 
-export type ClassInput = Omit<TrainingClass, 'id' | 'seatsTaken' | 'status' | 'generatedUntil'>;
+export type ClassInput = Omit<TrainingClass, 'id' | 'seatsTaken' | 'rosterStudentIds' | 'status' | 'generatedUntil'>;
 
 export type SessionPatch = Partial<Pick<ClassSession, 'startTime' | 'durationMin' | 'coachUid' | 'coachName' | 'courtId' | 'courtName'>>;
 
@@ -77,7 +77,7 @@ export class ClassesActions extends CenterActionsBase {
         ...input,
         name: input.name.trim(),
         status,
-        ...(existing ? {} : { seatsTaken: 0, generatedUntil: null }),
+        ...(existing ? {} : { seatsTaken: 0, rosterStudentIds: [], generatedUntil: null }),
       },
       { merge: true },
     );

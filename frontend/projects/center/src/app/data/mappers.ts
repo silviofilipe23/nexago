@@ -210,6 +210,7 @@ export function readClass(id: string, d: Data): TrainingClass {
     courtName: str(d, 'courtName'),
     capacity: num(d, 'capacity', 1),
     seatsTaken: num(d, 'seatsTaken'),
+    rosterStudentIds: strings(d, 'rosterStudentIds'),
     startDate: str(d, 'startDate'),
     endDate: strOrNull(d, 'endDate'),
     status: status === 'active' || status === 'closed' || status === 'cancelled' ? status : 'draft',
@@ -243,7 +244,34 @@ export function readSession(id: string, d: Data): ClassSession {
     changeReason: str(d, 'changeReason'),
     attendance,
     makeupStudentIds: strings(d, 'makeupStudentIds'),
+    finalizedAt: date(d['finalizedAt']),
+    finalizedByName: str(d, 'finalizedByName'),
+    attendanceLog: Array.isArray(d['attendanceLog'])
+      ? (d['attendanceLog'] as unknown[]).filter((x): x is Data => !!x && typeof x === 'object').map((x) => ({
+          at: date(x['at']),
+          byName: str(x, 'byName'),
+          studentId: str(x, 'studentId'),
+          from: isMark(x['from']) ? x['from'] : null,
+          to: isMark(x['to']) ? x['to'] : null,
+          reason: str(x, 'reason'),
+        }))
+      : [],
+    effectsApplied: readEffects(obj(d, 'effectsApplied')),
   };
+}
+
+function isMark(v: unknown): v is AttendanceMark {
+  return v === 'present' || v === 'excused' || v === 'absent';
+}
+
+function readEffects(raw: Data | null): Record<string, { credit: number; makeup: number }> {
+  const out: Record<string, { credit: number; makeup: number }> = {};
+  for (const [k, v] of Object.entries(raw ?? {})) {
+    if (v && typeof v === 'object') {
+      out[k] = { credit: num(v as Data, 'credit'), makeup: num(v as Data, 'makeup') };
+    }
+  }
+  return out;
 }
 
 export function readStudent(id: string, d: Data): Student {

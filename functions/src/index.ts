@@ -204,6 +204,8 @@ export {
   resendTrainingCenterInvoicePix,
   sweepTrainingCenterBilling,
 } from "./training-center-billing";
+// Centro de Treinamento — efeitos da chamada (créditos de pacote e de reposição).
+export {onTrainingCenterSessionWritten} from "./training-center-attendance";
 // Aulas na agenda do atleta (leitura só por callable — as coleções de aula são da equipe).
 export {getMyClassAgenda} from "./arena-class-athlete-agenda";
 // Aulas pelo aluno: Vou/Não vou (crédito por aviso), reposição com o crédito, fila e check-in.

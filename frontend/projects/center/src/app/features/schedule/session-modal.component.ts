@@ -32,7 +32,11 @@ export class SessionModalComponent implements OnInit {
 
   readonly session = input.required<ClassSession>();
   readonly canEdit = input(false);
+  /** Professor da aula (com `attendance`) ou gestor, aula de hoje ou passada. */
+  readonly canAttend = input(false);
   readonly closed = output<void>();
+  /** Abre a chamada desta aula. */
+  readonly attendance = output<void>();
   /** "Esta e as próximas": a tela pai leva para a edição da turma a partir deste dia. */
   readonly series = output<string>();
 

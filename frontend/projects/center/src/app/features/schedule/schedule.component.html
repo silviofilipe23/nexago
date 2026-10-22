@@ -108,5 +108,8 @@
 </div>
 
 @if (selected(); as s) {
-  <ct-session-modal [session]="s" [canEdit]="canEdit()" (closed)="selected.set(null)" (series)="openSeries($event)" />
+  <ct-session-modal [session]="s" [canEdit]="canEdit()" [canAttend]="canAttend(s)" (closed)="selected.set(null)" (series)="openSeries($event)" (attendance)="openAttendance()" />
+}
+@if (attendanceFor(); as id) {
+  <ct-attendance-modal [sessionId]="id" (closed)="attendanceFor.set(null)" />
 }

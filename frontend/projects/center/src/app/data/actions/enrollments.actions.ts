@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { runTransaction, serverTimestamp, Timestamp, type Transaction } from 'firebase/firestore';
 import { formatDayKey, monthKey, monthLabel, todayKey } from '../../domain/dates';
-import { buildContract, canTransition, seatDelta } from '../../domain/enrollment';
+import { buildContract, canTransition, rosterAfter, seatDelta } from '../../domain/enrollment';
 import { formatBRL } from '../../domain/money';
 import type { ContractSnapshot, Enrollment, EnrollmentStatus, Plan, Student, TrainingClass } from '../../domain/models';
 import { hasPermission } from '../../domain/roles';
@@ -92,7 +92,7 @@ export class EnrollmentsActions extends CenterActionsBase {
         return { kind: 'full', capacity: cls.capacity, seatsTaken: cls.seatsTaken } as EnrollResult;
       }
       const status: EnrollmentStatus = center.policies.activation === 'on_confirmation' ? 'active' : 'pending';
-      t.update(classRef, { seatsTaken: cls.seatsTaken + 1 });
+      t.update(classRef, { seatsTaken: cls.seatsTaken + 1, rosterStudentIds: rosterAfter(cls.rosterStudentIds, input.student.id, 1) });
       t.set(enrollmentRef, {
         studentId: input.student.id,
         studentName: input.student.name,
@@ -179,7 +179,7 @@ export class EnrollmentsActions extends CenterActionsBase {
       if (cls.seatsTaken >= cls.capacity) {
         return 'full' as const;
       }
-      t.update(classRef, { seatsTaken: cls.seatsTaken + 1 });
+      t.update(classRef, { seatsTaken: cls.seatsTaken + 1, rosterStudentIds: rosterAfter(cls.rosterStudentIds, e.studentId, 1) });
       t.update(enrollmentRef, {
         status: 'pending',
         contract,
@@ -216,7 +216,8 @@ export class EnrollmentsActions extends CenterActionsBase {
       }
       if (cSnap?.exists()) {
         const taken = Number(cSnap.data()['seatsTaken'] ?? 0);
-        t.update(classRef, { seatsTaken: Math.max(0, taken + delta) });
+        const roster = cSnap.data()['rosterStudentIds'] as string[] | undefined;
+        t.update(classRef, { seatsTaken: Math.max(0, taken + delta), rosterStudentIds: rosterAfter(roster, e.studentId, delta) });
       }
       const ending = to === 'cancelled' || to === 'completed';
       t.update(enrollmentRef, {

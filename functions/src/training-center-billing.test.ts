@@ -43,7 +43,7 @@ function seed(fake: FakeFirestore, opts: {invoice?: Record<string, unknown>; enr
   fake.seedDoc(`${C}/centerMembers/owner`, {uid: "owner", role: "center_owner", status: "active", displayName: "Ana"});
   fake.seedDoc(`${C}/centerMembers/recep`, {uid: "recep", role: "receptionist", status: "active", displayName: "Rui"});
   fake.seedDoc(`${C}/students/s1`, {name: "Bia", uid: "athlete1", email: "bia@x.com"});
-  fake.seedDoc(CLS, {name: "Iniciante A", capacity: 8, seatsTaken: 5});
+  fake.seedDoc(CLS, {name: "Iniciante A", capacity: 8, seatsTaken: 5, rosterStudentIds: ["s0", "s1"]});
   fake.seedDoc(ENR, {
     studentId: "s1", studentName: "Bia", classId: "k1", className: "Iniciante A", status: "pending",
     holdUntil: Timestamp.fromDate(new Date("2026-10-23T15:00:00Z")), ...opts.enrollment,
@@ -440,6 +440,8 @@ describe("varredura", () => {
     assert.equal(e["status"], "cancelled");
     assert.equal(e["holdUntil"], null);
     assert.equal(fake.store.get(CLS)!["seatsTaken"], 4);
+    // A lista da chamada perde o aluno junto com a vaga.
+    assert.deepEqual(fake.store.get(CLS)!["rosterStudentIds"], ["s0"]);
     assert.equal(inv(fake)["status"], "cancelled");
     assert.equal(inv(fake).events.slice(-1)[0]!.type, "cancel");
     assert.ok(audits(fake).some((a) => a["action"] === "enrollment.hold_expired"));

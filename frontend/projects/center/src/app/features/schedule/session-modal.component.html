@@ -83,6 +83,9 @@
 
   <div footer>
     <button type="button" class="ct-mini-btn" (click)="closed.emit()">Voltar</button>
+    @if (canAttend() && session().status !== 'cancelled') {
+      <button type="button" class="ct-mini-btn" (click)="attendance.emit()">{{ session().status === 'done' ? 'Ver chamada' : 'Fazer chamada' }}</button>
+    }
     @if (canEdit() && session().status === 'cancelled' && !isPast()) {
       <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="restore()">{{ busy() ? 'Reabrindo…' : 'Reabrir aula' }}</button>
     } @else if (editable() && session().status !== 'cancelled') {

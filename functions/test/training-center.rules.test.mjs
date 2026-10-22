@@ -177,7 +177,7 @@ test('equipe: admin revoga professor, mas não o owner nem outro admin; ninguém
 
 test('vagas: recepção só move seatsTaken e nunca acima da capacidade', async () => {
   const recep = as(RECEP);
-  await assertSucceeds(updateDoc(doc(recep, 'trainingCenters', C, 'classes', 'c1'), { seatsTaken: 2 }));
+  await assertSucceeds(updateDoc(doc(recep, 'trainingCenters', C, 'classes', 'c1'), { seatsTaken: 2, rosterStudentIds: ['s1', 's2'] }));
   await denied(updateDoc(doc(recep, 'trainingCenters', C, 'classes', 'c1'), { seatsTaken: 3 }));
   await denied(updateDoc(doc(recep, 'trainingCenters', C, 'classes', 'c1'), { capacity: 10 }));
   await denied(updateDoc(doc(as(COACH), 'trainingCenters', C, 'classes', 'c1'), { seatsTaken: 1 }));
@@ -188,6 +188,16 @@ test('chamada: o professor da aula marca presença e nada mais', async () => {
   await assertSucceeds(updateDoc(s, { attendance: { s1: 'present' } }));
   await denied(updateDoc(s, { startTime: '22:00' }));
   await denied(updateDoc(doc(as(RECEP), 'trainingCenters', C, 'sessions', 'c1_2026-10-22'), { attendance: {} }));
+});
+
+test('chamada: professor finaliza e corrige; ninguém grava os créditos aplicados', async () => {
+  const s = doc(as(COACH), 'trainingCenters', C, 'sessions', 'c1_2026-10-22');
+  await assertSucceeds(updateDoc(s, { status: 'done', finalizedAt: serverTimestamp(), finalizedByName: 'Coach' }));
+  await assertSucceeds(updateDoc(s, { attendance: { s1: 'excused' }, attendanceLog: [{ studentId: 's1', from: 'present', to: 'excused', reason: 'avisou' }] }));
+  await denied(updateDoc(s, { status: 'cancelled' }));
+  await denied(updateDoc(s, { effectsApplied: { s1: { credit: 5 } } }));
+  await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'sessions', 'c1_2026-10-22'), { effectsApplied: {} }));
+  await assertSucceeds(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'sessions', 'c1_2026-10-22'), { status: 'scheduled' }));
 });
 
 test('créditos de reposição: só o gestor mexe', async () => {

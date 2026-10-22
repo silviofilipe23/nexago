@@ -51,6 +51,16 @@ void openTrainingOriginLink(BuildContext context, TrainingOriginLink l) {
   }
 }
 
+/// Abre a fatura do centro no app (F2).
+void openCenterInvoice(
+  BuildContext context,
+  String centerId,
+  String invoiceId,
+) => context.pushNamed(
+  AppRouteNames.athleteTrainingCenterInvoice,
+  pathParameters: {'centerId': centerId, 'invoiceId': invoiceId},
+);
+
 /// Etiqueta "PARTICULAR" / "ARENA" / "CENTRO".
 class TrainingOriginTag extends StatelessWidget {
   const TrainingOriginTag(this.origin, {super.key});

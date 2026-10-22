@@ -86,9 +86,7 @@ const athleteAgendaTabLocation = '${AppRoutes.discover}?tab=agenda';
 String? externalNotificationUrl(Map<String, dynamic> data) {
   final type = (data['type'] as String?)?.toLowerCase().trim() ?? '';
   if (type != classChargeLinkNotificationType &&
-      type != professorChargeLinkNotificationType &&
-      type != centerInvoiceLinkNotificationType &&
-      type != centerBillingNoticeNotificationType) {
+      type != professorChargeLinkNotificationType) {
     return null;
   }
   for (final key in const ['invoiceUrl', 'webUrl']) {
@@ -583,8 +581,9 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
 }
 
 /// Destino dos pushes do centro para o ALUNO: aula → aula do centro (O7);
-/// fatura/matrícula/vaga → tela do centro (O6, na aba Plano quando é
-/// cobrança). Sem `centerId` cai no hub de Treinos. `null` = não é do centro.
+/// fatura → a fatura no app (F2, Pix e cartão); matrícula/vaga → tela do
+/// centro (O6). Sem `centerId` cai no hub de Treinos. `null` = não é do
+/// centro.
 String? _centerNotificationRoute(String type, Map<String, dynamic> data) {
   final isSession = type == centerClassReminderNotificationType ||
       type == centerSessionNoticeNotificationType;
@@ -599,6 +598,12 @@ String? _centerNotificationRoute(String type, Map<String, dynamic> data) {
   final center = AppRoutes.athleteTrainingCenter
       .replaceFirst(':centerId', Uri.encodeComponent(centerId));
   final sessionId = (data['sessionId'] as String?)?.trim() ?? '';
+  final invoiceId = (data['invoiceId'] as String?)?.trim() ?? '';
+  if (isBilling && invoiceId.isNotEmpty) {
+    return AppRoutes.athleteTrainingCenterInvoice
+        .replaceFirst(':centerId', Uri.encodeComponent(centerId))
+        .replaceFirst(':invoiceId', Uri.encodeComponent(invoiceId));
+  }
   if (isSession && sessionId.isNotEmpty) {
     return AppRoutes.athleteTrainingCenterSession
         .replaceFirst(':centerId', Uri.encodeComponent(centerId))

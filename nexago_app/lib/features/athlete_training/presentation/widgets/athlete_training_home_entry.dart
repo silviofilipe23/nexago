@@ -56,9 +56,26 @@ class _AthleteTrainingHomeEntryState
   /// confirmar (senão o cartão recolheria no meio do toque em "Vou").
   bool _autoExpanded = false;
 
+  Widget _wrap(Widget child) => Padding(
+    key: const Key('athlete-training-home-entry'),
+    padding: EdgeInsets.fromLTRB(
+      AppSpacing.screenH,
+      0,
+      AppSpacing.screenH,
+      widget.bottomGap,
+    ),
+    child: child,
+  );
+
   @override
   Widget build(BuildContext context) {
-    if (!ref.watch(athleteHasTrainingsProvider)) return const SizedBox.shrink();
+    final invites =
+        ref.watch(athleteTrainingCentersDataProvider).valueOrNull?.invites ??
+        const [];
+    final invite = invites.isEmpty ? null : _CenterInviteTile(count: invites.length, centerName: invites.first.centerName);
+    if (!ref.watch(athleteHasTrainingsProvider)) {
+      return invite == null ? const SizedBox.shrink() : _wrap(invite);
+    }
     final now = ref.watch(professorLinksClockProvider)();
     final trainings = ref.watch(athleteTrainingsProvider) ?? const [];
     final views =
@@ -72,7 +89,9 @@ class _AthleteTrainingHomeEntryState
             : null;
     // Sem aula marcada e sem feedback novo, nada aparece (nem o respiro): o
     // atalho Treinos da linha de atalhos já leva ao hub.
-    if (next == null && fresh == null) return const SizedBox.shrink();
+    if (next == null && fresh == null) {
+      return invite == null ? const SizedBox.shrink() : _wrap(invite);
+    }
     void openHub() => context.pushNamed(AppRouteNames.athleteTrainings);
     final needsPresence = next != null &&
         (trainingAwaitsResponse(next, now) || trainingCanCheckIn(next, now));
@@ -92,6 +111,7 @@ class _AthleteTrainingHomeEntryState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (invite != null) ...[invite, const SizedBox(height: 10)],
           if (next != null)
             AnimatedSize(
               duration: const Duration(milliseconds: 220),
@@ -123,6 +143,32 @@ class _AthleteTrainingHomeEntryState
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Convite do centro de treinamento (O3) na Início.
+class _CenterInviteTile extends StatelessWidget {
+  const _CenterInviteTile({required this.count, required this.centerName});
+
+  final int count;
+  final String centerName;
+
+  @override
+  Widget build(BuildContext context) {
+    return TrainingTilesBlock(
+      children: [
+        TrainingListTile(
+          key: const Key('athlete-training-home-center-invite'),
+          icon: Icons.mail_outline_rounded,
+          highlight: true,
+          title: count == 1
+              ? 'Convite do $centerName'
+              : '$count convites de centros de treinamento',
+          subtitle: 'Toque para ver a turma e aceitar',
+          onTap: () => context.pushNamed(AppRouteNames.athleteTrainingAdd),
+        ),
+      ],
     );
   }
 }

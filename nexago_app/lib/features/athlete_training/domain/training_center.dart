@@ -124,6 +124,7 @@ class CenterSession {
     this.changeReason = '',
     this.myMark,
     this.isMakeup = false,
+    this.myRsvp,
   });
 
   factory CenterSession.fromMap(Map<String, Object?> m) => CenterSession(
@@ -144,6 +145,7 @@ class CenterSession {
     changeReason: _str(m['changeReason']),
     myMark: _strOrNull(m['myMark']),
     isMakeup: m['isMakeup'] == true,
+    myRsvp: _strOrNull(m['myRsvp']),
   );
 
   final String sessionId;
@@ -175,6 +177,9 @@ class CenterSession {
   /// `present`, `excused`, `absent` ou `null` (sem chamada).
   final String? myMark;
   final bool isMakeup;
+
+  /// "Vou" (`going`) / "Não vou" (`not_going`) do aluno; `null` sem resposta.
+  final String? myRsvp;
 
   bool get isCancelled => status == 'cancelled';
 }
@@ -424,14 +429,108 @@ List<TrainingPayment> centerPaymentsMerged(
 }
 
 /// Lista vazia quando a resposta não é um mapa com `centers`.
-List<TrainingCenterLink> trainingCentersFromResponse(Object? raw) {
-  if (raw is! Map) return const [];
-  final centers = raw['centers'];
-  if (centers is! List) return const [];
-  return [
-    for (final c in centers)
-      if (c is Map) TrainingCenterLink.fromMap(_map(c)),
-  ];
+List<TrainingCenterLink> trainingCentersFromResponse(Object? raw) =>
+    MyTrainingCentersData.fromResponse(raw).centers;
+
+/// Convite do centro: o cadastro foi feito pelo e-mail da conta e espera o
+/// aceite do aluno (`answerTrainingCenterInvite`).
+class CenterInvite {
+  const CenterInvite({
+    required this.centerId,
+    required this.studentId,
+    required this.centerName,
+    this.city = '',
+    this.state = '',
+    this.enrollments = const [],
+    this.invitedAt,
+  });
+
+  factory CenterInvite.fromMap(Map<String, Object?> m) {
+    final enrollments = m['enrollments'];
+    return CenterInvite(
+      centerId: _str(m['centerId']),
+      studentId: _str(m['studentId']),
+      centerName: _str(m['centerName'], 'Centro de treinamento'),
+      city: _str(m['city']),
+      state: _str(m['state']),
+      enrollments: enrollments is List
+          ? [
+              for (final e in enrollments)
+                if (e is Map) CenterEnrollment.fromMap(_map(e)),
+            ]
+          : const [],
+      invitedAt: _strOrNull(m['invitedAt']),
+    );
+  }
+
+  final String centerId;
+  final String studentId;
+  final String centerName;
+  final String city;
+  final String state;
+
+  /// Turmas em que o centro já matriculou o convidado.
+  final List<CenterEnrollment> enrollments;
+  final String? invitedAt;
+
+  /// "Rio de Janeiro · RJ".
+  String get placeLabel => [city, state].where((s) => s.isNotEmpty).join(' · ');
+}
+
+/// Resposta inteira de `getMyTrainingCenters`.
+class MyTrainingCentersData {
+  const MyTrainingCentersData({
+    this.centers = const [],
+    this.invites = const [],
+    this.unverifiedInvites = 0,
+  });
+
+  factory MyTrainingCentersData.fromResponse(Object? raw) {
+    if (raw is! Map) return const MyTrainingCentersData();
+    List<T> list<T>(String key, T Function(Map<String, Object?>) of) {
+      final v = raw[key];
+      return v is List
+          ? [
+              for (final e in v)
+                if (e is Map) of(_map(e)),
+            ]
+          : <T>[];
+    }
+
+    return MyTrainingCentersData(
+      centers: list('centers', TrainingCenterLink.fromMap),
+      invites: list('invites', CenterInvite.fromMap),
+      unverifiedInvites: _int(raw['unverifiedInvites']) ?? 0,
+    );
+  }
+
+  final List<TrainingCenterLink> centers;
+  final List<CenterInvite> invites;
+
+  /// Convites para o e-mail da conta que só aparecem depois de confirmar o
+  /// e-mail.
+  final int unverifiedInvites;
+}
+
+/// Pix da fatura do centro (`getMyTrainingCenterInvoicePix`).
+class CenterInvoicePix {
+  const CenterInvoicePix({
+    required this.status,
+    this.invoiceUrl = '',
+    this.pixPayload = '',
+  });
+
+  factory CenterInvoicePix.fromMap(Map<String, Object?> m) => CenterInvoicePix(
+    status: _str(m['status'], 'pending'),
+    invoiceUrl: _str(m['invoiceUrl']),
+    pixPayload: _str(m['pixPayload']),
+  );
+
+  final String status;
+  final String invoiceUrl;
+
+  /// Pix copia-e-cola (vazio quando o provedor não devolveu).
+  final String pixPayload;
 }
 
 // ── rótulos ──────────────────────────────────────────────────────────────

@@ -14,7 +14,6 @@ import '../../athlete/domain/agenda/athlete_agenda_providers.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../professor_mode/presentation/widgets/professor_students_widgets.dart';
 import '../application/athlete_training_providers.dart';
-import '../../../core/links/open_external_url.dart';
 import '../../../core/time/nexago_event_timezone.dart';
 import '../../professor_links/application/professor_links_providers.dart';
 import '../domain/training_center.dart';
@@ -67,7 +66,7 @@ class AthleteTrainingPlansPage extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(myClassChargesProvider);
           ref.invalidate(athleteTrainingPlansProvider);
-          ref.invalidate(athleteTrainingCentersProvider);
+          refreshAthleteTrainingCenters(ref);
           await ref.read(athleteTrainingPlansProvider.future);
         },
         child: ListView(
@@ -119,16 +118,11 @@ class AthleteTrainingPlansPage extends ConsumerWidget {
                         if (i.dueDate.isNotEmpty)
                           '${i.isOverdue(todayKey) ? 'venceu' : 'vence'} '
                               '${trainingPlanShortDate(i.dueDate)}',
-                        if (i.payUrl != null) 'toque para pagar',
+                        'toque para pagar',
                       ].join(' · '),
                       highlight: i.isOverdue(todayKey),
-                      onTap: () => i.payUrl != null
-                          ? openExternalUrl(i.payUrl!)
-                          : context.pushNamed(
-                              AppRouteNames.athleteTrainingCenter,
-                              pathParameters: {'centerId': c.centerId},
-                              queryParameters: const {'aba': 'plano'},
-                            ),
+                      onTap: () =>
+                          openCenterInvoice(context, c.centerId, i.invoiceId),
                     ),
                   ],
                 ),

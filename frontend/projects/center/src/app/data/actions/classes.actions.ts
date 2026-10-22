@@ -10,7 +10,9 @@ import { CenterActionsBase } from './actor';
 
 export type ClassInput = Omit<TrainingClass, 'id' | 'seatsTaken' | 'rosterStudentIds' | 'status' | 'generatedUntil'>;
 
-export type SessionPatch = Partial<Pick<ClassSession, 'startTime' | 'durationMin' | 'coachUid' | 'coachName' | 'courtId' | 'courtName'>>;
+export type SessionPatch = Partial<
+  Pick<ClassSession, 'startTime' | 'durationMin' | 'coachUid' | 'coachName' | 'courtId' | 'courtName' | 'locationId' | 'locationName' | 'locationAddress'>
+>;
 
 /**
  * Escritas em lote ficam em pedaços pequenos: cada documento do batch paga os `get()` das rules
@@ -28,7 +30,10 @@ async function commitInChunks(ops: Op[]): Promise<void> {
   }
 }
 
-function sessionData(c: Pick<TrainingClass, 'name' | 'programId' | 'startTime' | 'durationMin' | 'coachUid' | 'coachName' | 'courtId' | 'courtName'>, classId: string, date: string) {
+type SessionSource = Pick<TrainingClass, 'name' | 'programId' | 'startTime' | 'durationMin' | 'coachUid' | 'coachName' | 'courtId' | 'courtName' | 'locationId' | 'locationName'>;
+
+/** `address`: endereço do local no momento da geração (o aluno vê o da aula, não o atual). */
+function sessionData(c: SessionSource, classId: string, date: string, address: string) {
   return {
     classId,
     className: c.name,
@@ -38,6 +43,9 @@ function sessionData(c: Pick<TrainingClass, 'name' | 'programId' | 'startTime' |
     durationMin: c.durationMin,
     coachUid: c.coachUid,
     coachName: c.coachName,
+    locationId: c.locationId ?? '',
+    locationName: c.locationName ?? '',
+    locationAddress: address,
     courtId: c.courtId,
     courtName: c.courtName,
     status: 'scheduled',
@@ -55,6 +63,10 @@ export class ClassesActions extends CenterActionsBase {
 
   private today(): string {
     return todayKey(this.ctx.center()?.timezone);
+  }
+
+  private addressOf(locationId: string | undefined): string {
+    return (locationId && this.store.locationById(locationId)?.address) || '';
   }
 
   private sessionRef(id: string): DocumentReference {
@@ -96,7 +108,7 @@ export class ClassesActions extends CenterActionsBase {
   }
 
   /** Materializa aulas que faltam até o horizonte (idempotente: só datas depois de `generatedUntil`). */
-  async ensureSessions(c: Pick<TrainingClass, 'id' | 'name' | 'programId' | 'weekdays' | 'startTime' | 'durationMin' | 'coachUid' | 'coachName' | 'courtId' | 'courtName' | 'startDate' | 'endDate' | 'generatedUntil'>): Promise<number> {
+  async ensureSessions(c: Pick<TrainingClass, 'id' | 'name' | 'programId' | 'weekdays' | 'startTime' | 'durationMin' | 'coachUid' | 'coachName' | 'courtId' | 'courtName' | 'locationId' | 'locationName' | 'startDate' | 'endDate' | 'generatedUntil'>): Promise<number> {
     const today = this.today();
     const until = horizonEnd(today);
     const from = c.generatedUntil ? addDays(c.generatedUntil, 1) : today;
@@ -104,7 +116,7 @@ export class ClassesActions extends CenterActionsBase {
       return 0;
     }
     const dates = occurrences(c, from, until);
-    const ops: Op[] = dates.map((d) => (b) => b.set(this.sessionRef(sessionId(c.id, d)), sessionData(c, c.id, d)));
+    const ops: Op[] = dates.map((d) => (b) => b.set(this.sessionRef(sessionId(c.id, d)), sessionData(c, c.id, d, this.addressOf(c.locationId))));
     ops.push((b) => b.update(this.ref('classes', c.id), { generatedUntil: until }));
     await commitInChunks(ops);
     return dates.length;
@@ -141,6 +153,9 @@ export class ClassesActions extends CenterActionsBase {
             coachName: updated.coachName,
             courtId: updated.courtId,
             courtName: updated.courtName,
+            locationId: updated.locationId ?? '',
+            locationName: updated.locationName ?? '',
+            locationAddress: this.addressOf(updated.locationId),
           }),
         );
       } else {
@@ -150,7 +165,7 @@ export class ClassesActions extends CenterActionsBase {
     const until = c.generatedUntil ?? horizonEnd(this.today());
     for (const date of occurrences(updated, fromDate, until)) {
       if (!keep.has(date)) {
-        ops.push((b) => b.set(this.sessionRef(sessionId(c.id, date)), sessionData(updated, c.id, date)));
+        ops.push((b) => b.set(this.sessionRef(sessionId(c.id, date)), sessionData(updated, c.id, date, this.addressOf(updated.locationId))));
       }
     }
     const audit = this.auditDoc({
@@ -231,7 +246,8 @@ export class ClassesActions extends CenterActionsBase {
     const parts: string[] = [];
     if (patch.startTime && patch.startTime !== s.startTime) parts.push(`horário ${s.startTime} → ${patch.startTime}`);
     if (patch.coachName && patch.coachUid !== s.coachUid) parts.push(`professor → ${patch.coachName}`);
-    if (patch.courtName && patch.courtId !== s.courtId) parts.push(`quadra → ${patch.courtName}`);
+    if (patch.locationId !== undefined && patch.locationId !== s.locationId) parts.push(`local → ${patch.locationName || 'sem local'}`);
+    if (patch.courtId !== undefined && patch.courtId !== s.courtId) parts.push(`quadra → ${patch.courtName || 'sem quadra'}`);
     const b = writeBatch(db());
     b.update(this.sessionRef(s.id), { ...patch, changed: true, changeReason: reason.trim() });
     const audit = this.auditDoc({

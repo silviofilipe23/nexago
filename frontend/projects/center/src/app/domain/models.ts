@@ -41,6 +41,8 @@ export interface CenterPolicies {
   waitlistAcceptHours: number;
   /** Horas que a vaga fica reservada numa matrícula pendente. */
   pendingHoldHours: number;
+  /** Intervalo mínimo entre aulas do mesmo professor em locais diferentes (deslocamento). */
+  travelBufferMinutes: number;
 }
 
 export const DEFAULT_POLICIES: CenterPolicies = {
@@ -57,6 +59,7 @@ export const DEFAULT_POLICIES: CenterPolicies = {
   waitlistEnabled: true,
   waitlistAcceptHours: 24,
   pendingHoldHours: 48,
+  travelBufferMinutes: 30,
 };
 
 export interface CenterSubscription {
@@ -132,8 +135,41 @@ export interface Program {
   order: number;
 }
 
+export type LocationType = 'own' | 'partner' | 'adhoc';
+
+/** Janela contratada num local parceiro (ex.: Ter/Qui 18:00–22:00). */
+export interface ContractWindow {
+  weekdays: Weekday[];
+  start: string;
+  end: string;
+}
+
+/**
+ * Onde as aulas acontecem (`locations/{id}`). Próprio: o CT administra o espaço e as quadras
+ * (`courts.locationId`). Parceiro: arena de terceiros, só vale dentro da janela contratada.
+ * Avulso: só um endereço (aulão). Nunca excluído — arquivado, para aula passada mostrar onde foi.
+ */
+export interface CenterLocation {
+  id: string;
+  name: string;
+  type: LocationType;
+  address: string;
+  /** Observações para os alunos (entrada, estacionamento). */
+  notes: string;
+  isPrimary: boolean;
+  status: 'active' | 'archived';
+  windows: ContractWindow[];
+  /** Parceiro: quadras disponíveis na janela (texto livre, ex.: "A, B"). */
+  courtsLabel: string;
+  contactName: string;
+  contactPhone: string;
+  archivedAt: Date | null;
+}
+
 export interface Court {
   id: string;
+  /** Local próprio a que a quadra pertence (vazio = quadra antiga, antes dos locais). */
+  locationId: string;
   name: string;
   description: string;
   status: 'active' | 'maintenance';
@@ -152,6 +188,9 @@ export interface TrainingClass {
   weekdays: Weekday[];
   startTime: string;
   durationMin: number;
+  /** Local padrão da turma (a aula pode sobrescrever só na data). */
+  locationId: string;
+  locationName: string;
   courtId: string;
   courtName: string;
   capacity: number;
@@ -179,6 +218,10 @@ export interface ClassSession {
   durationMin: number;
   coachUid: string;
   coachName: string;
+  locationId: string;
+  locationName: string;
+  /** Endereço copiado do local na geração/troca — é o que o aluno vê e o push leva. */
+  locationAddress: string;
   courtId: string;
   courtName: string;
   status: SessionStatus;
@@ -389,6 +432,12 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 };
 
 /** Paleta das modalidades (protótipo). */
+export const LOCATION_TYPES: Record<LocationType, { label: string; tone: string; color: string; hint: string }> = {
+  own: { label: 'Próprio', tone: 'orange', color: '#FF8A4A', hint: 'O CT administra o espaço e as quadras' },
+  partner: { label: 'Parceiro', tone: 'blue', color: '#5B9BFF', hint: 'Arena de terceiros · janela contratada' },
+  adhoc: { label: 'Avulso', tone: 'dim', color: '#9AA0A6', hint: 'Endereço usado em poucas aulas' },
+};
+
 export const PROGRAM_COLORS = ['#FF8A4A', '#5B9BFF', '#C08CFF', '#2BD17E', '#F4C543', '#FF6B8A'];
 
 /** Gradientes do avatar do centro, escolhido de forma estável pelo id. */

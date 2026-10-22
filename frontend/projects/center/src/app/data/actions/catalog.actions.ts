@@ -7,7 +7,8 @@ import { db } from '../firebase';
 import { CenterActionsBase } from './actor';
 
 export type ProgramInput = Pick<Program, 'name' | 'color' | 'levels' | 'order'>;
-export type CourtInput = Pick<Court, 'name' | 'description' | 'status' | 'maintenanceUntil'>;
+/** `locationId`: local próprio da quadra (quadras são sempre de local próprio). */
+export type CourtInput = Pick<Court, 'name' | 'description' | 'status' | 'maintenanceUntil'> & { locationId?: string };
 export type PlanInput = Pick<
   Plan,
   'name' | 'type' | 'priceCents' | 'classesPerWeek' | 'makeupsPerMonth' | 'credits' | 'validityDays' | 'programIds' | 'featured'

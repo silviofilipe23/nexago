@@ -67,13 +67,19 @@ export function sessionNotice(before: Data | undefined, after: Data | undefined,
   const parts: string[] = [];
   if (s(before["startTime"]) !== s(after["startTime"])) parts.push(`novo horário ${s(after["startTime"])}`);
   if (s(before["coachUid"]) !== s(after["coachUid"])) parts.push(`professor ${s(after["coachName"]) || "novo"}`);
-  if (s(before["courtId"]) !== s(after["courtId"])) parts.push(`${s(after["courtName"]) || "outra quadra"}`);
+  const locationChanged = s(before["locationId"]) !== s(after["locationId"]);
+  if (locationChanged) {
+    parts.push(`novo local: ${s(after["locationName"]) || "a confirmar"}`);
+  } else if (s(before["courtId"]) !== s(after["courtId"])) {
+    parts.push(`${s(after["courtName"]) || "outra quadra"}`);
+  }
   if (parts.length === 0) return null;
+  const address = locationChanged && s(after["locationAddress"]) ? ` Endereço: ${s(after["locationAddress"])}.` : "";
   const coachChanged = s(before["coachUid"]) !== s(after["coachUid"]) && !!s(after["coachUid"]);
   return {
     kind: "changed",
-    title: `Aula alterada · ${name}`,
-    body: `${dayLabel(date)}: ${parts.join(" · ")}.${why}`,
+    title: locationChanged ? `Local alterado · ${name}` : `Aula alterada · ${name}`,
+    body: `${dayLabel(date)}: ${parts.join(" · ")}.${address}${why}`,
     newCoachUid: coachChanged ? s(after["coachUid"]) : null,
   };
 }

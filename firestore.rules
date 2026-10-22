@@ -3998,6 +3998,16 @@ service cloud.firestore {
         allow write: if ctIsManager() && ctNotSuspended();
       }
 
+      // Locais (próprio, parceiro, avulso). Nunca excluídos: arquivar mantém a aula passada
+      // mostrando onde foi.
+      match /locations/{locationId} {
+        allow read: if ctIsMember();
+        allow create, update: if ctIsManager() && ctNotSuspended() &&
+          request.resource.data.type in ['own', 'partner', 'adhoc'] &&
+          request.resource.data.status in ['active', 'archived'];
+        allow delete: if false;
+      }
+
       match /plans/{planId} {
         allow read: if ctIsMember();
         allow create, update: if ctHasPerm('edit_plans') && ctNotSuspended();

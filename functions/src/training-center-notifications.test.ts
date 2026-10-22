@@ -45,6 +45,13 @@ describe("modelo dos avisos", () => {
     assert.equal(sessionNotice(base, {...base, status: "cancelled"}, "2026-10-24"), null);
   });
 
+  it("troca de local avisa com o endereço novo", () => {
+    const n = sessionNotice({...base, locationId: "sede", locationName: "Sede Barra"},
+      {...base, changed: true, locationId: "pepe", locationName: "Arena Pepê", locationAddress: "Praia do Pepê, quiosque 12", courtId: ""}, "2026-10-22");
+    assert.equal(n?.title, "Local alterado · BT Iniciante A");
+    assert.match(n!.body, /novo local: Arena Pepê\. Endereço: Praia do Pepê, quiosque 12\./);
+  });
+
   it("mudança de série (sem `changed`) e chamada não avisam", () => {
     assert.equal(sessionNotice(base, {...base, startTime: "20:00"}, "2026-10-22"), null);
     assert.equal(sessionNotice(base, {...base, status: "done", attendance: {s1: "present"}}, "2026-10-22"), null);

@@ -14,6 +14,8 @@ export interface NewCenterInput {
   state: string;
   address: string;
   sports: string[];
+  /** Sede própria (vira o local principal) ou `null` para CT itinerante, só em parceiros. */
+  hq: { name: string; address: string } | null;
 }
 
 export type CenterProfilePatch = Pick<
@@ -96,6 +98,21 @@ export class CenterActions extends CenterActionsBase {
         order: i,
       });
     });
+    if (input.hq) {
+      b2.set(doc(collection(db(), CENTERS, id, 'locations')), {
+        name: input.hq.name.trim() || 'Sede',
+        type: 'own',
+        address: input.hq.address.trim(),
+        notes: '',
+        isPrimary: true,
+        status: 'active',
+        windows: [],
+        courtsLabel: '',
+        contactName: '',
+        contactPhone: '',
+        archivedAt: null,
+      });
+    }
     b2.set(doc(collection(db(), CENTERS, id, 'auditLogs')), {
       at: serverTimestamp(),
       actorUid: a.uid,

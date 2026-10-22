@@ -1,4 +1,6 @@
 import { addDays, minutesToTime, timeToMinutes, WEEK_ORDER, WEEKDAY_SHORT, weekdayOf, type Weekday } from './dates';
+import { daysOutsideWindow } from './locations';
+import type { CenterLocation } from './models';
 
 /**
  * Turma = REGRA recorrente (dias, horário, quadra, professor). Aula = ocorrência gerada a partir
@@ -16,6 +18,8 @@ export interface ClassRule {
   coachName?: string;
   courtId: string;
   courtName?: string;
+  /** Local padrão (vazio em turma antiga, antes dos locais). */
+  locationId?: string;
   weekdays: Weekday[];
   startTime: string;
   durationMin: number;
@@ -25,7 +29,9 @@ export interface ClassRule {
 }
 
 export interface ScheduleConflict {
-  kind: 'coach' | 'court';
+  /** `travel`: mesmo professor em local diferente sem folga de deslocamento; `window`: fora da
+   *  janela contratada do parceiro (aí `otherClassName` é o nome do local). */
+  kind: 'coach' | 'court' | 'travel' | 'window';
   otherClassId: string;
   otherClassName: string;
   weekdays: Weekday[];
@@ -60,8 +66,26 @@ function blocksSchedule(c: ClassRule): boolean {
  * dia comum, com horários sobrepostos e vigências que se cruzam. A própria turma (mesmo id) é
  * ignorada, pra edição não acusar conflito consigo.
  */
-export function findConflicts(candidate: ClassRule, existing: ClassRule[]): ScheduleConflict[] {
+export interface ConflictOptions {
+  locations?: ReadonlyMap<string, Pick<CenterLocation, 'name' | 'type' | 'windows'>>;
+  travelBufferMin?: number;
+}
+
+export function findConflicts(candidate: ClassRule, existing: ClassRule[], opts: ConflictOptions = {}): ScheduleConflict[] {
   const out: ScheduleConflict[] = [];
+  const loc = candidate.locationId ? opts.locations?.get(candidate.locationId) : undefined;
+  const outside = daysOutsideWindow(loc, candidate.weekdays, candidate.startTime, candidate.durationMin);
+  if (loc && outside.length) {
+    out.push({
+      kind: 'window',
+      otherClassId: '',
+      otherClassName: loc.name,
+      weekdays: outside,
+      startTime: candidate.startTime,
+      endTime: endTime(candidate.startTime, candidate.durationMin),
+    });
+  }
+  const buffer = opts.travelBufferMin ?? 0;
   for (const other of existing) {
     if ((candidate.id && other.id === candidate.id) || !blocksSchedule(other)) {
       continue;
@@ -71,6 +95,25 @@ export function findConflicts(candidate: ClassRule, existing: ClassRule[]): Sche
       continue;
     }
     if (!overlaps(candidate.startTime, candidate.durationMin, other.startTime, other.durationMin)) {
+      // Sem sobrepor, ainda pode faltar tempo para o professor trocar de local.
+      if (
+        buffer > 0 &&
+        candidate.coachUid &&
+        other.coachUid === candidate.coachUid &&
+        candidate.locationId &&
+        other.locationId &&
+        other.locationId !== candidate.locationId &&
+        travelGap(candidate, other) < buffer
+      ) {
+        out.push({
+          kind: 'travel',
+          otherClassId: other.id ?? '',
+          otherClassName: other.name,
+          weekdays: days,
+          startTime: other.startTime,
+          endTime: endTime(other.startTime, other.durationMin),
+        });
+      }
       continue;
     }
     const base = {
@@ -90,9 +133,18 @@ export function findConflicts(candidate: ClassRule, existing: ClassRule[]): Sche
   return out;
 }
 
+/** Minutos entre o fim de uma e o começo da outra (as duas sem sobrepor). */
+function travelGap(a: ClassRule, b: ClassRule): number {
+  const a0 = timeToMinutes(a.startTime);
+  const b0 = timeToMinutes(b.startTime);
+  return a0 >= b0 + b.durationMin ? a0 - (b0 + b.durationMin) : b0 - (a0 + a.durationMin);
+}
+
 export function describeConflict(c: ScheduleConflict, coachName: string, courtName: string): string {
   const days = WEEK_ORDER.filter((d) => c.weekdays.includes(d)).map((d) => WEEKDAY_SHORT[d]).join(' e ');
   const span = `${days} ${c.startTime}–${c.endTime}`;
+  if (c.kind === 'window') return `Fora da janela contratada em ${c.otherClassName} · ${days}`;
+  if (c.kind === 'travel') return `${coachName || 'O professor'} vem de ${c.otherClassName} em outro local · ${span} · sem tempo de deslocamento`;
   return c.kind === 'coach'
     ? `${coachName || 'O professor'} já dá ${c.otherClassName} · ${span}`
     : `${courtName || 'A quadra'} ocupada por ${c.otherClassName} · ${span}`;
@@ -113,10 +165,11 @@ export function suggestAlternatives(
   courts: { id: string; name: string }[],
   coaches: { uid: string; name: string }[],
   limit = 3,
+  opts: ConflictOptions = {},
 ): ScheduleSuggestion[] {
   const out: ScheduleSuggestion[] = [];
   const free = (patch: ScheduleSuggestion['patch']) =>
-    findConflicts({ ...candidate, ...patch }, existing).length === 0;
+    findConflicts({ ...candidate, ...patch }, existing, opts).length === 0;
   const daysLabel = (days: Weekday[]) =>
     WEEK_ORDER.filter((d) => days.includes(d)).map((d) => WEEKDAY_SHORT[d]).join('/');
   const courtName = candidate.courtName ?? courts.find((c) => c.id === candidate.courtId)?.name ?? '';

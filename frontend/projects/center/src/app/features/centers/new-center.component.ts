@@ -34,6 +34,9 @@ export class NewCenterComponent {
 
   protected readonly sports = SPORTS;
   protected readonly selected = signal<string[]>(['Beach Tennis']);
+  /** Sede própria (vira o local principal) ou itinerante (só arenas parceiras). */
+  protected readonly hasHq = signal(true);
+  protected readonly hqName = signal('Sede');
   protected readonly submitted = signal(false);
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -50,6 +53,10 @@ export class NewCenterComponent {
   });
 
   protected readonly sportsError = computed(() => this.submitted() && this.selected().length === 0);
+
+  protected value(e: Event): string {
+    return (e.target as HTMLInputElement).value;
+  }
 
   protected toggleSport(sport: string): void {
     this.selected.update((list) => (list.includes(sport) ? list.filter((s) => s !== sport) : [...list, sport]));
@@ -73,7 +80,10 @@ export class NewCenterComponent {
     this.saving.set(true);
     try {
       const raw = this.form.getRawValue();
-      const id = await this.actions.createCenter({ ...raw, cnpj: formatCpfCnpjDisplay(raw.cnpj), sports: this.selected() });
+      const hq = this.hasHq()
+        ? { name: this.hqName(), address: [raw.address, raw.city && `${raw.city}/${raw.state.toUpperCase()}`].filter(Boolean).join(' · ') }
+        : null;
+      const id = await this.actions.createCenter({ ...raw, cnpj: formatCpfCnpjDisplay(raw.cnpj), sports: this.selected(), hq });
       void this.router.navigate(['/centro', id, 'ativacao']);
     } catch (err) {
       this.error.set(writeErrorMessage(err));

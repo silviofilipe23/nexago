@@ -4,7 +4,7 @@ import { buildPendencies, todayHeadcount, todayState } from './dashboard.utils';
 function session(over: Partial<ClassSession> = {}): ClassSession {
   return {
     id: 's1', classId: 'c1', className: 'BT A', programId: 'p', date: '2026-10-22', startTime: '18:00', durationMin: 60,
-    coachUid: 'u', coachName: 'Tiago M', courtId: 'q', courtName: 'Quadra 1', status: 'scheduled', changed: false,
+    coachUid: 'u', coachName: 'Tiago M', locationId: '', locationName: '', locationAddress: '', courtId: 'q', courtName: 'Quadra 1', status: 'scheduled', changed: false,
     changeReason: '', attendance: {}, makeupStudentIds: [], finalizedAt: null, finalizedByName: '', attendanceLog: [], effectsApplied: {}, ...over,
   };
 }

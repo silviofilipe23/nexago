@@ -19,7 +19,7 @@ function invoice(p: Partial<Invoice>): Invoice {
 function session(p: Partial<ClassSession>): ClassSession {
   return {
     id: 'x', classId: 'c1', className: 'BT A', programId: 'p', date: '2026-10-20', startTime: '19:00', durationMin: 60,
-    coachUid: '', coachName: '', courtId: '', courtName: '', status: 'done', changed: false, changeReason: '',
+    coachUid: '', coachName: '', locationId: '', locationName: '', locationAddress: '', courtId: '', courtName: '', status: 'done', changed: false, changeReason: '',
     attendance: {}, makeupStudentIds: [], finalizedAt: null, finalizedByName: '', attendanceLog: [], effectsApplied: {}, ...p,
   };
 }

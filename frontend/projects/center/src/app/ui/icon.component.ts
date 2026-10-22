@@ -32,6 +32,8 @@ const PATHS = {
   trash: 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6',
   menu: 'M4 7h16M4 12h16M4 17h16',
   arrowLeft: 'M19 12H5M12 19l-7-7 7-7',
+  pin: 'M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5',
+  route: 'M6 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM6 15V9a4 4 0 0 1 4-4h6M18 9v6a4 4 0 0 1-4 4H8',
 } as const;
 
 export type IconName = keyof typeof PATHS;

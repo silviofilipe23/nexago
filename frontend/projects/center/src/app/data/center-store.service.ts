@@ -14,6 +14,7 @@ import { addDays, todayKey } from '../domain/dates';
 import type {
   AuditEntry,
   CenterInvite,
+  CenterLocation,
   CenterMember,
   ClassSession,
   Court,
@@ -33,6 +34,7 @@ import {
   readEnrollment,
   readInvite,
   readInvoice,
+  readLocation,
   readMember,
   readPlan,
   readProgram,
@@ -66,6 +68,7 @@ export class CenterStore {
     invites: feed<CenterInvite>(),
     programs: feed<Program>(),
     courts: feed<Court>(),
+    locations: feed<CenterLocation>(),
     classes: feed<TrainingClass>(),
     sessions: feed<ClassSession>(),
     students: feed<Student>(),
@@ -79,6 +82,15 @@ export class CenterStore {
   readonly invites: Signal<CenterInvite[]> = this.f.invites.state.asReadonly();
   readonly programs = computed(() => [...this.f.programs.state()].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name)));
   readonly courts = computed(() => [...this.f.courts.state()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { numeric: true })));
+  /** Ativos primeiro, principal no topo. */
+  readonly locations = computed(() =>
+    [...this.f.locations.state()].sort(
+      (a, b) =>
+        Number(a.status === 'archived') - Number(b.status === 'archived') ||
+        Number(b.isPrimary) - Number(a.isPrimary) ||
+        a.name.localeCompare(b.name, 'pt-BR'),
+    ),
+  );
   readonly classes = computed(() => [...this.f.classes.state()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
   readonly sessions: Signal<ClassSession[]> = this.f.sessions.state.asReadonly();
   readonly students = computed(() => [...this.f.students.state()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')));
@@ -101,10 +113,16 @@ export class CenterStore {
     members: this.f.members.loaded.asReadonly(),
     sessions: this.f.sessions.loaded.asReadonly(),
     programs: this.f.programs.loaded.asReadonly(),
+    locations: this.f.locations.loaded.asReadonly(),
+    courts: this.f.courts.loaded.asReadonly(),
   };
 
   programById(id: string): Program | undefined {
     return this.f.programs.state().find((p) => p.id === id);
+  }
+
+  locationById(id: string): CenterLocation | undefined {
+    return this.f.locations.state().find((l) => l.id === id);
   }
 
   classById(id: string): TrainingClass | undefined {
@@ -178,6 +196,7 @@ export class CenterStore {
       listen(this.f.members, base('centerMembers'), readMember);
       listen(this.f.programs, base('programs'), readProgram);
       listen(this.f.courts, base('courts'), readCourt);
+      listen(this.f.locations, base('locations'), readLocation);
       listen(this.f.classes, base('classes'), readClass);
       listen(this.f.plans, base('plans'), readPlan);
       listen(this.f.students, base('students'), readStudent);

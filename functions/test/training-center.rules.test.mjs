@@ -6,6 +6,7 @@ import { assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-
 import {
   collection,
   collectionGroup,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -252,4 +253,15 @@ test('auditoria: cria em nome próprio com hora do servidor; nunca edita nem apa
   await denied(setDoc(doc(collection(db, 'trainingCenters', C, 'auditLogs')), { actorUid: OWNER, action: 'x', at: serverTimestamp() }));
   await denied(getDoc(doc(db, 'trainingCenters', C, 'auditLogs', 'a1')));
   await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'auditLogs', 'a1'), { action: 'y' }));
+});
+
+test('locais: gestor cria e arquiva; ninguém exclui; professor só lê', async () => {
+  const loc = { name: 'Arena Pepê', type: 'partner', status: 'active', windows: [], isPrimary: false };
+  await assertSucceeds(setDoc(doc(as(ADMIN), 'trainingCenters', C, 'locations', 'pepe'), loc));
+  await denied(setDoc(doc(as(COACH), 'trainingCenters', C, 'locations', 'x'), loc));
+  await denied(setDoc(doc(as(ADMIN), 'trainingCenters', C, 'locations', 'y'), { ...loc, type: 'castelo' }));
+  await assertSucceeds(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'locations', 'pepe'), { status: 'archived' }));
+  await assertSucceeds(getDoc(doc(as(COACH), 'trainingCenters', C, 'locations', 'pepe')));
+  await denied(deleteDoc(doc(as(OWNER), 'trainingCenters', C, 'locations', 'pepe')));
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', SUSP, 'locations', 'z'), loc));
 });

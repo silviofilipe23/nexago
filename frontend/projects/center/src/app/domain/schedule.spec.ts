@@ -1,3 +1,4 @@
+import type { Weekday } from './dates';
 import { findConflicts, occurrences, overlaps, suggestAlternatives, type ClassRule } from './schedule';
 
 const base: ClassRule = {
@@ -60,5 +61,29 @@ describe('schedule', () => {
     // 03/11/2026 é terça.
     expect(occurrences(base, '2026-11-01', '2026-11-12')).toEqual(['2026-11-03', '2026-11-05', '2026-11-10', '2026-11-12']);
     expect(occurrences({ ...base, endDate: '2026-11-05' }, '2026-11-01', '2026-11-30')).toEqual(['2026-11-03', '2026-11-05']);
+  });
+});
+
+describe('schedule · locais', () => {
+  type Loc = { name: string; type: 'own' | 'partner' | 'adhoc'; windows: { weekdays: Weekday[]; start: string; end: string }[] };
+  const locs = new Map<string, Loc>([
+    ['pepe', { name: 'Arena Pepê', type: 'partner', windows: [{ weekdays: [2, 4], start: '18:00', end: '22:00' }] }],
+    ['sede', { name: 'Sede', type: 'own', windows: [] }],
+  ]);
+  const cand: ClassRule = { ...base, locationId: 'pepe', courtId: '', startTime: '19:00' };
+
+  it('parceiro: horário fora da janela contratada acusa conflito por dia', () => {
+    expect(findConflicts(cand, [], { locations: locs })).toEqual([]);
+    const late = findConflicts({ ...cand, startTime: '21:30' }, [], { locations: locs });
+    expect(late.map((c) => c.kind)).toEqual(['window']);
+    expect(late[0]!.weekdays).toEqual([2, 4]);
+    expect(findConflicts({ ...cand, weekdays: [1] }, [], { locations: locs })[0]!.kind).toBe('window');
+  });
+
+  it('mesmo professor em outro local sem folga de deslocamento', () => {
+    const before: ClassRule = { ...base, id: 'x', name: 'BT Sede', courtId: 'q9', locationId: 'sede', startTime: '17:45', durationMin: 60, status: 'active' };
+    expect(findConflicts(cand, [before], { locations: locs, travelBufferMin: 30 }).map((c) => c.kind)).toEqual(['travel']);
+    expect(findConflicts(cand, [{ ...before, startTime: '17:00' }], { locations: locs, travelBufferMin: 30 })).toEqual([]);
+    expect(findConflicts(cand, [{ ...before, locationId: 'pepe' }], { locations: locs, travelBufferMin: 30 })).toEqual([]);
   });
 });

@@ -32,6 +32,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: 'Centro',
     items: [
+      { area: 'locations', label: 'Locais', icon: 'pin', path: 'locais' },
       { area: 'programs', label: 'Modalidades e níveis', icon: 'flag', path: 'modalidades' },
       { area: 'members', label: 'Equipe', icon: 'users', path: 'equipe' },
       { area: 'settings', label: 'Configurações', icon: 'gear', path: 'configuracoes' },

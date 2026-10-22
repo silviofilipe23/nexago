@@ -31,9 +31,16 @@ import 'training_widgets.dart';
 /// (ou check-in aberto) já abre expandido — a ação não fica escondida. Depois
 /// que o atleta usa a seta, vale a escolha dele.
 class AthleteTrainingHomeEntry extends ConsumerStatefulWidget {
-  const AthleteTrainingHomeEntry({super.key, this.initiallyExpanded = false});
+  const AthleteTrainingHomeEntry({
+    super.key,
+    this.initiallyExpanded = false,
+    this.bottomGap = AppSpacing.sectionGap,
+  });
 
   final bool initiallyExpanded;
+
+  /// Respiro abaixo da entrada (a Início aperta entre os cards dinâmicos).
+  final double bottomGap;
 
   @override
   ConsumerState<AthleteTrainingHomeEntry> createState() =>
@@ -76,11 +83,11 @@ class _AthleteTrainingHomeEntryState
 
     return Padding(
       key: const Key('athlete-training-home-entry'),
-      padding: const EdgeInsets.fromLTRB(
+      padding: EdgeInsets.fromLTRB(
         AppSpacing.screenH,
         0,
         AppSpacing.screenH,
-        AppSpacing.sectionGap,
+        widget.bottomGap,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

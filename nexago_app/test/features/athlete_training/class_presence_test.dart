@@ -485,6 +485,8 @@ void main() {
       final repo = _FakeRepo(_Store([_class('s1', '2026-10-22')]));
       await _pump(tester, location: AppRoutes.home, repo: repo);
 
+      // Na Início o cartão começa compacto; a presença fica no expandido.
+      await _tap(tester, find.byKey(const Key('training-next-compact')));
       expect(find.byKey(const Key('training-next-primary')), findsOneWidget);
       await _tap(tester, find.byKey(const Key('training-presence-confirm')));
       expect(repo.calls, ['respond s1 going - -']);

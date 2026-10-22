@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/routes.dart';
+import '../../../../core/ui/card_collapse_toggle.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -93,11 +94,16 @@ class TrainingNextCard extends StatelessWidget {
     this.big = false,
     this.badge = 0,
     this.presence,
+    this.onCollapse,
   });
 
   final TrainingSession training;
   final String todayKey;
   final LessonPlanView? plan;
+
+  /// Com valor, o cabeçalho ganha a seta de recolher (Início: o cartão
+  /// volta para a versão compacta, [TrainingNextCompactCard]).
+  final VoidCallback? onCollapse;
   final bool big;
   final String primaryLabel;
   final VoidCallback onPrimary;
@@ -156,6 +162,14 @@ class TrainingNextCard extends StatelessWidget {
               ],
               const Spacer(),
               TrainingTypeTag(t),
+              if (onCollapse != null) ...[
+                const SizedBox(width: 4),
+                CardCollapseToggle(
+                  key: const Key('training-next-collapse'),
+                  expanded: true,
+                  onTap: onCollapse!,
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -288,6 +302,98 @@ class TrainingNextCard extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onPrimary,
       child: card,
+    );
+  }
+}
+
+/// Versão compacta do "Próximo treino" na Início: uma linha com dia, hora,
+/// turma e estado; o toque expande para o [TrainingNextCard].
+class TrainingNextCompactCard extends StatelessWidget {
+  const TrainingNextCompactCard({
+    super.key,
+    required this.training,
+    required this.todayKey,
+    required this.onExpand,
+    this.badge = 0,
+  });
+
+  final TrainingSession training;
+  final String todayKey;
+  final VoidCallback onExpand;
+  final int badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final t = training;
+    final day = trainingRelativeDay(t.dateKey, todayKey);
+    final sub = [t.title, t.placeLabel].where((s) => s.isNotEmpty).join(' · ');
+    return ProfessorLinksCard(
+      key: const Key('training-next-compact'),
+      onTap: onExpand,
+      padding: const EdgeInsets.fromLTRB(13, 11, 8, 11),
+      borderColor: AppColors.brand.withValues(alpha: 0.32),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppColors.brand.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child:
+                Icon(Icons.sports_rounded, size: 20, color: colors.brandText),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'PRÓXIMO TREINO',
+                      style: ProfessorLinksStyle.mono(
+                        9.5,
+                        color: colors.brandText,
+                      ).copyWith(letterSpacing: 0.4),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(child: TrainingStatePill(t)),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '$day · ${t.startTime}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: ProfessorLinksStyle.display(
+                    15,
+                    weight: FontWeight.w700,
+                    color: colors.onSurface,
+                  ),
+                ),
+                if (sub.isNotEmpty)
+                  Text(
+                    sub,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.bodyS.copyWith(
+                      fontSize: 12,
+                      color: ProfessorLinksStyle.mute(colors),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (badge > 0) ...[
+            const SizedBox(width: 8),
+            TrainingBadge(count: badge),
+          ],
+          CardCollapseToggle(expanded: false, onTap: onExpand),
+        ],
+      ),
     );
   }
 }

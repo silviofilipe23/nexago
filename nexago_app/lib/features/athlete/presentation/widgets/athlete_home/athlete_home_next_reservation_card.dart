@@ -7,6 +7,7 @@ import '../../../../../core/theme/app_radii.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../../core/ui/card_collapse_toggle.dart';
 import '../../../../../core/ui/nexa_card.dart';
 import '../../../../arenas/domain/my_booking_item.dart';
 import '../../../domain/athlete_booking_helpers.dart';
@@ -14,7 +15,10 @@ import '../../../domain/athlete_booking_helpers.dart';
 /// Card "Próxima reserva" da Home (paridade com o painel web): time-box com
 /// dia + hora, status, valor e ações "Como chegar"/"Detalhes" — e o atalho do
 /// story quando [onStoryTap] vem.
-class AthleteHomeNextReservationCard extends StatelessWidget {
+///
+/// Com [initiallyExpanded] falso (Início) começa compacto: uma linha com
+/// dia/hora, arena e status; a seta expande para o card inteiro.
+class AthleteHomeNextReservationCard extends StatefulWidget {
   const AthleteHomeNextReservationCard({
     super.key,
     required this.booking,
@@ -22,7 +26,10 @@ class AthleteHomeNextReservationCard extends StatelessWidget {
     required this.onReserveTap,
     this.onStoryTap,
     this.now,
+    this.initiallyExpanded = true,
   });
+
+  final bool initiallyExpanded;
 
   /// `null` = sem próxima reserva (estado vazio).
   final MyBookingItem? booking;
@@ -36,21 +43,189 @@ class AthleteHomeNextReservationCard extends StatelessWidget {
   final DateTime? now;
 
   @override
+  State<AthleteHomeNextReservationCard> createState() =>
+      _AthleteHomeNextReservationCardState();
+}
+
+class _AthleteHomeNextReservationCardState
+    extends State<AthleteHomeNextReservationCard> {
+  late bool _expanded = widget.initiallyExpanded;
+
+  void _toggle() => setState(() => _expanded = !_expanded);
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final item = booking;
+    final item = widget.booking;
+    final now = widget.now ?? DateTime.now();
+
+    final Widget child;
+    if (item == null) {
+      child = _expanded
+          ? _EmptyState(onReserveTap: widget.onReserveTap)
+          : _CompactEmpty(onReserveTap: widget.onReserveTap);
+    } else if (_expanded) {
+      child = _ReservationBody(
+        booking: item,
+        onDetailsTap: widget.onDetailsTap,
+        onStoryTap: widget.onStoryTap,
+        colors: colors,
+        now: now,
+        // Só quem começou compacto ganha a seta de recolher.
+        onCollapse: widget.initiallyExpanded ? null : _toggle,
+      );
+    } else {
+      child = _CompactReservation(
+        booking: item,
+        colors: colors,
+        now: now,
+        onExpand: _toggle,
+      );
+    }
 
     return NexaCard(
       side: BorderSide(color: AppColors.brand.withValues(alpha: 0.3)),
-      child: item == null
-          ? _EmptyState(onReserveTap: onReserveTap)
-          : _ReservationBody(
-              booking: item,
-              onDetailsTap: onDetailsTap,
-              onStoryTap: onStoryTap,
-              colors: colors,
-              now: now ?? DateTime.now(),
-            ),
+      padding: _expanded
+          ? const EdgeInsets.all(AppSpacing.lg)
+          : const EdgeInsets.fromLTRB(12, 10, 6, 10),
+      onTap: item != null && !_expanded ? _toggle : null,
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        alignment: Alignment.topCenter,
+        child: child,
+      ),
+    );
+  }
+}
+
+/// Sem reserva, compacto: uma linha e o atalho para reservar.
+class _CompactEmpty extends StatelessWidget {
+  const _CompactEmpty({required this.onReserveTap});
+
+  final VoidCallback onReserveTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return Row(
+      key: const Key('home-next-booking-compact-empty'),
+      children: [
+        Icon(Icons.event_available_outlined, size: 20, color: colors.brandText),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Text(
+            'Sem próxima reserva agendada.',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted),
+          ),
+        ),
+        TextButton(
+          onPressed: onReserveTap,
+          style: TextButton.styleFrom(
+            foregroundColor: colors.brandText,
+            minimumSize: const Size(0, 36),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            textStyle: AppTypography.labelL,
+          ),
+          child: const Text('Reservar'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Com reserva, compacto: dia/hora, arena · quadra e status numa linha.
+class _CompactReservation extends StatelessWidget {
+  const _CompactReservation({
+    required this.booking,
+    required this.colors,
+    required this.now,
+    required this.onExpand,
+  });
+
+  final MyBookingItem booking;
+  final AppThemeColors colors;
+  final DateTime now;
+  final VoidCallback onExpand;
+
+  @override
+  Widget build(BuildContext context) {
+    final start = parseBookingStart(booking);
+    final status = _ReservationBody._status(booking, colors);
+    final court = booking.courtName?.trim() ?? '';
+    return Row(
+      key: const Key('home-next-booking-compact'),
+      children: [
+        Container(
+          width: 56,
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: AppColors.brand.withValues(alpha: 0.12),
+            borderRadius: AppRadii.mdAll,
+          ),
+          child: Column(
+            children: [
+              Text(
+                (start != null
+                        ? _ReservationBody._dayLabel(start, now)
+                        : 'Próxima')
+                    .toUpperCase(),
+                maxLines: 1,
+                style: AppTypography.eyebrow.copyWith(
+                  color: colors.brandText,
+                  fontSize: 9,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                booking.startTime,
+                style: AppTypography.mono(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: colors.onSurface,
+                  height: 1,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'PRÓXIMA RESERVA',
+                style:
+                    AppTypography.eyebrow.copyWith(color: colors.onSurfaceMuted),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                court.isEmpty
+                    ? booking.arenaName
+                    : '${booking.arenaName} · $court',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.titleS.copyWith(
+                  color: colors.onSurface,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                status.label,
+                maxLines: 1,
+                style: AppTypography.labelS.copyWith(
+                  color: colors.readableTone(status.color),
+                ),
+              ),
+            ],
+          ),
+        ),
+        CardCollapseToggle(expanded: false, onTap: onExpand),
+      ],
     );
   }
 }
@@ -102,6 +277,7 @@ class _ReservationBody extends StatelessWidget {
     required this.onStoryTap,
     required this.colors,
     required this.now,
+    this.onCollapse,
   });
 
   final MyBookingItem booking;
@@ -109,6 +285,7 @@ class _ReservationBody extends StatelessWidget {
   final VoidCallback? onStoryTap;
   final AppThemeColors colors;
   final DateTime now;
+  final VoidCallback? onCollapse;
 
   /// "Hoje" / "Amanhã" / "15 abr" — o topo do bloco de horário.
   static String _dayLabel(DateTime start, DateTime now) {
@@ -232,6 +409,15 @@ class _ReservationBody extends StatelessWidget {
                 ],
               ),
             ),
+            if (onCollapse != null)
+              Transform.translate(
+                offset: const Offset(8, -8),
+                child: CardCollapseToggle(
+                  key: const Key('home-next-booking-collapse'),
+                  expanded: true,
+                  onTap: onCollapse!,
+                ),
+              ),
           ],
         ),
         const SizedBox(height: AppSpacing.md),

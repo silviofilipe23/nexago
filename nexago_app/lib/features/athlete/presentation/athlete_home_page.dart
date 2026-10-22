@@ -361,6 +361,8 @@ class AthleteHomePage extends ConsumerWidget {
                             return AthleteHomeNextReservationCard(
                               booking: nextBooking,
                               now: now,
+                              // Compacto na Início; a seta expande.
+                              initiallyExpanded: false,
                               onDetailsTap: () =>
                                   context.pushNamed(AppRouteNames.myBookings),
                               onReserveTap: () =>

@@ -25,11 +25,27 @@ import 'training_widgets.dart';
 /// aula marcada, um atalho para Meus treinos) e o feedback novo do
 /// professor. Só aparece para quem tem aula, particular ou plano/feedback —
 /// quem não treina com professor não vê nada (nem o respiro).
-class AthleteTrainingHomeEntry extends ConsumerWidget {
-  const AthleteTrainingHomeEntry({super.key});
+///
+/// O "Próximo treino" começa compacto (uma linha); a seta expande para o
+/// cartão inteiro, com plano, presença e botões.
+class AthleteTrainingHomeEntry extends ConsumerStatefulWidget {
+  const AthleteTrainingHomeEntry({super.key, this.initiallyExpanded = false});
+
+  final bool initiallyExpanded;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AthleteTrainingHomeEntry> createState() =>
+      _AthleteTrainingHomeEntryState();
+}
+
+class _AthleteTrainingHomeEntryState
+    extends ConsumerState<AthleteTrainingHomeEntry> {
+  late bool _expanded = widget.initiallyExpanded;
+
+  void _toggle() => setState(() => _expanded = !_expanded);
+
+  @override
+  Widget build(BuildContext context) {
     if (!ref.watch(athleteHasTrainingsProvider)) return const SizedBox.shrink();
     final now = ref.watch(professorLinksClockProvider)();
     final trainings = ref.watch(athleteTrainingsProvider) ?? const [];
@@ -56,16 +72,29 @@ class AthleteTrainingHomeEntry extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (next != null)
-            TrainingNextCard(
-              training: next,
-              todayKey: nexagoEventDayKey(now),
-              plan: lessonPlanViewFor(views, next.planKind, next.id),
-              primaryLabel: 'Meus treinos',
-              badge: badge,
-              onPrimary: openHub,
-              presence: TrainingPresenceButton.appliesTo(next, now)
-                  ? TrainingPresenceButton(training: next)
-                  : null,
+            AnimatedSize(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: _expanded
+                  ? TrainingNextCard(
+                      training: next,
+                      todayKey: nexagoEventDayKey(now),
+                      plan: lessonPlanViewFor(views, next.planKind, next.id),
+                      primaryLabel: 'Meus treinos',
+                      badge: badge,
+                      onPrimary: openHub,
+                      onCollapse: _toggle,
+                      presence: TrainingPresenceButton.appliesTo(next, now)
+                          ? TrainingPresenceButton(training: next)
+                          : null,
+                    )
+                  : TrainingNextCompactCard(
+                      training: next,
+                      todayKey: nexagoEventDayKey(now),
+                      badge: badge,
+                      onExpand: _toggle,
+                    ),
             )
           else
             _HubShortcut(badge: badge, onTap: openHub),

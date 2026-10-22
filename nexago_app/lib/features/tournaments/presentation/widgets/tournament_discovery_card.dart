@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radii.dart';
 import '../../../../core/ui/rebuild_at.dart';
+import '../../../organizer_public_profile/domain/organizer_public_profile_providers.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../data/tournament_inscriptions_repository.dart';
 import '../../domain/tournament_category_spots.dart';
@@ -180,6 +181,9 @@ class TournamentDiscoveryCard extends StatelessWidget {
                         height: 1.15,
                       ),
                     ),
+                    if (tournament.managerId?.trim() case final managerId?
+                        when managerId.isNotEmpty)
+                      _VerifiedOrganizerLine(managerId: managerId),
                     SizedBox(height: 8),
                     _TournamentMetaRow(
                       location: tournament.location,
@@ -330,6 +334,50 @@ class _EnrolledEntriesLine extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Nome do organizador com o selo — só para organizador verificado (`organizers/{uid}` existe,
+/// projetado em `organizerPublicProfiles/{uid}.verified`). Sem selo a linha não aparece: o card
+/// nunca mostrou o organizador, e o que se acrescenta aqui é o selo.
+class _VerifiedOrganizerLine extends ConsumerWidget {
+  const _VerifiedOrganizerLine({required this.managerId});
+
+  final String managerId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile =
+        ref.watch(organizerPublicProfileProvider(managerId)).valueOrNull;
+    if (profile == null || !profile.isDisplayable || !profile.verified) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        children: [
+          Flexible(
+            child: Text(
+              profile.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.soraRegular(
+                fontSize: 13,
+                color: context.themeColors.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          const Icon(
+            Icons.verified_rounded,
+            size: 15,
+            color: AppColors.brand,
+            semanticLabel: 'Organizador verificado',
+          ),
+        ],
+      ),
     );
   }
 }

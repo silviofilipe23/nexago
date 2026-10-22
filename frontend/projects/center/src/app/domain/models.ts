@@ -293,6 +293,9 @@ export interface Enrollment {
   pauseReason: string;
   creditsLeft: number | null;
   waitlistedAt: Date | null;
+  /** Vaga oferecida pela fila (automática pelo servidor ou manual). */
+  offeredAt: Date | null;
+  offeredAuto: boolean;
   notifyOnSeat: boolean;
   endedAt: Date | null;
   createdAt: Date | null;

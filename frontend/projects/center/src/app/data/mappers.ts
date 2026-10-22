@@ -369,6 +369,8 @@ export function readEnrollment(id: string, d: Data): Enrollment {
     pauseReason: str(d, 'pauseReason'),
     creditsLeft: numOrNull(d, 'creditsLeft'),
     waitlistedAt: date(d['waitlistedAt']),
+    offeredAt: date(d['offeredAt']),
+    offeredAuto: str(d, 'offeredBy') === 'auto',
     notifyOnSeat: bool(d, 'notifyOnSeat'),
     endedAt: date(d['endedAt']),
     createdAt: date(d['createdAt']),

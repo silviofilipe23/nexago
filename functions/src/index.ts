@@ -206,6 +206,8 @@ export {
 } from "./training-center-billing";
 // Centro de Treinamento — efeitos da chamada (créditos de pacote e de reposição).
 export {onTrainingCenterSessionWritten} from "./training-center-attendance";
+// Centro de Treinamento — oferta automática da vaga ao 1º da lista de espera.
+export {onTrainingCenterClassSeatsWritten, onTrainingCenterWaitlistJoined} from "./training-center-waitlist";
 // Aulas na agenda do atleta (leitura só por callable — as coleções de aula são da equipe).
 export {getMyClassAgenda} from "./arena-class-athlete-agenda";
 // Aulas pelo aluno: Vou/Não vou (crédito por aviso), reposição com o crédito, fila e check-in.

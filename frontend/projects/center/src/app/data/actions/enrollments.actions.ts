@@ -186,6 +186,8 @@ export class EnrollmentsActions extends CenterActionsBase {
         planId: plan.id,
         holdUntil: this.holdUntil(center.policies.waitlistAcceptHours),
         creditsLeft: contract.planType === 'class_pack' ? contract.credits : null,
+        offeredAt: serverTimestamp(),
+        offeredBy: 'manual',
       });
       if (this.canBill()) {
         this.firstInvoice(t, e.id, e.studentId, payerName, contract);

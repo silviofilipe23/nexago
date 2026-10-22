@@ -304,3 +304,15 @@ test('preferências de aviso: gestor salva; fila de adiados e log são do servid
   await denied(getDocs(collection(as(OWNER), 'trainingCenters', C, 'notificationOutbox')));
   await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'notificationLog', 'x'), { kind: 'x' }));
 });
+
+test('conta de recebimento: owner/admin leem a situação; ninguém grava pelo cliente', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'trainingCenters', C, 'receivingAccount', 'current'), { status: 'pending', documents: [] });
+  });
+  await assertSucceeds(getDoc(doc(as(ADMIN), 'trainingCenters', C, 'receivingAccount', 'current')));
+  await denied(getDoc(doc(as(COACH), 'trainingCenters', C, 'receivingAccount', 'current')));
+  await denied(getDoc(doc(as(RECEP), 'trainingCenters', C, 'receivingAccount', 'current')));
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'receivingAccount', 'current'), { status: 'approved' }));
+  await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C), { receivingStatus: 'approved' }));
+  await denied(getDoc(doc(as(OWNER), 'trainingCenterAsaasSecrets', C)));
+});

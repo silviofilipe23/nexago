@@ -218,8 +218,14 @@ export async function setReceivingCore(
       ...(typeof fee === "number" ? {feePercent: fee} : {}),
       updatedAt: Timestamp.fromDate(now),
       updatedBy: actor.uid,
+      source: "manual",
+      status: "approved",
     }, {merge: true});
-    tx.update(ref, {receivingConnected: true});
+    tx.update(ref, {receivingConnected: true, receivingStatus: "approved"});
+    // O que o portal mostra em Configurações › Conta de recebimento.
+    tx.set(ref.collection("receivingAccount").doc("current"), {
+      status: "approved", source: "manual", documents: [], updatedAt: Timestamp.fromDate(now),
+    }, {merge: true});
     tx.set(ref.collection("auditLogs").doc(), auditRow(actor, "center.receiving", centerId,
       `Conta de recebimento conectada (${maskWallet(walletId)} · ${asaasEnv}${typeof fee === "number" ? ` · taxa ${fee}%` : ""})`, "", now));
   });

@@ -82,8 +82,8 @@
           } @else if (todayRows().length === 0) {
             <div class="ct-empty">Nenhuma aula prevista para hoje.</div>
           } @else {
-            <div class="ct-table" style="--cols: 64px minmax(140px, 1.4fr) minmax(110px, 1fr) 100px 110px 120px; --min-w: 760px">
-              <div class="ct-thead"><span>Início</span><span>Turma</span><span>Professor</span><span>Quadra</span><span>Alunos</span><span>Situação</span></div>
+            <div class="ct-table" style="--cols: 64px minmax(140px, 1.4fr) minmax(110px, 1fr) minmax(130px, 1.2fr) 110px 120px; --min-w: 800px">
+              <div class="ct-thead"><span>Início</span><span>Turma</span><span>Professor</span><span>Local</span><span>Alunos</span><span>Situação</span></div>
               @for (r of todayRows(); track r.s.id) {
                 <div class="ct-tr">
                   <span class="ct-strong-mono">{{ r.s.startTime }}</span>
@@ -93,7 +93,12 @@
                   } @else {
                     <span class="ct-dim">—</span>
                   }
-                  <span class="ct-ellipsis">{{ r.s.courtName || '—' }}</span>
+                  <span class="ct-col" style="min-width: 0">
+                    <span class="ct-ellipsis" [title]="r.s.locationAddress || r.place">{{ r.place }}</span>
+                    @if (r.hopFrom) {
+                      <span class="ct-dim ct-ellipsis">troca de local · vem de {{ r.hopFrom }}</span>
+                    }
+                  </span>
                   <span class="ct-strong-mono">{{ r.count }}</span>
                   <span><span class="ct-pill" [class]="'ct-pill ' + stateLabel[r.state][1]">{{ stateLabel[r.state][0] }}</span></span>
                 </div>

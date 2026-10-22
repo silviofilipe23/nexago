@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { CenterContextService } from '../../core/center-context.service';
 import { CenterStore } from '../../data/center-store.service';
 import { isFull, waitlistOf } from '../../domain/enrollment';
+import { daysOutsideWindow, placeLabel } from '../../domain/locations';
 import { CLASS_STATUS, type TrainingClass } from '../../domain/models';
 import { weekdaysLabel } from '../../domain/schedule';
 import { IconComponent } from '../../ui/icon.component';
@@ -34,6 +35,8 @@ type StatusTab = 'active' | 'draft' | 'closed';
     .seats.full, .wait { color: var(--nx-pending); }
     .wait { font-family: var(--nx-font-mono); font-size: 10px; font-weight: 600; margin-top: 8px; }
     .spacer { flex: 1; }
+    .place { margin-top: 6px; display: flex; align-items: center; gap: 5px; color: var(--nx-text-dim); font-size: 12px; }
+    .warn { margin-top: 8px; font-family: var(--nx-font-mono); font-size: 10px; font-weight: 600; color: var(--nx-pending); display: flex; align-items: center; gap: 5px; }
   `,
 })
 export class ClassesComponent {
@@ -86,7 +89,9 @@ export class ClassesComponent {
           program: this.store.programById(c.programId),
           full: isFull(c),
           pct: c.capacity ? Math.min(100, (c.seatsTaken / c.capacity) * 100) : 0,
-          rule: `${weekdaysLabel(c.weekdays)} · ${c.startTime} · ${c.durationMin}min · ${c.courtName || 'sem quadra'}`,
+          rule: `${weekdaysLabel(c.weekdays)} · ${c.startTime} · ${c.durationMin}min`,
+          place: placeLabel(c),
+          placeWarn: this.placeWarning(c),
           waitlist: waitlist.length,
           waitNames: waitlist.slice(0, 3).map((e) => e.studentName.split(' ')[0]).join(', '),
         };
@@ -121,6 +126,15 @@ export class ClassesComponent {
         untracked(() => this.modal.set('new'));
       }
     });
+  }
+
+  /** Turma ativa cujo local foi arquivado ou cuja janela do parceiro não cobre mais o horário. */
+  private placeWarning(c: TrainingClass): string {
+    if (c.status !== 'active' && c.status !== 'draft') return '';
+    const loc = c.locationId ? this.store.locationById(c.locationId) : undefined;
+    if (!loc) return '';
+    if (loc.status === 'archived') return 'Local arquivado — mude o local da turma';
+    return daysOutsideWindow(loc, c.weekdays, c.startTime, c.durationMin).length ? 'Fora da janela contratada do parceiro' : '';
   }
 
   protected open(c: TrainingClass | null): void {

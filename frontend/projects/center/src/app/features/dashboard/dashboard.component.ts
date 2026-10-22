@@ -9,7 +9,8 @@ import { formatBRL } from '../../domain/money';
 import { IconComponent } from '../../ui/icon.component';
 import { PageHeaderComponent, PersonComponent, StatComponent } from '../../ui/kit';
 import { SubscriptionCardComponent } from '../settings/subscription-card.component';
-import { TODAY_STATE_LABEL, buildPendencies, todayHeadcount, todayState } from './dashboard.utils';
+import { placeLabel } from '../../domain/locations';
+import { TODAY_STATE_LABEL, buildPendencies, coachLocationHops, todayHeadcount, todayState } from './dashboard.utils';
 
 /** O que a suspensão bloqueia e o que continua liberado (W5). */
 const SUSPENSION_POLICY: [string, boolean, string][] = [
@@ -129,11 +130,18 @@ export class DashboardComponent {
   protected readonly todayRows = computed(() => {
     const today = this.today();
     const time = this.clock().time;
-    return this.store
-      .sessions()
-      .filter((s) => s.date === today)
+    const list = this.store.sessions().filter((s) => s.date === today);
+    const hops = coachLocationHops(list);
+    return list
       .sort((a, b) => a.startTime.localeCompare(b.startTime) || a.className.localeCompare(b.className))
-      .map((s) => ({ s, state: todayState(s, time), count: todayHeadcount(s, this.store.classById(s.classId)), coachFirst: s.coachName.split(' ')[0] ?? '' }));
+      .map((s) => ({
+        s,
+        state: todayState(s, time),
+        count: todayHeadcount(s, this.store.classById(s.classId)),
+        coachFirst: s.coachName.split(' ')[0] ?? '',
+        place: placeLabel(s),
+        hopFrom: hops.get(s.id) ?? '',
+      }));
   });
 
   protected readonly todayKicker = computed(() => {

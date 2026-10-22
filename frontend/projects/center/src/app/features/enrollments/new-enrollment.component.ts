@@ -7,6 +7,7 @@ import { formatDayKey, isValidDayKey, todayKey } from '../../domain/dates';
 import { buildContract, freeSeats, isFull, priceOn, waitlistOf } from '../../domain/enrollment';
 import { formatBRL } from '../../domain/money';
 import type { Plan, TrainingClass } from '../../domain/models';
+import { placeLabel } from '../../domain/locations';
 import { weekdaysLabel } from '../../domain/schedule';
 import { IconComponent } from '../../ui/icon.component';
 import { ModalComponent, PersonComponent, ToggleComponent } from '../../ui/kit';
@@ -150,7 +151,7 @@ export class NewEnrollmentComponent implements OnInit {
   }
 
   schedule(c: TrainingClass): string {
-    return [`${weekdaysLabel(c.weekdays)} ${c.startTime}`, c.coachName, c.courtName].filter(Boolean).join(' · ');
+    return [`${weekdaysLabel(c.weekdays)} ${c.startTime}`, c.coachName, placeLabel(c)].filter(Boolean).join(' · ');
   }
 
   pickStudent(id: string): void {

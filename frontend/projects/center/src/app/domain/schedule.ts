@@ -150,6 +150,11 @@ export function describeConflict(c: ScheduleConflict, coachName: string, courtNa
     : `${courtName || 'A quadra'} ocupada por ${c.otherClassName} · ${span}`;
 }
 
+/** Partes do rótulo da sugestão sem "·" sobrando (turma em parceiro não tem quadra). */
+function joinLabel(...parts: string[]): string {
+  return parts.filter(Boolean).join(' · ');
+}
+
 export interface ScheduleSuggestion {
   label: string;
   patch: Partial<Pick<ClassRule, 'startTime' | 'courtId' | 'courtName' | 'coachUid' | 'coachName' | 'weekdays'>>;
@@ -182,7 +187,7 @@ export function suggestAlternatives(
     }
     const patch = { startTime: minutesToTime(m) };
     if (free(patch)) {
-      out.push({ label: `${daysLabel(candidate.weekdays)} ${patch.startTime} · ${courtName}`, patch });
+      out.push({ label: joinLabel(`${daysLabel(candidate.weekdays)} ${patch.startTime}`, courtName), patch });
       break;
     }
   }
@@ -192,7 +197,7 @@ export function suggestAlternatives(
     }
     const patch = { courtId: court.id, courtName: court.name };
     if (free(patch)) {
-      out.push({ label: `${daysLabel(candidate.weekdays)} ${candidate.startTime} · ${court.name}`, patch });
+      out.push({ label: joinLabel(`${daysLabel(candidate.weekdays)} ${candidate.startTime}`, court.name), patch });
       break;
     }
   }
@@ -203,7 +208,7 @@ export function suggestAlternatives(
     const patch = { coachUid: coach.uid, coachName: coach.name };
     if (free(patch)) {
       out.push({
-        label: `${daysLabel(candidate.weekdays)} ${candidate.startTime} · ${courtName} · ${coach.name.split(' ')[0]}`,
+        label: joinLabel(`${daysLabel(candidate.weekdays)} ${candidate.startTime}`, courtName, coach.name.split(' ')[0] ?? ''),
         patch,
       });
       break;
@@ -222,7 +227,7 @@ export function suggestAlternatives(
     }
     const patch = { weekdays: days };
     if (free(patch)) {
-      out.push({ label: `${daysLabel(days)} ${candidate.startTime} · ${courtName}`, patch });
+      out.push({ label: joinLabel(`${daysLabel(days)} ${candidate.startTime}`, courtName), patch });
       break;
     }
   }

@@ -152,6 +152,15 @@ export const POLICY_ROWS: PolicyRow[] = [
     max: 168,
     dependsOn: 'waitlistEnabled',
   },
+  {
+    kind: 'number',
+    key: 'travelBufferMinutes',
+    title: () => 'Intervalo mínimo entre aulas do professor em locais diferentes',
+    hint: () => 'Usado para avisar conflito de deslocamento',
+    unit: 'min',
+    min: 0,
+    max: 240,
+  },
 ];
 
 /** Valor da política como string do segmentado. */

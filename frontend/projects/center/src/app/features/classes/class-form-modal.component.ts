@@ -4,12 +4,13 @@ import { CenterStore } from '../../data/center-store.service';
 import { writeErrorMessage } from '../../data/actions/actor';
 import { ClassesActions, type ClassInput } from '../../data/actions/classes.actions';
 import { formatDayKey, isValidDayKey, isValidTime, todayKey, WEEK_ORDER, WEEKDAY_SHORT, type Weekday } from '../../domain/dates';
-import type { TrainingClass } from '../../domain/models';
-import { describeConflict, findConflicts, suggestAlternatives, type ClassRule, type ScheduleSuggestion } from '../../domain/schedule';
+import { windowLabel } from '../../domain/locations';
+import { LOCATION_TYPES, type CenterLocation, type TrainingClass } from '../../domain/models';
+import { describeConflict, findConflicts, suggestAlternatives, type ClassRule, type ConflictOptions, type ScheduleConflict, type ScheduleSuggestion } from '../../domain/schedule';
 import { IconComponent } from '../../ui/icon.component';
 import { ModalComponent } from '../../ui/kit';
 
-/** W14 — criar/editar turma com conflitos de professor e quadra checados ao vivo. */
+/** W14 — criar/editar turma com conflitos de professor, quadra, deslocamento e janela checados ao vivo. */
 @Component({
   selector: 'ct-class-form-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -21,6 +22,7 @@ import { ModalComponent } from '../../ui/kit';
     .days .ct-day { width: 46px; }
     .time { width: 120px; height: 36px; }
     .conflict-title { font-family: var(--nx-font-display); font-weight: 700; font-size: 13.5px; color: var(--nx-live); }
+    .loc-info { min-height: 36px; display: flex; align-items: center; }
     .series { border: 1px solid rgba(91,155,255,0.35); background: rgba(91,155,255,0.07); }
   `,
 })
@@ -46,6 +48,7 @@ export class ClassFormModalComponent implements OnInit {
   protected readonly duration = signal(60);
   protected readonly weekdays = signal<Weekday[]>([]);
   protected readonly startTime = signal('19:00');
+  protected readonly locationId = signal('');
   protected readonly courtId = signal('');
   protected readonly startDate = signal('');
   protected readonly endDate = signal('');
@@ -71,7 +74,28 @@ export class ClassFormModalComponent implements OnInit {
   });
 
   protected readonly levels = computed(() => this.store.programById(this.programId())?.levels ?? []);
-  protected readonly activeCourts = computed(() => this.store.courts().filter((c) => c.status === 'active' || c.id === this.courtId()));
+  protected readonly locationTypes = LOCATION_TYPES;
+  /** Locais ativos (o atual da turma entra mesmo arquivado, pra não sumir do select). */
+  protected readonly locationOptions = computed(() =>
+    this.store.locations().filter((l) => l.status === 'active' || l.id === this.locationId()),
+  );
+  protected readonly location = computed(() => this.store.locationById(this.locationId()));
+  private readonly locationName = computed(() => this.location()?.name ?? this.cls()?.locationName ?? '');
+  /** Quadra só existe em local próprio; quadra sem `locationId` é anterior aos locais e conta como do principal. */
+  private readonly locationCourts = computed(() => {
+    const loc = this.location();
+    if (!loc || loc.type !== 'own') return [];
+    return this.store.courts().filter((c) => c.locationId === loc.id || (!c.locationId && loc.isPrimary));
+  });
+  protected readonly activeCourts = computed(() => this.locationCourts().filter((c) => c.status === 'active' || c.id === this.courtId()));
+  protected readonly window = computed(() => {
+    const loc = this.location();
+    return loc?.type === 'partner' ? windowLabel(loc.windows) : '';
+  });
+  private readonly conflictOpts = computed<ConflictOptions>(() => ({
+    locations: new Map(this.store.locations().map((l) => [l.id, l])),
+    travelBufferMin: this.ctx.center()?.policies.travelBufferMinutes ?? 0,
+  }));
   private readonly coachName = computed(() => this.store.memberByUid(this.coachUid())?.displayName ?? this.cls()?.coachName ?? '');
   private readonly courtName = computed(() => this.store.courts().find((c) => c.id === this.courtId())?.name ?? '');
   protected readonly minCapacity = computed(() => Math.max(1, this.cls()?.seatsTaken ?? 0));
@@ -82,6 +106,7 @@ export class ClassFormModalComponent implements OnInit {
     coachUid: this.coachUid(),
     courtId: this.courtId(),
     courtName: this.courtName(),
+    locationId: this.locationId(),
     weekdays: this.weekdays(),
     startTime: this.startTime(),
     durationMin: this.duration(),
@@ -93,8 +118,8 @@ export class ClassFormModalComponent implements OnInit {
   protected readonly conflicts = computed(() => {
     const c = this.candidate();
     if (this.locked() || !isValidTime(c.startTime) || c.weekdays.length === 0 || c.durationMin <= 0) return [];
-    return findConflicts(c, this.store.classes()).map((x) => ({
-      kind: x.kind === 'coach' ? 'Professor' : this.courtName() || 'Quadra',
+    return findConflicts(c, this.store.classes(), this.conflictOpts()).map((x) => ({
+      kind: this.conflictKind(x),
       text: describeConflict(x, this.coachName().split(' ')[0] ?? '', this.courtName()),
     }));
   });
@@ -104,12 +129,17 @@ export class ClassFormModalComponent implements OnInit {
     return suggestAlternatives(
       this.candidate(),
       this.store.classes(),
-      this.store.courts().filter((c) => c.status === 'active'),
+      this.locationCourts().filter((c) => c.status === 'active'),
       this.store.coaches().map((m) => ({ uid: m.uid, name: m.displayName })),
+      3,
+      this.conflictOpts(),
     );
   });
 
-  /** Mudou algo que reescreve aulas já geradas (dias, horário, duração, professor, quadra, fim). */
+  /** Local com que a turma abriu (turma antiga sem local herda o da quadra/principal). */
+  private initialLocationId = '';
+
+  /** Mudou algo que reescreve aulas já geradas (dias, horário, duração, professor, local, quadra, fim). */
   protected readonly seriesChanged = computed(() => {
     const c = this.cls();
     if (!c || c.status !== 'active') return false;
@@ -118,6 +148,7 @@ export class ClassFormModalComponent implements OnInit {
       c.startTime !== this.startTime() ||
       c.durationMin !== this.duration() ||
       c.coachUid !== this.coachUid() ||
+      this.initialLocationId !== this.locationId() ||
       c.courtId !== this.courtId() ||
       (c.endDate ?? '') !== this.endDate()
     );
@@ -129,7 +160,7 @@ export class ClassFormModalComponent implements OnInit {
     if (!this.programId()) p.push('Escolha a modalidade.');
     if (this.levels().length && !this.level()) p.push('Escolha o nível.');
     if (!this.coachUid()) p.push('Escolha o professor.');
-    if (!this.courtId()) p.push('Escolha a quadra.');
+    if (!this.locationId()) p.push('Escolha o local.');
     if (this.weekdays().length === 0) p.push('Marque pelo menos um dia.');
     if (!isValidTime(this.startTime())) p.push('Horário inválido.');
     if (!(this.duration() >= 15 && this.duration() <= 300)) p.push('Duração entre 15 e 300 minutos.');
@@ -157,6 +188,15 @@ export class ClassFormModalComponent implements OnInit {
         }
       });
     });
+    // Mesmo caso para os locais: turma nova nasce no local principal.
+    effect(() => {
+      const primary = this.defaultLocation(this.store.locations());
+      untracked(() => {
+        if (!this.cls() && !this.locationId() && primary) {
+          this.locationId.set(primary.id);
+        }
+      });
+    });
   }
 
   ngOnInit(): void {
@@ -171,6 +211,8 @@ export class ClassFormModalComponent implements OnInit {
     this.weekdays.set(c ? [...c.weekdays] : []);
     this.startTime.set(c?.startTime ?? '19:00');
     this.courtId.set(c?.courtId ?? '');
+    this.initialLocationId = c ? this.legacyLocation(c) : '';
+    this.locationId.set(c ? this.initialLocationId : (this.defaultLocation(this.store.locations())?.id ?? ''));
     this.startDate.set(c?.startDate ?? this.today());
     this.endDate.set(c?.endDate ?? '');
     const from = this.fromDate();
@@ -188,6 +230,34 @@ export class ClassFormModalComponent implements OnInit {
   protected setProgram(id: string): void {
     this.programId.set(id);
     this.level.set(this.store.programById(id)?.levels[0] ?? '');
+  }
+
+  /** Troca o local: parceiro/avulso não têm quadra; em local próprio a quadra precisa ser dele. */
+  protected setLocation(id: string): void {
+    this.locationId.set(id);
+    if (!this.activeCourts().some((c) => c.id === this.courtId())) {
+      this.courtId.set('');
+    }
+  }
+
+  private defaultLocation(list: CenterLocation[]): CenterLocation | undefined {
+    const active = list.filter((l) => l.status === 'active');
+    return active.find((l) => l.isPrimary) ?? active[0];
+  }
+
+  /** Turma de antes dos locais: deduz pelo local da quadra, ou o principal se havia quadra. */
+  private legacyLocation(c: TrainingClass): string {
+    if (c.locationId) return c.locationId;
+    const court = c.courtId ? this.store.courts().find((q) => q.id === c.courtId) : undefined;
+    if (court?.locationId) return court.locationId;
+    return c.courtId ? (this.defaultLocation(this.store.locations())?.id ?? '') : '';
+  }
+
+  private conflictKind(x: ScheduleConflict): string {
+    if (x.kind === 'coach') return 'Professor';
+    if (x.kind === 'travel') return 'Deslocamento';
+    if (x.kind === 'window') return 'Janela';
+    return this.courtName() || 'Quadra';
   }
 
   protected toggleDay(d: Weekday): void {
@@ -215,6 +285,8 @@ export class ClassFormModalComponent implements OnInit {
       weekdays: WEEK_ORDER.filter((d) => this.weekdays().includes(d)),
       startTime: this.startTime(),
       durationMin: this.duration(),
+      locationId: this.locationId(),
+      locationName: this.locationName(),
       courtId: this.courtId(),
       courtName: this.courtName(),
       capacity: this.capacity(),

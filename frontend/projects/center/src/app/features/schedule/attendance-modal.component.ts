@@ -4,6 +4,7 @@ import { CenterStore } from '../../data/center-store.service';
 import { AttendanceActions, MARK_LABELS } from '../../data/actions/attendance.actions';
 import { writeErrorMessage } from '../../data/actions/actor';
 import { formatDayWithWeekday, formatInstant } from '../../domain/dates';
+import { placeLabel } from '../../domain/locations';
 import type { AttendanceMark } from '../../domain/models';
 import { endTime } from '../../domain/schedule';
 import { AuditTrailComponent, ModalComponent, PersonComponent, SegmentedComponent, type AuditRow } from '../../ui/kit';
@@ -76,7 +77,7 @@ export class AttendanceModalComponent {
 
   protected readonly kicker = computed(() => {
     const s = this.session();
-    return s ? `${formatDayWithWeekday(s.date)} · ${s.startTime}–${endTime(s.startTime, s.durationMin)} · ${s.courtName || 'sem quadra'}` : '';
+    return s ? `${formatDayWithWeekday(s.date)} · ${s.startTime}–${endTime(s.startTime, s.durationMin)} · ${placeLabel(s)}` : '';
   });
 
   protected readonly rows = computed(() => {

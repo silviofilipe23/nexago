@@ -49,21 +49,43 @@
 
     <div class="ct-form-grid">
       <div class="ct-field">
-        <label for="cf-court">Quadra</label>
-        <select id="cf-court" class="ct-input" [value]="courtId()" (change)="courtId.set(value($event))">
-          <option value="" [selected]="!courtId()">Escolha…</option>
-          @for (q of activeCourts(); track q.id) {
-            <option [value]="q.id" [selected]="q.id === courtId()">{{ q.name }}</option>
+        <label for="cf-loc">Local</label>
+        <select id="cf-loc" class="ct-input" [value]="locationId()" (change)="setLocation(value($event))">
+          <option value="" [selected]="!locationId()">Escolha…</option>
+          @for (l of locationOptions(); track l.id) {
+            <option [value]="l.id" [selected]="l.id === locationId()">{{ l.name }} · {{ locationTypes[l.type].label }}{{ l.status === 'archived' ? ' (arquivado)' : '' }}</option>
           }
         </select>
       </div>
+      @if (location()?.type === 'own') {
+        <div class="ct-field">
+          <label for="cf-court">Quadra (opcional)</label>
+          <select id="cf-court" class="ct-input" [value]="courtId()" (change)="courtId.set(value($event))">
+            <option value="" [selected]="!courtId()">Sem quadra fixa</option>
+            @for (q of activeCourts(); track q.id) {
+              <option [value]="q.id" [selected]="q.id === courtId()">{{ q.name }}</option>
+            }
+          </select>
+        </div>
+      } @else if (location(); as loc) {
+        <div class="ct-field">
+          <span class="ct-label">{{ loc.type === 'partner' ? 'Janela contratada' : 'Endereço' }}</span>
+          <div class="ct-dim loc-info">{{ loc.type === 'partner' ? window() : loc.address || 'Sem endereço' }}</div>
+        </div>
+      }
+    </div>
+
+    <div class="ct-form-grid">
       <div class="ct-field"><label for="cf-start">Início</label><input id="cf-start" class="ct-input mono" type="date" [disabled]="isActive()" [value]="startDate()" (input)="startDate.set(value($event))" /></div>
       <div class="ct-field"><label for="cf-end">Fim (opcional)</label><input id="cf-end" class="ct-input mono" type="date" [value]="endDate()" (input)="endDate.set(value($event))" /></div>
     </div>
   </fieldset>
 
-  @if (store.coaches().length === 0 || store.courts().length === 0) {
-    <div class="ct-box yellow ct-dim">Para criar turma é preciso ter pelo menos um professor (Equipe) e uma quadra (Modalidades e níveis).</div>
+  @if (store.coaches().length === 0 || (store.loaded.locations() && store.locations().length === 0)) {
+    <div class="ct-box yellow ct-dim">Para criar turma é preciso ter pelo menos um professor (Equipe) e um local (Locais).</div>
+  }
+  @if (location()?.status === 'archived' && !locked()) {
+    <div class="ct-box yellow ct-dim">{{ location()!.name }} está arquivado — escolha um local ativo para as próximas aulas.</div>
   }
 
   @if (conflicts().length) {

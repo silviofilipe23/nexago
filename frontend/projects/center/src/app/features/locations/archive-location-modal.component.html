@@ -1,0 +1,86 @@
+<ct-modal [kicker]="location().name" [title]="affected() ? 'Este local tem aulas futuras' : 'Arquivar local'" [width]="580" (closed)="closed.emit()">
+  @if (loadError()) {
+    <div class="ct-error-text" role="alert">{{ loadError() }}</div>
+  } @else if (!impact()) {
+    <div class="ct-dim">Verificando turmas e aulas no local…</div>
+  } @else if (impact(); as i) {
+    @if (affected() === 0) {
+      <p class="ct-muted">Nenhuma turma usa {{ location().name }} como padrão e não há aulas marcadas nele. O local sai das escolhas novas.</p>
+    } @else {
+      <ct-banner [inline]="true" tone="yellow" [title]="i.sessions.length ? i.sessions.length + (i.sessions.length === 1 ? ' aula' : ' aulas') + ' a partir de ' + firstDate() : i.classes.length + ' turma(s) com este local padrão'">
+        @if (i.classes.length) {
+          {{ classNames() }} {{ i.classes.length === 1 ? 'usa' : 'usam' }} este local como padrão.
+        }
+        Não dá para arquivar sem decidir o que acontece com elas.
+      </ct-banner>
+
+      <button type="button" class="ct-option" [class.on]="mode() === 'move'" [disabled]="targets().length === 0" (click)="mode.set('move')">
+        <div class="opt">
+          <i class="radio"></i>
+          <div class="ct-grow"><strong>Mover para outro local</strong><span>{{ targets().length ? 'Turmas e aulas futuras vão para o local escolhido; os alunos recebem o novo endereço' : 'Cadastre outro local ativo para mover' }}</span></div>
+        </div>
+      </button>
+      @if (mode() === 'move' && targets().length) {
+        <div class="move">
+          <div class="ct-form-grid">
+            <div class="ct-field">
+              <label for="al-target">Local de destino</label>
+              <select id="al-target" class="ct-input" [value]="targetId()" (change)="setTarget(value($event))">
+                @for (t of targets(); track t.id) {
+                  <option [value]="t.id">{{ t.name }}</option>
+                }
+              </select>
+            </div>
+            @if (target()?.type === 'own') {
+              <div class="ct-field">
+                <label for="al-court">Quadra</label>
+                <select id="al-court" class="ct-input" [value]="courtId()" (change)="courtId.set(value($event))">
+                  <option value="">Sem quadra definida</option>
+                  @for (c of targetCourts(); track c.id) {
+                    <option [value]="c.id">{{ c.name }}</option>
+                  }
+                </select>
+              </div>
+            }
+          </div>
+          @if (outsideTarget().length) {
+            <div class="ct-box yellow ct-muted">
+              Fora da janela contratada em {{ target()?.name }} ({{ windowLabel(target()?.windows ?? []) }}):
+              {{ outsideNames() }}.
+            </div>
+          }
+        </div>
+      }
+
+      <button type="button" class="ct-option" [class.on]="mode() === 'keep'" (click)="mode.set('keep')">
+        <div class="opt">
+          <i class="radio"></i>
+          <div class="ct-grow"><strong>Manter as aulas já marcadas</strong><span>O local some das escolhas novas; as aulas já marcadas continuam nele</span></div>
+        </div>
+      </button>
+
+      <button type="button" class="ct-option" [class.on]="mode() === 'cancel'" [disabled]="i.classes.length > 0" (click)="mode.set('cancel')">
+        <div class="opt">
+          <i class="radio"></i>
+          <div class="ct-grow">
+            <strong>Cancelar as aulas</strong>
+            <span>{{ i.classes.length ? 'Indisponível: há turma com este local padrão — ela geraria aulas novas num local arquivado. Mova as turmas primeiro.' : 'Gera reposição para os alunos matriculados' }}</span>
+          </div>
+        </div>
+      </button>
+    }
+
+    <div class="ct-field">
+      <label for="al-reason">Motivo</label>
+      <input id="al-reason" class="ct-input" placeholder="Ex.: fim do contrato com a arena" [value]="reason()" (input)="reason.set(value($event))" />
+    </div>
+    <div class="ct-dim">Locais nunca são excluídos: aulas passadas continuam mostrando onde aconteceram. Os alunos afetados recebem o novo endereço.</div>
+  }
+  @if (error()) {
+    <div class="ct-error-text" role="alert">{{ error() }}</div>
+  }
+  <div footer>
+    <button type="button" class="ct-mini-btn" (click)="closed.emit()">Voltar</button>
+    <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy() || !impact()" (click)="confirm()">{{ confirmLabel() }}</button>
+  </div>
+</ct-modal>

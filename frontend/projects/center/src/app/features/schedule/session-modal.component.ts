@@ -5,25 +5,45 @@ import { writeErrorMessage } from '../../data/actions/actor';
 import { ClassesActions, type SessionPatch } from '../../data/actions/classes.actions';
 import { formatDayWithWeekday, isValidTime, todayKey } from '../../domain/dates';
 import { holdsSeat } from '../../domain/enrollment';
-import type { ClassSession } from '../../domain/models';
+import { placeLabel, sessionMoveChecks, type PlaceCheck } from '../../domain/locations';
+import { LOCATION_TYPES, type ClassSession, type Court } from '../../domain/models';
 import { endTime, overlaps } from '../../domain/schedule';
+import { IconComponent } from '../../ui/icon.component';
 import { ModalComponent } from '../../ui/kit';
 
-type Action = 'cancel' | 'time' | 'coach' | 'court';
+type Action = 'cancel' | 'time' | 'coach' | 'court' | 'location';
 
 const ACTIONS: { value: Action; label: string }[] = [
   { value: 'cancel', label: 'Cancelar' },
   { value: 'time', label: 'Mudar horário' },
   { value: 'coach', label: 'Trocar professor' },
   { value: 'court', label: 'Trocar quadra' },
+  { value: 'location', label: 'Trocar local' },
 ];
 
 /** W16 — mexer em UMA aula (cancelar/alterar) sem tocar na regra da turma. */
 @Component({
   selector: 'ct-session-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ModalComponent],
+  imports: [ModalComponent, IconComponent],
   templateUrl: './session-modal.component.html',
+  styles: `
+    .move { display: grid; grid-template-columns: 1fr 24px 1fr; align-items: center; gap: 8px; }
+    .place { padding: 12px; border-radius: var(--nx-r-3); background: var(--nx-surface-0); border: 1px solid var(--nx-line); min-width: 0; }
+    .place.to { background: rgba(255,106,26,0.07); border-color: rgba(255,106,26,0.45); }
+    .place.to .ct-kick { color: var(--nx-orange-400); }
+    .place .v { font-family: var(--nx-font-display); font-weight: 700; font-size: 13.5px; margin-top: 6px; color: var(--nx-text); }
+    .place .sub { font-family: var(--nx-font-mono); font-size: 10px; color: var(--nx-text-dim); margin-top: 2px; }
+    .arrow { color: var(--nx-text-dim); justify-self: center; }
+    .check { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--nx-line); font-size: 12.5px; }
+    .check:first-child { border-top: none; }
+    .check .k { flex: 1; color: var(--nx-text); }
+    .check .d { font-family: var(--nx-font-mono); font-size: 10.5px; color: var(--nx-text-dim); text-align: right; }
+    .ok { color: var(--nx-win); flex: none; }
+    .bad { color: var(--nx-pending); flex: none; }
+    .force { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12.5px; color: var(--nx-text); cursor: pointer; }
+    @media (max-width: 560px) { .move { grid-template-columns: 1fr; } .arrow { transform: rotate(90deg); } }
+  `,
 })
 export class SessionModalComponent implements OnInit {
   private readonly ctx = inject(CenterContextService);
@@ -40,12 +60,15 @@ export class SessionModalComponent implements OnInit {
   /** "Esta e as próximas": a tela pai leva para a edição da turma a partir deste dia. */
   readonly series = output<string>();
 
-  protected readonly actionOptions = ACTIONS;
   protected readonly action = signal<Action>('cancel');
   protected readonly reason = signal('');
   protected readonly newTime = signal('');
   protected readonly newCoach = signal('');
   protected readonly newCourt = signal('');
+  protected readonly newLocation = signal('');
+  protected readonly newLocCourt = signal('');
+  /** Checagem falhou e o gestor decidiu seguir assim mesmo. */
+  protected readonly force = signal(false);
   protected readonly busy = signal(false);
   protected readonly error = signal('');
 
@@ -55,8 +78,55 @@ export class SessionModalComponent implements OnInit {
 
   protected readonly kicker = computed(() => {
     const s = this.session();
-    return `${formatDayWithWeekday(s.date)} · ${s.startTime}–${endTime(s.startTime, s.durationMin)} · ${s.courtName || 'sem quadra'}`;
+    return `${formatDayWithWeekday(s.date)} · ${s.startTime}–${endTime(s.startTime, s.durationMin)} · ${placeLabel(s)}`;
   });
+
+  protected readonly place = computed(() => placeLabel(this.session()));
+  protected readonly locationTypes = LOCATION_TYPES;
+
+  /** Quadras de um local próprio (quadra sem `locationId` é antiga e conta como do principal). */
+  private courtsOf(locationId: string): Court[] {
+    // Aula de antes dos locais: todas as quadras, como era.
+    if (!locationId) return this.store.courts();
+    const loc = this.store.locationById(locationId);
+    if (!loc || loc.type !== 'own') return [];
+    return this.store.courts().filter((c) => c.locationId === loc.id || (!c.locationId && loc.isPrimary));
+  }
+
+  /** "Trocar quadra" só faz sentido dentro do local próprio da aula. */
+  protected readonly sessionCourts = computed(() => this.courtsOf(this.session().locationId));
+  protected readonly actionOptions = computed(() =>
+    ACTIONS.filter((a) => a.value !== 'court' || this.sessionCourts().length > 0),
+  );
+
+  // --- L3: trocar o local só desta aula ---
+  protected readonly locationOptions = computed(() => this.store.locations().filter((l) => l.status === 'active'));
+  protected readonly target = computed(() => this.store.locationById(this.newLocation()));
+  protected readonly targetCourts = computed(() => this.courtsOf(this.newLocation()).filter((c) => c.status === 'active'));
+  /** Local padrão da turma (a aula pode já estar sobrescrita). */
+  protected readonly defaultPlace = computed(() => {
+    const s = this.session();
+    const c = this.store.classById(s.classId);
+    return c ? placeLabel(c) : placeLabel(s);
+  });
+  protected readonly targetPlace = computed(() => {
+    const loc = this.target();
+    if (!loc) return 'Escolha o local';
+    const court = this.targetCourts().find((c) => c.id === this.newLocCourt());
+    return placeLabel({ locationName: loc.name, courtName: court?.name ?? '' });
+  });
+  protected readonly checks = computed<PlaceCheck[]>(() => {
+    const loc = this.target();
+    if (this.action() !== 'location' || !loc) return [];
+    const court = this.targetCourts().find((c) => c.id === this.newLocCourt());
+    return sessionMoveChecks(
+      this.session(),
+      { location: loc, courtId: court?.id ?? '', courtName: court?.name ?? '' },
+      this.store.sessions(),
+      this.ctx.center()?.policies.travelBufferMinutes ?? 0,
+    );
+  });
+  protected readonly checksFailed = computed(() => this.checks().some((c) => !c.ok));
 
   /** Matrículas que ocupam vaga (pausadas não contam) + alunos de reposição nesta data. */
   protected readonly enrolled = computed(() =>
@@ -70,7 +140,7 @@ export class SessionModalComponent implements OnInit {
   protected readonly clash = computed(() => {
     const s = this.session();
     const a = this.action();
-    if (a === 'cancel') return '';
+    if (a === 'cancel' || a === 'location') return '';
     const time = a === 'time' ? this.newTime() : s.startTime;
     const coach = a === 'coach' ? this.newCoach() : s.coachUid;
     const court = a === 'court' ? this.newCourt() : s.courtId;
@@ -100,8 +170,20 @@ export class SessionModalComponent implements OnInit {
         return m && m.uid !== s.coachUid ? { coachUid: m.uid, coachName: m.displayName } : null;
       }
       case 'court': {
-        const c = this.store.courts().find((x) => x.id === this.newCourt());
+        const c = this.sessionCourts().find((x) => x.id === this.newCourt());
         return c && c.id !== s.courtId ? { courtId: c.id, courtName: c.name } : null;
+      }
+      case 'location': {
+        const loc = this.target();
+        const court = this.targetCourts().find((x) => x.id === this.newLocCourt());
+        if (!loc || (loc.id === s.locationId && (court?.id ?? '') === s.courtId)) return null;
+        return {
+          locationId: loc.id,
+          locationName: loc.name,
+          locationAddress: loc.address,
+          courtId: court?.id ?? '',
+          courtName: court?.name ?? '',
+        };
       }
       default:
         return null;
@@ -113,6 +195,10 @@ export class SessionModalComponent implements OnInit {
       const n = this.enrolled() + this.makeups();
       return n ? `Cancelar aula · ${n} aluno${n > 1 ? 's' : ''} afetado${n > 1 ? 's' : ''}` : 'Cancelar aula';
     }
+    if (this.action() === 'location') {
+      const n = this.enrolled() + this.makeups();
+      return n ? `Mudar local e avisar ${n} aluno${n > 1 ? 's' : ''}` : 'Mudar local';
+    }
     return 'Salvar só esta aula';
   });
 
@@ -121,6 +207,28 @@ export class SessionModalComponent implements OnInit {
     this.newTime.set(s.startTime);
     this.newCoach.set(s.coachUid);
     this.newCourt.set(s.courtId);
+    this.newLocation.set(s.locationId);
+    this.newLocCourt.set(s.courtId);
+  }
+
+  protected setAction(a: Action): void {
+    this.action.set(a);
+    this.error.set('');
+  }
+
+  protected setLocation(id: string): void {
+    this.newLocation.set(id);
+    this.force.set(false);
+    if (!this.targetCourts().some((c) => c.id === this.newLocCourt())) this.newLocCourt.set('');
+  }
+
+  protected setLocCourt(id: string): void {
+    this.newLocCourt.set(id);
+    this.force.set(false);
+  }
+
+  protected checked(e: Event): boolean {
+    return (e.target as HTMLInputElement).checked;
   }
 
   protected value(e: Event): string {
@@ -140,6 +248,11 @@ export class SessionModalComponent implements OnInit {
     const patch = this.patch();
     if (!patch) {
       this.error.set('Escolha o novo valor.');
+      return Promise.resolve();
+    }
+    // Decisão do gestor: checagem falhando não bloqueia, mas exige confirmação explícita.
+    if (this.action() === 'location' && this.checksFailed() && !this.force()) {
+      this.error.set('Confirme "mudar mesmo assim" para seguir com os avisos acima.');
       return Promise.resolve();
     }
     if (this.clash()) {

@@ -1,14 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { CenterContextService } from '../../core/center-context.service';
 import { CenterStore } from '../../data/center-store.service';
 import { writeErrorMessage } from '../../data/actions/actor';
 import { CatalogActions } from '../../data/actions/catalog.actions';
-import { formatDayKey, isValidDayKey, todayKey } from '../../domain/dates';
 import { holdsSeat } from '../../domain/enrollment';
-import { PROGRAM_COLORS, type Court, type Program } from '../../domain/models';
+import { PROGRAM_COLORS, type Program } from '../../domain/models';
 import { IconComponent } from '../../ui/icon.component';
 import { ModalComponent, PageHeaderComponent } from '../../ui/kit';
-import { courtOccupancy } from './court-occupancy';
 
 interface LevelDraft {
   /** Nome original (null = nível novo) — define se está em uso por turma. */
@@ -16,11 +15,11 @@ interface LevelDraft {
   name: string;
 }
 
-/** W12 — modalidades, níveis (ordem de progressão) e quadras. */
+/** W12 — modalidades e níveis (ordem de progressão). Quadras ficam em cada local próprio (Locais). */
 @Component({
   selector: 'ct-programs',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageHeaderComponent, ModalComponent, IconComponent],
+  imports: [PageHeaderComponent, ModalComponent, IconComponent, RouterLink],
   templateUrl: './programs.component.html',
   styles: `
     .page { padding: 20px var(--ct-gutter) 26px; display: flex; flex-direction: column; gap: 16px; }
@@ -31,10 +30,6 @@ interface LevelDraft {
     .level { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--nx-r-2); background: var(--nx-surface-1); border: 1px solid var(--nx-line); margin-top: 6px; }
     .level .ct-input { height: 34px; }
     .idx { font-family: var(--nx-font-mono); font-size: 10px; font-weight: 700; color: var(--nx-text-dim); }
-    .courts { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
-    .court { padding: 12px; border-radius: var(--nx-r-3); background: var(--nx-surface-1); border: 1px solid var(--nx-line); text-align: left; font: inherit; color: inherit; width: 100%; }
-    button.court { cursor: pointer; }
-    button.court:hover { border-color: var(--nx-line-strong); }
     .colors { display: flex; gap: 8px; flex-wrap: wrap; }
     .color { width: 30px; height: 30px; border-radius: 9px; border: 2px solid transparent; cursor: pointer; }
     .color.on { border-color: var(--nx-text); }
@@ -51,7 +46,6 @@ export class ProgramsComponent {
   protected readonly colors = PROGRAM_COLORS;
   protected readonly canEdit = computed(() => this.ctx.isManager() && this.ctx.canWrite());
   protected readonly seesEnrollments = computed(() => this.ctx.has('view_enrollments') || this.ctx.has('enroll_students'));
-  private readonly today = computed(() => todayKey(this.ctx.center()?.timezone));
 
   /** Turmas que ainda "existem" na grade (ativas e rascunhos). */
   private readonly liveClasses = computed(() => this.store.classes().filter((c) => c.status === 'active' || c.status === 'draft'));
@@ -78,17 +72,13 @@ export class ProgramsComponent {
     return `${p.length} modalidade${p.length > 1 ? 's' : ''} · ${levels} níveis · ${this.liveClasses().length} turmas`;
   });
 
-  protected readonly courtCards = computed(() =>
-    this.store.courts().map((c) => {
-      const inMaintenance = c.status === 'maintenance' && (!c.maintenanceUntil || c.maintenanceUntil >= this.today());
-      return {
-        court: c,
-        occ: courtOccupancy(this.store.classes(), c.id),
-        sub: [c.description, inMaintenance ? `manutenção${c.maintenanceUntil ? ' até ' + formatDayKey(c.maintenanceUntil) : ''}` : ''].filter(Boolean).join(' · '),
-        inMaintenance,
-      };
-    }),
-  );
+  /** Resumo das quadras por local próprio (a gestão mudou para Locais). */
+  protected readonly courtsSummary = computed(() => {
+    const own = this.store.locations().filter((l) => l.status === 'active' && l.type === 'own');
+    const n = this.store.courts().filter((c) => own.some((l) => l.id === c.locationId)).length;
+    if (own.length === 0) return 'Nenhum local próprio ativo.';
+    return `${n} ${n === 1 ? 'quadra' : 'quadras'} em ${own.length} ${own.length === 1 ? 'local próprio' : 'locais próprios'}.`;
+  });
 
   // ── Modal de modalidade ──
   protected readonly editingProgram = signal<Program | 'new' | null>(null);
@@ -96,13 +86,6 @@ export class ProgramsComponent {
   protected readonly pColor = signal(PROGRAM_COLORS[0]!);
   protected readonly pLevels = signal<LevelDraft[]>([]);
   protected readonly newLevel = signal('');
-
-  // ── Modal de quadra ──
-  protected readonly editingCourt = signal<Court | 'new' | null>(null);
-  protected readonly cName = signal('');
-  protected readonly cDesc = signal('');
-  protected readonly cStatus = signal<'active' | 'maintenance'>('active');
-  protected readonly cUntil = signal('');
 
   protected readonly busy = signal(false);
   protected readonly error = signal('');
@@ -168,42 +151,6 @@ export class ProgramsComponent {
     try {
       await this.actions.saveProgram(target === 'new' ? null : target.id, { name, color: this.pColor(), levels, order });
       this.editingProgram.set(null);
-    } catch (err) {
-      this.error.set(writeErrorMessage(err));
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  protected openCourt(c: Court | null): void {
-    this.cName.set(c?.name ?? '');
-    this.cDesc.set(c?.description ?? '');
-    this.cStatus.set(c?.status ?? 'active');
-    this.cUntil.set(c?.maintenanceUntil ?? '');
-    this.error.set('');
-    this.editingCourt.set(c ?? 'new');
-  }
-
-  protected async saveCourt(): Promise<void> {
-    const target = this.editingCourt();
-    if (!target || this.busy()) return;
-    const name = this.cName().trim();
-    const maintenance = this.cStatus() === 'maintenance';
-    if (name.length < 2) return this.error.set('Informe o nome da quadra.');
-    if (this.store.courts().some((c) => c.name.toLowerCase() === name.toLowerCase() && (target === 'new' || c.id !== target.id))) {
-      return this.error.set('Já existe uma quadra com esse nome.');
-    }
-    if (maintenance && this.cUntil() && !isValidDayKey(this.cUntil())) return this.error.set('Data de fim da manutenção inválida.');
-    this.busy.set(true);
-    this.error.set('');
-    try {
-      await this.actions.saveCourt(target === 'new' ? null : target.id, {
-        name,
-        description: this.cDesc(),
-        status: this.cStatus(),
-        maintenanceUntil: maintenance && this.cUntil() ? this.cUntil() : null,
-      });
-      this.editingCourt.set(null);
     } catch (err) {
       this.error.set(writeErrorMessage(err));
     } finally {

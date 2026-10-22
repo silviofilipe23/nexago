@@ -64,6 +64,22 @@ void main() {
     );
   });
 
+  testWidgets('itens a 12 entre si (sem espaçador dobrado)', (tester) async {
+    await tester.pumpWidget(_harness(multipleRoles: true));
+    await _open(tester);
+
+    final keys = [
+      'athlete-account-profile',
+      'athlete-account-settings',
+      'athlete-account-switch-role',
+    ];
+    for (var i = 1; i < keys.length; i++) {
+      final above = tester.getRect(find.byKey(Key(keys[i - 1])));
+      final below = tester.getRect(find.byKey(Key(keys[i])));
+      expect(below.top - above.bottom, 12, reason: keys[i]);
+    }
+  });
+
   testWidgets('esconde trocar papel com um papel só', (tester) async {
     await tester.pumpWidget(_harness(multipleRoles: false));
     await _open(tester);

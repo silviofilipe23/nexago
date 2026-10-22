@@ -37,6 +37,7 @@ class _AthleteAccountSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final canSwitchRole = ref.watch(hasMultipleMobileRolesProvider);
     void choose(AthleteAccountAction a) => Navigator.of(context).pop(a);
+    // O corpo da folha já põe 12 entre os itens: espaçador aqui somava 34.
     return ProfessorLinksSheetBody(
       title: 'Sua conta',
       children: [
@@ -47,7 +48,6 @@ class _AthleteAccountSheet extends ConsumerWidget {
           subtitle: 'Seus dados, níveis e histórico',
           onTap: () => choose(AthleteAccountAction.profile),
         ),
-        const SizedBox(height: 10),
         ProfessorLinksSheetRow(
           key: const Key('athlete-account-settings'),
           icon: Icons.settings_outlined,
@@ -56,12 +56,11 @@ class _AthleteAccountSheet extends ConsumerWidget {
           onTap: () => choose(AthleteAccountAction.settings),
         ),
         if (canSwitchRole) ...[
-          const SizedBox(height: 10),
           ProfessorLinksSheetRow(
             key: const Key('athlete-account-switch-role'),
             icon: Icons.swap_horiz_rounded,
             title: 'Trocar papel',
-            subtitle: 'Entrar como professor, gestor de arena ou organizador',
+            subtitle: 'Professor, gestor de arena ou organizador',
             onTap: () => choose(AthleteAccountAction.switchRole),
           ),
         ],

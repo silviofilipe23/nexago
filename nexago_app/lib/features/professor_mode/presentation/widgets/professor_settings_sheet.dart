@@ -39,7 +39,6 @@ class _ProfessorSettingsSheet extends ConsumerWidget {
           },
         ),
         if (canSwitchRole) ...[
-          const SizedBox(height: 10),
           ProfessorLinksSheetRow(
             key: const Key('professor-settings-switch-role'),
             icon: Icons.swap_horiz_rounded,
@@ -51,7 +50,6 @@ class _ProfessorSettingsSheet extends ConsumerWidget {
             },
           ),
         ],
-        const SizedBox(height: 10),
         ProfessorLinksSheetRow(
           key: const Key('professor-settings-sign-out'),
           icon: Icons.logout_rounded,

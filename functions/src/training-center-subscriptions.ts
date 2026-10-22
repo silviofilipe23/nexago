@@ -205,6 +205,92 @@ export const onTrainingCenterEnrollmentBilling = onDocumentWritten(`${TRAINING_C
 });
 
 // ---------------------------------------------------------------------------
+// Backfill: matrículas mensais que já estavam ativas antes da recorrência
+// ---------------------------------------------------------------------------
+
+export interface BackfillRow {
+  centerId: string;
+  enrollmentId: string;
+  name: string;
+  status: string;
+  priceCents: number;
+  nextChargeDate: string;
+  /** Ciclo pulado porque o centro já tinha uma cobrança da matrícula naquele mês. */
+  skippedCycle: string | null;
+  result: "created" | "would_create" | "exists";
+}
+
+/**
+ * O gatilho só cria a assinatura quando a matrícula MUDA de status; quem já estava ativo (ou
+ * pausado) antes do deploy fica sem. Cria com a mesma regra do gatilho e, para não cobrar duas
+ * vezes, pula o ciclo do 1º vencimento se o centro já tem uma cobrança dessa matrícula naquele mês
+ * (cobrança feita à mão antes da recorrência). Sem `apply` só relata.
+ */
+export async function backfillSubscriptionsCore(
+  db: Firestore,
+  now: Date,
+  opts: {centerId?: string; apply: boolean},
+): Promise<BackfillRow[]> {
+  const centers = opts.centerId ?
+    [await centerRef(db, opts.centerId).get()] :
+    (await db.collection(TRAINING_CENTERS).get()).docs;
+  const rows: BackfillRow[] = [];
+  const at = Timestamp.fromDate(now);
+  for (const cSnap of centers) {
+    const c = cSnap.data();
+    if (!c) continue;
+    const center = cSnap.ref;
+    const today = dayKeyIn(now, str(c["timezone"]));
+    const billing = readBilling(c["billing"]);
+    const enrollments = (await center.collection("enrollments").get()).docs.filter((d) => {
+      const e = d.data();
+      return ["active", "paused"].includes(str(e["status"])) && (e["contract"] as Data | undefined)?.["planType"] === "monthly";
+    });
+    for (const doc of enrollments) {
+      const subRef = center.collection(SUBSCRIPTIONS).doc(doc.id);
+      const row = await db.runTransaction(async (tx: Transaction): Promise<BackfillRow | null> => {
+        const enr = (await tx.get(doc.ref)).data();
+        if (!enr || !["active", "paused"].includes(str(enr["status"]))) return null;
+        const existing = await tx.get(subRef);
+        const name = str(enr["studentName"]);
+        if (existing.exists) {
+          const cur = existing.data() ?? {};
+          return {centerId: center.id, enrollmentId: doc.id, name, status: str(cur["status"]), priceCents: num(cur["priceCents"]),
+            nextChargeDate: str(cur["nextChargeDate"]), skippedCycle: null, result: "exists"};
+        }
+        const studentId = str(enr["studentId"]);
+        const student = studentId ? (await tx.get(center.collection("students").doc(studentId))).data() : undefined;
+        const invoices = await tx.get(center.collection("invoices").where("enrollmentId", "==", doc.id)) as unknown as {docs: FirebaseFirestore.QueryDocumentSnapshot[]};
+        const data = newSubscription(doc.id, enr, student, billing, today, at);
+        const billedMonths = new Set(invoices.docs
+          .filter((i) => str(i.data()["status"]) !== "cancelled")
+          .map((i) => cycleKey(str(i.data()["dueDate"]))));
+        let skippedCycle: string | null = null;
+        const first = str(data["nextChargeDate"]);
+        if (billedMonths.has(cycleKey(first))) {
+          skippedCycle = cycleKey(first);
+          data["nextChargeDate"] = shiftMonths(first, 1, num(data["billingDay"], billing.billingDay));
+        }
+        if (enr["status"] === "paused") {
+          data["status"] = "paused";
+          data["pausedUntil"] = str(enr["pausedUntil"]) || null;
+        }
+        if (opts.apply) {
+          tx.set(subRef, data);
+          tx.set(center.collection("auditLogs").doc(), audit(at, SYSTEM, "subscription.backfilled", "subscription", doc.id,
+            `${data["payerName"]} · ${data["planName"]} · ${brlFromCents(num(data["priceCents"]))}/mês · 1º vencimento ${shortDay(str(data["nextChargeDate"]))}` +
+            (skippedCycle ? ` · ${cycleLabel(skippedCycle)} já cobrado` : "")));
+        }
+        return {centerId: center.id, enrollmentId: doc.id, name, status: str(data["status"]), priceCents: num(data["priceCents"]),
+          nextChargeDate: str(data["nextChargeDate"]), skippedCycle, result: opts.apply ? "created" : "would_create"};
+      });
+      if (row) rows.push(row);
+    }
+  }
+  return rows;
+}
+
+// ---------------------------------------------------------------------------
 // Encerrar matrícula (pacote, fim do ciclo, suspensão) devolvendo a vaga
 // ---------------------------------------------------------------------------
 

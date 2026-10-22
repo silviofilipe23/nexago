@@ -4,6 +4,7 @@ import {Timestamp, type Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import type {CenterBillingDeps} from "./training-center-billing";
 import {
+  backfillSubscriptionsCore,
   changeSubscriptionPlanCore,
   chargeSubscriptionNowCore,
   runTrainingCenterBillingCore,
@@ -258,5 +259,38 @@ describe("textos", () => {
     const n = dunningNotice(3, {centerName: "CT", cycle: "2026-10", amount: "R$ 320,00", blockDay: "25/10"});
     assert.match(n.body, /bloqueia em 25\/10/);
     assert.equal(Timestamp.now() instanceof Timestamp, true);
+  });
+});
+
+describe("backfill das assinaturas", () => {
+  it("cria para mensais ativas/pausadas sem assinatura; dry-run não grava; repetir não duplica", async () => {
+    const fake = seed();
+    fake.seedDoc(`${C}/students/s2`, {name: "Gabi", uid: "uGabi"});
+    fake.seedDoc(`${C}/enrollments/e2`, {
+      studentId: "s2", studentName: "Gabi", classId: "k1", planId: "m2", status: "paused", pausedUntil: "2026-11-20", startDate: "2026-08-10",
+      contract: {planName: "Mensal 2x/semana", planType: "monthly", priceCents: 32000, contractedAt: "2026-08-10"},
+    });
+    fake.seedDoc(`${C}/enrollments/e3`, {studentId: "s2", status: "active", contract: {planType: "class_pack", planName: "10 aulas"}});
+    fake.seedDoc(`${C}/enrollments/e4`, {studentId: "s2", status: "cancelled", contract: {planType: "monthly", priceCents: 1}});
+
+    const dry = await backfillSubscriptionsCore(db(fake), at("2026-10-22"), {apply: false});
+    assert.deepEqual(dry.map((r) => [r.enrollmentId, r.result]), [["e1", "would_create"], ["e2", "would_create"]]);
+    assert.equal(doc(fake, SUB), undefined);
+
+    const rows = await backfillSubscriptionsCore(db(fake), at("2026-10-22"), {apply: true});
+    assert.equal(rows.length, 2);
+    assert.equal(doc(fake, SUB)!["nextChargeDate"], "2026-11-05");
+    assert.equal(doc(fake, `${C}/subscriptions/e2`)!["status"], "paused");
+    assert.equal(doc(fake, `${C}/subscriptions/e2`)!["pausedUntil"], "2026-11-20");
+    const again = await backfillSubscriptionsCore(db(fake), at("2026-10-22"), {apply: true});
+    assert.deepEqual(again.map((r) => r.result), ["exists", "exists"]);
+  });
+
+  it("mês já cobrado à mão antes da recorrência não é cobrado de novo", async () => {
+    const fake = seed();
+    fake.seedDoc(`${C}/invoices/manual`, {enrollmentId: "e1", dueDate: "2026-11-03", status: "pending", amountCents: 32000});
+    const [row] = await backfillSubscriptionsCore(db(fake), at("2026-10-22"), {apply: true});
+    assert.equal(row!.skippedCycle, "2026-11");
+    assert.equal(doc(fake, SUB)!["nextChargeDate"], "2026-12-05");
   });
 });

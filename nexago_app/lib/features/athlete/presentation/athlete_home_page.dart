@@ -303,6 +303,46 @@ class AthleteHomePage extends ConsumerWidget {
                       // do que é dinâmico — convites, próximo treino e meus
                       // torneios vêm primeiro.
                       Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.screenH,
+                        ),
+                        child: Consumer(
+                          builder: (context, ref, _) {
+                            final bookings =
+                                ref
+                                    .watch(myBookingsStreamProvider)
+                                    .valueOrNull ??
+                                [];
+                            final now = DateTime.now();
+                            final nextBooking = findNextAthleteBooking(
+                              bookings,
+                              now: now,
+                            );
+                            return AthleteHomeNextReservationCard(
+                              booking: nextBooking,
+                              now: now,
+                              // Compacto na Início; a seta expande.
+                              initiallyExpanded: false,
+                              onDetailsTap: () =>
+                                  context.pushNamed(AppRouteNames.myBookings),
+                              onReserveTap: () =>
+                                  _goToTab(ref, athleteShellReservarTabIndex),
+                              onStoryTap:
+                                  nextBooking != null &&
+                                      isBookingStoryShareable(
+                                        nextBooking.rawStatus,
+                                      )
+                                  ? () => openBookingStory(
+                                      context,
+                                      BookingStoryArgs.fromBooking(nextBooking),
+                                    )
+                                  : null,
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.sectionGap),
+                      Padding(
                         padding: const EdgeInsets.fromLTRB(
                           AppSpacing.screenH,
                           0,
@@ -342,45 +382,7 @@ class AthleteHomePage extends ConsumerWidget {
                           AppSpacing.sectionGap,
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.screenH,
-                        ),
-                        child: Consumer(
-                          builder: (context, ref, _) {
-                            final bookings =
-                                ref
-                                    .watch(myBookingsStreamProvider)
-                                    .valueOrNull ??
-                                [];
-                            final now = DateTime.now();
-                            final nextBooking = findNextAthleteBooking(
-                              bookings,
-                              now: now,
-                            );
-                            return AthleteHomeNextReservationCard(
-                              booking: nextBooking,
-                              now: now,
-                              // Compacto na Início; a seta expande.
-                              initiallyExpanded: false,
-                              onDetailsTap: () =>
-                                  context.pushNamed(AppRouteNames.myBookings),
-                              onReserveTap: () =>
-                                  _goToTab(ref, athleteShellReservarTabIndex),
-                              onStoryTap:
-                                  nextBooking != null &&
-                                      isBookingStoryShareable(
-                                        nextBooking.rawStatus,
-                                      )
-                                  ? () => openBookingStory(
-                                      context,
-                                      BookingStoryArgs.fromBooking(nextBooking),
-                                    )
-                                  : null,
-                            );
-                          },
-                        ),
-                      ),
+
                       const SizedBox(height: AppSpacing.sectionGap),
                       // Evolução só quando há histórico de partidas — evita
                       // card vazio para quem ainda não jogou.

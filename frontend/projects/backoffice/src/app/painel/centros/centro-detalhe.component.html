@@ -1,0 +1,176 @@
+<bo-panel-shell>
+  <header class="bo-detail-header">
+    <a class="bo-back-btn" routerLink="/painel/centros" aria-label="Voltar para Centros de treinamento">
+      <bo-icon name="chevron-left" [size]="18" />
+    </a>
+    <div class="titles">
+      <h1>{{ center()?.name || 'Centro de treinamento' }}</h1>
+      <p>{{ center() ? (center()!.legalName || '—') + ' · ' + (center()!.cnpj || 'sem CNPJ') : 'Carregando…' }}</p>
+    </div>
+    @if (pill(); as p) {
+      <bo-pill [tone]="p.tone">{{ p.label }}</bo-pill>
+    }
+    <button type="button" class="bo-mini-btn" [disabled]="loading()" (click)="reload()">
+      <bo-icon name="swap" [size]="13" />
+      Atualizar
+    </button>
+  </header>
+
+  <div class="bo-detail-body">
+    @if (error()) {
+      <div class="bo-alert"><bo-icon name="alert" [size]="16" /><span>{{ error() }}</span></div>
+    } @else if (!detail()) {
+      <p class="status">Carregando centro…</p>
+    } @else {
+      <div class="bo-detail-grid">
+        <div class="bo-detail-main">
+          <div class="kpis">
+            <bo-kpi-mini label="Equipe ativa" [value]="'' + center()!.counts.members" />
+            <bo-kpi-mini label="Alunos" [value]="'' + center()!.counts.students" />
+            <bo-kpi-mini label="Turmas ativas" [value]="'' + center()!.counts.activeClasses" />
+          </div>
+
+          <bo-panel-card kicker="Situação" title="Ativação">
+            @if (center()!.status === 'pending' && center()!.activationRequestedAtMs) {
+              <p class="status warn">O owner pediu ativação em {{ date(center()!.activationRequestedAtMs) }}.</p>
+            }
+            @if (center()!.status === 'suspended') {
+              <p class="status">Suspenso em {{ date(center()!.suspendedAtMs) }} · “{{ center()!.suspendedReason || 'sem motivo' }}”</p>
+            }
+            @if (center()!.status === 'active') {
+              <p class="status ok">Ativo desde {{ date(center()!.activatedAtMs) }}.</p>
+            }
+            @if (center()!.status !== 'active') {
+              @for (g of gaps(); track g) {
+                <div class="gap"><bo-icon name="alert" [size]="14" class="warn" />{{ g }}</div>
+              } @empty {
+                <div class="gap ok"><bo-icon name="check" [size]="14" />Tudo pronto para ativar.</div>
+              }
+            }
+            <div class="actions">
+              @if (center()!.status !== 'active') {
+                <button type="button" class="bo-mini-btn bo-mini-btn-primary" [disabled]="busy()" (click)="ask('active')">
+                  {{ center()!.status === 'suspended' ? 'Reativar centro' : 'Ativar centro' }}
+                </button>
+              }
+              @if (center()!.status !== 'suspended') {
+                <button type="button" class="bo-mini-btn danger" [disabled]="busy()" (click)="ask('suspended')">Suspender</button>
+              }
+              @if (center()!.status === 'active') {
+                <button type="button" class="bo-ghost-btn" [disabled]="busy()" (click)="ask('pending')">Voltar para pendente</button>
+              }
+            </div>
+          </bo-panel-card>
+
+          <bo-panel-card kicker="Conta do centro no Asaas" title="Recebimento">
+            @if (detail()!.receiving; as r) {
+              <div class="bo-meta-row"><span class="k">Carteira</span><span class="v">{{ r.wallet }}</span></div>
+              <div class="bo-meta-row"><span class="k">Ambiente</span><span class="v">{{ r.asaasEnv === 'sandbox' ? 'Sandbox' : 'Produção' }}</span></div>
+              <div class="bo-meta-row"><span class="k">Taxa NexaGO</span><span class="v">{{ r.feePercent != null ? r.feePercent + '%' : 'padrão (5%)' }}</span></div>
+            } @else {
+              <p class="status">Sem conta de recebimento: o centro não consegue gerar Pix/cartão (só confirmação manual).</p>
+            }
+            <div class="form">
+              <label class="full">Wallet ID {{ detail()!.receiving ? '(trocar)' : '' }}
+                <input class="bo-input" placeholder="UUID da carteira Asaas do centro" [value]="walletId()" (input)="walletId.set(value($event))" />
+              </label>
+              <label>Ambiente
+                <select class="bo-select" [value]="asaasEnv()" (change)="asaasEnv.set(value($event))">
+                  <option value="production">Produção</option>
+                  <option value="sandbox">Sandbox</option>
+                </select>
+              </label>
+              <label>Taxa NexaGO (%)
+                <input class="bo-input" inputmode="decimal" placeholder="5" [value]="fee()" (input)="fee.set(value($event))" />
+              </label>
+            </div>
+            @if (receivingError()) {
+              <div class="bo-alert"><bo-icon name="alert" [size]="16" /><span>{{ receivingError() }}</span></div>
+            }
+            @if (receivingMsg()) {
+              <p class="ok-text">{{ receivingMsg() }}</p>
+            }
+            <div class="actions">
+              <button type="button" class="bo-mini-btn bo-mini-btn-primary" [disabled]="busy() || !walletId().trim()" (click)="saveReceiving()">Salvar recebimento</button>
+            </div>
+          </bo-panel-card>
+
+          <bo-panel-card kicker="Contrato centro → NexaGO" title="Assinatura NexaGO">
+            @if (center()!.subscription; as s) {
+              <div class="bo-meta-row"><span class="k">Atual</span><span class="v">{{ s.plan }} · {{ subscriptionLabel(s.status) }}</span></div>
+              @if (s.openInvoiceCents) {
+                <div class="bo-meta-row"><span class="k">Em aberto</span><span class="v">{{ brl(s.openInvoiceCents) }}{{ s.dueDate ? ' · venc. ' + s.dueDate : '' }}</span></div>
+              }
+            }
+            <div class="form">
+              <label>Plano<input class="bo-input" [value]="plan()" (input)="plan.set(value($event))" /></label>
+              <label>Situação
+                <select class="bo-select" [value]="subStatus()" (change)="subStatus.set(value($event))">
+                  @for (o of subscriptionStatuses; track o.id) {
+                    <option [value]="o.id" [selected]="o.id === subStatus()">{{ o.label }}</option>
+                  }
+                </select>
+              </label>
+              <label>Fatura em aberto (R$)<input class="bo-input" inputmode="decimal" placeholder="0,00" [value]="openInvoice()" (input)="openInvoice.set(value($event))" /></label>
+              <label>Vencimento<input class="bo-input" type="date" [value]="dueDate()" (input)="dueDate.set(value($event))" /></label>
+              <label class="full">Tentativas de cobrança<input class="bo-input" placeholder="Ex.: 3 · cartão recusado" [value]="attempts()" (input)="attempts.set(value($event))" /></label>
+            </div>
+            @if (subError()) {
+              <div class="bo-alert"><bo-icon name="alert" [size]="16" /><span>{{ subError() }}</span></div>
+            }
+            @if (subMsg()) {
+              <p class="ok-text">{{ subMsg() }}</p>
+            }
+            <div class="actions">
+              <button type="button" class="bo-mini-btn bo-mini-btn-primary" [disabled]="busy() || !plan().trim()" (click)="saveSubscription()">Salvar assinatura</button>
+            </div>
+          </bo-panel-card>
+        </div>
+
+        <div class="bo-detail-rail">
+          <bo-panel-card kicker="Cadastro" title="Dados do centro">
+            <div class="bo-meta-row"><span class="k">Owner</span><span class="v">{{ center()!.ownerName || '—' }}</span></div>
+            <div class="bo-meta-row"><span class="k">E-mail</span><span class="v">{{ center()!.contactEmail || '—' }}</span></div>
+            <div class="bo-meta-row"><span class="k">Telefone</span><span class="v">{{ center()!.contactPhone || '—' }}</span></div>
+            <div class="bo-meta-row"><span class="k">Cidade</span><span class="v">{{ center()!.city || '—' }}{{ center()!.state ? '/' + center()!.state : '' }}</span></div>
+            <div class="bo-meta-row"><span class="k">Modalidades</span><span class="v">{{ detail()!.programs.join(', ') || '—' }}</span></div>
+            <div class="bo-meta-row"><span class="k">Criado em</span><span class="v">{{ date(center()!.createdAtMs) }}</span></div>
+            <div class="bo-meta-row"><span class="k">ID</span><span class="v">{{ center()!.id }}</span></div>
+          </bo-panel-card>
+
+          <bo-panel-card kicker="auditLogs do centro" title="Últimos registros">
+            @for (a of detail()!.audit; track $index) {
+              <div class="bo-log-row">
+                <span class="bo-log-dot"></span>
+                <span class="bo-log-text">{{ a.detail }}{{ a.reason ? ' · “' + a.reason + '”' : '' }}<br />{{ a.actorName }}</span>
+                <span class="bo-log-time">{{ date(a.atMs) }}</span>
+              </div>
+            } @empty {
+              <p class="status">Nada registrado ainda.</p>
+            }
+          </bo-panel-card>
+        </div>
+      </div>
+    }
+  </div>
+
+  @if (decision(); as d) {
+    <bo-confirm-dialog
+      [open]="true"
+      [title]="d.title"
+      [description]="d.description"
+      [confirmLabel]="d.confirm"
+      [tone]="d.tone"
+      [busy]="busy()"
+      [confirmDisabled]="d.status === 'suspended' && reason().trim().length < 3"
+      [error]="actionError()"
+      (confirmed)="confirmDecision()"
+      (dismissed)="decision.set(null)"
+    >
+      <label class="reason">
+        <span class="bo-kicker">Motivo {{ d.status === 'suspended' ? '(obrigatório, o centro vê)' : '(opcional)' }}</span>
+        <input class="bo-input" [value]="reason()" (input)="reason.set(value($event))" />
+      </label>
+    </bo-confirm-dialog>
+  }
+</bo-panel-shell>

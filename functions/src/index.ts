@@ -731,6 +731,14 @@ export {
   upsertPlatformCost,
   deletePlatformCost,
 } from "./backoffice-finance";
+// Backoffice — Centros de Treinamento (ativar/suspender, recebimento, assinatura).
+export {
+  getTrainingCenterBackoffice,
+  listTrainingCentersBackoffice,
+  setTrainingCenterReceiving,
+  setTrainingCenterStatus,
+  setTrainingCenterSubscription,
+} from "./training-center-backoffice";
 
 // Catálogo da Loja: escrita só por callable (as rules negam escrita de cliente).
 export {

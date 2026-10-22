@@ -2,7 +2,7 @@ import type { ClassSession, Enrollment, Invoice, TrainingClass } from '../../dom
 import { classRows, compactBRL, delinquency, monthlySeries, periodRange, reportsCsv, sessionStats } from './report-metrics';
 
 const inv = (p: Partial<Invoice>) =>
-  ({ id: 'i', studentId: null, enrollmentId: null, payerName: 'A', reference: '', amountCents: 10000, dueDate: '2026-10-05', status: 'approved', method: null, providerRef: '', events: [], approvedAt: null, refundedCents: 0, createdAt: null, ...p }) as Invoice;
+  ({ id: 'i', studentId: null, enrollmentId: null, payerName: 'A', reference: '', amountCents: 10000, dueDate: '2026-10-05', status: 'approved', method: null, providerRef: '', providerUrl: '', providerStatus: '', providerApproved: false, events: [], approvedAt: null, refundedCents: 0, createdAt: null, ...p }) as Invoice;
 const ses = (p: Partial<ClassSession>) => ({ id: 's', classId: 'c1', date: '2026-10-10', status: 'done', attendance: {}, ...p }) as ClassSession;
 
 describe('report-metrics', () => {

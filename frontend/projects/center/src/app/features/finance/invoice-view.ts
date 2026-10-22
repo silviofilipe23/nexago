@@ -25,10 +25,13 @@ export function invoiceDetail(inv: Invoice, today: string, now = new Date()): In
   const method = inv.method ? PAYMENT_METHOD_LABELS[inv.method] : '';
   switch (st) {
     case 'approved': {
-      const base = [method, inv.providerRef || 'confirmação manual'].filter(Boolean).join(' · ');
+      const base = [method, inv.providerApproved && inv.providerRef ? inv.providerRef : 'confirmação manual'].filter(Boolean).join(' · ');
       return { text: inv.refundedCents > 0 ? `${base} · estorno parcial ${formatBRL(inv.refundedCents)}` : base, warn: false };
     }
     case 'pending':
+      if (inv.providerRef && !awaitingTooLong(inv, now)) {
+        return { text: 'Pix/cartão gerado · aguardando o aluno pagar', warn: false };
+      }
       return awaitingTooLong(inv, now)
         ? { text: 'Sem confirmação há mais de 2h', warn: true }
         : { text: 'Aguardando confirmação do pagamento', warn: false };

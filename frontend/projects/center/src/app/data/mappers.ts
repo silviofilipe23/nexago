@@ -379,6 +379,9 @@ export function readInvoice(id: string, d: Data): Invoice {
     status: (known.includes(status) ? status : 'pending') as Invoice['status'],
     method: (['pix', 'card', 'cash', 'transfer', 'other'].includes(method) ? method : null) as Invoice['method'],
     providerRef: str(d, 'providerRef'),
+    providerUrl: str(d, 'providerUrl'),
+    providerStatus: str(d, 'providerStatus'),
+    providerApproved: d['providerApprovedAt'] != null,
     events: Array.isArray(d['events'])
       ? (d['events'] as unknown[]).map(readEvent).filter((x): x is InvoiceEvent => x != null)
       : [],

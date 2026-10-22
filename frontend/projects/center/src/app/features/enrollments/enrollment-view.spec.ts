@@ -50,6 +50,8 @@ function inv(p: Partial<Invoice>): Invoice {
     events: [],
     approvedAt: null,
     refundedCents: 0,
+    subscriptionId: null,
+    cycle: '',
     createdAt: null,
     ...p,
   };

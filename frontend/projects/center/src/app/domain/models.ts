@@ -87,6 +87,8 @@ export interface TrainingCenter {
   state: string;
   address: string;
   policies: CenterPolicies;
+  /** Cobrança recorrente das mensalidades (Configurações › Cobrança recorrente). */
+  billing: CenterBilling;
   /** Passos de ativação que dependem de terceiros (marcados pelo backoffice). */
   receivingConnected: boolean;
   subscription: CenterSubscription | null;
@@ -275,6 +277,8 @@ export interface Student {
   medicalNotes: string;
   /** Créditos de reposição disponíveis. */
   makeupCredits: number;
+  /** Mensalidade atrasada além do limite: check-in mostra pendência (só o servidor grava). */
+  billingHold: boolean;
   createdAt: Date | null;
 }
 
@@ -375,6 +379,9 @@ export interface Invoice {
   events: InvoiceEvent[];
   approvedAt: Date | null;
   refundedCents: number;
+  /** Cobrança gerada pela assinatura (ciclo `YYYY-MM`); null nas avulsas. */
+  subscriptionId: string | null;
+  cycle: string;
   createdAt: Date | null;
 }
 
@@ -485,4 +492,147 @@ export function slugify(name: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 48);
+}
+
+/** Política da cobrança recorrente — espelho de `functions/src/training-center-subscription-model.ts`. */
+export interface CenterBilling {
+  /** `fixed`: todos vencem no `billingDay`; `enrollment`: no dia em que o aluno entrou. */
+  billingDayMode: 'fixed' | 'enrollment';
+  billingDay: number;
+  firstMonth: 'prorata' | 'full';
+  /** Multa de 2% + juros de 1% ao mês, somados pelo provedor no pagamento atrasado. */
+  lateFees: boolean;
+  /** Dias de atraso até o check-in mostrar pendência (0 = nunca). */
+  blockAfterDays: number;
+  suspendAfterDays: number;
+  suspendAction: 'suspend' | 'notify';
+}
+
+export const DEFAULT_BILLING: CenterBilling = {
+  billingDayMode: 'fixed',
+  billingDay: 5,
+  firstMonth: 'prorata',
+  lateFees: true,
+  blockAfterDays: 20,
+  suspendAfterDays: 45,
+  suspendAction: 'suspend',
+};
+
+export type SubscriptionStatus = 'active' | 'past_due' | 'paused' | 'canceling' | 'cancelled' | 'suspended';
+
+export const SUBSCRIPTION_STATUS: Record<SubscriptionStatus, [string, string]> = {
+  active: ['Em dia', 'green'],
+  past_due: ['Em atraso', 'red'],
+  paused: ['Pausada', 'dim'],
+  canceling: ['Cancela no fim do ciclo', 'dim'],
+  cancelled: ['Encerrada', 'dim'],
+  suspended: ['Suspensa', 'red'],
+};
+
+export type SubscriptionMethod = 'pix_manual' | 'card' | 'pix_auto';
+
+export const SUBSCRIPTION_METHOD: Record<SubscriptionMethod, string> = {
+  pix_manual: 'Pix mensal',
+  card: 'Cartão recorrente',
+  pix_auto: 'Pix Automático',
+};
+
+export interface SubscriptionNotice {
+  at: Date | null;
+  /** 0 lembrete D−3 · 1 não pago D+1 · 2 lembrete D+7 · 3 aviso de bloqueio · 4 bloqueio · 5 suspensão. */
+  stage: number;
+  cycle: string;
+  invoiceId: string;
+  title: string;
+  channel: string;
+  delivered: boolean;
+}
+
+export interface PendingPlanChange {
+  planId: string;
+  planName: string;
+  priceCents: number;
+  byName: string;
+  requestedAt: Date | null;
+}
+
+/** `subscriptions/{enrollmentId}` — uma por matrícula mensal; só o servidor cria e anda. */
+export interface Subscription {
+  id: string;
+  enrollmentId: string;
+  studentId: string;
+  studentName: string;
+  payerName: string;
+  classId: string;
+  className: string;
+  planId: string | null;
+  planName: string;
+  priceCents: number;
+  billingDay: number;
+  method: SubscriptionMethod;
+  status: SubscriptionStatus;
+  startDate: string;
+  /** Vencimento do próximo ciclo ainda não gerado (a cobrança nasce 3 dias antes). */
+  nextChargeDate: string;
+  lastDueDate: string | null;
+  pausedUntil: string | null;
+  cancelAt: string | null;
+  pendingPlanChange: PendingPlanChange | null;
+  lateFees: { finePercent: number; interestPercent: number } | null;
+  dunningStage: number;
+  overdueSince: string | null;
+  checkinBlocked: boolean;
+  skippedCycles: string[];
+  notices: SubscriptionNotice[];
+  createdAt: Date | null;
+  endedAt: Date | null;
+  endReason: string;
+}
+
+export interface BillingRunSummary {
+  generated: number;
+  generatedCents: number;
+  issued: number;
+  issueFailed: number;
+  skippedPaused: number;
+  reminders: number;
+  notices: number;
+  blocked: number;
+  suspended: number;
+  resumed: number;
+  packsCompleted: number;
+  cancelledAtCycleEnd: number;
+  errors: number;
+}
+
+export type BillingRunItemKind =
+  | 'generated'
+  | 'skipped'
+  | 'issued'
+  | 'issue_failed'
+  | 'reminder'
+  | 'notice'
+  | 'blocked'
+  | 'suspended'
+  | 'resumed'
+  | 'pack_completed'
+  | 'cancelled';
+
+export interface BillingRunItem {
+  subscriptionId: string;
+  name: string;
+  kind: BillingRunItemKind;
+  detail: string;
+  cents: number;
+}
+
+/** `billingRuns/{YYYY-MM-DD}` — resumo da rodada diária das 06:00. */
+export interface BillingRun {
+  id: string;
+  date: string;
+  ranAt: Date | null;
+  runs: number;
+  online: boolean;
+  summary: BillingRunSummary;
+  items: BillingRunItem[];
 }

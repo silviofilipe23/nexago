@@ -25,7 +25,7 @@ export interface QueryProviderResult {
 }
 
 /** Callable em São Paulo; `firebase/functions` só carrega quando alguém usa a cobrança online. */
-async function call<T>(name: string, data: Record<string, unknown>): Promise<T> {
+export async function callCenterFunction<T>(name: string, data: Record<string, unknown>): Promise<T> {
   const { getFunctions, httpsCallable } = await import('firebase/functions');
   const fn = httpsCallable<Record<string, unknown>, T>(getFunctions(firebaseApp(), FUNCTIONS_REGION), name);
   return (await fn(data)).data;
@@ -148,7 +148,7 @@ export class InvoicesActions extends CenterActionsBase {
    */
   async issueOnline(inv: Invoice, cpfCnpj?: string): Promise<IssueOnlineResult> {
     this.assertWritable();
-    return call<IssueOnlineResult>('issueTrainingCenterInvoicePayment', {
+    return callCenterFunction<IssueOnlineResult>('issueTrainingCenterInvoicePayment', {
       centerId: this.centerId(),
       invoiceId: inv.id,
       ...(cpfCnpj ? { cpfCnpj } : {}),
@@ -157,13 +157,13 @@ export class InvoicesActions extends CenterActionsBase {
 
   /** "Consultar provedor agora": se já foi paga, aprova (e ativa a matrícula) na hora. */
   async queryProvider(inv: Invoice): Promise<QueryProviderResult> {
-    return call<QueryProviderResult>('queryTrainingCenterInvoiceProvider', { centerId: this.centerId(), invoiceId: inv.id });
+    return callCenterFunction<QueryProviderResult>('queryTrainingCenterInvoiceProvider', { centerId: this.centerId(), invoiceId: inv.id });
   }
 
   /** Copia-e-cola + link da fatura; quem tem conta NexaGO recebe também um push. */
   async resendPix(inv: Invoice): Promise<ResendPixResult> {
     this.assertWritable();
-    return call<ResendPixResult>('resendTrainingCenterInvoicePix', { centerId: this.centerId(), invoiceId: inv.id });
+    return callCenterFunction<ResendPixResult>('resendTrainingCenterInvoicePix', { centerId: this.centerId(), invoiceId: inv.id });
   }
 
   async addNote(inv: Invoice, note: string): Promise<void> {

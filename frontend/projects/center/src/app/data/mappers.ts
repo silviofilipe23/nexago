@@ -1,9 +1,14 @@
 import { Timestamp } from 'firebase/firestore';
 import type { Weekday } from '../domain/dates';
 import {
+  DEFAULT_BILLING,
   DEFAULT_POLICIES,
   type AttendanceMark,
   type AuditEntry,
+  type BillingRun,
+  type BillingRunItemKind,
+  type BillingRunSummary,
+  type CenterBilling,
   type CenterInvite,
   type CenterLocation,
   type CenterMember,
@@ -18,6 +23,10 @@ import {
   type PriceChange,
   type Program,
   type Student,
+  type Subscription,
+  type SubscriptionMethod,
+  type SubscriptionNotice,
+  type SubscriptionStatus,
   type TrainingCenter,
   type TrainingClass,
 } from '../domain/models';
@@ -114,6 +123,7 @@ export function readCenter(id: string, d: Data): TrainingCenter {
     state: str(d, 'state'),
     address: str(d, 'address'),
     policies: readPolicies(obj(d, 'policies')),
+    billing: readBilling(obj(d, 'billing')),
     receivingConnected: bool(d, 'receivingConnected'),
     subscription: sub
       ? {
@@ -332,6 +342,7 @@ export function readStudent(id: string, d: Data): Student {
     emergencyPhone: str(d, 'emergencyPhone'),
     medicalNotes: str(d, 'medicalNotes'),
     makeupCredits: num(d, 'makeupCredits'),
+    billingHold: bool(d, 'billingHold'),
     createdAt: date(d['createdAt']),
   };
 }
@@ -453,6 +464,8 @@ export function readInvoice(id: string, d: Data): Invoice {
       : [],
     approvedAt: date(d['approvedAt']),
     refundedCents: num(d, 'refundedCents'),
+    subscriptionId: strOrNull(d, 'subscriptionId'),
+    cycle: str(d, 'cycle'),
     createdAt: date(d['createdAt']),
   };
 }
@@ -468,5 +481,140 @@ export function readAudit(id: string, d: Data): AuditEntry {
     entityId: str(d, 'entityId'),
     detail: str(d, 'detail'),
     reason: str(d, 'reason'),
+  };
+}
+
+/** Mesmos limites do servidor (`readBilling` em training-center-subscription-model.ts). */
+export function readBilling(raw: Data | null): CenterBilling {
+  const d = raw ?? {};
+  const n = (k: keyof CenterBilling, min: number, max: number): number => {
+    const v = d[k];
+    return typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? Math.round(v) : (DEFAULT_BILLING[k] as number);
+  };
+  return {
+    billingDayMode: d['billingDayMode'] === 'enrollment' ? 'enrollment' : 'fixed',
+    billingDay: n('billingDay', 1, 28),
+    firstMonth: d['firstMonth'] === 'full' ? 'full' : 'prorata',
+    lateFees: d['lateFees'] !== false,
+    blockAfterDays: n('blockAfterDays', 0, 90),
+    suspendAfterDays: n('suspendAfterDays', 0, 180),
+    suspendAction: d['suspendAction'] === 'notify' ? 'notify' : 'suspend',
+  };
+}
+
+function readNotice(raw: unknown): SubscriptionNotice | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const d = raw as Data;
+  return {
+    at: date(d['at']),
+    stage: num(d, 'stage'),
+    cycle: str(d, 'cycle'),
+    invoiceId: str(d, 'invoiceId'),
+    title: str(d, 'title'),
+    channel: str(d, 'channel', 'push'),
+    delivered: bool(d, 'delivered'),
+  };
+}
+
+const SUBSCRIPTION_STATUSES: SubscriptionStatus[] = ['active', 'past_due', 'paused', 'canceling', 'cancelled', 'suspended'];
+
+export function readSubscription(id: string, d: Data): Subscription {
+  const status = str(d, 'status');
+  const method = str(d, 'method');
+  const change = obj(d, 'pendingPlanChange');
+  const fees = obj(d, 'lateFees');
+  return {
+    id,
+    enrollmentId: str(d, 'enrollmentId', id),
+    studentId: str(d, 'studentId'),
+    studentName: str(d, 'studentName', 'Aluno'),
+    payerName: str(d, 'payerName') || str(d, 'studentName', 'Aluno'),
+    classId: str(d, 'classId'),
+    className: str(d, 'className'),
+    planId: strOrNull(d, 'planId'),
+    planName: str(d, 'planName'),
+    priceCents: num(d, 'priceCents'),
+    billingDay: num(d, 'billingDay', 5),
+    method: (method === 'card' || method === 'pix_auto' ? method : 'pix_manual') as SubscriptionMethod,
+    status: (SUBSCRIPTION_STATUSES as string[]).includes(status) ? (status as SubscriptionStatus) : 'active',
+    startDate: str(d, 'startDate'),
+    nextChargeDate: str(d, 'nextChargeDate'),
+    lastDueDate: strOrNull(d, 'lastDueDate'),
+    pausedUntil: strOrNull(d, 'pausedUntil'),
+    cancelAt: strOrNull(d, 'cancelAt'),
+    pendingPlanChange: change
+      ? {
+          planId: str(change, 'planId'),
+          planName: str(change, 'planName'),
+          priceCents: num(change, 'priceCents'),
+          byName: str(change, 'byName'),
+          requestedAt: date(change['requestedAt']),
+        }
+      : null,
+    lateFees: fees ? { finePercent: num(fees, 'finePercent'), interestPercent: num(fees, 'interestPercent') } : null,
+    dunningStage: num(d, 'dunningStage'),
+    overdueSince: strOrNull(d, 'overdueSince'),
+    checkinBlocked: bool(d, 'checkinBlocked'),
+    skippedCycles: strings(d, 'skippedCycles'),
+    notices: Array.isArray(d['notices'])
+      ? (d['notices'] as unknown[]).map(readNotice).filter((x): x is SubscriptionNotice => x != null)
+      : [],
+    createdAt: date(d['createdAt']),
+    endedAt: date(d['endedAt']),
+    endReason: str(d, 'endReason'),
+  };
+}
+
+const RUN_KINDS: BillingRunItemKind[] = [
+  'generated',
+  'skipped',
+  'issued',
+  'issue_failed',
+  'reminder',
+  'notice',
+  'blocked',
+  'suspended',
+  'resumed',
+  'pack_completed',
+  'cancelled',
+];
+
+export function readBillingRun(id: string, d: Data): BillingRun {
+  const s = obj(d, 'summary') ?? {};
+  const k = (key: keyof BillingRunSummary): number => num(s, key);
+  return {
+    id,
+    date: str(d, 'date', id),
+    ranAt: date(d['ranAt']),
+    runs: num(d, 'runs'),
+    online: bool(d, 'online'),
+    summary: {
+      generated: k('generated'),
+      generatedCents: k('generatedCents'),
+      issued: k('issued'),
+      issueFailed: k('issueFailed'),
+      skippedPaused: k('skippedPaused'),
+      reminders: k('reminders'),
+      notices: k('notices'),
+      blocked: k('blocked'),
+      suspended: k('suspended'),
+      resumed: k('resumed'),
+      packsCompleted: k('packsCompleted'),
+      cancelledAtCycleEnd: k('cancelledAtCycleEnd'),
+      errors: k('errors'),
+    },
+    items: Array.isArray(d['items'])
+      ? (d['items'] as unknown[])
+          .filter((x): x is Data => !!x && typeof x === 'object')
+          .map((x) => ({
+            subscriptionId: str(x, 'subscriptionId'),
+            name: str(x, 'name'),
+            kind: ((RUN_KINDS as string[]).includes(str(x, 'kind')) ? str(x, 'kind') : 'generated') as BillingRunItemKind,
+            detail: str(x, 'detail'),
+            cents: num(x, 'cents'),
+          }))
+      : [],
   };
 }

@@ -5,12 +5,12 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_radii.dart';
-import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../athlete_training/application/athlete_training_providers.dart';
 
-/// Linha de atalhos da Home: Reservar, Ranking, Treinos e Torneios. O atalho
+/// Linha de atalhos da Home: Reservar, Ranking, Treinos, Torneios e Meus
+/// torneios. O atalho
 /// com novidade (contador > 0) ganha destaque laranja e o selo do contador.
 class AthleteHomeShortcutsGrid extends ConsumerWidget {
   const AthleteHomeShortcutsGrid({
@@ -52,12 +52,18 @@ class AthleteHomeShortcutsGrid extends ConsumerWidget {
         label: 'Torneios',
         onTap: onCompeteTap,
       ),
+      _Shortcut(
+        key: const Key('home-shortcut-my-tournaments'),
+        icon: Icons.confirmation_number_outlined,
+        label: 'Meus torneios',
+        onTap: () => context.pushNamed(AppRouteNames.myTournaments),
+      ),
     ];
 
     return Row(
       children: [
         for (var i = 0; i < shortcuts.length; i++) ...[
-          if (i > 0) const SizedBox(width: AppSpacing.sm),
+          if (i > 0) const SizedBox(width: 6),
           Expanded(child: _ShortcutTile(shortcut: shortcuts[i])),
         ],
       ],
@@ -116,23 +122,28 @@ class _ShortcutTile extends StatelessWidget {
             child: InkWell(
               key: shortcut.key,
               onTap: shortcut.onTap,
-              child: AspectRatio(
-                aspectRatio: 1,
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.xs),
-                  child: Column(
+              // Altura fixa: com cinco na linha o tile não é quadrado, e
+              // "Meus torneios" quebra em duas linhas.
+              child: SizedBox(
+                width: double.infinity,
+                height: 84,
+                // Tile estreito (telas de 320px) cai para 10px: "Reservar" e
+                // "Torneios" medem ~52px a 11px na Sora.
+                child: LayoutBuilder(
+                  builder: (context, box) => Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(shortcut.icon, size: 22, color: foreground),
-                      const SizedBox(height: AppSpacing.sm),
+                      const SizedBox(height: 6),
                       Text(
                         shortcut.label,
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
                         style: AppTypography.labelS.copyWith(
                           color: foreground,
-                          fontSize: 12,
+                          fontSize: box.maxWidth < 56 ? 10 : 11,
+                          height: 1.15,
                           fontWeight: FontWeight.w600,
                         ),
                       ),

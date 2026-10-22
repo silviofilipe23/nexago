@@ -9,6 +9,7 @@ import type { ClassSession, TrainingClass } from '../../domain/models';
 import { horizonEnd, occurrences } from '../../domain/schedule';
 import { IconComponent } from '../../ui/icon.component';
 import { PageHeaderComponent, SegmentedComponent } from '../../ui/kit';
+import { AttendanceModalComponent } from './attendance-modal.component';
 import { SessionModalComponent } from './session-modal.component';
 import { GRID_HOURS, GRID_START_MIN, layoutDay, nowOffset, weekDays } from './week-layout';
 
@@ -36,7 +37,7 @@ interface ScheduleItem {
 @Component({
   selector: 'ct-schedule',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageHeaderComponent, SegmentedComponent, IconComponent, SessionModalComponent],
+  imports: [PageHeaderComponent, SegmentedComponent, IconComponent, SessionModalComponent, AttendanceModalComponent],
   templateUrl: './schedule.component.html',
   styleUrl: './schedule.component.scss',
 })
@@ -73,6 +74,7 @@ export class ScheduleComponent {
   protected readonly coachFilter = signal('');
   protected readonly courtFilter = signal('');
   protected readonly selected = signal<ClassSession | null>(null);
+  protected readonly attendanceFor = signal<string | null>(null);
   protected readonly ensureError = signal('');
 
   protected readonly canEdit = computed(() => this.ctx.isManager() && this.ctx.canWrite());
@@ -259,6 +261,18 @@ export class ScheduleComponent {
     } else if (it.cls && this.canEdit()) {
       void this.router.navigate(['/centro', this.centerId(), 'turmas'], { queryParams: { editar: it.cls.id } });
     }
+  }
+
+  /** Chamada: gestor, ou o professor da própria aula com a permissão; nunca de aula futura. */
+  protected canAttend(s: ClassSession): boolean {
+    if (!this.ctx.canWrite() || s.status === 'cancelled' || s.date > this.today()) return false;
+    return this.ctx.isManager() || (s.coachUid === this.ctx.me()?.uid && this.ctx.has('attendance'));
+  }
+
+  protected openAttendance(): void {
+    const s = this.selected();
+    this.selected.set(null);
+    if (s) this.attendanceFor.set(s.id);
   }
 
   protected openSeries(day: string): void {

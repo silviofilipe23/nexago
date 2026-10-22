@@ -1,0 +1,112 @@
+<ct-modal [title]="(session()?.className || 'Aula') + ' · chamada'" [kicker]="kicker()" [width]="640" (closed)="closed.emit()">
+  @if (!session()) {
+    <div class="ct-empty">Aula não encontrada.</div>
+  } @else {
+    @if (session()!.status === 'cancelled') {
+      <div class="ct-box red"><span class="ct-muted">Aula cancelada — não tem chamada.</span></div>
+    } @else {
+      <div class="ct-row ct-wrap">
+        @if (done()) {
+          <span class="ct-pill green">Finalizada</span>
+          <span class="ct-mono">por {{ session()!.finalizedByName || '—' }}</span>
+        } @else {
+          <span class="ct-pill orange">Chamada aberta</span>
+        }
+        <div class="ct-grow"></div>
+        <div class="sum ct-mono">
+          <span>{{ counts().p }} P</span><span>{{ counts().j }} J</span><span>{{ counts().f }} F</span>
+          @if (!done() && unmarked()) {
+            <span class="ct-tag yellow">{{ unmarked() }} sem marcação</span>
+          }
+        </div>
+      </div>
+
+      @if (!done() && rows().length) {
+        <div class="ct-row ct-wrap">
+          <span class="ct-dim">Marcar quem falta como:</span>
+          <button type="button" class="ct-chip" (click)="markAll('present')">Todos presentes</button>
+        </div>
+      }
+
+      <div>
+        @for (r of rows(); track r.studentId) {
+          <div class="row">
+            <ct-person class="ct-grow" [name]="r.name" [sub]="r.sub || (r.former ? 'Saiu da turma' : '')" [colorKey]="r.studentId" />
+            @if (done()) {
+              @if (r.effect) {
+                <span class="ct-tag blue">{{ r.effect }}</span>
+              }
+              <span class="ct-pill" [class.green]="r.mark === 'present'" [class.yellow]="r.mark === 'excused'" [class.red]="r.mark === 'absent'">
+                {{ r.mark ? markLabels[r.mark] : 'Sem marcação' }}
+              </span>
+              @if (fixing() !== r.studentId) {
+                <button type="button" class="ct-ghost-btn" [disabled]="busy()" (click)="startFix(r.studentId, r.mark)">Corrigir</button>
+              }
+            } @else {
+              @if (r.makeup) {
+                <button type="button" class="ct-ghost-btn" (click)="removeMakeup(r.studentId)">Tirar</button>
+              }
+              <ct-segmented [options]="markOptions" [value]="r.mark ?? ''" (valueChange)="setMark(r.studentId, $event)" />
+            }
+            @if (fixing() === r.studentId) {
+              <div class="fix">
+                <ct-segmented [options]="markOptions" [value]="fixTo()" (valueChange)="fixTo.set($any($event))" />
+                <input class="ct-input" placeholder="Justificativa (vai para o histórico)" [value]="fixReason()" (input)="fixReason.set(value($event))" />
+                <button type="button" class="ct-mini-btn" (click)="fixing.set(null)">Cancelar</button>
+                <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="confirmFix(r.studentId, r.name)">Salvar correção</button>
+              </div>
+            }
+          </div>
+        } @empty {
+          <div class="ct-empty">Nenhum aluno na turma ainda. Encaixe uma reposição ou matricule alunos.</div>
+        }
+      </div>
+
+      @if (!done()) {
+        @if (makeupCandidates().length) {
+          <div class="ct-row ct-wrap">
+            <select class="ct-input ct-grow" aria-label="Encaixar reposição" [value]="addingMakeup()" (change)="addingMakeup.set(value($event))">
+              <option value="">Encaixar reposição…</option>
+              @for (st of makeupCandidates(); track st.id) {
+                <option [value]="st.id">{{ st.name }} · {{ st.makeupCredits }} crédito{{ st.makeupCredits === 1 ? '' : 's' }}</option>
+              }
+            </select>
+            <button type="button" class="ct-mini-btn" [disabled]="!addingMakeup()" (click)="addMakeup()">Encaixar</button>
+          </div>
+        }
+        <div class="ct-dim">
+          Ao finalizar, os créditos são aplicados sozinhos: presença e falta não justificada consomem crédito de pacote
+          (conforme o contrato), falta justificada de mensalista gera reposição e o aluno encaixado gasta 1 reposição.
+        </div>
+      } @else {
+        <div>
+          <div class="ct-kick" style="margin-bottom: 8px">Histórico do registro</div>
+          <ct-audit-trail [rows]="history()" />
+        </div>
+        @if (canManage()) {
+          @if (reopening()) {
+            <div class="ct-row ct-wrap">
+              <input class="ct-input ct-grow" placeholder="Por que reabrir? (desfaz os créditos)" [value]="reopenReason()" (input)="reopenReason.set(value($event))" />
+              <button type="button" class="ct-mini-btn" (click)="reopening.set(false)">Cancelar</button>
+              <button type="button" class="ct-mini-btn danger" [disabled]="busy()" (click)="reopen()">Reabrir chamada</button>
+            </div>
+          }
+        }
+      }
+    }
+  }
+
+  @if (error()) {
+    <div class="ct-error-text" role="alert">{{ error() }}</div>
+  }
+
+  <div footer>
+    <button type="button" class="ct-mini-btn" (click)="closed.emit()">Fechar</button>
+    @if (session() && session()!.status === 'scheduled') {
+      <button type="button" class="ct-mini-btn" [disabled]="busy()" (click)="save(false)">Salvar</button>
+      <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy() || !rows().length" (click)="save(true)">{{ busy() ? 'Salvando…' : 'Finalizar aula' }}</button>
+    } @else if (done() && canManage() && !reopening()) {
+      <button type="button" class="ct-mini-btn" (click)="reopening.set(true)">Reabrir chamada</button>
+    }
+  </div>
+</ct-modal>

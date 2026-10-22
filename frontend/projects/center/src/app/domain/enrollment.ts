@@ -17,6 +17,15 @@ export function holdsSeat(status: EnrollmentStatus): boolean {
   return SEAT_STATUSES.includes(status);
 }
 
+/**
+ * Lista da chamada da turma (`classes.rosterStudentIds`): quem ocupa vaga. Muda nos mesmos pontos
+ * que `seatsTaken`, na mesma transação — o professor não lê matrículas, só esta lista.
+ */
+export function rosterAfter(current: readonly string[] | undefined, studentId: string, delta: number): string[] {
+  const list = (current ?? []).filter((id) => id !== studentId);
+  return delta > 0 ? [...list, studentId] : delta < 0 ? list : [...(current ?? [])];
+}
+
 export function freeSeats(c: Pick<TrainingClass, 'capacity' | 'seatsTaken'>): number {
   return Math.max(0, c.capacity - c.seatsTaken);
 }

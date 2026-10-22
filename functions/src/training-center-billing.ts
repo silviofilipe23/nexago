@@ -722,7 +722,12 @@ export async function releaseExpiredHold(
       center.collection("invoices").where("enrollmentId", "==", enrollmentRef.id).where("status", "==", "pending"),
     ) as unknown as {docs: FirebaseFirestore.QueryDocumentSnapshot[]};
     if (classRef && cls?.exists) {
-      tx.update(classRef, {seatsTaken: Math.max(0, Number(cls.data()?.["seatsTaken"] ?? 0) - 1)});
+      const roster = cls.data()?.["rosterStudentIds"];
+      tx.update(classRef, {
+        seatsTaken: Math.max(0, Number(cls.data()?.["seatsTaken"] ?? 0) - 1),
+        // Lista da chamada (o professor não lê matrículas): sai junto com a vaga.
+        ...(Array.isArray(roster) ? {rosterStudentIds: roster.filter((id) => id !== str(enr?.["studentId"]))} : {}),
+      });
     }
     tx.update(enrollmentRef, {status: "cancelled", holdUntil: null, endedAt: at, cancelReason: "hold_expired"});
     for (const doc of invoices.docs) {

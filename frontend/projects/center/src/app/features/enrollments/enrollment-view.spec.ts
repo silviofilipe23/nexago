@@ -70,6 +70,7 @@ function cls(p: Partial<TrainingClass>): TrainingClass {
     courtName: '',
     capacity: 8,
     seatsTaken: 8,
+    rosterStudentIds: [],
     startDate: '2026-01-01',
     endDate: null,
     status: 'active',

@@ -157,6 +157,8 @@ export interface TrainingClass {
   capacity: number;
   /** Vagas ocupadas (matrículas ativas, pendentes ou pausadas) — mantido em transação. */
   seatsTaken: number;
+  /** Alunos que ocupam vaga (lista da chamada) — ver `rosterAfter`. */
+  rosterStudentIds: string[];
   startDate: string;
   endDate: string | null;
   status: ClassStatus;
@@ -185,6 +187,21 @@ export interface ClassSession {
   changeReason: string;
   attendance: Record<string, AttendanceMark>;
   makeupStudentIds: string[];
+  finalizedAt: Date | null;
+  finalizedByName: string;
+  /** Correções feitas depois de finalizada (P6/P7). */
+  attendanceLog: AttendanceCorrection[];
+  /** Créditos que o servidor já aplicou por esta chamada (só leitura no client). */
+  effectsApplied: Record<string, { credit: number; makeup: number }>;
+}
+
+export interface AttendanceCorrection {
+  at: Date | null;
+  byName: string;
+  studentId: string;
+  from: AttendanceMark | null;
+  to: AttendanceMark | null;
+  reason: string;
 }
 
 export type StudentStatus = 'active' | 'invited' | 'inactive' | 'blocked';

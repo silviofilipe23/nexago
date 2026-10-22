@@ -4004,8 +4004,9 @@ service cloud.firestore {
         allow delete: if false;
       }
 
-      // Turma = regra recorrente. `seatsTaken` só muda em transação com a matrícula e nunca
-      // passa da capacidade; quem só matricula (recepção) mexe SÓ nesse campo.
+      // Turma = regra recorrente. `seatsTaken` (e a lista da chamada `rosterStudentIds`) só mudam em
+      // transação com a matrícula e nunca passam da capacidade; quem só matricula (recepção) mexe
+      // SÓ nesses dois campos.
       match /classes/{classId} {
         allow read: if ctIsMember();
         allow create: if ctIsManager() && ctNotSuspended() &&
@@ -4016,22 +4017,32 @@ service cloud.firestore {
           request.resource.data.seatsTaken >= 0 &&
           request.resource.data.seatsTaken <= request.resource.data.capacity && (
             ctIsManager() ||
-            (ctHasPerm('enroll_students') && ctChanged().hasOnly(['seatsTaken']))
+            (ctHasPerm('enroll_students') && ctChanged().hasOnly(['seatsTaken', 'rosterStudentIds']))
           );
         allow delete: if false;
       }
 
       // Aulas geradas. O professor da aula (permissão `attendance`) só registra a chamada.
+      // `effectsApplied` (créditos já aplicados pela chamada) é só do servidor
+      // (functions/src/training-center-attendance.ts): nem o gestor grava.
       match /sessions/{sessionId} {
         allow read: if ctIsMember();
-        allow create, delete: if ctIsManager() && ctNotSuspended();
-        allow update: if ctNotSuspended() && (
-          ctIsManager() || (
-            ctHasPerm('attendance') &&
-            resource.data.coachUid == request.auth.uid &&
-            ctChanged().hasOnly(['attendance', 'status', 'makeupStudentIds', 'attendanceUpdatedAt'])
-          )
-        );
+        allow create: if ctIsManager() && ctNotSuspended() &&
+          !('effectsApplied' in request.resource.data);
+        allow delete: if ctIsManager() && ctNotSuspended();
+        allow update: if ctNotSuspended() &&
+          !ctChanged().hasAny(['effectsApplied', 'effectsAppliedAt']) && (
+            ctIsManager() || (
+              ctHasPerm('attendance') &&
+              resource.data.coachUid == request.auth.uid &&
+              resource.data.status in ['scheduled', 'done'] &&
+              request.resource.data.status in ['scheduled', 'done'] &&
+              ctChanged().hasOnly([
+                'attendance', 'status', 'makeupStudentIds', 'attendanceUpdatedAt',
+                'finalizedAt', 'finalizedByName', 'attendanceLog'
+              ])
+            )
+          );
       }
 
       // Créditos de reposição só o gestor move (cancelamento de aula); recepção edita cadastro.

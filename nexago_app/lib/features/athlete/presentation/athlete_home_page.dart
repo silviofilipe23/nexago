@@ -299,7 +299,7 @@ class AthleteHomePage extends ConsumerWidget {
                       //   ),
                       //   child: MyTournamentsHomeSection(),
                       // ),
-                      // Atalhos (Reservar, Ranking, Treinos e Torneios) abaixo
+                      // Atalhos (Reservar, Ranking, Treinos, Meus torneios, Squad) abaixo
                       // do que é dinâmico — convites, próximo treino e meus
                       // torneios vêm primeiro.
                       Padding(
@@ -354,8 +354,6 @@ class AthleteHomePage extends ConsumerWidget {
                         child: AthleteHomeShortcutsGrid(
                           onReserveTap: () =>
                               _goToTab(ref, athleteShellReservarTabIndex),
-                          onCompeteTap: () =>
-                              _goToTab(ref, athleteShellCompeteTabIndex),
                         ),
                       ),
                       const AthleteHomeFocusButton(),

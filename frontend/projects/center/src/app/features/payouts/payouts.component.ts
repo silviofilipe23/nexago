@@ -2,9 +2,10 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, injec
 import { CenterContextService } from '../../core/center-context.service';
 import { writeErrorMessage } from '../../data/actions/actor';
 import { PayoutsActions } from '../../data/actions/payouts.actions';
+import { ReceivingActions } from '../../data/actions/receiving.actions';
 import { CenterStore } from '../../data/center-store.service';
 import { addMonths, formatDayKey, monthKey, monthLabel, todayKey, wallClock } from '../../domain/dates';
-import type { ClassSession } from '../../domain/models';
+import type { ClassSession, ReceivingAccount } from '../../domain/models';
 import { formatBRL, parseBRL } from '../../domain/money';
 import {
   NO_RULE,
@@ -13,6 +14,8 @@ import {
   PAY_RULE_LABEL,
   computePayout,
   monthRangeOf,
+  paidMethodLabel,
+  transferLocked,
   payRuleError,
   type PayRule,
   type PayRuleKind,
@@ -62,6 +65,9 @@ import { canClose, payoutRows, payoutTotals, payoutsCsv, type PayoutRow } from '
       @if (error()) {
         <p class="ct-error-text" role="alert">{{ error() }}</p>
       }
+      @if (info()) {
+        <ct-banner tone="blue" [inline]="true" title="Pagar pelo NexaGO">{{ info() }}</ct-banner>
+      }
 
       <div class="ct-card flush">
         <div class="ct-table" style="--cols: 1.4fr 1.5fr 80px 120px 130px 1.2fr; --min-w: 860px">
@@ -71,15 +77,33 @@ import { canClose, payoutRows, payoutTotals, payoutsCsv, type PayoutRow } from '
               <button type="button" class="link" (click)="openUid.set(r.coachUid)"><ct-person [name]="r.coachName" [colorKey]="r.coachUid" [size]="28" /></button>
               <span class="ct-row rule">
                 <span class="ct-ellipsis" [class.ct-dim]="r.rule.kind === 'none'">{{ r.ruleLabel }}</span>
-                @if (canWrite() && r.status !== 'paid') {
+                @if (canWrite() && r.status !== 'paid' && !locked(r)) {
                   <button type="button" class="ct-ghost-btn sm" (click)="editRule(r)">Editar</button>
                 }
               </span>
               <span class="ct-mono">{{ r.classesGiven }}{{ r.pendingAttendance ? ' (+' + r.pendingAttendance + ')' : '' }}</span>
               <span class="val">{{ formatBRL(r.totalCents) }}</span>
               <span>
-                <span [class]="'ct-pill ' + STATUS[r.status][1]">{{ STATUS[r.status][0] }}</span>
-                @if (r.outdated) {
+                @switch (r.payout?.transferStatus) {
+                  @case ('pending') {
+                    <span class="ct-pill blue">Transferindo</span>
+                    <span class="ct-mono warn">{{ r.payout?.transferAuthorized ? 'aguardando o Asaas' : 'confirme o SMS no app do Asaas' }}</span>
+                  }
+                  @case ('requested') {
+                    <span class="ct-pill blue">Transferindo</span>
+                  }
+                  @case ('unknown') {
+                    <span class="ct-pill red">Sem confirmação</span>
+                    <span class="ct-mono warn">confira o extrato do Asaas</span>
+                  }
+                  @default {
+                    <span [class]="'ct-pill ' + STATUS[r.status][1]">{{ STATUS[r.status][0] }}</span>
+                    @if (r.payout?.transferStatus === 'failed' && r.status === 'closed') {
+                      <span class="ct-mono warn" [title]="r.payout?.transferError || ''">transferência falhou</span>
+                    }
+                  }
+                }
+                @if (r.outdated && !locked(r)) {
                   <span class="ct-mono warn" title="O cálculo de agora deu outro valor">agora {{ formatBRL(r.liveTotalCents) }}</span>
                 }
               </span>
@@ -88,8 +112,16 @@ import { canClose, payoutRows, payoutTotals, payoutsCsv, type PayoutRow } from '
                   @if (canCloseRow(r)) {
                     <button type="button" class="ct-mini-btn" [disabled]="busy()" (click)="close(r)">{{ r.status === 'closed' ? 'Refazer' : 'Fechar' }}</button>
                   }
-                  @if (r.status === 'closed') {
-                    <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="startPay(r)">Marcar pago</button>
+                  @if (r.status === 'closed' && r.payout?.transferStatus === 'unknown' && ctx.isOwner()) {
+                    <button type="button" class="ct-mini-btn" [disabled]="busy()" (click)="resolve(r, 'not_sent')">Não saiu</button>
+                    <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="resolve(r, 'sent')">Saiu</button>
+                  } @else if (r.status === 'closed' && !locked(r)) {
+                    @if (canPayOnline()) {
+                      <button type="button" class="ct-mini-btn" (click)="startPay(r)">Paguei por fora</button>
+                      <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="transferFor.set(r)">Pagar pelo NexaGO</button>
+                    } @else {
+                      <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="startPay(r)">Marcar pago</button>
+                    }
                   }
                 }
                 <button type="button" class="ct-ghost-btn sm" (click)="openUid.set(r.coachUid)">Detalhe</button>
@@ -175,6 +207,23 @@ import { canClose, payoutRows, payoutTotals, payoutsCsv, type PayoutRow } from '
       </ct-modal>
     }
 
+    @if (transferFor(); as tf) {
+      <ct-modal kicker="Pagar pelo NexaGO" [title]="tf.coachName + ' · ' + formatBRL(tf.totalCents)" [width]="480" (closed)="transferFor.set(null)">
+        <p class="hint">
+          Transfere {{ formatBRL(tf.totalCents) }} da conta Asaas do centro para a conta de recebimento de {{ tf.coachName }}. O saldo precisa estar
+          disponível no Asaas.
+        </p>
+        <p class="ct-dim hint">
+          Se o Asaas pedir confirmação, o código chega por SMS e é confirmado no app do Asaas do centro. O repasse fica pago quando a transferência
+          concluir.
+        </p>
+        <div footer>
+          <button type="button" class="ct-ghost-btn" (click)="transferFor.set(null)">Cancelar</button>
+          <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="confirmTransfer()">Transferir agora</button>
+        </div>
+      </ct-modal>
+    }
+
     @if (payFor(); as pf) {
       <ct-modal kicker="Marcar como pago" [title]="pf.coachName + ' · ' + formatBRL(pf.totalCents)" [width]="460" (closed)="payFor.set(null)">
         <p class="ct-dim hint">O pagamento é feito por fora (Pix, transferência). Aqui fica o registro — depois de pago o repasse não muda mais.</p>
@@ -228,6 +277,7 @@ export class PayoutsComponent {
   protected readonly store = inject(CenterStore);
   private readonly actions = inject(PayoutsActions);
   private readonly reports = inject(ReportsService);
+  private readonly receiving = inject(ReceivingActions);
 
   protected readonly STATUS = PAYOUT_STATUS;
   protected readonly formatBRL = formatBRL;
@@ -258,6 +308,14 @@ export class PayoutsComponent {
   protected readonly percentText = signal('');
   protected readonly ruleErr = signal('');
   protected readonly payFor = signal<PayoutRow | null>(null);
+  protected readonly transferFor = signal<PayoutRow | null>(null);
+  protected readonly info = signal('');
+  private readonly centerAccount = signal<ReceivingAccount | null>(null);
+  /** Transferência só com a conta do centro criada aqui (tem a chave) e aprovada; só o owner. */
+  protected readonly canPayOnline = computed(() => {
+    const a = this.centerAccount();
+    return this.ctx.isOwner() && this.ctx.center()?.receivingStatus === 'approved' && !!a && a.source === 'self' && !a.manualFollowUp;
+  });
   protected readonly payDate = signal('');
   protected readonly payMethod = signal('pix');
   protected readonly payNote = signal('');
@@ -332,6 +390,10 @@ export class PayoutsComponent {
     const destroy = inject(DestroyRef);
     const stopRules = this.actions.watchRules((r) => this.rules.set(r), (e) => this.error.set(writeErrorMessage(e)));
     destroy.onDestroy(stopRules);
+    if (this.ctx.isManager()) {
+      const stopAccount = this.receiving.watch((a) => this.centerAccount.set(a), () => this.centerAccount.set(null));
+      destroy.onDestroy(stopAccount);
+    }
     effect((onCleanup) => {
       const month = this.month();
       const stop = untracked(() =>
@@ -382,7 +444,27 @@ export class PayoutsComponent {
   }
 
   protected methodLabel(m: string): string {
-    return PAYOUT_METHODS.find((x) => x.value === m)?.label ?? m;
+    return paidMethodLabel(m);
+  }
+
+  protected locked(r: PayoutRow): boolean {
+    return transferLocked(r.payout);
+  }
+
+  protected async confirmTransfer(): Promise<void> {
+    const r = this.transferFor();
+    if (!r?.payout) return;
+    this.info.set('');
+    await this.run(async () => {
+      const res = await this.actions.payViaNexago(r.payout!);
+      this.transferFor.set(null);
+      this.info.set(`${r.coachName}: ${res.message}`);
+    }, this.error);
+  }
+
+  protected async resolve(r: PayoutRow, outcome: 'sent' | 'not_sent'): Promise<void> {
+    if (!r.payout) return;
+    await this.run(() => this.actions.resolveTransfer(r.payout!, outcome).then(() => undefined), this.error);
   }
 
   protected editRule(r: PayoutRow): void {

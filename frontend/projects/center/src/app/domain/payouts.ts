@@ -175,6 +175,17 @@ export interface Payout {
   paidByName: string;
   paidMethod: string;
   note: string;
+  /** Pagamento pelo NexaGO (só o servidor grava). */
+  transferStatus: TransferStatus;
+  transferAuthorized: boolean;
+  transferError: string;
+}
+
+export type TransferStatus = '' | 'requested' | 'pending' | 'done' | 'failed' | 'unknown';
+
+/** Transferência em andamento ou sem confirmação: nada muda no repasse até resolver. */
+export function transferLocked(p: Pick<Payout, 'transferStatus'> | null): boolean {
+  return !!p && (p.transferStatus === 'requested' || p.transferStatus === 'pending' || p.transferStatus === 'unknown');
 }
 
 export function payoutId(month: string, coachUid: string): string {
@@ -187,3 +198,7 @@ export const PAYOUT_METHODS: { value: string; label: string }[] = [
   { value: 'cash', label: 'Dinheiro' },
   { value: 'other', label: 'Outro' },
 ];
+
+export function paidMethodLabel(m: string): string {
+  return m === 'nexago' ? 'Pelo NexaGO (Asaas)' : (PAYOUT_METHODS.find((x) => x.value === m)?.label ?? m);
+}

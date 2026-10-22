@@ -15,7 +15,7 @@ const payout = (uid: string, p: Partial<Payout>): Payout =>
   ({
     id: `2026-10_${uid}`, month: '2026-10', coachUid: uid, coachName: 'Ex', rule: { kind: 'per_class', amountCents: 8000, percent: 0 },
     classesGiven: 3, baseCents: 0, totalCents: 24000, lines: [], status: 'closed', closedAt: null, closedByName: '',
-    paidAt: null, paidOn: '', paidByName: '', paidMethod: '', note: '', ...p,
+    paidAt: null, paidOn: '', paidByName: '', paidMethod: '', note: '', transferStatus: '', transferAuthorized: true, transferError: '', ...p,
   }) as Payout;
 
 describe('tela de repasses', () => {
@@ -39,5 +39,14 @@ describe('tela de repasses', () => {
     expect(rows.map(canClose)).toEqual([true, false, true]);
     expect(payoutTotals(rows)).toEqual(jasmine.objectContaining({ totalCents: 53000, openCents: 24000, closedCents: 24000, paidCents: 5000 }));
     expect(payoutsCsv('2026-10', rows)[0]![0]).toBe('Mês');
+  });
+
+  it('transferência em andamento ou sem confirmação trava refazer o fechamento', () => {
+    const calcs = new Map([['rui', calc('rui', { totalCents: 32000 })]]);
+    const [pending] = payoutRows([{ uid: 'rui', displayName: 'Rui' }], calcs, [payout('rui', { coachName: 'Rui', transferStatus: 'pending' })]);
+    expect(pending!.outdated).toBeTrue();
+    expect(canClose(pending!)).toBeFalse();
+    const [failed] = payoutRows([{ uid: 'rui', displayName: 'Rui' }], calcs, [payout('rui', { coachName: 'Rui', transferStatus: 'failed' })]);
+    expect(canClose(failed!)).toBeTrue();
   });
 });

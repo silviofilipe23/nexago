@@ -107,6 +107,13 @@ export const routes: Routes = [
         loadComponent: () => import('./features/finance/finance.component').then((m) => m.FinanceComponent),
       },
       {
+        path: 'meus-repasses',
+        title: T('Meus repasses'),
+        canActivate: [areaGuard],
+        data: { area: 'myPayouts' },
+        loadComponent: () => import('./features/payouts/my-payouts.component').then((m) => m.MyPayoutsComponent),
+      },
+      {
         path: 'repasses',
         title: T('Repasses'),
         canActivate: [areaGuard],

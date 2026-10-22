@@ -14,6 +14,7 @@ import {
 import { CENTERS, db } from '../firebase';
 import { date, num, str } from '../mappers';
 import { CenterActionsBase } from './actor';
+import { callCenterFunction } from './invoices.actions';
 
 type Data = Record<string, unknown>;
 
@@ -43,7 +44,16 @@ export function readPayout(id: string, d: Data): Payout {
     paidByName: str(d, 'paidByName'),
     paidMethod: str(d, 'paidMethod'),
     note: str(d, 'note'),
+    transferStatus: (['requested', 'pending', 'done', 'failed', 'unknown'].includes(str(d, 'transferStatus')) ? str(d, 'transferStatus') : '') as Payout['transferStatus'],
+    transferAuthorized: d['transferAuthorized'] !== false,
+    transferError: str(d, 'transferError'),
   };
+}
+
+export interface PayResult {
+  transferStatus: 'pending' | 'done' | 'failed' | 'unknown';
+  awaitingAuthorization: boolean;
+  message: string;
 }
 
 const METHOD_LABEL: Record<string, string> = { pix: 'Pix', transfer: 'Transferência', cash: 'Dinheiro', other: 'Outro' };
@@ -126,6 +136,18 @@ export class PayoutsActions extends CenterActionsBase {
       });
       t.set(audit.ref, audit.data);
     });
+  }
+
+  /** Transferência Asaas da conta do centro para a do professor (só o owner; o servidor confere tudo). */
+  payViaNexago(p: Payout): Promise<PayResult> {
+    this.assertWritable();
+    return callCenterFunction<PayResult>('payTrainingCenterPayout', { centerId: this.centerId(), payoutId: p.id });
+  }
+
+  /** Depois de conferir o extrato do Asaas: a transferência sem confirmação saiu ou não. */
+  resolveTransfer(p: Payout, outcome: 'sent' | 'not_sent'): Promise<{ transferStatus: string }> {
+    this.assertWritable();
+    return callCenterFunction('resolveTrainingCenterPayoutTransfer', { centerId: this.centerId(), payoutId: p.id, outcome });
   }
 
   async markPaid(p: Payout, input: { paidOn: string; method: string; note: string }): Promise<void> {

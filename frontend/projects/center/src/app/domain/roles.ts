@@ -26,6 +26,7 @@ export type CenterArea =
   | 'finance'
   | 'subscriptions'
   | 'payouts'
+  | 'myPayouts'
   | 'reports'
   | 'locations'
   | 'programs'
@@ -42,6 +43,7 @@ export const AREA_LABELS: Record<CenterArea, string> = {
   finance: 'Financeiro',
   subscriptions: 'Assinaturas',
   payouts: 'Repasses',
+  myPayouts: 'Meus repasses',
   reports: 'Relatórios',
   locations: 'Locais',
   programs: 'Modalidades e níveis',
@@ -124,7 +126,7 @@ const ROLE_AREAS: Record<CenterRole, CenterArea[]> = {
     'settings',
   ],
   receptionist: ['dashboard', 'schedule', 'classes', 'enrollments', 'students', 'plans'],
-  coach: ['dashboard', 'schedule', 'classes', 'students'],
+  coach: ['dashboard', 'schedule', 'classes', 'students', 'myPayouts'],
 };
 
 /** Permissão extra que abre uma área que o papel não tem por padrão. */

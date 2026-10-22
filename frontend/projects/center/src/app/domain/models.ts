@@ -1,4 +1,5 @@
 import type { Weekday } from './dates';
+import type { NotificationSettings } from './notification-settings';
 import type { CenterPermission, CenterRole, MemberStatus } from './roles';
 
 /**
@@ -89,6 +90,8 @@ export interface TrainingCenter {
   policies: CenterPolicies;
   /** Cobrança recorrente das mensalidades (Configurações › Cobrança recorrente). */
   billing: CenterBilling;
+  /** Preferências de aviso (Configurações › Notificações). */
+  notifications: NotificationSettings;
   /** Passos de ativação que dependem de terceiros (marcados pelo backoffice). */
   receivingConnected: boolean;
   subscription: CenterSubscription | null;

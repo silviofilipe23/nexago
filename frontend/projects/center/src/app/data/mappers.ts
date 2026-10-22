@@ -30,6 +30,7 @@ import {
   type TrainingCenter,
   type TrainingClass,
 } from '../domain/models';
+import { readNotificationSettings } from '../domain/notification-settings';
 import { PERMISSION_ORDER, type CenterPermission, type CenterRole } from '../domain/roles';
 
 /**
@@ -124,6 +125,7 @@ export function readCenter(id: string, d: Data): TrainingCenter {
     address: str(d, 'address'),
     policies: readPolicies(obj(d, 'policies')),
     billing: readBilling(obj(d, 'billing')),
+    notifications: readNotificationSettings(obj(d, 'notifications')),
     receivingConnected: bool(d, 'receivingConnected'),
     subscription: sub
       ? {

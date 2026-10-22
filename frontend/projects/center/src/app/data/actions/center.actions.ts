@@ -9,7 +9,14 @@ import {
   type CenterPolicies,
   type TrainingCenter,
 } from '../../domain/models';
+import {
+  settingsChanges,
+  toFirestore as notificationsToFirestore,
+  type NotificationEventKey,
+  type NotificationSettings,
+} from '../../domain/notification-settings';
 import { CENTERS, db } from '../firebase';
+import { callCenterFunction } from './invoices.actions';
 import { CenterActionsBase } from './actor';
 
 export interface NewCenterInput {
@@ -187,6 +194,24 @@ export class CenterActions extends CenterActionsBase {
     const audit = this.auditDoc({ action: 'center.billing', entity: 'center', entityId: this.centerId(), detail });
     b.set(audit.ref, audit.data);
     await b.commit();
+  }
+
+  async updateNotifications(before: NotificationSettings, next: NotificationSettings): Promise<void> {
+    const changes = settingsChanges(before, next);
+    if (changes.length === 0) {
+      return;
+    }
+    this.assertWritable();
+    const b = writeBatch(db());
+    b.update(this.centerRef(), { notifications: notificationsToFirestore(next) });
+    const audit = this.auditDoc({ action: 'center.notifications', entity: 'center', entityId: this.centerId(), detail: changes.join(' · ') });
+    b.set(audit.ref, audit.data);
+    await b.commit();
+  }
+
+  /** Push de exemplo para quem está logado (callable; só owner/admin). */
+  sendTestNotification(event: NotificationEventKey): Promise<{ sent: boolean }> {
+    return callCenterFunction<{ sent: boolean }>('sendTrainingCenterTestNotification', { centerId: this.centerId(), event });
   }
 
   async requestActivation(): Promise<void> {

@@ -11,15 +11,17 @@ import type { CenterPolicies, CenterStatus, TrainingCenter } from '../../domain/
 import { AuditTrailComponent, BannerComponent, PageHeaderComponent, SegmentedComponent } from '../../ui/kit';
 import { applyChoice, applyNumber, changedPolicies, choiceValue, policiesError, POLICY_ROWS } from './policy-fields';
 import { BillingSettingsComponent } from './billing-settings.component';
+import { NotificationSettingsComponent } from './notification-settings.component';
 import { SubscriptionCardComponent } from './subscription-card.component';
 
-type Tab = 'dados' | 'politicas' | 'cobranca' | 'quadras' | 'assinatura';
+type Tab = 'dados' | 'politicas' | 'cobranca' | 'quadras' | 'notificacoes' | 'assinatura';
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'dados', label: 'Dados do centro' },
   { value: 'politicas', label: 'Políticas comerciais' },
   { value: 'cobranca', label: 'Cobrança recorrente' },
   { value: 'quadras', label: 'Quadras' },
+  { value: 'notificacoes', label: 'Notificações' },
   { value: 'assinatura', label: 'Assinatura NexaGO' },
 ];
 
@@ -63,7 +65,7 @@ function profileOf(c: TrainingCenter): CenterProfilePatch {
 @Component({
   selector: 'ct-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, PageHeaderComponent, SegmentedComponent, BannerComponent, AuditTrailComponent, SubscriptionCardComponent, BillingSettingsComponent],
+  imports: [ReactiveFormsModule, RouterLink, PageHeaderComponent, SegmentedComponent, BannerComponent, AuditTrailComponent, SubscriptionCardComponent, BillingSettingsComponent, NotificationSettingsComponent],
   templateUrl: './settings.component.html',
   styles: `
     .body { padding: 20px var(--ct-gutter) 26px; display: flex; flex-direction: column; gap: 16px; }

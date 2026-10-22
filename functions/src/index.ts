@@ -204,6 +204,14 @@ export {
   resendTrainingCenterInvoicePix,
   sweepTrainingCenterBilling,
 } from "./training-center-billing";
+// Centro de Treinamento — cobrança recorrente das mensalidades (assinaturas, rodada diária, régua).
+export {
+  changeTrainingCenterSubscriptionPlan,
+  chargeTrainingCenterSubscriptionNow,
+  onTrainingCenterEnrollmentBilling,
+  onTrainingCenterSubscriptionInvoiceWritten,
+  runTrainingCenterBilling,
+} from "./training-center-subscriptions";
 // Centro de Treinamento — efeitos da chamada (créditos de pacote e de reposição).
 export {onTrainingCenterSessionWritten} from "./training-center-attendance";
 // Centro de Treinamento — oferta automática da vaga ao 1º da lista de espera.

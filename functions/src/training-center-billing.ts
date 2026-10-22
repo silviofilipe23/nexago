@@ -72,6 +72,8 @@ export interface CenterBillingDeps {
   createPayment: (input: {
     externalReference: string; idempotencyKey: string; customerId: string; valueReais: number; dueDate: string;
     description: string; walletId: string; splitPercent: number;
+    /** Multa (%) e juros (% ao mês) que o Asaas soma se pagar depois do vencimento. */
+    lateFees?: {finePercent: number; interestPercent: number} | null;
   }) => Promise<{paymentId: string; invoiceUrl: string; status: string}>;
   /** Apaga a fatura; lança se não der (já paga, por exemplo). 404 conta como apagada. */
   deletePayment: (paymentId: string) => Promise<void>;
@@ -143,6 +145,7 @@ export const defaultCenterBillingDeps: CenterBillingDeps = {
         description: input.description.slice(0, 500),
         externalReference: input.externalReference,
         split: [{walletId: input.walletId, percentualValue: input.splitPercent}],
+        ...(input.lateFees ? {fine: {value: input.lateFees.finePercent}, interest: {value: input.lateFees.interestPercent}} : {}),
       },
       idempotencyKey: input.idempotencyKey,
     });
@@ -184,7 +187,7 @@ function auditData(at: Timestamp, actor: {uid: string; name: string}, action: st
   return {at, actorUid: actor.uid, actorName: actor.name, action, entity: "invoice", entityId, detail, reason};
 }
 
-const SYSTEM = {uid: "system", name: SYSTEM_ACTOR};
+export const SYSTEM = {uid: "system", name: SYSTEM_ACTOR};
 
 function processedRefFor(db: Firestore, paymentId: string): DocumentReference {
   return db.doc(`artifacts/${getFirebaseProjectId()}/public/data/asaas_processed_payments/${paymentId}`);
@@ -215,7 +218,7 @@ function parseCallInput(raw: unknown): CenterCallInput & {cpfCnpj: string | null
 }
 
 /** Owner/admin ativo no centro; devolve o nome para eventos e auditoria. */
-async function requireManager(db: Firestore, uid: string | undefined, centerId: string): Promise<{uid: string; name: string}> {
+export async function requireManager(db: Firestore, uid: string | undefined, centerId: string): Promise<{uid: string; name: string}> {
   if (!uid) throw new HttpsError("unauthenticated", "Entre de novo.");
   const member = (await centerRef(db, centerId).collection("centerMembers").doc(uid).get()).data();
   if (!canManageCenterBilling(member)) {
@@ -224,7 +227,15 @@ async function requireManager(db: Firestore, uid: string | undefined, centerId: 
   return {uid, name: str(member?.["displayName"]) || "Gestor"};
 }
 
-function asaasFailure(e: unknown, fallback: string): HttpsError {
+export /** Multa/juros gravados na cobrança (as da recorrência levam a política do centro). */
+function lateFeesOf(v: unknown): {finePercent: number; interestPercent: number} | null {
+  const d = v && typeof v === "object" ? (v as Data) : null;
+  const fine = Number(d?.["finePercent"] ?? 0);
+  const interest = Number(d?.["interestPercent"] ?? 0);
+  return fine > 0 || interest > 0 ? {finePercent: fine, interestPercent: interest} : null;
+}
+
+export function asaasFailure(e: unknown, fallback: string): HttpsError {
   if (e instanceof HttpsError) return e;
   if (e instanceof AsaasApiError) return new HttpsError("failed-precondition", e.message || fallback);
   logger.error(fallback, e);
@@ -248,8 +259,23 @@ export async function issueCenterInvoicePaymentCore(
   raw: unknown,
   deps: CenterBillingDeps = defaultCenterBillingDeps,
 ): Promise<IssueResult> {
-  const {centerId, invoiceId, cpfCnpj} = parseCallInput(raw);
-  const actor = await requireManager(db, uid, centerId);
+  const input = parseCallInput(raw);
+  const actor = await requireManager(db, uid, input.centerId);
+  return issueCenterInvoiceAs(db, actor, input, deps);
+}
+
+/**
+ * Gera a fatura no Asaas em nome de `actor` (gestor pelo callable, sistema pela recorrência).
+ * `silent`: não manda o push do link (a recorrência manda o aviso dela, com o texto da régua).
+ */
+export async function issueCenterInvoiceAs(
+  db: Firestore,
+  actor: {uid: string; name: string},
+  input: {centerId: string; invoiceId: string; cpfCnpj: string | null},
+  deps: CenterBillingDeps = defaultCenterBillingDeps,
+  opts: {silent?: boolean} = {},
+): Promise<IssueResult> {
+  const {centerId, invoiceId, cpfCnpj} = input;
   const center = (await centerRef(db, centerId).get()).data();
   if (!center) throw new HttpsError("not-found", "Centro não encontrado.");
   if (center["status"] !== "active") {
@@ -306,6 +332,7 @@ export async function issueCenterInvoicePaymentCore(
       description: `${str(inv["reference"]) || "Mensalidade"} · ${str(center["name"]) || "Centro de Treinamento"}`,
       walletId,
       splitPercent: centerSplitPercent(feePercent),
+      lateFees: lateFeesOf(inv["lateFees"]),
     });
   } catch (e) {
     throw asaasFailure(e, "Não foi possível gerar a cobrança online. Tente de novo.");
@@ -338,7 +365,7 @@ export async function issueCenterInvoicePaymentCore(
       logger.warn(`issueCenterInvoicePayment ${centerId}/${invoiceId}: não apagou ${created.paymentId}`, e));
     throw new HttpsError("failed-precondition", "A cobrança mudou enquanto a fatura era gerada. Confira e tente de novo.");
   }
-  if (outcome === "issued" && studentUid) {
+  if (outcome === "issued" && studentUid && !opts.silent) {
     await pushInvoiceLink(deps, studentUid, centerId, invoiceId, str(center["name"]), amountCents, created.invoiceUrl, str(inv["reference"]));
   }
   return {invoiceUrl: created.invoiceUrl, providerRef: created.paymentId, existing: outcome === "same"};

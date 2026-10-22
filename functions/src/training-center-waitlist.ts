@@ -16,6 +16,7 @@ import {onDocumentWritten} from "firebase-functions/v2/firestore";
 import {Timestamp, getFirestore, type Firestore} from "firebase-admin/firestore";
 import {deliverNotificationToUser, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
 import {SYSTEM_ACTOR, TRAINING_CENTERS, brlFromCents} from "./training-center-billing-model";
+import {firstInvoiceCents, readBilling} from "./training-center-subscription-model";
 import {
   acceptHours,
   buildContract,
@@ -114,7 +115,10 @@ export async function offerOpenSeats(db: Firestore, centerId: string, classId: s
 
       const student = students.get(entry.studentId);
       const reference = invoiceReference(contract, day);
-      const priceCents = Number(contract["priceCents"] ?? 0);
+      // Mensal com vencimento fixo: o 1º mês cobra só os dias até o 1º vencimento (política do centro).
+      const first = contract["planType"] === "monthly" ?
+        firstInvoiceCents(Number(contract["priceCents"] ?? 0), readBilling(center["billing"]), day) : null;
+      const priceCents = first ? first.cents : Number(contract["priceCents"] ?? 0);
       tx.set(db.collection(`${TRAINING_CENTERS}/${centerId}/invoices`).doc(), {
         studentId: entry.studentId,
         enrollmentId: entry.id,
@@ -130,7 +134,8 @@ export async function offerOpenSeats(db: Firestore, centerId: string, classId: s
           at: Timestamp.fromDate(now),
           type: "created",
           title: "Cobrança criada",
-          detail: `${brlFromCents(priceCents)} · ${reference} · vaga oferecida da lista de espera`,
+          detail: `${brlFromCents(priceCents)} · ${reference}` +
+            (first?.prorated ? ` · proporcional ${first.days}/${first.cycleDays} dias` : "") + " · vaga oferecida da lista de espera",
           byName: SYSTEM_ACTOR,
         }],
         approvedAt: null,

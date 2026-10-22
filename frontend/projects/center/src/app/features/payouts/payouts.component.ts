@@ -12,19 +12,22 @@ import {
   PAYOUT_METHODS,
   PAYOUT_STATUS,
   PAY_RULE_LABEL,
+  DEFAULT_AUTOMATION,
   computePayout,
+  describeAutomation,
   monthRangeOf,
   paidMethodLabel,
   transferLocked,
   payRuleError,
   type PayRule,
   type PayRuleKind,
+  type PayoutAutomation,
   type Payout,
   type PayoutCalc,
 } from '../../domain/payouts';
 import { downloadCsv, toCsv } from '../../ui/csv';
 import { IconComponent } from '../../ui/icon.component';
-import { BannerComponent, ModalComponent, PageHeaderComponent, PersonComponent, SegmentedComponent, StatComponent } from '../../ui/kit';
+import { BannerComponent, ModalComponent, PageHeaderComponent, PersonComponent, SegmentedComponent, StatComponent, ToggleComponent } from '../../ui/kit';
 import { ReportsService } from '../reports/reports.service';
 import { canClose, payoutRows, payoutTotals, payoutsCsv, type PayoutRow } from './payout-view';
 
@@ -32,9 +35,12 @@ import { canClose, payoutRows, payoutTotals, payoutsCsv, type PayoutRow } from '
 @Component({
   selector: 'ct-payouts',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageHeaderComponent, StatComponent, PersonComponent, IconComponent, ModalComponent, SegmentedComponent, BannerComponent],
+  imports: [PageHeaderComponent, StatComponent, PersonComponent, IconComponent, ModalComponent, SegmentedComponent, BannerComponent, ToggleComponent],
   template: `
     <ct-page-header title="Repasses" [subtitle]="'Professores · ' + monthTitle()">
+      @if (ctx.isManager()) {
+        <button type="button" class="ct-mini-btn" (click)="openAutomation()"><ct-icon name="repeat" [size]="14" /> Automação</button>
+      }
       <button type="button" class="ct-mini-btn" [disabled]="rows().length === 0" (click)="exportCsv()"><ct-icon name="download" [size]="14" /> Exportar</button>
       @if (canWrite() && closable().length > 1) {
         <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="closeAll()">Fechar {{ closable().length }} repasses</button>
@@ -49,6 +55,12 @@ import { canClose, payoutRows, payoutTotals, payoutsCsv, type PayoutRow } from '
         <div class="ct-grow"></div>
         <span class="ct-mono">Conta aula com chamada finalizada · quem deu a aula recebe</span>
       </div>
+
+      @if (ctx.isManager()) {
+        <div class="auto ct-dim">
+          <ct-icon name="repeat" [size]="13" /> {{ automationLabel() }}
+        </div>
+      }
 
       <div class="ct-stats">
         <ct-stat label="Repasses do mês" [value]="formatBRL(totals().totalCents)" [sub]="rows().length + (rows().length === 1 ? ' professor' : ' professores')" />
@@ -101,6 +113,9 @@ import { canClose, payoutRows, payoutTotals, payoutsCsv, type PayoutRow } from '
                     @if (r.payout?.transferStatus === 'failed' && r.status === 'closed') {
                       <span class="ct-mono warn" [title]="r.payout?.transferError || ''">transferência falhou</span>
                     }
+                    @if (autoHint(r); as h) {
+                      <span class="ct-mono warn" [class.ok]="h.ok" [title]="h.title">{{ h.text }}</span>
+                    }
                   }
                 }
                 @if (r.outdated && !locked(r)) {
@@ -116,7 +131,10 @@ import { canClose, payoutRows, payoutTotals, payoutsCsv, type PayoutRow } from '
                     <button type="button" class="ct-mini-btn" [disabled]="busy()" (click)="resolve(r, 'not_sent')">Não saiu</button>
                     <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="resolve(r, 'sent')">Saiu</button>
                   } @else if (r.status === 'closed' && !locked(r)) {
-                    @if (canPayOnline()) {
+                    @if (ctx.isOwner() && r.payout?.autoPayAt && !r.payout?.autoPayError && !isOwnerRow(r)) {
+                      <button type="button" class="ct-ghost-btn sm" [disabled]="busy()" (click)="toggleHold(r)">{{ r.payout?.autoPayHold ? 'Liberar' : 'Segurar' }}</button>
+                    }
+                    @if (canPayOnline() && !isOwnerRow(r)) {
                       <button type="button" class="ct-mini-btn" (click)="startPay(r)">Paguei por fora</button>
                       <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="transferFor.set(r)">Pagar pelo NexaGO</button>
                     } @else {
@@ -207,6 +225,58 @@ import { canClose, payoutRows, payoutTotals, payoutsCsv, type PayoutRow } from '
       </ct-modal>
     }
 
+    @if (automationOpen()) {
+      <ct-modal kicker="Repasses" title="Automação" [width]="520" (closed)="automationOpen.set(false)">
+        @if (!ctx.isOwner()) {
+          <ct-banner tone="blue" [inline]="true" title="Só o owner altera">A automação mexe em dinheiro do centro.</ct-banner>
+        }
+        <div class="arow">
+          <div class="ct-grow">
+            <div class="ct-disp">Fechar o mês sozinho</div>
+            <div class="ct-dim">No dia escolhido, fecha o mês anterior de cada professor com regra e avisa você.</div>
+          </div>
+          <ct-toggle label="Fechar sozinho" [on]="autoDraft().autoClose" [disabled]="!ctx.isOwner()" (onChange)="patchAuto({ autoClose: $event })" />
+        </div>
+        @if (autoDraft().autoClose) {
+          <div class="ct-field">
+            <label for="pa-day">Dia do fechamento (1 a 28)</label>
+            <input id="pa-day" class="ct-input mono" type="number" min="1" max="28" [value]="autoDraft().closeDay" [disabled]="!ctx.isOwner()" (input)="patchAuto({ closeDay: num($event) })" />
+          </div>
+          <div class="arow">
+            <div class="ct-grow">
+              <div class="ct-disp">Pagar sozinho pelo NexaGO</div>
+              <div class="ct-dim">
+                {{ canPayOnline() ? 'Depois do prazo de conferência, transfere o que ninguém segurou para a conta Asaas de cada professor.' : 'Precisa da conta de recebimento do centro criada aqui e aprovada.' }}
+              </div>
+            </div>
+            <ct-toggle label="Pagar sozinho" [on]="autoDraft().autoPay" [disabled]="!ctx.isOwner() || !canPayOnline()" (onChange)="patchAuto({ autoPay: $event })" />
+          </div>
+          @if (autoDraft().autoPay) {
+            <div class="ct-form-grid">
+              <div class="ct-field">
+                <label for="pa-review">Dias para conferir (0 a 15)</label>
+                <input id="pa-review" class="ct-input mono" type="number" min="0" max="15" [value]="autoDraft().reviewDays" [disabled]="!ctx.isOwner()" (input)="patchAuto({ reviewDays: num($event) })" />
+              </div>
+              <div class="ct-field">
+                <label for="pa-max">Teto por professor (vazio = sem teto)</label>
+                <input id="pa-max" class="ct-input mono" inputmode="decimal" [value]="maxText()" [disabled]="!ctx.isOwner()" (input)="maxText.set(value($event))" placeholder="R$ 2.000,00" />
+              </div>
+            </div>
+          }
+        }
+        <p class="ct-dim hint">{{ automationPreview() }}</p>
+        @if (autoErr()) {
+          <p class="ct-error-text" role="alert">{{ autoErr() }}</p>
+        }
+        <div footer>
+          <button type="button" class="ct-ghost-btn" (click)="automationOpen.set(false)">{{ ctx.isOwner() ? 'Cancelar' : 'Fechar' }}</button>
+          @if (ctx.isOwner()) {
+            <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="saveAutomation()">Salvar</button>
+          }
+        </div>
+      </ct-modal>
+    }
+
     @if (transferFor(); as tf) {
       <ct-modal kicker="Pagar pelo NexaGO" [title]="tf.coachName + ' · ' + formatBRL(tf.totalCents)" [width]="480" (closed)="transferFor.set(null)">
         <p class="hint">
@@ -268,6 +338,9 @@ import { canClose, payoutRows, payoutTotals, payoutsCsv, type PayoutRow } from '
     .line { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--nx-line); font-size: 13px; }
     .dim { color: var(--nx-text-mute); }
     .hint { margin: 0; line-height: 1.45; }
+    .auto { display: flex; align-items: center; gap: 6px; font-size: 12.5px; margin-top: -6px; }
+    .warn.ok { color: var(--nx-text-dim); }
+    .arow { display: flex; align-items: center; gap: 12px; padding: 4px 0; }
   `,
 })
 export class PayoutsComponent {
@@ -309,6 +382,15 @@ export class PayoutsComponent {
   protected readonly ruleErr = signal('');
   protected readonly payFor = signal<PayoutRow | null>(null);
   protected readonly transferFor = signal<PayoutRow | null>(null);
+  private readonly automation = signal<PayoutAutomation>(DEFAULT_AUTOMATION);
+  protected readonly automationOpen = signal(false);
+  protected readonly autoDraft = signal<PayoutAutomation>(DEFAULT_AUTOMATION);
+  protected readonly maxText = signal('');
+  protected readonly autoErr = signal('');
+  protected readonly automationLabel = computed(() => describeAutomation(this.automation(), formatBRL));
+  protected readonly automationPreview = computed(() =>
+    describeAutomation({ ...this.autoDraft(), maxAutoPayCents: parseBRL(this.maxText()) ?? 0 }, formatBRL),
+  );
   protected readonly info = signal('');
   private readonly centerAccount = signal<ReceivingAccount | null>(null);
   /** Transferência só com a conta do centro criada aqui (tem a chave) e aprovada; só o owner. */
@@ -391,6 +473,8 @@ export class PayoutsComponent {
     const stopRules = this.actions.watchRules((r) => this.rules.set(r), (e) => this.error.set(writeErrorMessage(e)));
     destroy.onDestroy(stopRules);
     if (this.ctx.isManager()) {
+      const stopAuto = this.actions.watchAutomation((a) => this.automation.set(a), () => undefined);
+      destroy.onDestroy(stopAuto);
       const stopAccount = this.receiving.watch((a) => this.centerAccount.set(a), () => this.centerAccount.set(null));
       destroy.onDestroy(stopAccount);
     }
@@ -445,6 +529,65 @@ export class PayoutsComponent {
 
   protected methodLabel(m: string): string {
     return paidMethodLabel(m);
+  }
+
+  /** "paga sozinho em 04/11", "segurado", "não saiu sozinho: …". */
+  protected autoHint(r: PayoutRow): { text: string; title: string; ok: boolean } | null {
+    const p = r.payout;
+    if (!p || p.status !== 'closed' || !p.autoPayAt || transferLocked(p) || this.isOwnerRow(r)) return null;
+    if (p.autoPayError) return { text: 'não saiu sozinho', title: p.autoPayError, ok: false };
+    if (p.autoPayHold) return { text: 'pagamento automático segurado', title: '', ok: false };
+    if (!this.automation().autoPay) return null;
+    const max = this.automation().maxAutoPayCents;
+    if (max > 0 && p.totalCents > max) return { text: 'acima do teto · pague à mão', title: `Teto do automático: ${formatBRL(max)}`, ok: false };
+    return { text: `paga sozinho em ${formatDayKey(p.autoPayAt)}`, title: 'Segure se precisar conferir', ok: true };
+  }
+
+  protected openAutomation(): void {
+    const a = this.automation();
+    this.autoDraft.set({ ...a });
+    this.maxText.set(a.maxAutoPayCents ? (a.maxAutoPayCents / 100).toFixed(2).replace('.', ',') : '');
+    this.autoErr.set('');
+    this.automationOpen.set(true);
+  }
+
+  protected patchAuto(patch: Partial<PayoutAutomation>): void {
+    this.autoDraft.update((a) => ({ ...a, ...patch }));
+  }
+
+  protected num(ev: Event): number {
+    return Number((ev.target as HTMLInputElement).value);
+  }
+
+  protected async saveAutomation(): Promise<void> {
+    const next = { ...this.autoDraft(), maxAutoPayCents: this.maxText().trim() ? (parseBRL(this.maxText()) ?? -1) : 0 };
+    if (!Number.isInteger(next.closeDay) || next.closeDay < 1 || next.closeDay > 28) {
+      this.autoErr.set('O dia do fechamento vai de 1 a 28.');
+      return;
+    }
+    if (!Number.isInteger(next.reviewDays) || next.reviewDays < 0 || next.reviewDays > 15) {
+      this.autoErr.set('O prazo de conferência vai de 0 a 15 dias.');
+      return;
+    }
+    if (next.maxAutoPayCents < 0) {
+      this.autoErr.set('Teto inválido.');
+      return;
+    }
+    if (next.autoPay && !this.canPayOnline()) next.autoPay = false;
+    await this.run(async () => {
+      await this.actions.saveAutomation(this.automation(), next);
+      this.automationOpen.set(false);
+    }, this.autoErr);
+  }
+
+  protected async toggleHold(r: PayoutRow): Promise<void> {
+    if (!r.payout) return;
+    await this.run(() => this.actions.setHold(r.payout!, !r.payout!.autoPayHold), this.error);
+  }
+
+  /** Repasse do próprio owner: não transfere para si mesmo pelo NexaGO. */
+  protected isOwnerRow(r: PayoutRow): boolean {
+    return r.coachUid === this.ctx.center()?.ownerUid;
   }
 
   protected locked(r: PayoutRow): boolean {

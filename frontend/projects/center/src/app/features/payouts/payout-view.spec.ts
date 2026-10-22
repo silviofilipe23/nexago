@@ -15,7 +15,7 @@ const payout = (uid: string, p: Partial<Payout>): Payout =>
   ({
     id: `2026-10_${uid}`, month: '2026-10', coachUid: uid, coachName: 'Ex', rule: { kind: 'per_class', amountCents: 8000, percent: 0 },
     classesGiven: 3, baseCents: 0, totalCents: 24000, lines: [], status: 'closed', closedAt: null, closedByName: '',
-    paidAt: null, paidOn: '', paidByName: '', paidMethod: '', note: '', transferStatus: '', transferAuthorized: true, transferError: '', ...p,
+    paidAt: null, paidOn: '', paidByName: '', paidMethod: '', note: '', transferStatus: '', transferAuthorized: true, transferError: '', autoPayAt: '', autoPayHold: false, autoPayError: '', closedBy: 'manual', ...p,
   }) as Payout;
 
 describe('tela de repasses', () => {

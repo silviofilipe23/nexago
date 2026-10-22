@@ -1,9 +1,12 @@
 import { Injectable } from '@angular/core';
-import { collection, onSnapshot, query, runTransaction, serverTimestamp, where } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, runTransaction, serverTimestamp, where } from 'firebase/firestore';
 import { formatDayKey, monthLabel } from '../../domain/dates';
 import { formatBRL } from '../../domain/money';
 import {
+  describeAutomation,
   describeRule,
+  readAutomation,
+  type PayoutAutomation,
   payoutId,
   readPayRule,
   type PayRule,
@@ -47,6 +50,10 @@ export function readPayout(id: string, d: Data): Payout {
     transferStatus: (['requested', 'pending', 'done', 'failed', 'unknown'].includes(str(d, 'transferStatus')) ? str(d, 'transferStatus') : '') as Payout['transferStatus'],
     transferAuthorized: d['transferAuthorized'] !== false,
     transferError: str(d, 'transferError'),
+    autoPayAt: str(d, 'autoPayAt'),
+    autoPayHold: d['autoPayHold'] === true,
+    autoPayError: str(d, 'autoPayError'),
+    closedBy: d['closedBy'] === 'auto' ? 'auto' : 'manual',
   };
 }
 
@@ -78,6 +85,45 @@ export class PayoutsActions extends CenterActionsBase {
       (snap) => onData(snap.docs.map((d) => readPayout(d.id, d.data()))),
       onError,
     );
+  }
+
+  watchAutomation(onData: (a: PayoutAutomation) => void, onError: (e: unknown) => void): () => void {
+    return onSnapshot(
+      doc(db(), CENTERS, this.centerId(), 'settings', 'payouts'),
+      (snap) => onData(readAutomation(snap.exists() ? snap.data() : null)),
+      onError,
+    );
+  }
+
+  /** Só o owner (rules). */
+  async saveAutomation(before: PayoutAutomation, next: PayoutAutomation): Promise<void> {
+    this.assertWritable();
+    const value: PayoutAutomation = { ...next, autoPay: next.autoClose && next.autoPay };
+    await runTransaction(db(), async (t) => {
+      t.set(this.ref('settings', 'payouts'), { ...value, updatedAt: serverTimestamp(), updatedByName: this.actor().name });
+      const audit = this.auditDoc({
+        action: 'payout.automation',
+        entity: 'center',
+        entityId: this.centerId(),
+        detail: `${describeAutomation(before, formatBRL)} → ${describeAutomation(value, formatBRL)}`,
+      });
+      t.set(audit.ref, audit.data);
+    });
+  }
+
+  /** Segurar (ou liberar) o pagamento automático de um repasse — só o owner. */
+  async setHold(p: Payout, hold: boolean): Promise<void> {
+    this.assertWritable();
+    await runTransaction(db(), async (t) => {
+      t.update(this.ref('payouts', p.id), { autoPayHold: hold });
+      const audit = this.auditDoc({
+        action: hold ? 'payout.auto_hold' : 'payout.auto_release',
+        entity: 'payout',
+        entityId: p.id,
+        detail: `${p.coachName} · ${monthLabel(p.month, true)} · ${hold ? 'pagamento automático segurado' : 'pagamento automático liberado'}`,
+      });
+      t.set(audit.ref, audit.data);
+    });
   }
 
   async setRule(coachUid: string, coachName: string, before: PayRule, next: PayRule): Promise<void> {

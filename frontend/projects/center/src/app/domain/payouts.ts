@@ -179,6 +179,46 @@ export interface Payout {
   transferStatus: TransferStatus;
   transferAuthorized: boolean;
   transferError: string;
+  /** Pagamento automático (servidor): dia em que sai sozinho, segurado pelo owner, motivo de falha. */
+  autoPayAt: string;
+  autoPayHold: boolean;
+  autoPayError: string;
+  closedBy: 'auto' | 'manual';
+}
+
+/** `settings/payouts` — automação do repasse (só o owner muda). Espelho do servidor. */
+export interface PayoutAutomation {
+  autoClose: boolean;
+  closeDay: number;
+  autoPay: boolean;
+  reviewDays: number;
+  maxAutoPayCents: number;
+}
+
+export const DEFAULT_AUTOMATION: PayoutAutomation = { autoClose: false, closeDay: 1, autoPay: false, reviewDays: 3, maxAutoPayCents: 0 };
+
+export function readAutomation(raw: Record<string, unknown> | null | undefined): PayoutAutomation {
+  const d = raw ?? {};
+  const int = (k: keyof PayoutAutomation, min: number, max: number): number => {
+    const v = Number(d[k]);
+    return Number.isInteger(v) && v >= min && v <= max ? v : (DEFAULT_AUTOMATION[k] as number);
+  };
+  const autoClose = d['autoClose'] === true;
+  return {
+    autoClose,
+    closeDay: int('closeDay', 1, 28),
+    autoPay: autoClose && d['autoPay'] === true,
+    reviewDays: int('reviewDays', 0, 15),
+    maxAutoPayCents: int('maxAutoPayCents', 0, 100_000_000),
+  };
+}
+
+export function describeAutomation(a: PayoutAutomation, brl: (c: number) => string): string {
+  if (!a.autoClose) return 'Fechamento e pagamento à mão';
+  const close = `Fecha sozinho todo dia ${String(a.closeDay).padStart(2, '0')}`;
+  if (!a.autoPay) return `${close} · pagamento à mão`;
+  const review = a.reviewDays ? `${a.reviewDays} ${a.reviewDays === 1 ? 'dia' : 'dias'} de conferência` : 'sem conferência';
+  return `${close} · paga pelo NexaGO depois de ${review}${a.maxAutoPayCents ? ` · até ${brl(a.maxAutoPayCents)} por professor` : ''}`;
 }
 
 export type TransferStatus = '' | 'requested' | 'pending' | 'done' | 'failed' | 'unknown';

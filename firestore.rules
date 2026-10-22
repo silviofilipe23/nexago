@@ -4149,7 +4149,8 @@ service cloud.firestore {
           (ctIsMember() && resource.data.coachUid == request.auth.uid);
         allow create: if ctIsManager() && ctNotSuspended() &&
           payoutId == request.resource.data.month + '_' + request.resource.data.coachUid &&
-          request.resource.data.status == 'closed';
+          request.resource.data.status == 'closed' &&
+          !request.resource.data.keys().hasAny(['autoPayAt', 'autoPayError']);
         // Transferência pelo NexaGO é do servidor (training-center-payout-transfer.ts): o cliente não
         // mexe nos campos dela nem marca pago/refaz enquanto há uma em andamento ou sem confirmação.
         allow update: if ctIsManager() && ctNotSuspended() && resource.data.status == 'closed' &&
@@ -4158,8 +4159,28 @@ service cloud.firestore {
           request.resource.data.status in ['closed', 'paid'] &&
           !(resource.data.get('transferStatus', '') in ['requested', 'pending', 'unknown']) &&
           !ctChanged().hasAny(['transferStatus', 'transferId', 'transferAttempt', 'transferAuthorized', 'transferRequestedAt',
-            'transferByUid', 'transferByName', 'transferCents', 'transferError', 'transferUpdatedAt', 'transferDoneAt']);
+            'transferByUid', 'transferByName', 'transferCents', 'transferError', 'transferUpdatedAt', 'transferDoneAt']) &&
+          // Pagamento automático: o prazo e o erro são do servidor (refazer à mão pode só tirar);
+          // segurar/liberar é do owner.
+          (!('autoPayAt' in request.resource.data) || request.resource.data.autoPayAt == resource.data.get('autoPayAt', null)) &&
+          (!('autoPayError' in request.resource.data) || request.resource.data.autoPayError == resource.data.get('autoPayError', null)) &&
+          (!ctChanged().hasAny(['autoPayHold']) || ctRole() == 'center_owner' || !('autoPayHold' in request.resource.data));
         allow delete: if false;
+      }
+
+      // Automação do repasse: só o owner liga (mexe em dinheiro); owner/admin leem.
+      match /settings/{docId} {
+        allow read: if ctIsManager();
+        allow write: if docId == 'payouts' && ctIsMember() && ctRole() == 'center_owner' && ctNotSuspended() &&
+          request.resource.data.autoClose is bool && request.resource.data.autoPay is bool &&
+          request.resource.data.closeDay is int && request.resource.data.closeDay >= 1 && request.resource.data.closeDay <= 28 &&
+          request.resource.data.reviewDays is int && request.resource.data.reviewDays >= 0 && request.resource.data.reviewDays <= 15 &&
+          request.resource.data.maxAutoPayCents is int && request.resource.data.maxAutoPayCents >= 0;
+      }
+      // Marca de "mês já fechado pela automação": só o servidor grava.
+      match /payoutRuns/{month} {
+        allow read: if ctIsManager();
+        allow write: if false;
       }
 
       // Resumo da rodada diária da cobrança: só o servidor grava.

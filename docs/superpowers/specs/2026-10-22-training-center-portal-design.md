@@ -171,6 +171,18 @@ Protótipo: seção "Locais · fixo e itinerante" (L1–L5 web; L6–L7 são do 
   portal, onde também vê os próprios repasses.
 - Conta do centro conectada à mão pelo time NexaGO (sem chave) não transfere: só "marcar pago".
 
+## Automação do repasse
+
+- `settings/payouts` (só o owner): fechar o mês sozinho no `closeDay`; pagar sozinho pelo NexaGO
+  depois de `reviewDays` de conferência, até `maxAutoPayCents` por professor.
+- Rodada diária 08:00 (`runTrainingCenterPayoutAutomation`): fecha o mês anterior de quem tem regra
+  (mesmo cálculo do portal; não toca repasse já fechado/pago à mão; marca `payoutRuns/{mês}`), grava
+  `autoPayAt` e avisa o owner; vencido o prazo, transfere o que não foi segurado (`autoPayHold`, só o
+  owner). Falha de pré-condição vai para `autoPayError` (não repete). Repasse do próprio owner e
+  refazer à mão ficam fora do automático.
+- Split na cobrança fica de fora: somaria com o percentual da fase 1 (pagaria duas vezes) e
+  complica estorno e substituição.
+
 ## Fora do MVP (follow-ups)
 
 - Oferecer a vaga liberada ao próximo da fila automaticamente (hoje a varredura só libera; a

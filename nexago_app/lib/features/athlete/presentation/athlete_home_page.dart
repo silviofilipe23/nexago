@@ -18,7 +18,6 @@ import '../../arenas/domain/my_bookings_providers.dart';
 import '../../arenas/presentation/booking_story_page.dart';
 import '../../cashback/presentation/widgets/cashback_balance_pill.dart';
 import '../../store/application/store_providers.dart';
-import '../../store/presentation/widgets/store_home_entry.dart';
 import '../../tournaments/data/my_tournament_registrations_repository.dart';
 import '../../tournaments/data/tournament_partner_invite_service.dart';
 import '../../tournaments/domain/registration_progress_logic.dart';
@@ -365,11 +364,7 @@ class AthleteHomePage extends ConsumerWidget {
                         child: _HomeRegistrationTrackerSection(),
                       ),
                       const AthleteHomeCompetitionsSection(),
-                      // Atalho da Loja: só com appConfig/store.enabled; traz o
-                      // próprio respiro de baixo (desligado não deixa vão).
-                      StoreHomeEntry(
-                        onTap: () => _goToTab(ref, athleteShellStoreTabIndex),
-                      ),
+                      // Loja: sem card na Home — fica na aba da barra.
                       // NexaSquad: na Home, só o atalho da linha de atalhos
                       // (o card segue no perfil).
                       // Evolução só quando há histórico de partidas — evita

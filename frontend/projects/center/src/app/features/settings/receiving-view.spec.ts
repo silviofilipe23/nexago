@@ -3,7 +3,7 @@ import { parseReais, receivingFormError, receivingView } from './receiving-view'
 
 const acc = (p: Partial<ReceivingAccount>): ReceivingAccount => ({
   status: 'pending', source: 'self', personType: 'company', name: 'CT', email: '', document: '', documents: [],
-  createdAt: null, createdByName: '', statusCheckedAt: null, ...p,
+  manualFollowUp: false, createdAt: null, createdByName: '', statusCheckedAt: null, ...p,
 });
 
 describe('conta de recebimento (tela)', () => {
@@ -22,6 +22,7 @@ describe('conta de recebimento (tela)', () => {
     ] }), 'pending', false, true);
     expect(v.title).toBe('Em análise no Asaas');
     expect(v.pendingDocs).toEqual([{ title: 'Contrato social', label: 'Não enviado', url: 'u' }]);
+    expect(receivingView(acc({ manualFollowUp: true }), 'pending', false, true).text).toContain('time NexaGO acompanha');
   });
 
   it('lê valores e confere o básico do formulário', () => {

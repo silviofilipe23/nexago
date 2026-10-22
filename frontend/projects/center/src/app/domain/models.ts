@@ -669,6 +669,8 @@ export interface ReceivingAccount {
   email: string;
   document: string;
   documents: ReceivingDocument[];
+  /** Conta sem a chave da subconta: a situação não é consultada daqui (o time NexaGO acompanha). */
+  manualFollowUp: boolean;
   createdAt: Date | null;
   createdByName: string;
   statusCheckedAt: Date | null;

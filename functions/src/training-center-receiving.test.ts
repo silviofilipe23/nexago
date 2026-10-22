@@ -124,3 +124,28 @@ describe("situação", () => {
     assert.deepEqual(await refreshCenterReceivingCallableCore(db(fake), "owner", {centerId: "c1"}, d), {status: null, documents: 0});
   });
 });
+
+describe("cofre da chave", () => {
+  it("cofre quebrado: recusa ANTES de criar no Asaas", async () => {
+    const fake = seed();
+    const {d, calls} = deps({sealKey: () => {
+      throw new Error("PROFESSOR_SECRETS_KEY_MISSING");
+    }});
+    await assert.rejects(createCenterReceivingAccountCore(db(fake), "owner", COMPANY, d), /indisponível/);
+    assert.equal(calls.created.length, 0);
+    assert.equal(doc(fake, "trainingCenterReceiving/c1"), undefined);
+  });
+
+  it("conta adotada sem chave fica para acompanhamento do time NexaGO", async () => {
+    const fake = seed();
+    const {d} = deps({
+      createAccount: async () => {
+        throw new AsaasApiError("O CNPJ informado já está em uso.", 400);
+      },
+      findAccount: async () => ({accountId: "acc_9", walletId: "wal_9"}),
+    });
+    await createCenterReceivingAccountCore(db(fake), "owner", COMPANY, d);
+    assert.equal(doc(fake, `${C}/receivingAccount/current`)!["manualFollowUp"], true);
+    assert.equal(doc(fake, "trainingCenterReceiving/c1")!["walletId"], "wal_9");
+  });
+});

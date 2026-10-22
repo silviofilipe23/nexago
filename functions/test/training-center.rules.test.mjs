@@ -348,3 +348,26 @@ test('repasse em transferência pelo NexaGO: cliente não marca pago nem mexe no
   await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'payouts', `2026-08_${COACH}`), { transferStatus: 'done' }));
   await assertSucceeds(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'payouts', `2026-08_${COACH}`), { status: 'paid', paidMethod: 'pix' }));
 });
+
+test('automação do repasse: só o owner liga; segurar é do owner; prazo é do servidor', async () => {
+  const s = { autoClose: true, autoPay: true, closeDay: 1, reviewDays: 3, maxAutoPayCents: 0 };
+  await assertSucceeds(setDoc(doc(as(OWNER), 'trainingCenters', C, 'settings', 'payouts'), s));
+  await denied(setDoc(doc(as(ADMIN), 'trainingCenters', C, 'settings', 'payouts'), s));
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'settings', 'payouts'), { ...s, closeDay: 31 }));
+  await assertSucceeds(getDoc(doc(as(ADMIN), 'trainingCenters', C, 'settings', 'payouts')));
+  await denied(getDoc(doc(as(COACH), 'trainingCenters', C, 'settings', 'payouts')));
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'payoutRuns', '2026-10'), { closed: 1 }));
+
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'trainingCenters', C, 'payouts', `2026-07_${COACH}`), {
+      month: '2026-07', coachUid: COACH, totalCents: 10000, status: 'closed', autoPayAt: '2026-08-04', autoPayHold: false,
+    });
+  });
+  const ref = (uid) => doc(as(uid), 'trainingCenters', C, 'payouts', `2026-07_${COACH}`);
+  await denied(updateDoc(ref(ADMIN), { autoPayHold: true }));
+  await assertSucceeds(updateDoc(ref(OWNER), { autoPayHold: true }));
+  await denied(updateDoc(ref(OWNER), { autoPayAt: '2026-07-01' }));
+  // Refazer o fechamento (admin regrava sem os campos do automático) tira do automático.
+  await assertSucceeds(setDoc(ref(ADMIN), { month: '2026-07', coachUid: COACH, totalCents: 12000, status: 'closed' }));
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'payouts', `2026-06_${COACH}`), { month: '2026-06', coachUid: COACH, status: 'closed', autoPayAt: '2026-07-01' }));
+});

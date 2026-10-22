@@ -171,6 +171,16 @@ export interface PayResult {
 export async function payPayoutCore(db: Firestore, uid: string | undefined, raw: unknown, deps: PayoutTransferDeps = defaultPayoutTransferDeps): Promise<PayResult> {
   const {centerId, payoutId} = parseInput(raw);
   const actor = await requireOwner(db, uid, centerId);
+  return payPayoutAs(db, actor, centerId, payoutId, deps);
+}
+
+/**
+ * Transfere um repasse fechado. `actor` é o owner (callable) ou o automático (rodada diária —
+ * quem chama já conferiu a automação ligada pelo owner).
+ */
+export async function payPayoutAs(
+  db: Firestore, actor: {uid: string; name: string}, centerId: string, payoutId: string, deps: PayoutTransferDeps = defaultPayoutTransferDeps,
+): Promise<PayResult> {
   const center = (await centerRef(db, centerId).get()).data();
   if (!center) throw new HttpsError("not-found", "Centro não encontrado.");
   if (center["status"] === "suspended") throw new HttpsError("failed-precondition", "Centro suspenso.");
@@ -188,7 +198,9 @@ export async function payPayoutCore(db: Firestore, uid: string | undefined, raw:
   const cents = Math.round(Number(payout["totalCents"] ?? 0));
   if (cents < 100) throw new HttpsError("failed-precondition", "Valor baixo demais para transferir.");
   const coachUid = str(payout["coachUid"]);
-  if (coachUid === actor.uid) throw new HttpsError("failed-precondition", "O owner não transfere repasse para si mesmo pelo NexaGO.");
+  if (coachUid === actor.uid || coachUid === str(center["ownerUid"])) {
+    throw new HttpsError("failed-precondition", "O owner não transfere repasse para si mesmo pelo NexaGO.");
+  }
   const account = (await db.collection(PROFESSOR_PAYOUT_ACCOUNTS).doc(coachUid).get()).data();
   const walletId = str(account?.["walletId"]);
   if (!account || account["status"] !== "approved" || !walletId || (account["asaasEnv"] && account["asaasEnv"] !== env)) {

@@ -1,5 +1,5 @@
 import type { ClassSession, Invoice, TrainingClass } from './models';
-import { computePayout, monthRangeOf, payRuleError, readPayRule, type PayRule } from './payouts';
+import { computePayout, describeAutomation, monthRangeOf, payRuleError, readAutomation, readPayRule, type PayRule } from './payouts';
 
 const s = (id: string, p: Partial<ClassSession>): ClassSession =>
   ({ id, classId: 'k1', className: 'BT A', date: '2026-10-10', startTime: '19:00', coachUid: 'ana', status: 'done', ...p }) as ClassSession;
@@ -57,5 +57,15 @@ describe('repasse ao professor', () => {
     expect(readPayRule({ kind: 'percent', percent: 150 })).toEqual({ kind: 'percent', amountCents: 0, percent: 0 });
     expect(payRuleError({ kind: 'per_class', amountCents: 0, percent: 0 })).toContain('valor');
     expect(monthRangeOf('2026-02')).toEqual({ from: '2026-02-01', to: '2026-02-28' });
+  });
+
+  it('automação: pagar sozinho só com fechamento automático; descrição', () => {
+    expect(readAutomation({ autoClose: false, autoPay: true }).autoPay).toBeFalse();
+    expect(readAutomation({ autoClose: true, closeDay: 40 }).closeDay).toBe(1);
+    const brl = (c: number) => `R$ ${c / 100}`;
+    expect(describeAutomation(readAutomation(null), brl)).toBe('Fechamento e pagamento à mão');
+    expect(describeAutomation(readAutomation({ autoClose: true, closeDay: 5, autoPay: true, reviewDays: 3, maxAutoPayCents: 200000 }), brl)).toBe(
+      'Fecha sozinho todo dia 05 · paga pelo NexaGO depois de 3 dias de conferência · até R$ 2000 por professor',
+    );
   });
 });

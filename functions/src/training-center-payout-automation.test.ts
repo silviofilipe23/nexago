@@ -19,6 +19,7 @@ function seed(settings: Record<string, unknown> = {autoClose: true, closeDay: 1,
   fake.seedDoc(`${C}/centerMembers/lia`, {uid: "lia", role: "coach", status: "active", displayName: "Lia"});
   fake.seedDoc(`${C}/payRules/marcos`, {kind: "per_class", amountCents: 8000, percent: 0});
   fake.seedDoc(`${C}/payRules/lia`, {kind: "percent", amountCents: 0, percent: 40});
+  fake.seedDoc(`${C}/payRules/owner`, {kind: "monthly", amountCents: 100000, percent: 0});
   fake.seedDoc(`${C}/classes/k1`, {name: "BT A", coachUid: "lia"});
   fake.seedDoc(`${C}/enrollments/e1`, {classId: "k1", studentName: "Bia"});
   fake.seedDoc(`${C}/invoices/i1`, {enrollmentId: "e1", status: "approved", amountCents: 32000, refundedCents: 0, payerName: "Bia", reference: "Mensal · out",
@@ -86,14 +87,15 @@ describe("automação · rodada", () => {
     const fake = seed();
     const {d, calls} = deps("2026-11-01");
     const r = await runCenterPayoutAutomation(db(fake), "c1", center(fake), d);
-    assert.equal(r.close?.closed, 2);
+    assert.equal(r.close?.closed, 3);
+    assert.equal(doc(fake, "2026-10_owner")!["autoPayAt"], undefined);
     assert.equal(doc(fake, "2026-10_marcos")!["totalCents"], 16000);
     assert.equal(doc(fake, "2026-10_lia")!["totalCents"], 12800);
     assert.equal(doc(fake, "2026-10_marcos")!["autoPayAt"], "2026-11-04");
     assert.equal(doc(fake, "2026-10_marcos")!["closedBy"], "auto");
     assert.equal(calls.transfers.length, 0);
     assert.equal(calls.pushed[0]!.userId, "owner");
-    assert.match(calls.pushed[0]!.body, /2 repasses fechados \(R\$\s?288,00\).*paga sozinho em 04\/11/);
+    assert.match(calls.pushed[0]!.body, /3 repasses fechados \(R\$\s?1\.288,00\).*paga sozinho em 04\/11/);
     assert.match(calls.pushed[0]!.body, /1 aula sem chamada finalizada ficou de fora/);
     const again = await runCenterPayoutAutomation(db(fake), "c1", center(fake), deps("2026-11-02").d);
     assert.equal(again.close, null);

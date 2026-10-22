@@ -99,7 +99,8 @@ export async function autoCloseMonth(db: Firestore, centerRef: DocumentReference
         lines: calc.lines.map((l) => ({...l})),
         status: "closed", closedAt: at, closedByName: AUTO.name, closedBy: "auto",
         paidAt: null, paidOn: "", paidByName: "", paidMethod: "", note: "",
-        ...(autoPayAt ? {autoPayAt, autoPayHold: false} : {}),
+        // O repasse do próprio owner não sai pelo NexaGO (não transfere para si mesmo).
+        ...(autoPayAt && r.id !== str(center["ownerUid"]) ? {autoPayAt, autoPayHold: false} : {}),
       });
       tx.set(centerRef.collection("auditLogs").doc(), audit(at, "payout.auto_closed", ref.id,
         `${nameOf(r.id)} · ${monthTitle(month)} · ${brlFromCents(calc.totalCents)}${autoPayAt ? ` · paga sozinho em ${shortDay(autoPayAt)}` : ""}`));

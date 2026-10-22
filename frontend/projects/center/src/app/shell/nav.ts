@@ -27,6 +27,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { area: 'plans', label: 'Planos e pacotes', icon: 'badge', path: 'planos' },
       { area: 'finance', label: 'Financeiro', icon: 'wallet', path: 'financeiro' },
       { area: 'subscriptions', label: 'Assinaturas', icon: 'repeat', path: 'assinaturas' },
+      { area: 'payouts', label: 'Repasses', icon: 'payout', path: 'repasses' },
       { area: 'reports', label: 'Relatórios', icon: 'chart', path: 'relatorios' },
     ],
   },

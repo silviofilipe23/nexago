@@ -34,8 +34,7 @@ Color trainingStateColor(TrainingSession t, AppThemeColors colors) =>
     switch (t.state) {
       TrainingState.scheduled || TrainingState.present => colors.win,
       TrainingState.awaitingProfessor ||
-      TrainingState.excused =>
-        colors.pending,
+      TrainingState.excused => colors.pending,
       TrainingState.canceled || TrainingState.absent => colors.live,
       TrainingState.done => ProfessorLinksStyle.mute(colors),
     };
@@ -151,7 +150,9 @@ class TrainingNextCard extends StatelessWidget {
               if (presence != null && hasPlan && badge > 0) ...[
                 const SizedBox(width: 8),
                 TrainingBadge(
-                    key: const Key('training-next-badge'), count: badge),
+                  key: const Key('training-next-badge'),
+                  count: badge,
+                ),
               ],
               const Spacer(),
               TrainingTypeTag(t),
@@ -172,7 +173,7 @@ class TrainingNextCard extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: ProfessorLinksStyle.display(
-                14,
+                12,
                 weight: FontWeight.w600,
                 color: ProfessorLinksStyle.mute(colors),
               ),
@@ -293,8 +294,11 @@ class TrainingNextCard extends StatelessWidget {
 
 /// "SEU FOCO" — o foco do aluno no plano publicado.
 class TrainingFocusNote extends StatelessWidget {
-  const TrainingFocusNote(
-      {super.key, required this.focus, this.label = 'SEU FOCO'});
+  const TrainingFocusNote({
+    super.key,
+    required this.focus,
+    this.label = 'SEU FOCO',
+  });
 
   final String focus;
   final String label;
@@ -314,8 +318,11 @@ class TrainingFocusNote extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 1),
-            child: Icon(Icons.track_changes_rounded,
-                size: 14, color: colors.brandText),
+            child: Icon(
+              Icons.track_changes_rounded,
+              size: 14,
+              color: colors.brandText,
+            ),
           ),
           const SizedBox(width: 9),
           Expanded(

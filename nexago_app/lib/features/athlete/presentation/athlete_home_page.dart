@@ -192,11 +192,12 @@ class AthleteHomePage extends ConsumerWidget {
                       // dos convites de dupla.
                       Consumer(
                         builder: (context, ref, _) {
-                          final hasBookingInvites = (ref
-                                      .watch(pendingBookingInvitesProvider)
-                                      .valueOrNull ??
-                                  const [])
-                              .isNotEmpty;
+                          final hasBookingInvites =
+                              (ref
+                                          .watch(pendingBookingInvitesProvider)
+                                          .valueOrNull ??
+                                      const [])
+                                  .isNotEmpty;
                           if (!hasBookingInvites) {
                             return const SizedBox.shrink();
                           }
@@ -243,10 +244,15 @@ class AthleteHomePage extends ConsumerWidget {
                       Consumer(
                         builder: (context, ref, _) {
                           final hasPendingReviews =
-                              (ref.watch(pendingTournamentReviewsProvider).valueOrNull ??
+                              (ref
+                                          .watch(
+                                            pendingTournamentReviewsProvider,
+                                          )
+                                          .valueOrNull ??
                                       const [])
                                   .isNotEmpty;
-                          if (!hasPendingReviews) return const SizedBox.shrink();
+                          if (!hasPendingReviews)
+                            return const SizedBox.shrink();
                           return const Padding(
                             padding: EdgeInsets.fromLTRB(
                               AppSpacing.screenH,
@@ -287,12 +293,12 @@ class AthleteHomePage extends ConsumerWidget {
                       // particular): hora marcada, como os convites acima.
                       // Some para quem não treina com professor.
                       const AthleteTrainingHomeEntry(),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: AppSpacing.screenH,
-                        ),
-                        child: MyTournamentsHomeSection(),
-                      ),
+                      // const Padding(
+                      //   padding: EdgeInsets.symmetric(
+                      //     horizontal: AppSpacing.screenH,
+                      //   ),
+                      //   child: MyTournamentsHomeSection(),
+                      // ),
                       // Atalhos (Reservar, Ranking, Treinos e Torneios) abaixo
                       // do que é dinâmico — convites, próximo treino e meus
                       // torneios vêm primeiro.
@@ -411,40 +417,41 @@ class AthleteHomePage extends ConsumerWidget {
                       ),
                       // Mesmo racional dos convites: comunidade vazia não
                       // deixa gap duplo entre evolução e missões.
-                      Consumer(
-                        builder: (context, ref, _) {
-                          final hasCommunityItems =
-                              (ref.watch(communityFeedProvider).valueOrNull ??
-                                      const [])
-                                  .isNotEmpty;
-                          if (!hasCommunityItems) {
-                            return const SizedBox.shrink();
-                          }
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.screenH,
-                                ),
-                                child: AthleteHomeCommunitySection(
-                                  // Com a Loja na barra, a Comunidade não é
-                                  // mais aba: abre a página própria.
-                                  onViewAll: () => ref.read(storeEnabledProvider)
-                                      ? context.pushNamed(
-                                          AppRouteNames.community,
-                                        )
-                                      : _goToTab(
-                                          ref,
-                                          athleteShellCommunityTabIndex,
-                                        ),
-                                ),
-                              ),
-                              const SizedBox(height: AppSpacing.sectionGap),
-                            ],
-                          );
-                        },
-                      ),
+                      // Consumer(
+                      //   builder: (context, ref, _) {
+                      //     final hasCommunityItems =
+                      //         (ref.watch(communityFeedProvider).valueOrNull ??
+                      //                 const [])
+                      //             .isNotEmpty;
+                      //     if (!hasCommunityItems) {
+                      //       return const SizedBox.shrink();
+                      //     }
+                      //     return Column(
+                      //       crossAxisAlignment: CrossAxisAlignment.stretch,
+                      //       children: [
+                      //         Padding(
+                      //           padding: const EdgeInsets.symmetric(
+                      //             horizontal: AppSpacing.screenH,
+                      //           ),
+                      //           child: AthleteHomeCommunitySection(
+                      //             // Com a Loja na barra, a Comunidade não é
+                      //             // mais aba: abre a página própria.
+                      //             onViewAll: () =>
+                      //                 ref.read(storeEnabledProvider)
+                      //                 ? context.pushNamed(
+                      //                     AppRouteNames.community,
+                      //                   )
+                      //                 : _goToTab(
+                      //                     ref,
+                      //                     athleteShellCommunityTabIndex,
+                      //                   ),
+                      //           ),
+                      //         ),
+                      //         const SizedBox(height: AppSpacing.sectionGap),
+                      //       ],
+                      //     );
+                      //   },
+                      // ),
                       // Padding(
                       //   padding: const EdgeInsets.symmetric(
                       //     horizontal: AppSpacing.screenH,
@@ -903,9 +910,7 @@ class _HeroAvatar extends StatelessWidget {
                         division: step.division,
                         size: SandRankEmblemSize.badgeCompact,
                       )
-                    : _HeroLevelBadge(
-                        level: gamificationDisplayLevel(summary),
-                      ),
+                    : _HeroLevelBadge(level: gamificationDisplayLevel(summary)),
               ),
             ],
           ),

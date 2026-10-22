@@ -142,7 +142,7 @@ class _ShortcutTile extends StatelessWidget {
                         textAlign: TextAlign.center,
                         style: AppTypography.labelS.copyWith(
                           color: foreground,
-                          fontSize: box.maxWidth < 56 ? 10 : 11,
+                          fontSize: box.maxWidth < 56 ? 8.5 : 9.5,
                           height: 1.15,
                           fontWeight: FontWeight.w600,
                         ),

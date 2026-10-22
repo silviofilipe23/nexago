@@ -16,6 +16,9 @@ abstract final class CompeteHubArt {
   static const String ranking = 'assets/images/compete/ranking.webp';
   static const String teams = 'assets/images/compete/equipes.webp';
   static const String athletes = 'assets/images/compete/atletas.webp';
+
+  /// Card largo "Aulas e treinos".
+  static const String classes = 'assets/images/compete/aulas.webp';
 }
 
 /// Escurecimento da arte inteira: multiplica os canais por ~0,65. O preto

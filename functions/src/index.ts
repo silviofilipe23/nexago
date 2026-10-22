@@ -265,6 +265,7 @@ export {saveHomeworkProgress} from "./homework-progress";
 // T14 · Planos e pagamentos do aluno (matrícula da arena + carteira do professor).
 export {getMyTrainingPlans} from "./arena-class-athlete-plans";
 export {getMyTrainingCenters} from "./training-center-athlete";
+export {searchClassDirectory, getClassDirectoryDetail} from "./class-directory";
 // QR de check-in por quadra (portal da arena gera; o aluno lê no app).
 export {getArenaCourtCheckinQr} from "./arena-court-checkin-qr";
 // Aulas pelo professor com vínculo ("Gerenciar as próprias aulas"): lista da chamada.

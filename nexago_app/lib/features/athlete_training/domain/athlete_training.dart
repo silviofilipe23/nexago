@@ -3,14 +3,21 @@ import '../../arena/domain/aulas/arena_class_logic.dart';
 import '../../athlete/domain/agenda/class_agenda_entry.dart';
 import '../../professor_mode/domain/professor_availability.dart';
 import '../../professor_mode/domain/professor_lesson_plans.dart';
+import 'training_center.dart';
 
 /// Treinos do atleta (canvas "NexaGO Atleta — Treinos"): junta as aulas da
-/// arena em que ele é ALUNO (`getMyClassAgenda`) e as particulares com os
-/// professores (`professorPrivateLessons`) numa linha do tempo só.
+/// arena em que ele é ALUNO (`getMyClassAgenda`), as particulares com os
+/// professores (`professorPrivateLessons`) e as aulas dos centros de
+/// treinamento (`getMyTrainingCenters`) numa linha do tempo só.
 ///
 /// Tudo aqui é puro — os providers só entregam as listas.
 
-enum TrainingSource { arenaClass, privateLesson }
+enum TrainingSource { arenaClass, privateLesson, centerClass }
+
+/// De onde vem o treino (Treinos v2, "por origem") — muda quem cobra e onde
+/// acontece: professor particular/autônomo, turma de arena ou centro de
+/// treinamento.
+enum TrainingOrigin { private, arena, center }
 
 /// Situação do treino do ponto de vista do aluno.
 enum TrainingState {
@@ -48,6 +55,9 @@ class TrainingSession {
     this.isTrial = false,
     this.classEntry,
     this.privateLesson,
+    this.centerId = '',
+    this.centerName = '',
+    this.centerSession,
   });
 
   /// `sessionId` da aula ou id da particular.
@@ -74,7 +84,22 @@ class TrainingSession {
   final ClassAgendaEntry? classEntry;
   final PrivateLesson? privateLesson;
 
+  /// Aula do centro de treinamento.
+  final String centerId;
+  final String centerName;
+  final CenterSession? centerSession;
+
   bool get isPrivate => source == TrainingSource.privateLesson;
+  bool get isCenter => source == TrainingSource.centerClass;
+
+  TrainingOrigin get origin => switch (source) {
+        TrainingSource.privateLesson => TrainingOrigin.private,
+        TrainingSource.arenaClass => TrainingOrigin.arena,
+        TrainingSource.centerClass => TrainingOrigin.center,
+      };
+
+  /// Local diferente do padrão da turma só nesta aula (centro).
+  bool get locationChanged => centerSession?.locationChanged ?? false;
   bool get isCanceled => state == TrainingState.canceled;
 
   /// Contou como treino feito (presença ou aula que passou sem chamada).
@@ -166,11 +191,51 @@ TrainingSession trainingFromPrivateLesson(PrivateLesson l, DateTime now) {
   );
 }
 
-/// Junta as duas fontes (sem repetir aula vinda de duas janelas da agenda),
-/// em ordem cronológica.
+/// Aula do centro como treino — `null` quando a data não dá para ler.
+TrainingSession? trainingFromCenterSession(
+  TrainingCenterLink center,
+  CenterSession s,
+  DateTime now,
+) {
+  final start = _wallInstant(s.date, s.startTime);
+  if (start == null) return null;
+  final endAt = start.add(Duration(minutes: s.durationMin > 0 ? s.durationMin : 60));
+  final past = !endAt.isAfter(now);
+  final state = s.isCancelled
+      ? TrainingState.canceled
+      : switch (s.myMark) {
+          'present' => TrainingState.present,
+          'absent' => TrainingState.absent,
+          'excused' => TrainingState.excused,
+          _ => past || s.status == 'done'
+              ? TrainingState.done
+              : TrainingState.scheduled,
+        };
+  return TrainingSession(
+    id: s.sessionId,
+    source: TrainingSource.centerClass,
+    title: s.className,
+    professorName: s.coachName,
+    arenaName: s.locationName,
+    courtName: s.courtName,
+    dateKey: s.date,
+    startTime: s.startTime,
+    startAt: start,
+    endAt: endAt,
+    state: state,
+    isMakeup: s.isMakeup,
+    centerId: center.centerId,
+    centerName: center.name,
+    centerSession: s,
+  );
+}
+
+/// Junta as fontes (sem repetir aula vinda de duas janelas da agenda), em
+/// ordem cronológica.
 List<TrainingSession> buildTrainings({
   required Iterable<ClassAgendaEntry> classes,
   required Iterable<PrivateLesson> privateLessons,
+  Iterable<TrainingCenterLink> centers = const [],
   required DateTime now,
 }) {
   final byId = <String, TrainingSession>{};
@@ -181,6 +246,12 @@ List<TrainingSession> buildTrainings({
   for (final l in privateLessons) {
     final t = trainingFromPrivateLesson(l, now);
     byId['p:${t.id}'] = t;
+  }
+  for (final c in centers) {
+    for (final s in c.sessions) {
+      final t = trainingFromCenterSession(c, s, now);
+      if (t != null) byId['ct:${c.centerId}:${t.id}'] = t;
+    }
   }
   return byId.values.toList()..sort((a, b) => a.startAt.compareTo(b.startAt));
 }
@@ -231,6 +302,44 @@ String trainingFirstName(String name) {
 /// O treino é do professor do filtro (primeiro nome); `null` = todos.
 bool trainingMatchesProfessor(TrainingSession t, String? firstName) =>
     firstName == null || trainingFirstName(t.professorName) == firstName;
+
+/// O treino é da origem do filtro; `null` = todas.
+bool trainingMatchesOrigin(TrainingSession t, TrainingOrigin? origin) =>
+    origin == null || t.origin == origin;
+
+/// Origens presentes, na ordem fixa Particular · Arena · Centro (o filtro só
+/// aparece com duas ou mais).
+List<TrainingOrigin> trainingOriginsOf(Iterable<TrainingSession> list) {
+  final present = {for (final t in list) t.origin};
+  return [
+    for (final o in TrainingOrigin.values)
+      if (present.contains(o)) o,
+  ];
+}
+
+/// "Particular", "Arena" ou "Centro".
+String trainingOriginLabel(TrainingOrigin o) => switch (o) {
+      TrainingOrigin.private => 'Particular',
+      TrainingOrigin.arena => 'Arena',
+      TrainingOrigin.center => 'Centro',
+    };
+
+/// Quem cobra, por origem.
+String trainingOriginPayerLabel(TrainingOrigin o) => switch (o) {
+      TrainingOrigin.private => 'Pago ao professor',
+      TrainingOrigin.arena => 'Pago à arena',
+      TrainingOrigin.center => 'Mensalidade ao centro',
+    };
+
+/// Os 7 dias a partir de [fromKey] (`YYYY-MM-DD`).
+List<String> trainingWeekKeys(String fromKey) {
+  final d = DateTime.tryParse(fromKey);
+  if (d == null) return const [];
+  return [
+    for (var i = 0; i < 7; i++)
+      _dateKey(DateTime.utc(d.year, d.month, d.day + i)),
+  ];
+}
 
 // ── números ──────────────────────────────────────────────────────────────
 
@@ -462,6 +571,8 @@ const List<String> _monthShort = [
 String _two(int v) => v.toString().padLeft(2, '0');
 
 String _monthKey(DateTime d) => '${d.year}-${_two(d.month)}';
+
+String _dateKey(DateTime d) => '${d.year}-${_two(d.month)}-${_two(d.day)}';
 
 DateTime _feedbackOrder(LessonPlanView v) =>
     v.feedback?.sentAt ??

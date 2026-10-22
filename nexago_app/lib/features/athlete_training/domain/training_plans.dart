@@ -1,4 +1,5 @@
 import '../../arena/domain/aulas/arena_class_logic.dart';
+import 'athlete_training.dart';
 
 /// T14 · Planos e pagamentos — espelha `getMyTrainingPlans`
 /// (`functions/src/arena-class-athlete-plans.ts`): matrícula na turma
@@ -11,15 +12,18 @@ class ArenaPlanSlot {
     required this.weekday,
     required this.startTime,
     this.teacherName = '',
+    this.classId = '',
   });
 
   factory ArenaPlanSlot.fromMap(Map<String, Object?> m) => ArenaPlanSlot(
+        classId: _str(m['classId']),
         className: _str(m['className'], 'Turma'),
         weekday: _int(m['weekday']) ?? 0,
         startTime: _str(m['startTime']),
         teacherName: _str(m['teacherName']),
       );
 
+  final String classId;
   final String className;
 
   /// ISO: 1 = segunda … 7 = domingo.
@@ -35,6 +39,7 @@ class ArenaTrainingPlan {
     required this.planName,
     required this.kind,
     required this.priceReais,
+    this.arenaId = '',
     this.classesPerWeek,
     this.creditsLeft,
     this.credits,
@@ -52,6 +57,7 @@ class ArenaTrainingPlan {
     final slots = m['slots'];
     return ArenaTrainingPlan(
       enrollmentId: _str(m['enrollmentId']),
+      arenaId: _str(m['arenaId']),
       arenaName: _str(m['arenaName'], 'Arena'),
       planName: _str(m['planName'], 'Plano'),
       kind: _str(m['kind'], 'monthly'),
@@ -76,6 +82,7 @@ class ArenaTrainingPlan {
   }
 
   final String enrollmentId;
+  final String arenaId;
   final String arenaName;
   final String planName;
 
@@ -200,6 +207,19 @@ class MyTrainingPlans {
 
   int get activeCount => arenaPlans.length + professorPlans.length;
   bool get isEmpty => activeCount == 0 && payments.isEmpty;
+}
+
+// ── vínculos ─────────────────────────────────────────────────────────────
+
+/// A aula é da turma desta matrícula da arena (pela turma; servidor antigo
+/// sem `classId` no horário cai no nome da arena + nome da turma).
+bool trainingBelongsToArenaPlan(TrainingSession t, ArenaTrainingPlan p) {
+  final e = t.classEntry;
+  if (e == null) return false;
+  final ids = {for (final s in p.slots) if (s.classId.isNotEmpty) s.classId};
+  if (ids.isNotEmpty) return ids.contains(e.classId);
+  if (p.arenaId.isNotEmpty && e.arenaId != p.arenaId) return false;
+  return p.slots.any((s) => s.className == e.className);
 }
 
 // ── rótulos ──────────────────────────────────────────────────────────────

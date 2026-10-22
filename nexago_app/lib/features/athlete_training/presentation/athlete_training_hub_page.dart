@@ -30,16 +30,28 @@ import '../domain/athlete_training.dart';
 import '../domain/class_presence.dart';
 import 'widgets/class_presence_widgets.dart';
 import 'athlete_training_homework_page.dart' show openTrainingHomework;
+import 'widgets/training_origin_widgets.dart';
 import 'widgets/training_widgets.dart';
+import '../domain/training_origin_links.dart';
 
 /// T2 · Meus treinos — o hub do aluno: próximo treino, números do mês, o que
 /// o professor mandou, a semana e os atalhos para aulas, feedbacks,
 /// evolução, professores e particulares.
-class AthleteTrainingHubPage extends ConsumerWidget {
+class AthleteTrainingHubPage extends ConsumerStatefulWidget {
   const AthleteTrainingHubPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AthleteTrainingHubPage> createState() =>
+      _AthleteTrainingHubPageState();
+}
+
+class _AthleteTrainingHubPageState
+    extends ConsumerState<AthleteTrainingHubPage> {
+  /// Filtro Particular · Arena · Centro (`null` = todos).
+  TrainingOrigin? _origin;
+
+  @override
+  Widget build(BuildContext context) {
     final now = ref.watch(professorLinksClockProvider)();
     final todayKey = nexagoEventDayKey(now);
     final trainings = ref.watch(athleteTrainingsProvider);
@@ -53,16 +65,38 @@ class AthleteTrainingHubPage extends ConsumerWidget {
     final unread = ref.watch(unreadMessagesCountProvider);
     final credits =
         ref.watch(athleteClassCreditsProvider).valueOrNull ?? const [];
+    final centers =
+        ref.watch(athleteTrainingCentersProvider).valueOrNull ?? const [];
 
-    final upcoming = trainings == null
+    final allUpcoming = trainings == null
         ? const <TrainingSession>[]
         : upcomingTrainings(trainings, now);
+    final links = trainingOriginLinks(
+      upcoming: allUpcoming,
+      plans: plans,
+      centers: centers,
+      credits: credits,
+      todayKey: todayKey,
+    );
+    final origins = {
+      ...trainingOriginsOf(trainings ?? const []),
+      for (final l in links) l.origin,
+    }.toList()
+      ..sort((a, b) => a.index.compareTo(b.index));
+    final origin = origins.contains(_origin) ? _origin : null;
+    final upcoming = [
+      for (final t in allUpcoming)
+        if (trainingMatchesOrigin(t, origin)) t,
+    ];
     final next = upcoming.isEmpty ? null : upcoming.first;
+    final multi = origins.length > 1;
     final stats = trainings == null ? null : trainingMonthStats(trainings, now);
     final streak =
         trainings == null ? 0 : trainingCurrentStreak(trainings, now);
     final subtitle = [
-      if (professors != null && professors.isNotEmpty)
+      if (links.length > 1)
+        '${links.length} VÍNCULOS'
+      else if (professors != null && professors.isNotEmpty)
         '${professors.length} ${professors.length == 1 ? 'PROFESSOR' : 'PROFESSORES'}',
       if (upcoming.isNotEmpty)
         '${upcoming.length} ${upcoming.length == 1 ? 'AULA MARCADA' : 'AULAS MARCADAS'}',
@@ -97,11 +131,21 @@ class AthleteTrainingHubPage extends ConsumerWidget {
           ref.invalidate(myClassChargesProvider);
           ref.invalidate(athleteTrainingPlansProvider);
           ref.invalidate(athleteClassCreditsProvider);
+          ref.invalidate(athleteTrainingCentersProvider);
           await ref.read(myClassAgendaProvider.future);
         },
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
           children: [
+            if (multi) ...[
+              TrainingOriginFilter(
+                key: const Key('training-hub-origin-filter'),
+                origins: origins,
+                selected: origin,
+                onChanged: (o) => setState(() => _origin = o),
+              ),
+              const SizedBox(height: 12),
+            ],
             if (trainings == null)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 40),
@@ -174,18 +218,38 @@ class AthleteTrainingHubPage extends ConsumerWidget {
                 ],
               ),
             ],
-            ..._fromProfessor(context, views, evaluations, now),
+            if (links.any((l) => trainingMatchesOriginLink(l, origin))) ...[
+              const TrainingSectionTitle('Onde eu treino'),
+              for (final l in links)
+                if (trainingMatchesOriginLink(l, origin)) ...[
+                  TrainingOriginLinkCard(
+                    key: Key('training-hub-link-${l.origin.name}-${l.id}'),
+                    origin: l.origin,
+                    name: l.name,
+                    subtitle: l.subtitle,
+                    next: l.next,
+                    plan: l.plan,
+                    notice: l.notice,
+                    noticeColor: trainingLinkNoticeColor(l.noticeTone),
+                    onTap: () => openTrainingOriginLink(context, l),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+            ],
+            if (origin == null)
+              ..._fromProfessor(context, views, evaluations, now),
             if (upcoming.length > 1) ...[
               TrainingSectionTitle(
-                'Próximas aulas',
-                action: 'Todas as aulas',
+                'Próximos dias',
+                action: 'Agenda completa',
                 onAction: () =>
-                    context.pushNamed(AppRouteNames.athleteTrainingClasses),
+                    context.pushNamed(AppRouteNames.athleteTrainingAgenda),
               ),
               for (final t in upcoming.skip(1).take(3)) ...[
                 TrainingRow(
                   key: Key('training-hub-row-${t.id}'),
                   training: t,
+                  showOrigin: multi && origin == null,
                   onTap: () => openTraining(context, t),
                 ),
                 const SizedBox(height: 8),
@@ -224,6 +288,16 @@ class AthleteTrainingHubPage extends ConsumerWidget {
             TrainingTilesBlock(
               children: [
                 TrainingListTile(
+                  key: const Key('training-hub-agenda'),
+                  icon: Icons.calendar_view_week_outlined,
+                  title: 'Agenda de treinos',
+                  subtitle: multi
+                      ? 'Particular, arena e centro na mesma semana'
+                      : 'A semana de treinos, dia a dia',
+                  onTap: () =>
+                      context.pushNamed(AppRouteNames.athleteTrainingAgenda),
+                ),
+                TrainingListTile(
                   key: const Key('training-hub-classes'),
                   icon: Icons.event_note_outlined,
                   title: 'Minhas aulas',
@@ -260,7 +334,9 @@ class AthleteTrainingHubPage extends ConsumerWidget {
                   key: const Key('training-hub-plans'),
                   icon: Icons.credit_card_outlined,
                   title: 'Planos e pagamentos',
-                  subtitle: 'Arena e professor, lado a lado',
+                  subtitle: centers.isEmpty
+                      ? 'Arena e professor, lado a lado'
+                      : 'Cada origem cobra separado',
                   onTap: () =>
                       context.pushNamed(AppRouteNames.athleteTrainingPlans),
                 ),

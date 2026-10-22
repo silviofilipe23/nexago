@@ -153,6 +153,18 @@ abstract final class AppRoutes {
   static const String athleteTrainingMakeup = '/treinos/reposicao';
   static const String athleteTrainingCheckIn = '/treinos/checkin/:sessionId';
 
+  /// Treinos por origem (Treinos v2): agenda unificada (O2) e o detalhe de
+  /// cada vínculo — particular (O4), turma de arena (O5), centro de
+  /// treinamento (O6) e a aula do centro (O7).
+  static const String athleteTrainingAgenda = '/treinos/agenda';
+  static const String athleteTrainingPrivateLink =
+      '/treinos/particular/:professorUid';
+  static const String athleteTrainingArenaClass =
+      '/treinos/arena/:enrollmentId';
+  static const String athleteTrainingCenter = '/treinos/centro/:centerId';
+  static const String athleteTrainingCenterSession =
+      '/treinos/centro/:centerId/aula/:sessionId';
+
   /// Plano da aula publicado para o ATLETA (H8, push
   /// `lesson_plan_published`) e a lista deles. Abrem no modo Atleta.
   static const String athleteLessonPlans = '/aula/planos';
@@ -913,6 +925,13 @@ abstract final class AppRouteNames {
   static const String athleteTrainingPlans = 'athleteTrainingPlans';
   static const String athleteTrainingMakeup = 'athleteTrainingMakeup';
   static const String athleteTrainingCheckIn = 'athleteTrainingCheckIn';
+  static const String athleteTrainingAgenda = 'athleteTrainingAgenda';
+  static const String athleteTrainingPrivateLink =
+      'athleteTrainingPrivateLink';
+  static const String athleteTrainingArenaClass = 'athleteTrainingArenaClass';
+  static const String athleteTrainingCenter = 'athleteTrainingCenter';
+  static const String athleteTrainingCenterSession =
+      'athleteTrainingCenterSession';
   static const String athleteLessonPlans = 'athleteLessonPlans';
   static const String athleteLessonPlan = 'athleteLessonPlan';
   static const String professorEarnings = 'professorEarnings';

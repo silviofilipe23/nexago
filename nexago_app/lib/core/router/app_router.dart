@@ -214,6 +214,11 @@ import '../../features/athlete_training/presentation/athlete_training_find_profe
 import '../../features/athlete_training/presentation/athlete_training_professor_profile_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_homework_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_plans_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_agenda_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_arena_class_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_center_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_center_session_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_private_link_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_professors_page.dart';
 import '../../features/professor_mode/presentation/evaluations/athlete_evaluations_pages.dart';
 import '../../features/professor_mode/presentation/evaluations/professor_evaluations_page.dart';
@@ -3168,6 +3173,43 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => AthleteTrainingCheckInPage(
               sessionId: state.pathParameters['sessionId']?.trim() ?? '',
             ),
+          ),
+          GoRoute(
+            path: 'agenda',
+            name: AppRouteNames.athleteTrainingAgenda,
+            builder: (context, state) => const AthleteTrainingAgendaPage(),
+          ),
+          GoRoute(
+            path: 'particular/:professorUid',
+            name: AppRouteNames.athleteTrainingPrivateLink,
+            builder: (context, state) => AthleteTrainingPrivateLinkPage(
+              professorUid: state.pathParameters['professorUid']?.trim() ?? '',
+            ),
+          ),
+          GoRoute(
+            path: 'arena/:enrollmentId',
+            name: AppRouteNames.athleteTrainingArenaClass,
+            builder: (context, state) => AthleteTrainingArenaClassPage(
+              enrollmentId: state.pathParameters['enrollmentId']?.trim() ?? '',
+            ),
+          ),
+          GoRoute(
+            path: 'centro/:centerId',
+            name: AppRouteNames.athleteTrainingCenter,
+            builder: (context, state) => AthleteTrainingCenterPage(
+              centerId: state.pathParameters['centerId']?.trim() ?? '',
+              initialTab: state.uri.queryParameters['aba']?.trim(),
+            ),
+            routes: [
+              GoRoute(
+                path: 'aula/:sessionId',
+                name: AppRouteNames.athleteTrainingCenterSession,
+                builder: (context, state) => AthleteTrainingCenterSessionPage(
+                  centerId: state.pathParameters['centerId']?.trim() ?? '',
+                  sessionId: state.pathParameters['sessionId']?.trim() ?? '',
+                ),
+              ),
+            ],
           ),
         ],
       ),

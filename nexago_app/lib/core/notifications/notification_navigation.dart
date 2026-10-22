@@ -65,6 +65,18 @@ const professorOwnClassEndedNotificationType = 'professor_own_class_ended';
 const professorOwnClassRecurringNotificationType =
     'professor_own_class_recurring';
 
+/// Centro de treinamento → aluno (`functions/src/training-center-*.ts`).
+/// Fatura (link e régua de cobrança) leva `invoiceUrl` do Asaas.
+const centerInvoiceLinkNotificationType = 'training_center_invoice_link';
+const centerBillingNoticeNotificationType = 'training_center_billing_notice';
+const centerPaymentConfirmedNotificationType =
+    'training_center_payment_confirmed';
+const centerClassReminderNotificationType = 'training_center_class_reminder';
+const centerSessionNoticeNotificationType = 'training_center_session_notice';
+const centerEnrollmentNoticeNotificationType =
+    'training_center_enrollment_notice';
+const centerSeatOfferNotificationType = 'training_center_seat_offer';
+
 /// Agenda do atleta — onde fica a mensalidade a pagar.
 const athleteAgendaTabLocation = '${AppRoutes.discover}?tab=agenda';
 
@@ -74,7 +86,9 @@ const athleteAgendaTabLocation = '${AppRoutes.discover}?tab=agenda';
 String? externalNotificationUrl(Map<String, dynamic> data) {
   final type = (data['type'] as String?)?.toLowerCase().trim() ?? '';
   if (type != classChargeLinkNotificationType &&
-      type != professorChargeLinkNotificationType) {
+      type != professorChargeLinkNotificationType &&
+      type != centerInvoiceLinkNotificationType &&
+      type != centerBillingNoticeNotificationType) {
     return null;
   }
   for (final key in const ['invoiceUrl', 'webUrl']) {
@@ -245,6 +259,10 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
           .replaceAll(':tournamentId', closedTournamentId);
     }
   }
+
+  // Centro de treinamento: o payload não leva `url` — monta pela id.
+  final centerRoute = _centerNotificationRoute(type, data);
+  if (centerRoute != null) return centerRoute;
 
   // Pagamento ao professor confirmado: o `url` do payload é a Agenda (app
   // antigo, sem a tela); este build abre a confirmação pelo `chargeId`.
@@ -562,4 +580,29 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   }
 
   return null;
+}
+
+/// Destino dos pushes do centro para o ALUNO: aula → aula do centro (O7);
+/// fatura/matrícula/vaga → tela do centro (O6, na aba Plano quando é
+/// cobrança). Sem `centerId` cai no hub de Treinos. `null` = não é do centro.
+String? _centerNotificationRoute(String type, Map<String, dynamic> data) {
+  final isSession = type == centerClassReminderNotificationType ||
+      type == centerSessionNoticeNotificationType;
+  final isBilling = type == centerInvoiceLinkNotificationType ||
+      type == centerBillingNoticeNotificationType ||
+      type == centerPaymentConfirmedNotificationType;
+  final isEnrollment = type == centerEnrollmentNoticeNotificationType ||
+      type == centerSeatOfferNotificationType;
+  if (!isSession && !isBilling && !isEnrollment) return null;
+  final centerId = (data['centerId'] as String?)?.trim() ?? '';
+  if (centerId.isEmpty) return AppRoutes.athleteTrainings;
+  final center = AppRoutes.athleteTrainingCenter
+      .replaceFirst(':centerId', Uri.encodeComponent(centerId));
+  final sessionId = (data['sessionId'] as String?)?.trim() ?? '';
+  if (isSession && sessionId.isNotEmpty) {
+    return AppRoutes.athleteTrainingCenterSession
+        .replaceFirst(':centerId', Uri.encodeComponent(centerId))
+        .replaceFirst(':sessionId', Uri.encodeComponent(sessionId));
+  }
+  return isBilling ? '$center?aba=plano' : center;
 }

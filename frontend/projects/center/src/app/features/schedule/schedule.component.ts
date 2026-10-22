@@ -5,6 +5,7 @@ import { CenterStore } from '../../data/center-store.service';
 import { writeErrorMessage } from '../../data/actions/actor';
 import { ClassesActions } from '../../data/actions/classes.actions';
 import { addDays, formatDayKey, parseDayKey, todayKey, wallClock, WEEKDAY_SHORT, weekdayOf } from '../../domain/dates';
+import { placeLabel } from '../../domain/locations';
 import type { ClassSession, TrainingClass } from '../../domain/models';
 import { horizonEnd, occurrences } from '../../domain/schedule';
 import { IconComponent } from '../../ui/icon.component';
@@ -25,7 +26,8 @@ interface ScheduleItem {
   title: string;
   color: string;
   coachName: string;
-  courtName: string;
+  /** "Local · Quadra" — o lugar da aula (ou o padrão da turma, no rascunho). */
+  place: string;
   cancelled: boolean;
   changed: boolean;
   draft: boolean;
@@ -59,6 +61,7 @@ export class ScheduleComponent {
   protected readonly scopeOptions = [
     { value: 'center', label: 'Centro' },
     { value: 'coach', label: 'Professor' },
+    { value: 'location', label: 'Local' },
     { value: 'court', label: 'Quadra' },
   ];
 
@@ -73,11 +76,20 @@ export class ScheduleComponent {
   protected readonly scope = signal<string>('center');
   protected readonly coachFilter = signal('');
   protected readonly courtFilter = signal('');
+  protected readonly locationFilter = signal('');
   protected readonly selected = signal<ClassSession | null>(null);
   protected readonly attendanceFor = signal<string | null>(null);
   protected readonly ensureError = signal('');
 
   protected readonly canEdit = computed(() => this.ctx.isManager() && this.ctx.canWrite());
+
+  /** Quadras com o nome do local (CT com mais de um local próprio repete "Quadra 1"). */
+  protected readonly courtOptions = computed(() =>
+    this.store.courts().map((q) => {
+      const loc = q.locationId ? this.store.locationById(q.locationId) : undefined;
+      return { id: q.id, label: loc ? `${loc.name} · ${q.name}` : q.name };
+    }),
+  );
 
   protected readonly days = computed(() => {
     const a = this.anchor() || this.today();
@@ -100,7 +112,7 @@ export class ScheduleComponent {
         title: s.className,
         color: color(s.programId),
         coachName: s.coachName,
-        courtName: s.courtName,
+        place: placeLabel(s),
         cancelled: s.status === 'cancelled',
         changed: s.changed,
         draft: false,
@@ -120,7 +132,7 @@ export class ScheduleComponent {
           title: c.name,
           color: color(c.programId),
           coachName: c.coachName,
-          courtName: c.courtName,
+          place: placeLabel(c),
           cancelled: false,
           changed: false,
           draft: true,
@@ -135,6 +147,7 @@ export class ScheduleComponent {
       if (p && programId !== p) return false;
       if (scope === 'coach' && this.coachFilter() && (it.session?.coachUid ?? it.cls?.coachUid) !== this.coachFilter()) return false;
       if (scope === 'court' && this.courtFilter() && (it.session?.courtId ?? it.cls?.courtId) !== this.courtFilter()) return false;
+      if (scope === 'location' && this.locationFilter() && (it.session?.locationId ?? it.cls?.locationId) !== this.locationFilter()) return false;
       return true;
     });
   });

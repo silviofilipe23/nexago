@@ -1,0 +1,206 @@
+<ct-page-header title="Locais" [subtitle]="subtitle()">
+  @if (canEdit()) {
+    <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="editing.set('new')"><ct-icon name="plus" [size]="14" />Novo local</button>
+  }
+</ct-page-header>
+
+<div class="page">
+  @if (!store.loaded.locations()) {
+    <div class="ct-empty">Carregando locais…</div>
+  } @else if (store.locations().length === 0) {
+    <div class="ct-card ct-empty">
+      Nenhum local ainda — cadastre a sede ou a primeira arena parceira. Cada turma e cada aula mostram ao aluno onde acontecem.
+      @if (canEdit()) {
+        <div class="empty-cta"><button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="editing.set('new')">Cadastrar o primeiro local</button></div>
+      }
+    </div>
+  } @else {
+    @if (!itinerant()) {
+      <div><ct-segmented [options]="viewTabs" [(value)]="view" /></div>
+    }
+
+    @if (itinerant() || view() === 'locais') {
+      <div class="toolbar">
+        <div class="ct-row ct-wrap ct-grow">
+          @for (c of typeChips; track c.value) {
+            <button type="button" class="ct-chip" [class.active]="typeFilter() === c.value" (click)="typeFilter.set(c.value)">
+              @if (c.color) {
+                <span class="dot" [style.background]="c.color"></span>
+              }
+              {{ c.label }}
+            </button>
+          }
+        </div>
+        <ct-segmented [options]="statusTabs" [value]="statusTab()" (valueChange)="setStatusTab($event)" />
+      </div>
+
+      @if (cards().length === 0) {
+        <div class="ct-card ct-empty">{{ statusTab() === 'archived' ? 'Nenhum local arquivado.' : 'Nenhum local deste tipo.' }}</div>
+      } @else {
+        <div class="ct-grid-aside">
+          <div class="cards">
+            @for (c of cards(); track c.location.id) {
+              <button type="button" class="loc" [class.sel]="c.location.id === selected()?.id" [class.arch]="c.location.status === 'archived'" (click)="select(c.location.id)">
+                <div class="ct-row tags">
+                  <span class="ct-tag" [class]="'ct-tag ' + types[c.location.type].tone">{{ types[c.location.type].label }}</span>
+                  @if (c.location.isPrimary) {
+                    <span class="ct-tag green">Principal</span>
+                  }
+                  @if (c.location.status === 'archived') {
+                    <span class="ct-tag">Arquivado</span>
+                  }
+                  <span class="ct-grow"></span>
+                  <span class="ct-mono">{{ c.usage.futureSessions }} {{ c.usage.futureSessions === 1 ? 'aula futura' : 'aulas futuras' }}</span>
+                </div>
+                <div class="ct-row name">
+                  <ct-icon name="pin" [size]="15" [style.color]="c.color" />
+                  <span class="ct-disp ct-ellipsis">{{ c.location.name }}</span>
+                </div>
+                <div class="ct-muted addr">{{ c.location.address || 'Sem endereço' }}</div>
+                <div class="ct-mono sub">{{ c.sub }}</div>
+              </button>
+            }
+          </div>
+
+          @if (selected(); as l) {
+            @if (selectedInfo(); as info) {
+              <section class="ct-card">
+                <div class="ct-card-head">
+                  <div class="ct-grow">
+                    <div class="ct-kick">{{ info.kicker }}</div>
+                    <div class="ct-card-title">{{ l.name }}</div>
+                  </div>
+                  @if (canEdit() && l.status === 'active') {
+                    <button type="button" class="ct-ghost-btn" (click)="editing.set(l)"><ct-icon name="edit" [size]="13" />Editar</button>
+                  }
+                </div>
+                @if (info.map) {
+                  <a class="ct-mini-btn map" [href]="info.map" target="_blank" rel="noopener"><ct-icon name="route" [size]="14" />Abrir no mapa</a>
+                }
+                <div class="kvs">
+                  <div class="ct-kv"><span>Endereço</span><span>{{ l.address || '—' }}</span></div>
+                  @if (l.type === 'partner') {
+                    <div class="ct-kv mono"><span>Janela contratada</span><span>{{ info.window }}</span></div>
+                    <div class="ct-kv"><span>Quadras</span><span>{{ l.courtsLabel || '—' }}</span></div>
+                    <div class="ct-kv mono"><span>Contato da arena</span><span>{{ info.contact || '—' }}</span></div>
+                  }
+                  @if (l.notes) {
+                    <div class="ct-kv"><span>Notas para alunos</span><span>{{ l.notes }}</span></div>
+                  }
+                </div>
+
+                @if (l.type === 'own') {
+                  <div class="ct-row section">
+                    <div class="ct-kick ct-grow">Quadras · ocupação semanal</div>
+                    @if (canEdit() && l.status === 'active') {
+                      <button type="button" class="ct-ghost-btn" (click)="editingCourt.set({ location: l, court: null })"><ct-icon name="plus" [size]="13" />Nova quadra</button>
+                    }
+                  </div>
+                  @for (x of selectedCourts(); track x.court.id) {
+                    <div class="ct-list-row">
+                      <div class="ct-grow">
+                        <div class="ct-disp">{{ x.court.name }}</div>
+                        <div class="ct-dim">{{ x.sub || 'Sem descrição' }}</div>
+                      </div>
+                      <span class="ct-strong-mono">{{ x.inMaintenance ? '—' : x.occ.pct + '%' }}</span>
+                      @if (canEdit() && l.status === 'active') {
+                        <button type="button" class="ct-ghost-btn" [attr.aria-label]="'Editar ' + x.court.name" (click)="editingCourt.set({ location: l, court: x.court })"><ct-icon name="edit" [size]="13" /></button>
+                      }
+                    </div>
+                  } @empty {
+                    <div class="ct-dim">Nenhuma quadra neste local. Sem quadra, a agenda não consegue avisar quando duas turmas disputam o mesmo espaço.</div>
+                  }
+                  @if (selectedCourts().length) {
+                    <div class="ct-dim note">Ocupação = horas de aula por semana das turmas ativas na quadra ÷ 06h–22h × 7 dias (112 h).</div>
+                  }
+                }
+
+                <div class="ct-kick section">Onde é usado</div>
+                @for (u of usedBy(); track u.key) {
+                  <div class="ct-list-row">
+                    <div class="ct-grow">
+                      <div class="ct-disp">{{ u.title }}</div>
+                      <div class="ct-mono" [class.warn]="u.warn">{{ u.sub }}</div>
+                    </div>
+                  </div>
+                } @empty {
+                  <div class="ct-dim">Nenhuma turma usa este local como padrão.</div>
+                }
+                @if (l.type === 'partner') {
+                  <div class="ct-dim note">Quadras de parceiros não são gerenciadas aqui: o conflito considera só a janela contratada e a agenda do professor.</div>
+                }
+
+                @if (canEdit()) {
+                  <div class="ct-row actions">
+                    @if (l.status === 'active') {
+                      <button type="button" class="ct-mini-btn danger" (click)="archiving.set(l)">Arquivar local</button>
+                    } @else {
+                      <button type="button" class="ct-mini-btn" [disabled]="busy()" (click)="restore(l)">{{ busy() ? 'Reativando…' : 'Reativar local' }}</button>
+                    }
+                  </div>
+                }
+                @if (error()) {
+                  <div class="ct-error-text" role="alert">{{ error() }}</div>
+                }
+              </section>
+            }
+          }
+        </div>
+      }
+    }
+
+    @if (itinerant() || view() === 'semana') {
+      <section class="ct-card">
+        <div class="ct-card-head">
+          <div class="ct-grow">
+            <div class="ct-kick">Cada aula define onde acontece · o aluno vê o endereço de cada uma</div>
+            <div class="ct-card-title">Semana por local · {{ weekTitle() }}</div>
+          </div>
+        </div>
+        <div class="wlocs">
+          @for (w of weekLocations(); track w.location.id) {
+            <div class="wloc" [style.border-top-color]="w.color">
+              <div class="ct-row">
+                <span class="ct-tag" [class]="'ct-tag ' + types[w.location.type].tone">{{ types[w.location.type].label }}</span>
+                @if (w.location.status === 'archived') {
+                  <span class="ct-tag">Arquivado</span>
+                }
+              </div>
+              <div class="ct-disp ct-ellipsis wname">{{ w.location.name }}</div>
+              <div class="ct-mono">{{ w.count }} {{ w.count === 1 ? 'aula' : 'aulas' }} por semana</div>
+            </div>
+          }
+        </div>
+        <div class="week" [style.--days]="weekDays().length">
+          @for (d of weekDays(); track d.key) {
+            <div class="day">
+              <div class="ct-kick">{{ d.label }}</div>
+              @for (it of d.items; track it.session.id) {
+                @if (it.moved) {
+                  <div class="ct-mono moved"><ct-icon name="clock" [size]="11" />troca de local</div>
+                }
+                <div class="slot" [style.background]="it.color + '14'" [style.border-color]="it.color + '44'">
+                  <div class="ct-mono time" [style.color]="it.color">{{ it.session.startTime }}</div>
+                  <div class="ct-disp ct-ellipsis">{{ it.session.className }}</div>
+                  <div class="ct-dim ct-ellipsis">{{ it.place }}</div>
+                </div>
+              } @empty {
+                <div class="ct-dim">—</div>
+              }
+            </div>
+          }
+        </div>
+      </section>
+    }
+  }
+</div>
+
+@if (editing(); as target) {
+  <ct-location-form-modal [location]="target === 'new' ? null : target" (closed)="editing.set(null)" (saved)="onSaved($event)" />
+}
+@if (archiving(); as l) {
+  <ct-archive-location-modal [location]="l" (closed)="archiving.set(null)" (archived)="archiving.set(null)" />
+}
+@if (editingCourt(); as ec) {
+  <ct-court-form-modal [location]="ec.location" [court]="ec.court" (closed)="editingCourt.set(null)" />
+}

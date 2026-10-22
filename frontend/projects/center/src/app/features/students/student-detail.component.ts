@@ -9,6 +9,7 @@ import { holdsSeat, invoiceDisplayStatus } from '../../domain/enrollment';
 import { attendanceRate, tallyAttendance } from '../../domain/metrics';
 import { formatBRL } from '../../domain/money';
 import { ENROLLMENT_STATUS, INVOICE_STATUS, STUDENT_STATUS, type AttendanceMark, type Enrollment, type Student, type StudentStatus } from '../../domain/models';
+import { placeLabel } from '../../domain/locations';
 import { weekdaysLabel } from '../../domain/schedule';
 import { IconComponent } from '../../ui/icon.component';
 import { AuditTrailComponent, BannerComponent, ModalComponent, PageHeaderComponent, PersonComponent, SegmentedComponent, ToggleComponent, type AuditRow } from '../../ui/kit';
@@ -209,7 +210,7 @@ export class StudentDetailComponent {
 
   protected schedule(e: Enrollment): string {
     const c = this.store.classById(e.classId);
-    return c ? `${weekdaysLabel(c.weekdays)} ${c.startTime} · ${c.courtName || 'sem quadra'}` : '—';
+    return c ? `${weekdaysLabel(c.weekdays)} ${c.startTime} · ${placeLabel(c)}` : '—';
   }
 
   protected coach(e: Enrollment): string {

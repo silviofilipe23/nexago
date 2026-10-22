@@ -21,8 +21,15 @@
     } @else if (scope() === 'court') {
       <select class="ct-input sel" aria-label="Quadra" [value]="courtFilter()" (change)="courtFilter.set(value($event))">
         <option value="" [selected]="!courtFilter()">Todas as quadras</option>
-        @for (q of store.courts(); track q.id) {
-          <option [value]="q.id" [selected]="q.id === courtFilter()">{{ q.name }}</option>
+        @for (q of courtOptions(); track q.id) {
+          <option [value]="q.id" [selected]="q.id === courtFilter()">{{ q.label }}</option>
+        }
+      </select>
+    } @else if (scope() === 'location') {
+      <select class="ct-input sel" aria-label="Local" [value]="locationFilter()" (change)="locationFilter.set(value($event))">
+        <option value="" [selected]="!locationFilter()">Todos os locais</option>
+        @for (l of store.locations(); track l.id) {
+          <option [value]="l.id" [selected]="l.id === locationFilter()">{{ l.name }}{{ l.status === 'archived' ? ' (arquivado)' : '' }}</option>
         }
       </select>
     }
@@ -73,13 +80,13 @@
                   [style.left]="b.left"
                   [style.width]="b.width"
                   [style.--c]="b.item.color"
-                  [title]="b.item.title + ' · ' + b.item.startTime + ' · ' + (b.item.coachName || 'sem professor') + ' · ' + (b.item.courtName || 'sem quadra')"
+                  [title]="b.item.title + ' · ' + b.item.startTime + ' · ' + (b.item.coachName || 'sem professor') + ' · ' + b.item.place"
                   (click)="open(b.item)"
                 >
                   <span class="t">{{ b.item.startTime }}{{ blockLabel(b.item) }}</span>
                   <span class="n">{{ b.item.title }}</span>
                   @if (b.heightPx > 44) {
-                    <span class="s">{{ b.item.coachName }} · {{ b.item.courtName }}</span>
+                    <span class="s">{{ b.item.coachName }} · {{ b.item.place }}</span>
                   }
                 </button>
               }

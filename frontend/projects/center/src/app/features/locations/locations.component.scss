@@ -1,0 +1,36 @@
+.page { padding: 20px var(--ct-gutter) 26px; display: flex; flex-direction: column; gap: 16px; }
+.empty-cta { margin-top: 12px; }
+.toolbar { display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); grid-auto-rows: min-content; gap: 14px; }
+.loc {
+  padding: 16px; border-radius: var(--nx-r-4); background: var(--nx-surface-0); border: 1px solid var(--nx-line);
+  text-align: left; font: inherit; color: inherit; cursor: pointer; width: 100%; min-width: 0;
+}
+.loc:hover { border-color: var(--nx-line-strong); }
+.loc.sel { border-color: rgba(255, 106, 26, 0.5); }
+.loc.arch { opacity: 0.55; }
+.tags { gap: 6px; }
+.name { gap: 8px; margin-top: 10px; }
+.name .ct-disp { font-size: 15px; font-weight: 700; }
+.addr { margin-top: 4px; font-size: 12px; }
+.sub { margin-top: 8px; }
+
+.map { margin-top: 2px; text-decoration: none; align-self: flex-start; }
+.kvs { margin-top: 12px; }
+.section { margin-top: 16px; margin-bottom: 6px; }
+.note { margin-top: 10px; line-height: 1.45; }
+.warn { color: var(--nx-pending); }
+.actions { margin-top: 16px; justify-content: flex-end; }
+
+.wlocs { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.wloc { padding: 14px; border-radius: var(--nx-r-4); background: var(--nx-surface-0); border: 1px solid var(--nx-line); border-top: 3px solid; min-width: 0; }
+.wname { font-size: 15px; font-weight: 700; margin: 8px 0 4px; }
+
+.week { display: grid; grid-template-columns: repeat(var(--days, 6), minmax(130px, 1fr)); gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.day { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.slot { padding: 9px 10px; border-radius: 10px; border: 1px solid; min-width: 0; }
+.slot .ct-disp { margin-top: 2px; font-size: 12.5px; font-weight: 600; }
+.slot .ct-dim { margin-top: 2px; font-size: 11px; }
+.time { font-weight: 700; }
+.moved { display: flex; align-items: center; gap: 5px; font-size: 9.5px; }

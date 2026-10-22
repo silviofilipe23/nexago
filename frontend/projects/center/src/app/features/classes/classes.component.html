@@ -24,7 +24,7 @@
       @if (store.programs().length === 0) {
         Antes da primeira turma, cadastre uma modalidade com níveis em “Modalidades e níveis”.
       } @else {
-        Nenhuma turma ainda. A turma é a regra (dias, horário, quadra, professor); as aulas são geradas a partir dela.
+        Nenhuma turma ainda. A turma é a regra (dias, horário, local, professor); as aulas são geradas a partir dela.
         @if (canEdit()) {
           <div style="margin-top: 12px"><button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="open(null)">Criar a primeira turma</button></div>
         }
@@ -41,6 +41,10 @@
           </div>
           <div class="name">{{ x.c.name }}</div>
           <div class="ct-mono rule">{{ x.rule }}</div>
+          <div class="place"><ct-icon name="pin" [size]="13" /><span class="ct-ellipsis">{{ x.place }}</span></div>
+          @if (x.placeWarn) {
+            <div class="warn"><ct-icon name="alert" [size]="12" />{{ x.placeWarn }}</div>
+          }
           <div class="ct-row" style="margin-top: 14px">
             <ct-person class="ct-grow" [name]="x.c.coachName || 'Sem professor'" [colorKey]="x.c.coachUid" [size]="24" />
             <div class="ct-bar bar" [class.full]="x.full"><span [style.width.%]="x.pct"></span></div>

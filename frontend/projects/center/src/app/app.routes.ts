@@ -114,6 +114,13 @@ export const routes: Routes = [
         loadComponent: () => import('./features/reports/reports.component').then((m) => m.ReportsComponent),
       },
       {
+        path: 'locais',
+        title: T('Locais'),
+        canActivate: [areaGuard],
+        data: { area: 'locations' },
+        loadComponent: () => import('./features/locations/locations.component').then((m) => m.LocationsComponent),
+      },
+      {
         path: 'modalidades',
         title: T('Modalidades e níveis'),
         canActivate: [areaGuard],

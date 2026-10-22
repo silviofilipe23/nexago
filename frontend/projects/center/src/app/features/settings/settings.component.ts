@@ -169,6 +169,14 @@ export class SettingsComponent {
   });
 
   protected readonly seesEnrollments = computed(() => this.ctx.has('view_enrollments') || this.ctx.has('enroll_students'));
+  /** "4 quadras em 1 local próprio" — a gestão de quadras mudou para Locais. */
+  protected readonly courtsSummary = computed(() => {
+    const own = this.store.locations().filter((l) => l.status === 'active' && l.type === 'own');
+    const n = this.store.courts().filter((c) => own.some((l) => l.id === c.locationId)).length;
+    if (own.length === 0) return 'Nenhum local próprio';
+    return `${n} ${n === 1 ? 'quadra' : 'quadras'} em ${own.length} ${own.length === 1 ? 'local próprio' : 'locais próprios'}`;
+  });
+
   protected readonly activeContracts = computed(() => this.store.enrollments().filter((e) => holdsSeat(e.status)).length);
   protected readonly policyAudit = computed(() => {
     const tz = this.tz();

@@ -10,7 +10,10 @@
   } @else if (!editable()) {
     <div class="ct-box">
       <div class="ct-kv"><span>Professor</span><span>{{ session().coachName || '—' }}</span></div>
-      <div class="ct-kv"><span>Quadra</span><span>{{ session().courtName || '—' }}</span></div>
+      <div class="ct-kv"><span>Local</span><span>{{ place() }}</span></div>
+      @if (session().locationAddress) {
+        <div class="ct-kv"><span>Endereço</span><span>{{ session().locationAddress }}</span></div>
+      }
       <div class="ct-kv"><span>Chamada</span><span>{{ marked() ? marked() + ' marcação(ões)' : 'Não registrada' }}</span></div>
       @if (session().changed) {
         <div class="ct-kv"><span>Alterada</span><span>{{ session().changeReason || 'Sim' }}</span></div>
@@ -28,8 +31,8 @@
       </div>
     </div>
     <div class="ct-row ct-wrap" style="gap: 8px">
-      @for (a of actionOptions; track a.value) {
-        <button type="button" class="ct-chip" [class.active]="action() === a.value" (click)="action.set(a.value); error.set('')">{{ a.label }}</button>
+      @for (a of actionOptions(); track a.value) {
+        <button type="button" class="ct-chip" [class.active]="action() === a.value" (click)="setAction(a.value)">{{ a.label }}</button>
       }
     </div>
 
@@ -51,11 +54,72 @@
         <div class="ct-field">
           <label for="ss-court">Outra quadra</label>
           <select id="ss-court" class="ct-input" [value]="newCourt()" (change)="newCourt.set(value($event))">
-            @for (q of store.courts(); track q.id) {
+            @for (q of sessionCourts(); track q.id) {
               <option [value]="q.id" [selected]="q.id === newCourt()" [disabled]="q.status === 'maintenance'">{{ q.name }}{{ q.status === 'maintenance' ? ' (manutenção)' : '' }}</option>
             }
           </select>
         </div>
+      }
+      @case ('location') {
+        <div class="move">
+          <div class="place">
+            <div class="ct-kick">Local padrão da turma</div>
+            <div class="v">{{ defaultPlace() }}</div>
+            @if (session().changed && place() !== defaultPlace()) {
+              <div class="sub">Hoje em {{ place() }}</div>
+            }
+          </div>
+          <ct-icon class="arrow" name="chevron" [size]="16" />
+          <div class="place to">
+            <div class="ct-kick">Nesta aula</div>
+            <div class="v">{{ targetPlace() }}</div>
+            @if (target(); as loc) {
+              <div class="sub">{{ locationTypes[loc.type].label }}{{ loc.address ? ' · ' + loc.address : '' }}</div>
+            }
+          </div>
+        </div>
+        <div class="ct-form-grid">
+          <div class="ct-field">
+            <label for="ss-loc">Local</label>
+            <select id="ss-loc" class="ct-input" [value]="newLocation()" (change)="setLocation(value($event))">
+              <option value="" [selected]="!newLocation()" disabled>Escolha…</option>
+              @for (l of locationOptions(); track l.id) {
+                <option [value]="l.id" [selected]="l.id === newLocation()">{{ l.name }} · {{ locationTypes[l.type].label }}</option>
+              }
+            </select>
+          </div>
+          @if (target()?.type === 'own') {
+            <div class="ct-field">
+              <label for="ss-loc-court">Quadra</label>
+              <select id="ss-loc-court" class="ct-input" [value]="newLocCourt()" (change)="setLocCourt(value($event))">
+                <option value="" [selected]="!newLocCourt()">Sem quadra fixa</option>
+                @for (q of targetCourts(); track q.id) {
+                  <option [value]="q.id" [selected]="q.id === newLocCourt()">{{ q.name }}</option>
+                }
+              </select>
+            </div>
+          }
+        </div>
+        @if (checks().length) {
+          <div class="ct-box">
+            @for (c of checks(); track c.label) {
+              <div class="check">
+                <ct-icon [class]="c.ok ? 'ok' : 'bad'" [name]="c.ok ? 'check' : 'alert'" [size]="14" />
+                <span class="k">{{ c.label }}</span>
+                <span class="d">{{ c.detail }}</span>
+              </div>
+            }
+          </div>
+        }
+        @if (checksFailed()) {
+          <div class="ct-box yellow">
+            <div class="ct-muted">Há checagens com aviso. A decisão é do gestor: a aula muda mesmo assim se você confirmar.</div>
+            <label class="force">
+              <input type="checkbox" [checked]="force()" (change)="force.set(checked($event))" />
+              Mudar mesmo assim
+            </label>
+          </div>
+        }
       }
     }
 
@@ -74,7 +138,7 @@
         <div class="ct-kv"><span>Créditos</span><span>{{ autoMakeup() ? 'Nenhum consumido · +' + (enrolled() + makeups()) + ' reposições' : 'Nenhum consumido · reposição manual' }}</span></div>
       }
       <div class="ct-kv"><span>Aulas passadas e outras datas</span><span>Não mudam</span></div>
-      <div class="ct-kv"><span>Aviso</span><span>Push para alunos com conta e avisos de aula ligados{{ action() === 'coach' ? ' · e o professor novo' : '' }}</span></div>
+      <div class="ct-kv"><span>Aviso</span><span>Push para alunos com conta e avisos de aula ligados{{ action() === 'coach' ? ' · e o professor novo' : action() === 'location' ? ' · com o novo endereço' : '' }}</span></div>
     </div>
   }
 
@@ -90,7 +154,7 @@
     @if (canEdit() && session().status === 'cancelled' && !isPast()) {
       <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="restore()">{{ busy() ? 'Reabrindo…' : 'Reabrir aula' }}</button>
     } @else if (editable() && session().status !== 'cancelled') {
-      <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy() || !!clash()" (click)="submit()">{{ busy() ? 'Salvando…' : primaryLabel() }}</button>
+      <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy() || !!clash() || (action() === 'location' && checksFailed() && !force())" (click)="submit()">{{ busy() ? 'Salvando…' : primaryLabel() }}</button>
     }
   </div>
 </ct-modal>

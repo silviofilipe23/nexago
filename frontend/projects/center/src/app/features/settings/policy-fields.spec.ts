@@ -29,4 +29,9 @@ describe('policy-fields', () => {
     expect(policiesError(applyNumber(DEFAULT_POLICIES, 'pauseMaxDaysPerYear', '400'))).not.toBeNull();
     expect(policiesError(applyNumber(DEFAULT_POLICIES, 'excusedNoticeHours', '0'))).toBeNull();
   });
+
+  it('travelBufferMinutes aceita 0 (sem aviso) até 240 min', () => {
+    expect(policiesError(applyNumber(DEFAULT_POLICIES, 'travelBufferMinutes', '0'))).toBeNull();
+    expect(policiesError(applyNumber(DEFAULT_POLICIES, 'travelBufferMinutes', '241'))).toContain('locais diferentes');
+  });
 });

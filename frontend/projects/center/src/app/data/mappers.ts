@@ -5,6 +5,7 @@ import {
   type AttendanceMark,
   type AuditEntry,
   type CenterInvite,
+  type CenterLocation,
   type CenterMember,
   type CenterPolicies,
   type ClassSession,
@@ -181,9 +182,39 @@ export function readProgram(id: string, d: Data): Program {
   };
 }
 
+export function readLocation(id: string, d: Data): CenterLocation {
+  const type = str(d, 'type');
+  const windows = Array.isArray(d['windows'])
+    ? (d['windows'] as unknown[])
+        .filter((x): x is Data => !!x && typeof x === 'object')
+        .map((w) => ({
+          weekdays: (Array.isArray(w['weekdays']) ? w['weekdays'] : []).filter(
+            (x: unknown): x is Weekday => typeof x === 'number' && x >= 0 && x <= 6,
+          ),
+          start: str(w, 'start', '00:00'),
+          end: str(w, 'end', '23:59'),
+        }))
+    : [];
+  return {
+    id,
+    name: str(d, 'name', 'Local'),
+    type: type === 'partner' || type === 'adhoc' ? type : 'own',
+    address: str(d, 'address'),
+    notes: str(d, 'notes'),
+    isPrimary: bool(d, 'isPrimary'),
+    status: str(d, 'status') === 'archived' ? 'archived' : 'active',
+    windows,
+    courtsLabel: str(d, 'courtsLabel'),
+    contactName: str(d, 'contactName'),
+    contactPhone: str(d, 'contactPhone'),
+    archivedAt: date(d['archivedAt']),
+  };
+}
+
 export function readCourt(id: string, d: Data): Court {
   return {
     id,
+    locationId: str(d, 'locationId'),
     name: str(d, 'name', 'Quadra'),
     description: str(d, 'description'),
     status: str(d, 'status') === 'maintenance' ? 'maintenance' : 'active',
@@ -206,6 +237,8 @@ export function readClass(id: string, d: Data): TrainingClass {
     weekdays,
     startTime: str(d, 'startTime', '08:00'),
     durationMin: num(d, 'durationMin', 60),
+    locationId: str(d, 'locationId'),
+    locationName: str(d, 'locationName'),
     courtId: str(d, 'courtId'),
     courtName: str(d, 'courtName'),
     capacity: num(d, 'capacity', 1),
@@ -237,6 +270,9 @@ export function readSession(id: string, d: Data): ClassSession {
     durationMin: num(d, 'durationMin', 60),
     coachUid: str(d, 'coachUid'),
     coachName: str(d, 'coachName'),
+    locationId: str(d, 'locationId'),
+    locationName: str(d, 'locationName'),
+    locationAddress: str(d, 'locationAddress'),
     courtId: str(d, 'courtId'),
     courtName: str(d, 'courtName'),
     status: status === 'cancelled' || status === 'done' ? status : 'scheduled',

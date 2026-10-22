@@ -66,6 +66,8 @@ function cls(p: Partial<TrainingClass>): TrainingClass {
     weekdays: [1],
     startTime: '08:00',
     durationMin: 60,
+    locationId: '',
+    locationName: '',
     courtId: '',
     courtName: '',
     capacity: 8,

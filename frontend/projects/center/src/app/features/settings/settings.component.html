@@ -192,29 +192,17 @@
         <section class="ct-card">
           <div class="ct-card-head">
             <div class="ct-grow">
-              <div class="ct-kick">{{ store.courts().length }} {{ store.courts().length === 1 ? 'quadra' : 'quadras' }}</div>
-              <div class="ct-card-title">Quadras e recursos</div>
+              <div class="ct-kick">{{ courtsSummary() }}</div>
+              <div class="ct-card-title">Quadras ficam em Locais</div>
             </div>
-            @if (ctx.can('programs')) {
-              <a class="ct-mini-btn" [routerLink]="['/centro', centerId(), 'modalidades']">Gerenciar quadras</a>
+            @if (ctx.can('locations')) {
+              <a class="ct-mini-btn" [routerLink]="['/centro', centerId(), 'locais']">Abrir Locais</a>
             }
           </div>
-          <p class="ct-muted">Quadras são cadastradas junto com as modalidades e níveis, em <strong>Modalidades e níveis</strong>.</p>
-          <div style="margin-top: 10px">
-            @for (q of store.courts(); track q.id) {
-              <div class="ct-list-row">
-                <span class="ct-grow">
-                  <span class="ct-disp">{{ q.name }}</span>
-                  @if (q.description) {
-                    <span class="ct-dim" style="display: block">{{ q.description }}</span>
-                  }
-                </span>
-                <span class="ct-pill" [class]="q.status === 'active' ? 'ct-pill green' : 'ct-pill yellow'">{{ q.status === 'active' ? 'Ativa' : 'Manutenção' }}</span>
-              </div>
-            } @empty {
-              <div class="ct-dim">Nenhuma quadra cadastrada.</div>
-            }
-          </div>
+          <p class="ct-muted">
+            Cada quadra pertence a um local próprio (sede). Cadastre, edite e acompanhe a ocupação no painel do local, em <strong>Locais</strong>.
+            Arenas parceiras não têm quadras gerenciadas: valem a janela contratada e as quadras informadas no cadastro do local.
+          </p>
         </section>
       }
 

@@ -33,6 +33,26 @@ export function todayState(s: Pick<ClassSession, 'status' | 'startTime' | 'durat
   return now < start + s.durationMin ? 'live' : 'missed';
 }
 
+/**
+ * Troca de local do professor entre aulas do mesmo dia (CT itinerante): para cada aula, o local
+ * da aula anterior DELE quando é outro. Aula cancelada não conta como origem nem destino.
+ */
+export function coachLocationHops(
+  sessions: readonly Pick<ClassSession, 'id' | 'coachUid' | 'startTime' | 'locationId' | 'locationName' | 'status'>[],
+): Map<string, string> {
+  const out = new Map<string, string>();
+  const last = new Map<string, { locationId: string; locationName: string }>();
+  const sorted = sessions.filter((s) => s.status !== 'cancelled' && s.coachUid).sort((a, b) => a.startTime.localeCompare(b.startTime));
+  for (const s of sorted) {
+    const prev = last.get(s.coachUid);
+    if (prev && prev.locationId && s.locationId && prev.locationId !== s.locationId) {
+      out.set(s.id, prev.locationName);
+    }
+    last.set(s.coachUid, { locationId: s.locationId, locationName: s.locationName });
+  }
+  return out;
+}
+
 /** Texto da coluna "Alunos": presença quando houve chamada; senão vagas ocupadas. */
 export function todayHeadcount(s: Pick<ClassSession, 'status' | 'attendance' | 'makeupStudentIds'>, cls: Pick<TrainingClass, 'capacity' | 'seatsTaken'> | undefined): string {
   const marks = Object.values(s.attendance);

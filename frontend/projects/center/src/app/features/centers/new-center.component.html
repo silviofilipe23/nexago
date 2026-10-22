@@ -65,6 +65,28 @@
 
       <section class="ct-card ct-col">
         <div>
+          <div class="ct-kick">Onde as aulas acontecem</div>
+          <div class="ct-dim">Dá para cadastrar outros locais (próprios, arenas parceiras ou avulsos) depois, em Locais.</div>
+        </div>
+        <div class="ct-form-grid">
+          <button type="button" class="ct-option" [class.on]="hasHq()" [attr.aria-pressed]="hasHq()" (click)="hasHq.set(true)">
+            <strong>Sede própria</strong><span>O centro tem um espaço com quadras</span>
+          </button>
+          <button type="button" class="ct-option" [class.on]="!hasHq()" [attr.aria-pressed]="!hasHq()" (click)="hasHq.set(false)">
+            <strong>Itinerante</strong><span>Sem sede: dá aula em arenas parceiras</span>
+          </button>
+        </div>
+        @if (hasHq()) {
+          <div class="ct-field">
+            <label for="nc-hq">Nome da sede</label>
+            <input id="nc-hq" class="ct-input" [value]="hqName()" (input)="hqName.set(value($event))" placeholder="Sede Barra" />
+            <span class="ct-dim">Usa o endereço informado acima.</span>
+          </div>
+        }
+      </section>
+
+      <section class="ct-card ct-col">
+        <div>
           <div class="ct-kick">Modalidades</div>
           <div class="ct-dim">Cada uma nasce com os níveis Iniciante, Intermediário e Avançado — dá para editar depois.</div>
         </div>

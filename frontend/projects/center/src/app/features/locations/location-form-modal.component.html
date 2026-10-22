@@ -1,0 +1,72 @@
+<ct-modal kicker="Locais" [title]="location() ? 'Editar local' : 'Novo local'" [width]="600" (closed)="closed.emit()">
+  <div class="ct-field">
+    <span class="ct-label">Tipo</span>
+    <div class="types">
+      @for (t of types; track t.value) {
+        <button type="button" class="ct-option" [class.on]="type() === t.value" (click)="type.set(t.value)">
+          <strong>{{ t.label }}</strong><span>{{ t.hint }}</span>
+        </button>
+      }
+    </div>
+  </div>
+  <div class="ct-field">
+    <label for="lf-name">Nome</label>
+    <input id="lf-name" class="ct-input" placeholder="Ex.: Arena Pepê" [value]="name()" (input)="name.set(value($event))" />
+  </div>
+  <div class="ct-field">
+    <label for="lf-addr">Endereço</label>
+    <input id="lf-addr" class="ct-input" placeholder="Rua, número · bairro, cidade" [value]="address()" (input)="address.set(value($event))" />
+  </div>
+
+  @if (type() === 'partner') {
+    <div class="ct-field">
+      <span class="ct-label">Janelas contratadas</span>
+      @for (w of windows(); track $index; let i = $index) {
+        <div class="win">
+          <div class="days">
+            @for (d of week; track d.value) {
+              <button type="button" class="ct-day" [class.on]="w.weekdays.includes(d.value)" [attr.aria-pressed]="w.weekdays.includes(d.value)" (click)="toggleDay(i, d.value)">{{ d.label }}</button>
+            }
+          </div>
+          <div class="ct-row">
+            <input class="ct-input mono ct-grow" placeholder="18:00–22:00" [attr.aria-label]="'Horário da janela ' + (i + 1)" [value]="w.times" (input)="setTimes(i, value($event))" />
+            <button type="button" class="ct-mini-btn danger" [attr.aria-label]="'Remover janela ' + (i + 1)" (click)="removeWindow(i)"><ct-icon name="trash" [size]="13" /></button>
+          </div>
+        </div>
+      } @empty {
+        <div class="ct-dim">Sem janela: o horário das turmas não é verificado neste parceiro.</div>
+      }
+      <div><button type="button" class="ct-ghost-btn" (click)="addWindow()"><ct-icon name="plus" [size]="13" />Adicionar janela</button></div>
+    </div>
+    <div class="ct-field">
+      <label for="lf-courts">Quadras disponíveis</label>
+      <input id="lf-courts" class="ct-input" placeholder="Ex.: A, B · areia" [value]="courtsLabel()" (input)="courtsLabel.set(value($event))" />
+    </div>
+    <div class="ct-form-grid">
+      <div class="ct-field">
+        <label for="lf-cname">Contato da arena</label>
+        <input id="lf-cname" class="ct-input" placeholder="Nome" [value]="contactName()" (input)="contactName.set(value($event))" />
+      </div>
+      <div class="ct-field">
+        <label for="lf-cphone">Telefone</label>
+        <input id="lf-cphone" class="ct-input mono" type="tel" placeholder="(21) 99999-0000" [value]="contactPhone()" (input)="contactPhone.set(value($event))" />
+      </div>
+    </div>
+  }
+
+  <div class="ct-field">
+    <label for="lf-notes">Notas para alunos</label>
+    <textarea id="lf-notes" class="ct-input" placeholder="Entrada, estacionamento, ponto de encontro" [value]="notes()" (input)="notes.set(value($event))"></textarea>
+  </div>
+  <div class="primary">
+    <ct-toggle [(on)]="isPrimary" label="Local principal do centro" />
+    <span>Local principal do centro (aparece na busca e no perfil público)</span>
+  </div>
+  @if (error()) {
+    <div class="ct-error-text" role="alert">{{ error() }}</div>
+  }
+  <div footer>
+    <button type="button" class="ct-mini-btn" (click)="closed.emit()">Cancelar</button>
+    <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="save()">{{ busy() ? 'Salvando…' : 'Salvar local' }}</button>
+  </div>
+</ct-modal>

@@ -70,6 +70,31 @@ agenda), `students`, `plans`, `enrollments` (com **snapshot do contrato**), `inv
 - Aula cancelada nunca consome crédito; com "reposição automática" cada matriculado ganha +1.
 - Datas sempre como parede no fuso do centro (`domain/dates.ts`).
 
+## Locais (fixo e itinerante)
+
+Protótipo: seção "Locais · fixo e itinerante" (L1–L5 web; L6–L7 são do app).
+
+- `locations/{id}`: `type` próprio (o CT administra o espaço; quadras em `courts.locationId`),
+  parceiro (arena de terceiros, `windows` = janela contratada, `courtsLabel`, contato) ou avulso
+  (só endereço); `isPrimary` (um só); `status` active|archived — **nunca excluído** (rule nega
+  delete): aula passada continua mostrando onde foi.
+- Turma: `locationId/locationName` = local padrão (+ quadra só em local próprio). Aula copia o
+  local e o endereço (`locationAddress`) na geração e pode trocar **só na data** (L3), com
+  checagens de janela do parceiro, quadra livre, agenda e deslocamento do professor.
+- Conflitos de turma: além de professor/quadra, `window` (fora da janela contratada) e `travel`
+  (mesmo professor em outro local sem a folga `policies.travelBufferMinutes`, padrão 30 min —
+  intervalo fixo em vez de distância real, que exigiria serviço de mapas).
+- Arquivar (L4): mover turmas e aulas futuras para outro local (as da próxima semana ficam
+  "alteradas" e avisam os alunos), manter as já marcadas, ou cancelar as futuras com reposição
+  (só quando nenhuma turma usa o local como padrão).
+- Centro novo escolhe "Sede própria" (vira o local principal) ou "Itinerante" (sem local
+  próprio; a tela de Locais mostra a semana por local, L5).
+- Migração: centro de antes dos locais (quadras sem `locationId`) ganha a "Sede" (id fixo
+  `sede`, principal) com quadras, turmas e aulas futuras penduradas — feita pelo primeiro gestor
+  que abre o painel; idempotente.
+- Aviso: aula com local trocado gera push "Local alterado" com o endereço novo.
+- Mapa: link "Abrir no mapa" pelo endereço (sem mapa embutido nem coordenadas por enquanto).
+
 ## Fora do MVP (follow-ups)
 
 - Oferecer a vaga liberada ao próximo da fila automaticamente (hoje a varredura só libera; a

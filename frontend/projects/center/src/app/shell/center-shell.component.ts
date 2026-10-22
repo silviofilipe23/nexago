@@ -1,10 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { CenterContextService } from '../core/center-context.service';
 import { CenterStore } from '../data/center-store.service';
+import { LocationsActions } from '../data/actions/locations.actions';
 import { awaitingTooLong, holdExpired } from '../domain/enrollment';
 import { initialsOf } from '../domain/models';
 import { canAccessArea, ROLE_LABELS } from '../domain/roles';
@@ -82,8 +83,25 @@ export class CenterShellComponent {
 
   protected readonly otherCenters = computed(() => this.ctx.activeMemberships());
 
+  private readonly locations = inject(LocationsActions);
+  private migratedFor = '';
+
   constructor() {
     effect(() => this.ctx.activeCenterId.set(this.centerId()));
+    // Centro de antes dos locais: o gestor que abrir o painel pendura quadras/turmas numa "Sede".
+    effect(() => {
+      const id = this.centerId();
+      const ready =
+        this.ctx.isManager() &&
+        this.ctx.canWrite() &&
+        this.store.loaded.locations() &&
+        this.store.loaded.courts() &&
+        this.store.loaded.classes() &&
+        this.store.loaded.sessions();
+      if (!ready || this.migratedFor === id) return;
+      this.migratedFor = id;
+      untracked(() => void this.locations.migrateLegacy().catch((e) => console.warn('[locais] migração', e)));
+    });
     this.router.events
       .pipe(
         filter((e) => e instanceof NavigationEnd),

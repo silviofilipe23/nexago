@@ -1,10 +1,10 @@
 import type { CenterInvite, ClassSession, Enrollment, Invoice, TrainingClass } from '../../domain/models';
-import { buildPendencies, todayHeadcount, todayState } from './dashboard.utils';
+import { buildPendencies, coachLocationHops, todayHeadcount, todayState } from './dashboard.utils';
 
 function session(over: Partial<ClassSession> = {}): ClassSession {
   return {
     id: 's1', classId: 'c1', className: 'BT A', programId: 'p', date: '2026-10-22', startTime: '18:00', durationMin: 60,
-    coachUid: 'u', coachName: 'Tiago M', courtId: 'q', courtName: 'Quadra 1', status: 'scheduled', changed: false,
+    coachUid: 'u', coachName: 'Tiago M', locationId: '', locationName: '', locationAddress: '', courtId: 'q', courtName: 'Quadra 1', status: 'scheduled', changed: false,
     changeReason: '', attendance: {}, makeupStudentIds: [], finalizedAt: null, finalizedByName: '', attendanceLog: [], effectsApplied: {}, ...over,
   };
 }
@@ -19,6 +19,18 @@ describe('dashboard.utils', () => {
     expect(todayState(session(), '19:00')).toBe('missed');
     expect(todayState(session({ status: 'done' }), '10:00')).toBe('done');
     expect(todayState(session({ status: 'cancelled' }), '18:30')).toBe('cancelled');
+  });
+
+  it('coachLocationHops marca a troca de local do mesmo professor', () => {
+    const hops = coachLocationHops([
+      session({ id: 'c', startTime: '10:00', locationId: 'b', locationName: 'Rio Beach' }),
+      session({ id: 'a', startTime: '07:00', locationId: 'a', locationName: 'Arena Pepê' }),
+      session({ id: 'b', startTime: '08:00', locationId: 'a', locationName: 'Arena Pepê' }),
+      session({ id: 'x', startTime: '09:00', locationId: 'z', locationName: 'Longe', status: 'cancelled' }),
+      session({ id: 'o', startTime: '11:00', coachUid: 'outro', locationId: 'c', locationName: 'C' }),
+      session({ id: 'l', startTime: '12:00', locationId: '', locationName: '' }),
+    ]);
+    expect([...hops.entries()]).toEqual([['c', 'Arena Pepê']]);
   });
 
   it('todayHeadcount usa presença só com chamada feita', () => {

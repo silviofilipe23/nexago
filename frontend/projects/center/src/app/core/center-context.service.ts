@@ -69,6 +69,8 @@ export class CenterContextService {
   /** Escritas operacionais liberadas (centro não suspenso). */
   readonly canWrite = computed(() => this.centerState() != null && !this.isSuspended());
   readonly isManager = computed(() => isManager(this.me()));
+  /** Dono do centro — só ele mexe na conta que recebe o dinheiro. */
+  readonly isOwner = computed(() => this.me()?.status === 'active' && this.me()?.role === 'center_owner');
 
   /** Último centro usado (pra cair direto nele depois do login). */
   readonly lastCenterId = computed(() => {

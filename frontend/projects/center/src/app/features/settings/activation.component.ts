@@ -17,6 +17,7 @@ const STEP_LINK: Partial<Record<ActivationStep['key'], { path: string; aba?: str
   data: { path: 'configuracoes', aba: 'dados' },
   programs: { path: 'modalidades' },
   policies: { path: 'configuracoes', aba: 'politicas' },
+  receiving: { path: 'configuracoes', aba: 'recebimento' },
 };
 
 @Component({
@@ -60,7 +61,7 @@ export class ActivationComponent {
   });
   protected readonly doneCount = computed(() => this.steps().filter((s) => s.state === 'done').length);
   protected readonly remaining = computed(() => this.steps().length - this.doneCount());
-  /** Os 4 primeiros passos são do owner; os outros dependem do time NexaGO. */
+  /** Os 4 primeiros passos são do owner; recebimento ele cria e o Asaas aprova; a assinatura é do time NexaGO. */
   protected readonly ownerStepsDone = computed(() => this.steps().slice(0, 4).every((s) => s.state === 'done'));
   protected readonly ownerVerified = computed(() => this.auth.emailVerified());
 

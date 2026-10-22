@@ -12,14 +12,16 @@ import { AuditTrailComponent, BannerComponent, PageHeaderComponent, SegmentedCom
 import { applyChoice, applyNumber, changedPolicies, choiceValue, policiesError, POLICY_ROWS } from './policy-fields';
 import { BillingSettingsComponent } from './billing-settings.component';
 import { NotificationSettingsComponent } from './notification-settings.component';
+import { ReceivingAccountComponent } from './receiving-account.component';
 import { SubscriptionCardComponent } from './subscription-card.component';
 
-type Tab = 'dados' | 'politicas' | 'cobranca' | 'quadras' | 'notificacoes' | 'assinatura';
+type Tab = 'dados' | 'politicas' | 'cobranca' | 'recebimento' | 'quadras' | 'notificacoes' | 'assinatura';
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'dados', label: 'Dados do centro' },
   { value: 'politicas', label: 'Políticas comerciais' },
   { value: 'cobranca', label: 'Cobrança recorrente' },
+  { value: 'recebimento', label: 'Conta de recebimento' },
   { value: 'quadras', label: 'Quadras' },
   { value: 'notificacoes', label: 'Notificações' },
   { value: 'assinatura', label: 'Assinatura NexaGO' },
@@ -65,7 +67,7 @@ function profileOf(c: TrainingCenter): CenterProfilePatch {
 @Component({
   selector: 'ct-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, PageHeaderComponent, SegmentedComponent, BannerComponent, AuditTrailComponent, SubscriptionCardComponent, BillingSettingsComponent, NotificationSettingsComponent],
+  imports: [ReactiveFormsModule, RouterLink, PageHeaderComponent, SegmentedComponent, BannerComponent, AuditTrailComponent, SubscriptionCardComponent, BillingSettingsComponent, NotificationSettingsComponent, ReceivingAccountComponent],
   templateUrl: './settings.component.html',
   styles: `
     .body { padding: 20px var(--ct-gutter) 26px; display: flex; flex-direction: column; gap: 16px; }

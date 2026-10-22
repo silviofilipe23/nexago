@@ -4128,6 +4128,13 @@ service cloud.firestore {
           );
       }
 
+      // Conta de recebimento (subconta Asaas): situação e documentos pendentes. Só o servidor grava
+      // (training-center-receiving.ts); owner e admin leem — o professor e a recepção não.
+      match /receivingAccount/{docId} {
+        allow read: if ctIsManager();
+        allow write: if false;
+      }
+
       // Resumo da rodada diária da cobrança: só o servidor grava.
       match /billingRuns/{day} {
         allow read: if ctHasPerm('view_finance');

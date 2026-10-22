@@ -94,6 +94,8 @@ export interface TrainingCenter {
   notifications: NotificationSettings;
   /** Passos de ativação que dependem de terceiros (marcados pelo backoffice). */
   receivingConnected: boolean;
+  /** Situação da conta de recebimento criada pelo centro (o servidor grava). */
+  receivingStatus: ReceivingStatus;
   subscription: CenterSubscription | null;
   activationRequestedAt: Date | null;
   createdAt: Date | null;
@@ -639,3 +641,42 @@ export interface BillingRun {
   summary: BillingRunSummary;
   items: BillingRunItem[];
 }
+
+export type ReceivingStatus = 'none' | 'creating' | 'failed' | 'pending' | 'approved' | 'rejected';
+
+export const RECEIVING_STATUS: Record<ReceivingStatus, [string, string]> = {
+  none: ['Não criada', 'dim'],
+  creating: ['Criando', 'yellow'],
+  failed: ['Não criada', 'red'],
+  pending: ['Em análise', 'yellow'],
+  approved: ['Ativa', 'green'],
+  rejected: ['Recusada', 'red'],
+};
+
+export interface ReceivingDocument {
+  title: string;
+  status: string;
+  url: string;
+}
+
+/** `receivingAccount/current` — o que owner/admin veem da subconta Asaas. */
+export interface ReceivingAccount {
+  status: ReceivingStatus;
+  /** `self` = criada pelo centro; `manual` = conectada pelo time NexaGO. */
+  source: 'self' | 'manual';
+  personType: 'company' | 'person';
+  name: string;
+  email: string;
+  document: string;
+  documents: ReceivingDocument[];
+  createdAt: Date | null;
+  createdByName: string;
+  statusCheckedAt: Date | null;
+}
+
+export const COMPANY_TYPES: { value: string; label: string }[] = [
+  { value: 'MEI', label: 'MEI' },
+  { value: 'LIMITED', label: 'Sociedade limitada (LTDA)' },
+  { value: 'INDIVIDUAL', label: 'Empresário individual' },
+  { value: 'ASSOCIATION', label: 'Associação' },
+];

@@ -110,6 +110,15 @@ export interface ActivationStep {
  * "Recebimento" e "Assinatura" dependem do backoffice NexaGO (conta do provedor e contrato
  * SaaS), por isso o owner só consegue SOLICITAR a ativação.
  */
+const RECEIVING_STEP_DETAIL: Partial<Record<TrainingCenter['receivingStatus'], string>> = {
+  none: 'Criar a conta de recebimento do centro (Asaas)',
+  failed: 'A criação da conta não foi concluída · tentar de novo',
+  creating: 'Criando a conta no Asaas',
+  pending: 'Em análise no Asaas · envie os documentos pedidos',
+  rejected: 'Conta recusada pelo Asaas · fale com o time NexaGO',
+  approved: 'Conta de recebimento ativa',
+};
+
 export function activationSteps(
   center: TrainingCenter,
   counts: { programs: number },
@@ -120,7 +129,7 @@ export function activationSteps(
     { key: 'owner', title: 'Responsável principal', detail: `${center.ownerName} · Owner` },
     { key: 'programs', title: 'Modalidades', detail: 'Pelo menos uma modalidade com níveis' },
     { key: 'policies', title: 'Políticas comerciais', detail: 'Ativação, faltas, reposição e cancelamento' },
-    { key: 'receiving', title: 'Recebimento', detail: 'Conta de recebimento do centro' },
+    { key: 'receiving', title: 'Recebimento', detail: RECEIVING_STEP_DETAIL[center.receivingStatus] ?? 'Conta de recebimento do centro' },
     { key: 'subscription', title: 'Assinatura NexaGO', detail: 'Plano do centro · liberado pelo time NexaGO' },
   ];
   const done: Record<ActivationStep['key'], boolean> = {

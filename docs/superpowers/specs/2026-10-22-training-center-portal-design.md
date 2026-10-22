@@ -135,12 +135,22 @@ Protótipo: seção "Locais · fixo e itinerante" (L1–L5 web; L6–L7 são do 
 - Só push. E-mail, WhatsApp, edição de texto, crédito de reposição vencendo e resumo diário ficam
   "em breve" na tela.
 
+## Conta de recebimento (subconta Asaas pelo próprio centro)
+
+- Configurações › Conta de recebimento: o OWNER cria a subconta Asaas (CNPJ com tipo de empresa,
+  ou CPF de quem toca o centro) pela callable `createTrainingCenterReceivingAccount`. O `walletId` vai
+  para `trainingCenterReceiving/{c}` (só servidor) e a `apiKey` da subconta, cifrada com
+  `PROFESSOR_SECRETS_KEY`, para `trainingCenterAsaasSecrets/{c}`.
+- Situação e documentos pendentes (links do Asaas) em `receivingAccount/current` (owner/admin leem) e
+  `receivingStatus` no doc do centro. Consulta pela callable `refreshTrainingCenterReceivingStatus`
+  e pela varredura de hora em hora; aprovada → `receivingConnected` liga sozinho.
+- Conectar conta Asaas que o centro já tem continua só pelo time NexaGO (backoffice/script):
+  `walletId` digitado no portal desviaria o dinheiro.
+
 ## Fora do MVP (follow-ups)
 
 - Oferecer a vaga liberada ao próximo da fila automaticamente (hoje a varredura só libera; a
   oferta segue manual na tela de Matrículas).
-- Onboarding da conta de recebimento pelo próprio centro (subconta Asaas criada pela NexaGO, como
-  a do professor) — hoje o `walletId` entra pelo script.
 - Notificações (push/e-mail) de cancelamento de aula, vaga aberta e convite.
 - Telas do app (G1–G19, P1–P9) e chamada pelo professor no app (a rule já aceita o professor
   marcar presença na própria aula).

@@ -282,6 +282,14 @@ void main() {
           ],
         ),
       );
+      // Começa compacto: dia/hora na linha, sem foco nem botões.
+      expect(find.byKey(const Key('training-next-compact')), findsOneWidget);
+      expect(find.byKey(const Key('training-next-card')), findsNothing);
+      expect(find.text('Amanhã · 19:00'), findsOneWidget);
+      expect(find.text('Flexionar o joelho no saque'), findsNothing);
+
+      await tester.tap(find.byTooltip('Expandir'));
+      await _settle(tester);
       expect(find.byKey(const Key('training-next-card')), findsOneWidget);
       expect(find.text('Amanhã · 19:00'), findsOneWidget);
       expect(find.text('Flexionar o joelho no saque'), findsOneWidget);

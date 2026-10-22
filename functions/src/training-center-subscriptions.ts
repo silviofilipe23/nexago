@@ -65,6 +65,7 @@ const SUBSCRIPTIONS = "subscriptions";
 /** Assinatura que ainda cobra (as outras são histórico). */
 const LIVE = ["active", "past_due", "paused", "canceling"];
 const MAX_NOTICES = 30;
+const STAGE_LABEL = ["Lembrete D−3", "Não pago (D+1)", "Lembrete (D+7)", "Aviso de bloqueio", "Check-in bloqueado", "Suspensão"];
 const MAX_RUN_ITEMS = 200;
 /** Multa de 2% + juros de 1% ao mês (o Asaas soma no pagamento atrasado). */
 const LATE_FEES = {finePercent: 2, interestPercent: 1};
@@ -666,7 +667,7 @@ export async function runCenterBilling(db: Firestore, c: CenterRun, deps: Center
       const debt = await refreshSubscriptionDebt(db, c, doc.id, deps, true);
       if (debt.notified !== null) {
         summary.notices += 1;
-        push({subscriptionId: doc.id, name, kind: "notice", detail: `estágio ${debt.notified}`, cents: 0});
+        push({subscriptionId: doc.id, name, kind: "notice", detail: STAGE_LABEL[debt.notified] ?? `estágio ${debt.notified}`, cents: 0});
       }
       if (debt.blocked && debt.notified === 4) {
         summary.blocked += 1;

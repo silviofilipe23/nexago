@@ -189,22 +189,6 @@ class AthleteHomePage extends ConsumerWidget {
                   padding: EdgeInsets.only(bottom: bottomClearance),
                   sliver: SliverList.list(
                     children: [
-                      // Atalhos logo abaixo do hero: as quatro entradas mais
-                      // usadas (Reservar, Ranking, Treinos e Torneios).
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.screenH,
-                          0,
-                          AppSpacing.screenH,
-                          AppSpacing.sectionGap,
-                        ),
-                        child: AthleteHomeShortcutsGrid(
-                          onReserveTap: () =>
-                              _goToTab(ref, athleteShellReservarTabIndex),
-                          onCompeteTap: () =>
-                              _goToTab(ref, athleteShellCompeteTabIndex),
-                        ),
-                      ),
                       // Convites para jogar numa reserva (recebidos e sem
                       // resposta): o jogo tem hora marcada, então vêm antes
                       // dos convites de dupla.
@@ -310,6 +294,23 @@ class AthleteHomePage extends ConsumerWidget {
                           horizontal: AppSpacing.screenH,
                         ),
                         child: MyTournamentsHomeSection(),
+                      ),
+                      // Atalhos (Reservar, Ranking, Treinos e Torneios) abaixo
+                      // do que é dinâmico — convites, próximo treino e meus
+                      // torneios vêm primeiro.
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.screenH,
+                          0,
+                          AppSpacing.screenH,
+                          AppSpacing.sectionGap,
+                        ),
+                        child: AthleteHomeShortcutsGrid(
+                          onReserveTap: () =>
+                              _goToTab(ref, athleteShellReservarTabIndex),
+                          onCompeteTap: () =>
+                              _goToTab(ref, athleteShellCompeteTabIndex),
+                        ),
                       ),
                       const AthleteHomeFocusButton(),
                       const AthleteHomeFollowingMatchesSection(),

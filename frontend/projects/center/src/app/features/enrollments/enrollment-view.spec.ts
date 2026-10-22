@@ -46,7 +46,7 @@ function inv(p: Partial<Invoice>): Invoice {
     dueDate: '2026-10-05',
     status: 'approved',
     method: 'pix',
-    providerRef: '',
+    providerRef: '', providerUrl: '', providerStatus: '', providerApproved: false,
     events: [],
     approvedAt: null,
     refundedCents: 0,

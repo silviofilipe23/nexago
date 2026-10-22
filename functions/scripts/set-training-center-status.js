@@ -16,6 +16,12 @@
  *   node scripts/set-training-center-status.js --project volley-track-dev-4596c --center <id> --status active --receiving --plan "NexaGO Centro Pro"
  *   node scripts/set-training-center-status.js --project volley-track-dev-4596c --center <id> --status suspended --reason "Assinatura vencida em 10 out" --open-invoice 24900 --due 2026-10-10
  *
+ * Conta de recebimento (cobrança online Pix/cartão pelo Asaas, com split para o centro):
+ *   --wallet-id <walletId Asaas do centro> [--asaas-env production|sandbox] [--fee 5]
+ *     grava `trainingCenterReceiving/{id}` (só servidor) e liga `receivingConnected`.
+ *     `--asaas-env` tem de casar com o ASAAS_ENV das functions (o DEV usa production).
+ *   --disconnect-receiving  desliga `receivingConnected` (as cobranças online param de nascer).
+ *
  * Sem --yes é DRY-RUN.
  */
 
@@ -34,6 +40,10 @@ const reason = argValue("--reason") || "";
 const plan = argValue("--plan");
 const openInvoice = argValue("--open-invoice");
 const due = argValue("--due");
+const walletId = argValue("--wallet-id");
+const asaasEnv = argValue("--asaas-env") || "production";
+const fee = argValue("--fee");
+const disconnect = process.argv.includes("--disconnect-receiving");
 
 if (!projectId) {
   console.error("Informe o projeto: --project <projectId>.");
@@ -81,9 +91,26 @@ async function main() {
     patch.suspendedAt = now;
     patch.suspendedReason = reason;
   }
-  if (process.argv.includes("--receiving")) {
+  if (process.argv.includes("--receiving") || walletId) {
     patch.receivingConnected = true;
   }
+  if (disconnect) {
+    patch.receivingConnected = false;
+  }
+  if (walletId && !["production", "sandbox"].includes(asaasEnv)) {
+    console.error("--asaas-env deve ser production ou sandbox.");
+    process.exit(1);
+  }
+  if (fee !== undefined && !(Number(fee) >= 0 && Number(fee) <= 100)) {
+    console.error("--fee é um percentual entre 0 e 100.");
+    process.exit(1);
+  }
+  const receiving = walletId ? {
+    walletId: walletId.trim(),
+    asaasEnv,
+    ...(fee !== undefined ? {feePercent: Number(fee)} : {}),
+    updatedAt: now,
+  } : null;
   if (plan || openInvoice || due) {
     patch.subscription = {
       ...(current.subscription || {}),
@@ -95,7 +122,11 @@ async function main() {
     };
   }
   console.log(`\n${current.name} (${centerId}) · ${current.status} → ${status}`);
-  console.log(JSON.stringify(patch, (k, v) => (v && v.constructor && v.constructor.name === "ServerTimestampTransform" ? "<serverTimestamp>" : v), 2));
+  const show = (o) => JSON.stringify(o, (k, v) => (v && v.constructor && v.constructor.name === "ServerTimestampTransform" ? "<serverTimestamp>" : v), 2);
+  console.log(show(patch));
+  if (receiving) {
+    console.log(`trainingCenterReceiving/${centerId}:`, show(receiving));
+  }
   if (!APPLY) {
     console.log("\nDRY-RUN. Rode de novo com --yes para gravar.");
     return;
@@ -103,6 +134,9 @@ async function main() {
   const audit = ref.collection("auditLogs").doc();
   const batch = db.batch();
   batch.update(ref, patch);
+  if (receiving) {
+    batch.set(db.collection("trainingCenterReceiving").doc(centerId), receiving, {merge: true});
+  }
   batch.set(audit, {
     at: now,
     actorUid: "system",
@@ -110,7 +144,8 @@ async function main() {
     action: `center.${status}`,
     entity: "center",
     entityId: centerId,
-    detail: `Situação do centro: ${current.status} → ${status}`,
+    detail: `Situação do centro: ${current.status} → ${status}` +
+      (receiving ? " · conta de recebimento conectada" : disconnect ? " · conta de recebimento desligada" : ""),
     reason,
   });
   await batch.commit();

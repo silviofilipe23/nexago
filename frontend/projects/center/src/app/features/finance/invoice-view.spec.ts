@@ -12,7 +12,7 @@ function inv(p: Partial<Invoice>): Invoice {
     dueDate: '2026-10-05',
     status: 'pending',
     method: null,
-    providerRef: '',
+    providerRef: '', providerUrl: '', providerStatus: '', providerApproved: false,
     events: [],
     approvedAt: null,
     refundedCents: 0,
@@ -38,10 +38,15 @@ describe('invoice-view', () => {
     });
     expect(invoiceDetail(inv({ dueDate: '2026-10-30', createdAt: new Date('2026-10-22T14:30:00Z') }), today, now).warn).toBeFalse();
     expect(invoiceDetail(inv({ status: 'approved', method: 'pix' }), today, now).text).toBe('Pix · confirmação manual');
-    expect(invoiceDetail(inv({ status: 'approved', method: 'card', providerRef: 'mp_1', refundedCents: 9000 }), today, now).text).toBe(
+    expect(invoiceDetail(inv({ status: 'approved', method: 'card', providerRef: 'mp_1', providerApproved: true, refundedCents: 9000 }), today, now).text).toBe(
       'Cartão · mp_1 · estorno parcial R$ 90',
     );
     expect(invoiceDetail(inv({ status: 'refunded', refundedCents: 32000 }), today, now).text).toBe('Estorno R$ 320');
+    // Fatura gerada no provedor mas baixada à mão continua "confirmação manual".
+    expect(invoiceDetail(inv({ status: 'approved', method: 'pix', providerRef: 'pay_1' }), today, now).text).toBe('Pix · confirmação manual');
+    expect(invoiceDetail(inv({ dueDate: '2026-10-30', providerRef: 'pay_1', createdAt: new Date('2026-10-22T14:30:00Z') }), today, now).text).toBe(
+      'Pix/cartão gerado · aguardando o aluno pagar',
+    );
   });
 
   it('conta por situação exibida (pendente vencida = vencido)', () => {

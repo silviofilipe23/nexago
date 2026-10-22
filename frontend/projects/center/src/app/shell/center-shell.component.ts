@@ -65,6 +65,9 @@ export class CenterShellComponent {
       return 'loading';
     }
     const m = this.me();
+    if (!m && this.ctx.membershipsError()) {
+      return 'error';
+    }
     if (!m) {
       return 'no-member';
     }

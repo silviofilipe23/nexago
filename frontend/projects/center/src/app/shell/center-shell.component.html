@@ -2,7 +2,15 @@
   @case ('loading') {
     <div class="state"><span class="ct-spinner light" aria-hidden="true"></span><span class="ct-dim">Carregando o centro…</span></div>
   }
-  @case ('no-member') {
+  @case ('error') {
+    <div class="state">
+      <div class="ct-kick">Não deu para abrir agora</div>
+      <h1>Não conseguimos carregar seus centros</h1>
+      <p>{{ ctx.membershipsError() }}</p>
+      <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="ctx.retry()">Tentar de novo</button>
+    </div>
+  }
+    @case ('no-member') {
     <div class="state">
       <div class="lock"><ct-icon name="shield" [size]="28" /></div>
       <div class="ct-kick red">Acesso negado · 403</div>

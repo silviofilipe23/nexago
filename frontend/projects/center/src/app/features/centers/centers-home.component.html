@@ -22,6 +22,14 @@
       <div class="ct-box green note" role="status">{{ msg }}</div>
     }
 
+    @if (ctx.membershipsError(); as err) {
+      <div class="ct-box yellow note" role="alert">
+        <div class="ct-disp">Não conseguimos carregar seus centros</div>
+        <div class="ct-dim">{{ err }}</div>
+        <div><button type="button" class="ct-mini-btn" (click)="ctx.retry()">Tentar de novo</button></div>
+      </div>
+    }
+
     @if (!ctx.ready()) {
       <div class="ct-empty"><span class="ct-spinner spin" aria-hidden="true"></span></div>
     } @else {
@@ -92,7 +100,7 @@
         </a>
       </section>
 
-      @if (memberships().length === 0 && ctx.pendingInvites().length === 0) {
+      @if (memberships().length === 0 && ctx.pendingInvites().length === 0 && !ctx.membershipsError()) {
         <p class="ct-dim empty-note">
           Você ainda não faz parte de nenhum centro. Se é professor ou recepção, peça ao owner do centro um convite para <b>{{ auth.email() }}</b>.
         </p>

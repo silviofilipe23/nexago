@@ -35,6 +35,8 @@ import {WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT} from "./not
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {STORE_ORDER_PAYMENT_REF_PREFIX} from "./store-checkout";
 import {processStoreOrderAsaasNotification} from "./store-checkout-endpoints";
+import {CENTER_INVOICE_REF_PREFIX} from "./training-center-billing-model";
+import {processTrainingCenterInvoiceAsaasNotification} from "./training-center-billing";
 
 const PAYMENT_EVENTS = new Set([
   "PAYMENT_RECEIVED",
@@ -155,6 +157,9 @@ export const asaasWebhook = onRequest({
     } else if (externalRef.startsWith(PROFESSOR_CHARGE_REF_PREFIX)) {
       // Cobrança do professor independente (split para a subconta dele).
       await processProfessorChargeAsaasNotification(db, paymentId, payment, processedRef);
+    } else if (externalRef.startsWith(CENTER_INVOICE_REF_PREFIX)) {
+      // Cobrança do Centro de Treinamento (split para a carteira do centro).
+      await processTrainingCenterInvoiceAsaasNotification(db, paymentId, payment, processedRef);
     } else if (externalRef.startsWith(CLASS_PAYMENT_REF_PREFIX)) {
       // Mensalidade de aula — antes do ramo genérico de assinatura (`|| subscriptionRef`).
       await processArenaClassAsaasNotification(db, paymentId, payment, processedRef);

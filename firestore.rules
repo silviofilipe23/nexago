@@ -4063,12 +4063,20 @@ service cloud.firestore {
       // pagador e vínculo com a matrícula ficam congelados.
       match /invoices/{invoiceId} {
         allow read: if ctHasPerm('view_finance');
+        // Campos do provedor (Asaas) só o servidor grava: `providerRef` nasce vazio e a fatura,
+        // o status e as consultas vêm das functions (training-center-billing.ts).
+        function ctProviderKeys() {
+          return ['providerUrl', 'providerStatus', 'providerIssuedAt', 'providerApprovedAt', 'providerCheckAt', 'providerAttempt'];
+        }
         allow create: if ctHasPerm('enroll_students') && ctOperational() &&
           request.resource.data.status == 'pending' &&
           request.resource.data.refundedCents == 0 &&
-          request.resource.data.approvedAt == null;
+          request.resource.data.approvedAt == null &&
+          request.resource.data.get('providerRef', '') == '' &&
+          !request.resource.data.keys().hasAny(ctProviderKeys());
         allow update: if ctIsManager() && ctNotSuspended() &&
-          !ctChanged().hasAny(['amountCents', 'payerName', 'studentId', 'enrollmentId', 'dueDate', 'createdAt']) &&
+          !ctChanged().hasAny(['amountCents', 'payerName', 'studentId', 'enrollmentId', 'dueDate', 'createdAt', 'providerRef']) &&
+          !ctChanged().hasAny(ctProviderKeys()) &&
           (
             request.resource.data.status == resource.data.status ||
             (resource.data.status == 'pending' && request.resource.data.status in ['approved', 'cancelled']) ||

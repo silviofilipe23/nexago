@@ -82,6 +82,7 @@ before(async () => {
     await setDoc(doc(db, 'trainingCenters', OTHER), { name: 'Norte', ownerUid: OTHER_OWNER, status: 'active' });
     await setDoc(doc(db, 'trainingCenters', OTHER, 'centerMembers', OTHER_OWNER), member(OTHER_OWNER, 'center_owner'));
     await setDoc(doc(db, 'trainingCenters', OTHER, 'centerMembers', OWNER), member(OWNER, 'coach'));
+    await setDoc(doc(db, 'trainingCenters', C, 'invoices', 'i3'), { payerName: 'Duda', amountCents: 32000, status: 'pending', refundedCents: 0, approvedAt: null, enrollmentId: null, studentId: 's1', dueDate: '2026-10-22', providerRef: 'pay_9', providerUrl: 'https://asaas/i/pay_9', providerStatus: 'PENDING' });
     await setDoc(doc(db, 'trainingCenters', OTHER, 'invoices', 'n1'), { payerName: 'X', amountCents: 100, status: 'pending' });
 
     await setDoc(doc(db, 'trainingCenters', SUSP), { name: 'Lagoa', ownerUid: OWNER, status: 'suspended' });
@@ -211,6 +212,22 @@ test('cobrança: recepção não lê nem aprova; gestor aprova mas não muda val
   );
   await assertSucceeds(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'invoices', 'i1'), { status: 'approved' }));
   await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'invoices', 'i1'), { status: 'pending' }));
+});
+
+test('cobrança: campos do provedor só o servidor grava', async () => {
+  const ref = doc(as(OWNER), 'trainingCenters', C, 'invoices', 'i3');
+  await denied(updateDoc(ref, { providerRef: 'pay_x' }));
+  await denied(updateDoc(ref, { providerUrl: 'https://golpe' }));
+  await denied(updateDoc(ref, { status: 'approved', providerApprovedAt: serverTimestamp() }));
+  await denied(updateDoc(ref, { providerCheckAt: null }));
+  const base = { payerName: 'X', amountCents: 100, status: 'pending', refundedCents: 0, approvedAt: null };
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'invoices', 'i4'), { ...base, providerRef: 'pay_x' }));
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'invoices', 'i5'), { ...base, providerRef: '', providerUrl: 'u' }));
+  await assertSucceeds(setDoc(doc(as(OWNER), 'trainingCenters', C, 'invoices', 'i6'), { ...base, providerRef: '' }));
+  // Baixa manual de cobrança gerada no provedor segue liberada (a function apaga a fatura).
+  await assertSucceeds(updateDoc(ref, { status: 'approved', method: 'cash' }));
+  await denied(getDoc(doc(as(OWNER), 'trainingCenterReceiving', C)));
+  await denied(getDoc(doc(as(OWNER), 'trainingCenterPayers', `${C}_s1`)));
 });
 
 test('centro suspenso fica somente leitura', async () => {

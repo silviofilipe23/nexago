@@ -303,7 +303,12 @@ export interface Invoice {
   dueDate: string;
   status: InvoiceStatus;
   method: PaymentMethod | null;
+  /** Fatura no provedor (Asaas): id, link para pagar (Pix ou cartão) e último status visto. Só o servidor grava. */
   providerRef: string;
+  providerUrl: string;
+  providerStatus: string;
+  /** Aprovada pelo provedor (webhook/consulta), não por baixa manual. */
+  providerApproved: boolean;
   events: InvoiceEvent[];
   approvedAt: Date | null;
   refundedCents: number;

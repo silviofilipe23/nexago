@@ -7,7 +7,7 @@ import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent } from '../ui/pill.component';
-import { FILTERS, formatDate, matchesFilter, matchesSearch, statusPill, type CenterFilter, type CenterRow } from './data/training-centers';
+import { FILTERS, formatDate, matchesFilter, matchesSearch, receivingPill, statusPill, type CenterFilter, type CenterRow } from './data/training-centers';
 import { TrainingCentersRepository } from './data/training-centers.repository';
 
 /** Centros de Treinamento cadastrados: quem pediu ativação aparece primeiro. */
@@ -27,6 +27,7 @@ import { TrainingCentersRepository } from './data/training-centers.repository';
       <div class="body">
         <div class="kpis">
           <bo-kpi-mini label="Pediram ativação" [value]="'' + count('requested')" [tone]="count('requested') ? 'yellow' : 'neutral'" />
+          <bo-kpi-mini label="Conferir recebimento" [value]="'' + count('receiving')" [tone]="count('receiving') ? 'yellow' : 'neutral'" />
           <bo-kpi-mini label="Pendentes" [value]="'' + count('pending')" />
           <bo-kpi-mini label="Ativos" [value]="'' + count('active')" tone="green" />
           <bo-kpi-mini label="Suspensos" [value]="'' + count('suspended')" [tone]="count('suspended') ? 'red' : 'neutral'" />
@@ -59,7 +60,7 @@ import { TrainingCentersRepository } from './data/training-centers.repository';
                 <div class="right cell-num">{{ c.counts.members }}</div>
                 <div class="right cell-num">{{ c.counts.students }}</div>
                 <div class="right cell-num">{{ c.counts.activeClasses }}</div>
-                <div><bo-pill [tone]="c.receivingConnected ? 'green' : 'dim'">{{ c.receivingConnected ? 'Conectado' : 'Pendente' }}</bo-pill></div>
+                <div><bo-pill [tone]="receiving(c).tone">{{ receiving(c).label }}</bo-pill></div>
                 <div><bo-pill [tone]="pill(c).tone">{{ pill(c).label }}</bo-pill></div>
               </a>
             } @empty {
@@ -75,7 +76,7 @@ import { TrainingCentersRepository } from './data/training-centers.repository';
     .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
     .search { max-width: 320px; margin-left: auto; height: 34px; }
     .status { margin: 14px 0 0; font-size: 12px; color: var(--nx-text-dim); }
-    .table-head, .table-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr) 60px 60px 60px 110px 130px; gap: 8px; align-items: center; }
+    .table-head, .table-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr) 60px 60px 60px 140px 130px; gap: 8px; align-items: center; }
     .table-head { padding: 0 4px 10px; border-bottom: 1px solid var(--nx-line-strong); }
     .table-head span { font-family: var(--nx-font-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--nx-text-dim); }
     .right { text-align: right; }
@@ -118,6 +119,10 @@ export class PanelCentrosComponent {
 
   protected pill(c: CenterRow) {
     return statusPill(c);
+  }
+
+  protected receiving(c: CenterRow) {
+    return receivingPill(c);
   }
 
   protected date(ms: number | null): string {

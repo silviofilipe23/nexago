@@ -770,6 +770,7 @@ export {
 } from "./backoffice-finance";
 // Backoffice — Centros de Treinamento (ativar/suspender, recebimento, assinatura).
 export {
+  approveTrainingCenterReceiving,
   getTrainingCenterBackoffice,
   listTrainingCentersBackoffice,
   setTrainingCenterReceiving,

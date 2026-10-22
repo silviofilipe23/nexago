@@ -16,6 +16,7 @@ import {
   SUBSCRIPTION_STATUSES,
   type CenterDetail,
   type CenterStatus,
+  type ReceivingDecision,
 } from './data/training-centers';
 import { TrainingCentersRepository } from './data/training-centers.repository';
 
@@ -42,6 +43,27 @@ const DECISIONS: Record<CenterStatus, Omit<Decision, 'status'>> = {
   },
 };
 
+type ReceivingAsk = { status: ReceivingDecision; title: string; description: string; confirm: string; tone: 'primary' | 'danger' };
+
+const RECEIVING_ASKS: Record<ReceivingDecision, ReceivingAsk> = {
+  approved: {
+    status: 'approved',
+    title: 'Conta aprovada no Asaas',
+    description:
+      'Confirme que a subconta aparece como aprovada no painel do Asaas. O recebimento do centro liga na hora e as cobranças online passam a sair com link.',
+    confirm: 'Marcar como aprovada',
+    tone: 'primary',
+  },
+  rejected: {
+    status: 'rejected',
+    title: 'Conta recusada no Asaas',
+    description:
+      'O centro passa a ver a conta como recusada e as cobranças online continuam desligadas. A carteira gravada não é apagada.',
+    confirm: 'Marcar como recusada',
+    tone: 'danger',
+  },
+};
+
 /** Detalhe do centro no backoffice: o que o owner não faz sozinho pelo portal. */
 @Component({
   selector: 'bo-centro-detalhe',
@@ -60,6 +82,7 @@ const DECISIONS: Record<CenterStatus, Omit<Decision, 'status'>> = {
     .warn { color: var(--nx-pending); }
     .ok-text { font-size: 12.5px; color: var(--nx-win); margin-top: 8px; }
     .reason { margin-top: 12px; }
+    .follow-up { margin-top: 12px; }
     @media (max-width: 1100px) { .bo-detail-grid { grid-template-columns: 1fr; } }
   `,
 })
@@ -93,6 +116,8 @@ export class CentroDetalheComponent implements OnInit {
   protected readonly fee = signal('');
   protected readonly receivingMsg = signal('');
   protected readonly receivingError = signal('');
+  protected readonly receivingAsk = signal<ReceivingAsk | null>(null);
+  protected readonly receivingAskError = signal<string | null>(null);
 
   // Assinatura.
   protected readonly plan = signal('');
@@ -185,6 +210,29 @@ export class CentroDetalheComponent implements OnInit {
       await this.reload();
     } catch (err) {
       this.receivingError.set(callableErrorMessage(err));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  protected askReceiving(status: ReceivingDecision): void {
+    this.receivingAskError.set(null);
+    this.receivingAsk.set(RECEIVING_ASKS[status]);
+  }
+
+  protected async confirmReceiving(): Promise<void> {
+    const ask = this.receivingAsk();
+    if (!ask) return;
+    this.busy.set(true);
+    this.receivingAskError.set(null);
+    this.receivingMsg.set('');
+    try {
+      await this.repo.approveReceiving(this.id(), ask.status);
+      this.receivingAsk.set(null);
+      this.receivingMsg.set(ask.status === 'approved' ? 'Conta de recebimento aprovada.' : 'Conta de recebimento marcada como recusada.');
+      await this.reload();
+    } catch (err) {
+      this.receivingAskError.set(callableErrorMessage(err));
     } finally {
       this.busy.set(false);
     }

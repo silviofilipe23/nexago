@@ -107,6 +107,7 @@ class DiscoveryTournament {
     this.categoryOffers = const [],
     this.createdAt,
     this.registrationOpensAt,
+    this.managerId,
   }) : _sport = sport;
 
   final String id;
@@ -149,6 +150,10 @@ class DiscoveryTournament {
   /// Instante em que as inscrições abrem (`registrationOpensAt` no Firestore).
   /// Antes dele o servidor recusa inscrição mesmo com o torneio `open`.
   final DateTime? registrationOpensAt;
+
+  /// Organizador dono do torneio (`tournaments/{id}.managerId`). O card usa para o selo de
+  /// verificado, lido de `organizerPublicProfiles/{managerId}`.
+  final String? managerId;
 }
 
 class TournamentCategoryOffer {

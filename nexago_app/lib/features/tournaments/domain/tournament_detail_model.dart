@@ -158,6 +158,7 @@ class TournamentDetail {
       categoryOffers: categoryOffers,
       createdAt: createdAt,
       registrationOpensAt: registrationOpensAt,
+      managerId: managerId,
     );
   }
 }

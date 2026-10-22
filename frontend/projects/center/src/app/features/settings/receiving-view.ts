@@ -63,7 +63,10 @@ export function receivingView(
       'O Asaas não aprovou o cadastro. Fale com o time NexaGO para entender o motivo e conectar outra conta.',
     ],
   };
-  const [title, text] = copy[status] ?? copy['pending']!;
+  let [title, text] = copy[status] ?? copy['pending']!;
+  if (status === 'pending' && account?.manualFollowUp) {
+    text = 'A conta foi criada no Asaas e está em análise. O time NexaGO acompanha a aprovação e libera as cobranças online assim que ela sair.';
+  }
   return { ...base, kind: 'account', title, text, pendingDocs };
 }
 

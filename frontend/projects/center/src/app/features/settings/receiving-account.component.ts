@@ -132,7 +132,7 @@ import { parseReais, receivingFormError, receivingView } from './receiving-view'
             @if (a.createdAt) {
               <div class="ct-kv"><span>Criada</span><span>{{ when(a.createdAt) }}{{ a.createdByName ? ' · ' + a.createdByName : '' }}</span></div>
             }
-            @if (a.source === 'self' && a.status !== 'approved') {
+            @if (a.source === 'self' && a.status !== 'approved' && !a.manualFollowUp) {
               <div class="save">
                 <button type="button" class="ct-ghost-btn" [disabled]="refreshing()" (click)="refresh()">{{ refreshing() ? 'Consultando…' : 'Atualizar situação' }}</button>
                 <span class="ct-dim">{{ a.statusCheckedAt ? 'Consultado ' + when(a.statusCheckedAt) : 'Consultamos o Asaas de hora em hora' }}</span>

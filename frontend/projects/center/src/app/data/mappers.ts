@@ -647,6 +647,7 @@ export function readReceivingAccount(d: Data): ReceivingAccount {
           .filter((x): x is Data => !!x && typeof x === 'object')
           .map((x) => ({ title: str(x, 'title', 'Documento'), status: str(x, 'status'), url: str(x, 'url') }))
       : [],
+    manualFollowUp: bool(d, 'manualFollowUp'),
     createdAt: date(d['createdAt']),
     createdByName: str(d, 'createdByName'),
     statusCheckedAt: date(d['statusCheckedAt']),

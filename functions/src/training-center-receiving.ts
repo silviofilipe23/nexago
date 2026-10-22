@@ -141,6 +141,14 @@ export async function createCenterReceivingAccountCore(db: Firestore, uid: strin
   const input = parseCenterAccountInput((raw ?? {}) as Data, dayKeyIn(now, str(center["timezone"])));
   const env = deps.env();
   const at = Timestamp.fromDate(now);
+  // O cofre da chave precisa funcionar ANTES de criar no Asaas: a apiKey da subconta só vem na
+  // criação — se não der para guardá-la, a conta nasce sem como consultar a situação.
+  try {
+    deps.sealKey("probe");
+  } catch (e) {
+    logger.error("createTrainingCenterReceivingAccount: cofre da chave indisponível (PROFESSOR_SECRETS_KEY)", e);
+    throw new HttpsError("failed-precondition", "A criação de contas de recebimento está indisponível no momento. Avise o time NexaGO.");
+  }
 
   await db.runTransaction(async (tx) => {
     const cur = (await tx.get(receivingRef(db, centerId))).data();
@@ -171,6 +179,15 @@ export async function createCenterReceivingAccountCore(db: Firestore, uid: strin
     created = {...adopted, apiKey: null};
   }
 
+  // Conta criada: daqui em diante nada pode impedir de gravar a carteira.
+  let sealed: string | null = null;
+  if (created.apiKey) {
+    try {
+      sealed = deps.sealKey(created.apiKey);
+    } catch (e) {
+      logger.error(`createTrainingCenterReceivingAccount ${centerId}: subconta ${created.accountId} criada, mas a apiKey não foi cifrada`, e);
+    }
+  }
   const batch = db.batch();
   batch.set(receivingRef(db, centerId), {
     walletId: created.walletId,
@@ -182,7 +199,7 @@ export async function createCenterReceivingAccountCore(db: Firestore, uid: strin
     createdByUid: actor.uid,
     updatedAt: at,
   }, {merge: true});
-  if (created.apiKey) batch.set(secretRef(db, centerId), {sealedApiKey: deps.sealKey(created.apiKey), asaasEnv: env, createdAt: at});
+  if (sealed) batch.set(secretRef(db, centerId), {sealedApiKey: sealed, asaasEnv: env, createdAt: at});
   batch.set(mirrorRef(db, centerId), {
     status: "pending",
     source: "self",
@@ -191,6 +208,8 @@ export async function createCenterReceivingAccountCore(db: Firestore, uid: strin
     email: input.email,
     document: maskDocument(input.cpfCnpj),
     documents: [],
+    /** Sem a chave da subconta não dá para consultar o Asaas daqui: o time NexaGO acompanha. */
+    manualFollowUp: !sealed,
     createdAt: at,
     createdByName: actor.name,
     statusCheckedAt: null,

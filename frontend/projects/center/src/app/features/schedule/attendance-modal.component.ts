@@ -61,8 +61,22 @@ export class AttendanceModalComponent {
   protected readonly reopening = signal(false);
   protected readonly reopenReason = signal('');
   protected readonly addingMakeup = signal('');
+  /** Professor não lê todos os alunos: candidatos (id, nome, créditos) vêm do servidor. */
+  private readonly seesAllStudents = computed(() => this.ctx.isManager() || this.ctx.has('enroll_students') || this.ctx.has('view_finance'));
+  private readonly remoteCandidates = signal<{ id: string; name: string; makeupCredits: number }[]>([]);
+  private readonly remoteNames = computed(() => new Map(this.remoteCandidates().map((c) => [c.id, c.name])));
 
   constructor() {
+    effect(() => {
+      const id = this.sessionId();
+      if (!id || this.seesAllStudents()) return;
+      untracked(() => {
+        this.actions
+          .listMakeupCandidates(id)
+          .then((r) => this.remoteCandidates.set(r.candidates))
+          .catch(() => this.remoteCandidates.set([]));
+      });
+    });
     // Carrega o rascunho uma vez por aula; depois, a edição local manda até salvar.
     effect(() => {
       const s = this.session();
@@ -90,7 +104,7 @@ export class AttendanceModalComponent {
       const st = this.store.studentById(r.studentId);
       return {
         ...r,
-        name: st?.name ?? 'Aluno removido',
+        name: st?.name ?? this.remoteNames().get(r.studentId) ?? (r.makeup ? 'Aluno de reposição' : 'Aluno removido'),
         sub: [r.makeup ? 'Reposição' : '', st?.isMinor ? 'Menor' : ''].filter(Boolean).join(' · '),
         mark: (attendance[r.studentId] as AttendanceMark | undefined) ?? null,
         effect: effectLabel(s.effectsApplied[r.studentId]),
@@ -109,6 +123,7 @@ export class AttendanceModalComponent {
   /** Quem pode ser encaixado: tem crédito de reposição e ainda não está na lista. */
   protected readonly makeupCandidates = computed(() => {
     const inList = new Set(this.rows().map((r) => r.studentId));
+    if (!this.seesAllStudents()) return this.remoteCandidates().filter((c) => !inList.has(c.id));
     return this.store.students().filter((st) => st.status === 'active' && st.makeupCredits > 0 && !inList.has(st.id));
   });
 

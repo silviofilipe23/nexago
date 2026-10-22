@@ -4064,12 +4064,15 @@ service cloud.firestore {
 
       // Créditos de reposição só o gestor move (cancelamento de aula); recepção edita cadastro.
       match /students/{studentId} {
-        allow read: if ctIsMember();
+        // Dados do aluno por turma: gestor, recepção e financeiro veem todos; o professor só os
+        // alunos dele (`coachUids`, mantido pelo servidor — training-center-student-coaches.ts).
+        allow read: if ctIsManager() || ctHasPerm('enroll_students') || ctHasPerm('view_finance') ||
+          (ctIsMember() && request.auth.uid in resource.data.get('coachUids', []));
         // Pendência de cobrança (`billingHold*`) só a rodada da recorrência grava.
         allow create: if ctHasPerm('enroll_students') && ctNotSuspended() &&
           request.resource.data.makeupCredits == 0 &&
-          !request.resource.data.keys().hasAny(['billingHold', 'billingHoldBy']);
-        allow update: if ctNotSuspended() && !ctChanged().hasAny(['billingHold', 'billingHoldBy']) && (
+          !request.resource.data.keys().hasAny(['billingHold', 'billingHoldBy', 'coachUids']);
+        allow update: if ctNotSuspended() && !ctChanged().hasAny(['billingHold', 'billingHoldBy', 'coachUids']) && (
           ctIsManager() ||
           (ctHasPerm('enroll_students') && !ctChanged().hasAny(['makeupCredits', 'uid']))
         );

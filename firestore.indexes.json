@@ -1958,6 +1958,20 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "makeupStudentIds",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "date",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
           "fieldPath": "locationId",
           "order": "ASCENDING"
         },

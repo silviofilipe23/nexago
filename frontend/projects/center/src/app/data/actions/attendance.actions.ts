@@ -4,6 +4,7 @@ import { formatDayKey } from '../../domain/dates';
 import type { AttendanceMark, ClassSession } from '../../domain/models';
 import { db } from '../firebase';
 import { CenterActionsBase } from './actor';
+import { callCenterFunction } from './invoices.actions';
 
 export const MARK_LABELS: Record<AttendanceMark, string> = {
   present: 'Presente',
@@ -25,6 +26,14 @@ function tally(marks: Record<string, AttendanceMark>): string {
  */
 @Injectable({ providedIn: 'root' })
 export class AttendanceActions extends CenterActionsBase {
+  /**
+   * Candidatos de reposição para quem não vê todos os alunos (professor): o servidor devolve só
+   * id, nome e créditos.
+   */
+  listMakeupCandidates(sessionId: string): Promise<{ candidates: { id: string; name: string; makeupCredits: number }[] }> {
+    return callCenterFunction('listTrainingCenterMakeupCandidates', { centerId: this.centerId(), sessionId });
+  }
+
   /** Grava a chamada; com `finalize`, encerra a aula (dispara os créditos no servidor). */
   async save(s: ClassSession, marks: Record<string, AttendanceMark>, makeupStudentIds: string[], finalize: boolean): Promise<void> {
     this.assertWritable();

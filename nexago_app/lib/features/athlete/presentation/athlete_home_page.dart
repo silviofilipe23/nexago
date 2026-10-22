@@ -12,6 +12,7 @@ import '../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/nexa_async_view.dart';
+import '../../../core/ui/trailing_gap_if_visible.dart';
 import '../../../core/ui/nexa_skeleton.dart';
 import '../../arenas/domain/booking_story.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
@@ -185,164 +186,167 @@ class AthleteHomePage extends ConsumerWidget {
                   padding: EdgeInsets.only(bottom: bottomClearance),
                   sliver: SliverList.list(
                     children: [
-                      // Convites para jogar numa reserva (recebidos e sem
-                      // resposta): o jogo tem hora marcada, então vêm antes
-                      // dos convites de dupla.
-                      Consumer(
-                        builder: (context, ref, _) {
-                          final hasBookingInvites =
-                              (ref
-                                          .watch(pendingBookingInvitesProvider)
-                                          .valueOrNull ??
-                                      const [])
-                                  .isNotEmpty;
-                          if (!hasBookingInvites) {
-                            return const SizedBox.shrink();
-                          }
-                          return const Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              AppSpacing.screenH,
-                              0,
-                              AppSpacing.screenH,
-                              AppSpacing.sectionGap,
-                            ),
-                            child: PendingBookingInvitesSection(),
-                          );
-                        },
+                      // Cards dinâmicos (convites, avaliações, próximo treino,
+                      // próxima reserva): 12 entre eles; o grupo fecha com o
+                      // respiro de seção só quando algum aparece.
+                      TrailingGapIfVisible(
+                        gap: AppSpacing.sectionGap - _dynamicCardGap,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                              // Convites para jogar numa reserva (recebidos e sem
+                              // resposta): o jogo tem hora marcada, então vêm antes
+                              // dos convites de dupla.
+                              Consumer(
+                                builder: (context, ref, _) {
+                                  final hasBookingInvites =
+                                      (ref
+                                                  .watch(pendingBookingInvitesProvider)
+                                                  .valueOrNull ??
+                                              const [])
+                                          .isNotEmpty;
+                                  if (!hasBookingInvites) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return const Padding(
+                                    padding: EdgeInsets.fromLTRB(
+                                      AppSpacing.screenH,
+                                      0,
+                                      AppSpacing.screenH,
+                                      _dynamicCardGap,
+                                    ),
+                                    child: PendingBookingInvitesSection(),
+                                  );
+                                },
+                              ),
+                              // Convites recebidos ainda pendentes — o atleta precisa
+                              // responder. Aparecem primeiro na home, logo após o
+                              // header, à frente até de "meus torneios".
+                              Consumer(
+                                builder: (context, ref, _) {
+                                  final hasReceivedInvites =
+                                      (ref
+                                                  .watch(
+                                                    pendingTournamentPartnerInvitesProvider,
+                                                  )
+                                                  .valueOrNull ??
+                                              const [])
+                                          .isNotEmpty;
+                                  if (!hasReceivedInvites) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return const Padding(
+                                    padding: EdgeInsets.fromLTRB(
+                                      AppSpacing.screenH,
+                                      0,
+                                      AppSpacing.screenH,
+                                      _dynamicCardGap,
+                                    ),
+                                    child: PendingTournamentInviteeInvitesSection(),
+                                  );
+                                },
+                              ),
+                              // Torneios esperando avaliação — perto dos convites recebidos: é a
+                              // outra coisa que só o atleta pode responder.
+                              Consumer(
+                                builder: (context, ref, _) {
+                                  final hasPendingReviews =
+                                      (ref
+                                                  .watch(
+                                                    pendingTournamentReviewsProvider,
+                                                  )
+                                                  .valueOrNull ??
+                                              const [])
+                                          .isNotEmpty;
+                                  if (!hasPendingReviews)
+                                    return const SizedBox.shrink();
+                                  return const Padding(
+                                    padding: EdgeInsets.fromLTRB(
+                                      AppSpacing.screenH,
+                                      0,
+                                      AppSpacing.screenH,
+                                      _dynamicCardGap,
+                                    ),
+                                    child: PendingTournamentReviewsSection(),
+                                  );
+                                },
+                              ),
+                              // Convites enviados por mim (aguardando parceiro ou
+                              // pagamento pendente) — logo abaixo dos recebidos,
+                              // sempre no topo quando existem.
+                              Consumer(
+                                builder: (context, ref, _) {
+                                  final hasInvites =
+                                      (ref
+                                                  .watch(
+                                                    ongoingTournamentPartnerInvitesHomeProvider,
+                                                  )
+                                                  .valueOrNull ??
+                                              const [])
+                                          .isNotEmpty;
+                                  if (!hasInvites) return const SizedBox.shrink();
+                                  return const Padding(
+                                    padding: EdgeInsets.fromLTRB(
+                                      AppSpacing.screenH,
+                                      0,
+                                      AppSpacing.screenH,
+                                      _dynamicCardGap,
+                                    ),
+                                    child: PendingTournamentInviterInvitesSection(),
+                                  );
+                                },
+                              ),
+                              // Próximo treino com o professor (aula da turma ou
+                              // particular): hora marcada, como os convites acima.
+                              // Some para quem não treina com professor.
+                              const AthleteTrainingHomeEntry(bottomGap: _dynamicCardGap),
+                              // Próxima reserva: sem reserva (ou carregando) não
+                              // aparece nem deixa vão — o atalho Reservar já cobre.
+                              Consumer(
+                                builder: (context, ref, _) {
+                                  final bookings =
+                                      ref.watch(myBookingsStreamProvider).valueOrNull ??
+                                      [];
+                                  final now = DateTime.now();
+                                  final nextBooking = findNextAthleteBooking(
+                                    bookings,
+                                    now: now,
+                                  );
+                                  if (nextBooking == null) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      AppSpacing.screenH,
+                                      0,
+                                      AppSpacing.screenH,
+                                      _dynamicCardGap,
+                                    ),
+                                    child: AthleteHomeNextReservationCard(
+                                      key: const Key('home-next-booking'),
+                                      booking: nextBooking,
+                                      now: now,
+                                      // Compacto na Início; a seta expande.
+                                      initiallyExpanded: false,
+                                      onDetailsTap: () =>
+                                          context.pushNamed(AppRouteNames.myBookings),
+                                      onReserveTap: () =>
+                                          _goToTab(ref, athleteShellReservarTabIndex),
+                                      onStoryTap:
+                                          isBookingStoryShareable(nextBooking.rawStatus)
+                                          ? () => openBookingStory(
+                                              context,
+                                              BookingStoryArgs.fromBooking(nextBooking),
+                                            )
+                                          : null,
+                                    ),
+                                  );
+                                },
+                              ),
+                          ],
+                        ),
                       ),
-                      // Convites recebidos ainda pendentes — o atleta precisa
-                      // responder. Aparecem primeiro na home, logo após o
-                      // header, à frente até de "meus torneios".
-                      Consumer(
-                        builder: (context, ref, _) {
-                          final hasReceivedInvites =
-                              (ref
-                                          .watch(
-                                            pendingTournamentPartnerInvitesProvider,
-                                          )
-                                          .valueOrNull ??
-                                      const [])
-                                  .isNotEmpty;
-                          if (!hasReceivedInvites) {
-                            return const SizedBox.shrink();
-                          }
-                          return const Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              AppSpacing.screenH,
-                              0,
-                              AppSpacing.screenH,
-                              AppSpacing.sectionGap,
-                            ),
-                            child: PendingTournamentInviteeInvitesSection(),
-                          );
-                        },
-                      ),
-                      // Torneios esperando avaliação — perto dos convites recebidos: é a
-                      // outra coisa que só o atleta pode responder.
-                      Consumer(
-                        builder: (context, ref, _) {
-                          final hasPendingReviews =
-                              (ref
-                                          .watch(
-                                            pendingTournamentReviewsProvider,
-                                          )
-                                          .valueOrNull ??
-                                      const [])
-                                  .isNotEmpty;
-                          if (!hasPendingReviews)
-                            return const SizedBox.shrink();
-                          return const Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              AppSpacing.screenH,
-                              0,
-                              AppSpacing.screenH,
-                              AppSpacing.sectionGap,
-                            ),
-                            child: PendingTournamentReviewsSection(),
-                          );
-                        },
-                      ),
-                      // Convites enviados por mim (aguardando parceiro ou
-                      // pagamento pendente) — logo abaixo dos recebidos,
-                      // sempre no topo quando existem.
-                      Consumer(
-                        builder: (context, ref, _) {
-                          final hasInvites =
-                              (ref
-                                          .watch(
-                                            ongoingTournamentPartnerInvitesHomeProvider,
-                                          )
-                                          .valueOrNull ??
-                                      const [])
-                                  .isNotEmpty;
-                          if (!hasInvites) return const SizedBox.shrink();
-                          return const Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              AppSpacing.screenH,
-                              0,
-                              AppSpacing.screenH,
-                              AppSpacing.sectionGap,
-                            ),
-                            child: PendingTournamentInviterInvitesSection(),
-                          );
-                        },
-                      ),
-                      // Próximo treino com o professor (aula da turma ou
-                      // particular): hora marcada, como os convites acima.
-                      // Some para quem não treina com professor.
-                      const AthleteTrainingHomeEntry(),
-                      // const Padding(
-                      //   padding: EdgeInsets.symmetric(
-                      //     horizontal: AppSpacing.screenH,
-                      //   ),
-                      //   child: MyTournamentsHomeSection(),
-                      // ),
-                      // Atalhos (Reservar, Ranking, Treinos, Meus torneios, Squad) abaixo
-                      // do que é dinâmico — convites, próximo treino e meus
-                      // torneios vêm primeiro.
-                      // Próxima reserva: sem reserva (ou carregando) não
-                      // aparece nem deixa vão — o atalho Reservar já cobre.
-                      Consumer(
-                        builder: (context, ref, _) {
-                          final bookings =
-                              ref.watch(myBookingsStreamProvider).valueOrNull ??
-                              [];
-                          final now = DateTime.now();
-                          final nextBooking = findNextAthleteBooking(
-                            bookings,
-                            now: now,
-                          );
-                          if (nextBooking == null) {
-                            return const SizedBox.shrink();
-                          }
-                          return Padding(
-                            padding: const EdgeInsets.fromLTRB(
-                              AppSpacing.screenH,
-                              0,
-                              AppSpacing.screenH,
-                              AppSpacing.sectionGap,
-                            ),
-                            child: AthleteHomeNextReservationCard(
-                              key: const Key('home-next-booking'),
-                              booking: nextBooking,
-                              now: now,
-                              // Compacto na Início; a seta expande.
-                              initiallyExpanded: false,
-                              onDetailsTap: () =>
-                                  context.pushNamed(AppRouteNames.myBookings),
-                              onReserveTap: () =>
-                                  _goToTab(ref, athleteShellReservarTabIndex),
-                              onStoryTap:
-                                  isBookingStoryShareable(nextBooking.rawStatus)
-                                  ? () => openBookingStory(
-                                      context,
-                                      BookingStoryArgs.fromBooking(nextBooking),
-                                    )
-                                  : null,
-                            ),
-                          );
-                        },
-                      ),
+                      // Atalhos abaixo do que é dinâmico.
                       Padding(
                         padding: const EdgeInsets.fromLTRB(
                           AppSpacing.screenH,
@@ -614,6 +618,10 @@ class _AthleteHomeSkeleton extends StatelessWidget {
     );
   }
 }
+
+/// Espaço entre os cards dinâmicos do topo da Home (convites, treino,
+/// reserva) — mais justo que o respiro entre seções.
+const double _dynamicCardGap = AppSpacing.md;
 
 /// Quanto a primeira seção da home sobe para cima da arte do hero.
 const double _heroOverlap = 56;

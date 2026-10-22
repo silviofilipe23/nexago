@@ -20,7 +20,6 @@ import '../../cashback/presentation/widgets/cashback_balance_pill.dart';
 import '../../store/application/store_providers.dart';
 import '../../store/presentation/widgets/store_home_entry.dart';
 import '../../squad/presentation/widgets/squad_entry_card.dart';
-import '../../ranking/domain/ranking_providers.dart';
 import '../../tournaments/data/my_tournament_registrations_repository.dart';
 import '../../tournaments/data/tournament_partner_invite_service.dart';
 import '../../tournaments/domain/registration_progress_logic.dart';
@@ -61,7 +60,6 @@ import 'widgets/athlete_profile_avatar.dart';
 import 'widgets/pending_booking_invites_section.dart';
 import 'sand_rank/widgets/sand_rank_avatar_frame.dart';
 import 'sand_rank/widgets/sand_rank_emblem.dart';
-import 'widgets/athlete_home/athlete_home_kpi_grid.dart';
 import 'widgets/athlete_home/athlete_home_next_reservation_card.dart';
 import 'widgets/athlete_home/athlete_home_registration_tracker.dart';
 import 'widgets/athlete_home/athlete_home_shortcuts_grid.dart';
@@ -314,33 +312,6 @@ class AthleteHomePage extends ConsumerWidget {
                       ),
                       const AthleteHomeFocusButton(),
                       const AthleteHomeFollowingMatchesSection(),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.screenH,
-                        ),
-                        child: Consumer(
-                          builder: (context, ref, _) {
-                            final matches =
-                                ref
-                                    .watch(
-                                      currentAthleteMatchHistoryBundleProvider,
-                                    )
-                                    .valueOrNull
-                                    ?.matches ??
-                                const [];
-                            final ranking = ref
-                                .watch(competeHubUserRankingProvider)
-                                .valueOrNull;
-                            final kpis = buildAthleteHomeKpis(
-                              matches: matches,
-                              gamification: summary,
-                              ranking: ranking,
-                              now: DateTime.now(),
-                            );
-                            return AthleteHomeKpiGrid(kpis: kpis);
-                          },
-                        ),
-                      ),
                       const Padding(
                         padding: EdgeInsets.symmetric(
                           horizontal: AppSpacing.screenH,

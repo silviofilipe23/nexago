@@ -38,6 +38,11 @@ export class CenterContextService {
   private readonly invitesState = signal<CenterInvite[]>([]);
   private readonly centerState = signal<TrainingCenter | null>(null);
   private readonly membershipsLoaded = signal(false);
+  /** Falha ao listar vínculos (ex.: índice do collection group ainda construindo). NÃO é "sem vínculo". */
+  private readonly membershipsErrorState = signal<string | null>(null);
+  /** Incrementar reabre os listeners de vínculo e convite. */
+  private readonly reloadKey = signal(0);
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly invitesLoaded = signal(false);
   private readonly centerLoaded = signal(false);
 
@@ -45,6 +50,7 @@ export class CenterContextService {
   readonly activeCenterId = signal<string | null>(null);
 
   readonly memberships = this.membershipsState.asReadonly();
+  readonly membershipsError = this.membershipsErrorState.asReadonly();
   /** Vínculos que ainda dão acesso (revogados ficam de fora do seletor). */
   readonly activeMemberships = computed(() => this.membershipsState().filter((m) => m.status === 'active'));
   readonly pendingInvites = computed(() => this.invitesState().filter((i) => i.status === 'pending'));
@@ -75,7 +81,9 @@ export class CenterContextService {
     effect((onCleanup) => {
       const uid = this.auth.uid();
       const email = this.auth.email();
+      this.reloadKey();
       untracked(() => {
+        this.membershipsErrorState.set(null);
         this.membershipsState.set([]);
         this.invitesState.set([]);
         this.membershipsLoaded.set(false);
@@ -103,9 +111,20 @@ export class CenterContextService {
           );
           this.membershipsLoaded.set(true);
         },
-        () => {
+        (err) => {
+          console.warn('[center-context] vínculos', err.code ?? err);
           this.membershipsState.set([]);
+          this.membershipsErrorState.set(
+            err.code === 'failed-precondition'
+              ? 'O NexaGO ainda está preparando o acesso aos centros. Tentamos de novo sozinhos em alguns segundos.'
+              : 'Não foi possível carregar seus centros. Verifique a conexão.',
+          );
           this.membershipsLoaded.set(true);
+          // Índice recém-criado leva alguns minutos para ficar pronto: tenta de novo sozinho.
+          this.retryTimer ??= setTimeout(() => {
+            this.retryTimer = null;
+            this.retry();
+          }, 20_000);
         },
       );
       let stopInvites = () => {};
@@ -160,6 +179,10 @@ export class CenterContextService {
       );
       onCleanup(stop);
     });
+  }
+
+  retry(): void {
+    this.reloadKey.update((k) => k + 1);
   }
 
   can(area: CenterArea): boolean {

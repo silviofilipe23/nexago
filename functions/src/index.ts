@@ -232,6 +232,8 @@ export {
 } from "./training-center-payout-transfer";
 // Centro de Treinamento — automação do repasse (fechamento e pagamento automáticos).
 export {runTrainingCenterPayoutAutomation} from "./training-center-payout-automation";
+// Centro de Treinamento — nome/quadra da turma acompanham nas aulas futuras.
+export {onTrainingCenterClassSync} from "./training-center-class-sync";
 // Centro de Treinamento — efeitos da chamada (créditos de pacote e de reposição).
 export {onTrainingCenterSessionWritten} from "./training-center-attendance";
 // Centro de Treinamento — oferta automática da vaga ao 1º da lista de espera.

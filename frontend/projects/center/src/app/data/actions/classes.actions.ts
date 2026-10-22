@@ -107,6 +107,28 @@ export class ClassesActions extends CenterActionsBase {
     return ref.id;
   }
 
+  /**
+   * Professor da turma ("Ver e editar turmas atribuídas"): só nome, nível e quadra. As aulas
+   * futuras acompanham pelo servidor (training-center-class-sync.ts).
+   */
+  async coachEdit(c: TrainingClass, input: { name: string; level: string; courtId: string; courtName: string }): Promise<void> {
+    this.assertWritable();
+    const name = input.name.trim();
+    if (!name) {
+      throw new Error('Dê um nome à turma.');
+    }
+    const b = writeBatch(db());
+    b.update(this.ref('classes', c.id), { name, level: input.level, courtId: input.courtId, courtName: input.courtName });
+    const changes = [
+      name !== c.name ? `nome "${c.name}" → "${name}"` : '',
+      input.level !== c.level ? `nível ${c.level || '—'} → ${input.level || '—'}` : '',
+      input.courtId !== c.courtId ? `quadra ${c.courtName || '—'} → ${input.courtName || '—'}` : '',
+    ].filter(Boolean);
+    const audit = this.auditDoc({ action: 'class.coach_updated', entity: 'class', entityId: c.id, detail: `${name} · ${changes.join(' · ') || 'sem mudança'}` });
+    b.set(audit.ref, audit.data);
+    await b.commit();
+  }
+
   /** Materializa aulas que faltam até o horizonte (idempotente: só datas depois de `generatedUntil`). */
   async ensureSessions(c: Pick<TrainingClass, 'id' | 'name' | 'programId' | 'weekdays' | 'startTime' | 'durationMin' | 'coachUid' | 'coachName' | 'courtId' | 'courtName' | 'locationId' | 'locationName' | 'startDate' | 'endDate' | 'generatedUntil'>): Promise<number> {
     const today = this.today();

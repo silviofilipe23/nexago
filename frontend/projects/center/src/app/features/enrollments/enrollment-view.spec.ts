@@ -160,4 +160,9 @@ describe('enrollment-view', () => {
     ];
     expect(plansForProgram(plans, 'bt').map((p) => p.id)).toEqual(['a', 'b']);
   });
+
+  it('quem não vê o financeiro não recebe "sem pagamento aprovado"', () => {
+    const d = enrollmentDetail({ ...enr({ status: 'active' }) } as never, { invoices: [], queuePosition: null, seesFinance: false });
+    expect(d.text).not.toContain('pagamento');
+  });
 });

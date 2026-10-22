@@ -159,7 +159,51 @@ export class CenterStore {
     return [this.ctx.activeCenterId(), me.role, [...me.extraPerms].sort().join(','), tz].join('|');
   });
 
+  /** Turmas do professor que só tem "ver matrículas das suas turmas" ('' = não se aplica). */
+  private readonly scopedClassKey = computed(() => {
+    const me = this.ctx.me();
+    if (!me || me.status !== 'active' || isManager(me) || hasPermission(me, 'enroll_students') || !hasPermission(me, 'view_enrollments')) {
+      return '';
+    }
+    const mine = this.f.classes.state().filter((c) => c.coachUid === me.uid).map((c) => c.id).sort();
+    return `${this.accessKey()}#${mine.join(',')}`;
+  });
+
   constructor() {
+    effect((onCleanup) => {
+      const key = this.scopedClassKey();
+      const centerId = untracked(() => this.ctx.activeCenterId());
+      if (!key || !centerId || !this.f.classes.loaded()) {
+        return;
+      }
+      const ids = key.split('#')[1]?.split(',').filter(Boolean) ?? [];
+      if (ids.length === 0) {
+        untracked(() => {
+          this.f.enrollments.state.set([]);
+          this.f.enrollments.loaded.set(true);
+        });
+        return;
+      }
+      // `in` aceita até 30 valores: um listener por lote, juntados num só feed.
+      const parts = new Map<number, Enrollment[]>();
+      const chunks: string[][] = [];
+      for (let i = 0; i < ids.length; i += 30) chunks.push(ids.slice(i, i + 30));
+      const stops = chunks.map((chunk, i) =>
+        onSnapshot(
+          query(collection(db(), CENTERS, centerId, 'enrollments'), where('classId', 'in', chunk)),
+          (snap) => {
+            parts.set(i, snap.docs.map((d) => readEnrollment(d.id, d.data())));
+            this.f.enrollments.state.set([...parts.values()].flat());
+            this.f.enrollments.loaded.set(parts.size === chunks.length);
+          },
+          (err) => {
+            console.warn('[center-store] matrículas das turmas', err.code ?? err);
+            this.f.enrollments.loaded.set(true);
+          },
+        ),
+      );
+      onCleanup(() => stops.forEach((s) => s()));
+    });
     effect((onCleanup) => {
       const key = this.accessKey();
       const centerId = this.ctx.activeCenterId();
@@ -194,7 +238,9 @@ export class CenterStore {
       };
 
       const manager = isManager(me);
-      const seesEnrollments = hasPermission(me, 'view_enrollments') || hasPermission(me, 'enroll_students');
+      // Gestor e quem matricula leem todas; "ver matrículas" sozinho lê só as das turmas dele
+      // (listener separado, abaixo — as rules exigem filtrar por turma).
+      const seesAllEnrollments = manager || hasPermission(me, 'enroll_students');
       const seesFinance = hasPermission(me, 'view_finance');
       const from = addDays(todayKey(tz), -SESSIONS_BACK_DAYS);
 
@@ -210,7 +256,7 @@ export class CenterStore {
         listen(this.f.invites, base('centerInvites'), readInvite);
         listen(this.f.audit, query(base('auditLogs'), orderBy('at', 'desc'), limit(200)), readAudit);
       }
-      if (seesEnrollments) {
+      if (seesAllEnrollments) {
         listen(this.f.enrollments, base('enrollments'), readEnrollment);
       }
       if (seesFinance) {

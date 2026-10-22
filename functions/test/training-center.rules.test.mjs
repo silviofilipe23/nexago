@@ -148,6 +148,11 @@ test('convite: aceite exige e-mail verificado e papel igual ao do convite', asyn
   const verified = as(INVITEE, { ...token, email_verified: true });
   await denied(accept(verified, 'inv1', 'center_admin'));
   await assertSucceeds(getDocs(query(collectionGroup(verified, 'centerInvites'), where('email', '==', 'convidado@x.com'))));
+  // Professor precisa de conta de atleta NexaGO (espelho em public_profiles).
+  await denied(accept(verified, 'inv1', 'coach'));
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'public_profiles', INVITEE), { displayName: 'Convidado' });
+  });
   await assertSucceeds(accept(verified, 'inv1', 'coach'));
 });
 
@@ -370,4 +375,30 @@ test('automação do repasse: só o owner liga; segurar é do owner; prazo é do
   // Refazer o fechamento (admin regrava sem os campos do automático) tira do automático.
   await assertSucceeds(setDoc(ref(ADMIN), { month: '2026-07', coachUid: COACH, totalCents: 12000, status: 'closed' }));
   await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'payouts', `2026-06_${COACH}`), { month: '2026-06', coachUid: COACH, status: 'closed', autoPayAt: '2026-07-01' }));
+});
+
+test('professor: edita nome/nível/quadra só da turma dele e vê só as matrículas das turmas dele', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'trainingCenters', C, 'classes', 'c2'), { name: 'Outra', capacity: 4, seatsTaken: 0, status: 'active', coachUid: ADMIN });
+    await setDoc(doc(db, 'trainingCenters', C, 'enrollments', 'e2'), { studentId: 's1', classId: 'c2', status: 'active', contract: null, createdAt: null, createdByName: 'x' });
+    await setDoc(doc(db, 'trainingCenters', C, 'centerMembers', 'coach-ve'), member('coach-ve', 'coach', 'active', { extraPerms: ['view_enrollments'] }));
+  });
+  const coach = as(COACH);
+  await assertSucceeds(updateDoc(doc(coach, 'trainingCenters', C, 'classes', 'c1'), { name: 'BT Iniciante A · manhã', level: 'Iniciante 2' }));
+  await denied(updateDoc(doc(coach, 'trainingCenters', C, 'classes', 'c1'), { capacity: 3 }));
+  await denied(updateDoc(doc(coach, 'trainingCenters', C, 'classes', 'c1'), { startTime: '07:00' }));
+  await denied(updateDoc(doc(coach, 'trainingCenters', C, 'classes', 'c2'), { name: 'x' }));
+
+  // Sem `view_enrollments` o professor não lê matrícula nenhuma.
+  await denied(getDocs(query(collection(coach, 'trainingCenters', C, 'enrollments'), where('classId', '==', 'c1'))));
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'trainingCenters', C, 'classes', 'c3'), { name: 'Do coach-ve', capacity: 4, seatsTaken: 0, status: 'active', coachUid: 'coach-ve' });
+    await setDoc(doc(ctx.firestore(), 'trainingCenters', C, 'enrollments', 'e3'), { studentId: 's1', classId: 'c3', status: 'active' });
+  });
+  const ve = as('coach-ve');
+  await assertSucceeds(getDocs(query(collection(ve, 'trainingCenters', C, 'enrollments'), where('classId', 'in', ['c3']))));
+  await denied(getDocs(query(collection(ve, 'trainingCenters', C, 'enrollments'), where('classId', '==', 'c2'))));
+  await denied(getDocs(collection(ve, 'trainingCenters', C, 'enrollments')));
+  await assertSucceeds(getDocs(collection(as(RECEP), 'trainingCenters', C, 'enrollments')));
 });

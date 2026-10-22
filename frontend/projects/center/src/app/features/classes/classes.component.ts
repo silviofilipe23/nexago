@@ -9,17 +9,18 @@ import { weekdaysLabel } from '../../domain/schedule';
 import { IconComponent } from '../../ui/icon.component';
 import { PageHeaderComponent, PersonComponent, SegmentedComponent } from '../../ui/kit';
 import { ClassFormModalComponent } from './class-form-modal.component';
+import { CoachClassEditComponent } from './coach-class-edit.component';
 
 type StatusTab = 'active' | 'draft' | 'closed';
 
 /**
- * W13 — turmas. Só owner/admin editam (as rules só deixam manager gravar turma); professor e
- * recepção veem em modo leitura, mesmo o professor com `edit_classes`.
+ * W13 — turmas. Owner/admin editam tudo; o professor com `edit_classes` ajusta nome, nível e
+ * quadra só das turmas dele (o resto mexe em contrato, agenda e cobrança); recepção só lê.
  */
 @Component({
   selector: 'ct-classes',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageHeaderComponent, PersonComponent, SegmentedComponent, IconComponent, ClassFormModalComponent],
+  imports: [PageHeaderComponent, PersonComponent, SegmentedComponent, IconComponent, ClassFormModalComponent, CoachClassEditComponent],
   templateUrl: './classes.component.html',
   styles: `
     .page { padding: 20px var(--ct-gutter) 26px; display: flex; flex-direction: column; gap: 16px; }
@@ -62,6 +63,17 @@ export class ClassesComponent {
   protected readonly onlyMine = signal(true);
 
   protected readonly canEdit = computed(() => this.ctx.isManager() && this.ctx.canWrite());
+
+  /** Professor na própria turma, ainda em andamento. */
+  protected coachCanEdit(c: TrainingClass): boolean {
+    return (
+      !this.ctx.isManager() &&
+      this.ctx.canWrite() &&
+      this.ctx.has('edit_classes') &&
+      c.coachUid === this.ctx.me()?.uid &&
+      (c.status === 'active' || c.status === 'draft')
+    );
+  }
   protected readonly isCoach = computed(() => this.ctx.me()?.role === 'coach');
   protected readonly seesEnrollments = computed(() => this.ctx.has('view_enrollments') || this.ctx.has('enroll_students'));
 

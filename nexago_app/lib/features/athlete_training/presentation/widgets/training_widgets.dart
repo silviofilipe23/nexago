@@ -15,15 +15,22 @@ import '../../../professor_mode/presentation/availability/availability_widgets.d
 import '../../../professor_mode/presentation/lesson_plans/athlete_lesson_plan_pages.dart'
     show openAthleteLessonPlan;
 import '../../domain/athlete_training.dart';
+import 'training_origin_widgets.dart';
 
 /// Peças das telas de Treinos do atleta (protótipo `at-treino-*.jsx`), no
 /// mesmo kit visual das telas do aluno que já existiam (`ProfessorLinks*`).
 
-/// Abre o treino: aula da arena no detalhe da aula (F2), particular na
-/// lista das particulares (onde dá para remarcar e cancelar).
+/// Abre o treino: aula da arena no detalhe da aula (F2), aula do centro na
+/// sessão do centro (O7), particular na lista das particulares (onde dá para
+/// remarcar e cancelar).
 void openTraining(BuildContext context, TrainingSession t) {
   final entry = t.classEntry;
-  if (entry != null) {
+  if (t.isCenter) {
+    context.pushNamed(
+      AppRouteNames.athleteTrainingCenterSession,
+      pathParameters: {'centerId': t.centerId, 'sessionId': t.id},
+    );
+  } else if (entry != null) {
     openClassSessionDetail(context, entry);
   } else {
     context.pushNamed(AppRouteNames.athletePrivateLessons);
@@ -70,6 +77,7 @@ class TrainingTypeTag extends StatelessWidget {
   Widget build(BuildContext context) {
     final label = trainingTypeLabel(training);
     final color = switch (label) {
+      'Turma' when training.isCenter => trainingCenterColor,
       'Particular' || 'Dupla' => ProfessorLinksStyle.blue,
       'Reposição' => ProfessorLinksStyle.blue,
       'Experimental' => AppColors.pending,
@@ -491,12 +499,17 @@ class TrainingRow extends StatelessWidget {
     this.highlight = false,
     this.onTap,
     this.footer,
+    this.showOrigin = false,
   });
 
   final TrainingSession training;
 
   /// Destaca o dia (o próximo treino).
   final bool highlight;
+
+  /// Etiqueta da origem (Particular · Arena · Centro) — quando o aluno
+  /// treina em mais de uma.
+  final bool showOrigin;
   final VoidCallback? onTap;
   final Widget? footer;
 
@@ -547,7 +560,12 @@ class TrainingRow extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      TrainingTypeTag(t),
+                      if (showOrigin) ...[
+                        TrainingOriginTag(t.origin),
+                        const SizedBox(width: 6),
+                      ],
+                      if (!showOrigin || t.isMakeup || t.isTrial)
+                        TrainingTypeTag(t),
                       const Spacer(),
                       TrainingStatePill(t),
                     ],
@@ -586,6 +604,16 @@ class TrainingRow extends StatelessWidget {
                           ),
                         ),
                       ],
+                    ),
+                  ],
+                  if (t.locationChanged && !t.isCanceled) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      'LOCAL DIFERENTE NESTA AULA',
+                      style: ProfessorLinksStyle.mono(
+                        9.5,
+                        color: colors.readableTone(AppColors.pending),
+                      ),
                     ),
                   ],
                   if (footer != null) ...[const SizedBox(height: 8), footer!],

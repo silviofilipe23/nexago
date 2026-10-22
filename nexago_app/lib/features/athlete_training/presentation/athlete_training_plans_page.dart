@@ -14,12 +14,18 @@ import '../../athlete/domain/agenda/athlete_agenda_providers.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../professor_mode/presentation/widgets/professor_students_widgets.dart';
 import '../application/athlete_training_providers.dart';
+import '../../../core/links/open_external_url.dart';
+import '../../../core/time/nexago_event_timezone.dart';
+import '../../professor_links/application/professor_links_providers.dart';
+import '../domain/training_center.dart';
 import '../domain/training_plans.dart';
+import 'widgets/training_origin_widgets.dart';
 import 'widgets/training_widgets.dart';
 
-/// T14 · Planos e pagamentos — turma cobrada pela arena e particular cobrada
-/// pelo professor, lado a lado, as mensalidades em aberto e os últimos
-/// pagamentos (`getMyTrainingPlans` + `getMyClassCharges`).
+/// T14/O8 · Planos e pagamentos — turma cobrada pela arena, particular
+/// cobrada pelo professor e mensalidade do centro de treinamento: cada origem
+/// cobra separado (`getMyTrainingPlans` + `getMyClassCharges` +
+/// `getMyTrainingCenters`).
 class AthleteTrainingPlansPage extends ConsumerWidget {
   const AthleteTrainingPlansPage({super.key});
 
@@ -28,11 +34,28 @@ class AthleteTrainingPlansPage extends ConsumerWidget {
     final async = ref.watch(athleteTrainingPlansProvider);
     final plans = async.valueOrNull;
     final open = ref.watch(myClassChargesProvider).valueOrNull ?? const [];
+    final centers =
+        ref.watch(athleteTrainingCentersProvider).valueOrNull ?? const [];
+    final todayKey =
+        nexagoEventDayKey(ref.watch(professorLinksClockProvider)());
+    final centerOpen = [
+      for (final c in centers)
+        for (final i in c.openInvoices) (c, i),
+    ];
+    final centerPlans = [
+      for (final c in centers)
+        for (final e in c.enrollments) (c, e),
+    ];
+    final activeCount = (plans?.activeCount ?? 0) + centerPlans.length;
+    final openCount = open.length + centerOpen.length;
+    final payments = plans == null
+        ? const <TrainingPayment>[]
+        : centerPaymentsMerged(plans.payments, centers);
     final subtitle = plans == null
         ? null
         : [
-            plans.activeCount == 1 ? '1 ATIVO' : '${plans.activeCount} ATIVOS',
-            open.isEmpty ? 'NADA EM ABERTO' : '${open.length} EM ABERTO',
+            activeCount == 1 ? '1 ATIVO' : '$activeCount ATIVOS',
+            openCount == 0 ? 'NADA EM ABERTO' : '$openCount EM ABERTO',
           ].join(' · ');
 
     return ProfessorLinksScaffold(
@@ -44,6 +67,7 @@ class AthleteTrainingPlansPage extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(myClassChargesProvider);
           ref.invalidate(athleteTrainingPlansProvider);
+          ref.invalidate(athleteTrainingCentersProvider);
           await ref.read(athleteTrainingPlansProvider.future);
         },
         child: ListView(
@@ -83,12 +107,40 @@ class AthleteTrainingPlansPage extends ConsumerWidget {
                 ),
                 const SizedBox(height: 6),
               ],
-              if (plans.activeCount == 0)
+              for (final (c, i) in centerOpen) ...[
+                TrainingTilesBlock(
+                  children: [
+                    TrainingListTile(
+                      key: Key('training-plans-center-open-${i.invoiceId}'),
+                      icon: Icons.receipt_long_outlined,
+                      title: '${i.reference} · ${formatBRLFromCents(i.amountCents)}',
+                      subtitle: [
+                        c.name,
+                        if (i.dueDate.isNotEmpty)
+                          '${i.isOverdue(todayKey) ? 'venceu' : 'vence'} '
+                              '${trainingPlanShortDate(i.dueDate)}',
+                        if (i.payUrl != null) 'toque para pagar',
+                      ].join(' · '),
+                      highlight: i.isOverdue(todayKey),
+                      onTap: () => i.payUrl != null
+                          ? openExternalUrl(i.payUrl!)
+                          : context.pushNamed(
+                              AppRouteNames.athleteTrainingCenter,
+                              pathParameters: {'centerId': c.centerId},
+                              queryParameters: const {'aba': 'plano'},
+                            ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+              ],
+              if (activeCount == 0)
                 const ProfessorLinksCard(
                   key: Key('training-plans-empty'),
                   child: ProfessorMutedText(
-                    'Nenhum plano ativo. A matrícula numa turma da arena e o '
-                    'plano com um professor aparecem aqui.',
+                    'Nenhum plano ativo. A matrícula numa turma da arena, no '
+                    'centro de treinamento e o plano com um professor '
+                    'aparecem aqui.',
                   ),
                 ),
               for (final p in plans.arenaPlans) ...[
@@ -99,13 +151,17 @@ class AthleteTrainingPlansPage extends ConsumerWidget {
                 _ProfessorPlanCard(plan: p),
                 const SizedBox(height: 10),
               ],
-              if (plans.payments.isNotEmpty) ...[
+              for (final (c, e) in centerPlans) ...[
+                _CenterPlanCard(center: c, enrollment: e),
+                const SizedBox(height: 10),
+              ],
+              if (payments.isNotEmpty) ...[
                 const TrainingSectionTitle('Últimos pagamentos'),
                 ProfessorLinksCard(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   child: Column(
                     children: [
-                      for (final (i, pay) in plans.payments.indexed) ...[
+                      for (final (i, pay) in payments.indexed) ...[
                         if (i > 0)
                           Divider(
                             height: 1,
@@ -348,6 +404,53 @@ class _ArenaPlanCard extends StatelessWidget {
           p.makeupCredits > 0 ? ProfessorLinksStyle.blue : null,
         ),
       ],
+    );
+  }
+}
+
+/// Matrícula no centro: cobrada PELO CENTRO (mensalidade recorrente ou
+/// pacote).
+class _CenterPlanCard extends StatelessWidget {
+  const _CenterPlanCard({required this.center, required this.enrollment});
+
+  final TrainingCenterLink center;
+  final CenterEnrollment enrollment;
+
+  @override
+  Widget build(BuildContext context) {
+    final e = enrollment;
+    final credits = e.credits;
+    final left = e.creditsLeft;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => context.pushNamed(
+        AppRouteNames.athleteTrainingCenter,
+        pathParameters: {'centerId': center.centerId},
+        queryParameters: const {'aba': 'plano'},
+      ),
+      child: _PlanCard(
+        key: Key('training-plan-center-${e.enrollmentId}'),
+        color: trainingCenterColor,
+        payer: 'Mensalidade ao ${center.name}',
+        title: e.className,
+        subtitle: centerPlanSummary(e),
+        usage: e.isPack && credits != null && left != null && credits > 0
+            ? ((credits - left).clamp(0, credits), credits)
+            : null,
+        rows: [
+          (
+            'Valor',
+            '${formatBRLFromCents(e.priceCents)}${e.isPack ? '' : '/mês'}',
+            null,
+          ),
+          if (e.billingStatus != null)
+            ('Pagamento', centerBillingMethodLabel(e.billingMethod), null),
+          if (e.nextChargeDate != null)
+            ('Próxima', trainingPlanShortDate(e.nextChargeDate!), null),
+          if (e.status != 'active')
+            ('Situação', centerEnrollmentStatusLabel(e), AppColors.pending),
+        ],
+      ),
     );
   }
 }

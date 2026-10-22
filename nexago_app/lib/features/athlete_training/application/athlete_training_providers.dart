@@ -18,21 +18,52 @@ import '../domain/training_plans.dart';
 import '../infrastructure/training_plans_repository.dart';
 import '../domain/class_presence.dart';
 import '../infrastructure/class_presence_repository.dart';
+import '../domain/training_center.dart';
+import '../infrastructure/training_centers_repository.dart';
+
+/// Centros de treinamento do aluno (`getMyTrainingCenters`). Falha (ou a
+/// callable ainda não publicada) vira lista vazia: o resto dos treinos segue.
+final athleteTrainingCentersProvider =
+    FutureProvider.autoDispose<List<TrainingCenterLink>>((ref) async {
+  if (ref.watch(professorLinksUidProvider).isEmpty) return const [];
+  try {
+    return await ref.read(trainingCentersRepositoryProvider).fetch();
+  } catch (_) {
+    return const [];
+  }
+});
+
+/// Um centro do aluno pelo id — `data(null)` quando o aluno não tem (mais)
+/// vínculo com ele.
+final athleteTrainingCenterProvider = Provider.autoDispose
+    .family<AsyncValue<TrainingCenterLink?>, String>((ref, centerId) {
+  return ref.watch(athleteTrainingCentersProvider).whenData((list) {
+    for (final c in list) {
+      if (c.centerId == centerId) return c;
+    }
+    return null;
+  });
+});
 
 /// Treinos da janela curta: aulas da agenda (30 dias para trás, 35 para a
-/// frente — o mesmo `myClassAgendaProvider` da aba Agenda) + particulares.
+/// frente — o mesmo `myClassAgendaProvider` da aba Agenda) + particulares +
+/// aulas dos centros de treinamento.
 /// `null` enquanto as duas fontes não chegaram. Falha numa fonte vira lista
 /// vazia (a agenda já engole o erro da callable).
 final athleteTrainingsProvider =
     Provider.autoDispose<List<TrainingSession>?>((ref) {
   final classes = ref.watch(myClassAgendaProvider);
   final privates = ref.watch(athletePrivateLessonsProvider);
-  if (!classes.hasValue || (!privates.hasValue && !privates.hasError)) {
+  final centers = ref.watch(athleteTrainingCentersProvider);
+  if (!classes.hasValue ||
+      (!privates.hasValue && !privates.hasError) ||
+      !centers.hasValue) {
     return null;
   }
   return buildTrainings(
     classes: classes.value ?? const [],
     privateLessons: privates.valueOrNull ?? const [],
+    centers: centers.value ?? const [],
     now: ref.watch(professorLinksClockProvider)(),
   );
 });
@@ -72,12 +103,16 @@ final athleteTrainingsWithHistoryProvider =
   final classes = ref.watch(myClassAgendaProvider);
   final history = ref.watch(athleteTrainingClassHistoryProvider);
   final privates = ref.watch(athletePrivateLessonsProvider);
-  if (!classes.hasValue || (!privates.hasValue && !privates.hasError)) {
+  final centers = ref.watch(athleteTrainingCentersProvider);
+  if (!classes.hasValue ||
+      (!privates.hasValue && !privates.hasError) ||
+      !centers.hasValue) {
     return null;
   }
   return buildTrainings(
     classes: [...?history.valueOrNull, ...?classes.value],
     privateLessons: privates.valueOrNull ?? const [],
+    centers: centers.value ?? const [],
     now: ref.watch(professorLinksClockProvider)(),
   );
 });

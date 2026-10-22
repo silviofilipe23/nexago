@@ -519,6 +519,52 @@ AthleteNotificationPresentation _basePresentation(
         routePath: athleteAgendaTabLocation,
         externalUrl: invoiceUrl,
       );
+    // Fatura do centro de treinamento: "Pagar" abre a fatura no navegador;
+    // a rota (plano B) é o centro na aba Plano.
+    case centerInvoiceLinkNotificationType:
+    case centerBillingNoticeNotificationType:
+      final centerInvoiceUrl = externalNotificationUrl({...data, 'type': type});
+      return AthleteNotificationPresentation(
+        icon: Icons.payments_outlined,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.12),
+        actions: centerInvoiceUrl == null
+            ? const []
+            : const [
+                AthleteNotificationAction(
+                  label: 'Pagar',
+                  kind: AthleteNotificationActionKind.primary,
+                ),
+              ],
+        routePath: resolveNotificationRoute({...data, 'type': type}),
+        externalUrl: centerInvoiceUrl,
+      );
+    // Aula, matrícula, vaga e pagamento confirmado do centro: abrem a aula ou
+    // o centro (Treinos).
+    case centerPaymentConfirmedNotificationType:
+    case centerClassReminderNotificationType:
+    case centerSessionNoticeNotificationType:
+    case centerEnrollmentNoticeNotificationType:
+    case centerSeatOfferNotificationType:
+      return AthleteNotificationPresentation(
+        icon: type == centerPaymentConfirmedNotificationType
+            ? Icons.check_circle_outline_rounded
+            : Icons.event_note_outlined,
+        iconColor: type == centerPaymentConfirmedNotificationType
+            ? AppColors.win
+            : AppColors.brand,
+        iconBackground: (type == centerPaymentConfirmedNotificationType
+                ? AppColors.win
+                : AppColors.brand)
+            .withValues(alpha: 0.12),
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Ver',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: resolveNotificationRoute({...data, 'type': type}),
+      );
     // Pagamento ao professor confirmado: abre a confirmação (e o comprovante).
     case professorChargePaidNotificationType:
       return AthleteNotificationPresentation(

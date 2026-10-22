@@ -56,6 +56,8 @@ import {
   type BillingPolicies,
   type DunningStage,
 } from "./training-center-subscription-model";
+import {billingEventForStage} from "./training-center-notification-settings-model";
+import {deliverCenterNotice} from "./training-center-notify";
 import {dayKeyIn, invoiceReference, payerName} from "./training-center-waitlist-model";
 
 type Data = Record<string, unknown>;
@@ -357,19 +359,14 @@ async function sendNotice(
     centerName: c.name, cycle: inv.cycle, amount: brlFromCents(inv.amountCents), blockDay,
     dueIn: daysBetween(c.today, inv.dueDate), link: Boolean(inv.url),
   });
-  let delivered = false;
-  if (uid) {
-    try {
-      await deps.notify({
-        userId: uid, title: text.title, body: text.body, type: CENTER_BILLING_NOTICE_TYPE,
-        data: {centerId: c.id, invoiceId: inv.id, ...(inv.url ? {invoiceUrl: inv.url, webUrl: inv.url} : {})},
-      });
-      delivered = true;
-    } catch (e) {
-      logger.warn(`subscription ${subRef.path}: aviso ${stage} falhou`, e);
-    }
-  }
-  const notice = {at: Timestamp.fromDate(deps.now()), stage, cycle: inv.cycle, invoiceId: inv.id, title: text.title, channel: "push", delivered};
+  // Preferências do centro: evento desligado não sai; no silêncio, sai quando ele acaba.
+  const r = await deliverCenterNotice(db, deps, {
+    centerId: c.id, event: billingEventForStage(stage), uids: uid ? [uid] : [], title: text.title, body: text.body,
+    type: CENTER_BILLING_NOTICE_TYPE, data: {centerId: c.id, invoiceId: inv.id, ...(inv.url ? {invoiceUrl: inv.url, webUrl: inv.url} : {})},
+  });
+  const delivered = r.sent > 0 || r.deferred > 0;
+  const channel = r.deferred ? "push (após o silêncio)" : r.skipped === "disabled" ? "desligado" : "push";
+  const notice = {at: Timestamp.fromDate(deps.now()), stage, cycle: inv.cycle, invoiceId: inv.id, title: text.title, channel, delivered};
   await db.runTransaction(async (tx: Transaction) => {
     const cur = (await tx.get(subRef)).data();
     if (!cur) return;

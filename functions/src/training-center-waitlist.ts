@@ -29,6 +29,7 @@ import {
   waitlistQueue,
 } from "./training-center-waitlist-model";
 import {CENTER_SEAT_OFFER_TYPE, seatOfferNotice} from "./training-center-notifications-model";
+import {deliverCenterNotice} from "./training-center-notify";
 
 export {CENTER_SEAT_OFFER_TYPE};
 
@@ -169,17 +170,14 @@ export async function offerOpenSeats(db: Firestore, centerId: string, classId: s
   });
 }
 
-async function notifyOffers(deps: WaitlistDeps, centerId: string, offers: SeatOffer[]): Promise<void> {
+async function notifyOffers(db: Firestore, deps: WaitlistDeps, centerId: string, offers: SeatOffer[]): Promise<void> {
   for (const o of offers) {
     if (!o.studentUid) continue;
     try {
       const notice = seatOfferNotice(o.className, o.centerName, o.holdHours, brlFromCents(o.priceCents));
-      await deps.notify({
-        userId: o.studentUid,
-        title: notice.title,
-        body: notice.body,
-        type: CENTER_SEAT_OFFER_TYPE,
-        data: {centerId, enrollmentId: o.enrollmentId},
+      await deliverCenterNotice(db, deps, {
+        centerId, event: "seat_offered", uids: [o.studentUid], title: notice.title, body: notice.body,
+        type: CENTER_SEAT_OFFER_TYPE, data: {centerId, enrollmentId: o.enrollmentId},
       });
     } catch (e) {
       logger.warn("waitlist: push da oferta falhou", {centerId, enrollmentId: o.enrollmentId, e});
@@ -191,7 +189,7 @@ export async function handleSeatChange(db: Firestore, deps: WaitlistDeps, center
   const offers = await offerOpenSeats(db, centerId, classId, deps.now());
   if (offers.length) {
     logger.info("waitlist: vagas oferecidas", {centerId, classId, n: offers.length});
-    await notifyOffers(deps, centerId, offers);
+    await notifyOffers(db, deps, centerId, offers);
   }
   return offers;
 }

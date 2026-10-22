@@ -3905,7 +3905,7 @@ service cloud.firestore {
         ctIsManager() &&
         ctChanged().hasOnly([
           'name', 'legalName', 'cnpj', 'slug', 'timezone', 'sports', 'contactEmail',
-          'contactPhone', 'city', 'state', 'address', 'policies', 'billing', 'activationRequestedAt'
+          'contactPhone', 'city', 'state', 'address', 'policies', 'billing', 'notifications', 'activationRequestedAt'
         ])
       );
       allow delete: if false;
@@ -4089,7 +4089,7 @@ service cloud.firestore {
         // Campos do provedor (Asaas) só o servidor grava: `providerRef` nasce vazio e a fatura,
         // o status e as consultas vêm das functions (training-center-billing.ts).
         function ctProviderKeys() {
-          return ['providerUrl', 'providerStatus', 'providerIssuedAt', 'providerApprovedAt', 'providerCheckAt', 'providerAttempt'];
+          return ['providerUrl', 'providerStatus', 'providerIssuedAt', 'providerApprovedAt', 'providerCheckAt', 'providerAttempt', 'staffAlertedAt'];
         }
         allow create: if ctHasPerm('enroll_students') && ctOperational() &&
           request.resource.data.status == 'pending' &&

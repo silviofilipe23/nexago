@@ -33,6 +33,7 @@ import {
 import {getOrCreateAsaasCustomer, isValidCpfCnpj, normalizeCpfCnpj, resolveAthleteCpfCnpj} from "./asaas-customer";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {getFirebaseProjectId} from "./firebase-paths";
+import {alertStaffPendingPayments} from "./training-center-notify";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {deliverNotificationToUser, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
 import {
@@ -823,7 +824,9 @@ export async function sweepTrainingCenterBillingCore(
     }
   }
 
-  // 2) Pendentes geradas no provedor há >2h (e de novo a cada 2h/12h): webhook perdido.
+  // 2) Pendentes geradas no provedor há >2h (e de novo a cada 2h/12h): webhook perdido. As que
+  // seguem sem confirmação avisam a equipe uma vez (Configurações › Notificações).
+  const staffAlerts = new Map<string, {payerName: string; amountCents: number}[]>();
   const due = await db.collectionGroup("invoices").where("providerCheckAt", "<=", nowTs).limit(200).get();
   for (const doc of due.docs) {
     const centerDoc = doc.ref.parent.parent;
@@ -844,20 +847,35 @@ export async function sweepTrainingCenterBillingCore(
       const cur = (await doc.ref.get()).data();
       if (cur?.["status"] === "pending" && str(cur["providerRef"])) {
         const issued = millisOf(cur["providerIssuedAt"]) ?? now.getTime();
-        await doc.ref.update({providerCheckAt: Timestamp.fromMillis(nextProviderCheck(issued, now.getTime()))});
+        const alert = cur["staffAlertedAt"] == null && now.getTime() - issued >= STAFF_ALERT_AFTER_MS;
+        await doc.ref.update({
+          providerCheckAt: Timestamp.fromMillis(nextProviderCheck(issued, now.getTime())),
+          ...(alert ? {staffAlertedAt: nowTs} : {}),
+        });
+        if (alert) {
+          const list = staffAlerts.get(centerDoc.id) ?? [];
+          list.push({payerName: str(cur["payerName"]), amountCents: Number(cur["amountCents"] ?? 0)});
+          staffAlerts.set(centerDoc.id, list);
+        }
       }
     } catch (e) {
       logger.warn(`sweepTrainingCenterBilling: consulta ${doc.ref.path} falhou`, e);
       await doc.ref.update({providerCheckAt: Timestamp.fromMillis(now.getTime() + PROVIDER_FIRST_CHECK_MS)}).catch(() => undefined);
     }
   }
+  for (const [centerId, list] of staffAlerts) {
+    await alertStaffPendingPayments(db, deps, centerId, list).catch((e) => logger.warn(`sweepTrainingCenterBilling: alerta da equipe ${centerId} falhou`, e));
+  }
   return {released, approved, checked};
 }
+
+/** Pagamento online sem confirmação depois disto vira alerta para owner/admin. */
+const STAFF_ALERT_AFTER_MS = 2 * 3600_000;
 
 export const sweepTrainingCenterBilling = onSchedule({
   schedule: "every 15 minutes",
   timeZone: "America/Sao_Paulo",
-  secrets: [...asaasArenaSecrets],
+  secrets: [...asaasArenaSecrets, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async () => {
   const result = await sweepTrainingCenterBillingCore(getFirestore());
   if (result.released || result.approved || result.checked) logger.info("sweepTrainingCenterBilling", result);

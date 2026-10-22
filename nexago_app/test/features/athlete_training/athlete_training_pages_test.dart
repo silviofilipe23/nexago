@@ -298,14 +298,34 @@ void main() {
       expect(router.state.uri.path, AppRoutes.athleteTrainings);
     });
 
-    testWidgets('sem aula marcada vira atalho para o hub', (tester) async {
+    testWidgets('sem aula marcada nem feedback novo: não aparece', (
+      tester,
+    ) async {
       await _pump(
         tester,
         location: AppRoutes.home,
         data: _Data(views: [_view('v1')]),
       );
-      expect(find.byKey(const Key('athlete-training-home-shortcut')),
+      expect(
+          find.byKey(const Key('athlete-training-home-entry')), findsNothing);
+      expect(find.byKey(const Key('training-next-compact')), findsNothing);
+    });
+
+    testWidgets('sem aula marcada mas com feedback novo: só o feedback', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        location: AppRoutes.home,
+        data: _Data(views: [
+          _view('v1',
+              feedback: 'Joelho bem melhor!',
+              sentAt: _now.subtract(const Duration(hours: 2))),
+        ]),
+      );
+      expect(find.byKey(const Key('athlete-training-home-feedback')),
           findsOneWidget);
+      expect(find.byKey(const Key('training-next-compact')), findsNothing);
       expect(find.byKey(const Key('training-next-card')), findsNothing);
     });
   });

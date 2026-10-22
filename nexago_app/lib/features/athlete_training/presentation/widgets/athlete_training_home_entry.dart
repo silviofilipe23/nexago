@@ -22,10 +22,9 @@ import '../../domain/class_presence.dart';
 import 'class_presence_widgets.dart';
 import 'training_widgets.dart';
 
-/// T1 · Entrada de Treinos na aba Início: o cartão "Próximo treino" (ou, sem
-/// aula marcada, um atalho para Meus treinos) e o feedback novo do
-/// professor. Só aparece para quem tem aula, particular ou plano/feedback —
-/// quem não treina com professor não vê nada (nem o respiro).
+/// T1 · Entrada de Treinos na aba Início: o cartão "Próximo treino" e o
+/// feedback novo do professor. Sem aula marcada nem feedback novo não aparece
+/// nada (nem o respiro) — o atalho Treinos leva ao hub.
 ///
 /// O "Próximo treino" começa compacto (uma linha); a seta expande para o
 /// cartão inteiro, com plano, presença e botões. Com presença por confirmar
@@ -64,6 +63,9 @@ class _AthleteTrainingHomeEntryState
         feedbacks.isNotEmpty && trainingFeedbackIsNew(feedbacks.first, now)
             ? feedbacks.first
             : null;
+    // Sem aula marcada e sem feedback novo, nada aparece (nem o respiro): o
+    // atalho Treinos da linha de atalhos já leva ao hub.
+    if (next == null && fresh == null) return const SizedBox.shrink();
     void openHub() => context.pushNamed(AppRouteNames.athleteTrainings);
     final needsPresence = next != null &&
         (trainingAwaitsResponse(next, now) || trainingCanCheckIn(next, now));
@@ -107,82 +109,11 @@ class _AthleteTrainingHomeEntryState
                       badge: badge,
                       onExpand: toggle,
                     ),
-            )
-          else
-            _HubShortcut(badge: badge, onTap: openHub),
+            ),
           if (fresh != null) ...[
-            const SizedBox(height: 10),
+            if (next != null) const SizedBox(height: 10),
             _FreshFeedback(view: fresh),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-/// Sem aula marcada: uma linha que leva ao hub.
-class _HubShortcut extends StatelessWidget {
-  const _HubShortcut({required this.badge, required this.onTap});
-
-  final int badge;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    return ProfessorLinksCard(
-      key: const Key('athlete-training-home-shortcut'),
-      onTap: onTap,
-      padding: const EdgeInsets.fromLTRB(13, 12, 12, 12),
-      borderColor: AppColors.brand.withValues(alpha: 0.32),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.brand.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child:
-                Icon(Icons.sports_rounded, size: 20, color: colors.brandText),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Meus treinos',
-                  style: ProfessorLinksStyle.display(
-                    14,
-                    weight: FontWeight.w700,
-                    color: colors.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Aulas, feedbacks e evolução com seus professores',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.bodyS.copyWith(
-                    fontSize: 12,
-                    color: ProfessorLinksStyle.dim(colors),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (badge > 0) ...[
-            const SizedBox(width: 8),
-            TrainingBadge(count: badge),
-          ],
-          const SizedBox(width: 4),
-          Icon(
-            Icons.chevron_right_rounded,
-            size: 18,
-            color: ProfessorLinksStyle.dim(colors),
-          ),
         ],
       ),
     );

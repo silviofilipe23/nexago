@@ -817,3 +817,72 @@ class ProfessorLinksSheetBody extends StatelessWidget {
     );
   }
 }
+
+/// Linha de ação das folhas de ajustes: ícone, título, subtítulo e chevron.
+/// [danger] pinta em vermelho (ex.: Sair).
+class ProfessorLinksSheetRow extends StatelessWidget {
+  const ProfessorLinksSheetRow({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.danger = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final accent = danger ? AppColors.live : AppColors.brand;
+    return ProfessorLinksCard(
+      onTap: onTap,
+      borderColor: danger ? AppColors.live.withValues(alpha: 0.35) : null,
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.13),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: accent, size: 21),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: ProfessorLinksStyle.display(
+                    15,
+                    color: danger ? AppColors.live : colors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: ProfessorLinksStyle.mute(colors),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            Icons.chevron_right_rounded,
+            color: ProfessorLinksStyle.dim(colors),
+          ),
+        ],
+      ),
+    );
+  }
+}

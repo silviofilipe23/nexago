@@ -49,6 +49,7 @@ import '../domain/sand_rank/sand_rank_catalog.dart';
 import '../domain/sand_rank/sand_rank_providers.dart';
 import '../domain/match_history/athlete_match_history_providers.dart';
 import 'daily_mission_navigation.dart';
+import 'widgets/athlete_home/athlete_account_sheet.dart';
 import 'widgets/athlete_home/athlete_home_community_section.dart';
 import 'widgets/athlete_home/athlete_home_competitions_section.dart';
 import 'widgets/athlete_home/athlete_home_daily_missions_section.dart';
@@ -129,7 +130,7 @@ class AthleteHomePage extends ConsumerWidget {
                             profile?.primarySportFirestoreId ?? profile?.sport,
                         tagline: 'O esporte conecta.',
                         // O avatar não está no mockup, mas é a ÚNICA entrada
-                        // para o perfil em todas as cinco abas — a grade de
+                        // para o perfil e os ajustes em todas as cinco abas — a grade de
                         // atalhos já não é renderizada. Sem ele o atleta fica
                         // sem caminho para o próprio cadastro.
                         leading: _HeroAvatar(
@@ -145,8 +146,9 @@ class AthleteHomePage extends ConsumerWidget {
                               .watch(sandRankCosmeticsProvider)
                               .valueOrNull
                               ?.frameId,
-                          onTap: () =>
-                              context.pushNamed(AppRouteNames.athleteProfile),
+                          // Menu da conta: perfil, configurações e
+                          // trocar papel (igual ao avatar do Professor).
+                          onTap: () => openAthleteAccountMenu(context, ref),
                         ),
                         // A primeira seção sobe para cima da arte: a caixa do
                         // hero encolhe, a pintura não.
@@ -894,8 +896,9 @@ class _HeroAvatar extends StatelessWidget {
     final step = sandRankStepFromXp(summary.xp);
 
     return Tooltip(
-      message: 'Seu perfil',
+      message: 'Sua conta',
       child: InkWell(
+        key: const Key('athlete-home-avatar'),
         onTap: onTap,
         customBorder: const CircleBorder(),
         child: SizedBox(

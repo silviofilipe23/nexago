@@ -6,8 +6,6 @@ import '../../../../core/auth/active_role_providers.dart';
 import '../../../../core/auth/app_mobile_role.dart';
 import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/router/routes.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_theme_colors.dart';
 import '../../../auth/presentation/role_selection_page.dart';
 import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
 
@@ -30,7 +28,7 @@ class _ProfessorSettingsSheet extends ConsumerWidget {
       title: AppMobileRole.professor.title,
       subtitle: 'Perfil e conta ficam nos ajustes do modo Atleta.',
       children: [
-        _SheetRow(
+        ProfessorLinksSheetRow(
           key: const Key('professor-settings-arenas'),
           icon: Icons.school_outlined,
           title: 'Minhas arenas',
@@ -42,7 +40,7 @@ class _ProfessorSettingsSheet extends ConsumerWidget {
         ),
         if (canSwitchRole) ...[
           const SizedBox(height: 10),
-          _SheetRow(
+          ProfessorLinksSheetRow(
             key: const Key('professor-settings-switch-role'),
             icon: Icons.swap_horiz_rounded,
             title: 'Trocar papel',
@@ -54,7 +52,7 @@ class _ProfessorSettingsSheet extends ConsumerWidget {
           ),
         ],
         const SizedBox(height: 10),
-        _SheetRow(
+        ProfessorLinksSheetRow(
           key: const Key('professor-settings-sign-out'),
           icon: Icons.logout_rounded,
           title: 'Sair',
@@ -105,71 +103,4 @@ Future<void> confirmProfessorSignOut(
   await ref.read(appSignOutProvider)();
   if (!context.mounted) return;
   context.go(AppRoutes.login);
-}
-
-class _SheetRow extends StatelessWidget {
-  const _SheetRow({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.danger = false,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  final bool danger;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    final accent = danger ? AppColors.live : AppColors.brand;
-    return ProfessorLinksCard(
-      onTap: onTap,
-      borderColor: danger ? AppColors.live.withValues(alpha: 0.35) : null,
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.13),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: accent, size: 21),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: ProfessorLinksStyle.display(
-                    15,
-                    color: danger ? AppColors.live : colors.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: ProfessorLinksStyle.mute(colors),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(
-            Icons.chevron_right_rounded,
-            color: ProfessorLinksStyle.dim(colors),
-          ),
-        ],
-      ),
-    );
-  }
 }

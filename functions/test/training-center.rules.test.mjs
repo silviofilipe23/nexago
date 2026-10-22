@@ -297,3 +297,10 @@ test('recorrência: pendência do aluno e vínculo da cobrança com o ciclo são
   await assertSucceeds(updateDoc(doc(as(OWNER), 'trainingCenters', C), { billing: { billingDay: 10 } }));
   await denied(updateDoc(doc(as(RECEP), 'trainingCenters', C), { billing: { billingDay: 10 } }));
 });
+
+test('preferências de aviso: gestor salva; fila de adiados e log são do servidor', async () => {
+  await assertSucceeds(updateDoc(doc(as(OWNER), 'trainingCenters', C), { notifications: { events: { payment_confirmed: { push: true } } } }));
+  await denied(updateDoc(doc(as(COACH), 'trainingCenters', C), { notifications: {} }));
+  await denied(getDocs(collection(as(OWNER), 'trainingCenters', C, 'notificationOutbox')));
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'notificationLog', 'x'), { kind: 'x' }));
+});

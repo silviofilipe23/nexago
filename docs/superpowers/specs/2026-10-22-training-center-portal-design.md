@@ -120,6 +120,21 @@ Protótipo: seção "Locais · fixo e itinerante" (L1–L5 web; L6–L7 são do 
 - Só **Pix mensal** (link da fatura a cada ciclo). Cartão recorrente e Pix Automático dependem da
   autorização do aluno no app (protótipo R7) — retentativas de cartão vêm junto.
 
+## Notificações (Configurações › Notificações)
+
+- Preferências em `trainingCenters/{c}.notifications`: push ligado/desligado por evento, horário de
+  silêncio (padrão 22:00–07:00) e antecedência do lembrete de aula (1–4h). Eventos obrigatórios
+  (aula cancelada, local/horário alterado, lembrete e atraso de cobrança) não desligam.
+- Todo push do centro passa por `deliverCenterNotice` (`training-center-notify.ts`): evento
+  desligado não sai; no silêncio vai para `notificationOutbox` e sai quando ele acaba (cancelamento e
+  troca de local/horário furam o silêncio; lembrete de aula é descartado).
+- Agendador de 15 min: adiados, lembrete de aula, chamada não finalizada (30 min após o fim →
+  professor). Recibo de pagamento confirmado (desligado por padrão) e alerta da equipe para
+  pagamento online sem confirmação há mais de 2h (owner/admin, uma vez por cobrança).
+- Link da fatura gerado/reenviado à mão pelo gestor sai direto (ação explícita).
+- Só push. E-mail, WhatsApp, edição de texto, crédito de reposição vencendo e resumo diário ficam
+  "em breve" na tela.
+
 ## Fora do MVP (follow-ups)
 
 - Oferecer a vaga liberada ao próximo da fila automaticamente (hoje a varredura só libera; a
@@ -131,4 +146,4 @@ Protótipo: seção "Locais · fixo e itinerante" (L1–L5 web; L6–L7 são do 
   marcar presença na própria aula).
 - Tela de centros no backoffice (ativar/suspender/assinatura).
 - Cobrança recorrente por cartão e Pix Automático (autorização no app, R7) e retentativas.
-- Avisos da régua por e-mail/WhatsApp (sem provedor ainda) e a tela Configurações › Notificações (W4b).
+- Avisos por e-mail/WhatsApp (sem provedor), texto editável, reposição vencendo (sem validade por crédito) e resumo diário.

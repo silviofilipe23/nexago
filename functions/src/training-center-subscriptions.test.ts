@@ -17,8 +17,8 @@ const SUB = `${C}/subscriptions/e1`;
 const ENR = `${C}/enrollments/e1`;
 const CLS = `${C}/classes/k1`;
 
-/** 06:00 em São Paulo do dia pedido. */
-const at = (day: string) => new Date(`${day}T09:00:00Z`);
+/** 09:00 em São Paulo do dia pedido (fora do silêncio padrão 22:00–07:00). */
+const at = (day: string) => new Date(`${day}T12:00:00Z`);
 
 function seed(opts: {center?: Record<string, unknown>; enrollment?: Record<string, unknown>; online?: boolean} = {}) {
   const fake = new FakeFirestore();
@@ -42,11 +42,11 @@ function seed(opts: {center?: Record<string, unknown>; enrollment?: Record<strin
   return fake;
 }
 
-function deps(day: string, over: Partial<CenterBillingDeps> = {}) {
+function deps(day: string, over: Partial<CenterBillingDeps> = {}, hour = "") {
   const calls = {created: [] as Array<Record<string, unknown>>, pushed: [] as Array<{title: string; body: string; data: Record<string, string>}>};
   let n = 0;
   const d: CenterBillingDeps = {
-    now: () => at(day),
+    now: () => (hour ? new Date(`${day}T${hour}:00Z`) : at(day)),
     env: () => "sandbox",
     resolveCustomer: async () => "cus_1",
     createPayment: async (input) => {
@@ -292,5 +292,28 @@ describe("backfill das assinaturas", () => {
     const [row] = await backfillSubscriptionsCore(db(fake), at("2026-10-22"), {apply: true});
     assert.equal(row!.skippedCycle, "2026-11");
     assert.equal(doc(fake, SUB)!["nextChargeDate"], "2026-12-05");
+  });
+});
+
+describe("preferências de aviso na régua", () => {
+  it("às 06:00 (silêncio) o lembrete vai para a fila e sai às 07:00; desligado não sai", async () => {
+    const fake = seed();
+    await withSub(fake);
+    const early = deps("2026-11-02", {}, "09");
+    await runTrainingCenterBillingCore(db(fake), early.deps);
+    assert.equal(early.calls.pushed.length, 0);
+    const outbox = [...fake.store.keys()].filter((k) => k.startsWith(`${C}/notificationOutbox/`));
+    assert.equal(outbox.length, 1);
+    const sendAt = (fake.store.get(outbox[0]!) as {sendAt: Timestamp}).sendAt.toDate().toISOString();
+    assert.equal(sendAt, "2026-11-02T10:00:00.000Z");
+    assert.equal(((doc(fake, SUB)!["notices"] as Array<Record<string, unknown>>)[0]!)["channel"], "push (após o silêncio)");
+
+    const off = seed({center: {notifications: {events: {billing_block_warning: {push: false}}, quietHours: {enabled: false}}}});
+    await withSub(off);
+    await runTrainingCenterBillingCore(db(off), deps("2026-11-02").deps);
+    const late = deps("2026-11-20");
+    await runTrainingCenterBillingCore(db(off), late.deps);
+    assert.equal(late.calls.pushed.length, 0);
+    assert.equal(doc(off, SUB)!["dunningStage"], 3);
   });
 });

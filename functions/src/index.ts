@@ -212,6 +212,12 @@ export {
   onTrainingCenterSubscriptionInvoiceWritten,
   runTrainingCenterBilling,
 } from "./training-center-subscriptions";
+// Centro de Treinamento — preferências de aviso: agendador (adiados, lembrete de aula, chamada), recibo e teste.
+export {
+  onTrainingCenterPaymentNotice,
+  runTrainingCenterNotifications,
+  sendTrainingCenterTestNotification,
+} from "./training-center-notify";
 // Centro de Treinamento — efeitos da chamada (créditos de pacote e de reposição).
 export {onTrainingCenterSessionWritten} from "./training-center-attendance";
 // Centro de Treinamento — oferta automática da vaga ao 1º da lista de espera.

@@ -34,6 +34,8 @@ import {
   studentPushUid,
   type Notice,
 } from "./training-center-notifications-model";
+import type {NotificationEventKey} from "./training-center-notification-settings-model";
+import {deliverCenterNotice} from "./training-center-notify";
 import {dayKeyIn} from "./training-center-waitlist-model";
 
 type Data = Record<string, unknown>;
@@ -81,6 +83,15 @@ async function send(deps: NoticeDeps, uids: string[], notice: Notice, type: stri
   return sent;
 }
 
+/** Avisos de aula e matrícula seguem as preferências do centro (Configurações › Notificações). */
+async function gated(
+  db: Firestore, deps: NoticeDeps, centerId: string, center: Data | undefined, event: NotificationEventKey,
+  uids: string[], notice: Notice, type: string, data: Record<string, string>,
+): Promise<number> {
+  const r = await deliverCenterNotice(db, deps, {centerId, center, event, uids, title: notice.title, body: notice.body, type, data});
+  return r.sent + r.deferred;
+}
+
 export async function handleSessionNotice(
   db: Firestore, deps: NoticeDeps, centerId: string, sessionId: string, eventId: string,
   before: Data | undefined, after: Data | undefined,
@@ -97,9 +108,10 @@ export async function handleSessionNotice(
   const students = await Promise.all(studentIds.map((id) => db.doc(`${TRAINING_CENTERS}/${centerId}/students/${id}`).get()));
   const uids = students.map((d) => studentPushUid(d.data() as Data | undefined)).filter((x): x is string => !!x);
   const data = {centerId, sessionId};
-  let sent = await send(deps, uids, notice, CENTER_SESSION_NOTICE_TYPE, data);
+  const event = notice.kind === "cancelled" ? "session_cancelled" : "session_changed";
+  let sent = await gated(db, deps, centerId, center, event, uids, notice, CENTER_SESSION_NOTICE_TYPE, data);
   if (notice.newCoachUid) {
-    sent += await send(deps, [notice.newCoachUid], coachTakeoverNotice(after), CENTER_SESSION_NOTICE_TYPE, data);
+    sent += await gated(db, deps, centerId, center, "session_changed", [notice.newCoachUid], coachTakeoverNotice(after), CENTER_SESSION_NOTICE_TYPE, data);
   }
   return sent;
 }
@@ -133,13 +145,13 @@ export async function handleEnrollmentNotice(
   const className = String(after["className"] ?? "");
   const data = {centerId, enrollmentId};
   if (kind === "confirmed") {
-    return send(deps, [uid], confirmedNotice(className, centerName), CENTER_ENROLLMENT_NOTICE_TYPE, data);
+    return gated(db, deps, centerId, center, "enrollment_confirmed", [uid], confirmedNotice(className, centerName), CENTER_ENROLLMENT_NOTICE_TYPE, data);
   }
   const contract = (after["contract"] ?? {}) as Data;
   const holdMs = (after["holdUntil"] as {toMillis?: () => number} | null)?.toMillis?.();
   const hours = holdMs ? Math.max(1, Math.round((holdMs - deps.now().getTime()) / 3600_000)) : 24;
   const notice = seatOfferNotice(className, centerName, hours, brlFromCents(Number(contract["priceCents"] ?? 0)));
-  return send(deps, [uid], notice, CENTER_SEAT_OFFER_TYPE, data);
+  return gated(db, deps, centerId, center, "seat_offered", [uid], notice, CENTER_SEAT_OFFER_TYPE, data);
 }
 
 const PUSH_SECRETS = [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT];

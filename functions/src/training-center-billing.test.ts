@@ -477,6 +477,21 @@ describe("varredura", () => {
     assert.equal(fake.store.get(CLS)!["seatsTaken"], 5);
   });
 
+  it("pendente sem confirmação há >2h avisa owner/admin uma vez", async () => {
+    const {fake, db} = makeDb();
+    seed(fake, {enrollment: {status: "active", holdUntil: null}, invoice: {
+      providerRef: "pay_1", providerIssuedAt: Timestamp.fromMillis(NOW.getTime() - 3 * 3600_000),
+      providerCheckAt: Timestamp.fromMillis(NOW.getTime() - 60_000),
+    }});
+    const {deps: d, calls} = deps();
+    await sweepTrainingCenterBillingCore(db, d);
+    assert.deepEqual(calls.pushed.map((p) => p.userId), ["owner"]);
+    assert.ok(inv(fake)["staffAlertedAt"]);
+    fake.seedDoc(INV, {...inv(fake), providerCheckAt: Timestamp.fromMillis(NOW.getTime() - 60_000)});
+    await sweepTrainingCenterBillingCore(db, d);
+    assert.equal(calls.pushed.length, 1);
+  });
+
   it("pendente gerada há >2h: consulta, aprova se pago; senão reagenda a consulta", async () => {
     const {fake, db} = makeDb();
     const issuedAt = Timestamp.fromDate(new Date(NOW.getTime() - 3 * 3_600_000));

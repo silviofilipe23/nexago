@@ -67,6 +67,19 @@
               <div class="bo-meta-row"><span class="k">Carteira</span><span class="v">{{ r.wallet }}</span></div>
               <div class="bo-meta-row"><span class="k">Ambiente</span><span class="v">{{ r.asaasEnv === 'sandbox' ? 'Sandbox' : 'Produção' }}</span></div>
               <div class="bo-meta-row"><span class="k">Taxa NexaGO</span><span class="v">{{ r.feePercent != null ? r.feePercent + '%' : 'padrão (5%)' }}</span></div>
+              @if (r.manualFollowUp) {
+                <div class="bo-alert follow-up">
+                  <bo-icon name="alert" [size]="16" />
+                  <span>
+                    Subconta criada pelo centro e ainda em análise, mas sem a chave de API: a consulta automática ao Asaas não
+                    funciona para ela. Confira a situação no painel do Asaas e registre aqui.
+                  </span>
+                </div>
+                <div class="actions">
+                  <button type="button" class="bo-mini-btn bo-mini-btn-primary" [disabled]="busy()" (click)="askReceiving('approved')">Aprovada no Asaas</button>
+                  <button type="button" class="bo-mini-btn danger" [disabled]="busy()" (click)="askReceiving('rejected')">Recusada</button>
+                </div>
+              }
             } @else {
               <p class="status">Sem conta de recebimento: o centro não consegue gerar Pix/cartão (só confirmação manual).</p>
             }
@@ -153,6 +166,20 @@
       </div>
     }
   </div>
+
+  @if (receivingAsk(); as ra) {
+    <bo-confirm-dialog
+      [open]="true"
+      [title]="ra.title"
+      [description]="ra.description"
+      [confirmLabel]="ra.confirm"
+      [tone]="ra.tone"
+      [busy]="busy()"
+      [error]="receivingAskError()"
+      (confirmed)="confirmReceiving()"
+      (dismissed)="receivingAsk.set(null)"
+    />
+  }
 
   @if (decision(); as d) {
     <bo-confirm-dialog

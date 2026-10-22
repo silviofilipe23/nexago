@@ -7,6 +7,9 @@
  * - `getTrainingCenterBackoffice`: detalhe + recebimento + últimas linhas da auditoria.
  * - `setTrainingCenterStatus`: pending | active | suspended, com motivo (vai para a auditoria do centro).
  * - `setTrainingCenterReceiving`: carteira Asaas (walletId), ambiente e taxa.
+ * - `approveTrainingCenterReceiving`: fecha a análise da subconta criada pelo centro quando ela foi
+ *   adotada sem apiKey (`manualFollowUp`) — a varredura não consegue consultar o Asaas e o time
+ *   NexaGO confere lá e marca aprovada/recusada aqui, sem redigitar a carteira.
  * - `setTrainingCenterSubscription`: plano, situação e fatura em aberto da assinatura NexaGO.
  *
  * Todas exigem acesso ao backoffice (`callerCanAccessBackoffice`: claim `admin` ou superAdmin).
@@ -67,11 +70,15 @@ export interface CenterRow {
   suspendedAtMs: number | null;
   suspendedReason: string;
   receivingConnected: boolean;
+  /** `trainingCenters/{c}.receivingStatus` (pending | approved | rejected | …); "" sem conta própria. */
+  receivingStatus: string;
+  /** Conta em análise que só o time NexaGO consegue fechar (subconta adotada sem apiKey). */
+  receivingManualFollowUp: boolean;
   subscription: {plan: string; status: string; openInvoiceCents: number | null; dueDate: string | null; attempts: string | null} | null;
   counts: {members: number; students: number; activeClasses: number};
 }
 
-export function centerRow(id: string, d: Data, counts: CenterRow["counts"]): CenterRow {
+export function centerRow(id: string, d: Data, counts: CenterRow["counts"], mirror?: Data): CenterRow {
   const status = str(d["status"]);
   const sub = d["subscription"] && typeof d["subscription"] === "object" ? (d["subscription"] as Data) : null;
   return {
@@ -91,6 +98,8 @@ export function centerRow(id: string, d: Data, counts: CenterRow["counts"]): Cen
     suspendedAtMs: millis(d["suspendedAt"]),
     suspendedReason: str(d["suspendedReason"]),
     receivingConnected: d["receivingConnected"] === true,
+    receivingStatus: str(d["receivingStatus"]),
+    receivingManualFollowUp: needsManualFollowUp(mirror),
     subscription: sub ? {
       plan: str(sub["plan"]),
       status: str(sub["status"]),
@@ -101,6 +110,13 @@ export function centerRow(id: string, d: Data, counts: CenterRow["counts"]): Cen
     counts,
   };
 }
+
+/** Espelho do portal (`receivingAccount/current`) pendente e marcado para o time NexaGO acompanhar. */
+function needsManualFollowUp(mirror: Data | undefined): boolean {
+  return mirror?.["manualFollowUp"] === true && str(mirror["status"]) === "pending";
+}
+
+const mirrorPath = (centerId: string) => `${TRAINING_CENTERS}/${centerId}/receivingAccount/current`;
 
 async function countsOf(db: Firestore, centerId: string): Promise<CenterRow["counts"]> {
   const base = db.doc(`${TRAINING_CENTERS}/${centerId}`);
@@ -114,7 +130,10 @@ async function countsOf(db: Firestore, centerId: string): Promise<CenterRow["cou
 
 export async function listCentersCore(db: Firestore): Promise<{centers: CenterRow[]}> {
   const snap = await db.collection(TRAINING_CENTERS).get();
-  const centers = await Promise.all(snap.docs.map(async (d) => centerRow(d.id, d.data() as Data, await countsOf(db, d.id))));
+  const centers = await Promise.all(snap.docs.map(async (d) => {
+    const [counts, mirror] = await Promise.all([countsOf(db, d.id), db.doc(mirrorPath(d.id)).get()]);
+    return centerRow(d.id, d.data() as Data, counts, mirror.data() as Data | undefined);
+  }));
   // Pedido de ativação primeiro; depois pendentes, suspensos, ativos; nome.
   const rank = (c: CenterRow) => (c.status === "pending" && c.activationRequestedAtMs ? 0 : c.status === "pending" ? 1 : c.status === "suspended" ? 2 : 3);
   centers.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, "pt-BR"));
@@ -126,20 +145,25 @@ export async function getCenterCore(db: Firestore, centerId: string) {
   const ref = db.doc(`${TRAINING_CENTERS}/${centerId}`);
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError("not-found", "Centro não encontrado.");
-  const [counts, receiving, audit, programs] = await Promise.all([
+  const [counts, receiving, mirror, audit, programs] = await Promise.all([
     countsOf(db, centerId),
     db.doc(`${TRAINING_CENTER_RECEIVING}/${centerId}`).get(),
+    db.doc(mirrorPath(centerId)).get(),
     ref.collection("auditLogs").orderBy("at", "desc").limit(30).get(),
     ref.collection("programs").get(),
   ]);
   const r = receiving.data() as Data | undefined;
+  const m = mirror.data() as Data | undefined;
   return {
-    center: centerRow(centerId, snap.data() as Data, counts),
+    center: centerRow(centerId, snap.data() as Data, counts, m),
     programs: programs.docs.map((d) => str((d.data() as Data)["name"])).filter(Boolean),
     receiving: r ? {
       wallet: maskWallet(str(r["walletId"])),
       asaasEnv: str(r["asaasEnv"]) || "production",
       feePercent: typeof r["feePercent"] === "number" ? (r["feePercent"] as number) : null,
+      status: str(r["status"]),
+      source: str(r["source"]),
+      manualFollowUp: needsManualFollowUp(m),
     } : null,
     audit: audit.docs.map((d) => {
       const a = d.data() as Data;
@@ -232,6 +256,52 @@ export async function setReceivingCore(
   return {connected: true};
 }
 
+export const RECEIVING_DECISIONS = ["approved", "rejected"] as const;
+export type ReceivingDecision = (typeof RECEIVING_DECISIONS)[number];
+
+/**
+ * Situação da subconta conferida no Asaas pelo time NexaGO. Não mexe na carteira: exige que ela já
+ * esteja gravada (a criada pelo centro). Aprovada vira `source: "manual"` — a varredura deixa de
+ * tentar consultar a subconta sem apiKey.
+ */
+export async function approveReceivingCore(
+  db: Firestore, input: {centerId?: unknown; status?: unknown}, actor: Actor, now: Date,
+): Promise<{status: ReceivingDecision}> {
+  const centerId = str(input.centerId);
+  const status = str(input.status) as ReceivingDecision;
+  if (!centerId || centerId.includes("/")) throw invalid("centerId", "Informe o centro.");
+  if (!(RECEIVING_DECISIONS as readonly string[]).includes(status)) throw invalid("status", "Situação inválida.");
+  const ref = db.doc(`${TRAINING_CENTERS}/${centerId}`);
+  const recRef = db.doc(`${TRAINING_CENTER_RECEIVING}/${centerId}`);
+  const at = Timestamp.fromDate(now);
+  await db.runTransaction(async (tx) => {
+    const [snap, rec] = await Promise.all([tx.get(ref), tx.get(recRef)]);
+    if (!snap.exists) throw new HttpsError("not-found", "Centro não encontrado.");
+    const walletId = str((rec.data() as Data | undefined)?.["walletId"]);
+    if (!walletId) throw new HttpsError("failed-precondition", "O centro ainda não tem carteira Asaas gravada. Use \"Salvar recebimento\".");
+    const approved = status === "approved";
+    tx.set(recRef, {
+      status,
+      ...(approved ? {source: "manual"} : {}),
+      updatedAt: at,
+      updatedBy: actor.uid,
+    }, {merge: true});
+    tx.update(ref, {receivingConnected: approved, receivingStatus: status});
+    tx.set(ref.collection("receivingAccount").doc("current"), {
+      status,
+      manualFollowUp: false,
+      ...(approved ? {documents: []} : {}),
+      statusCheckedAt: at,
+      updatedAt: at,
+    }, {merge: true});
+    tx.set(ref.collection("auditLogs").doc(), auditRow(actor, `center.receiving_${status}`, centerId,
+      approved
+        ? `Conta de recebimento aprovada no Asaas (conferida pelo time NexaGO · ${maskWallet(walletId)}) · cobranças online liberadas`
+        : `Conta de recebimento recusada no Asaas (conferida pelo time NexaGO · ${maskWallet(walletId)})`, "", now));
+  });
+  return {status};
+}
+
 export async function setSubscriptionCore(
   db: Firestore,
   input: {centerId?: unknown; plan?: unknown; status?: unknown; openInvoiceCents?: unknown; dueDate?: unknown; attempts?: unknown},
@@ -301,6 +371,11 @@ export const setTrainingCenterStatus = onCall(BACKOFFICE_CALLABLE, async (reques
 export const setTrainingCenterReceiving = onCall(BACKOFFICE_CALLABLE, async (request) => {
   const actor = await assertBackoffice(request.auth?.uid);
   return setReceivingCore(getFirestore(), (request.data ?? {}) as Data, actor, new Date());
+});
+
+export const approveTrainingCenterReceiving = onCall(BACKOFFICE_CALLABLE, async (request) => {
+  const actor = await assertBackoffice(request.auth?.uid);
+  return approveReceivingCore(getFirestore(), (request.data ?? {}) as Data, actor, new Date());
 });
 
 export const setTrainingCenterSubscription = onCall(BACKOFFICE_CALLABLE, async (request) => {

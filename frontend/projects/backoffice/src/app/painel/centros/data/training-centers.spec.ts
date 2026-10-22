@@ -1,10 +1,10 @@
-import { activationGaps, formatDate, matchesFilter, matchesSearch, parseCents, statusPill, type CenterRow } from './training-centers';
+import { activationGaps, formatDate, matchesFilter, matchesSearch, parseCents, receivingPill, statusPill, type CenterRow } from './training-centers';
 
 function row(p: Partial<CenterRow>): CenterRow {
   return {
     id: 'c', name: 'CT Maré Alta', legalName: 'Maré Alta LTDA', cnpj: '11.222.333/0001-81', city: 'Niterói', state: 'RJ',
     status: 'pending', ownerName: 'Renata', contactEmail: 'r@x.com', contactPhone: '', createdAtMs: null, activatedAtMs: null,
-    activationRequestedAtMs: null, suspendedAtMs: null, suspendedReason: '', receivingConnected: false, subscription: null,
+    activationRequestedAtMs: null, suspendedAtMs: null, suspendedReason: '', receivingConnected: false, receivingStatus: '', receivingManualFollowUp: false, subscription: null,
     counts: { members: 1, students: 0, activeClasses: 0 }, ...p,
   };
 }
@@ -22,6 +22,16 @@ describe('training-centers (backoffice)', () => {
     expect(matchesSearch(row({}), 'mare')).toBeTrue();
     expect(matchesSearch(row({}), 'niteroi')).toBeTrue();
     expect(matchesSearch(row({}), 'zzz')).toBeFalse();
+  });
+
+  it('recebimento em acompanhamento manual se destaca e tem filtro próprio', () => {
+    const manual = row({ receivingStatus: 'pending', receivingManualFollowUp: true });
+    expect(receivingPill(manual)).toEqual({ label: 'Conferir no Asaas', tone: 'orange' });
+    expect(matchesFilter(manual, 'receiving')).toBeTrue();
+    expect(matchesFilter(row({ receivingStatus: 'pending' }), 'receiving')).toBeFalse();
+    expect(receivingPill(row({ receivingStatus: 'pending' })).label).toBe('Em análise');
+    expect(receivingPill(row({ receivingConnected: true, receivingStatus: 'approved' })).tone).toBe('green');
+    expect(receivingPill(row({})).label).toBe('Pendente');
   });
 
   it('valor em reais para centavos', () => {

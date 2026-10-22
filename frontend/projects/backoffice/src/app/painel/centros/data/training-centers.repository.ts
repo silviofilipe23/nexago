@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { httpsCallable } from 'firebase/functions';
 import { backofficeFunctions } from '../../data/firebase';
-import type { CenterDetail, CenterRow, CenterStatus, CenterSubscription } from './training-centers';
+import type { CenterDetail, CenterRow, CenterStatus, CenterSubscription, ReceivingDecision } from './training-centers';
 
 /**
  * Centros de Treinamento pelo backoffice. Tudo por callable: as rules não liberam
@@ -27,6 +27,11 @@ export class TrainingCentersRepository {
 
   setReceiving(centerId: string, walletId: string, asaasEnv: string, feePercent: number | null): Promise<{ connected: boolean }> {
     return this.call('setTrainingCenterReceiving', { centerId, walletId, asaasEnv, feePercent });
+  }
+
+  /** Situação da subconta conferida no Asaas (a carteira gravada não muda). */
+  approveReceiving(centerId: string, status: ReceivingDecision): Promise<{ status: ReceivingDecision }> {
+    return this.call('approveTrainingCenterReceiving', { centerId, status });
   }
 
   setSubscription(centerId: string, sub: CenterSubscription): Promise<{ ok: true }> {

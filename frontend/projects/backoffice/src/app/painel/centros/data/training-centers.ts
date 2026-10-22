@@ -29,6 +29,9 @@ export interface CenterRow {
   suspendedAtMs: number | null;
   suspendedReason: string;
   receivingConnected: boolean;
+  receivingStatus: string;
+  /** Subconta em análise que só o time NexaGO fecha (adotada sem apiKey: a varredura não consulta). */
+  receivingManualFollowUp: boolean;
   subscription: CenterSubscription | null;
   counts: { members: number; students: number; activeClasses: number };
 }
@@ -36,15 +39,24 @@ export interface CenterRow {
 export interface CenterDetail {
   center: CenterRow;
   programs: string[];
-  receiving: { wallet: string; asaasEnv: string; feePercent: number | null } | null;
+  receiving: {
+    wallet: string;
+    asaasEnv: string;
+    feePercent: number | null;
+    status: string;
+    source: string;
+    manualFollowUp: boolean;
+  } | null;
   audit: { atMs: number | null; actorName: string; detail: string; reason: string }[];
 }
 
-export type CenterFilter = 'all' | 'requested' | 'pending' | 'active' | 'suspended';
+export type CenterFilter = 'all' | 'requested' | 'receiving' | 'pending' | 'active' | 'suspended';
+export type ReceivingDecision = 'approved' | 'rejected';
 
 export const FILTERS: readonly { id: CenterFilter; label: string }[] = [
   { id: 'all', label: 'Todos' },
   { id: 'requested', label: 'Pediram ativação' },
+  { id: 'receiving', label: 'Conferir recebimento' },
   { id: 'pending', label: 'Pendentes' },
   { id: 'active', label: 'Ativos' },
   { id: 'suspended', label: 'Suspensos' },
@@ -66,7 +78,17 @@ export function statusPill(c: Pick<CenterRow, 'status' | 'activationRequestedAtM
 export function matchesFilter(c: CenterRow, f: CenterFilter): boolean {
   if (f === 'all') return true;
   if (f === 'requested') return c.status === 'pending' && c.activationRequestedAtMs != null;
+  if (f === 'receiving') return c.receivingManualFollowUp;
   return c.status === f;
+}
+
+/** Coluna "Recebimento" da lista: o acompanhamento manual vem antes de tudo (ninguém mais fecha). */
+export function receivingPill(c: Pick<CenterRow, 'receivingConnected' | 'receivingStatus' | 'receivingManualFollowUp'>): { label: string; tone: PillTone } {
+  if (c.receivingManualFollowUp) return { label: 'Conferir no Asaas', tone: 'orange' };
+  if (c.receivingConnected) return { label: 'Conectado', tone: 'green' };
+  if (c.receivingStatus === 'pending') return { label: 'Em análise', tone: 'yellow' };
+  if (c.receivingStatus === 'rejected') return { label: 'Recusada', tone: 'red' };
+  return { label: 'Pendente', tone: 'dim' };
 }
 
 export function matchesSearch(c: CenterRow, term: string): boolean {

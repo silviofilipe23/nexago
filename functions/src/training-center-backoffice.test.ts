@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {Timestamp, type Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {
+  approveReceivingCore,
   getCenterCore,
   listCentersCore,
   maskWallet,
@@ -25,6 +26,14 @@ function seed() {
   fake.seedDoc("trainingCenters/a/students/s1", {name: "X"});
   fake.seedDoc("trainingCenters/a/classes/k1", {status: "active"});
   fake.seedDoc("trainingCenters/a/classes/k2", {status: "draft"});
+  return fake;
+}
+/** Subconta criada pelo centro e adotada sem apiKey (o caso do CT nexaGO em 22/10). */
+function seedManualFollowUp() {
+  const fake = seed();
+  fake.seedDoc("trainingCenters/p", {name: "Pendente", status: "pending", receivingStatus: "pending"});
+  fake.seedDoc("trainingCenterReceiving/p", {walletId: "wal-0000-1111-2222", asaasEnv: "production", source: "self", status: "pending"});
+  fake.seedDoc("trainingCenters/p/receivingAccount/current", {status: "pending", source: "self", name: "CT Teste", manualFollowUp: true, documents: []});
   return fake;
 }
 const audit = (fake: FakeFirestore, c: string) =>
@@ -69,8 +78,68 @@ describe("training-center backoffice", () => {
     assert.equal(fake.store.get("trainingCenters/p")!["receivingConnected"], true);
     assert.equal(fake.store.get("trainingCenterReceiving/p")!["walletId"], "abc-12345678-xyz");
     const detail = await getCenterCore(db, "p");
-    assert.deepEqual(detail.receiving, {wallet: "••••78-xyz", asaasEnv: "sandbox", feePercent: 5});
+    assert.deepEqual(detail.receiving, {wallet: "••••78-xyz", asaasEnv: "sandbox", feePercent: 5, status: "approved", source: "manual", manualFollowUp: false});
     assert.equal(maskWallet(""), "");
+  });
+
+  it("subconta adotada sem apiKey: lista e detalhe sinalizam o acompanhamento manual", async () => {
+    const fake = seedManualFollowUp();
+    const db = fake as unknown as Firestore;
+    const {centers} = await listCentersCore(db);
+    assert.equal(centers.find((c) => c.id === "p")!.receivingManualFollowUp, true);
+    assert.equal(centers.find((c) => c.id === "p")!.receivingStatus, "pending");
+    assert.equal(centers.find((c) => c.id === "a")!.receivingManualFollowUp, false);
+    const detail = await getCenterCore(db, "p");
+    assert.equal(detail.receiving!.manualFollowUp, true);
+    assert.equal(detail.receiving!.source, "self");
+  });
+
+  it("aprovar no backoffice liga o recebimento, tira do acompanhamento e da varredura, sem trocar a carteira", async () => {
+    const fake = seedManualFollowUp();
+    const db = fake as unknown as Firestore;
+    await approveReceivingCore(db, {centerId: "p", status: "approved"}, ACTOR, NOW);
+    const rec = fake.store.get("trainingCenterReceiving/p")!;
+    assert.equal(rec["walletId"], "wal-0000-1111-2222");
+    assert.equal(rec["status"], "approved");
+    assert.equal(rec["source"], "manual");
+    assert.equal(rec["updatedBy"], "bo1");
+    const center = fake.store.get("trainingCenters/p")!;
+    assert.equal(center["receivingConnected"], true);
+    assert.equal(center["receivingStatus"], "approved");
+    const mirror = fake.store.get("trainingCenters/p/receivingAccount/current")!;
+    assert.equal(mirror["status"], "approved");
+    assert.equal(mirror["manualFollowUp"], false);
+    assert.deepEqual(mirror["documents"], []);
+    assert.equal(mirror["name"], "CT Teste"); // merge: o resto do espelho fica
+    const log = audit(fake, "p");
+    assert.equal(log.length, 1);
+    assert.equal(log[0]!["action"], "center.receiving_approved");
+    assert.match(String(log[0]!["detail"]), /aprovada.*••••1-2222/);
+    const {centers} = await listCentersCore(db);
+    assert.equal(centers.find((c) => c.id === "p")!.receivingManualFollowUp, false);
+  });
+
+  it("recusar desliga o recebimento e mantém a origem da subconta", async () => {
+    const fake = seedManualFollowUp();
+    fake.seedDoc("trainingCenters/p", {name: "Pendente", status: "pending", receivingStatus: "pending", receivingConnected: true});
+    await approveReceivingCore(fake as unknown as Firestore, {centerId: "p", status: "rejected"}, ACTOR, NOW);
+    assert.equal(fake.store.get("trainingCenterReceiving/p")!["source"], "self");
+    assert.equal(fake.store.get("trainingCenterReceiving/p")!["status"], "rejected");
+    assert.equal(fake.store.get("trainingCenters/p")!["receivingConnected"], false);
+    assert.equal(fake.store.get("trainingCenters/p")!["receivingStatus"], "rejected");
+    assert.equal(fake.store.get("trainingCenters/p/receivingAccount/current")!["status"], "rejected");
+    assert.equal(fake.store.get("trainingCenters/p/receivingAccount/current")!["manualFollowUp"], false);
+    assert.equal(audit(fake, "p")[0]!["action"], "center.receiving_rejected");
+  });
+
+  it("aprovar exige carteira gravada, situação válida e centro existente", async () => {
+    const fake = seed();
+    const db = fake as unknown as Firestore;
+    await assert.rejects(approveReceivingCore(db, {centerId: "p", status: "approved"}, ACTOR, NOW), /carteira/);
+    assert.equal(fake.store.get("trainingCenters/p")!["receivingConnected"], undefined);
+    assert.equal(audit(fake, "p").length, 0);
+    await assert.rejects(approveReceivingCore(db, {centerId: "p", status: "pending"}, ACTOR, NOW), /Situação/);
+    await assert.rejects(approveReceivingCore(db, {centerId: "zz", status: "approved"}, ACTOR, NOW), /não encontrado/);
   });
 
   it("assinatura: valida e grava o bloco que o portal lê", async () => {

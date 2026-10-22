@@ -301,26 +301,30 @@ class AthleteHomePage extends ConsumerWidget {
                       // Atalhos (Reservar, Ranking, Treinos, Meus torneios, Squad) abaixo
                       // do que é dinâmico — convites, próximo treino e meus
                       // torneios vêm primeiro.
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.screenH,
-                          0,
-                          AppSpacing.screenH,
-                          AppSpacing.sectionGap,
-                        ),
-                        child: Consumer(
-                          builder: (context, ref, _) {
-                            final bookings =
-                                ref
-                                    .watch(myBookingsStreamProvider)
-                                    .valueOrNull ??
-                                [];
-                            final now = DateTime.now();
-                            final nextBooking = findNextAthleteBooking(
-                              bookings,
-                              now: now,
-                            );
-                            return AthleteHomeNextReservationCard(
+                      // Próxima reserva: sem reserva (ou carregando) não
+                      // aparece nem deixa vão — o atalho Reservar já cobre.
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final bookings =
+                              ref.watch(myBookingsStreamProvider).valueOrNull ??
+                              [];
+                          final now = DateTime.now();
+                          final nextBooking = findNextAthleteBooking(
+                            bookings,
+                            now: now,
+                          );
+                          if (nextBooking == null) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              AppSpacing.screenH,
+                              0,
+                              AppSpacing.screenH,
+                              AppSpacing.sectionGap,
+                            ),
+                            child: AthleteHomeNextReservationCard(
+                              key: const Key('home-next-booking'),
                               booking: nextBooking,
                               now: now,
                               // Compacto na Início; a seta expande.
@@ -330,18 +334,15 @@ class AthleteHomePage extends ConsumerWidget {
                               onReserveTap: () =>
                                   _goToTab(ref, athleteShellReservarTabIndex),
                               onStoryTap:
-                                  nextBooking != null &&
-                                      isBookingStoryShareable(
-                                        nextBooking.rawStatus,
-                                      )
+                                  isBookingStoryShareable(nextBooking.rawStatus)
                                   ? () => openBookingStory(
                                       context,
                                       BookingStoryArgs.fromBooking(nextBooking),
                                     )
                                   : null,
-                            );
-                          },
-                        ),
+                            ),
+                          );
+                        },
                       ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(

@@ -13,6 +13,7 @@ import '../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../professor_mode/presentation/widgets/professor_students_widgets.dart';
 import '../application/athlete_training_providers.dart';
 import '../domain/athlete_training.dart';
+import 'widgets/center_presence_widgets.dart';
 import 'widgets/training_origin_widgets.dart';
 import 'widgets/training_widgets.dart';
 
@@ -53,7 +54,7 @@ class AthleteTrainingCenterSessionPage extends ConsumerWidget {
       body: RefreshIndicator(
         color: AppColors.brand,
         onRefresh: () async {
-          ref.invalidate(athleteTrainingCentersProvider);
+          refreshAthleteTrainingCenters(ref);
           await ref.read(athleteTrainingCentersProvider.future);
         },
         child: ListView(
@@ -178,13 +179,19 @@ class AthleteTrainingCenterSessionPage extends ConsumerWidget {
                       training.endAt.isAfter(now) &&
                       center.policies.excusedAbsenceMakeup)
                     (
-                      'Não vai?',
-                      'Avise o centro até '
-                          '${center.policies.excusedNoticeHours}h antes para '
-                          'ganhar reposição',
+                      'Avisar falta',
+                      'Até ${center.policies.excusedNoticeHours}h antes '
+                          'gera reposição',
                       null,
                     ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              CenterSessionPresence(
+                key: const Key('training-center-session-presence'),
+                center: center,
+                session: session,
+                training: training,
               ),
               const SizedBox(height: 12),
               ProfessorLinksGhostButton(

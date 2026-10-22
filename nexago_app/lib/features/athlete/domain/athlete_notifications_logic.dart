@@ -519,25 +519,21 @@ AthleteNotificationPresentation _basePresentation(
         routePath: athleteAgendaTabLocation,
         externalUrl: invoiceUrl,
       );
-    // Fatura do centro de treinamento: "Pagar" abre a fatura no navegador;
-    // a rota (plano B) é o centro na aba Plano.
+    // Fatura do centro de treinamento: "Pagar" abre a fatura no app (Pix e
+    // cartão), como o push.
     case centerInvoiceLinkNotificationType:
     case centerBillingNoticeNotificationType:
-      final centerInvoiceUrl = externalNotificationUrl({...data, 'type': type});
       return AthleteNotificationPresentation(
         icon: Icons.payments_outlined,
         iconColor: AppColors.brand,
         iconBackground: AppColors.brand.withValues(alpha: 0.12),
-        actions: centerInvoiceUrl == null
-            ? const []
-            : const [
-                AthleteNotificationAction(
-                  label: 'Pagar',
-                  kind: AthleteNotificationActionKind.primary,
-                ),
-              ],
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Pagar',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
         routePath: resolveNotificationRoute({...data, 'type': type}),
-        externalUrl: centerInvoiceUrl,
       );
     // Aula, matrícula, vaga e pagamento confirmado do centro: abrem a aula ou
     // o centro (Treinos).

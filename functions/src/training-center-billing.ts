@@ -640,6 +640,17 @@ export async function queryCenterInvoiceProviderCore(
 ): Promise<QueryResult> {
   const {centerId, invoiceId} = parseCallInput(raw);
   const actor = await requireManager(db, uid, centerId);
+  return queryCenterInvoiceProviderAs(db, actor, centerId, invoiceId, deps);
+}
+
+/** Consulta o provedor e aplica o status, em nome de `actor` (gestor ou o próprio aluno no app). */
+export async function queryCenterInvoiceProviderAs(
+  db: Firestore,
+  actor: {uid: string; name: string},
+  centerId: string,
+  invoiceId: string,
+  deps: CenterBillingDeps = defaultCenterBillingDeps,
+): Promise<QueryResult> {
   const ref = invoiceRef(db, centerId, invoiceId);
   const inv = (await ref.get()).data();
   if (!inv) throw new HttpsError("not-found", "Cobrança não encontrada.");

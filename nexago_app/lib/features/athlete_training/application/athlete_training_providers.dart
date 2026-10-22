@@ -21,28 +21,56 @@ import '../infrastructure/class_presence_repository.dart';
 import '../domain/training_center.dart';
 import '../infrastructure/training_centers_repository.dart';
 
-/// Centros de treinamento do aluno (`getMyTrainingCenters`). Falha (ou a
-/// callable ainda não publicada) vira lista vazia: o resto dos treinos segue.
+/// Resposta de `getMyTrainingCenters` (centros + convites). Falha (ou a
+/// callable ainda não publicada) vira vazio: o resto dos treinos segue.
+final athleteTrainingCentersDataProvider =
+    FutureProvider.autoDispose<MyTrainingCentersData>((ref) async {
+      if (ref.watch(professorLinksUidProvider).isEmpty) {
+        return const MyTrainingCentersData();
+      }
+      try {
+        return await ref.read(trainingCentersRepositoryProvider).fetch();
+      } catch (_) {
+        return const MyTrainingCentersData();
+      }
+    });
+
+/// Centros de treinamento do aluno.
 final athleteTrainingCentersProvider =
-    FutureProvider.autoDispose<List<TrainingCenterLink>>((ref) async {
-  if (ref.watch(professorLinksUidProvider).isEmpty) return const [];
-  try {
-    return await ref.read(trainingCentersRepositoryProvider).fetch();
-  } catch (_) {
-    return const [];
-  }
-});
+    FutureProvider.autoDispose<List<TrainingCenterLink>>(
+      (ref) async =>
+          (await ref.watch(athleteTrainingCentersDataProvider.future)).centers,
+    );
+
+/// Recarrega centros e convites (depois de responder, aceitar ou pagar).
+void refreshAthleteTrainingCenters(WidgetRef ref) =>
+    ref.invalidate(athleteTrainingCentersDataProvider);
+
+/// Pix da fatura do centro (O8/F2) — gera a fatura no provedor se ainda não
+/// existir.
+final centerInvoicePixProvider = FutureProvider.autoDispose
+    .family<CenterInvoicePix, ({String centerId, String invoiceId})>(
+      (ref, k) => ref
+          .read(trainingCentersRepositoryProvider)
+          .invoicePix(centerId: k.centerId, invoiceId: k.invoiceId),
+    );
 
 /// Um centro do aluno pelo id — `data(null)` quando o aluno não tem (mais)
-/// vínculo com ele.
+/// vínculo com ele. Ao recarregar, segue com o valor anterior (a tela não
+/// pisca nem desmonta o Pix da fatura).
 final athleteTrainingCenterProvider = Provider.autoDispose
     .family<AsyncValue<TrainingCenterLink?>, String>((ref, centerId) {
-  return ref.watch(athleteTrainingCentersProvider).whenData((list) {
-    for (final c in list) {
-      if (c.centerId == centerId) return c;
-    }
-    return null;
-  });
+  final async = ref.watch(athleteTrainingCentersProvider);
+  final list = async.valueOrNull;
+  if (list == null) {
+    return async.hasError
+        ? AsyncError(async.error!, async.stackTrace ?? StackTrace.current)
+        : const AsyncLoading();
+  }
+  for (final c in list) {
+    if (c.centerId == centerId) return AsyncData(c);
+  }
+  return const AsyncData(null);
 });
 
 /// Treinos da janela curta: aulas da agenda (30 dias para trás, 35 para a

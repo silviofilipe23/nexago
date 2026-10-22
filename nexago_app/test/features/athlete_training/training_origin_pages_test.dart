@@ -24,7 +24,88 @@ import 'package:nexago_app/features/professor_mode/application/professor_evaluat
 import 'package:nexago_app/features/professor_mode/application/professor_lesson_plans_providers.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_availability.dart';
 
+import 'package:nexago_app/features/athlete_training/infrastructure/training_centers_repository.dart';
+import 'package:nexago_app/features/athlete_training/presentation/athlete_training_add_page.dart';
+import 'package:nexago_app/features/athlete_training/presentation/athlete_training_center_invoice_page.dart';
+
 import 'training_origin_test.dart' show centerResponse;
+
+/// Repositório do CT em memória: guarda as chamadas e devolve o que o teste
+/// mandou.
+class _FakeCenters implements TrainingCentersRepository {
+  _FakeCenters({required this.data});
+
+  MyTrainingCentersData data;
+  final calls = <String>[];
+  String checkStatus = 'pending';
+  bool excused = true;
+
+  @override
+  Future<MyTrainingCentersData> fetch() async => data;
+
+  @override
+  Future<bool> respond({
+    required String centerId,
+    required String sessionId,
+    required bool going,
+  }) async {
+    calls.add('respond $sessionId ${going ? 'going' : 'not_going'}');
+    return !going && excused;
+  }
+
+  @override
+  Future<void> answerInvite({
+    required String centerId,
+    required String studentId,
+    required bool accept,
+  }) async {
+    calls.add('invite $studentId $accept');
+    data = MyTrainingCentersData(centers: data.centers);
+  }
+
+  @override
+  Future<CenterInvoicePix> invoicePix({
+    required String centerId,
+    required String invoiceId,
+  }) async {
+    calls.add('pix $invoiceId');
+    return const CenterInvoicePix(
+      status: 'pending',
+      invoiceUrl: 'https://www.asaas.com/i/1',
+      pixPayload: '00020126PIXCODE',
+    );
+  }
+
+  @override
+  Future<String> checkInvoice({
+    required String centerId,
+    required String invoiceId,
+  }) async {
+    calls.add('check $invoiceId');
+    return checkStatus;
+  }
+}
+
+const _invite = CenterInvite(
+  centerId: 'ct2',
+  studentId: 'inv1',
+  centerName: 'CT Vôlei Rio',
+  city: 'Rio de Janeiro',
+  state: 'RJ',
+  invitedAt: '2026-10-21',
+  enrollments: [
+    CenterEnrollment(
+      enrollmentId: '',
+      classId: 'k9',
+      className: 'Sub-17 Feminino',
+      status: 'pending',
+      planName: 'Mensal',
+      priceCents: 32000,
+      weekdays: [2, 4],
+      startTime: '17:00',
+    ),
+  ],
+);
 
 // Qua 21/10/2026 12:00 em São Paulo.
 final _now = DateTime.utc(2026, 10, 21, 15);
@@ -98,6 +179,8 @@ Future<GoRouter> _pump(
   required String location,
   bool withCenter = true,
   bool withArenaAndPrivate = true,
+  List<CenterInvite> invites = const [],
+  _FakeCenters? repo,
 }) async {
   tester.view.physicalSize = const Size(400, 2400);
   tester.view.devicePixelRatio = 1.0;
@@ -105,6 +188,11 @@ Future<GoRouter> _pump(
   final centers = withCenter
       ? trainingCentersFromResponse(centerResponse())
       : const <TrainingCenterLink>[];
+  final fake =
+      repo ??
+      _FakeCenters(
+        data: MyTrainingCentersData(centers: centers, invites: invites),
+      );
 
   final router = GoRouter(
     initialLocation: location,
@@ -128,6 +216,16 @@ Future<GoRouter> _pump(
             path: 'planos',
             name: AppRouteNames.athleteTrainingPlans,
             builder: (_, __) => const AthleteTrainingPlansPage(),
+          ),
+          GoRoute(
+            path: 'adicionar',
+            name: AppRouteNames.athleteTrainingAdd,
+            builder: (_, __) => const AthleteTrainingAddPage(),
+          ),
+          GoRoute(
+            path: 'encontrar',
+            name: AppRouteNames.athleteTrainingFindProfessor,
+            builder: (_, __) => _stub('encontrar'),
           ),
           GoRoute(
             path: 'agenda',
@@ -162,6 +260,14 @@ Future<GoRouter> _pump(
                 builder: (_, s) => AthleteTrainingCenterSessionPage(
                   centerId: s.pathParameters['centerId']!,
                   sessionId: s.pathParameters['sessionId']!,
+                ),
+              ),
+              GoRoute(
+                path: 'fatura/:invoiceId',
+                name: AppRouteNames.athleteTrainingCenterInvoice,
+                builder: (_, s) => AthleteTrainingCenterInvoicePage(
+                  centerId: s.pathParameters['centerId']!,
+                  invoiceId: s.pathParameters['invoiceId']!,
                 ),
               ),
             ],
@@ -223,7 +329,7 @@ Future<GoRouter> _pump(
           (ref) async => withArenaAndPrivate ? _plans : const MyTrainingPlans(),
         ),
         athleteClassCreditsProvider.overrideWith((ref) async => const []),
-        athleteTrainingCentersProvider.overrideWith((ref) async => centers),
+        trainingCentersRepositoryProvider.overrideWithValue(fake),
         unreadMessagesCountProvider.overrideWith((ref) => 0),
       ],
       child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
@@ -260,7 +366,7 @@ void main() {
         find.byKey(const Key('training-hub-origin-filter')),
         findsOneWidget,
       );
-      expect(find.text('3 VÍNCULOS · 4 AULAS MARCADAS'), findsOneWidget);
+      expect(find.text('3 VÍNCULOS · 4 AULAS'), findsOneWidget);
       expect(
         find.byKey(const Key('training-hub-link-private-tm')),
         findsOneWidget,
@@ -410,7 +516,9 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.textContaining('De Sede Barra para Praia do Leme. Físico na areia.'),
+        find.textContaining(
+          'De Sede Barra para Praia do Leme. Físico na areia.',
+        ),
         findsOneWidget,
       );
       expect(
@@ -418,7 +526,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('SEG 26 · 07:00 – 08:30'), findsOneWidget);
-      expect(find.textContaining('até 6h antes'), findsOneWidget);
+      expect(find.textContaining('Até 6h antes'), findsOneWidget);
     });
 
     testWidgets('aula que não está mais na agenda', (tester) async {
@@ -446,7 +554,10 @@ void main() {
       final router = await _pump(tester, location: '/treinos/particular/tm');
       expect(find.text('Thiago Mendes'), findsOneWidget);
       expect(find.byKey(const Key('training-private-row-p1')), findsOneWidget);
-      expect(find.text('PACOTE 8 AULAS · COBRADO PELO PROFESSOR'), findsOneWidget);
+      expect(
+        find.text('PACOTE 8 AULAS · COBRADO PELO PROFESSOR'),
+        findsOneWidget,
+      );
       await _tap(tester, find.byKey(const Key('training-private-book')));
       expect(router.state.uri.path, '/particulares/agendar/tm');
     });
@@ -469,6 +580,173 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Outubro'), findsOneWidget);
+    });
+  });
+
+  group('O7 · presença na aula do centro', () {
+    testWidgets('confirmar presença chama o servidor', (tester) async {
+      final repo = _FakeCenters(
+        data: MyTrainingCentersData(
+          centers: trainingCentersFromResponse(centerResponse()),
+        ),
+      );
+      await _pump(
+        tester,
+        location: '/treinos/centro/ct1/aula/k1_2026-10-23',
+        repo: repo,
+      );
+      await _tap(tester, find.byKey(const Key('center-presence-going-button')));
+      expect(repo.calls, ['respond k1_2026-10-23 going']);
+      expect(find.text('Presença confirmada.'), findsOneWidget);
+    });
+
+    testWidgets('não vou: a folha explica a reposição e avisa', (tester) async {
+      final repo = _FakeCenters(
+        data: MyTrainingCentersData(
+          centers: trainingCentersFromResponse(centerResponse()),
+        ),
+      );
+      await _pump(
+        tester,
+        location: '/treinos/centro/ct1/aula/k1_2026-10-26',
+        repo: repo,
+      );
+      await _tap(
+        tester,
+        find.byKey(const Key('center-presence-not-going-button')),
+      );
+      expect(find.byKey(const Key('center-not-going-sheet')), findsOneWidget);
+      expect(find.textContaining('vira um crédito'), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('center-not-going-confirm')));
+      expect(repo.calls, ['respond k1_2026-10-26 not_going']);
+      expect(find.textContaining('Falta avisada'), findsOneWidget);
+    });
+
+    testWidgets('resposta já dada mostra o estado e deixa trocar', (
+      tester,
+    ) async {
+      final raw = centerResponse();
+      final sessions =
+          ((raw['centers'] as List).first as Map)['sessions'] as List;
+      (sessions[1] as Map)['myRsvp'] = 'going';
+      await _pump(
+        tester,
+        location: '/treinos/centro/ct1/aula/k1_2026-10-23',
+        repo: _FakeCenters(
+          data: MyTrainingCentersData(
+            centers: trainingCentersFromResponse(raw),
+          ),
+        ),
+      );
+      expect(find.byKey(const Key('center-presence-going')), findsOneWidget);
+      expect(find.text('Não vou mais'), findsOneWidget);
+    });
+  });
+
+  group('F2/F3 · fatura do centro no app', () {
+    testWidgets('Pix com QR e copia-e-cola; verificar sem confirmação', (
+      tester,
+    ) async {
+      final repo = _FakeCenters(
+        data: MyTrainingCentersData(
+          centers: trainingCentersFromResponse(centerResponse()),
+        ),
+      );
+      await _pump(
+        tester,
+        location: '/treinos/centro/ct1/fatura/i1',
+        repo: repo,
+      );
+      expect(find.byKey(const Key('center-invoice-summary')), findsOneWidget);
+      expect(find.byKey(const Key('center-invoice-pix')), findsOneWidget);
+      expect(find.text('Copiar código Pix'), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('center-invoice-check')));
+      expect(repo.calls, ['pix i1', 'check i1']);
+      expect(find.byKey(const Key('center-invoice-not-yet')), findsOneWidget);
+
+      await _tap(tester, find.text('Cartão'));
+      expect(find.byKey(const Key('center-invoice-open-card')), findsOneWidget);
+    });
+
+    testWidgets('verificado e pago: tela de paga', (tester) async {
+      final repo = _FakeCenters(
+        data: MyTrainingCentersData(
+          centers: trainingCentersFromResponse(centerResponse()),
+        ),
+      )..checkStatus = 'approved';
+      await _pump(
+        tester,
+        location: '/treinos/centro/ct1/fatura/i1',
+        repo: repo,
+      );
+      await _tap(tester, find.byKey(const Key('center-invoice-check')));
+      expect(find.byKey(const Key('center-invoice-paid')), findsOneWidget);
+    });
+
+    testWidgets('fatura já paga abre direto como paga', (tester) async {
+      await _pump(tester, location: '/treinos/centro/ct1/fatura/i0');
+      expect(find.byKey(const Key('center-invoice-paid')), findsOneWidget);
+      expect(find.byKey(const Key('center-invoice-check')), findsNothing);
+    });
+
+    testWidgets('o botão Pagar do centro abre a fatura no app', (tester) async {
+      final router = await _pump(
+        tester,
+        location: '/treinos/centro/ct1?aba=plano',
+      );
+      await _tap(tester, find.byKey(const Key('training-center-pay-i1')));
+      expect(router.state.uri.path, '/treinos/centro/ct1/fatura/i1');
+    });
+  });
+
+  group('O3 · convite do centro', () {
+    testWidgets('convite no hub e na tela Adicionar; aceitar abre o centro', (
+      tester,
+    ) async {
+      final repo = _FakeCenters(
+        data: MyTrainingCentersData(
+          centers: trainingCentersFromResponse(centerResponse()),
+          invites: const [_invite],
+        ),
+      );
+      final router = await _pump(
+        tester,
+        location: AppRoutes.athleteTrainings,
+        repo: repo,
+      );
+      expect(find.byKey(const Key('training-hub-invite-inv1')), findsOneWidget);
+
+      await _tap(tester, find.byKey(const Key('training-hub-add')));
+      expect(router.state.uri.path, '/treinos/adicionar');
+      expect(find.byKey(const Key('center-invite-inv1')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('center-invite-inv1')),
+          matching: find.textContaining('Sub-17 Feminino'),
+        ),
+        findsOneWidget,
+      );
+
+      await _tap(
+        tester,
+        // O hub (rota de baixo) tem o mesmo cartão: toca o da tela de cima.
+        find.byKey(const Key('center-invite-accept-inv1')).last,
+      );
+      expect(repo.calls, ['invite inv1 true']);
+      expect(router.state.uri.path, '/treinos/centro/ct2');
+    });
+
+    testWidgets('e-mail não confirmado: só o aviso', (tester) async {
+      await _pump(
+        tester,
+        location: '/treinos/adicionar',
+        repo: _FakeCenters(
+          data: const MyTrainingCentersData(unverifiedInvites: 1),
+        ),
+      );
+      expect(find.byKey(const Key('center-invite-unverified')), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('training-add-private')));
+      expect(find.text('encontrar'), findsOneWidget);
     });
   });
 }

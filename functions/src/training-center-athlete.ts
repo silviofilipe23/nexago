@@ -77,6 +77,8 @@ export interface MyCenterSession {
   /** `present`, `excused`, `absent` ou `null` sem chamada. */
   myMark: string | null;
   isMakeup: boolean;
+  /** "Vou" / "Não vou" do aluno (`respondTrainingCenterSession`); `null` sem resposta. */
+  myRsvp: string | null;
 }
 
 export interface MyCenterInvoice {
@@ -204,6 +206,7 @@ export function mapCenterSession(id: string, s: Data, cls: Data, studentId: stri
     changeReason: str(s["changeReason"]),
     myMark: mark === "present" || mark === "excused" || mark === "absent" ? mark : null,
     isMakeup: makeups.includes(studentId),
+    myRsvp: str(rec(rec(s["rsvps"])[studentId])["response"]) || null,
   };
 }
 
@@ -317,6 +320,70 @@ async function loadCenter(
   };
 }
 
+/** Convite do centro (cadastro feito pelo e-mail, ainda sem conta vinculada). */
+export interface MyCenterInvite {
+  centerId: string;
+  studentId: string;
+  centerName: string;
+  city: string;
+  state: string;
+  /** Turmas em que o centro já matriculou o convidado. */
+  enrollments: Array<Pick<MyCenterEnrollment,
+    "className" | "planName" | "planType" | "priceCents" | "weekdays" | "startTime" | "status">>;
+  invitedAt: string | null;
+}
+
+/**
+ * Convites pendentes para o e-mail da conta. Só com e-mail verificado (senão qualquer um criaria
+ * conta com o e-mail de outra pessoa e veria o convite); sem verificação, só a contagem.
+ */
+export async function loadMyCenterInvites(
+  db: Firestore, email: string, verified: boolean,
+): Promise<{invites: MyCenterInvite[]; unverifiedInvites: number}> {
+  if (!email) return {invites: [], unverifiedInvites: 0};
+  const snap = await db.collectionGroup("students").where("email", "==", email).limit(MAX_CENTERS * 2).get();
+  const pending = snap.docs.filter((d) => {
+    const seg = d.ref.path.split("/");
+    const data = d.data();
+    return seg.length === 4 && seg[0] === TRAINING_CENTERS && data["status"] === "invited" && !str(data["uid"]);
+  }).slice(0, MAX_CENTERS);
+  if (!verified) return {invites: [], unverifiedInvites: pending.length};
+  const invites = await Promise.all(pending.map(async (d) => {
+    const center = d.ref.parent.parent!;
+    const [cSnap, eSnap] = await Promise.all([
+      center.get(),
+      center.collection("enrollments").where("studentId", "==", d.id).limit(MAX_ENROLLMENTS).get(),
+    ]);
+    const c = cSnap.data();
+    if (!c || c["status"] === "suspended") return null;
+    const enrollments = eSnap.docs
+      .map((e) => ({id: e.id, data: e.data() as Data}))
+      .filter((e) => VISIBLE_ENROLLMENTS.has(str(e.data["status"])));
+    const classIds = [...new Set(enrollments.map((e) => str(e.data["classId"])).filter(Boolean))];
+    const classes = classIds.length ?
+      new Map((await db.getAll(...classIds.map((id) => center.collection("classes").doc(id))))
+        .map((x) => [x.id, (x.data() ?? {}) as Data])) :
+      new Map<string, Data>();
+    const created = d.data()["createdAt"];
+    return {
+      centerId: center.id,
+      studentId: d.id,
+      centerName: str(c["name"]) || "Centro de treinamento",
+      city: str(c["city"]),
+      state: str(c["state"]),
+      enrollments: enrollments.map((e) => {
+        const m = mapCenterEnrollment(e.id, e.data, classes.get(str(e.data["classId"])) ?? {}, null);
+        return {
+          className: m.className, planName: m.planName, planType: m.planType, priceCents: m.priceCents,
+          weekdays: m.weekdays, startTime: m.startTime, status: m.status,
+        };
+      }),
+      invitedAt: dayKeyOf(created, str(c["timezone"]) || "America/Sao_Paulo"),
+    } satisfies MyCenterInvite;
+  }));
+  return {invites: invites.filter((x): x is MyCenterInvite => x != null), unverifiedInvites: 0};
+}
+
 export async function loadMyTrainingCentersCore(
   db: Firestore, uid: string, now: Date,
 ): Promise<{centers: MyTrainingCenter[]}> {
@@ -342,5 +409,14 @@ export async function loadMyTrainingCentersCore(
 
 export const getMyTrainingCenters = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {
   const uid = requireUid(request.auth);
-  return loadMyTrainingCentersCore(getFirestore(), uid, new Date());
+  const db = getFirestore();
+  const token = (request.auth?.token ?? {}) as Data;
+  const [mine, invites] = await Promise.all([
+    loadMyTrainingCentersCore(db, uid, new Date()),
+    loadMyCenterInvites(db, str(token["email"]).toLowerCase(), token["email_verified"] === true).catch((e) => {
+      logger.warn(`getMyTrainingCenters ${uid}: convites falharam`, e);
+      return {invites: [], unverifiedInvites: 0};
+    }),
+  ]);
+  return {...mine, ...invites};
 });

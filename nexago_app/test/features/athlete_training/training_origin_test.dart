@@ -349,15 +349,19 @@ void main() {
       );
     });
 
-    test('fatura abre o link do Asaas; plano B é a aba Plano do centro', () {
+    test('fatura abre a fatura no app; sem id, a aba Plano do centro', () {
       final data = {
         'type': 'training_center_billing_notice',
         'centerId': 'ct1',
         'invoiceId': 'sub_e1_2026-11',
         'invoiceUrl': 'https://www.asaas.com/i/1',
       };
-      expect(externalNotificationUrl(data), 'https://www.asaas.com/i/1');
-      expect(resolveNotificationRoute(data), '/treinos/centro/ct1?aba=plano');
+      // A fatura abre no app (Pix + cartão), não no navegador.
+      expect(externalNotificationUrl(data), isNull);
+      expect(
+        resolveNotificationRoute(data),
+        '/treinos/centro/ct1/fatura/sub_e1_2026-11',
+      );
       expect(
         resolveNotificationRoute({
           'type': 'training_center_payment_confirmed',

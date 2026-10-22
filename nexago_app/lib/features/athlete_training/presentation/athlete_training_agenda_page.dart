@@ -65,7 +65,7 @@ class _AthleteTrainingAgendaPageState
         color: AppColors.brand,
         onRefresh: () async {
           ref.invalidate(myClassAgendaProvider);
-          ref.invalidate(athleteTrainingCentersProvider);
+          refreshAthleteTrainingCenters(ref);
           await ref.read(myClassAgendaProvider.future);
         },
         child: ListView(

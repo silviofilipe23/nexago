@@ -266,6 +266,12 @@ export {saveHomeworkProgress} from "./homework-progress";
 export {getMyTrainingPlans} from "./arena-class-athlete-plans";
 export {getMyTrainingCenters} from "./training-center-athlete";
 export {searchClassDirectory, getClassDirectoryDetail} from "./class-directory";
+export {
+  answerTrainingCenterInvite,
+  checkMyTrainingCenterInvoice,
+  getMyTrainingCenterInvoicePix,
+  respondTrainingCenterSession,
+} from "./training-center-athlete-actions";
 // QR de check-in por quadra (portal da arena gera; o aluno lê no app).
 export {getArenaCourtCheckinQr} from "./arena-court-checkin-qr";
 // Aulas pelo professor com vínculo ("Gerenciar as próprias aulas"): lista da chamada.

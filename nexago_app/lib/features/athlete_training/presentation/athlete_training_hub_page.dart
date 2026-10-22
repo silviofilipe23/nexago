@@ -33,6 +33,7 @@ import 'athlete_training_homework_page.dart' show openTrainingHomework;
 import 'widgets/training_origin_widgets.dart';
 import 'widgets/training_widgets.dart';
 import '../domain/training_origin_links.dart';
+import 'athlete_training_add_page.dart' show CenterInviteCard;
 
 /// T2 · Meus treinos — o hub do aluno: próximo treino, números do mês, o que
 /// o professor mandou, a semana e os atalhos para aulas, feedbacks,
@@ -67,6 +68,9 @@ class _AthleteTrainingHubPageState
         ref.watch(athleteClassCreditsProvider).valueOrNull ?? const [];
     final centers =
         ref.watch(athleteTrainingCentersProvider).valueOrNull ?? const [];
+    final invites =
+        ref.watch(athleteTrainingCentersDataProvider).valueOrNull?.invites ??
+        const [];
 
     final allUpcoming = trainings == null
         ? const <TrainingSession>[]
@@ -99,28 +103,43 @@ class _AthleteTrainingHubPageState
       else if (professors != null && professors.isNotEmpty)
         '${professors.length} ${professors.length == 1 ? 'PROFESSOR' : 'PROFESSORES'}',
       if (upcoming.isNotEmpty)
-        '${upcoming.length} ${upcoming.length == 1 ? 'AULA MARCADA' : 'AULAS MARCADAS'}',
+        // Com os vínculos na frente, o "marcadas" não cabe ao lado dos botões.
+        links.length > 1
+            ? '${upcoming.length} ${upcoming.length == 1 ? 'AULA' : 'AULAS'}'
+            : '${upcoming.length} ${upcoming.length == 1 ? 'AULA MARCADA' : 'AULAS MARCADAS'}',
     ].join(' · ');
 
     return ProfessorLinksScaffold(
       title: 'Meus treinos',
       subtitle: subtitle.isEmpty ? 'AULAS E PROFESSORES' : subtitle,
       onBack: () => popOrGo(context, AppRoutes.home),
-      trailing: Stack(
-        clipBehavior: Clip.none,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           ProfessorLinksRoundButton(
-            key: const Key('training-hub-messages'),
-            icon: Icons.chat_bubble_outline_rounded,
-            semanticLabel: 'Mensagens',
-            onTap: () => context.pushNamed(AppRouteNames.athleteMessages),
+            key: const Key('training-hub-add'),
+            icon: Icons.add_rounded,
+            semanticLabel: 'Adicionar treino',
+            onTap: () => context.pushNamed(AppRouteNames.athleteTrainingAdd),
           ),
-          if (unread > 0)
-            Positioned(
-              top: -4,
-              right: -4,
-              child: TrainingBadge(count: unread),
-            ),
+          const SizedBox(width: 8),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              ProfessorLinksRoundButton(
+                key: const Key('training-hub-messages'),
+                icon: Icons.chat_bubble_outline_rounded,
+                semanticLabel: 'Mensagens',
+                onTap: () => context.pushNamed(AppRouteNames.athleteMessages),
+              ),
+              if (unread > 0)
+                Positioned(
+                  top: -4,
+                  right: -4,
+                  child: TrainingBadge(count: unread),
+                ),
+            ],
+          ),
         ],
       ),
       body: RefreshIndicator(
@@ -131,12 +150,19 @@ class _AthleteTrainingHubPageState
           ref.invalidate(myClassChargesProvider);
           ref.invalidate(athleteTrainingPlansProvider);
           ref.invalidate(athleteClassCreditsProvider);
-          ref.invalidate(athleteTrainingCentersProvider);
+          refreshAthleteTrainingCenters(ref);
           await ref.read(myClassAgendaProvider.future);
         },
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
           children: [
+            for (final i in invites) ...[
+              CenterInviteCard(
+                key: Key('training-hub-invite-${i.studentId}'),
+                invite: i,
+              ),
+              const SizedBox(height: 12),
+            ],
             if (multi) ...[
               TrainingOriginFilter(
                 key: const Key('training-hub-origin-filter'),

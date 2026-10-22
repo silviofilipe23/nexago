@@ -165,6 +165,12 @@ abstract final class AppRoutes {
   static const String athleteTrainingCenterSession =
       '/treinos/centro/:centerId/aula/:sessionId';
 
+  /// Fatura do centro no app (F2, destino do push da cobrança) e "Adicionar
+  /// treino" com o convite do centro (O3).
+  static const String athleteTrainingCenterInvoice =
+      '/treinos/centro/:centerId/fatura/:invoiceId';
+  static const String athleteTrainingAdd = '/treinos/adicionar';
+
   /// Plano da aula publicado para o ATLETA (H8, push
   /// `lesson_plan_published`) e a lista deles. Abrem no modo Atleta.
   static const String athleteLessonPlans = '/aula/planos';
@@ -941,6 +947,9 @@ abstract final class AppRouteNames {
   static const String athleteTrainingCenter = 'athleteTrainingCenter';
   static const String athleteTrainingCenterSession =
       'athleteTrainingCenterSession';
+  static const String athleteTrainingCenterInvoice =
+      'athleteTrainingCenterInvoice';
+  static const String athleteTrainingAdd = 'athleteTrainingAdd';
   static const String athleteLessonPlans = 'athleteLessonPlans';
   static const String athleteLessonPlan = 'athleteLessonPlan';
   static const String professorEarnings = 'professorEarnings';

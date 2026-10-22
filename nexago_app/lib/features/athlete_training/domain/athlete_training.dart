@@ -207,6 +207,8 @@ TrainingSession? trainingFromCenterSession(
           'present' => TrainingState.present,
           'absent' => TrainingState.absent,
           'excused' => TrainingState.excused,
+          // Sem chamada: o "Não vou" do aluno vale até a equipe marcar.
+          _ when s.myRsvp == 'not_going' => TrainingState.excused,
           _ => past || s.status == 'done'
               ? TrainingState.done
               : TrainingState.scheduled,
@@ -537,7 +539,9 @@ String trainingWeekdayDay(String dateKey) {
 
 /// Rótulo curto do estado (pílula mono).
 String trainingStateLabel(TrainingSession t) => switch (t.state) {
-      TrainingState.scheduled => t.isPrivate || t.classEntry?.myRsvp == 'going'
+      TrainingState.scheduled => t.isPrivate ||
+              t.classEntry?.myRsvp == 'going' ||
+              t.centerSession?.myRsvp == 'going'
           ? 'CONFIRMADA'
           : 'AGENDADA',
       TrainingState.awaitingProfessor => 'AGUARDANDO',

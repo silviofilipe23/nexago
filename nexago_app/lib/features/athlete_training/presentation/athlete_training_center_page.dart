@@ -69,7 +69,7 @@ class _AthleteTrainingCenterPageState
       body: RefreshIndicator(
         color: AppColors.brand,
         onRefresh: () async {
-          ref.invalidate(athleteTrainingCentersProvider);
+          refreshAthleteTrainingCenters(ref);
           await ref.read(athleteTrainingCentersProvider.future);
         },
         child: ListView(
@@ -297,6 +297,7 @@ class _AthleteTrainingCenterPageState
         for (final i in open) ...[
           _InvoiceCard(
             key: Key('training-center-invoice-${i.invoiceId}'),
+            centerId: center.centerId,
             invoice: i,
             todayKey: todayKey,
           ),
@@ -588,10 +589,12 @@ class _PlaceCard extends StatelessWidget {
 class _InvoiceCard extends StatelessWidget {
   const _InvoiceCard({
     super.key,
+    required this.centerId,
     required this.invoice,
     required this.todayKey,
   });
 
+  final String centerId;
   final CenterInvoice invoice;
   final String todayKey;
 
@@ -657,17 +660,12 @@ class _InvoiceCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          if (i.payUrl != null)
-            ProfessorLinksPrimaryButton(
-              key: Key('training-center-pay-${i.invoiceId}'),
-              label: 'Pagar com Pix ou cartão',
-              height: 42,
-              onPressed: () => openExternalUrl(i.payUrl!),
-            )
-          else
-            const ProfessorMutedText(
-              'O link de pagamento chega pelo centro (push ou e-mail).',
-            ),
+          ProfessorLinksPrimaryButton(
+            key: Key('training-center-pay-${i.invoiceId}'),
+            label: 'Pagar com Pix ou cartão',
+            height: 42,
+            onPressed: () => openCenterInvoice(context, centerId, i.invoiceId),
+          ),
         ],
       ),
     );

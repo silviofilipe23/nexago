@@ -745,8 +745,16 @@ Future<T?> showProfessorLinksSheet<T>(
   );
 }
 
+/// `SizedBox` vazio só com altura — o espaçador que as folhas passam entre
+/// os filhos.
+bool _isSpacer(Widget w) => w is SizedBox && w.child == null && w.width == null;
+
 /// Corpo padrão da folha: alça, título, subtítulo e o conteúdo rolável (o
 /// teclado empurra o conteúdo para cima).
+///
+/// Entre os filhos entra 12 automático — menos ao lado de um espaçador
+/// explícito (`SizedBox` só com altura): aí vale o espaço que a folha pediu,
+/// em vez de 12 + espaçador + 12.
 class ProfessorLinksSheetBody extends StatelessWidget {
   const ProfessorLinksSheetBody({
     super.key,
@@ -805,7 +813,10 @@ class ProfessorLinksSheetBody extends StatelessWidget {
                   ],
                   const SizedBox(height: 16),
                   for (var i = 0; i < children.length; i++) ...[
-                    if (i > 0) const SizedBox(height: 12),
+                    if (i > 0 &&
+                        !_isSpacer(children[i - 1]) &&
+                        !_isSpacer(children[i]))
+                      const SizedBox(height: 12),
                     children[i],
                   ],
                 ],

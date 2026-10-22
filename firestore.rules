@@ -4150,10 +4150,15 @@ service cloud.firestore {
         allow create: if ctIsManager() && ctNotSuspended() &&
           payoutId == request.resource.data.month + '_' + request.resource.data.coachUid &&
           request.resource.data.status == 'closed';
+        // Transferência pelo NexaGO é do servidor (training-center-payout-transfer.ts): o cliente não
+        // mexe nos campos dela nem marca pago/refaz enquanto há uma em andamento ou sem confirmação.
         allow update: if ctIsManager() && ctNotSuspended() && resource.data.status == 'closed' &&
           request.resource.data.month == resource.data.month &&
           request.resource.data.coachUid == resource.data.coachUid &&
-          request.resource.data.status in ['closed', 'paid'];
+          request.resource.data.status in ['closed', 'paid'] &&
+          !(resource.data.get('transferStatus', '') in ['requested', 'pending', 'unknown']) &&
+          !ctChanged().hasAny(['transferStatus', 'transferId', 'transferAttempt', 'transferAuthorized', 'transferRequestedAt',
+            'transferByUid', 'transferByName', 'transferCents', 'transferError', 'transferUpdatedAt', 'transferDoneAt']);
         allow delete: if false;
       }
 

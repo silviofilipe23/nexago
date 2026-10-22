@@ -334,3 +334,17 @@ test('repasses: gestor define regra e fecha; pago congela; professor lê só o d
   await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'payouts', `2026-10_${COACH}`), { totalCents: 1 }));
   await denied(deleteDoc(doc(as(OWNER), 'trainingCenters', C, 'payouts', `2026-10_${COACH}`)));
 });
+
+test('repasse em transferência pelo NexaGO: cliente não marca pago nem mexe no estado', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'trainingCenters', C, 'payouts', `2026-09_${COACH}`), {
+      month: '2026-09', coachUid: COACH, totalCents: 10000, status: 'closed', transferStatus: 'pending', transferId: 'tr_1',
+    });
+    await setDoc(doc(ctx.firestore(), 'trainingCenters', C, 'payouts', `2026-08_${COACH}`), {
+      month: '2026-08', coachUid: COACH, totalCents: 10000, status: 'closed', transferStatus: 'failed',
+    });
+  });
+  await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'payouts', `2026-09_${COACH}`), { status: 'paid' }));
+  await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'payouts', `2026-08_${COACH}`), { transferStatus: 'done' }));
+  await assertSucceeds(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'payouts', `2026-08_${COACH}`), { status: 'paid', paidMethod: 'pix' }));
+});

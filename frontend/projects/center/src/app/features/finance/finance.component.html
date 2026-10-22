@@ -1,0 +1,73 @@
+<ct-page-header title="Financeiro" [subtitle]="monthTitle() + ' · cobranças do centro aos alunos'">
+  <div class="month">
+    <button type="button" class="ct-ghost-btn" aria-label="Mês anterior" (click)="shiftMonth(-1)"><ct-icon name="chevron-left" [size]="14" /></button>
+    <b>{{ monthTitle() }}</b>
+    <button type="button" class="ct-ghost-btn" aria-label="Próximo mês" (click)="shiftMonth(1)"><ct-icon name="chevron" [size]="14" /></button>
+  </div>
+  <button type="button" class="ct-mini-btn" [disabled]="rows().length === 0" (click)="exportCsv()"><ct-icon name="download" [size]="14" /> Exportar</button>
+  @if (canWrite()) {
+    <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="showNew.set(true)"><ct-icon name="plus" [size]="14" /> Cobrança avulsa</button>
+  }
+</ct-page-header>
+
+<div class="page">
+  <div class="ct-stats">
+    <ct-stat label="Recebido (aprovado)" [value]="formatBRL(split().approvedCents)" [sub]="split().approvedCount + ' pagamento' + (split().approvedCount === 1 ? '' : 's')" tone="green" />
+    <ct-stat label="Aguardando" [value]="formatBRL(split().pendingCents)" [sub]="split().pendingCount + (awaitingInMonth() ? ' · ' + awaitingInMonth() + ' há mais de 2h' : ' pendente' + (split().pendingCount === 1 ? '' : 's'))" />
+    <ct-stat label="Vencido em aberto" [value]="formatBRL(split().lateCents)" [sub]="split().lateCount + ' cobrança' + (split().lateCount === 1 ? '' : 's')" tone="red" />
+    <ct-stat label="Estornos" [value]="(split().refundedCents ? '− ' : '') + formatBRL(split().refundedCents)" [sub]="split().refundCount + ' lançamento' + (split().refundCount === 1 ? '' : 's')" />
+  </div>
+
+  @if (awaiting().length > 0) {
+    <ct-banner tone="yellow" [inline]="true" [title]="awaiting().length + (awaiting().length === 1 ? ' pagamento sem confirmação há mais de 2h' : ' pagamentos sem confirmação há mais de 2h')">
+      As matrículas ficam pendentes até o pagamento ser confirmado. Nada é dado como pago só porque a cobrança foi emitida — abra a cobrança para confirmar com comprovante.
+    </ct-banner>
+  }
+
+  <div class="ct-filter-bar">
+    <button type="button" class="ct-chip" [class.active]="filter() === 'all'" (click)="filter.set('all')">Todas</button>
+    @for (f of filters; track f) {
+      @if (counts()[f] > 0 || filter() === f) {
+        <button type="button" class="ct-chip" [class.active]="filter() === f" (click)="filter.set(f)">{{ STATUS[f][0] }} · {{ counts()[f] }}</button>
+      }
+    }
+  </div>
+
+  <div class="ct-card flush">
+    <div class="ct-table" style="--cols: 1.3fr 1.3fr 110px 80px 110px 1.6fr; --min-w: 820px">
+      <div class="ct-thead"><span>Pagador</span><span>Referência</span><span>Valor</span><span>Venc.</span><span>Situação</span><span>Detalhe</span></div>
+      @for (r of rows(); track r.inv.id) {
+        <button type="button" class="ct-tr" [class.hi]="r.inv.id === selectedId()" (click)="selectedId.set(r.inv.id)">
+          <ct-person [name]="r.inv.payerName" [colorKey]="r.inv.studentId || r.inv.payerName" [size]="28" />
+          <span class="ct-ellipsis">{{ r.inv.reference }}</span>
+          <span class="val">{{ formatBRL(r.inv.amountCents) }}</span>
+          <span class="ct-mono">{{ formatDayKey(r.inv.dueDate) }}</span>
+          <span><span [class]="'ct-pill ' + STATUS[r.st][1]">{{ STATUS[r.st][0] }}</span></span>
+          <span class="ct-row" style="gap: 6px; min-width: 0">
+            @if (r.detail.warn) {
+              <ct-icon name="clock" [size]="13" class="warn" />
+            }
+            <span class="ct-mono ct-ellipsis" [class.warn]="r.detail.warn">{{ r.detail.text }}</span>
+          </span>
+        </button>
+      } @empty {
+        <div class="ct-empty">
+          @if (!store.loaded.invoices()) {
+            <span class="ct-spinner light" aria-hidden="true"></span>
+          } @else if (filter() !== 'all') {
+            Nenhuma cobrança nesta situação em {{ monthTitle() }}.
+          } @else {
+            Nenhuma cobrança com vencimento em {{ monthTitle() }}. Cobranças são emitidas nas matrículas ou como cobrança avulsa.
+          }
+        </div>
+      }
+    </div>
+  </div>
+</div>
+
+@if (selected(); as inv) {
+  <ct-invoice-drawer [invoice]="inv" [canWrite]="canWrite()" (closed)="selectedId.set(null)" />
+}
+@if (showNew()) {
+  <ct-new-invoice (closed)="showNew.set(false)" />
+}

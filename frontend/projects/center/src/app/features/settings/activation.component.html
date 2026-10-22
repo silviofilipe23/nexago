@@ -1,0 +1,150 @@
+<ct-page-header [title]="ctx.center()?.status === 'active' ? 'Ativação do centro' : 'Ativar centro'" [subtitle]="subtitle()" />
+
+<div class="body">
+  @if (ctx.center(); as c) {
+    @if (c.status === 'active') {
+      <section class="ct-card">
+        <div class="ct-card-head">
+          <div class="ct-grow">
+            <div class="ct-kick">Ativação concluída</div>
+            <div class="ct-card-title">Centro ativo{{ activatedLabel() ? ' desde ' + activatedLabel() : '' }}</div>
+          </div>
+          <span class="ct-pill green">Ativo</span>
+        </div>
+        <p class="ct-muted">Matrículas, cobranças e chamadas estão liberadas. Ajustes de cadastro e políticas ficam em Configurações.</p>
+        <div class="acts" style="margin-top: 14px">
+          <a class="ct-mini-btn ct-mini-btn-primary" [routerLink]="['/centro', centerId(), 'dashboard']">Ir para o dashboard</a>
+          <a class="ct-mini-btn" [routerLink]="['/centro', centerId(), 'configuracoes']">Configurações</a>
+        </div>
+      </section>
+    } @else if (c.status === 'suspended') {
+      <div class="ct-grid-aside">
+        <section class="ct-card">
+          <div class="ct-card-head">
+            <div class="ct-grow">
+              <div class="ct-kick">Somente leitura</div>
+              <div class="ct-card-title">Centro suspenso</div>
+            </div>
+            <span class="ct-pill red">Suspenso</span>
+          </div>
+          <p class="ct-muted">O centro já foi ativado antes; a suspensão é da assinatura NexaGO. Ao regularizar, ele volta a ficar ativo.</p>
+        </section>
+        <ct-subscription-card [sub]="c.subscription" />
+      </div>
+    } @else {
+      <div class="ct-grid-aside">
+        <section class="ct-card">
+          <div class="ct-card-head">
+            <div class="ct-grow">
+              <div class="ct-kick">{{ doneCount() }} de {{ steps().length }} concluídos</div>
+              <div class="ct-card-title">
+                @if (remaining() === 0) {
+                  Tudo pronto
+                } @else {
+                  Falta{{ remaining() === 1 ? '' : 'm' }} {{ remaining() }} {{ remaining() === 1 ? 'passo' : 'passos' }} para começar a operar
+                }
+              </div>
+            </div>
+          </div>
+          <div class="bars" aria-hidden="true">
+            @for (s of steps(); track s.key) {
+              <span [class]="s.state"></span>
+            }
+          </div>
+
+          @for (s of steps(); track s.key; let i = $index) {
+            <div class="step">
+              <div class="num" [class]="'num ' + s.state">
+                @if (s.state === 'done') {
+                  <ct-icon name="check" [size]="14" />
+                } @else {
+                  {{ i + 1 }}
+                }
+              </div>
+              <div class="ct-grow">
+                <div class="t" [class.todo]="s.state === 'todo'">{{ s.title }}</div>
+                <div class="ct-dim" style="margin-top: 2px">
+                  {{ s.detail }}
+                  @if (s.key === 'owner') {
+                    · {{ ownerVerified() ? 'e-mail verificado' : 'confirme o e-mail ' + (auth.email() ?? '') }}
+                  }
+                </div>
+                @if (s.key === 'owner' && (verifyMsg() || verifyError())) {
+                  <div [class]="verifyError() ? 'ct-error-text' : 'ct-dim'" style="margin-top: 4px" role="status">{{ verifyError() || verifyMsg() }}</div>
+                }
+              </div>
+              @if (s.key === 'owner' && s.state !== 'done' && ctx.me()?.uid === c.ownerUid) {
+                <div class="acts">
+                  <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="verifyBusy()" (click)="resendVerification()">Reenviar verificação</button>
+                  <button type="button" class="ct-mini-btn" [disabled]="verifyBusy()" (click)="checkVerified()">Já verifiquei</button>
+                </div>
+              } @else if (links[s.key]; as l) {
+                @if (ctx.isManager()) {
+                  <a
+                    [class]="s.state === 'done' ? 'ct-ghost-btn' : s.state === 'now' ? 'ct-mini-btn ct-mini-btn-primary' : 'ct-mini-btn'"
+                    [routerLink]="['/centro', centerId(), l.path]"
+                    [queryParams]="l.aba ? { aba: l.aba } : null"
+                    >{{ s.state === 'done' ? 'Editar' : 'Completar' }}</a
+                  >
+                }
+              } @else if (s.key === 'receiving' || s.key === 'subscription') {
+                <span class="ct-tag">{{ s.state === 'done' ? 'Concluído' : 'Time NexaGO' }}</span>
+              }
+            </div>
+          }
+
+          <div class="ct-box" [class.green]="!!c.activationRequestedAt">
+            @if (c.activationRequestedAt) {
+              <div class="ct-disp">Ativação solicitada em {{ requestedLabel() }}</div>
+              <p class="ct-dim">O time NexaGO vai conectar a conta de recebimento e liberar a assinatura. Você recebe um aviso quando o centro estiver ativo.</p>
+            } @else if (ownerStepsDone()) {
+              <div class="ct-disp">Sua parte está pronta</div>
+              <p class="ct-dim">Recebimento e assinatura são configurados pelo time NexaGO. Solicite a ativação para começar.</p>
+              @if (ctx.isManager()) {
+                <button type="button" class="ct-mini-btn ct-mini-btn-primary" style="margin-top: 12px" [disabled]="requestBusy() || !ctx.canWrite()" (click)="requestActivation()">
+                  {{ requestBusy() ? 'Enviando…' : 'Solicitar ativação' }}
+                </button>
+              }
+              @if (requestError()) {
+                <p class="ct-error-text" role="alert">{{ requestError() }}</p>
+              }
+            } @else {
+              <div class="ct-disp">Solicitar ativação</div>
+              <p class="ct-dim">Conclua os 4 primeiros passos para pedir a ativação ao time NexaGO.</p>
+            }
+          </div>
+        </section>
+
+        <div class="ct-col">
+          <section class="ct-card">
+            <div class="ct-card-head">
+              <div class="ct-grow">
+                <div class="ct-kick">Dois contratos diferentes</div>
+                <div class="ct-card-title">Quem paga quem</div>
+              </div>
+            </div>
+            <div class="ct-box">
+              <div class="ct-row ct-wrap">
+                <span class="ct-disp ct-grow">Mensalidade do aluno</span>
+                <span class="ct-tag orange">Aluno → {{ c.name }}</span>
+              </div>
+              <p class="ct-muted">Recebida na conta do centro. Regras e preços definidos por você.</p>
+            </div>
+            <div class="ct-box">
+              <div class="ct-row ct-wrap">
+                <span class="ct-disp ct-grow">Assinatura NexaGO</span>
+                <span class="ct-tag">{{ c.name }} → NexaGO</span>
+              </div>
+              <p class="ct-muted">Mensalidade da plataforma. Cobrança e fatura separadas, feitas pelo time NexaGO.</p>
+            </div>
+          </section>
+          <ct-banner tone="blue" [inline]="true" title="O que já dá para fazer">
+            Convidar equipe, criar turmas e planos em rascunho. Matrículas e cobranças liberam após a ativação.
+          </ct-banner>
+        </div>
+      </div>
+    }
+  } @else {
+    <div class="ct-empty">Carregando…</div>
+  }
+</div>

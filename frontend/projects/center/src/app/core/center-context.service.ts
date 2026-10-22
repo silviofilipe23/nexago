@@ -86,7 +86,14 @@ export class CenterContextService {
       }
       const stopMembers = onSnapshot(
         query(collectionGroup(db(), 'centerMembers'), where('uid', '==', uid)),
+        { includeMetadataChanges: true },
         (snap) => {
+          // Vínculo recém-gravado (aceite de convite, centro novo) aparece primeiro como escrita
+          // LOCAL. Se o painel abrisse os listeners nesse instante, a rule ainda não enxergaria o
+          // vínculo, negaria, e o listener morreria. Espera a confirmação do servidor.
+          if (snap.metadata.hasPendingWrites) {
+            return;
+          }
           this.membershipsState.set(
             snap.docs.map((d) => {
               const m = readMember(d.id, d.data());

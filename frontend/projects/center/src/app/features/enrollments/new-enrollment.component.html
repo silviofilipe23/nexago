@@ -1,0 +1,197 @@
+<ct-modal kicker="Nova matrícula" [title]="title()" [width]="680" (closed)="closed.emit()">
+  <div class="steps" aria-hidden="true">
+    @for (s of steps; track s; let i = $index) {
+      <div>
+        <div class="bar" [class.done]="i < step()" [class.now]="i === step()"></div>
+        <div class="lbl" [class.now]="i === step()">{{ s }}</div>
+      </div>
+    }
+  </div>
+
+  @if (full(); as f) {
+    <!-- Turma lotada: fila ou outra turma do mesmo nível -->
+    <div class="ct-box yellow">
+      <div class="ct-row">
+        <ct-icon name="alert" [size]="16" style="color: var(--nx-pending)" />
+        <span class="full-t ct-grow">Turma lotada · {{ f.seatsTaken }}/{{ f.capacity }}</span>
+        <span class="ct-strong-mono">{{ queueLength() }} na espera</span>
+      </div>
+      <div class="ct-muted" style="margin-top: 6px">
+        @if (f.raced) {
+          A última vaga foi confirmada enquanto esta matrícula era preenchida.
+        } @else {
+          Esta turma está sem vagas.
+        }
+        {{ student()?.name }} pode entrar na fila como {{ queueLength() + 1 }}º ou ir para outra turma do mesmo nível.
+      </div>
+    </div>
+
+    <div class="ct-kick">{{ cls() ? className(cls()!) : '' }} com vaga</div>
+    @for (a of alternatives(); track a.id) {
+      <div class="alt">
+        <div class="ct-grow">
+          <div class="ct-disp" style="font-weight: 700">{{ a.name }}</div>
+          <div class="ct-mono" style="margin-top: 2px">{{ schedule(a) }}</div>
+        </div>
+        <span class="seats">{{ a.seatsTaken }}/{{ a.capacity }}</span>
+        <button type="button" class="ct-mini-btn" (click)="pickAlternative(a)">Escolher</button>
+      </div>
+    } @empty {
+      <div class="ct-dim">Nenhuma outra turma ativa desta modalidade e nível tem vaga agora.</div>
+    }
+
+    @if (policies()?.waitlistEnabled) {
+      @if (!plan()) {
+        <div class="ct-field">
+          <label for="wl-plan">Plano pretendido</label>
+          <select id="wl-plan" class="ct-input" (change)="pickPlan(inputValue($event))">
+            <option value="">Escolha o plano</option>
+            @for (p of plans(); track p.id) {
+              <option [value]="p.id">{{ p.name }} · {{ formatBRL(priceToday(p)) }}</option>
+            }
+          </select>
+          <span class="ct-dim">Escolha o plano pretendido para entrar na fila.</span>
+        </div>
+      }
+      <div class="ct-row">
+        <ct-toggle [(on)]="notify" label="Quer ser avisado quando abrir vaga" />
+        <span class="ct-muted">{{ student()?.name }} quer ser avisado quando abrir vaga na {{ cls()?.name }}</span>
+      </div>
+      <div class="ct-dim">O contrato é congelado com o preço do dia em que a vaga for oferecida.</div>
+    } @else {
+      <div class="ct-dim">A lista de espera está desligada nas políticas do centro.</div>
+    }
+  } @else {
+    @switch (step()) {
+      @case (0) {
+        <div class="ct-field">
+          <label for="ne-q">Aluno</label>
+          <input id="ne-q" class="ct-input" placeholder="Buscar por nome ou e-mail" [value]="query()" (input)="query.set(inputValue($event))" />
+        </div>
+        <div class="list">
+          @for (s of students(); track s.id) {
+            <button type="button" class="pick" [class.on]="s.id === studentId()" (click)="pickStudent(s.id)">
+              <span class="opt">
+                <ct-person class="ct-grow" [name]="s.name" [colorKey]="s.id" [size]="28" [sub]="s.isMinor && s.guardian ? 'Menor · responsável ' + s.guardian.name : s.email" />
+                @if (s.status === 'invited') {
+                  <span class="ct-tag orange">Convidado</span>
+                }
+              </span>
+            </button>
+          } @empty {
+            <div class="ct-dim">
+              @if (query()) {
+                Nenhum aluno encontrado.
+              } @else {
+                Nenhum aluno ativo. Cadastre o aluno antes de matricular.
+              }
+            </div>
+          }
+        </div>
+      }
+      @case (1) {
+        <div class="list">
+          @for (c of classes(); track c.id) {
+            <button type="button" class="ct-option" [class.on]="c.id === classId()" (click)="pickClass(c)">
+              <span class="opt">
+                <span class="ct-grow">
+                  <strong>{{ c.name }}</strong>
+                  <span>{{ className(c) }} · {{ schedule(c) }}</span>
+                </span>
+                <span class="seats" [class.full]="freeSeats(c) === 0">{{ c.seatsTaken }}/{{ c.capacity }}</span>
+              </span>
+            </button>
+          } @empty {
+            <div class="ct-dim">Nenhuma turma ativa. Crie e publique uma turma antes de matricular.</div>
+          }
+        </div>
+      }
+      @case (2) {
+        <div class="list">
+          @for (p of plans(); track p.id) {
+            <button type="button" class="ct-option" [class.on]="p.id === planId()" (click)="pickPlan(p.id)">
+              <span class="opt">
+                <span class="ct-grow">
+                  <strong>{{ p.name }}</strong>
+                  <span>{{ p.type === 'class_pack' ? 'Pacote' : 'Mensal' }} · {{ planRule(p) }}</span>
+                </span>
+                <span class="price">{{ formatBRL(priceToday(p)) }}<span class="ct-mono"> {{ priceSuffix(p.type) }}</span></span>
+              </span>
+            </button>
+          } @empty {
+            <div class="ct-dim">Nenhum plano ativo vale para esta modalidade. Crie um plano em “Planos”.</div>
+          }
+        </div>
+      }
+      @case (3) {
+        <div class="ct-form-grid">
+          <div class="ct-field">
+            <label for="ne-start">Início</label>
+            <input id="ne-start" class="ct-input mono" type="date" [value]="startDate()" (input)="startDate.set(inputValue($event))" />
+          </div>
+          <div class="ct-field">
+            <label>Pagador</label>
+            <div class="ct-input" style="display: flex; align-items: center">{{ payerName() }}</div>
+          </div>
+        </div>
+        @if (policies(); as pol) {
+          <div class="ct-box">
+            <div class="ct-disp" style="font-weight: 700">Condições do contrato</div>
+            <div class="ct-kv"><span>Ativação</span><span>{{ pol.activation === 'on_confirmation' ? 'Na confirmação' : 'Após o pagamento' }}</span></div>
+            @if (pol.activation === 'after_payment') {
+              <div class="ct-kv"><span>Vaga reservada</span><span>{{ pol.pendingHoldHours }}h até o pagamento</span></div>
+            }
+            <div class="ct-kv"><span>Falta justificada</span><span>{{ pol.excusedAbsenceMakeup ? 'Gera reposição (até ' + pol.excusedNoticeHours + 'h antes)' : 'Sem reposição' }}</span></div>
+            <div class="ct-kv"><span>Validade da reposição</span><span>{{ pol.makeupValidityDays }} dias</span></div>
+            <div class="ct-kv"><span>Cancelamento</span><span>{{ pol.monthlyCancellation === 'end_of_cycle' ? 'No fim do ciclo pago' : 'Imediato' }}</span></div>
+          </div>
+        }
+      }
+      @case (4) {
+        @if (contract(); as c) {
+          <div class="ct-box">
+            <div class="ct-kv"><span>Aluno</span><span>{{ student()?.name }}</span></div>
+            <div class="ct-kv"><span>Pagador</span><span>{{ payerName() }}</span></div>
+            <div class="ct-kv"><span>Turma</span><span>{{ cls()?.name }}</span></div>
+            <div class="ct-kv"><span>Plano</span><span>{{ c.planName }}</span></div>
+            <div class="ct-kv"><span>Preço</span><span>{{ formatBRL(c.priceCents) }} {{ priceSuffix(c.planType) }}</span></div>
+            <div class="ct-kv"><span>Regra</span><span>{{ planRule(c) }}</span></div>
+            <div class="ct-kv mono"><span>Início</span><span>{{ formatDayKey(startDate(), true) }}</span></div>
+          </div>
+          <div class="ct-dim">
+            Preço, regras de reposição e cancelamento ficam congelados no contrato com as condições de hoje — mudar o plano depois não altera esta matrícula.
+            Uma cobrança de {{ formatBRL(c.priceCents) }} é emitida para {{ payerName() }}.
+            @if (policies()?.activation === 'after_payment') {
+              A matrícula fica pendente com a vaga reservada por {{ policies()?.pendingHoldHours }}h até o pagamento ser confirmado.
+            } @else {
+              A matrícula já nasce ativa.
+            }
+          </div>
+        }
+      }
+    }
+  }
+
+  @if (error()) {
+    <div class="ct-error-text">{{ error() }}</div>
+  }
+
+  <div footer class="ct-row ct-wrap">
+    @if (step() > 0 || full()) {
+      <button type="button" class="ct-ghost-btn" [disabled]="busy()" (click)="back()">{{ full() ? 'Escolher outra turma' : 'Voltar' }}</button>
+    }
+    @if (full()) {
+      @if (policies()?.waitlistEnabled) {
+        <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy() || !plan()" (click)="joinWaitlist()">
+          {{ busy() ? 'Salvando…' : 'Entrar na lista de espera' }}
+        </button>
+      }
+    } @else if (step() < 4) {
+      <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="!stepValid()" (click)="next()">Continuar</button>
+    } @else {
+      <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy() || !contract()" (click)="confirm()">
+        {{ busy() ? 'Matriculando…' : 'Confirmar matrícula' }}
+      </button>
+    }
+  </div>
+</ct-modal>

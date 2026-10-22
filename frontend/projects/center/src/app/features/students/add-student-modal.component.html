@@ -1,0 +1,72 @@
+<ct-modal kicker="Alunos" title="Adicionar aluno" [width]="600" (closed)="closed.emit()">
+  <div class="ct-row ct-wrap">
+    <button type="button" class="ct-chip" [class.active]="mode() === 'search'" (click)="setMode('search')">Buscar no NexaGO</button>
+    <button type="button" class="ct-chip" [class.active]="mode() === 'invite'" (click)="setMode('invite')">Convidar por e-mail</button>
+  </div>
+
+  @if (mode() === 'search') {
+    <div class="ct-field">
+      <label for="as-term">Nome do atleta</label>
+      <input id="as-term" class="ct-input" autocomplete="off" placeholder="Ex.: Carla Dias" [value]="term()" (input)="term.set(value($event)); selected.set(null)" />
+    </div>
+    @if (searching()) {
+      <div class="ct-dim">Buscando…</div>
+    } @else if (searchError()) {
+      <div class="ct-error-text">{{ searchError() }}</div>
+    } @else if (term().trim().length >= 2 && hits().length === 0) {
+      <div class="ct-dim">Nenhuma conta encontrada. Se a pessoa ainda não usa o NexaGO, convide por e-mail.</div>
+    }
+    @for (h of hits(); track h.uid) {
+      <button type="button" class="hit" [class.on]="selected()?.uid === h.uid" [disabled]="isLinked(h)" (click)="selected.set(h)">
+        <ct-person class="ct-grow" [name]="h.name" [sub]="h.sub" [colorKey]="h.uid" />
+        <span class="ct-tag" [class.green]="!isLinked(h)">{{ isLinked(h) ? 'Já é aluno aqui' : selected()?.uid === h.uid ? 'Selecionado' : 'Vincular' }}</span>
+      </button>
+    }
+    @if (selected(); as s) {
+      <div class="ct-dim">{{ s.name }} usa a mesma conta NexaGO no centro e nos torneios. O centro não lê os dados pessoais da conta — informe abaixo o contato que o centro vai usar (opcional).</div>
+      <div class="ct-form-grid">
+        <div class="ct-field"><label for="as-email">E-mail de contato</label><input id="as-email" class="ct-input" type="email" [value]="email()" (input)="email.set(value($event))" /></div>
+        <div class="ct-field"><label for="as-phone">Telefone</label><input id="as-phone" class="ct-input" type="tel" [value]="phone()" (input)="phone.set(value($event))" /></div>
+      </div>
+    }
+  } @else {
+    <div class="ct-field"><label for="ai-name">Nome completo</label><input id="ai-name" class="ct-input" [value]="name()" (input)="name.set(value($event))" /></div>
+    <div class="ct-form-grid">
+      <div class="ct-field"><label for="ai-email">E-mail</label><input id="ai-email" class="ct-input" type="email" [value]="email()" (input)="email.set(value($event))" /></div>
+      <div class="ct-field"><label for="ai-phone">Telefone / WhatsApp</label><input id="ai-phone" class="ct-input" type="tel" [value]="phone()" (input)="phone.set(value($event))" /></div>
+    </div>
+    <div class="ct-dim">O aluno entra como “Convidado” e vira ativo quando aceitar pelo app com esse e-mail.</div>
+  }
+
+  <div class="minor">
+    <ct-toggle label="Aluno menor de 18 anos" [on]="isMinor()" (onChange)="isMinor.set($event)" />
+    <span class="ct-muted">Aluno menor de 18 anos — pedir consentimento do responsável legal</span>
+  </div>
+  @if (isMinor()) {
+    <div class="guardian">
+      <div class="ct-kick">Responsável legal · pagador e contato principal</div>
+      <div class="ct-form-grid">
+        <div class="ct-field"><label for="g-birth">Nascimento do aluno</label><input id="g-birth" class="ct-input mono" type="date" [value]="birthDate()" (input)="birthDate.set(value($event))" /></div>
+        <div class="ct-field"><label for="g-name">Nome do responsável</label><input id="g-name" class="ct-input" [value]="gName()" (input)="gName.set(value($event))" /></div>
+        <div class="ct-field"><label for="g-rel">Parentesco</label><input id="g-rel" class="ct-input" placeholder="Mãe, pai, tutor…" [value]="gRelation()" (input)="gRelation.set(value($event))" /></div>
+        <div class="ct-field"><label for="g-email">E-mail do responsável</label><input id="g-email" class="ct-input" type="email" [value]="gEmail()" (input)="gEmail.set(value($event))" /></div>
+        <div class="ct-field"><label for="g-phone">Telefone do responsável</label><input id="g-phone" class="ct-input" type="tel" [value]="gPhone()" (input)="gPhone.set(value($event))" /></div>
+      </div>
+      <div class="ct-dim">O consentimento LGPD fica pendente até ser registrado na ficha do aluno.</div>
+    </div>
+  }
+
+  @if (tried() && problems().length) {
+    <div class="ct-error-text">{{ problems()[0] }}</div>
+  }
+  @if (error()) {
+    <div class="ct-error-text">{{ error() }}</div>
+  }
+
+  <div footer>
+    <button type="button" class="ct-mini-btn" (click)="closed.emit()">Cancelar</button>
+    <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="submit()">
+      {{ busy() ? 'Salvando…' : mode() === 'search' ? 'Vincular ao centro' : 'Enviar convite' }}
+    </button>
+  </div>
+</ct-modal>

@@ -1,0 +1,204 @@
+<ct-page-header title="Matrículas" [subtitle]="subtitle()">
+  @if (enrollBlock(); as why) {
+    <span class="disabled-note">{{ why }}</span>
+  }
+  <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="!!enrollBlock()" (click)="showNew.set(true)">
+    <ct-icon name="plus" [size]="14" /> Nova matrícula
+  </button>
+</ct-page-header>
+
+<div class="page">
+  <div class="ct-filter-bar" role="tablist" aria-label="Filtrar por situação">
+    <button type="button" class="ct-chip" [class.active]="filter() === 'all'" (click)="filter.set('all')">Todas · {{ store.enrollments().length }}</button>
+    @for (s of statuses; track s) {
+      <button type="button" class="ct-chip" [class.active]="filter() === s" (click)="filter.set(s)">{{ STATUS[s][0] }} · {{ counts()[s] }}</button>
+    }
+  </div>
+
+  <div class="ct-grid-aside">
+    <div class="ct-card flush">
+      <div class="ct-table" style="--cols: 1.3fr 1.2fr 1.2fr 100px 70px 1.4fr; --min-w: 820px">
+        <div class="ct-thead"><span>Aluno</span><span>Turma</span><span>Plano</span><span>Situação</span><span>Início</span><span>Detalhe</span></div>
+        @for (r of rows(); track r.e.id) {
+          <button type="button" class="ct-tr" [class.hi]="r.e.id === selectedId()" (click)="select(r.e.id)">
+            <ct-person [name]="r.e.studentName" [colorKey]="r.e.studentId" [size]="28" />
+            <span class="ct-ellipsis" style="color: var(--nx-text)">{{ r.e.className }}</span>
+            <span class="ct-ellipsis">{{ r.plan }}</span>
+            <span><span [class]="'ct-pill ' + STATUS[r.e.status][1]">{{ STATUS[r.e.status][0] }}</span></span>
+            <span class="ct-mono">{{ formatDayKey(r.e.startDate) }}</span>
+            <span [class]="'ct-mono ct-ellipsis det ' + r.detail.tone">{{ r.detail.text }}</span>
+          </button>
+        } @empty {
+          <div class="ct-empty">
+            @if (!store.loaded.enrollments()) {
+              <span class="ct-spinner light" aria-hidden="true"></span>
+            } @else if (filter() === 'all') {
+              Nenhuma matrícula ainda. Comece por “Nova matrícula”.
+            } @else {
+              Nenhuma matrícula nesta situação.
+            }
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="ct-col">
+      @for (g of waitlists(); track g.cls.id) {
+        <div class="ct-card">
+          <div class="ct-card-head">
+            <div class="ct-grow">
+              <div class="ct-kick">{{ g.cls.name }} · {{ g.cls.seatsTaken }}/{{ g.cls.capacity }}</div>
+              <div class="ct-card-title">Lista de espera</div>
+            </div>
+            @if (g.free > 0) {
+              <span class="ct-tag green">{{ g.free }} vaga{{ g.free === 1 ? '' : 's' }}</span>
+            }
+          </div>
+          @for (w of g.queue; track w.id; let i = $index) {
+            <div class="ct-list-row">
+              <span class="pos">{{ ordinal(i + 1) }}</span>
+              <div class="ct-grow">
+                <ct-person [name]="w.studentName" [colorKey]="w.studentId" [size]="28" [sub]="'desde ' + formatInstant(w.waitlistedAt, tz()).slice(0, 6) + (w.planId && store.planById(w.planId) ? ' · ' + store.planById(w.planId)!.name : '')" />
+              </div>
+              @if (i === 0 && g.free > 0 && !enrollBlock()) {
+                <button type="button" class="ct-mini-btn" [disabled]="offerBusy() === w.id" (click)="offerSeat(w)">
+                  {{ offerBusy() === w.id ? 'Oferecendo…' : 'Oferecer vaga' }}
+                </button>
+              }
+            </div>
+          }
+          <div class="ct-dim" style="margin-top: 8px">
+            Ao oferecer a vaga, o 1º da fila tem {{ policies()?.waitlistAcceptHours ?? 24 }}h para aceitar e pagar; depois ela volta para a fila.
+          </div>
+          @if (offerError()) {
+            <div class="ct-error-text" style="margin-top: 8px">{{ offerError() }}</div>
+          }
+        </div>
+      }
+
+      @if (selected(); as e) {
+        <div class="ct-card">
+          <div class="ct-card-head">
+            <div class="ct-grow">
+              <div class="ct-kick">Matrícula {{ STATUS[e.status][0].toLowerCase() }}</div>
+              <div class="ct-card-title">{{ e.studentName }}</div>
+            </div>
+            <button type="button" class="ct-ghost-btn" aria-label="Fechar" (click)="selectedId.set(null)"><ct-icon name="x" [size]="14" /></button>
+          </div>
+
+          @if (e.status === 'pending') {
+            <div class="ct-muted">
+              @if (selectedInvoice(); as inv) {
+                Cobrança de {{ formatBRL(inv.amountCents) }} gerada em {{ formatInstant(inv.createdAt, tz()) }}.
+              }
+              @if (selectedExpired()) {
+                A reserva da vaga venceu em {{ formatInstant(e.holdUntil, tz()) }} sem pagamento confirmado.
+              } @else if (e.holdUntil) {
+                A vaga fica reservada até {{ formatInstant(e.holdUntil, tz()) }}; depois volta para a fila.
+              }
+            </div>
+          }
+
+          <div style="margin-top: 10px">
+            <div class="ct-kv"><span>Turma</span><span>{{ e.className }}</span></div>
+            @if (e.contract; as c) {
+              <div class="ct-kv"><span>Plano</span><span>{{ c.planName }} · {{ formatBRL(c.priceCents) }}</span></div>
+              <div class="ct-kv"><span>Regra</span><span>{{ planRule(c) }}</span></div>
+              @if (c.planType === 'class_pack') {
+                <div class="ct-kv"><span>Créditos</span><span>{{ e.creditsLeft ?? 0 }}</span></div>
+              }
+            } @else {
+              <div class="ct-kv"><span>Contrato</span><span>Congelado quando a vaga for oferecida</span></div>
+            }
+            <div class="ct-kv mono"><span>Início</span><span>{{ formatDayKey(e.startDate, true) }}</span></div>
+            @if (e.status === 'paused' && e.pausedUntil) {
+              <div class="ct-kv mono"><span>Pausa até</span><span>{{ formatDayKey(e.pausedUntil, true) }}</span></div>
+            }
+            <div class="ct-kv"><span>Criada por</span><span>{{ e.createdByName || '—' }}</span></div>
+          </div>
+
+          @if (canEdit()) {
+            @if (action() === null) {
+              <div class="acts">
+                @if (selectedExpired()) {
+                  <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="release(e)">{{ busy() ? 'Liberando…' : 'Liberar vaga' }}</button>
+                }
+                @if (can('active') && e.status === 'pending') {
+                  <button type="button" class="ct-mini-btn" (click)="startAction('activate')">Ativar manualmente</button>
+                }
+                @if (can('active') && e.status === 'paused') {
+                  <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="startAction('resume')">Retomar</button>
+                }
+                @if (can('paused') && policies()?.allowPause) {
+                  <button type="button" class="ct-mini-btn" (click)="startAction('pause')">Pausar</button>
+                }
+                @if (can('completed')) {
+                  <button type="button" class="ct-mini-btn" (click)="startAction('complete')">Concluir</button>
+                }
+                @if (can('cancelled') && !selectedExpired()) {
+                  <button type="button" class="ct-ghost-btn danger" (click)="startAction('cancel')">{{ e.status === 'waitlisted' ? 'Remover da fila' : 'Cancelar' }}</button>
+                }
+              </div>
+            } @else {
+              <div class="form">
+                @switch (action()) {
+                  @case ('activate') {
+                    <div class="ct-dim">
+                      @if (activateNeedsReason()) {
+                        A política do centro ativa após o pagamento. Ativar antes disso exige motivo e fica na auditoria.
+                      } @else {
+                        Pela política do centro, a matrícula ativa na confirmação.
+                      }
+                    </div>
+                  }
+                  @case ('pause') {
+                    <div class="ct-field">
+                      <label for="pause-until">Pausar até</label>
+                      <input id="pause-until" class="ct-input mono" type="date" [min]="today()" [value]="pauseUntil()" (input)="pauseUntil.set(inputValue($event))" />
+                    </div>
+                    <div class="ct-dim">A vaga continua reservada durante a pausa (máx. {{ policies()?.pauseMaxDaysPerYear }} dias/ano pela política).</div>
+                  }
+                  @case ('resume') {
+                    <div class="ct-dim">A matrícula volta a ficar ativa a partir de hoje.</div>
+                  }
+                  @case ('complete') {
+                    <div class="ct-dim">Concluir encerra o contrato e libera a vaga na turma.</div>
+                  }
+                  @case ('cancel') {
+                    <div class="ct-dim">Cancelar libera a vaga na turma. O motivo fica na auditoria.</div>
+                  }
+                }
+                @if (action() !== 'resume' && (action() !== 'activate' || activateNeedsReason())) {
+                  <div class="ct-field">
+                    <label for="act-reason">Motivo{{ action() === 'complete' ? ' (opcional)' : '' }}</label>
+                    <input id="act-reason" class="ct-input" [value]="reason()" (input)="reason.set(inputValue($event))" placeholder="Ex.: pagamento em dinheiro na recepção" />
+                  </div>
+                }
+                <div class="ct-row">
+                  <button type="button" class="ct-mini-btn ct-mini-btn-primary" [class.danger]="action() === 'cancel'" [disabled]="!actionValid() || busy()" (click)="runAction()">
+                    {{ busy() ? 'Salvando…' : 'Confirmar' }}
+                  </button>
+                  <button type="button" class="ct-ghost-btn" [disabled]="busy()" (click)="resetAction()">Voltar</button>
+                </div>
+              </div>
+            }
+          }
+          @if (error()) {
+            <div class="ct-error-text" style="margin-top: 10px">{{ error() }}</div>
+          }
+
+          @if (ctx.isManager()) {
+            <div class="ct-kick" style="margin: 16px 0 10px">Histórico</div>
+            <ct-audit-trail [rows]="selectedAudit()" />
+          }
+        </div>
+      } @else if (waitlists().length === 0) {
+        <div class="ct-card"><div class="ct-dim">Selecione uma matrícula para ver o contrato e as ações. Filas de espera aparecem aqui quando uma turma lota.</div></div>
+      }
+    </div>
+  </div>
+</div>
+
+@if (showNew()) {
+  <ct-new-enrollment [initialStudentId]="aluno() ?? null" (closed)="showNew.set(false)" (created)="onCreated($event)" />
+}

@@ -1,0 +1,183 @@
+<ct-page-header [title]="ctx.isSuspended() ? (ctx.center()?.name ?? 'Centro') : title()" [subtitle]="subtitle()">
+  @if (canEnroll()) {
+    <a class="ct-mini-btn" [routerLink]="['/centro', centerId(), 'alunos']" [queryParams]="{ novo: 1 }"><ct-icon name="plus" [size]="14" />Adicionar aluno</a>
+    <a class="ct-mini-btn ct-mini-btn-primary" [routerLink]="['/centro', centerId(), 'matriculas']" [queryParams]="{ nova: 1 }"><ct-icon name="plus" [size]="14" />Nova matrícula</a>
+  }
+</ct-page-header>
+
+<div class="body">
+  @if (ctx.isSuspended()) {
+    <div class="ct-stats dimmed">
+      <ct-stat label="Alunos" [value]="'' + store.students().length" sub="vínculos preservados" />
+      @if (seesEnrollments()) {
+        <ct-stat label="Matrículas" [value]="'' + frozenEnrollments()" sub="congeladas" />
+      }
+      @if (cancelledSinceSuspension() !== null) {
+        <ct-stat label="Aulas canceladas" [value]="'' + cancelledSinceSuspension()" sub="desde a suspensão" tone="red" />
+      }
+      <ct-stat label="Histórico" value="100%" sub="retido" tone="green" />
+    </div>
+    <div class="two">
+      <section class="ct-card">
+        <div class="ct-card-head">
+          <div class="ct-grow">
+            <div class="ct-kick">Política de suspensão</div>
+            <div class="ct-card-title">O que está disponível</div>
+          </div>
+        </div>
+        @for (p of policy; track p[0]) {
+          <div class="ct-list-row">
+            <ct-icon [name]="p[1] ? 'check' : 'lock'" [size]="15" [class]="p[1] ? 'ok' : 'no'" />
+            <span class="ct-disp ct-grow">{{ p[0] }}</span>
+            <span class="ct-mono" [class]="p[1] ? 'ct-mono ok' : 'ct-mono no'">{{ p[2] }}</span>
+          </div>
+        }
+        @if (ctx.center()?.suspendedReason; as reason) {
+          <p class="ct-dim">Motivo: {{ reason }}</p>
+        }
+      </section>
+      <ct-subscription-card [sub]="ctx.center()?.subscription ?? null" />
+    </div>
+  } @else {
+    <div class="ct-stats">
+      <ct-stat label="Alunos ativos" [value]="'' + activeStudents().length" [sub]="newStudents() ? '+' + newStudents() + ' em ' + monthShort() : 'nenhum novo em ' + monthShort()" />
+      @if (seesEnrollments()) {
+        <ct-stat
+          label="Matrículas ativas"
+          [value]="'' + enrollmentCounts().active"
+          [sub]="enrollmentCounts().paused + ' pausadas · ' + enrollmentCounts().waitlisted + ' espera'"
+        />
+      }
+      <ct-stat
+        label="Ocupação das turmas"
+        [value]="occ().pct === null ? '—' : occ().pct + '%'"
+        [sub]="occ().capacity ? occ().taken + ' / ' + occ().capacity + ' vagas' : 'sem turmas ativas'"
+        tone="orange"
+      />
+      <ct-stat
+        [label]="'Presença · ' + monthShort()"
+        [value]="attendance().rate === null ? '—' : attendance().rate + '%'"
+        [sub]="attendance().t.present + ' P · ' + attendance().t.excused + ' J · ' + attendance().t.absent + ' F'"
+        tone="green"
+      />
+      @if (seesFinance()) {
+        <ct-stat [label]="'Recebido · ' + monthShort()" [value]="brl(money().approvedCents)" [sub]="'de ' + brl(money().chargedCents) + ' cobrados'" tone="green" />
+      }
+    </div>
+
+    <div class="ct-grid-aside">
+      <div class="ct-col">
+        <section class="ct-card flush">
+          <div class="ct-card-head">
+            <div class="ct-grow">
+              <div class="ct-kick">{{ todayKicker() }}</div>
+              <div class="ct-card-title">Aulas de hoje</div>
+            </div>
+            @if (ctx.can('schedule')) {
+              <a class="ct-mini-btn" [routerLink]="['/centro', centerId(), 'agenda']">Ver agenda</a>
+            }
+          </div>
+          @if (!store.loaded.sessions()) {
+            <div class="ct-empty">Carregando…</div>
+          } @else if (todayRows().length === 0) {
+            <div class="ct-empty">Nenhuma aula prevista para hoje.</div>
+          } @else {
+            <div class="ct-table" style="--cols: 64px minmax(140px, 1.4fr) minmax(110px, 1fr) 100px 110px 120px; --min-w: 760px">
+              <div class="ct-thead"><span>Início</span><span>Turma</span><span>Professor</span><span>Quadra</span><span>Alunos</span><span>Situação</span></div>
+              @for (r of todayRows(); track r.s.id) {
+                <div class="ct-tr">
+                  <span class="ct-strong-mono">{{ r.s.startTime }}</span>
+                  <span class="ct-disp ct-ellipsis" [class.cancel]="r.state === 'cancelled'">{{ r.s.className }}</span>
+                  @if (r.s.coachName) {
+                    <ct-person [name]="r.coachFirst" [colorKey]="r.s.coachUid" [size]="24" />
+                  } @else {
+                    <span class="ct-dim">—</span>
+                  }
+                  <span class="ct-ellipsis">{{ r.s.courtName || '—' }}</span>
+                  <span class="ct-strong-mono">{{ r.count }}</span>
+                  <span><span class="ct-pill" [class]="'ct-pill ' + stateLabel[r.state][1]">{{ stateLabel[r.state][0] }}</span></span>
+                </div>
+              }
+            </div>
+          }
+        </section>
+
+        <section class="ct-card">
+          <div class="ct-card-head">
+            <div class="ct-grow">
+              <div class="ct-kick">Capacidade × vagas ocupadas</div>
+              <div class="ct-card-title">Ocupação por turma</div>
+            </div>
+            @if (ctx.can('classes')) {
+              <a class="ct-ghost-btn" [routerLink]="['/centro', centerId(), 'turmas']">Turmas</a>
+            }
+          </div>
+          @if (!store.loaded.classes()) {
+            <div class="ct-empty">Carregando…</div>
+          } @else if (occRows().length === 0) {
+            <div class="ct-empty">Nenhuma turma ativa ainda.</div>
+          } @else {
+            <div class="occ">
+              @for (o of occRows(); track o.c.id) {
+                <div class="occ-row">
+                  <span class="ct-ellipsis" [title]="o.c.name">{{ o.c.name }}</span>
+                  <div class="ct-bar" [class.full]="o.full"><span [style.width.%]="o.pct"></span></div>
+                  <span class="ct-strong-mono" [class.full]="o.full">{{ o.c.seatsTaken }}/{{ o.c.capacity }}</span>
+                </div>
+              }
+            </div>
+          }
+        </section>
+      </div>
+
+      <div class="ct-col">
+        @if (seesFinance()) {
+          <section class="ct-card">
+            <div class="ct-card-head">
+              <div class="ct-grow">
+                <div class="ct-kick">Só pagamentos confirmados contam como recebidos</div>
+                <div class="ct-card-title">Receita de {{ monthShort() }}</div>
+              </div>
+            </div>
+            <div class="ct-row">
+              <span class="big">{{ brl(money().approvedCents) }}</span>
+              @if (receivedPct() !== null) {
+                <span class="ct-mono">{{ receivedPct() }}% do cobrado</span>
+              }
+            </div>
+            <div class="split" aria-hidden="true">
+              <span class="green" [style.flex]="money().approvedCents"></span>
+              <span class="yellow" [style.flex]="money().pendingCents"></span>
+              <span class="red" [style.flex]="money().lateCents"></span>
+            </div>
+            <div class="ct-kv mono"><span>Aprovado</span><span>{{ brl(money().approvedCents) }}</span></div>
+            <div class="ct-kv mono"><span>Aguardando confirmação</span><span>{{ brl(money().pendingCents) }}</span></div>
+            <div class="ct-kv mono"><span>Vencido em aberto</span><span>{{ brl(money().lateCents) }}</span></div>
+            <div class="ct-kv mono"><span>Estornos e ajustes</span><span>{{ money().refundedCents ? '− ' + brl(money().refundedCents) : brl(0) }}</span></div>
+          </section>
+        }
+
+        <section class="ct-card">
+          <div class="ct-card-head">
+            <div class="ct-grow">
+              <div class="ct-kick">{{ pendencies().length }} {{ pendencies().length === 1 ? 'item' : 'itens' }}</div>
+              <div class="ct-card-title">Pendências</div>
+            </div>
+          </div>
+          @for (p of pendencies(); track p.title) {
+            <a class="ct-list-row" [routerLink]="['/centro', centerId(), p.path]">
+              <span class="dot" [class]="'dot ' + p.tone"></span>
+              <span class="ct-grow">
+                <span class="ct-disp">{{ p.title }}</span>
+                <span class="ct-dim" style="display: block; margin-top: 2px">{{ p.sub }}</span>
+              </span>
+              <ct-icon name="chevron" [size]="14" class="ct-dim" />
+            </a>
+          } @empty {
+            <div class="ct-dim">Nada pendente. Tudo em dia.</div>
+          }
+        </section>
+      </div>
+    </div>
+  }
+</div>

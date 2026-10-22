@@ -1,0 +1,5 @@
+.page { min-height: 100dvh; background: radial-gradient(60% 40% at 50% 0%, rgba(255, 106, 26, 0.07) 0%, transparent 60%), var(--nx-bg); }
+.wrap { max-width: 720px; margin: 0 auto; padding: 40px 16px 64px; }
+.ct-form-header { margin-bottom: 24px; }
+.three { grid-template-columns: 1fr 90px 1.4fr; }
+@media (max-width: 560px) { .three { grid-template-columns: 1fr 80px; } }

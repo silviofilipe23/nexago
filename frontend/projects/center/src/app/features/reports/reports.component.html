@@ -1,0 +1,78 @@
+<ct-page-header title="Relatórios" [subtitle]="subtitle()">
+  <ct-segmented [options]="periods" [(value)]="period" />
+  <button type="button" class="ct-mini-btn" [disabled]="loading()" (click)="exportCsv()"><ct-icon name="download" [size]="14" /> Exportar CSV</button>
+</ct-page-header>
+
+<div class="page">
+  @if (error()) {
+    <div class="ct-error-text">{{ error() }}</div>
+  }
+
+  <div class="ct-stats">
+    <ct-stat label="Aulas previstas" [value]="loading() ? '…' : stats().planned.toLocaleString('pt-BR')" [sub]="stats().done + ' realizadas · ' + stats().cancelled + ' canceladas'" />
+    <ct-stat
+      label="Presença média"
+      [value]="loading() ? '…' : fmtPct(stats().presence)"
+      [sub]="stats().presence == null ? 'sem chamada no período' : 'falta justificada ' + fmtPct(stats().excusedPct) + ' · não just. ' + fmtPct(stats().absentPct)"
+      tone="green"
+    />
+    <ct-stat label="Reposições" [value]="makeups().toLocaleString('pt-BR')" sub="créditos disponíveis hoje" />
+    <ct-stat label="Inadimplência" [value]="fmtPct(late())" [sub]="'do cobrado em ' + monthTitle().toLowerCase()" tone="red" />
+  </div>
+
+  <div class="grid">
+    <div class="ct-card">
+      <div class="ct-card-head ct-wrap">
+        <div class="ct-grow">
+          <div class="ct-kick">R$ · só pagamentos aprovados contam como recebidos</div>
+          <div class="ct-card-title">Cobrado × recebido</div>
+        </div>
+        <div class="legend">
+          <span><i class="sw c"></i>Cobrado</span>
+          <span><i class="sw r"></i>Recebido</span>
+        </div>
+      </div>
+      @if (!store.loaded.invoices()) {
+        <div class="ct-empty"><span class="ct-spinner light" aria-hidden="true"></span></div>
+      } @else {
+        <div class="chart" role="img" aria-label="Cobrado e recebido por mês">
+          @for (p of series(); track p.month; let last = $last) {
+            <div class="col" [attr.title]="p.label + ': cobrado ' + formatBRL(p.chargedCents) + ' · recebido ' + formatBRL(p.receivedCents)">
+              <span class="num">{{ compactBRL(p.receivedCents) }}</span>
+              <div class="bars">
+                <div class="bar c" [style.height.%]="height(p.chargedCents)"></div>
+                <div class="bar r" [class.now]="last" [style.height.%]="height(p.receivedCents)"></div>
+              </div>
+              <span class="m" [class.now]="last">{{ p.label }}</span>
+            </div>
+          }
+        </div>
+        @if (maxCents() <= 1) {
+          <div class="ct-dim" style="margin-top: 10px">Nenhuma cobrança no período ainda.</div>
+        }
+      }
+    </div>
+
+    <div class="ct-card flush">
+      <div class="ct-card-head">
+        <div class="ct-grow">
+          <div class="ct-kick">Ocupação · presença no período · receita recebida</div>
+          <div class="ct-card-title">Por turma · {{ monthTitle().toLowerCase() }}</div>
+        </div>
+      </div>
+      <div class="ct-table" style="--cols: 1.4fr 64px 64px 96px; --min-w: 380px">
+        <div class="ct-thead"><span>Turma</span><span>Ocup.</span><span>Pres.</span><span>Receita</span></div>
+        @for (r of rows(); track r.cls.id) {
+          <div class="ct-tr" style="min-height: 42px">
+            <span class="ct-ellipsis" style="color: var(--nx-text)">{{ r.cls.name }}</span>
+            <span class="cell">{{ fmtPct(r.occupancy) }}</span>
+            <span class="cell" [class.low]="r.presence != null && r.presence < 80">{{ loading() ? '…' : fmtPct(r.presence) }}</span>
+            <span class="cell">{{ formatBRL(r.revenueCents) }}</span>
+          </div>
+        } @empty {
+          <div class="ct-empty">Nenhuma turma ativa.</div>
+        }
+      </div>
+    </div>
+  </div>
+</div>

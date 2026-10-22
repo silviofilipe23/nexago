@@ -111,6 +111,7 @@ export class InvoicesActions extends CenterActionsBase {
   }
 
   async addNote(inv: Invoice, note: string): Promise<void> {
+    this.assertWritable();
     const b = writeBatch(db());
     b.update(this.ref('invoices', inv.id), { events: arrayUnion(this.event('note', 'Observação', note.trim())) });
     await b.commit();

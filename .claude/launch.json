@@ -108,6 +108,12 @@
         "4311"
       ],
       "port": 4311
+    },
+    {
+      "name": "center",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "start:center", "--", "--port", "4215"],
+      "port": 4215
     }
   ]
 }

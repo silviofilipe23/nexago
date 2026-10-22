@@ -96,7 +96,8 @@ export class StudentsActions extends CenterActionsBase {
       phone: input.phone.trim(),
       // Conta existente vinculada = ativo; só e-mail = convidado (aceita pelo app).
       status: input.uid ? 'active' : 'invited',
-      lgpdConsentAt: input.isMinor ? null : serverTimestamp(),
+      // Consentimento é do aluno (ou do responsável): nasce pendente e é registrado no aceite.
+      lgpdConsentAt: null,
       makeupCredits: 0,
       createdAt: serverTimestamp(),
     });

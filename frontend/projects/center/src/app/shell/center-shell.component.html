@@ -81,7 +81,7 @@
               }
               <div class="pop-note">Cada centro tem papel e permissões próprios. Ao trocar, agenda, alunos e financeiro passam a mostrar só os dados do centro escolhido.</div>
               <div class="ct-row pop-actions">
-                <a class="ct-mini-btn" routerLink="/centros">Todos os centros</a>
+                <a class="ct-mini-btn" routerLink="/centros" [queryParams]="{ lista: 1 }">Todos os centros</a>
                 <a class="ct-mini-btn" routerLink="/centros/novo">Cadastrar novo centro</a>
               </div>
             </div>

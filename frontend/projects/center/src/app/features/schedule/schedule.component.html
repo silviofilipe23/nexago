@@ -1,0 +1,112 @@
+<ct-page-header title="Agenda" [subtitle]="subtitle()">
+  <ct-segmented [options]="scopeOptions" [value]="scope()" (valueChange)="setScope($event)" />
+  <ct-segmented [options]="viewOptions" [(value)]="view" />
+</ct-page-header>
+
+<div class="page">
+  <div class="ct-filter-bar">
+    <div class="nav">
+      <button type="button" class="ct-mini-btn icon" aria-label="Anterior" (click)="shift(-1)"><ct-icon name="chevron-left" [size]="14" /></button>
+      <button type="button" class="ct-mini-btn" [disabled]="!anchor()" (click)="goToday()">Hoje</button>
+      <button type="button" class="ct-mini-btn icon" aria-label="Próxima" (click)="shift(1)"><ct-icon name="chevron" [size]="14" /></button>
+      <span class="ct-disp range">{{ rangeLabel() }}</span>
+    </div>
+    @if (scope() === 'coach') {
+      <select class="ct-input sel" aria-label="Professor" [value]="coachFilter()" (change)="coachFilter.set(value($event))">
+        <option value="" [selected]="!coachFilter()">Todos os professores</option>
+        @for (m of store.coaches(); track m.uid) {
+          <option [value]="m.uid" [selected]="m.uid === coachFilter()">{{ m.displayName }}</option>
+        }
+      </select>
+    } @else if (scope() === 'court') {
+      <select class="ct-input sel" aria-label="Quadra" [value]="courtFilter()" (change)="courtFilter.set(value($event))">
+        <option value="" [selected]="!courtFilter()">Todas as quadras</option>
+        @for (q of store.courts(); track q.id) {
+          <option [value]="q.id" [selected]="q.id === courtFilter()">{{ q.name }}</option>
+        }
+      </select>
+    }
+  </div>
+
+  <div class="ct-filter-bar">
+    <button type="button" class="ct-chip" [class.active]="program() === null" (click)="program.set(null)">Todas</button>
+    @for (p of store.programs(); track p.id) {
+      <button type="button" class="ct-chip" [class.active]="program() === p.id" (click)="program.set(p.id)"><span class="dot" [style.background]="p.color"></span>{{ p.name }}</button>
+    }
+    <div class="ct-grow"></div>
+    <span class="ct-mono">{{ generatedUntil() ? 'Aulas geradas até ' + generatedUntil() + ' · ' : '' }}fuso {{ ctx.center()?.timezone }}</span>
+  </div>
+
+  @if (ensureError()) {
+    <div class="ct-error-text">{{ ensureError() }}</div>
+  }
+
+  <div class="ct-card flush grid-card">
+    <div class="scroller">
+      <div class="inner" [class.week]="days().length > 1" [style.--n]="days().length">
+        <div class="head">
+          <div></div>
+          @for (c of columns(); track c.day) {
+            <div class="dh" [class.today]="c.isToday"><span class="ct-kick">{{ c.weekday }}</span><span class="dn">{{ c.num }}</span></div>
+          }
+        </div>
+        <div class="body" [style.height.px]="gridHeight">
+          <div class="hours">
+            @for (h of hours; track h) {
+              <div class="hr" [style.height.px]="hourPx">{{ h }}</div>
+            }
+          </div>
+          @for (c of columns(); track c.day; let ci = $index) {
+            <div class="col" [class.today]="c.isToday">
+              @for (h of hours; track h; let first = $first) {
+                <div class="slot" [class.first]="first" [style.height.px]="hourPx"></div>
+              }
+              @for (b of c.blocks; track b.item.key) {
+                <button
+                  type="button"
+                  class="ev"
+                  [class.cancel]="b.item.cancelled"
+                  [class.draft]="b.item.draft"
+                  [class.changed]="b.item.changed"
+                  [style.top.px]="b.topPx"
+                  [style.height.px]="b.heightPx"
+                  [style.left]="b.left"
+                  [style.width]="b.width"
+                  [style.--c]="b.item.color"
+                  [title]="b.item.title + ' · ' + b.item.startTime + ' · ' + (b.item.coachName || 'sem professor') + ' · ' + (b.item.courtName || 'sem quadra')"
+                  (click)="open(b.item)"
+                >
+                  <span class="t">{{ b.item.startTime }}{{ blockLabel(b.item) }}</span>
+                  <span class="n">{{ b.item.title }}</span>
+                  @if (b.heightPx > 44) {
+                    <span class="s">{{ b.item.coachName }} · {{ b.item.courtName }}</span>
+                  }
+                </button>
+              }
+              @if (ci === nowColumn() && nowTop() !== null) {
+                <div class="now" [style.top.px]="nowTop()"></div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+    @if (isEmpty()) {
+      <div class="empty">
+        <div class="ct-card">
+          <div class="ct-disp">Nenhuma aula {{ days().length > 1 ? 'nesta semana' : 'neste dia' }}</div>
+          <div class="ct-dim" style="margin-top: 4px">
+            {{ store.classes().length === 0 ? 'As aulas aparecem aqui quando houver turmas ativas.' : 'Nada marcado com estes filtros.' }}
+          </div>
+          @if (canEdit() && store.classes().length === 0) {
+            <button type="button" class="ct-mini-btn ct-mini-btn-primary" style="margin-top: 12px" (click)="newClass()"><ct-icon name="plus" [size]="14" />Criar turma</button>
+          }
+        </div>
+      </div>
+    }
+  </div>
+</div>
+
+@if (selected(); as s) {
+  <ct-session-modal [session]="s" [canEdit]="canEdit()" (closed)="selected.set(null)" (series)="openSeries($event)" />
+}

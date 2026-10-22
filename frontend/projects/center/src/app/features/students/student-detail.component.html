@@ -1,0 +1,258 @@
+@if (student(); as s) {
+  <ct-page-header [title]="s.name" [subtitle]="subtitle()">
+    @if (s.isMinor && s.guardian?.email) {
+      <a class="ct-mini-btn" [href]="'mailto:' + s.guardian!.email"><ct-icon name="mail" [size]="14" />E-mail ao responsável</a>
+    }
+    @if (canEdit() && s.status !== 'blocked') {
+      <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="newEnrollment()"><ct-icon name="plus" [size]="14" />Nova matrícula</button>
+    }
+  </ct-page-header>
+
+  <div class="page">
+    <div class="ct-row ct-wrap">
+      <a class="ct-ghost-btn" [routerLink]="['/centro', centerId(), 'alunos']"><ct-icon name="arrowLeft" [size]="14" />Alunos</a>
+      <div class="ct-grow"></div>
+      <span class="ct-pill" [class]="'ct-pill ' + statusLabel[s.status][1]">{{ statusLabel[s.status][0] }}</span>
+    </div>
+    <div class="tabs"><ct-segmented [options]="tabs()" [(value)]="tab" /></div>
+
+    @switch (tab()) {
+      @case ('overview') {
+        <div class="grid">
+          <div class="ct-col">
+            @if (seesEnrollments()) {
+              <div class="ct-card">
+                <div class="ct-card-head">
+                  <div class="ct-grow"><div class="ct-kick">{{ current()[0]?.className || 'Sem turma' }}</div><div class="ct-card-title">Matrícula ativa</div></div>
+                  @if (current()[0]; as e) {
+                    <span class="ct-pill" [class]="'ct-pill ' + enrollmentStatus[e.status][1]">{{ enrollmentStatus[e.status][0] }}</span>
+                  }
+                </div>
+                @for (e of current(); track e.id) {
+                  <div class="enr">
+                    @if (!$first) {
+                      <div class="ct-kick">{{ e.className }} · {{ enrollmentStatus[e.status][0] }}</div>
+                    }
+                    <div class="ct-kv"><span>Plano</span><span>{{ e.contract?.planName || '—' }}</span></div>
+                    <div class="ct-kv mono"><span>Preço contratado</span><span>{{ price(e) }}</span></div>
+                    <div class="ct-kv"><span>Professor</span><span>{{ coach(e) }}</span></div>
+                    <div class="ct-kv mono"><span>Horário</span><span>{{ schedule(e) }}</span></div>
+                    @if (e.creditsLeft !== null) {
+                      <div class="ct-kv mono"><span>Créditos do pacote</span><span>{{ e.creditsLeft }}</span></div>
+                    }
+                    <div class="ct-kv mono"><span>Contratado em</span><span>{{ day(e.contract?.contractedAt ?? e.startDate) }}</span></div>
+                  </div>
+                } @empty {
+                  <div class="ct-dim">Nenhuma matrícula ativa. {{ canEdit() ? 'Use “Nova matrícula” para colocar o aluno numa turma.' : '' }}</div>
+                }
+                <div class="ct-dim" style="margin-top: 10px">O contrato fica congelado: mudar o plano depois não altera preço nem regras desta matrícula.</div>
+              </div>
+            }
+
+            <div class="ct-card">
+              <div class="ct-card-head"><div class="ct-grow"><div class="ct-kick">{{ recentRate() }}</div><div class="ct-card-title">Presença · últimos 30 dias</div></div></div>
+              @if (recent().length) {
+                <div class="marks">
+                  @for (c of recent(); track $index) {
+                    <div class="mark" [class]="'mark ' + c.mark" [title]="day(c.date) + ' · ' + c.className + ' · ' + markLabel[c.mark][1]">{{ markLabel[c.mark][0] }}</div>
+                  }
+                </div>
+                <div class="ct-dim" style="margin-top: 10px">P presente · J falta justificada · F falta</div>
+              } @else {
+                <div class="ct-dim">Nenhuma chamada registrada para este aluno nos últimos 30 dias.</div>
+              }
+            </div>
+          </div>
+
+          <div class="ct-col">
+            @if (s.isMinor) {
+              <div class="ct-card">
+                <div class="ct-card-head"><div class="ct-grow"><div class="ct-kick">Pagador e contato principal</div><div class="ct-card-title">Responsável legal</div></div></div>
+                @if (s.guardian; as g) {
+                  <ct-person [name]="g.name" [sub]="join([g.relation, g.email, g.phone])" [size]="38" colorKey="guardian" />
+                } @else {
+                  <div class="ct-dim">Responsável não informado.</div>
+                }
+                <div style="margin-top: 12px">
+                  <div class="ct-kv"><span>Consentimento LGPD</span><span>{{ s.lgpdConsentAt ? 'Aceito · ' + instant(s.lgpdConsentAt) : 'Pendente' }}</span></div>
+                  <div class="ct-kv"><span>Uso de imagem</span><span>{{ s.imageUseAllowed ? 'Autorizado' : 'Não autorizado' }}</span></div>
+                  <div class="ct-kv"><span>Recebe avisos de aula</span><span>{{ s.notifyClasses ? 'Sim' : 'Não' }}</span></div>
+                  @if (s.birthDate) {
+                    <div class="ct-kv mono"><span>Nascimento</span><span>{{ day(s.birthDate) }}</span></div>
+                  }
+                </div>
+                @if (canEdit()) {
+                  <button type="button" class="ct-mini-btn" style="margin-top: 12px" (click)="openConsent()">
+                    <ct-icon name="shield" [size]="14" />{{ s.lgpdConsentAt ? 'Registrar novo consentimento' : 'Registrar consentimento' }}
+                  </button>
+                }
+              </div>
+              <ct-banner [inline]="true" tone="blue" title="Privacidade de menor">
+                Cobranças e valores vão só para o responsável. O aluno vê agenda e presença no app, sem dados financeiros.
+              </ct-banner>
+            } @else {
+              <div class="ct-card">
+                <div class="ct-card-head"><div class="ct-grow"><div class="ct-kick">{{ s.uid ? 'Conta NexaGO vinculada' : 'Convidado por e-mail' }}</div><div class="ct-card-title">Contato</div></div></div>
+                <div class="ct-kv"><span>E-mail</span><span>{{ s.email || '—' }}</span></div>
+                <div class="ct-kv mono"><span>Telefone</span><span>{{ s.phone || '—' }}</span></div>
+                <div class="ct-kv"><span>Consentimento LGPD</span><span>{{ s.lgpdConsentAt ? 'Aceito · ' + instant(s.lgpdConsentAt) : 'Pendente' }}</span></div>
+                <div class="ct-kv"><span>Uso de imagem</span><span>{{ s.imageUseAllowed ? 'Autorizado' : 'Não autorizado' }}</span></div>
+                <div class="ct-kv mono"><span>Créditos de reposição</span><span>{{ s.makeupCredits }}</span></div>
+              </div>
+            }
+
+            <div class="ct-card">
+              <div class="ct-card-head">
+                <div class="ct-grow"><div class="ct-kick">Opcional</div><div class="ct-card-title">Contato de emergência</div></div>
+                @if (canEdit() && !editingCare()) {
+                  <button type="button" class="ct-ghost-btn" (click)="startCare()"><ct-icon name="edit" [size]="13" />Editar</button>
+                }
+              </div>
+              @if (editingCare()) {
+                <div class="ct-col" style="gap: 12px">
+                  <div class="ct-form-grid">
+                    <div class="ct-field"><label for="em-name">Nome e parentesco</label><input id="em-name" class="ct-input" [value]="eName()" (input)="eName.set(value($event))" /></div>
+                    <div class="ct-field"><label for="em-phone">Telefone</label><input id="em-phone" class="ct-input" type="tel" [value]="ePhone()" (input)="ePhone.set(value($event))" /></div>
+                  </div>
+                  <div class="ct-field"><label for="em-notes">Observação médica</label><textarea id="em-notes" class="ct-input" [value]="eNotes()" (input)="eNotes.set(value($event))"></textarea></div>
+                  @if (error()) {
+                    <div class="ct-error-text">{{ error() }}</div>
+                  }
+                  <div class="ct-row">
+                    <button type="button" class="ct-mini-btn" (click)="editingCare.set(false)">Cancelar</button>
+                    <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="saveCare()">{{ busy() ? 'Salvando…' : 'Salvar' }}</button>
+                  </div>
+                </div>
+              } @else {
+                <div class="ct-kv mono"><span>{{ s.emergencyName || 'Contato' }}</span><span>{{ s.emergencyPhone || '—' }}</span></div>
+                <div class="ct-kv"><span>Observação médica</span><span>{{ s.medicalNotes || '—' }}</span></div>
+              }
+            </div>
+
+            @if (canEdit()) {
+              <div class="ct-card">
+                <div class="ct-card-head"><div class="ct-grow"><div class="ct-kick">Vínculo com o centro</div><div class="ct-card-title">Situação</div></div></div>
+                <div class="ct-row ct-wrap">
+                  @for (a of statusActions(); track a.to + a.label) {
+                    <button type="button" class="ct-mini-btn" [class.danger]="a.danger" (click)="openStatus(a)">{{ a.label }}</button>
+                  }
+                </div>
+                <div class="ct-dim" style="margin-top: 10px">Inativar ou bloquear não apaga matrículas, presença nem cobranças.</div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      @case ('enrollments') {
+        <div class="ct-card flush">
+          <div class="ct-table" style="--cols: minmax(140px, 1.3fr) minmax(120px, 1fr) 110px 100px 90px; --min-w: 620px">
+            <div class="ct-thead"><span>Turma</span><span>Plano</span><span>Preço</span><span>Início</span><span>Situação</span></div>
+            @for (e of enrollments(); track e.id) {
+              <div class="ct-tr">
+                <span class="ct-ellipsis ct-disp">{{ e.className }}</span>
+                <span class="ct-ellipsis">{{ e.contract?.planName || '—' }}</span>
+                <span class="ct-mono">{{ price(e) }}</span>
+                <span class="ct-mono">{{ day(e.startDate) }}</span>
+                <span><span class="ct-pill" [class]="'ct-pill ' + enrollmentStatus[e.status][1]">{{ enrollmentStatus[e.status][0] }}</span></span>
+              </div>
+            } @empty {
+              <div class="ct-empty">Nenhuma matrícula.</div>
+            }
+          </div>
+        </div>
+      }
+
+      @case ('attendance') {
+        <div class="ct-card flush">
+          <div class="ct-card-head"><div class="ct-grow"><div class="ct-kick">Últimas 6 semanas · {{ overallRate() === null ? 'sem marcação' : overallRate() + '% de presença' }}</div></div></div>
+          <div class="ct-table" style="--cols: 120px minmax(140px, 1fr) 70px 150px; --min-w: 480px">
+            <div class="ct-thead"><span>Data</span><span>Turma</span><span>Hora</span><span>Marcação</span></div>
+            @for (x of allAttendance(); track x.id) {
+              <div class="ct-tr">
+                <span class="ct-mono">{{ day(x.date) }}</span>
+                <span class="ct-ellipsis">{{ x.className }}</span>
+                <span class="ct-mono">{{ x.startTime }}</span>
+                <span>
+                  @if (x.attendance[studentId()]; as m) {
+                    {{ markLabel[m][1] }}
+                  } @else {
+                    Reposição agendada
+                  }
+                </span>
+              </div>
+            } @empty {
+              <div class="ct-empty">Nenhuma chamada registrada.</div>
+            }
+          </div>
+        </div>
+      }
+
+      @case ('invoices') {
+        <div class="ct-card flush">
+          <div class="ct-table" style="--cols: minmax(160px, 1.4fr) 110px 110px 110px; --min-w: 520px">
+            <div class="ct-thead"><span>Referência</span><span>Vencimento</span><span>Valor</span><span>Situação</span></div>
+            @for (x of invoices(); track x.inv.id) {
+              <div class="ct-tr">
+                <span class="ct-ellipsis">{{ x.inv.reference || x.inv.payerName }}</span>
+                <span class="ct-mono">{{ day(x.inv.dueDate) }}</span>
+                <span class="ct-mono">{{ brl(x.inv.amountCents) }}</span>
+                <span><span class="ct-pill" [class]="'ct-pill ' + invoiceStatus[x.st][1]">{{ invoiceStatus[x.st][0] }}</span></span>
+              </div>
+            } @empty {
+              <div class="ct-empty">Nenhuma cobrança para este aluno.</div>
+            }
+          </div>
+        </div>
+      }
+
+      @case ('history') {
+        <div class="ct-card">
+          <div class="ct-card-head"><div class="ct-grow"><div class="ct-kick">Nada é apagado</div><div class="ct-card-title">Histórico do vínculo</div></div></div>
+          <ct-audit-trail [rows]="history()" />
+        </div>
+      }
+    }
+  </div>
+
+  @if (consentOpen()) {
+    <ct-modal kicker="LGPD · responsável legal" title="Registrar consentimento" [width]="520" (closed)="consentOpen.set(false)">
+      <div class="ct-muted">
+        Confirme que {{ s.guardian?.name || 'o responsável' }} aceitou o tratamento dos dados de {{ s.name }} pelo centro. O registro guarda data, hora e quem registrou.
+      </div>
+      <div class="ct-row"><ct-toggle label="Uso de imagem" [(on)]="consentImage" /><span class="ct-muted">Autoriza uso de imagem (fotos e vídeos do centro)</span></div>
+      @if (error()) {
+        <div class="ct-error-text">{{ error() }}</div>
+      }
+      <div footer>
+        <button type="button" class="ct-mini-btn" (click)="consentOpen.set(false)">Cancelar</button>
+        <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="saveConsent()">{{ busy() ? 'Registrando…' : 'Registrar consentimento' }}</button>
+      </div>
+    </ct-modal>
+  }
+
+  @if (statusTarget(); as a) {
+    <ct-modal kicker="Situação do aluno" [title]="a.label + ' ' + s.name" [width]="480" (closed)="statusTarget.set(null)">
+      <div class="ct-field">
+        <label for="st-reason">Motivo</label>
+        <textarea id="st-reason" class="ct-input" placeholder="Fica registrado na trilha de auditoria" [value]="reason()" (input)="reason.set(value($event))"></textarea>
+      </div>
+      @if (error()) {
+        <div class="ct-error-text">{{ error() }}</div>
+      }
+      <div footer>
+        <button type="button" class="ct-mini-btn" (click)="statusTarget.set(null)">Voltar</button>
+        <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="saveStatus()">{{ busy() ? 'Salvando…' : a.label }}</button>
+      </div>
+    </ct-modal>
+  }
+} @else if (!store.loaded.students()) {
+  <div class="ct-empty">Carregando aluno…</div>
+} @else {
+  <div class="page">
+    <div class="ct-empty">
+      Aluno não encontrado neste centro.
+      <div style="margin-top: 12px"><a class="ct-mini-btn" [routerLink]="['/centro', centerId(), 'alunos']">Voltar para alunos</a></div>
+    </div>
+  </div>
+}

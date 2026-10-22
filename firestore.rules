@@ -3830,6 +3830,263 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── Centro de Treinamento (portal frontend/projects/center) ─────────────────
+    // Tudo do centro mora em trainingCenters/{centerId}; o isolamento entre centros é pelo
+    // caminho e cada regra relê o vínculo trainingCenters/{c}/centerMembers/{uid} AO VIVO —
+    // revogar vale na próxima requisição, com a aba aberta ou não. Não há claim de papel: uma
+    // conta NexaGO pode ser owner num centro e professor em outro.
+    // Status do centro (pending | active | suspended), recebimento e assinatura só o
+    // backoffice/Admin SDK muda. Allowlists usam affectedKeys() (changedKeys deixa campo
+    // ausente passar — ver comentário perto da linha 170).
+
+    // "Meus centros": collection group filtrada por uid (só o próprio vínculo).
+    match /{path=**}/centerMembers/{memberUid} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+
+    // "Convites para mim": collection group filtrada pelo e-mail da conta.
+    match /{path=**}/centerInvites/{inviteId} {
+      allow read: if request.auth != null && ('email' in request.auth.token) &&
+        resource.data.email == request.auth.token.email.lower();
+    }
+
+    match /trainingCenters/{centerId} {
+      function ctMemberPath(uid) {
+        return /databases/$(database)/documents/trainingCenters/$(centerId)/centerMembers/$(uid);
+      }
+      function ctCenterPath() {
+        return /databases/$(database)/documents/trainingCenters/$(centerId);
+      }
+      function ctIsMember() {
+        return request.auth != null &&
+          exists(ctMemberPath(request.auth.uid)) &&
+          get(ctMemberPath(request.auth.uid)).data.status == 'active';
+      }
+      function ctRole() {
+        return get(ctMemberPath(request.auth.uid)).data.role;
+      }
+      function ctIsManager() {
+        return ctIsMember() && ctRole() in ['center_owner', 'center_admin'];
+      }
+      // Espelho de domain/roles.ts (ROLE_DEFAULT_PERMISSIONS + extraPerms do vínculo).
+      function ctHasPerm(perm) {
+        let m = get(ctMemberPath(request.auth.uid)).data;
+        return ctIsMember() && (
+          m.role in ['center_owner', 'center_admin'] ||
+          (m.role == 'receptionist' && perm in ['view_enrollments', 'enroll_students']) ||
+          (m.role == 'coach' && perm in ['edit_classes', 'attendance']) ||
+          perm in m.get('extraPerms', [])
+        );
+      }
+      function ctStatus() {
+        return get(ctCenterPath()).data.status;
+      }
+      function ctNotSuspended() {
+        return ctStatus() != 'suspended';
+      }
+      // Matrícula e cobrança só com o centro ATIVO.
+      function ctOperational() {
+        return ctStatus() == 'active';
+      }
+      function ctChanged() {
+        return request.resource.data.diff(resource.data).affectedKeys();
+      }
+
+      allow read: if ctIsMember() || isSuperAdmin();
+      // Nasce pendente, no mesmo batch do vínculo do owner (getAfter).
+      allow create: if request.auth != null &&
+        request.resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.receivingConnected == false &&
+        request.resource.data.subscription == null &&
+        !('activatedAt' in request.resource.data) &&
+        getAfter(ctMemberPath(request.auth.uid)).data.role == 'center_owner';
+      allow update: if isSuperAdmin() || (
+        ctIsManager() &&
+        ctChanged().hasOnly([
+          'name', 'legalName', 'cnpj', 'slug', 'timezone', 'sports', 'contactEmail',
+          'contactPhone', 'city', 'state', 'address', 'policies', 'activationRequestedAt'
+        ])
+      );
+      allow delete: if false;
+
+      match /centerMembers/{memberUid} {
+        // Aceite de convite: o próprio convidado cria (ou reativa) o vínculo; o convite é relido
+        // pelo inviteId e precisa bater e-mail VERIFICADO, papel e modalidades.
+        function ctAcceptsInvite() {
+          let inv = get(/databases/$(database)/documents/trainingCenters/$(centerId)/centerInvites/$(request.resource.data.inviteId)).data;
+          return request.auth != null &&
+            memberUid == request.auth.uid &&
+            request.auth.token.email_verified == true &&
+            inv.status == 'pending' &&
+            inv.email == request.auth.token.email.lower() &&
+            request.resource.data.uid == request.auth.uid &&
+            request.resource.data.role == inv.role &&
+            request.resource.data.status == 'active' &&
+            request.resource.data.extraPerms.size() == 0 &&
+            request.resource.data.programIds == inv.programIds;
+        }
+        // Owner mexe em todos menos owner; admin só em professor/recepção. Ninguém em si mesmo.
+        // uid e centerId ficam congelados (fora da allowlist).
+        function ctManagerEditsMember() {
+          return ctIsManager() &&
+            memberUid != request.auth.uid &&
+            resource.data.role != 'center_owner' &&
+            request.resource.data.role != 'center_owner' &&
+            (ctRole() == 'center_owner' || (
+              resource.data.role in ['coach', 'receptionist'] &&
+              request.resource.data.role in ['coach', 'receptionist']
+            )) &&
+            ctChanged().hasOnly(['role', 'status', 'extraPerms', 'programIds', 'revokedAt', 'displayName']);
+        }
+
+        allow read: if ctIsMember() || isSuperAdmin();
+        allow create: if (
+          // Bootstrap do owner junto com a criação do centro.
+          request.auth != null &&
+          memberUid == request.auth.uid &&
+          !exists(ctCenterPath()) &&
+          getAfter(ctCenterPath()).data.ownerUid == request.auth.uid &&
+          request.resource.data.uid == request.auth.uid &&
+          request.resource.data.role == 'center_owner' &&
+          request.resource.data.status == 'active' &&
+          request.resource.data.extraPerms.size() == 0
+        ) || ctAcceptsInvite();
+        allow update: if ctManagerEditsMember() ||
+          (resource.data.status != 'active' && ctAcceptsInvite());
+        allow delete: if false;
+      }
+
+      match /centerInvites/{inviteId} {
+        allow read: if ctIsManager();
+        allow create: if ctIsManager() &&
+          request.resource.data.status == 'pending' &&
+          request.resource.data.invitedByUid == request.auth.uid &&
+          request.resource.data.role in ['coach', 'receptionist', 'center_admin'] &&
+          (request.resource.data.role != 'center_admin' || ctRole() == 'center_owner') &&
+          request.resource.data.email is string &&
+          request.resource.data.email == request.resource.data.email.lower();
+        allow update: if (
+          ctIsManager() &&
+          resource.data.status == 'pending' &&
+          request.resource.data.status == 'cancelled' &&
+          ctChanged().hasOnly(['status'])
+        ) || (
+          request.auth != null &&
+          ('email' in request.auth.token) &&
+          resource.data.email == request.auth.token.email.lower() &&
+          resource.data.status == 'pending' &&
+          ctChanged().hasOnly(['status', 'acceptedUid', 'acceptedAt']) &&
+          (
+            request.resource.data.status == 'declined' || (
+              request.resource.data.status == 'accepted' &&
+              request.auth.token.email_verified == true &&
+              request.resource.data.acceptedUid == request.auth.uid
+            )
+          )
+        );
+        allow delete: if false;
+      }
+
+      match /programs/{programId} {
+        allow read: if ctIsMember();
+        allow write: if ctIsManager() && ctNotSuspended();
+      }
+
+      match /courts/{courtId} {
+        allow read: if ctIsMember();
+        allow write: if ctIsManager() && ctNotSuspended();
+      }
+
+      match /plans/{planId} {
+        allow read: if ctIsMember();
+        allow create, update: if ctHasPerm('edit_plans') && ctNotSuspended();
+        allow delete: if false;
+      }
+
+      // Turma = regra recorrente. `seatsTaken` só muda em transação com a matrícula e nunca
+      // passa da capacidade; quem só matricula (recepção) mexe SÓ nesse campo.
+      match /classes/{classId} {
+        allow read: if ctIsMember();
+        allow create: if ctIsManager() && ctNotSuspended() &&
+          request.resource.data.seatsTaken == 0 &&
+          request.resource.data.capacity is int && request.resource.data.capacity > 0;
+        allow update: if ctNotSuspended() &&
+          request.resource.data.seatsTaken is int &&
+          request.resource.data.seatsTaken >= 0 &&
+          request.resource.data.seatsTaken <= request.resource.data.capacity && (
+            ctIsManager() ||
+            (ctHasPerm('enroll_students') && ctChanged().hasOnly(['seatsTaken']))
+          );
+        allow delete: if false;
+      }
+
+      // Aulas geradas. O professor da aula (permissão `attendance`) só registra a chamada.
+      match /sessions/{sessionId} {
+        allow read: if ctIsMember();
+        allow create, delete: if ctIsManager() && ctNotSuspended();
+        allow update: if ctNotSuspended() && (
+          ctIsManager() || (
+            ctHasPerm('attendance') &&
+            resource.data.coachUid == request.auth.uid &&
+            ctChanged().hasOnly(['attendance', 'status', 'makeupStudentIds', 'attendanceUpdatedAt'])
+          )
+        );
+      }
+
+      // Créditos de reposição só o gestor move (cancelamento de aula); recepção edita cadastro.
+      match /students/{studentId} {
+        allow read: if ctIsMember();
+        allow create: if ctHasPerm('enroll_students') && ctNotSuspended() &&
+          request.resource.data.makeupCredits == 0;
+        allow update: if ctNotSuspended() && (
+          ctIsManager() ||
+          (ctHasPerm('enroll_students') && !ctChanged().hasAny(['makeupCredits', 'uid']))
+        );
+        allow delete: if false;
+      }
+
+      // Contrato congelado: aluno, turma e snapshot do contrato não mudam depois de gravados
+      // (o snapshot só é preenchido uma vez, quando a vaga sai da fila).
+      match /enrollments/{enrollmentId} {
+        allow read: if ctHasPerm('view_enrollments') || ctHasPerm('enroll_students');
+        allow create: if ctHasPerm('enroll_students') && ctOperational() &&
+          request.resource.data.status in ['pending', 'active', 'waitlisted'];
+        allow update: if ctHasPerm('enroll_students') && ctNotSuspended() &&
+          !ctChanged().hasAny(['studentId', 'classId', 'createdAt', 'createdByName']) &&
+          (resource.data.get('contract', null) == null ||
+            request.resource.data.get('contract', null) == resource.data.get('contract', null));
+        allow delete: if false;
+      }
+
+      // Cobranças aluno → centro. Nasce pendente; aprovar/estornar/cancelar é do gestor, e valor,
+      // pagador e vínculo com a matrícula ficam congelados.
+      match /invoices/{invoiceId} {
+        allow read: if ctHasPerm('view_finance');
+        allow create: if ctHasPerm('enroll_students') && ctOperational() &&
+          request.resource.data.status == 'pending' &&
+          request.resource.data.refundedCents == 0 &&
+          request.resource.data.approvedAt == null;
+        allow update: if ctIsManager() && ctNotSuspended() &&
+          !ctChanged().hasAny(['amountCents', 'payerName', 'studentId', 'enrollmentId', 'dueDate', 'createdAt']) &&
+          (
+            request.resource.data.status == resource.data.status ||
+            (resource.data.status == 'pending' && request.resource.data.status in ['approved', 'cancelled']) ||
+            (resource.data.status == 'approved' && request.resource.data.status == 'refunded')
+          );
+        allow delete: if false;
+      }
+
+      // Trilha de auditoria: só cria, em nome próprio, com hora do servidor.
+      match /auditLogs/{logId} {
+        allow read: if ctIsManager();
+        allow create: if ctIsMember() &&
+          request.resource.data.actorUid == request.auth.uid &&
+          request.resource.data.at == request.time;
+        allow update, delete: if false;
+      }
+    }
+
     // NEGAÇÃO padrão para caminhos não mapeados.
     // ATENÇÃO à semântica do Firestore: quando vários `match` cobrem o mesmo
     // caminho, os `allow` fazem OR — um catch-all com `allow read` CONCEDE

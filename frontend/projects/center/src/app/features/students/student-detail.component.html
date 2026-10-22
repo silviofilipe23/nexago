@@ -76,7 +76,7 @@
                 <div style="margin-top: 12px">
                   <div class="ct-kv"><span>Consentimento LGPD</span><span>{{ s.lgpdConsentAt ? 'Aceito · ' + instant(s.lgpdConsentAt) : 'Pendente' }}</span></div>
                   <div class="ct-kv"><span>Uso de imagem</span><span>{{ s.imageUseAllowed ? 'Autorizado' : 'Não autorizado' }}</span></div>
-                  <div class="ct-kv"><span>Recebe avisos de aula</span><span>{{ s.notifyClasses ? 'Sim' : 'Não' }}</span></div>
+                  <div class="ct-kv"><span>Recebe avisos de aula</span><ct-toggle [on]="s.notifyClasses" [disabled]="!canEdit() || notifyBusy()" label="Recebe avisos de aula" (onChange)="setNotify(s, $event)" /></div>
                   @if (s.birthDate) {
                     <div class="ct-kv mono"><span>Nascimento</span><span>{{ day(s.birthDate) }}</span></div>
                   }
@@ -98,6 +98,7 @@
                 <div class="ct-kv"><span>Consentimento LGPD</span><span>{{ s.lgpdConsentAt ? 'Aceito · ' + instant(s.lgpdConsentAt) : 'Pendente' }}</span></div>
                 <div class="ct-kv"><span>Uso de imagem</span><span>{{ s.imageUseAllowed ? 'Autorizado' : 'Não autorizado' }}</span></div>
                 <div class="ct-kv mono"><span>Créditos de reposição</span><span>{{ s.makeupCredits }}</span></div>
+                <div class="ct-kv"><span>Recebe avisos de aula</span><ct-toggle [on]="s.notifyClasses" [disabled]="!canEdit() || notifyBusy()" label="Recebe avisos de aula" (onChange)="setNotify(s, $event)" /></div>
               </div>
             }
 

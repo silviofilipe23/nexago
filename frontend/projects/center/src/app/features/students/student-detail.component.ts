@@ -65,6 +65,19 @@ export class StudentDetailComponent {
   private readonly today = computed(() => todayKey(this.tz()));
   protected readonly student = computed(() => this.store.students().find((s) => s.id === this.studentId()) ?? null);
   protected readonly canEdit = computed(() => this.ctx.has('enroll_students') && this.ctx.canWrite());
+  protected readonly notifyBusy = signal(false);
+
+  /** Push de aula cancelada/alterada (só chega a quem tem conta NexaGO vinculada). */
+  protected async setNotify(s: Student, on: boolean): Promise<void> {
+    this.notifyBusy.set(true);
+    try {
+      await this.actions.updateStudent(s, { notifyClasses: on });
+    } catch (err) {
+      this.error.set(writeErrorMessage(err));
+    } finally {
+      this.notifyBusy.set(false);
+    }
+  }
   protected readonly seesEnrollments = computed(() => this.ctx.has('view_enrollments') || this.ctx.has('enroll_students'));
   protected readonly seesFinance = computed(() => this.ctx.has('view_finance'));
 

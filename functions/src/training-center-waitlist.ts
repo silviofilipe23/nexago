@@ -27,8 +27,9 @@ import {
   seatsToOffer,
   waitlistQueue,
 } from "./training-center-waitlist-model";
+import {CENTER_SEAT_OFFER_TYPE, seatOfferNotice} from "./training-center-notifications-model";
 
-export const CENTER_SEAT_OFFER_TYPE = "training_center_seat_offer";
+export {CENTER_SEAT_OFFER_TYPE};
 
 type Data = Record<string, unknown>;
 
@@ -167,10 +168,11 @@ async function notifyOffers(deps: WaitlistDeps, centerId: string, offers: SeatOf
   for (const o of offers) {
     if (!o.studentUid) continue;
     try {
+      const notice = seatOfferNotice(o.className, o.centerName, o.holdHours, brlFromCents(o.priceCents));
       await deps.notify({
         userId: o.studentUid,
-        title: `Abriu vaga em ${o.className}`,
-        body: `${o.centerName || "Seu centro"} reservou a vaga para você por ${o.holdHours}h · ${brlFromCents(o.priceCents)}. Pague para confirmar a matrícula.`,
+        title: notice.title,
+        body: notice.body,
         type: CENTER_SEAT_OFFER_TYPE,
         data: {centerId, enrollmentId: o.enrollmentId},
       });

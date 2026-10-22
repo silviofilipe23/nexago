@@ -74,6 +74,7 @@
         <div class="ct-kv"><span>Créditos</span><span>{{ autoMakeup() ? 'Nenhum consumido · +' + (enrolled() + makeups()) + ' reposições' : 'Nenhum consumido · reposição manual' }}</span></div>
       }
       <div class="ct-kv"><span>Aulas passadas e outras datas</span><span>Não mudam</span></div>
+      <div class="ct-kv"><span>Aviso</span><span>Push para alunos com conta e avisos de aula ligados{{ action() === 'coach' ? ' · e o professor novo' : '' }}</span></div>
     </div>
   }
 

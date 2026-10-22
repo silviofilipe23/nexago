@@ -18,6 +18,7 @@ import '../../../professor_mode/presentation/lesson_plans/athlete_lesson_plan_pa
     show openAthleteLessonPlan;
 import '../../application/athlete_training_providers.dart';
 import '../../domain/athlete_training.dart';
+import '../../domain/class_presence.dart';
 import 'class_presence_widgets.dart';
 import 'training_widgets.dart';
 
@@ -27,7 +28,9 @@ import 'training_widgets.dart';
 /// quem não treina com professor não vê nada (nem o respiro).
 ///
 /// O "Próximo treino" começa compacto (uma linha); a seta expande para o
-/// cartão inteiro, com plano, presença e botões.
+/// cartão inteiro, com plano, presença e botões. Com presença por confirmar
+/// (ou check-in aberto) já abre expandido — a ação não fica escondida. Depois
+/// que o atleta usa a seta, vale a escolha dele.
 class AthleteTrainingHomeEntry extends ConsumerStatefulWidget {
   const AthleteTrainingHomeEntry({super.key, this.initiallyExpanded = false});
 
@@ -40,9 +43,12 @@ class AthleteTrainingHomeEntry extends ConsumerStatefulWidget {
 
 class _AthleteTrainingHomeEntryState
     extends ConsumerState<AthleteTrainingHomeEntry> {
-  late bool _expanded = widget.initiallyExpanded;
+  /// Escolha do atleta pela seta; `null` = ainda não mexeu.
+  bool? _userExpanded;
 
-  void _toggle() => setState(() => _expanded = !_expanded);
+  /// Abriu sozinho por presença pendente: continua aberto depois de
+  /// confirmar (senão o cartão recolheria no meio do toque em "Vou").
+  bool _autoExpanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +65,12 @@ class _AthleteTrainingHomeEntryState
             ? feedbacks.first
             : null;
     void openHub() => context.pushNamed(AppRouteNames.athleteTrainings);
+    final needsPresence = next != null &&
+        (trainingAwaitsResponse(next, now) || trainingCanCheckIn(next, now));
+    if (needsPresence) _autoExpanded = true;
+    final expanded =
+        _userExpanded ?? (widget.initiallyExpanded || _autoExpanded);
+    void toggle() => setState(() => _userExpanded = !expanded);
 
     return Padding(
       key: const Key('athlete-training-home-entry'),
@@ -76,7 +88,7 @@ class _AthleteTrainingHomeEntryState
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeOutCubic,
               alignment: Alignment.topCenter,
-              child: _expanded
+              child: expanded
                   ? TrainingNextCard(
                       training: next,
                       todayKey: nexagoEventDayKey(now),
@@ -84,7 +96,7 @@ class _AthleteTrainingHomeEntryState
                       primaryLabel: 'Meus treinos',
                       badge: badge,
                       onPrimary: openHub,
-                      onCollapse: _toggle,
+                      onCollapse: toggle,
                       presence: TrainingPresenceButton.appliesTo(next, now)
                           ? TrainingPresenceButton(training: next)
                           : null,
@@ -93,7 +105,7 @@ class _AthleteTrainingHomeEntryState
                       training: next,
                       todayKey: nexagoEventDayKey(now),
                       badge: badge,
-                      onExpand: _toggle,
+                      onExpand: toggle,
                     ),
             )
           else

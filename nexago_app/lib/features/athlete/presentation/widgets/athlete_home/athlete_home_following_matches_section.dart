@@ -107,6 +107,8 @@ class AthleteHomeFollowingMatchesSection extends ConsumerWidget {
             tournamentId: entry.key,
             followed: entry.value,
           ),
+        // O último card já deixa 16; completa o respiro de seção.
+        const SizedBox(height: AppSpacing.sectionGap - AppSpacing.lg),
       ],
     );
   }

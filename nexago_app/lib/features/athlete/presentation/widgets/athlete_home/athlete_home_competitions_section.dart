@@ -1,3 +1,4 @@
+import '../../../../../core/theme/app_spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -27,8 +28,12 @@ class AthleteHomeCompetitionsSection extends ConsumerWidget {
     final isLoading = tournamentsAsync.isLoading || leaguesAsync.isLoading;
     final hasError = tournamentsAsync.hasError && leaguesAsync.hasError;
 
+    // A seção traz o próprio respiro de baixo: vazia, não deixa vão.
     if (isLoading) {
-      return const _AthleteHomeCompetitionsSectionSkeleton();
+      return const Padding(
+        padding: EdgeInsets.only(bottom: AppSpacing.sectionGap),
+        child: _AthleteHomeCompetitionsSectionSkeleton(),
+      );
     }
 
     if (hasError) {
@@ -37,7 +42,7 @@ class AthleteHomeCompetitionsSection extends ConsumerWidget {
           athleteHomeHorizontalPadding,
           0,
           athleteHomeHorizontalPadding,
-          8,
+          AppSpacing.sectionGap,
         ),
         child: Text(
           'Não foi possível carregar torneios e ligas.',
@@ -81,6 +86,7 @@ class AthleteHomeCompetitionsSection extends ConsumerWidget {
             );
           },
         ),
+        const SizedBox(height: AppSpacing.sectionGap),
       ],
     );
   }

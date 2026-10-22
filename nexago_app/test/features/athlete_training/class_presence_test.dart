@@ -485,13 +485,37 @@ void main() {
       final repo = _FakeRepo(_Store([_class('s1', '2026-10-22')]));
       await _pump(tester, location: AppRoutes.home, repo: repo);
 
-      // Na Início o cartão começa compacto; a presença fica no expandido.
-      await _tap(tester, find.byKey(const Key('training-next-compact')));
+      // Presença por confirmar: o cartão já abre expandido na Início.
+      expect(find.byKey(const Key('training-next-compact')), findsNothing);
       expect(find.byKey(const Key('training-next-primary')), findsOneWidget);
       await _tap(tester, find.byKey(const Key('training-presence-confirm')));
       expect(repo.calls, ['respond s1 going - -']);
       expect(find.byKey(const Key('training-presence-going')), findsOneWidget);
       expect(find.text('Presença confirmada.'), findsOneWidget);
+    });
+
+    testWidgets('Início: já confirmado, o cartão fica compacto', (
+      tester,
+    ) async {
+      final repo =
+          _FakeRepo(_Store([_class('s1', '2026-10-22', rsvp: 'going')]));
+      await _pump(tester, location: AppRoutes.home, repo: repo);
+
+      expect(find.byKey(const Key('training-next-compact')), findsOneWidget);
+      expect(find.byKey(const Key('training-presence-going')), findsNothing);
+
+      await _tap(tester, find.byKey(const Key('training-next-compact')));
+      expect(find.byKey(const Key('training-presence-going')), findsOneWidget);
+    });
+
+    testWidgets('Início: recolher pela seta vale mesmo com presença pendente',
+        (tester) async {
+      final repo = _FakeRepo(_Store([_class('s1', '2026-10-22')]));
+      await _pump(tester, location: AppRoutes.home, repo: repo);
+
+      await _tap(tester, find.byKey(const Key('training-next-collapse')));
+      expect(find.byKey(const Key('training-next-compact')), findsOneWidget);
+      expect(find.byKey(const Key('training-presence-confirm')), findsNothing);
     });
 
     testWidgets('"Vou" abre o "Não vou"; "Não vou" volta para "Vou"',

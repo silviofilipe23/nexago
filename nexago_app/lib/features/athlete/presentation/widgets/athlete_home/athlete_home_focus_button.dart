@@ -26,7 +26,7 @@ class AthleteHomeFocusButton extends ConsumerWidget {
         AppSpacing.screenH,
         0,
         AppSpacing.screenH,
-        AppSpacing.lg,
+        AppSpacing.sectionGap,
       ),
       child: SizedBox(
         width: double.infinity,

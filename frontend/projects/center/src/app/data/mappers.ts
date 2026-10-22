@@ -9,6 +9,8 @@ import {
   type BillingRunItemKind,
   type BillingRunSummary,
   type CenterBilling,
+  type ReceivingAccount,
+  type ReceivingStatus,
   type CenterInvite,
   type CenterLocation,
   type CenterMember,
@@ -127,6 +129,7 @@ export function readCenter(id: string, d: Data): TrainingCenter {
     billing: readBilling(obj(d, 'billing')),
     notifications: readNotificationSettings(obj(d, 'notifications')),
     receivingConnected: bool(d, 'receivingConnected'),
+    receivingStatus: readReceivingStatus(d['receivingStatus'], bool(d, 'receivingConnected')),
     subscription: sub
       ? {
           plan: str(sub, 'plan', 'NexaGO Centro'),
@@ -618,5 +621,34 @@ export function readBillingRun(id: string, d: Data): BillingRun {
             cents: num(x, 'cents'),
           }))
       : [],
+  };
+}
+
+const RECEIVING_STATUSES: ReceivingStatus[] = ['creating', 'failed', 'pending', 'approved', 'rejected'];
+
+/** Centro conectado pelo script/backoffice antigo não tem `receivingStatus`: conta como ativa. */
+export function readReceivingStatus(raw: unknown, connected: boolean): ReceivingStatus {
+  if (typeof raw === 'string' && (RECEIVING_STATUSES as string[]).includes(raw)) {
+    return raw as ReceivingStatus;
+  }
+  return connected ? 'approved' : 'none';
+}
+
+export function readReceivingAccount(d: Data): ReceivingAccount {
+  return {
+    status: readReceivingStatus(d['status'], false),
+    source: d['source'] === 'manual' ? 'manual' : 'self',
+    personType: d['personType'] === 'person' ? 'person' : 'company',
+    name: str(d, 'name'),
+    email: str(d, 'email'),
+    document: str(d, 'document'),
+    documents: Array.isArray(d['documents'])
+      ? (d['documents'] as unknown[])
+          .filter((x): x is Data => !!x && typeof x === 'object')
+          .map((x) => ({ title: str(x, 'title', 'Documento'), status: str(x, 'status'), url: str(x, 'url') }))
+      : [],
+    createdAt: date(d['createdAt']),
+    createdByName: str(d, 'createdByName'),
+    statusCheckedAt: date(d['statusCheckedAt']),
   };
 }

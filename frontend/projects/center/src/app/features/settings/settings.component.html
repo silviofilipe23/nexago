@@ -7,7 +7,7 @@
 <div class="body">
   <div class="tabs"><ct-segmented [options]="tabs" [value]="tab()" (valueChange)="selectTab($event)" /></div>
 
-  @if (!editable() && tab() !== 'assinatura' && tab() !== 'quadras') {
+  @if (!editable() && tab() !== 'assinatura' && tab() !== 'quadras' && tab() !== 'recebimento') {
     <ct-banner tone="blue" [inline]="true" title="Somente leitura">
       @if (ctx.isSuspended()) {
         Centro suspenso: as configurações voltam a ser editáveis quando a assinatura for regularizada.
@@ -190,6 +190,10 @@
 
       @case ('cobranca') {
         <ct-billing-settings [editable]="editable()" />
+      }
+
+      @case ('recebimento') {
+        <ct-receiving-account />
       }
 
       @case ('quadras') {

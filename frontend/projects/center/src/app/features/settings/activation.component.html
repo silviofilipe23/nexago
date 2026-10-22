@@ -96,10 +96,10 @@
           <div class="ct-box" [class.green]="!!c.activationRequestedAt">
             @if (c.activationRequestedAt) {
               <div class="ct-disp">Ativação solicitada em {{ requestedLabel() }}</div>
-              <p class="ct-dim">O time NexaGO vai conectar a conta de recebimento e liberar a assinatura. Você recebe um aviso quando o centro estiver ativo.</p>
+              <p class="ct-dim">O time NexaGO libera a assinatura. A conta de recebimento você cria em Configurações › Conta de recebimento; as cobranças online liberam quando o Asaas aprovar.</p>
             } @else if (ownerStepsDone()) {
               <div class="ct-disp">Sua parte está pronta</div>
-              <p class="ct-dim">Recebimento e assinatura são configurados pelo time NexaGO. Solicite a ativação para começar.</p>
+              <p class="ct-dim">A assinatura é liberada pelo time NexaGO. Solicite a ativação e crie a conta de recebimento em Configurações.</p>
               @if (ctx.isManager()) {
                 <button type="button" class="ct-mini-btn ct-mini-btn-primary" style="margin-top: 12px" [disabled]="requestBusy() || !ctx.canWrite()" (click)="requestActivation()">
                   {{ requestBusy() ? 'Enviando…' : 'Solicitar ativação' }}

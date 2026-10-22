@@ -402,3 +402,18 @@ test('professor: edita nome/nível/quadra só da turma dele e vê só as matríc
   await denied(getDocs(collection(ve, 'trainingCenters', C, 'enrollments')));
   await assertSucceeds(getDocs(collection(as(RECEP), 'trainingCenters', C, 'enrollments')));
 });
+
+test('dados do aluno por turma: professor só lê os alunos dele; o campo é do servidor', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'trainingCenters', C, 'students', 'meu'), { name: 'Meu', makeupCredits: 0, status: 'active', coachUids: [COACH] });
+    await setDoc(doc(db, 'trainingCenters', C, 'students', 'outro'), { name: 'Outro', makeupCredits: 0, status: 'active', coachUids: [ADMIN] });
+  });
+  const coach = as(COACH);
+  await assertSucceeds(getDoc(doc(coach, 'trainingCenters', C, 'students', 'meu')));
+  await denied(getDoc(doc(coach, 'trainingCenters', C, 'students', 'outro')));
+  await assertSucceeds(getDocs(query(collection(coach, 'trainingCenters', C, 'students'), where('coachUids', 'array-contains', COACH))));
+  await denied(getDocs(collection(coach, 'trainingCenters', C, 'students')));
+  await assertSucceeds(getDocs(collection(as(RECEP), 'trainingCenters', C, 'students')));
+  await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'students', 'outro'), { coachUids: [COACH] }));
+});

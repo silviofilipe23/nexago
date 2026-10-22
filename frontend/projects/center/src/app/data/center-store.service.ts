@@ -250,7 +250,9 @@ export class CenterStore {
       listen(this.f.locations, base('locations'), readLocation);
       listen(this.f.classes, base('classes'), readClass);
       listen(this.f.plans, base('plans'), readPlan);
-      listen(this.f.students, base('students'), readStudent);
+      // Dados do aluno por turma: o professor lê só os alunos dele (`coachUids`, do servidor).
+      const seesAllStudents = manager || hasPermission(me, 'enroll_students') || hasPermission(me, 'view_finance');
+      listen(this.f.students, seesAllStudents ? base('students') : query(base('students'), where('coachUids', 'array-contains', me.uid)), readStudent);
       listen(this.f.sessions, query(base('sessions'), where('date', '>=', from)), readSession);
       if (manager) {
         listen(this.f.invites, base('centerInvites'), readInvite);

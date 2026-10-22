@@ -30,7 +30,7 @@ class CompeteHubHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Competir',
+                'Hub',
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w900,
                   color: context.themeColors.onSurface,

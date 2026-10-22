@@ -94,6 +94,8 @@ export class AttendanceModalComponent {
         sub: [r.makeup ? 'Reposição' : '', st?.isMinor ? 'Menor' : ''].filter(Boolean).join(' · '),
         mark: (attendance[r.studentId] as AttendanceMark | undefined) ?? null,
         effect: effectLabel(s.effectsApplied[r.studentId]),
+        /** Mensalidade atrasada além do limite da política (o servidor marca; sem valores para o professor). */
+        hold: st?.billingHold === true,
       };
     });
   });

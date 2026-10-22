@@ -1,4 +1,4 @@
-<ct-page-header title="Configurações do centro" subtitle="Dados · Políticas · Quadras · Assinatura NexaGO">
+<ct-page-header title="Configurações do centro" subtitle="Dados · Políticas · Cobrança recorrente · Quadras · Assinatura NexaGO">
   @if (ctx.isPending() && ctx.isManager()) {
     <a class="ct-mini-btn" [routerLink]="['/centro', centerId(), 'ativacao']">Passos da ativação</a>
   }
@@ -186,6 +186,10 @@
             }
           </section>
         </div>
+      }
+
+      @case ('cobranca') {
+        <ct-billing-settings [editable]="editable()" />
       }
 
       @case ('quadras') {

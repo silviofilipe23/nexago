@@ -265,3 +265,35 @@ test('locais: gestor cria e arquiva; ninguém exclui; professor só lê', async 
   await denied(deleteDoc(doc(as(OWNER), 'trainingCenters', C, 'locations', 'pepe')));
   await denied(setDoc(doc(as(OWNER), 'trainingCenters', SUSP, 'locations', 'z'), loc));
 });
+
+test('assinaturas: só o servidor cria/anda; gestor agenda e desfaz o cancelamento no fim do ciclo', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'trainingCenters', C, 'subscriptions', 'e1'), {
+      studentId: 's1', status: 'past_due', nextChargeDate: '2026-11-05', cancelAt: null, priceCents: 32000, dunningStage: 1,
+    });
+    await setDoc(doc(ctx.firestore(), 'trainingCenters', C, 'billingRuns', '2026-11-02'), { date: '2026-11-02', summary: {} });
+  });
+  const ref = (uid) => doc(as(uid), 'trainingCenters', C, 'subscriptions', 'e1');
+  await assertSucceeds(getDoc(ref(RECEP)));
+  await denied(getDoc(ref(COACH)));
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'subscriptions', 'e2'), { status: 'active' }));
+  await denied(updateDoc(ref(OWNER), { priceCents: 100 }));
+  await denied(updateDoc(ref(RECEP), { status: 'canceling', cancelAt: '2026-11-05' }));
+  await denied(updateDoc(ref(OWNER), { status: 'canceling', cancelAt: '2026-10-25' }));
+  await assertSucceeds(updateDoc(ref(OWNER), { status: 'canceling', cancelAt: '2026-11-05' }));
+  await assertSucceeds(updateDoc(ref(ADMIN), { status: 'active', cancelAt: null }));
+  await denied(updateDoc(ref(OWNER), { status: 'suspended' }));
+  await assertSucceeds(getDoc(doc(as(OWNER), 'trainingCenters', C, 'billingRuns', '2026-11-02')));
+  await denied(getDoc(doc(as(RECEP), 'trainingCenters', C, 'billingRuns', '2026-11-02')));
+});
+
+test('recorrência: pendência do aluno e vínculo da cobrança com o ciclo são do servidor', async () => {
+  await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'students', 's1'), { billingHold: false }));
+  await assertSucceeds(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'students', 's1'), { name: 'Carla D.' }));
+  await denied(setDoc(doc(collection(as(OWNER), 'trainingCenters', C, 'invoices')), {
+    payerName: 'Carla', amountCents: 100, status: 'pending', refundedCents: 0, approvedAt: null, subscriptionId: 'e1',
+  }));
+  await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'invoices', 'i1'), { cycle: '2026-11' }));
+  await assertSucceeds(updateDoc(doc(as(OWNER), 'trainingCenters', C), { billing: { billingDay: 10 } }));
+  await denied(updateDoc(doc(as(RECEP), 'trainingCenters', C), { billing: { billingDay: 10 } }));
+});

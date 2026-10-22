@@ -107,6 +107,28 @@ export const routes: Routes = [
         loadComponent: () => import('./features/finance/finance.component').then((m) => m.FinanceComponent),
       },
       {
+        path: 'assinaturas',
+        title: T('Assinaturas'),
+        canActivate: [areaGuard],
+        data: { area: 'subscriptions' },
+        loadComponent: () => import('./features/subscriptions/subscriptions.component').then((m) => m.SubscriptionsComponent),
+      },
+      {
+        path: 'assinaturas/rodada',
+        title: T('Rodada de cobrança'),
+        canActivate: [areaGuard],
+        data: { area: 'subscriptions' },
+        loadComponent: () => import('./features/subscriptions/billing-run.component').then((m) => m.BillingRunComponent),
+      },
+      {
+        path: 'assinaturas/:subscriptionId',
+        title: T('Assinatura'),
+        canActivate: [areaGuard],
+        data: { area: 'subscriptions' },
+        loadComponent: () =>
+          import('./features/subscriptions/subscription-detail.component').then((m) => m.SubscriptionDetailComponent),
+      },
+      {
         path: 'relatorios',
         title: T('Relatórios'),
         canActivate: [areaGuard],

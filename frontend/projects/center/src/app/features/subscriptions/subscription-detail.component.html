@@ -1,0 +1,258 @@
+@if (sub(); as s) {
+  <ct-page-header [title]="s.payerName" [subtitle]="'Assinatura · ' + s.planName + ' · ' + s.className">
+    <a class="ct-ghost-btn" [routerLink]="['/centro', cid(), 'assinaturas']"><ct-icon name="chevron-left" [size]="14" /> Assinaturas</a>
+    <span [class]="'ct-pill ' + STATUS[s.status][1]">{{ STATUS[s.status][0] }}</span>
+    @if (canAct()) {
+      @if (s.status === 'canceling') {
+        <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="open('undo')">Desfazer cancelamento</button>
+      }
+      @if (live()) {
+        <button type="button" class="ct-mini-btn" [disabled]="!canPause()" [attr.title]="policies()?.allowPause ? null : 'A política do centro não permite pausa'" (click)="open('pause')">Pausar</button>
+        <button type="button" class="ct-mini-btn" (click)="open('plan')">Mudar plano</button>
+        <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="open('charge')">Cobrar agora</button>
+        <button type="button" class="ct-ghost-btn danger" (click)="open('cancel')">Cancelar</button>
+      }
+    }
+  </ct-page-header>
+
+  <div class="page">
+    @if (late(); as l) {
+      <ct-banner [tone]="l.blocked || l.days >= 15 ? 'red' : 'yellow'" [inline]="true" [title]="l.title + ' em aberto · ' + l.days + (l.days === 1 ? ' dia' : ' dias')">
+        @if (l.inv) {
+          {{ formatBRL(l.inv.amountCents) }} venceu em {{ formatDayKey(l.inv.dueDate) }}.
+        }
+        @if (l.blocked) {
+          O check-in já mostra pendência na chamada e no app.
+        } @else if (l.block) {
+          Pela régua do centro, o check-in mostra pendência a partir de {{ formatDayKey(l.block) }} se não houver pagamento.
+        }
+        O pagador recebe os avisos por push com o link de pagamento.
+      </ct-banner>
+    }
+    @if (s.status === 'canceling') {
+      <ct-banner tone="orange" [inline]="true" [title]="'Cancela no fim do ciclo · ' + formatDayKey(s.cancelAt || s.nextChargeDate, true)">
+        O ciclo de {{ formatDayKey(s.cancelAt || s.nextChargeDate) }} não será cobrado e a matrícula encerra nesse dia.
+      </ct-banner>
+    }
+    @if (s.pendingPlanChange; as pc) {
+      <ct-banner tone="blue" [inline]="true" [title]="'Muda para ' + pc.planName + ' em ' + formatDayKey(s.nextChargeDate)">
+        {{ formatBRL(pc.priceCents) }}/mês a partir do próximo ciclo{{ pc.byName ? ' · agendado por ' + pc.byName : '' }}.
+      </ct-banner>
+    }
+    @if (s.status === 'cancelled' || s.status === 'suspended') {
+      <ct-banner tone="red" [inline]="true" [title]="s.status === 'suspended' ? 'Assinatura suspensa' : 'Assinatura encerrada'">
+        {{ s.endReason || 'Nenhum ciclo novo é gerado.' }} O histórico de cobranças fica guardado.
+      </ct-banner>
+    }
+
+    <div class="grid">
+      <div class="ct-card">
+        <div class="ct-card-head"><div class="ct-grow"><div class="ct-kick">Uma cobrança por mês · nunca é apagada</div><div class="ct-card-title">Ciclos</div></div></div>
+        @for (c of cycles(); track c.key) {
+          <div class="cy">
+            <div class="ct-grow">
+              <div class="cy-t ct-ellipsis">{{ c.title }}</div>
+              <div class="ct-mono cy-d" [class.warn]="c.warn">{{ c.detail }}</div>
+            </div>
+            @if (c.invoice?.providerUrl && c.invoice?.status === 'pending') {
+              <a class="inline-link" [href]="c.invoice!.providerUrl" target="_blank" rel="noopener">Abrir fatura</a>
+            }
+            @if (c.cents != null) {
+              <span class="amt">{{ formatBRL(c.cents) }}</span>
+            }
+            <span [class]="'ct-pill ' + c.pill[1]">{{ c.pill[0] }}</span>
+          </div>
+        } @empty {
+          <div class="ct-dim">Nenhuma cobrança gerada ainda. A primeira mensalidade saiu na matrícula; as próximas nascem 3 dias antes de cada vencimento.</div>
+        }
+        @if (nextLine(); as n) {
+          <div class="ghost">
+            <div class="ct-grow">
+              <div class="cy-t">{{ n.title }}</div>
+              <div class="ct-mono cy-d">{{ n.detail }}</div>
+            </div>
+            @if (n.cents != null) {
+              <span class="amt">{{ formatBRL(n.cents) }}</span>
+            }
+          </div>
+        }
+        <a class="ct-text-link" style="display: inline-block; margin-top: 12px" [routerLink]="['/centro', cid(), 'financeiro']">Ver no Financeiro</a>
+      </div>
+
+      <div class="ct-card">
+        <div class="ct-card-head"><div class="ct-grow"><div class="ct-kick">Avisos automáticos ao pagador</div><div class="ct-card-title">Régua</div></div></div>
+        @for (st of ladder(); track $index; let last = $last) {
+          <div class="step" [class.on]="st.reached">
+            <span class="step-d">{{ st.day }}</span>
+            <div class="rail">
+              <span [class]="'dot ' + (st.reached ? st.tone : '')" [class.cur]="st.current"></span>
+              @if (!last) {
+                <span class="line"></span>
+              }
+            </div>
+            <div class="step-b">
+              <div class="step-t">{{ st.title }}{{ st.current ? ' · agora' : '' }}</div>
+              <div class="ct-dim">{{ st.detail }}</div>
+            </div>
+          </div>
+        }
+        <div class="ct-kick" style="margin: 14px 0 4px">Avisos enviados</div>
+        @for (n of notices(); track $index) {
+          <div class="ct-kv">
+            <span class="ct-mono">{{ n.when }}</span>
+            <span>{{ n.title || n.stageLabel }} · {{ n.stageLabel }} · {{ n.channel || 'push' }} · {{ n.delivered ? 'entregue' : 'sem app' }}</span>
+          </div>
+        } @empty {
+          <div class="ct-dim">Nenhum aviso enviado ainda.</div>
+        }
+      </div>
+
+      <div class="ct-col">
+        <div class="ct-card">
+          <div class="ct-card-head"><div class="ct-grow"><div class="ct-kick">Snapshot da contratação</div><div class="ct-card-title">Contrato</div></div></div>
+          <div class="ct-kv mono"><span>Preço</span><span>{{ formatBRL(s.priceCents) }}/mês</span></div>
+          <div class="ct-kv"><span>Vencimento</span><span>Todo dia {{ s.billingDay < 10 ? '0' + s.billingDay : s.billingDay }}</span></div>
+          <div class="ct-kv"><span>Início</span><span>{{ s.startDate ? formatDayKey(s.startDate, true) : '—' }}</span></div>
+          <div class="ct-kv mono"><span>Multa · juros</span><span>{{ s.lateFees ? s.lateFees.finePercent + '% · ' + s.lateFees.interestPercent + '% a.m.' : 'Sem multa' }}</span></div>
+          <div class="ct-kv"><span>Aluno</span><span>{{ s.studentName }}</span></div>
+          <div class="ct-kv"><span>Turma</span><span>{{ s.className }}</span></div>
+          @if (s.pendingPlanChange; as pc) {
+            <div class="ct-kv"><span>Mudança agendada</span><span>Muda para {{ pc.planName }} em {{ formatDayKey(s.nextChargeDate) }}</span></div>
+          }
+          @if (s.status === 'paused' && s.pausedUntil) {
+            <div class="ct-kv"><span>Pausa até</span><span>{{ formatDayKey(s.pausedUntil, true) }}</span></div>
+          }
+        </div>
+        <div class="ct-card">
+          <div class="ct-card-head"><div class="ct-grow"><div class="ct-kick">Cobrança a cada ciclo</div><div class="ct-card-title">Forma de pagamento</div></div></div>
+          <div class="pay">
+            <span class="pix">PIX</span>
+            <div class="ct-grow">
+              <div class="ct-disp">{{ METHOD[s.method] }}</div>
+              <div class="ct-mono">Link de pagamento enviado por push a cada ciclo</div>
+            </div>
+          </div>
+          <div class="ct-dim" style="margin-top: 12px">
+            O pagador recebe o link (Pix ou cartão avulso) 3 dias antes de cada vencimento. Cartão recorrente e Pix Automático chegam quando o aluno puder autorizar pelo app — o centro não vê nem guarda dados de pagamento.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  @switch (dialog()) {
+    @case ('plan') {
+      <ct-change-plan [sub]="s" (closed)="dialog.set(null)" />
+    }
+    @case ('pause') {
+      <ct-modal [kicker]="s.payerName" title="Pausar assinatura" (closed)="close()">
+        <div class="ct-dim">A matrícula fica pausada e os ciclos que vencerem na pausa são pulados. A vaga continua reservada (máx. {{ policies()?.pauseMaxDaysPerYear }} dias/ano pela política).</div>
+        <div class="ct-field">
+          <label for="sub-pause-until">Pausar até</label>
+          <input id="sub-pause-until" class="ct-input mono" type="date" [min]="today()" [value]="pauseUntil()" (input)="pauseUntil.set(val($event))" />
+        </div>
+        <div class="ct-field">
+          <label for="sub-pause-reason">Motivo</label>
+          <input id="sub-pause-reason" class="ct-input" [value]="reason()" (input)="reason.set(val($event))" placeholder="Ex.: viagem, lesão" />
+        </div>
+        @if (error()) {
+          <div class="ct-error-text">{{ error() }}</div>
+        }
+        <div footer>
+          <button type="button" class="ct-mini-btn" [disabled]="busy()" (click)="close()">Voltar</button>
+          <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="!pauseValid() || busy()" (click)="pause()">{{ busy() ? 'Salvando…' : 'Pausar' }}</button>
+        </div>
+      </ct-modal>
+    }
+    @case ('cancel') {
+      <ct-modal [kicker]="s.payerName + ' · ' + s.planName" title="Cancelar assinatura" (closed)="close()">
+        @if (immediateCancel()) {
+          <div class="ct-muted">Pela política do centro, o cancelamento vale agora: a matrícula é cancelada, a vaga na turma é liberada e nenhum ciclo novo é gerado. Cobranças já emitidas continuam no Financeiro.</div>
+          <div class="ct-field">
+            <label for="sub-cancel-reason">Motivo</label>
+            <input id="sub-cancel-reason" class="ct-input" [value]="reason()" (input)="reason.set(val($event))" placeholder="Ex.: mudou de cidade" />
+          </div>
+        } @else {
+          <div class="ct-muted">
+            Pela política do centro, o cancelamento vale no fim do ciclo: a assinatura encerra em <strong>{{ formatDayKey(s.nextChargeDate, true) }}</strong>, esse ciclo não é cobrado e o aluno segue com acesso até lá. Dá para desfazer antes da data.
+          </div>
+          @if (s.status === 'past_due') {
+            <ct-banner tone="yellow" [inline]="true" title="Há cobrança em aberto">Cancelar não perdoa o que já venceu — a cobrança continua no Financeiro.</ct-banner>
+          }
+        }
+        @if (error()) {
+          <div class="ct-error-text">{{ error() }}</div>
+        }
+        <div footer>
+          <button type="button" class="ct-mini-btn" [disabled]="busy()" (click)="close()">Voltar</button>
+          <button type="button" class="ct-mini-btn danger" [disabled]="!cancelValid() || busy()" (click)="cancel()">
+            {{ busy() ? 'Salvando…' : immediateCancel() ? 'Cancelar agora' : 'Cancelar no fim do ciclo' }}
+          </button>
+        </div>
+      </ct-modal>
+    }
+    @case ('undo') {
+      <ct-modal [kicker]="s.payerName" title="Desfazer cancelamento" (closed)="close()">
+        <div class="ct-muted">A assinatura volta a ficar em dia e o ciclo de {{ formatDayKey(s.cancelAt || s.nextChargeDate) }} é gerado normalmente, 3 dias antes do vencimento.</div>
+        @if (error()) {
+          <div class="ct-error-text">{{ error() }}</div>
+        }
+        <div footer>
+          <button type="button" class="ct-mini-btn" [disabled]="busy()" (click)="close()">Voltar</button>
+          <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="undoCancel()">{{ busy() ? 'Salvando…' : 'Desfazer cancelamento' }}</button>
+        </div>
+      </ct-modal>
+    }
+    @case ('charge') {
+      <ct-modal [kicker]="s.payerName + ' · ' + formatBRL(s.priceCents)" title="Cobrar agora" (closed)="close()">
+        @if (chargeResult(); as r) {
+          <ct-banner [tone]="r.issueError ? 'yellow' : 'green'" [inline]="true" [title]="r.generated ? 'Ciclo antecipado e cobrado' : 'Cobrança enviada'">
+            {{ r.generated ? 'Não havia cobrança em aberto: o próximo ciclo foi gerado agora.' : 'A cobrança em aberto mais antiga foi reenviada.' }}
+            O pagador recebeu o aviso por push.
+          </ct-banner>
+          @if (r.invoiceUrl) {
+            <div class="ct-box">
+              <div class="ct-kick" style="margin-bottom: 6px">Link de pagamento</div>
+              <a class="link" [href]="r.invoiceUrl" target="_blank" rel="noopener">{{ r.invoiceUrl }}</a>
+              <div class="ct-row" style="margin-top: 10px">
+                <button type="button" class="ct-mini-btn" (click)="copy(r.invoiceUrl)">{{ copied() ? 'Copiado' : 'Copiar link' }}</button>
+              </div>
+            </div>
+          } @else {
+            <div class="ct-dim">Sem link online: {{ r.issueError || 'a conta de recebimento não está conectada' }}. Combine o pagamento e dê baixa no Financeiro.</div>
+          }
+        } @else {
+          <div class="ct-muted">
+            Envia ao provedor a cobrança em aberto mais antiga desta assinatura e avisa o pagador. Se não houver nada em aberto, antecipa a cobrança do próximo ciclo ({{ formatDayKey(s.nextChargeDate) }}).
+          </div>
+        }
+        @if (error()) {
+          <div class="ct-error-text">{{ error() }}</div>
+        }
+        <div footer>
+          @if (chargeResult()) {
+            <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="close()">Fechar</button>
+          } @else {
+            <button type="button" class="ct-mini-btn" [disabled]="busy()" (click)="close()">Voltar</button>
+            <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="chargeNow()">{{ busy() ? 'Cobrando…' : 'Cobrar agora' }}</button>
+          }
+        </div>
+      </ct-modal>
+    }
+  }
+} @else {
+  <ct-page-header title="Assinatura">
+    <a class="ct-ghost-btn" [routerLink]="['/centro', cid(), 'assinaturas']"><ct-icon name="chevron-left" [size]="14" /> Assinaturas</a>
+  </ct-page-header>
+  <div class="page">
+    <div class="ct-card">
+      <div class="ct-empty">
+        @if (!store.loaded.subscriptions()) {
+          <span class="ct-spinner light" aria-hidden="true"></span>
+        } @else {
+          Assinatura não encontrada.
+        }
+      </div>
+    </div>
+  </div>
+}

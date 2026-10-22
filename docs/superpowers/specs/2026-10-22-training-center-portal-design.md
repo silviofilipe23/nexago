@@ -95,6 +95,31 @@ Protótipo: seção "Locais · fixo e itinerante" (L1–L5 web; L6–L7 são do 
 - Aviso: aula com local trocado gera push "Local alterado" com o endereço novo.
 - Mapa: link "Abrir no mapa" pelo endereço (sem mapa embutido nem coordenadas por enquanto).
 
+## Cobrança recorrente das mensalidades
+
+- **Assinatura** `subscriptions/{enrollmentId}`: nasce no servidor quando uma matrícula MENSAL fica
+  ativa (gatilho `onTrainingCenterEnrollmentBilling`), com preço do contrato, dia de vencimento da
+  política (`center.billing`) e multa/juros congelados. Pausar/voltar/cancelar a matrícula espelha.
+- **1º mês**: a cobrança da matrícula (portal e oferta da fila) é proporcional aos dias até o 1º
+  vencimento fixo (`firstMonth: prorata`) ou cheia; com vencimento na data da matrícula é sempre cheia.
+- **Rodada diária 06:00** (`runTrainingCenterBilling`, por centro ativo): pausa vencida volta;
+  pacote vencido/sem crédito é concluído (libera a vaga); "cancela no fim do ciclo" encerra no
+  vencimento; D−3 gera a cobrança `invoices/sub_{enrollmentId}_{YYYY-MM}` (id fixo: repetir não
+  duplica), gera a fatura Asaas se o recebimento estiver conectado (multa 2% + juros 1% a.m.) e
+  avisa; régua por push: D+1, D+7, aviso de bloqueio (5 dias antes), check-in com pendência
+  (`students.billingHold`) e suspensão (cancela a matrícula, libera a vaga) ou só aviso. Cada
+  estágio avisa uma vez por cobrança. Resumo em `billingRuns/{dia}`.
+- **Pagamento**: o gatilho da cobrança (`onTrainingCenterSubscriptionInvoiceWritten`) recalcula o
+  atraso na hora — sai de "em atraso" e tira a pendência sem esperar a rodada.
+- **Mudar plano** (callable): agora, com a diferença proporcional dos dias restantes como cobrança
+  avulsa (downgrade não devolve; recusa com mensalidade vencida em aberto), ou no próximo ciclo.
+  **Cobrar agora** (callable): manda a cobrança aberta mais antiga ao provedor (ou antecipa o ciclo).
+- Rules: assinatura e rodada só o servidor grava; o gestor só agenda/desfaz o cancelamento no fim do
+  ciclo (`cancelAt == nextChargeDate`). `billingHold*`, `subscriptionId`, `cycle` e `lateFees` são
+  do servidor.
+- Só **Pix mensal** (link da fatura a cada ciclo). Cartão recorrente e Pix Automático dependem da
+  autorização do aluno no app (protótipo R7) — retentativas de cartão vêm junto.
+
 ## Fora do MVP (follow-ups)
 
 - Oferecer a vaga liberada ao próximo da fila automaticamente (hoje a varredura só libera; a
@@ -105,3 +130,5 @@ Protótipo: seção "Locais · fixo e itinerante" (L1–L5 web; L6–L7 são do 
 - Telas do app (G1–G19, P1–P9) e chamada pelo professor no app (a rule já aceita o professor
   marcar presença na própria aula).
 - Tela de centros no backoffice (ativar/suspender/assinatura).
+- Cobrança recorrente por cartão e Pix Automático (autorização no app, R7) e retentativas.
+- Avisos da régua por e-mail/WhatsApp (sem provedor ainda) e a tela Configurações › Notificações (W4b).

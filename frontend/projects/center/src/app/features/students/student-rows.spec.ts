@@ -5,14 +5,14 @@ function student(p: Partial<Student> = {}): Student {
   return {
     id: 's1', uid: null, name: 'José Silva', email: 'jose@x.com', phone: '', status: 'active', isMinor: false,
     birthDate: null, guardian: null, lgpdConsentAt: null, imageUseAllowed: false, notifyClasses: true,
-    emergencyName: '', emergencyPhone: '', medicalNotes: '', makeupCredits: 0, createdAt: null, ...p,
+    emergencyName: '', emergencyPhone: '', medicalNotes: '', makeupCredits: 0, billingHold: false, createdAt: null, ...p,
   };
 }
 
 function invoice(p: Partial<Invoice>): Invoice {
   return {
     id: 'i', studentId: 's1', enrollmentId: null, payerName: '', reference: '', amountCents: 100, dueDate: '2026-10-10',
-    status: 'pending', method: null, providerRef: '', providerUrl: '', providerStatus: '', providerApproved: false, events: [], approvedAt: null, refundedCents: 0, createdAt: null, ...p,
+    status: 'pending', method: null, providerRef: '', providerUrl: '', providerStatus: '', providerApproved: false, events: [], approvedAt: null, refundedCents: 0, subscriptionId: null, cycle: '', createdAt: null, ...p,
   };
 }
 

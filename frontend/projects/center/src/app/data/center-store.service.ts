@@ -20,6 +20,7 @@ import type {
   Court,
   Enrollment,
   Invoice,
+  Subscription,
   Plan,
   Program,
   Student,
@@ -34,6 +35,7 @@ import {
   readEnrollment,
   readInvite,
   readInvoice,
+  readSubscription,
   readLocation,
   readMember,
   readPlan,
@@ -75,6 +77,7 @@ export class CenterStore {
     plans: feed<Plan>(),
     enrollments: feed<Enrollment>(),
     invoices: feed<Invoice>(),
+    subscriptions: feed<Subscription>(),
     audit: feed<AuditEntry>(),
   };
 
@@ -97,6 +100,7 @@ export class CenterStore {
   readonly plans: Signal<Plan[]> = this.f.plans.state.asReadonly();
   readonly enrollments: Signal<Enrollment[]> = this.f.enrollments.state.asReadonly();
   readonly invoices: Signal<Invoice[]> = this.f.invoices.state.asReadonly();
+  readonly subscriptions: Signal<Subscription[]> = this.f.subscriptions.state.asReadonly();
   readonly audit: Signal<AuditEntry[]> = this.f.audit.state.asReadonly();
 
   /** Professores ativos (pra selects de turma/agenda). */
@@ -109,6 +113,7 @@ export class CenterStore {
     students: this.f.students.loaded.asReadonly(),
     enrollments: this.f.enrollments.loaded.asReadonly(),
     invoices: this.f.invoices.loaded.asReadonly(),
+    subscriptions: this.f.subscriptions.loaded.asReadonly(),
     plans: this.f.plans.loaded.asReadonly(),
     members: this.f.members.loaded.asReadonly(),
     sessions: this.f.sessions.loaded.asReadonly(),
@@ -210,6 +215,7 @@ export class CenterStore {
       }
       if (seesFinance) {
         listen(this.f.invoices, base('invoices'), readInvoice);
+        listen(this.f.subscriptions, base('subscriptions'), readSubscription);
       }
       onCleanup(() => stops.forEach((s) => s()));
     });

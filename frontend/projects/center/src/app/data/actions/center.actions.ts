@@ -1,6 +1,14 @@
 import { Injectable } from '@angular/core';
 import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { DEFAULT_POLICIES, PROGRAM_COLORS, slugify, type CenterPolicies, type TrainingCenter } from '../../domain/models';
+import {
+  DEFAULT_BILLING,
+  DEFAULT_POLICIES,
+  PROGRAM_COLORS,
+  slugify,
+  type CenterBilling,
+  type CenterPolicies,
+  type TrainingCenter,
+} from '../../domain/models';
 import { CENTERS, db } from '../firebase';
 import { CenterActionsBase } from './actor';
 
@@ -24,6 +32,16 @@ export type CenterProfilePatch = Pick<
 >;
 
 const DEFAULT_LEVELS = ['Iniciante', 'Intermediário', 'Avançado'];
+
+const BILLING_LABELS: Record<keyof CenterBilling, string> = {
+  billingDayMode: 'Vencimento',
+  billingDay: 'Dia de vencimento',
+  firstMonth: 'Primeiro mês',
+  lateFees: 'Multa e juros',
+  blockAfterDays: 'Bloqueio do check-in (dias)',
+  suspendAfterDays: 'Suspensão (dias)',
+  suspendAction: 'Sem pagamento',
+};
 
 const POLICY_LABELS: Partial<Record<keyof CenterPolicies, string>> = {
   activation: 'Ativação da matrícula',
@@ -70,6 +88,7 @@ export class CenterActions extends CenterActionsBase {
       state: input.state.trim().toUpperCase(),
       address: input.address.trim(),
       policies: { ...DEFAULT_POLICIES },
+      billing: { ...DEFAULT_BILLING },
       receivingConnected: false,
       subscription: null,
       createdAt: serverTimestamp(),
@@ -152,6 +171,20 @@ export class CenterActions extends CenterActionsBase {
       .map((k) => `${POLICY_LABELS[k] ?? k}: ${String(before[k])} → ${String(next[k])}`)
       .join(' · ');
     const audit = this.auditDoc({ action: 'center.policies', entity: 'center', entityId: this.centerId(), detail, reason });
+    b.set(audit.ref, audit.data);
+    await b.commit();
+  }
+
+  async updateBilling(before: CenterBilling, next: CenterBilling): Promise<void> {
+    const changed = (Object.keys(next) as (keyof CenterBilling)[]).filter((k) => before[k] !== next[k]);
+    if (changed.length === 0) {
+      return;
+    }
+    this.assertWritable();
+    const b = writeBatch(db());
+    b.update(this.centerRef(), { billing: next });
+    const detail = changed.map((k) => `${BILLING_LABELS[k]}: ${String(before[k])} → ${String(next[k])}`).join(' · ');
+    const audit = this.auditDoc({ action: 'center.billing', entity: 'center', entityId: this.centerId(), detail });
     b.set(audit.ref, audit.data);
     await b.commit();
   }

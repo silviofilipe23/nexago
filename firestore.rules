@@ -3905,7 +3905,7 @@ service cloud.firestore {
         ctIsManager() &&
         ctChanged().hasOnly([
           'name', 'legalName', 'cnpj', 'slug', 'timezone', 'sports', 'contactEmail',
-          'contactPhone', 'city', 'state', 'address', 'policies', 'activationRequestedAt'
+          'contactPhone', 'city', 'state', 'address', 'policies', 'billing', 'activationRequestedAt'
         ])
       );
       allow delete: if false;
@@ -4058,9 +4058,11 @@ service cloud.firestore {
       // Créditos de reposição só o gestor move (cancelamento de aula); recepção edita cadastro.
       match /students/{studentId} {
         allow read: if ctIsMember();
+        // Pendência de cobrança (`billingHold*`) só a rodada da recorrência grava.
         allow create: if ctHasPerm('enroll_students') && ctNotSuspended() &&
-          request.resource.data.makeupCredits == 0;
-        allow update: if ctNotSuspended() && (
+          request.resource.data.makeupCredits == 0 &&
+          !request.resource.data.keys().hasAny(['billingHold', 'billingHoldBy']);
+        allow update: if ctNotSuspended() && !ctChanged().hasAny(['billingHold', 'billingHoldBy']) && (
           ctIsManager() ||
           (ctHasPerm('enroll_students') && !ctChanged().hasAny(['makeupCredits', 'uid']))
         );
@@ -4094,9 +4096,11 @@ service cloud.firestore {
           request.resource.data.refundedCents == 0 &&
           request.resource.data.approvedAt == null &&
           request.resource.data.get('providerRef', '') == '' &&
-          !request.resource.data.keys().hasAny(ctProviderKeys());
+          !request.resource.data.keys().hasAny(ctProviderKeys()) &&
+          !request.resource.data.keys().hasAny(['subscriptionId', 'cycle', 'lateFees']);
         allow update: if ctIsManager() && ctNotSuspended() &&
-          !ctChanged().hasAny(['amountCents', 'payerName', 'studentId', 'enrollmentId', 'dueDate', 'createdAt', 'providerRef']) &&
+          !ctChanged().hasAny(['amountCents', 'payerName', 'studentId', 'enrollmentId', 'dueDate', 'createdAt', 'providerRef',
+            'subscriptionId', 'cycle', 'lateFees']) &&
           !ctChanged().hasAny(ctProviderKeys()) &&
           (
             request.resource.data.status == resource.data.status ||
@@ -4104,6 +4108,30 @@ service cloud.firestore {
             (resource.data.status == 'approved' && request.resource.data.status == 'refunded')
           );
         allow delete: if false;
+      }
+
+      // Assinaturas (cobrança recorrente): nascem e andam pelo servidor
+      // (training-center-subscriptions.ts). O gestor só agenda o cancelamento para o fim do ciclo
+      // (no próximo vencimento) ou desfaz esse agendamento.
+      match /subscriptions/{subscriptionId} {
+        allow read: if ctHasPerm('view_finance') || ctHasPerm('enroll_students');
+        allow create, delete: if false;
+        allow update: if ctIsManager() && ctNotSuspended() &&
+          ctChanged().hasOnly(['status', 'cancelAt', 'cancelRequestedAt', 'cancelRequestedBy', 'updatedAt']) &&
+          (
+            (resource.data.status in ['active', 'past_due'] &&
+              request.resource.data.status == 'canceling' &&
+              request.resource.data.cancelAt == resource.data.nextChargeDate) ||
+            (resource.data.status == 'canceling' &&
+              request.resource.data.status == 'active' &&
+              request.resource.data.cancelAt == null)
+          );
+      }
+
+      // Resumo da rodada diária da cobrança: só o servidor grava.
+      match /billingRuns/{day} {
+        allow read: if ctHasPerm('view_finance');
+        allow write: if false;
       }
 
       // Trilha de auditoria: só cria, em nome próprio, com hora do servidor.

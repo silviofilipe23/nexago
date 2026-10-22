@@ -3,7 +3,17 @@ import { runTransaction, serverTimestamp, Timestamp, type Transaction } from 'fi
 import { formatDayKey, monthKey, monthLabel, todayKey } from '../../domain/dates';
 import { buildContract, canTransition, rosterAfter, seatDelta } from '../../domain/enrollment';
 import { formatBRL } from '../../domain/money';
-import type { ContractSnapshot, Enrollment, EnrollmentStatus, Plan, Student, TrainingClass } from '../../domain/models';
+import { firstInvoiceCents } from '../../domain/billing';
+import {
+  DEFAULT_BILLING,
+  type CenterBilling,
+  type ContractSnapshot,
+  type Enrollment,
+  type EnrollmentStatus,
+  type Plan,
+  type Student,
+  type TrainingClass,
+} from '../../domain/models';
 import { hasPermission } from '../../domain/roles';
 import { db } from '../firebase';
 import { readClass } from '../mappers';
@@ -33,6 +43,10 @@ export class EnrollmentsActions extends CenterActionsBase {
     return todayKey(this.ctx.center()?.timezone);
   }
 
+  private billing(): CenterBilling {
+    return this.ctx.center()?.billing ?? DEFAULT_BILLING;
+  }
+
   private holdUntil(hours: number): Timestamp {
     return Timestamp.fromMillis(Date.now() + hours * 3600_000);
   }
@@ -42,24 +56,48 @@ export class EnrollmentsActions extends CenterActionsBase {
     return hasPermission(this.ctx.me(), 'enroll_students') && this.ctx.center()?.status === 'active';
   }
 
-  private firstInvoice(t: Transaction, enrollmentId: string, studentId: string, payerName: string, contract: ContractSnapshot): void {
+  /**
+   * Cobrança da matrícula. Mensal com vencimento fixo e 1º mês proporcional: só os dias do início
+   * até o 1º vencimento (a assinatura cobra o resto, a partir dele).
+   */
+  private firstInvoice(
+    t: Transaction,
+    enrollmentId: string,
+    studentId: string,
+    payerName: string,
+    contract: ContractSnapshot,
+    startDate: string,
+  ): void {
     const ref = this.ref('invoices');
     const today = this.today();
+    const start = startDate > today ? startDate : today;
+    const first = contract.planType === 'monthly' ? firstInvoiceCents(contract.priceCents, this.billing(), start) : null;
+    const amountCents = first ? first.cents : contract.priceCents;
     const reference =
       contract.planType === 'class_pack'
         ? contract.planName
-        : `${contract.planName} · ${monthLabel(monthKey(today)).toLowerCase()}`;
+        : `${contract.planName} · ${monthLabel(monthKey(start)).toLowerCase()}${first?.prorated ? ' (proporcional)' : ''}`;
     t.set(ref, {
       studentId,
       enrollmentId,
       payerName,
       reference,
-      amountCents: contract.priceCents,
+      amountCents,
       dueDate: today,
       status: 'pending',
       method: null,
       providerRef: '',
-      events: [{ at: Timestamp.now(), type: 'created', title: 'Cobrança criada', detail: `${formatBRL(contract.priceCents)} · ${reference}`, byName: this.actor().name }],
+      events: [
+        {
+          at: Timestamp.now(),
+          type: 'created',
+          title: 'Cobrança criada',
+          detail:
+            `${formatBRL(amountCents)} · ${reference}` +
+            (first?.prorated ? ` · ${first.days}/${first.cycleDays} dias até o vencimento ${formatDayKey(first.nextCharge)}` : ''),
+          byName: this.actor().name,
+        },
+      ],
       approvedAt: null,
       refundedCents: 0,
       createdAt: serverTimestamp(),
@@ -113,7 +151,7 @@ export class EnrollmentsActions extends CenterActionsBase {
         createdByName: this.actor().name,
       });
       if (this.canBill()) {
-        this.firstInvoice(t, enrollmentRef.id, input.student.id, payerName, contract);
+        this.firstInvoice(t, enrollmentRef.id, input.student.id, payerName, contract, input.startDate);
       }
       const audit = this.auditDoc({
         action: 'enrollment.created',
@@ -190,7 +228,7 @@ export class EnrollmentsActions extends CenterActionsBase {
         offeredBy: 'manual',
       });
       if (this.canBill()) {
-        this.firstInvoice(t, e.id, e.studentId, payerName, contract);
+        this.firstInvoice(t, e.id, e.studentId, payerName, contract, e.startDate);
       }
       const audit = this.auditDoc({ action: 'enrollment.seat_offered', entity: 'enrollment', entityId: e.id, detail: `Vaga em ${e.className} oferecida a ${e.studentName} · ${center.policies.waitlistAcceptHours}h para aceitar` });
       t.set(audit.ref, audit.data);

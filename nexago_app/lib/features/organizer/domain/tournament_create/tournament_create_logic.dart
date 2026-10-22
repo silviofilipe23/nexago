@@ -150,7 +150,7 @@ String visibilityLabel(TournamentVisibility visibility) => switch (visibility) {
 String visibilityDescription(TournamentVisibility visibility) =>
     switch (visibility) {
       TournamentVisibility.publicListing =>
-        'Aparece na busca e no Competir para todos.',
+        'Aparece na busca e no Hub para todos.',
       TournamentVisibility.linkOnly =>
         'Só quem tem o link consegue ver e se inscrever.',
     };

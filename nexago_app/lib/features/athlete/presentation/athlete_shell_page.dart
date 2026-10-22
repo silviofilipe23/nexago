@@ -180,7 +180,7 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
                     selectedSfSymbol: 'plus.circle.fill',
                   ),
                   const NexaBottomNavItem(
-                    label: 'Competir',
+                    label: 'Hub',
                     icon: Icons.emoji_events_outlined,
                     selectedIcon: Icons.emoji_events,
                     sfSymbol: 'trophy',

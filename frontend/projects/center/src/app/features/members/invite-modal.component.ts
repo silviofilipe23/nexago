@@ -66,7 +66,11 @@ const ROLE_HINT: Record<CenterRole, [string, string]> = {
           </div>
         }
 
-        <p class="ct-dim" style="margin: 0">{{ hints[role()][1] }} O convite vale para o e-mail informado: a pessoa entra com a conta NexaGO desse e-mail (ou cria uma) e aceita.</p>
+        <p class="ct-dim" style="margin: 0">{{ hints[role()][1] }} O convite vale para o e-mail informado: a pessoa entra com a conta NexaGO desse e-mail (ou cria uma) e aceita.
+          @if (role() === 'coach') {
+            O professor precisa ter conta de atleta no app NexaGO com esse e-mail.
+          }
+        </p>
         @if (error()) {
           <p class="ct-error-text" role="alert" style="margin: 0">{{ error() }}</p>
         }

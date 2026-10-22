@@ -3924,7 +3924,9 @@ service cloud.firestore {
             request.resource.data.role == inv.role &&
             request.resource.data.status == 'active' &&
             request.resource.data.extraPerms.size() == 0 &&
-            request.resource.data.programIds == inv.programIds;
+            request.resource.data.programIds == inv.programIds &&
+            // Professor precisa ser atleta NexaGO (conta criada no app: espelho público do perfil).
+            (inv.role != 'coach' || exists(/databases/$(database)/documents/public_profiles/$(request.auth.uid)));
         }
         // Owner mexe em todos menos owner; admin só em professor/recepção. Ninguém em si mesmo.
         // uid e centerId ficam congelados (fora da allowlist).
@@ -4027,7 +4029,12 @@ service cloud.firestore {
           request.resource.data.seatsTaken >= 0 &&
           request.resource.data.seatsTaken <= request.resource.data.capacity && (
             ctIsManager() ||
-            (ctHasPerm('enroll_students') && ctChanged().hasOnly(['seatsTaken', 'rosterStudentIds']))
+            (ctHasPerm('enroll_students') && ctChanged().hasOnly(['seatsTaken', 'rosterStudentIds'])) ||
+            // "Ver e editar turmas atribuídas": o professor da turma ajusta nome, nível e quadra.
+            // Horário, dias, local, vagas, professor e situação seguem com o gestor (mexem em
+            // contrato, agenda e cobrança).
+            (ctHasPerm('edit_classes') && resource.data.coachUid == request.auth.uid &&
+              ctChanged().hasOnly(['name', 'level', 'courtId', 'courtName', 'updatedAt']))
           );
         allow delete: if false;
       }
@@ -4072,7 +4079,11 @@ service cloud.firestore {
       // Contrato congelado: aluno, turma e snapshot do contrato não mudam depois de gravados
       // (o snapshot só é preenchido uma vez, quando a vaga sai da fila).
       match /enrollments/{enrollmentId} {
-        allow read: if ctHasPerm('view_enrollments') || ctHasPerm('enroll_students');
+        // "Ver matrículas das suas turmas": quem não é gestor nem matricula vê só as matrículas das
+        // turmas em que é o professor (a consulta precisa filtrar por `classId`).
+        allow read: if ctIsManager() || ctHasPerm('enroll_students') ||
+          (ctHasPerm('view_enrollments') &&
+            get(/databases/$(database)/documents/trainingCenters/$(centerId)/classes/$(resource.data.classId)).data.coachUid == request.auth.uid);
         allow create: if ctHasPerm('enroll_students') && ctOperational() &&
           request.resource.data.status in ['pending', 'active', 'waitlisted'];
         allow update: if ctHasPerm('enroll_students') && ctNotSuspended() &&

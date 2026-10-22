@@ -96,7 +96,7 @@ export class EnrollmentsComponent {
       .map((e) => ({
         e,
         plan: e.contract?.planName ?? (e.planId ? this.store.planById(e.planId)?.name : null) ?? '—',
-        detail: enrollmentDetail(e, { invoices, queuePosition: pos.get(e.id) ?? null, tz, now }),
+        detail: enrollmentDetail(e, { invoices, queuePosition: pos.get(e.id) ?? null, tz, now, seesFinance: this.ctx.has('view_finance') }),
       }));
   });
 

@@ -65,5 +65,9 @@
 </div>
 
 @if (modal(); as m) {
-  <ct-class-form-modal [cls]="m === 'new' ? null : m" [fromDate]="modalFrom()" [readonly]="!canEdit()" (closed)="close()" />
+  @if (m !== 'new' && coachCanEdit(m)) {
+    <ct-coach-class-edit [cls]="m" (closed)="close()" />
+  } @else {
+    <ct-class-form-modal [cls]="m === 'new' ? null : m" [fromDate]="modalFrom()" [readonly]="!canEdit()" (closed)="close()" />
+  }
 }

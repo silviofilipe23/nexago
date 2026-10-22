@@ -37,7 +37,8 @@ export interface EnrollmentDetail {
 /** Texto da coluna "Detalhe" (W17). */
 export function enrollmentDetail(
   e: Enrollment,
-  opts: { invoices: Invoice[]; queuePosition: number | null; tz?: string; now?: Date },
+  /** `seesFinance: false` (professor): sem cobranças carregadas, não afirma nada sobre pagamento. */
+  opts: { invoices: Invoice[]; queuePosition: number | null; tz?: string; now?: Date; seesFinance?: boolean },
 ): EnrollmentDetail {
   const pack = e.contract?.planType === 'class_pack';
   switch (e.status) {
@@ -56,6 +57,9 @@ export function enrollmentDetail(
     case 'active': {
       if (pack) {
         return { text: `${e.creditsLeft ?? 0} crédito${e.creditsLeft === 1 ? '' : 's'}`, tone: '' };
+      }
+      if (opts.seesFinance === false) {
+        return { text: e.contract?.planName ?? 'Mensal', tone: '' };
       }
       const until = paidUntil(e, opts.invoices);
       return { text: until ? `Pago até ${formatDayKey(until)}` : 'Sem pagamento aprovado', tone: '' };

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import type { CenterInvite, CenterMember } from '../../domain/models';
 import { ROLE_LABELS, type CenterPermission, type CenterRole } from '../../domain/roles';
 import { CENTERS, db } from '../firebase';
@@ -64,6 +64,12 @@ export class TeamActions extends CenterActionsBase {
     const uid = this.auth.uid();
     if (!uid) {
       throw new Error('Sessão expirada. Entre de novo.');
+    }
+    // Professor precisa ser atleta NexaGO (as rules conferem o mesmo espelho público do perfil).
+    if (invite.role === 'coach' && !(await getDoc(doc(db(), 'public_profiles', uid))).exists()) {
+      throw new Error(
+        `Para entrar como professor você precisa de uma conta de atleta NexaGO. Baixe o app NexaGO, entre com ${this.auth.email() ?? 'este e-mail'} e complete o cadastro; depois volte aqui e aceite o convite.`,
+      );
     }
     const b = writeBatch(db());
     b.set(doc(db(), CENTERS, invite.centerId, 'centerMembers', uid), {

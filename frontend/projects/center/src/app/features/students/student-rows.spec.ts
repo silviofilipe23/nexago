@@ -12,7 +12,7 @@ function student(p: Partial<Student> = {}): Student {
 function invoice(p: Partial<Invoice>): Invoice {
   return {
     id: 'i', studentId: 's1', enrollmentId: null, payerName: '', reference: '', amountCents: 100, dueDate: '2026-10-10',
-    status: 'pending', method: null, providerRef: '', events: [], approvedAt: null, refundedCents: 0, createdAt: null, ...p,
+    status: 'pending', method: null, providerRef: '', providerUrl: '', providerStatus: '', providerApproved: false, events: [], approvedAt: null, refundedCents: 0, createdAt: null, ...p,
   };
 }
 

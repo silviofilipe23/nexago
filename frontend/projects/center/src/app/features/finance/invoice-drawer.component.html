@@ -35,6 +35,40 @@
       }
     </div>
 
+    @if (hasProvider()) {
+      <div class="ct-box">
+        <div class="ct-row" style="gap: 8px">
+          <span class="ct-disp" style="font-weight: 700">Fatura no provedor</span>
+          <span class="ct-grow"></span>
+          <span class="ct-tag">{{ providerStatusLabel() }}</span>
+        </div>
+        <div class="ct-kv"><span>Asaas</span><span class="ct-mono">{{ invoice().providerRef }}</span></div>
+        @if (invoice().providerUrl) {
+          <div class="ct-row" style="gap: 8px">
+            <a class="link ct-grow" [href]="invoice().providerUrl" target="_blank" rel="noopener">{{ invoice().providerUrl }}</a>
+            <button type="button" class="ct-ghost-btn" (click)="copy(invoice().providerUrl, 'link')">{{ copied() === 'link' ? 'Copiado' : 'Copiar link' }}</button>
+          </div>
+        }
+        @if (isPending()) {
+          <div class="ct-dim">Gerar a fatura não conta como recebido: a cobrança só aprova quando o provedor confirmar o pagamento.</div>
+        }
+      </div>
+    }
+
+    @if (pix(); as p) {
+      <div class="ct-box">
+        <div class="ct-disp" style="font-weight: 700">Pix copia e cola</div>
+        @if (p.pixPayload) {
+          <textarea class="ct-input pix" readonly [value]="p.pixPayload" aria-label="Pix copia e cola"></textarea>
+          <div class="ct-row" style="gap: 8px">
+            <button type="button" class="ct-mini-btn" (click)="copy(p.pixPayload, 'pix')">{{ copied() === 'pix' ? 'Copiado' : 'Copiar Pix' }}</button>
+          </div>
+        } @else {
+          <div class="ct-dim">O provedor não devolveu o copia e cola agora — envie o link da fatura.</div>
+        }
+      </div>
+    }
+
     <div class="ct-box">
       <div class="ct-disp" style="font-weight: 700">{{ isPending() ? 'Efeitos aguardando confirmação' : 'Efeitos' }}</div>
       <div class="ct-kv"><span>Matrícula</span><span>{{ enrollmentEffect() }}</span></div>
@@ -50,6 +84,9 @@
         @switch (p) {
           @case ('confirm') {
             <div class="ct-disp" style="font-weight: 700">Confirmar com comprovante</div>
+            @if (hasProvider()) {
+              <div class="ct-dim">A fatura do provedor é removida. Se o aluno já tiver pago por ela, o pagamento online é estornado.</div>
+            }
             <div class="ct-field">
               <label for="iv-method">Forma de pagamento</label>
               <select id="iv-method" class="ct-input" (change)="method.set($any(val($event)))">
@@ -73,6 +110,9 @@
           @case ('cancel') {
             <div class="ct-disp" style="font-weight: 700">Cancelar cobrança</div>
             <div class="ct-dim">A cobrança sai do aguardando e não conta como recebida. A matrícula ligada não muda.</div>
+            @if (hasProvider()) {
+              <div class="ct-dim">A fatura do provedor é removida: o aluno não consegue mais pagar por ela.</div>
+            }
           }
           @case ('note') {
             <div class="ct-field">
@@ -80,8 +120,16 @@
               <textarea id="iv-note" class="ct-input" [value]="note()" (input)="note.set(val($event))"></textarea>
             </div>
           }
+          @case ('cpf') {
+            <div class="ct-disp" style="font-weight: 700">CPF do pagador</div>
+            <div class="ct-dim">O aluno não tem CPF no cadastro NexaGO. O provedor exige CPF ou CNPJ de quem paga.</div>
+            <div class="ct-field">
+              <label for="iv-cpf">CPF ou CNPJ</label>
+              <input id="iv-cpf" class="ct-input mono" inputmode="numeric" autocomplete="off" [value]="cpf()" (input)="cpf.set(val($event))" />
+            </div>
+          }
         }
-        @if (p !== 'note') {
+        @if (p !== 'note' && p !== 'cpf') {
           <div class="ct-field">
             <label for="iv-why">Motivo</label>
             <input id="iv-why" class="ct-input" [value]="reason()" (input)="reason.set(val($event))" />
@@ -89,13 +137,16 @@
         }
         <div class="ct-row">
           <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy() || !!invalid()" [attr.title]="invalid()" (click)="submit()">
-            {{ busy() ? 'Salvando…' : 'Confirmar' }}
+            {{ busy() ? 'Salvando…' : p === 'cpf' ? 'Gerar Pix/cartão' : 'Confirmar' }}
           </button>
           <button type="button" class="ct-ghost-btn" [disabled]="busy()" (click)="panel.set(null)">Voltar</button>
         </div>
       </div>
     } @else {
       <div class="ct-dim">Confirmar manualmente exige comprovante e motivo, e fica no registro de auditoria.</div>
+    }
+    @if (info()) {
+      <div class="ct-dim" role="status">{{ info() }}</div>
     }
     @if (error()) {
       <div class="ct-error-text">{{ error() }}</div>
@@ -104,10 +155,30 @@
 
   <div class="foot">
     <div class="ct-row ct-wrap" style="gap: 8px">
-      <button type="button" class="ct-mini-btn" disabled title="Integração com provedor em breve">Consultar provedor agora</button>
+      @if (canIssue()) {
+        <button
+          type="button"
+          class="ct-mini-btn ct-mini-btn-primary"
+          [disabled]="!!online() || !receivingReady()"
+          [attr.title]="receivingReady() ? null : 'Conta de recebimento do centro ainda não conectada'"
+          (click)="issue()"
+        >
+          {{ online() === 'issue' ? 'Gerando…' : 'Gerar Pix/cartão' }}
+        </button>
+      }
+      @if (canWrite() && hasProvider()) {
+        <button type="button" class="ct-mini-btn" [disabled]="!!online()" (click)="queryProvider()">
+          {{ online() === 'query' ? 'Consultando…' : 'Consultar provedor agora' }}
+        </button>
+        @if (isPending()) {
+          <button type="button" class="ct-mini-btn" [disabled]="!!online()" (click)="resendPix()">
+            {{ online() === 'resend' ? 'Gerando…' : 'Reenviar Pix' }}
+          </button>
+        }
+      }
       @if (canWrite()) {
         @if (isPending()) {
-          <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="open('confirm')">Confirmar com comprovante</button>
+          <button type="button" class="ct-mini-btn" [class.ct-mini-btn-primary]="!canIssue()" (click)="open('confirm')">Confirmar com comprovante</button>
           <button type="button" class="ct-ghost-btn danger" (click)="open('cancel')">Cancelar cobrança</button>
         }
         @if (refundable() > 0) {
@@ -116,6 +187,10 @@
         <button type="button" class="ct-ghost-btn" (click)="open('note')">Observação</button>
       }
     </div>
-    <div class="ct-dim">Integração com provedor em breve — por enquanto a confirmação é manual.</div>
+    @if (canIssue() && !receivingReady()) {
+      <div class="ct-dim">Cobrança online libera quando o time NexaGO conectar a conta de recebimento do centro.</div>
+    } @else if (isPending() && hasProvider()) {
+      <div class="ct-dim">O provedor confirma sozinho; se o aluno disser que pagou, use "Consultar provedor agora".</div>
+    }
   </div>
 </aside>

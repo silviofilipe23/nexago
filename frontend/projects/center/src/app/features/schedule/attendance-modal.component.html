@@ -32,6 +32,9 @@
         @for (r of rows(); track r.studentId) {
           <div class="row">
             <ct-person class="ct-grow" [name]="r.name" [sub]="r.sub || (r.former ? 'Saiu da turma' : '')" [colorKey]="r.studentId" />
+            @if (r.hold) {
+              <span class="ct-tag red" title="Mensalidade em atraso · a recepção resolve">Pendência</span>
+            }
             @if (done()) {
               @if (r.effect) {
                 <span class="ct-tag blue">{{ r.effect }}</span>

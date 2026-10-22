@@ -149,6 +149,18 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'painel/centros',
+    title: 'Centros de treinamento — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () => import('./painel/centros/panel-centros.component').then((m) => m.PanelCentrosComponent),
+  },
+  {
+    path: 'painel/centros/:id',
+    title: 'Centro de treinamento — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () => import('./painel/centros/centro-detalhe.component').then((m) => m.CentroDetalheComponent),
+  },
+  {
     path: 'painel/financeiro',
     title: 'Financeiro — NexaGO Backoffice',
     canActivate: [authGuard],

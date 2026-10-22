@@ -142,6 +142,13 @@ const NAV_ITEMS: readonly PanelNavItem[] = [
     icon: 'id-badge',
     route: '/painel/organizadores',
   },
+  {
+    kind: 'link',
+    id: 'centros',
+    label: 'Centros de treinamento',
+    icon: 'flag',
+    route: '/painel/centros',
+  },
   { kind: 'link', id: 'atletas', label: 'Atletas', icon: 'users', route: '/painel/atletas' },
   SQUAD_GROUP,
   { kind: 'link', id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro' },
@@ -681,6 +688,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/atletas')) {
       return 'atletas';
+    }
+    if (path.startsWith('/painel/centros')) {
+      return 'centros';
     }
     if (path.startsWith('/painel/squad/visao-geral')) {
       return 'squad-visao-geral';

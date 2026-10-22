@@ -303,8 +303,11 @@ class AthleteHomePage extends ConsumerWidget {
                       // do que é dinâmico — convites, próximo treino e meus
                       // torneios vêm primeiro.
                       Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.screenH,
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.screenH,
+                          0,
+                          AppSpacing.screenH,
+                          AppSpacing.sectionGap,
                         ),
                         child: Consumer(
                           builder: (context, ref, _) {
@@ -341,7 +344,6 @@ class AthleteHomePage extends ConsumerWidget {
                           },
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.sectionGap),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(
                           AppSpacing.screenH,
@@ -364,9 +366,7 @@ class AthleteHomePage extends ConsumerWidget {
                         ),
                         child: _HomeRegistrationTrackerSection(),
                       ),
-                      const SizedBox(height: AppSpacing.sectionGap),
                       const AthleteHomeCompetitionsSection(),
-                      const SizedBox(height: AppSpacing.sectionGap),
                       // Atalho da Loja: só com appConfig/store.enabled; traz o
                       // próprio respiro de baixo (desligado não deixa vão).
                       StoreHomeEntry(
@@ -382,8 +382,6 @@ class AthleteHomePage extends ConsumerWidget {
                           AppSpacing.sectionGap,
                         ),
                       ),
-
-                      const SizedBox(height: AppSpacing.sectionGap),
                       // Evolução só quando há histórico de partidas — evita
                       // card vazio para quem ainda não jogou.
                       Consumer(
@@ -569,7 +567,7 @@ class _HomeRegistrationTrackerSectionState
     if (items.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.sectionGap),
+      padding: const EdgeInsets.only(bottom: AppSpacing.sectionGap),
       child: AthleteHomeRegistrationTracker(
         items: items,
         onContinue: _continueRegistration,

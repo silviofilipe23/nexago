@@ -139,7 +139,7 @@ export const POLICY_ROWS: PolicyRow[] = [
     kind: 'choice',
     key: 'waitlistEnabled',
     title: () => 'Lista de espera',
-    hint: (p) => (p.waitlistEnabled ? `Ao liberar vaga, o 1º da fila tem ${p.waitlistAcceptHours}h para aceitar` : 'Turma lotada não aceita fila'),
+    hint: (p) => (p.waitlistEnabled ? `Ao liberar vaga, o 1º da fila recebe a oferta automaticamente e tem ${p.waitlistAcceptHours}h para pagar` : 'Turma lotada não aceita fila'),
     options: on('Ativa', 'Desligada'),
   },
   {

@@ -68,7 +68,7 @@
             </div>
           }
           <div class="ct-dim" style="margin-top: 8px">
-            Ao oferecer a vaga, o 1º da fila tem {{ policies()?.waitlistAcceptHours ?? 24 }}h para aceitar e pagar; depois ela volta para a fila.
+            Quando abre vaga, o NexaGO oferece sozinho ao 1º da fila: ele tem {{ policies()?.waitlistAcceptHours ?? 24 }}h para pagar; se não pagar, a vaga passa ao próximo. "Oferecer vaga" faz isso na hora.
           </div>
           @if (offerError()) {
             <div class="ct-error-text" style="margin-top: 8px">{{ offerError() }}</div>

@@ -48,7 +48,7 @@ export function enrollmentDetail(
         return { text: 'Reserva vencida', tone: 'red' };
       }
       return {
-        text: e.holdUntil ? `Aguardando pagamento · reserva até ${formatInstant(e.holdUntil, opts.tz)}` : 'Aguardando pagamento',
+        text: `${e.offeredAuto ? 'Vaga da fila · ' : ''}${e.holdUntil ? `Aguardando pagamento · reserva até ${formatInstant(e.holdUntil, opts.tz)}` : 'Aguardando pagamento'}`,
         tone: 'pending',
       };
     case 'paused':

@@ -147,6 +147,18 @@ Protótipo: seção "Locais · fixo e itinerante" (L1–L5 web; L6–L7 são do 
 - Conectar conta Asaas que o centro já tem continua só pelo time NexaGO (backoffice/script):
   `walletId` digitado no portal desviaria o dinheiro.
 
+## Repasse aos professores (fase 1)
+
+- Comercial › Repasses: regra por professor em `payRules/{uid}` — por aula dada, % das mensalidades
+  (pagas no mês pelas matrículas das turmas em que é titular, estorno sai da base) ou fixo mensal.
+- Aula conta para quem DEU a aula (`session.coachUid`, substituto incluso) e só com chamada
+  finalizada; cancelada não conta. O cálculo é ao vivo; "Fechar" grava o retrato em
+  `payouts/{YYYY-MM}_{uid}` e "Marcar pago" registra data/forma/obs. — pago não muda mais. Fechado
+  que ficou diferente do cálculo de agora mostra o novo valor e "Refazer".
+- Owner/admin fecham e marcam pago; "ver financeiro" acompanha; o professor lê só a própria regra e
+  os próprios repasses (rules). Pagamento em si é por fora (fase 2: transferência Asaas centro →
+  professor; automação: split na cobrança ou fechamento automático).
+
 ## Fora do MVP (follow-ups)
 
 - Oferecer a vaga liberada ao próximo da fila automaticamente (hoje a varredura só libera; a

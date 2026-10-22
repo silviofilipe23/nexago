@@ -316,3 +316,21 @@ test('conta de recebimento: owner/admin leem a situação; ninguém grava pelo c
   await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C), { receivingStatus: 'approved' }));
   await denied(getDoc(doc(as(OWNER), 'trainingCenterAsaasSecrets', C)));
 });
+
+test('repasses: gestor define regra e fecha; pago congela; professor lê só o dele', async () => {
+  const rule = { kind: 'per_class', amountCents: 8000, percent: 0 };
+  await assertSucceeds(setDoc(doc(as(ADMIN), 'trainingCenters', C, 'payRules', COACH), rule));
+  await denied(setDoc(doc(as(RECEP), 'trainingCenters', C, 'payRules', COACH), rule));
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'payRules', COACH), { ...rule, percent: 150 }));
+  await assertSucceeds(getDoc(doc(as(COACH), 'trainingCenters', C, 'payRules', COACH)));
+  await denied(getDoc(doc(as(COACH), 'trainingCenters', C, 'payRules', ADMIN)));
+
+  const p = { month: '2026-10', coachUid: COACH, coachName: 'Coach', totalCents: 24000, status: 'closed', lines: [] };
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'payouts', 'x'), p));
+  await denied(setDoc(doc(as(COACH), 'trainingCenters', C, 'payouts', `2026-10_${COACH}`), p));
+  await assertSucceeds(setDoc(doc(as(OWNER), 'trainingCenters', C, 'payouts', `2026-10_${COACH}`), p));
+  await assertSucceeds(getDoc(doc(as(COACH), 'trainingCenters', C, 'payouts', `2026-10_${COACH}`)));
+  await assertSucceeds(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'payouts', `2026-10_${COACH}`), { status: 'paid', paidMethod: 'pix' }));
+  await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'payouts', `2026-10_${COACH}`), { totalCents: 1 }));
+  await denied(deleteDoc(doc(as(OWNER), 'trainingCenters', C, 'payouts', `2026-10_${COACH}`)));
+});

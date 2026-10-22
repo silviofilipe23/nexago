@@ -4135,6 +4135,28 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Repasse ao professor (fase 1: calculado no portal, pago por fora). Regra e fechamento são do
+      // gestor; o professor lê a própria regra e os próprios repasses. Pago não muda mais.
+      match /payRules/{coachUid} {
+        allow read: if ctIsManager() || ctHasPerm('view_finance') || (ctIsMember() && request.auth.uid == coachUid);
+        allow write: if ctIsManager() && ctNotSuspended() &&
+          request.resource.data.kind in ['per_class', 'percent', 'monthly', 'none'] &&
+          request.resource.data.amountCents is int && request.resource.data.amountCents >= 0 &&
+          request.resource.data.percent is number && request.resource.data.percent >= 0 && request.resource.data.percent <= 100;
+      }
+      match /payouts/{payoutId} {
+        allow read: if ctIsManager() || ctHasPerm('view_finance') ||
+          (ctIsMember() && resource.data.coachUid == request.auth.uid);
+        allow create: if ctIsManager() && ctNotSuspended() &&
+          payoutId == request.resource.data.month + '_' + request.resource.data.coachUid &&
+          request.resource.data.status == 'closed';
+        allow update: if ctIsManager() && ctNotSuspended() && resource.data.status == 'closed' &&
+          request.resource.data.month == resource.data.month &&
+          request.resource.data.coachUid == resource.data.coachUid &&
+          request.resource.data.status in ['closed', 'paid'];
+        allow delete: if false;
+      }
+
       // Resumo da rodada diária da cobrança: só o servidor grava.
       match /billingRuns/{day} {
         allow read: if ctHasPerm('view_finance');

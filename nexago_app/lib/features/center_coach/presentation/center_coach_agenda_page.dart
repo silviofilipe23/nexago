@@ -19,7 +19,9 @@ import '../domain/center_coach.dart';
 import 'widgets/center_coach_widgets.dart';
 import 'widgets/center_mode_tab_scope.dart';
 import 'widgets/center_agenda_views.dart';
-import '../domain/center_agenda.dart' show centerMonthTitle;
+import '../domain/center_agenda.dart'
+    show centerMonthTitle, centerSessionCountOn;
+import '../../../core/ui/agenda/nexa_agenda.dart';
 import '../../arena/presentation/aulas/widgets/arena_class_atoms.dart'
     show ArenaClassSegmented;
 import '../../professor_mode/domain/professor_agenda.dart';
@@ -393,7 +395,8 @@ class _AgendaBody extends ConsumerWidget {
             onChanged: onView,
           ),
           const SizedBox(height: 8),
-          CenterAgendaPeriodNav(
+          NexaAgendaPeriodNav(
+            keyPrefix: kCenterAgendaKeys,
             label: view == ProfessorAgendaView.month
                 ? centerMonthTitle(day)
                 : '${centerDayLabel(days.first)} – ${centerDayLabel(days.last)}',
@@ -413,24 +416,13 @@ class _AgendaBody extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           if (view == ProfessorAgendaView.day)
-            Row(
-              children: [
-                for (final d in days) ...[
-                  Expanded(
-                    child: CenterCoachDayCell(
-                      key: Key('center-coach-day-$d'),
-                      dateKey: d,
-                      selected: d == day,
-                      isToday: d == today,
-                      count: mine
-                          .where((s) => s.date == d && !s.isCancelled)
-                          .length,
-                      onTap: () => onDay(d),
-                    ),
-                  ),
-                  if (d != days.last) const SizedBox(width: 5),
-                ],
-              ],
+            NexaAgendaDayStrip(
+              keyPrefix: kCenterAgendaKeys,
+              days: days,
+              selected: day,
+              todayKey: today,
+              countOf: (d) => centerSessionCountOn(mine, d),
+              onPick: onDay,
             ),
           const SizedBox(height: 14),
           if (sessionsAsync.isLoading && sessionsAsync.valueOrNull == null)

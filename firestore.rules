@@ -2665,6 +2665,19 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Avaliar aulas (treino com presença): só o próprio aluno lê a dele; grava só a callable
+    // `submitClassReview`. A gestão vai ler por callable (sem o uid de quem escondeu o nome).
+    match /classReviews/{reviewId} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+
+    // Média da nota do LOCAL (arena/centro) nas avaliações de treino: pública, só o servidor grava.
+    match /classReviewSummaries/{summaryId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /organizerReputation/{organizerId} {
       allow read: if true;
       allow write: if false;

@@ -20,6 +20,7 @@ import {LESSON_PLAN_VIEWS} from "./professor-lesson-plans";
 import {isStudentOfProfessor} from "./professor-messages";
 import {PROFESSORS, PROFESSOR_PLANS} from "./professor-wallet-model";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {loadProfessorReviewStars} from "./class-review";
 import {deliverNotificationToUser, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
 
 export const PROFESSOR_CONTACT_REQUESTS = "professorContactRequests";
@@ -134,12 +135,17 @@ async function loadArenas(db: Firestore, ids: string[]): Promise<Map<string, Rec
   return new Map(snaps.map((s) => [s.id, (s.data() ?? {}) as Record<string, unknown>]));
 }
 
-/** Estrelas dos feedbacks de aula (`lessonPlanViews.rating.stars`). */
+/** Estrelas dos feedbacks de aula (`lessonPlanViews.rating.stars`) + a nota do professor nas
+ *  avaliações de treino (`classReviews`). */
 export async function loadProfessorRating(db: Firestore, professorUid: string): Promise<{rating: number | null; count: number}> {
-  const snap = await db.collection(LESSON_PLAN_VIEWS).where("professorUid", "==", professorUid).limit(MAX_RATED_VIEWS).get();
+  const [snap, reviewStars] = await Promise.all([
+    db.collection(LESSON_PLAN_VIEWS).where("professorUid", "==", professorUid).limit(MAX_RATED_VIEWS).get(),
+    loadProfessorReviewStars(db, professorUid, MAX_RATED_VIEWS),
+  ]);
   const stars = snap.docs
     .map((d) => Number(((d.data()["rating"] ?? {}) as Record<string, unknown>)["stars"]))
-    .filter((n) => Number.isInteger(n) && n >= 1 && n <= 5);
+    .filter((n) => Number.isInteger(n) && n >= 1 && n <= 5)
+    .concat(reviewStars);
   if (stars.length === 0) return {rating: null, count: 0};
   return {rating: Math.round((stars.reduce((a, b) => a + b, 0) / stars.length) * 10) / 10, count: stars.length};
 }

@@ -16,6 +16,7 @@
  * [CLASS_REVIEW_EDIT_DAYS] dias depois do primeiro envio.
  */
 import * as logger from "firebase-functions/logger";
+import {randomUUID} from "node:crypto";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {Timestamp, getFirestore, type Firestore} from "firebase-admin/firestore";
 import {ARENA_CLASS_SESSIONS} from "./arena-class-constants";
@@ -40,6 +41,14 @@ export const CLASS_REVIEW_TAG_MAX = 40;
 export const CLASS_REVIEW_MIN_PUBLIC = 3;
 export const CLASS_REVIEW_TICKET_PUSH_TYPE = "class_review_ticket";
 const DAY_MS = 86_400_000;
+
+/**
+ * Handle público da avaliação: o id do doc (`{key}_{uid}`) carrega o uid da aluna, e a gestão
+ * não pode vê-lo quando ela escondeu o nome. Ver `class-review-manager.ts`.
+ */
+export function newReviewPublicId(): string {
+  return randomUUID().replace(/-/g, "").slice(0, 20);
+}
 
 type Data = Record<string, unknown>;
 
@@ -270,6 +279,7 @@ export function summaryId(target: Pick<ReviewTarget, "origin" | "placeId">): str
 
 export interface SubmitResult {
   reviewId: string;
+  publicId: string;
   created: boolean;
   ticketOpened: boolean;
 }
@@ -279,7 +289,7 @@ export async function submitClassReviewCore(
   uid: string,
   input: Data,
   now = new Date(),
-  notify: (managerUid: string, target: ReviewTarget, reviewId: string) => Promise<void> = async () => undefined,
+  notify: (managerUid: string, target: ReviewTarget, publicId: string) => Promise<void> = async () => undefined,
 ): Promise<SubmitResult> {
   const target = await loadReviewTarget(db, uid, input);
   const scores = validateScores(input["scores"], target.parts);
@@ -310,8 +320,10 @@ export async function submitClassReviewCore(
       (prevTicket && str(prevTicket["status"]) !== "open" ? prevTicket : null);
     const ticketOpened = wantsContact && !prevTicket;
 
+    const publicId = str(prev?.["publicId"]) || newReviewPublicId();
     tx.set(reviewRef, {
       uid,
+      publicId,
       origin: target.origin,
       key: target.key,
       date: target.date,
@@ -353,12 +365,12 @@ export async function submitClassReviewCore(
         });
       }
     }
-    return {reviewId, created: !prev, ticketOpened};
+    return {reviewId, publicId, created: !prev, ticketOpened};
   });
 
   if (result.ticketOpened && target.managerUid) {
     try {
-      await notify(target.managerUid, target, reviewId);
+      await notify(target.managerUid, target, result.publicId);
     } catch (err) {
       logger.warn("class-review: aviso do chamado falhou", {reviewId, err});
     }
@@ -385,14 +397,20 @@ export async function loadProfessorReviewStars(db: Firestore, professorUid: stri
 
 // ── callable ─────────────────────────────────────────────────────────────
 
-async function notifyTicket(managerUid: string, target: ReviewTarget, reviewId: string): Promise<void> {
+/** Onde o portal abre as avaliações (`webUrl`); o app do gestor não tem a tela. */
+export function ticketWebUrl(origin: ReviewOrigin): string {
+  return origin === "center" ? "/avaliacoes" : "/painel/aulas/avaliacoes";
+}
+
+async function notifyTicket(managerUid: string, target: ReviewTarget, publicId: string): Promise<void> {
   const where = target.origin === "center" ? "o centro" : "a arena";
   await deliverNotificationToUser({
     userId: managerUid,
     title: "Avaliação com pedido de retorno",
     body: `Um aluno deu nota baixa para ${target.title} (${target.date.split("-").reverse().slice(0, 2).join("/")}) e pediu retorno de ${where}.`,
     type: CLASS_REVIEW_TICKET_PUSH_TYPE,
-    data: {reviewId, origin: target.origin, placeId: target.placeId ?? ""},
+    // Sem o id do doc: ele leva o uid, e a aluna pode ter escondido o nome.
+    data: {reviewId: publicId, origin: target.origin, placeId: target.placeId ?? "", webUrl: ticketWebUrl(target.origin)},
   });
 }
 

@@ -15,6 +15,8 @@ import 'package:nexago_app/features/center_coach/presentation/center_coach_call_
 import 'package:nexago_app/features/center_coach/presentation/center_coach_class_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_today_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_checkin_page.dart';
+import 'package:nexago_app/features/center_coach/presentation/center_coach_student_page.dart';
+import 'package:nexago_app/features/center_coach/presentation/center_coach_students_page.dart';
 import 'package:nexago_app/features/professor_links/application/professor_links_providers.dart';
 
 // Sex 23/10/2026 12:00 em São Paulo.
@@ -235,6 +237,7 @@ Future<GoRouter> _pump(
   String location,
   _Fake fake, {
   String scanned = 'nexago-ct:c1:ABCDEFGH23',
+  List<Uri>? launched,
 }) async {
   tester.view.physicalSize = const Size(420, 2000);
   tester.view.devicePixelRatio = 1.0;
@@ -264,6 +267,20 @@ Future<GoRouter> _pump(
             CenterCoachCheckinPage(centerId: s.pathParameters['centerId']!),
       ),
       GoRoute(
+        path: AppRoutes.centerCoachStudents,
+        name: AppRouteNames.centerCoachStudents,
+        builder: (_, s) =>
+            CenterCoachStudentsPage(centerId: s.pathParameters['centerId']!),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachStudent,
+        name: AppRouteNames.centerCoachStudent,
+        builder: (_, s) => CenterCoachStudentPage(
+          centerId: s.pathParameters['centerId']!,
+          studentId: s.pathParameters['studentId']!,
+        ),
+      ),
+      GoRoute(
         path: AppRoutes.centerCoachToday,
         name: AppRouteNames.centerCoachToday,
         builder: (_, s) =>
@@ -289,6 +306,10 @@ Future<GoRouter> _pump(
         centerCheckinScanLauncherProvider.overrideWithValue(
           (_) async => scanned,
         ),
+        centerContactLauncherProvider.overrideWithValue((uri) async {
+          launched?.add(uri);
+          return true;
+        }),
       ],
       child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
     ),
@@ -768,6 +789,156 @@ void main() {
       final router = await _pump(tester, AppRoutes.centerCoachAgenda, desk());
       await _tap(tester, find.byKey(const Key('center-coach-checkin-entry')));
       expect(router.state.uri.path, '/athlete/professor/centros/c1/checkin');
+    });
+  });
+
+  group('G9/G10 · alunos', () {
+    _Fake school({String role = 'center_owner'}) {
+      final fake = _Fake(
+        memberships: [_member('c1', 'CT Maré Alta', role: role)],
+        students: [
+          CenterCoachStudent.fromMap('s1', {
+            'name': 'Marina Teles',
+            'phone': '(21) 99876-5432',
+            'email': 'marina@x.com',
+            'uid': 'ana',
+          }),
+          const CenterCoachStudent(
+              id: 's2', name: 'Caio Ramos', makeupCredits: 2),
+          CenterCoachStudent.fromMap('s3', {
+            'name': 'Elisa Prado',
+            'isMinor': true,
+            'billingHold': true,
+            'phone': '21 90000-0000',
+            'guardian': {
+              'name': 'Rita Prado',
+              'relation': 'mãe',
+              'phone': '(21) 98888-7777'
+            },
+          }),
+          const CenterCoachStudent(
+              id: 's9', name: 'Ex Aluno', status: 'inactive'),
+        ],
+        sessions: [
+          _session('k1_a', date: '2026-10-20', status: 'done', extra: {
+            'attendance': {'s1': 'present', 's3': 'absent'},
+          }),
+          _session('k1_c', date: '2026-10-22', status: 'done', extra: {
+            'attendance': {'s1': 'excused'},
+          }),
+        ],
+      );
+      fake.enrollments = [
+        CenterCoachEnrollment.fromMap('e1', {
+          'studentId': 's1',
+          'classId': 'k1',
+          'className': 'BT Intermediário B',
+          'status': 'active',
+          'startDate': '2026-09-01',
+          'contract': {
+            'planName': 'Mensal 2x',
+            'planType': 'monthly',
+            'priceCents': 32000
+          },
+        }),
+        CenterCoachEnrollment.fromMap('e0', {
+          'studentId': 's1',
+          'classId': 'k0',
+          'className': 'BT Iniciante',
+          'status': 'completed',
+        }),
+      ];
+      fake.invoices = [
+        const CenterCoachInvoice(
+          id: 'i1',
+          status: 'pending',
+          amountCents: 32000,
+          dueDate: '2026-10-10',
+          studentId: 's1',
+          reference: 'Mensalidade outubro',
+        ),
+      ];
+      return fake;
+    }
+
+    testWidgets('lista, busca sem acento e filtros', (tester) async {
+      await _pump(tester, '/athlete/professor/centros/c1/alunos', school());
+      expect(find.text('3 ATIVOS'), findsOneWidget);
+      expect(find.byKey(const Key('center-students-row-s9')), findsNothing);
+      expect(find.text('ATRASADO'), findsOneWidget, reason: 's1 venceu 10/10');
+      await tester.enterText(
+          find.byKey(const Key('center-students-search')), 'elisa');
+      await _settle(tester);
+      expect(find.byKey(const Key('center-students-row-s3')), findsOneWidget);
+      expect(find.byKey(const Key('center-students-row-s1')), findsNothing);
+      await tester.enterText(
+          find.byKey(const Key('center-students-search')), '');
+      await _tap(
+          tester, find.byKey(const Key('center-students-filter-credits')));
+      expect(find.byKey(const Key('center-students-row-s2')), findsOneWidget);
+      expect(find.byKey(const Key('center-students-row-s1')), findsNothing);
+      await _tap(
+          tester, find.byKey(const Key('center-students-filter-pending')));
+      expect(find.byKey(const Key('center-students-row-s1')), findsOneWidget);
+      expect(find.byKey(const Key('center-students-row-s3')), findsOneWidget);
+      expect(find.byKey(const Key('center-students-row-s2')), findsNothing);
+    });
+
+    testWidgets('perfil: matrícula, cobrança, presença e contato',
+        (tester) async {
+      final launched = <Uri>[];
+      final router = await _pump(
+        tester,
+        '/athlete/professor/centros/c1/alunos',
+        school(),
+        launched: launched,
+      );
+      await _tap(tester, find.byKey(const Key('center-students-row-s1')));
+      expect(router.state.uri.path, '/athlete/professor/centros/c1/alunos/s1');
+      expect(find.byKey(const Key('center-student-enrollment-e1')),
+          findsOneWidget);
+      expect(find.textContaining('320,00/mês'), findsOneWidget);
+      expect(find.text('Mensalidade outubro'), findsOneWidget);
+      expect(find.text('50% · 1 de 2'), findsOneWidget);
+      expect(find.text('BT Iniciante'), findsOneWidget,
+          reason: 'matrícula antiga');
+      await _tap(
+          tester, find.byKey(const Key('center-student-contact-whatsapp')));
+      expect(launched.single.toString(), 'https://wa.me/5521998765432');
+    });
+
+    testWidgets('menor: contato é o do responsável; recepção sem valores',
+        (tester) async {
+      final launched = <Uri>[];
+      await _pump(
+        tester,
+        '/athlete/professor/centros/c1/alunos/s3',
+        school(role: 'receptionist'),
+        launched: launched,
+      );
+      expect(
+          find.textContaining('Responsável: Rita Prado (mãe)'), findsOneWidget);
+      expect(
+          find.byKey(const Key('center-student-contact-email')), findsNothing);
+      await _tap(tester, find.byKey(const Key('center-student-contact-call')));
+      expect(launched.single.toString(), 'tel:21988887777');
+      expect(find.textContaining('Mensalidade em atraso'), findsOneWidget);
+      expect(find.text('COBRANÇAS'), findsNothing);
+    });
+
+    testWidgets('professor vê as turmas dele e chega pela agenda',
+        (tester) async {
+      final fake = school(role: 'coach');
+      final router = await _pump(tester, AppRoutes.centerCoachAgenda, fake);
+      expect(find.text('Meus alunos no centro'), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('center-coach-students-entry')));
+      expect(router.state.uri.path, '/athlete/professor/centros/c1/alunos');
+      expect(find.text('Meus alunos'), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('center-students-row-s2')));
+      expect(
+          find.byKey(const Key('center-student-enrollment-e1')), findsNothing);
+      expect(find.text('2 disponíveis'), findsOneWidget);
+      expect(find.text('COBRANÇAS'), findsNothing);
     });
   });
 }

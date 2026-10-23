@@ -131,6 +131,8 @@ export function readCenter(id: string, d: Data): TrainingCenter {
     notifications: readNotificationSettings(obj(d, 'notifications')),
     receivingConnected: bool(d, 'receivingConnected'),
     receivingStatus: readReceivingStatus(d['receivingStatus'], bool(d, 'receivingConnected')),
+    joinCode: strOrNull(d, 'joinCode'),
+    joinCodeEnabled: bool(d, 'joinCodeEnabled'),
     subscription: sub
       ? {
           plan: str(sub, 'plan', 'NexaGO Centro'),

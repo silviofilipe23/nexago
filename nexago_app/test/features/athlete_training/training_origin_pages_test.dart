@@ -24,6 +24,7 @@ import 'package:nexago_app/features/professor_mode/application/professor_evaluat
 import 'package:nexago_app/features/professor_mode/application/professor_lesson_plans_providers.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_availability.dart';
 
+import 'package:nexago_app/features/athlete_training/infrastructure/class_presence_repository.dart';
 import 'package:nexago_app/features/athlete_training/infrastructure/training_centers_repository.dart';
 import 'package:nexago_app/features/athlete_training/presentation/athlete_training_add_page.dart';
 import 'package:nexago_app/features/athlete_training/presentation/athlete_training_center_invoice_page.dart';
@@ -74,6 +75,17 @@ class _FakeCenters implements TrainingCentersRepository {
       invoiceUrl: 'https://www.asaas.com/i/1',
       pixPayload: '00020126PIXCODE',
     );
+  }
+
+  @override
+  Future<({String centerId, String centerName, bool already})> joinByCode(
+    String code,
+  ) async {
+    calls.add('join $code');
+    if (code != 'XK7-Q2M') {
+      throw const ClassPresenceException('Código não encontrado.');
+    }
+    return (centerId: 'ct1', centerName: 'CT Areia Alta', already: false);
   }
 
   @override
@@ -734,6 +746,31 @@ void main() {
       );
       expect(repo.calls, ['invite inv1 true']);
       expect(router.state.uri.path, '/treinos/centro/ct2');
+    });
+
+    testWidgets('tenho um código: erro e depois entra no centro', (
+      tester,
+    ) async {
+      final repo = _FakeCenters(data: const MyTrainingCentersData());
+      final router = await _pump(
+        tester,
+        location: '/treinos/adicionar',
+        repo: repo,
+      );
+      await _tap(tester, find.byKey(const Key('training-add-code-toggle')));
+      await tester.enterText(
+        find.byKey(const Key('training-add-code-field')),
+        'AAA-BBB',
+      );
+      await _tap(tester, find.byKey(const Key('training-add-code-join')));
+      expect(find.text('Código não encontrado.'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const Key('training-add-code-field')),
+        'XK7-Q2M',
+      );
+      await _tap(tester, find.byKey(const Key('training-add-code-join')));
+      expect(repo.calls, ['join AAA-BBB', 'join XK7-Q2M']);
+      expect(router.state.uri.path, '/treinos/centro/ct1');
     });
 
     testWidgets('e-mail não confirmado: só o aviso', (tester) async {

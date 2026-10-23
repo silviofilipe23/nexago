@@ -94,6 +94,7 @@
             }
           </form>
 
+          <div style="display: flex; flex-direction: column; gap: 16px">
           <section class="ct-card">
             <div class="ct-card-head">
               <div class="ct-grow">
@@ -108,6 +109,9 @@
             <div class="ct-kv"><span>Criado em</span><span>{{ dates().created }}</span></div>
             <div class="ct-kv"><span>Ativado em</span><span>{{ dates().activated }}</span></div>
           </section>
+
+          <ct-join-code-card [center]="c" [canEdit]="editable()" />
+          </div>
         </div>
       }
 

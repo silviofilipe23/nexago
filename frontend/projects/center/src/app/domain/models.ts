@@ -96,6 +96,9 @@ export interface TrainingCenter {
   receivingConnected: boolean;
   /** Situação da conta de recebimento criada pelo centro (o servidor grava). */
   receivingStatus: ReceivingStatus;
+  /** Código de entrada pelo app (`setTrainingCenterJoinCode`; só o servidor grava). */
+  joinCode: string | null;
+  joinCodeEnabled: boolean;
   subscription: CenterSubscription | null;
   activationRequestedAt: Date | null;
   createdAt: Date | null;

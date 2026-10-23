@@ -1,3 +1,4 @@
+import 'center_alerts.dart';
 import 'center_coach.dart';
 
 /// Leituras e escritas do professor no centro (Firestore direto, nas rules do
@@ -63,6 +64,25 @@ abstract class CenterCoachRepository {
 
   /// Cobranças do centro (só com financeiro).
   Stream<List<CenterCoachInvoice>> watchInvoices(String centerId);
+
+  /// Baixa manual (owner/admin): aprova a cobrança pendente com forma de
+  /// pagamento, comprovante e motivo; ativa a matrícula pendente dela.
+  /// Lança [CenterCoachException] se ela já não estiver pendente.
+  Future<void> confirmInvoiceManually({
+    required String centerId,
+    required CenterCoachInvoice invoice,
+    required String method,
+    required String proof,
+    required String reason,
+    required String actorUid,
+    required String actorName,
+  });
+
+  /// Trilha de auditoria do centro, mais recente primeiro (só owner/admin).
+  Stream<List<CenterAuditEntry>> watchAuditLogs(
+    String centerId, {
+    int limit = 100,
+  });
 
   /// Cancela só esta aula (gestão): motivo para os alunos, auditoria e, com
   /// reposição automática, +1 crédito para cada aluno em [creditStudentIds].

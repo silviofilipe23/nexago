@@ -277,6 +277,42 @@ class _AgendaBody extends ConsumerWidget {
               ),
             ),
           ],
+          const SizedBox(height: 8),
+          ProfessorLinksCard(
+            key: const Key('center-coach-students-entry'),
+            onTap: () => context.pushNamed(
+              AppRouteNames.centerCoachStudents,
+              pathParameters: {'centerId': centerId},
+            ),
+            padding: const EdgeInsets.all(13),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.people_alt_outlined,
+                  size: 20,
+                  color: colors.brandText,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    member.seesAllStudents
+                        ? 'Alunos do centro'
+                        : 'Meus alunos no centro',
+                    style: ProfessorLinksStyle.display(
+                      13.5,
+                      weight: FontWeight.w600,
+                      color: colors.onSurface,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: ProfessorLinksStyle.dim(colors),
+                ),
+              ],
+            ),
+          ),
           if (staff || coaches.isNotEmpty && member.isManager) ...[
             const SizedBox(height: 10),
             SingleChildScrollView(

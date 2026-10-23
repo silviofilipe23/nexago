@@ -25,6 +25,11 @@ class CenterCoachTodayPage extends ConsumerWidget {
 
   final String centerId;
 
+  void _openFinance(BuildContext context) => context.pushNamed(
+    AppRouteNames.centerCoachFinance,
+    pathParameters: {'centerId': centerId},
+  );
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.themeColors;
@@ -79,7 +84,19 @@ class CenterCoachTodayPage extends ConsumerWidget {
       title: 'Hoje',
       subtitle:
           '${member?.centerName.toUpperCase() ?? 'CENTRO'} · '
-          '${ofToday.where((s) => !s.isCancelled).length} AULAS · $done REALIZADAS',
+          '${_count(ofToday.where((s) => !s.isCancelled).length, 'AULA', 'AULAS')} · '
+          '${_count(done, 'REALIZADA', 'REALIZADAS')}',
+      trailing: member?.isManager ?? false
+          ? ProfessorLinksRoundButton(
+              key: const Key('center-today-alerts'),
+              icon: Icons.notifications_none_rounded,
+              semanticLabel: 'Alertas do centro',
+              onTap: () => context.pushNamed(
+                AppRouteNames.centerCoachAlerts,
+                pathParameters: {'centerId': centerId},
+              ),
+            )
+          : null,
       onBack: () => popOrGo(context, AppRoutes.centerCoachAgenda),
       body: RefreshIndicator(
         color: AppColors.brand,
@@ -156,6 +173,13 @@ class CenterCoachTodayPage extends ConsumerWidget {
                   open: summary.openCents ?? 0,
                   overdue: summary.overdueCents ?? 0,
                 ),
+                const SizedBox(height: 8),
+                ProfessorLinksGhostButton(
+                  key: const Key('center-today-finance'),
+                  label: 'Ver cobranças',
+                  height: 40,
+                  onPressed: () => _openFinance(context),
+                ),
               ],
               const SizedBox(height: 16),
               Text(
@@ -181,7 +205,9 @@ class CenterCoachTodayPage extends ConsumerWidget {
                           key: Key('center-today-pending-$i'),
                           pending: p,
                           first: i == 0,
-                          onTap: p.sessionId == null
+                          onTap: p.kind == 'overdue'
+                              ? () => _openFinance(context)
+                              : p.sessionId == null
                               ? null
                               : () => openCoachSession(
                                   context,
@@ -232,6 +258,8 @@ class CenterCoachTodayPage extends ConsumerWidget {
     );
   }
 }
+
+String _count(int n, String one, String many) => '$n ${n == 1 ? one : many}';
 
 class _LiveCard extends StatelessWidget {
   const _LiveCard({super.key, required this.session, required this.onOpen});

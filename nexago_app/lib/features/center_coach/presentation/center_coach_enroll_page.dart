@@ -122,6 +122,11 @@ class _CenterCoachEnrollPageState extends ConsumerState<CenterCoachEnrollPage> {
         query: _query,
         onQuery: (q) => setState(() => _query = q),
         onPick: (s) => setState(() => _studentId = s.id),
+        onNew: () => context.pushNamed(
+          AppRouteNames.centerCoachNewStudent,
+          pathParameters: {'centerId': centerId},
+          queryParameters: {'matricular': '1'},
+        ),
       );
     } else {
       body = switch (_step) {
@@ -703,6 +708,7 @@ class _StudentStep extends StatelessWidget {
     required this.query,
     required this.onQuery,
     required this.onPick,
+    required this.onNew,
   });
 
   final List<CenterCoachStudent> students;
@@ -710,6 +716,7 @@ class _StudentStep extends StatelessWidget {
   final String query;
   final ValueChanged<String> onQuery;
   final ValueChanged<CenterCoachStudent> onPick;
+  final VoidCallback onNew;
 
   @override
   Widget build(BuildContext context) {
@@ -746,14 +753,21 @@ class _StudentStep extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 10),
+        ProfessorLinksGhostButton(
+          key: const Key('center-enroll-new-student'),
+          label: '+ Novo aluno',
+          height: 44,
+          onPressed: onNew,
+        ),
         const SizedBox(height: 12),
         if (loading && students.isEmpty)
           const Center(child: CircularProgressIndicator(color: AppColors.brand))
         else if (shown.isEmpty)
           const ProfessorLinksCard(
             child: ProfessorMutedText(
-              'Nenhum aluno encontrado. Cadastre alunos novos pelo painel web '
-              'do centro.',
+              'Nenhum aluno encontrado. Quem ainda não é aluno do centro, '
+              'cadastre em "Novo aluno".',
             ),
           )
         else

@@ -78,6 +78,9 @@ abstract class CenterCoachRepository {
     required String actorName,
   });
 
+  /// Nome dos planos do centro, por id (qualquer membro lê).
+  Stream<Map<String, String>> watchPlanNames(String centerId);
+
   /// Trilha de auditoria do centro, mais recente primeiro (só owner/admin).
   Stream<List<CenterAuditEntry>> watchAuditLogs(
     String centerId, {

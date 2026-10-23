@@ -16,6 +16,7 @@ import 'package:nexago_app/features/center_coach/presentation/center_coach_alert
 import 'package:nexago_app/features/center_coach/presentation/center_coach_call_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_class_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_today_page.dart';
+import 'package:nexago_app/features/center_coach/presentation/center_coach_waitlist_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_checkin_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_finance_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_invoice_page.dart';
@@ -191,6 +192,10 @@ class _Fake implements CenterCoachRepository {
   }
 
   @override
+  Stream<Map<String, String>> watchPlanNames(String centerId) =>
+      Stream.value(const {'p2': 'Mensal 2x', 'p8': 'Pacote 8'});
+
+  @override
   Stream<List<CenterAuditEntry>> watchAuditLogs(
     String centerId, {
     int limit = 100,
@@ -297,6 +302,12 @@ Future<GoRouter> _pump(
         name: AppRouteNames.centerCoachCheckin,
         builder: (_, s) =>
             CenterCoachCheckinPage(centerId: s.pathParameters['centerId']!),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachWaitlist,
+        name: AppRouteNames.centerCoachWaitlist,
+        builder: (_, s) =>
+            CenterCoachWaitlistPage(centerId: s.pathParameters['centerId']!),
       ),
       GoRoute(
         path: AppRoutes.centerCoachFinance,
@@ -1245,6 +1256,72 @@ void main() {
       await _settle(tester);
       await _tap(tester, find.byKey(const Key('center-student-invoice-i1')));
       expect(router.state.uri.path, '/athlete/professor/centros/c1/financeiro/i1');
+    });
+  });
+
+  group('G14 · lista de espera', () {
+    _Fake queue({String role = 'center_owner'}) =>
+        _Fake(
+            memberships: [_member('c1', 'CT Maré Alta', role: role)],
+            students: _students,
+          )
+          ..enrollments = [
+            CenterCoachEnrollment.fromMap('w2', {
+              'studentId': 'x2',
+              'studentName': 'Mateus Viana',
+              'classId': 'k1',
+              'status': 'waitlisted',
+              'planId': 'p8',
+              'waitlistedAt': DateTime.utc(2026, 10, 19, 12),
+            }),
+            CenterCoachEnrollment.fromMap('w1', {
+              'studentId': 'x1',
+              'studentName': 'Lara Pinheiro',
+              'classId': 'k1',
+              'status': 'waitlisted',
+              'planId': 'p2',
+              'waitlistedAt': DateTime.utc(2026, 10, 18, 12),
+            }),
+            CenterCoachEnrollment.fromMap('o1', {
+              'studentId': 'x3',
+              'studentName': 'Sofia Ramos',
+              'classId': 'k1',
+              'status': 'pending',
+              'offeredAt': DateTime.utc(2026, 10, 23, 12),
+              'offeredBy': 'auto',
+              'holdUntil': DateTime.utc(2026, 10, 24, 12),
+            }),
+            CenterCoachEnrollment.fromMap('h1', {
+              'studentId': 'x4',
+              'studentName': 'Ana Lima',
+              'classId': 'k1',
+              'status': 'cancelled',
+              'cancelReason': 'hold_expired',
+              'offeredAt': DateTime.utc(2026, 10, 10, 12),
+            }),
+          ];
+
+    testWidgets('fila em ordem, oferta aguardando e quem passou a vez', (
+      tester,
+    ) async {
+      await _pump(tester, '/athlete/professor/centros/c1/fila', queue());
+      expect(find.text('2 PESSOAS NA FILA'), findsOneWidget);
+      final first = tester.getTopLeft(find.byKey(const Key('center-waitlist-queue-w1'))).dy;
+      final second = tester.getTopLeft(find.byKey(const Key('center-waitlist-queue-w2'))).dy;
+      expect(first, lessThan(second));
+      expect(find.text('Desde 18/10 · quer Mensal 2x'), findsOneWidget);
+      expect(find.text('Oferecida há 3h · paga até 24/10 09:00'), findsOneWidget);
+      expect(find.text('Não pagou no prazo · passou a vez · 10/10'), findsOneWidget);
+      expect(find.text('3 VAGAS'), findsOneWidget);
+    });
+
+    testWidgets('pendência do Hoje abre a fila; professor não vê', (tester) async {
+      final fake = queue();
+      final router = await _pump(tester, '/athlete/professor/centros/c1/hoje', fake);
+      await _tap(tester, find.text('2 na lista de espera'));
+      expect(router.state.uri.path, '/athlete/professor/centros/c1/fila');
+      await _pump(tester, '/athlete/professor/centros/c1/fila', queue(role: 'coach'));
+      expect(find.byKey(const Key('center-waitlist-denied')), findsOneWidget);
     });
   });
 }

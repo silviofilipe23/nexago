@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/ui/agenda/nexa_agenda.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme_colors.dart';
@@ -150,32 +151,8 @@ class ProfessorArenaLegend extends ConsumerWidget {
   }
 }
 
-/// Listras diagonais do bloqueio (Semana e Mês).
-class ProfessorHatchPainter extends CustomPainter {
-  const ProfessorHatchPainter({this.color = kProfessorBlockColor});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color.withValues(alpha: 0.22)
-      ..strokeWidth = 3;
-    canvas.save();
-    canvas.clipRect(Offset.zero & size);
-    for (var x = -size.height; x < size.width; x += 8) {
-      canvas.drawLine(
-        Offset(x, size.height),
-        Offset(x + size.height, 0),
-        paint,
-      );
-    }
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(ProfessorHatchPainter old) => old.color != color;
-}
+/// Listras diagonais do bloqueio (Semana e Mês) — a do componente da agenda.
+typedef ProfessorHatchPainter = NexaHatchPainter;
 
 /// "Qui 22 · 07:00–08:00".
 String professorAgendaWhen(ProfessorAgendaItem i, String todayKey) =>

@@ -128,6 +128,18 @@ class CenterCoachTodayPage extends ConsumerWidget {
                   pathParameters: {'centerId': centerId},
                 ),
               ),
+              if (member.has('enroll_students')) ...[
+                const SizedBox(height: 8),
+                ProfessorLinksGhostButton(
+                  key: const Key('center-today-enroll'),
+                  label: 'Matricular aluno',
+                  height: 44,
+                  onPressed: () => context.pushNamed(
+                    AppRouteNames.centerCoachEnroll,
+                    pathParameters: {'centerId': centerId},
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               if (live != null) ...[
                 _LiveCard(

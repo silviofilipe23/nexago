@@ -591,6 +591,8 @@ class _Padded extends StatelessWidget {
   );
 }
 
+bool _isSpacer(Widget w) => w is SizedBox && w.child == null && w.width == null;
+
 /// Passos com a barra Turma · Plano · Confirmar e o botão fixo no pé.
 class _StepList extends StatelessWidget {
   const _StepList({
@@ -613,7 +615,13 @@ class _StepList extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
             children: [
               CenterEnrollSteps(at: step),
-              for (final c in children) ...[const SizedBox(height: 12), c],
+              for (var i = 0; i < children.length; i++) ...[
+                // Espaçador explícito (`SizedBox` só com altura) vale sozinho.
+                if (!_isSpacer(children[i]) &&
+                    (i == 0 || !_isSpacer(children[i - 1])))
+                  const SizedBox(height: 12),
+                children[i],
+              ],
             ],
           ),
         ),

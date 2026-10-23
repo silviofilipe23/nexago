@@ -62,7 +62,8 @@ class _CenterCoachTeamPageState extends ConsumerState<CenterCoachTeamPage> {
         if (_matches(m.role)) m,
     ]..sort((a, b) {
       if (a.isActive != b.isActive) return a.isActive ? -1 : 1;
-      return a.displayName.compareTo(b.displayName);
+      final r = _roleRank(a.role).compareTo(_roleRank(b.role));
+      return r != 0 ? r : a.displayName.compareTo(b.displayName);
     });
     final active = team.where((m) => m.isActive).length;
     final manager = me?.isManager ?? false;
@@ -253,6 +254,14 @@ class _CenterCoachTeamPageState extends ConsumerState<CenterCoachTeamPage> {
     }
   }
 }
+
+/// Owner, admin, recepção, professor.
+int _roleRank(String role) => switch (role) {
+  'center_owner' => 0,
+  'center_admin' => 1,
+  'receptionist' => 2,
+  _ => 3,
+};
 
 class _TeamRow extends StatelessWidget {
   const _TeamRow({

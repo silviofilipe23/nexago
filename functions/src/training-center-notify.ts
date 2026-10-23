@@ -60,6 +60,8 @@ export const CENTER_ATTENDANCE_PENDING_TYPE = "training_center_attendance_pendin
 export const CENTER_PAYMENT_CONFIRMED_TYPE = "training_center_payment_confirmed";
 export const CENTER_STAFF_ALERT_TYPE = "training_center_staff_alert";
 export const CENTER_TEST_NOTICE_TYPE = "training_center_test";
+/** Aluno avisou pelo app que não vai (`respondTrainingCenterSession`) → professor da aula. */
+export const CENTER_STUDENT_ABSENCE_TYPE = "training_center_student_absence";
 
 /** Depois do fim da aula, quanto esperar para cobrar a chamada do professor. */
 const ATTENDANCE_GRACE_MIN = 30;
@@ -293,6 +295,7 @@ export const SAMPLE_NOTICES: Record<NotificationEventKey, {title: string; body: 
   session_cancelled: {title: "Aula cancelada · BT Intermediário B", body: "Qui 23 out 19:00 · chuva forte. Você ganhou 1 reposição."},
   session_changed: {title: "Local alterado · BT Intermediário B", body: "Qui 23 out 19:00 · novo local: Arena Pepê."},
   attendance_pending: {title: "Chamada não finalizada", body: "BT Intermediário B · Qui 23 out 19:00. Registre a presença."},
+  student_absence: {title: "Caio Ramos não vai à aula", body: "BT Intermediário B · Qui 23 out 19:00 · avisou no prazo, vira reposição."},
   seat_offered: {title: "Abriu uma vaga para você", body: "BT Intermediário B · você tem 24h para confirmar."},
   enrollment_confirmed: {title: "Matrícula confirmada", body: "BT Intermediário B · bons treinos!"},
   makeup_expiring: {title: "Reposição vencendo", body: "Sua reposição vence em 3 dias."},

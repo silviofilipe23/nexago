@@ -90,6 +90,25 @@ final coachClassesProvider = StreamProvider.autoDispose
           ref.watch(centerCoachRepositoryProvider).watchClasses(centerId),
     );
 
+final coachEnrollmentsProvider = StreamProvider.autoDispose
+    .family<List<CenterCoachEnrollment>, String>((ref, centerId) {
+      final m = ref.watch(centerMembershipProvider(centerId));
+      if (m == null || !(m.isManager || m.has('enroll_students'))) {
+        return Stream.value(const []);
+      }
+      return ref
+          .watch(centerCoachRepositoryProvider)
+          .watchEnrollments(centerId);
+    });
+
+/// Cobranças do centro — `null` sem permissão de financeiro.
+final coachInvoicesProvider = StreamProvider.autoDispose
+    .family<List<CenterCoachInvoice>?, String>((ref, centerId) {
+      final m = ref.watch(centerMembershipProvider(centerId));
+      if (m == null || !m.has('view_finance')) return Stream.value(null);
+      return ref.watch(centerCoachRepositoryProvider).watchInvoices(centerId);
+    });
+
 /// Alunos que o professor vê no centro, por id.
 final coachStudentsProvider = StreamProvider.autoDispose
     .family<Map<String, CenterCoachStudent>, String>((ref, centerId) {

@@ -537,6 +537,20 @@ AthleteNotificationPresentation _basePresentation(
       );
     // Aula, matrícula, vaga e pagamento confirmado do centro: abrem a aula ou
     // o centro (Treinos).
+    case centerAttendancePendingNotificationType:
+    case centerStudentAbsenceNotificationType:
+      return AthleteNotificationPresentation(
+        icon: Icons.fact_check_outlined,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.12),
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Abrir chamada',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: resolveNotificationRoute({...data, 'type': type}),
+      );
     case centerPaymentConfirmedNotificationType:
     case centerClassReminderNotificationType:
     case centerSessionNoticeNotificationType:

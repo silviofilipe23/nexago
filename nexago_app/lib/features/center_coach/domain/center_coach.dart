@@ -107,6 +107,7 @@ class CenterCoachPolicies {
     this.excusedAbsenceMakeup = true,
     this.excusedNoticeHours = 4,
     this.makeupValidityDays = 30,
+    this.cancelledClassMakeupAuto = true,
   });
 
   factory CenterCoachPolicies.fromMap(Map<String, Object?> m) =>
@@ -115,12 +116,16 @@ class CenterCoachPolicies {
         excusedAbsenceMakeup: m['excusedAbsenceMakeup'] != false,
         excusedNoticeHours: _int(m['excusedNoticeHours']) ?? 4,
         makeupValidityDays: _int(m['makeupValidityDays']) ?? 30,
+        cancelledClassMakeupAuto: m['cancelledClassMakeup'] != 'manual',
       );
 
   final bool unexcusedAbsenceConsumes;
   final bool excusedAbsenceMakeup;
   final int excusedNoticeHours;
   final int makeupValidityDays;
+
+  /// Aula cancelada pelo centro gera reposição automática (`auto`).
+  final bool cancelledClassMakeupAuto;
 }
 
 class CenterCoachCenter {
@@ -393,6 +398,7 @@ class CenterCoachStudent {
     this.isMinor = false,
     this.billingHold = false,
     this.makeupCredits = 0,
+    this.status = 'active',
   });
 
   factory CenterCoachStudent.fromMap(String id, Map<String, Object?> m) =>
@@ -402,6 +408,7 @@ class CenterCoachStudent {
         isMinor: m['isMinor'] == true,
         billingHold: m['billingHold'] == true,
         makeupCredits: _int(m['makeupCredits']) ?? 0,
+        status: _str(m['status'], 'active'),
       );
 
   final String id;
@@ -409,6 +416,9 @@ class CenterCoachStudent {
   final bool isMinor;
   final bool billingHold;
   final int makeupCredits;
+
+  /// `active`, `invited`, `inactive` ou `blocked`.
+  final String status;
 }
 
 /// Aluno que dá para encaixar com crédito de reposição
@@ -423,6 +433,60 @@ class MakeupCandidate {
   final String id;
   final String name;
   final int makeupCredits;
+}
+
+/// Matrícula (`enrollments/{id}`) — só o que a gestão do dia precisa.
+class CenterCoachEnrollment {
+  const CenterCoachEnrollment({
+    required this.id,
+    required this.studentId,
+    required this.classId,
+    required this.status,
+  });
+
+  factory CenterCoachEnrollment.fromMap(String id, Map<String, Object?> m) =>
+      CenterCoachEnrollment(
+        id: id,
+        studentId: _str(m['studentId']),
+        classId: _str(m['classId']),
+        status: _str(m['status']),
+      );
+
+  final String id;
+  final String studentId;
+  final String classId;
+
+  /// `pending`, `active`, `paused`, `cancelled`, `completed` ou `waitlisted`.
+  final String status;
+
+  /// Ocupa vaga e está treinando (pausada não recebe reposição de cancelamento).
+  bool get attends => status == 'active' || status == 'pending';
+}
+
+/// Cobrança do centro (`invoices/{id}`) — só para quem vê o financeiro.
+class CenterCoachInvoice {
+  const CenterCoachInvoice({
+    required this.id,
+    required this.status,
+    required this.amountCents,
+    required this.dueDate,
+    this.approvedAt,
+  });
+
+  factory CenterCoachInvoice.fromMap(String id, Map<String, Object?> m) =>
+      CenterCoachInvoice(
+        id: id,
+        status: _str(m['status'], 'pending'),
+        amountCents: _int(m['amountCents']) ?? 0,
+        dueDate: _str(m['dueDate']),
+        approvedAt: _date(m['approvedAt']),
+      );
+
+  final String id;
+  final String status;
+  final int amountCents;
+  final String dueDate;
+  final DateTime? approvedAt;
 }
 
 // ── regras ───────────────────────────────────────────────────────────────
@@ -635,6 +699,176 @@ int? classPresencePercent(Iterable<CenterCoachSession> sessions) {
     }
   }
   return marked == 0 ? null : (present * 100 / marked).round();
+}
+
+/// Quem perde a aula cancelada (e ganha reposição, se a regra for
+/// automática): matriculados da turma que estão treinando + encaixados.
+/// Mesma regra do portal (`classes.actions.ts › cancelSession`).
+List<String> cancelAffectedStudents(
+  CenterCoachSession s,
+  List<CenterCoachEnrollment> enrollments,
+) => {
+  for (final e in enrollments)
+    if (e.classId == s.classId && e.attends) e.studentId,
+  ...s.makeupStudentIds,
+}.toList();
+
+/// Motivos rápidos do cancelamento (aparecem para os alunos).
+const List<String> kCancelReasons = [
+  'Chuva',
+  'Professor indisponível',
+  'Quadra em manutenção',
+  'Evento no centro',
+];
+
+/// Uma pendência do dia (G1/G3).
+class CenterTodayPending {
+  const CenterTodayPending(
+    this.kind,
+    this.title,
+    this.subtitle, {
+    this.sessionId,
+  });
+
+  /// `attendance`, `waitlist`, `overdue`, `cancelled`.
+  final String kind;
+  final String title;
+  final String subtitle;
+  final String? sessionId;
+}
+
+/// Números e pendências do dia do centro (G1).
+class CenterTodaySummary {
+  const CenterTodaySummary({
+    required this.activeStudents,
+    required this.occupancyPercent,
+    required this.presencePercent,
+    required this.pending,
+    this.receivedMonthCents,
+    this.overdueCents,
+    this.openCents,
+  });
+
+  final int activeStudents;
+  final int? occupancyPercent;
+  final int? presencePercent;
+  final List<CenterTodayPending> pending;
+
+  /// Só com financeiro (`view_finance`).
+  final int? receivedMonthCents;
+  final int? overdueCents;
+  final int? openCents;
+}
+
+CenterTodaySummary centerTodaySummary({
+  required String todayKey,
+  required String nowHm,
+  required List<CenterCoachSession> sessions,
+  required List<CenterCoachClass> classes,
+  required List<CenterCoachEnrollment> enrollments,
+  required int activeStudents,
+  List<CenterCoachInvoice>? invoices,
+}) {
+  final pending = <CenterTodayPending>[];
+  // Chamada não fechada de aula que já acabou (hoje ou nos últimos dias).
+  for (final s in sessions) {
+    if (s.isCancelled || s.isDone) continue;
+    final ended =
+        s.date.compareTo(todayKey) < 0 ||
+        (s.date == todayKey &&
+            s.endTime.isNotEmpty &&
+            s.endTime.compareTo(nowHm) <= 0);
+    if (!ended) continue;
+    pending.add(
+      CenterTodayPending(
+        'attendance',
+        'Chamada não finalizada',
+        '${s.className} · ${s.date == todayKey ? 'hoje' : _dm(s.date)} ${s.startTime}'
+            '${s.coachName.isEmpty ? '' : ' · ${s.coachName}'}',
+        sessionId: s.id,
+      ),
+    );
+  }
+  final waitlisted = enrollments.where((e) => e.status == 'waitlisted').length;
+  if (waitlisted > 0) {
+    pending.add(
+      CenterTodayPending(
+        'waitlist',
+        waitlisted == 1
+            ? '1 na lista de espera'
+            : '$waitlisted na lista de espera',
+        'Ofereça a vaga quando abrir',
+      ),
+    );
+  }
+  int? overdueCents, openCents, received;
+  if (invoices != null) {
+    var overdue = 0, overdueN = 0, open = 0, got = 0;
+    final month = todayKey.substring(0, 7);
+    for (final i in invoices) {
+      if (i.status == 'pending') {
+        open += i.amountCents;
+        if (i.dueDate.isNotEmpty && i.dueDate.compareTo(todayKey) < 0) {
+          overdue += i.amountCents;
+          overdueN++;
+        }
+      } else if (i.status == 'approved' &&
+          i.approvedAt != null &&
+          _dateKeyOf(i.approvedAt!).startsWith(month)) {
+        got += i.amountCents;
+      }
+    }
+    overdueCents = overdue;
+    openCents = open;
+    received = got;
+    if (overdueN > 0) {
+      pending.add(
+        CenterTodayPending(
+          'overdue',
+          overdueN == 1 ? '1 cobrança vencida' : '$overdueN cobranças vencidas',
+          'Em aberto há mais tempo · confira no Financeiro',
+        ),
+      );
+    }
+  }
+  for (final s in sessions) {
+    if (s.date == todayKey && s.isCancelled) {
+      pending.add(
+        CenterTodayPending(
+          'cancelled',
+          'Aula cancelada · ${s.startTime}',
+          '${s.className}${s.changeReason.isEmpty ? '' : ' · ${s.changeReason}'}',
+          sessionId: s.id,
+        ),
+      );
+    }
+  }
+  final active = classes.where((c) => c.status == 'active' && c.capacity > 0);
+  final cap = active.fold<int>(0, (a, c) => a + c.capacity);
+  final taken = active.fold<int>(0, (a, c) => a + c.seatsTaken);
+  return CenterTodaySummary(
+    activeStudents: activeStudents,
+    occupancyPercent: cap == 0 ? null : (taken * 100 / cap).round(),
+    presencePercent: classPresencePercent([
+      for (final s in sessions)
+        if (s.date.compareTo(todayKey) <= 0) s,
+    ]),
+    pending: pending,
+    receivedMonthCents: received,
+    overdueCents: overdueCents,
+    openCents: openCents,
+  );
+}
+
+String _dm(String dateKey) {
+  final d = dateKey.split('-');
+  return d.length == 3 ? '${d[2]}/${d[1]}' : dateKey;
+}
+
+String _dateKeyOf(DateTime at) {
+  // Parede de São Paulo (UTC−3, sem horário de verão).
+  final l = at.toUtc().subtract(const Duration(hours: 3));
+  return _dateKey(DateTime.utc(l.year, l.month, l.day));
 }
 
 // ── auxiliares ───────────────────────────────────────────────────────────

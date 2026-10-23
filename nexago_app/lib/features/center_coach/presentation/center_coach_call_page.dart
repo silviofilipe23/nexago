@@ -20,6 +20,7 @@ import '../application/center_coach_providers.dart';
 import '../domain/center_coach.dart';
 import '../domain/center_coach_repository.dart';
 import '../infrastructure/firebase_center_coach_repository.dart';
+import '../../professor_mode/presentation/availability/availability_widgets.dart';
 import 'widgets/center_coach_widgets.dart';
 
 /// Espera depois do último toque antes de salvar a chamada.
@@ -247,6 +248,56 @@ class _CenterCoachCallPageState extends ConsumerState<CenterCoachCallPage> {
     );
   }
 
+  /// G6 · Cancelar esta aula (gestão).
+  Future<void> _cancel(
+    CenterCoachSession session,
+    CenterCoachCenter? center,
+  ) async {
+    final enrollments =
+        ref.read(coachEnrollmentsProvider(widget.centerId)).valueOrNull ??
+        const [];
+    final affected = cancelAffectedStudents(session, enrollments);
+    final auto = center?.policies.cancelledClassMakeupAuto ?? true;
+    final reason = await showProfessorLinksSheet<String>(
+      context,
+      builder: (_) => _CancelSheet(
+        session: session,
+        affected: affected.length,
+        autoMakeup: auto,
+        makeupDays: center?.policies.makeupValidityDays ?? 30,
+      ),
+    );
+    if (reason == null || !mounted) return;
+    final member = ref.read(centerMembershipProvider(widget.centerId));
+    try {
+      await ref
+          .read(centerCoachRepositoryProvider)
+          .cancelSession(
+            centerId: widget.centerId,
+            session: session,
+            reason: reason,
+            creditStudentIds: auto ? affected : const [],
+            actorUid: ref.read(professorLinksUidProvider),
+            actorName: _actorName(member),
+          );
+      if (mounted) {
+        _toast(
+          affected.isEmpty
+              ? 'Aula cancelada.'
+              : 'Aula cancelada. ${affected.length} '
+                    '${affected.length == 1 ? 'aluno avisado' : 'alunos avisados'}.',
+        );
+      }
+    } on CenterCoachException catch (e) {
+      if (!mounted) return;
+      if (e.revoked) {
+        setState(() => _revoked = true);
+      } else {
+        _toast(e.message);
+      }
+    }
+  }
+
   Future<void> _correct(CenterCoachSession session, RollCallRow row) async {
     final member = ref.read(centerMembershipProvider(widget.centerId));
     final result = await showProfessorLinksSheet<(CenterMark, String)>(
@@ -308,9 +359,27 @@ class _CenterCoachCallPageState extends ConsumerState<CenterCoachCallPage> {
             if (session.courtName.isNotEmpty) session.courtName,
           ].join(' · ').toUpperCase();
 
+    final canCancel =
+        !revoked &&
+        session != null &&
+        session.status == 'scheduled' &&
+        // Como no portal: aula passada não se cancela (fecha a chamada).
+        session.date.compareTo(today) >= 0 &&
+        (member?.isManager ?? false) &&
+        !(center?.isSuspended ?? false);
+    if (member?.isManager ?? false)
+      ref.watch(coachEnrollmentsProvider(widget.centerId));
     return ProfessorLinksScaffold(
       title: session?.isDone ?? false ? 'Chamada · finalizada' : 'Chamada',
       subtitle: subtitle,
+      trailing: canCancel
+          ? ProfessorLinksRoundButton(
+              key: const Key('center-coach-cancel'),
+              icon: Icons.event_busy_outlined,
+              semanticLabel: 'Cancelar aula',
+              onTap: () => _cancel(session, center),
+            )
+          : null,
       onBack: () async {
         if (_debounce?.isActive ?? false) await _flush();
         if (context.mounted) popOrGo(context, AppRoutes.centerCoachAgenda);
@@ -1421,6 +1490,169 @@ class _MakeupSheetState extends ConsumerState<_MakeupSheet> {
           onPressed: _picked == null
               ? null
               : () => Navigator.of(context).pop(_picked),
+        ),
+      ],
+    );
+  }
+}
+
+/// G6 · Cancelar aula: motivo (aparece para os alunos) e o que acontece.
+class _CancelSheet extends StatefulWidget {
+  const _CancelSheet({
+    required this.session,
+    required this.affected,
+    required this.autoMakeup,
+    required this.makeupDays,
+  });
+
+  final CenterCoachSession session;
+  final int affected;
+  final bool autoMakeup;
+  final int makeupDays;
+
+  @override
+  State<_CancelSheet> createState() => _CancelSheetState();
+}
+
+class _CancelSheetState extends State<_CancelSheet> {
+  String _reason = kCancelReasons.first;
+  final _other = TextEditingController();
+  bool _useOther = false;
+
+  @override
+  void dispose() {
+    _other.dispose();
+    super.dispose();
+  }
+
+  String get _final => _useOther ? _other.text.trim() : _reason;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final s = widget.session;
+    final n = widget.affected;
+    return ProfessorLinksSheetBody(
+      key: const Key('center-coach-cancel-sheet'),
+      title: 'Cancelar aula',
+      subtitle:
+          '${trainingWeekdayDay(s.date)} · ${s.startTime} · '
+          '$n ${n == 1 ? 'aluno' : 'alunos'}',
+      children: [
+        Text(
+          'MOTIVO · APARECE PARA OS ALUNOS',
+          style: ProfessorLinksStyle.mono(
+            9.5,
+            color: ProfessorLinksStyle.dim(colors),
+          ),
+        ),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final r in kCancelReasons)
+              AvailabilityChoiceChip(
+                key: Key('center-coach-cancel-reason-$r'),
+                label: r,
+                selected: !_useOther && _reason == r,
+                onTap: () => setState(() {
+                  _reason = r;
+                  _useOther = false;
+                }),
+              ),
+            AvailabilityChoiceChip(
+              key: const Key('center-coach-cancel-reason-other'),
+              label: 'Outro',
+              selected: _useOther,
+              onTap: () => setState(() => _useOther = true),
+            ),
+          ],
+        ),
+        if (_useOther)
+          TextField(
+            key: const Key('center-coach-cancel-other'),
+            controller: _other,
+            maxLength: 120,
+            onChanged: (_) => setState(() {}),
+            textCapitalization: TextCapitalization.sentences,
+            style: AppTypography.bodyS.copyWith(color: colors.onSurface),
+            decoration: InputDecoration(
+              hintText: 'Escreva o motivo',
+              counterText: '',
+              filled: true,
+              fillColor: ProfessorLinksStyle.soft(colors),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(13),
+                borderSide: BorderSide(
+                  color: ProfessorLinksStyle.line2(colors),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(13),
+                borderSide: BorderSide(
+                  color: ProfessorLinksStyle.line2(colors),
+                ),
+              ),
+            ),
+          ),
+        ProfessorLinksCard(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          child: Column(
+            children: [
+              for (final (k, v) in [
+                ('Créditos', 'nenhum consumido'),
+                (
+                  'Reposições',
+                  widget.autoMakeup
+                      ? '+$n · validade ${widget.makeupDays} dias'
+                      : 'o centro concede manualmente',
+                ),
+                ('Outras datas', 'não mudam'),
+                ('Aviso', 'push aos alunos agora'),
+              ])
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          k,
+                          style: AppTypography.bodyS.copyWith(
+                            fontSize: 12,
+                            color: ProfessorLinksStyle.dim(colors),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        v,
+                        style: ProfessorLinksStyle.display(
+                          12.5,
+                          weight: FontWeight.w600,
+                          color: colors.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        Text(
+          'Para cancelar esta e as próximas, edite a turma no portal do centro.',
+          style: AppTypography.bodyS.copyWith(
+            fontSize: 11.5,
+            color: ProfessorLinksStyle.dim(colors),
+          ),
+        ),
+        ProfessorLinksGhostButton(
+          key: const Key('center-coach-cancel-confirm'),
+          color: AppColors.live,
+          label: n == 0
+              ? 'Cancelar aula'
+              : 'Cancelar e avisar $n ${n == 1 ? 'aluno' : 'alunos'}',
+          onPressed: _final.length < 3
+              ? null
+              : () => Navigator.of(context).pop(_final),
         ),
       ],
     );

@@ -12,6 +12,7 @@ import {
 } from "./training-center-athlete-actions";
 import {loadMyCenterInvites} from "./training-center-athlete";
 import type {CenterBillingDeps} from "./training-center-billing";
+import type {NotifyDeps, PushInput} from "./training-center-notify";
 
 const C = "trainingCenters/c1";
 // Qui 22/10/2026 12:00 em São Paulo.
@@ -49,6 +50,26 @@ describe("Vou / Não vou na aula do centro", () => {
     assert.equal((s["attendance"] as Record<string, string>)["s1"], "excused");
     assert.equal((s["attendance"] as Record<string, string>)["s2"], "present", "não pisa no colega");
     assert.equal(((s["rsvps"] as Record<string, Record<string, unknown>>)["s1"])!["response"], "not_going");
+  });
+
+  it("avisa o professor da aula uma vez (de dia, sem silêncio); \"vou\" não avisa", async () => {
+    const fake = seed();
+    fake.seedDoc(`${C}/sessions/k1_2026-10-23`, {classId: "k1", className: "Performance", date: "2026-10-23", startTime: "07:00",
+      status: "scheduled", coachUid: "paula"});
+    const pushed: PushInput[] = [];
+    const deps: NotifyDeps = {now: () => NOW, notify: async (p) => { pushed.push(p); }};
+    const args = {centerId: "c1", sessionId: "k1_2026-10-23", response: "not_going"};
+    await respondCenterSessionCore(db(fake), "ana", args, NOW, deps);
+    assert.equal(pushed.length, 1);
+    assert.equal(pushed[0]!.userId, "paula");
+    assert.equal(pushed[0]!.type, "training_center_student_absence");
+    assert.equal(pushed[0]!.title, "Ana não vai à aula");
+    assert.match(pushed[0]!.body, /Performance · 23\/10 07:00 · avisou no prazo/);
+    assert.deepEqual(pushed[0]!.data, {centerId: "c1", sessionId: "k1_2026-10-23"});
+    await respondCenterSessionCore(db(fake), "ana", args, NOW, deps);
+    assert.equal(pushed.length, 1, "repetir o não vou não repete o aviso");
+    await respondCenterSessionCore(db(fake), "ana", {...args, response: "going"}, NOW, deps);
+    assert.equal(pushed.length, 1);
   });
 
   it("em cima da hora só registra o aviso", async () => {

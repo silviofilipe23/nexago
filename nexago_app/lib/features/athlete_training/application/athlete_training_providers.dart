@@ -44,6 +44,13 @@ final athleteTrainingCentersProvider =
           (await ref.watch(athleteTrainingCentersDataProvider.future)).centers,
     );
 
+/// Experimentais pedidas em CTs (aparecem na agenda de Treinos).
+final athleteCenterTrialsProvider =
+    FutureProvider.autoDispose<List<CenterTrial>>(
+      (ref) async =>
+          (await ref.watch(athleteTrainingCentersDataProvider.future)).trials,
+    );
+
 /// Recarrega centros e convites (depois de responder, aceitar ou pagar).
 void refreshAthleteTrainingCenters(WidgetRef ref) =>
     ref.invalidate(athleteTrainingCentersDataProvider);
@@ -94,6 +101,7 @@ final athleteTrainingsProvider =
     classes: classes.value ?? const [],
     privateLessons: privates.valueOrNull ?? const [],
     centers: centers.value ?? const [],
+    centerTrials: ref.watch(athleteCenterTrialsProvider).valueOrNull ?? const [],
     now: ref.watch(professorLinksClockProvider)(),
   );
 });
@@ -143,6 +151,7 @@ final athleteTrainingsWithHistoryProvider =
     classes: [...?history.valueOrNull, ...?classes.value],
     privateLessons: privates.valueOrNull ?? const [],
     centers: centers.value ?? const [],
+    centerTrials: ref.watch(athleteCenterTrialsProvider).valueOrNull ?? const [],
     now: ref.watch(professorLinksClockProvider)(),
   );
 });

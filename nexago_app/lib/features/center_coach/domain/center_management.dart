@@ -867,3 +867,118 @@ List<String> _strings(Object? v) => v is List
           if (x is String && x.isNotEmpty) x,
       ]
     : const [];
+
+// ── Novo aluno (W10 do portal) ───────────────────────────────────────────
+
+/// Responsável legal do aluno menor (pagador e contato principal).
+typedef CenterGuardianInput = ({
+  String name,
+  String relation,
+  String email,
+  String phone,
+});
+
+/// Cadastro de aluno: conta NexaGO existente ([uid]) ou convite por e-mail.
+/// Mesmo formato do `StudentInput` do portal (`students.actions.ts`).
+class CenterNewStudentInput {
+  const CenterNewStudentInput({
+    this.uid,
+    required this.name,
+    this.email = '',
+    this.phone = '',
+    this.isMinor = false,
+    this.birthDate,
+    this.guardian,
+  });
+
+  /// Conta vinculada (nasce `active`); `null` = convidado por e-mail.
+  final String? uid;
+  final String name;
+  final String email;
+  final String phone;
+  final bool isMinor;
+
+  /// `YYYY-MM-DD` (só menor).
+  final String? birthDate;
+  final CenterGuardianInput? guardian;
+
+  bool get linked => uid != null && uid!.isNotEmpty;
+}
+
+final _dayKeyRe = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+
+/// Problemas do formulário de novo aluno, na ordem em que aparecem na tela
+/// (vazio = ok). Espelha `problems` do `add-student-modal` do portal.
+List<String> centerNewStudentProblems({
+  required CenterNewStudentInput input,
+  required Iterable<CenterCoachStudent> existing,
+}) {
+  final p = <String>[];
+  final email = input.email.trim().toLowerCase();
+  if (input.linked) {
+    if (existing.any((s) => s.uid == input.uid)) {
+      p.add('Essa conta já é aluno deste centro.');
+    }
+  } else {
+    if (input.name.trim().length < 3) p.add('Informe o nome completo.');
+    if (!_emailRe.hasMatch(email)) p.add('Informe um e-mail válido.');
+  }
+  if (email.isNotEmpty && !_emailRe.hasMatch(email)) p.add('E-mail inválido.');
+  if (email.isNotEmpty && existing.any((s) => s.email.toLowerCase() == email)) {
+    p.add('Já existe aluno com esse e-mail neste centro.');
+  }
+  if (input.isMinor) {
+    final g = input.guardian;
+    if (!_dayKeyRe.hasMatch(input.birthDate ?? '')) {
+      p.add('Informe a data de nascimento.');
+    }
+    if (g == null || g.name.trim().length < 3) {
+      p.add('Informe o nome do responsável.');
+    }
+    if (g == null || g.relation.trim().isEmpty) p.add('Informe o parentesco.');
+    if (g == null || !_emailRe.hasMatch(g.email.trim().toLowerCase())) {
+      p.add('Informe o e-mail do responsável.');
+    }
+    if (g == null || g.phone.replaceAll(RegExp(r'\D'), '').length < 10) {
+      p.add('Informe o telefone do responsável.');
+    }
+  }
+  return p.toSet().toList();
+}
+
+/// Doc de `students/{id}` do cadastro — o mesmo que o portal grava. Conta
+/// vinculada nasce ativa; só e-mail, convidada (vira ativa no aceite pelo
+/// app). Consentimento LGPD nasce pendente.
+Map<String, Object?> centerNewStudentDoc(CenterNewStudentInput input) {
+  final g = input.isMinor ? input.guardian : null;
+  return {
+    'uid': input.linked ? input.uid : null,
+    'name': input.name.trim(),
+    'email': input.email.trim().toLowerCase(),
+    'phone': input.phone.trim(),
+    'isMinor': input.isMinor,
+    'birthDate': input.isMinor ? input.birthDate : null,
+    'guardian': g == null
+        ? null
+        : {
+            'name': g.name.trim(),
+            'relation': g.relation.trim(),
+            'email': g.email.trim().toLowerCase(),
+            'phone': g.phone.trim(),
+          },
+    'imageUseAllowed': false,
+    'notifyClasses': true,
+    'emergencyName': '',
+    'emergencyPhone': '',
+    'medicalNotes': '',
+    'status': input.linked ? 'active' : 'invited',
+    'lgpdConsentAt': null,
+    'makeupCredits': 0,
+  };
+}
+
+/// Linha da auditoria (`student.added`), mesmo texto do portal.
+String centerNewStudentAuditDetail(CenterNewStudentInput input) =>
+    '${input.name.trim()} '
+    '${input.linked ? 'vinculado ao centro' : 'convidado por e-mail'}'
+    '${input.isMinor ? ' · menor' : ''}';

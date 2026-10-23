@@ -37,6 +37,16 @@ abstract class CenterManagementRepository {
 
   Stream<List<CenterProgram>> watchPrograms(String centerId);
 
+  // Novo aluno (W10 do portal)
+
+  /// Cadastra o aluno (conta vinculada ou convite por e-mail) com a linha
+  /// `student.added` da auditoria; devolve o id do aluno.
+  Future<String> addStudent({
+    required String centerId,
+    required CenterNewStudentInput input,
+    required CenterActor actor,
+  });
+
   // Matrícula (G11–G13)
   Stream<List<CenterPlan>> watchPlans(String centerId);
 

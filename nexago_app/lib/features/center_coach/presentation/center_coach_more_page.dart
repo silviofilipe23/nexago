@@ -39,6 +39,14 @@ List<({String title, List<CenterMoreItem> items})> centerMoreGroups(
       items: [
         if (enroll)
           (
+            key: 'new-student',
+            icon: Icons.person_add_alt_1_outlined,
+            title: 'Novo aluno',
+            subtitle: 'Conta NexaGO ou convite por e-mail',
+            routeName: AppRouteNames.centerCoachNewStudent,
+          ),
+        if (enroll)
+          (
             key: 'enroll',
             icon: Icons.how_to_reg_outlined,
             title: 'Matricular aluno',

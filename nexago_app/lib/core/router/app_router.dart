@@ -229,6 +229,7 @@ import '../../features/center_coach/presentation/center_coach_students_page.dart
 import '../../features/center_coach/presentation/center_coach_checkin_page.dart';
 import '../../features/center_coach/presentation/center_coach_classes_page.dart';
 import '../../features/center_coach/presentation/center_mode_shell_page.dart';
+import '../../features/center_coach/presentation/center_coach_new_student_page.dart';
 import '../../features/center_coach/presentation/center_coach_team_page.dart';
 import '../../features/center_coach/presentation/center_coach_messages_page.dart';
 import '../../features/center_coach/presentation/center_coach_enroll_page.dart';
@@ -1738,6 +1739,15 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.centerCoachStudents,
         builder: (context, state) => CenterCoachStudentsPage(
           centerId: state.pathParameters['centerId']?.trim() ?? '',
+        ),
+      ),
+      // Antes de `alunos/:studentId`, senão "novo" vira id de aluno.
+      GoRoute(
+        path: AppRoutes.centerCoachNewStudent,
+        name: AppRouteNames.centerCoachNewStudent,
+        builder: (context, state) => CenterCoachNewStudentPage(
+          centerId: state.pathParameters['centerId']?.trim() ?? '',
+          thenEnroll: state.uri.queryParameters['matricular'] == '1',
         ),
       ),
       GoRoute(

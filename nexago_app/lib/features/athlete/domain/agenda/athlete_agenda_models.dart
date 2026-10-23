@@ -126,6 +126,7 @@ class AthleteAgendaClassPayload {
     this.studentCount,
     this.canceled = false,
     this.entry,
+    this.trialCenterId,
   });
 
   final String sessionId;
@@ -146,6 +147,10 @@ class AthleteAgendaClassPayload {
   /// A aula como veio de `getMyClassAgenda` — o detalhe e o story do treino
   /// leem data, horário e tipo daqui.
   final ClassAgendaEntry? entry;
+
+  /// Experimental pedida num CT (o atleta ainda não é aluno): o toque abre a
+  /// página do centro, onde ele vê o status e pode desmarcar.
+  final String? trialCenterId;
 }
 
 class AthleteAgendaItem {

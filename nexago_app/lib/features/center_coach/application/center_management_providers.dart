@@ -1,5 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/profiles/app_user_profile.dart';
+import '../../../core/profiles/users_repository.dart';
+
 import '../../professor_links/application/professor_links_providers.dart';
 import '../domain/center_management.dart';
 import '../domain/center_management_repository.dart';
@@ -72,4 +75,12 @@ final centerStudentSubscriptionsProvider = StreamProvider.autoDispose
       return ref
           .watch(centerManagementRepositoryProvider)
           .watchStudentSubscriptions(k.centerId, k.studentId);
+    });
+
+/// Busca de contas NexaGO (diretório público, mesmas `keywords` da busca de
+/// atleta) para vincular um aluno novo. Função para o teste trocar.
+final centerAccountSearchProvider =
+    Provider<Future<List<AppUserProfile>> Function(String term)>((ref) {
+      final users = ref.watch(usersRepositoryProvider);
+      return (term) => users.searchAthletesByKeywords(term, max: 8);
     });

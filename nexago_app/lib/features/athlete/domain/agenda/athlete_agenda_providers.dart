@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../arenas/domain/arena_club_providers.dart';
 import '../../../arenas/domain/my_bookings_providers.dart';
+import '../../../athlete_training/application/athlete_training_providers.dart'
+    show athleteCenterTrialsProvider;
 import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/formatting/app_date_format.dart';
 import '../../../friendly_match/domain/friendly_match_providers.dart';
@@ -121,10 +123,25 @@ final athleteAgendaItemsProvider =
           .whereType<AthleteAgendaItem>()
           .toList();
 
-  final classItems = (ref.watch(myClassAgendaProvider).valueOrNull ?? const [])
-      .map(mapClassEntryToAgendaItem)
-      .whereType<AthleteAgendaItem>()
-      .toList();
+  final classItems = [
+    ...(ref.watch(myClassAgendaProvider).valueOrNull ?? const [])
+        .map(mapClassEntryToAgendaItem),
+    // Experimentais pedidas em CTs (o atleta ainda não é aluno).
+    ...(ref.watch(athleteCenterTrialsProvider).valueOrNull ?? const []).map(
+      (t) => mapCenterTrialToAgendaItem(
+        centerId: t.centerId,
+        centerName: t.centerName,
+        sessionId: t.sessionId,
+        className: t.className,
+        date: t.date,
+        startTime: t.startTime,
+        endTime: t.endTime,
+        coachName: t.coachName,
+        locationName: t.locationName,
+        status: t.status,
+      ),
+    ),
+  ].whereType<AthleteAgendaItem>().toList();
 
   final allItems = mergeAgendaItems(
     bookings: rentalItems,

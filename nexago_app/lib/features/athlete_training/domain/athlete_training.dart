@@ -26,6 +26,9 @@ enum TrainingState {
 
   /// Particular pedida, aguardando o professor.
   awaitingProfessor,
+
+  /// Experimental pedida no CT, aguardando o centro confirmar.
+  awaitingCenter,
   canceled,
   present,
   absent,
@@ -58,6 +61,7 @@ class TrainingSession {
     this.centerId = '',
     this.centerName = '',
     this.centerSession,
+    this.centerTrial,
   });
 
   /// `sessionId` da aula ou id da particular.
@@ -88,6 +92,10 @@ class TrainingSession {
   final String centerId;
   final String centerName;
   final CenterSession? centerSession;
+
+  /// Experimental pedida no CT (o atleta ainda não é aluno — sem
+  /// `centerSession`).
+  final CenterTrial? centerTrial;
 
   bool get isPrivate => source == TrainingSource.privateLesson;
   bool get isCenter => source == TrainingSource.centerClass;
@@ -199,7 +207,8 @@ TrainingSession? trainingFromCenterSession(
 ) {
   final start = _wallInstant(s.date, s.startTime);
   if (start == null) return null;
-  final endAt = start.add(Duration(minutes: s.durationMin > 0 ? s.durationMin : 60));
+  final endAt =
+      start.add(Duration(minutes: s.durationMin > 0 ? s.durationMin : 60));
   final past = !endAt.isAfter(now);
   final state = s.isCancelled
       ? TrainingState.canceled
@@ -232,12 +241,46 @@ TrainingSession? trainingFromCenterSession(
   );
 }
 
+/// Experimental pedida no CT como treino. Recusada vira cancelada; pendente
+/// que passou sem resposta também (não aconteceu).
+TrainingSession? trainingFromCenterTrial(CenterTrial tr, DateTime now) {
+  final start = _wallInstant(tr.date, tr.startTime);
+  if (start == null) return null;
+  final end = _wallInstant(tr.date, tr.endTime);
+  final endAt = end != null && end.isAfter(start)
+      ? end
+      : start.add(const Duration(hours: 1));
+  final past = !endAt.isAfter(now);
+  final state = tr.isDeclined
+      ? TrainingState.canceled
+      : tr.isPending
+          ? (past ? TrainingState.canceled : TrainingState.awaitingCenter)
+          : (past ? TrainingState.done : TrainingState.scheduled);
+  return TrainingSession(
+    id: tr.sessionId,
+    source: TrainingSource.centerClass,
+    title: tr.className,
+    professorName: tr.coachName,
+    arenaName: tr.locationName,
+    dateKey: tr.date,
+    startTime: tr.startTime,
+    startAt: start,
+    endAt: endAt,
+    state: state,
+    isTrial: true,
+    centerId: tr.centerId,
+    centerName: tr.centerName,
+    centerTrial: tr,
+  );
+}
+
 /// Junta as fontes (sem repetir aula vinda de duas janelas da agenda), em
 /// ordem cronológica.
 List<TrainingSession> buildTrainings({
   required Iterable<ClassAgendaEntry> classes,
   required Iterable<PrivateLesson> privateLessons,
   Iterable<TrainingCenterLink> centers = const [],
+  Iterable<CenterTrial> centerTrials = const [],
   required DateTime now,
 }) {
   final byId = <String, TrainingSession>{};
@@ -248,6 +291,12 @@ List<TrainingSession> buildTrainings({
   for (final l in privateLessons) {
     final t = trainingFromPrivateLesson(l, now);
     byId['p:${t.id}'] = t;
+  }
+  // Antes das aulas do centro: se o atleta virou aluno e a aula já vem pela
+  // matrícula, ela substitui o pedido.
+  for (final tr in centerTrials) {
+    final t = trainingFromCenterTrial(tr, now);
+    if (t != null) byId['ct:${tr.centerId}:${t.id}'] = t;
   }
   for (final c in centers) {
     for (final s in c.sessions) {
@@ -388,6 +437,7 @@ TrainingMonthStats trainingMonthStats(
         absent++;
       case TrainingState.scheduled ||
             TrainingState.awaitingProfessor ||
+            TrainingState.awaitingCenter ||
             TrainingState.canceled:
         break;
     }
@@ -540,11 +590,14 @@ String trainingWeekdayDay(String dateKey) {
 /// Rótulo curto do estado (pílula mono).
 String trainingStateLabel(TrainingSession t) => switch (t.state) {
       TrainingState.scheduled => t.isPrivate ||
+              t.centerTrial != null ||
               t.classEntry?.myRsvp == 'going' ||
               t.centerSession?.myRsvp == 'going'
           ? 'CONFIRMADA'
           : 'AGENDADA',
-      TrainingState.awaitingProfessor => 'AGUARDANDO',
+      TrainingState.awaitingProfessor ||
+      TrainingState.awaitingCenter =>
+        'AGUARDANDO',
       TrainingState.canceled => 'CANCELADA',
       TrainingState.present => 'PRESENTE',
       TrainingState.absent => 'FALTA',

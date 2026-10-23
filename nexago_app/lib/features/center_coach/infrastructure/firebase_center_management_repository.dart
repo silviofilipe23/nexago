@@ -119,6 +119,32 @@ class FirebaseCenterManagementRepository implements CenterManagementRepository {
   }, 'Não foi possível enviar o convite. Tente de novo.');
 
   @override
+  Future<String> addStudent({
+    required String centerId,
+    required CenterNewStudentInput input,
+    required CenterActor actor,
+  }) => _write(() async {
+    final ref = _center(centerId).collection('students').doc();
+    final b = _db.batch();
+    b.set(ref, {
+      ...centerNewStudentDoc(input),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    b.set(
+      _center(centerId).collection('auditLogs').doc(),
+      _audit(
+        actor,
+        action: 'student.added',
+        entity: 'student',
+        entityId: ref.id,
+        detail: centerNewStudentAuditDetail(input),
+      ),
+    );
+    await b.commit();
+    return ref.id;
+  }, 'Não foi possível cadastrar o aluno. Tente de novo.');
+
+  @override
   Future<void> cancelInvite({
     required String centerId,
     required CenterInvite invite,

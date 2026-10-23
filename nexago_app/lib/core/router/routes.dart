@@ -403,6 +403,14 @@ abstract final class AppRoutes {
   /// abre o detalhe.
   static const String professorArenas = '/athlete/professor/arenas';
   static const String professorArenaLink = '/athlete/professor/arenas/:linkId';
+
+  /// Professor do CENTRO DE TREINAMENTO (P1–P9): agenda do dia, chamada e
+  /// histórico da turma. Abrem em qualquer papel (`/athlete/professor/`).
+  static const String centerCoachAgenda = '/athlete/professor/centros';
+  static const String centerCoachSession =
+      '/athlete/professor/centros/:centerId/aula/:sessionId';
+  static const String centerCoachClass =
+      '/athlete/professor/centros/:centerId/turma/:classId';
   static const String professorLinkRequestSent =
       '/athlete/professor/arenas/:linkId/enviada';
 
@@ -1062,6 +1070,9 @@ abstract final class AppRouteNames {
   static const String squadInvite = 'squadInvite';
   static const String professorArenas = 'professorArenas';
   static const String professorArenaLink = 'professorArenaLink';
+  static const String centerCoachAgenda = 'centerCoachAgenda';
+  static const String centerCoachSession = 'centerCoachSession';
+  static const String centerCoachClass = 'centerCoachClass';
   static const String professorLinkRequestSent = 'professorLinkRequestSent';
   static const String professorClassAttendance = 'professorClassAttendance';
   static const String professorClassClosed = 'professorClassClosed';

@@ -34,6 +34,9 @@ export interface AthleteNotification {
   invoiceUrl: string | null;
   /** `data.linkId` dos avisos de vínculo professor ↔ arena (`professor_link_*`). */
   linkId: string | null;
+  /** `data.centerId` / `data.invoiceId` das cobranças do centro de treinamento. */
+  centerId?: string | null;
+  invoiceId?: string | null;
 }
 
 function str(value: unknown): string | null {
@@ -69,6 +72,8 @@ function fromDoc(snap: QueryDocumentSnapshot<DocumentData>): AthleteNotification
     bookingId: str(notifData?.['bookingId']),
     invoiceUrl: str(notifData?.['invoiceUrl']),
     linkId: str(notifData?.['linkId']),
+    centerId: str(notifData?.['centerId']),
+    invoiceId: str(notifData?.['invoiceId']),
   };
 }
 

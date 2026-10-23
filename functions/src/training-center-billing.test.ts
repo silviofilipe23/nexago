@@ -176,7 +176,8 @@ describe("issueCenterInvoicePaymentCore", () => {
     assert.equal(i.events.slice(-1)[0]!.type, "provider");
     assert.equal(audits(fake).length, 1);
     assert.equal(calls.pushed[0]!.userId, "athlete1");
-    assert.equal(calls.pushed[0]!.data["webUrl"], "https://asaas/i/pay_1");
+    // Na web, o toque abre a fatura no portal do atleta (Pix e cartão); o link do Asaas segue no `invoiceUrl`.
+    assert.equal(calls.pushed[0]!.data["webUrl"], "/mensalidades/centro/c1/i1");
   });
 
   it("já gerada: devolve a existente sem criar outra", async () => {

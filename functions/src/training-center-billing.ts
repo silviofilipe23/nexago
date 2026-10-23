@@ -61,6 +61,11 @@ import {
 
 export const CENTER_INVOICE_LINK_TYPE = "training_center_invoice_link";
 
+/** Fatura do centro no portal do atleta (W2) — o `webUrl` dos pushes de cobrança. */
+export function centerInvoiceWebUrl(centerId: string, invoiceId: string): string {
+  return `/mensalidades/centro/${encodeURIComponent(centerId)}/${encodeURIComponent(invoiceId)}`;
+}
+
 type Data = Record<string, unknown>;
 
 export interface CenterBillingDeps {
@@ -382,7 +387,8 @@ async function pushInvoiceLink(
       title: `Cobrança de ${centerName || "seu centro de treinamento"}`,
       body: `${reference || "Mensalidade"} · ${brlFromCents(amountCents)}. Toque para pagar com Pix ou cartão.`,
       type: CENTER_INVOICE_LINK_TYPE,
-      data: {centerId, invoiceId, invoiceUrl, webUrl: invoiceUrl},
+      // `webUrl` = a fatura no portal do atleta (Pix e cartão); o app abre a fatura dele pelo id.
+      data: {centerId, invoiceId, invoiceUrl, webUrl: centerInvoiceWebUrl(centerId, invoiceId)},
     });
     return true;
   } catch (e) {

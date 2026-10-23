@@ -15,12 +15,19 @@ const BOOKING_DETAIL_TYPES = new Set([
   'booking_canceled_participant',
 ]);
 
+/** Cobranças do centro (`training-center-billing.ts` / `-subscriptions.ts` / `-notify.ts`). */
+const CENTER_BILLING_TYPES = new Set([
+  'training_center_invoice_link',
+  'training_center_billing_notice',
+  'training_center_payment_confirmed',
+]);
+
 /** Para onde o toque no item do inbox leva: a avaliação do torneio, os convites para jogar
  *  numa reserva, a fatura da mensalidade de aula e o vínculo de professor. O resto continua só
  *  marcando como lido. */
 export function notificationTarget(
   n: Pick<AthleteNotification, 'type' | 'tournamentId'> &
-    Partial<Pick<AthleteNotification, 'inviteId' | 'bookingId' | 'invoiceUrl' | 'linkId'>>,
+    Partial<Pick<AthleteNotification, 'inviteId' | 'bookingId' | 'invoiceUrl' | 'linkId' | 'centerId' | 'invoiceId'>>,
 ): NotificationTarget | null {
   const type = n.type?.toLowerCase() ?? '';
   // Mensalidade de aula (`ensureClassAsaasPayment`): a fatura do Asaas, como no app; sem link, a
@@ -28,6 +35,13 @@ export function notificationTarget(
   if (type === 'arena_class_charge_link') {
     const url = safeExternalUrl(n.invoiceUrl);
     return url ? { externalUrl: url } : { commands: ['/agenda'] };
+  }
+  // Cobrança do centro de treinamento: a fatura no portal (Pix, cartão e "Já paguei"); sem id,
+  // as Mensalidades.
+  if (CENTER_BILLING_TYPES.has(type)) {
+    return n.centerId && n.invoiceId
+      ? { commands: ['/mensalidades/centro', n.centerId, n.invoiceId] }
+      : { commands: ['/mensalidades'] };
   }
   if ((type === 'tournament_review_request' || type === 'tournament_review_reminder') && n.tournamentId) {
     return { commands: ['/torneios', n.tournamentId, 'minha-inscricao'], queryParams: { avaliar: '1' } };

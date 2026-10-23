@@ -231,6 +231,7 @@ import '../../features/center_coach/presentation/center_coach_classes_page.dart'
 import '../../features/center_coach/presentation/center_mode_shell_page.dart';
 import '../../features/center_coach/presentation/center_coach_new_student_page.dart';
 import '../../features/center_coach/presentation/center_coach_team_page.dart';
+import '../../features/center_coach/presentation/center_coach_messages_page.dart';
 import '../../features/center_coach/presentation/center_coach_enroll_page.dart';
 import '../../features/center_coach/presentation/center_coach_subscription_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_agenda_page.dart';
@@ -1633,6 +1634,21 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.centerHome,
         name: AppRouteNames.centerHome,
         builder: (context, state) => const CenterModeShellPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachMessages,
+        name: AppRouteNames.centerCoachMessages,
+        builder: (context, state) => CenterCoachMessagesPage(
+          centerId: state.pathParameters['centerId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachConversation,
+        name: AppRouteNames.centerCoachConversation,
+        builder: (context, state) => ConversationPage.center(
+          conversationId: state.pathParameters['conversationId']?.trim() ?? '',
+          centerId: state.pathParameters['centerId']?.trim() ?? '',
+        ),
       ),
       GoRoute(
         path: AppRoutes.centerCoachTeam,

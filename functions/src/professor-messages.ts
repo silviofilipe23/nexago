@@ -23,6 +23,7 @@ import {dayKeyFromEventDate, EVENT_TIME_ZONE} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {deliverNotificationToUser, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
 import {activeArenaLink, arenaChannelMembership} from "./arena-professor-channel";
+import {centerChatAllowed, closeCenterConversation} from "./training-center-chat-model";
 import {loadProfessorStudentsCore} from "./professor-students";
 import {PROFESSORS, PROFESSOR_STUDENTS} from "./professor-wallet-model";
 
@@ -43,7 +44,7 @@ function str(v: unknown): string {
 export const directConversationId = (professorUid: string, athleteUid: string) => `d_${professorUid}_${athleteUid}`;
 export const classConversationId = (classId: string) => `c_${classId}`;
 
-async function userCard(db: Firestore, uid: string): Promise<{name: string; photoUrl: string | null}> {
+export async function userCard(db: Firestore, uid: string): Promise<{name: string; photoUrl: string | null}> {
   const u = (await db.collection("users").doc(uid).get()).data();
   return {
     name: str(u?.["nickname"]) || str(u?.["fullName"]) || str(u?.["displayName"]) || "Atleta",
@@ -61,7 +62,7 @@ export async function isStudentOfProfessor(db: Firestore, professorUid: string, 
 }
 
 /** Grava a conversa substituindo os mapas de nomes/fotos (sem `merge` neles: ex-membro não fica). */
-async function writeConversation(ref: DocumentReference, data: Record<string, unknown>): Promise<void> {
+export async function writeConversation(ref: DocumentReference, data: Record<string, unknown>): Promise<void> {
   const snap = await ref.get();
   if (snap.exists) {
     await ref.update({...data, updatedAt: FieldValue.serverTimestamp()});
@@ -252,6 +253,12 @@ async function verifyMember(db: Firestore, ref: DocumentReference, c: Record<str
     await ref.update({memberIds: m.memberIds, memberNames: m.memberNames, memberPhotos: m.memberPhotos});
     c["memberIds"] = m.memberIds;
     if (!m.memberIds.includes(uid)) throw new HttpsError("permission-denied", "Você não faz mais parte da gestão desta arena.");
+  } else if (c["kind"] === "center") {
+    // Equipe do CT ↔ aluno: o vínculo da equipe e o aluno (ativo, com a mesma conta) seguem valendo?
+    if (!(await centerChatAllowed(db, str(c["centerId"]), professorUid, str(c["studentId"]), str(c["athleteUid"])))) {
+      await closeCenterConversation(ref, professorUid);
+      throw new HttpsError("failed-precondition", "Esta conversa foi encerrada: o vínculo com o centro acabou.");
+    }
   } else if (c["kind"] === "direct") {
     const athleteUid = str(c["athleteUid"]);
     if (!(await isStudentOfProfessor(db, professorUid, athleteUid, now))) {
@@ -321,8 +328,13 @@ export async function sendConversationMessageCore(
   const prefs = parseMessagingPrefs((await db.collection("users").doc(professorUid).collection(MESSAGING_PREFS).doc("settings").get()).data());
   const professorOff = prefs != null && !withinServiceHours(prefs, now);
   const isArena = conversation["kind"] === "arena";
-  const title = conversation["kind"] === "class" || isArena ? `${str(conversation["title"])} · ${senderName}` : senderName;
+  const isCenter = conversation["kind"] === "center";
+  const title = conversation["kind"] === "class" || isArena || isCenter ? `${str(conversation["title"])} · ${senderName}` : senderName;
   const urlFor = (userId: string): Record<string, string> => {
+    // Equipe do CT: a conversa abre dentro do centro (qualquer papel no app).
+    if (isCenter && userId === professorUid) {
+      return {url: `/athlete/professor/centros/${str(conversation["centerId"])}/mensagens/${conversationId}`};
+    }
     if (userId === professorUid) return {url: `/professor/mensagens/${conversationId}`};
     if (isArena) {
       const linkId = str(conversation["linkId"]);

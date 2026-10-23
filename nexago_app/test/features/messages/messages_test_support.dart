@@ -204,6 +204,12 @@ class FakeMessagesRepository implements MessagesRepository {
   }
 
   @override
+  Future<String> openCenterConversation(String centerId, String studentId) async {
+    opened.add('center:$centerId:$studentId');
+    return 't_${centerId}_${me}_$studentId';
+  }
+
+  @override
   Future<String> openArenaChannel(String arenaId, {String? professorUid}) async {
     final professor = professorUid ?? me;
     opened.add('arena:$arenaId${professorUid == null ? '' : ':$professorUid'}');

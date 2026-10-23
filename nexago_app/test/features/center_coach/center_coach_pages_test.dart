@@ -26,6 +26,10 @@ import 'package:nexago_app/features/center_coach/presentation/center_coach_invoi
 import 'package:nexago_app/features/center_coach/presentation/center_coach_student_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_students_page.dart';
 import 'package:nexago_app/features/professor_links/application/professor_links_providers.dart';
+import 'package:nexago_app/features/messages/application/messages_providers.dart'
+    show messagesRepositoryProvider;
+
+import '../messages/messages_test_support.dart';
 
 // Sex 23/10/2026 12:00 em São Paulo.
 final _now = DateTime.utc(2026, 10, 23, 15);
@@ -279,6 +283,7 @@ Future<GoRouter> _pump(
   String scanned = 'nexago-ct:c1:ABCDEFGH23',
   _MemoryCenterStore? store,
   List<Uri>? launched,
+  FakeMessagesRepository? messages,
 }) async {
   tester.view.physicalSize = const Size(420, 2000);
   tester.view.devicePixelRatio = 1.0;
@@ -287,6 +292,11 @@ Future<GoRouter> _pump(
     initialLocation: location,
     routes: [
       GoRoute(path: AppRoutes.home, builder: (_, __) => const Scaffold()),
+      GoRoute(
+        path: AppRoutes.centerCoachConversation,
+        name: AppRouteNames.centerCoachConversation,
+        builder: (_, __) => const Scaffold(),
+      ),
       GoRoute(
         path: AppRoutes.centerHome,
         builder: (_, __) => const CenterModeShellPage(),
@@ -379,6 +389,9 @@ Future<GoRouter> _pump(
         ),
         centerCheckinScanLauncherProvider.overrideWithValue(
           (_) async => scanned,
+        ),
+        messagesRepositoryProvider.overrideWithValue(
+          messages ?? FakeMessagesRepository(),
         ),
         centerContactLauncherProvider.overrideWithValue((uri) async {
           launched?.add(uri);
@@ -1086,11 +1099,13 @@ void main() {
     testWidgets('perfil: matrícula, cobrança, presença e contato',
         (tester) async {
       final launched = <Uri>[];
+      final messages = FakeMessagesRepository();
       final router = await _pump(
         tester,
         '/athlete/professor/centros/c1/alunos',
         school(),
         launched: launched,
+        messages: messages,
       );
       await _tap(tester, find.byKey(const Key('center-students-row-s1')));
       expect(router.state.uri.path, '/athlete/professor/centros/c1/alunos/s1');
@@ -1101,9 +1116,16 @@ void main() {
       expect(find.text('50% · 1 de 2'), findsOneWidget);
       expect(find.text('BT Iniciante'), findsOneWidget,
           reason: 'matrícula antiga');
+      // O chat do app substitui o WhatsApp.
+      expect(find.text('WhatsApp'), findsNothing);
       await _tap(
-          tester, find.byKey(const Key('center-student-contact-whatsapp')));
-      expect(launched.single.toString(), 'https://wa.me/5521998765432');
+          tester, find.byKey(const Key('center-student-contact-message')));
+      expect(messages.opened, ['center:c1:s1']);
+      expect(
+        router.state.uri.path,
+        '/athlete/professor/centros/c1/mensagens/t_c1_${me}_s1',
+      );
+      expect(launched, isEmpty);
     });
 
     testWidgets('menor: contato é o do responsável; recepção sem valores',
@@ -1119,6 +1141,9 @@ void main() {
           find.textContaining('Responsável: Rita Prado (mãe)'), findsOneWidget);
       expect(
           find.byKey(const Key('center-student-contact-email')), findsNothing);
+      // Menor: sem mensagem pelo app; o contato é o telefone do responsável.
+      expect(find.byKey(const Key('center-student-contact-message')),
+          findsNothing);
       await _tap(tester, find.byKey(const Key('center-student-contact-call')));
       expect(launched.single.toString(), 'tel:21988887777');
       expect(find.textContaining('Mensalidade em atraso'), findsOneWidget);

@@ -268,6 +268,7 @@ export {getMyTrainingCenters} from "./training-center-athlete";
 export {searchClassDirectory, getClassDirectoryDetail} from "./class-directory";
 export {saveArenaClassShowcase} from "./class-showcase";
 export {submitClassReview} from "./class-review";
+export {onArenaClassSessionReviewRequest, onTrainingCenterSessionReviewRequest} from "./class-review-notify";
 export {getClassReviewsForManager, replyClassReviewTicket, getMyProfessorReviews} from "./class-review-manager";
 export {
   answerTrainingCenterInvite,

@@ -227,6 +227,8 @@ import '../../features/center_coach/presentation/center_coach_invoice_page.dart'
 import '../../features/center_coach/presentation/center_coach_student_page.dart';
 import '../../features/center_coach/presentation/center_coach_students_page.dart';
 import '../../features/center_coach/presentation/center_coach_checkin_page.dart';
+import '../../features/center_coach/presentation/center_coach_classes_page.dart';
+import '../../features/center_coach/presentation/center_mode_shell_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_agenda_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_center_invoice_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_arena_class_page.dart';
@@ -1622,12 +1624,18 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.professorArenas,
         builder: (context, state) => const ProfessorMyArenasPage(),
       ),
-      // Home do modo Centro de treinamento: a mesma Agenda, sem o voltar.
+      // Home do modo Centro de treinamento: as telas do centro em abas.
       GoRoute(
         path: AppRoutes.centerHome,
         name: AppRouteNames.centerHome,
-        builder: (context, state) =>
-            const CenterCoachAgendaPage(modeHome: true),
+        builder: (context, state) => const CenterModeShellPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachClasses,
+        name: AppRouteNames.centerCoachClasses,
+        builder: (context, state) => CenterCoachClassesPage(
+          centerId: state.pathParameters['centerId']?.trim() ?? '',
+        ),
       ),
       GoRoute(
         path: AppRoutes.centerCoachAgenda,

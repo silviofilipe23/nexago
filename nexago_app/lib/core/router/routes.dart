@@ -449,6 +449,10 @@ abstract final class AppRoutes {
   /// Lista de espera do centro (G14).
   static const String centerCoachWaitlist =
       '/athlete/professor/centros/:centerId/fila';
+
+  /// Turmas do centro (aba Turmas do professor; todas para a gestão).
+  static const String centerCoachClasses =
+      '/athlete/professor/centros/:centerId/turmas';
   static const String professorLinkRequestSent =
       '/athlete/professor/arenas/:linkId/enviada';
 
@@ -1123,6 +1127,7 @@ abstract final class AppRouteNames {
   static const String centerCoachFinance = 'centerCoachFinance';
   static const String centerCoachInvoice = 'centerCoachInvoice';
   static const String centerCoachWaitlist = 'centerCoachWaitlist';
+  static const String centerCoachClasses = 'centerCoachClasses';
   static const String professorLinkRequestSent = 'professorLinkRequestSent';
   static const String professorClassAttendance = 'professorClassAttendance';
   static const String professorClassClosed = 'professorClassClosed';

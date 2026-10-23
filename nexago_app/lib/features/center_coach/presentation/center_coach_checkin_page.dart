@@ -16,6 +16,7 @@ import '../domain/center_coach.dart';
 import '../domain/center_coach_repository.dart';
 import '../infrastructure/firebase_center_coach_repository.dart';
 import 'center_coach_agenda_page.dart' show openCoachSession;
+import 'widgets/center_mode_tab_scope.dart';
 
 /// Abre a câmera para ler a carteirinha (troca nos testes).
 final centerCheckinScanLauncherProvider = Provider<CourtQrScanLauncher>(
@@ -105,11 +106,12 @@ class _CenterCoachCheckinPageState
     final last = _last;
 
     return ProfessorLinksScaffold(
+      showBack: !CenterModeTabScope.of(context),
       title: 'Check-in',
       subtitle: member?.centerName.toUpperCase(),
       onBack: () => popOrGo(context, AppRoutes.centerCoachAgenda),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+        padding: centerListPadding(context),
         children: [
           ProfessorLinksPrimaryButton(
             key: const Key('center-checkin-scan'),

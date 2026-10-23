@@ -16,6 +16,7 @@ import '../application/center_coach_providers.dart';
 import '../domain/center_coach.dart';
 import 'center_coach_agenda_page.dart' show openCoachSession;
 import 'widgets/center_coach_widgets.dart';
+import 'widgets/center_mode_tab_scope.dart';
 
 /// G1/G2/G3 · Hoje no centro (gestão e recepção): a aula de agora, os números
 /// do centro, o recebido no mês (só com financeiro), as pendências e as
@@ -81,6 +82,7 @@ class CenterCoachTodayPage extends ConsumerWidget {
     final done = ofToday.where((s) => s.isDone).length;
 
     return ProfessorLinksScaffold(
+      showBack: !CenterModeTabScope.of(context),
       title: 'Hoje',
       subtitle:
           '${member?.centerName.toUpperCase() ?? 'CENTRO'} · '
@@ -102,7 +104,7 @@ class CenterCoachTodayPage extends ConsumerWidget {
         color: AppColors.brand,
         onRefresh: () async => ref.invalidate(coachSessionsProvider(range)),
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+          padding: centerListPadding(context),
           children: [
             if (member == null || !member.isActive)
               const ProfessorLinksCard(

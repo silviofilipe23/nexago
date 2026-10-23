@@ -16,6 +16,7 @@ import '../../professor_mode/presentation/availability/availability_widgets.dart
 import '../../professor_mode/presentation/widgets/professor_students_widgets.dart';
 import '../application/center_coach_providers.dart';
 import '../domain/center_students.dart';
+import 'widgets/center_mode_tab_scope.dart';
 
 /// G9 · Alunos do centro. Gestão, recepção e quem vê o financeiro enxergam
 /// todos; o professor, só os dele (`coachUids`). A situação financeira só
@@ -58,11 +59,12 @@ class _CenterCoachStudentsPageState
     final mine = member != null && !member.seesAllStudents;
 
     return ProfessorLinksScaffold(
+      showBack: !CenterModeTabScope.of(context),
       title: mine ? 'Meus alunos' : 'Alunos',
       subtitle: centerStudentsHeadline(rows),
       onBack: () => popOrGo(context, AppRoutes.centerCoachAgenda),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+        padding: centerListPadding(context),
         children: [
           if (member == null || !member.isActive)
             const ProfessorLinksCard(

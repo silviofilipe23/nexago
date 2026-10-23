@@ -84,6 +84,18 @@ class SelectedCoachCenterNotifier extends Notifier<String?> {
   }
 }
 
+/// Vínculo do centro em uso no modo Centro: o escolhido na troca (P2), se
+/// ainda estiver ativo, ou o primeiro ativo.
+final currentCenterMembershipProvider =
+    Provider.autoDispose<CenterMembership?>((ref) {
+      final active = ref.watch(activeCenterMembershipsProvider);
+      final selected = ref.watch(selectedCoachCenterIdProvider);
+      for (final m in active) {
+        if (m.centerId == selected) return m;
+      }
+      return active.isEmpty ? null : active.first;
+    });
+
 /// O token ainda não tem o papel `center`, mas a conta já é da equipe de um
 /// centro (o servidor concede a claim logo DEPOIS do vínculo ficar ativo).
 bool centerRoleNeedsRefresh({

@@ -18,6 +18,7 @@ import '../../professor_mode/presentation/widgets/professor_students_widgets.dar
 import '../application/center_coach_providers.dart';
 import '../domain/center_coach.dart';
 import '../domain/center_finance.dart';
+import 'widgets/center_mode_tab_scope.dart';
 
 /// Cor do tom das etiquetas de cobrança.
 Color centerInvoiceToneColor(String tone, AppThemeColors colors) =>
@@ -64,12 +65,13 @@ class _CenterCoachFinancePageState
     final allowed = member != null && member.has('view_finance');
 
     return ProfessorLinksScaffold(
+      showBack: !CenterModeTabScope.of(context),
       title: 'Financeiro',
       subtitle:
           '${centerMonthLabel(today).toUpperCase()} · MENSALIDADES DOS ALUNOS',
       onBack: () => popOrGo(context, AppRoutes.centerCoachAgenda),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+        padding: centerListPadding(context),
         children: [
           if (!allowed)
             const ProfessorLinksCard(

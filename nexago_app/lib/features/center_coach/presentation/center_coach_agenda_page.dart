@@ -17,24 +17,17 @@ import '../../professor_mode/presentation/widgets/professor_students_widgets.dar
 import '../application/center_coach_providers.dart';
 import '../domain/center_coach.dart';
 import 'widgets/center_coach_widgets.dart';
-import 'widgets/center_mode_settings_sheet.dart';
+import 'widgets/center_mode_tab_scope.dart';
 
 /// P1/P2/L7 · Agenda do professor no centro: a semana, a próxima aula com
 /// "Abrir chamada", as aulas do dia (com o local de cada uma — o centro pode
 /// dar aula em mais de um lugar) e as turmas dele. Troca de centro no topo
 /// para quem dá aula em mais de um.
 class CenterCoachAgendaPage extends ConsumerStatefulWidget {
-  const CenterCoachAgendaPage({
-    super.key,
-    this.centerId,
-    this.modeHome = false,
-  });
+  const CenterCoachAgendaPage({super.key, this.centerId});
 
   /// Centro pedido pela rota (`?centro=`); sem ele, o escolhido ou o primeiro.
   final String? centerId;
-
-  /// Home do modo Centro (`/centro`): sem o voltar, com os ajustes do modo.
-  final bool modeHome;
 
   @override
   ConsumerState<CenterCoachAgendaPage> createState() =>
@@ -73,16 +66,8 @@ class _CenterCoachAgendaPageState extends ConsumerState<CenterCoachAgendaPage> {
       subtitle: member == null
           ? 'CENTROS DE TREINAMENTO'
           : '${member.centerName.toUpperCase()} · ${member.roleLabel.toUpperCase()}',
-      showBack: !widget.modeHome,
+      showBack: !CenterModeTabScope.of(context),
       onBack: () => popOrGo(context, AppRoutes.home),
-      trailing: widget.modeHome
-          ? ProfessorLinksRoundButton(
-              key: const Key('center-mode-settings'),
-              icon: Icons.settings_outlined,
-              semanticLabel: 'Ajustes',
-              onTap: () => showCenterModeSettingsSheet(context),
-            )
-          : null,
       body: Builder(
         builder: (context) {
           if (all == null) {
@@ -105,7 +90,7 @@ class _CenterCoachAgendaPageState extends ConsumerState<CenterCoachAgendaPage> {
                 if (m.isRevoked) m,
             ];
             return ListView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+              padding: centerListPadding(context),
               children: [
                 if (revoked.isNotEmpty)
                   CenterCoachRevokedCard(
@@ -192,6 +177,8 @@ class _AgendaBody extends ConsumerWidget {
     // Gestão e recepção veem o centro inteiro (com filtro por professor); o
     // professor, as aulas dele.
     final staff = member.isManager || member.role == 'receptionist';
+    // Na aba do modo Centro, Hoje, Check-in e Alunos são abas da barra.
+    final tab = CenterModeTabScope.of(context);
     final filter = coachFilter ?? (staff ? 'all' : 'mine');
     final all = sessionsAsync.valueOrNull ?? const <CenterCoachSession>[];
     final coaches = <String, String>{
@@ -241,7 +228,7 @@ class _AgendaBody extends ConsumerWidget {
       color: AppColors.brand,
       onRefresh: () async => ref.invalidate(coachSessionsProvider(range)),
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+        padding: centerListPadding(context),
         children: [
           CenterCoachCenterChip(
             key: const Key('center-coach-switch'),
@@ -250,9 +237,9 @@ class _AgendaBody extends ConsumerWidget {
             canSwitch: others.isNotEmpty,
             onTap: others.isEmpty
                 ? null
-                : () => _showSwitch(context, ref, member, others, onSwitch),
+                : () => showCenterSwitchSheet(context, member, others, onSwitch),
           ),
-          if (staff) ...[
+          if (staff && !tab) ...[
             const SizedBox(height: 12),
             ProfessorLinksCard(
               key: const Key('center-coach-today-entry'),
@@ -288,7 +275,7 @@ class _AgendaBody extends ConsumerWidget {
               ),
             ),
           ],
-          if (staff) ...[
+          if (staff && !tab) ...[
             const SizedBox(height: 8),
             ProfessorLinksPrimaryButton(
               key: const Key('center-coach-checkin-entry'),
@@ -300,6 +287,7 @@ class _AgendaBody extends ConsumerWidget {
               ),
             ),
           ],
+          if (!tab) ...[
           const SizedBox(height: 8),
           ProfessorLinksCard(
             key: const Key('center-coach-students-entry'),
@@ -336,6 +324,7 @@ class _AgendaBody extends ConsumerWidget {
               ],
             ),
           ),
+          ],
           if (staff || coaches.isNotEmpty && member.isManager) ...[
             const SizedBox(height: 10),
             SingleChildScrollView(
@@ -452,7 +441,7 @@ class _AgendaBody extends ConsumerWidget {
               const SizedBox(height: 8),
             ],
           ],
-          if (classes.isNotEmpty) ...[
+          if (classes.isNotEmpty && !tab) ...[
             const SizedBox(height: 10),
             Text(
               'MINHAS TURMAS',
@@ -501,9 +490,8 @@ void openCoachSession(
 );
 
 /// P2 · Trocar centro.
-Future<void> _showSwitch(
+Future<void> showCenterSwitchSheet(
   BuildContext context,
-  WidgetRef ref,
   CenterMembership current,
   List<CenterMembership> others,
   ValueChanged<String> onSwitch,

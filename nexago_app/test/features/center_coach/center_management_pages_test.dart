@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 import 'package:nexago_app/features/center_coach/application/center_coach_providers.dart';
+import 'package:nexago_app/features/center_coach/application/center_management_providers.dart';
 import 'package:nexago_app/features/center_coach/domain/center_alerts.dart';
 import 'package:nexago_app/features/center_coach/domain/center_coach.dart';
 import 'package:nexago_app/features/center_coach/domain/center_coach_repository.dart';
@@ -19,6 +21,7 @@ import 'package:nexago_app/features/center_coach/presentation/center_coach_call_
 import 'package:nexago_app/features/center_coach/presentation/center_coach_classes_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_enroll_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_invoice_page.dart';
+import 'package:nexago_app/features/center_coach/presentation/center_coach_new_student_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_subscription_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_team_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_today_page.dart';
@@ -244,6 +247,18 @@ class _Mgmt implements CenterManagementRepository {
   final scheduledCancels = <String>[];
   final undos = <String>[];
   final charges = <String>[];
+  final added = <CenterNewStudentInput>[];
+
+  @override
+  Future<String> addStudent({
+    required String centerId,
+    required CenterNewStudentInput input,
+    required CenterActor actor,
+  }) async {
+    if (failWith != null) throw failWith!;
+    added.add(input);
+    return 'new1';
+  }
 
   @override
   Stream<List<CenterTeamMember>> watchTeam(String centerId) =>
@@ -432,6 +447,7 @@ Future<GoRouter> _pump(
   _Coach coach,
   _Mgmt mgmt, {
   DateTime? now,
+  Future<List<AppUserProfile>> Function(String term)? search,
 }) async {
   tester.view.physicalSize = const Size(420, 2000);
   tester.view.devicePixelRatio = 1.0;
@@ -494,6 +510,20 @@ Future<GoRouter> _pump(
         ),
       ),
       GoRoute(
+        path: AppRoutes.centerCoachNewStudent,
+        name: AppRouteNames.centerCoachNewStudent,
+        builder: (_, s) => CenterCoachNewStudentPage(
+          centerId: s.pathParameters['centerId']!,
+          thenEnroll: s.uri.queryParameters['matricular'] == '1',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachStudent,
+        name: AppRouteNames.centerCoachStudent,
+        builder: (_, s) =>
+            Scaffold(body: Text('perfil ${s.pathParameters['studentId']}')),
+      ),
+      GoRoute(
         path: AppRoutes.centerCoachInvoice,
         name: AppRouteNames.centerCoachInvoice,
         builder: (_, s) => CenterCoachInvoicePage(
@@ -513,6 +543,9 @@ Future<GoRouter> _pump(
         centerCoachRepositoryProvider.overrideWithValue(coach),
         centerManagementRepositoryProvider.overrideWithValue(mgmt),
         centerSelectionStoreProvider.overrideWithValue(_MemoryCenterStore()),
+        centerAccountSearchProvider.overrideWithValue(
+          search ?? (_) async => const [],
+        ),
       ],
       child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
     ),
@@ -555,6 +588,7 @@ VoidCallback? _ghostOnPressed(WidgetTester tester, Key key) =>
 
 const _teamPath = '/athlete/professor/centros/c1/equipe';
 const _enrollPath = '/athlete/professor/centros/c1/matricular';
+const _newStudentPath = '/athlete/professor/centros/c1/alunos/novo';
 const _subPath = '/athlete/professor/centros/c1/alunos/s1/assinatura/sub1';
 
 void main() {
@@ -1201,12 +1235,28 @@ void main() {
               status: 'active',
             ),
           ],
-        ),
+        )..students = const [
+            ..._students,
+            CenterCoachStudent(
+              id: 's4',
+              name: 'Duda Convidada',
+              status: 'invited',
+            ),
+            CenterCoachStudent(
+              id: 's5',
+              name: 'Ivo Inativo',
+              status: 'inactive',
+            ),
+          ],
         _Mgmt(plans: plans),
         now: _tue,
       );
       expect(find.text('ESCOLHA O ALUNO'), findsOneWidget);
       expect(find.byKey(const Key('center-enroll-student-s1')), findsOneWidget);
+      // Convidado entra na lista com a etiqueta; inativo, não.
+      expect(find.byKey(const Key('center-enroll-student-s4')), findsOneWidget);
+      expect(find.text('CONVIDADO'), findsOneWidget);
+      expect(find.byKey(const Key('center-enroll-student-s5')), findsNothing);
       await _typeField(tester, const Key('center-enroll-search'), 'cai');
       expect(find.byKey(const Key('center-enroll-student-s1')), findsNothing);
       expect(find.byKey(const Key('center-enroll-student-s2')), findsOneWidget);
@@ -1239,6 +1289,124 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const Key('center-enroll-class-k2')), findsNothing);
+    });
+  });
+
+  // ── W10 · Novo aluno ────────────────────────────────────────────────────
+  group('novo aluno', () {
+    _Coach desk() => _Coach(memberships: [_member(role: 'receptionist')]);
+
+    testWidgets('convite por e-mail: valida e grava convidado', (tester) async {
+      final mgmt = _Mgmt();
+      await _pump(tester, _newStudentPath, desk(), mgmt);
+      await _tap(tester, find.byKey(const ValueKey('center-seg-invite')));
+      expect(find.text('Enviar convite'), findsOneWidget);
+
+      await _tap(tester, find.byKey(const Key('center-new-student-save')));
+      expect(find.text('Informe o nome completo.'), findsOneWidget);
+      expect(mgmt.added, isEmpty);
+
+      await _type(tester, const Key('center-new-student-name'), 'Bia Nunes');
+      await _type(
+        tester,
+        const Key('center-new-student-email'),
+        'Bia@Mail.com',
+      );
+      await _tap(tester, find.byKey(const Key('center-new-student-save')));
+      expect(mgmt.added, hasLength(1));
+      final input = mgmt.added.single;
+      expect(input.linked, isFalse);
+      expect(input.name, 'Bia Nunes');
+      expect(input.email, 'Bia@Mail.com');
+      expect(input.guardian, isNull);
+      // Cai no perfil do aluno novo.
+      expect(find.text('perfil new1'), findsOneWidget);
+    });
+
+    testWidgets('convidado do Matricular segue para a matrícula', (
+      tester,
+    ) async {
+      final mgmt = _Mgmt();
+      await _pump(tester, '$_newStudentPath?matricular=1', desk(), mgmt);
+      await _tap(tester, find.byKey(const ValueKey('center-seg-invite')));
+      await _type(tester, const Key('center-new-student-name'), 'Bia Nunes');
+      await _type(tester, const Key('center-new-student-email'), 'bia@x.com');
+      await _tap(tester, find.byKey(const Key('center-new-student-save')));
+      expect(mgmt.added.single.linked, isFalse);
+      expect(find.byType(CenterCoachEnrollPage), findsOneWidget);
+    });
+
+    testWidgets('menor exige responsável', (tester) async {
+      final mgmt = _Mgmt();
+      await _pump(tester, _newStudentPath, desk(), mgmt);
+      await _tap(tester, find.byKey(const ValueKey('center-seg-invite')));
+      await _type(tester, const Key('center-new-student-name'), 'Leo Dias');
+      await _type(tester, const Key('center-new-student-email'), 'leo@x.com');
+      await _tap(tester, find.byKey(const Key('center-new-student-minor')));
+      await _tap(tester, find.byKey(const Key('center-new-student-save')));
+      expect(find.text('Informe a data de nascimento.'), findsOneWidget);
+      expect(mgmt.added, isEmpty);
+    });
+
+    testWidgets('conta NexaGO: busca, já-aluno bloqueado, vincula', (
+      tester,
+    ) async {
+      final mgmt = _Mgmt();
+      final coach = desk()
+        ..students = const [
+          CenterCoachStudent(id: 's1', name: 'Marina Teles', uid: 'u-marina'),
+        ];
+      await _pump(
+        tester,
+        '$_newStudentPath?matricular=1',
+        coach,
+        mgmt,
+        search: (_) async => const [
+          AppUserProfile(uid: 'u-marina', fullName: 'Marina Teles'),
+          AppUserProfile(uid: 'u-joao', fullName: 'João Lima', city: 'Recife'),
+        ],
+      );
+      await _type(tester, const Key('center-new-student-term'), 'lima');
+      await tester.pump(const Duration(milliseconds: 400));
+      await _settle(tester);
+      expect(find.text('JÁ É ALUNO'), findsOneWidget);
+      await _tap(
+          tester, find.byKey(const Key('center-new-student-hit-u-marina')));
+      expect(find.text('SELECIONADO'), findsNothing);
+
+      await _tap(
+          tester, find.byKey(const Key('center-new-student-hit-u-joao')));
+      expect(find.text('SELECIONADO'), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('center-new-student-save')));
+      expect(mgmt.added.single.uid, 'u-joao');
+      expect(mgmt.added.single.name, 'João Lima');
+      // Veio do Matricular: segue para a matrícula com o aluno escolhido.
+      expect(find.byType(CenterCoachEnrollPage), findsOneWidget);
+    });
+
+    testWidgets('busca sem resultado leva ao convite com o nome', (
+      tester,
+    ) async {
+      await _pump(tester, _newStudentPath, desk(), _Mgmt());
+      await _type(tester, const Key('center-new-student-term'), 'Zé Ninguém');
+      await tester.pump(const Duration(milliseconds: 400));
+      await _settle(tester);
+      await _tap(tester, find.byKey(const Key('center-new-student-to-invite')));
+      expect(find.text('Enviar convite'), findsOneWidget);
+      expect(find.text('Zé Ninguém'), findsOneWidget);
+    });
+
+    testWidgets('professor sem enroll_students não cadastra', (tester) async {
+      await _pump(
+        tester,
+        _newStudentPath,
+        _Coach(memberships: [_member(role: 'coach')]),
+        _Mgmt(),
+      );
+      expect(
+        find.text('Sem permissão para cadastrar alunos neste centro.'),
+        findsOneWidget,
+      );
     });
   });
 

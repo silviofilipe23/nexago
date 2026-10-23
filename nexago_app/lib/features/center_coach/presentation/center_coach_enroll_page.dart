@@ -122,6 +122,11 @@ class _CenterCoachEnrollPageState extends ConsumerState<CenterCoachEnrollPage> {
         query: _query,
         onQuery: (q) => setState(() => _query = q),
         onPick: (s) => setState(() => _studentId = s.id),
+        onNew: () => context.pushNamed(
+          AppRouteNames.centerCoachNewStudent,
+          pathParameters: {'centerId': centerId},
+          queryParameters: {'matricular': '1'},
+        ),
       );
     } else {
       body = switch (_step) {
@@ -703,6 +708,7 @@ class _StudentStep extends StatelessWidget {
     required this.query,
     required this.onQuery,
     required this.onPick,
+    required this.onNew,
   });
 
   final List<CenterCoachStudent> students;
@@ -710,6 +716,7 @@ class _StudentStep extends StatelessWidget {
   final String query;
   final ValueChanged<String> onQuery;
   final ValueChanged<CenterCoachStudent> onPick;
+  final VoidCallback onNew;
 
   @override
   Widget build(BuildContext context) {
@@ -717,7 +724,9 @@ class _StudentStep extends StatelessWidget {
     final q = query.trim().toLowerCase();
     final shown = [
       for (final s in students)
-        if (s.status == 'active' && (q.isEmpty || s.name.toLowerCase().contains(q)))
+        // Convidado matricula já (como no portal); vira ativo ao aceitar.
+        if ((s.status == 'active' || s.status == 'invited') &&
+            (q.isEmpty || s.name.toLowerCase().contains(q)))
           s,
     ]..sort((a, b) => a.name.compareTo(b.name));
     return ListView(
@@ -746,14 +755,21 @@ class _StudentStep extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 10),
+        ProfessorLinksGhostButton(
+          key: const Key('center-enroll-new-student'),
+          label: '+ Novo aluno',
+          height: 44,
+          onPressed: onNew,
+        ),
         const SizedBox(height: 12),
         if (loading && students.isEmpty)
           const Center(child: CircularProgressIndicator(color: AppColors.brand))
         else if (shown.isEmpty)
           const ProfessorLinksCard(
             child: ProfessorMutedText(
-              'Nenhum aluno encontrado. Cadastre alunos novos pelo painel web '
-              'do centro.',
+              'Nenhum aluno encontrado. Quem ainda não é aluno do centro, '
+              'cadastre em "Novo aluno".',
             ),
           )
         else
@@ -795,7 +811,12 @@ class _StudentStep extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (s.isMinor)
+                          if (s.status == 'invited')
+                            const ArenaClassTag(
+                              label: 'Convidado',
+                              color: AppColors.brand,
+                            )
+                          else if (s.isMinor)
                             const ArenaClassTag(
                               label: 'Menor',
                               color: Color(0xFF5B9BFF),

@@ -436,6 +436,11 @@ abstract final class AppRoutes {
   static const String centerCoachStudent =
       '/athlete/professor/centros/:centerId/alunos/:studentId';
 
+  /// Novo aluno (conta NexaGO ou convite por e-mail); `?matricular=1` segue
+  /// para a matrícula depois. Registrada antes de [centerCoachStudent].
+  static const String centerCoachNewStudent =
+      '/athlete/professor/centros/:centerId/alunos/novo';
+
   /// Alertas do centro (G3, owner/admin).
   static const String centerCoachAlerts =
       '/athlete/professor/centros/:centerId/alertas';
@@ -1135,6 +1140,7 @@ abstract final class AppRouteNames {
   static const String centerCoachCheckin = 'centerCoachCheckin';
   static const String centerCoachStudents = 'centerCoachStudents';
   static const String centerCoachStudent = 'centerCoachStudent';
+  static const String centerCoachNewStudent = 'centerCoachNewStudent';
   static const String centerCoachAlerts = 'centerCoachAlerts';
   static const String centerCoachFinance = 'centerCoachFinance';
   static const String centerCoachInvoice = 'centerCoachInvoice';

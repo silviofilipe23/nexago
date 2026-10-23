@@ -63,6 +63,19 @@ class _CenterCoachStudentsPageState
       title: mine ? 'Meus alunos' : 'Alunos',
       subtitle: centerStudentsHeadline(rows),
       onBack: () => popOrGo(context, AppRoutes.centerCoachAgenda),
+      trailing: member != null &&
+              member.isActive &&
+              member.has('enroll_students')
+          ? ProfessorLinksRoundButton(
+              key: const Key('center-students-new'),
+              icon: Icons.person_add_alt_1_rounded,
+              semanticLabel: 'Novo aluno',
+              onTap: () => context.pushNamed(
+                AppRouteNames.centerCoachNewStudent,
+                pathParameters: {'centerId': centerId},
+              ),
+            )
+          : null,
       body: ListView(
         padding: centerListPadding(context),
         children: [

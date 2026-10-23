@@ -38,6 +38,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { area: 'locations', label: 'Locais', icon: 'pin', path: 'locais' },
       { area: 'programs', label: 'Modalidades e níveis', icon: 'flag', path: 'modalidades' },
       { area: 'members', label: 'Equipe', icon: 'users', path: 'equipe' },
+      { area: 'reviews', label: 'Avaliações', icon: 'message', path: 'avaliacoes' },
       { area: 'settings', label: 'Configurações', icon: 'gear', path: 'configuracoes' },
     ],
   },

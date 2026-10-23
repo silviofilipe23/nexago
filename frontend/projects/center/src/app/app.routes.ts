@@ -171,6 +171,13 @@ export const routes: Routes = [
         loadComponent: () => import('./features/members/members.component').then((m) => m.MembersComponent),
       },
       {
+        path: 'avaliacoes',
+        title: T('Avaliações'),
+        canActivate: [areaGuard],
+        data: { area: 'reviews' },
+        loadComponent: () => import('./features/reviews/reviews.component').then((m) => m.ReviewsComponent),
+      },
+      {
         path: 'configuracoes',
         title: T('Configurações'),
         canActivate: [areaGuard],

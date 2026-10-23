@@ -398,8 +398,8 @@ export async function loadProfessorReviewStars(db: Firestore, professorUid: stri
 // ── callable ─────────────────────────────────────────────────────────────
 
 /** Onde o portal abre as avaliações (`webUrl`); o app do gestor não tem a tela. */
-export function ticketWebUrl(origin: ReviewOrigin): string {
-  return origin === "center" ? "/avaliacoes" : "/painel/aulas/avaliacoes";
+export function ticketWebUrl(origin: ReviewOrigin, placeId: string | null): string {
+  return origin === "center" ? `/centro/${placeId}/avaliacoes` : "/painel/aulas/avaliacoes";
 }
 
 async function notifyTicket(managerUid: string, target: ReviewTarget, publicId: string): Promise<void> {
@@ -410,7 +410,7 @@ async function notifyTicket(managerUid: string, target: ReviewTarget, publicId: 
     body: `Um aluno deu nota baixa para ${target.title} (${target.date.split("-").reverse().slice(0, 2).join("/")}) e pediu retorno de ${where}.`,
     type: CLASS_REVIEW_TICKET_PUSH_TYPE,
     // Sem o id do doc: ele leva o uid, e a aluna pode ter escondido o nome.
-    data: {reviewId: publicId, origin: target.origin, placeId: target.placeId ?? "", webUrl: ticketWebUrl(target.origin)},
+    data: {reviewId: publicId, origin: target.origin, placeId: target.placeId ?? "", webUrl: ticketWebUrl(target.origin, target.placeId)},
   });
 }
 

@@ -16,6 +16,7 @@ import {
   type CenterMember,
   type CenterPolicies,
   type ClassSession,
+  type SessionRsvp,
   type ContractSnapshot,
   type Court,
   type Enrollment,
@@ -130,6 +131,8 @@ export function readCenter(id: string, d: Data): TrainingCenter {
     notifications: readNotificationSettings(obj(d, 'notifications')),
     receivingConnected: bool(d, 'receivingConnected'),
     receivingStatus: readReceivingStatus(d['receivingStatus'], bool(d, 'receivingConnected')),
+    joinCode: strOrNull(d, 'joinCode'),
+    joinCodeEnabled: bool(d, 'joinCodeEnabled'),
     subscription: sub
       ? {
           plan: str(sub, 'plan', 'NexaGO Centro'),
@@ -266,6 +269,16 @@ export function readClass(id: string, d: Data): TrainingClass {
   };
 }
 
+/** `rsvps.{aluno} = {response, at}` → só a resposta. */
+function readRsvps(raw: Data | null): Record<string, SessionRsvp> {
+  const out: Record<string, SessionRsvp> = {};
+  for (const [k, v] of Object.entries(raw ?? {})) {
+    const r = v && typeof v === 'object' ? (v as Data)['response'] : null;
+    if (r === 'going' || r === 'not_going') out[k] = r;
+  }
+  return out;
+}
+
 export function readSession(id: string, d: Data): ClassSession {
   const status = str(d, 'status');
   const att = obj(d, 'attendance') ?? {};
@@ -308,6 +321,10 @@ export function readSession(id: string, d: Data): ClassSession {
         }))
       : [],
     effectsApplied: readEffects(obj(d, 'effectsApplied')),
+    rsvps: readRsvps(obj(d, 'rsvps')),
+    attendanceByStudent: Object.fromEntries(
+      Object.entries(obj(d, 'attendanceByStudent') ?? {}).filter(([, v]) => v === true).map(([k]) => [k, true]),
+    ),
   };
 }
 

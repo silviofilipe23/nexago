@@ -15,6 +15,9 @@
         <div class="ct-kv"><span>Endereço</span><span>{{ session().locationAddress }}</span></div>
       }
       <div class="ct-kv"><span>Chamada</span><span>{{ marked() ? marked() + ' marcação(ões)' : 'Não registrada' }}</span></div>
+      @if (rsvpSummary()) {
+        <div class="ct-kv"><span>Respostas pelo app</span><span>{{ rsvpSummary() }}</span></div>
+      }
       @if (session().changed) {
         <div class="ct-kv"><span>Alterada</span><span>{{ session().changeReason || 'Sim' }}</span></div>
       }

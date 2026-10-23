@@ -135,6 +135,16 @@ export class SessionModalComponent implements OnInit {
   protected readonly makeups = computed(() => this.session().makeupStudentIds.length);
   protected readonly autoMakeup = computed(() => this.ctx.center()?.policies.cancelledClassMakeup === 'auto');
   protected readonly marked = computed(() => Object.keys(this.session().attendance).length);
+  /** "3 vão · 1 não vai" — respostas dos alunos pelo app; vazio sem resposta. */
+  protected readonly rsvpSummary = computed(() => {
+    const v = Object.values(this.session().rsvps);
+    const going = v.filter((r) => r === 'going').length;
+    const notGoing = v.length - going;
+    return [
+      going ? `${going} ${going === 1 ? 'vai' : 'vão'}` : '',
+      notGoing ? `${notGoing} não ${notGoing === 1 ? 'vai' : 'vão'}` : '',
+    ].filter(Boolean).join(' · ');
+  });
 
   /** Choque com outra aula do mesmo dia (mesmo professor ou mesma quadra) depois da mudança. */
   protected readonly clash = computed(() => {

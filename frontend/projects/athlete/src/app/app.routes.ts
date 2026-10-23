@@ -113,6 +113,19 @@ export const routes: Routes = [
       import('./cashback/athlete-cashback.component').then((m) => m.AthleteCashbackComponent),
   },
   {
+    // Mensalidades de treino (centro, arena, professor) e a fatura do centro (W1/W2).
+    path: 'mensalidades',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./mensalidades/athlete-mensalidades.component').then((m) => m.AthleteMensalidadesComponent),
+  },
+  {
+    path: 'mensalidades/centro/:centerId/:invoiceId',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./mensalidades/athlete-fatura-centro.component').then((m) => m.AthleteFaturaCentroComponent),
+  },
+  {
     path: 'agenda',
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>

@@ -31,6 +31,7 @@ import {WEB_PUSH_PRIVATE_KEY, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_SUBJECT} from "./not
 import {
   SYSTEM,
   asaasFailure,
+  centerInvoiceWebUrl,
   defaultCenterBillingDeps,
   issueCenterInvoiceAs,
   requireManager,
@@ -362,7 +363,9 @@ async function sendNotice(
   // Preferências do centro: evento desligado não sai; no silêncio, sai quando ele acaba.
   const r = await deliverCenterNotice(db, deps, {
     centerId: c.id, event: billingEventForStage(stage), uids: uid ? [uid] : [], title: text.title, body: text.body,
-    type: CENTER_BILLING_NOTICE_TYPE, data: {centerId: c.id, invoiceId: inv.id, ...(inv.url ? {invoiceUrl: inv.url, webUrl: inv.url} : {})},
+    type: CENTER_BILLING_NOTICE_TYPE, data: {
+      centerId: c.id, invoiceId: inv.id, webUrl: centerInvoiceWebUrl(c.id, inv.id), ...(inv.url ? {invoiceUrl: inv.url} : {}),
+    },
   });
   const delivered = r.sent > 0 || r.deferred > 0;
   const channel = r.deferred ? "push (após o silêncio)" : r.skipped === "disabled" ? "desligado" : "push";

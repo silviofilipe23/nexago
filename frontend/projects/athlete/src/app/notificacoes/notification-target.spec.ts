@@ -48,4 +48,10 @@ describe('notificationTarget', () => {
     // O lado da arena (`arena_professor_*`) é do painel da arena, não do portal do atleta.
     expect(notificationTarget({ type: 'arena_professor_request', tournamentId: null, linkId: 'a1_u1' })).toBeNull();
   });
+  it('cobrança do centro abre a fatura do centro no portal; sem id, as Mensalidades', () => {
+    expect(
+      notificationTarget({ type: 'training_center_billing_notice', tournamentId: null, centerId: 'c1', invoiceId: 'sub_e1_2026-11' }),
+    ).toEqual({ commands: ['/mensalidades/centro', 'c1', 'sub_e1_2026-11'] });
+    expect(notificationTarget({ type: 'training_center_invoice_link', tournamentId: null })).toEqual({ commands: ['/mensalidades'] });
+  });
 });

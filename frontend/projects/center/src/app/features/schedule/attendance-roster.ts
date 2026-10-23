@@ -27,6 +27,16 @@ export function attendanceRoster(
   return out;
 }
 
+/** Etiqueta da resposta do aluno pelo app ("Vai · app", "Avisou no prazo · app"), com a cor. */
+export function rsvpLabel(
+  rsvp: 'going' | 'not_going' | undefined,
+  excusedByStudent: boolean,
+): { text: string; tone: 'green' | 'yellow' } | null {
+  if (rsvp === 'going') return { text: 'Vai · app', tone: 'green' };
+  if (rsvp === 'not_going') return { text: excusedByStudent ? 'Avisou no prazo · app' : 'Não vai · app', tone: 'yellow' };
+  return null;
+}
+
 /** "−1 crédito do pacote", "+1 reposição"… do que o servidor já aplicou. */
 export function effectLabel(e: { credit: number; makeup: number } | undefined): string {
   if (!e) return '';

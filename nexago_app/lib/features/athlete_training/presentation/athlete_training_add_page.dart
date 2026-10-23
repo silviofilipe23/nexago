@@ -90,9 +90,11 @@ class AthleteTrainingAddPage extends ConsumerWidget {
               title: 'Centro de treinamento',
               subtitle:
                   'Programas com matrícula, níveis e mensalidade. Peça ao '
-                  'centro para cadastrar você pelo e-mail da sua conta: o '
-                  'convite aparece aqui.',
+                  'centro o código de entrada (abaixo) ou o cadastro pelo '
+                  'e-mail da sua conta: o convite aparece aqui.',
             ),
+            const SizedBox(height: 8),
+            const _JoinCodeCard(key: Key('training-add-code')),
             const SizedBox(height: 16),
             Text(
               'Cada origem cobra separado: o professor particular cobra '
@@ -177,6 +179,182 @@ class _Option extends StatelessWidget {
               size: 18,
               color: ProfessorLinksStyle.dim(colors),
             ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// "Tenho um código" — o código de entrada que o centro passa (portal ›
+/// Configurações). Entrar vincula a conta ao centro.
+class _JoinCodeCard extends ConsumerStatefulWidget {
+  const _JoinCodeCard({super.key});
+
+  @override
+  ConsumerState<_JoinCodeCard> createState() => _JoinCodeCardState();
+}
+
+class _JoinCodeCardState extends ConsumerState<_JoinCodeCard> {
+  final _code = TextEditingController();
+  bool _open = false;
+  bool _sending = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _code.dispose();
+    super.dispose();
+  }
+
+  Future<void> _join() async {
+    final code = _code.text.trim();
+    if (code.isEmpty) return;
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+    try {
+      final r = await ref
+          .read(trainingCentersRepositoryProvider)
+          .joinByCode(code);
+      refreshAthleteTrainingCenters(ref);
+      if (!mounted) return;
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              r.already
+                  ? 'Você já é aluno do ${r.centerName}.'
+                  : 'Pronto! Você agora é aluno do ${r.centerName}.',
+            ),
+          ),
+        );
+      context.pushNamed(
+        AppRouteNames.athleteTrainingCenter,
+        pathParameters: {'centerId': r.centerId},
+      );
+    } on ClassPresenceException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: ProfessorLinksStyle.line2(colors)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            key: const Key('training-add-code-toggle'),
+            onTap: () => setState(() => _open = !_open),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.qr_code_2_rounded,
+                  size: 20,
+                  color: ProfessorLinksStyle.mute(colors),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Tenho um código',
+                        style: ProfessorLinksStyle.display(
+                          13,
+                          weight: FontWeight.w600,
+                          color: colors.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Código de entrada do centro de treinamento',
+                        style: AppTypography.bodyS.copyWith(
+                          fontSize: 11.5,
+                          color: ProfessorLinksStyle.dim(colors),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  _open
+                      ? Icons.expand_less_rounded
+                      : Icons.expand_more_rounded,
+                  size: 18,
+                  color: ProfessorLinksStyle.dim(colors),
+                ),
+              ],
+            ),
+          ),
+          if (_open) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    key: const Key('training-add-code-field'),
+                    controller: _code,
+                    textCapitalization: TextCapitalization.characters,
+                    autocorrect: false,
+                    maxLength: 9,
+                    onSubmitted: (_) => _join(),
+                    style: ProfessorLinksStyle.mono(
+                      15,
+                      color: colors.onSurface,
+                    ).copyWith(letterSpacing: 3),
+                    decoration: InputDecoration(
+                      hintText: 'XK7-Q2M',
+                      counterText: '',
+                      filled: true,
+                      fillColor: ProfessorLinksStyle.soft(colors),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 13,
+                        vertical: 12,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: ProfessorLinksStyle.line2(colors),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: ProfessorLinksStyle.line2(colors),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 96,
+                  child: ProfessorLinksPrimaryButton(
+                    key: const Key('training-add-code-join'),
+                    label: 'Entrar',
+                    height: 46,
+                    loading: _sending,
+                    onPressed: _sending ? null : _join,
+                  ),
+                ),
+              ],
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              ProfessorLinksNote(_error!, tone: ProfessorLinksNoteTone.red),
+            ],
           ],
         ],
       ),

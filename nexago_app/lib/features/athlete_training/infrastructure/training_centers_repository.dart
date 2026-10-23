@@ -81,6 +81,22 @@ class TrainingCentersRepository {
         : const CenterInvoicePix(status: 'pending');
   }
 
+  /// "Tenho um código": entra no centro pelo código de entrada. Devolve o
+  /// centro e se já era aluno.
+  Future<({String centerId, String centerName, bool already})> joinByCode(
+    String code,
+  ) async {
+    final raw = await _call('joinTrainingCenterByCode', {
+      'code': code,
+    }, 'Não foi possível entrar com este código. Tente de novo.');
+    final m = raw is Map ? raw : const {};
+    return (
+      centerId: '${m['centerId'] ?? ''}',
+      centerName: '${m['centerName'] ?? 'Centro de treinamento'}',
+      already: m['already'] == true,
+    );
+  }
+
   /// "Já paguei · verificar": consulta o provedor; devolve o status da fatura.
   Future<String> checkInvoice({
     required String centerId,

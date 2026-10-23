@@ -1,4 +1,4 @@
-import { attendanceRoster, effectLabel } from './attendance-roster';
+import { rsvpLabel, attendanceRoster, effectLabel } from './attendance-roster';
 import { rosterAfter } from '../../domain/enrollment';
 
 describe('attendanceRoster', () => {
@@ -25,5 +25,14 @@ describe('rosterAfter', () => {
     expect(rosterAfter(['a', 'b'], 'a', -1)).toEqual(['b']);
     expect(rosterAfter(['a'], 'a', 1)).toEqual(['a']);
     expect(rosterAfter(undefined, 'a', 0)).toEqual([]);
+  });
+});
+
+describe('rsvpLabel', () => {
+  it('mostra a resposta do aluno pelo app', () => {
+    expect(rsvpLabel('going', false)).toEqual({ text: 'Vai · app', tone: 'green' });
+    expect(rsvpLabel('not_going', true)).toEqual({ text: 'Avisou no prazo · app', tone: 'yellow' });
+    expect(rsvpLabel('not_going', false)).toEqual({ text: 'Não vai · app', tone: 'yellow' });
+    expect(rsvpLabel(undefined, false)).toBeNull();
   });
 });

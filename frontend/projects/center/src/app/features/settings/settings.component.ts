@@ -5,6 +5,7 @@ import { CenterContextService } from '../../core/center-context.service';
 import { CenterActions, type CenterProfilePatch } from '../../data/actions/center.actions';
 import { writeErrorMessage } from '../../data/actions/actor';
 import { CenterStore } from '../../data/center-store.service';
+import { JoinCodeCardComponent } from './join-code-card.component';
 import { formatDayKey, formatInstant, wallClock } from '../../domain/dates';
 import { holdsSeat } from '../../domain/enrollment';
 import type { CenterPolicies, CenterStatus, TrainingCenter } from '../../domain/models';
@@ -67,7 +68,7 @@ function profileOf(c: TrainingCenter): CenterProfilePatch {
 @Component({
   selector: 'ct-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, PageHeaderComponent, SegmentedComponent, BannerComponent, AuditTrailComponent, SubscriptionCardComponent, BillingSettingsComponent, NotificationSettingsComponent, ReceivingAccountComponent],
+  imports: [ReactiveFormsModule, RouterLink, PageHeaderComponent, SegmentedComponent, BannerComponent, AuditTrailComponent, SubscriptionCardComponent, BillingSettingsComponent, NotificationSettingsComponent, ReceivingAccountComponent, JoinCodeCardComponent],
   templateUrl: './settings.component.html',
   styles: `
     .body { padding: 20px var(--ct-gutter) 26px; display: flex; flex-direction: column; gap: 16px; }

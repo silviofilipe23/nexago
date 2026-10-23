@@ -207,6 +207,9 @@
               }
             </div>
           }
+          @if (classCharges().length > 0) {
+            <a class="ag-btn-ghost ag-btn-sm" routerLink="/mensalidades" style="align-self: flex-start">Todas as mensalidades</a>
+          }
           @if (pendingRequests().length === 0 && !pendingReview() && classCharges().length === 0) {
             <p class="ag-empty-inline">Tudo em dia por aqui.</p>
           } @else {

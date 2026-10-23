@@ -531,28 +531,87 @@ class CenterCoachInvoice {
     this.approvedAt,
     this.studentId = '',
     this.reference = '',
+    this.payerName = '',
+    this.enrollmentId = '',
+    this.method = '',
+    this.providerRef = '',
+    this.createdAt,
+    this.refundedCents = 0,
+    this.events = const [],
   });
 
-  factory CenterCoachInvoice.fromMap(String id, Map<String, Object?> m) =>
-      CenterCoachInvoice(
-        id: id,
-        status: _str(m['status'], 'pending'),
-        amountCents: _int(m['amountCents']) ?? 0,
-        dueDate: _str(m['dueDate']),
-        approvedAt: _date(m['approvedAt']),
-        studentId: _str(m['studentId']),
-        reference: _str(m['reference']),
-      );
+  factory CenterCoachInvoice.fromMap(String id, Map<String, Object?> m) {
+    final raw = m['events'];
+    return CenterCoachInvoice(
+      id: id,
+      status: _str(m['status'], 'pending'),
+      amountCents: _int(m['amountCents']) ?? 0,
+      dueDate: _str(m['dueDate']),
+      approvedAt: _date(m['approvedAt']),
+      studentId: _str(m['studentId']),
+      reference: _str(m['reference']),
+      payerName: _str(m['payerName']),
+      enrollmentId: _str(m['enrollmentId']),
+      method: _str(m['method']),
+      providerRef: _str(m['providerRef']),
+      createdAt: _date(m['createdAt']),
+      refundedCents: _int(m['refundedCents']) ?? 0,
+      events: [
+        if (raw is List)
+          for (final e in raw)
+            if (e is Map) CenterInvoiceEvent.fromMap(_map(e)),
+      ],
+    );
+  }
 
   final String id;
   final String studentId;
 
   /// "Mensalidade outubro", "Pacote 8 aulas"…
   final String reference;
+  final String payerName;
+  final String enrollmentId;
+
+  /// `pix`, `card`, `cash`, `transfer` ou `other` (vazio enquanto pendente).
+  final String method;
+
+  /// Fatura no Asaas (vazio = cobrança só manual).
+  final String providerRef;
+  final DateTime? createdAt;
+  final int refundedCents;
+
+  /// Linha do tempo da cobrança (mais antiga primeiro).
+  final List<CenterInvoiceEvent> events;
   final String status;
   final int amountCents;
   final String dueDate;
   final DateTime? approvedAt;
+}
+
+/// Evento da linha do tempo da cobrança (`invoices.events[]`).
+class CenterInvoiceEvent {
+  const CenterInvoiceEvent({
+    required this.type,
+    required this.title,
+    this.detail = '',
+    this.byName = '',
+    this.at,
+  });
+
+  factory CenterInvoiceEvent.fromMap(Map<String, Object?> m) =>
+      CenterInvoiceEvent(
+        type: _str(m['type']),
+        title: _str(m['title']),
+        detail: _str(m['detail']),
+        byName: _str(m['byName']),
+        at: _date(m['at']),
+      );
+
+  final String type;
+  final String title;
+  final String detail;
+  final String byName;
+  final DateTime? at;
 }
 
 /// Resultado do check-in (`checkInTrainingCenterStudent`).

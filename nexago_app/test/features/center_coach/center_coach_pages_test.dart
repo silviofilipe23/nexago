@@ -17,6 +17,8 @@ import 'package:nexago_app/features/center_coach/presentation/center_coach_call_
 import 'package:nexago_app/features/center_coach/presentation/center_coach_class_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_today_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_checkin_page.dart';
+import 'package:nexago_app/features/center_coach/presentation/center_coach_finance_page.dart';
+import 'package:nexago_app/features/center_coach/presentation/center_coach_invoice_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_student_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_students_page.dart';
 import 'package:nexago_app/features/professor_links/application/professor_links_providers.dart';
@@ -62,6 +64,7 @@ class _Fake implements CenterCoachRepository {
   List<CenterCoachEnrollment> enrollments = const [];
   List<CenterCoachInvoice>? invoices;
   List<CenterAuditEntry> audit = const [];
+  final confirms = <Map<String, Object?>>[];
   final corrections = <Map<String, Object?>>[];
 
   @override
@@ -166,6 +169,26 @@ class _Fake implements CenterCoachRepository {
   @override
   Stream<List<CenterCoachInvoice>> watchInvoices(String centerId) =>
       Stream.value(invoices ?? const []);
+
+  @override
+  Future<void> confirmInvoiceManually({
+    required String centerId,
+    required CenterCoachInvoice invoice,
+    required String method,
+    required String proof,
+    required String reason,
+    required String actorUid,
+    required String actorName,
+  }) async {
+    if (failWith != null) throw failWith!;
+    confirms.add({
+      'invoice': invoice.id,
+      'method': method,
+      'proof': proof,
+      'reason': reason,
+      'actor': actorName,
+    });
+  }
 
   @override
   Stream<List<CenterAuditEntry>> watchAuditLogs(
@@ -274,6 +297,20 @@ Future<GoRouter> _pump(
         name: AppRouteNames.centerCoachCheckin,
         builder: (_, s) =>
             CenterCoachCheckinPage(centerId: s.pathParameters['centerId']!),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachFinance,
+        name: AppRouteNames.centerCoachFinance,
+        builder: (_, s) =>
+            CenterCoachFinancePage(centerId: s.pathParameters['centerId']!),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachInvoice,
+        name: AppRouteNames.centerCoachInvoice,
+        builder: (_, s) => CenterCoachInvoicePage(
+          centerId: s.pathParameters['centerId']!,
+          invoiceId: s.pathParameters['invoiceId']!,
+        ),
       ),
       GoRoute(
         path: AppRoutes.centerCoachAlerts,
@@ -1046,6 +1083,168 @@ void main() {
         owner(role: 'coach'),
       );
       expect(find.byKey(const Key('center-coach-class-info')), findsNothing);
+    });
+  });
+
+  group('G15/G16 · cobranças e baixa manual', () {
+    _Fake money({String role = 'center_owner', List<String> extra = const []}) =>
+        _Fake(
+            memberships: [
+              CenterMembership.fromMap('c1', {
+                'centerName': 'CT Maré Alta',
+                'role': role,
+                'status': 'active',
+                'displayName': 'Camila Rocha',
+                'extraPerms': extra,
+              }),
+            ],
+            students: _students,
+          )
+          ..enrollments = [
+            CenterCoachEnrollment.fromMap('e9', {
+              'studentId': 's3',
+              'classId': 'k1',
+              'className': 'BT Intermediário B',
+              'status': 'pending',
+            }),
+          ]
+          ..invoices = [
+            CenterCoachInvoice.fromMap('i1', {
+              'studentId': 's3',
+              'enrollmentId': 'e9',
+              'payerName': 'Elisa Prado',
+              'reference': 'Mensal 1x · nov',
+              'status': 'pending',
+              'amountCents': 18000,
+              'dueDate': '2026-11-05',
+              'providerRef': 'pay_1',
+              'createdAt': DateTime.utc(2026, 10, 23, 13),
+              'events': [
+                {
+                  'type': 'created',
+                  'title': 'Cobrança criada',
+                  'detail': 'R\$ 180,00',
+                  'byName': 'Sistema',
+                  'at': DateTime.utc(2026, 10, 23, 13),
+                },
+              ],
+            }),
+            CenterCoachInvoice.fromMap('i2', {
+              'studentId': 's2',
+              'payerName': 'Caio Ramos',
+              'reference': 'Pacote 4 aulas',
+              'status': 'pending',
+              'amountCents': 20000,
+              'dueDate': '2026-10-15',
+            }),
+            CenterCoachInvoice.fromMap('i3', {
+              'studentId': 's1',
+              'payerName': 'Marina Teles',
+              'reference': 'Mensal 2x · out',
+              'status': 'approved',
+              'method': 'cash',
+              'amountCents': 32000,
+              'dueDate': '2026-10-05',
+              'approvedAt': DateTime.utc(2026, 10, 4, 15),
+            }),
+          ];
+
+    testWidgets('pendências primeiro a vencida; recebido e vencido no topo', (
+      tester,
+    ) async {
+      await _pump(tester, '/athlete/professor/centros/c1/financeiro', money());
+      expect(find.textContaining('320,00'), findsOneWidget);
+      expect(find.text('Venceu 15/10 · 8 dias'), findsOneWidget);
+      expect(find.text('Cobrança online · aguardando há 2h'), findsOneWidget);
+      final y1 = tester.getTopLeft(find.byKey(const Key('center-finance-row-i2'))).dy;
+      final y2 = tester.getTopLeft(find.byKey(const Key('center-finance-row-i1'))).dy;
+      expect(y1, lessThan(y2), reason: 'vencida no topo');
+      expect(find.byKey(const Key('center-finance-row-i3')), findsNothing);
+      await _tap(tester, find.byKey(const Key('center-finance-tab-received')));
+      expect(find.text('Pago 04/10 · Dinheiro'), findsOneWidget);
+    });
+
+    testWidgets('baixa manual: valida, confirma e ativa a matrícula', (
+      tester,
+    ) async {
+      final fake = money();
+      final router = await _pump(
+        tester,
+        '/athlete/professor/centros/c1/financeiro',
+        fake,
+      );
+      await _tap(tester, find.byKey(const Key('center-finance-row-i1')));
+      expect(router.state.uri.path, '/athlete/professor/centros/c1/financeiro/i1');
+      expect(find.textContaining('e ativar matrícula'), findsOneWidget);
+      expect(find.textContaining('A cobrança online em aberto é cancelada'), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('center-invoice-confirm')));
+      expect(find.text('Escolha como foi pago.'), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('center-invoice-method-pix')));
+      await tester.enterText(find.byKey(const Key('center-invoice-proof')), 'E2E 9981');
+      await _tap(tester, find.byKey(const Key('center-invoice-confirm')));
+      expect(find.text('Informe o motivo.'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const Key('center-invoice-reason')),
+        'QR expirou, pagou na chave',
+      );
+      await _tap(tester, find.byKey(const Key('center-invoice-confirm')));
+      expect(fake.confirms.single, {
+        'invoice': 'i1',
+        'method': 'pix',
+        'proof': 'E2E 9981',
+        'reason': 'QR expirou, pagou na chave',
+        'actor': 'Camila Rocha',
+      });
+      expect(find.byKey(const Key('center-invoice-timeline')), findsOneWidget);
+    });
+
+    testWidgets('cobrança que já saiu de pendente mostra o erro', (
+      tester,
+    ) async {
+      final fake = money()
+        ..failWith = const CenterCoachException(
+          'Esta cobrança não está mais pendente.',
+        );
+      await _pump(tester, '/athlete/professor/centros/c1/financeiro/i2', fake);
+      await _tap(tester, find.byKey(const Key('center-invoice-method-cash')));
+      await tester.enterText(find.byKey(const Key('center-invoice-proof')), 'Recibo 12');
+      await tester.enterText(find.byKey(const Key('center-invoice-reason')), 'Pagou no balcão');
+      await _tap(tester, find.byKey(const Key('center-invoice-confirm')));
+      expect(find.text('Esta cobrança não está mais pendente.'), findsOneWidget);
+    });
+
+    testWidgets('quem vê o financeiro sem ser admin não confirma; sem permissão, nada', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        '/athlete/professor/centros/c1/financeiro/i1',
+        money(role: 'receptionist', extra: ['view_finance']),
+      );
+      expect(find.byKey(const Key('center-invoice-confirm')), findsNothing);
+      expect(find.textContaining('Só o owner ou um admin'), findsOneWidget);
+      await _pump(
+        tester,
+        '/athlete/professor/centros/c1/financeiro',
+        money(role: 'receptionist'),
+      );
+      expect(find.byKey(const Key('center-finance-denied')), findsOneWidget);
+    });
+
+    testWidgets('Hoje leva às cobranças; perfil do aluno abre a cobrança', (
+      tester,
+    ) async {
+      final router = await _pump(
+        tester,
+        '/athlete/professor/centros/c1/hoje',
+        money(),
+      );
+      await _tap(tester, find.byKey(const Key('center-today-finance')));
+      expect(router.state.uri.path, '/athlete/professor/centros/c1/financeiro');
+      router.go('/athlete/professor/centros/c1/alunos/s3');
+      await _settle(tester);
+      await _tap(tester, find.byKey(const Key('center-student-invoice-i1')));
+      expect(router.state.uri.path, '/athlete/professor/centros/c1/financeiro/i1');
     });
   });
 }

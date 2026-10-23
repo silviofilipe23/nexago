@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/formatting/app_currency_format.dart';
@@ -155,7 +156,14 @@ class CenterCoachStudentPage extends ConsumerWidget {
               ),
             if (invoices != null) ...[
               const SizedBox(height: 12),
-              _InvoicesCard(invoices: invoices, todayKey: today),
+              _InvoicesCard(
+                invoices: invoices,
+                todayKey: today,
+                onOpen: (id) => context.pushNamed(
+                  AppRouteNames.centerCoachInvoice,
+                  pathParameters: {'centerId': centerId, 'invoiceId': id},
+                ),
+              ),
             ],
             const SizedBox(height: 12),
             _PresenceCard(marks: marks),
@@ -522,9 +530,14 @@ class _ClassesCard extends StatelessWidget {
 }
 
 class _InvoicesCard extends StatelessWidget {
-  const _InvoicesCard({required this.invoices, required this.todayKey});
+  const _InvoicesCard({
+    required this.invoices,
+    required this.todayKey,
+    required this.onOpen,
+  });
 
   final List<CenterCoachInvoice> invoices;
+  final ValueChanged<String> onOpen;
   final String todayKey;
 
   @override
@@ -560,8 +573,10 @@ class _InvoicesCard extends StatelessWidget {
                     'late' || 'failed' || 'disputed' => AppColors.live,
                     _ => ProfessorLinksStyle.dim(colors),
                   };
-                  return ProfessorInfoRow(
+                  return InkWell(
                     key: Key('center-student-invoice-${inv.id}'),
+                    onTap: () => onOpen(inv.id),
+                    child: ProfessorInfoRow(
                     label: inv.reference.isEmpty ? 'Cobrança' : inv.reference,
                     sub: switch (st) {
                       'late' => 'Venceu ${centerDayMonth(inv.dueDate)}',
@@ -572,6 +587,7 @@ class _InvoicesCard extends StatelessWidget {
                     value: formatBRLFromCents(inv.amountCents),
                     valueColor: colors.readableTone(color),
                     last: i == shown.length - 1,
+                    ),
                   );
                 },
               ),

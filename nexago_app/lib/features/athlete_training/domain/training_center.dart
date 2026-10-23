@@ -289,6 +289,7 @@ class TrainingCenterLink {
     this.sports = const [],
     this.makeupCredits = 0,
     this.billingHold = false,
+    this.checkinCode = '',
     this.policies = const CenterPolicies(),
     this.enrollments = const [],
     this.sessions = const [],
@@ -321,6 +322,7 @@ class TrainingCenterLink {
           : const [],
       makeupCredits: _int(m['makeupCredits']) ?? 0,
       billingHold: m['billingHold'] == true,
+      checkinCode: _str(m['checkinCode']),
       policies: m['policies'] is Map
           ? CenterPolicies.fromMap(_map(m['policies'] as Map))
           : const CenterPolicies(),
@@ -340,6 +342,13 @@ class TrainingCenterLink {
 
   /// Mensalidade atrasada além do limite (o centro pode barrar o check-in).
   final bool billingHold;
+
+  /// Carteirinha do check-in (vazio = servidor antigo).
+  final String checkinCode;
+
+  /// Conteúdo do QR da carteirinha.
+  String get checkinQr =>
+      checkinCode.isEmpty ? '' : 'nexago-ct:$centerId:$checkinCode';
   final CenterPolicies policies;
   final List<CenterEnrollment> enrollments;
   final List<CenterSession> sessions;

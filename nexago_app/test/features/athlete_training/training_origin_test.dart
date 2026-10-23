@@ -23,6 +23,7 @@ Map<String, Object?> centerResponse() => {
       'state': 'RJ',
       'makeupCredits': 1,
       'billingHold': false,
+          'checkinCode': 'ABCDEFGH23',
       'policies': {'excusedNoticeHours': 6, 'excusedAbsenceMakeup': true},
       'enrollments': [
         {

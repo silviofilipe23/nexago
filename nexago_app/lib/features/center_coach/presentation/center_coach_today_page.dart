@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/router/navigation_helpers.dart';
@@ -99,6 +100,16 @@ class CenterCoachTodayPage extends ConsumerWidget {
                 ),
               )
             else ...[
+              ProfessorLinksPrimaryButton(
+                key: const Key('center-today-checkin'),
+                label: 'Fazer check-in',
+                height: 52,
+                onPressed: () => context.pushNamed(
+                  AppRouteNames.centerCoachCheckin,
+                  pathParameters: {'centerId': centerId},
+                ),
+              ),
+              const SizedBox(height: 12),
               if (live != null) ...[
                 _LiveCard(
                   key: const Key('center-today-live'),

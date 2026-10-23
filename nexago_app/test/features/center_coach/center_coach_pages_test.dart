@@ -14,6 +14,7 @@ import 'package:nexago_app/features/center_coach/presentation/center_coach_agend
 import 'package:nexago_app/features/center_coach/presentation/center_coach_call_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_class_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_today_page.dart';
+import 'package:nexago_app/features/center_coach/presentation/center_coach_checkin_page.dart';
 import 'package:nexago_app/features/professor_links/application/professor_links_providers.dart';
 
 // Sex 23/10/2026 12:00 em São Paulo.
@@ -53,6 +54,7 @@ class _Fake implements CenterCoachRepository {
   CenterCoachException? failWith;
   final saves = <Map<String, Object?>>[];
   final cancels = <Map<String, Object?>>[];
+  final checkins = <Map<String, Object?>>[];
   List<CenterCoachEnrollment> enrollments = const [];
   List<CenterCoachInvoice>? invoices;
   final corrections = <Map<String, Object?>>[];
@@ -177,6 +179,30 @@ class _Fake implements CenterCoachRepository {
   }
 
   @override
+  Future<CenterCheckinResult> checkIn({
+    required String centerId,
+    String? qr,
+    String? studentId,
+    bool force = false,
+  }) async {
+    checkins.add({'qr': qr, 'studentId': studentId, 'force': force});
+    if (qr != null && !qr.startsWith('nexago-ct:c1:')) {
+      return const CenterCheckinResult(state: 'wrong_center');
+    }
+    final id = studentId ?? 's1';
+    final hold = id == 's3' && !force;
+    return CenterCheckinResult(
+      state: hold ? 'hold' : 'checked_in',
+      studentId: id,
+      studentName: id == 's3' ? 'Elisa Prado' : 'Marina Teles',
+      sessionId: 'k1_b',
+      className: 'BT Intermediário B',
+      startTime: '19:00',
+      billingHold: id == 's3',
+    );
+  }
+
+  @override
   Future<List<MakeupCandidate>> makeupCandidates(
     String centerId,
     String sessionId,
@@ -204,7 +230,12 @@ CenterMembership _member(
   'displayName': 'Thiago Mendes',
 });
 
-Future<GoRouter> _pump(WidgetTester tester, String location, _Fake fake) async {
+Future<GoRouter> _pump(
+  WidgetTester tester,
+  String location,
+  _Fake fake, {
+  String scanned = 'nexago-ct:c1:ABCDEFGH23',
+}) async {
   tester.view.physicalSize = const Size(420, 2000);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
@@ -225,6 +256,12 @@ Future<GoRouter> _pump(WidgetTester tester, String location, _Fake fake) async {
           centerId: s.pathParameters['centerId']!,
           sessionId: s.pathParameters['sessionId']!,
         ),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachCheckin,
+        name: AppRouteNames.centerCoachCheckin,
+        builder: (_, s) =>
+            CenterCoachCheckinPage(centerId: s.pathParameters['centerId']!),
       ),
       GoRoute(
         path: AppRoutes.centerCoachToday,
@@ -249,6 +286,9 @@ Future<GoRouter> _pump(WidgetTester tester, String location, _Fake fake) async {
         professorLinksUidProvider.overrideWithValue('tm'),
         professorLinksClockProvider.overrideWithValue(() => _now),
         centerCoachRepositoryProvider.overrideWithValue(fake),
+        centerCheckinScanLauncherProvider.overrideWithValue(
+          (_) async => scanned,
+        ),
       ],
       child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
     ),
@@ -671,6 +711,63 @@ void main() {
       final fake = staffFake()..memberships = [_member('c1', 'CT Maré Alta')];
       await _pump(tester, '/athlete/professor/centros/c1/aula/k1_b', fake);
       expect(find.byKey(const Key('center-coach-cancel')), findsNothing);
+    });
+  });
+
+  group('G7/G8 · check-in', () {
+    _Fake desk() => _Fake(
+      memberships: [_member('c1', 'CT Maré Alta', role: 'receptionist')],
+      students: _students,
+      sessions: [_session('k1_b')],
+    );
+
+    testWidgets('carteirinha lida: presente e entra nas chegadas', (
+      tester,
+    ) async {
+      final fake = desk();
+      await _pump(tester, '/athlete/professor/centros/c1/checkin', fake);
+      await _tap(tester, find.byKey(const Key('center-checkin-scan')));
+      expect(fake.checkins.single['qr'], 'nexago-ct:c1:ABCDEFGH23');
+      expect(find.text('Marina Teles · presente'), findsOneWidget);
+      expect(find.text('ÚLTIMAS CHEGADAS'), findsOneWidget);
+    });
+
+    testWidgets('busca por nome, pendência e registrar mesmo assim', (
+      tester,
+    ) async {
+      final fake = desk();
+      await _pump(tester, '/athlete/professor/centros/c1/checkin', fake);
+      await tester.enterText(
+        find.byKey(const Key('center-checkin-search')),
+        'eli',
+      );
+      await _settle(tester);
+      await _tap(tester, find.byKey(const Key('center-checkin-student-s3')));
+      expect(find.text('Elisa Prado · mensalidade em atraso'), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('center-checkin-force')));
+      expect(fake.checkins.last, {
+        'qr': null,
+        'studentId': 's3',
+        'force': true,
+      });
+      expect(find.text('Elisa Prado · presente'), findsOneWidget);
+    });
+
+    testWidgets('carteirinha de outro centro', (tester) async {
+      await _pump(
+        tester,
+        '/athlete/professor/centros/c1/checkin',
+        desk(),
+        scanned: 'nexago-ct:c9:X',
+      );
+      await _tap(tester, find.byKey(const Key('center-checkin-scan')));
+      expect(find.text('Carteirinha de outro centro'), findsOneWidget);
+    });
+
+    testWidgets('recepção chega ao check-in pela agenda', (tester) async {
+      final router = await _pump(tester, AppRoutes.centerCoachAgenda, desk());
+      await _tap(tester, find.byKey(const Key('center-coach-checkin-entry')));
+      expect(router.state.uri.path, '/athlete/professor/centros/c1/checkin');
     });
   });
 }

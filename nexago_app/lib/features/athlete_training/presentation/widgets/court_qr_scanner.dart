@@ -22,7 +22,15 @@ final courtQrScanLauncherProvider = Provider<CourtQrScanLauncher>(
 /// Leitor do QR da quadra (T5 do check-in): câmera em tela cheia com a moldura
 /// no centro. Fecha sozinho no primeiro QR — a validação é do servidor.
 class CourtQrScannerPage extends StatefulWidget {
-  const CourtQrScannerPage({super.key});
+  const CourtQrScannerPage({
+    super.key,
+    this.title = 'Aponte para o QR da quadra',
+    this.hint = 'Fica com a recepção ou na própria quadra.',
+  });
+
+  /// Texto sob a moldura (o check-in do centro lê a carteirinha do aluno).
+  final String title;
+  final String hint;
 
   @override
   State<CourtQrScannerPage> createState() => _CourtQrScannerPageState();
@@ -64,7 +72,7 @@ class _CourtQrScannerPageState extends State<CourtQrScannerPage> {
             onDetect: _onDetect,
             errorBuilder: (context, error) => _ScannerError(error: error),
           ),
-          const IgnorePointer(child: _Frame()),
+          IgnorePointer(child: _Frame(title: widget.title, hint: widget.hint)),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
@@ -104,7 +112,10 @@ class _CourtQrScannerPageState extends State<CourtQrScannerPage> {
 }
 
 class _Frame extends StatelessWidget {
-  const _Frame();
+  const _Frame({required this.title, required this.hint});
+
+  final String title;
+  final String hint;
 
   @override
   Widget build(BuildContext context) {
@@ -121,13 +132,13 @@ class _Frame extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         Text(
-          'Aponte para o QR da quadra',
+          title,
           textAlign: TextAlign.center,
           style: ProfessorLinksStyle.display(16, color: Colors.white),
         ),
         const SizedBox(height: 6),
         Text(
-          'Fica com a recepção ou na própria quadra.',
+          hint,
           textAlign: TextAlign.center,
           style: AppTypography.bodyS.copyWith(color: Colors.white70),
         ),

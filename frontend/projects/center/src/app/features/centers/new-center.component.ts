@@ -5,15 +5,13 @@ import { formatCpfCnpjDisplay, isValidCpfCnpj, normalizeCpfCnpj } from '@nexago/
 import { AuthService } from '../../auth/auth.service';
 import { CenterActions } from '../../data/actions/center.actions';
 import { writeErrorMessage } from '../../data/actions/actor';
+import { CENTER_SPORTS } from '../../domain/models';
 import { IconComponent } from '../../ui/icon.component';
 
 /** Centro é pessoa jurídica: só CNPJ (14 dígitos) válido. */
 function isCnpj(raw: string): boolean {
   return normalizeCpfCnpj(raw).length === 14 && isValidCpfCnpj(raw);
 }
-
-/** Modalidades oferecidas no cadastro (viram `programs` com níveis padrão, editáveis depois). */
-const SPORTS = ['Beach Tennis', 'Vôlei de praia', 'Futevôlei', 'Vôlei', 'Tênis', 'Padel', 'Funcional'];
 
 /**
  * Cadastro do centro: o usuário logado vira OWNER e o centro nasce PENDENTE. Dá para montar
@@ -32,7 +30,7 @@ export class NewCenterComponent {
   private readonly router = inject(Router);
   protected readonly auth = inject(AuthService);
 
-  protected readonly sports = SPORTS;
+  protected readonly sports = CENTER_SPORTS;
   protected readonly selected = signal<string[]>(['Beach Tennis']);
   /** Sede própria (vira o local principal) ou itinerante (só arenas parceiras). */
   protected readonly hasHq = signal(true);

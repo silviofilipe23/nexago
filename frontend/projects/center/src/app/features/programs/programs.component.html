@@ -57,6 +57,17 @@
 
 @if (editingProgram(); as target) {
   <ct-modal kicker="Modalidades" [title]="target === 'new' ? 'Nova modalidade' : 'Editar modalidade'" [width]="560" (closed)="editingProgram.set(null)">
+    @if (target === 'new' && suggestions().length > 0) {
+      <div class="ct-field">
+        <span class="ct-label">Escolha uma modalidade</span>
+        <div class="ct-row ct-wrap">
+          @for (s of suggestions(); track s) {
+            <button type="button" class="ct-chip" [class.active]="pName().trim().toLowerCase() === s.toLowerCase()" [attr.aria-pressed]="pName().trim().toLowerCase() === s.toLowerCase()" (click)="pickSuggestion(s)">{{ s }}</button>
+          }
+        </div>
+        <div class="ct-dim">Ou digite outro nome abaixo.</div>
+      </div>
+    }
     <div class="ct-field"><label for="pg-name">Nome</label><input id="pg-name" class="ct-input" placeholder="Ex.: Beach Tennis" [value]="pName()" (input)="pName.set(value($event))" /></div>
     <div class="ct-field">
       <span class="ct-label">Cor na agenda</span>

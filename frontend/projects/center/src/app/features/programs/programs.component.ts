@@ -5,7 +5,7 @@ import { CenterStore } from '../../data/center-store.service';
 import { writeErrorMessage } from '../../data/actions/actor';
 import { CatalogActions } from '../../data/actions/catalog.actions';
 import { holdsSeat } from '../../domain/enrollment';
-import { PROGRAM_COLORS, type Program } from '../../domain/models';
+import { CENTER_SPORTS, DEFAULT_LEVELS, PROGRAM_COLORS, type Program } from '../../domain/models';
 import { IconComponent } from '../../ui/icon.component';
 import { ModalComponent, PageHeaderComponent } from '../../ui/kit';
 
@@ -86,6 +86,30 @@ export class ProgramsComponent {
   protected readonly pColor = signal(PROGRAM_COLORS[0]!);
   protected readonly pLevels = signal<LevelDraft[]>([]);
   protected readonly newLevel = signal('');
+
+  /**
+   * Sugestões para "Nova modalidade": os esportes do centro primeiro, depois o catálogo,
+   * sem os que já viraram modalidade.
+   */
+  protected readonly suggestions = computed(() => {
+    const taken = new Set(this.store.programs().map((p) => p.name.trim().toLowerCase()));
+    const all = [...(this.ctx.center()?.sports ?? []), ...CENTER_SPORTS];
+    const seen = new Set<string>();
+    return all.filter((s) => {
+      const key = s.trim().toLowerCase();
+      if (!key || taken.has(key) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  });
+
+  protected pickSuggestion(name: string): void {
+    this.pName.set(name);
+    this.error.set('');
+    if (this.pLevels().length === 0) {
+      this.pLevels.set(DEFAULT_LEVELS.map((l) => ({ original: null, name: l })));
+    }
+  }
 
   protected readonly busy = signal(false);
   protected readonly error = signal('');

@@ -243,7 +243,13 @@ export interface ClassSession {
   attendanceLog: AttendanceCorrection[];
   /** Créditos que o servidor já aplicou por esta chamada (só leitura no client). */
   effectsApplied: Record<string, { credit: number; makeup: number }>;
+  /** "Vou" / "Não vou" do aluno pelo app (`respondTrainingCenterSession`; só o servidor grava). */
+  rsvps: Record<string, SessionRsvp>;
+  /** Falta justificada lançada pelo próprio aluno no app (avisou dentro do prazo do centro). */
+  attendanceByStudent: Record<string, boolean>;
 }
+
+export type SessionRsvp = 'going' | 'not_going';
 
 export interface AttendanceCorrection {
   at: Date | null;

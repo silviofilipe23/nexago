@@ -35,6 +35,9 @@
             @if (r.hold) {
               <span class="ct-tag red" title="Mensalidade em atraso · a recepção resolve">Pendência</span>
             }
+            @if (r.rsvp) {
+              <span class="ct-tag" [class.green]="r.rsvp.tone === 'green'" [class.yellow]="r.rsvp.tone === 'yellow'" title="Resposta do aluno pelo app NexaGO">{{ r.rsvp.text }}</span>
+            }
             @if (done()) {
               @if (r.effect) {
                 <span class="ct-tag blue">{{ r.effect }}</span>

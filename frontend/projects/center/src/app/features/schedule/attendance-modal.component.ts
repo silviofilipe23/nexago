@@ -8,7 +8,7 @@ import { placeLabel } from '../../domain/locations';
 import type { AttendanceMark } from '../../domain/models';
 import { endTime } from '../../domain/schedule';
 import { AuditTrailComponent, ModalComponent, PersonComponent, SegmentedComponent, type AuditRow } from '../../ui/kit';
-import { attendanceRoster, effectLabel } from './attendance-roster';
+import { attendanceRoster, effectLabel, rsvpLabel } from './attendance-roster';
 
 const MARK_OPTIONS = [
   { value: 'present', label: 'P' },
@@ -108,6 +108,8 @@ export class AttendanceModalComponent {
         sub: [r.makeup ? 'Reposição' : '', st?.isMinor ? 'Menor' : ''].filter(Boolean).join(' · '),
         mark: (attendance[r.studentId] as AttendanceMark | undefined) ?? null,
         effect: effectLabel(s.effectsApplied[r.studentId]),
+        /** Resposta do aluno pelo app e se a falta justificada foi ele que lançou (no prazo). */
+        rsvp: rsvpLabel(s.rsvps[r.studentId], s.attendanceByStudent[r.studentId] === true),
         /** Mensalidade atrasada além do limite da política (o servidor marca; sem valores para o professor). */
         hold: st?.billingHold === true,
       };

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { arrayUnion, Timestamp, writeBatch } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, Timestamp, writeBatch } from 'firebase/firestore';
 import { formatDayKey } from '../../domain/dates';
 import { formatBRL } from '../../domain/money';
 import type { Court, Plan, Program } from '../../domain/models';
@@ -23,6 +23,17 @@ export class CatalogActions extends CenterActionsBase {
     const b = writeBatch(db());
     b.set(ref, { ...input, name: input.name.trim(), levels: input.levels.map((l) => l.trim()).filter(Boolean) }, { merge: true });
     const audit = this.auditDoc({ action: id ? 'program.updated' : 'program.created', entity: 'program', entityId: ref.id, detail: `Modalidade ${input.name.trim()}` });
+    b.set(audit.ref, audit.data);
+    await b.commit();
+  }
+
+  /** Apaga a modalidade; `sharedPlanIds` (vazio sem `edit_plans`) perdem o id no mesmo batch. */
+  async deleteProgram(program: Program, sharedPlanIds: string[]): Promise<void> {
+    this.assertWritable();
+    const b = writeBatch(db());
+    b.delete(this.ref('programs', program.id));
+    for (const id of sharedPlanIds) b.update(this.ref('plans', id), { programIds: arrayRemove(program.id) });
+    const audit = this.auditDoc({ action: 'program.deleted', entity: 'program', entityId: program.id, detail: `Modalidade ${program.name}` });
     b.set(audit.ref, audit.data);
     await b.commit();
   }

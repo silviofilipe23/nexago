@@ -5,7 +5,7 @@ import { formatCpfCnpjDisplay, isValidCpfCnpj, normalizeCpfCnpj } from '@nexago/
 import { AuthService } from '../../auth/auth.service';
 import { CenterActions } from '../../data/actions/center.actions';
 import { writeErrorMessage } from '../../data/actions/actor';
-import { CENTER_SPORTS } from '../../domain/models';
+import { CENTER_SPORTS, sportKey } from '../../domain/models';
 import { IconComponent } from '../../ui/icon.component';
 
 /** Centro é pessoa jurídica: só CNPJ (14 dígitos) válido. */
@@ -31,7 +31,7 @@ export class NewCenterComponent {
   protected readonly auth = inject(AuthService);
 
   protected readonly sports = CENTER_SPORTS;
-  protected readonly selected = signal<string[]>(['Beach Tennis']);
+  protected readonly selected = signal<string[]>(CENTER_SPORTS.filter((s) => sportKey(s) === 'BEACH_TENNIS'));
   /** Sede própria (vira o local principal) ou itinerante (só arenas parceiras). */
   protected readonly hasHq = signal(true);
   protected readonly hqName = signal('Sede');

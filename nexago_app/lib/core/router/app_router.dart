@@ -1654,7 +1654,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.centerCoachEnroll,
         builder: (context, state) => CenterCoachEnrollPage(
           centerId: state.pathParameters['centerId']?.trim() ?? '',
-          studentId: state.uri.queryParameters['aluno']?.trim(),
+          studentId: (state.uri.queryParameters['aluno'] ?? '').trim().isEmpty
+              ? null
+              : state.uri.queryParameters['aluno']!.trim(),
         ),
       ),
       GoRoute(

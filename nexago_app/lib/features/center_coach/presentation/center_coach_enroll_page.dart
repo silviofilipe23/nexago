@@ -83,6 +83,9 @@ class _CenterCoachEnrollPageState extends ConsumerState<CenterCoachEnrollPage> {
     final member = ref.watch(centerMembershipProvider(centerId));
     final students =
         ref.watch(coachStudentsProvider(centerId)).valueOrNull ?? const {};
+    // Mantém as matrículas vivas em todos os passos: a posição na fila do
+    // resultado é contada delas (autoDispose zeraria fora do passo da turma).
+    ref.watch(coachEnrollmentsProvider(centerId));
     final student = _studentId == null ? null : students[_studentId];
     final cls = _classId == null
         ? null

@@ -483,13 +483,15 @@ class _InviteSheetState extends ConsumerState<_InviteSheet> {
     final programs =
         ref.watch(centerProgramsProvider(widget.centerId)).valueOrNull ??
         const <CenterProgram>[];
-    final classes = [
+    final allClasses = [
       for (final c
           in ref.watch(coachClassesProvider(widget.centerId)).valueOrNull ??
               const <CenterCoachClass>[])
-        if ((c.status == 'active' || c.status == 'draft') &&
-            (_programs.isEmpty || _programs.contains(c.programId)))
-          c,
+        if (c.status == 'active' || c.status == 'draft') c,
+    ];
+    final classes = [
+      for (final c in allClasses)
+        if (_programs.isEmpty || _programs.contains(c.programId)) c,
     ]..sort((a, b) => a.name.compareTo(b.name));
     if (me == null) return const SizedBox.shrink();
     final roles = centerInvitableRoles(me);
@@ -537,8 +539,14 @@ class _InviteSheetState extends ConsumerState<_InviteSheet> {
                     _programs.contains(p.id)
                         ? _programs.remove(p.id)
                         : _programs.add(p.id);
+                    // Turma que saiu do filtro novo não vai no convite.
                     _classes.removeWhere(
-                      (id) => !classes.any((c) => c.id == id),
+                      (id) => !allClasses.any(
+                        (c) =>
+                            c.id == id &&
+                            (_programs.isEmpty ||
+                                _programs.contains(c.programId)),
+                      ),
                     );
                   }),
                 ),

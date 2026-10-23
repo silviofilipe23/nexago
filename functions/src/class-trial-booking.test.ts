@@ -4,7 +4,18 @@ import {HttpsError} from "firebase-functions/v2/https";
 import {Timestamp, type Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {classSessionId} from "./arena-class-constants";
-import {bookArenaTrialCore, loadArenaTrialOptionsCore, loadCenterTrialOptionsCore} from "./class-trial-booking";
+import {
+  CENTER_TRIAL_DECIDED_TYPE,
+  CENTER_TRIAL_REQUEST_TYPE,
+  bookArenaTrialCore,
+  bookCenterTrialCore,
+  cancelCenterTrialCore,
+  decideCenterTrialCore,
+  loadArenaTrialOptionsCore,
+  loadCenterTrialBookingsCore,
+  loadCenterTrialOptionsCore,
+} from "./class-trial-booking";
+import type {NotifyDeps, PushInput} from "./training-center-notify";
 import {loadClassAgenda} from "./arena-class-athlete-agenda";
 
 /** Quarta 21/10/2026, 12:00 em São Paulo. */
@@ -103,20 +114,114 @@ describe("experimental · calendário da arena", () => {
   });
 });
 
-describe("experimental · calendário do CT", () => {
-  it("aulas do centro com vaga, confirmação pelo contato", async () => {
+function seedCenter(fake: FakeFirestore): Firestore {
+  fake.seedDoc("trainingCenters/ct1", {status: "active", name: "CT Elevate", showcase: {trial: {enabled: true, priceReais: 0}}});
+  fake.seedDoc("trainingCenters/ct1/classes/k1", {
+    status: "active", name: "Kids", level: "Kids", weekdays: [4], startTime: "18:00", durationMin: 90,
+    capacity: 2, rosterStudentIds: ["a"], coachName: "Ju", locationName: "Sede",
+  });
+  fake.seedDoc("trainingCenters/ct1/sessions/k1_2026-10-22", {classId: "k1", date: "2026-10-22", startTime: "18:00", status: "scheduled"});
+  fake.seedDoc("trainingCenters/ct1/sessions/k1_2026-10-29", {classId: "k1", date: "2026-10-29", startTime: "18:00", status: "scheduled", makeupStudentIds: ["b"]});
+  fake.seedDoc("trainingCenters/ct1/sessions/k1_2026-11-05", {classId: "k1", date: "2026-11-05", startTime: "18:00", status: "scheduled"});
+  fake.seedDoc("trainingCenters/ct1/centerMembers/uDono", {uid: "uDono", status: "active", role: "center_owner", displayName: "Dona"});
+  fake.seedDoc("trainingCenters/ct1/centerMembers/uRecep", {uid: "uRecep", status: "active", role: "receptionist", displayName: "Recepção"});
+  fake.seedDoc("trainingCenters/ct1/centerMembers/uCoach", {uid: "uCoach", status: "active", role: "coach"});
+  fake.seedDoc(`users/${ME}`, {fullName: "Novo Atleta", phone: "+5562999990000"});
+  fake.seedDoc("users/uOutro", {fullName: "Outra Pessoa"});
+  return fake as unknown as Firestore;
+}
+
+function pushes(): {deps: NotifyDeps; sent: PushInput[]} {
+  const sent: PushInput[] = [];
+  return {sent, deps: {now: () => NOW, notify: async (p) => {
+    sent.push(p);
+  }}};
+}
+
+describe("experimental · CT agenda e a equipe confirma", () => {
+  it("calendário com as vagas do centro", async () => {
     const fake = new FakeFirestore();
-    fake.seedDoc("trainingCenters/ct1", {status: "active", name: "CT", showcase: {trial: {enabled: true}}});
-    fake.seedDoc("trainingCenters/ct1/classes/k1", {
-      status: "active", name: "Kids", level: "Kids", weekdays: [4], startTime: "18:00", durationMin: 90,
-      capacity: 2, rosterStudentIds: ["a"], coachName: "Ju", locationName: "Sede",
-    });
-    fake.seedDoc("trainingCenters/ct1/sessions/k1_2026-10-22", {classId: "k1", date: "2026-10-22", startTime: "18:00", status: "scheduled"});
-    fake.seedDoc("trainingCenters/ct1/sessions/k1_2026-10-29", {classId: "k1", date: "2026-10-29", startTime: "18:00", status: "scheduled", makeupStudentIds: ["b"]});
-    const r = await loadCenterTrialOptionsCore(fake as unknown as Firestore, "ct1", TODAY, NOW);
-    assert.equal(r.booking, "contact");
+    const db = seedCenter(fake);
+    const r = await loadCenterTrialOptionsCore(db, ME, "ct1", TODAY, NOW);
+    assert.equal(r.booking, "app");
     assert.deepEqual(r.options.map((o) => [o.date, o.endTime, o.teacherName, o.place, o.spotsLeft]), [
       ["2026-10-22", "19:30", "Ju", "Sede", 1],
+      ["2026-11-05", "19:30", "Ju", "Sede", 1],
     ]);
+    assert.equal(r.booked, null);
+  });
+
+  it("pedido fica pendente, segura a vaga e avisa a gestão", async () => {
+    const fake = new FakeFirestore();
+    const db = seedCenter(fake);
+    const {deps, sent} = pushes();
+    const res = await bookCenterTrialCore(db, deps, ME, "ct1", "k1_2026-10-22", TODAY);
+    assert.deepEqual(res, {bookingId: `k1_2026-10-22_${ME}`, status: "pending"});
+    const doc = fake.store.get(`trainingCenters/ct1/trialBookings/${res.bookingId}`);
+    assert.equal(doc?.["status"], "pending");
+    assert.equal(doc?.["name"], "Novo Atleta");
+    assert.equal(doc?.["className"], "Kids");
+    assert.deepEqual(sent.map((p) => [p.userId, p.type]), [["uDono", CENTER_TRIAL_REQUEST_TYPE]]);
+
+    const mine = await loadCenterTrialOptionsCore(db, ME, "ct1", TODAY, NOW);
+    assert.equal(mine.bookedStatus, "pending");
+    assert.equal(mine.bookingId, res.bookingId);
+    // A vaga do dia 22 foi ocupada pelo pedido.
+    const other = await loadCenterTrialOptionsCore(db, "uOutro", "ct1", TODAY, NOW);
+    assert.deepEqual(other.options.map((o) => o.date), ["2026-11-05"]);
+    await rejectsWith(bookCenterTrialCore(db, deps, "uOutro", "ct1", "k1_2026-10-22", TODAY), "failed-precondition", /sem vaga/);
+    // Um pedido por vez no centro.
+    await rejectsWith(bookCenterTrialCore(db, deps, ME, "ct1", "k1_2026-11-05", TODAY), "already-exists");
+  });
+
+  it("aluno da turma, aula lotada ou começada não pedem", async () => {
+    const fake = new FakeFirestore();
+    const db = seedCenter(fake);
+    const {deps} = pushes();
+    fake.seedDoc("trainingCenters/ct1/students/a", {athleteId: ME, name: "Novo"});
+    await rejectsWith(bookCenterTrialCore(db, deps, ME, "ct1", "k1_2026-11-05", TODAY), "already-exists");
+    await rejectsWith(bookCenterTrialCore(db, deps, "uOutro", "ct1", "k1_2026-10-29", TODAY), "failed-precondition", /sem vaga/);
+    fake.seedDoc("trainingCenters/ct1/sessions/k1_2026-10-21", {classId: "k1", date: TODAY, startTime: "08:00", status: "scheduled"});
+    await rejectsWith(bookCenterTrialCore(db, deps, "uOutro", "ct1", "k1_2026-10-21", TODAY), "failed-precondition", /começou/);
+  });
+
+  it("recepção confirma, atleta recebe o push; professor não pode", async () => {
+    const fake = new FakeFirestore();
+    const db = seedCenter(fake);
+    const {deps, sent} = pushes();
+    const {bookingId} = await bookCenterTrialCore(db, deps, ME, "ct1", "k1_2026-10-22", TODAY);
+    await rejectsWith(loadCenterTrialBookingsCore(db, "uCoach", "ct1", TODAY), "permission-denied");
+    const list = await loadCenterTrialBookingsCore(db, "uRecep", "ct1", TODAY);
+    assert.deepEqual(list.bookings.map((b) => [b.id, b.status, b.name]), [[bookingId, "pending", "Novo Atleta"]]);
+
+    await rejectsWith(decideCenterTrialCore(db, deps, "uCoach", {centerId: "ct1", bookingId, decision: "confirm"}), "permission-denied");
+    const r = await decideCenterTrialCore(db, deps, "uRecep", {centerId: "ct1", bookingId, decision: "confirm"});
+    assert.equal(r.status, "confirmed");
+    const doc = fake.store.get(`trainingCenters/ct1/trialBookings/${bookingId}`);
+    assert.equal(doc?.["decidedByName"], "Recepção");
+    const last = sent[sent.length - 1]!;
+    assert.equal(last.userId, ME);
+    assert.equal(last.type, CENTER_TRIAL_DECIDED_TYPE);
+    assert.match(last.body, /confirmou/);
+    await rejectsWith(decideCenterTrialCore(db, deps, "uDono", {centerId: "ct1", bookingId, decision: "decline"}), "failed-precondition");
+    assert.equal((await loadCenterTrialOptionsCore(db, ME, "ct1", TODAY, NOW)).bookedStatus, "confirmed");
+  });
+
+  it("recusa libera a vaga; atleta desmarca o próprio pedido", async () => {
+    const fake = new FakeFirestore();
+    const db = seedCenter(fake);
+    const {deps, sent} = pushes();
+    const a = await bookCenterTrialCore(db, deps, ME, "ct1", "k1_2026-10-22", TODAY);
+    await decideCenterTrialCore(db, deps, "uDono", {centerId: "ct1", bookingId: a.bookingId, decision: "decline", note: "Turma só para alunos"});
+    assert.match(sent[sent.length - 1]!.body, /Turma só para alunos/);
+    const after = await loadCenterTrialOptionsCore(db, ME, "ct1", TODAY, NOW);
+    assert.equal(after.booked, null);
+    assert.deepEqual(after.options.map((o) => o.date), ["2026-10-22", "2026-11-05"]);
+
+    const b = await bookCenterTrialCore(db, deps, ME, "ct1", "k1_2026-11-05", TODAY);
+    await rejectsWith(cancelCenterTrialCore(db, "uOutro", "ct1", b.bookingId, NOW), "not-found");
+    await cancelCenterTrialCore(db, ME, "ct1", b.bookingId, NOW);
+    assert.equal(fake.store.get(`trainingCenters/ct1/trialBookings/${b.bookingId}`)?.["status"], "canceled");
+    await rejectsWith(cancelCenterTrialCore(db, ME, "ct1", b.bookingId, NOW), "failed-precondition");
   });
 });

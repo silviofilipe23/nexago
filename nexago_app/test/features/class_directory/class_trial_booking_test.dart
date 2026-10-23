@@ -54,6 +54,16 @@ class _FakeRepo implements ClassDirectoryRepository {
   Future<void> bookArenaTrial(String sessionId) async => booked.add(sessionId);
 
   @override
+  Future<void> bookCenterTrial(String centerId, String sessionId) async =>
+      booked.add('$centerId/$sessionId');
+
+  final canceled = <String>[];
+
+  @override
+  Future<void> cancelCenterTrial(String centerId, String bookingId) async =>
+      canceled.add('$centerId/$bookingId');
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -146,11 +156,41 @@ void main() {
     });
     await pump(tester, _arena, booked);
     expect(find.byKey(const Key('class-trial-booked')), findsOneWidget);
+    expect(find.text('EXPERIMENTAL CONFIRMADA'), findsOneWidget);
+    expect(find.byKey(const Key('class-trial-cancel')), findsNothing);
     expect(find.text('Qui 22 · 19:00'), findsOneWidget);
     expect(find.byKey(const Key('class-trial-submit')), findsNothing);
   });
 
-  testWidgets('CT sem telefone: escolhe o horário, mas não confirma',
+  testWidgets('CT: agenda pelo app e fica aguardando o centro', (tester) async {
+    final o = ClassTrialOptions.fromMap({
+      'booking': 'app',
+      'options': [_opt('k1', 'k', '2026-10-22', '18:00', 'Kids')],
+    });
+    final repo = await pump(tester, _ct, o);
+    expect(find.textContaining('o centro confirma'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('class-trial-submit')));
+    await settle(tester);
+    expect(repo.booked, ['elv/k1']);
+  });
+
+  testWidgets('CT pendente: mostra o aguardo e desmarca', (tester) async {
+    final o = ClassTrialOptions.fromMap({
+      'booking': 'app',
+      'options': const [],
+      'booked': _opt('k1', 'k', '2026-10-22', '18:00', 'Kids'),
+      'bookedStatus': 'pending',
+      'bookingId': 'k1_uMe',
+    });
+    expect(o.awaitingConfirmation, isTrue);
+    final repo = await pump(tester, _ct, o);
+    expect(find.text('AGUARDANDO CONFIRMAÇÃO DO CENTRO'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('class-trial-cancel')));
+    await settle(tester);
+    expect(repo.canceled, ['elv/k1_uMe']);
+  });
+
+  testWidgets('servidor antigo (contato) e CT sem telefone: não confirma',
       (tester) async {
     final o = ClassTrialOptions.fromMap({
       'booking': 'contact',

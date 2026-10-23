@@ -79,6 +79,13 @@ export const routes: Routes = [
         loadComponent: () => import('./features/enrollments/enrollments.component').then((m) => m.EnrollmentsComponent),
       },
       {
+        path: 'experimentais',
+        title: T('Experimentais'),
+        canActivate: [areaGuard],
+        data: { area: 'trials' },
+        loadComponent: () => import('./features/trials/trials.component').then((m) => m.TrialsComponent),
+      },
+      {
         path: 'alunos',
         title: T('Alunos'),
         canActivate: [areaGuard],

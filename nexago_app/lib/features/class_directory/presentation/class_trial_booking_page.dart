@@ -80,21 +80,51 @@ class _ClassTrialBookingPageState extends ConsumerState<ClassTrialBookingPage> {
       _saving = true;
       _error = null;
     });
+    final center = widget.detail.isCenter;
     try {
-      await ref
-          .read(classDirectoryRepositoryProvider)
-          .bookArenaTrial(o.sessionId);
-      refreshAthleteClassPresence(ref);
+      final repo = ref.read(classDirectoryRepositoryProvider);
+      if (center) {
+        await repo.bookCenterTrial(widget.detail.id, o.sessionId);
+      } else {
+        await repo.bookArenaTrial(o.sessionId);
+        refreshAthleteClassPresence(ref);
+      }
       ref.invalidate(classTrialOptionsProvider(_key));
       if (!mounted) return;
       ScaffoldMessenger.maybeOf(context)
         ?..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(
           content: Text(
-            'Experimental marcada: ${trialOptionWhen(o)}. '
-            'Ela aparece nos seus treinos.',
+            center
+                ? 'Experimental agendada: ${trialOptionWhen(o)}. '
+                    'O centro vai confirmar.'
+                : 'Experimental marcada: ${trialOptionWhen(o)}. '
+                    'Ela aparece nos seus treinos.',
           ),
         ));
+    } on ClassDirectoryException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _cancel(String bookingId) async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await ref
+          .read(classDirectoryRepositoryProvider)
+          .cancelCenterTrial(widget.detail.id, bookingId);
+      ref.invalidate(classTrialOptionsProvider(_key));
+      if (!mounted) return;
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Experimental desmarcada.')),
+        );
     } on ClassDirectoryException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {
@@ -156,14 +186,25 @@ class _ClassTrialBookingPageState extends ConsumerState<ClassTrialBookingPage> {
                     ),
                   )
                 else if (booked != null)
-                  _Booked(option: booked)
+                  _Booked(
+                    option: booked,
+                    pending: data.awaitingConfirmation,
+                    saving: _saving,
+                    error: _error,
+                    onCancel: d.isCenter && data.bookingId != null
+                        ? () => _cancel(data.bookingId!)
+                        : null,
+                  )
                 else ...[
                   Text(
-                    data.bookInApp
-                        ? 'Escolha o dia e o horário. A vaga fica reservada '
-                            'para você na turma.'
-                        : 'Escolha o dia e o horário. Você confirma com o '
-                            'centro pelo WhatsApp.',
+                    !data.bookInApp
+                        ? 'Escolha o dia e o horário. Você confirma com o '
+                            'centro pelo WhatsApp.'
+                        : d.isCenter
+                            ? 'Escolha o dia e o horário. A vaga fica '
+                                'reservada e o centro confirma o agendamento.'
+                            : 'Escolha o dia e o horário. A vaga fica '
+                                'reservada para você na turma.',
                     style: AppTypography.bodyS.copyWith(
                       fontSize: 12.5,
                       height: 1.45,
@@ -267,28 +308,45 @@ class _LoadError extends StatelessWidget {
 }
 
 class _Booked extends StatelessWidget {
-  const _Booked({required this.option});
+  const _Booked({
+    required this.option,
+    required this.pending,
+    required this.saving,
+    required this.error,
+    required this.onCancel,
+  });
 
   final ClassTrialOption option;
+
+  /// CT ainda não confirmou.
+  final bool pending;
+  final bool saving;
+  final String? error;
+
+  /// CT: desmarcar o pedido. Arena desmarca em Treinos ("Não vou").
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final o = option;
+    final tone = pending ? colors.pending : colors.win;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ProfessorLinksCard(
           key: const Key('class-trial-booked'),
-          borderColor: colors.win.withValues(alpha: 0.4),
+          borderColor: tone.withValues(alpha: 0.4),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'EXPERIMENTAL MARCADA',
+                pending
+                    ? 'AGUARDANDO CONFIRMAÇÃO DO CENTRO'
+                    : 'EXPERIMENTAL CONFIRMADA',
                 style: ProfessorLinksStyle.mono(
                   10,
-                  color: colors.readableTone(colors.win),
+                  color: colors.readableTone(tone),
                 ),
               ),
               const SizedBox(height: 6),
@@ -314,16 +372,35 @@ class _Booked extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        const ProfessorMutedText(
-          'Se não puder ir, desmarque em Treinos com “Não vou” — a vaga '
-          'volta para a turma.',
+        ProfessorMutedText(
+          onCancel != null
+              ? pending
+                  ? 'A vaga já está reservada. Você recebe um aviso quando o '
+                      'centro confirmar.'
+                  : 'Se não puder ir, desmarque aqui — a vaga volta para a '
+                      'turma.'
+              : 'Se não puder ir, desmarque em Treinos com “Não vou” — a vaga '
+                  'volta para a turma.',
         ),
+        if (error != null) ...[
+          const SizedBox(height: 10),
+          ProfessorLinksNote(error!, tone: ProfessorLinksNoteTone.red),
+        ],
         const SizedBox(height: 14),
-        ProfessorLinksGhostButton(
-          key: const Key('class-trial-open-trainings'),
-          label: 'Ver nos meus treinos',
-          onPressed: () => context.push(AppRoutes.athleteTrainingClasses),
-        ),
+        if (onCancel != null)
+          ProfessorLinksGhostButton(
+            key: const Key('class-trial-cancel'),
+            label: 'Desmarcar experimental',
+            loading: saving,
+            color: colors.live,
+            onPressed: onCancel,
+          )
+        else
+          ProfessorLinksGhostButton(
+            key: const Key('class-trial-open-trainings'),
+            label: 'Ver nos meus treinos',
+            onPressed: () => context.push(AppRoutes.athleteTrainingClasses),
+          ),
       ],
     );
   }

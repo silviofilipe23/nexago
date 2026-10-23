@@ -580,6 +580,25 @@ class _CenterCoachCallPageState extends ConsumerState<CenterCoachCallPage> {
                       ),
                       const SizedBox(height: 8),
                     ],
+                    if (session.trials.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'AULA EXPERIMENTAL',
+                        key: const Key('center-coach-trials'),
+                        style: ProfessorLinksStyle.mono(
+                          10,
+                          color: ProfessorLinksStyle.dim(colors),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      for (final t in session.trials) ...[
+                        _TrialRow(
+                          key: Key('center-coach-trial-${t.athleteId}'),
+                          trial: t,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ],
                     if (editable)
                       _DashedButton(
                         key: const Key('center-coach-add-makeup'),
@@ -731,6 +750,15 @@ class _ClassInfoCard extends StatelessWidget {
               o.makeups > 0 ? AppColors.win : null,
               'makeups',
             ),
+            if (o.trials > 0) ...[
+              const SizedBox(width: 8),
+              stat(
+                '+${o.trials}',
+                o.trials == 1 ? 'experimental' : 'experimentais',
+                AppColors.pending,
+                'trials',
+              ),
+            ],
             const SizedBox(width: 8),
             stat(
               o.free == null ? '—' : '${o.free}',
@@ -1832,6 +1860,72 @@ class _CancelSheetState extends State<_CancelSheet> {
               : () => Navigator.of(context).pop(_final),
         ),
       ],
+    );
+  }
+}
+
+/// Atleta da experimental: ainda não é aluno, então não entra na chamada —
+/// o professor vê quem vem e se o centro já confirmou.
+class _TrialRow extends StatelessWidget {
+  const _TrialRow({super.key, required this.trial});
+
+  final CenterSessionTrial trial;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final t = trial;
+    final tone = t.isPending ? colors.pending : colors.win;
+    return ProfessorLinksCard(
+      padding: const EdgeInsets.all(12),
+      borderColor: tone.withValues(alpha: 0.35),
+      child: Row(
+        children: [
+          ArenaClassAvatar(
+            initials: arenaClassInitials(t.name),
+            photoUrl: t.photoUrl,
+            size: 40,
+            zoomName: t.name,
+            zoomRole: 'Aula experimental',
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  t.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: ProfessorLinksStyle.display(
+                    14,
+                    weight: FontWeight.w700,
+                    color: colors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  t.isPending
+                      ? 'Experimental · o centro ainda vai confirmar'
+                      : 'Experimental · confirmada pelo centro',
+                  style: AppTypography.bodyS.copyWith(
+                    fontSize: 11.5,
+                    color: ProfessorLinksStyle.dim(colors),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            t.isPending ? 'AGUARDANDO' : 'CONFIRMADA',
+            style: ProfessorLinksStyle.mono(
+              10,
+              color: colors.readableTone(tone),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

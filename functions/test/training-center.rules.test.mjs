@@ -206,6 +206,14 @@ test('chamada: professor finaliza e corrige; ninguém grava os créditos aplicad
   await assertSucceeds(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'sessions', 'c1_2026-10-22'), { status: 'scheduled' }));
 });
 
+test('espelho das experimentais na aula: só o servidor grava', async () => {
+  const ref = (who) => doc(as(who), 'trainingCenters', C, 'sessions', 'c1_2026-10-22');
+  await denied(updateDoc(ref(OWNER), { trials: { uX: { name: 'Fake', status: 'confirmed' } } }));
+  await denied(updateDoc(ref(COACH), { trials: {} }));
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'sessions', 'c1_2026-12-31'), { classId: 'c1', date: '2026-12-31', trials: {} }));
+  await assertSucceeds(getDoc(ref(COACH)));
+});
+
 test('créditos de reposição: só o gestor mexe', async () => {
   await denied(updateDoc(doc(as(RECEP), 'trainingCenters', C, 'students', 's1'), { makeupCredits: 5 }));
   await assertSucceeds(updateDoc(doc(as(RECEP), 'trainingCenters', C, 'students', 's1'), { phone: '21999' }));

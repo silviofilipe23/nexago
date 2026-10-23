@@ -14,7 +14,8 @@
  * com vínculo `ACTIVE` + "Gerenciar as próprias aulas") e a carteira ATIVA. Acabou o vínculo, a
  * conversa fecha (`closed`) e o aluno sai de `memberIds` (deixa de ler). A arena não lê nada.
  * O canal com a gestão da arena (D4, `kind: "arena"`) abre em `arena-professor-channel.ts` e usa
- * este mesmo envio. Cartões de remarcação ficam para depois.
+ * este mesmo envio, assim como o chat do CT (`kind: "center"`, `training-center-messages.ts`) e o
+ * das Aulas da arena (`kind: "arena_student"`, `arena-class-messages.ts`). Cartões de remarcação ficam para depois.
  */
 import * as logger from "firebase-functions/logger";
 import {onCall, HttpsError, type CallableRequest} from "firebase-functions/v2/https";
@@ -24,6 +25,7 @@ import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {deliverNotificationToUser, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
 import {activeArenaLink, arenaChannelMembership} from "./arena-professor-channel";
 import {centerChatAllowed, centerDeskStaff, chatStudentOfAccount, closeCenterConversation} from "./training-center-chat-model";
+import {arenaStudentChatAllowed, closeArenaStudentConversation} from "./arena-class-chat-model";
 import {loadProfessorStudentsCore} from "./professor-students";
 import {PROFESSORS, PROFESSOR_STUDENTS} from "./professor-wallet-model";
 
@@ -277,6 +279,12 @@ async function verifyMember(db: Firestore, ref: DocumentReference, c: Record<str
       await closeCenterConversation(ref, professorUid);
       throw new HttpsError("failed-precondition", "Esta conversa foi encerrada: o vínculo com o centro acabou.");
     }
+  } else if (c["kind"] === "arena_student") {
+    // Gestão das Aulas ↔ aluno: a pessoa segue vendo as aulas e o atleta segue aluno da arena?
+    if (!(await arenaStudentChatAllowed(db, str(c["arenaId"]), professorUid, str(c["athleteUid"]), now.getTime()))) {
+      await closeArenaStudentConversation(ref, professorUid);
+      throw new HttpsError("failed-precondition", "Esta conversa foi encerrada: o aluno não está mais nas aulas da arena.");
+    }
   } else if (c["kind"] === "direct") {
     const athleteUid = str(c["athleteUid"]);
     if (!(await isStudentOfProfessor(db, professorUid, athleteUid, now))) {
@@ -351,7 +359,8 @@ export async function sendConversationMessageCore(
   const isArena = conversation["kind"] === "arena";
   const isDesk = conversation["kind"] === "center_desk";
   const isCenter = conversation["kind"] === "center" || isDesk;
-  const title = conversation["kind"] === "class" || isArena || isCenter ? `${str(conversation["title"])} · ${senderName}` : senderName;
+  const isArenaStudent = conversation["kind"] === "arena_student";
+  const title = conversation["kind"] === "class" || isArena || isCenter || isArenaStudent ? `${str(conversation["title"])} · ${senderName}` : senderName;
   const urlFor = (userId: string): Record<string, string> => {
     // Equipe do CT: a conversa abre dentro do centro (qualquer papel no app).
     if (isDesk && userId !== str(conversation["athleteUid"])) {
@@ -360,6 +369,8 @@ export async function sendConversationMessageCore(
     if (isCenter && !isDesk && userId === professorUid) {
       return {url: `/athlete/professor/centros/${str(conversation["centerId"])}/mensagens/${conversationId}`};
     }
+    // Gestão da arena: a conversa abre nas Aulas da arena.
+    if (isArenaStudent && userId === professorUid) return {url: `/arena/classes/messages/${conversationId}`};
     if (userId === professorUid) return {url: `/professor/mensagens/${conversationId}`};
     if (isArena) {
       const linkId = str(conversation["linkId"]);

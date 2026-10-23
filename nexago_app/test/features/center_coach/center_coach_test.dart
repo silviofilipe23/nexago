@@ -210,4 +210,34 @@ void main() {
       expect(coachShiftDay('2026-11-01', -1), '2026-10-31');
     });
   });
+
+  test('experimental na aula: lê o espelho do servidor e segura a vaga', () {
+    final s = CenterCoachSession.fromMap('k1_x', {
+      'classId': 'k1',
+      'date': '2026-10-23',
+      'startTime': '19:00',
+      'makeupStudentIds': ['m1'],
+      'trials': {
+        'uB': {'name': 'Bruno', 'status': 'confirmed', 'photoUrl': 'https://x/b.jpg'},
+        'uA': {'name': 'Ana', 'status': 'pending', 'photoUrl': ''},
+        'lixo': 'x',
+      },
+    });
+    expect(s.trials.map((t) => t.name), ['Ana', 'Bruno']);
+    expect(s.trials.first.isPending, isTrue);
+    expect(s.trials.first.photoUrl, isNull);
+    expect(s.trials.last.photoUrl, 'https://x/b.jpg');
+    const cls = CenterCoachClass(
+      id: 'k1',
+      name: 'Kids',
+      capacity: 5,
+      rosterStudentIds: ['s1', 's2'],
+    );
+    final o = centerSessionOccupancy(cls, s);
+    expect((o.enrolled, o.makeups, o.trials, o.free), (2, 1, 2, 0));
+    expect(
+      CenterCoachSession.fromMap('k', const {'classId': 'k1'}).trials,
+      isEmpty,
+    );
+  });
 }

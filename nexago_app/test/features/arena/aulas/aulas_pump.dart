@@ -18,6 +18,8 @@ import 'package:nexago_app/features/arena/presentation/aulas/arena_class_payouts
 import 'package:nexago_app/features/arena/presentation/aulas/arena_class_student_page.dart';
 import 'package:nexago_app/features/arena/presentation/aulas/arena_class_teacher_payout_page.dart';
 import 'package:nexago_app/features/arena/presentation/aulas/arena_classes_page.dart';
+import 'package:nexago_app/features/arena/presentation/aulas/arena_class_messages_page.dart';
+import 'package:nexago_app/features/messages/presentation/conversation_page.dart';
 
 import 'fake_arena_class_enrollment_repository.dart';
 import 'fake_arena_class_payout_repository.dart';
@@ -82,6 +84,22 @@ Future<GoRouter> pumpAulas(
                   ? state.extra! as ArenaClassEnrollSeed
                   : null,
             ),
+          ),
+          GoRoute(
+            path: 'messages',
+            name: AppRouteNames.arenaClassMessages,
+            builder: (_, __) => const ArenaClassMessagesPage(),
+            routes: [
+              GoRoute(
+                path: ':conversationId',
+                name: AppRouteNames.arenaClassConversation,
+                builder: (_, state) => ConversationPage.arenaClasses(
+                  conversationId: state.pathParameters['conversationId']!,
+                  initialDraft:
+                      state.extra is String ? state.extra! as String : null,
+                ),
+              ),
+            ],
           ),
           GoRoute(
             path: 'payouts',

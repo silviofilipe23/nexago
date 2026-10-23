@@ -4074,11 +4074,14 @@ service cloud.firestore {
       // (functions/src/training-center-attendance.ts): nem o gestor grava.
       match /sessions/{sessionId} {
         allow read: if ctIsMember();
+        // `trials` (experimentais pedidas pelo app) também é só do servidor
+        // (functions/src/class-trial-booking.ts).
         allow create: if ctIsManager() && ctNotSuspended() &&
-          !('effectsApplied' in request.resource.data);
+          !('effectsApplied' in request.resource.data) &&
+          !('trials' in request.resource.data);
         allow delete: if ctIsManager() && ctNotSuspended();
         allow update: if ctNotSuspended() &&
-          !ctChanged().hasAny(['effectsApplied', 'effectsAppliedAt']) && (
+          !ctChanged().hasAny(['effectsApplied', 'effectsAppliedAt', 'trials']) && (
             ctIsManager() || (
               ctHasPerm('attendance') &&
               resource.data.coachUid == request.auth.uid &&

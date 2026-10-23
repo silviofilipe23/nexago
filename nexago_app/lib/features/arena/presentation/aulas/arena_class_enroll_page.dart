@@ -22,6 +22,7 @@ import '../../domain/aulas/arena_class_providers.dart';
 import '../../domain/aulas/arena_class_session.dart';
 import '../widgets/arena_async_state.dart';
 import 'widgets/arena_class_atoms.dart';
+import 'widgets/arena_class_contact.dart';
 import 'widgets/arena_class_form_atoms.dart';
 
 /// Aluno já conhecido ao abrir a matrícula (vindo da página do aluno).
@@ -359,6 +360,8 @@ class _ArenaClassEnrollPageState extends ConsumerState<ArenaClassEnrollPage> {
       return _ConfirmationView(
         created: created,
         studentName: _studentName ?? 'Aluno',
+        athleteId: _athleteId,
+        arenaId: arenaId,
         // O servidor devolve o telefone gravado (o do cadastro quando o
         // campo foi em branco).
         phone: created.phone ?? (_phoneDigits.isEmpty ? null : _phoneDigits),
@@ -1150,14 +1153,17 @@ class _PreviewSummary extends StatelessWidget {
   }
 }
 
-/// Confirmação (A12): resumo e próximos passos. Manual: "Cobrar no WhatsApp"
-/// manda o valor e o pagamento é registrado em Mensalidades. Online: escuta
-/// as mensalidades do aluno até o worker gravar o link da 1ª fatura e então
-/// mostra "Copiar link" e o WhatsApp com o link.
+/// Confirmação (A12): resumo e próximos passos. Manual: "Cobrar por
+/// mensagem" (chat do app, aluno com conta) ou "Cobrar no WhatsApp" (sem
+/// conta) manda o valor e o pagamento é registrado em Mensalidades. Online:
+/// escuta as mensalidades do aluno até o worker gravar o link da 1ª fatura e
+/// então mostra "Copiar link" e a cobrança com o link.
 class _ConfirmationView extends ConsumerWidget {
   const _ConfirmationView({
     required this.created,
     required this.studentName,
+    required this.athleteId,
+    required this.arenaId,
     required this.phone,
     required this.plan,
     required this.slots,
@@ -1171,6 +1177,10 @@ class _ConfirmationView extends ConsumerWidget {
 
   final ArenaClassEnrollmentCreated created;
   final String studentName;
+
+  /// Conta NexaGO do aluno: com ela, a cobrança vai pelo chat do app.
+  final String? athleteId;
+  final String arenaId;
   final String? phone;
   final ArenaClassPlan? plan;
   final List<ArenaClassEnrollmentSlot> slots;
@@ -1233,8 +1243,10 @@ class _ConfirmationView extends ConsumerWidget {
           '${now.minute.toString().padLeft(2, '0')}',
     );
     final total = totalReais ?? 0;
-    // Online: o WhatsApp só sai depois do link — a mensagem leva o link.
-    final canCharge = phone != null &&
+    // Com conta, a cobrança vai pelo chat do app; sem, pelo WhatsApp.
+    final hasChat = arenaClassStudentHasChat(athleteId);
+    // Online: a cobrança só sai depois do link — a mensagem leva o link.
+    final canCharge = (hasChat || phone != null) &&
         total > 0 &&
         plan != null &&
         (!online || invoiceUrl != null);
@@ -1346,10 +1358,16 @@ class _ConfirmationView extends ConsumerWidget {
             ],
             if (canCharge) ...[
               ArenaClassPrimaryButton(
-                label: 'Cobrar no WhatsApp',
-                icon: Icons.chat_bubble_outline_rounded,
-                onPressed: () => openArenaClassWhatsApp(
+                key: const Key('arena-class-enroll-charge'),
+                label: hasChat ? 'Cobrar por mensagem' : 'Cobrar no WhatsApp',
+                icon: hasChat
+                    ? Icons.forum_outlined
+                    : Icons.chat_bubble_outline_rounded,
+                onPressed: () => contactArenaClassStudent(
                   context,
+                  ref,
+                  arenaId: arenaId,
+                  athleteId: athleteId,
                   phone: phone,
                   message: arenaClassEnrollmentChargeMessage(
                     studentName: studentName,

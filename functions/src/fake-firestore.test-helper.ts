@@ -272,9 +272,9 @@ export class FakeFirestore {
       set: (ref: {path: string}, data: DocData, opts?: {merge?: boolean}) => {
         self.write(ref.path, data, opts);
       },
-      // Espelha o Admin SDK: `create` em doc existente falha com ALREADY_EXISTS.
       create: (ref: {path: string}, data: DocData) => {
-        if (self.store.has(ref.path)) throw new Error(`6 ALREADY_EXISTS: Document already exists: ${ref.path}`);
+        // Como no Admin SDK: create em doc existente é erro.
+        if (self.store.has(ref.path)) throw new Error(`create em doc existente: ${ref.path}`);
         self.write(ref.path, data);
       },
       update: (ref: {path: string}, data: DocData) => {

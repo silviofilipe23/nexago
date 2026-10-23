@@ -25,13 +25,18 @@ enum ConversationKind {
 
   /// Canal do aluno com o centro: ele + recepção e gestão (qualquer um da
   /// equipe responde; sem `professorUid`).
-  centerDesk;
+  centerDesk,
+
+  /// Gestão das Aulas da arena ↔ aluno
+  /// (`functions/src/arena-class-messages.ts`).
+  arenaStudent;
 
   static ConversationKind parse(Object? raw) => switch (raw) {
         'class' => classGroup,
         'arena' => arena,
         'center' => center,
         'center_desk' => centerDesk,
+        'arena_student' => arenaStudent,
         _ => direct,
       };
 }
@@ -132,8 +137,8 @@ class Conversation {
   final String? centerId;
   final String? studentId;
 
-  /// Nome da turma (grupo), "Gestão {arena}" (canal com a arena) ou o nome
-  /// do centro (`kind: "center"`).
+  /// Nome da turma (grupo), "Gestão {arena}" (canal com a arena), o nome
+  /// do centro (`kind: "center"`) ou o da arena (`kind: "arena_student"`).
   final String? title;
   final List<String> memberIds;
   final Map<String, String> memberNames;
@@ -160,6 +165,14 @@ class Conversation {
   bool centerStaffSide(String viewerUid) =>
       (isCenter && viewerUid == professorUid) ||
       (isCenterDesk && viewerUid != athleteUid);
+
+  /// Gestão das Aulas da arena ↔ aluno: [professorUid] é quem é da gestão.
+  bool get isArenaStudent => kind == ConversationKind.arenaStudent;
+
+  /// Lado da equipe (CT ou gestão das Aulas da arena) falando com um aluno.
+  bool viewedByStaff(String viewerUid) =>
+      centerStaffSide(viewerUid) ||
+      (isArenaStudent && viewerUid == professorUid);
 
   /// Mais de dois lados: a bolha recebida leva o nome de quem mandou.
   bool get showsSenderNames => isGroup || isArena || isCenterDesk;
@@ -196,8 +209,10 @@ class Conversation {
     }
     final other = otherUid(viewerUid);
     final name = (other == null ? null : memberNames[other]) ?? 'Conversa';
-    // O aluno vê de qual centro é quem escreve.
-    if (isCenter && viewerUid != professorUid && title != null) {
+    // O aluno vê de qual centro/arena é quem escreve.
+    if ((isCenter || isArenaStudent) &&
+        viewerUid != professorUid &&
+        title != null) {
       return '$name · $title';
     }
     return name;

@@ -22,6 +22,7 @@ import '../../domain/aulas/arena_class_providers.dart';
 import '../plan/widgets/arena_plan_gate.dart';
 import '../widgets/arena_async_state.dart';
 import '../widgets/arena_dashboard_tokens.dart';
+import 'arena_class_messages_page.dart';
 import 'arena_class_teachers_section.dart';
 import 'widgets/arena_class_atoms.dart';
 import 'widgets/arena_class_card.dart';
@@ -72,6 +73,9 @@ class ArenaClassesPage extends ConsumerWidget {
               trailing: showUpsell
                   ? null
                   : _HeaderActions(
+                      onMessages: () =>
+                          context.pushNamed(AppRouteNames.arenaClassMessages),
+                      unreadMessages: ref.watch(arenaClassUnreadMessagesProvider),
                       onCharges: () =>
                           context.pushNamed(AppRouteNames.arenaClassCharges),
                       onEnroll: canEnroll
@@ -141,8 +145,16 @@ class ArenaClassesPage extends ConsumerWidget {
 
 /// Mensalidades + Nova matrícula no topo da tela de Aulas.
 class _HeaderActions extends StatelessWidget {
-  const _HeaderActions({required this.onCharges, required this.onEnroll});
+  const _HeaderActions({
+    required this.onMessages,
+    required this.unreadMessages,
+    required this.onCharges,
+    required this.onEnroll,
+  });
 
+  /// Conversas com os alunos (chat no lugar do WhatsApp).
+  final VoidCallback onMessages;
+  final int unreadMessages;
   final VoidCallback onCharges;
   final VoidCallback? onEnroll;
 
@@ -176,6 +188,32 @@ class _HeaderActions extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            button(
+              icon: Icons.forum_outlined,
+              label: 'Mensagens',
+              onTap: onMessages,
+            ),
+            if (unreadMessages > 0)
+              Positioned(
+                key: const Key('arena-classes-messages-unread'),
+                top: -3,
+                right: -3,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: AppColors.brand,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: colors.canvas, width: 2),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(width: 8),
         button(
           icon: Icons.payments_outlined,
           label: 'Mensalidades',

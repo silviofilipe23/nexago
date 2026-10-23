@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../professor_links/application/professor_links_providers.dart';
+import '../domain/center_alerts.dart';
 import '../domain/center_coach.dart';
 import '../infrastructure/firebase_center_coach_repository.dart';
 
@@ -121,4 +122,12 @@ final coachStudentsProvider = StreamProvider.autoDispose
           .watch(centerCoachRepositoryProvider)
           .watchStudents(centerId, uid: uid, all: member.seesAllStudents)
           .map((list) => {for (final s in list) s.id: s});
+    });
+
+/// Atividade do centro (G3) — vazia para quem não é owner/admin.
+final coachAuditLogsProvider = StreamProvider.autoDispose
+    .family<List<CenterAuditEntry>, String>((ref, centerId) {
+      final m = ref.watch(centerMembershipProvider(centerId));
+      if (m == null || !m.isManager) return Stream.value(const []);
+      return ref.watch(centerCoachRepositoryProvider).watchAuditLogs(centerId);
     });

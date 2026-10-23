@@ -451,6 +451,16 @@ class _CenterCoachCallPageState extends ConsumerState<CenterCoachCallPage> {
                       ),
                       const SizedBox(height: 12),
                     ],
+                    if (member != null &&
+                        (member.isManager ||
+                            member.role == 'receptionist')) ...[
+                      _ClassInfoCard(
+                        key: const Key('center-coach-class-info'),
+                        session: session,
+                        cls: _classOf(session),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     Row(
                       children: [
                         for (final (v, l, c) in [
@@ -566,6 +576,121 @@ String _readOnlyReason(
     return 'Esta aula é do ${s.coachName.isEmpty ? 'outro professor' : 'Prof. ${s.coachName}'} — a chamada é dele.';
   }
   return 'Seu papel neste centro não faz chamada.';
+}
+
+/// G5 · Para a gestão e a recepção: quem dá a aula e como está a ocupação.
+class _ClassInfoCard extends StatelessWidget {
+  const _ClassInfoCard({super.key, required this.session, required this.cls});
+
+  final CenterCoachSession session;
+  final CenterCoachClass? cls;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final o = centerSessionOccupancy(cls, session);
+    final coach = session.coachName.isNotEmpty
+        ? session.coachName
+        : (cls?.coachName ?? '');
+    Widget stat(String v, String l, Color? c, String k) => Expanded(
+      child: Container(
+        key: Key('center-coach-class-$k'),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: BoxDecoration(
+          color: colors.surfaceRaised,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: ProfessorLinksStyle.line(colors)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              v,
+              style: ProfessorLinksStyle.display(
+                17,
+                color: c == null ? colors.onSurface : colors.readableTone(c),
+              ),
+            ),
+            Text(
+              l,
+              style: AppTypography.bodyS.copyWith(
+                fontSize: 10.5,
+                color: ProfessorLinksStyle.dim(colors),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ProfessorLinksCard(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              ArenaClassAvatar(
+                initials: arenaClassInitials(coach.isEmpty ? '?' : coach),
+                size: 40,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      coach.isEmpty ? 'Sem professor definido' : coach,
+                      style: ProfessorLinksStyle.display(
+                        14,
+                        weight: FontWeight.w700,
+                        color: colors.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      [
+                        'Professor',
+                        if (session.placeLabel.isNotEmpty) session.placeLabel,
+                      ].join(' · '),
+                      style: AppTypography.bodyS.copyWith(
+                        fontSize: 11.5,
+                        color: ProfessorLinksStyle.dim(colors),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            stat(
+              o.capacity > 0 ? '${o.enrolled}/${o.capacity}' : '${o.enrolled}',
+              'matriculados',
+              null,
+              'enrolled',
+            ),
+            const SizedBox(width: 8),
+            stat(
+              o.makeups > 0 ? '+${o.makeups}' : '0',
+              o.makeups == 1 ? 'reposição' : 'reposições',
+              o.makeups > 0 ? AppColors.win : null,
+              'makeups',
+            ),
+            const SizedBox(width: 8),
+            stat(
+              o.free == null ? '—' : '${o.free}',
+              o.free == 1 ? 'vaga livre' : 'vagas livres',
+              (o.free ?? 0) > 0 ? AppColors.brand : null,
+              'free',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 }
 
 class _CountTile extends StatelessWidget {

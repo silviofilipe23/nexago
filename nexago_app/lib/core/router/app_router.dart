@@ -219,6 +219,7 @@ import '../../features/center_coach/presentation/center_coach_agenda_page.dart';
 import '../../features/center_coach/presentation/center_coach_call_page.dart';
 import '../../features/center_coach/presentation/center_coach_class_page.dart';
 import '../../features/center_coach/presentation/center_coach_today_page.dart';
+import '../../features/center_coach/presentation/center_coach_alerts_page.dart';
 import '../../features/center_coach/presentation/center_coach_student_page.dart';
 import '../../features/center_coach/presentation/center_coach_students_page.dart';
 import '../../features/center_coach/presentation/center_coach_checkin_page.dart';
@@ -1636,6 +1637,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.centerCoachCheckin,
         name: AppRouteNames.centerCoachCheckin,
         builder: (context, state) => CenterCoachCheckinPage(
+          centerId: state.pathParameters['centerId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachAlerts,
+        name: AppRouteNames.centerCoachAlerts,
+        builder: (context, state) => CenterCoachAlertsPage(
           centerId: state.pathParameters['centerId']?.trim() ?? '',
         ),
       ),

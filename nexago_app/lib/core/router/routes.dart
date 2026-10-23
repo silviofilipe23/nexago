@@ -423,6 +423,10 @@ abstract final class AppRoutes {
       '/athlete/professor/centros/:centerId/alunos';
   static const String centerCoachStudent =
       '/athlete/professor/centros/:centerId/alunos/:studentId';
+
+  /// Alertas do centro (G3, owner/admin).
+  static const String centerCoachAlerts =
+      '/athlete/professor/centros/:centerId/alertas';
   static const String professorLinkRequestSent =
       '/athlete/professor/arenas/:linkId/enviada';
 
@@ -1089,6 +1093,7 @@ abstract final class AppRouteNames {
   static const String centerCoachCheckin = 'centerCoachCheckin';
   static const String centerCoachStudents = 'centerCoachStudents';
   static const String centerCoachStudent = 'centerCoachStudent';
+  static const String centerCoachAlerts = 'centerCoachAlerts';
   static const String professorLinkRequestSent = 'professorLinkRequestSent';
   static const String professorClassAttendance = 'professorClassAttendance';
   static const String professorClassClosed = 'professorClassClosed';

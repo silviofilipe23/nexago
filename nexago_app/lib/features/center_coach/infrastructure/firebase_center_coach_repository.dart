@@ -6,6 +6,7 @@ import '../../../core/firebase/firebase_providers.dart';
 import '../../../core/firebase/functions_region.dart';
 import '../../tournaments/data/tournament_partner_invite_service.dart'
     show callableErrorMessage;
+import '../domain/center_alerts.dart';
 import '../domain/center_coach.dart';
 import '../domain/center_coach_repository.dart';
 
@@ -223,6 +224,22 @@ class FirebaseCenterCoachRepository implements CenterCoachRepository {
                 CenterCoachInvoice.fromMap(d.id, _plain(d.data())),
             ],
           );
+
+  @override
+  Stream<List<CenterAuditEntry>> watchAuditLogs(
+    String centerId, {
+    int limit = 100,
+  }) => _center(centerId)
+      .collection('auditLogs')
+      .orderBy('at', descending: true)
+      .limit(limit)
+      .snapshots()
+      .map(
+        (snap) => [
+          for (final d in snap.docs)
+            CenterAuditEntry.fromMap(d.id, _plain(d.data())),
+        ],
+      );
 
   @override
   Future<void> cancelSession({

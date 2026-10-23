@@ -7,10 +7,12 @@ import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/core/time/nexago_event_timezone.dart';
+import 'package:nexago_app/features/center_coach/domain/center_alerts.dart';
 import 'package:nexago_app/features/center_coach/domain/center_coach.dart';
 import 'package:nexago_app/features/center_coach/domain/center_coach_repository.dart';
 import 'package:nexago_app/features/center_coach/infrastructure/firebase_center_coach_repository.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_agenda_page.dart';
+import 'package:nexago_app/features/center_coach/presentation/center_coach_alerts_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_call_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_class_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_today_page.dart';
@@ -59,6 +61,7 @@ class _Fake implements CenterCoachRepository {
   final checkins = <Map<String, Object?>>[];
   List<CenterCoachEnrollment> enrollments = const [];
   List<CenterCoachInvoice>? invoices;
+  List<CenterAuditEntry> audit = const [];
   final corrections = <Map<String, Object?>>[];
 
   @override
@@ -165,6 +168,12 @@ class _Fake implements CenterCoachRepository {
       Stream.value(invoices ?? const []);
 
   @override
+  Stream<List<CenterAuditEntry>> watchAuditLogs(
+    String centerId, {
+    int limit = 100,
+  }) => Stream.value(audit);
+
+  @override
   Future<void> cancelSession({
     required String centerId,
     required CenterCoachSession session,
@@ -265,6 +274,12 @@ Future<GoRouter> _pump(
         name: AppRouteNames.centerCoachCheckin,
         builder: (_, s) =>
             CenterCoachCheckinPage(centerId: s.pathParameters['centerId']!),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachAlerts,
+        name: AppRouteNames.centerCoachAlerts,
+        builder: (_, s) =>
+            CenterCoachAlertsPage(centerId: s.pathParameters['centerId']!),
       ),
       GoRoute(
         path: AppRoutes.centerCoachStudents,
@@ -939,6 +954,98 @@ void main() {
           find.byKey(const Key('center-student-enrollment-e1')), findsNothing);
       expect(find.text('2 disponíveis'), findsOneWidget);
       expect(find.text('COBRANÇAS'), findsNothing);
+    });
+  });
+
+  group('G3/G5 · alertas e detalhe da aula', () {
+    _Fake owner({String role = 'center_owner'}) =>
+        _Fake(
+            memberships: [_member('c1', 'CT Maré Alta', role: role)],
+            students: _students,
+            sessions: [
+              _session('k1_b', extra: {'makeupStudentIds': ['m1']}),
+            ],
+          )
+          ..audit = [
+            CenterAuditEntry(
+              id: 'a1',
+              action: 'session.cancelled',
+              at: DateTime.utc(2026, 10, 23, 14),
+              actorName: 'Thiago',
+              entity: 'session',
+              entityId: 'k1_b',
+              detail: 'BT Intermediário B · 23/10 19:00',
+              reason: 'Chuva',
+            ),
+            CenterAuditEntry(
+              id: 'a2',
+              action: 'invoice.manual_confirm',
+              at: DateTime.utc(2026, 10, 22, 13),
+              actorName: 'Camila',
+              detail: 'Carla Dias · R\$ 320,00',
+            ),
+          ];
+
+    testWidgets('alertas por dia, filtro e toque abre a aula', (tester) async {
+      final router = await _pump(
+        tester,
+        '/athlete/professor/centros/c1/alertas',
+        owner(),
+      );
+      expect(find.text('HOJE'), findsOneWidget);
+      expect(find.text('ONTEM'), findsOneWidget);
+      expect(find.text('Aula cancelada'), findsOneWidget);
+      expect(find.text('Motivo: Chuva · por Thiago'), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('center-alerts-filter-finance')));
+      expect(find.text('Aula cancelada'), findsNothing);
+      expect(find.text('Pagamento confirmado à mão'), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('center-alerts-filter-all')));
+      await _tap(tester, find.byKey(const Key('center-alert-a1')));
+      expect(router.state.uri.path, '/athlete/professor/centros/c1/aula/k1_b');
+    });
+
+    testWidgets('só owner/admin: recepção sem alertas e sem o atalho', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        '/athlete/professor/centros/c1/hoje',
+        owner(role: 'receptionist'),
+      );
+      expect(find.byKey(const Key('center-today-alerts')), findsNothing);
+      await _pump(
+        tester,
+        '/athlete/professor/centros/c1/alertas',
+        owner(role: 'receptionist'),
+      );
+      expect(find.byKey(const Key('center-alerts-denied')), findsOneWidget);
+    });
+
+    testWidgets('owner chega aos alertas pelo Hoje', (tester) async {
+      final router = await _pump(
+        tester,
+        '/athlete/professor/centros/c1/hoje',
+        owner(),
+      );
+      await _tap(tester, find.byKey(const Key('center-today-alerts')));
+      expect(router.state.uri.path, '/athlete/professor/centros/c1/alertas');
+    });
+
+    testWidgets('detalhe da aula: professor, matriculados, reposição e vagas', (
+      tester,
+    ) async {
+      await _pump(tester, '/athlete/professor/centros/c1/aula/k1_b', owner());
+      expect(find.byKey(const Key('center-coach-class-info')), findsOneWidget);
+      expect(find.text('3/6'), findsOneWidget);
+      expect(find.text('+1'), findsOneWidget);
+      expect(find.text('2'), findsWidgets);
+      expect(find.text('vagas livres'), findsOneWidget);
+      await _pump(
+        tester,
+        '/athlete/professor/centros/c1/aula/k1_b',
+        owner(role: 'coach'),
+      );
+      expect(find.byKey(const Key('center-coach-class-info')), findsNothing);
     });
   });
 }

@@ -265,6 +265,7 @@ export {saveHomeworkProgress} from "./homework-progress";
 // T14 · Planos e pagamentos do aluno (matrícula da arena + carteira do professor).
 export {getMyTrainingPlans} from "./arena-class-athlete-plans";
 export {getMyTrainingCenters} from "./training-center-athlete";
+export {searchClassDirectory, getClassDirectoryDetail} from "./class-directory";
 export {
   answerTrainingCenterInvite,
   checkMyTrainingCenterInvoice,

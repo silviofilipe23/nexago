@@ -859,6 +859,15 @@ abstract final class AppRoutes {
   /// Perfil público do organizador: `/competir/organizadores/:organizerId`
   static const String organizerPublicProfile =
       '/competir/organizadores/:organizerId';
+
+  /// Hub › Aulas e treinos: arenas, CTs e professores independentes (H2).
+  static const String classDirectory = '/competir/aulas';
+
+  /// Arena no diretório de aulas (H4).
+  static const String classDirectoryArena = '/competir/aulas/arena/:arenaId';
+
+  /// Centro de treinamento no diretório de aulas (H5).
+  static const String classDirectoryCenter = '/competir/aulas/ct/:centerId';
 }
 
 abstract final class AppRouteNames {
@@ -1220,6 +1229,9 @@ abstract final class AppRouteNames {
   static const String teamProfile = 'teamProfile';
   static const String myTournaments = 'myTournaments';
   static const String organizersDirectory = 'organizersDirectory';
+  static const String classDirectory = 'classDirectory';
+  static const String classDirectoryArena = 'classDirectoryArena';
+  static const String classDirectoryCenter = 'classDirectoryCenter';
   static const String organizerPublicProfile = 'organizerPublicProfile';
   static const String organizerPublicProfileEdit = 'organizerPublicProfileEdit';
   static const String organizerPublicProfilePreview =

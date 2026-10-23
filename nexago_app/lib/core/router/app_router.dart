@@ -281,6 +281,9 @@ import '../../features/tournaments/presentation/team_discover_page.dart';
 import '../../features/tournaments/presentation/team_profile/team_public_profile_page.dart';
 import '../../features/organizer_public_profile/presentation/organizer_public_profile_page.dart';
 import '../../features/organizer_public_profile/presentation/organizers_directory_page.dart';
+import '../../features/class_directory/domain/class_directory.dart';
+import '../../features/class_directory/presentation/class_directory_page.dart';
+import '../../features/class_directory/presentation/class_provider_detail_page.dart';
 import '../../features/organizer/presentation/public_profile/organizer_own_public_profile_page.dart';
 import '../../features/organizer/presentation/public_profile/organizer_public_profile_editor_page.dart';
 import '../../features/ranking/presentation/athlete_ranking_page.dart';
@@ -1911,6 +1914,27 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.organizersDirectory,
         name: AppRouteNames.organizersDirectory,
         builder: (context, state) => const OrganizersDirectoryPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.classDirectory,
+        name: AppRouteNames.classDirectory,
+        builder: (context, state) => const ClassDirectoryPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.classDirectoryArena,
+        name: AppRouteNames.classDirectoryArena,
+        builder: (context, state) => ClassProviderDetailPage(
+          kind: ClassProviderKind.arena,
+          id: state.pathParameters['arenaId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.classDirectoryCenter,
+        name: AppRouteNames.classDirectoryCenter,
+        builder: (context, state) => ClassProviderDetailPage(
+          kind: ClassProviderKind.center,
+          id: state.pathParameters['centerId']?.trim() ?? '',
+        ),
       ),
       GoRoute(
         path: AppRoutes.organizerPublicProfile,

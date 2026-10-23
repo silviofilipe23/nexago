@@ -39,6 +39,14 @@ List<({String title, List<CenterMoreItem> items})> centerMoreGroups(
       items: [
         if (enroll)
           (
+            key: 'enroll',
+            icon: Icons.how_to_reg_outlined,
+            title: 'Matricular aluno',
+            subtitle: 'Turma, plano e a 1ª cobrança',
+            routeName: AppRouteNames.centerCoachEnroll,
+          ),
+        if (enroll)
+          (
             key: 'waitlist',
             icon: Icons.hourglass_top_rounded,
             title: 'Lista de espera',
@@ -59,6 +67,14 @@ List<({String title, List<CenterMoreItem> items})> centerMoreGroups(
     (
       title: 'Centro',
       items: [
+        if (m.isManager)
+          (
+            key: 'team',
+            icon: Icons.badge_outlined,
+            title: 'Equipe',
+            subtitle: 'Professores, recepção e convites',
+            routeName: AppRouteNames.centerCoachTeam,
+          ),
         if (m.isManager)
           (
             key: 'alerts',

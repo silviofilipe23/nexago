@@ -453,6 +453,18 @@ abstract final class AppRoutes {
   /// Turmas do centro (aba Turmas do professor; todas para a gestão).
   static const String centerCoachClasses =
       '/athlete/professor/centros/:centerId/turmas';
+
+  /// Equipe do centro + convidar (G17/G18, owner/admin).
+  static const String centerCoachTeam =
+      '/athlete/professor/centros/:centerId/equipe';
+
+  /// Assinatura da mensalidade do aluno (R6).
+  static const String centerCoachSubscription =
+      '/athlete/professor/centros/:centerId/alunos/:studentId/assinatura/:subscriptionId';
+
+  /// Matricular aluno (G11–G13); `?aluno=` já escolhe o aluno.
+  static const String centerCoachEnroll =
+      '/athlete/professor/centros/:centerId/matricular';
   static const String professorLinkRequestSent =
       '/athlete/professor/arenas/:linkId/enviada';
 
@@ -1128,6 +1140,9 @@ abstract final class AppRouteNames {
   static const String centerCoachInvoice = 'centerCoachInvoice';
   static const String centerCoachWaitlist = 'centerCoachWaitlist';
   static const String centerCoachClasses = 'centerCoachClasses';
+  static const String centerCoachTeam = 'centerCoachTeam';
+  static const String centerCoachEnroll = 'centerCoachEnroll';
+  static const String centerCoachSubscription = 'centerCoachSubscription';
   static const String professorLinkRequestSent = 'professorLinkRequestSent';
   static const String professorClassAttendance = 'professorClassAttendance';
   static const String professorClassClosed = 'professorClassClosed';

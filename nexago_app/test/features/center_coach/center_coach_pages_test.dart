@@ -849,6 +849,10 @@ void main() {
       (tester) async {
         final fake = staffFake();
         await _pump(tester, '/athlete/professor/centros/c1/aula/k1_b', fake);
+        await _tap(
+          tester,
+          find.byKey(const Key('center-coach-session-actions')),
+        );
         await _tap(tester, find.byKey(const Key('center-coach-cancel')));
         expect(
           find.byKey(const Key('center-coach-cancel-sheet')),
@@ -870,7 +874,10 @@ void main() {
     testWidgets('professor não vê o cancelar', (tester) async {
       final fake = staffFake()..memberships = [_member('c1', 'CT Maré Alta')];
       await _pump(tester, '/athlete/professor/centros/c1/aula/k1_b', fake);
-      expect(find.byKey(const Key('center-coach-cancel')), findsNothing);
+      expect(
+        find.byKey(const Key('center-coach-session-actions')),
+        findsNothing,
+      );
     });
   });
 

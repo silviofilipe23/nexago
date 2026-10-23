@@ -22,6 +22,8 @@ import '../domain/center_coach_repository.dart';
 import '../infrastructure/firebase_center_coach_repository.dart';
 import '../../professor_mode/presentation/availability/availability_widgets.dart';
 import 'widgets/center_coach_widgets.dart';
+import 'widgets/center_location_sheet.dart';
+import '../domain/center_management.dart' show centerPlaceLabel;
 
 /// Espera depois do último toque antes de salvar a chamada.
 const Duration kCallAutosaveDelay = Duration(milliseconds: 1200);
@@ -248,6 +250,56 @@ class _CenterCoachCallPageState extends ConsumerState<CenterCoachCallPage> {
     );
   }
 
+  /// G5 · Ações da gestão sobre esta aula: mudar o local (L6) ou cancelar
+  /// (G6). Horário, professor e quadra seguem no portal.
+  Future<void> _actions(
+    CenterCoachSession session,
+    CenterCoachCenter? center,
+  ) async {
+    final picked = await showProfessorLinksSheet<String>(
+      context,
+      builder: (sheet) => ProfessorLinksSheetBody(
+        key: const Key('center-coach-actions-sheet'),
+        title: session.className,
+        subtitle: 'Só esta data · ${session.startTime}',
+        children: [
+          ProfessorLinksSheetRow(
+            key: const Key('center-coach-action-location'),
+            icon: Icons.place_outlined,
+            title: 'Mudar local',
+            subtitle: centerPlaceLabel(
+              session.locationName,
+              session.courtName,
+            ),
+            onTap: () => Navigator.of(sheet).pop('location'),
+          ),
+          ProfessorLinksSheetRow(
+            key: const Key('center-coach-cancel'),
+            icon: Icons.event_busy_outlined,
+            title: 'Cancelar aula',
+            subtitle: 'Avisa os alunos e gera reposição',
+            danger: true,
+            onTap: () => Navigator.of(sheet).pop('cancel'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (picked == 'cancel') return _cancel(session, center);
+    if (picked == 'location') {
+      final enrollments =
+          ref.read(coachEnrollmentsProvider(widget.centerId)).valueOrNull ??
+          const [];
+      final ok = await showCenterLocationSheet(
+        context,
+        centerId: widget.centerId,
+        session: session,
+        affected: cancelAffectedStudents(session, enrollments).length,
+      );
+      if (ok == true && mounted) _toast('Local desta aula alterado.');
+    }
+  }
+
   /// G6 · Cancelar esta aula (gestão).
   Future<void> _cancel(
     CenterCoachSession session,
@@ -374,10 +426,10 @@ class _CenterCoachCallPageState extends ConsumerState<CenterCoachCallPage> {
       subtitle: subtitle,
       trailing: canCancel
           ? ProfessorLinksRoundButton(
-              key: const Key('center-coach-cancel'),
-              icon: Icons.event_busy_outlined,
-              semanticLabel: 'Cancelar aula',
-              onTap: () => _cancel(session, center),
+              key: const Key('center-coach-session-actions'),
+              icon: Icons.more_horiz_rounded,
+              semanticLabel: 'Alterar ou cancelar a aula',
+              onTap: () => _actions(session, center),
             )
           : null,
       onBack: () async {

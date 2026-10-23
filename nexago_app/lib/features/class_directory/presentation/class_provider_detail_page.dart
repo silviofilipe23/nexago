@@ -30,14 +30,21 @@ String classDirectoryContactMessage(
   ClassProviderDetail d,
   DirectoryClass? c,
 ) {
+  final trial = d.trial != null;
   if (c == null) {
-    return 'Olá! Vi as aulas de ${d.name} no NexaGO e quero saber mais.';
+    return trial
+        ? 'Olá! Vi as aulas de ${d.name} no NexaGO e quero agendar uma aula experimental.'
+        : 'Olá! Vi as aulas de ${d.name} no NexaGO e quero saber mais.';
   }
   final days = c.weekdays.map(arenaClassWeekdayShort).join('/');
   final when = [days, c.startTime].where((s) => s.isNotEmpty).join(' ');
+  final ask = c.isFull
+      ? 'Ela está lotada — dá para entrar na lista de espera?'
+      : trial
+          ? 'Quero agendar uma aula experimental.'
+          : 'Quero saber como entrar.';
   return 'Olá! Vi no NexaGO a turma ${c.name}'
-      '${when.isEmpty ? '' : ' ($when)'} de ${d.name}. '
-      '${c.isFull ? 'Ela está lotada — dá para entrar na lista de espera?' : 'Quero saber como entrar.'}';
+      '${when.isEmpty ? '' : ' ($when)'} de ${d.name}. $ask';
 }
 
 /// H4 (arena) e H5 (CT) · o local no detalhe: turmas por dia com ocupação,
@@ -212,6 +219,12 @@ class _ClassProviderDetailPageState
                             () => _selectedClassId = dayClasses[i].classId,
                           ),
                         ),
+                    ],
+                    if (d.trial != null) ...[
+                      const SizedBox(height: 30),
+                      const _Label('AULA EXPERIMENTAL'),
+                      const SizedBox(height: 14),
+                      _TrialCard(trial: d.trial!),
                     ],
                     if (plans.isNotEmpty) ...[
                       const SizedBox(height: 30),
@@ -448,6 +461,60 @@ class _GlassButton extends StatelessWidget {
             child: Icon(icon, size: 20, color: AppColors.white),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Bloco da aula experimental (vitrine do portal): valor e observação.
+class _TrialCard extends StatelessWidget {
+  const _TrialCard({required this.trial});
+
+  final DirectoryTrial trial;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final tone = colors.readableTone(colors.win);
+    return Container(
+      key: const Key('class-provider-trial'),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: colors.win.withValues(alpha: 0.07),
+        border: Border.all(color: colors.win.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.sports_volleyball_outlined, size: 20, color: tone),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  directoryTrialLabel(trial),
+                  style: ProfessorLinksStyle.display(
+                    14,
+                    weight: FontWeight.w600,
+                    color: colors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  trial.note.isNotEmpty
+                      ? trial.note
+                      : 'Peça pelo WhatsApp e combine o dia.',
+                  style: AppTypography.bodyS.copyWith(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: ProfessorLinksStyle.dim(colors),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1061,7 +1128,9 @@ class _Footer extends StatelessWidget {
             ? 'Fale com ${detail.isCenter ? 'o centro' : 'a arena'}'
             : c.isFull
                 ? 'Turma lotada · lista de espera'
-                : directorySpotsLabel(c.openSpots);
+                : detail.trial != null
+                    ? directoryTrialLabel(detail.trial!)
+                    : directorySpotsLabel(c.openSpots);
     final bottom = MediaQuery.paddingOf(context).bottom;
     return Container(
       padding: EdgeInsets.fromLTRB(18, 16, 18, 14 + bottom),
@@ -1143,7 +1212,12 @@ class _Footer extends StatelessWidget {
                 ),
                 icon: const Icon(Icons.chat_bubble_outline_rounded, size: 17),
                 label: Text(
-                    c?.isFull == true ? 'Lista de espera' : 'Quero entrar'),
+                  c?.isFull == true
+                      ? 'Lista de espera'
+                      : detail.trial != null
+                          ? 'Agendar'
+                          : 'Quero entrar',
+                ),
               ),
             ),
           ],

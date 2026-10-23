@@ -1,6 +1,7 @@
 import { getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import { environment } from '../../environments/environment';
 
 /** App Firebase único do portal (mesmo config DEV de todos os portais). */
@@ -17,3 +18,7 @@ export function auth(): Auth {
 }
 
 export const CENTERS = 'trainingCenters';
+
+export function storage(): FirebaseStorage {
+  return getStorage(firebaseApp());
+}

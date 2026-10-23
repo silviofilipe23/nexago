@@ -3901,12 +3901,29 @@ service cloud.firestore {
         request.resource.data.subscription == null &&
         !('activatedAt' in request.resource.data) &&
         getAfter(ctMemberPath(request.auth.uid)).data.role == 'center_owner';
+      // Vitrine no app (Hub › Aulas e treinos) — mesmo formato de `class-showcase.ts`.
+      function ctShowcaseValid(s) {
+        let t = s.get('trial', {});
+        return s is map &&
+          s.keys().hasOnly(['coverUrl', 'description', 'trial']) &&
+          (s.get('coverUrl', null) == null || (
+            s.coverUrl is string && s.coverUrl.size() <= 1000 && s.coverUrl.matches('https://.*')
+          )) &&
+          s.get('description', '') is string && s.get('description', '').size() <= 400 &&
+          t is map &&
+          t.keys().hasOnly(['enabled', 'priceReais', 'note']) &&
+          t.get('enabled', false) is bool &&
+          t.get('priceReais', 0) is number && t.get('priceReais', 0) >= 0 && t.get('priceReais', 0) <= 2000 &&
+          t.get('note', '') is string && t.get('note', '').size() <= 120;
+      }
       allow update: if isSuperAdmin() || (
         ctIsManager() &&
         ctChanged().hasOnly([
           'name', 'legalName', 'cnpj', 'slug', 'timezone', 'sports', 'contactEmail',
-          'contactPhone', 'city', 'state', 'address', 'policies', 'billing', 'notifications', 'activationRequestedAt'
-        ])
+          'contactPhone', 'city', 'state', 'address', 'policies', 'billing', 'notifications', 'activationRequestedAt',
+          'showcase'
+        ]) &&
+        (!ctChanged().hasAny(['showcase']) || ctShowcaseValid(request.resource.data.showcase))
       );
       allow delete: if false;
 

@@ -121,6 +121,13 @@ class ClassDirectoryPage extends ConsumerWidget {
                   onTap: () => setFilters.state =
                       filters.copyWith(withOpening: !filters.withOpening),
                 ),
+                DirectoryQuickChip(
+                  key: const Key('class-directory-free-trial'),
+                  label: 'Experimental grátis',
+                  selected: filters.freeTrial,
+                  onTap: () => setFilters.state =
+                      filters.copyWith(freeTrial: !filters.freeTrial),
+                ),
                 if (level != null)
                   DirectoryQuickChip(
                     key: const Key('class-directory-my-level'),
@@ -396,6 +403,7 @@ class _ClassDirectoryFiltersSheetState
                   DirectoryFilters(
                     sport: _f.sport,
                     withOpening: _f.withOpening,
+                    freeTrial: _f.freeTrial,
                   ),
                 ),
               ),

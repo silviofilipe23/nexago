@@ -417,3 +417,18 @@ test('dados do aluno por turma: professor só lê os alunos dele; o campo é do 
   await assertSucceeds(getDocs(collection(as(RECEP), 'trainingCenters', C, 'students')));
   await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'students', 'outro'), { coachUids: [COACH] }));
 });
+
+test('vitrine no app: gestor salva capa, descrição e experimental no formato certo; professor não', async () => {
+  const ok = {
+    coverUrl: 'https://firebasestorage.googleapis.com/v0/b/x/o/trainingCenters%2Fmare%2Fcover',
+    description: 'Alto rendimento em vôlei de praia.',
+    trial: { enabled: true, priceReais: 50, note: '1 aula · abatida na 1ª mensalidade' },
+  };
+  await assertSucceeds(updateDoc(doc(as(OWNER), 'trainingCenters', C), { showcase: ok }));
+  await assertSucceeds(updateDoc(doc(as(ADMIN), 'trainingCenters', C), { showcase: { ...ok, coverUrl: null } }));
+  await denied(updateDoc(doc(as(COACH), 'trainingCenters', C), { showcase: ok }));
+  await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C), { showcase: { ...ok, coverUrl: 'http://x/a.jpg' } }));
+  await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C), { showcase: { ...ok, description: 'x'.repeat(401) } }));
+  await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C), { showcase: { ...ok, trial: { ...ok.trial, priceReais: -1 } } }));
+  await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C), { showcase: { ...ok, extra: true } }));
+});

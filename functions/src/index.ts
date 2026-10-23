@@ -266,6 +266,7 @@ export {saveHomeworkProgress} from "./homework-progress";
 export {getMyTrainingPlans} from "./arena-class-athlete-plans";
 export {getMyTrainingCenters} from "./training-center-athlete";
 export {searchClassDirectory, getClassDirectoryDetail} from "./class-directory";
+export {saveArenaClassShowcase} from "./class-showcase";
 export {
   answerTrainingCenterInvite,
   checkMyTrainingCenterInvoice,

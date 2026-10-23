@@ -35,6 +35,7 @@ import {
 } from '../domain/models';
 import { readNotificationSettings } from '../domain/notification-settings';
 import { PERMISSION_ORDER, type CenterPermission, type CenterRole } from '../domain/roles';
+import { readShowcase } from '../domain/showcase';
 
 /**
  * Leitura defensiva: documento antigo ou incompleto nunca derruba a tela — cada campo cai num
@@ -129,6 +130,7 @@ export function readCenter(id: string, d: Data): TrainingCenter {
     policies: readPolicies(obj(d, 'policies')),
     billing: readBilling(obj(d, 'billing')),
     notifications: readNotificationSettings(obj(d, 'notifications')),
+    showcase: readShowcase(obj(d, 'showcase')),
     receivingConnected: bool(d, 'receivingConnected'),
     receivingStatus: readReceivingStatus(d['receivingStatus'], bool(d, 'receivingConnected')),
     joinCode: strOrNull(d, 'joinCode'),

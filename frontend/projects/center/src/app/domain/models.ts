@@ -1,6 +1,7 @@
 import type { Weekday } from './dates';
 import type { NotificationSettings } from './notification-settings';
 import type { CenterPermission, CenterRole, MemberStatus } from './roles';
+import type { CenterShowcase } from './showcase';
 
 /**
  * Modelo do Centro de Treinamento no Firestore. Tudo do centro mora embaixo de
@@ -92,6 +93,8 @@ export interface TrainingCenter {
   billing: CenterBilling;
   /** Preferências de aviso (Configurações › Notificações). */
   notifications: NotificationSettings;
+  /** Vitrine no app do atleta (capa, descrição, aula experimental). */
+  showcase: CenterShowcase;
   /** Passos de ativação que dependem de terceiros (marcados pelo backoffice). */
   receivingConnected: boolean;
   /** Situação da conta de recebimento criada pelo centro (o servidor grava). */

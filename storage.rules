@@ -95,6 +95,23 @@ service firebase.storage {
       );
     }
 
+    // Centro de treinamento: capa da vitrine de aulas no app. Leitura pública; escrita só do
+    // gestor (dono/admin) com vínculo ativo, e só imagem de até 5 MB.
+    match /trainingCenters/{centerId}/{filePath=**} {
+      function ctManager() {
+        let m = /databases/(default)/documents/trainingCenters/$(centerId)/centerMembers/$(request.auth.uid);
+        return firestore.exists(m) &&
+          firestore.get(m).data.status == 'active' &&
+          firestore.get(m).data.role in ['center_owner', 'center_admin'];
+      }
+      allow read: if true;
+      allow write: if request.auth != null && ctManager() &&
+        (request.resource == null || (
+          request.resource.size < 5 * 1024 * 1024 &&
+          request.resource.contentType.matches('image/(jpeg|png|webp)')
+        ));
+    }
+
     // Fotos do catálogo da Loja. Leitura pública (vitrine); escrita só admin,
     // e só imagem de até 10 MB. Quem registra a foto no produto é a callable.
     match /store/products/{productId}/{fileName} {

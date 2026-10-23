@@ -7,6 +7,7 @@ import { CatalogActions } from '../../data/actions/catalog.actions';
 import { holdsSeat } from '../../domain/enrollment';
 import { CENTER_SPORTS, DEFAULT_LEVELS, PROGRAM_COLORS, sportKey, type Program } from '../../domain/models';
 import { IconComponent } from '../../ui/icon.component';
+import { programRemoval } from './program-removal';
 import { ModalComponent, PageHeaderComponent } from '../../ui/kit';
 
 interface LevelDraft {
@@ -33,6 +34,8 @@ interface LevelDraft {
     .colors { display: flex; gap: 8px; flex-wrap: wrap; }
     .color { width: 30px; height: 30px; border-radius: 9px; border: 2px solid transparent; cursor: pointer; }
     .color.on { border-color: var(--nx-text); }
+    .foot-row { display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap; justify-content: flex-end; }
+    .remove-box { padding: 12px; border-radius: var(--nx-r-2); border: 1px solid var(--nx-line); background: var(--nx-surface-1); display: flex; flex-direction: column; gap: 8px; }
     .icon-btn { width: 30px; height: 30px; padding: 0; justify-content: center; }
   `,
 })
@@ -109,6 +112,15 @@ export class ProgramsComponent {
     }
   }
 
+  /** Passo de confirmação da remoção, dentro do próprio modal. */
+  protected readonly confirmingDelete = signal(false);
+
+  protected readonly removal = computed(() => {
+    const p = this.editingProgram();
+    if (!p || p === 'new') return null;
+    return programRemoval(p.id, this.store.classes(), this.store.plans());
+  });
+
   protected readonly busy = signal(false);
   protected readonly error = signal('');
 
@@ -129,6 +141,7 @@ export class ProgramsComponent {
     this.pLevels.set((p?.levels ?? []).map((l) => ({ original: l, name: l })));
     this.newLevel.set('');
     this.error.set('');
+    this.confirmingDelete.set(false);
     this.editingProgram.set(p ?? 'new');
   }
 
@@ -172,6 +185,22 @@ export class ProgramsComponent {
     this.error.set('');
     try {
       await this.actions.saveProgram(target === 'new' ? null : target.id, { name, color: this.pColor(), levels, order });
+      this.editingProgram.set(null);
+    } catch (err) {
+      this.error.set(writeErrorMessage(err));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  protected async deleteProgram(): Promise<void> {
+    const target = this.editingProgram();
+    const impact = this.removal();
+    if (!target || target === 'new' || !impact || impact.blocked || this.busy()) return;
+    this.busy.set(true);
+    this.error.set('');
+    try {
+      await this.actions.deleteProgram(target, this.ctx.has('edit_plans') ? impact.sharedPlanIds : []);
       this.editingProgram.set(null);
     } catch (err) {
       this.error.set(writeErrorMessage(err));

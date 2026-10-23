@@ -327,6 +327,7 @@ void main() {
           for (final i in g.items) i.key,
       ];
       expect(keys(_m('center_owner')), [
+        'new-student',
         'enroll',
         'waitlist',
         'checkin',
@@ -334,8 +335,134 @@ void main() {
         'alerts',
         'classes',
       ]);
-      expect(keys(_m('receptionist')), ['enroll', 'waitlist', 'classes']);
+      expect(keys(_m('receptionist')), [
+        'new-student',
+        'enroll',
+        'waitlist',
+        'classes',
+      ]);
       expect(keys(_m('coach')), isEmpty);
+    });
+  });
+
+  group('novo aluno', () {
+    const existing = [
+      CenterCoachStudent(
+        id: 's1',
+        name: 'Marina',
+        uid: 'u1',
+        email: 'marina@x.com',
+      ),
+    ];
+    List<String> problems(CenterNewStudentInput i) =>
+        centerNewStudentProblems(input: i, existing: existing);
+
+    test('convite exige nome e e-mail válidos', () {
+      expect(problems(const CenterNewStudentInput(name: 'Al')), [
+        'Informe o nome completo.',
+        'Informe um e-mail válido.',
+      ]);
+      expect(
+        problems(
+            const CenterNewStudentInput(name: 'Ana Reis', email: 'a@b.co')),
+        isEmpty,
+      );
+    });
+
+    test('e-mail e conta já usados no centro', () {
+      expect(
+        problems(
+          const CenterNewStudentInput(name: 'Outra', email: ' MARINA@x.com '),
+        ),
+        ['Já existe aluno com esse e-mail neste centro.'],
+      );
+      expect(
+        problems(const CenterNewStudentInput(uid: 'u1', name: 'Marina')),
+        ['Essa conta já é aluno deste centro.'],
+      );
+      // Conta vinculada: contato é opcional.
+      expect(
+        problems(const CenterNewStudentInput(uid: 'u2', name: 'João')),
+        isEmpty,
+      );
+    });
+
+    test('menor exige nascimento e responsável completo', () {
+      const base = CenterNewStudentInput(
+        uid: 'u2',
+        name: 'Leo',
+        isMinor: true,
+      );
+      expect(problems(base), [
+        'Informe a data de nascimento.',
+        'Informe o nome do responsável.',
+        'Informe o parentesco.',
+        'Informe o e-mail do responsável.',
+        'Informe o telefone do responsável.',
+      ]);
+      expect(
+        problems(
+          const CenterNewStudentInput(
+            uid: 'u2',
+            name: 'Leo',
+            isMinor: true,
+            birthDate: '2015-03-02',
+            guardian: (
+              name: 'Carla Dias',
+              relation: 'Mãe',
+              email: 'carla@x.com',
+              phone: '(81) 99999-0000',
+            ),
+          ),
+        ),
+        isEmpty,
+      );
+    });
+
+    test('doc igual ao do portal', () {
+      final invited = centerNewStudentDoc(
+        const CenterNewStudentInput(
+          name: ' Bia Nunes ',
+          email: ' Bia@Mail.com ',
+          phone: ' 81 9999 ',
+          guardian: (name: 'X', relation: 'Y', email: 'z@z.z', phone: '1'),
+        ),
+      );
+      expect(invited['uid'], isNull);
+      expect(invited['status'], 'invited');
+      expect(invited['name'], 'Bia Nunes');
+      expect(invited['email'], 'bia@mail.com');
+      expect(invited['phone'], '81 9999');
+      // Responsável só vai para menor.
+      expect(invited['guardian'], isNull);
+      expect(invited['makeupCredits'], 0);
+      expect(invited['lgpdConsentAt'], isNull);
+      expect(invited.containsKey('billingHold'), isFalse);
+      expect(invited.containsKey('coachUids'), isFalse);
+
+      final minor = centerNewStudentDoc(
+        const CenterNewStudentInput(
+          uid: 'u2',
+          name: 'Leo',
+          isMinor: true,
+          birthDate: '2015-03-02',
+          guardian: (
+            name: 'Carla',
+            relation: 'Mãe',
+            email: 'CARLA@x.com',
+            phone: '81',
+          ),
+        ),
+      );
+      expect(minor['status'], 'active');
+      expect(minor['birthDate'], '2015-03-02');
+      expect((minor['guardian'] as Map)['email'], 'carla@x.com');
+      expect(
+        centerNewStudentAuditDetail(
+          const CenterNewStudentInput(uid: 'u2', name: 'Leo', isMinor: true),
+        ),
+        'Leo vinculado ao centro · menor',
+      );
     });
   });
 }

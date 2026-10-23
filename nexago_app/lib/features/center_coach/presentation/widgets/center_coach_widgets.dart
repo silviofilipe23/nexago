@@ -5,8 +5,6 @@ import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/time/nexago_event_timezone.dart';
 import '../../../arena/domain/aulas/arena_class_logic.dart';
-import '../../../athlete_training/domain/athlete_training.dart'
-    show trainingWeekdayDay;
 import '../../../athlete_training/domain/training_plans.dart'
     show ArenaPlanSlot, arenaPlanScheduleLabel;
 import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
@@ -172,86 +170,6 @@ class CenterCoachCenterOption extends StatelessWidget {
           if (selected)
             Icon(Icons.check_rounded, size: 18, color: colors.brandText),
         ],
-      ),
-    );
-  }
-}
-
-/// Dia da semana na faixa da agenda.
-class CenterCoachDayCell extends StatelessWidget {
-  const CenterCoachDayCell({
-    super.key,
-    required this.dateKey,
-    required this.selected,
-    required this.isToday,
-    required this.count,
-    required this.onTap,
-  });
-
-  final String dateKey;
-  final bool selected;
-  final bool isToday;
-  final int count;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    final parts = trainingWeekdayDay(dateKey).split(' ');
-    final fg = selected ? ProfessorLinksStyle.onBrand : colors.onSurface;
-    return Material(
-      color: selected ? AppColors.brand : colors.surfaceRaised,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(
-          color: selected
-              ? Colors.transparent
-              : ProfessorLinksStyle.line(colors),
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Column(
-            children: [
-              Text(
-                parts.first.isEmpty ? '' : parts.first.substring(0, 1),
-                style: ProfessorLinksStyle.mono(
-                  9.5,
-                  color: selected
-                      ? fg
-                      : isToday
-                      ? colors.brandText
-                      : ProfessorLinksStyle.dim(colors),
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                parts.length > 1 ? parts[1] : '',
-                style: ProfessorLinksStyle.display(
-                  15,
-                  weight: FontWeight.w700,
-                  color: fg,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Container(
-                width: 5,
-                height: 5,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: count == 0
-                      ? Colors.transparent
-                      : selected
-                      ? fg
-                      : AppColors.brand,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

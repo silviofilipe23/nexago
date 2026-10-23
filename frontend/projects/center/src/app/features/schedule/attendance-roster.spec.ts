@@ -1,4 +1,4 @@
-import { rsvpLabel, attendanceRoster, effectLabel } from './attendance-roster';
+import { rsvpLabel, attendanceRoster, effectLabel, applyAttendanceDraft, EMPTY_DRAFT } from './attendance-roster';
 import { rosterAfter } from '../../domain/enrollment';
 
 describe('attendanceRoster', () => {
@@ -16,6 +16,22 @@ describe('attendanceRoster', () => {
     expect(effectLabel({ credit: -1, makeup: 0 })).toBe('−1 crédito do pacote');
     expect(effectLabel({ credit: 0, makeup: 1 })).toBe('+1 reposição');
     expect(effectLabel(undefined)).toBe('');
+  });
+});
+
+describe('applyAttendanceDraft', () => {
+  it('soma só o que a tela mudou à chamada ao vivo', () => {
+    const live = { attendance: { a: 'present' as const, b: 'excused' as const }, makeupStudentIds: ['r'] };
+    // 'b' avisou "não vou" e 'a' fez check-in depois que a chamada abriu: continuam.
+    const out = applyAttendanceDraft(live, { marks: { c: 'absent', r: null }, addedMakeups: ['z'], removedMakeups: ['r'] });
+    expect(out.attendance).toEqual({ a: 'present', b: 'excused', c: 'absent' });
+    expect(out.makeupStudentIds).toEqual(['z']);
+    expect(applyAttendanceDraft(live, EMPTY_DRAFT)).toEqual({ attendance: live.attendance, makeupStudentIds: ['r'] });
+  });
+
+  it('o que a tela marcou vence o que estava gravado', () => {
+    const live = { attendance: { a: 'present' as const }, makeupStudentIds: [] };
+    expect(applyAttendanceDraft(live, { ...EMPTY_DRAFT, marks: { a: 'absent' } }).attendance).toEqual({ a: 'absent' });
   });
 });
 

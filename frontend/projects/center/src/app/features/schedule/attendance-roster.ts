@@ -27,6 +27,33 @@ export function attendanceRoster(
   return out;
 }
 
+/** O que a chamada aberta mudou: marca por aluno (`null` = limpar) e reposições encaixadas/retiradas. */
+export interface AttendanceDraft {
+  marks: Record<string, AttendanceMark | null>;
+  addedMakeups: readonly string[];
+  removedMakeups: readonly string[];
+}
+
+export const EMPTY_DRAFT: AttendanceDraft = { marks: {}, addedMakeups: [], removedMakeups: [] };
+
+/**
+ * A chamada que vale = a da aula AO VIVO + só o que esta tela mudou. Assim o check-in da recepção
+ * e o "não vou" do aluno que chegam com a chamada aberta não somem ao salvar.
+ */
+export function applyAttendanceDraft(
+  live: { attendance: Record<string, AttendanceMark>; makeupStudentIds: readonly string[] },
+  draft: AttendanceDraft,
+): { attendance: Record<string, AttendanceMark>; makeupStudentIds: string[] } {
+  const attendance = { ...live.attendance };
+  for (const [id, m] of Object.entries(draft.marks)) {
+    if (m) attendance[id] = m;
+    else delete attendance[id];
+  }
+  const removed = new Set(draft.removedMakeups);
+  const makeupStudentIds = [...new Set([...live.makeupStudentIds, ...draft.addedMakeups])].filter((id) => !removed.has(id));
+  return { attendance, makeupStudentIds };
+}
+
 /** Etiqueta da resposta do aluno pelo app ("Vai · app", "Avisou no prazo · app"), com a cor. */
 export function rsvpLabel(
   rsvp: 'going' | 'not_going' | undefined,

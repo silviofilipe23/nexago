@@ -8,7 +8,7 @@ import { placeLabel } from '../../domain/locations';
 import type { AttendanceMark } from '../../domain/models';
 import { endTime } from '../../domain/schedule';
 import { AuditTrailComponent, ModalComponent, PersonComponent, SegmentedComponent, type AuditRow } from '../../ui/kit';
-import { attendanceRoster, effectLabel, rsvpLabel } from './attendance-roster';
+import { applyAttendanceDraft, attendanceRoster, EMPTY_DRAFT, effectLabel, rsvpLabel, type AttendanceDraft } from './attendance-roster';
 
 const MARK_OPTIONS = [
   { value: 'present', label: 'P' },
@@ -48,10 +48,18 @@ export class AttendanceModalComponent {
   protected readonly done = computed(() => this.session()?.status === 'done');
   protected readonly canManage = computed(() => this.ctx.isManager() && this.ctx.canWrite());
 
-  /** Rascunho local da chamada (só antes de finalizar). */
-  protected readonly marks = signal<Record<string, AttendanceMark>>({});
-  protected readonly makeupIds = signal<string[]>([]);
+  /**
+   * Só o que esta tela mudou (antes de finalizar). A chamada mostrada e gravada é a da aula ao
+   * vivo + este rascunho: check-in e "não vou" que chegam com a tela aberta não se perdem.
+   */
+  private readonly draft = signal<AttendanceDraft>(EMPTY_DRAFT);
   private loadedFor = '';
+  private readonly merged = computed(() => {
+    const s = this.session();
+    return s ? applyAttendanceDraft(s, this.draft()) : { attendance: {}, makeupStudentIds: [] };
+  });
+  protected readonly marks = computed(() => this.merged().attendance);
+  protected readonly makeupIds = computed(() => this.merged().makeupStudentIds);
 
   protected readonly busy = signal(false);
   protected readonly error = signal('');
@@ -77,15 +85,12 @@ export class AttendanceModalComponent {
           .catch(() => this.remoteCandidates.set([]));
       });
     });
-    // Carrega o rascunho uma vez por aula; depois, a edição local manda até salvar.
+    // Rascunho zera ao trocar de aula.
     effect(() => {
-      const s = this.session();
-      if (!s || this.loadedFor === s.id) return;
-      this.loadedFor = s.id;
-      untracked(() => {
-        this.marks.set({ ...s.attendance });
-        this.makeupIds.set([...s.makeupStudentIds]);
-      });
+      const id = this.sessionId();
+      if (this.loadedFor === id) return;
+      this.loadedFor = id;
+      untracked(() => this.draft.set(EMPTY_DRAFT));
     });
   }
 
@@ -149,28 +154,33 @@ export class AttendanceModalComponent {
   });
 
   protected setMark(studentId: string, v: string): void {
-    this.marks.update((m) => ({ ...m, [studentId]: v as AttendanceMark }));
+    this.draft.update((d) => ({ ...d, marks: { ...d.marks, [studentId]: v as AttendanceMark } }));
   }
 
   protected markAll(v: AttendanceMark): void {
-    const next = { ...this.marks() };
-    for (const r of this.rows()) if (!next[r.studentId]) next[r.studentId] = v;
-    this.marks.set(next);
+    const cur = this.marks();
+    const add: Record<string, AttendanceMark> = {};
+    for (const r of this.rows()) if (!cur[r.studentId]) add[r.studentId] = v;
+    this.draft.update((d) => ({ ...d, marks: { ...d.marks, ...add } }));
   }
 
   protected addMakeup(): void {
     const id = this.addingMakeup();
     if (!id) return;
-    this.makeupIds.update((l) => [...l, id]);
+    this.draft.update((d) => ({
+      ...d,
+      addedMakeups: [...d.addedMakeups, id],
+      removedMakeups: d.removedMakeups.filter((x) => x !== id),
+    }));
     this.addingMakeup.set('');
   }
 
   protected removeMakeup(id: string): void {
-    this.makeupIds.update((l) => l.filter((x) => x !== id));
-    this.marks.update((m) => {
-      const { [id]: _drop, ...rest } = m;
-      return rest;
-    });
+    this.draft.update((d) => ({
+      marks: { ...d.marks, [id]: null },
+      addedMakeups: d.addedMakeups.filter((x) => x !== id),
+      removedMakeups: [...d.removedMakeups, id],
+    }));
   }
 
   protected value(e: Event): string {
@@ -184,7 +194,8 @@ export class AttendanceModalComponent {
       this.error.set(`Marque todos os alunos antes de finalizar (${this.unmarked()} sem marcação).`);
       return;
     }
-    await this.run(() => this.actions.save(s, this.marks(), this.makeupIds(), finalize));
+    const ok = await this.run(() => this.actions.save(s, this.marks(), this.makeupIds(), finalize));
+    if (ok) this.draft.set(EMPTY_DRAFT);
   }
 
   protected startFix(studentId: string, current: AttendanceMark | null): void {
@@ -219,7 +230,7 @@ export class AttendanceModalComponent {
     const ok = await this.run(() => this.actions.reopen(s, this.reopenReason()));
     if (ok) {
       this.reopening.set(false);
-      this.loadedFor = '';
+      this.draft.set(EMPTY_DRAFT);
     }
   }
 

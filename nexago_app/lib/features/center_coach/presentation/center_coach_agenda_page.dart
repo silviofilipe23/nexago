@@ -265,6 +265,18 @@ class _AgendaBody extends ConsumerWidget {
               ),
             ),
           ],
+          if (staff) ...[
+            const SizedBox(height: 8),
+            ProfessorLinksPrimaryButton(
+              key: const Key('center-coach-checkin-entry'),
+              label: 'Fazer check-in',
+              height: 46,
+              onPressed: () => context.pushNamed(
+                AppRouteNames.centerCoachCheckin,
+                pathParameters: {'centerId': centerId},
+              ),
+            ),
+          ],
           if (staff || coaches.isNotEmpty && member.isManager) ...[
             const SizedBox(height: 10),
             SingleChildScrollView(

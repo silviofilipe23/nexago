@@ -506,6 +506,12 @@ void main() {
       expect(router.state.uri.path, '/treinos/centro/ct1/aula/k1_2026-10-23');
     });
 
+    testWidgets('carteirinha do check-in', (tester) async {
+      await _pump(tester, location: '/treinos/centro/ct1');
+      await _tap(tester, find.byKey(const Key('training-center-card')));
+      expect(find.byKey(const Key('training-center-card-sheet')), findsOneWidget);
+    });
+
     testWidgets('push de fatura abre direto no Plano', (tester) async {
       await _pump(tester, location: '/treinos/centro/ct1?aba=plano');
       expect(

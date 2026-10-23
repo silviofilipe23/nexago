@@ -14,6 +14,7 @@ import {TRAINING_CENTERS} from "./training-center-billing-model";
 import {addDays} from "./training-center-subscription-model";
 import {dayKeyIn} from "./training-center-waitlist-model";
 import {requireUid, str} from "./arena-class";
+import {ensureCheckinCode} from "./training-center-checkin";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 type Data = Record<string, unknown>;
@@ -110,6 +111,8 @@ export interface MyTrainingCenter {
   sports: string[];
   makeupCredits: number;
   billingHold: boolean;
+  /** Carteirinha do check-in: QR `nexago-ct:{centerId}:{checkinCode}`. */
+  checkinCode: string;
   policies: {
     excusedNoticeHours: number;
     excusedAbsenceMakeup: boolean;
@@ -295,6 +298,7 @@ async function loadCenter(
     sports: Array.isArray(center["sports"]) ? (center["sports"] as unknown[]).filter((x): x is string => typeof x === "string") : [],
     makeupCredits: num(student["makeupCredits"]) ?? 0,
     billingHold: student["billingHold"] === true,
+    checkinCode: await ensureCheckinCode(centerRef.collection("students").doc(studentId), student),
     policies: {
       excusedNoticeHours: num(policies["excusedNoticeHours"]) ?? 4,
       excusedAbsenceMakeup: policies["excusedAbsenceMakeup"] !== false,

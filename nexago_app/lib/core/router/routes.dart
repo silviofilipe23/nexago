@@ -415,6 +415,8 @@ abstract final class AppRoutes {
   /// Hoje no centro (gestão e recepção, G1).
   static const String centerCoachToday =
       '/athlete/professor/centros/:centerId/hoje';
+  static const String centerCoachCheckin =
+      '/athlete/professor/centros/:centerId/checkin';
   static const String professorLinkRequestSent =
       '/athlete/professor/arenas/:linkId/enviada';
 
@@ -1078,6 +1080,7 @@ abstract final class AppRouteNames {
   static const String centerCoachSession = 'centerCoachSession';
   static const String centerCoachClass = 'centerCoachClass';
   static const String centerCoachToday = 'centerCoachToday';
+  static const String centerCoachCheckin = 'centerCoachCheckin';
   static const String professorLinkRequestSent = 'professorLinkRequestSent';
   static const String professorClassAttendance = 'professorClassAttendance';
   static const String professorClassClosed = 'professorClassClosed';

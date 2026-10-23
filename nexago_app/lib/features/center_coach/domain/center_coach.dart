@@ -489,6 +489,47 @@ class CenterCoachInvoice {
   final DateTime? approvedAt;
 }
 
+/// Resultado do check-in (`checkInTrainingCenterStudent`).
+class CenterCheckinResult {
+  const CenterCheckinResult({
+    required this.state,
+    this.studentId = '',
+    this.studentName = '',
+    this.sessionId,
+    this.className = '',
+    this.startTime = '',
+    this.coachName = '',
+    this.billingHold = false,
+    this.makeup = false,
+  });
+
+  factory CenterCheckinResult.fromMap(Map<String, Object?> m) =>
+      CenterCheckinResult(
+        state: _str(m['state'], 'no_session'),
+        studentId: _str(m['studentId']),
+        studentName: _str(m['studentName'], 'Aluno'),
+        sessionId: _str(m['sessionId']).isEmpty ? null : _str(m['sessionId']),
+        className: _str(m['className']),
+        startTime: _str(m['startTime']),
+        coachName: _str(m['coachName']),
+        billingHold: m['billingHold'] == true,
+        makeup: m['makeup'] == true,
+      );
+
+  /// `checked_in`, `already`, `hold`, `no_session` ou `wrong_center`.
+  final String state;
+  final String studentId;
+  final String studentName;
+  final String? sessionId;
+  final String className;
+  final String startTime;
+  final String coachName;
+  final bool billingHold;
+  final bool makeup;
+
+  bool get ok => state == 'checked_in' || state == 'already';
+}
+
 // ── regras ───────────────────────────────────────────────────────────────
 
 /// O professor faz a chamada desta aula: é o professor da data, tem a

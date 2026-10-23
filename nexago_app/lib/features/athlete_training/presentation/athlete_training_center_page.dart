@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/links/open_external_url.dart';
@@ -92,6 +93,39 @@ class _AthleteTrainingCenterPageState
               )
             else ...[
               _Header(center: center, todayKey: todayKey),
+              if (center.checkinQr.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                ProfessorLinksCard(
+                  key: const Key('training-center-card'),
+                  onTap: () => showCenterCheckinCard(context, center),
+                  padding: const EdgeInsets.all(13),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.qr_code_2_rounded,
+                        size: 22,
+                        color: context.themeColors.readableTone(trainingCenterColor),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Carteirinha · mostre na recepção para o check-in',
+                          style: ProfessorLinksStyle.display(
+                            13,
+                            weight: FontWeight.w600,
+                            color: context.themeColors.onSurface,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: ProfessorLinksStyle.dim(context.themeColors),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               if (center.billingHold) ...[
                 const SizedBox(height: 10),
                 const TrainingOriginNote(
@@ -718,3 +752,37 @@ class _PaidRow extends StatelessWidget {
     );
   }
 }
+
+
+/// Carteirinha do centro (G7): o QR que a recepção lê no check-in.
+Future<void> showCenterCheckinCard(BuildContext context, TrainingCenterLink c) =>
+    showProfessorLinksSheet<void>(
+      context,
+      builder: (_) => ProfessorLinksSheetBody(
+        key: const Key('training-center-card-sheet'),
+        title: 'Carteirinha',
+        subtitle: c.name,
+        children: [
+          Center(
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: QrImageView(
+                data: c.checkinQr,
+                size: 220,
+                padding: EdgeInsets.zero,
+                backgroundColor: Colors.white,
+              ),
+            ),
+          ),
+          const ProfessorMutedText(
+            'Mostre na recepção ou para o professor: o check-in marca sua '
+            'presença na aula do horário. Aumente o brilho da tela se a leitura '
+            'demorar.',
+          ),
+        ],
+      ),
+    );

@@ -75,6 +75,16 @@ abstract class CenterCoachRepository {
     required String actorName,
   });
 
+  /// Check-in do aluno (recepção, gestão ou o professor da aula): pela
+  /// carteirinha ([qr]) ou pelo cadastro ([studentId]). [force] registra
+  /// mesmo com mensalidade em atraso.
+  Future<CenterCheckinResult> checkIn({
+    required String centerId,
+    String? qr,
+    String? studentId,
+    bool force = false,
+  });
+
   Future<List<MakeupCandidate>> makeupCandidates(
     String centerId,
     String sessionId,

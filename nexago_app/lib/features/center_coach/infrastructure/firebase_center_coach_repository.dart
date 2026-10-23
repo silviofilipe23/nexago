@@ -270,6 +270,38 @@ class FirebaseCenterCoachRepository implements CenterCoachRepository {
   }
 
   @override
+  Future<CenterCheckinResult> checkIn({
+    required String centerId,
+    String? qr,
+    String? studentId,
+    bool force = false,
+  }) async {
+    try {
+      final r = await _functions
+          .httpsCallable('checkInTrainingCenterStudent')
+          .call<Object?>({
+            'centerId': centerId,
+            'qr': ?qr,
+            'studentId': ?studentId,
+            'force': force,
+          });
+      final data = r.data is Map
+          ? (r.data as Map).map((k, v) => MapEntry('$k', v))
+          : <String, Object?>{};
+      return CenterCheckinResult.fromMap(data);
+    } on FirebaseFunctionsException catch (e) {
+      throw CenterCoachException(
+        callableErrorMessage(
+          e.code,
+          e.message,
+          'Não foi possível fazer o check-in. Tente de novo.',
+        ),
+        revoked: e.code == 'permission-denied',
+      );
+    }
+  }
+
+  @override
   Future<List<MakeupCandidate>> makeupCandidates(
     String centerId,
     String sessionId,

@@ -7,7 +7,9 @@
  * - CT: o atleta pede a aula e o pedido fica em `trainingCenters/{c}/trialBookings/{sessionId_uid}`
  *   (`pending`). A equipe do centro (owner/admin/recepção) confirma ou recusa no portal (tela
  *   Experimentais) e o atleta recebe o push. Pendente e confirmada seguram a vaga da aula. Só o
- *   servidor grava nessa coleção (rules: catch-all).
+ *   servidor grava nessa coleção (rules: catch-all). A aula leva um espelho dos pedidos ativos em
+ *   `sessions/{id}.trials.{athleteId}` (nome, foto, status) para o professor e a chamada verem —
+ *   recusa e desmarque tiram o atleta; o cliente não grava esse campo (rules).
  *
  * As aulas são da equipe (rules) — aqui sai só o que a vitrine mostra: horário, turma, professor
  * (nome), local e vagas. Nunca quem são os alunos.
@@ -220,6 +222,11 @@ function centerOption(id: string, s: Data, cls: Data, spotsLeft: number): TrialO
   };
 }
 
+/** Espelho do pedido na aula (`sessions/{id}.trials.{athleteId}`). */
+export function sessionTrialMirror(bookingId: string, b: Data, status: TrialBookingStatus): Data {
+  return {bookingId, name: str(b["name"]) || "Atleta", photoUrl: str(b["photoUrl"]) || null, status};
+}
+
 function trialStartAt(b: Data): Date {
   return classSessionStartAt(str(b["date"]), str(b["startTime"]));
 }
@@ -331,6 +338,7 @@ export async function bookCenterTrialCore(
       createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
     };
     tx.set(bookingRef, doc);
+    tx.set(sessionRef, {trials: {[uid]: sessionTrialMirror(bookingRef.id, doc, "pending")}}, {merge: true});
     return doc;
   });
 
@@ -363,7 +371,10 @@ export async function cancelCenterTrialCore(
     if (!snap.exists || !b || str(b["athleteId"]) !== uid) throw new HttpsError("not-found", "Pedido não encontrado.");
     if (!isActiveTrial(b)) throw new HttpsError("failed-precondition", "Este pedido já foi encerrado.");
     if (trialStartAt(b).getTime() <= now.getTime()) throw new HttpsError("failed-precondition", "Esta aula já começou.");
+    const sessionRef = db.doc(`${TRAINING_CENTERS}/${centerId}/sessions/${str(b["sessionId"])}`);
+    const session = await tx.get(sessionRef);
     tx.update(ref, {status: "canceled", updatedAt: FieldValue.serverTimestamp()});
+    if (session.exists) tx.set(sessionRef, {trials: {[uid]: FieldValue.delete()}}, {merge: true});
   });
   return {bookingId};
 }
@@ -469,6 +480,14 @@ export async function decideCenterTrialCore(
     const data = snap.data() as Data | undefined;
     if (!snap.exists || !data) throw new HttpsError("not-found", "Pedido não encontrado.");
     if (str(data["status"]) !== "pending") throw new HttpsError("failed-precondition", "Este pedido já foi respondido.");
+    const sessionRef = db.doc(`${TRAINING_CENTERS}/${centerId}/sessions/${str(data["sessionId"])}`);
+    const session = await tx.get(sessionRef);
+    const athleteId = str(data["athleteId"]);
+    if (session.exists && athleteId) {
+      tx.set(sessionRef, {
+        trials: {[athleteId]: status === "confirmed" ? sessionTrialMirror(bookingId, data, status) : FieldValue.delete()},
+      }, {merge: true});
+    }
     tx.update(ref, {
       status, note, decidedAt: FieldValue.serverTimestamp(), decidedByUid: uid, decidedByName: staff.name,
       updatedAt: FieldValue.serverTimestamp(),

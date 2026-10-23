@@ -111,7 +111,7 @@ export class PersonComponent {
   /** Clique no avatar abre a foto inteira (só quando há foto). */
   readonly zoomable = input(false);
   /** Kicker do visualizador. */
-  readonly role = input('Atleta');
+  readonly zoomRole = input('Atleta');
   private readonly viewer = inject(PhotoViewerService);
   protected readonly broken = signal(false);
   protected readonly ini = computed(() => initialsOf(this.name() || '·'));
@@ -121,7 +121,7 @@ export class PersonComponent {
 
   protected zoom(): void {
     const url = this.photoUrl();
-    if (url) this.viewer.open({ url, name: this.name(), role: this.role() });
+    if (url) this.viewer.open({ url, name: this.name(), role: this.zoomRole() });
   }
 }
 

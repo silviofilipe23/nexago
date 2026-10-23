@@ -621,6 +621,44 @@ void main() {
       ],
     );
 
+    testWidgets('atleta da experimental aparece na aula, fora da chamada', (
+      tester,
+    ) async {
+      final fake = callFake(
+        extra: {
+          'trials': {
+            'uNovo': {
+              'bookingId': 'k1_b_uNovo',
+              'name': 'Novo Atleta',
+              'photoUrl': null,
+              'status': 'pending',
+            },
+            'uConf': {'name': 'Ana Confirmada', 'status': 'confirmed'},
+          },
+        },
+      );
+      await _pump(tester, '/athlete/professor/centros/c1/aula/k1_b', fake);
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('center-coach-trial-uNovo')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.byKey(const Key('center-coach-trials')), findsOneWidget);
+      expect(find.text('Novo Atleta'), findsOneWidget);
+      expect(
+        find.text('Experimental · o centro ainda vai confirmar'),
+        findsOneWidget,
+      );
+      expect(find.text('AGUARDANDO'), findsOneWidget);
+      expect(find.byKey(const Key('center-coach-trial-uConf')), findsOneWidget);
+      expect(find.text('CONFIRMADA'), findsOneWidget);
+      expect(
+        find.byKey(const Key('center-coach-student-uNovo')),
+        findsNothing,
+        reason: 'não é aluno: não entra na chamada',
+      );
+    });
+
     testWidgets('marca, salva sozinha e mantém a falta que o aluno avisou', (
       tester,
     ) async {

@@ -264,6 +264,28 @@ class AttendanceCorrection {
   final DateTime? at;
 }
 
+/// Atleta da aula experimental pedida pelo app (`sessions/{id}.trials`, só o
+/// servidor grava). Ainda não é aluno do centro: não entra na chamada.
+class CenterSessionTrial {
+  const CenterSessionTrial({
+    required this.athleteId,
+    required this.name,
+    this.bookingId = '',
+    this.photoUrl,
+    this.status = 'pending',
+  });
+
+  final String athleteId;
+  final String name;
+  final String bookingId;
+  final String? photoUrl;
+
+  /// `pending` (o centro ainda vai confirmar) ou `confirmed`.
+  final String status;
+
+  bool get isPending => status != 'confirmed';
+}
+
 /// Aula gerada (`sessions/{classId}_{dia}`).
 class CenterCoachSession {
   const CenterCoachSession({
@@ -291,9 +313,11 @@ class CenterCoachSession {
     this.effects = const {},
     this.rsvps = const {},
     this.attendanceByStudent = const {},
+    this.trials = const [],
   });
 
   factory CenterCoachSession.fromMap(String id, Map<String, Object?> m) {
+    final trials = m['trials'] is Map ? _map(m['trials'] as Map) : const {};
     final att = m['attendance'] is Map
         ? _map(m['attendance'] as Map)
         : const {};
@@ -354,6 +378,19 @@ class CenterCoachSession {
         for (final e in byStudent.entries)
           if (e.value == true) e.key: true,
       },
+      trials: [
+        for (final e in trials.entries)
+          if (e.value is Map)
+            CenterSessionTrial(
+              athleteId: e.key,
+              name: _str((e.value as Map)['name'], 'Atleta'),
+              bookingId: _str((e.value as Map)['bookingId']),
+              photoUrl: _str((e.value as Map)['photoUrl']).isEmpty
+                  ? null
+                  : _str((e.value as Map)['photoUrl']),
+              status: _str((e.value as Map)['status'], 'pending'),
+            ),
+      ]..sort((a, b) => a.name.compareTo(b.name)),
     );
   }
 
@@ -391,6 +428,9 @@ class CenterCoachSession {
   /// "Vou" / "Não vou" do aluno pelo app.
   final Map<String, String> rsvps;
   final Map<String, bool> attendanceByStudent;
+
+  /// Atletas da aula experimental (pendente ou confirmada).
+  final List<CenterSessionTrial> trials;
 
   bool get isDone => status == 'done';
   bool get isCancelled => status == 'cancelled';
@@ -1129,24 +1169,25 @@ String? centerRoleFooter(List<CenterMembership> memberships) {
   return '${first.centerName.toUpperCase()} · ${first.roleLabel.toUpperCase()}';
 }
 
-/// G5 · Ocupação da aula: matriculados na turma, encaixados de reposição e
-/// vagas que sobram (capacidade 0 = sem limite → `free` nulo).
-({int enrolled, int capacity, int makeups, int? free}) centerSessionOccupancy(
-  CenterCoachClass? cls,
-  CenterCoachSession session,
-) {
+/// G5 · Ocupação da aula: matriculados na turma, encaixados de reposição,
+/// experimentais (seguram a vaga) e vagas que sobram (capacidade 0 = sem
+/// limite → `free` nulo).
+({int enrolled, int capacity, int makeups, int trials, int? free})
+centerSessionOccupancy(CenterCoachClass? cls, CenterCoachSession session) {
   final roster = cls?.rosterStudentIds ?? const <String>[];
   final makeups = {
     for (final id in session.makeupStudentIds)
       if (!roster.contains(id)) id,
   }.length;
+  final trials = session.trials.length;
   final capacity = cls?.capacity ?? 0;
   return (
     enrolled: roster.length,
     capacity: capacity,
     makeups: makeups,
+    trials: trials,
     free: capacity > 0
-        ? (capacity - roster.length - makeups).clamp(0, capacity)
+        ? (capacity - roster.length - makeups - trials).clamp(0, capacity)
         : null,
   );
 }

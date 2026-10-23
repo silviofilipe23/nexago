@@ -216,6 +216,10 @@ class CenterCoachNextCard extends StatelessWidget {
         makeups == 1
             ? '1 entra com reposição'
             : '$makeups entram com reposição',
+      if (s.trials.isNotEmpty)
+        s.trials.length == 1
+            ? '1 aula experimental'
+            : '${s.trials.length} aulas experimentais',
     ].join(' · ');
     return Container(
       padding: const EdgeInsets.all(15),
@@ -330,9 +334,12 @@ class CenterCoachSessionRow extends StatelessWidget {
             AppColors.pending,
           )
         : (
-            s.makeupStudentIds.isEmpty
-                ? 'Marcada'
-                : 'Marcada · ${s.makeupStudentIds.length} reposição',
+            [
+              'Marcada',
+              if (s.makeupStudentIds.isNotEmpty)
+                '${s.makeupStudentIds.length} reposição',
+              if (s.trials.isNotEmpty) '${s.trials.length} experimental',
+            ].join(' · '),
             AppColors.win,
           );
     return Opacity(

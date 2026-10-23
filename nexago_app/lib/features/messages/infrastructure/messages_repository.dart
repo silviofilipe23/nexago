@@ -41,6 +41,11 @@ abstract class MessagesRepository {
 
   Future<String> openClassConversation(String classId);
 
+  /// Equipe do Centro de treinamento abre a conversa com o aluno
+  /// (`openTrainingCenterConversation`): o servidor confere se a pessoa vê o
+  /// aluno e se ele tem conta NexaGO.
+  Future<String> openCenterConversation(String centerId, String studentId);
+
   /// Canal com a gestão da arena (D4, `openArenaChannel`): o professor abre o
   /// dele só com [arenaId]; a gestão passa o [professorUid]. Exige vínculo
   /// ativo (o servidor recusa com a mensagem pronta).
@@ -177,6 +182,13 @@ class FirebaseMessagesRepository implements MessagesRepository {
       _open('openArenaChannel', {
         'arenaId': arenaId,
         if (professorUid != null) 'professorUid': professorUid,
+      });
+
+  @override
+  Future<String> openCenterConversation(String centerId, String studentId) =>
+      _open('openTrainingCenterConversation', {
+        'centerId': centerId,
+        'studentId': studentId,
       });
 
   @override

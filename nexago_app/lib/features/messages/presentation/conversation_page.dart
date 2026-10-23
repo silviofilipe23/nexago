@@ -36,20 +36,34 @@ class ConversationPage extends ConsumerStatefulWidget {
     super.key,
     required this.conversationId,
     required this.professorMode,
-  }) : arenaLinkId = null;
+  })  : arenaLinkId = null,
+        centerId = null;
+
+  /// Lado da equipe do Centro de treinamento: voltar leva às mensagens do
+  /// centro.
+  const ConversationPage.center({
+    super.key,
+    required this.conversationId,
+    required String this.centerId,
+  })  : professorMode = false,
+        arenaLinkId = null;
 
   /// Lado da gestão da arena: o canal do vínculo [linkId], sem as abas do
   /// professor; voltar leva ao vínculo.
   ConversationPage.arena({super.key, required String linkId})
       : conversationId = arenaChannelConversationId(linkId),
         professorMode = false,
-        arenaLinkId = linkId;
+        arenaLinkId = linkId,
+        centerId = null;
 
   final String conversationId;
   final bool professorMode;
 
   /// Preenchido no lado da gestão da arena.
   final String? arenaLinkId;
+
+  /// Preenchido no lado da equipe do centro.
+  final String? centerId;
 
   @override
   ConsumerState<ConversationPage> createState() => _ConversationPageState();
@@ -117,7 +131,7 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
   /// Atalhos da conversa direta (D3): o professor remarca, cobra e avalia
   /// o aluno; o aluno remarca. Só aparece o que se aplica.
   List<Widget> _actionChips(Conversation c, String uid, DateTime now) {
-    if (c.isGroup || c.isArena) return const [];
+    if (c.isGroup || c.isArena || c.isCenter) return const [];
     Widget chip(String key, String label, VoidCallback onTap) => Padding(
           padding: const EdgeInsets.only(right: 6),
           child: ArenaClassChip(
@@ -222,6 +236,9 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
           arenaLinkId != null
               ? AppRoutes.arenaProfessionalDetail
                   .replaceAll(':linkId', Uri.encodeComponent(arenaLinkId))
+              : widget.centerId != null
+              ? AppRoutes.centerCoachMessages
+                  .replaceAll(':centerId', widget.centerId!)
               : widget.professorMode
                   ? AppRoutes.professorMessages
                   : AppRoutes.athleteMessages,
@@ -256,7 +273,11 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
           }
         : const <String>{};
     final String subtitle;
-    if (c.isArena) {
+    if (c.isCenter) {
+      subtitle = uid == c.professorUid
+          ? 'Aluno · ${c.title ?? 'centro'}'
+          : '${c.title ?? 'Centro de treinamento'} · equipe';
+    } else if (c.isArena) {
       subtitle = staffSide
           ? 'Canal com o professor · ${c.arenaName ?? 'arena'}'
           : 'Canal com a arena · equipe';
@@ -272,7 +293,10 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
       subtitle = 'Professor';
     }
     final actions = c.closed ? const <Widget>[] : _actionChips(c, uid, now);
-    final templates = widget.professorMode && !c.isArena
+    // Respostas rápidas: do professor e da equipe do centro.
+    final templates = (widget.professorMode ||
+                (c.isCenter && uid == c.professorUid)) &&
+            !c.isArena
         ? ref.watch(messageTemplatesProvider).valueOrNull ?? const []
         : const <MessageTemplate>[];
 

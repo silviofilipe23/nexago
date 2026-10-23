@@ -24,10 +24,20 @@ Future<void> openConversationWith(
 
   /// Lado da gestão da arena (canal D4): abre a conversa do vínculo.
   String? arenaLinkId,
+
+  /// Lado da equipe do Centro de treinamento: abre dentro do centro.
+  String? centerId,
 }) async {
   try {
     final id = await open();
     if (!context.mounted) return;
+    if (centerId != null) {
+      context.pushNamed(
+        AppRouteNames.centerCoachConversation,
+        pathParameters: {'centerId': centerId, 'conversationId': id},
+      );
+      return;
+    }
     if (arenaLinkId != null) {
       context.pushNamed(
         AppRouteNames.arenaProfessionalConversation,

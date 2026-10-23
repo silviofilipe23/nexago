@@ -67,6 +67,13 @@ List<({String title, List<CenterMoreItem> items})> centerMoreGroups(
     (
       title: 'Centro',
       items: [
+        (
+          key: 'messages',
+          icon: Icons.chat_bubble_outline_rounded,
+          title: 'Mensagens',
+          subtitle: 'Conversas com os alunos pelo app',
+          routeName: AppRouteNames.centerCoachMessages,
+        ),
         if (m.isManager)
           (
             key: 'team',

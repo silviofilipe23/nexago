@@ -134,9 +134,23 @@ void main() {
     expect(centerAgeOn('2010-10-24', today), 15);
     expect(centerAgeOn('2010-10-23', today), 16);
     expect(centerAgeOn('', today), isNull);
-    expect(centerWhatsAppDigits('(21) 99876-5432'), '5521998765432');
-    expect(centerWhatsAppDigits('+55 21 99876-5432'), '5521998765432');
-    expect(centerWhatsAppDigits('1234'), isNull);
+    // Chat do app (no lugar do WhatsApp): maior, ativo e com conta.
+    expect(
+      centerStudentCanChat(
+        const CenterCoachStudent(id: 'a', name: 'A', uid: 'u'),
+      ),
+      isTrue,
+    );
+    expect(
+      centerStudentCanChat(const CenterCoachStudent(id: 'b', name: 'B')),
+      isFalse,
+    );
+    expect(
+      centerStudentCanChat(
+        const CenterCoachStudent(id: 'c', name: 'C', uid: 'u', isMinor: true),
+      ),
+      isFalse,
+    );
     const minor = CenterCoachStudent(
         id: 'm', name: 'M', isMinor: true, phone: '1', guardianPhone: '2');
     expect(centerContactPhone(minor), '2');

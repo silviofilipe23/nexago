@@ -20,10 +20,14 @@ import '../domain/center_coach.dart';
 import '../domain/center_students.dart';
 import '../application/center_management_providers.dart';
 import '../domain/center_management.dart';
+import '../../messages/application/messages_providers.dart'
+    show messagesRepositoryProvider;
+import '../../messages/presentation/messages_widgets.dart'
+    show openConversationWith;
 import 'center_coach_subscription_page.dart' show CenterSubscriptionsCard;
 import 'widgets/center_coach_widgets.dart' show coachClassScheduleLabel;
 
-/// Abre ligação, WhatsApp ou e-mail (trocável nos testes).
+/// Abre ligação ou e-mail (trocável nos testes).
 final centerContactLauncherProvider = Provider<Future<bool> Function(Uri)>(
   (ref) => (uri) => launchUrl(uri, mode: LaunchMode.externalApplication),
 );
@@ -133,13 +137,14 @@ class CenterCoachStudentPage extends ConsumerWidget {
               subtitle: _subtitle(student, today),
             ),
             const SizedBox(height: 14),
-            _ContactButtons(student: student),
+            _ContactButtons(centerId: centerId, student: student),
             if (student.isMinor && student.guardianName.isNotEmpty) ...[
               const SizedBox(height: 10),
               ProfessorLinksNote(
                 'Responsável: ${student.guardianName}'
                 '${student.guardianRelation.isEmpty ? '' : ' (${student.guardianRelation})'}'
-                ' · Ligar e WhatsApp vão para o responsável.',
+                ' · Ligar vai para o responsável; mensagem pelo app só '
+                'com aluno maior.',
               ),
             ],
             if (student.billingHold) ...[
@@ -404,32 +409,35 @@ class _Header extends StatelessWidget {
 }
 
 class _ContactButtons extends ConsumerWidget {
-  const _ContactButtons({required this.student});
+  const _ContactButtons({required this.centerId, required this.student});
 
+  final String centerId;
   final CenterCoachStudent student;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final phone = centerContactPhone(student);
-    final wa = centerWhatsAppDigits(phone);
+    // Mensagem pelo chat do app (no lugar do WhatsApp): aluno maior, ativo e
+    // com conta NexaGO.
+    final chat = centerStudentCanChat(student);
     final email = student.isMinor && student.guardianPhone.isNotEmpty
         ? ''
         : student.email;
     final launch = ref.read(centerContactLauncherProvider);
     final items = [
+      if (chat)
+        (
+          'message',
+          Icons.chat_bubble_outline_rounded,
+          'Mensagem',
+          null,
+        ),
       if (phone.isNotEmpty)
         (
           'call',
           Icons.call_outlined,
           'Ligar',
           Uri(scheme: 'tel', path: phone.replaceAll(RegExp(r'[^\d+]'), '')),
-        ),
-      if (wa != null)
-        (
-          'whatsapp',
-          Icons.chat_outlined,
-          'WhatsApp',
-          Uri.parse('https://wa.me/$wa')
         ),
       if (email.isNotEmpty)
         (
@@ -454,7 +462,16 @@ class _ContactButtons extends ConsumerWidget {
             child: InkWell(
               key: Key('center-student-contact-$k'),
               borderRadius: BorderRadius.circular(14),
-              onTap: () => launch(uri),
+              onTap: uri == null
+                  ? () => openConversationWith(
+                      context,
+                      () => ref
+                          .read(messagesRepositoryProvider)
+                          .openCenterConversation(centerId, student.id),
+                      professorMode: false,
+                      centerId: centerId,
+                    )
+                  : () => launch(uri),
               child: Container(
                 height: 52,
                 decoration: BoxDecoration(

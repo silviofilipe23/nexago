@@ -450,6 +450,13 @@ abstract final class AppRoutes {
   static const String centerCoachWaitlist =
       '/athlete/professor/centros/:centerId/fila';
 
+  /// Mensagens da equipe do centro com os alunos (chat no lugar do
+  /// WhatsApp) e a conversa.
+  static const String centerCoachMessages =
+      '/athlete/professor/centros/:centerId/mensagens';
+  static const String centerCoachConversation =
+      '/athlete/professor/centros/:centerId/mensagens/:conversationId';
+
   /// Turmas do centro (aba Turmas do professor; todas para a gestão).
   static const String centerCoachClasses =
       '/athlete/professor/centros/:centerId/turmas';
@@ -1140,6 +1147,8 @@ abstract final class AppRouteNames {
   static const String centerCoachInvoice = 'centerCoachInvoice';
   static const String centerCoachWaitlist = 'centerCoachWaitlist';
   static const String centerCoachClasses = 'centerCoachClasses';
+  static const String centerCoachMessages = 'centerCoachMessages';
+  static const String centerCoachConversation = 'centerCoachConversation';
   static const String centerCoachTeam = 'centerCoachTeam';
   static const String centerCoachEnroll = 'centerCoachEnroll';
   static const String centerCoachSubscription = 'centerCoachSubscription';

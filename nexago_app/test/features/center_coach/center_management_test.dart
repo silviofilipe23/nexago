@@ -1,7 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/center_coach/domain/center_coach.dart';
 import 'package:nexago_app/features/center_coach/domain/center_management.dart';
+import 'package:nexago_app/features/center_coach/presentation/center_coach_messages_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_more_page.dart';
+import 'package:nexago_app/features/messages/domain/messages.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_mode_shell_page.dart';
 
 CenterMembership _m(String role, {List<String> perms = const []}) =>
@@ -20,15 +22,16 @@ CenterCoachClass _cls(
   String program = 'bt',
   String level = 'Iniciante',
   String status = 'active',
-}) => CenterCoachClass(
-  id: id,
-  name: id,
-  programId: program,
-  level: level,
-  capacity: cap,
-  seatsTaken: taken,
-  status: status,
-);
+}) =>
+    CenterCoachClass(
+      id: id,
+      name: id,
+      programId: program,
+      level: level,
+      capacity: cap,
+      seatsTaken: taken,
+      status: status,
+    );
 
 void main() {
   group('1ª cobrança (espelho de billing.spec.ts do portal)', () {
@@ -93,7 +96,8 @@ void main() {
       expect(packInv.reference, 'Pacote 8');
     });
 
-    test('preço agendado vale a partir da data; contrato congela políticas', () {
+    test('preço agendado vale a partir da data; contrato congela políticas',
+        () {
       final plan = CenterPlan.fromMap('m', {
         'name': 'Mensal',
         'priceCents': 30000,
@@ -101,11 +105,14 @@ void main() {
       });
       expect(centerPlanPriceOn(plan, '2026-10-31'), 30000);
       expect(centerPlanPriceOn(plan, '2026-11-01'), 34000);
-      final c = centerBuildContract(plan, {
-        'activation': 'on_confirmation',
-        'pendingHoldHours': 'x',
-        'extra': true,
-      }, '2026-10-20');
+      final c = centerBuildContract(
+          plan,
+          {
+            'activation': 'on_confirmation',
+            'pendingHoldHours': 'x',
+            'extra': true,
+          },
+          '2026-10-20');
       final pol = c['policies']! as Map;
       expect(pol['activation'], 'on_confirmation');
       expect(pol['pendingHoldHours'], 48);
@@ -142,8 +149,14 @@ void main() {
 
     test('planos da modalidade, destaque primeiro', () {
       final plans = [
-        CenterPlan.fromMap('a', {'priceCents': 300, 'programIds': ['bt']}),
-        CenterPlan.fromMap('b', {'priceCents': 100, 'programIds': ['volei']}),
+        CenterPlan.fromMap('a', {
+          'priceCents': 300,
+          'programIds': ['bt']
+        }),
+        CenterPlan.fromMap('b', {
+          'priceCents': 100,
+          'programIds': ['volei']
+        }),
         CenterPlan.fromMap('c', {'priceCents': 200}),
         CenterPlan.fromMap('d', {'priceCents': 900, 'featured': true}),
         CenterPlan.fromMap('e', {'priceCents': 50, 'status': 'archived'}),
@@ -169,7 +182,8 @@ void main() {
   group('equipe', () {
     test('convite: e-mail, já da equipe, já convidado', () {
       final members = [
-        CenterTeamMember.fromMap('u', {'email': 'ana@x.com', 'status': 'active'}),
+        CenterTeamMember.fromMap(
+            'u', {'email': 'ana@x.com', 'status': 'active'}),
       ];
       final invites = [
         CenterInvite.fromMap('i', {'email': 'bia@x.com', 'status': 'pending'}),
@@ -183,7 +197,8 @@ void main() {
     });
 
     test('admin só pelo owner; revogar segue as rules', () {
-      expect(centerInvitableRoles(_m('center_owner')), contains('center_admin'));
+      expect(
+          centerInvitableRoles(_m('center_owner')), contains('center_admin'));
       expect(centerInvitableRoles(_m('center_admin')), [
         'coach',
         'receptionist',
@@ -274,7 +289,8 @@ void main() {
         sameDay: [other],
         travelBufferMin: 30,
       );
-      expect(checks.firstWhere((c) => c.label.startsWith('Quadra')).ok, isFalse);
+      expect(
+          checks.firstWhere((c) => c.label.startsWith('Quadra')).ok, isFalse);
       expect(centerPlaceLabel('', ''), 'Local a definir');
     });
   });
@@ -323,19 +339,63 @@ void main() {
 
     test('Mais mostra só o que o papel pode', () {
       List<String> keys(CenterMembership m) => [
-        for (final g in centerMoreGroups(m))
-          for (final i in g.items) i.key,
-      ];
+            for (final g in centerMoreGroups(m))
+              for (final i in g.items) i.key,
+          ];
       expect(keys(_m('center_owner')), [
         'enroll',
         'waitlist',
         'checkin',
+        'messages',
         'team',
         'alerts',
         'classes',
       ]);
-      expect(keys(_m('receptionist')), ['enroll', 'waitlist', 'classes']);
-      expect(keys(_m('coach')), isEmpty);
+      expect(keys(_m('receptionist')), [
+        'enroll',
+        'waitlist',
+        'messages',
+        'classes',
+      ]);
+      expect(keys(_m('coach')), ['messages']);
+    });
+  });
+
+  group('chat do centro', () {
+    Conversation conv(String id,
+            {String kind = 'center',
+            String center = 'c1',
+            String staff = 'tm'}) =>
+        Conversation.fromMap(id, {
+          'kind': kind,
+          'professorUid': staff,
+          'athleteUid': 'lucas',
+          'centerId': center,
+          'studentId': 's1',
+          'title': 'CT Maré Alta',
+          'memberIds': [staff, 'lucas'],
+          'memberNames': {staff: 'Thiago', 'lucas': 'Lucas Prado'},
+        });
+
+    test('o aluno vê de qual centro é; a equipe vê o aluno', () {
+      final c = conv('t1');
+      expect(c.isCenter, isTrue);
+      expect(c.titleFor('lucas'), 'Thiago · CT Maré Alta');
+      expect(c.titleFor('tm'), 'Lucas Prado');
+    });
+
+    test('caixa do centro: só as do centro e de quem está vendo', () {
+      final list = centerConversations(
+        [
+          conv('a'),
+          conv('b', center: 'c2'),
+          conv('c', staff: 'outro'),
+          conv('d', kind: 'direct'),
+        ],
+        centerId: 'c1',
+        uid: 'tm',
+      );
+      expect(list.map((c) => c.id), ['a']);
     });
   });
 }

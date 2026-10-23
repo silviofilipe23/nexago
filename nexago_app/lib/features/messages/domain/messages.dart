@@ -17,11 +17,16 @@ enum ConversationKind {
   classGroup,
 
   /// Canal professor ↔ gestão da arena (D4).
-  arena;
+  arena,
+
+  /// Equipe do Centro de treinamento ↔ aluno
+  /// (`functions/src/training-center-messages.ts`).
+  center;
 
   static ConversationKind parse(Object? raw) => switch (raw) {
         'class' => classGroup,
         'arena' => arena,
+        'center' => center,
         _ => direct,
       };
 }
@@ -60,6 +65,8 @@ class Conversation {
     this.arenaId,
     this.arenaName,
     this.linkId,
+    this.centerId,
+    this.studentId,
     this.title,
     this.memberNames = const {},
     this.memberPhotos = const {},
@@ -91,6 +98,8 @@ class Conversation {
       arenaId: _strOrNull(map['arenaId']),
       arenaName: _strOrNull(map['arenaName']),
       linkId: _strOrNull(map['linkId']),
+      centerId: _strOrNull(map['centerId']),
+      studentId: _strOrNull(map['studentId']),
       title: _strOrNull(map['title']),
       memberIds:
           members is List ? members.whereType<String>().toList() : const [],
@@ -114,7 +123,12 @@ class Conversation {
   /// Vínculo professor ↔ arena do canal (`{arenaId}_{professorUid}`).
   final String? linkId;
 
-  /// Nome da turma (grupo) ou "Gestão {arena}" (canal com a arena).
+  /// Centro e aluno do centro (`kind: "center"`).
+  final String? centerId;
+  final String? studentId;
+
+  /// Nome da turma (grupo), "Gestão {arena}" (canal com a arena) ou o nome
+  /// do centro (`kind: "center"`).
   final String? title;
   final List<String> memberIds;
   final Map<String, String> memberNames;
@@ -130,6 +144,9 @@ class Conversation {
   bool get isGroup => kind == ConversationKind.classGroup;
 
   bool get isArena => kind == ConversationKind.arena;
+
+  /// Equipe do CT ↔ aluno: [professorUid] é quem é da equipe.
+  bool get isCenter => kind == ConversationKind.center;
 
   /// Mais de dois lados: a bolha recebida leva o nome de quem mandou.
   bool get showsSenderNames => isGroup || isArena;
@@ -160,7 +177,12 @@ class Conversation {
       return memberNames[professorUid] ?? 'Professor';
     }
     final other = otherUid(viewerUid);
-    return (other == null ? null : memberNames[other]) ?? 'Conversa';
+    final name = (other == null ? null : memberNames[other]) ?? 'Conversa';
+    // O aluno vê de qual centro é quem escreve.
+    if (isCenter && viewerUid != professorUid && title != null) {
+      return '$name · $title';
+    }
+    return name;
   }
 
   String? photoFor(String viewerUid) {

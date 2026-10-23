@@ -14,6 +14,7 @@ class CenterCoachSettingsGroup extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(centerRoleSyncProvider);
     final active = ref.watch(activeCenterMembershipsProvider);
     if (active.isEmpty) return const SizedBox.shrink();
     return Padding(

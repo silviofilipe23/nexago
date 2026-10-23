@@ -26,6 +26,11 @@ abstract final class AppRoutes {
   /// seguem em `/athlete/professor/...` (links de push já gravados).
   static const String professorHome = '/professor';
 
+  /// Home do modo Centro de treinamento (papel `center`): a agenda do centro
+  /// escolhido. As telas de aula, turma, hoje e check-in seguem em
+  /// `/athlete/professor/centros/...` (abertas em qualquer papel e nos pushes).
+  static const String centerHome = '/centro';
+
   /// Abas do modo Professor (shell com a barra inferior): Alunos e Mais.
   static const String professorStudents = '/professor/alunos';
 
@@ -896,6 +901,7 @@ abstract final class AppRouteNames {
   static const String authLoading = 'authLoading';
   static const String organizerHome = 'organizerHome';
   static const String professorHome = 'professorHome';
+  static const String centerHome = 'centerHome';
   static const String professorStudents = 'professorStudents';
   static const String professorMessages = 'professorMessages';
   static const String professorMessageTemplates = 'professorMessageTemplates';

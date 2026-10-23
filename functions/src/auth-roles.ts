@@ -5,8 +5,12 @@ import {FieldValue} from "firebase-admin/firestore";
  * `professor` = professor com vínculo com alguma arena (`arenaProfessors`): concedido pelo servidor
  * quando um vínculo vira `ACTIVE` (`professor-role.ts`). Só escolhe o modo do app — nunca autoriza
  * nada; rules e callables conferem o vínculo. Diferente de `coach` (portal do treinador de equipes).
+ *
+ * `center` = membro ativo da equipe de algum Centro de Treinamento (`trainingCenters/{c}/centerMembers`):
+ * concedido pelo servidor quando o vínculo vira `active` (`center-role.ts`). Mesmo papel do
+ * `professor`: só oferece o modo Centro no app; quem autoriza é o vínculo, relido pelas rules.
  */
-export const ALLOWED_APP_ROLES = ["admin", "organizer", "athlete", "arena", "coach", "professor"] as const;
+export const ALLOWED_APP_ROLES = ["admin", "organizer", "athlete", "arena", "coach", "professor", "center"] as const;
 export type AppRole = (typeof ALLOWED_APP_ROLES)[number];
 
 export function isAllowedRole(r: string): r is AppRole {

@@ -94,6 +94,17 @@ void main() {
       expect(userHasProfessorRole(_tokenWithRoles(['professor'])), isTrue);
       expect(userHasProfessorRole(_tokenWithRoles(['athlete'])), isFalse);
     });
+
+    test('claim center vira o papel Centro de treinamento', () {
+      final roles = mobileRolesFromIdToken(
+        _tokenWithRoles(['athlete', 'center']),
+      );
+      expect(roles, [AppMobileRole.athlete, AppMobileRole.center]);
+      expect(AppMobileRole.fromClaim('center'), AppMobileRole.center);
+      expect(AppMobileRole.fromStorage('center'), AppMobileRole.center);
+      expect(AppMobileRole.center.homeRoute, AppRoutes.centerHome);
+      expect(AppMobileRole.center.continueLabel, 'centro de treinamento');
+    });
   });
 
   group('AppMobileRole.professor', () {

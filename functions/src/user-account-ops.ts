@@ -180,6 +180,7 @@ const BO_ROLE_SEARCH_LABEL: Record<AppRole, string> = {
   arena: "arena gestor",
   coach: "treinador",
   professor: "professor aulas",
+  center: "centro treinamento ct",
 };
 
 function backofficeUserMatchesSearch(

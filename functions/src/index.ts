@@ -241,6 +241,8 @@ export {
   onTrainingCenterSessionStudentCoaches,
   refreshTrainingCenterStudentCoaches,
 } from "./training-center-student-coaches";
+// Centro de Treinamento — papel `center` no app quando o vínculo da equipe fica ativo.
+export {onTrainingCenterMemberRole} from "./center-role";
 // Centro de Treinamento — efeitos da chamada (créditos de pacote e de reposição).
 export {onTrainingCenterSessionWritten} from "./training-center-attendance";
 // Centro de Treinamento — oferta automática da vaga ao 1º da lista de espera.

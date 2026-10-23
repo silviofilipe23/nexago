@@ -77,6 +77,7 @@ class ProfessorLinksScaffold extends StatelessWidget {
     this.subtitle,
     this.trailing,
     this.onBack,
+    this.showBack = true,
   });
 
   final String title;
@@ -84,6 +85,9 @@ class ProfessorLinksScaffold extends StatelessWidget {
   final Widget? trailing;
   final Widget body;
   final VoidCallback? onBack;
+
+  /// `false` na home de um modo (não há para onde voltar).
+  final bool showBack;
 
   @override
   Widget build(BuildContext context) {
@@ -95,12 +99,14 @@ class ProfessorLinksScaffold extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
         header: Row(
           children: [
-            ProfessorLinksRoundButton(
-              icon: Icons.arrow_back_rounded,
-              semanticLabel: 'Voltar',
-              onTap: onBack ?? () => professorLinksBack(context),
-            ),
-            const SizedBox(width: 12),
+            if (showBack) ...[
+              ProfessorLinksRoundButton(
+                icon: Icons.arrow_back_rounded,
+                semanticLabel: 'Voltar',
+                onTap: onBack ?? () => professorLinksBack(context),
+              ),
+              const SizedBox(width: 12),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

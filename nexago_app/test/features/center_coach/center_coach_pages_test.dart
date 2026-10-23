@@ -14,6 +14,7 @@ import 'package:nexago_app/features/center_coach/infrastructure/center_selection
 import 'package:nexago_app/features/center_coach/domain/center_coach_repository.dart';
 import 'package:nexago_app/features/center_coach/infrastructure/firebase_center_coach_repository.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_agenda_page.dart';
+import 'package:nexago_app/features/center_coach/presentation/center_mode_shell_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_alerts_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_call_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_class_page.dart';
@@ -288,7 +289,7 @@ Future<GoRouter> _pump(
       GoRoute(path: AppRoutes.home, builder: (_, __) => const Scaffold()),
       GoRoute(
         path: AppRoutes.centerHome,
-        builder: (_, __) => const CenterCoachAgendaPage(modeHome: true),
+        builder: (_, __) => const CenterModeShellPage(),
       ),
       GoRoute(
         path: AppRoutes.centerCoachAgenda,
@@ -469,7 +470,7 @@ void main() {
       expect(router.state.uri.path, '/athlete/professor/centros/c1/aula/k1_b');
     });
 
-    testWidgets('modo Centro: sem voltar, com ajustes; reabre no centro salvo', (
+    testWidgets('modo Centro: abas do professor; reabre no centro salvo', (
       tester,
     ) async {
       final fake = _Fake(
@@ -488,15 +489,19 @@ void main() {
       expect(find.text('CT MARÉ ALTA · PROFESSOR'), findsOneWidget);
       expect(store.saved, {'tm': 'c1'});
 
-      await _tap(tester, find.byKey(const Key('center-mode-settings')));
-      expect(
-        find.byKey(const Key('center-mode-settings-sheet')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const Key('center-mode-settings-sign-out')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const Key('center-mode-tab-bar')), findsOneWidget);
+      expect(centerModeTabs(_member('c1', 'CT Maré Alta')), [
+        CenterModeTab.agenda,
+        CenterModeTab.classes,
+        CenterModeTab.students,
+        CenterModeTab.more,
+      ]);
+
+      await _tap(tester, find.byIcon(Icons.more_horiz_rounded).last);
+      expect(find.byKey(const Key('center-more-sign-out')), findsOneWidget);
+      expect(find.byKey(const Key('center-more-switch')), findsOneWidget);
+      // Professor não vê os atalhos da gestão.
+      expect(find.byKey(const Key('center-more-alerts')), findsNothing);
     });
 
     testWidgets('?centro= abre nele, mas a troca vence a rota', (tester) async {
@@ -844,6 +849,10 @@ void main() {
       (tester) async {
         final fake = staffFake();
         await _pump(tester, '/athlete/professor/centros/c1/aula/k1_b', fake);
+        await _tap(
+          tester,
+          find.byKey(const Key('center-coach-session-actions')),
+        );
         await _tap(tester, find.byKey(const Key('center-coach-cancel')));
         expect(
           find.byKey(const Key('center-coach-cancel-sheet')),
@@ -865,7 +874,10 @@ void main() {
     testWidgets('professor não vê o cancelar', (tester) async {
       final fake = staffFake()..memberships = [_member('c1', 'CT Maré Alta')];
       await _pump(tester, '/athlete/professor/centros/c1/aula/k1_b', fake);
-      expect(find.byKey(const Key('center-coach-cancel')), findsNothing);
+      expect(
+        find.byKey(const Key('center-coach-session-actions')),
+        findsNothing,
+      );
     });
   });
 

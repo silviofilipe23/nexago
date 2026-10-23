@@ -215,6 +215,9 @@ import '../../features/athlete_training/presentation/athlete_training_professor_
 import '../../features/athlete_training/presentation/athlete_training_homework_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_plans_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_add_page.dart';
+import '../../features/center_coach/presentation/center_coach_agenda_page.dart';
+import '../../features/center_coach/presentation/center_coach_call_page.dart';
+import '../../features/center_coach/presentation/center_coach_class_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_agenda_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_center_invoice_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_arena_class_page.dart';
@@ -1609,6 +1612,29 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.professorArenas,
         name: AppRouteNames.professorArenas,
         builder: (context, state) => const ProfessorMyArenasPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachAgenda,
+        name: AppRouteNames.centerCoachAgenda,
+        builder: (context, state) => CenterCoachAgendaPage(
+          centerId: state.uri.queryParameters['centro']?.trim(),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachSession,
+        name: AppRouteNames.centerCoachSession,
+        builder: (context, state) => CenterCoachCallPage(
+          centerId: state.pathParameters['centerId']?.trim() ?? '',
+          sessionId: state.pathParameters['sessionId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachClass,
+        name: AppRouteNames.centerCoachClass,
+        builder: (context, state) => CenterCoachClassPage(
+          centerId: state.pathParameters['centerId']?.trim() ?? '',
+          classId: state.pathParameters['classId']?.trim() ?? '',
+        ),
       ),
       GoRoute(
         path: AppRoutes.professorArenaLink,

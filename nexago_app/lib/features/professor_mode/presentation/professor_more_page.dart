@@ -27,6 +27,7 @@ import '../domain/professor_mode_logic.dart';
 import '../domain/professor_students.dart';
 import 'actions/professor_action_widgets.dart';
 import 'professor_shell_page.dart';
+import '../../center_coach/application/center_coach_providers.dart';
 import 'widgets/professor_settings_sheet.dart';
 import 'widgets/professor_students_widgets.dart';
 
@@ -61,6 +62,7 @@ class ProfessorMorePage extends ConsumerWidget {
         ref.watch(professorPendingPrivateLessonsProvider).length;
 
     final invites = links == null ? 0 : professorOpenInvites(links, now).length;
+    final centers = ref.watch(activeCenterMembershipsProvider);
     final activeArenas =
         links == null ? null : professorActiveLinkCount(links, now);
     final classes = snapshot?.classes;
@@ -267,6 +269,17 @@ class ProfessorMorePage extends ConsumerWidget {
                   trailingColor: invites > 0 ? AppColors.brandHover : null,
                   onTap: () => context.pushNamed(AppRouteNames.professorArenas),
                 ),
+                if (centers.isNotEmpty)
+                  _MenuRow(
+                    key: const Key('professor-more-centers'),
+                    icon: Icons.sports_rounded,
+                    title: 'Centros de treinamento',
+                    trailing: centers.length == 1
+                        ? centers.first.centerName
+                        : '${centers.length} centros',
+                    onTap: () =>
+                        context.pushNamed(AppRouteNames.centerCoachAgenda),
+                  ),
               ],
             ),
             const SizedBox(height: 22),

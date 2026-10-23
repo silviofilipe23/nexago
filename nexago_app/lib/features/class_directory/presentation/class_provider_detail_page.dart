@@ -23,6 +23,7 @@ import '../../tournaments/presentation/widgets/compete_hub/compete_hub_menu_card
 import '../application/class_directory_providers.dart';
 import '../domain/class_directory.dart';
 import '../domain/class_directory_logic.dart';
+import 'class_trial_booking_page.dart';
 import 'widgets/class_directory_widgets.dart';
 
 /// Mensagem do WhatsApp ao local, com a turma escolhida quando houver.
@@ -1120,16 +1121,18 @@ class _Footer extends StatelessWidget {
       phone: detail.contactPhone,
       message: classDirectoryContactMessage(detail, c),
     );
+    // Experimental: o botão abre o calendário (turma lotada segue na fila).
+    final bookTrial = detail.trial != null && c?.isFull != true;
     final kicker =
         c == null ? detail.name : '${c.name} · $dayLabel ${c.startTime}';
-    final value = url == null
-        ? 'Sem contato publicado'
-        : c == null
-            ? 'Fale com ${detail.isCenter ? 'o centro' : 'a arena'}'
-            : c.isFull
-                ? 'Turma lotada · lista de espera'
-                : detail.trial != null
-                    ? directoryTrialLabel(detail.trial!)
+    final value = bookTrial
+        ? directoryTrialLabel(detail.trial!)
+        : url == null
+            ? 'Sem contato publicado'
+            : c == null
+                ? 'Fale com ${detail.isCenter ? 'o centro' : 'a arena'}'
+                : c.isFull
+                    ? 'Turma lotada · lista de espera'
                     : directorySpotsLabel(c.openSpots);
     final bottom = MediaQuery.paddingOf(context).bottom;
     return Container(
@@ -1188,19 +1191,22 @@ class _Footer extends StatelessWidget {
               height: 46,
               child: FilledButton.icon(
                 key: const Key('class-provider-contact'),
-                onPressed: url == null
-                    ? null
-                    : () async {
-                        final ok = await openExternalUrl(url);
-                        if (!ok && context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content:
-                                  Text('Não foi possível abrir o WhatsApp.'),
-                            ),
-                          );
-                        }
-                      },
+                onPressed: bookTrial
+                    ? () => openClassTrialBooking(context, detail,
+                        classId: c?.classId)
+                    : url == null
+                        ? null
+                        : () async {
+                            final ok = await openExternalUrl(url);
+                            if (!ok && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                      'Não foi possível abrir o WhatsApp.'),
+                                ),
+                              );
+                            }
+                          },
                 style: FilledButton.styleFrom(
                   backgroundColor: colors.onSurface,
                   foregroundColor: colors.canvas,
@@ -1210,7 +1216,12 @@ class _Footer extends StatelessWidget {
                   ),
                   textStyle: AppTypography.labelL.copyWith(fontSize: 13.5),
                 ),
-                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 17),
+                icon: Icon(
+                  bookTrial
+                      ? Icons.calendar_month_rounded
+                      : Icons.chat_bubble_outline_rounded,
+                  size: 17,
+                ),
                 label: Text(
                   c?.isFull == true
                       ? 'Lista de espera'

@@ -7,6 +7,7 @@ import '../../athlete_training/domain/public_professor.dart';
 import '../../athlete_training/infrastructure/public_professor_repository.dart';
 import '../domain/class_directory.dart';
 import '../domain/class_directory_logic.dart';
+import '../domain/class_trial.dart';
 import '../infrastructure/class_directory_repository.dart';
 
 /// Nível do atleta no esporte principal: o código de turma (`intermediario`)
@@ -80,3 +81,10 @@ final classProviderDetailProvider = FutureProvider.autoDispose
         lng: origin?.lng,
       );
 });
+
+/// Calendário da experimental de uma arena ou CT.
+final classTrialOptionsProvider = FutureProvider.autoDispose
+    .family<ClassTrialOptions, ({ClassProviderKind kind, String id})>(
+  (ref, key) =>
+      ref.read(classDirectoryRepositoryProvider).trialOptions(key.kind, key.id),
+);

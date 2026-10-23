@@ -5,6 +5,7 @@ import '../../../core/firebase/functions_region.dart';
 import '../../tournaments/data/tournament_partner_invite_service.dart'
     show callableErrorMessage;
 import '../domain/class_directory.dart';
+import '../domain/class_trial.dart';
 
 class ClassDirectoryException implements Exception {
   const ClassDirectoryException(this.message);
@@ -57,10 +58,29 @@ class ClassDirectoryRepository {
     return ClassProviderDetail.fromMap(raw);
   }
 
+  /// Calendário da experimental (`functions/src/class-trial-booking.ts`).
+  Future<ClassTrialOptions> trialOptions(
+      ClassProviderKind kind, String id) async {
+    final raw = await _call(
+      'getClassTrialOptions',
+      {'kind': kind.wireId, 'id': id},
+      'Não foi possível carregar os horários da experimental.',
+    );
+    return ClassTrialOptions.fromMap(raw);
+  }
+
+  /// Arena: o atleta se encaixa como experimental na aula.
+  Future<void> bookArenaTrial(String sessionId) => _call(
+        'bookArenaClassTrial',
+        {'sessionId': sessionId},
+        'Não foi possível agendar a experimental. Tente novamente.',
+      );
+
   Future<Map<String, Object?>> _call(
     String name,
-    Map<String, Object?> data,
-  ) async {
+    Map<String, Object?> data, [
+    String fallback = 'Não foi possível carregar as aulas. Tente novamente.',
+  ]) async {
     try {
       final res = await _functions.httpsCallable(name).call<Object?>(data);
       final body = res.data;
@@ -72,7 +92,7 @@ class ClassDirectoryRepository {
         callableErrorMessage(
           e.code,
           e.message,
-          'Não foi possível carregar as aulas. Tente novamente.',
+          fallback,
         ),
       );
     }

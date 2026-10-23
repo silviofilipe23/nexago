@@ -269,6 +269,8 @@ export {getMyTrainingPlans} from "./arena-class-athlete-plans";
 export {getMyTrainingCenters} from "./training-center-athlete";
 export {searchClassDirectory, getClassDirectoryDetail} from "./class-directory";
 export {saveArenaClassShowcase} from "./class-showcase";
+// Hub › Aulas · "Agendar experimental": calendário do local e encaixe do próprio atleta (arena).
+export {getClassTrialOptions, bookArenaClassTrial} from "./class-trial-booking";
 export {submitClassReview} from "./class-review";
 export {onArenaClassSessionReviewRequest, onTrainingCenterSessionReviewRequest} from "./class-review-notify";
 export {getClassReviewsForManager, replyClassReviewTicket, getMyProfessorReviews} from "./class-review-manager";

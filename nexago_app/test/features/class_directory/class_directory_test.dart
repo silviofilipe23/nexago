@@ -9,6 +9,7 @@ import 'package:nexago_app/features/athlete_training/domain/public_professor.dar
 import 'package:nexago_app/features/class_directory/application/class_directory_providers.dart';
 import 'package:nexago_app/features/class_directory/domain/class_directory.dart';
 import 'package:nexago_app/features/class_directory/domain/class_directory_logic.dart';
+import 'package:nexago_app/features/class_directory/domain/class_trial.dart';
 import 'package:nexago_app/features/class_directory/presentation/class_directory_page.dart';
 import 'package:nexago_app/features/class_directory/presentation/class_provider_detail_page.dart';
 
@@ -347,6 +348,21 @@ void main() {
               [_cfc, _ct, _norte, ClassProvider.fromProfessor(_rafa)],
         ),
         classProviderDetailProvider.overrideWith((ref, key) async => _detail),
+        classTrialOptionsProvider.overrideWith(
+          (ref, key) async => ClassTrialOptions.fromMap({
+            'booking': 'app',
+            'options': [
+              {
+                'sessionId': 's1',
+                'classId': 't1',
+                'className': 'Intermediário B',
+                'date': '2026-10-26',
+                'startTime': '19:00',
+                'spotsLeft': 2,
+              },
+            ],
+          }),
+        ),
       ],
       child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
     ));
@@ -377,7 +393,8 @@ void main() {
     expect(find.byKey(const Key('class-directory-arena-norte')), findsNothing);
 
     expect(find.text('2 vagas · experimental grátis'), findsOneWidget);
-    await tester.ensureVisible(find.byKey(const Key('class-directory-free-trial')));
+    await tester
+        .ensureVisible(find.byKey(const Key('class-directory-free-trial')));
     await settle(tester);
     await tester.tap(find.byKey(const Key('class-directory-free-trial')));
     await settle(tester);
@@ -419,9 +436,18 @@ void main() {
     expect(find.byKey(const Key('class-provider-trial')), findsOneWidget);
     expect(find.text('1 aula · abatida na 1ª mensalidade'), findsOneWidget);
 
+    // "Agendar" abre o calendário da experimental, já na turma escolhida.
+    await tester.tap(find.byKey(const Key('class-provider-contact')));
+    await settle(tester);
+    expect(find.byKey(const Key('class-trial-booking')), findsOneWidget);
+    expect(find.text('Agendar Seg 26 · 19:00'), findsOneWidget);
+    tester.state<NavigatorState>(find.byType(Navigator).last).pop();
+    await settle(tester);
+
     await tester.tap(find.byKey(const Key('class-row-t2')));
     await settle(tester);
     expect(find.text('Turma lotada · lista de espera'), findsOneWidget);
+    expect(find.text('Lista de espera'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.byKey(const Key('class-staff-uThiago')),

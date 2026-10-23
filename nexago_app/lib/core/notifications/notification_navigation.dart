@@ -83,6 +83,11 @@ const centerAttendancePendingNotificationType =
     'training_center_attendance_pending';
 const centerStudentAbsenceNotificationType = 'training_center_student_absence';
 
+/// A gestão da arena/CT respondeu o chamado de uma avaliação de aula
+/// (`replyClassReviewTicket` em `functions/src/class-review-manager.ts`):
+/// abre "Minhas avaliações" (A7), onde a resposta aparece.
+const classReviewReplyNotificationType = 'class_review_reply';
+
 /// Agenda do atleta — onde fica a mensalidade a pagar.
 const athleteAgendaTabLocation = '${AppRoutes.discover}?tab=agenda';
 
@@ -262,6 +267,11 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
       return AppRoutes.organizerTournamentReviews
           .replaceAll(':tournamentId', closedTournamentId);
     }
+  }
+
+  // Resposta ao chamado da avaliação de aula: sempre "Minhas avaliações".
+  if (type == classReviewReplyNotificationType) {
+    return AppRoutes.athleteTrainingReviews;
   }
 
   // Centro de treinamento: o payload não leva `url` — monta pela id.

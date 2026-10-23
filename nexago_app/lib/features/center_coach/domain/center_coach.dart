@@ -134,6 +134,8 @@ class CenterCoachCenter {
     required this.name,
     this.status = 'active',
     this.policies = const CenterCoachPolicies(),
+    this.rawPolicies = const {},
+    this.rawBilling = const {},
   });
 
   factory CenterCoachCenter.fromMap(String id, Map<String, Object?> m) =>
@@ -144,6 +146,10 @@ class CenterCoachCenter {
         policies: m['policies'] is Map
             ? CenterCoachPolicies.fromMap(_map(m['policies'] as Map))
             : const CenterCoachPolicies(),
+        rawPolicies: m['policies'] is Map
+            ? _map(m['policies'] as Map)
+            : const {},
+        rawBilling: m['billing'] is Map ? _map(m['billing'] as Map) : const {},
       );
 
   final String id;
@@ -153,7 +159,13 @@ class CenterCoachCenter {
   final String status;
   final CenterCoachPolicies policies;
 
+  /// `policies` e `billing` como estão no doc (a matrícula congela as
+  /// políticas no contrato e calcula a 1ª cobrança — `center_management`).
+  final Map<String, Object?> rawPolicies;
+  final Map<String, Object?> rawBilling;
+
   bool get isSuspended => status == 'suspended';
+  bool get isActive => status == 'active';
 }
 
 /// Turma (`classes/{id}`).
@@ -162,6 +174,7 @@ class CenterCoachClass {
     required this.id,
     required this.name,
     this.level = '',
+    this.programId = '',
     this.coachUid = '',
     this.coachName = '',
     this.weekdays = const [],
@@ -181,6 +194,7 @@ class CenterCoachClass {
       id: id,
       name: _str(m['name'], 'Turma'),
       level: _str(m['level']),
+      programId: _str(m['programId']),
       coachUid: _str(m['coachUid']),
       coachName: _str(m['coachName']),
       weekdays: weekdays is List
@@ -203,6 +217,7 @@ class CenterCoachClass {
   final String id;
   final String name;
   final String level;
+  final String programId;
   final String coachUid;
   final String coachName;
 
@@ -263,6 +278,8 @@ class CenterCoachSession {
     this.locationName = '',
     this.locationAddress = '',
     this.courtName = '',
+    this.locationId = '',
+    this.courtId = '',
     this.status = 'scheduled',
     this.changed = false,
     this.changeReason = '',
@@ -300,6 +317,8 @@ class CenterCoachSession {
       locationName: _str(m['locationName']),
       locationAddress: _str(m['locationAddress']),
       courtName: _str(m['courtName']),
+      locationId: _str(m['locationId']),
+      courtId: _str(m['courtId']),
       status: _str(m['status'], 'scheduled'),
       changed: m['changed'] == true,
       changeReason: _str(m['changeReason']),
@@ -353,6 +372,8 @@ class CenterCoachSession {
   final String locationName;
   final String locationAddress;
   final String courtName;
+  final String locationId;
+  final String courtId;
 
   /// `scheduled`, `cancelled` ou `done`.
   final String status;

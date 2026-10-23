@@ -18,6 +18,9 @@ import '../../professor_mode/presentation/widgets/professor_students_widgets.dar
 import '../application/center_coach_providers.dart';
 import '../domain/center_coach.dart';
 import '../domain/center_students.dart';
+import '../application/center_management_providers.dart';
+import '../domain/center_management.dart';
+import 'center_coach_subscription_page.dart' show CenterSubscriptionsCard;
 import 'widgets/center_coach_widgets.dart' show coachClassScheduleLabel;
 
 /// Abre ligação, WhatsApp ou e-mail (trocável nos testes).
@@ -88,11 +91,20 @@ class CenterCoachStudentPage extends ConsumerWidget {
             .valueOrNull ??
         const <CenterCoachSession>[];
     final marks = centerStudentMarks(sessions, studentId, today);
+    final subscriptions =
+        ref
+            .watch(
+              centerStudentSubscriptionsProvider((
+                centerId: centerId,
+                studentId: studentId,
+              )),
+            )
+            .valueOrNull ??
+        const <CenterSubscription>[];
+    final canEnroll =
+        (member?.has('enroll_students') ?? false) && student != null;
 
-    return ProfessorLinksScaffold(
-      title: 'Aluno',
-      onBack: () => popOrGo(context, AppRoutes.centerCoachAgenda),
-      body: ListView(
+    final list = ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
         children: [
           if (member == null || !member.isActive)
@@ -154,6 +166,20 @@ class CenterCoachStudentPage extends ConsumerWidget {
                 ],
                 makeupCredits: student.makeupCredits,
               ),
+            if (subscriptions.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              CenterSubscriptionsCard(
+                subscriptions: subscriptions,
+                onOpen: (id) => context.pushNamed(
+                  AppRouteNames.centerCoachSubscription,
+                  pathParameters: {
+                    'centerId': centerId,
+                    'studentId': studentId,
+                    'subscriptionId': id,
+                  },
+                ),
+              ),
+            ],
             if (invoices != null) ...[
               const SizedBox(height: 12),
               _InvoicesCard(
@@ -169,8 +195,7 @@ class CenterCoachStudentPage extends ConsumerWidget {
             _PresenceCard(marks: marks),
             const SizedBox(height: 12),
             Text(
-              'Matrícula, cobrança e dados cadastrais ficam no portal do '
-              'centro.',
+              'Dados cadastrais e planos ficam no portal do centro.',
               textAlign: TextAlign.center,
               style: AppTypography.bodyS.copyWith(
                 fontSize: 11.5,
@@ -179,7 +204,41 @@ class CenterCoachStudentPage extends ConsumerWidget {
             ),
           ],
         ],
-      ),
+      );
+
+    return ProfessorLinksScaffold(
+      title: 'Aluno',
+      onBack: () => popOrGo(context, AppRoutes.centerCoachAgenda),
+      body: !canEnroll
+          ? list
+          : Column(
+              children: [
+                Expanded(child: list),
+                Container(
+                  padding: EdgeInsets.fromLTRB(
+                    20,
+                    12,
+                    20,
+                    12 + MediaQuery.paddingOf(context).bottom,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.canvas,
+                    border: Border(
+                      top: BorderSide(color: ProfessorLinksStyle.line(colors)),
+                    ),
+                  ),
+                  child: ProfessorLinksPrimaryButton(
+                    key: const Key('center-student-enroll'),
+                    label: 'Nova matrícula',
+                    onPressed: () => context.pushNamed(
+                      AppRouteNames.centerCoachEnroll,
+                      pathParameters: {'centerId': centerId},
+                      queryParameters: {'aluno': studentId},
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 

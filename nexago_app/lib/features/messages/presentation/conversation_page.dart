@@ -37,7 +37,9 @@ class ConversationPage extends ConsumerStatefulWidget {
     required this.conversationId,
     required this.professorMode,
   })  : arenaLinkId = null,
-        centerId = null;
+        centerId = null,
+        arenaClassesSide = false,
+        initialDraft = null;
 
   /// Lado da equipe do Centro de treinamento: voltar leva às mensagens do
   /// centro.
@@ -46,7 +48,21 @@ class ConversationPage extends ConsumerStatefulWidget {
     required this.conversationId,
     required String this.centerId,
   })  : professorMode = false,
-        arenaLinkId = null;
+        arenaLinkId = null,
+        arenaClassesSide = false,
+        initialDraft = null;
+
+  /// Lado da gestão das Aulas da arena com o aluno: voltar leva às mensagens
+  /// das Aulas. [initialDraft] pré-preenche o composer (o "Cobrar" chega com
+  /// a mensagem e o link da fatura; quem cobra revisa e envia).
+  const ConversationPage.arenaClasses({
+    super.key,
+    required this.conversationId,
+    this.initialDraft,
+  })  : professorMode = false,
+        arenaLinkId = null,
+        centerId = null,
+        arenaClassesSide = true;
 
   /// Lado da gestão da arena: o canal do vínculo [linkId], sem as abas do
   /// professor; voltar leva ao vínculo.
@@ -54,7 +70,9 @@ class ConversationPage extends ConsumerStatefulWidget {
       : conversationId = arenaChannelConversationId(linkId),
         professorMode = false,
         arenaLinkId = linkId,
-        centerId = null;
+        centerId = null,
+        arenaClassesSide = false,
+        initialDraft = null;
 
   final String conversationId;
   final bool professorMode;
@@ -65,12 +83,18 @@ class ConversationPage extends ConsumerStatefulWidget {
   /// Preenchido no lado da equipe do centro.
   final String? centerId;
 
+  /// Lado da gestão das Aulas da arena.
+  final bool arenaClassesSide;
+
+  /// Texto inicial do composer (só o lado das Aulas da arena usa).
+  final String? initialDraft;
+
   @override
   ConsumerState<ConversationPage> createState() => _ConversationPageState();
 }
 
 class _ConversationPageState extends ConsumerState<ConversationPage> {
-  final _text = TextEditingController();
+  late final _text = TextEditingController(text: widget.initialDraft ?? '');
 
   /// Mensagens mandadas que o snapshot ainda não trouxe.
   final _pending = <({String key, String text})>[];
@@ -131,7 +155,9 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
   /// Atalhos da conversa direta (D3): o professor remarca, cobra e avalia
   /// o aluno; o aluno remarca. Só aparece o que se aplica.
   List<Widget> _actionChips(Conversation c, String uid, DateTime now) {
-    if (c.isGroup || c.isArena || c.isCenter) return const [];
+    if (c.isGroup || c.isArena || c.isCenter || c.isArenaStudent) {
+      return const [];
+    }
     Widget chip(String key, String label, VoidCallback onTap) => Padding(
           padding: const EdgeInsets.only(right: 6),
           child: ArenaClassChip(
@@ -239,6 +265,8 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
               : widget.centerId != null
               ? AppRoutes.centerCoachMessages
                   .replaceAll(':centerId', widget.centerId!)
+              : widget.arenaClassesSide
+              ? AppRoutes.arenaClassMessages
               : widget.professorMode
                   ? AppRoutes.professorMessages
                   : AppRoutes.athleteMessages,
@@ -273,7 +301,11 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
           }
         : const <String>{};
     final String subtitle;
-    if (c.isCenter) {
+    if (c.isArenaStudent) {
+      subtitle = uid == c.professorUid
+          ? 'Aluno · ${c.title ?? 'aulas da arena'}'
+          : '${c.title ?? 'Arena'} · aulas';
+    } else if (c.isCenter) {
       subtitle = uid == c.professorUid
           ? 'Aluno · ${c.title ?? 'centro'}'
           : '${c.title ?? 'Centro de treinamento'} · equipe';
@@ -293,9 +325,8 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
       subtitle = 'Professor';
     }
     final actions = c.closed ? const <Widget>[] : _actionChips(c, uid, now);
-    // Respostas rápidas: do professor e da equipe do centro.
-    final templates = (widget.professorMode ||
-                (c.isCenter && uid == c.professorUid)) &&
+    // Respostas rápidas: do professor e da equipe (CT, gestão das Aulas).
+    final templates = (widget.professorMode || c.viewedByStaff(uid)) &&
             !c.isArena
         ? ref.watch(messageTemplatesProvider).valueOrNull ?? const []
         : const <MessageTemplate>[];

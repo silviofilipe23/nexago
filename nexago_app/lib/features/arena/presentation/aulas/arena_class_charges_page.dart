@@ -18,13 +18,15 @@ import '../../domain/aulas/arena_class_logic.dart';
 import '../widgets/arena_async_state.dart';
 import 'arena_class_payment_sheet.dart';
 import 'widgets/arena_class_atoms.dart';
+import 'widgets/arena_class_contact.dart';
 import 'widgets/arena_class_form_atoms.dart';
 
 /// Mensalidades das aulas (A7): recebido no mês, a receber, em atraso e as
 /// abas Em atraso / Vencendo / Pagos.
 ///
-/// "Cobrar" abre o WhatsApp com a mensagem pronta — com o link da fatura
-/// quando a mensalidade é online — e "Registrar pagamento" dá baixa no que a
+/// "Cobrar" abre o chat do app com o aluno (quem tem conta) ou o WhatsApp
+/// (sem conta) com a mensagem pronta — com o link da fatura quando a
+/// mensalidade é online — e "Registrar pagamento" dá baixa no que a
 /// arena recebeu direto (na online, cancela o link). Lê quem vê a agenda ou o
 /// financeiro; registrar exige escrever na agenda (recepção cobra no balcão).
 class ArenaClassChargesPage extends ConsumerWidget {
@@ -78,6 +80,7 @@ class _Body extends ConsumerWidget {
     final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
     final canOpenStudent = ref.watch(arenaCanReadProvider(ArenaArea.agenda));
     final arenaName = ref.watch(managedArenaDetailProvider).valueOrNull?.name;
+    final arenaId = ref.watch(managedArenaIdProvider).valueOrNull ?? '';
     final onlineOn =
         ref.watch(arenaClassRulesProvider).valueOrNull?.onlineBillingEnabled ??
             false;
@@ -151,8 +154,11 @@ class _Body extends ConsumerWidget {
                       )
                   : null,
               onRemind: c.isOpen
-                  ? () => openArenaClassWhatsApp(
+                  ? () => contactArenaClassStudent(
                         context,
+                        ref,
+                        arenaId: arenaId,
+                        athleteId: c.athleteId,
                         phone: c.phone,
                         message: arenaClassChargeReminderMessage(
                           c,

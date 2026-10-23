@@ -74,6 +74,12 @@ void main() {
       expect(arenaAlternateAreaForPath('/arena/classes/student/u1'), isNull);
       expect(arenaAlternateAreaForPath('/arena/classes/enroll'), isNull);
       expect(arenaAlternateAreaForPath('/arena/classes'), isNull);
+      // Conversas com os alunos: o "Cobrar" do financeiro abre aqui.
+      expect(arenaAreaForPath('/arena/classes/messages/s_1'), ArenaArea.agenda);
+      expect(
+        arenaAlternateAreaForPath('/arena/classes/messages/s_1'),
+        ArenaArea.financeiro,
+      );
     });
 
     test('repasse dos professores e so do financeiro (recepcao fora)', () {

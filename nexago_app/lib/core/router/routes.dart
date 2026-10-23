@@ -637,6 +637,13 @@ abstract final class AppRoutes {
   /// Mensalidades das aulas: `/arena/classes/charges` (agenda ou financeiro)
   static const String arenaClassCharges = '/arena/classes/charges';
 
+  /// Conversas da gestão com os alunos (chat no lugar do WhatsApp):
+  /// `/arena/classes/messages`; o push `conversation_message` da resposta
+  /// do aluno abre `/arena/classes/messages/:conversationId`.
+  static const String arenaClassMessages = '/arena/classes/messages';
+  static const String arenaClassConversation =
+      '/arena/classes/messages/:conversationId';
+
   // --- Profissionais (vínculos com professores, gestor) — literais antes de
   // [arenaDetail] no router ---
   /// Lista de professores vinculados + solicitações: `/arena/professionals`
@@ -1215,6 +1222,8 @@ abstract final class AppRouteNames {
   static const String arenaClassSession = 'arenaClassSession';
   static const String arenaClassStudent = 'arenaClassStudent';
   static const String arenaClassCharges = 'arenaClassCharges';
+  static const String arenaClassMessages = 'arenaClassMessages';
+  static const String arenaClassConversation = 'arenaClassConversation';
   static const String arenaClassEnroll = 'arenaClassEnroll';
   static const String arenaClassPayouts = 'arenaClassPayouts';
   static const String arenaClassTeacherPayout = 'arenaClassTeacherPayout';

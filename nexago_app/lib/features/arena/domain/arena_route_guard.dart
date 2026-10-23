@@ -84,6 +84,9 @@ const List<MapEntry<String, ArenaArea>> _arenaAreaByPrefix = [
 /// balcao e o financeiro acompanha — mesma regra de `arenaClassCharges`.
 const List<MapEntry<String, ArenaArea>> _arenaAlternateAreaByPrefix = [
   MapEntry('/arena/classes/charges', ArenaArea.financeiro),
+  // Conversas com os alunos: o "Cobrar" das mensalidades abre aqui (mesma
+  // régua do servidor, `arena-class-chat-model.ts`).
+  MapEntry('/arena/classes/messages', ArenaArea.financeiro),
 ];
 
 const List<String> _arenaOwnerOnlyPrefixes = [

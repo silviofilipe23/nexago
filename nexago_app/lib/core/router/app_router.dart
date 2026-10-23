@@ -106,6 +106,7 @@ import '../../features/arena/presentation/arena_club_session_page.dart';
 import '../../features/arena/presentation/arena_clubs_page.dart';
 import '../../features/arena/presentation/aulas/arena_class_attendance_page.dart';
 import '../../features/arena/presentation/aulas/arena_class_charges_page.dart';
+import '../../features/arena/presentation/aulas/arena_class_messages_page.dart';
 import '../../features/arena/presentation/aulas/arena_class_enroll_page.dart';
 import '../../features/arena/presentation/aulas/arena_class_payouts_page.dart';
 import '../../features/arena/presentation/aulas/arena_class_student_page.dart';
@@ -3089,6 +3090,23 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             path: 'charges',
             name: AppRouteNames.arenaClassCharges,
             builder: (context, state) => const ArenaClassChargesPage(),
+          ),
+          GoRoute(
+            path: 'messages',
+            name: AppRouteNames.arenaClassMessages,
+            builder: (context, state) => const ArenaClassMessagesPage(),
+            routes: [
+              GoRoute(
+                path: ':conversationId',
+                name: AppRouteNames.arenaClassConversation,
+                builder: (context, state) => ConversationPage.arenaClasses(
+                  conversationId:
+                      state.pathParameters['conversationId']?.trim() ?? '',
+                  initialDraft:
+                      state.extra is String ? state.extra as String : null,
+                ),
+              ),
+            ],
           ),
           GoRoute(
             path: 'enroll',

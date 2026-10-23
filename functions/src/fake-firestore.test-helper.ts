@@ -272,6 +272,11 @@ export class FakeFirestore {
       set: (ref: {path: string}, data: DocData, opts?: {merge?: boolean}) => {
         self.write(ref.path, data, opts);
       },
+      create: (ref: {path: string}, data: DocData) => {
+        // Como no Admin SDK: create em doc existente é erro.
+        if (self.store.has(ref.path)) throw new Error(`create em doc existente: ${ref.path}`);
+        self.write(ref.path, data);
+      },
       update: (ref: {path: string}, data: DocData) => {
         // Espelha `ref.update` desta mesma classe e o Admin SDK de verdade:
         // update em doc ausente é ERRO, não upsert. Um fake permissivo aqui

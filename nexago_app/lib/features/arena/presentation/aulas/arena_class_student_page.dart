@@ -23,6 +23,7 @@ import '../widgets/arena_async_state.dart';
 import 'arena_class_enroll_page.dart';
 import 'arena_class_payment_sheet.dart';
 import 'widgets/arena_class_atoms.dart';
+import 'widgets/arena_class_contact.dart';
 import 'widgets/arena_class_form_atoms.dart';
 
 /// Semanas do histórico de frequência.
@@ -30,7 +31,8 @@ const int _frequencyWeeks = 8;
 
 /// Página do aluno (A6): plano e horários fixos, créditos de reposição,
 /// frequência das últimas 8 semanas, últimas aulas, mensalidades (com a
-/// situação da fatura online, "Cobrar" e "Copiar link") e
+/// situação da fatura online, "Cobrar" e "Copiar link"), "Mensagem" (chat
+/// do app com quem tem conta; sem conta, WhatsApp) e
 /// pausar/reativar/cancelar o plano (`setArenaClassEnrollmentStatus`).
 ///
 /// [studentId] é o id do doc em `classStudents` (uid do atleta ou id
@@ -103,6 +105,11 @@ class _ArenaClassStudentPageState extends ConsumerState<ArenaClassStudentPage> {
         anyDoc?.phone ??
         charges.map((c) => c.phone).whereType<String>().firstOrNull;
     final photoUrl = enrollment?.photoUrl ?? anyDoc?.photoUrl;
+    // Com conta NexaGO, a gestão fala pelo chat do app; sem, pelo WhatsApp.
+    final athleteId = enrollment?.athleteId ??
+        anyDoc?.athleteId ??
+        charges.map((c) => c.athleteId).whereType<String>().firstOrNull;
+    final hasChat = arenaClassStudentHasChat(athleteId);
     final classNames = {for (final c in classes) c.id: c.name};
 
     // Dias que contam na frequência: os da matrícula; sem ela, os do doc.
@@ -212,17 +219,31 @@ class _ArenaClassStudentPageState extends ConsumerState<ArenaClassStudentPage> {
           Row(
             children: [
               Expanded(
-                child: ArenaClassGhostButton(
-                  label: 'WhatsApp',
-                  icon: Icons.chat_bubble_outline_rounded,
-                  onPressed: phone == null
-                      ? null
-                      : () => openArenaClassWhatsApp(
-                            context,
-                            phone: phone,
-                            message: 'Olá, ${arenaClassFirstName(name)}!',
-                          ),
-                ),
+                child: hasChat
+                    ? ArenaClassGhostButton(
+                        key: const Key('arena-class-student-message'),
+                        label: 'Mensagem',
+                        icon: Icons.forum_outlined,
+                        onPressed: () => contactArenaClassStudent(
+                          context,
+                          ref,
+                          arenaId: arenaId,
+                          athleteId: athleteId,
+                          phone: phone,
+                        ),
+                      )
+                    : ArenaClassGhostButton(
+                        label: 'WhatsApp',
+                        icon: Icons.chat_bubble_outline_rounded,
+                        onPressed: phone == null
+                            ? null
+                            : () => openArenaClassWhatsApp(
+                                  context,
+                                  phone: phone,
+                                  message:
+                                      'Olá, ${arenaClassFirstName(name)}!',
+                                ),
+                      ),
               ),
               if (canWrite &&
                   (enrollment == null || !enrollment.isCurrent)) ...[
@@ -285,9 +306,15 @@ class _ArenaClassStudentPageState extends ConsumerState<ArenaClassStudentPage> {
                 todayKey: todayKey,
                 onRegister:
                     canWrite && c.isOpen ? () => _register(context, c) : null,
-                onRemind: c.isOpen && (c.phone ?? phone) != null
-                    ? () => openArenaClassWhatsApp(
+                onRemind: c.isOpen &&
+                        (hasChat ||
+                            arenaClassStudentHasChat(c.athleteId) ||
+                            (c.phone ?? phone) != null)
+                    ? () => contactArenaClassStudent(
                           context,
+                          ref,
+                          arenaId: arenaId,
+                          athleteId: c.athleteId ?? athleteId,
                           phone: c.phone ?? phone,
                           message: arenaClassChargeReminderMessage(
                             c,
@@ -808,7 +835,8 @@ class _ChargeRow extends StatelessWidget {
   final String todayKey;
   final VoidCallback? onRegister;
 
-  /// "Cobrar": WhatsApp com a mensagem (e o link, se a fatura estiver aberta).
+  /// "Cobrar": a mensagem (e o link, se a fatura estiver aberta) pelo chat
+  /// do app — ou pelo WhatsApp, se o aluno não tem conta.
   final VoidCallback? onRemind;
 
   /// "Copiar link": só com a fatura online aberta.

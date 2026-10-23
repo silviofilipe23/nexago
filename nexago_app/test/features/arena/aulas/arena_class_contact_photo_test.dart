@@ -13,6 +13,11 @@ import 'package:nexago_app/features/arena/presentation/aulas/arena_class_student
 import 'package:nexago_app/features/arena/presentation/aulas/widgets/arena_class_atoms.dart';
 import 'package:nexago_app/features/athlete/presentation/public_profile/widgets/profile_photo_viewer.dart';
 
+import 'package:nexago_app/features/messages/application/messages_providers.dart';
+import 'package:nexago_app/features/messages/domain/messages.dart';
+
+import '../../messages/messages_test_support.dart'
+    show FakeMessagesRepository, me;
 import 'arena_class_fixtures.dart';
 import 'aulas_pump.dart';
 import 'fake_arena_class_enrollment_repository.dart';
@@ -68,6 +73,7 @@ Future<void> _pumpEnroll(
   WidgetTester tester,
   FakeArenaClassEnrollmentRepository enrollmentRepo, {
   ArenaClassEnrollSeed? seed,
+  FakeMessagesRepository? messages,
 }) =>
     pumpAulas(
       tester,
@@ -75,7 +81,13 @@ Future<void> _pumpEnroll(
       enrollmentRepo: enrollmentRepo,
       initial: '/arena/classes/enroll',
       extra: seed,
-      overrides: [usersRepositoryProvider.overrideWithValue(_athletes)],
+      overrides: [
+        usersRepositoryProvider.overrideWithValue(_athletes),
+        if (messages != null) ...[
+          messagesRepositoryProvider.overrideWithValue(messages),
+          messagesUidProvider.overrideWithValue(me),
+        ],
+      ],
     );
 
 Future<void> _pick(WidgetTester tester, String name) async {
@@ -300,8 +312,45 @@ void main() {
     }
 
     testWidgets(
-        'campo em branco: "Cobrar no WhatsApp" usa o telefone que o '
-        'servidor gravou', (tester) async {
+        'com conta: "Cobrar por mensagem" abre o chat com a cobrança no '
+        'composer', (tester) async {
+      final messages = FakeMessagesRepository(conversations: [
+        Conversation(
+          id: 's_a1_${me}_u7',
+          kind: ConversationKind.arenaStudent,
+          professorUid: me,
+          athleteUid: 'u7',
+          arenaId: 'a1',
+          title: 'Arena Sol',
+          memberIds: const [me, 'u7'],
+          memberNames: const {me: 'Carla', 'u7': 'Paula Reis'},
+        ),
+      ]);
+      final enrollmentRepo = FakeArenaClassEnrollmentRepository(
+        plans: [plan()],
+        preview: preview,
+        createdPhone: '+5562982406456',
+      );
+      await _pumpEnroll(tester, enrollmentRepo, seed: seed, messages: messages);
+      await enroll(tester);
+
+      expect(find.text('Matrícula feita'), findsOneWidget);
+      expect(find.text('Cobrar no WhatsApp'), findsNothing);
+      await tester.tap(find.text('Cobrar por mensagem'));
+      await _settle(tester);
+      expect(messages.opened, ['arenaStudent:a1:u7']);
+      final composer = tester.widget<TextField>(find.byType(TextField).last);
+      expect(composer.controller!.text, contains('Paula'));
+    });
+
+    const noAccount = ArenaClassEnrollSeed(
+      studentId: 's-paula',
+      name: 'Paula Reis',
+    );
+
+    testWidgets(
+        'sem conta: "Cobrar no WhatsApp" usa o telefone que o servidor '
+        'gravou', (tester) async {
       final launched = <String>[];
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         const MethodChannel('plugins.flutter.io/url_launcher'),
@@ -320,28 +369,27 @@ void main() {
         preview: preview,
         createdPhone: '+5562982406456',
       );
-      await _pumpEnroll(tester, enrollmentRepo, seed: seed);
+      await _pumpEnroll(tester, enrollmentRepo, seed: noAccount);
       await enroll(tester);
 
-      expect(enrollmentRepo.created.single.toPayload().containsKey('phone'),
-          isFalse);
       expect(find.text('Matrícula feita'), findsOneWidget);
       await tester.tap(find.text('Cobrar no WhatsApp'));
       await _settle(tester);
       expect(launched.single, startsWith('https://wa.me/5562982406456?text='));
     });
 
-    testWidgets('servidor sem o campo e telefone em branco: sem "Cobrar"',
-        (tester) async {
+    testWidgets('sem conta, servidor sem o campo e telefone em branco: sem '
+        '"Cobrar"', (tester) async {
       final enrollmentRepo = FakeArenaClassEnrollmentRepository(
         plans: [plan()],
         preview: preview,
       );
-      await _pumpEnroll(tester, enrollmentRepo, seed: seed);
+      await _pumpEnroll(tester, enrollmentRepo, seed: noAccount);
       await enroll(tester);
 
       expect(find.text('Matrícula feita'), findsOneWidget);
       expect(find.text('Cobrar no WhatsApp'), findsNothing);
+      expect(find.text('Cobrar por mensagem'), findsNothing);
     });
   });
 

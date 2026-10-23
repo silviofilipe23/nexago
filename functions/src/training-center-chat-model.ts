@@ -47,3 +47,38 @@ export async function centerChatAllowed(db: Firestore, centerId: string, staffUi
 export async function closeCenterConversation(ref: DocumentReference, staffUid: string): Promise<void> {
   await ref.update({closed: true, memberIds: [staffUid], closedAt: FieldValue.serverTimestamp()});
 }
+
+// ---------------------------------------------------------------------------
+// Canal do aluno com o centro (recepção e gestão)
+// ---------------------------------------------------------------------------
+
+export const centerDeskConversationId = (centerId: string, athleteUid: string) => `cd_${centerId}_${athleteUid}`;
+
+/** Quem atende o canal do aluno com o centro: quem vê todos os alunos (gestão, recepção, matrícula, financeiro). */
+export function isDeskMember(member: Data | undefined): boolean {
+  if (!member || member["status"] !== "active") return false;
+  const role = str(member["role"]);
+  const perms = list(member["extraPerms"]);
+  return ["center_owner", "center_admin", "receptionist"].includes(role) ||
+    perms.includes("enroll_students") || perms.includes("view_finance");
+}
+
+/** O aluno do centro que é a conta [athleteUid] e pode conversar (ativo, maior). */
+export async function chatStudentOfAccount(db: Firestore, centerId: string, athleteUid: string): Promise<{id: string; data: Data} | null> {
+  const snap = await db.collection(TRAINING_CENTERS).doc(centerId).collection("students").where("uid", "==", athleteUid).get();
+  for (const d of snap.docs) {
+    const s = d.data();
+    if (s["status"] === "active" && s["isMinor"] !== true) return {id: d.id, data: s};
+  }
+  return null;
+}
+
+/** Equipe que atende o canal agora: uid → nome do vínculo. */
+export async function centerDeskStaff(db: Firestore, centerId: string): Promise<Record<string, string>> {
+  const snap = await db.collection(TRAINING_CENTERS).doc(centerId).collection("centerMembers").where("status", "==", "active").get();
+  const out: Record<string, string> = {};
+  for (const d of snap.docs) {
+    if (isDeskMember(d.data())) out[d.id] = str(d.data()["displayName"]) || "Equipe do centro";
+  }
+  return out;
+}

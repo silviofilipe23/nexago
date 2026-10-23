@@ -21,12 +21,17 @@ enum ConversationKind {
 
   /// Equipe do Centro de treinamento ↔ aluno
   /// (`functions/src/training-center-messages.ts`).
-  center;
+  center,
+
+  /// Canal do aluno com o centro: ele + recepção e gestão (qualquer um da
+  /// equipe responde; sem `professorUid`).
+  centerDesk;
 
   static ConversationKind parse(Object? raw) => switch (raw) {
         'class' => classGroup,
         'arena' => arena,
         'center' => center,
+        'center_desk' => centerDesk,
         _ => direct,
       };
 }
@@ -148,8 +153,16 @@ class Conversation {
   /// Equipe do CT ↔ aluno: [professorUid] é quem é da equipe.
   bool get isCenter => kind == ConversationKind.center;
 
+  /// Canal do aluno com o centro (recepção e gestão).
+  bool get isCenterDesk => kind == ConversationKind.centerDesk;
+
+  /// Lado da equipe numa conversa do CT (individual ou canal).
+  bool centerStaffSide(String viewerUid) =>
+      (isCenter && viewerUid == professorUid) ||
+      (isCenterDesk && viewerUid != athleteUid);
+
   /// Mais de dois lados: a bolha recebida leva o nome de quem mandou.
-  bool get showsSenderNames => isGroup || isArena;
+  bool get showsSenderNames => isGroup || isArena || isCenterDesk;
 
   /// No canal com a arena, quem está vendo é da gestão (não o professor).
   bool viewedByArenaStaff(String viewerUid) =>
@@ -170,6 +183,11 @@ class Conversation {
 
   String titleFor(String viewerUid) {
     if (isGroup) return title ?? 'Turma';
+    if (isCenterDesk) {
+      return viewerUid == athleteUid
+          ? title ?? 'Centro de treinamento'
+          : memberNames[athleteUid] ?? 'Aluno';
+    }
     if (isArena) {
       if (viewerUid == professorUid) {
         return title ?? 'Gestão ${arenaName ?? 'da arena'}';
@@ -187,6 +205,9 @@ class Conversation {
 
   String? photoFor(String viewerUid) {
     if (isGroup) return null;
+    if (isCenterDesk) {
+      return viewerUid == athleteUid ? null : memberPhotos[athleteUid];
+    }
     if (isArena) {
       return viewerUid == professorUid ? null : memberPhotos[professorUid];
     }
@@ -395,6 +416,39 @@ class MyProfessor {
   final String professorUid;
   final String name;
   final String? photoUrl;
+}
+
+/// Com quem o aluno pode falar num centro (`listTrainingCenterChatContacts`):
+/// o canal com a recepção e a gestão e os professores das turmas dele.
+class CenterChatContacts {
+  const CenterChatContacts({
+    required this.centerName,
+    required this.desk,
+    this.professors = const [],
+  });
+
+  factory CenterChatContacts.fromMap(Map<String, Object?> map) {
+    final list = map['professors'];
+    return CenterChatContacts(
+      centerName: _str(map['centerName']).isEmpty
+          ? 'Centro de treinamento'
+          : _str(map['centerName']),
+      desk: map['desk'] == true,
+      professors: [
+        if (list is List)
+          for (final m in list.whereType<Map>())
+            MyProfessor(
+              professorUid: _str(m['uid']),
+              name: _str(m['name']).isEmpty ? 'Professor' : _str(m['name']),
+              photoUrl: _strOrNull(m['photoUrl']),
+            ),
+      ],
+    );
+  }
+
+  final String centerName;
+  final bool desk;
+  final List<MyProfessor> professors;
 }
 
 // ── limites (rules) ──────────────────────────────────────────────────────

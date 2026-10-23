@@ -2,6 +2,10 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nexago_app/features/athlete_training/application/athlete_training_providers.dart'
+    show athleteTrainingCentersProvider;
+import 'package:nexago_app/features/athlete_training/domain/training_center.dart'
+    show TrainingCenterLink;
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/features/messages/domain/messages.dart';
 import 'package:nexago_app/features/messages/infrastructure/messages_repository.dart';
@@ -203,6 +207,30 @@ class FakeMessagesRepository implements MessagesRepository {
     return 'c_$classId';
   }
 
+  CenterChatContacts centerContacts = const CenterChatContacts(
+    centerName: 'CT Maré Alta',
+    desk: true,
+  );
+
+  @override
+  Future<CenterChatContacts> getCenterChatContacts(String centerId) async =>
+      centerContacts;
+
+  @override
+  Future<String> openCenterDesk(String centerId) async {
+    opened.add('desk:$centerId');
+    return 'cd_${centerId}_$me';
+  }
+
+  @override
+  Future<String> openCenterStaffConversation(
+    String centerId,
+    String staffUid,
+  ) async {
+    opened.add('center-staff:$centerId:$staffUid');
+    return 't_${centerId}_${staffUid}_$me';
+  }
+
   @override
   Future<String> openCenterConversation(String centerId, String studentId) async {
     opened.add('center:$centerId:$studentId');
@@ -307,6 +335,7 @@ Future<GoRouter> pumpMessagesApp(
   FakeProfessorAvailabilityRepository? availability,
   String uid = professorStudentsTestUid,
   List<RouteBase> extraRoutes = const [],
+  List<TrainingCenterLink> centers = const [],
 }) =>
     pumpProfessorStudentsApp(
       tester,
@@ -325,5 +354,6 @@ Future<GoRouter> pumpMessagesApp(
         professorLinksRepositoryProvider
             .overrideWithValue(links ?? FakeProfessorLinksRepository()),
         professorLinksClockProvider.overrideWithValue(() => messagesNow),
+        athleteTrainingCentersProvider.overrideWith((ref) async => centers),
       ],
     );

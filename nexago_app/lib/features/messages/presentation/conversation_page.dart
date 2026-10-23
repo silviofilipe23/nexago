@@ -131,7 +131,9 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
   /// Atalhos da conversa direta (D3): o professor remarca, cobra e avalia
   /// o aluno; o aluno remarca. Só aparece o que se aplica.
   List<Widget> _actionChips(Conversation c, String uid, DateTime now) {
-    if (c.isGroup || c.isArena || c.isCenter) return const [];
+    if (c.isGroup || c.isArena || c.isCenter || c.isCenterDesk) {
+      return const [];
+    }
     Widget chip(String key, String label, VoidCallback onTap) => Padding(
           padding: const EdgeInsets.only(right: 6),
           child: ArenaClassChip(
@@ -273,7 +275,11 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
           }
         : const <String>{};
     final String subtitle;
-    if (c.isCenter) {
+    if (c.isCenterDesk) {
+      subtitle = c.centerStaffSide(uid)
+          ? 'Aluno · canal com ${c.title ?? 'o centro'}'
+          : 'Recepção e gestão do centro';
+    } else if (c.isCenter) {
       subtitle = uid == c.professorUid
           ? 'Aluno · ${c.title ?? 'centro'}'
           : '${c.title ?? 'Centro de treinamento'} · equipe';
@@ -294,8 +300,7 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
     }
     final actions = c.closed ? const <Widget>[] : _actionChips(c, uid, now);
     // Respostas rápidas: do professor e da equipe do centro.
-    final templates = (widget.professorMode ||
-                (c.isCenter && uid == c.professorUid)) &&
+    final templates = (widget.professorMode || c.centerStaffSide(uid)) &&
             !c.isArena
         ? ref.watch(messageTemplatesProvider).valueOrNull ?? const []
         : const <MessageTemplate>[];

@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/features/athlete_training/domain/training_center.dart'
+    show TrainingCenterLink;
 import 'package:nexago_app/core/auth/role_route_guard.dart';
 import 'package:nexago_app/core/notifications/notification_navigation.dart';
 import 'package:nexago_app/core/router/routes.dart';
@@ -406,6 +408,76 @@ void main() {
       await tap(tester, find.byKey(const Key('messages-new')));
       await tap(tester, find.byKey(const Key('new-message-professor-prof-x')));
       expect(repo.opened, ['professor:prof-x']);
+    });
+
+    testWidgets('"+" lista o centro: canal com a recepção ou o professor', (
+      tester,
+    ) async {
+      final repo = FakeMessagesRepository()
+        ..centerContacts = const CenterChatContacts(
+          centerName: 'CT Maré Alta',
+          desk: true,
+          professors: [MyProfessor(professorUid: 'tm', name: 'Thiago')],
+        );
+      final router = await pumpMessagesApp(
+        tester,
+        messages: repo,
+        location: AppRoutes.athleteMessages,
+        centers: const [TrainingCenterLink(centerId: 'c1', name: 'CT Maré Alta')],
+      );
+      await tap(tester, find.byKey(const Key('messages-new')));
+      await tap(tester, find.byKey(const Key('new-message-center-c1')));
+      expect(find.byKey(const Key('center-chat-contacts-sheet')), findsOneWidget);
+      expect(find.byKey(const Key('center-chat-professor-tm')), findsOneWidget);
+      await tap(tester, find.byKey(const Key('center-chat-desk')));
+      expect(repo.opened, ['desk:c1']);
+      expect(router.state.uri.path, '/mensagens/cd_c1_$me');
+    });
+
+    testWidgets('centro: o aluno começa com o professor dele', (tester) async {
+      final repo = FakeMessagesRepository()
+        ..centerContacts = const CenterChatContacts(
+          centerName: 'CT Maré Alta',
+          desk: false,
+          professors: [MyProfessor(professorUid: 'tm', name: 'Thiago')],
+        );
+      await pumpMessagesApp(
+        tester,
+        messages: repo,
+        location: AppRoutes.athleteMessages,
+        centers: const [TrainingCenterLink(centerId: 'c1', name: 'CT Maré Alta')],
+      );
+      await tap(tester, find.byKey(const Key('messages-new')));
+      await tap(tester, find.byKey(const Key('new-message-center-c1')));
+      expect(find.byKey(const Key('center-chat-desk')), findsNothing);
+      await tap(tester, find.byKey(const Key('center-chat-professor-tm')));
+      expect(repo.opened, ['center-staff:c1:tm']);
+    });
+  });
+
+  group('canal com o centro', () {
+    Conversation desk() => Conversation.fromMap('cd_c1_lucas', {
+      'kind': 'center_desk',
+      'professorUid': '',
+      'athleteUid': 'lucas',
+      'centerId': 'c1',
+      'title': 'CT Maré Alta',
+      'memberIds': ['lucas', 'owner', 'recep'],
+      'memberNames': {
+        'lucas': 'Lucas Prado',
+        'owner': 'Renata',
+        'recep': 'Camila',
+      },
+    });
+
+    test('aluno vê o centro; a equipe vê o aluno e quem respondeu', () {
+      final c = desk();
+      expect(c.isCenterDesk, isTrue);
+      expect(c.titleFor('lucas'), 'CT Maré Alta');
+      expect(c.titleFor('recep'), 'Lucas Prado');
+      expect(c.showsSenderNames, isTrue);
+      expect(c.centerStaffSide('recep'), isTrue);
+      expect(c.centerStaffSide('lucas'), isFalse);
     });
   });
 }

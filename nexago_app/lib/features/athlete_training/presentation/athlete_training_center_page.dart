@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../../messages/presentation/center_chat_contacts_sheet.dart';
 import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/links/open_external_url.dart';
 import '../../../core/router/navigation_helpers.dart';
@@ -183,6 +184,38 @@ class _AthleteTrainingCenterPageState
           ],
         ),
       ],
+      const SizedBox(height: 10),
+      ProfessorLinksCard(
+        key: const Key('training-center-chat'),
+        onTap: () =>
+            showCenterChatContactsSheet(context, centerId: center.centerId),
+        padding: const EdgeInsets.all(13),
+        child: Row(
+          children: [
+            Icon(
+              Icons.chat_bubble_outline_rounded,
+              size: 20,
+              color: context.themeColors.readableTone(trainingCenterColor),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Falar com o centro · recepção ou seu professor',
+                style: ProfessorLinksStyle.display(
+                  13,
+                  weight: FontWeight.w600,
+                  color: context.themeColors.onSurface,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: ProfessorLinksStyle.dim(context.themeColors),
+            ),
+          ],
+        ),
+      ),
       if (center.makeupCredits > 0) ...[
         const SizedBox(height: 12),
         TrainingOriginNote(

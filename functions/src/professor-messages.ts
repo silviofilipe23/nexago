@@ -23,7 +23,7 @@ import {dayKeyFromEventDate, EVENT_TIME_ZONE} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {deliverNotificationToUser, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
 import {activeArenaLink, arenaChannelMembership} from "./arena-professor-channel";
-import {centerChatAllowed, closeCenterConversation} from "./training-center-chat-model";
+import {centerChatAllowed, centerDeskStaff, chatStudentOfAccount, closeCenterConversation} from "./training-center-chat-model";
 import {loadProfessorStudentsCore} from "./professor-students";
 import {PROFESSORS, PROFESSOR_STUDENTS} from "./professor-wallet-model";
 
@@ -240,8 +240,8 @@ const defaultDeps: MessageDeps = {
 /** O remetente ainda pode falar nesta conversa? Fecha/poda quando o vínculo acabou. */
 async function verifyMember(db: Firestore, ref: DocumentReference, c: Record<string, unknown>, uid: string, now: Date): Promise<void> {
   const verifiedAt = (c["verifiedAt"] as Record<string, Timestamp> | undefined)?.[uid];
-  // Canal da arena: a equipe muda sem aviso — refaz a lista a cada envio (volume baixo).
-  if (c["kind"] !== "arena" && verifiedAt instanceof Timestamp && now.getTime() - verifiedAt.toMillis() < VERIFY_EVERY_MS) return;
+  // Canal da arena e do centro: a equipe muda sem aviso — refaz a lista a cada envio (volume baixo).
+  if (c["kind"] !== "arena" && c["kind"] !== "center_desk" && verifiedAt instanceof Timestamp && now.getTime() - verifiedAt.toMillis() < VERIFY_EVERY_MS) return;
   const professorUid = str(c["professorUid"]);
   if (c["kind"] === "arena") {
     const arenaId = str(c["arenaId"]);
@@ -253,6 +253,24 @@ async function verifyMember(db: Firestore, ref: DocumentReference, c: Record<str
     await ref.update({memberIds: m.memberIds, memberNames: m.memberNames, memberPhotos: m.memberPhotos});
     c["memberIds"] = m.memberIds;
     if (!m.memberIds.includes(uid)) throw new HttpsError("permission-denied", "Você não faz mais parte da gestão desta arena.");
+  } else if (c["kind"] === "center_desk") {
+    // Aluno ↔ recepção e gestão do CT: o aluno segue ativo com esta conta? A equipe é a de agora.
+    const centerId = str(c["centerId"]);
+    const athleteUid = str(c["athleteUid"]);
+    const student = await chatStudentOfAccount(db, centerId, athleteUid);
+    const staff = await centerDeskStaff(db, centerId);
+    delete staff[athleteUid];
+    const staffIds = Object.keys(staff);
+    if (!student || student.id !== str(c["studentId"])) {
+      await ref.update({closed: true, memberIds: staffIds, closedAt: FieldValue.serverTimestamp()});
+      throw new HttpsError("failed-precondition", "Esta conversa foi encerrada: o aluno não está mais ativo no centro.");
+    }
+    const memberIds = [athleteUid, ...staffIds];
+    const names = {...staff, [athleteUid]: (c["memberNames"] as Record<string, string> | undefined)?.[athleteUid] ?? "Aluno"};
+    await ref.update({memberIds, memberNames: names});
+    c["memberIds"] = memberIds;
+    c["memberNames"] = names;
+    if (!memberIds.includes(uid)) throw new HttpsError("permission-denied", "Você não atende mais este centro.");
   } else if (c["kind"] === "center") {
     // Equipe do CT ↔ aluno: o vínculo da equipe e o aluno (ativo, com a mesma conta) seguem valendo?
     if (!(await centerChatAllowed(db, str(c["centerId"]), professorUid, str(c["studentId"]), str(c["athleteUid"])))) {
@@ -325,14 +343,21 @@ export async function sendConversationMessageCore(
 
   const {conversation, senderName, members} = sent;
   const professorUid = str(conversation["professorUid"]);
-  const prefs = parseMessagingPrefs((await db.collection("users").doc(professorUid).collection(MESSAGING_PREFS).doc("settings").get()).data());
+  // Canal do aluno com o centro não tem um "professor" (horário de atendimento não se aplica).
+  const prefs = professorUid ?
+    parseMessagingPrefs((await db.collection("users").doc(professorUid).collection(MESSAGING_PREFS).doc("settings").get()).data()) :
+    null;
   const professorOff = prefs != null && !withinServiceHours(prefs, now);
   const isArena = conversation["kind"] === "arena";
-  const isCenter = conversation["kind"] === "center";
+  const isDesk = conversation["kind"] === "center_desk";
+  const isCenter = conversation["kind"] === "center" || isDesk;
   const title = conversation["kind"] === "class" || isArena || isCenter ? `${str(conversation["title"])} · ${senderName}` : senderName;
   const urlFor = (userId: string): Record<string, string> => {
     // Equipe do CT: a conversa abre dentro do centro (qualquer papel no app).
-    if (isCenter && userId === professorUid) {
+    if (isDesk && userId !== str(conversation["athleteUid"])) {
+      return {url: `/athlete/professor/centros/${str(conversation["centerId"])}/mensagens/${conversationId}`};
+    }
+    if (isCenter && !isDesk && userId === professorUid) {
       return {url: `/athlete/professor/centros/${str(conversation["centerId"])}/mensagens/${conversationId}`};
     }
     if (userId === professorUid) return {url: `/professor/mensagens/${conversationId}`};
@@ -343,7 +368,7 @@ export async function sendConversationMessageCore(
     return {url: `/mensagens/${conversationId}`};
   };
   await Promise.all(members.filter((m) => m !== uid).map(async (userId) => {
-    if (userId === professorUid && professorOff && prefs!.quietEnabled) return;
+    if (professorUid && userId === professorUid && professorOff && prefs!.quietEnabled) return;
     try {
       await deps.notify({
         userId, title, body: text.slice(0, 140), type: MESSAGE_PUSH_TYPE,

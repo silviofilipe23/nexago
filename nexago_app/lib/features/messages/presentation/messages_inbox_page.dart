@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../athlete_training/application/athlete_training_providers.dart'
+    show athleteTrainingCentersProvider;
+import '../../athlete_training/domain/training_center.dart'
+    show TrainingCenterLink;
 import '../../../core/layout/nexa_page_header.dart';
 import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
@@ -20,6 +24,7 @@ import '../../professor_mode/presentation/professor_shell_page.dart';
 import '../../professor_mode/presentation/widgets/professor_students_widgets.dart';
 import '../application/messages_providers.dart';
 import '../domain/messages.dart';
+import 'center_chat_contacts_sheet.dart';
 import 'messages_widgets.dart';
 
 /// D1 Caixa de entrada — do professor (aba Mensagens) e do aluno
@@ -488,10 +493,26 @@ class _StudentNewMessageSheet extends ConsumerWidget {
     final async = ref.watch(myProfessorsProvider);
     final list = async.valueOrNull;
     final repo = ref.read(messagesRepositoryProvider);
+    // Centros de treinamento do aluno: falar com a recepção ou o professor.
+    final centers =
+        ref.watch(athleteTrainingCentersProvider).valueOrNull ??
+        const <TrainingCenterLink>[];
     return ProfessorLinksSheetBody(
       title: 'Nova mensagem',
       subtitle: 'Para um professor das suas aulas',
       children: [
+        for (final c in centers)
+          _PickRow(
+            key: Key('new-message-center-${c.centerId}'),
+            name: c.name,
+            sub: 'Centro de treinamento · recepção ou professor',
+            arena: true,
+            onTap: () {
+              final outer = Navigator.of(context).context;
+              Navigator.of(context).pop();
+              showCenterChatContactsSheet(outer, centerId: c.centerId);
+            },
+          ),
         const SizedBox(height: 12),
         if (list == null && async.hasError)
           const ProfessorMutedText(

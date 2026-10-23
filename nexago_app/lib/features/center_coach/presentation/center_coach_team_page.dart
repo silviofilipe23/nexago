@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../arena/domain/aulas/arena_class_logic.dart';
+import '../../../core/profiles/app_user_profile.dart';
 import '../../arena/presentation/aulas/widgets/arena_class_atoms.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../professor_mode/presentation/availability/availability_widgets.dart';
@@ -21,8 +24,8 @@ import 'widgets/center_management_widgets.dart';
 import 'widgets/center_mode_tab_scope.dart';
 
 /// G17 · Equipe do centro (owner/admin): vínculos por papel, convites
-/// pendentes, revogar acesso. G18 · Convidar por e-mail — o vínculo só nasce
-/// quando a pessoa aceita com a conta NexaGO daquele e-mail.
+/// pendentes, revogar acesso. G18 · Convidar um atleta NexaGO (busca) — o
+/// vínculo só nasce quando a pessoa aceita com a própria conta.
 class CenterCoachTeamPage extends ConsumerStatefulWidget {
   const CenterCoachTeamPage({super.key, required this.centerId});
 
@@ -415,8 +418,13 @@ class _InviteSheet extends ConsumerStatefulWidget {
 }
 
 class _InviteSheetState extends ConsumerState<_InviteSheet> {
-  final _email = TextEditingController();
-  final _name = TextEditingController();
+  final _term = TextEditingController();
+  Timer? _debounce;
+  int _searchSeq = 0;
+  List<AppUserProfile> _hits = const [];
+  bool _searching = false;
+  String? _searchError;
+  AppUserProfile? _athlete;
   String _role = 'coach';
   final Set<String> _programs = {};
   final Set<String> _classes = {};
@@ -425,14 +433,45 @@ class _InviteSheetState extends ConsumerState<_InviteSheet> {
 
   @override
   void dispose() {
-    _email.dispose();
-    _name.dispose();
+    _debounce?.cancel();
+    _term.dispose();
     super.dispose();
   }
 
-  Future<void> _send(CenterMembership me) async {
+  /// Mesma busca do "Novo aluno": diretório público de atletas NexaGO.
+  void _onTerm(String value) {
+    _debounce?.cancel();
+    final seq = ++_searchSeq;
+    if (value.trim().length < 2) {
+      setState(() {
+        _hits = const [];
+        _searching = false;
+        _searchError = null;
+      });
+      return;
+    }
+    setState(() => _searching = true);
+    _debounce = Timer(const Duration(milliseconds: 350), () async {
+      try {
+        final hits = await ref.read(centerAccountSearchProvider)(value);
+        if (!mounted || seq != _searchSeq) return;
+        setState(() {
+          _hits = hits;
+          _searchError = null;
+        });
+      } catch (_) {
+        if (!mounted || seq != _searchSeq) return;
+        setState(() => _searchError = 'Não foi possível buscar agora.');
+      } finally {
+        if (mounted && seq == _searchSeq) setState(() => _searching = false);
+      }
+    });
+  }
+
+  Future<void> _send() async {
+    final athlete = _athlete;
     final error = centerInviteError(
-      email: _email.text,
+      uid: athlete?.uid,
       members:
           ref.read(centerTeamProvider(widget.centerId)).valueOrNull ??
           const [],
@@ -453,20 +492,19 @@ class _InviteSheetState extends ConsumerState<_InviteSheet> {
           .read(centerManagementRepositoryProvider)
           .invite(
             centerId: widget.centerId,
-            centerName: me.centerName,
-            email: _email.text,
-            displayName: _name.text,
+            uid: athlete!.uid,
             role: _role,
             programIds: _role == 'coach' ? _programs.toList() : const [],
             classIds: _role == 'coach' ? _classes.toList() : const [],
-            actor: ref.read(centerActorProvider(widget.centerId)),
           );
       if (!mounted) return;
       final messenger = ScaffoldMessenger.maybeOf(context);
       Navigator.of(context).pop();
       messenger?.showSnackBar(
         SnackBar(
-          content: Text('Convite enviado para ${_email.text.trim()}.'),
+          content: Text(
+            'Convite enviado para ${centerAccountName(athlete)}.',
+          ),
         ),
       );
     } on CenterCoachException catch (e) {
@@ -495,25 +533,74 @@ class _InviteSheetState extends ConsumerState<_InviteSheet> {
     ]..sort((a, b) => a.name.compareTo(b.name));
     if (me == null) return const SizedBox.shrink();
     final roles = centerInvitableRoles(me);
+    final teamUids = {
+      for (final m
+          in ref.watch(centerTeamProvider(widget.centerId)).valueOrNull ??
+              const <CenterTeamMember>[])
+        if (m.isActive && m.uid.isNotEmpty) m.uid,
+    };
+    final invitedUids = {
+      for (final i
+          in ref.watch(centerInvitesProvider(widget.centerId)).valueOrNull ??
+              const <CenterInvite>[])
+        if (i.isPending && i.invitedUid.isNotEmpty) i.invitedUid,
+    };
 
     return ProfessorLinksSheetBody(
       key: const Key('center-invite-sheet'),
       title: 'Convidar para a equipe',
-      subtitle: 'Por e-mail · a pessoa aceita com a própria conta NexaGO',
+      subtitle:
+          'Só quem tem cadastro de atleta na NexaGO · a pessoa aceita no app',
       children: [
         CenterTextField(
-          key: const Key('center-invite-email'),
-          controller: _email,
-          hint: 'E-mail',
-          icon: Icons.mail_outline_rounded,
-          keyboardType: TextInputType.emailAddress,
+          key: const Key('center-invite-term'),
+          controller: _term,
+          hint: 'Nome do atleta no NexaGO',
+          icon: Icons.search_rounded,
+          onChanged: _onTerm,
         ),
-        CenterTextField(
-          key: const Key('center-invite-name'),
-          controller: _name,
-          hint: 'Nome (opcional)',
-          icon: Icons.person_outline_rounded,
-        ),
+        if (_searching)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(
+              child: CircularProgressIndicator(color: AppColors.brand),
+            ),
+          )
+        else if (_searchError != null)
+          ProfessorLinksNote(_searchError!, tone: ProfessorLinksNoteTone.red)
+        else if (_term.text.trim().length >= 2 && _hits.isEmpty)
+          const ProfessorLinksCard(
+            key: Key('center-invite-no-hits'),
+            child: ProfessorMutedText(
+              'Nenhum atleta encontrado. Para entrar na equipe, a pessoa '
+              'precisa ter cadastro de atleta na NexaGO.',
+            ),
+          )
+        else if (_hits.isNotEmpty)
+          ProfessorLinksCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                for (final (i, h) in _hits.indexed)
+                  CenterAccountRow(
+                    key: Key('center-invite-hit-${h.uid}'),
+                    profile: h,
+                    first: i == 0,
+                    linked: teamUids.contains(h.uid) ||
+                        invitedUids.contains(h.uid),
+                    linkedLabel: teamUids.contains(h.uid)
+                        ? 'Já é da equipe'
+                        : 'Convidado',
+                    actionLabel: 'Convidar',
+                    selected: _athlete?.uid == h.uid,
+                    onTap: () => setState(() {
+                      _athlete = h;
+                      _error = null;
+                    }),
+                  ),
+              ],
+            ),
+          ),
         const CenterKicker('Papel'),
         const SizedBox(height: 8),
         CenterSegmented<String>(
@@ -594,7 +681,7 @@ class _InviteSheetState extends ConsumerState<_InviteSheet> {
           key: const Key('center-invite-send'),
           label: 'Enviar convite',
           loading: _busy,
-          onPressed: () => _send(me),
+          onPressed: _send,
         ),
       ],
     );

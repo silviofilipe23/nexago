@@ -50,6 +50,7 @@ class CenterInvite {
     required this.email,
     required this.role,
     required this.status,
+    this.invitedUid = '',
     this.displayName = '',
     this.programIds = const [],
     this.classIds = const [],
@@ -63,6 +64,7 @@ class CenterInvite {
         email: _str(m['email']),
         role: _str(m['role'], 'coach'),
         status: _str(m['status'], 'pending'),
+        invitedUid: _str(m['invitedUid']),
         displayName: _str(m['displayName']),
         programIds: _strings(m['programIds']),
         classIds: _strings(m['classIds']),
@@ -76,6 +78,9 @@ class CenterInvite {
 
   /// `pending`, `accepted`, `declined` ou `cancelled`.
   final String status;
+
+  /// Atleta NexaGO escolhido na busca (convites antigos, por e-mail, vêm vazios).
+  final String invitedUid;
   final String displayName;
   final List<String> programIds;
   final List<String> classIds;
@@ -95,19 +100,19 @@ List<String> centerInvitableRoles(CenterMembership inviter) => [
 
 final _emailRe = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
 
-/// Erro do formulário de convite (`null` = ok).
+/// Erro do convite para o atleta [uid] escolhido na busca (`null` = ok). O
+/// servidor confere de novo (cadastro de atleta, vínculo e convite pendente).
 String? centerInviteError({
-  required String email,
+  required String? uid,
   required List<CenterTeamMember> members,
   required List<CenterInvite> invites,
 }) {
-  final e = email.trim().toLowerCase();
-  if (!_emailRe.hasMatch(e)) return 'Informe um e-mail válido.';
-  if (members.any((m) => m.isActive && m.email.toLowerCase() == e)) {
+  if (uid == null || uid.isEmpty) return 'Escolha um atleta NexaGO.';
+  if (members.any((m) => m.isActive && m.uid == uid)) {
     return 'Essa pessoa já faz parte da equipe.';
   }
-  if (invites.any((i) => i.isPending && i.email.toLowerCase() == e)) {
-    return 'Já existe um convite pendente para esse e-mail.';
+  if (invites.any((i) => i.isPending && i.invitedUid == uid)) {
+    return 'Já existe um convite pendente para essa pessoa.';
   }
   return null;
 }

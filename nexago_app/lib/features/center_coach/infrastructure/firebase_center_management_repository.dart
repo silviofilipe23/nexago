@@ -81,42 +81,29 @@ class FirebaseCenterManagementRepository implements CenterManagementRepository {
   @override
   Future<void> invite({
     required String centerId,
-    required String centerName,
-    required String email,
-    required String displayName,
+    required String uid,
     required String role,
     required List<String> programIds,
     required List<String> classIds,
-    required CenterActor actor,
-  }) => _write(() {
-    final e = email.trim().toLowerCase();
-    final ref = _center(centerId).collection('centerInvites').doc();
-    final b = _db.batch();
-    b.set(ref, {
-      'centerId': centerId,
-      'centerName': centerName,
-      'email': e,
-      'displayName': displayName.trim(),
-      'role': role,
-      'programIds': programIds,
-      'classIds': classIds,
-      'status': 'pending',
-      'invitedByUid': actor.uid,
-      'invitedByName': actor.name,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    b.set(
-      _center(centerId).collection('auditLogs').doc(),
-      _audit(
-        actor,
-        action: 'member.invited',
-        entity: 'invite',
-        entityId: ref.id,
-        detail: 'Convite para $e · ${kCenterRoleLabels[role] ?? role}',
-      ),
-    );
-    return b.commit();
-  }, 'Não foi possível enviar o convite. Tente de novo.');
+  }) async {
+    try {
+      await _functions.httpsCallable('inviteTrainingCenterMember').call<Object?>({
+        'centerId': centerId,
+        'uid': uid,
+        'role': role,
+        'programIds': programIds,
+        'classIds': classIds,
+      });
+    } on FirebaseFunctionsException catch (e) {
+      throw CenterCoachException(
+        callableErrorMessage(
+          e.code,
+          e.message,
+          'Não foi possível enviar o convite. Tente de novo.',
+        ),
+      );
+    }
+  }
 
   @override
   Future<String> addStudent({

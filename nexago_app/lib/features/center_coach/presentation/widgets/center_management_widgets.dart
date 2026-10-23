@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/profiles/app_user_profile.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../arena/domain/aulas/arena_class_logic.dart';
+import '../../../arena/presentation/aulas/widgets/arena_class_atoms.dart';
 import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
 
 /// Rótulo de seção (mono, caixa alta).
@@ -270,4 +273,106 @@ void showCenterError(BuildContext context, String message) {
   ScaffoldMessenger.maybeOf(context)
     ?..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(message)));
+}
+
+/// Nome da conta NexaGO (nome completo, senão apelido).
+String centerAccountName(AppUserProfile p) {
+  final full = p.fullName?.trim() ?? '';
+  if (full.isNotEmpty) return full;
+  final nick = p.nickname?.trim() ?? '';
+  return nick.isNotEmpty ? nick : 'Atleta';
+}
+
+/// Conta NexaGO num resultado de busca (avatar, nome, cidade e etiqueta).
+/// [linked] = já está no centro: apagada e sem toque.
+class CenterAccountRow extends StatelessWidget {
+  const CenterAccountRow({
+    super.key,
+    required this.profile,
+    required this.first,
+    required this.linked,
+    required this.selected,
+    required this.onTap,
+    this.linkedLabel = 'Já é aluno',
+    this.actionLabel = 'Vincular',
+  });
+
+  final AppUserProfile profile;
+  final bool first;
+  final bool linked;
+  final bool selected;
+  final VoidCallback onTap;
+  final String linkedLabel;
+  final String actionLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final name = centerAccountName(profile);
+    final city = [
+      profile.city?.trim() ?? '',
+      profile.state?.trim() ?? '',
+    ].where((s) => s.isNotEmpty).join('/');
+    final (tag, tagColor) = linked
+        ? (linkedLabel, ProfessorLinksStyle.dim(colors))
+        : selected
+            ? ('Selecionado', AppColors.brand)
+            : (actionLabel, AppColors.win);
+    return Opacity(
+      opacity: linked ? 0.55 : 1,
+      child: InkWell(
+        onTap: linked ? null : onTap,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 11, 12, 11),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.brand.withValues(alpha: 0.07) : null,
+            border: first
+                ? null
+                : Border(
+                    top: BorderSide(color: ProfessorLinksStyle.line(colors)),
+                  ),
+          ),
+          child: Row(
+            children: [
+              ArenaClassAvatar(
+                initials: arenaClassInitials(name),
+                photoUrl: profile.profilePhotoUrl,
+                size: 36,
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: ProfessorLinksStyle.display(
+                        13.5,
+                        weight: FontWeight.w700,
+                        color: colors.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      city.isEmpty ? 'Conta NexaGO' : city,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.bodyS.copyWith(
+                        fontSize: 11.5,
+                        color: ProfessorLinksStyle.dim(colors),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              ArenaClassTag(label: tag, color: tagColor),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

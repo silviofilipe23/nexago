@@ -724,7 +724,9 @@ class _StudentStep extends StatelessWidget {
     final q = query.trim().toLowerCase();
     final shown = [
       for (final s in students)
-        if (s.status == 'active' && (q.isEmpty || s.name.toLowerCase().contains(q)))
+        // Convidado matricula já (como no portal); vira ativo ao aceitar.
+        if ((s.status == 'active' || s.status == 'invited') &&
+            (q.isEmpty || s.name.toLowerCase().contains(q)))
           s,
     ]..sort((a, b) => a.name.compareTo(b.name));
     return ListView(
@@ -809,7 +811,12 @@ class _StudentStep extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (s.isMinor)
+                          if (s.status == 'invited')
+                            const ArenaClassTag(
+                              label: 'Convidado',
+                              color: AppColors.brand,
+                            )
+                          else if (s.isMinor)
                             const ArenaClassTag(
                               label: 'Menor',
                               color: Color(0xFF5B9BFF),

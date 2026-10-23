@@ -171,9 +171,9 @@ class _CenterCoachNewStudentPageState
         ),
       );
       final params = {'centerId': widget.centerId};
-      // Do Matricular, conta vinculada segue para a matrícula; convidado só
-      // matricula depois de aceitar — cai no perfil.
-      if (widget.thenEnroll && input.linked) {
+      // Do Matricular, segue para a matrícula do aluno novo (convidado
+      // também matricula); senão, cai no perfil.
+      if (widget.thenEnroll) {
         context.pushReplacementNamed(
           AppRouteNames.centerCoachEnroll,
           pathParameters: params,

@@ -1235,12 +1235,28 @@ void main() {
               status: 'active',
             ),
           ],
-        ),
+        )..students = const [
+            ..._students,
+            CenterCoachStudent(
+              id: 's4',
+              name: 'Duda Convidada',
+              status: 'invited',
+            ),
+            CenterCoachStudent(
+              id: 's5',
+              name: 'Ivo Inativo',
+              status: 'inactive',
+            ),
+          ],
         _Mgmt(plans: plans),
         now: _tue,
       );
       expect(find.text('ESCOLHA O ALUNO'), findsOneWidget);
       expect(find.byKey(const Key('center-enroll-student-s1')), findsOneWidget);
+      // Convidado entra na lista com a etiqueta; inativo, não.
+      expect(find.byKey(const Key('center-enroll-student-s4')), findsOneWidget);
+      expect(find.text('CONVIDADO'), findsOneWidget);
+      expect(find.byKey(const Key('center-enroll-student-s5')), findsNothing);
       await _typeField(tester, const Key('center-enroll-search'), 'cai');
       expect(find.byKey(const Key('center-enroll-student-s1')), findsNothing);
       expect(find.byKey(const Key('center-enroll-student-s2')), findsOneWidget);
@@ -1305,6 +1321,19 @@ void main() {
       expect(input.guardian, isNull);
       // Cai no perfil do aluno novo.
       expect(find.text('perfil new1'), findsOneWidget);
+    });
+
+    testWidgets('convidado do Matricular segue para a matrícula', (
+      tester,
+    ) async {
+      final mgmt = _Mgmt();
+      await _pump(tester, '$_newStudentPath?matricular=1', desk(), mgmt);
+      await _tap(tester, find.byKey(const ValueKey('center-seg-invite')));
+      await _type(tester, const Key('center-new-student-name'), 'Bia Nunes');
+      await _type(tester, const Key('center-new-student-email'), 'bia@x.com');
+      await _tap(tester, find.byKey(const Key('center-new-student-save')));
+      expect(mgmt.added.single.linked, isFalse);
+      expect(find.byType(CenterCoachEnrollPage), findsOneWidget);
     });
 
     testWidgets('menor exige responsável', (tester) async {

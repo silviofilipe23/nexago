@@ -369,8 +369,10 @@ export async function sendConversationMessageCore(
     if (isCenter && !isDesk && userId === professorUid) {
       return {url: `/athlete/professor/centros/${str(conversation["centerId"])}/mensagens/${conversationId}`};
     }
-    // Gestão da arena: a conversa abre nas Aulas da arena.
-    if (isArenaStudent && userId === professorUid) return {url: `/arena/classes/messages/${conversationId}`};
+    // Gestão da arena: a conversa abre nas Aulas da arena (app e portal).
+    if (isArenaStudent && userId === professorUid) {
+      return {url: `/arena/classes/messages/${conversationId}`, webUrl: `/painel/aulas/mensagens/${conversationId}`};
+    }
     if (userId === professorUid) return {url: `/professor/mensagens/${conversationId}`};
     if (isArena) {
       const linkId = str(conversation["linkId"]);

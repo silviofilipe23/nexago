@@ -283,14 +283,21 @@ export function whatsappChargeLink(
   arenaName: string,
   invoiceUrl: string | null = null,
 ): string | null {
-  const digits = (phone ?? '').replace(/\D/g, '');
-  if (digits.length < 10) return null;
-  const number = digits.length <= 11 ? `55${digits}` : digits;
+  return whatsappLink(phone, chargeMessageText(name, charge, arenaName, invoiceUrl));
+}
+
+/** Mensagem de cobrança (a mesma no WhatsApp e no chat do app); com a fatura online, leva o link
+ *  de pagamento (PIX ou cartão). */
+export function chargeMessageText(
+  name: string,
+  charge: Pick<Charge, 'description' | 'amountReais' | 'dueDate'>,
+  arenaName: string,
+  invoiceUrl: string | null = null,
+): string {
   const [y, m, d] = charge.dueDate.split('-');
   const pay = invoiceUrl ? ` Pague por aqui, com PIX ou cartão: ${invoiceUrl}` : '';
-  const text = `Olá, ${name.split(' ')[0]}! Aqui é da ${arenaName}. Segue a cobrança "${charge.description}" ` +
+  return `Olá, ${name.split(' ')[0]}! Aqui é da ${arenaName}. Segue a cobrança "${charge.description}" ` +
     `(${brl(charge.amountReais)}), com vencimento em ${d}/${m}/${y}.${pay} Qualquer dúvida, é só chamar.`;
-  return `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
 }
 
 export function whatsappLink(phone: string | null, text: string): string | null {

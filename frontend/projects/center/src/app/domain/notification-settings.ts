@@ -8,6 +8,7 @@ export type NotificationEventKey =
   | 'session_cancelled'
   | 'session_changed'
   | 'attendance_pending'
+  | 'student_absence'
   | 'seat_offered'
   | 'enrollment_confirmed'
   | 'makeup_expiring'
@@ -43,6 +44,7 @@ export const EVENT_SPECS: Record<NotificationEventKey, EventSpec> = {
   session_cancelled: spec({ mandatory: true }),
   session_changed: spec({ mandatory: true }),
   attendance_pending: spec({}),
+  student_absence: spec({}),
   seat_offered: spec({}),
   enrollment_confirmed: spec({}),
   makeup_expiring: spec({ available: false }),
@@ -123,6 +125,7 @@ export const EVENT_LABEL: Record<NotificationEventKey, string> = {
   session_cancelled: 'Aula cancelada',
   session_changed: 'Local ou horário alterado',
   attendance_pending: 'Chamada não finalizada',
+  student_absence: 'Aluno avisou que não vai',
   seat_offered: 'Vaga liberada na lista de espera',
   enrollment_confirmed: 'Matrícula confirmada',
   makeup_expiring: 'Crédito de reposição vencendo',
@@ -156,6 +159,7 @@ export function eventGroups(ctx: { reminderLeadMin: number; waitlistAcceptHours:
         row('session_cancelled', 'Na hora · inclui motivo e reposição gerada', 'Aluno · Professor'),
         row('session_changed', 'Na hora · novo endereço ou horário', 'Aluno · Professor'),
         row('attendance_pending', '30 min após o fim da aula', 'Professor'),
+        row('student_absence', 'Na hora · o aluno avisou pelo app', 'Professor'),
       ],
     },
     {
@@ -195,6 +199,7 @@ export const SAMPLE_NOTICES: Record<NotificationEventKey, { title: string; body:
   session_cancelled: { title: 'Aula cancelada · BT Intermediário B', body: 'Qui 23 out 19:00 · chuva forte. Você ganhou 1 reposição.' },
   session_changed: { title: 'Local alterado · BT Intermediário B', body: 'Qui 23 out 19:00 · novo local: Arena Pepê.' },
   attendance_pending: { title: 'Chamada não finalizada', body: 'BT Intermediário B · Qui 23 out 19:00. Registre a presença.' },
+  student_absence: { title: 'Caio Ramos não vai à aula', body: 'BT Intermediário B · Qui 23 out 19:00 · avisou no prazo, vira reposição.' },
   seat_offered: { title: 'Abriu uma vaga para você', body: 'BT Intermediário B · você tem 24h para confirmar.' },
   enrollment_confirmed: { title: 'Matrícula confirmada', body: 'BT Intermediário B · bons treinos!' },
   makeup_expiring: { title: 'Reposição vencendo', body: 'Sua reposição vence em 3 dias.' },

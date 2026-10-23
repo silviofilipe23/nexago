@@ -16,6 +16,7 @@ export type NotificationEventKey =
   | "session_cancelled"
   | "session_changed"
   | "attendance_pending"
+  | "student_absence"
   | "seat_offered"
   | "enrollment_confirmed"
   | "makeup_expiring"
@@ -47,6 +48,8 @@ export const NOTIFICATION_EVENTS: Record<NotificationEventKey, NotificationEvent
   session_cancelled: spec({mandatory: true, quietExempt: true}),
   session_changed: spec({mandatory: true, quietExempt: true}),
   attendance_pending: spec({}),
+  // Aluno avisou pelo app que não vai: o professor sabe antes de abrir a chamada.
+  student_absence: spec({}),
   seat_offered: spec({}),
   enrollment_confirmed: spec({}),
   makeup_expiring: spec({available: false}),

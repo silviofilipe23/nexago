@@ -77,6 +77,12 @@ const centerEnrollmentNoticeNotificationType =
     'training_center_enrollment_notice';
 const centerSeatOfferNotificationType = 'training_center_seat_offer';
 
+/// Centro → PROFESSOR: chamada não finalizada e aluno que avisou que não vai
+/// abrem a chamada da aula no app do professor do centro.
+const centerAttendancePendingNotificationType =
+    'training_center_attendance_pending';
+const centerStudentAbsenceNotificationType = 'training_center_student_absence';
+
 /// Agenda do atleta — onde fica a mensalidade a pagar.
 const athleteAgendaTabLocation = '${AppRoutes.discover}?tab=agenda';
 
@@ -585,6 +591,15 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
 /// centro (O6). Sem `centerId` cai no hub de Treinos. `null` = não é do
 /// centro.
 String? _centerNotificationRoute(String type, Map<String, dynamic> data) {
+  if (type == centerAttendancePendingNotificationType ||
+      type == centerStudentAbsenceNotificationType) {
+    final c = (data['centerId'] as String?)?.trim() ?? '';
+    final s = (data['sessionId'] as String?)?.trim() ?? '';
+    if (c.isEmpty || s.isEmpty) return AppRoutes.centerCoachAgenda;
+    return AppRoutes.centerCoachSession
+        .replaceFirst(':centerId', Uri.encodeComponent(c))
+        .replaceFirst(':sessionId', Uri.encodeComponent(s));
+  }
   final isSession = type == centerClassReminderNotificationType ||
       type == centerSessionNoticeNotificationType;
   final isBilling = type == centerInvoiceLinkNotificationType ||

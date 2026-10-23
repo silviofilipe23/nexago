@@ -20,6 +20,7 @@ import {asaasArenaSecrets} from "./asaas-client";
 import {WEB_PUSH_PRIVATE_KEY, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
 import {eventDateFromDayKeyAndTime} from "./event-timezone";
 import {str} from "./arena-class";
+import {CENTER_STUDENT_ABSENCE_TYPE, defaultNotifyDeps, deliverCenterNotice, type NotifyDeps} from "./training-center-notify";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 type Data = Record<string, unknown>;
@@ -107,15 +108,16 @@ export function planSessionResponse(input: {
 }
 
 export async function respondCenterSessionCore(
-  db: Firestore, uid: string, raw: unknown, now: Date,
+  db: Firestore, uid: string, raw: unknown, now: Date, deps: NotifyDeps = defaultNotifyDeps,
 ): Promise<RespondResult> {
   const d = (raw && typeof raw === "object" ? raw : {}) as Data;
   const centerId = safeId(d["centerId"], "Centro");
   const sessionId = safeId(d["sessionId"], "Aula");
-  const response = d["response"];
-  if (response !== "going" && response !== "not_going") {
+  const raw0 = d["response"];
+  if (raw0 !== "going" && raw0 !== "not_going") {
     throw new HttpsError("invalid-argument", "Resposta inválida.");
   }
+  const response: SessionResponse = raw0;
   const student = await findMyStudent(db, centerId, uid);
   const ref = centerRef(db, centerId).collection("sessions").doc(sessionId);
   const center = (await centerRef(db, centerId).get()).data() ?? {};
@@ -123,7 +125,7 @@ export async function respondCenterSessionCore(
   const noticeHours = typeof policies["excusedNoticeHours"] === "number" ? policies["excusedNoticeHours"] as number : 4;
   const makeupOnNotice = policies["excusedAbsenceMakeup"] !== false;
 
-  return db.runTransaction(async (tx) => {
+  const result = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const s = snap.data();
     if (!s) throw new HttpsError("not-found", "Aula não encontrada.");
@@ -146,8 +148,24 @@ export async function respondCenterSessionCore(
     // Transação: relê e regrava os mapas inteiros (sem pisar em outro aluno).
     tx.update(ref, plan.update);
     const excused = plan.excused;
-    return {response, excused};
+    const before = ((s["rsvps"] ?? {}) as Data)[student.id] as Data | undefined;
+    return {excused, session: s, alreadyNotGoing: str(before?.["response"]) === "not_going"};
   });
+  // Avisa o professor da aula (uma vez: trocar de "não vou" para "não vou" não repete).
+  const coachUid = str(result.session["coachUid"]);
+  if (response === "not_going" && !result.alreadyNotGoing && coachUid && coachUid !== uid) {
+    const s = result.session;
+    const d = str(s["date"]).split("-");
+    const when = d.length === 3 ? `${d[2]}/${d[1]} ${str(s["startTime"])}` : str(s["startTime"]);
+    await deliverCenterNotice(db, deps, {
+      centerId, center, event: "student_absence", uids: [coachUid],
+      title: `${str(student.data["name"]) || "Um aluno"} não vai à aula`,
+      body: `${str(s["className"]) || "Aula"} · ${when} · ${result.excused ? "avisou no prazo, vira reposição" : "avisou em cima da hora"}.`,
+      type: CENTER_STUDENT_ABSENCE_TYPE,
+      data: {centerId, sessionId},
+    }).catch((e) => logger.warn(`respondTrainingCenterSession ${centerId}/${sessionId}: aviso ao professor falhou`, e));
+  }
+  return {response, excused: result.excused};
 }
 
 // ---------------------------------------------------------------------------
@@ -268,7 +286,9 @@ const BILLING_OPTS = {
   secrets: [...asaasArenaSecrets, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 };
 
-export const respondTrainingCenterSession = onCall({region: CLIENT_FACING_REGIONS}, async (request) =>
+export const respondTrainingCenterSession = onCall({
+  region: CLIENT_FACING_REGIONS, secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
+}, async (request) =>
   respondCenterSessionCore(getFirestore(), requireAuth(request.auth).uid, request.data, new Date()));
 
 export const answerTrainingCenterInvite = onCall({region: CLIENT_FACING_REGIONS}, async (request) =>

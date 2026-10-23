@@ -371,6 +371,27 @@ void main() {
       );
     });
 
+    test('chamada pendente e aluno que não vai abrem a chamada do professor',
+        () {
+      for (final type in [
+        'training_center_attendance_pending',
+        'training_center_student_absence',
+      ]) {
+        expect(
+          resolveNotificationRoute({
+            'type': type,
+            'centerId': 'ct1',
+            'sessionId': 'k1_2026-10-26',
+          }),
+          '/athlete/professor/centros/ct1/aula/k1_2026-10-26',
+        );
+      }
+      expect(
+        resolveNotificationRoute({'type': 'training_center_student_absence'}),
+        '/athlete/professor/centros',
+      );
+    });
+
     test('matrícula e vaga abrem o centro; sem centro, o hub', () {
       expect(
         resolveNotificationRoute({

@@ -11,6 +11,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../professor_links/application/professor_links_providers.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../professor_mode/presentation/widgets/professor_students_widgets.dart';
+import '../../center_coach/application/center_coach_providers.dart';
 import '../application/athlete_training_providers.dart';
 import '../domain/athlete_training.dart';
 import 'widgets/center_presence_widgets.dart';
@@ -68,12 +69,31 @@ class AthleteTrainingCenterSessionPage extends ConsumerWidget {
                 ),
               )
             else if (center == null || session == null || training == null)
-              const ProfessorLinksCard(
-                key: Key('training-center-session-missing'),
-                child: ProfessorMutedText(
-                  'Esta aula não está mais na sua agenda do centro.',
+              ...[
+                const ProfessorLinksCard(
+                  key: Key('training-center-session-missing'),
+                  child: ProfessorMutedText(
+                    'Esta aula não está mais na sua agenda do centro.',
+                  ),
                 ),
-              )
+                // O aviso da aula também vai ao professor dela: quem é da
+                // equipe do centro abre a chamada.
+                if (ref.watch(centerMembershipProvider(centerId))?.isActive ??
+                    false) ...[
+                  const SizedBox(height: 12),
+                  ProfessorLinksPrimaryButton(
+                    key: const Key('training-center-session-as-coach'),
+                    label: 'Abrir na sua agenda de professor',
+                    onPressed: () => context.pushReplacementNamed(
+                      AppRouteNames.centerCoachSession,
+                      pathParameters: {
+                        'centerId': centerId,
+                        'sessionId': sessionId,
+                      },
+                    ),
+                  ),
+                ],
+              ]
             else ...[
               if (session.isCancelled)
                 const TrainingOriginNote(

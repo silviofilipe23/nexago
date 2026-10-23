@@ -28,10 +28,13 @@ const {rolesFromClaims} = require("../lib/auth-roles");
 
 async function main() {
   const db = admin.firestore();
-  const snap = await db.collectionGroup("centerMembers").where("status", "==", "active").get();
+  // Sem `where("status")`: filtrar uma collection group por campo exige um índice que o app não
+  // usa; os vínculos são poucos, então lê todos e filtra aqui.
+  const snap = await db.collectionGroup("centerMembers").get();
   const uids = new Set();
   for (const d of snap.docs) {
     if (d.ref.parent.parent?.parent.id !== "trainingCenters") continue;
+    if (d.get("status") !== "active") continue;
     const uid = d.get("uid") || d.id;
     if (typeof uid === "string" && uid) uids.add(uid);
   }

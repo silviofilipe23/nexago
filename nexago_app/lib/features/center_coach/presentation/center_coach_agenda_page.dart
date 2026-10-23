@@ -12,6 +12,7 @@ import '../../athlete_training/domain/athlete_training.dart'
     show trainingWeekdayDay;
 import '../../professor_links/application/professor_links_providers.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
+import '../../professor_mode/presentation/availability/availability_widgets.dart';
 import '../../professor_mode/presentation/widgets/professor_students_widgets.dart';
 import '../application/center_coach_providers.dart';
 import '../domain/center_coach.dart';
@@ -34,6 +35,9 @@ class CenterCoachAgendaPage extends ConsumerStatefulWidget {
 
 class _CenterCoachAgendaPageState extends ConsumerState<CenterCoachAgendaPage> {
   String? _day;
+
+  /// `all`, `mine` ou o uid de um professor; `null` = padrão do papel.
+  String? _coach;
 
   @override
   Widget build(BuildContext context) {
@@ -108,9 +112,14 @@ class _CenterCoachAgendaPageState extends ConsumerState<CenterCoachAgendaPage> {
             day: day,
             now: now,
             onDay: (d) => setState(() => _day = d),
+            coachFilter: _coach,
+            onCoach: (c) => setState(() => _coach = c),
             onSwitch: (id) {
               ref.read(selectedCoachCenterIdProvider.notifier).state = id;
-              setState(() => _day = null);
+              setState(() {
+                _day = null;
+                _coach = null;
+              });
             },
             colors: colors,
           );
@@ -130,8 +139,12 @@ class _AgendaBody extends ConsumerWidget {
     required this.onDay,
     required this.onSwitch,
     required this.colors,
+    required this.coachFilter,
+    required this.onCoach,
   });
 
+  final String? coachFilter;
+  final ValueChanged<String?> onCoach;
   final CenterMembership member;
   final List<CenterMembership> others;
   final String today;
@@ -153,11 +166,22 @@ class _AgendaBody extends ConsumerWidget {
       toKey: coachShiftDay(today, 14),
     );
     final sessionsAsync = ref.watch(coachSessionsProvider(range));
+    // Gestão e recepção veem o centro inteiro (com filtro por professor); o
+    // professor, as aulas dele.
+    final staff = member.isManager || member.role == 'receptionist';
+    final filter = coachFilter ?? (staff ? 'all' : 'mine');
+    final all = sessionsAsync.valueOrNull ?? const <CenterCoachSession>[];
+    final coaches = <String, String>{
+      for (final s in all)
+        if (s.coachUid.isNotEmpty && s.coachUid != uid)
+          s.coachUid: s.coachName.isEmpty ? 'Professor' : s.coachName,
+    };
     final mine =
         [
-          for (final s
-              in sessionsAsync.valueOrNull ?? const <CenterCoachSession>[])
-            if (s.coachUid == uid) s,
+          for (final s in all)
+            if (filter == 'all' ||
+                (filter == 'mine' ? s.coachUid == uid : s.coachUid == filter))
+              s,
         ]..sort(
           (a, b) =>
               '${a.date} ${a.startTime}'.compareTo('${b.date} ${b.startTime}'),
@@ -205,6 +229,66 @@ class _AgendaBody extends ConsumerWidget {
                 ? null
                 : () => _showSwitch(context, ref, member, others, onSwitch),
           ),
+          if (staff) ...[
+            const SizedBox(height: 12),
+            ProfessorLinksCard(
+              key: const Key('center-coach-today-entry'),
+              onTap: () => context.pushNamed(
+                AppRouteNames.centerCoachToday,
+                pathParameters: {'centerId': centerId},
+              ),
+              padding: const EdgeInsets.all(13),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.space_dashboard_outlined,
+                    size: 20,
+                    color: colors.brandText,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Hoje no centro · números e pendências',
+                      style: ProfessorLinksStyle.display(
+                        13.5,
+                        weight: FontWeight.w600,
+                        color: colors.onSurface,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: ProfessorLinksStyle.dim(colors),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (staff || coaches.isNotEmpty && member.isManager) ...[
+            const SizedBox(height: 10),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final (k, l) in [
+                    ('all', 'Todos'),
+                    ('mine', 'Minhas'),
+                    for (final e in coaches.entries)
+                      (e.key, e.value.split(' ').first),
+                  ]) ...[
+                    AvailabilityChoiceChip(
+                      key: Key('center-coach-filter-$k'),
+                      label: l,
+                      selected: filter == k,
+                      onTap: () => onCoach(k),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                ],
+              ),
+            ),
+          ],
           if (center?.isSuspended ?? false) ...[
             const SizedBox(height: 10),
             const ProfessorLinksNote(
@@ -286,6 +370,7 @@ class _AgendaBody extends ConsumerWidget {
                 key: Key('center-coach-row-${s.id}'),
                 session: s,
                 showPlace: places.length > 1,
+                showCoach: filter != 'mine',
                 isPast:
                     s.date.compareTo(today) < 0 ||
                     (s.date == today &&

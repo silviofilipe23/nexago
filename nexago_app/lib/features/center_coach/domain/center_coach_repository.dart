@@ -58,6 +58,23 @@ abstract class CenterCoachRepository {
     required String actorName,
   });
 
+  /// Matrículas do centro (gestão / recepção).
+  Stream<List<CenterCoachEnrollment>> watchEnrollments(String centerId);
+
+  /// Cobranças do centro (só com financeiro).
+  Stream<List<CenterCoachInvoice>> watchInvoices(String centerId);
+
+  /// Cancela só esta aula (gestão): motivo para os alunos, auditoria e, com
+  /// reposição automática, +1 crédito para cada aluno em [creditStudentIds].
+  Future<void> cancelSession({
+    required String centerId,
+    required CenterCoachSession session,
+    required String reason,
+    required List<String> creditStudentIds,
+    required String actorUid,
+    required String actorName,
+  });
+
   Future<List<MakeupCandidate>> makeupCandidates(
     String centerId,
     String sessionId,

@@ -201,6 +201,75 @@ class FirebaseCenterCoachRepository implements CenterCoachRepository {
   }
 
   @override
+  Stream<List<CenterCoachEnrollment>> watchEnrollments(String centerId) =>
+      _center(centerId)
+          .collection('enrollments')
+          .snapshots()
+          .map(
+            (snap) => [
+              for (final d in snap.docs)
+                CenterCoachEnrollment.fromMap(d.id, _plain(d.data())),
+            ],
+          );
+
+  @override
+  Stream<List<CenterCoachInvoice>> watchInvoices(String centerId) =>
+      _center(centerId)
+          .collection('invoices')
+          .snapshots()
+          .map(
+            (snap) => [
+              for (final d in snap.docs)
+                CenterCoachInvoice.fromMap(d.id, _plain(d.data())),
+            ],
+          );
+
+  @override
+  Future<void> cancelSession({
+    required String centerId,
+    required CenterCoachSession session,
+    required String reason,
+    required List<String> creditStudentIds,
+    required String actorUid,
+    required String actorName,
+  }) async {
+    final d = session.date.split('-');
+    final day = d.length == 3 ? '${d[2]}/${d[1]}' : session.date;
+    // Lotes de até 450 escritas (o Firestore aceita 500 por lote).
+    final ops = <void Function(WriteBatch)>[
+      (b) {
+        b.update(_center(centerId).collection('sessions').doc(session.id), {
+          'status': 'cancelled',
+          'changeReason': reason.trim(),
+        });
+        b.set(_center(centerId).collection('auditLogs').doc(), {
+          'at': FieldValue.serverTimestamp(),
+          'actorUid': actorUid,
+          'actorName': actorName,
+          'action': 'session.cancelled',
+          'entity': 'session',
+          'entityId': session.id,
+          'detail':
+              '${session.className} · $day ${session.startTime} cancelada'
+              '${creditStudentIds.isEmpty ? '' : ' · +${creditStudentIds.length} reposições'}',
+          'reason': reason.trim(),
+        });
+      },
+      for (final id in creditStudentIds)
+        (b) => b.update(_center(centerId).collection('students').doc(id), {
+          'makeupCredits': FieldValue.increment(1),
+        }),
+    ];
+    for (var i = 0; i < ops.length; i += 450) {
+      final b = _db.batch();
+      for (final op in ops.skip(i).take(450)) {
+        op(b);
+      }
+      await _commit(b);
+    }
+  }
+
+  @override
   Future<List<MakeupCandidate>> makeupCandidates(
     String centerId,
     String sessionId,

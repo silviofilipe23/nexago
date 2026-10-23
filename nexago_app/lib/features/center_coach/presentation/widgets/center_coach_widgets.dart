@@ -279,10 +279,13 @@ class CenterCoachNextCard extends StatelessWidget {
     final local = toNexagoEventLocal(now);
     final start = _minutes(s.startTime);
     final nowMin = local.hour * 60 + local.minute;
+    final end = _minutes(s.endTime);
     final kicker = start == null
         ? 'Próxima aula'
         : start > nowMin
         ? 'Próxima aula · em ${_duration(start - nowMin)}'
+        : end != null && end <= nowMin
+        ? 'Chamada pendente · terminou às ${s.endTime}'
         : 'Aula em andamento · chamada aberta';
     final notGoing = s.rsvps.values.where((r) => r == 'not_going').length;
     final makeups = s.makeupStudentIds.length;
@@ -374,11 +377,15 @@ class CenterCoachSessionRow extends StatelessWidget {
     required this.isPast,
     required this.onTap,
     this.showPlace = false,
+    this.showCoach = false,
   });
 
   final CenterCoachSession session;
   final bool isPast;
   final bool showPlace;
+
+  /// Agenda do centro inteiro (gestão): mostra quem dá a aula.
+  final bool showCoach;
   final VoidCallback onTap;
 
   @override
@@ -465,7 +472,7 @@ class CenterCoachSessionRow extends StatelessWidget {
                               : null,
                         ),
                   ),
-                  if (s.placeLabel.isNotEmpty) ...[
+                  if (s.placeLabel.isNotEmpty || showCoach) ...[
                     const SizedBox(height: 3),
                     Row(
                       children: [
@@ -481,7 +488,11 @@ class CenterCoachSessionRow extends StatelessWidget {
                         ],
                         Expanded(
                           child: Text(
-                            s.placeLabel,
+                            [
+                              if (showCoach && s.coachName.isNotEmpty)
+                                s.coachName.split(' ').first,
+                              s.placeLabel,
+                            ].where((x) => x.isNotEmpty).join(' · '),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppTypography.bodyS.copyWith(

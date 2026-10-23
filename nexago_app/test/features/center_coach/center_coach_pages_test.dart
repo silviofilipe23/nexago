@@ -13,6 +13,7 @@ import 'package:nexago_app/features/center_coach/infrastructure/firebase_center_
 import 'package:nexago_app/features/center_coach/presentation/center_coach_agenda_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_call_page.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_class_page.dart';
+import 'package:nexago_app/features/center_coach/presentation/center_coach_today_page.dart';
 import 'package:nexago_app/features/professor_links/application/professor_links_providers.dart';
 
 // Sex 23/10/2026 12:00 em São Paulo.
@@ -51,6 +52,9 @@ class _Fake implements CenterCoachRepository {
   final List<CenterCoachStudent> students;
   CenterCoachException? failWith;
   final saves = <Map<String, Object?>>[];
+  final cancels = <Map<String, Object?>>[];
+  List<CenterCoachEnrollment> enrollments = const [];
+  List<CenterCoachInvoice>? invoices;
   final corrections = <Map<String, Object?>>[];
 
   @override
@@ -149,6 +153,30 @@ class _Fake implements CenterCoachRepository {
   }
 
   @override
+  Stream<List<CenterCoachEnrollment>> watchEnrollments(String centerId) =>
+      Stream.value(enrollments);
+
+  @override
+  Stream<List<CenterCoachInvoice>> watchInvoices(String centerId) =>
+      Stream.value(invoices ?? const []);
+
+  @override
+  Future<void> cancelSession({
+    required String centerId,
+    required CenterCoachSession session,
+    required String reason,
+    required List<String> creditStudentIds,
+    required String actorUid,
+    required String actorName,
+  }) async {
+    cancels.add({
+      'session': session.id,
+      'reason': reason,
+      'credits': creditStudentIds,
+    });
+  }
+
+  @override
   Future<List<MakeupCandidate>> makeupCandidates(
     String centerId,
     String sessionId,
@@ -168,9 +196,10 @@ CenterMembership _member(
   String centerId,
   String name, {
   String status = 'active',
+  String role = 'coach',
 }) => CenterMembership.fromMap(centerId, {
   'centerName': name,
-  'role': 'coach',
+  'role': role,
   'status': status,
   'displayName': 'Thiago Mendes',
 });
@@ -196,6 +225,12 @@ Future<GoRouter> _pump(WidgetTester tester, String location, _Fake fake) async {
           centerId: s.pathParameters['centerId']!,
           sessionId: s.pathParameters['sessionId']!,
         ),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachToday,
+        name: AppRouteNames.centerCoachToday,
+        builder: (_, s) =>
+            CenterCoachTodayPage(centerId: s.pathParameters['centerId']!),
       ),
       GoRoute(
         path: AppRoutes.centerCoachClass,
@@ -516,6 +551,126 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('0 de 1 aulas'), findsOneWidget);
+    });
+  });
+
+  group('G1/G4/G6 · gestão', () {
+    _Fake staffFake() =>
+        _Fake(
+            memberships: [_member('c1', 'CT Maré Alta', role: 'center_owner')],
+            students: _students,
+            sessions: [
+              _session(
+                'k1_a',
+                start: '07:00',
+                extra: {
+                  'attendance': {'s1': 'present'},
+                },
+              ),
+              _session('k1_b'),
+              _session('k2_b', start: '20:00', coachUid: 'paula'),
+            ],
+          )
+          ..enrollments = const [
+            CenterCoachEnrollment(
+              id: 'e1',
+              studentId: 's1',
+              classId: 'k1',
+              status: 'active',
+            ),
+            CenterCoachEnrollment(
+              id: 'e2',
+              studentId: 's2',
+              classId: 'k1',
+              status: 'paused',
+            ),
+            CenterCoachEnrollment(
+              id: 'e3',
+              studentId: 's9',
+              classId: 'k1',
+              status: 'waitlisted',
+            ),
+          ]
+          ..invoices = [
+            const CenterCoachInvoice(
+              id: 'i1',
+              status: 'pending',
+              amountCents: 32000,
+              dueDate: '2026-10-05',
+            ),
+            CenterCoachInvoice(
+              id: 'i2',
+              status: 'approved',
+              amountCents: 48000,
+              dueDate: '2026-10-05',
+              approvedAt: DateTime.utc(2026, 10, 4, 15),
+            ),
+          ];
+
+    testWidgets('agenda do centro inteiro com filtro por professor', (
+      tester,
+    ) async {
+      await _pump(tester, AppRoutes.centerCoachAgenda, staffFake());
+      expect(find.byKey(const Key('center-coach-today-entry')), findsOneWidget);
+      expect(
+        find.byKey(const Key('center-coach-row-k2_b')),
+        findsOneWidget,
+        reason: 'owner vê a aula da Paula',
+      );
+      await _tap(tester, find.byKey(const Key('center-coach-filter-mine')));
+      expect(find.byKey(const Key('center-coach-row-k2_b')), findsNothing);
+      await _tap(tester, find.byKey(const Key('center-coach-filter-paula')));
+      expect(find.byKey(const Key('center-coach-row-k2_b')), findsOneWidget);
+      expect(find.byKey(const Key('center-coach-row-k1_b')), findsNothing);
+    });
+
+    testWidgets(
+      'hoje no centro: chamada pendente, fila, cobrança vencida e recebido',
+      (tester) async {
+        await _pump(tester, '/athlete/professor/centros/c1/hoje', staffFake());
+        expect(find.text('Chamada não finalizada'), findsOneWidget);
+        expect(find.text('1 na lista de espera'), findsOneWidget);
+        expect(find.text('1 cobrança vencida'), findsOneWidget);
+        expect(find.byKey(const Key('center-today-money')), findsOneWidget);
+        expect(find.byKey(const Key('center-today-row-k1_b')), findsOneWidget);
+      },
+    );
+
+    testWidgets('recepção não vê valores', (tester) async {
+      final fake = staffFake()
+        ..memberships = [_member('c1', 'CT Maré Alta', role: 'receptionist')];
+      await _pump(tester, '/athlete/professor/centros/c1/hoje', fake);
+      expect(find.byKey(const Key('center-today-money')), findsNothing);
+      expect(find.text('1 cobrança vencida'), findsNothing);
+    });
+
+    testWidgets(
+      'cancelar aula: motivo e reposição para quem estava treinando',
+      (tester) async {
+        final fake = staffFake();
+        await _pump(tester, '/athlete/professor/centros/c1/aula/k1_b', fake);
+        await _tap(tester, find.byKey(const Key('center-coach-cancel')));
+        expect(
+          find.byKey(const Key('center-coach-cancel-sheet')),
+          findsOneWidget,
+        );
+        expect(find.text('+1 · validade 30 dias'), findsOneWidget);
+        await _tap(
+          tester,
+          find.byKey(const Key('center-coach-cancel-confirm')),
+        );
+        expect(fake.cancels.single, {
+          'session': 'k1_b',
+          'reason': 'Chuva',
+          'credits': ['s1'],
+        });
+      },
+    );
+
+    testWidgets('professor não vê o cancelar', (tester) async {
+      final fake = staffFake()..memberships = [_member('c1', 'CT Maré Alta')];
+      await _pump(tester, '/athlete/professor/centros/c1/aula/k1_b', fake);
+      expect(find.byKey(const Key('center-coach-cancel')), findsNothing);
     });
   });
 }

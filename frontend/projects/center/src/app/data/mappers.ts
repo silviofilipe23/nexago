@@ -17,6 +17,7 @@ import {
   type CenterPolicies,
   type ClassSession,
   type SessionRsvp,
+  type SessionTrial,
   type ContractSnapshot,
   type Court,
   type Enrollment,
@@ -327,7 +328,25 @@ export function readSession(id: string, d: Data): ClassSession {
     attendanceByStudent: Object.fromEntries(
       Object.entries(obj(d, 'attendanceByStudent') ?? {}).filter(([, v]) => v === true).map(([k]) => [k, true]),
     ),
+    trials: readTrials(obj(d, 'trials')),
   };
+}
+
+/** Espelho das experimentais na aula (`trials.{athleteId}`), por nome. */
+export function readTrials(raw: Data | null): SessionTrial[] {
+  const out: SessionTrial[] = [];
+  for (const [athleteId, v] of Object.entries(raw ?? {})) {
+    if (!v || typeof v !== 'object') continue;
+    const t = v as Data;
+    out.push({
+      athleteId,
+      bookingId: str(t, 'bookingId'),
+      name: str(t, 'name') || 'Atleta',
+      photoUrl: str(t, 'photoUrl') || null,
+      status: str(t, 'status') === 'confirmed' ? 'confirmed' : 'pending',
+    });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 }
 
 function isMark(v: unknown): v is AttendanceMark {

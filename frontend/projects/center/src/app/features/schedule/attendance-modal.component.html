@@ -68,6 +68,21 @@
         }
       </div>
 
+      @if (session()!.trials.length) {
+        <div>
+          <div class="ct-kick" style="margin-bottom: 4px">Aula experimental</div>
+          @for (t of session()!.trials; track t.athleteId) {
+            <div class="row trial">
+              <ct-person class="ct-grow" [name]="t.name" [photoUrl]="t.photoUrl" [zoomable]="true" zoomRole="Aula experimental"
+                [sub]="t.status === 'pending' ? 'Ainda não é aluno · confirme em Experimentais' : 'Ainda não é aluno · fora da chamada'" [colorKey]="t.athleteId" />
+              <span class="ct-pill" [class.yellow]="t.status === 'pending'" [class.green]="t.status === 'confirmed'">
+                {{ t.status === 'pending' ? 'Aguardando' : 'Confirmada' }}
+              </span>
+            </div>
+          }
+        </div>
+      }
+
       @if (!done()) {
         @if (makeupCandidates().length) {
           <div class="ct-row ct-wrap">

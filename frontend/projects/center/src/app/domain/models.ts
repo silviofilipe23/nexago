@@ -254,9 +254,23 @@ export interface ClassSession {
   rsvps: Record<string, SessionRsvp>;
   /** Falta justificada lançada pelo próprio aluno no app (avisou dentro do prazo do centro). */
   attendanceByStudent: Record<string, boolean>;
+  /**
+   * Experimentais pedidas pelo app (`class-trial-booking.ts`; só o servidor grava): o atleta ainda
+   * não é aluno, então não entra na chamada. Pendente e confirmada seguram a vaga.
+   */
+  trials: SessionTrial[];
 }
 
 export type SessionRsvp = 'going' | 'not_going';
+
+export interface SessionTrial {
+  athleteId: string;
+  bookingId: string;
+  name: string;
+  photoUrl: string | null;
+  /** `pending` (falta o centro confirmar em Experimentais) ou `confirmed`. */
+  status: 'pending' | 'confirmed';
+}
 
 export interface AttendanceCorrection {
   at: Date | null;

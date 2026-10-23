@@ -250,3 +250,40 @@ describe("experimental · agenda do atleta (getMyTrainingCenters.trials)", () =>
     assert.equal(mine[0]?.centerName, "CT Elevate");
   });
 });
+
+describe("experimental · espelho na aula do CT (professor e chamada)", () => {
+  function trials(fake: FakeFirestore, sessionId: string): Record<string, unknown> {
+    const raw = (fake.store.get(`trainingCenters/ct1/sessions/${sessionId}`)?.["trials"] ?? {}) as Record<string, unknown>;
+    // `FieldValue.delete()` ainda não aplicado pelo fake conta como ausente.
+    return Object.fromEntries(Object.entries(raw).filter(([, v]) => v != null && typeof v === "object" && "status" in (v as object)));
+  }
+
+  it("pendente entra, confirmada fica, recusada e desmarcada saem", async () => {
+    const fake = new FakeFirestore();
+    const db = seedCenter(fake);
+    fake.seedDoc(`users/${ME}`, {fullName: "Novo Atleta", profilePhotoUrl: "https://x/me.jpg"});
+    const {deps} = pushes();
+    const a = await bookCenterTrialCore(db, deps, ME, "ct1", "k1_2026-10-22", TODAY);
+    assert.deepEqual(trials(fake, "k1_2026-10-22")[ME], {bookingId: a.bookingId, name: "Novo Atleta", photoUrl: "https://x/me.jpg", status: "pending"});
+
+    await decideCenterTrialCore(db, deps, "uDono", {centerId: "ct1", bookingId: a.bookingId, decision: "confirm"});
+    assert.equal((trials(fake, "k1_2026-10-22")[ME] as {status: string}).status, "confirmed");
+    await cancelCenterTrialCore(db, ME, "ct1", a.bookingId, NOW);
+    assert.equal(trials(fake, "k1_2026-10-22")[ME], undefined);
+
+    const b = await bookCenterTrialCore(db, deps, "uOutro", "ct1", "k1_2026-11-05", TODAY);
+    assert.ok(trials(fake, "k1_2026-11-05")["uOutro"]);
+    await decideCenterTrialCore(db, deps, "uDono", {centerId: "ct1", bookingId: b.bookingId, decision: "decline"});
+    assert.equal(trials(fake, "k1_2026-11-05")["uOutro"], undefined);
+  });
+
+  it("aula apagada: recusar não recria o documento", async () => {
+    const fake = new FakeFirestore();
+    const db = seedCenter(fake);
+    const {deps} = pushes();
+    const a = await bookCenterTrialCore(db, deps, ME, "ct1", "k1_2026-10-22", TODAY);
+    fake.store.delete("trainingCenters/ct1/sessions/k1_2026-10-22");
+    await decideCenterTrialCore(db, deps, "uDono", {centerId: "ct1", bookingId: a.bookingId, decision: "decline"});
+    assert.equal(fake.store.has("trainingCenters/ct1/sessions/k1_2026-10-22"), false);
+  });
+});

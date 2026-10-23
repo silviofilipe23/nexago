@@ -1622,6 +1622,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.professorArenas,
         builder: (context, state) => const ProfessorMyArenasPage(),
       ),
+      // Home do modo Centro de treinamento: a mesma Agenda, sem o voltar.
+      GoRoute(
+        path: AppRoutes.centerHome,
+        name: AppRouteNames.centerHome,
+        builder: (context, state) =>
+            const CenterCoachAgendaPage(modeHome: true),
+      ),
       GoRoute(
         path: AppRoutes.centerCoachAgenda,
         name: AppRouteNames.centerCoachAgenda,

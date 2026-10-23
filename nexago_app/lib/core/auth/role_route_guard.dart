@@ -24,6 +24,12 @@ bool isProfessorAllowedArenaPath(String path) {
   return path.startsWith('/arena/') && !isArenaManagerPanelPath(path);
 }
 
+/// Home do modo Centro de treinamento.
+bool isCenterExperiencePath(String path) {
+  return path == AppRoutes.centerHome ||
+      path.startsWith('${AppRoutes.centerHome}/');
+}
+
 bool isOrganizerExperiencePath(String path) {
   return path == AppRoutes.organizerHome || path.startsWith('/organizer/');
 }
@@ -103,7 +109,18 @@ String? redirectForActiveRole({
     return activeRole.homeRoute;
   }
 
+  // No modo Centro a Agenda é a home (`/centro`): a entrada compartilhada, que
+  // as telas de aula/turma usam para voltar, cai nela.
+  if (activeRole == AppMobileRole.center &&
+      path == AppRoutes.centerCoachAgenda) {
+    return AppRoutes.centerHome;
+  }
+
   if (isProfessorSharedPath(path)) return null;
+
+  if (isCenterExperiencePath(path) && activeRole != AppMobileRole.center) {
+    return activeRole.homeRoute;
+  }
 
   if (isProfessorExperiencePath(path) &&
       activeRole != AppMobileRole.professor) {

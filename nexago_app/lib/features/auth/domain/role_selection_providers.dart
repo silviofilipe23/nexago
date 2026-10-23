@@ -7,6 +7,8 @@ import '../../arena/domain/arena_access_providers.dart';
 import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../athlete/domain/athlete_public_profile_providers.dart';
+import '../../center_coach/application/center_coach_providers.dart';
+import '../../center_coach/domain/center_coach.dart';
 import '../../professor_links/application/professor_links_providers.dart';
 import '../../professor_mode/domain/professor_mode_logic.dart';
 
@@ -37,6 +39,9 @@ final roleSelectionFooterProvider =
     case AppMobileRole.professor:
       final links = await ref.watch(myProfessorLinksProvider.future);
       return professorRoleFooter(links, ref.read(professorLinksClockProvider)());
+    case AppMobileRole.center:
+      final memberships = await ref.watch(myCenterMembershipsProvider.future);
+      return centerRoleFooter(memberships);
   }
 });
 

@@ -304,4 +304,54 @@ void main() {
       }
     });
   });
+
+  group('modo Centro de treinamento', () {
+    const roles = [AppMobileRole.athlete, AppMobileRole.center];
+
+    String? go(String path, AppMobileRole active) => redirectForActiveRole(
+          path: path,
+          activeRole: active,
+          availableRoles: roles,
+          needsRoleSelection: false,
+        );
+
+    test('home do Centro só no papel Centro', () {
+      expect(go(AppRoutes.centerHome, AppMobileRole.center), isNull);
+      expect(
+          go(AppRoutes.centerHome, AppMobileRole.athlete), AppRoutes.discover);
+    });
+
+    test('Centro não abre o fluxo do atleta nem o painel da arena', () {
+      for (final path in [
+        AppRoutes.discover,
+        AppRoutes.home,
+        AppRoutes.myBookings,
+        AppRoutes.arenaDashboard,
+        AppRoutes.professorHome,
+      ]) {
+        expect(go(path, AppMobileRole.center), AppRoutes.centerHome,
+            reason: path);
+      }
+    });
+
+    test('a Agenda compartilhada vira a home no modo Centro', () {
+      expect(
+        go(AppRoutes.centerCoachAgenda, AppMobileRole.center),
+        AppRoutes.centerHome,
+      );
+      // Nos outros papéis segue aberta (ajustes do atleta, Mais do Professor).
+      expect(go(AppRoutes.centerCoachAgenda, AppMobileRole.athlete), isNull);
+    });
+
+    test('aula, turma, hoje e check-in abrem no modo Centro (pushes)', () {
+      for (final path in [
+        '/athlete/professor/centros/c1/aula/k1',
+        '/athlete/professor/centros/c1/turma/t1',
+        '/athlete/professor/centros/c1/hoje',
+        '/athlete/professor/centros/c1/checkin',
+      ]) {
+        expect(go(path, AppMobileRole.center), isNull, reason: path);
+      }
+    });
+  });
 }

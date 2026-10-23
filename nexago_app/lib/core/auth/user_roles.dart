@@ -7,6 +7,7 @@ const String kArenaAppRole = 'arena';
 const String kAthleteAppRole = 'athlete';
 const String kOrganizerAppRole = 'organizer';
 const String kProfessorAppRole = 'professor';
+const String kCenterAppRole = 'center';
 
 /// Extrai papéis do token (claim `roles`).
 List<String> appRolesFromIdToken(IdTokenResult result) {

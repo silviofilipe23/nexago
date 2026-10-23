@@ -1,8 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/active_role_providers.dart';
+import '../../../core/auth/user_roles.dart';
 import '../../professor_links/application/professor_links_providers.dart';
+import '../../professor_mode/application/professor_mode_providers.dart'
+    show professorRoleRetryDelaysProvider, professorTokenRolesReaderProvider;
 import '../domain/center_alerts.dart';
 import '../domain/center_coach.dart';
+import '../infrastructure/center_selection_store.dart';
 import '../infrastructure/firebase_center_coach_repository.dart';
 
 /// Vínculos da conta com centros de treinamento (todos os status — o revogado
@@ -41,8 +48,101 @@ final centerMembershipProvider = Provider.autoDispose
       return null;
     });
 
-/// Centro escolhido na troca (P2); `null` = o primeiro ativo.
-final selectedCoachCenterIdProvider = StateProvider<String?>((ref) => null);
+final centerSelectionStoreProvider = Provider<CenterSelectionStore>(
+  (ref) => const CenterSelectionStore(),
+);
+
+/// Centro escolhido na troca (P2), guardado por conta no aparelho; `null` = o
+/// primeiro ativo. Um centro que deixou de ser ativo cai no primeiro sozinho
+/// (a Agenda só aceita o escolhido se ele estiver entre os ativos).
+final selectedCoachCenterIdProvider =
+    NotifierProvider<SelectedCoachCenterNotifier, String?>(
+  SelectedCoachCenterNotifier.new,
+);
+
+class SelectedCoachCenterNotifier extends Notifier<String?> {
+  var _touched = false;
+
+  @override
+  String? build() {
+    _touched = false;
+    final uid = ref.watch(professorLinksUidProvider);
+    if (uid.isNotEmpty) {
+      ref.read(centerSelectionStoreProvider).load(uid).then((saved) {
+        // Uma troca feita antes da leitura terminar vence o valor salvo.
+        if (!_touched && saved != null) state = saved;
+      });
+    }
+    return null;
+  }
+
+  void select(String centerId) {
+    _touched = true;
+    state = centerId;
+    final uid = ref.read(professorLinksUidProvider);
+    unawaited(ref.read(centerSelectionStoreProvider).save(uid, centerId));
+  }
+}
+
+/// O token ainda não tem o papel `center`, mas a conta já é da equipe de um
+/// centro (o servidor concede a claim logo DEPOIS do vínculo ficar ativo).
+bool centerRoleNeedsRefresh({
+  required List<String> tokenRoles,
+  required List<CenterMembership> memberships,
+}) =>
+    !tokenRoles.contains(kCenterAppRole) && memberships.any((m) => m.isActive);
+
+/// Vínculo com um centro ficou ativo com o app aberto (owner que acabou de
+/// criar o centro no portal, convite aceito): força o refresh do token para o
+/// modo Centro aparecer em "Trocar papel" sem relogar. Assistido por quem
+/// mostra os centros (ajustes do atleta, Agenda).
+final centerRoleSyncProvider = Provider.autoDispose<void>((ref) {
+  var running = false;
+  var disposed = false;
+  Timer? retry;
+  ref.onDispose(() {
+    disposed = true;
+    retry?.cancel();
+  });
+
+  Future<void> wait(Duration delay) {
+    if (delay <= Duration.zero) return Future.value();
+    final done = Completer<void>();
+    retry = Timer(delay, done.complete);
+    return done.future;
+  }
+
+  Future<void> sync(List<CenterMembership> memberships) async {
+    if (running) return;
+    final readRoles = ref.read(professorTokenRolesReaderProvider);
+    final cached = await readRoles(forceRefresh: false);
+    if (disposed ||
+        !centerRoleNeedsRefresh(tokenRoles: cached, memberships: memberships)) {
+      return;
+    }
+    running = true;
+    for (final delay in ref.read(professorRoleRetryDelaysProvider)) {
+      await wait(delay);
+      if (disposed) return;
+      final fresh = await readRoles(forceRefresh: true);
+      if (disposed) return;
+      if (fresh.contains(kCenterAppRole)) {
+        ref.invalidate(availableMobileRolesProvider);
+        return;
+      }
+    }
+    running = false;
+  }
+
+  ref.listen<AsyncValue<List<CenterMembership>>>(
+    myCenterMembershipsProvider,
+    (_, next) {
+      final list = next.valueOrNull;
+      if (list != null) sync(list).ignore();
+    },
+    fireImmediately: true,
+  );
+});
 
 final coachCenterProvider = StreamProvider.autoDispose
     .family<CenterCoachCenter?, String>(

@@ -17,16 +17,24 @@ import '../../professor_mode/presentation/widgets/professor_students_widgets.dar
 import '../application/center_coach_providers.dart';
 import '../domain/center_coach.dart';
 import 'widgets/center_coach_widgets.dart';
+import 'widgets/center_mode_settings_sheet.dart';
 
 /// P1/P2/L7 · Agenda do professor no centro: a semana, a próxima aula com
 /// "Abrir chamada", as aulas do dia (com o local de cada uma — o centro pode
 /// dar aula em mais de um lugar) e as turmas dele. Troca de centro no topo
 /// para quem dá aula em mais de um.
 class CenterCoachAgendaPage extends ConsumerStatefulWidget {
-  const CenterCoachAgendaPage({super.key, this.centerId});
+  const CenterCoachAgendaPage({
+    super.key,
+    this.centerId,
+    this.modeHome = false,
+  });
 
   /// Centro pedido pela rota (`?centro=`); sem ele, o escolhido ou o primeiro.
   final String? centerId;
+
+  /// Home do modo Centro (`/centro`): sem o voltar, com os ajustes do modo.
+  final bool modeHome;
 
   @override
   ConsumerState<CenterCoachAgendaPage> createState() =>
@@ -39,13 +47,18 @@ class _CenterCoachAgendaPageState extends ConsumerState<CenterCoachAgendaPage> {
   /// `all`, `mine` ou o uid de um professor; `null` = padrão do papel.
   String? _coach;
 
+  /// Trocou de centro nesta tela: vence o `?centro=` da rota.
+  bool _switched = false;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final membershipsAsync = ref.watch(myCenterMembershipsProvider);
     final all = membershipsAsync.valueOrNull;
     final active = ref.watch(activeCenterMembershipsProvider);
-    final picked = widget.centerId ?? ref.watch(selectedCoachCenterIdProvider);
+    ref.watch(centerRoleSyncProvider);
+    final selected = ref.watch(selectedCoachCenterIdProvider);
+    final picked = _switched ? selected : (widget.centerId ?? selected);
     CenterMembership? member;
     for (final m in active) {
       if (m.centerId == picked) member = m;
@@ -60,7 +73,16 @@ class _CenterCoachAgendaPageState extends ConsumerState<CenterCoachAgendaPage> {
       subtitle: member == null
           ? 'CENTROS DE TREINAMENTO'
           : '${member.centerName.toUpperCase()} · ${member.roleLabel.toUpperCase()}',
+      showBack: !widget.modeHome,
       onBack: () => popOrGo(context, AppRoutes.home),
+      trailing: widget.modeHome
+          ? ProfessorLinksRoundButton(
+              key: const Key('center-mode-settings'),
+              icon: Icons.settings_outlined,
+              semanticLabel: 'Ajustes',
+              onTap: () => showCenterModeSettingsSheet(context),
+            )
+          : null,
       body: Builder(
         builder: (context) {
           if (all == null) {
@@ -115,8 +137,9 @@ class _CenterCoachAgendaPageState extends ConsumerState<CenterCoachAgendaPage> {
             coachFilter: _coach,
             onCoach: (c) => setState(() => _coach = c),
             onSwitch: (id) {
-              ref.read(selectedCoachCenterIdProvider.notifier).state = id;
+              ref.read(selectedCoachCenterIdProvider.notifier).select(id);
               setState(() {
+                _switched = true;
                 _day = null;
                 _coach = null;
               });

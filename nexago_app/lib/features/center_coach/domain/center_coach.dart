@@ -1093,6 +1093,21 @@ Map<String, Object?> _map(Map<dynamic, dynamic> m) =>
 /// Data já convertida pelo repositório (`Timestamp` → `DateTime`).
 DateTime? _date(Object? v) => v is DateTime ? v : null;
 
+/// Rodapé do card "Centro de treinamento" na seleção de papel: o centro e o
+/// cargo, ou quantos centros. `null` sem vínculo ativo (revogado).
+String? centerRoleFooter(List<CenterMembership> memberships) {
+  final active = [
+    for (final m in memberships)
+      if (m.isActive) m,
+  ]..sort((a, b) => a.centerName.compareTo(b.centerName));
+  if (active.isEmpty) return null;
+  final first = active.first;
+  if (active.length > 1) {
+    return '${first.centerName.toUpperCase()} · ${active.length} CENTROS';
+  }
+  return '${first.centerName.toUpperCase()} · ${first.roleLabel.toUpperCase()}';
+}
+
 /// G5 · Ocupação da aula: matriculados na turma, encaixados de reposição e
 /// vagas que sobram (capacidade 0 = sem limite → `free` nulo).
 ({int enrolled, int capacity, int makeups, int? free}) centerSessionOccupancy(

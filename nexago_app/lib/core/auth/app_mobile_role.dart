@@ -8,7 +8,12 @@ enum AppMobileRole {
 
   /// Professor com vínculo com alguma arena. A claim `professor` só escolhe o
   /// modo do app — quem autoriza chamada e reserva é o vínculo, no servidor.
-  professor;
+  professor,
+
+  /// Equipe de algum Centro de Treinamento (dono, gestão, recepção ou
+  /// professor do CT). Como `professor`, a claim `center` só escolhe o modo —
+  /// quem autoriza é o vínculo `centerMembers`, relido pelas rules.
+  center;
 
   String get claimValue => name;
 
@@ -17,6 +22,7 @@ enum AppMobileRole {
         AppMobileRole.arena => 'Gestor de arena',
         AppMobileRole.organizer => 'Organizador de torneio',
         AppMobileRole.professor => 'Professor',
+        AppMobileRole.center => 'Centro de treinamento',
       };
 
   String get categoryLabel => switch (this) {
@@ -24,6 +30,7 @@ enum AppMobileRole {
         AppMobileRole.arena => 'QUADRAS & AGENDA',
         AppMobileRole.organizer => 'CRIAR & GERIR EVENTOS',
         AppMobileRole.professor => 'AULAS & ARENAS',
+        AppMobileRole.center => 'TURMAS & CHAMADA',
       };
 
   String get description => switch (this) {
@@ -36,6 +43,9 @@ enum AppMobileRole {
         AppMobileRole.professor =>
           'Faça a chamada das suas aulas, reserve quadras como professor e '
               'cuide dos vínculos com as arenas.',
+        AppMobileRole.center =>
+          'Acompanhe a agenda do seu CT, faça a chamada e o check-in dos '
+              'alunos e o dia da equipe.',
       };
 
   /// Label minúsculo para o CTA «Continuar como …».
@@ -44,6 +54,7 @@ enum AppMobileRole {
         AppMobileRole.arena => 'gestor de arena',
         AppMobileRole.organizer => 'organizador de torneio',
         AppMobileRole.professor => 'professor',
+        AppMobileRole.center => 'centro de treinamento',
       };
 
   String get homeRoute => switch (this) {
@@ -51,6 +62,7 @@ enum AppMobileRole {
         AppMobileRole.arena => AppRoutes.arenaDashboard,
         AppMobileRole.organizer => AppRoutes.organizerHome,
         AppMobileRole.professor => AppRoutes.professorHome,
+        AppMobileRole.center => AppRoutes.centerHome,
       };
 
   static AppMobileRole? fromClaim(String claim) {
@@ -63,6 +75,8 @@ enum AppMobileRole {
         return AppMobileRole.organizer;
       case 'professor':
         return AppMobileRole.professor;
+      case 'center':
+        return AppMobileRole.center;
       default:
         return null;
     }

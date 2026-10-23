@@ -124,6 +124,7 @@ class _RoleIcon extends StatelessWidget {
     AppMobileRole.arena => Icons.stadium_outlined,
     AppMobileRole.organizer => Icons.emoji_events_outlined,
     AppMobileRole.professor => Icons.school_outlined,
+    AppMobileRole.center => Icons.sports_rounded,
   };
 
   @override

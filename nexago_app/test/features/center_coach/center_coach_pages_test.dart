@@ -7,8 +7,10 @@ import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/core/time/nexago_event_timezone.dart';
+import 'package:nexago_app/features/center_coach/application/center_coach_providers.dart';
 import 'package:nexago_app/features/center_coach/domain/center_alerts.dart';
 import 'package:nexago_app/features/center_coach/domain/center_coach.dart';
+import 'package:nexago_app/features/center_coach/infrastructure/center_selection_store.dart';
 import 'package:nexago_app/features/center_coach/domain/center_coach_repository.dart';
 import 'package:nexago_app/features/center_coach/infrastructure/firebase_center_coach_repository.dart';
 import 'package:nexago_app/features/center_coach/presentation/center_coach_agenda_page.dart';
@@ -274,6 +276,7 @@ Future<GoRouter> _pump(
   String location,
   _Fake fake, {
   String scanned = 'nexago-ct:c1:ABCDEFGH23',
+  _MemoryCenterStore? store,
   List<Uri>? launched,
 }) async {
   tester.view.physicalSize = const Size(420, 2000);
@@ -283,6 +286,10 @@ Future<GoRouter> _pump(
     initialLocation: location,
     routes: [
       GoRoute(path: AppRoutes.home, builder: (_, __) => const Scaffold()),
+      GoRoute(
+        path: AppRoutes.centerHome,
+        builder: (_, __) => const CenterCoachAgendaPage(modeHome: true),
+      ),
       GoRoute(
         path: AppRoutes.centerCoachAgenda,
         name: AppRouteNames.centerCoachAgenda,
@@ -366,6 +373,9 @@ Future<GoRouter> _pump(
         professorLinksUidProvider.overrideWithValue('tm'),
         professorLinksClockProvider.overrideWithValue(() => _now),
         centerCoachRepositoryProvider.overrideWithValue(fake),
+        centerSelectionStoreProvider.overrideWithValue(
+          store ?? _MemoryCenterStore(),
+        ),
         centerCheckinScanLauncherProvider.overrideWithValue(
           (_) async => scanned,
         ),
@@ -457,6 +467,67 @@ void main() {
       await _tap(tester, find.byKey(const Key('center-coach-option-c1')));
       await _tap(tester, find.byKey(const Key('center-coach-open-call')));
       expect(router.state.uri.path, '/athlete/professor/centros/c1/aula/k1_b');
+    });
+
+    testWidgets('modo Centro: sem voltar, com ajustes; reabre no centro salvo', (
+      tester,
+    ) async {
+      final fake = _Fake(
+        memberships: [
+          _member('c1', 'CT Maré Alta'),
+          _member('c2', 'Norte Beach'),
+        ],
+      );
+      final store = _MemoryCenterStore({'tm': 'c2'});
+      await _pump(tester, AppRoutes.centerHome, fake, store: store);
+      expect(find.text('NORTE BEACH · PROFESSOR'), findsOneWidget);
+      expect(find.bySemanticsLabel('Voltar'), findsNothing);
+
+      await _tap(tester, find.byKey(const Key('center-coach-switch')));
+      await _tap(tester, find.byKey(const Key('center-coach-option-c1')));
+      expect(find.text('CT MARÉ ALTA · PROFESSOR'), findsOneWidget);
+      expect(store.saved, {'tm': 'c1'});
+
+      await _tap(tester, find.byKey(const Key('center-mode-settings')));
+      expect(
+        find.byKey(const Key('center-mode-settings-sheet')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('center-mode-settings-sign-out')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('?centro= abre nele, mas a troca vence a rota', (tester) async {
+      final fake = _Fake(
+        memberships: [
+          _member('c1', 'CT Maré Alta'),
+          _member('c2', 'Norte Beach'),
+        ],
+      );
+      await _pump(tester, '${AppRoutes.centerCoachAgenda}?centro=c2', fake);
+      expect(find.text('NORTE BEACH · PROFESSOR'), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('center-coach-switch')));
+      await _tap(tester, find.byKey(const Key('center-coach-option-c1')));
+      expect(find.text('CT MARÉ ALTA · PROFESSOR'), findsOneWidget);
+    });
+
+    testWidgets('centro salvo que deixou de ser ativo cai no primeiro', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        AppRoutes.centerHome,
+        _Fake(
+          memberships: [
+            _member('c1', 'CT Maré Alta'),
+            _member('c2', 'Norte Beach', status: 'revoked'),
+          ],
+        ),
+        store: _MemoryCenterStore({'tm': 'c2'}),
+      );
+      expect(find.text('CT MARÉ ALTA · PROFESSOR'), findsOneWidget);
     });
 
     testWidgets('P9 · vínculo revogado e sem centro', (tester) async {
@@ -1324,4 +1395,17 @@ void main() {
       expect(find.byKey(const Key('center-waitlist-denied')), findsOneWidget);
     });
   });
+}
+
+class _MemoryCenterStore implements CenterSelectionStore {
+  _MemoryCenterStore([Map<String, String>? initial])
+      : saved = {...?initial};
+
+  final Map<String, String> saved;
+
+  @override
+  Future<String?> load(String uid) async => saved[uid];
+
+  @override
+  Future<void> save(String uid, String centerId) async => saved[uid] = centerId;
 }

@@ -62,7 +62,7 @@
         <span class="ct-label">Escolha uma modalidade</span>
         <div class="ct-row ct-wrap">
           @for (s of suggestions(); track s) {
-            <button type="button" class="ct-chip" [class.active]="pName().trim().toLowerCase() === s.toLowerCase()" [attr.aria-pressed]="pName().trim().toLowerCase() === s.toLowerCase()" (click)="pickSuggestion(s)">{{ s }}</button>
+            <button type="button" class="ct-chip" [class.active]="isPicked(s)" [attr.aria-pressed]="isPicked(s)" (click)="pickSuggestion(s)">{{ s }}</button>
           }
         </div>
         <div class="ct-dim">Ou digite outro nome abaixo.</div>
@@ -94,10 +94,32 @@
       </div>
       <div class="ct-dim">Nível usado por turma não pode ser renomeado nem removido (a turma guarda o nome). Reordenar é livre.</div>
     </div>
+    @if (removal(); as r) {
+      @if (confirmingDelete()) {
+        <div class="remove-box">
+          <div class="ct-disp">Remover "{{ pName() || 'modalidade' }}"?</div>
+          <div class="ct-dim">
+            Some da lista de modalidades e da agenda.
+            @if (r.sharedPlanIds.length > 0) { Sai de {{ r.sharedPlanIds.length }} {{ r.sharedPlanIds.length === 1 ? 'plano' : 'planos' }} que também atende(m) outras modalidades. }
+            Não dá para desfazer.
+          </div>
+          <div class="ct-row">
+            <button type="button" class="ct-mini-btn" [disabled]="busy()" (click)="confirmingDelete.set(false)">Manter</button>
+            <button type="button" class="ct-mini-btn danger" [disabled]="busy()" (click)="deleteProgram()">{{ busy() ? 'Removendo…' : 'Remover modalidade' }}</button>
+          </div>
+        </div>
+      } @else if (r.blocked) {
+        <div class="ct-dim">Não dá para remover: {{ r.blocked }}</div>
+      }
+    }
     @if (error()) {
       <div class="ct-error-text">{{ error() }}</div>
     }
-    <div footer>
+    <div footer class="foot-row">
+      @if (removal(); as r) {
+        <button type="button" class="ct-mini-btn danger" [disabled]="!!r.blocked || busy() || confirmingDelete()" [title]="r.blocked ?? 'Remover modalidade'" (click)="confirmingDelete.set(true)"><ct-icon name="trash" [size]="13" />Remover</button>
+        <span class="ct-grow"></span>
+      }
       <button type="button" class="ct-mini-btn" (click)="editingProgram.set(null)">Cancelar</button>
       <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="saveProgram()">{{ busy() ? 'Salvando…' : 'Salvar' }}</button>
     </div>

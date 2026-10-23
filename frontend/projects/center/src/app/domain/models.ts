@@ -1,3 +1,4 @@
+import { normalizeSportKey, SPORT_CATALOG, sportProfileCode } from '@nexago/sports';
 import type { Weekday } from './dates';
 import type { NotificationSettings } from './notification-settings';
 import type { CenterPermission, CenterRole, MemberStatus } from './roles';
@@ -462,8 +463,17 @@ export const LOCATION_TYPES: Record<LocationType, { label: string; tone: string;
   adhoc: { label: 'Avulso', tone: 'dim', color: '#9AA0A6', hint: 'Endereço usado em poucas aulas' },
 };
 
-/** Modalidades sugeridas (cadastro do centro e "Nova modalidade"); viram `programs` com níveis. */
-export const CENTER_SPORTS = ['Beach Tennis', 'Vôlei de praia', 'Futevôlei', 'Vôlei', 'Tênis', 'Padel', 'Funcional'];
+/**
+ * Modalidades sugeridas (cadastro do centro e "Nova modalidade"): o catálogo canônico
+ * (`sports/catalog.json`), na mesma ordem e rótulos do wizard do atleta, sem o "Outros"
+ * — nome livre cobre esse caso. Viram `programs` com níveis.
+ */
+export const CENTER_SPORTS: readonly string[] = SPORT_CATALOG.filter((s) => s.profileCode !== 'OUTROS').map((s) => s.label);
+
+/** Chave para comparar modalidades: código do catálogo quando reconhecido (aceita grafias antigas). */
+export function sportKey(name: string): string {
+  return sportProfileCode(name) ?? normalizeSportKey(name);
+}
 
 /** Níveis com que toda modalidade nasce (editáveis depois). */
 export const DEFAULT_LEVELS = ['Iniciante', 'Intermediário', 'Avançado'];

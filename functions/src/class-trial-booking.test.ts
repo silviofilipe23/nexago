@@ -16,6 +16,7 @@ import {
   loadCenterTrialOptionsCore,
 } from "./class-trial-booking";
 import type {NotifyDeps, PushInput} from "./training-center-notify";
+import {loadMyCenterTrials} from "./training-center-athlete";
 import {loadClassAgenda} from "./arena-class-athlete-agenda";
 
 /** Quarta 21/10/2026, 12:00 em São Paulo. */
@@ -223,5 +224,29 @@ describe("experimental · CT agenda e a equipe confirma", () => {
     await cancelCenterTrialCore(db, ME, "ct1", b.bookingId, NOW);
     assert.equal(fake.store.get(`trainingCenters/ct1/trialBookings/${b.bookingId}`)?.["status"], "canceled");
     await rejectsWith(cancelCenterTrialCore(db, ME, "ct1", b.bookingId, NOW), "failed-precondition");
+  });
+});
+
+describe("experimental · agenda do atleta (getMyTrainingCenters.trials)", () => {
+  it("lista os pedidos do atleta com o status; desmarcado sai", async () => {
+    const fake = new FakeFirestore();
+    const db = seedCenter(fake);
+    const {deps} = pushes();
+    const a = await bookCenterTrialCore(db, deps, ME, "ct1", "k1_2026-10-22", TODAY);
+    await decideCenterTrialCore(db, deps, "uDono", {centerId: "ct1", bookingId: a.bookingId, decision: "confirm"});
+    const b = await bookCenterTrialCore(db, deps, "uOutro", "ct1", "k1_2026-11-05", TODAY);
+    let mine = await loadMyCenterTrials(db, ME, NOW);
+    assert.deepEqual(mine.map((t) => [t.centerId, t.centerName, t.className, t.date, t.startTime, t.endTime, t.status]), [
+      ["ct1", "CT Elevate", "Kids", "2026-10-22", "18:00", "19:30", "confirmed"],
+    ]);
+    assert.equal((await loadMyCenterTrials(db, "uOutro", NOW))[0]?.status, "pending");
+    await cancelCenterTrialCore(db, "uOutro", "ct1", b.bookingId, NOW);
+    assert.deepEqual(await loadMyCenterTrials(db, "uOutro", NOW), []);
+    // Pedido antigo sem `centerName` lê o nome do centro.
+    const path = `trainingCenters/ct1/trialBookings/${a.bookingId}`;
+    const {centerName: _drop, ...rest} = fake.store.get(path)!;
+    fake.seedDoc(path, rest);
+    mine = await loadMyCenterTrials(db, ME, NOW);
+    assert.equal(mine[0]?.centerName, "CT Elevate");
   });
 });

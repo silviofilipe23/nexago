@@ -304,13 +304,21 @@ class _ClassSessionCard extends StatelessWidget {
     final statusColor = canceled ? context.themeColors.live : accent;
     final entry = item.classSession?.entry;
     final student = entry != null && !entry.isTeacher;
+    final trialCenterId = item.classSession?.trialCenterId;
     final shareable =
         entry != null && isClassStoryShareable(entry, DateTime.now());
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: student ? () => openClassSessionDetail(context, entry) : null,
+        onTap: trialCenterId != null
+            ? () => context.pushNamed(
+                  AppRouteNames.classDirectoryCenter,
+                  pathParameters: {'centerId': trialCenterId},
+                )
+            : student
+                ? () => openClassSessionDetail(context, entry)
+                : null,
         borderRadius: BorderRadius.circular(agendaTimelineCardRadius),
         child: Container(
           padding: const EdgeInsets.all(14),
@@ -325,7 +333,12 @@ class _ClassSessionCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  _KindBadge(label: 'AULA', color: accent),
+                  _KindBadge(
+                    label: item.classSession?.kind == 'trial'
+                        ? 'EXPERIMENTAL'
+                        : 'AULA',
+                    color: accent,
+                  ),
                   const Spacer(),
                   Text(
                     item.statusLabel,

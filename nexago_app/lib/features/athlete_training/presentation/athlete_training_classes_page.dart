@@ -138,10 +138,13 @@ class _AthleteTrainingClassesPageState
                 onTap: () => openTraining(context, t),
                 footer: t.state == TrainingState.awaitingProfessor
                     ? const _Note('O professor ainda vai confirmar o horário.')
-                    : _tab == _Tab.upcoming &&
-                            TrainingRsvpFooter.appliesTo(t, now)
-                        ? TrainingRsvpFooter(training: t)
-                        : null,
+                    : t.state == TrainingState.awaitingCenter
+                        ? const _Note(
+                            'O centro ainda vai confirmar a experimental.')
+                        : _tab == _Tab.upcoming &&
+                                TrainingRsvpFooter.appliesTo(t, now)
+                            ? TrainingRsvpFooter(training: t)
+                            : null,
               ),
               const SizedBox(height: 8),
             ],

@@ -19,6 +19,7 @@ const athleteAgendaTournamentAccent = Color(0xFF9B8CFF);
 const athleteAgendaChallengeAccent = Color(0xFFFF6B9D);
 const athleteAgendaFriendlyMatchAccent = Color(0xFF57C785);
 const athleteAgendaClubSessionAccent = Color(0xFFFFB74D);
+
 /// Aulas/treinos: verde-limão, longe dos azuis do aluguel e do verde do amistoso.
 const athleteAgendaClassSessionAccent = Color(0xFFD4E157);
 
@@ -378,6 +379,60 @@ AthleteAgendaItem? mapClassEntryToAgendaItem(ClassAgendaEntry e) {
       studentCount: e.studentCount,
       canceled: e.isCanceled,
       entry: e,
+    ),
+  );
+}
+
+/// Experimental pedida num CT como aula da agenda. `status`: `pending`,
+/// `confirmed` ou `declined`.
+AthleteAgendaItem? mapCenterTrialToAgendaItem({
+  required String centerId,
+  required String centerName,
+  required String sessionId,
+  required String className,
+  required String date,
+  required String startTime,
+  required String endTime,
+  required String coachName,
+  required String locationName,
+  required String status,
+  DateTime? now,
+}) {
+  final start = parseBookingDateTime(date, startTime);
+  if (start == null) return null;
+  final end = parseBookingDateTime(date, endTime);
+  final endsAt = end != null && end.isAfter(start) ? end : null;
+  final past = !(endsAt ?? start.add(const Duration(hours: 1)))
+      .isAfter(now ?? DateTime.now());
+  // Pendente que passou sem resposta não aconteceu.
+  final canceled = status == 'declined' || (status == 'pending' && past);
+  return AthleteAgendaItem(
+    id: 'ct-trial-$centerId-$sessionId',
+    kind: AthleteAgendaItemKind.classSession,
+    startsAt: start,
+    endsAt: endsAt,
+    title: className,
+    subtitle: [
+      centerName,
+      if (locationName.isNotEmpty) locationName,
+      if (coachName.isNotEmpty) 'Prof. ${coachName.split(' ').first}',
+    ].join(' · '),
+    statusLabel: switch (status) {
+      'declined' => 'RECUSADA',
+      'pending' => past ? 'NÃO CONFIRMADA' : 'AGUARDANDO O CENTRO',
+      _ => past ? 'REALIZADA' : 'EXPERIMENTAL',
+    },
+    accentColor: athleteAgendaClassSessionAccent,
+    classSession: AthleteAgendaClassPayload(
+      sessionId: sessionId,
+      arenaName: centerName,
+      className: className,
+      teacherName: coachName,
+      courtName: locationName,
+      isTeacher: false,
+      kind: 'trial',
+      canceled: canceled,
+      trialCenterId: centerId,
     ),
   );
 }

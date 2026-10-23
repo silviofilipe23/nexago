@@ -82,6 +82,24 @@ export interface MyCenterSession {
   myRsvp: string | null;
 }
 
+/** Experimental pedida pelo atleta no CT (`trialBookings`) — ele ainda não é aluno. */
+export interface MyCenterTrial {
+  bookingId: string;
+  centerId: string;
+  centerName: string;
+  sessionId: string;
+  classId: string;
+  className: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  coachName: string;
+  locationName: string;
+  /** `pending`, `confirmed` ou `declined` (desmarcada pelo atleta não vem). */
+  status: string;
+  note: string | null;
+}
+
 export interface MyCenterInvoice {
   invoiceId: string;
   reference: string;
@@ -388,6 +406,43 @@ export async function loadMyCenterInvites(
   return {invites: invites.filter((x): x is MyCenterInvite => x != null), unverifiedInvites: 0};
 }
 
+/** Pedidos de experimental do atleta em qualquer CT, dos últimos 45 dias em diante. */
+export async function loadMyCenterTrials(db: Firestore, uid: string, now: Date): Promise<MyCenterTrial[]> {
+  const from = addDays(dayKeyIn(now, "America/Sao_Paulo"), -CENTER_PAST_DAYS);
+  const snap = await db.collectionGroup("trialBookings").where("athleteId", "==", uid).limit(60).get();
+  const docs = snap.docs.filter((d) => {
+    const seg = d.ref.path.split("/");
+    const b = d.data() as Data;
+    return seg.length === 4 && seg[0] === TRAINING_CENTERS && str(b["date"]) >= from && str(b["status"]) !== "canceled";
+  });
+  // Pedido antigo sem `centerName`: lê o nome do centro.
+  const missing = [...new Set(docs.filter((d) => !str(d.data()["centerName"])).map((d) => d.ref.parent.parent!.id))];
+  const names = new Map<string, string>();
+  if (missing.length) {
+    const centers = await db.getAll(...missing.map((id) => db.doc(`${TRAINING_CENTERS}/${id}`)));
+    for (const c of centers) names.set(c.id, str(c.data()?.["name"]));
+  }
+  return docs.map((d) => {
+    const b = d.data() as Data;
+    const centerId = d.ref.parent.parent!.id;
+    return {
+      bookingId: d.id,
+      centerId,
+      centerName: str(b["centerName"]) || names.get(centerId) || "Centro de treinamento",
+      sessionId: str(b["sessionId"]),
+      classId: str(b["classId"]),
+      className: str(b["className"]) || "Aula experimental",
+      date: str(b["date"]),
+      startTime: str(b["startTime"]),
+      endTime: str(b["endTime"]),
+      coachName: str(b["coachName"]),
+      locationName: str(b["locationName"]),
+      status: str(b["status"]) || "pending",
+      note: str(b["note"]) || null,
+    };
+  }).sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+}
+
 export async function loadMyTrainingCentersCore(
   db: Firestore, uid: string, now: Date,
 ): Promise<{centers: MyTrainingCenter[]}> {
@@ -415,12 +470,17 @@ export const getMyTrainingCenters = onCall({region: CLIENT_FACING_REGIONS}, asyn
   const uid = requireUid(request.auth);
   const db = getFirestore();
   const token = (request.auth?.token ?? {}) as Data;
-  const [mine, invites] = await Promise.all([
+  const [mine, invites, trials] = await Promise.all([
     loadMyTrainingCentersCore(db, uid, new Date()),
     loadMyCenterInvites(db, str(token["email"]).toLowerCase(), token["email_verified"] === true).catch((e) => {
       logger.warn(`getMyTrainingCenters ${uid}: convites falharam`, e);
       return {invites: [], unverifiedInvites: 0};
     }),
+    // Sem o índice de collection group (deploy pendente) a agenda segue sem as experimentais.
+    loadMyCenterTrials(db, uid, new Date()).catch((e) => {
+      logger.warn(`getMyTrainingCenters ${uid}: experimentais falharam`, e);
+      return [] as MyCenterTrial[];
+    }),
   ]);
-  return {...mine, ...invites};
+  return {...mine, ...invites, trials};
 });

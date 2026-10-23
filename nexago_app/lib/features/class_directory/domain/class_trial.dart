@@ -62,6 +62,8 @@ class ClassTrialOptions {
     required this.bookInApp,
     this.options = const [],
     this.booked,
+    this.bookedStatus,
+    this.bookingId,
   });
 
   factory ClassTrialOptions.fromMap(Map<String, Object?> m) {
@@ -78,10 +80,16 @@ class ClassTrialOptions {
             ]
           : const [],
       booked: one(m['booked']),
+      bookedStatus:
+          m['bookedStatus'] is String ? m['bookedStatus'] as String : null,
+      bookingId:
+          m['bookingId'] is String && (m['bookingId'] as String).isNotEmpty
+              ? m['bookingId'] as String
+              : null,
     );
   }
 
-  /// Arena: marca pelo app. CT: confirma pelo WhatsApp do centro.
+  /// Marca pelo app (o CT confirma depois). `false` = servidor antigo: WhatsApp.
   final bool bookInApp;
 
   /// Da mais cedo para a mais tarde.
@@ -89,6 +97,15 @@ class ClassTrialOptions {
 
   /// Experimental já marcada neste local (ainda por acontecer).
   final ClassTrialOption? booked;
+
+  /// `pending` (CT ainda não confirmou) ou `confirmed`.
+  final String? bookedStatus;
+
+  /// CT: id do pedido, para desmarcar.
+  final String? bookingId;
+
+  /// O centro ainda vai confirmar.
+  bool get awaitingConfirmation => bookedStatus == 'pending';
 }
 
 /// Dias com aula disponível, na ordem.

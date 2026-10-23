@@ -76,6 +76,20 @@ class ClassDirectoryRepository {
         'Não foi possível agendar a experimental. Tente novamente.',
       );
 
+  /// CT: pede a experimental; fica pendente até o centro confirmar.
+  Future<void> bookCenterTrial(String centerId, String sessionId) => _call(
+        'bookCenterClassTrial',
+        {'centerId': centerId, 'sessionId': sessionId},
+        'Não foi possível agendar a experimental. Tente novamente.',
+      );
+
+  /// CT: desmarca o próprio pedido.
+  Future<void> cancelCenterTrial(String centerId, String bookingId) => _call(
+        'cancelCenterClassTrial',
+        {'centerId': centerId, 'bookingId': bookingId},
+        'Não foi possível desmarcar a experimental. Tente novamente.',
+      );
+
   Future<Map<String, Object?>> _call(
     String name,
     Map<String, Object?> data, [

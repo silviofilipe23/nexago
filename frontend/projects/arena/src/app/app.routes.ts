@@ -224,6 +224,13 @@ export const routes: Routes = [
       import('./painel/aulas/panel-aulas-rules.component').then((m) => m.PanelAulasRulesComponent),
   },
   {
+    path: 'painel/aulas/vitrine',
+    title: 'Vitrine de aulas — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aulas-showcase.component').then((m) => m.PanelAulasShowcaseComponent),
+  },
+  {
     path: 'painel/financeiro',
     title: 'Financeiro — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('financeiro')],

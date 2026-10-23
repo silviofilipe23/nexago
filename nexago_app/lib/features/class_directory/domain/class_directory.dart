@@ -62,6 +62,25 @@ class DirectorySlot {
   final int openSpots;
 }
 
+/// Aula experimental configurada na vitrine do portal (arena ou CT).
+class DirectoryTrial {
+  const DirectoryTrial({this.priceReais = 0, this.note = ''});
+
+  /// `null` quando a vitrine não oferece experimental.
+  static DirectoryTrial? fromMap(Object? raw) {
+    if (raw is! Map || raw['enabled'] != true) return null;
+    return DirectoryTrial(
+      priceReais: _double(raw['priceReais']) ?? 0,
+      note: _str(raw['note']),
+    );
+  }
+
+  final double priceReais;
+  final String note;
+
+  bool get isFree => priceReais <= 0;
+}
+
 /// Um item da lista (H2): arena, CT ou professor.
 class ClassProvider {
   const ClassProvider({
@@ -80,6 +99,7 @@ class ClassProvider {
     this.professors = const [],
     this.highlight,
     this.schedule = const [],
+    this.trial,
     this.places = const [],
     this.rating,
     this.ratingCount = 0,
@@ -106,6 +126,7 @@ class ClassProvider {
             ? DirectorySlot.fromMap(_map(m['highlight']! as Map))
             : null,
         schedule: _maps(m['schedule'], DirectorySlot.fromMap),
+        trial: DirectoryTrial.fromMap(m['trial']),
       );
 
   /// Professor da vitrine (`searchProfessors`) como item do diretório. Só
@@ -144,6 +165,9 @@ class ClassProvider {
 
   /// Grade compacta de todas as turmas (filtros de nível, período e vaga).
   final List<DirectorySlot> schedule;
+
+  /// Aula experimental da vitrine (arena/CT); `null` = não oferece.
+  final DirectoryTrial? trial;
 
   /// Professor: arenas onde dá aula.
   final List<String> places;
@@ -333,6 +357,7 @@ class ClassProviderDetail {
     this.places = const [],
     this.professors = const [],
     this.makeupNoticeHours,
+    this.trial,
   });
 
   factory ClassProviderDetail.fromMap(Map<String, Object?> m) =>
@@ -355,6 +380,7 @@ class ClassProviderDetail {
         places: _maps(m['places'], DirectoryPlace.fromMap),
         professors: _maps(m['professors'], DirectoryStaff.fromMap),
         makeupNoticeHours: _int(m['makeupNoticeHours']),
+        trial: DirectoryTrial.fromMap(m['trial']),
       );
 
   final ClassProviderKind kind;
@@ -373,6 +399,9 @@ class ClassProviderDetail {
   final List<DirectoryPlace> places;
   final List<DirectoryStaff> professors;
   final int? makeupNoticeHours;
+
+  /// Aula experimental da vitrine; `null` = não oferece.
+  final DirectoryTrial? trial;
 
   bool get isCenter => kind == ClassProviderKind.center;
 }

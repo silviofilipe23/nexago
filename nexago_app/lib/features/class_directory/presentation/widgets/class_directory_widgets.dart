@@ -421,10 +421,14 @@ class ClassPlaceCard extends StatelessWidget {
           ),
           _CardFooter(
             line1: s == null ? '' : directorySlotLabel(s),
-            line2: spots > 0
-                ? '${directorySpotsLabel(spots)}'
-                    '${s == null ? ' no total' : ''}'
-                : 'Turmas lotadas · lista de espera',
+            line2: [
+              spots > 0
+                  ? '${directorySpotsLabel(spots)}'
+                      '${s == null ? ' no total' : ''}'
+                  : 'Turmas lotadas · lista de espera',
+              if (item.trial != null)
+                directoryTrialLabel(item.trial!).toLowerCase(),
+            ].join(' · '),
             line2Color: spots > 0 ? colors.win : colors.pending,
             price: item.priceFromReais,
           ),

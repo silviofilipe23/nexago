@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import {
   DEFAULT_BILLING,
   DEFAULT_POLICIES,
@@ -15,7 +16,8 @@ import {
   type NotificationEventKey,
   type NotificationSettings,
 } from '../../domain/notification-settings';
-import { CENTERS, db } from '../firebase';
+import { CENTERS, db, storage } from '../firebase';
+import { showcaseImageError, showcaseToFirestore, trialLabel, type CenterShowcase } from '../../domain/showcase';
 import { callCenterFunction } from './invoices.actions';
 import { CenterActionsBase } from './actor';
 
@@ -164,6 +166,30 @@ export class CenterActions extends CenterActionsBase {
     const audit = this.auditDoc({ action: 'center.profile', entity: 'center', entityId: this.centerId(), detail: 'Dados do centro atualizados' });
     b.set(audit.ref, audit.data);
     await b.commit();
+  }
+
+  /** Vitrine no app do atleta. A capa já subiu pelo [uploadShowcaseCover]; aqui só a URL. */
+  async updateShowcase(next: CenterShowcase): Promise<void> {
+    const value = showcaseToFirestore(next);
+    const b = writeBatch(db());
+    b.update(this.centerRef(), { showcase: value });
+    const detail = [
+      value.coverUrl ? 'com capa' : 'sem capa',
+      value.description ? 'descrição preenchida' : 'sem descrição',
+      trialLabel(value.trial),
+    ].join(' · ');
+    const audit = this.auditDoc({ action: 'center.showcase', entity: 'center', entityId: this.centerId(), detail: `Vitrine no app: ${detail}` });
+    b.set(audit.ref, audit.data);
+    await b.commit();
+  }
+
+  /** Sobe a capa para `trainingCenters/{centerId}/cover` (nome fixo: o novo envio substitui). */
+  async uploadShowcaseCover(file: File): Promise<string> {
+    const error = showcaseImageError(file);
+    if (error) throw new Error(error);
+    const fileRef = ref(storage(), `${CENTERS}/${this.centerId()}/cover`);
+    await uploadBytes(fileRef, file, { contentType: file.type });
+    return getDownloadURL(fileRef);
   }
 
   /** Políticas valem para NOVOS contratos — matrículas guardam a cópia do dia da contratação. */

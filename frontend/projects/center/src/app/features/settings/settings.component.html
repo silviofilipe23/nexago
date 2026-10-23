@@ -1,4 +1,4 @@
-<ct-page-header title="Configurações do centro" subtitle="Dados · Políticas · Cobrança recorrente · Quadras · Notificações · Assinatura NexaGO">
+<ct-page-header title="Configurações do centro" subtitle="Dados · Vitrine no app · Políticas · Cobrança recorrente · Quadras · Notificações · Assinatura NexaGO">
   @if (ctx.isPending() && ctx.isManager()) {
     <a class="ct-mini-btn" [routerLink]="['/centro', centerId(), 'ativacao']">Passos da ativação</a>
   }
@@ -216,6 +216,10 @@
             Arenas parceiras não têm quadras gerenciadas: valem a janela contratada e as quadras informadas no cadastro do local.
           </p>
         </section>
+      }
+
+      @case ('vitrine') {
+        <ct-showcase-settings [editable]="editable()" />
       }
 
       @case ('notificacoes') {

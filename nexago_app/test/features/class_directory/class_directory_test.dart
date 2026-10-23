@@ -31,6 +31,7 @@ final _cfc = ClassProvider.fromMap({
   'openSpots': 2,
   'distanceKm': 3.1,
   'priceFromReais': 140,
+  'trial': {'enabled': true, 'priceReais': 0, 'note': '1 aula'},
   'professorCount': 2,
   'professors': [
     {'name': 'Thiago Mendes'},
@@ -69,6 +70,7 @@ final _ct = ClassProvider.fromMap({
   'classCount': 1,
   'openSpots': 3,
   'priceFromReais': 480,
+  'trial': {'enabled': true, 'priceReais': 50, 'note': ''},
   'schedule': [
     {
       'className': 'Competição manhã',
@@ -130,6 +132,11 @@ final _detail = ClassProviderDetail.fromMap({
   'city': 'Goiânia',
   'contactPhone': '62999990000',
   'makeupNoticeHours': 4,
+  'trial': {
+    'enabled': true,
+    'priceReais': 0,
+    'note': '1 aula · abatida na 1ª mensalidade'
+  },
   'classes': [
     {
       'classId': 't1',
@@ -248,6 +255,23 @@ void main() {
           _slotB.className);
     });
 
+    test('experimental: só ligada vira objeto; filtro "Experimental grátis"',
+        () {
+      expect(
+          DirectoryTrial.fromMap({'enabled': false, 'priceReais': 0}), isNull);
+      expect(DirectoryTrial.fromMap(null), isNull);
+      expect(_cfc.trial?.isFree, isTrue);
+      expect(_ct.trial?.isFree, isFalse);
+      expect(directoryTrialLabel(_cfc.trial!), 'Experimental grátis');
+      expect(directoryTrialLabel(_ct.trial!), r'Experimental R$ 50');
+      final all = [_cfc, _ct, _norte, ClassProvider.fromProfessor(_rafa)];
+      expect(
+        filterDirectory(all, const DirectoryFilters(freeTrial: true))
+            .map((i) => i.id),
+        ['cfc'],
+      );
+    });
+
     test('professor só entra se for independente em alguma arena', () {
       final r = ProfessorSearchResult(items: const [_rafa, _staffOnly]);
       expect(independentProfessors(r).map((p) => p.id), ['uRafa']);
@@ -270,6 +294,10 @@ void main() {
       expect(
         classDirectoryContactMessage(d, d.classes[1]),
         contains('lista de espera'),
+      );
+      expect(
+        classDirectoryContactMessage(d, d.classes[0]),
+        contains('aula experimental'),
       );
     });
   });
@@ -348,6 +376,13 @@ void main() {
     await settle(tester);
     expect(find.byKey(const Key('class-directory-arena-norte')), findsNothing);
 
+    expect(find.text('2 vagas · experimental grátis'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('class-directory-free-trial')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('class-directory-free-trial')));
+    await settle(tester);
+    expect(find.byKey(const Key('class-directory-center-elv')), findsNothing);
+
     await tester.tap(find.byKey(const Key('class-directory-arena-cfc')));
     await settle(tester);
     expect(router.state.uri.path, '/competir/aulas/arena/cfc');
@@ -380,7 +415,9 @@ void main() {
     expect(find.text('2 VAGAS'), findsOneWidget);
     expect(find.text(r'R$ 220/mês', findRichText: true), findsOneWidget);
     expect(find.textContaining('4h de antecedência'), findsOneWidget);
-    expect(find.text('Quero entrar'), findsOneWidget);
+    expect(find.text('Agendar'), findsOneWidget);
+    expect(find.byKey(const Key('class-provider-trial')), findsOneWidget);
+    expect(find.text('1 aula · abatida na 1ª mensalidade'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('class-row-t2')));
     await settle(tester);

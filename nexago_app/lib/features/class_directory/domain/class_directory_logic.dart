@@ -22,6 +22,7 @@ class DirectoryFilters {
     this.maxKm,
     this.periods = const {},
     this.withOpening = false,
+    this.freeTrial = false,
   });
 
   /// `null` = Todos.
@@ -34,6 +35,9 @@ class DirectoryFilters {
   final Set<DirectoryPeriod> periods;
   final bool withOpening;
 
+  /// Só quem oferece aula experimental grátis (arena/CT pela vitrine).
+  final bool freeTrial;
+
   /// Quantos filtros do sheet estão ligados (o número no chip "Filtros").
   int get sheetCount =>
       levels.length + periods.length + (maxKm == null ? 0 : 1);
@@ -45,6 +49,7 @@ class DirectoryFilters {
     double? Function()? maxKm,
     Set<DirectoryPeriod>? periods,
     bool? withOpening,
+    bool? freeTrial,
   }) =>
       DirectoryFilters(
         kind: kind == null ? this.kind : kind(),
@@ -53,6 +58,7 @@ class DirectoryFilters {
         maxKm: maxKm == null ? this.maxKm : maxKm(),
         periods: periods ?? this.periods,
         withOpening: withOpening ?? this.withOpening,
+        freeTrial: freeTrial ?? this.freeTrial,
       );
 }
 
@@ -181,8 +187,10 @@ List<ClassProvider> filterDirectory(
       return false;
     }
     if (i.kind == ClassProviderKind.professor) {
-      return !f.withOpening || i.hasOpening;
+      // A vitrine do professor não tem experimental: o filtro o tira da lista.
+      return !f.freeTrial && (!f.withOpening || i.hasOpening);
     }
+    if (f.freeTrial && i.trial?.isFree != true) return false;
     if (_filtersClasses(f) && directoryMatchingSlots(i, f).isEmpty) {
       return false;
     }
@@ -229,6 +237,11 @@ String directorySpotsLabel(int spots) => spots <= 0
     : spots == 1
         ? '1 vaga'
         : '$spots vagas';
+
+/// "Experimental grátis" / "Experimental R$ 50" — o mesmo texto dos portais.
+String directoryTrialLabel(DirectoryTrial t) => t.isFree
+    ? 'Experimental grátis'
+    : 'Experimental ${directoryPrice(t.priceReais)}';
 
 /// "R$ 220" sem centavos quando inteiro, "R$ 99,90" quando não.
 String directoryPrice(double reais) {

@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, input, model, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, model, output, signal } from '@angular/core';
 import { personColor, initialsOf } from '../domain/models';
 import { IconComponent } from './icon.component';
+import { PhotoViewerService } from './photo-viewer';
 
 /** Cabeçalho da página (protótipo BoPageHeader): título, subtítulo e ações à direita. */
 @Component({
@@ -59,12 +60,26 @@ export class StatComponent {
   readonly tone = input<'' | 'green' | 'orange' | 'red'>('');
 }
 
-/** Avatar redondo com iniciais (CtAv) + nome e linha de apoio (CtPerson). */
+/**
+ * Avatar redondo (CtAv) + nome e linha de apoio (CtPerson). Com `photoUrl` mostra a foto (iniciais
+ * se ela não carregar); com `zoomable` e foto, o avatar vira botão que abre a foto inteira. Sem
+ * foto não vira botão — nada de afordância falsa.
+ */
 @Component({
   selector: 'ct-person',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <span class="av" [style.width.px]="size()" [style.height.px]="size()" [style.font-size.px]="size() * 0.34" [style.color]="color()" [style.background]="color() + '1F'" [style.border-color]="color() + '55'">{{ ini() }}</span>
+    @if (canZoom()) {
+      <button type="button" class="av zoom" [attr.aria-label]="'Ver foto de ' + name()" [style.width.px]="size()" [style.height.px]="size()" [style.border-color]="color() + '55'" (click)="zoom()">
+        <img [src]="photoUrl()" alt="" (error)="broken.set(true)" />
+      </button>
+    } @else if (showPhoto()) {
+      <span class="av" [style.width.px]="size()" [style.height.px]="size()" [style.border-color]="color() + '55'">
+        <img [src]="photoUrl()" alt="" (error)="broken.set(true)" />
+      </span>
+    } @else {
+      <span class="av" [style.width.px]="size()" [style.height.px]="size()" [style.font-size.px]="size() * 0.34" [style.color]="color()" [style.background]="color() + '1F'" [style.border-color]="color() + '55'">{{ ini() }}</span>
+    }
     @if (name()) {
       <span class="txt">
         <span class="line"><span class="nm">{{ name() }}</span><ng-content /></span>
@@ -76,7 +91,10 @@ export class StatComponent {
   `,
   styles: `
     :host { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .av { border-radius: 50%; flex: none; display: grid; place-items: center; border: 1px solid; font-family: var(--nx-font-display); font-weight: 700; }
+    .av { border-radius: 50%; flex: none; display: grid; place-items: center; border: 1px solid; font-family: var(--nx-font-display); font-weight: 700; overflow: hidden; padding: 0; background: var(--nx-surface-2); }
+    .av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .zoom { cursor: zoom-in; }
+    .zoom:hover, .zoom:focus-visible { outline: 2px solid var(--nx-orange-400); outline-offset: 2px; }
     .txt { min-width: 0; display: flex; flex-direction: column; }
     .line { display: flex; align-items: center; gap: 6px; min-width: 0; }
     .nm { font-family: var(--nx-font-display); font-weight: 600; font-size: 13px; color: var(--nx-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -89,8 +107,22 @@ export class PersonComponent {
   readonly size = input(32);
   /** Chave da cor estável (uid/id); sem ela usa o nome. */
   readonly colorKey = input('');
+  readonly photoUrl = input<string | null>(null);
+  /** Clique no avatar abre a foto inteira (só quando há foto). */
+  readonly zoomable = input(false);
+  /** Kicker do visualizador. */
+  readonly role = input('Atleta');
+  private readonly viewer = inject(PhotoViewerService);
+  protected readonly broken = signal(false);
   protected readonly ini = computed(() => initialsOf(this.name() || '·'));
   protected readonly color = computed(() => personColor(this.colorKey() || this.name()));
+  protected readonly showPhoto = computed(() => !!this.photoUrl() && !this.broken());
+  protected readonly canZoom = computed(() => this.zoomable() && this.showPhoto());
+
+  protected zoom(): void {
+    const url = this.photoUrl();
+    if (url) this.viewer.open({ url, name: this.name(), role: this.role() });
+  }
 }
 
 /** Faixa de alerta (CtBanner). `inline` = dentro de card; sem = topo da página. */

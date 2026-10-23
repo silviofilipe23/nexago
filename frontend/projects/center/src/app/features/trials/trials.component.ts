@@ -51,7 +51,7 @@ const FILTERS: { value: TrialFilter; label: string }[] = [
           @for (b of visible(); track b.id) {
             <article class="item" [class.open]="b.status === 'pending'">
               <header class="top">
-                <ct-person class="ct-grow" [name]="b.name" [sub]="b.phone" [colorKey]="b.athleteId" />
+                <ct-person class="ct-grow" [name]="b.name" [sub]="b.phone" [colorKey]="b.athleteId" [photoUrl]="b.photoUrl" [zoomable]="true" [size]="44" />
                 <span [class]="'ct-pill ' + STATUS[b.status][1]">{{ STATUS[b.status][0] }}</span>
               </header>
               <div class="when">

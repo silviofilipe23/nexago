@@ -11,6 +11,7 @@ import { initialsOf } from '../domain/models';
 import { canAccessArea, ROLE_LABELS } from '../domain/roles';
 import { IconComponent } from '../ui/icon.component';
 import { BannerComponent } from '../ui/kit';
+import { PhotoViewerComponent } from '../ui/photo-viewer';
 import { CenterAvatarComponent } from './center-avatar.component';
 import { NAV_GROUPS } from './nav';
 
@@ -22,7 +23,7 @@ import { NAV_GROUPS } from './nav';
 @Component({
   selector: 'ct-center-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, IconComponent, BannerComponent, CenterAvatarComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, IconComponent, BannerComponent, CenterAvatarComponent, PhotoViewerComponent],
   host: { '(document:keydown.escape)': 'closeAll()' },
   templateUrl: './center-shell.component.html',
   styleUrl: './center-shell.component.scss',

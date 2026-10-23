@@ -504,6 +504,59 @@ void main() {
       expect(find.byKey(const Key('center-more-alerts')), findsNothing);
     });
 
+    testWidgets('Dia · Semana · Mês como a agenda do Professor', (
+      tester,
+    ) async {
+      final fake = _Fake(
+        memberships: [_member('c1', 'CT Maré Alta')],
+        sessions: [
+          _session('s1'),
+          _session('s2', date: '2026-10-21', start: '07:00'),
+          _session('s3', date: '2026-10-30', status: 'cancelled'),
+        ],
+      );
+      await _pump(tester, AppRoutes.centerCoachAgenda, fake);
+      expect(find.text('19 out – 25 out'), findsOneWidget);
+
+      await _tap(tester, find.text('Semana'));
+      expect(find.byKey(const Key('center-agenda-week')), findsOneWidget);
+      expect(find.byKey(const Key('center-agenda-block-s1')), findsOneWidget);
+      expect(find.byKey(const Key('center-agenda-block-s2')), findsOneWidget);
+      expect(find.byKey(const Key('center-agenda-now-line')), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('center-agenda-next')));
+      expect(find.text('26 out – 01 nov'), findsOneWidget);
+      expect(find.byKey(const Key('center-agenda-block-s3')), findsOneWidget);
+      expect(find.byKey(const Key('center-agenda-today')), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('center-agenda-today')));
+      expect(find.text('19 out – 25 out'), findsOneWidget);
+
+      await _tap(tester, find.text('Mês'));
+      expect(find.text('Outubro 2026'), findsOneWidget);
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const Key('center-agenda-month-sessions')),
+            )
+            .data,
+        '2',
+      );
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const Key('center-agenda-month-cancelled')),
+            )
+            .data,
+        '1',
+      );
+      // Tocar num dia do mês abre o Dia dele.
+      await _tap(
+        tester,
+        find.byKey(const Key('center-agenda-month-2026-10-21')),
+      );
+      expect(find.byKey(const Key('center-coach-row-s2')), findsOneWidget);
+      expect(find.byKey(const Key('center-agenda-month')), findsNothing);
+    });
+
     testWidgets('?centro= abre nele, mas a troca vence a rota', (tester) async {
       final fake = _Fake(
         memberships: [

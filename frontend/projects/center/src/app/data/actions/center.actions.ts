@@ -3,6 +3,7 @@ import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import {
   DEFAULT_BILLING,
+  DEFAULT_LEVELS,
   DEFAULT_POLICIES,
   PROGRAM_COLORS,
   slugify,
@@ -39,8 +40,6 @@ export type CenterProfilePatch = Pick<
   TrainingCenter,
   'name' | 'legalName' | 'cnpj' | 'contactEmail' | 'contactPhone' | 'city' | 'state' | 'address' | 'timezone'
 >;
-
-const DEFAULT_LEVELS = ['Iniciante', 'Intermediário', 'Avançado'];
 
 const BILLING_LABELS: Record<keyof CenterBilling, string> = {
   billingDayMode: 'Vencimento',

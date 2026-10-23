@@ -462,6 +462,12 @@ export const LOCATION_TYPES: Record<LocationType, { label: string; tone: string;
   adhoc: { label: 'Avulso', tone: 'dim', color: '#9AA0A6', hint: 'Endereço usado em poucas aulas' },
 };
 
+/** Modalidades sugeridas (cadastro do centro e "Nova modalidade"); viram `programs` com níveis. */
+export const CENTER_SPORTS = ['Beach Tennis', 'Vôlei de praia', 'Futevôlei', 'Vôlei', 'Tênis', 'Padel', 'Funcional'];
+
+/** Níveis com que toda modalidade nasce (editáveis depois). */
+export const DEFAULT_LEVELS = ['Iniciante', 'Intermediário', 'Avançado'];
+
 export const PROGRAM_COLORS = ['#FF8A4A', '#5B9BFF', '#C08CFF', '#2BD17E', '#F4C543', '#FF6B8A'];
 
 /** Gradientes do avatar do centro, escolhido de forma estável pelo id. */

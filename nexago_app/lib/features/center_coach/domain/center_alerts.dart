@@ -126,6 +126,7 @@ const Map<String, String> _titles = {
   'enrollment.completed': 'Matrícula concluída',
   'enrollment.waitlisted': 'Entrou na lista de espera',
   'enrollment.seat_offered': 'Vaga oferecida',
+  'enrollment.hold_expired': 'Reserva vencida',
   'student.added': 'Aluno cadastrado',
   'student.joined_by_code': 'Aluno entrou pelo código',
   'student.updated': 'Cadastro do aluno alterado',

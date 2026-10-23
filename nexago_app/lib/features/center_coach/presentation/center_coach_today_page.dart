@@ -207,6 +207,11 @@ class CenterCoachTodayPage extends ConsumerWidget {
                           first: i == 0,
                           onTap: p.kind == 'overdue'
                               ? () => _openFinance(context)
+                              : p.kind == 'waitlist'
+                              ? () => context.pushNamed(
+                                  AppRouteNames.centerCoachWaitlist,
+                                  pathParameters: {'centerId': centerId},
+                                )
                               : p.sessionId == null
                               ? null
                               : () => openCoachSession(

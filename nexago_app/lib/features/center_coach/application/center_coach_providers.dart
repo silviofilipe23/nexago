@@ -131,3 +131,10 @@ final coachAuditLogsProvider = StreamProvider.autoDispose
       if (m == null || !m.isManager) return Stream.value(const []);
       return ref.watch(centerCoachRepositoryProvider).watchAuditLogs(centerId);
     });
+
+/// Nome dos planos do centro por id (fila de espera mostra o que a pessoa quer).
+final coachPlanNamesProvider = StreamProvider.autoDispose
+    .family<Map<String, String>, String>(
+      (ref, centerId) =>
+          ref.watch(centerCoachRepositoryProvider).watchPlanNames(centerId),
+    );

@@ -478,6 +478,14 @@ class CenterCoachEnrollment {
     this.priceCents,
     this.creditsLeft,
     this.startDate = '',
+    this.studentName = '',
+    this.planId = '',
+    this.waitlistedAt,
+    this.offeredAt,
+    this.offeredBy = '',
+    this.holdUntil,
+    this.endedAt,
+    this.cancelReason = '',
   });
 
   factory CenterCoachEnrollment.fromMap(String id, Map<String, Object?> m) {
@@ -493,6 +501,14 @@ class CenterCoachEnrollment {
       priceCents: _int(c['priceCents']),
       creditsLeft: _int(m['creditsLeft']),
       startDate: _str(m['startDate']),
+      studentName: _str(m['studentName']),
+      planId: _str(m['planId']),
+      waitlistedAt: _date(m['waitlistedAt']),
+      offeredAt: _date(m['offeredAt']),
+      offeredBy: _str(m['offeredBy']),
+      holdUntil: _date(m['holdUntil']),
+      endedAt: _date(m['endedAt']),
+      cancelReason: _str(m['cancelReason']),
     );
   }
 
@@ -509,6 +525,22 @@ class CenterCoachEnrollment {
   /// Aulas que sobram no pacote (`null` = plano sem contagem).
   final int? creditsLeft;
   final String startDate;
+  final String studentName;
+  final String planId;
+
+  /// Entrou na fila (só nas `waitlisted`, e fica depois da oferta).
+  final DateTime? waitlistedAt;
+
+  /// Vaga oferecida da fila (`offeredBy`: `auto` ou `manual`).
+  final DateTime? offeredAt;
+  final String offeredBy;
+
+  /// Prazo para pagar a reserva (pendente).
+  final DateTime? holdUntil;
+  final DateTime? endedAt;
+
+  /// `hold_expired` = não pagou a reserva no prazo.
+  final String cancelReason;
 
   /// `pending`, `active`, `paused`, `cancelled`, `completed` ou `waitlisted`.
   final String status;
@@ -963,7 +995,7 @@ CenterTodaySummary centerTodaySummary({
         waitlisted == 1
             ? '1 na lista de espera'
             : '$waitlisted na lista de espera',
-        'Ofereça a vaga quando abrir',
+        'A vaga abre e vai sozinha para o 1º da fila',
       ),
     );
   }

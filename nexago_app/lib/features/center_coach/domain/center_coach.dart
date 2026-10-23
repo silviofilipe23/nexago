@@ -1001,3 +1001,25 @@ Map<String, Object?> _map(Map<dynamic, dynamic> m) =>
 
 /// Data já convertida pelo repositório (`Timestamp` → `DateTime`).
 DateTime? _date(Object? v) => v is DateTime ? v : null;
+
+/// G5 · Ocupação da aula: matriculados na turma, encaixados de reposição e
+/// vagas que sobram (capacidade 0 = sem limite → `free` nulo).
+({int enrolled, int capacity, int makeups, int? free}) centerSessionOccupancy(
+  CenterCoachClass? cls,
+  CenterCoachSession session,
+) {
+  final roster = cls?.rosterStudentIds ?? const <String>[];
+  final makeups = {
+    for (final id in session.makeupStudentIds)
+      if (!roster.contains(id)) id,
+  }.length;
+  final capacity = cls?.capacity ?? 0;
+  return (
+    enrolled: roster.length,
+    capacity: capacity,
+    makeups: makeups,
+    free: capacity > 0
+        ? (capacity - roster.length - makeups).clamp(0, capacity)
+        : null,
+  );
+}

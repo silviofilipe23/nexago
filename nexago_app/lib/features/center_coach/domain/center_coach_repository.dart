@@ -1,3 +1,4 @@
+import 'center_alerts.dart';
 import 'center_coach.dart';
 
 /// Leituras e escritas do professor no centro (Firestore direto, nas rules do
@@ -63,6 +64,12 @@ abstract class CenterCoachRepository {
 
   /// Cobranças do centro (só com financeiro).
   Stream<List<CenterCoachInvoice>> watchInvoices(String centerId);
+
+  /// Trilha de auditoria do centro, mais recente primeiro (só owner/admin).
+  Stream<List<CenterAuditEntry>> watchAuditLogs(
+    String centerId, {
+    int limit = 100,
+  });
 
   /// Cancela só esta aula (gestão): motivo para os alunos, auditoria e, com
   /// reposição automática, +1 crédito para cada aluno em [creditStudentIds].

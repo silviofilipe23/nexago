@@ -79,7 +79,19 @@ class CenterCoachTodayPage extends ConsumerWidget {
       title: 'Hoje',
       subtitle:
           '${member?.centerName.toUpperCase() ?? 'CENTRO'} · '
-          '${ofToday.where((s) => !s.isCancelled).length} AULAS · $done REALIZADAS',
+          '${_count(ofToday.where((s) => !s.isCancelled).length, 'AULA', 'AULAS')} · '
+          '${_count(done, 'REALIZADA', 'REALIZADAS')}',
+      trailing: member?.isManager ?? false
+          ? ProfessorLinksRoundButton(
+              key: const Key('center-today-alerts'),
+              icon: Icons.notifications_none_rounded,
+              semanticLabel: 'Alertas do centro',
+              onTap: () => context.pushNamed(
+                AppRouteNames.centerCoachAlerts,
+                pathParameters: {'centerId': centerId},
+              ),
+            )
+          : null,
       onBack: () => popOrGo(context, AppRoutes.centerCoachAgenda),
       body: RefreshIndicator(
         color: AppColors.brand,
@@ -232,6 +244,8 @@ class CenterCoachTodayPage extends ConsumerWidget {
     );
   }
 }
+
+String _count(int n, String one, String many) => '$n ${n == 1 ? one : many}';
 
 class _LiveCard extends StatelessWidget {
   const _LiveCard({super.key, required this.session, required this.onOpen});

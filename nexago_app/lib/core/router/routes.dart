@@ -140,6 +140,13 @@ abstract final class AppRoutes {
   static const String athleteTrainings = '/treinos';
   static const String athleteTrainingClasses = '/treinos/aulas';
   static const String athleteTrainingFeedbacks = '/treinos/feedbacks';
+
+  /// Avaliar aulas: "Como foi?" (A1), o formulário de um treino (A2–A6, a
+  /// chave é a de `classReviewKey`, `?n=` traz as estrelas do A1) e "Minhas
+  /// avaliações" (A7).
+  static const String athleteTrainingReviewStart = '/treinos/avaliar';
+  static const String athleteTrainingReview = '/treinos/avaliar/:key';
+  static const String athleteTrainingReviews = '/treinos/avaliacoes';
   static const String athleteTrainingEvolution = '/treinos/evolucao';
   static const String athleteTrainingProfessors = '/treinos/professores';
   static const String athleteTrainingFindProfessor = '/treinos/encontrar';
@@ -944,6 +951,9 @@ abstract final class AppRouteNames {
   static const String athleteTrainings = 'athleteTrainings';
   static const String athleteTrainingClasses = 'athleteTrainingClasses';
   static const String athleteTrainingFeedbacks = 'athleteTrainingFeedbacks';
+  static const String athleteTrainingReviewStart = 'athleteTrainingReviewStart';
+  static const String athleteTrainingReview = 'athleteTrainingReview';
+  static const String athleteTrainingReviews = 'athleteTrainingReviews';
   static const String athleteTrainingEvolution = 'athleteTrainingEvolution';
   static const String athleteTrainingProfessors = 'athleteTrainingProfessors';
   static const String athleteTrainingFindProfessor =

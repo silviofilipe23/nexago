@@ -32,6 +32,8 @@ import 'widgets/class_presence_widgets.dart';
 import 'athlete_training_homework_page.dart' show openTrainingHomework;
 import 'widgets/training_origin_widgets.dart';
 import 'widgets/training_widgets.dart';
+import 'widgets/class_review_widgets.dart';
+import '../domain/class_review.dart';
 import '../domain/training_origin_links.dart';
 import 'athlete_training_add_page.dart' show CenterInviteCard;
 
@@ -64,6 +66,8 @@ class _AthleteTrainingHubPageState
     final charges = ref.watch(myClassChargesProvider).valueOrNull ?? const [];
     final plans = ref.watch(athleteTrainingPlansProvider).valueOrNull;
     final unread = ref.watch(unreadMessagesCountProvider);
+    final pendingReviews =
+        ref.watch(pendingClassReviewsProvider) ?? const <PendingReview>[];
     final credits =
         ref.watch(athleteClassCreditsProvider).valueOrNull ?? const [];
     final centers =
@@ -222,6 +226,10 @@ class _AthleteTrainingHubPageState
                 ],
               ),
             ],
+            if (pendingReviews.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              ReviewPromptCard(pending: pendingReviews),
+            ],
             if (credits.isNotEmpty) ...[
               const SizedBox(height: 12),
               TrainingTilesBlock(
@@ -339,6 +347,19 @@ class _AthleteTrainingHubPageState
                   highlight: trainingNewFeedbackCount(views, now) > 0,
                   onTap: () =>
                       context.pushNamed(AppRouteNames.athleteTrainingFeedbacks),
+                ),
+                TrainingListTile(
+                  key: const Key('training-hub-reviews'),
+                  icon: Icons.star_outline_rounded,
+                  title: 'Minhas avaliações',
+                  subtitle: pendingReviews.isEmpty
+                      ? 'Notas que você deu às aulas e respostas'
+                      : pendingReviews.length == 1
+                          ? '1 treino para avaliar'
+                          : '${pendingReviews.length} treinos para avaliar',
+                  highlight: pendingReviews.isNotEmpty,
+                  onTap: () =>
+                      context.pushNamed(AppRouteNames.athleteTrainingReviews),
                 ),
                 TrainingListTile(
                   key: const Key('training-hub-evolution'),

@@ -211,6 +211,7 @@ import '../../features/athlete_training/presentation/athlete_training_feedbacks_
 import '../../features/athlete_training/presentation/athlete_training_hub_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_makeup_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_find_professor_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_review_pages.dart';
 import '../../features/athlete_training/presentation/athlete_training_professor_profile_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_homework_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_plans_page.dart';
@@ -3192,6 +3193,25 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             path: 'feedbacks',
             name: AppRouteNames.athleteTrainingFeedbacks,
             builder: (context, state) => const AthleteTrainingFeedbacksPage(),
+          ),
+          GoRoute(
+            path: 'avaliar',
+            name: AppRouteNames.athleteTrainingReviewStart,
+            builder: (context, state) => const AthleteTrainingReviewStartPage(),
+          ),
+          GoRoute(
+            path: 'avaliar/:key',
+            name: AppRouteNames.athleteTrainingReview,
+            builder: (context, state) => AthleteTrainingReviewPage(
+              reviewKey: state.pathParameters['key'] ?? '',
+              initialStars:
+                  int.tryParse(state.uri.queryParameters['n'] ?? '') ?? 0,
+            ),
+          ),
+          GoRoute(
+            path: 'avaliacoes',
+            name: AppRouteNames.athleteTrainingReviews,
+            builder: (context, state) => const AthleteTrainingReviewsPage(),
           ),
           GoRoute(
             path: 'evolucao',

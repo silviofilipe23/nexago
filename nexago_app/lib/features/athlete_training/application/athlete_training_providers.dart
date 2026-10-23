@@ -20,6 +20,8 @@ import '../domain/class_presence.dart';
 import '../infrastructure/class_presence_repository.dart';
 import '../domain/training_center.dart';
 import '../infrastructure/training_centers_repository.dart';
+import '../domain/class_review.dart';
+import '../infrastructure/class_review_repository.dart';
 
 /// Resposta de `getMyTrainingCenters` (centros + convites). Falha (ou a
 /// callable ainda não publicada) vira vazio: o resto dos treinos segue.
@@ -235,4 +237,27 @@ final athleteTrainingPlansProvider =
     return Future.value(const MyTrainingPlans());
   }
   return ref.read(trainingPlansRepositoryProvider).fetch();
+});
+
+
+/// Avaliações de aula do próprio aluno (`classReviews`), da mais recente.
+final myClassReviewsProvider =
+    StreamProvider.autoDispose<List<ClassReview>>((ref) {
+  final uid = ref.watch(professorLinksUidProvider);
+  if (uid.isEmpty) return Stream.value(const []);
+  return ref.watch(classReviewRepositoryProvider).watchMine(uid);
+});
+
+/// Treinos com presença ainda sem avaliação (A1/A7). `null` enquanto os
+/// treinos ou as avaliações não chegaram.
+final pendingClassReviewsProvider =
+    Provider.autoDispose<List<PendingReview>?>((ref) {
+  final trainings = ref.watch(athleteTrainingsProvider);
+  final reviews = ref.watch(myClassReviewsProvider);
+  if (trainings == null || !reviews.hasValue) return null;
+  return pendingClassReviews(
+    trainings,
+    reviews.value ?? const [],
+    ref.watch(professorLinksClockProvider)(),
+  );
 });

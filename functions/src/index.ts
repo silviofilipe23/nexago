@@ -267,6 +267,7 @@ export {getMyTrainingPlans} from "./arena-class-athlete-plans";
 export {getMyTrainingCenters} from "./training-center-athlete";
 export {searchClassDirectory, getClassDirectoryDetail} from "./class-directory";
 export {saveArenaClassShowcase} from "./class-showcase";
+export {submitClassReview} from "./class-review";
 export {
   answerTrainingCenterInvite,
   checkMyTrainingCenterInvoice,

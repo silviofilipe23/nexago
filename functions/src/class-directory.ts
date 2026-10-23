@@ -20,6 +20,7 @@ import {PUBLIC_PROFESSORS} from "./arena-professor-links";
 import {TRAINING_CENTERS} from "./training-center-billing-model";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {arenaShowcaseRef, parseShowcase, type ClassTrial} from "./class-showcase";
+import {CLASS_REVIEW_SUMMARIES, summaryRating} from "./class-review";
 
 type Data = Record<string, unknown>;
 
@@ -71,6 +72,9 @@ export interface DirectoryItem {
   schedule: DirectorySlot[];
   /** Aula experimental (vitrine configurada no portal); `null` = não oferece. */
   trial: ClassTrial | null;
+  /** Média do local nas avaliações de treino (`null` abaixo de 3). */
+  rating: number | null;
+  ratingCount: number;
 }
 
 export interface DirectoryClass {
@@ -137,6 +141,9 @@ export interface DirectoryDetail {
   makeupNoticeHours: number | null;
   /** Aula experimental (vitrine configurada no portal); `null` = não oferece. */
   trial: ClassTrial | null;
+  /** Média do local nas avaliações de treino (`null` abaixo de 3). */
+  rating: number | null;
+  ratingCount: number;
 }
 
 // ── auxiliares puros ─────────────────────────────────────────────────────
@@ -337,6 +344,10 @@ export function trialOf(raw: unknown): ClassTrial | null {
   return t.enabled ? t : null;
 }
 
+function summaryRef(db: Firestore, origin: "arena" | "center", id: string) {
+  return db.collection(CLASS_REVIEW_SUMMARIES).doc(`${origin}_${id}`);
+}
+
 // ── busca (H2) ───────────────────────────────────────────────────────────
 
 export interface DirectoryQuery {
@@ -374,6 +385,7 @@ export async function searchClassDirectoryCore(db: Firestore, q: Data, now = new
       arenaRef.collection(PUBLIC_PROFESSORS).limit(MAX_DETAIL_PROFESSORS).get(),
       arenaShowcaseRef(db, arenaId).get(),
     ]);
+    const reviews = summaryRating((await summaryRef(db, "arena", arenaId).get()).data());
     if (!arenaSnap.exists) return null;
     const arena = arenaSnap.data() as Data;
     if (arena["isUnclaimed"] === true) return null;
@@ -398,17 +410,21 @@ export async function searchClassDirectoryCore(db: Firestore, q: Data, now = new
       highlight: pickHighlight(classes, level, weekday),
       schedule: classes.map(slotOf),
       trial: trialOf(showcaseSnap.data()),
+      rating: reviews.rating,
+      ratingCount: reviews.count,
     };
     return item;
   }));
 
   const centerItems = await Promise.all(centerSnap.docs.map(async (d) => {
     const center = d.data() as Data;
-    const [classes, plans, programs] = await Promise.all([
+    const [classes, plans, programs, summarySnap] = await Promise.all([
       d.ref.collection("classes").where("status", "==", "active").limit(MAX_DETAIL_CLASSES).get(),
       d.ref.collection("plans").where("status", "==", "active").limit(MAX_DETAIL_PLANS).get(),
       d.ref.collection("programs").limit(MAX_DETAIL_PLANS).get(),
+      summaryRef(db, "center", d.id).get(),
     ]);
+    const reviews = summaryRating(summarySnap.data());
     const list = classes.docs
       .filter((c) => isListedCenterClass(c.data() as Data, todayKey))
       .map((c) => centerClassView(c.id, c.data() as Data));
@@ -434,6 +450,8 @@ export async function searchClassDirectoryCore(db: Firestore, q: Data, now = new
       highlight: pickHighlight(list, "", weekday),
       schedule: list.map(slotOf),
       trial: trialOf(center["showcase"]),
+      rating: reviews.rating,
+      ratingCount: reviews.count,
     };
     return item;
   }));
@@ -454,6 +472,7 @@ export async function getArenaClassDirectoryCore(db: Firestore, arenaId: string,
     arenaRef.collection("classSettings").doc("rules").get(),
     arenaShowcaseRef(db, arenaId).get(),
   ]);
+  const reviews = summaryRating((await summaryRef(db, "arena", arenaId).get()).data());
   if (!arenaSnap.exists) throw new HttpsError("not-found", "Arena não encontrada.");
   const arena = arenaSnap.data() as Data;
   if (arena["isUnclaimed"] === true) throw new HttpsError("not-found", "Arena não encontrada.");
@@ -511,6 +530,8 @@ export async function getArenaClassDirectoryCore(db: Firestore, arenaId: string,
     professors: [...professors.values()],
     makeupNoticeHours: num(rules["makeupNoticeHours"]),
     trial: showcase.trial.enabled ? showcase.trial : null,
+    rating: reviews.rating,
+    ratingCount: reviews.count,
   };
 }
 
@@ -519,13 +540,15 @@ export async function getArenaClassDirectoryCore(db: Firestore, arenaId: string,
 export async function getCenterClassDirectoryCore(db: Firestore, centerId: string, now = new Date()): Promise<DirectoryDetail> {
   const {key: todayKey} = todayParts(now);
   const ref = db.doc(`${TRAINING_CENTERS}/${centerId}`);
-  const [snap, classSnap, planSnap, programSnap, locationSnap] = await Promise.all([
+  const [snap, classSnap, planSnap, programSnap, locationSnap, summarySnap] = await Promise.all([
     ref.get(),
     ref.collection("classes").where("status", "==", "active").limit(MAX_DETAIL_CLASSES).get(),
     ref.collection("plans").where("status", "==", "active").limit(MAX_DETAIL_PLANS).get(),
     ref.collection("programs").limit(MAX_DETAIL_PLANS).get(),
     ref.collection("locations").limit(MAX_DETAIL_PLANS).get(),
+    summaryRef(db, "center", centerId).get(),
   ]);
+  const reviews = summaryRating(summarySnap.data());
   if (!snap.exists || str((snap.data() as Data)["status"]) !== "active") {
     throw new HttpsError("not-found", "Centro de treinamento não encontrado.");
   }
@@ -565,6 +588,8 @@ export async function getCenterClassDirectoryCore(db: Firestore, centerId: strin
     professors: professorsOf(classes, []).map((p) => ({...p, professorUid: null, role: ""})),
     makeupNoticeHours: null,
     trial: showcase.trial.enabled ? showcase.trial : null,
+    rating: reviews.rating,
+    ratingCount: reviews.count,
   };
 }
 

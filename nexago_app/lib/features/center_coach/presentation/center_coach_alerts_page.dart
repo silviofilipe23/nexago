@@ -151,6 +151,14 @@ class _CenterCoachAlertsPageState extends ConsumerState<CenterCoachAlertsPage> {
               'studentId': e.entityId
             },
           ),
+      'enrollment' => () => context.pushNamed(
+        AppRouteNames.centerCoachWaitlist,
+        pathParameters: {'centerId': widget.centerId},
+      ),
+      'invoice' => () => context.pushNamed(
+        AppRouteNames.centerCoachInvoice,
+        pathParameters: {'centerId': widget.centerId, 'invoiceId': e.entityId},
+      ),
       _ => null,
     };
   }

@@ -302,6 +302,16 @@ class FirebaseCenterCoachRepository implements CenterCoachRepository {
   }
 
   @override
+  Stream<Map<String, String>> watchPlanNames(String centerId) => _center(
+    centerId,
+  ).collection('plans').snapshots().map(
+    (snap) => {
+      for (final d in snap.docs)
+        d.id: (d.data()['name'] as String?)?.trim() ?? '',
+    },
+  );
+
+  @override
   Stream<List<CenterAuditEntry>> watchAuditLogs(
     String centerId, {
     int limit = 100,

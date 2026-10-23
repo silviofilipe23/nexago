@@ -6,7 +6,7 @@ import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { CLASS_TYPE_LABEL, teacherInitials, type ClassType } from './class.model';
 
-export type AulasTab = 'visao' | 'agenda' | 'turmas' | 'alunos' | 'planos' | 'professores' | 'regras' | 'vitrine';
+export type AulasTab = 'visao' | 'agenda' | 'turmas' | 'alunos' | 'planos' | 'professores' | 'avaliacoes' | 'regras' | 'vitrine';
 
 const TABS: ReadonlyArray<{ id: AulasTab; label: string; route: string }> = [
   { id: 'visao', label: 'Visão geral', route: '/painel/aulas' },
@@ -15,6 +15,7 @@ const TABS: ReadonlyArray<{ id: AulasTab; label: string; route: string }> = [
   { id: 'alunos', label: 'Alunos', route: '/painel/aulas/alunos' },
   { id: 'planos', label: 'Planos', route: '/painel/aulas/planos' },
   { id: 'professores', label: 'Professores', route: '/painel/aulas/professores' },
+  { id: 'avaliacoes', label: 'Avaliações', route: '/painel/aulas/avaliacoes' },
   { id: 'regras', label: 'Regras', route: '/painel/aulas/regras' },
   { id: 'vitrine', label: 'Vitrine no app', route: '/painel/aulas/vitrine' },
 ];

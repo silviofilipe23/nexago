@@ -31,6 +31,7 @@ export type CenterArea =
   | 'locations'
   | 'programs'
   | 'members'
+  | 'reviews'
   | 'settings';
 
 export const AREA_LABELS: Record<CenterArea, string> = {
@@ -48,6 +49,7 @@ export const AREA_LABELS: Record<CenterArea, string> = {
   locations: 'Locais',
   programs: 'Modalidades e níveis',
   members: 'Equipe',
+  reviews: 'Avaliações',
   settings: 'Configurações',
 };
 
@@ -107,6 +109,7 @@ const ROLE_AREAS: Record<CenterRole, CenterArea[]> = {
     'locations',
     'programs',
     'members',
+    'reviews',
     'settings',
   ],
   center_admin: [
@@ -123,13 +126,17 @@ const ROLE_AREAS: Record<CenterRole, CenterArea[]> = {
     'locations',
     'programs',
     'members',
+    'reviews',
     'settings',
   ],
   receptionist: ['dashboard', 'schedule', 'classes', 'enrollments', 'students', 'plans'],
   coach: ['dashboard', 'schedule', 'classes', 'students', 'myPayouts'],
 };
 
-/** Permissão extra que abre uma área que o papel não tem por padrão. */
+/**
+ * Permissão extra que abre uma área que o papel não tem por padrão. `reviews` (Avaliações) fica de
+ * fora de propósito: as callables só atendem owner/admin ativos.
+ */
 const AREA_BY_PERMISSION: Partial<Record<CenterPermission, CenterArea[]>> = {
   view_enrollments: ['enrollments'],
   enroll_students: ['enrollments'],

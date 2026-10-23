@@ -85,6 +85,8 @@ class _ClassTrialBookingPageState extends ConsumerState<ClassTrialBookingPage> {
       final repo = ref.read(classDirectoryRepositoryProvider);
       if (center) {
         await repo.bookCenterTrial(widget.detail.id, o.sessionId);
+        // A experimental do CT entra na agenda pelo `getMyTrainingCenters`.
+        refreshAthleteTrainingCenters(ref);
       } else {
         await repo.bookArenaTrial(o.sessionId);
         refreshAthleteClassPresence(ref);
@@ -118,6 +120,7 @@ class _ClassTrialBookingPageState extends ConsumerState<ClassTrialBookingPage> {
       await ref
           .read(classDirectoryRepositoryProvider)
           .cancelCenterTrial(widget.detail.id, bookingId);
+      refreshAthleteTrainingCenters(ref);
       ref.invalidate(classTrialOptionsProvider(_key));
       if (!mounted) return;
       ScaffoldMessenger.maybeOf(context)

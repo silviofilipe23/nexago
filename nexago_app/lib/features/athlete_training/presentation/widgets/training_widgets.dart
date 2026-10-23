@@ -25,7 +25,14 @@ import 'training_origin_widgets.dart';
 /// remarcar e cancelar).
 void openTraining(BuildContext context, TrainingSession t) {
   final entry = t.classEntry;
-  if (t.isCenter) {
+  if (t.centerTrial != null) {
+    // Ainda não é aluno: a página do CT no diretório mostra o pedido (status e
+    // desmarcar).
+    context.pushNamed(
+      AppRouteNames.classDirectoryCenter,
+      pathParameters: {'centerId': t.centerId},
+    );
+  } else if (t.isCenter) {
     context.pushNamed(
       AppRouteNames.athleteTrainingCenterSession,
       pathParameters: {'centerId': t.centerId, 'sessionId': t.id},
@@ -42,7 +49,9 @@ Color trainingStateColor(TrainingSession t, AppThemeColors colors) =>
     switch (t.state) {
       TrainingState.scheduled || TrainingState.present => colors.win,
       TrainingState.awaitingProfessor ||
-      TrainingState.excused => colors.pending,
+      TrainingState.awaitingCenter ||
+      TrainingState.excused =>
+        colors.pending,
       TrainingState.canceled || TrainingState.absent => colors.live,
       TrainingState.done => ProfessorLinksStyle.mute(colors),
     };

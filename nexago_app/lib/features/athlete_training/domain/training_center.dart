@@ -486,12 +486,69 @@ class CenterInvite {
   String get placeLabel => [city, state].where((s) => s.isNotEmpty).join(' · ');
 }
 
+/// Experimental pedida pelo atleta num CT (ele ainda não é aluno). O centro
+/// confirma pelo portal; `pending` até lá.
+class CenterTrial {
+  const CenterTrial({
+    required this.bookingId,
+    required this.centerId,
+    required this.centerName,
+    required this.sessionId,
+    required this.className,
+    required this.date,
+    required this.startTime,
+    this.endTime = '',
+    this.coachName = '',
+    this.locationName = '',
+    this.status = 'pending',
+    this.note = '',
+  });
+
+  factory CenterTrial.fromMap(Map<String, Object?> m) => CenterTrial(
+        bookingId: _str(m['bookingId']),
+        centerId: _str(m['centerId']),
+        centerName: _str(m['centerName'], 'Centro de treinamento'),
+        sessionId: _str(m['sessionId']),
+        className: _str(m['className'], 'Aula experimental'),
+        date: _str(m['date']),
+        startTime: _str(m['startTime']),
+        endTime: _str(m['endTime']),
+        coachName: _str(m['coachName']),
+        locationName: _str(m['locationName']),
+        status: _str(m['status'], 'pending'),
+        note: _str(m['note']),
+      );
+
+  final String bookingId;
+  final String centerId;
+  final String centerName;
+  final String sessionId;
+  final String className;
+
+  /// `YYYY-MM-DD`.
+  final String date;
+  final String startTime;
+  final String endTime;
+  final String coachName;
+  final String locationName;
+
+  /// `pending`, `confirmed` ou `declined`.
+  final String status;
+
+  /// Recado do centro ao responder.
+  final String note;
+
+  bool get isPending => status == 'pending';
+  bool get isDeclined => status == 'declined';
+}
+
 /// Resposta inteira de `getMyTrainingCenters`.
 class MyTrainingCentersData {
   const MyTrainingCentersData({
     this.centers = const [],
     this.invites = const [],
     this.unverifiedInvites = 0,
+    this.trials = const [],
   });
 
   factory MyTrainingCentersData.fromResponse(Object? raw) {
@@ -510,11 +567,15 @@ class MyTrainingCentersData {
       centers: list('centers', TrainingCenterLink.fromMap),
       invites: list('invites', CenterInvite.fromMap),
       unverifiedInvites: _int(raw['unverifiedInvites']) ?? 0,
+      trials: list('trials', CenterTrial.fromMap),
     );
   }
 
   final List<TrainingCenterLink> centers;
   final List<CenterInvite> invites;
+
+  /// Experimentais pedidas em CTs (de qualquer centro, aluno ou não).
+  final List<CenterTrial> trials;
 
   /// Convites para o e-mail da conta que só aparecem depois de confirmar o
   /// e-mail.

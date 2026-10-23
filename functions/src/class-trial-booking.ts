@@ -322,7 +322,7 @@ export async function bookCenterTrialCore(
     const taken = active.filter((t) => str(t["sessionId"]) === sessionId).length;
     if (centerSpotsLeft(cls, s, taken) === 0) throw new HttpsError("failed-precondition", "A aula está sem vaga.");
     const doc = {
-      centerId, sessionId, classId: option.classId, className: option.className, level: option.level,
+      centerId, centerName: str(center["name"]) || "Centro de treinamento", sessionId, classId: option.classId, className: option.className, level: option.level,
       coachName: option.teacherName, coachUid: str(s["coachUid"]) || str(cls["coachUid"]) || null,
       locationName: option.place, date: option.date, startTime: option.startTime, endTime: option.endTime,
       athleteId: uid, name: student.name, phone: student.phone, photoUrl: student.photoUrl,

@@ -399,17 +399,35 @@ class CenterCoachStudent {
     this.billingHold = false,
     this.makeupCredits = 0,
     this.status = 'active',
+    this.uid = '',
+    this.email = '',
+    this.phone = '',
+    this.guardianName = '',
+    this.guardianRelation = '',
+    this.guardianPhone = '',
+    this.birthDate = '',
+    this.createdAt,
   });
 
-  factory CenterCoachStudent.fromMap(String id, Map<String, Object?> m) =>
-      CenterCoachStudent(
-        id: id,
-        name: _str(m['name'], 'Aluno'),
-        isMinor: m['isMinor'] == true,
-        billingHold: m['billingHold'] == true,
-        makeupCredits: _int(m['makeupCredits']) ?? 0,
-        status: _str(m['status'], 'active'),
-      );
+  factory CenterCoachStudent.fromMap(String id, Map<String, Object?> m) {
+    final g = m['guardian'] is Map ? _map(m['guardian'] as Map) : const {};
+    return CenterCoachStudent(
+      id: id,
+      name: _str(m['name'], 'Aluno'),
+      isMinor: m['isMinor'] == true,
+      billingHold: m['billingHold'] == true,
+      makeupCredits: _int(m['makeupCredits']) ?? 0,
+      status: _str(m['status'], 'active'),
+      uid: _str(m['uid']),
+      email: _str(m['email']),
+      phone: _str(m['phone']),
+      guardianName: _str(g['name']),
+      guardianRelation: _str(g['relation']),
+      guardianPhone: _str(g['phone']),
+      birthDate: _str(m['birthDate']),
+      createdAt: _date(m['createdAt']),
+    );
+  }
 
   final String id;
   final String name;
@@ -419,6 +437,18 @@ class CenterCoachStudent {
 
   /// `active`, `invited`, `inactive` ou `blocked`.
   final String status;
+
+  /// Conta NexaGO vinculada (vazio = só convidado por e-mail).
+  final String uid;
+  final String email;
+  final String phone;
+  final String guardianName;
+  final String guardianRelation;
+  final String guardianPhone;
+
+  /// `YYYY-MM-DD` (vazio se não informado).
+  final String birthDate;
+  final DateTime? createdAt;
 }
 
 /// Aluno que dá para encaixar com crédito de reposição
@@ -442,25 +472,53 @@ class CenterCoachEnrollment {
     required this.studentId,
     required this.classId,
     required this.status,
+    this.className = '',
+    this.planName = '',
+    this.planType = '',
+    this.priceCents,
+    this.creditsLeft,
+    this.startDate = '',
   });
 
-  factory CenterCoachEnrollment.fromMap(String id, Map<String, Object?> m) =>
-      CenterCoachEnrollment(
-        id: id,
-        studentId: _str(m['studentId']),
-        classId: _str(m['classId']),
-        status: _str(m['status']),
-      );
+  factory CenterCoachEnrollment.fromMap(String id, Map<String, Object?> m) {
+    final c = m['contract'] is Map ? _map(m['contract'] as Map) : const {};
+    return CenterCoachEnrollment(
+      id: id,
+      studentId: _str(m['studentId']),
+      classId: _str(m['classId']),
+      status: _str(m['status']),
+      className: _str(m['className']),
+      planName: _str(c['planName']),
+      planType: _str(c['planType']),
+      priceCents: _int(c['priceCents']),
+      creditsLeft: _int(m['creditsLeft']),
+      startDate: _str(m['startDate']),
+    );
+  }
 
   final String id;
   final String studentId;
   final String classId;
+  final String className;
+  final String planName;
+
+  /// `monthly`, `package`, `single`… (do contrato da matrícula).
+  final String planType;
+  final int? priceCents;
+
+  /// Aulas que sobram no pacote (`null` = plano sem contagem).
+  final int? creditsLeft;
+  final String startDate;
 
   /// `pending`, `active`, `paused`, `cancelled`, `completed` ou `waitlisted`.
   final String status;
 
   /// Ocupa vaga e está treinando (pausada não recebe reposição de cancelamento).
   bool get attends => status == 'active' || status == 'pending';
+
+  /// Ocupa vaga (espelha `holdsSeat` do portal: pendente, ativa ou pausada).
+  bool get holdsSeat =>
+      status == 'active' || status == 'pending' || status == 'paused';
 }
 
 /// Cobrança do centro (`invoices/{id}`) — só para quem vê o financeiro.
@@ -471,6 +529,8 @@ class CenterCoachInvoice {
     required this.amountCents,
     required this.dueDate,
     this.approvedAt,
+    this.studentId = '',
+    this.reference = '',
   });
 
   factory CenterCoachInvoice.fromMap(String id, Map<String, Object?> m) =>
@@ -480,9 +540,15 @@ class CenterCoachInvoice {
         amountCents: _int(m['amountCents']) ?? 0,
         dueDate: _str(m['dueDate']),
         approvedAt: _date(m['approvedAt']),
+        studentId: _str(m['studentId']),
+        reference: _str(m['reference']),
       );
 
   final String id;
+  final String studentId;
+
+  /// "Mensalidade outubro", "Pacote 8 aulas"…
+  final String reference;
   final String status;
   final int amountCents;
   final String dueDate;
@@ -949,4 +1015,26 @@ String? centerRoleFooter(List<CenterMembership> memberships) {
     return '${first.centerName.toUpperCase()} · ${active.length} CENTROS';
   }
   return '${first.centerName.toUpperCase()} · ${first.roleLabel.toUpperCase()}';
+}
+
+/// G5 · Ocupação da aula: matriculados na turma, encaixados de reposição e
+/// vagas que sobram (capacidade 0 = sem limite → `free` nulo).
+({int enrolled, int capacity, int makeups, int? free}) centerSessionOccupancy(
+  CenterCoachClass? cls,
+  CenterCoachSession session,
+) {
+  final roster = cls?.rosterStudentIds ?? const <String>[];
+  final makeups = {
+    for (final id in session.makeupStudentIds)
+      if (!roster.contains(id)) id,
+  }.length;
+  final capacity = cls?.capacity ?? 0;
+  return (
+    enrolled: roster.length,
+    capacity: capacity,
+    makeups: makeups,
+    free: capacity > 0
+        ? (capacity - roster.length - makeups).clamp(0, capacity)
+        : null,
+  );
 }

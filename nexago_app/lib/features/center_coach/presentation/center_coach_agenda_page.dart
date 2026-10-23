@@ -18,6 +18,12 @@ import '../application/center_coach_providers.dart';
 import '../domain/center_coach.dart';
 import 'widgets/center_coach_widgets.dart';
 import 'widgets/center_mode_tab_scope.dart';
+import 'widgets/center_agenda_views.dart';
+import '../domain/center_agenda.dart' show centerMonthTitle;
+import '../../arena/presentation/aulas/widgets/arena_class_atoms.dart'
+    show ArenaClassSegmented;
+import '../../professor_mode/domain/professor_agenda.dart';
+import '../domain/center_management.dart' show centerDayLabel;
 
 /// P1/P2/L7 · Agenda do professor no centro: a semana, a próxima aula com
 /// "Abrir chamada", as aulas do dia (com o local de cada uma — o centro pode
@@ -36,6 +42,9 @@ class CenterCoachAgendaPage extends ConsumerStatefulWidget {
 
 class _CenterCoachAgendaPageState extends ConsumerState<CenterCoachAgendaPage> {
   String? _day;
+
+  /// Dia · Semana · Mês (como a Agenda do Professor).
+  ProfessorAgendaView _view = ProfessorAgendaView.day;
 
   /// `all`, `mine` ou o uid de um professor; `null` = padrão do papel.
   String? _coach;
@@ -119,6 +128,12 @@ class _CenterCoachAgendaPageState extends ConsumerState<CenterCoachAgendaPage> {
             day: day,
             now: now,
             onDay: (d) => setState(() => _day = d),
+            view: _view,
+            onView: (v) => setState(() => _view = v),
+            onPickDay: (d) => setState(() {
+              _day = d;
+              _view = ProfessorAgendaView.day;
+            }),
             coachFilter: _coach,
             onCoach: (c) => setState(() => _coach = c),
             onSwitch: (id) {
@@ -149,7 +164,16 @@ class _AgendaBody extends ConsumerWidget {
     required this.colors,
     required this.coachFilter,
     required this.onCoach,
+    required this.view,
+    required this.onView,
+    required this.onPickDay,
   });
+
+  final ProfessorAgendaView view;
+  final ValueChanged<ProfessorAgendaView> onView;
+
+  /// Toque num dia da Semana/Mês: vai para o Dia dele.
+  final ValueChanged<String> onPickDay;
 
   final String? coachFilter;
   final ValueChanged<String?> onCoach;
@@ -167,11 +191,13 @@ class _AgendaBody extends ConsumerWidget {
     final uid = ref.watch(professorLinksUidProvider);
     final centerId = member.centerId;
     final center = ref.watch(coachCenterProvider(centerId)).valueOrNull;
-    final days = coachWeekKeys(coachShiftDay(today, -1));
+    final days = professorWeekDays(day);
+    final period = professorAgendaRange(view, day);
+    // O período da visão e sempre hoje (o card "Próxima aula").
     final range = (
       centerId: centerId,
-      fromKey: coachShiftDay(today, -7),
-      toKey: coachShiftDay(today, 14),
+      fromKey: period.fromKey.compareTo(today) < 0 ? period.fromKey : today,
+      toKey: period.toKey.compareTo(today) > 0 ? period.toKey : today,
     );
     final sessionsAsync = ref.watch(coachSessionsProvider(range));
     // Gestão e recepção veem o centro inteiro (com filtro por professor); o
@@ -186,22 +212,20 @@ class _AgendaBody extends ConsumerWidget {
         if (s.coachUid.isNotEmpty && s.coachUid != uid)
           s.coachUid: s.coachName.isEmpty ? 'Professor' : s.coachName,
     };
-    final mine =
-        [
-          for (final s in all)
-            if (filter == 'all' ||
-                (filter == 'mine' ? s.coachUid == uid : s.coachUid == filter))
-              s,
-        ]..sort(
-          (a, b) =>
-              '${a.date} ${a.startTime}'.compareTo('${b.date} ${b.startTime}'),
-        );
+    final mine = [
+      for (final s in all)
+        if (filter == 'all' ||
+            (filter == 'mine' ? s.coachUid == uid : s.coachUid == filter))
+          s,
+    ]..sort(
+        (a, b) =>
+            '${a.date} ${a.startTime}'.compareTo('${b.date} ${b.startTime}'),
+      );
     final ofDay = [
       for (final s in mine)
         if (s.date == day) s,
     ];
-    final nowHm =
-        '${toNexagoEventLocal(now).hour.toString().padLeft(2, '0')}:'
+    final nowHm = '${toNexagoEventLocal(now).hour.toString().padLeft(2, '0')}:'
         '${toNexagoEventLocal(now).minute.toString().padLeft(2, '0')}';
     // A próxima de hoje ainda sem chamada fechada (inclusive a que passou
     // sem finalizar — a chamada segue aberta).
@@ -212,14 +236,14 @@ class _AgendaBody extends ConsumerWidget {
         break;
       }
     }
+    final classColors = centerClassColors(mine);
     final places = {
       for (final s in ofDay)
         if (!s.isCancelled && s.locationName.isNotEmpty) s.locationName,
     };
     final classes = [
-      for (final c
-          in ref.watch(coachClassesProvider(centerId)).valueOrNull ??
-              const <CenterCoachClass>[])
+      for (final c in ref.watch(coachClassesProvider(centerId)).valueOrNull ??
+          const <CenterCoachClass>[])
         if (c.coachUid == uid && (c.status == 'active' || c.status == 'draft'))
           c,
     ]..sort((a, b) => a.name.compareTo(b.name));
@@ -237,7 +261,8 @@ class _AgendaBody extends ConsumerWidget {
             canSwitch: others.isNotEmpty,
             onTap: others.isEmpty
                 ? null
-                : () => showCenterSwitchSheet(context, member, others, onSwitch),
+                : () =>
+                    showCenterSwitchSheet(context, member, others, onSwitch),
           ),
           if (staff && !tab) ...[
             const SizedBox(height: 12),
@@ -288,42 +313,42 @@ class _AgendaBody extends ConsumerWidget {
             ),
           ],
           if (!tab) ...[
-          const SizedBox(height: 8),
-          ProfessorLinksCard(
-            key: const Key('center-coach-students-entry'),
-            onTap: () => context.pushNamed(
-              AppRouteNames.centerCoachStudents,
-              pathParameters: {'centerId': centerId},
-            ),
-            padding: const EdgeInsets.all(13),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.people_alt_outlined,
-                  size: 20,
-                  color: colors.brandText,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    member.seesAllStudents
-                        ? 'Alunos do centro'
-                        : 'Meus alunos no centro',
-                    style: ProfessorLinksStyle.display(
-                      13.5,
-                      weight: FontWeight.w600,
-                      color: colors.onSurface,
+            const SizedBox(height: 8),
+            ProfessorLinksCard(
+              key: const Key('center-coach-students-entry'),
+              onTap: () => context.pushNamed(
+                AppRouteNames.centerCoachStudents,
+                pathParameters: {'centerId': centerId},
+              ),
+              padding: const EdgeInsets.all(13),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.people_alt_outlined,
+                    size: 20,
+                    color: colors.brandText,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      member.seesAllStudents
+                          ? 'Alunos do centro'
+                          : 'Meus alunos no centro',
+                      style: ProfessorLinksStyle.display(
+                        13.5,
+                        weight: FontWeight.w600,
+                        color: colors.onSurface,
+                      ),
                     ),
                   ),
-                ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 18,
-                  color: ProfessorLinksStyle.dim(colors),
-                ),
-              ],
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: ProfessorLinksStyle.dim(colors),
+                  ),
+                ],
+              ),
             ),
-          ),
           ],
           if (staff || coaches.isNotEmpty && member.isManager) ...[
             const SizedBox(height: 10),
@@ -358,25 +383,55 @@ class _AgendaBody extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 12),
-          Row(
-            children: [
-              for (final d in days) ...[
-                Expanded(
-                  child: CenterCoachDayCell(
-                    key: Key('center-coach-day-$d'),
-                    dateKey: d,
-                    selected: d == day,
-                    isToday: d == today,
-                    count: mine
-                        .where((s) => s.date == d && !s.isCancelled)
-                        .length,
-                    onTap: () => onDay(d),
-                  ),
-                ),
-                if (d != days.last) const SizedBox(width: 5),
-              ],
+          ArenaClassSegmented<ProfessorAgendaView>(
+            items: const [
+              (ProfessorAgendaView.day, 'Dia'),
+              (ProfessorAgendaView.week, 'Semana'),
+              (ProfessorAgendaView.month, 'Mês'),
             ],
+            selected: view,
+            onChanged: onView,
           ),
+          const SizedBox(height: 8),
+          CenterAgendaPeriodNav(
+            label: view == ProfessorAgendaView.month
+                ? centerMonthTitle(day)
+                : '${centerDayLabel(days.first)} – ${centerDayLabel(days.last)}',
+            isCurrent: today.compareTo(period.fromKey) >= 0 &&
+                today.compareTo(period.toKey) <= 0,
+            onPrev: () => onDay(
+              view == ProfessorAgendaView.month
+                  ? professorShiftMonth(day, -1)
+                  : professorShiftDay(day, -7),
+            ),
+            onNext: () => onDay(
+              view == ProfessorAgendaView.month
+                  ? professorShiftMonth(day, 1)
+                  : professorShiftDay(day, 7),
+            ),
+            onToday: () => onDay(today),
+          ),
+          const SizedBox(height: 8),
+          if (view == ProfessorAgendaView.day)
+            Row(
+              children: [
+                for (final d in days) ...[
+                  Expanded(
+                    child: CenterCoachDayCell(
+                      key: Key('center-coach-day-$d'),
+                      dateKey: d,
+                      selected: d == day,
+                      isToday: d == today,
+                      count: mine
+                          .where((s) => s.date == d && !s.isCancelled)
+                          .length,
+                      onTap: () => onDay(d),
+                    ),
+                  ),
+                  if (d != days.last) const SizedBox(width: 5),
+                ],
+              ],
+            ),
           const SizedBox(height: 14),
           if (sessionsAsync.isLoading && sessionsAsync.valueOrNull == null)
             const Padding(
@@ -384,6 +439,34 @@ class _AgendaBody extends ConsumerWidget {
               child: Center(
                 child: CircularProgressIndicator(color: AppColors.brand),
               ),
+            )
+          else if (view == ProfessorAgendaView.week)
+            CenterAgendaWeekView(
+              key: const Key('center-agenda-week'),
+              sessions: [
+                for (final s in mine)
+                  if (s.date.compareTo(period.fromKey) >= 0 &&
+                      s.date.compareTo(period.toKey) <= 0)
+                    s,
+              ],
+              date: day,
+              todayKey: today,
+              nowMin: professorParseMinutes(nowHm) ?? 0,
+              classColors: classColors,
+              onPickDay: onPickDay,
+              onOpen: (s) => openCoachSession(context, centerId, s.id),
+            )
+          else if (view == ProfessorAgendaView.month)
+            CenterAgendaMonthView(
+              key: const Key('center-agenda-month'),
+              sessions: [
+                for (final s in mine)
+                  if (s.date.startsWith(day.substring(0, 7))) s,
+              ],
+              date: day,
+              todayKey: today,
+              classColors: classColors,
+              onPickDay: onPickDay,
             )
           else ...[
             if (day == today && next != null) ...[
@@ -423,7 +506,7 @@ class _AgendaBody extends ConsumerWidget {
             if (ofDay.isEmpty)
               const ProfessorLinksCard(
                 key: Key('center-coach-day-empty'),
-                child: ProfessorMutedText('Nenhuma aula sua neste dia.'),
+                child: ProfessorMutedText('Nenhuma aula neste dia.'),
               ),
             for (final s in ofDay) ...[
               CenterCoachSessionRow(
@@ -431,8 +514,7 @@ class _AgendaBody extends ConsumerWidget {
                 session: s,
                 showPlace: places.length > 1,
                 showCoach: filter != 'mine',
-                isPast:
-                    s.date.compareTo(today) < 0 ||
+                isPast: s.date.compareTo(today) < 0 ||
                     (s.date == today &&
                         s.endTime.isNotEmpty &&
                         s.endTime.compareTo(nowHm) < 0),
@@ -484,10 +566,11 @@ void openCoachSession(
   BuildContext context,
   String centerId,
   String sessionId,
-) => context.pushNamed(
-  AppRouteNames.centerCoachSession,
-  pathParameters: {'centerId': centerId, 'sessionId': sessionId},
-);
+) =>
+    context.pushNamed(
+      AppRouteNames.centerCoachSession,
+      pathParameters: {'centerId': centerId, 'sessionId': sessionId},
+    );
 
 /// P2 · Trocar centro.
 Future<void> showCenterSwitchSheet(

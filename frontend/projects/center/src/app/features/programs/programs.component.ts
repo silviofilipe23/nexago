@@ -5,7 +5,7 @@ import { CenterStore } from '../../data/center-store.service';
 import { writeErrorMessage } from '../../data/actions/actor';
 import { CatalogActions } from '../../data/actions/catalog.actions';
 import { holdsSeat } from '../../domain/enrollment';
-import { CENTER_SPORTS, DEFAULT_LEVELS, PROGRAM_COLORS, type Program } from '../../domain/models';
+import { CENTER_SPORTS, DEFAULT_LEVELS, PROGRAM_COLORS, sportKey, type Program } from '../../domain/models';
 import { IconComponent } from '../../ui/icon.component';
 import { ModalComponent, PageHeaderComponent } from '../../ui/kit';
 
@@ -88,20 +88,18 @@ export class ProgramsComponent {
   protected readonly newLevel = signal('');
 
   /**
-   * Sugestões para "Nova modalidade": os esportes do centro primeiro, depois o catálogo,
-   * sem os que já viraram modalidade.
+   * Sugestões para "Nova modalidade": o catálogo do wizard do atleta, com os esportes que o
+   * centro marcou no cadastro primeiro, sem os que já viraram modalidade.
    */
   protected readonly suggestions = computed(() => {
-    const taken = new Set(this.store.programs().map((p) => p.name.trim().toLowerCase()));
-    const all = [...(this.ctx.center()?.sports ?? []), ...CENTER_SPORTS];
-    const seen = new Set<string>();
-    return all.filter((s) => {
-      const key = s.trim().toLowerCase();
-      if (!key || taken.has(key) || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    const taken = new Set(this.store.programs().map((p) => sportKey(p.name)));
+    const mine = new Set((this.ctx.center()?.sports ?? []).map(sportKey));
+    return CENTER_SPORTS.filter((s) => !taken.has(sportKey(s))).sort((a, b) => Number(mine.has(sportKey(b))) - Number(mine.has(sportKey(a))));
   });
+
+  protected isPicked(name: string): boolean {
+    return sportKey(this.pName()) === sportKey(name);
+  }
 
   protected pickSuggestion(name: string): void {
     this.pName.set(name);
@@ -164,7 +162,7 @@ export class ProgramsComponent {
     if (!target || this.busy()) return;
     const name = this.pName().trim();
     const levels = this.pLevels().map((l) => l.name.trim()).filter(Boolean);
-    const dupName = this.store.programs().some((p) => p.name.toLowerCase() === name.toLowerCase() && (target === 'new' || p.id !== target.id));
+    const dupName = this.store.programs().some((p) => sportKey(p.name) === sportKey(name) && (target === 'new' || p.id !== target.id));
     if (name.length < 2) return this.error.set('Informe o nome da modalidade.');
     if (dupName) return this.error.set('Já existe uma modalidade com esse nome.');
     if (levels.length === 0) return this.error.set('Cadastre pelo menos um nível.');

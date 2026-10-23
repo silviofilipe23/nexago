@@ -62,7 +62,7 @@
         <span class="ct-label">Escolha uma modalidade</span>
         <div class="ct-row ct-wrap">
           @for (s of suggestions(); track s) {
-            <button type="button" class="ct-chip" [class.active]="pName().trim().toLowerCase() === s.toLowerCase()" [attr.aria-pressed]="pName().trim().toLowerCase() === s.toLowerCase()" (click)="pickSuggestion(s)">{{ s }}</button>
+            <button type="button" class="ct-chip" [class.active]="isPicked(s)" [attr.aria-pressed]="isPicked(s)" (click)="pickSuggestion(s)">{{ s }}</button>
           }
         </div>
         <div class="ct-dim">Ou digite outro nome abaixo.</div>

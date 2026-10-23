@@ -208,12 +208,14 @@ ArenaClassCharge charge({
   ArenaClassChargeAsaas? asaas,
   String? paidVia,
   String? onlineBillingType,
+  String? athleteId,
 }) {
   return ArenaClassCharge(
     id: id,
     arenaId: 'a1',
     enrollmentId: 'e1',
     studentId: studentId,
+    athleteId: athleteId,
     name: name,
     phone: phone,
     description: description,

@@ -27,10 +27,23 @@ Future<void> openConversationWith(
 
   /// Lado da equipe do Centro de treinamento: abre dentro do centro.
   String? centerId,
+
+  /// Lado da gestão das Aulas da arena: abre nas Aulas, com [draft] no
+  /// composer (o "Cobrar" leva a mensagem pronta).
+  bool arenaClasses = false,
+  String? draft,
 }) async {
   try {
     final id = await open();
     if (!context.mounted) return;
+    if (arenaClasses) {
+      context.pushNamed(
+        AppRouteNames.arenaClassConversation,
+        pathParameters: {'conversationId': id},
+        extra: draft,
+      );
+      return;
+    }
     if (centerId != null) {
       context.pushNamed(
         AppRouteNames.centerCoachConversation,

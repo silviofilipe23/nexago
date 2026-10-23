@@ -11,15 +11,14 @@ abstract class CenterManagementRepository {
   Stream<List<CenterTeamMember>> watchTeam(String centerId);
   Stream<List<CenterInvite>> watchInvites(String centerId);
 
+  /// Convida o atleta NexaGO [uid] (callable: o e-mail da conta só existe no
+  /// servidor). O convite sai no mesmo formato do portal.
   Future<void> invite({
     required String centerId,
-    required String centerName,
-    required String email,
-    required String displayName,
+    required String uid,
     required String role,
     required List<String> programIds,
     required List<String> classIds,
-    required CenterActor actor,
   });
 
   Future<void> cancelInvite({

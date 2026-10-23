@@ -271,24 +271,18 @@ class _Mgmt implements CenterManagementRepository {
   @override
   Future<void> invite({
     required String centerId,
-    required String centerName,
-    required String email,
-    required String displayName,
+    required String uid,
     required String role,
     required List<String> programIds,
     required List<String> classIds,
-    required CenterActor actor,
   }) async {
     if (failWith != null) throw failWith!;
     invited.add({
       'centerId': centerId,
-      'centerName': centerName,
-      'email': email,
-      'displayName': displayName,
+      'uid': uid,
       'role': role,
       'programIds': programIds,
       'classIds': classIds,
-      'actor': actor.name,
     });
   }
 
@@ -640,6 +634,7 @@ void main() {
             CenterInvite(
               id: 'inv1',
               email: 'novo@ct.com',
+              invitedUid: 'u-novo',
               role: 'coach',
               status: 'pending',
               invitedByName: 'Thiago Mendes',
@@ -709,45 +704,77 @@ void main() {
       expect(find.text('Ninguém com esse papel ainda.'), findsOneWidget);
     });
 
-    testWidgets('convite: valida e-mail, já membro e convite pendente', (
+    // Busca do convite: atletas NexaGO (já da equipe, já convidado, revogado e novo).
+    Future<List<AppUserProfile>> athletes(String _) async => const [
+          AppUserProfile(uid: 'p1', fullName: 'Paula Lima'),
+          AppUserProfile(uid: 'u-novo', fullName: 'Nuno Novo'),
+          AppUserProfile(uid: 'x1', fullName: 'Xavier Antigo'),
+          AppUserProfile(uid: 'u-joao', fullName: 'João Lima', city: 'Recife'),
+        ];
+
+    Future<void> search(WidgetTester tester, String term) async {
+      await _type(tester, const Key('center-invite-term'), term);
+      await tester.pump(const Duration(milliseconds: 400));
+      await _settle(tester);
+    }
+
+    testWidgets('convite: só atleta NexaGO da busca; equipe e convidado travados', (
       tester,
     ) async {
       final mgmt = teamMgmt();
-      await _pump(tester, _teamPath, _Coach(memberships: [_member()]), mgmt);
+      await _pump(
+        tester,
+        _teamPath,
+        _Coach(memberships: [_member()]),
+        mgmt,
+        search: athletes,
+      );
       await _tap(tester, find.byKey(const Key('center-team-invite')));
       expect(find.byKey(const Key('center-invite-sheet')), findsOneWidget);
+      // Não há mais convite por e-mail digitado.
+      expect(find.byKey(const Key('center-invite-email')), findsNothing);
 
       await _tap(tester, find.byKey(const Key('center-invite-send')));
-      expect(find.text('Informe um e-mail válido.'), findsOneWidget);
+      expect(find.text('Escolha um atleta NexaGO.'), findsOneWidget);
 
-      await _type(tester, const Key('center-invite-email'), 'paula@ct');
+      await search(tester, 'lima');
+      expect(find.text('JÁ É DA EQUIPE'), findsOneWidget);
+      expect(find.text('CONVIDADO'), findsOneWidget);
+      // Quem é da equipe ou já foi convidado não se escolhe.
+      await _tap(tester, find.byKey(const Key('center-invite-hit-p1')));
+      await _tap(tester, find.byKey(const Key('center-invite-hit-u-novo')));
       await _tap(tester, find.byKey(const Key('center-invite-send')));
-      expect(find.text('Informe um e-mail válido.'), findsOneWidget);
-
-      await _type(tester, const Key('center-invite-email'), ' PAULA@ct.com ');
-      await _tap(tester, find.byKey(const Key('center-invite-send')));
-      expect(find.text('Essa pessoa já faz parte da equipe.'), findsOneWidget);
-
-      await _type(tester, const Key('center-invite-email'), 'novo@ct.com');
-      await _tap(tester, find.byKey(const Key('center-invite-send')));
-      expect(
-        find.text('Já existe um convite pendente para esse e-mail.'),
-        findsOneWidget,
-      );
+      expect(find.text('Escolha um atleta NexaGO.'), findsOneWidget);
+      expect(mgmt.invited, isEmpty);
 
       // Revogado pode ser convidado de novo.
-      await _type(tester, const Key('center-invite-email'), 'xavier@ct.com');
+      await _tap(tester, find.byKey(const Key('center-invite-hit-x1')));
       await _tap(tester, find.byKey(const Key('center-invite-send')));
-      expect(mgmt.invited, hasLength(1));
-      expect(mgmt.invited.single['email'], 'xavier@ct.com');
+      expect(mgmt.invited.single['uid'], 'x1');
       expect(find.byKey(const Key('center-invite-sheet')), findsNothing);
+      expect(find.text('Convite enviado para Xavier Antigo.'), findsOneWidget);
+    });
+
+    testWidgets('busca sem resultado explica que precisa de cadastro de atleta', (
+      tester,
+    ) async {
+      await _pump(tester, _teamPath, _Coach(memberships: [_member()]), teamMgmt());
+      await _tap(tester, find.byKey(const Key('center-team-invite')));
+      await search(tester, 'ninguem');
+      expect(find.byKey(const Key('center-invite-no-hits')), findsOneWidget);
     });
 
     testWidgets('convite de professor leva modalidade e turma escolhidas', (
       tester,
     ) async {
       final mgmt = teamMgmt();
-      await _pump(tester, _teamPath, _Coach(memberships: [_member()]), mgmt);
+      await _pump(
+        tester,
+        _teamPath,
+        _Coach(memberships: [_member()]),
+        mgmt,
+        search: athletes,
+      );
       await _tap(tester, find.byKey(const Key('center-team-invite')));
 
       // Owner pode convidar admin.
@@ -765,8 +792,8 @@ void main() {
         findsOneWidget,
       );
 
-      await _type(tester, const Key('center-invite-email'), 'joao@ct.com');
-      await _type(tester, const Key('center-invite-name'), 'João Lima');
+      await search(tester, 'joao');
+      await _tap(tester, find.byKey(const Key('center-invite-hit-u-joao')));
       await _tap(tester, find.byKey(const Key('center-invite-program-bt')));
       // Só as turmas da modalidade escolhida.
       expect(find.byKey(const Key('center-invite-class-k1')), findsOneWidget);
@@ -776,15 +803,12 @@ void main() {
 
       expect(mgmt.invited.single, {
         'centerId': 'c1',
-        'centerName': 'CT Maré Alta',
-        'email': 'joao@ct.com',
-        'displayName': 'João Lima',
+        'uid': 'u-joao',
         'role': 'coach',
         'programIds': ['bt'],
         'classIds': ['k2'],
-        'actor': 'Thiago Mendes',
       });
-      expect(find.text('Convite enviado para joao@ct.com.'), findsOneWidget);
+      expect(find.text('Convite enviado para João Lima.'), findsOneWidget);
     });
 
     // Regressão: turma escolhida que sai do filtro de modalidade não pode ir
@@ -793,9 +817,16 @@ void main() {
       'convite: trocar a modalidade descarta turma que saiu do filtro',
       (tester) async {
         final mgmt = teamMgmt();
-        await _pump(tester, _teamPath, _Coach(memberships: [_member()]), mgmt);
+        await _pump(
+          tester,
+          _teamPath,
+          _Coach(memberships: [_member()]),
+          mgmt,
+          search: athletes,
+        );
         await _tap(tester, find.byKey(const Key('center-team-invite')));
-        await _type(tester, const Key('center-invite-email'), 'joao@ct.com');
+        await search(tester, 'joao');
+        await _tap(tester, find.byKey(const Key('center-invite-hit-u-joao')));
         // Sem modalidade todas aparecem: escolhe uma turma de beach tennis…
         await _tap(tester, find.byKey(const Key('center-invite-class-k1')));
         // …e depois restringe a vôlei: k1 some da tela.
@@ -812,9 +843,16 @@ void main() {
       tester,
     ) async {
       final mgmt = teamMgmt();
-      await _pump(tester, _teamPath, _Coach(memberships: [_member()]), mgmt);
+      await _pump(
+        tester,
+        _teamPath,
+        _Coach(memberships: [_member()]),
+        mgmt,
+        search: athletes,
+      );
       await _tap(tester, find.byKey(const Key('center-team-invite')));
-      await _type(tester, const Key('center-invite-email'), 'rec@ct.com');
+      await search(tester, 'joao');
+      await _tap(tester, find.byKey(const Key('center-invite-hit-u-joao')));
       await _tap(tester, find.byKey(const Key('center-invite-program-bt')));
       await _tap(
         tester,
@@ -829,13 +867,25 @@ void main() {
 
     testWidgets('erro do servidor fica na folha', (tester) async {
       final mgmt = teamMgmt()
-        ..failWith = const CenterCoachException('Sem permissão para convidar.');
-      await _pump(tester, _teamPath, _Coach(memberships: [_member()]), mgmt);
+        ..failWith = const CenterCoachException(
+          'Só dá para convidar quem tem cadastro de atleta na NexaGO.',
+        );
+      await _pump(
+        tester,
+        _teamPath,
+        _Coach(memberships: [_member()]),
+        mgmt,
+        search: athletes,
+      );
       await _tap(tester, find.byKey(const Key('center-team-invite')));
-      await _type(tester, const Key('center-invite-email'), 'joao@ct.com');
+      await search(tester, 'joao');
+      await _tap(tester, find.byKey(const Key('center-invite-hit-u-joao')));
       await _tap(tester, find.byKey(const Key('center-invite-send')));
       expect(find.byKey(const Key('center-invite-sheet')), findsOneWidget);
-      expect(find.text('Sem permissão para convidar.'), findsOneWidget);
+      expect(
+        find.text('Só dá para convidar quem tem cadastro de atleta na NexaGO.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('admin não convida admin nem revoga admin/owner', (

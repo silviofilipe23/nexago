@@ -180,20 +180,24 @@ void main() {
   });
 
   group('equipe', () {
-    test('convite: e-mail, já da equipe, já convidado', () {
+    test('convite: atleta escolhido, já da equipe, já convidado', () {
       final members = [
-        CenterTeamMember.fromMap(
-            'u', {'email': 'ana@x.com', 'status': 'active'}),
+        CenterTeamMember.fromMap('ana', {'status': 'active'}),
+        CenterTeamMember.fromMap('rev', {'status': 'revoked'}),
       ];
       final invites = [
-        CenterInvite.fromMap('i', {'email': 'bia@x.com', 'status': 'pending'}),
+        CenterInvite.fromMap(
+            'i', {'invitedUid': 'bia', 'email': 'bia@x.com', 'status': 'pending'}),
+        CenterInvite.fromMap(
+            'j', {'invitedUid': 'caio', 'status': 'cancelled'}),
       ];
-      String? err(String e) =>
-          centerInviteError(email: e, members: members, invites: invites);
-      expect(err('nope'), isNotNull);
-      expect(err('ANA@x.com'), 'Essa pessoa já faz parte da equipe.');
-      expect(err('bia@x.com'), contains('convite pendente'));
-      expect(err('caio@x.com'), isNull);
+      String? err(String? uid) =>
+          centerInviteError(uid: uid, members: members, invites: invites);
+      expect(err(null), 'Escolha um atleta NexaGO.');
+      expect(err('ana'), 'Essa pessoa já faz parte da equipe.');
+      expect(err('bia'), contains('convite pendente'));
+      expect(err('rev'), isNull);
+      expect(err('caio'), isNull);
     });
 
     test('admin só pelo owner; revogar segue as rules', () {

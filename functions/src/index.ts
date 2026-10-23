@@ -288,6 +288,7 @@ export {
   respondTrainingCenterSession,
 } from "./training-center-athlete-actions";
 export {joinTrainingCenterByCode, setTrainingCenterJoinCode} from "./training-center-join-code";
+export {inviteTrainingCenterMember} from "./training-center-team-invite";
 export {checkInTrainingCenterStudent} from "./training-center-checkin";
 // QR de check-in por quadra (portal da arena gera; o aluno lê no app).
 export {getArenaCourtCheckinQr} from "./arena-court-checkin-qr";

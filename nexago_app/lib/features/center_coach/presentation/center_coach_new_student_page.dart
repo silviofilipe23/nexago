@@ -10,8 +10,6 @@ import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../arena/domain/aulas/arena_class_logic.dart';
-import '../../arena/presentation/aulas/widgets/arena_class_atoms.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../professor_mode/presentation/widgets/professor_students_widgets.dart';
 import '../application/center_coach_providers.dart';
@@ -123,7 +121,7 @@ class _CenterCoachNewStudentPageState
     final hit = _mode == 'search' ? _selected : null;
     return CenterNewStudentInput(
       uid: hit?.uid,
-      name: hit == null ? _name.text : _accountName(hit),
+      name: hit == null ? _name.text : centerAccountName(hit),
       email: _email.text,
       phone: _phone.text,
       isMinor: _isMinor,
@@ -311,7 +309,7 @@ class _CenterCoachNewStudentPageState
                       child: Column(
                         children: [
                           for (final (i, h) in _hits.indexed)
-                            _AccountRow(
+                            CenterAccountRow(
                               key: Key('center-new-student-hit-${h.uid}'),
                               profile: h,
                               first: i == 0,
@@ -325,7 +323,7 @@ class _CenterCoachNewStudentPageState
                   if (_selected != null) ...[
                     const SizedBox(height: 12),
                     Text(
-                      '${_accountName(_selected!)} usa a mesma conta NexaGO no '
+                      '${centerAccountName(_selected!)} usa a mesma conta NexaGO no '
                       'centro e nos torneios. O centro não lê os dados '
                       'pessoais da conta — informe o contato que o centro vai '
                       'usar (opcional).',
@@ -518,102 +516,8 @@ class _CenterCoachNewStudentPageState
   }
 }
 
-String _accountName(AppUserProfile p) {
-  final full = p.fullName?.trim() ?? '';
-  if (full.isNotEmpty) return full;
-  final nick = p.nickname?.trim() ?? '';
-  return nick.isNotEmpty ? nick : 'Atleta';
-}
-
 String _formatDay(String key) {
   final p = key.split('-');
   return p.length == 3 ? '${p[2]}/${p[1]}/${p[0]}' : key;
 }
 
-class _AccountRow extends StatelessWidget {
-  const _AccountRow({
-    super.key,
-    required this.profile,
-    required this.first,
-    required this.linked,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final AppUserProfile profile;
-  final bool first;
-  final bool linked;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    final name = _accountName(profile);
-    final city = [
-      profile.city?.trim() ?? '',
-      profile.state?.trim() ?? '',
-    ].where((s) => s.isNotEmpty).join('/');
-    final (tag, tagColor) = linked
-        ? ('Já é aluno', ProfessorLinksStyle.dim(colors))
-        : selected
-            ? ('Selecionado', AppColors.brand)
-            : ('Vincular', AppColors.win);
-    return Opacity(
-      opacity: linked ? 0.55 : 1,
-      child: InkWell(
-        onTap: linked ? null : onTap,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(14, 11, 12, 11),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.brand.withValues(alpha: 0.07) : null,
-            border: first
-                ? null
-                : Border(
-                    top: BorderSide(color: ProfessorLinksStyle.line(colors)),
-                  ),
-          ),
-          child: Row(
-            children: [
-              ArenaClassAvatar(
-                initials: arenaClassInitials(name),
-                photoUrl: profile.profilePhotoUrl,
-                size: 36,
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: ProfessorLinksStyle.display(
-                        13.5,
-                        weight: FontWeight.w700,
-                        color: colors.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      city.isEmpty ? 'Conta NexaGO' : city,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.bodyS.copyWith(
-                        fontSize: 11.5,
-                        color: ProfessorLinksStyle.dim(colors),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              ArenaClassTag(label: tag, color: tagColor),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

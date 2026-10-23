@@ -46,6 +46,15 @@ abstract class MessagesRepository {
   /// aluno e se ele tem conta NexaGO.
   Future<String> openCenterConversation(String centerId, String studentId);
 
+  /// Aluno: com quem ele fala no centro (canal + professores das turmas).
+  Future<CenterChatContacts> getCenterChatContacts(String centerId);
+
+  /// Aluno abre o canal com a recepção e a gestão do centro.
+  Future<String> openCenterDesk(String centerId);
+
+  /// Aluno abre a conversa com um professor das turmas dele no centro.
+  Future<String> openCenterStaffConversation(String centerId, String staffUid);
+
   /// Gestão das Aulas da arena abre a conversa com o aluno [athleteId]
   /// (`openArenaStudentConversation`): o servidor confere o acesso às aulas
   /// e se o atleta segue aluno da arena.
@@ -195,6 +204,31 @@ class FirebaseMessagesRepository implements MessagesRepository {
         'centerId': centerId,
         'studentId': studentId,
       });
+
+  @override
+  Future<CenterChatContacts> getCenterChatContacts(String centerId) async =>
+      CenterChatContacts.fromMap(
+        await _call(
+          'listTrainingCenterChatContacts',
+          {'centerId': centerId},
+          'Não foi possível carregar os contatos do centro.',
+        ),
+      );
+
+  @override
+  Future<String> openCenterDesk(String centerId) => _open(
+    'openTrainingCenterConversation',
+    {'centerId': centerId, 'desk': true},
+  );
+
+  @override
+  Future<String> openCenterStaffConversation(
+    String centerId,
+    String staffUid,
+  ) => _open('openTrainingCenterConversation', {
+    'centerId': centerId,
+    'staffUid': staffUid,
+  });
 
   @override
   Future<String> openArenaStudentConversation(

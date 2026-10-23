@@ -393,11 +393,13 @@ void main() {
           conv('b', center: 'c2'),
           conv('c', staff: 'outro'),
           conv('d', kind: 'direct'),
+          // Canal do aluno com o centro: entra para quem é da equipe.
+          conv('e', kind: 'center_desk', staff: ''),
         ],
         centerId: 'c1',
         uid: 'tm',
       );
-      expect(list.map((c) => c.id), ['a']);
+      expect(list.map((c) => c.id), ['a', 'e']);
     });
   });
 

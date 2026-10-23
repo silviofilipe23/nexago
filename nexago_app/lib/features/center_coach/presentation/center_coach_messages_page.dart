@@ -14,15 +14,18 @@ import '../../professor_mode/presentation/widgets/professor_students_widgets.dar
 import '../application/center_coach_providers.dart';
 import 'widgets/center_mode_tab_scope.dart';
 
-/// Conversas da equipe com os alunos de [centerId] (as que a pessoa abriu
-/// ou recebeu). O chat substitui o WhatsApp: começa pelo perfil do aluno.
+/// Conversas da equipe com os alunos de [centerId]: as individuais da pessoa
+/// e os canais que os alunos abrem com o centro (recepção e gestão).
 List<Conversation> centerConversations(
   List<Conversation> inbox, {
   required String centerId,
   required String uid,
 }) => sortInbox([
   for (final c in inbox)
-    if (c.isCenter && c.centerId == centerId && c.professorUid == uid) c,
+    if (c.centerId == centerId &&
+        ((c.isCenter && c.professorUid == uid) ||
+            (c.isCenterDesk && c.athleteUid != uid)))
+      c,
 ]);
 
 /// Mensagens do centro: a caixa da equipe com os alunos.

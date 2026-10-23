@@ -155,7 +155,11 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
   /// Atalhos da conversa direta (D3): o professor remarca, cobra e avalia
   /// o aluno; o aluno remarca. Só aparece o que se aplica.
   List<Widget> _actionChips(Conversation c, String uid, DateTime now) {
-    if (c.isGroup || c.isArena || c.isCenter || c.isArenaStudent) {
+    if (c.isGroup ||
+        c.isArena ||
+        c.isCenter ||
+        c.isCenterDesk ||
+        c.isArenaStudent) {
       return const [];
     }
     Widget chip(String key, String label, VoidCallback onTap) => Padding(
@@ -301,7 +305,11 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
           }
         : const <String>{};
     final String subtitle;
-    if (c.isArenaStudent) {
+    if (c.isCenterDesk) {
+      subtitle = c.centerStaffSide(uid)
+          ? 'Aluno · canal com ${c.title ?? 'o centro'}'
+          : 'Recepção e gestão do centro';
+    } else if (c.isArenaStudent) {
       subtitle = uid == c.professorUid
           ? 'Aluno · ${c.title ?? 'aulas da arena'}'
           : '${c.title ?? 'Arena'} · aulas';

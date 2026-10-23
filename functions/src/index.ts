@@ -334,7 +334,7 @@ export {
   sendConversationMessage,
 } from "./professor-messages";
 // Chat do Centro de treinamento: equipe ↔ aluno (mesmo motor das mensagens).
-export {openTrainingCenterConversation} from "./training-center-messages";
+export {listTrainingCenterChatContacts, openTrainingCenterConversation} from "./training-center-messages";
 // Chat das Aulas da arena: gestão ↔ aluno (mesmo motor; "Mensagem" e "Cobrar" no app).
 export {openArenaStudentConversation} from "./arena-class-messages";
 // Ganhos do professor de equipe: repasse pago pelo nexaGO + saque PIX.

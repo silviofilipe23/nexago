@@ -54,6 +54,7 @@ export class CenterShellComponent {
     const badges: Record<string, number> = {
       enrollments: this.store.enrollments().filter((e) => e.status === 'waitlisted' || (e.status === 'pending' && holdExpired(e))).length,
       finance: this.store.invoices().filter((i) => awaitingTooLong(i)).length,
+      requests: this.store.requests().filter((r) => r.status === 'pending').length,
     };
     return NAV_GROUPS.map((g) => ({
       title: g.title,

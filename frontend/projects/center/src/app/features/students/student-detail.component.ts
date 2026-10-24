@@ -16,6 +16,7 @@ import { IconComponent } from '../../ui/icon.component';
 import { AuditTrailComponent, BannerComponent, ModalComponent, PageHeaderComponent, PersonComponent, SegmentedComponent, ToggleComponent, type AuditRow } from '../../ui/kit';
 import { SendContractModalComponent } from '../contracts/send-contract-modal.component';
 import { ageOn, recentAttendance } from './student-rows';
+import { REQUEST_TYPE, openRequestFor, requestSituation } from '../requests/request-view';
 
 type Tab = 'overview' | 'enrollments' | 'attendance' | 'invoices' | 'history';
 
@@ -49,6 +50,9 @@ interface StatusAction {
     .tabs { overflow-x: auto; }
     .contract { text-decoration: none; color: var(--nx-text-mute); }
     .contract:hover .ct-disp { color: var(--nx-orange-400); }
+    .rq-link { color: var(--nx-orange-400); text-decoration: none; font-family: var(--nx-font-display); font-weight: 600; }
+    .rq-row { min-height: 36px; }
+    .rq-row > span { grid-column: 1 / -1; }
   `,
 })
 export class StudentDetailComponent {
@@ -112,6 +116,16 @@ export class StudentDetailComponent {
       .sort((a, b) => b.startDate.localeCompare(a.startDate)),
   );
   protected readonly current = computed(() => this.enrollments().filter((e) => holdsSeat(e.status)));
+  /** Trancamento, pausa por lesão ou cancelamento em andamento, por matrícula (link para o pedido). */
+  protected readonly openRequests = computed(() => {
+    const all = this.store.requests();
+    const out: Record<string, { id: string; label: string }> = {};
+    for (const e of this.enrollments()) {
+      const r = openRequestFor(all, e.id);
+      if (r) out[e.id] = { id: r.id, label: `${REQUEST_TYPE[r.type][0]} · ${requestSituation(r).label}` };
+    }
+    return out;
+  });
 
   protected readonly subtitle = computed(() => {
     const s = this.student();

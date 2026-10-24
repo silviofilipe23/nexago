@@ -223,6 +223,7 @@ import '../../features/center_coach/presentation/center_coach_new_student_page.d
 import '../../features/center_coach/presentation/center_coach_team_page.dart';
 import '../../features/center_coach/presentation/center_coach_messages_page.dart';
 import '../../features/center_coach/presentation/center_coach_enroll_page.dart';
+import '../../features/center_coach/presentation/center_coach_exit_requests_page.dart';
 import '../../features/center_coach/presentation/center_coach_subscription_page.dart';
 import '../../features/center_coach/presentation/center_coach_student_contracts_page.dart';
 import '../../features/professor_mode/presentation/evaluations/athlete_evaluations_pages.dart';
@@ -1656,6 +1657,21 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           centerId: state.pathParameters['centerId']?.trim() ?? '',
           studentId: state.pathParameters['studentId']?.trim() ?? '',
           subscriptionId: state.pathParameters['subscriptionId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachExitRequests,
+        name: AppRouteNames.centerCoachExitRequests,
+        builder: (context, state) => CenterCoachExitRequestsPage(
+          centerId: state.pathParameters['centerId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachExitRequest,
+        name: AppRouteNames.centerCoachExitRequest,
+        builder: (context, state) => CenterCoachExitRequestPage(
+          centerId: state.pathParameters['centerId']?.trim() ?? '',
+          requestId: state.pathParameters['requestId']?.trim() ?? '',
         ),
       ),
       GoRoute(

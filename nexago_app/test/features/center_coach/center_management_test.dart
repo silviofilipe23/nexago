@@ -350,6 +350,7 @@ void main() {
         'new-student',
         'enroll',
         'waitlist',
+        'exit-requests',
         'checkin',
         'messages',
         'team',
@@ -360,6 +361,7 @@ void main() {
         'new-student',
         'enroll',
         'waitlist',
+        'exit-requests',
         'messages',
         'classes',
       ]);

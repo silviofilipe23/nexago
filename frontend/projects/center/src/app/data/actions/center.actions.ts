@@ -62,7 +62,19 @@ const POLICY_LABELS: Partial<Record<keyof CenterPolicies, string>> = {
   allowPause: 'Pausa de matrícula',
   waitlistEnabled: 'Lista de espera',
   pendingHoldHours: 'Reserva da vaga pendente',
+  pauseMaxDaysPerYear: 'Limite de trancamento por ano',
+  pauseMinDays: 'Trancamento mínimo',
+  injuryPauseApproval: 'Aprovação da pausa por lesão',
+  injuryCountsInLimit: 'Lesão conta no limite',
+  injuryMaxDays: 'Limite da pausa por lesão',
+  cancelRetention: 'Ofertas de retenção',
+  allowCancelWithdraw: 'Desistir do cancelamento',
+  waitlistAcceptHours: 'Prazo para aceitar a vaga',
 };
+
+function policyText(v: unknown): string {
+  return Array.isArray(v) ? (v.length ? v.join(', ') : 'nenhuma') : String(v);
+}
 
 /** Cadastro e configurações do centro. */
 @Injectable({ providedIn: 'root' })
@@ -193,14 +205,14 @@ export class CenterActions extends CenterActionsBase {
 
   /** Políticas valem para NOVOS contratos — matrículas guardam a cópia do dia da contratação. */
   async updatePolicies(before: CenterPolicies, next: CenterPolicies, reason: string): Promise<void> {
-    const changed = (Object.keys(next) as (keyof CenterPolicies)[]).filter((k) => before[k] !== next[k]);
+    const changed = (Object.keys(next) as (keyof CenterPolicies)[]).filter((k) => JSON.stringify(before[k]) !== JSON.stringify(next[k]));
     if (changed.length === 0) {
       return;
     }
     const b = writeBatch(db());
     b.update(this.centerRef(), { policies: next });
     const detail = changed
-      .map((k) => `${POLICY_LABELS[k] ?? k}: ${String(before[k])} → ${String(next[k])}`)
+      .map((k) => `${POLICY_LABELS[k] ?? k}: ${policyText(before[k])} → ${policyText(next[k])}`)
       .join(' · ');
     const audit = this.auditDoc({ action: 'center.policies', entity: 'center', entityId: this.centerId(), detail, reason });
     b.set(audit.ref, audit.data);

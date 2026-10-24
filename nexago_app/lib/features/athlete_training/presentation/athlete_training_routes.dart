@@ -5,6 +5,7 @@ import 'athlete_training_add_page.dart';
 import 'athlete_training_agenda_page.dart';
 import 'athlete_training_arena_class_page.dart';
 import 'athlete_training_center_contract_pages.dart';
+import 'athlete_training_center_enrollment_pages.dart';
 import 'athlete_training_center_invoice_page.dart';
 import 'athlete_training_center_page.dart';
 import 'athlete_training_center_session_page.dart';
@@ -227,6 +228,44 @@ List<RouteBase> athleteTrainingRoutes() => [
               centerId: state.pathParameters['centerId']?.trim() ?? '',
               contractId: state.pathParameters['contractId']?.trim() ?? '',
             ),
+          ),
+          GoRoute(
+            path: 'matricula/:enrollmentId',
+            name: AppRouteNames.athleteTrainingCenterEnrollment,
+            builder: (context, state) => AthleteCenterEnrollmentPage(
+              centerId: state.pathParameters['centerId']?.trim() ?? '',
+              enrollmentId:
+                  state.pathParameters['enrollmentId']?.trim() ?? '',
+            ),
+            routes: [
+              GoRoute(
+                path: 'trancar',
+                name: AppRouteNames.athleteTrainingCenterEnrollmentPause,
+                builder: (context, state) => AthleteCenterPausePage(
+                  centerId: state.pathParameters['centerId']?.trim() ?? '',
+                  enrollmentId:
+                      state.pathParameters['enrollmentId']?.trim() ?? '',
+                ),
+              ),
+              GoRoute(
+                path: 'lesao',
+                name: AppRouteNames.athleteTrainingCenterEnrollmentInjury,
+                builder: (context, state) => AthleteCenterInjuryPage(
+                  centerId: state.pathParameters['centerId']?.trim() ?? '',
+                  enrollmentId:
+                      state.pathParameters['enrollmentId']?.trim() ?? '',
+                ),
+              ),
+              GoRoute(
+                path: 'cancelar',
+                name: AppRouteNames.athleteTrainingCenterEnrollmentCancel,
+                builder: (context, state) => AthleteCenterCancelPage(
+                  centerId: state.pathParameters['centerId']?.trim() ?? '',
+                  enrollmentId:
+                      state.pathParameters['enrollmentId']?.trim() ?? '',
+                ),
+              ),
+            ],
           ),
         ],
       ),

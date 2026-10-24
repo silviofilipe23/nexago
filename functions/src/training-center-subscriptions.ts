@@ -297,7 +297,7 @@ export async function backfillSubscriptionsCore(
 // Encerrar matrícula (pacote, fim do ciclo, suspensão) devolvendo a vaga
 // ---------------------------------------------------------------------------
 
-async function endEnrollment(
+export async function endEnrollment(
   db: Firestore,
   center: DocumentReference,
   enrollmentId: string,

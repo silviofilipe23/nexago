@@ -1,9 +1,13 @@
+import 'dart:typed_data';
+
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/firebase/functions_region.dart';
 import '../../tournaments/data/tournament_partner_invite_service.dart'
     show callableErrorMessage;
+import '../domain/center_enrollment_request.dart';
 import '../domain/training_center.dart';
 import 'class_presence_repository.dart' show ClassPresenceException;
 
@@ -12,12 +16,21 @@ import 'class_presence_repository.dart' show ClassPresenceException;
 /// próprio aluno): `getMyTrainingCenters`, `respondTrainingCenterSession`,
 /// `answerTrainingCenterInvite`, `getMyTrainingCenterInvoicePix`,
 /// `checkMyTrainingCenterInvoice` e os contratos
-/// (`openMyTrainingCenterContract`, `signMyTrainingCenterContract`).
+/// (`openMyTrainingCenterContract`, `signMyTrainingCenterContract`) e os
+/// pedidos de trancar/pausa por lesão/cancelar
+/// (`requestTrainingCenterEnrollmentChange`,
+/// `withdrawTrainingCenterEnrollmentRequest`; atestado no Storage).
 class TrainingCentersRepository {
-  TrainingCentersRepository({FirebaseFunctions? functions})
-    : _functions = functions ?? nexagoFunctions;
+  TrainingCentersRepository({
+    FirebaseFunctions? functions,
+    FirebaseStorage? storage,
+  }) : _functions = functions ?? nexagoFunctions,
+       _storageOverride = storage;
 
   final FirebaseFunctions _functions;
+  final FirebaseStorage? _storageOverride;
+
+  FirebaseStorage get _storage => _storageOverride ?? FirebaseStorage.instance;
 
   Future<Object?> _call(
     String name,
@@ -156,6 +169,129 @@ class TrainingCentersRepository {
         ? raw['status'] as String
         : 'pending';
   }
+
+  /// Trancar (`pause`), pausa por lesão (`injury`) ou cancelar (`cancel`).
+  /// Regra violada volta como [ClassPresenceException] com a mensagem pronta
+  /// do servidor (`failed-precondition`).
+  Future<CenterRequestResult> requestEnrollmentChange({
+    required String centerId,
+    required String enrollmentId,
+    required String type,
+    String? startsOn,
+    int? days,
+    String reason = '',
+    String comment = '',
+    CenterCertificateUpload? certificate,
+    List<String> retentionOffered = const [],
+    String? retainPlanId,
+  }) async {
+    final raw = await _call('requestTrainingCenterEnrollmentChange', {
+      'centerId': centerId,
+      'enrollmentId': enrollmentId,
+      'type': type,
+      'startsOn': ?startsOn,
+      'days': ?days,
+      'reason': reason,
+      'comment': comment,
+      if (certificate != null) 'certificate': certificate.toMap(),
+      'retentionOffered': retentionOffered,
+      'retainPlanId': ?retainPlanId,
+    }, 'Não foi possível enviar o pedido. Tente de novo.');
+    final m = raw is Map ? raw : const {};
+    String? s(String k) => m[k] is String && (m[k] as String).isNotEmpty
+        ? m[k] as String
+        : null;
+    return (
+      requestId: s('requestId') ?? '',
+      status: s('status') ?? 'pending',
+      startsOn: s('startsOn'),
+      endsOn: s('endsOn'),
+      lastDay: s('lastDay'),
+    );
+  }
+
+  /// Desistir do pedido (cancelamento em aviso, pausa ainda não começada ou
+  /// atestado em análise).
+  Future<void> withdrawEnrollmentRequest({
+    required String centerId,
+    required String requestId,
+  }) => _call('withdrawTrainingCenterEnrollmentRequest', {
+    'centerId': centerId,
+    'requestId': requestId,
+  }, 'Não foi possível desfazer o pedido. Tente de novo.');
+
+  /// Sobe o atestado em `trainingCenterCertificates/{centerId}/{uid}/…`
+  /// (a rule só deixa o próprio aluno criar, sem sobrescrever). Devolve o
+  /// caminho para mandar no pedido.
+  Future<String> uploadCertificate({
+    required String centerId,
+    required String uid,
+    required Uint8List bytes,
+    required String fileName,
+    required String contentType,
+  }) async {
+    final path =
+        'trainingCenterCertificates/$centerId/$uid/'
+        '${DateTime.now().millisecondsSinceEpoch}-'
+        '${centerCertificateFileSlug(fileName)}';
+    try {
+      await _storage
+          .ref(path)
+          .putData(bytes, SettableMetadata(contentType: contentType))
+          .timeout(const Duration(minutes: 2));
+      return path;
+    } catch (_) {
+      throw const ClassPresenceException(
+        'Não foi possível enviar o atestado. Confira a conexão e tente de '
+        'novo.',
+      );
+    }
+  }
+}
+
+/// Resposta de `requestTrainingCenterEnrollmentChange`.
+typedef CenterRequestResult = ({
+  String requestId,
+  String status,
+  String? startsOn,
+  String? endsOn,
+  String? lastDay,
+});
+
+/// Atestado já no Storage, como o pedido manda.
+class CenterCertificateUpload {
+  const CenterCertificateUpload({
+    required this.path,
+    required this.fileName,
+    required this.contentType,
+    required this.sizeBytes,
+    required this.issuedOn,
+    required this.daysOff,
+    this.doctor = '',
+    this.description = '',
+  });
+
+  final String path;
+  final String fileName;
+  final String contentType;
+  final int sizeBytes;
+
+  /// `YYYY-MM-DD`.
+  final String issuedOn;
+  final int daysOff;
+  final String doctor;
+  final String description;
+
+  Map<String, Object?> toMap() => {
+    'path': path,
+    'fileName': fileName,
+    'contentType': contentType,
+    'sizeBytes': sizeBytes,
+    'issuedOn': issuedOn,
+    'daysOff': daysOff,
+    'doctor': doctor,
+    'description': description,
+  };
 }
 
 /// Resposta de `signMyTrainingCenterContract`.

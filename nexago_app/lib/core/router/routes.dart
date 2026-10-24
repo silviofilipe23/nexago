@@ -192,6 +192,18 @@ abstract final class AppRoutes {
       '/treinos/centro/:centerId/contrato/:contractId/assinar';
   static const String athleteTrainingCenterContractSigned =
       '/treinos/centro/:centerId/contrato/:contractId/assinado';
+
+  /// Minha matrícula no centro (T5, destino do push
+  /// `training_center_enrollment_request`): trancar, pausa por lesão (T6/T7)
+  /// e cancelar (T8–T10).
+  static const String athleteTrainingCenterEnrollment =
+      '/treinos/centro/:centerId/matricula/:enrollmentId';
+  static const String athleteTrainingCenterEnrollmentPause =
+      '/treinos/centro/:centerId/matricula/:enrollmentId/trancar';
+  static const String athleteTrainingCenterEnrollmentInjury =
+      '/treinos/centro/:centerId/matricula/:enrollmentId/lesao';
+  static const String athleteTrainingCenterEnrollmentCancel =
+      '/treinos/centro/:centerId/matricula/:enrollmentId/cancelar';
   static const String athleteTrainingAdd = '/treinos/adicionar';
 
   /// Plano da aula publicado para o ATLETA (H8, push
@@ -492,6 +504,13 @@ abstract final class AppRoutes {
   /// Matricular aluno (G11–G13); `?aluno=` já escolhe o aluno.
   static const String centerCoachEnroll =
       '/athlete/professor/centros/:centerId/matricular';
+
+  /// Trancar e cancelar (gestão): pedidos dos alunos e o detalhe com o
+  /// atestado (T11, destino do push `training_center_enrollment_request_staff`).
+  static const String centerCoachExitRequests =
+      '/athlete/professor/centros/:centerId/pedidos';
+  static const String centerCoachExitRequest =
+      '/athlete/professor/centros/:centerId/pedidos/:requestId';
   static const String professorLinkRequestSent =
       '/athlete/professor/arenas/:linkId/enviada';
 
@@ -1057,6 +1076,14 @@ abstract final class AppRouteNames {
       'athleteTrainingCenterContractSign';
   static const String athleteTrainingCenterContractSigned =
       'athleteTrainingCenterContractSigned';
+  static const String athleteTrainingCenterEnrollment =
+      'athleteTrainingCenterEnrollment';
+  static const String athleteTrainingCenterEnrollmentPause =
+      'athleteTrainingCenterEnrollmentPause';
+  static const String athleteTrainingCenterEnrollmentInjury =
+      'athleteTrainingCenterEnrollmentInjury';
+  static const String athleteTrainingCenterEnrollmentCancel =
+      'athleteTrainingCenterEnrollmentCancel';
   static const String athleteTrainingAdd = 'athleteTrainingAdd';
   static const String athleteLessonPlans = 'athleteLessonPlans';
   static const String athleteLessonPlan = 'athleteLessonPlan';
@@ -1187,6 +1214,8 @@ abstract final class AppRouteNames {
   static const String centerCoachConversation = 'centerCoachConversation';
   static const String centerCoachTeam = 'centerCoachTeam';
   static const String centerCoachEnroll = 'centerCoachEnroll';
+  static const String centerCoachExitRequests = 'centerCoachExitRequests';
+  static const String centerCoachExitRequest = 'centerCoachExitRequest';
   static const String centerCoachSubscription = 'centerCoachSubscription';
   static const String centerCoachStudentContracts =
       'centerCoachStudentContracts';

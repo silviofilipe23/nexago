@@ -112,6 +112,22 @@ service firebase.storage {
         ));
     }
 
+    // Atestado da pausa por lesão (CT): o próprio aluno envia (PDF ou foto até 10 MB, sem
+    // sobrescrever); lê o aluno e owner/admin do centro. Fora de `trainingCenters/…`, que é público.
+    match /trainingCenterCertificates/{centerId}/{userId}/{fileName} {
+      function certManager() {
+        let m = /databases/(default)/documents/trainingCenters/$(centerId)/centerMembers/$(request.auth.uid);
+        return firestore.exists(m) &&
+          firestore.get(m).data.status == 'active' &&
+          firestore.get(m).data.role in ['center_owner', 'center_admin'];
+      }
+      allow read: if request.auth != null && (request.auth.uid == userId || certManager());
+      allow create: if request.auth != null && request.auth.uid == userId &&
+        request.resource.size < 10 * 1024 * 1024 &&
+        request.resource.contentType.matches('application/pdf|image/(jpeg|png|webp|heic)');
+      allow update, delete: if false;
+    }
+
     // Fotos do catálogo da Loja. Leitura pública (vitrine); escrita só admin,
     // e só imagem de até 10 MB. Quem registra a foto no produto é a callable.
     match /store/products/{productId}/{fileName} {

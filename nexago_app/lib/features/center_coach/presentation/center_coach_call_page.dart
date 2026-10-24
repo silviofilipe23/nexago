@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
@@ -23,6 +24,7 @@ import '../infrastructure/firebase_center_coach_repository.dart';
 import '../../professor_mode/presentation/availability/availability_widgets.dart';
 import 'widgets/center_coach_widgets.dart';
 import 'widgets/center_location_sheet.dart';
+import 'center_coach_trial_review_page.dart' show centerCanEvaluateTrial;
 import '../domain/center_management.dart' show centerPlaceLabel;
 
 /// Espera depois do último toque antes de salvar a chamada.
@@ -595,6 +597,26 @@ class _CenterCoachCallPageState extends ConsumerState<CenterCoachCallPage> {
                         _TrialRow(
                           key: Key('center-coach-trial-${t.athleteId}'),
                           trial: t,
+                          // C8: depois que a aula começa, o professor (ou a
+                          // recepção) avalia a experimental confirmada.
+                          onTap:
+                              !t.isPending &&
+                                  t.bookingId.isNotEmpty &&
+                                  session.date.compareTo(today) <= 0 &&
+                                  centerCanEvaluateTrial(
+                                    member: member,
+                                    session: session,
+                                    uid: uid,
+                                  )
+                              ? () => context.pushNamed(
+                                  AppRouteNames.centerCoachTrialReview,
+                                  pathParameters: {
+                                    'centerId': widget.centerId,
+                                    'sessionId': session.id,
+                                    'trialKey': t.key,
+                                  },
+                                )
+                              : null,
                         ),
                         const SizedBox(height: 8),
                       ],
@@ -1867,16 +1889,34 @@ class _CancelSheetState extends State<_CancelSheet> {
 /// Atleta da experimental: ainda não é aluno, então não entra na chamada —
 /// o professor vê quem vem e se o centro já confirmou.
 class _TrialRow extends StatelessWidget {
-  const _TrialRow({super.key, required this.trial});
+  const _TrialRow({super.key, required this.trial, this.onTap});
 
   final CenterSessionTrial trial;
+
+  /// Abre a avaliação (C8); `null` = só leitura.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final t = trial;
-    final tone = t.isPending ? colors.pending : colors.win;
+    final tone = t.evaluated
+        ? (t.attendance == 'no_show' ? colors.live : colors.win)
+        : t.isPending
+        ? colors.pending
+        : colors.win;
+    final (line, label) = t.evaluated
+        ? (
+            'Experimental · avaliação enviada',
+            t.attendance == 'no_show' ? 'NÃO VEIO' : 'AVALIADA',
+          )
+        : t.isPending
+        ? ('Experimental · o centro ainda vai confirmar', 'AGUARDANDO')
+        : onTap != null
+        ? ('Experimental · avaliar', 'CONFIRMADA')
+        : ('Experimental · confirmada pelo centro', 'CONFIRMADA');
     return ProfessorLinksCard(
+      onTap: onTap,
       padding: const EdgeInsets.all(12),
       borderColor: tone.withValues(alpha: 0.35),
       child: Row(
@@ -1905,9 +1945,7 @@ class _TrialRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  t.isPending
-                      ? 'Experimental · o centro ainda vai confirmar'
-                      : 'Experimental · confirmada pelo centro',
+                  line,
                   style: AppTypography.bodyS.copyWith(
                     fontSize: 11.5,
                     color: ProfessorLinksStyle.dim(colors),
@@ -1918,12 +1956,20 @@ class _TrialRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            t.isPending ? 'AGUARDANDO' : 'CONFIRMADA',
+            label,
             style: ProfessorLinksStyle.mono(
               10,
               color: colors.readableTone(tone),
             ),
           ),
+          if (onTap != null) ...[
+            const SizedBox(width: 4),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 16,
+              color: ProfessorLinksStyle.dim(colors),
+            ),
+          ],
         ],
       ),
     );

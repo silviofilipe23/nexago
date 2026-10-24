@@ -32,6 +32,12 @@ export const routes: Routes = [
     canActivate: [guestGuard],
     loadComponent: () => import('./auth/signup.component').then((m) => m.SignupComponent),
   },
+  // Página pública do CT (C9/C10): agendar a aula experimental sem conta. Sem guarda.
+  {
+    path: 'agendar/:centerId',
+    title: 'Aula experimental — NexaGO',
+    loadComponent: () => import('./features/public-trial/public-trial.component').then((m) => m.PublicTrialComponent),
+  },
   {
     path: 'centros',
     title: T('Seus centros'),
@@ -77,6 +83,20 @@ export const routes: Routes = [
         canActivate: [areaGuard],
         data: { area: 'enrollments' },
         loadComponent: () => import('./features/enrollments/enrollments.component').then((m) => m.EnrollmentsComponent),
+      },
+      {
+        path: 'captacao',
+        title: T('Captação'),
+        canActivate: [areaGuard],
+        data: { area: 'leads' },
+        loadComponent: () => import('./features/leads/leads.component').then((m) => m.LeadsComponent),
+      },
+      {
+        path: 'captacao/:leadId',
+        title: T('Interessado'),
+        canActivate: [areaGuard],
+        data: { area: 'leads' },
+        loadComponent: () => import('./features/leads/lead-detail.component').then((m) => m.LeadDetailComponent),
       },
       {
         path: 'experimentais',

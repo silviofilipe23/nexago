@@ -290,6 +290,15 @@ export {
 export {joinTrainingCenterByCode, setTrainingCenterJoinCode} from "./training-center-join-code";
 export {inviteTrainingCenterMember} from "./training-center-team-invite";
 export {checkInTrainingCenterStudent} from "./training-center-checkin";
+// Captação (C1–C10): experimental do interessado, avaliação do professor e página pública.
+export {
+  scheduleTrainingCenterLeadTrial,
+  cancelTrainingCenterLeadTrial,
+  evaluateTrainingCenterTrial,
+  getTrainingCenterTrialPage,
+  bookTrainingCenterTrialPublic,
+  cancelTrainingCenterTrialPublic,
+} from "./training-center-leads";
 export {
   openMyTrainingCenterContract,
   remindTrainingCenterContract,

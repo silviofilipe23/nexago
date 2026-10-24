@@ -211,6 +211,9 @@ import '../../features/center_coach/presentation/center_coach_call_page.dart';
 import '../../features/center_coach/presentation/center_coach_class_page.dart';
 import '../../features/center_coach/presentation/center_coach_today_page.dart';
 import '../../features/center_coach/presentation/center_coach_waitlist_page.dart';
+import '../../features/center_coach/presentation/center_coach_leads_page.dart';
+import '../../features/center_coach/presentation/center_coach_new_lead_page.dart';
+import '../../features/center_coach/presentation/center_coach_trial_review_page.dart';
 import '../../features/center_coach/presentation/center_coach_alerts_page.dart';
 import '../../features/center_coach/presentation/center_coach_finance_page.dart';
 import '../../features/center_coach/presentation/center_coach_invoice_page.dart';
@@ -1718,6 +1721,30 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.centerCoachWaitlist,
         builder: (context, state) => CenterCoachWaitlistPage(
           centerId: state.pathParameters['centerId']?.trim() ?? '',
+        ),
+      ),
+      // `captacao/novo` antes de qualquer `captacao/:x`.
+      GoRoute(
+        path: AppRoutes.centerCoachNewLead,
+        name: AppRouteNames.centerCoachNewLead,
+        builder: (context, state) => CenterCoachNewLeadPage(
+          centerId: state.pathParameters['centerId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachLeads,
+        name: AppRouteNames.centerCoachLeads,
+        builder: (context, state) => CenterCoachLeadsPage(
+          centerId: state.pathParameters['centerId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachTrialReview,
+        name: AppRouteNames.centerCoachTrialReview,
+        builder: (context, state) => CenterCoachTrialReviewPage(
+          centerId: state.pathParameters['centerId']?.trim() ?? '',
+          sessionId: state.pathParameters['sessionId']?.trim() ?? '',
+          trialKey: state.pathParameters['trialKey']?.trim() ?? '',
         ),
       ),
       GoRoute(

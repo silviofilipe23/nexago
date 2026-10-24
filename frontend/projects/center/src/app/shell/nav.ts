@@ -18,6 +18,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
       { area: 'schedule', label: 'Agenda', icon: 'calendar', path: 'agenda' },
       { area: 'classes', label: 'Turmas', icon: 'team', path: 'turmas' },
       { area: 'enrollments', label: 'Matrículas', icon: 'clipboard', path: 'matriculas' },
+      { area: 'leads', label: 'Captação', icon: 'flag', path: 'captacao' },
       { area: 'trials', label: 'Experimentais', icon: 'check', path: 'experimentais' },
       { area: 'students', label: 'Alunos', icon: 'person', path: 'alunos' },
       { area: 'requests', label: 'Trancar e cancelar', icon: 'clock', path: 'pedidos' },

@@ -50,6 +50,8 @@ interface FullState {
 })
 export class NewEnrollmentComponent implements OnInit {
   readonly initialStudentId = input<string | null>(null);
+  /** Turma já escolhida (Captação: a indicada pelo professor na experimental). */
+  readonly initialClassId = input<string | null>(null);
   readonly closed = output<void>();
   readonly created = output<string>();
   /** "Enviar contrato" depois de matricular: o pai abre o envio com aluno e matrícula. */
@@ -149,6 +151,10 @@ export class NewEnrollmentComponent implements OnInit {
     if (pre) {
       this.studentId.set(pre);
       this.step.set(1);
+    }
+    const preClass = pre ? this.store.classById(this.initialClassId() ?? '') : undefined;
+    if (preClass && preClass.status === 'active') {
+      this.pickClass(preClass);
     }
   }
 

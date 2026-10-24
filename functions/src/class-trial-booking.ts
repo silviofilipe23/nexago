@@ -30,6 +30,7 @@ import {dayKeyFromEventDate} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {WEB_PUSH_PRIVATE_KEY, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
 import {defaultNotifyDeps, managerUids, type NotifyDeps} from "./training-center-notify";
+import {findLeadForAthlete, loadLeadSettings, syncLeadTrialStatus, writeLeadForAppBooking} from "./training-center-leads-model";
 
 type Data = Record<string, unknown>;
 
@@ -170,7 +171,7 @@ export async function loadArenaTrialOptionsCore(
   };
 }
 
-function centerTrialRef(db: Firestore, centerId: string) {
+export function centerTrialRef(db: Firestore, centerId: string) {
   return db.doc(`${TRAINING_CENTERS}/${centerId}`).collection(CENTER_TRIAL_BOOKINGS);
 }
 
@@ -178,11 +179,11 @@ export function centerTrialBookingId(sessionId: string, uid: string): string {
   return `${sessionId}_${uid}`;
 }
 
-function isActiveTrial(b: Data): boolean {
+export function isActiveTrial(b: Data): boolean {
   return ACTIVE_TRIAL.includes(str(b["status"]) as TrialBookingStatus);
 }
 
-async function loadActiveCenter(db: Firestore, centerId: string): Promise<Data> {
+export async function loadActiveCenter(db: Firestore, centerId: string): Promise<Data> {
   if (!centerId || centerId.includes("/")) throw new HttpsError("invalid-argument", "Centro inválido.");
   const snap = await db.doc(`${TRAINING_CENTERS}/${centerId}`).get();
   const center = snap.data() as Data | undefined;
@@ -205,7 +206,7 @@ export function centerSpotsLeft(cls: Data, session: Data, activeTrials: number):
   return Math.max(0, num(cls["capacity"]) - roster - makeups - activeTrials);
 }
 
-function centerOption(id: string, s: Data, cls: Data, spotsLeft: number): TrialOption {
+export function centerOption(id: string, s: Data, cls: Data, spotsLeft: number): TrialOption {
   const startTime = str(s["startTime"]) || str(cls["startTime"]);
   const duration = num(s["durationMin"]) || num(cls["durationMin"]) || 60;
   return {
@@ -227,7 +228,7 @@ export function sessionTrialMirror(bookingId: string, b: Data, status: TrialBook
   return {bookingId, name: str(b["name"]) || "Atleta", photoUrl: str(b["photoUrl"]) || null, status};
 }
 
-function trialStartAt(b: Data): Date {
+export function trialStartAt(b: Data): Date {
   return classSessionStartAt(str(b["date"]), str(b["startTime"]));
 }
 
@@ -301,6 +302,8 @@ export async function bookCenterTrialCore(
   const mineSnap = await ref.collection("students").where("athleteId", "==", uid).get();
   const myStudentIds = new Set(mineSnap.docs.map((d) => d.id));
   const bookingRef = centerTrialRef(db, centerId).doc(centerTrialBookingId(sessionId, uid));
+  // Limites da Captação só valem quando o centro salvou a configuração (antes dela, regra antiga).
+  const leadConfig = await loadLeadSettings(db, centerId);
 
   const booking = await db.runTransaction(async (tx) => {
     const sSnap = await tx.get(sessionRef);
@@ -328,6 +331,16 @@ export async function bookCenterTrialCore(
     }
     const taken = active.filter((t) => str(t["sessionId"]) === sessionId).length;
     if (centerSpotsLeft(cls, s, taken) === 0) throw new HttpsError("failed-precondition", "A aula está sem vaga.");
+    const lead = await findLeadForAthlete(tx, db, centerId, uid, student.phone);
+    if (leadConfig.exists) {
+      const cfg = leadConfig.settings;
+      if (taken >= cfg.maxTrialsPerSession) {
+        throw new HttpsError("failed-precondition", "Esta aula já está com o máximo de experimentais. Escolha outro horário.");
+      }
+      if (cfg.maxTrialsPerPerson > 0 && Number(lead.data?.["trialsCount"] ?? 0) >= cfg.maxTrialsPerPerson) {
+        throw new HttpsError("failed-precondition", "Você já fez a aula experimental deste centro. Fale com a recepção.");
+      }
+    }
     const doc = {
       centerId, centerName: str(center["name"]) || "Centro de treinamento", sessionId, classId: option.classId, className: option.className, level: option.level,
       coachName: option.teacherName, coachUid: str(s["coachUid"]) || str(cls["coachUid"]) || null,
@@ -335,10 +348,12 @@ export async function bookCenterTrialCore(
       athleteId: uid, name: student.name, phone: student.phone, photoUrl: student.photoUrl,
       priceReais: parseShowcase(center["showcase"]).trial.priceReais,
       status: "pending" as TrialBookingStatus, note: null, decidedAt: null, decidedByUid: null, decidedByName: null,
+      leadId: lead.ref.id, source: "app",
       createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
     };
     tx.set(bookingRef, doc);
     tx.set(sessionRef, {trials: {[uid]: sessionTrialMirror(bookingRef.id, doc, "pending")}}, {merge: true});
+    writeLeadForAppBooking(tx, lead, bookingRef.id, doc, now);
     return doc;
   });
 
@@ -373,7 +388,10 @@ export async function cancelCenterTrialCore(
     if (trialStartAt(b).getTime() <= now.getTime()) throw new HttpsError("failed-precondition", "Esta aula já começou.");
     const sessionRef = db.doc(`${TRAINING_CENTERS}/${centerId}/sessions/${str(b["sessionId"])}`);
     const session = await tx.get(sessionRef);
+    const syncLead = await syncLeadTrialStatus(tx, db, centerId, b, bookingId, "canceled", str(b["name"]),
+      "Desmarcou a experimental pelo app", now);
     tx.update(ref, {status: "canceled", updatedAt: FieldValue.serverTimestamp()});
+    syncLead();
     if (session.exists) tx.set(sessionRef, {trials: {[uid]: FieldValue.delete()}}, {merge: true});
   });
   return {bookingId};
@@ -389,7 +407,7 @@ export function canHandleCenterTrials(member: Data | undefined): boolean {
   return Array.isArray(member["extraPerms"]) && member["extraPerms"].includes("enroll_students");
 }
 
-async function requireTrialStaff(db: Firestore, uid: string, centerId: string): Promise<{name: string}> {
+export async function requireTrialStaff(db: Firestore, uid: string, centerId: string): Promise<{name: string}> {
   if (!centerId || centerId.includes("/")) throw new HttpsError("invalid-argument", "Centro inválido.");
   const member = (await db.doc(`${TRAINING_CENTERS}/${centerId}/centerMembers/${uid}`).get()).data();
   if (!canHandleCenterTrials(member)) {
@@ -419,6 +437,11 @@ export interface CenterTrialBookingView {
   createdAt: string | null;
   decidedAt: string | null;
   decidedByName: string | null;
+  /** Interessado da Captação ligado ao pedido (null nos pedidos antigos). */
+  leadId: string | null;
+  /** 'app' (atleta pelo app), 'staff' (recepção agendou) ou 'page' (página pública). */
+  source: string;
+  attendance: string | null;
 }
 
 function isoOf(v: unknown): string | null {
@@ -455,6 +478,9 @@ export async function loadCenterTrialBookingsCore(
       createdAt: isoOf(b["createdAt"]),
       decidedAt: isoOf(b["decidedAt"]),
       decidedByName: str(b["decidedByName"]) || null,
+      leadId: str(b["leadId"]) || null,
+      source: str(b["source"]) || "app",
+      attendance: str(b["attendance"]) || null,
     };
   }).sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9) ||
     a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
@@ -482,6 +508,8 @@ export async function decideCenterTrialCore(
     if (str(data["status"]) !== "pending") throw new HttpsError("failed-precondition", "Este pedido já foi respondido.");
     const sessionRef = db.doc(`${TRAINING_CENTERS}/${centerId}/sessions/${str(data["sessionId"])}`);
     const session = await tx.get(sessionRef);
+    const syncLead = await syncLeadTrialStatus(tx, db, centerId, data, bookingId, status, staff.name,
+      status === "confirmed" ? "Confirmou a experimental" : `Recusou a experimental${note ? ` · ${note}` : ""}`, deps.now());
     const athleteId = str(data["athleteId"]);
     if (session.exists && athleteId) {
       tx.set(sessionRef, {
@@ -492,6 +520,7 @@ export async function decideCenterTrialCore(
       status, note, decidedAt: FieldValue.serverTimestamp(), decidedByUid: uid, decidedByName: staff.name,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    syncLead();
     return data;
   });
 

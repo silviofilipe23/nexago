@@ -27,9 +27,10 @@ import { BillingSettingsComponent } from './billing-settings.component';
 import { NotificationSettingsComponent } from './notification-settings.component';
 import { ReceivingAccountComponent } from './receiving-account.component';
 import { ShowcaseSettingsComponent } from './showcase-settings.component';
+import { LeadSettingsComponent } from '../leads/lead-settings.component';
 import { SubscriptionCardComponent } from './subscription-card.component';
 
-type Tab = 'dados' | 'vitrine' | 'politicas' | 'saida' | 'cobranca' | 'recebimento' | 'quadras' | 'notificacoes' | 'assinatura';
+type Tab = 'dados' | 'vitrine' | 'politicas' | 'saida' | 'cobranca' | 'captacao' | 'recebimento' | 'quadras' | 'notificacoes' | 'assinatura';
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'dados', label: 'Dados do centro' },
@@ -37,6 +38,7 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'politicas', label: 'Políticas comerciais' },
   { value: 'saida', label: 'Trancar e cancelar' },
   { value: 'cobranca', label: 'Cobrança recorrente' },
+  { value: 'captacao', label: 'Captação' },
   { value: 'recebimento', label: 'Conta de recebimento' },
   { value: 'quadras', label: 'Quadras' },
   { value: 'notificacoes', label: 'Notificações' },
@@ -83,7 +85,7 @@ function profileOf(c: TrainingCenter): CenterProfilePatch {
 @Component({
   selector: 'ct-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgTemplateOutlet, ReactiveFormsModule, RouterLink, PageHeaderComponent, SegmentedComponent, BannerComponent, AuditTrailComponent, SubscriptionCardComponent, BillingSettingsComponent, NotificationSettingsComponent, ReceivingAccountComponent, JoinCodeCardComponent, ShowcaseSettingsComponent],
+  imports: [NgTemplateOutlet, ReactiveFormsModule, RouterLink, PageHeaderComponent, SegmentedComponent, BannerComponent, AuditTrailComponent, SubscriptionCardComponent, BillingSettingsComponent, NotificationSettingsComponent, ReceivingAccountComponent, JoinCodeCardComponent, ShowcaseSettingsComponent, LeadSettingsComponent],
   templateUrl: './settings.component.html',
   styles: `
     .body { padding: 20px var(--ct-gutter) 26px; display: flex; flex-direction: column; gap: 16px; }

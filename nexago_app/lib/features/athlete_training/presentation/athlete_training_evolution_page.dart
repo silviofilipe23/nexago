@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
@@ -17,6 +16,7 @@ import '../../professor_mode/presentation/widgets/professor_students_widgets.dar
 import '../application/athlete_training_providers.dart';
 import '../domain/athlete_training.dart';
 import 'widgets/training_widgets.dart';
+import 'training_shell_page.dart';
 
 enum _Tab { skills, frequency }
 
@@ -46,9 +46,15 @@ class _AthleteTrainingEvolutionPageState
           ? 'AVALIAÇÕES E FREQUÊNCIA'
           : 'AVALIAÇÃO · ${trainingFirstName(latest.professorName).toUpperCase()}'
               ' · ${evaluationPeriodLabel(latest.period).toUpperCase()}',
-      onBack: () => popOrGo(context, AppRoutes.athleteTrainings),
+      // Aba do shell: voltar leva à aba Treinos.
+      onBack: () => context.go(AppRoutes.athleteTrainings),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+        padding: EdgeInsets.fromLTRB(
+            20,
+            8,
+            20,
+            trainingShellBottomPadding(context),
+          ),
         children: [
           ArenaClassSegmented<_Tab>(
             items: const [

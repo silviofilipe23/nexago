@@ -199,7 +199,7 @@ class _AthleteTrainingPrivateLinkPageState
                 'Último feedback',
                 action: 'Todos',
                 onAction: () =>
-                    context.pushNamed(AppRouteNames.athleteTrainingFeedbacks),
+                    context.goNamed(AppRouteNames.athleteTrainingFeedbacks),
               ),
               ProfessorLinksCard(
                 key: const Key('training-private-feedback'),

@@ -141,6 +141,7 @@ import '../../features/arena/presentation/products/arena_restock_page.dart';
 import '../../features/arena/presentation/products/arena_stock_alerts_page.dart';
 import '../../features/arena/domain/arena_slot_detail_args.dart';
 import '../../features/arenas/presentation/my_bookings_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_routes.dart';
 import '../../features/athlete/onboarding/presentation/athlete_onboarding_welcome_page.dart';
 import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_level_step.dart';
 import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_primary_sport_step.dart';
@@ -205,18 +206,6 @@ import '../../features/professor_mode/presentation/professor_student_page.dart';
 import '../../features/professor_mode/presentation/professor_student_profile_page.dart';
 import '../../features/professor_mode/presentation/professor_students_page.dart';
 import '../../features/professor_mode/presentation/earnings/professor_earnings_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_checkin_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_classes_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_evolution_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_feedbacks_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_hub_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_makeup_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_find_professor_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_review_pages.dart';
-import '../../features/athlete_training/presentation/athlete_training_professor_profile_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_homework_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_plans_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_add_page.dart';
 import '../../features/center_coach/presentation/center_coach_agenda_page.dart';
 import '../../features/center_coach/presentation/center_coach_call_page.dart';
 import '../../features/center_coach/presentation/center_coach_class_page.dart';
@@ -236,14 +225,6 @@ import '../../features/center_coach/presentation/center_coach_messages_page.dart
 import '../../features/center_coach/presentation/center_coach_enroll_page.dart';
 import '../../features/center_coach/presentation/center_coach_subscription_page.dart';
 import '../../features/center_coach/presentation/center_coach_student_contracts_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_agenda_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_center_invoice_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_center_contract_pages.dart';
-import '../../features/athlete_training/presentation/athlete_training_arena_class_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_center_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_center_session_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_private_link_page.dart';
-import '../../features/athlete_training/presentation/athlete_training_professors_page.dart';
 import '../../features/professor_mode/presentation/evaluations/athlete_evaluations_pages.dart';
 import '../../features/professor_mode/presentation/evaluations/professor_evaluations_page.dart';
 import '../../features/professor_mode/presentation/availability/athlete_private_lessons_pages.dart';
@@ -1527,8 +1508,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             'agenda' => 1,
             'reservar' => 2,
             'torneios' || 'competir' || 'feed' => 3,
-            // Loja, ou a Comunidade quando a Loja está desligada.
-            'loja' || 'store' => 4,
             _ => 0,
           };
           return AthleteShellPage(initialIndex: initialIndex);
@@ -3328,182 +3307,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           evaluationId: state.pathParameters['evaluationId']?.trim() ?? '',
         ),
       ),
-      // Treinos do atleta: hub (entrada pela Início) e as telas dele.
-      GoRoute(
-        path: AppRoutes.athleteTrainings,
-        name: AppRouteNames.athleteTrainings,
-        builder: (context, state) => const AthleteTrainingHubPage(),
-        routes: [
-          GoRoute(
-            path: 'aulas',
-            name: AppRouteNames.athleteTrainingClasses,
-            builder: (context, state) => const AthleteTrainingClassesPage(),
-          ),
-          GoRoute(
-            path: 'feedbacks',
-            name: AppRouteNames.athleteTrainingFeedbacks,
-            builder: (context, state) => const AthleteTrainingFeedbacksPage(),
-          ),
-          GoRoute(
-            path: 'avaliar',
-            name: AppRouteNames.athleteTrainingReviewStart,
-            builder: (context, state) => const AthleteTrainingReviewStartPage(),
-          ),
-          GoRoute(
-            path: 'avaliar/:key',
-            name: AppRouteNames.athleteTrainingReview,
-            builder: (context, state) => AthleteTrainingReviewPage(
-              reviewKey: state.pathParameters['key'] ?? '',
-              initialStars:
-                  int.tryParse(state.uri.queryParameters['n'] ?? '') ?? 0,
-            ),
-          ),
-          GoRoute(
-            path: 'avaliacoes',
-            name: AppRouteNames.athleteTrainingReviews,
-            builder: (context, state) => const AthleteTrainingReviewsPage(),
-          ),
-          GoRoute(
-            path: 'evolucao',
-            name: AppRouteNames.athleteTrainingEvolution,
-            builder: (context, state) => const AthleteTrainingEvolutionPage(),
-          ),
-          GoRoute(
-            path: 'professores',
-            name: AppRouteNames.athleteTrainingProfessors,
-            builder: (context, state) => const AthleteTrainingProfessorsPage(),
-          ),
-          GoRoute(
-            path: 'encontrar',
-            name: AppRouteNames.athleteTrainingFindProfessor,
-            builder: (context, state) =>
-                const AthleteTrainingFindProfessorPage(),
-          ),
-          GoRoute(
-            path: 'professor/:professorUid',
-            name: AppRouteNames.athleteTrainingProfessorProfile,
-            builder: (context, state) => AthleteTrainingProfessorProfilePage(
-              professorUid: state.pathParameters['professorUid']?.trim() ?? '',
-            ),
-          ),
-          GoRoute(
-            path: 'tarefa/:viewId',
-            name: AppRouteNames.athleteTrainingHomework,
-            builder: (context, state) => AthleteTrainingHomeworkPage(
-              viewId: state.pathParameters['viewId']?.trim() ?? '',
-            ),
-          ),
-          GoRoute(
-            path: 'planos',
-            name: AppRouteNames.athleteTrainingPlans,
-            builder: (context, state) => const AthleteTrainingPlansPage(),
-          ),
-          GoRoute(
-            path: 'reposicao',
-            name: AppRouteNames.athleteTrainingMakeup,
-            builder: (context, state) => AthleteTrainingMakeupPage(
-              creditId: state.uri.queryParameters['credito']?.trim(),
-            ),
-          ),
-          GoRoute(
-            path: 'checkin/:sessionId',
-            name: AppRouteNames.athleteTrainingCheckIn,
-            builder: (context, state) => AthleteTrainingCheckInPage(
-              sessionId: state.pathParameters['sessionId']?.trim() ?? '',
-            ),
-          ),
-          GoRoute(
-            path: 'adicionar',
-            name: AppRouteNames.athleteTrainingAdd,
-            builder: (context, state) => const AthleteTrainingAddPage(),
-          ),
-          GoRoute(
-            path: 'agenda',
-            name: AppRouteNames.athleteTrainingAgenda,
-            builder: (context, state) => const AthleteTrainingAgendaPage(),
-          ),
-          GoRoute(
-            path: 'particular/:professorUid',
-            name: AppRouteNames.athleteTrainingPrivateLink,
-            builder: (context, state) => AthleteTrainingPrivateLinkPage(
-              professorUid: state.pathParameters['professorUid']?.trim() ?? '',
-            ),
-          ),
-          GoRoute(
-            path: 'arena/:enrollmentId',
-            name: AppRouteNames.athleteTrainingArenaClass,
-            builder: (context, state) => AthleteTrainingArenaClassPage(
-              enrollmentId: state.pathParameters['enrollmentId']?.trim() ?? '',
-            ),
-          ),
-          GoRoute(
-            path: 'centro/:centerId',
-            name: AppRouteNames.athleteTrainingCenter,
-            builder: (context, state) => AthleteTrainingCenterPage(
-              centerId: state.pathParameters['centerId']?.trim() ?? '',
-              initialTab: state.uri.queryParameters['aba']?.trim(),
-            ),
-            routes: [
-              GoRoute(
-                path: 'aula/:sessionId',
-                name: AppRouteNames.athleteTrainingCenterSession,
-                builder: (context, state) => AthleteTrainingCenterSessionPage(
-                  centerId: state.pathParameters['centerId']?.trim() ?? '',
-                  sessionId: state.pathParameters['sessionId']?.trim() ?? '',
-                ),
-              ),
-              GoRoute(
-                path: 'fatura/:invoiceId',
-                name: AppRouteNames.athleteTrainingCenterInvoice,
-                builder: (context, state) => AthleteTrainingCenterInvoicePage(
-                  centerId: state.pathParameters['centerId']?.trim() ?? '',
-                  invoiceId: state.pathParameters['invoiceId']?.trim() ?? '',
-                ),
-              ),
-              GoRoute(
-                path: 'contratos',
-                name: AppRouteNames.athleteTrainingCenterContracts,
-                builder: (context, state) => AthleteTrainingCenterContractsPage(
-                  centerId: state.pathParameters['centerId']?.trim() ?? '',
-                ),
-              ),
-              // As duas antes de `contrato/:contractId` (mais específicas).
-              GoRoute(
-                path: 'contrato/:contractId/assinar',
-                name: AppRouteNames.athleteTrainingCenterContractSign,
-                builder: (context, state) => AthleteTrainingCenterContractSignPage(
-                  centerId: state.pathParameters['centerId']?.trim() ?? '',
-                  contractId: state.pathParameters['contractId']?.trim() ?? '',
-                  readSeconds: int.tryParse(
-                    state.uri.queryParameters['leitura'] ?? '',
-                  ),
-                ),
-              ),
-              GoRoute(
-                path: 'contrato/:contractId/assinado',
-                name: AppRouteNames.athleteTrainingCenterContractSigned,
-                builder: (context, state) =>
-                    AthleteTrainingCenterContractSignedPage(
-                      centerId: state.pathParameters['centerId']?.trim() ?? '',
-                      contractId:
-                          state.pathParameters['contractId']?.trim() ?? '',
-                      result: CenterContractSignedArgs.fromQuery(
-                        state.uri.queryParameters,
-                      ),
-                    ),
-              ),
-              GoRoute(
-                path: 'contrato/:contractId',
-                name: AppRouteNames.athleteTrainingCenterContract,
-                builder: (context, state) => AthleteTrainingCenterContractPage(
-                  centerId: state.pathParameters['centerId']?.trim() ?? '',
-                  contractId: state.pathParameters['contractId']?.trim() ?? '',
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+      // Treinos do atleta (entrada pela Início): shell próprio + telas
+      // empilhadas. Ver `athleteTrainingRoutes`.
+      ...athleteTrainingRoutes(),
       // Plano da aula publicado pelo professor (push `lesson_plan_published`).
       GoRoute(
         path: AppRoutes.athleteLessonPlans,

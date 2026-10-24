@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
@@ -14,6 +14,7 @@ import '../application/athlete_training_providers.dart';
 import '../domain/athlete_training.dart';
 import 'widgets/training_origin_widgets.dart';
 import 'widgets/training_widgets.dart';
+import 'training_shell_page.dart';
 
 /// O2 · Agenda de treinos — particulares, turmas da arena e aulas do centro
 /// na mesma semana, com um ponto da cor da origem em cada dia.
@@ -60,7 +61,8 @@ class _AthleteTrainingAgendaPageState
     return ProfessorLinksScaffold(
       title: 'Agenda de treinos',
       subtitle: origins.length > 1 ? '$range · TODAS AS ORIGENS' : range,
-      onBack: () => popOrGo(context, AppRoutes.athleteTrainings),
+      // Aba do shell: voltar leva à aba Treinos.
+      onBack: () => context.go(AppRoutes.athleteTrainings),
       body: RefreshIndicator(
         color: AppColors.brand,
         onRefresh: () async {
@@ -69,7 +71,12 @@ class _AthleteTrainingAgendaPageState
           await ref.read(myClassAgendaProvider.future);
         },
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            8,
+            20,
+            trainingShellBottomPadding(context),
+          ),
           children: [
             Row(
               children: [

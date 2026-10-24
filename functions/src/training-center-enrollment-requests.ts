@@ -31,6 +31,8 @@ import {
   RequestRuleError,
   TYPE_LABEL,
   certificateFolder,
+  discountUsedRecently,
+  discountedCents,
   dueAction,
   pauseDaysUsed,
   planCancel,
@@ -246,6 +248,8 @@ export async function requestEnrollmentChangeCore(
       days: plan.days,
       overLimit: plan.overInjuryLimit,
       certificate: cert ? {...cert, daysOff: num((d["certificate"] as Data)["daysOff"], plan.days)} : null,
+      // Regra da alta congelada no pedido: mudar a política depois não muda pausa em curso.
+      ...(type === "injury" && !resubmit ? {requireClearance: c.policies.requireMedicalClearance, clearanceStatus: "", clearance: null} : {}),
       status: reqStatus,
       ...(approved ? {decidedAt: at, decidedByName: actor.manager ? actor.name : "Automático"} : {}),
       appliedAt: startsNow ? at : null,
@@ -279,6 +283,32 @@ export async function requestEnrollmentChangeCore(
   const liveSub = sub && LIVE_SUBSCRIPTION.includes(str(sub["status"])) ? sub : null;
   const ref = reqCol.doc();
 
+  // Aceitou o desconto de 1 mês em vez de sair: a próxima mensalidade sai com desconto.
+  if (d["retainDiscount"] === true) {
+    if (!c.policies.cancelRetention.includes("discount")) throw new HttpsError("failed-precondition", "Este centro não oferece desconto.");
+    if (!liveSub) throw new HttpsError("failed-precondition", "O desconto vale para a mensalidade ativa.");
+    if (discountUsedRecently(existing.map((r) => r.data), c.today)) {
+      throw new HttpsError("failed-precondition", "Esta matrícula já ganhou um desconto de retenção no último ano.");
+    }
+    const percent = c.policies.retentionDiscountPercent;
+    const price = num(liveSub["priceCents"]);
+    await db.runTransaction(async (tx) => {
+      const cur = (await tx.get(subRef)).data();
+      if (!cur || !LIVE_SUBSCRIPTION.includes(str(cur["status"]))) throw new HttpsError("failed-precondition", "A assinatura mudou. Atualize e tente de novo.");
+      tx.set(ref, {
+        ...base, reason: reasonKey, status: "retained", lastDay: null,
+        retention: {offered, accepted: "discount", percent, priceCents: discountedCents(price, percent)},
+        decidedAt: at, decidedOn: c.today, decidedByName: "Aluno", effectiveFrom: str(cur["nextChargeDate"]),
+      });
+      tx.update(subRef, {pendingDiscount: {percent, requestId: ref.id, reason: "retention"}, updatedAt: at});
+      tx.set(c.ref.collection("auditLogs").doc(), audit(at, actor, "enrollment_request.retained", enrollmentId,
+        `${str(enr["studentName"])} desistiu de cancelar (${CANCEL_REASONS[reasonKey]}) · ${percent}% de desconto na mensalidade de ${shortDayBr(str(cur["nextChargeDate"]))}`));
+    });
+    await pushStaff(db, deps, c, `${str(enr["studentName"])} ficou com o desconto`,
+      `Ia cancelar (${CANCEL_REASONS[reasonKey]}) e aceitou ${percent}% na próxima mensalidade.`, ref.id);
+    return {requestId: ref.id, status: "retained", startsOn: null, endsOn: null, lastDay: null};
+  }
+
   // Aceitou a troca de plano em vez de sair: muda no próximo ciclo, sem cancelar.
   const retainPlanId = str(d["retainPlanId"]);
   if (retainPlanId) {
@@ -298,7 +328,7 @@ export async function requestEnrollmentChangeCore(
       tx.set(ref, {
         ...base, reason: reasonKey, status: "retained", lastDay: null,
         retention: {offered, accepted: "plan_change", planId: retainPlanId, planName: change.planName, priceCents: change.priceCents},
-        decidedAt: at, decidedByName: "Aluno", effectiveFrom: str(liveSub["nextChargeDate"]),
+        decidedAt: at, decidedOn: c.today, decidedByName: "Aluno", effectiveFrom: str(liveSub["nextChargeDate"]),
       });
       tx.update(subRef, {pendingPlanChange: change, updatedAt: at});
       tx.set(c.ref.collection("auditLogs").doc(), audit(at, actor, "enrollment_request.retained", enrollmentId,
@@ -407,7 +437,7 @@ export async function withdrawEnrollmentRequestCore(
 // Decidir (gestão)
 // ---------------------------------------------------------------------------
 
-export type RequestDecision = "approve" | "reject" | "needs_document" | "undo";
+export type RequestDecision = "approve" | "reject" | "needs_document" | "undo" | "clear";
 
 export async function decideEnrollmentRequestCore(
   db: Firestore, uid: string | undefined, raw: unknown, deps: NotifyDeps = defaultNotifyDeps,
@@ -416,7 +446,7 @@ export async function decideEnrollmentRequestCore(
   const centerId = safeId(d["centerId"], "Centro");
   const requestId = safeId(d["requestId"], "Pedido");
   const decision = str(d["decision"]) as RequestDecision;
-  if (!["approve", "reject", "needs_document", "undo"].includes(decision)) throw new HttpsError("invalid-argument", "Decisão inválida.");
+  if (!["approve", "reject", "needs_document", "undo", "clear"].includes(decision)) throw new HttpsError("invalid-argument", "Decisão inválida.");
   const note = str(d["note"]).slice(0, 400);
   if ((decision === "reject" || decision === "needs_document") && !note) {
     throw new HttpsError("invalid-argument", "Escreva para o aluno o motivo.");
@@ -426,6 +456,14 @@ export async function decideEnrollmentRequestCore(
   const c = await loadCenterCtx(db, centerId, now);
   const at = Timestamp.fromDate(now);
   const reqRef = c.ref.collection(ENROLLMENT_REQUESTS).doc(requestId);
+
+  if (decision === "clear") {
+    const req = await clearReturn(db, c, reqRef, actor, note, at);
+    await pushStudent(db, deps, c, str(req["studentUid"]), "Volta liberada",
+      `${str(req["className"])} · ${req["resumedNow"] ? "suas aulas voltam a partir de hoje." : "a alta foi aprovada, sua volta segue na data marcada."}`,
+      {enrollmentId: str(req["enrollmentId"]), requestId});
+    return {status: req["resumedNow"] ? "done" : "active"};
+  }
 
   if (decision === "undo") {
     const req = await undoRequest(db, c, reqRef, actor, "withdrawn", note, at);
@@ -475,6 +513,66 @@ export async function decideEnrollmentRequestCore(
 }
 
 // ---------------------------------------------------------------------------
+// Alta médica (pausa por lesão com alta exigida)
+// ---------------------------------------------------------------------------
+
+/**
+ * Gestão aprova a alta (ou libera sem ela). Se a pausa já passou do fim e estava segurada
+ * esperando a alta, a matrícula volta hoje.
+ */
+async function clearReturn(db: Firestore, c: CenterCtx, reqRef: DocumentReference, actor: Actor, note: string, at: Timestamp): Promise<Data> {
+  return db.runTransaction(async (tx) => {
+    const req = (await tx.get(reqRef)).data();
+    if (!req) throw new HttpsError("not-found", "Pedido não encontrado.");
+    if (str(req["type"]) !== "injury" || str(req["status"]) !== "active") {
+      throw new HttpsError("failed-precondition", "Só a pausa por lesão em curso tem alta.");
+    }
+    const enrRef = c.ref.collection("enrollments").doc(str(req["enrollmentId"]));
+    const enr = (await tx.get(enrRef)).data();
+    const held = req["awaitingClearance"] === true;
+    const resumedNow = held && enr?.["status"] === "paused";
+    tx.update(reqRef, {
+      clearanceStatus: "approved", clearanceDecidedAt: at, clearanceDecidedByName: actor.name, clearanceNote: note,
+      ...(held ? {status: "done", awaitingClearance: false} : {}),
+      updatedAt: at,
+    });
+    if (resumedNow) tx.update(enrRef, {status: "active", pausedUntil: null, pauseReason: ""});
+    tx.set(c.ref.collection("auditLogs").doc(), audit(at, actor, "enrollment_request.clearance_approved", str(req["enrollmentId"]),
+      `${str(req["studentName"])} · alta ${str(req["clearanceStatus"]) === "submitted" ? "aprovada" : "dispensada"}${resumedNow ? " · aulas voltam hoje" : ""}${note ? ` · ${note}` : ""}`));
+    return {...req, resumedNow};
+  });
+}
+
+export async function submitMedicalClearanceCore(
+  db: Firestore, auth: CallableRequest["auth"], raw: unknown, deps: NotifyDeps = defaultNotifyDeps,
+): Promise<{clearanceStatus: string}> {
+  const d = (raw && typeof raw === "object" ? raw : {}) as Data;
+  const centerId = safeId(d["centerId"], "Centro");
+  const requestId = safeId(d["requestId"], "Pedido");
+  if (!auth?.uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  const now = deps.now();
+  const c = await loadCenterCtx(db, centerId, now);
+  const reqRef = c.ref.collection(ENROLLMENT_REQUESTS).doc(requestId);
+  const req = (await reqRef.get()).data();
+  if (!req || str(req["studentUid"]) !== auth.uid) throw new HttpsError("permission-denied", "Este pedido não é seu.");
+  if (str(req["type"]) !== "injury" || str(req["status"]) !== "active") {
+    throw new HttpsError("failed-precondition", "A alta vale para a pausa por lesão em curso.");
+  }
+  if (str(req["clearanceStatus"]) === "approved") throw new HttpsError("failed-precondition", "A alta já foi aprovada.");
+  const doc = rule(() => readCertificate(d["clearance"], certificateFolder(centerId, auth.uid), c.today));
+  if (!doc) throw new HttpsError("failed-precondition", "Envie a alta médica.");
+  const at = Timestamp.fromDate(now);
+  await db.runTransaction(async (tx) => {
+    tx.update(reqRef, {clearance: {...doc, submittedAt: at}, clearanceStatus: "submitted", updatedAt: at});
+    tx.set(c.ref.collection("auditLogs").doc(), audit(at, {uid: auth.uid, name: str(req["studentName"]) || "Aluno"},
+      "enrollment_request.clearance_submitted", str(req["enrollmentId"]), `${str(req["studentName"])} · enviou a alta médica`));
+  });
+  await pushStaff(db, deps, c, `${str(req["studentName"])} enviou a alta médica`,
+    `${str(req["className"])} · revise para liberar a volta.`, requestId);
+  return {clearanceStatus: "submitted"};
+}
+
+// ---------------------------------------------------------------------------
 // Rodada diária
 // ---------------------------------------------------------------------------
 
@@ -482,15 +580,19 @@ export interface RequestsRunSummary {
   started: number;
   finished: number;
   ended: number;
+  /** Pausas por lesão seguradas esperando a alta. */
+  held: number;
   errors: number;
 }
 
-export async function runCenterEnrollmentRequests(db: Firestore, centerId: string, now: Date): Promise<RequestsRunSummary> {
+export async function runCenterEnrollmentRequests(
+  db: Firestore, centerId: string, now: Date, deps: NotifyDeps = {...defaultNotifyDeps, now: () => now},
+): Promise<RequestsRunSummary> {
   const ref = centerRef(db, centerId);
   const data = (await ref.get()).data() ?? {};
   const c: CenterCtx = {ref, data, today: dayKeyIn(now, str(data["timezone"])), policies: readExitPolicies(data["policies"])};
   const at = Timestamp.fromDate(now);
-  const summary: RequestsRunSummary = {started: 0, finished: 0, ended: 0, errors: 0};
+  const summary: RequestsRunSummary = {started: 0, finished: 0, ended: 0, held: 0, errors: 0};
   const snap = await ref.collection(ENROLLMENT_REQUESTS).where("status", "in", ["scheduled", "active"]).get();
   for (const doc of snap.docs) {
     const r = doc.data() as Data;
@@ -511,6 +613,39 @@ export async function runCenterEnrollmentRequests(db: Firestore, centerId: strin
           applyPauseInTx(tx, c, enrRef, enr, {...cur, id: doc.id}, at, SYSTEM);
         });
         summary.started += 1;
+      } else if (action === "ask_clearance") {
+        await doc.ref.update({clearanceStatus: "requested", clearanceRequestedAt: at, updatedAt: at});
+        await pushStudent(db, deps, c, str(r["studentUid"]), "Envie sua alta médica",
+          `${str(r["className"])} · sua pausa termina em ${shortDayBr(str(r["endsOn"]))}. Envie a alta pelo app para voltar às aulas.`,
+          {enrollmentId: str(r["enrollmentId"]), requestId: doc.id});
+      } else if (action === "hold_for_clearance") {
+        // Sem alta aprovada: a pausa segue mais um dia (a cobrança das 06:00 não reativa).
+        const tomorrow = addDays(c.today, 1);
+        const held = await db.runTransaction(async (tx) => {
+          const cur = (await tx.get(doc.ref)).data();
+          const enr = (await tx.get(enrRef)).data();
+          if (!cur || cur["status"] !== "active") return false;
+          if (!enr || enr["status"] !== "paused") {
+            tx.update(doc.ref, {status: "done", updatedAt: at});
+            return false;
+          }
+          tx.update(enrRef, {pausedUntil: tomorrow});
+          tx.update(doc.ref, {
+            awaitingClearance: true, pausedUntil: tomorrow, updatedAt: at,
+            ...(str(cur["clearanceStatus"]) ? {} : {clearanceStatus: "requested", clearanceRequestedAt: at}),
+          });
+          if (cur["awaitingClearance"] !== true) {
+            tx.set(ref.collection("auditLogs").doc(), audit(at, SYSTEM, "enrollment_request.held_for_clearance", enrRef.id,
+              `${str(cur["studentName"])} · pausa por lesão terminou sem alta aprovada · segue pausada`));
+          }
+          return cur["awaitingClearance"] !== true;
+        });
+        summary.held += 1;
+        if (held) {
+          await pushStudent(db, deps, c, str(r["studentUid"]), "Sua volta espera a alta médica",
+            `${str(r["className"])} · envie a alta pelo app; as aulas voltam quando o centro aprovar.`,
+            {enrollmentId: str(r["enrollmentId"]), requestId: doc.id});
+        }
       } else if (action === "finish_pause") {
         // A matrícula volta sozinha na rodada da cobrança (`pausedUntil`); aqui só fecha o pedido.
         await doc.ref.update({status: "done", updatedAt: at});
@@ -548,6 +683,7 @@ export const runTrainingCenterEnrollmentRequests = onSchedule({
   schedule: "50 5 * * *",
   timeZone: "America/Sao_Paulo",
   timeoutSeconds: 300,
+  secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async () => {
   await runTrainingCenterEnrollmentRequestsCore(getFirestore());
 });
@@ -562,6 +698,9 @@ export const requestTrainingCenterEnrollmentChange = onCall(CALL_OPTS, async (re
 
 export const withdrawTrainingCenterEnrollmentRequest = onCall(CALL_OPTS, async (request: CallableRequest) =>
   withdrawEnrollmentRequestCore(getFirestore(), request.auth, request.data));
+
+export const submitTrainingCenterMedicalClearance = onCall(CALL_OPTS, async (request: CallableRequest) =>
+  submitMedicalClearanceCore(getFirestore(), request.auth, request.data));
 
 export const decideTrainingCenterEnrollmentRequest = onCall(CALL_OPTS, async (request: CallableRequest) =>
   decideEnrollmentRequestCore(getFirestore(), request.auth?.uid, request.data));

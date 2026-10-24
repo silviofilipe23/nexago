@@ -5,9 +5,11 @@ import '../../../core/profiles/users_repository.dart';
 
 import '../../professor_links/application/professor_links_providers.dart';
 import '../domain/center_contracts.dart';
+import '../domain/center_exit_requests.dart';
 import '../domain/center_management.dart';
 import '../domain/center_management_repository.dart';
 import '../infrastructure/firebase_center_contracts_repository.dart';
+import '../infrastructure/firebase_center_exit_requests_repository.dart';
 import '../infrastructure/firebase_center_management_repository.dart';
 import 'center_coach_providers.dart';
 
@@ -100,3 +102,21 @@ final centerAccountSearchProvider =
       final users = ref.watch(usersRepositoryProvider);
       return (term) => users.searchAthletesByKeywords(term, max: 8);
     });
+
+/// Pedidos de trancar/pausa por lesão/cancelar — vazio sem
+/// `view_enrollments` (rule).
+final centerExitRequestsProvider = StreamProvider.autoDispose
+    .family<List<CenterExitRequest>, String>((ref, centerId) {
+      final m = ref.watch(centerMembershipProvider(centerId));
+      if (m == null || !m.has('view_enrollments')) {
+        return Stream.value(const []);
+      }
+      return ref.watch(centerExitRequestsRepositoryProvider).watch(centerId);
+    });
+
+/// Link do atestado (T11) — só owner/admin consegue (rule do Storage).
+final centerExitCertificateUrlProvider = FutureProvider.autoDispose
+    .family<String, String>(
+      (ref, path) =>
+          ref.watch(centerExitRequestsRepositoryProvider).certificateUrl(path),
+    );

@@ -234,10 +234,12 @@ import '../../features/center_coach/presentation/center_coach_new_student_page.d
 import '../../features/center_coach/presentation/center_coach_team_page.dart';
 import '../../features/center_coach/presentation/center_coach_messages_page.dart';
 import '../../features/center_coach/presentation/center_coach_enroll_page.dart';
+import '../../features/center_coach/presentation/center_coach_exit_requests_page.dart';
 import '../../features/center_coach/presentation/center_coach_subscription_page.dart';
 import '../../features/center_coach/presentation/center_coach_student_contracts_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_agenda_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_center_invoice_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_center_enrollment_pages.dart';
 import '../../features/athlete_training/presentation/athlete_training_center_contract_pages.dart';
 import '../../features/athlete_training/presentation/athlete_training_arena_class_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_center_page.dart';
@@ -1677,6 +1679,21 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           centerId: state.pathParameters['centerId']?.trim() ?? '',
           studentId: state.pathParameters['studentId']?.trim() ?? '',
           subscriptionId: state.pathParameters['subscriptionId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachExitRequests,
+        name: AppRouteNames.centerCoachExitRequests,
+        builder: (context, state) => CenterCoachExitRequestsPage(
+          centerId: state.pathParameters['centerId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachExitRequest,
+        name: AppRouteNames.centerCoachExitRequest,
+        builder: (context, state) => CenterCoachExitRequestPage(
+          centerId: state.pathParameters['centerId']?.trim() ?? '',
+          requestId: state.pathParameters['requestId']?.trim() ?? '',
         ),
       ),
       GoRoute(
@@ -3499,6 +3516,44 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                   centerId: state.pathParameters['centerId']?.trim() ?? '',
                   contractId: state.pathParameters['contractId']?.trim() ?? '',
                 ),
+              ),
+              GoRoute(
+                path: 'matricula/:enrollmentId',
+                name: AppRouteNames.athleteTrainingCenterEnrollment,
+                builder: (context, state) => AthleteCenterEnrollmentPage(
+                  centerId: state.pathParameters['centerId']?.trim() ?? '',
+                  enrollmentId:
+                      state.pathParameters['enrollmentId']?.trim() ?? '',
+                ),
+                routes: [
+                  GoRoute(
+                    path: 'trancar',
+                    name: AppRouteNames.athleteTrainingCenterEnrollmentPause,
+                    builder: (context, state) => AthleteCenterPausePage(
+                      centerId: state.pathParameters['centerId']?.trim() ?? '',
+                      enrollmentId:
+                          state.pathParameters['enrollmentId']?.trim() ?? '',
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'lesao',
+                    name: AppRouteNames.athleteTrainingCenterEnrollmentInjury,
+                    builder: (context, state) => AthleteCenterInjuryPage(
+                      centerId: state.pathParameters['centerId']?.trim() ?? '',
+                      enrollmentId:
+                          state.pathParameters['enrollmentId']?.trim() ?? '',
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'cancelar',
+                    name: AppRouteNames.athleteTrainingCenterEnrollmentCancel,
+                    builder: (context, state) => AthleteCenterCancelPage(
+                      centerId: state.pathParameters['centerId']?.trim() ?? '',
+                      enrollmentId:
+                          state.pathParameters['enrollmentId']?.trim() ?? '',
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

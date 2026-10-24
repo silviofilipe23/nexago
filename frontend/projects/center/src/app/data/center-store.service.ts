@@ -20,6 +20,7 @@ import type {
   ClassSession,
   Court,
   Enrollment,
+  EnrollmentRequest,
   Invoice,
   Subscription,
   Plan,
@@ -36,6 +37,7 @@ import {
   readContractTemplate,
   readCourt,
   readEnrollment,
+  readEnrollmentRequest,
   readInvite,
   readInvoice,
   readSubscription,
@@ -84,6 +86,7 @@ export class CenterStore {
     audit: feed<AuditEntry>(),
     contractTemplates: feed<ContractTemplate>(),
     contracts: feed<StudentContract>(),
+    requests: feed<EnrollmentRequest>(),
   };
 
   readonly members: Signal<CenterMember[]> = this.f.members.state.asReadonly();
@@ -114,6 +117,10 @@ export class CenterStore {
     ),
   );
   readonly contracts: Signal<StudentContract[]> = this.f.contracts.state.asReadonly();
+  /** Trancamentos, pausas por lesão e cancelamentos — mais novos primeiro. */
+  readonly requests = computed(() =>
+    [...this.f.requests.state()].sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0)),
+  );
 
   /** Professores ativos (pra selects de turma/agenda). */
   readonly coaches = computed(() =>
@@ -134,6 +141,7 @@ export class CenterStore {
     courts: this.f.courts.loaded.asReadonly(),
     contracts: this.f.contracts.loaded.asReadonly(),
     contractTemplates: this.f.contractTemplates.loaded.asReadonly(),
+    requests: this.f.requests.loaded.asReadonly(),
   };
 
   programById(id: string): Program | undefined {
@@ -279,6 +287,10 @@ export class CenterStore {
       if (hasPermission(me, 'enroll_students')) {
         listen(this.f.contractTemplates, base('contractTemplates'), readContractTemplate);
         listen(this.f.contracts, base('contracts'), readContract);
+      }
+      // Pedidos de trancar/cancelar: a rule libera a leitura para `view_enrollments`.
+      if (hasPermission(me, 'view_enrollments')) {
+        listen(this.f.requests, base('enrollmentRequests'), readEnrollmentRequest);
       }
       if (seesFinance) {
         listen(this.f.invoices, base('invoices'), readInvoice);

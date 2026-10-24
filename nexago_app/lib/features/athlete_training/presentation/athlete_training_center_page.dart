@@ -18,9 +18,12 @@ import '../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../professor_mode/presentation/widgets/professor_students_widgets.dart';
 import '../application/athlete_training_providers.dart';
 import '../domain/athlete_training.dart';
+import '../domain/center_enrollment_request.dart';
 import '../domain/training_center.dart';
 import '../domain/training_plans.dart';
 import 'athlete_training_center_contract_pages.dart' show CenterContractsEntry;
+import 'athlete_training_center_enrollment_pages.dart'
+    show openCenterEnrollment;
 import 'widgets/training_origin_widgets.dart';
 import 'widgets/training_widgets.dart';
 
@@ -341,6 +344,14 @@ class _AthleteTrainingCenterPageState
               ('Situação', _statusText(e), AppColors.pending),
           ],
         ),
+        if (centerCanCancel(e)) ...[
+          const SizedBox(height: 8),
+          _ManageEnrollmentEntry(
+            key: Key('training-center-manage-${e.enrollmentId}'),
+            center: center,
+            enrollment: e,
+          ),
+        ],
       ],
       const SizedBox(height: 10),
       TrainingKeyValueCard(
@@ -361,7 +372,12 @@ class _AthleteTrainingCenterPageState
                 : 'Vale até o fim do ciclo pago',
             null,
           ),
-          if (p.allowPause) ('Pausa', 'Permitida, combine com o centro', null),
+          if (p.allowPause)
+            (
+              'Trancar',
+              'Até ${p.pauseMaxDaysPerYear} dias por ano, pelo app',
+              null,
+            ),
         ],
       ),
       if (open.isNotEmpty) ...[
@@ -402,6 +418,94 @@ class _AthleteTrainingCenterPageState
         ),
       ],
     ];
+  }
+}
+
+/// "Gerenciar matrícula": trancar, pausa por lesão e cancelar (T5). Com
+/// pedido em andamento, o subtítulo diz qual.
+class _ManageEnrollmentEntry extends StatelessWidget {
+  const _ManageEnrollmentEntry({
+    super.key,
+    required this.center,
+    required this.enrollment,
+  });
+
+  final TrainingCenterLink center;
+  final CenterEnrollment enrollment;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final open = center.openRequestsOf(enrollment.enrollmentId);
+    final r = open.isEmpty ? null : open.first;
+    final state = r == null ? null : centerRequestStateOf(r);
+    final subtitle = switch (state) {
+      CenterRequestState.injuryReview => 'Atestado em análise',
+      CenterRequestState.documentRequested =>
+        'O centro pediu outro documento',
+      CenterRequestState.pauseScheduled =>
+        'Pausa agendada · ${centerDayRange(r!.startsOn, r.endsOn)}',
+      CenterRequestState.pauseActive =>
+        'Pausa em curso até ${centerShortDay(r!.endsOn ?? '')}',
+      CenterRequestState.cancelScheduled =>
+        'Cancelamento agendado · último dia '
+            '${centerShortDay(r!.lastDay ?? '')}',
+      null => 'Trancar, pausa por lesão ou cancelar',
+    };
+    final tone = switch (state) {
+      CenterRequestState.cancelScheduled => AppColors.live,
+      CenterRequestState.injuryReview ||
+      CenterRequestState.documentRequested => AppColors.pending,
+      _ => null,
+    };
+    return ProfessorLinksCard(
+      onTap: () => openCenterEnrollment(
+        context,
+        center.centerId,
+        enrollment.enrollmentId,
+      ),
+      padding: const EdgeInsets.all(13),
+      child: Row(
+        children: [
+          Icon(
+            Icons.tune_rounded,
+            size: 20,
+            color: context.themeColors.readableTone(trainingCenterColor),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Gerenciar matrícula',
+                  style: ProfessorLinksStyle.display(
+                    13,
+                    weight: FontWeight.w600,
+                    color: colors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: AppTypography.bodyS.copyWith(
+                    fontSize: 11.5,
+                    color: tone == null
+                        ? ProfessorLinksStyle.dim(colors)
+                        : colors.readableTone(tone),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 18,
+            color: ProfessorLinksStyle.dim(colors),
+          ),
+        ],
+      ),
+    );
   }
 }
 

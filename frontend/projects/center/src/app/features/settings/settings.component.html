@@ -1,4 +1,4 @@
-<ct-page-header title="Configurações do centro" subtitle="Dados · Vitrine no app · Políticas · Cobrança recorrente · Quadras · Notificações · Assinatura NexaGO">
+<ct-page-header title="Configurações do centro" subtitle="Dados · Vitrine no app · Políticas · Trancar e cancelar · Cobrança recorrente · Quadras · Notificações · Assinatura NexaGO">
   @if (ctx.isPending() && ctx.isManager()) {
     <a class="ct-mini-btn" [routerLink]="['/centro', centerId(), 'ativacao']">Passos da ativação</a>
   }
@@ -125,45 +125,9 @@
               </div>
             </div>
             @for (v of policyView(); track v.row.key) {
-              <div class="policy" [class.off]="v.off">
-                <div class="ct-grow">
-                  <div class="ct-disp">{{ v.title }}</div>
-                  <div class="ct-dim" style="margin-top: 3px">{{ v.hint }}</div>
-                </div>
-                @if (v.row.kind === 'choice') {
-                  <ct-segmented [options]="v.options" [value]="v.value" [disabled]="!editable() || policiesBusy()" (valueChange)="setChoice(v.row.key, $event)" />
-                } @else {
-                  <label class="num">
-                    <input
-                      class="ct-input mono"
-                      type="number"
-                      inputmode="numeric"
-                      [attr.aria-label]="v.title"
-                      [value]="v.value"
-                      [disabled]="!editable() || policiesBusy() || v.off"
-                      (input)="setNumber(v.row.key, $event)"
-                    />
-                    <span class="ct-mono">{{ v.unit }}</span>
-                  </label>
-                }
-              </div>
+              <ng-container *ngTemplateOutlet="policyRow; context: { $implicit: v }" />
             }
-            @if (editable()) {
-              <div class="save">
-                <input class="ct-input" placeholder="Motivo da mudança (vai para a auditoria)" [value]="reason()" (input)="reason.set(inputValue($event))" [disabled]="policiesBusy()" />
-                <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="policiesBusy() || changed().length === 0" (click)="savePolicies()">
-                  {{ policiesBusy() ? 'Salvando…' : changed().length ? 'Salvar ' + changed().length + (changed().length === 1 ? ' mudança' : ' mudanças') : 'Salvar' }}
-                </button>
-                @if (changed().length) {
-                  <button type="button" class="ct-ghost-btn" [disabled]="policiesBusy()" (click)="discardPolicies()">Descartar</button>
-                }
-              </div>
-              @if (policiesErr() || invalid()) {
-                <p class="ct-error-text" role="alert">{{ policiesErr() || invalid() }}</p>
-              } @else if (policiesSaved() && changed().length === 0) {
-                <p class="ct-dim">Políticas salvas. Valem a partir dos próximos contratos.</p>
-              }
-            }
+            <ng-container *ngTemplateOutlet="policySave" />
           </section>
 
           <section class="ct-card">
@@ -190,6 +154,40 @@
             }
           </section>
         </div>
+      }
+
+      @case ('saida') {
+        <div class="exit-grid">
+          @for (sec of exitView(); track sec.title) {
+            <section class="ct-card">
+              <div class="ct-card-head">
+                <div class="ct-grow">
+                  <div class="ct-kick">{{ sec.kicker }}</div>
+                  <div class="ct-card-title">{{ sec.title }}</div>
+                </div>
+              </div>
+              @for (v of sec.rows; track v.row.key) {
+                <ng-container *ngTemplateOutlet="policyRow; context: { $implicit: v }" />
+              }
+              @if (sec.note) {
+                <p class="ct-dim" style="margin-top: 10px">{{ sec.note }}</p>
+              }
+            </section>
+          }
+        </div>
+        <section class="ct-card">
+          <div class="ct-card-head">
+            <div class="ct-grow">
+              <div class="ct-kick">Valem para os próximos pedidos</div>
+              <div class="ct-card-title">Salvar alterações</div>
+            </div>
+          </div>
+          <p class="ct-muted">As regras valem para os próximos pedidos de trancamento, pausa por lesão e cancelamento — feitos pelo app ou registrados na recepção. Pedidos já aprovados não mudam.</p>
+          <ng-container *ngTemplateOutlet="policySave" />
+          @if (!editable()) {
+            <p class="ct-dim">Só owner e admin alteram estas regras.</p>
+          }
+        </section>
       }
 
       @case ('cobranca') {
@@ -262,3 +260,55 @@
     <div class="ct-empty">Carregando…</div>
   }
 </div>
+
+<ng-template #policyRow let-v>
+  <div class="policy" [class.off]="v.off">
+    <div class="ct-grow">
+      <div class="ct-disp">{{ v.title }}</div>
+      <div class="ct-dim" style="margin-top: 3px">{{ v.hint }}</div>
+    </div>
+    @if (v.row.kind === 'choice') {
+      <ct-segmented [options]="v.options" [value]="v.value" [disabled]="!editable() || policiesBusy()" (valueChange)="setChoice(v.row.key, $event)" />
+    } @else if (v.row.kind === 'number-choice') {
+      <ct-segmented [options]="v.options" [value]="v.value" [disabled]="!editable() || policiesBusy() || v.off" (valueChange)="setNumberChoice(v.row.key, $event)" />
+    } @else if (v.row.kind === 'multi') {
+      <div class="multi" role="group" [attr.aria-label]="v.title">
+        @for (o of v.multi; track o.value) {
+          <button type="button" class="ct-chip" [class.active]="o.on" [attr.aria-pressed]="o.on" [disabled]="!editable() || policiesBusy()" (click)="toggleOffer(o.value)">{{ o.label }}</button>
+        }
+      </div>
+    } @else {
+      <label class="num">
+        <input
+          class="ct-input mono"
+          type="number"
+          inputmode="numeric"
+          [attr.aria-label]="v.title"
+          [value]="v.value"
+          [disabled]="!editable() || policiesBusy() || v.off"
+          (input)="setNumber(v.row.key, $event)"
+        />
+        <span class="ct-mono">{{ v.unit }}</span>
+      </label>
+    }
+  </div>
+</ng-template>
+
+<ng-template #policySave>
+  @if (editable()) {
+    <div class="save">
+      <input class="ct-input" placeholder="Motivo da mudança (vai para a auditoria)" [value]="reason()" (input)="reason.set(inputValue($event))" [disabled]="policiesBusy()" />
+      <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="policiesBusy() || changed().length === 0" (click)="savePolicies()">
+        {{ policiesBusy() ? 'Salvando…' : changed().length ? 'Salvar ' + changed().length + (changed().length === 1 ? ' mudança' : ' mudanças') : 'Salvar' }}
+      </button>
+      @if (changed().length) {
+        <button type="button" class="ct-ghost-btn" [disabled]="policiesBusy()" (click)="discardPolicies()">Descartar</button>
+      }
+    </div>
+    @if (policiesErr() || invalid()) {
+      <p class="ct-error-text" role="alert">{{ policiesErr() || invalid() }}</p>
+    } @else if (policiesSaved() && changed().length === 0) {
+      <p class="ct-dim">Políticas salvas. Valem a partir dos próximos contratos.</p>
+    }
+  }
+</ng-template>

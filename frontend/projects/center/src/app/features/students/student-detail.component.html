@@ -41,6 +41,9 @@
                       <div class="ct-kv mono"><span>Créditos do pacote</span><span>{{ e.creditsLeft }}</span></div>
                     }
                     <div class="ct-kv mono"><span>Contratado em</span><span>{{ day(e.contract?.contractedAt ?? e.startDate) }}</span></div>
+                    @if (openRequests()[e.id]; as rq) {
+                      <div class="ct-kv"><span>Pedido em andamento</span><a class="rq-link" [routerLink]="['/centro', centerId(), 'pedidos', rq.id]">{{ rq.label }}</a></div>
+                    }
                   </div>
                 } @empty {
                   <div class="ct-dim">Nenhuma matrícula ativa. {{ canEdit() ? 'Use “Nova matrícula” para colocar o aluno numa turma.' : '' }}</div>
@@ -180,6 +183,9 @@
                 <span class="ct-mono">{{ day(e.startDate) }}</span>
                 <span><span class="ct-pill" [class]="'ct-pill ' + enrollmentStatus[e.status][1]">{{ enrollmentStatus[e.status][0] }}</span></span>
               </div>
+              @if (openRequests()[e.id]; as rq) {
+                <a class="ct-tr rq-row" [routerLink]="['/centro', centerId(), 'pedidos', rq.id]"><span class="rq-link">↳ {{ rq.label }}</span></a>
+              }
             } @empty {
               <div class="ct-empty">Nenhuma matrícula.</div>
             }

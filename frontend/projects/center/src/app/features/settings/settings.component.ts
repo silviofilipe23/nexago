@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, linkedSignal, signal } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -8,21 +9,33 @@ import { CenterStore } from '../../data/center-store.service';
 import { JoinCodeCardComponent } from './join-code-card.component';
 import { formatDayKey, formatInstant, wallClock } from '../../domain/dates';
 import { holdsSeat } from '../../domain/enrollment';
-import type { CenterPolicies, CenterStatus, TrainingCenter } from '../../domain/models';
+import type { CenterPolicies, CenterStatus, RetentionOffer, TrainingCenter } from '../../domain/models';
 import { AuditTrailComponent, BannerComponent, PageHeaderComponent, SegmentedComponent } from '../../ui/kit';
-import { applyChoice, applyNumber, changedPolicies, choiceValue, policiesError, POLICY_ROWS } from './policy-fields';
+import {
+  applyChoice,
+  applyNumber,
+  changedPolicies,
+  choiceValue,
+  EXIT_SECTIONS,
+  numberChoiceOptions,
+  policiesError,
+  POLICY_ROWS,
+  toggleRetention,
+  type PolicyRow,
+} from './policy-fields';
 import { BillingSettingsComponent } from './billing-settings.component';
 import { NotificationSettingsComponent } from './notification-settings.component';
 import { ReceivingAccountComponent } from './receiving-account.component';
 import { ShowcaseSettingsComponent } from './showcase-settings.component';
 import { SubscriptionCardComponent } from './subscription-card.component';
 
-type Tab = 'dados' | 'vitrine' | 'politicas' | 'cobranca' | 'recebimento' | 'quadras' | 'notificacoes' | 'assinatura';
+type Tab = 'dados' | 'vitrine' | 'politicas' | 'saida' | 'cobranca' | 'recebimento' | 'quadras' | 'notificacoes' | 'assinatura';
 
 const TABS: { value: Tab; label: string }[] = [
   { value: 'dados', label: 'Dados do centro' },
   { value: 'vitrine', label: 'Vitrine no app' },
   { value: 'politicas', label: 'Políticas comerciais' },
+  { value: 'saida', label: 'Trancar e cancelar' },
   { value: 'cobranca', label: 'Cobrança recorrente' },
   { value: 'recebimento', label: 'Conta de recebimento' },
   { value: 'quadras', label: 'Quadras' },
@@ -70,7 +83,7 @@ function profileOf(c: TrainingCenter): CenterProfilePatch {
 @Component({
   selector: 'ct-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, PageHeaderComponent, SegmentedComponent, BannerComponent, AuditTrailComponent, SubscriptionCardComponent, BillingSettingsComponent, NotificationSettingsComponent, ReceivingAccountComponent, JoinCodeCardComponent, ShowcaseSettingsComponent],
+  imports: [NgTemplateOutlet, ReactiveFormsModule, RouterLink, PageHeaderComponent, SegmentedComponent, BannerComponent, AuditTrailComponent, SubscriptionCardComponent, BillingSettingsComponent, NotificationSettingsComponent, ReceivingAccountComponent, JoinCodeCardComponent, ShowcaseSettingsComponent],
   templateUrl: './settings.component.html',
   styles: `
     .body { padding: 20px var(--ct-gutter) 26px; display: flex; flex-direction: column; gap: 16px; }
@@ -81,6 +94,8 @@ function profileOf(c: TrainingCenter): CenterProfilePatch {
     .policy { padding: 14px 0; border-top: 1px solid var(--nx-line); display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; }
     .policy .ct-grow { min-width: 220px; }
     .policy.off { opacity: 0.45; }
+    .exit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; align-items: start; }
+    .multi { display: flex; gap: 8px; flex-wrap: wrap; }
     .num { display: flex; align-items: center; gap: 8px; }
     .num .ct-input { width: 92px; height: 36px; }
     .save { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
@@ -162,20 +177,34 @@ export class SettingsComponent {
 
   protected readonly policyView = computed(() => {
     const p = this.draft();
-    if (!p) {
-      return [];
-    }
-    return POLICY_ROWS.map((r) => ({
+    return p ? POLICY_ROWS.map((r) => this.rowView(r, p)) : [];
+  });
+
+  /** Aba "Trancar e cancelar": mesmas políticas, salvas pelo mesmo rascunho. */
+  protected readonly exitView = computed(() => {
+    const p = this.draft();
+    return p ? EXIT_SECTIONS.map((s) => ({ title: s.title, kicker: s.kicker, note: s.note ?? '', rows: s.rows.map((r) => this.rowView(r, p)) })) : [];
+  });
+
+  private rowView(r: PolicyRow, p: CenterPolicies) {
+    const numeric = r.kind === 'number' || r.kind === 'number-choice';
+    return {
       row: r,
       title: r.title(p),
       hint: r.hint(p),
-      value: r.kind === 'choice' ? choiceValue(p, r.key) : Number.isFinite(p[r.key]) ? String(p[r.key]) : '',
-      off: r.kind === 'number' && r.dependsOn ? p[r.dependsOn] === false : false,
-      options: r.kind === 'choice' ? r.options : [],
+      value:
+        r.kind === 'choice'
+          ? choiceValue(p, r.key)
+          : numeric
+            ? Number.isFinite(p[r.key]) ? String(p[r.key]) : ''
+            : '',
+      off: numeric && r.dependsOn ? p[r.dependsOn] === false : false,
+      options: r.kind === 'choice' ? r.options : r.kind === 'number-choice' ? numberChoiceOptions(p, r) : [],
+      multi: r.kind === 'multi' ? r.options.map((o) => ({ ...o, on: p.cancelRetention.includes(o.value) })) : [],
       unit: r.kind === 'number' ? r.unit : '',
       changed: this.changed().includes(r.key),
-    }));
-  });
+    };
+  }
 
   protected readonly seesEnrollments = computed(() => this.ctx.has('view_enrollments') || this.ctx.has('enroll_students'));
   /** "4 quadras em 1 local próprio" — a gestão de quadras mudou para Locais. */
@@ -271,6 +300,16 @@ export class SettingsComponent {
     this.policiesSaved.set(false);
     const raw = (ev.target as HTMLInputElement).value;
     this.draft.update((p) => (p ? applyNumber(p, key as Parameters<typeof applyNumber>[1], raw) : p));
+  }
+
+  protected setNumberChoice(key: keyof CenterPolicies, value: string): void {
+    this.policiesSaved.set(false);
+    this.draft.update((p) => (p ? applyNumber(p, key as Parameters<typeof applyNumber>[1], value) : p));
+  }
+
+  protected toggleOffer(offer: RetentionOffer): void {
+    this.policiesSaved.set(false);
+    this.draft.update((p) => (p ? toggleRetention(p, offer) : p));
   }
 
   protected discardPolicies(): void {

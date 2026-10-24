@@ -570,6 +570,8 @@ AthleteNotificationPresentation _basePresentation(
     case centerSessionNoticeNotificationType:
     case centerEnrollmentNoticeNotificationType:
     case centerSeatOfferNotificationType:
+    case centerEnrollmentRequestNotificationType:
+    case centerEnrollmentRequestStaffNotificationType:
       return AthleteNotificationPresentation(
         icon: type == centerPaymentConfirmedNotificationType
             ? Icons.check_circle_outline_rounded

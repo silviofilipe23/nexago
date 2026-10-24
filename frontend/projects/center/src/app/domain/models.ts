@@ -46,7 +46,22 @@ export interface CenterPolicies {
   pendingHoldHours: number;
   /** Intervalo mínimo entre aulas do mesmo professor em locais diferentes (deslocamento). */
   travelBufferMinutes: number;
+  /** Trancamento: menor pausa que o aluno pode pedir. */
+  pauseMinDays: number;
+  /** Pausa por lesão: a gestão revisa o atestado ou aprova sozinha (até `injuryMaxDays`). */
+  injuryPauseApproval: 'manual' | 'auto';
+  /** Pausa por lesão soma no limite anual de trancamento. */
+  injuryCountsInLimit: boolean;
+  /** Acima disso o centro decide caso a caso (nunca aprova sozinho). */
+  injuryMaxDays: number;
+  /** Ofertas mostradas no app antes de confirmar o cancelamento. */
+  cancelRetention: RetentionOffer[];
+  /** Aluno pode desfazer o cancelamento pelo app até o último dia. */
+  allowCancelWithdraw: boolean;
 }
+
+export type RetentionOffer = 'pause' | 'plan_change';
+export const RETENTION_OFFERS: RetentionOffer[] = ['pause', 'plan_change'];
 
 export const DEFAULT_POLICIES: CenterPolicies = {
   activation: 'after_payment',
@@ -63,6 +78,12 @@ export const DEFAULT_POLICIES: CenterPolicies = {
   waitlistAcceptHours: 24,
   pendingHoldHours: 48,
   travelBufferMinutes: 30,
+  pauseMinDays: 7,
+  injuryPauseApproval: 'manual',
+  injuryCountsInLimit: false,
+  injuryMaxDays: 90,
+  cancelRetention: ['pause', 'plan_change'],
+  allowCancelWithdraw: true,
 };
 
 export interface CenterSubscription {
@@ -724,3 +745,82 @@ export const COMPANY_TYPES: { value: string; label: string }[] = [
   { value: 'INDIVIDUAL', label: 'Empresário individual' },
   { value: 'ASSOCIATION', label: 'Associação' },
 ];
+
+// ── Trancar, pausa por lesão e cancelar (`enrollmentRequests`, só o servidor grava) ──
+
+export type EnrollmentRequestType = 'pause' | 'injury' | 'cancel';
+export type EnrollmentRequestStatus =
+  | 'pending'
+  | 'needs_document'
+  | 'scheduled'
+  | 'active'
+  | 'rejected'
+  | 'withdrawn'
+  | 'retained'
+  | 'done';
+
+export interface RequestCertificate {
+  path: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  issuedOn: string;
+  daysOff: number;
+  doctor: string;
+  description: string;
+}
+
+export interface RequestRetention {
+  offered: RetentionOffer[];
+  accepted: 'plan_change' | null;
+  planName: string;
+  priceCents: number | null;
+}
+
+export interface EnrollmentRequest {
+  id: string;
+  enrollmentId: string;
+  studentId: string;
+  studentUid: string;
+  studentName: string;
+  classId: string;
+  className: string;
+  planName: string;
+  planType: PlanType;
+  priceCents: number;
+  type: EnrollmentRequestType;
+  status: EnrollmentRequestStatus;
+  source: 'app' | 'desk';
+  /** Cancelamento: chave de `CANCEL_REASONS`; pausa: texto livre. */
+  reason: string;
+  comment: string;
+  /** Pausa: dias `YYYY-MM-DD` (inclusive) e o dia em que a matrícula volta sozinha. */
+  startsOn: string;
+  endsOn: string;
+  pausedUntil: string;
+  days: number;
+  /** Lesão acima do limite do centro: só a gestão decide. */
+  overLimit: boolean;
+  certificate: RequestCertificate | null;
+  /** Cancelamento: último dia de aula e o vencimento em que a assinatura encerra. */
+  lastDay: string;
+  cancelAt: string;
+  retention: RequestRetention | null;
+  effectiveFrom: string;
+  createdAt: Date | null;
+  createdByName: string;
+  decidedAt: Date | null;
+  decidedByName: string;
+  decisionNote: string;
+  appliedAt: Date | null;
+  updatedAt: Date | null;
+}
+
+export const CANCEL_REASONS: Record<string, string> = {
+  price: 'Preço',
+  schedule: 'Horário não funciona mais',
+  moving: 'Mudança de cidade',
+  health: 'Lesão ou saúde',
+  class: 'Não gostei da turma',
+  other: 'Outro',
+};

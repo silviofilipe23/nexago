@@ -81,6 +81,15 @@ const centerSeatOfferNotificationType = 'training_center_seat_offer';
 /// `functions/src/training-center-contracts.ts`): abre a leitura (K7).
 const centerContractNotificationType = 'training_center_contract';
 
+/// Trancar, pausa por lesão e cancelar
+/// (`functions/src/training-center-enrollment-requests.ts`): a resposta ao
+/// ALUNO abre "Minha matrícula" (T5); o pedido novo para a GESTÃO abre o
+/// detalhe do pedido (T11).
+const centerEnrollmentRequestNotificationType =
+    'training_center_enrollment_request';
+const centerEnrollmentRequestStaffNotificationType =
+    'training_center_enrollment_request_staff';
+
 /// Centro → PROFESSOR: chamada não finalizada e aluno que avisou que não vai
 /// abrem a chamada da aula no app do professor do centro.
 const centerAttendancePendingNotificationType =
@@ -605,8 +614,9 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
 
 /// Destino dos pushes do centro para o ALUNO: aula → aula do centro (O7);
 /// fatura → a fatura no app (F2, Pix e cartão); matrícula/vaga → tela do
-/// centro (O6); contrato → a leitura do contrato (K7). Sem `centerId` cai no hub de Treinos. `null` = não é do
-/// centro.
+/// centro (O6); contrato → a leitura do contrato (K7); pedido de
+/// trancar/cancelar → "Minha matrícula" (aluno) ou o pedido (gestão). Sem
+/// `centerId` cai no hub de Treinos. `null` = não é do centro.
 String? _centerNotificationRoute(String type, Map<String, dynamic> data) {
   if (type == centerAttendancePendingNotificationType ||
       type == centerStudentAbsenceNotificationType) {
@@ -616,6 +626,29 @@ String? _centerNotificationRoute(String type, Map<String, dynamic> data) {
     return AppRoutes.centerCoachSession
         .replaceFirst(':centerId', Uri.encodeComponent(c))
         .replaceFirst(':sessionId', Uri.encodeComponent(s));
+  }
+  if (type == centerEnrollmentRequestNotificationType) {
+    final c = (data['centerId'] as String?)?.trim() ?? '';
+    final e = (data['enrollmentId'] as String?)?.trim() ?? '';
+    if (c.isEmpty) return AppRoutes.athleteTrainings;
+    if (e.isEmpty) {
+      return '${AppRoutes.athleteTrainingCenter.replaceFirst(':centerId', Uri.encodeComponent(c))}'
+          '?aba=plano';
+    }
+    return AppRoutes.athleteTrainingCenterEnrollment
+        .replaceFirst(':centerId', Uri.encodeComponent(c))
+        .replaceFirst(':enrollmentId', Uri.encodeComponent(e));
+  }
+  if (type == centerEnrollmentRequestStaffNotificationType) {
+    final c = (data['centerId'] as String?)?.trim() ?? '';
+    final r = (data['requestId'] as String?)?.trim() ?? '';
+    if (c.isEmpty) return AppRoutes.centerCoachAgenda;
+    final list = AppRoutes.centerCoachExitRequests
+        .replaceFirst(':centerId', Uri.encodeComponent(c));
+    if (r.isEmpty) return list;
+    return AppRoutes.centerCoachExitRequest
+        .replaceFirst(':centerId', Uri.encodeComponent(c))
+        .replaceFirst(':requestId', Uri.encodeComponent(r));
   }
   if (type == centerContractNotificationType) {
     final c = (data['centerId'] as String?)?.trim() ?? '';

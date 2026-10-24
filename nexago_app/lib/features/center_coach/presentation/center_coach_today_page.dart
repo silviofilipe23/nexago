@@ -13,7 +13,9 @@ import '../../professor_links/application/professor_links_providers.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../professor_mode/presentation/widgets/professor_students_widgets.dart';
 import '../application/center_coach_providers.dart';
+import '../application/center_management_providers.dart';
 import '../domain/center_coach.dart';
+import '../domain/center_exit_requests.dart';
 import 'center_coach_agenda_page.dart' show openCoachSession;
 import 'widgets/center_coach_widgets.dart';
 import 'widgets/center_mode_tab_scope.dart';
@@ -80,6 +82,10 @@ class CenterCoachTodayPage extends ConsumerWidget {
         if (s.startTime.compareTo(nowHm) > 0) s,
     ];
     final done = ofToday.where((s) => s.isDone).length;
+    // Atestados esperando a gestão (a recepção também vê o aviso).
+    final exitPending = centerExitPendingCount(
+      ref.watch(centerExitRequestsProvider(centerId)).valueOrNull ?? const [],
+    );
 
     return ProfessorLinksScaffold(
       showBack: !CenterModeTabScope.of(context),
@@ -137,6 +143,45 @@ class CenterCoachTodayPage extends ConsumerWidget {
                   onPressed: () => context.pushNamed(
                     AppRouteNames.centerCoachEnroll,
                     pathParameters: {'centerId': centerId},
+                  ),
+                ),
+              ],
+              if (exitPending > 0) ...[
+                const SizedBox(height: 12),
+                ProfessorLinksCard(
+                  key: const Key('center-today-exit-requests'),
+                  borderColor: AppColors.pending.withValues(alpha: 0.35),
+                  onTap: () => context.pushNamed(
+                    AppRouteNames.centerCoachExitRequests,
+                    pathParameters: {'centerId': centerId},
+                  ),
+                  padding: const EdgeInsets.all(13),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.medical_information_outlined,
+                        size: 20,
+                        color: colors.readableTone(AppColors.pending),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          exitPending == 1
+                              ? '1 pedido de pausa para revisar'
+                              : '$exitPending pedidos de pausa para revisar',
+                          style: ProfessorLinksStyle.display(
+                            13,
+                            weight: FontWeight.w600,
+                            color: colors.onSurface,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: ProfessorLinksStyle.dim(colors),
+                      ),
+                    ],
                   ),
                 ),
               ],

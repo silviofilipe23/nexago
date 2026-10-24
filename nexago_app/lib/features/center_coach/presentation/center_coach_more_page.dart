@@ -61,6 +61,14 @@ List<({String title, List<CenterMoreItem> items})> centerMoreGroups(
             subtitle: 'Turmas lotadas e quem espera vaga',
             routeName: AppRouteNames.centerCoachWaitlist,
           ),
+        if (m.has('view_enrollments'))
+          (
+            key: 'exit-requests',
+            icon: Icons.pause_circle_outline_rounded,
+            title: 'Trancar e cancelar',
+            subtitle: 'Atestados, trancamentos e cancelamentos',
+            routeName: AppRouteNames.centerCoachExitRequests,
+          ),
         // Gestão tem Financeiro na barra; Check-in vem para cá.
         if (staff && finance)
           (

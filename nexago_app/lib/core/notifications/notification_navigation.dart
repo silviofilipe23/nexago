@@ -91,6 +91,9 @@ const classReviewReplyNotificationType = 'class_review_reply';
 /// Agenda do atleta.
 const athleteAgendaTabLocation = '${AppRoutes.discover}?tab=agenda';
 
+/// Planos e pagamentos (Meus treinos) — onde fica a mensalidade a pagar.
+const athleteChargesLocation = AppRoutes.athleteTrainingPlans;
+
 /// URL externa que o toque abre no navegador: a fatura da mensalidade de aula
 /// ou da cobrança do professor (`invoiceUrl`, URL absoluta do Asaas; `webUrl` é a mesma). `null` =
 /// o toque segue a rota interna de [resolveNotificationRoute].
@@ -292,7 +295,7 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   // ramo genérico de `arena` lá embaixo, que mandava o atleta pra agenda do GESTOR.
   if (type == classChargeLinkNotificationType ||
       type == professorChargeLinkNotificationType) {
-    return athleteAgendaTabLocation;
+    return athleteChargesLocation;
   }
 
   // Avaliação: `url` (`/avaliacao/{id}`); sem ele, monta pelo id.

@@ -68,20 +68,20 @@ void main() {
   });
 
   group('resolveNotificationRoute — mensalidade de aula', () {
-    test('plano B é a agenda do atleta, nunca a agenda do gestor', () {
+    test('plano B é Planos e pagamentos, nunca a agenda do gestor', () {
       final route = resolveNotificationRoute(_payload);
-      expect(route, athleteAgendaTabLocation);
+      expect(route, athleteChargesLocation);
       expect(route, isNot(AppRoutes.arenaSchedule));
     });
 
-    test('payload antigo, sem url, também vai para a agenda do atleta', () {
+    test('payload antigo, sem url, também vai para Planos e pagamentos', () {
       expect(
         resolveNotificationRoute({
           'type': 'arena_class_charge_link',
           'arenaId': 'arena1',
           'invoiceUrl': _invoice,
         }),
-        athleteAgendaTabLocation,
+        athleteChargesLocation,
       );
     });
   });
@@ -90,18 +90,18 @@ void main() {
     test('"Pagar" abre a fatura; a rota fica de plano B', () {
       final p = notificationPresentation(_inbox(_payload));
       expect(p.externalUrl, _invoice);
-      expect(p.routePath, athleteAgendaTabLocation);
+      expect(p.routePath, athleteChargesLocation);
       expect(p.actions.single.label, 'Pagar');
       expect(p.actions.single.kind, AthleteNotificationActionKind.primary);
     });
 
-    test('sem link não oferece "Pagar" e leva à agenda', () {
+    test('sem link não oferece "Pagar" e leva a Planos e pagamentos', () {
       final p = notificationPresentation(
         _inbox(const {'groupId': 'g1', 'arenaId': 'arena1'}),
       );
       expect(p.externalUrl, isNull);
       expect(p.actions, isEmpty);
-      expect(p.routePath, athleteAgendaTabLocation);
+      expect(p.routePath, athleteChargesLocation);
     });
   });
 }

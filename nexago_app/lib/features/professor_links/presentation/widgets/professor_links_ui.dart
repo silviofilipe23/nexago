@@ -78,6 +78,7 @@ class ProfessorLinksScaffold extends StatelessWidget {
     this.trailing,
     this.onBack,
     this.showBack = true,
+    this.bottomNavigationBar,
   });
 
   final String title;
@@ -89,11 +90,16 @@ class ProfessorLinksScaffold extends StatelessWidget {
   /// `false` na home de um modo (não há para onde voltar).
   final bool showBack;
 
+  /// Barra flutuante por cima do conteúdo (o corpo desce por baixo dela).
+  final Widget? bottomNavigationBar;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     return Scaffold(
       backgroundColor: colors.canvas,
+      extendBody: bottomNavigationBar != null,
+      bottomNavigationBar: bottomNavigationBar,
       body: NexaPageHeader(
         topGap: 10,
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),

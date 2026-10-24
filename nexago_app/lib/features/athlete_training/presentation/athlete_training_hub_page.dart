@@ -10,11 +10,13 @@ import '../../../core/theme/app_theme_colors.dart';
 
 import '../../../core/formatting/app_currency_format.dart';
 
+import '../../../core/layout/nexa_bottom_nav_bar.dart';
 import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/time/nexago_event_timezone.dart';
 import '../../athlete/domain/agenda/athlete_agenda_providers.dart';
+import '../../athlete/presentation/widgets/athlete_shell_tab_bar.dart';
 import '../../messages/application/messages_providers.dart';
 import '../../professor_links/application/professor_links_providers.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
@@ -117,6 +119,13 @@ class _AthleteTrainingHubPageState
       title: 'Meus treinos',
       subtitle: subtitle.isEmpty ? 'AULAS E PROFESSORES' : subtitle,
       onBack: () => popOrGo(context, AppRoutes.home),
+      // O hub nasce da Início e mantém o menu do atleta; as telas dele
+      // empilham sem a barra.
+      bottomNavigationBar: AthleteShellTabBar(
+        key: const Key('training-hub-tab-bar'),
+        currentIndex: 0,
+        onTap: (i) => goToAthleteShellTab(context, ref, i),
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -158,7 +167,14 @@ class _AthleteTrainingHubPageState
           await ref.read(myClassAgendaProvider.future);
         },
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            8,
+            20,
+            nexaBottomNavBarHeight(context) +
+                MediaQuery.viewPaddingOf(context).bottom +
+                24,
+          ),
           children: [
             for (final i in invites) ...[
               CenterInviteCard(

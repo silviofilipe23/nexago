@@ -218,6 +218,11 @@ Future<GoRouter> _pump(
         name: AppRouteNames.athleteMessages,
         builder: (_, __) => _stub('mensagens'),
       ),
+      GoRoute(
+        path: AppRoutes.discover,
+        builder: (_, s) =>
+            _stub('shell ${s.uri.queryParameters['tab'] ?? 'inicio'}'),
+      ),
     ],
   );
   addTearDown(router.dispose);
@@ -331,6 +336,25 @@ void main() {
   });
 
   group('T2 · hub', () {
+    testWidgets('mantém o menu do atleta e troca de aba pelo shell', (
+      tester,
+    ) async {
+      final router = await _pump(
+        tester,
+        location: AppRoutes.athleteTrainings,
+        data: _Data(classes: [_class('s1', '2026-10-22')]),
+      );
+      expect(find.byKey(const Key('training-hub-tab-bar')), findsOneWidget);
+
+      await tester.tap(find.descendant(
+        of: find.byKey(const Key('training-hub-tab-bar')),
+        matching: find.byIcon(Icons.calendar_today_outlined),
+      ));
+      await _settle(tester);
+      expect(router.state.uri.path, AppRoutes.discover);
+      expect(find.text('shell agenda'), findsOneWidget);
+    });
+
     testWidgets('próximo treino, números e o que o professor mandou',
         (tester) async {
       final router = await _pump(

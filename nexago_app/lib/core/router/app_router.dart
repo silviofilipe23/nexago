@@ -1525,6 +1525,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             'agenda' => 1,
             'reservar' => 2,
             'torneios' || 'competir' || 'feed' => 3,
+            // Loja, ou a Comunidade quando a Loja está desligada.
+            'loja' || 'store' => 4,
             _ => 0,
           };
           return AthleteShellPage(initialIndex: initialIndex);

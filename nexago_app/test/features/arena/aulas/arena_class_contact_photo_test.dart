@@ -338,6 +338,9 @@ void main() {
       expect(find.text('Cobrar no WhatsApp'), findsNothing);
       await tester.tap(find.text('Cobrar por mensagem'));
       await _settle(tester);
+      // Com conta e telefone gravado, escolhe o canal.
+      await tester.tap(find.byKey(const Key('arena-class-channel-chat')));
+      await _settle(tester);
       expect(messages.opened, ['arenaStudent:a1:u7']);
       final composer = tester.widget<TextField>(find.byType(TextField).last);
       expect(composer.controller!.text, contains('Paula'));

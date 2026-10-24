@@ -98,7 +98,9 @@ void main() {
   });
 
   group('Mensalidades · Cobrar', () {
-    testWidgets('com conta: abre o chat com a mensagem pronta no composer',
+    testWidgets(
+        'com conta e telefone: escolhe o chat e a mensagem vai pronta no '
+        'composer',
         (tester) async {
       final launched = _mockLauncher(tester);
       final messages = FakeMessagesRepository(conversations: [_conv()]);
@@ -117,11 +119,42 @@ void main() {
 
       await tester.tap(find.text('Cobrar'));
       await _settle(tester);
+      // Com os dois canais, pergunta por onde enviar.
+      expect(find.byKey(const Key('arena-class-channel-sheet')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('arena-class-channel-chat')));
+      await _settle(tester);
 
       expect(messages.opened, ['arenaStudent:a1:u1']);
       expect(launched, isEmpty);
       expect(_composer(tester), contains('Carla'));
       expect(_composer(tester), contains('320'));
+    });
+
+    testWidgets('com conta, escolhe o WhatsApp: não abre o chat', (
+      tester,
+    ) async {
+      final launched = _mockLauncher(tester);
+      final messages = FakeMessagesRepository(conversations: [_conv()]);
+      await pumpAulas(
+        tester,
+        repo: FakeArenaClassRepository(),
+        enrollmentRepo: FakeArenaClassEnrollmentRepository(
+          charges: [charge(athleteId: 'u1', dueDate: '2026-10-12')],
+        ),
+        initial: '/arena/classes/charges',
+        overrides: [
+          messagesRepositoryProvider.overrideWithValue(messages),
+          messagesUidProvider.overrideWithValue(me),
+        ],
+      );
+
+      await tester.tap(find.text('Cobrar'));
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('arena-class-channel-whatsapp')));
+      await _settle(tester);
+
+      expect(messages.opened, isEmpty);
+      expect(launched.single, startsWith('https://wa.me/5562999998888?text='));
     });
 
     testWidgets('sem conta: segue no WhatsApp', (tester) async {
@@ -149,7 +182,7 @@ void main() {
   });
 
   group('Aluno · Mensagem', () {
-    testWidgets('com conta: "Mensagem" abre a conversa (sem WhatsApp)',
+    testWidgets('com conta: "Mensagem" abre a conversa; WhatsApp é opção',
         (tester) async {
       final messages = FakeMessagesRepository(conversations: [_conv()]);
       await pumpAulas(
@@ -167,7 +200,8 @@ void main() {
         ],
       );
 
-      expect(find.text('WhatsApp'), findsNothing);
+      expect(find.byKey(const Key('arena-class-student-whatsapp')),
+          findsOneWidget);
       await tester.tap(find.byKey(const Key('arena-class-student-message')));
       await _settle(tester);
 

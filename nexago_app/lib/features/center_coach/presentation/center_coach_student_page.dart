@@ -27,7 +27,7 @@ import '../../messages/presentation/messages_widgets.dart'
 import 'center_coach_subscription_page.dart' show CenterSubscriptionsCard;
 import 'widgets/center_coach_widgets.dart' show coachClassScheduleLabel;
 
-/// Abre ligação ou e-mail (trocável nos testes).
+/// Abre ligação, WhatsApp ou e-mail (trocável nos testes).
 final centerContactLauncherProvider = Provider<Future<bool> Function(Uri)>(
   (ref) => (uri) => launchUrl(uri, mode: LaunchMode.externalApplication),
 );
@@ -143,8 +143,8 @@ class CenterCoachStudentPage extends ConsumerWidget {
               ProfessorLinksNote(
                 'Responsável: ${student.guardianName}'
                 '${student.guardianRelation.isEmpty ? '' : ' (${student.guardianRelation})'}'
-                ' · Ligar vai para o responsável; mensagem pelo app só '
-                'com aluno maior.',
+                ' · Ligar e WhatsApp vão para o responsável; mensagem pelo '
+                'app só com aluno maior.',
               ),
             ],
             if (student.billingHold) ...[
@@ -417,9 +417,10 @@ class _ContactButtons extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final phone = centerContactPhone(student);
-    // Mensagem pelo chat do app (no lugar do WhatsApp): aluno maior, ativo e
-    // com conta NexaGO.
+    // Mensagem pelo chat do app (aluno maior, ativo e com conta NexaGO) e o
+    // WhatsApp como opção, no telefone de contato (do responsável, no menor).
     final chat = centerStudentCanChat(student);
+    final wa = centerWhatsAppDigits(phone);
     final email = student.isMinor && student.guardianPhone.isNotEmpty
         ? ''
         : student.email;
@@ -438,6 +439,13 @@ class _ContactButtons extends ConsumerWidget {
           Icons.call_outlined,
           'Ligar',
           Uri(scheme: 'tel', path: phone.replaceAll(RegExp(r'[^\d+]'), '')),
+        ),
+      if (wa != null)
+        (
+          'whatsapp',
+          Icons.chat_outlined,
+          'WhatsApp',
+          Uri.parse('https://wa.me/$wa'),
         ),
       if (email.isNotEmpty)
         (

@@ -5,7 +5,8 @@ import { storage } from '../firebase';
 import { CenterActionsBase } from './actor';
 import { callCenterFunction } from './invoices.actions';
 
-export type RequestDecision = 'approve' | 'reject' | 'needs_document' | 'undo';
+/** `clear`: aprova a alta médica (ou libera sem ela) da pausa por lesão em curso. */
+export type RequestDecision = 'approve' | 'reject' | 'needs_document' | 'undo' | 'clear';
 
 /** Atestado já enviado ao Storage, como a callable espera. */
 export interface CertificatePayload {
@@ -47,7 +48,7 @@ export const CERTIFICATE_MAX_BYTES = 10 * 1024 * 1024;
  */
 @Injectable({ providedIn: 'root' })
 export class RequestsActions extends CenterActionsBase {
-  /** Owner/admin aprovam, recusam, pedem outro documento ou desfazem um pedido agendado. */
+  /** Owner/admin aprovam, recusam, pedem outro documento, desfazem um pedido agendado ou liberam a volta. */
   decide(requestId: string, decision: RequestDecision, note: string): Promise<{ status: EnrollmentRequestStatus }> {
     this.assertWritable();
     return callCenterFunction('decideTrainingCenterEnrollmentRequest', { centerId: this.centerId(), requestId, decision, note });
@@ -61,7 +62,7 @@ export class RequestsActions extends CenterActionsBase {
     return callCenterFunction('requestTrainingCenterEnrollmentChange', payload);
   }
 
-  /** Link temporário do atestado (rules: só owner/admin do centro e o próprio aluno leem). */
+  /** Link temporário do atestado ou da alta (rules: só owner/admin do centro e o próprio aluno leem). */
   certificateUrl(path: string): Promise<string> {
     return getDownloadURL(ref(storage(), path));
   }

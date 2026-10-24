@@ -217,7 +217,8 @@ class _RequestRow extends StatelessWidget {
 
 /// T11 · Pedido do aluno: atestado (foto ampliável ou PDF fora do app), os
 /// dados e as decisões. "Pedir outro doc." e "Recusar" pedem o recado ao
-/// aluno; "Desfazer" vale para o pedido agendado.
+/// aluno; "Desfazer" vale para o pedido agendado. Na pausa por lesão em curso
+/// com alta exigida, o bloco "Alta médica" aprova a alta (ou libera sem ela).
 class CenterCoachExitRequestPage extends ConsumerStatefulWidget {
   const CenterCoachExitRequestPage({
     super.key,
@@ -240,6 +241,7 @@ class _CenterCoachExitRequestPageState
   Future<void> _decide(CenterExitRequest r, String decision) async {
     var note = '';
     if (decision != 'approve') {
+      // `clear` confirma com recado opcional; os outros pedem o recado.
       final text = await showProfessorLinksSheet<String>(
         context,
         builder: (_) => _NoteSheet(decision: decision, request: r),
@@ -265,6 +267,9 @@ class _CenterCoachExitRequestPageState
                 : 'Pausa aprovada. Começa no dia pedido.',
             'reject' => 'Pedido recusado. O aluno recebe o aviso.',
             'needs_document' => 'Pedimos outro documento ao aluno.',
+            'clear' => status == 'done'
+                ? 'Volta liberada. As aulas voltam a partir de hoje.'
+                : 'Volta liberada. O aluno volta na data marcada.',
             _ => 'Pedido desfeito. A matrícula segue normal.',
           });
     } on CenterCoachException catch (e) {
@@ -329,6 +334,14 @@ class _CenterCoachExitRequestPageState
                   'Só owner ou admin do centro vê o atestado.',
                 ),
             ],
+            if (centerExitClearanceLabel(r) case final label?) ...[
+              const SizedBox(height: 12),
+              _ClearanceBlock(
+                request: r,
+                label: label,
+                manager: manager,
+              ),
+            ],
             const SizedBox(height: 12),
             CenterInfoRows(rows: _rows(r)),
             if (r.comment.isNotEmpty) ...[
@@ -372,6 +385,15 @@ class _CenterCoachExitRequestPageState
       if (!r.isCancel) ('Cobrança', 'Suspensa na pausa'),
       if (r.isCancel && r.lastDay != null)
         ('Último dia', centerShortDay(r.lastDay!)),
+      if (r.retainedDiscountPercent != null)
+        (
+          'Ficou com',
+          [
+            '${r.retainedDiscountPercent}% de desconto',
+            if (r.effectiveFrom != null)
+              'mensalidade de ${centerShortDay(r.effectiveFrom!)}',
+          ].join(' · '),
+        ),
       if (r.retainedPlanName != null)
         (
           'Ficou com',
@@ -400,7 +422,9 @@ class _CenterCoachExitRequestPageState
 
   List<Widget> _actions(CenterExitRequest r, bool manager) {
     final a = centerExitActions(r);
-    if (!a.approve && !a.reject && !a.askDocument && !a.undo) return const [];
+    if (!a.approve && !a.reject && !a.askDocument && !a.undo && !a.clear) {
+      return const [];
+    }
     if (!manager) {
       return const [
         ProfessorLinksNote(
@@ -456,7 +480,77 @@ class _CenterCoachExitRequestPageState
           loading: _busy == 'undo',
           onPressed: busy ? null : () => _decide(r, 'undo'),
         ),
+      if (a.clear)
+        r.clearanceStatus == 'submitted'
+            ? ProfessorLinksPrimaryButton(
+                key: const Key('center-exit-clear'),
+                label: 'Aprovar alta',
+                loading: _busy == 'clear',
+                onPressed: busy ? null : () => _decide(r, 'clear'),
+              )
+            : ProfessorLinksGhostButton(
+                key: const Key('center-exit-clear'),
+                label: 'Liberar sem alta',
+                height: 44,
+                loading: _busy == 'clear',
+                onPressed: busy ? null : () => _decide(r, 'clear'),
+              ),
     ];
+  }
+}
+
+/// Alta médica da pausa por lesão: situação, aviso da volta segurada e o
+/// arquivo (só owner/admin abre, como o atestado).
+class _ClearanceBlock extends StatelessWidget {
+  const _ClearanceBlock({
+    required this.request,
+    required this.label,
+    required this.manager,
+  });
+
+  final CenterExitRequest request;
+  final String label;
+  final bool manager;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = request;
+    final c = r.clearance;
+    return Column(
+      key: const Key('center-exit-clearance'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const ProfessorLinksKicker('Alta médica'),
+        const SizedBox(height: 8),
+        if (r.awaitingClearance && r.clearanceOpen) ...[
+          const ProfessorLinksNote(
+            'A pausa terminou e a volta espera a alta. Segue pausada, sem '
+            'cobrança, até a gestão liberar.',
+            tone: ProfessorLinksNoteTone.yellow,
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (c != null) ...[
+          if (manager)
+            _CertificatePreview(certificate: c, clearance: true)
+          else
+            const ProfessorLinksNote(
+              'Só owner ou admin do centro vê a alta.',
+            ),
+          const SizedBox(height: 8),
+        ],
+        CenterInfoRows(
+          rows: [
+            ('Situação', label),
+            if (c?.issuedOn != null) ('Emitida', centerShortDay(c!.issuedOn!)),
+            if (r.clearanceStatus == 'approved' &&
+                r.clearanceDecidedByName.isNotEmpty)
+              ('Liberada por', r.clearanceDecidedByName),
+            if (r.clearanceNote.isNotEmpty) ('Recado', r.clearanceNote),
+          ],
+        ),
+      ],
+    );
   }
 }
 
@@ -512,9 +606,15 @@ class _StatusHeader extends StatelessWidget {
 
 /// Atestado: foto (toque para ampliar) ou PDF (abre fora do app).
 class _CertificatePreview extends ConsumerWidget {
-  const _CertificatePreview({required this.certificate});
+  const _CertificatePreview({
+    required this.certificate,
+    this.clearance = false,
+  });
 
   final CenterExitCertificate certificate;
+
+  /// Alta médica em vez do atestado (outra chave e outros textos).
+  final bool clearance;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -522,17 +622,24 @@ class _CertificatePreview extends ConsumerWidget {
     final c = certificate;
     final url = ref.watch(centerExitCertificateUrlProvider(c.path));
     final link = url.valueOrNull;
+    final key = Key(
+      clearance ? 'center-exit-clearance-file' : 'center-exit-certificate',
+    );
+    final noun = clearance ? 'a alta' : 'o atestado';
 
     if (c.isImage) {
       return ProfessorLinksCard(
-        key: const Key('center-exit-certificate'),
+        key: key,
         padding: EdgeInsets.zero,
         onTap: link == null
             ? null
             : () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     fullscreenDialog: true,
-                    builder: (_) => _CertificateViewer(url: link),
+                    builder: (_) => _CertificateViewer(
+                      url: link,
+                      title: clearance ? 'Alta médica' : 'Atestado',
+                    ),
                   ),
                 ),
         child: SizedBox(
@@ -552,14 +659,14 @@ class _CertificatePreview extends ConsumerWidget {
                   url.hasError
                       ? (url.error is CenterCoachException
                           ? (url.error as CenterCoachException).message
-                          : 'Não foi possível abrir o atestado')
-                      : 'Carregando atestado…',
+                          : 'Não foi possível abrir $noun')
+                      : 'Carregando ${clearance ? 'alta' : 'atestado'}…',
                 ),
         ),
       );
     }
     return ProfessorLinksCard(
-      key: const Key('center-exit-certificate'),
+      key: key,
       onTap: link == null ? null : () => openExternalUrl(link),
       padding: const EdgeInsets.all(12),
       child: Row(
@@ -587,7 +694,7 @@ class _CertificatePreview extends ConsumerWidget {
                 const SizedBox(height: 2),
                 Text(
                   url.hasError
-                      ? 'Não foi possível abrir o atestado'
+                      ? 'Não foi possível abrir $noun'
                       : 'PDF · ${c.sizeLabel} · toque para abrir',
                   style: AppTypography.bodyS.copyWith(
                     fontSize: 11.5,
@@ -618,9 +725,10 @@ class _CertificatePreview extends ConsumerWidget {
 }
 
 class _CertificateViewer extends StatelessWidget {
-  const _CertificateViewer({required this.url});
+  const _CertificateViewer({required this.url, this.title = 'Atestado'});
 
   final String url;
+  final String title;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -628,7 +736,7 @@ class _CertificateViewer extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: Colors.black,
           foregroundColor: Colors.white,
-          title: const Text('Atestado'),
+          title: Text(title),
         ),
         body: InteractiveViewer(
           maxScale: 5,
@@ -637,7 +745,8 @@ class _CertificateViewer extends StatelessWidget {
       );
 }
 
-/// Recado ao aluno (recusar, pedir outro documento, desfazer).
+/// Recado ao aluno (recusar, pedir outro documento, desfazer, liberar a
+/// volta).
 class _NoteSheet extends StatefulWidget {
   const _NoteSheet({required this.decision, required this.request});
 
@@ -657,7 +766,7 @@ class _NoteSheetState extends State<_NoteSheet> {
     super.dispose();
   }
 
-  bool get _required => widget.decision != 'undo';
+  bool get _required => widget.decision != 'undo' && widget.decision != 'clear';
 
   @override
   Widget build(BuildContext context) {
@@ -671,6 +780,16 @@ class _NoteSheetState extends State<_NoteSheet> {
           'Pedir outro documento',
           'Ex.: o atestado precisa ter data e dias de afastamento',
           'Pedir documento',
+        ),
+      'clear' when widget.request.clearanceStatus == 'submitted' => (
+          'Aprovar alta',
+          'Recado ao aluno (opcional)',
+          'Aprovar alta',
+        ),
+      'clear' => (
+          'Liberar sem alta',
+          'Recado ao aluno (opcional)',
+          'Liberar volta',
         ),
       _ => (
           widget.request.isCancel ? 'Desfazer cancelamento' : 'Desfazer pausa',

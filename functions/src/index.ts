@@ -311,6 +311,7 @@ export {
   decideTrainingCenterEnrollmentRequest,
   requestTrainingCenterEnrollmentChange,
   runTrainingCenterEnrollmentRequests,
+  submitTrainingCenterMedicalClearance,
   withdrawTrainingCenterEnrollmentRequest,
 } from "./training-center-enrollment-requests";
 // QR de check-in por quadra (portal da arena gera; o aluno lê no app).

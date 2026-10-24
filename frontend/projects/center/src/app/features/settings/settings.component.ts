@@ -20,6 +20,7 @@ import {
   numberChoiceOptions,
   policiesError,
   POLICY_ROWS,
+  rowVisible,
   toggleRetention,
   type PolicyRow,
 } from './policy-fields';
@@ -185,7 +186,7 @@ export class SettingsComponent {
   /** Aba "Trancar e cancelar": mesmas políticas, salvas pelo mesmo rascunho. */
   protected readonly exitView = computed(() => {
     const p = this.draft();
-    return p ? EXIT_SECTIONS.map((s) => ({ title: s.title, kicker: s.kicker, note: s.note ?? '', rows: s.rows.map((r) => this.rowView(r, p)) })) : [];
+    return p ? EXIT_SECTIONS.map((s) => ({ title: s.title, kicker: s.kicker, note: s.note ?? '', rows: s.rows.filter((r) => rowVisible(r, p)).map((r) => this.rowView(r, p)) })) : [];
   });
 
   private rowView(r: PolicyRow, p: CenterPolicies) {

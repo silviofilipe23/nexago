@@ -551,7 +551,11 @@ export async function generateNextCycle(
     const enrRef = c.ref.collection("enrollments").doc(subId);
     const enr = change ? (await tx.get(enrRef)).data() : undefined;
     const planName = change ? str(change["planName"]) : str(sub["planName"]);
-    const amountCents = change ? num(change["priceCents"]) : num(sub["priceCents"]);
+    const fullCents = change ? num(change["priceCents"]) : num(sub["priceCents"]);
+    // Desconto de retenção ("fique mais um mês"): vale só para este ciclo.
+    const discount = sub["pendingDiscount"] && typeof sub["pendingDiscount"] === "object" ? sub["pendingDiscount"] as Data : null;
+    const percent = discount ? Math.min(100, Math.max(0, num(discount["percent"]))) : 0;
+    const amountCents = percent ? Math.max(0, Math.round(fullCents * (100 - percent) / 100)) : fullCents;
 
     if (!existing.exists) {
       const reference = invoiceReference({planName, planType: "monthly"}, next);
@@ -570,8 +574,10 @@ export async function generateNextCycle(
         lateFees: sub["lateFees"] ?? null,
         events: [{
           at, type: "created", title: "Cobrança do ciclo gerada",
-          detail: `${brlFromCents(amountCents)} · ${reference} · vence ${shortDay(next)} · assinatura`, byName: actorName,
+          detail: `${brlFromCents(amountCents)} · ${reference} · vence ${shortDay(next)} · assinatura` +
+            (percent ? ` · ${percent}% de desconto de retenção (cheio ${brlFromCents(fullCents)})` : ""), byName: actorName,
         }],
+        ...(percent ? {discount: {percent, fullCents, reason: str(discount?.["reason"]) || "retention"}} : {}),
         approvedAt: null,
         refundedCents: 0,
         createdAt: at,
@@ -580,7 +586,8 @@ export async function generateNextCycle(
     tx.update(subRef, {
       nextChargeDate: following,
       lastDueDate: next,
-      ...(change ? {planId: change["planId"] ?? null, planName, priceCents: amountCents, pendingPlanChange: null} : {}),
+      ...(change ? {planId: change["planId"] ?? null, planName, priceCents: fullCents, pendingPlanChange: null} : {}),
+      ...(discount && !existing.exists ? {pendingDiscount: null} : {}),
       updatedAt: at,
     });
     if (change && enr) {

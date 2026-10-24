@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, type Signal, type WritableSignal } from '@angular/core';
 import { DomSanitizer, type SafeResourceUrl } from '@angular/platform-browser';
 import { RouterLink } from '@angular/router';
 import { CenterContextService } from '../../core/center-context.service';
@@ -13,7 +13,10 @@ import { whatsAppLink } from '../trials/trial-view';
 import {
   REQUEST_TYPE,
   canAskDocument,
+  canClear,
   canDecide,
+  clearLabel,
+  clearanceView,
   canUndo,
   cancelTimeline,
   certificateKind,
@@ -66,6 +69,13 @@ const DECISIONS: Record<RequestDecision, DecisionCopy> = {
     needsNote: false,
     placeholder: 'Motivo (opcional, vai para o aluno)',
   },
+  clear: {
+    title: 'Liberar volta',
+    text: '',
+    confirm: 'Liberar volta',
+    needsNote: false,
+    placeholder: 'Recado ao aluno (opcional)',
+  },
 };
 
 /** T2/T3 — detalhe de um pedido: pausa por lesão (atestado), trancamento ou cancelamento. */
@@ -85,6 +95,9 @@ const DECISIONS: Record<RequestDecision, DecisionCopy> = {
       background: repeating-linear-gradient(135deg, var(--nx-surface-1) 0 12px, var(--nx-surface-0) 12px 24px); }
     .preview img { max-width: 100%; max-height: 70vh; display: block; object-fit: contain; }
     .preview iframe { width: 100%; height: 70vh; border: 0; background: #fff; }
+    .preview.small { min-height: 220px; margin-top: 10px; }
+    .preview.small img { max-height: 46vh; }
+    .preview.small iframe { height: 46vh; }
     .preview .ph { text-align: center; padding: 24px; color: var(--nx-text-dim); }
     .bar { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
     a.ct-mini-btn, a.ct-ghost-btn { text-decoration: none; }
@@ -138,6 +151,25 @@ export class RequestDetailComponent {
   protected readonly askDocument = computed(() => {
     const r = this.request();
     return !!r && this.canAct() && canAskDocument(r);
+  });
+  protected readonly clearable = computed(() => {
+    const r = this.request();
+    return !!r && this.canAct() && canClear(r);
+  });
+  protected readonly clearLabel = computed(() => {
+    const r = this.request();
+    return r ? clearLabel(r) : '';
+  });
+  protected readonly clearance = computed(() => {
+    const r = this.request();
+    return r ? clearanceView(r) : null;
+  });
+  protected readonly clearText = computed(() => {
+    const r = this.request();
+    if (!r) return '';
+    const what = r.clearanceStatus === 'submitted' ? 'A alta enviada pelo aluno fica aprovada' : 'A volta é liberada sem a alta médica';
+    const when = r.awaitingClearance ? 'a matrícula volta hoje e a cobrança segue normal' : 'a matrícula volta na data marcada';
+    return `${what} e ${when}. O aluno recebe o aviso no app.`;
   });
   protected readonly undoable = computed(() => {
     const r = this.request();
@@ -196,6 +228,16 @@ export class RequestDetailComponent {
   });
   private readonly certPath = computed(() => (this.ctx.isManager() ? (this.request()?.certificate?.path ?? '') : ''));
 
+  // ── Alta médica (mesmo esquema do atestado) ──
+  protected readonly clearUrl = signal<string | null>(null);
+  protected readonly clearError = signal('');
+  protected readonly clearKind = computed(() => certificateKind(this.request()?.clearance?.contentType ?? ''));
+  protected readonly clearFrame = computed<SafeResourceUrl | null>(() => {
+    const url = this.clearUrl();
+    return url && this.clearKind() === 'pdf' ? this.sanitizer.bypassSecurityTrustResourceUrl(url) : null;
+  });
+  private readonly clearPath = computed(() => (this.ctx.isManager() ? (this.request()?.clearance?.path ?? '') : ''));
+
   // ── Cancelamento ──
   protected readonly timeline = computed(() => {
     const r = this.request();
@@ -252,16 +294,22 @@ export class RequestDetailComponent {
   });
 
   constructor() {
+    this.loadFile(this.certPath, this.certUrl, this.certError);
+    this.loadFile(this.clearPath, this.clearUrl, this.clearError);
+  }
+
+  /** Busca o link temporário do arquivo no Storage sempre que o caminho muda. */
+  private loadFile(path: Signal<string>, url: WritableSignal<string | null>, error: WritableSignal<string>): void {
     effect((onCleanup) => {
-      const path = this.certPath();
-      this.certUrl.set(null);
-      this.certError.set('');
-      if (!path) return;
+      const p = path();
+      url.set(null);
+      error.set('');
+      if (!p) return;
       let alive = true;
       onCleanup(() => (alive = false));
-      this.actions.certificateUrl(path).then(
-        (url) => alive && this.certUrl.set(url),
-        (e) => alive && this.certError.set(requestErrorMessage(e)),
+      this.actions.certificateUrl(p).then(
+        (u) => alive && url.set(u),
+        (e) => alive && error.set(requestErrorMessage(e)),
       );
     });
   }

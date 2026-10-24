@@ -1,4 +1,4 @@
-import { RETENTION_OFFERS, type CenterPolicies, type RetentionOffer } from '../../domain/models';
+import { CLEARANCE_LEAD_DAYS, RETENTION_DISCOUNTS, RETENTION_OFFERS, type CenterPolicies, type RetentionOffer } from '../../domain/models';
 
 type ChoiceKey = {
   [K in keyof CenterPolicies]: CenterPolicies[K] extends number | unknown[] ? never : K;
@@ -36,6 +36,8 @@ export interface NumberChoiceRow {
   values: number[];
   unit: string;
   dependsOn?: ChoiceKey;
+  /** Linha só aparece quando a condição vale (ex.: percentual só com a oferta de desconto ligada). */
+  visibleWhen?: (p: CenterPolicies) => boolean;
 }
 
 /** Várias opções ligadas ao mesmo tempo (ofertas de retenção). */
@@ -217,6 +219,19 @@ export const EXIT_SECTIONS: PolicySection[] = [
         values: [90, 180],
         unit: 'dias',
       },
+      {
+        kind: 'choice',
+        key: 'requireMedicalClearance',
+        title: () => 'Alta médica para voltar',
+        hint: (p) =>
+          p.requireMedicalClearance
+            ? `Pedida ${CLEARANCE_LEAD_DAYS} dias antes do fim; sem alta aprovada a pausa segue`
+            : 'A matrícula volta sozinha no fim da pausa',
+        options: [
+          { value: 'true', label: 'Exigir' },
+          { value: 'false', label: 'Não' },
+        ],
+      },
     ],
   },
   {
@@ -244,7 +259,17 @@ export const EXIT_SECTIONS: PolicySection[] = [
         options: [
           { value: 'pause', label: 'Trancar' },
           { value: 'plan_change', label: 'Trocar plano' },
+          { value: 'discount', label: 'Desconto de 1 mês' },
         ],
+      },
+      {
+        kind: 'number-choice',
+        key: 'retentionDiscountPercent',
+        title: () => 'Desconto de 1 mês',
+        hint: (p) => `${p.retentionDiscountPercent}% na próxima mensalidade · no máximo um por matrícula a cada 12 meses`,
+        values: RETENTION_DISCOUNTS,
+        unit: '%',
+        visibleWhen: (p) => p.cancelRetention.includes('discount'),
       },
       {
         kind: 'choice',
@@ -308,11 +333,16 @@ export function toggleRetention(p: CenterPolicies, offer: RetentionOffer): Cente
   return { ...p, cancelRetention: RETENTION_OFFERS.filter((o) => (o === offer ? !on : p.cancelRetention.includes(o))) };
 }
 
+/** A linha aparece com o rascunho atual? (só `number-choice` tem condição hoje). */
+export function rowVisible(row: PolicyRow, p: CenterPolicies): boolean {
+  return row.kind !== 'number-choice' || !row.visibleWhen || row.visibleWhen(p);
+}
+
 /** Opções do número escolhido; um valor antigo fora da lista continua aparecendo. */
 export function numberChoiceOptions(p: CenterPolicies, row: NumberChoiceRow): { value: string; label: string }[] {
   const cur = p[row.key];
   const values = Number.isFinite(cur) && !row.values.includes(cur) ? [...row.values, cur].sort((a, b) => a - b) : row.values;
-  return values.map((v) => ({ value: String(v), label: `${v} ${row.unit}` }));
+  return values.map((v) => ({ value: String(v), label: row.unit === '%' ? `${v}%` : `${v} ${row.unit}` }));
 }
 
 export function samePolicyValue(a: unknown, b: unknown): boolean {

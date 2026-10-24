@@ -417,4 +417,177 @@ void main() {
       ]);
     });
   });
+
+  group('desconto de retenção', () {
+    TrainingCenterLink center({
+      Map<String, Object?> policies = const {},
+      Map<String, Object?> enrollment = const {},
+    }) =>
+        TrainingCenterLink.fromMap(
+          centerJson(policies: policies, enrollment: enrollment),
+        );
+
+    test('lê a política e a disponibilidade da matrícula', () {
+      final c = center(
+        policies: {
+          'cancelRetention': ['discount', 'pause'],
+          'retentionDiscountPercent': 30,
+        },
+        enrollment: {'discountAvailable': true},
+      );
+      expect(c.policies.cancelRetention, ['discount', 'pause']);
+      expect(c.policies.retentionDiscountPercent, 30);
+      expect(c.enrollments.single.discountAvailable, isTrue);
+      final old = center();
+      expect(old.policies.retentionDiscountPercent, 20);
+      expect(old.enrollments.single.discountAvailable, isFalse);
+    });
+
+    test('oferta só quando o centro oferece e a matrícula pode ganhar', () {
+      final on = center(
+        policies: {
+          'cancelRetention': ['discount'],
+        },
+        enrollment: {'discountAvailable': true},
+      );
+      expect(
+        centerRetentionOffers(on.policies, on.enrollments.single).discount,
+        20,
+      );
+      final used = center(
+        policies: {
+          'cancelRetention': ['discount'],
+        },
+      );
+      expect(
+        centerRetentionOffers(used.policies, used.enrollments.single).discount,
+        isNull,
+      );
+      final notOffered = center(enrollment: {'discountAvailable': true});
+      expect(
+        centerRetentionOffers(
+          notOffered.policies,
+          notOffered.enrollments.single,
+        ).discount,
+        isNull,
+      );
+    });
+
+    test('valor com desconto arredonda como o servidor', () {
+      expect(centerDiscountedCents(32000, 20), 25600);
+      expect(centerDiscountedCents(9999, 30), 6999);
+      expect(centerDiscountedCents(1000, 100), 0);
+    });
+
+    test('pedido retido com desconto no histórico', () {
+      final r = CenterEnrollmentRequest.fromMap(
+        requestJson(
+          type: 'cancel',
+          status: 'retained',
+          extra: {
+            'retainedDiscountPercent': 20,
+            'effectiveFrom': '2026-11-05',
+          },
+        ),
+      );
+      expect(r.retainedDiscountPercent, 20);
+      expect(centerRequestStatusLabel(r), 'Ficou com desconto');
+      expect(centerRetainedDetail(r), '20% na mensalidade de 05 nov');
+      final plan = CenterEnrollmentRequest.fromMap(
+        requestJson(
+          type: 'cancel',
+          status: 'retained',
+          extra: {'retainedPlanName': 'Mensal 1x'},
+        ),
+      );
+      expect(centerRequestStatusLabel(plan), 'Ficou com outro plano');
+      expect(centerRetainedDetail(plan), 'Mensal 1x');
+      expect(
+          centerRetainedDetail(CenterEnrollmentRequest.fromMap(
+            requestJson(),
+          )),
+          isNull);
+    });
+  });
+
+  group('alta médica', () {
+    CenterEnrollmentRequest injury({
+      String status = 'active',
+      bool require = true,
+      String clearance = '',
+      bool awaiting = false,
+      String endsOn = '2026-11-22',
+    }) =>
+        CenterEnrollmentRequest.fromMap(
+          requestJson(
+            status: status,
+            extra: {
+              'endsOn': endsOn,
+              'requireClearance': require,
+              'clearanceStatus': clearance,
+              'awaitingClearance': awaiting,
+            },
+          ),
+        );
+
+    test('lê a política e os campos do pedido', () {
+      expect(
+        CenterPolicies.fromMap({'requireMedicalClearance': true})
+            .requireMedicalClearance,
+        isTrue,
+      );
+      expect(const CenterPolicies().requireMedicalClearance, isFalse);
+      final r = injury(clearance: 'submitted', awaiting: true);
+      expect(r.requireClearance, isTrue);
+      expect(r.clearanceStatus, 'submitted');
+      expect(r.awaitingClearance, isTrue);
+    });
+
+    test('sem alta: outro tipo, fora de curso ou centro não exige', () {
+      expect(centerClearanceStateOf(injury(require: false), _today), isNull);
+      expect(centerClearanceStateOf(injury(status: 'pending'), _today), isNull);
+      final pause = CenterEnrollmentRequest.fromMap(
+        requestJson(
+          type: 'pause',
+          status: 'active',
+          extra: {'requireClearance': true},
+        ),
+      );
+      expect(centerClearanceStateOf(pause, _today), isNull);
+    });
+
+    test('longe do fim: aviso; a 3 dias ou pedida: enviar', () {
+      expect(
+        centerClearanceStateOf(injury(), _today),
+        CenterClearanceState.later,
+      );
+      expect(
+        centerClearanceStateOf(injury(endsOn: '2026-10-28'), _today),
+        CenterClearanceState.later,
+      );
+      expect(
+        centerClearanceStateOf(injury(endsOn: '2026-10-27'), _today),
+        CenterClearanceState.needed,
+      );
+      expect(
+        centerClearanceStateOf(injury(clearance: 'requested'), _today),
+        CenterClearanceState.needed,
+      );
+      expect(
+        centerClearanceStateOf(injury(awaiting: true), _today),
+        CenterClearanceState.needed,
+      );
+    });
+
+    test('enviada e aprovada', () {
+      expect(
+        centerClearanceStateOf(injury(clearance: 'submitted'), _today),
+        CenterClearanceState.submitted,
+      );
+      expect(
+        centerClearanceStateOf(injury(clearance: 'approved'), _today),
+        CenterClearanceState.approved,
+      );
+    });
+  });
 }

@@ -11,9 +11,10 @@ import '../../athlete_training/domain/center_enrollment_request.dart'
 /// `CtgAprovarPausa`). A equipe com `view_enrollments` lê
 /// `trainingCenters/{c}/enrollmentRequests` direto do Firestore (só o
 /// servidor grava); owner/admin decidem pela callable
-/// `decideTrainingCenterEnrollmentRequest`.
+/// `decideTrainingCenterEnrollmentRequest` (inclusive `clear`, a alta
+/// médica da pausa por lesão).
 
-/// Atestado da pausa por lesão (o arquivo mora no Storage).
+/// Atestado da pausa por lesão ou a alta médica (o arquivo mora no Storage).
 class CenterExitCertificate {
   const CenterExitCertificate({
     required this.path,
@@ -86,7 +87,14 @@ class CenterExitRequest {
     this.decidedByName = '',
     this.decisionNote = '',
     this.retainedPlanName,
+    this.retainedDiscountPercent,
     this.effectiveFrom,
+    this.requireClearance = false,
+    this.clearanceStatus = '',
+    this.clearance,
+    this.awaitingClearance = false,
+    this.clearanceDecidedByName = '',
+    this.clearanceNote = '',
   });
 
   /// [m] já com `Timestamp` convertido em [DateTime].
@@ -120,7 +128,16 @@ class CenterExitRequest {
       decidedByName: _str(m['decidedByName']),
       decisionNote: _str(m['decisionNote']),
       retainedPlanName: _strOrNull(retention['planName']),
+      retainedDiscountPercent: retention['accepted'] == 'discount'
+          ? _int(retention['percent'])
+          : null,
       effectiveFrom: _strOrNull(m['effectiveFrom']),
+      requireClearance: m['requireClearance'] == true,
+      clearanceStatus: _str(m['clearanceStatus']),
+      clearance: CenterExitCertificate.fromMap(m['clearance']),
+      awaitingClearance: m['awaitingClearance'] == true,
+      clearanceDecidedByName: _str(m['clearanceDecidedByName']),
+      clearanceNote: _str(m['clearanceNote']),
     );
   }
 
@@ -160,7 +177,24 @@ class CenterExitRequest {
   final String decidedByName;
   final String decisionNote;
   final String? retainedPlanName;
+
+  /// Ficou com o desconto de 1 mês (`retention.accepted == 'discount'`).
+  final int? retainedDiscountPercent;
   final String? effectiveFrom;
+
+  /// Pausa por lesão com alta exigida (regra congelada no pedido).
+  final bool requireClearance;
+
+  /// `''`, `requested`, `submitted` ou `approved`.
+  final String clearanceStatus;
+
+  /// Arquivo da alta enviado pelo aluno.
+  final CenterExitCertificate? clearance;
+
+  /// A pausa passou do fim e segue segurada esperando a alta.
+  final bool awaitingClearance;
+  final String clearanceDecidedByName;
+  final String clearanceNote;
 
   bool get isOpen => kCenterOpenRequestStatuses.contains(status);
   bool get isCancel => type == 'cancel';
@@ -168,6 +202,21 @@ class CenterExitRequest {
 
   /// Esperando a gestão revisar o atestado.
   bool get awaitsReview => status == 'pending';
+
+  /// Lesão em curso com alta exigida e ainda não aprovada: a gestão pode
+  /// aprovar (ou liberar sem alta).
+  bool get clearanceOpen =>
+      isInjury &&
+      status == 'active' &&
+      requireClearance &&
+      clearanceStatus != 'approved';
+
+  /// Alta esperando a gestão: o aluno enviou ou a volta está segurada.
+  bool get awaitsClearance =>
+      clearanceOpen && (clearanceStatus == 'submitted' || awaitingClearance);
+
+  /// Precisa de alguém da gestão (atestado ou alta).
+  bool get needsAttention => awaitsReview || awaitsClearance;
 
   String get typeLabel => centerRequestTypeLabel(type);
 
@@ -201,6 +250,14 @@ enum CenterExitTone { attention, info, danger, neutral, success }
           label: r.isCancel ? 'Em aviso' : 'Agendada',
           tone: r.isCancel ? CenterExitTone.danger : CenterExitTone.info,
         ),
+      'active' when r.clearanceOpen && r.clearanceStatus == 'submitted' => (
+          label: 'Revisar alta',
+          tone: CenterExitTone.attention,
+        ),
+      'active' when r.clearanceOpen && r.awaitingClearance => (
+          label: 'Esperando alta',
+          tone: CenterExitTone.attention,
+        ),
       'active' => (label: 'Em curso', tone: CenterExitTone.info),
       'rejected' => (label: 'Recusado', tone: CenterExitTone.neutral),
       'withdrawn' => (label: 'Desfeito', tone: CenterExitTone.neutral),
@@ -209,20 +266,33 @@ enum CenterExitTone { attention, info, danger, neutral, success }
       _ => (label: r.status, tone: CenterExitTone.neutral),
     };
 
-/// Decisões possíveis para owner/admin (mesma régua da callable).
-({bool approve, bool reject, bool askDocument, bool undo}) centerExitActions(
-  CenterExitRequest r,
-) {
+/// Situação da alta médica no detalhe (`null` = o pedido não tem alta).
+String? centerExitClearanceLabel(CenterExitRequest r) {
+  if (!r.isInjury || !r.requireClearance) return null;
+  return switch (r.clearanceStatus) {
+    'approved' => 'Aprovada',
+    'submitted' => 'Enviada · revisar',
+    'requested' => 'Pedida ao aluno',
+    _ => 'Pedida 3 dias antes do fim',
+  };
+}
+
+/// Decisões possíveis para owner/admin (mesma régua da callable). [clear] =
+/// aprovar a alta (ou liberar sem ela) na pausa por lesão em curso.
+({bool approve, bool reject, bool askDocument, bool undo, bool clear})
+    centerExitActions(CenterExitRequest r) {
   final review = r.status == 'pending' || r.status == 'needs_document';
   return (
     approve: review && !r.isCancel,
     reject: review && !r.isCancel,
     askDocument: r.status == 'pending' && r.isInjury,
     undo: r.status == 'scheduled',
+    clear: r.clearanceOpen,
   );
 }
 
-/// Lista da gestão: a revisar, em andamento e encerrados (recentes primeiro).
+/// Lista da gestão: a revisar (atestados e altas), em andamento e encerrados
+/// (recentes primeiro).
 ({
   List<CenterExitRequest> review,
   List<CenterExitRequest> open,
@@ -232,11 +302,11 @@ enum CenterExitTone { attention, info, danger, neutral, success }
       (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0));
   final review = [
     for (final r in all)
-      if (r.awaitsReview) r,
+      if (r.needsAttention) r,
   ]..sort((a, b) => -newest(a, b));
   final open = [
     for (final r in all)
-      if (r.isOpen && !r.awaitsReview) r,
+      if (r.isOpen && !r.needsAttention) r,
   ]..sort(newest);
   final closed = [
     for (final r in all)
@@ -245,16 +315,18 @@ enum CenterExitTone { attention, info, danger, neutral, success }
   return (review: review, open: open, closed: closed);
 }
 
-/// Pedidos esperando a gestão (aviso no Hoje).
+/// Pedidos esperando a gestão (aviso no Hoje): atestados a revisar e altas
+/// enviadas ou com a volta segurada.
 int centerExitPendingCount(List<CenterExitRequest> all) =>
-    all.where((r) => r.awaitsReview).length;
+    all.where((r) => r.needsAttention).length;
 
 /// Escrita da gestão nos pedidos.
 abstract class CenterExitRequestsRepository {
   /// Pedidos do centro (mais recentes primeiro).
   Stream<List<CenterExitRequest>> watch(String centerId);
 
-  /// `approve`, `reject`, `needs_document` ou `undo`; devolve a situação nova.
+  /// `approve`, `reject`, `needs_document`, `undo` ou `clear` (alta médica);
+  /// devolve a situação nova.
   Future<String> decide({
     required String centerId,
     required String requestId,
@@ -262,7 +334,8 @@ abstract class CenterExitRequestsRepository {
     String note = '',
   });
 
-  /// Link temporário do atestado (só owner/admin lê — rule do Storage).
+  /// Link temporário do atestado ou da alta (só owner/admin lê, pela rule
+  /// do Storage).
   Future<String> certificateUrl(String path);
 }
 

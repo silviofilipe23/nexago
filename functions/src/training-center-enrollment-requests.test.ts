@@ -15,9 +15,12 @@ import {
   decideEnrollmentRequestCore,
   requestEnrollmentChangeCore,
   runCenterEnrollmentRequests,
+  submitMedicalClearanceCore,
   withdrawEnrollmentRequestCore,
 } from "./training-center-enrollment-requests";
 import {loadMyTrainingCentersCore} from "./training-center-athlete";
+import {generateNextCycle} from "./training-center-subscriptions";
+import {Timestamp} from "firebase-admin/firestore";
 import type {PushInput} from "./training-center-notify";
 
 type Data = Record<string, unknown>;
@@ -225,5 +228,64 @@ describe("pedidos da matrícula · callables", () => {
     assert.equal(e.cancelLastDay, "2026-11-04");
     assert.deepEqual(e.retentionPlans.map((p) => p.name), ["Mensal 1x/semana"]);
     assert.equal(center.policies.pauseMinDays, 15);
+  });
+
+  it("desconto de retenção: próxima mensalidade sai com desconto, uma vez por ano", async () => {
+    const fake = seed({cancelRetention: ["pause", "discount"], retentionDiscountPercent: 30});
+    const r = await requestEnrollmentChangeCore(db(fake), STUDENT,
+      {centerId: "c1", enrollmentId: "e1", type: "cancel", reason: "price", retainDiscount: true}, deps().deps);
+    assert.equal(r.status, "retained");
+    assert.equal((doc(fake, `${C}/subscriptions/e1`)["pendingDiscount"] as Data)["percent"], 30);
+    await assert.rejects(requestEnrollmentChangeCore(db(fake), STUDENT,
+      {centerId: "c1", enrollmentId: "e1", type: "cancel", reason: "price", retainDiscount: true}, deps().deps), /último ano/);
+
+    const run = {id: "c1", ref: fake.doc(C) as never, name: "CT", today: "2026-11-02", billing: {} as never, online: false};
+    const g = await generateNextCycle(db(fake), run, "e1", Timestamp.fromDate(NOW), "Sistema");
+    assert.equal(g?.amountCents, 22400);
+    assert.equal(doc(fake, `${C}/subscriptions/e1`)["pendingDiscount"], null);
+    assert.equal(doc(fake, `${C}/subscriptions/e1`)["priceCents"], 32000);
+  });
+
+  it("desconto só se o centro oferece", async () => {
+    const fake = seed();
+    await assert.rejects(requestEnrollmentChangeCore(db(fake), STUDENT,
+      {centerId: "c1", enrollmentId: "e1", type: "cancel", reason: "price", retainDiscount: true}, deps().deps), /não oferece/);
+  });
+
+  it("alta médica: pede antes do fim, segura sem alta, volta quando a gestão libera", async () => {
+    const fake = seed({injuryPauseApproval: "auto", requireMedicalClearance: true});
+    const {deps: d, pushes} = deps();
+    const cert = {path: "trainingCenterCertificates/c1/u-carla/a.pdf", contentType: "application/pdf", sizeBytes: 2000,
+      issuedOn: "2026-10-23", daysOff: 10};
+    const r = await requestEnrollmentChangeCore(db(fake), STUDENT, {centerId: "c1", enrollmentId: "e1", type: "injury", certificate: cert}, d);
+    assert.equal(r.status, "active");
+    assert.equal(r.endsOn, "2026-11-02");
+
+    await runCenterEnrollmentRequests(db(fake), "c1", new Date("2026-10-30T12:00:00Z"), d);
+    assert.equal(doc(fake, `${C}/enrollmentRequests/${r.requestId}`)["clearanceStatus"], "requested");
+    assert.equal(pushes[pushes.length - 1]?.title, "Envie sua alta médica");
+
+    const held = await runCenterEnrollmentRequests(db(fake), "c1", new Date("2026-11-03T08:50:00Z"), d);
+    assert.equal(held.held, 1);
+    assert.equal(doc(fake, `${C}/enrollments/e1`)["pausedUntil"], "2026-11-04");
+    assert.equal(doc(fake, `${C}/enrollmentRequests/${r.requestId}`)["awaitingClearance"], true);
+
+    await submitMedicalClearanceCore(db(fake), STUDENT, {centerId: "c1", requestId: r.requestId,
+      clearance: {...cert, path: "trainingCenterCertificates/c1/u-carla/alta.pdf", issuedOn: "2026-10-24"}}, d);
+    assert.equal(doc(fake, `${C}/enrollmentRequests/${r.requestId}`)["clearanceStatus"], "submitted");
+
+    const ok = await decideEnrollmentRequestCore(db(fake), "owner", {centerId: "c1", requestId: r.requestId, decision: "clear"}, d);
+    assert.equal(ok.status, "done");
+    assert.equal(doc(fake, `${C}/enrollments/e1`)["status"], "active");
+  });
+
+  it("sem alta exigida a pausa termina normal", async () => {
+    const fake = seed({injuryPauseApproval: "auto"});
+    const cert = {path: "trainingCenterCertificates/c1/u-carla/a.pdf", contentType: "application/pdf", sizeBytes: 2000,
+      issuedOn: "2026-10-23", daysOff: 10};
+    const r = await requestEnrollmentChangeCore(db(fake), STUDENT, {centerId: "c1", enrollmentId: "e1", type: "injury", certificate: cert}, deps().deps);
+    const s = await runCenterEnrollmentRequests(db(fake), "c1", new Date("2026-11-03T08:50:00Z"), deps().deps);
+    assert.equal(s.finished, 1);
+    assert.equal(doc(fake, `${C}/enrollmentRequests/${r.requestId}`)["status"], "done");
   });
 });

@@ -39,7 +39,7 @@ export const CANCEL_REASONS: Record<string, string> = {
   other: "Outro",
 };
 
-export type RetentionOffer = "pause" | "plan_change";
+export type RetentionOffer = "pause" | "plan_change" | "discount";
 
 export interface ExitPolicies {
   allowPause: boolean;
@@ -51,8 +51,18 @@ export interface ExitPolicies {
   injuryMaxDays: number;
   monthlyCancellation: "end_of_cycle" | "immediate";
   cancelRetention: RetentionOffer[];
+  /** Oferta "desconto de 1 mês": percentual sobre a próxima mensalidade. */
+  retentionDiscountPercent: number;
   allowCancelWithdraw: boolean;
+  /** Pausa por lesão só termina com a alta médica aprovada pela gestão. */
+  requireMedicalClearance: boolean;
 }
+
+export const RETENTION_DISCOUNTS = [10, 20, 30, 50];
+/** Desconto de retenção: no máximo um por matrícula nesse intervalo. */
+export const DISCOUNT_COOLDOWN_DAYS = 365;
+/** Quantos dias antes do fim da pausa por lesão o app pede a alta. */
+export const CLEARANCE_LEAD_DAYS = 3;
 
 /** Pausa pedida pode começar até tantos dias à frente. */
 export const PAUSE_MAX_LEAD_DAYS = 60;
@@ -71,7 +81,7 @@ function str(v: unknown): string {
 export function readExitPolicies(raw: unknown): ExitPolicies {
   const p = raw && typeof raw === "object" ? (raw as Data) : {};
   const retention = Array.isArray(p["cancelRetention"]) ?
-    (p["cancelRetention"] as unknown[]).filter((x): x is RetentionOffer => x === "pause" || x === "plan_change") :
+    (p["cancelRetention"] as unknown[]).filter((x): x is RetentionOffer => x === "pause" || x === "plan_change" || x === "discount") :
     ["pause", "plan_change"] as RetentionOffer[];
   return {
     allowPause: p["allowPause"] !== false,
@@ -82,7 +92,10 @@ export function readExitPolicies(raw: unknown): ExitPolicies {
     injuryMaxDays: Math.max(1, num(p["injuryMaxDays"], 90)),
     monthlyCancellation: p["monthlyCancellation"] === "immediate" ? "immediate" : "end_of_cycle",
     cancelRetention: [...new Set(retention)],
+    retentionDiscountPercent: RETENTION_DISCOUNTS.includes(num(p["retentionDiscountPercent"], 20)) ?
+      num(p["retentionDiscountPercent"], 20) : 20,
     allowCancelWithdraw: p["allowCancelWithdraw"] !== false,
+    requireMedicalClearance: p["requireMedicalClearance"] === true,
   };
 }
 
@@ -237,12 +250,35 @@ export function requestSummary(r: {type: EnrollmentRequestType; startsOn?: strin
   return `${TYPE_LABEL[r.type]} · ${shortDayBr(r.startsOn ?? "")} a ${shortDayBr(r.endsOn ?? "")}`;
 }
 
+/** Pausa por lesão que ainda espera a alta (pedida no começo, exigida pelo centro). */
+export function needsClearance(r: Data): boolean {
+  return str(r["type"]) === "injury" && r["requireClearance"] === true && str(r["clearanceStatus"]) !== "approved";
+}
+
+/** Já ganhou desconto de retenção nesta matrícula no último ano? */
+export function discountUsedRecently(requests: Data[], today: string): boolean {
+  const since = addDays(today, -DISCOUNT_COOLDOWN_DAYS);
+  return requests.some((r) => {
+    const ret = r["retention"] && typeof r["retention"] === "object" ? r["retention"] as Data : {};
+    return ret["accepted"] === "discount" && str(r["decidedOn"]) >= since;
+  });
+}
+
+export function discountedCents(cents: number, percent: number): number {
+  return Math.max(0, Math.round(cents * (100 - percent) / 100));
+}
+
 /** O que a rodada diária faz com um pedido em andamento (null = nada hoje). */
-export function dueAction(r: Data, today: string): "start_pause" | "finish_pause" | "end_enrollment" | null {
+export function dueAction(r: Data, today: string):
+  "start_pause" | "finish_pause" | "hold_for_clearance" | "ask_clearance" | "end_enrollment" | null {
   const type = str(r["type"]);
   const status = str(r["status"]);
   if ((type === "pause" || type === "injury") && status === "scheduled" && str(r["startsOn"]) <= today) return "start_pause";
-  if ((type === "pause" || type === "injury") && status === "active" && str(r["endsOn"]) < today) return "finish_pause";
+  if ((type === "pause" || type === "injury") && status === "active" && str(r["endsOn"]) < today) {
+    return needsClearance(r) ? "hold_for_clearance" : "finish_pause";
+  }
+  if (type === "injury" && status === "active" && needsClearance(r) && !str(r["clearanceStatus"]) &&
+    addDays(str(r["endsOn"]), -CLEARANCE_LEAD_DAYS) <= today) return "ask_clearance";
   if (type === "cancel" && status === "scheduled" && str(r["lastDay"]) < today) return "end_enrollment";
   return null;
 }

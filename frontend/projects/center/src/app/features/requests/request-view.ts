@@ -3,9 +3,10 @@
  * `trainingCenters/{c}/enrollmentRequests` — quem decide e grava é o servidor
  * (`training-center-enrollment-requests.ts`). Datas são dias `YYYY-MM-DD` na parede do centro.
  */
-import { formatDayKey, wallClock } from '../../domain/dates';
+import { addDays, formatDayKey, wallClock } from '../../domain/dates';
 import {
   CANCEL_REASONS,
+  CLEARANCE_LEAD_DAYS,
   type CenterPolicies,
   type Enrollment,
   type EnrollmentRequest,
@@ -34,6 +35,7 @@ export const REQUEST_TYPE: Record<EnrollmentRequestType, [label: string, tone: T
 export const RETENTION_LABEL: Record<RetentionOffer, string> = {
   pause: 'Trancar',
   plan_change: 'Trocar plano',
+  discount: 'Desconto de 1 mês',
 };
 
 /** Pedidos que ainda mexem na matrícula (a callable bloqueia outro pedido enquanto houver um). */
@@ -49,9 +51,20 @@ function day(key: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(key) ? formatDayKey(key) : '';
 }
 
+/** Pausa por lesão em curso cuja alta a gestão precisa olhar: enviada, ou pausa já segurada esperando. */
+export function clearanceToReview(r: EnrollmentRequest): boolean {
+  return r.type === 'injury' && r.status === 'active' && r.requireClearance && r.clearanceStatus !== 'approved' &&
+    (r.awaitingClearance || r.clearanceStatus === 'submitted');
+}
+
+/** Entra em "Para revisar": atestado pendente ou alta médica para liberar. */
+export function needsReview(r: EnrollmentRequest): boolean {
+  return r.status === 'pending' || clearanceToReview(r);
+}
+
 export function filterRequests(list: EnrollmentRequest[], filter: RequestFilter): EnrollmentRequest[] {
   if (filter === 'all') return list;
-  if (filter === 'review') return list.filter((r) => r.status === 'pending');
+  if (filter === 'review') return list.filter(needsReview);
   return list.filter((r) => r.type === filter);
 }
 
@@ -97,15 +110,29 @@ export function requestSituation(r: EnrollmentRequest): { label: string; tone: T
       return isPause(r)
         ? { label: `Agendado para ${day(r.startsOn)} · vaga reservada`, tone: 'blue' }
         : { label: `Em aviso · vaga libera após ${day(r.lastDay)}`, tone: 'orange' };
-    case 'active':
-      return { label: `Pausado · volta ${day(r.pausedUntil) || day(r.endsOn)}`, tone: 'blue' };
+    case 'active': {
+      const back = day(r.pausedUntil) || day(r.endsOn);
+      if (r.type === 'injury' && r.requireClearance && r.clearanceStatus !== 'approved') {
+        if (r.awaitingClearance) {
+          return { label: r.clearanceStatus === 'submitted' ? 'Alta enviada · pausa segue até liberar' : 'Aguardando alta · pausa segue até liberar', tone: 'yellow' };
+        }
+        if (r.clearanceStatus === 'submitted') return { label: `Alta enviada para revisar · volta ${back}`, tone: 'yellow' };
+        if (r.clearanceStatus === 'requested') return { label: `Pausado · alta pedida · volta ${back}`, tone: 'blue' };
+      }
+      return { label: `Pausado · volta ${back}`, tone: 'blue' };
+    }
     case 'rejected':
       return { label: 'Recusado', tone: 'red' };
     case 'withdrawn':
       return { label: r.source === 'app' && r.decidedByName === r.studentName ? 'Aluno desistiu' : 'Desfeito', tone: 'dim' };
     case 'retained':
       return {
-        label: r.retention?.accepted === 'plan_change' && r.retention.planName ? `Aceitou troca para ${r.retention.planName}` : 'Ficou no centro',
+        label:
+          r.retention?.accepted === 'plan_change' && r.retention.planName
+            ? `Aceitou troca para ${r.retention.planName}`
+            : r.retention?.accepted === 'discount' && r.retention.percent
+              ? `Aceitou ${r.retention.percent}% de desconto`
+              : 'Ficou no centro',
         tone: 'green',
       };
     case 'done':
@@ -128,6 +155,8 @@ export interface RequestStats {
 /** Os 4 números do topo. `month` = 'YYYY-MM' no fuso do centro. */
 export function requestStats(list: EnrollmentRequest[], month: string, tz: string): RequestStats {
   const pending = list.filter((r) => r.status === 'pending');
+  const clearances = list.filter(clearanceToReview).length;
+  const review = pending.length + clearances;
   const over = pending.filter((r) => r.overLimit).length;
   const waitingDoc = list.filter((r) => r.status === 'needs_document').length;
   const active = list.filter((r) => r.status === 'active');
@@ -138,9 +167,13 @@ export function requestStats(list: EnrollmentRequest[], month: string, tz: strin
   const retained = inMonth.filter((r) => r.status === 'retained').length;
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   return {
-    review: pending.length,
-    reviewSub: pending.length
-      ? [plural(pending.length, 'atestado', 'atestados'), over ? `${over} acima do limite` : ''].filter(Boolean).join(' · ')
+    review,
+    reviewSub: review
+      ? [
+          pending.length ? plural(pending.length, 'atestado', 'atestados') : '',
+          over ? `${over} acima do limite` : '',
+          clearances ? plural(clearances, 'alta médica', 'altas médicas') : '',
+        ].filter(Boolean).join(' · ')
       : waitingDoc
         ? `${plural(waitingDoc, 'aguarda', 'aguardam')} outro documento`
         : 'nada pendente',
@@ -167,6 +200,56 @@ export function canDecide(r: EnrollmentRequest): boolean {
 /** "Pedir outro documento" só quando o aluno já mandou um (pendente). */
 export function canAskDocument(r: EnrollmentRequest): boolean {
   return r.type === 'injury' && r.status === 'pending';
+}
+
+/** Liberar a volta: pausa por lesão em curso que exige alta ainda não aprovada (aprovar a alta ou dispensar). */
+export function canClear(r: EnrollmentRequest): boolean {
+  return r.type === 'injury' && r.status === 'active' && r.requireClearance && r.clearanceStatus !== 'approved';
+}
+
+/** Texto do botão: aprova a alta enviada ou libera sem ela. */
+export function clearLabel(r: Pick<EnrollmentRequest, 'clearanceStatus'>): string {
+  return r.clearanceStatus === 'submitted' ? 'Aprovar alta' : 'Liberar sem alta';
+}
+
+export interface ClearanceView {
+  label: string;
+  tone: Tone;
+  text: string;
+}
+
+/** Situação da alta médica no detalhe (null quando o pedido não exige alta). */
+export function clearanceView(r: EnrollmentRequest): ClearanceView | null {
+  if (r.type !== 'injury' || !r.requireClearance) return null;
+  const end = day(r.endsOn);
+  if (r.clearanceStatus === 'approved') {
+    const who = r.clearanceDecidedByName ? ` por ${r.clearanceDecidedByName}` : '';
+    return {
+      label: r.clearance ? 'Alta aprovada' : 'Volta liberada sem alta',
+      tone: 'green',
+      text: r.status === 'active' ? `Liberada${who}. A matrícula volta em ${day(r.pausedUntil) || end}.` : `Liberada${who}.`,
+    };
+  }
+  if (r.status !== 'active' && r.status !== 'pending' && r.status !== 'needs_document' && r.status !== 'scheduled') {
+    return { label: 'Alta exigida', tone: 'dim', text: 'O centro exigia a alta médica para a volta.' };
+  }
+  if (r.awaitingClearance) {
+    return r.clearanceStatus === 'submitted'
+      ? { label: 'Alta enviada', tone: 'yellow', text: `A pausa terminou em ${end} e segue até a alta ser aprovada. Confira o documento e libere a volta.` }
+      : { label: 'Aguardando alta', tone: 'orange', text: `A pausa terminou em ${end} e segue até liberar. O aluno ainda não enviou a alta.` };
+  }
+  if (r.clearanceStatus === 'submitted') {
+    return { label: 'Alta enviada', tone: 'yellow', text: `Confira o documento. Aprovada, a matrícula volta na data marcada (${day(r.pausedUntil) || end}).` };
+  }
+  if (r.clearanceStatus === 'requested') {
+    return { label: 'Alta pedida', tone: 'blue', text: `O aluno foi avisado para enviar a alta. Sem alta aprovada, a pausa segue depois de ${end}.` };
+  }
+  const ask = r.endsOn ? day(addDays(r.endsOn, -CLEARANCE_LEAD_DAYS)) : '';
+  return {
+    label: 'Alta exigida',
+    tone: 'dim',
+    text: `${ask ? `O app pede a alta em ${ask}, ${CLEARANCE_LEAD_DAYS} dias antes do fim. ` : ''}Sem alta aprovada, a pausa segue depois de ${end || 'o fim'}.`,
+  };
 }
 
 /** Desfazer: pausa agendada ou cancelamento em aviso antes do último dia. */
@@ -231,8 +314,16 @@ export function pauseEffects(r: EnrollmentRequest): [string, string][] {
     ['Pausa', r.startsOn ? `${day(r.startsOn)} → ${day(r.endsOn)} · ${r.days} dia${r.days === 1 ? '' : 's'}` : '—'],
     ['Cobrança', 'Ciclos que vencem na pausa ficam suspensos'],
     ['Vaga', 'Reservada · não vai para a lista de espera'],
-    ['Volta', r.pausedUntil ? `Matrícula reativa sozinha em ${day(r.pausedUntil)}` : '—'],
+    ['Volta', pauseReturn(r)],
   ];
+}
+
+function pauseReturn(r: EnrollmentRequest): string {
+  if (!r.pausedUntil) return '—';
+  if (r.type === 'injury' && r.requireClearance && r.clearanceStatus !== 'approved') {
+    return r.awaitingClearance ? 'Segue pausada até a alta ser aprovada' : `Só com a alta aprovada · previsão ${day(r.pausedUntil)}`;
+  }
+  return `Matrícula reativa sozinha em ${day(r.pausedUntil)}`;
 }
 
 export interface TimelineStep {
@@ -256,7 +347,12 @@ export function retentionRows(r: EnrollmentRequest): { offer: string; outcome: s
   if (!ret || ret.offered.length === 0) return [];
   return ret.offered.map((o) => {
     const accepted = ret.accepted === o;
-    const offer = o === 'plan_change' && accepted && ret.planName ? `Trocar para ${ret.planName}` : o === 'pause' ? 'Trancar a matrícula' : 'Trocar de plano';
+    const offer =
+      o === 'plan_change' && accepted && ret.planName
+        ? `Trocar para ${ret.planName}`
+        : o === 'discount'
+          ? accepted && ret.percent ? `Desconto de ${ret.percent}% em 1 mensalidade` : 'Desconto de 1 mês'
+          : o === 'pause' ? 'Trancar a matrícula' : 'Trocar de plano';
     return { offer, outcome: accepted ? 'Aceitou' : r.status === 'retained' ? '—' : 'Recusou' };
   });
 }

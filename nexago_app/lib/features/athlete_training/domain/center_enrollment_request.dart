@@ -13,6 +13,10 @@ const int kCenterPauseMaxLeadDays = 60;
 /// Teto absoluto de uma pausa (`PAUSE_MAX_DAYS`).
 const int kCenterPauseMaxDays = 365;
 
+/// Quantos dias antes do fim da pausa por lesão o centro pede a alta
+/// (`CLEARANCE_LEAD_DAYS`).
+const int kCenterClearanceLeadDays = 3;
+
 /// Atestado: PDF ou foto até 10 MB (`CERTIFICATE_MAX_BYTES`).
 const int kCenterCertificateMaxBytes = 10 * 1024 * 1024;
 
@@ -74,7 +78,11 @@ class CenterEnrollmentRequest {
     this.createdOn,
     this.hasCertificate = false,
     this.retainedPlanName,
+    this.retainedDiscountPercent,
     this.effectiveFrom,
+    this.requireClearance = false,
+    this.clearanceStatus = '',
+    this.awaitingClearance = false,
   });
 
   factory CenterEnrollmentRequest.fromMap(Map<String, Object?> m) =>
@@ -93,7 +101,11 @@ class CenterEnrollmentRequest {
         createdOn: _strOrNull(m['createdOn']),
         hasCertificate: m['hasCertificate'] == true,
         retainedPlanName: _strOrNull(m['retainedPlanName']),
+        retainedDiscountPercent: _int(m['retainedDiscountPercent']),
         effectiveFrom: _strOrNull(m['effectiveFrom']),
+        requireClearance: m['requireClearance'] == true,
+        clearanceStatus: _str(m['clearanceStatus']),
+        awaitingClearance: m['awaitingClearance'] == true,
       );
 
   final String requestId;
@@ -123,7 +135,21 @@ class CenterEnrollmentRequest {
   final String? createdOn;
   final bool hasCertificate;
   final String? retainedPlanName;
+
+  /// Ficou com o desconto de 1 mês (percentual) em vez de cancelar.
+  final int? retainedDiscountPercent;
+
+  /// Retenção: troca de plano ou desconto valem a partir deste dia.
   final String? effectiveFrom;
+
+  /// Pausa por lesão com alta médica exigida (regra congelada no pedido).
+  final bool requireClearance;
+
+  /// `''`, `requested`, `submitted` ou `approved`.
+  final String clearanceStatus;
+
+  /// A pausa passou do fim e segue esperando a alta.
+  final bool awaitingClearance;
 
   bool get isOpen => kCenterOpenRequestStatuses.contains(status);
   bool get isCancel => type == 'cancel';
@@ -192,10 +218,73 @@ String centerRequestStatusLabel(CenterEnrollmentRequest r) =>
       'active' => 'Em curso',
       'rejected' => 'Não aprovada',
       'withdrawn' => 'Desfeito',
-      'retained' => 'Ficou com outro plano',
+      'retained' => r.retainedDiscountPercent != null
+          ? 'Ficou com desconto'
+          : 'Ficou com outro plano',
       'done' => 'Concluído',
       _ => r.status,
     };
+
+/// Detalhe do pedido retido para o histórico: o plano novo ou o desconto.
+String? centerRetainedDetail(CenterEnrollmentRequest r) {
+  if (r.status != 'retained') return null;
+  final pct = r.retainedDiscountPercent;
+  if (pct != null) {
+    final from = r.effectiveFrom;
+    return from == null
+        ? '$pct% na próxima mensalidade'
+        : '$pct% na mensalidade de ${centerShortDay(from)}';
+  }
+  return r.retainedPlanName;
+}
+
+/// Alta médica da pausa por lesão em curso, vista pelo aluno.
+enum CenterClearanceState {
+  /// Exigida, mas ainda longe do fim (o centro pede 3 dias antes).
+  later,
+
+  /// "Envie sua alta médica".
+  needed,
+
+  /// "Alta enviada · em análise".
+  submitted,
+
+  /// Aprovada: a volta segue a data marcada.
+  approved,
+}
+
+/// `null` = o pedido não tem alta (não é lesão em curso ou o centro não exige).
+/// Pede o envio quando o servidor já pediu (`requested`), quando a pausa está
+/// segurada ou quando faltam até [kCenterClearanceLeadDays] dias para o fim.
+CenterClearanceState? centerClearanceStateOf(
+  CenterEnrollmentRequest r,
+  String todayKey,
+) {
+  if (r.type != 'injury' || r.status != 'active' || !r.requireClearance) {
+    return null;
+  }
+  switch (r.clearanceStatus) {
+    case 'approved':
+      return CenterClearanceState.approved;
+    case 'submitted':
+      return CenterClearanceState.submitted;
+    case 'requested':
+      return CenterClearanceState.needed;
+  }
+  if (r.awaitingClearance) return CenterClearanceState.needed;
+  final end = r.endsOn;
+  if (end != null &&
+      centerShiftDay(end, -kCenterClearanceLeadDays).compareTo(todayKey) <= 0) {
+    return CenterClearanceState.needed;
+  }
+  return CenterClearanceState.later;
+}
+
+/// Valor da mensalidade com o desconto de retenção (`discountedCents`).
+int centerDiscountedCents(int cents, int percent) {
+  final v = (cents * (100 - percent) / 100).round();
+  return v < 0 ? 0 : v;
+}
 
 /// Dias de trancamento livres no ano (nunca negativo).
 int centerPauseDaysLeft(CenterPolicies p, CenterEnrollment e) {
@@ -282,17 +371,21 @@ String centerPauseEndsOn(String startsOn, int days) =>
     centerShiftDay(startsOn, days - 1);
 
 /// Ofertas antes de cancelar (T9), conforme `cancelRetention`. O trancamento
-/// só entra se der para trancar.
-({bool pause, List<CenterRetentionPlan> plans}) centerRetentionOffers(
-  CenterPolicies p,
-  CenterEnrollment e,
-) =>
-    (
-      pause: p.cancelRetention.contains('pause') && centerCanPause(p, e),
-      plans: p.cancelRetention.contains('plan_change')
-          ? e.retentionPlans
-          : const [],
-    );
+/// só entra se der para trancar; o desconto ([discount] = percentual) só
+/// quando o servidor diz que a matrícula pode ganhá-lo.
+({bool pause, List<CenterRetentionPlan> plans, int? discount})
+    centerRetentionOffers(CenterPolicies p, CenterEnrollment e) => (
+          pause: p.cancelRetention.contains('pause') && centerCanPause(p, e),
+          plans: p.cancelRetention.contains('plan_change')
+              ? e.retentionPlans
+              : const [],
+          discount: p.cancelRetention.contains('discount') &&
+                  e.discountAvailable &&
+                  !e.isPack &&
+                  p.retentionDiscountPercent > 0
+              ? p.retentionDiscountPercent
+              : null,
+        );
 
 /// Tipo do arquivo do atestado pela extensão; `null` = não aceito.
 String? centerCertificateContentType(String fileName) {

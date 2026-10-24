@@ -21,6 +21,7 @@ import {
   CANCEL_REASONS,
   ENROLLMENT_REQUESTS,
   OPEN_REQUEST_STATUSES,
+  discountUsedRecently,
   pauseDaysUsed,
   planCancel,
   readExitPolicies,
@@ -71,6 +72,8 @@ export interface MyCenterEnrollment {
   cancelLastDay: string | null;
   /** Ofertas de retenção "trocar de plano": mensais ativos mais baratos da mesma modalidade. */
   retentionPlans: Array<{planId: string; name: string; priceCents: number; classesPerWeek: number | null}>;
+  /** Oferta "desconto de 1 mês" disponível (centro oferece, mensal ativa, sem desconto no último ano). */
+  discountAvailable: boolean;
 }
 
 /** Pedido de trancamento, pausa por lesão ou cancelamento (T5–T10). */
@@ -92,7 +95,14 @@ export interface MyCenterEnrollmentRequest {
   hasCertificate: boolean;
   /** Ficou com outro plano em vez de cancelar. */
   retainedPlanName: string | null;
+  /** Ficou com o desconto de 1 mês (percentual) em vez de cancelar. */
+  retainedDiscountPercent: number | null;
   effectiveFrom: string | null;
+  /** Pausa por lesão: alta exigida? `""`, `requested`, `submitted` ou `approved`. */
+  requireClearance: boolean;
+  clearanceStatus: string;
+  /** Pausa passou do fim e segue esperando a alta. */
+  awaitingClearance: boolean;
 }
 
 export interface MyCenterSession {
@@ -215,7 +225,9 @@ export interface MyTrainingCenter {
     injuryMaxDays: number;
     injuryCountsInLimit: boolean;
     cancelRetention: string[];
+    retentionDiscountPercent: number;
     allowCancelWithdraw: boolean;
+    requireMedicalClearance: boolean;
   };
   enrollments: MyCenterEnrollment[];
   requests: MyCenterEnrollmentRequest[];
@@ -257,9 +269,10 @@ export interface EnrollmentExitInfo {
   pauseDaysUsed: number;
   cancelLastDay: string | null;
   retentionPlans: MyCenterEnrollment["retentionPlans"];
+  discountAvailable: boolean;
 }
 
-const NO_EXIT_INFO: EnrollmentExitInfo = {pauseDaysUsed: 0, cancelLastDay: null, retentionPlans: []};
+const NO_EXIT_INFO: EnrollmentExitInfo = {pauseDaysUsed: 0, cancelLastDay: null, retentionPlans: [], discountAvailable: false};
 
 export function mapCenterEnrollment(id: string, e: Data, cls: Data, sub: Data | null, exit: EnrollmentExitInfo = NO_EXIT_INFO): MyCenterEnrollment {
   const contract = rec(e["contract"]);
@@ -292,6 +305,7 @@ export function mapCenterEnrollment(id: string, e: Data, cls: Data, sub: Data | 
     pauseDaysUsed: exit.pauseDaysUsed,
     cancelLastDay: exit.cancelLastDay,
     retentionPlans: exit.retentionPlans,
+    discountAvailable: exit.discountAvailable,
   };
 }
 
@@ -314,7 +328,11 @@ export function mapEnrollmentRequest(id: string, r: Data, tz: string): MyCenterE
     createdOn: dayKeyOf(r["createdAt"], tz),
     hasCertificate: Boolean(rec(r["certificate"])["path"]),
     retainedPlanName: str(retention["planName"]) || null,
+    retainedDiscountPercent: retention["accepted"] === "discount" ? num(retention["percent"]) : null,
     effectiveFrom: str(r["effectiveFrom"]) || null,
+    requireClearance: r["requireClearance"] === true,
+    clearanceStatus: str(r["clearanceStatus"]),
+    awaitingClearance: r["awaitingClearance"] === true,
   };
 }
 
@@ -511,6 +529,8 @@ async function loadCenter(
       cancelLastDay: ["active", "paused"].includes(str(e.data["status"])) ?
         planCancel({planType, policies: exitPolicies, nextChargeDate: live ? str(live["nextChargeDate"]) || null : null, today}).lastDay :
         null,
+      discountAvailable: planType === "monthly" && Boolean(live) && exitPolicies.cancelRetention.includes("discount") &&
+        !discountUsedRecently(requestDocs.filter((r) => str(r.data["enrollmentId"]) === e.id).map((r) => r.data), today),
       retentionPlans: planType !== "monthly" || !live ? [] : monthlyPlans
         .filter((p) => p.id !== str(e.data["planId"]) && (num(p.data["priceCents"]) ?? 0) < price)
         .filter((p) => {
@@ -549,7 +569,9 @@ async function loadCenter(
       injuryMaxDays: exitPolicies.injuryMaxDays,
       injuryCountsInLimit: exitPolicies.injuryCountsInLimit,
       cancelRetention: exitPolicies.cancelRetention,
+      retentionDiscountPercent: exitPolicies.retentionDiscountPercent,
       allowCancelWithdraw: exitPolicies.allowCancelWithdraw,
+      requireMedicalClearance: exitPolicies.requireMedicalClearance,
     },
     requests: visibleRequests(requestDocs.map((r) => mapEnrollmentRequest(r.id, r.data, tz)), today),
     enrollments: enrollments

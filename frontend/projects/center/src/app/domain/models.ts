@@ -56,12 +56,20 @@ export interface CenterPolicies {
   injuryMaxDays: number;
   /** Ofertas mostradas no app antes de confirmar o cancelamento. */
   cancelRetention: RetentionOffer[];
+  /** Oferta "desconto de 1 mês": percentual sobre a próxima mensalidade (um de `RETENTION_DISCOUNTS`). */
+  retentionDiscountPercent: number;
   /** Aluno pode desfazer o cancelamento pelo app até o último dia. */
   allowCancelWithdraw: boolean;
+  /** Pausa por lesão só termina com a alta médica aprovada pela gestão. */
+  requireMedicalClearance: boolean;
 }
 
-export type RetentionOffer = 'pause' | 'plan_change';
-export const RETENTION_OFFERS: RetentionOffer[] = ['pause', 'plan_change'];
+export type RetentionOffer = 'pause' | 'plan_change' | 'discount';
+export const RETENTION_OFFERS: RetentionOffer[] = ['pause', 'plan_change', 'discount'];
+/** Percentuais aceitos pelo servidor para o desconto de retenção. */
+export const RETENTION_DISCOUNTS = [10, 20, 30, 50];
+/** Quantos dias antes do fim da pausa por lesão o app pede a alta (espelho do servidor). */
+export const CLEARANCE_LEAD_DAYS = 3;
 
 export const DEFAULT_POLICIES: CenterPolicies = {
   activation: 'after_payment',
@@ -83,7 +91,9 @@ export const DEFAULT_POLICIES: CenterPolicies = {
   injuryCountsInLimit: false,
   injuryMaxDays: 90,
   cancelRetention: ['pause', 'plan_change'],
+  retentionDiscountPercent: 20,
   allowCancelWithdraw: true,
+  requireMedicalClearance: false,
 };
 
 export interface CenterSubscription {
@@ -435,7 +445,16 @@ export interface Invoice {
   /** Cobrança gerada pela assinatura (ciclo `YYYY-MM`); null nas avulsas. */
   subscriptionId: string | null;
   cycle: string;
+  /** Desconto aplicado pelo servidor ao gerar o ciclo (ex.: retenção de cancelamento). */
+  discount?: InvoiceDiscount | null;
   createdAt: Date | null;
+}
+
+export interface InvoiceDiscount {
+  percent: number;
+  /** Valor cheio antes do desconto. */
+  fullCents: number;
+  reason: string;
 }
 
 export interface AuditEntry {
@@ -772,10 +791,27 @@ export interface RequestCertificate {
 
 export interface RequestRetention {
   offered: RetentionOffer[];
-  accepted: 'plan_change' | null;
+  accepted: 'plan_change' | 'discount' | null;
   planName: string;
+  /** Troca de plano: preço do plano novo; desconto: valor da mensalidade com desconto. */
   priceCents: number | null;
+  /** Desconto de 1 mês: percentual aceito. */
+  percent: number | null;
 }
+
+/** Alta médica enviada pelo aluno para encerrar a pausa por lesão. */
+export interface RequestClearance {
+  path: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  issuedOn: string;
+  doctor: string;
+  description: string;
+  submittedAt: Date | null;
+}
+
+export type ClearanceStatus = '' | 'requested' | 'submitted' | 'approved';
 
 export interface EnrollmentRequest {
   id: string;
@@ -802,6 +838,15 @@ export interface EnrollmentRequest {
   /** Lesão acima do limite do centro: só a gestão decide. */
   overLimit: boolean;
   certificate: RequestCertificate | null;
+  /** Pausa por lesão: alta exigida (congelada no pedido), situação e documento. */
+  requireClearance: boolean;
+  clearanceStatus: ClearanceStatus;
+  clearance: RequestClearance | null;
+  /** A pausa passou do fim e segue segurada esperando a alta (`pausedUntil` anda dia a dia). */
+  awaitingClearance: boolean;
+  clearanceDecidedAt: Date | null;
+  clearanceDecidedByName: string;
+  clearanceNote: string;
   /** Cancelamento: último dia de aula e o vencimento em que a assinatura encerra. */
   lastDay: string;
   cancelAt: string;

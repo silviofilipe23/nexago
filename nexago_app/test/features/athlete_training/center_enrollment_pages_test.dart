@@ -26,6 +26,7 @@ class _FakeCenters implements TrainingCentersRepository {
   final requests = <Map<String, Object?>>[];
   final withdrawn = <String>[];
   final uploads = <String>[];
+  final clearances = <Map<String, Object?>>[];
   ClassPresenceException? requestError;
 
   @override
@@ -43,6 +44,7 @@ class _FakeCenters implements TrainingCentersRepository {
     CenterCertificateUpload? certificate,
     List<String> retentionOffered = const [],
     String? retainPlanId,
+    bool retainDiscount = false,
   }) async {
     if (requestError != null) throw requestError!;
     requests.add({
@@ -55,14 +57,17 @@ class _FakeCenters implements TrainingCentersRepository {
       'certificate': certificate?.toMap(),
       'retentionOffered': retentionOffered,
       'retainPlanId': retainPlanId,
+      'retainDiscount': retainDiscount,
     });
     return (
       requestId: 'new',
-      status: type == 'injury'
-          ? 'pending'
-          : type == 'pause'
-              ? 'active'
-              : 'scheduled',
+      status: retainDiscount || retainPlanId != null
+          ? 'retained'
+          : type == 'injury'
+              ? 'pending'
+              : type == 'pause'
+                  ? 'active'
+                  : 'scheduled',
       startsOn: startsOn,
       endsOn: '2026-10-30',
       lastDay: type == 'cancel' ? '2026-11-04' : null,
@@ -90,6 +95,19 @@ class _FakeCenters implements TrainingCentersRepository {
   }
 
   @override
+  Future<String> submitMedicalClearance({
+    required String centerId,
+    required String requestId,
+    required CenterCertificateUpload clearance,
+  }) async {
+    clearances.add({
+      'requestId': requestId,
+      ...clearance.toMap()..remove('daysOff'),
+    });
+    return 'submitted';
+  }
+
+  @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw UnimplementedError('${invocation.memberName}');
 }
@@ -97,11 +115,16 @@ class _FakeCenters implements TrainingCentersRepository {
 MyTrainingCentersData _data({
   List<Map<String, Object?>> requests = const [],
   Map<String, Object?> policies = const {},
+  Map<String, Object?> enrollment = const {},
 }) =>
     MyTrainingCentersData(
       centers: [
         TrainingCenterLink.fromMap(
-          centerJson(requests: requests, policies: policies),
+          centerJson(
+            requests: requests,
+            policies: policies,
+            enrollment: enrollment,
+          ),
         ),
       ],
     );
@@ -396,5 +419,217 @@ void main() {
       find.textContaining('fale com a recepção'),
       findsOneWidget,
     );
+  });
+
+  // ── desconto de retenção ────────────────────────────────────────────────
+
+  testWidgets('T9 · desconto de 1 mês: valor com desconto e aviso', (
+    tester,
+  ) async {
+    final repo = _FakeCenters(
+      _data(
+        policies: {
+          'cancelRetention': ['discount', 'plan_change'],
+          'retentionDiscountPercent': 20,
+        },
+        enrollment: {'discountAvailable': true},
+      ),
+    );
+    final router = await _pump(tester, location: '$_base/cancelar', repo: repo);
+    await _tap(tester, find.byKey(const Key('center-cancel-reason-price')));
+    await _tap(tester, find.byKey(const Key('center-cancel-continue')));
+    expect(
+      find.text('Fique com 20% de desconto na próxima mensalidade'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('256,00'), findsOneWidget);
+    expect(find.textContaining('mensalidade de 05 nov'), findsOneWidget);
+    expect(find.text('Ficar com 20% de desconto'), findsOneWidget);
+    await _tap(tester, find.byKey(const Key('center-cancel-accept')));
+    final sent = repo.requests.single;
+    expect(sent['retainDiscount'], isTrue);
+    expect(sent['retainPlanId'], isNull);
+    expect(sent['retentionOffered'], ['plan_change', 'discount']);
+    expect(
+      find.text('Desconto aplicado na mensalidade de 05 nov.'),
+      findsOneWidget,
+    );
+    expect(router.state.uri.path, _base);
+  });
+
+  testWidgets('T9 · desconto já usado no ano não aparece', (tester) async {
+    final repo = _FakeCenters(
+      _data(
+        policies: {
+          'cancelRetention': ['discount', 'plan_change'],
+        },
+      ),
+    );
+    await _pump(tester, location: '$_base/cancelar', repo: repo);
+    await _tap(tester, find.byKey(const Key('center-cancel-reason-price')));
+    await _tap(tester, find.byKey(const Key('center-cancel-continue')));
+    expect(
+      find.byKey(const Key('center-cancel-offer-discount')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('T5 · histórico mostra o retido com desconto', (tester) async {
+    final repo = _FakeCenters(
+      _data(
+        requests: [
+          requestJson(
+            id: 'd1',
+            type: 'cancel',
+            status: 'retained',
+            extra: {
+              'retainedDiscountPercent': 20,
+              'effectiveFrom': '2026-11-05',
+              'startsOn': null,
+              'endsOn': null,
+              'days': null,
+            },
+          ),
+        ],
+      ),
+    );
+    await _pump(tester, location: _base, repo: repo);
+    expect(
+      find.text('Ficou com desconto · 20% na mensalidade de 05 nov'),
+      findsOneWidget,
+    );
+  });
+
+  // ── alta médica ─────────────────────────────────────────────────────────
+
+  Map<String, Object?> activeInjury(Map<String, Object?> extra) => requestJson(
+        status: 'active',
+        extra: {'requireClearance': true, 'clearanceStatus': '', ...extra},
+      );
+
+  testWidgets('T6 · centro exige alta: aviso no pedido', (tester) async {
+    await _pump(
+      tester,
+      location: '$_base/lesao',
+      repo: _FakeCenters(_data(policies: {'requireMedicalClearance': true})),
+    );
+    expect(
+      find.text(
+        'Para voltar, o centro pede a alta médica (3 dias antes do fim).',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('T6 · sem exigência, sem aviso', (tester) async {
+    await _pump(tester, location: '$_base/lesao', repo: _FakeCenters(_data()));
+    expect(
+      find.byKey(const Key('center-injury-clearance-note')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('T5 · alta pedida: anexa, informa a data e envia', (
+    tester,
+  ) async {
+    final repo = _FakeCenters(
+      _data(
+        enrollment: {'status': 'paused'},
+        requests: [
+          activeInjury({'clearanceStatus': 'requested'}),
+        ],
+      ),
+    );
+    await _pump(
+      tester,
+      location: _base,
+      repo: repo,
+      picker: (_) async => PickedCertificate(
+        bytes: Uint8List.fromList(List.filled(1024, 1)),
+        fileName: 'alta.jpg',
+        contentType: 'image/jpeg',
+      ),
+    );
+    expect(find.text('Envie sua alta médica'), findsOneWidget);
+    expect(find.text('Anexe a alta'), findsOneWidget);
+    await _tap(tester, find.byKey(const Key('center-clearance-camera')));
+    expect(find.byKey(const Key('center-clearance-file')), findsOneWidget);
+    await _tap(tester, find.byKey(const Key('center-clearance-send')));
+    expect(
+      repo.uploads.single,
+      startsWith('trainingCenterCertificates/ct1/me/'),
+    );
+    final sent = repo.clearances.single;
+    expect(sent['requestId'], 'r1');
+    expect(sent['contentType'], 'image/jpeg');
+    expect(sent['issuedOn'], '2026-10-24');
+    expect(sent.containsKey('daysOff'), isFalse);
+    expect(
+      find.text('Alta enviada. O centro revisa e avisa pelo app.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('T5 · faltando 3 dias, mesmo sem pedido do servidor', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      location: _base,
+      repo: _FakeCenters(
+        _data(requests: [
+          activeInjury({'endsOn': '2026-10-27'})
+        ]),
+      ),
+    );
+    expect(find.text('Envie sua alta médica'), findsOneWidget);
+  });
+
+  testWidgets('T5 · longe do fim: só o aviso', (tester) async {
+    await _pump(
+      tester,
+      location: _base,
+      repo: _FakeCenters(_data(requests: [activeInjury({})])),
+    );
+    expect(find.text('O centro pede a alta para voltar'), findsOneWidget);
+    expect(find.byKey(const Key('center-clearance-send')), findsNothing);
+  });
+
+  testWidgets('T5 · volta segurada esperando a alta', (tester) async {
+    await _pump(
+      tester,
+      location: _base,
+      repo: _FakeCenters(
+        _data(
+          requests: [
+            activeInjury({
+              'clearanceStatus': 'requested',
+              'awaitingClearance': true,
+              'endsOn': '2026-10-22',
+            }),
+          ],
+        ),
+      ),
+    );
+    expect(find.text('Sua volta espera a alta'), findsOneWidget);
+    expect(
+      find.textContaining('A pausa segue sem cobrança até o centro aprovar'),
+      findsOneWidget,
+    );
+    expect(find.text('Envie sua alta médica'), findsOneWidget);
+  });
+
+  testWidgets('T5 · alta enviada fica em análise', (tester) async {
+    await _pump(
+      tester,
+      location: _base,
+      repo: _FakeCenters(
+        _data(requests: [
+          activeInjury({'clearanceStatus': 'submitted'})
+        ]),
+      ),
+    );
+    expect(find.text('Alta enviada · em análise'), findsOneWidget);
+    expect(find.byKey(const Key('center-clearance-send')), findsNothing);
   });
 }

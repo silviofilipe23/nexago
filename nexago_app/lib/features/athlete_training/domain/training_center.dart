@@ -423,6 +423,7 @@ class CenterPolicies {
     this.retentionDiscountPercent = 20,
     this.allowCancelWithdraw = true,
     this.requireMedicalClearance = false,
+    this.pauseSeat = 'reserve',
   });
 
   factory CenterPolicies.fromMap(Map<String, Object?> m) {
@@ -450,6 +451,7 @@ class CenterPolicies {
       retentionDiscountPercent: _int(m['retentionDiscountPercent']) ?? 20,
       allowCancelWithdraw: m['allowCancelWithdraw'] != false,
       requireMedicalClearance: m['requireMedicalClearance'] == true,
+      pauseSeat: m['pauseSeat'] == 'release' ? 'release' : 'reserve',
     );
   }
 
@@ -483,6 +485,13 @@ class CenterPolicies {
 
   /// Pausa por lesão só termina com a alta médica aprovada pela gestão.
   final bool requireMedicalClearance;
+
+  /// Vaga durante o TRANCAMENTO (lesão sempre reserva): `reserve` ou
+  /// `release` (a vaga volta para a turma e o aluno tem prioridade na volta).
+  final String pauseSeat;
+
+  /// O trancamento pedido agora devolve a vaga à turma.
+  bool get pauseReleasesSeat => pauseSeat == 'release';
 }
 
 class TrainingCenterLink {
@@ -582,6 +591,12 @@ class TrainingCenterLink {
     for (final r in requests)
       if (r.enrollmentId == enrollmentId && r.isOpen) r,
   ];
+
+  /// O trancamento da matrícula terminou com a turma cheia: segue pausada,
+  /// sem cobrança, até abrir a primeira vaga.
+  bool awaitingSeatOf(String enrollmentId) => requests.any(
+    (r) => r.enrollmentId == enrollmentId && r.isOpen && r.awaitingSeat,
+  );
 
   /// Pedidos já encerrados da matrícula (mais recente primeiro).
   List<CenterEnrollmentRequest> closedRequestsOf(String enrollmentId) => [

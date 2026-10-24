@@ -131,6 +131,8 @@ export function readPolicies(raw: Data | null): CenterPolicies {
   if (Array.isArray(raw['cancelRetention'])) {
     p.cancelRetention = RETENTION_OFFERS.filter((o) => (raw['cancelRetention'] as unknown[]).includes(o));
   }
+  // Mesma regra do servidor: só `release` libera; qualquer outro valor reserva.
+  p.pauseSeat = raw['pauseSeat'] === 'release' ? 'release' : 'reserve';
   // Mesma regra do servidor: percentual fora da lista cai no padrão.
   if (!RETENTION_DISCOUNTS.includes(p.retentionDiscountPercent)) {
     p.retentionDiscountPercent = DEFAULT_POLICIES.retentionDiscountPercent;
@@ -491,6 +493,8 @@ export function readEnrollment(id: string, d: Data): Enrollment {
     offeredAt: date(d['offeredAt']),
     offeredAuto: str(d, 'offeredBy') === 'auto',
     notifyOnSeat: bool(d, 'notifyOnSeat'),
+    seatReleased: bool(d, 'seatReleased'),
+    awaitingSeat: bool(d, 'awaitingSeat'),
     endedAt: date(d['endedAt']),
     createdAt: date(d['createdAt']),
     createdByName: str(d, 'createdByName'),
@@ -949,6 +953,8 @@ export function readEnrollmentRequest(id: string, d: Data): EnrollmentRequest {
     clearanceStatus: CLEARANCE_STATUSES.includes(str(d, 'clearanceStatus') as ClearanceStatus) ? (str(d, 'clearanceStatus') as ClearanceStatus) : '',
     clearance: readClearance(obj(d, 'clearance')),
     awaitingClearance: bool(d, 'awaitingClearance'),
+    releaseSeat: bool(d, 'releaseSeat'),
+    awaitingSeat: bool(d, 'awaitingSeat'),
     clearanceDecidedAt: date(d['clearanceDecidedAt']),
     clearanceDecidedByName: str(d, 'clearanceDecidedByName'),
     clearanceNote: str(d, 'clearanceNote'),

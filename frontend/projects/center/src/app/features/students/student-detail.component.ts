@@ -6,7 +6,7 @@ import { writeErrorMessage } from '../../data/actions/actor';
 import { StudentsActions } from '../../data/actions/students.actions';
 import { formatDayKey, formatInstant, monthLabel, todayKey, wallClock } from '../../domain/dates';
 import { CONTRACT_STATE, contractState, sortContracts } from '../../domain/contracts';
-import { holdsSeat, invoiceDisplayStatus } from '../../domain/enrollment';
+import { holdsSeat, invoiceDisplayStatus, seatNote } from '../../domain/enrollment';
 import { attendanceRate, tallyAttendance } from '../../domain/metrics';
 import { formatBRL } from '../../domain/money';
 import { ENROLLMENT_STATUS, INVOICE_STATUS, STUDENT_STATUS, type AttendanceMark, type Enrollment, type Student, type StudentStatus } from '../../domain/models';
@@ -66,6 +66,7 @@ export class StudentDetailComponent {
 
   protected readonly statusLabel = STUDENT_STATUS;
   protected readonly enrollmentStatus = ENROLLMENT_STATUS;
+  protected readonly seatNote = seatNote;
   protected readonly invoiceStatus = INVOICE_STATUS;
   protected readonly markLabel = MARK;
   protected readonly tab = signal<string>('overview');

@@ -103,6 +103,10 @@ export interface MyCenterEnrollmentRequest {
   clearanceStatus: string;
   /** Pausa passou do fim e segue esperando a alta. */
   awaitingClearance: boolean;
+  /** Trancamento que devolveu a vaga à turma. */
+  releaseSeat: boolean;
+  /** Trancamento terminou com a turma cheia: segue pausado, com prioridade na próxima vaga. */
+  awaitingSeat: boolean;
 }
 
 export interface MyCenterSession {
@@ -228,6 +232,8 @@ export interface MyTrainingCenter {
     retentionDiscountPercent: number;
     allowCancelWithdraw: boolean;
     requireMedicalClearance: boolean;
+    /** Vaga no trancamento: `reserve` ou `release`. */
+    pauseSeat: string;
   };
   enrollments: MyCenterEnrollment[];
   requests: MyCenterEnrollmentRequest[];
@@ -333,6 +339,8 @@ export function mapEnrollmentRequest(id: string, r: Data, tz: string): MyCenterE
     requireClearance: r["requireClearance"] === true,
     clearanceStatus: str(r["clearanceStatus"]),
     awaitingClearance: r["awaitingClearance"] === true,
+    releaseSeat: r["releaseSeat"] === true,
+    awaitingSeat: r["awaitingSeat"] === true,
   };
 }
 
@@ -572,6 +580,7 @@ async function loadCenter(
       retentionDiscountPercent: exitPolicies.retentionDiscountPercent,
       allowCancelWithdraw: exitPolicies.allowCancelWithdraw,
       requireMedicalClearance: exitPolicies.requireMedicalClearance,
+      pauseSeat: exitPolicies.pauseSeat,
     },
     requests: visibleRequests(requestDocs.map((r) => mapEnrollmentRequest(r.id, r.data, tz)), today),
     enrollments: enrollments

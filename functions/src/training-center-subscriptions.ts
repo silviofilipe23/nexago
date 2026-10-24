@@ -314,7 +314,8 @@ export async function endEnrollment(
     const classRef = str(enr["classId"]) ? center.collection("classes").doc(str(enr["classId"])) : null;
     const cls = classRef ? await tx.get(classRef) : null;
     const extra = also ? await also(tx, enr) : null;
-    if (classRef && cls?.exists) {
+    // Trancamento que liberou a vaga já devolveu o lugar: não desconta de novo.
+    if (classRef && cls?.exists && enr["seatReleased"] !== true) {
       const roster = cls.data()?.["rosterStudentIds"];
       tx.update(classRef, {
         seatsTaken: Math.max(0, num(cls.data()?.["seatsTaken"]) - 1),

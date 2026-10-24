@@ -56,6 +56,12 @@ export interface ExitPolicies {
   allowCancelWithdraw: boolean;
   /** Pausa por lesão só termina com a alta médica aprovada pela gestão. */
   requireMedicalClearance: boolean;
+  /**
+   * Vaga durante o TRANCAMENTO (lesão sempre reserva): `release` devolve a vaga à turma (a fila
+   * oferece) e, na volta, o aluno retoma se houver vaga; turma cheia = segue pausado, sem cobrança,
+   * com prioridade sobre a fila na primeira vaga.
+   */
+  pauseSeat: "reserve" | "release";
 }
 
 export const RETENTION_DISCOUNTS = [10, 20, 30, 50];
@@ -96,6 +102,7 @@ export function readExitPolicies(raw: unknown): ExitPolicies {
       num(p["retentionDiscountPercent"], 20) : 20,
     allowCancelWithdraw: p["allowCancelWithdraw"] !== false,
     requireMedicalClearance: p["requireMedicalClearance"] === true,
+    pauseSeat: p["pauseSeat"] === "release" ? "release" : "reserve",
   };
 }
 
@@ -253,6 +260,25 @@ export function requestSummary(r: {type: EnrollmentRequestType; startsOn?: strin
 /** Pausa por lesão que ainda espera a alta (pedida no começo, exigida pelo centro). */
 export function needsClearance(r: Data): boolean {
   return str(r["type"]) === "injury" && r["requireClearance"] === true && str(r["clearanceStatus"]) !== "approved";
+}
+
+/** Vaga livre na turma para quem volta do trancamento (independe da fila estar ligada). */
+export function freeSeats(cls: Data | undefined): number {
+  if (!cls) return 0;
+  return Math.max(0, num(cls["capacity"], 0) - num(cls["seatsTaken"], 0));
+}
+
+/** Matrículas pausadas que liberaram a vaga e esperam uma para voltar, por ordem de espera. */
+export function returnQueue(rows: Array<{id: string; data: Data}>, classId: string): Array<{id: string; studentId: string}> {
+  return rows
+    .filter((r) => str(r.data["classId"]) === classId && r.data["status"] === "paused" &&
+      r.data["seatReleased"] === true && r.data["awaitingSeat"] === true)
+    .map((r) => {
+      const at = r.data["awaitingSeatSince"] as {toMillis?: () => number} | undefined;
+      return {id: r.id, studentId: str(r.data["studentId"]), at: typeof at?.toMillis === "function" ? at.toMillis() : Number.MAX_SAFE_INTEGER};
+    })
+    .sort((a, b) => a.at - b.at || a.id.localeCompare(b.id))
+    .map(({id, studentId}) => ({id, studentId}));
 }
 
 /** Já ganhou desconto de retenção nesta matrícula no último ano? */

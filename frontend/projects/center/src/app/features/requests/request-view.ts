@@ -108,7 +108,7 @@ export function requestSituation(r: EnrollmentRequest): { label: string; tone: T
       return { label: 'Aguardando outro documento', tone: 'yellow' };
     case 'scheduled':
       return isPause(r)
-        ? { label: `Agendado para ${day(r.startsOn)} · vaga reservada`, tone: 'blue' }
+        ? { label: `Agendado para ${day(r.startsOn)} · ${r.releaseSeat ? 'vaga será liberada' : 'vaga reservada'}`, tone: 'blue' }
         : { label: `Em aviso · vaga libera após ${day(r.lastDay)}`, tone: 'orange' };
     case 'active': {
       const back = day(r.pausedUntil) || day(r.endsOn);
@@ -119,7 +119,8 @@ export function requestSituation(r: EnrollmentRequest): { label: string; tone: T
         if (r.clearanceStatus === 'submitted') return { label: `Alta enviada para revisar · volta ${back}`, tone: 'yellow' };
         if (r.clearanceStatus === 'requested') return { label: `Pausado · alta pedida · volta ${back}`, tone: 'blue' };
       }
-      return { label: `Pausado · volta ${back}`, tone: 'blue' };
+      if (r.awaitingSeat) return { label: 'Turma cheia · volta na primeira vaga', tone: 'orange' };
+      return { label: r.releaseSeat ? `Pausado · vaga liberada · volta ${back}` : `Pausado · volta ${back}`, tone: 'blue' };
     }
     case 'rejected':
       return { label: 'Recusado', tone: 'red' };
@@ -161,6 +162,7 @@ export function requestStats(list: EnrollmentRequest[], month: string, tz: strin
   const waitingDoc = list.filter((r) => r.status === 'needs_document').length;
   const active = list.filter((r) => r.status === 'active');
   const injuries = active.filter((r) => r.type === 'injury').length;
+  const awaitingSeat = active.filter((r) => r.awaitingSeat).length;
   const notice = list.filter((r) => r.type === 'cancel' && r.status === 'scheduled');
   const lastSeat = notice.map((r) => r.lastDay).filter(Boolean).sort().at(-1);
   const inMonth = list.filter((r) => r.type === 'cancel' && r.createdAt && wallClock(r.createdAt, tz).dayKey.startsWith(month));
@@ -178,7 +180,9 @@ export function requestStats(list: EnrollmentRequest[], month: string, tz: strin
         ? `${plural(waitingDoc, 'aguarda', 'aguardam')} outro documento`
         : 'nada pendente',
     pausedNow: active.length,
-    pausedSub: active.length ? `${injuries} lesão · ${active.length - injuries} trancamento` : 'ninguém em pausa',
+    pausedSub: active.length
+      ? [`${injuries} lesão · ${active.length - injuries} trancamento`, awaitingSeat ? `${awaitingSeat} esperando vaga` : ''].filter(Boolean).join(' · ')
+      : 'ninguém em pausa',
     cancelNotice: notice.length,
     cancelSub: lastSeat ? `vagas liberam até ${day(lastSeat)}` : 'nenhum em aviso',
     retained,
@@ -279,6 +283,13 @@ export function pauseBanners(r: EnrollmentRequest, p: CenterPolicies, usedDays: 
   const out: Banner[] = [];
   const first = r.studentName.split(' ')[0] || 'O aluno';
   const left = Math.max(0, p.pauseMaxDaysPerYear - usedDays);
+  if (r.awaitingSeat && r.status === 'active') {
+    out.push({
+      tone: 'orange',
+      title: 'Turma cheia na volta',
+      text: `O trancamento terminou com a turma cheia. ${first} segue pausado, sem cobrança, e volta na primeira vaga que abrir, antes da lista de espera.`,
+    });
+  }
   if (r.type === 'injury' && r.overLimit) {
     out.push({
       tone: 'orange',
@@ -313,7 +324,7 @@ export function pauseEffects(r: EnrollmentRequest): [string, string][] {
   return [
     ['Pausa', r.startsOn ? `${day(r.startsOn)} → ${day(r.endsOn)} · ${r.days} dia${r.days === 1 ? '' : 's'}` : '—'],
     ['Cobrança', 'Ciclos que vencem na pausa ficam suspensos'],
-    ['Vaga', 'Reservada · não vai para a lista de espera'],
+    ['Vaga', r.releaseSeat ? 'Vaga liberada para a turma · a lista de espera recebe a oferta' : 'Reservada · não vai para a lista de espera'],
     ['Volta', pauseReturn(r)],
   ];
 }
@@ -322,6 +333,10 @@ function pauseReturn(r: EnrollmentRequest): string {
   if (!r.pausedUntil) return '—';
   if (r.type === 'injury' && r.requireClearance && r.clearanceStatus !== 'approved') {
     return r.awaitingClearance ? 'Segue pausada até a alta ser aprovada' : `Só com a alta aprovada · previsão ${day(r.pausedUntil)}`;
+  }
+  if (r.awaitingSeat) return 'Turma cheia · segue pausada sem cobrança e volta na primeira vaga, antes da fila';
+  if (r.releaseSeat) {
+    return `Retoma a vaga em ${day(r.pausedUntil)} se houver; turma cheia, segue pausada sem cobrança e volta na primeira vaga, antes da fila`;
   }
   return `Matrícula reativa sozinha em ${day(r.pausedUntil)}`;
 }

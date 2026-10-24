@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { runTransaction, serverTimestamp, Timestamp, type Transaction } from 'firebase/firestore';
 import { formatDayKey, monthKey, monthLabel, todayKey } from '../../domain/dates';
-import { buildContract, canTransition, rosterAfter, seatDelta } from '../../domain/enrollment';
+import { buildContract, canTransition, rosterAfter, seatDeltaFor } from '../../domain/enrollment';
 import { formatBRL } from '../../domain/money';
 import { firstInvoiceCents } from '../../domain/billing';
 import {
@@ -238,6 +238,8 @@ export class EnrollmentsActions extends CenterActionsBase {
 
   /**
    * Transição de estado com ajuste de vaga (cancelar/concluir libera; reativar pausada não muda).
+   * Pausada por trancamento que liberou a vaga (`seatReleased`): cancelar/concluir não desconta
+   * (a vaga já voltou) e reativar ocupa uma vaga de novo — turma cheia bloqueia.
    * `extra` grava campos da transição (pausa até, motivo…).
    */
   async transition(e: Enrollment, to: EnrollmentStatus, reason: string, extra: Record<string, unknown> = {}): Promise<void> {
@@ -247,15 +249,21 @@ export class EnrollmentsActions extends CenterActionsBase {
     }
     const classRef = this.ref('classes', e.classId);
     const enrollmentRef = this.ref('enrollments', e.id);
-    const delta = seatDelta(e.status, to);
     await runTransaction(db(), async (t) => {
       const eSnap = await t.get(enrollmentRef);
-      const cSnap = delta !== 0 ? await t.get(classRef) : null;
       if (!eSnap.exists() || eSnap.data()['status'] !== e.status) {
         throw new Error('A matrícula mudou enquanto você editava. Confira e tente de novo.');
       }
+      // Vaga liberada lida fresca: o servidor pode devolver a vaga sem mudar o status.
+      const released = e.status === 'paused' && eSnap.data()['seatReleased'] === true;
+      const delta = seatDeltaFor({ status: e.status, seatReleased: released }, to);
+      const cSnap = delta !== 0 ? await t.get(classRef) : null;
       if (cSnap?.exists()) {
         const taken = Number(cSnap.data()['seatsTaken'] ?? 0);
+        const capacity = Number(cSnap.data()['capacity'] ?? 1);
+        if (delta > 0 && taken >= capacity) {
+          throw new Error('A turma está cheia; o aluno volta na primeira vaga, antes da fila.');
+        }
         const roster = cSnap.data()['rosterStudentIds'] as string[] | undefined;
         t.update(classRef, { seatsTaken: Math.max(0, taken + delta), rosterStudentIds: rosterAfter(roster, e.studentId, delta) });
       }
@@ -263,7 +271,8 @@ export class EnrollmentsActions extends CenterActionsBase {
       t.update(enrollmentRef, {
         status: to,
         ...(to === 'active' ? { holdUntil: null, pausedUntil: null, pauseReason: '' } : {}),
-        ...(ending ? { endedAt: serverTimestamp(), holdUntil: null } : {}),
+        ...(to === 'active' && released ? { seatReleased: false, awaitingSeat: false } : {}),
+        ...(ending ? { endedAt: serverTimestamp(), holdUntil: null, ...(released ? { awaitingSeat: false } : {}) } : {}),
         ...extra,
       });
       const labels: Record<EnrollmentStatus, string> = {
@@ -286,6 +295,7 @@ export class EnrollmentsActions extends CenterActionsBase {
     });
   }
 
+  /** Pausa manual do portal: sempre reserva a vaga (a política "Liberar" vale só no trancamento pedido). */
   pause(e: Enrollment, until: string, reason: string): Promise<void> {
     return this.transition(e, 'paused', reason, { pausedUntil: until, pauseReason: reason.trim() });
   }

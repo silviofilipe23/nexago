@@ -305,4 +305,57 @@ void main() {
       expect(g.open, hasLength(3));
     });
   });
+
+  group('vaga no trancamento', () {
+    CenterExitRequest pause(Map<String, Object?> extra,
+            {String status = 'active'}) =>
+        CenterExitRequest.fromMap(
+          'r9',
+          exitJson(type: 'pause', status: status, extra: extra),
+        );
+
+    test('reserva (padrão e servidor antigo): nada muda', () {
+      final r = pause(const {});
+      expect(r.releaseSeat, isFalse);
+      expect(r.awaitingSeat, isFalse);
+      expect(r.waitsForSeat, isFalse);
+      expect(centerExitSeatLabel(r), isNull);
+      expect(centerExitStatusOf(r).label, 'Em curso');
+    });
+
+    test('vaga liberada para a turma', () {
+      final r = pause({'releaseSeat': true});
+      expect(r.releasesSeat, isTrue);
+      expect(centerExitSeatLabel(r), 'Vaga liberada para a turma');
+      expect(centerExitStatusOf(r).label, 'Em curso');
+      expect(
+        centerExitSeatLabel(pause({'releaseSeat': true}, status: 'scheduled')),
+        'Vaga liberada para a turma',
+      );
+    });
+
+    test('turma cheia: segue pausado e volta na primeira vaga', () {
+      final r = pause({'releaseSeat': true, 'awaitingSeat': true});
+      expect(r.waitsForSeat, isTrue);
+      expect(centerExitSeatLabel(r), 'Turma cheia · volta na primeira vaga');
+      final st = centerExitStatusOf(r);
+      expect(st.label, 'Turma cheia');
+      expect(st.tone, CenterExitTone.info);
+      // Não pede ação da gestão.
+      expect(r.needsAttention, isFalse);
+      expect(centerExitGroups([r]).open, [r]);
+    });
+
+    test('lesão nunca libera a vaga', () {
+      final r = CenterExitRequest.fromMap(
+        'r10',
+        exitJson(
+          status: 'active',
+          extra: {'releaseSeat': true, 'awaitingSeat': true},
+        ),
+      );
+      expect(r.releasesSeat, isFalse);
+      expect(centerExitSeatLabel(r), isNull);
+    });
+  });
 }

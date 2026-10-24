@@ -1,5 +1,5 @@
 import { Timestamp } from 'firebase/firestore';
-import { readEnrollmentRequest, readInvoice, readPolicies, readSession, readTrials } from './mappers';
+import { readEnrollment, readEnrollmentRequest, readInvoice, readPolicies, readSession, readTrials } from './mappers';
 
 describe('readTrials (experimentais na aula)', () => {
   it('lê o espelho do servidor, por nome; status desconhecido vira pendente', () => {
@@ -45,10 +45,28 @@ describe('readPolicies (trancar e cancelar)', () => {
     expect(readPolicies({ requireMedicalClearance: 'yes' }).requireMedicalClearance).toBeFalse();
   });
 
+  it('vaga no trancamento: padrão reserva; só "release" libera', () => {
+    expect(readPolicies({}).pauseSeat).toBe('reserve');
+    expect(readPolicies({ pauseSeat: 'release' }).pauseSeat).toBe('release');
+    expect(readPolicies({ pauseSeat: 'free' }).pauseSeat).toBe('reserve');
+    expect(readPolicies(null).pauseSeat).toBe('reserve');
+  });
+
   it('retenção: lista vazia vale e lixo é descartado', () => {
     expect(readPolicies({ cancelRetention: [] }).cancelRetention).toEqual([]);
     expect(readPolicies({ cancelRetention: ['plan_change', 'discount', 3, 'x'] }).cancelRetention).toEqual(['plan_change', 'discount']);
     expect(readPolicies({ cancelRetention: 'pause' }).cancelRetention).toEqual(['pause', 'plan_change']);
+  });
+});
+
+describe('readEnrollment (vaga liberada no trancamento)', () => {
+  it('lê seatReleased/awaitingSeat e cai em false quando ausente ou lixo', () => {
+    const e = readEnrollment('e1', { status: 'paused', seatReleased: true, awaitingSeat: true });
+    expect(e.seatReleased).toBeTrue();
+    expect(e.awaitingSeat).toBeTrue();
+    const old = readEnrollment('e2', { status: 'paused', seatReleased: 'yes' });
+    expect(old.seatReleased).toBeFalse();
+    expect(old.awaitingSeat).toBeFalse();
   });
 });
 
@@ -76,6 +94,14 @@ describe('readEnrollmentRequest', () => {
     expect(r.clearanceStatus).toBe('');
     expect(r.clearance).toBeNull();
     expect(r.awaitingClearance).toBeFalse();
+    expect(r.releaseSeat).toBeFalse();
+    expect(r.awaitingSeat).toBeFalse();
+  });
+
+  it('trancamento que liberou a vaga e espera vaga na volta', () => {
+    const r = readEnrollmentRequest('r6', { type: 'pause', status: 'active', releaseSeat: true, awaitingSeat: true });
+    expect(r.releaseSeat).toBeTrue();
+    expect(r.awaitingSeat).toBeTrue();
   });
 
   it('cancelamento retido com desconto de 1 mês', () => {

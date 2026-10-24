@@ -12,6 +12,7 @@ import {
   deskDraftError,
   eligibleEnrollments,
   filterRequests,
+  needsReview,
   openRequestFor,
   pauseBanners,
   pauseDaysUsed,
@@ -32,7 +33,7 @@ function rq(id: string, over: Partial<EnrollmentRequest> = {}): EnrollmentReques
     id, enrollmentId: 'e' + id, studentId: 's' + id, studentUid: 'u' + id, studentName: 'Carla Dias', classId: 'k1', className: 'BT Manhã',
     planName: 'Mensal 2x', planType: 'monthly', priceCents: 25000, type: 'pause', status: 'scheduled', source: 'app', reason: 'Viagem',
     comment: '', startsOn: '2026-11-01', endsOn: '2026-11-30', pausedUntil: '2026-12-01', days: 30, overLimit: false, certificate: null,
-    requireClearance: false, clearanceStatus: '', clearance: null, awaitingClearance: false, clearanceDecidedAt: null, clearanceDecidedByName: '', clearanceNote: '',
+    requireClearance: false, clearanceStatus: '', clearance: null, awaitingClearance: false, releaseSeat: false, awaitingSeat: false, clearanceDecidedAt: null, clearanceDecidedByName: '', clearanceNote: '',
     lastDay: '', cancelAt: '', retention: null, effectiveFrom: '', createdAt: new Date('2026-10-20T15:00:00Z'), createdByName: 'Carla Dias',
     decidedAt: null, decidedByName: '', decisionNote: '', appliedAt: null, updatedAt: null,
     ...over,
@@ -43,7 +44,7 @@ function enr(id: string, over: Partial<Enrollment> = {}): Enrollment {
   return {
     id, studentId: 's' + id, studentName: 'Aluno ' + id, classId: 'k1', className: 'BT Manhã', planId: 'p', contract: null, status: 'active',
     startDate: '2026-01-10', holdUntil: null, pausedUntil: null, pauseReason: '', creditsLeft: null, waitlistedAt: null, offeredAt: null,
-    offeredAuto: false, notifyOnSeat: false, endedAt: null, createdAt: null, createdByName: '',
+    offeredAuto: false, notifyOnSeat: false, seatReleased: false, awaitingSeat: false, endedAt: null, createdAt: null, createdByName: '',
     ...over,
   };
 }
@@ -199,6 +200,29 @@ describe('request-view', () => {
       expect(pauseEffects(held).find((kv) => kv[0] === 'Volta')![1]).toBe('Segue pausada até a alta ser aprovada');
       expect(pauseEffects(approved).find((kv) => kv[0] === 'Volta')![1]).toBe('Matrícula reativa sozinha em 25 out');
     });
+  });
+
+  it('trancamento que libera a vaga: agenda, pausa e volta com a turma cheia', () => {
+    const scheduled = rq('v1', { releaseSeat: true });
+    expect(requestSituation(scheduled).label).toBe('Agendado para 01 nov · vaga será liberada');
+    expect(pauseEffects(scheduled).find((kv) => kv[0] === 'Vaga')![1]).toBe('Vaga liberada para a turma · a lista de espera recebe a oferta');
+    expect(pauseEffects(scheduled).find((kv) => kv[0] === 'Volta')![1]).toContain('antes da fila');
+    expect(pauseEffects(rq('v0')).find((kv) => kv[0] === 'Vaga')![1]).toBe('Reservada · não vai para a lista de espera');
+
+    const paused = rq('v2', { status: 'active', releaseSeat: true });
+    expect(requestSituation(paused)).toEqual({ label: 'Pausado · vaga liberada · volta 01 dez', tone: 'blue' });
+
+    const full = rq('v3', { status: 'active', releaseSeat: true, awaitingSeat: true, pausedUntil: '2026-12-02' });
+    expect(requestSituation(full)).toEqual({ label: 'Turma cheia · volta na primeira vaga', tone: 'orange' });
+    expect(pauseEffects(full).find((kv) => kv[0] === 'Volta')![1]).toBe('Turma cheia · segue pausada sem cobrança e volta na primeira vaga, antes da fila');
+    // Conta em "Pausados agora", não em "Para revisar".
+    expect(needsReview(full)).toBeFalse();
+    const st = requestStats([paused, full], '2026-10', TZ);
+    expect(st.pausedNow).toBe(2);
+    expect(st.review).toBe(0);
+    expect(st.pausedSub).toBe('0 lesão · 2 trancamento · 1 esperando vaga');
+    expect(pauseBanners(full, DEFAULT_POLICIES, 30)[0]!.title).toBe('Turma cheia na volta');
+    expect(pauseBanners(paused, DEFAULT_POLICIES, 30).some((b) => b.title === 'Turma cheia na volta')).toBeFalse();
   });
 
   it('cancelamento retido com desconto de 1 mês conta nos retidos', () => {

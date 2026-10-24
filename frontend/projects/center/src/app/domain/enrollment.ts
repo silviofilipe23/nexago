@@ -10,11 +10,19 @@ import type {
   TrainingClass,
 } from './models';
 
-/** Estados que ocupam vaga na turma (entram em `seatsTaken`). */
+/**
+ * Estados de matrícula "em curso" (contrato vigente). Ocupam vaga em `seatsTaken`, exceto a pausada
+ * por trancamento que liberou a vaga (`seatReleased`) — para vaga, use `occupiesSeat`.
+ */
 export const SEAT_STATUSES: EnrollmentStatus[] = ['pending', 'active', 'paused'];
 
 export function holdsSeat(status: EnrollmentStatus): boolean {
   return SEAT_STATUSES.includes(status);
+}
+
+/** A matrícula conta agora em `seatsTaken`/chamada (trancamento com vaga liberada não conta). */
+export function occupiesSeat(e: Pick<Enrollment, 'status' | 'seatReleased'>): boolean {
+  return holdsSeat(e.status) && !(e.status === 'paused' && e.seatReleased);
 }
 
 /**
@@ -72,6 +80,23 @@ export function canTransition(from: EnrollmentStatus, to: EnrollmentStatus): boo
 /** Variação de vagas ocupadas numa transição (+1, 0, -1). */
 export function seatDelta(from: EnrollmentStatus | null, to: EnrollmentStatus): number {
   const before = from ? holdsSeat(from) : false;
+  const after = holdsSeat(to);
+  return before === after ? 0 : after ? 1 : -1;
+}
+
+/** Complemento do status "Pausada" quando o trancamento liberou a vaga ('' nos demais casos). */
+export function seatNote(e: Pick<Enrollment, 'status' | 'seatReleased' | 'awaitingSeat'>): string {
+  if (e.status !== 'paused' || !e.seatReleased) return '';
+  return e.awaitingSeat ? 'turma cheia · volta na primeira vaga' : 'vaga liberada';
+}
+
+/**
+ * Variação de vagas numa transição manual a partir da matrícula real: pausada com a vaga liberada
+ * não devolve vaga ao cancelar/concluir (já devolveu) e precisa ocupar uma ao reativar (+1).
+ * A pausa manual do portal sempre reserva (active → paused = 0).
+ */
+export function seatDeltaFor(e: Pick<Enrollment, 'status' | 'seatReleased'>, to: EnrollmentStatus): number {
+  const before = occupiesSeat(e);
   const after = holdsSeat(to);
   return before === after ? 0 : after ? 1 : -1;
 }

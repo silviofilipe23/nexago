@@ -95,6 +95,8 @@ class CenterExitRequest {
     this.awaitingClearance = false,
     this.clearanceDecidedByName = '',
     this.clearanceNote = '',
+    this.releaseSeat = false,
+    this.awaitingSeat = false,
   });
 
   /// [m] já com `Timestamp` convertido em [DateTime].
@@ -138,6 +140,8 @@ class CenterExitRequest {
       awaitingClearance: m['awaitingClearance'] == true,
       clearanceDecidedByName: _str(m['clearanceDecidedByName']),
       clearanceNote: _str(m['clearanceNote']),
+      releaseSeat: m['releaseSeat'] == true,
+      awaitingSeat: m['awaitingSeat'] == true,
     );
   }
 
@@ -195,6 +199,19 @@ class CenterExitRequest {
   final bool awaitingClearance;
   final String clearanceDecidedByName;
   final String clearanceNote;
+
+  /// Trancamento que devolve a vaga à turma (política congelada no pedido).
+  final bool releaseSeat;
+
+  /// Trancamento terminou com a turma cheia: segue pausado, sem cobrança,
+  /// com prioridade sobre a fila na primeira vaga.
+  final bool awaitingSeat;
+
+  /// Só o trancamento libera a vaga; a lesão sempre reserva.
+  bool get releasesSeat => type == 'pause' && releaseSeat;
+
+  /// Em curso esperando vaga na turma.
+  bool get waitsForSeat => releasesSeat && status == 'active' && awaitingSeat;
 
   bool get isOpen => kCenterOpenRequestStatuses.contains(status);
   bool get isCancel => type == 'cancel';
@@ -258,6 +275,10 @@ enum CenterExitTone { attention, info, danger, neutral, success }
           label: 'Esperando alta',
           tone: CenterExitTone.attention,
         ),
+      'active' when r.waitsForSeat => (
+          label: 'Turma cheia',
+          tone: CenterExitTone.info,
+        ),
       'active' => (label: 'Em curso', tone: CenterExitTone.info),
       'rejected' => (label: 'Recusado', tone: CenterExitTone.neutral),
       'withdrawn' => (label: 'Desfeito', tone: CenterExitTone.neutral),
@@ -275,6 +296,14 @@ String? centerExitClearanceLabel(CenterExitRequest r) {
     'requested' => 'Pedida ao aluno',
     _ => 'Pedida 3 dias antes do fim',
   };
+}
+
+/// Vaga do trancamento no detalhe (`null` = vaga reservada, como sempre).
+String? centerExitSeatLabel(CenterExitRequest r) {
+  if (!r.releasesSeat) return null;
+  return r.waitsForSeat
+      ? 'Turma cheia · volta na primeira vaga'
+      : 'Vaga liberada para a turma';
 }
 
 /// Decisões possíveis para owner/admin (mesma régua da callable). [clear] =

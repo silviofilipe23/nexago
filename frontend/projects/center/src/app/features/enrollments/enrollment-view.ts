@@ -53,7 +53,15 @@ export function enrollmentDetail(
         tone: 'pending',
       };
     case 'paused':
-      return { text: [e.pausedUntil ? `Pausa até ${formatDayKey(e.pausedUntil)}` : 'Pausada', e.pauseReason].filter(Boolean).join(' · '), tone: '' };
+      if (e.seatReleased && e.awaitingSeat) {
+        return { text: ['Turma cheia · volta na primeira vaga', e.pauseReason].filter(Boolean).join(' · '), tone: 'pending' };
+      }
+      return {
+        text: [e.pausedUntil ? `Pausa até ${formatDayKey(e.pausedUntil)}` : 'Pausada', e.pauseReason, e.seatReleased ? 'vaga liberada' : '']
+          .filter(Boolean)
+          .join(' · '),
+        tone: '',
+      };
     case 'active': {
       if (pack) {
         return { text: `${e.creditsLeft ?? 0} crédito${e.creditsLeft === 1 ? '' : 's'}`, tone: '' };

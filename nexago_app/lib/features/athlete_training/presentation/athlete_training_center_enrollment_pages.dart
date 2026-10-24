@@ -183,7 +183,10 @@ class _AthleteCenterEnrollmentPageState
             else if (center == null || e == null)
               _missing()
             else ...[
-              _EnrollmentCard(enrollment: e),
+              _EnrollmentCard(
+                enrollment: e,
+                awaitingSeat: center.awaitingSeatOf(e.enrollmentId),
+              ),
               for (final r in open) ...[
                 const SizedBox(height: 12),
                 _RequestStateCard(
@@ -297,9 +300,12 @@ class _AthleteCenterEnrollmentPageState
 }
 
 class _EnrollmentCard extends StatelessWidget {
-  const _EnrollmentCard({required this.enrollment});
+  const _EnrollmentCard({required this.enrollment, this.awaitingSeat = false});
 
   final CenterEnrollment enrollment;
+
+  /// Trancamento terminou com a turma cheia (`pausedUntil` anda dia a dia).
+  final bool awaitingSeat;
 
   @override
   Widget build(BuildContext context) {
@@ -308,6 +314,7 @@ class _EnrollmentCard extends StatelessWidget {
     final kicker = switch (e.status) {
       'active' when e.startDate.isNotEmpty =>
         'Ativa desde ${centerShortDay(e.startDate)}',
+      'paused' when awaitingSeat => 'Pausada · turma cheia',
       'paused' when e.pausedUntil != null =>
         'Pausada · volta em ${centerShortDay(e.pausedUntil!)}',
       _ => centerEnrollmentStatusLabel(e),
@@ -442,6 +449,7 @@ class _RequestStateCard extends StatelessWidget {
     final injury = r.type == 'injury';
     final range = centerDayRange(r.startsOn, r.endsOn);
     final back = r.endsOn == null ? null : centerShiftDay(r.endsOn!, 1);
+    final releases = r.releasesSeat;
 
     final (Color tone, String kicker, String title, String text) =
         switch (state) {
@@ -465,8 +473,11 @@ class _RequestStateCard extends StatelessWidget {
           ProfessorLinksStyle.blue,
           injury ? 'Pausa por lesão aprovada' : 'Trancamento agendado',
           range.isEmpty ? 'Pausa agendada' : 'De $range',
-          'Sua vaga fica reservada e não há cobrança no período.'
-              '${back == null ? '' : ' A matrícula volta sozinha em ${centerShortDay(back)}.'}',
+          releases
+              ? 'Não há cobrança no período. $kCenterPauseSeatReleaseText'
+                  '${back == null ? '' : ' Volta prevista em ${centerShortDay(back)}.'}'
+              : 'Sua vaga fica reservada e não há cobrança no período.'
+                  '${back == null ? '' : ' A matrícula volta sozinha em ${centerShortDay(back)}.'}',
         ),
       CenterRequestState.pauseActive when r.awaitingClearance => (
           AppColors.pending,
@@ -475,11 +486,21 @@ class _RequestStateCard extends StatelessWidget {
           'A pausa segue sem cobrança até o centro aprovar a alta. Sua vaga '
               'está reservada.',
         ),
+      CenterRequestState.pauseActive when releases && r.awaitingSeat => (
+          AppColors.pending,
+          'Matrícula trancada',
+          'Turma cheia · você volta na primeira vaga',
+          'O trancamento terminou com a turma cheia. Você segue pausado, sem '
+              'cobrança enquanto isso, e volta na primeira vaga que abrir, '
+              'antes da lista de espera.',
+        ),
       CenterRequestState.pauseActive => (
           ProfessorLinksStyle.blue,
           injury ? 'Pausa por lesão em curso' : 'Matrícula trancada',
           back == null ? 'Pausa em curso' : 'Volta em ${centerShortDay(back)}',
-          'Sem aulas nem cobrança até lá. Sua vaga está reservada.',
+          releases
+              ? 'Sem aulas nem cobrança até lá. $kCenterPauseSeatReleaseText'
+              : 'Sem aulas nem cobrança até lá. Sua vaga está reservada.',
         ),
       CenterRequestState.cancelScheduled => (
           AppColors.live,
@@ -506,6 +527,10 @@ class _RequestStateCard extends StatelessWidget {
           '${r.days} dia${r.days == 1 ? '' : 's'}',
           null,
         ),
+      if (releases && r.awaitingSeat)
+        ('Cobrança', 'Sem cobrança enquanto isso', null)
+      else if (releases && state != CenterRequestState.documentRequested)
+        ('Sua vaga', 'Volta para a turma', null),
       if (r.isCancel && r.reason.isNotEmpty) ('Motivo', r.reason, null),
       if (r.isCancel && r.lastDay != null)
         ('Último dia', centerShortDay(r.lastDay!), null),
@@ -634,7 +659,11 @@ class _AthleteCenterPausePageState
     setState(() => _startsOn = key == todayKey ? null : key);
   }
 
-  Future<void> _confirm(String startsOn, int days) async {
+  Future<void> _confirm(
+    String startsOn,
+    int days,
+    CenterPolicies policies,
+  ) async {
     final endsOn = centerPauseEndsOn(startsOn, days);
     final ok = await showProfessorLinksSheet<bool>(
       context,
@@ -649,9 +678,17 @@ class _AthleteCenterPausePageState
               ('Duração', '$days dia${days == 1 ? '' : 's'}', null),
               ('Volta em', centerShortDay(centerShiftDay(endsOn, 1)), null),
               ('Cobrança', 'Sem cobrança no período', null),
-              ('Sua vaga', 'Fica reservada', null),
+              ('Sua vaga', centerPauseSeatValue(policies), null),
             ],
           ),
+          if (policies.pauseReleasesSeat)
+            TrainingOriginNote(
+              key: const Key('center-pause-confirm-seat-release'),
+              color: ProfessorLinksStyle.blue,
+              icon: Icons.info_outline_rounded,
+              title: 'A vaga volta para a turma',
+              text: kCenterPauseSeatReleaseText,
+            ),
           ProfessorLinksPrimaryButton(
             key: const Key('center-pause-confirm'),
             label: 'Confirmar trancamento',
@@ -730,8 +767,8 @@ class _AthleteCenterPausePageState
           else ...[
             Text(
               'Você tem $left dia${left == 1 ? '' : 's'} livre${left == 1 ? '' : 's'} '
-              'no ano. Mínimo de ${p.pauseMinDays} dias por pedido; a vaga '
-              'fica reservada e não há cobrança no período.',
+              'no ano. Mínimo de ${p.pauseMinDays} dias por pedido e sem '
+              'cobrança no período. ${centerPauseSeatText(p)}',
               style: AppTypography.bodyS.copyWith(
                 fontSize: 12.5,
                 height: 1.45,
@@ -822,7 +859,8 @@ class _AthleteCenterPausePageState
               key: const Key('center-pause-review'),
               label: 'Revisar trancamento',
               loading: _sending,
-              onPressed: error == null ? () => _confirm(startsOn, days!) : null,
+              onPressed:
+                  error == null ? () => _confirm(startsOn, days!, p) : null,
             ),
           ],
         ],
@@ -1390,7 +1428,9 @@ class _AthleteCenterCancelPageState
         _RadioOption(
           key: const Key('center-cancel-offer-pause'),
           title: 'Trancar por até $left dias',
-          subtitle: 'Sem cobrança e com a vaga guardada',
+          subtitle: p.pauseReleasesSeat
+              ? 'Sem cobrança · $kCenterPauseSeatReleaseText'
+              : 'Sem cobrança e com a vaga guardada',
           selected: _offer == 'pause',
           onTap: () => setState(() => _offer = 'pause'),
         ),

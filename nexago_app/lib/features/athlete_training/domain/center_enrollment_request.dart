@@ -83,6 +83,8 @@ class CenterEnrollmentRequest {
     this.requireClearance = false,
     this.clearanceStatus = '',
     this.awaitingClearance = false,
+    this.releaseSeat = false,
+    this.awaitingSeat = false,
   });
 
   factory CenterEnrollmentRequest.fromMap(Map<String, Object?> m) =>
@@ -106,6 +108,8 @@ class CenterEnrollmentRequest {
         requireClearance: m['requireClearance'] == true,
         clearanceStatus: _str(m['clearanceStatus']),
         awaitingClearance: m['awaitingClearance'] == true,
+        releaseSeat: m['releaseSeat'] == true,
+        awaitingSeat: m['awaitingSeat'] == true,
       );
 
   final String requestId;
@@ -150,6 +154,16 @@ class CenterEnrollmentRequest {
 
   /// A pausa passou do fim e segue esperando a alta.
   final bool awaitingClearance;
+
+  /// Trancamento que devolve a vaga à turma (política congelada no pedido).
+  final bool releaseSeat;
+
+  /// O trancamento terminou com a turma cheia: segue pausado, sem cobrança,
+  /// e volta na primeira vaga, antes da lista de espera.
+  final bool awaitingSeat;
+
+  /// Só o trancamento libera a vaga; a lesão sempre reserva.
+  bool get releasesSeat => type == 'pause' && releaseSeat;
 
   bool get isOpen => kCenterOpenRequestStatuses.contains(status);
   bool get isCancel => type == 'cancel';
@@ -316,8 +330,25 @@ String centerPauseOptionText(CenterPolicies p, CenterEnrollment e) {
         ? 'Você já usou os dias de trancamento do ano'
         : 'Restam $left dias no ano (mínimo ${p.pauseMinDays})';
   }
-  return '$left dias livres no ano · vaga reservada';
+  return p.pauseReleasesSeat
+      ? '$left dias livres no ano · a vaga volta para a turma'
+      : '$left dias livres no ano · vaga reservada';
 }
+
+/// O que acontece com a vaga num trancamento que a devolve à turma.
+const String kCenterPauseSeatReleaseText =
+    'A vaga volta para a turma; na volta você retoma se houver lugar, senão '
+    'segue pausado sem cobrança e volta na primeira vaga, antes da lista de '
+    'espera.';
+
+/// Texto da vaga para quem vai trancar agora, conforme a política do centro.
+String centerPauseSeatText(CenterPolicies p) => p.pauseReleasesSeat
+    ? kCenterPauseSeatReleaseText
+    : 'Sua vaga fica reservada.';
+
+/// Linha "Sua vaga" do resumo do trancamento.
+String centerPauseSeatValue(CenterPolicies p) =>
+    p.pauseReleasesSeat ? 'Volta para a turma' : 'Fica reservada';
 
 /// Subtítulo da opção "Pausa por lesão".
 String centerInjuryOptionText(CenterPolicies p) => p.injuryCountsInLimit

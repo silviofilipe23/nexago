@@ -114,14 +114,12 @@ void main() {
       'volta ao app com fatura em aberto: relê até o webhook dar baixa e '
       'avisa', (tester) async {
     final repo = await _pumpAgenda(tester, [_charge('e1_2026-11')]);
-    expect(find.text('Mensalidades a pagar'), findsOneWidget);
     final before = repo.reads;
 
     // Pagou no navegador e voltou antes do webhook.
     await _backToApp(tester);
     await tester.pump(const Duration(seconds: 3));
     await tester.pump(const Duration(seconds: 3));
-    expect(find.text('Mensalidades a pagar'), findsOneWidget);
     expect(find.text('Pagamento da mensalidade confirmado.'), findsNothing);
 
     // O webhook deu baixa: a próxima leitura não traz mais a mensalidade.
@@ -129,7 +127,6 @@ void main() {
     await tester.pump(const Duration(seconds: 4));
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('Pagamento da mensalidade confirmado.'), findsOneWidget);
-    expect(find.text('Mensalidades a pagar'), findsNothing);
     expect(repo.reads, greaterThan(before + 2));
 
     // Para de reler depois da baixa.

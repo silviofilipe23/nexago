@@ -20,7 +20,6 @@ import 'package:nexago_app/features/athlete/domain/achievements/achievement_prov
 import 'package:nexago_app/features/athlete/domain/achievements/achievement_status.dart';
 import 'package:nexago_app/features/athlete/domain/agenda/athlete_agenda_logic.dart';
 import 'package:nexago_app/features/athlete/domain/agenda/athlete_agenda_models.dart';
-import 'package:nexago_app/features/athlete/domain/agenda/class_charge_entry.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_active_sessions_providers.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_discover_providers.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_follow_providers.dart';
@@ -52,7 +51,6 @@ import 'package:nexago_app/features/athlete/presentation/athlete_active_sessions
 import 'package:nexago_app/features/athlete/presentation/athlete_discover_page.dart';
 import 'package:nexago_app/features/athlete/presentation/athlete_settings_page.dart';
 import 'package:nexago_app/features/athlete/presentation/public_profile/athlete_public_profile_page.dart';
-import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_class_charges_section.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_empty_drop_ins_section.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_header.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_needs_you_section.dart';
@@ -561,32 +559,6 @@ final _screens = <_Screen>[
     ),
     find.byType(AthletePublicProfilePage),
     ['Não foi possível carregar o perfil.\nsem rede'],
-  ),
-  _Screen(
-    'Agenda: mensalidade vencida',
-    (tester, theme) => _pumpPiece(
-      tester,
-      theme,
-      AgendaClassChargesSection(
-        charges: const [
-          ClassChargeEntry(
-            chargeId: 'c1',
-            arenaId: 'a1',
-            arenaName: 'Arena Sol',
-            description: 'Mensalidade de outubro',
-            amountReais: 180,
-            dueDate: '2026-10-05',
-            overdue: true,
-            payment: 'manual',
-          ),
-        ],
-        onPay: (_) {},
-      ),
-    ),
-    find.byType(AgendaClassChargesSection),
-    ['VENCEU 05/10'],
-    darkIssue: '"VENCEU 05/10" em AppColors.live sobre o canto azul do '
-        'degradê da aula (#28576F): 2,2:1',
   ),
   _Screen(
     'Agenda: drop-ins precisando de gente',

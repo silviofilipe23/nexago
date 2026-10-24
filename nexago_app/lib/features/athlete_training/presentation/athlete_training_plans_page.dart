@@ -3,13 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/formatting/app_currency_format.dart';
-import '../../../core/notifications/notification_navigation.dart'
-    show athleteAgendaTabLocation;
+import '../../../core/links/open_external_url.dart';
 import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/ui/app_snackbar.dart';
 import '../../athlete/domain/agenda/athlete_agenda_providers.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../professor_mode/presentation/widgets/professor_students_widgets.dart';
@@ -98,9 +98,14 @@ class AthleteTrainingPlansPage extends ConsumerWidget {
                           if (c.dueDate.isNotEmpty)
                             '${c.overdue ? 'venceu' : 'vence'} '
                                 '${trainingPlanShortDate(c.dueDate)}',
+                          c.canPayOnline
+                              ? 'toque para pagar'
+                              : 'pagamento direto com a arena',
                         ].join(' · '),
                         highlight: c.overdue,
-                        onTap: () => context.go(athleteAgendaTabLocation),
+                        onTap: c.canPayOnline
+                            ? () => _openClassInvoice(context, c.invoiceUrl!)
+                            : null,
                       ),
                   ],
                 ),
@@ -175,6 +180,14 @@ class AthleteTrainingPlansPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Mensalidade de aula com fatura online: abre o Asaas no navegador. A agenda
+/// (viva no shell) relê na volta ao app e avisa quando a baixa chega.
+Future<void> _openClassInvoice(BuildContext context, String url) async {
+  final opened = await openExternalUrl(url);
+  if (opened || !context.mounted) return;
+  showAppSnackBar(context, 'Não foi possível abrir a fatura.', isError: true);
 }
 
 /// Cartão do plano: faixa com quem cobra, nome, resumo e as linhas.

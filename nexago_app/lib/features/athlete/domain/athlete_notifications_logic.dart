@@ -516,7 +516,7 @@ AthleteNotificationPresentation _basePresentation(
                   kind: AthleteNotificationActionKind.primary,
                 ),
               ],
-        routePath: athleteAgendaTabLocation,
+        routePath: athleteChargesLocation,
         externalUrl: invoiceUrl,
       );
     // Fatura do centro de treinamento: "Pagar" abre a fatura no app (Pix e

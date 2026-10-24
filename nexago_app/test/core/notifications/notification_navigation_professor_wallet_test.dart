@@ -32,9 +32,9 @@ void main() {
       'url': '/discover?tab=agenda',
     };
 
-    test('o toque abre a fatura; plano B é a agenda', () {
+    test('o toque abre a fatura; plano B é Planos e pagamentos', () {
       expect(externalNotificationUrl(payload), _invoice);
-      expect(resolveNotificationRoute(payload), athleteAgendaTabLocation);
+      expect(resolveNotificationRoute(payload), athleteChargesLocation);
     });
 
     test('no inbox: "Pagar" com a fatura', () {
@@ -42,7 +42,7 @@ void main() {
           notificationPresentation(_inbox('professor_charge_link', payload));
       expect(p.externalUrl, _invoice);
       expect(p.actions.single.label, 'Pagar');
-      expect(p.routePath, athleteAgendaTabLocation);
+      expect(p.routePath, athleteChargesLocation);
     });
   });
 

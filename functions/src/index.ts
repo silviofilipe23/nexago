@@ -306,6 +306,13 @@ export {
   signMyTrainingCenterContract,
   terminateTrainingCenterContract,
 } from "./training-center-contracts";
+// Trancar, pausa por lesão e cancelar a matrícula (pedido pelo app, decisão da gestão, rodada 05:50).
+export {
+  decideTrainingCenterEnrollmentRequest,
+  requestTrainingCenterEnrollmentChange,
+  runTrainingCenterEnrollmentRequests,
+  withdrawTrainingCenterEnrollmentRequest,
+} from "./training-center-enrollment-requests";
 // QR de check-in por quadra (portal da arena gera; o aluno lê no app).
 export {getArenaCourtCheckinQr} from "./arena-court-checkin-qr";
 // Aulas pelo professor com vínculo ("Gerenciar as próprias aulas"): lista da chamada.

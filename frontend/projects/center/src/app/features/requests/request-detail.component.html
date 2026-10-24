@@ -1,0 +1,258 @@
+@if (request(); as r) {
+  <ct-page-header [title]="title()" [subtitle]="subtitle()">
+    @if (r.type === 'cancel') {
+      @if (telLink(); as tel) {
+        <a class="ct-mini-btn" [href]="tel">Ligar para o aluno</a>
+      }
+      @if (whatsApp(); as wa) {
+        <a class="ct-mini-btn" [href]="wa" target="_blank" rel="noopener">WhatsApp</a>
+      }
+    }
+    @if (askDocument()) {
+      <button type="button" class="ct-mini-btn" (click)="open('needs_document')">Pedir outro documento</button>
+    }
+    @if (decidable()) {
+      <button type="button" class="ct-mini-btn" (click)="open('reject')">Recusar</button>
+      <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="open('approve')">Aprovar pausa</button>
+    }
+    @if (undoable()) {
+      <button type="button" class="ct-mini-btn" [class.ct-mini-btn-primary]="r.type === 'cancel'" (click)="open('undo')">
+        {{ r.type === 'cancel' ? 'Desfazer cancelamento' : 'Desfazer pausa' }}
+      </button>
+    }
+  </ct-page-header>
+
+  <div class="page">
+    <div class="ct-row ct-wrap">
+      <a class="ct-ghost-btn" [routerLink]="['/centro', centerId(), 'pedidos']"><ct-icon name="arrowLeft" [size]="14" />Pedidos</a>
+      <div class="ct-grow"></div>
+      <span [class]="'ct-pill ' + TYPE[r.type][1]">{{ TYPE[r.type][0] }}</span>
+      @if (situation(); as s) {
+        <span [class]="'ct-pill ' + s.tone">{{ s.label }}</span>
+      }
+    </div>
+
+    @if (decidedLine() || r.decisionNote) {
+      <div class="decided">
+        {{ decidedLine() }}@if (r.decisionNote) {<span> · “{{ r.decisionNote }}”</span>}
+      </div>
+    }
+
+    @if (r.type === 'cancel') {
+      <!-- T3 · Cancelamento -->
+      <div class="cols3">
+        <section class="ct-card">
+          <div class="ct-card-head">
+            <div class="ct-grow">
+              <div class="ct-kick">{{ r.source === 'desk' ? 'Registrado no balcão' : 'Respostas no app' }}</div>
+              <div class="ct-card-title">Motivo e retenção</div>
+            </div>
+          </div>
+          <div class="ct-kv"><span>Motivo</span><span>{{ cancelReason() || '—' }}</span></div>
+          <div class="ct-kv"><span>Comentário</span><span>{{ r.comment ? '“' + r.comment + '”' : '—' }}</span></div>
+          <div class="ct-kick kick-gap">Ofertas mostradas</div>
+          @for (o of offers(); track o.offer) {
+            <div class="offer"><span class="ct-grow">{{ o.offer }}</span><span class="ct-mono">{{ o.outcome }}</span></div>
+          } @empty {
+            <div class="ct-dim">{{ r.source === 'desk' ? 'Pedido registrado pela gestão, sem ofertas no app.' : 'Nenhuma oferta configurada quando o aluno pediu.' }}</div>
+          }
+          @if (r.status === 'retained' && r.retention?.planName) {
+            <div class="note">
+              Troca para {{ r.retention!.planName }}{{ r.retention!.priceCents !== null ? ' · ' + formatBRL(r.retention!.priceCents!) : '' }}
+              {{ r.effectiveFrom ? 'a partir de ' + formatDayKey(r.effectiveFrom) : 'no próximo ciclo' }}.
+            </div>
+          }
+        </section>
+
+        <section class="ct-card">
+          <div class="ct-card-head">
+            <div class="ct-grow">
+              <div class="ct-kick">Política: {{ policies().monthlyCancellation === 'end_of_cycle' ? 'fim do ciclo pago' : 'imediato' }}</div>
+              <div class="ct-card-title">Aviso prévio</div>
+            </div>
+          </div>
+          @if (timeline().length) {
+            <div class="timeline">
+              @for (s of timeline(); track $index) {
+                @if (!$first) {
+                  <div class="link"></div>
+                }
+                <div class="step">
+                  <div class="dot" [class.last]="s.last"></div>
+                  <div class="d">{{ s.day }}</div>
+                  <div class="l">{{ s.label }}</div>
+                </div>
+              }
+            </div>
+          }
+          <div class="ct-kv"><span>Plano</span><span>{{ r.planName || '—' }}{{ r.priceCents ? ' · ' + formatBRL(r.priceCents) : '' }}</span></div>
+          @if (r.status === 'retained') {
+            <div class="ct-kv"><span>Contrato</span><span>Segue ativo</span></div>
+          } @else {
+            <div class="ct-kv"><span>Último dia de aula</span><span>{{ r.lastDay ? formatDayKey(r.lastDay, true) : '—' }}</span></div>
+            <div class="ct-kv"><span>Cobrança</span><span>{{ r.cancelAt ? 'Vencimento de ' + formatDayKey(r.cancelAt) + ' não é cobrado' : 'Sem novas cobranças' }}</span></div>
+            <div class="ct-kv"><span>Contrato</span><span>{{ r.lastDay ? (r.status === 'done' ? 'Encerrado em ' : 'Encerra em ') + formatDayKey(r.lastDay) : '—' }}</span></div>
+          }
+        </section>
+
+        <div class="side">
+          @if (r.status === 'scheduled' || r.status === 'done') {
+            <section class="ct-card">
+              <div class="ct-card-head">
+                <div class="ct-grow">
+                  <div class="ct-kick">Lista de espera · {{ r.className }}</div>
+                  <div class="ct-card-title">{{ r.status === 'done' ? 'Vaga liberada' : 'Vaga liberada em ' + formatDayKey(seatDay()) }}</div>
+                </div>
+              </div>
+              @for (e of queue(); track e.id; let i = $index) {
+                <div class="queue">
+                  <span class="pos">{{ i + 1 }}º</span>
+                  <ct-person class="ct-grow" [name]="e.studentName" [sub]="waitingSince(e)" [colorKey]="e.studentId" [size]="28" />
+                </div>
+              } @empty {
+                <div class="ct-dim">Ninguém na lista de espera desta turma.</div>
+              }
+              @if (queue().length) {
+                <div class="note">
+                  @if (!policies().waitlistEnabled) {
+                    A lista de espera está desligada: ofereça a vaga manualmente em Matrículas.
+                  } @else if (r.status === 'scheduled') {
+                    {{ queue()[0].studentName.split(' ')[0] }} recebe a oferta em {{ formatDayKey(seatDay()) }} e tem {{ policies().waitlistAcceptHours }}h para aceitar. Se não aceitar, passa para o próximo.
+                  } @else {
+                    A vaga foi oferecida ao 1º da fila, que tem {{ policies().waitlistAcceptHours }}h para aceitar.
+                  }
+                </div>
+              }
+            </section>
+          }
+          @if (r.status === 'scheduled' && policies().allowCancelWithdraw) {
+            <ct-banner tone="yellow" [inline]="true" [title]="r.studentName.split(' ')[0] + ' pode desistir até ' + formatDayKey(r.lastDay)">
+              Um toque no app desfaz o cancelamento. A vaga só vai para a lista depois do último dia.
+            </ct-banner>
+          }
+          @if (r.status === 'scheduled' && !policies().allowCancelWithdraw) {
+            <ct-banner tone="blue" [inline]="true" title="Desistência só pela recepção">
+              O centro não deixa desfazer pelo app. Use “Desfazer cancelamento” se o aluno decidir ficar.
+            </ct-banner>
+          }
+        </div>
+      </div>
+    } @else {
+      <!-- T2 · Pausa por lesão / trancamento -->
+      <div class="cols">
+        @if (r.type === 'injury') {
+          <section class="ct-card">
+            <div class="ct-card-head">
+              <div class="ct-grow">
+                <div class="ct-kick">
+                  @if (r.certificate; as c) {
+                    {{ c.fileName }}{{ fileSize(c.sizeBytes) ? ' · ' + fileSize(c.sizeBytes) : '' }} · {{ r.source === 'desk' ? 'trazido ao balcão' : 'enviado pelo app' }}
+                  } @else {
+                    Sem arquivo
+                  }
+                </div>
+                <div class="ct-card-title">Atestado médico</div>
+              </div>
+            </div>
+            <div class="preview">
+              @if (!r.certificate) {
+                <div class="ph"><ct-icon name="doc" [size]="28" /><div class="ct-mono" style="margin-top: 8px">{{ r.source === 'desk' ? 'Registrado no balcão sem atestado' : 'Nenhum atestado anexado' }}</div></div>
+              } @else if (!ctx.isManager()) {
+                <div class="ph"><ct-icon name="lock" [size]="26" /><div class="ct-mono" style="margin-top: 8px">Visível só para owner e admin</div></div>
+              } @else if (certError()) {
+                <div class="ph"><ct-icon name="alert" [size]="26" /><div style="margin-top: 8px">{{ certError() }}</div></div>
+              } @else if (!certUrl()) {
+                <div class="ph"><span class="ct-spinner light" aria-hidden="true"></span><div class="ct-mono" style="margin-top: 8px">Carregando o atestado…</div></div>
+              } @else if (certKind() === 'image') {
+                <img [src]="certUrl()" [alt]="'Atestado de ' + r.studentName" />
+              } @else if (certFrame(); as frame) {
+                <iframe [src]="frame" [title]="'Atestado de ' + r.studentName"></iframe>
+              } @else {
+                <div class="ph"><ct-icon name="doc" [size]="28" /><div class="ct-mono" style="margin-top: 8px">Sem pré-visualização para este formato — use Baixar</div></div>
+              }
+            </div>
+            <div class="bar">
+              @if (certUrl(); as url) {
+                <a class="ct-mini-btn" [href]="url" target="_blank" rel="noopener" [attr.download]="r.certificate?.fileName"><ct-icon name="download" [size]="14" />Baixar</a>
+              }
+              <span class="ct-grow"></span>
+              <span class="ct-dim">Visível só para owner e admin</span>
+            </div>
+          </section>
+        } @else {
+          <section class="ct-card">
+            <div class="ct-card-head">
+              <div class="ct-grow">
+                <div class="ct-kick">{{ r.source === 'desk' ? 'Registrado no balcão' : 'Pedido pelo app' }} · pausa sem justificativa</div>
+                <div class="ct-card-title">Trancamento</div>
+              </div>
+            </div>
+            <div class="ct-kv"><span>Motivo</span><span>{{ reason() }}</span></div>
+            @if (r.comment) {
+              <div class="ct-kv"><span>Comentário</span><span>“{{ r.comment }}”</span></div>
+            }
+            <div class="ct-kv"><span>Período</span><span>{{ period() }}</span></div>
+            <div class="ct-kv"><span>Dias</span><span>{{ r.days }}</span></div>
+            <div class="ct-kv"><span>Plano</span><span>{{ r.planName || '—' }}{{ r.priceCents ? ' · ' + formatBRL(r.priceCents) : '' }}</span></div>
+          </section>
+        }
+
+        <div class="side">
+          @if (r.type === 'injury') {
+            <section class="ct-card">
+              <div class="ct-card-head">
+                <div class="ct-grow">
+                  <div class="ct-kick">{{ r.source === 'desk' ? 'Registrados pela gestão' : 'Informados pelo aluno · confira com o documento' }}</div>
+                  <div class="ct-card-title">Dados do atestado</div>
+                </div>
+              </div>
+              <div class="ct-kv"><span>Emitido em</span><span>{{ r.certificate?.issuedOn ? formatDayKey(r.certificate!.issuedOn, true) : '—' }}</span></div>
+              <div class="ct-kv"><span>Médico</span><span>{{ r.certificate?.doctor || '—' }}</span></div>
+              <div class="ct-kv"><span>Afastamento</span><span>{{ (r.certificate?.daysOff || r.days) + ' dias' }}</span></div>
+              <div class="ct-kv"><span>Descrição</span><span>{{ r.certificate?.description || r.reason || '—' }}</span></div>
+              @if (r.comment) {
+                <div class="ct-kv"><span>Comentário</span><span>“{{ r.comment }}”</span></div>
+              }
+            </section>
+          }
+          <section class="ct-card">
+            <div class="ct-card-head">
+              <div class="ct-grow">
+                <div class="ct-card-title">{{ r.status === 'pending' || r.status === 'needs_document' ? 'Ao aprovar' : 'O que acontece' }}</div>
+              </div>
+            </div>
+            @for (kv of effects(); track kv[0]) {
+              <div class="ct-kv"><span>{{ kv[0] }}</span><span>{{ kv[1] }}</span></div>
+            }
+          </section>
+          @for (b of banners(); track b.title) {
+            <ct-banner [tone]="b.tone" [inline]="true" [title]="b.title">{{ b.text }}</ct-banner>
+          }
+        </div>
+      </div>
+    }
+  </div>
+
+  @if (deciding(); as d) {
+    <ct-modal [kicker]="r.studentName + ' · ' + TYPE[r.type][0]" [title]="d === 'undo' && r.type === 'cancel' ? 'Desfazer cancelamento' : DECISIONS[d].title" (closed)="close()">
+      <div class="ct-muted">{{ d === 'undo' ? undoText() : DECISIONS[d].text }}</div>
+      <div class="ct-field">
+        <label for="rq-note">{{ DECISIONS[d].needsNote ? 'Mensagem ao aluno' : 'Mensagem ao aluno (opcional)' }}</label>
+        <textarea id="rq-note" class="ct-input" rows="3" maxlength="400" [placeholder]="DECISIONS[d].placeholder" [value]="note()" (input)="note.set(val($event))"></textarea>
+      </div>
+      @if (error()) {
+        <div class="ct-error-text" role="alert">{{ error() }}</div>
+      }
+      <div footer>
+        <button type="button" class="ct-mini-btn" [disabled]="busy()" (click)="close()">Voltar</button>
+        <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="confirm(r)">{{ busy() ? 'Salvando…' : DECISIONS[d].confirm }}</button>
+      </div>
+    </ct-modal>
+  }
+} @else {
+  <ct-page-header title="Pedido" />
+  <div class="page">
+    <a class="ct-ghost-btn" [routerLink]="['/centro', centerId(), 'pedidos']"><ct-icon name="arrowLeft" [size]="14" />Pedidos</a>
+    <div class="ct-empty">{{ store.loaded.requests() ? 'Pedido não encontrado.' : 'Carregando…' }}</div>
+  </div>
+}

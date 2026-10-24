@@ -1,4 +1,5 @@
 import 'center_contract.dart';
+import 'center_enrollment_request.dart';
 import 'training_plans.dart';
 
 /// Centro de treinamento visto pelo aluno — espelha `getMyTrainingCenters`
@@ -30,6 +31,9 @@ class CenterEnrollment {
     this.billingDay,
     this.billingMethod = '',
     this.nextChargeDate,
+    this.pauseDaysUsed = 0,
+    this.cancelLastDay,
+    this.retentionPlans = const [],
   });
 
   factory CenterEnrollment.fromMap(Map<String, Object?> m) {
@@ -65,6 +69,14 @@ class CenterEnrollment {
       nextChargeDate: billing == null
           ? null
           : _strOrNull(billing['nextChargeDate']),
+      pauseDaysUsed: _int(m['pauseDaysUsed']) ?? 0,
+      cancelLastDay: _strOrNull(m['cancelLastDay']),
+      retentionPlans: m['retentionPlans'] is List
+          ? [
+              for (final p in m['retentionPlans'] as List)
+                if (p is Map) CenterRetentionPlan.fromMap(_map(p)),
+            ]
+          : const [],
     );
   }
 
@@ -100,6 +112,15 @@ class CenterEnrollment {
   /// `pix_manual`, `card` ou `pix_auto`.
   final String billingMethod;
   final String? nextChargeDate;
+
+  /// Dias de trancamento já usados no ano (o limite está nas regras).
+  final int pauseDaysUsed;
+
+  /// Último dia de aula se cancelar hoje (prévia do cancelamento).
+  final String? cancelLastDay;
+
+  /// "Trocar de plano" em vez de cancelar: mensais mais baratos.
+  final List<CenterRetentionPlan> retentionPlans;
 
   bool get isPack => planType == 'class_pack';
   bool get isActive => status == 'active';
@@ -387,15 +408,39 @@ class CenterPolicies {
     this.makeupValidityDays = 30,
     this.monthlyCancellation = 'end_of_cycle',
     this.allowPause = true,
+    this.pauseMaxDaysPerYear = 30,
+    this.pauseMinDays = 7,
+    this.injuryPauseApproval = 'manual',
+    this.injuryMaxDays = 90,
+    this.injuryCountsInLimit = false,
+    this.cancelRetention = const ['pause', 'plan_change'],
+    this.allowCancelWithdraw = true,
   });
 
-  factory CenterPolicies.fromMap(Map<String, Object?> m) => CenterPolicies(
-    excusedNoticeHours: _int(m['excusedNoticeHours']) ?? 4,
-    excusedAbsenceMakeup: m['excusedAbsenceMakeup'] != false,
-    makeupValidityDays: _int(m['makeupValidityDays']) ?? 30,
-    monthlyCancellation: _str(m['monthlyCancellation'], 'end_of_cycle'),
-    allowPause: m['allowPause'] != false,
-  );
+  factory CenterPolicies.fromMap(Map<String, Object?> m) {
+    final retention = m['cancelRetention'];
+    return CenterPolicies(
+      excusedNoticeHours: _int(m['excusedNoticeHours']) ?? 4,
+      excusedAbsenceMakeup: m['excusedAbsenceMakeup'] != false,
+      makeupValidityDays: _int(m['makeupValidityDays']) ?? 30,
+      monthlyCancellation: _str(m['monthlyCancellation'], 'end_of_cycle'),
+      allowPause: m['allowPause'] != false,
+      pauseMaxDaysPerYear: _int(m['pauseMaxDaysPerYear']) ?? 30,
+      pauseMinDays: _int(m['pauseMinDays']) ?? 7,
+      injuryPauseApproval: m['injuryPauseApproval'] == 'auto'
+          ? 'auto'
+          : 'manual',
+      injuryMaxDays: _int(m['injuryMaxDays']) ?? 90,
+      injuryCountsInLimit: m['injuryCountsInLimit'] == true,
+      cancelRetention: retention is List
+          ? [
+              for (final r in retention)
+                if (r == 'pause' || r == 'plan_change') r as String,
+            ]
+          : const ['pause', 'plan_change'],
+      allowCancelWithdraw: m['allowCancelWithdraw'] != false,
+    );
+  }
 
   final int excusedNoticeHours;
   final bool excusedAbsenceMakeup;
@@ -404,6 +449,23 @@ class CenterPolicies {
   /// `end_of_cycle` ou `immediate`.
   final String monthlyCancellation;
   final bool allowPause;
+
+  /// Trancamento: dias por ano e mínimo por pedido.
+  final int pauseMaxDaysPerYear;
+  final int pauseMinDays;
+
+  /// Pausa por lesão: `manual` (a gestão revisa o atestado) ou `auto`.
+  final String injuryPauseApproval;
+
+  /// Acima disso a lesão é decidida caso a caso.
+  final int injuryMaxDays;
+  final bool injuryCountsInLimit;
+
+  /// Ofertas antes de cancelar: `pause` e/ou `plan_change`.
+  final List<String> cancelRetention;
+
+  /// O aluno pode desistir do cancelamento pelo app.
+  final bool allowCancelWithdraw;
 }
 
 class TrainingCenterLink {
@@ -422,6 +484,7 @@ class TrainingCenterLink {
     this.locations = const [],
     this.invoices = const [],
     this.contracts = const [],
+    this.requests = const [],
   });
 
   factory TrainingCenterLink.fromMap(Map<String, Object?> m) {
@@ -458,6 +521,7 @@ class TrainingCenterLink {
       locations: list('locations', CenterLocation.fromMap),
       invoices: list('invoices', CenterInvoice.fromMap),
       contracts: list('contracts', MyCenterContract.fromMap),
+      requests: list('requests', CenterEnrollmentRequest.fromMap),
     );
   }
 
@@ -485,6 +549,28 @@ class TrainingCenterLink {
 
   /// Contratos e termos (abertos primeiro; `cancelled` não vem).
   final List<MyCenterContract> contracts;
+
+  /// Pedidos de trancamento/lesão/cancelamento (em andamento primeiro).
+  final List<CenterEnrollmentRequest> requests;
+
+  CenterEnrollment? enrollmentById(String id) {
+    for (final e in enrollments) {
+      if (e.enrollmentId == id) return e;
+    }
+    return null;
+  }
+
+  /// Pedidos em andamento da matrícula [enrollmentId].
+  List<CenterEnrollmentRequest> openRequestsOf(String enrollmentId) => [
+    for (final r in requests)
+      if (r.enrollmentId == enrollmentId && r.isOpen) r,
+  ];
+
+  /// Pedidos já encerrados da matrícula (mais recente primeiro).
+  List<CenterEnrollmentRequest> closedRequestsOf(String enrollmentId) => [
+    for (final r in requests)
+      if (r.enrollmentId == enrollmentId && !r.isOpen) r,
+  ];
 
   List<CenterInvoice> get openInvoices => [
     for (final i in invoices)

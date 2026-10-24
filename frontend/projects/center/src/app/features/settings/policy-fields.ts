@@ -1,7 +1,7 @@
-import type { CenterPolicies } from '../../domain/models';
+import { RETENTION_OFFERS, type CenterPolicies, type RetentionOffer } from '../../domain/models';
 
 type ChoiceKey = {
-  [K in keyof CenterPolicies]: CenterPolicies[K] extends number ? never : K;
+  [K in keyof CenterPolicies]: CenterPolicies[K] extends number | unknown[] ? never : K;
 }[keyof CenterPolicies];
 type NumberKey = {
   [K in keyof CenterPolicies]: CenterPolicies[K] extends number ? K : never;
@@ -27,14 +27,34 @@ export interface NumberRow {
   dependsOn?: ChoiceKey;
 }
 
-export type PolicyRow = ChoiceRow | NumberRow;
+/** Número escolhido entre poucas opções (ex.: 7 ou 15 dias). */
+export interface NumberChoiceRow {
+  kind: 'number-choice';
+  key: NumberKey;
+  title: (p: CenterPolicies) => string;
+  hint: (p: CenterPolicies) => string;
+  values: number[];
+  unit: string;
+  dependsOn?: ChoiceKey;
+}
+
+/** Várias opções ligadas ao mesmo tempo (ofertas de retenção). */
+export interface MultiRow {
+  kind: 'multi';
+  key: 'cancelRetention';
+  title: (p: CenterPolicies) => string;
+  hint: (p: CenterPolicies) => string;
+  options: { value: RetentionOffer; label: string }[];
+}
+
+export type PolicyRow = ChoiceRow | NumberRow | NumberChoiceRow | MultiRow;
 
 const on = (yes: string, no: string) => [
   { value: 'true', label: yes },
   { value: 'false', label: no },
 ];
 
-/** Linhas da aba "Políticas comerciais" (protótipo W4), na ordem de exibição. */
+/** Linhas da aba "Políticas comerciais" (protótipo W4), na ordem de exibição. Trancar, cancelar e lista de espera ficam em `EXIT_SECTIONS`. */
 export const POLICY_ROWS: PolicyRow[] = [
   {
     kind: 'choice',
@@ -109,50 +129,6 @@ export const POLICY_ROWS: PolicyRow[] = [
     ],
   },
   {
-    kind: 'choice',
-    key: 'monthlyCancellation',
-    title: () => 'Cancelamento de plano mensal',
-    hint: (p) => (p.monthlyCancellation === 'end_of_cycle' ? 'Acesso segue até o fim do ciclo pago; sem multa' : 'Acesso termina na hora do cancelamento'),
-    options: [
-      { value: 'end_of_cycle', label: 'Fim do ciclo' },
-      { value: 'immediate', label: 'Imediato' },
-    ],
-  },
-  {
-    kind: 'choice',
-    key: 'allowPause',
-    title: () => 'Pausa de matrícula',
-    hint: (p) => (p.allowPause ? `Até ${p.pauseMaxDaysPerYear} dias por ano, mantendo a vaga na turma` : 'O aluno não pode pausar a matrícula'),
-    options: on('Permitir', 'Não permitir'),
-  },
-  {
-    kind: 'number',
-    key: 'pauseMaxDaysPerYear',
-    title: () => 'Limite de pausa',
-    hint: () => 'Total de dias de pausa por ano',
-    unit: 'dias/ano',
-    min: 1,
-    max: 365,
-    dependsOn: 'allowPause',
-  },
-  {
-    kind: 'choice',
-    key: 'waitlistEnabled',
-    title: () => 'Lista de espera',
-    hint: (p) => (p.waitlistEnabled ? `Ao liberar vaga, o 1º da fila recebe a oferta automaticamente e tem ${p.waitlistAcceptHours}h para pagar` : 'Turma lotada não aceita fila'),
-    options: on('Ativa', 'Desligada'),
-  },
-  {
-    kind: 'number',
-    key: 'waitlistAcceptHours',
-    title: () => 'Prazo para aceitar a vaga',
-    hint: () => 'Depois disso a vaga passa para o próximo da fila',
-    unit: 'horas',
-    min: 1,
-    max: 168,
-    dependsOn: 'waitlistEnabled',
-  },
-  {
     kind: 'number',
     key: 'travelBufferMinutes',
     title: () => 'Intervalo mínimo entre aulas do professor em locais diferentes',
@@ -162,6 +138,153 @@ export const POLICY_ROWS: PolicyRow[] = [
     max: 240,
   },
 ];
+
+export interface PolicySection {
+  title: string;
+  kicker: string;
+  rows: PolicyRow[];
+  /** Regra fixa do sistema, mostrada como nota. */
+  note?: string;
+}
+
+/** Aba "Trancar e cancelar" (protótipo T4). A vaga fica sempre reservada durante a pausa. */
+export const EXIT_SECTIONS: PolicySection[] = [
+  {
+    title: 'Trancamento',
+    kicker: 'Pausa sem justificativa',
+    note: 'A vaga fica reservada durante o trancamento e a cobrança dos ciclos que vencem na pausa é suspensa.',
+    rows: [
+      {
+        kind: 'choice',
+        key: 'allowPause',
+        title: () => 'Trancar pelo app',
+        hint: (p) => (p.allowPause ? 'Dentro do limite, o trancamento é aprovado na hora' : 'O aluno não pode trancar a matrícula'),
+        options: on('Permitir', 'Não permitir'),
+      },
+      {
+        kind: 'number',
+        key: 'pauseMaxDaysPerYear',
+        title: () => 'Limite por ano',
+        hint: () => 'Somado entre todos os trancamentos do ano',
+        unit: 'dias/ano',
+        min: 1,
+        max: 365,
+        dependsOn: 'allowPause',
+      },
+      {
+        kind: 'number-choice',
+        key: 'pauseMinDays',
+        title: () => 'Mínimo por pausa',
+        hint: () => 'Evita pausas de poucos dias',
+        values: [7, 15],
+        unit: 'dias',
+        dependsOn: 'allowPause',
+      },
+    ],
+  },
+  {
+    title: 'Pausa por lesão',
+    kicker: 'Com atestado médico',
+    rows: [
+      {
+        kind: 'choice',
+        key: 'injuryPauseApproval',
+        title: () => 'Aprovação',
+        hint: (p) =>
+          p.injuryPauseApproval === 'manual'
+            ? 'Owner ou admin revisa o atestado antes de pausar'
+            : `Aprovada na hora até ${p.injuryMaxDays} dias; acima disso a gestão revisa`,
+        options: [
+          { value: 'manual', label: 'Manual' },
+          { value: 'auto', label: 'Automática' },
+        ],
+      },
+      {
+        kind: 'choice',
+        key: 'injuryCountsInLimit',
+        title: () => 'Conta no limite de trancamento',
+        hint: (p) => (p.injuryCountsInLimit ? `Os dias de lesão somam nos ${p.pauseMaxDaysPerYear} dias do ano` : 'Os dias de lesão não consomem o limite do ano'),
+        options: [
+          { value: 'false', label: 'Não' },
+          { value: 'true', label: 'Sim' },
+        ],
+      },
+      {
+        kind: 'number-choice',
+        key: 'injuryMaxDays',
+        title: () => 'Limite',
+        hint: () => 'Acima disso o centro decide caso a caso',
+        values: [90, 180],
+        unit: 'dias',
+      },
+    ],
+  },
+  {
+    title: 'Cancelamento',
+    kicker: 'Pedido pelo app ou na recepção',
+    rows: [
+      {
+        kind: 'choice',
+        key: 'monthlyCancellation',
+        title: () => 'Aviso prévio',
+        hint: (p) =>
+          p.monthlyCancellation === 'end_of_cycle'
+            ? 'Plano mensal segue até a véspera do próximo vencimento, que não é cobrado; sem multa'
+            : 'A matrícula encerra no dia do pedido e a vaga é liberada',
+        options: [
+          { value: 'end_of_cycle', label: 'Fim do ciclo' },
+          { value: 'immediate', label: 'Imediato' },
+        ],
+      },
+      {
+        kind: 'multi',
+        key: 'cancelRetention',
+        title: () => 'Retenção',
+        hint: (p) => (p.cancelRetention.length ? 'Ofertas mostradas no app antes de confirmar' : 'Nenhuma oferta: o app confirma direto'),
+        options: [
+          { value: 'pause', label: 'Trancar' },
+          { value: 'plan_change', label: 'Trocar plano' },
+        ],
+      },
+      {
+        kind: 'choice',
+        key: 'allowCancelWithdraw',
+        title: () => 'Desistir do cancelamento',
+        hint: (p) => (p.allowCancelWithdraw ? 'O aluno desfaz pelo app até o último dia' : 'Só a recepção desfaz'),
+        options: [
+          { value: 'true', label: 'Até o último dia' },
+          { value: 'false', label: 'Não' },
+        ],
+      },
+    ],
+  },
+  {
+    title: 'Lista de espera',
+    kicker: 'Vaga liberada por cancelamento',
+    rows: [
+      {
+        kind: 'choice',
+        key: 'waitlistEnabled',
+        title: () => 'Lista de espera',
+        hint: (p) => (p.waitlistEnabled ? `Ao liberar vaga, o 1º da fila recebe a oferta automaticamente e tem ${p.waitlistAcceptHours}h para pagar` : 'Turma lotada não aceita fila'),
+        options: on('Ativa', 'Desligada'),
+      },
+      {
+        kind: 'number',
+        key: 'waitlistAcceptHours',
+        title: () => 'Prazo para aceitar a vaga',
+        hint: () => 'Depois disso a vaga passa para o próximo da fila',
+        unit: 'horas',
+        min: 1,
+        max: 168,
+        dependsOn: 'waitlistEnabled',
+      },
+    ],
+  },
+];
+
+/** Todas as linhas editáveis (as duas abas). */
+export const ALL_POLICY_ROWS: PolicyRow[] = [...POLICY_ROWS, ...EXIT_SECTIONS.flatMap((s) => s.rows)];
 
 /** Valor da política como string do segmentado. */
 export function choiceValue(p: CenterPolicies, key: ChoiceKey): string {
@@ -179,13 +302,30 @@ export function applyNumber(p: CenterPolicies, key: NumberKey, raw: string): Cen
   return { ...p, [key]: n };
 }
 
+/** Liga ou desliga uma oferta de retenção (mantém a ordem canônica). */
+export function toggleRetention(p: CenterPolicies, offer: RetentionOffer): CenterPolicies {
+  const on = p.cancelRetention.includes(offer);
+  return { ...p, cancelRetention: RETENTION_OFFERS.filter((o) => (o === offer ? !on : p.cancelRetention.includes(o))) };
+}
+
+/** Opções do número escolhido; um valor antigo fora da lista continua aparecendo. */
+export function numberChoiceOptions(p: CenterPolicies, row: NumberChoiceRow): { value: string; label: string }[] {
+  const cur = p[row.key];
+  const values = Number.isFinite(cur) && !row.values.includes(cur) ? [...row.values, cur].sort((a, b) => a - b) : row.values;
+  return values.map((v) => ({ value: String(v), label: `${v} ${row.unit}` }));
+}
+
+export function samePolicyValue(a: unknown, b: unknown): boolean {
+  return Array.isArray(a) || Array.isArray(b) ? JSON.stringify(a) === JSON.stringify(b) : a === b;
+}
+
 export function changedPolicies(before: CenterPolicies, next: CenterPolicies): (keyof CenterPolicies)[] {
-  return (Object.keys(next) as (keyof CenterPolicies)[]).filter((k) => before[k] !== next[k]);
+  return (Object.keys(next) as (keyof CenterPolicies)[]).filter((k) => !samePolicyValue(before[k], next[k]));
 }
 
 /** Primeiro erro de validação (números inteiros dentro da faixa), ou null. */
 export function policiesError(p: CenterPolicies): string | null {
-  for (const row of POLICY_ROWS) {
+  for (const row of ALL_POLICY_ROWS) {
     if (row.kind !== 'number') {
       continue;
     }

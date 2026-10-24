@@ -120,6 +120,20 @@ export const routes: Routes = [
         loadComponent: () => import('./features/students/student-detail.component').then((m) => m.StudentDetailComponent),
       },
       {
+        path: 'pedidos',
+        title: T('Trancamentos e cancelamentos'),
+        canActivate: [areaGuard],
+        data: { area: 'requests' },
+        loadComponent: () => import('./features/requests/requests.component').then((m) => m.RequestsComponent),
+      },
+      {
+        path: 'pedidos/:requestId',
+        title: T('Pedido'),
+        canActivate: [areaGuard],
+        data: { area: 'requests' },
+        loadComponent: () => import('./features/requests/request-detail.component').then((m) => m.RequestDetailComponent),
+      },
+      {
         path: 'contratos',
         title: T('Contratos'),
         canActivate: [areaGuard],

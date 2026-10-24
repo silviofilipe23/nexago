@@ -17,6 +17,15 @@ import {requireUid, str} from "./arena-class";
 import {ensureCheckinCode} from "./training-center-checkin";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {CONTRACTS, OPEN_CONTRACT_STATUSES} from "./training-center-contracts-model";
+import {
+  CANCEL_REASONS,
+  ENROLLMENT_REQUESTS,
+  OPEN_REQUEST_STATUSES,
+  pauseDaysUsed,
+  planCancel,
+  readExitPolicies,
+  type EnrollmentRequestStatus,
+} from "./training-center-enrollment-requests-model";
 
 type Data = Record<string, unknown>;
 
@@ -56,6 +65,34 @@ export interface MyCenterEnrollment {
   locationName: string;
   /** Assinatura mensal (só servidor cria). */
   billing: {status: string; billingDay: number | null; method: string; nextChargeDate: string | null} | null;
+  /** Dias de trancamento já usados no ano (o limite está em `policies`). */
+  pauseDaysUsed: number;
+  /** Último dia de aula se cancelar hoje (prévia da tela de cancelamento). */
+  cancelLastDay: string | null;
+  /** Ofertas de retenção "trocar de plano": mensais ativos mais baratos da mesma modalidade. */
+  retentionPlans: Array<{planId: string; name: string; priceCents: number; classesPerWeek: number | null}>;
+}
+
+/** Pedido de trancamento, pausa por lesão ou cancelamento (T5–T10). */
+export interface MyCenterEnrollmentRequest {
+  requestId: string;
+  enrollmentId: string;
+  /** `pause`, `injury` ou `cancel`. */
+  type: string;
+  status: string;
+  className: string;
+  startsOn: string | null;
+  endsOn: string | null;
+  days: number | null;
+  lastDay: string | null;
+  /** Motivo legível (cancelamento: rótulo da lista). */
+  reason: string;
+  decisionNote: string;
+  createdOn: string | null;
+  hasCertificate: boolean;
+  /** Ficou com outro plano em vez de cancelar. */
+  retainedPlanName: string | null;
+  effectiveFrom: string | null;
 }
 
 export interface MyCenterSession {
@@ -172,8 +209,16 @@ export interface MyTrainingCenter {
     makeupValidityDays: number;
     monthlyCancellation: string;
     allowPause: boolean;
+    pauseMaxDaysPerYear: number;
+    pauseMinDays: number;
+    injuryPauseApproval: string;
+    injuryMaxDays: number;
+    injuryCountsInLimit: boolean;
+    cancelRetention: string[];
+    allowCancelWithdraw: boolean;
   };
   enrollments: MyCenterEnrollment[];
+  requests: MyCenterEnrollmentRequest[];
   sessions: MyCenterSession[];
   locations: MyCenterLocation[];
   invoices: MyCenterInvoice[];
@@ -208,7 +253,15 @@ function dayKeyOf(v: unknown, tz: string): string | null {
   return date ? dayKeyIn(date, tz) : null;
 }
 
-export function mapCenterEnrollment(id: string, e: Data, cls: Data, sub: Data | null): MyCenterEnrollment {
+export interface EnrollmentExitInfo {
+  pauseDaysUsed: number;
+  cancelLastDay: string | null;
+  retentionPlans: MyCenterEnrollment["retentionPlans"];
+}
+
+const NO_EXIT_INFO: EnrollmentExitInfo = {pauseDaysUsed: 0, cancelLastDay: null, retentionPlans: []};
+
+export function mapCenterEnrollment(id: string, e: Data, cls: Data, sub: Data | null, exit: EnrollmentExitInfo = NO_EXIT_INFO): MyCenterEnrollment {
   const contract = rec(e["contract"]);
   const planType = str(contract["planType"]) || "monthly";
   return {
@@ -236,7 +289,43 @@ export function mapCenterEnrollment(id: string, e: Data, cls: Data, sub: Data | 
       method: str(sub["method"]),
       nextChargeDate: str(sub["nextChargeDate"]) || null,
     } : null,
+    pauseDaysUsed: exit.pauseDaysUsed,
+    cancelLastDay: exit.cancelLastDay,
+    retentionPlans: exit.retentionPlans,
   };
+}
+
+export function mapEnrollmentRequest(id: string, r: Data, tz: string): MyCenterEnrollmentRequest {
+  const type = str(r["type"]);
+  const retention = rec(r["retention"]);
+  const n = num(r["days"]);
+  return {
+    requestId: id,
+    enrollmentId: str(r["enrollmentId"]),
+    type,
+    status: str(r["status"]),
+    className: str(r["className"]),
+    startsOn: str(r["startsOn"]) || null,
+    endsOn: str(r["endsOn"]) || null,
+    days: n,
+    lastDay: str(r["lastDay"]) || null,
+    reason: type === "cancel" ? CANCEL_REASONS[str(r["reason"])] ?? str(r["reason"]) : str(r["reason"]),
+    decisionNote: str(r["decisionNote"]),
+    createdOn: dayKeyOf(r["createdAt"], tz),
+    hasCertificate: Boolean(rec(r["certificate"])["path"]),
+    retainedPlanName: str(retention["planName"]) || null,
+    effectiveFrom: str(r["effectiveFrom"]) || null,
+  };
+}
+
+/** Em andamento primeiro; depois os encerrados dos últimos 90 dias. */
+export function visibleRequests(rows: MyCenterEnrollmentRequest[], today: string): MyCenterEnrollmentRequest[] {
+  const since = addDays(today, -90);
+  const open = (r: MyCenterEnrollmentRequest) => OPEN_REQUEST_STATUSES.includes(r.status as EnrollmentRequestStatus);
+  return rows
+    .filter((r) => open(r) || (r.createdOn ?? "") >= since)
+    .sort((a, b) => Number(open(b)) - Number(open(a)) || (b.createdOn ?? "").localeCompare(a.createdOn ?? ""))
+    .slice(0, 20);
 }
 
 export function mapCenterSession(id: string, s: Data, cls: Data, studentId: string): MyCenterSession {
@@ -349,7 +438,7 @@ async function loadCenter(
   const to = addDays(today, CENTER_AHEAD_DAYS);
   const sessions = centerRef.collection("sessions");
 
-  const [classSnaps, subSnaps, ownSessions, makeupSessions, invoiceSnap, locationSnap, contractSnap] = await Promise.all([
+  const [classSnaps, subSnaps, ownSessions, makeupSessions, invoiceSnap, locationSnap, contractSnap, requestSnap, planSnap] = await Promise.all([
     classIds.length ? db.getAll(...classIds.map((id) => centerRef.collection("classes").doc(id))) : Promise.resolve([]),
     enrollments.length ?
       db.getAll(...enrollments.map((e) => centerRef.collection("subscriptions").doc(e.id))) :
@@ -370,6 +459,13 @@ async function loadCenter(
         logger.warn(`getMyTrainingCenters ${centerRef.id}: contratos falharam`, e);
         return null;
       }),
+    centerRef.collection(ENROLLMENT_REQUESTS).where("studentId", "==", studentId).limit(60).get()
+      .catch((e) => {
+        logger.warn(`getMyTrainingCenters ${centerRef.id}: pedidos falharam`, e);
+        return null;
+      }),
+    centerRef.collection("plans").where("status", "==", "active").limit(40).get()
+      .catch(() => null),
   ]);
   const contractDocs = (contractSnap?.docs ?? []).map((d) => ({id: d.id, data: d.data() as Data}));
   // Matrículas cujo pagamento espera o contrato ser assinado.
@@ -397,6 +493,40 @@ async function loadCenter(
     ...[...sessionDocs.values()].map((s) => str(s["locationName"])),
   ].filter(Boolean));
   const policies = rec(center["policies"]);
+  const exitPolicies = readExitPolicies(policies);
+  const requestDocs = (requestSnap?.docs ?? []).map((d) => ({id: d.id, data: d.data() as Data}));
+  const monthlyPlans = (planSnap?.docs ?? [])
+    .map((d) => ({id: d.id, data: d.data() as Data}))
+    .filter((p) => p.data["type"] === "monthly");
+  const exitInfo = (e: {id: string; data: Data}): EnrollmentExitInfo => {
+    const contract = rec(e.data["contract"]);
+    const planType = str(contract["planType"]) || "monthly";
+    const sub = subs.get(e.id);
+    const live = sub && ["active", "past_due"].includes(str(sub["status"])) ? sub : null;
+    const programId = str(classes.get(str(e.data["classId"]))?.["programId"]);
+    const price = num(contract["priceCents"]) ?? 0;
+    return {
+      pauseDaysUsed: pauseDaysUsed(requestDocs.filter((r) => str(r.data["enrollmentId"]) === e.id).map((r) => r.data),
+        today.slice(0, 4), exitPolicies.injuryCountsInLimit),
+      cancelLastDay: ["active", "paused"].includes(str(e.data["status"])) ?
+        planCancel({planType, policies: exitPolicies, nextChargeDate: live ? str(live["nextChargeDate"]) || null : null, today}).lastDay :
+        null,
+      retentionPlans: planType !== "monthly" || !live ? [] : monthlyPlans
+        .filter((p) => p.id !== str(e.data["planId"]) && (num(p.data["priceCents"]) ?? 0) < price)
+        .filter((p) => {
+          const ids = Array.isArray(p.data["programIds"]) ? p.data["programIds"] as unknown[] : [];
+          return !programId || ids.length === 0 || ids.includes(programId);
+        })
+        .sort((a, b) => (num(b.data["priceCents"]) ?? 0) - (num(a.data["priceCents"]) ?? 0))
+        .slice(0, 2)
+        .map((p) => ({
+          planId: p.id,
+          name: str(p.data["name"]),
+          priceCents: num(p.data["priceCents"]) ?? 0,
+          classesPerWeek: num(p.data["classesPerWeek"]),
+        })),
+    };
+  };
 
   return {
     centerId: centerRef.id,
@@ -413,9 +543,17 @@ async function loadCenter(
       makeupValidityDays: num(policies["makeupValidityDays"]) ?? 30,
       monthlyCancellation: str(policies["monthlyCancellation"]) || "end_of_cycle",
       allowPause: policies["allowPause"] !== false,
+      pauseMaxDaysPerYear: exitPolicies.pauseMaxDaysPerYear,
+      pauseMinDays: exitPolicies.pauseMinDays,
+      injuryPauseApproval: exitPolicies.injuryPauseApproval,
+      injuryMaxDays: exitPolicies.injuryMaxDays,
+      injuryCountsInLimit: exitPolicies.injuryCountsInLimit,
+      cancelRetention: exitPolicies.cancelRetention,
+      allowCancelWithdraw: exitPolicies.allowCancelWithdraw,
     },
+    requests: visibleRequests(requestDocs.map((r) => mapEnrollmentRequest(r.id, r.data, tz)), today),
     enrollments: enrollments
-      .map((e) => mapCenterEnrollment(e.id, e.data, classes.get(str(e.data["classId"])) ?? {}, subs.get(e.id) ?? null))
+      .map((e) => mapCenterEnrollment(e.id, e.data, classes.get(str(e.data["classId"])) ?? {}, subs.get(e.id) ?? null, exitInfo(e)))
       .sort((a, b) => a.className.localeCompare(b.className, "pt-BR")),
     sessions: [...sessionDocs.entries()]
       .map(([id, s]) => mapCenterSession(id, s, classes.get(str(s["classId"])) ?? {}, studentId))

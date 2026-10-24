@@ -3,6 +3,7 @@ import type { Weekday } from '../domain/dates';
 import {
   DEFAULT_BILLING,
   DEFAULT_POLICIES,
+  RETENTION_OFFERS,
   type AttendanceMark,
   type AuditEntry,
   type BillingRun,
@@ -21,6 +22,11 @@ import {
   type ContractSnapshot,
   type Court,
   type Enrollment,
+  type EnrollmentRequest,
+  type EnrollmentRequestStatus,
+  type EnrollmentRequestType,
+  type RequestCertificate,
+  type RequestRetention,
   type Invoice,
   type InvoiceEvent,
   type Plan,
@@ -108,12 +114,18 @@ export function readPolicies(raw: Data | null): CenterPolicies {
   if (!raw) {
     return { ...DEFAULT_POLICIES };
   }
-  const p = { ...DEFAULT_POLICIES };
+  const p = { ...DEFAULT_POLICIES, cancelRetention: [...DEFAULT_POLICIES.cancelRetention] };
   for (const key of Object.keys(DEFAULT_POLICIES) as (keyof CenterPolicies)[]) {
     const v = raw[key];
+    if (Array.isArray(DEFAULT_POLICIES[key])) {
+      continue;
+    }
     if (typeof v === typeof DEFAULT_POLICIES[key]) {
       (p as Record<string, unknown>)[key] = v;
     }
+  }
+  if (Array.isArray(raw['cancelRetention'])) {
+    p.cancelRetention = RETENTION_OFFERS.filter((o) => (raw['cancelRetention'] as unknown[]).includes(o));
   }
   return p;
 }
@@ -835,5 +847,77 @@ export function readContract(id: string, d: Data): StudentContract {
       ? (d['events'] as unknown[]).map(readContractEvent).filter((x): x is ContractEvent => x != null)
       : [],
     createdAt: date(d['createdAt']),
+  };
+}
+
+const REQUEST_TYPES: EnrollmentRequestType[] = ['pause', 'injury', 'cancel'];
+const REQUEST_STATUSES: EnrollmentRequestStatus[] = ['pending', 'needs_document', 'scheduled', 'active', 'rejected', 'withdrawn', 'retained', 'done'];
+
+function readCertificate(raw: Data | null): RequestCertificate | null {
+  if (!raw || !str(raw, 'path')) {
+    return null;
+  }
+  return {
+    path: str(raw, 'path'),
+    fileName: str(raw, 'fileName', 'atestado'),
+    contentType: str(raw, 'contentType'),
+    sizeBytes: num(raw, 'sizeBytes'),
+    issuedOn: str(raw, 'issuedOn'),
+    daysOff: num(raw, 'daysOff'),
+    doctor: str(raw, 'doctor'),
+    description: str(raw, 'description'),
+  };
+}
+
+function readRetention(raw: Data | null): RequestRetention | null {
+  if (!raw) {
+    return null;
+  }
+  const offered = strings(raw, 'offered');
+  return {
+    offered: RETENTION_OFFERS.filter((o) => offered.includes(o)),
+    accepted: str(raw, 'accepted') === 'plan_change' ? 'plan_change' : null,
+    planName: str(raw, 'planName'),
+    priceCents: numOrNull(raw, 'priceCents'),
+  };
+}
+
+/** Pedido de trancamento, pausa por lesão ou cancelamento (`enrollmentRequests`). */
+export function readEnrollmentRequest(id: string, d: Data): EnrollmentRequest {
+  const type = str(d, 'type') as EnrollmentRequestType;
+  const status = str(d, 'status') as EnrollmentRequestStatus;
+  return {
+    id,
+    enrollmentId: str(d, 'enrollmentId'),
+    studentId: str(d, 'studentId'),
+    studentUid: str(d, 'studentUid'),
+    studentName: str(d, 'studentName', 'Aluno'),
+    classId: str(d, 'classId'),
+    className: str(d, 'className'),
+    planName: str(d, 'planName'),
+    planType: str(d, 'planType') === 'class_pack' ? 'class_pack' : 'monthly',
+    priceCents: num(d, 'priceCents'),
+    type: REQUEST_TYPES.includes(type) ? type : 'pause',
+    status: REQUEST_STATUSES.includes(status) ? status : 'pending',
+    source: str(d, 'source') === 'desk' ? 'desk' : 'app',
+    reason: str(d, 'reason'),
+    comment: str(d, 'comment'),
+    startsOn: str(d, 'startsOn'),
+    endsOn: str(d, 'endsOn'),
+    pausedUntil: str(d, 'pausedUntil'),
+    days: num(d, 'days'),
+    overLimit: bool(d, 'overLimit'),
+    certificate: readCertificate(obj(d, 'certificate')),
+    lastDay: str(d, 'lastDay'),
+    cancelAt: str(d, 'cancelAt'),
+    retention: readRetention(obj(d, 'retention')),
+    effectiveFrom: str(d, 'effectiveFrom'),
+    createdAt: date(d['createdAt']),
+    createdByName: str(d, 'createdByName'),
+    decidedAt: date(d['decidedAt']),
+    decidedByName: str(d, 'decidedByName'),
+    decisionNote: str(d, 'decisionNote'),
+    appliedAt: date(d['appliedAt']),
+    updatedAt: date(d['updatedAt']),
   };
 }

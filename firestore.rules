@@ -4303,6 +4303,13 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Trancar, pausa por lesão e cancelar (T1–T11): só o servidor grava
+      // (training-center-enrollment-requests.ts); quem vê matrículas lê. O atestado mora no Storage.
+      match /enrollmentRequests/{requestId} {
+        allow read: if ctHasPerm('view_enrollments');
+        allow write: if false;
+      }
+
       // Trilha de auditoria: só cria, em nome próprio, com hora do servidor.
       match /auditLogs/{logId} {
         allow read: if ctIsManager();

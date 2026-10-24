@@ -17,6 +17,8 @@ export type NotificationEventKey =
   | 'payment_confirmed'
   | 'billing_block_warning'
   | 'staff_pending_payments'
+  | 'enrollment_request'
+  | 'enrollment_request_answered'
   | 'daily_summary';
 
 export interface QuietHours {
@@ -53,6 +55,8 @@ export const EVENT_SPECS: Record<NotificationEventKey, EventSpec> = {
   payment_confirmed: spec({ defaultPush: false }),
   billing_block_warning: spec({}),
   staff_pending_payments: spec({}),
+  enrollment_request: spec({}),
+  enrollment_request_answered: spec({ mandatory: true }),
   daily_summary: spec({ defaultPush: false, available: false }),
 };
 
@@ -134,6 +138,8 @@ export const EVENT_LABEL: Record<NotificationEventKey, string> = {
   payment_confirmed: 'Pagamento confirmado',
   billing_block_warning: 'Aviso de bloqueio do check-in',
   staff_pending_payments: 'Pagamentos sem confirmação',
+  enrollment_request: 'Pedido de trancamento ou cancelamento',
+  enrollment_request_answered: 'Resposta ao pedido do aluno',
   daily_summary: 'Resumo diário',
 };
 
@@ -168,6 +174,7 @@ export function eventGroups(ctx: { reminderLeadMin: number; waitlistAcceptHours:
         row('seat_offered', `Prazo de ${ctx.waitlistAcceptHours}h para aceitar`, 'Aluno'),
         row('enrollment_confirmed', 'Após o pagamento aprovado', 'Aluno'),
         row('makeup_expiring', '3 dias antes', 'Aluno'),
+        row('enrollment_request_answered', 'Na hora · aprovada, recusada ou documento pedido', 'Aluno'),
       ],
     },
     {
@@ -187,6 +194,7 @@ export function eventGroups(ctx: { reminderLeadMin: number; waitlistAcceptHours:
       title: 'Equipe',
       rows: [
         row('staff_pending_payments', 'Mais de 2h aguardando o provedor', 'Owner · Admin'),
+        row('enrollment_request', 'Na hora · trancamento, atestado ou cancelamento pelo app', 'Owner · Admin'),
         row('daily_summary', '07:00 · aulas, pendências e recebidos', 'Owner'),
       ],
     },
@@ -208,5 +216,7 @@ export const SAMPLE_NOTICES: Record<NotificationEventKey, { title: string; body:
   payment_confirmed: { title: 'Pagamento confirmado · R$ 320,00', body: 'Mensal 2x · nov. Obrigado!' },
   billing_block_warning: { title: 'Check-in vai ser bloqueado', body: 'A mensalidade de novembro segue em aberto. O check-in bloqueia em 25/11.' },
   staff_pending_payments: { title: '2 pagamentos sem confirmação há mais de 2h', body: 'R$ 640,00 aguardando o provedor. Confira no Financeiro.' },
+  enrollment_request: { title: 'Carla Dias pediu pausa por lesão', body: 'BT Feminino Manhã · 24/10 a 22/11 (30 dias) · revise o atestado' },
+  enrollment_request_answered: { title: 'Pausa por lesão aprovada', body: 'BT Feminino Manhã pausada a partir de 24/10. Sua vaga fica reservada.' },
   daily_summary: { title: 'Resumo do dia', body: '12 aulas hoje · 3 cobranças pendentes · R$ 960 recebidos ontem.' },
 };

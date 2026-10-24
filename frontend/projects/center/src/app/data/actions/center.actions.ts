@@ -68,7 +68,9 @@ const POLICY_LABELS: Partial<Record<keyof CenterPolicies, string>> = {
   injuryCountsInLimit: 'Lesão conta no limite',
   injuryMaxDays: 'Limite da pausa por lesão',
   cancelRetention: 'Ofertas de retenção',
+  retentionDiscountPercent: 'Desconto de retenção (%)',
   allowCancelWithdraw: 'Desistir do cancelamento',
+  requireMedicalClearance: 'Alta médica para voltar',
   waitlistAcceptHours: 'Prazo para aceitar a vaga',
 };
 

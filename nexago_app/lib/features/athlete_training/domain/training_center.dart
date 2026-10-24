@@ -34,6 +34,7 @@ class CenterEnrollment {
     this.pauseDaysUsed = 0,
     this.cancelLastDay,
     this.retentionPlans = const [],
+    this.discountAvailable = false,
   });
 
   factory CenterEnrollment.fromMap(Map<String, Object?> m) {
@@ -77,6 +78,7 @@ class CenterEnrollment {
                 if (p is Map) CenterRetentionPlan.fromMap(_map(p)),
             ]
           : const [],
+      discountAvailable: m['discountAvailable'] == true,
     );
   }
 
@@ -121,6 +123,10 @@ class CenterEnrollment {
 
   /// "Trocar de plano" em vez de cancelar: mensais mais baratos.
   final List<CenterRetentionPlan> retentionPlans;
+
+  /// Oferta "desconto de 1 mês" disponível (o centro oferece, mensal ativa e
+  /// sem desconto de retenção no último ano).
+  final bool discountAvailable;
 
   bool get isPack => planType == 'class_pack';
   bool get isActive => status == 'active';
@@ -414,7 +420,9 @@ class CenterPolicies {
     this.injuryMaxDays = 90,
     this.injuryCountsInLimit = false,
     this.cancelRetention = const ['pause', 'plan_change'],
+    this.retentionDiscountPercent = 20,
     this.allowCancelWithdraw = true,
+    this.requireMedicalClearance = false,
   });
 
   factory CenterPolicies.fromMap(Map<String, Object?> m) {
@@ -435,10 +443,13 @@ class CenterPolicies {
       cancelRetention: retention is List
           ? [
               for (final r in retention)
-                if (r == 'pause' || r == 'plan_change') r as String,
+                if (r == 'pause' || r == 'plan_change' || r == 'discount')
+                  r as String,
             ]
           : const ['pause', 'plan_change'],
+      retentionDiscountPercent: _int(m['retentionDiscountPercent']) ?? 20,
       allowCancelWithdraw: m['allowCancelWithdraw'] != false,
+      requireMedicalClearance: m['requireMedicalClearance'] == true,
     );
   }
 
@@ -461,11 +472,17 @@ class CenterPolicies {
   final int injuryMaxDays;
   final bool injuryCountsInLimit;
 
-  /// Ofertas antes de cancelar: `pause` e/ou `plan_change`.
+  /// Ofertas antes de cancelar: `pause`, `plan_change` e/ou `discount`.
   final List<String> cancelRetention;
+
+  /// Oferta "desconto de 1 mês": percentual sobre a próxima mensalidade.
+  final int retentionDiscountPercent;
 
   /// O aluno pode desistir do cancelamento pelo app.
   final bool allowCancelWithdraw;
+
+  /// Pausa por lesão só termina com a alta médica aprovada pela gestão.
+  final bool requireMedicalClearance;
 }
 
 class TrainingCenterLink {

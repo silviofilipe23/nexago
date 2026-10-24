@@ -209,4 +209,98 @@ void main() {
       findsOneWidget,
     );
   });
+
+  // ── alta médica ─────────────────────────────────────────────────────────
+
+  _FakeRequests clearanceRepo(Map<String, Object?> extra) => _FakeRequests([
+        CenterExitRequest.fromMap(
+          'r3',
+          exitJson(
+            status: 'active',
+            extra: {
+              'requireClearance': true,
+              'clearanceStatus': 'submitted',
+              'clearance': {
+                'path': 'trainingCenterCertificates/ct1/u1/2-alta.pdf',
+                'fileName': 'alta.pdf',
+                'contentType': 'application/pdf',
+                'sizeBytes': 2048,
+                'issuedOn': '2026-11-20',
+              },
+              ...extra,
+            },
+          ),
+        ),
+      ]);
+
+  testWidgets('lista: alta enviada vai para "a revisar"', (tester) async {
+    await _pump(
+      tester,
+      location: '/athlete/professor/centros/ct1/pedidos',
+      repo: clearanceRepo(const {}),
+    );
+    expect(find.text('A REVISAR · 1'), findsOneWidget);
+    expect(find.text('REVISAR ALTA'), findsOneWidget);
+  });
+
+  testWidgets('T11 · alta enviada: arquivo e "Aprovar alta"', (tester) async {
+    final repo = clearanceRepo(const {});
+    await _pump(
+      tester,
+      location: '/athlete/professor/centros/ct1/pedidos/r3',
+      repo: repo,
+    );
+    expect(find.byKey(const Key('center-exit-clearance')), findsOneWidget);
+    expect(find.text('Enviada · revisar'), findsOneWidget);
+    expect(
+      find.byKey(const Key('center-exit-clearance-file')),
+      findsOneWidget,
+    );
+    expect(find.text('alta.pdf'), findsOneWidget);
+    expect(find.text('Aprovar alta'), findsOneWidget);
+    await _tap(tester, find.byKey(const Key('center-exit-clear')));
+    expect(find.byKey(const Key('center-exit-note-sheet')), findsOneWidget);
+    await _tap(tester, find.byKey(const Key('center-exit-note-send')));
+    expect(repo.decisions, ['r3 clear']);
+  });
+
+  testWidgets('T11 · volta segurada sem alta: liberar sem alta com recado', (
+    tester,
+  ) async {
+    final repo = clearanceRepo({
+      'clearanceStatus': 'requested',
+      'clearance': null,
+      'awaitingClearance': true,
+    });
+    await _pump(
+      tester,
+      location: '/athlete/professor/centros/ct1/pedidos/r3',
+      repo: repo,
+    );
+    expect(find.text('ESPERANDO ALTA'), findsOneWidget);
+    expect(find.textContaining('a volta espera a alta'), findsOneWidget);
+    expect(find.text('Liberar sem alta'), findsWidgets);
+    await _tap(tester, find.byKey(const Key('center-exit-clear')));
+    await tester.enterText(
+      find.byKey(const Key('center-exit-note')),
+      'Liberado pelo fisio',
+    );
+    await _settle(tester);
+    await _tap(tester, find.byKey(const Key('center-exit-note-send')));
+    expect(repo.decisions, ['r3 clear Liberado pelo fisio']);
+  });
+
+  testWidgets('T11 · recepção vê a situação da alta, não o arquivo', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      location: '/athlete/professor/centros/ct1/pedidos/r3',
+      repo: clearanceRepo(const {}),
+      role: 'receptionist',
+    );
+    expect(find.text('Enviada · revisar'), findsOneWidget);
+    expect(find.byKey(const Key('center-exit-clearance-file')), findsNothing);
+    expect(find.byKey(const Key('center-exit-clear')), findsNothing);
+  });
 }

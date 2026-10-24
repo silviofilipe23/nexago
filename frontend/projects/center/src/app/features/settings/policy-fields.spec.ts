@@ -9,6 +9,7 @@ import {
   numberChoiceOptions,
   policiesError,
   POLICY_ROWS,
+  rowVisible,
   toggleRetention,
   type NumberChoiceRow,
 } from './policy-fields';
@@ -30,6 +31,29 @@ describe('policy-fields', () => {
     expect(changedPolicies(DEFAULT_POLICIES, none)).toEqual(['cancelRetention']);
     expect(changedPolicies(DEFAULT_POLICIES, back)).toEqual([]);
     expect(DEFAULT_POLICIES.cancelRetention).toEqual(['pause', 'plan_change']);
+  });
+
+  it('desconto de 1 mês: entra na ordem canônica e o percentual só aparece com ele ligado', () => {
+    const rows = EXIT_SECTIONS.find((s) => s.title === 'Cancelamento')!.rows;
+    const percent = rows.find((r) => r.key === 'retentionDiscountPercent') as NumberChoiceRow;
+    expect(rowVisible(percent, DEFAULT_POLICIES)).toBeFalse();
+    const on = toggleRetention(DEFAULT_POLICIES, 'discount');
+    expect(on.cancelRetention).toEqual(['pause', 'plan_change', 'discount']);
+    expect(rowVisible(percent, on)).toBeTrue();
+    expect(numberChoiceOptions(on, percent).map((o) => o.label)).toEqual(['10%', '20%', '30%', '50%']);
+    const next = applyNumber(on, 'retentionDiscountPercent', '30');
+    expect(changedPolicies(DEFAULT_POLICIES, next).sort()).toEqual(['cancelRetention', 'retentionDiscountPercent']);
+    expect(toggleRetention(toggleRetention(on, 'pause'), 'pause').cancelRetention).toEqual(['pause', 'plan_change', 'discount']);
+  });
+
+  it('alta médica: fica na pausa por lesão e o texto explica quando é pedida', () => {
+    const injury = EXIT_SECTIONS.find((s) => s.title === 'Pausa por lesão')!.rows;
+    const row = injury.find((r) => r.key === 'requireMedicalClearance')!;
+    expect(rowVisible(row, DEFAULT_POLICIES)).toBeTrue();
+    const on = applyChoice(DEFAULT_POLICIES, 'requireMedicalClearance', 'true');
+    expect(on.requireMedicalClearance).toBeTrue();
+    expect(row.hint(on)).toBe('Pedida 3 dias antes do fim; sem alta aprovada a pausa segue');
+    expect(choiceValue(DEFAULT_POLICIES, 'requireMedicalClearance')).toBe('false');
   });
 
   it('número com opções mostra também um valor antigo fora da lista', () => {

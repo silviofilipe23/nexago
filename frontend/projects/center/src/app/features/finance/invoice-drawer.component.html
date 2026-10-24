@@ -9,6 +9,9 @@
     </div>
     <div class="amount">{{ formatBRL(invoice().amountCents) }} · {{ invoice().payerName }}</div>
     <div class="ref">{{ invoice().reference }} · vence {{ formatDayKey(invoice().dueDate, true) }}</div>
+    @if (invoice().discount; as dc) {
+      <div class="ref">{{ dc.reason === 'retention' ? 'Desconto de retenção' : 'Desconto' }} · {{ dc.percent }}%{{ dc.fullCents ? ' (cheio ' + formatBRL(dc.fullCents) + ')' : '' }}</div>
+    }
   </div>
 
   <div class="body">

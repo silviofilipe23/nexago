@@ -14,6 +14,7 @@ import { BannerComponent } from '../ui/kit';
 import { PhotoViewerComponent } from '../ui/photo-viewer';
 import { CenterAvatarComponent } from './center-avatar.component';
 import { NAV_GROUPS } from './nav';
+import { needsReview } from '../features/requests/request-view';
 
 /**
  * Layout de `/centro/:centerId/**`: fixa o centro ativo a partir da URL, monta a sidebar do
@@ -54,7 +55,7 @@ export class CenterShellComponent {
     const badges: Record<string, number> = {
       enrollments: this.store.enrollments().filter((e) => e.status === 'waitlisted' || (e.status === 'pending' && holdExpired(e))).length,
       finance: this.store.invoices().filter((i) => awaitingTooLong(i)).length,
-      requests: this.store.requests().filter((r) => r.status === 'pending').length,
+      requests: this.store.requests().filter(needsReview).length,
     };
     return NAV_GROUPS.map((g) => ({
       title: g.title,

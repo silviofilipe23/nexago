@@ -25,8 +25,10 @@ import 'widgets/training_origin_widgets.dart';
 /// Trancar, pausa por lesão e cancelar a matrícula do CT pelo aluno (canvas
 /// `ct-saida-app.jsx`): T5 Minha matrícula (com o pedido em andamento no
 /// lugar das opções — T7 atestado em análise, T10 cancelamento agendado),
-/// trancamento, T6 pausa por lesão e T8/T9 cancelar com retenção. Tudo pelas
-/// callables do aluno; depois de cada ação a lista do centro é recarregada.
+/// trancamento, T6 pausa por lesão (com a alta médica, quando o centro exige)
+/// e T8/T9 cancelar com retenção (troca de plano, desconto de 1 mês ou
+/// trancar). Tudo pelas callables do aluno; depois de cada ação a lista do
+/// centro é recarregada.
 
 /// Abre "Minha matrícula" (T5).
 void openCenterEnrollment(
@@ -61,6 +63,10 @@ Future<void> _reloadCenters(WidgetRef ref) async {
     await ref.read(athleteTrainingCentersProvider.future);
   } catch (_) {}
 }
+
+String _dayKeyOf(DateTime d) => '${d.year.toString().padLeft(4, '0')}-'
+    '${d.month.toString().padLeft(2, '0')}-'
+    '${d.day.toString().padLeft(2, '0')}';
 
 String _todayKey(WidgetRef ref) =>
     nexagoEventDayKey(ref.read(professorLinksClockProvider)());
@@ -191,6 +197,16 @@ class _AthleteCenterEnrollmentPageState
                     AppRouteNames.athleteTrainingCenterEnrollmentInjury,
                   ),
                 ),
+                if (centerClearanceStateOf(r, todayKey) case final cs?) ...[
+                  const SizedBox(height: 12),
+                  _ClearanceCard(
+                    key: Key('center-clearance-${r.requestId}'),
+                    centerId: widget.centerId,
+                    request: r,
+                    state: cs,
+                    todayKey: todayKey,
+                  ),
+                ],
               ],
               if (open.isEmpty || onlyActivePause) ...[
                 const SizedBox(height: 16),
@@ -262,9 +278,7 @@ class _AthleteCenterEnrollmentPageState
                         ].join(' · '),
                         [
                           centerRequestStatusLabel(r),
-                          if (r.status == 'retained' &&
-                              r.retainedPlanName != null)
-                            r.retainedPlanName!,
+                          if (centerRetainedDetail(r) case final d?) d,
                           if (r.status == 'rejected' &&
                               r.decisionNote.isNotEmpty)
                             r.decisionNote,
@@ -453,6 +467,13 @@ class _RequestStateCard extends StatelessWidget {
           range.isEmpty ? 'Pausa agendada' : 'De $range',
           'Sua vaga fica reservada e não há cobrança no período.'
               '${back == null ? '' : ' A matrícula volta sozinha em ${centerShortDay(back)}.'}',
+        ),
+      CenterRequestState.pauseActive when r.awaitingClearance => (
+          AppColors.pending,
+          'Pausa por lesão em curso',
+          'Sua volta espera a alta',
+          'A pausa segue sem cobrança até o centro aprovar a alta. Sua vaga '
+              'está reservada.',
         ),
       CenterRequestState.pauseActive => (
           ProfessorLinksStyle.blue,
@@ -871,9 +892,7 @@ class _AthleteCenterInjuryPageState
       lastDate: today,
     );
     if (picked == null || !mounted) return;
-    final key = '${picked.year.toString().padLeft(4, '0')}-'
-        '${picked.month.toString().padLeft(2, '0')}-'
-        '${picked.day.toString().padLeft(2, '0')}';
+    final key = _dayKeyOf(picked);
     setState(() => _issuedOn = key == todayKey ? null : key);
   }
 
@@ -965,64 +984,9 @@ class _AthleteCenterInjuryPageState
             const ProfessorLinksKicker('Atestado médico'),
             const SizedBox(height: 8),
             if (file != null) ...[
-              ProfessorLinksCard(
+              _PickedFileRow(
                 key: const Key('center-injury-file'),
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 46,
-                      height: 58,
-                      decoration: BoxDecoration(
-                        color: colors.surfaceRaised,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: ProfessorLinksStyle.line2(colors),
-                        ),
-                      ),
-                      child: Icon(
-                        file.isPdf
-                            ? Icons.picture_as_pdf_outlined
-                            : Icons.image_outlined,
-                        color: ProfessorLinksStyle.mute(colors),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            file.fileName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: ProfessorLinksStyle.display(
-                              13.5,
-                              weight: FontWeight.w600,
-                              color: colors.onSurface,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            '${file.isPdf ? 'PDF' : 'Foto'} · '
-                            '${centerFileSizeLabel(file.sizeBytes)}',
-                            style: AppTypography.bodyS.copyWith(
-                              fontSize: 11,
-                              color: ProfessorLinksStyle.dim(colors),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Text(
-                      'PRONTO',
-                      style: ProfessorLinksStyle.mono(
-                        9.5,
-                        color: colors.readableTone(AppColors.win),
-                      ),
-                    ),
-                  ],
-                ),
+                file: file,
               ),
               const SizedBox(height: 8),
             ],
@@ -1141,6 +1105,17 @@ class _AthleteCenterInjuryPageState
                 ),
               ],
             ],
+            if (p.requireMedicalClearance) ...[
+              const SizedBox(height: 8),
+              const TrainingOriginNote(
+                key: Key('center-injury-clearance-note'),
+                color: ProfessorLinksStyle.blue,
+                icon: Icons.medical_services_outlined,
+                title: 'Alta médica para voltar',
+                text: 'Para voltar, o centro pede a alta médica '
+                    '($kCenterClearanceLeadDays dias antes do fim).',
+              ),
+            ],
             const SizedBox(height: 12),
             Text(
               'Só a gestão do centro vê o atestado. Professores sabem apenas '
@@ -1190,7 +1165,7 @@ class _AthleteCenterCancelPageState
   String? _reason;
   bool _step2 = false;
 
-  /// Oferta escolhida no passo 2: `pause` ou o `planId`.
+  /// Oferta escolhida no passo 2: `pause`, `discount` ou o `planId`.
   String? _offer;
   String? _sending;
 
@@ -1200,16 +1175,24 @@ class _AthleteCenterCancelPageState
     super.dispose();
   }
 
-  List<String> _offered(({bool pause, List<CenterRetentionPlan> plans}) o) => [
+  List<String> _offered(
+    ({bool pause, List<CenterRetentionPlan> plans, int? discount}) o,
+  ) =>
+      [
         if (o.pause) 'pause',
         if (o.plans.isNotEmpty) 'plan_change',
+        if (o.discount != null) 'discount',
       ];
 
   Future<void> _submit({
     required List<String> offered,
     CenterRetentionPlan? retain,
+    bool discount = false,
+    String? discountFrom,
   }) async {
-    setState(() => _sending = retain == null ? 'cancel' : 'retain');
+    setState(
+      () => _sending = retain == null && !discount ? 'cancel' : 'retain',
+    );
     try {
       final res = await ref
           .read(trainingCentersRepositoryProvider)
@@ -1221,13 +1204,20 @@ class _AthleteCenterCancelPageState
             comment: _comment.text.trim(),
             retentionOffered: offered,
             retainPlanId: retain?.planId,
+            retainDiscount: discount,
           );
       await _reloadCenters(ref);
       if (!mounted) return;
       if (res.status == 'retained') {
         _snack(
           context,
-          'Pronto: você fica com ${retain!.name} a partir do próximo ciclo.',
+          discount
+              ? (discountFrom == null
+                  ? 'Desconto aplicado na próxima mensalidade.'
+                  : 'Desconto aplicado na mensalidade de '
+                      '${centerShortDay(discountFrom)}.')
+              : 'Pronto: você fica com ${retain!.name} a partir do próximo '
+                  'ciclo.',
         );
         popOrGo(
           context,
@@ -1320,11 +1310,13 @@ class _AthleteCenterCancelPageState
                   : () => setState(() {
                         _step2 = true;
                         final o = centerRetentionOffers(center.policies, e);
-                        _offer = o.plans.isNotEmpty
-                            ? o.plans.first.planId
-                            : o.pause
-                                ? 'pause'
-                                : null;
+                        _offer = o.discount != null
+                            ? 'discount'
+                            : o.plans.isNotEmpty
+                                ? o.plans.first.planId
+                                : o.pause
+                                    ? 'pause'
+                                    : null;
                       }),
             ),
           ] else
@@ -1344,7 +1336,9 @@ class _AthleteCenterCancelPageState
     final p = center.policies;
     final offers = centerRetentionOffers(p, e);
     final offered = _offered(offers);
-    final hasOffers = offers.pause || offers.plans.isNotEmpty;
+    final hasOffers =
+        offers.pause || offers.plans.isNotEmpty || offers.discount != null;
+    final discount = offers.discount;
     final last = e.cancelLastDay;
     final endsNow = last == null || last.compareTo(todayKey) <= 0;
     CenterRetentionPlan? plan;
@@ -1362,6 +1356,22 @@ class _AthleteCenterCancelPageState
         style: ProfessorLinksStyle.display(18, color: colors.onSurface),
       ),
       const SizedBox(height: 14),
+      if (discount != null) ...[
+        _RadioOption(
+          key: const Key('center-cancel-offer-discount'),
+          title: 'Fique com $discount% de desconto na próxima mensalidade',
+          subtitle: [
+            '${formatBRLFromCents(centerDiscountedCents(e.priceCents, discount))}'
+                ' em vez de ${formatBRLFromCents(e.priceCents)}',
+            if (e.nextChargeDate != null)
+              'mensalidade de ${centerShortDay(e.nextChargeDate!)}',
+            'depois volta ao valor normal',
+          ].join(' · '),
+          selected: _offer == 'discount',
+          onTap: () => setState(() => _offer = 'discount'),
+        ),
+        const SizedBox(height: 8),
+      ],
       for (final x in offers.plans) ...[
         _RadioOption(
           key: Key('center-cancel-offer-${x.planId}'),
@@ -1416,7 +1426,20 @@ class _AthleteCenterCancelPageState
         ),
       ),
       const SizedBox(height: 16),
-      if (_offer == 'pause')
+      if (_offer == 'discount' && discount != null)
+        ProfessorLinksPrimaryButton(
+          key: const Key('center-cancel-accept'),
+          label: 'Ficar com $discount% de desconto',
+          loading: _sending == 'retain',
+          onPressed: _sending == null
+              ? () => _submit(
+                    offered: offered,
+                    discount: true,
+                    discountFrom: e.nextChargeDate,
+                  )
+              : null,
+        )
+      else if (_offer == 'pause')
         ProfessorLinksPrimaryButton(
           key: const Key('center-cancel-accept'),
           label: 'Trancar em vez de cancelar',
@@ -1444,7 +1467,283 @@ class _AthleteCenterCancelPageState
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Alta médica (pausa por lesão em curso, quando o centro exige)
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Pede, recebe e mostra a alta médica na "Minha matrícula": aviso enquanto
+/// falta tempo, formulário curto (arquivo ou foto + data de emissão) quando
+/// o centro pede, e "em análise" / "aprovada" depois do envio.
+class _ClearanceCard extends ConsumerStatefulWidget {
+  const _ClearanceCard({
+    super.key,
+    required this.centerId,
+    required this.request,
+    required this.state,
+    required this.todayKey,
+  });
+
+  final String centerId;
+  final CenterEnrollmentRequest request;
+  final CenterClearanceState state;
+  final String todayKey;
+
+  @override
+  ConsumerState<_ClearanceCard> createState() => _ClearanceCardState();
+}
+
+class _ClearanceCardState extends ConsumerState<_ClearanceCard> {
+  PickedCertificate? _file;
+
+  /// `null` = hoje.
+  String? _issuedOn;
+  bool _sending = false;
+
+  Future<void> _pick(CertificateSource source) async {
+    try {
+      final f = await ref.read(centerCertificatePickerProvider)(source);
+      if (f == null || !mounted) return;
+      if (f.sizeBytes > kCenterCertificateMaxBytes) {
+        _snack(context, 'A alta pode ter até 10 MB.');
+        return;
+      }
+      setState(() => _file = f);
+    } catch (_) {
+      if (mounted) {
+        _snack(context, 'Não foi possível abrir o arquivo. Tente de novo.');
+      }
+    }
+  }
+
+  Future<void> _pickIssued() async {
+    final today = DateTime.parse(widget.todayKey);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.parse(_issuedOn ?? widget.todayKey),
+      firstDate: today.subtract(const Duration(days: 365)),
+      lastDate: today,
+    );
+    if (picked == null || !mounted) return;
+    final key = _dayKeyOf(picked);
+    setState(() => _issuedOn = key == widget.todayKey ? null : key);
+  }
+
+  Future<void> _send() async {
+    final file = _file!;
+    setState(() => _sending = true);
+    final repo = ref.read(trainingCentersRepositoryProvider);
+    try {
+      final path = await repo.uploadCertificate(
+        centerId: widget.centerId,
+        uid: ref.read(professorLinksUidProvider),
+        bytes: file.bytes,
+        fileName: file.fileName,
+        contentType: file.contentType,
+      );
+      await repo.submitMedicalClearance(
+        centerId: widget.centerId,
+        requestId: widget.request.requestId,
+        clearance: CenterCertificateUpload(
+          path: path,
+          fileName: file.fileName,
+          contentType: file.contentType,
+          sizeBytes: file.sizeBytes,
+          issuedOn: _issuedOn ?? widget.todayKey,
+          daysOff: 0,
+        ),
+      );
+      await _reloadCenters(ref);
+      if (!mounted) return;
+      _snack(context, 'Alta enviada. O centro revisa e avisa pelo app.');
+      setState(() => _file = null);
+    } on ClassPresenceException catch (e) {
+      if (mounted) _snack(context, e.message);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final r = widget.request;
+    final back = r.endsOn == null ? null : centerShiftDay(r.endsOn!, 1);
+    final (Color tone, String kicker, String title, String text) =
+        switch (widget.state) {
+      CenterClearanceState.later => (
+          ProfessorLinksStyle.blue,
+          'Alta médica',
+          'O centro pede a alta para voltar',
+          'Envie a alta médica a partir de $kCenterClearanceLeadDays dias '
+              'antes do fim da pausa. O app avisa quando chegar a hora.',
+        ),
+      CenterClearanceState.needed => (
+          AppColors.pending,
+          'Alta médica',
+          'Envie sua alta médica',
+          r.awaitingClearance || back == null
+              ? 'Suas aulas voltam quando o centro aprovar a alta.'
+              : 'Sua pausa termina em ${centerShortDay(r.endsOn!)}. Envie a '
+                  'alta para voltar em ${centerShortDay(back)}.',
+        ),
+      CenterClearanceState.submitted => (
+          ProfessorLinksStyle.blue,
+          'Alta médica',
+          'Alta enviada · em análise',
+          'O centro revisa e avisa pelo app.',
+        ),
+      CenterClearanceState.approved => (
+          AppColors.win,
+          'Alta médica',
+          'Alta aprovada',
+          back == null
+              ? 'Sua volta está liberada.'
+              : 'Suas aulas voltam em ${centerShortDay(back)}.',
+        ),
+    };
+    final file = _file;
+    return ProfessorLinksCard(
+      borderColor: tone.withValues(alpha: 0.35),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ProfessorLinksKicker(kicker, color: colors.readableTone(tone)),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: ProfessorLinksStyle.display(16, color: colors.onSurface),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            text,
+            style: AppTypography.bodyS.copyWith(
+              fontSize: 12,
+              height: 1.45,
+              color: ProfessorLinksStyle.mute(colors),
+            ),
+          ),
+          if (widget.state == CenterClearanceState.needed) ...[
+            const SizedBox(height: 12),
+            if (file != null) ...[
+              _PickedFileRow(
+                key: const Key('center-clearance-file'),
+                file: file,
+              ),
+              const SizedBox(height: 8),
+            ],
+            Row(
+              children: [
+                Expanded(
+                  child: ProfessorLinksGhostButton(
+                    key: const Key('center-clearance-camera'),
+                    label: 'Tirar foto',
+                    height: 42,
+                    onPressed:
+                        _sending ? null : () => _pick(CertificateSource.camera),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ProfessorLinksGhostButton(
+                    key: const Key('center-clearance-pick-file'),
+                    label: 'Escolher arquivo',
+                    height: 42,
+                    onPressed:
+                        _sending ? null : () => _pick(CertificateSource.file),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const ProfessorLinksKicker('Emitida em'),
+            const SizedBox(height: 6),
+            _Choice(
+              key: const Key('center-clearance-issued'),
+              label: centerShortDay(_issuedOn ?? widget.todayKey),
+              selected: false,
+              onTap: _pickIssued,
+            ),
+            const SizedBox(height: 12),
+            ProfessorLinksPrimaryButton(
+              key: const Key('center-clearance-send'),
+              label: file == null ? 'Anexe a alta' : 'Enviar alta',
+              loading: _sending,
+              onPressed: file == null ? null : _send,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 // ── peças ────────────────────────────────────────────────────────────────
+
+/// Arquivo escolhido (atestado ou alta), pronto para enviar.
+class _PickedFileRow extends StatelessWidget {
+  const _PickedFileRow({super.key, required this.file});
+
+  final PickedCertificate file;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return ProfessorLinksCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 58,
+            decoration: BoxDecoration(
+              color: colors.surfaceRaised,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: ProfessorLinksStyle.line2(colors)),
+            ),
+            child: Icon(
+              file.isPdf ? Icons.picture_as_pdf_outlined : Icons.image_outlined,
+              color: ProfessorLinksStyle.mute(colors),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  file.fileName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: ProfessorLinksStyle.display(
+                    13.5,
+                    weight: FontWeight.w600,
+                    color: colors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${file.isPdf ? 'PDF' : 'Foto'} · '
+                  '${centerFileSizeLabel(file.sizeBytes)}',
+                  style: AppTypography.bodyS.copyWith(
+                    fontSize: 11,
+                    color: ProfessorLinksStyle.dim(colors),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            'PRONTO',
+            style: ProfessorLinksStyle.mono(
+              9.5,
+              color: colors.readableTone(AppColors.win),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _RadioOption extends StatelessWidget {
   const _RadioOption({

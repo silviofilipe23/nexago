@@ -115,7 +115,13 @@ void main() {
   });
 
   group('decisões (mesma régua da callable)', () {
-    ({bool approve, bool reject, bool askDocument, bool undo}) actions(
+    ({
+      bool approve,
+      bool reject,
+      bool askDocument,
+      bool undo,
+      bool clear
+    }) actions(
       String type,
       String status,
     ) =>
@@ -181,5 +187,122 @@ void main() {
       ]),
       2,
     );
+  });
+
+  test('retenção: ficou com o desconto', () {
+    final r = CenterExitRequest.fromMap(
+      'r4',
+      exitJson(
+        type: 'cancel',
+        status: 'retained',
+        extra: {
+          'reason': 'price',
+          'retention': {
+            'accepted': 'discount',
+            'percent': 20,
+            'priceCents': 25600,
+          },
+          'effectiveFrom': '2026-11-05',
+        },
+      ),
+    );
+    expect(r.retainedDiscountPercent, 20);
+    expect(r.retainedPlanName, isNull);
+    final plan = CenterExitRequest.fromMap(
+      'r5',
+      exitJson(
+        type: 'cancel',
+        status: 'retained',
+        extra: {
+          'retention': {'accepted': 'plan_change', 'percent': 20},
+        },
+      ),
+    );
+    expect(plan.retainedDiscountPercent, isNull);
+  });
+
+  group('alta médica', () {
+    CenterExitRequest injury({
+      String status = 'active',
+      bool require = true,
+      String clearance = '',
+      bool awaiting = false,
+      Map<String, Object?> extra = const {},
+    }) =>
+        CenterExitRequest.fromMap(
+          'r',
+          exitJson(
+            status: status,
+            extra: {
+              'requireClearance': require,
+              'clearanceStatus': clearance,
+              'awaitingClearance': awaiting,
+              ...extra,
+            },
+          ),
+        );
+
+    test('lê a alta enviada', () {
+      final r = injury(
+        clearance: 'submitted',
+        extra: {
+          'clearance': {
+            'path': 'trainingCenterCertificates/ct1/u1/2-alta.jpg',
+            'fileName': 'alta.jpg',
+            'contentType': 'image/jpeg',
+            'sizeBytes': 1024,
+            'issuedOn': '2026-11-20',
+          },
+        },
+      );
+      expect(r.requireClearance, isTrue);
+      expect(r.clearance!.isImage, isTrue);
+      expect(r.clearance!.issuedOn, '2026-11-20');
+      expect(r.clearanceOpen, isTrue);
+      expect(r.awaitsClearance, isTrue);
+      expect(centerExitStatusOf(r).label, 'Revisar alta');
+      expect(centerExitStatusOf(r).tone, CenterExitTone.attention);
+      expect(centerExitClearanceLabel(r), 'Enviada · revisar');
+    });
+
+    test('situações da alta', () {
+      expect(centerExitClearanceLabel(injury()), 'Pedida 3 dias antes do fim');
+      expect(
+        centerExitClearanceLabel(injury(clearance: 'requested')),
+        'Pedida ao aluno',
+      );
+      expect(
+        centerExitClearanceLabel(injury(clearance: 'approved')),
+        'Aprovada',
+      );
+      expect(centerExitClearanceLabel(injury(require: false)), isNull);
+      final held = injury(clearance: 'requested', awaiting: true);
+      expect(centerExitStatusOf(held).label, 'Esperando alta');
+      expect(centerExitStatusOf(injury()).label, 'Em curso');
+    });
+
+    test('aprovar/liberar só na lesão em curso com alta em aberto', () {
+      expect(centerExitActions(injury()).clear, isTrue);
+      expect(centerExitActions(injury(clearance: 'submitted')).clear, isTrue);
+      expect(centerExitActions(injury(clearance: 'approved')).clear, isFalse);
+      expect(centerExitActions(injury(require: false)).clear, isFalse);
+      expect(centerExitActions(injury(status: 'scheduled')).clear, isFalse);
+      expect(centerExitActions(injury(status: 'pending')).clear, isFalse);
+    });
+
+    test('alta enviada ou volta segurada contam como pendentes', () {
+      final all = [
+        injury(),
+        injury(clearance: 'requested'),
+        injury(clearance: 'submitted'),
+        injury(clearance: 'requested', awaiting: true),
+        injury(clearance: 'approved'),
+        injury(status: 'pending', require: false),
+      ];
+      expect(centerExitPendingCount(all), 3);
+      final g = centerExitGroups(all);
+      expect(g.review, hasLength(3));
+      expect(g.open, hasLength(3));
+    });
   });
 }

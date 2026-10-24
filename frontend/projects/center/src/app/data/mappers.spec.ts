@@ -1,5 +1,5 @@
 import { Timestamp } from 'firebase/firestore';
-import { readEnrollmentRequest, readPolicies, readSession, readTrials } from './mappers';
+import { readEnrollmentRequest, readInvoice, readPolicies, readSession, readTrials } from './mappers';
 
 describe('readTrials (experimentais na aula)', () => {
   it('lê o espelho do servidor, por nome; status desconhecido vira pendente', () => {
@@ -31,11 +31,23 @@ describe('readPolicies (trancar e cancelar)', () => {
     expect(p.injuryMaxDays).toBe(90);
     expect(p.cancelRetention).toEqual(['pause', 'plan_change']);
     expect(p.allowCancelWithdraw).toBeTrue();
+    expect(p.retentionDiscountPercent).toBe(20);
+    expect(p.requireMedicalClearance).toBeFalse();
+  });
+
+  it('desconto de retenção e alta médica: lê os válidos, percentual fora da lista cai em 20', () => {
+    const p = readPolicies({ cancelRetention: ['discount', 'pause'], retentionDiscountPercent: 30, requireMedicalClearance: true });
+    expect(p.cancelRetention).toEqual(['pause', 'discount']);
+    expect(p.retentionDiscountPercent).toBe(30);
+    expect(p.requireMedicalClearance).toBeTrue();
+    expect(readPolicies({ retentionDiscountPercent: 25 }).retentionDiscountPercent).toBe(20);
+    expect(readPolicies({ retentionDiscountPercent: '50' }).retentionDiscountPercent).toBe(20);
+    expect(readPolicies({ requireMedicalClearance: 'yes' }).requireMedicalClearance).toBeFalse();
   });
 
   it('retenção: lista vazia vale e lixo é descartado', () => {
     expect(readPolicies({ cancelRetention: [] }).cancelRetention).toEqual([]);
-    expect(readPolicies({ cancelRetention: ['plan_change', 'discount', 3] }).cancelRetention).toEqual(['plan_change']);
+    expect(readPolicies({ cancelRetention: ['plan_change', 'discount', 3, 'x'] }).cancelRetention).toEqual(['plan_change', 'discount']);
     expect(readPolicies({ cancelRetention: 'pause' }).cancelRetention).toEqual(['pause', 'plan_change']);
   });
 });
@@ -59,6 +71,42 @@ describe('readEnrollmentRequest', () => {
     expect(r.status).toBe('pending');
     expect(r.source).toBe('app');
     expect(r.certificate).toBeNull();
-    expect(r.retention).toEqual({ offered: ['pause'], accepted: 'plan_change', planName: '1x', priceCents: null });
+    expect(r.retention).toEqual({ offered: ['pause'], accepted: 'plan_change', planName: '1x', priceCents: null, percent: null });
+    expect(r.requireClearance).toBeFalse();
+    expect(r.clearanceStatus).toBe('');
+    expect(r.clearance).toBeNull();
+    expect(r.awaitingClearance).toBeFalse();
+  });
+
+  it('cancelamento retido com desconto de 1 mês', () => {
+    const r = readEnrollmentRequest('r3', {
+      type: 'cancel', status: 'retained', effectiveFrom: '2026-11-10',
+      retention: { offered: ['pause', 'discount'], accepted: 'discount', percent: 20, priceCents: 20000 },
+    });
+    expect(r.retention).toEqual({ offered: ['pause', 'discount'], accepted: 'discount', planName: '', priceCents: 20000, percent: 20 });
+    expect(r.effectiveFrom).toBe('2026-11-10');
+  });
+
+  it('pausa por lesão com alta médica enviada e segurada', () => {
+    const r = readEnrollmentRequest('r4', {
+      type: 'injury', status: 'active', requireClearance: true, clearanceStatus: 'submitted', awaitingClearance: true,
+      clearance: { path: 'trainingCenterCertificates/c/u/alta.pdf', fileName: 'alta.pdf', contentType: 'application/pdf', sizeBytes: 2000, issuedOn: '2026-11-20', doctor: 'Dra. Y', description: 'Liberada', submittedAt: Timestamp.fromDate(new Date('2026-11-21T10:00:00Z')) },
+      clearanceDecidedByName: '', clearanceNote: '',
+    });
+    expect(r.requireClearance).toBeTrue();
+    expect(r.clearanceStatus).toBe('submitted');
+    expect(r.awaitingClearance).toBeTrue();
+    expect(r.clearance?.fileName).toBe('alta.pdf');
+    expect(r.clearance?.submittedAt?.toISOString()).toBe('2026-11-21T10:00:00.000Z');
+    expect(readEnrollmentRequest('r5', { clearanceStatus: 'weird', clearance: { fileName: 'sem path' } }).clearanceStatus).toBe('');
+    expect(readEnrollmentRequest('r5', { clearance: { fileName: 'sem path' } }).clearance).toBeNull();
+  });
+});
+
+describe('readInvoice (desconto do ciclo)', () => {
+  it('lê o desconto de retenção e ignora ausente ou zerado', () => {
+    expect(readInvoice('i1', { amountCents: 20000, discount: { percent: 20, fullCents: 25000, reason: 'retention' } }).discount).toEqual({ percent: 20, fullCents: 25000, reason: 'retention' });
+    expect(readInvoice('i2', { amountCents: 25000 }).discount).toBeNull();
+    expect(readInvoice('i3', { discount: { percent: 0 } }).discount).toBeNull();
   });
 });

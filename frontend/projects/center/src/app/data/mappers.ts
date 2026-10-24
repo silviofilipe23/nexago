@@ -3,8 +3,10 @@ import type { Weekday } from '../domain/dates';
 import {
   DEFAULT_BILLING,
   DEFAULT_POLICIES,
+  RETENTION_DISCOUNTS,
   RETENTION_OFFERS,
   type AttendanceMark,
+  type ClearanceStatus,
   type AuditEntry,
   type BillingRun,
   type BillingRunItemKind,
@@ -26,8 +28,10 @@ import {
   type EnrollmentRequestStatus,
   type EnrollmentRequestType,
   type RequestCertificate,
+  type RequestClearance,
   type RequestRetention,
   type Invoice,
+  type InvoiceDiscount,
   type InvoiceEvent,
   type Plan,
   type PriceChange,
@@ -126,6 +130,10 @@ export function readPolicies(raw: Data | null): CenterPolicies {
   }
   if (Array.isArray(raw['cancelRetention'])) {
     p.cancelRetention = RETENTION_OFFERS.filter((o) => (raw['cancelRetention'] as unknown[]).includes(o));
+  }
+  // Mesma regra do servidor: percentual fora da lista cai no padrão.
+  if (!RETENTION_DISCOUNTS.includes(p.retentionDiscountPercent)) {
+    p.retentionDiscountPercent = DEFAULT_POLICIES.retentionDiscountPercent;
   }
   return p;
 }
@@ -530,8 +538,17 @@ export function readInvoice(id: string, d: Data): Invoice {
     refundedCents: num(d, 'refundedCents'),
     subscriptionId: strOrNull(d, 'subscriptionId'),
     cycle: str(d, 'cycle'),
+    discount: readInvoiceDiscount(obj(d, 'discount')),
     createdAt: date(d['createdAt']),
   };
+}
+
+function readInvoiceDiscount(raw: Data | null): InvoiceDiscount | null {
+  const percent = raw ? num(raw, 'percent') : 0;
+  if (!raw || percent <= 0) {
+    return null;
+  }
+  return { percent, fullCents: num(raw, 'fullCents'), reason: str(raw, 'reason', 'retention') };
 }
 
 export function readAudit(id: string, d: Data): AuditEntry {
@@ -874,11 +891,31 @@ function readRetention(raw: Data | null): RequestRetention | null {
     return null;
   }
   const offered = strings(raw, 'offered');
+  const accepted = str(raw, 'accepted');
   return {
     offered: RETENTION_OFFERS.filter((o) => offered.includes(o)),
-    accepted: str(raw, 'accepted') === 'plan_change' ? 'plan_change' : null,
+    accepted: accepted === 'plan_change' || accepted === 'discount' ? accepted : null,
     planName: str(raw, 'planName'),
     priceCents: numOrNull(raw, 'priceCents'),
+    percent: accepted === 'discount' ? numOrNull(raw, 'percent') : null,
+  };
+}
+
+const CLEARANCE_STATUSES: ClearanceStatus[] = ['requested', 'submitted', 'approved'];
+
+function readClearance(raw: Data | null): RequestClearance | null {
+  if (!raw || !str(raw, 'path')) {
+    return null;
+  }
+  return {
+    path: str(raw, 'path'),
+    fileName: str(raw, 'fileName', 'alta'),
+    contentType: str(raw, 'contentType'),
+    sizeBytes: num(raw, 'sizeBytes'),
+    issuedOn: str(raw, 'issuedOn'),
+    doctor: str(raw, 'doctor'),
+    description: str(raw, 'description'),
+    submittedAt: date(raw['submittedAt']),
   };
 }
 
@@ -908,6 +945,13 @@ export function readEnrollmentRequest(id: string, d: Data): EnrollmentRequest {
     days: num(d, 'days'),
     overLimit: bool(d, 'overLimit'),
     certificate: readCertificate(obj(d, 'certificate')),
+    requireClearance: bool(d, 'requireClearance'),
+    clearanceStatus: CLEARANCE_STATUSES.includes(str(d, 'clearanceStatus') as ClearanceStatus) ? (str(d, 'clearanceStatus') as ClearanceStatus) : '',
+    clearance: readClearance(obj(d, 'clearance')),
+    awaitingClearance: bool(d, 'awaitingClearance'),
+    clearanceDecidedAt: date(d['clearanceDecidedAt']),
+    clearanceDecidedByName: str(d, 'clearanceDecidedByName'),
+    clearanceNote: str(d, 'clearanceNote'),
     lastDay: str(d, 'lastDay'),
     cancelAt: str(d, 'cancelAt'),
     retention: readRetention(obj(d, 'retention')),

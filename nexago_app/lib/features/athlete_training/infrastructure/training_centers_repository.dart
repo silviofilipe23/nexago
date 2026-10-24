@@ -19,7 +19,8 @@ import 'class_presence_repository.dart' show ClassPresenceException;
 /// (`openMyTrainingCenterContract`, `signMyTrainingCenterContract`) e os
 /// pedidos de trancar/pausa por lesão/cancelar
 /// (`requestTrainingCenterEnrollmentChange`,
-/// `withdrawTrainingCenterEnrollmentRequest`; atestado no Storage).
+/// `withdrawTrainingCenterEnrollmentRequest`,
+/// `submitTrainingCenterMedicalClearance`; atestado e alta no Storage).
 class TrainingCentersRepository {
   TrainingCentersRepository({
     FirebaseFunctions? functions,
@@ -172,7 +173,9 @@ class TrainingCentersRepository {
 
   /// Trancar (`pause`), pausa por lesão (`injury`) ou cancelar (`cancel`).
   /// Regra violada volta como [ClassPresenceException] com a mensagem pronta
-  /// do servidor (`failed-precondition`).
+  /// do servidor (`failed-precondition`). No cancelamento, [retainPlanId]
+  /// (troca de plano) ou [retainDiscount] (desconto de 1 mês) seguram o aluno
+  /// e o pedido volta `retained`.
   Future<CenterRequestResult> requestEnrollmentChange({
     required String centerId,
     required String enrollmentId,
@@ -184,6 +187,7 @@ class TrainingCentersRepository {
     CenterCertificateUpload? certificate,
     List<String> retentionOffered = const [],
     String? retainPlanId,
+    bool retainDiscount = false,
   }) async {
     final raw = await _call('requestTrainingCenterEnrollmentChange', {
       'centerId': centerId,
@@ -196,6 +200,7 @@ class TrainingCentersRepository {
       if (certificate != null) 'certificate': certificate.toMap(),
       'retentionOffered': retentionOffered,
       'retainPlanId': ?retainPlanId,
+      if (retainDiscount) 'retainDiscount': true,
     }, 'Não foi possível enviar o pedido. Tente de novo.');
     final m = raw is Map ? raw : const {};
     String? s(String k) => m[k] is String && (m[k] as String).isNotEmpty
@@ -220,7 +225,24 @@ class TrainingCentersRepository {
     'requestId': requestId,
   }, 'Não foi possível desfazer o pedido. Tente de novo.');
 
-  /// Sobe o atestado em `trainingCenterCertificates/{centerId}/{uid}/…`
+  /// Alta médica da pausa por lesão em curso (o arquivo já no Storage, no
+  /// mesmo lugar do atestado). Devolve a situação nova (`submitted`).
+  Future<String> submitMedicalClearance({
+    required String centerId,
+    required String requestId,
+    required CenterCertificateUpload clearance,
+  }) async {
+    final raw = await _call('submitTrainingCenterMedicalClearance', {
+      'centerId': centerId,
+      'requestId': requestId,
+      'clearance': clearance.toMap()..remove('daysOff'),
+    }, 'Não foi possível enviar a alta. Tente de novo.');
+    final m = raw is Map ? raw : const {};
+    final status = m['clearanceStatus'];
+    return status is String && status.isNotEmpty ? status : 'submitted';
+  }
+
+  /// Sobe o atestado (ou a alta médica) em `trainingCenterCertificates/{centerId}/{uid}/…`
   /// (a rule só deixa o próprio aluno criar, sem sobrescrever). Devolve o
   /// caminho para mandar no pedido.
   Future<String> uploadCertificate({
@@ -258,7 +280,8 @@ typedef CenterRequestResult = ({
   String? lastDay,
 });
 
-/// Atestado já no Storage, como o pedido manda.
+/// Atestado (ou alta médica, que ignora `daysOff`) já no Storage, como o
+/// pedido manda.
 class CenterCertificateUpload {
   const CenterCertificateUpload({
     required this.path,

@@ -15,6 +15,9 @@
       <button type="button" class="ct-mini-btn" (click)="open('reject')">Recusar</button>
       <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="open('approve')">Aprovar pausa</button>
     }
+    @if (clearable()) {
+      <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="open('clear')">{{ clearLabel() }}</button>
+    }
     @if (undoable()) {
       <button type="button" class="ct-mini-btn" [class.ct-mini-btn-primary]="r.type === 'cancel'" (click)="open('undo')">
         {{ r.type === 'cancel' ? 'Desfazer cancelamento' : 'Desfazer pausa' }}
@@ -60,6 +63,11 @@
             <div class="note">
               Troca para {{ r.retention!.planName }}{{ r.retention!.priceCents !== null ? ' · ' + formatBRL(r.retention!.priceCents!) : '' }}
               {{ r.effectiveFrom ? 'a partir de ' + formatDayKey(r.effectiveFrom) : 'no próximo ciclo' }}.
+            </div>
+          }
+          @if (r.status === 'retained' && r.retention?.accepted === 'discount') {
+            <div class="note">
+              Ficou com {{ r.retention!.percent }}% de desconto na mensalidade de {{ r.effectiveFrom ? formatDayKey(r.effectiveFrom) : 'próximo vencimento' }}{{ r.retention!.priceCents !== null ? ' · ' + formatBRL(r.retention!.priceCents!) : '' }}.
             </div>
           }
         </section>
@@ -198,6 +206,54 @@
         }
 
         <div class="side">
+          @if (clearance(); as cl) {
+            <section class="ct-card">
+              <div class="ct-card-head">
+                <div class="ct-grow">
+                  <div class="ct-kick">
+                    @if (r.clearance; as c) {
+                      {{ c.fileName }}{{ fileSize(c.sizeBytes) ? ' · ' + fileSize(c.sizeBytes) : '' }} · enviada pelo app
+                    } @else {
+                      Exigida pelo centro para a volta
+                    }
+                  </div>
+                  <div class="ct-card-title">Alta médica</div>
+                </div>
+                <span [class]="'ct-pill ' + cl.tone">{{ cl.label }}</span>
+              </div>
+              <p class="ct-muted" style="margin: 0 0 8px">{{ cl.text }}</p>
+              @if (r.clearance; as c) {
+                <div class="ct-kv"><span>Emitida em</span><span>{{ c.issuedOn ? formatDayKey(c.issuedOn, true) : '—' }}</span></div>
+                <div class="ct-kv"><span>Médico</span><span>{{ c.doctor || '—' }}</span></div>
+                @if (c.description) {
+                  <div class="ct-kv"><span>Descrição</span><span>{{ c.description }}</span></div>
+                }
+                <div class="preview small">
+                  @if (!ctx.isManager()) {
+                    <div class="ph"><ct-icon name="lock" [size]="24" /><div class="ct-mono" style="margin-top: 8px">Visível só para owner e admin</div></div>
+                  } @else if (clearError()) {
+                    <div class="ph"><ct-icon name="alert" [size]="24" /><div style="margin-top: 8px">{{ clearError() }}</div></div>
+                  } @else if (!clearUrl()) {
+                    <div class="ph"><span class="ct-spinner light" aria-hidden="true"></span><div class="ct-mono" style="margin-top: 8px">Carregando a alta…</div></div>
+                  } @else if (clearKind() === 'image') {
+                    <img [src]="clearUrl()" [alt]="'Alta médica de ' + r.studentName" />
+                  } @else if (clearFrame(); as frame) {
+                    <iframe [src]="frame" [title]="'Alta médica de ' + r.studentName"></iframe>
+                  } @else {
+                    <div class="ph"><ct-icon name="doc" [size]="24" /><div class="ct-mono" style="margin-top: 8px">Sem pré-visualização para este formato — use Baixar</div></div>
+                  }
+                </div>
+                @if (clearUrl(); as url) {
+                  <div class="bar">
+                    <a class="ct-mini-btn" [href]="url" target="_blank" rel="noopener" [attr.download]="c.fileName"><ct-icon name="download" [size]="14" />Baixar</a>
+                  </div>
+                }
+              }
+              @if (r.clearanceStatus === 'approved' && r.clearanceNote) {
+                <div class="note">“{{ r.clearanceNote }}”</div>
+              }
+            </section>
+          }
           @if (r.type === 'injury') {
             <section class="ct-card">
               <div class="ct-card-head">
@@ -235,7 +291,7 @@
 
   @if (deciding(); as d) {
     <ct-modal [kicker]="r.studentName + ' · ' + TYPE[r.type][0]" [title]="d === 'undo' && r.type === 'cancel' ? 'Desfazer cancelamento' : DECISIONS[d].title" (closed)="close()">
-      <div class="ct-muted">{{ d === 'undo' ? undoText() : DECISIONS[d].text }}</div>
+      <div class="ct-muted">{{ d === 'undo' ? undoText() : d === 'clear' ? clearText() : DECISIONS[d].text }}</div>
       <div class="ct-field">
         <label for="rq-note">{{ DECISIONS[d].needsNote ? 'Mensagem ao aluno' : 'Mensagem ao aluno (opcional)' }}</label>
         <textarea id="rq-note" class="ct-input" rows="3" maxlength="400" [placeholder]="DECISIONS[d].placeholder" [value]="note()" (input)="note.set(val($event))"></textarea>
@@ -245,7 +301,7 @@
       }
       <div footer>
         <button type="button" class="ct-mini-btn" [disabled]="busy()" (click)="close()">Voltar</button>
-        <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="confirm(r)">{{ busy() ? 'Salvando…' : DECISIONS[d].confirm }}</button>
+        <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="confirm(r)">{{ busy() ? 'Salvando…' : d === 'clear' ? clearLabel() : DECISIONS[d].confirm }}</button>
       </div>
     </ct-modal>
   }

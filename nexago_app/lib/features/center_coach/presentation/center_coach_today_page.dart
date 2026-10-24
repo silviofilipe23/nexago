@@ -82,7 +82,7 @@ class CenterCoachTodayPage extends ConsumerWidget {
         if (s.startTime.compareTo(nowHm) > 0) s,
     ];
     final done = ofToday.where((s) => s.isDone).length;
-    // Atestados esperando a gestão (a recepção também vê o aviso).
+    // Atestados e altas esperando a gestão (a recepção também vê o aviso).
     final exitPending = centerExitPendingCount(
       ref.watch(centerExitRequestsProvider(centerId)).valueOrNull ?? const [],
     );

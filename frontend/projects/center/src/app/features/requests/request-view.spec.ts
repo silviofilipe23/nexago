@@ -1,7 +1,10 @@
 import { DEFAULT_POLICIES, type Enrollment, type EnrollmentRequest } from '../../domain/models';
 import {
   canAskDocument,
+  canClear,
   canDecide,
+  clearLabel,
+  clearanceView,
   canUndo,
   cancelTimeline,
   certificateKind,
@@ -12,6 +15,7 @@ import {
   openRequestFor,
   pauseBanners,
   pauseDaysUsed,
+  pauseEffects,
   requestErrorMessage,
   requestPeriod,
   requestReason,
@@ -28,6 +32,7 @@ function rq(id: string, over: Partial<EnrollmentRequest> = {}): EnrollmentReques
     id, enrollmentId: 'e' + id, studentId: 's' + id, studentUid: 'u' + id, studentName: 'Carla Dias', classId: 'k1', className: 'BT Manhã',
     planName: 'Mensal 2x', planType: 'monthly', priceCents: 25000, type: 'pause', status: 'scheduled', source: 'app', reason: 'Viagem',
     comment: '', startsOn: '2026-11-01', endsOn: '2026-11-30', pausedUntil: '2026-12-01', days: 30, overLimit: false, certificate: null,
+    requireClearance: false, clearanceStatus: '', clearance: null, awaitingClearance: false, clearanceDecidedAt: null, clearanceDecidedByName: '', clearanceNote: '',
     lastDay: '', cancelAt: '', retention: null, effectiveFrom: '', createdAt: new Date('2026-10-20T15:00:00Z'), createdByName: 'Carla Dias',
     decidedAt: null, decidedByName: '', decisionNote: '', appliedAt: null, updatedAt: null,
     ...over,
@@ -50,12 +55,12 @@ describe('request-view', () => {
   });
   const cancel = rq('2', {
     type: 'cancel', status: 'scheduled', reason: 'moving', comment: 'Vou para BH', startsOn: '', endsOn: '', pausedUntil: '', days: 0,
-    lastDay: '2026-11-19', cancelAt: '2026-11-20', retention: { offered: ['pause', 'plan_change'], accepted: null, planName: '', priceCents: null },
+    lastDay: '2026-11-19', cancelAt: '2026-11-20', retention: { offered: ['pause', 'plan_change'], accepted: null, planName: '', priceCents: null, percent: null },
     createdAt: new Date('2026-10-23T21:30:00Z'),
   });
   const retained = rq('3', {
     type: 'cancel', status: 'retained', reason: 'price', createdAt: new Date('2026-10-22T12:00:00Z'),
-    retention: { offered: ['plan_change'], accepted: 'plan_change', planName: '1x/semana', priceCents: 18000 },
+    retention: { offered: ['plan_change'], accepted: 'plan_change', planName: '1x/semana', priceCents: 18000, percent: null },
   });
   const pause = rq('4');
   const activeInjury = rq('5', { type: 'injury', status: 'active', startsOn: '2026-10-10', endsOn: '2026-10-24', pausedUntil: '2026-10-25' });
@@ -147,6 +152,68 @@ describe('request-view', () => {
       { offer: 'Trocar de plano', outcome: 'Recusou' },
     ]);
     expect(retentionRows(retained)).toEqual([{ offer: 'Trocar para 1x/semana', outcome: 'Aceitou' }]);
+  });
+
+  describe('alta médica na pausa por lesão', () => {
+    const base = { type: 'injury' as const, status: 'active' as const, requireClearance: true, startsOn: '2026-10-10', endsOn: '2026-10-24', pausedUntil: '2026-10-25' };
+    const waiting = rq('c1', { ...base, clearanceStatus: '' });
+    const asked = rq('c2', { ...base, clearanceStatus: 'requested' });
+    const sent = rq('c3', { ...base, clearanceStatus: 'submitted' });
+    const held = rq('c4', { ...base, clearanceStatus: 'requested', awaitingClearance: true, pausedUntil: '2026-10-27' });
+    const heldSent = rq('c5', { ...base, clearanceStatus: 'submitted', awaitingClearance: true });
+    const approved = rq('c6', { ...base, clearanceStatus: 'approved', clearanceDecidedByName: 'Ana' });
+
+    it('alta enviada ou pausa segurada entram em Para revisar e no número do topo', () => {
+      const all = [injury, waiting, asked, sent, held, heldSent, approved];
+      expect(filterRequests(all, 'review').map((r) => r.id)).toEqual(['1', 'c3', 'c4', 'c5']);
+      expect(countByFilter(all).review).toBe(4);
+      const s = requestStats(all, '2026-10', TZ);
+      expect(s.review).toBe(4);
+      expect(s.reviewSub).toBe('1 atestado · 3 altas médicas');
+      expect(requestStats([held], '2026-10', TZ).reviewSub).toBe('1 alta médica');
+      expect(filterRequests([{ ...sent, requireClearance: false }], 'review')).toEqual([]);
+    });
+
+    it('situação na lista', () => {
+      expect(requestSituation(waiting).label).toBe('Pausado · volta 25 out');
+      expect(requestSituation(asked).label).toBe('Pausado · alta pedida · volta 25 out');
+      expect(requestSituation(sent)).toEqual({ label: 'Alta enviada para revisar · volta 25 out', tone: 'yellow' });
+      expect(requestSituation(held).label).toBe('Aguardando alta · pausa segue até liberar');
+      expect(requestSituation(heldSent).label).toBe('Alta enviada · pausa segue até liberar');
+      expect(requestSituation(approved).label).toBe('Pausado · volta 25 out');
+    });
+
+    it('bloco do detalhe, botão e volta', () => {
+      expect(clearanceView(rq('n', { type: 'injury', status: 'active' }))).toBeNull();
+      expect(clearanceView(waiting)).toEqual({ label: 'Alta exigida', tone: 'dim', text: 'O app pede a alta em 21 out, 3 dias antes do fim. Sem alta aprovada, a pausa segue depois de 24 out.' });
+      expect(clearanceView(asked)!.label).toBe('Alta pedida');
+      expect(clearanceView(sent)!.tone).toBe('yellow');
+      expect(clearanceView(held)).toEqual({ label: 'Aguardando alta', tone: 'orange', text: 'A pausa terminou em 24 out e segue até liberar. O aluno ainda não enviou a alta.' });
+      expect(clearanceView(approved)!.label).toBe('Volta liberada sem alta');
+      expect(canClear(held)).toBeTrue();
+      expect(canClear(approved)).toBeFalse();
+      expect(canClear({ ...held, status: 'done' })).toBeFalse();
+      expect(clearLabel(sent)).toBe('Aprovar alta');
+      expect(clearLabel(held)).toBe('Liberar sem alta');
+      expect(pauseEffects(asked).find((kv) => kv[0] === 'Volta')![1]).toBe('Só com a alta aprovada · previsão 25 out');
+      expect(pauseEffects(held).find((kv) => kv[0] === 'Volta')![1]).toBe('Segue pausada até a alta ser aprovada');
+      expect(pauseEffects(approved).find((kv) => kv[0] === 'Volta')![1]).toBe('Matrícula reativa sozinha em 25 out');
+    });
+  });
+
+  it('cancelamento retido com desconto de 1 mês conta nos retidos', () => {
+    const disc = rq('d1', {
+      type: 'cancel', status: 'retained', reason: 'price', effectiveFrom: '2026-11-10', createdAt: new Date('2026-10-22T12:00:00Z'),
+      retention: { offered: ['pause', 'discount'], accepted: 'discount', planName: '', priceCents: 20000, percent: 20 },
+    });
+    expect(requestSituation(disc)).toEqual({ label: 'Aceitou 20% de desconto', tone: 'green' });
+    expect(retentionRows(disc)).toEqual([
+      { offer: 'Trancar a matrícula', outcome: '—' },
+      { offer: 'Desconto de 20% em 1 mensalidade', outcome: 'Aceitou' },
+    ]);
+    const s = requestStats([retained, disc, cancel], '2026-10', TZ);
+    expect(s.retained).toBe(2);
+    expect(s.cancelsInMonth).toBe(3);
   });
 
   it('lista de espera da turma em ordem de chegada', () => {

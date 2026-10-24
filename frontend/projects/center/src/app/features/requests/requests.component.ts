@@ -17,6 +17,7 @@ import {
   requestSituation,
   requestStats,
   type RequestFilter,
+  needsReview,
 } from './request-view';
 
 /** T1 — trancamentos, pausas por lesão e cancelamentos pedidos pelo app ou registrados no balcão. */
@@ -56,7 +57,7 @@ import {
         <div class="ct-table" style="--cols: minmax(170px, 1.2fr) 150px minmax(150px, 1.4fr) minmax(120px, 1.1fr) minmax(170px, 1.6fr) 100px; --min-w: 940px">
           <div class="ct-thead"><span>Aluno</span><span>Tipo</span><span>Motivo</span><span>Período</span><span>Situação</span><span>Pedido</span></div>
           @for (r of rows(); track r.id) {
-            <a class="ct-tr" [class.hi]="r.status === 'pending'" [routerLink]="['/centro', centerId(), 'pedidos', r.id]">
+            <a class="ct-tr" [class.hi]="review(r)" [routerLink]="['/centro', centerId(), 'pedidos', r.id]">
               <ct-person [name]="r.studentName" [sub]="r.className" [colorKey]="r.studentId" [size]="28" />
               <span><span [class]="'ct-pill ' + TYPE[r.type][1]">{{ TYPE[r.type][0] }}</span></span>
               <span class="ct-ellipsis">{{ reason(r) }}</span>
@@ -105,6 +106,7 @@ export class RequestsComponent {
   protected readonly reason = requestReason;
   protected readonly period = requestPeriod;
   protected readonly situation = requestSituation;
+  protected readonly review = needsReview;
 
   protected readonly filter = signal<RequestFilter>('all');
   protected readonly registering = signal(false);

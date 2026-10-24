@@ -4236,6 +4236,33 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Modelos de contrato (K3): o gestor edita o rascunho e publica uma versão nova; a versão
+      // publicada nunca volta. Quem matricula lê (para escolher o modelo no envio).
+      match /contractTemplates/{templateId} {
+        function ctTemplateValid() {
+          let t = request.resource.data;
+          return t.name is string && t.name.size() > 0 && t.name.size() <= 80 &&
+            t.kind in ['enrollment', 'term'] &&
+            t.status in ['draft', 'published', 'archived'] &&
+            t.version is int && t.version >= 0 &&
+            t.get('body', '') is string && t.get('body', '').size() <= 30000 &&
+            t.get('draftBody', '') is string && t.get('draftBody', '').size() <= 30000;
+        }
+        allow read: if ctHasPerm('enroll_students');
+        allow create: if ctIsManager() && ctNotSuspended() && ctTemplateValid() &&
+          request.resource.data.version == 0;
+        allow update: if ctIsManager() && ctNotSuspended() && ctTemplateValid() &&
+          request.resource.data.version >= resource.data.version;
+        allow delete: if false;
+      }
+
+      // Contrato de um aluno (texto congelado no envio, assinatura e evidências): só o servidor
+      // grava (training-center-contracts.ts); o aluno vê pelo `getMyTrainingCenters`.
+      match /contracts/{contractId} {
+        allow read: if ctHasPerm('enroll_students');
+        allow write: if false;
+      }
+
       // Trilha de auditoria: só cria, em nome próprio, com hora do servidor.
       match /auditLogs/{logId} {
         allow read: if ctIsManager();

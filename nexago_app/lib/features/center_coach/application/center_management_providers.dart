@@ -4,8 +4,10 @@ import '../../../core/profiles/app_user_profile.dart';
 import '../../../core/profiles/users_repository.dart';
 
 import '../../professor_links/application/professor_links_providers.dart';
+import '../domain/center_contracts.dart';
 import '../domain/center_management.dart';
 import '../domain/center_management_repository.dart';
+import '../infrastructure/firebase_center_contracts_repository.dart';
 import '../infrastructure/firebase_center_management_repository.dart';
 import 'center_coach_providers.dart';
 
@@ -76,6 +78,20 @@ final centerStudentSubscriptionsProvider = StreamProvider.autoDispose
           .watch(centerManagementRepositoryProvider)
           .watchStudentSubscriptions(k.centerId, k.studentId);
     });
+
+/// Contratos do aluno (K5) — vazio sem `enroll_students` (rule).
+final centerStudentContractsProvider = StreamProvider.autoDispose
+    .family<List<CenterStudentContract>, ({String centerId, String studentId})>(
+      (ref, k) {
+        final m = ref.watch(centerMembershipProvider(k.centerId));
+        if (m == null || !m.has('enroll_students')) {
+          return Stream.value(const []);
+        }
+        return ref
+            .watch(centerContractsRepositoryProvider)
+            .watchStudentContracts(k.centerId, k.studentId);
+      },
+    );
 
 /// Busca de contas NexaGO (diretório público, mesmas `keywords` da busca de
 /// atleta) para vincular um aluno novo. Função para o teste trocar.

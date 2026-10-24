@@ -10,8 +10,9 @@ import 'class_presence_repository.dart' show ClassPresenceException;
 /// Centros de treinamento do aluno, pelas callables do aluno (as coleções do
 /// centro são só da equipe — o servidor monta a visão e age em nome do
 /// próprio aluno): `getMyTrainingCenters`, `respondTrainingCenterSession`,
-/// `answerTrainingCenterInvite`, `getMyTrainingCenterInvoicePix` e
-/// `checkMyTrainingCenterInvoice`.
+/// `answerTrainingCenterInvite`, `getMyTrainingCenterInvoicePix`,
+/// `checkMyTrainingCenterInvoice` e os contratos
+/// (`openMyTrainingCenterContract`, `signMyTrainingCenterContract`).
 class TrainingCentersRepository {
   TrainingCentersRepository({FirebaseFunctions? functions})
     : _functions = functions ?? nexagoFunctions;
@@ -97,6 +98,51 @@ class TrainingCentersRepository {
     );
   }
 
+  /// Marca o contrato como aberto (K7). Devolve o status atual.
+  Future<String> openContract({
+    required String centerId,
+    required String contractId,
+  }) async {
+    final raw = await _call('openMyTrainingCenterContract', {
+      'centerId': centerId,
+      'contractId': contractId,
+    }, 'Não foi possível abrir o contrato agora.');
+    return raw is Map && raw['status'] is String
+        ? raw['status'] as String
+        : 'viewed';
+  }
+
+  /// Assina (ou recusa, só no termo opcional) o contrato com o [sha256] do
+  /// texto lido (K8). O servidor grava IP e user-agent.
+  Future<CenterContractSignResult> signContract({
+    required String centerId,
+    required String contractId,
+    required bool accept,
+    required String sha256,
+    required int readSeconds,
+    required String platform,
+    required String appVersion,
+  }) async {
+    final raw = await _call('signMyTrainingCenterContract', {
+      'centerId': centerId,
+      'contractId': contractId,
+      'decision': accept ? 'accept' : 'decline',
+      'agreed': true,
+      'sha256': sha256,
+      'readSeconds': readSeconds,
+      'platform': platform,
+      'appVersion': appVersion,
+    }, 'Não foi possível assinar agora. Tente de novo.');
+    final m = raw is Map ? raw : const {};
+    return (
+      status: m['status'] is String
+          ? m['status'] as String
+          : (accept ? 'signed' : 'declined'),
+      number: '${m['number'] ?? ''}',
+      signedAt: DateTime.tryParse('${m['signedAt'] ?? ''}'),
+    );
+  }
+
   /// "Já paguei · verificar": consulta o provedor; devolve o status da fatura.
   Future<String> checkInvoice({
     required String centerId,
@@ -111,6 +157,13 @@ class TrainingCentersRepository {
         : 'pending';
   }
 }
+
+/// Resposta de `signMyTrainingCenterContract`.
+typedef CenterContractSignResult = ({
+  String status,
+  String number,
+  DateTime? signedAt,
+});
 
 final trainingCentersRepositoryProvider = Provider<TrainingCentersRepository>(
   (ref) => TrainingCentersRepository(),

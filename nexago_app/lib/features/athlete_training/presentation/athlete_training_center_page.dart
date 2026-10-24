@@ -20,6 +20,7 @@ import '../application/athlete_training_providers.dart';
 import '../domain/athlete_training.dart';
 import '../domain/training_center.dart';
 import '../domain/training_plans.dart';
+import 'athlete_training_center_contract_pages.dart' show CenterContractsEntry;
 import 'widgets/training_origin_widgets.dart';
 import 'widgets/training_widgets.dart';
 
@@ -126,6 +127,10 @@ class _AthleteTrainingCenterPageState
                     ],
                   ),
                 ),
+              ],
+              if (center.contracts.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                CenterContractsEntry(center: center),
               ],
               if (center.billingHold) ...[
                 const SizedBox(height: 10),
@@ -729,7 +734,9 @@ class _InvoiceCard extends StatelessWidget {
           const SizedBox(height: 10),
           ProfessorLinksPrimaryButton(
             key: Key('training-center-pay-${i.invoiceId}'),
-            label: 'Pagar com Pix ou cartão',
+            label: i.blockedByContract
+                ? 'Assine o contrato para pagar'
+                : 'Pagar com Pix ou cartão',
             height: 42,
             onPressed: () => openCenterInvoice(context, centerId, i.invoiceId),
           ),

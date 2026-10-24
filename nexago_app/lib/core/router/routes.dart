@@ -181,6 +181,17 @@ abstract final class AppRoutes {
   /// treino" com o convite do centro (O3).
   static const String athleteTrainingCenterInvoice =
       '/treinos/centro/:centerId/fatura/:invoiceId';
+
+  /// Contratos do aluno no centro: lista (K6), leitura (K7, destino do push
+  /// `training_center_contract`), assinatura (K8) e confirmação (K9).
+  static const String athleteTrainingCenterContracts =
+      '/treinos/centro/:centerId/contratos';
+  static const String athleteTrainingCenterContract =
+      '/treinos/centro/:centerId/contrato/:contractId';
+  static const String athleteTrainingCenterContractSign =
+      '/treinos/centro/:centerId/contrato/:contractId/assinar';
+  static const String athleteTrainingCenterContractSigned =
+      '/treinos/centro/:centerId/contrato/:contractId/assinado';
   static const String athleteTrainingAdd = '/treinos/adicionar';
 
   /// Plano da aula publicado para o ATLETA (H8, push
@@ -473,6 +484,10 @@ abstract final class AppRoutes {
   /// Assinatura da mensalidade do aluno (R6).
   static const String centerCoachSubscription =
       '/athlete/professor/centros/:centerId/alunos/:studentId/assinatura/:subscriptionId';
+
+  /// Contratos do aluno na gestão (K5).
+  static const String centerCoachStudentContracts =
+      '/athlete/professor/centros/:centerId/alunos/:studentId/contratos';
 
   /// Matricular aluno (G11–G13); `?aluno=` já escolhe o aluno.
   static const String centerCoachEnroll =
@@ -1034,6 +1049,14 @@ abstract final class AppRouteNames {
       'athleteTrainingCenterSession';
   static const String athleteTrainingCenterInvoice =
       'athleteTrainingCenterInvoice';
+  static const String athleteTrainingCenterContracts =
+      'athleteTrainingCenterContracts';
+  static const String athleteTrainingCenterContract =
+      'athleteTrainingCenterContract';
+  static const String athleteTrainingCenterContractSign =
+      'athleteTrainingCenterContractSign';
+  static const String athleteTrainingCenterContractSigned =
+      'athleteTrainingCenterContractSigned';
   static const String athleteTrainingAdd = 'athleteTrainingAdd';
   static const String athleteLessonPlans = 'athleteLessonPlans';
   static const String athleteLessonPlan = 'athleteLessonPlan';
@@ -1165,6 +1188,8 @@ abstract final class AppRouteNames {
   static const String centerCoachTeam = 'centerCoachTeam';
   static const String centerCoachEnroll = 'centerCoachEnroll';
   static const String centerCoachSubscription = 'centerCoachSubscription';
+  static const String centerCoachStudentContracts =
+      'centerCoachStudentContracts';
   static const String professorLinkRequestSent = 'professorLinkRequestSent';
   static const String professorClassAttendance = 'professorClassAttendance';
   static const String professorClassClosed = 'professorClassClosed';

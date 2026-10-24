@@ -34,6 +34,15 @@ import {
   type TrainingCenter,
   type TrainingClass,
 } from '../domain/models';
+import type {
+  ContractEvent,
+  ContractEventType,
+  ContractEvidence,
+  ContractStatus,
+  ContractTemplate,
+  StudentContract,
+  TemplateVersion,
+} from '../domain/contracts';
 import { readNotificationSettings } from '../domain/notification-settings';
 import { PERMISSION_ORDER, type CenterPermission, type CenterRole } from '../domain/roles';
 import { readShowcase } from '../domain/showcase';
@@ -424,7 +433,7 @@ export function readPlan(id: string, d: Data): Plan {
   };
 }
 
-function readContract(raw: Data | null): ContractSnapshot | null {
+function readContractSnapshot(raw: Data | null): ContractSnapshot | null {
   if (!raw) {
     return null;
   }
@@ -451,7 +460,7 @@ export function readEnrollment(id: string, d: Data): Enrollment {
     classId: str(d, 'classId'),
     className: str(d, 'className'),
     planId: strOrNull(d, 'planId'),
-    contract: readContract(obj(d, 'contract')),
+    contract: readContractSnapshot(obj(d, 'contract')),
     status: (known.includes(status) ? status : 'pending') as Enrollment['status'],
     startDate: str(d, 'startDate'),
     holdUntil: date(d['holdUntil']),
@@ -689,5 +698,142 @@ export function readReceivingAccount(d: Data): ReceivingAccount {
     createdAt: date(d['createdAt']),
     createdByName: str(d, 'createdByName'),
     statusCheckedAt: date(d['statusCheckedAt']),
+  };
+}
+
+const TEMPLATE_STATUSES = ['draft', 'published', 'archived'];
+
+function readTemplateVersion(raw: unknown): TemplateVersion | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const d = raw as Data;
+  return { version: num(d, 'version'), body: str(d, 'body'), publishedAt: date(d['publishedAt']), byName: str(d, 'byName') };
+}
+
+/** `contractTemplates/{id}` — modelo de contrato (o gestor escreve pelo portal). */
+export function readContractTemplate(id: string, d: Data): ContractTemplate {
+  const status = str(d, 'status');
+  const audience = str(d, 'audience');
+  return {
+    id,
+    name: str(d, 'name', 'Modelo'),
+    kind: str(d, 'kind') === 'enrollment' ? 'enrollment' : 'term',
+    audience: audience === 'adult' || audience === 'minor' ? audience : 'any',
+    optional: bool(d, 'optional'),
+    status: (TEMPLATE_STATUSES.includes(status) ? status : 'draft') as ContractTemplate['status'],
+    version: num(d, 'version'),
+    body: str(d, 'body'),
+    draftBody: str(d, 'draftBody'),
+    draftUpdatedAt: date(d['draftUpdatedAt']),
+    draftUpdatedByName: str(d, 'draftUpdatedByName'),
+    publishedAt: date(d['publishedAt']),
+    publishedByName: str(d, 'publishedByName'),
+    versions: Array.isArray(d['versions'])
+      ? (d['versions'] as unknown[])
+          .map(readTemplateVersion)
+          .filter((x): x is TemplateVersion => x != null)
+          .sort((a, b) => b.version - a.version)
+      : [],
+    createdAt: date(d['createdAt']),
+    createdByName: str(d, 'createdByName'),
+  };
+}
+
+const CONTRACT_STATUSES: ContractStatus[] = ['sent', 'viewed', 'signed', 'declined', 'terminated', 'cancelled'];
+const CONTRACT_EVENT_TYPES: ContractEventType[] = ['sent', 'viewed', 'reminded', 'signed', 'declined', 'terminated', 'cancelled'];
+
+function readContractEvent(raw: unknown): ContractEvent | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const d = raw as Data;
+  const type = str(d, 'type') as ContractEventType;
+  return {
+    at: date(d['at']),
+    type: CONTRACT_EVENT_TYPES.includes(type) ? type : 'sent',
+    title: str(d, 'title'),
+    byName: str(d, 'byName'),
+    detail: str(d, 'detail'),
+  };
+}
+
+function readEvidence(raw: Data | null): ContractEvidence | null {
+  if (!raw) {
+    return null;
+  }
+  return {
+    method: str(raw, 'method'),
+    uid: str(raw, 'uid'),
+    email: str(raw, 'email'),
+    ip: str(raw, 'ip'),
+    userAgent: str(raw, 'userAgent'),
+    platform: str(raw, 'platform'),
+    appVersion: str(raw, 'appVersion'),
+    readSeconds: num(raw, 'readSeconds'),
+    sha256: str(raw, 'sha256'),
+  };
+}
+
+/** `contracts/{id}` — contrato de um aluno (só o servidor grava). */
+export function readContract(id: string, d: Data): StudentContract {
+  const status = str(d, 'status') as ContractStatus;
+  const signer = obj(d, 'signer');
+  const centerSig = obj(d, 'centerSignature');
+  const decision = str(d, 'decision');
+  const isMinor = bool(d, 'isMinor');
+  return {
+    id,
+    number: str(d, 'number'),
+    centerName: str(d, 'centerName'),
+    studentId: str(d, 'studentId'),
+    studentName: str(d, 'studentName', 'Aluno'),
+    studentUid: strOrNull(d, 'studentUid'),
+    isMinor,
+    signer: {
+      role: signer ? (str(signer, 'role') === 'guardian' ? 'guardian' : 'student') : isMinor ? 'guardian' : 'student',
+      name: signer ? str(signer, 'name') : '',
+      relation: signer ? str(signer, 'relation') : '',
+    },
+    templateId: str(d, 'templateId'),
+    templateName: str(d, 'templateName'),
+    templateVersion: num(d, 'templateVersion', 1),
+    kind: str(d, 'kind') === 'enrollment' ? 'enrollment' : 'term',
+    optional: bool(d, 'optional'),
+    title: str(d, 'title') || str(d, 'templateName', 'Contrato'),
+    body: str(d, 'body'),
+    sha256: str(d, 'sha256'),
+    essentials: Array.isArray(d['essentials'])
+      ? (d['essentials'] as unknown[])
+          .filter((x): x is Data => !!x && typeof x === 'object')
+          .map((x) => ({ label: str(x, 'label'), value: str(x, 'value') }))
+      : [],
+    enrollmentId: strOrNull(d, 'enrollmentId'),
+    classId: strOrNull(d, 'classId'),
+    className: str(d, 'className'),
+    planName: str(d, 'planName'),
+    priceCents: numOrNull(d, 'priceCents'),
+    startDate: strOrNull(d, 'startDate'),
+    endDate: strOrNull(d, 'endDate'),
+    requireBeforePayment: bool(d, 'requireBeforePayment'),
+    status: CONTRACT_STATUSES.includes(status) ? status : 'sent',
+    decision: decision === 'accepted' || decision === 'declined' ? decision : null,
+    sentAt: date(d['sentAt']),
+    sentByName: str(d, 'sentByName'),
+    viewCount: num(d, 'viewCount'),
+    viewedAt: date(d['viewedAt']),
+    lastViewedAt: date(d['lastViewedAt']),
+    signedAt: date(d['signedAt']),
+    evidence: readEvidence(obj(d, 'evidence')),
+    centerSignature: centerSig ? { name: str(centerSig, 'name'), at: date(centerSig['at']) } : null,
+    reminderCount: num(d, 'reminderCount'),
+    remindedAt: date(d['remindedAt']),
+    terminatedAt: date(d['terminatedAt']),
+    terminatedByName: str(d, 'terminatedByName'),
+    terminateReason: str(d, 'terminateReason'),
+    events: Array.isArray(d['events'])
+      ? (d['events'] as unknown[]).map(readContractEvent).filter((x): x is ContractEvent => x != null)
+      : [],
+    createdAt: date(d['createdAt']),
   };
 }

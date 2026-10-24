@@ -16,12 +16,14 @@ import {dayKeyIn} from "./training-center-waitlist-model";
 import {requireUid, str} from "./arena-class";
 import {ensureCheckinCode} from "./training-center-checkin";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {CONTRACTS, OPEN_CONTRACT_STATUSES} from "./training-center-contracts-model";
 
 type Data = Record<string, unknown>;
 
 const MAX_CENTERS = 10;
 const MAX_ENROLLMENTS = 10;
 const MAX_INVOICES = 12;
+const MAX_CONTRACTS = 20;
 /** Janela das aulas: 45 dias para trás (frequência do mês) e 21 para a frente. */
 export const CENTER_PAST_DAYS = 45;
 export const CENTER_AHEAD_DAYS = 21;
@@ -107,10 +109,43 @@ export interface MyCenterInvoice {
   dueDate: string;
   /** `pending`, `approved`, `failed`, `refunded`, `disputed`. Cancelada não vem. */
   status: string;
-  /** Link de pagamento (Asaas) — só na fatura em aberto. */
+  /** Link de pagamento (Asaas) — só na fatura em aberto e liberada. */
   payUrl: string | null;
   paidOn: string | null;
   method: string;
+  enrollmentId: string | null;
+  /** Contrato da matrícula exige assinatura antes do pagamento e ainda não foi assinado. */
+  blockedByContract: boolean;
+}
+
+/** Contrato/termo do aluno (K6–K9). `body` é o texto congelado no envio. */
+export interface MyCenterContract {
+  contractId: string;
+  number: string;
+  title: string;
+  /** `enrollment` (matrícula) ou `term` (termo avulso). */
+  kind: string;
+  /** Termo que o aluno pode recusar (ex.: uso de imagem). */
+  optional: boolean;
+  templateVersion: number;
+  /** `sent`, `viewed`, `signed`, `declined`, `terminated` (`cancelled` não vem). */
+  status: string;
+  /** `student` ou `guardian` (menor: assina o responsável). */
+  signerRole: string;
+  signerName: string;
+  studentName: string;
+  enrollmentId: string | null;
+  className: string;
+  planName: string;
+  priceCents: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  requireBeforePayment: boolean;
+  sentOn: string | null;
+  signedAt: string | null;
+  body: string;
+  sha256: string;
+  essentials: Array<{label: string; value: string}>;
 }
 
 export interface MyCenterLocation {
@@ -142,6 +177,7 @@ export interface MyTrainingCenter {
   sessions: MyCenterSession[];
   locations: MyCenterLocation[];
   invoices: MyCenterInvoice[];
+  contracts: MyCenterContract[];
 }
 
 function num(v: unknown): number | null {
@@ -231,10 +267,14 @@ export function mapCenterSession(id: string, s: Data, cls: Data, studentId: stri
   };
 }
 
-export function mapCenterInvoice(id: string, inv: Data, tz: string): MyCenterInvoice | null {
+export function mapCenterInvoice(
+  id: string, inv: Data, tz: string, blocked: ReadonlySet<string> = new Set(),
+): MyCenterInvoice | null {
   const status = str(inv["status"]);
   if (!status || status === "cancelled") return null;
-  const url = str(inv["providerUrl"]);
+  const enrollmentId = str(inv["enrollmentId"]) || null;
+  const blockedByContract = status === "pending" && !!enrollmentId && blocked.has(enrollmentId);
+  const url = blockedByContract ? "" : str(inv["providerUrl"]);
   return {
     invoiceId: id,
     reference: str(inv["reference"]) || "Mensalidade",
@@ -244,6 +284,46 @@ export function mapCenterInvoice(id: string, inv: Data, tz: string): MyCenterInv
     payUrl: status === "pending" && /^https?:\/\//.test(url) ? url : null,
     paidOn: status === "approved" ? dayKeyOf(inv["approvedAt"], tz) : null,
     method: str(inv["method"]),
+    enrollmentId,
+    blockedByContract,
+  };
+}
+
+function isoOf(v: unknown): string | null {
+  return v != null && typeof (v as {toDate?: unknown}).toDate === "function" ?
+    (v as {toDate(): Date}).toDate().toISOString() :
+    null;
+}
+
+export function mapCenterContract(id: string, c: Data, tz: string): MyCenterContract | null {
+  const status = str(c["status"]);
+  if (!status || status === "cancelled") return null;
+  const signer = rec(c["signer"]);
+  const essentials = Array.isArray(c["essentials"]) ? (c["essentials"] as unknown[]).map(rec)
+    .map((e) => ({label: str(e["label"]), value: str(e["value"])})).filter((e) => e.label) : [];
+  return {
+    contractId: id,
+    number: str(c["number"]),
+    title: str(c["title"]) || "Contrato",
+    kind: str(c["kind"]) || "term",
+    optional: c["optional"] === true,
+    templateVersion: num(c["templateVersion"]) ?? 1,
+    status,
+    signerRole: str(signer["role"]) || "student",
+    signerName: str(signer["name"]) || str(c["studentName"]),
+    studentName: str(c["studentName"]),
+    enrollmentId: str(c["enrollmentId"]) || null,
+    className: str(c["className"]),
+    planName: str(c["planName"]),
+    priceCents: num(c["priceCents"]),
+    startDate: str(c["startDate"]) || null,
+    endDate: str(c["endDate"]) || null,
+    requireBeforePayment: c["requireBeforePayment"] === true,
+    sentOn: dayKeyOf(c["sentAt"], tz),
+    signedAt: isoOf(c["signedAt"]),
+    body: str(c["body"]),
+    sha256: str(c["sha256"]),
+    essentials,
   };
 }
 
@@ -269,7 +349,7 @@ async function loadCenter(
   const to = addDays(today, CENTER_AHEAD_DAYS);
   const sessions = centerRef.collection("sessions");
 
-  const [classSnaps, subSnaps, ownSessions, makeupSessions, invoiceSnap, locationSnap] = await Promise.all([
+  const [classSnaps, subSnaps, ownSessions, makeupSessions, invoiceSnap, locationSnap, contractSnap] = await Promise.all([
     classIds.length ? db.getAll(...classIds.map((id) => centerRef.collection("classes").doc(id))) : Promise.resolve([]),
     enrollments.length ?
       db.getAll(...enrollments.map((e) => centerRef.collection("subscriptions").doc(e.id))) :
@@ -285,7 +365,17 @@ async function loadCenter(
     centerRef.collection("invoices").where("studentId", "==", studentId).limit(MAX_INVOICES * 3).get(),
     centerRef.collection("locations").where("status", "==", "active").limit(12).get()
       .catch(() => null),
+    centerRef.collection(CONTRACTS).where("studentId", "==", studentId).limit(MAX_CONTRACTS * 2).get()
+      .catch((e) => {
+        logger.warn(`getMyTrainingCenters ${centerRef.id}: contratos falharam`, e);
+        return null;
+      }),
   ]);
+  const contractDocs = (contractSnap?.docs ?? []).map((d) => ({id: d.id, data: d.data() as Data}));
+  // Matrículas cujo pagamento espera o contrato ser assinado.
+  const blocked = new Set(contractDocs
+    .filter((c) => c.data["requireBeforePayment"] === true && OPEN_CONTRACT_STATUSES.has(str(c.data["status"])))
+    .map((c) => str(c.data["enrollmentId"])).filter(Boolean));
   const classes = new Map(classSnaps.map((s) => [s.id, (s.data() ?? {}) as Data]));
   const subs = new Map(subSnaps.filter((s) => s.exists).map((s) => [s.id, s.data() as Data]));
 
@@ -335,10 +425,17 @@ async function loadCenter(
       .filter((l) => usedLocations.has(str(l["name"])))
       .map((l) => ({name: str(l["name"]), type: str(l["type"]) || "own", address: str(l["address"]), notes: str(l["notes"])})),
     invoices: invoiceSnap.docs
-      .map((d) => mapCenterInvoice(d.id, d.data() as Data, tz))
+      .map((d) => mapCenterInvoice(d.id, d.data() as Data, tz, blocked))
       .filter((x): x is MyCenterInvoice => x != null)
       .sort((a, b) => b.dueDate.localeCompare(a.dueDate))
       .slice(0, MAX_INVOICES),
+    contracts: contractDocs
+      .map((c) => mapCenterContract(c.id, c.data, tz))
+      .filter((x): x is MyCenterContract => x != null)
+      // Abertos primeiro; depois o mais recente.
+      .sort((a, b) => Number(OPEN_CONTRACT_STATUSES.has(b.status)) - Number(OPEN_CONTRACT_STATUSES.has(a.status)) ||
+        (b.sentOn ?? "").localeCompare(a.sentOn ?? ""))
+      .slice(0, MAX_CONTRACTS),
   };
 }
 
@@ -461,7 +558,7 @@ export async function loadMyTrainingCentersCore(
     })));
   return {
     centers: centers
-      .filter((c): c is MyTrainingCenter => c != null && (c.enrollments.length > 0 || c.invoices.length > 0))
+      .filter((c): c is MyTrainingCenter => c != null && (c.enrollments.length > 0 || c.invoices.length > 0 || c.contracts.length > 0))
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
   };
 }

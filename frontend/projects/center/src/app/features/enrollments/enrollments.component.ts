@@ -11,6 +11,7 @@ import { IconComponent } from '../../ui/icon.component';
 import { AuditTrailComponent, PageHeaderComponent, PersonComponent, type AuditRow } from '../../ui/kit';
 import { planRule } from '../plans/plan-view';
 import { enrollmentDetail, ordinal, payerNameFor, queuePositions, statusCounts, waitlistGroups } from './enrollment-view';
+import { SendContractModalComponent } from '../contracts/send-contract-modal.component';
 import { NewEnrollmentComponent } from './new-enrollment.component';
 
 type Filter = EnrollmentStatus | 'all';
@@ -22,7 +23,7 @@ const STATUS_ORDER: EnrollmentStatus[] = ['pending', 'waitlisted', 'active', 'pa
 @Component({
   selector: 'ct-enrollments',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageHeaderComponent, PersonComponent, AuditTrailComponent, IconComponent, NewEnrollmentComponent],
+  imports: [PageHeaderComponent, PersonComponent, AuditTrailComponent, IconComponent, NewEnrollmentComponent, SendContractModalComponent],
   templateUrl: './enrollments.component.html',
   styles: `
     .page { padding: 20px var(--ct-gutter) 26px; display: flex; flex-direction: column; gap: 16px; }
@@ -55,6 +56,8 @@ export class EnrollmentsComponent {
   protected readonly filter = signal<Filter>('all');
   protected readonly selectedId = signal<string | null>(null);
   protected readonly showNew = signal(false);
+  /** Envio de contrato aberto logo depois de matricular. */
+  protected readonly contractFor = signal<{ studentId: string; enrollmentId: string } | null>(null);
 
   protected readonly tz = computed(() => this.ctx.center()?.timezone);
   protected readonly today = computed(() => todayKey(this.tz()));
@@ -255,6 +258,11 @@ export class EnrollmentsComponent {
     this.showNew.set(false);
     this.filter.set('all');
     this.select(id);
+  }
+
+  onSendContract(target: { studentId: string; enrollmentId: string }): void {
+    this.onCreated(target.enrollmentId);
+    this.contractFor.set(target);
   }
 
   inputValue(ev: Event): string {

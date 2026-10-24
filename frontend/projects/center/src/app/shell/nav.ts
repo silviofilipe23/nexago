@@ -26,6 +26,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
   {
     title: 'Comercial',
     items: [
+      { area: 'contracts', label: 'Contratos', icon: 'doc', path: 'contratos' },
       { area: 'plans', label: 'Planos e pacotes', icon: 'badge', path: 'planos' },
       { area: 'finance', label: 'Financeiro', icon: 'wallet', path: 'financeiro' },
       { area: 'subscriptions', label: 'Assinaturas', icon: 'repeat', path: 'assinaturas' },

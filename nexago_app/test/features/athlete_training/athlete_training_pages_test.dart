@@ -641,6 +641,11 @@ void main() {
       );
       expect(find.text('2 ATIVOS · 1 EM ABERTO'), findsOneWidget);
       expect(find.byKey(const Key('training-plans-open-c9')), findsOneWidget);
+      // Sem fatura online: não abre nada, avisa que é direto com a arena.
+      expect(
+        find.textContaining('pagamento direto com a arena'),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('training-plan-arena-e1')), findsOneWidget);
       expect(find.text('COBRADO PELA ARENA CFC'), findsOneWidget);
       expect(find.text('Turma Intermediário B'), findsOneWidget);

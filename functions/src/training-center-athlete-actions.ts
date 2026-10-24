@@ -22,6 +22,7 @@ import {eventDateFromDayKeyAndTime} from "./event-timezone";
 import {str} from "./arena-class";
 import {CENTER_STUDENT_ABSENCE_TYPE, defaultNotifyDeps, deliverCenterNotice, type NotifyDeps} from "./training-center-notify";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {blockedEnrollmentIds} from "./training-center-contracts-model";
 
 type Data = Record<string, unknown>;
 
@@ -245,6 +246,10 @@ export async function myCenterInvoicePixCore(
   const {centerId, invoiceId, inv, student} = await myInvoice(db, uid, raw);
   const status = str(inv["status"]);
   if (status !== "pending") return {status, invoiceUrl: "", pixPayload: ""};
+  const enrollmentId = str(inv["enrollmentId"]);
+  if (enrollmentId && (await blockedEnrollmentIds(centerRef(db, centerId), student.id)).has(enrollmentId)) {
+    throw new HttpsError("failed-precondition", "Assine o contrato da matrícula para liberar o pagamento.");
+  }
   let paymentId = str(inv["providerRef"]);
   let invoiceUrl = str(inv["providerUrl"]);
   if (!paymentId) {

@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/layout/nexa_page_header.dart';
-import '../../../core/links/open_external_url.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -17,11 +16,9 @@ import '../data/class_agenda_repository.dart';
 import '../domain/agenda/athlete_agenda_logic.dart';
 import '../domain/agenda/athlete_agenda_models.dart';
 import '../domain/agenda/athlete_agenda_providers.dart';
-import '../domain/agenda/class_charge_entry.dart';
 import '../domain/agenda/class_charge_payment_watch.dart';
 import '../domain/athlete_notifications_providers.dart';
 import '../domain/athlete_shell_providers.dart';
-import 'widgets/agenda/agenda_class_charges_section.dart';
 import 'widgets/agenda/agenda_day_strip.dart';
 import 'widgets/agenda/agenda_empty_day_view.dart';
 import 'widgets/agenda/agenda_empty_state.dart';
@@ -69,8 +66,8 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
     super.dispose();
   }
 
-  /// Volta ao app com mensalidade online em aberto — pagou pela agenda, pelo
-  /// inbox, pelo push ou pelo link do WhatsApp: relê na hora e segue relendo
+  /// Volta ao app com mensalidade online em aberto — pagou pelo inbox, pelo
+  /// push ou pelo link do WhatsApp: relê na hora e segue relendo
   /// ~1 min, porque a baixa do webhook do Asaas pode chegar depois da volta.
   /// A agenda vive no `IndexedStack` do shell, então ouve todo resume.
   void _onResume() {
@@ -112,19 +109,6 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
       paid.length == 1
           ? 'Pagamento da mensalidade confirmado.'
           : 'Pagamento das mensalidades confirmado.',
-    );
-  }
-
-  Future<void> _payClassCharge(ClassChargeEntry charge) async {
-    final url = charge.invoiceUrl;
-    if (url == null) return;
-    // A volta ao app ([_onResume]) relê e espera a baixa.
-    final opened = await openExternalUrl(url);
-    if (opened || !mounted) return;
-    showAppSnackBar(
-      context,
-      'Não foi possível abrir a fatura.',
-      isError: true,
     );
   }
 
@@ -208,8 +192,9 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
     final now = DateTime.now();
     final bookingsAsync = ref.watch(myBookingsStreamProvider);
     final pageState = ref.watch(athleteAgendaItemsProvider);
-    final classCharges =
-        ref.watch(myClassChargesProvider).valueOrNull ?? const [];
+    // Sem seção na tela: só mantém o snapshot das mensalidades em aberto para
+    // a espera de pagamento do [_onResume].
+    ref.watch(myClassChargesProvider);
     final unreadNotifications = ref.watch(
       athleteUnreadNotificationsCountProvider,
     );
@@ -358,13 +343,6 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
                               controller: _searchController,
                               onChanged: (value) =>
                                   setState(() => _searchQuery = value),
-                            ),
-                          ),
-                        if (classCharges.isNotEmpty)
-                          SliverToBoxAdapter(
-                            child: AgendaClassChargesSection(
-                              charges: classCharges,
-                              onPay: _payClassCharge,
                             ),
                           ),
                         SliverToBoxAdapter(

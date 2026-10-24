@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../core/formatting/app_date_format.dart';
 import '../../../core/time/nexago_event_timezone.dart';
@@ -63,6 +65,26 @@ final centerInvoicePixProvider = FutureProvider.autoDispose
           .read(trainingCentersRepositoryProvider)
           .invoicePix(centerId: k.centerId, invoiceId: k.invoiceId),
     );
+
+/// Evidência da assinatura do contrato (K8): plataforma e versão do app.
+/// Versão vazia quando não dá para ler. Trocáveis nos testes.
+final contractSignPlatformProvider = Provider<String>(
+  (ref) => switch (defaultTargetPlatform) {
+    TargetPlatform.iOS => 'ios',
+    TargetPlatform.android => 'android',
+    final p => p.name,
+  },
+);
+
+final contractSignAppVersionProvider = FutureProvider<String>((ref) async {
+  try {
+    final info = await PackageInfo.fromPlatform();
+    final build = info.buildNumber.trim();
+    return build.isEmpty ? info.version : '${info.version}+$build';
+  } catch (_) {
+    return '';
+  }
+});
 
 /// Um centro do aluno pelo id — `data(null)` quando o aluno não tem (mais)
 /// vínculo com ele. Ao recarregar, segue com o valor anterior (a tela não

@@ -440,3 +440,31 @@ test('vitrine no app: gestor salva capa, descrição e experimental no formato c
   await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C), { showcase: { ...ok, trial: { ...ok.trial, priceReais: -1 } } }));
   await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C), { showcase: { ...ok, extra: true } }));
 });
+
+test('contratos: gestor cria e publica modelo (versão não volta); recepção lê; contrato do aluno só o servidor grava', async () => {
+  const tpl = { name: 'Matrícula · adulto', kind: 'enrollment', status: 'draft', version: 0, body: '', draftBody: 'Texto {{aluno.nome}}', optional: false };
+  const ref = (uid, id = 't1') => doc(as(uid), 'trainingCenters', C, 'contractTemplates', id);
+  await denied(setDoc(ref(RECEP), tpl));
+  await denied(setDoc(ref(COACH), tpl));
+  await denied(setDoc(ref(OWNER), { ...tpl, version: 2 }));
+  await denied(setDoc(ref(OWNER), { ...tpl, kind: 'outro' }));
+  await assertSucceeds(setDoc(ref(OWNER), tpl));
+  await assertSucceeds(updateDoc(ref(ADMIN), { status: 'published', version: 1, body: tpl.draftBody }));
+  await denied(updateDoc(ref(OWNER), { version: 0 }));
+  await denied(updateDoc(ref(OWNER), { draftBody: 'x'.repeat(30001) }));
+  await denied(deleteDoc(ref(OWNER)));
+  await assertSucceeds(getDoc(ref(RECEP)));
+  await denied(getDoc(ref(COACH)));
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', SUSP, 'contractTemplates', 't1'), tpl));
+
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'trainingCenters', C, 'contracts', 'k1'), { studentId: 's1', status: 'sent', body: 'x' });
+  });
+  const k = (uid) => doc(as(uid), 'trainingCenters', C, 'contracts', 'k1');
+  await assertSucceeds(getDoc(k(RECEP)));
+  await assertSucceeds(getDocs(query(collection(as(OWNER), 'trainingCenters', C, 'contracts'), where('studentId', '==', 's1'))));
+  await denied(getDoc(k(COACH)));
+  await denied(getDoc(doc(as(OTHER_OWNER), 'trainingCenters', C, 'contracts', 'k1')));
+  await denied(updateDoc(k(OWNER), { status: 'signed' }));
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'contracts', 'k2'), { studentId: 's1', status: 'signed' }));
+});

@@ -516,7 +516,7 @@ AthleteNotificationPresentation _basePresentation(
                   kind: AthleteNotificationActionKind.primary,
                 ),
               ],
-        routePath: athleteAgendaTabLocation,
+        routePath: athleteChargesLocation,
         externalUrl: invoiceUrl,
       );
     // Fatura do centro de treinamento: "Pagar" abre a fatura no app (Pix e
@@ -530,6 +530,20 @@ AthleteNotificationPresentation _basePresentation(
         actions: const [
           AthleteNotificationAction(
             label: 'Pagar',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: resolveNotificationRoute({...data, 'type': type}),
+      );
+    // Contrato do centro para assinar: abre a leitura (K7).
+    case centerContractNotificationType:
+      return AthleteNotificationPresentation(
+        icon: Icons.description_outlined,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.12),
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Ler e assinar',
             kind: AthleteNotificationActionKind.primary,
           ),
         ],

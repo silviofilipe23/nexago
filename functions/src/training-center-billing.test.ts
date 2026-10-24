@@ -180,6 +180,16 @@ describe("issueCenterInvoicePaymentCore", () => {
     assert.equal(calls.pushed[0]!.data["webUrl"], "/mensalidades/centro/c1/i1");
   });
 
+  it("contrato da matrícula exigido e não assinado: gera a fatura, mas o link não vai para o aluno", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    fake.seedDoc(`${C}/contracts/k1`, {studentId: "s1", enrollmentId: "e1", requireBeforePayment: true, status: "viewed"});
+    const {deps: d, calls} = deps();
+    await issueCenterInvoicePaymentCore(db, "owner", {centerId: "c1", invoiceId: "i1"}, d);
+    assert.equal(inv(fake)["providerRef"], "pay_1");
+    assert.equal(calls.pushed.length, 0);
+  });
+
   it("já gerada: devolve a existente sem criar outra", async () => {
     const {fake, db} = makeDb();
     seed(fake, {invoice: {providerRef: "pay_0", providerUrl: "https://asaas/i/pay_0"}});

@@ -22,6 +22,7 @@ import '../domain/training_plans.dart';
 import '../infrastructure/class_presence_repository.dart'
     show ClassPresenceException;
 import '../infrastructure/training_centers_repository.dart';
+import 'athlete_training_center_contract_pages.dart';
 import 'widgets/training_origin_widgets.dart';
 
 enum _Method { pix, card }
@@ -129,6 +130,32 @@ class _AthleteTrainingCenterInvoicePageState
                   ? 'Esta cobrança foi estornada pelo centro.'
                   : 'Esta cobrança está em disputa no provedor. Fale com o '
                         'centro.',
+            ),
+          ] else if (invoice.blockedByContract) ...[
+            // Matrícula com contrato exigido e não assinado: sem Pix até assinar.
+            _Summary(center: center, invoice: invoice, todayKey: todayKey),
+            const SizedBox(height: 12),
+            const TrainingSealNote(
+              key: Key('center-invoice-contract-blocked'),
+              color: AppColors.brand,
+              icon: Icons.lock_outline_rounded,
+              title: 'Assine o contrato da matrícula para liberar o pagamento',
+              text:
+                  'O centro pede a assinatura antes da cobrança. Leva cerca '
+                  'de 2 minutos, pelo app.',
+            ),
+            const SizedBox(height: 12),
+            ProfessorLinksPrimaryButton(
+              key: const Key('center-invoice-contract-open'),
+              label: 'Ler e assinar o contrato',
+              onPressed: () {
+                final c = center.blockingContractOf(invoice!.enrollmentId);
+                if (c == null) {
+                  openCenterContracts(context, center.centerId);
+                } else {
+                  openCenterContract(context, center.centerId, c.contractId);
+                }
+              },
             ),
           ] else ...[
             _Summary(center: center, invoice: invoice, todayKey: todayKey),

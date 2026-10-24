@@ -1189,6 +1189,8 @@ void main() {
       expect(launched.single.toString(), 'tel:21988887777');
       expect(find.textContaining('Mensalidade em atraso'), findsOneWidget);
       expect(find.text('COBRANÇAS'), findsNothing);
+      // Quem matricula vê os contratos (K5).
+      expect(find.byKey(const Key('center-student-contracts')), findsOneWidget);
     });
 
     testWidgets('professor vê as turmas dele e chega pela agenda',
@@ -1204,6 +1206,7 @@ void main() {
           find.byKey(const Key('center-student-enrollment-e1')), findsNothing);
       expect(find.text('2 disponíveis'), findsOneWidget);
       expect(find.text('COBRANÇAS'), findsNothing);
+      expect(find.byKey(const Key('center-student-contracts')), findsNothing);
     });
   });
 

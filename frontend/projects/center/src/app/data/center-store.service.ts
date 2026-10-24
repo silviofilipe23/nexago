@@ -10,6 +10,7 @@ import {
   type Query,
 } from 'firebase/firestore';
 import { CenterContextService } from '../core/center-context.service';
+import type { ContractTemplate, StudentContract } from '../domain/contracts';
 import { addDays, todayKey } from '../domain/dates';
 import type {
   AuditEntry,
@@ -31,6 +32,8 @@ import { CENTERS, db } from './firebase';
 import {
   readAudit,
   readClass,
+  readContract,
+  readContractTemplate,
   readCourt,
   readEnrollment,
   readInvite,
@@ -79,6 +82,8 @@ export class CenterStore {
     invoices: feed<Invoice>(),
     subscriptions: feed<Subscription>(),
     audit: feed<AuditEntry>(),
+    contractTemplates: feed<ContractTemplate>(),
+    contracts: feed<StudentContract>(),
   };
 
   readonly members: Signal<CenterMember[]> = this.f.members.state.asReadonly();
@@ -102,6 +107,13 @@ export class CenterStore {
   readonly invoices: Signal<Invoice[]> = this.f.invoices.state.asReadonly();
   readonly subscriptions: Signal<Subscription[]> = this.f.subscriptions.state.asReadonly();
   readonly audit: Signal<AuditEntry[]> = this.f.audit.state.asReadonly();
+  /** Arquivados por último; o resto por nome. */
+  readonly contractTemplates = computed(() =>
+    [...this.f.contractTemplates.state()].sort(
+      (a, b) => Number(a.status === 'archived') - Number(b.status === 'archived') || a.name.localeCompare(b.name, 'pt-BR'),
+    ),
+  );
+  readonly contracts: Signal<StudentContract[]> = this.f.contracts.state.asReadonly();
 
   /** Professores ativos (pra selects de turma/agenda). */
   readonly coaches = computed(() =>
@@ -120,6 +132,8 @@ export class CenterStore {
     programs: this.f.programs.loaded.asReadonly(),
     locations: this.f.locations.loaded.asReadonly(),
     courts: this.f.courts.loaded.asReadonly(),
+    contracts: this.f.contracts.loaded.asReadonly(),
+    contractTemplates: this.f.contractTemplates.loaded.asReadonly(),
   };
 
   programById(id: string): Program | undefined {
@@ -260,6 +274,11 @@ export class CenterStore {
       }
       if (seesAllEnrollments) {
         listen(this.f.enrollments, base('enrollments'), readEnrollment);
+      }
+      // Contratos e modelos: rules liberam a leitura para `enroll_students` (gestor tem por padrão).
+      if (hasPermission(me, 'enroll_students')) {
+        listen(this.f.contractTemplates, base('contractTemplates'), readContractTemplate);
+        listen(this.f.contracts, base('contracts'), readContract);
       }
       if (seesFinance) {
         listen(this.f.invoices, base('invoices'), readInvoice);

@@ -200,5 +200,9 @@
 </div>
 
 @if (showNew()) {
-  <ct-new-enrollment [initialStudentId]="aluno() ?? null" (closed)="showNew.set(false)" (created)="onCreated($event)" />
+  <ct-new-enrollment [initialStudentId]="aluno() ?? null" (closed)="showNew.set(false)" (created)="onCreated($event)" (sendContract)="onSendContract($event)" />
+}
+
+@if (contractFor(); as t) {
+  <ct-send-contract-modal [studentId]="t.studentId" [enrollmentId]="t.enrollmentId" (closed)="contractFor.set(null)" />
 }

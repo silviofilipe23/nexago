@@ -185,7 +185,7 @@ void main() {
       expect(ref.read(pendingDeepLinkPathProvider), isNull);
     });
 
-    testWidgets('sem navegador, cai na agenda do atleta', (tester) async {
+    testWidgets('sem navegador, cai em Planos e pagamentos', (tester) async {
       final (ref, router) = await _pumpApp(
         tester,
         authStream: Stream<User?>.value(MockUser(uid: 'atleta-1')),
@@ -201,7 +201,7 @@ void main() {
       await navigation;
       await tester.pumpAndSettle();
 
-      expect(_location(router), athleteAgendaTabLocation);
+      expect(_location(router), athleteChargesLocation);
     });
   });
 

@@ -290,6 +290,13 @@ export {
 export {joinTrainingCenterByCode, setTrainingCenterJoinCode} from "./training-center-join-code";
 export {inviteTrainingCenterMember} from "./training-center-team-invite";
 export {checkInTrainingCenterStudent} from "./training-center-checkin";
+export {
+  openMyTrainingCenterContract,
+  remindTrainingCenterContract,
+  sendTrainingCenterContracts,
+  signMyTrainingCenterContract,
+  terminateTrainingCenterContract,
+} from "./training-center-contracts";
 // QR de check-in por quadra (portal da arena gera; o aluno lê no app).
 export {getArenaCourtCheckinQr} from "./arena-court-checkin-qr";
 // Aulas pelo professor com vínculo ("Gerenciar as próprias aulas"): lista da chamada.

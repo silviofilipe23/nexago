@@ -224,6 +224,7 @@ import '../../features/center_coach/presentation/center_coach_team_page.dart';
 import '../../features/center_coach/presentation/center_coach_messages_page.dart';
 import '../../features/center_coach/presentation/center_coach_enroll_page.dart';
 import '../../features/center_coach/presentation/center_coach_subscription_page.dart';
+import '../../features/center_coach/presentation/center_coach_student_contracts_page.dart';
 import '../../features/professor_mode/presentation/evaluations/athlete_evaluations_pages.dart';
 import '../../features/professor_mode/presentation/evaluations/professor_evaluations_page.dart';
 import '../../features/professor_mode/presentation/availability/athlete_private_lessons_pages.dart';
@@ -1638,6 +1639,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.centerCoachTeam,
         builder: (context, state) => CenterCoachTeamPage(
           centerId: state.pathParameters['centerId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachStudentContracts,
+        name: AppRouteNames.centerCoachStudentContracts,
+        builder: (context, state) => CenterCoachStudentContractsPage(
+          centerId: state.pathParameters['centerId']?.trim() ?? '',
+          studentId: state.pathParameters['studentId']?.trim() ?? '',
         ),
       ),
       GoRoute(

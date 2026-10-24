@@ -1,3 +1,4 @@
+import 'center_contract.dart';
 import 'training_plans.dart';
 
 /// Centro de treinamento visto pelo aluno — espelha `getMyTrainingCenters`
@@ -194,6 +195,8 @@ class CenterInvoice {
     this.payUrl,
     this.paidOn,
     this.method = '',
+    this.enrollmentId,
+    this.blockedByContract = false,
   });
 
   factory CenterInvoice.fromMap(Map<String, Object?> m) => CenterInvoice(
@@ -205,6 +208,8 @@ class CenterInvoice {
     payUrl: _strOrNull(m['payUrl']),
     paidOn: _strOrNull(m['paidOn']),
     method: _str(m['method']),
+    enrollmentId: _strOrNull(m['enrollmentId']),
+    blockedByContract: m['blockedByContract'] == true,
   );
 
   final String invoiceId;
@@ -222,6 +227,13 @@ class CenterInvoice {
   final String? paidOn;
   final String method;
 
+  /// Matrícula da fatura (`null` = cobrança avulsa).
+  final String? enrollmentId;
+
+  /// O contrato da matrícula exige assinatura antes do pagamento e ainda não
+  /// foi assinado: sem link de pagamento até assinar.
+  final bool blockedByContract;
+
   bool get isOpen => status == 'pending' || status == 'failed';
   bool get isPaid => status == 'approved';
   double get amountReais => amountCents / 100;
@@ -229,6 +241,120 @@ class CenterInvoice {
   /// Em aberto e já passou do vencimento ([todayKey] `YYYY-MM-DD`).
   bool isOverdue(String todayKey) =>
       isOpen && dueDate.isNotEmpty && dueDate.compareTo(todayKey) < 0;
+}
+
+/// Contrato/termo do aluno (K6–K9) — espelha `MyCenterContract` de
+/// `functions/src/training-center-athlete.ts`. [body] é o texto congelado no
+/// envio; [sha256] volta na assinatura para provar que é o mesmo texto.
+class MyCenterContract {
+  const MyCenterContract({
+    required this.contractId,
+    required this.number,
+    required this.title,
+    required this.status,
+    this.kind = 'term',
+    this.optional = false,
+    this.templateVersion = 1,
+    this.signerRole = 'student',
+    this.signerName = '',
+    this.studentName = '',
+    this.enrollmentId,
+    this.className = '',
+    this.planName = '',
+    this.priceCents,
+    this.startDate,
+    this.endDate,
+    this.requireBeforePayment = false,
+    this.sentOn,
+    this.signedAt,
+    this.body = '',
+    this.sha256 = '',
+    this.essentials = const [],
+  });
+
+  factory MyCenterContract.fromMap(Map<String, Object?> m) {
+    final essentials = m['essentials'];
+    return MyCenterContract(
+      contractId: _str(m['contractId']),
+      number: _str(m['number']),
+      title: _str(m['title'], 'Contrato'),
+      status: _str(m['status'], 'sent'),
+      kind: _str(m['kind'], 'term'),
+      optional: m['optional'] == true,
+      templateVersion: _int(m['templateVersion']) ?? 1,
+      signerRole: _str(m['signerRole'], 'student'),
+      signerName: _str(m['signerName'], _str(m['studentName'])),
+      studentName: _str(m['studentName']),
+      enrollmentId: _strOrNull(m['enrollmentId']),
+      className: _str(m['className']),
+      planName: _str(m['planName']),
+      priceCents: _int(m['priceCents']),
+      startDate: _strOrNull(m['startDate']),
+      endDate: _strOrNull(m['endDate']),
+      requireBeforePayment: m['requireBeforePayment'] == true,
+      sentOn: _strOrNull(m['sentOn']),
+      signedAt: DateTime.tryParse(_str(m['signedAt'])),
+      body: m['body'] is String ? m['body'] as String : '',
+      sha256: _str(m['sha256']),
+      essentials: essentials is List
+          ? [
+              for (final e in essentials)
+                if (e is Map && _str(e['label']).isNotEmpty)
+                  (label: _str(e['label']), value: _str(e['value'])),
+            ]
+          : const [],
+    );
+  }
+
+  final String contractId;
+
+  /// `CTR-2026-0418`.
+  final String number;
+  final String title;
+
+  /// `sent`, `viewed`, `signed`, `declined` ou `terminated`.
+  final String status;
+
+  /// `enrollment` (matrícula) ou `term` (termo avulso).
+  final String kind;
+
+  /// Termo que o aluno pode recusar (ex.: uso de imagem).
+  final bool optional;
+  final int templateVersion;
+
+  /// `student` ou `guardian` (menor: assina o responsável).
+  final String signerRole;
+  final String signerName;
+  final String studentName;
+  final String? enrollmentId;
+  final String className;
+  final String planName;
+  final int? priceCents;
+
+  /// `YYYY-MM-DD`; `null` no termo (vigência indeterminada).
+  final String? startDate;
+  final String? endDate;
+  final bool requireBeforePayment;
+
+  /// Dia do envio (`YYYY-MM-DD`, fuso do centro).
+  final String? sentOn;
+
+  /// Instante da assinatura (ou da recusa).
+  final DateTime? signedAt;
+  final String body;
+  final String sha256;
+
+  /// "O essencial" (só no contrato de matrícula).
+  final List<({String label, String value})> essentials;
+
+  bool get isOpen => status == 'sent' || status == 'viewed';
+  bool get isSigned => status == 'signed';
+  bool get isDeclined => status == 'declined';
+  bool get isEnrollment => kind == 'enrollment';
+  bool get asGuardian => signerRole == 'guardian';
+
+  ContractState state(String todayKey) =>
+      contractStateOf(status, endDate, todayKey);
 }
 
 class CenterLocation {
@@ -295,6 +421,7 @@ class TrainingCenterLink {
     this.sessions = const [],
     this.locations = const [],
     this.invoices = const [],
+    this.contracts = const [],
   });
 
   factory TrainingCenterLink.fromMap(Map<String, Object?> m) {
@@ -330,6 +457,7 @@ class TrainingCenterLink {
       sessions: list('sessions', CenterSession.fromMap),
       locations: list('locations', CenterLocation.fromMap),
       invoices: list('invoices', CenterInvoice.fromMap),
+      contracts: list('contracts', MyCenterContract.fromMap),
     );
   }
 
@@ -355,10 +483,48 @@ class TrainingCenterLink {
   final List<CenterLocation> locations;
   final List<CenterInvoice> invoices;
 
+  /// Contratos e termos (abertos primeiro; `cancelled` não vem).
+  final List<MyCenterContract> contracts;
+
   List<CenterInvoice> get openInvoices => [
     for (final i in invoices)
       if (i.isOpen) i,
   ];
+
+  /// Esperando a assinatura do aluno.
+  List<MyCenterContract> get openContracts => [
+    for (final c in contracts)
+      if (c.isOpen) c,
+  ];
+
+  MyCenterContract? contractById(String id) {
+    for (final c in contracts) {
+      if (c.contractId == id) return c;
+    }
+    return null;
+  }
+
+  /// Contrato aberto que segura o pagamento da matrícula [enrollmentId].
+  MyCenterContract? blockingContractOf(String? enrollmentId) {
+    if (enrollmentId == null) return null;
+    for (final c in contracts) {
+      if (c.isOpen && c.requireBeforePayment && c.enrollmentId == enrollmentId) {
+        return c;
+      }
+    }
+    return null;
+  }
+
+  /// Fatura em aberto da matrícula (a próxima a pagar depois de assinar).
+  CenterInvoice? openInvoiceOf(String? enrollmentId) {
+    if (enrollmentId == null) return null;
+    CenterInvoice? best;
+    for (final i in invoices) {
+      if (!i.isOpen || i.enrollmentId != enrollmentId) continue;
+      if (best == null || i.dueDate.compareTo(best.dueDate) < 0) best = i;
+    }
+    return best;
+  }
 
   /// Professores que aparecem nas turmas e nas aulas, sem repetir. "Paula"
   /// (nome curto na aula) e "Paula Viana" (na turma) são a mesma pessoa: fica

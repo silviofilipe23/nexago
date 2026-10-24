@@ -77,6 +77,10 @@ const centerEnrollmentNoticeNotificationType =
     'training_center_enrollment_notice';
 const centerSeatOfferNotificationType = 'training_center_seat_offer';
 
+/// Centro → ALUNO: contrato/termo para assinar (envio e lembrete,
+/// `functions/src/training-center-contracts.ts`): abre a leitura (K7).
+const centerContractNotificationType = 'training_center_contract';
+
 /// Centro → PROFESSOR: chamada não finalizada e aluno que avisou que não vai
 /// abrem a chamada da aula no app do professor do centro.
 const centerAttendancePendingNotificationType =
@@ -88,8 +92,11 @@ const centerStudentAbsenceNotificationType = 'training_center_student_absence';
 /// abre "Minhas avaliações" (A7), onde a resposta aparece.
 const classReviewReplyNotificationType = 'class_review_reply';
 
-/// Agenda do atleta — onde fica a mensalidade a pagar.
+/// Agenda do atleta.
 const athleteAgendaTabLocation = '${AppRoutes.discover}?tab=agenda';
+
+/// Planos e pagamentos (Meus treinos) — onde fica a mensalidade a pagar.
+const athleteChargesLocation = AppRoutes.athleteTrainingPlans;
 
 /// URL externa que o toque abre no navegador: a fatura da mensalidade de aula
 /// ou da cobrança do professor (`invoiceUrl`, URL absoluta do Asaas; `webUrl` é a mesma). `null` =
@@ -292,7 +299,7 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   // ramo genérico de `arena` lá embaixo, que mandava o atleta pra agenda do GESTOR.
   if (type == classChargeLinkNotificationType ||
       type == professorChargeLinkNotificationType) {
-    return athleteAgendaTabLocation;
+    return athleteChargesLocation;
   }
 
   // Avaliação: `url` (`/avaliacao/{id}`); sem ele, monta pelo id.
@@ -598,7 +605,7 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
 
 /// Destino dos pushes do centro para o ALUNO: aula → aula do centro (O7);
 /// fatura → a fatura no app (F2, Pix e cartão); matrícula/vaga → tela do
-/// centro (O6). Sem `centerId` cai no hub de Treinos. `null` = não é do
+/// centro (O6); contrato → a leitura do contrato (K7). Sem `centerId` cai no hub de Treinos. `null` = não é do
 /// centro.
 String? _centerNotificationRoute(String type, Map<String, dynamic> data) {
   if (type == centerAttendancePendingNotificationType ||
@@ -609,6 +616,18 @@ String? _centerNotificationRoute(String type, Map<String, dynamic> data) {
     return AppRoutes.centerCoachSession
         .replaceFirst(':centerId', Uri.encodeComponent(c))
         .replaceFirst(':sessionId', Uri.encodeComponent(s));
+  }
+  if (type == centerContractNotificationType) {
+    final c = (data['centerId'] as String?)?.trim() ?? '';
+    final k = (data['contractId'] as String?)?.trim() ?? '';
+    if (c.isEmpty) return AppRoutes.athleteTrainings;
+    if (k.isEmpty) {
+      return AppRoutes.athleteTrainingCenterContracts
+          .replaceFirst(':centerId', Uri.encodeComponent(c));
+    }
+    return AppRoutes.athleteTrainingCenterContract
+        .replaceFirst(':centerId', Uri.encodeComponent(c))
+        .replaceFirst(':contractId', Uri.encodeComponent(k));
   }
   final isSession = type == centerClassReminderNotificationType ||
       type == centerSessionNoticeNotificationType;

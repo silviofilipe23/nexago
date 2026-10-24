@@ -169,6 +169,9 @@ abstract final class AppRoutes {
   /// cada vínculo — particular (O4), turma de arena (O5), centro de
   /// treinamento (O6) e a aula do centro (O7).
   static const String athleteTrainingAgenda = '/treinos/agenda';
+
+  /// Aba "Mais" do shell de Meus treinos: os atalhos que não são aba.
+  static const String athleteTrainingMore = '/treinos/mais';
   static const String athleteTrainingPrivateLink =
       '/treinos/particular/:professorUid';
   static const String athleteTrainingArenaClass =
@@ -1073,6 +1076,7 @@ abstract final class AppRouteNames {
   static const String athleteTrainingMakeup = 'athleteTrainingMakeup';
   static const String athleteTrainingCheckIn = 'athleteTrainingCheckIn';
   static const String athleteTrainingAgenda = 'athleteTrainingAgenda';
+  static const String athleteTrainingMore = 'athleteTrainingMore';
   static const String athleteTrainingPrivateLink =
       'athleteTrainingPrivateLink';
   static const String athleteTrainingArenaClass = 'athleteTrainingArenaClass';

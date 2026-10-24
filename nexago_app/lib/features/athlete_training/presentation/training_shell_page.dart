@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/layout/nexa_bottom_nav_bar.dart';
 import '../../../core/theme/app_theme_colors.dart';
+import '../application/athlete_training_providers.dart';
 
 /// Altura da barra de Meus treinos (`NexaBottomNavBar.height`).
 const double kTrainingTabBarHeight = 100;
@@ -11,21 +13,22 @@ const double kTrainingTabBarHeight = 100;
 double trainingShellBottomPadding(BuildContext context) =>
     kTrainingTabBarHeight + MediaQuery.paddingOf(context).bottom + 24;
 
-/// Shell de Meus treinos: Treinos · Agenda · Feedbacks · Evolução ·
-/// Professores (a ordem é a dos branches do `StatefulShellRoute`). As outras
+/// Shell de Meus treinos: Treinos · Agenda · Feedbacks · Evolução · Mais (a ordem é a dos branches do `StatefulShellRoute`). As outras
 /// telas de `/treinos/...` ficam fora do shell e empilham sem a barra.
-class TrainingShellPage extends StatelessWidget {
+class TrainingShellPage extends ConsumerWidget {
   const TrainingShellPage({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pendingReviews = ref.watch(pendingClassReviewsProvider)?.length ?? 0;
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       extendBody: true,
       body: navigationShell,
       bottomNavigationBar: TrainingTabBar(
+        moreBadge: pendingReviews,
         currentIndex: navigationShell.currentIndex,
         onTap: (branch) => navigationShell.goBranch(
           branch,
@@ -42,10 +45,17 @@ class TrainingTabBar extends StatelessWidget {
     super.key,
     required this.currentIndex,
     required this.onTap,
+    this.moreBadge = 0,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTap;
+
+  /// Treinos para avaliar: a lista fica no Mais (Minhas avaliações).
+  final int moreBadge;
+
+  /// Índice da aba Mais.
+  static const int moreIndex = 4;
 
   static const items = [
     NexaBottomNavItem(
@@ -77,11 +87,11 @@ class TrainingTabBar extends StatelessWidget {
       selectedSfSymbol: 'chart.line.uptrend.xyaxis',
     ),
     NexaBottomNavItem(
-      label: 'Professores',
-      icon: Icons.school_outlined,
-      selectedIcon: Icons.school_rounded,
-      sfSymbol: 'person.2',
-      selectedSfSymbol: 'person.2.fill',
+      label: 'Mais',
+      icon: Icons.more_horiz_rounded,
+      selectedIcon: Icons.more_horiz_rounded,
+      sfSymbol: 'ellipsis',
+      selectedSfSymbol: 'ellipsis',
     ),
   ];
 
@@ -89,7 +99,19 @@ class TrainingTabBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return NexaBottomNavBar(
       key: const Key('training-tab-bar'),
-      items: items,
+      items: [
+        for (var i = 0; i < items.length; i++)
+          i == moreIndex && moreBadge > 0
+              ? NexaBottomNavItem(
+                  label: items[i].label,
+                  icon: items[i].icon,
+                  selectedIcon: items[i].selectedIcon,
+                  sfSymbol: items[i].sfSymbol,
+                  selectedSfSymbol: items[i].selectedSfSymbol,
+                  badge: moreBadge > 99 ? '99+' : '$moreBadge',
+                )
+              : items[i],
+      ],
       currentIndex: currentIndex,
       height: kTrainingTabBarHeight,
       onTap: onTap,

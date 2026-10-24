@@ -327,6 +327,44 @@ void main() {
       expect(router.state.uri.path, AppRoutes.athleteTrainings);
     });
 
+    testWidgets('shell: aba Mais com os atalhos; professores empilha', (
+      tester,
+    ) async {
+      final router = await _pump(
+        tester,
+        location: AppRoutes.athleteTrainings,
+        data: _Data(
+          classes: [_class('s1', '2026-10-22')],
+          professors: const [MyProfessor(professorUid: 'tm', name: 'Thiago')],
+        ),
+      );
+      await tester.tap(tab(Icons.more_horiz_rounded));
+      await _settle(tester);
+      expect(router.state.uri.path, AppRoutes.athleteTrainingMore);
+      for (final k in [
+        'classes',
+        'private',
+        'reviews',
+        'professors',
+        'find',
+        'plans',
+      ]) {
+        expect(find.byKey(Key('training-more-$k')), findsOneWidget);
+      }
+
+      await tester.tap(find.byKey(const Key('training-more-professors')));
+      await _settle(tester);
+      await tester.pump(const Duration(seconds: 1));
+      expect(router.state.uri.path, AppRoutes.athleteTrainingProfessors);
+      expect(find.byKey(const Key('training-tab-bar')), findsNothing);
+
+      router.pop();
+      await _settle(tester);
+      await tester.pump(const Duration(seconds: 1));
+      expect(router.state.uri.path, AppRoutes.athleteTrainingMore);
+      expect(find.byKey(const Key('training-tab-bar')), findsOneWidget);
+    });
+
     testWidgets('shell: tela empilhada some com a barra e volta à aba', (
       tester,
     ) async {
@@ -398,7 +436,11 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       await tester.pump(const Duration(seconds: 1));
 
-      await tester.tap(find.byKey(const Key('training-hub-classes')));
+      // Os atalhos saíram do hub: ficam na aba Mais.
+      expect(find.text('Tudo sobre seus treinos'), findsNothing);
+      router.go(AppRoutes.athleteTrainingMore);
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('training-more-classes')));
       await _settle(tester);
       expect(router.state.uri.path, AppRoutes.athleteTrainingClasses);
     });

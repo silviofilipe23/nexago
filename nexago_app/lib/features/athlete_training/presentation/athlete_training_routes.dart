@@ -17,6 +17,7 @@ import 'athlete_training_find_professor_page.dart';
 import 'athlete_training_homework_page.dart';
 import 'athlete_training_hub_page.dart';
 import 'athlete_training_makeup_page.dart';
+import 'athlete_training_more_page.dart';
 import 'athlete_training_plans_page.dart';
 import 'athlete_training_private_link_page.dart';
 import 'athlete_training_professor_profile_page.dart';
@@ -27,7 +28,7 @@ import 'training_shell_page.dart';
 /// Rotas de Meus treinos.
 ///
 /// O shell ([TrainingShellPage]) tem as abas Treinos · Agenda · Feedbacks ·
-/// Evolução · Professores (a ordem dos branches é a da barra). O resto de
+/// Evolução · Mais (a ordem dos branches é a da barra). O resto de
 /// `/treinos/...` são rotas de topo com o caminho completo: empilham por cima
 /// do shell (de qualquer aba, sem a barra) e o voltar devolve à aba de onde
 /// saíram.
@@ -77,14 +78,18 @@ List<RouteBase> athleteTrainingRoutes() => [
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: AppRoutes.athleteTrainingProfessors,
-                name: AppRouteNames.athleteTrainingProfessors,
-                builder: (context, state) =>
-                    const AthleteTrainingProfessorsPage(),
+                path: AppRoutes.athleteTrainingMore,
+                name: AppRouteNames.athleteTrainingMore,
+                builder: (context, state) => const AthleteTrainingMorePage(),
               ),
             ],
           ),
         ],
+      ),
+      GoRoute(
+        path: AppRoutes.athleteTrainingProfessors,
+        name: AppRouteNames.athleteTrainingProfessors,
+        builder: (context, state) => const AthleteTrainingProfessorsPage(),
       ),
       GoRoute(
         path: AppRoutes.athleteTrainingClasses,
@@ -234,8 +239,7 @@ List<RouteBase> athleteTrainingRoutes() => [
             name: AppRouteNames.athleteTrainingCenterEnrollment,
             builder: (context, state) => AthleteCenterEnrollmentPage(
               centerId: state.pathParameters['centerId']?.trim() ?? '',
-              enrollmentId:
-                  state.pathParameters['enrollmentId']?.trim() ?? '',
+              enrollmentId: state.pathParameters['enrollmentId']?.trim() ?? '',
             ),
             routes: [
               GoRoute(

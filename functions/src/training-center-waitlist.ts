@@ -84,6 +84,7 @@ export async function offerOpenSeats(
     const qSnap = await tx.get(db.collection(`${TRAINING_CENTERS}/${centerId}/enrollments`).where("classId", "==", classId));
     const rows = qSnap.docs.map((d) => ({id: d.id, data: d.data() as Data}));
     const back = returnQueue(rows, classId).slice(0, freeSeats(cls));
+    const pauseRequest = new Map(rows.map((r) => [r.id, String(r.data["pauseRequestId"] ?? "")]));
     const backStudents = new Map<string, Data | undefined>();
     for (const b of back) {
       backStudents.set(b.studentId, (await tx.get(db.doc(`${TRAINING_CENTERS}/${centerId}/students/${b.studentId}`))).data() as Data | undefined);
@@ -118,6 +119,13 @@ export async function offerOpenSeats(
       tx.update(db.doc(`${TRAINING_CENTERS}/${centerId}/enrollments/${b.id}`), {
         status: "active", pausedUntil: null, pauseReason: "", seatReleased: false, awaitingSeat: false,
       });
+      // O pedido de trancamento fecha junto (sem esperar a rodada do dia seguinte).
+      const reqId = pauseRequest.get(b.id);
+      if (reqId && !reqId.includes("/")) {
+        tx.update(db.doc(`${TRAINING_CENTERS}/${centerId}/enrollmentRequests/${reqId}`), {
+          status: "done", awaitingSeat: false, updatedAt: Timestamp.fromDate(now),
+        });
+      }
       taken += 1;
       roster = [...roster.filter((id) => id !== b.studentId), b.studentId];
       const student = backStudents.get(b.studentId);

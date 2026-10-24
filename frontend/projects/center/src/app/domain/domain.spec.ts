@@ -1,5 +1,5 @@
 import { addDays, startOfWeek, wallClock, weekdayOf } from './dates';
-import { activationSteps, buildContract, canTransition, invoiceDisplayStatus, priceOn, seatDelta, waitlistOf } from './enrollment';
+import { activationSteps, buildContract, canTransition, invoiceDisplayStatus, occupiesSeat, priceOn, seatDelta, seatDeltaFor, seatNote, waitlistOf } from './enrollment';
 import { moneySplit, occupancy } from './metrics';
 import { DEFAULT_POLICIES, type Enrollment, type Invoice, type Plan, type TrainingCenter } from './models';
 import { formatBRL, parseBRL } from './money';
@@ -89,6 +89,28 @@ describe('enrollment', () => {
     expect(seatDelta('paused', 'cancelled')).toBe(-1);
     expect(canTransition('cancelled', 'active')).toBeFalse();
     expect(canTransition('waitlisted', 'pending')).toBeTrue();
+  });
+
+  it('vaga liberada no trancamento: pausada não ocupa; cancelar/concluir 0, reativar +1', () => {
+    const released = { status: 'paused' as const, seatReleased: true };
+    const reserved = { status: 'paused' as const, seatReleased: false };
+    expect(occupiesSeat(released)).toBeFalse();
+    expect(occupiesSeat(reserved)).toBeTrue();
+    expect(occupiesSeat({ status: 'active', seatReleased: true })).toBeTrue();
+    expect(seatDeltaFor(released, 'cancelled')).toBe(0);
+    expect(seatDeltaFor(released, 'completed')).toBe(0);
+    expect(seatDeltaFor(released, 'active')).toBe(1);
+    // Pausa reservada segue a regra de sempre.
+    expect(seatDeltaFor(reserved, 'cancelled')).toBe(-1);
+    expect(seatDeltaFor(reserved, 'active')).toBe(0);
+    // Pausa manual do portal reserva; flag velha em ativa é ignorada.
+    expect(seatDeltaFor({ status: 'active', seatReleased: false }, 'paused')).toBe(0);
+    expect(seatDeltaFor({ status: 'active', seatReleased: true }, 'cancelled')).toBe(-1);
+    expect(seatDeltaFor({ status: 'pending', seatReleased: false }, 'active')).toBe(0);
+    expect(seatNote({ ...released, awaitingSeat: false })).toBe('vaga liberada');
+    expect(seatNote({ ...released, awaitingSeat: true })).toBe('turma cheia · volta na primeira vaga');
+    expect(seatNote({ ...reserved, awaitingSeat: false })).toBe('');
+    expect(seatNote({ status: 'cancelled', seatReleased: true, awaitingSeat: false })).toBe('');
   });
 
   it('fila de espera por ordem de chegada', () => {

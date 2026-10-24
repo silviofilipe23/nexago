@@ -71,6 +71,7 @@ const POLICY_LABELS: Partial<Record<keyof CenterPolicies, string>> = {
   retentionDiscountPercent: 'Desconto de retenção (%)',
   allowCancelWithdraw: 'Desistir do cancelamento',
   requireMedicalClearance: 'Alta médica para voltar',
+  pauseSeat: 'Vaga durante o trancamento',
   waitlistAcceptHours: 'Prazo para aceitar a vaga',
 };
 

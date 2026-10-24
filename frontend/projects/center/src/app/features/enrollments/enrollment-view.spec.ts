@@ -27,7 +27,7 @@ function enr(p: Partial<Enrollment>): Enrollment {
     pauseReason: '',
     creditsLeft: null,
     waitlistedAt: null,
-    offeredAt: null, offeredAuto: false, notifyOnSeat: false,
+    offeredAt: null, offeredAuto: false, notifyOnSeat: false, seatReleased: false, awaitingSeat: false,
     endedAt: null,
     createdAt: null,
     createdByName: '',
@@ -115,6 +115,8 @@ describe('enrollment-view', () => {
       'Vaga da fila · Aguardando pagamento · reserva até 23 out 16:02',
     );
     expect(enrollmentDetail(enr({ status: 'paused', pausedUntil: '2026-11-03', pauseReason: 'viagem' }), o).text).toBe('Pausa até 03 nov · viagem');
+    expect(enrollmentDetail(enr({ status: 'paused', pausedUntil: '2026-11-03', pauseReason: 'Trancamento', seatReleased: true }), o).text).toBe('Pausa até 03 nov · Trancamento · vaga liberada');
+    expect(enrollmentDetail(enr({ status: 'paused', pausedUntil: '2026-11-04', pauseReason: 'Trancamento', seatReleased: true, awaitingSeat: true }), o)).toEqual({ text: 'Turma cheia · volta na primeira vaga · Trancamento', tone: 'pending' });
   });
 
   it('posição na fila por turma, mais antigo primeiro', () => {

@@ -341,7 +341,14 @@ class _AthleteTrainingCenterPageState
                 null,
               ),
             if (e.status != 'active')
-              ('Situação', _statusText(e), AppColors.pending),
+              (
+                'Situação',
+                _statusText(
+                  e,
+                  awaitingSeat: center.awaitingSeatOf(e.enrollmentId),
+                ),
+                AppColors.pending,
+              ),
           ],
         ),
         if (centerCanCancel(e)) ...[
@@ -509,7 +516,9 @@ class _ManageEnrollmentEntry extends StatelessWidget {
   }
 }
 
-String _statusText(CenterEnrollment e) => switch (e.status) {
+String _statusText(CenterEnrollment e, {bool awaitingSeat = false}) =>
+    switch (e.status) {
+  'paused' when awaitingSeat => 'Turma cheia · volta na primeira vaga',
   'paused' =>
     e.pausedUntil == null
         ? 'Pausada'

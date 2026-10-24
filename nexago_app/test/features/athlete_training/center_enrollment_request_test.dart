@@ -590,4 +590,95 @@ void main() {
       );
     });
   });
+
+  group('vaga no trancamento (pauseSeat)', () {
+    test('política: padrão reserva; só `release` libera', () {
+      expect(const CenterPolicies().pauseReleasesSeat, isFalse);
+      expect(
+        TrainingCenterLink.fromMap(centerJson()).policies.pauseSeat,
+        'reserve',
+      );
+      expect(
+        TrainingCenterLink.fromMap(
+          centerJson(policies: {'pauseSeat': 'lixo'}),
+        ).policies.pauseReleasesSeat,
+        isFalse,
+      );
+      expect(
+        TrainingCenterLink.fromMap(
+          centerJson(policies: {'pauseSeat': 'release'}),
+        ).policies.pauseReleasesSeat,
+        isTrue,
+      );
+    });
+
+    test('pedido lê releaseSeat e awaitingSeat; lesão nunca libera', () {
+      final pause = CenterEnrollmentRequest.fromMap(
+        requestJson(
+          type: 'pause',
+          status: 'active',
+          extra: {'releaseSeat': true, 'awaitingSeat': true},
+        ),
+      );
+      expect(pause.releaseSeat, isTrue);
+      expect(pause.awaitingSeat, isTrue);
+      expect(pause.releasesSeat, isTrue);
+
+      final injury = CenterEnrollmentRequest.fromMap(
+        requestJson(status: 'active', extra: {'releaseSeat': true}),
+      );
+      expect(injury.releasesSeat, isFalse);
+
+      final old = CenterEnrollmentRequest.fromMap(requestJson(type: 'pause'));
+      expect(old.releaseSeat, isFalse);
+      expect(old.awaitingSeat, isFalse);
+    });
+
+    test('textos conforme a política', () {
+      final e = TrainingCenterLink.fromMap(centerJson()).enrollmentById('e1')!;
+      const reserve = CenterPolicies(pauseMaxDaysPerYear: 60);
+      const release =
+          CenterPolicies(pauseMaxDaysPerYear: 60, pauseSeat: 'release');
+      expect(
+        centerPauseOptionText(reserve, e),
+        '50 dias livres no ano · vaga reservada',
+      );
+      expect(
+        centerPauseOptionText(release, e),
+        '50 dias livres no ano · a vaga volta para a turma',
+      );
+      expect(centerPauseSeatText(reserve), 'Sua vaga fica reservada.');
+      expect(centerPauseSeatText(release), kCenterPauseSeatReleaseText);
+      expect(centerPauseSeatValue(reserve), 'Fica reservada');
+      expect(centerPauseSeatValue(release), 'Volta para a turma');
+    });
+
+    test('centro sabe qual matrícula espera vaga', () {
+      final c = TrainingCenterLink.fromMap(
+        centerJson(
+          requests: [
+            requestJson(
+              type: 'pause',
+              status: 'active',
+              extra: {'releaseSeat': true, 'awaitingSeat': true},
+            ),
+          ],
+        ),
+      );
+      expect(c.awaitingSeatOf('e1'), isTrue);
+      expect(c.awaitingSeatOf('e2'), isFalse);
+      final done = TrainingCenterLink.fromMap(
+        centerJson(
+          requests: [
+            requestJson(
+              type: 'pause',
+              status: 'done',
+              extra: {'releaseSeat': true, 'awaitingSeat': true},
+            ),
+          ],
+        ),
+      );
+      expect(done.awaitingSeatOf('e1'), isFalse);
+    });
+  });
 }

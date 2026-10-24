@@ -330,6 +330,8 @@ describe("pedidos da matrícula · callables", () => {
     assert.equal(doc(fake, `${C}/enrollments/e1`)["status"], "active");
     assert.equal(doc(fake, `${C}/enrollments/w1`)["status"], "waitlisted");
     assert.equal(doc(fake, `${C}/classes/bt`)["seatsTaken"], 8);
+    const req = under(fake, `${C}/enrollmentRequests/`).map((k) => doc(fake, k)).find((x) => x["type"] === "pause")!;
+    assert.deepEqual([req["status"], req["awaitingSeat"]], ["done", false]);
   });
 
   it("cancelar matrícula com vaga já liberada não desconta de novo", async () => {

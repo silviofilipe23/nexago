@@ -303,4 +303,83 @@ void main() {
     expect(find.byKey(const Key('center-exit-clearance-file')), findsNothing);
     expect(find.byKey(const Key('center-exit-clear')), findsNothing);
   });
+
+  group('vaga no trancamento', () {
+    CenterExitRequest pause(String id, Map<String, Object?> extra) =>
+        CenterExitRequest.fromMap(
+          id,
+          exitJson(
+            type: 'pause',
+            status: 'active',
+            extra: {'certificate': null, 'reason': 'Viagem', ...extra},
+          ),
+        );
+
+    testWidgets('lista: vaga liberada e turma cheia', (tester) async {
+      await _pump(
+        tester,
+        location: '/athlete/professor/centros/ct1/pedidos',
+        repo: _FakeRequests([
+          pause('r5', {'releaseSeat': true}),
+          pause('r6', {
+            'studentName': 'Lucas Prado',
+            'releaseSeat': true,
+            'awaitingSeat': true,
+          }),
+          pause('r7', {'studentName': 'Ana Reis'}),
+        ]),
+      );
+      String seat(String id) =>
+          tester.widget<Text>(find.byKey(Key('center-exit-seat-$id'))).data!;
+      expect(seat('r5'), 'Vaga liberada para a turma');
+      expect(seat('r6'), 'Turma cheia · volta na primeira vaga');
+      expect(find.byKey(const Key('center-exit-seat-r7')), findsNothing);
+      expect(find.text('TURMA CHEIA'), findsOneWidget);
+    });
+
+    testWidgets('detalhe: vaga liberada para a turma', (tester) async {
+      await _pump(
+        tester,
+        location: '/athlete/professor/centros/ct1/pedidos/r5',
+        repo: _FakeRequests([
+          pause('r5', {'releaseSeat': true}),
+        ]),
+      );
+      expect(find.text('Vaga liberada para a turma'), findsOneWidget);
+      expect(find.text('23 nov'), findsOneWidget);
+    });
+
+    testWidgets('detalhe: turma cheia, volta na primeira vaga', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        location: '/athlete/professor/centros/ct1/pedidos/r6',
+        repo: _FakeRequests([
+          pause('r6', {
+            'releaseSeat': true,
+            'awaitingSeat': true,
+            'pausedUntil': '2026-10-25',
+          }),
+        ]),
+      );
+      expect(find.text('TURMA CHEIA'), findsOneWidget);
+      expect(find.text('Turma cheia · volta na primeira vaga'), findsOneWidget);
+      expect(
+        find.text('Na primeira vaga, antes da lista de espera'),
+        findsOneWidget,
+      );
+      expect(find.text('25 out'), findsNothing);
+    });
+
+    testWidgets('detalhe: reserva não mostra a linha da vaga', (tester) async {
+      await _pump(
+        tester,
+        location: '/athlete/professor/centros/ct1/pedidos/r7',
+        repo: _FakeRequests([pause('r7', const {})]),
+      );
+      expect(find.text('Vaga liberada para a turma'), findsNothing);
+      expect(find.text('Turma cheia · volta na primeira vaga'), findsNothing);
+    });
+  });
 }

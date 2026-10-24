@@ -69,7 +69,9 @@ const TYPES: { value: EnrollmentRequestType; label: string }[] = [
           <input id="rq-why" class="ct-input" maxlength="200" [placeholder]="type() === 'injury' ? 'Ex.: entorse no joelho' : 'Ex.: viagem'" [value]="reason()" (input)="reason.set(val($event))" />
         </div>
         @if (endsOn()) {
-          <div class="ct-dim">Pausa de {{ formatDayKey(startsOn()) }} a {{ formatDayKey(endsOn()) }}; a matrícula volta sozinha em {{ formatDayKey(back()) }}. A vaga fica reservada.</div>
+          <div class="ct-dim">Pausa de {{ formatDayKey(startsOn()) }} a {{ formatDayKey(endsOn()) }}; {{ type() === 'pause' && policies().pauseSeat === 'release'
+            ? 'a vaga é liberada para a turma; na volta, em ' + formatDayKey(back()) + ', o aluno retoma se houver vaga, senão volta na primeira vaga, antes da fila.'
+            : 'a matrícula volta sozinha em ' + formatDayKey(back()) + '. A vaga fica reservada.' }}</div>
         }
         @if (type() === 'injury') {
           <div class="ct-box">

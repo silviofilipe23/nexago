@@ -56,6 +56,19 @@ describe('policy-fields', () => {
     expect(choiceValue(DEFAULT_POLICIES, 'requireMedicalClearance')).toBe('false');
   });
 
+  it('vaga durante o trancamento: fica no Trancamento, padrão reservar, sem a nota de vaga sempre reservada', () => {
+    const pause = EXIT_SECTIONS.find((s) => s.title === 'Trancamento')!;
+    const row = pause.rows.find((r) => r.key === 'pauseSeat')!;
+    expect(choiceValue(DEFAULT_POLICIES, 'pauseSeat')).toBe('reserve');
+    const next = applyChoice(DEFAULT_POLICIES, 'pauseSeat', 'release');
+    expect(next.pauseSeat).toBe('release');
+    expect(row.hint(next)).toContain('antes da fila');
+    expect(row.hint(DEFAULT_POLICIES)).toContain('Reservar');
+    expect(changedPolicies(DEFAULT_POLICIES, next)).toEqual(['pauseSeat']);
+    expect(pause.note ?? '').not.toContain('reservada');
+    expect(EXIT_SECTIONS.find((s) => s.title === 'Pausa por lesão')!.rows.some((r) => r.key === 'pauseSeat')).toBeFalse();
+  });
+
   it('número com opções mostra também um valor antigo fora da lista', () => {
     const row = EXIT_SECTIONS[0]!.rows.find((r) => r.key === 'pauseMinDays') as NumberChoiceRow;
     expect(numberChoiceOptions(DEFAULT_POLICIES, row).map((o) => o.value)).toEqual(['7', '15']);

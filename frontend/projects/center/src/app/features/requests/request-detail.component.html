@@ -291,7 +291,7 @@
 
   @if (deciding(); as d) {
     <ct-modal [kicker]="r.studentName + ' · ' + TYPE[r.type][0]" [title]="d === 'undo' && r.type === 'cancel' ? 'Desfazer cancelamento' : DECISIONS[d].title" (closed)="close()">
-      <div class="ct-muted">{{ d === 'undo' ? undoText() : d === 'clear' ? clearText() : DECISIONS[d].text }}</div>
+      <div class="ct-muted">{{ d === 'undo' ? undoText() : d === 'clear' ? clearText() : d === 'approve' ? approveText() : DECISIONS[d].text }}</div>
       <div class="ct-field">
         <label for="rq-note">{{ DECISIONS[d].needsNote ? 'Mensagem ao aluno' : 'Mensagem ao aluno (opcional)' }}</label>
         <textarea id="rq-note" class="ct-input" rows="3" maxlength="400" [placeholder]="DECISIONS[d].placeholder" [value]="note()" (input)="note.set(val($event))"></textarea>

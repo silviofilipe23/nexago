@@ -28,7 +28,7 @@ function enrollment(p: Partial<Enrollment>): Enrollment {
   return {
     id: 'e', studentId: 's1', studentName: '', classId: 'c1', className: 'BT A', planId: null, contract: null, status: 'active',
     startDate: '2026-10-01', holdUntil: null, pausedUntil: null, pauseReason: '', creditsLeft: null, waitlistedAt: null,
-    offeredAt: null, offeredAuto: false, notifyOnSeat: false, endedAt: null, createdAt: null, createdByName: '', ...p,
+    offeredAt: null, offeredAuto: false, notifyOnSeat: false, seatReleased: false, awaitingSeat: false, endedAt: null, createdAt: null, createdByName: '', ...p,
   };
 }
 

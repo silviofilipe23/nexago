@@ -152,6 +152,7 @@ class _RequestRow extends StatelessWidget {
     final colors = context.themeColors;
     final r = request;
     final st = centerExitStatusOf(r);
+    final seat = centerExitSeatLabel(r);
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -192,6 +193,19 @@ class _RequestRow extends StatelessWidget {
                       color: ProfessorLinksStyle.dim(colors),
                     ),
                   ),
+                  if (seat != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      seat,
+                      key: Key('center-exit-seat-${r.id}'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.bodyS.copyWith(
+                        fontSize: 11.5,
+                        color: colors.readableTone(ProfessorLinksStyle.blue),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -380,8 +394,11 @@ class _CenterCoachExitRequestPageState
         ('Afastamento', '${r.days} dia${r.days == 1 ? '' : 's'}'),
       if (r.reasonLabel.isNotEmpty) ('Motivo', r.reasonLabel),
       if (!r.isCancel && r.periodLabel.isNotEmpty) ('Pausa', r.periodLabel),
-      if (!r.isCancel && r.pausedUntil != null)
+      if (r.waitsForSeat)
+        ('Volta em', 'Na primeira vaga, antes da lista de espera')
+      else if (!r.isCancel && r.pausedUntil != null)
         ('Volta em', centerShortDay(r.pausedUntil!)),
+      if (centerExitSeatLabel(r) case final seat?) ('Vaga', seat),
       if (!r.isCancel) ('Cobrança', 'Suspensa na pausa'),
       if (r.isCancel && r.lastDay != null)
         ('Último dia', centerShortDay(r.lastDay!)),

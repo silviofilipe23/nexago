@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/core/time/nexago_event_timezone.dart';
+import 'package:nexago_app/features/athlete_training/domain/center_enrollment_request.dart'
+    show kCenterPauseSeatReleaseText;
 import 'package:nexago_app/features/athlete_training/domain/training_center.dart';
 import 'package:nexago_app/features/athlete_training/infrastructure/center_certificate_picker.dart';
 import 'package:nexago_app/features/athlete_training/infrastructure/class_presence_repository.dart';
@@ -631,5 +633,163 @@ void main() {
     );
     expect(find.text('Alta enviada · em análise'), findsOneWidget);
     expect(find.byKey(const Key('center-clearance-send')), findsNothing);
+  });
+
+  group('vaga no trancamento (pauseSeat release)', () {
+    const release = {'pauseSeat': 'release'};
+    Map<String, Object?> activePause(Map<String, Object?> extra) => requestJson(
+          id: 'r8',
+          type: 'pause',
+          status: 'active',
+          extra: {
+            'hasCertificate': false,
+            'reason': 'Viagem',
+            'startsOn': '2026-10-01',
+            'endsOn': '2026-10-30',
+            'releaseSeat': true,
+            ...extra,
+          },
+        );
+
+    testWidgets('T5 · opção avisa que a vaga volta para a turma', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        location: _base,
+        repo: _FakeCenters(_data(policies: release)),
+      );
+      expect(
+        find.text('50 dias livres no ano · a vaga volta para a turma'),
+        findsOneWidget,
+      );
+      expect(find.text('50 dias livres no ano · vaga reservada'), findsNothing);
+    });
+
+    testWidgets('trancar: formulário e confirmação com a regra da vaga', (
+      tester,
+    ) async {
+      final repo = _FakeCenters(_data(policies: release));
+      await _pump(tester, location: '$_base/trancar', repo: repo);
+      expect(
+        find.textContaining(kCenterPauseSeatReleaseText),
+        findsOneWidget,
+      );
+      expect(find.textContaining('fica reservada'), findsNothing);
+      await _tap(tester, find.byKey(const Key('center-pause-review')));
+      expect(find.text('Volta para a turma'), findsOneWidget);
+      expect(find.text('Fica reservada'), findsNothing);
+      expect(
+        find.byKey(const Key('center-pause-confirm-seat-release')),
+        findsOneWidget,
+      );
+      await _tap(tester, find.byKey(const Key('center-pause-confirm')));
+      expect(repo.requests.single['type'], 'pause');
+    });
+
+    testWidgets('trancar: centro que reserva segue como antes', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        location: '$_base/trancar',
+        repo: _FakeCenters(_data()),
+      );
+      expect(find.textContaining('Sua vaga fica reservada.'), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('center-pause-review')));
+      expect(find.text('Fica reservada'), findsOneWidget);
+      expect(
+        find.byKey(const Key('center-pause-confirm-seat-release')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('T9 · oferta de trancar com a vaga voltando para a turma', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        location: '$_base/cancelar',
+        repo: _FakeCenters(_data(policies: release)),
+      );
+      await _tap(tester, find.byKey(const Key('center-cancel-reason-price')));
+      await _tap(tester, find.byKey(const Key('center-cancel-continue')));
+      expect(
+        find.text('Sem cobrança · $kCenterPauseSeatReleaseText'),
+        findsOneWidget,
+      );
+      expect(find.text('Sem cobrança e com a vaga guardada'), findsNothing);
+    });
+
+    testWidgets('T5 · trancamento em curso que liberou a vaga', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        location: _base,
+        repo: _FakeCenters(
+          _data(
+            policies: release,
+            requests: [activePause(const {})],
+            enrollment: {'status': 'paused', 'pausedUntil': '2026-10-31'},
+          ),
+        ),
+      );
+      expect(find.text('Volta em 31 out'), findsOneWidget);
+      expect(
+        find.textContaining(kCenterPauseSeatReleaseText),
+        findsOneWidget,
+      );
+      expect(find.text('Volta para a turma'), findsOneWidget);
+      expect(find.textContaining('Sua vaga está reservada'), findsNothing);
+    });
+
+    testWidgets('T5 · turma cheia: volta na primeira vaga, sem cobrança', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        location: _base,
+        repo: _FakeCenters(
+          _data(
+            policies: release,
+            requests: [
+              activePause({'awaitingSeat': true, 'pausedUntil': '2026-10-25'}),
+            ],
+            enrollment: {'status': 'paused', 'pausedUntil': '2026-10-25'},
+          ),
+        ),
+      );
+      expect(
+        find.text('Turma cheia · você volta na primeira vaga'),
+        findsOneWidget,
+      );
+      expect(find.text('Sem cobrança enquanto isso'), findsOneWidget);
+      expect(find.text('PAUSADA · TURMA CHEIA'), findsOneWidget);
+      expect(
+          find.textContaining('volta em 25 out'.toUpperCase()), findsNothing);
+      // Trancamento em curso ainda deixa cancelar.
+      expect(find.byKey(const Key('center-enrollment-cancel')), findsOneWidget);
+    });
+
+    testWidgets('T5 · lesão continua com a vaga reservada', (tester) async {
+      await _pump(
+        tester,
+        location: _base,
+        repo: _FakeCenters(
+          _data(
+            policies: release,
+            requests: [
+              requestJson(status: 'active', extra: {'releaseSeat': true}),
+            ],
+          ),
+        ),
+      );
+      expect(
+        find.text('Sem aulas nem cobrança até lá. Sua vaga está reservada.'),
+        findsOneWidget,
+      );
+      expect(find.text('Volta para a turma'), findsNothing);
+    });
   });
 }

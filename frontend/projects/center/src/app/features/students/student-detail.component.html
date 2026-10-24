@@ -25,13 +25,13 @@
                 <div class="ct-card-head">
                   <div class="ct-grow"><div class="ct-kick">{{ current()[0]?.className || 'Sem turma' }}</div><div class="ct-card-title">Matrícula ativa</div></div>
                   @if (current()[0]; as e) {
-                    <span class="ct-pill" [class]="'ct-pill ' + enrollmentStatus[e.status][1]">{{ enrollmentStatus[e.status][0] }}</span>
+                    <span class="ct-pill" [class]="'ct-pill ' + enrollmentStatus[e.status][1]">{{ enrollmentStatus[e.status][0] }}{{ seatNote(e) ? ' · ' + seatNote(e) : '' }}</span>
                   }
                 </div>
                 @for (e of current(); track e.id) {
                   <div class="enr">
                     @if (!$first) {
-                      <div class="ct-kick">{{ e.className }} · {{ enrollmentStatus[e.status][0] }}</div>
+                      <div class="ct-kick">{{ e.className }} · {{ enrollmentStatus[e.status][0] }}{{ seatNote(e) ? ' · ' + seatNote(e) : '' }}</div>
                     }
                     <div class="ct-kv"><span>Plano</span><span>{{ e.contract?.planName || '—' }}</span></div>
                     <div class="ct-kv mono"><span>Preço contratado</span><span>{{ price(e) }}</span></div>
@@ -181,7 +181,7 @@
                 <span class="ct-ellipsis">{{ e.contract?.planName || '—' }}</span>
                 <span class="ct-mono">{{ price(e) }}</span>
                 <span class="ct-mono">{{ day(e.startDate) }}</span>
-                <span><span class="ct-pill" [class]="'ct-pill ' + enrollmentStatus[e.status][1]">{{ enrollmentStatus[e.status][0] }}</span></span>
+                <span><span class="ct-pill" [class]="'ct-pill ' + enrollmentStatus[e.status][1]">{{ enrollmentStatus[e.status][0] }}{{ seatNote(e) ? ' · ' + seatNote(e) : '' }}</span></span>
               </div>
               @if (openRequests()[e.id]; as rq) {
                 <a class="ct-tr rq-row" [routerLink]="['/centro', centerId(), 'pedidos', rq.id]"><span class="rq-link">↳ {{ rq.label }}</span></a>

@@ -62,6 +62,12 @@ export interface CenterPolicies {
   allowCancelWithdraw: boolean;
   /** Pausa por lesão só termina com a alta médica aprovada pela gestão. */
   requireMedicalClearance: boolean;
+  /**
+   * Vaga durante o TRANCAMENTO (a pausa por lesão sempre reserva): `release` devolve a vaga à turma
+   * (a fila recebe a oferta); na volta o aluno retoma se houver vaga, senão segue pausado sem
+   * cobrança e volta na primeira vaga, antes da fila. Congelada no pedido (`releaseSeat`).
+   */
+  pauseSeat: 'reserve' | 'release';
 }
 
 export type RetentionOffer = 'pause' | 'plan_change' | 'discount';
@@ -94,6 +100,7 @@ export const DEFAULT_POLICIES: CenterPolicies = {
   retentionDiscountPercent: 20,
   allowCancelWithdraw: true,
   requireMedicalClearance: false,
+  pauseSeat: 'reserve',
 };
 
 export interface CenterSubscription {
@@ -407,6 +414,10 @@ export interface Enrollment {
   offeredAt: Date | null;
   offeredAuto: boolean;
   notifyOnSeat: boolean;
+  /** Pausada por trancamento que liberou a vaga: não ocupa `seatsTaken` nem a chamada. */
+  seatReleased: boolean;
+  /** Trancamento acabou com a turma cheia: segue pausada sem cobrança, primeira na próxima vaga. */
+  awaitingSeat: boolean;
   endedAt: Date | null;
   createdAt: Date | null;
   createdByName: string;
@@ -844,6 +855,10 @@ export interface EnrollmentRequest {
   clearance: RequestClearance | null;
   /** A pausa passou do fim e segue segurada esperando a alta (`pausedUntil` anda dia a dia). */
   awaitingClearance: boolean;
+  /** Trancamento com a política "Liberar" (congelada no pedido): a vaga voltou para a turma. */
+  releaseSeat: boolean;
+  /** O trancamento acabou com a turma cheia: segue pausado, volta na primeira vaga antes da fila. */
+  awaitingSeat: boolean;
   clearanceDecidedAt: Date | null;
   clearanceDecidedByName: string;
   clearanceNote: string;

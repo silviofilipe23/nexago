@@ -171,6 +171,12 @@ export class RequestDetailComponent {
     const when = r.awaitingClearance ? 'a matrícula volta hoje e a cobrança segue normal' : 'a matrícula volta na data marcada';
     return `${what} e ${when}. O aluno recebe o aviso no app.`;
   });
+  /** Aprovar: a vaga segue a política congelada no pedido (`releaseSeat`, só no trancamento). */
+  protected readonly approveText = computed(() =>
+    this.request()?.releaseSeat
+      ? 'A matrícula pausa no período pedido (ou a partir de hoje, se a data já passou), a cobrança dos ciclos que vencem na pausa fica suspensa e a vaga é liberada para a turma (a lista de espera recebe a oferta). O aluno recebe o aviso no app.'
+      : DECISIONS.approve.text,
+  );
   protected readonly undoable = computed(() => {
     const r = this.request();
     return !!r && this.canAct() && canUndo(r, this.today());

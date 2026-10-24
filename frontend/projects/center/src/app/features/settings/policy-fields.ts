@@ -149,12 +149,12 @@ export interface PolicySection {
   note?: string;
 }
 
-/** Aba "Trancar e cancelar" (protótipo T4). A vaga fica sempre reservada durante a pausa. */
+/** Aba "Trancar e cancelar" (protótipo T4). A pausa por lesão sempre reserva a vaga; o trancamento segue `pauseSeat`. */
 export const EXIT_SECTIONS: PolicySection[] = [
   {
     title: 'Trancamento',
     kicker: 'Pausa sem justificativa',
-    note: 'A vaga fica reservada durante o trancamento e a cobrança dos ciclos que vencem na pausa é suspensa.',
+    note: 'A cobrança dos ciclos que vencem na pausa é suspensa.',
     rows: [
       {
         kind: 'choice',
@@ -181,6 +181,19 @@ export const EXIT_SECTIONS: PolicySection[] = [
         values: [7, 15],
         unit: 'dias',
         dependsOn: 'allowPause',
+      },
+      {
+        kind: 'choice',
+        key: 'pauseSeat',
+        title: () => 'Vaga durante o trancamento',
+        hint: (p) =>
+          p.pauseSeat === 'release'
+            ? 'Liberar: a vaga vai para a lista de espera; na volta o aluno retoma se houver vaga, senão segue pausado sem cobrança e volta na primeira vaga, antes da fila'
+            : 'Reservar: a vaga fica guardada até a volta e não vai para a lista de espera',
+        options: [
+          { value: 'reserve', label: 'Reservar' },
+          { value: 'release', label: 'Liberar' },
+        ],
       },
     ],
   },

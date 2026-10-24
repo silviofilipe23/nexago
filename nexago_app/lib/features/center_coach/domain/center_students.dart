@@ -295,7 +295,16 @@ int? centerAgeOn(String birthDate, String todayKey) {
 String centerContactPhone(CenterCoachStudent s) =>
     s.isMinor && s.guardianPhone.isNotEmpty ? s.guardianPhone : s.phone;
 
-/// Dá para mandar mensagem pelo chat do app (no lugar do WhatsApp)? Aluno
+/// Dígitos com DDI 55 para o `wa.me` (`null` se não der um número válido).
+String? centerWhatsAppDigits(String phone) {
+  var d = phone.replaceAll(RegExp(r'\D'), '');
+  if (d.startsWith('0')) d = d.substring(1);
+  if (d.length >= 12 && d.startsWith('55')) return d;
+  if (d.length == 10 || d.length == 11) return '55$d';
+  return null;
+}
+
+/// Dá para mandar mensagem pelo chat do app? Aluno
 /// ativo, maior e com conta NexaGO — a mesma régua do servidor
 /// (`functions/src/training-center-chat-model.ts`); menor fala pelo
 /// responsável, por telefone.

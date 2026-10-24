@@ -218,32 +218,38 @@ class _ArenaClassStudentPageState extends ConsumerState<ArenaClassStudentPage> {
           const SizedBox(height: 14),
           Row(
             children: [
+              // Chat do app (quem tem conta) e o WhatsApp como opção.
+              if (hasChat) ...[
+                Expanded(
+                  child: ArenaClassGhostButton(
+                    key: const Key('arena-class-student-message'),
+                    label: 'Mensagem',
+                    icon: Icons.forum_outlined,
+                    onPressed: () => contactArenaClassStudent(
+                      context,
+                      ref,
+                      arenaId: arenaId,
+                      athleteId: athleteId,
+                      phone: phone,
+                      via: ArenaClassChannel.chat,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
               Expanded(
-                child: hasChat
-                    ? ArenaClassGhostButton(
-                        key: const Key('arena-class-student-message'),
-                        label: 'Mensagem',
-                        icon: Icons.forum_outlined,
-                        onPressed: () => contactArenaClassStudent(
-                          context,
-                          ref,
-                          arenaId: arenaId,
-                          athleteId: athleteId,
-                          phone: phone,
-                        ),
-                      )
-                    : ArenaClassGhostButton(
-                        label: 'WhatsApp',
-                        icon: Icons.chat_bubble_outline_rounded,
-                        onPressed: phone == null
-                            ? null
-                            : () => openArenaClassWhatsApp(
-                                  context,
-                                  phone: phone,
-                                  message:
-                                      'Olá, ${arenaClassFirstName(name)}!',
-                                ),
-                      ),
+                child: ArenaClassGhostButton(
+                  key: const Key('arena-class-student-whatsapp'),
+                  label: 'WhatsApp',
+                  icon: Icons.chat_bubble_outline_rounded,
+                  onPressed: phone == null
+                      ? null
+                      : () => openArenaClassWhatsApp(
+                            context,
+                            phone: phone,
+                            message: 'Olá, ${arenaClassFirstName(name)}!',
+                          ),
+                ),
               ),
               if (canWrite &&
                   (enrollment == null || !enrollment.isCurrent)) ...[

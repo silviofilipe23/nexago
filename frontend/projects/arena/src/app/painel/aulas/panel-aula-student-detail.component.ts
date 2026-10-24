@@ -89,8 +89,9 @@ type Confirm = 'pause' | 'resume' | 'cancel';
             <ar-icon name="mail" [size]="14" />
             Mensagem
           </button>
-        } @else if (whatsapp(); as link) {
-          <a class="ar-mini-btn" [href]="link" target="_blank" rel="noopener">
+        }
+        @if (whatsapp(); as link) {
+          <a class="ar-mini-btn" data-testid="student-whatsapp" [href]="link" target="_blank" rel="noopener">
             <ar-icon name="mail" [size]="14" />
             WhatsApp
           </a>
@@ -227,8 +228,9 @@ type Confirm = 'pause' | 'resume' | 'cancel';
                       }
                       @if (hasChat()) {
                         <button type="button" class="ar-ghost-btn small" data-testid="charge-message" [disabled]="opening()" (click)="remind(c)">Cobrar</button>
-                      } @else if (chargeLink(c); as link) {
-                        <a class="ar-ghost-btn small" [href]="link" target="_blank" rel="noopener">Cobrar</a>
+                      }
+                      @if (chargeLink(c); as link) {
+                        <a class="ar-ghost-btn small" data-testid="charge-whatsapp" [href]="link" target="_blank" rel="noopener">{{ hasChat() ? 'WhatsApp' : 'Cobrar' }}</a>
                       }
                       <button type="button" class="ar-mini-btn small" [disabled]="readOnly()" (click)="openPay(c)">Registrar pagamento</button>
                       <button type="button" class="ar-ghost-btn small danger" [disabled]="readOnly()" (click)="canceling.set(c)">Cancelar</button>
@@ -406,7 +408,7 @@ export class PanelAulaStudentDetailComponent {
     const since = e.startDate ? `Aluno desde ${shortDate(e.startDate)}/${e.startDate.slice(0, 4)}` : 'Aluno';
     return `${since} · ${enrollmentClassNames(e.slots)}`;
   });
-  /** Aluno com conta NexaGO: "Mensagem" e "Cobrar" vão pelo chat do app; sem conta, WhatsApp. */
+  /** Aluno com conta NexaGO: "Mensagem" e "Cobrar" pelo chat do app; o WhatsApp segue como opção. */
   protected readonly hasChat = computed(() => hasAulaChat(this.enrollment()?.athleteId));
   protected readonly opening = signal(false);
   protected readonly whatsapp = computed(() => {

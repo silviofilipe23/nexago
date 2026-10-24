@@ -195,8 +195,9 @@ export function cpfDigitsOk(raw: string): boolean {
               }
               @if (doneChat()) {
                 <button type="button" class="ar-mini-btn" data-testid="done-charge-message" [disabled]="busy()" (click)="chargeByMessage()">Cobrar por mensagem</button>
-              } @else if (doneWhatsapp(); as link) {
-                <a class="ar-mini-btn" [href]="link" target="_blank" rel="noopener">Cobrar no WhatsApp</a>
+              }
+              @if (doneWhatsapp(); as link) {
+                <a class="ar-mini-btn" data-testid="done-charge-whatsapp" [href]="link" target="_blank" rel="noopener">Cobrar no WhatsApp</a>
               }
               <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="go(['/painel/aulas/alunos', d.enrollmentId])">Ver aluno</button>
               <button type="button" class="ar-mini-btn" (click)="restart()">Nova matrícula</button>
@@ -614,7 +615,7 @@ export class PanelAulaEnrollmentComponent {
     if (d.asaasGroupId && !this.doneInvoiceUrl()) return null;
     return { description: pv.charges.map((c) => c.description).join(' + '), amountReais: pv.totalReais, dueDate: pv.charges[0]!.dueDate };
   });
-  /** Aluno com conta: a cobrança vai pelo chat do app (no lugar do WhatsApp). */
+  /** Aluno com conta: a cobrança vai pelo chat do app; o WhatsApp segue como opção. */
   protected readonly doneChat = computed(() => this.doneCharge() != null && hasAulaChat(this.done()?.athleteId));
   protected readonly doneWhatsapp = computed(() => {
     const d = this.done();

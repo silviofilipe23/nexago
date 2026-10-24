@@ -1154,8 +1154,11 @@ void main() {
       expect(find.text('50% · 1 de 2'), findsOneWidget);
       expect(find.text('BT Iniciante'), findsOneWidget,
           reason: 'matrícula antiga');
-      // O chat do app substitui o WhatsApp.
-      expect(find.text('WhatsApp'), findsNothing);
+      // Chat do app e o WhatsApp como opção.
+      await _tap(
+          tester, find.byKey(const Key('center-student-contact-whatsapp')));
+      expect(launched.single.toString(), 'https://wa.me/5521998765432');
+      launched.clear();
       await _tap(
           tester, find.byKey(const Key('center-student-contact-message')));
       expect(messages.opened, ['center:c1:s1']);

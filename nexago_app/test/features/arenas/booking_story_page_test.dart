@@ -65,6 +65,16 @@ Future<void> abrirStory(
   await tester.pump();
 }
 
+Future<void> escolherOrigem(
+  WidgetTester tester,
+  BookingStoryPhotoSource source,
+) async {
+  await tester.tap(
+    find.byKey(ValueKey('booking-story-photo-source-${source.name}')),
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
   setUpAll(() async {
     await initializeDateFormatting('pt_BR');
@@ -128,10 +138,12 @@ void main() {
     tester,
   ) async {
     var calls = 0;
+    final sources = <BookingStoryPhotoSource>[];
     await abrirStory(
       tester,
-      picker: () async {
+      picker: (source) async {
         calls++;
+        sources.add(source);
         return pixel;
       },
     );
@@ -142,9 +154,11 @@ void main() {
     expect(find.text('Adicionar foto'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('booking-story-theme-photo')));
-    await tester.pump();
+    await tester.pumpAndSettle();
+    await escolherOrigem(tester, BookingStoryPhotoSource.gallery);
 
     expect(calls, 1);
+    expect(sources, [BookingStoryPhotoSource.gallery]);
     expect(card().theme.name, 'photo');
     expect(card().photo, pixel);
     expect(find.text('Trocar foto'), findsOneWidget);
@@ -158,12 +172,57 @@ void main() {
     expect(card().theme.name, 'photo');
   });
 
+  testWidgets('"Tirar foto agora" abre a câmera e usa a foto tirada', (
+    tester,
+  ) async {
+    final sources = <BookingStoryPhotoSource>[];
+    await abrirStory(
+      tester,
+      picker: (source) async {
+        sources.add(source);
+        return pixel;
+      },
+    );
+
+    await tester.tap(find.text('Adicionar foto'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tirar foto agora'), findsOneWidget);
+    expect(find.text('Escolher da galeria'), findsOneWidget);
+    await escolherOrigem(tester, BookingStoryPhotoSource.camera);
+
+    final card = tester.widget<BookingStoryCard>(find.byType(BookingStoryCard));
+    expect(sources, [BookingStoryPhotoSource.camera]);
+    expect(card.theme.name, 'photo');
+    expect(card.photo, pixel);
+  });
+
   testWidgets('galeria cancelada: continua no tema de antes', (tester) async {
-    await abrirStory(tester, picker: () async => null);
+    await abrirStory(tester, picker: (_) async => null);
 
     await tester.tap(find.byKey(const Key('booking-story-theme-photo')));
-    await tester.pump();
+    await tester.pumpAndSettle();
+    await escolherOrigem(tester, BookingStoryPhotoSource.gallery);
 
+    final card = tester.widget<BookingStoryCard>(find.byType(BookingStoryCard));
+    expect(card.theme.name, 'ember');
+  });
+
+  testWidgets('folha fechada sem escolher: nem abre o picker', (tester) async {
+    var calls = 0;
+    await abrirStory(
+      tester,
+      picker: (_) async {
+        calls++;
+        return pixel;
+      },
+    );
+
+    await tester.tap(find.byKey(const Key('booking-story-theme-photo')));
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(200, 40));
+    await tester.pumpAndSettle();
+
+    expect(calls, 0);
     final card = tester.widget<BookingStoryCard>(find.byType(BookingStoryCard));
     expect(card.theme.name, 'ember');
   });

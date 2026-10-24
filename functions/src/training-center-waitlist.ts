@@ -29,6 +29,7 @@ import {
   waitlistQueue,
 } from "./training-center-waitlist-model";
 import {CENTER_SEAT_OFFER_TYPE, seatOfferNotice} from "./training-center-notifications-model";
+import {freeSeats, returnQueue} from "./training-center-enrollment-requests-model";
 import {deliverCenterNotice} from "./training-center-notify";
 
 export {CENTER_SEAT_OFFER_TYPE};
@@ -45,6 +46,13 @@ export interface SeatOffer {
   holdHours: number;
 }
 
+/** Aluno que voltou do trancamento e retomou a vaga antes da fila. */
+export interface SeatReturn {
+  enrollmentId: string;
+  studentUid: string | null;
+  className: string;
+}
+
 export interface WaitlistDeps {
   now: () => Date;
   notify: (input: {userId: string; title: string; body: string; type: string; data: Record<string, string>}) => Promise<void>;
@@ -57,20 +65,32 @@ export const defaultWaitlistDeps: WaitlistDeps = {
   },
 };
 
-/** Oferece as vagas livres da turma aos primeiros da fila. Devolve as ofertas feitas. */
-export async function offerOpenSeats(db: Firestore, centerId: string, classId: string, now: Date): Promise<SeatOffer[]> {
+/**
+ * Vaga abriu: primeiro volta quem saiu do trancamento com a turma cheia (`awaitingSeat`), depois
+ * oferece aos primeiros da fila. Devolve as ofertas feitas (as voltas saem em `returns`).
+ */
+export async function offerOpenSeats(
+  db: Firestore, centerId: string, classId: string, now: Date, returns: SeatReturn[] = [],
+): Promise<SeatOffer[]> {
   const centerRef = db.doc(`${TRAINING_CENTERS}/${centerId}`);
   const classRef = db.doc(`${TRAINING_CENTERS}/${centerId}/classes/${classId}`);
   return db.runTransaction(async (tx) => {
+    returns.length = 0;
     const [cSnap, kSnap] = [await tx.get(centerRef), await tx.get(classRef)];
     const center = cSnap.data() as Data | undefined;
     const cls = kSnap.data() as Data | undefined;
-    let free = seatsToOffer(center, cls);
-    if (free <= 0 || !center || !cls) return [];
+    if (!center || !cls || center["status"] !== "active" || cls["status"] !== "active" || freeSeats(cls) <= 0) return [];
 
     const qSnap = await tx.get(db.collection(`${TRAINING_CENTERS}/${centerId}/enrollments`).where("classId", "==", classId));
-    const queue = waitlistQueue(qSnap.docs.map((d) => ({id: d.id, data: d.data() as Data})), classId);
-    if (queue.length === 0) return [];
+    const rows = qSnap.docs.map((d) => ({id: d.id, data: d.data() as Data}));
+    const back = returnQueue(rows, classId).slice(0, freeSeats(cls));
+    const backStudents = new Map<string, Data | undefined>();
+    for (const b of back) {
+      backStudents.set(b.studentId, (await tx.get(db.doc(`${TRAINING_CENTERS}/${centerId}/students/${b.studentId}`))).data() as Data | undefined);
+    }
+    let free = Math.max(0, seatsToOffer(center, cls) - back.length);
+    const queue = free > 0 ? waitlistQueue(rows, classId) : [];
+    if (queue.length === 0 && back.length === 0) return [];
 
     // Leituras (planos e alunos dos candidatos) antes de qualquer escrita.
     const candidates = queue.slice(0, Math.max(free, 0) + 5);
@@ -91,6 +111,28 @@ export async function offerOpenSeats(db: Firestore, centerId: string, classId: s
     let taken = Number(cls["seatsTaken"] ?? 0);
     let roster = Array.isArray(cls["rosterStudentIds"]) ? (cls["rosterStudentIds"] as string[]) : [];
     const offers: SeatOffer[] = [];
+
+    // Voltas do trancamento: mesma matrícula e contrato, sem nova cobrança; a assinatura retoma
+    // pelo gatilho da matrícula.
+    for (const b of back) {
+      tx.update(db.doc(`${TRAINING_CENTERS}/${centerId}/enrollments/${b.id}`), {
+        status: "active", pausedUntil: null, pauseReason: "", seatReleased: false, awaitingSeat: false,
+      });
+      taken += 1;
+      roster = [...roster.filter((id) => id !== b.studentId), b.studentId];
+      const student = backStudents.get(b.studentId);
+      tx.set(db.collection(`${TRAINING_CENTERS}/${centerId}/auditLogs`).doc(), {
+        at: Timestamp.fromDate(now), actorUid: "system", actorName: SYSTEM_ACTOR,
+        action: "enrollment.seat_retaken", entity: "enrollment", entityId: b.id,
+        detail: `${String(student?.["name"] ?? "Aluno")} voltou do trancamento para ${className} · prioridade sobre a lista de espera`,
+        reason: "",
+      });
+      returns.push({
+        enrollmentId: b.id,
+        studentUid: typeof student?.["uid"] === "string" && student["uid"] ? (student["uid"] as string) : null,
+        className,
+      });
+    }
 
     for (const entry of candidates) {
       if (free <= 0) break;
@@ -163,7 +205,7 @@ export async function offerOpenSeats(db: Firestore, centerId: string, classId: s
         holdHours,
       });
     }
-    if (offers.length) {
+    if (offers.length || returns.length) {
       tx.update(classRef, {seatsTaken: taken, rosterStudentIds: roster});
     }
     return offers;
@@ -186,7 +228,20 @@ async function notifyOffers(db: Firestore, deps: WaitlistDeps, centerId: string,
 }
 
 export async function handleSeatChange(db: Firestore, deps: WaitlistDeps, centerId: string, classId: string): Promise<SeatOffer[]> {
-  const offers = await offerOpenSeats(db, centerId, classId, deps.now());
+  const returns: SeatReturn[] = [];
+  const offers = await offerOpenSeats(db, centerId, classId, deps.now(), returns);
+  for (const r of returns) {
+    if (!r.studentUid) continue;
+    try {
+      await deliverCenterNotice(db, deps, {
+        centerId, event: "enrollment_request_answered", uids: [r.studentUid],
+        title: "Abriu vaga: você voltou", body: `${r.className} · suas aulas voltam a partir de hoje.`,
+        type: "training_center_enrollment_request", data: {centerId, enrollmentId: r.enrollmentId},
+      });
+    } catch (e) {
+      logger.warn("waitlist: push da volta falhou", {centerId, enrollmentId: r.enrollmentId, e});
+    }
+  }
   if (offers.length) {
     logger.info("waitlist: vagas oferecidas", {centerId, classId, n: offers.length});
     await notifyOffers(db, deps, centerId, offers);

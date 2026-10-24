@@ -34,6 +34,7 @@ import {
   discountUsedRecently,
   discountedCents,
   dueAction,
+  freeSeats,
   pauseDaysUsed,
   planCancel,
   planPause,
@@ -147,11 +148,39 @@ async function pushStaff(db: Firestore, deps: NotifyDeps, c: CenterCtx, title: s
 }
 
 /** Matrícula ativa vira pausada (mesmo efeito do "Pausar" do portal; a assinatura espelha). */
-function applyPauseInTx(tx: Transaction, c: CenterCtx, enrRef: DocumentReference, enr: Data, req: Data, at: Timestamp, actor: {uid: string; name: string}) {
+/** Turma lida dentro da transação (antes das escritas), quando o trancamento libera a vaga. */
+type ClassInTx = {ref: DocumentReference; data: Data} | null;
+
+async function readClassForRelease(tx: Transaction, c: CenterCtx, req: Data, enr: Data): Promise<ClassInTx> {
+  if (req["releaseSeat"] !== true || !str(enr["classId"])) return null;
+  const ref = c.ref.collection("classes").doc(str(enr["classId"]));
+  const data = (await tx.get(ref)).data();
+  return data ? {ref, data} : null;
+}
+
+function rosterWithout(cls: Data, studentId: string): string[] | undefined {
+  const roster = cls["rosterStudentIds"];
+  return Array.isArray(roster) ? (roster as string[]).filter((id) => id !== studentId) : undefined;
+}
+
+function applyPauseInTx(
+  tx: Transaction, c: CenterCtx, enrRef: DocumentReference, enr: Data, req: Data, at: Timestamp,
+  actor: {uid: string; name: string}, cls: ClassInTx = null,
+) {
   const reason = str(req["type"]) === "injury" ? "Pausa por lesão" : "Trancamento";
-  tx.update(enrRef, {status: "paused", pausedUntil: str(req["pausedUntil"]), pauseReason: reason, pauseRequestId: str(req["id"])});
+  const release = cls != null && req["releaseSeat"] === true;
+  tx.update(enrRef, {
+    status: "paused", pausedUntil: str(req["pausedUntil"]), pauseReason: reason, pauseRequestId: str(req["id"]),
+    ...(release ? {seatReleased: true, awaitingSeat: false} : {}),
+  });
+  if (release) {
+    // Vaga volta para a turma: o gatilho de `seatsTaken` oferece à fila.
+    const roster = rosterWithout(cls.data, str(enr["studentId"]));
+    tx.update(cls.ref, {seatsTaken: Math.max(0, num(cls.data["seatsTaken"]) - 1), ...(roster ? {rosterStudentIds: roster} : {})});
+  }
   tx.set(c.ref.collection("auditLogs").doc(), audit(at, actor, "enrollment.paused", enrRef.id,
-    `${str(enr["studentName"])} → ${str(enr["className"])} · ${reason.toLowerCase()} até ${shortDayBr(str(req["endsOn"]))}`));
+    `${str(enr["studentName"])} → ${str(enr["className"])} · ${reason.toLowerCase()} até ${shortDayBr(str(req["endsOn"]))}` +
+      (release ? " · vaga liberada para a turma" : "")));
 }
 
 // ---------------------------------------------------------------------------
@@ -249,6 +278,7 @@ export async function requestEnrollmentChangeCore(
       overLimit: plan.overInjuryLimit,
       certificate: cert ? {...cert, daysOff: num((d["certificate"] as Data)["daysOff"], plan.days)} : null,
       // Regra da alta congelada no pedido: mudar a política depois não muda pausa em curso.
+      ...(type === "pause" ? {releaseSeat: c.policies.pauseSeat === "release"} : {}),
       ...(type === "injury" && !resubmit ? {requireClearance: c.policies.requireMedicalClearance, clearanceStatus: "", clearance: null} : {}),
       status: reqStatus,
       ...(approved ? {decidedAt: at, decidedByName: actor.manager ? actor.name : "Automático"} : {}),
@@ -257,9 +287,10 @@ export async function requestEnrollmentChangeCore(
     await db.runTransaction(async (tx) => {
       const cur = (await tx.get(enrRef)).data();
       if (!cur || cur["status"] !== "active") throw new HttpsError("failed-precondition", "A matrícula mudou. Atualize e tente de novo.");
+      const cls = startsNow ? await readClassForRelease(tx, c, doc, cur) : null;
       if (resubmit) tx.update(ref, doc);
       else tx.set(ref, doc);
-      if (startsNow) applyPauseInTx(tx, c, enrRef, cur, {...doc, id: ref.id}, at, actor);
+      if (startsNow) applyPauseInTx(tx, c, enrRef, cur, {...doc, id: ref.id}, at, actor, cls);
       tx.set(c.ref.collection("auditLogs").doc(), audit(at, actor, resubmit ? "enrollment_request.resubmitted" : "enrollment_request.created", enrollmentId,
         `${str(enr["studentName"])} · ${requestSummary({type, ...plan})}${approved ? "" : " · aguardando revisão do atestado"}`));
     });
@@ -576,6 +607,49 @@ export async function submitMedicalClearanceCore(
 // Rodada diária
 // ---------------------------------------------------------------------------
 
+/**
+ * Fim de um trancamento que liberou a vaga: retoma a vaga se houver; turma cheia = segue pausado
+ * mais um dia (a cobrança das 06:00 não reativa) e entra na frente da fila (`awaitingSeat`).
+ * Se a vaga já voltou pela prioridade (gatilho da turma), só fecha o pedido.
+ */
+async function returnFromReleasedPause(
+  db: Firestore, c: CenterCtx, reqRef: DocumentReference, enrRef: DocumentReference, at: Timestamp,
+): Promise<"done" | "held" | "held_new"> {
+  return db.runTransaction(async (tx) => {
+    const req = (await tx.get(reqRef)).data();
+    const enr = (await tx.get(enrRef)).data();
+    if (!req || req["status"] !== "active") return "done";
+    if (!enr || enr["status"] !== "paused" || enr["seatReleased"] !== true) {
+      tx.update(reqRef, {status: "done", awaitingSeat: false, updatedAt: at});
+      return "done";
+    }
+    const classRef = c.ref.collection("classes").doc(str(enr["classId"]));
+    const cls = (await tx.get(classRef)).data();
+    if (cls && freeSeats(cls) > 0) {
+      const roster = Array.isArray(cls["rosterStudentIds"]) ? cls["rosterStudentIds"] as string[] : [];
+      tx.update(classRef, {
+        seatsTaken: num(cls["seatsTaken"]) + 1,
+        rosterStudentIds: [...roster.filter((id) => id !== str(enr["studentId"])), str(enr["studentId"])],
+      });
+      // `pausedUntil` = hoje: a rodada da cobrança reativa e a assinatura volta.
+      tx.update(enrRef, {seatReleased: false, awaitingSeat: false, pausedUntil: c.today});
+      tx.update(reqRef, {status: "done", awaitingSeat: false, updatedAt: at});
+      tx.set(c.ref.collection("auditLogs").doc(), audit(at, SYSTEM, "enrollment.seat_retaken", enrRef.id,
+        `${str(enr["studentName"])} → ${str(enr["className"])} · voltou do trancamento e retomou a vaga`));
+      return "done";
+    }
+    const tomorrow = addDays(c.today, 1);
+    const first = enr["awaitingSeat"] !== true;
+    tx.update(enrRef, {pausedUntil: tomorrow, awaitingSeat: true, ...(first ? {awaitingSeatSince: at} : {})});
+    tx.update(reqRef, {awaitingSeat: true, pausedUntil: tomorrow, updatedAt: at});
+    if (first) {
+      tx.set(c.ref.collection("auditLogs").doc(), audit(at, SYSTEM, "enrollment.awaiting_seat", enrRef.id,
+        `${str(enr["studentName"])} → ${str(enr["className"])} · trancamento terminou com a turma cheia · segue pausado com prioridade na próxima vaga`));
+    }
+    return first ? "held_new" : "held";
+  });
+}
+
 export interface RequestsRunSummary {
   started: number;
   finished: number;
@@ -609,8 +683,9 @@ export async function runCenterEnrollmentRequests(
             tx.update(doc.ref, {status: "done", decisionNote: "A matrícula não estava ativa no dia da pausa.", updatedAt: at});
             return;
           }
+          const cls = await readClassForRelease(tx, c, cur, enr);
           tx.update(doc.ref, {status: "active", appliedAt: at, updatedAt: at});
-          applyPauseInTx(tx, c, enrRef, enr, {...cur, id: doc.id}, at, SYSTEM);
+          applyPauseInTx(tx, c, enrRef, enr, {...cur, id: doc.id}, at, SYSTEM, cls);
         });
         summary.started += 1;
       } else if (action === "ask_clearance") {
@@ -646,6 +721,15 @@ export async function runCenterEnrollmentRequests(
             `${str(r["className"])} · envie a alta pelo app; as aulas voltam quando o centro aprovar.`,
             {enrollmentId: str(r["enrollmentId"]), requestId: doc.id});
         }
+      } else if (action === "finish_pause" && r["releaseSeat"] === true) {
+        const out = await returnFromReleasedPause(db, c, doc.ref, enrRef, at);
+        if (out === "held_new") {
+          await pushStudent(db, deps, c, str(r["studentUid"]), "Sua turma está cheia",
+            `${str(r["className"])} · você segue pausado, sem cobrança, e volta na primeira vaga, antes da lista de espera.`,
+            {enrollmentId: str(r["enrollmentId"]), requestId: doc.id});
+        }
+        if (out === "held" || out === "held_new") summary.held += 1;
+        else summary.finished += 1;
       } else if (action === "finish_pause") {
         // A matrícula volta sozinha na rodada da cobrança (`pausedUntil`); aqui só fecha o pedido.
         await doc.ref.update({status: "done", updatedAt: at});

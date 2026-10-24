@@ -20,6 +20,7 @@ import {
 } from "./training-center-enrollment-requests";
 import {loadMyTrainingCentersCore} from "./training-center-athlete";
 import {generateNextCycle} from "./training-center-subscriptions";
+import {offerOpenSeats, type SeatReturn} from "./training-center-waitlist";
 import {Timestamp} from "firebase-admin/firestore";
 import type {PushInput} from "./training-center-notify";
 
@@ -287,5 +288,60 @@ describe("pedidos da matrícula · callables", () => {
     const s = await runCenterEnrollmentRequests(db(fake), "c1", new Date("2026-11-03T08:50:00Z"), deps().deps);
     assert.equal(s.finished, 1);
     assert.equal(doc(fake, `${C}/enrollmentRequests/${r.requestId}`)["status"], "done");
+  });
+
+  it("trancamento com vaga liberada: devolve a vaga e volta se houver lugar", async () => {
+    const fake = seed({pauseSeat: "release"});
+    fake.seedDoc(`${C}/classes/bt`, {name: "BT Feminino Manhã", capacity: 8, seatsTaken: 8, status: "active", rosterStudentIds: ["carla", "ana"]});
+    const r = await requestEnrollmentChangeCore(db(fake), STUDENT, {centerId: "c1", enrollmentId: "e1", type: "pause", days: 20}, deps().deps);
+    assert.equal(doc(fake, `${C}/classes/bt`)["seatsTaken"], 7);
+    assert.deepEqual(doc(fake, `${C}/classes/bt`)["rosterStudentIds"], ["ana"]);
+    assert.equal(doc(fake, `${C}/enrollments/e1`)["seatReleased"], true);
+    assert.equal(doc(fake, `${C}/enrollmentRequests/${r.requestId}`)["releaseSeat"], true);
+
+    const s = await runCenterEnrollmentRequests(db(fake), "c1", new Date("2026-11-13T08:50:00Z"), deps().deps);
+    assert.equal(s.finished, 1);
+    assert.equal(doc(fake, `${C}/classes/bt`)["seatsTaken"], 8);
+    const enr = doc(fake, `${C}/enrollments/e1`);
+    assert.deepEqual([enr["seatReleased"], enr["pausedUntil"]], [false, "2026-11-13"]);
+  });
+
+  it("volta com a turma cheia: segue pausado e retoma antes da fila quando abre vaga", async () => {
+    const fake = seed({pauseSeat: "release", waitlistEnabled: true});
+    fake.seedDoc(`${C}/classes/bt`, {name: "BT Feminino Manhã", capacity: 8, seatsTaken: 8, status: "active", rosterStudentIds: ["carla"]});
+    const {deps: d, pushes} = deps();
+    await requestEnrollmentChangeCore(db(fake), STUDENT, {centerId: "c1", enrollmentId: "e1", type: "pause", days: 20}, d);
+    fake.seedDoc(`${C}/classes/bt`, {...doc(fake, `${C}/classes/bt`), seatsTaken: 8});
+    const s = await runCenterEnrollmentRequests(db(fake), "c1", new Date("2026-11-13T08:50:00Z"), d);
+    assert.equal(s.held, 1);
+    assert.equal(doc(fake, `${C}/enrollments/e1`)["awaitingSeat"], true);
+    assert.equal(doc(fake, `${C}/enrollments/e1`)["pausedUntil"], "2026-11-14");
+    assert.equal(pushes[pushes.length - 1]?.title, "Sua turma está cheia");
+
+    // Fila: alguém esperando desde antes. A volta tem prioridade.
+    fake.seedDoc(`${C}/enrollments/w1`, {studentId: "nina", classId: "bt", status: "waitlisted", planId: "m2",
+      waitlistedAt: Timestamp.fromDate(new Date("2026-10-01T12:00:00Z"))});
+    fake.seedDoc(`${C}/students/nina`, {name: "Nina", uid: "u-nina", status: "active"});
+    fake.seedDoc(`${C}/classes/bt`, {...doc(fake, `${C}/classes/bt`), seatsTaken: 7});
+    const returns: SeatReturn[] = [];
+    const offers = await offerOpenSeats(db(fake), "c1", "bt", new Date("2026-11-15T12:00:00Z"), returns);
+    assert.equal(returns.length, 1);
+    assert.equal(offers.length, 0);
+    assert.equal(doc(fake, `${C}/enrollments/e1`)["status"], "active");
+    assert.equal(doc(fake, `${C}/enrollments/w1`)["status"], "waitlisted");
+    assert.equal(doc(fake, `${C}/classes/bt`)["seatsTaken"], 8);
+  });
+
+  it("cancelar matrícula com vaga já liberada não desconta de novo", async () => {
+    const fake = seed({pauseSeat: "release"});
+    fake.seedDoc(`${C}/classes/bt`, {name: "BT Feminino Manhã", capacity: 8, seatsTaken: 8, status: "active", rosterStudentIds: ["carla"]});
+    await requestEnrollmentChangeCore(db(fake), STUDENT, {centerId: "c1", enrollmentId: "e1", type: "pause", days: 20}, deps().deps);
+    assert.equal(doc(fake, `${C}/classes/bt`)["seatsTaken"], 7);
+    // O gatilho da matrícula pausa a assinatura (no fake, à mão).
+    fake.seedDoc(`${C}/subscriptions/e1`, {...doc(fake, `${C}/subscriptions/e1`), status: "paused"});
+    const r = await requestEnrollmentChangeCore(db(fake), STUDENT, {centerId: "c1", enrollmentId: "e1", type: "cancel", reason: "moving"}, deps().deps);
+    // Pausada com assinatura pausada: não há ciclo à frente → encerra já.
+    assert.equal(r.status, "done");
+    assert.equal(doc(fake, `${C}/classes/bt`)["seatsTaken"], 7);
   });
 });

@@ -4216,13 +4216,30 @@ service cloud.firestore {
       }
 
       // Automação do repasse: só o owner liga (mexe em dinheiro); owner/admin leem.
+      // Captação (Configurações › Captação): o gestor grava `leads`; quem matricula lê os limites.
+      // `leadsRotation` (rodízio da página pública) é só do servidor.
       match /settings/{docId} {
-        allow read: if ctIsManager();
-        allow write: if docId == 'payouts' && ctIsMember() && ctRole() == 'center_owner' && ctNotSuspended() &&
+        function ctLeadSettingsValid() {
+          let d = request.resource.data;
+          return d.keys().hasOnly([
+              'maxTrialsPerPerson', 'maxTrialsPerSession', 'onlyWithSpots', 'coachReview', 'offerDays',
+              'publicPage', 'assignMode', 'alertHours', 'updatedAt', 'updatedByName'
+            ]) &&
+            d.maxTrialsPerPerson is int && d.maxTrialsPerPerson >= 0 && d.maxTrialsPerPerson <= 10 &&
+            d.maxTrialsPerSession is int && d.maxTrialsPerSession >= 1 && d.maxTrialsPerSession <= 10 &&
+            d.onlyWithSpots is bool && d.publicPage is bool &&
+            d.coachReview in ['required', 'optional'] &&
+            d.offerDays is int && d.offerDays >= 0 && d.offerDays <= 60 &&
+            d.assignMode in ['staff', 'rotation'] &&
+            d.alertHours is int && d.alertHours >= 1 && d.alertHours <= 168;
+        }
+        allow read: if ctIsManager() || (docId == 'leads' && ctHasPerm('enroll_students'));
+        allow write: if (docId == 'payouts' && ctIsMember() && ctRole() == 'center_owner' && ctNotSuspended() &&
           request.resource.data.autoClose is bool && request.resource.data.autoPay is bool &&
           request.resource.data.closeDay is int && request.resource.data.closeDay >= 1 && request.resource.data.closeDay <= 28 &&
           request.resource.data.reviewDays is int && request.resource.data.reviewDays >= 0 && request.resource.data.reviewDays <= 15 &&
-          request.resource.data.maxAutoPayCents is int && request.resource.data.maxAutoPayCents >= 0;
+          request.resource.data.maxAutoPayCents is int && request.resource.data.maxAutoPayCents >= 0) ||
+          (docId == 'leads' && ctIsManager() && ctNotSuspended() && ctLeadSettingsValid());
       }
       // Marca de "mês já fechado pela automação": só o servidor grava.
       match /payoutRuns/{month} {
@@ -4261,6 +4278,29 @@ service cloud.firestore {
       match /contracts/{contractId} {
         allow read: if ctHasPerm('enroll_students');
         allow write: if false;
+      }
+
+      // Captação (C1–C10): interessado que pode não ter conta NexaGO. Quem matricula cria e move o
+      // funil direto; experimental, avaliação do professor e contagem por pessoa são do servidor
+      // (functions/src/training-center-leads.ts). Perdido é etapa, não exclusão.
+      match /leads/{leadId} {
+        function ctLeadValid() {
+          let l = request.resource.data;
+          return l.name is string && l.name.size() > 0 && l.name.size() <= 80 &&
+            l.get('phone', '') is string && l.get('phone', '').size() <= 30 &&
+            l.get('email', '') is string && l.get('email', '').size() <= 120 &&
+            l.stage in ['new', 'contacted', 'scheduled', 'attended', 'won', 'lost'] &&
+            l.get('history', []) is list && l.get('history', []).size() <= 200;
+        }
+        allow read: if ctHasPerm('enroll_students');
+        allow create: if ctHasPerm('enroll_students') && ctNotSuspended() && ctLeadValid() &&
+          request.resource.data.stage in ['new', 'contacted'] &&
+          request.resource.data.get('trial', null) == null &&
+          request.resource.data.get('coachFeedback', null) == null &&
+          request.resource.data.get('trialsCount', 0) == 0;
+        allow update: if ctHasPerm('enroll_students') && ctNotSuspended() && ctLeadValid() &&
+          !ctChanged().hasAny(['trial', 'coachFeedback', 'trialsCount', 'createdAt', 'createdByUid']);
+        allow delete: if false;
       }
 
       // Trilha de auditoria: só cria, em nome próprio, com hora do servidor.

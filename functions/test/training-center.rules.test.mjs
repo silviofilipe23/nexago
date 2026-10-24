@@ -468,3 +468,38 @@ test('contratos: gestor cria e publica modelo (versão não volta); recepção l
   await denied(updateDoc(k(OWNER), { status: 'signed' }));
   await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'contracts', 'k2'), { studentId: 's1', status: 'signed' }));
 });
+
+test('captação: quem matricula cria e move o interessado; experimental e avaliação são do servidor', async () => {
+  const lead = {
+    name: 'Mariana Couto', phone: '(21) 99604-1182', phoneDigits: '21996041182', email: '', source: 'desk',
+    interest: { programId: '', programName: '', experience: 'never', period: 'morning', goal: '' },
+    stage: 'new', lostReason: null, history: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    createdByUid: RECEP, createdByName: 'Camila', trial: null, coachFeedback: null, trialsCount: 0,
+  };
+  await assertSucceeds(setDoc(doc(as(RECEP), 'trainingCenters', C, 'leads', 'ld1'), lead));
+  await assertSucceeds(getDoc(doc(as(ADMIN), 'trainingCenters', C, 'leads', 'ld1')));
+  await denied(getDoc(doc(as(COACH), 'trainingCenters', C, 'leads', 'ld1')));
+  await denied(setDoc(doc(as(COACH), 'trainingCenters', C, 'leads', 'ld2'), lead));
+  // Nasce no começo do funil, sem experimental.
+  await denied(setDoc(doc(as(RECEP), 'trainingCenters', C, 'leads', 'ld3'), { ...lead, stage: 'attended' }));
+  await denied(setDoc(doc(as(RECEP), 'trainingCenters', C, 'leads', 'ld4'), { ...lead, trialsCount: 3 }));
+  await assertSucceeds(updateDoc(doc(as(RECEP), 'trainingCenters', C, 'leads', 'ld1'), { stage: 'lost', lostReason: 'price' }));
+  await denied(updateDoc(doc(as(RECEP), 'trainingCenters', C, 'leads', 'ld1'), { trialsCount: 1 }));
+  await denied(updateDoc(doc(as(OWNER), 'trainingCenters', C, 'leads', 'ld1'), { coachFeedback: { level: 'advanced' } }));
+  await denied(deleteDoc(doc(as(OWNER), 'trainingCenters', C, 'leads', 'ld1')));
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', SUSP, 'leads', 'x'), lead));
+});
+
+test('captação: gestor salva a configuração; recepção lê; rodízio é do servidor', async () => {
+  const cfg = {
+    maxTrialsPerPerson: 1, maxTrialsPerSession: 2, onlyWithSpots: true, coachReview: 'required', offerDays: 7,
+    publicPage: true, assignMode: 'staff', alertHours: 2,
+  };
+  await assertSucceeds(setDoc(doc(as(ADMIN), 'trainingCenters', C, 'settings', 'leads'), cfg));
+  await assertSucceeds(getDoc(doc(as(RECEP), 'trainingCenters', C, 'settings', 'leads')));
+  await denied(getDoc(doc(as(RECEP), 'trainingCenters', C, 'settings', 'payouts')));
+  await denied(setDoc(doc(as(RECEP), 'trainingCenters', C, 'settings', 'leads'), cfg));
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'settings', 'leads'), { ...cfg, maxTrialsPerSession: 0 }));
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'settings', 'leads'), { ...cfg, extra: true }));
+  await denied(setDoc(doc(as(OWNER), 'trainingCenters', C, 'settings', 'leadsRotation'), { lastUid: RECEP }));
+});

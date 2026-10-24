@@ -26,6 +26,7 @@ import {
   chargeInvoiceUrl,
   chargeVoidsInvoice,
   onlineChargeLabel,
+  chargeMessageText,
   whatsappChargeLink,
   whatsappLink,
   type Charge,
@@ -33,6 +34,8 @@ import {
   type MakeupCredit,
   type PaymentMethod,
 } from './billing.model';
+import { hasAulaChat } from './aulas-chat.model';
+import { AulasChatService } from './aulas-chat.service';
 import { fetchStudentCredits, setChargeStatus, setEnrollmentStatus, watchEnrollment, watchStudentCharges } from './billing-repository';
 import {
   addDaysKey,
@@ -81,7 +84,12 @@ type Confirm = 'pause' | 'resume' | 'cancel';
           <ar-icon name="chevron-left" [size]="14" />
           Alunos
         </button>
-        @if (whatsapp(); as link) {
+        @if (hasChat()) {
+          <button type="button" class="ar-mini-btn" data-testid="student-message" [disabled]="opening()" (click)="message()">
+            <ar-icon name="mail" [size]="14" />
+            Mensagem
+          </button>
+        } @else if (whatsapp(); as link) {
           <a class="ar-mini-btn" [href]="link" target="_blank" rel="noopener">
             <ar-icon name="mail" [size]="14" />
             WhatsApp
@@ -217,7 +225,9 @@ type Confirm = 'pause' | 'resume' | 'cancel';
                       @if (invoiceUrl(c); as url) {
                         <button type="button" class="ar-ghost-btn small" (click)="copyLink(url)">{{ copied() === url ? 'Copiado ✓' : 'Copiar link' }}</button>
                       }
-                      @if (chargeLink(c); as link) {
+                      @if (hasChat()) {
+                        <button type="button" class="ar-ghost-btn small" data-testid="charge-message" [disabled]="opening()" (click)="remind(c)">Cobrar</button>
+                      } @else if (chargeLink(c); as link) {
                         <a class="ar-ghost-btn small" [href]="link" target="_blank" rel="noopener">Cobrar</a>
                       }
                       <button type="button" class="ar-mini-btn small" [disabled]="readOnly()" (click)="openPay(c)">Registrar pagamento</button>
@@ -343,6 +353,7 @@ export class PanelAulaStudentDetailComponent {
   private readonly arenaContext = inject(ArenaContextService);
   private readonly access = inject(ArenaAccessService);
   private readonly router = inject(Router);
+  private readonly chat = inject(AulasChatService);
   private readonly route = inject(ActivatedRoute);
 
   protected readonly today = todayKeyLocal();
@@ -395,6 +406,9 @@ export class PanelAulaStudentDetailComponent {
     const since = e.startDate ? `Aluno desde ${shortDate(e.startDate)}/${e.startDate.slice(0, 4)}` : 'Aluno';
     return `${since} · ${enrollmentClassNames(e.slots)}`;
   });
+  /** Aluno com conta NexaGO: "Mensagem" e "Cobrar" vão pelo chat do app; sem conta, WhatsApp. */
+  protected readonly hasChat = computed(() => hasAulaChat(this.enrollment()?.athleteId));
+  protected readonly opening = signal(false);
   protected readonly whatsapp = computed(() => {
     const e = this.enrollment();
     return e ? whatsappLink(e.phone, `Olá, ${e.name.split(' ')[0]}! Aqui é da ${this.arenaContext.arenaName() ?? 'arena'}.`) : null;
@@ -479,6 +493,32 @@ export class PanelAulaStudentDetailComponent {
   protected chargeTone(c: Charge): 'green' | 'yellow' | 'red' | 'dim' | 'orange' {
     const state = chargeState(c, this.today);
     return state === 'paid' ? 'green' : state === 'overdue' ? 'red' : state === 'due_today' ? 'yellow' : state === 'canceled' ? 'dim' : 'orange';
+  }
+
+  protected message(): Promise<void> {
+    return this.openChat('');
+  }
+
+  /** "Cobrar" pelo chat: a conversa abre com a cobrança (e o link da fatura) no composer. */
+  protected remind(c: Charge): Promise<void> {
+    return this.openChat(chargeMessageText(c.name, c, this.arenaContext.arenaName() ?? 'arena', chargeInvoiceUrl(c)));
+  }
+
+  private async openChat(draft: string): Promise<void> {
+    const arenaId = this.arenaContext.arenaId();
+    const athleteId = this.enrollment()?.athleteId;
+    if (!arenaId || !hasAulaChat(athleteId) || this.opening()) return;
+    this.opening.set(true);
+    this.error.set(null);
+    try {
+      const id = await this.chat.open(arenaId, athleteId);
+      this.chat.setDraft(id, draft);
+      await this.router.navigate(['/painel/aulas/mensagens', id]);
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : 'Não foi possível abrir a conversa com o aluno.');
+    } finally {
+      this.opening.set(false);
+    }
   }
 
   protected chargeLink(c: Charge): string | null {

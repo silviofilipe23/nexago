@@ -90,9 +90,9 @@ describe("chat das Aulas da arena", () => {
     }};
     await sendConversationMessageCore(db(fake), "rec", conversationId, "Mensalidade de outubro: https://pay/x", deps);
     await sendConversationMessageCore(db(fake), "lucas", conversationId, "Pago!", {...deps, now: () => new Date(NOW.getTime() + 5000)});
-    assert.deepEqual(pushes.map((p) => [p.userId, p.title, p.data["url"]]), [
-      ["lucas", "Arena Sol · Carla Recepção", `/mensagens/${conversationId}`],
-      ["rec", "Arena Sol · Lucas", `/arena/classes/messages/${conversationId}`],
+    assert.deepEqual(pushes.map((p) => [p.userId, p.title, p.data["url"], p.data["webUrl"]]), [
+      ["lucas", "Arena Sol · Carla Recepção", `/mensagens/${conversationId}`, undefined],
+      ["rec", "Arena Sol · Lucas", `/arena/classes/messages/${conversationId}`, `/painel/aulas/mensagens/${conversationId}`],
     ]);
   });
 

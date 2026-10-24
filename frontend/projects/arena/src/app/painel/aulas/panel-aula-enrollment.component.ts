@@ -21,6 +21,7 @@ import {
   planDetail,
   planPriceUnit,
   slotsLabel,
+  chargeMessageText,
   whatsappChargeLink,
   type Charge,
   type ClassPlan,
@@ -47,6 +48,8 @@ import {
   type ClassStudent,
 } from './class.model';
 import { fetchActiveClassStudents, fetchClassStudent, fetchClasses, getClassAthleteContact } from './classes-repository';
+import { hasAulaChat } from './aulas-chat.model';
+import { AulasChatService } from './aulas-chat.service';
 
 export interface SlotRow {
   key: string;
@@ -134,6 +137,8 @@ interface Prefill {
 interface Done {
   enrollmentId: string;
   studentId: string;
+  /** Conta NexaGO do aluno: com ela, a cobrança vai pelo chat do app. */
+  athleteId: string | null;
   name: string;
   phone: string | null;
   preview: EnrollmentPreview | null;
@@ -181,11 +186,16 @@ export function cpfDigitsOk(raw: string): boolean {
                 Nada a cobrar agora — a próxima mensalidade é gerada 10 dias antes do vencimento.
               }
             </p>
+            @if (error(); as err) {
+              <div class="error-banner">{{ err }}</div>
+            }
             <div class="done-actions">
               @if (doneInvoiceUrl(); as url) {
                 <button type="button" class="ar-mini-btn" (click)="copyLink(url)">{{ copied() ? 'Link copiado ✓' : 'Copiar link' }}</button>
               }
-              @if (doneWhatsapp(); as link) {
+              @if (doneChat()) {
+                <button type="button" class="ar-mini-btn" data-testid="done-charge-message" [disabled]="busy()" (click)="chargeByMessage()">Cobrar por mensagem</button>
+              } @else if (doneWhatsapp(); as link) {
                 <a class="ar-mini-btn" [href]="link" target="_blank" rel="noopener">Cobrar no WhatsApp</a>
               }
               <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="go(['/painel/aulas/alunos', d.enrollmentId])">Ver aluno</button>
@@ -490,6 +500,7 @@ export class PanelAulaEnrollmentComponent {
   private readonly arenaContext = inject(ArenaContextService);
   private readonly access = inject(ArenaAccessService);
   private readonly router = inject(Router);
+  private readonly chat = inject(AulasChatService);
   private readonly route = inject(ActivatedRoute);
 
   protected readonly steps = STEPS;
@@ -594,13 +605,21 @@ export class PanelAulaEnrollmentComponent {
     const c = this.doneCharges().find((x) => x.asaas?.groupId === groupId && x.asaas.state === 'open');
     return c?.asaas?.invoiceUrl ?? null;
   });
-  protected readonly doneWhatsapp = computed(() => {
+  /** O que cobrar na confirmação (null = nada, ou o link online ainda não existe). */
+  private readonly doneCharge = computed(() => {
     const d = this.done();
     const pv = d?.preview;
     if (!d || !pv || pv.charges.length === 0 || pv.totalReais <= 0) return null;
     // Online: só depois que o link existe — a mensagem leva o link.
     if (d.asaasGroupId && !this.doneInvoiceUrl()) return null;
-    const charge = { description: pv.charges.map((c) => c.description).join(' + '), amountReais: pv.totalReais, dueDate: pv.charges[0]!.dueDate };
+    return { description: pv.charges.map((c) => c.description).join(' + '), amountReais: pv.totalReais, dueDate: pv.charges[0]!.dueDate };
+  });
+  /** Aluno com conta: a cobrança vai pelo chat do app (no lugar do WhatsApp). */
+  protected readonly doneChat = computed(() => this.doneCharge() != null && hasAulaChat(this.done()?.athleteId));
+  protected readonly doneWhatsapp = computed(() => {
+    const d = this.done();
+    const charge = this.doneCharge();
+    if (!d || !charge) return null;
     return whatsappChargeLink(d.phone, d.name, charge, this.arenaContext.arenaName() ?? 'arena', this.doneInvoiceUrl());
   });
   /** O aluno tem conta NexaGO (o CPF pode vir do cadastro dele). */
@@ -828,7 +847,8 @@ export class PanelAulaEnrollmentComponent {
       const result = await createEnrollment(arenaFunctions(), input);
       const asaasGroupId = result.asaasGroupId ?? null;
       this.done.set({
-        enrollmentId: result.enrollmentId, studentId: result.studentId, name: this.studentName(),
+        enrollmentId: result.enrollmentId, studentId: result.studentId, athleteId: input.athleteId ?? null,
+        name: this.studentName(),
         // O servidor devolve o telefone gravado (o do cadastro quando o campo ficou vazio).
         phone: result.phone ?? input.phone ?? null, preview: this.preview(), asaasGroupId,
       });
@@ -868,6 +888,25 @@ export class PanelAulaEnrollmentComponent {
   protected setBillingMode(mode: 'manual' | 'asaas'): void {
     this.billingMode.set(mode);
     void this.refreshPreview();
+  }
+
+  /** Abre a conversa com o aluno com a cobrança (e o link da fatura) no composer. */
+  protected async chargeByMessage(): Promise<void> {
+    const d = this.done();
+    const charge = this.doneCharge();
+    const arenaId = this.arenaContext.arenaId();
+    if (!d || !charge || !arenaId || !hasAulaChat(d.athleteId) || this.busy()) return;
+    this.busy.set(true);
+    this.error.set(null);
+    try {
+      const id = await this.chat.open(arenaId, d.athleteId);
+      this.chat.setDraft(id, chargeMessageText(d.name, charge, this.arenaContext.arenaName() ?? 'arena', this.doneInvoiceUrl()));
+      await this.router.navigate(['/painel/aulas/mensagens', id]);
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : 'Não foi possível abrir a conversa com o aluno.');
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   protected copyLink(url: string): void {

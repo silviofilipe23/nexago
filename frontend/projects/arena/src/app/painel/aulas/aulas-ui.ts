@@ -4,15 +4,18 @@ import { ArenaContextService } from '../data/arena-context.service';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
+import { unreadBadge } from '../profissionais/arena-professor-channel.model';
+import { AulasChatService } from './aulas-chat.service';
 import { CLASS_TYPE_LABEL, teacherInitials, type ClassType } from './class.model';
 
-export type AulasTab = 'visao' | 'agenda' | 'turmas' | 'alunos' | 'planos' | 'professores' | 'avaliacoes' | 'regras' | 'vitrine';
+export type AulasTab = 'visao' | 'agenda' | 'turmas' | 'alunos' | 'mensagens' | 'planos' | 'professores' | 'avaliacoes' | 'regras' | 'vitrine';
 
 const TABS: ReadonlyArray<{ id: AulasTab; label: string; route: string }> = [
   { id: 'visao', label: 'Visão geral', route: '/painel/aulas' },
   { id: 'agenda', label: 'Agenda', route: '/painel/aulas/agenda' },
   { id: 'turmas', label: 'Turmas', route: '/painel/aulas/turmas' },
   { id: 'alunos', label: 'Alunos', route: '/painel/aulas/alunos' },
+  { id: 'mensagens', label: 'Mensagens', route: '/painel/aulas/mensagens' },
   { id: 'planos', label: 'Planos', route: '/painel/aulas/planos' },
   { id: 'professores', label: 'Professores', route: '/painel/aulas/professores' },
   { id: 'avaliacoes', label: 'Avaliações', route: '/painel/aulas/avaliacoes' },
@@ -34,7 +37,12 @@ const TABS: ReadonlyArray<{ id: AulasTab; label: string; route: string }> = [
       @if (tab(); as active) {
         <nav class="subnav" aria-label="Aulas">
           @for (t of tabs; track t.id) {
-            <a class="subnav-item" [class.active]="t.id === active" [routerLink]="t.route">{{ t.label }}</a>
+            <a class="subnav-item" [class.active]="t.id === active" [routerLink]="t.route">
+              {{ t.label }}
+              @if (t.id === 'mensagens' && unreadMessages() > 0) {
+                <span class="subnav-badge" [attr.aria-label]="unreadMessages() + ' não lidas'">{{ unreadBadge(unreadMessages()) }}</span>
+              }
+            </a>
           }
         </nav>
       }
@@ -88,6 +96,21 @@ const TABS: ReadonlyArray<{ id: AulasTab; label: string; route: string }> = [
       color: var(--nx-text-dim);
       text-decoration: none;
       white-space: nowrap;
+    }
+
+    .subnav-badge {
+      margin-left: 6px;
+      min-width: 16px;
+      height: 16px;
+      padding: 0 4px;
+      border-radius: 8px;
+      box-sizing: border-box;
+      background: var(--nx-orange-500);
+      color: var(--nx-text-on-orange);
+      font-size: 10px;
+      font-weight: 700;
+      display: inline-grid;
+      place-items: center;
     }
 
     .subnav-item:hover {
@@ -158,6 +181,14 @@ export class AulasPageComponent {
   readonly empty = input(false);
 
   protected readonly tabs = TABS;
+  private readonly chat = inject(AulasChatService);
+  /** Não lidas das conversas com os alunos (badge da aba Mensagens). */
+  protected readonly unreadMessages = computed(() => this.chat.unreadTotal());
+  protected readonly unreadBadge = unreadBadge;
+
+  constructor() {
+    this.chat.startInbox();
+  }
   protected readonly arenaNotFound = computed(() => this.arenaContext.notFound());
   protected readonly planMissing = computed(
     () => !this.arenaContext.loading() && !this.arenaContext.hasCapability('aulas'),

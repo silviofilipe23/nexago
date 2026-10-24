@@ -203,6 +203,22 @@ export const routes: Routes = [
       import('./painel/aulas/panel-aula-student-detail.component').then((m) => m.PanelAulaStudentDetailComponent),
   },
   {
+    // Conversas da gestão com os alunos (chat do app no lugar do WhatsApp); o push da resposta
+    // do aluno abre `painel/aulas/mensagens/{id}`.
+    path: 'painel/aulas/mensagens',
+    title: 'Mensagens das aulas — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aulas-messages.component').then((m) => m.PanelAulasMessagesComponent),
+  },
+  {
+    path: 'painel/aulas/mensagens/:conversationId',
+    title: 'Mensagens das aulas — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aulas-messages.component').then((m) => m.PanelAulasMessagesComponent),
+  },
+  {
     path: 'painel/aulas/matricula',
     title: 'Nova matrícula — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],

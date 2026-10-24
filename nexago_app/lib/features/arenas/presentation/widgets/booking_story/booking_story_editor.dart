@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../../../core/layout/nexa_app_bar.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/theme/app_radii.dart';
 import '../../../../../core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../../../core/ui/app_snackbar.dart';
@@ -18,7 +19,7 @@ import '../../../domain/booking_story.dart';
 import 'booking_story_card.dart';
 
 /// Estado comum aos editores de story (reserva e pós-jogo): fundo, foto da
-/// galeria e a captura/compartilhamento do PNG.
+/// câmera ou da galeria e a captura/compartilhamento do PNG.
 mixin BookingStoryEditorMixin<T extends ConsumerStatefulWidget>
     on ConsumerState<T> {
   final storyCardKey = GlobalKey();
@@ -28,15 +29,21 @@ mixin BookingStoryEditorMixin<T extends ConsumerStatefulWidget>
   Uint8List? storyPhoto;
   bool storyBusy = false;
 
+  /// Pergunta a origem (câmera ou galeria) e aplica a foto como fundo.
   Future<void> pickStoryPhoto() async {
+    final source = await showBookingStoryPhotoSourceSheet(context);
+    if (!mounted || source == null) return;
     Uint8List? bytes;
     try {
-      bytes = await ref.read(bookingStoryPhotoPickerProvider)();
+      bytes = await ref.read(bookingStoryPhotoPickerProvider)(source);
     } on PlatformException {
       if (mounted) {
         showAppSnackBar(
           context,
-          'Não foi possível carregar esta foto. Tente outra imagem.',
+          source == BookingStoryPhotoSource.camera
+              ? 'Não foi possível abrir a câmera. Confira a permissão nos '
+                  'ajustes ou escolha da galeria.'
+              : 'Não foi possível carregar esta foto. Tente outra imagem.',
           isError: true,
         );
       }
@@ -79,6 +86,75 @@ mixin BookingStoryEditorMixin<T extends ConsumerStatefulWidget>
       if (mounted) setState(() => storyBusy = false);
     }
   }
+}
+
+/// Folha "Foto de fundo": Tirar foto agora · Escolher da galeria.
+Future<BookingStoryPhotoSource?> showBookingStoryPhotoSourceSheet(
+  BuildContext context,
+) {
+  return showModalBottomSheet<BookingStoryPhotoSource>(
+    context: context,
+    useSafeArea: true,
+    backgroundColor: context.themeColors.surfaceSheet,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadii.xl)),
+    ),
+    builder: (sheetContext) {
+      final colors = sheetContext.themeColors;
+      Widget tile(IconData icon, String label, BookingStoryPhotoSource source) =>
+          ListTile(
+            key: ValueKey('booking-story-photo-source-${source.name}'),
+            leading: Icon(icon, color: AppColors.brand),
+            title: Text(
+              label,
+              style: AppTypography.titleS.copyWith(
+                fontSize: 15,
+                color: colors.onSurface,
+              ),
+            ),
+            onTap: () => Navigator.pop(sheetContext, source),
+          );
+      return Padding(
+        padding: EdgeInsets.only(
+          bottom: 16 + MediaQuery.paddingOf(sheetContext).bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 10),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: colors.onSurfaceMuted.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+              child: Text(
+                'Foto de fundo',
+                style: AppTypography.titleL.copyWith(color: colors.onSurface),
+              ),
+            ),
+            tile(
+              Icons.photo_camera_outlined,
+              'Tirar foto agora',
+              BookingStoryPhotoSource.camera,
+            ),
+            tile(
+              Icons.photo_library_outlined,
+              'Escolher da galeria',
+              BookingStoryPhotoSource.gallery,
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 /// PNG da arte sob [key]. A boundary mede 360×640 dentro do FittedBox da

@@ -88,7 +88,7 @@ const centerStudentAbsenceNotificationType = 'training_center_student_absence';
 /// abre "Minhas avaliações" (A7), onde a resposta aparece.
 const classReviewReplyNotificationType = 'class_review_reply';
 
-/// Agenda do atleta — onde fica a mensalidade a pagar.
+/// Agenda do atleta.
 const athleteAgendaTabLocation = '${AppRoutes.discover}?tab=agenda';
 
 /// URL externa que o toque abre no navegador: a fatura da mensalidade de aula

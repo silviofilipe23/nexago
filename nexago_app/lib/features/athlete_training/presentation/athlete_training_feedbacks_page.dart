@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
@@ -17,6 +17,7 @@ import '../../professor_mode/presentation/lesson_plans/athlete_lesson_plan_pages
 import '../../professor_mode/presentation/widgets/professor_students_widgets.dart';
 import '../domain/athlete_training.dart';
 import 'widgets/training_widgets.dart';
+import 'training_shell_page.dart';
 
 /// T7 · Feedbacks — o que todos os professores escreveram depois das aulas
 /// (`lessonPlanViews.feedback`), mais recente primeiro. Toque abre a aula
@@ -59,9 +60,15 @@ class _AthleteTrainingFeedbacksPageState
               '${all.length} ${all.length == 1 ? 'RECEBIDO' : 'RECEBIDOS'}',
               if (fresh > 0) '$fresh ${fresh == 1 ? 'NOVO' : 'NOVOS'}',
             ].join(' · '),
-      onBack: () => popOrGo(context, AppRoutes.athleteTrainings),
+      // Aba do shell: voltar leva à aba Treinos.
+      onBack: () => context.go(AppRoutes.athleteTrainings),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+        padding: EdgeInsets.fromLTRB(
+            20,
+            8,
+            20,
+            trainingShellBottomPadding(context),
+          ),
         children: [
           if (names.length > 1) ...[
             TrainingProfessorChips(

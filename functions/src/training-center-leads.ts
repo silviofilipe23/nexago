@@ -71,8 +71,9 @@ function centerRef(db: Firestore, centerId: string) {
   return db.doc(`${TRAINING_CENTERS}/${centerId}`);
 }
 
-function validId(id: string, what: string): string {
-  if (!id || id.includes("/")) throw new HttpsError("invalid-argument", `${what} inválido.`);
+/** `message` completo: "Aula inválida.", "Centro inválido." */
+function validId(id: string, message: string): string {
+  if (!id || id.includes("/")) throw new HttpsError("invalid-argument", message);
   return id;
 }
 
@@ -122,9 +123,9 @@ async function notifyMany(deps: NotifyDeps, uids: string[], push: {title: string
 export async function scheduleLeadTrialCore(
   db: Firestore, deps: NotifyDeps, uid: string, raw: Data,
 ): Promise<{bookingId: string}> {
-  const centerId = validId(str(raw["centerId"]), "Centro");
-  const leadId = validId(str(raw["leadId"]), "Interessado");
-  const sessionId = validId(str(raw["sessionId"]), "Aula");
+  const centerId = validId(str(raw["centerId"]), "Centro inválido.");
+  const leadId = validId(str(raw["leadId"]), "Interessado inválido.");
+  const sessionId = validId(str(raw["sessionId"]), "Aula inválida.");
   const staff = await requireTrialStaff(db, uid, centerId);
   const center = await loadActiveCenter(db, centerId);
   const {settings: cfg} = await loadLeadSettings(db, centerId);
@@ -206,8 +207,8 @@ export async function scheduleLeadTrialCore(
 
 /** A equipe desmarca a experimental (antes da aula). */
 export async function cancelLeadTrialCore(db: Firestore, uid: string, raw: Data, now: Date): Promise<{bookingId: string}> {
-  const centerId = validId(str(raw["centerId"]), "Centro");
-  const bookingId = validId(str(raw["bookingId"]), "Pedido");
+  const centerId = validId(str(raw["centerId"]), "Centro inválido.");
+  const bookingId = validId(str(raw["bookingId"]), "Pedido inválido.");
   const staff = await requireTrialStaff(db, uid, centerId);
   await cancelBooking(db, centerId, bookingId, staff.name, "Desmarcou a experimental", now, () => undefined);
   return {bookingId};
@@ -240,8 +241,8 @@ async function cancelBooking(
 export async function evaluateTrialCore(
   db: Firestore, deps: NotifyDeps, uid: string, raw: Data,
 ): Promise<{bookingId: string}> {
-  const centerId = validId(str(raw["centerId"]), "Centro");
-  const bookingId = validId(str(raw["bookingId"]), "Experimental");
+  const centerId = validId(str(raw["centerId"]), "Centro inválido.");
+  const bookingId = validId(str(raw["bookingId"]), "Experimental inválida.");
   if (typeof raw["attended"] !== "boolean") throw new HttpsError("invalid-argument", "Diga se a pessoa veio.");
   const attended = raw["attended"] === true;
   const level = str(raw["level"]) as TrialLevel | "";
@@ -350,7 +351,7 @@ export interface PublicTrialPage {
 }
 
 async function loadPublicCenter(db: Firestore, centerId: string): Promise<{center: Data; cfg: LeadSettings}> {
-  validId(centerId, "Centro");
+  validId(centerId, "Centro inválido.");
   const center = await loadActiveCenter(db, centerId);
   const cfg = parseLeadSettings((await leadSettingsRef(db, centerId).get()).data());
   if (!cfg.publicPage) throw new HttpsError("not-found", "Este centro não está agendando aula experimental pela página.");
@@ -430,7 +431,7 @@ export async function bookPublicTrialCore(
   db: Firestore, deps: NotifyDeps, raw: Data, token = randomBytes(16).toString("hex"),
 ): Promise<PublicBookingResult> {
   const centerId = str(raw["centerId"]);
-  const sessionId = validId(str(raw["sessionId"]), "Aula");
+  const sessionId = validId(str(raw["sessionId"]), "Aula inválida.");
   const name = str(raw["name"]).replace(/\s+/g, " ");
   const phone = str(raw["phone"]);
   const digits = phoneDigits(phone);
@@ -555,8 +556,8 @@ function sameToken(a: string, b: string): boolean {
 
 /** "Não vou conseguir ir" da página: só com o token devolvido no agendamento. */
 export async function cancelPublicTrialCore(db: Firestore, deps: NotifyDeps, raw: Data): Promise<{bookingId: string}> {
-  const centerId = validId(str(raw["centerId"]), "Centro");
-  const bookingId = validId(str(raw["bookingId"]), "Agendamento");
+  const centerId = validId(str(raw["centerId"]), "Centro inválido.");
+  const bookingId = validId(str(raw["bookingId"]), "Agendamento inválido.");
   const token = str(raw["token"]);
   const b = await cancelBooking(db, centerId, bookingId, "Página do CT", "Desmarcou pela página do CT", deps.now(), (data) => {
     if (str(data["source"]) !== "page" || !sameToken(str(data["cancelToken"]), token)) {

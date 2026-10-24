@@ -25,6 +25,8 @@ export type NotificationEventKey =
   | "payment_confirmed"
   | "billing_block_warning"
   | "staff_pending_payments"
+  | "enrollment_request"
+  | "enrollment_request_answered"
   | "daily_summary";
 
 export interface NotificationEventSpec {
@@ -58,6 +60,9 @@ export const NOTIFICATION_EVENTS: Record<NotificationEventKey, NotificationEvent
   payment_confirmed: spec({defaultPush: false}),
   billing_block_warning: spec({}),
   staff_pending_payments: spec({}),
+  // Trancar/pausa por lesão/cancelar: pedido novo → gestão; resposta da gestão → aluno.
+  enrollment_request: spec({}),
+  enrollment_request_answered: spec({mandatory: true}),
   daily_summary: spec({defaultPush: false, available: false}),
 };
 

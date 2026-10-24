@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
@@ -21,6 +20,7 @@ import '../../../core/time/nexago_event_timezone.dart';
 import '../application/athlete_training_providers.dart';
 import '../domain/athlete_training.dart';
 import 'athlete_training_find_professor_page.dart' show openProfessorProfile;
+import 'training_shell_page.dart';
 
 /// T10 · Meus professores — quem dá aula para o atleta (`getMyProfessors`:
 /// turma da arena ou carteira do professor), o próximo treino com cada um e
@@ -39,9 +39,15 @@ class AthleteTrainingProfessorsPage extends ConsumerWidget {
       subtitle: list == null
           ? null
           : '${list.length} ${list.length == 1 ? 'ATIVO' : 'ATIVOS'}',
-      onBack: () => popOrGo(context, AppRoutes.athleteTrainings),
+      // Aba do shell: voltar leva à aba Treinos.
+      onBack: () => context.go(AppRoutes.athleteTrainings),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+        padding: EdgeInsets.fromLTRB(
+            20,
+            8,
+            20,
+            trainingShellBottomPadding(context),
+          ),
         children: [
           if (list == null && async.hasError)
             ProfessorRetryCard(

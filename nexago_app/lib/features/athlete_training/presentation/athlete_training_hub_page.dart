@@ -10,13 +10,11 @@ import '../../../core/theme/app_theme_colors.dart';
 
 import '../../../core/formatting/app_currency_format.dart';
 
-import '../../../core/layout/nexa_bottom_nav_bar.dart';
 import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/time/nexago_event_timezone.dart';
 import '../../athlete/domain/agenda/athlete_agenda_providers.dart';
-import '../../athlete/presentation/widgets/athlete_shell_tab_bar.dart';
 import '../../messages/application/messages_providers.dart';
 import '../../professor_links/application/professor_links_providers.dart';
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
@@ -38,6 +36,7 @@ import 'widgets/class_review_widgets.dart';
 import '../domain/class_review.dart';
 import '../domain/training_origin_links.dart';
 import 'athlete_training_add_page.dart' show CenterInviteCard;
+import 'training_shell_page.dart';
 
 /// T2 · Meus treinos — o hub do aluno: próximo treino, números do mês, o que
 /// o professor mandou, a semana e os atalhos para aulas, feedbacks,
@@ -119,13 +118,6 @@ class _AthleteTrainingHubPageState
       title: 'Meus treinos',
       subtitle: subtitle.isEmpty ? 'AULAS E PROFESSORES' : subtitle,
       onBack: () => popOrGo(context, AppRoutes.home),
-      // O hub nasce da Início e mantém o menu do atleta; as telas dele
-      // empilham sem a barra.
-      bottomNavigationBar: AthleteShellTabBar(
-        key: const Key('training-hub-tab-bar'),
-        currentIndex: 0,
-        onTap: (i) => goToAthleteShellTab(context, ref, i),
-      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -171,9 +163,7 @@ class _AthleteTrainingHubPageState
             20,
             8,
             20,
-            nexaBottomNavBarHeight(context) +
-                MediaQuery.viewPaddingOf(context).bottom +
-                24,
+            trainingShellBottomPadding(context),
           ),
           children: [
             for (final i in invites) ...[
@@ -293,7 +283,7 @@ class _AthleteTrainingHubPageState
                 'Próximos dias',
                 action: 'Agenda completa',
                 onAction: () =>
-                    context.pushNamed(AppRouteNames.athleteTrainingAgenda),
+                    context.goNamed(AppRouteNames.athleteTrainingAgenda),
               ),
               for (final t in upcoming.skip(1).take(3)) ...[
                 TrainingRow(
@@ -345,7 +335,7 @@ class _AthleteTrainingHubPageState
                       ? 'Particular, arena e centro na mesma semana'
                       : 'A semana de treinos, dia a dia',
                   onTap: () =>
-                      context.pushNamed(AppRouteNames.athleteTrainingAgenda),
+                      context.goNamed(AppRouteNames.athleteTrainingAgenda),
                 ),
                 TrainingListTile(
                   key: const Key('training-hub-classes'),
@@ -362,7 +352,7 @@ class _AthleteTrainingHubPageState
                   subtitle: 'O que os professores disseram de cada aula',
                   highlight: trainingNewFeedbackCount(views, now) > 0,
                   onTap: () =>
-                      context.pushNamed(AppRouteNames.athleteTrainingFeedbacks),
+                      context.goNamed(AppRouteNames.athleteTrainingFeedbacks),
                 ),
                 TrainingListTile(
                   key: const Key('training-hub-reviews'),
@@ -383,7 +373,7 @@ class _AthleteTrainingHubPageState
                   title: 'Minha evolução',
                   subtitle: 'Avaliação por fundamento e frequência',
                   onTap: () =>
-                      context.pushNamed(AppRouteNames.athleteTrainingEvolution),
+                      context.goNamed(AppRouteNames.athleteTrainingEvolution),
                 ),
                 TrainingListTile(
                   key: const Key('training-hub-professors'),
@@ -391,7 +381,7 @@ class _AthleteTrainingHubPageState
                   title: 'Meus professores',
                   subtitle: 'Mensagem e agendamento',
                   onTap: () => context
-                      .pushNamed(AppRouteNames.athleteTrainingProfessors),
+                      .goNamed(AppRouteNames.athleteTrainingProfessors),
                 ),
                 TrainingListTile(
                   key: const Key('training-hub-plans'),

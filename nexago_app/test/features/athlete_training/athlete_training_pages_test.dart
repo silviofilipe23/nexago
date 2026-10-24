@@ -8,11 +8,7 @@ import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 import 'package:nexago_app/features/athlete/domain/agenda/athlete_agenda_providers.dart';
 import 'package:nexago_app/features/athlete/domain/agenda/class_agenda_entry.dart';
 import 'package:nexago_app/features/athlete_training/application/athlete_training_providers.dart';
-import 'package:nexago_app/features/athlete_training/presentation/athlete_training_classes_page.dart';
-import 'package:nexago_app/features/athlete_training/presentation/athlete_training_evolution_page.dart';
-import 'package:nexago_app/features/athlete_training/presentation/athlete_training_feedbacks_page.dart';
-import 'package:nexago_app/features/athlete_training/presentation/athlete_training_hub_page.dart';
-import 'package:nexago_app/features/athlete_training/presentation/athlete_training_professors_page.dart';
+import 'package:nexago_app/features/athlete_training/presentation/athlete_training_routes.dart';
 import 'package:nexago_app/features/athlete_training/presentation/widgets/athlete_training_home_entry.dart';
 import 'package:nexago_app/features/messages/application/messages_providers.dart';
 import 'package:nexago_app/features/messages/domain/messages.dart';
@@ -25,7 +21,6 @@ import 'package:nexago_app/features/professor_mode/domain/professor_evaluations.
 import 'package:nexago_app/features/professor_mode/domain/professor_lesson_plans.dart';
 import 'package:nexago_app/features/athlete/domain/agenda/class_charge_entry.dart';
 import 'package:nexago_app/features/athlete_training/domain/training_plans.dart';
-import 'package:nexago_app/features/athlete_training/presentation/athlete_training_plans_page.dart';
 
 // Qua 21/10/2026 12:00 em São Paulo.
 final _now = DateTime.utc(2026, 10, 21, 15);
@@ -152,38 +147,9 @@ Future<GoRouter> _pump(
           body: SingleChildScrollView(child: AthleteTrainingHomeEntry()),
         ),
       ),
-      GoRoute(
-        path: AppRoutes.athleteTrainings,
-        name: AppRouteNames.athleteTrainings,
-        builder: (_, __) => const AthleteTrainingHubPage(),
-        routes: [
-          GoRoute(
-            path: 'aulas',
-            name: AppRouteNames.athleteTrainingClasses,
-            builder: (_, __) => const AthleteTrainingClassesPage(),
-          ),
-          GoRoute(
-            path: 'feedbacks',
-            name: AppRouteNames.athleteTrainingFeedbacks,
-            builder: (_, __) => const AthleteTrainingFeedbacksPage(),
-          ),
-          GoRoute(
-            path: 'evolucao',
-            name: AppRouteNames.athleteTrainingEvolution,
-            builder: (_, __) => const AthleteTrainingEvolutionPage(),
-          ),
-          GoRoute(
-            path: 'professores',
-            name: AppRouteNames.athleteTrainingProfessors,
-            builder: (_, __) => const AthleteTrainingProfessorsPage(),
-          ),
-          GoRoute(
-            path: 'planos',
-            name: AppRouteNames.athleteTrainingPlans,
-            builder: (_, __) => const AthleteTrainingPlansPage(),
-          ),
-        ],
-      ),
+      // As rotas reais: shell (Treinos · Agenda · Feedbacks · Evolução ·
+      // Professores) e as telas empilhadas.
+      ...athleteTrainingRoutes(),
       GoRoute(
         path: AppRoutes.athletePrivateLessons,
         name: AppRouteNames.athletePrivateLessons,
@@ -217,11 +183,6 @@ Future<GoRouter> _pump(
         path: AppRoutes.athleteMessages,
         name: AppRouteNames.athleteMessages,
         builder: (_, __) => _stub('mensagens'),
-      ),
-      GoRoute(
-        path: AppRoutes.discover,
-        builder: (_, s) =>
-            _stub('shell ${s.uri.queryParameters['tab'] ?? 'inicio'}'),
       ),
     ],
   );
@@ -336,7 +297,12 @@ void main() {
   });
 
   group('T2 · hub', () {
-    testWidgets('mantém o menu do atleta e troca de aba pelo shell', (
+    Finder tab(IconData icon) => find.descendant(
+          of: find.byKey(const Key('training-tab-bar')),
+          matching: find.byIcon(icon),
+        );
+
+    testWidgets('shell: a barra troca entre as abas de treino', (
       tester,
     ) async {
       final router = await _pump(
@@ -344,15 +310,47 @@ void main() {
         location: AppRoutes.athleteTrainings,
         data: _Data(classes: [_class('s1', '2026-10-22')]),
       );
-      expect(find.byKey(const Key('training-hub-tab-bar')), findsOneWidget);
+      expect(find.byKey(const Key('training-tab-bar')), findsOneWidget);
 
-      await tester.tap(find.descendant(
-        of: find.byKey(const Key('training-hub-tab-bar')),
-        matching: find.byIcon(Icons.calendar_today_outlined),
-      ));
+      await tester.tap(tab(Icons.calendar_month_outlined));
       await _settle(tester);
-      expect(router.state.uri.path, AppRoutes.discover);
-      expect(find.text('shell agenda'), findsOneWidget);
+      expect(router.state.uri.path, AppRoutes.athleteTrainingAgenda);
+      expect(find.byKey(const Key('training-tab-bar')), findsOneWidget);
+
+      await tester.tap(tab(Icons.insights_outlined));
+      await _settle(tester);
+      expect(router.state.uri.path, AppRoutes.athleteTrainingEvolution);
+
+      // O voltar de uma aba leva à aba Treinos.
+      await tester.tap(find.bySemanticsLabel('Voltar').last);
+      await _settle(tester);
+      expect(router.state.uri.path, AppRoutes.athleteTrainings);
+    });
+
+    testWidgets('shell: tela empilhada some com a barra e volta à aba', (
+      tester,
+    ) async {
+      final router = await _pump(
+        tester,
+        location: AppRoutes.athleteTrainings,
+        data: _Data(classes: [_class('s1', '2026-10-22')]),
+      );
+      await tester.tap(tab(Icons.calendar_month_outlined));
+      await _settle(tester);
+
+      router.pushNamed(AppRouteNames.athleteTrainingClasses);
+      await _settle(tester);
+      // A rota de baixo só sai de cena quando a transição termina.
+      await tester.pump(const Duration(seconds: 1));
+      expect(router.state.uri.path, AppRoutes.athleteTrainingClasses);
+      // O shell fica por baixo, fora de cena.
+      expect(find.byKey(const Key('training-tab-bar')), findsNothing);
+
+      router.pop();
+      await _settle(tester);
+      await tester.pump(const Duration(seconds: 1));
+      expect(router.state.uri.path, AppRoutes.athleteTrainingAgenda);
+      expect(find.byKey(const Key('training-tab-bar')), findsOneWidget);
     });
 
     testWidgets('próximo treino, números e o que o professor mandou',
@@ -397,6 +395,7 @@ void main() {
       expect(find.text('avaliacao tm_me_2026-10'), findsOneWidget);
       router.pop();
       await _settle(tester);
+      await tester.pump(const Duration(seconds: 1));
       await tester.pump(const Duration(seconds: 1));
 
       await tester.tap(find.byKey(const Key('training-hub-classes')));

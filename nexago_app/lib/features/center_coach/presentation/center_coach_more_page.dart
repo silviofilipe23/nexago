@@ -39,6 +39,14 @@ List<({String title, List<CenterMoreItem> items})> centerMoreGroups(
       items: [
         if (enroll)
           (
+            key: 'leads',
+            icon: Icons.campaign_outlined,
+            title: 'Captação',
+            subtitle: 'Interessados e aulas experimentais',
+            routeName: AppRouteNames.centerCoachLeads,
+          ),
+        if (enroll)
+          (
             key: 'new-student',
             icon: Icons.person_add_alt_1_outlined,
             title: 'Novo aluno',

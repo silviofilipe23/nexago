@@ -198,7 +198,7 @@ export async function scheduleLeadTrialCore(
       title: "Aula experimental na sua turma",
       body: `${booking.name} · ${booking.className} · ${dateBr(booking.date)} ${booking.startTime}`,
       type: CENTER_LEAD_TYPE,
-      data: {centerId, sessionId, url: `/athlete/professor/centros/${centerId}/aulas/${sessionId}`},
+      data: {centerId, sessionId, url: `/athlete/professor/centros/${centerId}/aula/${sessionId}`},
     });
   }
   return {bookingId: bookingRef.id};

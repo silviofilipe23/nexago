@@ -264,8 +264,9 @@ class AttendanceCorrection {
   final DateTime? at;
 }
 
-/// Atleta da aula experimental pedida pelo app (`sessions/{id}.trials`, só o
-/// servidor grava). Ainda não é aluno do centro: não entra na chamada.
+/// Atleta da aula experimental (`sessions/{id}.trials`, só o servidor grava):
+/// pedida pelo app (chave = athleteId) ou de um interessado da captação
+/// (chave = `l_{leadId}`). Ainda não é aluno do centro: não entra na chamada.
 class CenterSessionTrial {
   const CenterSessionTrial({
     required this.athleteId,
@@ -273,8 +274,30 @@ class CenterSessionTrial {
     this.bookingId = '',
     this.photoUrl,
     this.status = 'pending',
+    this.leadId = '',
+    this.experience = '',
+    this.goal = '',
+    this.attendance,
+    this.evaluated = false,
   });
 
+  factory CenterSessionTrial.fromMap(String key, Map<String, Object?> m) =>
+      CenterSessionTrial(
+        athleteId: key,
+        name: _str(m['name'], 'Atleta'),
+        bookingId: _str(m['bookingId']),
+        photoUrl: _str(m['photoUrl']).isEmpty ? null : _str(m['photoUrl']),
+        status: _str(m['status'], 'pending'),
+        leadId: _str(m['leadId']),
+        experience: _str(m['experience']),
+        goal: _str(m['goal']),
+        attendance: _str(m['attendance']).isEmpty
+            ? null
+            : _str(m['attendance']),
+        evaluated: m['evaluated'] == true,
+      );
+
+  /// Chave do espelho (athleteId do app ou `l_{leadId}`).
   final String athleteId;
   final String name;
   final String bookingId;
@@ -282,6 +305,18 @@ class CenterSessionTrial {
 
   /// `pending` (o centro ainda vai confirmar) ou `confirmed`.
   final String status;
+  final String leadId;
+
+  /// `never`, `plays`, `competes` ou vazio.
+  final String experience;
+  final String goal;
+
+  /// `attended`, `no_show` ou `null` (ainda não avaliada).
+  final String? attendance;
+  final bool evaluated;
+
+  /// Chave no mapa `trials` da aula.
+  String get key => athleteId;
 
   bool get isPending => status != 'confirmed';
 }
@@ -381,15 +416,7 @@ class CenterCoachSession {
       trials: [
         for (final e in trials.entries)
           if (e.value is Map)
-            CenterSessionTrial(
-              athleteId: e.key,
-              name: _str((e.value as Map)['name'], 'Atleta'),
-              bookingId: _str((e.value as Map)['bookingId']),
-              photoUrl: _str((e.value as Map)['photoUrl']).isEmpty
-                  ? null
-                  : _str((e.value as Map)['photoUrl']),
-              status: _str((e.value as Map)['status'], 'pending'),
-            ),
+            CenterSessionTrial.fromMap(e.key, _map(e.value as Map)),
       ]..sort((a, b) => a.name.compareTo(b.name)),
     );
   }

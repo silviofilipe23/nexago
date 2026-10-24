@@ -347,6 +347,7 @@ void main() {
               for (final i in g.items) i.key,
           ];
       expect(keys(_m('center_owner')), [
+        'leads',
         'new-student',
         'enroll',
         'waitlist',
@@ -357,6 +358,7 @@ void main() {
         'classes',
       ]);
       expect(keys(_m('receptionist')), [
+        'leads',
         'new-student',
         'enroll',
         'waitlist',

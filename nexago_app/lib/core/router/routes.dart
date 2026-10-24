@@ -466,6 +466,19 @@ abstract final class AppRoutes {
   static const String centerCoachWaitlist =
       '/athlete/professor/centros/:centerId/fila';
 
+  /// Captação (C6): interessados e aulas experimentais; o cadastro no balcão
+  /// (C7) fica em `captacao/novo` — registrada antes de qualquer
+  /// `captacao/:x`.
+  static const String centerCoachLeads =
+      '/athlete/professor/centros/:centerId/captacao';
+  static const String centerCoachNewLead =
+      '/athlete/professor/centros/:centerId/captacao/novo';
+
+  /// Avaliação da aula experimental pelo professor (C8); `trialKey` é a chave
+  /// do espelho `sessions/{id}.trials` (athleteId ou `l_{leadId}`).
+  static const String centerCoachTrialReview =
+      '/athlete/professor/centros/:centerId/aula/:sessionId/experimental/:trialKey';
+
   /// Mensagens da equipe do centro com os alunos (chat no lugar do
   /// WhatsApp) e a conversa.
   static const String centerCoachMessages =
@@ -1182,6 +1195,9 @@ abstract final class AppRouteNames {
   static const String centerCoachFinance = 'centerCoachFinance';
   static const String centerCoachInvoice = 'centerCoachInvoice';
   static const String centerCoachWaitlist = 'centerCoachWaitlist';
+  static const String centerCoachLeads = 'centerCoachLeads';
+  static const String centerCoachNewLead = 'centerCoachNewLead';
+  static const String centerCoachTrialReview = 'centerCoachTrialReview';
   static const String centerCoachClasses = 'centerCoachClasses';
   static const String centerCoachMessages = 'centerCoachMessages';
   static const String centerCoachConversation = 'centerCoachConversation';

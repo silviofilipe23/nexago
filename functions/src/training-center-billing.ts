@@ -23,6 +23,7 @@ import {onDocumentWritten} from "firebase-functions/v2/firestore";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import {Timestamp, getFirestore, type DocumentReference, type Firestore, type Transaction} from "firebase-admin/firestore";
 import {AsaasApiError, asaasArenaSecrets, fetchAsaas, getAsaasEnvTag} from "./asaas-client";
+import {blockedEnrollmentIds} from "./training-center-contracts-model";
 import {
   deleteAsaasPaymentOrThrow,
   fetchAsaasPixQrCode,
@@ -371,7 +372,11 @@ export async function issueCenterInvoiceAs(
       logger.warn(`issueCenterInvoicePayment ${centerId}/${invoiceId}: não apagou ${created.paymentId}`, e));
     throw new HttpsError("failed-precondition", "A cobrança mudou enquanto a fatura era gerada. Confira e tente de novo.");
   }
-  if (outcome === "issued" && studentUid && !opts.silent) {
+  // Matrícula com contrato exigido e não assinado: o link de pagamento só vai depois da assinatura.
+  const enrollmentId = str(inv["enrollmentId"]);
+  const waitsContract = !!enrollmentId && outcome === "issued" && !!studentUid && !opts.silent &&
+    (await blockedEnrollmentIds(centerRef(db, centerId), str(inv["studentId"]))).has(enrollmentId);
+  if (outcome === "issued" && studentUid && !opts.silent && !waitsContract) {
     await pushInvoiceLink(deps, studentUid, centerId, invoiceId, str(center["name"]), amountCents, created.invoiceUrl, str(inv["reference"]));
   }
   return {invoiceUrl: created.invoiceUrl, providerRef: created.paymentId, existing: outcome === "same"};

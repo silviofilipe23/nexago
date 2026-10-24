@@ -29,6 +29,7 @@ import 'package:nexago_app/features/athlete_training/infrastructure/training_cen
 import 'package:nexago_app/features/athlete_training/presentation/athlete_training_add_page.dart';
 import 'package:nexago_app/features/athlete_training/presentation/athlete_training_center_invoice_page.dart';
 
+import 'center_contract_test.dart' show contractJson;
 import 'training_origin_test.dart' show centerResponse;
 
 /// Repositório do CT em memória: guarda as chamadas e devolve o que o teste
@@ -96,6 +97,11 @@ class _FakeCenters implements TrainingCentersRepository {
     calls.add('check $invoiceId');
     return checkStatus;
   }
+
+  // Contratos: cobertos em `center_contract_pages_test.dart`.
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
 }
 
 const _invite = CenterInvite(
@@ -510,6 +516,27 @@ void main() {
       await _pump(tester, location: '/treinos/centro/ct1');
       await _tap(tester, find.byKey(const Key('training-center-card')));
       expect(find.byKey(const Key('training-center-card-sheet')), findsOneWidget);
+    });
+
+    testWidgets('contrato para assinar em destaque no centro', (tester) async {
+      final raw = centerResponse();
+      final center = (raw['centers'] as List).first as Map<String, Object?>;
+      center['contracts'] = [contractJson()];
+      await _pump(
+        tester,
+        location: '/treinos/centro/ct1',
+        repo: _FakeCenters(
+          data: MyTrainingCentersData(
+            centers: trainingCentersFromResponse(raw),
+          ),
+        ),
+      );
+      expect(
+        find.byKey(const Key('training-center-contract-pending')),
+        findsOneWidget,
+      );
+      expect(find.text('Contrato de matrícula'), findsOneWidget);
+      expect(find.text('Ler e assinar'), findsOneWidget);
     });
 
     testWidgets('push de fatura abre direto no Plano', (tester) async {

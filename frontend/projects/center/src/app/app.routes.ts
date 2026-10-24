@@ -100,6 +100,28 @@ export const routes: Routes = [
         loadComponent: () => import('./features/students/student-detail.component').then((m) => m.StudentDetailComponent),
       },
       {
+        path: 'contratos',
+        title: T('Contratos'),
+        canActivate: [areaGuard],
+        data: { area: 'contracts' },
+        loadComponent: () => import('./features/contracts/contracts.component').then((m) => m.ContractsComponent),
+      },
+      // Estática antes de `:contractId`. Recepção abre só leitura (as rules só deixam o gestor escrever).
+      {
+        path: 'contratos/modelos',
+        title: T('Modelos de contrato'),
+        canActivate: [areaGuard],
+        data: { area: 'contracts' },
+        loadComponent: () => import('./features/contracts/contract-templates.component').then((m) => m.ContractTemplatesComponent),
+      },
+      {
+        path: 'contratos/:contractId',
+        title: T('Contrato'),
+        canActivate: [areaGuard],
+        data: { area: 'contracts' },
+        loadComponent: () => import('./features/contracts/contract-detail.component').then((m) => m.ContractDetailComponent),
+      },
+      {
         path: 'planos',
         title: T('Planos e pacotes'),
         canActivate: [areaGuard],

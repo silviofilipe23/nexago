@@ -52,6 +52,8 @@ export class NewEnrollmentComponent implements OnInit {
   readonly initialStudentId = input<string | null>(null);
   readonly closed = output<void>();
   readonly created = output<string>();
+  /** "Enviar contrato" depois de matricular: o pai abre o envio com aluno e matrícula. */
+  readonly sendContract = output<{ studentId: string; enrollmentId: string }>();
 
   private readonly ctx = inject(CenterContextService);
   protected readonly store = inject(CenterStore);
@@ -75,6 +77,11 @@ export class NewEnrollmentComponent implements OnInit {
   protected readonly notify = signal(true);
   protected readonly busy = signal(false);
   protected readonly error = signal('');
+  /** Matrícula criada, oferecendo o envio do contrato (só quando há modelo publicado). */
+  protected readonly createdId = signal<string | null>(null);
+  private readonly hasContractModel = computed(
+    () => this.ctx.has('enroll_students') && this.store.contractTemplates().some((t) => t.status === 'published' && t.version > 0 && t.kind === 'enrollment'),
+  );
 
   protected readonly policies = computed(() => this.ctx.center()?.policies ?? null);
 
@@ -227,6 +234,8 @@ export class NewEnrollmentComponent implements OnInit {
       if (r.kind === 'full') {
         // Alguém pegou a última vaga enquanto o formulário estava aberto.
         this.full.set({ capacity: r.capacity, seatsTaken: r.seatsTaken, raced: true });
+      } else if (this.hasContractModel()) {
+        this.createdId.set(r.id);
       } else {
         this.created.emit(r.id);
       }
@@ -251,6 +260,19 @@ export class NewEnrollmentComponent implements OnInit {
     } finally {
       this.busy.set(false);
     }
+  }
+
+  /** Fechar depois de criada também conta como concluir (o pai seleciona a matrícula nova). */
+  dismiss(): void {
+    const id = this.createdId();
+    if (id) this.created.emit(id);
+    else this.closed.emit();
+  }
+
+  offerContract(): void {
+    const id = this.createdId();
+    const s = this.student();
+    if (id && s) this.sendContract.emit({ studentId: s.id, enrollmentId: id });
   }
 
   inputValue(ev: Event): string {

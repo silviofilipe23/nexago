@@ -24,6 +24,7 @@ import '../../messages/application/messages_providers.dart'
     show messagesRepositoryProvider;
 import '../../messages/presentation/messages_widgets.dart'
     show openConversationWith;
+import '../domain/center_contracts.dart';
 import 'center_coach_subscription_page.dart' show CenterSubscriptionsCard;
 import 'widgets/center_coach_widgets.dart' show coachClassScheduleLabel;
 
@@ -184,6 +185,10 @@ class CenterCoachStudentPage extends ConsumerWidget {
                   },
                 ),
               ),
+            ],
+            if (canEnroll) ...[
+              const SizedBox(height: 12),
+              _ContractsRow(centerId: centerId, studentId: studentId),
             ],
             if (invoices != null) ...[
               const SizedBox(height: 12),
@@ -499,6 +504,94 @@ class _ContactButtons extends ConsumerWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// Entrada dos contratos do aluno (K5) — só para quem matricula.
+class _ContractsRow extends ConsumerWidget {
+  const _ContractsRow({required this.centerId, required this.studentId});
+
+  final String centerId;
+  final String studentId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.themeColors;
+    final today = nexagoEventDayKey(ref.watch(professorLinksClockProvider)());
+    final list = ref
+        .watch(
+          centerStudentContractsProvider((
+            centerId: centerId,
+            studentId: studentId,
+          )),
+        )
+        .valueOrNull;
+    final groups = centerContractGroups(list ?? const [], today);
+    final open = [
+      for (final c in groups.current)
+        if (c.isOpen) c,
+    ].length;
+    final sub = list == null
+        ? 'Documentos e termos assinados'
+        : open > 0
+        ? (open == 1 ? '1 aguardando assinatura' : '$open aguardando assinatura')
+        : groups.isEmpty
+        ? 'Nenhum contrato enviado'
+        : groups.current.length == 1
+        ? '1 documento vigente'
+        : '${groups.current.length} documentos vigentes';
+    return ProfessorLinksCard(
+      key: const Key('center-student-contracts'),
+      onTap: () => context.pushNamed(
+        AppRouteNames.centerCoachStudentContracts,
+        pathParameters: {'centerId': centerId, 'studentId': studentId},
+      ),
+      padding: const EdgeInsets.all(13),
+      child: Row(
+        children: [
+          Icon(
+            Icons.description_outlined,
+            size: 20,
+            color: colors.readableTone(
+              open > 0 ? AppColors.brand : ProfessorLinksStyle.mute(colors),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Contratos',
+                  style: ProfessorLinksStyle.display(
+                    13.5,
+                    weight: FontWeight.w700,
+                    color: colors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  sub,
+                  style: AppTypography.bodyS.copyWith(
+                    fontSize: 11.5,
+                    color: ProfessorLinksStyle.dim(colors),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (open > 0) ...[
+            const ArenaClassTag(label: 'Pendente', color: AppColors.brand),
+            const SizedBox(width: 6),
+          ],
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 18,
+            color: ProfessorLinksStyle.dim(colors),
+          ),
+        ],
+      ),
     );
   }
 }

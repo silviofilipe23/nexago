@@ -5,6 +5,7 @@ import { CenterStore } from '../../data/center-store.service';
 import { writeErrorMessage } from '../../data/actions/actor';
 import { StudentsActions } from '../../data/actions/students.actions';
 import { formatDayKey, formatInstant, monthLabel, todayKey, wallClock } from '../../domain/dates';
+import { CONTRACT_STATE, contractState, sortContracts } from '../../domain/contracts';
 import { holdsSeat, invoiceDisplayStatus } from '../../domain/enrollment';
 import { attendanceRate, tallyAttendance } from '../../domain/metrics';
 import { formatBRL } from '../../domain/money';
@@ -13,6 +14,7 @@ import { placeLabel } from '../../domain/locations';
 import { weekdaysLabel } from '../../domain/schedule';
 import { IconComponent } from '../../ui/icon.component';
 import { AuditTrailComponent, BannerComponent, ModalComponent, PageHeaderComponent, PersonComponent, SegmentedComponent, ToggleComponent, type AuditRow } from '../../ui/kit';
+import { SendContractModalComponent } from '../contracts/send-contract-modal.component';
 import { ageOn, recentAttendance } from './student-rows';
 
 type Tab = 'overview' | 'enrollments' | 'attendance' | 'invoices' | 'history';
@@ -33,7 +35,7 @@ interface StatusAction {
 @Component({
   selector: 'ct-student-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, PageHeaderComponent, PersonComponent, BannerComponent, SegmentedComponent, ToggleComponent, ModalComponent, AuditTrailComponent, IconComponent],
+  imports: [RouterLink, PageHeaderComponent, PersonComponent, BannerComponent, SegmentedComponent, ToggleComponent, ModalComponent, AuditTrailComponent, IconComponent, SendContractModalComponent],
   templateUrl: './student-detail.component.html',
   styles: `
     .page { padding: 20px var(--ct-gutter) 26px; display: flex; flex-direction: column; gap: 16px; }
@@ -45,6 +47,8 @@ interface StatusAction {
     .mark.absent { background: rgba(255,59,48,0.14); color: var(--nx-live); }
     .enr + .enr { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--nx-line-strong); }
     .tabs { overflow-x: auto; }
+    .contract { text-decoration: none; color: var(--nx-text-mute); }
+    .contract:hover .ct-disp { color: var(--nx-orange-400); }
   `,
 })
 export class StudentDetailComponent {
@@ -81,6 +85,15 @@ export class StudentDetailComponent {
   }
   protected readonly seesEnrollments = computed(() => this.ctx.has('view_enrollments') || this.ctx.has('enroll_students'));
   protected readonly seesFinance = computed(() => this.ctx.has('view_finance'));
+  /** Contratos: a rule libera a leitura para quem matricula (gestor e recepção inclusos). */
+  protected readonly seesContracts = computed(() => this.ctx.has('enroll_students'));
+  protected readonly sendingContract = signal(false);
+  protected readonly contracts = computed(() =>
+    sortContracts(this.store.contracts().filter((c) => c.studentId === this.studentId())).map((c) => {
+      const st = contractState(c, this.today());
+      return { c, label: CONTRACT_STATE[st][0], tone: CONTRACT_STATE[st][1] };
+    }),
+  );
 
   protected readonly tabs = computed(() => {
     const t: { value: Tab; label: string }[] = [{ value: 'overview', label: 'Visão geral' }];

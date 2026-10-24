@@ -535,6 +535,20 @@ AthleteNotificationPresentation _basePresentation(
         ],
         routePath: resolveNotificationRoute({...data, 'type': type}),
       );
+    // Contrato do centro para assinar: abre a leitura (K7).
+    case centerContractNotificationType:
+      return AthleteNotificationPresentation(
+        icon: Icons.description_outlined,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.12),
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Ler e assinar',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: resolveNotificationRoute({...data, 'type': type}),
+      );
     // Aula, matrícula, vaga e pagamento confirmado do centro: abrem a aula ou
     // o centro (Treinos).
     case centerAttendancePendingNotificationType:

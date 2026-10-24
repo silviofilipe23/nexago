@@ -23,6 +23,7 @@ export type CenterArea =
   | 'enrollments'
   | 'trials'
   | 'students'
+  | 'contracts'
   | 'plans'
   | 'finance'
   | 'subscriptions'
@@ -42,6 +43,7 @@ export const AREA_LABELS: Record<CenterArea, string> = {
   enrollments: 'Matrículas',
   trials: 'Experimentais',
   students: 'Alunos',
+  contracts: 'Contratos',
   plans: 'Planos e pacotes',
   finance: 'Financeiro',
   subscriptions: 'Assinaturas',
@@ -104,6 +106,7 @@ const ROLE_AREAS: Record<CenterRole, CenterArea[]> = {
     'enrollments',
     'trials',
     'students',
+    'contracts',
     'plans',
     'finance',
     'subscriptions',
@@ -122,6 +125,7 @@ const ROLE_AREAS: Record<CenterRole, CenterArea[]> = {
     'enrollments',
     'trials',
     'students',
+    'contracts',
     'plans',
     'finance',
     'subscriptions',
@@ -133,7 +137,7 @@ const ROLE_AREAS: Record<CenterRole, CenterArea[]> = {
     'reviews',
     'settings',
   ],
-  receptionist: ['dashboard', 'schedule', 'classes', 'enrollments', 'trials', 'students', 'plans'],
+  receptionist: ['dashboard', 'schedule', 'classes', 'enrollments', 'trials', 'students', 'contracts', 'plans'],
   coach: ['dashboard', 'schedule', 'classes', 'students', 'myPayouts'],
 };
 
@@ -143,7 +147,7 @@ const ROLE_AREAS: Record<CenterRole, CenterArea[]> = {
  */
 const AREA_BY_PERMISSION: Partial<Record<CenterPermission, CenterArea[]>> = {
   view_enrollments: ['enrollments'],
-  enroll_students: ['enrollments', 'trials'],
+  enroll_students: ['enrollments', 'trials', 'contracts'],
   view_finance: ['finance', 'subscriptions', 'payouts', 'reports'],
   edit_plans: ['plans'],
   center_settings: ['settings', 'programs', 'locations'],

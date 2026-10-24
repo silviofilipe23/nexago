@@ -1,4 +1,4 @@
-<ct-modal kicker="Nova matrícula" [title]="title()" [width]="680" (closed)="closed.emit()">
+<ct-modal kicker="Nova matrícula" [title]="title()" [width]="680" (closed)="dismiss()">
   <div class="steps" aria-hidden="true">
     @for (s of steps; track s; let i = $index) {
       <div>
@@ -8,7 +8,17 @@
     }
   </div>
 
-  @if (full(); as f) {
+  @if (createdId()) {
+    <div class="ct-box green">
+      <div class="ct-row">
+        <ct-icon name="check" [size]="16" style="color: var(--nx-win)" />
+        <span class="ct-disp ct-grow" style="font-weight: 700">Matrícula criada</span>
+      </div>
+      <div class="ct-muted" style="margin-top: 6px">
+        {{ student()?.name }} está na {{ cls()?.name }}. Envie agora o contrato da matrícula para assinatura no app — dá para exigir a assinatura antes do pagamento.
+      </div>
+    </div>
+  } @else if (full(); as f) {
     <!-- Turma lotada: fila ou outra turma do mesmo nível -->
     <div class="ct-box yellow">
       <div class="ct-row">
@@ -177,6 +187,10 @@
   }
 
   <div footer class="ct-row ct-wrap">
+    @if (createdId()) {
+      <button type="button" class="ct-mini-btn" (click)="dismiss()">Concluir</button>
+      <button type="button" class="ct-mini-btn ct-mini-btn-primary" (click)="offerContract()"><ct-icon name="pen" [size]="14" />Enviar contrato</button>
+    } @else {
     @if (step() > 0 || full()) {
       <button type="button" class="ct-ghost-btn" [disabled]="busy()" (click)="back()">{{ full() ? 'Escolher outra turma' : 'Voltar' }}</button>
     }
@@ -192,6 +206,7 @@
       <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy() || !contract()" (click)="confirm()">
         {{ busy() ? 'Matriculando…' : 'Confirmar matrícula' }}
       </button>
+    }
     }
   </div>
 </ct-modal>

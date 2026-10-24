@@ -235,8 +235,10 @@ import '../../features/center_coach/presentation/center_coach_team_page.dart';
 import '../../features/center_coach/presentation/center_coach_messages_page.dart';
 import '../../features/center_coach/presentation/center_coach_enroll_page.dart';
 import '../../features/center_coach/presentation/center_coach_subscription_page.dart';
+import '../../features/center_coach/presentation/center_coach_student_contracts_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_agenda_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_center_invoice_page.dart';
+import '../../features/athlete_training/presentation/athlete_training_center_contract_pages.dart';
 import '../../features/athlete_training/presentation/athlete_training_arena_class_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_center_page.dart';
 import '../../features/athlete_training/presentation/athlete_training_center_session_page.dart';
@@ -1656,6 +1658,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.centerCoachTeam,
         builder: (context, state) => CenterCoachTeamPage(
           centerId: state.pathParameters['centerId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.centerCoachStudentContracts,
+        name: AppRouteNames.centerCoachStudentContracts,
+        builder: (context, state) => CenterCoachStudentContractsPage(
+          centerId: state.pathParameters['centerId']?.trim() ?? '',
+          studentId: state.pathParameters['studentId']?.trim() ?? '',
         ),
       ),
       GoRoute(
@@ -3446,6 +3456,46 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => AthleteTrainingCenterInvoicePage(
                   centerId: state.pathParameters['centerId']?.trim() ?? '',
                   invoiceId: state.pathParameters['invoiceId']?.trim() ?? '',
+                ),
+              ),
+              GoRoute(
+                path: 'contratos',
+                name: AppRouteNames.athleteTrainingCenterContracts,
+                builder: (context, state) => AthleteTrainingCenterContractsPage(
+                  centerId: state.pathParameters['centerId']?.trim() ?? '',
+                ),
+              ),
+              // As duas antes de `contrato/:contractId` (mais específicas).
+              GoRoute(
+                path: 'contrato/:contractId/assinar',
+                name: AppRouteNames.athleteTrainingCenterContractSign,
+                builder: (context, state) => AthleteTrainingCenterContractSignPage(
+                  centerId: state.pathParameters['centerId']?.trim() ?? '',
+                  contractId: state.pathParameters['contractId']?.trim() ?? '',
+                  readSeconds: int.tryParse(
+                    state.uri.queryParameters['leitura'] ?? '',
+                  ),
+                ),
+              ),
+              GoRoute(
+                path: 'contrato/:contractId/assinado',
+                name: AppRouteNames.athleteTrainingCenterContractSigned,
+                builder: (context, state) =>
+                    AthleteTrainingCenterContractSignedPage(
+                      centerId: state.pathParameters['centerId']?.trim() ?? '',
+                      contractId:
+                          state.pathParameters['contractId']?.trim() ?? '',
+                      result: CenterContractSignedArgs.fromQuery(
+                        state.uri.queryParameters,
+                      ),
+                    ),
+              ),
+              GoRoute(
+                path: 'contrato/:contractId',
+                name: AppRouteNames.athleteTrainingCenterContract,
+                builder: (context, state) => AthleteTrainingCenterContractPage(
+                  centerId: state.pathParameters['centerId']?.trim() ?? '',
+                  contractId: state.pathParameters['contractId']?.trim() ?? '',
                 ),
               ),
             ],

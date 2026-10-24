@@ -49,6 +49,29 @@
               </div>
             }
 
+            @if (seesContracts()) {
+              <div class="ct-card">
+                <div class="ct-card-head">
+                  <div class="ct-grow"><div class="ct-kick">{{ contracts().length ? contracts().length + (contracts().length === 1 ? ' documento' : ' documentos') : 'Nenhum documento' }}</div><div class="ct-card-title">Contratos</div></div>
+                  @if (canEdit() && s.status !== 'blocked') {
+                    <button type="button" class="ct-mini-btn" (click)="sendingContract.set(true)"><ct-icon name="pen" [size]="13" />Enviar contrato</button>
+                  }
+                </div>
+                @for (r of contracts(); track r.c.id) {
+                  <a class="ct-list-row contract" [routerLink]="['/centro', centerId(), 'contratos', r.c.id]">
+                    <ct-icon name="doc" [size]="15" />
+                    <span class="ct-grow">
+                      <span class="ct-disp ct-ellipsis" style="display: block">{{ r.c.title }} <span class="ct-mono">v{{ r.c.templateVersion }}</span></span>
+                      <span class="ct-mono">{{ r.c.number }}{{ r.c.className ? ' · ' + r.c.className : '' }}</span>
+                    </span>
+                    <span class="ct-pill" [class]="'ct-pill ' + r.tone">{{ r.label }}</span>
+                  </a>
+                } @empty {
+                  <div class="ct-dim">Nenhum contrato enviado para {{ s.isMinor ? 'o responsável deste aluno' : 'este aluno' }}.</div>
+                }
+              </div>
+            }
+
             <div class="ct-card">
               <div class="ct-card-head"><div class="ct-grow"><div class="ct-kick">{{ recentRate() }}</div><div class="ct-card-title">Presença · últimos 30 dias</div></div></div>
               @if (recent().length) {
@@ -230,6 +253,10 @@
         <button type="button" class="ct-mini-btn ct-mini-btn-primary" [disabled]="busy()" (click)="saveConsent()">{{ busy() ? 'Registrando…' : 'Registrar consentimento' }}</button>
       </div>
     </ct-modal>
+  }
+
+  @if (sendingContract()) {
+    <ct-send-contract-modal [studentId]="s.id" (closed)="sendingContract.set(false)" />
   }
 
   @if (statusTarget(); as a) {

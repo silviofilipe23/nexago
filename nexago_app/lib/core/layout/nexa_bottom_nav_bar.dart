@@ -59,10 +59,17 @@ class NexaBottomNavBar extends StatelessWidget {
         Theme.of(context).platform == TargetPlatform.android
             ? 1.0
             : collapseProgress;
-    return ValueListenableBuilder<bool>(
-      valueListenable: nexaNativeLiquidGlassEnabled,
-      builder: (context, nativeEnabled, _) {
-        if (nativeEnabled &&
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        nexaNativeLiquidGlassEnabled,
+        nexaPopupRouteDepth,
+      ]),
+      builder: (context, _) {
+        // Com modal aberto a barra nativa encobriria o modal (ver
+        // [nexaPopupRouteDepth]); por baixo da película, a cápsula Flutter
+        // passa despercebida.
+        if (nexaNativeLiquidGlassEnabled.value &&
+            nexaPopupRouteDepth.value == 0 &&
             NativeLiquidGlassUtils.supportsLiquidGlass &&
             items.length >= 2) {
           return _buildNativeBar(context, effectiveCollapseProgress);

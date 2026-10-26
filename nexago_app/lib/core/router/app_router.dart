@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../layout/nexa_native_liquid_glass.dart';
 import '../../features/arenas/presentation/arena_booking_confirm_page.dart';
 import '../../features/arenas/presentation/arena_booking_pix_page.dart';
 import '../../features/arenas/domain/arena_booking_pix_args.dart';
@@ -364,6 +365,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     initialLocation: AppRoutes.discover,
+    observers: [NexaPopupRouteObserver()],
     refreshListenable: refresh,
     redirect: (context, state) async {
       final authAsync = ref.read(authProvider);

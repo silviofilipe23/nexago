@@ -3290,6 +3290,42 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Banner de novidades da Home (backoffice › App do atleta). A fonte guarda rascunhos e
+    // pausados, então só o admin lê; o app lê o espelho `appConfig/homeBanners`. Escrita das
+    // duas só pela callable saveHomeBanners (`functions/src/home-banners.ts`).
+    match /appAdminConfig/{docId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+    // Quantos atletas viram, tocaram e dispensaram cada banner — só o gatilho conta.
+    match /homeBannerStats/{bannerId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+    // O que o atleta já fez com cada banner. Cada marca é gravada uma vez, com a hora do
+    // servidor, e nunca muda nem some: é o que impede o atleta de inflar os contadores e o
+    // que faz o dispensado não voltar.
+    function homeBannerMarkOk(after, before, k) {
+      return (!(k in after) && !(k in before))
+        || (k in before && k in after && after[k] == before[k])
+        || (!(k in before) && k in after && after[k] == request.time);
+    }
+    function homeBannerMarksOk(after, before) {
+      return after.keys().hasOnly(['seenAt', 'clickedAt', 'dismissedAt'])
+        && homeBannerMarkOk(after, before, 'seenAt')
+        && homeBannerMarkOk(after, before, 'clickedAt')
+        && homeBannerMarkOk(after, before, 'dismissedAt');
+    }
+    match /users/{userId}/homeBanners/{bannerId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId
+        && bannerId.matches('^[a-z0-9][a-z0-9-]{0,47}$')
+        && homeBannerMarksOk(request.resource.data, {});
+      allow update: if request.auth != null && request.auth.uid == userId
+        && homeBannerMarksOk(request.resource.data, resource.data);
+      allow delete: if false;
+    }
+
     // Reputação do Bora Jogar: ledger auditável (só o dono lê) e summary
     // derivado (público, como o espelho em public_profiles). Escrita só CF.
     match /users/{userId}/reputationEvents/{eventId} {

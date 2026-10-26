@@ -862,6 +862,10 @@ export {
 // Loja: banners de campanha da vitrine. Escrita só por callable; o gatilho publica.
 export {saveStoreCampaigns} from "./store-campaigns";
 
+// App do atleta: banner de novidades da Home. A callable grava fonte e espelho; o gatilho conta
+// quem viu, tocou e dispensou.
+export {onHomeBannerStateWritten, saveHomeBanners} from "./home-banners";
+
 // NexaSquad: regras do programa de embaixadores, versionadas. Escrita só por callable.
 export {saveSquadRules} from "./squad-rules";
 

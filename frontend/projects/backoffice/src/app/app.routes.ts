@@ -182,6 +182,14 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/atletas/panel-atletas.component').then((m) => m.PanelAtletasComponent),
   },
+  { path: 'painel/app', pathMatch: 'full', redirectTo: 'painel/app/novidades' },
+  {
+    path: 'painel/app/novidades',
+    title: 'Banner de novidades — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/app/novidades/panel-novidades.component').then((m) => m.PanelNovidadesComponent),
+  },
   {
     path: 'painel/equipe',
     title: 'Equipe — NexaGO Backoffice',

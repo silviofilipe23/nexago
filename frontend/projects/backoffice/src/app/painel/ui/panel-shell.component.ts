@@ -153,6 +153,8 @@ const NAV_ITEMS: readonly PanelNavItem[] = [
   },
   { kind: 'link', id: 'atletas', label: 'Atletas', icon: 'users', route: '/painel/atletas' },
   SQUAD_GROUP,
+  // Banner de novidades da Home do app; vira grupo quando houver outra tela do app.
+  { kind: 'link', id: 'app-novidades', label: 'App do atleta', icon: 'phone', route: '/painel/app/novidades' },
   { kind: 'link', id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro' },
   LOJA_GROUP,
   { kind: 'soon', id: 'moderacao', label: 'Moderação', icon: 'shield' },
@@ -693,6 +695,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/atletas')) {
       return 'atletas';
+    }
+    if (path.startsWith('/painel/app')) {
+      return 'app-novidades';
     }
     if (path.startsWith('/painel/centros')) {
       return 'centros';

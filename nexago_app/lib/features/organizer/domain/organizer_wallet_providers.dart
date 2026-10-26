@@ -4,6 +4,7 @@ import '../../../core/auth/auth_providers.dart';
 import '../../../core/formatting/app_currency_format.dart';
 import 'package:nexago_app/core/firebase/firebase_providers.dart';
 import '../data/organizer_wallet_repository.dart';
+import 'tournament_app_payout.dart';
 
 /// Quantos créditos de inscrição a tela Financeiro pede por carga.
 const int organizerLedgerLimit = 30;
@@ -46,6 +47,16 @@ final organizerWalletViewProvider = FutureProvider.autoDispose
 final organizerCashBoxLiveProvider = StreamProvider.autoDispose
     .family<TournamentCashBox?, String>((ref, tournamentId) {
   return ref.watch(organizerWalletRepositoryProvider).watchCashBox(tournamentId);
+});
+
+/// Créditos do extrato do caixa do torneio, ao vivo: o repasse real do
+/// Financeiro do torneio e da aba Pagamentos. Só observar depois de
+/// `organizerSeesTournamentMoneyProvider` — o extrato é dinheiro do evento.
+final organizerTournamentLedgerCreditsProvider = StreamProvider.autoDispose
+    .family<List<TournamentLedgerCredit>, String>((ref, tournamentId) {
+  return ref
+      .watch(organizerWalletRepositoryProvider)
+      .watchLedgerCredits(tournamentId);
 });
 
 /// Soma dos caixas que a pessoa alcança.

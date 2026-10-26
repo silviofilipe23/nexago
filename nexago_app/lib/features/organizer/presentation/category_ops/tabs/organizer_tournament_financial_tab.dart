@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../domain/organizer_wallet_providers.dart';
+import '../../../domain/tournament_app_payout.dart';
 import '../../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../../domain/tournament_ops/tournament_ops_models.dart';
 import '../../widgets/awaiting_settlement_note.dart';
@@ -13,22 +15,32 @@ class OrganizerTournamentFinancialTab extends StatelessWidget {
     super.key,
     required this.summary,
     required this.categories,
+    required this.ledgerCredits,
     this.awaitingSettlementReais = 0,
   });
 
   final OrganizerTournamentSummary summary;
   final List<OrganizerTournamentCategorySummary> categories;
 
+  /// Créditos do extrato do caixa (`tournamentWallets/{id}/ledger`): o
+  /// repasse e a taxa reais, com a regra e o "Quem paga" de cada pagamento.
+  final AsyncValue<List<TournamentLedgerCredit>> ledgerCredits;
+
   /// "A liberar" do caixa do torneio (`tournamentWallets/{id}`): cartão pago
-  /// pelo app que ainda não caiu no caixa. O repasse líquido acima conta a
-  /// inscrição assim que ela é paga; este valor diz quanto dele ainda está a
-  /// caminho.
+  /// pelo app que ainda não caiu no caixa, já líquido. Entra no repasse
+  /// líquido junto com o que o extrato já creditou.
   final double awaitingSettlementReais;
 
   @override
   Widget build(BuildContext context) {
     final breakdown = summary.paymentsBreakdown;
-    final feeCents = breakdown.viaAppCents - breakdown.netTransferCents;
+    final payout = ledgerCredits.whenOrNull(
+      data: (credits) => buildTournamentAppPayout(
+        viaAppCents: breakdown.viaAppCents,
+        credits: credits,
+        awaitingSettlementReais: awaitingSettlementReais,
+      ),
+    );
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
@@ -37,7 +49,7 @@ class OrganizerTournamentFinancialTab extends StatelessWidget {
           totalCents: breakdown.totalCollectedCents,
           paidCount: summary.enrolledCount,
           pendingCount: summary.pendingCount,
-          feeCents: feeCents,
+          feeCents: payout?.organizerFeeCents,
         ),
         if (breakdown.viaOrganizerCents > 0) ...[
           const SizedBox(height: 12),
@@ -47,7 +59,8 @@ class OrganizerTournamentFinancialTab extends StatelessWidget {
           const SizedBox(height: 12),
           _AppPaymentCard(
             amountCents: breakdown.viaAppCents,
-            netTransferCents: breakdown.netTransferCents,
+            payout: payout,
+            ledgerFailed: ledgerCredits.hasError,
           ),
         ],
         if (hasAwaitingSettlement(awaitingSettlementReais)) ...[
@@ -89,7 +102,10 @@ class _TotalCollectedHeroCard extends StatelessWidget {
   final int totalCents;
   final int paidCount;
   final int pendingCount;
-  final int feeCents;
+
+  /// Parte da taxa nexaGO que saiu do organizador, pelo extrato. `null` com o
+  /// extrato ainda não lido: o número não é chutado.
+  final int? feeCents;
 
   @override
   Widget build(BuildContext context) {
@@ -167,7 +183,9 @@ class _TotalCollectedHeroCard extends StatelessWidget {
                       Expanded(
                         child: _HeroStat(
                           label: 'Taxa nexaGO',
-                          value: formatOrganizerMoneyDetail(feeCents),
+                          value: feeCents == null
+                              ? '—'
+                              : formatOrganizerMoneyDetail(feeCents!),
                           valueColor: AppColors.win,
                         ),
                       ),
@@ -261,22 +279,32 @@ class _DirectPaymentCard extends StatelessWidget {
 class _AppPaymentCard extends StatelessWidget {
   const _AppPaymentCard({
     required this.amountCents,
-    required this.netTransferCents,
+    required this.payout,
+    required this.ledgerFailed,
   });
 
   final int amountCents;
-  final int netTransferCents;
+
+  /// `null` enquanto o extrato não chegou (ou falhou — ver [ledgerFailed]).
+  final OrganizerAppPayout? payout;
+  final bool ledgerFailed;
 
   @override
   Widget build(BuildContext context) {
+    final payout = this.payout;
+    final subtitle = payout != null
+        ? 'Repasse líquido ${formatOrganizerMoneyDetail(payout.netTransferCents)}'
+        : ledgerFailed
+            ? 'Repasse líquido indisponível: não deu para ler o extrato do caixa'
+            : 'Repasse líquido: lendo o extrato do caixa…';
     return _PaymentChannelCard(
       accent: AppColors.brand,
       icon: Icons.smartphone_outlined,
       title: 'Pelo app',
-      badgeLabel: '6% TAXA',
+      badgeLabel: appFeeBadgeLabel(payout),
       amountCents: amountCents,
-      subtitle:
-          'Repasse líquido ${formatOrganizerMoneyDetail(netTransferCents)}',
+      subtitle: subtitle,
+      details: payout != null ? tournamentAppPayoutDetails(payout) : const [],
     );
   }
 }
@@ -289,6 +317,7 @@ class _PaymentChannelCard extends StatelessWidget {
     required this.badgeLabel,
     required this.amountCents,
     required this.subtitle,
+    this.details = const [],
   });
 
   final Color accent;
@@ -297,6 +326,9 @@ class _PaymentChannelCard extends StatelessWidget {
   final String badgeLabel;
   final int amountCents;
   final String subtitle;
+
+  /// Linhas menores abaixo do [subtitle] (composição do repasse, taxa).
+  final List<String> details;
 
   @override
   Widget build(BuildContext context) {
@@ -385,6 +417,19 @@ class _PaymentChannelCard extends StatelessWidget {
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     color: muted,
+                  ),
+                ),
+                ...details.map(
+                  (line) => Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      line,
+                      style: AppTypography.soraRegular(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: muted.withValues(alpha: 0.85),
+                      ),
+                    ),
                   ),
                 ),
               ],

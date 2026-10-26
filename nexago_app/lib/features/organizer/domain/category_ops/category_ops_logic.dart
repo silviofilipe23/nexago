@@ -197,7 +197,6 @@ OrganizerPaymentChannel teamPaymentChannel(OrganizerCategoryTeamRow team) {
 OrganizerPaymentsBreakdown buildPaymentsBreakdown({
   required List<OrganizerCategoryTeamRow> teams,
   required int expectedPerTeamCents,
-  double feeRate = 0.06,
 }) {
   var viaApp = 0;
   var viaOrganizer = 0;
@@ -225,7 +224,6 @@ OrganizerPaymentsBreakdown buildPaymentsBreakdown({
     paidCount: paid,
     totalSlots: teams.length,
     pendingCount: pending,
-    feeRate: feeRate,
   );
 }
 
@@ -233,12 +231,10 @@ OrganizerPaymentsBreakdown buildPaymentsBreakdown({
 OrganizerPaymentsBreakdown buildPaymentsSummary({
   required List<OrganizerCategoryTeamRow> teams,
   required int expectedPerTeamCents,
-  double feeRate = 0.06,
 }) =>
     buildPaymentsBreakdown(
       teams: teams,
       expectedPerTeamCents: expectedPerTeamCents,
-      feeRate: feeRate,
     );
 
 CategoryOpsState categoryOpsFromMap(Map<String, dynamic>? raw) {

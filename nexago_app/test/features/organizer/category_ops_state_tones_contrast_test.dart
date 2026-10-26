@@ -21,6 +21,7 @@ import 'package:nexago_app/features/organizer/domain/match_ops/match_ops_provide
 import 'package:nexago_app/features/organizer/domain/organizer_wallet_providers.dart';
 import 'package:nexago_app/features/organizer/domain/public_profile/organizer_profile_editor_logic.dart';
 import 'package:nexago_app/features/organizer/domain/public_profile/organizer_profile_editor_providers.dart';
+import 'package:nexago_app/features/organizer/domain/tournament_app_payout.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_create/tournament_create_draft.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_create/tournament_create_logic.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_create/tournament_create_providers.dart';
@@ -149,6 +150,12 @@ class _FakeWalletRepository implements OrganizerWalletRepository {
 
   @override
   Stream<TournamentCashBox?> watchCashBox(String tournamentId) => _live.stream;
+
+  @override
+  Stream<List<TournamentLedgerCredit>> watchLedgerCredits(
+    String tournamentId,
+  ) =>
+      const Stream.empty();
 }
 
 /// Wizard do torneio com estado semeado e sem o timer de persistência (que
@@ -280,6 +287,23 @@ const _financialSummary = OrganizerTournamentSummary(
     viaOrganizerCents: 15000,
   ),
 );
+
+/// Extrato do caixa do torneio acima: as duas inscrições pelo app creditadas,
+/// com a taxa saindo do organizador.
+const _financialLedger = [
+  TournamentLedgerCredit(
+    registrationId: 'r1',
+    grossCents: 15000,
+    netCents: 13800,
+    organizerFeeCents: 1200,
+  ),
+  TournamentLedgerCredit(
+    registrationId: 'r2',
+    grossCents: 15000,
+    netCents: 13800,
+    organizerFeeCents: 1200,
+  ),
+];
 
 const _financialCategory = OrganizerTournamentCategorySummary(
   categoryId: 'open',
@@ -586,6 +610,8 @@ final List<ToneScreen> organizerCategoryOpsToneScreens = [
       ),
       overrides: [
         organizerSeesTournamentMoneyProvider(_tid).overrideWithValue(true),
+        organizerTournamentLedgerCreditsProvider(_tid)
+            .overrideWith((ref) => Stream.value(const [])),
         organizerCategoryPaymentsProvider(_key)
             .overrideWithValue(_paymentsSummary),
         organizerCategoryVisibleTeamsProvider(_key).overrideWithValue(
@@ -641,6 +667,7 @@ final List<ToneScreen> organizerCategoryOpsToneScreens = [
         body: OrganizerTournamentFinancialTab(
           summary: _financialSummary,
           categories: [_financialCategory],
+          ledgerCredits: AsyncValue.data(_financialLedger),
         ),
       ),
     ),
@@ -648,10 +675,8 @@ final List<ToneScreen> organizerCategoryOpsToneScreens = [
     [
       '3',
       '2',
-      formatOrganizerMoneyDetail(
-        _financialSummary.paymentsBreakdown.viaAppCents -
-            _financialSummary.paymentsBreakdown.netTransferCents,
-      ),
+      // Taxa nexaGO do extrato (a parte do organizador), não um percentual.
+      formatOrganizerMoneyDetail(2400),
       Icons.payments_outlined,
       'SEM TAXA',
       '4 pagas',

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/organizer/domain/category_ops/category_ops_models.dart';
+import 'package:nexago_app/features/organizer/domain/organizer_wallet_providers.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_ops/tournament_ops_providers.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_staff/my_tournament_staff_providers.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_staff/tournament_staff_models.dart';
@@ -24,8 +25,8 @@ const _key = OrganizerCategoryKey(
 );
 
 /// Categoria com dinheiro pelo app: é o que faz o card de repasse aparecer
-/// (`netTransferCents`, `totalCollectedCents` e `outstandingCents` são
-/// derivados).
+/// (`totalCollectedCents` e `outstandingCents` são derivados; o repasse vem
+/// do extrato do caixa).
 const _summary = OrganizerCategoryPaymentsSummary(
   paidCount: 3,
   pendingCount: 0,
@@ -37,12 +38,17 @@ const _summary = OrganizerCategoryPaymentsSummary(
 /// `roleLoaded: false` reproduz o que abriu esta rodada: o espelho de staff
 /// ainda não emitiu (stream que não entrega nada), que é o estado dos
 /// primeiros frames de um link direto ou de um push.
+/// Quantas vezes a aba abriu o listener do extrato do caixa — tem de ser zero
+/// para quem não vê dinheiro: o extrato também é número de dinheiro.
+int extratoAberto = 0;
+
 Future<void> abrirAba(
   WidgetTester tester, {
   required TournamentStaffRole? role,
   bool isOwner = false,
   bool roleLoaded = true,
 }) async {
+  extratoAberto = 0;
   final espelho = StreamController<List<MyTournamentStaffEntry>>();
   addTearDown(espelho.close);
   if (roleLoaded) espelho.add(const []);
@@ -54,6 +60,11 @@ Future<void> abrirAba(
             .overrideWithValue(isOwner),
         myTournamentStaffEntriesProvider.overrideWith((ref) => espelho.stream),
         myStaffRoleForTournamentProvider(_tournamentId).overrideWithValue(role),
+        organizerTournamentLedgerCreditsProvider(_tournamentId)
+            .overrideWith((ref) {
+          extratoAberto++;
+          return Stream.value(const []);
+        }),
         organizerCategoryPaymentsProvider(_key).overrideWithValue(_summary),
         organizerCategoryVisibleTeamsProvider(_key).overrideWithValue(
           const AsyncValue<List<OrganizerCategoryTeamRow>>.data([]),
@@ -79,10 +90,12 @@ void main() {
     await abrirAba(tester, role: TournamentStaffRole.eventAdmin);
 
     expect(find.textContaining('Repasse líquido'), findsNothing);
-    expect(find.textContaining('Líquido após taxa'), findsNothing);
+    expect(find.textContaining('Já no caixa'), findsNothing);
     expect(find.text('ARRECADADO NESTA CATEGORIA'), findsNothing);
     // A tela segue coerente: sem card vazio e sem número de dinheiro nenhum.
     expect(find.textContaining(r'R$'), findsNothing);
+    // Nem chega a ler o extrato do caixa.
+    expect(extratoAberto, 0);
   });
 
   testWidgets('gestor da equipe continua vendo repasse e arrecadação',
@@ -91,6 +104,7 @@ void main() {
 
     expect(find.textContaining('Repasse líquido'), findsOneWidget);
     expect(find.text('ARRECADADO NESTA CATEGORIA'), findsOneWidget);
+    expect(extratoAberto, greaterThan(0));
   });
 
   testWidgets('dono do evento (sem papel de staff) vê os dois',
@@ -124,6 +138,7 @@ void main() {
     expect(find.textContaining('Repasse líquido'), findsNothing);
     expect(find.text('ARRECADADO NESTA CATEGORIA'), findsNothing);
     expect(find.textContaining(r'R$'), findsNothing);
+    expect(extratoAberto, 0);
   });
 
   group('tournamentStaffSeesMoney', () {

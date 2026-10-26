@@ -188,6 +188,10 @@ class OrganizerCategoryTeamRow {
 enum OrganizerPaymentChannel { viaApp, viaOrganizer }
 
 /// Arrecadação da categoria/torneio separada por canal (app vs direto).
+///
+/// Só o pago, pelas inscrições. O repasse líquido não sai daqui: a taxa real
+/// depende da cascata do torneio e de quem paga, e vem do extrato do caixa
+/// (`tournament_app_payout.dart`).
 @immutable
 class OrganizerPaymentsBreakdown {
   const OrganizerPaymentsBreakdown({
@@ -197,7 +201,6 @@ class OrganizerPaymentsBreakdown {
     this.pendingCount = 0,
     this.paidCount = 0,
     this.totalSlots = 0,
-    this.feeRate = 0.06,
   });
 
   final int viaAppCents;
@@ -206,14 +209,11 @@ class OrganizerPaymentsBreakdown {
   final int pendingCount;
   final int paidCount;
   final int totalSlots;
-  final double feeRate;
 
   int get totalCollectedCents => viaAppCents + viaOrganizerCents;
 
   /// Compatível com o resumo anterior.
   int get collectedCents => totalCollectedCents;
-
-  int get netTransferCents => (viaAppCents * (1 - feeRate)).round();
 
   int get outstandingCents =>
       (expectedCents - totalCollectedCents).clamp(0, expectedCents);
@@ -229,7 +229,6 @@ class OrganizerPaymentsBreakdown {
       pendingCount: pendingCount + other.pendingCount,
       paidCount: paidCount + other.paidCount,
       totalSlots: totalSlots + other.totalSlots,
-      feeRate: feeRate,
     );
   }
 }

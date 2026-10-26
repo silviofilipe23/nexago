@@ -29,11 +29,19 @@ class ArenaPinAsset {
   /// O PNG é exportado com o triplo das medidas de tela.
   static const double scale = 3;
 
-  /// Opacidade de quem não tem horário livre no filtro atual.
+  /// Opacidade da arena pré-cadastrada, sem vínculo com a nexaGO.
   ///
-  /// Mesma arte, apagada: sem preço no pino, é o que deixa o atleta ver de
-  /// longe onde dá para jogar hoje.
+  /// Parceira nunca apaga, nem sem horário livre no filtro: ela é onde o
+  /// atleta reserva pelo app, e sumir com ela por causa do horário escolhido
+  /// esconde justamente quem importa.
   static const double mutedOpacity = 0.45;
+
+  /// Escala do pino de arena parceira, sobre [displayWidth].
+  ///
+  /// Maior que a pré-cadastrada (1.0) para a parceira saltar no mapa. O PNG
+  /// a 3x aguenta esse aumento sem borrar a rede da quadra; passando muito
+  /// disso, reexportar a arte maior.
+  static const double partnerIconSize = 1.3;
 }
 
 /// Carrega o PNG do pino já pronto para o Mapbox.

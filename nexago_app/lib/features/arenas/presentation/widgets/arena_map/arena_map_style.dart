@@ -23,7 +23,9 @@ class ArenaMapIds {
   static const pinImage = 'nexago-arena-pin';
 }
 
-/// Opacidade do pino conforme o estado da arena.
+/// Opacidade do pino conforme o vínculo da arena.
+///
+/// Só a pré-cadastrada apaga: parceira fica cheia mesmo sem horário livre.
 ///
 /// Números crus podem ir direto numa expressão; **cor não** (precisaria de
 /// string CSS). Opacidade é número, então aqui está correto.
@@ -33,10 +35,24 @@ List<Object> arenaPinOpacityExpression() {
     [
       '==',
       ['get', 'kind'],
-      'available',
+      'unclaimed',
+    ],
+    ArenaPinAsset.mutedOpacity,
+    1.0,
+  ];
+}
+
+/// Tamanho do pino: arena parceira maior que a pré-cadastrada.
+List<Object> arenaPinSizeExpression() {
+  return <Object>[
+    'case',
+    [
+      '==',
+      ['get', 'kind'],
+      'unclaimed',
     ],
     1.0,
-    ArenaPinAsset.mutedOpacity,
+    ArenaPinAsset.partnerIconSize,
   ];
 }
 
@@ -109,16 +125,17 @@ Future<void> installArenaMapStyle(
       iconAllowOverlap: true,
       iconIgnorePlacement: true,
       iconOpacityExpression: arenaPinOpacityExpression(),
-      // Arena com horário fica por cima quando dois pinos se sobrepõem.
+      iconSizeExpression: arenaPinSizeExpression(),
+      // Quando dois pinos se sobrepõem: com horário por cima, depois a
+      // parceira sem horário, e a pré-cadastrada embaixo.
       symbolSortKeyExpression: <Object>[
-        'case',
-        [
-          '==',
-          ['get', 'kind'],
-          'available',
-        ],
+        'match',
+        ['get', 'kind'],
+        'available',
         0,
+        'unavailable',
         1,
+        2,
       ],
     ),
   );

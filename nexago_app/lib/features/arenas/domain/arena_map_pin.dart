@@ -1,7 +1,8 @@
 /// Natureza do pino no mapa da busca.
 ///
-/// Decide só a opacidade: o desenho é o mesmo para todos. Sem preço escrito no
-/// pino, o que o mapa comunica de longe é onde dá para jogar hoje.
+/// Decide tamanho, opacidade e quem fica por cima: o desenho é o mesmo para
+/// todos. Parceira (com ou sem horário) é maior e nunca apaga; só a
+/// pré-cadastrada fica menor e apagada.
 enum ArenaMapPinKind {
   /// Tem horário livre no filtro atual.
   available,

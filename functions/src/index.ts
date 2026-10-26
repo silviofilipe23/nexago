@@ -89,6 +89,7 @@ import {
   sendCategoryCommunication,
   resendRegistrationPayment,
   closeTournamentRegistrations,
+  reopenTournamentRegistrations,
   cancelTournament,
 } from "./organizer-category-ops";
 import {
@@ -523,6 +524,7 @@ export {
   sendCategoryCommunication,
   resendRegistrationPayment,
   closeTournamentRegistrations,
+  reopenTournamentRegistrations,
   cancelTournament,
   scheduleMatch,
   rescheduleMatch,

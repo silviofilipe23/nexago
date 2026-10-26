@@ -168,6 +168,14 @@ String friendlyTournamentOpsError({
   return 'Não foi possível $action. Tente novamente.';
 }
 
+/// Inscrições fechadas pelo "Encerrar inscrições" (`listingStatus: closed`): a folha de ações
+/// troca Encerrar por Reabrir. Estender o prazo na edição não reabre — o servidor barra `closed`
+/// antes de olhar a data.
+bool organizerTournamentRegistrationsClosed(Map<String, dynamic> tournament) {
+  final raw = tournament['listingStatus'] ?? tournament['status'];
+  return raw is String && raw.trim().toLowerCase() == 'closed';
+}
+
 OrganizerTournamentListingBadge tournamentListingBadge(String listingStatus) {
   return switch (listingStatus.trim().toLowerCase()) {
     'open' => OrganizerTournamentListingBadge.registrationsOpen,

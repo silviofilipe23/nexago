@@ -388,6 +388,11 @@ export function closeTournamentRegistrations(tournamentId: string): Promise<unkn
   return call('closeTournamentRegistrations', { tournamentId: tournamentId.trim() });
 }
 
+/** Desfaz o Encerrar inscrições — o servidor recusa se o prazo já venceu (`reopenTournamentRegistrations`). */
+export function reopenTournamentRegistrations(tournamentId: string): Promise<unknown> {
+  return call('reopenTournamentRegistrations', { tournamentId: tournamentId.trim() });
+}
+
 export function cancelTournament(tournamentId: string, opts?: { force?: boolean }): Promise<unknown> {
   return call('cancelTournament', {
     tournamentId: tournamentId.trim(),

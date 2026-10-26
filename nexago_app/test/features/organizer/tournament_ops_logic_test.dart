@@ -85,6 +85,39 @@ void main() {
     });
   });
 
+  group('organizerTournamentRegistrationsClosed', () {
+    test('closed no listingStatus troca Encerrar por Reabrir', () {
+      expect(
+        organizerTournamentRegistrationsClosed({'listingStatus': 'closed'}),
+        isTrue,
+      );
+      expect(
+        organizerTournamentRegistrationsClosed({'status': 'Closed'}),
+        isTrue,
+      );
+    });
+
+    test('aberto, rascunho ou cancelado não oferecem Reabrir', () {
+      for (final status in ['open', 'draft', 'cancelled']) {
+        expect(
+          organizerTournamentRegistrationsClosed({'listingStatus': status}),
+          isFalse,
+          reason: status,
+        );
+      }
+      expect(organizerTournamentRegistrationsClosed({}), isFalse);
+    });
+
+    test('listingStatus manda sobre status', () {
+      expect(
+        organizerTournamentRegistrationsClosed(
+          {'listingStatus': 'open', 'status': 'closed'},
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('share links', () {
     test('registration link includes inscricao path', () {
       expect(

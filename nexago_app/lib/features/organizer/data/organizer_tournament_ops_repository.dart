@@ -41,6 +41,11 @@ class OrganizerTournamentOpsRepository {
     await callable.call({'tournamentId': tournamentId.trim()});
   }
 
+  Future<void> reopenTournamentRegistrations(String tournamentId) async {
+    final callable = _functions.httpsCallable('reopenTournamentRegistrations');
+    await callable.call({'tournamentId': tournamentId.trim()});
+  }
+
   Future<void> cancelTournament(
     String tournamentId, {
     bool force = false,

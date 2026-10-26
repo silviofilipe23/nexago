@@ -6,7 +6,8 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 /// Resumo do checkout com o desconto do código de embaixador (NexaSquad):
 /// preço cheio, desconto, cashback e total. Usado na inscrição, na reserva de
 /// quadra e no clubinho — o desconto sai da taxa da nexaGO, então o preço do
-/// recebedor não muda.
+/// recebedor não muda. Na inscrição também leva a "Taxa de serviço" quando o
+/// atleta paga parte da taxa (e aí pode aparecer sem desconto).
 class SquadCheckoutSummary extends StatelessWidget {
   const SquadCheckoutSummary({
     super.key,
@@ -16,6 +17,7 @@ class SquadCheckoutSummary extends StatelessWidget {
     required this.cashbackCents,
     required this.totalCents,
     this.priceLabel = 'Inscrição',
+    this.serviceFeeCents = 0,
   });
 
   final int priceCents;
@@ -26,6 +28,10 @@ class SquadCheckoutSummary extends StatelessWidget {
 
   /// Rótulo do preço cheio: "Inscrição", "Reserva", "Sinal (50%)", "Vaga".
   final String priceLabel;
+
+  /// Parte da taxa de serviço paga pelo atleta, por cima do preço (só a
+  /// inscrição tem); a linha só aparece quando é maior que zero.
+  final int serviceFeeCents;
 
   @override
   Widget build(BuildContext context) {
@@ -57,11 +63,14 @@ class SquadCheckoutSummary extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         line(priceLabel, formatBRLFromCents(priceCents)),
-        line(
-          discountLabel,
-          '− ${formatBRLFromCents(discountCents)}',
-          color: colors.win,
-        ),
+        if (serviceFeeCents > 0)
+          line('Taxa de serviço', formatBRLFromCents(serviceFeeCents)),
+        if (discountCents > 0)
+          line(
+            discountLabel,
+            '− ${formatBRLFromCents(discountCents)}',
+            color: colors.win,
+          ),
         if (cashbackCents > 0)
           line('Cashback', '− ${formatBRLFromCents(cashbackCents)}'),
         Divider(height: 8, color: colors.surfaceRaised),

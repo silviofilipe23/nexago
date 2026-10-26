@@ -48,3 +48,8 @@ cd functions && node scripts/set-min-app-version.js --project volley-track-dev-4
 - Português nas strings/UI, inglês no código
 - Padrão de features: cada feature tem sua própria pasta com `screens/`, `widgets/`, `providers/` (ou equivalente)
 - Firestore rules em `firestore.rules`
+
+## Commits e PRs
+- Antes de dar push num branch que já tem PR, confira o estado: `gh pr view <n> --json state`.
+- Se o PR já foi **mergeado**, abra **outro PR** com os commits novos. Push num branch de PR
+  mergeado não chega na `main`: o commit fica perdido no branch sem ninguém ver.

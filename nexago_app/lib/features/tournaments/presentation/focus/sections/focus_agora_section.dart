@@ -4,11 +4,15 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../../core/router/routes.dart';
+import '../../../../../core/sports/sport_catalog.dart';
+import '../../../../arenas/domain/booking_story.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../data/tournament_announcements_repository.dart';
+import '../../../domain/focus/campaign_share_data.dart';
+import '../../../domain/focus/campaign_story.dart';
 import '../../../domain/focus/focus_campaign_ended.dart';
 import '../../../domain/focus/focus_double_elimination.dart';
 import '../../../domain/focus/focus_now_state.dart';
@@ -21,9 +25,11 @@ import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_discovery_providers.dart';
 import '../../../domain/tournament_match.dart';
 import '../../../domain/tournament_match_card_view_model.dart';
+import '../../../domain/tournament_match_status.dart';
 import '../../../domain/tournament_group_standings_logic.dart';
 import '../../../domain/tournament_match_display.dart';
 import '../../../../../core/time/nexago_event_timezone.dart';
+import '../campaign_story_page.dart';
 import '../focus_bottom_clearance.dart';
 import '../focus_rosters.dart';
 import '../focus_section_header.dart';
@@ -204,6 +210,10 @@ class FocusAgoraSection extends ConsumerWidget {
             myTeamIds: athleteTeamIds,
           )
         : null;
+    final campaignStory = state == FocusNowState.eliminated ||
+            state == FocusNowState.idle
+        ? _campaignStoryOf(categoryMatches, rosters, offer)
+        : null;
 
     return ListView(
       padding: EdgeInsets.only(
@@ -253,6 +263,9 @@ class FocusAgoraSection extends ConsumerWidget {
             onOpenMatch: () => _openMatch(context, next!.id),
             onOpenMaps: _openMaps,
             onShare: () => showFocusShareMatchSheet(context, next!.id),
+            onShareCampaign: campaignStory == null
+                ? null
+                : () => openCampaignStory(context, campaignStory),
           ),
         if (standing != null && state != FocusNowState.eliminated) ...[
           const FocusSectionHeader(label: 'ONDE VOCÊ ESTÁ'),
@@ -290,6 +303,58 @@ class FocusAgoraSection extends ConsumerWidget {
     final local = at.toLocal();
     return '${local.hour.toString().padLeft(2, '0')}:'
         '${local.minute.toString().padLeft(2, '0')}';
+  }
+
+  /// O story da campanha na categoria — `null` sem categoria ou sem nenhuma
+  /// partida encerrada do atleta: um story de campanha sem jogo não diz nada.
+  CampaignStoryData? _campaignStoryOf(
+    List<TournamentMatch> categoryMatches,
+    FocusRosters rosters,
+    TournamentCategoryOffer? offer,
+  ) {
+    final id = categoryId;
+    if (id == null) return null;
+    TournamentMatch? played;
+    for (final m in categoryMatches) {
+      if ((athleteTeamIds.contains(m.teamAId) ||
+              athleteTeamIds.contains(m.teamBId)) &&
+          TournamentMatchStatus.isCompleted(m.status)) {
+        played = m;
+        break;
+      }
+    }
+    if (played == null) return null;
+
+    final myTeamId = athleteTeamIds.contains(played.teamAId)
+        ? played.teamAId
+        : played.teamBId;
+    final players = rosters.playersOf(myTeamId);
+    return CampaignStoryData(
+      campaign: buildCampaignShareData(
+        matches: categoryMatches,
+        categoryId: id,
+        myTeamIds: athleteTeamIds,
+        teamName: rosters.nameOf(myTeamId, ''),
+        players: [
+          for (final p in players)
+            CampaignPlayer(initial: p.initials, photo: p.avatarUrl),
+        ],
+        categoryLine: offer?.name ?? '',
+        tournamentName: tournament.name,
+        locationName: tournament.location,
+        dateRangeLabel: tournament.dateLabel,
+        duoNameOf: rosters.nameOf,
+      ),
+      people: [
+        for (final p in players)
+          BookingStoryPerson(
+            firstName: p.name.trim().split(RegExp(r'\s+')).first,
+            initials: p.initials,
+            avatarUrl: p.avatarUrl,
+          ),
+      ],
+      sportLabel: SportCatalog.labelOf(tournament.sport),
+    );
   }
 
   TournamentCategoryOffer? _offerOf() {

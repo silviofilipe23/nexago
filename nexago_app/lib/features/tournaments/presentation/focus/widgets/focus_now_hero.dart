@@ -183,6 +183,7 @@ class FocusNowHero extends StatelessWidget {
     this.timeEyebrow,
     this.timeLabel,
     this.campaign,
+    this.onShareCampaign,
   });
 
   final FocusNowState state;
@@ -219,6 +220,10 @@ class FocusNowHero extends StatelessWidget {
   final VoidCallback onOpenMatch;
   final VoidCallback onOpenMaps;
   final VoidCallback onShare;
+
+  /// "Postar no story" da campanha — só nos estados de fim de campanha
+  /// ([FocusNowState.eliminated] e [FocusNowState.idle]); `null` esconde.
+  final VoidCallback? onShareCampaign;
 
   @override
   Widget build(BuildContext context) {
@@ -260,11 +265,21 @@ class FocusNowHero extends StatelessWidget {
         FocusNowState.eliminated => _EliminatedBody(
           campaign: campaign ??
               const FocusCampaignSummary(wins: 0, losses: 0),
+          onShareCampaign: onShareCampaign,
         ),
-        FocusNowState.idle => const _Shell(
-          child: _Message(
-            title: 'Seu dia acabou por aqui',
-            body: 'Você não tem mais partidas pendentes neste torneio.',
+        FocusNowState.idle => _Shell(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _Message(
+                title: 'Seu dia acabou por aqui',
+                body: 'Você não tem mais partidas pendentes neste torneio.',
+              ),
+              if (onShareCampaign != null) ...[
+                const SizedBox(height: AppSpacing.lg),
+                _ShareCampaignButton(onPressed: onShareCampaign!),
+              ],
+            ],
           ),
         ),
       },
@@ -1170,9 +1185,10 @@ class _PendingKnockoutBody extends StatelessWidget {
 
 /// Herói de despedida — eliminado no mata-mata ou sem classificação no grupo.
 class _EliminatedBody extends StatelessWidget {
-  const _EliminatedBody({required this.campaign});
+  const _EliminatedBody({required this.campaign, this.onShareCampaign});
 
   final FocusCampaignSummary campaign;
+  final VoidCallback? onShareCampaign;
 
   @override
   Widget build(BuildContext context) {
@@ -1227,7 +1243,34 @@ class _EliminatedBody extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.xxl),
         _CampaignGlassCard(campaign: campaign),
+        if (onShareCampaign != null) ...[
+          const SizedBox(height: AppSpacing.lg),
+          _ShareCampaignButton(onPressed: onShareCampaign!),
+        ],
       ],
+    );
+  }
+}
+
+/// CTA do story da campanha, no laranja da marca como os outros do herói.
+class _ShareCampaignButton extends StatelessWidget {
+  const _ShareCampaignButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.icon(
+      key: const Key('focus-share-campaign-story'),
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        backgroundColor: AppColors.brand,
+        foregroundColor: _onAccent(AppColors.brand),
+        minimumSize: const Size(0, 52),
+        shape: const RoundedRectangleBorder(borderRadius: AppRadii.mdAll),
+      ),
+      icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+      label: const Text('Postar campanha no story'),
     );
   }
 }

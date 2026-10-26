@@ -49,11 +49,12 @@ describe('PanelShellComponent', () => {
     expect(host.querySelector('.subnav')).toBeNull();
   });
 
-  it('Squad fica entre Atletas e Financeiro, com os cinco filhos navegáveis', async () => {
+  it('Squad e App do atleta ficam entre Atletas e Financeiro, com os cinco filhos do Squad navegáveis', async () => {
     const host = await mount();
     const top = labels(host, '.nav > .nav-item');
     expect(top.indexOf('Squad')).toBe(top.indexOf('Atletas') + 1);
-    expect(top.indexOf('Financeiro')).toBe(top.indexOf('Squad') + 1);
+    expect(top.indexOf('App do atleta')).toBe(top.indexOf('Squad') + 1);
+    expect(top.indexOf('Financeiro')).toBe(top.indexOf('App do atleta') + 1);
 
     groupButton(host, 'Squad').click();
     await TestBed.inject(ApplicationRef).whenStable();

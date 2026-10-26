@@ -30,6 +30,7 @@ import '../../tournaments/presentation/widgets/pending_tournament_invitee_invite
 import '../../tournaments/presentation/widgets/pending_tournament_inviter_invites_section.dart';
 import '../../tournaments/presentation/widgets/pending_tournament_reviews_section.dart';
 import '../../athlete_training/presentation/widgets/athlete_training_home_entry.dart';
+import '../../home_banners/presentation/widgets/home_news_section.dart';
 import '../../messages/application/messages_providers.dart';
 import '../domain/athlete_booking_helpers.dart';
 import '../domain/athlete_display_name.dart';
@@ -359,6 +360,9 @@ class AthleteHomePage extends ConsumerWidget {
                               _goToTab(ref, athleteShellReservarTabIndex),
                         ),
                       ),
+                      // Novidades do app (backoffice): segundo assunto da
+                      // Home, logo abaixo dos atalhos. Sem novidade, some.
+                      const HomeNewsSection(),
                       const AthleteHomeFocusButton(),
                       const AthleteHomeFollowingMatchesSection(),
                       const Padding(

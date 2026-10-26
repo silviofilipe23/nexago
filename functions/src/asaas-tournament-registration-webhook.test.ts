@@ -909,3 +909,73 @@ describe("asaas-tournament-registration-webhook: inscrição criada pelo organiz
     assert.equal(fake.store.get(PROCESSED_PATH)!["outcome"], "approved");
   });
 });
+
+describe("asaas-tournament-registration-webhook: taxa do torneio (backoffice › Taxas)", () => {
+  async function payPix(db: Firestore): Promise<void> {
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", {...fullPayment, billingType: "PIX"}, processedRefOf(db), makeDeps().deps,
+    );
+  }
+
+  it("exceção personalizada: o caixa recebe o bruto menos a taxa do torneio", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, PIX_PENDING_A);
+    fake.seedDoc("organizers/org1", {commissionPercent: 6});
+    fake.seedDoc("tournamentFees/t1", {mode: "custom", percent: 5, floorReais: 2, reason: "Parceria comercial", until: null});
+
+    await payPix(db);
+
+    const credit = ledgerEntries(fake).find((e) => e.type === "credit")!;
+    assert.equal(credit.platformFeeReais, 5);
+    assert.equal(credit.netReais, 95);
+    assert.deepEqual(fake.store.get(PROCESSED_PATH)!.platformFee, {percent: 5, floorReais: 2, source: "tournament"});
+  });
+
+  it("isento: nenhuma taxa da plataforma", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, PIX_PENDING_A);
+    fake.seedDoc("tournamentFees/t1", {mode: "isento", reason: "Evento beneficente", until: null});
+
+    await payPix(db);
+
+    const credit = ledgerEntries(fake).find((e) => e.type === "credit")!;
+    assert.equal(credit.platformFeeReais, 0);
+    assert.equal(credit.netReais, ENTRY_FEE);
+  });
+
+  it("padrão editado vale para quem não tem exceção nem comissão no cadastro", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, PIX_PENDING_A);
+    fake.seedDoc("appConfig/tournamentFees", {percent: 10, floorReais: 1.5, version: 2});
+
+    await payPix(db);
+
+    assert.equal(ledgerEntries(fake).find((e) => e.type === "credit")!.platformFeeReais, 10);
+  });
+
+  it("cartão: a taxa congela na confirmação; mudar depois não mexe na liquidação", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, CARD_PENDING_A);
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", cardPayment("CONFIRMED"), processedRefOf(db), makeDeps().deps,
+    );
+    // O admin isenta o torneio entre a autorização e a liquidação (~D+30).
+    fake.seedDoc("tournamentFees/t1", {mode: "isento", reason: "Evento beneficente", until: null});
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", cardPayment("RECEIVED", {netValue: 96.71}), processedRefOf(db), makeDeps().deps,
+    );
+
+    const credit = ledgerEntries(fake).find((e) => e.type === "credit")!;
+    assert.equal(credit.platformFeeReais, 8);
+    assert.equal(walletDoc(fake)!["availableReais"], 88.71);
+  });
+});

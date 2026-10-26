@@ -867,6 +867,8 @@ export {saveSquadRules} from "./squad-rules";
 
 // Planos de torneio v2 (pacotes por quadra) e cotas Sponsors, versionados. Escrita só por callable.
 export {saveTournamentPlan, saveTournamentPlanRules, saveTournamentSponsors} from "./tournament-plans";
+// Taxas de torneio: padrão da plataforma e exceção por torneio (a cobrança lê em `loadTournamentFeeRule`).
+export {saveTournamentFee, saveTournamentFeeDefault} from "./tournament-fees";
 
 // Planos NexaGO pelo organizador: catálogo sem custo/margem, pedido de contratação por evento
 // (congela o plano vigente) e cotas de patrocínio indicadas. Escrita só por callable.

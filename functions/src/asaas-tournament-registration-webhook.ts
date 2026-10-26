@@ -45,7 +45,7 @@ import {
   releaseTournamentAwaitingSettlement,
 } from "./tournament-wallet";
 import {applySquadPaymentEventQuietly, chargeDiscountCents, squadEventForStatus} from "./squad-commission-lifecycle";
-import {computePlatformFeeReais, resolveOrganizerTournamentFeePercent} from "./platform-fees";
+import {feeRuleFromRaw, loadTournamentFeeRule, tournamentFeeReais, type FeeRule} from "./tournament-fees";
 import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 import {
   parseRegistrationBillingType,
@@ -233,20 +233,22 @@ export async function processTournamentRegistrationAsaasNotification(
     const squadDiscount = await resolveSquadDiscountCents(db, paymentId, pendingSnap.data());
     const grossOnline = roundMoney(paidOnline + appliedCents / 100 + squadDiscount / 100);
 
-    // Comissão negociada no cadastro do organizador; sem cadastro (ou com
-    // valor fora da faixa) cai nos 8% padrão. Lida uma vez para as duas fases.
+    // Regra da taxa do torneio (`tournament-fees.ts`): exceção do torneio,
+    // senão a comissão do cadastro do organizador, senão o padrão da
+    // plataforma. A confirmação congela a regra no processado: no cartão o
+    // crédito só roda na liquidação (~D+30) e usa a congelada — mudar a taxa
+    // no backoffice não mexe em inscrição já paga.
     // Falha aqui NUNCA pode derrubar a confirmação — só o crédito do caixa,
     // que sabe reprocessar numa reentrega, depende da taxa certa.
-    let organizerFeePercent: number | null = organizerId ? null : 0;
-    if (organizerId) {
+    const frozenFeeRule = phases.confirm ? null : feeRuleFromRaw(processed.platformFee);
+    let feeRule: FeeRule | null = organizerId ? frozenFeeRule : {percent: 0, floorReais: 0};
+    if (organizerId && !feeRule) {
       try {
-        organizerFeePercent = resolveOrganizerTournamentFeePercent(
-          (await db.doc(`organizers/${organizerId}`).get()).data(),
-        );
+        feeRule = await loadTournamentFeeRule(db, tournamentId, organizerId, new Date());
       } catch (e) {
         logger.error(
-          `Asaas tournament registration ${registrationId}: falha ao ler organizers/${organizerId} ` +
-          "— taxa indisponível nesta rodada",
+          `Asaas tournament registration ${registrationId}: falha ao ler a taxa do torneio ` +
+          `(organizador ${organizerId}) — taxa indisponível nesta rodada`,
           e,
         );
       }
@@ -372,8 +374,8 @@ export async function processTournamentRegistrationAsaasNotification(
         appliedCents,
         // O teto do cashback ganho é sobre a taxa que sobrou para a nexaGO: o desconto do
         // seguidor (NexaSquad) já saiu dela.
-        feeReais: organizerId ?
-          Math.max(0, roundMoney(computePlatformFeeReais(grossOnline, organizerFeePercent ?? 0) - squadDiscount / 100)) :
+        feeReais: organizerId && feeRule ?
+          Math.max(0, roundMoney(tournamentFeeReais(grossOnline, feeRule) - squadDiscount / 100)) :
           0,
         holdId,
         config: cashbackConfig,
@@ -402,6 +404,8 @@ export async function processTournamentRegistrationAsaasNotification(
         billingType,
         confirmedAt: FieldValue.serverTimestamp(),
         processedAt: FieldValue.serverTimestamp(),
+        // Regra congelada para as fases seguintes (crédito do cartão na liquidação).
+        ...(organizerId && feeRule ? {platformFee: {...feeRule}} : {}),
         ...(intentHasWork(intent) ? cashbackIntentFields(intent) : {}),
       }, {merge: true});
 
@@ -520,7 +524,7 @@ export async function processTournamentRegistrationAsaasNotification(
     // Falha aqui não pode derrubar nada: sem o marcador, o backfill (que
     // reprocessa o `CONFIRMED`) soma depois.
     if (phases.awaitSettlement && organizerId) {
-      if (organizerFeePercent == null) {
+      if (feeRule == null) {
         logger.warn(
           `Asaas tournament registration ${registrationId}: taxa indisponível — ` +
           `cartão ${paymentId} fica fora do "a liberar" nesta rodada`,
@@ -532,7 +536,7 @@ export async function processTournamentRegistrationAsaasNotification(
             ownerId: organizerId,
             netReais: organizerNetReais({
               grossReais: grossOnline,
-              platformFeeReais: computePlatformFeeReais(grossOnline, organizerFeePercent),
+              platformFeeReais: tournamentFeeReais(grossOnline, feeRule),
               gatewayFeeReais: resolveGatewayFeeReais(payment, billingType, paidOnline),
             }),
           });
@@ -557,7 +561,7 @@ export async function processTournamentRegistrationAsaasNotification(
       try {
         // Taxa indisponível (leitura do organizador falhou): credita com uma
         // taxa errada seria pior do que não creditar — deixa pra reentrega.
-        if (organizerFeePercent == null) {
+        if (feeRule == null) {
           throw new Error("organizer fee unavailable");
         }
         await creditTournamentWalletFromRegistration(db, tournamentId, {
@@ -566,7 +570,7 @@ export async function processTournamentRegistrationAsaasNotification(
           payerUid,
           paymentId,
           grossReais: grossOnline,
-          platformFeeReais: computePlatformFeeReais(grossOnline, organizerFeePercent),
+          platformFeeReais: tournamentFeeReais(grossOnline, feeRule),
           // A taxa do gateway é sobre o que o Asaas cobrou (o dinheiro), não sobre o bruto.
           gatewayFeeReais: resolveGatewayFeeReais(payment, billingType, paidOnline),
           cashbackAppliedReais: appliedCents / 100,

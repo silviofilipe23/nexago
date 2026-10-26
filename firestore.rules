@@ -3606,6 +3606,19 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Taxas de torneio (backoffice › Torneios › Taxas): exceção por torneio (id = tournamentId)
+    // e o histórico. Motivo e quem alterou são internos: só admin lê; só as callables de
+    // `tournament-fees.ts` gravam. O padrão mora em `appConfig/tournamentFees` (regra acima).
+    match /tournamentFees/{tournamentId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /tournamentFeesLog/{entryId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
     // Contrato de plano por evento (id = tournamentId) e as cotas de patrocínio dele. Só as
     // callables de `tournament-plan-contracts.ts` gravam. O organizador lê os próprios; ler
     // um id sem contrato (`resource == null`) é permitido pra tela saber que não há plano.

@@ -1,7 +1,9 @@
 import { Injectable } from '@angular/core';
 import {
   collection,
+  doc,
   endAt,
+  getDoc,
   getDocs,
   limit,
   orderBy,
@@ -30,6 +32,8 @@ export interface TournamentRow {
   categoriesCount: number;
   capacity: number | null;
   managerId: string | null;
+  /** Menor e maior preço de inscrição entre as categorias (R$); `null` = nenhuma categoria cobra. */
+  entryFeeReais: { min: number; max: number } | null;
 }
 
 export interface TournamentPage {
@@ -86,8 +90,25 @@ export function sportLabel(raw: string | null): string | null {
   return catalogSportLabel(raw);
 }
 
-function toRow(doc: QueryDocumentSnapshot<DocumentData>): TournamentRow {
-  const data = doc.data();
+/** Preço da categoria: `entryFeeCents` quando houver, senão `entryFee` em reais (número ou texto). */
+function categoryFeeReais(category: Record<string, unknown>): number {
+  const cents = num(category['entryFeeCents']);
+  if (cents !== null) {
+    return cents / 100;
+  }
+  const raw = category['entryFee'];
+  const fee = typeof raw === 'string' ? Number.parseFloat(raw) : raw;
+  return typeof fee === 'number' && Number.isFinite(fee) ? fee : 0;
+}
+
+function entryFeeRange(categories: unknown[]): { min: number; max: number } | null {
+  const fees = categories.map((c) => categoryFeeReais((c ?? {}) as Record<string, unknown>)).filter((f) => f > 0);
+  return fees.length ? { min: Math.min(...fees), max: Math.max(...fees) } : null;
+}
+
+/** Linha da tabela a partir do doc (listagem ou leitura por id). */
+export function tournamentRowOf(snap: { id: string; data(): DocumentData | undefined }): TournamentRow {
+  const data = snap.data() ?? {};
   const startAt = toDate(data['startAt']);
   const categories = Array.isArray(data['categories']) ? data['categories'] : [];
   const capacityFromCategories = categories.reduce((sum: number, raw: unknown) => {
@@ -96,8 +117,8 @@ function toRow(doc: QueryDocumentSnapshot<DocumentData>): TournamentRow {
   }, 0);
 
   return {
-    id: doc.id,
-    name: str(data['name']) ?? `Torneio ${doc.id}`,
+    id: snap.id,
+    name: str(data['name']) ?? `Torneio ${snap.id}`,
     sport: sportLabel(str(data['sport'])),
     status: statusFrom(str(data['listingStatus']) ?? str(data['status']) ?? '', startAt),
     visibility: str(data['visibility']),
@@ -106,6 +127,7 @@ function toRow(doc: QueryDocumentSnapshot<DocumentData>): TournamentRow {
     categoriesCount: categories.length,
     capacity: num(data['capacity']) ?? (capacityFromCategories > 0 ? capacityFromCategories : null),
     managerId: str(data['managerId']),
+    entryFeeReais: entryFeeRange(categories),
   };
 }
 
@@ -135,9 +157,15 @@ export class TournamentsRepository {
 
     const snap = await getDocs(query(tournaments, ...constraints));
     return {
-      rows: snap.docs.map(toRow),
+      rows: snap.docs.map(tournamentRowOf),
       cursor: snap.docs.length > 0 ? (snap.docs[snap.docs.length - 1] ?? null) : null,
       hasMore: !trimmed && snap.docs.length === PAGE_SIZE,
     };
+  }
+
+  /** Torneios pelo id, na ordem pedida; id sem doc fica de fora. */
+  async byIds(ids: readonly string[]): Promise<TournamentRow[]> {
+    const snaps = await Promise.all(ids.map((id) => getDoc(doc(backofficeDb(), 'tournaments', id))));
+    return snaps.filter((s) => s.exists()).map(tournamentRowOf);
   }
 }

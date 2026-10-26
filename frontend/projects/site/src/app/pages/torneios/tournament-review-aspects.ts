@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { publicAspectRows, type PublicReviewSummary } from '../../../lib/tournament-reviews';
+import { publicAspectRows, reviewTurnoutLabel, type PublicReviewSummary } from '../../../lib/tournament-reviews';
 
 /** "Como os atletas avaliaram" (spec §5): média de cada aspecto com nota. Some abaixo de 3
  *  avaliações e quando nenhum aspecto foi avaliado. */
@@ -10,6 +10,9 @@ import { publicAspectRows, type PublicReviewSummary } from '../../../lib/tournam
     @if (rows().length) {
       <section class="mt-12">
         <h2 class="font-display text-xl font-700 tracking-tight text-fg">Como os atletas avaliaram</h2>
+        @if (turnout(); as turnout) {
+          <p data-turnout class="mt-1 text-sm text-text-mute">{{ turnout }}</p>
+        }
         <ul class="mt-5 flex flex-col gap-4 rounded-5 border border-line bg-surface-1 p-6">
           @for (row of rows(); track row.key) {
             <li>
@@ -30,4 +33,5 @@ import { publicAspectRows, type PublicReviewSummary } from '../../../lib/tournam
 export class TournamentReviewAspects {
   readonly summary = input<PublicReviewSummary | null>(null);
   protected readonly rows = computed(() => publicAspectRows(this.summary()));
+  protected readonly turnout = computed(() => reviewTurnoutLabel(this.summary()));
 }

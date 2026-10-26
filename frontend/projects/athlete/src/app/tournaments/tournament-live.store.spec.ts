@@ -122,7 +122,7 @@ describe('TournamentLiveStore — avaliação pública', () => {
     const store = setup(source);
     store.tournamentId.set('t1');
     TestBed.tick();
-    source.summaries.get('t1')!({ count: 23, average: 4.62, aspects: {} });
+    source.summaries.get('t1')!({ count: 23, eligibleCount: 42, average: 4.62, aspects: {} });
     expect(store.reviewSummary()?.count).toBe(23);
 
     store.tournamentId.set('t2');

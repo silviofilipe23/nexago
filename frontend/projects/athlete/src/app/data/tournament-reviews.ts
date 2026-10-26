@@ -169,6 +169,8 @@ export const MIN_PUBLIC_REVIEWS = 3;
 /** `tournamentReviewSummaries/{id}`, só o que a exibição pública usa. */
 export interface PublicReviewSummary {
   readonly count: number;
+  /** Atletas aptos a avaliar (0 em resumo antigo, sem o campo). */
+  readonly eligibleCount: number;
   readonly average: number | null;
   /** Média de cada aspecto que recebeu nota. */
   readonly aspects: Partial<Record<TournamentReviewAspectKey, number>>;
@@ -208,7 +210,12 @@ export function publicSummaryFromData(data: Record<string, unknown> | undefined)
       if (ASPECT_KEYS.includes(key) && average != null) aspects[key as TournamentReviewAspectKey] = average;
     }
   }
-  return { count: count(data['count']), average: decimal(data['average']), aspects };
+  return {
+    count: count(data['count']),
+    eligibleCount: count(data['eligibleCount']),
+    average: decimal(data['average']),
+    aspects,
+  };
 }
 
 export function organizerReputationFromData(data: Record<string, unknown> | undefined): OrganizerReputation | null {
@@ -232,6 +239,13 @@ function hasPublicNumbers(s: PublicReviewSummary): s is PublicReviewSummary & { 
 /** "★ 4,6 · 23 avaliações", ou `null` sem números públicos. */
 export function reviewBadgeLabel(s: PublicReviewSummary | null): string | null {
   return s && hasPublicNumbers(s) ? `★ ${formatRating(s.average)} · ${s.count} avaliações` : null;
+}
+
+/** Adesão sob o título da seção: "9 de 40 atletas avaliaram". Sem o total de aptos (resumo
+ *  antigo), só "9 avaliações". `null` sem números públicos. */
+export function reviewTurnoutLabel(s: PublicReviewSummary | null): string | null {
+  if (!s || !hasPublicNumbers(s)) return null;
+  return s.eligibleCount < s.count ? `${s.count} avaliações` : `${s.count} de ${s.eligibleCount} atletas avaliaram`;
 }
 
 /** "★ 4,7 (86 avaliações em 5 torneios)", ou `null` abaixo de 3 avaliações. */

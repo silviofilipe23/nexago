@@ -8,6 +8,7 @@ import {
   publicAspectRows,
   publicSummaryFromData,
   reviewBadgeLabel,
+  reviewTurnoutLabel,
 } from './tournament-reviews';
 
 describe('avaliação pública no site', () => {
@@ -17,9 +18,10 @@ describe('avaliação pública no site', () => {
 
   it('lê o resumo público: média dos aspectos com nota, chave desconhecida fica de fora', () => {
     expect(
-      publicSummaryFromData({ count: 23, average: 4.62, aspects: { schedule: { count: 18, average: 3.4 }, bogus: { count: 1, average: 1 } } }),
-    ).toEqual({ count: 23, average: 4.62, aspects: { schedule: 3.4 } });
+      publicSummaryFromData({ count: 23, eligibleCount: 42, average: 4.62, aspects: { schedule: { count: 18, average: 3.4 }, bogus: { count: 1, average: 1 } } }),
+    ).toEqual({ count: 23, eligibleCount: 42, average: 4.62, aspects: { schedule: 3.4 } });
     expect(publicSummaryFromData(undefined)).toBeNull();
+    expect(publicSummaryFromData({ count: 2, average: null })?.eligibleCount).toBe(0);
   });
 
   it('lê a reputação e o nome do organizador', () => {
@@ -33,9 +35,16 @@ describe('avaliação pública no site', () => {
     expect(organizerNameFromData({})).toBeNull();
   });
 
+  it('adesão: avaliações sobre os atletas aptos; só a contagem sem o total; nada abaixo de 3', () => {
+    expect(reviewTurnoutLabel({ count: 23, eligibleCount: 42, average: 4.62, aspects: {} })).toBe('23 de 42 atletas avaliaram');
+    expect(reviewTurnoutLabel({ count: 23, eligibleCount: 0, average: 4.62, aspects: {} })).toBe('23 avaliações');
+    expect(reviewTurnoutLabel({ count: 2, eligibleCount: 42, average: null, aspects: {} })).toBeNull();
+    expect(reviewTurnoutLabel(null)).toBeNull();
+  });
+
   it('selo: estrela, uma casa com vírgula e a contagem; nada abaixo de 3', () => {
-    expect(reviewBadgeLabel({ count: 23, average: 4.62, aspects: {} })).toBe('★ 4,6 · 23 avaliações');
-    expect(reviewBadgeLabel({ count: 2, average: null, aspects: {} })).toBeNull();
+    expect(reviewBadgeLabel({ count: 23, eligibleCount: 42, average: 4.62, aspects: {} })).toBe('★ 4,6 · 23 avaliações');
+    expect(reviewBadgeLabel({ count: 2, eligibleCount: 42, average: null, aspects: {} })).toBeNull();
     expect(reviewBadgeLabel(null)).toBeNull();
   });
 
@@ -50,12 +59,12 @@ describe('avaliação pública no site', () => {
   });
 
   it('aspectos: só os com nota, na ordem da lista; nada sem números públicos', () => {
-    expect(publicAspectRows({ count: 23, average: 4.62, aspects: { prizes: 3.4, organization: 4.8 } })).toEqual([
+    expect(publicAspectRows({ count: 23, eligibleCount: 42, average: 4.62, aspects: { prizes: 3.4, organization: 4.8 } })).toEqual([
       { key: 'organization', label: 'Organização geral', value: '4,8', pct: 96 },
       { key: 'prizes', label: 'Premiação e kit', value: '3,4', pct: 68 },
     ]);
-    expect(publicAspectRows({ count: 2, average: null, aspects: { venue: 4 } })).toEqual([]);
-    expect(publicAspectRows({ count: 23, average: 4.62, aspects: {} })).toEqual([]);
+    expect(publicAspectRows({ count: 2, eligibleCount: 42, average: null, aspects: { venue: 4 } })).toEqual([]);
+    expect(publicAspectRows({ count: 23, eligibleCount: 42, average: 4.62, aspects: {} })).toEqual([]);
   });
 
   it('formatRating usa vírgula', () => {

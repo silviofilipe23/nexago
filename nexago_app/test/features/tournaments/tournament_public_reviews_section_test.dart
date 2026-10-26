@@ -9,6 +9,7 @@ import 'package:nexago_app/features/tournaments/presentation/widgets/tournament_
 
 TournamentReviewSummary _summary({
   int count = 23,
+  int eligibleCount = 42,
   Map<TournamentReviewAspect, TournamentReviewAspectStat>? aspects = const {
     TournamentReviewAspect.organization: TournamentReviewAspectStat(count: 20, average: 4.8),
     TournamentReviewAspect.schedule: TournamentReviewAspectStat(count: 18, average: 3.4),
@@ -18,7 +19,7 @@ TournamentReviewSummary _summary({
       tournamentId: 't1',
       tournamentName: 'Copa Aurora',
       isOpen: false,
-      eligibleCount: 42,
+      eligibleCount: eligibleCount,
       count: count,
       average: count >= 3 ? 4.62 : null,
       aspects: count >= 3 ? aspects : null,
@@ -54,6 +55,16 @@ void main() {
       tester.getTopLeft(find.text('Organização geral')).dy,
       lessThan(tester.getTopLeft(find.text('Cumprimento dos horários')).dy),
     );
+  });
+
+  testWidgets('mostra quantos atletas avaliaram de quantos participaram', (tester) async {
+    await _pump(tester, _summary());
+    expect(find.text('23 de 42 atletas avaliaram'), findsOneWidget);
+  });
+
+  testWidgets('resumo sem total de aptos mostra só a quantidade de avaliações', (tester) async {
+    await _pump(tester, _summary(eligibleCount: 0));
+    expect(find.text('23 avaliações'), findsOneWidget);
   });
 
   testWidgets('abaixo de 3 avaliações não mostra nada', (tester) async {

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { publicAspectRows, type PublicReviewSummary } from '../../data/tournament-reviews';
+import { publicAspectRows, reviewTurnoutLabel, type PublicReviewSummary } from '../../data/tournament-reviews';
 
 /** "Como os atletas avaliaram" (spec §5): média de cada aspecto com nota. Some abaixo de 3
  *  avaliações e quando nenhum aspecto foi avaliado. Estilo próprio para não engordar a aba. */
@@ -11,6 +11,9 @@ import { publicAspectRows, type PublicReviewSummary } from '../../data/tournamen
       <section class="tra-card" aria-labelledby="tra-title">
         <span class="tra-kicker">Avaliação dos atletas</span>
         <h2 class="tra-title" id="tra-title">Como os atletas avaliaram</h2>
+        @if (turnout(); as turnout) {
+          <p class="tra-turnout">{{ turnout }}</p>
+        }
         @for (row of rows(); track row.key) {
           <div class="tra-row">
             <span class="tra-label">{{ row.label }}</span>
@@ -46,6 +49,12 @@ import { publicAspectRows, type PublicReviewSummary } from '../../data/tournamen
       font-size: 17px;
       color: var(--nx-text);
     }
+    .tra-turnout {
+      margin: -4px 0 8px;
+      font-family: var(--nx-font-ui);
+      font-size: 13px;
+      color: var(--nx-text-mute);
+    }
     .tra-row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
@@ -80,4 +89,5 @@ import { publicAspectRows, type PublicReviewSummary } from '../../data/tournamen
 export class TournamentReviewAspectsComponent {
   readonly summary = input<PublicReviewSummary | null>(null);
   protected readonly rows = computed(() => publicAspectRows(this.summary()));
+  protected readonly turnout = computed(() => reviewTurnoutLabel(this.summary()));
 }

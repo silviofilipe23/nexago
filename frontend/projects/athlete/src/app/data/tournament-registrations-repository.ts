@@ -16,6 +16,7 @@ import { isConfirmedInscription, type RosterRow } from '../tournaments/enrolled-
 import { fetchTeamsByIds } from './teams-repository';
 import { withCashbackCharge, type CashbackChargeFields } from './cashback-preview';
 import { readSquadDiscount } from './squad-discount';
+import { NO_SERVICE_FEE, readServiceFee, serviceFeeRuleFromRaw, type ServiceFeeRule } from './service-fee';
 
 const INVITES_COLLECTION = 'tournamentRegistrationInvites';
 
@@ -684,6 +685,8 @@ export interface PixPaymentResult {
   chargedReais: number;
   /** Desconto do código/link de embaixador (NexaSquad), já fora do `chargedReais`. */
   squadDiscountReais: number;
+  /** Parte da taxa de serviço paga pelo atleta, já dentro do `chargedReais` (0 quando o organizador paga). */
+  serviceFeeReais: number;
 }
 
 /** Cobrança da inscrição (PIX ou cartão). Objeto em vez de posicional: `useCashback` é opcional
@@ -766,16 +769,46 @@ export async function checkSquadCode(
   }
 }
 
+/** Campos que a cobrança da inscrição normaliza (backend antigo não manda nenhum deles). */
+type RegistrationChargeExtras = CashbackChargeFields & { squadDiscountReais: number; serviceFeeReais: number };
+
+/** Resposta das duas cobranças normalizada: cashback, desconto do embaixador e taxa de serviço
+ *  ausentes valem zero e `chargedReais` cai no preço (`amountReais`). */
+export function registrationChargeFromResponse<T extends { amountReais: number }>(
+  data: T,
+): T & RegistrationChargeExtras {
+  return {
+    ...withCashbackCharge(data),
+    squadDiscountReais: readSquadDiscount(data),
+    serviceFeeReais: readServiceFee(data),
+  };
+}
+
+/**
+ * Regra da taxa de serviço do torneio que o atleta vê no checkout (`getTournamentServiceFee`).
+ * Só prévia — a cobrança refaz a conta no servidor. Backend antigo sem a callable (`not-found`)
+ * ou qualquer outro erro → sem taxa, em silêncio.
+ */
+export async function fetchTournamentServiceFee(functions: Functions, tournamentId: string): Promise<ServiceFeeRule> {
+  if (!tournamentId) return NO_SERVICE_FEE;
+  try {
+    const result = await httpsCallable<{ tournamentId: string }, unknown>(functions, 'getTournamentServiceFee')({ tournamentId });
+    return serviceFeeRuleFromRaw(result.data);
+  } catch {
+    return NO_SERVICE_FEE;
+  }
+}
+
 export async function createRegistrationPixPayment(
   functions: Functions,
   opts: RegistrationChargeOptions,
 ): Promise<PixPaymentResult> {
   try {
-    const result = await httpsCallable<Record<string, unknown>, Omit<PixPaymentResult, keyof CashbackChargeFields | 'squadDiscountReais'>>(
+    const result = await httpsCallable<Record<string, unknown>, Omit<PixPaymentResult, keyof RegistrationChargeExtras>>(
       functions,
       'createTournamentRegistrationPixPayment',
     )(registrationChargePayload(opts));
-    return { ...withCashbackCharge(result.data), squadDiscountReais: readSquadDiscount(result.data) };
+    return registrationChargeFromResponse(result.data);
   } catch (err) {
     throw mapCallableError(err);
   }
@@ -796,6 +829,8 @@ export interface CardPaymentResult {
   chargedReais: number;
   /** Desconto do código/link de embaixador (NexaSquad), já fora do `chargedReais`. */
   squadDiscountReais: number;
+  /** Parte da taxa de serviço paga pelo atleta, já dentro do `chargedReais` (0 quando o organizador paga). */
+  serviceFeeReais: number;
 }
 
 export async function createRegistrationCardPayment(
@@ -803,11 +838,11 @@ export async function createRegistrationCardPayment(
   opts: RegistrationChargeOptions,
 ): Promise<CardPaymentResult> {
   try {
-    const result = await httpsCallable<Record<string, unknown>, Omit<CardPaymentResult, keyof CashbackChargeFields | 'squadDiscountReais'>>(
+    const result = await httpsCallable<Record<string, unknown>, Omit<CardPaymentResult, keyof RegistrationChargeExtras>>(
       functions,
       'createTournamentRegistrationCardPayment',
     )(registrationChargePayload(opts));
-    return { ...withCashbackCharge(result.data), squadDiscountReais: readSquadDiscount(result.data) };
+    return registrationChargeFromResponse(result.data);
   } catch (err) {
     throw mapCallableError(err);
   }

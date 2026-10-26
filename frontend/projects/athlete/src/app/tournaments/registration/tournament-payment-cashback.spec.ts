@@ -5,6 +5,7 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { CashbackService } from '../../data/cashback.service';
+import type { ServiceFeeRule } from '../../data/service-fee';
 import type { AthleteTournamentRegistration, PixPaymentResult } from '../../data/tournament-registrations-repository';
 import type { TournamentSummary } from '../../data/tournaments-repository';
 import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
@@ -30,6 +31,7 @@ interface Internals {
   lastChargePaymentId: WritableSignal<string | null>;
   squadDiscountPct: WritableSignal<number>;
   squadFeePercent: WritableSignal<number | null>;
+  serviceFeeRule: WritableSignal<ServiceFeeRule>;
 }
 
 const firebase = environment.firebase as { apiKey: string };
@@ -97,6 +99,7 @@ function pix(overrides: Partial<PixPaymentResult> = {}): PixPaymentResult {
     cashbackAppliedReais: 0,
     chargedReais: 50,
     squadDiscountReais: 0,
+    serviceFeeReais: 0,
     ...overrides,
   };
 }
@@ -315,3 +318,95 @@ describe('TournamentPaymentComponent — desconto do seguidor (NexaSquad)', () =
   });
 });
 
+describe('TournamentPaymentComponent — taxa de serviço', () => {
+  useBlankFirebaseKey();
+
+  /** Valor da linha "Taxa de serviço" do resumo (null quando a linha não existe). */
+  function feeSummary(fixture: ComponentFixture<TournamentPaymentComponent>): string | null {
+    const row = Array.from(host(fixture).querySelectorAll('.tp-summary-row')).find(
+      (r) => text(r.querySelector('.tp-summary-label')) === 'Taxa de serviço',
+    );
+    return row ? text(row.querySelector('.tp-summary-value')) : null;
+  }
+
+  const rule = (payer: ServiceFeeRule['payer']): ServiceFeeRule => ({ percent: 8, floorReais: 1.5, payer });
+
+  it('organizador paga (padrão): nenhuma linha nova e os valores de sempre', () => {
+    const { fixture, internals } = create(fakeCashbackService());
+    internals.serviceFeeRule.set(rule('organizador'));
+    fixture.detectChanges();
+
+    expect(feeSummary(fixture)).toBeNull();
+    expect(total(fixture)).toBe('R$ 50,00');
+    expect(cta(fixture)).toBe('Gerar Pix de R$ 50,00');
+  });
+
+  it('atleta paga: a taxa sobre a parcela entra no resumo, no total e no CTA', () => {
+    const { fixture, internals } = create(fakeCashbackService());
+    internals.serviceFeeRule.set(rule('atleta'));
+    fixture.detectChanges();
+
+    expect(feeSummary(fixture)).toBe('+R$ 4,00');
+    expect(total(fixture)).toBe('R$ 54,00');
+    expect(cta(fixture)).toBe('Gerar Pix de R$ 54,00');
+    // A caixa da parcela continua mostrando o preço.
+    expect(text(host(fixture).querySelector('.tp-due-value'))).toBe('R$ 50,00');
+  });
+
+  it('dividido: metade da taxa por cima do preço', () => {
+    const { fixture, internals } = create(fakeCashbackService());
+    internals.serviceFeeRule.set(rule('dividido'));
+    fixture.detectChanges();
+
+    expect(feeSummary(fixture)).toBe('+R$ 2,00');
+    expect(total(fixture)).toBe('R$ 52,00');
+  });
+
+  it('integral: a taxa é sobre a inscrição inteira', () => {
+    const { fixture, internals } = create(fakeCashbackService());
+    internals.serviceFeeRule.set(rule('atleta'));
+    const [, full] = Array.from(host(fixture).querySelectorAll<HTMLButtonElement>('.tp-amount-btn'));
+    full.click();
+    fixture.detectChanges();
+
+    expect(feeSummary(fixture)).toBe('+R$ 8,00');
+    expect(total(fixture)).toBe('R$ 108,00');
+  });
+
+  it('a taxa é sobre o preço (não sobre o descontado) e o cashback também a cobre', () => {
+    const { fixture, internals } = create(fakeCashbackService({ wallet: { availableCents: 5000 } }));
+    internals.serviceFeeRule.set(rule('atleta'));
+    internals.squadDiscountPct.set(10);
+    fixture.detectChanges();
+
+    // R$ 50 + R$ 4 (8% do preço) − R$ 5 (10% do preço).
+    expect(feeSummary(fixture)).toBe('+R$ 4,00');
+    expect(total(fixture)).toBe('R$ 49,00');
+
+    // O saldo cobre preço + taxa − desconto, menos o mínimo de R$ 5 em dinheiro.
+    internals.useCashback.set(true);
+    fixture.detectChanges();
+    expect(cashbackSummary(fixture)).toBe('−R$ 44,00');
+    expect(total(fixture)).toBe('R$ 5,00');
+  });
+
+  it('cobrança gerada: vale a taxa que o servidor cobrou', () => {
+    const { fixture, internals } = create(fakeCashbackService());
+    internals.pixResult.set(pix({ serviceFeeReais: 4, chargedReais: 54 }));
+    fixture.detectChanges();
+
+    expect(feeSummary(fixture)).toBe('+R$ 4,00');
+    expect(total(fixture)).toBe('R$ 54,00');
+    expect(text(host(fixture).querySelector('.tp-pix-amount'))).toBe('Pix de R$ 54,00');
+  });
+
+  it('inscrição já paga não mostra taxa no resumo', () => {
+    const { fixture, internals } = create(fakeCashbackService());
+    internals.serviceFeeRule.set(rule('atleta'));
+    internals.onRegistrationUpdate(registration({ isPaid: true }));
+    fixture.detectChanges();
+
+    expect(feeSummary(fixture)).toBeNull();
+    expect(total(fixture)).toBe('R$ 50,00');
+  });
+});

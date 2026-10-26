@@ -19,10 +19,13 @@ import 'package:nexago_app/features/squad/domain/squad_repository.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_registration_service.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_pix_args.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_providers.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_service_fee.dart';
 import 'package:nexago_app/features/tournaments/presentation/tournament_registration_pix_page.dart';
 import 'package:nexago_app/features/tournaments/presentation/widgets/registration_wizard/registration_wizard_notice.dart';
 
 void main() {
+  _taxaDeServicoTests();
+
   testWidgets('PIX mostra countdown da vaga com janela fixa do torneio', (
     tester,
   ) async {
@@ -434,6 +437,148 @@ void main() {
   });
 }
 
+// "Quem paga" a taxa da nexaGO: com o atleta pagando (inteira ou metade) a
+// prévia soma a parte dele ao preço; com o organizador, a tela é a de sempre.
+void _taxaDeServicoTests() {
+  group('taxa de serviço no checkout da inscrição', () {
+    const regraAtleta = TournamentServiceFeeRule(
+      percent: 8,
+      floorReais: 1.5,
+      payer: TournamentServiceFeePayer.athlete,
+    );
+    const regraDividida = TournamentServiceFeeRule(
+      percent: 8,
+      floorReais: 1.5,
+      payer: TournamentServiceFeePayer.split,
+    );
+
+    testWidgets('organizador paga: nenhuma linha nova e o valor de sempre',
+        (tester) async {
+      final service = _FakePaymentService(_resposta());
+      await _abrirPixComCashback(
+        tester,
+        service: service,
+        config: CashbackConfig.fallback,
+      );
+
+      expect(service.feeRuleCalls, ['t1']);
+      expect(find.text('Taxa de serviço'), findsNothing);
+      expect(find.byKey(const Key('squad-summary')), findsNothing);
+      expect(
+        find.text('${formatBRL(100)} · pagar com seu banco'),
+        findsOneWidget,
+      );
+
+      await _gerarPix(tester);
+      expect(find.byKey(const Key('service-fee-note')), findsNothing);
+      expect(find.text(formatBRL(100)), findsOneWidget);
+    });
+
+    testWidgets('atleta paga: "Taxa de serviço" no resumo e total preço + taxa',
+        (tester) async {
+      final service = _FakePaymentService(
+        _resposta(serviceFee: 8, charged: 108),
+        feeRule: regraAtleta,
+      );
+      await _abrirPixComCashback(
+        tester,
+        service: service,
+        config: CashbackConfig.fallback,
+      );
+
+      // R$ 100 × 8% = R$ 8 (acima do piso de R$ 1,50).
+      expect(find.byKey(const Key('squad-summary')), findsOneWidget);
+      expect(find.text('Inscrição'), findsOneWidget);
+      expect(find.text(formatBRLFromCents(10000)), findsOneWidget);
+      expect(find.text('Taxa de serviço'), findsOneWidget);
+      expect(find.text(formatBRLFromCents(800)), findsOneWidget);
+      expect(find.text(formatBRLFromCents(10800)), findsOneWidget);
+      expect(
+        find.text('${formatBRL(108)} · pagar com seu banco'),
+        findsOneWidget,
+      );
+
+      // Depois da cobrança vale o que o servidor devolveu.
+      await _gerarPix(tester);
+      expect(
+        find.text('Inclui ${formatBRL(8)} de taxa de serviço'),
+        findsOneWidget,
+      );
+      expect(find.text(formatBRL(108)), findsOneWidget);
+    });
+
+    testWidgets('dividido com código: taxa pela metade sobre o preço e desconto',
+        (tester) async {
+      final service = _FakePaymentService(_resposta(), feeRule: regraDividida);
+      final squad = _FakeSquadRepository(
+        check: const SquadCodeCheck(
+          ambassadorName: 'João Victor',
+          code: 'JOAO10',
+          origin: 'code',
+          discountPct: 10,
+          feePercent: 8,
+        ),
+      );
+      await _abrirPixComCashback(
+        tester,
+        service: service,
+        config: CashbackConfig.fallback,
+        squad: squad,
+      );
+
+      await tester.tap(find.text('Tem código de embaixador?'));
+      await tester.pump();
+      await tester.enterText(find.byKey(const Key('squad-code-field')), 'joao10');
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('squad-code-apply')));
+      await tester.pump();
+      await tester.pump();
+
+      // Taxa R$ 8 → metade R$ 4; desconto R$ 8 (teto da taxa), sobre o preço.
+      expect(find.text('Taxa de serviço'), findsOneWidget);
+      expect(find.text(formatBRLFromCents(400)), findsOneWidget);
+      expect(find.text('− ${formatBRLFromCents(800)}'), findsOneWidget);
+      expect(find.text(formatBRLFromCents(9600)), findsOneWidget);
+      expect(
+        find.text('${formatBRL(96)} · pagar com seu banco'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('o cashback também cobre a taxa de serviço', (tester) async {
+      final service = _FakePaymentService(
+        _resposta(serviceFee: 8, applied: 103, charged: 5),
+        feeRule: regraAtleta,
+      );
+      await _abrirPixComCashback(
+        tester,
+        service: service,
+        availableCents: 20000,
+      );
+
+      await tester.tap(find.byKey(CheckoutCashbackToggle.switchKey));
+      await tester.pump();
+
+      // Base do saldo: R$ 100 + R$ 8; sobra só o mínimo de R$ 5 no PIX.
+      Finder noResumo(String text) => find.descendant(
+            of: find.byKey(const Key('squad-summary')),
+            matching: find.text(text),
+          );
+      expect(noResumo('Taxa de serviço'), findsOneWidget);
+      expect(noResumo('Cashback'), findsOneWidget);
+      expect(noResumo('− ${formatBRLFromCents(10300)}'), findsOneWidget);
+      expect(noResumo(formatBRLFromCents(500)), findsOneWidget);
+      expect(
+        find.text('${formatBRL(5)} · pagar com seu banco'),
+        findsOneWidget,
+      );
+
+      await _gerarPix(tester);
+      expect(service.useCashbackCalls, [true]);
+    });
+  });
+}
+
 const _ligado = CashbackConfig(
   enabled: true,
   ratePercent: 2,
@@ -444,12 +589,27 @@ const _ligado = CashbackConfig(
 );
 
 /// Dublê do serviço de pagamento: guarda o `useCashback` de cada pedido.
+/// [feeRule] é a regra da taxa de serviço que a prévia recebe (padrão: o
+/// organizador paga, como em todos os torneios até aqui).
 class _FakePaymentService implements PaymentService {
-  _FakePaymentService(this.result);
+  _FakePaymentService(
+    this.result, {
+    this.feeRule = TournamentServiceFeeRule.none,
+  });
 
   final ArenaBookingPixPaymentResult result;
+  final TournamentServiceFeeRule feeRule;
   final useCashbackCalls = <bool>[];
   final squadCodeCalls = <String?>[];
+  final feeRuleCalls = <String>[];
+
+  @override
+  Future<TournamentServiceFeeRule> getTournamentServiceFee({
+    required String tournamentId,
+  }) async {
+    feeRuleCalls.add(tournamentId);
+    return feeRule;
+  }
 
   @override
   Future<ArenaBookingPixPaymentResult> createTournamentRegistrationPixPayment({
@@ -505,7 +665,11 @@ class _FakeSquadRepository implements SquadRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-ArenaBookingPixPaymentResult _resposta({double applied = 0, double? charged}) {
+ArenaBookingPixPaymentResult _resposta({
+  double applied = 0,
+  double? charged,
+  double serviceFee = 0,
+}) {
   return ArenaBookingPixPaymentResult(
     paymentId: 'pay_t1',
     qrCode: '00020101021226860014br.gov.bcb.pix',
@@ -513,6 +677,7 @@ ArenaBookingPixPaymentResult _resposta({double applied = 0, double? charged}) {
     expiresAt: DateTime.now().add(const Duration(minutes: 15)),
     amountToPayNowReais: 100,
     cashbackAppliedReais: applied,
+    serviceFeeReais: serviceFee,
     chargedReais: charged,
   );
 }

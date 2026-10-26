@@ -22,6 +22,7 @@ import {
 } from './data/tournament-fees.repository';
 import {
   DEFAULT_FEE_RULE,
+  FEE_PAYER_LABEL,
   brl,
   dayLabel,
   pctLabel,
@@ -482,7 +483,10 @@ export class PanelTaxasComponent {
       await this.repo.saveDefault(rule, this.defaults().version);
       this.defaults.set(await this.repo.defaults());
       this.defaultCard()?.finishEdit();
-      this.showToast(`Taxa padrão atualizada para ${pctLabel(rule.percent)} · mínimo ${brl(rule.floorReais)}`);
+      this.showToast(
+        `Taxa padrão atualizada para ${pctLabel(rule.percent)} · mínimo ${brl(rule.floorReais)} · ` +
+          `quem paga: ${FEE_PAYER_LABEL[rule.payer]}`,
+      );
     } catch (error) {
       this.defaultError.set(saveErrorText(error));
       if (isVersionConflict(error)) {
@@ -502,7 +506,7 @@ export class PanelTaxasComponent {
       const out = await this.repo.saveTournamentFee({
         tournamentId: row.tournament.id,
         mode: draft.mode,
-        ...(draft.mode === 'custom' ? { percent: draft.percent, floorReais: draft.floorReais } : {}),
+        ...(draft.mode === 'custom' ? { percent: draft.percent, floorReais: draft.floorReais, payer: draft.payer } : {}),
         ...(draft.mode !== 'padrao' ? { reason: draft.reason, until: draft.until || null } : {}),
         notify,
         version: row.version,

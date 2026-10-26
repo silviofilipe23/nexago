@@ -18,6 +18,7 @@ import {
   createRegistrationCardPayment,
   createRegistrationPixPayment,
   fetchMyRegistrationForCategory,
+  fetchTournamentServiceFee,
   reserveDirectOrganizerRegistration,
   sentPendingInvitesFor,
   TournamentRegistrationError,
@@ -40,6 +41,7 @@ import { resolveDirectPaymentState, type DirectPaymentState } from './direct-pay
 import { RegistrationHoldNoticeComponent } from './registration-hold-notice.component';
 import { SquadCodeFieldComponent } from './squad-code-field.component';
 import { squadDiscountPreviewCents } from '../../data/squad-discount';
+import { athleteServiceFeeReais, NO_SERVICE_FEE, type ServiceFeeRule } from '../../data/service-fee';
 import { shouldShowRegistrationHoldCountdown, registrationHoldCountdownView } from './registration-hold';
 import { appliedPreviewCents } from '../../data/cashback-preview';
 import { CashbackService } from '../../data/cashback.service';
@@ -183,6 +185,8 @@ export class TournamentPaymentComponent {
   private watchedRegistrationId: string | null = null;
   private watchedSentInvitesKey: string | null = null;
   private holdExpiryRedirectHandled = false;
+  /** Torneio cuja regra de taxa de serviço já foi pedida — uma chamada por torneio. */
+  private serviceFeeRequestedFor: string | null = null;
 
   /** Uma saída só depois do pagamento confirmado — ver `goToMyRegistration`. */
   private paidRedirectArmed = false;
@@ -313,9 +317,23 @@ export class TournamentPaymentComponent {
     if (!this.appChargeOpen()) return 0;
     return squadDiscountPreviewCents(this.amountDueReais(), this.squadDiscountPct(), this.squadFeePercent()) / 100;
   });
-  /** Preço desta cobrança depois do desconto do seguidor — o cashback incide sobre ele. */
-  protected readonly priceAfterSquadReais = computed(
-    () => Math.round((this.amountDueReais() - this.squadDiscountReais()) * 100) / 100,
+  /** Regra da taxa de serviço do torneio (`getTournamentServiceFee`). Organizador pagando — ou
+   *  regra ainda não carregada/indisponível — é `NO_SERVICE_FEE`: a tela fica como sempre foi. */
+  protected readonly serviceFeeRule = signal<ServiceFeeRule>(NO_SERVICE_FEE);
+  /** Parte da taxa de serviço que o atleta paga por cima do preço: a da cobrança gerada (servidor)
+   *  ou a prévia. Incide sobre o PREÇO desta cobrança (parcela ou integral), nunca sobre o valor
+   *  já com desconto do embaixador ou cashback. */
+  protected readonly serviceFeeReais = computed(() => {
+    const live = this.pixResult() ?? this.cardResult();
+    if (live) return live.serviceFeeReais;
+    if (!this.appChargeOpen()) return 0;
+    // A cota do trio sai fracionada daqui; o servidor cobra a taxa sobre ela já em centavos.
+    return athleteServiceFeeReais(Math.round(this.amountDueReais() * 100) / 100, this.serviceFeeRule());
+  });
+  /** Preço + taxa de serviço − desconto do seguidor: o que a cobrança vale antes do cashback, e a
+   *  base do saldo usável (espelho de `dueAfterSquadDiscount` no servidor). */
+  protected readonly dueAfterSquadReais = computed(
+    () => Math.round((this.amountDueReais() + this.serviceFeeReais() - this.squadDiscountReais()) * 100) / 100,
   );
 
   /** Só há o que descontar com a cobrança pelo app ainda por fazer: inscrição paga, parcela paga
@@ -340,18 +358,18 @@ export class TournamentPaymentComponent {
     return (
       appliedPreviewCents({
         use: this.useCashback(),
-        priceReais: this.priceAfterSquadReais(),
+        priceReais: this.dueAfterSquadReais(),
         availableCents: this.cashback.availableCents(),
         config: this.cashback.config(),
       }) / 100
     );
   });
 
-  /** O que a cobrança vale: `chargedReais` do servidor, ou a parcela menos a prévia. */
+  /** O que a cobrança vale: `chargedReais` do servidor, ou parcela + taxa − descontos da prévia. */
   protected readonly chargeDueReais = computed(() => {
     const live = this.pixResult() ?? this.cardResult();
     if (live) return live.chargedReais || this.amountDueReais();
-    return Math.round((this.priceAfterSquadReais() - this.cashbackAppliedReais()) * 100) / 100;
+    return Math.round((this.dueAfterSquadReais() - this.cashbackAppliedReais()) * 100) / 100;
   });
 
   constructor() {
@@ -440,6 +458,7 @@ export class TournamentPaymentComponent {
     try {
       const tournament = await fetchTournament(db, id);
       this.listing.set(tournament);
+      if (tournament) this.loadServiceFee(id, tournament.paymentMode);
       const categoryId = this.categoryIdParam() ?? tournament?.categories[0]?.id;
       if (uid && categoryId) {
         const reg = await fetchMyRegistrationForCategory(db, projectId, uid, id, categoryId);
@@ -463,6 +482,17 @@ export class TournamentPaymentComponent {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Regra da taxa de serviço, uma vez por torneio e sem segurar a tela (é só prévia: a cobrança
+   *  refaz a conta). Pagamento direto com o organizador não passa pela cobrança do app — nem pede. */
+  private loadServiceFee(tournamentId: string, paymentMode: string | null | undefined): void {
+    if (this.serviceFeeRequestedFor === tournamentId) return;
+    if (resolvePaymentMethods(paymentMode).length === 0) return;
+    this.serviceFeeRequestedFor = tournamentId;
+    void fetchTournamentServiceFee(athleteFunctions(), tournamentId).then((rule) => {
+      if (this.tournamentId() === tournamentId) this.serviceFeeRule.set(rule);
+    });
   }
 
   /** Espelha o listener do app na tela de PIX: `isPaid` fecha o fluxo na hora; parcela do

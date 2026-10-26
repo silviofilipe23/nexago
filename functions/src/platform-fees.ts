@@ -9,7 +9,9 @@
  * - Reservas: todos os planos — 8% Starter, 6% Pro, 5% Elite; sem plano = 8%.
  *   Resolução em `arena-entitlement.resolveArenaBookingFeePercent`.
  * - Inscrições de torneio: todos os organizadores. Padrão editável e exceção por
- *   torneio em `tournament-fees.ts` (`resolveTournamentFeeRule`).
+ *   torneio em `tournament-fees.ts` (`resolveTournamentFeeRule`). Ali a regra pode
+ *   pôr a taxa (ou metade dela) por cima do preço para o atleta ("Quem paga",
+ *   `athleteFeeReais`); sem isso vale o de sempre: descontada do organizador.
  */
 
 // Local (evita import circular com mercadopago-arena-helpers, que consome estas taxas).

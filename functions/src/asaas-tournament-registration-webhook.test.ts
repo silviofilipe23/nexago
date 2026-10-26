@@ -930,7 +930,11 @@ describe("asaas-tournament-registration-webhook: taxa do torneio (backoffice ›
     const credit = ledgerEntries(fake).find((e) => e.type === "credit")!;
     assert.equal(credit.platformFeeReais, 5);
     assert.equal(credit.netReais, 95);
-    assert.deepEqual(fake.store.get(PROCESSED_PATH)!.platformFee, {percent: 5, floorReais: 2, source: "tournament"});
+    assert.deepEqual(fake.store.get(PROCESSED_PATH)!.platformFee,
+      {percent: 5, floorReais: 2, payer: "organizador", source: "tournament"});
+    // Organizador paga: nenhuma parte do atleta registrada, extrato com a forma de sempre.
+    assert.equal(fake.store.get(PROCESSED_PATH)!.serviceFeeCents, undefined);
+    assert.equal(credit.serviceFeeReais, undefined);
   });
 
   it("isento: nenhuma taxa da plataforma", async () => {
@@ -977,5 +981,166 @@ describe("asaas-tournament-registration-webhook: taxa do torneio (backoffice ›
     const credit = ledgerEntries(fake).find((e) => e.type === "credit")!;
     assert.equal(credit.platformFeeReais, 8);
     assert.equal(walletDoc(fake)!["availableReais"], 88.71);
+  });
+});
+
+describe("asaas-tournament-registration-webhook: quem paga a taxa", () => {
+  const ATLETA = {percent: 8, floorReais: 1.5, payer: "atleta", version: 2};
+  const externalReference = (uid: string) => `tournamentRegistration:${REG_ID}:${uid}`;
+
+  function seed(fake: FakeFirestore, regOverrides: Record<string, unknown> = {}): void {
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake, regOverrides);
+  }
+
+  async function pay(db: Firestore, payment: Record<string, unknown>, paymentId = "pay1"): Promise<void> {
+    await processTournamentRegistrationAsaasNotification(
+      db, paymentId, payment as never,
+      db.doc(`artifacts/p/public/data/asaas_processed_payments/${paymentId}`) as DocumentReference,
+      makeDeps().deps,
+    );
+  }
+
+  it("PIX, atleta paga: cobra preço + taxa; inscrição e caixa ficam com o preço, sem taxa do organizador", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    fake.seedDoc("appConfig/tournamentFees", ATLETA);
+    fake.seedDoc(PENDING_A, {...PIX_PENDING_A, serviceFeeCents: 800});
+
+    await pay(db, {status: "RECEIVED", value: 108, billingType: "PIX", externalReference: externalReference("uidA")});
+
+    assert.equal(fake.store.get(REG_PATH)!["paidAmount"], ENTRY_FEE);
+    assert.equal(fake.store.get(REG_PATH)!["isPaid"], true);
+    const credit = ledgerEntries(fake).find((e) => e.type === "credit")!;
+    assert.equal(credit.grossReais, ENTRY_FEE);
+    assert.equal(credit.platformFeeReais, 0);
+    assert.equal(credit.serviceFeeReais, 8);
+    assert.equal(credit.netReais, ENTRY_FEE);
+    const processed = fake.store.get(PROCESSED_PATH)!;
+    assert.equal(processed.serviceFeeCents, 800);
+    assert.equal((processed.platformFee as Record<string, unknown>).payer, "atleta");
+  });
+
+  it("PIX, dividido: metade por cima do preço, metade do repasse", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    fake.seedDoc("tournamentFees/t1", {
+      mode: "custom", percent: 8, floorReais: 1.5, payer: "dividido", reason: "Parceria comercial", until: null,
+    });
+    fake.seedDoc(PENDING_A, {...PIX_PENDING_A, serviceFeeCents: 400});
+
+    await pay(db, {status: "RECEIVED", value: 104, billingType: "PIX", externalReference: externalReference("uidA")});
+
+    assert.equal(fake.store.get(REG_PATH)!["paidAmount"], ENTRY_FEE);
+    const credit = ledgerEntries(fake).find((e) => e.type === "credit")!;
+    assert.equal(credit.grossReais, ENTRY_FEE);
+    assert.equal(credit.platformFeeReais, 4);
+    assert.equal(credit.serviceFeeReais, 4);
+    assert.equal(credit.netReais, 96);
+  });
+
+  it("cartão em duas fases, atleta paga: a parte dele congela na confirmação e a liquidação credita o preço", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    fake.seedDoc("appConfig/tournamentFees", ATLETA);
+    fake.seedDoc(PENDING_A, {...CARD_PENDING_A, serviceFeeCents: 800});
+
+    // R$ 108 no cartão; o Asaas fica com R$ 3,50.
+    await pay(db, cardPayment("CONFIRMED", {value: 108, netValue: 104.5}));
+    assert.equal(fake.store.get(REG_PATH)!["paidAmount"], ENTRY_FEE);
+    assert.equal(walletDoc(fake)!["awaitingSettlementReais"], 96.5);
+
+    // Entre a autorização e a liquidação: o pendente some e o admin troca a regra.
+    fake.store.delete(PENDING_A);
+    fake.seedDoc("appConfig/tournamentFees", {percent: 10, floorReais: 1.5, payer: "organizador", version: 3});
+    await pay(db, cardPayment("RECEIVED", {value: 108, netValue: 104.5}));
+
+    const credit = ledgerEntries(fake).find((e) => e.type === "credit")!;
+    assert.equal(credit.grossReais, ENTRY_FEE);
+    assert.equal(credit.platformFeeReais, 0);
+    assert.equal(credit.serviceFeeReais, 8);
+    assert.equal(credit.gatewayFeeReais, 3.5);
+    assert.equal(credit.netReais, 96.5);
+    assert.equal(walletDoc(fake)!["availableReais"], 96.5);
+    assert.equal(walletDoc(fake)!["awaitingSettlementReais"], 0);
+  });
+
+  it("dupla pagando separado, atleta paga: cada um paga a parcela + a taxa dela; a inscrição fecha no preço", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    fake.seedDoc("appConfig/tournamentFees", ATLETA);
+    // Parcela R$ 50 → taxa R$ 4 (8%) por cima.
+    fake.seedDoc(PENDING_A, {status: "pending", amountType: "share", asaasPaymentId: "payA", payerUid: "uidA",
+      serviceFeeCents: 400});
+    fake.seedDoc(PENDING_B, {status: "pending", amountType: "share", asaasPaymentId: "payB", payerUid: "uidB",
+      serviceFeeCents: 400});
+
+    await pay(db, {status: "RECEIVED", value: 54, billingType: "PIX", externalReference: externalReference("uidA")},
+      "payA");
+    assert.equal(fake.store.get(REG_PATH)!["paidAmount"], 50);
+    assert.equal(fake.store.get(REG_PATH)!["isPaid"], false);
+
+    await pay(db, {status: "RECEIVED", value: 54, billingType: "PIX", externalReference: externalReference("uidB")},
+      "payB");
+    assert.equal(fake.store.get(REG_PATH)!["paidAmount"], ENTRY_FEE);
+    assert.equal(fake.store.get(REG_PATH)!["isPaid"], true);
+
+    const credits = ledgerEntries(fake).filter((e) => e.type === "credit");
+    assert.equal(credits.length, 2);
+    for (const credit of credits) {
+      assert.equal(credit.grossReais, 50);
+      assert.equal(credit.platformFeeReais, 0);
+      assert.equal(credit.serviceFeeReais, 4);
+      assert.equal(credit.netReais, 50);
+    }
+    assert.equal(walletDoc(fake)!["availableReais"], ENTRY_FEE);
+  });
+
+  it("equipe: a parcela creditada é o preço, não o cobrado com a taxa", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc(TOURNAMENT_PATH, {
+      name: "Copa Teste", managerId: "org1", categories: [{categoryName: CATEGORY, entryFee: 90}],
+    });
+    seedRegistration(fake, {teamSize: 3, participantUids: ["uidA", "uidB", "uidC"]});
+    fake.seedDoc("appConfig/tournamentFees", ATLETA);
+    // Cota R$ 30 → 8% = R$ 2,40 (acima do piso de R$ 1,50) por cima.
+    fake.seedDoc(PENDING_A, {status: "pending", amountType: "share", asaasPaymentId: "pay1", payerUid: "uidA",
+      serviceFeeCents: 240});
+
+    await pay(db, {status: "RECEIVED", value: 32.4, billingType: "PIX", externalReference: externalReference("uidA")});
+
+    assert.equal(fake.store.get(REG_PATH)!["paidAmount"], 30);
+    assert.equal(ledgerEntries(fake).find((e) => e.type === "credit")!.netReais, 30);
+  });
+
+  it("pendente reescrito antes do webhook: refaz a parte do atleta pela regra", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    fake.seedDoc("appConfig/tournamentFees", ATLETA);
+    // O atleta gerou outro PIX depois de pagar este; o pendente agora é da cobrança nova.
+    fake.seedDoc(PENDING_A, {...PIX_PENDING_A, asaasPaymentId: "payNovo", serviceFeeCents: 800});
+
+    await pay(db, {status: "RECEIVED", value: 108, billingType: "PIX", externalReference: externalReference("uidA")});
+
+    const credit = ledgerEntries(fake).find((e) => e.type === "credit")!;
+    assert.equal(credit.grossReais, ENTRY_FEE);
+    assert.equal(credit.serviceFeeReais, 8);
+    assert.equal(fake.store.get(REG_PATH)!["paidAmount"], ENTRY_FEE);
+  });
+
+  it("pagamento duplicado: o estorno marcado é o valor pago, com a parte da taxa", async () => {
+    const {fake, db} = makeDb();
+    seed(fake, {sharePaidUids: ["uidA", "uidB"], paidAmount: ENTRY_FEE, isPaid: true});
+    fake.seedDoc("appConfig/tournamentFees", ATLETA);
+    fake.seedDoc(PENDING_A, {status: "pending", amountType: "share", asaasPaymentId: "pay1", payerUid: "uidA",
+      serviceFeeCents: 400});
+
+    await pay(db, {status: "RECEIVED", value: 54, billingType: "PIX", externalReference: externalReference("uidA")});
+
+    const processed = fake.store.get(PROCESSED_PATH)!;
+    assert.equal(processed.outcome, "duplicate_payer");
+    assert.equal(processed.paidValue, 54);
+    assert.equal(processed.serviceFeeReais, 4);
+    assert.equal(fake.store.get(REG_PATH)!["paidAmount"], ENTRY_FEE);
   });
 });

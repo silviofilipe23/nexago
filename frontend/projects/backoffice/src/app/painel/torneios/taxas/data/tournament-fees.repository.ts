@@ -18,6 +18,7 @@ import {
   feeOverrideFromRaw,
   isValidCommission,
   type FeeMode,
+  type FeePayer,
   type FeeRule,
   type TournamentFeeOverride,
 } from './tournament-fees';
@@ -46,8 +47,12 @@ export interface OrganizerFeeInfo {
 }
 
 export interface TournamentRevenue {
-  /** Soma de `platformFeeReais` do extrato do caixa do torneio. */
+  /**
+   * Taxa recebida pela NexaGO: `platformFeeReais` (parte do organizador) + `serviceFeeReais` (parte
+   * paga pelo atleta por cima do preço) do extrato do caixa do torneio.
+   */
   feeReais: number;
+  /** Soma dos preços (o bruto do extrato não inclui a parte do atleta). */
   grossReais: number;
   payments: number;
 }
@@ -67,6 +72,7 @@ export interface SaveTournamentFeeInput {
   mode: FeeMode;
   percent?: number;
   floorReais?: number;
+  payer?: FeePayer;
   reason?: string;
   until?: string | null;
   notify: boolean;
@@ -147,11 +153,17 @@ export class TournamentFeesRepository {
     const ledger = collection(backofficeDb(), 'tournamentWallets', tournamentId, 'ledger');
     const snap = await getAggregateFromServer(ledger, {
       fee: sum('platformFeeReais'),
+      // Só existe quando o atleta pagou parte da taxa; a soma ignora quem não tem o campo.
+      athleteFee: sum('serviceFeeReais'),
       gross: sum('grossReais'),
       payments: count(),
     });
     const data = snap.data();
-    return { feeReais: money(data.fee), grossReais: money(data.gross), payments: data.payments };
+    return {
+      feeReais: money(money(data.fee) + money(data.athleteFee)),
+      grossReais: money(data.gross),
+      payments: data.payments,
+    };
   }
 
   /** Histórico de um torneio, ou do padrão (`null`), do mais recente para trás. */

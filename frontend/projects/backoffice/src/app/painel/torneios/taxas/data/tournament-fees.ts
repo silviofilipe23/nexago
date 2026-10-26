@@ -3,15 +3,21 @@
  * validação e cascata) e de `computePlatformFeeReais` (`platform-fees.ts`). Mudou lá, muda aqui.
  *
  * Cascata da cobrança: exceção do torneio vigente > comissão do cadastro do organizador (com o
- * piso do padrão) > padrão da plataforma. A taxa é sempre descontada do organizador.
+ * piso do padrão) > padrão da plataforma.
+ *
+ * Quem paga: o organizador (desconto no repasse; sem o campo, como sempre foi), o atleta (preço +
+ * taxa) ou dividido (metade por cima do preço, metade do repasse). Na comissão do cadastro quem paga
+ * é sempre o organizador.
  */
 
 export type FeeMode = 'padrao' | 'custom' | 'isento';
 export type FeeSource = 'tournament' | 'organizer' | 'default';
+export type FeePayer = 'atleta' | 'organizador' | 'dividido';
 
 export interface FeeRule {
   percent: number;
   floorReais: number;
+  payer: FeePayer;
 }
 
 export interface ResolvedFeeRule extends FeeRule {
@@ -30,11 +36,15 @@ export interface FeeDraft {
   mode: FeeMode;
   percent: number;
   floorReais: number;
+  /** Só vale na personalizada; nos outros modos acompanha a base. */
+  payer: FeePayer;
   reason: string;
   until: string;
 }
 
-export const DEFAULT_FEE_RULE: FeeRule = { percent: 8, floorReais: 1.5 };
+/** Sem `payer` gravado: o organizador paga, como antes do campo existir. */
+export const DEFAULT_FEE_PAYER: FeePayer = 'organizador';
+export const DEFAULT_FEE_RULE: FeeRule = { percent: 8, floorReais: 1.5, payer: DEFAULT_FEE_PAYER };
 export const MAX_FEE_PERCENT = 20;
 export const MAX_FEE_FLOOR_REAIS = 20;
 
@@ -45,7 +55,20 @@ export const FEE_REASONS = [
   'Correção de cadastro',
 ] as const;
 
-export const NO_FEE: FeeRule = { percent: 0, floorReais: 0 };
+/** Ordem e rótulos do seletor (protótipo `TX_PAYERS`). */
+export const FEE_PAYERS: ReadonlyArray<readonly [FeePayer, string]> = [
+  ['atleta', 'Atleta'],
+  ['organizador', 'Organizador'],
+  ['dividido', 'Dividido'],
+];
+
+export const FEE_PAYER_LABEL: Record<FeePayer, string> = {
+  atleta: 'Atleta',
+  organizador: 'Organizador',
+  dividido: 'Dividido',
+};
+
+export const NO_FEE: FeeRule = { percent: 0, floorReais: 0, payer: DEFAULT_FEE_PAYER };
 
 type Raw = Record<string, unknown>;
 
@@ -74,6 +97,14 @@ export function isValidCommission(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= MAX_FEE_PERCENT;
 }
 
+export function isFeePayer(v: unknown): v is FeePayer {
+  return v === 'atleta' || v === 'organizador' || v === 'dividido';
+}
+
+function payerOf(v: unknown): FeePayer {
+  return isFeePayer(v) ? v : DEFAULT_FEE_PAYER;
+}
+
 export function isCivilDate(v: unknown): v is string {
   if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
     return false;
@@ -92,6 +123,7 @@ export function feeDefaultsFromRaw(raw: unknown): FeeRule {
   return {
     percent: isValidFeePercent(data['percent']) ? data['percent'] : DEFAULT_FEE_RULE.percent,
     floorReais: isValidFeeFloor(data['floorReais']) ? data['floorReais'] : DEFAULT_FEE_RULE.floorReais,
+    payer: payerOf(data['payer']),
   };
 }
 
@@ -102,12 +134,13 @@ export function feeOverrideFromRaw(raw: unknown): TournamentFeeOverride | null {
   const until = isCivilDate(raw['until']) ? raw['until'] : null;
   const reason = typeof raw['reason'] === 'string' ? raw['reason'] : '';
   if (raw['mode'] === 'isento') {
-    return { mode: 'isento', percent: 0, floorReais: 0, reason, until };
+    return { mode: 'isento', ...NO_FEE, reason, until };
   }
   if (raw['mode'] !== 'custom' || !isValidFeePercent(raw['percent']) || !isValidFeeFloor(raw['floorReais'])) {
     return null;
   }
-  return { mode: 'custom', percent: raw['percent'], floorReais: raw['floorReais'], reason, until };
+  const payer = payerOf(raw['payer']);
+  return { mode: 'custom', percent: raw['percent'], floorReais: raw['floorReais'], payer, reason, until };
 }
 
 export function isOverrideActive(override: TournamentFeeOverride, today: string): boolean {
@@ -117,7 +150,7 @@ export function isOverrideActive(override: TournamentFeeOverride, today: string)
 /** A regra "padrão" do torneio, sem exceção: a comissão do cadastro do organizador, senão a plataforma. */
 export function baseRule(commissionPercent: number | null, defaults: FeeRule): ResolvedFeeRule {
   return isValidCommission(commissionPercent)
-    ? { percent: commissionPercent, floorReais: defaults.floorReais, source: 'organizer' }
+    ? { percent: commissionPercent, floorReais: defaults.floorReais, payer: 'organizador', source: 'organizer' }
     : { ...defaults, source: 'default' };
 }
 
@@ -128,7 +161,7 @@ export function resolveRule(
   today: string,
 ): ResolvedFeeRule {
   if (override && isOverrideActive(override, today)) {
-    return { percent: override.percent, floorReais: override.floorReais, source: 'tournament' };
+    return { percent: override.percent, floorReais: override.floorReais, payer: override.payer, source: 'tournament' };
   }
   return baseRule(commissionPercent, defaults);
 }
@@ -143,10 +176,27 @@ export function feeReais(amountReais: number, rule: FeeRule): number {
   return Math.max(0, capped);
 }
 
-/** Atleta paga o preço; organizador recebe o preço menos a taxa (antes da taxa do meio de pagamento). */
+/** `athleteFeeReais` do servidor: toda a taxa, metade (centavo ímpar fica com o organizador) ou nada. */
+export function athleteFeeReais(priceReais: number, rule: FeeRule): number {
+  if (rule.payer === 'organizador') {
+    return 0;
+  }
+  const feeCents = Math.round(feeReais(priceReais, rule) * 100);
+  return (rule.payer === 'atleta' ? feeCents : Math.floor(feeCents / 2)) / 100;
+}
+
+/**
+ * Por inscrição: a taxa da NexaGO, o que o atleta paga (preço + a parte dele) e o que o organizador
+ * recebe (preço − a parte dele), antes da taxa do meio de pagamento.
+ */
 export function feeSplit(priceReais: number, rule: FeeRule): { fee: number; athlete: number; organizer: number } {
   const fee = feeReais(priceReais, rule);
-  return { fee, athlete: priceReais, organizer: roundMoney(priceReais - fee) };
+  const athletePart = athleteFeeReais(priceReais, rule);
+  return {
+    fee,
+    athlete: roundMoney(priceReais + athletePart),
+    organizer: roundMoney(priceReais - (fee - athletePart)),
+  };
 }
 
 export function draftOf(override: TournamentFeeOverride | null, base: FeeRule): FeeDraft {
@@ -154,6 +204,7 @@ export function draftOf(override: TournamentFeeOverride | null, base: FeeRule): 
     mode: override?.mode ?? 'padrao',
     percent: override?.mode === 'custom' ? override.percent : base.percent,
     floorReais: override?.mode === 'custom' ? override.floorReais : base.floorReais,
+    payer: override?.mode === 'custom' ? override.payer : base.payer,
     reason: override?.reason ?? '',
     until: override?.until ?? '',
   };
@@ -164,7 +215,12 @@ export function draftRule(draft: FeeDraft, base: FeeRule): FeeRule {
   if (draft.mode === 'isento') {
     return NO_FEE;
   }
-  return draft.mode === 'custom' ? { percent: draft.percent, floorReais: draft.floorReais } : base;
+  return draft.mode === 'custom' ? { percent: draft.percent, floorReais: draft.floorReais, payer: draft.payer } : base;
+}
+
+/** Mesma regra para a cobrança: % , mínimo e quem paga. */
+export function sameRule(a: FeeRule, b: FeeRule): boolean {
+  return a.percent === b.percent && a.floorReais === b.floorReais && a.payer === b.payer;
 }
 
 /** Mesmos campos que o servidor recusa (`tournamentFeeErrors`). */
@@ -208,7 +264,7 @@ export function sameDraft(a: FeeDraft, b: FeeDraft): boolean {
   if (a.mode === 'padrao') {
     return true;
   }
-  const rule = a.mode === 'isento' || (a.percent === b.percent && a.floorReais === b.floorReais);
+  const rule = a.mode === 'isento' || (a.percent === b.percent && a.floorReais === b.floorReais && a.payer === b.payer);
   return rule && a.reason === b.reason && (a.until || '') === (b.until || '');
 }
 

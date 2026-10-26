@@ -12,7 +12,7 @@ import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths"
 import {loadTournamentFeeRule, tournamentFeeReais, type FeeRule} from "./tournament-fees";
 import {loadTournamentData} from "./tournament-registration-guards";
 
-/** Regra da taxa do torneio (% e piso); `null` sem organizador. */
+/** Regra da taxa do torneio (%, piso e quem paga); `null` sem organizador. */
 export async function tournamentFeeRule(
   db: Firestore,
   tournamentId: string,
@@ -20,8 +20,8 @@ export async function tournamentFeeRule(
 ): Promise<FeeRule | null> {
   const organizerId = typeof tournament?.["managerId"] === "string" ? tournament["managerId"].trim() : "";
   if (!organizerId) return null;
-  const {percent, floorReais} = await loadTournamentFeeRule(db, tournamentId, organizerId, new Date());
-  return {percent, floorReais};
+  const {percent, floorReais, payer} = await loadTournamentFeeRule(db, tournamentId, organizerId, new Date());
+  return {percent, floorReais, payer};
 }
 
 /**

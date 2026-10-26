@@ -7,6 +7,7 @@ import { SegComponent } from '../../planos/ui/seg.component';
 import { simulateOnPaid, type FeeRow } from '../data/fee-rows';
 import type { FeeLogEntry, TournamentRevenue } from '../data/tournament-fees.repository';
 import {
+  FEE_PAYERS,
   FEE_REASONS,
   SOURCE_LABEL,
   brl,
@@ -18,8 +19,10 @@ import {
   pctLabel,
   ruleLabel,
   sameDraft,
+  sameRule,
   type FeeDraft,
   type FeeMode,
+  type FeePayer,
 } from '../data/tournament-fees';
 
 export interface FeeSaveRequest {
@@ -71,7 +74,11 @@ const STAMP = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit
                 <span class="hint" [class.bad]="!!issues()['floorReais']">{{ issues()['floorReais'] || 'Por pagamento: cobre o custo do PIX em valores baixos.' }}</span>
               </div>
             </div>
-            <p class="note">A taxa sai do repasse ao organizador; o preço para o atleta não muda.</p>
+            <div class="f">
+              <span class="lbl">Quem paga a taxa</span>
+              <bo-seg label="Quem paga a taxa" [options]="payers" [value]="draft().payer" [disabled]="!canEdit()" (valueChange)="setPayer($event)" />
+            </div>
+            <p class="note">{{ payerNote() }}</p>
           }
           @case ('padrao') {
             <p class="note">{{ padraoNote() }}</p>
@@ -262,6 +269,7 @@ export class FeeDrawerComponent {
   protected readonly brl = brl;
   protected readonly ruleLabel = ruleLabel;
   protected readonly reasons = FEE_REASONS;
+  protected readonly payers = FEE_PAYERS;
   protected readonly statusLabel = STATUS_LABEL;
   protected readonly statusTone = STATUS_TONE;
   protected readonly abs = Math.abs;
@@ -286,8 +294,18 @@ export class FeeDrawerComponent {
   protected readonly ruleChanged = computed(
     () =>
       Object.keys(this.issues()).filter((k) => k === 'percent' || k === 'floorReais').length === 0 &&
-      (this.nextRule().percent !== this.row().rule.percent || this.nextRule().floorReais !== this.row().rule.floorReais),
+      !sameRule(this.nextRule(), this.row().rule),
   );
+  protected readonly payerNote = computed(() => {
+    switch (this.draft().payer) {
+      case 'atleta':
+        return 'O atleta paga a taxa por cima do preço da inscrição; o repasse ao organizador não tem desconto da NexaGO.';
+      case 'dividido':
+        return 'Metade da taxa vai por cima do preço da inscrição; a outra metade sai do repasse ao organizador.';
+      default:
+        return 'A taxa sai do repasse ao organizador; o preço para o atleta não muda.';
+    }
+  });
 
   protected readonly price = computed(() => this.t().entryFeeReais?.max ?? null);
   protected readonly priceNote = computed(() => {
@@ -347,6 +365,10 @@ export class FeeDrawerComponent {
   /** Alteração não salva no drawer (a tela pergunta antes de sair). */
   isDirty(): boolean {
     return this.canEdit() && this.changed();
+  }
+
+  protected setPayer(payer: FeePayer): void {
+    this.patch({ payer });
   }
 
   protected setMode(mode: FeeMode): void {

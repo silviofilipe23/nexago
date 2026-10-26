@@ -5,14 +5,20 @@ import {HttpsError} from "firebase-functions/v2/https";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {
   DEFAULT_FEE_RULE,
+  NO_FEE_RULE,
+  athleteFeeReais,
+  athleteVisibleFeeRule,
   feeDefaultsFromRaw,
   feeOverrideFromRaw,
   feeRuleFromRaw,
+  inferAthleteFeeReais,
+  loadAthleteVisibleFeeRule,
   loadTournamentFeeRule,
   organizerFeePercent,
   resolveTournamentFeeRule,
   saveFeeDefaultCore,
   saveTournamentFeeCore,
+  splitTournamentFee,
   tournamentFeeChanges,
   tournamentFeeErrors,
   tournamentFeeReais,
@@ -46,42 +52,55 @@ async function rejectsWith(p: Promise<unknown>, code: string): Promise<HttpsErro
 
 describe("tournament-fees: leitura", () => {
   it("padrão ausente ou corrompido cai nos 8% com piso de R$ 1,50", () => {
-    assert.deepEqual(feeDefaultsFromRaw(undefined), {percent: 8, floorReais: 1.5});
-    assert.deepEqual(feeDefaultsFromRaw({percent: 99, floorReais: -1}), DEFAULT_FEE_RULE);
-    assert.deepEqual(feeDefaultsFromRaw({percent: 7.5, floorReais: 2}), {percent: 7.5, floorReais: 2});
+    assert.deepEqual(feeDefaultsFromRaw(undefined), {percent: 8, floorReais: 1.5, payer: "organizador"});
+    assert.deepEqual(feeDefaultsFromRaw({percent: 99, floorReais: -1, payer: "ninguém"}), DEFAULT_FEE_RULE);
+    assert.deepEqual(feeDefaultsFromRaw({percent: 7.5, floorReais: 2}), {percent: 7.5, floorReais: 2, payer: "organizador"});
+    assert.deepEqual(feeDefaultsFromRaw({percent: 7.5, floorReais: 2, payer: "atleta"}),
+      {percent: 7.5, floorReais: 2, payer: "atleta"});
   });
 
   it("exceção: custom precisa de % e piso válidos; isento zera; padrão não é exceção", () => {
     assert.deepEqual(feeOverrideFromRaw({mode: "custom", percent: 6, floorReais: 2, reason: "Parceria comercial"}), {
-      mode: "custom", percent: 6, floorReais: 2, reason: "Parceria comercial", until: null,
+      mode: "custom", percent: 6, floorReais: 2, payer: "organizador", reason: "Parceria comercial", until: null,
     });
+    assert.equal(feeOverrideFromRaw({mode: "custom", percent: 6, floorReais: 2, payer: "dividido"})?.payer, "dividido");
     assert.equal(feeOverrideFromRaw({mode: "custom", percent: 50, floorReais: 2}), null);
     assert.deepEqual(feeOverrideFromRaw({mode: "isento", until: "2026-12-31"}), {
-      mode: "isento", percent: 0, floorReais: 0, reason: "", until: "2026-12-31",
+      mode: "isento", percent: 0, floorReais: 0, payer: "organizador", reason: "", until: "2026-12-31",
     });
     assert.equal(feeOverrideFromRaw({mode: "padrao", version: 3}), null);
     assert.equal(feeOverrideFromRaw(undefined), null);
   });
 
   it("regra congelada no pagamento", () => {
-    assert.deepEqual(feeRuleFromRaw({percent: 6, floorReais: 2, source: "tournament"}), {percent: 6, floorReais: 2});
+    assert.deepEqual(feeRuleFromRaw({percent: 6, floorReais: 2, source: "tournament"}), {percent: 6, floorReais: 2, payer: "organizador"});
+    assert.deepEqual(feeRuleFromRaw({percent: 6, floorReais: 2, payer: "atleta"}), {percent: 6, floorReais: 2, payer: "atleta"});
     assert.equal(feeRuleFromRaw({percent: "6"}), null);
     assert.equal(feeRuleFromRaw(null), null);
   });
 });
 
 describe("tournament-fees: cascata", () => {
-  const defaults = {percent: 8, floorReais: 1.5};
-  const custom = {mode: "custom" as const, percent: 5, floorReais: 2, reason: "Parceria comercial", until: null};
+  const defaults = {percent: 8, floorReais: 1.5, payer: "organizador" as const};
+  const custom = {mode: "custom" as const, percent: 5, floorReais: 2, payer: "organizador" as const, reason: "Parceria comercial", until: null};
 
   it("exceção do torneio > comissão do organizador > padrão", () => {
     const organizer = {commissionPercent: 6};
     assert.deepEqual(resolveTournamentFeeRule({override: custom, organizer, defaults, today: TODAY}),
-      {percent: 5, floorReais: 2, source: "tournament"});
+      {percent: 5, floorReais: 2, payer: "organizador", source: "tournament"});
     assert.deepEqual(resolveTournamentFeeRule({override: null, organizer, defaults, today: TODAY}),
-      {percent: 6, floorReais: 1.5, source: "organizer"});
+      {percent: 6, floorReais: 1.5, payer: "organizador", source: "organizer"});
     assert.deepEqual(resolveTournamentFeeRule({override: null, organizer: null, defaults, today: TODAY}),
-      {percent: 8, floorReais: 1.5, source: "default"});
+      {percent: 8, floorReais: 1.5, payer: "organizador", source: "default"});
+  });
+
+  it("quem paga: exceção e padrão levam o seu; comissão do cadastro é sempre do organizador", () => {
+    const organizer = {commissionPercent: 6};
+    const atleta = {...defaults, payer: "atleta" as const};
+    assert.equal(resolveTournamentFeeRule({override: {...custom, payer: "dividido"}, organizer, defaults, today: TODAY}).payer,
+      "dividido");
+    assert.equal(resolveTournamentFeeRule({override: null, organizer, defaults: atleta, today: TODAY}).payer, "organizador");
+    assert.equal(resolveTournamentFeeRule({override: null, organizer: null, defaults: atleta, today: TODAY}).payer, "atleta");
   });
 
   it("exceção vale até o dia de `until` (inclusive) e depois volta à cascata, sem varredura", () => {
@@ -92,31 +111,31 @@ describe("tournament-fees: cascata", () => {
 
   it("isento não cobra nem o piso", () => {
     const rule = resolveTournamentFeeRule({
-      override: {mode: "isento", percent: 0, floorReais: 0, reason: "Evento beneficente", until: null},
+      override: {mode: "isento", percent: 0, floorReais: 0, payer: "organizador", reason: "Evento beneficente", until: null},
       organizer: {commissionPercent: 6}, defaults, today: TODAY,
     });
     assert.equal(tournamentFeeReais(120, rule), 0);
   });
 
   it("piso da regra: 5% de R$ 20 = R$ 1, sobe para o mínimo de R$ 2", () => {
-    assert.equal(tournamentFeeReais(20, {percent: 5, floorReais: 2}), 2);
-    assert.equal(tournamentFeeReais(100, {percent: 5, floorReais: 2}), 5);
+    assert.equal(tournamentFeeReais(20, {percent: 5, floorReais: 2, payer: "organizador"}), 2);
+    assert.equal(tournamentFeeReais(100, {percent: 5, floorReais: 2, payer: "organizador"}), 5);
   });
 
   it("carrega exceção, cadastro do organizador e padrão do Firestore", async () => {
     const {fake, db} = makeDb();
     fake.seedDoc("appConfig/tournamentFees", {percent: 9, floorReais: 1});
-    assert.deepEqual(await loadTournamentFeeRule(db, "t1", "org1", NOW), {percent: 9, floorReais: 1, source: "default"});
+    assert.deepEqual(await loadTournamentFeeRule(db, "t1", "org1", NOW), {percent: 9, floorReais: 1, payer: "organizador", source: "default"});
     assert.equal(await organizerFeePercent(db, "org1"), 9);
 
     fake.seedDoc("organizers/org1", {commissionPercent: 6});
-    assert.deepEqual(await loadTournamentFeeRule(db, "t1", "org1", NOW), {percent: 6, floorReais: 1, source: "organizer"});
+    assert.deepEqual(await loadTournamentFeeRule(db, "t1", "org1", NOW), {percent: 6, floorReais: 1, payer: "organizador", source: "organizer"});
     assert.equal(await organizerFeePercent(db, "org1"), 6);
 
     fake.seedDoc("tournamentFees/t1", {mode: "isento", reason: "Evento beneficente", until: "2026-10-25"});
     assert.equal((await loadTournamentFeeRule(db, "t1", "org1", NOW)).source, "organizer", "vencida ontem");
     fake.seedDoc("tournamentFees/t1", {mode: "isento", reason: "Evento beneficente", until: null});
-    assert.deepEqual(await loadTournamentFeeRule(db, "t1", "org1", NOW), {percent: 0, floorReais: 0, source: "tournament"});
+    assert.deepEqual(await loadTournamentFeeRule(db, "t1", "org1", NOW), {percent: 0, floorReais: 0, payer: "organizador", source: "tournament"});
   });
 });
 
@@ -147,10 +166,13 @@ describe("tournament-fees: validação", () => {
   });
 
   it("descreve a mudança para o histórico", () => {
-    assert.deepEqual(tournamentFeeChanges(null, {mode: "custom", percent: 6, floorReais: 2, reason: "Parceria comercial", until: "2026-12-31"}),
-      ["padrão → 6% · mínimo R$ 2,00", "válida até 31/12/2026"]);
-    assert.deepEqual(tournamentFeeChanges({mode: "isento", percent: 0, floorReais: 0, reason: "Evento beneficente", until: null}, null),
+    const custom = {mode: "custom" as const, percent: 6, floorReais: 2, payer: "organizador" as const, reason: "Parceria comercial",
+      until: "2026-12-31"};
+    assert.deepEqual(tournamentFeeChanges(null, custom), ["padrão → 6% · mínimo R$ 2,00", "válida até 31/12/2026"]);
+    assert.deepEqual(tournamentFeeChanges({mode: "isento", percent: 0, floorReais: 0, payer: "organizador", reason: "Evento beneficente", until: null}, null),
       ["isento → padrão"]);
+    assert.deepEqual(tournamentFeeChanges(custom, {...custom, payer: "atleta"}),
+      ["6% · mínimo R$ 2,00 → 6% · mínimo R$ 2,00 · quem paga: Atleta"]);
   });
 });
 
@@ -158,7 +180,7 @@ describe("tournament-fees: saveFeeDefaultCore", () => {
   it("grava a versão 2, loga a mudança e acusa conflito de versão", async () => {
     const {fake, db} = makeDb();
     const out = await saveFeeDefaultCore(db, {percent: 7, floorReais: 2, version: 1}, ACTOR, NOW);
-    assert.deepEqual(out, {version: 2, percent: 7, floorReais: 2, changes: ["8% → 7%", "mínimo R$ 1,50 → R$ 2,00"]});
+    assert.deepEqual(out, {version: 2, percent: 7, floorReais: 2, payer: "organizador", changes: ["8% → 7%", "mínimo R$ 1,50 → R$ 2,00"]});
     const doc = fake.store.get("appConfig/tournamentFees")!;
     assert.equal(doc["percent"], 7);
     assert.equal(doc["version"], 2);
@@ -169,6 +191,23 @@ describe("tournament-fees: saveFeeDefaultCore", () => {
     await rejectsWith(saveFeeDefaultCore(db, {percent: 6, floorReais: 2, version: 1}, ACTOR, NOW), "failed-precondition");
     await rejectsWith(saveFeeDefaultCore(db, {percent: 7, floorReais: 2, version: 2}, ACTOR, NOW), "invalid-argument");
     await rejectsWith(saveFeeDefaultCore(db, {percent: 30, floorReais: 2, version: 2}, ACTOR, NOW), "invalid-argument");
+  });
+
+  it("quem paga: grava e loga a troca; sem o campo, mantém o gravado", async () => {
+    const {fake, db} = makeDb();
+    const out = await saveFeeDefaultCore(db, {percent: 8, floorReais: 1.5, payer: "atleta", version: 1}, ACTOR, NOW);
+    assert.deepEqual(out.changes, ["quem paga: Organizador → Atleta"]);
+    assert.equal(fake.store.get("appConfig/tournamentFees")!["payer"], "atleta");
+
+    const kept = await saveFeeDefaultCore(db, {percent: 7, floorReais: 1.5, version: 2}, ACTOR, NOW);
+    assert.equal(kept.payer, "atleta");
+    assert.equal(fake.store.get("appConfig/tournamentFees")!["payer"], "atleta");
+
+    const e = await rejectsWith(
+      saveFeeDefaultCore(db, {percent: 7, floorReais: 1.5, payer: "plataforma" as never, version: 3}, ACTOR, NOW),
+      "invalid-argument",
+    );
+    assert.deepEqual((e.details as {fields: string[]}).fields, ["payer"]);
   });
 });
 
@@ -199,6 +238,29 @@ describe("tournament-fees: saveTournamentFeeCore", () => {
     assert.equal(logs(fake)[0]!["tournamentId"], "t1");
     assert.equal(sent[0]!.managerId, "org1");
     assert.match(sent[0]!.body, /6% \(mínimo R\$ 2,00\).*até 31\/12\/2026/);
+    assert.equal(doc["payer"], "organizador", "sem o campo, o organizador paga");
+  });
+
+  it("personalizada com quem paga: grava, descreve e avisa quem paga", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    const sent: Array<{body: string}> = [];
+    const out = await saveTournamentFeeCore(db, {
+      tournamentId: "t1", mode: "custom", percent: 6, floorReais: 2, payer: "dividido", reason: "Parceria comercial",
+      notify: true, version: 0,
+    }, ACTOR, NOW, async (n) => {
+      sent.push(n);
+    });
+    assert.equal(out.override?.payer, "dividido");
+    assert.equal(fake.store.get("tournamentFees/t1")!["payer"], "dividido");
+    assert.deepEqual(out.changes, ["padrão → 6% · mínimo R$ 2,00 · quem paga: Dividido"]);
+    assert.match(sent[0]!.body, /dividida: metade por cima do valor da inscrição, metade do seu repasse/);
+
+    const e = await rejectsWith(saveTournamentFeeCore(db, {
+      tournamentId: "t1", mode: "custom", percent: 6, floorReais: 2, payer: "x" as never, reason: "Parceria comercial",
+      version: 1,
+    }, ACTOR, NOW), "invalid-argument");
+    assert.deepEqual((e.details as {fields: string[]}).fields, ["payer"]);
   });
 
   it("voltar ao padrão mantém o doc (versão) sem exceção e não avisa sem pedido", async () => {
@@ -241,5 +303,58 @@ describe("tournament-fees: saveTournamentFeeCore", () => {
     const e = await rejectsWith(saveTournamentFeeCore(db, {tournamentId: "t1", mode: "custom", version: 2}, ACTOR, NOW),
       "invalid-argument");
     assert.deepEqual((e.details as {fields: string[]}).fields, ["percent", "floorReais", "reason"]);
+  });
+});
+
+describe("tournament-fees: quem paga", () => {
+  const rule = (payer: "atleta" | "organizador" | "dividido") => ({percent: 8, floorReais: 1.5, payer});
+
+  it("parte do atleta: toda a taxa, metade (centavo ímpar fica com o organizador) ou nada", () => {
+    assert.equal(athleteFeeReais(50, rule("atleta")), 4);
+    assert.equal(athleteFeeReais(50, rule("dividido")), 2);
+    assert.equal(athleteFeeReais(50, rule("organizador")), 0);
+    // R$ 19,37 × 8% = R$ 1,55 → metade R$ 0,77 para o atleta, R$ 0,78 do repasse.
+    assert.equal(athleteFeeReais(19.37, rule("dividido")), 0.77);
+    // Piso: R$ 10 × 8% = R$ 0,80 → R$ 1,50.
+    assert.equal(athleteFeeReais(10, rule("atleta")), 1.5);
+    assert.equal(athleteFeeReais(100, NO_FEE_RULE), 0);
+  });
+
+  it("divisão da taxa: o organizador paga o que o atleta não pagou, nunca negativo", () => {
+    assert.deepEqual(splitTournamentFee(50, rule("atleta"), 4), {platformFeeReais: 4, organizerFeeReais: 0});
+    assert.deepEqual(splitTournamentFee(19.37, rule("dividido"), 0.77), {platformFeeReais: 1.55, organizerFeeReais: 0.78});
+    assert.deepEqual(splitTournamentFee(50, rule("organizador"), 0), {platformFeeReais: 4, organizerFeeReais: 4});
+    // Taxa baixou entre a cobrança e a confirmação: a nexaGO fica com o que o atleta pagou.
+    assert.deepEqual(splitTournamentFee(50, {...rule("atleta"), percent: 5}, 4), {platformFeeReais: 4, organizerFeeReais: 0});
+  });
+
+  it("refaz preço e parte do atleta a partir do bruto cobrado", () => {
+    assert.equal(inferAthleteFeeReais(54, rule("atleta")), 4);
+    assert.equal(inferAthleteFeeReais(52, rule("dividido")), 2);
+    assert.equal(inferAthleteFeeReais(11.5, rule("atleta")), 1.5);
+    assert.equal(inferAthleteFeeReais(20.14, rule("dividido")), 0.77);
+    assert.equal(inferAthleteFeeReais(50, rule("organizador")), 0);
+  });
+
+  it("o atleta só vê a regra quando paga parte dela", () => {
+    assert.deepEqual(athleteVisibleFeeRule({...rule("atleta"), percent: 6}), {percent: 6, floorReais: 1.5, payer: "atleta"});
+    assert.deepEqual(athleteVisibleFeeRule({...rule("organizador"), percent: 6}), NO_FEE_RULE);
+    assert.deepEqual(athleteVisibleFeeRule(null), NO_FEE_RULE);
+  });
+
+  it("prévia do checkout: cascata do torneio, sem expor a comissão do cadastro", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("tournaments/t1", {name: "Open Goiás", managerId: "org1"});
+    fake.seedDoc("tournaments/semdono", {name: "Sem organizador"});
+    fake.seedDoc("appConfig/tournamentFees", {percent: 8, floorReais: 1.5, payer: "atleta"});
+    assert.deepEqual(await loadAthleteVisibleFeeRule(db, "t1", NOW), {percent: 8, floorReais: 1.5, payer: "atleta"});
+    assert.deepEqual(await loadAthleteVisibleFeeRule(db, "semdono", NOW), NO_FEE_RULE);
+
+    fake.seedDoc("organizers/org1", {commissionPercent: 5});
+    assert.deepEqual(await loadAthleteVisibleFeeRule(db, "t1", NOW), NO_FEE_RULE);
+
+    fake.seedDoc("tournamentFees/t1", {mode: "custom", percent: 6, floorReais: 2, payer: "dividido", until: null});
+    assert.deepEqual(await loadAthleteVisibleFeeRule(db, "t1", NOW), {percent: 6, floorReais: 2, payer: "dividido"});
+    await rejectsWith(loadAthleteVisibleFeeRule(db, "nada", NOW), "not-found");
   });
 });

@@ -2,15 +2,27 @@ import { ChangeDetectionStrategy, Component, computed, input, output, signal } f
 import { NumFieldComponent } from '../../../squad/niveis-regras/ui/num-field.component';
 import { IconComponent } from '../../../ui/icon.component';
 import { PanelCardComponent } from '../../../ui/panel-card.component';
-import { brl, defaultIssues, feeSplit, pctLabel, type FeeRule } from '../data/tournament-fees';
+import { SegComponent } from '../../planos/ui/seg.component';
+import {
+  DEFAULT_FEE_RULE,
+  FEE_PAYERS,
+  FEE_PAYER_LABEL,
+  brl,
+  defaultIssues,
+  feeSplit,
+  pctLabel,
+  sameRule,
+  type FeePayer,
+  type FeeRule,
+} from '../data/tournament-fees';
 
 const EXAMPLE_PRICE = 100;
 
-/** Card "Taxa padrão da plataforma": leitura e edição (comissão e mínimo por inscrição). */
+/** Card "Taxa padrão da plataforma": leitura e edição (comissão, mínimo por inscrição e quem paga). */
 @Component({
   selector: 'bo-fee-default-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelCardComponent, NumFieldComponent, IconComponent],
+  imports: [PanelCardComponent, NumFieldComponent, IconComponent, SegComponent],
   template: `
     <bo-panel-card kicker="Vale para todos os torneios sem exceção" title="Taxa padrão da plataforma">
       <div card-actions class="actions">
@@ -45,7 +57,11 @@ const EXAMPLE_PRICE = 100;
         </div>
         <div class="f">
           <span class="lbl">Quem paga</span>
-          <span class="stat">Organizador</span>
+          @if (editing()) {
+            <bo-seg label="Quem paga" [options]="payers" [value]="draft().payer" (valueChange)="setPayer($event)" />
+          } @else {
+            <span class="stat">{{ payerLabel[rule().payer] }}</span>
+          }
         </div>
         <div class="example">
           Inscrição de {{ brl(examplePrice) }} → atleta paga <b>{{ brl(example().athlete) }}</b>, organizador recebe
@@ -69,7 +85,7 @@ const EXAMPLE_PRICE = 100;
   `,
   styles: `
     .actions { display: flex; gap: 8px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr 1fr minmax(0, 1.4fr); gap: 16px; align-items: end; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr 1.4fr minmax(0, 1.3fr); gap: 16px; align-items: end; }
     .f { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
     .lbl { font-family: var(--nx-font-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--nx-text-dim); }
     .stat { height: 40px; display: flex; align-items: center; font-family: var(--nx-font-display); font-weight: 800; font-size: 24px; letter-spacing: -0.02em; }
@@ -102,14 +118,14 @@ export class FeeDefaultCardComponent {
   protected readonly brl = brl;
   protected readonly pct = pctLabel;
   protected readonly examplePrice = EXAMPLE_PRICE;
+  protected readonly payers = FEE_PAYERS;
+  protected readonly payerLabel = FEE_PAYER_LABEL;
 
   protected readonly editing = signal(false);
-  protected readonly draft = signal<FeeRule>({ percent: 0, floorReais: 0 });
+  protected readonly draft = signal<FeeRule>({ ...DEFAULT_FEE_RULE });
 
   protected readonly issues = computed(() => defaultIssues(this.draft()));
-  protected readonly dirty = computed(
-    () => this.draft().percent !== this.rule().percent || this.draft().floorReais !== this.rule().floorReais,
-  );
+  protected readonly dirty = computed(() => !sameRule(this.draft(), this.rule()));
   protected readonly canSave = computed(
     () => this.dirty() && Object.keys(this.issues()).length === 0 && !this.saving(),
   );
@@ -147,6 +163,10 @@ export class FeeDefaultCardComponent {
 
   protected patch(p: Partial<FeeRule>): void {
     this.draft.update((d) => ({ ...d, ...p }));
+  }
+
+  protected setPayer(payer: FeePayer): void {
+    this.patch({ payer });
   }
 
   protected asNumber(v: unknown): number {

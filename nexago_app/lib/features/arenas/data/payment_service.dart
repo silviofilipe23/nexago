@@ -2,6 +2,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/firebase/functions_region.dart';
+import '../../tournaments/domain/tournament_service_fee.dart';
 
 /// Resposta das callables de PIX da reserva e da inscrição.
 class ArenaBookingPixPaymentResult {
@@ -13,6 +14,7 @@ class ArenaBookingPixPaymentResult {
     required this.amountToPayNowReais,
     this.cashbackAppliedReais = 0,
     this.squadDiscountReais = 0,
+    this.serviceFeeReais = 0,
     double? chargedReais,
   }) : chargedReais = chargedReais ?? amountToPayNowReais;
 
@@ -33,6 +35,11 @@ class ArenaBookingPixPaymentResult {
   /// Desconto do código/link de embaixador (NexaSquad), já fora de
   /// [chargedReais]. Sai da taxa da nexaGO; só existe na inscrição.
   final double squadDiscountReais;
+
+  /// Parte da taxa de serviço da nexaGO paga pelo atleta, por cima do preço
+  /// e já dentro de [chargedReais]. 0 quando o organizador paga (ou resposta
+  /// antiga); só existe na inscrição.
+  final double serviceFeeReais;
 }
 
 /// Resposta da callable de cartão da inscrição: o checkout HOSPEDADO do Asaas.
@@ -45,6 +52,7 @@ class CardCheckoutPaymentResult {
     required this.amountReais,
     this.cashbackAppliedReais = 0,
     this.squadDiscountReais = 0,
+    this.serviceFeeReais = 0,
     double? chargedReais,
   }) : chargedReais = chargedReais ?? amountReais;
 
@@ -66,6 +74,11 @@ class CardCheckoutPaymentResult {
   /// Desconto do código/link de embaixador (NexaSquad), já fora de
   /// [chargedReais].
   final double squadDiscountReais;
+
+  /// Parte da taxa de serviço da nexaGO paga pelo atleta, por cima do preço
+  /// e já dentro de [chargedReais]. 0 quando o organizador paga (ou resposta
+  /// antiga).
+  final double serviceFeeReais;
 }
 
 /// Resposta da callable [createArenaBookingMercadoPagoPayment].
@@ -106,6 +119,8 @@ class PaymentService {
       'reserveDirectOrganizerRegistration';
   static const String _callableCancelPendingTournamentRegistrationPix =
       'cancelPendingTournamentRegistrationPix';
+  static const String _callableGetTournamentServiceFee =
+      'getTournamentServiceFee';
 
   static const Duration tournamentRegistrationPixExpiryFallback =
       Duration(minutes: 15);
@@ -336,6 +351,7 @@ class PaymentService {
     final applied = (map['cashbackAppliedReais'] as num?)?.toDouble() ?? 0;
     final charged = (map['chargedReais'] as num?)?.toDouble();
     final squadDiscount = (map['squadDiscountReais'] as num?)?.toDouble() ?? 0;
+    final serviceFee = _serviceFeeOf(map);
     return CardCheckoutPaymentResult(
       paymentId: paymentId,
       invoiceUrl: invoiceUrl,
@@ -343,7 +359,10 @@ class PaymentService {
       amountReais: amount,
       cashbackAppliedReais: applied > 0 ? applied : 0,
       squadDiscountReais: squadDiscount > 0 ? squadDiscount : 0,
-      chargedReais: charged != null && charged > 0 ? charged : amount,
+      serviceFeeReais: serviceFee,
+      chargedReais: charged != null && charged > 0
+          ? charged
+          : _priceWithServiceFee(amount, serviceFee),
     );
   }
 
@@ -380,6 +399,7 @@ class PaymentService {
     final applied = (map['cashbackAppliedReais'] as num?)?.toDouble() ?? 0;
     final charged = (map['chargedReais'] as num?)?.toDouble();
     final squadDiscount = (map['squadDiscountReais'] as num?)?.toDouble() ?? 0;
+    final serviceFee = _serviceFeeOf(map);
     return ArenaBookingPixPaymentResult(
       paymentId: paymentId,
       qrCode: qrCode,
@@ -388,8 +408,44 @@ class PaymentService {
       amountToPayNowReais: amount,
       cashbackAppliedReais: applied > 0 ? applied : 0,
       squadDiscountReais: squadDiscount > 0 ? squadDiscount : 0,
-      chargedReais: charged != null && charged > 0 ? charged : amount,
+      serviceFeeReais: serviceFee,
+      chargedReais: charged != null && charged > 0
+          ? charged
+          : _priceWithServiceFee(amount, serviceFee),
     );
+  }
+
+  /// `serviceFeeReais` da cobrança da inscrição; ausente (organizador paga,
+  /// functions antigas, reserva de quadra) = 0.
+  static double _serviceFeeOf(Map<String, dynamic> map) {
+    final fee = (map['serviceFeeReais'] as num?)?.toDouble() ?? 0;
+    return fee.isFinite && fee > 0 ? fee : 0;
+  }
+
+  /// Sem `chargedReais` a cobrança vale o preço mais a parte da taxa.
+  static double _priceWithServiceFee(double price, double serviceFee) =>
+      ((price + serviceFee) * 100).round() / 100;
+
+  /// Regra da taxa de serviço que o atleta vê no checkout da inscrição
+  /// (`getTournamentServiceFee`). É só prévia — a cobrança refaz a conta no
+  /// servidor e devolve `serviceFeeReais` —, então qualquer falha, inclusive
+  /// backend antigo sem a callable (NOT FOUND), vale como sem taxa, em
+  /// silêncio.
+  Future<TournamentServiceFeeRule> getTournamentServiceFee({
+    required String tournamentId,
+  }) async {
+    final id = tournamentId.trim();
+    if (id.isEmpty) return TournamentServiceFeeRule.none;
+    try {
+      final callable = _functions.httpsCallable(
+        _callableGetTournamentServiceFee,
+      );
+      final raw = await callable.call(<String, dynamic>{'tournamentId': id});
+      return TournamentServiceFeeRule.fromMap(raw.data);
+    } catch (e) {
+      debugPrint('getTournamentServiceFee($id): $e');
+      return TournamentServiceFeeRule.none;
+    }
   }
 
   /// Confirma inscrição gratuita (taxa zero) sem PIX.

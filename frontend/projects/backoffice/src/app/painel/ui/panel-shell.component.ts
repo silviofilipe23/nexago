@@ -108,7 +108,7 @@ const SQUAD_GROUP: NavGroup = {
   ],
 };
 
-/** Torneios: a lista + os pacotes vendidos ao organizador (planos v2), os contratos pedidos e as cotas Sponsors. */
+/** Torneios: a lista + os pacotes vendidos ao organizador (planos v2), os contratos pedidos, as cotas Sponsors e as taxas. */
 const TORNEIOS_GROUP: NavGroup = {
   kind: 'group',
   id: 'torneios-grupo',
@@ -120,6 +120,8 @@ const TORNEIOS_GROUP: NavGroup = {
     // Badge real: pedidos de plano esperando o sinal (TournamentBadgesService).
     { kind: 'link', id: 'torneios-contratos', label: 'Contratos', icon: 'cash', route: '/painel/torneios/contratos' },
     { kind: 'link', id: 'torneios-sponsors', label: 'Sponsors', icon: 'sponsor', route: '/painel/torneios/sponsors' },
+    // Comissão sobre inscrições: padrão da plataforma e exceção por torneio.
+    { kind: 'link', id: 'torneios-taxas', label: 'Taxas', icon: 'percent', route: '/painel/torneios/taxas' },
   ],
 };
 
@@ -672,6 +674,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/torneios/sponsors')) {
       return 'torneios-sponsors';
+    }
+    if (path.startsWith('/painel/torneios/taxas')) {
+      return 'torneios-taxas';
     }
     if (path.startsWith('/painel/torneios')) {
       return 'torneios';

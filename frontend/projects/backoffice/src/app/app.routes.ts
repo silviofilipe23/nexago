@@ -110,6 +110,14 @@ export const routes: Routes = [
       import('./painel/torneios/sponsors/panel-sponsors.component').then((m) => m.PanelSponsorsComponent),
   },
   {
+    path: 'painel/torneios/taxas',
+    title: 'Taxas de torneio — NexaGO Backoffice',
+    canActivate: [authGuard],
+    canDeactivate: [leaveWithConfirm],
+    loadComponent: () =>
+      import('./painel/torneios/taxas/panel-taxas.component').then((m) => m.PanelTaxasComponent),
+  },
+  {
     path: 'painel/avaliacoes',
     title: 'Avaliações de torneios — NexaGO Backoffice',
     canActivate: [authGuard],

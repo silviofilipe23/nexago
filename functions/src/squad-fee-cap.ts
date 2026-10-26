@@ -3,41 +3,43 @@
  *
  * O desconto sai da taxa da nexaGO (o organizador recebe o mesmo líquido); sem teto, um desconto
  * maior que a taxa faria a nexaGO pagar do bolso. A taxa é a mesma que o webhook cobra no crédito
- * do organizador: `computePlatformFeeReais(preço, % do organizador)`. Torneio sem organizador não
- * credita carteira nenhuma — a receita inteira é da plataforma —, então ali o teto é só o mínimo
- * de cobrança (`null`).
+ * do organizador: a regra do torneio (`loadTournamentFeeRule`: exceção do torneio, comissão do
+ * organizador ou padrão). Torneio sem organizador não credita carteira nenhuma — a receita inteira
+ * é da plataforma —, então ali o teto é só o mínimo de cobrança (`null`).
  */
 import type {Firestore} from "firebase-admin/firestore";
 import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
-import {computePlatformFeeReais, resolveOrganizerTournamentFeePercent} from "./platform-fees";
+import {loadTournamentFeeRule, tournamentFeeReais, type FeeRule} from "./tournament-fees";
 import {loadTournamentData} from "./tournament-registration-guards";
 
-/** % da taxa do torneio (negociado no cadastro do organizador, senão o padrão); `null` sem organizador. */
-export async function tournamentFeePercent(
+/** Regra da taxa do torneio (%, piso e quem paga); `null` sem organizador. */
+export async function tournamentFeeRule(
   db: Firestore,
+  tournamentId: string,
   tournament: Record<string, unknown> | null | undefined,
-): Promise<number | null> {
+): Promise<FeeRule | null> {
   const organizerId = typeof tournament?.["managerId"] === "string" ? tournament["managerId"].trim() : "";
   if (!organizerId) return null;
-  return resolveOrganizerTournamentFeePercent((await db.doc(`organizers/${organizerId}`).get()).data());
+  const {percent, floorReais, payer} = await loadTournamentFeeRule(db, tournamentId, organizerId, new Date());
+  return {percent, floorReais, payer};
 }
 
 /**
- * O mesmo % a partir da inscrição (para a prévia do checkout, que só conhece a inscrição).
+ * A mesma regra a partir da inscrição (para a prévia do checkout, que só conhece a inscrição).
  * O torneio sai da mesma cascata da cobrança (`loadTournamentData`: topo, senão o caminho legado),
  * ou a prévia de um torneio legado mostra o desconto sem teto e a cobrança aplica outro valor.
  */
-export async function feePercentForRegistration(db: Firestore, registrationId: string): Promise<number | null> {
+export async function feeRuleForRegistration(db: Firestore, registrationId: string): Promise<FeeRule | null> {
   if (!registrationId) return null;
   const projectId = getFirebaseProjectId();
   const reg = (await db.collection(artifactsInscriptionsPath(projectId)).doc(registrationId).get()).data();
   const tournamentId = typeof reg?.["tournamentId"] === "string" ? reg["tournamentId"] : "";
   if (!tournamentId) return null;
-  return tournamentFeePercent(db, await loadTournamentData(db, projectId, tournamentId));
+  return tournamentFeeRule(db, tournamentId, await loadTournamentData(db, projectId, tournamentId));
 }
 
 /** Teto em centavos: a taxa da plataforma sobre o preço desta cobrança; `null` = sem teto de taxa. */
-export function discountFeeCapCents(priceReais: number, feePercent: number | null): number | null {
-  if (feePercent === null) return null;
-  return Math.round(computePlatformFeeReais(priceReais, feePercent) * 100);
+export function discountFeeCapCents(priceReais: number, rule: FeeRule | null): number | null {
+  if (rule === null) return null;
+  return Math.round(tournamentFeeReais(priceReais, rule) * 100);
 }

@@ -8,7 +8,10 @@
  *
  * - Reservas: todos os planos — 8% Starter, 6% Pro, 5% Elite; sem plano = 8%.
  *   Resolução em `arena-entitlement.resolveArenaBookingFeePercent`.
- * - Inscrições de torneio: todos os organizadores.
+ * - Inscrições de torneio: todos os organizadores. Padrão editável e exceção por
+ *   torneio em `tournament-fees.ts` (`resolveTournamentFeeRule`). Ali a regra pode
+ *   pôr a taxa (ou metade dela) por cima do preço para o atleta ("Quem paga",
+ *   `athleteFeeReais`); sem isso vale o de sempre: descontada do organizador.
  */
 
 // Local (evita import circular com mercadopago-arena-helpers, que consome estas taxas).
@@ -53,12 +56,15 @@ export function isValidCommissionPercent(percent: unknown): percent is number {
  *
  * `organizer` é o doc de `organizers/{uid}`; ausente (organizador sem cadastro
  * pelo backoffice) resolve para o padrão, que é o comportamento de antes.
+ * `defaultPercent` é o padrão editável no backoffice (`tournament-fees.ts`); a
+ * cascata completa, com a exceção por torneio, é `resolveTournamentFeeRule`.
  */
 export function resolveOrganizerTournamentFeePercent(
   organizer: Record<string, unknown> | null | undefined,
+  defaultPercent: number = TOURNAMENT_FEE_PERCENT,
 ): number {
   const negotiated = organizer?.["commissionPercent"];
-  return isValidCommissionPercent(negotiated) ? negotiated : TOURNAMENT_FEE_PERCENT;
+  return isValidCommissionPercent(negotiated) ? negotiated : defaultPercent;
 }
 
 /** Taxa sobre vagas de clubinho (%) — sem piso: tickets baixos (ex.: R$15). */

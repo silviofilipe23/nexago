@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../arenas/domain/payment_providers.dart';
 import '../data/tournament_registration_service.dart';
 import 'package:nexago_app/core/profiles/users_repository.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import 'tournament_registration_receipt.dart';
+import 'tournament_service_fee.dart';
 import 'tournament_registration_success_preferences_providers.dart';
 
 /// Inscrições cuja tela de confirmação já foi exibida ou dispensada.
@@ -125,5 +127,21 @@ final registrationRosterProfilesProvider = FutureProvider.autoDispose
         .getUsersByIds(uidsKey.split(','));
   } catch (_) {
     return const {};
+  }
+});
+
+/// Regra da taxa de serviço do torneio para a prévia do checkout — uma
+/// consulta por torneio enquanto a tela está aberta. Falha (backend antigo sem
+/// a callable, rede, serviço indisponível) vale como sem taxa: o servidor
+/// refaz a conta na cobrança e devolve o valor de verdade.
+final tournamentServiceFeeRuleProvider = FutureProvider.autoDispose
+    .family<TournamentServiceFeeRule, String>((ref, tournamentId) async {
+  if (tournamentId.trim().isEmpty) return TournamentServiceFeeRule.none;
+  try {
+    return await ref
+        .read(paymentServiceProvider)
+        .getTournamentServiceFee(tournamentId: tournamentId);
+  } catch (_) {
+    return TournamentServiceFeeRule.none;
   }
 });

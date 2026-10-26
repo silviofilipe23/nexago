@@ -50,7 +50,8 @@ export type PanelIconName =
   | 'video'
   | 'mic'
   | 'sponsor'
-  | 'phone';
+  | 'phone'
+  | 'percent';
 
 /** Ícones stroke-24 do painel (mesmo conjunto do protótipo BoIc*), um componente para evitar repetir SVG. */
 @Component({
@@ -163,6 +164,9 @@ export type PanelIconName =
         }
         @case ('filter') {
           <path d="M4 5h16M7 12h10M10 19h4" />
+        }
+        @case ('percent') {
+          <path d="M19 5 5 19" /><circle cx="7" cy="7" r="2.5" /><circle cx="17" cy="17" r="2.5" />
         }
         @case ('ticket') {
           <path d="M3 9a2 2 0 0 0 0 6v3h18v-3a2 2 0 0 1 0-6V6H3v3z" /><path d="M10 6v12" />

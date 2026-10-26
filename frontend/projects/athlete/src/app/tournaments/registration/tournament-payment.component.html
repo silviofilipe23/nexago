@@ -315,7 +315,7 @@
                     [serverError]="squadError()"
                   />
                   <app-checkout-cashback-toggle
-                    [priceReais]="priceAfterSquadReais()"
+                    [priceReais]="dueAfterSquadReais()"
                     [availableCents]="cashback.availableCents()"
                     [config]="cashback.config()"
                     [chargeLabel]="method() === 'card' ? 'cartão' : 'PIX'"
@@ -405,6 +405,14 @@
               <span class="tp-summary-label">Inscrição total (dupla)</span>
               <span class="tp-summary-value">{{ formatBRL(totalPriceReais()) }}</span>
             </div>
+            <!-- Só quando o atleta paga parte da taxa ("Quem paga" = atleta ou dividido). Organizador
+                 pagando (o padrão), a linha não existe e o resumo é o de sempre. -->
+            @if (serviceFeeReais() > 0) {
+              <div class="tp-summary-row">
+                <span class="tp-summary-label">Taxa de serviço</span>
+                <span class="tp-summary-value">+{{ formatBRL(serviceFeeReais()) }}</span>
+              </div>
+            }
             @if (squadDiscountReais() > 0) {
               <div class="tp-summary-row">
                 <span class="tp-summary-label">Indicação de embaixador</span>

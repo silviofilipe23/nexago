@@ -15,7 +15,7 @@ import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {followerDiscountFor, followerPctOf, payerUsedDiscount} from "./squad-commission-lifecycle";
 import {resolveArenaBookingFeePercent} from "./arena-entitlement";
 import {CLUB_FEE_PERCENT, FEE_FLOOR_REAIS} from "./platform-fees";
-import {feePercentForRegistration} from "./squad-fee-cap";
+import {feeRuleForRegistration} from "./squad-fee-cap";
 import {SQUAD_AMBASSADORS} from "./squad-commissions";
 import {loadAttributionRules, type SquadTier} from "./squad-rules";
 
@@ -250,7 +250,9 @@ async function feeOfPurpose(
     const arena = ids.arenaId ? (await db.collection("arenas").doc(ids.arenaId).get()).data() : undefined;
     return {feePercent: arena ? resolveArenaBookingFeePercent(arena, now.getTime()) : null, feeFloorReais: FEE_FLOOR_REAIS};
   }
-  return {feePercent: await feePercentForRegistration(db, ids.registrationId), feeFloorReais: FEE_FLOOR_REAIS};
+  // Inscrição: a regra do torneio (exceção, comissão do organizador ou padrão), com o piso dela.
+  const rule = await feeRuleForRegistration(db, ids.registrationId);
+  return {feePercent: rule?.percent ?? null, feeFloorReais: rule?.floorReais ?? FEE_FLOOR_REAIS};
 }
 
 export const checkSquadCode = onCall(CLIENT_CALLABLE, async (request) => {

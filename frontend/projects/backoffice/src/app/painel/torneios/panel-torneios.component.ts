@@ -5,7 +5,8 @@ import { KpiMiniComponent } from '../ui/kpi-mini.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
-import { PillComponent, type PillTone } from '../ui/pill.component';
+import { PillComponent } from '../ui/pill.component';
+import { STATUS_LABEL, STATUS_TONE } from './data/tournament-status-label';
 import {
   TournamentsRepository,
   type TournamentRow,
@@ -27,22 +28,6 @@ const FILTERS = [
 type TournamentFilter = (typeof FILTERS)[number];
 
 type LoadState = 'loading' | 'ok' | 'error';
-
-const STATUS_LABEL: Record<TournamentStatus, string> = {
-  inscricoes: 'Inscrições',
-  encerradas: 'Inscrições encerradas',
-  andamento: 'Em andamento',
-  concluido: 'Concluído',
-  cancelado: 'Cancelado',
-};
-
-const STATUS_TONE: Record<TournamentStatus, PillTone> = {
-  inscricoes: 'yellow',
-  encerradas: 'dim',
-  andamento: 'orange',
-  concluido: 'green',
-  cancelado: 'red',
-};
 
 const DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
 

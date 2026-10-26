@@ -38,6 +38,7 @@ import '../domain/registration_shell_logic.dart';
 import '../domain/tournament_registration_navigation.dart';
 import '../domain/tournament_registration_pix_args.dart';
 import '../domain/tournament_registration_providers.dart';
+import '../domain/tournament_service_fee.dart';
 import 'widgets/registration_wizard/registration_wizard_notice.dart';
 import 'widgets/tournament_registration/registration_card_checkout_panel.dart';
 import 'widgets/tournament_registration/registration_payment_method_picker.dart';
@@ -111,12 +112,29 @@ class _TournamentRegistrationPixPageState
       ? (_squad.code ?? '')
       : _squadCodeController.text;
 
+  /// Prévia da parte da taxa de serviço que o atleta paga por cima do preço
+  /// (0 com o organizador pagando, ou enquanto a regra não chegou). Incide
+  /// sobre o preço desta cobrança, nunca sobre o valor com desconto/cashback;
+  /// depois da cobrança vale o `serviceFeeReais` que o servidor devolveu.
+  int get _serviceFeeCents => athleteServiceFeeCents(
+        _shareReais,
+        ref
+                .read(
+                  tournamentServiceFeeRuleProvider(widget.args.tournamentId),
+                )
+                .valueOrNull ??
+            TournamentServiceFeeRule.none,
+      );
+
   /// Prévia do cashback sobre o valor desta cobrança (parcela ou integral,
-  /// o mesmo `chargeAmount` que a callable cobra), depois do desconto do
-  /// código — o servidor aplica o saldo sobre o que sobra.
+  /// o mesmo `chargeAmount` que a callable cobra), mais a parte da taxa de
+  /// serviço do atleta e menos o desconto do código — o servidor aplica o
+  /// saldo sobre o que sobra.
   CashbackCheckoutQuote _cashbackQuote(CashbackCheckoutContext? checkout) =>
       quoteCheckoutCashback(
-        priceCents: reaisToCents(_shareReais) - _squadDiscountCents,
+        priceCents: reaisToCents(_shareReais) +
+            _serviceFeeCents -
+            _squadDiscountCents,
         checkout: checkout,
         useCashback: _useCashback,
       );
@@ -487,6 +505,10 @@ class _TournamentRegistrationPixPageState
       );
     }
 
+    // Regra da taxa de serviço: uma consulta ao abrir; reconstrói quando chega.
+    ref.watch(tournamentServiceFeeRuleProvider(widget.args.tournamentId));
+    final serviceFeeCents = _serviceFeeCents;
+
     final holdExpiresAt = _resolveHoldExpiresAt(snap);
     final hasHoldCountdown =
         holdExpiresAt != null && snap?.isPaid != true;
@@ -503,6 +525,8 @@ class _TournamentRegistrationPixPageState
         _pix?.squadDiscountReais ?? _card?.squadDiscountReais ?? 0;
     final liveCashbackAppliedReais =
         _pix?.cashbackAppliedReais ?? _card?.cashbackAppliedReais ?? 0;
+    final liveServiceFeeReais =
+        _pix?.serviceFeeReais ?? _card?.serviceFeeReais ?? 0;
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -593,10 +617,12 @@ class _TournamentRegistrationPixPageState
                             onChanged: (check) =>
                                 setState(() => _squad = check),
                           ),
-                          if (_squadDiscountCents > 0) ...[
+                          if (_squadDiscountCents > 0 ||
+                              serviceFeeCents > 0) ...[
                             const SizedBox(height: 16),
                             SquadCheckoutSummary(
                               priceCents: reaisToCents(_shareReais),
+                              serviceFeeCents: serviceFeeCents,
                               discountCents: _squadDiscountCents,
                               discountLabel: _squadPreview.origin == 'code'
                                   ? 'Código ${_squadPreview.code}'
@@ -616,12 +642,27 @@ class _TournamentRegistrationPixPageState
                           if (displayExpiresAt != null) ...[
                             BookingPixExpiryCard(
                               expiresAt: displayExpiresAt,
-                              // A cobrança vale `chargedReais` (preço − saldo).
+                              // A cobrança vale `chargedReais` (preço + taxa
+                              // de serviço − desconto − saldo).
                               amountReais: _pix?.chargedReais ??
                                   _card?.chargedReais ??
                                   _shareReais,
                             ),
                             const SizedBox(height: 20),
+                          ],
+                          if (liveServiceFeeReais > 0) ...[
+                            Text(
+                              'Inclui ${formatBRL(liveServiceFeeReais)} de '
+                              'taxa de serviço',
+                              key: const Key('service-fee-note'),
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: context.themeColors.onSurfaceMuted,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                            ),
+                            const SizedBox(height: 12),
                           ],
                           if (liveSquadDiscountReais > 0) ...[
                             Text(

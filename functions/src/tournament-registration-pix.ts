@@ -74,7 +74,8 @@ import {attachHoldPayment} from "./athlete-wallet";
 import {isOrganizerRegistered} from "./organizer-create-registration-core";
 import {resolveRegistrationAttribution, type ResolvedAttribution} from "./squad-attribution";
 import {followerDiscountFor, recordChargeDiscount, recordCommissionForCharge} from "./squad-commission-lifecycle";
-import {discountFeeCapCents, tournamentFeePercent} from "./squad-fee-cap";
+import {discountFeeCapCents, tournamentFeeRule} from "./squad-fee-cap";
+import {athleteFeeReais, type FeeRule} from "./tournament-fees";
 
 const pixPaymentSecrets = [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL];
 
@@ -93,6 +94,8 @@ type PixPaymentResponse = {
   chargedReais?: number;
   /** Desconto do código de embaixador (NexaSquad), já fora do cobrado. */
   squadDiscountReais?: number;
+  /** Parte da taxa da nexaGO paga pelo atleta, por cima do preço (ausente = organizador paga). */
+  serviceFeeReais?: number;
 };
 
 async function loadTournamentEntryFee(
@@ -188,7 +191,10 @@ interface PreparedRegistrationCharge {
   projectId: string;
   registrationId: string;
   amountType: "share" | "full";
+  /** Preço desta cobrança (parcela ou inteira) — o que entra na inscrição e no caixa. */
   chargeAmount: number;
+  /** Parte da taxa que o atleta paga por cima do preço (`athleteFeeReais`); 0 quando o organizador paga. */
+  serviceFeeReais: number;
   customerId: string;
   description: string;
   externalReference: string;
@@ -360,6 +366,18 @@ async function prepareRegistrationCharge(
       ? resolveTournamentChargeReais(entryFee, "full")
       : shareAmount;
 
+  // Regra da taxa (`tournament-fees.ts`): diz quanto da taxa vai por cima do preço ("Quem paga") e
+  // é o teto do desconto do Squad. Sem regra não dá para saber o valor a cobrar: melhor recusar do
+  // que cobrar a menos e o organizador pagar a parte do atleta.
+  let feeRule: FeeRule | null;
+  try {
+    feeRule = await tournamentFeeRule(db, tournamentId, tournamentData as Record<string, unknown>);
+  } catch (e) {
+    logger.error("prepareRegistrationCharge: taxa do torneio indisponível", {registrationId, e});
+    throw new HttpsError("unavailable", "Não foi possível calcular o valor agora. Tente novamente.");
+  }
+  const serviceFeeReais = feeRule ? athleteFeeReais(chargeAmount, feeRule) : 0;
+
   // Embaixador do NexaSquad: código digitado errado ou autoindicação para aqui, antes de cobrar,
   // para o atleta corrigir. Link/QR nunca derruba o checkout.
   let squad: SquadChargeContext | null = null;
@@ -373,13 +391,12 @@ async function prepareRegistrationCharge(
       const teamName = typeof team?.teamName === "string" ? team.teamName :
         typeof registration.teamName === "string" ? registration.teamName : null;
       // O desconto sai da taxa da nexaGO: nunca passa da taxa desta cobrança.
-      const feePercent = await tournamentFeePercent(db, tournamentData as Record<string, unknown>);
       const discount = await followerDiscountFor(db, {
         attribution,
         payerUid: callerUid,
         registrationId,
         priceCents: Math.round(chargeAmount * 100),
-        feeCapCents: discountFeeCapCents(chargeAmount, feePercent),
+        feeCapCents: discountFeeCapCents(chargeAmount, feeRule),
       });
       squad = {
         attribution,
@@ -496,6 +513,7 @@ async function prepareRegistrationCharge(
     registrationId,
     amountType,
     chargeAmount,
+    serviceFeeReais,
     customerId,
     description,
     externalReference,
@@ -505,15 +523,35 @@ async function prepareRegistrationCharge(
   };
 }
 
-/** Preço desta cobrança depois do desconto do seguidor (o cashback incide sobre ele). */
-function priceAfterSquadDiscount(prepared: PreparedRegistrationCharge): number {
-  const discount = prepared.squad?.discountCents ?? 0;
-  return Math.round(prepared.chargeAmount * 100 - discount) / 100;
+/** O que as contas da cobrança usam de uma cobrança preparada. */
+type ChargeAmounts = Pick<PreparedRegistrationCharge, "chargeAmount" | "serviceFeeReais"> & {
+  squad: Pick<SquadChargeContext, "discountCents"> | null;
+};
+
+/** Centavos da parte da taxa paga pelo atleta. */
+function serviceFeeCents(prepared: ChargeAmounts): number {
+  return Math.round(prepared.serviceFeeReais * 100);
 }
 
-function squadIdempotencySuffix(prepared: PreparedRegistrationCharge): string {
+/**
+ * O que o atleta deve nesta cobrança antes do cashback: preço + parte da taxa dele − desconto do
+ * seguidor (o cashback incide sobre isto).
+ */
+export function dueAfterSquadDiscount(prepared: ChargeAmounts): number {
   const discount = prepared.squad?.discountCents ?? 0;
-  return discount > 0 ? `-sq${discount}` : "";
+  return Math.round(prepared.chargeAmount * 100 + serviceFeeCents(prepared) - discount) / 100;
+}
+
+/** Com desconto ou taxa por cima a cobrança é outra: chave própria, para o Asaas não devolver a antiga. */
+export function chargeIdempotencySuffix(prepared: ChargeAmounts): string {
+  const discount = prepared.squad?.discountCents ?? 0;
+  const fee = serviceFeeCents(prepared);
+  return (discount > 0 ? `-sq${discount}` : "") + (fee > 0 ? `-tx${fee}` : "");
+}
+
+/** Campos da parte do atleta na resposta da cobrança (só quando ele paga algo). */
+function serviceFeeResponseFields(prepared: ChargeAmounts): {serviceFeeReais?: number} {
+  return prepared.serviceFeeReais > 0 ? {serviceFeeReais: prepared.serviceFeeReais} : {};
 }
 
 /**
@@ -549,7 +587,8 @@ async function recordSquadCommissionQuietly(
       paymentId,
       payerUid,
       convertedUids: prepared.squad.convertedUids,
-      grossCents: Math.round(chargedReais * 100),
+      // A comissão é sobre a inscrição: a parte da taxa paga pelo atleta não entra.
+      grossCents: Math.max(0, Math.round(chargedReais * 100) - serviceFeeCents(prepared)),
     }, new Date());
   } catch (e) {
     logger.error("Comissão do Squad não registrada na cobrança", {
@@ -584,8 +623,9 @@ export const createTournamentRegistrationPixPayment = onCall({
   const cashback = await reserveCashbackForCharge(db, {
     uid: callerUid,
     useCashback: (request.data as RegistrationChargeRequest | undefined)?.useCashback,
-    // O desconto do seguidor (NexaSquad) sai antes do cashback: o saldo cobre o que sobra.
-    priceReais: priceAfterSquadDiscount(prepared),
+    // O desconto do seguidor (NexaSquad) sai antes do cashback: o saldo cobre o que sobra
+    // (inclusive a parte da taxa paga pelo atleta).
+    priceReais: dueAfterSquadDiscount(prepared),
     sourceType: "registration",
     sourceId: registrationId,
     trackingPath: pendingDocRef.path,
@@ -603,7 +643,7 @@ export const createTournamentRegistrationPixPayment = onCall({
       externalReference,
       // Com desconto a cobrança é outra: chave própria, para o Asaas não devolver a cheia.
       idempotencyKey: cashbackIdempotencyKey(
-        `tournament-reg-pix-${registrationId}-${callerUid}${squadIdempotencySuffix(prepared)}`,
+        `tournament-reg-pix-${registrationId}-${callerUid}${chargeIdempotencySuffix(prepared)}`,
         cashback.holdId,
       ),
     });
@@ -654,6 +694,8 @@ export const createTournamentRegistrationPixPayment = onCall({
     cashbackHoldId: cashback.holdId,
     // Desconto do seguidor (NexaSquad): o webhook soma ao bruto para o organizador receber igual.
     squadDiscountCents: prepared.squad?.discountCents ?? 0,
+    // Parte da taxa paga pelo atleta: o webhook tira do bruto (o caixa e a parcela são sobre o preço).
+    ...(serviceFeeCents(prepared) > 0 ? {serviceFeeCents: serviceFeeCents(prepared)} : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
   await recordSquadCommissionQuietly(prepared, callerUid, charge.paymentId, cashback.chargeReais);
@@ -666,6 +708,7 @@ export const createTournamentRegistrationPixPayment = onCall({
     amountReais: chargeAmount,
     ...cashbackResponseFields(cashback),
     ...(prepared.squad?.discountCents ? {squadDiscountReais: prepared.squad.discountCents / 100} : {}),
+    ...serviceFeeResponseFields(prepared),
   };
 });
 
@@ -681,6 +724,8 @@ type CardPaymentResponse = {
   chargedReais?: number;
   /** Desconto do código de embaixador (NexaSquad), já fora do cobrado. */
   squadDiscountReais?: number;
+  /** Parte da taxa da nexaGO paga pelo atleta, por cima do preço (ausente = organizador paga). */
+  serviceFeeReais?: number;
 };
 
 /**
@@ -713,8 +758,9 @@ export const createTournamentRegistrationCardPayment = onCall({
   const cashback = await reserveCashbackForCharge(db, {
     uid: callerUid,
     useCashback: (request.data as RegistrationChargeRequest | undefined)?.useCashback,
-    // O desconto do seguidor (NexaSquad) sai antes do cashback: o saldo cobre o que sobra.
-    priceReais: priceAfterSquadDiscount(prepared),
+    // O desconto do seguidor (NexaSquad) sai antes do cashback: o saldo cobre o que sobra
+    // (inclusive a parte da taxa paga pelo atleta).
+    priceReais: dueAfterSquadDiscount(prepared),
     sourceType: "registration",
     sourceId: registrationId,
     trackingPath: pendingDocRef.path,
@@ -732,7 +778,7 @@ export const createTournamentRegistrationCardPayment = onCall({
       externalReference,
       // Com desconto a cobrança é outra: chave própria, para o Asaas não devolver a cheia.
       idempotencyKey: cashbackIdempotencyKey(
-        `tournament-reg-card-${registrationId}-${callerUid}${squadIdempotencySuffix(prepared)}`,
+        `tournament-reg-card-${registrationId}-${callerUid}${chargeIdempotencySuffix(prepared)}`,
         cashback.holdId,
       ),
     });
@@ -783,6 +829,8 @@ export const createTournamentRegistrationCardPayment = onCall({
     cashbackHoldId: cashback.holdId,
     // Desconto do seguidor (NexaSquad): o webhook soma ao bruto para o organizador receber igual.
     squadDiscountCents: prepared.squad?.discountCents ?? 0,
+    // Parte da taxa paga pelo atleta: o webhook tira do bruto (o caixa e a parcela são sobre o preço).
+    ...(serviceFeeCents(prepared) > 0 ? {serviceFeeCents: serviceFeeCents(prepared)} : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
   await recordSquadCommissionQuietly(prepared, callerUid, charge.paymentId, cashback.chargeReais);
@@ -794,6 +842,7 @@ export const createTournamentRegistrationCardPayment = onCall({
     amountReais: chargeAmount,
     ...cashbackResponseFields(cashback),
     ...(prepared.squad?.discountCents ? {squadDiscountReais: prepared.squad.discountCents / 100} : {}),
+    ...serviceFeeResponseFields(prepared),
   };
 });
 

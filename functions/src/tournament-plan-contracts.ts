@@ -20,7 +20,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore, type Firestore} from "firebase-admin/firestore";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
-import {resolveOrganizerTournamentFeePercent} from "./platform-fees";
+import {organizerFeePercent} from "./tournament-fees";
 import {saoPauloDate} from "./store-checkout-price";
 import {
   DEFAULT_PLANS,
@@ -187,11 +187,6 @@ async function sponsorsConfigOf(db: Firestore): Promise<SponsorsConfig> {
   return isObj(value) ? (value as unknown as SponsorsConfig) : structuredClone(DEFAULT_SPONSORS);
 }
 
-async function feePercentOf(db: Firestore, uid: string): Promise<number> {
-  const snap = await db.collection("organizers").doc(uid).get();
-  return resolveOrganizerTournamentFeePercent(snap.exists ? snap.data() : null);
-}
-
 export async function loadCatalogCore(db: Firestore, uid: string, now: Date): Promise<TournamentPlanCatalog> {
   const today = saoPauloDate(now);
   const all = await db.collection(PLANS).get();
@@ -203,7 +198,7 @@ export async function loadCatalogCore(db: Firestore, uid: string, now: Date): Pr
     if (live && live.plan.status === "ativo") plans.push(catalogPlanOf(id, live.order, live.plan));
   }
   plans.sort((a, b) => a.order - b.order || a.priceCents - b.priceCents);
-  const [sponsors, feePercent] = await Promise.all([sponsorsConfigOf(db), feePercentOf(db, uid)]);
+  const [sponsors, feePercent] = await Promise.all([sponsorsConfigOf(db), organizerFeePercent(db, uid)]);
   return {plans, sponsors: catalogSponsorsOf(sponsors), feePercent, today};
 }
 

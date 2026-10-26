@@ -74,7 +74,7 @@ import {attachHoldPayment} from "./athlete-wallet";
 import {isOrganizerRegistered} from "./organizer-create-registration-core";
 import {resolveRegistrationAttribution, type ResolvedAttribution} from "./squad-attribution";
 import {followerDiscountFor, recordChargeDiscount, recordCommissionForCharge} from "./squad-commission-lifecycle";
-import {discountFeeCapCents, tournamentFeePercent} from "./squad-fee-cap";
+import {discountFeeCapCents, tournamentFeeRule} from "./squad-fee-cap";
 
 const pixPaymentSecrets = [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL];
 
@@ -373,13 +373,13 @@ async function prepareRegistrationCharge(
       const teamName = typeof team?.teamName === "string" ? team.teamName :
         typeof registration.teamName === "string" ? registration.teamName : null;
       // O desconto sai da taxa da nexaGO: nunca passa da taxa desta cobrança.
-      const feePercent = await tournamentFeePercent(db, tournamentData as Record<string, unknown>);
+      const feeRule = await tournamentFeeRule(db, tournamentId, tournamentData as Record<string, unknown>);
       const discount = await followerDiscountFor(db, {
         attribution,
         payerUid: callerUid,
         registrationId,
         priceCents: Math.round(chargeAmount * 100),
-        feeCapCents: discountFeeCapCents(chargeAmount, feePercent),
+        feeCapCents: discountFeeCapCents(chargeAmount, feeRule),
       });
       squad = {
         attribution,

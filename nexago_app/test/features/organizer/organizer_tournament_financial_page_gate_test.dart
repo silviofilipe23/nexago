@@ -47,6 +47,9 @@ const _detail = OrganizerTournamentDetailState(
 /// não vê dinheiro: a leitura do caixa também é número de dinheiro.
 int caixaAberto = 0;
 
+/// Idem para o extrato do caixa, de onde sai o repasse.
+int extratoAberto = 0;
+
 Future<void> abrirTela(
   WidgetTester tester, {
   required TournamentStaffRole? role,
@@ -55,6 +58,7 @@ Future<void> abrirTela(
   double aLiberar = 0,
 }) async {
   caixaAberto = 0;
+  extratoAberto = 0;
   final espelho = StreamController<List<MyTournamentStaffEntry>>();
   addTearDown(espelho.close);
   if (roleLoaded) espelho.add(const []);
@@ -68,6 +72,11 @@ Future<void> abrirTela(
             .overrideWithValue(isOwner),
         myTournamentStaffEntriesProvider.overrideWith((ref) => espelho.stream),
         myStaffRoleForTournamentProvider(_tournamentId).overrideWithValue(role),
+        organizerTournamentLedgerCreditsProvider(_tournamentId)
+            .overrideWith((ref) {
+          extratoAberto++;
+          return Stream.value(const []);
+        }),
         organizerCashBoxLiveProvider(_tournamentId).overrideWith((ref) {
           caixaAberto++;
           return Stream.value(
@@ -116,6 +125,7 @@ void main() {
     );
 
     expect(caixaAberto, 0);
+    expect(extratoAberto, 0);
     expect(find.text('A liberar'), findsNothing);
   });
 
@@ -142,6 +152,7 @@ void main() {
 
     expect(find.textContaining('Repasse líquido'), findsOneWidget);
     expect(find.byType(AppEmptyView), findsNothing);
+    expect(extratoAberto, greaterThan(0));
   });
 
   testWidgets('dono do evento continua vendo o financeiro do evento',

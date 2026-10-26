@@ -76,11 +76,6 @@ String formatOrganizerMoneyDetail(int cents) {
 /// Alias legado — prefira [formatOrganizerMoneyShort] ou [formatOrganizerMoneyDetail].
 String formatOrganizerMoneyCents(int cents) => formatOrganizerMoneyShort(cents);
 
-int netTransferCents(int viaAppCents, {double feeRate = 0.06}) {
-  if (viaAppCents <= 0) return 0;
-  return (viaAppCents * (1 - feeRate)).round();
-}
-
 String organizerExploreMatchesSubtitle({
   required int total,
   required int live,

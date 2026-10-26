@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import '../../../core/firebase/functions_region.dart';
+import '../domain/tournament_app_payout.dart';
 
 /// Coerção tolerante de número: o SDK de Functions no Flutter entrega
 /// `Map<Object?, Object?>` com valores que podem chegar como `int`, `double`
@@ -361,5 +362,25 @@ class OrganizerWalletRepository {
         awaitingSettlementReais: _asDouble(d?['awaitingSettlementReais']),
       );
     }).handleError((Object _) {});
+  }
+
+  /// Créditos do extrato do caixa ao vivo (`tournamentWallets/{id}/ledger`),
+  /// de onde sai o repasse real das telas do torneio. As rules liberam o
+  /// extrato para as mesmas pessoas do caixa (dono e gestor): só observar
+  /// depois do gate de dinheiro. Ao contrário de [watchCashBox], o erro passa
+  /// adiante — aqui não existe valor da callable por baixo, e a tela tem de
+  /// dizer que não leu o extrato em vez de mostrar repasse zero.
+  Stream<List<TournamentLedgerCredit>> watchLedgerCredits(String tournamentId) {
+    final id = tournamentId.trim();
+    if (id.isEmpty) return Stream.value(const []);
+    return _firestore
+        .collection('tournamentWallets')
+        .doc(id)
+        .collection('ledger')
+        .snapshots()
+        .map((query) => query.docs
+            .map((doc) => TournamentLedgerCredit.fromMap(doc.data()))
+            .whereType<TournamentLedgerCredit>()
+            .toList(growable: false));
   }
 }

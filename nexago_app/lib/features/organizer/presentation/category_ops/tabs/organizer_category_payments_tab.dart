@@ -8,6 +8,8 @@ import 'package:nexago_app/core/ui/app_snackbar.dart';
 
 import '../../../domain/category_ops/category_ops_logic.dart';
 import '../../../domain/category_ops/category_ops_models.dart';
+import '../../../domain/organizer_wallet_providers.dart';
+import '../../../domain/tournament_app_payout.dart';
 import '../../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../domain/tournament_staff/my_tournament_staff_providers.dart';
@@ -72,6 +74,12 @@ class _OrganizerCategoryPaymentsTabState
     final seesMoney = ref.watch(
       organizerSeesTournamentMoneyProvider(widget.tournamentId),
     );
+    // O extrato do caixa é dinheiro: só abre depois do gate.
+    final ledgerCredits = seesMoney
+        ? ref.watch(
+            organizerTournamentLedgerCreditsProvider(widget.tournamentId),
+          )
+        : null;
 
     return teamsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -94,7 +102,15 @@ class _OrganizerCategoryPaymentsTabState
               _CollectedSummaryCard(summary: summary),
               if (summary.viaAppCents > 0) ...[
                 const SizedBox(height: 12),
-                _PayoutCard(netTransferCents: summary.netTransferCents),
+                _PayoutCard(
+                  payout: ledgerCredits?.whenOrNull(
+                    data: (credits) => buildCategoryAppPayout(
+                      teams: teams,
+                      credits: credits,
+                    ),
+                  ),
+                  ledgerFailed: ledgerCredits?.hasError ?? false,
+                ),
               ],
             ],
             if (pending.isNotEmpty) ...[
@@ -290,12 +306,28 @@ class _CollectedSummaryCard extends StatelessWidget {
 }
 
 class _PayoutCard extends StatelessWidget {
-  const _PayoutCard({required this.netTransferCents});
+  const _PayoutCard({required this.payout, required this.ledgerFailed});
 
-  final int netTransferCents;
+  /// Repasse desta categoria pelo extrato do caixa; `null` enquanto o extrato
+  /// não chegou (ou falhou — ver [ledgerFailed]).
+  final OrganizerAppPayout? payout;
+  final bool ledgerFailed;
 
   @override
   Widget build(BuildContext context) {
+    final payout = this.payout;
+    final title = payout != null
+        ? 'Repasse líquido · ${formatOrganizerMoneyDetail(payout.creditedNetCents)}'
+        : ledgerFailed
+            ? 'Repasse líquido indisponível'
+            : 'Repasse líquido · …';
+    final details = payout != null
+        ? categoryAppPayoutDetails(payout)
+        : [
+            ledgerFailed
+                ? 'Não deu para ler o extrato do caixa agora.'
+                : 'Lendo o extrato do caixa…',
+          ];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
@@ -324,20 +356,24 @@ class _PayoutCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Repasse líquido · ${formatOrganizerMoneyDetail(netTransferCents)}',
+                  title,
                   style: AppTypography.soraRegular(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                     color: context.themeColors.onSurface,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Líquido após taxa 6% · só inscrições pelo app',
-                  style: AppTypography.soraRegular(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: context.themeColors.onSurfaceMuted,
+                ...details.map(
+                  (line) => Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      line,
+                      style: AppTypography.soraRegular(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: context.themeColors.onSurfaceMuted,
+                      ),
+                    ),
                   ),
                 ),
               ],

@@ -202,10 +202,9 @@ void main() {
       expect(summary.viaOrganizerCents, 10000);
       expect(summary.viaAppCents, 0);
       expect(summary.collectedCents, 10000);
-      expect(summary.netTransferCents, 0);
     });
 
-    test('mixed app and direct with net fee only on app', () {
+    test('mixed app and direct split by channel', () {
       final teams = [
         _team(
           teamId: 'app1',
@@ -235,7 +234,6 @@ void main() {
       expect(summary.viaAppCents, 20000);
       expect(summary.viaOrganizerCents, 10000);
       expect(summary.collectedCents, 30000);
-      expect(summary.netTransferCents, 18800);
       expect(summary.outstandingCents, 0);
     });
   });

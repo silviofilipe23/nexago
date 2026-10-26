@@ -8,6 +8,7 @@ import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/core/ui/app_status_views.dart';
 import 'package:nexago_app/features/organizer/data/organizer_wallet_repository.dart';
 import 'package:nexago_app/features/organizer/domain/organizer_wallet_providers.dart';
+import 'package:nexago_app/features/organizer/domain/tournament_app_payout.dart';
 import 'package:nexago_app/features/organizer/presentation/organizer_financial_page.dart';
 
 /// Fake do repositório da carteira: registra as chamadas e nunca toca em
@@ -96,6 +97,12 @@ class _FakeWalletRepository implements OrganizerWalletRepository {
   Stream<TournamentCashBox?> watchCashBox(String tournamentId) {
     return liveOf(tournamentId).stream;
   }
+
+  @override
+  Stream<List<TournamentLedgerCredit>> watchLedgerCredits(
+    String tournamentId,
+  ) =>
+      const Stream.empty();
 }
 
 TournamentCashBox caixa(

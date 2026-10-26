@@ -52,6 +52,9 @@ class OrganizerTournamentFinancialPage extends ConsumerWidget {
             .valueOrNull
             ?.awaitingSettlementReais ??
         0;
+    // O extrato do caixa (mesmas rules) dá o repasse real.
+    final ledgerCredits =
+        ref.watch(organizerTournamentLedgerCreditsProvider(tournamentId));
 
     return detailAsync.when(
       loading: () => const Scaffold(
@@ -86,6 +89,7 @@ class OrganizerTournamentFinancialPage extends ConsumerWidget {
                 summary: state.summary!,
                 categories: state.categories,
                 awaitingSettlementReais: awaitingSettlementReais,
+                ledgerCredits: ledgerCredits,
               ),
             ),
           ],

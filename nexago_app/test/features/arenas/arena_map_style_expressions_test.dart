@@ -25,14 +25,14 @@ void main() {
       final valores = _flatten(arenaPinOpacityExpression()).whereType<String>();
 
       expect(valores, contains('kind'));
-      expect(valores, contains('available'));
+      expect(valores, contains('unclaimed'));
     });
 
-    test('arena com horário fica opaca e o resto apagado', () {
+    test('só a pré-cadastrada apaga; parceira sem horário fica cheia', () {
       final numeros =
           _flatten(arenaPinOpacityExpression()).whereType<num>().toList();
 
-      expect(numeros, [1.0, ArenaPinAsset.mutedOpacity]);
+      expect(numeros, [ArenaPinAsset.mutedOpacity, 1.0]);
     });
 
     test('a opacidade apagada ainda deixa o pino visível', () {
@@ -40,6 +40,24 @@ void main() {
       // horário — some a informação de que ela existe.
       expect(ArenaPinAsset.mutedOpacity, greaterThan(0.2));
       expect(ArenaPinAsset.mutedOpacity, lessThan(1));
+    });
+  });
+
+  group('arenaPinSizeExpression', () {
+    test('lê o mesmo `kind` que o GeoJSON grava', () {
+      final valores = _flatten(arenaPinSizeExpression()).whereType<String>();
+
+      expect(arenaPinSizeExpression().first, 'case');
+      expect(valores, contains('kind'));
+      expect(valores, contains('unclaimed'));
+    });
+
+    test('parceira é maior que a pré-cadastrada', () {
+      final numeros =
+          _flatten(arenaPinSizeExpression()).whereType<num>().toList();
+
+      expect(numeros, [1.0, ArenaPinAsset.partnerIconSize]);
+      expect(ArenaPinAsset.partnerIconSize, greaterThan(1.0));
     });
   });
 

@@ -10,7 +10,6 @@ import '../../../../tournaments/presentation/widgets/competition_carousel/compet
 import '../../../../tournaments/presentation/widgets/competition_carousel/competition_carousel_tile.dart';
 import '../../../domain/athlete_home_competitions_logic.dart';
 import '../../../domain/athlete_home_competitions_providers.dart';
-import '../../../domain/athlete_shell_providers.dart';
 import '../../../../tournaments/domain/tournament_discovery_providers.dart';
 
 /// Alias para compatibilidade com [`athlete_home_page.dart`].
@@ -65,10 +64,9 @@ class AthleteHomeCompetitionsSection extends ConsumerWidget {
           child: CompeteHubSectionHeader(
             title: 'Torneios e ligas',
             actionLabel: 'VER TODOS',
-            onActionTap: () {
-              ref.read(athleteShellTabIndexProvider.notifier).state =
-                  athleteShellCompeteTabIndex;
-            },
+            onActionTap: () => context.pushNamed(
+              AppRouteNames.tournamentDiscoveryList,
+            ),
           ),
         ),
         SizedBox(height: 10),

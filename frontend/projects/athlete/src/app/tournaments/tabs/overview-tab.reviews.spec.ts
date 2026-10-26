@@ -71,7 +71,7 @@ describe('Visão geral — avaliação pública', () => {
 
   it('com 3+ avaliações: selo no herói e seção na coluna lateral', () => {
     const { host, store, fixture } = mount();
-    store.reviewSummary.set({ count: 23, average: 4.62, aspects: { organization: 4.8 } });
+    store.reviewSummary.set({ count: 23, eligibleCount: 42, average: 4.62, aspects: { organization: 4.8 } });
     fixture.detectChanges();
     const badges = [...host.querySelectorAll('.tdv-hero-badges span')].map((e) => e.textContent!.trim());
     expect(badges).toContain('★ 4,6 · 23 avaliações');
@@ -80,7 +80,7 @@ describe('Visão geral — avaliação pública', () => {
 
   it('abaixo de 3 avaliações nada aparece', () => {
     const { host, store, fixture } = mount();
-    store.reviewSummary.set({ count: 2, average: null, aspects: {} });
+    store.reviewSummary.set({ count: 2, eligibleCount: 42, average: null, aspects: {} });
     fixture.detectChanges();
     expect(host.querySelector('.tdv-hero-badges')!.textContent).not.toContain('★');
     expect(host.querySelector('app-tournament-review-aspects section')).toBeNull();

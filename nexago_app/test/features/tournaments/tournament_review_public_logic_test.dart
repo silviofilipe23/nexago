@@ -6,6 +6,7 @@ import 'package:nexago_app/features/tournaments/domain/tournament_review_public_
 void main() {
   TournamentReviewSummary summary({
     int count = 23,
+    int eligibleCount = 42,
     double? average = 4.62,
     Map<TournamentReviewAspect, TournamentReviewAspectStat>? aspects,
   }) =>
@@ -13,7 +14,7 @@ void main() {
         tournamentId: 't1',
         tournamentName: 'Copa Aurora',
         isOpen: false,
-        eligibleCount: 42,
+        eligibleCount: eligibleCount,
         count: count,
         average: average,
         aspects: aspects,
@@ -29,6 +30,22 @@ void main() {
       expect(tournamentReviewBadgeLabel(summary(count: 2, average: null)), isNull);
       expect(tournamentReviewBadgeLabel(summary(average: null)), isNull);
       expect(tournamentReviewBadgeLabel(null), isNull);
+    });
+  });
+
+  group('tournamentPublicReviewsTurnoutLabel', () {
+    test('avaliações sobre os atletas aptos', () {
+      expect(tournamentPublicReviewsTurnoutLabel(summary()), '23 de 42 atletas avaliaram');
+      expect(tournamentPublicReviewsTurnoutLabel(summary(eligibleCount: 23)), '23 de 23 atletas avaliaram');
+    });
+
+    test('sem total de aptos (resumo antigo): só a contagem', () {
+      expect(tournamentPublicReviewsTurnoutLabel(summary(eligibleCount: 0)), '23 avaliações');
+    });
+
+    test('abaixo de 3 ou sem resumo: nada', () {
+      expect(tournamentPublicReviewsTurnoutLabel(summary(count: 2, average: null)), isNull);
+      expect(tournamentPublicReviewsTurnoutLabel(null), isNull);
     });
   });
 

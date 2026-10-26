@@ -14,6 +14,14 @@ String? tournamentReviewBadgeLabel(TournamentReviewSummary? summary) {
       '${tournamentReviewsCountLabel(summary.count)}';
 }
 
+/// Adesão sob o título da seção: "9 de 40 atletas avaliaram". Sem o total de aptos (resumo
+/// antigo), só "9 avaliações". `null` sem números públicos.
+String? tournamentPublicReviewsTurnoutLabel(TournamentReviewSummary? summary) {
+  if (summary == null || !tournamentReviewHasPublicNumbers(summary)) return null;
+  if (summary.eligibleCount < summary.count) return tournamentReviewsCountLabel(summary.count);
+  return '${summary.count} de ${summary.eligibleCount} atletas avaliaram';
+}
+
 /// "★ 4,7 (86 avaliações em 5 torneios)", ou `null` abaixo de 3 avaliações.
 String? organizerReputationLabel(OrganizerReputation? reputation) {
   final average = reputation?.average;

@@ -19,6 +19,7 @@ class TournamentPublicReviewsSection extends ConsumerWidget {
     final summary = ref.watch(tournamentReviewSummaryProvider(tournamentId)).valueOrNull;
     final rows = tournamentPublicAspectRows(summary);
     if (rows.isEmpty) return const SizedBox.shrink();
+    final turnout = tournamentPublicReviewsTurnoutLabel(summary);
     final muted = context.themeColors.onSurfaceMuted;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -34,6 +35,10 @@ class TournamentPublicReviewsSection extends ConsumerWidget {
               letterSpacing: 1.2,
             ),
           ),
+          if (turnout != null) ...[
+            const SizedBox(height: 4),
+            Text(turnout, style: TextStyle(fontSize: 13, color: muted)),
+          ],
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),

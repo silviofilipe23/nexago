@@ -2,6 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {
   getFirestore,
   FieldValue,
+  Timestamp,
   type Firestore,
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
@@ -1778,6 +1779,71 @@ export const closeTournamentRegistrations = onCall({
     updatedAt: FieldValue.serverTimestamp(),
   });
   return {ok: true};
+});
+
+/**
+ * Desfaz o "Encerrar inscrições": torneio volta a `open` e as categorias perdem a trava
+ * `registrationClosed` (que só o encerramento grava). Estender o prazo na edição não reabre
+ * nada — o guard barra `closed` antes de olhar a data —, então este é o único caminho de volta.
+ *
+ * Recusa quando reabrir não adiantaria ou corromperia o evento: torneio fora de `closed`
+ * (rascunho, cancelado, concluído, já aberto) e prazo de inscrição já vencido — aí o guard
+ * continuaria recusando e o organizador acharia que reabriu. `status` só é tocado quando
+ * espelha o `closed`, pra não pisar num estado que outro fluxo gravou ali.
+ */
+export async function reopenTournamentRegistrationsCore(
+  db: Firestore,
+  uid: string,
+  tournamentIdRaw: string | undefined,
+  now: Date = new Date(),
+): Promise<{ok: true}> {
+  const tournamentId = tournamentIdRaw?.trim();
+  if (!tournamentId) {
+    throw new HttpsError("invalid-argument", "tournamentId obrigatório");
+  }
+
+  const tournament = await assertCanManageTournament(db, uid, tournamentId);
+  const norm = (raw: unknown) => String(raw ?? "").trim().toLowerCase();
+  const listing = norm(tournament.listingStatus ?? tournament.status);
+  if (listing !== "closed") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Só dá pra reabrir um torneio com inscrições encerradas.",
+    );
+  }
+
+  const closesAt = tournament.registrationClosesAt;
+  if (closesAt instanceof Timestamp && closesAt.toMillis() <= now.getTime()) {
+    throw new HttpsError(
+      "failed-precondition",
+      "O prazo de inscrição já passou. Edite o torneio e estenda o prazo antes de reabrir.",
+    );
+  }
+
+  const categories = ((tournament.categories as unknown[]) ?? []).map((item) => {
+    if (typeof item !== "object" || item === null) return item;
+    return {...(item as Record<string, unknown>), registrationClosed: false};
+  });
+
+  await db.doc(`tournaments/${tournamentId}`).update({
+    listingStatus: "open",
+    ...(norm(tournament.status) === "closed" ? {status: "open"} : {}),
+    categories,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  return {ok: true};
+}
+
+export const reopenTournamentRegistrations = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
+  return reopenTournamentRegistrationsCore(
+    getFirestore(),
+    uid,
+    request.data?.tournamentId as string | undefined,
+  );
 });
 
 /**

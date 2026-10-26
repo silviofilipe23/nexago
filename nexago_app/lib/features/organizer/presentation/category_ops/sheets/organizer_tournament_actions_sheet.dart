@@ -71,6 +71,8 @@ class _OrganizerTournamentActionsSheet extends ConsumerWidget {
         ? '${summary?.categoryCount ?? 0} categorias'
         : '${categories.length} categorias · $totalSpots vagas no total';
     final hasUniformKit = organizerTournamentHasUniformKit(tournament);
+    final registrationsClosed =
+        organizerTournamentRegistrationsClosed(tournament);
 
     return SafeArea(
       child: ConstrainedBox(
@@ -196,48 +198,93 @@ class _OrganizerTournamentActionsSheet extends ConsumerWidget {
                   );
                 },
               ),
-            _ActionTile(
-              icon: Icons.schedule_rounded,
-              label: 'Encerrar inscrições',
-              subtitle: 'Fecha as vagas e libera a chave',
-              onTap: () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Encerrar inscrições?'),
-                    content: const Text(
-                      'Novas inscrições serão bloqueadas em todas as categorias.',
+            if (registrationsClosed)
+              _ActionTile(
+                icon: Icons.lock_open_rounded,
+                label: 'Reabrir inscrições',
+                subtitle: 'Volta a aceitar duplas até o prazo',
+                onTap: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Reabrir inscrições?'),
+                      content: const Text(
+                        'Todas as categorias voltam a aceitar inscrições até o prazo. '
+                        'Se o prazo já passou, edite as datas do torneio antes.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Cancelar'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('Reabrir'),
+                        ),
+                      ],
                     ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancelar'),
-                      ),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Encerrar'),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirm != true || !context.mounted) return;
-                try {
-                  await repo.closeTournamentRegistrations(tournamentId);
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    showAppSnackBar(context, 'Inscrições encerradas.');
+                  );
+                  if (confirm != true || !context.mounted) return;
+                  try {
+                    await repo.reopenTournamentRegistrations(tournamentId);
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      showAppSnackBar(context, 'Inscrições reabertas.');
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      showAppSnackBar(
+                        context,
+                        _opsError(e, 'reabrir as inscrições'),
+                        isError: true,
+                      );
+                    }
                   }
-                } catch (e) {
-                  if (context.mounted) {
-                    showAppSnackBar(
-                      context,
-                      _opsError(e, 'encerrar as inscrições'),
-                      isError: true,
-                    );
+                },
+              )
+            else
+              _ActionTile(
+                icon: Icons.schedule_rounded,
+                label: 'Encerrar inscrições',
+                subtitle: 'Fecha as vagas e libera a chave',
+                onTap: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Encerrar inscrições?'),
+                      content: const Text(
+                        'Novas inscrições serão bloqueadas em todas as categorias.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Cancelar'),
+                        ),
+                        FilledButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('Encerrar'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm != true || !context.mounted) return;
+                  try {
+                    await repo.closeTournamentRegistrations(tournamentId);
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      showAppSnackBar(context, 'Inscrições encerradas.');
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      showAppSnackBar(
+                        context,
+                        _opsError(e, 'encerrar as inscrições'),
+                        isError: true,
+                      );
+                    }
                   }
-                }
-              },
-            ),
+                },
+              ),
             _ActionTile(
               icon: Icons.delete_outline_rounded,
               label: 'Cancelar torneio',

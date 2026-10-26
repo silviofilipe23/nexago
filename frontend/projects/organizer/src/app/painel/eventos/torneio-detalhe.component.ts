@@ -17,7 +17,7 @@ import { tournamentCoverOrDefault } from '@nexago/tournament-covers';
 import { environment } from '../../../environments/environment';
 import { listInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { listMatches } from '../data/matches-repository';
-import { cancelTournament, closeTournamentRegistrations } from '../data/organizer-ops.service';
+import { cancelTournament, closeTournamentRegistrations, reopenTournamentRegistrations } from '../data/organizer-ops.service';
 import { isPaidRegistrationsRejection } from '../data/tournament-cancel-escalation';
 import type { OrganizerTournament, OrganizerTournamentSponsor, OrganizerTournamentStatus } from '../data/tournament.model';
 import { EMPTY_TOURNAMENT_COLLECTED, formatCentsShort } from '../data/tournament-collected';
@@ -44,7 +44,7 @@ const STATUS_LABEL: Record<OrganizerTournamentStatus, string> = {
 
 /** Ações do torneio que passam pelo diálogo de confirmação. `cancelPaid` não é um botão: é o
  *  segundo degrau do cancelamento, quando o servidor recusa por haver inscrições pagas. */
-type PendingAction = 'close' | 'cancel' | 'cancelPaid';
+type PendingAction = 'close' | 'reopen' | 'cancel' | 'cancelPaid';
 
 const CONFIRM_COPY: Record<PendingAction, { title: string; message: string; confirmLabel: string }> = {
   close: {
@@ -52,6 +52,12 @@ const CONFIRM_COPY: Record<PendingAction, { title: string; message: string; conf
     message:
       'As inscrições de TODAS as categorias deste torneio fecham. Quem já se inscreveu continua na lista; ninguém novo entra.',
     confirmLabel: 'Encerrar inscrições',
+  },
+  reopen: {
+    title: 'Reabrir inscrições?',
+    message:
+      'As inscrições de todas as categorias voltam a aceitar duplas até o prazo de inscrição. Se o prazo já passou, edite o torneio e estenda a data antes de reabrir.',
+    confirmLabel: 'Reabrir inscrições',
   },
   cancel: {
     title: 'Cancelar torneio?',
@@ -122,6 +128,14 @@ interface CategoriaRow {
               <app-nx-spinner [size]="12" />
             }
             {{ actingKind() === 'close' ? 'Encerrando…' : 'Encerrar inscrições' }}
+          </button>
+        }
+        @if (t.status === 'encerradas') {
+          <button type="button" class="og-ghost-btn og-torneio-hdr-act" [disabled]="acting()" (click)="ask('reopen')">
+            @if (actingKind() === 'reopen') {
+              <app-nx-spinner [size]="12" />
+            }
+            {{ actingKind() === 'reopen' ? 'Reabrindo…' : 'Reabrir inscrições' }}
           </button>
         }
         @if (t.status !== 'cancelado' && t.status !== 'concluido') {
@@ -415,6 +429,15 @@ interface CategoriaRow {
                 <span>
                   <strong>Encerrar inscrições</strong>
                   <small>Fecha todas as categorias. Quem já entrou continua.</small>
+                </span>
+              </button>
+            }
+            @if (t.status === 'encerradas') {
+              <button type="button" class="og-torneio-sheet-item" (click)="askFromSheet('reopen')">
+                <span class="og-torneio-sheet-ico pend"><og-icon name="clock" [size]="19" /></span>
+                <span>
+                  <strong>Reabrir inscrições</strong>
+                  <small>Volta a aceitar duplas até o prazo de inscrição.</small>
                 </span>
               </button>
             }
@@ -1213,7 +1236,7 @@ export class TorneioDetalheComponent {
   protected readonly loading = signal(true);
   protected readonly acting = signal(false);
   /** Qual ação de header está em andamento — o botão certo mostra spinner/rótulo. */
-  protected readonly actingKind = signal<'close' | 'cancel' | null>(null);
+  protected readonly actingKind = signal<'close' | 'reopen' | 'cancel' | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
 
   /** Ação aguardando confirmação no diálogo; `null` = nenhum diálogo aberto. */
@@ -1422,7 +1445,7 @@ export class TorneioDetalheComponent {
   }
 
   /** A folha fecha antes do diálogo de confirmação abrir — nunca dois modais empilhados. */
-  protected askFromSheet(action: 'close' | 'cancel'): void {
+  protected askFromSheet(action: 'close' | 'reopen' | 'cancel'): void {
     this.actionsOpen.set(false);
     this.ask(action);
   }
@@ -1442,6 +1465,10 @@ export class TorneioDetalheComponent {
       void this.closeRegistrations();
       return;
     }
+    if (action === 'reopen') {
+      void this.reopenRegistrations();
+      return;
+    }
     void this.cancel(action === 'cancelPaid');
   }
 
@@ -1458,6 +1485,25 @@ export class TorneioDetalheComponent {
       await this.load(t.id);
     } catch (e) {
       this.actionError.set((e as Error).message || 'Falha ao encerrar inscrições.');
+    } finally {
+      this.acting.set(false);
+      this.actingKind.set(null);
+    }
+  }
+
+  private async reopenRegistrations(): Promise<void> {
+    const t = this.tournament();
+    if (!t || this.acting()) return;
+    this.acting.set(true);
+    this.actingKind.set('reopen');
+    this.feedback.set(null);
+    try {
+      await reopenTournamentRegistrations(t.id);
+      this.pending.set(null);
+      this.feedback.set({ ok: true, message: 'Inscrições reabertas.' });
+      await this.load(t.id);
+    } catch (e) {
+      this.actionError.set((e as Error).message || 'Falha ao reabrir inscrições.');
     } finally {
       this.acting.set(false);
       this.actingKind.set(null);

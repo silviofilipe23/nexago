@@ -40,6 +40,10 @@ abstract final class NexagoArtifactsPaths {
   static String athleteRatingsCollection() =>
       '$publicDataBase/athleteRatings';
 
+  /// Ledger da engine de rating: um doc por partida, com o rating de cada
+  /// atleta antes (`pre`) e depois (`post`).
+  static String ratingEventsCollection() => '$publicDataBase/ratingEvents';
+
   static String matchPointEventsCollection(String matchId) =>
       '${matchesCollection()}/${matchId.trim()}/pointEvents';
 

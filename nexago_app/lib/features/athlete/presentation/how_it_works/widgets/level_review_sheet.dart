@@ -114,7 +114,8 @@ class _LevelReviewSheet extends StatelessWidget {
             icon: Icons.trending_down_rounded,
             title: 'Jogo abaixo desse nível',
             body: 'Até a sua primeira inscrição no esporte, dá pra ajustar em '
-                'Esportes e níveis. Depois, só a equipe nexaGO consegue baixar.',
+                'Esportes e níveis. Depois, pra baixar na hora, só pedindo à '
+                'equipe nexaGO.',
             action: 'Pedir revisão à equipe',
             onPressed: onRequestReview,
           ),

@@ -486,13 +486,14 @@ class _ReadyBody extends StatelessWidget {
         // e janela de correção coexistem por design (Task 4), e um texto que
         // vale pros dois estados não pode contradizer o aviso do card abaixo
         // (que é, esse sim, condicional a `levelLocked`). Ver fix pós-review
-        // no report da Task 4. Não promete subida automática: a escada do
-        // rating roda em modo sombra (`DEFAULT_LADDER_CONFIG.flags`).
+        // no report da Task 4. Não fala da subida automática: ela depende das
+        // flags de `ratingLadders/{esporte}`, que "Como funciona" lê ao vivo.
         Text(
-          'No vôlei, seus resultados em torneios são acompanhados e mostram '
-          'se você já joga acima do seu nível. Até a sua primeira inscrição '
-          'em cada esporte, você pode ajustar o nível livremente — depois ele '
-          'só sobe; para corrigir um nível já travado, fale com o suporte.',
+          'No vôlei, seus resultados em torneios viram pontos de nível: veja '
+          'quanto falta pra subir no ícone de ajuda. Até a sua primeira '
+          'inscrição em cada esporte, você pode ajustar o nível livremente — '
+          'depois, por conta própria, você só sobe; para corrigir um nível já '
+          'travado, fale com o suporte.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: context.themeColors.onSurfaceMuted,
             height: 1.35,

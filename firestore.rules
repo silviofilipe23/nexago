@@ -3290,10 +3290,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Banner de novidades da Home e tela de Novidades (backoffice › App do atleta). A fonte guarda
-    // rascunhos e pausados, então só o admin lê; o app lê os espelhos `appConfig/homeBanners` e
-    // `appConfig/appNews`. Escrita só pelas callables saveHomeBanners (`functions/src/home-banners.ts`)
-    // e saveAppNews (`functions/src/app-news.ts`).
+    // Banner de novidades da Home, tela de Novidades e Central de ajuda (backoffice › App do atleta).
+    // A fonte guarda rascunhos e pausados, então só o admin lê; o app lê os espelhos
+    // `appConfig/homeBanners`, `appConfig/appNews` e `appConfig/appGuide`. Escrita só pelas callables
+    // saveHomeBanners (`functions/src/home-banners.ts`), saveAppNews (`functions/src/app-news.ts`) e
+    // saveAppGuide (`functions/src/app-guide.ts`).
     match /appAdminConfig/{docId} {
       allow read: if isAdmin() || isSuperAdmin();
       allow write: if false;

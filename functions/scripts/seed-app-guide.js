@@ -31,6 +31,11 @@
  *   node scripts/seed-app-guide.js --project <projectId>          # dry-run
  *   node scripts/seed-app-guide.js --project <projectId> --yes
  *   node scripts/seed-app-guide.js --project <projectId> --delete --yes
+ *
+ * Depois que alguém salvar pelo backoffice (App do atleta › Central de ajuda), a fonte passa a ser
+ * `appAdminConfig/appGuide` e a callable saveAppGuide regrava este doc a cada save: o script se
+ * recusa a gravar ou apagar, senão o próximo save do backoffice desfaria o que ele fez. Antes disso,
+ * o backoffice abre importando o que estiver aqui.
  */
 
 const admin = require("firebase-admin");
@@ -56,6 +61,7 @@ if (!projectId) {
 admin.initializeApp({projectId});
 const db = admin.firestore();
 const DOC_PATH = "appConfig/appGuide";
+const SOURCE_PATH = "appAdminConfig/appGuide";
 
 // Artes já publicadas para as Novidades (docs/app-news-art/), reaproveitadas nos guias iguais.
 const IMAGES = {
@@ -418,6 +424,12 @@ function printCurrent(current) {
 async function run() {
   printCurrent(await readCurrent());
   if (SHOW_ONLY) return;
+
+  if ((await db.doc(SOURCE_PATH).get()).exists) {
+    console.error(`\n${SOURCE_PATH} existe: a Central de ajuda já é editada pelo backoffice ` +
+      "(App do atleta › Central de ajuda). Edite por lá — gravar aqui seria desfeito no próximo save.");
+    process.exit(1);
+  }
 
   if (DELETE) {
     console.log(`\nApagar ${DOC_PATH}.`);

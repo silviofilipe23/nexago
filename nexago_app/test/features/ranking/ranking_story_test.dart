@@ -1,0 +1,463 @@
+import 'dart:convert';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/core/theme/app_theme.dart';
+import 'package:nexago_app/features/arenas/data/booking_story_photo_picker.dart';
+import 'package:nexago_app/features/arenas/domain/booking_story.dart';
+import 'package:nexago_app/features/athlete/domain/sand_rank/sand_rank_providers.dart';
+import 'package:nexago_app/features/ranking/domain/ranking_list_models.dart';
+import 'package:nexago_app/features/ranking/domain/ranking_providers.dart';
+import 'package:nexago_app/features/ranking/domain/ranking_story.dart';
+import 'package:nexago_app/features/ranking/presentation/athlete_ranking_page.dart';
+import 'package:nexago_app/features/ranking/presentation/ranking_story_page.dart';
+import 'package:nexago_app/features/ranking/presentation/widgets/ranking_story_card.dart';
+
+/// PNG 1×1 transparente.
+final pixel = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+);
+
+RankingListEntry team(
+  int rank,
+  int points, {
+  bool me = false,
+  String name = 'Rival / Dupla',
+  RankingFormatFilter? format = RankingFormatFilter.dupla,
+}) {
+  return RankingListEntry(
+    rank: rank,
+    points: points,
+    tournamentsCount: 4,
+    displayName: me ? 'Daniel / Armando' : name,
+    subtitle: '',
+    isCurrentUser: me,
+    entityId: 'team-$rank',
+    player1Initials: 'DA',
+    player2Initials: 'AR',
+    teamFormat: format,
+  );
+}
+
+RankingListEntry athlete(int rank, int points, {bool me = false}) {
+  return RankingListEntry(
+    rank: rank,
+    points: points,
+    tournamentsCount: 1,
+    displayName: me ? 'Daniel Moraes' : 'Atleta $rank',
+    subtitle: '',
+    isCurrentUser: me,
+    entityId: 'ath-$rank',
+    initials: 'DM',
+  );
+}
+
+/// 48 duplas; a do atleta em [myRank], pontos caindo de 10 em 10.
+List<RankingListEntry> field({int myRank = 4, int size = 48}) => [
+      for (var r = 1; r <= size; r++) team(r, 500 - r * 10, me: r == myRank),
+    ];
+
+RankingStoryData teamStory({
+  int myRank = 4,
+  RankingPageFilter filter = const RankingPageFilter(
+    mode: RankingListMode.teams,
+    year: 2026,
+  ),
+  List<RankingListEntry>? entries,
+}) {
+  final list = entries ?? field(myRank: myRank);
+  return rankingStoryDataFrom(
+    entry: list.firstWhere((e) => e.isCurrentUser),
+    entries: list,
+    filter: filter,
+    sportLabel: 'Vôlei de Praia',
+  );
+}
+
+Future<void> pumpCard(
+  WidgetTester tester,
+  RankingStoryData data, {
+  BookingStoryTheme theme = BookingStoryTheme.ember,
+  Set<RankingStoryInfo>? infos,
+  GlobalKey? boundaryKey,
+}) async {
+  tester.view.physicalSize = const Size(360, 640);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Center(
+        child: RepaintBoundary(
+          key: boundaryKey,
+          child: RankingStoryCard(
+            data: data,
+            theme: theme,
+            infos: infos ?? RankingStoryInfo.values.toSet(),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+void main() {
+  group('RankingStoryData', () {
+    test('a faixa sai da posição: medalha no pódio, frase no top 5/10', () {
+      expect(
+        [
+          for (final r in [1, 2, 3, 4, 5, 6, 10, 11]) teamStory(myRank: r).tier
+        ],
+        [
+          RankingStoryTier.gold,
+          RankingStoryTier.silver,
+          RankingStoryTier.bronze,
+          RankingStoryTier.top5,
+          RankingStoryTier.top5,
+          RankingStoryTier.top10,
+          RankingStoryTier.top10,
+          RankingStoryTier.rest,
+        ],
+      );
+      expect(teamStory(myRank: 1).medalLabel, 'PÓDIO · OURO');
+      expect(teamStory(myRank: 3).medalLabel, 'PÓDIO · BRONZE');
+      expect(teamStory(myRank: 4).medalLabel, isNull);
+    });
+
+    test('dupla fala no plural; individual, no singular', () {
+      expect(teamStory(myRank: 1).kicker, 'LÍDERES DO RANKING');
+      expect(teamStory(myRank: 12).kicker, 'NOSSA POSIÇÃO NO RANKING');
+
+      final list = [athlete(1, 540, me: true), athlete(2, 495)];
+      final solo = rankingStoryDataFrom(
+        entry: list.first,
+        entries: list,
+        filter: const RankingPageFilter(year: 2026),
+        sportLabel: 'Beach Tennis',
+      );
+      expect(solo.kicker, 'LÍDER DO RANKING');
+      expect(solo.cutLine, 'BEACH TENNIS · INDIVIDUAL');
+      expect(solo.fieldLabel, 'ENTRE 2 ATLETAS');
+      expect(solo.identityLine, 'Atleta · 1 torneio');
+      expect(solo.people.single.initials, 'DM');
+    });
+
+    test('o recorte da folha vai estampado: a posição é renumerada nele', () {
+      final data = teamStory(
+        filter: const RankingPageFilter(
+          mode: RankingListMode.teams,
+          year: 2026,
+          gender: RankingGenderFilter.male,
+          level: RankingLevelFilter.intermediario,
+        ),
+      );
+      expect(
+        data.cutLine,
+        'VÔLEI DE PRAIA · DUPLAS · MASCULINO · INTERMEDIÁRIO',
+      );
+      expect(data.pillLabel, 'RANKING 2026');
+      expect(data.fieldLabel, 'ENTRE 48 DUPLAS');
+      expect(data.identityLine, 'Dupla · 4 torneios');
+      expect(data.people, hasLength(2));
+    });
+
+    test('trio na lista vira "equipes"; o formato da folha manda', () {
+      final mixed = [
+        team(1, 300),
+        team(2, 200, me: true, format: RankingFormatFilter.trio),
+      ];
+      final data = teamStory(entries: mixed);
+      expect(data.unit, 'equipes');
+      expect(data.identityLabel, 'Trio');
+
+      final trios = teamStory(
+        entries: mixed,
+        filter: const RankingPageFilter(
+          mode: RankingListMode.teams,
+          format: RankingFormatFilter.trio,
+        ),
+      );
+      expect(trios.unit, 'trios');
+      expect(trios.pillLabel, 'RANKING GERAL');
+    });
+
+    test('pontos para subir vêm de quem está logo acima', () {
+      expect(teamStory(myRank: 4).pointsToClimb, 10);
+      expect(teamStory(myRank: 1).pointsToClimb, isNull);
+      final tied = [team(1, 200), team(2, 200, me: true)];
+      expect(teamStory(entries: tied).pointsToClimb, isNull);
+    });
+
+    test('sem pontos nem concorrência, os chips somem', () {
+      final alone = [team(1, 0, me: true)];
+      expect(rankingStoryInfosFor(teamStory(entries: alone)), [
+        RankingStoryInfo.identity,
+      ]);
+      expect(
+        rankingStoryInfosFor(teamStory()),
+        RankingStoryInfo.values,
+      );
+    });
+
+    test('legenda leva posição, recorte, o que falta e a hashtag', () {
+      expect(
+        rankingStoryShareText(teamStory(myRank: 1)),
+        '1º no ranking 2026 de duplas de Vôlei de Praia! '
+        'Quem vem tirar a gente daqui? #vamosnexa',
+      );
+      expect(
+        rankingStoryShareText(teamStory(myRank: 2)),
+        contains('Faltam 10 pontos pro topo.'),
+      );
+      expect(
+        rankingStoryShareText(
+          teamStory(
+            myRank: 4,
+            filter: const RankingPageFilter(
+              mode: RankingListMode.teams,
+              gender: RankingGenderFilter.female,
+            ),
+          ),
+        ),
+        startsWith(
+          '4º no ranking geral de duplas de Vôlei de Praia (Feminino)! '
+          'Faltam 10 pontos pro 3º.',
+        ),
+      );
+    });
+  });
+
+  group('RankingStoryCard', () {
+    // `gradient` anula `color` no BoxDecoration: o PNG não pode sair com
+    // canto transparente em nenhum fundo (ver booking_story_card_test).
+    for (final theme in BookingStoryTheme.values) {
+      testWidgets('fundo ${theme.label} sai opaco', (tester) async {
+        final key = GlobalKey();
+        await pumpCard(tester, teamStory(), theme: theme, boundaryKey: key);
+        final boundary =
+            tester.renderObject<RenderRepaintBoundary>(find.byKey(key));
+        final alphas = await tester.runAsync(() async {
+          final image = await boundary.toImage();
+          final bytes =
+              await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+          final w = image.width;
+          final h = image.height;
+          image.dispose();
+          int alphaAt(int x, int y) => bytes!.getUint8((y * w + x) * 4 + 3);
+          return [
+            alphaAt(0, 0),
+            alphaAt(w - 1, 0),
+            alphaAt(w ~/ 2, h ~/ 2),
+            alphaAt(0, h - 1),
+            alphaAt(w - 1, h - 1),
+          ];
+        });
+        expect(alphas, everyElement(255));
+      });
+    }
+
+    for (final theme in BookingStoryTheme.values) {
+      testWidgets('pior caso cabe na arte (${theme.name})', (tester) async {
+        final list = [
+          for (var r = 1; r <= 240; r++)
+            team(
+              r,
+              9000 - r,
+              me: r == 187,
+              name: 'Maria Eduarda Albuquerque / Ana Carolina Vasconcelos',
+            ),
+        ];
+        final data = teamStory(
+          entries: list,
+          filter: const RankingPageFilter(
+            mode: RankingListMode.teams,
+            year: 2026,
+            gender: RankingGenderFilter.mixed,
+            level: RankingLevelFilter.intermediario,
+          ),
+        );
+        await pumpCard(tester, data, theme: theme);
+        expect(tester.takeException(), isNull);
+        expect(
+          tester.getSize(find.byType(RankingStoryCard)),
+          const Size(360, 640),
+        );
+        // O bloco cresce para cima: não pode subir por cima da marca e do
+        // selo do topo.
+        expect(
+          tester.getTopLeft(find.text('NOSSA POSIÇÃO NO RANKING')).dy,
+          greaterThan(tester.getBottomLeft(find.text('RANKING 2026')).dy + 8),
+        );
+        expect(find.text('187'), findsOneWidget);
+      });
+    }
+
+    testWidgets('escreve posição, recorte, medalha, total, dupla e pontos', (
+      tester,
+    ) async {
+      await pumpCard(tester, teamStory(myRank: 1));
+      expect(find.text('LÍDERES DO RANKING'), findsOneWidget);
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('º'), findsOneWidget);
+      expect(find.text('VÔLEI DE PRAIA · DUPLAS'), findsOneWidget);
+      expect(find.text('PÓDIO · OURO'), findsOneWidget);
+      expect(find.text('ENTRE 48 DUPLAS'), findsOneWidget);
+      expect(find.text('Daniel / Armando'), findsOneWidget);
+      expect(find.text('490'), findsOneWidget);
+      expect(find.text('RANKING 2026'), findsOneWidget);
+    });
+
+    testWidgets('sem a dupla, ficam os pontos; sem nada, some o cartão', (
+      tester,
+    ) async {
+      await pumpCard(tester, teamStory(), infos: {RankingStoryInfo.points});
+      expect(find.text('Daniel / Armando'), findsNothing);
+      expect(find.text('460'), findsOneWidget);
+      expect(find.text('ENTRE 48 DUPLAS'), findsNothing);
+
+      await pumpCard(tester, teamStory(), infos: const {});
+      expect(find.text('PONTOS'), findsNothing);
+      expect(find.text('4'), findsOneWidget);
+    });
+  });
+
+  group('RankingStoryPage', () {
+    Future<void> abrir(
+      WidgetTester tester, {
+      BookingStoryPhotoPicker? picker,
+    }) async {
+      tester.view.physicalSize = const Size(400, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            if (picker != null)
+              bookingStoryPhotoPickerProvider.overrideWithValue(picker),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark,
+            home: RankingStoryPage(data: teamStory()),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    testWidgets('chip desligado tira os pontos da arte; religar volta', (
+      tester,
+    ) async {
+      await abrir(tester);
+      expect(find.text('460'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('ranking-story-info-points')));
+      await tester.pump();
+      expect(find.text('460'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('ranking-story-info-points')));
+      await tester.pump();
+      expect(find.text('460'), findsOneWidget);
+    });
+
+    testWidgets('chip da identidade usa o formato da equipe', (tester) async {
+      await abrir(tester);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('ranking-story-info-identity')),
+          matching: find.text('Dupla'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    for (final source in BookingStoryPhotoSource.values) {
+      testWidgets('fundo "Foto" pela ${source.name} vira o fundo da arte', (
+        tester,
+      ) async {
+        BookingStoryPhotoSource? asked;
+        await abrir(
+          tester,
+          picker: (s) async {
+            asked = s;
+            return pixel;
+          },
+        );
+
+        await tester.tap(find.byKey(const Key('booking-story-theme-photo')));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(ValueKey('booking-story-photo-source-${source.name}')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(asked, source);
+        final art =
+            tester.widget<RankingStoryCard>(find.byType(RankingStoryCard));
+        expect(art.theme, BookingStoryTheme.photo);
+        expect(art.photo, pixel);
+      });
+    }
+  });
+
+  group('Tela do ranking', () {
+    Future<void> pumpRanking(
+      WidgetTester tester,
+      List<RankingListEntry> entries,
+    ) async {
+      // 400: a fonte Ahem do teste é mais larga que a Sora e, abaixo disso,
+      // estoura a barra "Postar no story" do editor (mesmo tamanho da campanha).
+      tester.view.physicalSize = const Size(400, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            rankingListEntriesProvider.overrideWith((ref) async => entries),
+            rankingSportProvider.overrideWith((ref) async => 'VOLEI_PRAIA'),
+            sandRankEnabledProvider.overrideWith((ref) => Stream.value(false)),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark,
+            home: const AthleteRankingPage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('"Compartilhar minha posição" abre o story na melhor linha', (
+      tester,
+    ) async {
+      // Duas linhas do atleta (duas duplas): vale a melhor.
+      final entries = [
+        for (var r = 1; r <= 12; r++) athlete(r, 500 - r, me: r == 9 || r == 2),
+      ];
+      await pumpRanking(tester, entries);
+
+      final button = find.byKey(const Key('ranking-share-position'));
+      expect(button, findsOneWidget);
+      expect(
+        find.descendant(of: button, matching: find.text('2º')),
+        findsOneWidget,
+      );
+
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RankingStoryPage), findsOneWidget);
+      final art =
+          tester.widget<RankingStoryCard>(find.byType(RankingStoryCard));
+      expect(art.data.rank, 2);
+      expect(art.data.total, 12);
+      expect(art.data.isTeam, isFalse);
+      expect(find.text('VICE-LÍDER DO RANKING'), findsOneWidget);
+    });
+
+    testWidgets('fora do recorte, sem botão', (tester) async {
+      await pumpRanking(tester, [athlete(1, 500), athlete(2, 400)]);
+      expect(find.byKey(const Key('ranking-share-position')), findsNothing);
+    });
+  });
+}

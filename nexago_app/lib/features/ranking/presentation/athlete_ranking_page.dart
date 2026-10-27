@@ -15,12 +15,15 @@ import '../domain/ranking_list_mapper.dart';
 import '../domain/ranking_list_models.dart';
 import '../domain/ranking_logic.dart';
 import '../domain/ranking_providers.dart';
+import '../domain/ranking_story.dart';
+import 'ranking_story_page.dart';
 import 'widgets/ranking_classification_header.dart';
 import 'widgets/ranking_filters_sheet.dart';
 import 'widgets/ranking_list_tile.dart';
 import 'widgets/ranking_mode_segment.dart';
 import 'widgets/ranking_page_app_bar.dart';
 import 'widgets/ranking_podium.dart';
+import 'widgets/ranking_share_position_button.dart';
 
 class AthleteRankingPage extends ConsumerStatefulWidget {
   const AthleteRankingPage({super.key});
@@ -133,6 +136,25 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
     );
   }
 
+  /// A posição vem da lista inteira do recorte, não da busca: a busca não
+  /// renumera, e o "entre N" conta todo mundo.
+  void _shareMyPosition({
+    required RankingListEntry entry,
+    required List<RankingListEntry> entries,
+    required RankingPageFilter filter,
+    required String sportCode,
+  }) {
+    openRankingStory(
+      context,
+      rankingStoryDataFrom(
+        entry: entry,
+        entries: entries,
+        filter: filter,
+        sportLabel: rankingSportLabel(sportCode),
+      ),
+    );
+  }
+
   VoidCallback? _profileTap(RankingListEntry entry, RankingListMode mode) {
     final id = entry.entityId.trim();
     if (id.isEmpty) return null;
@@ -191,6 +213,10 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
           final visible = filterRankingEntriesBySearch(entries, _searchQuery);
           final isSearching = _searchQuery.trim().isNotEmpty;
           final userEntry = visible.where((e) => e.isCurrentUser).firstOrNull;
+          // Quem tem mais de uma dupla no recorte compartilha a melhor.
+          final myEntry = sortedRankingEntries(entries)
+              .where((e) => e.isCurrentUser)
+              .firstOrNull;
           final userInRest = userEntry != null && userEntry.rank > 3;
           final showFloatingUserCard =
               userInRest && _userCardFloating && !isSearching;
@@ -251,6 +277,18 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                       ),
                     ),
                     SizedBox(height: 16),
+                    if (myEntry != null) ...[
+                      RankingSharePositionButton(
+                        rank: myEntry.rank,
+                        onTap: () => _shareMyPosition(
+                          entry: myEntry,
+                          entries: entries,
+                          filter: filter,
+                          sportCode: sportCode,
+                        ),
+                      ),
+                      SizedBox(height: 20),
+                    ],
                     if (visible.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 24),

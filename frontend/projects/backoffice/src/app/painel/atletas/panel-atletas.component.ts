@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { athleteSportLabel, levelDisplayLabel } from '@nexago/levels';
 import { callableErrorMessage } from '../data/callable-error';
 import type { BackofficeUser } from '../organizadores/data/organizers.repository';
-import { roleLabels, userDisplayName } from '../organizadores/role-subject';
+import { roleLabels, userDisplayName, userInitials } from '../organizadores/role-subject';
 import { ConfirmDialogComponent } from '../ui/confirm-dialog.component';
 import { FieldComponent } from '../ui/field.component';
 import { IconComponent } from '../ui/icon.component';
@@ -15,7 +15,7 @@ import { AthleteLevelDialogComponent } from './athlete-level-dialog.component';
 import {
   AthletesRepository,
   type AthleteLevelChange,
-  type AthleteLevelSummary,
+  type AthleteRowSummary,
 } from './data/athletes.repository';
 
 type LoadState = 'loading' | 'ok' | 'error';
@@ -110,8 +110,26 @@ interface ProDecision {
                 @for (row of rows(); track row.uid) {
                   <div class="table-row">
                     <div class="cell-who">
-                      <div class="who-name">{{ name(row) }}</div>
-                      <div class="who-id">{{ row.email || row.uid }}</div>
+                      @if (photoOf(row); as photo) {
+                        <img
+                          class="who-photo"
+                          [src]="photo"
+                          alt=""
+                          width="36"
+                          height="36"
+                          loading="lazy"
+                          (error)="photoFailed(row.uid)"
+                        />
+                      } @else {
+                        <div class="bo-avatar who-photo" aria-hidden="true">{{ initials(row) }}</div>
+                      }
+                      <div class="who-text">
+                        <div class="who-name">{{ name(row) }}</div>
+                        @if (nicknameOf(row); as nickname) {
+                          <div class="who-nick" title="Apelido">“{{ nickname }}”</div>
+                        }
+                        <div class="who-id">{{ row.email || row.uid }}</div>
+                      </div>
                     </div>
                     <div class="cell-roles">{{ roles(row) }}</div>
                     <div class="cell-level">
@@ -285,7 +303,8 @@ interface ProDecision {
       /* Larguras fixas coladas no conteúdo real (pill mais larga = "Intermediário 2",
          a 123px) para sobrar espaço aos textos livres de pessoa e papéis. */
       grid-template-columns: 1.5fr 1.2fr 124px 56px 92px 92px 224px;
-      min-width: 900px;
+      /* +46px da foto (36 + gap) para o nome não encolher em tela estreita. */
+      min-width: 946px;
       gap: 10px;
       align-items: center;
     }
@@ -336,8 +355,37 @@ interface ProDecision {
     .cell-who {
       min-width: 0;
       display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .who-photo {
+      width: 36px;
+      height: 36px;
+      flex: none;
+      border-radius: 50%;
+      object-fit: cover;
+      background: var(--nx-surface-0);
+      border: 1px solid var(--nx-line);
+    }
+
+    .bo-avatar.who-photo {
+      font-size: 12px;
+    }
+
+    .who-text {
+      min-width: 0;
+      display: flex;
       flex-direction: column;
       gap: 2px;
+    }
+
+    .who-nick {
+      font-size: 12px;
+      color: var(--nx-orange-500);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .who-name {
@@ -381,12 +429,15 @@ export class PanelAtletasComponent {
   private readonly repository = inject(AthletesRepository);
 
   protected readonly name = userDisplayName;
+  protected readonly initials = userInitials;
 
   protected readonly term = signal('');
   protected readonly rows = signal<readonly BackofficeUser[]>([]);
   protected readonly nextPageToken = signal<string | null>(null);
   protected readonly pro = signal<ReadonlySet<string>>(new Set<string>());
-  protected readonly levels = signal<ReadonlyMap<string, AthleteLevelSummary>>(new Map());
+  protected readonly summaries = signal<ReadonlyMap<string, AthleteRowSummary>>(new Map());
+  /** Fotos que não carregaram (URL expirada/removida): a linha volta às iniciais. */
+  private readonly brokenPhotos = signal<ReadonlySet<string>>(new Set<string>());
   protected readonly state = signal<LoadState>('loading');
   protected readonly errorMessage = signal('');
 
@@ -431,9 +482,24 @@ export class PanelAtletasComponent {
   }
 
   /** `null` quando não há nível para mostrar — a coluna fica com o traço. */
-  protected levelOf(row: BackofficeUser): AthleteLevelSummary | null {
-    const summary = this.levels().get(row.uid);
+  protected levelOf(row: BackofficeUser): AthleteRowSummary | null {
+    const summary = this.summaries().get(row.uid);
     return summary?.level ? summary : null;
+  }
+
+  protected photoOf(row: BackofficeUser): string | null {
+    if (this.brokenPhotos().has(row.uid)) {
+      return null;
+    }
+    return this.summaries().get(row.uid)?.photoUrl ?? null;
+  }
+
+  protected nicknameOf(row: BackofficeUser): string | null {
+    return this.summaries().get(row.uid)?.nickname ?? null;
+  }
+
+  protected photoFailed(uid: string): void {
+    this.brokenPhotos.update((current) => new Set([...current, uid]));
   }
 
   protected levelLabel(raw: string | null): string {
@@ -457,7 +523,8 @@ export class PanelAtletasComponent {
     this.state.set('loading');
     this.rows.set([]);
     this.nextPageToken.set(null);
-    this.levels.set(new Map());
+    this.summaries.set(new Map());
+    this.brokenPhotos.set(new Set<string>());
     try {
       const [page, pro] = await Promise.all([
         this.repository.listUsers(this.term(), null),
@@ -467,7 +534,7 @@ export class PanelAtletasComponent {
       this.nextPageToken.set(page.nextPageToken);
       this.pro.set(pro);
       this.state.set('ok');
-      void this.loadLevels(page.rows);
+      void this.loadSummaries(page.rows);
     } catch (err) {
       this.errorMessage.set(callableErrorMessage(err));
       this.state.set('error');
@@ -485,7 +552,7 @@ export class PanelAtletasComponent {
       this.rows.update((current) => [...current, ...page.rows]);
       this.nextPageToken.set(page.nextPageToken);
       this.state.set('ok');
-      void this.loadLevels(page.rows);
+      void this.loadSummaries(page.rows);
     } catch (err) {
       this.errorMessage.set(callableErrorMessage(err));
       this.state.set('error');
@@ -502,19 +569,19 @@ export class PanelAtletasComponent {
   }
 
   /**
-   * Nível também é coluna opcional: preenche depois que a lista já apareceu e,
-   * se falhar, fica vazia. O botão de troca segue funcionando (o diálogo lê o
-   * doc canônico por conta própria).
+   * Foto, apelido e nível também são opcionais: preenchem depois que a lista já
+   * apareceu e, se falharem, a linha fica com iniciais e traço. O botão de troca
+   * de nível segue funcionando (o diálogo lê o doc canônico por conta própria).
    */
-  private async loadLevels(rows: readonly BackofficeUser[]): Promise<void> {
+  private async loadSummaries(rows: readonly BackofficeUser[]): Promise<void> {
     if (rows.length === 0) {
       return;
     }
     try {
-      const page = await this.repository.levelSummaries(rows.map((row) => row.uid));
-      this.levels.update((current) => new Map([...current, ...page]));
+      const page = await this.repository.rowSummaries(rows.map((row) => row.uid));
+      this.summaries.update((current) => new Map([...current, ...page]));
     } catch {
-      // Coluna vazia — sem alarde na tela.
+      // Linhas sem foto/apelido/nível — sem alarde na tela.
     }
   }
 
@@ -536,13 +603,18 @@ export class PanelAtletasComponent {
    */
   protected onLevelChanged(user: BackofficeUser, change: AthleteLevelChange): void {
     this.levelTarget.set(null);
-    const summary = this.levels().get(user.uid);
+    const summary = this.summaries().get(user.uid);
     // Só mexe na coluna quando o esporte alterado é o que ela mostra (ou
-    // quando ainda não havia nada lá).
+    // quando ainda não havia nada lá). Foto e apelido continuam os mesmos.
     if (!summary?.sportCode || summary.sportCode === change.sportCode) {
-      this.levels.update((current) => {
+      this.summaries.update((current) => {
         const next = new Map(current);
-        next.set(user.uid, { sportCode: change.sportCode, level: change.toLevel });
+        next.set(user.uid, {
+          photoUrl: summary?.photoUrl ?? null,
+          nickname: summary?.nickname ?? null,
+          sportCode: change.sportCode,
+          level: change.toLevel,
+        });
         return next;
       });
     }

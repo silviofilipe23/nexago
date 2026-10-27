@@ -21,6 +21,17 @@ export function userDisplayName(user: BackofficeUser): string {
   return user.fullName ?? user.displayName ?? user.email ?? user.uid;
 }
 
+/** Iniciais do nome de exibição (primeiro + último), para o avatar sem foto. */
+export function userInitials(user: BackofficeUser): string {
+  const parts = userDisplayName(user).trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return '·';
+  }
+  const first = parts[0]![0] ?? '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]![0] ?? '') : '';
+  return (first + last).toUpperCase();
+}
+
 /** Atleta do mock (telas de solicitação) → conta do formulário. */
 export function subjectFromAthlete(athlete: Athlete): RoleFormSubject {
   return { ...athlete, badge: athlete.elo };

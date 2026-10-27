@@ -8,21 +8,23 @@ import '../../application/app_news_providers.dart';
 import '../../domain/app_news_logic.dart';
 
 /// Tile "Novidades" no grupo SOBRE dos ajustes do perfil, com quantas
-/// funcionalidades da versão o atleta ainda não usou. Sem nada publicado para
-/// este build, some.
+/// funcionalidades da versão o atleta ainda não usou. Fica sempre no menu:
+/// sem nada publicado para este build (ou ainda carregando), o toque abre a
+/// tela vazia de Novidades.
 class AppNewsSettingsTile extends ConsumerWidget {
   const AppNewsSettingsTile({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final view = ref.watch(appNewsProvider);
-    if (view == null) return const SizedBox.shrink();
     final used = ref.watch(appNewsUsedProvider).valueOrNull ?? const {};
-    final unused = appNewsUnusedCount(view.current, used);
+    final unused = view == null ? 0 : appNewsUnusedCount(view.current, used);
     return AthleteSettingsTile(
       icon: Icons.auto_awesome_outlined,
       title: 'Novidades',
-      subtitle: 'O que chegou na versão ${view.current.version}',
+      subtitle: view == null
+          ? 'O que há de novo no app'
+          : 'O que chegou na versão ${view.current.version}',
       variant: AthleteSettingsIconVariant.neutral,
       trailingBadge: unused > 0
           ? AthleteSettingsOrangeBadge(

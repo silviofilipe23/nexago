@@ -283,7 +283,6 @@
         <p class="rk-row-name">{{ p.name }}</p>
         <p class="rk-row-city">{{ p.city }}</p>
       </div>
-      <span class="rk-row-level">{{ p.level ?? '—' }}</span>
       <span class="rk-row-points">{{ p.points }}</span>
       <span class="rk-trend" [attr.data-tone]="trendTone(p.trend)">
         @if (trendTone(p.trend) === 'neutral') {

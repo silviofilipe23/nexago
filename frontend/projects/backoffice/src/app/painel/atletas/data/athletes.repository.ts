@@ -51,10 +51,15 @@ export interface AthleteLevelChange {
   notified: boolean;
 }
 
-/** Resumo do nível para a coluna da lista (esporte principal do atleta). */
-export interface AthleteLevelSummary {
+/**
+ * O que a linha da lista mostra além do Auth: foto e apelido (para saber quem
+ * é quem) e o nível do esporte principal do atleta.
+ */
+export interface AthleteRowSummary {
   sportCode: string | null;
   level: string | null;
+  photoUrl: string | null;
+  nickname: string | null;
 }
 
 /** Limite do operador `in` do Firestore — a página da lista tem 25 linhas. */
@@ -148,15 +153,15 @@ export class AthletesRepository {
   }
 
   /**
-   * Nível do esporte principal de cada linha, para a coluna da lista.
+   * Foto, apelido e nível do esporte principal de cada linha da lista.
    *
    * Lê o espelho `public_profiles` (sem PII, legível por qualquer autenticado)
    * em vez de `users` — são poucas leituras por página e não depende do claim
-   * `admin`. O espelho tem alguns segundos de atraso: depois de uma troca, a
-   * linha é atualizada com a resposta do callable, não por releitura.
+   * `admin`. O espelho tem alguns segundos de atraso: depois de uma troca de
+   * nível, a linha é atualizada com a resposta do callable, não por releitura.
    */
-  async levelSummaries(uids: readonly string[]): Promise<Map<string, AthleteLevelSummary>> {
-    const out = new Map<string, AthleteLevelSummary>();
+  async rowSummaries(uids: readonly string[]): Promise<Map<string, AthleteRowSummary>> {
+    const out = new Map<string, AthleteRowSummary>();
     for (let i = 0; i < uids.length; i += IN_QUERY_LIMIT) {
       const chunk = uids.slice(i, i + IN_QUERY_LIMIT);
       if (chunk.length === 0) {
@@ -179,6 +184,10 @@ export class AthletesRepository {
         out.set(doc.id, {
           sportCode,
           level: sportCode ? (bySport[sportCode] ?? null) : null,
+          // Mesma ordem do app: o login social só deixa `photoURL`.
+          photoUrl:
+            str(doc.get('profilePhotoUrl')) ?? str(doc.get('avatarUrl')) ?? str(doc.get('photoURL')),
+          nickname: str(doc.get('nickname'))?.trim() ?? null,
         });
       }
     }

@@ -1,6 +1,7 @@
 import { Component, input, provideZonelessChangeDetection, signal, type WritableSignal } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ARENA_AMENITIES_EMPTY, type ArenaListItem } from '@nexago/arena-discovery';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import type { ArenaBookingDoc } from '../../data/arena-bookings-repository';
@@ -30,6 +31,7 @@ interface Internals {
   loading: WritableSignal<boolean>;
   invites: WritableSignal<BookingInvite[]>;
   ownerProfile: WritableSignal<{ name: string; avatarUrl: string | null } | null>;
+  arena: WritableSignal<ArenaListItem | null>;
 }
 
 const firebase = environment.firebase as { apiKey: string };
@@ -178,5 +180,48 @@ describe('AthleteBookingDetailComponent — equipe e convites', () => {
     const fixture = render('dono', full);
     expect(host(fixture).querySelector('.bd-team-row--empty')).toBeNull();
     expect(pageText(fixture)).toContain('Quadra completa');
+  });
+
+  describe('capa da arena', () => {
+    const arena = (coverUrl: string | null): ArenaListItem => ({
+      id: 'a1',
+      name: 'Arena Sol',
+      locationLabel: 'Goiânia, GO',
+      coverUrl,
+      logoUrl: null,
+      pricePerHourReais: 80,
+      description: null,
+      city: 'Goiânia',
+      state: 'GO',
+      galleryImageUrls: [],
+      ratingAverage: 0,
+      reviewsCount: 0,
+      lat: null,
+      lng: null,
+      courtTypes: [],
+      surfaces: [],
+      reputationScore: 0,
+      onlinePaymentEnabled: true,
+      onsitePaymentEnabled: true,
+      amenities: ARENA_AMENITIES_EMPTY,
+      phone: null,
+      whatsapp: null,
+      isUnclaimed: false,
+    });
+
+    it('sem capa: herói no tom do status, sem foto quebrada', () => {
+      const fixture = render('dono', booking(), (i) => i.arena.set(arena(null)));
+      const hero = host(fixture).querySelector('.bd-hero');
+      expect(hero?.classList).not.toContain('bd-hero--cover');
+      expect(hero?.querySelector('.bd-hero-cover')).toBeNull();
+    });
+
+    it('com capa: herói com a foto da arena', () => {
+      const cover = 'https://firebasestorage.googleapis.com/v0/b/x/o/arenas%2Fa1%2Fcover';
+      const fixture = render('dono', booking(), (i) => i.arena.set(arena(cover)));
+      const hero = host(fixture).querySelector('.bd-hero');
+      expect(hero?.classList).toContain('bd-hero--cover');
+      expect(hero?.querySelector('.bd-hero-cover')?.getAttribute('src')).toBe(cover);
+    });
   });
 });

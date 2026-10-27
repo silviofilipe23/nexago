@@ -339,20 +339,22 @@
             [attr.aria-label]="'Ver detalhes de ' + item.result.arena.name"
           >
             <div class="rv-card-hero" [style.background]="heroGradient(item.result.arena.id)">
-              @if (!isImageFailed(item.result.arena.id)) {
-                <img
-                  class="rv-hero-img"
-                  [class.rv-hero-img--loaded]="isImageLoaded(item.result.arena.id)"
-                  [src]="arenaImageUrl(item.result.arena)"
-                  [alt]="item.result.arena.name"
-                  loading="lazy"
-                  decoding="async"
-                  (load)="onImageLoad(item.result.arena.id)"
-                  (error)="onImageError(item.result.arena.id)"
-                />
-              }
-              @if (!isImageLoaded(item.result.arena.id) && !isImageFailed(item.result.arena.id)) {
-                <div class="rv-hero-skeleton" aria-hidden="true"></div>
+              @if (arenaImageUrl(item.result.arena); as imgUrl) {
+                @if (!isImageFailed(item.result.arena.id)) {
+                  <img
+                    class="rv-hero-img"
+                    [class.rv-hero-img--loaded]="isImageLoaded(item.result.arena.id)"
+                    [src]="imgUrl"
+                    [alt]="item.result.arena.name"
+                    loading="lazy"
+                    decoding="async"
+                    (load)="onImageLoad(item.result.arena.id)"
+                    (error)="onImageError(item.result.arena.id)"
+                  />
+                }
+                @if (!isImageLoaded(item.result.arena.id) && !isImageFailed(item.result.arena.id)) {
+                  <div class="rv-hero-skeleton" aria-hidden="true"></div>
+                }
               }
               <span class="rv-hero-pill">{{ courtCountLabel(item.result.courtCount) }}</span>
               <div class="rv-hero-top-right">

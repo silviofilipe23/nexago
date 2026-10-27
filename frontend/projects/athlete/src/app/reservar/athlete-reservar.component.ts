@@ -475,7 +475,7 @@ export class AthleteReservarComponent {
     return this.bestPriceIds().has(arenaId);
   }
 
-  protected arenaImageUrl(arena: ArenaListItem): string {
+  protected arenaImageUrl(arena: ArenaListItem): string | null {
     return arenaListItemImageUrl(arena);
   }
 

@@ -104,24 +104,8 @@ class ArenaListItem {
   /// seguem iguais.
   final bool isUnclaimed;
 
-  /// Compatibilidade com código legado.
-  String get imageUrl => coverUrl ?? kDefaultImageUrl;
-
   /// URLs extras (Firestore: `galleryImageUrls` ou lista `images`).
   final List<String> galleryImageUrls;
-
-  /// Slides do carrossel: capa + galeria sem duplicar.
-  List<String> get carouselImageUrls {
-    final out = <String>[imageUrl];
-    for (final u in galleryImageUrls) {
-      if (u.isNotEmpty && !out.contains(u)) out.add(u);
-    }
-    return out;
-  }
-
-  /// Imagem padrão quando o documento não tem URL.
-  static const String kDefaultImageUrl =
-      'https://images.unsplash.com/photo-1612872087720-bb876e2ef67a?w=800&q=80&auto=format&fit=crop';
 
   factory ArenaListItem.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,

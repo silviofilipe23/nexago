@@ -2,9 +2,6 @@ import type { DocumentData, DocumentSnapshot } from 'firebase/firestore';
 
 import { amenitiesFromFirestore, type ArenaAmenities } from './arena-amenities';
 
-const DEFAULT_IMAGE_URL =
-  'https://images.unsplash.com/photo-1612872087720-bb876e2ef67a?w=800&q=80&auto=format&fit=crop';
-
 export interface ArenaListItem {
   id: string;
   name: string;
@@ -141,8 +138,12 @@ function readStringArray(raw: unknown): string[] {
   return out;
 }
 
-export function arenaListItemImageUrl(item: ArenaListItem): string {
-  return item.coverUrl ?? DEFAULT_IMAGE_URL;
+/**
+ * Capa da arena, ou `null` quando ela não tem. Sem foto genérica: quem desenha
+ * cai no gradiente da arena, que não depende de terceiros.
+ */
+export function arenaListItemImageUrl(item: ArenaListItem): string | null {
+  return item.coverUrl;
 }
 
 function readLatLng(data: DocumentData): { lat: number | null; lng: number | null } {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/athlete_rating.dart';
+import '../../domain/rating_ladder.dart';
 import '../../domain/rating_reliability.dart';
 
 /// Indicador de zona da escada de níveis (engine de rating): mostra se o
@@ -22,7 +23,14 @@ class AthleteLevelZoneCard extends ConsumerWidget {
     if (rating == null) return const SizedBox.shrink();
 
     final (icon, color, text) = _zoneVisual(context, rating);
-    final reliability = ratingReliabilityFor(rating.rd);
+    // "Alta" = a escada já pode decidir: mesmo limite de RD da subida.
+    final ladder =
+        ref.watch(ratingLadderProvider(sportCode)).valueOrNull ??
+        kDefaultRatingLadder;
+    final reliability = ratingReliabilityFor(
+      rating.rd,
+      highMaxRd: ladder.maxRdForDecision.toDouble(),
+    );
     final theme = Theme.of(context);
 
     return Padding(

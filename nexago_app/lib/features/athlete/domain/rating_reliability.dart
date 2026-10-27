@@ -6,11 +6,12 @@
 /// (`DEFAULT_GLICKO_OPTIONS`): mínimo 60 (rating bem consolidado, muitas
 /// partidas rateadas recentes) a máximo 350 (jogador novo ou muito tempo
 /// sem jogar — `inflateRd` sobe o RD por inatividade). Dividimos essa faixa
-/// de 290 pontos em 3 terços aproximados, arredondados para números redondos
-/// e fáceis de lembrar:
-/// - Alta: rd <= 150 (terço inferior — rating calibrado, mais confiável)
-/// - Média: 150 < rd <= 250 (terço central)
-/// - Baixa: rd > 250 (terço superior — poucas partidas ou muita inatividade)
+/// de 290 pontos em três faixas:
+/// - Alta: rd <= `maxRdForDecision` da escada (120 por padrão) — o mesmo
+///   portão que libera subida e descida (`meetsDecisionGates`). Antes era 150:
+///   entre 121 e 150 o card dizia "Alta" e a escada não decidia.
+/// - Média: até 250
+/// - Baixa: rd > 250 (poucas partidas ou muita inatividade)
 enum RatingReliability {
   alta,
   media,
@@ -30,8 +31,9 @@ enum RatingReliability {
 const double kMinGlickoRd = 60;
 const double kMaxGlickoRd = 350;
 
-/// Corte entre Alta e Média confiabilidade (fim do terço inferior da faixa).
-const double _highReliabilityMaxRd = 150;
+/// Corte padrão entre Alta e Média — `maxRdForDecision` de
+/// `DEFAULT_LADDER_CONFIG` (`functions/src/rating-config.ts`).
+const double kDefaultHighReliabilityMaxRd = 120;
 
 /// Corte entre Média e Baixa confiabilidade (fim do terço central da faixa).
 const double _mediumReliabilityMaxRd = 250;
@@ -39,8 +41,12 @@ const double _mediumReliabilityMaxRd = 250;
 /// Mapeia o RD (incerteza do Glicko-2) para um rótulo categórico de
 /// confiabilidade do rating. Valores fora da faixa 60–350 (não deveriam
 /// ocorrer, mas por segurança) saturam na categoria mais próxima.
-RatingReliability ratingReliabilityFor(double rd) {
-  if (rd <= _highReliabilityMaxRd) return RatingReliability.alta;
+/// [highMaxRd] é o `maxRdForDecision` vigente do esporte, quando conhecido.
+RatingReliability ratingReliabilityFor(
+  double rd, {
+  double highMaxRd = kDefaultHighReliabilityMaxRd,
+}) {
+  if (rd <= highMaxRd) return RatingReliability.alta;
   if (rd <= _mediumReliabilityMaxRd) return RatingReliability.media;
   return RatingReliability.baixa;
 }

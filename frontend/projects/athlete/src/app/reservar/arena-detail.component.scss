@@ -45,6 +45,9 @@
 .ad-hero {
   position: relative;
   height: 180px;
+  // `.ad-body` é coluna flex que rola: com `overflow: hidden` o mínimo do item
+  // vira 0 e, quando a página passa da tela, o herói (capa e botões) sumia.
+  flex-shrink: 0;
   border-radius: var(--nx-r-5);
   overflow: hidden;
 }

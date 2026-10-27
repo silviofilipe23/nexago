@@ -1092,6 +1092,7 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
                       title:
                           '${widget.arena.name} · ${_courtName(courts, courtId)}',
                       onBack: _handleBack,
+                      coverUrl: widget.arena.coverUrl,
                     ),
                     SlotsDayStrip(
                       startDay: stripStart,

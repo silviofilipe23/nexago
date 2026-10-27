@@ -1,9 +1,13 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 
 import '../../../core/location/br_locations_data.dart';
+import '../../../core/media/profile_image_crop_config.dart';
+import '../../../core/media/profile_image_picker.dart';
 import '../../../core/location/user_location_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -88,6 +92,11 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
   String? _selectedCity;
 
   late String? _coverUrl;
+
+  /// Capa escolhida na galeria e ainda não enviada: sobe no Salvar, junto do
+  /// resto do perfil — sair sem salvar não troca a capa que o atleta vê.
+  Uint8List? _pickedCoverBytes;
+  String _pickedCoverContentType = 'image/jpeg';
   late String? _logoUrl;
   late List<String> _sports;
   late List<String> _surfaces;
@@ -360,6 +369,19 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
     return null;
   }
 
+  Future<void> _pickCover() async {
+    if (_saving) return;
+    final picked = await pickProfileImage(
+      context: context,
+      target: ProfileImageCropTarget.cover,
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _pickedCoverBytes = picked.bytes;
+      _pickedCoverContentType = picked.contentType;
+    });
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_onlinePayment && !_onsitePayment) {
@@ -386,7 +408,19 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
     var leftForSuccessRoute = false;
     final isOwner = ref.read(arenaAccessProvider).valueOrNull?.isOwner ?? false;
     try {
-      await ref.read(arenaProfileEditServiceProvider).saveProfile(
+      final service = ref.read(arenaProfileEditServiceProvider);
+      final pickedCover = _pickedCoverBytes;
+      if (pickedCover != null) {
+        // Sobe antes de gravar o perfil e já vira a capa "existente": se o
+        // `saveProfile` falhar, o próximo Salvar não reenvia a foto.
+        _coverUrl = await service.uploadCover(
+          arenaId: widget.initial.id,
+          bytes: pickedCover,
+          contentType: _pickedCoverContentType,
+        );
+        _pickedCoverBytes = null;
+      }
+      await service.saveProfile(
             arenaId: widget.initial.id,
             isOwner: isOwner,
             name: _name.text,
@@ -467,12 +501,9 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                       name: _name.text,
                       coverRemovedPending: false,
                       existingCoverUrl: _coverUrl,
-                      pickedCoverBytes: null,
-                      onEditCover: () => _editUrl(
-                        title: 'URL da imagem de capa',
-                        current: _coverUrl,
-                        onSet: (v) => _coverUrl = v,
-                      ),
+                      pickedCoverBytes: _pickedCoverBytes,
+                      coverSaving: _saving && _pickedCoverBytes != null,
+                      onEditCover: _pickCover,
                       existingAvatarUrl: _logoUrl,
                       pickedAvatarBytes: null,
                       onEditAvatar: () => _editUrl(

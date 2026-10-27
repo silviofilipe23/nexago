@@ -150,6 +150,16 @@ export class ArenaBookingComponent {
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly arena = signal<ArenaListItem | null>(null);
+
+  /** Capa da arena (a mesma do Perfil, `coverUrl`) no topo da reserva. Só a capa
+   *  de verdade: sem ela, ou se a URL não carrega, fica o cabeçalho simples — a foto
+   *  genérica de praia que a listagem usa de reserva fingiria ser a arena. */
+  protected readonly coverFailed = signal(false);
+  protected readonly coverLoaded = signal(false);
+  protected readonly coverUrl = computed(() => {
+    const url = this.arena()?.coverUrl?.trim();
+    return url && !this.coverFailed() ? url : null;
+  });
   protected readonly courts = signal<ArenaCourtDoc[]>([]);
   protected readonly slotsByDateKey = signal<Record<string, ArenaSlot[]>>({});
   protected readonly peakRules = signal<ArenaPeakRule[]>([]);

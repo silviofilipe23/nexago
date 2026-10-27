@@ -42,6 +42,92 @@
   margin: 4px 0 0;
 }
 
+// Com a capa da arena o cabeçalho vira a foto, com título e voltar por cima.
+// Texto sempre branco sobre o véu escuro: a foto não decide o contraste, nem no
+// tema claro nem enquanto carrega (fundo de superfície + véu).
+.bk-header--cover {
+  position: relative;
+  min-height: clamp(148px, 20vw, 200px);
+  padding: 18px 20px;
+  border-radius: var(--nx-r-4);
+  overflow: hidden;
+  background: var(--nx-surface-2);
+  // Voltar no topo e título na base, cada um com a largura toda: lado a lado, o
+  // "Voltar à <arena>" espremia o título no celular e cortava o nome da arena.
+  flex-direction: column-reverse;
+  justify-content: space-between;
+  align-items: stretch;
+  flex-wrap: nowrap;
+
+  .bk-header-text,
+  .bk-back-link {
+    position: relative;
+  }
+
+  .bk-header-text {
+    min-width: 0;
+  }
+
+  .bk-title {
+    color: #fff;
+  }
+
+  .bk-subtitle {
+    color: rgba(255, 255, 255, 0.82);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bk-back-link {
+    align-self: flex-end;
+    max-width: 100%;
+    padding: 6px 12px;
+    border-radius: 999px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.38);
+
+    &:hover {
+      color: #fff;
+      background: rgba(0, 0, 0, 0.55);
+    }
+
+    span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  @media (max-width: 640px) {
+    padding: 14px 16px;
+
+    .bk-title {
+      font-size: 22px;
+    }
+  }
+}
+
+.bk-cover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.bk-cover-img--loaded {
+  opacity: 1;
+}
+
+.bk-cover-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.08) 40%, rgba(0, 0, 0, 0.72) 100%);
+}
+
 .bk-back-link {
   display: inline-flex;
   align-items: center;
@@ -593,6 +679,10 @@
 @media (prefers-reduced-motion: reduce) {
   .bk-skeleton-shimmer {
     animation: none;
+  }
+
+  .bk-cover-img {
+    transition: none;
   }
 }
 

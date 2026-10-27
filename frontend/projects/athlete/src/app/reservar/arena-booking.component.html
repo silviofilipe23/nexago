@@ -11,8 +11,19 @@
     </div>
   } @else if (arena(); as a) {
     <div class="bk-body">
-      <div class="bk-header">
-        <div>
+      <div class="bk-header" [class.bk-header--cover]="coverUrl()">
+        @if (coverUrl(); as cover) {
+          <img
+            class="bk-cover-img"
+            [class.bk-cover-img--loaded]="coverLoaded()"
+            [src]="cover"
+            alt=""
+            (load)="coverLoaded.set(true)"
+            (error)="coverFailed.set(true)"
+          />
+          <span class="bk-cover-scrim" aria-hidden="true"></span>
+        }
+        <div class="bk-header-text">
           <h1 class="bk-title">Reservar quadra</h1>
           <p class="bk-subtitle">{{ a.name }}</p>
         </div>

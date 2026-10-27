@@ -199,7 +199,16 @@ class TeamDiscoverNotifier extends AutoDisposeNotifier<TeamDiscoverState> {
       final merged = [...state.rawEntries, ...enriched];
       state = state.copyWith(
         rawEntries: merged,
-        displayEntries: _applyPipeline(merged),
+        // Só a página nova passa pelo pipeline, e vai para o FIM. "Mais
+        // próximas" e "Em alta" paginam por id do documento, não pela ordem da
+        // tela: reordenar o lote inteiro espalhava as recém-chegadas acima do
+        // scroll e a lista "pulava" para cima. No ranking a página já vem na
+        // ordem da tela, e reordenar tudo ainda embaralhava as sem pontos
+        // (empatadas; o sort do Dart não é estável acima de 32 itens).
+        displayEntries: [
+          ...state.displayEntries,
+          ..._applyPipeline(enriched),
+        ],
         isLoadingMore: false,
         hasMore: page.hasMore,
         lastDocumentId: page.lastDocumentId,

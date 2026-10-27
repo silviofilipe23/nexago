@@ -46,6 +46,11 @@
  *   node scripts/seed-app-news.js --project <projectId> --version 1.0.15 --build 113 --yes
  *
  * Sem --yes é DRY-RUN: mostra o estado atual e o que seria gravado.
+ *
+ * Depois que alguém salvar pelo backoffice (App do atleta › Novidades), a fonte passa a ser
+ * `appAdminConfig/appNews` e a callable saveAppNews regrava este doc a cada save: o script se recusa
+ * a gravar ou apagar, senão o próximo save do backoffice desfaria o que ele fez. Antes disso, o
+ * backoffice abre importando o que estiver aqui.
  * --date YYYY-MM-DD muda a data da versão (padrão: hoje em São Paulo).
  * --delete apaga o doc (some a tela e os stories, ao vivo).
  */
@@ -82,6 +87,7 @@ if (!projectId) {
 admin.initializeApp({projectId});
 const db = admin.firestore();
 const DOC_PATH = "appConfig/appNews";
+const SOURCE_PATH = "appAdminConfig/appNews";
 
 function currentRelease(build) {
   return {
@@ -209,6 +215,12 @@ function printCurrent(current) {
 async function run() {
   printCurrent(await readCurrent());
   if (SHOW_ONLY) return;
+
+  if ((await db.doc(SOURCE_PATH).get()).exists) {
+    console.error(`\n${SOURCE_PATH} existe: as novidades já são editadas pelo backoffice ` +
+      "(App do atleta › Novidades). Edite por lá — gravar aqui seria desfeito no próximo save.");
+    process.exit(1);
+  }
 
   if (DELETE) {
     console.log(`\nApagar ${DOC_PATH}.`);

@@ -191,6 +191,13 @@ export const routes: Routes = [
       import('./painel/app/novidades/panel-novidades.component').then((m) => m.PanelNovidadesComponent),
   },
   {
+    path: 'painel/app/versoes',
+    title: 'Novidades do app — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/app/versoes/panel-app-news.component').then((m) => m.PanelAppNewsComponent),
+  },
+  {
     path: 'painel/equipe',
     title: 'Equipe — NexaGO Backoffice',
     canActivate: [authGuard],

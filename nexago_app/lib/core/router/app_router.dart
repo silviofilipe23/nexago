@@ -162,6 +162,11 @@ import '../../features/athlete/presentation/achievements/athlete_achievements_pa
 import '../../features/athlete/presentation/athlete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_settings_page.dart';
 import '../../features/athlete/presentation/athlete_referral_page.dart';
+import '../../features/app_news/domain/app_news.dart';
+import '../../features/app_news/domain/app_news_logic.dart';
+import '../../features/app_news/presentation/app_news_detail_page.dart';
+import '../../features/app_news/presentation/app_news_page.dart';
+import '../../features/app_news/presentation/app_news_stories_page.dart';
 import '../../features/cashback/presentation/cashback_page.dart';
 import '../../features/squad/presentation/squad_benefits_page.dart';
 import '../../features/squad/presentation/squad_earnings_page.dart';
@@ -1576,6 +1581,35 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.athleteReferral,
         name: AppRouteNames.athleteReferral,
         builder: (context, state) => const AthleteReferralPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.appNews,
+        name: AppRouteNames.appNews,
+        builder: (context, state) => const AppNewsPage(),
+      ),
+      // Literal antes do :featureId (senão "stories" vira um id).
+      GoRoute(
+        path: AppRoutes.appNewsStories,
+        name: AppRouteNames.appNewsStories,
+        pageBuilder: (context, state) {
+          final stories = state.extra;
+          return CustomTransitionPage<AppNewsFeature>(
+            key: state.pageKey,
+            // Sem os stories em mãos (link, restauração), cai na lista.
+            child: stories is AppNewsStories
+                ? AppNewsStoriesPage(stories: stories)
+                : const AppNewsPage(),
+            transitionsBuilder: (context, animation, _, child) =>
+                FadeTransition(opacity: animation, child: child),
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.appNewsDetail,
+        name: AppRouteNames.appNewsDetail,
+        builder: (context, state) => AppNewsDetailPage(
+          featureId: state.pathParameters['featureId']?.trim() ?? '',
+        ),
       ),
       GoRoute(
         path: AppRoutes.athleteCashback,

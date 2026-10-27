@@ -25,17 +25,32 @@ IconData homeBannerIcon(HomeBannerDestination destination) =>
       HomeBannerDestination.url => Icons.open_in_new_rounded,
     };
 
+/// Reservar e Loja são abas do shell: quem abre de uma tela empilhada (ex.:
+/// Novidades) volta ao shell antes, senão a troca de aba fica escondida.
+bool isShellTabDestination(HomeBannerDestination destination) =>
+    destination == HomeBannerDestination.reservar ||
+    destination == HomeBannerDestination.loja;
+
 /// Abre o destino do banner. Reservar e Loja são abas do shell (troca de aba
 /// em vez de empilhar rota, como os atalhos); link externo vai pro navegador.
 Future<void> openHomeBannerDestination(
   BuildContext context,
   WidgetRef ref,
   HomeBanner banner,
-) async {
+) =>
+    openAppDestination(context, ref, banner.destination, url: banner.url);
+
+/// Abre um destino com as chaves do banner (também usado pelas Novidades).
+Future<void> openAppDestination(
+  BuildContext context,
+  WidgetRef ref,
+  HomeBannerDestination destination, {
+  String? url,
+}) async {
   void goToTab(int index) =>
       ref.read(athleteShellTabIndexProvider.notifier).state = index;
 
-  final route = switch (banner.destination) {
+  final route = switch (destination) {
     HomeBannerDestination.boraJogar => AppRouteNames.friendlyMatchHub,
     HomeBannerDestination.peladas => AppRouteNames.athletePeladas,
     HomeBannerDestination.torneios => AppRouteNames.tournamentDiscoveryList,
@@ -54,13 +69,13 @@ Future<void> openHomeBannerDestination(
     context.pushNamed(route);
     return;
   }
-  switch (banner.destination) {
+  switch (destination) {
     case HomeBannerDestination.reservar:
       goToTab(athleteShellReservarTabIndex);
     case HomeBannerDestination.loja:
       goToTab(athleteShellStoreTabIndex);
     case HomeBannerDestination.url:
-      final opened = await openExternalUrl(banner.url ?? '');
+      final opened = await openExternalUrl(url ?? '');
       if (!opened && context.mounted) {
         showAppSnackBar(context, 'Não foi possível abrir o link.',
             isError: true);

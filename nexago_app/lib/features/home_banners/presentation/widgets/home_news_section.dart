@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../app_news/application/app_news_providers.dart';
 import '../../application/home_banners_providers.dart';
 import '../../domain/home_banner.dart';
 import '../home_banner_navigation.dart';
@@ -33,6 +36,9 @@ class HomeNewsSection extends ConsumerWidget {
 
     void seen(HomeBanner banner) => tracker.mark(banner, HomeBannerMark.seen);
 
+    // Com novidades da versão publicadas, o título leva para a tela delas.
+    final hasAppNews = ref.watch(appNewsProvider) != null;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sectionGap),
       child: slot.format == HomeBannerFormat.carousel
@@ -41,6 +47,9 @@ class HomeNewsSection extends ConsumerWidget {
               onOpen: open,
               onDismiss: dismiss,
               onSeen: seen,
+              onSeeAll: hasAppNews
+                  ? () => context.pushNamed(AppRouteNames.appNews)
+                  : null,
             )
           : Padding(
               padding: const EdgeInsets.symmetric(

@@ -421,6 +421,13 @@ abstract final class AppRoutes {
   /// Convide um amigo (programa de indicação).
   static const String athleteReferral = '/athlete/referral';
 
+  /// Novidades do app: lista, stories pós-atualização e detalhe.
+  /// `appNewsStories` é literal e deve vir ANTES de [appNewsDetail] no
+  /// router (senão "stories" casa como :featureId).
+  static const String appNews = '/athlete/novidades';
+  static const String appNewsStories = '/athlete/novidades/stories';
+  static const String appNewsDetail = '/athlete/novidades/:featureId';
+
   /// Meu cashback (saldo, regras e extrato). Mesmo caminho do portal e do
   /// `url` dos pushes `cashback_released` / `cashback_expiring`.
   static const String athleteCashback = '/cashback';
@@ -1205,6 +1212,9 @@ abstract final class AppRouteNames {
   static const String athleteAchievements = 'athleteAchievements';
   static const String athleteSettings = 'athleteSettings';
   static const String athleteReferral = 'athleteReferral';
+  static const String appNews = 'appNews';
+  static const String appNewsStories = 'appNewsStories';
+  static const String appNewsDetail = 'appNewsDetail';
   static const String athleteCashback = 'athleteCashback';
   static const String squad = 'squad';
   static const String squadShare = 'squadShare';

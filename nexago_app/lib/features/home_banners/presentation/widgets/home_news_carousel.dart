@@ -36,6 +36,7 @@ class HomeNewsCarousel extends StatefulWidget {
     required this.onOpen,
     required this.onDismiss,
     required this.onSeen,
+    this.onSeeAll,
     this.autoAdvance = const Duration(seconds: 5),
   });
 
@@ -45,6 +46,9 @@ class HomeNewsCarousel extends StatefulWidget {
 
   /// O card que entrou na tela (o primeiro e cada troca de página).
   final ValueChanged<HomeBanner> onSeen;
+
+  /// "Ver tudo" no título: abre a tela de Novidades. `null` = sem link.
+  final VoidCallback? onSeeAll;
   final Duration autoAdvance;
 
   @override
@@ -173,6 +177,8 @@ class _HomeNewsCarouselState extends State<HomeNewsCarousel> {
             child: AthleteHomeSectionHeader(
               title: 'Novidades no app',
               trailingAccent: count > 1 ? '${current + 1} de $count' : null,
+              trailingLabel: widget.onSeeAll == null ? null : 'Ver tudo',
+              onTrailingTap: widget.onSeeAll,
             ),
           ),
           const SizedBox(height: 12),

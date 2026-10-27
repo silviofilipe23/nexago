@@ -34,7 +34,8 @@
  * Equipes). Bora Jogar só RESPONDE convites: a entrada para começar um saiu do
  * app em 11/09 (242c0098c). "Chame a galera" abre o Reservar porque não há
  * chave de destino para a Agenda. Melhorias e versões anteriores são
- * provisórias. Imagens: sem `imageUrl`, o app mostra o espaço reservado.
+ * provisórias. Imagens: as artes de docs/app-news-art/ (sem `imageUrl`, o app mostra o
+ * espaço reservado).
  *
  * Pré-requisitos (credenciais admin):
  *   gcloud auth application-default login
@@ -89,6 +90,20 @@ const db = admin.firestore();
 const DOC_PATH = "appConfig/appNews";
 const SOURCE_PATH = "appAdminConfig/appNews";
 
+// Artes das funcionalidades, no bucket do DEV (app/news/, o mesmo do editor do backoffice).
+// Fonte e render em docs/app-news-art/ (render.sh). Trocar a arte = renderizar, subir com
+// token de download e colar a URL aqui.
+const IMAGES = {
+  "mapa-reservar":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.15-mapa-reservar.webp?alt=media&token=6a687d6c-7d46-41bb-b91c-8ae2b86e8f7b",
+  "bora-jogar":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.15-bora-jogar.webp?alt=media&token=19d2e422-8186-4fc9-a955-e3c95a0fad8d",
+  "convite-reserva":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.15-convite-reserva.webp?alt=media&token=a6d66a65-9cab-4a11-a60e-00faa6991581",
+  "equipes":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.15-equipes.webp?alt=media&token=401287da-25f6-4e1e-8814-bf0a27090c75",
+};
+
 function currentRelease(build) {
   return {
     version,
@@ -111,6 +126,7 @@ function currentRelease(build) {
         where: "Aba Reservar",
         ctaLabel: "Abrir mapa",
         destination: "reservar",
+        imageUrl: IMAGES["mapa-reservar"],
       },
       {
         id: "bora-jogar",
@@ -126,6 +142,7 @@ function currentRelease(build) {
         where: "Notificação do convite › Agenda",
         ctaLabel: "Ver convites",
         destination: "bora-jogar",
+        imageUrl: IMAGES["bora-jogar"],
       },
       {
         id: "convite-reserva",
@@ -142,6 +159,7 @@ function currentRelease(build) {
         where: "Agenda › sua reserva › Sua equipe",
         ctaLabel: "Reservar quadra",
         destination: "reservar",
+        imageUrl: IMAGES["convite-reserva"],
       },
       {
         id: "equipes",
@@ -157,6 +175,7 @@ function currentRelease(build) {
         where: "Hub › Equipes",
         ctaLabel: "Ver equipes",
         destination: "duplas",
+        imageUrl: IMAGES["equipes"],
       },
     ],
     improvements: [

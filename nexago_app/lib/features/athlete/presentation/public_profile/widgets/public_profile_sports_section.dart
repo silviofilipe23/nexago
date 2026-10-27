@@ -4,6 +4,7 @@ import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_radii.dart';
 import '../../../../../core/theme/app_spacing.dart';
+import '../../../../../core/theme/app_theme.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/athlete_public_profile_models.dart';
 import '../../../domain/sport_art_catalog.dart';
@@ -246,11 +247,54 @@ class _SportDetailCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.themeColors;
-
     final art = SportArtCatalog.assetFor(entry.firestoreCode);
 
-    final conteudo = InkWell(
+    // Esporte sem arte (Futevôlei, Corrida, Outros) cai no card sólido.
+    if (art == null) {
+      return Material(
+        color: context.themeColors.surfaceCard,
+        borderRadius: AppRadii.lgAll,
+        child: _conteudo(context),
+      );
+    }
+
+    // A arte é escura nos dois temas, então o card com ela segue o tema
+    // escuro: com as cores do claro o texto escuro sumia nela.
+    return Theme(
+      data: AppTheme.dark,
+      child: Builder(
+        builder: (context) => Material(
+          color: context.themeColors.surfaceCard,
+          borderRadius: AppRadii.lgAll,
+          clipBehavior: Clip.antiAlias,
+          // `Ink.image`, não `Image` dentro do `InkWell`: como filha do
+          // InkWell a foto pinta por cima do splash e o toque fica sem
+          // retorno visual.
+          child: Ink.image(
+            image: ResizeImage(
+              AssetImage(art),
+              width: 1024,
+              allowUpscaling: false,
+            ),
+            fit: BoxFit.cover,
+            // Escurece a arte inteira. O terço esquerdo das seis artes já é
+            // preto (medi p95 entre 5 e 15), então isto existe para o assunto
+            // à direita não competir com a seta e o botão de estatísticas.
+            colorFilter: const ColorFilter.mode(
+              Color(0xFF8C8C8C),
+              BlendMode.multiply,
+            ),
+            child: _conteudo(context),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _conteudo(BuildContext context) {
+    final colors = context.themeColors;
+
+    return InkWell(
       onTap: onTap,
       borderRadius: AppRadii.lgAll,
       child: Container(
@@ -342,35 +386,6 @@ class _SportDetailCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-
-    // Esporte sem arte (Futevôlei, Corrida, Outros) cai no card sólido.
-    if (art == null) {
-      return Material(
-        color: colors.surfaceCard,
-        borderRadius: AppRadii.lgAll,
-        child: conteudo,
-      );
-    }
-
-    return Material(
-      color: colors.surfaceCard,
-      borderRadius: AppRadii.lgAll,
-      clipBehavior: Clip.antiAlias,
-      // `Ink.image`, não `Image` dentro do `InkWell`: como filha do InkWell a
-      // foto pinta por cima do splash e o toque fica sem retorno visual.
-      child: Ink.image(
-        image: ResizeImage(AssetImage(art), width: 1024, allowUpscaling: false),
-        fit: BoxFit.cover,
-        // Escurece a arte inteira. O terço esquerdo das seis artes já é preto
-        // (medi p95 entre 5 e 15), então isto existe para o assunto à direita
-        // não competir com a seta e o botão de estatísticas.
-        colorFilter: const ColorFilter.mode(
-          Color(0xFF8C8C8C),
-          BlendMode.multiply,
-        ),
-        child: conteudo,
       ),
     );
   }

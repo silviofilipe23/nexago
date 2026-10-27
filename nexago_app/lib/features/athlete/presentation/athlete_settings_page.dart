@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../app_news/presentation/widgets/app_news_settings_tile.dart';
 import '../../../core/auth/account_deletion_error.dart';
 import '../../../core/auth/account_deletion_service.dart';
 import '../../../core/auth/auth_providers.dart';
@@ -356,6 +357,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
             AthleteSettingsGroup(
               sectionLabel: 'SOBRE',
               children: [
+                const AppNewsSettingsTile(),
                 AthleteSettingsTile(
                   icon: Icons.help_outline_rounded,
                   title: 'Ajuda e suporte',

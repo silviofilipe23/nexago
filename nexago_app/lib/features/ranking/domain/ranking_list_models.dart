@@ -132,6 +132,7 @@ class RankingListEntry {
     required this.subtitle,
     required this.isCurrentUser,
     this.entityId = '',
+    this.teamFormat,
     this.initials,
     this.avatarColor,
     this.avatarUrl,
@@ -150,6 +151,11 @@ class RankingListEntry {
   final String subtitle;
   final bool isCurrentUser;
   final String entityId;
+
+  /// Formato da equipe (linhas de equipes); `null` quando o doc da equipe não
+  /// veio — e sempre nas linhas individuais.
+  final RankingFormatFilter? teamFormat;
+
   final String? initials;
   final Color? avatarColor;
   final String? avatarUrl;

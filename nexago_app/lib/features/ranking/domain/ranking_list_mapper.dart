@@ -172,6 +172,7 @@ Future<List<RankingListEntry>> buildTeamRankingListEntries({
         player2Color: rankingAvatarColor(team?.player2Id ?? '${row.teamId}_2'),
         player1AvatarUrl: rankingAvatarUrl(p1),
         player2AvatarUrl: rankingAvatarUrl(p2),
+        teamFormat: formatByTeam[row.teamId],
       ),
     );
   }

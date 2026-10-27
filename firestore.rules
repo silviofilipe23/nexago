@@ -3071,6 +3071,13 @@ service cloud.firestore {
       allow read: if true;
       allow create, update, delete: if request.auth != null && isAdmin();
     }
+    // Etapas que pontuaram no ranking de cada esporte (`{profileCode}`): o app
+    // tira a última delas para mostrar "subiu/caiu N posições". Escrita só
+    // pelas functions/scripts (Admin SDK).
+    match /artifacts/{appId}/public/data/rankingStages/{sportCode} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && isAdmin();
+    }
 
     // ── Engine de rating (Glicko-2) e escada de níveis ───────────────────
     // Config da escada por esporte (bandas, flags de rollout). Escrita só

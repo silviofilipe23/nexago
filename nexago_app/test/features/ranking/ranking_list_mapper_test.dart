@@ -23,13 +23,16 @@ class _FakeRankingRepository implements RankingRepository {
   final Map<String, RankingTeamPlayers> teams;
   final List<AthleteRankingRow> athleteRows;
   final calls = <String>[];
+  final lastStageAsked = <bool>[];
 
   @override
   Future<List<TeamRankingRow>> loadTeamRankingForSport(
     String sportCode, {
     int? year,
+    bool withLastStage = false,
   }) async {
     calls.add('teams:$sportCode:$year');
+    lastStageAsked.add(withLastStage);
     return rows;
   }
 
@@ -37,8 +40,10 @@ class _FakeRankingRepository implements RankingRepository {
   Future<List<AthleteRankingRow>> loadAthleteRankingForSport(
     String sportCode, {
     int? year,
+    bool withLastStage = false,
   }) async {
     calls.add('athletes:$sportCode:$year');
+    lastStageAsked.add(withLastStage);
     return athleteRows;
   }
 
@@ -201,6 +206,34 @@ void main() {
       expect(duplas.single.rank, 1);
     });
 
+    test('pontos de antes da última etapa: total menos a etapa; sem etapa, null',
+        () async {
+      final withStage = await buildTeamRankingListEntries(
+        repo: _FakeRankingRepository(
+          rows: [
+            const TeamRankingRow(
+              rank: 1,
+              teamId: 'legacy',
+              totalPoints: 500,
+              tournamentsCount: 3,
+              lastStagePoints: 200,
+            ),
+          ],
+          teams: teams,
+        ),
+        users: _FakeUsersRepository(),
+        filter: const RankingPageFilter(mode: RankingListMode.teams),
+        sportCode: 'VOLEI_PRAIA',
+        currentUid: null,
+      );
+      expect(withStage.single.pointsBeforeLastStage, 300);
+
+      final unknown = await build(
+        const RankingPageFilter(mode: RankingListMode.teams),
+      );
+      expect(unknown.first.pointsBeforeLastStage, isNull);
+    });
+
     test('gênero e formato combinam (E lógico) e o recorte final renumera',
         () async {
       final entries = await build(
@@ -236,6 +269,8 @@ void main() {
         currentUid: null,
       );
       expect(repo.calls, ['teams:BEACH_TENNIS:2026', 'athletes:FUTEVOLEI:null']);
+      // A tela do ranking pede a última etapa (o "subiu N posições").
+      expect(repo.lastStageAsked, [true, true]);
     });
 
     test('nível do atleta é o do esporte do ranking (filtro e rótulo)',

@@ -142,20 +142,70 @@ List<TeamRankingRow> assignTeamRanks(List<TeamRankingRow> rows) {
 List<AthleteRankingRow> buildAthleteRankingRowsForPeriod(
   List<AthleteRankingEntry> entries, {
   int? year,
+  Set<String>? lastStage,
 }) {
-  if (year == null) return buildAthleteRankingRowsFromEntries(entries);
   final key = '$year';
-  return buildAthleteRankingRowsFromEntries([
+  final rows = year == null
+      ? buildAthleteRankingRowsFromEntries(entries)
+      : buildAthleteRankingRowsFromEntries([
+          for (final e in entries)
+            if ((e.pointsByYear[key] ?? 0) > 0)
+              AthleteRankingEntry(
+                athleteId: e.athleteId,
+                totalPoints: e.pointsByYear[key]!,
+                tournamentsCount: 0,
+                lastUpdated: e.lastUpdated,
+                pointsByYear: e.pointsByYear,
+              ),
+        ]);
+  if (lastStage == null) return rows;
+  final stagePoints = {
     for (final e in entries)
-      if ((e.pointsByYear[key] ?? 0) > 0)
-        AthleteRankingEntry(
-          athleteId: e.athleteId,
-          totalPoints: e.pointsByYear[key]!,
-          tournamentsCount: 0,
-          lastUpdated: e.lastUpdated,
-          pointsByYear: e.pointsByYear,
-        ),
-  ]);
+      e.athleteId: rankingStagePoints(e.results, lastStage, year: year),
+  };
+  return [
+    for (final row in rows)
+      row.copyWith(lastStagePoints: stagePoints[row.athleteId] ?? 0),
+  ];
+}
+
+/// Etapas do mesmo fim de semana contam como UMA "última etapa": com dois
+/// torneios terminando juntos, a variação não pode depender de qual final
+/// acabou por último.
+const Duration kRankingStageWindow = Duration(days: 4);
+
+/// Torneios da última etapa do ranking: o mais recente (no ano, na
+/// temporada) e os que terminaram até [kRankingStageWindow] antes dele.
+/// `null` sem etapa conhecida.
+Set<String>? latestRankingStage(RankingStages? stages, {int? year}) {
+  if (stages == null) return null;
+  final inPeriod = {
+    for (final e in stages.byTournament.entries)
+      if (year == null || e.value.year == year) e.key: e.value.at,
+  };
+  if (inPeriod.isEmpty) return null;
+  final latest = inPeriod.values.reduce((a, b) => a.isAfter(b) ? a : b);
+  final from = latest.subtract(kRankingStageWindow);
+  return {
+    for (final e in inPeriod.entries)
+      if (!e.value.isBefore(from)) e.key,
+  };
+}
+
+/// Pontos que [results] somaram nos torneios de [stage] — na temporada
+/// [year], ou em todas.
+int rankingStagePoints(
+  List<RankingResultRef> results,
+  Set<String> stage, {
+  int? year,
+}) {
+  var sum = 0;
+  for (final r in results) {
+    if (!stage.contains(r.tournamentId)) continue;
+    if (year != null && r.year != year) continue;
+    sum += r.points;
+  }
+  return sum;
 }
 
 /// Esportes em que o atleta pontuou no ano, pelos docs dele por esporte.
@@ -190,20 +240,31 @@ Map<String, int> athleteSportRanksFrom({
 List<TeamRankingRow> buildTeamRankingRowsForPeriod(
   List<TeamRankingEntry> entries, {
   int? year,
+  Set<String>? lastStage,
 }) {
-  if (year == null) return buildTeamRankingRowsFromEntries(entries);
   final key = '$year';
-  return buildTeamRankingRowsFromEntries([
+  final rows = year == null
+      ? buildTeamRankingRowsFromEntries(entries)
+      : buildTeamRankingRowsFromEntries([
+          for (final e in entries)
+            if ((e.pointsByYear[key] ?? 0) > 0)
+              TeamRankingEntry(
+                teamId: e.teamId,
+                totalPoints: e.pointsByYear[key]!,
+                tournamentsCount: 0,
+                lastUpdated: e.lastUpdated,
+                pointsByYear: e.pointsByYear,
+              ),
+        ]);
+  if (lastStage == null) return rows;
+  final stagePoints = {
     for (final e in entries)
-      if ((e.pointsByYear[key] ?? 0) > 0)
-        TeamRankingEntry(
-          teamId: e.teamId,
-          totalPoints: e.pointsByYear[key]!,
-          tournamentsCount: 0,
-          lastUpdated: e.lastUpdated,
-          pointsByYear: e.pointsByYear,
-        ),
-  ]);
+      e.teamId: rankingStagePoints(e.results, lastStage, year: year),
+  };
+  return [
+    for (final row in rows)
+      row.copyWith(lastStagePoints: stagePoints[row.teamId] ?? 0),
+  ];
 }
 
 List<TeamRankingRow> buildTeamRankingRowsFromEntries(

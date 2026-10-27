@@ -298,10 +298,14 @@ class RankingRepository {
 
   /// Ranking de atletas de UM esporte (código de perfil) — geral pelo total,
   /// temporada por `pointsByYear`. Lê os docs por esporte (fase 3a).
+  /// [withLastStage] lê também `rankingStages` e preenche os pontos da última
+  /// etapa em cada linha (o "subiu N posições" do story).
   Future<List<AthleteRankingRow>> loadAthleteRankingForSport(
     String sportCode, {
     int? year,
+    bool withLastStage = false,
   }) async {
+    final stages = withLastStage ? loadRankingStages(sportCode) : null;
     final snap = await _firestore
         .collection(NexagoArtifactsPaths.athleteRankingsBySportCollection())
         .where('sport', isEqualTo: sportCode)
@@ -311,13 +315,19 @@ class RankingRepository {
           (d) => AthleteRankingEntry.fromBySportData(d.id, d.data(), sportCode),
         )
         .toList();
-    return buildAthleteRankingRowsForPeriod(entries, year: year);
+    return buildAthleteRankingRowsForPeriod(
+      entries,
+      year: year,
+      lastStage: latestRankingStage(await stages, year: year),
+    );
   }
 
   Future<List<TeamRankingRow>> loadTeamRankingForSport(
     String sportCode, {
     int? year,
+    bool withLastStage = false,
   }) async {
+    final stages = withLastStage ? loadRankingStages(sportCode) : null;
     final snap = await _firestore
         .collection(NexagoArtifactsPaths.teamRankingsBySportCollection())
         .where('sport', isEqualTo: sportCode)
@@ -325,7 +335,26 @@ class RankingRepository {
     final entries = snap.docs
         .map((d) => TeamRankingEntry.fromBySportData(d.id, d.data(), sportCode))
         .toList();
-    return buildTeamRankingRowsForPeriod(entries, year: year);
+    return buildTeamRankingRowsForPeriod(
+      entries,
+      year: year,
+      lastStage: latestRankingStage(await stages, year: year),
+    );
+  }
+
+  /// Etapas do esporte; `null` sem o doc ou sem acesso (rule ainda não
+  /// publicada): aí a lista sai igual, só sem a variação.
+  Future<RankingStages?> loadRankingStages(String sportCode) async {
+    try {
+      final snap = await _firestore
+          .collection(NexagoArtifactsPaths.rankingStagesCollection())
+          .doc(sportCode)
+          .get();
+      final data = snap.data();
+      return data == null ? null : RankingStages.fromData(data);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<List<AthleteRankingRow>> loadAthleteRanking({int? year}) async {

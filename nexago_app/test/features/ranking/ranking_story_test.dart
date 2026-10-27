@@ -27,6 +27,7 @@ RankingListEntry team(
   bool me = false,
   String name = 'Rival / Dupla',
   RankingFormatFilter? format = RankingFormatFilter.dupla,
+  int? before,
 }) {
   return RankingListEntry(
     rank: rank,
@@ -39,6 +40,7 @@ RankingListEntry team(
     player1Initials: 'DA',
     player2Initials: 'AR',
     teamFormat: format,
+    pointsBeforeLastStage: before,
   );
 }
 
@@ -55,9 +57,22 @@ RankingListEntry athlete(int rank, int points, {bool me = false}) {
   );
 }
 
-/// 48 duplas; a do atleta em [myRank], pontos caindo de 10 em 10.
-List<RankingListEntry> field({int myRank = 4, int size = 48}) => [
-      for (var r = 1; r <= size; r++) team(r, 500 - r * 10, me: r == myRank),
+/// 48 duplas; a do atleta em [myRank], pontos caindo de 10 em 10. Com
+/// [before], cada linha ganha os pontos de antes da última etapa (`null` =
+/// não jogou: os mesmos de agora).
+List<RankingListEntry> field({
+  int myRank = 4,
+  int size = 48,
+  Map<int, int>? before,
+}) =>
+    [
+      for (var r = 1; r <= size; r++)
+        team(
+          r,
+          500 - r * 10,
+          me: r == myRank,
+          before: before == null ? null : before[r] ?? 500 - r * 10,
+        ),
     ];
 
 RankingStoryData teamStory({
@@ -127,8 +142,8 @@ void main() {
     });
 
     test('dupla fala no plural; individual, no singular', () {
-      expect(teamStory(myRank: 1).kicker, 'LÍDERES DO RANKING');
-      expect(teamStory(myRank: 12).kicker, 'NOSSA POSIÇÃO NO RANKING');
+      expect(teamStory(myRank: 1).kicker(), 'LÍDERES DO RANKING');
+      expect(teamStory(myRank: 12).kicker(), 'NOSSA POSIÇÃO NO RANKING');
 
       final list = [athlete(1, 540, me: true), athlete(2, 495)];
       final solo = rankingStoryDataFrom(
@@ -137,7 +152,7 @@ void main() {
         filter: const RankingPageFilter(year: 2026),
         sportLabel: 'Beach Tennis',
       );
-      expect(solo.kicker, 'LÍDER DO RANKING');
+      expect(solo.kicker(), 'LÍDER DO RANKING');
       expect(solo.cutLine, 'BEACH TENNIS · INDIVIDUAL');
       expect(solo.fieldLabel, 'ENTRE 2 ATLETAS');
       expect(solo.identityLine, 'Atleta · 1 torneio');
@@ -195,10 +210,12 @@ void main() {
       expect(rankingStoryInfosFor(teamStory(entries: alone)), [
         RankingStoryInfo.identity,
       ]);
-      expect(
-        rankingStoryInfosFor(teamStory()),
-        RankingStoryInfo.values,
-      );
+      // Sem etapa conhecida, nada de chip de variação.
+      expect(rankingStoryInfosFor(teamStory()), [
+        RankingStoryInfo.identity,
+        RankingStoryInfo.points,
+        RankingStoryInfo.field,
+      ]);
     });
 
     test('legenda leva posição, recorte, o que falta e a hashtag', () {
@@ -226,6 +243,79 @@ void main() {
           'Faltam 10 pontos pro 3º.',
         ),
       );
+    });
+  });
+
+  group('variação na última etapa', () {
+    // Agora: 1º 490 · 2º 480 · 3º 470 · 4º 460 · 5º 450 · 6º 440 · 7º 430…
+    RankingStoryData moved(int myRank, Map<int, int> before) => teamStory(
+          entries: field(myRank: myRank, before: before),
+        );
+
+    test('subiu de 7º para 4º: +3, "entramos no top 5" e legenda', () {
+      final data = moved(4, {4: 425});
+      expect(data.movement, 3);
+      expect(data.previousPosition, 7);
+      expect(data.movementLabel, '+3 POSIÇÕES');
+      expect(data.kicker(), 'ENTRAMOS NO TOP 5');
+      expect(data.kicker(showMovement: false), 'NO TOP 5 DO RANKING');
+      expect(rankingStoryInfosFor(data), contains(RankingStoryInfo.movement));
+      expect(rankingStoryInfosOffByDefault(data), isEmpty);
+      expect(
+        rankingStoryShareText(data),
+        '4º no ranking 2026 de duplas de Vôlei de Praia! Subimos 3 posições '
+        'na última etapa. Faltam 10 pontos pro 3º. #vamosnexa',
+      );
+      expect(
+        rankingStoryShareText(data, showMovement: false),
+        isNot(contains('Subimos')),
+      );
+    });
+
+    test('caiu: "−1 POSIÇÃO", chip começa desligado e a legenda não conta', () {
+      // A do 3º (470) tinha 300: passou por cima de quem não jogou.
+      final data = moved(4, {3: 300});
+      expect(data.movement, -1);
+      expect(data.movementLabel, '−1 POSIÇÃO');
+      expect(data.kicker(), 'NO TOP 5 DO RANKING');
+      expect(rankingStoryInfosOffByDefault(data), {RankingStoryInfo.movement});
+      expect(rankingStoryShareText(data), isNot(contains('posições na')));
+    });
+
+    test('assumiu a liderança e entrou no pódio', () {
+      expect(moved(1, {1: 470}).kicker(), 'ASSUMIMOS A LIDERANÇA');
+      expect(moved(3, {3: 435}).kicker(), 'ENTRAMOS NO PÓDIO');
+      // Já era do pódio: subir dentro dele não é "entrar".
+      expect(moved(2, {2: 475}).kicker(), 'VICE-LÍDERES DO RANKING');
+    });
+
+    test('estreia: sem pontos antes da etapa', () {
+      final rest = moved(12, {12: 0});
+      expect(rest.debut, isTrue);
+      expect(rest.movement, isNull);
+      expect(rest.movementLabel, 'ESTREIA NA TEMPORADA');
+      expect(rest.kicker(), 'NOSSA POSIÇÃO NO RANKING');
+      expect(rankingStoryShareText(rest), contains('Estreamos no ranking.'));
+      expect(moved(8, {8: 0}).kicker(), 'ENTRAMOS NO TOP 10');
+
+      final general = teamStory(
+        entries: field(myRank: 12, before: {12: 0}),
+        filter: const RankingPageFilter(mode: RankingListMode.teams),
+      );
+      expect(general.movementLabel, 'ESTREIA NO RANKING');
+    });
+
+    test('empate não vira "subiu 1" de mentira', () {
+      // 4º e 5º empatados em 460, antes e agora — a ordem da lista é sorte.
+      final entries = [
+        for (final e in field(myRank: 5, before: const {}))
+          e.rank == 5 ? team(5, 460, me: true, before: 460) : e,
+      ];
+      final data = teamStory(entries: entries);
+      expect(data.movement, 0);
+      expect(data.movementLabel, isNull);
+      expect(rankingStoryInfosFor(data),
+          isNot(contains(RankingStoryInfo.movement)));
     });
   });
 
@@ -267,6 +357,8 @@ void main() {
               9000 - r,
               me: r == 187,
               name: 'Maria Eduarda Albuquerque / Ana Carolina Vasconcelos',
+              // Subiu de 240º: a etiqueta de variação entra na linha.
+              before: r == 187 ? 8000 : 9000 - r,
             ),
         ];
         final data = teamStory(
@@ -287,7 +379,7 @@ void main() {
         // O bloco cresce para cima: não pode subir por cima da marca e do
         // selo do topo.
         expect(
-          tester.getTopLeft(find.text('NOSSA POSIÇÃO NO RANKING')).dy,
+          tester.getTopLeft(find.text('SUBIMOS NO RANKING')).dy,
           greaterThan(tester.getBottomLeft(find.text('RANKING 2026')).dy + 8),
         );
         expect(find.text('187'), findsOneWidget);
@@ -307,6 +399,24 @@ void main() {
       expect(find.text('Daniel / Armando'), findsOneWidget);
       expect(find.text('490'), findsOneWidget);
       expect(find.text('RANKING 2026'), findsOneWidget);
+    });
+
+    testWidgets('variação: etiqueta e kicker acompanham o chip', (
+      tester,
+    ) async {
+      final data = teamStory(entries: field(before: {4: 425}));
+      await pumpCard(tester, data);
+      expect(find.text('+3 POSIÇÕES'), findsOneWidget);
+      expect(find.text('ENTRAMOS NO TOP 5'), findsOneWidget);
+
+      await pumpCard(
+        tester,
+        data,
+        infos: RankingStoryInfo.values.toSet()
+          ..remove(RankingStoryInfo.movement),
+      );
+      expect(find.text('+3 POSIÇÕES'), findsNothing);
+      expect(find.text('NO TOP 5 DO RANKING'), findsOneWidget);
     });
 
     testWidgets('sem a dupla, ficam os pontos; sem nada, some o cartão', (
@@ -359,6 +469,28 @@ void main() {
       await tester.tap(find.byKey(const Key('ranking-story-info-points')));
       await tester.pump();
       expect(find.text('460'), findsOneWidget);
+    });
+
+    testWidgets('queda começa fora da arte; o chip liga', (tester) async {
+      tester.view.physicalSize = const Size(400, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: AppTheme.dark,
+            home: RankingStoryPage(
+              data: teamStory(entries: field(before: {3: 300})),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('−1 POSIÇÃO'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('ranking-story-info-movement')));
+      await tester.pump();
+      expect(find.text('−1 POSIÇÃO'), findsOneWidget);
     });
 
     testWidgets('chip da identidade usa o formato da equipe', (tester) async {

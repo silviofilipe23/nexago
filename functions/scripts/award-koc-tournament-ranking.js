@@ -56,6 +56,7 @@ const {tournamentSportToLevelSportCode} = require("../lib/category-level-eligibi
 const {findCategory} = require("../lib/tournament-registration-guards");
 const {parseMatchPlayedAt} = require("../lib/tournament-match-gamification");
 const {artifactsMatchesPath, artifactsTeamsPath} = require("../lib/firebase-paths");
+const {recordRankingStage} = require("../lib/ranking-stages");
 const {kocRankingAwards} = require("./lib/koc-ranking-awards");
 
 function argValue(flag) {
@@ -183,6 +184,17 @@ async function main() {
       console.log(`   ${place}${String(points).padStart(6)} pts  ${await teamLabel(award.teamId)}${paid}${status}`);
     }
     if (APPLY) console.log(`   ${written}/${awards.length} colocação(ões) gravada(s)`);
+    // Como o motor: pontuou, o torneio vira a etapa mais recente do esporte.
+    const sportCode = tournamentSportToLevelSportCode(tournament.sport);
+    if (APPLY && written > 0 && sportCode) {
+      await recordRankingStage(db, projectId, {
+        sportCode,
+        tournamentId,
+        year: completedAt.getFullYear(),
+        at: completedAt,
+      });
+      console.log(`   etapa carimbada em rankingStages/${sportCode}`);
+    }
   }
   if (!APPLY) console.log("\nNada foi gravado. Rode de novo com --yes para aplicar.");
 }

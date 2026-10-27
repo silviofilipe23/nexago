@@ -45,6 +45,67 @@ String _bySportOwnerId(
       : docId;
 }
 
+/// `results[]` do doc por esporte: uma pontuação por torneio/categoria.
+List<RankingResultRef> _readResults(dynamic raw) {
+  if (raw is! List) return const [];
+  return [
+    for (final row in raw)
+      if (row is Map && _readStr(row['tournamentId']) != null)
+        RankingResultRef(
+          tournamentId: _readStr(row['tournamentId'])!,
+          year: _readInt(row['year']),
+          points: _readInt(row['points']),
+        ),
+  ];
+}
+
+/// Uma linha de `results[]` — o que o ranking de antes da última etapa
+/// precisa para descontar os pontos dela.
+class RankingResultRef {
+  const RankingResultRef({
+    required this.tournamentId,
+    required this.year,
+    required this.points,
+  });
+
+  final String tournamentId;
+  final int year;
+  final int points;
+}
+
+/// Etapa (torneio) que pontuou no ranking de um esporte.
+class RankingStage {
+  const RankingStage({required this.year, required this.at});
+
+  final int year;
+
+  /// Hora da última partida que pontuou no torneio.
+  final DateTime at;
+}
+
+/// Doc `rankingStages/{sportCode}`: as etapas que já pontuaram, por torneio.
+class RankingStages {
+  const RankingStages(this.byTournament);
+
+  factory RankingStages.fromData(Map<String, dynamic> data) {
+    final raw = data['stages'];
+    final out = <String, RankingStage>{};
+    if (raw is Map) {
+      for (final entry in raw.entries) {
+        final value = entry.value;
+        if (value is! Map) continue;
+        final at = _readTimestamp(value['at']);
+        if (at == null) continue;
+        out[entry.key.toString()] =
+            RankingStage(year: _readInt(value['year']), at: at);
+      }
+    }
+    return RankingStages(out);
+  }
+
+  final Map<String, RankingStage> byTournament;
+}
+
 /// Resultado de equipe em categoria finalizada.
 class TournamentCategoryResult {
   const TournamentCategoryResult({
@@ -92,6 +153,7 @@ class AthleteRankingEntry {
     required this.tournamentsCount,
     this.lastUpdated,
     this.pointsByYear = const {},
+    this.results = const [],
   });
 
   final String athleteId;
@@ -99,6 +161,9 @@ class AthleteRankingEntry {
   final int tournamentsCount;
   final DateTime? lastUpdated;
   final Map<String, int> pointsByYear;
+
+  /// Só nos docs por esporte (o legado não precisa).
+  final List<RankingResultRef> results;
 
   factory AthleteRankingEntry.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -136,6 +201,7 @@ class AthleteRankingEntry {
       tournamentsCount: _readInt(data['tournamentsCount']),
       lastUpdated: _readTimestamp(data['lastUpdated']),
       pointsByYear: _readPointsByYear(data['pointsByYear']),
+      results: _readResults(data['results']),
     );
   }
 }
@@ -148,6 +214,7 @@ class AthleteRankingRow {
     required this.totalPoints,
     required this.tournamentsCount,
     this.pointsByYear = const {},
+    this.lastStagePoints,
   });
 
   final int rank;
@@ -156,11 +223,16 @@ class AthleteRankingRow {
   final int tournamentsCount;
   final Map<String, int> pointsByYear;
 
+  /// Pontos que vieram da última etapa (no período da linha); `null` quando a
+  /// etapa não é conhecida.
+  final int? lastStagePoints;
+
   AthleteRankingRow copyWith({
     int? rank,
     int? totalPoints,
     int? tournamentsCount,
     Map<String, int>? pointsByYear,
+    int? lastStagePoints,
   }) {
     return AthleteRankingRow(
       rank: rank ?? this.rank,
@@ -168,6 +240,7 @@ class AthleteRankingRow {
       totalPoints: totalPoints ?? this.totalPoints,
       tournamentsCount: tournamentsCount ?? this.tournamentsCount,
       pointsByYear: pointsByYear ?? this.pointsByYear,
+      lastStagePoints: lastStagePoints ?? this.lastStagePoints,
     );
   }
 }
@@ -243,6 +316,7 @@ class TeamRankingEntry {
     required this.tournamentsCount,
     this.lastUpdated,
     this.pointsByYear = const {},
+    this.results = const [],
   });
 
   final String teamId;
@@ -250,6 +324,9 @@ class TeamRankingEntry {
   final int tournamentsCount;
   final DateTime? lastUpdated;
   final Map<String, int> pointsByYear;
+
+  /// Só nos docs por esporte (o legado não precisa).
+  final List<RankingResultRef> results;
 
   factory TeamRankingEntry.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -287,6 +364,7 @@ class TeamRankingEntry {
       tournamentsCount: _readInt(data['tournamentsCount']),
       lastUpdated: _readTimestamp(data['lastUpdated']),
       pointsByYear: _readPointsByYear(data['pointsByYear']),
+      results: _readResults(data['results']),
     );
   }
 }
@@ -299,6 +377,7 @@ class TeamRankingRow {
     required this.totalPoints,
     required this.tournamentsCount,
     this.pointsByYear = const {},
+    this.lastStagePoints,
   });
 
   final int rank;
@@ -307,11 +386,16 @@ class TeamRankingRow {
   final int tournamentsCount;
   final Map<String, int> pointsByYear;
 
+  /// Pontos que vieram da última etapa (no período da linha); `null` quando a
+  /// etapa não é conhecida.
+  final int? lastStagePoints;
+
   TeamRankingRow copyWith({
     int? rank,
     int? totalPoints,
     int? tournamentsCount,
     Map<String, int>? pointsByYear,
+    int? lastStagePoints,
   }) {
     return TeamRankingRow(
       rank: rank ?? this.rank,
@@ -319,6 +403,7 @@ class TeamRankingRow {
       totalPoints: totalPoints ?? this.totalPoints,
       tournamentsCount: tournamentsCount ?? this.tournamentsCount,
       pointsByYear: pointsByYear ?? this.pointsByYear,
+      lastStagePoints: lastStagePoints ?? this.lastStagePoints,
     );
   }
 }

@@ -8,6 +8,7 @@ import 'package:nexago_app/features/athlete/domain/athlete_rating.dart';
 import 'package:nexago_app/features/athlete/domain/gamification_models.dart';
 import 'package:nexago_app/features/athlete/domain/gamification_providers.dart';
 import 'package:nexago_app/features/athlete/domain/how_it_works/how_it_works_rules.dart';
+import 'package:nexago_app/features/athlete/domain/level_points_history.dart';
 import 'package:nexago_app/features/athlete/domain/rating_ladder.dart';
 import 'package:nexago_app/features/athlete/domain/sand_rank/sand_rank_providers.dart';
 import 'package:nexago_app/features/athlete/presentation/how_it_works/how_it_works_page.dart';
@@ -49,6 +50,7 @@ void main() {
     HowItWorksTab? origin,
     bool eloEnabled = true,
     RatingLadder ladder = kDefaultRatingLadder,
+    List<LevelPointsEntry> history = const [],
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(402, 2600);
@@ -75,6 +77,9 @@ void main() {
           ),
           ratingLadderProvider.overrideWith(
             (ref, sport) => Stream.value(ladder),
+          ),
+          levelPointsHistoryProvider.overrideWith(
+            (ref, sport) async => sport == 'VOLEI_PRAIA' ? history : const [],
           ),
           athleteRatingProvider.overrideWith(
             (ref, sport) =>
@@ -184,6 +189,8 @@ void main() {
     expect(find.textContaining('120 pts'), findsOneWidget);
     expect(find.textContaining('pra Intermediário 2 (1.720)'), findsOneWidget);
     expect(find.text('SOBE'), findsOneWidget);
+    // Sem partida rateada no histórico, o gráfico não aparece.
+    expect(find.text('SUA EVOLUÇÃO'), findsNothing);
     expect(find.text('2.170'), findsOneWidget); // Avançado 2
     // Modo sombra: sem coluna de descida e subida é com o atleta.
     expect(find.text('DESCE'), findsNothing);
@@ -208,5 +215,31 @@ void main() {
     expect(find.text('Passou da marca, você sobe'), findsOneWidget);
     expect(find.text('Abaixo da faixa, você pode descer'), findsOneWidget);
     expect(find.textContaining('90 dias de observação'), findsOneWidget);
+  });
+
+  testWidgets('Nível: gráfico de evolução quando há partidas rateadas', (
+    tester,
+  ) async {
+    LevelPointsEntry e(int day, int before, int after, bool win) =>
+        LevelPointsEntry(
+          endedAt: DateTime(2026, 9, day),
+          before: before,
+          after: after,
+          win: win,
+        );
+    await pumpPage(
+      tester,
+      history: [
+        e(4, 1500, 1580, true),
+        e(5, 1580, 1650, true),
+        e(12, 1650, 1600, false),
+      ],
+    );
+    await tester.pump();
+
+    expect(find.text('SUA EVOLUÇÃO'), findsOneWidget);
+    expect(find.textContaining('De 1.500 a'), findsOneWidget);
+    expect(find.textContaining('3 partidas · 2 V · 1 D · pico 1.650'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

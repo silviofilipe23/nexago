@@ -15,6 +15,7 @@ import '../../../domain/rating_ladder.dart';
 import '../../../onboarding/domain/athlete_onboarding_options.dart';
 import '../../widgets/athlete_level_zone_card.dart';
 import 'how_it_works_parts.dart';
+import 'level_points_evolution.dart';
 import 'level_review_sheet.dart';
 
 /// Aba "Nível": o nível declarado por esporte, o acompanhamento do jogo
@@ -77,6 +78,8 @@ class _HowItWorksLevelTabState extends ConsumerState<HowItWorksLevelTab> {
           ladder: ladder,
         ),
         const SizedBox(height: 20),
+        if (ladder != null)
+          LevelPointsEvolution(sportCode: sportCode, ladder: ladder),
         HowItWorksSection(
           title: ladder == null ? 'A escala' : 'A escala e os pontos',
           child: Column(

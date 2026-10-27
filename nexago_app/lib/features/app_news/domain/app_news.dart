@@ -11,12 +11,11 @@ library;
 import '../../home_banners/domain/home_banner.dart';
 
 /// Ícone da funcionalidade quando o destino sozinho não diz o bastante (ex.:
-/// Radar e Rateio Pix abrem os dois o Reservar). Sem ícone, vale o do destino.
+/// o mapa e o convite na reserva abrem os dois o Reservar). Sem ícone, vale o
+/// do destino.
 enum AppNewsIcon {
-  radar('radar'),
-  group('group'),
-  pix('pix'),
-  partner('partner');
+  map('map'),
+  invite('invite');
 
   const AppNewsIcon(this.key);
   final String key;

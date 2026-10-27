@@ -84,13 +84,13 @@ void main() {
       final f = AppNewsFeature.fromMap(
         feature('a', {
           'imageUrl': 'http://inseguro.png',
-          'icon': 'pix',
+          'icon': 'invite',
           'stories': false,
         }),
       )!;
 
       expect(f.imageUrl, isNull);
-      expect(f.icon, AppNewsIcon.pix);
+      expect(f.icon, AppNewsIcon.invite);
       expect(f.inStories, isFalse);
     });
   });

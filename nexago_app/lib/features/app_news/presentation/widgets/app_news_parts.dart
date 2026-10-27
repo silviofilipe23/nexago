@@ -17,10 +17,8 @@ import '../../domain/app_news.dart';
 const appNewsOnBrand = Color(0xFF0A0A0A);
 
 IconData appNewsIcon(AppNewsFeature feature) => switch (feature.icon) {
-  AppNewsIcon.radar => Icons.radar_rounded,
-  AppNewsIcon.group => Icons.group_add_outlined,
-  AppNewsIcon.pix => Icons.pix_rounded,
-  AppNewsIcon.partner => Icons.person_search_outlined,
+  AppNewsIcon.map => Icons.map_outlined,
+  AppNewsIcon.invite => Icons.person_add_alt_1_outlined,
   null =>
     feature.destination == null
         ? Icons.auto_awesome_outlined

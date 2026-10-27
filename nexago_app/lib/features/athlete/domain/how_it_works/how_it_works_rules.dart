@@ -15,7 +15,7 @@ import '../sand_rank/sand_rank_catalog.dart';
 
 /// Abas da tela — `query` é o valor de `?aba=` na rota.
 enum HowItWorksTab {
-  level('nivel', 'Nível', 'Com quem você joga'),
+  level('nivel', 'Nível', 'Nível de habilidade'),
   elo('elo', 'Elo e XP', 'O quanto você joga'),
   ranking('ranking', 'Ranking', 'Como vai em torneios');
 

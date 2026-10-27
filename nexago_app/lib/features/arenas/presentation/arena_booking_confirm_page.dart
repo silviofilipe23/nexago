@@ -546,7 +546,7 @@ class _ArenaBookingConfirmPageState
         : 'Quadra ($durationCompact)';
     final stickyAmount = displayTotal;
     final stickyMeta = choice == _PaymentChoice.pix
-        ? 'valor da reserva · PIX na próxima etapa'
+        ? 'Pix ou cartão na próxima etapa'
         : 'total na arena';
     final stickyCta = choice == _PaymentChoice.pix
         ? 'Confirmar e pagar'
@@ -692,7 +692,7 @@ class _ArenaBookingConfirmPageState
                                       : onsiteEnabled && !onlineEnabled
                                       ? 'Esta arena aceita pagamento na arena.'
                                       : !onsiteEnabled && onlineEnabled
-                                      ? 'Esta arena aceita pagamento via PIX no app.'
+                                      ? 'Esta arena aceita Pix ou cartão no app.'
                                       : 'Esta arena ainda não configurou meios de pagamento no app.',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     color: theme.colorScheme.onSurface
@@ -734,10 +734,10 @@ class _ArenaBookingConfirmPageState
                                             const SizedBox(height: 10),
                                           if (onlineEnabled)
                                             _PaymentOptionCard(
-                                              title: 'Pagar com PIX',
+                                              title: 'Pagar online',
                                               subtitle:
-                                                  'QR Code no app — confirmação automática.',
-                                              icon: Icons.pix_rounded,
+                                                  'Pix ou cartão de crédito — confirmação automática.',
+                                              icon: Icons.payments_outlined,
                                               selected:
                                                   choice == _PaymentChoice.pix,
                                               disabled: _submitting,

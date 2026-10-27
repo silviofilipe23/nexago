@@ -866,6 +866,10 @@ export {saveStoreCampaigns} from "./store-campaigns";
 // quem viu, tocou e dispensou.
 export {onHomeBannerStateWritten, saveHomeBanners} from "./home-banners";
 
+// App do atleta: tela de Novidades e stories pós-atualização. A callable grava a fonte (com
+// rascunhos) e o espelho que o app lê na mesma transação.
+export {saveAppNews} from "./app-news";
+
 // NexaSquad: regras do programa de embaixadores, versionadas. Escrita só por callable.
 export {saveSquadRules} from "./squad-rules";
 

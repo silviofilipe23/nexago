@@ -125,6 +125,18 @@ const TORNEIOS_GROUP: NavGroup = {
   ],
 };
 
+/** App do atleta: o banner de novidades da Home e a tela de Novidades (uma página por versão). */
+const APP_GROUP: NavGroup = {
+  kind: 'group',
+  id: 'app',
+  label: 'App do atleta',
+  icon: 'phone',
+  children: [
+    { kind: 'link', id: 'app-novidades', label: 'Banner da Home', icon: 'phone', route: '/painel/app/novidades' },
+    { kind: 'link', id: 'app-versoes', label: 'Novidades', icon: 'phone', route: '/painel/app/versoes' },
+  ],
+};
+
 const NAV_ITEMS: readonly PanelNavItem[] = [
   { kind: 'link', id: 'inicio', label: 'Início', icon: 'home', route: '/painel' },
   { kind: 'link', id: 'arenas', label: 'Arenas', icon: 'arena', route: '/painel/arenas' },
@@ -153,8 +165,7 @@ const NAV_ITEMS: readonly PanelNavItem[] = [
   },
   { kind: 'link', id: 'atletas', label: 'Atletas', icon: 'users', route: '/painel/atletas' },
   SQUAD_GROUP,
-  // Banner de novidades da Home do app; vira grupo quando houver outra tela do app.
-  { kind: 'link', id: 'app-novidades', label: 'App do atleta', icon: 'phone', route: '/painel/app/novidades' },
+  APP_GROUP,
   { kind: 'link', id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro' },
   LOJA_GROUP,
   { kind: 'soon', id: 'moderacao', label: 'Moderação', icon: 'shield' },
@@ -695,6 +706,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/atletas')) {
       return 'atletas';
+    }
+    if (path.startsWith('/painel/app/versoes')) {
+      return 'app-versoes';
     }
     if (path.startsWith('/painel/app')) {
       return 'app-novidades';

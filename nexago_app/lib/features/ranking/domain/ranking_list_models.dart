@@ -133,6 +133,7 @@ class RankingListEntry {
     required this.isCurrentUser,
     this.entityId = '',
     this.teamFormat,
+    this.pointsBeforeLastStage,
     this.initials,
     this.avatarColor,
     this.avatarUrl,
@@ -155,6 +156,10 @@ class RankingListEntry {
   /// Formato da equipe (linhas de equipes); `null` quando o doc da equipe não
   /// veio — e sempre nas linhas individuais.
   final RankingFormatFilter? teamFormat;
+
+  /// Pontos antes da última etapa do ranking (mesmo período); `null` quando a
+  /// etapa não é conhecida. É dele que sai o "subiu N posições".
+  final int? pointsBeforeLastStage;
 
   final String? initials;
   final Color? avatarColor;

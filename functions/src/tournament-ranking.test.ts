@@ -18,6 +18,7 @@ import {
   tryAwardGlobalRankingForMatch,
   upsertRankingResult,
 } from "./tournament-ranking";
+import {rankingStagesPath} from "./ranking-stages";
 
 const PROJECT = "proj";
 const ENDED_AT = Timestamp.fromDate(new Date("2026-06-01T18:00:00Z"));
@@ -226,6 +227,71 @@ describe("ranking por esporte (fase 3a)", () => {
     await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
     assert.equal(db.store.get(`${teamRankingsPath(PROJECT)}/tA`)!.totalPoints, 1000);
     assert.equal([...db.store.keys()].some((k) => k.includes("RankingsBySport")), false);
+  });
+});
+
+describe("etapa do ranking (rankingStages)", () => {
+  const stageDoc = (db: FakeFirestore, sport: string) =>
+    db.store.get(`${rankingStagesPath(PROJECT)}/${sport}`);
+
+  it("partida que pontua vira a etapa do esporte, com ano e hora da partida", async () => {
+    const db = seededDb({sport: "beachTennis"});
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    const doc = stageDoc(db, "BEACH_TENNIS")!;
+    assert.equal(doc.sport, "BEACH_TENNIS");
+    const stage = (doc.stages as Record<string, {year: number; at: Timestamp}>).T1;
+    assert.equal(stage.year, 2026);
+    assert.equal(stage.at.toMillis(), ENDED_AT.toMillis());
+  });
+
+  it("merge: a etapa nova entra sem apagar as anteriores", async () => {
+    const db = seededDb();
+    const before = Timestamp.fromDate(new Date("2026-05-10T18:00:00Z"));
+    db.seedDoc(`${rankingStagesPath(PROJECT)}/VOLEI_PRAIA`, {
+      sport: "VOLEI_PRAIA",
+      stages: {T0: {year: 2026, at: before}},
+    });
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    const stages = stageDoc(db, "VOLEI_PRAIA")!.stages as Record<string, unknown>;
+    assert.deepEqual(Object.keys(stages).sort(), ["T0", "T1"]);
+  });
+
+  it("re-run sem mudança não carimba de novo", async () => {
+    const db = seededDb();
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    db.store.delete(`${rankingStagesPath(PROJECT)}/VOLEI_PRAIA`);
+    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    assert.equal(stageDoc(db, "VOLEI_PRAIA"), undefined);
+  });
+
+  it("resultado antigo que só ganha o carimbo do esporte não é etapa nova", async () => {
+    const db = seededDb();
+    // Toda a categoria já tinha o resultado, sem `sport`: pódio + fase de grupos.
+    const prior: Array<[string, number, number]> = [["tA", 1, 1000], ["tB", 2, 800]];
+    for (let i = 1; i <= 8; i++) prior.push([`tG${i}`, 0, 100]);
+    for (const [teamId, finalPlace, pointsEarned] of prior) {
+      db.seedDoc(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_${teamId}`, {
+        tournamentId: "T1", categoryId: "C1", teamId, finalPlace, pointsEarned,
+        year: 2025, scaleVersion: 2,
+      });
+    }
+    const r = await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
+    assert.equal(r.teamsUpdated, prior.length);
+    assert.equal(stageDoc(db, "VOLEI_PRAIA"), undefined);
+  });
+
+  it("sem pontuação ou sem esporte reconhecido, sem etapa", async () => {
+    const group = seededDb();
+    await tryAwardGlobalRankingForMatch(
+      group as never,
+      PROJECT,
+      finalMatch({matchType: "group", isGroupMatch: true}),
+    );
+    assert.equal([...group.store.keys()].some((k) => k.includes("rankingStages")), false);
+
+    const unknown = seededDb({sport: "xadrez"});
+    await tryAwardGlobalRankingForMatch(unknown as never, PROJECT, finalMatch());
+    assert.equal([...unknown.store.keys()].some((k) => k.includes("rankingStages")), false);
   });
 });
 

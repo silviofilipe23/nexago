@@ -26,6 +26,9 @@ abstract final class NexagoArtifactsPaths {
   static String teamRankingsBySportCollection() =>
       '$publicDataBase/teamRankingsBySport';
 
+  /// Etapas que pontuaram no ranking de cada esporte: doc `{CODE}`.
+  static String rankingStagesCollection() => '$publicDataBase/rankingStages';
+
   static String leagueTeamRankingsCollection() =>
       '$publicDataBase/leagueTeamRankings';
 

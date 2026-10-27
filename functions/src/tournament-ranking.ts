@@ -29,6 +29,7 @@ import {clampMeasuredWeight} from "./category-field-strength";
 import {parseMatchPlayedAt} from "./tournament-match-gamification";
 import {shouldProcessRatingUpdate as shouldAwardForMatch} from "./rating-engine";
 import {artifactsPublicDataBase} from "./firebase-paths";
+import {recordRankingStage} from "./ranking-stages";
 import {
   categoryPreset,
   LEGACY_CATEGORY_WEIGHT,
@@ -330,6 +331,17 @@ async function upsertGlobalRankingDoc(
   return true;
 }
 
+interface GlobalPlacementParams {
+  tournamentId: string;
+  categoryId: string;
+  award: LeaguePlacementAward;
+  pointsMultiplier: number;
+  year: number;
+  completedAt: Date;
+  /** Código do esporte do torneio (profileCode) ou `null` quando não reconhecido. */
+  sportCode?: string | null;
+}
+
 /**
  * Grava UMA colocação no ranking global (resultado por categoria + docs de
  * dupla e atletas). Exportada para `scripts/award-koc-tournament-ranking.js`,
@@ -338,22 +350,25 @@ async function upsertGlobalRankingDoc(
 export async function awardGlobalPlacement(
   db: Firestore,
   projectId: string,
-  params: {
-    tournamentId: string;
-    categoryId: string;
-    award: LeaguePlacementAward;
-    pointsMultiplier: number;
-    year: number;
-    completedAt: Date;
-    /** Código do esporte do torneio (profileCode) ou `null` quando não reconhecido. */
-    sportCode?: string | null;
-  },
+  params: GlobalPlacementParams,
 ): Promise<boolean> {
+  return (await writeGlobalPlacement(db, projectId, params)) != null;
+}
+
+/**
+ * `"fresh"`: pontuação nova ou corrigida. `"stamped"`: resultado antigo que só
+ * ganhou o carimbo do esporte — não é etapa nova. `null`: nada mudou.
+ */
+async function writeGlobalPlacement(
+  db: Firestore,
+  projectId: string,
+  params: GlobalPlacementParams,
+): Promise<"fresh" | "stamped" | null> {
   const {tournamentId, categoryId, award} = params;
   const sportCode = params.sportCode ?? null;
   const teamId = award.teamId;
   const points = globalPointsForAward(award, params.pointsMultiplier);
-  if (points <= 0) return false;
+  if (points <= 0) return null;
   const finalPlace = finalPlaceForAward(award);
 
   // Esporte que não alimenta o legado vai SÓ para o doc por esporte: o app da
@@ -367,7 +382,7 @@ export async function awardGlobalPlacement(
       sportCode,
       entry: {tournamentId, categoryId, finalPlace, points, year: params.year, sport: sportCode},
     });
-    return changed > 0;
+    return changed > 0 ? "fresh" : null;
   }
 
   // Resultado por categoria (contrato do model Dart `TournamentCategoryResult`).
@@ -377,7 +392,7 @@ export async function awardGlobalPlacement(
   const resultSnap = await resultRef.get();
   const prevResult = resultSnap.data();
   if (prevResult?.finalPlace === finalPlace && prevResult?.pointsEarned === points) {
-    if (sportCode == null || prevResult?.sport === sportCode) return false;
+    if (sportCode == null || prevResult?.sport === sportCode) return null;
     // Resultado antigo sem `sport`: só o carimbo e o doc por esporte. Ano e
     // data são os do resultado (a partida de agora pode ser de outro ano) e o
     // legado fica intocado — nada nele mudou.
@@ -395,7 +410,7 @@ export async function awardGlobalPlacement(
         sport: sportCode,
       },
     });
-    return true;
+    return "stamped";
   }
   await resultRef.set({
     tournamentId,
@@ -446,7 +461,7 @@ export async function awardGlobalPlacement(
   if (sportCode) {
     await upsertRankingBySportDocs(db, projectId, {teamId, athleteIds, sportCode, entry});
   }
-  return true;
+  return "fresh";
 }
 
 /**
@@ -670,10 +685,13 @@ export async function tryAwardGlobalRankingForMatch(
   const sportCode = tournamentSportToLevelSportCode(tournament.sport);
   const baseParams = {tournamentId, categoryId, pointsMultiplier, year, completedAt, sportCode};
   let teamsUpdated = 0;
+  let fresh = 0;
+  const count = (outcome: "fresh" | "stamped" | null) => {
+    if (outcome != null) teamsUpdated++;
+    if (outcome === "fresh") fresh++;
+  };
   for (const award of placements) {
-    if (await awardGlobalPlacement(db, projectId, {...baseParams, award})) {
-      teamsUpdated++;
-    }
+    count(await writeGlobalPlacement(db, projectId, {...baseParams, award}));
   }
 
   // Times pagos que não chegaram ao mata-mata pontuam pela fase de grupos
@@ -691,11 +709,21 @@ export async function tryAwardGlobalRankingForMatch(
     );
     for (const teamId of paidTeamIds) {
       if (knockoutTeamIds.has(teamId)) continue;
-      const awarded = await awardGlobalPlacement(db, projectId, {
+      count(await writeGlobalPlacement(db, projectId, {
         ...baseParams,
         award: {teamId, bucket: "groups"},
-      });
-      if (awarded) teamsUpdated++;
+      }));
+    }
+  }
+
+  // Uma escrita por partida (não por colocação): o torneio vira a etapa mais
+  // recente do esporte — é dela que o app tira o "subiu N posições". Só
+  // metadado: se falhar, a premiação já gravada segue valendo.
+  if (fresh > 0 && sportCode) {
+    try {
+      await recordRankingStage(db, projectId, {sportCode, tournamentId, year, at: completedAt});
+    } catch (e) {
+      logger.warn(`globalRanking: falha ao carimbar a etapa ${tournamentId} (${sportCode})`, e);
     }
   }
 

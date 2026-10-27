@@ -55,6 +55,7 @@ Future<List<RankingListEntry>> buildAthleteRankingListEntries({
   var rows = await repo.loadAthleteRankingForSport(
     sportCode,
     year: filter.year,
+    withLastStage: true,
   );
   if (rows.isEmpty) return const [];
 
@@ -105,6 +106,8 @@ Future<List<RankingListEntry>> buildAthleteRankingListEntries({
         initials: rankingInitials(profile, row.athleteId),
         avatarColor: rankingAvatarColor(row.athleteId),
         avatarUrl: rankingAvatarUrl(profile),
+        pointsBeforeLastStage:
+            _pointsBefore(row.totalPoints, row.lastStagePoints),
       ),
     );
   }
@@ -118,7 +121,11 @@ Future<List<RankingListEntry>> buildTeamRankingListEntries({
   required String sportCode,
   required String? currentUid,
 }) async {
-  var rows = await repo.loadTeamRankingForSport(sportCode, year: filter.year);
+  var rows = await repo.loadTeamRankingForSport(
+    sportCode,
+    year: filter.year,
+    withLastStage: true,
+  );
   if (rows.isEmpty) return const [];
 
   final teamIds = rows.map((r) => r.teamId).toList();
@@ -192,10 +199,18 @@ Future<List<RankingListEntry>> buildTeamRankingListEntries({
         player1AvatarUrl: rankingAvatarUrl(p1),
         player2AvatarUrl: rankingAvatarUrl(p2),
         teamFormat: formatByTeam[row.teamId],
+        pointsBeforeLastStage:
+            _pointsBefore(row.totalPoints, row.lastStagePoints),
       ),
     );
   }
   return entries;
+}
+
+int? _pointsBefore(int points, int? lastStagePoints) {
+  if (lastStagePoints == null) return null;
+  final before = points - lastStagePoints;
+  return before < 0 ? 0 : before;
 }
 
 List<RankingListEntry> splitRankingEntries(List<RankingListEntry> entries) {

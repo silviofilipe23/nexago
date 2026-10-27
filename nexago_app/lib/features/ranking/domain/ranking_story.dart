@@ -6,7 +6,7 @@ import 'ranking_list_models.dart';
 
 /// Informações que o atleta liga/desliga no story do ranking, na ordem dos
 /// chips.
-enum RankingStoryInfo { identity, points, field }
+enum RankingStoryInfo { identity, points, field, movement }
 
 /// Faixa da posição: o pódio ganha medalha (ouro, prata, bronze); top 5 e
 /// top 10 só mudam a frase.
@@ -40,6 +40,9 @@ class RankingStoryData {
     this.season,
     this.cutLabels = const [],
     this.pointsAbove,
+    this.movement,
+    this.previousPosition,
+    this.debut = false,
   });
 
   final int rank;
@@ -75,6 +78,16 @@ class RankingStoryData {
   /// Pontos de quem está uma posição acima; `null` no 1º.
   final int? pointsAbove;
 
+  /// Posições ganhas na última etapa (`< 0` caiu, `0` manteve); `null` sem
+  /// etapa conhecida ou na estreia.
+  final int? movement;
+
+  /// Posição antes da última etapa; `null` sem etapa conhecida ou na estreia.
+  final int? previousPosition;
+
+  /// Os primeiros pontos do período vieram na última etapa.
+  final bool debut;
+
   RankingStoryTier get tier => switch (rank) {
         1 => RankingStoryTier.gold,
         2 => RankingStoryTier.silver,
@@ -84,18 +97,59 @@ class RankingStoryData {
         _ => RankingStoryTier.rest,
       };
 
-  /// A linha em cima do número.
-  String get kicker => switch (tier) {
-        RankingStoryTier.gold =>
-          isTeam ? 'LÍDERES DO RANKING' : 'LÍDER DO RANKING',
-        RankingStoryTier.silver =>
-          isTeam ? 'VICE-LÍDERES DO RANKING' : 'VICE-LÍDER DO RANKING',
-        RankingStoryTier.bronze => 'NO PÓDIO DO RANKING',
-        RankingStoryTier.top5 => 'NO TOP 5 DO RANKING',
-        RankingStoryTier.top10 => 'NO TOP 10 DO RANKING',
-        RankingStoryTier.rest =>
-          isTeam ? 'NOSSA POSIÇÃO NO RANKING' : 'MINHA POSIÇÃO NO RANKING',
-      };
+  /// A linha em cima do número. Com a variação à vista, a etapa que levou à
+  /// faixa vira a notícia ("ENTRAMOS NO TOP 10"); sem ela, só a faixa.
+  String kicker({bool showMovement = true}) {
+    final news = showMovement && _reachedTier;
+    return switch (tier) {
+      RankingStoryTier.gold when news =>
+        isTeam ? 'ASSUMIMOS A LIDERANÇA' : 'ASSUMI A LIDERANÇA',
+      RankingStoryTier.gold =>
+        isTeam ? 'LÍDERES DO RANKING' : 'LÍDER DO RANKING',
+      RankingStoryTier.silver ||
+      RankingStoryTier.bronze when news =>
+        isTeam ? 'ENTRAMOS NO PÓDIO' : 'ENTREI NO PÓDIO',
+      RankingStoryTier.silver =>
+        isTeam ? 'VICE-LÍDERES DO RANKING' : 'VICE-LÍDER DO RANKING',
+      RankingStoryTier.bronze => 'NO PÓDIO DO RANKING',
+      RankingStoryTier.top5 when news =>
+        isTeam ? 'ENTRAMOS NO TOP 5' : 'ENTREI NO TOP 5',
+      RankingStoryTier.top5 => 'NO TOP 5 DO RANKING',
+      RankingStoryTier.top10 when news =>
+        isTeam ? 'ENTRAMOS NO TOP 10' : 'ENTREI NO TOP 10',
+      RankingStoryTier.top10 => 'NO TOP 10 DO RANKING',
+      RankingStoryTier.rest when showMovement && (movement ?? 0) > 0 =>
+        isTeam ? 'SUBIMOS NO RANKING' : 'SUBI NO RANKING',
+      RankingStoryTier.rest =>
+        isTeam ? 'NOSSA POSIÇÃO NO RANKING' : 'MINHA POSIÇÃO NO RANKING',
+    };
+  }
+
+  /// Chegou à faixa nesta etapa: estreou nela ou vinha de fora (liderança,
+  /// pódio, top 5, top 10).
+  bool get _reachedTier {
+    final limit = switch (tier) {
+      RankingStoryTier.gold => 1,
+      RankingStoryTier.silver || RankingStoryTier.bronze => 3,
+      RankingStoryTier.top5 => 5,
+      RankingStoryTier.top10 => 10,
+      RankingStoryTier.rest => null,
+    };
+    if (limit == null) return false;
+    final before = previousPosition;
+    return debut || (before != null && before > limit);
+  }
+
+  /// "+3 POSIÇÕES", "−2 POSIÇÕES" ou a estreia; `null` sem variação.
+  String? get movementLabel {
+    if (debut) {
+      return season == null ? 'ESTREIA NO RANKING' : 'ESTREIA NA TEMPORADA';
+    }
+    final m = movement;
+    if (m == null || m == 0) return null;
+    final n = m.abs();
+    return '${m > 0 ? '+' : '−'}$n ${n == 1 ? 'POSIÇÃO' : 'POSIÇÕES'}';
+  }
 
   /// O selo do topo da arte.
   String get pillLabel => season == null ? 'RANKING GERAL' : 'RANKING $season';
@@ -136,6 +190,7 @@ class RankingStoryData {
         RankingStoryInfo.identity => identityLabel,
         RankingStoryInfo.points => 'Pontos',
         RankingStoryInfo.field => 'Total no ranking',
+        RankingStoryInfo.movement => 'Variação',
       };
 }
 
@@ -149,6 +204,7 @@ RankingStoryData rankingStoryDataFrom({
 }) {
   final isTeam = filter.mode == RankingListMode.teams;
   final above = entries.where((e) => e.rank == entry.rank - 1).firstOrNull;
+  final change = _lastStageChange(entry, entries);
   return RankingStoryData(
     rank: entry.rank,
     total: entries.length,
@@ -166,7 +222,29 @@ RankingStoryData rankingStoryDataFrom({
       if (filter.level != RankingLevelFilter.all) filter.level.label,
     ],
     pointsAbove: above?.points,
+    movement: change.movement,
+    previousPosition: change.previous,
+    debut: change.debut,
   );
+}
+
+/// A posição antes da última etapa, no MESMO recorte: tira dos pontos de cada
+/// um o que veio dela e conta quem ficava à frente. Conta "quem tem mais
+/// pontos" dos dois lados (e não a ordem da lista) para empate não virar
+/// "subiu 1"/"caiu 1" de mentira.
+({int? movement, int? previous, bool debut}) _lastStageChange(
+  RankingListEntry entry,
+  List<RankingListEntry> entries,
+) {
+  final before = entry.pointsBeforeLastStage;
+  if (before == null) return (movement: null, previous: null, debut: false);
+  if (before <= 0) return (movement: null, previous: null, debut: true);
+  int ahead(int Function(RankingListEntry) pointsOf, int mine) =>
+      entries.where((e) => pointsOf(e) > mine).length;
+  final previous =
+      1 + ahead((e) => e.pointsBeforeLastStage ?? e.points, before);
+  final now = 1 + ahead((e) => e.points, entry.points);
+  return (movement: previous - now, previous: previous, debut: false);
 }
 
 /// Chips que fazem sentido para esta posição: sem pontos, nada de "0 pontos";
@@ -175,10 +253,20 @@ List<RankingStoryInfo> rankingStoryInfosFor(RankingStoryData data) => [
       RankingStoryInfo.identity,
       if (data.points > 0) RankingStoryInfo.points,
       if (data.total > 1) RankingStoryInfo.field,
+      if (data.movementLabel != null) RankingStoryInfo.movement,
     ];
 
-/// Legenda que vai junto do PNG no "Postar no story".
-String rankingStoryShareText(RankingStoryData data) {
+/// Chips que abrem desligados: queda de posição o atleta posta se quiser.
+Set<RankingStoryInfo> rankingStoryInfosOffByDefault(RankingStoryData data) => {
+      if ((data.movement ?? 0) < 0) RankingStoryInfo.movement,
+    };
+
+/// Legenda que vai junto do PNG no "Postar no story". Sem a variação na arte
+/// ([showMovement] falso), ela também sai da legenda.
+String rankingStoryShareText(
+  RankingStoryData data, {
+  bool showMovement = true,
+}) {
   final ranking =
       data.season == null ? 'ranking geral' : 'ranking ${data.season}';
   final cut = data.cutLabels.isEmpty ? '' : ' (${data.cutLabels.join(', ')})';
@@ -193,7 +281,16 @@ String rankingStoryShareText(RankingStoryData data) {
           ? 'Bora subir!'
           : 'Faltam $gap ${gap == 1 ? 'ponto' : 'pontos'} '
               '${data.rank == 2 ? 'pro topo' : 'pro ${data.rank - 1}º'}.';
-  return withNexaHashtag('$lead $tail');
+  final m = data.movement ?? 0;
+  final change = !showMovement
+      ? ''
+      : data.debut
+          ? (data.isTeam ? ' Estreamos no ranking.' : ' Estreei no ranking.')
+          : m > 0
+              ? ' ${data.isTeam ? 'Subimos' : 'Subi'} $m '
+                  '${m == 1 ? 'posição' : 'posições'} na última etapa.'
+              : '';
+  return withNexaHashtag('$lead$change $tail');
 }
 
 List<BookingStoryPerson> _peopleOf(RankingListEntry entry) {

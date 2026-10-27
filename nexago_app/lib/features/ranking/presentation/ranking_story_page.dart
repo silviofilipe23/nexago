@@ -28,7 +28,8 @@ class RankingStoryPage extends ConsumerStatefulWidget {
 
 class _RankingStoryPageState extends ConsumerState<RankingStoryPage>
     with BookingStoryEditorMixin {
-  final Set<RankingStoryInfo> _hidden = {};
+  late final Set<RankingStoryInfo> _hidden =
+      rankingStoryInfosOffByDefault(widget.data);
 
   void _toggleInfo(RankingStoryInfo info) {
     setState(() {
@@ -61,7 +62,10 @@ class _RankingStoryPageState extends ConsumerState<RankingStoryPage>
       onSelectTheme: selectStoryTheme,
       onSave: () => shareStory(fileName: 'nexago_ranking.png'),
       onPost: () => shareStory(
-        caption: rankingStoryShareText(data),
+        caption: rankingStoryShareText(
+          data,
+          showMovement: infos.contains(RankingStoryInfo.movement),
+        ),
         fileName: 'nexago_ranking.png',
       ),
       infoChips: [

@@ -59,13 +59,15 @@ class RankingStoryCard extends StatelessWidget {
     final showField = infos.contains(RankingStoryInfo.field);
     final showIdentity = infos.contains(RankingStoryInfo.identity);
     final showPoints = infos.contains(RankingStoryInfo.points);
+    final movementLabel =
+        infos.contains(RankingStoryInfo.movement) ? data.movementLabel : null;
     // Sobre a foto o bloco começa acima do escurecimento da base: sombra para
     // o texto ler num céu claro.
     final shadows = theme == BookingStoryTheme.photo ? _photoShadows : null;
 
     final blocks = <Widget>[
       Text(
-        data.kicker,
+        data.kicker(showMovement: movementLabel != null),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: AppTypography.mono(
@@ -94,7 +96,7 @@ class RankingStoryCard extends StatelessWidget {
           color: sub,
         ).copyWith(shadows: shadows),
       ),
-      if (medalLabel != null || showField)
+      if (medalLabel != null || movementLabel != null || showField)
         Wrap(
           alignment: WrapAlignment.center,
           spacing: 6,
@@ -102,6 +104,12 @@ class RankingStoryCard extends StatelessWidget {
           children: [
             if (medalLabel != null)
               _MedalTag(label: medalLabel, medal: medal, light: light),
+            if (movementLabel != null)
+              _MovementTag(
+                label: movementLabel,
+                movement: data.debut ? null : data.movement,
+                light: light,
+              ),
             if (showField) _FieldTag(label: data.fieldLabel, ink: ink),
           ],
         ),
@@ -248,6 +256,61 @@ class _MedalTag extends StatelessWidget {
               letterSpacing: 1.3,
               height: 1,
               color: fg,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "+3 POSIÇÕES" em verde, "−2 POSIÇÕES" em vermelho; a estreia
+/// ([movement] `null`) na cor da marca.
+class _MovementTag extends StatelessWidget {
+  const _MovementTag({
+    required this.label,
+    required this.movement,
+    required this.light,
+  });
+
+  final String label;
+  final int? movement;
+  final bool light;
+
+  @override
+  Widget build(BuildContext context) {
+    final m = movement;
+    final color = m == null
+        ? (light ? BookingStoryCard.lightInk : AppColors.brandHover)
+        : m > 0
+            ? (light ? AppColors.winLight : AppColors.win)
+            : (light ? AppColors.liveLight : AppColors.live);
+    final icon = m == null
+        ? Icons.auto_awesome_rounded
+        : m > 0
+            ? Icons.arrow_upward_rounded
+            : Icons.arrow_downward_rounded;
+    return Container(
+      height: 22,
+      padding: const EdgeInsets.symmetric(horizontal: 9),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: light ? 0.12 : 0.14),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppTypography.mono(
+              fontSize: 8.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+              height: 1,
+              color: color,
             ),
           ),
         ],

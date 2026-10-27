@@ -119,7 +119,7 @@ class AthleteSettingsTile extends StatelessWidget {
   Color _iconColor(BuildContext context) =>
       iconColor ??
       switch (variant) {
-        AthleteSettingsIconVariant.orange => AppColors.brand,
+        AthleteSettingsIconVariant.orange => context.themeColors.brandText,
         AthleteSettingsIconVariant.green => context.themeColors.win,
         AthleteSettingsIconVariant.yellow => context.themeColors.pending,
         AthleteSettingsIconVariant.neutral => context.themeColors.onSurface,
@@ -315,7 +315,7 @@ class AthleteSettingsOrangeBadge extends StatelessWidget {
       style: AppTypography.mono(
         fontSize: 12,
         fontWeight: FontWeight.w800,
-        color: AppColors.brand,
+        color: context.themeColors.brandText,
         letterSpacing: 0.2,
       ),
     );

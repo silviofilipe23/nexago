@@ -88,7 +88,7 @@ class _AthleteAppearanceSheetBody extends ConsumerWidget {
                           Icon(
                             _iconFor(mode),
                             color: selected
-                                ? context.themeColors.brand
+                                ? context.themeColors.brandText
                                 : context.themeColors.onSurfaceMuted,
                           ),
                           const SizedBox(width: 12),
@@ -104,7 +104,7 @@ class _AthleteAppearanceSheetBody extends ConsumerWidget {
                           if (selected)
                             Icon(
                               Icons.check_rounded,
-                              color: context.themeColors.brand,
+                              color: context.themeColors.brandText,
                               size: 22,
                             ),
                         ],

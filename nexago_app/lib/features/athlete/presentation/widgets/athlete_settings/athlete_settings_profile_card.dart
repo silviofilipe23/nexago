@@ -98,7 +98,7 @@ class AthleteSettingsProfileCard extends ConsumerWidget {
             TextButton(
               onPressed: isLoading ? null : onEdit,
               style: TextButton.styleFrom(
-                foregroundColor: AppColors.brand,
+                foregroundColor: context.themeColors.brandText,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -108,7 +108,7 @@ class AthleteSettingsProfileCard extends ConsumerWidget {
                 style: AppTypography.mono(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.brand,
+                  color: context.themeColors.brandText,
                   letterSpacing: 0.6,
                 ),
               ),

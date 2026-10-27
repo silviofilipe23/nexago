@@ -118,9 +118,9 @@ const _piece = Key('piece');
 final _pieceFinder = find.byKey(_piece);
 
 void _setView(WidgetTester tester) {
-  // 1600: os Ajustes ganharam "Avaliações dos professores" e "Sair da
-  // conta" precisa caber na tela.
-  tester.view.physicalSize = const Size(402, 1600);
+  // 1700: os Ajustes ganharam "Avaliações dos professores" e "Aparência", e
+  // "Sair da conta" precisa caber na tela.
+  tester.view.physicalSize = const Size(402, 1700);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 }

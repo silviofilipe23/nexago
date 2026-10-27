@@ -323,15 +323,15 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                       context.pushNamed(AppRouteNames.athletePrivacySecurity),
                   showDivider: true,
                 ),
-                // TODO: Add back when implemented in the next version
-                // AthleteSettingsTile(
-                //   icon: Icons.brightness_6_outlined,
-                //   title: 'Aparência',
-                //   subtitle: themePreference.label,
-                //   variant: AthleteSettingsIconVariant.neutral,
-                //   onTap: () => showAthleteAppearanceSheet(context),
-                //   showDivider: true,
-                // ),
+                AthleteSettingsTile(
+                  key: const Key('athlete-settings-appearance'),
+                  icon: Icons.brightness_6_outlined,
+                  title: 'Aparência',
+                  subtitle: themePreference.label,
+                  variant: AthleteSettingsIconVariant.neutral,
+                  onTap: () => showAthleteAppearanceSheet(context),
+                  showDivider: true,
+                ),
                 AthleteSettingsTile(
                   icon: Icons.language_rounded,
                   title: 'Idioma',

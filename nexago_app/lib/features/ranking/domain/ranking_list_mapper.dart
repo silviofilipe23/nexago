@@ -1,14 +1,26 @@
 import 'package:nexago_app/core/profiles/users_repository.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_profile_options.dart';
 import '../data/ranking_repository.dart';
 import 'ranking_display_helpers.dart';
 import 'ranking_list_models.dart';
 import 'ranking_logic.dart';
 import 'ranking_models.dart';
 
-String rankingSubtitle({required int tournamentsCount}) {
-  if (tournamentsCount <= 0) return '';
-  return tournamentsCount == 1 ? '1 torneio' : '$tournamentsCount torneios';
+String rankingSubtitle({
+  String? levelLabel,
+  required int tournamentsCount,
+}) {
+  final parts = <String>[];
+  if (levelLabel != null && levelLabel.trim().isNotEmpty) {
+    parts.add(levelLabel.trim().toUpperCase());
+  }
+  if (tournamentsCount > 0) {
+    parts.add(
+      tournamentsCount == 1 ? '1 torneio' : '$tournamentsCount torneios',
+    );
+  }
+  return parts.join(' • ');
 }
 
 String teamDisplayName({
@@ -74,13 +86,20 @@ Future<List<RankingListEntry>> buildAthleteRankingListEntries({
   final entries = <RankingListEntry>[];
   for (final row in rows) {
     final profile = profiles[row.athleteId];
+    final levelRank = athleteLevelRankForSport(profile, sportCode);
+    final levelLabel = levelRank != null
+        ? AthleteProfileOptions.labelForRank(levelRank)
+        : null;
     entries.add(
       RankingListEntry(
         rank: row.rank,
         points: row.totalPoints,
         tournamentsCount: row.tournamentsCount,
         displayName: rankingDisplayName(profile, row.athleteId),
-        subtitle: rankingSubtitle(tournamentsCount: row.tournamentsCount),
+        subtitle: rankingSubtitle(
+          levelLabel: levelLabel,
+          tournamentsCount: row.tournamentsCount,
+        ),
         isCurrentUser: row.athleteId == currentUid,
         entityId: row.athleteId,
         initials: rankingInitials(profile, row.athleteId),

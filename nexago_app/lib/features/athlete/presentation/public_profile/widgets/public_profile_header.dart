@@ -100,10 +100,11 @@ class PublicProfileHeader extends StatelessWidget {
                     // O véu escurece o PÉ da capa, que agora é a cama do nome.
                     // Sem ele o texto cairia sobre a foto crua.
                     //
-                    // O último passo é a COR DO FUNDO da página, não preto: a
-                    // capa dissolve no canvas em vez de terminar num corte seco,
-                    // e no tema claro não cria uma faixa preta contra um fundo
-                    // claro.
+                    // O pé é escuro nos DOIS temas: o nome, o apelido e o selo
+                    // de ranking são brancos. No escuro o último passo é o
+                    // próprio canvas e a capa dissolve na página; no claro a
+                    // capa termina num corte, mas terminar no canvas claro
+                    // deixava o texto branco sobre creme.
                     DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -113,8 +114,8 @@ class PublicProfileHeader extends StatelessWidget {
                             Colors.black.withValues(alpha: 0.35),
                             Colors.transparent,
                             Colors.black.withValues(alpha: 0.55),
-                            context.themeColors.canvas.withValues(alpha: 0.92),
-                            context.themeColors.canvas,
+                            AppColors.canvas.withValues(alpha: 0.92),
+                            AppColors.canvas,
                           ],
                           stops: const [0, 0.30, 0.62, 0.88, 1],
                         ),
@@ -556,26 +557,33 @@ class _CoverFallback extends StatelessWidget {
   }
 }
 
+/// Escuro nos dois temas, como a arte do esporte que ele substitui: o véu e a
+/// identidade branca por cima contam com isso.
 class _DefaultCoverBackground extends StatelessWidget {
   const _DefaultCoverBackground();
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.brand.withValues(alpha: 0.14),
-            context.themeColors.canvas,
-            context.themeColors.canvas,
-          ],
+    // O canvas por baixo: o brand translúcido do canto pousava na página, que
+    // no claro é creme.
+    return ColoredBox(
+      color: AppColors.canvas,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.brand.withValues(alpha: 0.14),
+              AppColors.canvas,
+              AppColors.canvas,
+            ],
+          ),
         ),
-      ),
-      child: CustomPaint(
-        painter: _CoverLinesPainter(
-          color: AppColors.brand.withValues(alpha: 0.07),
+        child: CustomPaint(
+          painter: _CoverLinesPainter(
+            color: AppColors.brand.withValues(alpha: 0.07),
+          ),
         ),
       ),
     );

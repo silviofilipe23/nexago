@@ -124,7 +124,7 @@ class _ResumoCelula extends StatelessWidget {
             size: 20,
             color: vazio
                 ? colors.onSurfaceMuted.withValues(alpha: 0.35)
-                : metal.color,
+                : metal.tone(colors),
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
@@ -269,7 +269,7 @@ class _MedalhaCircular extends StatelessWidget {
         style: AppTypography.soraRegular(
           fontSize: 13,
           fontWeight: FontWeight.w800,
-          color: metal.color,
+          color: metal.tone(context.themeColors),
         ),
       ),
     );
@@ -278,15 +278,39 @@ class _MedalhaCircular extends StatelessWidget {
 
 /// Ouro, prata e bronze. Mesma metáfora do badge de ranking do topo.
 class _PodiumMetal {
-  const _PodiumMetal({required this.color, required this.label});
+  const _PodiumMetal({
+    required this.color,
+    required this.colorLight,
+    required this.label,
+  });
 
+  /// Fundo, borda e, no escuro, texto e ícone.
   final Color color;
+
+  /// O mesmo metal escurecido para texto e ícone no claro: os de cima dão
+  /// 1,6:1 (ouro, prata) e 2,8:1 (bronze) no branco; estes, ≥ 5,7:1 também
+  /// no disco a 16% do próprio metal.
+  final Color colorLight;
   final String label;
 
+  Color tone(AppThemeColors colors) => colors.isDark ? color : colorLight;
+
   static _PodiumMetal of(int place) => switch (place) {
-        1 => const _PodiumMetal(color: Color(0xFFE9C46A), label: 'CAMPEÃO'),
-        2 => const _PodiumMetal(color: Color(0xFFC6CCD4), label: 'VICE'),
-        _ => const _PodiumMetal(color: Color(0xFFCE8E5C), label: '3º LUGAR'),
+        1 => const _PodiumMetal(
+            color: Color(0xFFE9C46A),
+            colorLight: Color(0xFF7A5A00),
+            label: 'CAMPEÃO',
+          ),
+        2 => const _PodiumMetal(
+            color: Color(0xFFC6CCD4),
+            colorLight: Color(0xFF5A6270),
+            label: 'VICE',
+          ),
+        _ => const _PodiumMetal(
+            color: Color(0xFFCE8E5C),
+            colorLight: Color(0xFF8A4A1F),
+            label: '3º LUGAR',
+          ),
       };
 }
 

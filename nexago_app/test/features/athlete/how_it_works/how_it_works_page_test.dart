@@ -51,6 +51,7 @@ void main() {
     bool eloEnabled = true,
     RatingLadder ladder = kDefaultRatingLadder,
     List<LevelPointsEntry> history = const [],
+    AthleteRating rating = _rating,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(402, 2600);
@@ -83,7 +84,7 @@ void main() {
           ),
           athleteRatingProvider.overrideWith(
             (ref, sport) =>
-                Stream.value(sport == 'VOLEI_PRAIA' ? _rating : null),
+                Stream.value(sport == 'VOLEI_PRAIA' ? rating : null),
           ),
           competeHubUserRankingProvider.overrideWith(
             (ref) async => const CompeteHubUserRanking(
@@ -241,5 +242,33 @@ void main() {
     expect(find.textContaining('De 1.500 a'), findsOneWidget);
     expect(find.textContaining('3 partidas · 2 V · 1 D · pico 1.650'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Passou da marca com rating incerto: precisa jogar mais', (
+    tester,
+  ) async {
+    await pumpPage(
+      tester,
+      ladder: const RatingLadder(
+        levels: kDefaultRatingLadderLevels,
+        autoPromotes: true,
+      ),
+      // Intermediário 1 sobe com 1.720; 16 partidas, mas RD 150 > 120.
+      rating: const AthleteRating(
+        athleteId: 'u1',
+        sportCode: 'VOLEI_PRAIA',
+        rating: 1790,
+        rd: 150,
+        ratedMatches: 16,
+        wins: 11,
+        losses: 5,
+        levelCode: 'intermediario_1',
+        zone: 'promotion',
+        ladderState: 'promotion_pending',
+      ),
+    );
+
+    expect(find.textContaining('ficar mais confiável'), findsOneWidget);
+    expect(find.textContaining('próxima atualização'), findsNothing);
   });
 }

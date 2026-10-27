@@ -37,6 +37,7 @@ class RatingLadder {
     this.autoPromotes = false,
     this.autoRelegates = false,
     this.minRatedMatches = 10,
+    this.maxRdForDecision = 120,
     this.relegationObservationDays = 90,
     this.relegationObservationMinMatches = 6,
   });
@@ -53,6 +54,11 @@ class RatingLadder {
 
   /// Partidas rateadas exigidas antes de qualquer decisão da escada.
   final int minRatedMatches;
+
+  /// Incerteza (RD) máxima pra escada decidir — o outro portão de
+  /// `meetsDecisionGates`. Sobe 6/semana parado, cai jogando: quem passou da
+  /// marca mas está acima disso só sobe voltando a jogar.
+  final int maxRdForDecision;
 
   /// Janela de observação antes de descer e as partidas mínimas nela —
   /// sem jogar, ninguém desce (`rating-ladder.ts`).
@@ -150,6 +156,10 @@ RatingLadder parseRatingLadder(Map<String, dynamic>? raw) {
       'minRatedMatches',
       kDefaultRatingLadder.minRatedMatches,
     ),
+    maxRdForDecision: rule(
+      'maxRdForDecision',
+      kDefaultRatingLadder.maxRdForDecision,
+    ),
     relegationObservationDays: rule(
       'relegationObservationDays',
       kDefaultRatingLadder.relegationObservationDays,
@@ -217,6 +227,34 @@ RatingLadderLevel? ratingLadderLevelAbove(
     if (candidate.rank > level.rank) return candidate;
   }
   return null;
+}
+
+/// O que segura a subida de quem já passou da marca.
+enum PromotionGate {
+  /// Subida automática desligada: o atleta sobe por conta própria.
+  manual,
+
+  /// Faltam partidas rateadas (`minRatedMatches`).
+  needsMatches,
+
+  /// Rating ainda incerto demais (`rd > maxRdForDecision`): sai jogando.
+  needsReliability,
+
+  /// Portões ok: sobe na próxima atualização (partida ou passe diário).
+  ready,
+}
+
+/// Mesma ordem de `meetsDecisionGates` (`rating-ladder.ts`), com o caso
+/// "sem subida automática" na frente.
+PromotionGate promotionGate(
+  RatingLadder ladder, {
+  required int ratedMatches,
+  required double rd,
+}) {
+  if (!ladder.autoPromotes) return PromotionGate.manual;
+  if (ratedMatches < ladder.minRatedMatches) return PromotionGate.needsMatches;
+  if (rd > ladder.maxRdForDecision) return PromotionGate.needsReliability;
+  return PromotionGate.ready;
 }
 
 /// Onde os pontos do atleta estão dentro do degrau: de "começa com" (0%) até

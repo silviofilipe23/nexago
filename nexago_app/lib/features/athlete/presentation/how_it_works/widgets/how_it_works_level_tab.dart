@@ -149,7 +149,8 @@ class _HowItWorksLevelTabState extends ConsumerState<HowItWorksLevelTab> {
                         title: 'Passou da marca, você sobe',
                         subtitle:
                             'Com ${volleyLadder.minRatedMatches} partidas '
-                            'rateadas, a subida é automática. Dá pra subir '
+                            'rateadas e o rating confiável, a subida é '
+                            'automática. Dá pra subir '
                             'antes em Esportes e níveis, e o organizador pode '
                             'te promover nos torneios dele.',
                       )
@@ -225,7 +226,7 @@ RatingLadderLevel? _ladderLevelFor(RatingLadder ladder, String label) {
 String _pointsRulesText(RatingLadder ladder) {
   final arrival = ladder.autoPromotes
       ? 'Passou da marca do seu nível, com ${ladder.minRatedMatches} partidas '
-            'rateadas, você sobe sozinho.'
+            'rateadas e o rating confiável, você sobe sozinho.'
       : 'Passou da marca do seu nível? Seu jogo já é do nível de cima: suba '
             'em Esportes e níveis.';
   final descent = ladder.autoRelegates
@@ -368,6 +369,7 @@ class _LevelHero extends ConsumerWidget {
             _LevelPoints(
               ladder: ladder,
               ratedMatches: rating.ratedMatches,
+              rd: rating.rd,
               progress: levelPointsProgress(
                 ladder.levels,
                 // O nível da engine é o das bandas da zona; sem ele, o
@@ -442,22 +444,30 @@ class _LevelPoints extends StatelessWidget {
     required this.ladder,
     required this.progress,
     required this.ratedMatches,
+    required this.rd,
   });
 
   final RatingLadder ladder;
   final LevelPointsProgress progress;
   final int ratedMatches;
+  final double rd;
 
-  /// O que falta depois de passar da marca: com a subida automática, as
-  /// partidas mínimas; sem ela, o próprio atleta subir.
+  /// O que falta depois de passar da marca — os mesmos portões da engine.
   String _arrivalHint() {
-    if (!ladder.autoPromotes) return 'Suba em Esportes e níveis.';
     final missing = ladder.minRatedMatches - ratedMatches;
-    if (missing > 0) {
-      return 'A subida sai quando você completar ${ladder.minRatedMatches} '
-          'partidas rateadas (faltam $missing).';
-    }
-    return 'A subida sai na próxima atualização do seu rating.';
+    return switch (promotionGate(ladder, ratedMatches: ratedMatches, rd: rd)) {
+      PromotionGate.manual => 'Suba em Esportes e níveis.',
+      PromotionGate.needsMatches =>
+        'A subida sai quando você completar ${ladder.minRatedMatches} '
+            'partidas rateadas (faltam $missing).',
+      // Não culpa só o tempo parado: com 10 a 15 partidas o rating costuma
+      // ainda estar incerto mesmo jogando.
+      PromotionGate.needsReliability =>
+        'A subida sai quando seu rating ficar mais confiável: isso vem '
+            'jogando mais partidas de torneio (ficar parado atrasa).',
+      PromotionGate.ready =>
+        'A subida sai na próxima atualização do seu rating.',
+    };
   }
 
   @override

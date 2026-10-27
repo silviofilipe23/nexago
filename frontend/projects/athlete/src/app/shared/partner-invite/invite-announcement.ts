@@ -56,12 +56,18 @@ function createdAtMs(item: PendingPartnerInvite): number {
  *   dele é na próxima entrada.
  *
  * `createdAt` ausente conta como antigo: doc sem o campo não é convite recém-criado.
+ *
+ * `focusedId` (o link `/torneios-convite/:id`, via `PartnerInviteFocus`) passa na frente dos dois
+ * cortes: o atleta tocou no convite, o modal é a resposta ao gesto dele.
  */
 export function nextInviteToAnnounce(
   pending: readonly PendingPartnerInvite[],
   announced: ReadonlySet<string>,
   sessionStartedAt: number,
+  focusedId: string | null = null,
 ): PendingPartnerInvite | null {
+  const focused = focusedId ? pending.find((item) => item.invite.id === focusedId) : undefined;
+  if (focused) return focused;
   return (
     pending
       .filter((item) => !announced.has(item.invite.id))

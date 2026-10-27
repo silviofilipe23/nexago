@@ -117,6 +117,21 @@ describe('nextInviteToAnnounce', () => {
   it('devolve null quando não há convite pendente', () => {
     expect(nextInviteToAnnounce([], new Set(), SESSION_START)).toBeNull();
   });
+
+  // Link `/torneios-convite/:id`: o convite resgatado pelo `/convite-dupla` acabou de nascer, e o
+  // atleta pode ter adiado o modal antes de tocar no link de novo.
+  it('o convite pedido pelo link fura os dois cortes e a fila', () => {
+    const antigo = item('antigo', { createdAt: new Date(SESSION_START - 90_000) });
+    const resgatado = item('resgatado', { createdAt: new Date(SESSION_START + 5_000) });
+
+    expect(nextInviteToAnnounce([antigo, resgatado], new Set(['resgatado']), SESSION_START, 'resgatado')?.invite.id).toBe(
+      'resgatado',
+    );
+  });
+
+  it('pedido de convite que não está pendente cai na fila normal', () => {
+    expect(nextInviteToAnnounce([item('i1')], new Set(), SESSION_START, 'sumiu')?.invite.id).toBe('i1');
+  });
 });
 
 describe('memória de anúncio da sessão', () => {

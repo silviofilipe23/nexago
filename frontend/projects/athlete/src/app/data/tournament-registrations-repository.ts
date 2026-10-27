@@ -462,6 +462,110 @@ export function watchMySentInvites(
   );
 }
 
+/** Um convite pelo id, visto por qualquer um dos dois lados — o link `/torneios-convite/:id`.
+ *  Reaproveita o mapeamento do convite enviado (desfecho e expiração derivada) e soma quem
+ *  convidou, que a página precisa para saber de que lado o atleta está. */
+export interface PartnerInviteOnLink extends SentPartnerInvite {
+  inviterUid: string;
+  inviterName: string;
+}
+
+export function partnerInviteOnLinkFromDoc(raw: RawInviteDoc, now = Date.now()): PartnerInviteOnLink {
+  return {
+    ...sentInviteFromDoc(raw, now),
+    inviterUid: typeof raw.data['inviterUid'] === 'string' ? raw.data['inviterUid'] : '',
+    inviterName: optionalStr(raw.data['inviterName']) ?? 'Atleta',
+  };
+}
+
+/** O convite ao vivo (`null` = não existe). As rules só liberam a leitura para quem convidou
+ *  ou foi convidado — o convite de outra conta chega como erro, não como `null`. */
+export function watchPartnerInvite(
+  db: Firestore,
+  inviteId: string,
+  onChange: (invite: PartnerInviteOnLink | null) => void,
+  onError: (err: unknown) => void,
+): Unsubscribe {
+  return onSnapshot(
+    doc(db, INVITES_COLLECTION, inviteId),
+    (snap) =>
+      onChange(snap.exists() ? partnerInviteOnLinkFromDoc({ id: snap.id, data: snap.data() as Record<string, unknown> }) : null),
+    onError,
+  );
+}
+
+const EXTERNAL_INVITES_COLLECTION = 'tournamentExternalPartnerInvites';
+
+/** Convite por LINK para parceiro que ainda não tinha conta (`functions/src/tournament-external-invite.ts`).
+ *  O id do doc é o token; `inviteId` é o convite de verdade, carimbado no resgate. */
+export interface ExternalPartnerInvite {
+  id: string;
+  tournamentId: string;
+  categoryId: string;
+  inviterUid: string;
+  inviterName: string;
+  status: 'pending' | 'claiming' | 'claimed' | 'cancelled';
+  expiresAt: Date | null;
+  claimedByUid: string | null;
+  inviteId: string | null;
+}
+
+export function externalPartnerInviteFromDoc(id: string, data: Record<string, unknown>): ExternalPartnerInvite {
+  const raw = typeof data['status'] === 'string' ? data['status'].trim() : '';
+  const status = raw === 'claiming' || raw === 'claimed' || raw === 'cancelled' ? raw : 'pending';
+  return {
+    id,
+    tournamentId: typeof data['tournamentId'] === 'string' ? data['tournamentId'] : '',
+    categoryId: typeof data['categoryId'] === 'string' ? data['categoryId'] : '',
+    inviterUid: typeof data['inviterUid'] === 'string' ? data['inviterUid'] : '',
+    inviterName: optionalStr(data['inviterName']) ?? 'Atleta',
+    status,
+    expiresAt: toDate(data['expiresAt']),
+    claimedByUid: optionalStr(data['claimedByUid']),
+    inviteId: optionalStr(data['inviteId']),
+  };
+}
+
+/** O convite por link ao vivo (`null` = não existe). Só leitura por id — as rules não deixam
+ *  varrer a coleção, e qualquer logado com o token pode ler. */
+export function watchExternalPartnerInvite(
+  db: Firestore,
+  externalInviteId: string,
+  onChange: (invite: ExternalPartnerInvite | null) => void,
+  onError: (err: unknown) => void,
+): Unsubscribe {
+  return onSnapshot(
+    doc(db, EXTERNAL_INVITES_COLLECTION, externalInviteId),
+    (snap) => onChange(snap.exists() ? externalPartnerInviteFromDoc(snap.id, snap.data() as Record<string, unknown>) : null),
+    onError,
+  );
+}
+
+/** Resgata o token: o convite de verdade nasce em nome de quem compartilhou, já com o uid de
+ *  quem abriu. Idempotente para o mesmo atleta — reentrar devolve o mesmo convite. */
+export async function claimExternalPartnerInvite(
+  functions: Functions,
+  externalInviteId: string,
+): Promise<{ inviteId: string; tournamentId: string; categoryId: string }> {
+  try {
+    const res = await httpsCallable<{ externalInviteId: string }, Record<string, unknown>>(
+      functions,
+      'claimExternalPartnerInvite',
+    )({ externalInviteId });
+    const data = res.data ?? {};
+    const inviteId = optionalStr(data['inviteId']);
+    if (!inviteId) throw new TournamentRegistrationError('Não foi possível abrir o convite.');
+    return {
+      inviteId,
+      tournamentId: optionalStr(data['tournamentId']) ?? '',
+      categoryId: optionalStr(data['categoryId']) ?? '',
+    };
+  } catch (err) {
+    if (err instanceof TournamentRegistrationError) throw err;
+    throw mapCallableError(err);
+  }
+}
+
 /** Cancela um convite que EU enviei (o backend também aceita o convidado recusar via
  *  `declinePartnerInvite` — aqui é o lado do convidador desistindo). */
 export async function cancelSentPartnerInvite(functions: Functions, inviteId: string): Promise<void> {

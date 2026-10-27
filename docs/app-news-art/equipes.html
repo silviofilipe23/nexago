@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="art.css">
+<style>
+  .team { position: absolute; left: 58px; width: 274px; height: 56px; padding: 0 12px; display: flex; align-items: center; gap: 10px; }
+  .duo { position: relative; width: 54px; height: 32px; flex-shrink: 0; }
+  .duo .av { position: absolute; top: 0; width: 32px; height: 32px; font-size: 12px; border: 2px solid var(--surf); }
+  .duo .av:last-child { left: 22px; }
+  .who { flex: 1; min-width: 0; }
+  .who .kicker { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .name { font-size: 12.5px; font-weight: 800; letter-spacing: -.02em; }
+  .rank { margin-left: auto; text-align: right; }
+  .rank b { font-family: JB; font-weight: 700; font-size: 14px; color: var(--or); }
+  .stats { font-size: 9px; color: var(--dim); margin-top: 2px; }
+  .sel { border-color: rgba(255,106,26,.55); box-shadow: 0 0 0 4px rgba(255,106,26,.10), 0 18px 44px rgba(0,0,0,.6); }
+</style></head>
+<body><div class="art">
+  <!-- ordem (aparece no detalhe e nos stories; o topo fica livre para a barra de status) -->
+  <div class="abs" style="left:58px; top:60px; display:flex; gap:6px;">
+    <span class="chip on">Em alta</span><span class="chip">Mais próximas</span><span class="chip">Ranking</span>
+  </div>
+
+  <div class="team card" style="top:96px; opacity:.8;">
+    <div class="duo"><div class="av" style="background:#8AB4FF;">L</div><div class="av" style="background:#F4C543;">C</div></div>
+    <div class="who"><div class="name">Léo &amp; Caio</div><div class="kicker" style="margin-top:2px;">Masculino · Goiânia</div></div>
+    <div class="rank"><b>#5</b><div class="stats">9 jogos</div></div>
+  </div>
+
+  <div class="team card sel" style="top:162px; height:62px; left:56px; width:278px;">
+    <div class="duo"><div class="av" style="background:var(--or);">A</div><div class="av" style="background:#C9A0FF;">B</div></div>
+    <div class="who"><div class="name" style="font-size:13.5px;">Ana &amp; Bia</div><div class="kicker" style="margin-top:3px;">Feminino · Goiânia</div></div>
+    <div class="rank"><b style="font-size:16px;">#3</b><div class="stats"><span class="i" style="font-size:10px;color:var(--or);vertical-align:-1px">&#xf707;</span> 2 títulos</div></div>
+  </div>
+
+  <div class="team card" style="top:234px; opacity:.8;">
+    <div class="duo"><div class="av" style="background:#2BD17E;">D</div><div class="av" style="background:#FF8A4A;">M</div></div>
+    <div class="who"><div class="name">Duda &amp; Mari</div><div class="kicker" style="margin-top:2px;">Misto · Anápolis</div></div>
+    <div class="rank"><b>#8</b><div class="stats">7 jogos</div></div>
+  </div>
+
+  <div class="team card" style="top:300px; opacity:.55;">
+    <div class="duo"><div class="av" style="background:#F4C543;">R</div><div class="av" style="background:#8AB4FF;">T</div></div>
+    <div class="who"><div class="name">Rafa &amp; Tiago</div><div class="kicker" style="margin-top:2px;">Masculino · Goiânia</div></div>
+    <div class="rank"><b>#11</b><div class="stats">5 jogos</div></div>
+  </div>
+</div></body></html>

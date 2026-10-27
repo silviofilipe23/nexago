@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="art.css">
+<style>
+  .slot { display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 9px; color: var(--dim); width: 50px; }
+  .slot .av { width: 40px; height: 40px; font-size: 12px; }
+  .open { width: 40px; height: 40px; border-radius: 99px; border: 1.5px dashed rgba(255,106,26,.7); display: grid; place-items: center; color: var(--or); }
+  .bubble { background: #17241C; border: 1px solid rgba(43,209,126,.22); border-radius: 14px 14px 4px 14px; padding: 9px 11px; box-shadow: 0 14px 30px rgba(0,0,0,.55); }
+</style></head>
+<body><div class="art">
+  <!-- conversa do grupo (aparece no detalhe e nos stories) -->
+  <div class="abs bubble" style="left:130px; top:50px; width:200px; border-radius:14px 14px 4px 14px; background:var(--surf2); border-color:var(--line);">
+    <div style="font-size:8.5px; font-weight:700; color:#C9A0FF;">Grupo da areia</div>
+    <div style="font-size:10px; margin-top:2px; color:var(--fg);">Quem topa sábado às 18h?</div>
+  </div>
+
+  <!-- sua equipe -->
+  <div class="abs card" style="left:58px; width:274px; top:88px; padding:13px;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div class="kicker">Sua equipe</div>
+      <div class="kicker" style="color:var(--or);">3 de 4</div>
+    </div>
+    <div style="font-size:13.5px; font-weight:800; letter-spacing:-.02em; margin-top:6px;">Quadra 2 · sáb, 18:00</div>
+    <div style="font-size:10px; color:var(--dim); margin-top:2px;">Arena Pé na Areia</div>
+    <div style="display:flex; justify-content:space-between; margin-top:12px;">
+      <div class="slot"><div class="av" style="background:var(--or); box-shadow:0 0 0 2px #121214, 0 0 0 3.5px var(--or);">VC</div>Você</div>
+      <div class="slot"><div class="av" style="background:#F4C543;">MR</div>Marina</div>
+      <div class="slot"><div class="av" style="background:#2BD17E;">JP</div>João</div>
+      <div class="slot"><div class="open"><span class="i" style="font-size:20px">&#xf537;</span></div>1 vaga</div>
+    </div>
+    <div class="btn" style="margin-top:13px;"><span class="i" style="font-size:14px">&#xf0067;</span> Convidar jogadores</div>
+  </div>
+
+  <!-- o link chegando no grupo -->
+  <div class="abs bubble" style="left:130px; top:262px; width:200px;">
+    <div style="display:flex; align-items:center; gap:7px;">
+      <div style="width:26px; height:26px; border-radius:8px; background:var(--or); display:grid; place-items:center; color:#0A0A0A;"><span class="i" style="font-size:15px">&#xf85a;</span></div>
+      <div>
+        <div style="font-size:9.5px; font-weight:700;">Convite para jogar</div>
+        <div style="font-size:8.5px; color:var(--dim);">Toque para entrar no jogo</div>
+      </div>
+    </div>
+    <div style="font-size:9px; color:rgba(247,247,248,.75); margin-top:6px;">Quem tocar confirma a vaga ✅</div>
+  </div>
+</div></body></html>

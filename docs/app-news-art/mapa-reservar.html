@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="art.css">
+<style>
+  .pin { position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; }
+  .pin b { font-family: JB; font-weight: 700; font-size: 9px; padding: 4px 7px; border-radius: 8px; background: var(--surf2); color: var(--or); border: 1px solid rgba(255,106,26,.35); white-space: nowrap; }
+  .pin i { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid var(--surf2); margin-top: -1px; }
+  .pin.sel b { background: var(--or); color: #0A0A0A; font-size: 10.5px; padding: 5px 9px; border-color: var(--or); box-shadow: 0 0 0 6px rgba(255,106,26,.18), 0 8px 18px rgba(0,0,0,.5); }
+  .pin.sel i { border-top-color: var(--or); }
+  .me { position: absolute; width: 12px; height: 12px; border-radius: 99px; background: #fff; border: 3px solid var(--or); transform: translate(-50%, -50%); box-shadow: 0 0 0 9px rgba(255,106,26,.16), 0 0 0 20px rgba(255,106,26,.07); }
+  .thumb { width: 54px; height: 54px; border-radius: 13px; background: linear-gradient(160deg, #F0B27A 0%, #C9783F 55%, #3A2A1F 100%); position: relative; overflow: hidden; flex-shrink: 0; }
+  .thumb::after { content: ''; position: absolute; left: 6px; right: 6px; top: 22px; height: 2px; background: rgba(255,255,255,.85); box-shadow: 0 -12px 0 rgba(255,255,255,.35), 0 12px 0 rgba(255,255,255,.35); }
+</style></head>
+<body><div class="art">
+  <!-- mapa estilizado -->
+  <svg class="abs" style="inset:0" width="390" height="380" viewBox="0 0 390 380">
+    <rect width="390" height="380" fill="#0B0B0D"/>
+    <path d="M0 250 C 60 235, 90 290, 150 300 S 230 340, 260 380 L0 380 Z" fill="#0A141B"/>
+    <g stroke="#1A1A1F" stroke-width="5" fill="none" stroke-linecap="round">
+      <path d="M-10 60 L400 40"/><path d="M-10 130 L400 150"/><path d="M-10 200 L400 190"/>
+      <path d="M60 -10 L90 390"/><path d="M180 -10 L170 390"/><path d="M300 -10 L330 390"/>
+    </g>
+    <g stroke="#141418" stroke-width="2.5" fill="none">
+      <path d="M-10 95 L400 92"/><path d="M-10 165 L400 172"/><path d="M-10 235 L400 230"/>
+      <path d="M120 -10 L130 390"/><path d="M240 -10 L245 390"/><path d="M355 -10 L370 390"/>
+    </g>
+    <path d="M-10 330 C 120 250, 260 200, 400 110" stroke="#232328" stroke-width="9" fill="none"/>
+    <rect x="196" y="100" width="36" height="26" rx="5" fill="#0F1A12"/>
+    <rect x="262" y="200" width="30" height="22" rx="5" fill="#0F1A12"/>
+  </svg>
+
+  <!-- esportes (fora da faixa central: aparece no detalhe e nos stories; o topo fica livre para a barra de status) -->
+  <div class="abs" style="left:58px; top:58px; display:flex; gap:6px;">
+    <span class="chip on">Beach tennis</span><span class="chip">Vôlei de praia</span><span class="chip">Futevôlei</span>
+  </div>
+
+  <!-- pinos -->
+  <div class="pin" style="left:92px; top:128px;"><b>R$ 70</b><i></i></div>
+  <div class="pin" style="left:300px; top:116px;"><b>R$ 95</b><i></i></div>
+  <div class="pin sel" style="left:196px; top:150px;"><b>R$ 80</b><i></i></div>
+  <div class="pin" style="left:282px; top:176px;"><b>R$ 60</b><i></i></div>
+  <div class="me" style="left:142px; top:166px;"></div>
+
+  <!-- arena selecionada -->
+  <div class="abs card" style="left:58px; width:274px; top:186px; padding:12px;">
+    <div style="display:flex; gap:11px; align-items:center;">
+      <div class="thumb"></div>
+      <div style="min-width:0; flex:1;">
+        <div style="font-size:13.5px; font-weight:800; letter-spacing:-.02em;">Arena Pé na Areia</div>
+        <div class="kicker" style="margin-top:3px;">4 quadras · 1,2 km</div>
+        <div style="margin-top:6px; font-size:10px; font-weight:600; color:var(--or); display:flex; align-items:center; gap:4px;"><span class="i" style="font-size:12px">&#xf012b;</span>Próximo: hoje 18:00</div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:11px;">
+      <div><div class="kicker" style="font-size:6.5px;">A partir de</div><div style="font-family:JB; font-weight:700; font-size:14px; margin-top:2px;">R$ 80<span style="font-size:9px; color:var(--dim)">/h</span></div></div>
+      <div class="btn" style="width:118px;">Reservar <span class="i" style="font-size:13px">&#xf57a;</span></div>
+    </div>
+  </div>
+
+  <div class="abs" style="left:0; right:0; top:318px; text-align:center; font-size:9.5px; color:var(--dim);"><span style="display:inline-block;width:30px;height:3px;border-radius:9px;background:rgba(255,255,255,.18);vertical-align:middle;margin-right:8px"></span>12 arenas perto de você</div>
+</div></body></html>

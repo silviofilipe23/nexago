@@ -1,20 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_motion.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../athlete/domain/sand_rank/sand_rank_catalog.dart';
-import '../../../athlete/domain/sand_rank/sand_rank_providers.dart';
-import '../../../athlete/presentation/sand_rank/widgets/sand_rank_emblem.dart';
 import '../../domain/ranking_display_helpers.dart';
 import '../../domain/ranking_list_models.dart';
 import 'ranking_podium.dart';
 
 /// Linha da classificação — mesma anatomia de atletas/equipes: sem card,
 /// avatar 36, nome Sora 14 e subtítulo mono 9.
-class RankingListTile extends ConsumerStatefulWidget {
+class RankingListTile extends StatefulWidget {
   const RankingListTile({
     super.key,
     required this.entry,
@@ -35,10 +31,10 @@ class RankingListTile extends ConsumerStatefulWidget {
   final Widget? trailing;
 
   @override
-  ConsumerState<RankingListTile> createState() => _RankingListTileState();
+  State<RankingListTile> createState() => _RankingListTileState();
 }
 
-class _RankingListTileState extends ConsumerState<RankingListTile> {
+class _RankingListTileState extends State<RankingListTile> {
   var _pressed = false;
 
   void _setPressed(bool value) {
@@ -50,11 +46,6 @@ class _RankingListTileState extends ConsumerState<RankingListTile> {
   Widget build(BuildContext context) {
     final entry = widget.entry;
     final highlight = widget.highlight;
-    final sandRankEnabled =
-        ref.watch(sandRankEnabledProvider).valueOrNull ?? false;
-    final rankStep = sandRankEnabled && entry.sandRankTrackIndex != null
-        ? sandRankStepByTrackIndex(entry.sandRankTrackIndex!)
-        : null;
 
     final subtitle = entry.subtitle.trim();
     final title = highlight ? entry.userPositionLabel : entry.displayName;
@@ -84,32 +75,15 @@ class _RankingListTileState extends ConsumerState<RankingListTile> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.soraRegular(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: context.themeColors.onSurface,
-                        ),
-                      ),
-                    ),
-                    if (rankStep != null) ...[
-                      const SizedBox(width: 6),
-                      Tooltip(
-                        message: 'Elo ${sandRankLabel(rankStep)}',
-                        child: SandRankEmblem(
-                          rankCode: rankStep.rankCode,
-                          division: rankStep.division,
-                          size: SandRankEmblemSize.small,
-                        ),
-                      ),
-                    ],
-                  ],
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.soraRegular(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: context.themeColors.onSurface,
+                  ),
                 ),
                 if (subtitle.isNotEmpty) ...[
                   const SizedBox(height: 2),

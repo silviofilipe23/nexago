@@ -269,7 +269,7 @@ void main() {
         currentUid: null,
       );
       expect(open.single.entityId, 'a1');
-      expect(open.single.subtitle, startsWith('OPEN'));
+      expect(open.single.subtitle, '2 torneios');
     });
   });
 }

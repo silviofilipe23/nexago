@@ -114,4 +114,44 @@ void main() {
       expect(top.progress, 1);
     });
   });
+
+  group('promotionGate', () {
+    const auto = RatingLadder(
+      levels: kDefaultRatingLadderLevels,
+      autoPromotes: true,
+    );
+
+    test('mesma ordem dos portões da engine', () {
+      expect(
+        promotionGate(kDefaultRatingLadder, ratedMatches: 30, rd: 90),
+        PromotionGate.manual,
+      );
+      expect(
+        promotionGate(auto, ratedMatches: 8, rd: 200),
+        PromotionGate.needsMatches,
+      );
+      // 16 partidas, parado há semanas: RD 150 > 120.
+      expect(
+        promotionGate(auto, ratedMatches: 16, rd: 150),
+        PromotionGate.needsReliability,
+      );
+      expect(
+        promotionGate(auto, ratedMatches: 16, rd: 120),
+        PromotionGate.ready,
+      );
+    });
+
+    test('limite de RD vem do doc', () {
+      final ladder = parseRatingLadder({
+        'flags': {'shadowMode': false, 'autoPromotionEnabled': true},
+        'ladder': {'maxRdForDecision': 160},
+      });
+      expect(ladder.maxRdForDecision, 160);
+      expect(
+        promotionGate(ladder, ratedMatches: 16, rd: 150),
+        PromotionGate.ready,
+      );
+      expect(parseRatingLadder(null).maxRdForDecision, 120);
+    });
+  });
 }

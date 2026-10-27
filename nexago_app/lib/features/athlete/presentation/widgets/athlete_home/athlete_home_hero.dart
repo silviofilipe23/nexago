@@ -75,7 +75,10 @@ String athleteHomeGreetingByHour(DateTime now) {
 
 /// Altura da arte abaixo da barra de status. O hero sangra para cima, então a
 /// altura total soma o recorte do sistema.
-const double _heroContentHeight = 250;
+///
+/// A pílula do canto inferior acompanha essa altura: com o avatar de 56 e o
+/// recorte de 56 da home, 220 deixa 24 entre a saudação e a pílula de XP.
+const double _heroContentHeight = 220;
 
 /// Véu de duas pontas. Medi as artes: a metade DIREITA da faixa da barra de
 /// status chega a p95 142, e os ícones do sistema sumiriam ali. O topo escuro

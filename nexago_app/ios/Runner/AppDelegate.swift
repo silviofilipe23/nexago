@@ -2,6 +2,7 @@ import FirebaseCore
 import FirebaseMessaging
 import Flutter
 import UIKit
+import UserNotifications
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -20,7 +21,27 @@ import UIKit
     // plugin — tarde demais — e nunca chama registerForRemoteNotifications.
     application.registerForRemoteNotifications()
 
+    // O iOS guarda o último número de badge até o próprio app trocar, e o app
+    // nunca trocava: um push com `badge` deixava o ícone com o mesmo número pra
+    // sempre. `didBecomeActiveNotification` sai também com UIScene, onde o
+    // `applicationDidBecomeActive` do delegate não é chamado.
+    NotificationCenter.default.addObserver(
+      forName: UIApplication.didBecomeActiveNotification,
+      object: nil,
+      queue: .main
+    ) { _ in
+      AppDelegate.clearIconBadge()
+    }
+
     return result
+  }
+
+  private static func clearIconBadge() {
+    if #available(iOS 16.0, *) {
+      UNUserNotificationCenter.current().setBadgeCount(0, withCompletionHandler: nil)
+    } else {
+      UIApplication.shared.applicationIconBadgeNumber = 0
+    }
   }
 
   override func application(

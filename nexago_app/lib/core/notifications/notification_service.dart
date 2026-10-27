@@ -139,6 +139,11 @@ class NotificationService {
     _initialized = true;
   }
 
+  /// Zera o que o ícone do app conta no Android (a bandeja). Chamado ao abrir
+  /// e a cada volta pro primeiro plano; no iOS o badge é zerado no AppDelegate.
+  Future<void> clearDeliveredNotifications() =>
+      _localNotifications.clearDelivered();
+
   /// Remove o token FCM do dispositivo atual em `users/{uid}/tokens/{installationId}`.
   Future<void> clearCurrentDeviceToken([String? userId]) async {
     final uid = userId?.trim() ?? _activeUserId?.trim();

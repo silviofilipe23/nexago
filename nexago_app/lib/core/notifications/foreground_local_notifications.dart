@@ -122,6 +122,29 @@ class ForegroundLocalNotifications {
     }
   }
 
+  /// Tira da bandeja do Android as notificações já entregues.
+  ///
+  /// No Android o número no ícone do app é a contagem da bandeja: os pushes
+  /// que chegaram com o app fechado ficavam lá depois de lidos no app, e o
+  /// ícone seguia mostrando o mesmo número para sempre.
+  Future<void> clearDelivered() async {
+    if (!_initialized || !_pluginAvailable || kIsWeb || !Platform.isAndroid) {
+      return;
+    }
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (android == null) return;
+
+    try {
+      final active = await android.getActiveNotifications();
+      for (final notification in active.where(clearsOnAppOpen)) {
+        await android.cancel(id: notification.id!, tag: notification.tag);
+      }
+    } on PlatformException catch (e) {
+      debugPrint('Local notifications clear falhou: ${e.message}');
+    }
+  }
+
   bool shouldPresentLocally(RemoteMessage message) {
     if (!_pluginAvailable || kIsWeb) return false;
     return Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
@@ -150,6 +173,13 @@ ForegroundNotificationContent? foregroundNotificationContent(
     title: title.isEmpty ? 'NexaGO' : title,
     body: body,
   );
+}
+
+/// Sai da bandeja quando o app abre: tudo menos o placar ao vivo fixo, que
+/// acompanha a partida e some sozinho no fim dela.
+bool clearsOnAppOpen(ActiveNotification notification) {
+  return notification.id != null &&
+      notification.channelId != MatchLiveNotification.ongoingChannelId;
 }
 
 Map<String, dynamic>? decodeNotificationPayload(String? payload) {

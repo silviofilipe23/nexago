@@ -78,7 +78,7 @@ String athleteHomeGreetingByHour(DateTime now) {
 ///
 /// A pílula do canto inferior acompanha essa altura: com o avatar de 56 e o
 /// recorte de 56 da home, 220 deixa 24 entre a saudação e a pílula de XP.
-const double _heroContentHeight = 220;
+const double _heroContentHeight = 200;
 
 /// Véu de duas pontas. Medi as artes: a metade DIREITA da faixa da barra de
 /// status chega a p95 142, e os ícones do sistema sumiriam ali. O topo escuro
@@ -88,17 +88,17 @@ const double _heroContentHeight = 220;
 /// dissolve sem costura visível, e no tema claro não cria uma faixa preta
 /// batendo num canvas claro.
 LinearGradient _scrimTo(Color canvas) => LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [
-        const Color(0xB3000000),
-        const Color(0x00000000),
-        const Color(0x00000000),
-        canvas.withValues(alpha: 0.86),
-        canvas,
-      ],
-      stops: const [0, 0.22, 0.52, 0.86, 1],
-    );
+  begin: Alignment.topCenter,
+  end: Alignment.bottomCenter,
+  colors: [
+    const Color(0xB3000000),
+    const Color(0x00000000),
+    const Color(0x00000000),
+    canvas.withValues(alpha: 0.86),
+    canvas,
+  ],
+  stops: const [0, 0.22, 0.52, 0.86, 1],
+);
 
 /// Hero da home do atleta: arte por gênero sangrando sob a barra de status,
 /// saudação à esquerda e dois encaixes nos cantos direitos.
@@ -163,8 +163,9 @@ class AthleteHomeHero extends StatelessWidget {
     final topInset = MediaQuery.paddingOf(context).top;
     final greeting = athleteHomeGreetingByHour(now ?? DateTime.now());
     final trimmedName = name.trim();
-    final title =
-        trimmedName.isEmpty ? '$greeting.' : '$greeting, $trimmedName.';
+    final title = trimmedName.isEmpty
+        ? '$greeting.'
+        : '$greeting, $trimmedName.';
 
     final canvas = context.themeColors.canvas;
 

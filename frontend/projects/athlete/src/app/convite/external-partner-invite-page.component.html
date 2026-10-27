@@ -1,0 +1,52 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  <div class="cv-body">
+    @if (!loaded() || gate()?.kind === 'claimedByMe') {
+      <div class="cv-card cv-card--skeleton" aria-busy="true" aria-label="Carregando o convite"></div>
+    } @else if (invite(); as inv) {
+      @if (closedCopy(); as copy) {
+        <section class="cv-card cv-card--message">
+          <span class="cv-eyebrow">Convite de dupla</span>
+          <h1 class="cv-title">{{ copy.title }}</h1>
+          <p class="cv-subtitle">{{ copy.message }}</p>
+          @if (tournamentId()) {
+            <a class="cv-btn cv-btn--ghost" [routerLink]="['/torneios', tournamentId()]">Ver o torneio</a>
+          } @else {
+            <a routerLink="/painel" class="cv-btn cv-btn--ghost">Voltar ao painel</a>
+          }
+        </section>
+      } @else {
+        <section class="cv-card">
+          <header class="cv-hero">
+            <span class="cv-eyebrow">Convite de dupla</span>
+            <h1 class="cv-title">{{ inv.inviterName }} te chamou pra jogar</h1>
+            <p class="cv-subtitle">Confirme para o convite chegar na sua conta — depois é só aceitar.</p>
+          </header>
+
+          <div class="cv-details">
+            <p class="cv-headline">{{ tournamentName() ?? 'Torneio' }}</p>
+          </div>
+
+          @if (error(); as message) {
+            <p class="cv-error" role="alert">{{ message }}</p>
+          }
+
+          <div class="cv-actions">
+            <button type="button" class="cv-btn cv-btn--primary" [disabled]="claiming()" (click)="claim()">
+              {{ claiming() ? 'Entrando…' : 'Entrar na dupla' }}
+            </button>
+            <a routerLink="/painel" class="cv-btn cv-btn--ghost">Agora não</a>
+          </div>
+        </section>
+      }
+    } @else {
+      <section class="cv-card cv-card--message">
+        <span class="cv-eyebrow">Convite de dupla</span>
+        <h1 class="cv-title">{{ loadError() ? 'Não foi possível abrir o convite' : 'Convite não encontrado' }}</h1>
+        <p class="cv-subtitle">
+          {{ loadError() ? 'Verifique sua conexão e tente de novo.' : 'Confira o link com quem te chamou — ele pode ter sido digitado errado.' }}
+        </p>
+        <a routerLink="/painel" class="cv-btn cv-btn--ghost">Voltar ao painel</a>
+      </section>
+    }
+  </div>
+</app-at-panel-shell>

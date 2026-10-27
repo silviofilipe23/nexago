@@ -10,6 +10,7 @@ import type { TournamentSummary } from '../../data/tournaments-repository';
 import { NxBlockingDialogComponent, NxToastService } from '../feedback';
 import { LgpdConsentDialogComponent } from '../lgpd/lgpd-consent-dialog.component';
 import { AtInviteAnnouncerComponent } from './at-invite-announcer.component';
+import { PartnerInviteFocus } from './partner-invite-focus';
 import { PartnerInviteResponder } from './partner-invite-responder';
 
 const UID = 'atleta-1';
@@ -191,6 +192,28 @@ describe('AtInviteAnnouncerComponent', () => {
     // Convite segue pendente no store — some só do anúncio, não da lista.
     expect(markAnswered).not.toHaveBeenCalled();
     expect(sessionStorage.getItem(`nexago-athlete-invite-announced:${UID}`)).toContain('i1');
+  });
+
+  // `/torneios-convite/:id`: o convite resgatado pelo `/convite-dupla` nasce DEPOIS da entrada,
+  // e o anúncio automático só abre o que já existia — o link pede este convite explicitamente.
+  it('abre o convite pedido pelo link, mesmo recém-criado, e "Depois" solta o pedido', async () => {
+    const resgatado = item('i9', { createdAt: new Date(Date.now() + 60_000) });
+    await build([resgatado]);
+    expect(dialog()).toBeNull();
+
+    const focus = TestBed.inject(PartnerInviteFocus);
+    focus.request('i9');
+    await fixture.whenStable();
+    expect(text()).toContain('Bia te chamou pra dupla');
+
+    await click('later');
+    expect(dialog()).toBeNull();
+    expect(focus.inviteId()).toBeNull();
+
+    // O botão "Responder convite" da página pede de novo: reabre apesar do "Depois".
+    focus.request('i9');
+    await fixture.whenStable();
+    expect(dialog()).not.toBeNull();
   });
 
   it('com mais de um convite, adiar traz o próximo', async () => {

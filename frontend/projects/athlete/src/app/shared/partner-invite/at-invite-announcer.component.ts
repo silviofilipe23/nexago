@@ -32,6 +32,7 @@ import {
   readAnnouncedInviteIds,
   rememberAnnouncedInvite,
 } from './invite-announcement';
+import { PartnerInviteFocus } from './partner-invite-focus';
 import { PartnerInviteResponder } from './partner-invite-responder';
 
 const FOCUSABLE = 'button:not([disabled]), a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -574,6 +575,7 @@ export class AtInviteAnnouncerComponent {
   private readonly invites = inject(PartnerInvitesService);
   private readonly auth = inject(AuthService);
   private readonly responder = inject(PartnerInviteResponder);
+  private readonly focus = inject(PartnerInviteFocus);
   private readonly router = inject(Router);
   private readonly toasts = inject(NxToastService);
 
@@ -603,7 +605,7 @@ export class AtInviteAnnouncerComponent {
   protected readonly bodyId = `at-invite-body-${nextId++}`;
 
   protected readonly current = computed(() =>
-    nextInviteToAnnounce(this.invites.pending(), this.announced(), this.sessionStartedAt),
+    nextInviteToAnnounce(this.invites.pending(), this.announced(), this.sessionStartedAt, this.focus.inviteId()),
   );
 
   protected readonly title = computed(() => {
@@ -775,6 +777,8 @@ export class AtInviteAnnouncerComponent {
     const uid = this.uid();
     if (uid) rememberAnnouncedInvite(uid, inviteId);
     this.announced.update((current) => new Set(current).add(inviteId));
+    // O pedido do link também acaba aqui — senão o foco seguraria o modal aberto.
+    this.focus.release(inviteId);
   }
 
   /** Mesmo gate/copy da tela de inscrição — aceitar pelo anúncio automático também é um

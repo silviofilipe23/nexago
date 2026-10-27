@@ -7,6 +7,7 @@ import { routes } from './app.routes';
 import { authGuard } from './auth/auth.guard';
 import { AuthService } from './auth/auth.service';
 import { onboardingGuard } from './auth/onboarding.guard';
+import { signupFirstGuard } from './auth/signup-first.guard';
 import { TournamentLiveStore } from './tournaments/tournament-live.store';
 import { RegistrationWizardStore } from './tournaments/registration/wizard/registration-wizard.store';
 
@@ -70,6 +71,22 @@ describe('app.routes', () => {
   // e o link do WhatsApp aponta pra cá. Deslogado, os guards devolvem o atleta via ?redirect=.
   it('convite para jogar tem rota própria, com login e onboarding', () => {
     const route = routes.find((r) => r.path === 'convite/:inviteId');
+    expect(route).toBeDefined();
+    expect(route!.canActivate).toEqual([authGuard, onboardingGuard]);
+    expect(routes.indexOf(route!)).toBeLessThan(routes.findIndex((r) => r.path === '**'));
+  });
+
+  // Links de convite de dupla que o app compartilha (`tournament_invite_links.dart`) e reivindica
+  // como App/Universal Link: sem o app (ou digitado no navegador), caíam no `**` e o convite sumia.
+  it('convite de dupla por link vai pro cadastro antes do login e passa pelo onboarding', () => {
+    const route = routes.find((r) => r.path === 'convite-dupla/:externalInviteId');
+    expect(route).toBeDefined();
+    expect(route!.canActivate).toEqual([signupFirstGuard, authGuard, onboardingGuard]);
+    expect(routes.indexOf(route!)).toBeLessThan(routes.findIndex((r) => r.path === '**'));
+  });
+
+  it('convite de dupla já criado tem rota própria, com login e onboarding', () => {
+    const route = routes.find((r) => r.path === 'torneios-convite/:inviteId');
     expect(route).toBeDefined();
     expect(route!.canActivate).toEqual([authGuard, onboardingGuard]);
     expect(routes.indexOf(route!)).toBeLessThan(routes.findIndex((r) => r.path === '**'));

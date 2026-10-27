@@ -1,6 +1,7 @@
 import { type Routes } from '@angular/router';
 import { authGuard } from './auth/auth.guard';
 import { onboardingGuard } from './auth/onboarding.guard';
+import { signupFirstGuard } from './auth/signup-first.guard';
 import { staffGuard } from './auth/staff.guard';
 
 export const routes: Routes = [
@@ -97,6 +98,24 @@ export const routes: Routes = [
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>
       import('./convite/booking-invite-page.component').then((m) => m.BookingInvitePageComponent),
+  },
+  {
+    // Convite de dupla por LINK para quem ainda não tem conta (`externalPartnerInviteUrl` do app).
+    // App Link/Universal Link: com o app instalado, abre o app; aqui chega quem está no navegador.
+    // Sem sessão o `signupFirstGuard` manda para o CADASTRO (não o login), com o destino em
+    // `?redirect=`. Sem esta rota o link caía no `**` e o convite se perdia.
+    path: 'convite-dupla/:externalInviteId',
+    canActivate: [signupFirstGuard, authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./convite/external-partner-invite-page.component').then((m) => m.ExternalPartnerInvitePageComponent),
+  },
+  {
+    // Convite de dupla/equipe já criado (`tournamentPartnerInviteUrl` do app, e o destino do
+    // resgate acima). Também reivindicado pelo app — mesma lógica da rota anterior.
+    path: 'torneios-convite/:inviteId',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./convite/partner-invite-page.component').then((m) => m.PartnerInvitePageComponent),
   },
   {
     path: 'painel',

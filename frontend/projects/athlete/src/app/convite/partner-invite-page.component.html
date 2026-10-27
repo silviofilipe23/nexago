@@ -1,0 +1,71 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  <div class="cv-body">
+    @if (!loaded()) {
+      <div class="cv-card cv-card--skeleton" aria-busy="true" aria-label="Carregando o convite"></div>
+    } @else if (invite(); as inv) {
+      @switch (gate()) {
+        @case ('pending') {
+          <section class="cv-card">
+            <header class="cv-hero">
+              <span class="cv-eyebrow">Convite de {{ kindLabel() }}</span>
+              <h1 class="cv-title">{{ inviteTitle() }}</h1>
+              <p class="cv-subtitle">Aceite para seguir com a inscrição — ou recuse, e avisamos quem te chamou.</p>
+            </header>
+
+            <div class="cv-details">
+              <p class="cv-headline">{{ tournamentName() ?? 'Torneio' }}</p>
+            </div>
+
+            <div class="cv-actions">
+              <button type="button" class="cv-btn cv-btn--primary" (click)="respond()">Responder convite</button>
+              <a class="cv-btn cv-btn--ghost" [routerLink]="['/torneios', inv.tournamentId]">Ver o torneio</a>
+            </div>
+          </section>
+        }
+        @case ('accepted') {
+          <section class="cv-card cv-card--message">
+            <span class="cv-eyebrow">Convite de {{ kindLabel() }}</span>
+            <h1 class="cv-title">Convite aceito</h1>
+            <p class="cv-subtitle">Agora é com a inscrição em {{ tournamentName() ?? 'o torneio' }}.</p>
+            <a
+              class="cv-btn cv-btn--primary"
+              [routerLink]="['/torneios', inv.tournamentId, 'inscricao']"
+              [queryParams]="{ categoria: inv.categoryId }"
+              >Ir para a inscrição</a
+            >
+          </section>
+        }
+        @case ('inviter') {
+          <section class="cv-card cv-card--message">
+            <span class="cv-eyebrow">Convite de {{ kindLabel() }}</span>
+            <h1 class="cv-title">Este convite é seu</h1>
+            <p class="cv-subtitle">{{ inviterMessage() }}</p>
+            <a class="cv-btn cv-btn--ghost" [routerLink]="['/torneios', inv.tournamentId]">Ver o torneio</a>
+          </section>
+        }
+        @default {
+          @if (closedCopy(); as copy) {
+            <section class="cv-card cv-card--message">
+              <span class="cv-eyebrow">Convite de {{ kindLabel() }}</span>
+              <h1 class="cv-title">{{ copy.title }}</h1>
+              <p class="cv-subtitle">{{ copy.message }}</p>
+              <a class="cv-btn cv-btn--ghost" [routerLink]="['/torneios', inv.tournamentId]">Ver o torneio</a>
+            </section>
+          }
+        }
+      }
+    } @else {
+      <section class="cv-card cv-card--message">
+        <span class="cv-eyebrow">Convite de dupla</span>
+        <h1 class="cv-title">Convite indisponível</h1>
+        <p class="cv-subtitle">
+          Ele pode ter sido removido ou ser de outra conta.
+          @if (accountEmail(); as email) {
+            Você entrou como {{ email }}.
+          }
+        </p>
+        <a routerLink="/painel" class="cv-btn cv-btn--ghost">Voltar ao painel</a>
+      </section>
+    }
+  </div>
+</app-at-panel-shell>

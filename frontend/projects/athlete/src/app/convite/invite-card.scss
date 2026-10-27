@@ -1,3 +1,6 @@
+// Cartão das páginas abertas por link de convite: `/convite` (reserva), `/convite-dupla` e
+// `/torneios-convite` (dupla de torneio).
+
 :host {
   display: block;
 }
@@ -105,7 +108,7 @@
   }
 }
 
-.cv-arena {
+.cv-headline {
   margin: 0;
   font-family: var(--nx-font-display);
   font-size: 19px;
@@ -113,7 +116,7 @@
   color: var(--nx-text);
 }
 
-.cv-court {
+.cv-caption {
   margin: 0;
   font-size: 14px;
   color: var(--nx-text-dim);

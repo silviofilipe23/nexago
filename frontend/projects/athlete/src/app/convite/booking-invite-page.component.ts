@@ -35,7 +35,7 @@ function createFirestore(): Firestore | null {
   selector: 'app-booking-invite-page',
   imports: [RouterLink, AtPanelShellComponent],
   templateUrl: './booking-invite-page.component.html',
-  styleUrl: './booking-invite-page.component.scss',
+  styleUrl: './invite-card.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BookingInvitePageComponent {

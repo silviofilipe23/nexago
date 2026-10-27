@@ -389,22 +389,6 @@ $ad-sport-colors: (
   text-overflow: ellipsis;
 }
 
-.ad-row-dot {
-  flex: none;
-  color: var(--nx-text-dim);
-}
-
-.ad-row-level {
-  flex: none;
-  font-family: var(--nx-font-mono);
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--nx-text-mute);
-  white-space: nowrap;
-}
-
 // Só aparece com o filtro em "todos os esportes" — com um esporte escolhido a
 // linha de contagem já diz qual é, e o ponto viraria ruído.
 .ad-row-sport-dot {

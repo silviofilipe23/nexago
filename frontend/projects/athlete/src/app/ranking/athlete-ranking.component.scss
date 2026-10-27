@@ -663,28 +663,6 @@ $rk-bronze: #d98a4b;
   text-overflow: ellipsis;
 }
 
-.rk-row-level {
-  flex: none;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: var(--nx-r-pill);
-  background: var(--nx-surface-1);
-  border: 1px solid var(--nx-line-strong);
-  color: var(--nx-text-mute);
-  font-family: var(--nx-font-mono);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-
-  @media (max-width: 640px) {
-    display: none;
-  }
-}
-
 .rk-row-points {
   flex: none;
   min-width: 52px;

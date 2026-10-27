@@ -141,7 +141,7 @@ interface AssignResult {
                     <input
                       type="search"
                       class="search-input"
-                      placeholder="Nome, e-mail ou UID"
+                      placeholder="Nome, apelido, e-mail ou UID"
                       aria-label="Buscar conta"
                       [value]="query()"
                       (input)="query.set(value($event))"
@@ -187,7 +187,7 @@ interface AssignResult {
                   }
 
                   <p class="search-hint">
-                    Busque por nome, e-mail ou UID. A busca percorre as contas do Firebase Auth deste
+                    Busque por nome, apelido, e-mail ou UID. A busca percorre as contas do Firebase Auth deste
                     projeto — a role é atribuída à conta existente, o backoffice não cria usuário.
                   </p>
                 </bo-step-card>

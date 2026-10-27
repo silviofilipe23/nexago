@@ -29,12 +29,12 @@
  * - Os stories aparecem UMA vez por versão, só para quem já tinha conta antes
  *   da `date`, com as funcionalidades que o atleta ainda não usou.
  *
- * CONTEÚDO: o texto abaixo é o do design (Claude Design › NexaGO Atleta -
- * Novidades). Radar, Racha fixo e Rateio Pix NÃO existem no app: os botões
- * abrem a tela real mais próxima (Reservar, Bora Jogar, Reservar), mas o texto
- * promete mapa ao vivo, reserva automática do grupo e Pix dividido. Revise
- * antes de publicar no projeto que a loja usa. Melhorias e versões anteriores
- * são provisórias. Imagens: sem `imageUrl`, o app mostra o espaço reservado.
+ * CONTEÚDO: as quatro funcionalidades descrevem o que as telas do app fazem
+ * hoje (mapa do Reservar, Bora Jogar, convite de jogadores na reserva e
+ * Equipes). Bora Jogar só RESPONDE convites: a entrada para começar um saiu do
+ * app em 11/09 (242c0098c). "Chame a galera" abre o Reservar porque não há
+ * chave de destino para a Agenda. Melhorias e versões anteriores são
+ * provisórias. Imagens: sem `imageUrl`, o app mostra o espaço reservado.
  *
  * Pré-requisitos (credenciais admin):
  *   gcloud auth application-default login
@@ -91,67 +91,65 @@ function currentRelease(build) {
     stories: true,
     features: [
       {
-        id: "radar",
-        icon: "radar",
-        title: "Radar ao vivo",
-        summary: "Quadra livre e racha com vaga, agora, no mapa.",
+        id: "mapa-reservar",
+        icon: "map",
+        title: "Arenas no mapa",
+        summary: "Ache quadra perto de você e veja o próximo horário livre.",
         description:
-          "Veja no mapa as quadras com horário livre e os rachas que estão precisando de gente — atualizado em tempo real.",
+          "A aba Reservar abre num mapa com as arenas da região. Cada uma mostra o próximo horário livre e o preço a partir de — filtre por esporte, distância, preço e comodidades e reserve ali mesmo.",
         steps: [
-          "Abra o radar pelo Início ou pela aba Reservar",
-          "Filtre por esporte, distância e horário",
-          "Toque num ponto para reservar ou pedir vaga",
+          "Abra a aba Reservar e escolha o dia e o horário",
+          "Filtre por esporte, distância, preço ou comodidades",
+          "Toque na arena e reserve o horário livre",
         ],
-        where: "Início › Ações rápidas",
-        ctaLabel: "Abrir radar",
+        where: "Aba Reservar",
+        ctaLabel: "Abrir mapa",
         destination: "reservar",
       },
       {
-        id: "racha",
-        icon: "group",
-        title: "Racha fixo",
-        summary: "Lista de presença e reserva automática do grupo.",
+        id: "bora-jogar",
+        title: "Bora Jogar",
+        summary: "Convites pra jogar, com resposta, check-in e avaliação.",
         description:
-          "Monte seu grupo fixo uma vez. Toda semana a quadra é reservada e a lista de presença sai sozinha.",
+          "Quando um atleta te chama pra jogar, o convite chega por notificação. Aceite, recuse ou sugira outro horário — o jogo confirmado entra na sua Agenda. No dia, faça check-in ao chegar e, depois, avalie o parceiro.",
         steps: [
-          "Escolha arena, dia e horário",
-          "Convide o grupo pelo WhatsApp",
-          "Confirme presença até 2 h antes",
+          "Abra o convite que chegou por notificação",
+          "Aceite, recuse ou sugira outro horário",
+          "No dia, faça check-in e depois avalie o jogo",
         ],
-        where: "Comunidade › Meus rachas",
-        ctaLabel: "Criar racha",
+        where: "Notificação do convite › Agenda",
+        ctaLabel: "Ver convites",
         destination: "bora-jogar",
       },
       {
-        id: "rateio",
-        icon: "pix",
-        title: "Rateio Pix",
-        summary: "Divida a quadra e cobre o grupo em 1 toque.",
+        id: "convite-reserva",
+        icon: "invite",
+        title: "Chame a galera",
+        summary: "Convide até 3 jogadores para a sua reserva.",
         description:
-          "Ao reservar, divida o valor entre os jogadores. Cada um recebe um Pix e você acompanha quem já pagou.",
+          "Na sua reserva, mande o link do jogo no grupo do WhatsApp ou chame quem já está no nexaGO. Quem aceita entra na lista de quem vai jogar e vê o jogo na Agenda.",
         steps: [
-          "Na reserva, toque em Dividir",
-          "Selecione quem vai jogar",
-          "Acompanhe os pagamentos na Agenda",
+          "Reserve a quadra e abra a reserva na Agenda",
+          "Em Sua equipe, toque em Convidar jogadores",
+          "Mande o link no grupo ou busque o atleta pelo nome",
         ],
-        where: "Reservar › Pagamento",
-        ctaLabel: "Experimentar",
+        where: "Agenda › sua reserva › Sua equipe",
+        ctaLabel: "Reservar quadra",
         destination: "reservar",
       },
       {
-        id: "dupla",
-        icon: "partner",
-        title: "Dupla certa",
-        summary: "Parceiro do seu nível, horário e arena.",
+        id: "equipes",
+        title: "Duplas e equipes",
+        summary: "Encontre duplas perto de você e veja a campanha de cada uma.",
         description:
-          "Sugestões de parceiros com nível parecido com o seu e disponíveis nos mesmos horários e arenas.",
+          "Busque pelo nome da equipe ou de um atleta, filtre por esporte e gênero e ordene por em alta, mais próximas ou ranking. No perfil da dupla: atletas, jogos, títulos, ranking e confrontos.",
         steps: [
-          "Informe categoria e disponibilidade",
-          "Veja as sugestões e o histórico de cada um",
-          "Mande o convite de dupla",
+          "Abra Equipes no Hub",
+          "Busque, filtre por esporte e gênero ou ordene por ranking",
+          "Toque na dupla para ver atletas, títulos e confrontos",
         ],
-        where: "Competir › Inscrição",
-        ctaLabel: "Achar dupla",
+        where: "Hub › Equipes",
+        ctaLabel: "Ver equipes",
         destination: "duplas",
       },
     ],

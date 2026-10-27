@@ -318,7 +318,7 @@ final _screens = <_Screen>[
       '+30 XP',
       'PRÓXIMA RESERVA',
       'Reserve uma quadra agora',
-      'NÍVEL 4',
+      'SEU XP',
       'Vôlei de praia',
       Icons.bolt_rounded,
       Icons.hexagon,

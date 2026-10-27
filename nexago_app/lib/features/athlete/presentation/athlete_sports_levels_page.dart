@@ -117,6 +117,20 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
           letterSpacing: -0.3,
         ),
       ),
+      actions: [
+        IconButton(
+          tooltip: 'Como funciona',
+          icon: Icon(
+            Icons.help_outline_rounded,
+            color: context.themeColors.onSurface,
+          ),
+          onPressed: () => context.pushNamed(
+            AppRouteNames.athleteHowItWorks,
+            queryParameters: const {'aba': 'nivel', 'de': 'nivel'},
+          ),
+        ),
+        const SizedBox(width: 8),
+      ],
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(52),
         child: Padding(
@@ -472,11 +486,12 @@ class _ReadyBody extends StatelessWidget {
         // e janela de correção coexistem por design (Task 4), e um texto que
         // vale pros dois estados não pode contradizer o aviso do card abaixo
         // (que é, esse sim, condicional a `levelLocked`). Ver fix pós-review
-        // no report da Task 4.
+        // no report da Task 4. Não promete subida automática: a escada do
+        // rating roda em modo sombra (`DEFAULT_LADDER_CONFIG.flags`).
         Text(
-          'Seu nível é atualizado automaticamente com base nos seus '
-          'resultados em torneios. Até a sua primeira inscrição em cada '
-          'esporte, você pode ajustar o nível livremente — depois disso ele '
+          'No vôlei, seus resultados em torneios são acompanhados e mostram '
+          'se você já joga acima do seu nível. Até a sua primeira inscrição '
+          'em cada esporte, você pode ajustar o nível livremente — depois ele '
           'só sobe; para corrigir um nível já travado, fale com o suporte.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: context.themeColors.onSurfaceMuted,

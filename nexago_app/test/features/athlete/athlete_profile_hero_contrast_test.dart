@@ -36,7 +36,7 @@ const _profile = AthleteProfile(
   onboardingCompleted: true,
 );
 
-// xp 340 → "NÍVEL 4" e "40 / 100 XP".
+// xp 340 com o elo desligado → "SEU XP" e "340 XP" (XP não vira nível).
 const _gamification = GamificationSummary(
   xp: 340,
   level: 3,
@@ -221,15 +221,15 @@ void main() {
 
       // O CustomScrollView pinta o 1º sliver (o topo) por cima dos seguintes:
       // se a capa passasse do topo, o fim do degradê desbotaria a faixa de
-      // XP. Ela acaba com o topo, e o "NÍVEL" e o XP ficam direto no canvas.
-      testWidgets('capa acaba no topo e "NÍVEL"/XP ficam legíveis', (
+      // XP. Ela acaba com o topo, e o rótulo e o XP ficam direto no canvas.
+      testWidgets('capa acaba no topo e o rótulo/XP ficam legíveis', (
         tester,
       ) async {
         await _pumpProfile(tester, theme);
         final canvas = _colors(tester).canvas;
         final coverBottom = tester.getRect(_coverBox).bottom;
 
-        for (final text in ['NÍVEL 4', '40 / 100 XP']) {
+        for (final text in ['SEU XP', '340 XP']) {
           final rich = find
               .descendant(of: find.text(text), matching: find.byType(RichText))
               .first;
@@ -302,8 +302,8 @@ void main() {
       ),
     );
     expect(textColor('INTERMEDIÁRIO'), colors.onSurfaceMuted);
-    expect(textColor('NÍVEL 4'), AppColors.brand);
-    expect(textColor('40 / 100 XP'), colors.onSurfaceMuted);
+    expect(textColor('SEU XP'), AppColors.brand);
+    expect(textColor('340 XP'), colors.onSurfaceMuted);
     expect(
       tester.widget<Icon>(find.byIcon(Icons.bolt_rounded)).color,
       AppColors.brand,

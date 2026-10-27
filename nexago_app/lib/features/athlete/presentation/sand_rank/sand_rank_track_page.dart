@@ -142,6 +142,20 @@ class _SandRankTrackPageState extends ConsumerState<SandRankTrackPage> {
             letterSpacing: -0.3,
           ),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Como funciona',
+            icon: Icon(
+              Icons.help_outline_rounded,
+              color: context.themeColors.onSurface,
+            ),
+            onPressed: () => context.pushNamed(
+              AppRouteNames.athleteHowItWorks,
+              queryParameters: const {'aba': 'elo', 'de': 'elo'},
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),

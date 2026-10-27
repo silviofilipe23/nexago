@@ -19,25 +19,6 @@ int gamificationDisplayLevel(GamificationSummary summary) {
   return (summary.level + 1).clamp(1, 999);
 }
 
-String levelTitle(int displayLevel) {
-  return switch (displayLevel) {
-    1 => 'Iniciante',
-    2 => 'Estreante',
-    3 => 'Bola na rede',
-    4 => 'Veterano',
-    5 => 'Elite',
-    _ => 'Nível $displayLevel',
-  };
-}
-
-String? nextLevelUnlockHint(int nextDisplayLevel) {
-  return switch (nextDisplayLevel) {
-    3 => 'desbloqueia torneios',
-    4 => 'desbloqueia ligas semanais',
-    _ => null,
-  };
-}
-
 DateTime? _parseActivityDayKey(String key) {
   final trimmed = key.trim();
   if (trimmed.length < 10) return null;

@@ -2,12 +2,15 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/text/safe_display_text.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/router/routes.dart';
 import '../../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 import '../../../arenas/domain/my_booking_item.dart';
 import '../../../ranking/domain/ranking_display_helpers.dart';
@@ -19,6 +22,7 @@ import '../../domain/athlete_profile_stats_logic.dart';
 import '../../domain/athlete_profile_stats_providers.dart';
 import '../../domain/gamification_models.dart';
 import '../../domain/profile_completion_models.dart';
+import '../../domain/sand_rank/sand_rank_catalog.dart';
 import '../../domain/sand_rank/sand_rank_providers.dart';
 import '../sand_rank/widgets/sand_rank_avatar_frame.dart';
 import '../sand_rank/widgets/sand_rank_emblem.dart';
@@ -120,10 +124,6 @@ class AthleteProfileMainView extends StatelessWidget {
         ? profile.level.trim().toUpperCase()
         : 'INICIANTE';
 
-    final displayLevel = (gamificationSummary.level + 1).clamp(1, 999);
-    final xpInLevel = gamificationSummary.xpInCurrentLevel;
-    const xpPerLevel = 100;
-    final xpProgress = gamificationSummary.progressToNextLevel;
     final completion = profileCompletion;
     final showCompleteCard =
         !readOnly && completion != null && !completion.allComplete;
@@ -151,7 +151,6 @@ class AthleteProfileMainView extends StatelessWidget {
               location: location,
               sport: sport,
               levelLabel: levelLabel,
-              displayLevel: displayLevel,
             ),
           ),
           SliverToBoxAdapter(
@@ -179,11 +178,14 @@ class AthleteProfileMainView extends StatelessWidget {
                         ),
                       ],
                       SizedBox(height: AppSpacing.lg),
-                      _XpLevelSection(
-                        level: displayLevel,
-                        xpCurrent: xpInLevel,
-                        xpGoal: xpPerLevel,
-                        progress: xpProgress,
+                      _EloXpSection(
+                        xp: gamificationSummary.xp,
+                        onTap: readOnly
+                            ? null
+                            : () => context.pushNamed(
+                                AppRouteNames.athleteHowItWorks,
+                                queryParameters: const {'aba': 'elo'},
+                              ),
                       ),
                       if (!readOnly) ...[
                         SizedBox(height: AppSpacing.md),
@@ -296,7 +298,6 @@ class _ProfileHeaderSection extends StatelessWidget {
     required this.location,
     required this.sport,
     required this.levelLabel,
-    required this.displayLevel,
     this.secondaryName,
   });
 
@@ -314,7 +315,6 @@ class _ProfileHeaderSection extends StatelessWidget {
   final String location;
   final String sport;
   final String levelLabel;
-  final int displayLevel;
 
   static const _headerOrangeTop = Color(0xFF4A2410);
   static const _headerOrangeMid = Color(0xFF2A1408);
@@ -909,52 +909,78 @@ class _RoundedXpProgressBar extends StatelessWidget {
   }
 }
 
-class _XpLevelSection extends StatelessWidget {
-  const _XpLevelSection({
-    required this.level,
-    required this.xpCurrent,
-    required this.xpGoal,
-    required this.progress,
-  });
+/// Elo e XP do atleta — o XP move só o elo; o nível (habilidade) é outra
+/// medida, explicada na tela "Como funciona", que o toque abre. Com a flag do
+/// elo desligada, mostra só o total de XP.
+class _EloXpSection extends ConsumerWidget {
+  const _EloXpSection({required this.xp, this.onTap});
 
-  final int level;
-  final int xpCurrent;
-  final int xpGoal;
-  final double progress;
+  final int xp;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final eloEnabled = ref.watch(sandRankEnabledProvider).valueOrNull ?? false;
+    final progress = sandRankProgressFromXp(xp);
+    final next = progress.next;
+    // Texto pequeno fica no laranja legível do tema: as cores dos elos (azul,
+    // roxo, turquesa) não passam 4,5:1 nesse tamanho. O elo já tem cor no
+    // emblema do avatar.
     final accent = context.themeColors.brandText;
+    final muted = theme.textTheme.labelSmall?.copyWith(
+      color: context.themeColors.onSurfaceMuted,
+      fontWeight: FontWeight.w700,
+    );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Icon(Icons.bolt_rounded, size: 16, color: accent),
-            SizedBox(width: 4),
-            Text(
-              'NÍVEL $level',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: accent,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.6,
-              ),
+            Row(
+              children: [
+                Icon(Icons.bolt_rounded, size: 16, color: accent),
+                SizedBox(width: 4),
+                Text(
+                  eloEnabled
+                      ? sandRankLabel(progress.current).toUpperCase()
+                      : 'SEU XP',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: accent,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                Spacer(),
+                Text(
+                  !eloEnabled
+                      ? '${NumberFormat.decimalPattern('pt_BR').format(xp)} XP'
+                      : next == null
+                      ? 'Topo da trilha'
+                      : '${progress.xpToNext} XP pra ${sandRankLabel(next)}',
+                  style: muted,
+                ),
+                if (onTap != null) ...[
+                  SizedBox(width: 4),
+                  Icon(
+                    Icons.help_outline_rounded,
+                    size: 14,
+                    color: context.themeColors.onSurfaceMuted,
+                  ),
+                ],
+              ],
             ),
-            Spacer(),
-            Text(
-              '$xpCurrent / $xpGoal XP',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            if (eloEnabled) ...[
+              SizedBox(height: 8),
+              _RoundedXpProgressBar(progress: progress.progress, height: 6),
+            ],
           ],
         ),
-        SizedBox(height: 8),
-        _RoundedXpProgressBar(progress: progress, height: 6),
-      ],
+      ),
     );
   }
 }

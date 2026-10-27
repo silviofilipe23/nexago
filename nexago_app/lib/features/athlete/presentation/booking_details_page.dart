@@ -12,9 +12,11 @@ import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../arena/domain/arena_booking_labels.dart';
 import '../../arena_orders/presentation/arena_app_orders_catalog_page.dart';
+import '../../arenas/domain/arena_booking_cancellation_policy.dart';
 import '../../arenas/domain/arena_booking_success_actions.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/booking_providers.dart';
+import '../../arenas/presentation/widgets/booking_cancellation_confirm_dialog.dart';
 import '../domain/booking_attendance_providers.dart';
 import '../domain/booking_invite_status.dart' show bookingOwnerUidOf;
 import 'widgets/booking_details/booking_details_actions_section.dart';
@@ -153,8 +155,14 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
     final isGuest =
         viewerUid != null && ownerUid != null && ownerUid != viewerUid;
 
-    final canCancel =
-        bookingDetailsCanCancel(detailsStatus) && !isRecurring && !isGuest;
+    final cancellation = ArenaBookingCancellationPolicy.athleteCancellation(
+      bookingStart: widget.startAt,
+      now: _now,
+      rawStatus: widget.status,
+      isRecurring: isRecurring,
+      isGuest: isGuest,
+    );
+    final canCancel = cancellation == AthleteBookingCancellation.allowed;
     final actionsEnabled = bookingDetailsActionsEnabled(detailsStatus);
 
     return Scaffold(
@@ -229,6 +237,12 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
             canCancel: canCancel,
             actionsEnabled: actionsEnabled,
             showCancel: !isGuest,
+            cancelHint:
+                cancellation == AthleteBookingCancellation.deadlinePassed
+                ? ArenaBookingCancellationPolicy.blockedCancellationMessage(
+                    arenaName: widget.arenaName,
+                  )
+                : null,
           ),
           const SizedBox(height: 88),
         ],
@@ -374,6 +388,13 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
   Future<void> _cancelBooking() async {
     final uid = ref.read(authProvider).valueOrNull?.uid;
     if (uid == null || uid.isEmpty) return;
+    final confirmed = await confirmBookingCancellation(
+      context,
+      arenaName: widget.arenaName,
+      courtName: widget.courtName,
+      startAt: widget.startAt,
+    );
+    if (!confirmed || !mounted) return;
     try {
       await ref
           .read(bookingServiceProvider)

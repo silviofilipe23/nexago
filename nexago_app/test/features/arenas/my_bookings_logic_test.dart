@@ -1,18 +1,25 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/features/arenas/domain/arena_booking_cancellation_policy.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_item.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_guests_providers.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_payment.dart';
 import 'package:nexago_app/features/arenas/presentation/my_bookings/my_bookings_logic.dart';
 
-MyBookingItem _item({required String dateRaw, String startTime = '10:00'}) {
+MyBookingItem _item({
+  required String dateRaw,
+  String startTime = '10:00',
+  String rawStatus = 'active',
+  String? recurringBookingId,
+}) {
   return MyBookingItem(
     id: 'b-$dateRaw-$startTime',
     arenaName: 'Arena Test',
     dateRaw: dateRaw,
     startTime: startTime,
     endTime: '11:00',
-    rawStatus: 'active',
+    rawStatus: rawStatus,
     paymentDisplay: const MyBookingPaymentDisplay(label: 'Pagar na arena'),
+    recurringBookingId: recurringBookingId,
   );
 }
 
@@ -29,6 +36,50 @@ void main() {
       expect(split.history.length, 1);
       expect(split.upcoming.length, 2);
       expect(split.upcoming.first.dateRaw, '2026-05-21');
+    });
+  });
+
+  group('myBookingCancellation', () {
+    test('usa data + hora de início da reserva', () {
+      expect(
+        myBookingStartAt(_item(dateRaw: '2026-05-21', startTime: '19:30')),
+        DateTime(2026, 5, 21, 19, 30),
+      );
+      expect(myBookingStartAt(_item(dateRaw: '', startTime: '19:30')), isNull);
+    });
+
+    test('libera no prazo e desliga a menos de 6h', () {
+      expect(
+        myBookingCancellation(
+          _item(dateRaw: '2026-05-21', startTime: '19:00'),
+          now,
+        ),
+        AthleteBookingCancellation.allowed,
+      );
+      expect(
+        myBookingCancellation(
+          _item(dateRaw: '2026-05-21', startTime: '17:00'),
+          now,
+        ),
+        AthleteBookingCancellation.deadlinePassed,
+      );
+    });
+
+    test('horário fixo e reserva cancelada não cancelam pelo app', () {
+      expect(
+        myBookingCancellation(
+          _item(dateRaw: '2026-05-24', recurringBookingId: 'serie-1'),
+          now,
+        ),
+        AthleteBookingCancellation.unavailable,
+      );
+      expect(
+        myBookingCancellation(
+          _item(dateRaw: '2026-05-24', rawStatus: 'canceled'),
+          now,
+        ),
+        AthleteBookingCancellation.unavailable,
+      );
     });
   });
 

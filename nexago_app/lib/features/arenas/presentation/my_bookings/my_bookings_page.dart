@@ -17,6 +17,7 @@ import '../../domain/booking_providers.dart';
 import '../../domain/my_booking_item.dart';
 import '../../domain/arena_search_providers.dart';
 import '../../domain/my_bookings_providers.dart';
+import '../widgets/booking_cancellation_confirm_dialog.dart';
 import 'my_bookings_details_sheet.dart';
 import 'my_bookings_logic.dart';
 import 'widgets/my_bookings_app_bar.dart';
@@ -260,13 +261,9 @@ class _BookingsListBody extends ConsumerWidget {
         : ref.read(arenaByIdProvider(item.arenaId!));
     final arena = arenaAsync?.valueOrNull;
     final locationQuery = arena?.locationLabel ?? item.arenaName;
-    final startAt = _bookingStartDateTime(item);
-    final canCancelByTime =
-        startAt != null &&
-        ArenaBookingCancellationPolicy.canCancelBookingForFree(
-          startAt,
-          DateTime.now(),
-        );
+    final arenaName = arena?.name ?? item.arenaName;
+    final startAt = myBookingStartAt(item);
+    final cancellation = myBookingCancellation(item, DateTime.now());
 
     await showModalBottomSheet<void>(
       context: context,
@@ -292,17 +289,6 @@ class _BookingsListBody extends ConsumerWidget {
             showAppSnackBar(context, 'Fluxo de pagamento em breve.');
           },
           onCancelBooking: () async {
-            if (!canCancelByTime) {
-              if (context.mounted) {
-                showAppSnackBar(
-                  context,
-                  ArenaBookingCancellationPolicy.blockedCancellationMessage(
-                    arenaName: arena?.name ?? item.arenaName,
-                  ),
-                );
-              }
-              return;
-            }
             final uid = currentUser?.uid;
             if (uid == null) {
               if (context.mounted) {
@@ -310,6 +296,14 @@ class _BookingsListBody extends ConsumerWidget {
               }
               return;
             }
+            if (startAt == null) return;
+            final confirmed = await confirmBookingCancellation(
+              context,
+              arenaName: arenaName,
+              courtName: item.courtName ?? '',
+              startAt: startAt,
+            );
+            if (!confirmed) return;
             try {
               await bookingService.cancelBooking(
                 bookingId: item.id,
@@ -329,20 +323,16 @@ class _BookingsListBody extends ConsumerWidget {
               }
             }
           },
-          canCancelBooking: canCancelByTime,
+          canCancelBooking:
+              cancellation == AthleteBookingCancellation.allowed,
+          cancelBlockedMessage:
+              cancellation == AthleteBookingCancellation.deadlinePassed
+              ? ArenaBookingCancellationPolicy.blockedCancellationMessage(
+                  arenaName: arenaName,
+                )
+              : null,
         );
       },
     );
-  }
-
-  DateTime? _bookingStartDateTime(MyBookingItem item) {
-    if (item.dateRaw.length < 10) return null;
-    final date = DateTime.tryParse(item.dateRaw.substring(0, 10));
-    if (date == null) return null;
-    final parts = item.startTime.split(':');
-    if (parts.length < 2) return null;
-    final h = int.tryParse(parts[0]) ?? 0;
-    final m = int.tryParse(parts[1]) ?? 0;
-    return DateTime(date.year, date.month, date.day, h, m);
   }
 }

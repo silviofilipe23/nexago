@@ -5,7 +5,7 @@ import 'package:nexago_app/core/router/routes.dart';
 import 'app_news_test_harness.dart';
 
 void main() {
-  testWidgets('lista: destaque, "Já usou", melhorias e versões anteriores', (
+  testWidgets('lista: destaque, "Já usou", melhorias e versões anteriores abertas', (
     tester,
   ) async {
     final store = FakeAppNewsLocalStore(used: {'rateio'}, seen: '1.0.15');
@@ -25,19 +25,17 @@ void main() {
       200,
       scrollable: find.byType(Scrollable).first,
     );
+    // Versão anterior sempre aberta: o que entrou aparece sem toque.
     await tester.scrollUntilVisible(
-      find.byKey(const Key('app-news-version-1.0.14')),
+      find.text('Placar ao vivo'),
       200,
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('5 de outubro'), findsOneWidget);
-    const detail = 'Convite de dupla — Chame o parceiro pelo app.';
-    expect(find.text(detail), findsNothing);
-
-    await tester.tap(find.byKey(const Key('app-news-version-1.0.14')));
-    await settle(tester);
-    expect(find.text(detail), findsOneWidget);
+    expect(find.text('Convite de dupla'), findsOneWidget);
+    expect(find.text('Chame o parceiro pelo app.'), findsOneWidget);
     expect(find.text('Placar ao vivo'), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_right_rounded), findsNWidgets(3));
   });
 
   testWidgets('detalhe: explicação, passos, onde encontrar e o botão abre a '

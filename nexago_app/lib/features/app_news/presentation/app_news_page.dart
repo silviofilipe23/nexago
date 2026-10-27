@@ -449,32 +449,16 @@ class _Improvements extends StatelessWidget {
   }
 }
 
-/// Uma versão anterior: número, data e o que entrou; o toque abre a lista
-/// completa ali mesmo.
-class _PreviousRelease extends StatefulWidget {
+/// Uma versão anterior: número, data e tudo o que entrou nela — sempre
+/// aberta, sem toque para expandir.
+class _PreviousRelease extends StatelessWidget {
   const _PreviousRelease({required this.release});
 
   final AppNewsRelease release;
 
   @override
-  State<_PreviousRelease> createState() => _PreviousReleaseState();
-}
-
-class _PreviousReleaseState extends State<_PreviousRelease> {
-  bool _open = false;
-
-  @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final release = widget.release;
-    final titles = release.features.map((f) => f.title).join(' · ');
-    // Só abre quando há o que somar aos títulos da linha.
-    final details = [
-      for (final f in release.features)
-        if (f.summary.isNotEmpty) '${f.title} — ${f.summary}',
-      ...release.improvements,
-    ];
-    const radius = BorderRadius.all(Radius.circular(18));
     final mutedStyle = AppTypography.soraRegular(
       fontSize: 12,
       fontWeight: FontWeight.w400,
@@ -482,97 +466,78 @@ class _PreviousReleaseState extends State<_PreviousRelease> {
       color: colors.onSurfaceMuted,
     );
 
-    return Material(
-      color: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: radius,
-        side: BorderSide(color: colors.onSurface.withValues(alpha: 0.07)),
+    return Container(
+      key: Key('app-news-version-${release.version}'),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        borderRadius: const BorderRadius.all(Radius.circular(18)),
+        border: Border.all(color: colors.onSurface.withValues(alpha: 0.07)),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        key: Key('app-news-version-${release.version}'),
-        onTap: details.isEmpty ? null : () => setState(() => _open = !_open),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(minWidth: 44),
-                    child: Text(
-                      release.version,
-                      style: AppTypography.mono(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: colors.onSurface,
-                      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 44),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                release.version,
+                style: AppTypography.mono(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: colors.onSurface,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  appNewsLongDate(release.date),
+                  style: AppTypography.soraRegular(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: colors.onSurface,
+                  ),
+                ),
+                for (final f in release.features) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    f.title,
+                    style: AppTypography.soraRegular(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      height: 1.3,
+                      color: colors.onSurface,
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          appNewsLongDate(release.date),
-                          style: AppTypography.soraRegular(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w600,
-                            color: colors.onSurface,
-                          ),
-                        ),
-                        if (titles.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(titles, style: mutedStyle),
-                        ],
-                      ],
-                    ),
-                  ),
-                  if (details.isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    AnimatedRotation(
-                      turns: _open ? 0.25 : 0,
-                      duration: const Duration(milliseconds: 200),
-                      child: Icon(
-                        Icons.chevron_right_rounded,
-                        size: 18,
-                        color: colors.onSurface.withValues(alpha: 0.32),
-                      ),
-                    ),
+                  if (f.summary.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(f.summary, style: mutedStyle),
                   ],
                 ],
-              ),
-              AnimatedSize(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                alignment: Alignment.topCenter,
-                child: !_open
-                    ? const SizedBox(width: double.infinity)
-                    : Padding(
-                        padding: const EdgeInsets.only(left: 58, top: 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            for (final d in details)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('•  ', style: mutedStyle),
-                                    Expanded(child: Text(d, style: mutedStyle)),
-                                  ],
-                                ),
-                              ),
-                          ],
-                        ),
+                if (release.improvements.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  for (final item in release.improvements)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('•  ', style: mutedStyle),
+                          Expanded(child: Text(item, style: mutedStyle)),
+                        ],
                       ),
-              ),
-            ],
+                    ),
+                ],
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

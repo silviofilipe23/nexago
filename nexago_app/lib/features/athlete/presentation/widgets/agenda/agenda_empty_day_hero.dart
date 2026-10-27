@@ -65,7 +65,7 @@ class AgendaEmptyDayHero extends StatelessWidget {
                       child: Icon(
                         Icons.calendar_today_rounded,
                         size: 26,
-                        color: AppColors.brand,
+                        color: context.themeColors.brandText,
                       ),
                     ),
                   ],
@@ -76,7 +76,7 @@ class AgendaEmptyDayHero extends StatelessWidget {
               style: AppTypography.mono(
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
-                color: AppColors.brand,
+                color: context.themeColors.brandText,
                 letterSpacing: 1.1,
               ),
             ),
@@ -107,7 +107,7 @@ class AgendaEmptyDayHero extends StatelessWidget {
                       style: AppTypography.mono(
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.brand,
+                        color: context.themeColors.brandText,
                       ),
                     ),
                     TextSpan(text: description.suffix),

@@ -24,6 +24,7 @@ import 'package:nexago_app/features/arenas/presentation/my_bookings/widgets/my_b
 import 'package:nexago_app/features/arenas/presentation/my_bookings/widgets/my_bookings_streak_banner.dart';
 import 'package:nexago_app/features/arenas/presentation/my_bookings/widgets/my_bookings_waitlist_section.dart';
 import 'package:nexago_app/features/arenas/presentation/pelada_detail_page.dart';
+import 'package:nexago_app/features/athlete/domain/agenda/athlete_agenda_models.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_home_dashboard_logic.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
@@ -37,6 +38,7 @@ import 'package:nexago_app/features/athlete/domain/match_history/athlete_match_h
 import 'package:nexago_app/features/athlete/domain/profile_completion_models.dart';
 import 'package:nexago_app/features/athlete/domain/sand_rank/sand_rank_providers.dart';
 import 'package:nexago_app/features/athlete/presentation/athlete_match_history_page.dart';
+import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_empty_day_hero.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/arena_search/arena_location_permission_banner.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/arena_search/arena_search_arena_card.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/arena_search/arena_search_date_time_row.dart';
@@ -47,6 +49,8 @@ import 'package:nexago_app/features/athlete/presentation/widgets/athlete_home/at
 import 'package:nexago_app/features/athlete/presentation/widgets/athlete_home/athlete_home_registration_tracker.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/athlete_home/athlete_home_section_header.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/athlete_profile_main_view.dart';
+import 'package:nexago_app/features/athlete/presentation/widgets/athlete_settings/athlete_settings_group.dart';
+import 'package:nexago_app/features/athlete/presentation/widgets/athlete_settings/athlete_settings_profile_card.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/pending_booking_invites_section.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/tournament_access_banner.dart';
 import 'package:nexago_app/features/ranking/domain/ranking_providers.dart';
@@ -68,8 +72,9 @@ import '../../core/theme/state_tone_contrast.dart';
 import '../arenas/fake_booking_result_repository.dart';
 
 // Laranja da marca como texto e ícone em Meu perfil, Home, Competir,
-// Reservas e Peladas, conferido contra o fundo real nos dois temas. No claro
-// o brand cru reprova (2,9:1 no branco); o brandText passa.
+// Reservas, Peladas, Configurações e Agenda, conferido contra o fundo real
+// nos dois temas. No claro o brand cru reprova (2,9:1 no branco); o
+// brandText passa.
 
 /// Uma tela (ou o pedaço dela que pinta o laranja) aberta com os dados que
 /// acendem o laranja.
@@ -712,6 +717,52 @@ final _screens = <_Screen>[
     ),
     find.byType(PeladaDetailPage),
     ['º', '4'],
+  ),
+  _Screen(
+    'Configurações: perfil, selo e ícone laranja',
+    (tester, theme) => _pump(
+      tester,
+      theme,
+      AthleteSettingsGroup(
+        sectionLabel: 'CONTA',
+        children: [
+          AthleteSettingsProfileCard(
+            name: 'Mari',
+            secondaryName: 'Maria Alves',
+            email: 'maria@example.com',
+            onEdit: () {},
+          ),
+          AthleteSettingsTile(
+            icon: Icons.emoji_events_outlined,
+            title: 'Conquistas',
+            subtitle: '3 desbloqueadas',
+            trailingBadge: const AthleteSettingsOrangeBadge(label: '3/24'),
+            onTap: () {},
+          ),
+        ],
+      ),
+    ),
+    _pieceFinder,
+    ['EDITAR', '3/24', Icons.emoji_events_outlined],
+  ),
+  _Screen(
+    'Agenda: dia sem jogos',
+    (tester, theme) => _pump(
+      tester,
+      theme,
+      AgendaEmptyDayHero(
+        dayLabel: 'HOJE',
+        description: const AgendaEmptyHeroDescriptionParts(
+          lead: 'Tem ',
+          nearbyCount: 4,
+          suffix: ' arenas perto de você.',
+        ),
+        onReserveTap: () {},
+        onDropInTap: () {},
+      ),
+    ),
+    _pieceFinder,
+    ['HOJE', '4', Icons.calendar_today_rounded],
   ),
 ];
 

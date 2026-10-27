@@ -8,8 +8,8 @@
  * Formato gravado (o doc inteiro é substituído):
  *   appConfig/appNews {
  *     releases: [{
- *       version: "1.0.15",        // o que o atleta lê
- *       build: 113,               // build number da loja (+N do pubspec)
+ *       version: "1.0.17",        // o que o atleta lê
+ *       build: 115,               // build number da loja (+N do pubspec)
  *       date: "2026-10-27",       // data civil de São Paulo
  *       stories: true,            // abre os stories depois de atualizar
  *       features: [{ id, title, summary, description, steps[], where,
@@ -43,8 +43,8 @@
  *
  * Uso (na pasta functions/):
  *   node scripts/seed-app-news.js --project <projectId> --show
- *   node scripts/seed-app-news.js --project <projectId> --version 1.0.15 --build 113
- *   node scripts/seed-app-news.js --project <projectId> --version 1.0.15 --build 113 --yes
+ *   node scripts/seed-app-news.js --project <projectId> --version 1.0.17 --build 115
+ *   node scripts/seed-app-news.js --project <projectId> --version 1.0.17 --build 115 --yes
  *
  * Sem --yes é DRY-RUN: mostra o estado atual e o que seria gravado.
  *
@@ -178,38 +178,73 @@ function currentRelease(build) {
         imageUrl: IMAGES["equipes"],
       },
     ],
+    // O que já entrou na main depois do corte da 1.0.16 (#959–#962); somar o que entrar até o corte.
     improvements: [
-      "Placar do árbitro abre 2× mais rápido",
-      "Agenda mostra clima previsto do jogo",
-      "Notificação de vaga em torneio lotado",
+      "Esta tela de Novidades, com os stories depois de atualizar",
+      "Listas de atletas e de duplas não pulam mais para o topo ao rolar",
+      "Pílula de XP mais perto da saudação na Home",
     ],
   };
 }
 
-// Provisórias: só título, sem botão.
+// Versões já cortadas, montadas dos PRs com mudança no app entre os cortes: 1.0.16 = #875–#956
+// (corte em 26/10, PR #957), 1.0.15 = #612–#860 (corte em 21/10, PR #861). Sem botão: na tela
+// elas só aparecem na lista de versões anteriores.
 const PREVIOUS = [
   {
-    version: "1.0.14",
-    build: 112,
-    date: "2026-10-05",
+    version: "1.0.16",
+    build: 114,
+    date: "2026-10-26",
     stories: false,
     features: [
-      {id: "convite-dupla", title: "Convite de dupla"},
-      {id: "placar-ao-vivo", title: "Placar ao vivo"},
+      {id: "home-nova-1016", title: "Home nova",
+        summary: "Menu no avatar, atalhos e o próximo treino e a próxima reserva compactos."},
+      {id: "hub-aulas-1016", title: "Aulas e treinos no Hub",
+        summary: "A aba Competir virou Hub, com arenas, centros e professores e aula experimental pelo calendário."},
+      {id: "meus-treinos-1016", title: "Meus treinos",
+        summary: "Treinos por origem, com presença, convite e mensalidades num lugar só."},
+      {id: "chat-aulas-1016", title: "Chat com a arena e o centro",
+        summary: "Fale com a recepção e o professor pelo app; o WhatsApp segue como opção."},
+      {id: "stories-1016", title: "Mais stories",
+        summary: "Foto na hora no story do horário e a campanha do torneio pra postar."},
+      {id: "modo-centro-1016", title: "Modo Centro de treinamento",
+        summary: "Agenda, alunos, cobranças, contratos e captação para a equipe do CT."},
     ],
-    improvements: [],
+    improvements: [
+      "Avaliar a aula, o professor e o local depois do treino",
+      "Check-in no centro de treinamento com carteirinha QR",
+      "Arenas parceiras em destaque no mapa do Reservar",
+      "Selo de organizador verificado nos torneios",
+      "Quantos atletas já avaliaram cada torneio",
+      "Organizador pode reabrir as inscrições",
+    ],
   },
   {
-    version: "1.0.13",
-    build: 111,
-    date: "2026-10-01",
+    version: "1.0.15",
+    build: 113,
+    date: "2026-10-21",
     stories: false,
     features: [
-      {id: "nova-home", title: "Nova Home"},
-      {id: "trilha-de-elos", title: "Trilha de elos"},
-      {id: "loja", title: "Loja"},
+      {id: "loja-1015", title: "Loja",
+        summary: "Vitrine, produto personalizado com nome e número, favoritos, Pix e meus pedidos."},
+      {id: "reserva-galera-1015", title: "Reserva com a galera",
+        summary: "Convide jogadores, pague com cartão e escolha o esporte da reserva."},
+      {id: "reserva-story-1015", title: "Reserva no story",
+        summary: "Poste a reserva confirmada e o resultado do pós-jogo no Instagram."},
+      {id: "peladas-1015", title: "Peladas",
+        summary: "Placar confirmado pelos adversários, histórico e perfil público das peladas."},
+      {id: "treinos-1015", title: "Treinos no app",
+        summary: "Aulas na agenda, Vou/Não vou, check-in pelo QR da quadra e mensalidade online."},
+      {id: "modo-professor-1015", title: "Modo Professor",
+        summary: "Alunos, agenda, mensagens, planos de aula, ganhos e saque para o professor."},
     ],
-    improvements: [],
+    improvements: [
+      "Cartão de crédito na inscrição de torneio",
+      "Toque na notificação leva direto ao assunto",
+      "Cores de status legíveis no tema claro em todo o app",
+      "Código de embaixador do Squad dá desconto na reserva",
+      "Mesa: escolher quem começa sacando e cartões na súmula",
+    ],
   },
 ];
 

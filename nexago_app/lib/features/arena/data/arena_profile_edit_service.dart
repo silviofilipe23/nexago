@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import '../../arenas/domain/arena_amenities.dart';
 import '../../arenas/domain/arena_list_item.dart';
@@ -35,9 +38,42 @@ dynamic _urlOrDelete(String? url) {
 }
 
 class ArenaProfileEditService {
-  ArenaProfileEditService(this._firestore);
+  ArenaProfileEditService(this._firestore, [this._storage]);
 
   final FirebaseFirestore _firestore;
+
+  /// Só o upload da capa usa; `null` cai no `FirebaseStorage.instance` na hora
+  /// do envio (os testes do `saveProfile` não sobem Firebase).
+  final FirebaseStorage? _storage;
+
+  /// Sobe a capa para `arenas/{arenaId}/cover` — o MESMO arquivo que o Perfil do
+  /// portal da arena grava (`uploadArenaImage`): nome fixo, cada envio substitui
+  /// o anterior sem acumular órfãos. A URL devolvida só vale para o atleta
+  /// depois de gravada em `coverUrl` pelo [saveProfile].
+  Future<String> uploadCover({
+    required String arenaId,
+    required Uint8List bytes,
+    required String contentType,
+  }) async {
+    final id = arenaId.trim();
+    if (id.isEmpty) {
+      throw ArenaProfileEditException('Arena inválida.');
+    }
+    final ref = (_storage ?? FirebaseStorage.instance).ref('arenas/$id/cover');
+    try {
+      await ref.putData(bytes, SettableMetadata(contentType: contentType));
+    } on FirebaseException catch (e) {
+      // storage.rules libera `arenas/{id}/**` só ao dono (e admin): o gestor da
+      // equipe edita o perfil, mas o Storage recusa a foto dele.
+      if (e.code == 'unauthorized') {
+        throw ArenaProfileEditException(
+          'Só o dono da arena pode trocar a foto de capa.',
+        );
+      }
+      rethrow;
+    }
+    return ref.getDownloadURL();
+  }
 
   Future<void> saveProfile({
     required String arenaId,

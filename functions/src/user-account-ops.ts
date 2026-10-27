@@ -183,23 +183,59 @@ const BO_ROLE_SEARCH_LABEL: Record<AppRole, string> = {
   center: "centro treinamento ct",
 };
 
-function backofficeUserMatchesSearch(
+/** Campos de `users/{uid}` que entram na busca do backoffice (além do Auth). */
+type UserDocSearchFields = {fullName: string | null; nickname: string | null};
+
+function userDocSearchFields(data: Record<string, unknown> | undefined): UserDocSearchFields {
+  const fullName = data?.["fullName"];
+  const nickname = data?.["nickname"];
+  return {
+    fullName: typeof fullName === "string" ? fullName : null,
+    nickname: typeof nickname === "string" ? nickname : null,
+  };
+}
+
+/** Minúsculas e sem acento: "brunao" acha "Brunão" e vice-versa. */
+function foldForSearch(value: string): string {
+  return value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
+
+export function backofficeUserMatchesSearch(
   u: UserRecord,
-  qLower: string,
-  firestoreFullName: string | null,
+  query: string,
+  fields: UserDocSearchFields,
 ): boolean {
   const roles = rolesFromClaims(u.customClaims);
   const pieces: string[] = [
     u.email ?? "",
     u.displayName ?? "",
     u.phoneNumber ?? "",
-    firestoreFullName ?? "",
+    fields.fullName ?? "",
+    fields.nickname ?? "",
     u.uid,
     ...roles,
     ...roles.map((r) => BO_ROLE_SEARCH_LABEL[r]),
   ];
-  const haystack = pieces.join(" ").toLowerCase();
-  return haystack.includes(qLower);
+  return foldForSearch(pieces.join(" ")).includes(foldForSearch(query));
+}
+
+/**
+ * Um lote do Auth cruzado com os docs `users/{uid}` (mesma ordem): devolve só
+ * quem casa com a busca, já com o `fullName` que vai para a linha.
+ */
+export function backofficeSearchMatches(
+  users: readonly UserRecord[],
+  docs: readonly (Record<string, unknown> | undefined)[],
+  query: string,
+): {user: UserRecord; fullName: string | null}[] {
+  const out: {user: UserRecord; fullName: string | null}[] = [];
+  users.forEach((user, i) => {
+    const fields = userDocSearchFields(docs[i]);
+    if (backofficeUserMatchesSearch(user, query, fields)) {
+      out.push({user, fullName: fields.fullName});
+    }
+  });
+  return out;
 }
 
 async function fetchUserFullName(db: FirebaseFirestore.Firestore, uid: string): Promise<string | null> {
@@ -348,33 +384,20 @@ export const listBackofficeUsers = onCall({region: CLIENT_FACING_REGIONS, timeou
 
         const refs = listResult.users.map((u) => db.doc(`users/${u.uid}`));
         const snaps = refs.length > 0 ? await db.getAll(...refs) : [];
-        const fullNameByUid = new Map<string, string | null>();
-        snaps.forEach((snap, i) => {
-          const u = listResult.users[i];
-          if (!u) {
-            return;
-          }
-          const fn = snap.data()?.["fullName"];
-          fullNameByUid.set(u.uid, typeof fn === "string" ? fn : null);
-        });
-
-        const matching: UserRecord[] = [];
-        for (const u of listResult.users) {
-          const fn = fullNameByUid.get(u.uid) ?? null;
-          if (backofficeUserMatchesSearch(u, searchQ, fn)) {
-            matching.push(u);
-          }
-        }
+        const matching = backofficeSearchMatches(
+          listResult.users,
+          snaps.map((snap) => snap.data()),
+          searchQ,
+        );
 
         let mi = 0;
         while (mi < matching.length && out.length < maxResults) {
-          const u = matching[mi]!;
+          const {user, fullName} = matching[mi]!;
           mi++;
-          const fullName = fullNameByUid.get(u.uid) ?? null;
-          out.push(backofficeRowFromUserRecord(u, fullName));
+          out.push(backofficeRowFromUserRecord(user, fullName));
         }
 
-        const leftoverUids = matching.slice(mi).map((u) => u.uid);
+        const leftoverUids = matching.slice(mi).map((m) => m.user.uid);
         const nextAuth = listResult.pageToken ?? null;
 
         if (leftoverUids.length > 0) {

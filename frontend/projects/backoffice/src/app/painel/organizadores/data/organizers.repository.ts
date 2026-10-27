@@ -135,7 +135,7 @@ function sinceLabel(value: unknown): string | null {
  */
 @Injectable({ providedIn: 'root' })
 export class OrganizersRepository {
-  /** Busca usuários por nome, e-mail ou UID (callable admin-only). */
+  /** Busca usuários por nome, apelido, e-mail ou UID (callable admin-only). */
   async searchUsers(term: string, maxResults = 20): Promise<BackofficeUser[]> {
     const callable = httpsCallable<Record<string, unknown>, ListUsersResponse>(
       backofficeFunctions(),

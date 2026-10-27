@@ -55,7 +55,7 @@ interface ProDecision {
           <input
             type="search"
             class="search-input"
-            placeholder="Nome, e-mail ou UID — Enter para buscar"
+            placeholder="Nome, apelido, e-mail ou UID — Enter para buscar"
             aria-label="Buscar conta"
             [value]="term()"
             (input)="term.set(value($event))"

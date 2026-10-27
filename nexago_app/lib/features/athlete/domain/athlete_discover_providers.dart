@@ -251,7 +251,14 @@ class AthleteDiscoverNotifier
       final merged = [...state.rawEntries, ...enriched];
       state = state.copyWith(
         rawEntries: merged,
-        displayEntries: _applyPipeline(merged),
+        // Só a página nova passa pelo pipeline, e vai para o FIM. O Firestore
+        // pagina por id do documento, não pela ordem da tela: reordenar o lote
+        // inteiro espalhava os recém-chegados acima do scroll e a lista
+        // "pulava" para cima a cada página.
+        displayEntries: [
+          ...state.displayEntries,
+          ..._applyPipeline(enriched),
+        ],
         isLoadingMore: false,
         hasMore: page.hasMore,
         lastDocumentId: page.lastDocumentId,

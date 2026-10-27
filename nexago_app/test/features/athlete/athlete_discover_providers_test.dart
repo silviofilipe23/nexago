@@ -76,6 +76,10 @@ class _FakeAthleteDiscoverRepository extends AthleteDiscoverRepository {
   List<AthleteProfile> initialPageProfiles = const [];
   bool initialPageHasMore = true;
 
+  /// Página devolvida por [fetchPage] quando recebe o cursor da inicial
+  /// (`loadMore`). É a última: `hasMore: false`.
+  List<AthleteProfile> nextPageProfiles = const [];
+
   /// Controla quando [fetchProfilesForDiscover] resolve — permite ao teste
   /// inspecionar o estado exatamente durante a janela do fetch.
   Completer<List<AthleteProfile>>? catalogGate;
@@ -86,6 +90,13 @@ class _FakeAthleteDiscoverRepository extends AthleteDiscoverRepository {
     String? startAfterDocumentId,
     int limit = AthleteDiscoverRepository.pageSize,
   }) async {
+    if (startAfterDocumentId == 'cursor-1') {
+      return AthleteDiscoverPageResult(
+        profiles: nextPageProfiles,
+        lastDocumentId: 'cursor-2',
+        hasMore: false,
+      );
+    }
     return AthleteDiscoverPageResult(
       profiles: initialPageProfiles,
       lastDocumentId: 'cursor-1',
@@ -435,6 +446,50 @@ void main() {
 
         gate.complete(const []);
         await pending;
+      },
+    );
+  });
+
+  group('paginação (loadMore)', () {
+    test(
+      'página nova entra DEPOIS do que já está na tela — reordenar o lote '
+      'inteiro jogava atletas novos acima do scroll e a lista "pulava"',
+      () async {
+        // O Firestore pagina por id do documento; a ordem da tela é do
+        // cliente. Sem perfil do viewer a compatibilidade empata e decide o
+        // nome: "Ana" e "Carla" da segunda página ordenariam ACIMA de
+        // "Daniel", que a pessoa já estava vendo.
+        repo.initialPageProfiles = [
+          _profile(id: 'u1', state: 'GO', city: 'Goiânia', name: 'Bruno'),
+          _profile(id: 'u2', state: 'GO', city: 'Goiânia', name: 'Daniel'),
+        ];
+        repo.nextPageProfiles = [
+          _profile(id: 'u3', state: 'GO', city: 'Goiânia', name: 'Carla'),
+          _profile(id: 'u4', state: 'GO', city: 'Goiânia', name: 'Ana'),
+        ];
+
+        final notifier = container.read(athleteDiscoverProvider.notifier);
+        await _settle();
+        await notifier.loadInitial();
+        expect(
+          container
+              .read(athleteDiscoverProvider)
+              .displayEntries
+              .map((e) => e.profile.name),
+          ['Bruno', 'Daniel'],
+        );
+
+        await notifier.loadMore();
+
+        final state = container.read(athleteDiscoverProvider);
+        expect(
+          state.displayEntries.map((e) => e.profile.name),
+          ['Bruno', 'Daniel', 'Ana', 'Carla'],
+          reason: 'o que já estava na tela fica no lugar; a página nova é '
+              'ordenada entre si e vai para o fim',
+        );
+        expect(state.hasMore, isFalse);
+        expect(state.isLoadingMore, isFalse);
       },
     );
   });

@@ -16,7 +16,10 @@
 // `FirebaseFirestore` (mesmo padrão de
 // `test/core/profiles/users_repository_signup_doc_test.dart`) e afirma que
 // os três campos somem do payload quando `isOwner: false`.
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/arena/data/arena_profile_edit_service.dart';
 import 'package:nexago_app/features/arenas/domain/arena_list_item.dart';
@@ -134,6 +137,67 @@ void main() {
       );
     },
   );
+
+  // storage.rules passou a liberar a capa ao gestor ativo: a recusa que sobra
+  // é a da equipe sem plano em dia, e o aviso não pode mais mandar chamar o dono.
+  Future<void> uploadCoverRejectedWith(String code) {
+    final service = ArenaProfileEditService(
+      _CapturingFirestore(),
+      _RejectingStorage(code),
+    );
+    return service.uploadCover(
+      arenaId: 'a1',
+      bytes: Uint8List(8),
+      contentType: 'image/jpeg',
+    );
+  }
+
+  test('capa recusada pelo Storage: aviso fala do plano, não do dono',
+      () async {
+    await expectLater(
+      uploadCoverRejectedWith('unauthorized'),
+      throwsA(
+        isA<ArenaProfileEditException>()
+            .having((e) => e.message, 'message', contains('plano em dia'))
+            .having((e) => e.message, 'message', isNot(contains('dono'))),
+      ),
+    );
+  });
+
+  test('capa: outra falha do Storage sobe crua', () async {
+    await expectLater(
+      uploadCoverRejectedWith('retry-limit-exceeded'),
+      throwsA(isA<FirebaseException>()),
+    );
+  });
+}
+
+/// [FirebaseStorage] cujo `putData` falha com [code], como o SDK faz quando
+/// as rules recusam o envio (`unauthorized`).
+class _RejectingStorage implements FirebaseStorage {
+  _RejectingStorage(this.code);
+
+  final String code;
+
+  @override
+  Reference ref([String? path]) => _RejectingRef(code);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _RejectingRef implements Reference {
+  _RejectingRef(this.code);
+
+  final String code;
+
+  @override
+  UploadTask putData(Uint8List data, [SettableMetadata? metadata]) {
+    throw FirebaseException(plugin: 'firebase_storage', code: code);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 /// Fake mínimo de [FirebaseFirestore]: só o suficiente para capturar o mapa

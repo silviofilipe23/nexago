@@ -81,21 +81,25 @@ export type ArenaImageKind = 'cover' | 'logo';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
-/** Valida a imagem antes do upload: precisa ser um arquivo de imagem e caber em 5MB. */
+/** Tipos que o storage.rules aceita do gestor da equipe na capa/logo (`arenas/{id}/{cover|logo}`). */
+const ARENA_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+/** Valida a imagem antes do upload: JPG, PNG ou WebP de até 5MB — o mesmo limite que o
+ *  storage.rules impõe ao gestor, pra ele não esbarrar numa recusa muda do Storage. */
 export function validateArenaImageFile(file: File): string | null {
-  if (!file.type.startsWith('image/')) {
+  if (!ARENA_IMAGE_TYPES.includes(file.type)) {
     return 'Selecione um arquivo de imagem (JPG, PNG ou WebP).';
   }
-  if (file.size > MAX_IMAGE_BYTES) {
+  if (file.size >= MAX_IMAGE_BYTES) {
     return 'Imagem muito grande — o limite é 5MB.';
   }
   return null;
 }
 
 /** Sobe a capa/logo para `arenas/{arenaId}/{cover|logo}` (storage.rules libera escrita para o
- *  managerUserId da arena) e retorna a download URL. Nome fixo por tipo: cada novo upload
- *  sobrescreve o anterior, sem acumular arquivos órfãos. A URL retornada ainda precisa ser
- *  salva no Firestore via `saveArenaBasicInfo` para valer no perfil. */
+ *  dono da arena e para o gestor ativo com plano em dia) e retorna a download URL. Nome fixo
+ *  por tipo: cada novo upload sobrescreve o anterior, sem acumular arquivos órfãos. A URL
+ *  retornada ainda precisa ser salva no Firestore via `saveArenaBasicInfo` para valer no perfil. */
 export async function uploadArenaImage(storage: FirebaseStorage, arenaId: string, kind: ArenaImageKind, file: File): Promise<string> {
   const error = validateArenaImageFile(file);
   if (error) {

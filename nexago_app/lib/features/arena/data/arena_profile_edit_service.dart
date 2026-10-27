@@ -63,11 +63,13 @@ class ArenaProfileEditService {
     try {
       await ref.putData(bytes, SettableMetadata(contentType: contentType));
     } on FirebaseException catch (e) {
-      // storage.rules libera `arenas/{id}/**` só ao dono (e admin): o gestor da
-      // equipe edita o perfil, mas o Storage recusa a foto dele.
+      // storage.rules libera a capa ao dono e ao gestor ativo — este, só com o
+      // plano da arena em dia, o mesmo gate do Firestore pra editar o perfil.
+      // Quem chega nesta tela e leva `unauthorized` é a equipe sem esse plano.
       if (e.code == 'unauthorized') {
         throw ArenaProfileEditException(
-          'Só o dono da arena pode trocar a foto de capa.',
+          'Sem permissão para trocar a capa. A equipe só edita o perfil da '
+          'arena com o plano em dia.',
         );
       }
       rethrow;

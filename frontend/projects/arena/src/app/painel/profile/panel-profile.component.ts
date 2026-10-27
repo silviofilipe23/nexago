@@ -98,7 +98,7 @@ function initialsOfName(name: string): string {
                 <input
                   #coverFileInput
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   class="visually-hidden-input"
                   aria-label="Selecionar imagem de capa"
                   (change)="onCoverFileSelected($event)"
@@ -126,7 +126,7 @@ function initialsOfName(name: string): string {
                   <input
                     #logoFileInput
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp"
                     class="visually-hidden-input"
                     aria-label="Selecionar logo da arena"
                     (change)="onLogoFileSelected($event)"

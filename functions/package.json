@@ -19,7 +19,7 @@
     "delete-test-data": "node scripts/delete-test-data.js",
     "test:registrations": "npm run build && firebase emulators:exec --only firestore --project nexago-registration-matrix \"node --test --test-concurrency=1 test/registration-*.test.mjs\"",
     "test:callables": "npm run build && firebase emulators:exec --only firestore --project nexago-callables-test \"node --test --test-concurrency=1 test/*.callables.test.mjs\"",
-    "test:rules": "firebase emulators:exec --only firestore --project nexago-rules-test \"node --test --test-concurrency=1 test/*.rules.test.mjs\""
+    "test:rules": "firebase emulators:exec --only firestore,storage --project nexago-rules-test \"node --test --test-concurrency=1 test/*.rules.test.mjs test/*.storage-rules.test.mjs\""
   },
   "engines": {
     "node": "22"

@@ -162,6 +162,8 @@ import '../../features/athlete/presentation/achievements/athlete_achievements_pa
 import '../../features/athlete/presentation/athlete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_settings_page.dart';
 import '../../features/athlete/presentation/athlete_referral_page.dart';
+import '../../features/app_guide/presentation/app_guide_page.dart';
+import '../../features/app_guide/presentation/app_guide_topic_page.dart';
 import '../../features/app_news/domain/app_news.dart';
 import '../../features/app_news/domain/app_news_logic.dart';
 import '../../features/app_news/presentation/app_news_detail_page.dart';
@@ -1609,6 +1611,18 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.appNewsDetail,
         builder: (context, state) => AppNewsDetailPage(
           featureId: state.pathParameters['featureId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.appGuide,
+        name: AppRouteNames.appGuide,
+        builder: (context, state) => const AppGuidePage(),
+      ),
+      GoRoute(
+        path: AppRoutes.appGuideTopic,
+        name: AppRouteNames.appGuideTopic,
+        builder: (context, state) => AppGuideTopicPage(
+          topicId: state.pathParameters['topicId']?.trim() ?? '',
         ),
       ),
       GoRoute(

@@ -19,6 +19,22 @@ const pointsByPlace = <int, int>{
 /// Última colocação que recebe pontos de mata-mata (16-avos).
 const lastPlaceWithPoints = 32;
 
+/// Participação (`groups` em `functions/src/tournament-ranking.ts`): quem
+/// jogou e não pontuou por fase. Exibição apenas.
+const participationPoints = 100;
+
+/// Modulador por tamanho de chave — `bracketSizeFactor` em
+/// `functions/src/tournament-ranking.ts`: 8+ duplas pagas valem a tabela
+/// inteira, de 4 a 7 ×0,6 e menos de 4 ×0,25. Exibição apenas.
+const fullBracketMinPaidTeams = 8;
+const smallBracketMinPaidTeams = 4;
+const smallBracketFactor = 0.6;
+const tinyBracketFactor = 0.25;
+
+/// Torneio avulso só pontua com 10+ duplas pagas; etapa de liga é isenta —
+/// `MIN_TEAMS_FOR_GLOBAL_RANKING` em `functions/src/tournament-ranking.ts`.
+const minPaidTeamsForGlobalRanking = 10;
+
 /// Pesos por preset de categoria (fase 3) — exibição apenas, espelho de
 /// `CATEGORY_PRESETS` em `functions/src/category-presets.ts`. O cálculo real
 /// roda no backend; esta const nunca deve influenciar pontuação no app.

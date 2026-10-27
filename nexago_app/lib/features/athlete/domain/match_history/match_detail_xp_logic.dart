@@ -4,6 +4,7 @@ import '../../../tournaments/domain/tournament_match_display.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
 import '../athlete_profile_stats_logic.dart';
 import '../gamification_models.dart';
+import '../sand_rank/sand_rank_catalog.dart';
 import 'athlete_match_detail_models.dart';
 
 MatchDetailXpInfo? buildMatchDetailXpInfo({
@@ -16,12 +17,14 @@ MatchDetailXpInfo? buildMatchDetailXpInfo({
   CompeteHubUserRanking? ranking,
   GamificationSummary? gamification,
   int? confirmedXpGained,
+  bool eloEnabled = false,
 }) {
   if (phase != MatchDetailPhase.completed || !isParticipantView || !isWin) {
     return null;
   }
 
   final rankLabel = formatProfileRankingLabel(ranking);
+  final elo = matchDetailEloProgress(gamification, eloEnabled: eloEnabled);
   final streak = tournamentWinStreakIncludingMatch(
     matches: ourTeamMatches,
     teamId: ourTeamId,
@@ -32,10 +35,26 @@ MatchDetailXpInfo? buildMatchDetailXpInfo({
     xpGained: confirmedXpGained,
     rankLabel: rankLabel,
     streakLabel: _streakLabel(streak),
-    levelProgressLabel: gamification == null
-        ? null
-        : 'faltam ${gamification.xpForNextLevel} XP pro nível ${gamification.level + 1}',
-    progress: gamification?.progressToNextLevel,
+    levelProgressLabel: elo?.label,
+    progress: elo?.progress,
+  );
+}
+
+/// Progresso do elo no card ("faltam 38 XP pra Iniciante II"). O XP move só o
+/// elo — nível é habilidade e não sai do XP. Sem a flag do elo, o card fica
+/// sem a linha de progresso.
+({String label, double progress})? matchDetailEloProgress(
+  GamificationSummary? gamification, {
+  required bool eloEnabled,
+}) {
+  if (gamification == null || !eloEnabled) return null;
+  final progress = sandRankProgressFromXp(gamification.xp);
+  final next = progress.next;
+  return (
+    label: next == null
+        ? 'topo da trilha de elos'
+        : 'faltam ${progress.xpToNext} XP pra ${sandRankLabel(next)}',
+    progress: progress.progress,
   );
 }
 

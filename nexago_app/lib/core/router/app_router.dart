@@ -282,6 +282,8 @@ import '../../features/athlete/presentation/athlete_match_detail_page.dart';
 import '../../features/athlete/presentation/athlete_match_play_by_play_page.dart';
 import '../../features/athlete/presentation/athlete_quest_page.dart';
 import '../../features/athlete/presentation/sand_rank/sand_rank_track_page.dart';
+import '../../features/athlete/domain/how_it_works/how_it_works_rules.dart';
+import '../../features/athlete/presentation/how_it_works/how_it_works_page.dart';
 import '../../features/athlete/presentation/athlete_match_history_page.dart';
 import '../../features/athlete/presentation/athlete_tournament_detail_page.dart';
 import '../../features/athlete/presentation/athlete_privacy_security_page.dart';
@@ -2037,6 +2039,18 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.athleteRankTrack,
         name: AppRouteNames.athleteRankTrack,
         builder: (context, state) => const SandRankTrackPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteHowItWorks,
+        name: AppRouteNames.athleteHowItWorks,
+        builder: (context, state) => HowItWorksPage(
+          initialTab: HowItWorksTab.fromQuery(
+            state.uri.queryParameters['aba'],
+          ),
+          origin: HowItWorksTab.fromQueryOrNull(
+            state.uri.queryParameters['de'],
+          ),
+        ),
       ),
       GoRoute(
         path: AppRoutes.athleteMatchHistory,

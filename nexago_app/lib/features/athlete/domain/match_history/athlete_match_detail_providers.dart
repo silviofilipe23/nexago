@@ -21,6 +21,7 @@ import '../athlete_profile_stats_logic.dart';
 import '../athlete_profile_providers.dart';
 import '../gamification_models.dart';
 import '../gamification_providers.dart';
+import '../sand_rank/sand_rank_providers.dart';
 import 'athlete_match_detail_mapper.dart';
 import 'athlete_match_detail_models.dart';
 import 'match_detail_form_logic.dart';
@@ -149,6 +150,7 @@ final athleteMatchDetailProvider = Provider.autoDispose
   final gamification = ref.watch(gamificationSummaryProvider);
   final confirmedMatchXp = ref.watch(tournamentMatchXpAwardProvider(matchId));
   final ranking = ref.watch(competeHubUserRankingProvider);
+  final eloEnabled = ref.watch(sandRankEnabledProvider).valueOrNull ?? false;
 
   return core.when(
     data: (detail) {
@@ -159,6 +161,7 @@ final athleteMatchDetailProvider = Provider.autoDispose
           gamification: gamification.valueOrNull,
           confirmedMatchXp: confirmedMatchXp.valueOrNull,
           ranking: ranking.valueOrNull,
+          eloEnabled: eloEnabled,
         ),
       );
     },
@@ -174,6 +177,7 @@ AthleteMatchDetail _applyMatchDetailLiveEnrichment({
   required GamificationSummary? gamification,
   required int? confirmedMatchXp,
   required CompeteHubUserRanking? ranking,
+  required bool eloEnabled,
 }) {
   if (!detail.isParticipantView) return detail;
 
@@ -193,16 +197,15 @@ AthleteMatchDetail _applyMatchDetailLiveEnrichment({
 
   final xp = detail.xpInfo;
   if (xp == null) return enriched;
+  final elo = matchDetailEloProgress(gamification, eloEnabled: eloEnabled);
 
   return enriched.copyWith(
     xpInfo: MatchDetailXpInfo(
       xpGained: confirmedMatchXp,
       rankLabel: formatProfileRankingLabel(ranking),
       streakLabel: xp.streakLabel,
-      levelProgressLabel: gamification == null
-          ? null
-          : 'faltam ${gamification.xpForNextLevel} XP pro nível ${gamification.level + 1}',
-      progress: gamification?.progressToNextLevel,
+      levelProgressLabel: elo?.label,
+      progress: elo?.progress,
     ),
   );
 }

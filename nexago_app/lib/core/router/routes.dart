@@ -627,6 +627,10 @@ abstract final class AppRoutes {
   /// Trilha de elos (sistema de elos da gamificação).
   static const String athleteRankTrack = '/athlete/rank';
 
+  /// "Como funciona": nível, elo e XP, ranking. `?aba=nivel|elo|ranking` e
+  /// `?de=<aba>` quando aberta da própria tela daquela aba.
+  static const String athleteHowItWorks = '/athlete/como-funciona';
+
   /// Histórico de partidas e torneios do atleta.
   static const String athleteMatchHistory = '/athlete/history';
 
@@ -1280,6 +1284,7 @@ abstract final class AppRouteNames {
   static const String athleteActiveSessions = 'athleteActiveSessions';
   static const String athleteQuest = 'athleteQuest';
   static const String athleteRankTrack = 'athleteRankTrack';
+  static const String athleteHowItWorks = 'athleteHowItWorks';
   static const String athleteMatchHistory = 'athleteMatchHistory';
   static const String athleteMatchDetail = 'athleteMatchDetail';
   static const String athleteMatchPlayByPlay = 'athleteMatchPlayByPlay';

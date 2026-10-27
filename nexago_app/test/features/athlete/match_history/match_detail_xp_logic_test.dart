@@ -185,14 +185,38 @@ void main() {
           updatedAt: null,
         ),
         confirmedXpGained: 50,
+        eloEnabled: true,
       );
 
       expect(info, isNotNull);
       expect(info!.xpGained, 50);
       expect(info.rankLabel, '#11');
       expect(info.streakLabel, '1 vitória');
-      expect(info.levelProgressLabel, 'faltam 38 XP pro nível 2');
-      expect(info.progress, closeTo(0.62, 0.01));
+      // 162 XP = Iniciante II (100–249): o XP move o elo, não um "nível".
+      expect(info.levelProgressLabel, 'faltam 88 XP pra Iniciante I');
+      expect(info.progress, closeTo(62 / 150, 0.001));
+    });
+  });
+
+  group('matchDetailEloProgress', () {
+    GamificationSummary summary(int xp) => GamificationSummary(
+      xp: xp,
+      level: xp ~/ 100,
+      streak: 0,
+      totalGames: 0,
+      lastGameDate: null,
+      updatedAt: null,
+    );
+
+    test('sem a flag do elo o card fica sem a linha de progresso', () {
+      expect(matchDetailEloProgress(summary(162), eloEnabled: false), isNull);
+      expect(matchDetailEloProgress(null, eloEnabled: true), isNull);
+    });
+
+    test('no topo da trilha não aponta próximo elo', () {
+      final elo = matchDetailEloProgress(summary(20000), eloEnabled: true);
+      expect(elo?.label, 'topo da trilha de elos');
+      expect(elo?.progress, 1);
     });
   });
 }

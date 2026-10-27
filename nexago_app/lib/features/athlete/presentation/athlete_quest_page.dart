@@ -117,6 +117,20 @@ class AthleteQuestPage extends ConsumerWidget {
           letterSpacing: -0.3,
         ),
       ),
+      actions: [
+        IconButton(
+          tooltip: 'Como funciona',
+          icon: Icon(
+            Icons.help_outline_rounded,
+            color: context.themeColors.onSurface,
+          ),
+          onPressed: () => context.pushNamed(
+            AppRouteNames.athleteHowItWorks,
+            queryParameters: const {'aba': 'elo'},
+          ),
+        ),
+        const SizedBox(width: 8),
+      ],
     );
   }
 }

@@ -17,7 +17,6 @@ import '../domain/ranking_logic.dart';
 import '../domain/ranking_providers.dart';
 import 'widgets/ranking_classification_header.dart';
 import 'widgets/ranking_filters_sheet.dart';
-import 'widgets/ranking_how_it_works_sheet.dart';
 import 'widgets/ranking_list_tile.dart';
 import 'widgets/ranking_mode_segment.dart';
 import 'widgets/ranking_page_app_bar.dart';
@@ -176,7 +175,10 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
         onSearchToggle: _toggleSearch,
         onFilterTap: _openFilters,
         filtersActive: filter.hasActiveFilters,
-        onInfoTap: () => showRankingHowItWorksSheet(context),
+        onInfoTap: () => context.pushNamed(
+          AppRouteNames.athleteHowItWorks,
+          queryParameters: const {'aba': 'ranking', 'de': 'ranking'},
+        ),
       ),
       body: entriesAsync.when(
         loading: () => const _RankingLoadingSection(),

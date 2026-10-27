@@ -4,16 +4,6 @@ import 'package:nexago_app/features/athlete/domain/athlete_quest/athlete_quest_m
 import 'package:nexago_app/features/athlete/domain/gamification_models.dart';
 
 void main() {
-  group('levelTitle', () {
-    test('returns Estreante for display level 2', () {
-      expect(levelTitle(2), 'Estreante');
-    });
-
-    test('returns Bola na rede for display level 3', () {
-      expect(levelTitle(3), 'Bola na rede');
-    });
-  });
-
   group('buildStreakWeekDays', () {
     test('marks completed days from gameCompletionDays', () {
       final now = DateTime(2026, 5, 22);

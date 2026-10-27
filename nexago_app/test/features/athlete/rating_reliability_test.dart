@@ -7,19 +7,33 @@ void main() {
       expect(ratingReliabilityFor(kMinGlickoRd), RatingReliability.alta);
     });
 
-    test('RD no meio do terço inferior é Alta', () {
+    test('RD abaixo do limite de decisão da escada é Alta', () {
       expect(ratingReliabilityFor(100), RatingReliability.alta);
     });
 
-    test('RD exatamente no corte Alta/Média (150) ainda é Alta', () {
-      expect(ratingReliabilityFor(150), RatingReliability.alta);
+    test('RD exatamente no limite de decisão (120) ainda é Alta', () {
+      expect(ratingReliabilityFor(120), RatingReliability.alta);
     });
 
-    test('RD logo acima do corte Alta/Média (150) já é Média', () {
-      expect(ratingReliabilityFor(150.01), RatingReliability.media);
+    // Antes o corte era 150: entre 121 e 150 o card dizia "Alta" e a escada
+    // (maxRdForDecision = 120) não subia o atleta.
+    test('RD acima do limite de decisão já é Média', () {
+      expect(ratingReliabilityFor(120.01), RatingReliability.media);
+      expect(ratingReliabilityFor(150), RatingReliability.media);
     });
 
-    test('RD no meio do terço central é Média', () {
+    test('o corte de Alta segue o limite vigente da escada', () {
+      expect(
+        ratingReliabilityFor(150, highMaxRd: 160),
+        RatingReliability.alta,
+      );
+      expect(
+        ratingReliabilityFor(110, highMaxRd: 100),
+        RatingReliability.media,
+      );
+    });
+
+    test('RD no meio da faixa central é Média', () {
       expect(ratingReliabilityFor(200), RatingReliability.media);
     });
 
@@ -31,7 +45,7 @@ void main() {
       expect(ratingReliabilityFor(250.01), RatingReliability.baixa);
     });
 
-    test('RD no meio do terço superior é Baixa', () {
+    test('RD no meio da faixa superior é Baixa', () {
       expect(ratingReliabilityFor(300), RatingReliability.baixa);
     });
 

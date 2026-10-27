@@ -361,9 +361,9 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                 AthleteSettingsTile(
                   icon: Icons.help_outline_rounded,
                   title: 'Ajuda e suporte',
-                  subtitle: 'Central de ajuda',
+                  subtitle: 'Como usar cada função do app',
                   variant: AthleteSettingsIconVariant.neutral,
-                  onTap: () => showAthleteSettingsComingSoon(context),
+                  onTap: () => context.pushNamed(AppRouteNames.appGuide),
                   showDivider: true,
                 ),
                 AthleteSettingsTile(

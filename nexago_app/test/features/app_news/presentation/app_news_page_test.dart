@@ -43,7 +43,7 @@ void main() {
     final store = FakeAppNewsLocalStore(seen: '1.0.15');
     await pumpAppNews(tester, store: store, initialLocation: AppRoutes.appNews);
 
-    await tester.tap(find.byKey(const Key('app-news-row-racha')));
+    await tester.tap(find.byKey(const Key('feature-row-racha')));
     await settle(tester);
 
     expect(find.text('Explicação racha'), findsOneWidget);

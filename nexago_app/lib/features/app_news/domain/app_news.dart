@@ -11,11 +11,18 @@ library;
 import '../../home_banners/domain/home_banner.dart';
 
 /// Ícone da funcionalidade quando o destino sozinho não diz o bastante (ex.:
-/// o mapa e o convite na reserva abrem os dois o Reservar). Sem ícone, vale o
-/// do destino.
+/// o mapa e o convite na reserva abrem os dois o Reservar) ou quando não há
+/// destino (guias da Central de ajuda). Sem ícone, vale o do destino; chave
+/// que o build não conhece cai nesse mesmo padrão.
 enum AppNewsIcon {
   map('map'),
-  invite('invite');
+  invite('invite'),
+  cancel('cancel'),
+  story('story'),
+  handshake('handshake'),
+  focus('focus'),
+  chat('chat'),
+  star('star');
 
   const AppNewsIcon(this.key);
   final String key;
@@ -47,7 +54,7 @@ class AppNewsFeature {
   /// O parágrafo do detalhe; vazio cai no [summary].
   final String description;
 
-  /// "Como funciona" (até 4 passos).
+  /// "Como funciona" (até [maxSteps] nas Novidades).
   final List<String> steps;
 
   /// "Onde encontrar" (ex.: "Início › Ações rápidas").
@@ -72,7 +79,12 @@ class AppNewsFeature {
   static const maxSteps = 4;
 
   /// `null` sem id/título ou com destino que este build não conhece.
-  static AppNewsFeature? fromMap(Map<String, dynamic> map) {
+  /// [stepLimit]: as Novidades cortam em [maxSteps]; os guias da Central de
+  /// ajuda deixam mais.
+  static AppNewsFeature? fromMap(
+    Map<String, dynamic> map, {
+    int stepLimit = maxSteps,
+  }) {
     String text(String key) {
       final v = map[key];
       return v is String ? v.trim() : '';
@@ -106,7 +118,7 @@ class AppNewsFeature {
       title: title,
       summary: text('summary'),
       description: text('description'),
-      steps: steps.take(maxSteps).toList(growable: false),
+      steps: steps.take(stepLimit).toList(growable: false),
       where: text('where'),
       ctaLabel: text('ctaLabel'),
       destination: destination,

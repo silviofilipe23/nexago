@@ -428,6 +428,10 @@ abstract final class AppRoutes {
   static const String appNewsStories = '/athlete/novidades/stories';
   static const String appNewsDetail = '/athlete/novidades/:featureId';
 
+  /// Central de ajuda: guias "como usar" de cada função (lista e guia).
+  static const String appGuide = '/athlete/ajuda';
+  static const String appGuideTopic = '/athlete/ajuda/:topicId';
+
   /// Meu cashback (saldo, regras e extrato). Mesmo caminho do portal e do
   /// `url` dos pushes `cashback_released` / `cashback_expiring`.
   static const String athleteCashback = '/cashback';
@@ -1215,6 +1219,8 @@ abstract final class AppRouteNames {
   static const String appNews = 'appNews';
   static const String appNewsStories = 'appNewsStories';
   static const String appNewsDetail = 'appNewsDetail';
+  static const String appGuide = 'appGuide';
+  static const String appGuideTopic = 'appGuideTopic';
   static const String athleteCashback = 'athleteCashback';
   static const String squad = 'squad';
   static const String squadShare = 'squadShare';

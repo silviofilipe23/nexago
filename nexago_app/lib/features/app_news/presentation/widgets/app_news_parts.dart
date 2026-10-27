@@ -19,6 +19,12 @@ const appNewsOnBrand = Color(0xFF0A0A0A);
 IconData appNewsIcon(AppNewsFeature feature) => switch (feature.icon) {
   AppNewsIcon.map => Icons.map_outlined,
   AppNewsIcon.invite => Icons.person_add_alt_1_outlined,
+  AppNewsIcon.cancel => Icons.event_busy_outlined,
+  AppNewsIcon.story => Icons.photo_camera_outlined,
+  AppNewsIcon.handshake => Icons.handshake_outlined,
+  AppNewsIcon.focus => Icons.center_focus_strong_outlined,
+  AppNewsIcon.chat => Icons.chat_bubble_outline_rounded,
+  AppNewsIcon.star => Icons.star_outline_rounded,
   null =>
     feature.destination == null
         ? Icons.auto_awesome_outlined
@@ -330,4 +336,117 @@ class _StripesPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_StripesPainter oldDelegate) => false;
+}
+
+/// Uma funcionalidade em lista: ícone, título (com "Já usou" quando [used]),
+/// resumo e chevron. Usada nas Novidades e na Central de ajuda.
+class AppNewsFeatureRow extends StatelessWidget {
+  const AppNewsFeatureRow({
+    super.key,
+    required this.feature,
+    this.used = false,
+    required this.onTap,
+  });
+
+  final AppNewsFeature feature;
+  final bool used;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    const radius = BorderRadius.all(Radius.circular(22));
+    return Material(
+      color: colors.surfaceRaised,
+      borderRadius: radius,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: Key('feature-row-${feature.id}'),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: used
+                      ? colors.onSurface.withValues(alpha: 0.045)
+                      : AppColors.brand.withValues(alpha: 0.14),
+                  borderRadius: const BorderRadius.all(Radius.circular(15)),
+                ),
+                child: Icon(
+                  appNewsIcon(feature),
+                  size: 22,
+                  color: used ? colors.onSurfaceMuted : colors.brandText,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          feature.title,
+                          style: AppTypography.soraRegular(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.23,
+                            color: colors.onSurface,
+                          ),
+                        ),
+                        if (used)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.check_rounded,
+                                size: 13,
+                                color: colors.onSurfaceMuted,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                'Já usou',
+                                style: AppTypography.soraRegular(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.onSurfaceMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                    if (feature.summary.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        feature.summary,
+                        style: AppTypography.soraRegular(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w400,
+                          height: 1.4,
+                          color: colors.onSurfaceMuted,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: colors.onSurface.withValues(alpha: 0.32),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

@@ -10,6 +10,7 @@ import { KpiMiniComponent } from '../ui/kpi-mini.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
+import { PhotoViewerComponent } from '../ui/photo-viewer.component';
 import { PillComponent } from '../ui/pill.component';
 import { AthleteLevelDialogComponent } from './athlete-level-dialog.component';
 import {
@@ -39,6 +40,7 @@ interface ProDecision {
     FieldComponent,
     ConfirmDialogComponent,
     AthleteLevelDialogComponent,
+    PhotoViewerComponent,
   ],
   template: `
     <bo-panel-shell>
@@ -111,15 +113,22 @@ interface ProDecision {
                   <div class="table-row">
                     <div class="cell-who">
                       @if (photoOf(row); as photo) {
-                        <img
-                          class="who-photo"
-                          [src]="photo"
-                          alt=""
-                          width="36"
-                          height="36"
-                          loading="lazy"
-                          (error)="photoFailed(row.uid)"
-                        />
+                        <button
+                          type="button"
+                          class="who-photo-btn"
+                          [attr.aria-label]="'Ampliar foto de ' + name(row)"
+                          (click)="openPhoto(row, photo)"
+                        >
+                          <img
+                            class="who-photo"
+                            [src]="photo"
+                            alt=""
+                            width="36"
+                            height="36"
+                            loading="lazy"
+                            (error)="photoFailed(row.uid)"
+                          />
+                        </button>
                       } @else {
                         <div class="bo-avatar who-photo" aria-hidden="true">{{ initials(row) }}</div>
                       }
@@ -195,6 +204,16 @@ interface ProDecision {
           }
         </bo-panel-card>
       </div>
+
+      @if (photoTarget(); as target) {
+        <bo-photo-viewer
+          [src]="target.src"
+          [name]="name(target.user)"
+          [nickname]="nicknameOf(target.user)"
+          [detail]="target.user.email || target.user.uid"
+          (dismissed)="photoTarget.set(null)"
+        />
+      }
 
       @if (levelTarget(); as target) {
         <bo-athlete-level-dialog
@@ -373,6 +392,23 @@ interface ProDecision {
       font-size: 12px;
     }
 
+    /* Só o avatar COM foto é botão — sem foto não há o que ampliar. */
+    .who-photo-btn {
+      flex: none;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: transparent;
+      cursor: zoom-in;
+      display: flex;
+    }
+
+    .who-photo-btn:hover .who-photo,
+    .who-photo-btn:focus-visible .who-photo {
+      outline: 2px solid var(--nx-orange-500);
+      outline-offset: 1px;
+    }
+
     .who-text {
       min-width: 0;
       display: flex;
@@ -441,6 +477,7 @@ export class PanelAtletasComponent {
   protected readonly state = signal<LoadState>('loading');
   protected readonly errorMessage = signal('');
 
+  protected readonly photoTarget = signal<{ user: BackofficeUser; src: string } | null>(null);
   protected readonly levelTarget = signal<BackofficeUser | null>(null);
   protected readonly proTarget = signal<ProDecision | null>(null);
   protected readonly expiry = signal('');
@@ -496,6 +533,10 @@ export class PanelAtletasComponent {
 
   protected nicknameOf(row: BackofficeUser): string | null {
     return this.summaries().get(row.uid)?.nickname ?? null;
+  }
+
+  protected openPhoto(user: BackofficeUser, src: string): void {
+    this.photoTarget.set({ user, src });
   }
 
   protected photoFailed(uid: string): void {

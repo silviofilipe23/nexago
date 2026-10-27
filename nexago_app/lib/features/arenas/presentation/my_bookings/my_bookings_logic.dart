@@ -1,3 +1,4 @@
+import '../../domain/arena_booking_cancellation_policy.dart';
 import '../../domain/my_booking_item.dart';
 
 export '../../domain/arena_booking_labels.dart' show formatBookingDateHeader;
@@ -113,6 +114,31 @@ DateTime? bookingDateOnlyFromRaw(String dateRaw) {
   final d = int.tryParse(parts[2]);
   if (y == null || m == null || d == null) return null;
   return DateTime(y, m, d);
+}
+
+/// Início da reserva no relógio do aparelho — `null` sem data ou hora válidas.
+DateTime? myBookingStartAt(MyBookingItem item) {
+  final date = bookingDateOnly(item);
+  if (date == null) return null;
+  final parts = item.startTime.split(':');
+  if (parts.length < 2) return null;
+  final h = int.tryParse(parts[0]) ?? 0;
+  final m = int.tryParse(parts[1]) ?? 0;
+  return DateTime(date.year, date.month, date.day, h, m);
+}
+
+/// A regra única de cancelamento aplicada a uma linha de Minhas reservas
+/// (a lista só traz reservas do próprio atleta, nunca de convidado).
+AthleteBookingCancellation myBookingCancellation(
+  MyBookingItem item,
+  DateTime now,
+) {
+  return ArenaBookingCancellationPolicy.athleteCancellation(
+    bookingStart: myBookingStartAt(item),
+    now: now,
+    rawStatus: item.rawStatus,
+    isRecurring: item.isRecurring,
+  );
 }
 
 /// Semanas ISO (segunda) consecutivas com pelo menos uma reserva, contando da semana atual para trás.

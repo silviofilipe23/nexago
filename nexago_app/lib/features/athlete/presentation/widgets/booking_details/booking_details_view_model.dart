@@ -218,7 +218,3 @@ bool bookingDetailsActionsEnabled(BookingDetailsStatus status) {
   return status != BookingDetailsStatus.past &&
       status != BookingDetailsStatus.canceled;
 }
-
-bool bookingDetailsCanCancel(BookingDetailsStatus status) {
-  return status == BookingDetailsStatus.future;
-}

@@ -19,6 +19,7 @@ class BookingDetailsSheet extends StatelessWidget {
     required this.onPayNow,
     required this.onCancelBooking,
     required this.canCancelBooking,
+    this.cancelBlockedMessage,
   });
 
   final MyBookingItem item;
@@ -27,6 +28,9 @@ class BookingDetailsSheet extends StatelessWidget {
   final VoidCallback onPayNow;
   final VoidCallback onCancelBooking;
   final bool canCancelBooking;
+
+  /// Por que "Cancelar reserva" está desligado — só quando o prazo acabou.
+  final String? cancelBlockedMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -136,6 +140,17 @@ class BookingDetailsSheet extends StatelessWidget {
                     label: Text('Cancelar reserva'),
                   ),
                 ),
+                if (cancelBlockedMessage != null) ...[
+                  SizedBox(height: 4),
+                  Text(
+                    cancelBlockedMessage!,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: context.themeColors.onSurfaceMuted,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

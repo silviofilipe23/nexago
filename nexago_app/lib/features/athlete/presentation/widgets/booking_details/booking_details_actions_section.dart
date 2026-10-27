@@ -15,6 +15,7 @@ class BookingDetailsActionsSection extends StatelessWidget {
     this.canCancel = true,
     this.actionsEnabled = true,
     this.showCancel = true,
+    this.cancelHint,
   });
 
   final VoidCallback onDirections;
@@ -28,6 +29,9 @@ class BookingDetailsActionsSection extends StatelessWidget {
 
   /// Convidado não cancela a reserva de outro atleta: o botão nem aparece.
   final bool showCancel;
+
+  /// Por que "Cancelar reserva" está desligado — só quando o prazo acabou.
+  final String? cancelHint;
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +75,17 @@ class BookingDetailsActionsSection extends StatelessWidget {
             onTap: canCancel ? onCancel : null,
             danger: true,
           ),
+          if (cancelHint != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              cancelHint!,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: context.themeColors.onSurfaceMuted,
+                    height: 1.35,
+                  ),
+            ),
+          ],
         ],
       ],
     );

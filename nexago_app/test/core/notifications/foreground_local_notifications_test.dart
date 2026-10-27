@@ -1,6 +1,8 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/notifications/foreground_local_notifications.dart';
+import 'package:nexago_app/core/notifications/match_live_notification.dart';
 
 void main() {
   group('foregroundNotificationContent', () {
@@ -39,6 +41,52 @@ void main() {
       );
 
       expect(content, isNull);
+    });
+  });
+
+  group('clearsOnAppOpen', () {
+    test('clears pushes delivered by FCM while the app was closed', () {
+      expect(
+        clearsOnAppOpen(
+          const ActiveNotification(
+            id: 0,
+            tag: 'FCM-Notification:123',
+            channelId: 'default',
+          ),
+        ),
+        isTrue,
+      );
+    });
+
+    test('clears live match moment alerts', () {
+      expect(
+        clearsOnAppOpen(
+          const ActiveNotification(
+            id: 7,
+            channelId: MatchLiveNotification.alertChannelId,
+          ),
+        ),
+        isTrue,
+      );
+    });
+
+    test('keeps the ongoing live score notification', () {
+      expect(
+        clearsOnAppOpen(
+          const ActiveNotification(
+            id: 7,
+            channelId: MatchLiveNotification.ongoingChannelId,
+          ),
+        ),
+        isFalse,
+      );
+    });
+
+    test('skips notifications without an id', () {
+      expect(
+        clearsOnAppOpen(const ActiveNotification(channelId: 'default')),
+        isFalse,
+      );
     });
   });
 

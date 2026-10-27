@@ -100,10 +100,16 @@ class NexagoApp extends ConsumerStatefulWidget {
 class _NexagoAppState extends ConsumerState<NexagoApp> {
   ProviderSubscription<AsyncValue<User?>>? _authSub;
   StreamSubscription<Uri>? _deepLinkSub;
+  late final AppLifecycleListener _lifecycleListener;
 
   @override
   void initState() {
     super.initState();
+    _lifecycleListener = AppLifecycleListener(
+      onResume: () => unawaited(
+        ref.read(notificationServiceProvider).clearDeliveredNotifications(),
+      ),
+    );
     Future<void>(() async {
       final notifications = ref.read(notificationServiceProvider);
       final router = ref.read(goRouterProvider);
@@ -124,6 +130,8 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
         },
         onNotificationTap: handleNotificationTap,
       );
+      // Partida a frio não passa pelo `onResume`.
+      await notifications.clearDeliveredNotifications();
 
       await notifications.syncUserToken(ref.read(authProvider).valueOrNull?.uid);
       await _syncFollowedMatchTopics(
@@ -190,6 +198,7 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
 
   @override
   void dispose() {
+    _lifecycleListener.dispose();
     _deepLinkSub?.cancel();
     _authSub?.close();
     super.dispose();

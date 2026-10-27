@@ -198,6 +198,14 @@ export const routes: Routes = [
       import('./painel/app/versoes/panel-app-news.component').then((m) => m.PanelAppNewsComponent),
   },
   {
+    path: 'painel/app/ajuda',
+    title: 'Central de ajuda do app — NexaGO Backoffice',
+    canActivate: [authGuard],
+    canDeactivate: [leaveWithConfirm],
+    loadComponent: () =>
+      import('./painel/app/ajuda/panel-app-guide.component').then((m) => m.PanelAppGuideComponent),
+  },
+  {
     path: 'painel/equipe',
     title: 'Equipe — NexaGO Backoffice',
     canActivate: [authGuard],

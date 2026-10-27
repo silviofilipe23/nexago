@@ -125,7 +125,10 @@ const TORNEIOS_GROUP: NavGroup = {
   ],
 };
 
-/** App do atleta: o banner de novidades da Home e a tela de Novidades (uma página por versão). */
+/**
+ * App do atleta: o banner de novidades da Home, a tela de Novidades (uma página por versão) e a
+ * Central de ajuda (guias por categoria).
+ */
 const APP_GROUP: NavGroup = {
   kind: 'group',
   id: 'app',
@@ -134,6 +137,7 @@ const APP_GROUP: NavGroup = {
   children: [
     { kind: 'link', id: 'app-novidades', label: 'Banner da Home', icon: 'phone', route: '/painel/app/novidades' },
     { kind: 'link', id: 'app-versoes', label: 'Novidades', icon: 'phone', route: '/painel/app/versoes' },
+    { kind: 'link', id: 'app-ajuda', label: 'Central de ajuda', icon: 'phone', route: '/painel/app/ajuda' },
   ],
 };
 
@@ -709,6 +713,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/app/versoes')) {
       return 'app-versoes';
+    }
+    if (path.startsWith('/painel/app/ajuda')) {
+      return 'app-ajuda';
     }
     if (path.startsWith('/painel/app')) {
       return 'app-novidades';

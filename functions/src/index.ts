@@ -870,6 +870,10 @@ export {onHomeBannerStateWritten, saveHomeBanners} from "./home-banners";
 // rascunhos) e o espelho que o app lê na mesma transação.
 export {saveAppNews} from "./app-news";
 
+// App do atleta: Central de ajuda (guias "como usar"). Mesmo esquema das Novidades: fonte com
+// rascunhos e espelho que o app lê, na mesma transação.
+export {saveAppGuide} from "./app-guide";
+
 // NexaSquad: regras do programa de embaixadores, versionadas. Escrita só por callable.
 export {saveSquadRules} from "./squad-rules";
 

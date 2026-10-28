@@ -127,46 +127,59 @@ describe('OgInscricoesListComponent', () => {
     expect(lgpd.map((n) => n.classList.contains('ok'))).toEqual([true, false]);
   });
 
-  /** O nome da dupla sai dos apelidos; pra saber QUEM é cada atleta o organizador precisa do
-   *  cadastro na própria linha, sem abrir gaveta por gaveta. */
-  describe('identificação do atleta na linha', () => {
-    it('mostra nome completo, apelido e e-mail de cada atleta', async () => {
-      const el = await render([
-        row({
-          athletes: [
-            athlete({ fullName: 'Ana Paula Souza', nickname: 'Aninha', email: 'ana@exemplo.com' }),
-            athlete({ uid: 'u2', name: 'Bia', fullName: 'Beatriz Costa', nickname: 'Bia', email: 'bia@exemplo.com' }),
-          ],
-        }),
-      ]);
-      const people = [...el.querySelectorAll('.og-insc-row .og-insc-person')] as HTMLElement[];
+  /** O nome da dupla sai dos apelidos; pra saber QUEM é cada atleta o organizador abre a gaveta,
+   *  que traz o cadastro: nome completo, apelido e e-mail. A linha fica só com o nome da dupla. */
+  describe('identificação do atleta na gaveta', () => {
+    async function openWith(athletes: InscricaoAthlete[]): Promise<HTMLElement> {
+      fixture.componentRef.setInput('rows', [row({ athletes })]);
+      fixture.componentRef.setInput('openId', 'i1');
+      await fixture.whenStable();
+      return fixture.nativeElement as HTMLElement;
+    }
 
-      expect(people.map((p) => p.querySelector('.p-name')?.textContent?.trim())).toEqual([
-        'Ana Paula Souza',
-        'Beatriz Costa',
+    function text(node: Element | null | undefined): string {
+      return node?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+    }
+
+    it('mostra nome completo, apelido e e-mail de cada atleta', async () => {
+      const el = await openWith([
+        athlete({ fullName: 'Ana Paula Souza', nickname: 'Aninha', email: 'ana@exemplo.com' }),
+        athlete({ uid: 'u2', name: 'Bia', fullName: 'Beatriz Costa', nickname: 'Bia', email: 'bia@exemplo.com' }),
       ]);
-      expect(people.map((p) => p.querySelector('.p-nick')?.textContent?.trim())).toEqual(['“Aninha”', '“Bia”']);
-      expect(people.map((p) => p.querySelector('.p-mail')?.textContent?.trim())).toEqual([
-        'ana@exemplo.com',
-        'bia@exemplo.com',
+      const items = [...el.querySelectorAll('.og-insc-athletes li')];
+
+      expect(items.map((li) => text(li.querySelector('.nm')))).toEqual([
+        'Ana Paula Souza “Aninha”',
+        'Beatriz Costa “Bia”',
       ]);
-      // A linha é cortada com reticências; o title tem de devolver tudo.
-      expect(people[0].title).toBe('Ana Paula Souza “Aninha” · ana@exemplo.com');
+      const mails = items.map((li) => li.querySelector('.mail') as HTMLAnchorElement);
+      expect(mails.map((a) => text(a))).toEqual(['ana@exemplo.com', 'bia@exemplo.com']);
+      expect(mails[1].getAttribute('href')).toBe('mailto:bia@exemplo.com');
     });
 
     it('sem apelido nem e-mail (contato ainda não chegou), só o nome', async () => {
-      const el = await render([row({ athletes: [athlete({ fullName: 'Ana Paula' })] })]);
-      const person = el.querySelector('.og-insc-person') as HTMLElement;
+      const el = await openWith([athlete({ fullName: 'Ana Paula' })]);
 
-      expect(person.querySelector('.p-nick')).toBeNull();
-      expect(person.querySelector('.p-mail')).toBeNull();
-      expect(person.textContent?.trim()).toBe('Ana Paula');
+      expect(text(el.querySelector('.og-insc-athletes .nm'))).toBe('Ana Paula');
+      expect(el.querySelector('.og-insc-athletes .nick')).toBeNull();
+      expect(el.querySelector('.og-insc-athletes .mail')).toBeNull();
     });
 
-    it('linha sem elenco resolvido não mostra pessoa nenhuma', async () => {
-      const el = await render([row({ athletes: [athlete({ uid: '', fullName: '', name: 'Dupla antiga' })] })]);
+    it('linha sem elenco resolvido mostra o nome da dupla', async () => {
+      const el = await openWith([athlete({ uid: '', fullName: '', name: 'Dupla antiga' })]);
 
-      expect(el.querySelector('.og-insc-people')).toBeNull();
+      expect(text(el.querySelector('.og-insc-athletes .nm'))).toBe('Dupla antiga');
+    });
+
+    it('nome completo e e-mail não vazam pra linha da lista', async () => {
+      fixture.componentRef.setInput('rows', [
+        row({ athletes: [athlete({ fullName: 'Ana Paula Souza', nickname: 'Aninha', email: 'ana@exemplo.com' })] }),
+      ]);
+      await fixture.whenStable();
+      const rowText = (fixture.nativeElement as HTMLElement).querySelector('.og-insc-row')?.textContent ?? '';
+
+      expect(rowText).not.toContain('Souza');
+      expect(rowText).not.toContain('ana@exemplo.com');
     });
   });
 

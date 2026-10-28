@@ -12,6 +12,9 @@ function athlete(over: Partial<InscricaoAthlete> = {}): InscricaoAthlete {
   return {
     uid: 'u1',
     name: 'Ana Paula',
+    fullName: 'Ana Paula',
+    nickname: '',
+    email: '',
     photoUrl: null,
     lgpdAccepted: true,
     phone: '',
@@ -122,6 +125,49 @@ describe('OgInscricoesListComponent', () => {
 
     const lgpd = [...drawers[0].querySelectorAll('.og-insc-athletes .lgpd')];
     expect(lgpd.map((n) => n.classList.contains('ok'))).toEqual([true, false]);
+  });
+
+  /** O nome da dupla sai dos apelidos; pra saber QUEM é cada atleta o organizador precisa do
+   *  cadastro na própria linha, sem abrir gaveta por gaveta. */
+  describe('identificação do atleta na linha', () => {
+    it('mostra nome completo, apelido e e-mail de cada atleta', async () => {
+      const el = await render([
+        row({
+          athletes: [
+            athlete({ fullName: 'Ana Paula Souza', nickname: 'Aninha', email: 'ana@exemplo.com' }),
+            athlete({ uid: 'u2', name: 'Bia', fullName: 'Beatriz Costa', nickname: 'Bia', email: 'bia@exemplo.com' }),
+          ],
+        }),
+      ]);
+      const people = [...el.querySelectorAll('.og-insc-row .og-insc-person')] as HTMLElement[];
+
+      expect(people.map((p) => p.querySelector('.p-name')?.textContent?.trim())).toEqual([
+        'Ana Paula Souza',
+        'Beatriz Costa',
+      ]);
+      expect(people.map((p) => p.querySelector('.p-nick')?.textContent?.trim())).toEqual(['“Aninha”', '“Bia”']);
+      expect(people.map((p) => p.querySelector('.p-mail')?.textContent?.trim())).toEqual([
+        'ana@exemplo.com',
+        'bia@exemplo.com',
+      ]);
+      // A linha é cortada com reticências; o title tem de devolver tudo.
+      expect(people[0].title).toBe('Ana Paula Souza “Aninha” · ana@exemplo.com');
+    });
+
+    it('sem apelido nem e-mail (contato ainda não chegou), só o nome', async () => {
+      const el = await render([row({ athletes: [athlete({ fullName: 'Ana Paula' })] })]);
+      const person = el.querySelector('.og-insc-person') as HTMLElement;
+
+      expect(person.querySelector('.p-nick')).toBeNull();
+      expect(person.querySelector('.p-mail')).toBeNull();
+      expect(person.textContent?.trim()).toBe('Ana Paula');
+    });
+
+    it('linha sem elenco resolvido não mostra pessoa nenhuma', async () => {
+      const el = await render([row({ athletes: [athlete({ uid: '', fullName: '', name: 'Dupla antiga' })] })]);
+
+      expect(el.querySelector('.og-insc-people')).toBeNull();
+    });
   });
 
   /** O telefone é PII: fica na gaveta, nunca na linha que o organizador varre de olho — e cada

@@ -22,13 +22,18 @@ interface ContactsResponse {
   contacts?: Record<string, Partial<AthleteContact>>;
 }
 
-/** Telefones por uid. O contato é acessório da tela de inscrições: se o callable falhar (sem
- *  permissão, function não deployada, rede), a lista continua funcionando — só sem o botão de
- *  contato. Por isso o erro vira mapa vazio em vez de derrubar o carregamento inteiro. */
-export async function fetchAthletePhones(tournamentId: string): Promise<Map<string, string>> {
+function str(v: unknown): string {
+  return typeof v === 'string' ? v.trim() : '';
+}
+
+/** Contatos por uid (nome completo, apelido, telefone e e-mail do cadastro). O contato é
+ *  acessório da tela de inscrições: se o callable falhar (sem permissão, function não deployada,
+ *  rede), a lista continua funcionando — só sem esses dados. Por isso o erro vira mapa vazio em
+ *  vez de derrubar o carregamento inteiro. */
+export async function fetchAthleteContacts(tournamentId: string): Promise<Map<string, AthleteContact>> {
   const tid = tournamentId.trim();
-  const phones = new Map<string, string>();
-  if (!tid) return phones;
+  const contacts = new Map<string, AthleteContact>();
+  if (!tid) return contacts;
 
   try {
     const result = await httpsCallable<{ tournamentId: string }, ContactsResponse>(
@@ -37,11 +42,16 @@ export async function fetchAthletePhones(tournamentId: string): Promise<Map<stri
     )({ tournamentId: tid });
 
     for (const [uid, contact] of Object.entries(result.data?.contacts ?? {})) {
-      const phone = typeof contact?.phoneNumber === 'string' ? contact.phoneNumber.trim() : '';
-      if (phone) phones.set(uid, phone);
+      contacts.set(uid, {
+        uid,
+        fullName: str(contact?.fullName),
+        nickname: str(contact?.nickname),
+        phoneNumber: str(contact?.phoneNumber),
+        email: str(contact?.email),
+      });
     }
   } catch {
     return new Map();
   }
-  return phones;
+  return contacts;
 }

@@ -1,3 +1,4 @@
+import type { AthleteContact } from '../data/athlete-contacts-repository';
 import { EMPTY_INSCRIPTION_UNIFORM, type TournamentInscription } from '../data/inscriptions-repository';
 import { EMPTY_TOURNAMENT_COLLECTED } from '../data/tournament-collected';
 import type { OrganizerTournament, OrganizerTournamentCategory } from '../data/tournament.model';
@@ -5,6 +6,10 @@ import { buildInscricaoRows } from './inscricoes.rows';
 
 function participant(uid: string, name: string) {
   return { uid, name, photoUrl: null, levelsBySport: {}, legacyLevel: null };
+}
+
+function contact(uid: string, over: Partial<AthleteContact> = {}): [string, AthleteContact] {
+  return [uid, { uid, fullName: '', nickname: '', phoneNumber: '', email: '', ...over }];
 }
 
 function inscription(over: Partial<TournamentInscription> = {}): TournamentInscription {
@@ -117,8 +122,61 @@ describe('buildInscricaoRows', () => {
   });
 
   it('casa o telefone com o atleta pelo uid', () => {
-    const rows = buildInscricaoRows([inscription()], tournament(), new Map([['u2', '11988887777']]));
+    const rows = buildInscricaoRows(
+      [inscription()],
+      tournament(),
+      new Map([contact('u2', { phoneNumber: '11988887777' })]),
+    );
     expect(rows[0]?.athletes.map((a) => a.phone)).toEqual(['', '11988887777']);
+  });
+
+  // O organizador identifica o atleta pelo cadastro, não pelo apelido do perfil público: dois
+  // "Bia" no mesmo torneio só se separam pelo nome completo e pelo e-mail.
+  it('casa nome completo, apelido e e-mail com o atleta pelo uid', () => {
+    const rows = buildInscricaoRows(
+      [inscription()],
+      tournament(),
+      new Map([
+        contact('u1', { fullName: 'Ana Clara Souza', nickname: 'Ana', email: 'ana@exemplo.com' }),
+        contact('u2', { fullName: 'Beatriz Lima', nickname: 'Bia', email: 'bia@exemplo.com' }),
+      ]),
+    );
+    expect(rows[0]?.athletes.map((a) => [a.fullName, a.nickname, a.email])).toEqual([
+      ['Ana Clara Souza', 'Ana', 'ana@exemplo.com'],
+      ['Beatriz Lima', 'Bia', 'bia@exemplo.com'],
+    ]);
+  });
+
+  it('sem contato, o nome completo cai no nome do perfil e o e-mail fica vazio', () => {
+    const atleta = buildInscricaoRows([inscription()], tournament(), new Map())[0]?.athletes[0];
+    expect([atleta?.fullName, atleta?.nickname, atleta?.email]).toEqual(['Ana', '', '']);
+  });
+
+  // Cadastro sem nome completo cai no nome do perfil, que É o apelido: mostrar os dois seria
+  // "Bia “Bia”".
+  it('esconde o apelido quando ele repete o nome completo', () => {
+    const atleta = buildInscricaoRows(
+      [inscription()],
+      tournament(),
+      new Map([contact('u2', { nickname: 'bia' })]),
+    )[0]?.athletes[1];
+    expect([atleta?.fullName, atleta?.nickname]).toEqual(['Bia', '']);
+  });
+
+  it('a busca acha o atleta pelo nome completo, pelo apelido e pelo e-mail', () => {
+    const search = buildInscricaoRows(
+      [inscription()],
+      tournament(),
+      new Map([contact('u2', { fullName: 'Beatriz Gonçalves', nickname: 'Bizinha', email: 'Bia.G@exemplo.com' })]),
+    )[0]?.search;
+    expect(search).toContain('beatriz goncalves');
+    expect(search).toContain('bizinha');
+    expect(search).toContain('bia.g@exemplo.com');
+  });
+
+  it('linha sem elenco resolvido não inventa nome completo nem e-mail', () => {
+    const atleta = buildInscricaoRows([inscription({ participants: [] })], tournament(), new Map())[0]?.athletes[0];
+    expect([atleta?.uid, atleta?.name, atleta?.fullName, atleta?.email]).toEqual(['', 'Ana / Bia', '', '']);
   });
 
   // Na lista viva os contatos chegam DEPOIS das inscrições (callable à parte): a linha tem de

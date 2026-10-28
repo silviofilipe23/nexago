@@ -1,6 +1,6 @@
 import { participantUnit } from '../data/team-size';
 import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
-import { fetchAthletePhones } from '../data/athlete-contacts-repository';
+import { fetchAthleteContacts, type AthleteContact } from '../data/athlete-contacts-repository';
 import { watchInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { formatPhoneBR } from '../data/phone-contact';
 import { environment } from '../../../environments/environment';
@@ -48,12 +48,12 @@ import {
 import { buildInscricaoRows } from './inscricoes.rows';
 
 /** Janela pra juntar inscrições que entram em rajada numa única busca de contatos. */
-const PHONES_COALESCE_MS = 10_000;
+const CONTACTS_COALESCE_MS = 10_000;
 
 /** Quanto esperar pra buscar os contatos de novo: `null` = ninguém novo na lista (não gasta
- *  invocação de Cloud Function), `0` = a lista acabou de chegar e a tela ainda não tem telefone
+ *  invocação de Cloud Function), `0` = a lista acabou de chegar e a tela ainda não tem contato
  *  nenhum, `coalesceMs` = entrou atleta novo e a busca espera a rajada assentar. */
-export function phonesRefreshDelay(
+export function contactsRefreshDelay(
   uids: readonly string[],
   asked: ReadonlySet<string>,
   coalesceMs: number,
@@ -105,7 +105,7 @@ interface PendingConfirm {
         <og-icon name="search" [size]="15" />
         <input
           type="search"
-          placeholder="Buscar dupla, atleta ou categoria"
+          placeholder="Buscar dupla, atleta, e-mail ou categoria"
           aria-label="Buscar inscrição por dupla, atleta ou categoria"
           [value]="query()"
           (input)="onQueryInput($event)"
@@ -334,17 +334,17 @@ export class InscricoesComponent {
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   protected readonly pendingConfirm = signal<PendingConfirm | null>(null);
   protected readonly tournament = signal<OrganizerTournament | null>(null);
-  /** Inscrições cruas do listener. As linhas da tela saem daqui + torneio + telefones, que
+  /** Inscrições cruas do listener. As linhas da tela saem daqui + torneio + contatos, que
    *  chegam em momentos diferentes: quem chegar depois só remonta as linhas, sem nova ida à rede. */
   private readonly inscriptions = signal<TournamentInscription[]>([]);
-  private readonly phones = signal<ReadonlyMap<string, string>>(new Map());
+  private readonly contacts = signal<ReadonlyMap<string, AthleteContact>>(new Map());
   protected readonly rows = computed<InscricaoRow[]>(() =>
-    buildInscricaoRows(this.inscriptions(), this.tournament(), this.phones()),
+    buildInscricaoRows(this.inscriptions(), this.tournament(), this.contacts()),
   );
 
-  /** Uids que a última busca de contatos já cobriu — ver `schedulePhonesRefresh`. */
-  private readonly knownPhoneUids = new Set<string>();
-  private phonesTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Uids que a última busca de contatos já cobriu — ver `scheduleContactsRefresh`. */
+  private readonly knownContactUids = new Set<string>();
+  private contactsTimer: ReturnType<typeof setTimeout> | null = null;
   /** O deep link abre a gaveta UMA vez: reabrir a cada inscrição que entra roubaria o clique
    *  do organizador no meio da operação. */
   private deepLinkOpened = false;
@@ -414,7 +414,7 @@ export class InscricoesComponent {
   protected readonly emptyHint = computed(() => {
     if (this.rows().length === 0) return 'Assim que alguém se inscrever, a dupla aparece aqui.';
     const q = this.query().trim();
-    if (q !== '' && this.scoped().length === 0) return 'Busque por nome da dupla, de um atleta ou da categoria.';
+    if (q !== '' && this.scoped().length === 0) return 'Busque pela dupla, pelo atleta (nome, apelido ou e-mail) ou pela categoria.';
     return 'Troque de situação ou limpe os filtros para ver as outras inscrições.';
   });
 
@@ -425,8 +425,8 @@ export class InscricoesComponent {
       const tid = this.id();
       this.tournament.set(null);
       this.inscriptions.set([]);
-      this.phones.set(new Map());
-      this.knownPhoneUids.clear();
+      this.contacts.set(new Map());
+      this.knownContactUids.clear();
       this.deepLinkOpened = false;
       this.categoryFilter.set(null);
       this.query.set('');
@@ -457,7 +457,7 @@ export class InscricoesComponent {
         stop();
         stopPasses();
         stopLinks();
-        this.cancelPhonesRefresh();
+        this.cancelContactsRefresh();
       });
     });
   }
@@ -479,7 +479,7 @@ export class InscricoesComponent {
     this.inscriptions.set(inscriptions);
     this.loading.set(false);
     this.openFromDeepLink();
-    this.schedulePhonesRefresh(tid, inscriptionUids(inscriptions));
+    this.scheduleContactsRefresh(tid, inscriptionUids(inscriptions));
   }
 
   private onLoadError(error: unknown): void {
@@ -494,31 +494,31 @@ export class InscricoesComponent {
    *  fica FORA do listener: é buscado quando a lista chega e, depois, só quando aparece atleta
    *  que a última busca não cobria — a rajada de inscrições que entra junta vira uma chamada só.
    *  Sem esse recorte, cada inscrição nova custaria uma invocação de Cloud Function. */
-  private schedulePhonesRefresh(tid: string, uids: readonly string[]): void {
-    if (this.phonesTimer != null) return;
-    const delay = phonesRefreshDelay(uids, this.knownPhoneUids, PHONES_COALESCE_MS);
+  private scheduleContactsRefresh(tid: string, uids: readonly string[]): void {
+    if (this.contactsTimer != null) return;
+    const delay = contactsRefreshDelay(uids, this.knownContactUids, CONTACTS_COALESCE_MS);
     if (delay == null) return;
-    this.phonesTimer = setTimeout(() => {
-      this.phonesTimer = null;
-      void this.loadPhones(tid);
+    this.contactsTimer = setTimeout(() => {
+      this.contactsTimer = null;
+      void this.loadContacts(tid);
     }, delay);
   }
 
-  private async loadPhones(tid: string): Promise<void> {
+  private async loadContacts(tid: string): Promise<void> {
     // A cobertura é marcada no DISPARO: o callable devolve os contatos das inscrições que
     // existiam no servidor naquele instante, e quem entrar depois segue "não perguntado".
     const asked = inscriptionUids(this.inscriptions());
-    const phones = await fetchAthletePhones(tid);
+    const contacts = await fetchAthleteContacts(tid);
     if (this.id() !== tid) return;
-    for (const uid of asked) this.knownPhoneUids.add(uid);
+    for (const uid of asked) this.knownContactUids.add(uid);
     // Mescla em vez de substituir: o callable engole o próprio erro e volta vazio, e uma falha
-    // na atualização não pode apagar os telefones que já estavam na tela.
-    this.phones.set(new Map([...this.phones(), ...phones]));
+    // na atualização não pode apagar os contatos que já estavam na tela.
+    this.contacts.set(new Map([...this.contacts(), ...contacts]));
   }
 
-  private cancelPhonesRefresh(): void {
-    if (this.phonesTimer != null) clearTimeout(this.phonesTimer);
-    this.phonesTimer = null;
+  private cancelContactsRefresh(): void {
+    if (this.contactsTimer != null) clearTimeout(this.contactsTimer);
+    this.contactsTimer = null;
   }
 
   /** Notificação de nova inscrição/pagamento/cancelamento leva direto pra dupla — expande a
@@ -838,12 +838,25 @@ export class InscricoesComponent {
   /** Exporta o que está na tela (mesmos filtros e busca), separado por `;` e com BOM — é assim
    *  que o Excel em pt-BR abre o arquivo já nas colunas certas e com acento. */
   protected exportCsv(): void {
-    const head = ['Dupla', 'Atletas', 'Telefones', 'Categoria', 'Inscrita em', 'Pagamento', 'Termo de imagem', 'Cancelamento'];
+    const head = [
+      'Dupla',
+      'Atletas',
+      'Nomes completos',
+      'E-mails',
+      'Telefones',
+      'Categoria',
+      'Inscrita em',
+      'Pagamento',
+      'Termo de imagem',
+      'Cancelamento',
+    ];
     const lines = this.filtered().map((r) => [
       r.name,
       r.athletes.map((a) => a.name).join(' | '),
-      // Mesmo separador e MESMA ordem da coluna "Atletas": quem lê a planilha casa telefone com
-      // atleta pela posição, então quem não tem número ocupa a posição com '—' em vez de sumir.
+      // Mesmo separador e MESMA ordem da coluna "Atletas": quem lê a planilha casa nome, e-mail
+      // e telefone com o atleta pela posição, então o dado que falta ocupa a posição com '—'.
+      r.athletes.map((a) => a.fullName || '—').join(' | '),
+      r.athletes.map((a) => a.email || '—').join(' | '),
       r.athletes.map((a) => (a.phone ? formatPhoneBR(a.phone) : '—')).join(' | '),
       r.categoria,
       r.dateLong,

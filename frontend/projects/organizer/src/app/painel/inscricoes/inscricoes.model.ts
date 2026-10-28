@@ -53,7 +53,16 @@ export interface InscricaoAthlete {
   /** `''` em inscrição sem elenco resolvido (fallback do nome da dupla) — nesse caso não dá
    *  pra mirar ação de pagamento neste atleta. */
   uid: string;
+  /** Nome de exibição do perfil público (apelido primeiro) — o que avatar, gaveta e mensagens usam. */
   name: string;
+  /** Nome completo do cadastro (`getTournamentAthleteContacts`); enquanto o contato não chega,
+   *  ou sem cadastro, cai no `name`. `''` só na linha sem elenco resolvido. */
+  fullName: string;
+  /** Apelido do cadastro; `''` quando não há, ou quando repetiria o `fullName`. */
+  nickname: string;
+  /** E-mail do cadastro; `''` = contato ainda não chegou ou indisponível. Fica na linha da lista:
+   *  é o que o organizador usa pra saber QUEM é o atleta quando dois nomes se parecem. */
+  email: string;
   photoUrl: string | null;
   /** Aceitou o termo de uso de imagem/LGPD nesta inscrição. */
   lgpdAccepted: boolean;
@@ -100,7 +109,8 @@ export interface InscricaoRow {
   /** Data e hora por extenso para a gaveta ("12 de agosto de 2026 às 14:32"). */
   dateLong: string;
   createdAt: Date | null;
-  /** Texto normalizado (sem acento, minúsculo) que a busca varre: dupla + atletas + categoria. */
+  /** Texto normalizado (sem acento, minúsculo) que a busca varre: dupla + atletas (nome,
+   *  nome completo, apelido e e-mail) + categoria. */
   search: string;
 }
 

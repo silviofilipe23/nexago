@@ -95,6 +95,7 @@ import {
   buildOrganizerRegistrationDoc,
   defaultOrganizerTeamName,
   effectiveUniformCategory,
+  organizerLgpdAcceptanceUpdate,
   organizerRegistrationNotification,
   organizerRegistrationNotificationUrl,
   organizerRegistrationStamp,
@@ -625,6 +626,12 @@ export const organizerCreateTeamRegistration = onCall({
           organizerUid,
           FieldValue.serverTimestamp(),
         ),
+        ...organizerLgpdAcceptanceUpdate({
+          athleteUids: [baseOwnerUid, joiningUid],
+          alreadyAccepted: baseReg.lgpdAcceptedUids,
+          timestamp: FieldValue.serverTimestamp(),
+          arrayUnion: (...uids) => FieldValue.arrayUnion(...uids),
+        }),
       };
 
       // Slot do uniforme segue quem é player1 na inscrição que sobrevive — não a ordem em

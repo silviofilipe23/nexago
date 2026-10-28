@@ -1,5 +1,6 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
+import {LGPD_TERM_VERSION} from "./tournament-partner-invite";
 import {
   assertAthleteUidsMatchCategorySize,
   buildOrganizerNamedTeamDoc,
@@ -10,6 +11,7 @@ import {
   isOrganizerRegistered,
   organizerRegistrationNotification,
   organizerRegistrationNotificationUrl,
+  organizerLgpdAcceptanceUpdate,
   organizerRegistrationStamp,
   parseCreateTeamRegistrationInput,
   resolveJoiningUid,
@@ -269,7 +271,7 @@ describe("buildOrganizerRegistrationDoc", () => {
     timestamp: TS,
   };
 
-  it("nasce pendente, com procedência e sem aceite de LGPD", () => {
+  it("nasce pendente de pagamento, com procedência e com o termo de imagem aceito", () => {
     const doc = buildOrganizerRegistrationDoc(params);
     assert.deepEqual(doc, {
       teamId: "team-1",
@@ -282,10 +284,28 @@ describe("buildOrganizerRegistrationDoc", () => {
       createdVia: "organizer",
       organizerRegisteredByUid: "org-1",
       organizerRegisteredAt: TS,
+      // Quem inscreve pelo painel aceita o termo em nome dos atletas — mesmo instante do
+      // carimbo do organizador, que é o que identifica a procedência do aceite.
+      lgpdAcceptedUids: ["uid-a", "uid-b"],
+      lgpdAcceptedAt: {"uid-a": TS, "uid-b": TS},
+      lgpdTermVersion: LGPD_TERM_VERSION,
     });
-    // O organizador não consente pelo atleta: a inscrição nasce sem aceite.
-    assert.equal("lgpdAcceptedUids" in doc, false);
-    assert.equal("lgpdTermVersion" in doc, false);
+  });
+
+  it("equipe e individual também nascem com o termo aceito por todo o elenco", () => {
+    const team = buildOrganizerRegistrationDoc({
+      ...params,
+      athleteUids: ["a", "b", "c"],
+      teamSize: 3,
+      teamName: "Os Tubarões",
+    });
+    assert.deepEqual(team.lgpdAcceptedUids, ["a", "b", "c"]);
+    assert.deepEqual(team.lgpdAcceptedAt, {a: TS, b: TS, c: TS});
+
+    const solo = buildOrganizerRegistrationDoc({
+      ...params, athleteUids: ["a"], teamSize: 1, teamName: null,
+    });
+    assert.deepEqual(solo.lgpdAcceptedUids, ["a"]);
   });
 
   it("categoria lotada com fila nasce em espera", () => {
@@ -486,5 +506,54 @@ describe("organizador inscreve em categoria individual (fase 4a)", () => {
       tournamentName: "Open", categoryName: "Simples", isPaid: true, teamSize: 1,
     });
     assert.match(body, /^Você está inscrito em Open · Simples\./);
+  });
+});
+
+/**
+ * Dupla fechada pelo organizador sobre a reserva solo que um atleta já tinha: o aceite do termo
+ * é gravado para quem ainda não aceitou, sem reescrever o aceite que o próprio atleta deu.
+ */
+describe("organizerLgpdAcceptanceUpdate", () => {
+  const union = (...uids: string[]) => ({union: uids});
+
+  it("aceita os dois quando a reserva não tinha aceite nenhum", () => {
+    assert.deepEqual(
+      organizerLgpdAcceptanceUpdate({
+        athleteUids: ["a", "b"],
+        alreadyAccepted: undefined,
+        timestamp: TS,
+        arrayUnion: union,
+      }),
+      {
+        "lgpdAcceptedUids": {union: ["a", "b"]},
+        "lgpdAcceptedAt.a": TS,
+        "lgpdAcceptedAt.b": TS,
+        "lgpdTermVersion": LGPD_TERM_VERSION,
+      },
+    );
+  });
+
+  it("preserva o aceite que o atleta já tinha dado e só acrescenta o parceiro", () => {
+    const update = organizerLgpdAcceptanceUpdate({
+      athleteUids: ["a", "b"],
+      alreadyAccepted: ["a"],
+      timestamp: TS,
+      arrayUnion: union,
+    });
+    assert.deepEqual(update.lgpdAcceptedUids, {union: ["b"]});
+    assert.equal("lgpdAcceptedAt.a" in update, false);
+    assert.equal(update["lgpdAcceptedAt.b"], TS);
+  });
+
+  it("todo mundo já aceitou: não grava nada", () => {
+    assert.deepEqual(
+      organizerLgpdAcceptanceUpdate({
+        athleteUids: ["a", "b"],
+        alreadyAccepted: ["b", "a"],
+        timestamp: TS,
+        arrayUnion: union,
+      }),
+      {},
+    );
   });
 });

@@ -16,7 +16,7 @@ import {
   ORGANIZER_DIRECT_PAYMENT_METHOD,
   organizerDirectConfirmPaidAmount,
 } from "./organizer-category-ops-payments";
-import {parseUniformPayload} from "./tournament-partner-invite";
+import {LGPD_TERM_VERSION, parseUniformPayload} from "./tournament-partner-invite";
 import type {TournamentCategory, UniformPayload} from "./tournament-partner-invite";
 import {
   INDIVIDUAL_TEAM_SIZE,
@@ -280,8 +280,54 @@ export function isOrganizerRegistered(
 }
 
 /**
+ * Termo de uso de imagem/LGPD aceito em nome dos atletas que o ORGANIZADOR inscreve pelo painel
+ * (pedido do dono em 27/10/2026; até então a inscrição nascia "pendente" e o aviso ficava na
+ * lista sem ter como resolver). Mesmos campos do aceite do próprio atleta.
+ *
+ * Sem campo novo de procedência: o `lgpdAcceptedAt` de quem o organizador aceitou é o MESMO
+ * instante de `organizerRegisteredAt` (`organizerRegistrationStamp`), e o carimbo diz quem foi.
+ */
+function organizerLgpdAcceptanceFields(
+  athleteUids: readonly string[],
+  timestamp: unknown,
+): Record<string, unknown> {
+  return {
+    lgpdAcceptedUids: [...athleteUids],
+    lgpdAcceptedAt: Object.fromEntries(athleteUids.map((uid) => [uid, timestamp])),
+    lgpdTermVersion: LGPD_TERM_VERSION,
+  };
+}
+
+/**
+ * O mesmo aceite para a dupla que o organizador fecha sobre a reserva solo de um atleta: só
+ * entra quem ainda não aceitou — o aceite que o atleta deu por conta própria (com o instante
+ * dele) não é reescrito. `arrayUnion` vem de fora para o core seguir sem Admin SDK.
+ */
+export function organizerLgpdAcceptanceUpdate(params: {
+  athleteUids: readonly string[];
+  alreadyAccepted: unknown;
+  timestamp: unknown;
+  arrayUnion: (...uids: string[]) => unknown;
+}): Record<string, unknown> {
+  const accepted = new Set(
+    Array.isArray(params.alreadyAccepted) ?
+      params.alreadyAccepted.map((uid) => String(uid)) :
+      [],
+  );
+  const missing = params.athleteUids.filter((uid) => uid && !accepted.has(uid));
+  if (missing.length === 0) return {};
+
+  const update: Record<string, unknown> = {
+    lgpdAcceptedUids: params.arrayUnion(...missing),
+    lgpdTermVersion: LGPD_TERM_VERSION,
+  };
+  for (const uid of missing) update[`lgpdAcceptedAt.${uid}`] = params.timestamp;
+  return update;
+}
+
+/**
  * Documento da inscrição nova. Espelha o que o fluxo do atleta grava ao fechar
- * a vaga, mais a procedência do organizador.
+ * a vaga, mais a procedência do organizador e o aceite do termo de imagem.
  */
 export function buildOrganizerRegistrationDoc(
   params: OrganizerRegistrationDocParams,
@@ -312,6 +358,7 @@ export function buildOrganizerRegistrationDoc(
     createdAt: timestamp,
     createdVia: ORGANIZER_CREATED_VIA,
     ...organizerRegistrationStamp(organizerUid, timestamp),
+    ...organizerLgpdAcceptanceFields(athleteUids, timestamp),
     ...(waitlist ? {waitlist: true} : {}),
     // Dupla mantém o shape legado (sem player1Id / partnerPending na inscrição).
     // Equipe e individual espelham o fluxo do atleta, com elenco já completo.

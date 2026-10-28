@@ -60,8 +60,9 @@ export interface InscricaoAthlete {
   fullName: string;
   /** Apelido do cadastro; `''` quando não há, ou quando repetiria o `fullName`. */
   nickname: string;
-  /** E-mail do cadastro; `''` = contato ainda não chegou ou indisponível. Fica na linha da lista:
-   *  é o que o organizador usa pra saber QUEM é o atleta quando dois nomes se parecem. */
+  /** E-mail do cadastro; `''` = contato ainda não chegou ou indisponível. Mostrado na gaveta,
+   *  junto do nome completo e do apelido — é o que separa dois atletas de nome parecido. A linha
+   *  da lista fica só com o nome da dupla; a busca acha pelo e-mail mesmo assim. */
   email: string;
   photoUrl: string | null;
   /** Aceitou o termo de uso de imagem/LGPD nesta inscrição. */

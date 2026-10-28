@@ -11,7 +11,7 @@ import { NxToastService } from '../shared/feedback';
 import { NxPhotoLightboxComponent } from '../shared/media/nx-photo-lightbox.component';
 import { levelLabelOf } from '../data/athlete-level';
 import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
-import { fetchTeamRankingGeneral } from '../data/rankings-repository';
+import { fetchAthleteRankingGeneral, fetchTeamRankingGeneral, fetchTournamentCategoryResultsByYear } from '../data/rankings-repository';
 import {
   currentWinStreak,
   fetchMatchesForTeam,
@@ -20,6 +20,7 @@ import {
   formatTeamTogetherLabel,
   matchIsCompleted,
   teamIsLookingForPartner,
+  teamMemberIds,
   titleTournamentIds,
   type ArenaTeam,
 } from '../data/teams-repository';
@@ -28,6 +29,8 @@ import { fetchTournamentSummariesByIds } from '../data/tournaments-repository';
 import { duoNameOf } from '../profile/public-profile-activity';
 import type { TeamMatchResult, TeamMemberRef, TeamPublicProfile, TeamTitle } from './team-profile.models';
 import { buildTeamMatchResult, buildTeamTournamentRows } from './team-profile-history';
+import { TeamShareDialogComponent } from './share/team-share-dialog.component';
+import { athleteSeasonRanks, teamShareCardDataFrom, teamShareRankDetail, type TeamShareCardData, type TeamShareSource } from './share/team-share-data';
 
 type HistoryTab = 'partidas' | 'torneios';
 
@@ -67,7 +70,7 @@ function memberRef(profile: AthletePublicProfile | undefined, uid: string): Team
 @Component({
   selector: 'app-team-public-profile',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, NxPageLoadingComponent, NxPhotoLightboxComponent],
+  imports: [RouterLink, AtPanelShellComponent, NxPageLoadingComponent, NxPhotoLightboxComponent, TeamShareDialogComponent],
   templateUrl: './team-public-profile.component.html',
   styleUrl: './team-public-profile.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -92,6 +95,18 @@ export class TeamPublicProfileComponent {
   protected readonly historyTab = signal<HistoryTab>('partidas');
   /** `null` = lightbox fechado. Objeto (e não índice) pra `@if` aceitar o 0. */
   protected readonly viewerIndex = signal<{ value: number } | null>(null);
+
+  /** O que o card de compartilhar lê — o mesmo carregamento da tela, com o elenco inteiro. */
+  private readonly shareSource = signal<Omit<TeamShareSource, 'memberDetails'> | null>(null);
+  /** Ranking individual de cada atleta ("#12 NO RANKING 2026"), só para a ficha da dupla. Lido ao
+   *  abrir o card: a tela não mostra, então não custa leitura a quem só visita o perfil. */
+  private readonly memberDetails = signal<ReadonlyMap<string, string> | null>(null);
+  protected readonly shareOpen = signal(false);
+  protected readonly shareData = computed<TeamShareCardData | null>(() => {
+    const source = this.shareSource();
+    return source ? teamShareCardDataFrom({ ...source, memberDetails: this.memberDetails() ?? undefined }) : null;
+  });
+  protected readonly sharePending = computed(() => (this.shareData()?.isDuo ?? false) && this.memberDetails() == null);
 
   protected readonly memberPhotos = computed(() =>
     (this.team()?.members ?? [])
@@ -138,7 +153,8 @@ export class TeamPublicProfileComponent {
       }
 
       const [profiles, matches, generalRanking, registrations] = await Promise.all([
-        fetchPublicProfilesByIds(db, [team.player1Id, team.player2Id]),
+        // Elenco inteiro: equipe nomeada espelha só os dois primeiros em player1Id/player2Id.
+        fetchPublicProfilesByIds(db, teamMemberIds(team)),
         fetchMatchesForTeam(db, projectId, teamId),
         fetchTeamRankingGeneral(db, projectId),
         // Sem as inscrições a aba Torneios ainda mostra os torneios onde a equipe jogou.
@@ -156,7 +172,12 @@ export class TeamPublicProfileComponent {
       // chave ("Vencedor Jogo #5", "1º Grupo A"), não quem jogou. Falha aqui só tira os nomes.
       const opponentIds = recent.map((m) => (m.teamAId === teamId ? m.teamBId : m.teamAId));
       const [tournaments, opponentTeams] = await Promise.all([
-        fetchTournamentSummariesByIds(db, [...matches.map((m) => m.tournamentId), ...registrations.map((r) => r.tournamentId)]),
+        fetchTournamentSummariesByIds(db, [
+          ...matches.map((m) => m.tournamentId),
+          ...registrations.map((r) => r.tournamentId),
+          // O torneio em que a equipe nasceu diz o esporte do card.
+          ...(team.tournamentId ? [team.tournamentId] : []),
+        ]),
         fetchTeamsByIds(db, projectId, opponentIds).catch(() => new Map<string, ArenaTeam>()),
       ]);
       const opponentProfiles = await fetchPublicProfilesByIds(
@@ -189,11 +210,69 @@ export class TeamPublicProfileComponent {
         matches: recentMatches,
         tournaments: buildTeamTournamentRows({ teamId, registrations, matches, tournaments }),
       });
+      this.memberDetails.set(null);
+      this.shareSource.set({
+        team,
+        profiles,
+        matches,
+        tournamentNames,
+        tournamentSport: team.tournamentId ? (tournaments.get(team.tournamentId)?.sport ?? null) : null,
+        rank: rankIndex >= 0 ? rankIndex + 1 : null,
+        points: ranking?.totalPoints ?? 0,
+      });
     } catch {
       this.team.set(null);
+      this.shareSource.set(null);
     } finally {
       this.loading.set(false);
     }
+  }
+
+  protected openShare(): void {
+    const source = this.shareSource();
+    if (!source) return;
+    this.shareOpen.set(true);
+    if (this.shareData()?.isDuo && this.memberDetails() == null) {
+      const teamId = source.team.id;
+      // O botão espera por isto: rede travada não pode prender o card — passado o prazo, sai sem
+      // a linha do ranking individual.
+      const timeout = new Promise<ReadonlyMap<string, string>>((resolve) => setTimeout(() => resolve(new Map()), 8000));
+      void Promise.race([this.loadMemberRankDetails(teamMemberIds(source.team)), timeout]).then((details) => {
+        if (this.shareSource()?.team.id === teamId) this.memberDetails.set(details);
+      });
+    }
+  }
+
+  protected closeShare(): void {
+    this.shareOpen.set(false);
+  }
+
+  /**
+   * "#12 NO RANKING 2026" de cada atleta — o `athletePublicRankingProvider` do app: posição na
+   * temporada (resultados do ano somados para o elenco de cada equipe); fora dela, a do ranking
+   * geral, sem ano. Falha em qualquer leitura só tira a linha: o card sai do mesmo jeito.
+   */
+  private async loadMemberRankDetails(uids: readonly string[]): Promise<ReadonlyMap<string, string>> {
+    const db = this.firestore;
+    const projectId = environment.firebase.projectId;
+    const details = new Map<string, string>();
+    if (!db || !projectId) return details;
+    const year = new Date().getFullYear();
+    try {
+      const results = await fetchTournamentCategoryResultsByYear(db, projectId, year).catch(() => []);
+      const teams = results.length > 0 ? await fetchTeamsByIds(db, projectId, results.map((r) => r.teamId)) : new Map<string, ArenaTeam>();
+      const season = athleteSeasonRanks(results, teams);
+      const general = uids.some((uid) => !season.has(uid)) ? await fetchAthleteRankingGeneral(db, projectId).catch(() => []) : [];
+      for (const uid of uids) {
+        const seasonRank = season.get(uid);
+        const generalIndex = general.findIndex((row) => row.id === uid);
+        const detail = seasonRank != null ? teamShareRankDetail(seasonRank, year) : teamShareRankDetail(generalIndex >= 0 ? generalIndex + 1 : null, null);
+        if (detail) details.set(uid, detail);
+      }
+    } catch {
+      // Sem a linha do ranking individual — o resto do card não depende dela.
+    }
+    return details;
   }
 
   protected setHistoryTab(tab: HistoryTab): void {

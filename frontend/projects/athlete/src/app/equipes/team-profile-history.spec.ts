@@ -11,6 +11,7 @@ function makeMatch(overrides: Partial<ArenaMatch> = {}): ArenaMatch {
     tournamentId: 't1',
     categoryId: 'cat-b',
     matchType: 'knockout',
+    round: 0,
     status: 'completed',
     winnerId: 'mine',
     teamAId: 'mine',
@@ -37,6 +38,8 @@ function makeTeam(overrides: Partial<ArenaTeam> = {}): ArenaTeam {
     teamSize: null,
     registrationPaid: true,
     memberUids: [],
+    captainUid: null,
+    tournamentId: null,
     createdAt: null,
     ...overrides,
   };

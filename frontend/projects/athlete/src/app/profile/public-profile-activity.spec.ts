@@ -12,7 +12,7 @@ import {
 } from './public-profile-activity';
 
 function makeTeam(overrides: Partial<ArenaTeam> = {}): ArenaTeam {
-  return { id: 'teamB', player1Id: 'u1', player2Id: 'u2', teamName: null, gender: null, teamSize: null, registrationPaid: true, memberUids: [], createdAt: null, ...overrides };
+  return { id: 'teamB', player1Id: 'u1', player2Id: 'u2', teamName: null, gender: null, teamSize: null, registrationPaid: true, memberUids: [], captainUid: null, tournamentId: null, createdAt: null, ...overrides };
 }
 
 function profileMap(entries: Record<string, string>): Map<string, AthletePublicProfile> {
@@ -25,6 +25,7 @@ function makeMatch(overrides: Partial<ArenaMatch> = {}): ArenaMatch {
     tournamentId: 't1',
     categoryId: 'c1',
     matchType: 'Final',
+    round: 0,
     status: 'Completed',
     winnerId: 'teamA',
     teamAId: 'teamA',

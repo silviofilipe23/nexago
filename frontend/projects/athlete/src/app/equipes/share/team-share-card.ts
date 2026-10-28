@@ -230,15 +230,27 @@ function drawStripes(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
   ctx.restore();
 }
 
-/** Foto preenchendo o retângulo sem distorcer (`BoxFit.cover`). */
-function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number): void {
+/**
+ * Foto preenchendo o retângulo sem distorcer (`BoxFit.cover`).
+ *
+ * `fromCircle`: a foto de perfil sai do recorte redondo do app — só o círculo inscrito tem
+ * imagem, o resto é branco (ou transparente). Num bloco retangular o zoom sobe até o retângulo
+ * inteiro caber dentro desse círculo (a meia-diagonal vira o raio); senão os cantos brancos
+ * aparecem. No avatar redondo não precisa: círculo dentro de círculo já fecha.
+ */
+function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number, fromCircle = false): void {
   const iw = img.naturalWidth || img.width;
   const ih = img.naturalHeight || img.height;
   if (!iw || !ih) return;
-  const scale = Math.max(w / iw, h / ih);
+  const scale = Math.max(w / iw, h / ih, fromCircle ? circleCropScale(w, h, iw, ih) : 0);
   const sw = w / scale;
   const sh = h / scale;
   ctx.drawImage(img, (iw - sw) / 2, (ih - sh) / 2, sw, sh, x, y, w, h);
+}
+
+/** Escala em que o círculo inscrito numa foto `iw × ih` cobre um retângulo `w × h`. */
+export function circleCropScale(w: number, h: number, iw: number, ih: number): number {
+  return Math.hypot(w, h) / Math.min(iw, ih);
 }
 
 /** Matiz e brilho atrás do conteúdo (`radial-gradient` do canvas). */
@@ -543,7 +555,7 @@ function drawPhotoTile(p: Painter, member: TeamShareMember, hue: number, x: numb
   ctx.clip();
   const img = photoOf(p, member);
   if (img) {
-    drawCover(ctx, img, x, y, w, h);
+    drawCover(ctx, img, x, y, w, h, true);
   } else {
     const g = alignedGradient(ctx, x, y, w, h, [-0.35, -1], [0.35, 1]);
     g.addColorStop(0, hsl(hue, 0.28, 0.26));

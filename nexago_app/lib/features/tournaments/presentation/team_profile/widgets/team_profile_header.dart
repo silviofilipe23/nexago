@@ -16,6 +16,7 @@ class TeamProfileHeader extends StatelessWidget {
     super.key,
     required this.profile,
     required this.onBack,
+    this.onShare,
   });
 
   /// Mesma proporção da capa do perfil público — banner largo, sem altura
@@ -28,6 +29,10 @@ class TeamProfileHeader extends StatelessWidget {
 
   final TeamPublicProfile profile;
   final VoidCallback onBack;
+
+  /// Abre o card de compartilhar; nulo esconde o botão (dupla à procura de
+  /// parceiro não tem o que mostrar).
+  final VoidCallback? onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +78,13 @@ class TeamProfileHeader extends StatelessWidget {
                         onTap: onBack,
                         icon: Icons.arrow_back_rounded,
                       ),
+                      const Spacer(),
+                      if (onShare != null)
+                        _IconButton(
+                          key: const Key('team-profile-share'),
+                          onTap: onShare!,
+                          icon: Icons.ios_share_rounded,
+                        ),
                     ],
                   ),
                 ),
@@ -80,7 +92,8 @@ class TeamProfileHeader extends StatelessWidget {
               if (profile.ranking.hasRank)
                 Positioned(
                   top: MediaQuery.paddingOf(context).top + 4,
-                  right: 12,
+                  // Ao lado do botão de compartilhar (40 + 8 de respiro).
+                  right: onShare == null ? 12 : 60,
                   child: _RankingBadge(rank: profile.ranking.rank!),
                 ),
               Positioned(
@@ -507,7 +520,7 @@ class _TagChip extends StatelessWidget {
 }
 
 class _IconButton extends StatelessWidget {
-  const _IconButton({required this.onTap, required this.icon});
+  const _IconButton({super.key, required this.onTap, required this.icon});
 
   final VoidCallback onTap;
   final IconData icon;

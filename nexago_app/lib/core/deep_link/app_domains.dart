@@ -42,6 +42,12 @@ abstract final class AppShareLinks {
   static String organizerProfile(String organizerId) =>
       '${AppDomains.athletePortal}/organizadores/$organizerId';
 
+  /// Perfil público da equipe (ou dupla) no portal do atleta — o QR do card
+  /// de compartilhar. Mesma exceção do organizador: `/equipes/**` não é
+  /// reivindicado como App Link, então abre o portal.
+  static String teamProfile(String teamId) =>
+      '${AppDomains.athletePortal}/equipes/$teamId';
+
   /// Convite genérico pra conhecer/baixar o app (indicação, Sand Rank).
   static const String appDownload = AppDomains.site;
 }

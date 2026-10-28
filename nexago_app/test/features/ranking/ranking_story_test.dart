@@ -8,6 +8,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/data/booking_story_photo_picker.dart';
 import 'package:nexago_app/features/arenas/domain/booking_story.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_public_profile_models.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_public_profile_providers.dart';
 import 'package:nexago_app/features/athlete/domain/sand_rank/sand_rank_providers.dart';
 import 'package:nexago_app/features/ranking/domain/ranking_list_models.dart';
 import 'package:nexago_app/features/ranking/domain/ranking_providers.dart';
@@ -15,6 +18,13 @@ import 'package:nexago_app/features/ranking/domain/ranking_story.dart';
 import 'package:nexago_app/features/ranking/presentation/athlete_ranking_page.dart';
 import 'package:nexago_app/features/ranking/presentation/ranking_story_page.dart';
 import 'package:nexago_app/features/ranking/presentation/widgets/ranking_story_card.dart';
+import 'package:nexago_app/features/tournaments/domain/team_discover_models.dart';
+import 'package:nexago_app/features/tournaments/domain/team_profile/team_public_profile_models.dart';
+import 'package:nexago_app/features/tournaments/domain/team_profile/team_public_profile_providers.dart';
+import 'package:nexago_app/features/tournaments/domain/team_profile/team_share_card.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_team.dart';
+import 'package:nexago_app/features/tournaments/presentation/team_profile/share/team_share_card.dart';
+import 'package:nexago_app/features/tournaments/presentation/team_profile/share/team_share_card_page.dart';
 
 /// PNG 1×1 transparente.
 final pixel = base64Decode(
@@ -242,6 +252,51 @@ void main() {
           '4º no ranking geral de duplas de Vôlei de Praia (Feminino)! '
           'Faltam 10 pontos pro 3º.',
         ),
+      );
+    });
+
+    test('linha do recorte para o card da equipe', () {
+      expect(teamStory().rankingLine, 'RANKING 2026 · DUPLAS');
+      expect(
+        teamStory(
+          filter: const RankingPageFilter(
+            mode: RankingListMode.teams,
+            gender: RankingGenderFilter.female,
+          ),
+        ).rankingLine,
+        'RANKING GERAL · DUPLAS · FEMININO',
+      );
+    });
+
+    test('card da equipe troca o ranking geral pelo recorte da lista', () {
+      const card = TeamShareCardData(
+        teamId: 'team-4',
+        name: 'Ana / Bia',
+        isDuo: true,
+        monogram: 'AB',
+        hue: 20,
+        members: [],
+        rosterSize: 2,
+        link: 'https://atleta.nexago.com.br/equipes/team-4',
+        sportLabel: 'Beach Tennis',
+        rank: 30,
+        points: 999,
+        titles: 2,
+      );
+
+      final ranked = teamShareCardForRanking(card, teamStory(myRank: 4));
+
+      expect(ranked.rank, 4);
+      expect(ranked.points, 460);
+      expect(ranked.rankingLabel, 'RANKING 2026 · DUPLAS');
+      expect(ranked.sportLabel, 'Vôlei de Praia');
+      expect(ranked.titles, 2);
+      expect(ranked.name, 'Ana / Bia');
+      expect(
+        teamShareCardText(ranked, TeamShareCardStyle.ranking),
+        '4º no ranking 2026 de duplas de Vôlei de Praia! '
+        'Faltam 10 pontos pro 3º. Perfil da dupla Ana / Bia: '
+        'https://atleta.nexago.com.br/equipes/team-4 #vamosnexa',
       );
     });
   });
@@ -539,6 +594,7 @@ void main() {
       List<RankingListEntry> entries, {
       RankingStoryRequest? storyRequest,
       RankingPageFilter? initialFilter,
+      List<Override> overrides = const [],
     }) async {
       // 400: a fonte Ahem do teste é mais larga que a Sora e, abaixo disso,
       // estoura a barra "Postar no story" do editor (mesmo tamanho da campanha).
@@ -553,6 +609,7 @@ void main() {
             sandRankEnabledProvider.overrideWith((ref) => Stream.value(false)),
             if (initialFilter != null)
               rankingPageFilterProvider.overrideWith((ref) => initialFilter),
+            ...overrides,
           ],
           child: MaterialApp(
             theme: AppTheme.dark,
@@ -595,6 +652,66 @@ void main() {
       expect(art.data.total, 12);
       expect(art.data.isTeam, isFalse);
       expect(find.text('VICE-LÍDER DO RANKING'), findsOneWidget);
+    });
+
+    testWidgets('duplas: abre o card da equipe com a posição do recorte', (
+      tester,
+    ) async {
+      final profile = TeamPublicProfile(
+        team: TournamentTeam(
+          id: 'team-4',
+          player1Id: 'u1',
+          player2Id: 'u2',
+          memberUids: ['u1', 'u2'],
+        ),
+        members: [
+          for (final uid in ['u1', 'u2'])
+            TeamMemberEntry(
+              uid: uid,
+              profile: AthleteProfile(
+                id: uid,
+                name: uid == 'u1' ? 'Daniel Moraes' : 'Armando Lima',
+                sport: 'Vôlei de praia',
+                level: 'INICIANTE',
+                city: 'Goiânia',
+              ),
+            ),
+        ],
+        // Geral do perfil: não é o que vai no card aberto pelo ranking.
+        ranking: const TeamDiscoverRankingSnapshot(rank: 30, points: 10),
+      );
+      await pumpRanking(
+        tester,
+        field(myRank: 4),
+        initialFilter: const RankingPageFilter(
+          mode: RankingListMode.teams,
+          year: 2026,
+        ),
+        overrides: [
+          teamPublicProfileProvider('team-4').overrideWith(
+            (ref) async => profile,
+          ),
+          teamMatchHistoryProvider('team-4').overrideWith(
+            (ref) async => const TeamMatchHistoryBundle(),
+          ),
+          for (final uid in ['u1', 'u2'])
+            athletePublicRankingProvider(uid).overrideWith(
+              (ref) async => const AthletePublicRankingSnapshot(),
+            ),
+        ],
+      );
+
+      await tester.tap(find.byKey(const Key('ranking-share-position')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RankingStoryPage), findsNothing);
+      expect(find.byType(TeamShareCardPage), findsOneWidget);
+      final art = tester.widget<TeamShareCard>(find.byType(TeamShareCard));
+      expect(art.style, TeamShareCardStyle.ranking);
+      expect(art.data.rank, 4);
+      expect(art.data.points, 460);
+      expect(art.data.name, 'Daniel Moraes / Armando Lima');
+      expect(find.text('RANKING 2026 · DUPLAS'), findsOneWidget);
     });
 
     testWidgets('fora do recorte, sem botão', (tester) async {

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/brand/nexa_hashtag.dart';
 import '../../arenas/domain/booking_story.dart';
+import '../../tournaments/domain/team_profile/team_share_card.dart';
 import 'ranking_list_models.dart';
 
 /// Informações que o atleta liga/desliga no story do ranking, na ordem dos
@@ -169,6 +170,14 @@ class RankingStoryData {
         ...cutLabels,
       ].where((s) => s.trim().isNotEmpty).join(' · ').toUpperCase();
 
+  /// "RANKING 2026 · DUPLAS · MASCULINO": a lista da posição no card da
+  /// equipe, que já escreve o esporte na linha de baixo.
+  String get rankingLine => [
+        pillLabel,
+        if (isTeam) unit,
+        ...cutLabels,
+      ].where((s) => s.trim().isNotEmpty).join(' · ').toUpperCase();
+
   /// "ENTRE 48 DUPLAS".
   String get fieldLabel => 'ENTRE $total ${unit.toUpperCase()}';
 
@@ -266,6 +275,14 @@ Set<RankingStoryInfo> rankingStoryInfosOffByDefault(RankingStoryData data) => {
 String rankingStoryShareText(
   RankingStoryData data, {
   bool showMovement = true,
+}) =>
+    withNexaHashtag(rankingStoryShareLead(data, showMovement: showMovement));
+
+/// A legenda sem a hashtag — o card da equipe põe o link do perfil antes
+/// dela.
+String rankingStoryShareLead(
+  RankingStoryData data, {
+  bool showMovement = true,
 }) {
   final ranking =
       data.season == null ? 'ranking geral' : 'ranking ${data.season}';
@@ -290,7 +307,23 @@ String rankingStoryShareText(
               ? ' ${data.isTeam ? 'Subimos' : 'Subi'} $m '
                   '${m == 1 ? 'posição' : 'posições'} na última etapa.'
               : '';
-  return withNexaHashtag('$lead$change $tail');
+  return '$lead$change $tail';
+}
+
+/// Duplas e equipes compartilham o card da equipe (estilo Ranking) com a
+/// posição, os pontos e o recorte da lista aberta — não os do ranking geral
+/// do perfil. A legenda sobe queda nunca: só subida e estreia.
+TeamShareCardData teamShareCardForRanking(
+  TeamShareCardData card,
+  RankingStoryData story,
+) {
+  return card.withRanking(
+    rank: story.rank,
+    points: story.points,
+    label: story.rankingLine,
+    sportLabel: story.sportLabel,
+    lead: rankingStoryShareLead(story),
+  );
 }
 
 /// Pedido de abrir o story da posição assim que o ranking carregar. Vem do

@@ -95,6 +95,23 @@ void main() {
     expect(find.byType(TeamShareAvatar), findsNothing);
   });
 
+  test('foto redonda: o zoom faz o bloco caber no círculo da foto', () {
+    // Moldura da ficha: o cover põe a foto quadrada com lado 228; o círculo
+    // dela precisa de diâmetro igual à diagonal da moldura.
+    const box = Size(148, 228);
+    final scale = teamShareCircleCropScale(box);
+    final radius = box.longestSide * scale / 2;
+
+    expect(scale, closeTo(1.192, 0.001));
+    expect(
+      radius,
+      greaterThanOrEqualTo(box.center(Offset.zero).distance - 1e-9),
+    );
+    expect(
+        teamShareCircleCropScale(const Size(100, 100)), closeTo(1.4142, 1e-4));
+    expect(teamShareCircleCropScale(Size.zero), 1);
+  });
+
   testWidgets('ranking: os rostos ficam grandes no vão, fora do painel',
       (tester) async {
     for (final duo in [true, false]) {

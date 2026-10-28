@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -206,10 +208,19 @@ class TeamShareFitText extends StatelessWidget {
 /// Foto do atleta (sem fade: a captura sai com o que estiver pintado) ou o
 /// [fallback] enquanto não carrega e quando não existe.
 class TeamSharePhoto extends StatelessWidget {
-  const TeamSharePhoto({super.key, required this.url, required this.fallback});
+  const TeamSharePhoto({
+    super.key,
+    required this.url,
+    required this.fallback,
+    this.fromCircle = false,
+  });
 
   final String? url;
   final Widget fallback;
+
+  /// Bloco retangular: amplia a foto até o bloco caber no círculo dela
+  /// ([TeamShareCircleCropFill]).
+  final bool fromCircle;
 
   @override
   Widget build(BuildContext context) {
@@ -218,11 +229,47 @@ class TeamSharePhoto extends StatelessWidget {
     return Image(
       image: CachedNetworkImageProvider(src),
       fit: BoxFit.cover,
-      frameBuilder: (_, child, frame, sync) =>
-          frame == null && !sync ? fallback : child,
+      frameBuilder: (_, child, frame, sync) {
+        if (frame == null && !sync) return fallback;
+        return fromCircle ? TeamShareCircleCropFill(child: child) : child;
+      },
       errorBuilder: (_, _, _) => fallback,
     );
   }
+}
+
+/// A foto de perfil sai do recorte redondo do app: só o círculo inscrito tem
+/// imagem, os cantos são brancos (ou transparentes). Num bloco retangular o
+/// `cover` sozinho deixa esses cantos aparecerem; aqui a foto cresce até o
+/// bloco inteiro caber dentro do círculo (a meia-diagonal vira o raio). No
+/// avatar redondo não precisa: círculo dentro de círculo já fecha.
+class TeamShareCircleCropFill extends StatelessWidget {
+  const TeamShareCircleCropFill({super.key, required this.child});
+
+  /// A foto já em `BoxFit.cover` no tamanho do bloco.
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => ClipRect(
+        child: Transform.scale(
+          scale: teamShareCircleCropScale(constraints.biggest),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// Quanto ampliar uma foto quadrada em `cover` para o círculo dela cobrir um
+/// bloco de [box]: no `cover` o lado da foto vale o maior lado do bloco; o
+/// círculo precisa de diâmetro igual à diagonal.
+double teamShareCircleCropScale(Size box) {
+  final side = box.longestSide;
+  if (!side.isFinite || side <= 0) return 1;
+  final diagonal = math.sqrt(box.width * box.width + box.height * box.height);
+  return math.max(1, diagonal / side);
 }
 
 /// Avatar redondo: foto ou iniciais num degradê do matiz do atleta.
@@ -819,7 +866,11 @@ class TeamSharePhotoTile extends StatelessWidget {
       ),
     );
     return SizedBox.expand(
-      child: TeamSharePhoto(url: member.avatarUrl, fallback: fallback),
+      child: TeamSharePhoto(
+        url: member.avatarUrl,
+        fallback: fallback,
+        fromCircle: true,
+      ),
     );
   }
 }

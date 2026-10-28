@@ -26,7 +26,11 @@ import 'widgets/ranking_podium.dart';
 import 'widgets/ranking_share_position_button.dart';
 
 class AthleteRankingPage extends ConsumerStatefulWidget {
-  const AthleteRankingPage({super.key});
+  const AthleteRankingPage({super.key, this.storyRequest});
+
+  /// Abre o editor do story da posição assim que a lista do pedido carregar
+  /// (push do dia seguinte ao torneio). Fora do recorte, fica só o ranking.
+  final RankingStoryRequest? storyRequest;
 
   @override
   ConsumerState<AthleteRankingPage> createState() => _AthleteRankingPageState();
@@ -41,6 +45,10 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
   var _userCardFloating = true;
   String? _floatingSessionKey;
 
+  /// Pedido do story ainda por atender: some ao abrir o editor ou ao ver que
+  /// o atleta não está na lista pedida.
+  RankingStoryRequest? _storyRequest;
+
   static const _floatingFooterBottomGap = 8.0;
 
   @override
@@ -50,6 +58,55 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
       setState(() => _searchQuery = _searchController.text);
     });
     _scrollController.addListener(_updateUserCardFloatingState);
+    _takeStoryRequest(widget.storyRequest);
+  }
+
+  @override
+  void didUpdateWidget(AthleteRankingPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Push tocado com o ranking já aberto: o router reaproveita a tela.
+    if (widget.storyRequest != oldWidget.storyRequest) {
+      _takeStoryRequest(widget.storyRequest);
+    }
+  }
+
+  /// Põe a tela no recorte do pedido. O Riverpod não aceita escrita no meio do
+  /// ciclo de vida do widget: entra depois do frame.
+  void _takeStoryRequest(RankingStoryRequest? request) {
+    _storyRequest = request;
+    if (request == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final notifier = ref.read(rankingPageFilterProvider.notifier);
+      notifier.state = request.filterFrom(notifier.state);
+    });
+  }
+
+  /// Abre o editor uma vez, quando a lista na tela já é a do pedido.
+  void _serveStoryRequest({
+    required AsyncValue<List<RankingListEntry>> entriesAsync,
+    required List<RankingListEntry> entries,
+    required RankingListEntry? myEntry,
+    required RankingPageFilter filter,
+    required String sportCode,
+  }) {
+    final request = _storyRequest;
+    if (request == null ||
+        entriesAsync.isLoading ||
+        !request.isServedBy(filter, sportCode)) {
+      return;
+    }
+    _storyRequest = null;
+    if (myEntry == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _shareMyPosition(
+        entry: myEntry,
+        entries: entries,
+        filter: filter,
+        sportCode: sportCode,
+      );
+    });
   }
 
   @override
@@ -217,6 +274,13 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
           final myEntry = sortedRankingEntries(entries)
               .where((e) => e.isCurrentUser)
               .firstOrNull;
+          _serveStoryRequest(
+            entriesAsync: entriesAsync,
+            entries: entries,
+            myEntry: myEntry,
+            filter: filter,
+            sportCode: sportCode,
+          );
           final userInRest = userEntry != null && userEntry.rank > 3;
           final showFloatingUserCard =
               userInRest && _userCardFloating && !isSearching;

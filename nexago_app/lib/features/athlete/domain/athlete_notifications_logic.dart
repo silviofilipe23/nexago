@@ -454,6 +454,23 @@ AthleteNotificationPresentation _basePresentation(
         iconBackground: AppColors.win.withValues(alpha: 0.12),
         routePath: AppRoutes.athleteRanking,
       );
+    // Dia seguinte ao torneio (`functions/src/ranking-story-push.ts`): o
+    // `url` abre o ranking do esporte e da temporada com o editor do story por
+    // cima — o mesmo destino do push.
+    case 'ranking_story_share':
+      return AthleteNotificationPresentation(
+        icon: Icons.leaderboard_outlined,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.15),
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Postar no story',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: appRouteForNotificationUrl(data['url']) ??
+            AppRoutes.athleteRanking,
+      );
     case 'tournament_review_request':
     case 'tournament_review_reminder':
       final reviewTournamentId = data['tournamentId'] ?? '';

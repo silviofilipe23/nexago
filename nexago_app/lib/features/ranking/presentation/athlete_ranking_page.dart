@@ -11,6 +11,8 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/nexa_skeleton.dart';
 import '../../arena/presentation/widgets/arena_dashboard_tokens.dart';
+import '../../tournaments/domain/team_profile/team_share_card.dart';
+import '../../tournaments/presentation/team_profile/share/team_share_card_loader_page.dart';
 import '../domain/ranking_list_mapper.dart';
 import '../domain/ranking_list_models.dart';
 import '../domain/ranking_logic.dart';
@@ -194,22 +196,30 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
   }
 
   /// A posição vem da lista inteira do recorte, não da busca: a busca não
-  /// renumera, e o "entre N" conta todo mundo.
+  /// renumera, e o "entre N" conta todo mundo. Duplas e equipes abrem o card
+  /// da equipe no estilo Ranking; o atleta, o story do ranking.
   void _shareMyPosition({
     required RankingListEntry entry,
     required List<RankingListEntry> entries,
     required RankingPageFilter filter,
     required String sportCode,
   }) {
-    openRankingStory(
-      context,
-      rankingStoryDataFrom(
-        entry: entry,
-        entries: entries,
-        filter: filter,
-        sportLabel: rankingSportLabel(sportCode),
-      ),
+    final story = rankingStoryDataFrom(
+      entry: entry,
+      entries: entries,
+      filter: filter,
+      sportLabel: rankingSportLabel(sportCode),
     );
+    if (story.isTeam && entry.entityId.trim().isNotEmpty) {
+      openTeamShareCardFor(
+        context,
+        teamId: entry.entityId.trim(),
+        style: TeamShareCardStyle.ranking,
+        adapt: (card) => teamShareCardForRanking(card, story),
+      );
+      return;
+    }
+    openRankingStory(context, story);
   }
 
   VoidCallback? _profileTap(RankingListEntry entry, RankingListMode mode) {

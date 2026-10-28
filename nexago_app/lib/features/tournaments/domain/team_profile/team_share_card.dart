@@ -57,8 +57,12 @@ class TeamShareStage {
   bool get isTitle => result == '1º';
 }
 
+/// O ranking do selo do perfil: o geral de equipes.
+const String teamShareGeneralRankingLabel = 'RANKING DE EQUIPES · GERAL';
+
 /// Tudo o que os cards escrevem. Sai do perfil público já carregado (equipe,
-/// elenco, ranking geral de equipes) e do histórico de partidas.
+/// elenco, ranking geral de equipes) e do histórico de partidas; aberto pela
+/// tela de Ranking, a posição é a do recorte dela ([withRanking]).
 @immutable
 class TeamShareCardData {
   const TeamShareCardData({
@@ -81,6 +85,8 @@ class TeamShareCardData {
     this.titles = 0,
     this.stages = const [],
     this.form = const [],
+    this.rankingLabel = teamShareGeneralRankingLabel,
+    this.rankingLead,
   });
 
   final String teamId;
@@ -111,7 +117,7 @@ class TeamShareCardData {
 
   final int? sinceYear;
 
-  /// Posição no ranking geral de equipes; `null` fora dele.
+  /// Posição no ranking de [rankingLabel]; `null` fora dele.
   final int? rank;
   final int points;
   final int games;
@@ -129,6 +135,14 @@ class TeamShareCardData {
   /// Perfil da equipe no portal (o QR).
   final String link;
 
+  /// De qual ranking é a posição: "RANKING DE EQUIPES · GERAL" no perfil,
+  /// "RANKING 2026 · DUPLAS · MASCULINO" vindo do recorte da tela de Ranking.
+  final String rankingLabel;
+
+  /// Começo da legenda do estilo Ranking ("4º no ranking 2026 de duplas de
+  /// Vôlei de Praia! Faltam 10 pontos pro 3º."); `null` usa o do perfil.
+  final String? rankingLead;
+
   bool get hasRank => rank != null && rank! > 0;
 
   String get rankLabel => hasRank ? '$rankº' : '—';
@@ -144,9 +158,6 @@ class TeamShareCardData {
 
   /// "SIGA A DUPLA" / "SIGA A EQUIPE".
   String get followLabel => 'SIGA A ${unit.toUpperCase()}';
-
-  /// O ranking do selo é o geral de equipes — o mesmo do selo do perfil.
-  String get rankingLabel => 'RANKING DE EQUIPES · GERAL';
 
   /// "FORTALEZA · CE · DESDE 2024": cidade e há quanto tempo.
   String get originLine {
@@ -173,6 +184,74 @@ class TeamShareCardData {
         TeamShareCardStyle.roster => isDuo ? 'Ficha' : 'Elenco',
         TeamShareCardStyle.ranking => 'Ranking',
       };
+
+  /// A posição, os pontos e o recorte de outro ranking (o que a tela de
+  /// Ranking mostra) no lugar do geral do perfil. O resto do card não muda.
+  TeamShareCardData withRanking({
+    required int rank,
+    required int points,
+    required String label,
+    String? sportLabel,
+    String? lead,
+  }) {
+    return TeamShareCardData(
+      teamId: teamId,
+      name: name,
+      isDuo: isDuo,
+      monogram: monogram,
+      hue: hue,
+      members: members,
+      rosterSize: rosterSize,
+      link: link,
+      sportLabel: sportLabel ?? this.sportLabel,
+      location: location,
+      sinceYear: sinceYear,
+      rank: rank,
+      points: points,
+      games: games,
+      wins: wins,
+      winRatePercent: winRatePercent,
+      titles: titles,
+      stages: stages,
+      form: form,
+      rankingLabel: label,
+      rankingLead: lead,
+    );
+  }
+}
+
+/// O card a partir do perfil e do histórico como os providers entregam:
+/// campanhas e números saem das mesmas contas da tela do perfil.
+TeamShareCardData teamShareCardDataFromHistory({
+  required TeamPublicProfile profile,
+  required TeamMatchHistoryBundle history,
+  Map<String, String> memberDetails = const {},
+}) {
+  return teamShareCardDataFrom(
+    profile: profile,
+    matches: history.matches,
+    campaigns: buildTeamCampaigns(
+      matches: history.matches,
+      teamId: profile.teamId,
+      tournamentNames: history.tournamentNames,
+    ),
+    stats: buildTeamProfileStats(
+      matches: history.matches,
+      teamId: profile.teamId,
+      rankingPoints: profile.ranking.points,
+    ),
+    memberDetails: memberDetails,
+  );
+}
+
+/// "#12 NO RANKING 2026", a linha do atleta na ficha da dupla; vazia fora do
+/// ranking.
+String teamShareMemberRankDetail(AthletePublicRankingSnapshot ranking) {
+  if (!ranking.hasRank) return '';
+  return [
+    '#${ranking.rank} NO RANKING',
+    if (ranking.seasonYear != null) '${ranking.seasonYear}',
+  ].join(' ');
 }
 
 TeamShareCardData teamShareCardDataFrom({
@@ -266,8 +345,10 @@ String teamShareStageResult(String label) => switch (label) {
 /// Legenda que vai junto do PNG.
 String teamShareCardText(TeamShareCardData data, TeamShareCardStyle style) {
   final unit = '${data.unit} ${data.name}';
+  final ranked =
+      data.rankingLead ?? '${data.rank}º no ranking de equipes do nexaGO!';
   final lead = style == TeamShareCardStyle.ranking && data.hasRank
-      ? '${data.rank}º no ranking de equipes do nexaGO! Perfil da $unit'
+      ? '$ranked Perfil da $unit'
       : 'Conheça a $unit no nexaGO';
   return withNexaHashtag('$lead: ${data.link}');
 }

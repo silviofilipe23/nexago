@@ -645,14 +645,22 @@ class _RankingCard extends StatelessWidget {
                     : TeamShareCrest(data: data, size: 40, onOrange: true),
               ),
               const SizedBox(height: 36.7),
-              Text(
-                data.rankingLabel,
-                maxLines: 1,
-                textScaler: TextScaler.noScaling,
-                style: TeamShareTokens.label(
-                  9.3,
-                  color: TeamShareTokens.inkMute,
-                  em: 0.16,
+              // Recorte comprido ("RANKING 2026 · DUPLAS · MASCULINO ·
+              // INTERMEDIÁRIO") encolhe em vez de quebrar: a segunda linha
+              // deixava um "·" pendurado e encostava no número.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  data.rankingLabel,
+                  maxLines: 1,
+                  softWrap: false,
+                  textScaler: TextScaler.noScaling,
+                  style: TeamShareTokens.label(
+                    9.3,
+                    color: TeamShareTokens.inkMute,
+                    em: 0.16,
+                  ),
                 ),
               ),
               const SizedBox(height: 4),

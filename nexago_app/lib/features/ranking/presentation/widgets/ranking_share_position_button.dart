@@ -4,9 +4,10 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 
-/// "Compartilhar minha posição": abre o story do ranking. Fica no topo da
-/// lista (e não na linha "Sua posição") porque quem está no pódio não tem
-/// essa linha.
+/// "Compartilhar minha posição": abre o story do ranking (individual) ou o
+/// card da equipe no estilo Ranking (duplas e equipes). Fica no topo da lista
+/// (e não na linha "Sua posição") porque quem está no pódio não tem essa
+/// linha.
 class RankingSharePositionButton extends StatelessWidget {
   const RankingSharePositionButton({
     super.key,

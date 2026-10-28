@@ -48,34 +48,21 @@ class _TeamPublicProfilePageState extends ConsumerState<TeamPublicProfilePage> {
       history = await ref.read(teamMatchHistoryProvider(widget.teamId).future);
     } catch (_) {}
     if (!mounted) return;
-    final data = teamShareCardDataFrom(
+    final data = teamShareCardDataFromHistory(
       profile: profile,
-      matches: history.matches,
-      campaigns: buildTeamCampaigns(
-        matches: history.matches,
-        teamId: widget.teamId,
-        tournamentNames: history.tournamentNames,
-      ),
-      stats: buildTeamProfileStats(
-        matches: history.matches,
-        teamId: widget.teamId,
-        rankingPoints: profile.ranking.points,
-      ),
+      history: history,
       memberDetails: _memberRankDetails(profile),
     );
     await openTeamShareCard(context, data: data);
   }
 
-  /// "#12 NO RANKING 2026" de cada atleta, para a ficha da dupla. Lê o que a
+  /// O ranking individual de cada atleta, para a ficha da dupla. Lê o que a
   /// seção de atletas já carregou: quem ainda não veio fica sem a linha.
   Map<String, String> _memberRankDetails(TeamPublicProfile profile) => {
         for (final member in profile.members)
           if (ref.read(athletePublicRankingProvider(member.uid)).valueOrNull
-              case final ranking? when ranking.hasRank)
-            member.uid: [
-              '#${ranking.rank} NO RANKING',
-              if (ranking.seasonYear != null) '${ranking.seasonYear}',
-            ].join(' '),
+              case final ranking?)
+            member.uid: teamShareMemberRankDetail(ranking),
       };
 
   void _onChallenge() {

@@ -1,14 +1,21 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  InjectionToken,
   OnDestroy,
   computed,
   effect,
+  inject,
   input,
   linkedSignal,
   output,
   signal,
 } from '@angular/core';
+import {
+  sendStoriesToPhone,
+  type StoriesToPhoneRequest,
+  type StoriesToPhoneResult,
+} from '../data/stories-to-phone';
 import { tournamentShareLink, type TournamentShareBaseUrls } from '../data/tournament-share';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { OgIconComponent } from '../ui/icon.component';
@@ -25,7 +32,14 @@ import type { InscricaoRow } from './inscricoes.model';
 type Step = 'edit' | 'sent';
 
 /** Por onde as artes saíram — muda o que a tela de confirmação manda fazer depois. */
-type SentVia = 'instagram' | 'compartilhar' | 'download';
+type SentVia = 'instagram' | 'compartilhar' | 'download' | 'celular';
+
+/** Sobe as artes e avisa o app do organizador. Token só pra os testes trocarem. */
+export type StoriesToPhoneSender = (req: StoriesToPhoneRequest) => Promise<StoriesToPhoneResult>;
+export const STORIES_TO_PHONE_SENDER = new InjectionToken<StoriesToPhoneSender>(
+  'STORIES_TO_PHONE_SENDER',
+  { providedIn: 'root', factory: () => sendStoriesToPhone },
+);
 
 interface RenderedPage {
   url: string;
@@ -62,8 +76,10 @@ function isTouchDevice(): boolean {
  * Do computador o Instagram não aceita story, então o envio depende de onde o painel está aberto:
  * - celular/tablet: folha nativa do sistema, onde o Instagram aparece como destino. Uma imagem por
  *   toque — o Stories recebe uma de cada vez, e cada envio precisa do próprio gesto do usuário;
- * - computador: baixar os PNGs (e, onde houver folha nativa — Safari, Windows —, "Compartilhar",
- *   que leva por AirDrop/Nearby até o celular).
+ * - computador: "Enviar para o celular" (protótipo 22e) — as artes sobem e o app NexaGO do
+ *   organizador recebe um push que abre direto a folha de compartilhar. E, para quem não usa o
+ *   app, baixar os PNGs (e, onde houver folha nativa — Safari, Windows —, "Compartilhar", que leva
+ *   por AirDrop/Nearby até o celular).
  *
  * As artes são geradas assim que os ajustes mudam, não no clique: o Safari só abre a folha
  * nativa se o `navigator.share` sair no mesmo gesto, sem esperar o desenho.
@@ -218,6 +234,11 @@ function isTouchDevice(): boolean {
                 <li><span class="n">0{{ i + 1 }}</span>{{ s }}</li>
               }
             </ol>
+            @if (sentVia() === 'celular') {
+              <p class="og-story-hint">
+                Não recebeu? Baixe os PNGs (1080×1920) e envie manualmente.
+              </p>
+            }
           }
 
           @if (story().cta) {
@@ -275,16 +296,26 @@ function isTouchDevice(): boolean {
                   <og-icon name="share" [size]="13" />Compartilhar
                 </button>
               }
+              <button type="button" class="og-ghost-btn" [disabled]="locked()" (click)="download()">
+                <og-icon name="download" [size]="13" />{{ downloadLabel() }}
+              </button>
               <button
                 type="button"
                 class="og-mini-btn og-mini-btn-primary"
                 [disabled]="locked()"
-                (click)="download()"
+                (click)="sendToPhone()"
               >
-                <og-icon name="download" [size]="14" />{{ downloadLabel() }}
+                <og-icon name="smartphone" [size]="14" />{{
+                  sendingToPhone() ? 'Enviando…' : 'Enviar para o celular'
+                }}
               </button>
             }
           } @else {
+            @if (sentVia() === 'celular') {
+              <button type="button" class="og-ghost-btn" (click)="download()">
+                <og-icon name="download" [size]="13" />{{ downloadLabel() }}
+              </button>
+            }
             <button type="button" class="og-ghost-btn" (click)="step.set('edit')">
               <og-icon name="edit" [size]="13" />Editar arte
             </button>
@@ -781,6 +812,8 @@ export class OgCompartilharStoriesDialogComponent implements OnDestroy {
         : fallback,
   });
 
+  private readonly sendStories = inject(STORIES_TO_PHONE_SENDER);
+
   protected readonly theme = signal<StoryTheme>('dark');
   protected readonly paidOnly = signal(false);
   protected readonly showSpots = signal(true);
@@ -802,6 +835,7 @@ export class OgCompartilharStoriesDialogComponent implements OnDestroy {
   protected readonly renders = signal<readonly RenderedPage[]>([]);
   protected readonly rendering = signal(true);
   protected readonly busy = signal(false);
+  protected readonly sendingToPhone = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly copied = signal(false);
 
@@ -871,6 +905,8 @@ export class OgCompartilharStoriesDialogComponent implements OnDestroy {
   protected readonly sentTitle = computed(() => {
     const n = this.renders().length;
     switch (this.sentVia()) {
+      case 'celular':
+        return 'Enviamos para o seu celular';
       case 'download':
         return n > 1 ? `${n} imagens baixadas` : 'Imagem baixada';
       case 'compartilhar':
@@ -885,6 +921,11 @@ export class OgCompartilharStoriesDialogComponent implements OnDestroy {
 
   protected readonly sentText = computed(() => {
     const cta = this.story().cta;
+    if (this.sentVia() === 'celular') {
+      const n = this.renders().length;
+      const what = n > 1 ? `Os ${n} stories estão` : 'O story está';
+      return `${what} no app NexaGO. Toque na notificação para abrir direto no Instagram.`;
+    }
     if (this.sentVia() === 'download')
       return 'As artes (1080×1920) estão na sua pasta de downloads.';
     if (this.sentVia() === 'compartilhar')
@@ -901,6 +942,14 @@ export class OgCompartilharStoriesDialogComponent implements OnDestroy {
   protected readonly steps = computed(() => {
     const cta = this.story().cta;
     const many = this.renders().length > 1;
+    if (this.sentVia() === 'celular') {
+      return [
+        'Abra a notificação do app NexaGO no celular',
+        'Escolha “Story” no Instagram',
+        ...(cta ? ['Adicione a figurinha “Link” e cole: o app já copia o link de inscrição'] : []),
+        ...(many ? ['Volte ao app e poste o próximo, na ordem'] : []),
+      ];
+    }
     if (this.sentVia() === 'instagram') {
       return [
         'Escolha “Story” no Instagram',
@@ -1047,6 +1096,40 @@ export class OgCompartilharStoriesDialogComponent implements OnDestroy {
       }
     } finally {
       this.busy.set(false);
+    }
+  }
+
+  /** Do computador para o app NexaGO do próprio organizador: as artes sobem e o push abre a folha
+   *  de compartilhar no celular. Sem nenhum aparelho com o app nesta conta, o push não chega a
+   *  lugar nenhum — o envio fica nas Notificações do app, e o recado oferece o download. */
+  protected async sendToPhone(): Promise<void> {
+    if (this.locked()) return;
+    this.error.set(null);
+    this.busy.set(true);
+    this.sendingToPhone.set(true);
+    try {
+      const story = this.story();
+      const result = await this.sendStories({
+        tournamentId: this.tournament().id,
+        categoryName: story.categoryName,
+        unitLabel: this.unitPlural(),
+        link: story.cta ? this.link() : null,
+        files: this.renders().map((r) => r.file),
+      });
+      if (result.devices > 0) {
+        this.sentVia.set('celular');
+        this.step.set('sent');
+      } else {
+        this.error.set(
+          'Nenhum celular com o app NexaGO está conectado a esta conta. Entre no app com este ' +
+            'login e as artes estarão em Notificações — ou baixe os PNGs.',
+        );
+      }
+    } catch {
+      this.error.set('Não foi possível enviar para o celular. Tente de novo ou baixe os PNGs.');
+    } finally {
+      this.busy.set(false);
+      this.sendingToPhone.set(false);
     }
   }
 

@@ -1,7 +1,12 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
+import type { StoriesToPhoneRequest } from '../data/stories-to-phone';
 import type { OrganizerTournament, OrganizerTournamentCategory } from '../data/tournament.model';
-import { OgCompartilharStoriesDialogComponent } from './compartilhar-stories-dialog.component';
+import {
+  OgCompartilharStoriesDialogComponent,
+  STORIES_TO_PHONE_SENDER,
+  type StoriesToPhoneSender,
+} from './compartilhar-stories-dialog.component';
 import type { InscricaoRow, PayStatus } from './inscricoes.model';
 
 function category(id: string, name: string, maxTeams: number | null): OrganizerTournamentCategory {
@@ -71,10 +76,14 @@ const ROWS = [
 
 async function mount(
   initialCategoryId: string | null = null,
+  sender?: StoriesToPhoneSender,
 ): Promise<ComponentFixture<OgCompartilharStoriesDialogComponent>> {
   await TestBed.configureTestingModule({
     imports: [OgCompartilharStoriesDialogComponent],
-    providers: [provideZonelessChangeDetection()],
+    providers: [
+      provideZonelessChangeDetection(),
+      ...(sender ? [{ provide: STORIES_TO_PHONE_SENDER, useValue: sender }] : []),
+    ],
   }).compileComponents();
   const fixture = TestBed.createComponent(OgCompartilharStoriesDialogComponent);
   fixture.componentRef.setInput('tournament', TOURNAMENT);
@@ -98,6 +107,14 @@ function button(fixture: ComponentFixture<unknown>, label: string): HTMLButtonEl
   );
   if (!found) throw new Error(`botão "${label}" não encontrado`);
   return found;
+}
+
+/** Espera o envio (upload + callable) assentar. */
+async function settled(fixture: ComponentFixture<unknown>): Promise<void> {
+  for (let i = 0; i < 5; i++) {
+    await new Promise((r) => setTimeout(r));
+    fixture.detectChanges();
+  }
 }
 
 /** O desenho é assíncrono (fontes, imagens, PNG): espera os botões de envio liberarem. */
@@ -164,5 +181,59 @@ describe('OgCompartilharStoriesDialogComponent', () => {
     expect(text(fixture)).toContain('Passe as imagens para o celular');
     await new Promise((r) => setTimeout(r, 20));
     expect(clicks).toHaveBeenCalledTimes(1);
+  });
+
+  describe('Enviar para o celular (computador)', () => {
+    it('sobe as artes da categoria e confirma que foram para o celular', async () => {
+      const sent: StoriesToPhoneRequest[] = [];
+      const fixture = await mount(null, async (req) => {
+        sent.push(req);
+        return { shareId: 's1', pageCount: req.files.length, devices: 1 };
+      });
+      await rendered(fixture);
+
+      button(fixture, 'Enviar para o celular').click();
+      await settled(fixture);
+
+      expect(sent).toHaveSize(1);
+      expect(sent[0].tournamentId).toBe('t1');
+      expect(sent[0].categoryName).toBe('Feminino Open');
+      expect(sent[0].unitLabel).toBe('duplas');
+      expect(sent[0].link).toContain('atleta.test/torneios/t1/inscricao');
+      expect(sent[0].files).toHaveSize(1);
+      expect(sent[0].files[0].type).toBe('image/png');
+      expect(text(fixture)).toContain('Enviamos para o seu celular');
+      expect(text(fixture)).toContain('Toque na notificação para abrir direto no Instagram');
+      expect(text(fixture)).toContain('Abra a notificação do app NexaGO no celular');
+      expect(text(fixture)).toContain('Não recebeu? Baixe os PNGs');
+      expect(button(fixture, 'Baixar PNG').disabled).toBeFalse();
+    });
+
+    it('sem celular com o app nesta conta, explica e oferece o download', async () => {
+      const fixture = await mount(null, async (req) => ({
+        shareId: 's1',
+        pageCount: req.files.length,
+        devices: 0,
+      }));
+      await rendered(fixture);
+
+      button(fixture, 'Enviar para o celular').click();
+      await settled(fixture);
+
+      expect(text(fixture)).not.toContain('Enviamos para o seu celular');
+      expect(text(fixture)).toContain('Nenhum celular com o app NexaGO está conectado a esta conta');
+      expect(button(fixture, 'Enviar para o celular').disabled).toBeFalse();
+    });
+
+    it('falha no envio vira recado, sem sair da edição', async () => {
+      const fixture = await mount(null, () => Promise.reject(new Error('rede')));
+      await rendered(fixture);
+
+      button(fixture, 'Enviar para o celular').click();
+      await settled(fixture);
+
+      expect(text(fixture)).toContain('Não foi possível enviar para o celular');
+      expect(button(fixture, 'Baixar').disabled).toBeFalse();
+    });
   });
 });

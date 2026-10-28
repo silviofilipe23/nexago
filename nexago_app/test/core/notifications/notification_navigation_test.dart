@@ -43,6 +43,30 @@ void main() {
       );
     });
 
+    test('stories enviados do painel abrem as artes (o url é do app antigo)', () {
+      expect(
+        resolveNotificationRoute({
+          'type': 'organizer_stories_ready',
+          'tournamentId': 't1',
+          'shareId': 's1',
+          'url': '/organizer/tournaments/t1',
+          'webUrl': '/painel/eventos/t1/inscricoes',
+        }),
+        '/organizer/tournaments/t1/stories/s1',
+      );
+    });
+
+    test('stories sem shareId caem no torneio do url', () {
+      expect(
+        resolveNotificationRoute({
+          'type': 'organizer_stories_ready',
+          'tournamentId': 't1',
+          'url': '/organizer/tournaments/t1',
+        }),
+        '/organizer/tournaments/t1',
+      );
+    });
+
     test('fechamento sem tournamentId cai na url do payload', () {
       expect(
         resolveNotificationRoute(

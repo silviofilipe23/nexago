@@ -46,7 +46,8 @@ export type OgIconName =
   | 'court'
   | 'mic'
   | 'instagram'
-  | 'link';
+  | 'link'
+  | 'smartphone';
 
 /** Ícones de contorno do design system NexaGO — mesmo traçado do protótipo (stroke 24, 1.8–2.2px). */
 @Component({
@@ -210,6 +211,9 @@ export type OgIconName =
         }
         @case ('link') {
           <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+        }
+        @case ('smartphone') {
+          <rect x="6" y="2.5" width="12" height="19" rx="2.5" /><path d="M10.5 18h3" />
         }
       }
     </svg>

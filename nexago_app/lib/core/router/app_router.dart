@@ -51,6 +51,7 @@ import '../../features/organizer/presentation/category_ops/organizer_tournament_
 import '../../features/organizer/presentation/category_ops/organizer_tournament_operations_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_tournament_staff_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_tournament_reviews_page.dart';
+import '../../features/organizer/presentation/story_share/organizer_story_share_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_shell_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_teams_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_payments_page.dart';
@@ -1373,6 +1374,15 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                   return OrganizerTournamentReviewsPage(
                     tournamentId: tournamentId,
                   );
+                },
+              ),
+              GoRoute(
+                path: 'stories/:shareId',
+                name: AppRouteNames.organizerTournamentStories,
+                builder: (context, state) {
+                  final shareId =
+                      state.pathParameters['shareId']?.trim() ?? '';
+                  return OrganizerStorySharePage(shareId: shareId);
                 },
               ),
               GoRoute(

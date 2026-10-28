@@ -72,6 +72,29 @@ service firebase.storage {
       );
     }
 
+    // "Enviar para o celular" do Compartilhar no Stories (painel do organizador): o painel sobe
+    // as artes (PNG 1080×1920, uma por página: 1.png, 2.png…) e a callable sendStoriesToPhone
+    // avisa o app do mesmo usuário, que baixa e compartilha. Só o dono lê e só quem opera o
+    // torneio sobe — ESPELHO de `assertCanManageTournament` (tournament-acl.ts): dono do
+    // torneio, staff `manager` ativo ou admin. Cada envio tem shareId novo; o cliente não apaga:
+    // quem limpa, depois de 7 dias, é a callable.
+    match /storyShares/{userId}/{tournamentId}/{shareId}/{fileName} {
+      function operatesTournament() {
+        let staff = /databases/(default)/documents/tournaments/$(tournamentId)/staff/$(request.auth.uid);
+        return hasRoleClaim('admin') || request.auth.token.superAdmin == true ||
+          firestore.get(/databases/(default)/documents/tournaments/$(tournamentId)).data.get('managerId', '') == request.auth.uid ||
+          (firestore.exists(staff) &&
+            firestore.get(staff).data.get('status', '') == 'active' &&
+            firestore.get(staff).data.get('role', '') == 'manager');
+      }
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null && request.auth.uid == userId &&
+        fileName.matches('[1-9][0-9]?[.]png') &&
+        request.resource.size < 10 * 1024 * 1024 &&
+        request.resource.contentType == 'image/png' &&
+        operatesTournament();
+    }
+
     // Depoimentos: foto e logo - leitura pública; escrita apenas super admin
     match /testimonials/{testimonialId}/{fileName} {
       allow read: if true;

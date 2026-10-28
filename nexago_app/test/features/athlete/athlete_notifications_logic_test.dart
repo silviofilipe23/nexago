@@ -157,6 +157,30 @@ void main() {
       expect(resolveNotificationRoute({...data, 'type': 'ranking_story_share'}), url);
     });
 
+    test('organizer_stories_ready: lista e push abrem as artes do Stories', () {
+      final data = {
+        'tournamentId': 't1',
+        'shareId': 's1',
+        'url': '/organizer/tournaments/t1',
+        'webUrl': '/painel/eventos/t1/inscricoes',
+      };
+      final n = AthleteInboxNotification(
+        id: 'st1',
+        title: 'Stories prontos para postar',
+        body: 'Feminino Open · Copa Verão: 2 stories. Toque para abrir no Instagram.',
+        type: 'organizer_stories_ready',
+        data: data,
+        read: false,
+        dismissed: false,
+        createdAt: now,
+      );
+      final p = notificationPresentation(n);
+      expect(p.routePath, '/organizer/tournaments/t1/stories/s1');
+      expect(p.icon, Icons.photo_library_outlined);
+      expect(p.actions.single.label, 'Postar no story');
+      expect(resolveNotificationRoute({...data, 'type': 'organizer_stories_ready'}), p.routePath);
+    });
+
     test('tournament_review_closed sem tournamentId: lista cai na url', () {
       final n = AthleteInboxNotification(
         id: 'c2',

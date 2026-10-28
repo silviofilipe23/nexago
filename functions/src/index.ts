@@ -787,6 +787,8 @@ export {
 // --- Relatórios de ocupação de quadra (gestor de arena) ---
 export {getArenaOccupancyReport} from "./arena-occupancy-report";
 export {postTournamentAnnouncement} from "./tournament-announcements";
+// "Enviar para o celular" do Compartilhar no Stories (painel do organizador).
+export {sendStoriesToPhone} from "./organizer-stories-share";
 // Peça na quadra — atleta lança consumo direto no app numa comanda de
 // arena já aberta pelo balcão (ver arena-comanda-app-orders.ts).
 export {addAppOrderItem} from "./arena-comanda-app-orders";

@@ -515,6 +515,21 @@ AthleteNotificationPresentation _basePresentation(
               ],
         routePath: closedRoutePath,
       );
+    case organizerStoriesReadyNotificationType:
+      // Mesmo destino do push: as artes do Stories; sem ids, a url do payload (o torneio).
+      return AthleteNotificationPresentation(
+        icon: Icons.photo_library_outlined,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.15),
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Postar no story',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: organizerStoriesNotificationRoute(data) ??
+            appRouteForNotificationUrl(data['url']),
+      );
     // Mensalidade de aula (ou cobrança do professor independente): "Pagar"
     // abre a fatura no navegador, como o push; sem link (ou sem navegador), a
     // agenda — onde a cobrança a pagar aparece.

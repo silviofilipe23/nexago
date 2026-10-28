@@ -4,6 +4,8 @@ import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 import {
   ATHLETE_SEARCH_MIN_TERM,
   athleteDisplayName,
+  athleteIdentity,
+  athleteIdentityLabel,
   searchAthletes,
   type AthleteSearchResult,
 } from '../data/athlete-search-repository';
@@ -134,8 +136,21 @@ export function rosterSizeOf(category: Pick<OrganizerTournamentCategory, 'teamSi
           @for (slot of slots(); track $index) {
             <div class="og-ni-slot" [class.filled]="slot !== null">
               @if (slot; as athlete) {
-                <og-avatar [initials]="initialsOf(nameOf(athlete))" [photoUrl]="athlete.photoUrl" [size]="30" />
-                <span class="og-ni-slot-name">{{ nameOf(athlete) }}</span>
+                @let picked = identityOf(athlete);
+                <og-avatar
+                  zoomable
+                  [initials]="initialsOf(nameOf(athlete))"
+                  [photoUrl]="athlete.photoUrl"
+                  [personName]="picked.fullName"
+                  [meta]="picked.nickname || null"
+                  [size]="30"
+                />
+                <span class="og-ni-slot-name" [title]="identityTitle(picked)">
+                  {{ picked.fullName }}
+                  @if (picked.nickname) {
+                    <span class="og-ni-nick">“{{ picked.nickname }}”</span>
+                  }
+                </span>
                 <button
                   type="button"
                   class="og-ghost-btn"
@@ -194,11 +209,33 @@ export function rosterSizeOf(category: Pick<OrganizerTournamentCategory, 'teamSi
 
         @if (candidates().length > 0) {
           <div class="og-ni-results">
+            <!-- A foto fica FORA do botão de escolher: avatar ampliável vira role="button", e
+                 botão dentro de botão quebra o clique e o leitor de tela. Clicar na foto amplia;
+                 clicar no nome escolhe. -->
             @for (c of candidates(); track c.uid) {
-              <button type="button" class="og-ni-result" [disabled]="busy()" (click)="select(c)">
-                <og-avatar [initials]="initialsOf(nameOf(c))" [photoUrl]="c.photoUrl" [size]="30" />
-                <span>{{ nameOf(c) }}</span>
-              </button>
+              @let found = identityOf(c);
+              <div class="og-ni-result">
+                <og-avatar
+                  zoomable
+                  [initials]="initialsOf(nameOf(c))"
+                  [photoUrl]="c.photoUrl"
+                  [personName]="found.fullName"
+                  [meta]="found.nickname || null"
+                  [size]="30"
+                />
+                <button
+                  type="button"
+                  class="og-ni-result-pick"
+                  [disabled]="busy()"
+                  [title]="identityTitle(found)"
+                  (click)="select(c)"
+                >
+                  {{ found.fullName }}
+                  @if (found.nickname) {
+                    <span class="og-ni-nick">“{{ found.nickname }}”</span>
+                  }
+                </button>
+              </div>
             }
           </div>
         }
@@ -360,20 +397,40 @@ export function rosterSizeOf(category: Pick<OrganizerTournamentCategory, 'teamSi
     .og-ni-result {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 8px;
+      padding-left: 8px;
       border-radius: var(--nx-r-2);
+    }
+    .og-ni-result:hover:has(.og-ni-result-pick:not(:disabled)) {
+      background: var(--nx-surface-1);
+    }
+    /* O botão ocupa o resto da linha: o alvo de "escolher" continua sendo a linha toda, menos
+       a foto. */
+    .og-ni-result-pick {
+      flex: 1;
+      min-width: 0;
+      align-self: stretch;
+      padding: 8px 8px 8px 10px;
       background: transparent;
       border: none;
       cursor: pointer;
       text-align: left;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
       font-family: var(--nx-font-display);
       font-weight: 600;
       font-size: 13px;
       color: var(--nx-text);
     }
-    .og-ni-result:hover:not(:disabled) {
-      background: var(--nx-surface-1);
+    .og-ni-result-pick:disabled {
+      cursor: default;
+    }
+    .og-ni-nick {
+      margin-left: 4px;
+      font-family: var(--nx-font-ui);
+      font-weight: 400;
+      font-size: 12.5px;
+      color: var(--nx-text-mute);
     }
     .og-ni-toggle {
       margin-top: 14px;
@@ -410,6 +467,8 @@ export class OgNovaInscricaoComponent {
 
   protected readonly initialsOf = initialsOf;
   protected readonly nameOf = athleteDisplayName;
+  protected readonly identityOf = athleteIdentity;
+  protected readonly identityTitle = athleteIdentityLabel;
   protected readonly minTerm = ATHLETE_SEARCH_MIN_TERM;
 
   protected readonly categoryId = signal('');

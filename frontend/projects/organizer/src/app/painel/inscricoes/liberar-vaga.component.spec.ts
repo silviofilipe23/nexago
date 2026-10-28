@@ -122,6 +122,18 @@ describe('OgLiberarVagaComponent', () => {
     };
   }
 
+  it('resultado da busca mostra nome completo e apelido, com a foto ampliável', async () => {
+    const el = await render([category()]);
+    (fixture.componentInstance as unknown as { candidates: { set(v: AthleteSearchResult[]): void } }).candidates.set([
+      { uid: 'u9', displayName: 'Beatriz Lima', nickname: 'Bia', photoUrl: 'https://exemplo.com/bia.jpg' },
+    ]);
+    await fixture.whenStable();
+
+    const name = el.querySelector('.og-lv-results .og-lv-name') as HTMLElement;
+    expect(name.textContent?.replace(/\s+/g, ' ').trim()).toBe('Beatriz Lima “Bia”');
+    expect(el.querySelector('.og-lv-results og-avatar')?.getAttribute('role')).toBe('button');
+  });
+
   it('categoria única é escolhida sozinha', async () => {
     await render([category()]);
     const emitted: LiberarVagaSubmit[] = [];

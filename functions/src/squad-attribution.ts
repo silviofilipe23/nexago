@@ -17,7 +17,8 @@ import {resolveArenaBookingFeePercent} from "./arena-entitlement";
 import {CLUB_FEE_PERCENT, FEE_FLOOR_REAIS} from "./platform-fees";
 import {feeRuleForRegistration} from "./squad-fee-cap";
 import {SQUAD_AMBASSADORS} from "./squad-commissions";
-import {loadAttributionRules, type SquadTier} from "./squad-rules";
+import {SQUAD_PUBLIC} from "./squad-public";
+import {loadAttributionRules, type FollowerDiscountScope, type SquadTier} from "./squad-rules";
 
 export const SQUAD_ATTRIBUTIONS = "squadAttributions";
 
@@ -285,4 +286,67 @@ export const checkSquadCode = onCall(CLIENT_CALLABLE, async (request) => {
     purpose,
     ...fee,
   }, now);
+});
+
+/** Quem convidou, como o site mostra: do espelho `squadPublic` (privacidade já aplicada). */
+export interface SquadReferralAmbassador {
+  uid: string;
+  name: string;
+  photoUrl: string | null;
+  tier: SquadTier | null;
+  city: string | null;
+  state: string | null;
+  arenaName: string | null;
+}
+
+export interface SquadReferralView {
+  ambassador: SquadReferralAmbassador;
+  /** Até quanto o seguidor ganha; o teto na taxa corta no checkout. 0 = o nível não dá desconto. */
+  discountPct: number;
+  firstOnly: boolean;
+  scope: FollowerDiscountScope;
+}
+
+function strOrNull(v: unknown): string | null {
+  return typeof v === "string" && v.trim() !== "" ? v.trim() : null;
+}
+
+/**
+ * O que o link de um embaixador oferece a quem ainda não tem conta (página `/indicacao` do portal).
+ * `null` = código sem contrato vigente (desconhecido, pausado ou encerrado): a página não promete
+ * desconto. Só sai o que o espelho público e o próprio embaixador já divulgam (nome e "até X% OFF").
+ */
+export async function squadReferralCore(db: Firestore, code: unknown): Promise<SquadReferralView | null> {
+  const normalized = normalizeSquadCode(code);
+  const contract = normalized ? await findAmbassadorByCode(db, normalized) : null;
+  if (!contract) return null;
+  const [mirror, rules, discountPct] = await Promise.all([
+    db.collection(SQUAD_PUBLIC).doc(contract.uid).get(),
+    loadAttributionRules(db),
+    followerPctOf(db, contract),
+  ]);
+  const m = mirror.data();
+  const name = strOrNull(m?.["name"]) ?? strOrNull(contract.displayName);
+  if (!name) return null;
+  const photo = strOrNull(m?.["photoUrl"]);
+  return {
+    ambassador: {
+      uid: contract.uid,
+      name,
+      photoUrl: photo && /^https?:\/\//i.test(photo) ? photo : null,
+      tier: contract.tier,
+      city: strOrNull(m?.["city"]),
+      state: strOrNull(m?.["state"]),
+      arenaName: strOrNull(m?.["arenaName"]),
+    },
+    discountPct,
+    firstOnly: rules.followerDiscountFirstOnly,
+    scope: rules.followerDiscountScope,
+  };
+}
+
+/** Aberta sem login: quem abre o link do embaixador ainda não tem conta. */
+export const getSquadReferral = onCall(CLIENT_CALLABLE, async (request) => {
+  const data = (request.data ?? {}) as {code?: unknown};
+  return {referral: await squadReferralCore(getFirestore(), data.code)};
 });

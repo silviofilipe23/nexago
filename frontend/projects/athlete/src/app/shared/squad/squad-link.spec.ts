@@ -1,4 +1,4 @@
-import { captureSquadParam, clearSquadRef, parseSquadParam, pendingSquadRef } from './squad-link';
+import { captureSquadParam, clearSquadRef, normalizeSquadCode, parseSquadParam, pendingSquadRef } from './squad-link';
 
 describe('squad-link', () => {
   afterEach(() => clearSquadRef());
@@ -14,6 +14,13 @@ describe('squad-link', () => {
     expect(parseSquadParam('?squad=JO%C3%83O-10', 1)).toBeNull();
     // `ref` é do convite de dupla (UID), não do Squad.
     expect(parseSquadParam('?ref=abc123', 1)).toBeNull();
+  });
+
+  it('normaliza o código como o servidor', () => {
+    expect(normalizeSquadCode(' silvio10 ')).toBe('SILVIO10');
+    expect(normalizeSquadCode('jo')).toBeNull();
+    expect(normalizeSquadCode(['SILVIO10'])).toBeNull();
+    expect(normalizeSquadCode(undefined)).toBeNull();
   });
 
   it('guarda o clique até ser enviado e descarta o velho', () => {

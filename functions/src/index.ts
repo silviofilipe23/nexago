@@ -910,7 +910,7 @@ export {
 } from "./squad-commissions";
 
 // NexaSquad: atribuição por link/QR (portal/app) e conferência do código no checkout.
-export {checkSquadCode, recordSquadAttribution} from "./squad-attribution";
+export {checkSquadCode, getSquadReferral, recordSquadAttribution} from "./squad-attribution";
 // NexaSquad: inscrição removida cancela a comissão (pendente, liberada ou paga → ajuste).
 export {onInscriptionDeletedCancelSquadCommissions} from "./squad-commission-lifecycle";
 // NexaSquad: candidaturas, convites e aceite (tela 04) — time no backoffice, atleta no app/portal.

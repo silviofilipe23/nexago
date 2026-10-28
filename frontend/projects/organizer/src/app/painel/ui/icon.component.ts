@@ -44,7 +44,9 @@ export type OgIconName =
   | 'star'
   | 'video'
   | 'court'
-  | 'mic';
+  | 'mic'
+  | 'instagram'
+  | 'link';
 
 /** Ícones de contorno do design system NexaGO — mesmo traçado do protótipo (stroke 24, 1.8–2.2px). */
 @Component({
@@ -202,6 +204,12 @@ export type OgIconName =
         @case ('share') {
           <circle cx="18" cy="5" r="2.7" /><circle cx="6" cy="12" r="2.7" /><circle cx="18" cy="19" r="2.7" />
           <path d="m8.4 10.7 7.2-4.1M8.4 13.3l7.2 4.1" />
+        }
+        @case ('instagram') {
+          <rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.3" cy="6.7" r=".6" fill="currentColor" />
+        }
+        @case ('link') {
+          <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
         }
       }
     </svg>

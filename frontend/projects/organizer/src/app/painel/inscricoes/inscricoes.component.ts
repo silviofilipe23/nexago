@@ -29,6 +29,7 @@ import { uniformCategoryConfigs } from '../data/uniforms';
 import { OgConfirmDialogComponent, type ConfirmPrompt } from '../ui/confirm-dialog.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
+import { OgCompartilharStoriesDialogComponent } from './compartilhar-stories-dialog.component';
 import { OgInscricoesListComponent } from './inscricoes-list.component';
 import {
   OgLiberarVagaComponent,
@@ -98,6 +99,7 @@ interface PendingConfirm {
     OgNovaInscricaoComponent,
     OgLiberarVagaComponent,
     OgConfirmDialogComponent,
+    OgCompartilharStoriesDialogComponent,
   ],
   template: `
     <og-page-header title="Inscrições" [subtitle]="headerSubtitle()">
@@ -115,6 +117,9 @@ interface PendingConfirm {
         <og-icon name="download" [size]="14" />Exportar
       </button>
       @if (categorias().length > 0) {
+        <button type="button" class="og-mini-btn" [disabled]="rows().length === 0" (click)="sharingStory.set(true)">
+          <og-icon name="instagram" [size]="14" />Compartilhar no Stories
+        </button>
         <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="toggleLiberar()">
           <og-icon [name]="releasing() ? 'close' : 'users'" [size]="14" />
           {{ releasing() ? 'Fechar' : 'Liberar vaga' }}
@@ -215,6 +220,16 @@ interface PendingConfirm {
         (cleared)="clearFilters()"
       />
     </div>
+
+    @if (sharingStory() && tournament(); as t) {
+      <og-compartilhar-stories-dialog
+        [tournament]="t"
+        [rows]="rows()"
+        [bases]="shareBases"
+        [initialCategoryId]="categoryFilter()"
+        (closed)="sharingStory.set(false)"
+      />
+    }
 
     @if (pendingConfirm(); as c) {
       <og-confirm-dialog
@@ -331,6 +346,8 @@ export class InscricoesComponent {
   protected readonly creating = signal(false);
   /** Painel de liberar vaga aberto. */
   protected readonly releasing = signal(false);
+  /** Diálogo "Compartilhar no Stories" aberto. */
+  protected readonly sharingStory = signal(false);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   protected readonly pendingConfirm = signal<PendingConfirm | null>(null);
   protected readonly tournament = signal<OrganizerTournament | null>(null);
@@ -366,6 +383,12 @@ export class InscricoesComponent {
 
   /** O link é para o atleta abrir — vai para o portal dele, não para o painel. */
   protected readonly athleteBaseUrl = environment.athleteAppUrl;
+
+  /** Destinos do link de inscrição do Stories — a mesma regra do "Compartilhar" do torneio. */
+  protected readonly shareBases = {
+    siteBaseUrl: environment.publicSiteUrl,
+    athleteBaseUrl: environment.athleteAppUrl,
+  };
 
   /** Vagas ocupadas por categoria, pela MESMA regra do servidor: 1 inscrição = 1 vaga, e a fila
    *  de espera não ocupa nada. Serve só pra tela antecipar a lotação — a decisão é da CF. */
@@ -431,6 +454,7 @@ export class InscricoesComponent {
       this.categoryFilter.set(null);
       this.query.set('');
       this.tab.set('todos');
+      this.sharingStory.set(false);
       if (!tid) {
         this.loading.set(false);
         return;

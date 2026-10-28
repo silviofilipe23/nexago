@@ -60,7 +60,7 @@ Implementada em 17–18/08/2026 sobre o "só sobe" acima — dá ao atleta uma c
   - Auditado em `levelHistory` com `reason: "organizer_promotion"`, `tournamentId` e `actor: "organizer:{uid}"`.
   - Staff/mesário NÃO pode promover (ruling deliberada) — só o dono do torneio responde por essa ação, irreversível sem suporte; delegar para a mesa fica como follow-up se o dono pedir.
   - Não notifica o atleta promovido nesta rodada (fora de escopo).
-  - **Consequência não coberta por teste (ruling do controlador)**: "Promover nível" NÃO é gated na categoria estar concluída/chave fechada — o backend (dono + esporte + inscrição ativa) já é o gate real, de propósito (ver acima). Isso abre uma janela: promover um atleta com reserva SOLO (aguardando parceiro) durante o período de inscrições pode empurrá-lo ACIMA do teto da categoria; a partir daí, `assertTeamLevelEligibility` (`functions/src/category-level-eligibility.ts`) reavalia os níveis dos DOIS jogadores no momento do ACEITE (não só no envio do convite) e passa a REJEITAR o parceiro convidado — o convite pendente fica permanentemente inaceitável. Não há reconciliação automática (cancelar/recriar o convite numa categoria compatível, ou trocar de categoria, fica a cargo de quem perceber o travamento).
+  - **Promover quem já tem vaga não trava a vaga** (28/10/2026): a régua de nível vale só na entrada (ver [Nível vale na entrada](#nível-vale-na-entrada-não-depois) abaixo). Antes disso, promover um atleta com reserva SOLO podia empurrá-lo acima do teto da categoria e o aceite do parceiro passava a ser recusado — convite pendente permanentemente inaceitável, sem reconciliação.
 
 ### Pendências de rollout (registrar, não executar)
 - **Ordem de deploy**: `firebase deploy --only firestore:indexes` PRIMEIRO — índice composto novo em `inscriptions` (`tournamentId ASC` + `participantUids CONTAINS`) — → depois functions (trigger novo `onInscriptionWrittenLockLevels`) → rules → portais web → release do app. Fora de ordem, o trigger ou as rules podem rodar contra um índice ou uma função ainda ausente.
@@ -72,6 +72,14 @@ Implementada em 17–18/08/2026 sobre o "só sobe" acima — dá ao atleta uma c
 - Atleta precisa caber na **faixa**: `minLevel <= nível <= level`. `categories[].level` é o **teto** (label; ausente = Open) e `categories[].minLevel` é o **piso** (label; ausente = sem piso). Categoria sem piso não tem limite mínimo; sem teto = Open (rank 6).
 - Numa dupla: o **piso** é validado pelo integrante **mais fraco** (rank mínimo); o **teto**, pelo mais forte (rank máximo) — regra completa e exemplo trabalhado na seção [Faixa de nível (minLevel)](#faixa-de-nível-minlevel) abaixo.
 - Categoria sem nível definido (ou "Open") aceita qualquer nível. `categories[].level` guarda o **label** ("Iniciante 1") — formato mantido por retrocompatibilidade; os normalizadores aceitam label e código.
+
+### Nível vale na entrada, não depois
+Decisão do dono (28/10/2026), quando a promoção automática da escada foi ligada: a régua só é aplicada a quem está **entrando** na categoria. Quem já tem vaga nela (reserva solo, dupla, equipe) e sobe — ou desce — de nível depois continua na vaga até o fim.
+- **Não rechecam nível** (todos ali já passaram pela régua ao entrar): pagar a inscrição por PIX ou cartão (inclusive a própria parcela), confirmar inscrição gratuita, declarar pagamento direto com o organizador.
+- **Checam só quem está entrando** (`athletesEnteringCategory` em `functions/src/category-level-eligibility.ts`: quem ainda não aparece em nenhuma inscrição da categoria): enviar e aceitar convite de parceiro ou de integrante de equipe, o organizador fechar a dupla sobre uma reserva solo, e a substituição (só o substituto).
+- **Dupla que nasce no aceite** (nenhum dos dois tinha reserva — ex.: torneio que exige dupla já formada): os dois estão entrando, então os dois passam pela régua no aceite. Se quem convidou subiu entre o convite e o aceite, o aceite é recusado.
+- Idade e gênero não mudaram: continuam rechecando o elenco inteiro.
+- **Por quê**: com a escada automática ligada, basta o atleta ganhar jogos em outro torneio entre a inscrição e o pagamento para passar do teto. Rechecar a vaga dele travava o pagamento, o aceite do parceiro e a substituição — e, se o parceiro já tinha pago a parcela, a inscrição ficava presa com dinheiro dentro (imune ao prazo da vaga) até o organizador resolver na mão.
 - Mapeamento esporte do torneio → esporte do perfil: `beachVolleyball`→`VOLEI_PRAIA`, `indoorVolleyball`→`VOLEI_QUADRA`, `footvolley`→`FUTEVOLEI`, `beachTennis`→`BEACH_TENNIS`; sem equivalente → nível global legado.
 
 ## Faixa de nível (minLevel)
@@ -112,6 +120,7 @@ Implementada em 17–18/08/2026 sobre o "só sobe" acima — dá ao atleta uma c
 ## Regras
 - Nível nunca desce por ação do próprio atleta — exceto dentro da janela de correção por esporte, antes da 1ª inscrição ativa naquele esporte (`levelLocked`, ver Calibração de nível acima).
 - Cancelar inscrição nunca destrava um esporte já travado — o lock só é gravado, nunca desfeito.
+- A régua de nível da categoria vale na ENTRADA: subir (ou descer) de nível com vaga já garantida não tira o atleta da vaga nem trava pagamento, parceiro ou substituição.
 - Elegibilidade de categoria: o **piso** (minLevel) é validado pelo integrante mais fraco (rank mínimo); o **teto** (level) pelo mais forte (rank máximo).
 - Nível e rating são sempre por esporte — não existe um valor único cruzando esportes (o `level` global é legado, só fallback de leitura).
 - A escada é uma só (7 níveis) para todos os esportes; rating automático só nos esportes de `RATED_SPORT_CODES`.

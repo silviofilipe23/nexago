@@ -21,7 +21,6 @@ import {registrationHoldClearedFields} from
 import {computePixWindow} from "./tournament-registration-hold";
 import {PLATFORM_FEE_FIXED_BRL} from "./mercadopago-arena-helpers";
 import {assertCanRegisterInTournament} from "./athlete-tournament-access";
-import {assertTeamLevelEligibility} from "./category-level-eligibility";
 import {assertTeamAgeEligibility} from "./category-age-eligibility";
 import {
   assertTournamentAcceptsRegistration,
@@ -318,12 +317,9 @@ async function prepareRegistrationCharge(
     throw new HttpsError("permission-denied", "Você não é um dos atletas desta inscrição");
   }
 
-  await assertTeamLevelEligibility({
-    db,
-    tournament: tournamentData,
-    category: findCategory(tournamentData, categoryId),
-    uids: athleteUids,
-  });
+  // Nível não é rechecado aqui: todo atleta desta inscrição passou pela régua ao
+  // entrar, e subir de nível depois não tira ninguém da vaga
+  // (athletesEnteringCategory).
   await assertTeamAgeEligibility({
     db,
     tournament: tournamentData,
@@ -1069,12 +1065,9 @@ export const confirmFreeTournamentRegistration = onCall({
     throw new HttpsError("permission-denied", "Você não é um dos atletas desta inscrição");
   }
 
-  await assertTeamLevelEligibility({
-    db,
-    tournament: tournamentData,
-    category: findCategory(tournamentData, categoryId),
-    uids: teamUids,
-  });
+  // Nível não é rechecado aqui: todo atleta desta inscrição passou pela régua ao
+  // entrar, e subir de nível depois não tira ninguém da vaga
+  // (athletesEnteringCategory).
   await assertTeamAgeEligibility({
     db,
     tournament: tournamentData,
@@ -1253,12 +1246,9 @@ export const reserveDirectOrganizerRegistration = onCall({
     throw new HttpsError("permission-denied", "Você não é um dos atletas desta inscrição");
   }
 
-  await assertTeamLevelEligibility({
-    db,
-    tournament: tournamentData,
-    category: findCategory(tournamentData, categoryId),
-    uids: teamUids,
-  });
+  // Nível não é rechecado aqui: todo atleta desta inscrição passou pela régua ao
+  // entrar, e subir de nível depois não tira ninguém da vaga
+  // (athletesEnteringCategory).
   await assertTeamAgeEligibility({
     db,
     tournament: tournamentData,

@@ -29,7 +29,10 @@ import * as logger from "firebase-functions/logger";
 
 import {assertCanManageTournament} from "./tournament-acl";
 import {assertTeamAgeEligibility} from "./category-age-eligibility";
-import {assertTeamLevelEligibility} from "./category-level-eligibility";
+import {
+  assertTeamLevelEligibility,
+  athletesEnteringCategory,
+} from "./category-level-eligibility";
 import {
   artifactsInscriptionsPath,
   artifactsTeamsPath,
@@ -346,11 +349,20 @@ export const organizerCreateTeamRegistration = onCall({
   }
 
   await assertAthletesExist(db, athleteUids);
+  const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
+  // Nível só de quem está entrando: fechar a dupla sobre a reserva solo de quem
+  // subiu de nível depois de reservar não o barra.
   await assertTeamLevelEligibility({
     db,
     tournament,
     category,
-    uids: [...athleteUids],
+    uids: await athletesEnteringCategory({
+      db,
+      projectId,
+      tournamentId,
+      categoryKeys,
+      uids: [...athleteUids],
+    }),
   });
   await assertTeamAgeEligibility({
     db,
@@ -360,7 +372,6 @@ export const organizerCreateTeamRegistration = onCall({
   });
 
   const entryFee = resolveCategoryEntryFee(tournament, categoryId);
-  const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
   const inscriptionsRef = db.collection(artifactsInscriptionsPath(projectId));
   const teamsPath = artifactsTeamsPath(projectId);
   const teamsRef = db.collection(teamsPath);

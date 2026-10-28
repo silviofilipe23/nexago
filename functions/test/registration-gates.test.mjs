@@ -4,7 +4,8 @@
  *
  * Todos os caminhos de criação passam pelos mesmos guards, então cada regra é
  * verificada onde ela decide (`registerSolo`, `sendInvite`, `createTeam`) e,
- * quando muda de fase, também no aceite.
+ * quando muda de fase, também no aceite. Nível vale só na entrada: quem já
+ * tem vaga e sobe depois não é barrado (pagar, fechar a dupla, trocar parceiro).
  */
 
 import {beforeEach, describe, test} from 'node:test';
@@ -493,6 +494,167 @@ describe('gates — nível (anti-sandbagging)', () => {
       }),
       /abaixo do nível do atleta/i,
     );
+  });
+});
+
+describe('gates — nível vale na entrada, não depois', () => {
+  // Promoção automática da escada (ou do organizador) depois de o atleta já ter vaga.
+  const subirNivel = (uid, level) =>
+    db.doc(`users/${uid}`).set(
+      {sportOnboarding: {levelsBySport: {BEACH_TENNIS: level}}},
+      {merge: true},
+    );
+  const teto = (over = {}) =>
+    duplaCategory({id: 'masc', level: 'Intermediário 1', ...over});
+
+  test('quem subiu de nível depois de reservar ainda fecha a dupla', async () => {
+    const joao = await seedMan({uid: 'joao', name: 'João', level: 'intermediario_1'});
+    const pedro = await seedMan({uid: 'pedro', name: 'Pedro', level: 'intermediario_1'});
+    const tournamentId = await seedTournament({categories: [teto()]});
+    const solo = await call(callables.registerSolo, joao, {tournamentId, categoryId: 'masc'});
+
+    await subirNivel(joao, 'intermediario_2');
+    const {registrationId} = await formDupla({
+      tournamentId, categoryId: 'masc', inviterUid: joao, inviteeUid: pedro,
+    });
+
+    assert.equal(registrationId, solo.registrationId);
+    const reg = await getRegistration(registrationId);
+    assert.deepEqual([...reg.participantUids].sort(), [joao, pedro].sort());
+    assert.notEqual(reg.partnerPending, true);
+  });
+
+  test('o parceiro novo continua passando pela régua', async () => {
+    const joao = await seedMan({uid: 'joao', name: 'João', level: 'intermediario_1'});
+    const forte = await seedMan({uid: 'forte', name: 'Forte', level: 'open'});
+    const tournamentId = await seedTournament({categories: [teto()]});
+    await call(callables.registerSolo, joao, {tournamentId, categoryId: 'masc'});
+    await subirNivel(joao, 'intermediario_2');
+
+    const message = await callExpectingError(callables.sendInvite, joao, {
+      tournamentId, categoryId: 'masc', inviteeUid: forte, inviteeName: 'F', inviterName: 'J',
+    });
+    assert.match(message, /Forte \(Open\) não pode/);
+    assert.doesNotMatch(message, /João/);
+  });
+
+  test('dupla que nasce no aceite: os dois estão entrando', async () => {
+    const joao = await seedMan({uid: 'joao', name: 'João', level: 'intermediario_1'});
+    const pedro = await seedMan({uid: 'pedro', name: 'Pedro', level: 'intermediario_1'});
+    const tournamentId = await seedTournament({categories: [teto()]});
+    const {inviteId} = await call(callables.sendInvite, joao, {
+      tournamentId, categoryId: 'masc', inviteeUid: pedro, inviteeName: 'P', inviterName: 'J',
+    });
+
+    await subirNivel(joao, 'intermediario_2');
+    assert.match(
+      await callExpectingError(callables.acceptInvite, pedro, {inviteId}),
+      /João \(Intermediário 2\) não pode/,
+    );
+  });
+
+  test('confirmar a inscrição gratuita depois de subir de nível', async () => {
+    const joao = await seedMan({uid: 'joao', level: 'intermediario_1'});
+    const pedro = await seedMan({uid: 'pedro', level: 'intermediario_1'});
+    const tournamentId = await seedTournament({categories: [teto({entryFee: 0})]});
+    const {registrationId} = await formDupla({
+      tournamentId, categoryId: 'masc', inviterUid: joao, inviteeUid: pedro,
+    });
+
+    await subirNivel(joao, 'open');
+    await call(callables.confirmFree, joao, {registrationId});
+    const result = await call(callables.confirmFree, pedro, {registrationId});
+    assert.equal(result.isPaid, true);
+  });
+
+  test('declarar pagamento direto depois de subir de nível', async () => {
+    const joao = await seedMan({uid: 'joao', level: 'intermediario_1'});
+    const pedro = await seedMan({uid: 'pedro', level: 'intermediario_1'});
+    const tournamentId = await seedTournament({categories: [teto()]});
+    await db.doc(`tournaments/${tournamentId}`).update({paymentMode: 'directWithOrganizer'});
+    const {registrationId} = await formDupla({
+      tournamentId, categoryId: 'masc', inviterUid: joao, inviteeUid: pedro,
+    });
+
+    await subirNivel(pedro, 'open');
+    await call(callables.reserveDirect, joao, {registrationId});
+    await call(callables.reserveDirect, pedro, {registrationId});
+    assert.equal((await getRegistration(registrationId)).isPaid, true);
+  });
+
+  test('substituição: quem fica e subiu de nível não trava a troca', async () => {
+    const a = await seedMan({uid: 'ana-a', name: 'Atleta A', level: 'intermediario_1'});
+    const b = await seedMan({uid: 'beto-b', name: 'Atleta B', level: 'intermediario_1'});
+    const c = await seedMan({uid: 'caio-c', name: 'Atleta C', level: 'intermediario_1'});
+    const tournamentId = await seedTournament({categories: [teto()]});
+    const {registrationId} = await formDupla({
+      tournamentId, categoryId: 'masc', inviterUid: a, inviteeUid: b,
+    });
+
+    await subirNivel(a, 'open');
+    const {inviteId} = await call(callables.sendSubstitution, a, {
+      registrationId, replacedUid: b, inviteeUid: c,
+      replacedName: 'Atleta B', inviteeName: 'Atleta C', inviterName: 'Atleta A',
+    });
+    await call(callables.acceptInvite, c, {inviteId});
+
+    const reg = await getRegistration(registrationId);
+    assert.deepEqual([...reg.participantUids].sort(), [a, c].sort());
+  });
+
+  test('substituição: o substituto acima do teto continua barrado', async () => {
+    const a = await seedMan({uid: 'ana-a', name: 'Atleta A', level: 'intermediario_1'});
+    const b = await seedMan({uid: 'beto-b', name: 'Atleta B', level: 'intermediario_1'});
+    const c = await seedMan({uid: 'caio-c', name: 'Atleta C', level: 'open'});
+    const tournamentId = await seedTournament({categories: [teto()]});
+    const {registrationId} = await formDupla({
+      tournamentId, categoryId: 'masc', inviterUid: a, inviteeUid: b,
+    });
+
+    assert.match(
+      await callExpectingError(callables.sendSubstitution, a, {
+        registrationId, replacedUid: b, inviteeUid: c,
+        replacedName: 'Atleta B', inviteeName: 'Atleta C', inviterName: 'Atleta A',
+      }),
+      /Atleta C \(Open\) não pode/,
+    );
+  });
+
+  test('capitão que subiu de nível ainda chama integrante', async () => {
+    const capitao = await seedMan({uid: 'capitao', level: 'intermediario_1'});
+    const membro = await seedMan({uid: 'membro', level: 'intermediario_1'});
+    const tournamentId = await seedTournament({
+      categories: [
+        teamCategory({id: 'equipe', teamSize: 4, genderMode: 'free', level: 'Intermediário 1'}),
+      ],
+    });
+    const {registrationId} = await call(callables.createTeam, capitao, {
+      tournamentId, categoryId: 'equipe', teamName: 'Subiram Juntos',
+    });
+
+    await subirNivel(capitao, 'avancado_1');
+    const {inviteId} = await call(callables.sendInvite, capitao, {
+      tournamentId, categoryId: 'equipe', inviteeUid: membro, inviteeName: 'M', inviterName: 'C',
+    });
+    await call(callables.acceptInvite, membro, {inviteId});
+
+    const reg = await getRegistration(registrationId);
+    assert.ok(reg.participantUids.includes(membro));
+  });
+
+  test('organizador fecha a dupla sobre a reserva de quem subiu de nível', async () => {
+    const joao = await seedMan({uid: 'joao', level: 'intermediario_1'});
+    const pedro = await seedMan({uid: 'pedro', level: 'intermediario_1'});
+    const tournamentId = await seedTournament({categories: [teto()]});
+    await db.doc(`tournaments/${tournamentId}`).set({managerId: 'organizador-1'}, {merge: true});
+    const solo = await call(callables.registerSolo, joao, {tournamentId, categoryId: 'masc'});
+
+    await subirNivel(joao, 'intermediario_2');
+    const result = await call(callables.organizerCreateRegistration, 'organizador-1', {
+      tournamentId, categoryId: 'masc', athleteUids: [joao, pedro], markAsPaid: true,
+    });
+
+    assert.equal(result.registrationId, solo.registrationId);
   });
 });
 

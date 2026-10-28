@@ -11,7 +11,10 @@ import {
   loadUserAccessData,
   missingTournamentProfileRequirementLabels,
 } from "./athlete-tournament-access";
-import {assertTeamLevelEligibility} from "./category-level-eligibility";
+import {
+  assertTeamLevelEligibility,
+  athletesEnteringCategory,
+} from "./category-level-eligibility";
 import {assertTeamAgeEligibility} from "./category-age-eligibility";
 import {
   assertMixedDuoGenderEligibility,
@@ -909,11 +912,21 @@ export async function sendPartnerInviteFor(
     throw new HttpsError("not-found", "Categoria não encontrada neste torneio.");
   }
 
+  const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
+
+  // Nível só de quem está entrando: quem já tem reserva (ou é capitão) nesta
+  // categoria não é barrado por ter subido de nível depois de reservar.
   await assertTeamLevelEligibility({
     db,
     tournament,
     category,
-    uids: [uid, inviteeUid],
+    uids: await athletesEnteringCategory({
+      db,
+      projectId,
+      tournamentId,
+      categoryKeys,
+      uids: [uid, inviteeUid],
+    }),
   });
   await assertTeamAgeEligibility({
     db,
@@ -941,8 +954,6 @@ export async function sendPartnerInviteFor(
     uids: [uid, inviteeUid],
     requireDeclared: false,
   });
-
-  const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
 
   // Categoria individual não tem parceiro (inscrição já nasce completa).
   assertCategoryAcceptsPartner(category);
@@ -1579,12 +1590,20 @@ export const acceptTournamentPartnerInvite = onCall({
   if (!previewCategory) {
     throw new HttpsError("not-found", "Categoria não encontrada.");
   }
-  // Conclusão da dupla: valida nível dos dois jogadores (convidador + convidado).
+  // Conclusão da dupla: valida o nível de quem ainda não tem vaga na categoria.
+  // Quem já reservou (ou é o capitão da equipe) não é barrado por ter subido de
+  // nível depois; numa dupla que nasce aqui os dois estão entrando.
   await assertTeamLevelEligibility({
     db,
     tournament: previewTournament,
     category: previewCategory,
-    uids: [invitePreviewData.inviterUid as string | undefined, uid],
+    uids: await athletesEnteringCategory({
+      db,
+      projectId,
+      tournamentId: previewTournamentId,
+      categoryKeys: previewCategoryKeys,
+      uids: [invitePreviewData.inviterUid as string | undefined, uid],
+    }),
   });
   await assertTeamAgeEligibility({
     db,

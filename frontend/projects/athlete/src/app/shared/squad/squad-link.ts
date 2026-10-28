@@ -21,10 +21,16 @@ export interface PendingSquadRef {
   at: number;
 }
 
+/** " joao10 " → "JOAO10"; fora do formato → null. Mesma regra do `normalizeSquadCode` do servidor. */
+export function normalizeSquadCode(raw: unknown): string | null {
+  const code = typeof raw === 'string' ? raw.trim().toUpperCase() : '';
+  return CODE_RE.test(code) ? code : null;
+}
+
 export function parseSquadParam(search: string, now: number): PendingSquadRef | null {
   const params = new URLSearchParams(search);
-  const code = (params.get(SQUAD_PARAM) ?? '').trim().toUpperCase();
-  if (!CODE_RE.test(code)) return null;
+  const code = normalizeSquadCode(params.get(SQUAD_PARAM));
+  if (!code) return null;
   return { code, origin: params.get('via') === 'qr' ? 'qr' : 'link', at: now };
 }
 

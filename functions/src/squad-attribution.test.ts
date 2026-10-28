@@ -9,6 +9,7 @@ import {
   normalizeSquadCode,
   recordAttributionCore,
   resolveRegistrationAttribution,
+  squadReferralCore,
 } from "./squad-attribution";
 
 const NOW = new Date("2026-10-17T15:00:00Z");
@@ -194,3 +195,50 @@ describe("checkSquadCodeCore", () => {
   });
 });
 
+
+describe("squadReferralCore", () => {
+  it("embaixador do espelho público e a oferta das regras (padrão: só na primeira, em tudo)", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("squadPublic/jv", {
+      name: "João Victor", photoUrl: "https://cdn.test/jv.jpg", tier: "amb", code: "JOAO10",
+      city: "Goiânia", state: "GO", arenaName: "Arena Sol",
+    });
+    assert.deepEqual(await squadReferralCore(db, " joao10 "), {
+      ambassador: {
+        uid: "jv", name: "João Victor", photoUrl: "https://cdn.test/jv.jpg", tier: "amb",
+        city: "Goiânia", state: "GO", arenaName: "Arena Sol",
+      },
+      discountPct: 10,
+      firstOnly: true,
+      scope: {registration: true, booking: true, club: true},
+    });
+  });
+
+  it("sem espelho: nome do contrato, sem foto nem cidade; % do nível pelas regras", async () => {
+    const {db} = makeDb();
+    const view = await squadReferralCore(db, "RAYSSA");
+    assert.deepEqual(view?.ambassador, {
+      uid: "rb", name: "Rayssa Brito", photoUrl: null, tier: "pro", city: null, state: null, arenaName: null,
+    });
+    assert.equal(view?.discountPct, 15);
+  });
+
+  it("segue o escopo e o \"só na primeira\" salvos no backoffice", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("squadConfig/rules", {version: 3, rules: {attribution: {
+      followerDiscountFirstOnly: false,
+      followerDiscountScope: {registration: true, booking: false, club: false},
+    }}});
+    const view = await squadReferralCore(db, "JOAO10");
+    assert.equal(view?.firstOnly, false);
+    assert.deepEqual(view?.scope, {registration: true, booking: false, club: false});
+  });
+
+  it("código encerrado, desconhecido ou fora do formato: nada", async () => {
+    const {db} = makeDb();
+    assert.equal(await squadReferralCore(db, "ANTIGO"), null);
+    assert.equal(await squadReferralCore(db, "NAOEXISTE"), null);
+    assert.equal(await squadReferralCore(db, "jo"), null);
+    assert.equal(await squadReferralCore(db, undefined), null);
+  });
+});

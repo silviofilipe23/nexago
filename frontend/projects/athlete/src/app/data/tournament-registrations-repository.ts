@@ -15,7 +15,7 @@ import { httpsCallable, type Functions } from 'firebase/functions';
 import { isConfirmedInscription, type RosterRow } from '../tournaments/enrolled-teams';
 import { fetchTeamsByIds } from './teams-repository';
 import { withCashbackCharge, type CashbackChargeFields } from './cashback-preview';
-import { readSquadDiscount } from './squad-discount';
+import { ownPerkFromRaw, readSquadDiscount, readSquadPerk, type OwnPerk } from './squad-discount';
 import { NO_SERVICE_FEE, readServiceFee, serviceFeeRuleFromRaw, type ServiceFeeRule } from './service-fee';
 
 const INVITES_COLLECTION = 'tournamentRegistrationInvites';
@@ -789,6 +789,8 @@ export interface PixPaymentResult {
   chargedReais: number;
   /** Desconto do código/link de embaixador (NexaSquad), já fora do `chargedReais`. */
   squadDiscountReais: number;
+  /** Desconto do próprio embaixador na parcela dele (benefício "Inscrições"), já fora do `chargedReais`. */
+  squadPerkReais: number;
   /** Parte da taxa de serviço paga pelo atleta, já dentro do `chargedReais` (0 quando o organizador paga). */
   serviceFeeReais: number;
 }
@@ -831,6 +833,8 @@ export interface SquadCodeCheck {
   feePercent: number | null;
   /** Piso da taxa em reais (R$ 1,50; o clubinho não tem piso). */
   feeFloorReais: number;
+  /** Benefício do próprio pagador, se ele é embaixador (só na inscrição); backend antigo → `null`. */
+  ownPerk: OwnPerk | null;
 }
 
 /** Que cobrança vai sair do checkout: a taxa (o teto do desconto) e o "só na primeira" mudam com ela. */
@@ -851,7 +855,10 @@ export async function checkSquadCode(
 ): Promise<SquadCodeCheck> {
   try {
     const purpose = context.purpose ?? 'registration';
-    const result = await httpsCallable<Record<string, unknown>, Partial<SquadCodeCheck>>(functions, 'checkSquadCode')({
+    const result = await httpsCallable<Record<string, unknown>, Partial<Omit<SquadCodeCheck, 'ownPerk'>> & { ownPerk?: unknown }>(
+      functions,
+      'checkSquadCode',
+    )({
       code,
       athleteUids,
       registrationId,
@@ -867,6 +874,7 @@ export async function checkSquadCode(
       feePercent: typeof d.feePercent === 'number' ? d.feePercent : null,
       // Backend antigo não manda o piso: o da plataforma (no clubinho ele não existe).
       feeFloorReais: typeof d.feeFloorReais === 'number' ? d.feeFloorReais : purpose === 'club' ? 0 : 1.5,
+      ownPerk: ownPerkFromRaw(d.ownPerk),
     };
   } catch (err) {
     throw mapCallableError(err);
@@ -874,7 +882,11 @@ export async function checkSquadCode(
 }
 
 /** Campos que a cobrança da inscrição normaliza (backend antigo não manda nenhum deles). */
-type RegistrationChargeExtras = CashbackChargeFields & { squadDiscountReais: number; serviceFeeReais: number };
+type RegistrationChargeExtras = CashbackChargeFields & {
+  squadDiscountReais: number;
+  squadPerkReais: number;
+  serviceFeeReais: number;
+};
 
 /** Resposta das duas cobranças normalizada: cashback, desconto do embaixador e taxa de serviço
  *  ausentes valem zero e `chargedReais` cai no preço (`amountReais`). */
@@ -884,6 +896,7 @@ export function registrationChargeFromResponse<T extends { amountReais: number }
   return {
     ...withCashbackCharge(data),
     squadDiscountReais: readSquadDiscount(data),
+    squadPerkReais: readSquadPerk(data),
     serviceFeeReais: readServiceFee(data),
   };
 }
@@ -933,6 +946,8 @@ export interface CardPaymentResult {
   chargedReais: number;
   /** Desconto do código/link de embaixador (NexaSquad), já fora do `chargedReais`. */
   squadDiscountReais: number;
+  /** Desconto do próprio embaixador na parcela dele (benefício "Inscrições"), já fora do `chargedReais`. */
+  squadPerkReais: number;
   /** Parte da taxa de serviço paga pelo atleta, já dentro do `chargedReais` (0 quando o organizador paga). */
   serviceFeeReais: number;
 }
@@ -968,6 +983,18 @@ export async function confirmFreeRegistration(functions: Functions, registration
       registrationId,
     });
     return { isPaid: result.data.isPaid };
+  } catch (err) {
+    throw mapCallableError(err);
+  }
+}
+
+/** NexaSquad: confirma a parcela do próprio embaixador sem cobrança (gratuidade do mês do pacote). */
+export async function confirmSquadFreeRegistration(functions: Functions, registrationId: string): Promise<{ isPaid: boolean }> {
+  try {
+    const result = await httpsCallable<Record<string, unknown>, { isPaid: boolean }>(functions, 'confirmSquadFreeTournamentRegistration')({
+      registrationId,
+    });
+    return { isPaid: result.data.isPaid === true };
   } catch (err) {
     throw mapCallableError(err);
   }

@@ -178,6 +178,42 @@ describe("desconto do seguidor no crédito do organizador", () => {
   });
 });
 
+describe("desconto do embaixador na própria parcela no crédito do organizador", () => {
+  async function payWithPerk(source: "record" | "pending") {
+    const fake = new FakeFirestore();
+    const db = fake as unknown as Firestore;
+    fake.seedDoc("users/uidA", {fullName: "Lucas Martins"});
+    fake.seedDoc("tournaments/t1", {name: "Copa Teste", managerId: "org1", categories: [{categoryName: "Masculina A", entryFee: 100}]});
+    fake.seedDoc(REG_PATH, {
+      tournamentId: "t1", categoryId: "Masculina A", player1Id: "uidA", participantUids: ["uidA", "uidB"],
+      sharePaidUids: [], paidAmount: 0, isPaid: false,
+    });
+    // 20% na parcela de R$ 50: R$ 10 de desconto; o seguidor também deu R$ 5.
+    fake.seedDoc(PENDING_A, {
+      status: "pending", amountType: "share", asaasPaymentId: "pay1", payerUid: "uidA", squadDiscountCents: 5_00,
+      ...(source === "pending" ? {squadPerkCents: 10_00} : {}),
+    });
+    fake.seedDoc("squadChargeDiscounts/pay1", {paymentId: "pay1", cents: 5_00, pct: 10});
+    if (source === "record") fake.seedDoc("squadPerkUses/pay1", {kind: "discount", paymentId: "pay1", cents: 10_00, pct: 20});
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1",
+      {status: "RECEIVED", value: 35, netValue: 34.01, externalReference: "tournamentRegistration:reg1:uidA"},
+      db.doc(PROCESSED) as DocumentReference, deps,
+    );
+    return fake;
+  }
+
+  it("a parcela conta cheia e o organizador recebe o líquido dela (a nexaGO banca os dois descontos)", async () => {
+    for (const source of ["record", "pending"] as const) {
+      const fake = await payWithPerk(source);
+      assert.equal(fake.store.get(REG_PATH)!["paidAmount"], 50, source);
+      assert.equal(fake.store.get("tournamentWallets/t1")!["availableReais"], 46, source);
+      const ledger = [...fake.store.entries()].find(([k]) => k.startsWith("tournamentWallets/t1/ledger/"))![1];
+      assert.equal(ledger["squadDiscountReais"], 15, source);
+    }
+  });
+});
+
 describe("cashback ganho com desconto do seguidor", () => {
   it("o teto do cashback é sobre a taxa que sobrou depois do desconto", async () => {
     const fake = new FakeFirestore();

@@ -1,4 +1,11 @@
-import { platformFeeCents, readSquadDiscount, squadDiscountPreviewCents } from './squad-discount';
+import {
+  ownPerkFromRaw,
+  ownPerkPreviewCents,
+  platformFeeCents,
+  readSquadDiscount,
+  readSquadPerk,
+  squadDiscountPreviewCents,
+} from './squad-discount';
 
 describe('squad-discount', () => {
   it('% sobre o preço, arredondado ao centavo', () => {
@@ -40,5 +47,22 @@ describe('squad-discount', () => {
     expect(readSquadDiscount({ squadDiscountReais: 15 })).toBe(15);
     expect(readSquadDiscount({})).toBe(0);
     expect(readSquadDiscount(null)).toBe(0);
+  });
+
+  it('benefício do embaixador: % só da parcela dele e nunca abaixo de R$ 5 com o desconto do seguidor', () => {
+    expect(ownPerkPreviewCents(20, 50, 50, 0)).toBe(1000);
+    expect(ownPerkPreviewCents(20, 50, 100, 0)).toBe(1000);
+    expect(ownPerkPreviewCents(100, 50, 50, 0)).toBe(4500);
+    expect(ownPerkPreviewCents(50, 10, 10, 3)).toBe(200);
+    expect(readSquadPerk({ squadPerkReais: 9 })).toBe(9);
+    expect(readSquadPerk({})).toBe(0);
+  });
+
+  it('lê o benefício da conferência do código; backend antigo ou malformado é null', () => {
+    expect(ownPerkFromRaw({ type: 'discount', pct: 20 })).toEqual({ type: 'discount', pct: 20 });
+    expect(ownPerkFromRaw({ type: 'free', available: true, remaining: null })).toEqual({ type: 'free', available: true, remaining: null });
+    expect(ownPerkFromRaw({ type: 'free' })).toEqual({ type: 'free', available: false, remaining: null });
+    expect(ownPerkFromRaw(undefined)).toBeNull();
+    expect(ownPerkFromRaw({ type: 'discount' })).toBeNull();
   });
 });

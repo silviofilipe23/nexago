@@ -287,6 +287,24 @@
 
               @if (!hasLiveCharge()) {
                 <div class="tp-pix-block">
+                  @if (freeShareAvailable()) {
+                    <div class="tp-perk-box">
+                      <p class="tp-perk-title">Inscrição grátis do NexaSquad</p>
+                      @if (amountType() === 'share') {
+                        <p class="tp-perk-note">Como embaixador, sua parcela sai grátis — sem Pix nem cartão.</p>
+                        <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="confirmSquadFree()">
+                          @if (processing()) {
+                            <app-nx-spinner [size]="14" tone="dark" />
+                          }
+                          {{ processing() ? 'Confirmando…' : 'Confirmar minha parcela grátis' }}
+                        </button>
+                      } @else {
+                        <p class="tp-perk-note">Vale só para a sua parcela. Escolha "Minha parte" para usar.</p>
+                      }
+                    </div>
+                  } @else if (freeShareUsed()) {
+                    <p class="tp-perk-note">Suas inscrições grátis do NexaSquad deste mês já foram usadas.</p>
+                  }
                   @if (pixExpired()) {
                     <p class="tp-pix-expired">A cobrança anterior expirou — gere uma nova.</p>
                   }
@@ -308,6 +326,7 @@
                     [(code)]="squadCode"
                     [(discountPct)]="squadDiscountPct"
                     [(feePercent)]="squadFeePercent"
+                    [(ownPerk)]="ownPerk"
                     [discountReais]="squadDiscountReais()"
                     [registrationId]="registration()?.id ?? null"
                     [athleteUids]="squadAthleteUids()"
@@ -417,6 +436,12 @@
               <div class="tp-summary-row">
                 <span class="tp-summary-label">Indicação de embaixador</span>
                 <span class="tp-summary-value tp-summary-value--discount">&minus;{{ formatBRL(squadDiscountReais()) }}</span>
+              </div>
+            }
+            @if (squadPerkReais() > 0) {
+              <div class="tp-summary-row">
+                <span class="tp-summary-label">Benefício de embaixador</span>
+                <span class="tp-summary-value tp-summary-value--discount">&minus;{{ formatBRL(squadPerkReais()) }}</span>
               </div>
             }
             @if (cashbackAppliedReais() > 0) {

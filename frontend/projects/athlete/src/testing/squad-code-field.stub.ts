@@ -13,6 +13,7 @@ export class SquadCodeFieldStubComponent {
   readonly discountPct = model(0);
   readonly feePercent = model<number | null>(null);
   readonly feeFloorReais = model(1.5);
+  readonly ownPerk = model<unknown>(null);
   readonly purpose = input<string>('registration');
   readonly arenaId = input<string | null>(null);
   readonly athleteUids = input<string[]>([]);

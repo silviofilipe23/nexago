@@ -74,6 +74,18 @@ import {isOrganizerRegistered} from "./organizer-create-registration-core";
 import {resolveRegistrationAttribution, type ResolvedAttribution} from "./squad-attribution";
 import {followerDiscountFor, recordChargeDiscount, recordCommissionForCharge} from "./squad-commission-lifecycle";
 import {discountFeeCapCents, tournamentFeeRule} from "./squad-fee-cap";
+import {
+  claimFreeShare,
+  creditFreeShare,
+  hasFreeShare,
+  perkDiscountCents,
+  recordPerkDiscount,
+  resolveOwnPerk,
+} from "./squad-own-perk";
+import {
+  PIX_CANCELLED_REGISTRATION_ALREADY_PAID,
+  cancelOpenPixPendingCharges,
+} from "./tournament-registration-pix-cancel";
 import {athleteFeeReais, type FeeRule} from "./tournament-fees";
 
 const pixPaymentSecrets = [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL];
@@ -93,6 +105,8 @@ type PixPaymentResponse = {
   chargedReais?: number;
   /** Desconto do código de embaixador (NexaSquad), já fora do cobrado. */
   squadDiscountReais?: number;
+  /** Desconto do próprio embaixador na parcela dele (benefício "Inscrições" do NexaSquad). */
+  squadPerkReais?: number;
   /** Parte da taxa da nexaGO paga pelo atleta, por cima do preço (ausente = organizador paga). */
   serviceFeeReais?: number;
 };
@@ -200,28 +214,25 @@ interface PreparedRegistrationCharge {
   expiresAtDate: Date;
   tournamentName: string;
   squad: SquadChargeContext | null;
+  /** Desconto do próprio embaixador ("Inscrições" do pacote) na parcela dele; 0 = nenhum. */
+  perkCents: number;
+  perkPct: number;
+  tournamentId: string;
 }
 
 /**
- * Tudo que vem ANTES de existir uma cobrança: autenticação, elegibilidade,
- * prazo da vaga, valor da cota e cliente no gateway. É idêntico para PIX e
- * cartão — o que muda é só o `billingType` na hora de criar a cobrança.
- *
- * `methodLabel` entra nas mensagens voltadas ao atleta ("Informe seu CPF para
- * pagar com PIX" / "com cartão").
+ * A parcela que o atleta vai quitar, já validada: autenticação, elegibilidade,
+ * vaga e valor da cota. Comum à cobrança (PIX e cartão) e à parcela grátis do
+ * embaixador do NexaSquad, que não passa pelo gateway.
  */
-async function prepareRegistrationCharge(
+async function resolveRegistrationCheckout(
   callerUid: string,
   data: RegistrationChargeRequest,
-  methodLabel: string,
-): Promise<PreparedRegistrationCharge> {
+) {
   const amountType: "share" | "full" =
     data.amountType === "full" ? "full" : "share";
   const registrationId =
     typeof data.registrationId === "string" ? data.registrationId.trim() : "";
-  const cpfFromRequest =
-    typeof data.cpfCnpj === "string" ? data.cpfCnpj :
-      (typeof data.cpf === "string" ? data.cpf : "");
   if (!registrationId) {
     throw new HttpsError("invalid-argument", "registrationId é obrigatório");
   }
@@ -362,6 +373,35 @@ async function prepareRegistrationCharge(
       ? resolveTournamentChargeReais(entryFee, "full")
       : shareAmount;
 
+  return {
+    db, projectId, registrationId, registrationRef, registration, amountType, tournamentId, categoryId,
+    tournamentData, organizerRegistered, shouldWaitlist, team, athleteUids, entryFee, tournamentName,
+    regTeamSize, isTeamRegistration, shareAmount, chargeAmount,
+  };
+}
+
+/**
+ * Tudo que vem ANTES de existir uma cobrança: autenticação, elegibilidade,
+ * prazo da vaga, valor da cota e cliente no gateway. É idêntico para PIX e
+ * cartão — o que muda é só o `billingType` na hora de criar a cobrança.
+ *
+ * `methodLabel` entra nas mensagens voltadas ao atleta ("Informe seu CPF para
+ * pagar com PIX" / "com cartão").
+ */
+async function prepareRegistrationCharge(
+  callerUid: string,
+  data: RegistrationChargeRequest,
+  methodLabel: string,
+): Promise<PreparedRegistrationCharge> {
+  const {
+    db, projectId, registrationId, registration, amountType, tournamentId, categoryId, tournamentData,
+    organizerRegistered, shouldWaitlist, team, athleteUids, tournamentName, regTeamSize,
+    isTeamRegistration, shareAmount, chargeAmount,
+  } = await resolveRegistrationCheckout(callerUid, data);
+  const cpfFromRequest =
+    typeof data.cpfCnpj === "string" ? data.cpfCnpj :
+      (typeof data.cpf === "string" ? data.cpf : "");
+
   // Regra da taxa (`tournament-fees.ts`): diz quanto da taxa vai por cima do preço ("Quem paga") e
   // é o teto do desconto do Squad. Sem regra não dá para saber o valor a cobrar: melhor recusar do
   // que cobrar a menos e o organizador pagar a parte do atleta.
@@ -407,6 +447,25 @@ async function prepareRegistrationCharge(
   } catch (e) {
     if (e instanceof HttpsError) throw e;
     logger.warn("prepareRegistrationCharge: atribuição do Squad indisponível", e);
+  }
+
+  // Embaixador pagando a própria inscrição: % do pacote na parcela dele, bancado pela nexaGO como o
+  // desconto do seguidor. Gratuidade não entra aqui: ela tem o caminho próprio, sem cobrança.
+  let perkCents = 0;
+  let perkPct = 0;
+  try {
+    const own = await resolveOwnPerk(db, callerUid, new Date());
+    if (own?.type === "discount") {
+      perkCents = perkDiscountCents(
+        own.pct,
+        Math.round(shareAmount * 100),
+        Math.round(chargeAmount * 100),
+        squad?.discountCents ?? 0,
+      );
+      perkPct = perkCents > 0 ? own.pct : 0;
+    }
+  } catch (e) {
+    logger.warn("prepareRegistrationCharge: benefício do embaixador indisponível", e);
   }
 
   // A cobrança cabe no prazo da vaga; nunca o estica. Inscrição que acabou de
@@ -516,12 +575,17 @@ async function prepareRegistrationCharge(
     expiresAtDate,
     tournamentName,
     squad,
+    perkCents,
+    perkPct,
+    tournamentId,
   };
 }
 
 /** O que as contas da cobrança usam de uma cobrança preparada. */
 type ChargeAmounts = Pick<PreparedRegistrationCharge, "chargeAmount" | "serviceFeeReais"> & {
   squad: Pick<SquadChargeContext, "discountCents"> | null;
+  /** Ausente nas contas antigas = 0. */
+  perkCents?: number;
 };
 
 /** Centavos da parte da taxa paga pelo atleta. */
@@ -531,18 +595,44 @@ function serviceFeeCents(prepared: ChargeAmounts): number {
 
 /**
  * O que o atleta deve nesta cobrança antes do cashback: preço + parte da taxa dele − desconto do
- * seguidor (o cashback incide sobre isto).
+ * seguidor − desconto do embaixador na própria parcela (o cashback incide sobre isto).
  */
 export function dueAfterSquadDiscount(prepared: ChargeAmounts): number {
-  const discount = prepared.squad?.discountCents ?? 0;
+  const discount = (prepared.squad?.discountCents ?? 0) + (prepared.perkCents ?? 0);
   return Math.round(prepared.chargeAmount * 100 + serviceFeeCents(prepared) - discount) / 100;
 }
 
 /** Com desconto ou taxa por cima a cobrança é outra: chave própria, para o Asaas não devolver a antiga. */
 export function chargeIdempotencySuffix(prepared: ChargeAmounts): string {
   const discount = prepared.squad?.discountCents ?? 0;
+  const perk = prepared.perkCents ?? 0;
   const fee = serviceFeeCents(prepared);
-  return (discount > 0 ? `-sq${discount}` : "") + (fee > 0 ? `-tx${fee}` : "");
+  return (discount > 0 ? `-sq${discount}` : "") + (perk > 0 ? `-pk${perk}` : "") + (fee > 0 ? `-tx${fee}` : "");
+}
+
+/** Desconto do embaixador na resposta da cobrança (só quando houve). */
+function perkResponseFields(prepared: PreparedRegistrationCharge): {squadPerkReais?: number} {
+  return prepared.perkCents > 0 ? {squadPerkReais: prepared.perkCents / 100} : {};
+}
+
+/**
+ * Registra o desconto do embaixador por `paymentId` (o webhook soma ao bruto). Melhor esforço, como a
+ * comissão: o desconto também vai no `pixPending`, que o webhook usa se este registro faltar.
+ */
+async function recordPerkQuietly(prepared: PreparedRegistrationCharge, payerUid: string, paymentId: string): Promise<void> {
+  if (prepared.perkCents <= 0) return;
+  try {
+    await recordPerkDiscount(prepared.db, {
+      paymentId,
+      uid: payerUid,
+      registrationId: prepared.registrationId,
+      tournamentId: prepared.tournamentId,
+      cents: prepared.perkCents,
+      pct: prepared.perkPct,
+    }, new Date());
+  } catch (e) {
+    logger.error("Desconto do embaixador não registrado na cobrança", {registrationId: prepared.registrationId, paymentId, e});
+  }
 }
 
 /** Campos da parte do atleta na resposta da cobrança (só quando ele paga algo). */
@@ -690,10 +780,13 @@ export const createTournamentRegistrationPixPayment = onCall({
     cashbackHoldId: cashback.holdId,
     // Desconto do seguidor (NexaSquad): o webhook soma ao bruto para o organizador receber igual.
     squadDiscountCents: prepared.squad?.discountCents ?? 0,
+    // Desconto do embaixador na própria parcela: idem.
+    ...(prepared.perkCents > 0 ? {squadPerkCents: prepared.perkCents} : {}),
     // Parte da taxa paga pelo atleta: o webhook tira do bruto (o caixa e a parcela são sobre o preço).
     ...(serviceFeeCents(prepared) > 0 ? {serviceFeeCents: serviceFeeCents(prepared)} : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
+  await recordPerkQuietly(prepared, callerUid, charge.paymentId);
   await recordSquadCommissionQuietly(prepared, callerUid, charge.paymentId, cashback.chargeReais);
 
   return {
@@ -704,6 +797,7 @@ export const createTournamentRegistrationPixPayment = onCall({
     amountReais: chargeAmount,
     ...cashbackResponseFields(cashback),
     ...(prepared.squad?.discountCents ? {squadDiscountReais: prepared.squad.discountCents / 100} : {}),
+    ...perkResponseFields(prepared),
     ...serviceFeeResponseFields(prepared),
   };
 });
@@ -720,6 +814,8 @@ type CardPaymentResponse = {
   chargedReais?: number;
   /** Desconto do código de embaixador (NexaSquad), já fora do cobrado. */
   squadDiscountReais?: number;
+  /** Desconto do próprio embaixador na parcela dele (benefício "Inscrições" do NexaSquad). */
+  squadPerkReais?: number;
   /** Parte da taxa da nexaGO paga pelo atleta, por cima do preço (ausente = organizador paga). */
   serviceFeeReais?: number;
 };
@@ -825,10 +921,13 @@ export const createTournamentRegistrationCardPayment = onCall({
     cashbackHoldId: cashback.holdId,
     // Desconto do seguidor (NexaSquad): o webhook soma ao bruto para o organizador receber igual.
     squadDiscountCents: prepared.squad?.discountCents ?? 0,
+    // Desconto do embaixador na própria parcela: idem.
+    ...(prepared.perkCents > 0 ? {squadPerkCents: prepared.perkCents} : {}),
     // Parte da taxa paga pelo atleta: o webhook tira do bruto (o caixa e a parcela são sobre o preço).
     ...(serviceFeeCents(prepared) > 0 ? {serviceFeeCents: serviceFeeCents(prepared)} : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
+  await recordPerkQuietly(prepared, callerUid, charge.paymentId);
   await recordSquadCommissionQuietly(prepared, callerUid, charge.paymentId, cashback.chargeReais);
 
   return {
@@ -838,6 +937,7 @@ export const createTournamentRegistrationCardPayment = onCall({
     amountReais: chargeAmount,
     ...cashbackResponseFields(cashback),
     ...(prepared.squad?.discountCents ? {squadDiscountReais: prepared.squad.discountCents / 100} : {}),
+    ...perkResponseFields(prepared),
     ...serviceFeeResponseFields(prepared),
   };
 });
@@ -1138,6 +1238,79 @@ export const confirmFreeTournamentRegistration = onCall({
   }
 
   return {registrationId, isPaid, alreadyConfirmed: false};
+});
+
+/**
+ * NexaSquad: parcela grátis do embaixador ("Inscrições" do pacote: N por mês). Confirma a parcela
+ * dele sem cobrança e credita o organizador como se ela tivesse sido paga — quem banca é a nexaGO.
+ * Só a própria parcela: pagando a dupla/equipe inteira, o embaixador usa a cobrança normal.
+ */
+export const confirmSquadFreeTournamentRegistration = onCall({
+  region: CLIENT_FACING_REGIONS,
+  secrets: pixPaymentSecrets,
+}, async (request) => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Faça login para confirmar a inscrição.");
+  }
+  const data = (request.data ?? {}) as RegistrationChargeRequest;
+  const checkout = await resolveRegistrationCheckout(callerUid, {registrationId: data.registrationId, amountType: "share"});
+  const {db, projectId, registrationId, registrationRef, tournamentId, categoryId, tournamentData} = checkout;
+  const now = new Date();
+  if (!hasFreeShare(await resolveOwnPerk(db, callerUid, now))) {
+    throw new HttpsError("failed-precondition", "Você não tem inscrição grátis do NexaSquad disponível.");
+  }
+
+  // Cobrança aberta desta parcela morre antes: paga depois, viraria pagamento em dobro.
+  await cancelExistingPixPending(db, projectId, registrationId, callerUid);
+  const claim = await claimFreeShare(db, {
+    uid: callerUid,
+    registrationRef,
+    tournamentId,
+    entryFee: checkout.entryFee,
+    shareReais: checkout.shareAmount,
+    isTeamRegistration: checkout.isTeamRegistration,
+    waitlist: checkout.shouldWaitlist,
+  }, now);
+
+  try {
+    await creditFreeShare(db, {
+      tournamentId,
+      tournament: tournamentData as Record<string, unknown>,
+      registrationId,
+      payerUid: callerUid,
+      claim,
+    });
+  } catch (e) {
+    // A vaga já está garantida; o crédito fica marcável pelo uso (`walletCreditedAt` ausente).
+    logger.error("Parcela grátis do Squad: caixa do torneio não creditado", {registrationId, useId: claim.useRef.id, e});
+  }
+
+  if (claim.isPaid) {
+    const teamId = typeof checkout.registration.teamId === "string" ? checkout.registration.teamId : "";
+    // Inscrição fechada: o PIX aberto do parceiro, se pago, cairia como duplicado sem estorno automático.
+    await cancelOpenPixPendingCharges({
+      registrationRef,
+      reason: PIX_CANCELLED_REGISTRATION_ALREADY_PAID,
+      skipUid: callerUid,
+    });
+    if (teamId) {
+      try {
+        await markTeamRegistrationPaid(db, projectId, teamId);
+      } catch (genderError) {
+        logger.warn(`Falha ao definir gender da equipe ${teamId} (registration ${registrationId})`, genderError);
+      }
+      try {
+        await notifyRegistrationFullyConfirmed({
+          db, projectId, registrationId, tournamentId, categoryId, teamId, confirmedByUid: callerUid,
+        });
+      } catch (notifyError) {
+        logger.warn(`Falha ao notificar inscrição ${registrationId} (parcela grátis do Squad)`, notifyError);
+      }
+    }
+  }
+
+  return {registrationId, isPaid: claim.isPaid, squadFreeReais: claim.shareReais};
 });
 
 /** Reserva vaga em torneio com pagamento direto ao organizador (sem PIX).

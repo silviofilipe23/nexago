@@ -526,4 +526,64 @@ void main() {
       expect(SquadCodeCheck.none.viaLink, isFalse);
     });
   });
+
+  group('SquadOwnPerk (ownPerk do checkSquadCode)', () {
+    test('backend antigo, sem o campo: nenhum benefício', () {
+      expect(SquadCodeCheck.fromMap(const {}).ownPerk, isNull);
+      expect(SquadCodeCheck.none.ownPerk, isNull);
+      expect(
+        SquadCodeCheck.fromMap(const {'ownPerk': null}).ownPerk,
+        isNull,
+      );
+    });
+
+    test('desconto: % na própria parcela', () {
+      final perk = SquadCodeCheck.fromMap(const {
+        'ownPerk': {'type': 'discount', 'pct': 15},
+      }).ownPerk!;
+      expect(perk.isFree, isFalse);
+      expect(perk.isDiscount, isTrue);
+      expect(perk.pct, 15);
+    });
+
+    test('desconto zerado ou tipo desconhecido vira nenhum', () {
+      expect(
+        SquadOwnPerk.fromRaw(const {'type': 'discount', 'pct': 0}),
+        isNull,
+      );
+      expect(SquadOwnPerk.fromRaw(const {'type': 'outro'}), isNull);
+      expect(SquadOwnPerk.fromRaw('free'), isNull);
+    });
+
+    test('grátis com teto: disponível e quantas restam', () {
+      final perk = SquadOwnPerk.fromRaw(const {
+        'type': 'free',
+        'available': true,
+        'remaining': 2,
+      })!;
+      expect(perk.isFree, isTrue);
+      expect(perk.isDiscount, isFalse);
+      expect(perk.available, isTrue);
+      expect(perk.remaining, 2);
+    });
+
+    test('grátis ilimitado: remaining null (teto oculto)', () {
+      final perk = SquadOwnPerk.fromRaw(const {
+        'type': 'free',
+        'available': true,
+        'remaining': null,
+      })!;
+      expect(perk.available, isTrue);
+      expect(perk.remaining, isNull);
+    });
+
+    test('grátis esgotado: available false', () {
+      final perk = SquadOwnPerk.fromRaw(const {
+        'type': 'free',
+        'available': false,
+        'remaining': 0,
+      })!;
+      expect(perk.available, isFalse);
+    });
+  });
 }

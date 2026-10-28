@@ -9,6 +9,7 @@
  * inscrição é o próprio embaixador) é recusada com mensagem quando o código foi digitado e
  * ignorada em silêncio quando veio de link. Só servidor grava aqui; as rules negam o cliente.
  */
+import * as logger from "firebase-functions/logger";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {Timestamp, getFirestore, type Firestore} from "firebase-admin/firestore";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
@@ -19,6 +20,7 @@ import {feeRuleForRegistration} from "./squad-fee-cap";
 import {SQUAD_AMBASSADORS} from "./squad-commissions";
 import {SQUAD_PUBLIC} from "./squad-public";
 import {loadAttributionRules, type FollowerDiscountScope, type SquadTier} from "./squad-rules";
+import {ownPerkView, resolveOwnPerk, type OwnPerkView} from "./squad-own-perk";
 
 export const SQUAD_ATTRIBUTIONS = "squadAttributions";
 
@@ -180,6 +182,11 @@ export interface SquadCodeCheck {
   feePercent: number | null;
   /** Piso da taxa em reais (R$ 1,50; o clubinho não tem piso). */
   feeFloorReais: number;
+  /**
+   * Benefício "Inscrições" do próprio pagador, se ele é embaixador ativo (só na inscrição): % na
+   * parcela dele, ou se ainda há parcela grátis no mês. Ausente em backend antigo.
+   */
+  ownPerk: OwnPerkView | null;
 }
 
 /** Que cobrança o checkout vai gerar: inscrição (padrão), reserva de quadra ou clubinho. */
@@ -209,10 +216,18 @@ export async function checkSquadCodeCore(
   );
   const feePercent = input.feePercent ?? null;
   const feeFloorReais = input.feeFloorReais ?? FEE_FLOOR_REAIS;
-  if (!resolved) {
-    return {ambassadorName: null, code: null, origin: null, discountPct: 0, feePercent, feeFloorReais};
-  }
   const purpose = input.purpose ?? "registration";
+  let ownPerk: OwnPerkView | null = null;
+  if (purpose === "registration") {
+    try {
+      ownPerk = ownPerkView(await resolveOwnPerk(db, input.payerUid, now));
+    } catch (e) {
+      logger.warn("checkSquadCode: benefício do embaixador indisponível", e);
+    }
+  }
+  if (!resolved) {
+    return {ambassadorName: null, code: null, origin: null, discountPct: 0, feePercent, feeFloorReais, ownPerk};
+  }
   let discountPct: number;
   if (purpose === "registration") {
     // Preço de referência só para saber se o desconto vale (primeira inscrição); o checkout aplica o %.
@@ -237,6 +252,7 @@ export async function checkSquadCodeCore(
     discountPct,
     feePercent,
     feeFloorReais,
+    ownPerk,
   };
 }
 

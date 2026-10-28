@@ -3755,6 +3755,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Benefício "Inscrições" do próprio embaixador: desconto por cobrança (id = paymentId) e
+    // parcelas grátis do mês. Só servidor (default deny já cobre; explícito por clareza).
+    match /squadPerkUses/{useId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
     // Carteira do embaixador: saldo sacável das comissões pagas. O dono lê (tela Ganhos).
     match /squadWallets/{uid} {
       allow read: if isAdmin() || isSuperAdmin() || (request.auth != null && request.auth.uid == uid);

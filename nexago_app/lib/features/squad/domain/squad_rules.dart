@@ -502,6 +502,72 @@ int squadDiscountPreviewCents(
   return cents < 0 ? 0 : cents;
 }
 
+// ── benefício "Inscrições" do próprio embaixador ────────────────────────────
+
+/// Prévia do desconto do embaixador na PRÓPRIA parcela, espelho de
+/// `perkDiscountCents` (`squad-own-perk.ts`): % de [shareCents] (a parcela
+/// dele, mesmo pagando a dupla/equipe inteira), sem deixar a cobrança — já
+/// com o desconto do seguidor ([otherDiscountCents]) — abaixo do mínimo do
+/// Asaas. O valor de verdade volta em `squadPerkReais`.
+int squadOwnPerkDiscountCents({
+  required num pct,
+  required int shareCents,
+  required int chargeCents,
+  int otherDiscountCents = 0,
+}) {
+  if (pct <= 0 || shareCents <= 0) return 0;
+  final base = shareCents < chargeCents ? shareCents : chargeCents;
+  final raw = (base * pct / 100).round();
+  final room = chargeCents - otherDiscountCents - _minChargeCents;
+  final cents = raw < room ? raw : room;
+  return cents < 0 ? 0 : cents;
+}
+
+/// O que o checkout da inscrição mostra do benefício do embaixador.
+enum SquadOwnPerkOffer {
+  /// Sem benefício (ou não é embaixador ativo).
+  none,
+
+  /// % na parcela dele: linha de desconto no resumo.
+  discount,
+
+  /// Parcela grátis disponível pagando só a própria parcela: ação principal.
+  freeShare,
+
+  /// Gratuidade disponível, mas pagando a dupla/equipe inteira: só avisa
+  /// que ela cobre apenas a parcela dele.
+  freeOnlyOwnShare,
+
+  /// As gratuidades do mês acabaram: aviso e pagamento normal.
+  freeUsedUp,
+}
+
+/// [amountType] = `share` (própria parcela) ou `full` (dupla/equipe inteira).
+SquadOwnPerkOffer squadOwnPerkOffer(
+  SquadOwnPerk? perk, {
+  required String amountType,
+}) {
+  if (perk == null) return SquadOwnPerkOffer.none;
+  if (!perk.isFree) {
+    return perk.isDiscount
+        ? SquadOwnPerkOffer.discount
+        : SquadOwnPerkOffer.none;
+  }
+  if (!perk.available) return SquadOwnPerkOffer.freeUsedUp;
+  return amountType == 'full'
+      ? SquadOwnPerkOffer.freeOnlyOwnShare
+      : SquadOwnPerkOffer.freeShare;
+}
+
+/// "2 inscrições grátis restantes este mês"; `null` com o teto oculto
+/// (ilimitadas) — aí não se mostra número nenhum.
+String? squadFreeRemainingLabel(int? remaining) {
+  if (remaining == null || remaining <= 0) return null;
+  return remaining == 1
+      ? '1 inscrição grátis restante este mês'
+      : '$remaining inscrições grátis restantes este mês';
+}
+
 // ── card de compartilhar (tela 02) ──────────────────────────────────────────
 
 /// "26 OUT · ARENA ERREJOTA".

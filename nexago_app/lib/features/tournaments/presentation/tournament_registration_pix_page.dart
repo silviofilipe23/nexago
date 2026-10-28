@@ -82,6 +82,10 @@ class _TournamentRegistrationPixPageState
   /// Indicação do NexaSquad vigente (código aplicado ou link/QR).
   SquadCodeCheck _squad = SquadCodeCheck.none;
 
+  /// Benefício "Inscrições" do próprio atleta, se ele é embaixador ativo.
+  SquadOwnPerk? _ownPerk;
+  bool _confirmingFree = false;
+
   double get _shareReais => widget.args.shareAmountReais;
 
   /// Meio da cobrança viva — uma por vez, como no portal; `null` sem cobrança.
@@ -105,6 +109,38 @@ class _TournamentRegistrationPixPageState
         _squadPreview.discountPct,
         _squadPreview.feePercent,
       );
+
+  SquadOwnPerkOffer get _ownPerkOffer =>
+      squadOwnPerkOffer(_ownPerk, amountType: widget.args.amountType);
+
+  /// Parcela do próprio atleta: o desconto de embaixador dele incide só nela,
+  /// mesmo pagando a dupla/equipe inteira.
+  int get _ownShareCents {
+    final own = widget.args.ownShareReais;
+    if (own != null && own > 0) return reaisToCents(own);
+    if (widget.args.amountType != 'full') return reaisToCents(_shareReais);
+    final size = ref
+            .read(
+              tournamentRegistrationSnapshotProvider(
+                widget.args.registrationId,
+              ),
+            )
+            .valueOrNull
+            ?.teamSize ??
+        2;
+    return reaisToCents(_shareReais / (size < 1 ? 1 : size));
+  }
+
+  /// Prévia do desconto do embaixador na própria parcela (o servidor devolve
+  /// o aplicado em `squadPerkReais`).
+  int get _perkDiscountCents => _ownPerkOffer == SquadOwnPerkOffer.discount
+      ? squadOwnPerkDiscountCents(
+          pct: _ownPerk!.pct,
+          shareCents: _ownShareCents,
+          chargeCents: reaisToCents(_shareReais),
+          otherDiscountCents: _squadDiscountCents,
+        )
+      : 0;
 
   /// Código que vai na cobrança: o aplicado ou, sem ele, o que foi digitado
   /// (a cobrança confere). Vazio = a indicação por link, se houver, vale sozinha.
@@ -134,7 +170,8 @@ class _TournamentRegistrationPixPageState
       quoteCheckoutCashback(
         priceCents: reaisToCents(_shareReais) +
             _serviceFeeCents -
-            _squadDiscountCents,
+            _squadDiscountCents -
+            _perkDiscountCents,
         checkout: checkout,
         useCashback: _useCashback,
       );
@@ -334,6 +371,57 @@ class _TournamentRegistrationPixPageState
     }
   }
 
+  /// NexaSquad: confirma a própria parcela com uma inscrição grátis do
+  /// pacote, sem cobrança. O listener da inscrição também pode ver a parcela
+  /// paga primeiro — quem chegar antes navega, uma vez só.
+  Future<void> _confirmSquadFree() async {
+    if (_confirmingFree || _loadingCharge) return;
+    setState(() {
+      _confirmingFree = true;
+      _chargeError = null;
+    });
+    try {
+      final result = await ref
+          .read(paymentServiceProvider)
+          .confirmSquadFreeTournamentRegistration(
+            registrationId: widget.args.registrationId,
+          );
+      if (!mounted || _navigatedBack) return;
+      _navigatedBack = true;
+      _expiryTimer?.cancel();
+      if (result.isPaid) {
+        showAppSnackBar(context, 'Inscrição confirmada com sua inscrição grátis!');
+        navigateToTournamentRegistrationSuccess(
+          context,
+          ref: ref,
+          tournamentId: widget.args.tournamentId,
+          registrationId: widget.args.registrationId,
+          tournamentName: widget.args.tournamentName,
+          categoryName: widget.args.categoryName,
+        );
+        return;
+      }
+      showAppSnackBar(
+        context,
+        'Sua parcela foi confirmada grátis. A inscrição confirma quando '
+        'todos pagarem a sua parte.',
+      );
+      context.pop();
+    } on PaymentException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message, isError: true);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        'Não foi possível confirmar agora. Tente novamente.',
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _confirmingFree = false);
+    }
+  }
+
   /// Abre (ou reabre) o checkout do Asaas no navegador do app. A cobrança
   /// segue viva se o atleta fechar sem pagar: o painel deixa reabrir.
   Future<void> _openCardCheckout() async {
@@ -523,6 +611,10 @@ class _TournamentRegistrationPixPageState
     final cashbackQuote = _cashbackQuote(cashbackCtx);
     final liveSquadDiscountReais =
         _pix?.squadDiscountReais ?? _card?.squadDiscountReais ?? 0;
+    final liveSquadPerkReais =
+        _pix?.squadPerkReais ?? _card?.squadPerkReais ?? 0;
+    final perkDiscountCents = _perkDiscountCents;
+    final ownPerkOffer = _ownPerkOffer;
     final liveCashbackAppliedReais =
         _pix?.cashbackAppliedReais ?? _card?.cashbackAppliedReais ?? 0;
     final liveServiceFeeReais =
@@ -559,6 +651,28 @@ class _TournamentRegistrationPixPageState
                           const SizedBox(height: 20),
                         ],
                         if (!showCharge) ...[
+                          if (ownPerkOffer == SquadOwnPerkOffer.freeShare) ...[
+                            _SquadFreeShareCard(
+                              remaining: _ownPerk?.remaining,
+                              loading: _confirmingFree,
+                              enabled: !_loadingCharge && !_confirmingFree,
+                              onConfirm: _confirmSquadFree,
+                            ),
+                            const SizedBox(height: 20),
+                          ] else if (ownPerkOffer ==
+                                  SquadOwnPerkOffer.freeOnlyOwnShare ||
+                              ownPerkOffer == SquadOwnPerkOffer.freeUsedUp) ...[
+                            _SquadPerkNote(
+                              text: ownPerkOffer ==
+                                      SquadOwnPerkOffer.freeUsedUp
+                                  ? 'Suas inscrições grátis deste mês já foram '
+                                      'usadas.'
+                                  : 'Sua inscrição grátis do NexaSquad cobre só '
+                                      'a sua parcela. Para usá-la, volte e '
+                                      'escolha pagar só a sua parte.',
+                            ),
+                            const SizedBox(height: 16),
+                          ],
                           RegistrationPaymentMethodPicker(
                             value: _method,
                             amountReais: cashbackQuote.chargePreviewCents / 100,
@@ -613,11 +727,14 @@ class _TournamentRegistrationPixPageState
                             controller: _squadCodeController,
                             registrationId: widget.args.registrationId,
                             athleteUids: snap?.participantUids ?? const [],
-                            enabled: !_loadingCharge,
+                            enabled: !_loadingCharge && !_confirmingFree,
                             onChanged: (check) =>
                                 setState(() => _squad = check),
+                            onOwnPerk: (perk) =>
+                                setState(() => _ownPerk = perk),
                           ),
                           if (_squadDiscountCents > 0 ||
+                              perkDiscountCents > 0 ||
                               serviceFeeCents > 0) ...[
                             const SizedBox(height: 16),
                             SquadCheckoutSummary(
@@ -627,6 +744,10 @@ class _TournamentRegistrationPixPageState
                               discountLabel: _squadPreview.origin == 'code'
                                   ? 'Código ${_squadPreview.code}'
                                   : 'Indicação',
+                              ownPerkCents: perkDiscountCents,
+                              ownPerkLabel:
+                                  'Benefício de embaixador '
+                                  '(${squadPercent(_ownPerk?.pct ?? 0)})',
                               cashbackCents: cashbackQuote.appliedPreviewCents,
                               totalCents: cashbackQuote.chargePreviewCents,
                             ),
@@ -669,6 +790,20 @@ class _TournamentRegistrationPixPageState
                               '${formatBRL(liveSquadDiscountReais)} de '
                               'desconto pela indicação de embaixador',
                               key: const Key('squad-discount-note'),
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: context.themeColors.win,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          if (liveSquadPerkReais > 0) ...[
+                            Text(
+                              '${formatBRL(liveSquadPerkReais)} de desconto '
+                              'do seu benefício de embaixador',
+                              key: const Key('squad-perk-note'),
                               textAlign: TextAlign.center,
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
@@ -737,7 +872,7 @@ class _TournamentRegistrationPixPageState
                 ),
                 if (!showCharge)
                   BookingPixGenerateBar(
-                    enabled: _hasValidCpf,
+                    enabled: _hasValidCpf && !_confirmingFree,
                     loading: _loadingCharge,
                     onPressed: _loadCharge,
                     label: registrationChargeButtonLabel(
@@ -775,6 +910,108 @@ class _TournamentRegistrationPixPageState
         label: 'Voltar à inscrição',
         onPressed: _onBack,
       ),
+    );
+  }
+}
+
+/// NexaSquad: inscrição grátis do pacote disponível — confirma a própria
+/// parcela sem pagar, acima dos meios de pagamento.
+class _SquadFreeShareCard extends StatelessWidget {
+  const _SquadFreeShareCard({
+    required this.remaining,
+    required this.loading,
+    required this.enabled,
+    required this.onConfirm,
+  });
+
+  final int? remaining;
+  final bool loading;
+  final bool enabled;
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final theme = Theme.of(context);
+    final remainingLabel = squadFreeRemainingLabel(remaining);
+    return Container(
+      key: const Key('squad-free-share'),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.win.withValues(alpha: 0.07),
+        borderRadius: AppRadii.lgAll,
+        border: Border.all(color: AppColors.win.withValues(alpha: 0.28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Inscrição grátis do NexaSquad',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: colors.onSurface,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Como embaixador, você confirma sua parcela sem pagar nada.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.onSurfaceMuted,
+              height: 1.35,
+            ),
+          ),
+          if (remainingLabel != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              remainingLabel,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.win,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          FilledButton(
+            key: const Key('squad-free-confirm'),
+            onPressed: enabled ? onConfirm : null,
+            child: loading
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Confirmar grátis'),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'ou pague normalmente abaixo',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.onSurfaceMuted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Aviso curto do benefício do embaixador (gratuidade esgotada ou que não
+/// cobre a dupla/equipe inteira).
+class _SquadPerkNote extends StatelessWidget {
+  const _SquadPerkNote({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      key: const Key('squad-perk-free-note'),
+      textAlign: TextAlign.center,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: context.themeColors.onSurfaceMuted,
+            height: 1.35,
+          ),
     );
   }
 }

@@ -680,4 +680,107 @@ void main() {
       );
     });
   });
+
+  group('squadOwnPerkDiscountCents (espelho de perkDiscountCents)', () {
+    test('% da própria parcela', () {
+      expect(
+        squadOwnPerkDiscountCents(pct: 10, shareCents: 10000, chargeCents: 10000),
+        1000,
+      );
+    });
+
+    test('pagando a dupla inteira: incide só na parcela dele', () {
+      expect(
+        squadOwnPerkDiscountCents(pct: 10, shareCents: 10000, chargeCents: 20000),
+        1000,
+      );
+    });
+
+    test('arredonda como o servidor', () {
+      expect(
+        squadOwnPerkDiscountCents(pct: 15, shareCents: 3333, chargeCents: 3333),
+        500,
+      );
+    });
+
+    test('nunca deixa a cobrança abaixo de R\$ 5 depois do desconto do seguidor',
+        () {
+      // R$ 10 de parcela, 50% = R$ 5, mas o seguidor já tirou R$ 2: sobra R$ 3.
+      expect(
+        squadOwnPerkDiscountCents(
+          pct: 50,
+          shareCents: 1000,
+          chargeCents: 1000,
+          otherDiscountCents: 200,
+        ),
+        300,
+      );
+      expect(
+        squadOwnPerkDiscountCents(pct: 10, shareCents: 500, chargeCents: 500),
+        0,
+      );
+    });
+
+    test('sem % ou sem parcela: zero', () {
+      expect(
+        squadOwnPerkDiscountCents(pct: 0, shareCents: 10000, chargeCents: 10000),
+        0,
+      );
+      expect(
+        squadOwnPerkDiscountCents(pct: 10, shareCents: 0, chargeCents: 10000),
+        0,
+      );
+    });
+  });
+
+  group('squadOwnPerkOffer', () {
+    const freeOk = SquadOwnPerk.free(available: true, remaining: 1);
+    const freeUsed = SquadOwnPerk.free(available: false, remaining: 0);
+
+    test('sem benefício', () {
+      expect(
+        squadOwnPerkOffer(null, amountType: 'share'),
+        SquadOwnPerkOffer.none,
+      );
+    });
+
+    test('desconto vale nos dois modos', () {
+      for (final type in ['share', 'full']) {
+        expect(
+          squadOwnPerkOffer(const SquadOwnPerk.discount(10), amountType: type),
+          SquadOwnPerkOffer.discount,
+        );
+      }
+    });
+
+    test('grátis disponível: ação só na própria parcela', () {
+      expect(
+        squadOwnPerkOffer(freeOk, amountType: 'share'),
+        SquadOwnPerkOffer.freeShare,
+      );
+      expect(
+        squadOwnPerkOffer(freeOk, amountType: 'full'),
+        SquadOwnPerkOffer.freeOnlyOwnShare,
+      );
+    });
+
+    test('grátis esgotado: aviso nos dois modos', () {
+      for (final type in ['share', 'full']) {
+        expect(
+          squadOwnPerkOffer(freeUsed, amountType: type),
+          SquadOwnPerkOffer.freeUsedUp,
+        );
+      }
+    });
+
+    test('restantes: número só com teto visível', () {
+      expect(squadFreeRemainingLabel(null), isNull);
+      expect(squadFreeRemainingLabel(0), isNull);
+      expect(squadFreeRemainingLabel(1), '1 inscrição grátis restante este mês');
+      expect(
+        squadFreeRemainingLabel(3),
+        '3 inscrições grátis restantes este mês',
+      );
+    });
+  });
 }

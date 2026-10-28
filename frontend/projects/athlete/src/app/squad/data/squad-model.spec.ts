@@ -149,11 +149,12 @@ describe('squad-model', () => {
     expect(benefitsOf(member()).map((b) => [b.label, b.status])).toEqual([
       ['10% de comissão', 'active'],
       ['Até 10% OFF pra quem usa seu código', 'active'],
-      ['1 inscrição gratuita por mês', 'package'],
+      ['1 inscrição gratuita por mês', 'active'],
       ['Kit completo', 'package'],
       ['Eventos: Prioridade', 'package'],
     ]);
     expect(benefitsOf(member({ status: 'paused' }))[0]!.status).toBe('paused');
+    expect(benefitsOf(member({ status: 'paused' }))[2]!.status).toBe('paused');
   });
 
   it('aviso de contrato: pausado, encerramento marcado e aditivo pendente', () => {

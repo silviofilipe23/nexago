@@ -14,6 +14,7 @@ class ArenaBookingPixPaymentResult {
     required this.amountToPayNowReais,
     this.cashbackAppliedReais = 0,
     this.squadDiscountReais = 0,
+    this.squadPerkReais = 0,
     this.serviceFeeReais = 0,
     double? chargedReais,
   }) : chargedReais = chargedReais ?? amountToPayNowReais;
@@ -36,6 +37,10 @@ class ArenaBookingPixPaymentResult {
   /// [chargedReais]. Sai da taxa da nexaGO; só existe na inscrição.
   final double squadDiscountReais;
 
+  /// Desconto do PRÓPRIO embaixador na parcela dele (benefício "Inscrições"
+  /// do pacote), já fora de [chargedReais]. 0 sem benefício ou resposta antiga.
+  final double squadPerkReais;
+
   /// Parte da taxa de serviço da nexaGO paga pelo atleta, por cima do preço
   /// e já dentro de [chargedReais]. 0 quando o organizador paga (ou resposta
   /// antiga); só existe na inscrição.
@@ -52,6 +57,7 @@ class CardCheckoutPaymentResult {
     required this.amountReais,
     this.cashbackAppliedReais = 0,
     this.squadDiscountReais = 0,
+    this.squadPerkReais = 0,
     this.serviceFeeReais = 0,
     double? chargedReais,
   }) : chargedReais = chargedReais ?? amountReais;
@@ -74,6 +80,10 @@ class CardCheckoutPaymentResult {
   /// Desconto do código/link de embaixador (NexaSquad), já fora de
   /// [chargedReais].
   final double squadDiscountReais;
+
+  /// Desconto do PRÓPRIO embaixador na parcela dele, já fora de
+  /// [chargedReais]. 0 sem benefício ou resposta antiga.
+  final double squadPerkReais;
 
   /// Parte da taxa de serviço da nexaGO paga pelo atleta, por cima do preço
   /// e já dentro de [chargedReais]. 0 quando o organizador paga (ou resposta
@@ -115,6 +125,8 @@ class PaymentService {
       'createArenaBookingCardPayment';
   static const String _callableConfirmFreeTournamentRegistration =
       'confirmFreeTournamentRegistration';
+  static const String _callableConfirmSquadFreeTournamentRegistration =
+      'confirmSquadFreeTournamentRegistration';
   static const String _callableReserveDirectOrganizerRegistration =
       'reserveDirectOrganizerRegistration';
   static const String _callableCancelPendingTournamentRegistrationPix =
@@ -351,6 +363,7 @@ class PaymentService {
     final applied = (map['cashbackAppliedReais'] as num?)?.toDouble() ?? 0;
     final charged = (map['chargedReais'] as num?)?.toDouble();
     final squadDiscount = (map['squadDiscountReais'] as num?)?.toDouble() ?? 0;
+    final squadPerk = (map['squadPerkReais'] as num?)?.toDouble() ?? 0;
     final serviceFee = _serviceFeeOf(map);
     return CardCheckoutPaymentResult(
       paymentId: paymentId,
@@ -359,6 +372,7 @@ class PaymentService {
       amountReais: amount,
       cashbackAppliedReais: applied > 0 ? applied : 0,
       squadDiscountReais: squadDiscount > 0 ? squadDiscount : 0,
+      squadPerkReais: squadPerk > 0 ? squadPerk : 0,
       serviceFeeReais: serviceFee,
       chargedReais: charged != null && charged > 0
           ? charged
@@ -399,6 +413,7 @@ class PaymentService {
     final applied = (map['cashbackAppliedReais'] as num?)?.toDouble() ?? 0;
     final charged = (map['chargedReais'] as num?)?.toDouble();
     final squadDiscount = (map['squadDiscountReais'] as num?)?.toDouble() ?? 0;
+    final squadPerk = (map['squadPerkReais'] as num?)?.toDouble() ?? 0;
     final serviceFee = _serviceFeeOf(map);
     return ArenaBookingPixPaymentResult(
       paymentId: paymentId,
@@ -408,6 +423,7 @@ class PaymentService {
       amountToPayNowReais: amount,
       cashbackAppliedReais: applied > 0 ? applied : 0,
       squadDiscountReais: squadDiscount > 0 ? squadDiscount : 0,
+      squadPerkReais: squadPerk > 0 ? squadPerk : 0,
       serviceFeeReais: serviceFee,
       chargedReais: charged != null && charged > 0
           ? charged
@@ -476,6 +492,48 @@ class PaymentService {
       return (
         registrationId: id,
         isPaid: map['isPaid'] == true,
+      );
+    } on FirebaseFunctionsException catch (e) {
+      throw PaymentException(_mapFunctionsMessage(e));
+    } catch (e) {
+      if (e is PaymentException) rethrow;
+      throw PaymentException('Não foi possível confirmar a inscrição: $e');
+    }
+  }
+
+  /// NexaSquad: confirma a PRÓPRIA parcela do embaixador com uma inscrição
+  /// grátis do pacote, sem cobrança. Só a parcela dele (`share`) e só em
+  /// torneio com pagamento online; o servidor recusa com a copy pronta
+  /// (ex.: "Suas inscrições grátis deste mês já foram usadas.").
+  Future<({String registrationId, bool isPaid, double squadFreeReais})>
+  confirmSquadFreeTournamentRegistration({
+    required String registrationId,
+  }) async {
+    if (registrationId.isEmpty) {
+      throw PaymentException('Inscrição inválida.');
+    }
+
+    try {
+      final callable = _functions.httpsCallable(
+        _callableConfirmSquadFreeTournamentRegistration,
+      );
+      final raw = await callable.call(
+        <String, dynamic>{'registrationId': registrationId},
+      );
+      final data = raw.data;
+      if (data is! Map) {
+        throw PaymentException('Resposta inválida do servidor.');
+      }
+      final map = Map<String, dynamic>.from(data);
+      final id = map['registrationId'] as String?;
+      if (id == null || id.isEmpty) {
+        throw PaymentException('Resposta inválida do servidor.');
+      }
+      final free = (map['squadFreeReais'] as num?)?.toDouble() ?? 0;
+      return (
+        registrationId: id,
+        isPaid: map['isPaid'] == true,
+        squadFreeReais: free > 0 ? free : 0.0,
       );
     } on FirebaseFunctionsException catch (e) {
       throw PaymentException(_mapFunctionsMessage(e));

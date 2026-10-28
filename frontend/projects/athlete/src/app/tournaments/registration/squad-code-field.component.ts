@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, effect, input, model, signal, untracked } from '@angular/core';
 import { athleteFunctions } from '../../data/functions';
+import type { OwnPerk } from '../../data/squad-discount';
 import {
   TournamentRegistrationError,
   checkSquadCode,
@@ -109,6 +110,8 @@ export class SquadCodeFieldComponent {
   readonly feePercent = model<number | null>(null);
   /** Piso dessa taxa em reais (o clubinho não tem). */
   readonly feeFloorReais = model(1.5);
+  /** Benefício "Inscrições" do próprio pagador, se ele é embaixador (vem na mesma consulta). */
+  readonly ownPerk = model<OwnPerk | null>(null);
   /** Inscrição (padrão), reserva ou clubinho: muda a taxa e o "só na primeira" de cada tipo. */
   readonly purpose = input<SquadCheckPurpose>('registration');
   /** Reserva: a arena (o plano dela define a taxa). */
@@ -167,6 +170,7 @@ export class SquadCodeFieldComponent {
   private async loadLinkReferral(): Promise<void> {
     try {
       const result = await checkSquadCode(athleteFunctions(), '', this.athleteUids(), this.registrationId() ?? '', this.context());
+      this.ownPerk.set(result.ownPerk);
       if (result.origin !== 'link' && result.origin !== 'qr') return;
       this.viaLink.set({ name: result.ambassadorName ?? 'um embaixador', pct: result.discountPct });
       this.feePercent.set(result.feePercent);

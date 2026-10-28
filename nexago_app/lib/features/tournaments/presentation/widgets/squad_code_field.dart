@@ -29,6 +29,7 @@ class SquadCodeField extends ConsumerStatefulWidget {
     this.arenaId,
     this.athleteUids = const [],
     this.enabled = true,
+    this.onOwnPerk,
   });
 
   /// Rascunho digitado (vai na cobrança quando nenhum código foi aplicado).
@@ -50,6 +51,11 @@ class SquadCodeField extends ConsumerStatefulWidget {
   /// Indicação vigente: código aplicado, link/QR ou [SquadCodeCheck.none].
   final ValueChanged<SquadCodeCheck> onChanged;
   final bool enabled;
+
+  /// Benefício "Inscrições" do próprio pagador embaixador, que vem na mesma
+  /// consulta (`checkSquadCode`, só na inscrição). Chamado a cada resposta,
+  /// com `null` quando ele não tem benefício.
+  final ValueChanged<SquadOwnPerk?>? onOwnPerk;
 
   @override
   ConsumerState<SquadCodeField> createState() => _SquadCodeFieldState();
@@ -102,6 +108,7 @@ class _SquadCodeFieldState extends ConsumerState<SquadCodeField> {
             arenaId: widget.arenaId,
           );
       if (!mounted) return;
+      widget.onOwnPerk?.call(check.ownPerk);
       final link = check.viaLink ? check : SquadCodeCheck.none;
       if (!link.viaLink && !_link.viaLink) return;
       setState(() => _link = link);
@@ -135,6 +142,7 @@ class _SquadCodeFieldState extends ConsumerState<SquadCodeField> {
         _open = false;
       });
       widget.onChanged(check);
+      widget.onOwnPerk?.call(check.ownPerk);
     } on SquadException catch (e) {
       if (!mounted) return;
       setState(() {

@@ -274,6 +274,7 @@ class _TournamentRegistrationPaymentPageState
           'categoryName': category.name,
           'shareAmountReais': amountReais.toString(),
           'amountType': amountType,
+          'ownShareReais': quote.shareAmount.toString(),
         },
         extra: TournamentRegistrationPixArgs(
           registrationId: widget.registrationId,
@@ -282,6 +283,7 @@ class _TournamentRegistrationPaymentPageState
           categoryName: category.name,
           shareAmountReais: amountReais,
           amountType: amountType,
+          ownShareReais: quote.shareAmount,
           holdExpiresAt: snap?.holdExpiresAt,
           holdMinutes: tournament.registrationHoldMinutes,
         ),

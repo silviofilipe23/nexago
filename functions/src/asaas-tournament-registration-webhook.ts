@@ -45,6 +45,7 @@ import {
   releaseTournamentAwaitingSettlement,
 } from "./tournament-wallet";
 import {applySquadPaymentEventQuietly, chargeDiscountCents, squadEventForStatus} from "./squad-commission-lifecycle";
+import {chargePerkCents} from "./squad-own-perk";
 import {
   NO_FEE_RULE,
   feeRuleFromRaw,
@@ -113,6 +114,24 @@ async function resolveSquadDiscountCents(
   const fromPending = pending?.["squadDiscountCents"];
   return pending?.["asaasPaymentId"] === paymentId && typeof fromPending === "number" &&
     Number.isInteger(fromPending) && fromPending > 0 ? fromPending : 0;
+}
+
+/**
+ * Desconto do próprio embaixador nesta cobrança (benefício "Inscrições" do NexaSquad): mesmo trilho
+ * do desconto do seguidor — registro por `paymentId`, senão o pendente desta cobrança.
+ */
+async function resolveSquadPerkCents(
+  db: Firestore,
+  paymentId: string,
+  pending: Record<string, unknown> | undefined,
+): Promise<number> {
+  try {
+    const recorded = await chargePerkCents(db, paymentId);
+    if (recorded > 0) return recorded;
+  } catch (e) {
+    logger.error(`Asaas tournament registration: desconto do embaixador ilegível para ${paymentId}`, e);
+  }
+  return pending?.["asaasPaymentId"] === paymentId ? centsOf(pending["squadPerkCents"]) : 0;
 }
 
 function centsOf(v: unknown): number {
@@ -262,9 +281,11 @@ export async function processTournamentRegistrationAsaasNotification(
       Number.isFinite(processedAppliedCents) ?
         {appliedCents: processedAppliedCents, holdId: null} :
         await resolveCashbackForPayment(db, payerUid, paymentId, pendingSnap.data());
-    // Desconto do seguidor (código de embaixador do NexaGO Squad): também sai da taxa da nexaGO,
-    // então entra no bruto como o cashback — o organizador recebe o mesmo líquido.
-    const squadDiscount = await resolveSquadDiscountCents(db, paymentId, pendingSnap.data());
+    // Desconto do seguidor (código de embaixador do NexaGO Squad) e do embaixador na própria
+    // parcela: a nexaGO banca os dois, então entram no bruto como o cashback — o organizador recebe
+    // o mesmo líquido.
+    const squadDiscount = await resolveSquadDiscountCents(db, paymentId, pendingSnap.data()) +
+      await resolveSquadPerkCents(db, paymentId, pendingSnap.data());
     const chargedGross = roundMoney(paidOnline + appliedCents / 100 + squadDiscount / 100);
 
     // Regra da taxa do torneio (`tournament-fees.ts`): exceção do torneio,

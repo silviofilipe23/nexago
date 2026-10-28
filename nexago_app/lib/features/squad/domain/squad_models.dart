@@ -567,6 +567,7 @@ class SquadCodeCheck {
     required this.discountPct,
     required this.feePercent,
     this.feeFloorReais = 1.5,
+    this.ownPerk,
   });
 
   static const none = SquadCodeCheck(
@@ -592,6 +593,10 @@ class SquadCodeCheck {
   /// Piso dessa taxa em reais (R$ 1,50; o clubinho não tem).
   final num feeFloorReais;
 
+  /// Benefício "Inscrições" do PRÓPRIO pagador, se ele é embaixador ativo (só
+  /// na inscrição). `null` = nenhum (ou backend antigo, sem o campo).
+  final SquadOwnPerk? ownPerk;
+
   bool get viaLink => origin == 'link' || origin == 'qr';
 
   factory SquadCodeCheck.fromMap(Map<String, Object?> m) => SquadCodeCheck(
@@ -601,7 +606,52 @@ class SquadCodeCheck {
     discountPct: _num(m['discountPct']),
     feePercent: m['feePercent'] is num ? m['feePercent'] as num : null,
     feeFloorReais: m['feeFloorReais'] is num ? m['feeFloorReais'] as num : 1.5,
+    ownPerk: SquadOwnPerk.fromRaw(m['ownPerk']),
   );
+}
+
+/// Benefício "Inscrições" do pacote do embaixador na inscrição dele: % de
+/// desconto na própria parcela, ou parcela grátis (N por mês).
+class SquadOwnPerk {
+  const SquadOwnPerk.discount(this.pct)
+    : isFree = false,
+      available = false,
+      remaining = null;
+
+  const SquadOwnPerk.free({required this.available, this.remaining})
+    : isFree = true,
+      pct = 0;
+
+  final bool isFree;
+
+  /// % sobre a própria parcela (só no desconto).
+  final num pct;
+
+  /// Gratuidade: ainda há inscrição grátis no mês.
+  final bool available;
+
+  /// Gratuidade: quantas restam no mês; `null` = ilimitadas (teto oculto —
+  /// nunca mostrar número).
+  final int? remaining;
+
+  bool get isDiscount => !isFree && pct > 0;
+
+  /// `null` para ausente, desconhecido ou desconto zerado.
+  static SquadOwnPerk? fromRaw(Object? raw) {
+    final m = _map(raw);
+    switch (m['type']) {
+      case 'discount':
+        final pct = _num(m['pct']);
+        return pct > 0 ? SquadOwnPerk.discount(pct) : null;
+      case 'free':
+        final remaining = m['remaining'];
+        return SquadOwnPerk.free(
+          available: m['available'] == true,
+          remaining: remaining is num ? remaining.round() : null,
+        );
+    }
+    return null;
+  }
 }
 
 // ── leitura defensiva do payload da callable ────────────────────────────────

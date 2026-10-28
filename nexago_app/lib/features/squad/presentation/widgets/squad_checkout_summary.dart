@@ -18,6 +18,8 @@ class SquadCheckoutSummary extends StatelessWidget {
     required this.totalCents,
     this.priceLabel = 'Inscrição',
     this.serviceFeeCents = 0,
+    this.ownPerkCents = 0,
+    this.ownPerkLabel = 'Benefício de embaixador',
   });
 
   final int priceCents;
@@ -32,6 +34,11 @@ class SquadCheckoutSummary extends StatelessWidget {
   /// Parte da taxa de serviço paga pelo atleta, por cima do preço (só a
   /// inscrição tem); a linha só aparece quando é maior que zero.
   final int serviceFeeCents;
+
+  /// Desconto do PRÓPRIO embaixador na parcela dele (só na inscrição); a
+  /// linha só aparece quando é maior que zero.
+  final int ownPerkCents;
+  final String ownPerkLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +76,12 @@ class SquadCheckoutSummary extends StatelessWidget {
           line(
             discountLabel,
             '− ${formatBRLFromCents(discountCents)}',
+            color: colors.win,
+          ),
+        if (ownPerkCents > 0)
+          line(
+            ownPerkLabel,
+            '− ${formatBRLFromCents(ownPerkCents)}',
             color: colors.win,
           ),
         if (cashbackCents > 0)

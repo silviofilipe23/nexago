@@ -6,6 +6,7 @@ import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { CashbackService } from '../../data/cashback.service';
 import type { ServiceFeeRule } from '../../data/service-fee';
+import type { OwnPerk } from '../../data/squad-discount';
 import type { AthleteTournamentRegistration, PixPaymentResult } from '../../data/tournament-registrations-repository';
 import type { TournamentSummary } from '../../data/tournaments-repository';
 import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
@@ -32,6 +33,8 @@ interface Internals {
   squadDiscountPct: WritableSignal<number>;
   squadFeePercent: WritableSignal<number | null>;
   serviceFeeRule: WritableSignal<ServiceFeeRule>;
+  ownPerk: WritableSignal<OwnPerk | null>;
+  amountType: WritableSignal<'share' | 'full'>;
 }
 
 const firebase = environment.firebase as { apiKey: string };
@@ -99,6 +102,7 @@ function pix(overrides: Partial<PixPaymentResult> = {}): PixPaymentResult {
     cashbackAppliedReais: 0,
     chargedReais: 50,
     squadDiscountReais: 0,
+    squadPerkReais: 0,
     serviceFeeReais: 0,
     ...overrides,
   };
@@ -315,6 +319,61 @@ describe('TournamentPaymentComponent — desconto do seguidor (NexaSquad)', () =
     const { fixture } = create(fakeCashbackService());
     expect(squadSummary(fixture)).toBeNull();
     expect(total(fixture)).toBe('R$ 50,00');
+  });
+});
+
+describe('TournamentPaymentComponent — benefício do embaixador (NexaSquad)', () => {
+  useBlankFirebaseKey();
+
+  function perkSummary(fixture: ComponentFixture<TournamentPaymentComponent>): string | null {
+    const row = Array.from(host(fixture).querySelectorAll('.tp-summary-row')).find(
+      (r) => text(r.querySelector('.tp-summary-label')) === 'Benefício de embaixador',
+    );
+    return row ? text(row.querySelector('.tp-summary-value')) : null;
+  }
+
+  it('% do pacote só na parcela dele, mesmo pagando a dupla inteira', () => {
+    const { fixture, internals } = create(fakeCashbackService());
+    internals.ownPerk.set({ type: 'discount', pct: 20 });
+    fixture.detectChanges();
+    expect(perkSummary(fixture)).toBe('−R$ 10,00');
+    expect(total(fixture)).toBe('R$ 40,00');
+
+    internals.amountType.set('full');
+    fixture.detectChanges();
+    expect(perkSummary(fixture)).toBe('−R$ 10,00');
+    expect(total(fixture)).toBe('R$ 90,00');
+  });
+
+  it('cobrança gerada: vale o desconto que o servidor aplicou', () => {
+    const { fixture, internals } = create(fakeCashbackService());
+    internals.ownPerk.set({ type: 'discount', pct: 20 });
+    internals.pixResult.set(pix({ squadPerkReais: 9, chargedReais: 41 }));
+    fixture.detectChanges();
+    expect(perkSummary(fixture)).toBe('−R$ 9,00');
+    expect(total(fixture)).toBe('R$ 41,00');
+  });
+
+  it('gratuidade do mês: botão de parcela grátis; pagando inteira, só o aviso', () => {
+    const { fixture, internals } = create(fakeCashbackService());
+    internals.ownPerk.set({ type: 'free', available: true, remaining: 1 });
+    fixture.detectChanges();
+    expect(cta(fixture)).toBe('Confirmar minha parcela grátis');
+    expect(perkSummary(fixture)).toBeNull();
+
+    internals.amountType.set('full');
+    fixture.detectChanges();
+    expect(text(host(fixture).querySelector('.tp-perk-box'))).toContain('Escolha "Minha parte" para usar.');
+    expect(cta(fixture)).toBe('Gerar Pix de R$ 100,00');
+  });
+
+  it('gratuidade do mês usada: avisa e cobra normalmente', () => {
+    const { fixture, internals } = create(fakeCashbackService());
+    internals.ownPerk.set({ type: 'free', available: false, remaining: 0 });
+    fixture.detectChanges();
+    expect(host(fixture).querySelector('.tp-perk-box')).toBeNull();
+    expect(text(host(fixture).querySelector('.tp-pix-block'))).toContain('deste mês já foram usadas');
+    expect(cta(fixture)).toBe('Gerar Pix de R$ 50,00');
   });
 });
 

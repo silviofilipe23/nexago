@@ -118,7 +118,7 @@ describe("checkSquadCodeCore", () => {
     const {fake, db} = makeDb();
     assert.deepEqual(
       await checkSquadCodeCore(db, {payerUid: "atl", athleteUids: ["atl"], code: "joao10", registrationId: "reg1", feePercent: 8}, NOW),
-      {ambassadorName: "João Victor", code: "JOAO10", origin: "code", discountPct: 10, feePercent: 8, feeFloorReais: 1.5},
+      {ambassadorName: "João Victor", code: "JOAO10", origin: "code", discountPct: 10, feePercent: 8, feeFloorReais: 1.5, ownPerk: null},
     );
     // Sem código: o link guardado, com o mesmo desconto.
     fake.seedDoc("squadAttributions/atl", {ambassadorId: "rb", code: "RAYSSA", origin: "link", at: NOW});
@@ -133,8 +133,18 @@ describe("checkSquadCodeCore", () => {
     const {db} = makeDb();
     assert.deepEqual(
       await checkSquadCodeCore(db, {payerUid: "atl", athleteUids: [], code: "", registrationId: "reg1"}, NOW),
-      {ambassadorName: null, code: null, origin: null, discountPct: 0, feePercent: null, feeFloorReais: 1.5},
+      {ambassadorName: null, code: null, origin: null, discountPct: 0, feePercent: null, feeFloorReais: 1.5, ownPerk: null},
     );
+  });
+
+  it("embaixador pagando a própria inscrição vê o benefício dele, sem o teto oculto do ilimitado", async () => {
+    const {db} = makeDb();
+    const check = (payerUid: string, purpose: "registration" | "booking" = "registration") =>
+      checkSquadCodeCore(db, {payerUid, athleteUids: [payerUid], code: "", registrationId: "reg1", purpose}, NOW);
+    assert.deepEqual((await check("jv")).ownPerk, {type: "free", available: true, remaining: 1});
+    assert.deepEqual((await check("rb")).ownPerk, {type: "free", available: true, remaining: null});
+    // Reserva não tem o benefício.
+    assert.equal((await check("jv", "booking")).ownPerk, null);
   });
 
   it("reserva e clubinho: % do contrato, teto da cobrança e o piso de cada uma", async () => {

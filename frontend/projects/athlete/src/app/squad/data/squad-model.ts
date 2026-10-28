@@ -356,8 +356,9 @@ export interface Benefit {
 }
 
 /**
- * O pacote congelado no contrato. "Ativo" só no que o NexaGO já opera sozinho (comissão e desconto
- * do seguidor); o resto é "No pacote", porque uso e entrega ainda não são registrados.
+ * O pacote congelado no contrato. "Ativo" só no que o NexaGO já opera sozinho (comissão, desconto
+ * do seguidor e as inscrições do próprio embaixador); o resto é "No pacote", porque uso e entrega
+ * ainda não são registrados.
  */
 export function benefitsOf(
   m: Pick<
@@ -379,7 +380,8 @@ export function benefitsOf(
       status: live,
     });
   }
-  out.push({ label: registrationsLabel(pkg.registrations), sub: 'benefício do seu nível', icon: 'gift', status: 'package' });
+  // Aplicado no checkout das inscrições do próprio embaixador (desconto ou parcela grátis).
+  out.push({ label: registrationsLabel(pkg.registrations), sub: 'na sua parcela, direto no pagamento', icon: 'gift', status: live });
   if (pkg.kit) out.push({ label: pkg.kit, sub: 'kit do seu nível', icon: 'bag', status: 'package' });
   if (pkg.events) out.push({ label: `Eventos: ${pkg.events}`, sub: 'acesso às ações NexaGO', icon: 'star', status: 'package' });
   if (pkg.partnerHalfOff) out.push({ label: '50% para sua dupla', sub: 'em ações selecionadas', icon: 'gift', status: 'package' });

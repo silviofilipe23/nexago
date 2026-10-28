@@ -229,6 +229,33 @@
   color: var(--nx-orange-500);
 }
 
+// ── Benefício do embaixador (NexaSquad) ──────────────────────
+.tp-perk-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-orange-tint);
+  border: 1px solid var(--nx-line-strong);
+}
+
+.tp-perk-title {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--nx-text);
+}
+
+.tp-perk-note {
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--nx-text-dim);
+}
+
 .tp-pix-expired {
   margin: 0;
   font-family: var(--nx-font-ui);

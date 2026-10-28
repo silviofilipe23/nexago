@@ -272,7 +272,9 @@ describe('Squad · Nível & benefícios', () => {
     const { host } = await render(SquadNivelComponent, fakeApi([ambassadorView()]));
     const benefits = Array.from(host.querySelectorAll('.sqn-benefit')).map(words);
     expect(benefits[0]).toBe('10% de comissão sobre cada inscrição paga com seu código Ativo');
-    expect(benefits[2]).toContain('No pacote');
+    // As inscrições do embaixador são aplicadas no checkout: ativas; o kit segue "No pacote".
+    expect(benefits[2]).toBe('1 inscrição gratuita por mês na sua parcela, direto no pagamento Ativo');
+    expect(benefits[3]).toContain('No pacote');
     expect(text(host.querySelector('.sqn-mine-head'))).toContain('desde 08 set · contrato até 06 dez');
     expect(words(host.querySelector('.sqn-points'))).toBe('1.280 pts · Gold');
     expect(words(host.querySelector('.sqn-earn-tile'))).toBe('+40 Conversão paga');

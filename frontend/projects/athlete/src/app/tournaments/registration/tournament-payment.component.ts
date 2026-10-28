@@ -15,6 +15,7 @@ import { pixQrSvgDataUrl, resolvePixQrSrc } from '../../data/pix-qr';
 import {
   cancelPendingRegistrationPix,
   confirmFreeRegistration,
+  confirmSquadFreeRegistration,
   createRegistrationCardPayment,
   createRegistrationPixPayment,
   fetchMyRegistrationForCategory,
@@ -40,7 +41,7 @@ import {
 import { resolveDirectPaymentState, type DirectPaymentState } from './direct-payment-state';
 import { RegistrationHoldNoticeComponent } from './registration-hold-notice.component';
 import { SquadCodeFieldComponent } from './squad-code-field.component';
-import { squadDiscountPreviewCents } from '../../data/squad-discount';
+import { ownPerkPreviewCents, squadDiscountPreviewCents, type OwnPerk } from '../../data/squad-discount';
 import { athleteServiceFeeReais, NO_SERVICE_FEE, type ServiceFeeRule } from '../../data/service-fee';
 import { shouldShowRegistrationHoldCountdown, registrationHoldCountdownView } from './registration-hold';
 import { appliedPreviewCents } from '../../data/cashback-preview';
@@ -317,6 +318,31 @@ export class TournamentPaymentComponent {
     if (!this.appChargeOpen()) return 0;
     return squadDiscountPreviewCents(this.amountDueReais(), this.squadDiscountPct(), this.squadFeePercent()) / 100;
   });
+  /** Benefício "Inscrições" do próprio atleta, se ele é embaixador do NexaSquad (vem do campo do código). */
+  protected readonly ownPerk = signal<OwnPerk | null>(null);
+  /** A parcela do atleta: o benefício do embaixador vale só nela, mesmo pagando a dupla/equipe inteira. */
+  private readonly ownShareReais = computed(() =>
+    this.amountType() === 'share' ? this.amountDueReais() : this.totalPriceReais() / this.teamSize(),
+  );
+  /** Desconto do embaixador na própria parcela: o da cobrança gerada ou a prévia. A nexaGO banca. */
+  protected readonly squadPerkReais = computed(() => {
+    const live = this.pixResult() ?? this.cardResult();
+    if (live) return live.squadPerkReais;
+    const perk = this.ownPerk();
+    if (!this.appChargeOpen() || perk?.type !== 'discount') return 0;
+    return ownPerkPreviewCents(perk.pct, this.ownShareReais(), this.amountDueReais(), this.squadDiscountReais()) / 100;
+  });
+  /** Gratuidade do mês ainda disponível (só sem cobrança aberta). */
+  protected readonly freeShareAvailable = computed(() => {
+    const perk = this.ownPerk();
+    return perk?.type === 'free' && perk.available && this.appChargeOpen() && !this.hasLiveCharge();
+  });
+  /** Gratuidade do mês já usada: o atleta paga normalmente, mas sabe por quê. */
+  protected readonly freeShareUsed = computed(() => {
+    const perk = this.ownPerk();
+    return perk?.type === 'free' && !perk.available && this.appChargeOpen();
+  });
+
   /** Regra da taxa de serviço do torneio (`getTournamentServiceFee`). Organizador pagando — ou
    *  regra ainda não carregada/indisponível — é `NO_SERVICE_FEE`: a tela fica como sempre foi. */
   protected readonly serviceFeeRule = signal<ServiceFeeRule>(NO_SERVICE_FEE);
@@ -330,10 +356,13 @@ export class TournamentPaymentComponent {
     // A cota do trio sai fracionada daqui; o servidor cobra a taxa sobre ela já em centavos.
     return athleteServiceFeeReais(Math.round(this.amountDueReais() * 100) / 100, this.serviceFeeRule());
   });
-  /** Preço + taxa de serviço − desconto do seguidor: o que a cobrança vale antes do cashback, e a
-   *  base do saldo usável (espelho de `dueAfterSquadDiscount` no servidor). */
+  /** Preço + taxa de serviço − desconto do seguidor − desconto do embaixador: o que a cobrança vale
+   *  antes do cashback, e a base do saldo usável (espelho de `dueAfterSquadDiscount` no servidor). */
   protected readonly dueAfterSquadReais = computed(
-    () => Math.round((this.amountDueReais() + this.serviceFeeReais() - this.squadDiscountReais()) * 100) / 100,
+    () =>
+      Math.round(
+        (this.amountDueReais() + this.serviceFeeReais() - this.squadDiscountReais() - this.squadPerkReais()) * 100,
+      ) / 100,
   );
 
   /** Só há o que descontar com a cobrança pelo app ainda por fazer: inscrição paga, parcela paga
@@ -803,6 +832,35 @@ export class TournamentPaymentComponent {
         'Não foi possível confirmar',
         err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu — tente de novo.',
         { label: 'Tentar novamente', run: () => void this.confirmFree() },
+      );
+    } finally {
+      this.processing.set(false);
+    }
+  }
+
+  /** NexaSquad: a parcela do próprio embaixador sai grátis (gratuidade do mês do pacote), sem cobrança. */
+  protected async confirmSquadFree(): Promise<void> {
+    const reg = this.registration();
+    const uid = this.auth.user()?.uid;
+    if (!reg || !uid || this.processing()) return;
+    this.processing.set(true);
+    try {
+      const result = await confirmSquadFreeRegistration(athleteFunctions(), reg.id);
+      this.registration.update((r) =>
+        r ? { ...r, isPaid: result.isPaid, sharePaidUids: [...new Set([...r.sharePaidUids, uid])] } : r,
+      );
+      if (result.isPaid) {
+        this.toasts.success('Inscrição confirmada', 'Sua inscrição grátis do NexaSquad garantiu a vaga.');
+        // Mesmo motivo do `confirmFree`: o snapshot seguinte já chega pago e não dispara a saída.
+        if (!reg.partnerPending) this.goToMyRegistration();
+      } else {
+        this.toasts.success('Sua parte foi confirmada', 'Grátis pelo NexaSquad. A inscrição fecha quando os outros pagarem.');
+      }
+    } catch (err) {
+      this.toasts.error(
+        'Não foi possível confirmar',
+        err instanceof TournamentRegistrationError ? err.message : 'O serviço não respondeu — tente de novo.',
+        { label: 'Tentar novamente', run: () => void this.confirmSquadFree() },
       );
     } finally {
       this.processing.set(false);

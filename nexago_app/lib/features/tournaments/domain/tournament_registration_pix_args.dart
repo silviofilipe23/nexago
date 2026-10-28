@@ -10,6 +10,7 @@ class TournamentRegistrationPixArgs {
     this.paymentExpiresAt,
     this.holdExpiresAt,
     this.holdMinutes = 30,
+    this.ownShareReais,
   });
 
   final String registrationId;
@@ -27,4 +28,9 @@ class TournamentRegistrationPixArgs {
 
   /// Minutos configurados no torneio — janela fixa do countdown da vaga.
   final int holdMinutes;
+
+  /// Parcela do PRÓPRIO atleta (o desconto de embaixador dele incide só nela,
+  /// mesmo pagando a dupla/equipe inteira). `null` = [shareAmountReais] no
+  /// `share`; no `full`, a tela estima pelo tamanho do elenco.
+  final double? ownShareReais;
 }

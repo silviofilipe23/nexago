@@ -16,6 +16,7 @@ import 'package:nexago_app/features/cashback/presentation/widgets/checkout_cashb
 import 'package:nexago_app/features/squad/application/squad_providers.dart';
 import 'package:nexago_app/features/squad/domain/squad_models.dart';
 import 'package:nexago_app/features/squad/domain/squad_repository.dart';
+import 'package:nexago_app/features/squad/domain/squad_rules.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_registration_service.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_pix_args.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_providers.dart';
@@ -577,6 +578,158 @@ void _taxaDeServicoTests() {
       expect(service.useCashbackCalls, [true]);
     });
   });
+
+  // Benefício "Inscrições" do próprio embaixador: vem no `ownPerk` da consulta
+  // da indicação (código vazio), que sai sozinha quando a tela abre.
+  group('benefício do próprio embaixador (NexaSquad)', () {
+    _FakeSquadRepository comBeneficio(SquadOwnPerk perk) => _FakeSquadRepository(
+          link: SquadCodeCheck(
+            ambassadorName: null,
+            code: null,
+            origin: null,
+            discountPct: 0,
+            feePercent: null,
+            ownPerk: perk,
+          ),
+        );
+
+    testWidgets('grátis disponível: ação principal confirma a parcela sem cobrar',
+        (tester) async {
+      final service = _FakePaymentService(
+        _resposta(),
+        freeError: PaymentException(
+          'Suas inscrições grátis deste mês já foram usadas.',
+        ),
+      );
+      await _abrirPixComCashback(
+        tester,
+        service: service,
+        config: CashbackConfig.fallback,
+        squad: comBeneficio(
+          const SquadOwnPerk.free(available: true, remaining: 2),
+        ),
+      );
+
+      expect(find.byKey(const Key('squad-free-share')), findsOneWidget);
+      expect(
+        find.text('2 inscrições grátis restantes este mês'),
+        findsOneWidget,
+      );
+      // O pagamento normal continua abaixo.
+      expect(find.text('Gerar PIX'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('squad-free-confirm')));
+      await tester.pump();
+      await tester.pump();
+
+      expect(service.freeCalls, ['reg-1']);
+      expect(service.useCashbackCalls, isEmpty);
+      // Recusa do servidor chega com a copy pronta.
+      expect(
+        find.text('Suas inscrições grátis deste mês já foram usadas.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('grátis ilimitado: sem número de restantes', (tester) async {
+      await _abrirPixComCashback(
+        tester,
+        service: _FakePaymentService(_resposta()),
+        config: CashbackConfig.fallback,
+        squad: comBeneficio(const SquadOwnPerk.free(available: true)),
+      );
+
+      expect(find.byKey(const Key('squad-free-share')), findsOneWidget);
+      expect(find.textContaining('restante'), findsNothing);
+    });
+
+    testWidgets('pagando a dupla inteira: só o aviso, sem a ação grátis',
+        (tester) async {
+      await _abrirPixComCashback(
+        tester,
+        service: _FakePaymentService(_resposta()),
+        config: CashbackConfig.fallback,
+        amountType: 'full',
+        shareAmountReais: 200,
+        ownShareReais: 100,
+        squad: comBeneficio(
+          const SquadOwnPerk.free(available: true, remaining: 1),
+        ),
+      );
+
+      expect(find.byKey(const Key('squad-free-share')), findsNothing);
+      expect(
+        find.textContaining('cobre só a sua parcela'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('gratuidades do mês usadas: aviso e pagamento normal',
+        (tester) async {
+      final service = _FakePaymentService(_resposta());
+      await _abrirPixComCashback(
+        tester,
+        service: service,
+        config: CashbackConfig.fallback,
+        squad: comBeneficio(
+          const SquadOwnPerk.free(available: false, remaining: 0),
+        ),
+      );
+
+      expect(find.byKey(const Key('squad-free-share')), findsNothing);
+      expect(
+        find.text('Suas inscrições grátis deste mês já foram usadas.'),
+        findsOneWidget,
+      );
+      await _gerarPix(tester);
+      expect(service.useCashbackCalls, [false]);
+    });
+
+    testWidgets(
+        'desconto: linha no resumo e, gerada a cobrança, vale o squadPerkReais',
+        (tester) async {
+      final service = _FakePaymentService(_resposta(perk: 9, charged: 91));
+      await _abrirPixComCashback(
+        tester,
+        service: service,
+        config: CashbackConfig.fallback,
+        squad: comBeneficio(const SquadOwnPerk.discount(10)),
+      );
+
+      final label = 'Benefício de embaixador (${squadPercent(10)})';
+      expect(find.text(label), findsOneWidget);
+      expect(find.text('− ${formatBRLFromCents(1000)}'), findsOneWidget);
+      expect(find.text(formatBRLFromCents(9000)), findsOneWidget);
+      expect(
+        find.text('${formatBRL(90)} · pagar com seu banco'),
+        findsOneWidget,
+      );
+
+      await _gerarPix(tester);
+      expect(find.byKey(const Key('squad-perk-note')), findsOneWidget);
+      expect(
+        find.text('${formatBRL(9)} de desconto do seu benefício de embaixador'),
+        findsOneWidget,
+      );
+      expect(find.text(formatBRL(91)), findsOneWidget);
+    });
+
+    testWidgets('desconto pagando a dupla inteira: só sobre a parcela dele',
+        (tester) async {
+      await _abrirPixComCashback(
+        tester,
+        service: _FakePaymentService(_resposta()),
+        config: CashbackConfig.fallback,
+        amountType: 'full',
+        shareAmountReais: 200,
+        ownShareReais: 100,
+        squad: comBeneficio(const SquadOwnPerk.discount(10)),
+      );
+
+      expect(find.text('− ${formatBRLFromCents(1000)}'), findsOneWidget);
+      expect(find.text(formatBRLFromCents(19000)), findsOneWidget);
+    });
+  });
 }
 
 const _ligado = CashbackConfig(
@@ -595,10 +748,15 @@ class _FakePaymentService implements PaymentService {
   _FakePaymentService(
     this.result, {
     this.feeRule = TournamentServiceFeeRule.none,
+    this.freeError,
   });
 
   final ArenaBookingPixPaymentResult result;
   final TournamentServiceFeeRule feeRule;
+
+  /// Recusa da gratuidade do embaixador (`confirmSquadFreeTournamentRegistration`).
+  final PaymentException? freeError;
+  final freeCalls = <String>[];
   final useCashbackCalls = <bool>[];
   final squadCodeCalls = <String?>[];
   final feeRuleCalls = <String>[];
@@ -622,6 +780,17 @@ class _FakePaymentService implements PaymentService {
     useCashbackCalls.add(useCashback);
     squadCodeCalls.add(squadCode);
     return result;
+  }
+
+  @override
+  Future<({String registrationId, bool isPaid, double squadFreeReais})>
+  confirmSquadFreeTournamentRegistration({
+    required String registrationId,
+  }) async {
+    freeCalls.add(registrationId);
+    final error = freeError;
+    if (error != null) throw error;
+    return (registrationId: registrationId, isPaid: false, squadFreeReais: 100.0);
   }
 
   @override
@@ -669,6 +838,7 @@ ArenaBookingPixPaymentResult _resposta({
   double applied = 0,
   double? charged,
   double serviceFee = 0,
+  double perk = 0,
 }) {
   return ArenaBookingPixPaymentResult(
     paymentId: 'pay_t1',
@@ -678,6 +848,7 @@ ArenaBookingPixPaymentResult _resposta({
     amountToPayNowReais: 100,
     cashbackAppliedReais: applied,
     serviceFeeReais: serviceFee,
+    squadPerkReais: perk,
     chargedReais: charged,
   );
 }
@@ -688,6 +859,9 @@ Future<void> _abrirPixComCashback(
   CashbackConfig config = _ligado,
   int availableCents = 0,
   SquadRepository? squad,
+  double shareAmountReais = 100,
+  String amountType = 'share',
+  double? ownShareReais,
 }) async {
   tester.view.physicalSize = const Size(800, 2400);
   tester.view.devicePixelRatio = 1.0;
@@ -699,7 +873,9 @@ Future<void> _abrirPixComCashback(
     tournamentId: 't1',
     tournamentName: 'Copa Teste',
     categoryName: 'Dupla Masculina',
-    shareAmountReais: 100,
+    shareAmountReais: shareAmountReais,
+    amountType: amountType,
+    ownShareReais: ownShareReais,
     holdExpiresAt: holdExpiresAt,
     holdMinutes: 30,
   );

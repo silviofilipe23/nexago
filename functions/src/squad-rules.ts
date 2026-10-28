@@ -533,6 +533,29 @@ export async function tierFollowerDiscountPct(
   return current ?? DEFAULT_SQUAD_RULES.tiers[tier].followerDiscountPct;
 }
 
+/**
+ * "Inscrições" do pacote de um nível (benefício do próprio embaixador) na versão das regras
+ * congelada no contrato; mesma cascata de `tierFollowerDiscountPct`.
+ */
+export async function tierRegistrationsPerk(
+  db: Firestore,
+  tier: SquadTier,
+  rulesVersion: number | null,
+): Promise<TierPackage["registrations"]> {
+  const perkOf = (data: Raw | undefined): TierPackage["registrations"] | null => {
+    const tiers = isObj(data?.["rules"]) ? (data!["rules"] as Raw)["tiers"] : undefined;
+    const t = isObj(tiers) ? tiers[tier] : undefined;
+    const r = isObj(t) ? t["registrations"] : undefined;
+    return registrationsOk(r) ? {...(r as TierPackage["registrations"])} : null;
+  };
+  const rulesRef = db.collection(SQUAD_CONFIG).doc(SQUAD_RULES_DOC);
+  if (rulesVersion !== null) {
+    const fromVersion = perkOf((await rulesRef.collection(SQUAD_RULES_VERSIONS).doc(String(rulesVersion)).get()).data());
+    if (fromVersion !== null) return fromVersion;
+  }
+  return perkOf((await rulesRef.get()).data()) ?? {...DEFAULT_SQUAD_RULES.tiers[tier].registrations};
+}
+
 // ── diff entre versões ──────────────────────────────────────────────────────
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);

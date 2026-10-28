@@ -2608,6 +2608,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 categoryName: categoryName,
                 shareAmountReais: shareAmount,
                 amountType: amountType,
+                ownShareReais: double.tryParse(
+                  state.uri.queryParameters['ownShareReais']?.trim() ?? '',
+                ),
               ),
             );
           }

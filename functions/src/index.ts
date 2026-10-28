@@ -570,6 +570,9 @@ export {
   migrateAthleteRatingLevelRanks,
 } from "./rating-triggers";
 export {onTournamentMatchCompletedAwardGlobalPoints} from "./tournament-ranking";
+// Push "poste sua posição no story" no dia seguinte ao torneio que pontuou. Sobe com a flag
+// `appConfig/rankingStoryPush.enabled` desligada — ver scripts/set-ranking-story-push-flag.js.
+export {rankingStoryDailyPush} from "./ranking-story-push";
 export {backfillRankingsBySport} from "./ranking-by-sport-backfill";
 
 // Initialize Firebase Admin

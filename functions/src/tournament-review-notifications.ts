@@ -16,8 +16,9 @@ import {
  */
 
 /** O artigo concorda com a palavra "torneio", não com o nome: "o Liga nexaGO" e "o Copa VH"
- *  saíam em todo push. Nome que já começa com "Torneio" vai como está. */
-function label(tournamentName: string): string {
+ *  saíam em todo push. Nome que já começa com "Torneio" vai como está. Também usado no push do
+ *  story do ranking (`ranking-story-push.ts`). */
+export function tournamentLabel(tournamentName: string): string {
   const name = tournamentName.trim();
   if (!name) return "torneio";
   return /^torneio\b/i.test(name) ? name : `torneio ${name}`;
@@ -39,7 +40,7 @@ export function reviewRequestNotification(p: {
 }): DeliverNotificationInput {
   return {
     userId: p.uid,
-    title: `Como foi o ${label(p.tournamentName)}?`,
+    title: `Como foi o ${tournamentLabel(p.tournamentName)}?`,
     body: `Avalie em 10 segundos e ganhe ${XP_TOURNAMENT_REVIEW} XP.`,
     type: TYPES.request,
     data: {tournamentId: p.tournamentId, url: `/torneios/${p.tournamentId}`},
@@ -55,7 +56,7 @@ export function reviewReminderNotification(p: {
 }): DeliverNotificationInput {
   return {
     userId: p.uid,
-    title: `Ainda dá tempo de avaliar o ${label(p.tournamentName)}`,
+    title: `Ainda dá tempo de avaliar o ${tournamentLabel(p.tournamentName)}`,
     body: `A avaliação fecha em ${formatDayMonth(p.closesAtMs)}.`,
     type: TYPES.reminder,
     data: {tournamentId: p.tournamentId, url: `/torneios/${p.tournamentId}`},
@@ -80,7 +81,7 @@ export function reviewClosedNotification(p: {
   }
   return {
     userId: p.uid,
-    title: `Avaliações do ${label(p.tournamentName)} encerradas`,
+    title: `Avaliações do ${tournamentLabel(p.tournamentName)} encerradas`,
     body,
     type: TYPES.closed,
     data: {

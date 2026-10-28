@@ -293,6 +293,55 @@ String rankingStoryShareText(
   return withNexaHashtag('$lead$change $tail');
 }
 
+/// Pedido de abrir o story da posição assim que o ranking carregar. Vem do
+/// push do dia seguinte ao torneio (`functions/src/ranking-story-push.ts`):
+/// `/competir/ranking?story=1&esporte=VOLEI_PRAIA&ano=2026`. O app da loja
+/// sem isto só abre o ranking.
+@immutable
+class RankingStoryRequest {
+  const RankingStoryRequest({this.sport, this.year});
+
+  /// `null` sem `story=1`.
+  static RankingStoryRequest? fromQuery(Map<String, String> query) {
+    if (query['story']?.trim() != '1') return null;
+    final sport = query['esporte']?.trim() ?? '';
+    return RankingStoryRequest(
+      sport: sport.isEmpty ? null : sport,
+      year: int.tryParse(query['ano']?.trim() ?? ''),
+    );
+  }
+
+  /// Código do esporte (`VOLEI_PRAIA`); `null` = o da tela.
+  final String? sport;
+
+  /// Temporada; `null` = a da tela.
+  final int? year;
+
+  /// O push vai pra cada atleta: o recorte é o ranking individual do esporte e
+  /// da temporada, sem gênero, nível nem formato — o mesmo da tela aberta do
+  /// zero.
+  RankingPageFilter filterFrom(RankingPageFilter current) => RankingPageFilter(
+        year: year ?? current.year,
+        sport: sport ?? current.sport,
+      );
+
+  /// A lista na tela já é a do pedido ([sportCode] é o esporte efetivo).
+  bool isServedBy(RankingPageFilter filter, String sportCode) =>
+      filter.mode == RankingListMode.athletes &&
+      !filter.hasActiveFilters &&
+      (year == null || filter.year == year) &&
+      (sport == null || sportCode == sport);
+
+  @override
+  bool operator ==(Object other) =>
+      other is RankingStoryRequest &&
+      other.sport == sport &&
+      other.year == year;
+
+  @override
+  int get hashCode => Object.hash(sport, year);
+}
+
 List<BookingStoryPerson> _peopleOf(RankingListEntry entry) {
   if (entry.isTeam) {
     return [

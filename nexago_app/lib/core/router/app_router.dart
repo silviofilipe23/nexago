@@ -303,6 +303,7 @@ import '../../features/class_directory/presentation/class_directory_page.dart';
 import '../../features/class_directory/presentation/class_provider_detail_page.dart';
 import '../../features/organizer/presentation/public_profile/organizer_own_public_profile_page.dart';
 import '../../features/organizer/presentation/public_profile/organizer_public_profile_editor_page.dart';
+import '../../features/ranking/domain/ranking_story.dart';
 import '../../features/ranking/presentation/athlete_ranking_page.dart';
 import '../../features/tournaments/presentation/my_tournaments_page.dart';
 import '../../features/tournaments/presentation/tournament_discovery_list_page.dart';
@@ -2152,7 +2153,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.athleteRanking,
         name: AppRouteNames.athleteRanking,
-        builder: (context, state) => const AthleteRankingPage(),
+        builder: (context, state) => AthleteRankingPage(
+          storyRequest:
+              RankingStoryRequest.fromQuery(state.uri.queryParameters),
+        ),
       ),
       GoRoute(
         path: AppRoutes.athleteDiscover,

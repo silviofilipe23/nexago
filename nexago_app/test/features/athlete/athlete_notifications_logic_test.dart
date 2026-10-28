@@ -132,6 +132,31 @@ void main() {
       expect(resolveNotificationRoute({...data, 'type': 'tournament_review_closed'}), p.routePath);
     });
 
+    test('ranking_story_share: lista e push abrem o ranking com o story', () {
+      const url = '/competir/ranking?story=1&esporte=VOLEI_PRAIA&ano=2026';
+      final data = {
+        'tournamentId': 't1',
+        'sport': 'VOLEI_PRAIA',
+        'year': '2026',
+        'url': url,
+      };
+      final n = AthleteInboxNotification(
+        id: 'r1',
+        title: 'Seus pontos do torneio Copa entraram no ranking',
+        body: 'Toque para ver sua posição no ranking de vôlei de praia e postar no story.',
+        type: 'ranking_story_share',
+        data: data,
+        read: false,
+        dismissed: false,
+        createdAt: now,
+      );
+      final p = notificationPresentation(n);
+      expect(p.routePath, url);
+      expect(p.icon, Icons.leaderboard_outlined);
+      expect(p.actions.single.label, 'Postar no story');
+      expect(resolveNotificationRoute({...data, 'type': 'ranking_story_share'}), url);
+    });
+
     test('tournament_review_closed sem tournamentId: lista cai na url', () {
       final n = AthleteInboxNotification(
         id: 'c2',

@@ -536,8 +536,10 @@ void main() {
   group('Tela do ranking', () {
     Future<void> pumpRanking(
       WidgetTester tester,
-      List<RankingListEntry> entries,
-    ) async {
+      List<RankingListEntry> entries, {
+      RankingStoryRequest? storyRequest,
+      RankingPageFilter? initialFilter,
+    }) async {
       // 400: a fonte Ahem do teste é mais larga que a Sora e, abaixo disso,
       // estoura a barra "Postar no story" do editor (mesmo tamanho da campanha).
       tester.view.physicalSize = const Size(400, 844);
@@ -549,15 +551,23 @@ void main() {
             rankingListEntriesProvider.overrideWith((ref) async => entries),
             rankingSportProvider.overrideWith((ref) async => 'VOLEI_PRAIA'),
             sandRankEnabledProvider.overrideWith((ref) => Stream.value(false)),
+            if (initialFilter != null)
+              rankingPageFilterProvider.overrideWith((ref) => initialFilter),
           ],
           child: MaterialApp(
             theme: AppTheme.dark,
-            home: const AthleteRankingPage(),
+            home: AthleteRankingPage(storyRequest: storyRequest),
           ),
         ),
       );
       await tester.pumpAndSettle();
     }
+
+    RankingPageFilter filterOf(WidgetTester tester) =>
+        ProviderScope.containerOf(
+          // Com o editor aberto por cima, a tela do ranking fica fora do palco.
+          tester.element(find.byType(AthleteRankingPage, skipOffstage: false)),
+        ).read(rankingPageFilterProvider);
 
     testWidgets('"Compartilhar minha posição" abre o story na melhor linha', (
       tester,
@@ -590,6 +600,95 @@ void main() {
     testWidgets('fora do recorte, sem botão', (tester) async {
       await pumpRanking(tester, [athlete(1, 500), athlete(2, 400)]);
       expect(find.byKey(const Key('ranking-share-position')), findsNothing);
+    });
+
+    group('push do dia seguinte ao torneio', () {
+      final entries = [
+        for (var r = 1; r <= 12; r++) athlete(r, 500 - r, me: r == 4),
+      ];
+      const request = RankingStoryRequest(sport: 'VOLEI_PRAIA', year: 2026);
+
+      testWidgets('abre o editor direto, no recorte individual pedido', (
+        tester,
+      ) async {
+        await pumpRanking(
+          tester,
+          entries,
+          storyRequest: request,
+          initialFilter: const RankingPageFilter(
+            mode: RankingListMode.teams,
+            year: 2025,
+            gender: RankingGenderFilter.female,
+            format: RankingFormatFilter.trio,
+          ),
+        );
+
+        final filter = filterOf(tester);
+        expect(filter.mode, RankingListMode.athletes);
+        expect(filter.year, 2026);
+        expect(filter.sport, 'VOLEI_PRAIA');
+        expect(filter.hasActiveFilters, isFalse);
+
+        expect(find.byType(RankingStoryPage), findsOneWidget);
+        final art =
+            tester.widget<RankingStoryCard>(find.byType(RankingStoryCard));
+        expect(art.data.rank, 4);
+        expect(art.data.season, 2026);
+        expect(art.data.isTeam, isFalse);
+      });
+
+      testWidgets('fechar o editor deixa o ranking, sem reabrir', (
+        tester,
+      ) async {
+        await pumpRanking(tester, entries, storyRequest: request);
+        Navigator.of(tester.element(find.byType(RankingStoryPage))).pop();
+        await tester.pumpAndSettle();
+
+        expect(find.byType(RankingStoryPage), findsNothing);
+        expect(find.byKey(const Key('ranking-share-position')), findsOneWidget);
+      });
+
+      testWidgets('atleta fora da lista pedida: fica só o ranking', (
+        tester,
+      ) async {
+        await pumpRanking(
+          tester,
+          [athlete(1, 500), athlete(2, 400)],
+          storyRequest: request,
+        );
+        expect(find.byType(RankingStoryPage), findsNothing);
+        expect(find.byType(AthleteRankingPage), findsOneWidget);
+      });
+    });
+  });
+
+  group('RankingStoryRequest.fromQuery', () {
+    test('sem story=1 não há pedido', () {
+      expect(RankingStoryRequest.fromQuery(const {}), isNull);
+      expect(
+        RankingStoryRequest.fromQuery(const {'esporte': 'VOLEI_PRAIA'}),
+        isNull,
+      );
+    });
+
+    test('lê esporte e temporada; o que falta fica com a tela', () {
+      expect(
+        RankingStoryRequest.fromQuery(
+          const {'story': '1', 'esporte': 'VOLEI_PRAIA', 'ano': '2026'},
+        ),
+        const RankingStoryRequest(sport: 'VOLEI_PRAIA', year: 2026),
+      );
+      final bare = RankingStoryRequest.fromQuery(
+        const {'story': '1', 'esporte': ' ', 'ano': 'x'},
+      )!;
+      expect(bare, const RankingStoryRequest());
+      expect(
+        bare.filterFrom(
+            const RankingPageFilter(year: 2025, sport: 'FUTEVOLEI')),
+        isA<RankingPageFilter>()
+            .having((f) => f.year, 'year', 2025)
+            .having((f) => f.sport, 'sport', 'FUTEVOLEI'),
+      );
     });
   });
 }

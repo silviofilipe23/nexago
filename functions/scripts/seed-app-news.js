@@ -33,8 +33,8 @@
  * hoje (mapa do Reservar, Bora Jogar, convite de jogadores na reserva e
  * Equipes). Bora Jogar só RESPONDE convites: a entrada para começar um saiu do
  * app em 11/09 (242c0098c). "Chame a galera" abre o Reservar porque não há
- * chave de destino para a Agenda. Melhorias e versões anteriores são
- * provisórias. Imagens: as artes de docs/app-news-art/ (sem `imageUrl`, o app mostra o
+ * chave de destino para a Agenda. Melhorias e versões anteriores vêm dos PRs
+ * com mudança no app entre os cortes. Imagens: as artes de docs/app-news-art/ (sem `imageUrl`, o app mostra o
  * espaço reservado).
  *
  * Pré-requisitos (credenciais admin):
@@ -178,11 +178,19 @@ function currentRelease(build) {
         imageUrl: IMAGES["equipes"],
       },
     ],
-    // O que já entrou na main depois do corte da 1.0.16 (#959–#962); somar o que entrar até o corte.
+    // PRs com mudança no app entre o corte da 1.0.16 e o da 1.0.17: #959–#999 (corte em 27/10, PR #1000).
     improvements: [
       "Esta tela de Novidades, com os stories depois de atualizar",
+      "Central de ajuda com guias de como usar cada função",
+      "Como funciona: Nível, Elo, XP e Ranking, com quanto falta para subir",
+      "Story da sua posição no ranking, com quantas posições você subiu ou caiu na última etapa",
+      "No dia seguinte ao torneio, a notificação leva direto ao story do ranking",
+      "Tema claro de volta em Configurações › Aparência",
+      "Capa da arena na tela de reservar",
+      "A confirmação da reserva avisa quando a arena aceita cartão",
+      "Mesma regra de cancelamento em Minhas reservas e no detalhe da reserva",
       "Listas de atletas e de duplas não pulam mais para o topo ao rolar",
-      "Pílula de XP mais perto da saudação na Home",
+      "O ícone do app não fica mais com o contador de notificações preso",
     ],
   };
 }

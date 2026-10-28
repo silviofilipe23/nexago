@@ -173,6 +173,17 @@ describe('OgNovaInscricaoComponent', () => {
     expect(submitButton(el).disabled).toBeTrue();
   });
 
+  // O servidor grava o aceite do termo de imagem pelo elenco: quem inscreve tem de ler isso antes.
+  it('avisa que inscrever aceita o termo de imagem em nome dos atletas', async () => {
+    const el = await render([category()]);
+    expect(el.querySelector('.og-ni-consent')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+      'Ao inscrever, você aceita o termo de uso de imagem em nome dos atletas.',
+    );
+
+    const solo = await render([category({ teamSize: 1 })]);
+    expect(solo.querySelector('.og-ni-consent')?.textContent).toContain('em nome do atleta.');
+  });
+
   it('exige a dupla completa antes de inscrever', async () => {
     const el = await render([category()]);
     expect(submitButton(el).disabled).toBeTrue();

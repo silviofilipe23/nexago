@@ -285,6 +285,13 @@ export function rosterSizeOf(category: Pick<OrganizerTournamentCategory, 'teamSi
         </p>
       }
 
+      <!-- O servidor grava o aceite do termo de imagem pelo elenco inteiro
+           (organizerCreateTeamRegistration): quem inscreve precisa saber disso ANTES do clique. -->
+      <p class="og-ni-status og-ni-consent">
+        <og-icon name="check" [size]="12" />
+        Ao inscrever, você aceita o termo de uso de imagem em nome {{ rosterSize() === 1 ? 'do atleta' : 'dos atletas' }}.
+      </p>
+
       <div class="og-ni-actions">
         <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="cancelled.emit()">Cancelar</button>
         <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="!canSubmit()" (click)="submit()">
@@ -382,6 +389,11 @@ export function rosterSizeOf(category: Pick<OrganizerTournamentCategory, 'teamSi
     }
     .og-ni-field > .og-ni-status {
       margin: 0;
+    }
+    .og-ni-consent {
+      margin-top: 14px;
+      font-size: 12px;
+      color: var(--nx-text-dim);
     }
     .og-ni-error {
       color: var(--nx-danger, #c44);

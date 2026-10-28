@@ -4,10 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../athlete/domain/athlete_public_profile_providers.dart';
 import '../../domain/team_follow_providers.dart';
 import '../../domain/team_profile/team_public_profile_logic.dart';
 import '../../domain/team_profile/team_public_profile_models.dart';
 import '../../domain/team_profile/team_public_profile_providers.dart';
+import '../../domain/team_profile/team_share_card.dart';
+import 'share/team_share_card_page.dart';
 import 'widgets/team_profile_action_row.dart';
 import 'widgets/team_profile_athletes_section.dart';
 import 'widgets/team_profile_header.dart';
@@ -36,6 +39,44 @@ class _TeamPublicProfilePageState extends ConsumerState<TeamPublicProfilePage> {
       ref.read(teamMatchHistoryProvider(widget.teamId).future),
     ]);
   }
+
+  /// O card precisa do histórico (aproveitamento, títulos, últimas etapas):
+  /// espera o que ainda estiver carregando — falha nele sai com zeros.
+  Future<void> _share(TeamPublicProfile profile) async {
+    var history = const TeamMatchHistoryBundle();
+    try {
+      history = await ref.read(teamMatchHistoryProvider(widget.teamId).future);
+    } catch (_) {}
+    if (!mounted) return;
+    final data = teamShareCardDataFrom(
+      profile: profile,
+      matches: history.matches,
+      campaigns: buildTeamCampaigns(
+        matches: history.matches,
+        teamId: widget.teamId,
+        tournamentNames: history.tournamentNames,
+      ),
+      stats: buildTeamProfileStats(
+        matches: history.matches,
+        teamId: widget.teamId,
+        rankingPoints: profile.ranking.points,
+      ),
+      memberDetails: _memberRankDetails(profile),
+    );
+    await openTeamShareCard(context, data: data);
+  }
+
+  /// "#12 NO RANKING 2026" de cada atleta, para a ficha da dupla. Lê o que a
+  /// seção de atletas já carregou: quem ainda não veio fica sem a linha.
+  Map<String, String> _memberRankDetails(TeamPublicProfile profile) => {
+        for (final member in profile.members)
+          if (ref.read(athletePublicRankingProvider(member.uid)).valueOrNull
+              case final ranking? when ranking.hasRank)
+            member.uid: [
+              '#${ranking.rank} NO RANKING',
+              if (ranking.seasonYear != null) '${ranking.seasonYear}',
+            ].join(' '),
+      };
 
   void _onChallenge() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -112,6 +153,9 @@ class _TeamPublicProfilePageState extends ConsumerState<TeamPublicProfilePage> {
                   child: TeamProfileHeader(
                     profile: profile,
                     onBack: () => context.pop(),
+                    onShare: profile.isLookingForPartner
+                        ? null
+                        : () => _share(profile),
                   ),
                 ),
                 SliverToBoxAdapter(

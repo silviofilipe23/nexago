@@ -1,14 +1,28 @@
-import { type Routes } from '@angular/router';
+import { inject } from '@angular/core';
+import { Router, type Routes } from '@angular/router';
 import { authGuard } from './auth/auth.guard';
 import { onboardingGuard } from './auth/onboarding.guard';
 import { signupFirstGuard } from './auth/signup-first.guard';
 import { staffGuard } from './auth/staff.guard';
+import { SQUAD_PARAM, normalizeSquadCode } from './shared/squad/squad-link';
 
 export const routes: Routes = [
   {
+    // Link/QR de embaixador (`/?squad=CODIGO`, o que o backoffice e o painel do Squad geram) abre o
+    // convite, não o login seco. Sem código no formato, segue para o login como antes.
     path: '',
     pathMatch: 'full',
-    redirectTo: 'entrar',
+    redirectTo: ({ queryParams }) => (normalizeSquadCode(queryParams[SQUAD_PARAM]) ? 'indicacao' : 'entrar'),
+  },
+  {
+    // Convite do NexaSquad, aberto a visitante: o link é para quem ainda não tem conta. Fora dos
+    // prefixos que o app reivindica como App Link, então abre sempre no navegador.
+    path: 'indicacao',
+    canActivate: [
+      ({ queryParams }) => normalizeSquadCode(queryParams[SQUAD_PARAM]) !== null || inject(Router).parseUrl('/entrar'),
+    ],
+    loadComponent: () =>
+      import('./convite/squad-referral-page.component').then((m) => m.SquadReferralPageComponent),
   },
   {
     path: 'atletas',

@@ -1,0 +1,79 @@
+<app-auth-shell>
+  <div class="ref-panel">
+    @if (copy(); as c) {
+      <header class="nx-form-header">
+        <div class="nx-kicker">NexaSquad · Convite</div>
+        <h1>{{ c.title }}</h1>
+        <p>{{ c.lead }}</p>
+      </header>
+
+      @if (referral(); as r) {
+        <div class="ref-amb">
+          @if (r.ambassador.photoUrl; as photo) {
+            <img class="ref-avatar" [src]="photo" alt="" width="48" height="48" />
+          } @else {
+            <span class="ref-avatar ref-avatar--initials" aria-hidden="true">{{ initials() }}</span>
+          }
+          <div class="ref-amb-text">
+            <span class="ref-amb-label">Embaixador nexaGO</span>
+            <strong>{{ r.ambassador.name }}</strong>
+            @if (r.ambassador.place; as place) {
+              <span class="ref-amb-place">{{ place }}</span>
+            }
+          </div>
+          @if (r.ambassador.tier; as tier) {
+            <app-squad-tier [tier]="tier" [small]="true" />
+          }
+        </div>
+      }
+
+      <div class="ref-code" [class.ref-code--off]="lookup()?.kind === 'inactive'">
+        <span class="ref-code-label">Código</span>
+        <span class="ref-code-value">{{ code }}</span>
+      </div>
+
+      @if (c.offer; as offer) {
+        <div class="ref-offer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+            <line x1="7" y1="7" x2="7.01" y2="7" />
+          </svg>
+          <div>
+            <strong>{{ offer }}</strong>
+            <p>Sai da taxa de serviço da nexaGO. O valor exato aparece no pagamento, antes de você confirmar.</p>
+          </div>
+        </div>
+      }
+
+      <div class="nx-stack-sm ref-actions">
+        @switch (viewer()) {
+          @case ('guest') {
+            <a class="nx-btn-primary" routerLink="/cadastro">Criar conta grátis</a>
+            <a class="nx-btn-sso" routerLink="/entrar">Já tenho conta</a>
+          }
+          @case ('self') {
+            <a class="nx-btn-primary" routerLink="/squad">Abrir meu Squad</a>
+            <a class="nx-btn-sso" routerLink="/painel">Ir para o início</a>
+          }
+          @default {
+            <a class="nx-btn-primary" routerLink="/torneios">Ver torneios</a>
+            <a class="nx-btn-sso" routerLink="/painel">Ir para o início</a>
+          }
+        }
+      </div>
+
+      @if (viewer() === 'guest' && c.offer) {
+        <p class="nx-fine">
+          O código fica guardado neste navegador. Vai criar a conta pelo app? Digite <strong>{{ code }}</strong> na hora de pagar.
+        </p>
+      }
+    } @else {
+      <div class="ref-skeleton" aria-busy="true" aria-label="Carregando o convite">
+        <span class="ref-skeleton-line ref-skeleton-line--kicker"></span>
+        <span class="ref-skeleton-line ref-skeleton-line--title"></span>
+        <span class="ref-skeleton-line"></span>
+        <span class="ref-skeleton-block"></span>
+      </div>
+    }
+  </div>
+</app-auth-shell>

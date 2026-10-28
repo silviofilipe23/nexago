@@ -19,6 +19,8 @@ const PUBLIC_PATHS = new Set([
   'esqueci-senha',
   'email-enviado',
   'redefinir-senha',
+  // Convite do Squad: o link do embaixador é para quem ainda não tem conta.
+  'indicacao',
   // Vitrine aberta a visitante (spec da Loja); carrinho e favoritos têm guard nas filhas.
   'loja',
   '**',
@@ -97,6 +99,41 @@ describe('app.routes', () => {
     const route = routes.find((r) => r.path === 'cashback');
     expect(route).toBeDefined();
     expect(route!.canActivate).toEqual([authGuard, onboardingGuard]);
+  });
+});
+
+// O link/QR de embaixador (`/?squad=CODIGO`) caía no login seco: o visitante não sabia do convite
+// nem do desconto e achava que o link estava quebrado.
+describe('app.routes — link de embaixador do Squad', () => {
+  let router: Router;
+  let harness: RouterTestingHarness;
+
+  beforeEach(async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter(withProbes(routes.filter((r) => r.path === '' || r.path === 'indicacao' || r.path === 'entrar'))),
+      ],
+    });
+    harness = await RouterTestingHarness.create();
+    router = TestBed.inject(Router);
+  });
+
+  it('a raiz com ?squad= abre o convite e mantém o código e o via=qr', async () => {
+    await harness.navigateByUrl('/?squad=silvio10&via=qr');
+    expect(router.url).toBe('/indicacao?squad=silvio10&via=qr');
+  });
+
+  it('sem código, ou fora do formato, a raiz segue para o login', async () => {
+    await harness.navigateByUrl('/');
+    expect(router.url).toBe('/entrar');
+    await harness.navigateByUrl('/?squad=jo');
+    expect(router.url).toBe('/entrar?squad=jo');
+  });
+
+  it('o convite sem código válido manda para o login', async () => {
+    await harness.navigateByUrl('/indicacao');
+    expect(router.url).toBe('/entrar');
   });
 });
 

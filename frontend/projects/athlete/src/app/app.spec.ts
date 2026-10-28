@@ -20,6 +20,11 @@ describe('App', () => {
 });
 
 describe('chromeHiddenForUrl', () => {
+  // Convite do Squad usa a moldura das telas de entrada (`AuthShell`), sem o container do painel.
+  it('convite do Squad fica sem a moldura do painel', () => {
+    expect(chromeHiddenForUrl('/indicacao?squad=SILVIO10')).toBe(true);
+  });
+
   // Push `cashback_released`/`cashback_expiring` abre `webUrl: '/cashback'`, e o card do painel
   // também leva pra lá — sem entrar em SHELL_ROUTE_PREFIXES, a página perdia a moldura do painel
   // (sidebar descolada, padding de container em vez de --immersive).

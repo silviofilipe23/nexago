@@ -41,6 +41,8 @@ const AUTH_ROUTES = [
   '/email-enviado',
   '/redefinir-senha',
   '/onboarding',
+  // Convite do Squad: mesma moldura das telas de entrada (é a porta para o cadastro).
+  '/indicacao',
 ];
 
 /** Exportada só para o spec: decide a moldura do painel por rota, sem montar o Router. */

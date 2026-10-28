@@ -236,12 +236,14 @@ Future<void> showSquadContractSheet(
   BuildContext context, {
   required SquadPackage package,
   required bool followerDiscountFirstOnly,
+  SquadDiscountScope followerDiscountScope = const SquadDiscountScope.all(),
   String? periodLabel,
 }) {
   final colors = context.themeColors;
   final clauses = squadContractClauses(
     package: package,
     followerDiscountFirstOnly: followerDiscountFirstOnly,
+    followerDiscountScope: followerDiscountScope,
     periodLabel: periodLabel,
   );
   return showModalBottomSheet<void>(
@@ -309,8 +311,13 @@ Future<void> showSquadContractSheet(
 List<String> squadContractClauses({
   required SquadPackage package,
   required bool followerDiscountFirstOnly,
+  SquadDiscountScope followerDiscountScope = const SquadDiscountScope.all(),
   String? periodLabel,
 }) {
+  final where = squadDiscountWhere(
+    firstOnly: followerDiscountFirstOnly,
+    scope: followerDiscountScope,
+  );
   final commission = package.commissionIsRange
       ? '${squadPercent(package.commissionMin)} a ${squadPercent(package.commissionMax)} (o valor exato fica no contrato)'
       : squadPercent(package.commissionMin);
@@ -320,9 +327,9 @@ List<String> squadContractClauses({
     'Comissão de $commission sobre cada inscrição paga com o seu código, link '
         'ou QR. Ela só vale com o pagamento confirmado; reembolso ou estorno '
         'cancela a comissão.',
-    'Quem usar o seu código ganha $discount de desconto'
-        '${followerDiscountFirstOnly ? ' na primeira inscrição, na primeira reserva e no primeiro clubinho' : ' em inscrições, reservas e clubinhos'}. O '
-        'desconto sai da taxa da NexaGO: organizador e arena recebem o mesmo valor.',
+    if (where != null)
+      'Quem usar o seu código ganha $discount de desconto $where. O '
+          'desconto sai da taxa da NexaGO: organizador e arena recebem o mesmo valor.',
     'As comissões liberadas caem na carteira NexaGO nos dias de repasse do '
         'programa.',
     'Ao divulgar, identifique a parceria com #publi.',

@@ -184,6 +184,16 @@ describe("desconto do seguidor", () => {
     assert.equal((await followerDiscountFor(db, {...base, registrationId: "reg2", attribution: JOAO})).cents, 15_00);
   });
 
+  it("desligado nas inscrições: sem desconto, mas a comissão continua", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("squadConfig/rules", {
+      version: 2,
+      rules: {attribution: {followerDiscountScope: {registration: false, booking: true, club: true}}},
+    });
+    assert.deepEqual(await followerDiscountFor(db, {...base, attribution: JOAO}), {cents: 0, pct: 0});
+    assert.ok(await createPendingCommission(db, input(), NOW));
+  });
+
   it("nunca deixa a cobrança abaixo do mínimo do Asaas", async () => {
     const {db} = makeDb();
     const alto = {...JOAO, ambassador: {...JOAO.ambassador, followerDiscountPct: 30}};

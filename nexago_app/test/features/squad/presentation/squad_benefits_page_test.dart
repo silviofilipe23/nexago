@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/router/routes.dart';
+import 'package:nexago_app/features/squad/domain/squad_models.dart';
 import 'package:nexago_app/features/squad/presentation/widgets/squad_sheets.dart';
 
 import '../squad_test_support.dart';
@@ -179,6 +180,33 @@ void main() {
           'primeiro clubinho.',
         ),
       );
+    });
+
+    test('cláusula do desconto segue o escopo; desligado em tudo some', () {
+      final onlyBooking = squadContractClauses(
+        package: squadPackage('amb'),
+        followerDiscountFirstOnly: false,
+        followerDiscountScope: const SquadDiscountScope(
+          registration: false,
+          booking: true,
+          club: false,
+        ),
+      );
+      expect(
+        onlyBooking[2],
+        startsWith('Quem usar o seu código ganha 10% de desconto em reservas.'),
+      );
+
+      final none = squadContractClauses(
+        package: squadPackage('amb'),
+        followerDiscountFirstOnly: true,
+        followerDiscountScope: const SquadDiscountScope(
+          registration: false,
+          booking: false,
+          club: false,
+        ),
+      );
+      expect(none.any((c) => c.contains('de desconto')), isFalse);
     });
   });
 }

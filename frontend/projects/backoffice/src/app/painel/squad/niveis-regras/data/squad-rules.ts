@@ -96,10 +96,15 @@ export interface TerminationRule {
   checklist: string[];
 }
 
+/** Onde o desconto do seguidor vale: inscrição em torneio, reserva de quadra e clubinho. */
+export type FollowerDiscountKind = 'registration' | 'booking' | 'club';
+export type FollowerDiscountScope = Record<FollowerDiscountKind, boolean>;
+
 export interface AttributionRules {
   requirePaidConfirmation: true;
   cancelOnRefund: true;
   followerDiscountFirstOnly: boolean;
+  followerDiscountScope: FollowerDiscountScope;
   blockSelfReferral: boolean;
   windowDays: number;
   model: AttributionModel;
@@ -173,6 +178,7 @@ export const DEFAULT_SQUAD_RULES: SquadRules = {
     requirePaidConfirmation: true,
     cancelOnRefund: true,
     followerDiscountFirstOnly: true,
+    followerDiscountScope: { registration: true, booking: true, club: true },
     blockSelfReferral: true,
     windowDays: 30,
     model: 'lastTouch',
@@ -426,7 +432,12 @@ export function rulesFromDoc(data: Record<string, unknown> | undefined): SquadRu
   return cloneRules({
     marginMaxPct: raw.marginMaxPct ?? d.marginMaxPct,
     tiers,
-    attribution: { ...d.attribution, ...(raw.attribution ?? {}) },
+    attribution: {
+      ...d.attribution,
+      ...(raw.attribution ?? {}),
+      // Regras salvas antes do escopo existir: o desconto valia em tudo.
+      followerDiscountScope: { ...d.attribution.followerDiscountScope, ...(raw.attribution?.followerDiscountScope ?? {}) },
+    },
     promotion: raw.promotion?.length === d.promotion.length ? raw.promotion : d.promotion,
     termination: { ...d.termination, ...(raw.termination ?? {}) },
     scoreWeights: { ...d.scoreWeights, ...(raw.scoreWeights ?? {}) },

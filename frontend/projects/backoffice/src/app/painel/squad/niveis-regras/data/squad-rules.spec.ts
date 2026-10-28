@@ -126,4 +126,12 @@ describe('squad-rules', () => {
     expect(partial.tiers.ath.commissionPct).toBe(5);
     expect(partial.points).toEqual(DEFAULT_SQUAD_RULES.points);
   });
+
+  it('regras salvas antes do escopo do desconto valem em tudo; escopo parcial completa', () => {
+    const old = rulesFromDoc({ rules: { attribution: { followerDiscountFirstOnly: false } } });
+    expect(old.attribution.followerDiscountFirstOnly).toBeFalse();
+    expect(old.attribution.followerDiscountScope).toEqual({ registration: true, booking: true, club: true });
+    const partial = rulesFromDoc({ rules: { attribution: { followerDiscountScope: { booking: false } } } });
+    expect(partial.attribution.followerDiscountScope).toEqual({ registration: true, booking: false, club: true });
+  });
 });

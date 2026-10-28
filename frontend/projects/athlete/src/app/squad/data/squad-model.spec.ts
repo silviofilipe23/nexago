@@ -59,6 +59,20 @@ describe('squad-model', () => {
     expect(benefitsOf(member({ followerDiscountPct: 0 })).some((b) => b.label.includes('OFF'))).toBeFalse();
   });
 
+  it('o texto do desconto segue onde as regras o ligaram; desligado em tudo não promete nada', () => {
+    const scope = (registration: boolean, booking: boolean, club: boolean) => ({ registration, booking, club });
+    expect(followerOffer(member({ followerDiscountScope: scope(true, true, false) })).discount).toBe(
+      'até 10% OFF na primeira inscrição e reserva',
+    );
+    expect(
+      followerOffer(member({ followerDiscountFirstOnly: false, followerDiscountScope: scope(false, true, true) })).discount,
+    ).toBe('até 10% OFF em reservas e clubinhos');
+    expect(followerOffer(member({ followerDiscountScope: scope(false, false, false) })).discount).toBeNull();
+    expect(
+      benefitsOf(member({ followerDiscountScope: scope(false, false, false) })).some((b) => b.label.includes('OFF')),
+    ).toBeFalse();
+  });
+
   it('disponível: data do repasse, o que fica para depois e o mínimo', () => {
     const m = member();
     const withEarnings = (e: Partial<typeof m.earnings>) => member({ earnings: { ...m.earnings, ...e } });

@@ -54,6 +54,11 @@ export type ScoreComponent = (typeof SCORE_COMPONENTS)[number];
 export const ATHLETE_LEVEL_NAMES = ["Bronze", "Silver", "Gold", "Elite"] as const;
 
 /** As duas promoções do programa, nesta ordem. Captain é paralelo: não entra na escada. */
+/** Onde o desconto do seguidor vale: inscrição em torneio, reserva de quadra e clubinho. */
+export const FOLLOWER_DISCOUNT_KINDS = ["registration", "booking", "club"] as const;
+export type FollowerDiscountKind = (typeof FOLLOWER_DISCOUNT_KINDS)[number];
+export type FollowerDiscountScope = Record<FollowerDiscountKind, boolean>;
+
 export const PROMOTION_STEPS: ReadonlyArray<{from: SquadTier; to: SquadTier}> = [
   {from: "ath", to: "amb"},
   {from: "amb", to: "pro"},
@@ -105,6 +110,8 @@ export interface SquadRules {
     requirePaidConfirmation: true;
     cancelOnRefund: true;
     followerDiscountFirstOnly: boolean;
+    /** Em que compras o desconto vale. Ausente (regras antigas) = em todas. */
+    followerDiscountScope: FollowerDiscountScope;
     blockSelfReferral: boolean;
     windowDays: number;
     model: "lastTouch" | "firstTouch";
@@ -182,6 +189,7 @@ export const DEFAULT_SQUAD_RULES: SquadRules = {
     requirePaidConfirmation: true,
     cancelOnRefund: true,
     followerDiscountFirstOnly: true,
+    followerDiscountScope: {registration: true, booking: true, club: true},
     blockSelfReferral: true,
     windowDays: 30,
     model: "lastTouch",
@@ -250,6 +258,16 @@ function text(v: unknown, min: number, max: number): v is string {
 }
 
 /** Piso da comissão: o valor exato, ou o início da faixa do Pro. */
+/** Escopo salvo, com cada tipo ausente ou inválido valendo (o padrão é o desconto em tudo). */
+export function followerDiscountScopeOf(raw: unknown): FollowerDiscountScope {
+  const r = isObj(raw) ? raw : {};
+  return {
+    registration: r["registration"] !== false,
+    booking: r["booking"] !== false,
+    club: r["club"] !== false,
+  };
+}
+
 export function commissionFloor(c: unknown): number {
   if (Array.isArray(c)) return typeof c[0] === "number" ? c[0] : NaN;
   return typeof c === "number" ? c : NaN;
@@ -342,6 +360,12 @@ export function squadRulesErrors(rules: unknown): string[] {
     if (a["requirePaidConfirmation"] !== true) fields.push("attribution.requirePaidConfirmation");
     if (a["cancelOnRefund"] !== true) fields.push("attribution.cancelOnRefund");
     if (typeof a["followerDiscountFirstOnly"] !== "boolean") fields.push("attribution.followerDiscountFirstOnly");
+    // Opcional: a tela antiga salva sem ele (vira "em todas").
+    const scope = a["followerDiscountScope"];
+    if (scope !== undefined &&
+      (!isObj(scope) || FOLLOWER_DISCOUNT_KINDS.some((k) => typeof scope[k] !== "boolean"))) {
+      fields.push("attribution.followerDiscountScope");
+    }
     if (typeof a["blockSelfReferral"] !== "boolean") fields.push("attribution.blockSelfReferral");
     if (!int(a["windowDays"], 1, MAX_WINDOW_DAYS)) fields.push("attribution.windowDays");
     if (a["model"] !== "lastTouch" && a["model"] !== "firstTouch") fields.push("attribution.model");
@@ -439,6 +463,7 @@ export function normalizeSquadRules(r: SquadRules): SquadRules {
       requirePaidConfirmation: true,
       cancelOnRefund: true,
       followerDiscountFirstOnly: r.attribution.followerDiscountFirstOnly,
+      followerDiscountScope: followerDiscountScopeOf(r.attribution.followerDiscountScope),
       blockSelfReferral: r.attribution.blockSelfReferral,
       windowDays: r.attribution.windowDays,
       model: r.attribution.model,
@@ -470,12 +495,13 @@ export async function loadAttributionRules(db: Firestore): Promise<SquadRules["a
   const snap = await db.collection(SQUAD_CONFIG).doc(SQUAD_RULES_DOC).get();
   const raw = snap.exists ? (snap.data()?.["rules"] as Raw | undefined)?.["attribution"] : undefined;
   const d = DEFAULT_SQUAD_RULES.attribution;
-  if (!isObj(raw)) return {...d};
+  if (!isObj(raw)) return {...d, followerDiscountScope: {...d.followerDiscountScope}};
   return {
     requirePaidConfirmation: true,
     cancelOnRefund: true,
     followerDiscountFirstOnly: typeof raw["followerDiscountFirstOnly"] === "boolean" ?
       raw["followerDiscountFirstOnly"] : d.followerDiscountFirstOnly,
+    followerDiscountScope: followerDiscountScopeOf(raw["followerDiscountScope"]),
     blockSelfReferral: typeof raw["blockSelfReferral"] === "boolean" ? raw["blockSelfReferral"] : d.blockSelfReferral,
     windowDays: int(raw["windowDays"], 1, MAX_WINDOW_DAYS) ? raw["windowDays"] : d.windowDays,
     model: raw["model"] === "firstTouch" ? "firstTouch" : "lastTouch",

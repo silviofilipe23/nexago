@@ -178,6 +178,7 @@ class _BenefitsBody extends StatelessWidget {
                       context,
                       package: m.package,
                       followerDiscountFirstOnly: m.followerDiscountFirstOnly,
+                      followerDiscountScope: m.followerDiscountScope,
                       periodLabel: period.isEmpty ? null : period,
                     ),
                     child: Text(

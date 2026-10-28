@@ -297,6 +297,7 @@ class SquadMember {
     required this.commissionPct,
     required this.followerDiscountPct,
     required this.followerDiscountFirstOnly,
+    this.followerDiscountScope = const SquadDiscountScope.all(),
     required this.pendingAmendment,
     required this.earnings,
     required this.conversions,
@@ -327,6 +328,7 @@ class SquadMember {
   final num commissionPct;
   final num followerDiscountPct;
   final bool followerDiscountFirstOnly;
+  final SquadDiscountScope followerDiscountScope;
   final SquadAmendment? pendingAmendment;
   final SquadEarnings earnings;
 
@@ -364,6 +366,9 @@ class SquadMember {
       commissionPct: _num(m['commissionPct']),
       followerDiscountPct: _num(m['followerDiscountPct']),
       followerDiscountFirstOnly: m['followerDiscountFirstOnly'] != false,
+      followerDiscountScope: SquadDiscountScope.fromMap(
+        _map(m['followerDiscountScope']),
+      ),
       pendingAmendment: amendment == null
           ? null
           : SquadAmendment(
@@ -510,6 +515,7 @@ class SquadInvite {
     required this.firstName,
     required this.tournaments,
     required this.followerDiscountFirstOnly,
+    this.followerDiscountScope = const SquadDiscountScope.all(),
   });
 
   final String id;
@@ -528,6 +534,7 @@ class SquadInvite {
   final String firstName;
   final int? tournaments;
   final bool followerDiscountFirstOnly;
+  final SquadDiscountScope followerDiscountScope;
 
   bool get isOpen => status == 'sent' || status == 'opened';
 
@@ -544,6 +551,9 @@ class SquadInvite {
         ? (m['tournaments'] as num).toInt()
         : null,
     followerDiscountFirstOnly: m['followerDiscountFirstOnly'] != false,
+    followerDiscountScope: SquadDiscountScope.fromMap(
+      _map(m['followerDiscountScope']),
+    ),
   );
 }
 
@@ -622,4 +632,30 @@ int _int(Object? v) => v is num ? v.round() : 0;
 DateTime? _date(Object? v) {
   if (v is! String || v.isEmpty) return null;
   return DateTime.tryParse(v)?.toUtc();
+}
+
+/// Onde o desconto do seguidor vale (regras do programa): inscrição em
+/// torneio, reserva de quadra e clubinho. Ausente (backend antigo) = em tudo.
+class SquadDiscountScope {
+  const SquadDiscountScope({
+    required this.registration,
+    required this.booking,
+    required this.club,
+  });
+
+  const SquadDiscountScope.all()
+    : registration = true,
+      booking = true,
+      club = true;
+
+  factory SquadDiscountScope.fromMap(Map<String, Object?> m) =>
+      SquadDiscountScope(
+        registration: m['registration'] != false,
+        booking: m['booking'] != false,
+        club: m['club'] != false,
+      );
+
+  final bool registration;
+  final bool booking;
+  final bool club;
 }

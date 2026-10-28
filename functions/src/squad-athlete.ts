@@ -42,6 +42,7 @@ import {
   TIER_LABELS,
   commissionFloor,
   loadAttributionRules,
+  type FollowerDiscountScope,
   type RegistrationType,
   type SquadRules,
   type SquadTier,
@@ -285,6 +286,8 @@ export interface SquadMemberView {
   followerDiscountPct: number;
   /** "Desconto só na primeira inscrição" das regras de atribuição. */
   followerDiscountFirstOnly: boolean;
+  /** Em que compras o desconto do seguidor vale (inscrição, reserva, clubinho). */
+  followerDiscountScope: FollowerDiscountScope;
   pendingAmendment: null | {at: string | null; package: AthletePackage};
   earnings: {
     /** Pendente + liberada + paga: tudo que o código gerou no ciclo. */
@@ -428,6 +431,7 @@ export async function mySquadCore(db: Firestore, uid: string, now: Date): Promis
       commissionPct,
       followerDiscountPct,
       followerDiscountFirstOnly: attribution.followerDiscountFirstOnly,
+      followerDiscountScope: attribution.followerDiscountScope,
       pendingAmendment: pendingView,
       earnings: {
         totalCents: Math.max(0, pendingCents + sum(confirmed, (r) => r.amountCents) + partialRefunds),
@@ -597,6 +601,7 @@ export interface SquadInviteView {
   tournaments: number | null;
   /** "Desconto só na primeira inscrição" das regras de atribuição (resumo do contrato). */
   followerDiscountFirstOnly: boolean;
+  followerDiscountScope: FollowerDiscountScope;
 }
 
 /** O convite do próprio atleta, com o pacote que o aceite vai congelar (regras vigentes). */
@@ -628,6 +633,7 @@ export async function inviteViewCore(db: Firestore, uid: string, inviteId: strin
     firstName: name.trim().split(/\s+/)[0] ?? "",
     tournaments: typeof tournaments === "number" && Number.isFinite(tournaments) ? tournaments : null,
     followerDiscountFirstOnly: attribution.followerDiscountFirstOnly,
+    followerDiscountScope: attribution.followerDiscountScope,
   };
 }
 

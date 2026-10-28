@@ -595,22 +595,39 @@ function drawOrangeBackdrop(p: Painter, ghost: string): void {
   drawText(ctx, ghost, W + 13, 50, display(253, { color: C.inkGhost, em: -0.07, height: 0.8 }), 'right');
 }
 
+const PANEL_INNER = 16;
+const PANEL_FORM = 16;
+
+function panelFooterHeight(): number {
+  return lineHeight(label(6.3, C.mute, 0.08)) + 1.3 + lineHeight(display(9.3, { em: -0.02, height: 1.2, weight: 700 }));
+}
+
+/** Altura do card escuro do estilo ranking — quem desenha em cima dele precisa saber onde ele
+ *  começa antes de desenhar. */
+function darkPanelHeight(data: TeamShareCardData): number {
+  const stagesH = data.stages.length > 0 ? 13 + 0.5 + 13 + stagesHeight(data.stages.length) : 0;
+  const rowH = Math.max(data.form.length > 0 ? PANEL_FORM : 0, panelFooterHeight());
+  return PANEL_INNER + statHeight(21.3) + stagesH + 13 + 0.5 + 13 + rowH + PANEL_INNER;
+}
+
 /**
- * O card escuro de baixo do estilo ranking: números, últimas etapas e a linha final (elenco ou
- * sequência + link). Fica colado no pé do card.
+ * O card escuro de baixo do estilo ranking: números, últimas etapas e a linha final (sequência +
+ * link). Fica colado no pé do card. Os rostos do elenco não vão aqui: ficam grandes no vão de
+ * cima (`drawRankingFaces`).
  */
-function drawDarkPanel(p: Painter, leading: { width: number; height: number; draw: (x: number, y: number) => void }): void {
+function drawDarkPanel(p: Painter): void {
   const { ctx, data } = p;
-  const inner = 16;
+  const inner = PANEL_INNER;
   const x = PAD + inner;
   const width = CONTENT_W - inner * 2;
   const statsH = statHeight(21.3);
   const follow = label(6.3, C.mute, 0.08);
   const link = display(9.3, { em: -0.02, height: 1.2, weight: 700 });
-  const linkColH = lineHeight(follow) + 1.3 + lineHeight(link);
-  const rowH = Math.max(leading.height, linkColH);
-  const stagesH = data.stages.length > 0 ? 13 + 0.5 + 13 + stagesHeight(data.stages.length) : 0;
-  const h = inner + statsH + stagesH + 13 + 0.5 + 13 + rowH + inner;
+  const linkColH = panelFooterHeight();
+  const formW = formWidth(data.form.length, PANEL_FORM);
+  const formH = data.form.length > 0 ? PANEL_FORM : 0;
+  const rowH = Math.max(formH, linkColH);
+  const h = darkPanelHeight(data);
   const top = H - PAD - h;
 
   ctx.save();
@@ -646,10 +663,10 @@ function drawDarkPanel(p: Painter, leading: { width: number; height: number; dra
   }
   divider();
 
-  leading.draw(x, y + (rowH - leading.height) / 2);
+  drawForm(p, data.form, x, y + (rowH - formH) / 2, PANEL_FORM);
   const right = x + width;
   const colTop = y + (rowH - linkColH) / 2;
-  const colW2 = width - leading.width - 10;
+  const colW2 = width - formW - 10;
   drawTruncated(ctx, teamShareFollowLabel(data), right, colTop, follow, colW2, 'right');
   drawTruncated(ctx, TEAM_SHARE_PORTAL_HOST, right, colTop + lineHeight(follow) + 1.3, link, colW2, 'right');
 }
@@ -802,15 +819,16 @@ function drawDuoSheetCard(p: Painter): void {
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, W, H);
   const pair = data.members.slice(0, 2);
-  pair.forEach((_, i) => {
-    const hue = teamShareMemberHue(data.hue, i);
-    drawGlow(ctx, i === 0 ? 90 : 270, 141, 190, hsl(hue, 0.6, 0.4, 0.28), hsl(hue, 0.6, 0.4, 0));
-  });
-
   const kicker = label(8);
   let y = PAD;
   y += drawTopBar(p, y, lineHeight(kicker), (right, top) => drawText(ctx, teamShareKicker(data), right, top, kicker, 'right'));
-  y += 40;
+  y += 30;
+
+  const photoMid = y + SHEET_PHOTO_H / 2;
+  pair.forEach((_, i) => {
+    const hue = teamShareMemberHue(data.hue, i);
+    drawGlow(ctx, pair.length === 2 ? (i === 0 ? 90 : 270) : W / 2, photoMid, 200, hsl(hue, 0.6, 0.4, 0.28), hsl(hue, 0.6, 0.4, 0));
+  });
 
   const colW = pair.length === 2 ? (CONTENT_W - 8) / 2 : CONTENT_W;
   let tallest = 0;
@@ -818,24 +836,28 @@ function drawDuoSheetCard(p: Painter): void {
     tallest = Math.max(tallest, drawSheetPlayer(p, member, teamShareMemberHue(data.hue, i), PAD + i * (colW + 8), y, colW));
   });
   if (pair.length === 2) {
-    const cy = y + 43.3;
+    // Recorta as duas molduras com um aro da cor do fundo: o "+" parece encaixado entre elas.
     ctx.beginPath();
-    ctx.arc(W / 2, cy, 14, 0, Math.PI * 2);
+    ctx.arc(W / 2, photoMid, 19, 0, Math.PI * 2);
+    ctx.fillStyle = C.bg;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(W / 2, photoMid, 16, 0, Math.PI * 2);
     ctx.fillStyle = C.brand;
     ctx.fill();
-    const plus = display(13.3, { color: C.ink, em: 0, height: 1 });
-    drawText(ctx, '+', W / 2, cy - lineHeight(plus) / 2, plus, 'center');
+    const plus = display(15.3, { color: C.ink, em: 0, height: 1 });
+    drawText(ctx, '+', W / 2, photoMid - lineHeight(plus) / 2, plus, 'center');
   }
   y += tallest;
 
   const origin = teamShareOriginLine(data);
   if (origin) {
-    y += 23.3;
+    y += 20;
     const style = originStyle(C.mute);
     drawTruncated(ctx, origin, W / 2, y, style, CONTENT_W, 'center');
     y += lineHeight(style);
   }
-  y += 20;
+  y += 18;
   y += drawStatStrip(p, [
     { label: 'RANKING', value: teamShareRankLabel(data) },
     { label: 'JOGOS', value: `${data.games}` },
@@ -843,7 +865,7 @@ function drawDuoSheetCard(p: Painter): void {
     { label: 'TÍTULOS', value: `${data.titles}` },
   ], y, 24);
   if (data.form.length > 0) {
-    y += 16.7;
+    y += 16;
     const head = label(7.3);
     const formW = formWidth(data.form.length, 18);
     drawTruncated(ctx, data.form.length === 1 ? 'ÚLTIMO JOGO' : `ÚLTIMOS ${data.form.length} JOGOS`, PAD, y + (18 - lineHeight(head)) / 2, head, CONTENT_W - formW - 8);
@@ -852,14 +874,27 @@ function drawDuoSheetCard(p: Painter): void {
   drawFooter(p);
 }
 
-/** Foto, nome (até duas linhas) e o ranking individual. Devolve a altura. */
+/** Altura da foto na ficha: retrato quase 2:3 na coluna de 148 — a foto é o assunto do card. */
+const SHEET_PHOTO_H = 228;
+
+/** Foto em moldura retrato, nome (até duas linhas) e o ranking individual. Devolve a altura. */
 function drawSheetPlayer(p: Painter, member: TeamShareMember, hue: number, x: number, y: number, width: number): number {
   const { ctx } = p;
-  const size = 86.7;
-  drawAvatar(p, member, hue, x + (width - size) / 2, y, size, C.lineStrong);
-  let cy = y + size + 8.7;
-  cy += drawFitName(ctx, [{ text: member.name, color: C.text }], x + width / 2, cy, display(17.3, { em: -0.035, height: 1 }), {
-    sizes: [17.3],
+  const radius = 16;
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(x, y, width, SHEET_PHOTO_H, radius);
+  ctx.clip();
+  drawPhotoTile(p, member, hue, x, y, width, SHEET_PHOTO_H, 56);
+  ctx.restore();
+  ctx.beginPath();
+  ctx.roundRect(x + 0.5, y + 0.5, width - 1, SHEET_PHOTO_H - 1, radius - 0.5);
+  ctx.strokeStyle = C.lineStrong;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  let cy = y + SHEET_PHOTO_H + 10;
+  cy += drawFitName(ctx, [{ text: member.name, color: C.text }], x + width / 2, cy, display(20, { em: -0.035, height: 1 }), {
+    sizes: [20],
     maxWidth: width,
     align: 'center',
     balance: false,
@@ -881,12 +916,9 @@ function drawRankingCard(p: Painter): void {
   drawOrangeBackdrop(p, rank);
 
   let y = PAD;
-  if (data.isDuo) {
-    const n = Math.min(2, data.members.length);
-    y += drawTopBar(p, y, 36.7, (right, top) => drawRosterRow(p, right - rosterRowWidth(n, 36.7), top, 36.7, C.ink, 2), true);
-  } else {
-    y += drawTopBar(p, y, 40, (right, top) => drawCrest(p, right - 40, top, 40, true), true);
-  }
+  // Os rostos saíram do canto: ficam grandes no meio do card (`drawRankingFaces`).
+  if (data.isDuo) y += drawTopBar(p, y, 0, () => undefined, true);
+  else y += drawTopBar(p, y, 40, (right, top) => drawCrest(p, right - 40, top, 40, true), true);
   y += 36.7;
   const rankingStyle = label(9.3, C.inkMute, 0.16);
   // Recorte comprido encolhe em vez de quebrar, como no app.
@@ -909,14 +941,28 @@ function drawRankingCard(p: Painter): void {
     .filter((s) => s.length > 0)
     .join(' · ')
     .toUpperCase();
-  if (subline) drawTruncated(ctx, subline, PAD, y + 6.7, label(8.7, C.inkMute, 0.1), CONTENT_W);
-
-  if (data.isDuo) {
-    drawDarkPanel(p, { width: formWidth(data.form.length, 16), height: data.form.length > 0 ? 16 : 0, draw: (x, top) => drawForm(p, data.form, x, top, 16) });
-  } else {
-    const n = Math.min(6, data.members.length);
-    drawDarkPanel(p, { width: rosterRowWidth(n, 26.7), height: n > 0 ? 26.7 : 0, draw: (x, top) => drawRosterRow(p, x, top, 26.7, C.ink, 6) });
+  if (subline) {
+    const style = label(8.7, C.inkMute, 0.1);
+    drawTruncated(ctx, subline, PAD, y + 6.7, style, CONTENT_W);
+    y += 6.7 + lineHeight(style);
   }
+
+  drawDarkPanel(p);
+  drawRankingFaces(p, y + 18, H - PAD - darkPanelHeight(data) - 18);
+}
+
+/**
+ * O elenco no vão entre o nome e o card escuro, no maior tamanho que cabe: a altura do vão muda
+ * com o nome (uma ou duas linhas) e com as etapas do painel, então o tamanho sai dela. Dupla vai
+ * a até 140; equipe divide a largura entre até seis rostos.
+ */
+function drawRankingFaces(p: Painter, top: number, bottom: number): void {
+  const count = Math.min(p.data.isDuo ? 2 : 6, p.data.members.length);
+  if (count === 0) return;
+  const byWidth = CONTENT_W / (1 + 0.78 * (count - 1));
+  const size = Math.min(p.data.isDuo ? 140 : 100, byWidth, bottom - top);
+  if (size < 40) return;
+  drawRosterRow(p, PAD, top + (bottom - top - size) / 2, size, C.ink, count);
 }
 
 // ── Entrada ───────────────────────────────────────────────────────────────

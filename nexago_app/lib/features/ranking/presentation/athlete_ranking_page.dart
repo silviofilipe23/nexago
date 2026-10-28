@@ -399,9 +399,12 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                     ),
                     child: ClipRRect(
                       borderRadius: AppRadii.lgAll,
+                      // Mesmo fundo da tela: o card fica idêntico à linha da
+                      // lista, só que cobre as linhas que passam por baixo.
                       child: RankingUserHighlightTile(
                         entry: userEntry,
                         onTap: _profileTap(userEntry, filter.mode),
+                        surfaceColor: theme.colorScheme.surfaceContainerLowest,
                       ),
                     ),
                   ),

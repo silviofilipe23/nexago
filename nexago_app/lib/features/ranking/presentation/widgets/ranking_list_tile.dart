@@ -17,6 +17,7 @@ class RankingListTile extends StatefulWidget {
     this.highlight = false,
     this.onTap,
     this.trailing,
+    this.surfaceColor,
   });
 
   /// Altura aproximada para placeholder de scroll (card flutuante).
@@ -29,6 +30,11 @@ class RankingListTile extends StatefulWidget {
   /// Conteúdo opcional depois da pontuação. Usado pelo ranking de palpites para
   /// a variação de posição; `null` no ranking global, que não tem esse dado.
   final Widget? trailing;
+
+  /// Fundo opaco por baixo da tinta do realce. Só o card flutuante passa: por
+  /// cima das outras linhas, a tinta translúcida deixaria vazar o que está
+  /// atrás. `null` mantém o realce translúcido da linha dentro da lista.
+  final Color? surfaceColor;
 
   @override
   State<RankingListTile> createState() => _RankingListTileState();
@@ -122,10 +128,14 @@ class _RankingListTileState extends State<RankingListTile> {
       ),
     );
 
+    final tint = AppColors.brand.withValues(alpha: 0.08);
+    final surfaceColor = widget.surfaceColor;
     final content = highlight
         ? DecoratedBox(
             decoration: BoxDecoration(
-              color: AppColors.brand.withValues(alpha: 0.08),
+              color: surfaceColor == null
+                  ? tint
+                  : Color.alphaBlend(tint, surfaceColor),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: AppColors.brand.withValues(alpha: 0.35),
@@ -160,11 +170,15 @@ class RankingUserHighlightTile extends StatelessWidget {
     required this.entry,
     this.onTap,
     this.trailing,
+    this.surfaceColor,
   });
 
   final RankingListEntry entry;
   final VoidCallback? onTap;
   final Widget? trailing;
+
+  /// Ver [RankingListTile.surfaceColor].
+  final Color? surfaceColor;
 
   @override
   Widget build(BuildContext context) {
@@ -173,6 +187,7 @@ class RankingUserHighlightTile extends StatelessWidget {
       highlight: true,
       onTap: onTap,
       trailing: trailing,
+      surfaceColor: surfaceColor,
     );
   }
 }

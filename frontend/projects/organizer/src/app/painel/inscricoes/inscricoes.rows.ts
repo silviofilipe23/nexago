@@ -1,19 +1,26 @@
 import { isNamedTeamSize } from '../data/team-size';
+import type { AthleteContact } from '../data/athlete-contacts-repository';
 import type { TournamentInscription } from '../data/inscriptions-repository';
 import type { OrganizerTournament } from '../data/tournament.model';
-import { normalizeSearch, type InscricaoRow, type LgpdStatus, type PayStatus } from './inscricoes.model';
+import {
+  normalizeSearch,
+  type InscricaoAthlete,
+  type InscricaoRow,
+  type LgpdStatus,
+  type PayStatus,
+} from './inscricoes.model';
 
 const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
 const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const LONG_DATE_TIME = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long', timeStyle: 'short' });
 
 /** Linhas da tela a partir das inscrições cruas — função pura de propósito: com a lista viva,
- *  as três entradas (inscrições, torneio, telefones) chegam em momentos diferentes, e cada uma
+ *  as três entradas (inscrições, torneio, contatos) chegam em momentos diferentes, e cada uma
  *  que chega remonta as linhas sem tocar na rede. */
 export function buildInscricaoRows(
   inscriptions: readonly TournamentInscription[],
   tournament: OrganizerTournament | null,
-  phones: ReadonlyMap<string, string>,
+  contacts: ReadonlyMap<string, AthleteContact>,
 ): InscricaoRow[] {
   const categoryNames = new Map((tournament?.categories ?? []).map((c) => [c.id, c.name]));
   // No modo direto o atleta DECLARA que pagou; no modo app o dinheiro entrou de verdade.
@@ -24,21 +31,34 @@ export function buildInscricaoRows(
     const accepted = new Set(insc.lgpdAcceptedUids);
     const sharePaid = new Set(insc.sharePaidUids);
     const organizerConfirmedShare = new Set(insc.organizerConfirmedShareUids);
-    const athletes =
+    const athletes: InscricaoAthlete[] =
       insc.participants.length > 0
-        ? insc.participants.map((p) => ({
-            uid: p.uid,
-            name: p.name,
-            photoUrl: p.photoUrl,
-            lgpdAccepted: accepted.has(p.uid),
-            phone: phones.get(p.uid) ?? '',
-            sharePaid: sharePaid.has(p.uid),
-            organizerConfirmedShare: organizerConfirmedShare.has(p.uid),
-          }))
+        ? insc.participants.map((p) => {
+            const contact = contacts.get(p.uid);
+            const fullName = contact?.fullName || p.name;
+            const nickname = contact?.nickname ?? '';
+            return {
+              uid: p.uid,
+              name: p.name,
+              fullName,
+              // "Ana Paula “Ana Paula”" não ajuda ninguém: perfil sem nome completo cai no
+              // apelido, e aí ele já está na tela.
+              nickname: normalizeSearch(nickname) === normalizeSearch(fullName) ? '' : nickname,
+              email: contact?.email ?? '',
+              photoUrl: p.photoUrl,
+              lgpdAccepted: accepted.has(p.uid),
+              phone: contact?.phoneNumber ?? '',
+              sharePaid: sharePaid.has(p.uid),
+              organizerConfirmedShare: organizerConfirmedShare.has(p.uid),
+            };
+          })
         : [
             {
               uid: '',
               name: insc.teamName,
+              fullName: '',
+              nickname: '',
+              email: '',
               photoUrl: null,
               lgpdAccepted: false,
               phone: '',
@@ -97,7 +117,9 @@ export function buildInscricaoRows(
       time: insc.createdAt ? TIME.format(insc.createdAt) : '—',
       dateLong: insc.createdAt ? LONG_DATE_TIME.format(insc.createdAt) : 'Data não registrada',
       createdAt: insc.createdAt,
-      search: normalizeSearch([insc.teamName, ...insc.participants.map((p) => p.name), categoria].join(' ')),
+      search: normalizeSearch(
+        [insc.teamName, ...athletes.flatMap((a) => [a.name, a.fullName, a.nickname, a.email]), categoria].join(' '),
+      ),
     };
   });
 

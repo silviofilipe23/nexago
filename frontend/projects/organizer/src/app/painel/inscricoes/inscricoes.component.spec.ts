@@ -1,10 +1,11 @@
 import { provideZonelessChangeDetection, type WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import type { AthleteContact } from '../data/athlete-contacts-repository';
 import { EMPTY_INSCRIPTION_UNIFORM, type TournamentInscription } from '../data/inscriptions-repository';
 import { EMPTY_TOURNAMENT_COLLECTED } from '../data/tournament-collected';
 import type { OrganizerTournament } from '../data/tournament.model';
-import { InscricoesComponent, phonesRefreshDelay } from './inscricoes.component';
+import { InscricoesComponent, contactsRefreshDelay } from './inscricoes.component';
 
 const COALESCE = 10_000;
 
@@ -84,28 +85,28 @@ function tournament(): OrganizerTournament {
 interface Internals {
   tournament: WritableSignal<OrganizerTournament | null>;
   inscriptions: WritableSignal<TournamentInscription[]>;
-  phones: WritableSignal<ReadonlyMap<string, string>>;
+  contacts: WritableSignal<ReadonlyMap<string, AthleteContact>>;
   occupancyByCategory: () => Record<string, number>;
   waitlistEnabled: () => boolean;
 }
 
-describe('phonesRefreshDelay', () => {
+describe('contactsRefreshDelay', () => {
   it('busca na hora a primeira vez, com a lista recém-chegada', () => {
-    expect(phonesRefreshDelay(['u1', 'u2'], new Set(), COALESCE)).toBe(0);
+    expect(contactsRefreshDelay(['u1', 'u2'], new Set(), COALESCE)).toBe(0);
   });
 
   it('não busca nada quando todo mundo da lista já foi perguntado', () => {
-    expect(phonesRefreshDelay(['u1'], new Set(['u1', 'u2']), COALESCE)).toBeNull();
+    expect(contactsRefreshDelay(['u1'], new Set(['u1', 'u2']), COALESCE)).toBeNull();
   });
 
   it('não busca nada em torneio sem inscrição', () => {
-    expect(phonesRefreshDelay([], new Set(), COALESCE)).toBeNull();
+    expect(contactsRefreshDelay([], new Set(), COALESCE)).toBeNull();
   });
 
   // O caso que a lista viva cria: a rajada de inscrições que entra junta tem de virar UMA
   // invocação de Cloud Function, não uma por inscrição.
   it('adia a busca do atleta novo pra juntar a rajada numa chamada só', () => {
-    expect(phonesRefreshDelay(['u1', 'u3'], new Set(['u1', 'u2']), COALESCE)).toBe(COALESCE);
+    expect(contactsRefreshDelay(['u1', 'u3'], new Set(['u1', 'u2']), COALESCE)).toBe(COALESCE);
   });
 });
 

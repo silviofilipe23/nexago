@@ -77,6 +77,24 @@ interface PhoneLinks {
 
                 <span class="og-insc-who">
                   <span class="og-insc-name" [title]="r.name">{{ r.name }}</span>
+                  <!-- Quem é cada atleta: o nome da dupla sai dos apelidos, e dois "Bia" no
+                       mesmo torneio só se separam pelo nome completo e pelo e-mail. A linha sem
+                       elenco resolvido (uid vazio) não tem pessoa pra mostrar. -->
+                  @if (r.athletes[0]?.uid) {
+                    <span class="og-insc-people">
+                      @for (a of r.athletes; track $index) {
+                        <span class="og-insc-person" [title]="personTitle(a)">
+                          <span class="p-name">{{ a.fullName }}</span>
+                          @if (a.nickname) {
+                            <span class="p-nick">“{{ a.nickname }}”</span>
+                          }
+                          @if (a.email) {
+                            <span class="p-mail">{{ a.email }}</span>
+                          }
+                        </span>
+                      }
+                    </span>
+                  }
                   @if (r.cancelPending || r.lgpd !== 'aceito' || r.roster) {
                     <span class="og-insc-flags">
                       @if (r.roster; as roster) {
@@ -466,6 +484,39 @@ interface PhoneLinks {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .og-insc-people {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    /* Uma linha por atleta, cortada no fim: o e-mail é o que some primeiro (e o title mostra
+       tudo). Quebrar a linha faria uma dupla com e-mail longo ocupar seis linhas. */
+    .og-insc-person {
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      line-height: 1.4;
+      color: var(--nx-text-dim);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .og-insc-person .p-name {
+      font-weight: 500;
+      color: var(--nx-text-mute);
+    }
+
+    .og-insc-person .p-nick {
+      margin-left: 5px;
+      color: var(--nx-text-mute);
+    }
+
+    .og-insc-person .p-mail::before {
+      content: ' · ';
     }
 
     .og-insc-flags {
@@ -879,6 +930,27 @@ interface PhoneLinks {
         display: inline;
       }
 
+      /* Na coluna estreita a linha única cortava o e-mail inteiro — justamente o dado que
+         separa dois atletas de mesmo apelido. Aqui ele desce pra linha própria. */
+      .og-insc-people {
+        gap: 5px;
+      }
+
+      .og-insc-person {
+        white-space: normal;
+      }
+
+      .og-insc-person .p-mail {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .og-insc-person .p-mail::before {
+        content: none;
+      }
+
       /* O recuo alinha a gaveta com a coluna do nome — no card estreito ele custa 74px de uma
          largura que já é a que falta, e os botões de contato passam a cair um por linha. */
       .og-insc-drawer {
@@ -968,6 +1040,11 @@ export class OgInscricoesListComponent {
     } catch {
       /* sem clipboard: o número continua visível e selecionável no botão de ligar */
     }
+  }
+
+  /** A linha do atleta é cortada com reticências; o title devolve o texto inteiro. */
+  protected personTitle(a: InscricaoAthlete): string {
+    return [a.fullName + (a.nickname ? ` “${a.nickname}”` : ''), a.email].filter(Boolean).join(' · ');
   }
 
   /** Contexto da foto ampliada: o que o organizador precisa ler pra confirmar quem é. */

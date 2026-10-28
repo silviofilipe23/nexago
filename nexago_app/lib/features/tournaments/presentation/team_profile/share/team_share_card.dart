@@ -446,8 +446,11 @@ class _DuoSheetCard extends StatelessWidget {
         children: [
           for (var i = 0; i < pair.length; i++)
             _Glow(
-              center: Offset(i == 0 ? 90 : 270, 141),
-              radius: 190,
+              center: Offset(
+                pair.length == 2 ? (i == 0 ? 90 : 270) : 180,
+                _sheetPhotoTop + _sheetPhotoHeight / 2,
+              ),
+              radius: 200,
               color: TeamShareTokens.hueColor(
                 teamShareMemberHue(data.hue, i),
                 0.6,
@@ -467,7 +470,7 @@ class _DuoSheetCard extends StatelessWidget {
                     style: TeamShareTokens.label(8),
                   ),
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: _sheetPhotoGap),
                 Stack(
                   clipBehavior: Clip.none,
                   alignment: Alignment.topCenter,
@@ -488,20 +491,26 @@ class _DuoSheetCard extends StatelessWidget {
                     ),
                     if (pair.length == 2)
                       Positioned(
-                        top: 43.3 - 14,
+                        top: _sheetPhotoHeight / 2 - 19,
+                        // O aro da cor do fundo recorta as duas molduras: o
+                        // "+" parece encaixado entre elas.
                         child: Container(
-                          width: 28,
-                          height: 28,
+                          width: 38,
+                          height: 38,
                           alignment: Alignment.center,
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             color: AppColors.brand,
                             shape: BoxShape.circle,
+                            border: Border.all(
+                              color: TeamShareTokens.bg,
+                              width: 3,
+                            ),
                           ),
                           child: Text(
                             '+',
                             textScaler: TextScaler.noScaling,
                             style: TeamShareTokens.display(
-                              13.3,
+                              15.3,
                               color: TeamShareTokens.ink,
                               em: 0,
                               height: 1,
@@ -512,7 +521,7 @@ class _DuoSheetCard extends StatelessWidget {
                   ],
                 ),
                 if (origin.isNotEmpty) ...[
-                  const SizedBox(height: 23.3),
+                  const SizedBox(height: 20),
                   Text(
                     origin,
                     textAlign: TextAlign.center,
@@ -522,7 +531,7 @@ class _DuoSheetCard extends StatelessWidget {
                     style: _originStyle(TeamShareTokens.mute),
                   ),
                 ],
-                const SizedBox(height: 20),
+                const SizedBox(height: 18),
                 TeamShareStatStrip(
                   stats: [
                     TeamShareStat(
@@ -548,7 +557,7 @@ class _DuoSheetCard extends StatelessWidget {
                   ],
                 ),
                 if (data.form.isNotEmpty) ...[
-                  const SizedBox(height: 16.7),
+                  const SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
@@ -575,6 +584,13 @@ class _DuoSheetCard extends StatelessWidget {
   }
 }
 
+/// A foto é o assunto da ficha: retrato quase 2:3 na coluna de 148.
+const double _sheetPhotoHeight = 228;
+const double _sheetPhotoGap = 30;
+
+/// Topo da foto no card: padding + barra de cima (19) + respiro.
+const double _sheetPhotoTop = TeamShareTokens.pad + 19 + _sheetPhotoGap;
+
 class _SheetPlayer extends StatelessWidget {
   const _SheetPlayer({required this.member, required this.hue});
 
@@ -583,22 +599,35 @@ class _SheetPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(16);
     return Column(
       children: [
-        TeamShareAvatar(
-          member: member,
-          hue: hue,
-          size: 86.7,
-          ring: TeamShareTokens.lineStrong,
+        SizedBox(
+          height: _sheetPhotoHeight,
+          child: DecoratedBox(
+            position: DecorationPosition.foreground,
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              border: Border.all(color: TeamShareTokens.lineStrong),
+            ),
+            child: ClipRRect(
+              borderRadius: radius,
+              child: TeamSharePhotoTile(
+                member: member,
+                hue: hue,
+                initialsSize: 56,
+              ),
+            ),
+          ),
         ),
-        const SizedBox(height: 8.7),
+        const SizedBox(height: 10),
         Text(
           member.name,
           textAlign: TextAlign.center,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           textScaler: TextScaler.noScaling,
-          style: TeamShareTokens.display(17.3, em: -0.035, height: 1),
+          style: TeamShareTokens.display(20, em: -0.035, height: 1),
         ),
         if (member.detail.isNotEmpty) ...[
           const SizedBox(height: 3.3),
@@ -638,10 +667,12 @@ class _RankingCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Os rostos saíram do canto: ficam grandes no meio
+              // ([_RankingFaces]).
               TeamShareTopBar(
                 onOrange: true,
                 trailing: data.isDuo
-                    ? _DuoFaces(data: data)
+                    ? const SizedBox.shrink()
                     : TeamShareCrest(data: data, size: 40, onOrange: true),
               ),
               const SizedBox(height: 36.7),
@@ -709,17 +740,10 @@ class _RankingCard extends StatelessWidget {
                   ),
                 ),
               ],
-              const Spacer(),
+              Expanded(child: _RankingFaces(data: data)),
               TeamShareDarkPanel(
                 data: data,
-                footerLeading: data.isDuo
-                    ? TeamShareForm(form: data.form, size: 16)
-                    : TeamShareRosterRow(
-                        data: data,
-                        size: 26.7,
-                        ring: TeamShareTokens.ink,
-                        max: 6,
-                      ),
+                footerLeading: TeamShareForm(form: data.form, size: 16),
               ),
             ],
           ),
@@ -729,19 +753,38 @@ class _RankingCard extends StatelessWidget {
   }
 }
 
-/// Os dois rostos da dupla no canto do card laranja.
-class _DuoFaces extends StatelessWidget {
-  const _DuoFaces({required this.data});
+/// O elenco no vão entre o nome e o card escuro, no maior tamanho que cabe: o
+/// vão muda com o nome (uma ou duas linhas) e com as etapas do painel, então o
+/// tamanho sai dele. Dupla vai a até 140; equipe divide a largura entre até
+/// seis rostos.
+class _RankingFaces extends StatelessWidget {
+  const _RankingFaces({required this.data});
 
   final TeamShareCardData data;
 
   @override
   Widget build(BuildContext context) {
-    return TeamShareRosterRow(
-      data: data,
-      size: 36.7,
-      ring: TeamShareTokens.ink,
-      max: 2,
+    final count = data.members.length.clamp(0, data.isDuo ? 2 : 6);
+    if (count == 0) return const SizedBox.shrink();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final byWidth = constraints.maxWidth / (1 + 0.78 * (count - 1));
+        final size = [
+          data.isDuo ? 140.0 : 100.0,
+          byWidth,
+          constraints.maxHeight - 36,
+        ].reduce((a, b) => a < b ? a : b);
+        if (size < 40) return const SizedBox.shrink();
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: TeamShareRosterRow(
+            data: data,
+            size: size,
+            ring: TeamShareTokens.ink,
+            max: count,
+          ),
+        );
+      },
     );
   }
 }

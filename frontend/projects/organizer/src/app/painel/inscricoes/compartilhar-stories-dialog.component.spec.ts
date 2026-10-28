@@ -147,6 +147,17 @@ describe('OgCompartilharStoriesDialogComponent', () => {
     expect(text(fixture)).toContain('atleta.test/torneios/t1/inscricao');
   });
 
+  it('categoria lotada troca o link de inscrição pelo aviso de que a arte sai sem o botão', async () => {
+    const fixture = await mount();
+    fixture.componentRef.setInput('tournament', {
+      ...TOURNAMENT,
+      categories: [category('fem', 'Feminino Open', 3)],
+    });
+    fixture.detectChanges();
+    expect(text(fixture)).toContain('A categoria está lotada');
+    expect(text(fixture)).not.toContain('Link de inscrição');
+  });
+
   it('categoria vazia bloqueia o envio e diz por quê', async () => {
     const fixture = await mount('vazia');
     await rendered(fixture);

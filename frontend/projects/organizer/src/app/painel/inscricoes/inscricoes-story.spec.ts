@@ -219,11 +219,70 @@ describe('buildInscricoesStory', () => {
       );
       expect(story.spotsLeft).toBeNull();
     });
+
+    // "6 vagas" num torneio que não aceita mais inscrição chamaria pra uma porta trancada.
+    it('inscrições encerradas não mostram vagas, mesmo sobrando lugar', () => {
+      const story = buildInscricoesStory(
+        [row(['A A', 'B B'])],
+        tournament({ status: 'encerradas' }),
+        OPTS,
+      );
+      expect(story.spotsAvailable).toBeNull();
+      expect(story.spotsLeft).toBeNull();
+    });
   });
 
-  it('o botão "Inscreva-se" só sai com inscrições abertas', () => {
-    expect(buildInscricoesStory([], tournament(), OPTS).cta).toBeTrue();
-    expect(buildInscricoesStory([], tournament({ status: 'encerradas' }), OPTS).cta).toBeFalse();
+  describe('botão "Inscreva-se"', () => {
+    it('sai com inscrições abertas e vaga na categoria', () => {
+      const story = buildInscricoesStory([row(['A A', 'B B'])], tournament(), OPTS);
+      expect([story.cta, story.closedReason]).toEqual([true, null]);
+    });
+
+    it('some com as inscrições encerradas (ou o torneio já em andamento)', () => {
+      for (const status of ['encerradas', 'andamento', 'concluido', 'cancelado'] as const) {
+        const story = buildInscricoesStory([], tournament({ status }), OPTS);
+        expect([story.cta, story.closedReason]).withContext(status).toEqual([false, 'encerradas']);
+      }
+    });
+
+    // Vale mesmo com fila de espera ligada: a arte promete vaga, e vaga não há.
+    it('some com a categoria lotada', () => {
+      const story = buildInscricoesStory(
+        [row(['A A', 'B B']), row(['C C', 'D D'], 'pendente')],
+        tournament({ categories: [category({ maxTeams: 2 })] }),
+        { ...OPTS, paidOnly: true },
+      );
+      expect([story.cta, story.closedReason]).toEqual([false, 'lotada']);
+    });
+
+    it('fila de espera não lota a categoria', () => {
+      const story = buildInscricoesStory(
+        [row(['A A', 'B B']), row(['C C', 'D D'], 'espera')],
+        tournament({ categories: [category({ maxTeams: 2 })] }),
+        OPTS,
+      );
+      expect([story.cta, story.spotsAvailable]).toEqual([true, 1]);
+    });
+
+    it('categoria sem teto nunca lota', () => {
+      const rows = Array.from({ length: 40 }, (_, i) => row([`A${i} A`, `B${i} B`]));
+      const story = buildInscricoesStory(
+        rows,
+        tournament({ categories: [category({ maxTeams: null })] }),
+        OPTS,
+      );
+      expect(story.cta).toBeTrue();
+    });
+  });
+
+  it('leva a foto de cada atleta pro avatar (sem foto, só as iniciais)', () => {
+    const pair = row(['Ana Ferreira', 'Bia Duarte']);
+    pair.athletes[0]!.photoUrl = 'https://fotos.test/ana.jpg';
+    const story = buildInscricoesStory([pair], tournament(), OPTS);
+    expect(story.pages[0]!.entries[0]!.avatars).toEqual([
+      { initials: 'AF', photoUrl: 'https://fotos.test/ana.jpg' },
+      { initials: 'BD', photoUrl: null },
+    ]);
   });
 
   it('equipe (trio+) mostra o nome da equipe e até 3 avatares', () => {
@@ -240,7 +299,11 @@ describe('buildInscricoesStory', () => {
     expect(story.pages[0]!.entries[0]).toEqual({
       position: 1,
       label: 'Tubarões',
-      initials: ['AL', 'BR', 'CM'],
+      avatars: [
+        { initials: 'AL', photoUrl: null },
+        { initials: 'BR', photoUrl: null },
+        { initials: 'CM', photoUrl: null },
+      ],
     });
   });
 
@@ -261,7 +324,10 @@ describe('buildInscricoesStory', () => {
     expect(story.pages[0]!.entries[0]).toEqual({
       position: 1,
       label: 'Ana / Bia',
-      initials: ['A', 'B'],
+      avatars: [
+        { initials: 'A', photoUrl: null },
+        { initials: 'B', photoUrl: null },
+      ],
     });
   });
 

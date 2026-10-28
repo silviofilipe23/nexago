@@ -22,14 +22,23 @@ export interface StoryOptions {
   showSpots: boolean;
 }
 
+export interface StoryAvatar {
+  initials: string;
+  /** Foto do perfil público; sem foto (ou sem CORS no bucket), o avatar sai com as iniciais. */
+  photoUrl: string | null;
+}
+
 export interface StoryEntry {
   /** Posição na ordem de inscrição (1 = a primeira), que é o número da linha na arte. */
   position: number;
   /** "Ana F. / Bia D." na dupla, o nome da equipe no trio+, o nome inteiro no individual. */
   label: string;
-  /** Uma inicial por atleta (máx. 3), para os avatares sobrepostos. */
-  initials: string[];
+  /** Um avatar por atleta (máx. 3), sobrepostos. */
+  avatars: StoryAvatar[];
 }
+
+/** Por que a arte sai sem o "Inscreva-se": o link da figurinha levaria a uma porta fechada. */
+export type StoryClosedReason = 'encerradas' | 'lotada';
 
 export interface StoryPage {
   index: number;
@@ -50,13 +59,15 @@ export interface InscricoesStory {
   unit: string;
   /** Quantas entram na arte, já com o filtro de pagas. */
   count: number;
-  /** Vagas que sobram na categoria, sem olhar o toggle; `null` = sem teto ou lotada. */
+  /** Vagas que sobram na categoria, sem olhar o toggle; `null` = sem teto, lotada ou com as
+   *  inscrições encerradas ("6 vagas" num torneio fechado chamaria pra uma porta trancada). */
   spotsAvailable: number | null;
   /** O que a arte mostra: `spotsAvailable` com o toggle ligado, senão `null`. */
   spotsLeft: number | null;
-  /** O botão "Inscreva-se" só faz sentido com inscrições abertas — fora disso o link do
-   *  sticker levaria a uma porta fechada. */
+  /** Botão "Inscreva-se" (e link na figurinha): só com inscrições abertas e vaga na categoria. */
   cta: boolean;
+  /** Motivo de não ter o botão; `null` quando ele aparece. */
+  closedReason: StoryClosedReason | null;
   /** Sempre ao menos uma página (vazia, quando ninguém entra), para a prévia ter o que mostrar. */
   pages: StoryPage[];
 }
@@ -146,12 +157,15 @@ function entryOf(row: InscricaoRow, position: number, teamSize: number | null): 
       .split('/')
       .map((p) => p.trim())
       .filter(Boolean);
-    return { position, label: row.name, initials: parts.slice(0, 2).map(storyInitials) };
+    const avatars = parts.slice(0, 2).map((p) => ({ initials: storyInitials(p), photoUrl: null }));
+    return { position, label: row.name, avatars };
   }
-  const initials = roster.slice(0, 3).map((a) => storyInitials(a.name));
-  if (isNamedTeamSize(teamSize)) return { position, label: row.name, initials };
-  if (teamSize === 1) return { position, label: roster[0]!.name, initials };
-  return { position, label: roster.map((a) => shortAthleteName(a.name)).join(' / '), initials };
+  const avatars = roster
+    .slice(0, 3)
+    .map((a) => ({ initials: storyInitials(a.name), photoUrl: a.photoUrl || null }));
+  if (isNamedTeamSize(teamSize)) return { position, label: row.name, avatars };
+  if (teamSize === 1) return { position, label: roster[0]!.name, avatars };
+  return { position, label: roster.map((a) => shortAthleteName(a.name)).join(' / '), avatars };
 }
 
 export function buildInscricoesStory(
@@ -179,8 +193,12 @@ export function buildInscricoesStory(
   }));
 
   const max = category?.maxTeams ?? null;
+  const full = max != null && max > 0 && inCategory.length >= max;
+  // Lotada vale mesmo com fila de espera ligada: a arte chama pra uma vaga, e vaga não há.
+  const closedReason: StoryClosedReason | null =
+    tournament.status !== 'inscricoes' ? 'encerradas' : full ? 'lotada' : null;
   const spotsAvailable =
-    max != null && max > 0 && max > inCategory.length ? max - inCategory.length : null;
+    closedReason === null && max != null && max > 0 ? max - inCategory.length : null;
 
   const unit = teamSize === 1 ? 'atleta' : isNamedTeamSize(teamSize) ? 'equipe' : 'dupla';
   return {
@@ -194,7 +212,8 @@ export function buildInscricoesStory(
     count: entries.length,
     spotsAvailable,
     spotsLeft: options.showSpots ? spotsAvailable : null,
-    cta: tournament.status === 'inscricoes',
+    cta: closedReason === null,
+    closedReason,
     pages,
   };
 }

@@ -241,7 +241,7 @@ function isTouchDevice(): boolean {
             </div>
           } @else if (step() === 'edit') {
             <p class="og-story-hint">
-              As inscrições não estão abertas: a arte sai sem o botão “Inscreva-se”.
+              {{ closedHint() }}
             </p>
           }
         </div>
@@ -831,13 +831,19 @@ export class OgCompartilharStoriesDialogComponent implements OnDestroy {
     () => this.showSpots() && this.story().spotsAvailable != null,
   );
   protected readonly spotsHint = computed(() => {
-    if (this.story().spotsAvailable != null)
-      return 'Gera urgência para quem ainda não se inscreveu';
-    const category = this.tournament().categories.find((c) => c.id === this.categoryId());
-    return category?.maxTeams
-      ? 'Categoria lotada: a arte mostra o total inscrito'
-      : 'Categoria sem limite de vagas';
+    const story = this.story();
+    if (story.spotsAvailable != null) return 'Gera urgência para quem ainda não se inscreveu';
+    if (story.closedReason === 'encerradas') return 'Inscrições encerradas: sem vagas para mostrar';
+    if (story.closedReason === 'lotada') return 'Categoria lotada: a arte mostra o total inscrito';
+    return 'Categoria sem limite de vagas';
   });
+
+  /** Por que a arte sai sem o "Inscreva-se" — aparece no lugar do link de inscrição. */
+  protected readonly closedHint = computed(() =>
+    this.story().closedReason === 'lotada'
+      ? 'A categoria está lotada: a arte sai sem o botão “Inscreva-se” e diz “Categoria lotada”.'
+      : 'As inscrições estão encerradas: a arte sai sem o botão “Inscreva-se”.',
+  );
 
   protected readonly emptyMessage = computed(() =>
     this.paidOnly()

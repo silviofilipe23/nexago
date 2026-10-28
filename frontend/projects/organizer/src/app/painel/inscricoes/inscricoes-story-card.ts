@@ -1,4 +1,10 @@
-import type { InscricoesStory, StoryEntry, StoryPage, StoryTheme } from './inscricoes-story';
+import type {
+  InscricoesStory,
+  StoryAvatar,
+  StoryEntry,
+  StoryPage,
+  StoryTheme,
+} from './inscricoes-story';
 
 /**
  * Arte "duplas inscritas" para o Stories, desenhada em canvas 1080×1920 — o PNG que sai é o
@@ -122,6 +128,48 @@ export function loadStoryAssets(): Promise<StoryArtAssets> {
     return { background, mark };
   })();
   return assetsPromise;
+}
+
+/** Fotos de atleta já carregadas, por URL. */
+export type StoryPhotos = ReadonlyMap<string, HTMLImageElement>;
+
+/** Foto que demora mais que isso sai com as iniciais — a arte não fica presa esperando. */
+const PHOTO_TIMEOUT_MS = 8000;
+
+const photoCache = new Map<string, Promise<HTMLImageElement | null>>();
+
+/** Foto do Storage: precisa de \`crossOrigin\` — sem ele o canvas fica "sujo" e o PNG não sai.
+ *  Bucket sem CORS, foto apagada ou lenta resolve \`null\` e o avatar cai nas iniciais, em
+ *  silêncio. A falha também fica no cache: redesenhar a cada ajuste não espera de novo. */
+function loadPhoto(url: string): Promise<HTMLImageElement | null> {
+  let promise = photoCache.get(url);
+  if (!promise) {
+    promise = new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      const timer = setTimeout(() => resolve(null), PHOTO_TIMEOUT_MS);
+      img.onload = () => {
+        clearTimeout(timer);
+        resolve(img);
+      };
+      img.onerror = () => {
+        clearTimeout(timer);
+        resolve(null);
+      };
+      img.src = url;
+    });
+    photoCache.set(url, promise);
+  }
+  return promise;
+}
+
+/** As fotos de uma página (até 8 duplas × 2, ou 3 por equipe), em paralelo. */
+export async function loadStoryPhotos(page: StoryPage): Promise<StoryPhotos> {
+  const urls = [
+    ...new Set(page.entries.flatMap((e) => e.avatars.map((a) => a.photoUrl)).filter((u) => !!u)),
+  ] as string[];
+  const loaded = await Promise.all(urls.map(async (url) => [url, await loadPhoto(url)] as const));
+  return new Map(loaded.filter((pair): pair is [string, HTMLImageElement] => pair[1] !== null));
 }
 
 /** Espaçamento entre letras desenhado letra a letra — só para a fonte mono, onde não existe
@@ -339,30 +387,61 @@ function drawTitleBlock(ctx: CanvasRenderingContext2D, story: InscricoesStory, p
   }
 }
 
-/** `textShift` desloca as iniciais para a parte visível: o avatar seguinte cobre os 22px da
- *  direita deste, e centradas no círculo inteiro elas ficavam cortadas ("CN" virava "CI"). */
+const AVATAR_R = 35;
+/** Distância entre os centros dos avatares sobrepostos. O protótipo usava 52 (o de cima cobria
+ *  22px do outro), o que com foto escondia metade do rosto; com 58 sobram 16px de sobreposição. */
+const AVATAR_STEP = 58;
+
+/** Foto recortada no círculo, preenchendo-o (como \`object-fit: cover\`). */
+function drawPhoto(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  cx: number,
+  cy: number,
+): void {
+  const d = AVATAR_R * 2;
+  const scale = Math.max(d / img.naturalWidth, d / img.naturalHeight);
+  const w = img.naturalWidth * scale;
+  const h = img.naturalHeight * scale;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, AVATAR_R, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h);
+  ctx.restore();
+}
+
+/** \`textShift\` desloca as iniciais para a parte visível: o avatar seguinte cobre a direita
+ *  deste, e centradas no círculo inteiro elas ficavam cortadas ("CN" virava "CI"). */
 function drawAvatar(
   ctx: CanvasRenderingContext2D,
   cx: number,
   cy: number,
-  initials: string,
+  avatar: StoryAvatar,
   fill: string,
   p: Palette,
+  photos: StoryPhotos,
   textShift = 0,
 ): void {
-  // Anel de 4px na cor do fundo: separa os avatares sobrepostos (o `box-shadow` do protótipo).
+  // Anel de 4px na cor do fundo: separa os avatares sobrepostos (o \`box-shadow\` do protótipo).
   ctx.fillStyle = p.bg;
   ctx.beginPath();
-  ctx.arc(cx, cy, 39, 0, Math.PI * 2);
+  ctx.arc(cx, cy, AVATAR_R + 4, 0, Math.PI * 2);
   ctx.fill();
+  const photo = avatar.photoUrl ? photos.get(avatar.photoUrl) : undefined;
+  if (photo) {
+    drawPhoto(ctx, photo, cx, cy);
+    return;
+  }
   ctx.fillStyle = fill;
   ctx.beginPath();
-  ctx.arc(cx, cy, 35, 0, Math.PI * 2);
+  ctx.arc(cx, cy, AVATAR_R, 0, Math.PI * 2);
   ctx.fill();
   ctx.font = sora(700, 25);
   ctx.fillStyle = p.avFg;
   ctx.textAlign = 'center';
-  ctx.fillText(initials, cx + textShift, soraBaseline(cy, 25));
+  ctx.fillText(avatar.initials, cx + textShift, soraBaseline(cy, 25));
   ctx.textAlign = 'left';
 }
 
@@ -372,6 +451,7 @@ function drawEntry(
   top: number,
   last: boolean,
   p: Palette,
+  photos: StoryPhotos,
 ): void {
   const centerY = top + 50;
   ctx.font = mono(700, 28);
@@ -379,22 +459,24 @@ function drawEntry(
   ctx.textAlign = 'left';
   ctx.fillText(String(entry.position).padStart(2, '0'), LEFT, monoBaseline(centerY, 28));
 
-  // 54px do número + 26 de vão; cada avatar de 70 entra 18px por cima do anterior.
+  // 54px do número + 26 de vão; os avatares se sobrepõem (\`AVATAR_STEP\`).
   const avatarsX = LEFT + 54 + 26;
-  const initials = entry.initials.length > 0 ? entry.initials : [''];
-  initials.forEach((ini, i) =>
+  const avatars: StoryAvatar[] =
+    entry.avatars.length > 0 ? entry.avatars : [{ initials: '', photoUrl: null }];
+  avatars.forEach((avatar, i) =>
     drawAvatar(
       ctx,
-      avatarsX + 35 + i * 52,
+      avatarsX + AVATAR_R + i * AVATAR_STEP,
       centerY,
-      ini,
+      avatar,
       i % 2 === 0 ? p.av : p.av2,
       p,
-      i < initials.length - 1 ? -9 : 0,
+      photos,
+      i < avatars.length - 1 ? -8 : 0,
     ),
   );
 
-  const nameX = avatarsX + 70 + (initials.length - 1) * 52 + 26;
+  const nameX = avatarsX + AVATAR_R * 2 + (avatars.length - 1) * AVATAR_STEP + 26;
   let size = 36;
   ctx.font = sora(700, size);
   setLetterSpacing(ctx, -0.36);
@@ -417,6 +499,7 @@ function drawList(
   story: InscricoesStory,
   page: StoryPage,
   p: Palette,
+  photos: StoryPhotos,
 ): void {
   if (page.entries.length === 0) {
     ctx.font = sora(700, 44);
@@ -427,7 +510,7 @@ function drawList(
     return;
   }
   page.entries.forEach((entry, i) =>
-    drawEntry(ctx, entry, 760 + i * 100, i === page.entries.length - 1, p),
+    drawEntry(ctx, entry, 760 + i * 100, i === page.entries.length - 1, p, photos),
   );
 }
 
@@ -435,10 +518,20 @@ function plural(n: number, singular: string): string {
   return `${n} ${n === 1 ? singular : `${singular}s`}`;
 }
 
+/** Linha miúda sob o número do rodapé — também explica por que não há "Inscreva-se". */
+function footerCaption(story: InscricoesStory): string | null {
+  const spots = story.spotsLeft;
+  if (spots != null) return spots === 1 ? 'RESTANTE NA CATEGORIA' : 'RESTANTES NA CATEGORIA';
+  if (story.closedReason === 'lotada') return 'CATEGORIA LOTADA';
+  if (story.closedReason === 'encerradas') return 'INSCRIÇÕES ENCERRADAS';
+  return null;
+}
+
 function drawFooter(ctx: CanvasRenderingContext2D, story: InscricoesStory, p: Palette): void {
   const top = 1600;
   const spots = story.spotsLeft;
-  const leftH = spots != null ? SORA_LINE * 52 + 8 + MONO_LINE * 24 : SORA_LINE * 52;
+  const caption = footerCaption(story);
+  const leftH = caption ? SORA_LINE * 52 + 8 + MONO_LINE * 24 : SORA_LINE * 52;
   const rowH = Math.max(leftH, story.cta ? 96 : 0);
   const centerY = top + rowH / 2;
   const leftTop = centerY - leftH / 2;
@@ -453,10 +546,9 @@ function drawFooter(ctx: CanvasRenderingContext2D, story: InscricoesStory, p: Pa
     leftTop + SORA_ASCENT * 52,
   );
   setLetterSpacing(ctx, 0);
-  if (spots != null) {
+  if (caption) {
     ctx.font = mono(400, 24);
     ctx.fillStyle = p.mu;
-    const caption = spots === 1 ? 'RESTANTE NA CATEGORIA' : 'RESTANTES NA CATEGORIA';
     drawTracked(ctx, caption, LEFT, leftTop + SORA_LINE * 52 + 8 + MONO_ASCENT * 24, 4.32);
   }
 
@@ -471,13 +563,15 @@ function drawFooter(ctx: CanvasRenderingContext2D, story: InscricoesStory, p: Pa
   }
 }
 
-/** Desenha uma página. Síncrono: quem chama já esperou `loadStoryAssets()`. */
+/** Desenha uma página. Síncrono: quem chama já esperou \`loadStoryAssets()\` e as fotos da
+ *  página (\`loadStoryPhotos\`); avatar sem foto no mapa sai com as iniciais. */
 export function drawInscricoesStory(
   ctx: CanvasRenderingContext2D,
   story: InscricoesStory,
   page: StoryPage,
   theme: StoryTheme,
   assets: StoryArtAssets,
+  photos: StoryPhotos = new Map(),
 ): void {
   const p = PALETTES[theme];
   ctx.save();
@@ -485,23 +579,24 @@ export function drawInscricoesStory(
   drawBackground(ctx, theme, p, assets);
   drawHeader(ctx, page, p, assets);
   drawTitleBlock(ctx, story, p);
-  drawList(ctx, story, page, p);
+  drawList(ctx, story, page, p, photos);
   drawFooter(ctx, story, p);
   ctx.restore();
 }
 
-/** Uma página em PNG, num canvas descartável. */
+/** Uma página em PNG, num canvas descartável, já com as fotos dos atletas. */
 export async function renderStoryPng(
   story: InscricoesStory,
   page: StoryPage,
   theme: StoryTheme,
   assets: StoryArtAssets,
 ): Promise<Blob | null> {
+  const photos = await loadStoryPhotos(page);
   const canvas = document.createElement('canvas');
   canvas.width = STORY_WIDTH;
   canvas.height = STORY_HEIGHT;
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
-  drawInscricoesStory(ctx, story, page, theme, assets);
+  drawInscricoesStory(ctx, story, page, theme, assets, photos);
   return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/png'));
 }

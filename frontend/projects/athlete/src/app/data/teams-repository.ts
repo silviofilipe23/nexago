@@ -21,6 +21,10 @@ export interface ArenaTeam {
   registrationPaid: boolean;
   /** Elenco das equipes nomeadas — dupla legada fica vazio (só player1/player2). */
   memberUids: readonly string[];
+  /** Capitão gravado na equipe nomeada; sem ele, manda o primeiro do elenco (`teamCaptainId`). */
+  captainUid: string | null;
+  /** Torneio em que a equipe nasceu — o esporte dela. Dupla legada não grava. */
+  tournamentId: string | null;
   createdAt: Date | null;
 }
 
@@ -40,6 +44,8 @@ function teamFromDoc(id: string, data: Record<string, unknown>): ArenaTeam {
     teamSize: parseTeamSizeField(data['teamSize']),
     registrationPaid: data['registrationPaid'] === true,
     memberUids: Array.isArray(memberUidsRaw) ? memberUidsRaw.filter((u): u is string => typeof u === 'string' && u.trim().length > 0) : [],
+    captainUid: typeof data['captainUid'] === 'string' && data['captainUid'].trim() ? data['captainUid'].trim() : null,
+    tournamentId: typeof data['tournamentId'] === 'string' && data['tournamentId'].trim() ? data['tournamentId'].trim() : null,
     createdAt: typeof createdAtRaw?.toDate === 'function' ? createdAtRaw.toDate() : null,
   };
 }
@@ -64,6 +70,17 @@ export function teamMemberIds(team: Pick<ArenaTeam, 'player1Id' | 'player2Id' | 
     push(team.player2Id);
   }
   return out;
+}
+
+/** Espelha `TournamentTeam.captainId` (Flutter): `captainUid` quando gravado; senão quem abriu a
+ *  equipe (o primeiro do elenco). */
+export function teamCaptainId(team: Pick<ArenaTeam, 'player1Id' | 'player2Id' | 'memberUids' | 'captainUid'>): string | null {
+  return team.captainUid ?? teamMemberIds(team)[0] ?? null;
+}
+
+/** Equipe nomeada (trio pra cima), não dupla — espelha `TournamentTeam.isLargeRoster`. */
+export function teamIsLargeRoster(team: Pick<ArenaTeam, 'player1Id' | 'player2Id' | 'memberUids' | 'teamSize'>): boolean {
+  return (team.teamSize ?? 0) > 2 || teamMemberIds(team).length > 2;
 }
 
 export async function fetchTeam(db: Firestore, projectId: string, teamId: string): Promise<ArenaTeam | null> {
@@ -112,6 +129,8 @@ export interface ArenaMatch {
   tournamentId: string;
   categoryId: string;
   matchType: string;
+  /** Rodada dentro da fase (0 quando o doc não grava). */
+  round: number;
   status: string;
   winnerId: string | null;
   teamAId: string;
@@ -178,6 +197,7 @@ function matchFromDoc(id: string, data: Record<string, unknown>): ArenaMatch {
     tournamentId: typeof data['tournamentId'] === 'string' ? data['tournamentId'] : '',
     categoryId: typeof data['categoryId'] === 'string' ? data['categoryId'] : '',
     matchType: typeof data['matchType'] === 'string' ? data['matchType'] : '',
+    round: typeof data['round'] === 'number' ? data['round'] : 0,
     status: typeof data['status'] === 'string' ? data['status'] : '',
     winnerId: optionalStr(data['winnerId']),
     teamAId: typeof data['teamAId'] === 'string' ? data['teamAId'] : '',

@@ -100,6 +100,52 @@ describe('OgNovaInscricaoComponent', () => {
     return el.querySelector<HTMLButtonElement>('.og-ni-actions .og-mini-btn-primary')!;
   }
 
+  /** Busca e dupla escolhida: o organizador precisa ver QUEM é (nome completo + apelido) e poder
+   *  ampliar a foto antes de escolher — sem que a foto vire botão dentro do botão de escolher. */
+  describe('identificação do atleta na busca', () => {
+    const bia: AthleteSearchResult = {
+      uid: 'uid-bia',
+      displayName: 'Beatriz Lima',
+      nickname: 'Bia',
+      photoUrl: 'https://exemplo.com/bia.jpg',
+    };
+
+    async function showResults(results: AthleteSearchResult[]): Promise<HTMLElement> {
+      const el = await render([category()]);
+      (fixture.componentInstance as unknown as { candidates: { set(v: AthleteSearchResult[]): void } }).candidates.set(
+        results,
+      );
+      await fixture.whenStable();
+      return el;
+    }
+
+    it('resultado mostra nome completo e apelido', async () => {
+      const el = await showResults([bia]);
+      const pick = el.querySelector('.og-ni-result-pick') as HTMLButtonElement;
+
+      expect(pick.textContent?.replace(/\s+/g, ' ').trim()).toBe('Beatriz Lima “Bia”');
+      expect(pick.title).toBe('Beatriz Lima “Bia”');
+    });
+
+    it('a foto amplia e fica fora do botão de escolher', async () => {
+      const el = await showResults([bia]);
+      const avatar = el.querySelector('.og-ni-result og-avatar') as HTMLElement;
+
+      expect(avatar.getAttribute('role')).toBe('button');
+      expect(avatar.closest('button')).toBeNull();
+    });
+
+    it('clicar no nome escolhe o atleta', async () => {
+      const el = await showResults([bia]);
+      (el.querySelector('.og-ni-result-pick') as HTMLButtonElement).click();
+      await fixture.whenStable();
+
+      const slot = el.querySelector('.og-ni-slot.filled .og-ni-slot-name') as HTMLElement;
+      expect(slot.textContent?.replace(/\s+/g, ' ').trim()).toBe('Beatriz Lima “Bia”');
+      expect(el.querySelector('.og-ni-slot.filled og-avatar')?.getAttribute('role')).toBe('button');
+    });
+  });
+
   it('categoria única é escolhida sozinha, sem chips para clicar', async () => {
     const el = await render([category()]);
     expect(el.querySelectorAll('.og-chip').length).toBe(0);

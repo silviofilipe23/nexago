@@ -3,6 +3,8 @@ import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 import {
   ATHLETE_SEARCH_MIN_TERM,
   athleteDisplayName,
+  athleteIdentity,
+  athleteIdentityLabel,
   searchAthletes,
   type AthleteSearchResult,
 } from '../data/athlete-search-repository';
@@ -226,15 +228,22 @@ const STATUS_LABEL: Record<TournamentSpotPass['status'], string> = {
         } @else if (candidates().length > 0) {
           <ul class="og-lv-results">
             @for (a of candidates(); track a.uid) {
+              @let found = identityOf(a);
               <li>
                 <og-avatar
                   zoomable
                   [initials]="initialsOf(nameOf(a))"
                   [photoUrl]="a.photoUrl"
-                  [personName]="nameOf(a)"
+                  [personName]="found.fullName"
+                  [meta]="found.nickname || null"
                   [size]="28"
                 />
-                <span class="og-lv-name">{{ nameOf(a) }}</span>
+                <span class="og-lv-name" [title]="identityTitle(found)">
+                  {{ found.fullName }}
+                  @if (found.nickname) {
+                    <span class="og-lv-nick">“{{ found.nickname }}”</span>
+                  }
+                </span>
                 <button
                   type="button"
                   class="og-mini-btn og-mini-btn-primary"
@@ -385,6 +394,10 @@ const STATUS_LABEL: Record<TournamentSpotPass['status'], string> = {
     .og-lv-results,
     .og-lv-passes {
       display: grid;
+      /* Trilha travada na largura do card: a coluna implícita (auto) cresce até o nome mais
+         longo — com o nome completo na linha, a lista ganhava rolagem lateral e o botão
+         "Liberar" saía da vista. */
+      grid-template-columns: minmax(0, 1fr);
       gap: 6px;
       margin: 0;
       padding: 0;
@@ -419,6 +432,13 @@ const STATUS_LABEL: Record<TournamentSpotPass['status'], string> = {
       font-weight: 600;
       font-size: 13px;
       color: var(--nx-text);
+    }
+    .og-lv-nick {
+      margin-left: 4px;
+      font-family: var(--nx-font-ui);
+      font-weight: 400;
+      font-size: 12.5px;
+      color: var(--nx-text-mute);
     }
     .og-lv-sec {
       display: flex;
@@ -554,6 +574,8 @@ export class OgLiberarVagaComponent {
 
   protected readonly minTerm = ATHLETE_SEARCH_MIN_TERM;
   protected readonly nameOf = athleteDisplayName;
+  protected readonly identityOf = athleteIdentity;
+  protected readonly identityTitle = athleteIdentityLabel;
   protected readonly initialsOf = initialsOf;
 
   protected readonly tab = signal<'atleta' | 'link'>('atleta');

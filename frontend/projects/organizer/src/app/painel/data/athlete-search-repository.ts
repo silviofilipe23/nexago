@@ -29,11 +29,32 @@ export const ATHLETE_SEARCH_MIN_TERM = 2;
 
 const ATHLETE_SEARCH_LIMIT = 20;
 
+/** Perfil sem nome nenhum — o repositório grava isso em `displayName`. */
+const NAME_FALLBACK = 'Usuário';
+
 /** Apelido primeiro, senão nome completo (mesma regra de `displayLabel` no Flutter). */
 export function athleteDisplayName(
   athlete: Pick<AthleteSearchResult, 'displayName' | 'nickname'>,
 ): string {
-  return athlete.nickname.trim() || athlete.displayName.trim() || 'Usuário';
+  return athlete.nickname.trim() || athlete.displayName.trim() || NAME_FALLBACK;
+}
+
+/** Nome completo e apelido separados, pra quem precisa escolher o atleta CERTO: o rótulo acima
+ *  é o apelido, e dois "Bia" só se distinguem pelo nome completo. O apelido sai vazio quando
+ *  repetiria o nome (perfil sem nome completo cai no apelido). */
+export function athleteIdentity(
+  athlete: Pick<AthleteSearchResult, 'displayName' | 'nickname'>,
+): { fullName: string; nickname: string } {
+  const nickname = athlete.nickname.trim();
+  const full = athlete.displayName.trim();
+  const fullName = full && full !== NAME_FALLBACK ? full : nickname || NAME_FALLBACK;
+  const repeats = normalizeSearchTerm(nickname) === normalizeSearchTerm(fullName);
+  return { fullName, nickname: repeats ? '' : nickname };
+}
+
+/** "Beatriz Lima “Bia”" — o texto inteiro pro `title` da linha, que corta com reticências. */
+export function athleteIdentityLabel(identity: { fullName: string; nickname: string }): string {
+  return identity.nickname ? `${identity.fullName} “${identity.nickname}”` : identity.fullName;
 }
 
 function optionalStr(v: unknown): string | null {
@@ -43,7 +64,7 @@ function optionalStr(v: unknown): string | null {
 function athleteFromDoc(id: string, data: Record<string, unknown>): AthleteSearchResult {
   return {
     uid: id,
-    displayName: optionalStr(data['fullName']) ?? optionalStr(data['name']) ?? 'Usuário',
+    displayName: optionalStr(data['fullName']) ?? optionalStr(data['name']) ?? NAME_FALLBACK,
     nickname: optionalStr(data['nickname']) ?? '',
     photoUrl:
       optionalStr(data['profilePhotoUrl']) ??

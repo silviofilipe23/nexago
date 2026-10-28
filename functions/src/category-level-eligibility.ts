@@ -2,6 +2,7 @@ import {HttpsError} from "firebase-functions/v2/https";
 import {sportProfileCode} from "./sports/catalog";
 import type {Firestore} from "firebase-admin/firestore";
 import {loadUserAccessData, type UserAccessData} from "./athlete-tournament-access";
+import {artifactsInscriptionsPath} from "./firebase-paths";
 
 /**
  * Elegibilidade de categoria por nível do atleta (anti-sandbagging).
@@ -301,6 +302,9 @@ function categoryDisplayName(
  *
  * Carrega os docs dos usuários informados (reusa [loadUserAccessData]). uids
  * vazios/duplicados são ignorados; o conjunto vazio é sempre elegível.
+ *
+ * Passe só quem está ENTRANDO na categoria ([athletesEnteringCategory]): a régua
+ * vale na entrada, e quem já está inscrito não é barrado por subir de nível depois.
  */
 export async function assertTeamLevelEligibility(params: {
   db: Firestore;
@@ -368,4 +372,44 @@ export async function assertTeamLevelEligibility(params: {
       );
     }
   }
+}
+
+/**
+ * Quem da lista ainda não está em nenhuma inscrição desta categoria — só esses
+ * passam por [assertTeamLevelEligibility].
+ *
+ * A régua de nível vale na ENTRADA. Quem já tem vaga (reserva solo, dupla,
+ * equipe) e sobe de nível depois — promoção automática da escada, organizador
+ * promovendo — continua na vaga até o fim: pagar, fechar a dupla, chamar outro
+ * parceiro ou trocar o companheiro não o barram. O parceiro novo ou o substituto,
+ * que estão entrando agora, continuam passando pela régua.
+ */
+export async function athletesEnteringCategory(params: {
+  db: Firestore;
+  projectId: string;
+  tournamentId: string;
+  categoryKeys: Set<string>;
+  uids: Array<string | undefined | null>;
+}): Promise<string[]> {
+  const {db, projectId, tournamentId, categoryKeys} = params;
+  const uids = Array.from(
+    new Set(
+      params.uids
+        .map((uid) => (typeof uid === "string" ? uid.trim() : ""))
+        .filter((uid) => uid.length > 0),
+    ),
+  );
+  const inscriptionsRef = db.collection(artifactsInscriptionsPath(projectId));
+  const registered = await Promise.all(
+    uids.map(async (uid) => {
+      const snap = await inscriptionsRef
+        .where("tournamentId", "==", tournamentId)
+        .where("participantUids", "array-contains", uid)
+        .get();
+      return snap.docs.some((doc) =>
+        categoryKeys.has(String(doc.data().categoryId ?? "").trim()),
+      );
+    }),
+  );
+  return uids.filter((_, index) => !registered[index]);
 }

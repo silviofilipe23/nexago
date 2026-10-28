@@ -205,9 +205,10 @@ export const sendTournamentSubstitutionInvite = onCall({
   if (permissionError) throw new HttpsError("failed-precondition", permissionError);
 
   // Elegibilidade do elenco PÓS-troca. Gênero com requireDeclared: false no
-  // envio (padrão dos convites: ausente só bloqueia no aceite).
+  // envio (padrão dos convites: ausente só bloqueia no aceite). Nível só do
+  // substituto: quem fica já tinha a vaga e não é barrado por ter subido de nível.
   const rosterAfter = replaceUidInList(participantUids, replacedUid, inviteeUid);
-  await assertTeamLevelEligibility({db, tournament, category, uids: rosterAfter});
+  await assertTeamLevelEligibility({db, tournament, category, uids: [inviteeUid]});
   await assertTeamAgeEligibility({db, tournament, category, uids: rosterAfter});
   if (teamSize >= MIN_TEAM_CATEGORY_SIZE) {
     const composition = parseGenderComposition(category, teamSize);
@@ -498,10 +499,11 @@ export async function acceptSubstitutionInviteFor(
   }
 
   // Elegibilidade do elenco pós-troca — requireDeclared: o aceite fecha a vaga.
+  // Nível só de quem entra (o substituto), como no envio.
   const rosterAfter = replaceUidInList(previewParticipants, outUid, uid);
   const teamSize = registrationTeamSize(regPreview, category);
   const isTeam = teamSize >= MIN_TEAM_CATEGORY_SIZE;
-  await assertTeamLevelEligibility({db, tournament, category, uids: rosterAfter});
+  await assertTeamLevelEligibility({db, tournament, category, uids: [uid]});
   await assertTeamAgeEligibility({db, tournament, category, uids: rosterAfter});
   if (!isTeam) {
     await assertTeamGenderEligibility({db, category, uids: rosterAfter, requireDeclared: true});

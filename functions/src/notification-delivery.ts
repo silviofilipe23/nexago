@@ -315,6 +315,9 @@ export interface DeliverNotificationInput {
   requireInteraction?: boolean;
   /** Se true, grava apenas inbox (sem FCM/Web Push). */
   skipPush?: boolean;
+  /** Se true, só o app recebe o push (FCM): o aviso é para o celular, não para o navegador
+   *  de onde o próprio usuário acabou de pedir o envio. */
+  skipWebPush?: boolean;
   /** Se true, não grava no histórico in-app (chat: a conversa já é o histórico). */
   skipHistory?: boolean;
 }
@@ -325,7 +328,17 @@ export interface DeliverNotificationInput {
 export async function deliverNotificationToUser(
   input: DeliverNotificationInput
 ): Promise<{sent: number; failed: number}> {
-  const {userId, title, body, type, data, requireInteraction = true, skipPush = false, skipHistory = false} = input;
+  const {
+    userId,
+    title,
+    body,
+    type,
+    data,
+    requireInteraction = true,
+    skipPush = false,
+    skipWebPush = false,
+    skipHistory = false,
+  } = input;
 
   let fcmSuccessful = 0;
   let fcmFailed = 0;
@@ -346,11 +359,13 @@ export async function deliverNotificationToUser(
     fcmSuccessful = fcmResult.sent;
     fcmFailed = fcmResult.failed;
 
-    webPushResult = await sendWebPushToSubscriptions(userId, webPushSubscriptions, {
-      notification: {title, body},
-      data: {...data, type},
-      requireInteraction,
-    });
+    if (!skipWebPush) {
+      webPushResult = await sendWebPushToSubscriptions(userId, webPushSubscriptions, {
+        notification: {title, body},
+        data: {...data, type},
+        requireInteraction,
+      });
+    }
   }
 
   const sent = fcmSuccessful + webPushResult.sent;

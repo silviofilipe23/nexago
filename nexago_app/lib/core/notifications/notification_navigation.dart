@@ -101,8 +101,23 @@ const centerStudentAbsenceNotificationType = 'training_center_student_absence';
 /// abre "Minhas avaliações" (A7), onde a resposta aparece.
 const classReviewReplyNotificationType = 'class_review_reply';
 
+/// Artes do Stories que o organizador mandou do painel web para o celular
+/// (`sendStoriesToPhone` em `functions/src/organizer-stories-share.ts`).
+const organizerStoriesReadyNotificationType = 'organizer_stories_ready';
+
 /// Agenda do atleta.
 const athleteAgendaTabLocation = '${AppRoutes.discover}?tab=agenda';
+
+/// Tela das artes do Stories pelo `tournamentId` + `shareId` do payload;
+/// `null` sem os dois.
+String? organizerStoriesNotificationRoute(Map<String, dynamic> data) {
+  final tournamentId = (data['tournamentId'] as String?)?.trim() ?? '';
+  final shareId = (data['shareId'] as String?)?.trim() ?? '';
+  if (tournamentId.isEmpty || shareId.isEmpty) return null;
+  return AppRoutes.organizerTournamentStories
+      .replaceAll(':tournamentId', Uri.encodeComponent(tournamentId))
+      .replaceAll(':shareId', Uri.encodeComponent(shareId));
+}
 
 /// Planos e pagamentos (Meus treinos) — onde fica a mensalidade a pagar.
 const athleteChargesLocation = AppRoutes.athleteTrainingPlans;
@@ -283,6 +298,13 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
       return AppRoutes.organizerTournamentReviews
           .replaceAll(':tournamentId', closedTournamentId);
     }
+  }
+
+  // Stories enviados do painel: o `url` leva ao torneio no app ANTIGO, que não tem a tela. Este
+  // build abre as artes e já a folha de compartilhar — por isso o tipo vem antes da url.
+  if (type == organizerStoriesReadyNotificationType) {
+    final storiesRoute = organizerStoriesNotificationRoute(data);
+    if (storiesRoute != null) return storiesRoute;
   }
 
   // Resposta ao chamado da avaliação de aula: sempre "Minhas avaliações".

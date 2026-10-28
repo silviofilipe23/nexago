@@ -318,6 +318,11 @@ abstract final class AppRoutes {
   static const String organizerTournamentReviews =
       '/organizer/tournaments/:tournamentId/reviews';
 
+  /// Artes do Stories enviadas do painel web para o celular (push
+  /// `organizer_stories_ready`): baixa e abre a folha de compartilhar.
+  static const String organizerTournamentStories =
+      '/organizer/tournaments/:tournamentId/stories/:shareId';
+
   /// Shell da categoria (E1).
   static const String organizerCategoryShell =
       '/organizer/tournaments/:tournamentId/categories/:categoryId';
@@ -1185,6 +1190,7 @@ abstract final class AppRouteNames {
   static const String organizerTournamentAnnounce =
       'organizerTournamentAnnounce';
   static const String organizerTournamentReviews = 'organizerTournamentReviews';
+  static const String organizerTournamentStories = 'organizerTournamentStories';
   static const String organizerCategoryShell = 'organizerCategoryShell';
   static const String organizerCategorySeeding = 'organizerCategorySeeding';
   static const String organizerCategoryGenerateBracket =

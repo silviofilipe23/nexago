@@ -167,5 +167,20 @@ describe("checkSquadCodeCore", () => {
     assert.equal((await check("club")).discountPct, 10);
     assert.equal((await check("registration")).discountPct, 10);
   });
+
+  it("escopo do desconto: tipo desligado nas regras não ganha desconto, mas a indicação continua", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("squadConfig/rules", {
+      version: 2,
+      rules: {attribution: {followerDiscountScope: {registration: true, booking: false, club: false}}},
+    });
+    const check = (purpose: "booking" | "club" | "registration") =>
+      checkSquadCodeCore(db, {payerUid: "atl", athleteUids: [], code: "JOAO10", registrationId: "reg1", purpose}, NOW);
+    const booking = await check("booking");
+    assert.equal(booking.discountPct, 0);
+    assert.equal(booking.code, "JOAO10");
+    assert.equal((await check("club")).discountPct, 0);
+    assert.equal((await check("registration")).discountPct, 10);
+  });
 });
 

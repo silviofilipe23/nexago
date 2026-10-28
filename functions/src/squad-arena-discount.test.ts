@@ -90,6 +90,17 @@ describe("resolveArenaSquadDiscount", () => {
     assert.equal((await resolveArenaSquadDiscount(db, booking(120), NOW))!.cents, 9_60);
   });
 
+  it("escopo do desconto: reserva desligada zera a reserva; o clubinho segue", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("squadConfig/rules", {
+      version: 2,
+      rules: {attribution: {followerDiscountScope: {registration: true, booking: false, club: true}}},
+    });
+    const off = await resolveArenaSquadDiscount(db, booking(120), NOW);
+    assert.deepEqual({cents: off!.cents, pct: off!.pct, uid: off!.attribution.ambassador.uid}, {cents: 0, pct: 0, uid: "jv"});
+    assert.equal((await resolveArenaSquadDiscount(db, club(15), NOW))!.cents, 75);
+  });
+
   it("sufixo da idempotência só com desconto", () => {
     assert.equal(squadIdempotencySuffix(960), "-sq960");
     assert.equal(squadIdempotencySuffix(0), "");

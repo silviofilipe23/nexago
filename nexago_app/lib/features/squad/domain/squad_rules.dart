@@ -104,12 +104,47 @@ String squadNextPayoutShort(SquadEarnings e) {
   return squadDayKeyLabel(e.nextPayoutDate);
 }
 
+/// Onde o desconto vale, pelas regras: "na primeira inscrição e na primeira
+/// reserva", "em reservas e clubinhos"… `null` = desligado em tudo.
+String? squadDiscountWhere({
+  required bool firstOnly,
+  required SquadDiscountScope scope,
+}) {
+  final kinds = <(bool, String, String)>[
+    (scope.registration, 'na primeira inscrição', 'inscrições'),
+    (scope.booking, 'na primeira reserva', 'reservas'),
+    (scope.club, 'no primeiro clubinho', 'clubinhos'),
+  ].where((k) => k.$1).map((k) => firstOnly ? k.$2 : k.$3).toList();
+  if (kinds.isEmpty) return null;
+  final list = kinds.length == 1
+      ? kinds.first
+      : '${kinds.sublist(0, kinds.length - 1).join(', ')} e ${kinds.last}';
+  return firstOnly ? list : 'em $list';
+}
+
+/// "10% OFF na 1ª inscrição" (o código é divulgado em torneios, então a
+/// inscrição vem primeiro); sem desconto em inscrição, cai em onde ele vale.
+/// Vazio = desconto desligado em tudo.
+String _squadOffer(SquadMember m) {
+  final pct = squadPercent(m.followerDiscountPct);
+  if (m.followerDiscountScope.registration) {
+    return m.followerDiscountFirstOnly
+        ? '$pct OFF na 1ª inscrição'
+        : '$pct OFF nas inscrições';
+  }
+  final where = squadDiscountWhere(
+    firstOnly: m.followerDiscountFirstOnly,
+    scope: m.followerDiscountScope,
+  );
+  return where == null ? '' : '$pct OFF $where';
+}
+
 /// "10% OFF na 1ª inscrição de quem usar".
 String squadFollowerOffer(SquadMember m) {
-  final pct = squadPercent(m.followerDiscountPct);
-  return m.followerDiscountFirstOnly
-      ? '$pct OFF na 1ª inscrição de quem usar'
-      : '$pct OFF nas inscrições de quem usar';
+  final offer = _squadOffer(m);
+  return offer.isEmpty
+      ? 'Sem desconto pra quem usar, no momento'
+      : '$offer de quem usar';
 }
 
 /// Progresso para o próximo nível.
@@ -476,13 +511,8 @@ String squadEventEyebrow(DateTime start, String location) {
   return place.isEmpty ? day : '$day · $place';
 }
 
-/// "10% OFF na 1ª inscrição" / "10% OFF nas inscrições".
-String squadOfferShort(SquadMember m) {
-  final pct = squadPercent(m.followerDiscountPct);
-  return m.followerDiscountFirstOnly
-      ? '$pct OFF na 1ª inscrição'
-      : '$pct OFF nas inscrições';
-}
+/// "10% OFF na 1ª inscrição" / "10% OFF nas inscrições"; vazio = sem desconto.
+String squadOfferShort(SquadMember m) => _squadOffer(m);
 
 /// Texto que acompanha o card no compartilhamento. A identificação de
 /// publicidade (#publi) é regra do contrato e vai junto, como no card.
@@ -495,5 +525,6 @@ String squadShareText({
   final lead = tournamentName == null || tournamentName.trim().isEmpty
       ? 'Bora jogar na NexaGO?'
       : 'Bora jogar o ${tournamentName.trim()} comigo?';
-  return '$lead Use meu código ${member.code} e ganhe $offer: $link #publi';
+  final gain = offer.isEmpty ? '' : ' e ganhe $offer';
+  return '$lead Use meu código ${member.code}$gain: $link #publi';
 }

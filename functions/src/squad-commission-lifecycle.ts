@@ -77,6 +77,8 @@ export async function followerDiscountFor(
   },
 ): Promise<{cents: number; pct: number}> {
   const rules = await loadAttributionRules(db);
+  // Desconto desligado nas inscrições: a comissão continua, só o atleta não ganha o desconto.
+  if (!rules.followerDiscountScope.registration) return {cents: 0, pct: 0};
   const id = squadCommissionId(input.registrationId, input.payerUid);
   if (rules.followerDiscountFirstOnly && await payerAlreadyConverted(db, input.payerUid, id)) {
     return {cents: 0, pct: 0};

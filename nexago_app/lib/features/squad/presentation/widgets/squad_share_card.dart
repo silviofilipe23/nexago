@@ -43,8 +43,10 @@ class SquadShareCard extends StatelessWidget {
   final SquadShareFormat format;
   final String code;
 
-  /// "10% OFF na 1ª inscrição".
+  /// "10% OFF na 1ª inscrição"; vazio = desconto desligado nas regras.
   final String offer;
+
+  String get _gain => offer.isEmpty ? '' : ' e ganhe $offer';
 
   /// Link do QR (com `&via=qr`).
   final String qrLink;
@@ -129,8 +131,8 @@ class SquadShareCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             tournament
-                ? 'Bora jogar comigo? Use meu código e ganhe $offer.'
-                : 'Use meu código e ganhe $offer na NexaGO.',
+                ? 'Bora jogar comigo? Use meu código$_gain.'
+                : 'Use meu código$_gain na NexaGO.',
             style: AppTypography.bodyS.copyWith(
               fontSize: 11.5,
               color: _mute,
@@ -210,7 +212,9 @@ class SquadShareCard extends StatelessWidget {
               Text(code, style: SquadStyle.mono(26, color: _fg)),
               const SizedBox(height: 8),
               Text(
-                'Aponte a câmera e ganhe $offer.',
+                offer.isEmpty
+                    ? 'Aponte a câmera e jogue na NexaGO.'
+                    : 'Aponte a câmera e ganhe $offer.',
                 textAlign: TextAlign.center,
                 style: AppTypography.bodyS.copyWith(
                   fontSize: 11.5,

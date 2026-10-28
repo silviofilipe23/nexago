@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 import { IconComponent } from '../../../ui/icon.component';
 import { PanelCardComponent } from '../../../ui/panel-card.component';
 import { ToggleComponent } from '../../../ui/toggle.component';
-import type { AttributionModel, AttributionRules, RulesIssues } from '../data/squad-rules';
+import type { AttributionModel, AttributionRules, FollowerDiscountKind, RulesIssues } from '../data/squad-rules';
 import { NumFieldComponent } from './num-field.component';
 
 type ToggleKey = 'requirePaidConfirmation' | 'cancelOnRefund' | 'followerDiscountFirstOnly' | 'blockSelfReferral';
@@ -42,6 +42,12 @@ const ROWS: readonly RuleRow[] = [
   },
 ];
 
+const SCOPES: ReadonlyArray<{ kind: FollowerDiscountKind; label: string }> = [
+  { kind: 'registration', label: 'Inscrições em torneios' },
+  { kind: 'booking', label: 'Reservas de quadra' },
+  { kind: 'club', label: 'Clubinho' },
+];
+
 const MODELS: ReadonlyArray<{ id: AttributionModel; label: string }> = [
   { id: 'lastTouch', label: 'Último código / link usado' },
   { id: 'firstTouch', label: 'Primeiro toque' },
@@ -77,6 +83,30 @@ const MODELS: ReadonlyArray<{ id: AttributionModel; label: string }> = [
           </li>
         }
       </ul>
+
+      <div class="scope">
+        <div class="text">
+          <strong>Onde o desconto do seguidor vale</strong>
+          @if (noScope()) {
+            <span class="warn">Nenhum marcado: quem usa o código não ganha desconto. A comissão das inscrições continua.</span>
+          } @else {
+            <span>Desligado num tipo, o código ainda é aceito e atribuído, só sem desconto</span>
+          }
+        </div>
+        <ul class="kinds">
+          @for (s of scopes; track s.kind) {
+            <li class="kind">
+              <span>{{ s.label }}</span>
+              <bo-toggle
+                [checked]="value().followerDiscountScope[s.kind]"
+                [disabled]="readonly()"
+                [ariaLabel]="'Desconto do seguidor em ' + s.label"
+                (checkedChange)="setScope(s.kind, $event)"
+              />
+            </li>
+          }
+        </ul>
+      </div>
 
       <div class="fields">
         <div class="cell">
@@ -114,6 +144,10 @@ const MODELS: ReadonlyArray<{ id: AttributionModel; label: string }> = [
     strong { display: inline-flex; align-items: center; gap: 7px; font-family: var(--nx-font-display); font-weight: 600; font-size: 13.5px; color: var(--nx-text); }
     .text > span { font-size: 12px; color: var(--nx-text-dim); }
     .lock { display: inline-flex; color: var(--nx-text-dim); }
+    .scope { display: flex; flex-direction: column; gap: 10px; padding: 13px 0 16px; border-top: 1px solid var(--nx-line); }
+    .warn { font-size: 12px; color: var(--nx-live); }
+    .kinds { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .kind { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--nx-line); border-radius: 10px; font-size: 13px; color: var(--nx-text); }
     .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding-top: 16px; border-top: 1px solid var(--nx-line); }
     .cell { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
     .lbl { font-family: var(--nx-font-mono); font-size: 9px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--nx-text-dim); }
@@ -121,7 +155,7 @@ const MODELS: ReadonlyArray<{ id: AttributionModel; label: string }> = [
     .hint { font-size: 11.5px; color: var(--nx-text-dim); }
     .err { font-size: 12px; color: var(--nx-live); }
     @media (max-width: 640px) {
-      .fields { grid-template-columns: minmax(0, 1fr); }
+      .fields, .kinds { grid-template-columns: minmax(0, 1fr); }
     }
   `,
 })
@@ -134,6 +168,8 @@ export class AttributionCardComponent {
 
   protected readonly rows = ROWS;
   protected readonly models = MODELS;
+  protected readonly scopes = SCOPES;
+  protected readonly noScope = computed(() => SCOPES.every((s) => !this.value().followerDiscountScope[s.kind]));
   protected readonly windowIssue = computed(() => this.issues()['attribution.windowDays'] ?? null);
 
   protected patch(patch: Partial<AttributionRules>): void {
@@ -145,6 +181,10 @@ export class AttributionCardComponent {
       return;
     }
     this.patch({ [key]: on });
+  }
+
+  protected setScope(kind: FollowerDiscountKind, on: boolean): void {
+    this.patch({ followerDiscountScope: { ...this.value().followerDiscountScope, [kind]: on } });
   }
 
   protected setModel(event: Event): void {

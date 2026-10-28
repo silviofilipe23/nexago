@@ -281,6 +281,7 @@ class _OpenInviteState extends ConsumerState<_OpenInvite> {
                     context,
                     package: pkg,
                     followerDiscountFirstOnly: invite.followerDiscountFirstOnly,
+                    followerDiscountScope: invite.followerDiscountScope,
                     periodLabel: periodEnd == null ? null : 'até $periodEnd',
                   ),
                 ),

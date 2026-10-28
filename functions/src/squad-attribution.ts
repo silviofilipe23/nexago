@@ -225,8 +225,9 @@ export async function checkSquadCodeCore(
   } else {
     // Reserva e clubinho: "só na primeira" vale por tipo de compra (primeira reserva, primeiro clubinho).
     const rules = await loadAttributionRules(db);
-    const used = rules.followerDiscountFirstOnly && await payerUsedDiscount(db, input.payerUid, purpose);
-    discountPct = used ? 0 : await followerPctOf(db, resolved.ambassador);
+    const off = !rules.followerDiscountScope[purpose] ||
+      (rules.followerDiscountFirstOnly && await payerUsedDiscount(db, input.payerUid, purpose));
+    discountPct = off ? 0 : await followerPctOf(db, resolved.ambassador);
   }
   return {
     ambassadorName: resolved.ambassador.displayName,

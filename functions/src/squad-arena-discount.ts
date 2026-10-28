@@ -69,7 +69,8 @@ export async function resolveArenaSquadDiscount(
   if (!attribution) return null;
   try {
     const rules = await loadAttributionRules(db);
-    if (rules.followerDiscountFirstOnly && await payerUsedDiscount(db, input.payerUid, input.kind)) {
+    if (!rules.followerDiscountScope[input.kind] ||
+      (rules.followerDiscountFirstOnly && await payerUsedDiscount(db, input.payerUid, input.kind))) {
       return {attribution, cents: 0, pct: 0};
     }
     const pct = await followerPctOf(db, attribution.ambassador);

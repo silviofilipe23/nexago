@@ -154,16 +154,37 @@ export function contractPeriod(m: Pick<SquadMember, 'start' | 'end' | 'endsAt'>)
 }
 
 /**
+ * Onde o desconto vale, pelas regras: "na primeira inscrição e reserva", "em reservas e clubinhos"…
+ * `null` = desligado em tudo.
+ */
+export function discountWhere(
+  m: Pick<SquadMember, 'followerDiscountFirstOnly' | 'followerDiscountScope'>,
+): string | null {
+  const scope = m.followerDiscountScope ?? { registration: true, booking: true, club: true };
+  const kinds = (
+    [
+      ['registration', 'inscrição', 'inscrições'],
+      ['booking', 'reserva', 'reservas'],
+      ['club', 'clubinho', 'clubinhos'],
+    ] as const
+  ).filter(([k]) => scope[k]);
+  if (kinds.length === 0) return null;
+  const names = kinds.map(([, one, many]) => (m.followerDiscountFirstOnly ? one : many));
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`;
+  return m.followerDiscountFirstOnly ? `na primeira ${list}` : `em ${list}`;
+}
+
+/**
  * "Quem usa o seu código ganha até 10% OFF…": o desconto real tem teto na taxa da plataforma.
  * Nível sem desconto do seguidor (0%) não promete nada (`discount: null`).
  */
 export function followerOffer(
-  m: Pick<SquadMember, 'followerDiscountPct' | 'followerDiscountFirstOnly' | 'commissionPct'>,
+  m: Pick<SquadMember, 'followerDiscountPct' | 'followerDiscountFirstOnly' | 'followerDiscountScope' | 'commissionPct'>,
 ): { discount: string | null; rest: string } {
-  // O código vale na inscrição, na reserva de quadra e no clubinho ("só na primeira" = uma de cada).
-  const where = m.followerDiscountFirstOnly ? 'na primeira inscrição, reserva e clubinho' : 'em inscrições, reservas e clubinhos';
+  // O código vale onde as regras ligaram o desconto ("só na primeira" = uma de cada tipo).
+  const where = discountWhere(m);
   return {
-    discount: m.followerDiscountPct > 0 ? `até ${m.followerDiscountPct}% OFF ${where}` : null,
+    discount: m.followerDiscountPct > 0 && where ? `até ${m.followerDiscountPct}% OFF ${where}` : null,
     rest: `Você recebe ${m.commissionPct}% depois que o pagamento é confirmado.`,
   };
 }
@@ -339,17 +360,21 @@ export interface Benefit {
  * do seguidor); o resto é "No pacote", porque uso e entrega ainda não são registrados.
  */
 export function benefitsOf(
-  m: Pick<SquadMember, 'status' | 'commissionPct' | 'followerDiscountPct' | 'followerDiscountFirstOnly' | 'package'>,
+  m: Pick<
+    SquadMember,
+    'status' | 'commissionPct' | 'followerDiscountPct' | 'followerDiscountFirstOnly' | 'followerDiscountScope' | 'package'
+  >,
 ): Benefit[] {
   const pkg = m.package;
   const live: BenefitStatus = m.status === 'active' ? 'active' : 'paused';
   const out: Benefit[] = [
     { label: `${m.commissionPct}% de comissão`, sub: 'sobre cada inscrição paga com seu código', icon: 'trend', status: live },
   ];
-  if (m.followerDiscountPct > 0) {
+  const where = discountWhere(m);
+  if (m.followerDiscountPct > 0 && where) {
     out.push({
       label: `Até ${m.followerDiscountPct}% OFF pra quem usa seu código`,
-      sub: `${m.followerDiscountFirstOnly ? 'na primeira inscrição, reserva e clubinho' : 'em inscrições, reservas e clubinhos'} · sai da taxa da plataforma, com teto nela`,
+      sub: `${where} · sai da taxa da plataforma, com teto nela`,
       icon: 'gift',
       status: live,
     });

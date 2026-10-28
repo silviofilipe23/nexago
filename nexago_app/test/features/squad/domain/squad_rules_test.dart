@@ -618,6 +618,36 @@ void main() {
       expect(squadFollowerOffer(always), '10% OFF nas inscrições de quem usar');
       expect(squadOfferShort(always), '10% OFF nas inscrições');
     });
+
+    test('oferta segue onde as regras ligaram o desconto', () {
+      SquadMember withScope(Map<String, Object?> scope, {bool first = true}) =>
+          SquadMember.fromMap({
+            ...squadMemberPayload(followerDiscountFirstOnly: first),
+            'followerDiscountScope': scope,
+          });
+
+      final arena = withScope({'registration': false});
+      expect(
+        squadOfferShort(arena),
+        '10% OFF na primeira reserva e no primeiro clubinho',
+      );
+      expect(
+        squadOfferShort(withScope({'registration': false}, first: false)),
+        '10% OFF em reservas e clubinhos',
+      );
+
+      final off = withScope({
+        'registration': false,
+        'booking': false,
+        'club': false,
+      });
+      expect(squadOfferShort(off), '');
+      expect(squadFollowerOffer(off), 'Sem desconto pra quem usar, no momento');
+      expect(
+        squadShareText(member: off, link: 'https://x.y/JOAO10'),
+        'Bora jogar na NexaGO? Use meu código JOAO10: https://x.y/JOAO10 #publi',
+      );
+    });
   });
 
   group('card de compartilhar (tela 02)', () {

@@ -5,6 +5,7 @@ import {FakeFirestore} from "./fake-firestore.test-helper";
 import {
   DEFAULT_SQUAD_RULES,
   affectsContracts,
+  normalizeSquadRules,
   rulesChanges,
   saveSquadRulesCore,
   squadRulesErrors,
@@ -106,6 +107,15 @@ describe("squadRulesErrors", () => {
     ]);
   });
 
+  it("escopo do desconto: opcional (regras antigas), mas se vier tem os três tipos em booleano", () => {
+    assert.deepEqual(squadRulesErrors(rules((r) => {
+      delete (r.attribution as Partial<SquadRules["attribution"]>).followerDiscountScope;
+    })), []);
+    assert.deepEqual(squadRulesErrors(rules((r) => {
+      (r.attribution.followerDiscountScope as unknown) = {registration: true, booking: "sim"};
+    })), ["attribution.followerDiscountScope"]);
+  });
+
   it("pesos do Score somam 100", () => {
     assert.deepEqual(squadRulesErrors(rules((r) => (r.scoreWeights.reach = 15))), ["scoreWeights.total"]);
   });
@@ -126,6 +136,15 @@ describe("squadRulesErrors", () => {
     }));
     assert.deepEqual(errors, ["promotion.0.minConversions", "promotion.1.checklist", "termination.maxRoi"]);
     assert.deepEqual(squadRulesErrors(rules((r) => r.promotion.reverse())), ["promotion.0.step", "promotion.1.step"]);
+  });
+});
+
+describe("normalizeSquadRules", () => {
+  it("regras salvas sem escopo do desconto passam a valer em tudo", () => {
+    const old = rules((r) => delete (r.attribution as Partial<SquadRules["attribution"]>).followerDiscountScope);
+    assert.deepEqual(normalizeSquadRules(old).attribution.followerDiscountScope, {registration: true, booking: true, club: true});
+    const onlyBooking = rules((r) => (r.attribution.followerDiscountScope = {registration: false, booking: true, club: false}));
+    assert.deepEqual(normalizeSquadRules(onlyBooking).attribution.followerDiscountScope, {registration: false, booking: true, club: false});
   });
 });
 

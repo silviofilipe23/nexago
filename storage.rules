@@ -95,40 +95,60 @@ service firebase.storage {
       );
     }
 
-    // Capa e logo da arena (Perfil do portal da arena e do app). Soma-se ao bloco acima, que
-    // segue valendo para o dono e as claims: aqui entra o membro da equipe que já edita o
-    // perfil no Firestore (`arenaCanWrite(arenaId, 'perfil')`), só com imagem de até 5 MB.
-    // ESPELHO MANUAL de `isActiveArenaStaff` + `arenaWriteAreas` + `arenaEntitled` em
-    // firestore.rules: cargo com a área `perfil`, vínculo ativo e titularidade de plano pago.
-    // Lê 2 documentos (staff e arena), o teto de `firestore.get` por avaliação no Storage.
+    // Membro da equipe da arena que escreve numa área do Firestore. ESPELHO MANUAL de
+    // `isActiveArenaStaff` + `arenaWriteAreas` + `arenaEntitled` em firestore.rules: vínculo
+    // ativo, cargo em [roles] (os cargos da área, listados em cada bloco abaixo) e titularidade
+    // de plano pago. Lê 2 documentos (staff e arena), o teto de `firestore.get` por avaliação
+    // no Storage.
+    function arenaStaffWrites(arenaId, roles) {
+      let staff = /databases/(default)/documents/arenas/$(arenaId)/staff/$(request.auth.uid);
+      return firestore.exists(staff) &&
+        firestore.get(staff).data.get('status', '') == 'active' &&
+        firestore.get(staff).data.get('role', '') in roles &&
+        arenaEntitled(arenaId);
+    }
+    function arenaEntitled(arenaId) {
+      let a = firestore.get(/databases/(default)/documents/arenas/$(arenaId)).data;
+      let status = a.get('planStatus', 'none');
+      let until = a.get('planActiveUntil', null);
+      return (a.get('planTier', '') in ['pro', 'elite', 'parceiro']) && (
+        status == 'active' ||
+        (status == 'overdue' && until != null &&
+          request.time < until + duration.value(7, 'd')) ||
+        (status == 'canceling' && until != null && request.time < until)
+      );
+    }
+    // Apagar, ou subir imagem jpeg/png/webp de até 5 MB.
+    function arenaStaffImage() {
+      return request.resource == null || (
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/(jpeg|png|webp)')
+      );
+    }
+
+    // Capa e logo da arena (Perfil do portal da arena e do app). Soma-se ao bloco
+    // `arenas/{arenaId}/**`, que segue valendo para o dono e as claims: aqui entra o membro da
+    // equipe que já edita o perfil no Firestore (`arenaCanWrite(arenaId, 'perfil')`).
     match /arenas/{arenaId}/{image} {
       // Cargos com escrita em `perfil` no `arenaWriteAreas` (o teste confere a paridade).
       function arenaPerfilRoles() {
         return ['gestor'];
       }
-      function arenaPerfilStaff() {
-        let staff = /databases/(default)/documents/arenas/$(arenaId)/staff/$(request.auth.uid);
-        return firestore.exists(staff) &&
-          firestore.get(staff).data.get('status', '') == 'active' &&
-          firestore.get(staff).data.get('role', '') in arenaPerfilRoles();
-      }
-      function arenaEntitled() {
-        let a = firestore.get(/databases/(default)/documents/arenas/$(arenaId)).data;
-        let status = a.get('planStatus', 'none');
-        let until = a.get('planActiveUntil', null);
-        return (a.get('planTier', '') in ['pro', 'elite', 'parceiro']) && (
-          status == 'active' ||
-          (status == 'overdue' && until != null &&
-            request.time < until + duration.value(7, 'd')) ||
-          (status == 'canceling' && until != null && request.time < until)
-        );
-      }
       allow write: if request.auth != null && image in ['cover', 'logo'] &&
-        arenaPerfilStaff() && arenaEntitled() &&
-        (request.resource == null || (
-          request.resource.size < 5 * 1024 * 1024 &&
-          request.resource.contentType.matches('image/(jpeg|png|webp)')
-        ));
+        arenaStaffWrites(arenaId, arenaPerfilRoles()) && arenaStaffImage();
+    }
+
+    // Foto de produto do estoque (app: `ArenaProductsRepository.uploadProductImage`). Soma-se
+    // ao bloco `arenas/{arenaId}/**` (dono e claims): aqui entra o membro que já grava o
+    // produto no Firestore (`canManageArenaProducts`, ou seja `arenaCanWrite(arenaId,
+    // 'estoque')`). O Firestore não pede tier além do Pro/Elite/Parceiro de `arenaEntitled`.
+    match /arenas/{arenaId}/products/{fileName} {
+      // Cargos com escrita em `estoque` no `arenaWriteAreas` (o teste confere a paridade).
+      function arenaEstoqueRoles() {
+        return ['gestor', 'manutencao'];
+      }
+      allow write: if request.auth != null &&
+        arenaStaffWrites(arenaId, arenaEstoqueRoles()) && arenaStaffImage();
     }
 
     // Centro de treinamento: capa da vitrine de aulas no app. Leitura pública; escrita só do

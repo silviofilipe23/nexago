@@ -1,8 +1,10 @@
 // Capa e logo da arena no Storage (`arenas/{arenaId}/cover|logo`): além do dono, o gestor ativo
 // da equipe sobe a foto, com a mesma titularidade de plano que o Firestore exige pra editar o
-// perfil (`arenaCanWrite(arenaId, 'perfil')`). Outro cargo, vínculo inativo e arena sem plano
-// seguem recusados. As rules do Storage leem staff e arena no Firestore, então o teste sobe os
-// dois emuladores e semeia no projeto do `emulators:exec` (é nele que o Storage procura).
+// perfil (`arenaCanWrite(arenaId, 'perfil')`). Foto de produto (`arenas/{arenaId}/products/*`):
+// gestor e manutenção, os cargos que gravam o produto (`arenaCanWrite(arenaId, 'estoque')`).
+// Outro cargo, vínculo inativo e arena sem plano seguem recusados. As rules do Storage leem
+// staff e arena no Firestore, então o teste sobe os dois emuladores e semeia no projeto do
+// `emulators:exec` (é nele que o Storage procura).
 // Rodar: cd functions && npm run test:rules
 import fs from 'node:fs';
 import path from 'node:path';
@@ -90,10 +92,10 @@ test('gestor: só imagem jpeg/png/webp de até 5 MB', async () => {
   await assertFails(put(s, 'arenas/arena-pro/cover', { contentType: 'application/pdf' }));
 });
 
-test('gestor: só capa e logo; o resto da pasta da arena segue com o dono', async () => {
+test('gestor: só capa, logo e foto de produto; o resto da pasta da arena segue com o dono', async () => {
   const s = storageAs(GESTOR);
-  await assertFails(put(s, 'arenas/arena-pro/products/p1.jpg'));
   await assertFails(put(s, 'arenas/arena-pro/qualquer'));
+  await assertFails(put(s, 'arenas/arena-pro/products/sub/p1.jpg'));
 });
 
 test('gestor apaga a capa', async () => {
@@ -127,6 +129,7 @@ test('o dono segue como antes: sobe em qualquer arena dele, com ou sem plano', a
   const s = storageAs(OWNER);
   await assertSucceeds(put(s, 'arenas/arena-sem-plano/cover'));
   await assertSucceeds(put(s, 'arenas/arena-pro/products/p1.jpg'));
+  await assertSucceeds(put(s, 'arenas/arena-sem-plano/products/p1.jpg'));
 });
 
 test('a capa é pública', async () => {
@@ -134,17 +137,77 @@ test('a capa é pública', async () => {
   await assertSucceeds(testEnv.unauthenticatedContext().storage().ref('arenas/arena-pro/cover').getMetadata());
 });
 
-test('paridade: os cargos de `arenaPerfilRoles` são os que escrevem `perfil` no firestore.rules', () => {
-  const storageRoles = storageRules.match(/function arenaPerfilRoles\(\) \{\s*return \[([^\]]*)\];/);
-  assert.ok(storageRoles, 'arenaPerfilRoles() não encontrada em storage.rules');
-  const fromStorage = [...storageRoles[1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
+test('gestor e manutenção ativos de arena com plano sobem foto de produto (jpeg, png, webp)', async () => {
+  for (const uid of [GESTOR, MANUTENCAO]) {
+    const s = storageAs(uid);
+    await assertSucceeds(put(s, 'arenas/arena-pro/products/p1.jpg'));
+    await assertSucceeds(put(s, 'arenas/arena-pro/products/p2.jpg', { contentType: 'image/png' }));
+    await assertSucceeds(put(s, 'arenas/arena-pro/products/p3.jpg', { contentType: 'image/webp' }));
+  }
+});
 
+test('foto de produto: só imagem jpeg/png/webp de até 5 MB', async () => {
+  const s = storageAs(MANUTENCAO);
+  await assertFails(put(s, 'arenas/arena-pro/products/p1.jpg', { bytes: 5 * 1024 * 1024 + 1 }));
+  await assertFails(put(s, 'arenas/arena-pro/products/p1.jpg', { contentType: 'image/gif' }));
+  await assertFails(put(s, 'arenas/arena-pro/products/p1.jpg', { contentType: 'application/pdf' }));
+});
+
+test('manutenção apaga a foto de produto', async () => {
+  await assertSucceeds(put(storageAs(OWNER), 'arenas/arena-pro/products/p9.jpg'));
+  await assertSucceeds(storageAs(MANUTENCAO).ref('arenas/arena-pro/products/p9.jpg').delete());
+});
+
+test('cargo sem escrita em estoque não sobe foto de produto (recepção só lê o estoque)', async () => {
+  for (const uid of [RECEPCAO, FINANCEIRO]) {
+    await assertFails(put(storageAs(uid), 'arenas/arena-pro/products/p1.jpg'));
+  }
+});
+
+test('foto de produto: vínculo inativo, estranho e visitante não sobem', async () => {
+  await assertFails(put(storageAs(EX_GESTOR), 'arenas/arena-pro/products/p1.jpg'));
+  await assertFails(put(storageAs(ESTRANHO), 'arenas/arena-pro/products/p1.jpg'));
+  await assertFails(put(testEnv.unauthenticatedContext().storage(), 'arenas/arena-pro/products/p1.jpg'));
+});
+
+test('foto de produto, titularidade: sem plano, Starter e vencida fora da carência recusam a equipe', async () => {
+  for (const uid of [GESTOR, MANUTENCAO]) {
+    const s = storageAs(uid);
+    await assertFails(put(s, 'arenas/arena-sem-plano/products/p1.jpg'));
+    await assertFails(put(s, 'arenas/arena-starter/products/p1.jpg'));
+    await assertFails(put(s, 'arenas/arena-vencida/products/p1.jpg'));
+    await assertSucceeds(put(s, 'arenas/arena-carencia/products/p1.jpg'));
+    await assertSucceeds(put(s, 'arenas/arena-cancelando/products/p1.jpg'));
+  }
+});
+
+test('a foto de produto é pública', async () => {
+  await assertSucceeds(put(storageAs(MANUTENCAO), 'arenas/arena-pro/products/p1.jpg'));
+  await assertSucceeds(
+    testEnv.unauthenticatedContext().storage().ref('arenas/arena-pro/products/p1.jpg').getMetadata(),
+  );
+});
+
+// Paridade das listas de cargos que storage.rules copia do `arenaWriteAreas` do firestore.rules.
+function storageRolesOf(fn) {
+  const roles = storageRules.match(new RegExp(`function ${fn}\\(\\) \\{\\s*return \\[([^\\]]*)\\];`));
+  assert.ok(roles, `${fn}() não encontrada em storage.rules`);
+  return [...roles[1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
+}
+
+function firestoreRolesWriting(area) {
   const writeAreas = firestoreRules.match(/function arenaWriteAreas\(role\) \{\s*return \{([\s\S]*?)\}\.get\(role/);
   assert.ok(writeAreas, 'arenaWriteAreas(role) não encontrada em firestore.rules');
-  const fromFirestore = [...writeAreas[1].matchAll(/'([^']+)':\s*\[([^\]]*)\]/g)]
-    .filter((m) => m[2].includes("'perfil'"))
+  return [...writeAreas[1].matchAll(/'([^']+)':\s*\[([^\]]*)\]/g)]
+    .filter((m) => m[2].includes(`'${area}'`))
     .map((m) => m[1])
     .sort();
+}
 
-  assert.deepEqual(fromStorage, fromFirestore);
+test('paridade: os cargos de `arenaPerfilRoles` são os que escrevem `perfil` no firestore.rules', () => {
+  assert.deepEqual(storageRolesOf('arenaPerfilRoles'), firestoreRolesWriting('perfil'));
+});
+
+test('paridade: os cargos de `arenaEstoqueRoles` são os que escrevem `estoque` no firestore.rules', () => {
+  assert.deepEqual(storageRolesOf('arenaEstoqueRoles'), firestoreRolesWriting('estoque'));
 });

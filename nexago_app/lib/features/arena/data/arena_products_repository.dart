@@ -8,6 +8,17 @@ import '../domain/products/arena_product.dart';
 import '../domain/products/arena_product_logic.dart';
 import '../domain/products/arena_stock_movement.dart';
 
+/// Recusa do Storage ao subir a foto do produto, com a mensagem pronta para a
+/// tela (o `FirebaseException` cru mostraria `[firebase_storage/unauthorized]`).
+class ArenaProductImageException implements Exception {
+  ArenaProductImageException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 class ArenaProductsRepository {
   ArenaProductsRepository(
     this._firestore,
@@ -196,7 +207,21 @@ class ArenaProductsRepository {
         .child('products')
         .child('${productId.trim()}.jpg');
 
-    await ref.putData(bytes, SettableMetadata(contentType: contentType));
+    try {
+      await ref.putData(bytes, SettableMetadata(contentType: contentType));
+    } on FirebaseException catch (e) {
+      // storage.rules libera a foto ao dono e à equipe que grava o estoque
+      // (gestor e manutenção) — esta, só com o plano da arena em dia, o mesmo
+      // gate do Firestore pra editar o produto. Quem chega no formulário e
+      // leva `unauthorized` é a equipe sem esse plano.
+      if (e.code == 'unauthorized') {
+        throw ArenaProductImageException(
+          'Sem permissão para enviar a foto do produto. A equipe só edita o '
+          'estoque com o plano da arena em dia.',
+        );
+      }
+      rethrow;
+    }
     return ref.getDownloadURL();
   }
 }

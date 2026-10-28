@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/tournaments/domain/team_profile/team_share_card.dart';
 import 'package:nexago_app/features/tournaments/presentation/team_profile/share/team_share_card.dart';
+import 'package:nexago_app/features/tournaments/presentation/team_profile/share/team_share_card_atoms.dart';
 import 'package:nexago_app/features/tournaments/presentation/team_profile/share/team_share_card_page.dart';
 
 TeamShareMember _member(String name, {String detail = ''}) => TeamShareMember(
@@ -83,6 +84,35 @@ void main() {
       });
     }
   }
+
+  testWidgets('ficha: as fotos vão em moldura retrato, não em círculo miúdo',
+      (tester) async {
+    await _pumpCard(tester, _data(duo: true), TeamShareCardStyle.roster);
+
+    final photos = find.byType(TeamSharePhotoTile);
+    expect(photos, findsNWidgets(2));
+    expect(tester.getSize(photos.first).height, 228);
+    expect(find.byType(TeamShareAvatar), findsNothing);
+  });
+
+  testWidgets('ranking: os rostos ficam grandes no vão, fora do painel',
+      (tester) async {
+    for (final duo in [true, false]) {
+      // Pior caso de espaço: nome em duas linhas e três etapas no painel.
+      await _pumpCard(tester, _data(duo: duo), TeamShareCardStyle.ranking);
+
+      final faces = find.byType(TeamShareAvatar);
+      expect(faces, findsNWidgets(duo ? 2 : 5));
+      expect(tester.getSize(faces.first).width, greaterThan(55));
+      expect(
+        find.descendant(
+          of: find.byType(TeamShareDarkPanel),
+          matching: find.byType(TeamShareAvatar),
+        ),
+        findsNothing,
+      );
+    }
+  });
 
   testWidgets('dupla sem jogos nem etapas não quebra o card de ranking',
       (tester) async {

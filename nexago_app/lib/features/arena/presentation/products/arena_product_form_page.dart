@@ -12,6 +12,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 import 'package:nexago_app/core/ui/fade_slide_in.dart';
 
+import '../../data/arena_products_repository.dart';
 import '../../domain/arena_access_providers.dart';
 import '../../domain/arena_providers.dart';
 import '../../domain/arena_staff_role.dart';
@@ -176,6 +177,8 @@ class _ArenaProductFormPageState extends ConsumerState<ArenaProductFormPage> {
         widget.isEditing ? 'Produto atualizado.' : 'Produto cadastrado.',
       );
       context.pop();
+    } on ArenaProductImageException catch (e) {
+      if (mounted) showAppSnackBar(context, e.message, isError: true);
     } catch (e) {
       if (mounted) {
         showAppSnackBar(context, 'Erro ao salvar: $e', isError: true);

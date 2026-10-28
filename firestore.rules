@@ -618,8 +618,9 @@ service cloud.firestore {
     // no olho, na revisão de código. Divergência por design: o frontend tem
     // uma área `torneios` (gestor, somente leitura) que não existe aqui, porque
     // nenhum bloco de regra hoje é controlado por área `torneios`.
-    // Fora da matriz, `storage.rules` copia só a área `perfil` (`arenaPerfilRoles`, capa/logo
-    // da arena) e o gate de `arenaEntitled`; mudou um dos dois aqui, mudar lá também.
+    // Fora da matriz, `storage.rules` copia só as áreas `perfil` (`arenaPerfilRoles`, capa/logo
+    // da arena) e `estoque` (`arenaEstoqueRoles`, foto de produto) e o gate de `arenaEntitled`;
+    // mudou um deles aqui, mudar lá também.
     function isArenaOwner(arenaId) {
       return isArenaManagerByArenaId(arenaId);
     }

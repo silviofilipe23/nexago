@@ -298,6 +298,16 @@ double? focusCountdownProgress({
   return (elapsed / total).clamp(0.0, 1.0);
 }
 
+/// O placar de [liveScoreLineOf] para o leitor de tela: "21-15 · 2º set 12-9"
+/// vira "21 a 15, 2º set 12 a 9". Lido cru, o VoiceOver soletra os traços e o
+/// ponto do meio.
+String spokenScoreLine(String line) => line
+    .replaceAllMapped(
+      RegExp(r'(\d+)\s*[-–]\s*(\d+)'),
+      (m) => '${m[1]} a ${m[2]}',
+    )
+    .replaceAll(' · ', ', ');
+
 /// "21-15 · 2º set 12-9" — o placar de quem está em quadra. `null` fora do ao
 /// vivo.
 String? liveScoreLineOf(TournamentMatch m) {

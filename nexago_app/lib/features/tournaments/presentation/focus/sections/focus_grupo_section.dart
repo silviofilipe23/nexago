@@ -214,7 +214,7 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
         ),
         const FocusSectionHeader(label: 'CLASSIFICAÇÃO'),
         if (standingsGroups.length > 1) ...[
-          _StandingsGroupChips(
+          FocusStandingsGroupChips(
             groups: standingsGroups,
             selectedIndex: visibleIndex,
             athletePoolId: poolId,
@@ -323,8 +323,9 @@ class _FocusGrupoSectionState extends ConsumerState<FocusGrupoSection> {
 }
 
 /// Chips A/B/C… — atalho pro carrossel (além do swipe).
-class _StandingsGroupChips extends StatelessWidget {
-  const _StandingsGroupChips({
+@visibleForTesting
+class FocusStandingsGroupChips extends StatelessWidget {
+  const FocusStandingsGroupChips({
     required this.groups,
     required this.selectedIndex,
     required this.athletePoolId,
@@ -338,8 +339,10 @@ class _StandingsGroupChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 44 de altura para o toque (o chip continua desenhado em 36, centrado):
+    // em 36 o alvo ficava abaixo do mínimo de toque.
     return SizedBox(
-      height: 36,
+      height: 44,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
@@ -350,49 +353,62 @@ class _StandingsGroupChips extends StatelessWidget {
           final selected = i == selectedIndex;
           final isMine = group.poolId == athletePoolId;
           final letter = _groupLetter(group);
-          return GestureDetector(
-            onTap: () => onSelected(i),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: selected
-                    ? AppColors.brand
-                    : Colors.white.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: selected
-                      ? AppColors.brand
-                      : Colors.white.withValues(alpha: 0.12),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    letter,
-                    style: AppTypography.soraRegular(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: selected ? AppColors.black : Colors.white,
+          // Botão de verdade para o leitor de tela: "Grupo B, o seu,
+          // selecionado" — antes era só um GestureDetector mudo.
+          return Semantics(
+            key: ValueKey('focus-group-tab-$letter'),
+            button: true,
+            selected: selected,
+            label: isMine ? 'Grupo $letter, o seu' : 'Grupo $letter',
+            excludeSemantics: true,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onSelected(i),
+              child: Center(
+                child: AnimatedContainer(
+                  height: 36,
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? AppColors.brand
+                        : Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: selected
+                          ? AppColors.brand
+                          : Colors.white.withValues(alpha: 0.12),
                     ),
                   ),
-                  if (isMine) ...[
-                    const SizedBox(width: 6),
-                    Text(
-                      'SEU',
-                      style: AppTypography.mono(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.4,
-                        color: selected
-                            ? AppColors.black.withValues(alpha: 0.7)
-                            : AppColors.brand,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        letter,
+                        style: AppTypography.soraRegular(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: selected ? AppColors.black : Colors.white,
+                        ),
                       ),
-                    ),
-                  ],
-                ],
+                      if (isMine) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          'SEU',
+                          style: AppTypography.mono(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.4,
+                            color: selected
+                                ? AppColors.black.withValues(alpha: 0.7)
+                                : AppColors.brand,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
             ),
           );

@@ -50,11 +50,13 @@ class FocusDayRail extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(
+          // Com o "VER TODOS" (alvo de 44), a folga vertical sai do padding
+          // para a linha não crescer; sem ele, o desenho de sempre.
+          padding: EdgeInsets.fromLTRB(
             AppSpacing.screenH,
-            AppSpacing.lg,
+            onSeeAll == null ? AppSpacing.lg : 2,
             AppSpacing.screenH,
-            AppSpacing.sm,
+            onSeeAll == null ? AppSpacing.sm : 0,
           ),
           child: Row(
             children: [
@@ -66,15 +68,40 @@ class FocusDayRail extends StatelessWidget {
                   ),
                 ),
               ),
-              if (onSeeAll != null)
-                GestureDetector(
-                  onTap: onSeeAll,
-                  behavior: HitTestBehavior.opaque,
-                  child: Text(
-                    'VER TODOS >',
-                    style: AppTypography.eyebrow.copyWith(
-                      color: Colors.white.withValues(alpha: 0.55),
-                      fontSize: 10,
+              if (onSeeAll case final onTap?)
+                // Era um texto de 10px sem área de toque, com ">" digitado.
+                Semantics(
+                  button: true,
+                  label: 'Ver todas as suas partidas',
+                  excludeSemantics: true,
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: InkWell(
+                      key: const Key('focus-day-rail-see-all'),
+                      onTap: onTap,
+                      borderRadius: BorderRadius.circular(8),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 44),
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 12),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'VER TODOS',
+                                style: AppTypography.eyebrow.copyWith(
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                ),
+                              ),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 18,
+                                color: Colors.white.withValues(alpha: 0.7),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),

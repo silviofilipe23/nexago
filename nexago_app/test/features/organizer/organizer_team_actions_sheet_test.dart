@@ -90,6 +90,7 @@ void main() {
     List<String> organizerConfirmedShareUids = const [],
     DateTime? declaredPaidAt,
     bool paymentVerifiedByOrganizer = false,
+    String? possibleDuplicateNote,
   }) {
     return OrganizerCategoryTeamRow(
       registrationId: 'reg-1',
@@ -104,6 +105,7 @@ void main() {
       organizerConfirmedShareUids: organizerConfirmedShareUids,
       declaredPaidAt: declaredPaidAt,
       paymentVerifiedByOrganizer: paymentVerifiedByOrganizer,
+      possibleDuplicateNote: possibleDuplicateNote,
     );
   }
 
@@ -166,6 +168,35 @@ void main() {
         of: find.textContaining(subtitle),
         matching: find.byType(InkWell),
       );
+
+  group('possível duplicado', () {
+    testWidgets('explica o aviso sem tirar nenhuma ação da folha',
+        (tester) async {
+      await openSheet(
+        tester,
+        team(
+          possibleDuplicateNote:
+              'Mesmo WhatsApp de outra inscrição nesta categoria (Ana / Bia)',
+        ),
+      );
+
+      expect(find.text('Possível duplicado'), findsOneWidget);
+      expect(
+        find.textContaining(
+          'Mesmo WhatsApp de outra inscrição nesta categoria (Ana / Bia). '
+          'Pode ser a mesma pessoa com duas contas',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Remover da categoria'), findsOneWidget);
+    });
+
+    testWidgets('sem aviso, sem cartão', (tester) async {
+      await openSheet(tester, team());
+
+      expect(find.text('Possível duplicado'), findsNothing);
+    });
+  });
 
   group('pedido de cancelamento', () {
     testWidgets('shows the request card with reason and no-refund warning',

@@ -265,6 +265,10 @@ class _OrganizerTeamActionsSheetState
             const SizedBox(height: 16),
             _TeamActionsHeader(team: team, rank: widget.rank),
             const SizedBox(height: 8),
+            if (team.possibleDuplicateNote case final note?) ...[
+              _PossibleDuplicateCard(note: note),
+              const SizedBox(height: 8),
+            ],
             if (team.cancellationRequestReason case final reason?) ...[
               _CancellationRequestCard(
                 reason: reason,
@@ -1102,6 +1106,59 @@ class _StatusPill extends StatelessWidget {
 
 /// Pedido de cancelamento aberto pelo atleta. O aviso de que a plataforma não
 /// devolve o dinheiro fica ACIMA dos botões — é o que muda a decisão.
+/// Aviso de possível duplicado: a mesma pessoa com duas contas na categoria.
+/// Não trava nada — a inscrição feita pelo organizador é justamente a saída
+/// do falso positivo (família que divide o número).
+class _PossibleDuplicateCard extends StatelessWidget {
+  const _PossibleDuplicateCard({required this.note});
+
+  final String note;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.pending.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.pending.withValues(alpha: 0.32)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.content_copy_rounded,
+                size: 16,
+                color: context.themeColors.pending,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Possível duplicado',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: context.themeColors.onSurface,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '$note. Pode ser a mesma pessoa com duas contas — confira com os '
+            'atletas antes de remover uma das inscrições.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: context.themeColors.onSurfaceMuted,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CancellationRequestCard extends StatelessWidget {
   const _CancellationRequestCard({
     required this.reason,

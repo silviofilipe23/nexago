@@ -46,6 +46,26 @@ class OrganizerCategoryPlayerInfo {
   String get initials => initialsFromDisplayName(name);
 }
 
+/// Duas contas da mesma categoria que parecem ser a mesma pessoa: mesmo
+/// WhatsApp, a não ser que os dois nascimentos existam e sejam diferentes. A
+/// regra é a da trava de inscrição e roda no servidor
+/// (`findTwinRegistrationPairs` nas functions) — aqui chegam só os ids.
+/// As duas inscrições se repetem quando o par está no mesmo elenco.
+@immutable
+class OrganizerTwinPair {
+  const OrganizerTwinPair({
+    required this.registrationA,
+    required this.uidA,
+    required this.registrationB,
+    required this.uidB,
+  });
+
+  final String registrationA;
+  final String uidA;
+  final String registrationB;
+  final String uidB;
+}
+
 @immutable
 class OrganizerCategoryTeamRow {
   const OrganizerCategoryTeamRow({
@@ -66,6 +86,7 @@ class OrganizerCategoryTeamRow {
     this.organizerConfirmedShareUids = const [],
     this.declaredPaidAt,
     this.paymentVerifiedByOrganizer = false,
+    this.possibleDuplicateNote,
   });
 
   final String registrationId;
@@ -108,13 +129,24 @@ class OrganizerCategoryTeamRow {
   /// O organizador já deu baixa na declaração (`paymentVerifiedByOrganizer`).
   final bool paymentVerifiedByOrganizer;
 
+  /// Possível duplicado: a mesma pessoa parece estar nesta categoria por duas
+  /// contas ("Mesmo WhatsApp de outra inscrição nesta categoria (Ana / Bia)").
+  /// `null` = sem aviso. A trava do servidor só barra quem ENTRA, e a
+  /// inscrição pelo organizador nem passa por ela: é aqui que ele enxerga.
+  final String? possibleDuplicateNote;
+
   bool get hasCancellationRequest => cancellationRequestReason != null;
+
+  bool get isPossibleDuplicate => possibleDuplicateNote != null;
 
   /// Copia mudando só o que foi passado. Existe para quem precisa alterar UM
   /// campo (`applySeedOrder` muda o `seedRank`) não reconstruir a linha campo a
   /// campo — o que já derrubou `partnerPending`, `lgpdAcceptedUids` e o pedido
   /// de cancelamento das duplas cabeça de chave.
-  OrganizerCategoryTeamRow copyWith({int? seedRank}) {
+  OrganizerCategoryTeamRow copyWith({
+    int? seedRank,
+    String? possibleDuplicateNote,
+  }) {
     return OrganizerCategoryTeamRow(
       registrationId: registrationId,
       teamId: teamId,
@@ -133,6 +165,8 @@ class OrganizerCategoryTeamRow {
       organizerConfirmedShareUids: organizerConfirmedShareUids,
       declaredPaidAt: declaredPaidAt,
       paymentVerifiedByOrganizer: paymentVerifiedByOrganizer,
+      possibleDuplicateNote:
+          possibleDuplicateNote ?? this.possibleDuplicateNote,
     );
   }
 

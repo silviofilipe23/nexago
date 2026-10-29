@@ -17,7 +17,6 @@ import '../../../core/ui/nexa_skeleton.dart';
 import '../../arenas/domain/booking_story.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../../arenas/presentation/booking_story_page.dart';
-import '../../arenas/presentation/my_bookings/my_bookings_page.dart';
 import '../../cashback/presentation/widgets/cashback_balance_pill.dart';
 import '../../store/application/store_providers.dart';
 import '../../tournaments/data/my_tournament_registrations_repository.dart';
@@ -332,11 +331,8 @@ class AthleteHomePage extends ConsumerWidget {
                                       now: now,
                                       // Compacto na Início; a seta expande.
                                       initiallyExpanded: false,
-                                      onDetailsTap: () => openMyBookingDetails(
-                                        context,
-                                        ref,
-                                        nextBooking,
-                                      ),
+                                      onDetailsTap: () =>
+                                          context.pushNamed(AppRouteNames.myBookings),
                                       onReserveTap: () =>
                                           _goToTab(ref, athleteShellReservarTabIndex),
                                       onStoryTap:

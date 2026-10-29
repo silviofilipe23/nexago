@@ -205,7 +205,7 @@ class _BookingsListBody extends ConsumerWidget {
                 child: MyBookingsBookingCard(
                   item: item,
                   sportLabel: sportLabel,
-                  onTap: () => openMyBookingDetails(context, ref, item),
+                  onTap: () => _openDetails(context, ref, item),
                 ),
               ),
             ),
@@ -224,7 +224,7 @@ class _BookingsListBody extends ConsumerWidget {
               child: MyBookingsBookingCard(
                 item: item,
                 sportLabel: sportLabel,
-                onTap: () => openMyBookingDetails(context, ref, item),
+                onTap: () => _openDetails(context, ref, item),
               ),
             ),
           ),
@@ -248,92 +248,91 @@ class _BookingsListBody extends ConsumerWidget {
       children: children,
     );
   }
-}
 
-/// Abre o detalhe da reserva (folha) — usado pela lista e pelo card da Início.
-Future<void> openMyBookingDetails(
-  BuildContext context,
-  WidgetRef ref,
-  MyBookingItem item,
-) async {
-  final bookingService = ref.read(bookingServiceProvider);
-  final currentUser = ref.read(authProvider).valueOrNull;
-  final arenaAsync = item.arenaId == null
-      ? null
-      : ref.read(arenaByIdProvider(item.arenaId!));
-  final arena = arenaAsync?.valueOrNull;
-  final locationQuery = arena?.locationLabel ?? item.arenaName;
-  final arenaName = arena?.name ?? item.arenaName;
-  final startAt = myBookingStartAt(item);
-  final cancellation = myBookingCancellation(item, DateTime.now());
+  Future<void> _openDetails(
+    BuildContext context,
+    WidgetRef ref,
+    MyBookingItem item,
+  ) async {
+    final bookingService = ref.read(bookingServiceProvider);
+    final currentUser = ref.read(authProvider).valueOrNull;
+    final arenaAsync = item.arenaId == null
+        ? null
+        : ref.read(arenaByIdProvider(item.arenaId!));
+    final arena = arenaAsync?.valueOrNull;
+    final locationQuery = arena?.locationLabel ?? item.arenaName;
+    final arenaName = arena?.name ?? item.arenaName;
+    final startAt = myBookingStartAt(item);
+    final cancellation = myBookingCancellation(item, DateTime.now());
 
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    backgroundColor: Colors.transparent,
-    builder: (sheetContext) {
-      return BookingDetailsSheet(
-        item: item,
-        dateLabel: formatBookingDateHeader(item.dateRaw),
-        onOpenMaps: () async {
-          final q = Uri.encodeComponent(locationQuery);
-          final uri = Uri.parse(
-            'https://www.google.com/maps/search/?api=1&query=$q',
-          );
-          if (await canLaunchUrl(uri)) {
-            await launchUrl(uri, mode: LaunchMode.externalApplication);
-          } else if (context.mounted) {
-            showAppSnackBar(context, 'Não foi possível abrir o Google Maps.');
-          }
-        },
-        onPayNow: () {
-          showAppSnackBar(context, 'Fluxo de pagamento em breve.');
-        },
-        onCancelBooking: () async {
-          final uid = currentUser?.uid;
-          if (uid == null) {
-            if (context.mounted) {
-              showAppSnackBar(context, 'Faça login para cancelar.');
-            }
-            return;
-          }
-          if (startAt == null) return;
-          final confirmed = await confirmBookingCancellation(
-            context,
-            arenaName: arenaName,
-            courtName: item.courtName ?? '',
-            startAt: startAt,
-          );
-          if (!confirmed) return;
-          try {
-            await bookingService.cancelBooking(
-              bookingId: item.id,
-              athleteId: uid,
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return BookingDetailsSheet(
+          item: item,
+          dateLabel: formatBookingDateHeader(item.dateRaw),
+          onOpenMaps: () async {
+            final q = Uri.encodeComponent(locationQuery);
+            final uri = Uri.parse(
+              'https://www.google.com/maps/search/?api=1&query=$q',
             );
-            if (context.mounted) {
-              Navigator.of(sheetContext).pop();
-              showAppSnackBar(context, 'Reserva cancelada com sucesso.');
-              ref.invalidate(myBookingsStreamProvider);
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            } else if (context.mounted) {
+              showAppSnackBar(context, 'Não foi possível abrir o Google Maps.');
             }
-          } catch (e) {
-            if (context.mounted) {
-              showAppSnackBar(
-                context,
-                e.toString().replaceFirst('Exception: ', ''),
+          },
+          onPayNow: () {
+            showAppSnackBar(context, 'Fluxo de pagamento em breve.');
+          },
+          onCancelBooking: () async {
+            final uid = currentUser?.uid;
+            if (uid == null) {
+              if (context.mounted) {
+                showAppSnackBar(context, 'Faça login para cancelar.');
+              }
+              return;
+            }
+            if (startAt == null) return;
+            final confirmed = await confirmBookingCancellation(
+              context,
+              arenaName: arenaName,
+              courtName: item.courtName ?? '',
+              startAt: startAt,
+            );
+            if (!confirmed) return;
+            try {
+              await bookingService.cancelBooking(
+                bookingId: item.id,
+                athleteId: uid,
               );
+              if (context.mounted) {
+                Navigator.of(sheetContext).pop();
+                showAppSnackBar(context, 'Reserva cancelada com sucesso.');
+                ref.invalidate(myBookingsStreamProvider);
+              }
+            } catch (e) {
+              if (context.mounted) {
+                showAppSnackBar(
+                  context,
+                  e.toString().replaceFirst('Exception: ', ''),
+                );
+              }
             }
-          }
-        },
-        canCancelBooking:
-            cancellation == AthleteBookingCancellation.allowed,
-        cancelBlockedMessage:
-            cancellation == AthleteBookingCancellation.deadlinePassed
-            ? ArenaBookingCancellationPolicy.blockedCancellationMessage(
-                arenaName: arenaName,
-              )
-            : null,
-      );
-    },
-  );
+          },
+          canCancelBooking:
+              cancellation == AthleteBookingCancellation.allowed,
+          cancelBlockedMessage:
+              cancellation == AthleteBookingCancellation.deadlinePassed
+              ? ArenaBookingCancellationPolicy.blockedCancellationMessage(
+                  arenaName: arenaName,
+                )
+              : null,
+        );
+      },
+    );
+  }
 }

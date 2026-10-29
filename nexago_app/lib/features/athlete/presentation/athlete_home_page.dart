@@ -34,6 +34,7 @@ import '../../home_banners/presentation/widgets/home_news_section.dart';
 import '../../messages/application/messages_providers.dart';
 import '../domain/athlete_booking_helpers.dart';
 import '../domain/athlete_display_name.dart';
+import '../domain/athlete_home_taglines.dart';
 import '../domain/athlete_home_dashboard_logic.dart';
 import '../domain/athlete_home_registration_progress_providers.dart';
 import '../domain/athlete_notifications_providers.dart';
@@ -127,7 +128,13 @@ class AthleteHomePage extends ConsumerWidget {
                         gender: profile?.gender,
                         sport:
                             profile?.primarySportFirestoreId ?? profile?.sport,
-                        tagline: 'O esporte conecta.',
+                        // Piada do esporte do atleta, uma por dia.
+                        tagline: athleteHomeTaglineFor(
+                          sport: profile?.primarySportFirestoreId ??
+                              profile?.sport,
+                          now: DateTime.now(),
+                          seed: profile?.id ?? '',
+                        ),
                         // O avatar não está no mockup, mas é a ÚNICA entrada
                         // para o perfil e os ajustes em todas as cinco abas — a grade de
                         // atalhos já não é renderizada. Sem ele o atleta fica

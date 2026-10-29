@@ -67,18 +67,11 @@ const _heroSportSlugByCode = <String, String>{
   'CORRIDA': 'corrida',
 };
 
-/// "Bom dia/Boa tarde/Boa noite" pelo horário local.
-String athleteHomeGreetingByHour(DateTime now) {
-  if (now.hour < 12) return 'Bom dia';
-  if (now.hour < 18) return 'Boa tarde';
-  return 'Boa noite';
-}
-
 /// Altura da arte abaixo da barra de status. O hero sangra para cima, então a
 /// altura total soma o recorte do sistema.
 ///
 /// A pílula do canto inferior acompanha essa altura: com o avatar de 56 e o
-/// recorte de 56 da home, 220 deixa 24 entre a saudação e a pílula de XP.
+/// recorte de 56 da home, 220 deixa 24 entre o nome e a pílula de XP.
 const double _heroContentHeight = 200;
 
 /// Véu de duas pontas. Medi as artes: a metade DIREITA da faixa da barra de
@@ -102,7 +95,7 @@ LinearGradient _scrimTo(Color canvas) => LinearGradient(
 );
 
 /// Hero da home do atleta: arte por gênero sangrando sob a barra de status,
-/// saudação à esquerda e dois encaixes nos cantos direitos.
+/// nome à esquerda e dois encaixes nos cantos direitos.
 ///
 /// O texto usa branco fixo em vez de `onSurface`: as artes são escuras nos dois
 /// temas, então no tema claro `onSurface` escureceria e sumiria na foto.
@@ -125,7 +118,6 @@ class AthleteHomeHero extends StatelessWidget {
     this.onIdentityTap,
     this.identitySemanticLabel,
     this.bleedBelow = 0,
-    this.now,
   });
 
   /// Nome já resolvido pela página (primeiro nome, apelido, o que for).
@@ -137,10 +129,10 @@ class AthleteHomeHero extends StatelessWidget {
   /// Esporte principal do perfil (código Firestore ou rótulo) — pode ser nulo.
   final String? sport;
 
-  /// Linha de apoio sob a saudação.
+  /// Linha de apoio sob o nome.
   final String? tagline;
 
-  /// Fica à esquerda da saudação, dentro da faixa escura da arte. Ex.: avatar.
+  /// Fica à esquerda do nome, dentro da faixa escura da arte. Ex.: avatar.
   final Widget? leading;
 
   /// Canto superior direito, sob a barra de status. Ex.: sino.
@@ -149,8 +141,8 @@ class AthleteHomeHero extends StatelessWidget {
   /// Canto inferior direito. Ex.: pílula de XP.
   final Widget? bottomRight;
 
-  /// Toque no grupo [leading] + saudação. Com ele o grupo inteiro vira um
-  /// botão e a saudação ganha a seta ⌄ — o avatar sozinho não dizia que abria
+  /// Toque no grupo [leading] + nome. Com ele o grupo inteiro vira um
+  /// botão e o nome ganha a seta ⌄ — o avatar sozinho não dizia que abria
   /// um menu, e os atletas não achavam perfil e configurações.
   final VoidCallback? onIdentityTap;
 
@@ -166,20 +158,19 @@ class AthleteHomeHero extends StatelessWidget {
   /// emenda sumir é o degradê do pé, que morre na cor do fundo da página.
   final double bleedBelow;
 
-  /// Injetável para teste; em produção é a hora do aparelho.
-  final DateTime? now;
-
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.paddingOf(context).top;
-    final greeting = athleteHomeGreetingByHour(now ?? DateTime.now());
+    // Só o nome: o "Bom dia, Fulano." ocupava duas linhas ao lado do avatar e
+    // empurrava a pílula; sem saudação o topo fica mais curto.
     final trimmedName = name.trim();
-    final title = trimmedName.isEmpty
-        ? '$greeting.'
-        : '$greeting, $trimmedName.';
+    final title = trimmedName.isEmpty ? 'Atleta' : trimmedName;
 
     final canvas = context.themeColors.canvas;
-    final titleStyle = AppTypography.titleL.copyWith(color: AppColors.white);
+    final titleStyle = AppTypography.titleL.copyWith(
+      color: AppColors.white,
+      fontSize: 18,
+    );
 
     Widget identity = Row(
       mainAxisSize: MainAxisSize.min,
@@ -268,10 +259,10 @@ class AthleteHomeHero extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // A saudação ocupa só a faixa esquerda, que é a parte escura
+                // O nome ocupa só a faixa esquerda, que é a parte escura
                 // das três artes (p95 entre 56 e 74).
                 FractionallySizedBox(
-                  // Sem o avatar a saudação cabe em 72%; com ele o grupo
+                  // Sem o avatar o nome cabe em 72%; com ele o grupo
                   // precisa de mais faixa, mas sem alcançar o canto claro
                   // onde mora o sino.
                   widthFactor: leading == null ? 0.72 : 0.82,
@@ -319,7 +310,7 @@ class _HeroArt extends StatelessWidget {
           athleteHomeHeroAssetFor(gender, sport: sport),
           fit: BoxFit.cover,
           cacheWidth: cacheWidth,
-          // Decorativa: quem carrega o significado é a saudação.
+          // Decorativa: quem carrega o significado é o nome.
           excludeFromSemantics: true,
         );
       },

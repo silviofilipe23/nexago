@@ -157,22 +157,8 @@ class AthleteHomePage extends ConsumerWidget {
                         // A primeira seção sobe para cima da arte: a caixa do
                         // hero encolhe, a pintura não.
                         bleedBelow: _heroOverlap,
-                        topRight: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // Conversas com os professores (fase 7).
-                            const _HeroMessages(),
-                            const SizedBox(width: 8),
-                            AthleteHomeTourAnchor(
-                              target: AthleteHomeTourTarget.notifications,
-                              child: _HeroBell(
-                                unreadCount: unreadNotifications,
-                                onTap: () => context.pushNamed(
-                                  AppRouteNames.athleteNotifications,
-                                ),
-                              ),
-                            ),
-                          ],
+                        topRight: _HeroActions(
+                          unreadNotifications: unreadNotifications,
                         ),
                         // Pílula do cashback à esquerda da de XP; o encaixe
                         // some sozinho com o recurso desligado ou sem saldo.
@@ -646,103 +632,106 @@ String _firstName(String displayName) {
   return parts.first;
 }
 
-/// Sino do hero. Fundo preto translúcido em vez de `surfaceRaised`: ele cai
-/// sobre a parte mais clara da arte (medi p95 164 no masculino) e no tema
-/// claro uma superfície de tema clarearia ainda mais.
-/// Mensagens com os professores, ao lado do sino — mesmo desenho, com o
-/// contador de não lidas.
-class _HeroMessages extends ConsumerWidget {
-  const _HeroMessages();
+/// Mensagens com os professores (fase 7) e sino numa cápsula só, com um
+/// divisor fino no meio: colados, ocupam menos que dois botões soltos e o
+/// alvo de cada um continua de 40×42.
+///
+/// Fundo preto translúcido em vez de `surfaceRaised`: a cápsula cai sobre a
+/// parte mais clara da arte (medi p95 164 no masculino) e no tema claro uma
+/// superfície de tema clarearia ainda mais.
+class _HeroActions extends ConsumerWidget {
+  const _HeroActions({required this.unreadNotifications});
+
+  final int unreadNotifications;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final unread = ref.watch(unreadMessagesCountProvider);
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Material(
-          color: AppColors.black.withValues(alpha: 0.45),
-          borderRadius: AppRadii.mdAll,
-          child: InkWell(
+    final unreadMessages = ref.watch(unreadMessagesCountProvider);
+    return Material(
+      color: AppColors.black.withValues(alpha: 0.45),
+      shape: StadiumBorder(
+        side: BorderSide(color: AppColors.white.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _HeroActionButton(
             key: const Key('athlete-home-messages'),
+            icon: Icons.chat_bubble_outline_rounded,
+            iconSize: 20,
+            semanticLabel: 'Mensagens',
+            unreadCount: unreadMessages,
             onTap: () => context.pushNamed(AppRouteNames.athleteMessages),
-            borderRadius: AppRadii.mdAll,
-            child: Container(
-              width: 42,
-              height: 42,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                borderRadius: AppRadii.mdAll,
-                border: Border.all(
-                  color: AppColors.white.withValues(alpha: 0.14),
-                ),
-              ),
-              child: const Icon(
-                Icons.chat_bubble_outline_rounded,
-                size: 20,
-                color: AppColors.white,
-                semanticLabel: 'Mensagens',
-              ),
+          ),
+          Container(
+            width: 1,
+            height: 20,
+            color: AppColors.white.withValues(alpha: 0.14),
+          ),
+          AthleteHomeTourAnchor(
+            target: AthleteHomeTourTarget.notifications,
+            child: _HeroActionButton(
+              key: const Key('athlete-home-notifications'),
+              icon: Icons.notifications_outlined,
+              iconSize: 22,
+              semanticLabel: 'Notificações',
+              unreadCount: unreadNotifications,
+              onTap: () =>
+                  context.pushNamed(AppRouteNames.athleteNotifications),
             ),
           ),
-        ),
-        if (unread > 0)
-          Positioned(
-            right: -5,
-            top: -5,
-            child: _HeroNotificationBadge(count: unread),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
 
-class _HeroBell extends StatelessWidget {
-  const _HeroBell({required this.unreadCount, required this.onTap});
+class _HeroActionButton extends StatelessWidget {
+  const _HeroActionButton({
+    super.key,
+    required this.icon,
+    required this.iconSize,
+    required this.semanticLabel,
+    required this.unreadCount,
+    required this.onTap,
+  });
 
+  final IconData icon;
+  final double iconSize;
+  final String semanticLabel;
   final int unreadCount;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    // O badge fica FORA da cápsula, no canto. Dentro dela ele cobria o
-    // sino — era assim no header antigo (right: 4 / top: 4 sobre um ícone
-    // de 22 centralizado em 40x40) e com duas casas ficava ilegível.
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Material(
-          color: AppColors.black.withValues(alpha: 0.45),
-          borderRadius: AppRadii.mdAll,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: AppRadii.mdAll,
-            child: Container(
-              width: 42,
-              height: 42,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                borderRadius: AppRadii.mdAll,
-                border: Border.all(
-                  color: AppColors.white.withValues(alpha: 0.14),
-                ),
-              ),
-              child: const Icon(
-                Icons.notifications_outlined,
-                size: 22,
-                color: AppColors.white,
-                semanticLabel: 'Notificações',
-              ),
+    // O badge fica no canto de cima, montado na borda da cápsula: dentro dela
+    // ele cobria o ícone — era assim no header antigo e com duas casas
+    // ficava ilegível.
+    return InkWell(
+      onTap: onTap,
+      customBorder: const StadiumBorder(),
+      child: SizedBox(
+        width: 40,
+        height: 42,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            Icon(
+              icon,
+              size: iconSize,
+              color: AppColors.white,
+              semanticLabel: semanticLabel,
             ),
-          ),
+            if (unreadCount > 0)
+              Positioned(
+                right: 0,
+                top: -6,
+                child: _HeroNotificationBadge(count: unreadCount),
+              ),
+          ],
         ),
-        if (unreadCount > 0)
-          Positioned(
-            right: -5,
-            top: -5,
-            child: _HeroNotificationBadge(count: unreadCount),
-          ),
-      ],
+      ),
     );
   }
 }

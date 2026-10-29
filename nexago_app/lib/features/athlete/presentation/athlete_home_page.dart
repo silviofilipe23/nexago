@@ -49,6 +49,7 @@ import '../domain/sand_rank/sand_rank_providers.dart';
 import '../domain/match_history/athlete_match_history_providers.dart';
 import 'daily_mission_navigation.dart';
 import 'widgets/athlete_home/athlete_account_sheet.dart';
+import 'widgets/athlete_home/athlete_home_tour.dart';
 import 'widgets/athlete_home/athlete_home_community_section.dart';
 import 'widgets/athlete_home/athlete_home_competitions_section.dart';
 import 'widgets/athlete_home/athlete_home_daily_missions_section.dart';
@@ -131,7 +132,9 @@ class AthleteHomePage extends ConsumerWidget {
                         // para o perfil e os ajustes em todas as cinco abas — a grade de
                         // atalhos já não é renderizada. Sem ele o atleta fica
                         // sem caminho para o próprio cadastro.
-                        leading: _HeroAvatar(
+                        leading: AthleteHomeTourAnchor(
+                          target: AthleteHomeTourTarget.account,
+                          child: _HeroAvatar(
                           initials: profile != null
                               ? athleteInitials(profile)
                               : '?',
@@ -144,6 +147,7 @@ class AthleteHomePage extends ConsumerWidget {
                               .watch(sandRankCosmeticsProvider)
                               .valueOrNull
                               ?.frameId,
+                          ),
                         ),
                         // Menu da conta: perfil, configurações e trocar papel
                         // (igual ao avatar do Professor). Avatar e saudação
@@ -159,10 +163,13 @@ class AthleteHomePage extends ConsumerWidget {
                             // Conversas com os professores (fase 7).
                             const _HeroMessages(),
                             const SizedBox(width: 8),
-                            _HeroBell(
-                              unreadCount: unreadNotifications,
-                              onTap: () => context.pushNamed(
-                                AppRouteNames.athleteNotifications,
+                            AthleteHomeTourAnchor(
+                              target: AthleteHomeTourTarget.notifications,
+                              child: _HeroBell(
+                                unreadCount: unreadNotifications,
+                                onTap: () => context.pushNamed(
+                                  AppRouteNames.athleteNotifications,
+                                ),
                               ),
                             ),
                           ],

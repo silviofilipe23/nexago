@@ -385,7 +385,7 @@ class _PendingStatusBadge extends StatelessWidget {
           Text(
             'CONVITE PENDENTE',
             style: AppTypography.mono(
-              fontSize: 9,
+              fontSize: 10,
               fontWeight: FontWeight.w700,
               color: context.themeColors.brandText,
               letterSpacing: 0.4,

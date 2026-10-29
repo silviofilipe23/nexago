@@ -544,7 +544,7 @@ class _PriceOption extends StatelessWidget {
             Text(
               badge,
               style: AppTypography.mono(
-                fontSize: 9,
+                fontSize: 10,
                 fontWeight: FontWeight.w700,
                 color: badgeColor,
                 letterSpacing: 1.0,

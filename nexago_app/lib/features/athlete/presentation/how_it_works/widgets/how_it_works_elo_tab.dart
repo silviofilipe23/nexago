@@ -247,7 +247,7 @@ class _TrackCard extends StatelessWidget {
                           child: Text(
                             family.rankName.toUpperCase(),
                             style: AppTypography.mono(
-                              fontSize: 9,
+                              fontSize: 10,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.4,
                               color: family.rankCode == current.rankCode

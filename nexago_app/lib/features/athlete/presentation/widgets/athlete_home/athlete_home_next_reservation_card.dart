@@ -175,7 +175,7 @@ class _CompactReservation extends StatelessWidget {
                 maxLines: 1,
                 style: AppTypography.eyebrow.copyWith(
                   color: colors.brandText,
-                  fontSize: 9,
+                  fontSize: 10,
                 ),
               ),
               const SizedBox(height: 2),

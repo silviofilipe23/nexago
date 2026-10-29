@@ -49,20 +49,29 @@ class MyTournamentsOngoingCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _Badge(
-                      label: 'TORNEIO',
-                      icon: Icons.emoji_events_outlined,
-                      color: MyTournamentsTokens.gold,
-                    ),
-                    if (format != null && format.isNotEmpty) ...[
-                      SizedBox(width: 6),
-                      _Badge(
-                        label: format.toUpperCase(),
-                        color: context.themeColors.onSurfaceMuted,
+                    // Wrap: com o rótulo em 10px, "TORNEIO" + formato + status
+                    // não cabiam numa linha em tela estreita e estouravam.
+                    Expanded(
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          _Badge(
+                            label: 'TORNEIO',
+                            icon: Icons.emoji_events_outlined,
+                            color: MyTournamentsTokens.gold,
+                          ),
+                          if (format != null && format.isNotEmpty)
+                            _Badge(
+                              label: format.toUpperCase(),
+                              color: context.themeColors.onSurfaceMuted,
+                            ),
+                        ],
                       ),
-                    ],
-                    const Spacer(),
+                    ),
+                    const SizedBox(width: 8),
                     if (enrollment.isLive || enrollment.isEventDay)
                       _StatusPill(
                         label: '• DIA DO EVENTO',
@@ -178,7 +187,7 @@ class _Badge extends StatelessWidget {
           Text(
             label,
             style: AppTypography.mono(
-              fontSize: 9,
+              fontSize: 10,
               fontWeight: FontWeight.w700,
               color: color,
               letterSpacing: 0.2,
@@ -207,7 +216,7 @@ class _StatusPill extends StatelessWidget {
       child: Text(
         label,
         style: AppTypography.mono(
-          fontSize: 9,
+          fontSize: 10,
           fontWeight: FontWeight.w700,
           color: context.themeColors.readableTone(color),
           letterSpacing: 0.2,

@@ -95,7 +95,7 @@ class _SummaryCard extends StatelessWidget {
               color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.8,
-              fontSize: 9,
+              fontSize: 10,
             ),
           ),
         ],

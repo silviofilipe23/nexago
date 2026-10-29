@@ -59,7 +59,7 @@ class MyTournamentsLiveBanner extends StatelessWidget {
                       Text(
                         '• HOJE • DIA DE TORNEIO',
                         style: AppTypography.mono(
-                          fontSize: 9,
+                          fontSize: 10,
                           fontWeight: FontWeight.w700,
                           color: Colors.white.withValues(alpha: 0.9),
                           letterSpacing: 0.4,
@@ -92,7 +92,7 @@ class MyTournamentsLiveBanner extends StatelessWidget {
                   child: Text(
                     'VER TORNEIO →',
                     style: AppTypography.mono(
-                      fontSize: 9,
+                      fontSize: 10,
                       fontWeight: FontWeight.w800,
                       color: AppColors.live,
                       letterSpacing: 0.3,

@@ -76,7 +76,10 @@ class MatchCardHead extends StatelessWidget {
         ),
         if (trailing != null) ...[
           const SizedBox(width: 6),
-          trailing!,
+          // Flexível: com dois selos ("VALE CAMPEÃO" + veredito) o rabicho
+          // passava da largura e estourava a linha; assim ele divide o espaço
+          // com o contexto e os selos quebram linha.
+          Flexible(child: trailing!),
         ],
       ],
     );

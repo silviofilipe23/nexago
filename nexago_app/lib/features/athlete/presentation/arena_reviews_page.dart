@@ -1297,7 +1297,7 @@ class _VerifiedBadge extends StatelessWidget {
         'VERIFICADO',
         style: TextStyle(
           color: Color(0xFF59D98A),
-          fontSize: 9,
+          fontSize: 10,
           letterSpacing: 0.5,
           fontWeight: FontWeight.w800,
         ),

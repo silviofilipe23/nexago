@@ -166,7 +166,7 @@ class TournamentPoolStandingsCard extends StatelessWidget {
                       child: Text(
                         statusLabel,
                         style: AppTypography.mono(
-                          fontSize: 9,
+                          fontSize: 10,
                           fontWeight: FontWeight.w700,
                           color: context.themeColors.readableTone(statusColor),
                           letterSpacing: 0.4,

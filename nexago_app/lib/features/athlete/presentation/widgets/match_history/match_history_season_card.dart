@@ -135,7 +135,7 @@ class MatchHistorySeasonCard extends StatelessWidget {
                           Text(
                             bar.label,
                             style: theme.textTheme.labelSmall?.copyWith(
-                              fontSize: 8,
+                              fontSize: 11,
                               color: context.themeColors.onSurfaceMuted,
                               fontWeight: FontWeight.w700,
                             ),

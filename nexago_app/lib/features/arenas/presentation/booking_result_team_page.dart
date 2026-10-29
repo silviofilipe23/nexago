@@ -461,7 +461,7 @@ class _FormationPicker extends StatelessWidget {
                       Text(
                         '${f.size}×${f.size}',
                         style: AppTypography.mono(
-                          fontSize: 9,
+                          fontSize: 11,
                           color: f == value
                               ? const Color(0xB30A0A0A)
                               : colors.onSurface.withValues(alpha: 0.50),

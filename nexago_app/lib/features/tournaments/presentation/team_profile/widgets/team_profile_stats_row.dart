@@ -82,7 +82,7 @@ class _StatColumn extends StatelessWidget {
         Text(
           label,
           style: AppTypography.mono(
-            fontSize: 9,
+            fontSize: 10,
             fontWeight: FontWeight.w700,
             color: context.themeColors.onSurfaceMuted,
             letterSpacing: 0.5,

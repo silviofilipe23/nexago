@@ -82,7 +82,7 @@ class _SlotCard extends StatelessWidget {
                     style: theme.textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.w900,
                       color: AppColors.live,
-                      fontSize: 8,
+                      fontSize: 10,
                     ),
                   ),
                 ),
@@ -103,7 +103,7 @@ class _SlotCard extends StatelessWidget {
                     style: theme.textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.w800,
                       color: AppColors.win,
-                      fontSize: 9,
+                      fontSize: 10,
                     ),
                   ),
                 ],

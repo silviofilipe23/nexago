@@ -591,7 +591,7 @@ class _StreakCard extends StatelessWidget {
                 style: theme.textTheme.labelSmall?.copyWith(
                   fontWeight: FontWeight.w800,
                   color: AppColors.brand,
-                  fontSize: 8,
+                  fontSize: 10,
                   letterSpacing: 0.2,
                 ),
               ),
@@ -647,7 +647,7 @@ class _PointScoreRow extends StatelessWidget {
             style: theme.textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w800,
               color: annotationColor,
-              fontSize: 9,
+              fontSize: 10,
               letterSpacing: 0.2,
             ),
           ),
@@ -830,7 +830,7 @@ class _SummaryStat extends StatelessWidget {
             style: theme.textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w700,
               color: AppColors.onSurfaceMuted,
-              fontSize: 9,
+              fontSize: 10,
               letterSpacing: 0.3,
             ),
           ),

@@ -93,7 +93,7 @@ class TournamentMatchLiveBadge extends StatelessWidget {
           Text(
             'AO VIVO',
             style: AppTypography.mono(
-              fontSize: 9,
+              fontSize: 10,
               fontWeight: FontWeight.w800,
               color: AppColors.white,
               letterSpacing: 0.5,
@@ -120,7 +120,7 @@ class TournamentMatchFinalizedBadge extends StatelessWidget {
       child: Text(
         'FINALIZADO',
         style: AppTypography.mono(
-          fontSize: 9,
+          fontSize: 10,
           fontWeight: FontWeight.w800,
           color: AppColors.white,
           letterSpacing: 0.5,

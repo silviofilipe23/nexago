@@ -139,7 +139,7 @@ class _ResumoCelula extends StatelessWidget {
           Text(
             metal.label,
             style: AppTypography.mono(
-              fontSize: 9,
+              fontSize: 10,
               fontWeight: FontWeight.w600,
               color: colors.onSurfaceMuted,
               letterSpacing: 0.5,

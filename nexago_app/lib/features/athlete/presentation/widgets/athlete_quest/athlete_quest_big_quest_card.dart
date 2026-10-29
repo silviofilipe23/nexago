@@ -130,7 +130,7 @@ class AthleteQuestBigQuestCard extends StatelessWidget {
                         color: done
                             ? AppColors.brand
                             : context.themeColors.onSurfaceMuted,
-                        fontSize: 9,
+                        fontSize: 11,
                       ),
                     ),
                   );

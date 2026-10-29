@@ -49,7 +49,7 @@ class MyTournamentsNextMatchCard extends StatelessWidget {
                       Text(
                         'PRÓXIMA PARTIDA',
                         style: AppTypography.mono(
-                          fontSize: 9,
+                          fontSize: 10,
                           fontWeight: FontWeight.w700,
                           color: AppColors.brand,
                           letterSpacing: 0.4,
@@ -120,7 +120,7 @@ class MyTournamentsCourtCallBanner extends StatelessWidget {
                       Text(
                         'CHAMADA DE QUADRA',
                         style: AppTypography.mono(
-                          fontSize: 9,
+                          fontSize: 10,
                           fontWeight: FontWeight.w800,
                           color: Colors.white,
                           letterSpacing: 0.5,

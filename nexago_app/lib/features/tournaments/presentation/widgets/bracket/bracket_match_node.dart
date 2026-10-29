@@ -244,7 +244,7 @@ class _ScheduleFooter extends StatelessWidget {
           child: Text(
             matchScheduleFooterLabelPt(match),
             style: AppTypography.mono(
-              fontSize: 9,
+              fontSize: 10,
               fontWeight: FontWeight.w600,
               color: mutedColor,
               letterSpacing: 0.3,
@@ -281,7 +281,7 @@ class _StatusPill extends StatelessWidget {
       child: Text(
         label,
         style: AppTypography.mono(
-          fontSize: 8,
+          fontSize: 10,
           fontWeight: FontWeight.w700,
           color: color,
           letterSpacing: 0.4,
@@ -304,7 +304,7 @@ class _LiveScoreLine extends StatelessWidget {
     return Text(
       'Set em andamento · ${liveScore.currentGamesA}×${liveScore.currentGamesB}',
       style: AppTypography.mono(
-        fontSize: 9,
+        fontSize: 10,
         fontWeight: FontWeight.w700,
         color: context.themeColors.live,
         letterSpacing: 0.2,
@@ -331,7 +331,7 @@ class _SetPill extends StatelessWidget {
       child: Text(
         label,
         style: AppTypography.mono(
-          fontSize: 9,
+          fontSize: 10,
           fontWeight: FontWeight.w600,
           color: context.themeColors.onSurfaceMuted,
           letterSpacing: 0.2,
@@ -398,7 +398,7 @@ class _TeamRow extends StatelessWidget {
                   child: Text(
                     'VOCÊ',
                     style: AppTypography.mono(
-                      fontSize: 7,
+                      fontSize: 10,
                       fontWeight: FontWeight.w700,
                       color: AppColors.brand,
                       letterSpacing: 0.4,
@@ -515,7 +515,7 @@ class _AvatarCircle extends StatelessWidget {
       child: Text(
         player.initials,
         style: AppTypography.soraRegular(
-          fontSize: 8,
+          fontSize: 11,
           fontWeight: FontWeight.w700,
           color: AppColors.white,
         ),

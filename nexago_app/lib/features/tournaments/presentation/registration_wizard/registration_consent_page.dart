@@ -355,7 +355,7 @@ class _OrganizerReceivesCard extends StatelessWidget {
             'O ORGANIZADOR RECEBE',
             style: AppTypography.eyebrow.copyWith(
               color: colors.onSurfaceMuted,
-              fontSize: 9,
+              fontSize: 10,
               letterSpacing: 1,
             ),
           ),
@@ -687,7 +687,7 @@ class _RequiredBadge extends StatelessWidget {
       child: Text(
         'OBRIGATÓRIO',
         style: AppTypography.mono(
-          fontSize: 9,
+          fontSize: 10,
           fontWeight: FontWeight.w700,
           color: context.themeColors.pending,
           letterSpacing: 1.0,

@@ -581,7 +581,7 @@ class _RankingTableRowShell extends StatelessWidget {
                     child: Text(
                       'VOCÊ',
                       style: AppTypography.mono(
-                        fontSize: 9,
+                        fontSize: 10,
                         fontWeight: FontWeight.w800,
                         color: AppColors.black,
                         letterSpacing: 0.4,

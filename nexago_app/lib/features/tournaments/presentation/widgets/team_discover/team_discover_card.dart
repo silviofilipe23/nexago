@@ -93,7 +93,7 @@ class _TeamDiscoverCardState extends State<TeamDiscoverCard> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.mono(
-                          fontSize: 9,
+                          fontSize: 10,
                           color: context.themeColors.onSurfaceMuted,
                           height: 1.2,
                           letterSpacing: 0,
@@ -120,7 +120,7 @@ class _TeamDiscoverCardState extends State<TeamDiscoverCard> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppTypography.mono(
-                                fontSize: 9,
+                                fontSize: 10,
                                 fontWeight: FontWeight.w600,
                                 color: context.themeColors.onSurfaceMuted,
                                 height: 1.2,
@@ -167,7 +167,7 @@ class _ContextLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final base = AppTypography.mono(
-      fontSize: 9,
+      fontSize: 10,
       fontWeight: FontWeight.w600,
       color: context.themeColors.onSurfaceMuted,
       height: 1.2,

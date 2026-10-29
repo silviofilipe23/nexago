@@ -632,7 +632,7 @@ class _ImagePlaceholder extends StatelessWidget {
                 child: Text(
                   label,
                   style: AppTypography.mono(
-                    fontSize: 8,
+                    fontSize: 10,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.2,
                     color: AppColors.brand.withValues(alpha: 0.8),

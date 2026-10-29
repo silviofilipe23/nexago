@@ -7,6 +7,7 @@ import '../data/tournament_inscriptions_repository.dart';
 import '../domain/tournament_discovery_providers.dart';
 import 'widgets/tournament_detail/tournament_detail_categories_tab.dart';
 import 'widgets/tournament_detail/tournament_detail_subpage_scaffold.dart';
+import '../../../core/errors/friendly_error_message.dart';
 
 class TournamentCategoriesPage extends ConsumerWidget {
   const TournamentCategoriesPage({super.key, required this.tournamentId});
@@ -27,7 +28,13 @@ class TournamentCategoriesPage extends ConsumerWidget {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text('Não foi possível carregar as categorias.\n$e'),
+              child: Text(
+                friendlyErrorMessage(
+                  e,
+                  action: 'Não foi possível carregar as categorias',
+                  logReason: 'torneio:categorias',
+                ),
+              ),
             ),
           ),
         ],

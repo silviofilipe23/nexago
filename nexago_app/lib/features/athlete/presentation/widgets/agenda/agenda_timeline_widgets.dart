@@ -22,6 +22,7 @@ import '../../booking_details_page.dart';
 import '../../class_session_detail_page.dart';
 import '../../class_story_page.dart';
 import 'agenda_card_decoration.dart';
+import '../../../../../core/errors/friendly_error_message.dart';
 
 class AgendaTimelineSectionHeader extends StatelessWidget {
   const AgendaTimelineSectionHeader({
@@ -1178,6 +1179,12 @@ Future<void> cancelAgendaBooking(
     if (!context.mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text('Não foi possível cancelar: $e')));
+      ..showSnackBar(SnackBar(content: Text(
+          friendlyErrorMessage(
+            e,
+            action: 'Não foi possível cancelar',
+            logReason: 'agenda:cancelar',
+          ),
+        )));
   }
 }

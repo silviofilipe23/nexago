@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/koc/koc_round_providers.dart';
 import 'public_koc_round_page.dart';
+import '../../../core/errors/friendly_error_message.dart';
 
 /// Telão da categoria King of the Court.
 ///
@@ -36,7 +37,15 @@ class PublicKocBoardPage extends ConsumerWidget {
       body: matchIdAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
-          child: Text('$e', style: const TextStyle(color: Colors.white)),
+          child: Text(
+            friendlyErrorMessage(
+              e,
+              action: 'Não foi possível carregar o placar',
+              logReason: 'koc:placar',
+            ),
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white),
+          ),
         ),
         data: (matchId) {
           if (matchId == null || matchId.isEmpty) {

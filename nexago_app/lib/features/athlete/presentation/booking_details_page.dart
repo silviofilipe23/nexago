@@ -29,6 +29,7 @@ import 'widgets/booking_details/booking_details_location_section.dart';
 import 'widgets/booking_details/booking_details_payment_section.dart';
 import 'widgets/booking_details/booking_details_team_section.dart';
 import 'widgets/booking_details/booking_details_view_model.dart';
+import '../../../core/errors/friendly_error_message.dart';
 
 export 'widgets/booking_details/booking_details_view_model.dart'
     show BookingDetailsStatus, bookingDetailsStatus;
@@ -303,7 +304,13 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(content: Text('Não foi possível confirmar presença: $e')),
+          SnackBar(content: Text(
+            friendlyErrorMessage(
+              e,
+              action: 'Não foi possível confirmar presença',
+              logReason: 'reserva:confirmar_presenca',
+            ),
+          )),
         );
     } finally {
       if (mounted) {
@@ -337,7 +344,13 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(content: Text('Não foi possível fazer check-in: $e')),
+          SnackBar(content: Text(
+            friendlyErrorMessage(
+              e,
+              action: 'Não foi possível fazer check-in',
+              logReason: 'reserva:check_in',
+            ),
+          )),
         );
     } finally {
       if (mounted) setState(() => _checkingIn = false);
@@ -440,7 +453,13 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Não foi possível cancelar: $e')));
+      ).showSnackBar(SnackBar(content: Text(
+          friendlyErrorMessage(
+            e,
+            action: 'Não foi possível cancelar',
+            logReason: 'reserva:cancelar',
+          ),
+        )));
     }
   }
 }

@@ -37,7 +37,6 @@ import 'widgets/arena_search/arena_search_filters_sheet.dart';
 import 'widgets/arena_search/arena_search_location_sheet.dart';
 import 'widgets/arena_search/arena_search_sort_sheet.dart';
 import 'widgets/athlete_home/athlete_account_sheet.dart';
-import 'widgets/athlete_home/athlete_home_tour.dart';
 
 /// Fração da tela que o sheet ocupa ao abrir. Compartilhada com o
 /// posicionamento dos controles flutuantes, que precisam ficar acima dele.
@@ -821,16 +820,13 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage>
               const AthleteAccountButton(),
               const SizedBox(width: 8),
               Expanded(
-                child: AthleteHomeTourAnchor(
-                  target: AthleteHomeTourTarget.bookCourt,
-                  child: ArenaMapSearchBar(
-                    initialQuery: _filters.query,
-                    slotLabel: _slotLabel(),
-                    activeFilterCount: countActiveSearchFilters(_filters),
-                    onQueryChanged: _onSearchChanged,
-                    onSlotTap: () => unawaited(_openSlotSheet()),
-                    onFiltersTap: () => unawaited(_openFilters()),
-                  ),
+                child: ArenaMapSearchBar(
+                  initialQuery: _filters.query,
+                  slotLabel: _slotLabel(),
+                  activeFilterCount: countActiveSearchFilters(_filters),
+                  onQueryChanged: _onSearchChanged,
+                  onSlotTap: () => unawaited(_openSlotSheet()),
+                  onFiltersTap: () => unawaited(_openFilters()),
                 ),
               ),
             ],

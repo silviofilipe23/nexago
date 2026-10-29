@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,7 +18,6 @@ import '../../../domain/athlete_shell_providers.dart';
 enum AthleteHomeTourTarget {
   account,
   notifications,
-  bookCourt,
   tournaments,
   ranking,
   navBar,
@@ -28,6 +29,7 @@ class AthleteHomeTourStep {
     required this.title,
     required this.body,
     this.tab = 0,
+    this.navSlot,
     this.holePadding = 8,
     this.holeRadius = 16,
   });
@@ -41,13 +43,19 @@ class AthleteHomeTourStep {
   /// onde ele fica.
   final int tab;
 
+  /// Com alvo [AthleteHomeTourTarget.navBar], destaca só a fatia desta aba
+  /// da barra (as abas dividem a cápsula em partes iguais).
+  final int? navSlot;
+
   final double holePadding;
   final double holeRadius;
 }
 
 /// Os passos: os atletas não achavam o menu da conta no avatar, nem sabiam
-/// onde alugar quadra, achar torneios ou ver o ranking. O tour passa pelas
-/// abas na ordem da barra e volta para a Início no fim.
+/// onde alugar quadra, achar torneios ou ver o ranking. Torneios e ranking
+/// levam até o Hub; a quadra fica no botão Reservar da barra — abrir a aba
+/// poria o mapa (outra view nativa) junto da barra nativa, e o iOS compõe
+/// mal o que é Flutter por cima das duas (ver `nexaPopupRouteDepth`).
 const athleteHomeTourSteps = [
   AthleteHomeTourStep(
     target: AthleteHomeTourTarget.account,
@@ -63,11 +71,13 @@ const athleteHomeTourSteps = [
         'torneios chegam no sino.',
   ),
   AthleteHomeTourStep(
-    target: AthleteHomeTourTarget.bookCourt,
+    target: AthleteHomeTourTarget.navBar,
+    navSlot: athleteShellReservarTabIndex,
     title: 'Alugue uma quadra',
-    body: 'Na aba Reservar você busca arenas perto de você, escolhe o dia e o '
-        'horário e reserva na hora.',
-    tab: athleteShellReservarTabIndex,
+    body: 'Toque em Reservar para buscar arenas perto de você, escolher o dia '
+        'e o horário e reservar na hora.',
+    holePadding: -4,
+    holeRadius: 999,
   ),
   AthleteHomeTourStep(
     target: AthleteHomeTourTarget.tournaments,
@@ -116,6 +126,12 @@ class AthleteHomeTourAnchor extends StatefulWidget {
     final box = _anchors[target]?.context.findRenderObject();
     if (box is! RenderBox || !box.attached || !box.hasSize) return null;
     return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  /// Fatia [slot] de [count] partes iguais de [bar], na horizontal.
+  static Rect slotOf(Rect bar, int slot, int count) {
+    final width = bar.width / count;
+    return Rect.fromLTWH(bar.left + width * slot, bar.top, width, bar.height);
   }
 
   /// Rola a lista do alvo até ele aparecer, se estiver fora da tela (o Hub
@@ -170,16 +186,20 @@ class _AthleteHomeTourAnchorState extends State<AthleteHomeTourAnchor> {
   Widget build(BuildContext context) => widget.child;
 }
 
-/// Abre o tour por cima da tela. É um [PopupRoute] (via `showGeneralDialog`)
-/// para a barra nativa do iOS dar lugar à cápsula Flutter enquanto ele está
-/// aberto — a nativa é desenhada por cima de tudo o que é Flutter.
+/// Abre o tour por cima da tela, numa camada do `Overlay` raiz — de
+/// propósito NÃO é uma rota: qualquer rota por cima apaga a barra nativa do
+/// iOS (o plugin some com ela quando a rota da casca deixa de ser a atual) e
+/// a casca troca para a cápsula Flutter. O tour precisa mostrar a barra de
+/// verdade, a mesma que o atleta vai usar.
 ///
 /// [onShowTab] troca a aba da casca para os passos que moram em outra aba;
-/// sem ele, esses passos ficam de fora.
+/// sem ele, esses passos ficam de fora. [navSlotCount] é quantas abas a barra
+/// tem, para recortar a fatia de uma delas.
 Future<void> showAthleteHomeTour(
   BuildContext context, {
   List<AthleteHomeTourStep> steps = athleteHomeTourSteps,
   ValueChanged<int>? onShowTab,
+  int navSlotCount = 5,
 }) {
   // Só os passos com alvo montado (a `IndexedStack` da casca monta todas as
   // abas): o contador "1 de 6" não pode pular número.
@@ -188,32 +208,40 @@ Future<void> showAthleteHomeTour(
       .where((s) => AthleteHomeTourAnchor.rectOf(s.target) != null)
       .toList(growable: false);
   if (visible.isEmpty) return Future.value();
-  final reduceMotion = MediaQuery.disableAnimationsOf(context);
-  return showGeneralDialog<void>(
-    context: context,
-    useRootNavigator: true,
-    barrierDismissible: false,
-    barrierColor: Colors.transparent,
-    barrierLabel: 'Tour da Início',
-    transitionDuration: reduceMotion ? Duration.zero : AppMotion.base,
-    pageBuilder: (_, __, ___) =>
-        AthleteHomeTourOverlay(steps: visible, onShowTab: onShowTab),
-    transitionBuilder: (_, animation, __, child) => FadeTransition(
-      opacity: CurvedAnimation(parent: animation, curve: AppMotion.curve),
-      child: child,
+
+  final done = Completer<void>();
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (_) => AthleteHomeTourOverlay(
+      steps: visible,
+      onShowTab: onShowTab,
+      navSlotCount: navSlotCount,
+      onClose: () {
+        entry.remove();
+        entry.dispose();
+        done.complete();
+      },
     ),
   );
+  Overlay.of(context, rootOverlay: true).insert(entry);
+  return done.future;
 }
 
 class AthleteHomeTourOverlay extends StatefulWidget {
   const AthleteHomeTourOverlay({
     super.key,
     required this.steps,
+    required this.onClose,
     this.onShowTab,
+    this.navSlotCount = 5,
   });
 
   final List<AthleteHomeTourStep> steps;
+
+  /// Chamado uma vez, depois do fade de saída.
+  final VoidCallback onClose;
   final ValueChanged<int>? onShowTab;
+  final int navSlotCount;
 
   @override
   State<AthleteHomeTourOverlay> createState() => _AthleteHomeTourOverlayState();
@@ -222,18 +250,21 @@ class AthleteHomeTourOverlay extends StatefulWidget {
 class _AthleteHomeTourOverlayState extends State<AthleteHomeTourOverlay> {
   var _index = 0;
   var _tab = 0;
+  var _visible = false;
+  var _closing = false;
 
   @override
   void initState() {
     super.initState();
     _prepare(0);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _visible = true);
+    });
   }
 
   bool get _isLast => _index >= widget.steps.length - 1;
 
-  /// Troca de aba e rola até o alvo antes de desenhar o recorte. Também
-  /// cobre a abertura: a barra troca da nativa para a cápsula Flutter quando
-  /// o tour abre, e o retângulo dela só fica certo no frame seguinte.
+  /// Troca de aba e rola até o alvo antes de desenhar o recorte.
   void _prepare(int index) {
     final step = widget.steps[index];
     if (step.tab != _tab) {
@@ -251,19 +282,33 @@ class _AthleteHomeTourOverlayState extends State<AthleteHomeTourOverlay> {
 
   void _next() {
     if (_isLast) {
-      Navigator.of(context).pop();
+      _close();
       return;
     }
     setState(() => _index++);
     _prepare(_index);
   }
 
-  void _skip() => Navigator.of(context).pop();
+  void _close() {
+    if (_closing) return;
+    setState(() {
+      _closing = true;
+      _visible = false;
+    });
+    if (MediaQuery.disableAnimationsOf(context)) widget.onClose();
+  }
+
+  Rect? _targetRect(AthleteHomeTourStep step) {
+    final rect = AthleteHomeTourAnchor.rectOf(step.target);
+    final slot = step.navSlot;
+    if (rect == null || slot == null) return rect;
+    return AthleteHomeTourAnchor.slotOf(rect, slot, widget.navSlotCount);
+  }
 
   @override
   Widget build(BuildContext context) {
     final step = widget.steps[_index];
-    final target = AthleteHomeTourAnchor.rectOf(step.target);
+    final target = _targetRect(step);
     if (target == null) {
       // Alvo fora da tela (aba sem sino, por exemplo): pula o passo.
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -280,7 +325,7 @@ class _AthleteHomeTourOverlayState extends State<AthleteHomeTourOverlay> {
         ? Duration.zero
         : AppMotion.base;
 
-    return Material(
+    Widget tour = Material(
       type: MaterialType.transparency,
       child: Stack(
         children: [
@@ -322,13 +367,37 @@ class _AthleteHomeTourOverlayState extends State<AthleteHomeTourOverlay> {
                 total: widget.steps.length,
                 isLast: _isLast,
                 onNext: _next,
-                onSkip: _skip,
+                onSkip: _close,
               ),
             ),
           ),
         ],
       ),
     );
+
+    tour = AnimatedOpacity(
+      opacity: _visible ? 1 : 0,
+      duration: duration,
+      curve: AppMotion.curve,
+      onEnd: () {
+        if (_closing) widget.onClose();
+      },
+      // Sem rota, nada esconde a tela de baixo do leitor de tela.
+      child: BlockSemantics(child: tour),
+    );
+
+    // Sem rota, o voltar do Android passaria direto para a casca (e sairia
+    // do app): aqui ele fecha o tour.
+    if (Router.maybeOf(context) != null) {
+      tour = BackButtonListener(
+        onBackButtonPressed: () async {
+          _close();
+          return true;
+        },
+        child: tour,
+      );
+    }
+    return tour;
   }
 }
 

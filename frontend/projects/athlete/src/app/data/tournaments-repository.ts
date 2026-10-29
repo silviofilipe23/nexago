@@ -92,6 +92,9 @@ export interface TournamentCategoryOffer {
   ageMinYears: number | null;
   ageMaxYears: number | null;
   ageReference: string | null;
+  /** Início da categoria (`startsAt`) definido pelo organizador, dentro do período do torneio.
+   *  `null` = sem horário próprio (segue a agenda geral). */
+  startsAt?: Date | null;
 }
 
 function stringListOf(v: unknown): string[] {
@@ -166,6 +169,7 @@ function categoryOfferFromRaw(raw: unknown, rootUniform: RootUniformFlags): Tour
     ageMinYears: numberOf(ageRestriction?.['minAge']),
     ageMaxYears: numberOf(ageRestriction?.['maxAge']),
     ageReference: optionalStr(ageRestriction?.['reference']),
+    startsAt: toDate(o['startsAt']),
   };
 }
 

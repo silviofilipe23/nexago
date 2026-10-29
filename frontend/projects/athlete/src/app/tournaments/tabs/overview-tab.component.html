@@ -45,6 +45,9 @@
                   <div class="tdv-cat-row">
                     <div class="tdv-cat-main">
                       <h3 class="tdv-cat-name">{{ c.categoryName }}</h3>
+                      @if (c.startsAt; as startsAt) {
+                        <p class="tdv-cat-start">Começa {{ categoryStartLabel(startsAt) }}</p>
+                      }
                       <div class="tdv-pill-row">
                         <span class="tdv-pill tdv-pill--accent">{{ genderLabel(c) }}</span>
                         <span class="tdv-pill">{{ formatLabel(c) }}</span>

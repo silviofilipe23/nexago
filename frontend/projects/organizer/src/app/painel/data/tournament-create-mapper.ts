@@ -114,6 +114,7 @@ export function categoryToMap(category: TournamentCategoryDraft, draft: Tourname
     // O `bestOf` do perfil acompanha o da categoria (o organizador pode trocar depois).
     ...(category.scoringProfile ? { scoringProfile: { ...category.scoringProfile, bestOf: profileBestOf(category.bestOf) } } : {}),
     maxRegistrationsPerAthlete: category.maxRegistrationsPerAthlete,
+    startsAt: category.startsAt ? Timestamp.fromDate(category.startsAt) : null,
     registrationClosed: false,
     isCompleted: false,
     prizes: category.prizes.map((p) => ({
@@ -371,6 +372,7 @@ export function categoryFromMap(map: Record<string, unknown>): TournamentCategor
     knockoutBestOf3: map['knockoutBestOf3'] === true,
     maxRegistrationsPerAthlete: num(map['maxRegistrationsPerAthlete']) ?? 2,
     prizes: parsePrizes(map['prizes']),
+    startsAt: ts(map['startsAt']),
     scoringProfile: scoringProfileRawOf(map['scoringProfile']),
   };
 }

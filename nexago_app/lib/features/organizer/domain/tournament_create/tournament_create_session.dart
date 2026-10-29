@@ -232,6 +232,7 @@ Map<String, dynamic> _categoryToJson(TournamentCategoryDraft category) => {
     'scoringProfile': category.scoringProfileRaw,
   'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
   'prizes': category.prizes.map(_prizeToJson).toList(),
+  'startsAt': category.startsAt?.toIso8601String(),
   // Campos de categoria de EQUIPE (trio+) — preservados no rascunho local.
   'genderFree': category.genderFree,
   if (category.menCount != null) 'menCount': category.menCount,
@@ -345,6 +346,7 @@ TournamentCategoryDraft? _categoryFromJson(
       genderFree: json['genderFree'] as bool? ?? false,
       menCount: json['menCount'] as int?,
       womenCount: json['womenCount'] as int?,
+      startsAt: _parseDate(json['startsAt']),
     );
   } catch (_) {
     return null;

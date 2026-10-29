@@ -13,6 +13,7 @@ class OrganizerCategoryCard extends StatelessWidget {
     required this.onEdit,
     this.onRemove,
     this.extraBadge,
+    this.startError,
   });
 
   final TournamentCategoryDraft category;
@@ -20,6 +21,10 @@ class OrganizerCategoryCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback? onRemove;
   final String? extraBadge;
+
+  /// Início da categoria fora do período do torneio (as datas mudaram depois
+  /// que o horário foi definido): pinta o horário e explica embaixo.
+  final String? startError;
 
   @override
   Widget build(BuildContext context) {
@@ -151,8 +156,24 @@ class OrganizerCategoryCard extends StatelessWidget {
                   label: formatLabel,
                   accent: true,
                 ),
+              if (category.startsAt case final startsAt?)
+                _MetaChip(
+                  key: const Key('category-card-starts-at'),
+                  icon: Icons.schedule_rounded,
+                  label: formatCategoryStartLabel(startsAt),
+                  color: startError != null ? context.themeColors.live : null,
+                ),
             ],
           ),
+          if (startError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              startError!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: context.themeColors.live,
+                  ),
+            ),
+          ],
         ],
       ),
     );
@@ -161,31 +182,38 @@ class OrganizerCategoryCard extends StatelessWidget {
 
 class _MetaChip extends StatelessWidget {
   const _MetaChip({
+    super.key,
     required this.icon,
     required this.label,
     this.accent = false,
+    this.color,
   });
 
   final IconData icon;
   final String label;
   final bool accent;
 
+  /// Cor explícita (ex.: erro); vence o tom padrão/acento.
+  final Color? color;
+
   @override
   Widget build(BuildContext context) {
-    final color = accent ? AppColors.brand : context.themeColors.onSurfaceMuted;
+    final iconColor = color ??
+        (accent ? AppColors.brand : context.themeColors.onSurfaceMuted);
     final textStyle = accent
         ? Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: AppColors.brand,
+              color: color ?? AppColors.brand,
               fontWeight: FontWeight.w800,
             )
         : Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: color,
               fontWeight: FontWeight.w700,
             );
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: color),
+        Icon(icon, size: 16, color: iconColor),
         const SizedBox(width: 4),
         Text(label, style: textStyle),
       ],

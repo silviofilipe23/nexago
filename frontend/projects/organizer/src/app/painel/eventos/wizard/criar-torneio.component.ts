@@ -51,6 +51,8 @@ import {
   type TournamentCreateStep,
   type TournamentSport,
   canContinueFromStep,
+  categoryStartError,
+  categoryStartWindow,
   categoryTags,
   categoryTeamSize,
   categoryUnitLabel,
@@ -142,6 +144,13 @@ function inputToDatetime(v: string): Date | null {
   if (!v) return null;
   const date = new Date(v);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+const CAT_START_DAY = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' });
+const CAT_START_LABEL = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+function sameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
 /** Wizard REAL de criação/edição de torneio — mesmos 6 passos e regras do app
@@ -263,6 +272,34 @@ function inputToDatetime(v: string): Date | null {
                   <p class="og-wizard-hint">Faixa personalizada (legado): {{ levelRangeLabel() }} — escolha um preset para alterar.</p>
                 }
               </div>
+            </og-card>
+            <og-card kicker="Agenda" title="Início da categoria">
+              @if (catStartWindow(); as win) {
+                <div class="og-field-grid">
+                  <og-form-field label="Data e hora (opcional)">
+                    <input
+                      class="og-input-el"
+                      type="datetime-local"
+                      [min]="datetimeVal(win.min)"
+                      [max]="datetimeVal(win.max)"
+                      [value]="datetimeVal(cat().startsAt)"
+                      aria-describedby="cat-start-help"
+                      [attr.aria-invalid]="catStartError() ? 'true' : null"
+                      (input)="patchCat({ startsAt: toDatetimeVal($any($event.target).value) })"
+                    />
+                  </og-form-field>
+                </div>
+                @if (catStartError(); as msg) {
+                  <p id="cat-start-help" class="og-wizard-error" role="alert">{{ msg }}</p>
+                } @else {
+                  <p id="cat-start-help" class="og-wizard-hint">{{ catStartHint() }}</p>
+                }
+                @if (cat().startsAt) {
+                  <button type="button" class="og-ghost-btn" style="margin-top:10px" (click)="patchCat({ startsAt: null })">Remover horário</button>
+                }
+              } @else {
+                <p class="og-wizard-hint">Defina o início e o fim do torneio no passo "Local e data" para escolher quando esta categoria começa.</p>
+              }
             </og-card>
             <og-card kicker="Vagas & preço" title="Configuração">
               <div class="og-field-grid">
@@ -499,6 +536,8 @@ function inputToDatetime(v: string): Date | null {
                         [vagas]="c.spots + ' ' + unitOf(c)"
                         [price]="brl(c.useDefaultPrice ? draft().defaultPriceCents : c.priceCents)"
                         [format]="bracketShortLabel[c.bracketSystem]"
+                        [start]="startLabelOf(c)"
+                        [startError]="categoryStartError(c, draft())"
                         [removable]="true"
                         (edit)="openCategoriaBuilder(c.id)"
                         (remove)="removeCategory(c.id)"
@@ -959,6 +998,21 @@ export class CriarTorneioComponent {
   });
 
   protected readonly windowError = computed(() => registrationWindowError(this.draft()));
+  protected readonly categoryStartError = categoryStartError;
+  protected readonly catStartWindow = computed(() => categoryStartWindow(this.draft()));
+  protected readonly catStartError = computed(() => categoryStartError(this.cat(), this.draft()));
+  protected readonly catStartHint = computed(() => {
+    const win = this.catStartWindow();
+    if (!win) return '';
+    const range = sameDay(win.min, win.max) ? `em ${CAT_START_DAY.format(win.min)}` : `entre ${CAT_START_DAY.format(win.min)} e ${CAT_START_DAY.format(win.max)}`;
+    return this.cat().startsAt
+      ? `Os atletas veem esse horário na página do torneio. Precisa cair ${range}.`
+      : `Sem horário, a categoria segue a agenda geral do torneio. Se definir, precisa cair ${range}.`;
+  });
+
+  protected startLabelOf(c: TournamentCategoryDraft): string {
+    return c.startsAt ? CAT_START_LABEL.format(c.startsAt).replace(',', '') : '';
+  }
   protected readonly publishBlock = computed(() => publishBlockReasonForUnsupportedBrackets(this.draft()) || null);
   protected readonly totalPrize = computed(() => totalPrizeCents(this.draft()));
 
@@ -1394,6 +1448,11 @@ export class CriarTorneioComponent {
   protected onCta(): void {
     this.feedback.set(null);
     if (this.subView() === 'categoria') {
+      const startError = this.catStartError();
+      if (startError) {
+        this.feedback.set({ ok: false, message: startError });
+        return;
+      }
       this.saveCategoryFromBuilder();
       this.subView.set(null);
       return;
@@ -1441,8 +1500,15 @@ export class CriarTorneioComponent {
         return 'Dê um nome ao torneio pra continuar.';
       case 'location':
         return 'Preencha arena, cidade e as datas (fim não pode ser antes do início).';
-      case 'categories':
+      case 'categories': {
+        const draft = this.draft();
+        const offending = draft.categories.find((c) => categoryStartError(c, draft) != null);
+        if (offending) {
+          const label = offending.name.trim() || suggestCategoryName(offending);
+          return `O início da categoria "${label}" está fora do período do torneio. Ajuste o horário dela ou as datas do torneio.`;
+        }
         return 'Adicione ao menos uma categoria.';
+      }
       case 'registration':
         return this.windowError() ?? 'Preencha a janela de inscrição (e os dados PIX, no modo direto).';
       case 'rules':

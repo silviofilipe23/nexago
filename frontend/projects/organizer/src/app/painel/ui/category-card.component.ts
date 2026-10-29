@@ -18,6 +18,9 @@ import { OgIconComponent } from './icon.component';
           <span class="og-tag">{{ t }}</span>
         }
       </div>
+      @if (startError(); as msg) {
+        <p class="og-wizard-error" style="margin:8px 0 0;font-size:12px">{{ msg }}</p>
+      }
     </div>
     <div class="og-category-card-meta">
       <div class="og-category-card-meta-item">
@@ -32,6 +35,12 @@ import { OgIconComponent } from './icon.component';
         <div class="og-category-card-meta-label">Formato</div>
         <div class="og-category-card-meta-value">{{ format() }}</div>
       </div>
+      @if (start()) {
+        <div class="og-category-card-meta-item">
+          <div class="og-category-card-meta-label">Início</div>
+          <div class="og-category-card-meta-value" [style.color]="startError() ? 'var(--nx-live)' : null">{{ start() }}</div>
+        </div>
+      }
     </div>
     <button type="button" class="og-ghost-btn" (click)="edit.emit()"><og-icon name="edit" [size]="13" />Editar</button>
     @if (removable()) {
@@ -45,6 +54,10 @@ export class OgCategoryCardComponent {
   readonly vagas = input.required<string>();
   readonly price = input.required<string>();
   readonly format = input.required<string>();
+  /** Início da categoria já formatado; vazio = sem horário próprio (o item some). */
+  readonly start = input('');
+  /** Início fora do período do torneio (datas mudaram depois): pinta o horário e explica. */
+  readonly startError = input<string | null>(null);
   readonly highlight = input(false);
   readonly removable = input(false);
   readonly edit = output<void>();

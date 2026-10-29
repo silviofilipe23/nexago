@@ -179,6 +179,7 @@ class TournamentCategoryDraft {
     this.menCount,
     this.womenCount,
     this.minLevel = '',
+    this.startsAt,
   });
 
   final String id;
@@ -243,6 +244,12 @@ class TournamentCategoryDraft {
   /// gravou (mesmo contrato de [genderFree]/[menCount]).
   final String minLevel;
 
+  /// Data e hora em que a categoria começa a jogar (`startsAt` no doc).
+  /// Opcional: `null` = sem horário próprio. Quando existe, cai dentro do
+  /// período do torneio — ver `categoryStartError` em
+  /// `tournament_create_logic.dart`.
+  final DateTime? startsAt;
+
   TournamentCategoryDraft copyWith({
     String? id,
     String? name,
@@ -275,6 +282,8 @@ class TournamentCategoryDraft {
     int? menCount,
     int? womenCount,
     String? minLevel,
+    DateTime? startsAt,
+    bool clearStartsAt = false,
   }) {
     return TournamentCategoryDraft(
       id: id ?? this.id,
@@ -308,6 +317,7 @@ class TournamentCategoryDraft {
       menCount: menCount ?? this.menCount,
       womenCount: womenCount ?? this.womenCount,
       minLevel: minLevel ?? this.minLevel,
+      startsAt: clearStartsAt ? null : (startsAt ?? this.startsAt),
     );
   }
 }

@@ -526,7 +526,9 @@ bool canContinueFromStep(
           draft.endAt != null &&
           !draft.endAt!.isBefore(draft.startAt!) &&
           draft.courtsCount > 0,
-    TournamentCreateStep.categories => draft.categories.isNotEmpty,
+    TournamentCreateStep.categories =>
+      draft.categories.isNotEmpty &&
+          draft.categories.every((c) => categoryStartError(c, draft) == null),
     TournamentCreateStep.registration =>
       draft.registrationOpensAt != null &&
           draft.registrationClosesAt != null &&
@@ -616,6 +618,70 @@ String? registrationWindowError(TournamentCreateDraft draft) {
   }
   return null;
 }
+
+/// Janela em que o início de uma categoria pode cair: do começo do dia de
+/// `startAt` ao fim do dia de `endAt` (os dois são só data, à meia-noite).
+/// `null` enquanto o período do torneio não está completo.
+({DateTime min, DateTime max})? categoryStartWindow(
+  TournamentCreateDraft draft,
+) {
+  final start = draft.startAt;
+  final end = draft.endAt;
+  if (start == null || end == null) return null;
+  return (
+    min: DateTime(start.year, start.month, start.day),
+    max: DateTime(end.year, end.month, end.day, 23, 59, 59, 999),
+  );
+}
+
+/// Início da categoria fora do período do torneio. Sem início definido não
+/// há erro (campo opcional); sem período completo também não — o passo
+/// "Local e data" já cobra isso.
+String? categoryStartError(
+  TournamentCategoryDraft category,
+  TournamentCreateDraft draft,
+) {
+  final startsAt = category.startsAt;
+  if (startsAt == null) return null;
+  final window = categoryStartWindow(draft);
+  if (window == null) return null;
+  if (startsAt.isBefore(window.min) || startsAt.isAfter(window.max)) {
+    return 'O início da categoria precisa estar entre '
+        '${_dayMonth(window.min)} e ${_dayMonth(window.max)}, dentro do '
+        'período do torneio.';
+  }
+  return null;
+}
+
+/// "Sáb, 15/11 · 09:00" — rótulo do início da categoria no editor e na lista.
+String formatCategoryStartLabel(DateTime startsAt) {
+  final weekday = DateFormat('EEE', 'pt_BR').format(startsAt).replaceAll('.', '');
+  final capitalized = weekday.isEmpty
+      ? weekday
+      : '${weekday[0].toUpperCase()}${weekday.substring(1)}';
+  return '$capitalized, ${_dayMonth(startsAt)} · '
+      '${DateFormat('HH:mm').format(startsAt)}';
+}
+
+/// Texto de apoio do campo: diz onde o horário pode cair e o que acontece
+/// sem ele.
+String categoryStartHint(TournamentCreateDraft draft, {required bool hasValue}) {
+  final window = categoryStartWindow(draft);
+  if (window == null) return '';
+  final sameDay = window.min.year == window.max.year &&
+      window.min.month == window.max.month &&
+      window.min.day == window.max.day;
+  final range = sameDay
+      ? 'em ${_dayMonth(window.min)}'
+      : 'entre ${_dayMonth(window.min)} e ${_dayMonth(window.max)}';
+  return hasValue
+      ? 'Os atletas veem esse horário na página do torneio. Precisa cair $range.'
+      : 'Sem horário, a categoria segue a agenda geral do torneio. Se definir, '
+          'precisa cair $range.';
+}
+
+String _dayMonth(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
 
 bool isValidForPublish(TournamentCreateDraft draft) {
   for (final step in TournamentCreateStep.values) {

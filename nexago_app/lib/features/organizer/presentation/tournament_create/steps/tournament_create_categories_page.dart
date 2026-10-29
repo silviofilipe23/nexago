@@ -73,6 +73,7 @@ class TournamentCreateCategoriesPage extends ConsumerWidget {
             OrganizerCategoryCard(
               category: category,
               formatLabel: categoryFormatCardLabel(category),
+              startError: categoryStartError(category, draft),
               onEdit: () => showTournamentCategoryEditorSheet(
                 context,
                 ref,

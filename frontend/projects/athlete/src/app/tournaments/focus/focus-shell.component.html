@@ -8,6 +8,22 @@
         <span class="focus__meta">{{ meta }}</span>
       }
     </div>
+    @if (canChooseCategory()) {
+      <!-- Quem joga duas categorias escolhe qual o Focus mostra; sem isto a outra ficava
+           inalcançável (o Focus segue a da próxima partida). -->
+      <select
+        class="focus__category"
+        aria-label="Trocar categoria"
+        data-testid="focus-category-select"
+        (change)="onCategoryChange($event)"
+      >
+        @for (category of store.myFocusCategories(); track category.id) {
+          <option [value]="category.id" [selected]="category.id === store.focusCategoryId()">
+            {{ category.categoryName }}{{ category.id === store.focusAutoCategoryId() ? ' · próxima partida' : '' }}
+          </option>
+        }
+      </select>
+    }
     <!-- <time class="focus__clock">{{ clock() }}</time> -->
   </header>
 

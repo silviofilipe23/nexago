@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/tournament_inscriptions_repository.dart';
 import '../athlete_tournament_day_providers.dart';
 import '../tournament_detail_logic.dart';
+import '../tournament_discovery_models.dart';
 import '../tournament_discovery_providers.dart';
 import '../tournament_matches_logic.dart';
 import 'focus_campaign_ended.dart';
@@ -17,7 +18,8 @@ import 'focus_category_logic.dart';
 /// leem aquele provider; o Riverpod compartilha a assinatura entre elas, que é
 /// o que a casca do portal precisou montar à mão com `acquireLive`.
 
-/// A categoria em foco neste torneio.
+/// A categoria em foco que o Focus escolhe sozinho (sem o seletor do
+/// cabeçalho). Quem as seções observam é o [focusCategoryIdProvider].
 ///
 /// Toda derivação de grupo depende dela: `poolId` só é único DENTRO da
 /// categoria, e sem esse recorte o Grupo A do atleta vem fundido com o Grupo A
@@ -28,7 +30,7 @@ import 'focus_category_logic.dart';
 /// entram as famílias que a casca e as seções JÁ observam — o Riverpod
 /// compartilha a assinatura, então isto não abre listener novo no Firestore
 /// (vale a mesma NOTA do topo do arquivo).
-final focusCategoryIdProvider =
+final focusAutoCategoryIdProvider =
     Provider.family<String?, String>((ref, tournamentId) {
   final next = ref.watch(athleteNextMatchProvider).valueOrNull;
   final fromNext =
@@ -69,6 +71,49 @@ final focusCategoryIdProvider =
     matches: [for (final c in cards) c.match],
     athleteTeamIds: athleteTeamIdsForHighlight(teamIdsByCategory),
     registeredCategoryIdsInOfferOrder: inOfferOrder,
+  );
+});
+
+/// Categoria escolhida pelo atleta no seletor do cabeçalho do Focus; `null`
+/// deixa o Focus decidir ([focusAutoCategoryIdProvider]). Vive só enquanto o
+/// app está aberto: na próxima abertura volta a valer a da próxima partida.
+final focusCategoryChoiceProvider =
+    StateProvider.family<String?, String>((ref, tournamentId) => null);
+
+/// As categorias em que o atleta está inscrito neste torneio, na ordem em que
+/// o torneio as publica. O seletor do cabeçalho só aparece com duas ou mais.
+final focusRegisteredCategoriesProvider =
+    Provider.family<List<TournamentCategoryOffer>, String>((ref, tournamentId) {
+  final teamIdsByCategory = ref
+          .watch(tournamentUserTeamIdsByCategoryProvider(tournamentId))
+          .valueOrNull ??
+      const <String, String>{};
+  final registered = teamIdsByCategory.keys.map((k) => k.trim()).toSet();
+  final offers = ref
+          .watch(tournamentDetailProvider(tournamentId))
+          .valueOrNull
+          ?.categoryOffers ??
+      const <TournamentCategoryOffer>[];
+  return [
+    for (final offer in offers)
+      if (registered.contains(offer.id.trim())) offer,
+  ];
+});
+
+/// A categoria em foco: a que o atleta escolheu no seletor, se ainda for dele,
+/// ou a automática. É ESTE que as seções e a casca observam.
+final focusCategoryIdProvider =
+    Provider.family<String?, String>((ref, tournamentId) {
+  final chosen = ref.watch(focusCategoryChoiceProvider(tournamentId));
+  final automatic = ref.watch(focusAutoCategoryIdProvider(tournamentId));
+  if (chosen == null) return automatic;
+  return resolveFocusCategoryChoice(
+    chosen: chosen,
+    automatic: automatic,
+    registered: [
+      for (final offer in ref.watch(focusRegisteredCategoriesProvider(tournamentId)))
+        offer.id,
+    ],
   );
 });
 

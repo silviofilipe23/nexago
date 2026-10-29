@@ -312,7 +312,7 @@ class _StorePageState extends ConsumerState<StorePage> {
                   ? null
                   : () => popOrGo(context, AppRoutes.discover),
               leading: widget.tabScrollController != null
-                  ? const AthleteAccountButton()
+                  ? const AthleteAccountButton(origin: 'loja')
                   : null,
               onOrders: ref.watch(storeUidProvider).isEmpty
                   ? null

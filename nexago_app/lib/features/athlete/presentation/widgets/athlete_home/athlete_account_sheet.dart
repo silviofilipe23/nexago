@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/auth/active_role_providers.dart';
+import '../../../../../core/observability/analytics_log.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_theme_colors.dart';
 import '../../../../auth/presentation/role_selection_page.dart';
@@ -25,7 +26,10 @@ const athleteAccountMenuSemanticLabel =
 /// não tinha caminho pro perfil nem pras configurações. Mesmo lugar (canto
 /// esquerdo do header) e mesmo desenho em todas as abas.
 class AthleteAccountButton extends ConsumerWidget {
-  const AthleteAccountButton({super.key});
+  const AthleteAccountButton({super.key, required this.origin});
+
+  /// A aba onde o botão está (`agenda`, `reservar`, `hub`…), para o analytics.
+  final String origin;
 
   static const double _avatarSize = 36;
 
@@ -45,7 +49,7 @@ class AthleteAccountButton extends ConsumerWidget {
         message: 'Sua conta',
         child: InkWell(
           key: const Key('athlete-account-button'),
-          onTap: () => openAthleteAccountMenu(context, ref),
+          onTap: () => openAthleteAccountMenu(context, ref, origin: origin),
           customBorder: const CircleBorder(),
           child: SizedBox(
             width: _slotSize,
@@ -91,12 +95,34 @@ class AthleteAccountButton extends ConsumerWidget {
 ///
 /// A folha só devolve a escolha; quem navega é o [context]/[ref] da Home, que
 /// continuam vivos depois que a folha fecha.
-Future<void> openAthleteAccountMenu(BuildContext context, WidgetRef ref) async {
+///
+/// [origin] é a aba de onde o avatar foi tocado (`inicio`, `agenda`…): vai
+/// para o analytics, junto da escolha, para medir se o menu passou a ser
+/// achado fora da Início.
+Future<void> openAthleteAccountMenu(
+  BuildContext context,
+  WidgetRef ref, {
+  required String origin,
+}) async {
+  logAnalytics(ref, (a) => a.logAccountMenuOpened(origin));
   final action = await showProfessorLinksSheet<AthleteAccountAction>(
     context,
     builder: (_) => const _AthleteAccountSheet(),
   );
-  if (action == null || !context.mounted) return;
+  if (!context.mounted) return;
+  logAnalytics(
+    ref,
+    (a) => a.logAccountMenuAction(
+      origin: origin,
+      action: switch (action) {
+        AthleteAccountAction.profile => 'perfil',
+        AthleteAccountAction.settings => 'configuracoes',
+        AthleteAccountAction.switchRole => 'trocar_papel',
+        null => 'fechou',
+      },
+    ),
+  );
+  if (action == null) return;
   switch (action) {
     case AthleteAccountAction.profile:
       context.pushNamed(AppRouteNames.athleteProfile);

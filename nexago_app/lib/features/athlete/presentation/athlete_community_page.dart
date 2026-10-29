@@ -82,7 +82,7 @@ class AthleteCommunityPage extends ConsumerWidget {
             // outras abas.
             Row(
               children: [
-                const AthleteAccountButton(),
+                const AthleteAccountButton(origin: 'comunidade'),
                 const SizedBox(width: 10),
                 Expanded(child: title),
               ],

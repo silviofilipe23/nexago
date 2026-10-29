@@ -817,7 +817,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage>
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              const AthleteAccountButton(),
+              const AthleteAccountButton(origin: 'reservar'),
               const SizedBox(width: 8),
               Expanded(
                 child: ArenaMapSearchBar(

@@ -57,7 +57,7 @@ class TournamentDiscoveryPage extends ConsumerWidget {
             12,
           ),
           header: CompeteHubHeader(
-            leading: const AthleteAccountButton(),
+            leading: const AthleteAccountButton(origin: 'hub'),
             trailingActions: showArenaPanelShortcut
                 ? [
                     const SizedBox(width: 8),

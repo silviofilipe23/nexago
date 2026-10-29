@@ -316,7 +316,7 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
                 NexaPageHeader(
                   topGap: 8,
                   header: AgendaHeader(
-                    leading: const AthleteAccountButton(),
+                    leading: const AthleteAccountButton(origin: 'agenda'),
                     eyebrow: headerEyebrow,
                     title: headerTitle,
                     monthModeActive: isMonthMode,

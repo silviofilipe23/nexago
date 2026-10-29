@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/auth/auth_providers.dart';
+import '../../../../../core/observability/analytics_log.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_motion.dart';
 import '../../../../../core/theme/app_radii.dart';
@@ -195,11 +196,16 @@ class _AthleteHomeTourAnchorState extends State<AthleteHomeTourAnchor> {
 /// [onShowTab] troca a aba da casca para os passos que moram em outra aba;
 /// sem ele, esses passos ficam de fora. [navSlotCount] é quantas abas a barra
 /// tem, para recortar a fatia de uma delas.
+///
+/// [onStep] avisa cada passo que aparece (1 = abriu) e [onFinish], uma vez,
+/// como o tour terminou — é por eles que a casca registra o analytics.
 Future<void> showAthleteHomeTour(
   BuildContext context, {
   List<AthleteHomeTourStep> steps = athleteHomeTourSteps,
   ValueChanged<int>? onShowTab,
   int navSlotCount = 5,
+  AthleteHomeTourStepCallback? onStep,
+  AthleteHomeTourFinishCallback? onFinish,
 }) {
   // Só os passos com alvo montado (a `IndexedStack` da casca monta todas as
   // abas): o contador "1 de 6" não pode pular número.
@@ -216,6 +222,8 @@ Future<void> showAthleteHomeTour(
       steps: visible,
       onShowTab: onShowTab,
       navSlotCount: navSlotCount,
+      onStep: onStep,
+      onFinish: onFinish,
       onClose: () {
         entry.remove();
         entry.dispose();
@@ -227,6 +235,24 @@ Future<void> showAthleteHomeTour(
   return done.future;
 }
 
+/// Como o tour terminou: no Entendi do último passo, no Pular ou no voltar
+/// do Android.
+enum AthleteHomeTourResult { completed, skipped, back }
+
+/// Passo [step] (1 = o primeiro) de [total] apareceu, destacando [target].
+typedef AthleteHomeTourStepCallback = void Function(
+  int step,
+  int total,
+  AthleteHomeTourTarget target,
+);
+
+/// O tour terminou com [result] no passo [step] de [total].
+typedef AthleteHomeTourFinishCallback = void Function(
+  AthleteHomeTourResult result,
+  int step,
+  int total,
+);
+
 class AthleteHomeTourOverlay extends StatefulWidget {
   const AthleteHomeTourOverlay({
     super.key,
@@ -234,6 +260,8 @@ class AthleteHomeTourOverlay extends StatefulWidget {
     required this.onClose,
     this.onShowTab,
     this.navSlotCount = 5,
+    this.onStep,
+    this.onFinish,
   });
 
   final List<AthleteHomeTourStep> steps;
@@ -242,6 +270,8 @@ class AthleteHomeTourOverlay extends StatefulWidget {
   final VoidCallback onClose;
   final ValueChanged<int>? onShowTab;
   final int navSlotCount;
+  final AthleteHomeTourStepCallback? onStep;
+  final AthleteHomeTourFinishCallback? onFinish;
 
   @override
   State<AthleteHomeTourOverlay> createState() => _AthleteHomeTourOverlayState();
@@ -267,6 +297,7 @@ class _AthleteHomeTourOverlayState extends State<AthleteHomeTourOverlay> {
   /// Troca de aba e rola até o alvo antes de desenhar o recorte.
   void _prepare(int index) {
     final step = widget.steps[index];
+    widget.onStep?.call(index + 1, widget.steps.length, step.target);
     if (step.tab != _tab) {
       _tab = step.tab;
       widget.onShowTab?.call(step.tab);
@@ -282,15 +313,16 @@ class _AthleteHomeTourOverlayState extends State<AthleteHomeTourOverlay> {
 
   void _next() {
     if (_isLast) {
-      _close();
+      _close(AthleteHomeTourResult.completed);
       return;
     }
     setState(() => _index++);
     _prepare(_index);
   }
 
-  void _close() {
+  void _close(AthleteHomeTourResult result) {
     if (_closing) return;
+    widget.onFinish?.call(result, _index + 1, widget.steps.length);
     setState(() {
       _closing = true;
       _visible = false;
@@ -367,7 +399,7 @@ class _AthleteHomeTourOverlayState extends State<AthleteHomeTourOverlay> {
                 total: widget.steps.length,
                 isLast: _isLast,
                 onNext: _next,
-                onSkip: _close,
+                onSkip: () => _close(AthleteHomeTourResult.skipped),
               ),
             ),
           ),
@@ -391,7 +423,7 @@ class _AthleteHomeTourOverlayState extends State<AthleteHomeTourOverlay> {
     if (Router.maybeOf(context) != null) {
       tour = BackButtonListener(
         onBackButtonPressed: () async {
-          _close();
+          _close(AthleteHomeTourResult.back);
           return true;
         },
         child: tour,
@@ -582,7 +614,31 @@ class _AthleteHomeTourAnnouncerState
       _done = true;
       if (!mounted) return;
       final tab = ref.read(athleteShellTabIndexProvider.notifier);
-      await showAthleteHomeTour(context, onShowTab: (i) => tab.state = i);
+      await showAthleteHomeTour(
+        context,
+        onShowTab: (i) => tab.state = i,
+        onStep: (step, total, target) => logAnalytics(
+          ref,
+          (a) => a.logHomeTourStep(
+            step: step,
+            total: total,
+            target: target.name,
+          ),
+        ),
+        onFinish: (result, step, total) => logAnalytics(
+          ref,
+          (a) => a.logHomeTourFinished(
+            result: switch (result) {
+              AthleteHomeTourResult.completed => 'concluiu',
+              AthleteHomeTourResult.skipped => 'pulou',
+              AthleteHomeTourResult.back => 'voltar',
+            },
+            step: step,
+            total: total,
+            version: AthleteHomeTourStore.version,
+          ),
+        ),
+      );
       // Pulando no meio do Hub, o atleta volta para onde estava.
       if (mounted) tab.state = 0;
     });

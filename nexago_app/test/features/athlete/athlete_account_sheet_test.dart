@@ -17,7 +17,8 @@ Widget _harness({required bool multipleRoles}) {
             body: Center(
               child: TextButton(
                 key: const Key('open'),
-                onPressed: () => openAthleteAccountMenu(context, ref),
+                onPressed: () =>
+                    openAthleteAccountMenu(context, ref, origin: 'inicio'),
                 child: const Text('avatar'),
               ),
             ),

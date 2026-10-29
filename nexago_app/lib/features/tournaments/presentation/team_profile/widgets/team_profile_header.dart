@@ -391,7 +391,7 @@ class _RankingBadge extends StatelessWidget {
                 Text(
                   'RANKING EQUIPES',
                   style: AppTypography.mono(
-                    fontSize: 9,
+                    fontSize: 10,
                     fontWeight: FontWeight.w600,
                     color: labelColor,
                     letterSpacing: 0.6,

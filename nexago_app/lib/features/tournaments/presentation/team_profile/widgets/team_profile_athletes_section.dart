@@ -151,7 +151,7 @@ class _AthleteCard extends ConsumerWidget {
                   Text(
                     'RANK',
                     style: AppTypography.mono(
-                      fontSize: 9,
+                      fontSize: 10,
                       fontWeight: FontWeight.w700,
                       color: context.themeColors.onSurfaceMuted,
                     ),
@@ -191,7 +191,7 @@ class _CaptainBadge extends StatelessWidget {
       child: Text(
         'CAPITÃO',
         style: AppTypography.mono(
-          fontSize: 8,
+          fontSize: 10,
           fontWeight: FontWeight.w700,
           color: AppColors.brand,
           letterSpacing: 0.4,

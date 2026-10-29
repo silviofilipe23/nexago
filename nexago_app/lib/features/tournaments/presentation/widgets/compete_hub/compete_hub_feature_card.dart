@@ -104,7 +104,7 @@ class _CompeteHubFeatureCardState extends State<CompeteHubFeatureCard> {
                           child: Text(
                             badge,
                             style: AppTypography.mono(
-                              fontSize: 9.5,
+                              fontSize: 10,
                               fontWeight: FontWeight.w800,
                               color: const Color(0xFF0A0A0A),
                             ).copyWith(letterSpacing: 0.8),

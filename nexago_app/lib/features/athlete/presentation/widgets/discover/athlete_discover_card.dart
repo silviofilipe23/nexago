@@ -80,7 +80,7 @@ class _AthleteDiscoverCardState extends State<AthleteDiscoverCard> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.mono(
-                          fontSize: 9,
+                          fontSize: 10,
                           color: context.themeColors.onSurfaceMuted,
                           height: 1.2,
                           letterSpacing: 0,
@@ -94,7 +94,7 @@ class _AthleteDiscoverCardState extends State<AthleteDiscoverCard> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.mono(
-                          fontSize: 9,
+                          fontSize: 11,
                           fontWeight: FontWeight.w600,
                           color: context.themeColors.onSurfaceMuted,
                         ),

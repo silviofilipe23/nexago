@@ -198,7 +198,7 @@ class _DateBadge extends StatelessWidget {
           Text(
             monthLabel,
             style: AppTypography.mono(
-              fontSize: 9,
+              fontSize: 10,
               fontWeight: FontWeight.w700,
               color: AppColors.brand,
               letterSpacing: 0.4,

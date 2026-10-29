@@ -21,7 +21,7 @@ class MyBookingsPaymentChip extends StatelessWidget {
       child: Text(
         payment.label.toUpperCase(),
         style: AppTypography.mono(
-          fontSize: 9,
+          fontSize: 10,
           fontWeight: FontWeight.w700,
           color: context.themeColors.readableTone(payment.accentColor),
           letterSpacing: 0.35,

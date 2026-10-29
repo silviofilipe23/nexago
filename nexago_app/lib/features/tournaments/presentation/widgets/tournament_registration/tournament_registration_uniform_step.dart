@@ -343,7 +343,7 @@ class _JerseyPreviewCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.mono(
-                          fontSize: 9,
+                          fontSize: 10,
                           fontWeight: FontWeight.w600,
                           color: context.themeColors.onSurfaceMuted,
                           letterSpacing: 0.3,
@@ -353,7 +353,7 @@ class _JerseyPreviewCard extends StatelessWidget {
                     Text(
                       'PREVIEW',
                       style: AppTypography.mono(
-                        fontSize: 9,
+                        fontSize: 10,
                         fontWeight: FontWeight.w700,
                         color: context.themeColors.onSurfaceMuted,
                       ),

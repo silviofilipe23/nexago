@@ -108,7 +108,7 @@ class ArenaSearchUnclaimedCard extends StatelessWidget {
                             child: Text(
                               'AINDA NÃO RESERVA PELA NEXAGO',
                               style: AppTypography.mono(
-                                fontSize: 9,
+                                fontSize: 10,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: 0.4,
                                 color: colors.onSurfaceMuted,

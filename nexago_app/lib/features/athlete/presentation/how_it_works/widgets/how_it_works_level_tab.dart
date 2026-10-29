@@ -410,7 +410,7 @@ class _PointsHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = AppTypography.mono(
-      fontSize: 9.5,
+      fontSize: 10,
       fontWeight: FontWeight.w700,
       letterSpacing: 0.6,
       color: context.themeColors.onSurfaceMuted,
@@ -621,7 +621,7 @@ class _LevelRow extends StatelessWidget {
                         child: Text(
                           'VOCÊ',
                           style: AppTypography.mono(
-                            fontSize: 9.5,
+                            fontSize: 10,
                             fontWeight: FontWeight.w700,
                             color: AppColors.black,
                           ),

@@ -202,7 +202,7 @@ class _AthleteChipState extends State<_AthleteChip> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.mono(
-                  fontSize: 8,
+                  fontSize: 11,
                   fontWeight: FontWeight.w500,
                   height: 1.1,
                   color: context.themeColors.onSurfaceMuted,

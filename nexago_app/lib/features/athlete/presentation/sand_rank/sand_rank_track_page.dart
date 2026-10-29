@@ -306,7 +306,7 @@ class _TierGroup extends StatelessWidget {
         Text(
           rankCode,
           style: AppTypography.mono(
-            fontSize: 9,
+            fontSize: 10,
             fontWeight: FontWeight.w700,
             color: labelColor,
             letterSpacing: 0.6,

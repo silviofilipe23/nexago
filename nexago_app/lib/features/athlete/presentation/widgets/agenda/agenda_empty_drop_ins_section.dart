@@ -54,7 +54,7 @@ class AgendaEmptyDropInsSection extends StatelessWidget {
                 child: Text(
                   '• $needingPlayers PRECISAM DE +1',
                   style: AppTypography.mono(
-                    fontSize: 9,
+                    fontSize: 10,
                     fontWeight: FontWeight.w800,
                     color: context.themeColors.win,
                     letterSpacing: 0.3,

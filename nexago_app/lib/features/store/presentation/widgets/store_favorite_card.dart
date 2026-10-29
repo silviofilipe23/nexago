@@ -208,7 +208,7 @@ class _Chip extends StatelessWidget {
           label.toUpperCase(),
           maxLines: 1,
           style: AppTypography.mono(
-            fontSize: 9.5,
+            fontSize: 10,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.76,
             height: 1,

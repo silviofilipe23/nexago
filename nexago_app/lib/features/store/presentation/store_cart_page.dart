@@ -891,7 +891,7 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
                   ? Text(
                       StoreCheckoutCopy.addressMain,
                       style: AppTypography.mono(
-                        fontSize: 9,
+                        fontSize: 10,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.9,
                         color: AppColors.brand,

@@ -406,12 +406,15 @@ class _HeadBadges extends StatelessWidget {
 
     if (!isChampionMatch && verdict == null) return const SizedBox.shrink();
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    // Wrap: os dois selos juntos não cabem numa linha em tela estreita.
+    return Wrap(
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 6,
+      runSpacing: 4,
       children: [
         if (isChampionMatch)
           const _Badge(label: 'VALE CAMPEÃO', color: AppColors.brand),
-        if (isChampionMatch && verdict != null) const SizedBox(width: 6),
         if (verdict != null) verdict,
       ],
     );
@@ -435,7 +438,7 @@ class _Badge extends StatelessWidget {
       child: Text(
         label,
         style: AppTypography.mono(
-          fontSize: 8,
+          fontSize: 10,
           fontWeight: FontWeight.w700,
           color: context.themeColors.readableTone(color),
           letterSpacing: 0.3,

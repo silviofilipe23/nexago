@@ -578,7 +578,7 @@ class _HeroHeadlineState extends State<_HeroHeadline> {
                       'CHECK-IN LIBERADO',
                       style: AppTypography.eyebrow.copyWith(
                         color: AppColors.win,
-                        fontSize: 9,
+                        fontSize: 10,
                       ),
                     ),
                   ],
@@ -775,7 +775,7 @@ class _InfoCell extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: AppTypography.monoMeta.copyWith(
             color: colors.onSurfaceMuted,
-            fontSize: 9,
+            fontSize: 11,
           ),
         ),
         const SizedBox(height: 2),

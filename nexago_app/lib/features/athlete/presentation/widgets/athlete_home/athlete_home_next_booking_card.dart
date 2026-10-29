@@ -192,7 +192,7 @@ class _FeaturedBookingCard extends ConsumerWidget {
                         style: theme.textTheme.labelSmall?.copyWith(
                           fontWeight: FontWeight.w900,
                           color: AppColors.black,
-                          fontSize: 9,
+                          fontSize: 10,
                           letterSpacing: 0.3,
                         ),
                       ),
@@ -387,7 +387,7 @@ class _FeaturedTournamentCard extends StatelessWidget {
                         style: theme.textTheme.labelSmall?.copyWith(
                           fontWeight: FontWeight.w900,
                           color: AppColors.black,
-                          fontSize: 9,
+                          fontSize: 10,
                           letterSpacing: 0.3,
                         ),
                       ),

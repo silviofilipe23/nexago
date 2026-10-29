@@ -91,7 +91,7 @@ class StorePersonalizedTag extends StatelessWidget {
       child: Text(
         StoreCheckoutCopy.personalizedTag,
         style: AppTypography.mono(
-          fontSize: 9.5,
+          fontSize: 10,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.8,
           color: colors.onSurface,
@@ -655,7 +655,7 @@ class StorePickupReadyCard extends StatelessWidget {
                       Text(
                         StoreCheckoutCopy.pickupCode,
                         style: AppTypography.mono(
-                          fontSize: 9.5,
+                          fontSize: 10,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 1.3,
                           color: _ink.withValues(alpha: 0.55),

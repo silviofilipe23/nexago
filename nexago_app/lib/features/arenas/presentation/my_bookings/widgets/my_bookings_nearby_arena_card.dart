@@ -107,7 +107,7 @@ class MyBookingsNearbyArenaCard extends StatelessWidget {
                         child: Text(
                           courtsLabel,
                           style: AppTypography.mono(
-                            fontSize: 9,
+                            fontSize: 10,
                             fontWeight: FontWeight.w700,
                             color: context.themeColors.win,
                             letterSpacing: 0.5,
@@ -127,7 +127,7 @@ class MyBookingsNearbyArenaCard extends StatelessWidget {
                         child: Text(
                           'A PARTIR $fromTime'.toUpperCase(),
                           style: AppTypography.mono(
-                            fontSize: 9,
+                            fontSize: 10,
                             fontWeight: FontWeight.w600,
                             color: context.themeColors.onSurfaceMuted,
                             letterSpacing: 0.4,
@@ -147,7 +147,7 @@ class MyBookingsNearbyArenaCard extends StatelessWidget {
                         child: Text(
                           'VER HORÁRIOS',
                           style: AppTypography.mono(
-                            fontSize: 9,
+                            fontSize: 10,
                             fontWeight: FontWeight.w700,
                             color: context.themeColors.pending,
                             letterSpacing: 0.5,

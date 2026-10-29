@@ -95,7 +95,7 @@ class AthleteSportLevelCard extends StatelessWidget {
                               child: Text(
                                 'PRINCIPAL',
                                 style: AppTypography.mono(
-                                  fontSize: 9,
+                                  fontSize: 10,
                                   fontWeight: FontWeight.w800,
                                   color: context.themeColors.canvas,
                                   letterSpacing: 0.4,

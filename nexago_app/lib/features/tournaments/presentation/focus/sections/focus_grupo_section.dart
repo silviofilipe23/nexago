@@ -383,7 +383,7 @@ class _StandingsGroupChips extends StatelessWidget {
                     Text(
                       'SEU',
                       style: AppTypography.mono(
-                        fontSize: 9,
+                        fontSize: 10,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.4,
                         color: selected
@@ -835,7 +835,7 @@ class _CrossingBracket extends StatelessWidget {
                       phase.replaceAll(' ', '\n'),
                       textAlign: TextAlign.center,
                       style: AppTypography.mono(
-                        fontSize: 9,
+                        fontSize: 10,
                         fontWeight: FontWeight.w700,
                         color: colors.onSurfaceMuted,
                         letterSpacing: 0.6,

@@ -282,7 +282,7 @@ class _StoreBagButtonState extends State<StoreBagButton>
                   child: Text(
                     units > 99 ? '99+' : '$units',
                     style: AppTypography.mono(
-                      fontSize: 9.5,
+                      fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: StoreStyle.onBrand,
                       height: 1,

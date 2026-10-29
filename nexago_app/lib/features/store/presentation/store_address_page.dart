@@ -540,7 +540,7 @@ class _AddressField extends StatelessWidget {
         Text(
           label.toUpperCase(),
           style: AppTypography.mono(
-            fontSize: 9.5,
+            fontSize: 10,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.3,
             color: StoreStyle.tertiary(colors),

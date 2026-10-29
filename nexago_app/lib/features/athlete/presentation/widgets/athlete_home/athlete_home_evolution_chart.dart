@@ -101,7 +101,7 @@ class _AthleteHomeEvolutionChartState extends State<AthleteHomeEvolutionChart> {
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     style: AppTypography.mono(
-                      fontSize: 8.5,
+                      fontSize: 10,
                       fontWeight: FontWeight.w600,
                       color: colors.onSurfaceMuted,
                       letterSpacing: 0,

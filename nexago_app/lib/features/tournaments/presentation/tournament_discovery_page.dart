@@ -18,6 +18,7 @@ import 'widgets/compete_hub/compete_hub_menu_card.dart';
 import 'widgets/compete_hub/compete_hub_shell_app_bar.dart';
 import 'widgets/compete_hub/compete_hub_wide_card.dart';
 import '../../athlete/presentation/widgets/athlete_home/athlete_account_sheet.dart';
+import '../../athlete/presentation/widgets/athlete_home/athlete_home_tour.dart';
 
 /// Respiro entre os cards do grid 2x2, nos dois eixos.
 const double _gridGap = AppSpacing.md + 2;
@@ -95,24 +96,31 @@ class TournamentDiscoveryPage extends ConsumerWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: CompeteHubMenuCard(
-                            imageAsset: CompeteHubArt.tournaments,
-                            title: 'Torneios e ligas',
-                            description:
-                                'Descubra competições abertas e inscrições',
-                            onTap: () => context.pushNamed(
-                              AppRouteNames.tournamentDiscoveryList,
+                          child: AthleteHomeTourAnchor(
+                            target: AthleteHomeTourTarget.tournaments,
+                            child: CompeteHubMenuCard(
+                              imageAsset: CompeteHubArt.tournaments,
+                              title: 'Torneios e ligas',
+                              description:
+                                  'Descubra competições abertas e inscrições',
+                              onTap: () => context.pushNamed(
+                                AppRouteNames.tournamentDiscoveryList,
+                              ),
                             ),
                           ),
                         ),
                         const SizedBox(width: _gridGap),
                         Expanded(
-                          child: CompeteHubMenuCard(
-                            imageAsset: CompeteHubArt.ranking,
-                            title: 'Ranking',
-                            description: 'Sua posição e a pontuação da temporada',
-                            onTap: () =>
-                                context.pushNamed(AppRouteNames.athleteRanking),
+                          child: AthleteHomeTourAnchor(
+                            target: AthleteHomeTourTarget.ranking,
+                            child: CompeteHubMenuCard(
+                              imageAsset: CompeteHubArt.ranking,
+                              title: 'Ranking',
+                              description:
+                                  'Sua posição e a pontuação da temporada',
+                              onTap: () => context
+                                  .pushNamed(AppRouteNames.athleteRanking),
+                            ),
                           ),
                         ),
                       ],

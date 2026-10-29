@@ -10,7 +10,8 @@ class AthleteHomeTourStore {
   final _memory = <String>{};
 
   /// Sobe a versão quando o tour mudar o bastante para valer mostrar de novo.
-  static const version = 1;
+  /// v2: entraram alugar quadra, torneios e ranking — quem viu a v1 vê de novo.
+  static const version = 2;
 
   static String _key(String uid) => 'athlete_home_tour_v${version}_$uid';
 

@@ -13,13 +13,21 @@ import '../../../domain/athlete_profile_providers.dart';
 import '../../../domain/athlete_shell_providers.dart';
 
 /// O que o tour da Início destaca, na ordem em que aparece.
-enum AthleteHomeTourTarget { account, notifications, navBar }
+enum AthleteHomeTourTarget {
+  account,
+  notifications,
+  bookCourt,
+  tournaments,
+  ranking,
+  navBar,
+}
 
 class AthleteHomeTourStep {
   const AthleteHomeTourStep({
     required this.target,
     required this.title,
     required this.body,
+    this.tab = 0,
     this.holePadding = 8,
     this.holeRadius = 16,
   });
@@ -27,12 +35,19 @@ class AthleteHomeTourStep {
   final AthleteHomeTourTarget target;
   final String title;
   final String body;
+
+  /// Aba da casca do atleta onde o alvo mora. O tour troca para ela antes do
+  /// passo: mostrar o card do Ranking com o atleta na Início não ensinaria
+  /// onde ele fica.
+  final int tab;
+
   final double holePadding;
   final double holeRadius;
 }
 
-/// Os três passos: os atletas não achavam o menu da conta no avatar, nem
-/// sabiam para que servia cada aba.
+/// Os passos: os atletas não achavam o menu da conta no avatar, nem sabiam
+/// onde alugar quadra, achar torneios ou ver o ranking. O tour passa pelas
+/// abas na ordem da barra e volta para a Início no fim.
 const athleteHomeTourSteps = [
   AthleteHomeTourStep(
     target: AthleteHomeTourTarget.account,
@@ -48,9 +63,35 @@ const athleteHomeTourSteps = [
         'torneios chegam no sino.',
   ),
   AthleteHomeTourStep(
+    target: AthleteHomeTourTarget.bookCourt,
+    title: 'Alugue uma quadra',
+    body: 'Na aba Reservar você busca arenas perto de você, escolhe o dia e o '
+        'horário e reserva na hora.',
+    tab: athleteShellReservarTabIndex,
+  ),
+  AthleteHomeTourStep(
+    target: AthleteHomeTourTarget.tournaments,
+    title: 'Torneios e ligas',
+    body: 'No Hub ficam os torneios com inscrição aberta e as ligas. É por '
+        'aqui que você se inscreve com a sua dupla.',
+    tab: athleteShellCompeteTabIndex,
+    holePadding: 4,
+    holeRadius: 20,
+  ),
+  AthleteHomeTourStep(
+    target: AthleteHomeTourTarget.ranking,
+    title: 'Ranking',
+    body: 'Veja sua posição e a pontuação da temporada, por esporte e '
+        'categoria.',
+    tab: athleteShellCompeteTabIndex,
+    holePadding: 4,
+    holeRadius: 20,
+  ),
+  AthleteHomeTourStep(
     target: AthleteHomeTourTarget.navBar,
     title: 'Navegue pelas abas',
-    body: 'Agenda, Reservar, Hub e mais: toque numa aba para trocar de seção.',
+    body: 'Início, Agenda, Reservar, Hub e mais: toque numa aba para trocar '
+        'de seção.',
     holePadding: 0,
     holeRadius: 32,
   ),
@@ -75,6 +116,20 @@ class AthleteHomeTourAnchor extends StatefulWidget {
     final box = _anchors[target]?.context.findRenderObject();
     if (box is! RenderBox || !box.attached || !box.hasSize) return null;
     return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  /// Rola a lista do alvo até ele aparecer, se estiver fora da tela (o Hub
+  /// pode ter ficado rolado da última visita).
+  static void reveal(AthleteHomeTourTarget target) {
+    final context = _anchors[target]?.context;
+    final rect = rectOf(target);
+    if (context == null || rect == null) return;
+    final screen = MediaQuery.sizeOf(context);
+    final insets = MediaQuery.paddingOf(context);
+    // Folga embaixo pra barra flutuante.
+    final visible = rect.top >= insets.top && rect.bottom <= screen.height - 120;
+    if (visible) return;
+    Scrollable.ensureVisible(context, alignment: 0.1);
   }
 
   static final _anchors =
@@ -118,12 +173,18 @@ class _AthleteHomeTourAnchorState extends State<AthleteHomeTourAnchor> {
 /// Abre o tour por cima da tela. É um [PopupRoute] (via `showGeneralDialog`)
 /// para a barra nativa do iOS dar lugar à cápsula Flutter enquanto ele está
 /// aberto — a nativa é desenhada por cima de tudo o que é Flutter.
+///
+/// [onShowTab] troca a aba da casca para os passos que moram em outra aba;
+/// sem ele, esses passos ficam de fora.
 Future<void> showAthleteHomeTour(
   BuildContext context, {
   List<AthleteHomeTourStep> steps = athleteHomeTourSteps,
+  ValueChanged<int>? onShowTab,
 }) {
-  // Só os passos com alvo na tela: o contador "1 de 3" não pode pular número.
+  // Só os passos com alvo montado (a `IndexedStack` da casca monta todas as
+  // abas): o contador "1 de 6" não pode pular número.
   final visible = steps
+      .where((s) => s.tab == 0 || onShowTab != null)
       .where((s) => AthleteHomeTourAnchor.rectOf(s.target) != null)
       .toList(growable: false);
   if (visible.isEmpty) return Future.value();
@@ -135,7 +196,8 @@ Future<void> showAthleteHomeTour(
     barrierColor: Colors.transparent,
     barrierLabel: 'Tour da Início',
     transitionDuration: reduceMotion ? Duration.zero : AppMotion.base,
-    pageBuilder: (_, __, ___) => AthleteHomeTourOverlay(steps: visible),
+    pageBuilder: (_, __, ___) =>
+        AthleteHomeTourOverlay(steps: visible, onShowTab: onShowTab),
     transitionBuilder: (_, animation, __, child) => FadeTransition(
       opacity: CurvedAnimation(parent: animation, curve: AppMotion.curve),
       child: child,
@@ -144,9 +206,14 @@ Future<void> showAthleteHomeTour(
 }
 
 class AthleteHomeTourOverlay extends StatefulWidget {
-  const AthleteHomeTourOverlay({super.key, required this.steps});
+  const AthleteHomeTourOverlay({
+    super.key,
+    required this.steps,
+    this.onShowTab,
+  });
 
   final List<AthleteHomeTourStep> steps;
+  final ValueChanged<int>? onShowTab;
 
   @override
   State<AthleteHomeTourOverlay> createState() => _AthleteHomeTourOverlayState();
@@ -154,18 +221,33 @@ class AthleteHomeTourOverlay extends StatefulWidget {
 
 class _AthleteHomeTourOverlayState extends State<AthleteHomeTourOverlay> {
   var _index = 0;
+  var _tab = 0;
 
   @override
   void initState() {
     super.initState();
-    // A barra troca da nativa para a cápsula Flutter quando o tour abre: o
-    // retângulo dela só fica certo no frame seguinte.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() {});
-    });
+    _prepare(0);
   }
 
   bool get _isLast => _index >= widget.steps.length - 1;
+
+  /// Troca de aba e rola até o alvo antes de desenhar o recorte. Também
+  /// cobre a abertura: a barra troca da nativa para a cápsula Flutter quando
+  /// o tour abre, e o retângulo dela só fica certo no frame seguinte.
+  void _prepare(int index) {
+    final step = widget.steps[index];
+    if (step.tab != _tab) {
+      _tab = step.tab;
+      widget.onShowTab?.call(step.tab);
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      AthleteHomeTourAnchor.reveal(step.target);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+    });
+  }
 
   void _next() {
     if (_isLast) {
@@ -173,6 +255,7 @@ class _AthleteHomeTourOverlayState extends State<AthleteHomeTourOverlay> {
       return;
     }
     setState(() => _index++);
+    _prepare(_index);
   }
 
   void _skip() => Navigator.of(context).pop();
@@ -429,7 +512,10 @@ class _AthleteHomeTourAnnouncerState
       await store.markSeen(uid);
       _done = true;
       if (!mounted) return;
-      await showAthleteHomeTour(context);
+      final tab = ref.read(athleteShellTabIndexProvider.notifier);
+      await showAthleteHomeTour(context, onShowTab: (i) => tab.state = i);
+      // Pulando no meio do Hub, o atleta volta para onde estava.
+      if (mounted) tab.state = 0;
     });
   }
 

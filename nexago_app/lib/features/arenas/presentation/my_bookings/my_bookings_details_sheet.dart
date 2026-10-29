@@ -35,7 +35,10 @@ class BookingDetailsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final status = myBookingStatusUi(item.rawStatus);
+    final status = myBookingStatusUi(
+      item.rawStatus,
+      cancelReason: item.cancelReason,
+    );
     final canPayNow = item.rawStatus.trim().toLowerCase() == 'pending';
     final courtLine = [
       item.courtName?.trim() ?? '',
@@ -132,14 +135,28 @@ class BookingDetailsSheet extends StatelessWidget {
                   ],
                 ),
                 SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton.icon(
-                    onPressed: canCancelBooking ? onCancelBooking : null,
-                    icon: Icon(Icons.cancel_outlined),
-                    label: Text('Cancelar reserva'),
+                // Liberada por chuva: o cancelamento comum some (perderia o
+                // crédito); a escolha fica na reserva.
+                if (item.weatherChoicePending)
+                  Text(
+                    'Horário liberado por chuva. Abra a reserva para remarcar '
+                    'ou guardar o valor como crédito.',
+                    key: const Key('my-booking-weather-pending-hint'),
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: context.themeColors.onSurfaceMuted,
+                      height: 1.35,
+                    ),
+                  )
+                else
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton.icon(
+                      onPressed: canCancelBooking ? onCancelBooking : null,
+                      icon: Icon(Icons.cancel_outlined),
+                      label: Text('Cancelar reserva'),
+                    ),
                   ),
-                ),
                 if (cancelBlockedMessage != null) ...[
                   SizedBox(height: 4),
                   Text(

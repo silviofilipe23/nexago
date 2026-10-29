@@ -138,6 +138,7 @@ AthleteBookingCancellation myBookingCancellation(
     now: now,
     rawStatus: item.rawStatus,
     isRecurring: item.isRecurring,
+    weatherChoicePending: item.weatherChoicePending,
   );
 }
 

@@ -49,12 +49,26 @@ BookingDetailsStatus bookingDetailsStatus(
   return BookingDetailsStatus.past;
 }
 
-String bookingDetailsStatusBadgeLabel(BookingDetailsStatus status) {
+/// Status para a tela: o da abertura, a menos que o doc vivo diga que a
+/// reserva foi cancelada depois.
+String bookingDetailsLiveStatus(
+  String openedStatus,
+  Map<String, dynamic>? booking,
+) {
+  final live = (booking?['status'] as String?)?.trim().toLowerCase() ?? '';
+  return live == 'canceled' || live == 'cancelled' ? live : openedStatus;
+}
+
+String bookingDetailsStatusBadgeLabel(
+  BookingDetailsStatus status, {
+  String? cancelReason,
+}) {
   return switch (status) {
     BookingDetailsStatus.future => 'CONFIRMADA',
     BookingDetailsStatus.current => 'EM ANDAMENTO',
     BookingDetailsStatus.past => 'FINALIZADA',
-    BookingDetailsStatus.canceled => 'CANCELADA',
+    BookingDetailsStatus.canceled =>
+      cancelReason == 'weather' ? 'CANCELADA POR CHUVA' : 'CANCELADA',
   };
 }
 
@@ -136,11 +150,15 @@ BookingDetailsHeroModel buildBookingDetailsHeroModel({
   required DateTime startAt,
   required DateTime endAt,
   required String rawStatus,
+  String? cancelReason,
 }) {
   final status = bookingDetailsStatus(now, startAt, endAt, rawStatus);
+  final byWeather =
+      status == BookingDetailsStatus.canceled && cancelReason == 'weather';
   return BookingDetailsHeroModel(
     status: status,
-    statusBadgeLabel: bookingDetailsStatusBadgeLabel(status),
+    statusBadgeLabel:
+        bookingDetailsStatusBadgeLabel(status, cancelReason: cancelReason),
     displayCode: ArenaBookingSuccessActions.formatBookingDisplayCode(bookingId),
     dateEyebrow: formatBookingDetailsDateEyebrow(startAt),
     timeRange: formatBookingDetailsTimeRange(startAt, endAt),
@@ -148,7 +166,9 @@ BookingDetailsHeroModel buildBookingDetailsHeroModel({
       arenaName: arenaName,
       courtName: courtName,
     ),
-    countdownLabel: bookingDetailsCountdownLabel(now, startAt, endAt, status),
+    countdownLabel: byWeather
+        ? 'Cancelada por chuva'
+        : bookingDetailsCountdownLabel(now, startAt, endAt, status),
     countdownColor: bookingDetailsCountdownColor(status),
   );
 }

@@ -105,6 +105,40 @@ const classReviewReplyNotificationType = 'class_review_reply';
 /// (`sendStoriesToPhone` em `functions/src/organizer-stories-share.ts`).
 const organizerStoriesReadyNotificationType = 'organizer_stories_ready';
 
+/// Cancelamento por chuva (spec `2026-10-29-cancelamento-por-chuva-design.md`).
+/// O `url` desses pushes é `/my-bookings` (existe nos apps da loja); este build
+/// reconhece o tipo + `bookingId` e abre a escolha da reserva.
+const arenaWeatherReleaseNotificationType = 'arena_weather_release';
+const arenaWeatherCanceledNotificationType = 'arena_weather_canceled';
+const arenaWeatherCreditNotificationType = 'arena_weather_credit';
+const arenaWeatherRequestDecidedNotificationType =
+    'arena_weather_request_decided';
+const arenaWeatherCreditExpiringNotificationType =
+    'arena_weather_credit_expiring';
+
+/// Destino dos pushes de chuva; `null` para outros tipos.
+String? arenaWeatherNotificationRoute(String type, Map<String, dynamic> data) {
+  if (!type.startsWith('arena_weather_')) return null;
+  if (type == arenaWeatherCreditExpiringNotificationType) {
+    return AppRoutes.athleteWeatherCredits;
+  }
+  if (type == arenaWeatherCanceledNotificationType) return AppRoutes.myBookings;
+  if (type == arenaWeatherReleaseNotificationType ||
+      type == arenaWeatherCreditNotificationType ||
+      type == arenaWeatherRequestDecidedNotificationType) {
+    final bookingId = (data['bookingId'] as String?)?.trim() ?? '';
+    if (bookingId.isNotEmpty) {
+      return AppRoutes.bookingWeatherChoice
+          .replaceAll(':bookingId', Uri.encodeComponent(bookingId));
+    }
+    return type == arenaWeatherCreditNotificationType
+        ? AppRoutes.athleteWeatherCredits
+        : AppRoutes.myBookings;
+  }
+  return appRouteForNotificationUrl(data['url'] as String?) ??
+      AppRoutes.myBookings;
+}
+
 /// Agenda do atleta.
 const athleteAgendaTabLocation = '${AppRoutes.discover}?tab=agenda';
 
@@ -306,6 +340,11 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
     final storiesRoute = organizerStoriesNotificationRoute(data);
     if (storiesRoute != null) return storiesRoute;
   }
+
+  // Chuva: o `url` é `/my-bookings` (app antigo); este build abre a escolha
+  // da reserva — por isso o tipo vem antes da url.
+  final weatherRoute = arenaWeatherNotificationRoute(type, data);
+  if (weatherRoute != null) return weatherRoute;
 
   // Resposta ao chamado da avaliação de aula: sempre "Minhas avaliações".
   if (type == classReviewReplyNotificationType) {

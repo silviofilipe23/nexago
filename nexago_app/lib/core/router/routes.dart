@@ -441,6 +441,14 @@ abstract final class AppRoutes {
   /// `url` dos pushes `cashback_released` / `cashback_expiring`.
   static const String athleteCashback = '/cashback';
 
+  /// Cancelamento por chuva: escolha (remarcar ou guardar crédito) de uma
+  /// reserva liberada pela arena. Os pushes `arena_weather_*` com `bookingId`
+  /// abrem aqui (o `url` deles é `/my-bookings`, para os apps antigos).
+  static const String bookingWeatherChoice = '/booking/:bookingId/rain';
+
+  /// Créditos de chuva do atleta (saldo por arena, validade, usados/vencidos).
+  static const String athleteWeatherCredits = '/weather-credits';
+
   /// NexaSquad (embaixadores): telas internas, fora do shell (sem tab bar).
   /// Entrada pelo perfil e pela home; o push do convite abre [squadInvite].
   static const String squad = '/athlete/squad';
@@ -1232,6 +1240,8 @@ abstract final class AppRouteNames {
   static const String appGuide = 'appGuide';
   static const String appGuideTopic = 'appGuideTopic';
   static const String athleteCashback = 'athleteCashback';
+  static const String bookingWeatherChoice = 'bookingWeatherChoice';
+  static const String athleteWeatherCredits = 'athleteWeatherCredits';
   static const String squad = 'squad';
   static const String squadShare = 'squadShare';
   static const String squadEarnings = 'squadEarnings';

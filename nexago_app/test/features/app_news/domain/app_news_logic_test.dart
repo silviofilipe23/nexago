@@ -92,6 +92,10 @@ void main() {
       expect(f.imageUrl, isNull);
       expect(f.icon, AppNewsIcon.invite);
       expect(f.inStories, isFalse);
+      expect(
+        AppNewsFeature.fromMap(feature('b', {'icon': 'rain'}))!.icon,
+        AppNewsIcon.rain,
+      );
     });
   });
 

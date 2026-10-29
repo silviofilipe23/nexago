@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="art.css">
+<style>
+  :root { --rain:#5AA9FF; --rainText:#8CC4FF; --sun:#F4C543; }
+  .art { background: radial-gradient(70% 60% at 50% 52%, rgba(90,169,255,.18), rgba(90,169,255,0) 70%), #070708; }
+  .tile { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex-shrink: 0; }
+  .strip { display: flex; gap: 5px; margin-top: 12px; }
+  .cell { flex: 1; border-radius: 9px; background: rgba(255,255,255,.04); padding: 7px 0 6px; text-align: center; }
+  .cell.on { background: rgba(90,169,255,.16); }
+  .cell b { display: block; font-family: JB; font-size: 10.5px; color: var(--rainText); }
+  .cell span { display: block; font-size: 8.5px; color: var(--dim); margin-top: 2px; }
+</style></head>
+<body><div class="art">
+  <!-- a reserva por trás (aparece no detalhe e nos stories) -->
+  <div class="abs card" style="left:96px; width:236px; top:40px; padding:11px 13px 30px; background:var(--surf2);">
+    <div class="kicker">Sua reserva</div>
+    <div style="font-size:12px; font-weight:800; letter-spacing:-.02em; margin-top:4px;">Quadra 2 · sáb, 18:00</div>
+  </div>
+
+  <!-- previsão do tempo -->
+  <div class="abs card" style="left:58px; width:274px; top:92px; padding:13px;">
+    <div style="display:flex; gap:10px; align-items:center;">
+      <div class="tile" style="background:rgba(244,197,67,.16);">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F4C543" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>
+      </div>
+      <div>
+        <div class="kicker">Previsão do tempo</div>
+        <div style="font-size:13px; font-weight:800; letter-spacing:-.02em; margin-top:3px;">Sem chuva no seu horário</div>
+        <div style="font-size:9.5px; color:var(--dim); margin-top:1px;">29° · Parcialmente nublado</div>
+      </div>
+    </div>
+    <div class="strip">
+      <div class="cell"><b>3%</b><span>16h</span></div>
+      <div class="cell"><b>5%</b><span>17h</span></div>
+      <div class="cell on"><b>8%</b><span>18h</span></div>
+      <div class="cell"><b>12%</b><span>19h</span></div>
+      <div class="cell"><b>20%</b><span>20h</span></div>
+    </div>
+    <div style="font-size:8px; color:var(--dim2); margin-top:9px;">Previsão da WeatherAPI · atualizada às 14:52</div>
+  </div>
+
+  <!-- quem foi convidado também vê -->
+  <div class="abs" style="left:150px; top:270px; width:182px; background:#17241C; border:1px solid rgba(43,209,126,.22); border-radius:14px 14px 4px 14px; padding:8px 10px; box-shadow:0 14px 30px rgba(0,0,0,.55);">
+    <div style="font-size:9px; font-weight:700;">Marina e João também veem</div>
+    <div style="font-size:8.5px; color:var(--dim); margin-top:1px;">2h antes e 2h depois do jogo</div>
+  </div>
+</div></body></html>

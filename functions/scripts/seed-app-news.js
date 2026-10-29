@@ -29,7 +29,10 @@
  * - Os stories aparecem UMA vez por versão, só para quem já tinha conta antes
  *   da `date`, com as funcionalidades que o atleta ainda não usou.
  *
- * CONTEÚDO: as quatro funcionalidades descrevem o que as telas do app fazem
+ * CONTEÚDO 1.0.18: a chuva (previsão em toda reserva, Modo chuva/pedido com
+ * remarcar ou crédito, crédito na próxima reserva), com os destinos novos
+ * `minhas-reservas` e `creditos-chuva` — o build 115 não os conhece.
+ * CONTEÚDO 1.0.17: as quatro funcionalidades descrevem o que as telas do app fazem
  * hoje (mapa do Reservar, Bora Jogar, convite de jogadores na reserva e
  * Equipes). Bora Jogar só RESPONDE convites: a entrada para começar um saiu do
  * app em 11/09 (242c0098c). "Chame a galera" abre o Reservar porque não há
@@ -43,8 +46,8 @@
  *
  * Uso (na pasta functions/):
  *   node scripts/seed-app-news.js --project <projectId> --show
- *   node scripts/seed-app-news.js --project <projectId> --version 1.0.17 --build 115
- *   node scripts/seed-app-news.js --project <projectId> --version 1.0.17 --build 115 --yes
+ *   node scripts/seed-app-news.js --project <projectId> --version 1.0.18 --build 116
+ *   node scripts/seed-app-news.js --project <projectId> --version 1.0.18 --build 116 --yes
  *
  * Sem --yes é DRY-RUN: mostra o estado atual e o que seria gravado.
  *
@@ -102,13 +105,91 @@ const IMAGES = {
     "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.15-convite-reserva.webp?alt=media&token=a6d66a65-9cab-4a11-a60e-00faa6991581",
   "equipes":
     "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.15-equipes.webp?alt=media&token=401287da-25f6-4e1e-8814-bf0a27090c75",
+  "previsao-reserva":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.18-previsao-reserva.webp?alt=media&token=d318f1a3-f85e-4219-9067-a48b70e9ca9b",
+  "chuva-sem-custo":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.18-chuva-sem-custo.webp?alt=media&token=668e04a6-1e32-4a8c-9e3b-93a3320e95c1",
+  "credito-chuva":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.18-credito-chuva.webp?alt=media&token=d4edaffe-1652-4fce-9f89-0deb8c5fd39b",
 };
 
+// 1.0.18 (build 116): chuva. As chaves `minhas-reservas` e `creditos-chuva` só existem a partir
+// deste build, então quem está no 115 nem veria as funcionalidades com botão.
 function currentRelease(build) {
   return {
     version,
     build,
     date,
+    stories: true,
+    features: [
+      {
+        id: "previsao-reserva",
+        icon: "rain",
+        title: "Previsão na reserva",
+        summary: "Chuva e temperatura de 2h antes a 2h depois do jogo.",
+        description:
+          "Toda reserva mostra a previsão do tempo do seu horário: chance de chuva hora a hora, de 2h antes a 2h depois do jogo, com a temperatura. Ela aparece 14 dias antes, e quem você convidou também vê.",
+        steps: [
+          "Abra a reserva em Minhas reservas ou na Agenda",
+          "Veja a chance de chuva de cada hora, com o seu horário em destaque",
+          "Mais de 14 dias antes, o card diz quando a previsão chega",
+        ],
+        where: "Minhas reservas › sua reserva",
+        ctaLabel: "Ver reservas",
+        destination: "minhas-reservas",
+        imageUrl: IMAGES["previsao-reserva"],
+      },
+      {
+        id: "chuva-sem-custo",
+        icon: "rain",
+        title: "Choveu? Sem custo",
+        summary: "Remarque o horário ou guarde o valor como crédito.",
+        description:
+          "Quando a arena ativa o Modo chuva, sua reserva paga é liberada: remarque para outro horário sem custo ou guarde o valor como crédito. Sem escolha em 24h, vira crédito sozinho. Em arenas que aceitam pedidos, você mesmo pede.",
+        steps: [
+          "Abra a reserva pelo aviso de chuva",
+          "Toque em Remarcar ou guardar crédito",
+          "Escolha outro horário ou guarde o valor para a próxima",
+        ],
+        where: "Minhas reservas › reserva liberada",
+        ctaLabel: "Ver reservas",
+        destination: "minhas-reservas",
+        imageUrl: IMAGES["chuva-sem-custo"],
+      },
+      {
+        id: "credito-chuva",
+        title: "Crédito de chuva",
+        summary: "Desconte na próxima reserva na arena onde choveu.",
+        description:
+          "O crédito vale na arena onde choveu. Na confirmação da próxima reserva lá, Usar crédito de chuva já vem ligado e desconta do total; se cobrir tudo, a reserva sai paga. Saldo e validade ficam em Configurações › Créditos de chuva.",
+        steps: [
+          "Reserve um horário na arena onde choveu",
+          "Na confirmação, deixe ligado Usar crédito de chuva",
+          "Pague só o que faltar, ou nada, se o crédito cobrir",
+        ],
+        where: "Configurações › Créditos de chuva",
+        ctaLabel: "Ver créditos",
+        destination: "creditos-chuva",
+        imageUrl: IMAGES["credito-chuva"],
+      },
+    ],
+    // PRs com mudança no app para o atleta depois do corte da 1.0.17 (#1000): #1001–#1021.
+    improvements: [
+      "Compartilhe o ranking geral com os filtros que estão na tela",
+      "No ranking de duplas e equipes, Compartilhar minha posição abre o card da equipe",
+      "Fotos em destaque das equipes na Ficha e no Ranking",
+      "Foto do perfil redonda, sem canto branco, no card da equipe",
+      "Horário de início de cada categoria na página do torneio",
+      "Título do Ranking inteiro na barra, ao lado dos ícones",
+    ],
+  };
+}
+
+// 1.0.17 completa (botões, imagens e stories): para quem ainda está no build 115 ela é a atual.
+const RELEASE_1_0_17 = {
+    version: "1.0.17",
+    build: 115,
+    date: "2026-10-27",
     stories: true,
     features: [
       {
@@ -192,8 +273,7 @@ function currentRelease(build) {
       "Listas de atletas e de duplas não pulam mais para o topo ao rolar",
       "O ícone do app não fica mais com o contador de notificações preso",
     ],
-  };
-}
+};
 
 // Versões já cortadas, montadas dos PRs com mudança no app entre os cortes: 1.0.16 = #875–#956
 // (corte em 26/10, PR #957), 1.0.15 = #612–#860 (corte em 21/10, PR #861). Sem botão: na tela
@@ -306,7 +386,7 @@ async function run() {
   }
   const releases = [
     currentRelease(build),
-    ...PREVIOUS.filter((r) => r.build < build),
+    ...[RELEASE_1_0_17, ...PREVIOUS].filter((r) => r.build < build),
   ];
   console.log("\nSeria gravado:");
   printCurrent({releases});

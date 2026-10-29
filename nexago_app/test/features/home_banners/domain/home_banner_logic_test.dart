@@ -38,6 +38,17 @@ void main() {
       expect(b.hideAfterClick, isTrue);
     });
 
+    test('chaves da chuva: Minhas reservas e Créditos de chuva', () {
+      expect(
+          HomeBanner.fromMap(raw({'destination': 'minhas-reservas'}))!
+              .destination,
+          HomeBannerDestination.minhasReservas);
+      expect(
+          HomeBanner.fromMap(raw({'destination': 'creditos-chuva'}))!
+              .destination,
+          HomeBannerDestination.creditosChuva);
+    });
+
     test('chave desconhecida para este build esconde o banner', () {
       expect(HomeBanner.fromMap(raw({'destination': 'radar'})), isNull);
       expect(HomeBanner.fromMap(raw({'audience': 'inativos'})), isNull);

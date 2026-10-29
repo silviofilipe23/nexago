@@ -54,6 +54,8 @@ export const HOME_BANNER_DESTINATIONS = [
   "loja",
   "indicar",
   "missoes",
+  "minhas-reservas",
+  "creditos-chuva",
   "url",
 ] as const;
 /** Quem vê. O app decide com o que já carrega na Home (conta, reservas, inscrições). */

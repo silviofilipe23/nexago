@@ -50,7 +50,7 @@ const ID_RE = /^[a-z0-9][a-z0-9-]{0,47}$/;
  * app). Todo build que tem a Central de ajuda conhece as oito; chave nova aqui exige o app que a
  * conhece (build antigo cai no ícone do destino).
  */
-export const APP_GUIDE_ICONS = ["map", "invite", "cancel", "story", "handshake", "focus", "chat", "star"] as const;
+export const APP_GUIDE_ICONS = ["map", "invite", "cancel", "story", "handshake", "focus", "chat", "star", "rain"] as const;
 export type AppGuideIcon = (typeof APP_GUIDE_ICONS)[number];
 
 export interface AppGuideTopicInput {

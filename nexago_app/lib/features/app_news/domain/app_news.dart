@@ -22,7 +22,8 @@ enum AppNewsIcon {
   handshake('handshake'),
   focus('focus'),
   chat('chat'),
-  star('star');
+  star('star'),
+  rain('rain');
 
   const AppNewsIcon(this.key);
   final String key;

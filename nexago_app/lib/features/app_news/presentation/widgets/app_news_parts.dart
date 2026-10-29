@@ -25,6 +25,7 @@ IconData appNewsIcon(AppNewsFeature feature) => switch (feature.icon) {
   AppNewsIcon.focus => Icons.center_focus_strong_outlined,
   AppNewsIcon.chat => Icons.chat_bubble_outline_rounded,
   AppNewsIcon.star => Icons.star_outline_rounded,
+  AppNewsIcon.rain => Icons.umbrella_outlined,
   null =>
     feature.destination == null
         ? Icons.auto_awesome_outlined

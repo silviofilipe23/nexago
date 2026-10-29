@@ -21,6 +21,8 @@ export const DESTINATIONS = [
   { id: 'loja', label: 'Loja' },
   { id: 'indicar', label: 'Indique amigos' },
   { id: 'missoes', label: 'Missões' },
+  { id: 'minhas-reservas', label: 'Minhas reservas' },
+  { id: 'creditos-chuva', label: 'Créditos de chuva' },
   { id: 'url', label: 'Link externo' },
 ] as const;
 export type HomeBannerDestination = (typeof DESTINATIONS)[number]['id'];

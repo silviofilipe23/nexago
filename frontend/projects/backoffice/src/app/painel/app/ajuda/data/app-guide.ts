@@ -26,6 +26,7 @@ export const ICONS = [
   { id: 'focus', label: 'Foco' },
   { id: 'chat', label: 'Conversa' },
   { id: 'star', label: 'Estrela' },
+  { id: 'rain', label: 'Chuva' },
 ] as const;
 export type AppGuideIcon = (typeof ICONS)[number]['id'];
 

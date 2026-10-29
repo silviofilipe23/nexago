@@ -15,6 +15,7 @@ import '../domain/sand_rank/sand_rank_models.dart';
 import '../domain/sand_rank/sand_rank_providers.dart';
 import 'arena_list_page.dart';
 import 'sand_rank/widgets/sand_rank_promotion_sheet.dart';
+import 'widgets/athlete_home/athlete_home_tour.dart';
 import 'widgets/gamification_feedback_sheet.dart';
 import 'athlete_agenda_page.dart';
 import 'athlete_community_page.dart';
@@ -123,88 +124,96 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
       child: TournamentInviteAnnouncer(
         child: FocusDayAnnouncer(
           child: AppNewsStoriesAnnouncer(
-            child: Scaffold(
-              extendBody: true,
-              backgroundColor: theme.colorScheme.surfaceContainerLowest,
-              body: ShellTabBarCollapseListener(
-                controller: scrollRegistry.tabBarCollapse,
-                child: IndexedStack(
-                  index: _index,
-                  children: [
-                    const AthleteHomePage(),
-                    const AthleteAgendaPage(),
-                    const ArenaListPage(),
-                    const TournamentDiscoveryPage(),
-                    if (!storeTab)
-                      const AthleteCommunityPage()
-                    else if (_storeVisited)
-                      StorePage(
-                        tabScrollController: scrollRegistry
-                            .controllerFor(athleteShellStoreTabIndex),
-                      )
-                    else
-                      const SizedBox.shrink(),
-                  ],
+            child: AthleteHomeTourAnnouncer(
+              child: Scaffold(
+                extendBody: true,
+                backgroundColor: theme.colorScheme.surfaceContainerLowest,
+                body: ShellTabBarCollapseListener(
+                  controller: scrollRegistry.tabBarCollapse,
+                  child: IndexedStack(
+                    index: _index,
+                    children: [
+                      const AthleteHomePage(),
+                      const AthleteAgendaPage(),
+                      const ArenaListPage(),
+                      const TournamentDiscoveryPage(),
+                      if (!storeTab)
+                        const AthleteCommunityPage()
+                      else if (_storeVisited)
+                        StorePage(
+                          tabScrollController: scrollRegistry
+                              .controllerFor(athleteShellStoreTabIndex),
+                        )
+                      else
+                        const SizedBox.shrink(),
+                    ],
+                  ),
                 ),
-              ),
-              bottomNavigationBar: ListenableBuilder(
-                listenable: scrollRegistry.tabBarCollapse,
-                builder: (context, _) => NexaBottomNavBar(
-                  collapseProgress: scrollRegistry.tabBarCollapse.progress,
-                  isScrolling: scrollRegistry.tabBarCollapse.isScrolling,
-                  currentIndex: _index,
-                  onTap: (i) {
-                    ref.read(athleteShellTabIndexProvider.notifier).state = i;
-                    setState(() => _index = i);
-                    scrollRegistry.tabBarCollapse.expand();
-                    ref.read(athleteShellScrollRegistryProvider).scrollToTop(i);
-                  },
-                  items: [
-                    const NexaBottomNavItem(
-                      label: 'Início',
-                      icon: Icons.home_outlined,
-                      selectedIcon: Icons.home,
-                      sfSymbol: 'house',
-                      selectedSfSymbol: 'house.fill',
+                bottomNavigationBar: AthleteHomeTourAnchor(
+                  target: AthleteHomeTourTarget.navBar,
+                  child: ListenableBuilder(
+                    listenable: scrollRegistry.tabBarCollapse,
+                    builder: (context, _) => NexaBottomNavBar(
+                      collapseProgress: scrollRegistry.tabBarCollapse.progress,
+                      isScrolling: scrollRegistry.tabBarCollapse.isScrolling,
+                      currentIndex: _index,
+                      onTap: (i) {
+                        ref.read(athleteShellTabIndexProvider.notifier).state =
+                            i;
+                        setState(() => _index = i);
+                        scrollRegistry.tabBarCollapse.expand();
+                        ref
+                            .read(athleteShellScrollRegistryProvider)
+                            .scrollToTop(i);
+                      },
+                      items: [
+                        const NexaBottomNavItem(
+                          label: 'Início',
+                          icon: Icons.home_outlined,
+                          selectedIcon: Icons.home,
+                          sfSymbol: 'house',
+                          selectedSfSymbol: 'house.fill',
+                        ),
+                        const NexaBottomNavItem(
+                          label: 'Agenda',
+                          icon: Icons.calendar_today_outlined,
+                          selectedIcon: Icons.calendar_today,
+                          sfSymbol: 'calendar',
+                          selectedSfSymbol: 'calendar',
+                        ),
+                        const NexaBottomNavItem(
+                          label: 'Reservar',
+                          icon: Icons.add_circle_outline,
+                          selectedIcon: Icons.add_circle,
+                          sfSymbol: 'plus.circle',
+                          selectedSfSymbol: 'plus.circle.fill',
+                        ),
+                        const NexaBottomNavItem(
+                          label: 'Hub',
+                          icon: Icons.emoji_events_outlined,
+                          selectedIcon: Icons.emoji_events,
+                          sfSymbol: 'trophy',
+                          selectedSfSymbol: 'trophy.fill',
+                        ),
+                        if (storeTab)
+                          const NexaBottomNavItem(
+                            label: 'Loja',
+                            icon: Icons.shopping_bag_outlined,
+                            selectedIcon: Icons.shopping_bag,
+                            sfSymbol: 'bag',
+                            selectedSfSymbol: 'bag.fill',
+                          )
+                        else
+                          const NexaBottomNavItem(
+                            label: 'Comunidade',
+                            icon: Icons.diversity_2_outlined,
+                            selectedIcon: Icons.diversity_2_rounded,
+                            sfSymbol: 'person.2',
+                            selectedSfSymbol: 'person.2.fill',
+                          ),
+                      ],
                     ),
-                    const NexaBottomNavItem(
-                      label: 'Agenda',
-                      icon: Icons.calendar_today_outlined,
-                      selectedIcon: Icons.calendar_today,
-                      sfSymbol: 'calendar',
-                      selectedSfSymbol: 'calendar',
-                    ),
-                    const NexaBottomNavItem(
-                      label: 'Reservar',
-                      icon: Icons.add_circle_outline,
-                      selectedIcon: Icons.add_circle,
-                      sfSymbol: 'plus.circle',
-                      selectedSfSymbol: 'plus.circle.fill',
-                    ),
-                    const NexaBottomNavItem(
-                      label: 'Hub',
-                      icon: Icons.emoji_events_outlined,
-                      selectedIcon: Icons.emoji_events,
-                      sfSymbol: 'trophy',
-                      selectedSfSymbol: 'trophy.fill',
-                    ),
-                    if (storeTab)
-                      const NexaBottomNavItem(
-                        label: 'Loja',
-                        icon: Icons.shopping_bag_outlined,
-                        selectedIcon: Icons.shopping_bag,
-                        sfSymbol: 'bag',
-                        selectedSfSymbol: 'bag.fill',
-                      )
-                    else
-                      const NexaBottomNavItem(
-                        label: 'Comunidade',
-                        icon: Icons.diversity_2_outlined,
-                        selectedIcon: Icons.diversity_2_rounded,
-                        sfSymbol: 'person.2',
-                        selectedSfSymbol: 'person.2.fill',
-                      ),
-                  ],
+                  ),
                 ),
               ),
             ),

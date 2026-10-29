@@ -398,6 +398,7 @@ export class AthleteBookingDetailComponent {
     if (b.paymentChannel === 'pix') return 'Via PIX';
     if (b.paymentChannel === 'card') return 'Cartão de crédito';
     if (b.paymentChannel === 'onsite') return 'No local';
+    if (b.paymentChannel === 'weather_credit') return 'Crédito de chuva';
     return 'A confirmar';
   });
 

@@ -95,6 +95,11 @@ function resolveRentalPaymentStatus(booking: MyBooking, doc: ArenaBookingDoc | u
     if (doc.paymentStatus === 'partial') return { label: '50% pago', tone: 'pending', methodLabel };
     return { label: 'Pendente', tone: 'pending', methodLabel };
   }
+  if (doc?.paymentChannel === 'weather_credit') {
+    // Paga com crédito de chuva (Cancelamento por chuva); a diferença, se houver, é na arena.
+    if (doc.paymentStatus === 'paid') return { label: 'Pago', tone: 'paid', methodLabel: 'Crédito de chuva' };
+    return { label: 'Resto na arena', tone: 'pending', methodLabel: 'Crédito de chuva' };
+  }
   return { label: 'A pagar na arena', tone: 'pending', methodLabel: 'No local' };
 }
 

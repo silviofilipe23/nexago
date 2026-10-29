@@ -5,9 +5,11 @@ import {
   defaultRankingSport,
   deriveTeamGender,
   hasSearchQuery,
+  levelBandOf,
   normalizeRankingGender,
   rankParticipants,
   searchRanking,
+  strongestLevel,
   teamFormatOf,
   athleteProfileLink,
   teamProfileLink,
@@ -67,13 +69,28 @@ describe('rankParticipants', () => {
     expect(ranked).toEqual([jasmine.objectContaining({ id: 'e', rank: 1 })]);
   });
 
-  it('renumera dentro do recorte de categoria', () => {
-    const ranked = rankParticipants(sample(), { ...ALL_SPORTS, level: 'Open' });
+  it('renumera dentro do recorte de nível', () => {
+    const ranked = rankParticipants(sample(), { ...ALL_SPORTS, level: 'open' });
 
     expect(ranked.map((r) => [r.rank, r.id])).toEqual([
       [1, 'b'],
       [2, 'e'],
     ]);
+  });
+
+  it('o nível filtra por faixa, como no app: Intermediário 1 e 2 juntos; sem nível só em "Todos"', () => {
+    const rows = [
+      participant({ id: 'i1', points: 30, level: 'Intermediário 1' }),
+      participant({ id: 'i2', points: 50, level: 'Intermediário 2' }),
+      participant({ id: 'a1', points: 90, level: 'Avançado 1' }),
+      participant({ id: 'x', points: 99, level: null }),
+    ];
+
+    expect(rankParticipants(rows, { ...ALL_SPORTS, level: 'intermediario' }).map((r) => [r.rank, r.id])).toEqual([
+      [1, 'i2'],
+      [2, 'i1'],
+    ]);
+    expect(rankParticipants(rows, ALL_SPORTS).length).toBe(4);
   });
 
   it('renumera dentro do recorte de gênero; sem gênero conhecido só entra em "Todos"', () => {
@@ -254,5 +271,26 @@ describe('esporte do ranking', () => {
     expect(defaultRankingSport('BEACH_TENNIS')).toBe('BEACH_TENNIS');
     expect(defaultRankingSport('CORRIDA')).toBe('VOLEI_PRAIA');
     expect(defaultRankingSport(null)).toBe('VOLEI_PRAIA');
+  });
+});
+
+describe('levelBandOf', () => {
+  it('agrupa os 7 degraus nas 4 faixas do app', () => {
+    expect(levelBandOf('Iniciante 1')).toBe('iniciante');
+    expect(levelBandOf('Iniciante 2')).toBe('iniciante');
+    expect(levelBandOf('Intermediário 1')).toBe('intermediario');
+    expect(levelBandOf('Intermediário 2')).toBe('intermediario');
+    expect(levelBandOf('Avançado 1')).toBe('avancado');
+    expect(levelBandOf('Avançado 2')).toBe('avancado');
+    expect(levelBandOf('Open')).toBe('open');
+    expect(levelBandOf(null)).toBeNull();
+  });
+});
+
+describe('strongestLevel', () => {
+  it('vale o integrante mais forte, como no app', () => {
+    expect(strongestLevel(['Iniciante 2', 'Avançado 1', null])).toBe('Avançado 1');
+    expect(strongestLevel([null, 'Intermediário 1'])).toBe('Intermediário 1');
+    expect(strongestLevel([null, null])).toBeNull();
   });
 });

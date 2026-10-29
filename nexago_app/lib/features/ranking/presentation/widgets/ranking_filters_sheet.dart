@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../domain/ranking_list_models.dart';
 import '../../domain/ranking_logic.dart';
+import '../../domain/ranking_providers.dart';
 
 /// Folha única de filtros do ranking: esporte, temporada, gênero, nível e — só no modo
 /// de equipes — formato. Substitui as quatro folhas/chips soltos que dividiam
@@ -42,6 +44,21 @@ Future<RankingPageFilter?> showRankingFiltersSheet({
       sportCode: sportCode,
     ),
   );
+}
+
+/// Abre a folha com o recorte da tela e aplica o que voltar. A tela e a folha
+/// de compartilhar editam o MESMO filtro: o que se compartilha é o que está
+/// na tela.
+Future<void> openRankingFilters(BuildContext context, WidgetRef ref) async {
+  final applied = await showRankingFiltersSheet(
+    context: context,
+    initial: ref.read(rankingPageFilterProvider),
+    yearOptions: ref.read(rankingYearOptionsProvider),
+    sportCode:
+        ref.read(rankingSportProvider).valueOrNull ?? kDefaultRankingSport,
+  );
+  if (applied == null || !context.mounted) return;
+  ref.read(rankingPageFilterProvider.notifier).state = applied;
 }
 
 class _RankingFiltersSheet extends StatefulWidget {

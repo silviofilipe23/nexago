@@ -223,7 +223,7 @@ RankingStoryData rankingStoryDataFrom({
     name: entry.displayName,
     people: _peopleOf(entry),
     sportLabel: sportLabel,
-    unit: isTeam ? _teamUnit(filter.format, entries) : 'atletas',
+    unit: isTeam ? rankingTeamUnit(filter.format, entries) : 'atletas',
     identityLabel: isTeam ? _teamLabel(entry.teamFormat) : 'Atleta',
     season: filter.year,
     cutLabels: [
@@ -401,7 +401,10 @@ List<BookingStoryPerson> _peopleOf(RankingListEntry entry) {
 
 /// Com o formato escolhido na folha, é ele; sem escolha, "duplas" só quando a
 /// lista inteira é de duplas — trio no meio vira "equipes".
-String _teamUnit(RankingFormatFilter format, List<RankingListEntry> entries) {
+String rankingTeamUnit(
+  RankingFormatFilter format,
+  List<RankingListEntry> entries,
+) {
   final shown = format != RankingFormatFilter.all
       ? format
       : entries.every((e) => e.teamFormat == RankingFormatFilter.dupla)

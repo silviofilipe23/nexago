@@ -5,6 +5,11 @@ export type RankingMode = 'individual' | 'doubles';
  *  legado que o backend já normaliza pra Open, não um tier à parte. */
 export type RankingLevel = AthleteLevelLabel;
 export type FilterLevel = 'all' | RankingLevel;
+/** Faixa do filtro de nível do ranking — as 4 do app (`RankingLevelFilter`): Iniciante (degraus
+ *  0–1), Intermediário (2–3), Avançado (4–5) e Open (6). O degrau exato segue na linha; só a lente
+ *  do filtro é mais larga. Os códigos são os do link compartilhado pelo app (`?nivel=`). */
+export type LevelBand = 'iniciante' | 'intermediario' | 'avancado' | 'open';
+export type FilterLevelBand = 'all' | LevelBand;
 export type RankingPeriod = 'geral' | 'temporada';
 export type RankingGender = 'male' | 'female' | 'mixed';
 export type FilterGender = 'all' | RankingGender;

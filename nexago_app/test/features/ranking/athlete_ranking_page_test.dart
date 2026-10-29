@@ -1,6 +1,8 @@
+import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/core/auth/auth_providers.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/ranking/domain/ranking_list_models.dart';
 import 'package:nexago_app/features/ranking/domain/ranking_providers.dart';
@@ -30,6 +32,7 @@ void main() {
       rankingListEntriesProvider
           .overrideWith((ref) async => const <RankingListEntry>[]),
       rankingSportProvider.overrideWith((ref) async => 'VOLEI_PRAIA'),
+      authProvider.overrideWith((ref) => Stream.value(MockUser(uid: 'u1'))),
     ]);
     addTearDown(container.dispose);
 
@@ -62,11 +65,16 @@ void main() {
   }
 
   /// A folha rola: opção fora da dobra precisa entrar em cena antes do toque,
-  /// senão o `tap` acerta o que estiver naquele ponto da tela.
+  /// senão o `tap` acerta o que estiver naquele ponto da tela. Procura só
+  /// dentro da folha: os chips da tela repetem os rótulos ("Limpar", "Open").
   Future<void> tapOption(WidgetTester tester, String label) async {
-    await tester.ensureVisible(find.text(label));
+    final option = find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.text(label),
+    );
+    await tester.ensureVisible(option);
     await tester.pumpAndSettle();
-    await tester.tap(find.text(label));
+    await tester.tap(option);
     await tester.pump();
   }
 
@@ -200,5 +208,72 @@ void main() {
 
     expect(find.byIcon(Icons.filter_alt_rounded), findsOneWidget);
     expect(find.byIcon(Icons.tune_rounded), findsNothing);
+  });
+
+  testWidgets('filtro ligado vira chip; o × tira só ele', (tester) async {
+    await pumpPage(tester);
+    await setFilter(
+      tester,
+      filter().copyWith(
+        gender: RankingGenderFilter.female,
+        level: RankingLevelFilter.open,
+      ),
+    );
+
+    expect(find.text('Feminino'), findsOneWidget);
+    expect(find.text('Open'), findsOneWidget);
+
+    await tester.tap(find.text('Feminino'));
+    await tester.pumpAndSettle();
+
+    expect(filter().gender, RankingGenderFilter.all);
+    expect(filter().level, RankingLevelFilter.open);
+    expect(find.text('Feminino'), findsNothing);
+    // Um filtro só: o × dele basta, sem "Limpar".
+    expect(find.byKey(const Key('ranking-filter-chips-clear')), findsNothing);
+  });
+
+  testWidgets('"Limpar" dos chips preserva temporada e modo', (tester) async {
+    await pumpPage(tester);
+    await setFilter(
+      tester,
+      RankingPageFilter(
+        mode: RankingListMode.teams,
+        year: 2025,
+        gender: RankingGenderFilter.male,
+        format: RankingFormatFilter.trio,
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('ranking-filter-chips-clear')));
+    await tester.pumpAndSettle();
+
+    expect(filter().gender, RankingGenderFilter.all);
+    expect(filter().format, RankingFormatFilter.all);
+    expect(filter().year, 2025);
+    expect(filter().mode, RankingListMode.teams);
+  });
+
+  testWidgets('o botão de compartilhar abre a folha com o recorte da tela',
+      (tester) async {
+    await pumpPage(tester);
+    await setFilter(
+      tester,
+      filter().copyWith(gender: RankingGenderFilter.mixed),
+    );
+
+    await tester.tap(find.byIcon(Icons.ios_share_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Compartilhar ranking'), findsOneWidget);
+    // No chip de "Filtros incluídos" (a prévia vazia não tem arte).
+    expect(
+      find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.text('Misto'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Ninguém pontuou'), findsOneWidget);
   });
 }

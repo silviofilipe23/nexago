@@ -1,5 +1,15 @@
 import { sportsWithSupport } from '@nexago/sports';
-import type { FilterFormat, FilterGender, FilterLevel, RankingGender, RankingParticipant, TeamFormat } from './athlete-ranking.models';
+import { levelRankOf } from '../data/athlete-level';
+import type {
+  FilterFormat,
+  FilterGender,
+  FilterLevelBand,
+  LevelBand,
+  RankingGender,
+  RankingLevel,
+  RankingParticipant,
+  TeamFormat,
+} from './athlete-ranking.models';
 
 export interface RankingRow extends RankingParticipant {
   rank: number;
@@ -8,7 +18,7 @@ export interface RankingRow extends RankingParticipant {
 /** Recorte que define QUAL ranking está na tela. A busca não entra aqui de propósito:
  *  posição é propriedade do ranking, não do que o atleta digitou na caixa de busca. */
 export interface RankingSlice {
-  level: FilterLevel;
+  level: FilterLevelBand;
   city: string;
   gender: FilterGender;
   format: FilterFormat;
@@ -49,12 +59,38 @@ function normalize(value: string): string {
  *  esporte principal do perfil). Gênero/formato desconhecidos (null) só aparecem em "Todos". */
 export function rankParticipants(all: readonly RankingParticipant[], slice: RankingSlice): RankingRow[] {
   return all
-    .filter((p) => slice.level === 'all' || p.level === slice.level)
+    .filter((p) => slice.level === 'all' || levelBandOf(p.level) === slice.level)
     .filter((p) => slice.city === CITY_ALL || p.city === slice.city)
     .filter((p) => slice.gender === 'all' || p.gender === slice.gender)
     .filter((p) => slice.format === 'all' || p.format === slice.format)
     .sort((a, b) => b.points - a.points)
     .map((p, i) => ({ ...p, rank: i + 1 }));
+}
+
+/** Faixa do degrau — paridade com `RankingLevelFilter` do app (`ranking_list_models.dart`).
+ *  Sem nível resolvido não cai em faixa nenhuma: só aparece em "Todos os níveis". */
+export function levelBandOf(level: RankingLevel | null): LevelBand | null {
+  const rank = levelRankOf(level);
+  if (rank == null) return null;
+  if (rank <= 1) return 'iniciante';
+  if (rank <= 3) return 'intermediario';
+  if (rank <= 5) return 'avancado';
+  return 'open';
+}
+
+/** Nível da dupla/equipe: o do integrante mais forte — a regra do app (`teamLevelRankForSport`,
+ *  "vale o integrante mais forte"). Sem ninguém com nível, `null`. */
+export function strongestLevel(levels: readonly (RankingLevel | null)[]): RankingLevel | null {
+  let best: RankingLevel | null = null;
+  let bestRank = -1;
+  for (const level of levels) {
+    const rank = levelRankOf(level);
+    if (rank != null && rank > bestRank) {
+      best = level;
+      bestRank = rank;
+    }
+  }
+  return best;
 }
 
 /** Grafias reais dos docs ("Masculino"/"Feminino"/"Misto"/"Mista", "m"/"f", inglês) —

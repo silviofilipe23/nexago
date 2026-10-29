@@ -123,6 +123,24 @@ class RankingPageFilter {
   }
 }
 
+/// Um rosto da linha: o atleta (Individual) ou cada integrante da equipe, na
+/// ordem do elenco. É o que a arte de compartilhar desenha — a lista da tela
+/// segue só com os dois primeiros (`player1*`/`player2*`).
+@immutable
+class RankingEntryMember {
+  const RankingEntryMember({
+    required this.initials,
+    this.shortName = '',
+    this.avatarUrl,
+  });
+
+  final String initials;
+
+  /// Apelido ou primeiro nome ("Ray"); vazio sem perfil.
+  final String shortName;
+  final String? avatarUrl;
+}
+
 class RankingListEntry {
   const RankingListEntry({
     required this.rank,
@@ -143,6 +161,7 @@ class RankingListEntry {
     this.player2Color,
     this.player1AvatarUrl,
     this.player2AvatarUrl,
+    this.members = const [],
   });
 
   final int rank;
@@ -170,6 +189,9 @@ class RankingListEntry {
   final Color? player2Color;
   final String? player1AvatarUrl;
   final String? player2AvatarUrl;
+
+  /// Elenco inteiro (o atleta, no Individual); vazio quando ninguém resolveu.
+  final List<RankingEntryMember> members;
 
   bool get isTeam =>
       player1Initials != null &&

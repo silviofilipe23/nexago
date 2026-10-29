@@ -13,6 +13,7 @@ class RankingPageAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.onSearchToggle,
     required this.onFilterTap,
     required this.onInfoTap,
+    required this.onShareTap,
     this.filtersActive = false,
   });
 
@@ -21,6 +22,9 @@ class RankingPageAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onSearchToggle;
   final VoidCallback onFilterTap;
   final VoidCallback onInfoTap;
+
+  /// "Compartilhar ranking": a lista na tela, com os filtros dela.
+  final VoidCallback onShareTap;
 
   /// Com os filtros todos dentro da folha, o ícone é o único aviso de que a
   /// lista está recortada. Marcador é o próprio ícone (cheio × contorno), não
@@ -82,6 +86,13 @@ class RankingPageAppBar extends StatelessWidget implements PreferredSizeWidget {
           icon: filtersActive ? Icons.filter_alt_rounded : Icons.tune_rounded,
           onTap: onFilterTap,
         ),
+        if (!searchOpen) ...[
+          SizedBox(width: 10),
+          CompeteHubAppBarIconButton(
+            icon: Icons.ios_share_rounded,
+            onTap: onShareTap,
+          ),
+        ],
         SizedBox(width: 8),
       ],
       bottom: searchOpen ? null : null,

@@ -307,4 +307,79 @@ void main() {
       expect(open.single.subtitle, startsWith('OPEN'));
     });
   });
+
+  group('elenco da linha (arte de compartilhar)', () {
+    final quarteto = RankingTeamPlayers.fromDoc('q1', const {
+      'player1Id': 'a',
+      'player2Id': 'b',
+      'memberUids': ['a', 'b', 'c', 'd'],
+      'teamSize': 4,
+      'teamName': 'Os Brabos',
+    });
+    final users = _FakeUsersRepository({
+      'a': _user(uid: 'a', fullName: 'Ana Souza'),
+      'b': _user(uid: 'b', fullName: 'Bia Lima'),
+      'c': _user(uid: 'c', fullName: 'Cris Melo'),
+      'd': _user(uid: 'd', fullName: 'Duda Reis'),
+    });
+    final repo = _FakeRankingRepository(
+      rows: const [
+        TeamRankingRow(
+          rank: 1,
+          teamId: 'q1',
+          totalPoints: 300,
+          tournamentsCount: 2,
+        ),
+      ],
+      teams: {'q1': quarteto},
+    );
+
+    test('equipe traz todos os integrantes, na ordem do elenco', () async {
+      final entries = await buildTeamRankingListEntries(
+        repo: repo,
+        users: users,
+        filter: const RankingPageFilter(mode: RankingListMode.teams),
+        sportCode: 'VOLEI_PRAIA',
+        currentUid: null,
+      );
+
+      final members = entries.single.members;
+      expect(members.map((m) => m.initials), ['AS', 'BL', 'CM', 'DR']);
+      expect(members.map((m) => m.shortName).every((n) => n.isNotEmpty),
+          isTrue);
+    });
+
+    test('o 3º integrante também se vê na própria equipe', () async {
+      final entries = await buildTeamRankingListEntries(
+        repo: repo,
+        users: users,
+        filter: const RankingPageFilter(mode: RankingListMode.teams),
+        sportCode: 'VOLEI_PRAIA',
+        currentUid: 'c',
+      );
+
+      expect(entries.single.isCurrentUser, isTrue);
+    });
+
+    test('atleta é o único rosto da linha individual', () async {
+      final entries = await buildAthleteRankingListEntries(
+        repo: _FakeRankingRepository(
+          athleteRows: const [
+            AthleteRankingRow(
+              rank: 1,
+              athleteId: 'a',
+              totalPoints: 100,
+              tournamentsCount: 1,
+            ),
+          ],
+        ),
+        users: users,
+        filter: const RankingPageFilter(),
+        sportCode: 'VOLEI_PRAIA',
+        currentUid: null,
+      );
+
+      expect(entries.single.members.single.initials, 'AS');
+    });
+  });
 }

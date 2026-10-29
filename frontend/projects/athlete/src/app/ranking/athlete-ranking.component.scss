@@ -250,6 +250,58 @@ $rk-bronze: #d98a4b;
   }
 }
 
+// ── Aviso do link compartilhado ──────────────────────────────
+.rk-shared {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-orange-tint);
+  border: 1px solid rgba(255, 106, 26, 0.3);
+  color: var(--nx-text-mute);
+  font-size: 13px;
+  line-height: 1.4;
+
+  b {
+    color: var(--nx-text);
+    font-weight: 700;
+  }
+}
+
+.rk-shared-icon {
+  flex: none;
+  color: var(--nx-orange-500);
+}
+
+.rk-shared-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.rk-shared-clear {
+  flex: none;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--nx-r-pill);
+  border: 1px solid var(--nx-line-strong);
+  background: transparent;
+  color: var(--nx-text);
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--nx-text-mute);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+  }
+}
+
 // ── Toolbar ──────────────────────────────────────────────────
 .rk-toolbar {
   display: flex;

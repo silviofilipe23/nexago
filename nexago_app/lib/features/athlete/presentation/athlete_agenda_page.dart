@@ -27,6 +27,7 @@ import 'widgets/agenda/agenda_header.dart';
 import 'widgets/agenda/agenda_month_view.dart';
 import 'widgets/agenda/agenda_tabs.dart';
 import 'widgets/agenda/agenda_timeline_widgets.dart';
+import 'widgets/athlete_home/athlete_account_sheet.dart';
 
 /// Agenda unificada do atleta (aluguéis, torneios, desafios).
 class AthleteAgendaPage extends ConsumerStatefulWidget {
@@ -315,6 +316,7 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
                 NexaPageHeader(
                   topGap: 8,
                   header: AgendaHeader(
+                    leading: const AthleteAccountButton(),
                     eyebrow: headerEyebrow,
                     title: headerTitle,
                     monthModeActive: isMonthMode,

@@ -52,13 +52,11 @@ class NexaBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // No Android a barra fica sempre minimizada (ícones, sem rótulos), em vez
-    // de expandir/recolher com o scroll como no iOS — reduz o peso visual
-    // permanente da barra flutuante.
-    final effectiveCollapseProgress =
-        Theme.of(context).platform == TargetPlatform.android
-            ? 1.0
-            : collapseProgress;
+    // A barra fica sempre expandida, com rótulos, nas duas plataformas.
+    // Minimizada (só ícones — sempre no Android, ao rolar no iOS) os atletas
+    // não sabiam o que cada aba era: ícone sem texto não se explica. O
+    // [collapseProgress] segue chegando das shells, mas não encolhe mais nada.
+    const effectiveCollapseProgress = 0.0;
     return ListenableBuilder(
       listenable: Listenable.merge([
         nexaNativeLiquidGlassEnabled,
@@ -110,7 +108,7 @@ class NexaBottomNavBar extends StatelessWidget {
         selectedItemColor: selectedItemColor,
         labelTextStyle: labelTextStyle ??
             TextStyle(
-              fontSize: uppercaseLabels ? 8 : 9,
+              fontSize: 11,
               fontWeight: FontWeight.w500,
               letterSpacing: uppercaseLabels ? 0.3 : 0,
             ),
@@ -142,20 +140,12 @@ class NexaBottomNavBar extends StatelessWidget {
 
 /// Altura útil da barra (cápsula flutuante + safe area aproximada).
 ///
-/// No Android a barra fica sempre minimizada (ver [NexaBottomNavBar.build]),
-/// então quem reserva folga pra ela embaixo do conteúdo precisa da altura
-/// compacta — do contrário sobra um vão vazio entre o conteúdo (ou um botão
-/// flutuante, como "Salvar palpites") e a cápsula, que agora é bem menor.
+/// A barra fica sempre expandida (ver [NexaBottomNavBar.build]), então a
+/// folga é a mesma nas duas plataformas. O [context] fica na assinatura pra
+/// não mexer nas telas que já o passam.
 double nexaBottomNavBarHeight(
   BuildContext context, {
   double barHeight = 75,
   double bottomMargin = 10,
-}) {
-  final isAndroid = Theme.of(context).platform == TargetPlatform.android;
-  final effectiveBarHeight =
-      isAndroid ? ShellTabBarCollapseController.collapsedHeight : barHeight;
-  final effectiveBottomMargin = isAndroid ? 0.0 : bottomMargin;
-  return effectiveBarHeight +
-      effectiveBottomMargin +
-      NexaBottomNavBar._glassOverflow;
-}
+}) =>
+    barHeight + bottomMargin + NexaBottomNavBar._glassOverflow;

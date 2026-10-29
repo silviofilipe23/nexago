@@ -366,7 +366,7 @@ class _TabRowWithCenterAction extends StatelessWidget {
                                 style: const TextStyle(
                                   color: AppColors.black,
                                   fontWeight: FontWeight.w800,
-                                  fontSize: 8,
+                                  fontSize: 11,
                                 ),
                               ),
                             ],
@@ -448,7 +448,7 @@ class _GlassTabItem extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: uppercaseLabels ? 11 : 8,
+                    fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: uppercaseLabels ? 0.3 : 0,
                     color: color,

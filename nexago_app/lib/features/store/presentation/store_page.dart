@@ -32,6 +32,7 @@ import 'widgets/store_product_card.dart';
 import 'widgets/store_skeleton.dart';
 import 'widgets/store_style.dart';
 import 'widgets/store_variant_sheet.dart';
+import '../../athlete/presentation/widgets/athlete_home/athlete_account_sheet.dart';
 
 /// Loja · Vitrine (tela 01, `/loja`).
 ///
@@ -310,6 +311,9 @@ class _StorePageState extends ConsumerState<StorePage> {
               onBack: widget.tabScrollController != null
                   ? null
                   : () => popOrGo(context, AppRoutes.discover),
+              leading: widget.tabScrollController != null
+                  ? const AthleteAccountButton()
+                  : null,
               onOrders: ref.watch(storeUidProvider).isEmpty
                   ? null
                   : () => context.pushNamed(AppRouteNames.storeOrders),

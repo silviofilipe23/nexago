@@ -17,6 +17,7 @@ import 'widgets/compete_hub/compete_hub_feature_card.dart';
 import 'widgets/compete_hub/compete_hub_menu_card.dart';
 import 'widgets/compete_hub/compete_hub_shell_app_bar.dart';
 import 'widgets/compete_hub/compete_hub_wide_card.dart';
+import '../../athlete/presentation/widgets/athlete_home/athlete_account_sheet.dart';
 
 /// Respiro entre os cards do grid 2x2, nos dois eixos.
 const double _gridGap = AppSpacing.md + 2;
@@ -55,6 +56,7 @@ class TournamentDiscoveryPage extends ConsumerWidget {
             12,
           ),
           header: CompeteHubHeader(
+            leading: const AthleteAccountButton(),
             trailingActions: showArenaPanelShortcut
                 ? [
                     const SizedBox(width: 8),

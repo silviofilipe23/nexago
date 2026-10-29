@@ -12,6 +12,7 @@ import '../../domain/league_ranking_models.dart';
 import '../../domain/league_ranking_providers.dart';
 import '../../domain/tournament_detail_logic.dart';
 import '../../domain/tournament_discovery_models.dart';
+import 'package:nexago_app/core/ui/nexa_skeleton.dart';
 
 class LeagueDetailRankingSection extends ConsumerStatefulWidget {
   const LeagueDetailRankingSection({
@@ -197,11 +198,10 @@ class _LeagueDetailRankingSectionState
           ),
         const SizedBox(height: 14),
         rowsAsync.when(
-          loading: () => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            child: Center(
-              child: CircularProgressIndicator(color: AppColors.brand),
-            ),
+          loading: () => const NexaListSkeleton(
+            count: 5,
+            avatarSize: 32,
+            padding: EdgeInsets.symmetric(vertical: 8),
           ),
           error: (_, __) => Text(
             'Não foi possível carregar o ranking.',

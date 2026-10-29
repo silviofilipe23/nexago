@@ -26,6 +26,7 @@ import 'store_review_copy.dart';
 import 'widgets/store_checkout_parts.dart';
 import 'widgets/store_order_parts.dart';
 import 'widgets/store_style.dart';
+import 'package:nexago_app/core/ui/nexa_skeleton.dart';
 
 /// Loja · Meus pedidos (app 08, `/loja/pedidos`).
 ///
@@ -179,7 +180,7 @@ class _StoreOrdersPageState extends ConsumerState<StoreOrdersPage> {
         onRetry: () => ref.invalidate(storeOrdersProvider),
       );
     } else if (orders == null) {
-      body = const Center(child: CircularProgressIndicator());
+      body = const NexaListSkeleton.cards(cardHeight: 104);
     } else if (orders.isEmpty) {
       body = AppEmptyView(
         icon: Icons.receipt_long_outlined,

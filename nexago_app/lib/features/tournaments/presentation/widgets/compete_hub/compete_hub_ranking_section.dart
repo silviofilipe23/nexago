@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../ranking/domain/ranking_providers.dart';
 import 'compete_hub_ranking_row.dart';
 import 'compete_hub_section_header.dart';
+import 'package:nexago_app/core/ui/nexa_skeleton.dart';
 
 class CompeteHubRankingSection extends ConsumerWidget {
   const CompeteHubRankingSection({super.key});
@@ -64,10 +64,12 @@ class _RankingLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return const SizedBox(
       height: 180,
-      child: Center(
-        child: CircularProgressIndicator(color: AppColors.brand),
+      child: NexaListSkeleton(
+        count: 3,
+        avatarSize: 36,
+        padding: EdgeInsets.symmetric(vertical: 8),
       ),
     );
   }

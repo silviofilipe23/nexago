@@ -16,6 +16,7 @@ import '../domain/athlete_profile_providers.dart';
 import '../domain/arena_reputation.dart';
 import '../domain/arena_review.dart';
 import '../domain/arena_review_providers.dart';
+import 'package:nexago_app/core/ui/nexa_skeleton.dart';
 
 enum _ReviewSortMode { recent, useful }
 
@@ -947,7 +948,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
         ],
       ),
       body: _loadingInitial
-          ? Center(child: CircularProgressIndicator())
+          ? const NexaListSkeleton(count: 5, lines: 3)
           : _errorMessage != null && _reviews.isEmpty
           ? Center(
               child: Padding(

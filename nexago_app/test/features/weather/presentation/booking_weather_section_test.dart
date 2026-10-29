@@ -37,10 +37,13 @@ final pendingRelease = <String, dynamic>{
   'canReschedule': true,
   'rescheduleUntil': '2026-11-28',
   'decisionDeadline': DateTime(2026, 10, 30, 17, 30),
+  // O servidor grava de 2h antes do início a 2h depois do fim.
   'forecast': [
+    {'time': '16:00', 'probability': 40, 'precipitationMm': 0.5},
     {'time': '17:00', 'probability': 85, 'precipitationMm': 1.2},
     {'time': '18:00', 'probability': 92, 'precipitationMm': 5.4},
     {'time': '19:00', 'probability': 88, 'precipitationMm': 3.1},
+    {'time': '20:00', 'probability': 96, 'precipitationMm': 7.8},
   ],
 };
 
@@ -53,8 +56,9 @@ Future<FakeWeatherFunctions> pumpSection(
   ThemeData? theme,
   String? arenaPhone,
   List<String>? openedUrls,
+  Size surface = const Size(900, 2400),
 }) async {
-  tester.view.physicalSize = const Size(900, 2400);
+  tester.view.physicalSize = surface;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
 
@@ -130,9 +134,19 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text('85%'), findsOneWidget);
+      // 2h antes e 2h depois do jogo; o título fica na hora do jogo.
+      for (final label in ['16h', '17h', '18h', '19h', '20h']) {
+        expect(
+          find.descendant(
+            of: find.byKey(WeatherForecastStrip.stripKey),
+            matching: find.text(label),
+          ),
+          findsOneWidget,
+          reason: label,
+        );
+      }
       expect(find.text('92%'), findsOneWidget);
-      expect(find.text('19h'), findsOneWidget);
+      expect(find.text('96%'), findsOneWidget);
       expect(
         find.text(
           'Você tem até amanhã às 17:30 para escolher. Depois disso, vira crédito automaticamente.',
@@ -162,6 +176,32 @@ void main() {
       await tester.tap(find.byKey(BookingWeatherBottomBar.chooseKey));
       await tester.pump();
       expect(opened, 1);
+    });
+
+    testWidgets('jogo de 3h no celular estreito: 7 horas sem estourar',
+        (tester) async {
+      await pumpSection(
+        tester,
+        surface: const Size(320, 2400),
+        data: {
+          ...booking(release: {
+            ...pendingRelease,
+            'forecast': [
+              for (var h = 16; h <= 22; h++)
+                {'time': '$h:00', 'probability': 100, 'precipitationMm': 9.9},
+            ],
+          }),
+          'endTime': '21:00',
+        },
+      );
+      expect(tester.takeException(), isNull);
+      expect(
+        find.descendant(
+          of: find.byKey(WeatherForecastStrip.stripKey),
+          matching: find.text('100%'),
+        ),
+        findsNWidgets(7),
+      );
     });
 
     testWidgets('tema claro também renderiza (cores do tema)', (tester) async {
@@ -271,10 +311,25 @@ void main() {
             precipitationMm: 5.4,
             fetchedAt: DateTime(2026, 10, 29, 18),
           ),
+          forecast: const [
+            WeatherHour(time: '16:00', probability: 30),
+            WeatherHour(time: '17:00', probability: 60),
+            WeatherHour(time: '18:00', probability: 90),
+            WeatherHour(time: '19:00', probability: 70),
+            WeatherHour(time: '20:00', probability: 20),
+          ],
         ),
       );
 
       expect(find.byKey(WeatherRequestPendingCard.cardKey), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(WeatherRequestPendingCard.cardKey),
+          matching: find.byKey(WeatherForecastStrip.stripKey),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('20h'), findsOneWidget);
       expect(find.text('PEDIDO EM ANÁLISE'), findsOneWidget);
       expect(find.text('Pedido enviado'), findsOneWidget);
       expect(find.text('17:52'), findsOneWidget);

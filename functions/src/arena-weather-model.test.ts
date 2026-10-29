@@ -15,6 +15,8 @@ import {
   spWallTimeToEpochMs,
   summarizeWeather,
   weatherCreditToApply,
+  weatherDisplayDayOffsets,
+  weatherDisplayHours,
   weatherHoursInWindow,
   weatherMeetsAutoThreshold,
   weatherRequestWindow,
@@ -244,6 +246,38 @@ describe("previsão", () => {
     assert.equal(weatherMeetsAutoThreshold(s), true);
     assert.equal(weatherMeetsAutoThreshold({probability: 90, precipitationMm: 1.5}), false);
     assert.equal(weatherMeetsAutoThreshold({probability: null, precipitationMm: null}), false);
+  });
+
+  const day = (from: number, to: number) => Array.from({length: to - from + 1}, (_, i) => ({
+    time: `${String(from + i).padStart(2, "0")}:00`, probability: 50, precipitationMm: 1,
+  }));
+
+  it("atleta vê de 2h antes do início a 2h depois do fim", () => {
+    const days = [{offset: 0, hours: day(0, 23)}];
+    assert.deepEqual(weatherDisplayHours(days, {start: 18 * 60, end: 19 * 60}).map((h) => h.time),
+      ["16:00", "17:00", "18:00", "19:00", "20:00"]);
+    // 18:30–20:00: começa a contar da hora que cruza 16:30 e vai até a que cruza 21:59.
+    assert.deepEqual(weatherDisplayHours(days, {start: 18 * 60 + 30, end: 20 * 60}).map((h) => h.time),
+      ["16:00", "17:00", "18:00", "19:00", "20:00", "21:00"]);
+  });
+
+  it("janela que passa da meia-noite junta a véspera ou o dia seguinte, em ordem", () => {
+    assert.deepEqual(weatherDisplayDayOffsets({start: 18 * 60, end: 19 * 60}), [0]);
+    assert.deepEqual(weatherDisplayDayOffsets({start: 22 * 60, end: 24 * 60}), [0, 1]);
+    assert.deepEqual(weatherDisplayDayOffsets({start: 60, end: 120}), [-1, 0]);
+    const late = weatherDisplayHours(
+      [{offset: 1, hours: day(0, 23)}, {offset: 0, hours: day(0, 23)}],
+      {start: 22 * 60, end: 24 * 60},
+    );
+    assert.deepEqual(late.map((h) => h.time), ["20:00", "21:00", "22:00", "23:00", "00:00", "01:00"]);
+    const early = weatherDisplayHours(
+      [{offset: 0, hours: day(0, 23)}, {offset: -1, hours: day(0, 23)}],
+      {start: 60, end: 120},
+    );
+    assert.deepEqual(early.map((h) => h.time), ["23:00", "00:00", "01:00", "02:00", "03:00"]);
+    // Sem o dia vizinho, fica o que o dia da reserva tem.
+    assert.deepEqual(weatherDisplayHours([{offset: 0, hours: day(0, 23)}], {start: 23 * 60, end: 24 * 60})
+      .map((h) => h.time), ["21:00", "22:00", "23:00"]);
   });
 
   it("WeatherAPI: lê as horas do dia, volume com uma casa e a condição", () => {

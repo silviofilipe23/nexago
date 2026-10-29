@@ -438,6 +438,39 @@ export function weatherHoursInWindow(hours: WeatherHour[], start: number, end: n
   });
 }
 
+/** A previsão mostrada ao atleta vai de 2h antes do início a 2h depois do fim do jogo. */
+export const WEATHER_FORECAST_MARGIN_MIN = 120;
+
+/** Previsão de um dia, deslocado em dias do dia da reserva (−1 véspera, 0 o dia, +1 o seguinte). */
+export interface WeatherForecastDay {
+  offset: number;
+  hours: WeatherHour[];
+}
+
+/** Dias que a janela exibida alcança: jogo das 23h vai até 1h do dia seguinte. */
+export function weatherDisplayDayOffsets(win: {start: number; end: number}): number[] {
+  const offsets = [0];
+  if (win.start - WEATHER_FORECAST_MARGIN_MIN < 0) offsets.unshift(-1);
+  if (win.end + WEATHER_FORECAST_MARGIN_MIN > 24 * 60) offsets.push(1);
+  return offsets;
+}
+
+/** Horas de 2h antes do início a 2h depois do fim, em ordem, atravessando a meia-noite. */
+export function weatherDisplayHours(days: WeatherForecastDay[], win: {start: number; end: number}): WeatherHour[] {
+  const start = win.start - WEATHER_FORECAST_MARGIN_MIN;
+  const end = win.end + WEATHER_FORECAST_MARGIN_MIN;
+  const timed: {at: number; hour: WeatherHour}[] = [];
+  for (const day of days) {
+    for (const hour of day.hours) {
+      const m = hmToMinutes(hour.time);
+      if (m == null) continue;
+      const at = m + day.offset * 24 * 60;
+      if (at < end && at + 60 > start) timed.push({at, hour});
+    }
+  }
+  return timed.sort((a, b) => a.at - b.at).map((t) => t.hour);
+}
+
 /** Pior hora da janela: maior chance e maior volume. */
 export function summarizeWeather(hours: WeatherHour[]): {probability: number | null; precipitationMm: number | null} {
   let probability: number | null = null;

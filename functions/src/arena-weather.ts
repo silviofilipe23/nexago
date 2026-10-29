@@ -29,7 +29,7 @@ import {
   WEB_PUSH_PUBLIC_KEY,
   WEB_PUSH_SUBJECT,
 } from "./notification-delivery";
-import {fetchArenaWeather, WEATHER_API_KEY} from "./arena-weather-forecast";
+import {fetchArenaWeather, weatherDaysAround, WEATHER_API_KEY} from "./arena-weather-forecast";
 import {
   ARENA_WEATHER_CREDITS,
   weatherCreditDoc,
@@ -51,6 +51,7 @@ import {
   spWallTimeToEpochMs,
   summarizeWeather,
   weatherCreditExpiresAtMs,
+  weatherDisplayHours,
   weatherHoursInWindow,
   weatherMeetsAutoThreshold,
   weatherRequestWindow,
@@ -320,7 +321,8 @@ interface ReleaseContext {
   source: "rain_mode" | "request" | "auto";
   eventId: string | null;
   policy: WeatherPolicy;
-  forecast: WeatherHour[] | null;
+  /** Horas gravadas em `weatherRelease.forecast`: de 2h antes do início a 2h depois do fim. */
+  forecastFor: (win: {start: number; end: number}) => WeatherHour[];
   message: string | null;
   nowMs: number;
 }
@@ -334,7 +336,7 @@ function releaseMap(
 ): DocumentData {
   const dateKey = parseDateKeyFromBooking(booking["date"]) ?? "";
   const win = bookingWindow(booking["startTime"], booking["endTime"]);
-  const forecast = ctx.forecast && win ? weatherHoursInWindow(ctx.forecast, win.start - 60, win.end) : [];
+  const forecast = win ? ctx.forecastFor(win) : [];
   return {
     source: ctx.source,
     eventId: ctx.eventId,
@@ -659,12 +661,20 @@ export const activateArenaRainMode = onCall({
     null;
   if (block) await placeWeatherBlocks(db, block, nowMs);
 
-  const ctx: ReleaseContext = {source: "rain_mode", eventId: eventRef.id, policy: arena.policy, forecast, message,
-    nowMs};
+  // Lidas depois do bloqueio, para não escapar reserva feita no meio da ativação.
+  const affected = await affectedBookings(db, arenaId, date, period, courtIds, arena.policy);
+  // Jogo das 23h mostra até 1h do dia seguinte: busca o vizinho uma vez para todas as reservas.
+  const span = affected.reduce((acc, {data}) => {
+    const w = bookingWindow(data["startTime"], data["endTime"]);
+    return w ? {start: Math.min(acc.start, w.start), end: Math.max(acc.end, w.end)} : acc;
+  }, period);
+  const forecastDays = weather ? await weatherDaysAround(arena.data, date, span, weather.hours) : [];
+  const ctx: ReleaseContext = {source: "rain_mode", eventId: eventRef.id, policy: arena.policy,
+    forecastFor: (win) => weatherDisplayHours(forecastDays, win), message, nowMs};
   const counts = {release: 0, partial: 0, cancel: 0, manual: 0};
   const bookingIds: string[] = [];
   const notifications: Promise<void>[] = [];
-  for (const {id, cls} of await affectedBookings(db, arenaId, date, period, courtIds, arena.policy)) {
+  for (const {id, cls} of affected) {
     try {
       if (cls.treatment === "manual") {
         counts.manual++;
@@ -1050,7 +1060,8 @@ async function approveWeatherRequest(
     source: opts.auto ? "auto" : "request",
     eventId: null,
     policy: arena.policy,
-    forecast: Array.isArray(req["forecast"]) ? req["forecast"] as WeatherHour[] : null,
+    // O pedido já gravou as horas de 2h antes a 2h depois.
+    forecastFor: () => Array.isArray(req["forecast"]) ? req["forecast"] as WeatherHour[] : [],
     message: null,
     nowMs: opts.nowMs,
   };
@@ -1137,7 +1148,11 @@ export const requestArenaWeatherRelease = onCall({
   const fetched = await fetchArenaWeather(arena.data, dateKey, {nowMs});
   const hours = fetched?.hours ?? null;
   const inWindow = hours ? weatherHoursInWindow(hours, win.start, win.end) : [];
+  // A aprovação automática olha só as horas do jogo; o atleta vê de 2h antes a 2h depois.
   const summary = summarizeWeather(inWindow);
+  const forecast = hours ?
+    weatherDisplayHours(await weatherDaysAround(arena.data, dateKey, win, hours, {nowMs}), win) :
+    [];
   const weather = fetched ? {...summary, source: fetched.source, fetchedAt: Timestamp.fromMillis(nowMs)} : null;
   const fraction = window.afterStart ? remainingFraction(win, spNow(new Date(nowMs)).minutes) : 1;
   const athleteName = (await athleteNames(db, [uid])).get(uid) ?? "Atleta";
@@ -1157,7 +1172,7 @@ export const requestArenaWeatherRelease = onCall({
     note: optionalText(data.note, 280),
     status: "pending",
     weather,
-    forecast: inWindow,
+    forecast,
     autoApproved: false,
     createdAt: FieldValue.serverTimestamp(),
   });

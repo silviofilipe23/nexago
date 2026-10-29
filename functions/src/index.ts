@@ -996,3 +996,17 @@ export {respondBookingResult, saveBookingResult, sweepBookingResults} from "./bo
 // Prévia de link (OG/Twitter Card) das rotas dinâmicas do site público — a SPA Angular não
 // tem SSR, então bots de rede social são redirecionados aqui pelo .htaccess (por User-Agent).
 export {siteOgPreview} from "./site-og-preview";
+
+// Cancelamento por chuva: política, Modo chuva, pedidos do atleta, escolha (remarcar/crédito) e varredura.
+export {
+  activateArenaRainMode,
+  chooseArenaWeatherOption,
+  decideArenaWeatherRequest,
+  endArenaRainMode,
+  getArenaWeatherForecast,
+  previewArenaRainMode,
+  requestArenaWeatherRelease,
+  saveArenaWeatherPolicy,
+  sweepArenaWeatherCredits,
+  withdrawArenaWeatherRequest,
+} from "./arena-weather";

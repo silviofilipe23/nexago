@@ -36,7 +36,10 @@ class _MyBookingsBookingCardState extends ConsumerState<MyBookingsBookingCard> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final status = myBookingStatusUi(widget.item.rawStatus);
+    final status = myBookingStatusUi(
+      widget.item.rawStatus,
+      cancelReason: widget.item.cancelReason,
+    );
     final court = widget.item.courtName?.trim();
     final bookingSport = courtSportLabel(widget.item.sport);
     final sport = bookingSport.isNotEmpty ? bookingSport : widget.sportLabel;

@@ -17,7 +17,7 @@ class MyBookingStatusUi {
   final Color backgroundColor;
 }
 
-MyBookingStatusUi myBookingStatusUi(String raw) {
+MyBookingStatusUi myBookingStatusUi(String raw, {String? cancelReason}) {
   final s = raw.trim().toLowerCase();
   switch (s) {
     case 'active':
@@ -30,7 +30,7 @@ MyBookingStatusUi myBookingStatusUi(String raw) {
     case 'canceled':
     case 'cancelled':
       return MyBookingStatusUi(
-        label: 'CANCELADA',
+        label: cancelReason == 'weather' ? 'CANCELADA POR CHUVA' : 'CANCELADA',
         dotColor: AppColors.live,
         textColor: AppColors.live,
         backgroundColor: AppColors.live.withValues(alpha: 0.12),

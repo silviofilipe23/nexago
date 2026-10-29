@@ -56,6 +56,33 @@ export const routes: Routes = [
       import('./painel/agenda/panel-agenda.component').then((m) => m.PanelAgendaComponent),
   },
   {
+    path: 'painel/agenda/chuva',
+    title: 'Modo chuva — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/weather/panel-weather-rain-mode.component').then(
+        (m) => m.PanelWeatherRainModeComponent,
+      ),
+  },
+  {
+    path: 'painel/agenda/chuva/politica',
+    title: 'Política de clima — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/weather/panel-weather-policy.component').then(
+        (m) => m.PanelWeatherPolicyComponent,
+      ),
+  },
+  {
+    path: 'painel/agenda/chuva/solicitacoes',
+    title: 'Solicitações de clima — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/weather/panel-weather-requests.component').then(
+        (m) => m.PanelWeatherRequestsComponent,
+      ),
+  },
+  {
     path: 'painel/reservas',
     title: 'Reservas — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
@@ -276,6 +303,15 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/finance/panel-fiscal-invoices.component').then(
         (m) => m.PanelFiscalInvoicesComponent,
+      ),
+  },
+  {
+    path: 'painel/financeiro/creditos-clima',
+    title: 'Créditos de clima — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('financeiro')],
+    loadComponent: () =>
+      import('./painel/weather/panel-weather-credits.component').then(
+        (m) => m.PanelWeatherCreditsComponent,
       ),
   },
   {

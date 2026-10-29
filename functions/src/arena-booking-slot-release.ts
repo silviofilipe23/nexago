@@ -29,6 +29,7 @@ import {
   parseDateKeyFromBooking,
 } from "./slot-vacancy-alerts";
 import {computeSlotLockIds} from "./arena-booking-waitlist";
+import {restoreWeatherCreditOnCancel} from "./arena-weather-credits";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -246,6 +247,11 @@ export const onArenaBookingStatusChangedSyncSlotHold = onDocumentUpdated(
         `slotHold: booking ${bookingId} cancelado — ` +
         `${result.deletedLocks} lock(s) e ${result.deletedSlots} slot(s) liberados`,
       );
+      // Paga com crédito de chuva e cancelada antes do jogo: o crédito volta.
+      const restored = await restoreWeatherCreditOnCancel(getFirestore(), bookingId, before, after, Date.now());
+      if (restored > 0) {
+        logger.info(`slotHold: booking ${bookingId} devolveu R$ ${restored} de crédito de chuva`);
+      }
       return;
     }
 

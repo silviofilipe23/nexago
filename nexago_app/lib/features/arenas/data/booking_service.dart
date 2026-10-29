@@ -144,10 +144,16 @@ class BookingService {
   /// [asProfessor] pede o preço "como professor": o servidor aplica o desconto
   /// do vínculo (`courtDiscountPercent`) quando ele vence promoção/cupom; sem
   /// vínculo válido volta o preço de atleta, sem erro.
+  ///
+  /// [useWeatherCredit] pede o crédito de chuva aplicado na cotação; vai com o
+  /// [paymentMode] (`onsite`/`pix`) porque no Pix o servidor deixa um mínimo
+  /// para cobrar. Sem ele o payload segue igual ao de antes.
   Future<ArenaBookingQuote> quoteBooking({
     required ArenaBookingConfirmArgs args,
     String? couponCode,
     bool asProfessor = false,
+    bool useWeatherCredit = false,
+    String paymentMode = 'onsite',
   }) async {
     if (!args.isValid) {
       throw BookingException(
@@ -156,6 +162,11 @@ class BookingService {
     try {
       final payload = _bookingCallablePayload(args, couponCode: couponCode);
       if (asProfessor) payload['asProfessor'] = true;
+      if (useWeatherCredit) {
+        payload['useWeatherCredit'] = true;
+        payload['paymentMode'] = paymentMode;
+        if (paymentMode == 'pix') payload['paymentFraction'] = 1.0;
+      }
       final result =
           await _functions.httpsCallable('quoteArenaBooking').call(payload);
       return _parseQuoteResponse(result.data);
@@ -213,7 +224,21 @@ class BookingService {
           (map['professorDiscountPercent'] as num?)?.round() ?? 0,
       professorDiscountReais:
           (map['professorDiscountReais'] as num?)?.toDouble() ?? 0,
+      weatherCreditAvailableReais:
+          _nonNegative(map['weatherCreditAvailableReais']),
+      weatherCreditNextExpiresAt: map['weatherCreditNextExpiresAt'] is String
+          ? DateTime.tryParse(map['weatherCreditNextExpiresAt'] as String)
+              ?.toLocal()
+          : null,
+      weatherCreditAppliedReais: _nonNegative(map['weatherCreditAppliedReais']),
+      amountAfterCreditReais:
+          (map['amountAfterCreditReais'] as num?)?.toDouble(),
     );
+  }
+
+  static double _nonNegative(Object? raw) {
+    final v = raw is num ? raw.toDouble() : 0.0;
+    return v.isFinite && v > 0 ? v : 0;
   }
 
   /// Reserva via callable `createArenaBooking` (preço validado no servidor).
@@ -229,6 +254,10 @@ class BookingService {
     /// Aula para um aluno da carteira (professor independente). Só vai junto
     /// com [asProfessor]; o servidor confere vínculo e aluno ativo.
     String? professorStudentId,
+
+    /// Desconta o crédito de chuva do atleta nesta arena. Coberta por inteiro,
+    /// a resposta vem com `paymentMode: 'weather_credit'` e a reserva já paga.
+    bool useWeatherCredit = false,
   }) async {
     if (athleteId.isEmpty) {
       throw BookingException('Faça login para confirmar a reserva.');
@@ -261,6 +290,7 @@ class BookingService {
         final studentId = professorStudentId?.trim() ?? '';
         if (studentId.isNotEmpty) payload['professorStudentId'] = studentId;
       }
+      if (useWeatherCredit) payload['useWeatherCredit'] = true;
 
       final result =
           await _functions.httpsCallable('createArenaBooking').call(payload);
@@ -274,7 +304,11 @@ class BookingService {
         throw BookingException('Resposta inválida do servidor.');
       }
 
-      if (paymentMode == 'onsite') {
+      final resultMode = (data['paymentMode'] as String?) ?? paymentMode;
+      // Coberta pelo crédito de chuva: já nasce paga, sem webhook do Pix para
+      // avisar o gestor — avisa como a reserva no local.
+      if (paymentMode == 'onsite' ||
+          resultMode == CreateBookingResult.weatherCreditMode) {
         await _notifyArenaBookingCreatedSafe(bookingId);
       }
 
@@ -285,7 +319,7 @@ class BookingService {
             (data['amountToPayNowReais'] as num?)?.toDouble() ?? 0,
         amountDueOnsiteReais:
             (data['amountDueOnsiteReais'] as num?)?.toDouble() ?? amount,
-        paymentMode: (data['paymentMode'] as String?) ?? paymentMode,
+        paymentMode: resultMode,
         paymentFraction:
             (data['paymentFraction'] as num?)?.toDouble() ?? paymentFraction,
         paymentExpiresAt: data['paymentExpiresAt'] as String?,
@@ -297,6 +331,8 @@ class BookingService {
             (data['professorDiscountPercent'] as num?)?.round() ?? 0,
         professorDiscountReais:
             (data['professorDiscountReais'] as num?)?.toDouble() ?? 0,
+        weatherCreditAppliedReais:
+            _nonNegative(data['weatherCreditAppliedReais']),
       );
     } on FirebaseFunctionsException catch (e) {
       throw BookingException(_mapFunctionsMessage(e), code: _functionsCode(e));
@@ -363,6 +399,7 @@ class BookingService {
         paymentFraction:
             (data['paymentFraction'] as num?)?.toDouble() ?? 1.0,
         paymentExpiresAt: PendingPixBookingMatch.paymentExpiresAtIso(data),
+        weatherCreditAppliedReais: _nonNegative(data['weatherCreditReais']),
       );
     }
 
@@ -814,7 +851,11 @@ class CreateBookingResult {
     this.couponDiscountReais = 0,
     this.professorDiscountPercent = 0,
     this.professorDiscountReais = 0,
+    this.weatherCreditAppliedReais = 0,
   });
+
+  /// `paymentMode` da resposta quando o crédito de chuva cobriu tudo.
+  static const String weatherCreditMode = 'weather_credit';
 
   final String bookingId;
   final double amountReais;
@@ -831,7 +872,13 @@ class CreateBookingResult {
   final int professorDiscountPercent;
   final double professorDiscountReais;
 
+  /// Crédito de chuva aplicado na reserva (0 sem crédito).
+  final double weatherCreditAppliedReais;
+
   bool get isPix => paymentMode == 'pix';
+
+  /// O crédito de chuva cobriu tudo: reserva já ativa e paga, sem Pix.
+  bool get isCoveredByWeatherCredit => paymentMode == weatherCreditMode;
 }
 
 class BookingException implements Exception {

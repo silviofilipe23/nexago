@@ -25,6 +25,10 @@ class ArenaBookingQuote {
     this.couponDiscountReais = 0,
     this.professorDiscountPercent = 0,
     this.professorDiscountReais = 0,
+    this.weatherCreditAvailableReais = 0,
+    this.weatherCreditNextExpiresAt,
+    this.weatherCreditAppliedReais = 0,
+    this.amountAfterCreditReais,
   });
 
   final double amountReais;
@@ -42,6 +46,29 @@ class ArenaBookingQuote {
   /// soma com promoção nem cupom: incide sobre o preço cheio.
   final int professorDiscountPercent;
   final double professorDiscountReais;
+
+  /// Saldo de crédito de chuva do atleta nesta arena (0 sem crédito ou com
+  /// servidor antigo, que não devolve o campo).
+  final double weatherCreditAvailableReais;
+
+  /// Vencimento mais próximo do saldo (`null` = sem validade).
+  final DateTime? weatherCreditNextExpiresAt;
+
+  /// Quanto do crédito entra nesta reserva (cotação com `useWeatherCredit`).
+  final double weatherCreditAppliedReais;
+
+  /// Total depois do crédito; `null` quando o servidor não devolve.
+  final double? amountAfterCreditReais;
+
+  bool get hasWeatherCredit => weatherCreditAvailableReais > 0;
+
+  /// O que sobra para pagar depois do crédito aplicado.
+  double get amountDueAfterWeatherCreditReais {
+    final after = amountAfterCreditReais;
+    if (after != null) return after < 0 ? 0 : after;
+    final net = ((amountReais - weatherCreditAppliedReais) * 100).round() / 100;
+    return net < 0 ? 0 : net;
+  }
 
   bool get hasProfessorDiscount =>
       professorDiscountPercent > 0 && professorDiscountReais > 0;

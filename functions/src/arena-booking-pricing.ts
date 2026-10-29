@@ -33,23 +33,59 @@ export type ArenaBookingChargeAmounts = {
   source: "server" | "booking_doc";
 };
 
+export type ArenaBookingServerPricing = {
+  /** Preço do horário (promoções + cupom). */
+  amountReais: number;
+  /** Parte paga com crédito de chuva — sai do que se cobra em dinheiro. */
+  weatherCreditReais: number;
+};
+
+/** Doc de preço gravado na criação, ou `null` se a reserva não tem (legada) ou o valor é inválido. */
+export async function readArenaBookingServerPricing(
+  db: Firestore,
+  bookingId: string,
+): Promise<ArenaBookingServerPricing | null> {
+  const snap = await db.collection(ARENA_BOOKING_PRICING).doc(bookingId).get();
+  if (!snap.exists) return null;
+  const amount = Number(snap.data()?.amountReais);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  const credit = Number(snap.data()?.weatherCreditReais);
+  return {
+    amountReais: amount,
+    weatherCreditReais: Number.isFinite(credit) && credit > 0 ? Math.min(credit, amount) : 0,
+  };
+}
+
 /** Total gravado na criação, ou `null` se a reserva não tem (legada) ou o valor é inválido. */
 export async function readArenaBookingServerAmountReais(
   db: Firestore,
   bookingId: string,
 ): Promise<number | null> {
-  const snap = await db.collection(ARENA_BOOKING_PRICING).doc(bookingId).get();
-  if (!snap.exists) return null;
-  const amount = Number(snap.data()?.amountReais);
-  return Number.isFinite(amount) && amount > 0 ? amount : null;
+  return (await readArenaBookingServerPricing(db, bookingId))?.amountReais ?? null;
+}
+
+/**
+ * O que ainda se cobra em dinheiro: total do servidor menos o crédito de
+ * chuva usado na criação. Reserva legada cai no `amountReais` do doc.
+ */
+export async function readArenaBookingChargeTotalReais(
+  db: Firestore,
+  bookingId: string,
+  booking: DocumentData,
+): Promise<number> {
+  const pricing = await readArenaBookingServerPricing(db, bookingId);
+  if (!pricing) return Number(booking.amountReais) || 0;
+  return roundMoney(pricing.amountReais - pricing.weatherCreditReais);
 }
 
 /**
  * Total do servidor × fração — a pedida agora, senão a gravada na reserva,
  * senão integral. Fração fora de {0.5, 1} é ignorada, venha de onde vier.
+ * O crédito de chuva (só do servidor) sai do total, e o resto vai integral.
  */
 export function resolveArenaBookingChargeAmounts(params: {
   serverAmountReais: number | null;
+  serverWeatherCreditReais?: number;
   booking: DocumentData;
   requestedFraction?: unknown;
 }): ArenaBookingChargeAmounts {
@@ -57,16 +93,20 @@ export function resolveArenaBookingChargeAmounts(params: {
   const amountReais = roundMoney(
     fromServer ? params.serverAmountReais as number : Number(params.booking.amountReais),
   );
-  const paymentFraction =
+  const credit = fromServer ? Math.min(amountReais, Math.max(0, params.serverWeatherCreditReais ?? 0)) : 0;
+  const chargeBase = roundMoney(amountReais - credit);
+  // Com crédito o resto vai integral: metade de um resto pequeno cairia abaixo
+  // do mínimo do Pix.
+  const paymentFraction = credit > 0 ? 1 :
     normalizeArenaBookingPaymentFraction(params.requestedFraction) ??
     normalizeArenaBookingPaymentFraction(params.booking.paymentFraction) ??
     1;
-  const amountToPayNowReais = roundMoney(amountReais * paymentFraction);
+  const amountToPayNowReais = roundMoney(chargeBase * paymentFraction);
   return {
     amountReais,
     paymentFraction,
     amountToPayNowReais,
-    amountDueOnsiteReais: roundMoney(amountReais - amountToPayNowReais),
+    amountDueOnsiteReais: roundMoney(chargeBase - amountToPayNowReais),
     source: fromServer ? "server" : "booking_doc",
   };
 }
@@ -99,8 +139,13 @@ export async function resolveAndSyncArenaBookingChargeAmounts(
   booking: DocumentData,
   requestedFraction?: unknown,
 ): Promise<ArenaBookingChargeAmounts> {
-  const serverAmountReais = await readArenaBookingServerAmountReais(db, bookingId);
-  const amounts = resolveArenaBookingChargeAmounts({serverAmountReais, booking, requestedFraction});
+  const pricing = await readArenaBookingServerPricing(db, bookingId);
+  const amounts = resolveArenaBookingChargeAmounts({
+    serverAmountReais: pricing?.amountReais ?? null,
+    serverWeatherCreditReais: pricing?.weatherCreditReais,
+    booking,
+    requestedFraction,
+  });
   if (amounts.source === "booking_doc") {
     logger.warn(`arenaBookingPricing ausente em ${bookingId}: cobrando pelo doc (reserva legada)`);
   }

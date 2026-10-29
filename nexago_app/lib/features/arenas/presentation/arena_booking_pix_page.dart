@@ -150,6 +150,7 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
     if (_paymentFraction != 0.5 && _paymentFraction != 1.0) {
       _paymentFraction = 1.0;
     }
+    if (widget.args.weatherCreditAppliedReais > 0) _paymentFraction = 1.0;
     _cpfController.addListener(_onCpfTextChanged);
     _squadCodeController.addListener(_onCpfTextChanged);
     final initialExpiry = widget.args.paymentExpiresAt;
@@ -500,6 +501,18 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
       });
     });
 
+    // Crédito de chuva (na criação ou no doc, ao retomar): o servidor cobra o
+    // resto integral e ignora o pedido de 50% — a tela nem oferece o sinal.
+    final docCredit = ref
+        .watch(arenaBookingDocProvider(widget.args.bookingId))
+        .valueOrNull
+        ?.data()?['weatherCreditReais'];
+    final weatherCreditReais = widget.args.weatherCreditAppliedReais > 0
+        ? widget.args.weatherCreditAppliedReais
+        : (docCredit is num && docCredit > 0 ? docCredit.toDouble() : 0.0);
+    final allowDeposit = weatherCreditReais <= 0;
+    if (!allowDeposit) _paymentFraction = 1.0;
+
     final expiresAt = _pix?.expiresAt ?? _card?.expiresAt ?? widget.args.paymentExpiresAt;
     final liveMethod = _liveMethod;
     final showCharge = liveMethod != null && !_loadingCharge;
@@ -541,8 +554,11 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
                             totalReais: _totalReais,
                             selectedFraction: _paymentFraction,
                             enabled: !_loadingCharge,
+                            allowDeposit: allowDeposit,
+                            weatherCreditReais: weatherCreditReais,
                             onFractionChanged: (f) {
                               if (_liveMethod != null) return;
+                              if (!allowDeposit && f != 1.0) return;
                               setState(() => _paymentFraction = f);
                             },
                           ),

@@ -32,6 +32,8 @@ class MyBookingItem {
     this.recurringBookingId,
     this.couponCode,
     this.couponDiscountReais,
+    this.cancelReason,
+    this.weatherChoicePending = false,
   });
 
   final String id;
@@ -73,6 +75,13 @@ class MyBookingItem {
 
   /// Valor em reais descontado pelo cupom — `null` junto com [couponCode].
   final double? couponDiscountReais;
+
+  /// Motivo do cancelamento (`weather` = cancelada por chuva); `null` sem motivo.
+  final String? cancelReason;
+
+  /// Liberada por chuva, esperando o atleta remarcar ou guardar o crédito
+  /// (`weatherRelease.status == 'pending_choice'`).
+  final bool weatherChoicePending;
 
   /// Ocorrência de horário fixo (mensalista) — criada pela arena; o
   /// cancelamento é acertado direto com a arena.
@@ -171,8 +180,13 @@ class MyBookingItem {
       recurringBookingId: _pickString(data['recurringBookingId']),
       couponCode: couponCode,
       couponDiscountReais: couponDiscountReais,
+      cancelReason: _pickString(data['cancelReason']),
+      weatherChoicePending: _weatherChoicePending(data['weatherRelease']),
     );
   }
+
+  static bool _weatherChoicePending(Object? release) =>
+      release is Map && release['status'] == 'pending_choice';
 
   /// Extrai convidados/parceiros confirmados de campos conhecidos em `arenaBookings`.
   static List<MyBookingConfirmedAthlete> parseConfirmedAthletesFromBooking(

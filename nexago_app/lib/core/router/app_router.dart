@@ -171,6 +171,8 @@ import '../../features/app_news/presentation/app_news_detail_page.dart';
 import '../../features/app_news/presentation/app_news_page.dart';
 import '../../features/app_news/presentation/app_news_stories_page.dart';
 import '../../features/cashback/presentation/cashback_page.dart';
+import '../../features/weather/presentation/booking_weather_choice_page.dart';
+import '../../features/weather/presentation/weather_credits_page.dart';
 import '../../features/squad/presentation/squad_benefits_page.dart';
 import '../../features/squad/presentation/squad_earnings_page.dart';
 import '../../features/squad/presentation/squad_invite_page.dart';
@@ -1642,6 +1644,18 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.athleteCashback,
         name: AppRouteNames.athleteCashback,
         builder: (context, state) => const CashbackPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.bookingWeatherChoice,
+        name: AppRouteNames.bookingWeatherChoice,
+        builder: (context, state) => BookingWeatherChoicePage(
+          bookingId: state.pathParameters['bookingId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteWeatherCredits,
+        name: AppRouteNames.athleteWeatherCredits,
+        builder: (context, state) => const WeatherCreditsPage(),
       ),
       GoRoute(
         path: AppRoutes.squad,

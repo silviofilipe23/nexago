@@ -13,6 +13,8 @@ class BookingConfirmPriceSummary extends StatelessWidget {
     this.discountLineLabel,
     this.discountAmountLabel,
     this.totalAmountLabel,
+    this.weatherCreditAmountLabel,
+    this.totalLineLabel = 'Total',
   });
 
   final String courtLineLabel;
@@ -25,9 +27,16 @@ class BookingConfirmPriceSummary extends StatelessWidget {
   final String? discountAmountLabel;
   final String? totalAmountLabel;
 
+  /// Crédito de chuva aplicado ("− R$ 60,00"). Com ele, o resumo mostra a
+  /// linha do crédito e o total ([totalLineLabel], ex.: "A pagar").
+  final String? weatherCreditAmountLabel;
+  final String totalLineLabel;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hasDiscount = discountLineLabel != null && discountAmountLabel != null;
+    final hasCredit = weatherCreditAmountLabel != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -59,7 +68,7 @@ class BookingConfirmPriceSummary extends StatelessWidget {
                   color: context.themeColors.onSurface,
                 ),
               ),
-              if (discountLineLabel != null && discountAmountLabel != null) ...[
+              if (hasDiscount) ...[
                 const SizedBox(height: 10),
                 _PriceRow(
                   key: const Key('booking-confirm-professor-discount'),
@@ -70,17 +79,30 @@ class BookingConfirmPriceSummary extends StatelessWidget {
                     color: context.themeColors.readableTone(AppColors.win),
                   ),
                 ),
-                if (totalAmountLabel != null) ...[
-                  const SizedBox(height: 10),
-                  _PriceRow(
-                    label: 'Total',
-                    value: totalAmountLabel!,
-                    valueStyle: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: context.themeColors.onSurface,
-                    ),
+              ],
+              if (hasCredit) ...[
+                const SizedBox(height: 10),
+                _PriceRow(
+                  key: const Key('booking-confirm-weather-credit'),
+                  label: 'Crédito de chuva',
+                  value: weatherCreditAmountLabel!,
+                  valueStyle: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: context.themeColors.readableTone(AppColors.win),
                   ),
-                ],
+                ),
+              ],
+              if ((hasDiscount || hasCredit) && totalAmountLabel != null) ...[
+                const SizedBox(height: 10),
+                _PriceRow(
+                  key: const Key('booking-confirm-total'),
+                  label: totalLineLabel,
+                  value: totalAmountLabel!,
+                  valueStyle: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: context.themeColors.onSurface,
+                  ),
+                ),
               ],
               // SizedBox(height: 12),
               // _PriceRow(

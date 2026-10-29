@@ -11,12 +11,21 @@ class BookingPixAmountSection extends StatelessWidget {
     required this.selectedFraction,
     required this.onFractionChanged,
     this.enabled = true,
+    this.allowDeposit = true,
+    this.weatherCreditReais = 0,
   });
 
   final double totalReais;
   final double selectedFraction;
   final ValueChanged<double> onFractionChanged;
   final bool enabled;
+
+  /// `false` com crédito de chuva aplicado: o servidor cobra o resto
+  /// integral, então só aparece o "Total agora".
+  final bool allowDeposit;
+
+  /// Crédito de chuva já descontado do total (só para o rodapé).
+  final double weatherCreditReais;
 
 
   @override
@@ -37,31 +46,45 @@ class BookingPixAmountSection extends StatelessWidget {
           ),
         ),
         SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _AmountOptionCard(
-                title: 'Total agora',
-                amount: formatBRL(payFull),
-                footer: 'Garante 100% da reserva',
-                selected: selectedFraction >= 0.99,
-                enabled: enabled,
-                onTap: () => onFractionChanged(1.0),
+        if (!allowDeposit)
+          _AmountOptionCard(
+            key: const Key('booking-pix-full-only'),
+            title: 'Total agora',
+            amount: formatBRL(payFull),
+            footer: weatherCreditReais > 0
+                ? 'Crédito de chuva de ${formatBRL(weatherCreditReais)} já '
+                      'descontado. O resto é pago integral.'
+                : 'Garante 100% da reserva',
+            selected: true,
+            enabled: enabled,
+            onTap: () => onFractionChanged(1.0),
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: _AmountOptionCard(
+                  title: 'Total agora',
+                  amount: formatBRL(payFull),
+                  footer: 'Garante 100% da reserva',
+                  selected: selectedFraction >= 0.99,
+                  enabled: enabled,
+                  onTap: () => onFractionChanged(1.0),
+                ),
               ),
-            ),
-            SizedBox(width: 10),
-            Expanded(
-              child: _AmountOptionCard(
-                title: 'Apenas sinal · 50%',
-                amount: formatBRL(payHalf),
-                footer: 'Resto na arena',
-                selected: selectedFraction <= 0.51,
-                enabled: enabled,
-                onTap: () => onFractionChanged(0.5),
+              SizedBox(width: 10),
+              Expanded(
+                child: _AmountOptionCard(
+                  title: 'Apenas sinal · 50%',
+                  amount: formatBRL(payHalf),
+                  footer: 'Resto na arena',
+                  selected: selectedFraction <= 0.51,
+                  enabled: enabled,
+                  onTap: () => onFractionChanged(0.5),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
       ],
     );
   }
@@ -69,6 +92,7 @@ class BookingPixAmountSection extends StatelessWidget {
 
 class _AmountOptionCard extends StatelessWidget {
   const _AmountOptionCard({
+    super.key,
     required this.title,
     required this.amount,
     required this.footer,
@@ -112,7 +136,9 @@ class _AmountOptionCard extends StatelessWidget {
                 title,
                 style: theme.textTheme.labelMedium?.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: selected ? AppColors.brand : context.themeColors.onSurface,
+                  color: selected
+                      ? context.themeColors.brandText
+                      : context.themeColors.onSurface,
                 ),
               ),
               SizedBox(height: 6),

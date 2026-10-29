@@ -1,0 +1,295 @@
+import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:nexago_app/core/auth/auth_providers.dart';
+import 'package:nexago_app/core/formatting/app_currency_format.dart';
+import 'package:nexago_app/core/theme/app_theme.dart';
+import 'package:nexago_app/features/weather/application/weather_providers.dart';
+import 'package:nexago_app/features/weather/domain/weather_models.dart';
+import 'package:nexago_app/features/weather/infrastructure/weather_service.dart';
+import 'package:nexago_app/features/weather/presentation/widgets/booking_weather_section.dart';
+import 'package:nexago_app/features/weather/presentation/widgets/weather_request_sheet.dart';
+
+import '../weather_test_fakes.dart';
+
+final now = DateTime(2026, 10, 29, 16);
+
+Map<String, dynamic> booking({Map<String, dynamic>? release}) => {
+      'athleteId': 'u1',
+      'arenaId': 'a1',
+      'arenaName': 'Arena CFC',
+      'courtId': 'q1',
+      'courtName': 'Quadra 1',
+      'date': '2026-10-29',
+      'startTime': '18:00',
+      'endTime': '19:00',
+      'status': 'active',
+      'amountReais': 60,
+      if (release != null) 'weatherRelease': release,
+    };
+
+final pendingRelease = <String, dynamic>{
+  'status': 'pending_choice',
+  'creditableReais': 60,
+  'fraction': 1,
+  'canReschedule': true,
+  'rescheduleUntil': '2026-11-28',
+  'decisionDeadline': DateTime(2026, 10, 30, 17, 30),
+  'forecast': [
+    {'time': '17:00', 'probability': 85, 'precipitationMm': 1.2},
+    {'time': '18:00', 'probability': 92, 'precipitationMm': 5.4},
+    {'time': '19:00', 'probability': 88, 'precipitationMm': 3.1},
+  ],
+};
+
+Future<FakeWeatherFunctions> pumpSection(
+  WidgetTester tester, {
+  required Map<String, dynamic> data,
+  WeatherPolicy policy = WeatherPolicy.defaults,
+  WeatherRequest? request,
+  VoidCallback? onOpenChoice,
+  ThemeData? theme,
+}) async {
+  tester.view.physicalSize = const Size(900, 2400);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+
+  final functions = FakeWeatherFunctions(responses: {
+    'chooseArenaWeatherOption': {'kept': true},
+    'requestArenaWeatherRelease': {'status': 'pending', 'weather': null},
+    'withdrawArenaWeatherRequest': {'status': 'withdrawn'},
+  });
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        authProvider.overrideWith((ref) => Stream.value(MockUser(uid: 'u1'))),
+        weatherServiceProvider.overrideWithValue(
+          WeatherService(UnusedFirestore(), functions: functions),
+        ),
+        weatherPolicyProvider.overrideWith((ref, id) => Stream.value(policy)),
+        weatherRequestProvider.overrideWith((ref, id) => Stream.value(request)),
+      ],
+      child: MaterialApp(
+        theme: theme ?? AppTheme.dark,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: BookingWeatherSection(
+              bookingId: 'b1',
+              booking: data,
+              arenaName: 'Arena CFC',
+              now: now,
+              onOpenChoice: onOpenChoice,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
+  await tester.pump();
+  return functions;
+}
+
+void main() {
+  setUpAll(() async {
+    await initializeDateFormatting('pt_BR');
+  });
+
+  group('A1 — aviso de Modo chuva na reserva', () {
+    testWidgets('mostra título, texto, previsão, prazo e as duas ações',
+        (tester) async {
+      var opened = 0;
+      await pumpSection(
+        tester,
+        data: booking(release: pendingRelease),
+        onOpenChoice: () => opened++,
+      );
+
+      expect(find.byKey(WeatherReleaseAlertCard.cardKey), findsOneWidget);
+      expect(find.text('MODO CHUVA ATIVO'), findsOneWidget);
+      expect(find.text('Chuva forte às 18h'), findsOneWidget);
+      expect(
+        find.text(
+          'A Arena CFC liberou seu horário. Remarque ou guarde o valor como crédito, sem custo.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('85%'), findsOneWidget);
+      expect(find.text('92%'), findsOneWidget);
+      expect(find.text('19h'), findsOneWidget);
+      expect(
+        find.text(
+          'Você tem até amanhã às 17:30 para escolher. Depois disso, vira crédito automaticamente.',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(WeatherReleaseAlertCard.chooseKey));
+      await tester.pump();
+      expect(opened, 1);
+    });
+
+    testWidgets('tema claro também renderiza (cores do tema)', (tester) async {
+      await pumpSection(
+        tester,
+        data: booking(release: pendingRelease),
+        theme: AppTheme.light,
+      );
+      expect(find.byKey(WeatherReleaseAlertCard.cardKey), findsOneWidget);
+    });
+
+    testWidgets('"Manter minha reserva" confirma e escolhe keep',
+        (tester) async {
+      final functions =
+          await pumpSection(tester, data: booking(release: pendingRelease));
+
+      await tester.tap(find.byKey(WeatherReleaseAlertCard.keepKey));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Manter a reserva?'), findsOneWidget);
+      expect(functions.calls, isEmpty);
+
+      await tester.tap(find.byKey(const Key('weather-keep-confirm')));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(functions.payloadOf('chooseArenaWeatherOption'), {
+        'bookingId': 'b1',
+        'choice': 'keep',
+      });
+      expect(find.text('Reserva mantida.'), findsOneWidget);
+    });
+
+    testWidgets('sem remarcar (chuva no meio do jogo): só guardar crédito',
+        (tester) async {
+      await pumpSection(
+        tester,
+        data: booking(release: {
+          ...pendingRelease,
+          'canReschedule': false,
+          'creditableReais': 30,
+          'fraction': 0.5,
+        }),
+      );
+      expect(find.text('Guardar crédito'), findsOneWidget);
+      expect(
+        find.text(
+            'A Arena CFC liberou seu horário. ${formatBRL(30)} vira crédito, sem custo.'),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('pedido do atleta', () {
+    const requestPolicy =
+        WeatherPolicy(enabled: true, trigger: WeatherTrigger.request);
+
+    testWidgets('botão abre a folha e envia o pedido com a observação',
+        (tester) async {
+      final functions =
+          await pumpSection(tester, data: booking(), policy: requestPolicy);
+
+      expect(find.text('Choveu? Pedir cancelamento sem custo'), findsOneWidget);
+      expect(find.text('Disponível até hoje às 18:00'), findsOneWidget);
+
+      await tester.tap(find.byKey(WeatherRequestButton.buttonKey));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Pedir cancelamento por chuva'), findsOneWidget);
+
+      await tester.enterText(
+          find.byKey(WeatherRequestSheet.noteFieldKey), 'Quadra alagada');
+      await tester.tap(find.byKey(WeatherRequestSheet.submitKey));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(functions.payloadOf('requestArenaWeatherRelease'), {
+        'bookingId': 'b1',
+        'note': 'Quadra alagada',
+      });
+      expect(find.text('Pedido enviado. A Arena CFC vai analisar.'),
+          findsOneWidget);
+    });
+
+    testWidgets('política no modo "arena": sem botão', (tester) async {
+      await pumpSection(
+        tester,
+        data: booking(),
+        policy: const WeatherPolicy(enabled: true),
+      );
+      expect(find.byKey(WeatherRequestButton.buttonKey), findsNothing);
+      expect(find.byKey(WeatherRequestPendingCard.cardKey), findsNothing);
+    });
+
+    testWidgets('A6: pedido em análise com linha do tempo e desistir',
+        (tester) async {
+      final functions = await pumpSection(
+        tester,
+        data: booking(),
+        policy: requestPolicy,
+        request: WeatherRequest(
+          bookingId: 'b1',
+          status: WeatherRequestStatus.pending,
+          createdAt: DateTime(2026, 10, 29, 17, 52),
+          weather: WeatherReading(
+            probability: 90,
+            precipitationMm: 5.4,
+            fetchedAt: DateTime(2026, 10, 29, 18),
+          ),
+        ),
+      );
+
+      expect(find.byKey(WeatherRequestPendingCard.cardKey), findsOneWidget);
+      expect(find.text('PEDIDO EM ANÁLISE'), findsOneWidget);
+      expect(find.text('Pedido enviado'), findsOneWidget);
+      expect(find.text('17:52'), findsOneWidget);
+      expect(find.text('Chuva registrada · 5,4 mm'), findsOneWidget);
+      expect(find.text('Arena confirma'), findsOneWidget);
+      expect(find.text('aguardando'), findsOneWidget);
+
+      await tester.tap(find.byKey(WeatherRequestPendingCard.withdrawKey));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.byKey(const Key('weather-withdraw-confirm')));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(functions.payloadOf('withdrawArenaWeatherRequest'),
+          {'bookingId': 'b1'});
+    });
+
+    testWidgets('recusado: mostra o motivo', (tester) async {
+      await pumpSection(
+        tester,
+        data: booking(),
+        policy: requestPolicy,
+        request: const WeatherRequest(
+          bookingId: 'b1',
+          status: WeatherRequestStatus.rejected,
+          rejectReason: 'Não choveu na arena',
+        ),
+      );
+      expect(find.text('Pedido de cancelamento recusado'), findsOneWidget);
+      expect(find.text('Motivo: Não choveu na arena'), findsOneWidget);
+    });
+  });
+
+  group('resumo', () {
+    testWidgets('crédito guardado', (tester) async {
+      await pumpSection(
+        tester,
+        data: booking(release: {...pendingRelease, 'status': 'credited'}),
+      );
+      expect(find.text('Crédito de ${formatBRL(60)} guardado'), findsOneWidget);
+    });
+
+    testWidgets('cancelada sem pagamento', (tester) async {
+      await pumpSection(
+        tester,
+        data: {
+          ...booking(release: {...pendingRelease, 'status': 'canceled_unpaid'}),
+          'status': 'canceled',
+          'cancelReason': 'weather',
+        },
+      );
+      expect(
+          find.text('Cancelada por chuva, nada foi cobrado'), findsOneWidget);
+    });
+  });
+}

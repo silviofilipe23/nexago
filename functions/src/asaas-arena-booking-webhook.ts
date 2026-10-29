@@ -10,7 +10,7 @@ import {
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {ARENA_BOOKING_PAYMENT_REF_PREFIX} from "./arena-booking-payment-constants";
-import {ARENA_BOOKING_PRICING, readArenaBookingServerAmountReais} from "./arena-booking-pricing";
+import {ARENA_BOOKING_PRICING, readArenaBookingChargeTotalReais} from "./arena-booking-pricing";
 import {arenaSquadDiscountCents, markArenaSquadDiscountConfirmedQuietly} from "./squad-arena-discount";
 import {
   arenaBookingNetReais,
@@ -433,10 +433,9 @@ export async function processArenaBookingAsaasNotification(
     }
 
     // Total do servidor: com `amountReais` adulterado no doc, o sinal de 50%
-    // fecharia como "pago" e a arena não cobraria o resto no local.
-    const totalReais =
-      (await readArenaBookingServerAmountReais(db, bookingId)) ??
-      (Number(booking.amountReais) || 0);
+    // fecharia como "pago" e a arena não cobraria o resto no local. Já sem o
+    // crédito de chuva usado na criação (essa parte não passa pelo Asaas).
+    const totalReais = await readArenaBookingChargeTotalReais(db, bookingId, booking);
     const fraction = Number(booking.paymentFraction) || 1;
     // Para a arena, o saldo de cashback é dinheiro recebido online (a nexaGO
     // cobre): tudo que lê `amountPaidOnlineReais` segue certo sem mudar.

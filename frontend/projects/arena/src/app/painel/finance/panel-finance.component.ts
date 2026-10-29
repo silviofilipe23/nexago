@@ -71,6 +71,10 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
           <ar-icon name="card" [size]="14" />
           Notas fiscais
         </a>
+        <a routerLink="/painel/financeiro/creditos-clima" class="ar-mini-btn">
+          <ar-icon name="cash" [size]="14" />
+          Créditos de clima
+        </a>
         <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="showNotice('Extrato completo em breve.')">
           <ar-icon name="download" [size]="14" />
           Exportar extrato

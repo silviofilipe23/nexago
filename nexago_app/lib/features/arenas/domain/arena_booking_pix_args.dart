@@ -9,6 +9,7 @@ class ArenaBookingPixArgs {
     required this.amountDueOnsiteReais,
     required this.paymentFraction,
     this.paymentExpiresAt,
+    this.weatherCreditAppliedReais = 0,
   });
 
   final String bookingId;
@@ -17,4 +18,9 @@ class ArenaBookingPixArgs {
   final double amountDueOnsiteReais;
   final double paymentFraction;
   final DateTime? paymentExpiresAt;
+
+  /// Crédito de chuva já descontado na criação. Com crédito o servidor cobra
+  /// o resto INTEGRAL (metade de um resto pequeno cairia abaixo do mínimo do
+  /// Pix): a tela não oferece o sinal de 50%.
+  final double weatherCreditAppliedReais;
 }

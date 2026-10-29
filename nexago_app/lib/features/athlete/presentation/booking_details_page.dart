@@ -17,6 +17,8 @@ import '../../arenas/domain/arena_booking_success_actions.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../../arenas/presentation/widgets/booking_cancellation_confirm_dialog.dart';
+import '../../weather/domain/weather_models.dart' show WeatherRelease;
+import '../../weather/presentation/widgets/booking_weather_section.dart';
 import '../domain/booking_attendance_providers.dart';
 import '../domain/booking_invite_status.dart' show bookingOwnerUidOf;
 import 'widgets/booking_details/booking_details_actions_section.dart';
@@ -92,11 +94,19 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
         : ref.watch(arenaByIdProvider(widget.arenaId!));
     final arena = arenaAsync?.valueOrNull;
 
+    final bookingSnap = ref
+        .watch(arenaBookingDocProvider(widget.bookingId))
+        .valueOrNull;
+    final bookingData = bookingSnap?.data();
+
+    // A reserva pode ser cancelada com a tela aberta (ex.: chuva): o doc vivo
+    // manda no "cancelada"; o resto segue o status que abriu a tela.
+    final rawStatus = bookingDetailsLiveStatus(widget.status, bookingData);
     final detailsStatus = bookingDetailsStatus(
       _now,
       widget.startAt,
       widget.endAt,
-      widget.status,
+      rawStatus,
     );
     final hero = buildBookingDetailsHeroModel(
       now: _now,
@@ -105,17 +115,15 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
       courtName: widget.courtName,
       startAt: widget.startAt,
       endAt: widget.endAt,
-      rawStatus: widget.status,
+      rawStatus: rawStatus,
+      cancelReason: bookingData?['cancelReason'] is String
+          ? bookingData!['cancelReason'] as String
+          : null,
     );
 
     final address = arena?.addressLine?.trim().isNotEmpty == true
         ? arena!.addressLine!.trim()
         : (arena?.locationLabel ?? 'Local a confirmar');
-
-    final bookingSnap = ref
-        .watch(arenaBookingDocProvider(widget.bookingId))
-        .valueOrNull;
-    final bookingData = bookingSnap?.data();
 
     final amountValue =
         widget.amountReais ?? (bookingData?['amountReais'] as num?)?.toDouble();
@@ -155,12 +163,18 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
     final isGuest =
         viewerUid != null && ownerUid != null && ownerUid != viewerUid;
 
+    // Liberada por chuva e sem escolha ainda: o cancelamento comum some (o
+    // atleta perderia a opção de crédito); a escolha fica no aviso de chuva.
+    final weatherChoicePending =
+        WeatherRelease.fromBooking(bookingData)?.isPendingChoice ?? false;
+
     final cancellation = ArenaBookingCancellationPolicy.athleteCancellation(
       bookingStart: widget.startAt,
       now: _now,
-      rawStatus: widget.status,
+      rawStatus: rawStatus,
       isRecurring: isRecurring,
       isGuest: isGuest,
+      weatherChoicePending: weatherChoicePending,
     );
     final canCancel = cancellation == AthleteBookingCancellation.allowed;
     final actionsEnabled = bookingDetailsActionsEnabled(detailsStatus);
@@ -181,6 +195,13 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
           BookingDetailsHeroCard(model: hero),
+          BookingWeatherSection(
+            bookingId: widget.bookingId,
+            booking: bookingData,
+            arenaName: widget.arenaName,
+            now: _now,
+            fallbackArenaId: widget.arenaId,
+          ),
           const SizedBox(height: 14),
           BookingDetailsTeamSection(
             bookingId: widget.bookingId,
@@ -220,10 +241,12 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
                   setState(() => _locationVerified = v),
               onCheckIn: _checkInNow,
             ),
-            const SizedBox(height: 14),
+            if (isRecurring || !weatherChoicePending)
+              const SizedBox(height: 14),
             if (isRecurring)
               _RecurringBookingNoteCard(arenaName: widget.arenaName)
-            else
+            else if (!weatherChoicePending)
+              // Liberada por chuva: a regra de cancelamento não vale agora.
               BookingDetailsCancellationCard(arenaName: widget.arenaName),
           ],
           const SizedBox(height: 14),
@@ -236,7 +259,7 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
             shareLoading: _sharing,
             canCancel: canCancel,
             actionsEnabled: actionsEnabled,
-            showCancel: !isGuest,
+            showCancel: !isGuest && !weatherChoicePending,
             cancelHint:
                 cancellation == AthleteBookingCancellation.deadlinePassed
                 ? ArenaBookingCancellationPolicy.blockedCancellationMessage(

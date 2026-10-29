@@ -14,6 +14,7 @@ import '../../professor_links/application/professor_links_providers.dart';
 import '../../professor_links/domain/arena_professor_link.dart';
 import '../../professor_mode/application/professor_wallet_providers.dart';
 import '../../professor_mode/domain/professor_wallet.dart';
+import '../../weather/presentation/widgets/weather_credit_checkout_card.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
@@ -89,6 +90,14 @@ class _ArenaBookingConfirmPageState
   /// Começa com o escolhido em "Nova aula" ([professorLessonStudentProvider]).
   String? _lessonStudentId;
 
+  /// "Usar crédito de chuva": começa LIGADO; o card só aparece quando a
+  /// cotação devolve saldo nesta arena. Trocar recota.
+  bool _useWeatherCredit = true;
+
+  /// Forma de pagamento da cotação com crédito (no Pix o servidor deixa um
+  /// mínimo para cobrar): `onsite` ou `pix`.
+  String _quotePaymentMode = 'onsite';
+
   static final _dateFmt = DateFormat('d MMM yyyy', 'pt_BR');
 
   @override
@@ -129,7 +138,7 @@ class _ArenaBookingConfirmPageState
   }) {
     final slotsKey = args.selectedSlotStartTimes.join(',');
     final key =
-        '${args.courtId}_${args.dateKey}_${args.startTime}_${args.endTime}_${slotsKey}_$asProfessor';
+        '${args.courtId}_${args.dateKey}_${args.startTime}_${args.endTime}_${slotsKey}_${asProfessor}_$_useWeatherCredit';
     if (_lastQuoteKey == key) return;
     _lastQuoteKey = key;
     _quoteAsProfessor = asProfessor;
@@ -154,6 +163,8 @@ class _ArenaBookingConfirmPageState
             args: args,
             couponCode: coupon,
             asProfessor: _quoteAsProfessor,
+            useWeatherCredit: _useWeatherCredit,
+            paymentMode: _quotePaymentMode,
           );
       if (!mounted || seq != _quoteSeq) return;
       setState(() {
@@ -195,6 +206,8 @@ class _ArenaBookingConfirmPageState
             args: args,
             couponCode: code,
             asProfessor: _quoteAsProfessor,
+            useWeatherCredit: _useWeatherCredit,
+            paymentMode: _quotePaymentMode,
           );
       if (!mounted || seq != _quoteSeq) return;
       setState(() {
@@ -261,9 +274,18 @@ class _ArenaBookingConfirmPageState
             sport: sport,
             asProfessor: asProfessor,
             professorStudentId: lessonStudentId,
+            useWeatherCredit: _sendWeatherCredit,
           );
       if (resumed == null) _clearLessonStudent();
       if (!mounted) return;
+
+      // O crédito de chuva cobriu tudo: reserva já paga, sem Pix.
+      if (created.isCoveredByWeatherCredit) {
+        await tryAwardReserveTodayMission(ref, dateKey: args.dateKey);
+        if (!mounted) return;
+        _goToBookingSuccess(args, created);
+        return;
+      }
 
       final expiresAt = created.paymentExpiresAt != null
           ? DateTime.tryParse(created.paymentExpiresAt!)
@@ -290,6 +312,7 @@ class _ArenaBookingConfirmPageState
           amountDueOnsiteReais: created.amountDueOnsiteReais,
           paymentFraction: created.paymentFraction,
           paymentExpiresAt: expiresAt,
+          weatherCreditAppliedReais: created.weatherCreditAppliedReais,
         ),
       );
     } on BookingException catch (e) {
@@ -353,50 +376,13 @@ class _ArenaBookingConfirmPageState
             sport: sport,
             asProfessor: asProfessor,
             professorStudentId: lessonStudentId,
+            useWeatherCredit: _sendWeatherCredit,
           );
       _clearLessonStudent();
       if (!mounted) return;
       await tryAwardReserveTodayMission(ref, dateKey: args.dateKey);
       if (!mounted) return;
-
-      final amount = created.amountReais;
-
-      final timeRange = '${args.startTime} – ${args.endTime}';
-      final dateLabel = _dateFmt.format(args.date);
-      final uri = Uri(
-        path: AppRoutes.arenaBookingSuccess.replaceAll(
-          ':arenaId',
-          widget.arenaId,
-        ),
-        queryParameters: <String, String>{
-          'date': args.dateKey,
-          'startTime': args.startTime,
-          'endTime': args.endTime,
-          'amountReais': amount.toString(),
-          'payment': 'paid',
-          'bookingId': created.bookingId,
-          'arenaName': args.arenaName,
-          'courtName': args.courtName,
-        },
-      );
-      context.go(
-        uri.toString(),
-        extra: BookingSuccessArgs(
-          arenaId: widget.arenaId,
-          arenaName: args.arenaName,
-          courtName: args.courtName,
-          dateKey: args.dateKey,
-          startTime: args.startTime,
-          endTime: args.endTime,
-          dateLabel: dateLabel,
-          timeRangeLabel: timeRange,
-          bookingIds: <String>[created.bookingId],
-          amountReais: amount,
-          paymentApproved: false,
-          amountLabel: 'Total: ${formatBRL(amount)}',
-          paymentLabel: 'Pagamento no local na arena.',
-        ),
-      );
+      _goToBookingSuccess(args, created);
     } on BookingException catch (e) {
       if (!mounted) return;
       if (e.isProfessorDenied) {
@@ -423,6 +409,72 @@ class _ArenaBookingConfirmPageState
       showAppSnackBar(context, 'Erro ao reservar: $e', isError: true);
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  /// Só manda `useWeatherCredit` com o card ligado e saldo na cotação.
+  bool get _sendWeatherCredit =>
+      _useWeatherCredit && (_quote?.hasWeatherCredit ?? false);
+
+  /// Sucesso da reserva sem Pix: pagamento na arena ou coberta pelo crédito
+  /// de chuva (a mesma tela nos dois casos).
+  void _goToBookingSuccess(
+    ArenaBookingConfirmArgs args,
+    CreateBookingResult created,
+  ) {
+    final amount = created.amountReais;
+    final credit = created.weatherCreditAppliedReais;
+    final paymentLabel = created.isCoveredByWeatherCredit
+        ? 'Pago com crédito de chuva.'
+        : credit > 0
+        ? 'Crédito de chuva de ${formatBRL(credit)} aplicado. Restante de '
+              '${formatBRL(created.amountDueOnsiteReais)} na arena.'
+        : 'Pagamento no local na arena.';
+    final timeRange = '${args.startTime} – ${args.endTime}';
+    final dateLabel = _dateFmt.format(args.date);
+    final uri = Uri(
+      path: AppRoutes.arenaBookingSuccess.replaceAll(
+        ':arenaId',
+        widget.arenaId,
+      ),
+      queryParameters: <String, String>{
+        'date': args.dateKey,
+        'startTime': args.startTime,
+        'endTime': args.endTime,
+        'amountReais': amount.toString(),
+        'payment': 'paid',
+        'bookingId': created.bookingId,
+        'arenaName': args.arenaName,
+        'courtName': args.courtName,
+      },
+    );
+    context.go(
+      uri.toString(),
+      extra: BookingSuccessArgs(
+        arenaId: widget.arenaId,
+        arenaName: args.arenaName,
+        courtName: args.courtName,
+        dateKey: args.dateKey,
+        startTime: args.startTime,
+        endTime: args.endTime,
+        dateLabel: dateLabel,
+        timeRangeLabel: timeRange,
+        bookingIds: <String>[created.bookingId],
+        amountReais: amount,
+        paymentApproved: false,
+        amountLabel: 'Total: ${formatBRL(amount)}',
+        paymentLabel: paymentLabel,
+      ),
+    );
+  }
+
+  /// Com crédito de chuva aplicado, trocar Pix ↔ arena muda quanto entra
+  /// (no Pix fica um mínimo para cobrar): recota. Sem crédito, nada muda.
+  void _requoteForPaymentMode(ArenaBookingConfirmArgs args, String mode) {
+    if (_quotePaymentMode == mode) return;
+    _quotePaymentMode = mode;
+    if (_useWeatherCredit && (_quote?.hasWeatherCredit ?? false)) {
+      _loadQuote(args);
     }
   }
 
@@ -509,6 +561,11 @@ class _ArenaBookingConfirmPageState
       activeRole: ref.watch(activeMobileRoleProvider),
     );
     final asProfessor = offerProfessor && (_asProfessor ?? true);
+    final choice = _effectivePaymentChoice(
+      onsiteEnabled: onsiteEnabled,
+      onlineEnabled: onlineEnabled,
+    );
+    _quotePaymentMode = choice == _PaymentChoice.pix ? 'pix' : 'onsite';
     _maybeLoadQuote(args, asProfessor: asProfessor);
     // Aula da carteira: só como professor de vínculo independente, entre os
     // alunos ativos (o servidor confere de novo).
@@ -528,10 +585,6 @@ class _ArenaBookingConfirmPageState
             : null;
 
     final timeRange = '${args.startTime} - ${args.endTime}';
-    final choice = _effectivePaymentChoice(
-      onsiteEnabled: onsiteEnabled,
-      onlineEnabled: onlineEnabled,
-    );
     final displayTotal = _displayAmount(args);
     // O desconto de professor só aparece na cotação pedida como professor
     // (troca do interruptor = "Calculando…" até a nova chegar).
@@ -544,11 +597,25 @@ class _ArenaBookingConfirmPageState
     final courtLineLabel = durationCompact.isEmpty
         ? 'Quadra'
         : 'Quadra ($durationCompact)';
-    final stickyAmount = displayTotal;
-    final stickyMeta = choice == _PaymentChoice.pix
+    // Crédito de chuva: o card só aparece com saldo; o valor aplicado vale
+    // só da cotação pedida com o card ligado.
+    final creditAvailable = quote?.weatherCreditAvailableReais ?? 0;
+    final creditApplied = !_quoting && _useWeatherCredit && quote != null
+        ? quote.weatherCreditAppliedReais
+        : 0.0;
+    final amountDue = creditApplied > 0
+        ? quote!.amountDueAfterWeatherCreditReais
+        : displayTotal;
+    final coveredByCredit = creditApplied > 0 && amountDue <= 0;
+    final stickyAmount = amountDue;
+    final stickyMeta = coveredByCredit
+        ? 'coberto pelo crédito de chuva'
+        : choice == _PaymentChoice.pix
         ? 'Pix ou cartão na próxima etapa'
+        : creditApplied > 0
+        ? 'a pagar na arena'
         : 'total na arena';
-    final stickyCta = choice == _PaymentChoice.pix
+    final stickyCta = choice == _PaymentChoice.pix && !coveredByCredit
         ? 'Confirmar e pagar'
         : 'Confirmar reserva';
 
@@ -619,6 +686,20 @@ class _ArenaBookingConfirmPageState
                                         setState(() => _lessonStudentId = id),
                                   ),
                                 ),
+                              if (creditAvailable > 0)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 18),
+                                  child: WeatherCreditCheckoutCard(
+                                    availableReais: creditAvailable,
+                                    nextExpiresAt:
+                                        quote?.weatherCreditNextExpiresAt,
+                                    value: _useWeatherCredit,
+                                    enabled: !_submitting,
+                                    onChanged: (value) => setState(
+                                      () => _useWeatherCredit = value,
+                                    ),
+                                  ),
+                                ),
                               Padding(
                                 padding: const EdgeInsets.only(top: 18),
                                 child: BookingConfirmPriceSummary(
@@ -637,8 +718,14 @@ class _ArenaBookingConfirmPageState
                                   discountAmountLabel: professorDiscount
                                       ? quote.professorDiscountValueLabel
                                       : null,
-                                  totalAmountLabel: professorDiscount
-                                      ? formatBRL(displayTotal)
+                                  weatherCreditAmountLabel: creditApplied > 0
+                                      ? '\u2212 ${formatBRL(creditApplied)}'
+                                      : null,
+                                  totalLineLabel:
+                                      creditApplied > 0 ? 'A pagar' : 'Total',
+                                  totalAmountLabel:
+                                      professorDiscount || creditApplied > 0
+                                      ? formatBRL(amountDue)
                                       : null,
                                 ),
                               ),
@@ -728,6 +815,10 @@ class _ArenaBookingConfirmPageState
                                                   () => _paymentChoice =
                                                       _PaymentChoice.atVenue,
                                                 );
+                                                _requoteForPaymentMode(
+                                                  args,
+                                                  'onsite',
+                                                );
                                               },
                                             ),
                                           if (onsiteEnabled && onlineEnabled)
@@ -746,6 +837,10 @@ class _ArenaBookingConfirmPageState
                                                 setState(
                                                   () => _paymentChoice =
                                                       _PaymentChoice.pix,
+                                                );
+                                                _requoteForPaymentMode(
+                                                  args,
+                                                  'pix',
                                                 );
                                               },
                                             ),

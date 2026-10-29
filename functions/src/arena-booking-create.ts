@@ -30,6 +30,8 @@ import {resolveBookingSport} from "./arena-booking-sport";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {professorCourtDiscountForQuote, resolveProfessorBooking} from "./arena-professor-permissions";
 import {applyProfessorCourtDiscount, type ProfessorCourtDiscountOutcome} from "./arena-professor-court-discount";
+import {reserveWeatherCreditInTransaction, weatherCreditSummary} from "./arena-weather-credits";
+import {weatherCreditToApply, type WeatherCreditUse} from "./arena-weather-model";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -68,6 +70,11 @@ interface BookingInput {
    * para `professorLessons/{bookingId}` — a reserva em si não leva o aluno.
    */
   professorStudentId?: string;
+  /**
+   * Abater o crédito de chuva do atleta nesta arena (Cancelamento por chuva).
+   * Apps antigos não enviam: nada muda para eles.
+   */
+  useWeatherCredit?: boolean;
 }
 
 function parseDateKey(dateRaw: string): string {
@@ -105,7 +112,7 @@ function safeIdPart(s: string): string {
   return s.replace(/\//g, "_");
 }
 
-async function loadPricingContext(arenaId: string, courtId: string) {
+export async function loadPricingContext(arenaId: string, courtId: string) {
   const db = getFirestore();
   const [arenaSnap, courtSnap, promoSnap, peakSnap] = await Promise.all([
     db.collection("arenas").doc(arenaId).get(),
@@ -210,6 +217,61 @@ async function quoteInternal(
   return {...result, ...coupon, ...professor};
 }
 
+export interface BookingPaymentPlan {
+  channel: PaymentMode | "weather_credit";
+  status: "active" | "pending_payment";
+  paymentStatus: "none" | "pending" | "paid" | "partial";
+  paymentFraction: number | null;
+  amountToPayNowReais: number;
+  amountDueOnsiteReais: number;
+}
+
+/**
+ * Como a reserva será paga depois do crédito de chuva: coberta por inteiro já
+ * nasce confirmada e paga; senão o resto segue pelo Pix (sinal ou integral do
+ * que falta) ou fica para pagar na arena.
+ */
+export function bookingPaymentPlan(params: {
+  amountReais: number;
+  weatherCreditReais: number;
+  paymentMode: PaymentMode;
+  paymentFraction: number;
+}): BookingPaymentPlan {
+  const credit = Math.max(0, Math.min(params.weatherCreditReais, params.amountReais));
+  const net = roundMoney(params.amountReais - credit);
+  if (net <= 0) {
+    return {
+      channel: "weather_credit",
+      status: "active",
+      paymentStatus: "paid",
+      paymentFraction: null,
+      amountToPayNowReais: 0,
+      amountDueOnsiteReais: 0,
+    };
+  }
+  if (params.paymentMode === "pix") {
+    // Com crédito, o resto vai integral (mesma regra de resolveArenaBookingChargeAmounts).
+    const fraction = credit > 0 ? 1 : params.paymentFraction;
+    const now = roundMoney(net * fraction);
+    return {
+      channel: "pix",
+      status: "pending_payment",
+      paymentStatus: "pending",
+      paymentFraction: fraction,
+      amountToPayNowReais: now,
+      amountDueOnsiteReais: roundMoney(net - now),
+    };
+  }
+  return {
+    channel: "onsite",
+    status: "active",
+    paymentStatus: credit > 0 ? "partial" : "none",
+    paymentFraction: null,
+    amountToPayNowReais: 0,
+    amountDueOnsiteReais: net,
+  };
+}
+
 function assertPositiveBookingTotal(total: BookingTotalResult): void {
   if (total.amountReais <= 0) {
     throw new HttpsError(
@@ -228,7 +290,27 @@ export const quoteArenaBooking = onCall({
   const input = (request.data ?? {}) as BookingInput;
   const total = await quoteInternal(input, request.auth.uid);
   assertPositiveBookingTotal(total);
+  // Saldo de chuva nesta arena: o app mostra o "Usar crédito" só quando há.
+  const credit = await weatherCreditSummary(
+    getFirestore(),
+    request.auth.uid,
+    input.arenaId?.trim() ?? "",
+    Date.now(),
+  );
+  const creditApplied = input.useWeatherCredit === true ?
+    weatherCreditToApply({
+      amountReais: total.amountReais,
+      availableReais: credit.availableReais,
+      paymentMode: input.paymentMode === "onsite" ? "onsite" : "pix",
+    }) :
+    0;
   return {
+    weatherCreditAvailableReais: credit.availableReais,
+    weatherCreditNextExpiresAt: credit.nextExpiresAtMs == null ?
+      null :
+      new Date(credit.nextExpiresAtMs).toISOString(),
+    weatherCreditAppliedReais: creditApplied,
+    amountAfterCreditReais: roundMoney(total.amountReais - creditApplied),
     amountReais: total.amountReais,
     lineItems: total.lineItems,
     appliedPromotionIds: total.appliedPromotionIds,
@@ -377,16 +459,7 @@ export const createArenaBooking = onCall({
   }
 
   const amountReais = total.amountReais;
-  const amountToPayNowReais =
-    paymentMode === "pix"
-      ? roundMoney(amountReais * paymentFraction)
-      : 0;
-  const amountDueOnsiteReais =
-    paymentMode === "pix"
-      ? roundMoney(amountReais - amountToPayNowReais)
-      : amountReais;
-
-  if (paymentMode === "pix" && amountToPayNowReais <= 0) {
+  if (paymentMode === "pix" && roundMoney(amountReais * paymentFraction) <= 0) {
     throw new HttpsError("failed-precondition", "Valor PIX inválido.");
   }
 
@@ -434,8 +507,10 @@ export const createArenaBooking = onCall({
   const paymentExpiresAt = new Date(
     Date.now() + ARENA_BOOKING_PAYMENT_EXPIRY_MINUTES * 60 * 1000,
   );
-  const bookingStatus = paymentMode === "pix" ? "pending_payment" : "active";
-  const bookingPaymentStatus = paymentMode === "pix" ? "pending" : "none";
+  // Fechado dentro da transação, depois de reservar o crédito de chuva.
+  let plan = bookingPaymentPlan({amountReais, weatherCreditReais: 0, paymentMode, paymentFraction});
+  let weatherCreditReais = 0;
+  let weatherCreditUses: WeatherCreditUse[] = [];
 
   try {
     await db.runTransaction(async (transaction) => {
@@ -463,6 +538,33 @@ export const createArenaBooking = onCall({
         });
       }
 
+      // Crédito de chuva: lido aqui (fase de leitura) e debitado junto da reserva.
+      let commitWeatherCredit: (() => void) | null = null;
+      if (input.useWeatherCredit === true) {
+        const nowMs = Date.now();
+        const summary = await weatherCreditSummary(db, athleteId, arenaId, nowMs);
+        const toApply = weatherCreditToApply({
+          amountReais,
+          availableReais: summary.availableReais,
+          paymentMode,
+        });
+        if (toApply > 0) {
+          const reserved = await reserveWeatherCreditInTransaction({
+            tx: transaction,
+            db,
+            athleteId,
+            arenaId,
+            amountReais: toApply,
+            bookingId,
+            nowMs,
+          });
+          weatherCreditReais = reserved.appliedReais;
+          weatherCreditUses = reserved.uses;
+          commitWeatherCredit = reserved.commit;
+        }
+      }
+      plan = bookingPaymentPlan({amountReais, weatherCreditReais, paymentMode, paymentFraction});
+
       transaction.set(bookingRef, {
         athleteId,
         arenaId,
@@ -474,21 +576,22 @@ export const createArenaBooking = onCall({
         startTime,
         endTime,
         amountReais,
-        amountToPayNowReais,
+        amountToPayNowReais: plan.amountToPayNowReais,
         amountPaidOnlineReais: 0,
-        amountDueOnsiteReais,
-        paymentChannel: paymentMode,
-        paymentReceiver: paymentMode === "pix" ? paymentReceiver : null,
-        paymentFraction: paymentMode === "pix" ? paymentFraction : null,
-        paymentStatus: bookingPaymentStatus,
-        status: bookingStatus,
+        amountDueOnsiteReais: plan.amountDueOnsiteReais,
+        paymentChannel: plan.channel,
+        paymentReceiver: plan.channel === "pix" ? paymentReceiver : null,
+        paymentFraction: plan.paymentFraction,
+        paymentStatus: plan.paymentStatus,
+        status: plan.status,
         attendanceConfirmed: false,
         attendanceStatus: "pending",
         confirmationDeadline: Timestamp.fromDate(confirmationDeadline),
         paymentExpiresAt:
-          paymentMode === "pix"
+          plan.channel === "pix"
             ? Timestamp.fromDate(paymentExpiresAt)
             : null,
+        ...(weatherCreditReais > 0 ? {weatherCreditReais, weatherCreditUses} : {}),
         source: "platform",
         ...(professorStamp ?? {}),
         appliedPromotionIds: total.appliedPromotionIds,
@@ -507,6 +610,7 @@ export const createArenaBooking = onCall({
       });
 
       commitCouponRedemption?.();
+      commitWeatherCredit?.();
 
       // Cópia do total fora do alcance dos clientes: é dela que o PIX, a
       // divisão em fatias e o webhook partem (ver arena-booking-pricing.ts).
@@ -514,6 +618,7 @@ export const createArenaBooking = onCall({
         arenaId,
         athleteId,
         amountReais,
+        ...(weatherCreditReais > 0 ? {weatherCreditReais} : {}),
         createdAt: FieldValue.serverTimestamp(),
       });
 
@@ -570,12 +675,13 @@ export const createArenaBooking = onCall({
   return {
     bookingId,
     amountReais,
-    amountToPayNowReais,
-    amountDueOnsiteReais,
-    paymentMode,
-    paymentFraction: paymentMode === "pix" ? paymentFraction : 1,
+    amountToPayNowReais: plan.amountToPayNowReais,
+    amountDueOnsiteReais: plan.amountDueOnsiteReais,
+    paymentMode: plan.channel,
+    paymentFraction: plan.paymentFraction ?? 1,
     paymentExpiresAt:
-      paymentMode === "pix" ? paymentExpiresAt.toISOString() : null,
+      plan.channel === "pix" ? paymentExpiresAt.toISOString() : null,
+    weatherCreditAppliedReais: weatherCreditReais,
     appliedPromotionIds: total.appliedPromotionIds,
     couponApplied: couponOutcome.couponApplied,
     couponId: couponOutcome.couponId,

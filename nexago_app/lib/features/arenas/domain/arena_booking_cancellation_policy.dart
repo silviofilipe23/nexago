@@ -46,10 +46,15 @@ class ArenaBookingCancellationPolicy {
     required String rawStatus,
     bool isRecurring = false,
     bool isGuest = false,
+
+    /// A arena liberou o horário por chuva e o atleta ainda não escolheu:
+    /// cancelar pelo caminho comum faria ele perder a opção de crédito.
+    bool weatherChoicePending = false,
   }) {
     if (bookingStart == null ||
         isRecurring ||
         isGuest ||
+        weatherChoicePending ||
         _voidStatuses.contains(rawStatus.trim().toLowerCase()) ||
         !now.isBefore(bookingStart)) {
       return AthleteBookingCancellation.unavailable;

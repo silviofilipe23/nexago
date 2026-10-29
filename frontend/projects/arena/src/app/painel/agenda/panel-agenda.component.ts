@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
@@ -93,6 +93,7 @@ function timeToMinutes(time: string): number {
   selector: 'ar-panel-agenda',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    RouterLink,
     PanelShellComponent,
     PageHeaderComponent,
     PanelCardComponent,
@@ -118,6 +119,12 @@ function timeToMinutes(time: string): number {
             <ar-icon name="chevron-right" [size]="14" />
           </button>
           <ar-chart-tabs [tabs]="views" [active]="view()" (change)="view.set($any($event))" />
+          <a class="ar-mini-btn" routerLink="/painel/agenda/chuva" title="Cancelamento por chuva: período, quadras e reservas afetadas">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M7 15.5a4.5 4.5 0 1 1 1.1-8.9A5.5 5.5 0 0 1 18.5 8a3.8 3.8 0 0 1-.5 7.5H7z" /><path d="M8 18.5 7 21M12 18.5 11 21M16 18.5 15 21" />
+            </svg>
+            Modo chuva
+          </a>
           <button
             type="button"
             class="ar-mini-btn ar-mini-btn-primary"

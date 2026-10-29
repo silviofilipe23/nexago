@@ -304,7 +304,7 @@ class _MiniStat extends StatelessWidget {
             Text(
               label,
               style: AppTypography.mono(
-                fontSize: 9,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: context.themeColors.onSurfaceMuted,
               ),

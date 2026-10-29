@@ -62,7 +62,7 @@ class ArenaMapSignupBanner extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTypography.soraRegular(
-                        fontSize: 9,
+                        fontSize: 10,
                         fontWeight: FontWeight.w700,
                         color: AppColors.brand,
                         letterSpacing: 0.6,

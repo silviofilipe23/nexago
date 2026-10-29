@@ -409,7 +409,7 @@ class _MomentumChartPainter extends CustomPainter {
   ) {
     final textStyle = TextStyle(
       fontFamily: AppTypography.monoFontFamily,
-      fontSize: 9,
+      fontSize: 11,
       fontWeight: FontWeight.w600,
       color: AppColors.onSurfaceMuted.withValues(alpha: 0.7),
     );

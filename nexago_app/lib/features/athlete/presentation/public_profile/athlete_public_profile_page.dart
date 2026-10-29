@@ -29,6 +29,7 @@ import 'widgets/public_profile_sports_section.dart';
 import 'widgets/public_profile_stats_row.dart';
 import 'widgets/public_profile_tabs.dart';
 import 'widgets/public_profile_tournaments_tab.dart';
+import '../../../../core/errors/friendly_error_message.dart';
 
 class AthletePublicProfilePage extends ConsumerStatefulWidget {
   const AthletePublicProfilePage({
@@ -85,7 +86,14 @@ class _AthletePublicProfilePageState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Não foi possível atualizar o follow.\n$e')),
+          SnackBar(
+              content: Text(
+            friendlyErrorMessage(
+              e,
+              action: 'Não foi possível seguir agora',
+              logReason: 'perfil_publico:seguir',
+            ),
+          )),
         );
       }
     } finally {
@@ -389,6 +397,7 @@ class _PrivateBlocked extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: IconButton(
+              tooltip: 'Voltar',
               onPressed: onBack,
               icon: Icon(Icons.arrow_back_rounded),
             ),

@@ -91,6 +91,7 @@ class LeagueDetailHero extends StatelessWidget {
                       onPressed: onBookmark,
                     ),
                     IconButton(
+                      tooltip: 'Compartilhar',
                       icon: Icon(
                         Icons.ios_share_rounded,
                         color: hasCover

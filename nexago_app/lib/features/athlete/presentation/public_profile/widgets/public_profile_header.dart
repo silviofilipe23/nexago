@@ -131,7 +131,11 @@ class PublicProfileHeader extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
                 child: Row(
                   children: [
-                    _IconButton(onTap: onBack, icon: Icons.arrow_back_rounded),
+                    _IconButton(
+                      onTap: onBack,
+                      icon: Icons.arrow_back_rounded,
+                      tooltip: 'Voltar',
+                    ),
                   ],
                 ),
               ),
@@ -363,7 +367,7 @@ class _RankingBadge extends StatelessWidget {
                 Text(
                   'RANKING BR',
                   style: AppTypography.mono(
-                    fontSize: 9,
+                    fontSize: 10,
                     fontWeight: FontWeight.w600,
                     color: labelColor,
                     letterSpacing: 0.6,
@@ -466,23 +470,34 @@ class _RankingBadgeMetal {
 }
 
 class _IconButton extends StatelessWidget {
-  const _IconButton({required this.onTap, required this.icon});
+  const _IconButton({
+    required this.onTap,
+    required this.icon,
+    required this.tooltip,
+  });
 
   final VoidCallback onTap;
+
+  /// Dica no toque longo e nome lido pelo leitor de tela — botão só com
+  /// ícone não se explica.
+  final String tooltip;
   final IconData icon;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: context.themeColors.surfaceCard.withValues(alpha: 0.9),
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: context.themeColors.surfaceCard.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(12),
-        child: SizedBox(
-          width: 40,
-          height: 40,
-          child: Icon(icon, color: context.themeColors.onSurface, size: 20),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(icon, color: context.themeColors.onSurface, size: 20),
+          ),
         ),
       ),
     );

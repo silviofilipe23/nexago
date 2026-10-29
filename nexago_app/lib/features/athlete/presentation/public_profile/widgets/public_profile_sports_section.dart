@@ -405,7 +405,7 @@ class _PrimaryBadge extends StatelessWidget {
       child: Text(
         'PRINCIPAL',
         style: AppTypography.mono(
-          fontSize: 9,
+          fontSize: 10,
           fontWeight: FontWeight.w700,
           color: AppColors.black,
           letterSpacing: 0.5,

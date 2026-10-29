@@ -144,7 +144,7 @@ class _Row extends StatelessWidget {
                     null => highlight ? accent : colors.onSurfaceMuted,
                   },
                   fontWeight: highlight ? FontWeight.w800 : FontWeight.w400,
-                  fontSize: 8,
+                  fontSize: 10,
                   letterSpacing: 0,
                 ),
               ),

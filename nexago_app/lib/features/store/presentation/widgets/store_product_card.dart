@@ -266,7 +266,7 @@ class StoreCardBadgeChip extends StatelessWidget {
       child: Text(
         badge.label.toUpperCase(),
         style: AppTypography.mono(
-          fontSize: 9.5,
+          fontSize: 10,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.76,
           height: 1,

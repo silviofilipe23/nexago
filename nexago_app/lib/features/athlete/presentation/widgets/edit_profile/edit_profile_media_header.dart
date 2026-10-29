@@ -151,7 +151,7 @@ class _CoverArea extends StatelessWidget {
                         Text(
                           'EDITAR CAPA',
                           style: AppTypography.mono(
-                            fontSize: 9,
+                            fontSize: 10,
                             fontWeight: FontWeight.w800,
                             color: AppColors.onSurface,
                             letterSpacing: 0.5,

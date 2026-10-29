@@ -9,6 +9,7 @@ import '../domain/tournament_discovery_providers.dart';
 import 'widgets/tournament_detail/tournament_detail_bracket_tab.dart';
 import 'widgets/tournament_detail/tournament_detail_subpage_scaffold.dart';
 import 'widgets/tournament_detail/tournament_matches_filter_toggle.dart';
+import '../../../core/errors/friendly_error_message.dart';
 
 class TournamentBracketPage extends ConsumerStatefulWidget {
   const TournamentBracketPage({super.key, required this.tournamentId});
@@ -56,7 +57,13 @@ class _TournamentBracketPageState extends ConsumerState<TournamentBracketPage> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text('Não foi possível carregar a chave.\n$e'),
+              child: Text(
+                friendlyErrorMessage(
+                  e,
+                  action: 'Não foi possível carregar a chave',
+                  logReason: 'torneio:chave',
+                ),
+              ),
             ),
           ),
         ],

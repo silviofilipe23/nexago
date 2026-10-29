@@ -28,6 +28,7 @@ class PlayByPlayPageHeader extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
+            tooltip: 'Voltar',
             icon: Icon(Icons.chevron_left_rounded, color: AppColors.onSurface),
             onPressed: onBack,
           ),
@@ -59,6 +60,7 @@ class PlayByPlayPageHeader extends StatelessWidget {
             ),
           ),
           IconButton(
+            tooltip: 'Compartilhar',
             icon: Icon(
               Icons.ios_share_rounded,
               color: onShare != null
@@ -591,7 +593,7 @@ class _StreakCard extends StatelessWidget {
                 style: theme.textTheme.labelSmall?.copyWith(
                   fontWeight: FontWeight.w800,
                   color: AppColors.brand,
-                  fontSize: 8,
+                  fontSize: 10,
                   letterSpacing: 0.2,
                 ),
               ),
@@ -647,7 +649,7 @@ class _PointScoreRow extends StatelessWidget {
             style: theme.textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w800,
               color: annotationColor,
-              fontSize: 9,
+              fontSize: 10,
               letterSpacing: 0.2,
             ),
           ),
@@ -830,7 +832,7 @@ class _SummaryStat extends StatelessWidget {
             style: theme.textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w700,
               color: AppColors.onSurfaceMuted,
-              fontSize: 9,
+              fontSize: 10,
               letterSpacing: 0.3,
             ),
           ),

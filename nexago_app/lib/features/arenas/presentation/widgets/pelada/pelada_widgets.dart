@@ -68,7 +68,7 @@ class PeladaStatusTagView extends StatelessWidget {
       softWrap: false,
       overflow: TextOverflow.ellipsis,
       style: AppTypography.mono(
-        fontSize: 9,
+        fontSize: 10,
         letterSpacing: 0.5,
         color: PeladaStyle.toneColor(
           tag.tone,
@@ -298,7 +298,7 @@ class PeladaSessionRow extends StatelessWidget {
                       Text(
                         day.weekday,
                         style: AppTypography.mono(
-                          fontSize: 9,
+                          fontSize: 10,
                           letterSpacing: 0.9,
                           color: PeladaStyle.dim(colors),
                         ),
@@ -551,7 +551,7 @@ class PeladaStatBox extends StatelessWidget {
           Text(
             label.toUpperCase(),
             style: AppTypography.mono(
-              fontSize: 8.5,
+              fontSize: 10,
               letterSpacing: 1,
               color: PeladaStyle.dim(colors),
             ),

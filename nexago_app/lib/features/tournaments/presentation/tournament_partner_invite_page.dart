@@ -375,6 +375,7 @@ class _TournamentPartnerInvitePageState
         scrolledUnderElevation: 0,
         elevation: 0,
         leading: IconButton(
+          tooltip: 'Voltar',
           icon: Icon(Icons.arrow_back_rounded),
           onPressed: () {
             if (_wizardStep == _PartnerInviteWizardStep.uniform) {

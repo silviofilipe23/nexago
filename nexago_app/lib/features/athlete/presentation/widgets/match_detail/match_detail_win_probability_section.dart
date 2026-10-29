@@ -159,7 +159,7 @@ class _ProbabilityColumn extends StatelessWidget {
           style: theme.textTheme.labelSmall?.copyWith(
             fontWeight: FontWeight.w800,
             color: context.themeColors.onSurfaceMuted,
-            fontSize: 9,
+            fontSize: 10,
             letterSpacing: 0.3,
           ),
         ),

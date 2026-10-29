@@ -60,7 +60,7 @@ class _KpiCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.eyebrow.copyWith(
                     color: colors.onSurfaceMuted,
-                    fontSize: 8,
+                    fontSize: 10,
                     height: 1.15,
                   ),
                 ),
@@ -118,7 +118,7 @@ class _KpiCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: AppTypography.bodyS.copyWith(
               color: colors.onSurfaceMuted,
-              fontSize: 8,
+              fontSize: 11,
             ),
           ),
         ],

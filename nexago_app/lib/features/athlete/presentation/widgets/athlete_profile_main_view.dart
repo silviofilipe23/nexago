@@ -1131,7 +1131,7 @@ class _StatCard extends StatelessWidget {
               style: theme.textTheme.labelSmall?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: context.themeColors.onSurfaceMuted,
-                fontSize: 9,
+                fontSize: 10,
                 letterSpacing: 0.4,
               ),
             ),
@@ -1621,7 +1621,7 @@ class _PartnerTile extends StatelessWidget {
             Text(
               partner.games,
               style: theme.textTheme.labelSmall?.copyWith(
-                fontSize: 9,
+                fontSize: 11,
                 color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w600,
               ),

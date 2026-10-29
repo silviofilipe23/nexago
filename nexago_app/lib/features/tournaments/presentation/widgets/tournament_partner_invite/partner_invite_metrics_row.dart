@@ -14,7 +14,7 @@ class PartnerInviteMetricsRow extends StatelessWidget {
   final String shareFeeLabel;
 
   static const _eyebrowStyle = TextStyle(
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: FontWeight.w700,
     letterSpacing: 0.4,
     height: 1.2,

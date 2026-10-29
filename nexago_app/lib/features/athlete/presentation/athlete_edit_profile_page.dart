@@ -31,6 +31,7 @@ import 'widgets/edit_profile/edit_profile_media_header.dart';
 import 'widgets/edit_profile/edit_profile_save_bar.dart';
 import 'widgets/edit_profile/edit_profile_section_header.dart';
 import 'widgets/edit_profile/edit_profile_text_field.dart';
+import '../../../core/errors/friendly_error_message.dart';
 
 /// Assinatura dos uploads de imagem de perfil do repositório
 /// (`uploadAvatar` / `uploadCoverPhoto`).
@@ -197,7 +198,7 @@ class _AthleteEditProfilePageState
         _avatarPersisted = true;
       },
       successMessage: 'Foto de perfil atualizada.',
-      errorPrefix: 'Erro ao salvar a foto',
+      errorPrefix: 'Não foi possível salvar a foto',
     );
     if (!saved || uid == null || !mounted) return;
 
@@ -228,7 +229,7 @@ class _AthleteEditProfilePageState
         _coverPersisted = true;
       },
       successMessage: 'Foto de capa atualizada.',
-      errorPrefix: 'Erro ao salvar a capa',
+      errorPrefix: 'Não foi possível salvar a capa',
     );
   }
 
@@ -280,7 +281,9 @@ class _AthleteEditProfilePageState
       if (!mounted) return false;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('$errorPrefix: $e')));
+      ).showSnackBar(SnackBar(content: Text(
+          friendlyErrorMessage(e, action: errorPrefix, logReason: 'perfil:imagem'),
+        )));
       return false;
     } finally {
       if (mounted) setState(() => onSaving(false));
@@ -475,7 +478,13 @@ class _AthleteEditProfilePageState
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e')));
+      ).showSnackBar(SnackBar(content: Text(
+          friendlyErrorMessage(
+            e,
+            action: 'Não foi possível salvar',
+            logReason: 'perfil:salvar',
+          ),
+        )));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

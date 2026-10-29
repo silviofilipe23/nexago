@@ -446,7 +446,7 @@ class _SummaryRow extends StatelessWidget {
             Text(
               badge,
               style: AppTypography.mono(
-                fontSize: 9,
+                fontSize: 10,
                 fontWeight: FontWeight.w700,
                 color: badgeColor,
                 letterSpacing: 0.8,

@@ -55,6 +55,7 @@ class _AthleteAchievementsPageState
         backgroundColor: context.themeColors.canvas,
         elevation: 0,
         leading: IconButton(
+          tooltip: 'Voltar',
           onPressed: () => context.pop(),
           icon: Container(
             padding: const EdgeInsets.all(8),

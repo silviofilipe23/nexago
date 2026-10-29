@@ -81,7 +81,7 @@ class _StatMiniCard extends StatelessWidget {
               fontWeight: FontWeight.w800,
               color: context.themeColors.onSurfaceMuted,
               letterSpacing: 0.3,
-              fontSize: 9,
+              fontSize: 10,
             ),
           ),
           SizedBox(height: 4),

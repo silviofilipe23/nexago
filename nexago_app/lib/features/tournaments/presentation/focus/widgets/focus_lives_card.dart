@@ -243,7 +243,7 @@ class _SideCard extends StatelessWidget {
                   color: active
                       ? accent
                       : Colors.white.withValues(alpha: 0.45),
-                  fontSize: 9,
+                  fontSize: 11,
                 ),
               ),
               const SizedBox(height: 2),

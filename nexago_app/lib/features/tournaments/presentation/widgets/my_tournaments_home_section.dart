@@ -395,7 +395,7 @@ class _StaffRow extends StatelessWidget {
                     style: theme.textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.w800,
                       color: context.themeColors.brandText,
-                      fontSize: 9,
+                      fontSize: 10,
                       letterSpacing: 0.2,
                     ),
                   ),
@@ -507,7 +507,7 @@ class _RegistrationRow extends StatelessWidget {
                     style: theme.textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.w800,
                       color: context.themeColors.readableTone(badgeColor),
-                      fontSize: 9,
+                      fontSize: 10,
                       letterSpacing: 0.2,
                     ),
                   ),

@@ -251,7 +251,7 @@ class _SetBox extends StatelessWidget {
             style: theme.textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w800,
               color: AppColors.onSurfaceMuted,
-              fontSize: 9,
+              fontSize: 10,
               letterSpacing: 0.3,
             ),
           ),

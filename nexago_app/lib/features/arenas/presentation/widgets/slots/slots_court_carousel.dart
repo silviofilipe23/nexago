@@ -163,7 +163,7 @@ class _Badge extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              fontSize: 9,
+              fontSize: 10,
               fontWeight: FontWeight.w800,
               color: context.themeColors.onSurfaceMuted,
               letterSpacing: 0.4,

@@ -100,7 +100,7 @@ class PartnerInviteHeroCard extends StatelessWidget {
                           Text(
                             'VOCÊ FOI CONVIDADO',
                             style: AppTypography.mono(
-                              fontSize: 9,
+                              fontSize: 10,
                               fontWeight: FontWeight.w700,
                               color: AppColors.brand,
                               letterSpacing: 0.5,
@@ -249,7 +249,7 @@ class _AvatarColumn extends StatelessWidget {
           Text(
             status,
             style: AppTypography.mono(
-              fontSize: 9,
+              fontSize: 10,
               fontWeight: FontWeight.w700,
               color: context.themeColors.readableTone(statusColor),
               letterSpacing: 0.3,
@@ -392,7 +392,7 @@ class _InviteeAvatar extends StatelessWidget {
               child: Text(
                 'VOCÊ',
                 style: AppTypography.mono(
-                  fontSize: 8,
+                  fontSize: 10,
                   fontWeight: FontWeight.w800,
                   color: AppColors.black,
                   letterSpacing: 0.2,

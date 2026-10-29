@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import '../domain/tournament_discovery_providers.dart';
 import 'widgets/tournament_detail/tournament_detail_prizes_tab.dart';
 import 'widgets/tournament_detail/tournament_detail_subpage_scaffold.dart';
+import '../../../core/errors/friendly_error_message.dart';
 
 class TournamentPrizesPage extends ConsumerWidget {
   const TournamentPrizesPage({super.key, required this.tournamentId});
@@ -25,7 +26,13 @@ class TournamentPrizesPage extends ConsumerWidget {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Text('Não foi possível carregar a premiação.\n$e'),
+              child: Text(
+                friendlyErrorMessage(
+                  e,
+                  action: 'Não foi possível carregar a premiação',
+                  logReason: 'torneio:premiacao',
+                ),
+              ),
             ),
           ),
         ],

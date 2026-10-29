@@ -48,7 +48,7 @@ class ArenaSearchDateTimeRow extends StatelessWidget {
                       style: theme.textTheme.labelSmall?.copyWith(
                         fontWeight: FontWeight.w800,
                         color: context.themeColors.brandText,
-                        fontSize: 9,
+                        fontSize: 10,
                       ),
                     ),
                   )

@@ -28,6 +28,7 @@ class PlayByPlayPageHeader extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
+            tooltip: 'Voltar',
             icon: Icon(Icons.chevron_left_rounded, color: AppColors.onSurface),
             onPressed: onBack,
           ),
@@ -59,6 +60,7 @@ class PlayByPlayPageHeader extends StatelessWidget {
             ),
           ),
           IconButton(
+            tooltip: 'Compartilhar',
             icon: Icon(
               Icons.ios_share_rounded,
               color: onShare != null

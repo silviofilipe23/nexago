@@ -38,6 +38,7 @@ class ArenaDetailHero extends StatelessWidget {
           child: _CircleIconButton(
             icon: Icons.arrow_back_rounded,
             onTap: onBack,
+            tooltip: 'Voltar',
           ),
         ),
         Positioned(
@@ -45,6 +46,7 @@ class ArenaDetailHero extends StatelessWidget {
           right: 12,
           child: _CircleIconButton(
             onTap: isFavoritePending ? null : onToggleFavorite,
+            tooltip: isFavorite ? 'Remover dos favoritos' : 'Favoritar arena',
             child: isFavoritePending
                 ? const SizedBox(
                     width: 20,
@@ -96,15 +98,26 @@ class ArenaDetailHero extends StatelessWidget {
 }
 
 class _CircleIconButton extends StatelessWidget {
-  const _CircleIconButton({this.icon, this.child, required this.onTap});
+  const _CircleIconButton({
+    this.icon,
+    this.child,
+    required this.onTap,
+    required this.tooltip,
+  });
 
   final IconData? icon;
   final Widget? child;
   final VoidCallback? onTap;
 
+  /// Dica no toque longo e nome lido pelo leitor de tela — botão só com
+  /// ícone não se explica.
+  final String tooltip;
+
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return Tooltip(
+      message: tooltip,
+      child: Material(
       color: Colors.black.withValues(alpha: 0.45),
       shape: const CircleBorder(),
       clipBehavior: Clip.antiAlias,
@@ -117,6 +130,7 @@ class _CircleIconButton extends StatelessWidget {
             child: child ?? Icon(icon, color: AppColors.white, size: 22),
           ),
         ),
+      ),
       ),
     );
   }

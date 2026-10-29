@@ -397,6 +397,7 @@ class _PrivateBlocked extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: IconButton(
+              tooltip: 'Voltar',
               onPressed: onBack,
               icon: Icon(Icons.arrow_back_rounded),
             ),

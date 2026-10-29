@@ -108,6 +108,7 @@ class _AthleteCompleteProfilePageState
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
+          tooltip: 'Voltar',
           onPressed: () => context.pop(),
           icon: Container(
             width: 40,

@@ -94,6 +94,7 @@ class _TournamentExternalInvitePageState
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
+          tooltip: 'Voltar',
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: _exit,
         ),

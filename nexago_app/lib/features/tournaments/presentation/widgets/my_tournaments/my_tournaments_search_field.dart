@@ -37,6 +37,7 @@ class MyTournamentsSearchField extends StatelessWidget {
             size: 22,
           ),
           suffixIcon: IconButton(
+            tooltip: 'Fechar busca',
             icon: Icon(
               Icons.close_rounded,
               color: context.themeColors.onSurfaceMuted,

@@ -64,6 +64,7 @@ class CompeteHubHeader extends StatelessWidget {
         CompeteHubAppBarIconButton(
           icon: Icons.search_rounded,
           onTap: () => _openDiscoveryList(context, searchOpen: true),
+          tooltip: 'Buscar torneios',
         ),
         ...trailingActions,
       ],
@@ -76,23 +77,31 @@ class CompeteHubAppBarIconButton extends StatelessWidget {
     super.key,
     required this.icon,
     required this.onTap,
+    required this.tooltip,
   });
 
   final IconData icon;
   final VoidCallback onTap;
 
+  /// Dica no toque longo e nome lido pelo leitor de tela — botão só com
+  /// ícone não se explica.
+  final String tooltip;
+
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: context.themeColors.surfaceRaised,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(12),
-        child: SizedBox(
-          width: 40,
-          height: 40,
-          child: Icon(icon, color: context.themeColors.onSurface, size: 22),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(icon, color: context.themeColors.onSurface, size: 22),
+          ),
         ),
       ),
     );

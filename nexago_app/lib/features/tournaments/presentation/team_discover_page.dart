@@ -130,6 +130,7 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
                     suffixIcon: _searchController.text.isEmpty
                         ? null
                         : IconButton(
+                            tooltip: 'Limpar busca',
                             icon: Icon(
                               Icons.close_rounded,
                               size: 18,
@@ -248,6 +249,7 @@ class _DiscoverAppBar extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             IconButton(
+              tooltip: 'Filtros',
               onPressed: onFilters,
               icon: const Icon(Icons.tune_rounded),
               color: context.themeColors.onSurface,

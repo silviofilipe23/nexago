@@ -314,6 +314,7 @@ class PublicProfileRestrictedView extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: IconButton(
+              tooltip: 'Voltar',
               onPressed: onBack,
               icon: const Icon(Icons.arrow_back_rounded),
             ),

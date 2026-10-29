@@ -77,6 +77,7 @@ class TeamProfileHeader extends StatelessWidget {
                       _IconButton(
                         onTap: onBack,
                         icon: Icons.arrow_back_rounded,
+                        tooltip: 'Voltar',
                       ),
                       const Spacer(),
                       if (onShare != null)
@@ -84,6 +85,7 @@ class TeamProfileHeader extends StatelessWidget {
                           key: const Key('team-profile-share'),
                           onTap: onShare!,
                           icon: Icons.ios_share_rounded,
+                          tooltip: 'Compartilhar',
                         ),
                     ],
                   ),
@@ -520,14 +522,25 @@ class _TagChip extends StatelessWidget {
 }
 
 class _IconButton extends StatelessWidget {
-  const _IconButton({super.key, required this.onTap, required this.icon});
+  const _IconButton({
+    super.key,
+    required this.onTap,
+    required this.icon,
+    required this.tooltip,
+  });
 
   final VoidCallback onTap;
+
+  /// Dica no toque longo e nome lido pelo leitor de tela — botão só com
+  /// ícone não se explica.
+  final String tooltip;
   final IconData icon;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return Tooltip(
+      message: tooltip,
+      child: Material(
       color: context.themeColors.surfaceCard.withValues(alpha: 0.75),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
@@ -538,6 +551,7 @@ class _IconButton extends StatelessWidget {
           height: 40,
           child: Icon(icon, size: 20, color: context.themeColors.onSurface),
         ),
+      ),
       ),
     );
   }

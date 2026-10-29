@@ -37,6 +37,7 @@ class DoubleEliminationBracketPage extends ConsumerWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
+          tooltip: 'Voltar',
           icon: Icon(Icons.arrow_back_rounded,
               color: context.themeColors.onSurface),
           onPressed: () => context.pop(),

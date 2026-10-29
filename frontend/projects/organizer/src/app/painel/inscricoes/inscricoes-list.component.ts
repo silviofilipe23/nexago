@@ -77,7 +77,7 @@ interface PhoneLinks {
 
                 <span class="og-insc-who">
                   <span class="og-insc-name" [title]="r.name">{{ r.name }}</span>
-                  @if (r.cancelPending || r.lgpd !== 'aceito' || r.roster) {
+                  @if (r.cancelPending || r.lgpd !== 'aceito' || r.roster || r.twinNote) {
                     <span class="og-insc-flags">
                       @if (r.roster; as roster) {
                         <span class="og-insc-flag" title="Elenco incompleto — a equipe só entra na chave completa">
@@ -87,6 +87,13 @@ interface PhoneLinks {
                       @if (r.cancelPending) {
                         <span class="og-insc-flag danger">
                           <og-icon name="flag" [size]="12" />Cancelamento pedido
+                        </span>
+                      }
+                      <!-- A trava do servidor só barra quem ENTRA: a mesma pessoa com duas contas que
+                           já estava inscrita (ou que o organizador inscreveu) só aparece aqui. -->
+                      @if (r.twinNote; as twin) {
+                        <span class="og-insc-flag warn" [title]="twin" [attr.aria-label]="'Possível duplicado: ' + twin">
+                          <og-icon name="copy" [size]="12" />Possível duplicado
                         </span>
                       }
                       @if (r.lgpd !== 'aceito') {
@@ -157,6 +164,12 @@ interface PhoneLinks {
                                [attr.aria-label]="'Enviar e-mail para ' + a.name + ', ' + a.email">
                               <og-icon name="mail" [size]="12" />{{ a.email }}
                             </a>
+                          }
+                          @if (a.twinNote) {
+                            <span class="twin">
+                              <og-icon name="copy" [size]="12" />
+                              <span>{{ a.twinNote }} — pode ser a mesma pessoa com duas contas.</span>
+                            </span>
                           }
 
                           <!-- Pagamento por atleta: só faz sentido oferecer enquanto a dupla/equipe
@@ -736,6 +749,20 @@ interface PhoneLinks {
 
     .og-insc-athletes .lgpd.ok {
       color: var(--nx-text-dim);
+    }
+
+    .og-insc-athletes .twin {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 5px;
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      color: var(--nx-pending);
+    }
+
+    .og-insc-athletes .twin og-icon {
+      flex: none;
+      align-self: center;
     }
 
     .og-insc-athletes .pay-row {

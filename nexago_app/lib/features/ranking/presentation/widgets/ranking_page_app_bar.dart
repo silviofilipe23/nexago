@@ -37,13 +37,21 @@ class RankingPageAppBar extends StatelessWidget implements PreferredSizeWidget {
   Size get preferredSize =>
       Size.fromHeight(kToolbarHeight + (searchOpen ? 52 : 0));
 
+  /// Quatro botões de 40 dividem a linha com o título: com o vão antigo (10)
+  /// e o recuo de 20 depois da seta, "Ranking" virava "Ranki…" até 393 de
+  /// largura. Vão de 4 e recuo de 8 (o das outras telas com voltar) deixam o
+  /// título inteiro a partir de 360.
+  static const _gap = SizedBox(width: 4);
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Aberto como primeira tela (sem seta), o título segue o recuo do conteúdo.
+    final hasBack = ModalRoute.of(context)?.impliesAppBarDismissal ?? false;
 
     return NexaAppBar(
       centerTitle: false,
-      titleSpacing: ArenaDashboardTokens.horizontalPadding,
+      titleSpacing: hasBack ? 8 : ArenaDashboardTokens.horizontalPadding,
       title: searchOpen
           ? TextField(
               controller: searchController,
@@ -75,19 +83,19 @@ class RankingPageAppBar extends StatelessWidget implements PreferredSizeWidget {
             icon: Icons.help_outline_rounded,
             onTap: onInfoTap,
           ),
-          SizedBox(width: 10),
+          _gap,
         ],
         CompeteHubAppBarIconButton(
           icon: searchOpen ? Icons.close_rounded : Icons.search_rounded,
           onTap: onSearchToggle,
         ),
-        SizedBox(width: 10),
+        _gap,
         CompeteHubAppBarIconButton(
           icon: filtersActive ? Icons.filter_alt_rounded : Icons.tune_rounded,
           onTap: onFilterTap,
         ),
         if (!searchOpen) ...[
-          SizedBox(width: 10),
+          _gap,
           CompeteHubAppBarIconButton(
             icon: Icons.ios_share_rounded,
             onTap: onShareTap,

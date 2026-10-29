@@ -330,6 +330,53 @@ class AnalyticsService {
         parameters: storeEventParams(orderId: orderId),
       );
 
+  // --- Navegação: menu da conta e tour da Início ---
+
+  /// [origin]: `inicio` · `agenda` · `reservar` · `hub` · `loja` ·
+  /// `comunidade` — a aba de onde o avatar foi tocado.
+  Future<void> logAccountMenuOpened(String origin) => _analytics.logEvent(
+        name: AnalyticsEvents.accountMenuOpened,
+        parameters: {'origem': origin},
+      );
+
+  /// [action]: `perfil` · `configuracoes` · `trocar_papel` · `fechou`.
+  Future<void> logAccountMenuAction({
+    required String origin,
+    required String action,
+  }) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.accountMenuAction,
+        parameters: {'origem': origin, 'acao': action},
+      );
+
+  /// Passo [step] (1 = abriu) de [total]; [target] é o alvo destacado.
+  Future<void> logHomeTourStep({
+    required int step,
+    required int total,
+    required String target,
+  }) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.homeTourStep,
+        parameters: {'passo': step, 'total': total, 'alvo': target},
+      );
+
+  /// [result]: `concluiu` · `pulou` · `voltar`; [step] é onde parou.
+  Future<void> logHomeTourFinished({
+    required String result,
+    required int step,
+    required int total,
+    required int version,
+  }) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.homeTourFinished,
+        parameters: {
+          'resultado': result,
+          'passo': step,
+          'total': total,
+          'versao': version,
+        },
+      );
+
   // --- Peladas ---
 
   Future<void> logPeladasTabViewed() =>

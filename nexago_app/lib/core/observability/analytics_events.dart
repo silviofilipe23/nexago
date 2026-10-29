@@ -10,6 +10,14 @@ abstract final class AnalyticsEvents {
   static const tournamentRegistrationConfirmed =
       'tournament_registration_confirmed';
 
+  // Navegação descobrível: menu da conta (avatar) e tour da Início. Medem se
+  // o atleta passou a achar perfil e configurações — a queixa que originou a
+  // seta ⌄, o avatar em todas as abas e o tour.
+  static const accountMenuOpened = 'menu_conta_aberto';
+  static const accountMenuAction = 'menu_conta_acao';
+  static const homeTourStep = 'tour_inicio_passo';
+  static const homeTourFinished = 'tour_inicio_fim';
+
   // Peladas (placar do pós-jogo, spec "Peladas" §10).
   static const peladasTabViewed = 'peladas_tab_viewed';
   static const peladaFilterApplied = 'pelada_filter_applied';

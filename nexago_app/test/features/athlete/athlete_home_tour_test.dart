@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/auth/auth_providers.dart';
+import 'package:nexago_app/core/observability/analytics_service.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/athlete/data/athlete_home_tour_store.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_shell_providers.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/athlete_home/athlete_home_tour.dart';
+
+import '../../support/recording_analytics.dart';
 
 class _FakeStore extends AthleteHomeTourStore {
   _FakeStore({this.alreadySeen = false});
@@ -266,6 +269,9 @@ void main() {
   });
 
   group('AthleteHomeTourAnnouncer', () {
+    late RecordingAnalytics analytics;
+    setUp(() => analytics = RecordingAnalytics());
+
     Future<_FakeStore> pumpShell(
       WidgetTester tester, {
       bool alreadySeen = false,
@@ -283,6 +289,7 @@ void main() {
             ),
             athleteShellTabIndexProvider.overrideWith((ref) => tab),
             athleteHomeTourStoreProvider.overrideWithValue(store),
+            analyticsServiceProvider.overrideWithValue(analytics),
           ],
           child: MaterialApp(
             theme: AppTheme.dark,
@@ -332,6 +339,42 @@ void main() {
       await tester.tap(find.byKey(const Key('athlete-home-tour-skip')));
       await tester.pumpAndSettle();
       expect(container.read(athleteShellTabIndexProvider), 0);
+    });
+
+    testWidgets('analytics: cada passo e onde o atleta pulou', (tester) async {
+      await pumpShell(tester);
+
+      await tester.tap(find.byKey(const Key('athlete-home-tour-next')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('athlete-home-tour-skip')));
+      await tester.pumpAndSettle();
+
+      final steps = analytics.of(#logHomeTourStep);
+      expect(steps.map((c) => c.namedArguments[#step]), [1, 2]);
+      expect(steps.map((c) => c.namedArguments[#target]), [
+        'account',
+        'notifications',
+      ]);
+      expect(steps.first.namedArguments[#total], 6);
+
+      final finished = analytics.of(#logHomeTourFinished).single;
+      expect(finished.namedArguments[#result], 'pulou');
+      expect(finished.namedArguments[#step], 2);
+      expect(finished.namedArguments[#version], AthleteHomeTourStore.version);
+    });
+
+    testWidgets('analytics: chegou ao fim registra "concluiu"', (tester) async {
+      await pumpShell(tester);
+
+      for (var i = 0; i < 6; i++) {
+        await tester.tap(find.byKey(const Key('athlete-home-tour-next')));
+        await tester.pumpAndSettle();
+      }
+
+      expect(analytics.of(#logHomeTourStep), hasLength(6));
+      final finished = analytics.of(#logHomeTourFinished).single;
+      expect(finished.namedArguments[#result], 'concluiu');
+      expect(finished.namedArguments[#step], 6);
     });
 
     testWidgets('não abre de novo para quem já viu', (tester) async {

@@ -2,20 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/auth/active_role_providers.dart';
+import 'package:nexago_app/core/observability/analytics_service.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/athlete_home/athlete_account_sheet.dart';
 
+import '../../support/recording_analytics.dart';
+
 void main() {
+  late RecordingAnalytics analytics;
+  setUp(() => analytics = RecordingAnalytics());
+
   Widget wrap() => ProviderScope(
         overrides: [
           athleteProfileProvider.overrideWith((ref) => Stream.value(null)),
           hasMultipleMobileRolesProvider.overrideWithValue(false),
+          analyticsServiceProvider.overrideWithValue(analytics),
         ],
         child: MaterialApp(
           theme: AppTheme.dark,
           home: const Scaffold(
-            body: Center(child: AthleteAccountButton()),
+            body: Center(child: AthleteAccountButton(origin: 'agenda')),
           ),
         ),
       );
@@ -46,5 +53,25 @@ void main() {
       find.bySemanticsLabel(athleteAccountMenuSemanticLabel),
       findsOneWidget,
     );
+  });
+
+  testWidgets('registra de onde o menu abriu e que o atleta fechou',
+      (tester) async {
+    await tester.pumpWidget(wrap());
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('athlete-account-button')));
+    await tester.pumpAndSettle();
+    expect(
+      analytics.of(#logAccountMenuOpened).single.positionalArguments,
+      ['agenda'],
+    );
+
+    // Fecha tocando fora da folha.
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+    final action = analytics.of(#logAccountMenuAction).single;
+    expect(action.namedArguments[#origin], 'agenda');
+    expect(action.namedArguments[#action], 'fechou');
   });
 }

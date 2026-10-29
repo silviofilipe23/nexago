@@ -157,7 +157,8 @@ class AthleteHomePage extends ConsumerWidget {
                         // Menu da conta: perfil, configurações e trocar papel
                         // (igual ao avatar do Professor). Avatar e saudação
                         // são um alvo só, com a seta ⌄ dizendo que abre menu.
-                        onIdentityTap: () => openAthleteAccountMenu(context, ref),
+                        onIdentityTap: () =>
+                            openAthleteAccountMenu(context, ref, origin: 'inicio'),
                         identitySemanticLabel: athleteAccountMenuSemanticLabel,
                         // A primeira seção sobe para cima da arte: a caixa do
                         // hero encolhe, a pintura não.

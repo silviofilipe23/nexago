@@ -20,6 +20,7 @@ import 'widgets/match_history/match_history_season_card.dart';
 import 'widgets/match_history/match_history_tab_switcher.dart';
 import 'widgets/match_history/match_history_tournament_card.dart';
 import 'widgets/match_history/match_history_tournament_stats_row.dart';
+import 'package:nexago_app/core/ui/nexa_skeleton.dart';
 
 /// Histórico de partidas e torneios do atleta (protótipos 07/08).
 class AthleteMatchHistoryPage extends ConsumerWidget {
@@ -35,8 +36,7 @@ class AthleteMatchHistoryPage extends ConsumerWidget {
       backgroundColor: colors.canvas,
       appBar: _appBar(context, theme, colors),
       body: bundleAsync.when(
-        loading: () =>
-            Center(child: CircularProgressIndicator(color: colors.brand)),
+        loading: () => const NexaListSkeleton.cards(cardHeight: 96),
         error: (e, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),

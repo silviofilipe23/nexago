@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../core/router/routes.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme_colors.dart';
@@ -14,6 +13,7 @@ import '../domain/tournament_enrolled_athletes_logic.dart';
 import '../domain/tournament_enrolled_athletes_providers.dart';
 import 'widgets/tournament_detail/tournament_detail_category_chips.dart';
 import 'widgets/tournament_detail/tournament_detail_subpage_scaffold.dart';
+import 'package:nexago_app/core/ui/nexa_skeleton.dart';
 
 /// Equipes com inscrição confirmada, agrupadas por categoria.
 ///
@@ -264,12 +264,7 @@ class _Loading extends StatelessWidget {
     return const TournamentDetailSubpageScaffold(
       title: 'Equipes inscritas',
       slivers: [
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Center(
-            child: CircularProgressIndicator(color: AppColors.brand),
-          ),
-        ),
+        SliverToBoxAdapter(child: NexaListSkeleton(count: 8)),
       ],
     );
   }

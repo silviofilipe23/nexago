@@ -18,6 +18,7 @@ import 'widgets/athlete_notifications/animated_notification_removal.dart';
 import 'widgets/athlete_notifications/athlete_notification_card.dart';
 import 'widgets/athlete_notifications/athlete_notifications_filter_bar.dart';
 import 'widgets/athlete_notifications/athlete_notifications_section_header.dart';
+import 'package:nexago_app/core/ui/nexa_skeleton.dart';
 
 class AthleteNotificationsPage extends ConsumerStatefulWidget {
   const AthleteNotificationsPage({super.key});
@@ -217,8 +218,7 @@ class _AthleteNotificationsPageState
         ],
       ),
       body: notificationsAsync.when(
-        loading: () =>
-            Center(child: CircularProgressIndicator(color: AppColors.brand)),
+        loading: () => const NexaListSkeleton(count: 8),
         error: (_, __) =>
             _EmptyState(message: 'Não foi possível carregar as notificações.'),
         data: (_) {

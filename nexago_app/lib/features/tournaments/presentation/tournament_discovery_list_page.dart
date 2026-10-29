@@ -451,14 +451,7 @@ class _TournamentDiscoveryListPageState
                       ),
                     if (keywordSearchLoading)
                       const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 40),
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              color: AppColors.brand,
-                            ),
-                          ),
-                        ),
+                        child: NexaListSkeleton.cards(cardHeight: 132),
                       )
                     else if (rows.isEmpty)
                       SliverFillRemaining(

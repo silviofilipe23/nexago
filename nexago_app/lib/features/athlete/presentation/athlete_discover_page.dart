@@ -11,6 +11,7 @@ import '../domain/athlete_discover_logic.dart';
 import '../domain/athlete_discover_providers.dart';
 import 'widgets/discover/athlete_discover_card.dart';
 import 'widgets/discover/athlete_discover_filters_sheet.dart';
+import 'package:nexago_app/core/ui/nexa_skeleton.dart';
 
 const _discoverHorizontalPadding = 20.0;
 
@@ -279,10 +280,8 @@ List<Widget> _buildBodySlivers({
 }) {
   if (state.isLoading && state.displayEntries.isEmpty) {
     return [
-      const SliverFillRemaining(
-        hasScrollBody: false,
-        child: Center(child: CircularProgressIndicator(color: AppColors.brand)),
-      ),
+      const SliverToBoxAdapter(
+          child: NexaListSkeleton(count: 8, avatarSize: 44)),
     ];
   }
 

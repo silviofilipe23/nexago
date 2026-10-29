@@ -144,10 +144,12 @@ class AthleteHomePage extends ConsumerWidget {
                               .watch(sandRankCosmeticsProvider)
                               .valueOrNull
                               ?.frameId,
-                          // Menu da conta: perfil, configurações e
-                          // trocar papel (igual ao avatar do Professor).
-                          onTap: () => openAthleteAccountMenu(context, ref),
                         ),
+                        // Menu da conta: perfil, configurações e trocar papel
+                        // (igual ao avatar do Professor). Avatar e saudação
+                        // são um alvo só, com a seta ⌄ dizendo que abre menu.
+                        onIdentityTap: () => openAthleteAccountMenu(context, ref),
+                        identitySemanticLabel: athleteAccountMenuSemanticLabel,
                         // A primeira seção sobe para cima da arte: a caixa do
                         // hero encolhe, a pintura não.
                         bleedBelow: _heroOverlap,
@@ -722,6 +724,7 @@ class _HeroBell extends StatelessWidget {
                 Icons.notifications_outlined,
                 size: 22,
                 color: AppColors.white,
+                semanticLabel: 'Notificações',
               ),
             ),
           ),
@@ -835,6 +838,21 @@ class _HeroXpPillState extends State<_HeroXpPill> {
                       fontSize: 13,
                     ),
                   ),
+                  // Só o "30/100" não dizia pra onde a pílula levava.
+                  const SizedBox(width: 6),
+                  Text(
+                    'Desafios',
+                    style: AppTypography.bodyS.copyWith(
+                      color: AppColors.white.withValues(alpha: 0.72),
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 16,
+                    color: AppColors.white.withValues(alpha: 0.72),
+                  ),
                 ],
               ),
             ),
@@ -845,15 +863,14 @@ class _HeroXpPillState extends State<_HeroXpPill> {
   }
 }
 
-/// Avatar do hero — leva ao perfil, com moldura e emblema do Sand Rank.
-/// Fora do mockup de propósito: sem ele nenhuma das cinco abas leva ao
-/// cadastro do atleta.
+/// Avatar do hero, com moldura e emblema do Sand Rank. O toque é do hero
+/// ([AthleteHomeHero.onIdentityTap]): avatar e saudação abrem o menu da conta
+/// juntos.
 class _HeroAvatar extends StatelessWidget {
   const _HeroAvatar({
     required this.initials,
     required this.summary,
     required this.sandRankEnabled,
-    required this.onTap,
     this.imageUrl,
     this.sandRankFrameId,
   });
@@ -866,7 +883,6 @@ class _HeroAvatar extends StatelessWidget {
   final GamificationSummary summary;
   final bool sandRankEnabled;
   final String? sandRankFrameId;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -877,13 +893,8 @@ class _HeroAvatar extends StatelessWidget {
     );
     final step = sandRankStepFromXp(summary.xp);
 
-    return Tooltip(
-      message: 'Sua conta',
-      child: InkWell(
-        key: const Key('athlete-home-avatar'),
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: SizedBox(
+    return SizedBox(
+          key: const Key('athlete-home-avatar'),
           width: _slotSize,
           height: _slotSize,
           child: Stack(
@@ -913,8 +924,6 @@ class _HeroAvatar extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
     );
   }
 }

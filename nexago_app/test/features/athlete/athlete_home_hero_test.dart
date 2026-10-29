@@ -169,6 +169,7 @@ void main() {
       Widget? leading,
       Widget? topRight,
       Widget? bottomRight,
+      VoidCallback? onIdentityTap,
       double bleedBelow = 0,
       DateTime? now,
     }) => AthleteHomeHero(
@@ -178,6 +179,8 @@ void main() {
       leading: leading,
       topRight: topRight,
       bottomRight: bottomRight,
+      onIdentityTap: onIdentityTap,
+      identitySemanticLabel: onIdentityTap == null ? null : 'Sua conta',
       bleedBelow: bleedBelow,
       now: now ?? DateTime(2026, 9, 11, 22),
     );
@@ -307,6 +310,45 @@ void main() {
       final saudacao = tester.getRect(find.text('Boa noite, Fernandinha.'));
       final sino = tester.getRect(find.byIcon(Icons.notifications_none_rounded));
       expect(saudacao.right, lessThanOrEqualTo(sino.left));
+    });
+    testWidgets('sem onIdentityTap a saudação não vira botão nem ganha seta',
+        (tester) async {
+      await tester.pumpWidget(
+        wrap(hero(leading: const Icon(Icons.person_rounded))),
+      );
+
+      expect(find.byKey(const Key('athlete-home-identity')), findsNothing);
+      expect(
+        find.byKey(const Key('athlete-home-identity-chevron')),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+        'com onIdentityTap avatar e saudação abrem a conta, com a seta ⌄',
+        (tester) async {
+      var taps = 0;
+      await tester.pumpWidget(
+        wrap(
+          hero(
+            leading: const Icon(Icons.person_rounded),
+            onIdentityTap: () => taps++,
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(const Key('athlete-home-identity-chevron')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byIcon(Icons.person_rounded));
+      await tester.tap(find.byKey(const Key('athlete-home-identity-chevron')));
+      expect(taps, 2);
+      expect(
+        find.bySemanticsLabel('Sua conta'),
+        findsOneWidget,
+        reason: 'o leitor de tela anuncia o grupo como um botão só',
+      );
     });
   });
 }

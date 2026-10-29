@@ -26,6 +26,7 @@ class StoreHeader extends StatelessWidget {
     required this.cartUnits,
     required this.pulseTick,
     this.onBack,
+    this.leading,
     this.onOrders,
     required this.onSearch,
     this.onFavorites,
@@ -41,6 +42,10 @@ class StoreHeader extends StatelessWidget {
   /// Muda a cada "+" que adicionou: a sacola pulsa.
   final int pulseTick;
   final VoidCallback? onBack;
+
+  /// À esquerda do título quando não há [onBack] (Loja como aba): o botão da
+  /// conta do atleta.
+  final Widget? leading;
 
   /// "Meus pedidos"; `null` = sem o botão (deslogado).
   final VoidCallback? onOrders;
@@ -76,6 +81,9 @@ class StoreHeader extends StatelessWidget {
               onTap: back,
             ),
             const SizedBox(width: 12),
+          ] else if (leading case final leading?) ...[
+            leading,
+            const SizedBox(width: 10),
           ],
           Expanded(
             child: subtitle == null

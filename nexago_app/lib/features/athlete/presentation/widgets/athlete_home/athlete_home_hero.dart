@@ -4,6 +4,7 @@ import '../../../../../core/sports/sport_catalog.dart';
 import '../../../domain/sport_art_catalog.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/theme/app_radii.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
@@ -121,6 +122,8 @@ class AthleteHomeHero extends StatelessWidget {
     this.leading,
     this.topRight,
     this.bottomRight,
+    this.onIdentityTap,
+    this.identitySemanticLabel,
     this.bleedBelow = 0,
     this.now,
   });
@@ -146,6 +149,14 @@ class AthleteHomeHero extends StatelessWidget {
   /// Canto inferior direito. Ex.: pílula de XP.
   final Widget? bottomRight;
 
+  /// Toque no grupo [leading] + saudação. Com ele o grupo inteiro vira um
+  /// botão e a saudação ganha a seta ⌄ — o avatar sozinho não dizia que abria
+  /// um menu, e os atletas não achavam perfil e configurações.
+  final VoidCallback? onIdentityTap;
+
+  /// O que o leitor de tela anuncia para o grupo quando há [onIdentityTap].
+  final String? identitySemanticLabel;
+
   /// Quanto o hero encolhe para a primeira seção da página subir contra a
   /// imagem.
   ///
@@ -168,6 +179,75 @@ class AthleteHomeHero extends StatelessWidget {
         : '$greeting, $trimmedName.';
 
     final canvas = context.themeColors.canvas;
+    final titleStyle = AppTypography.titleL.copyWith(color: AppColors.white);
+
+    Widget identity = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (leading != null) ...[
+          leading!,
+          const SizedBox(width: AppSpacing.md),
+        ],
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text.rich(
+                TextSpan(
+                  text: title,
+                  children: [
+                    if (onIdentityTap != null)
+                      WidgetSpan(
+                        alignment: PlaceholderAlignment.middle,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 2),
+                          child: Icon(
+                            Icons.expand_more_rounded,
+                            key: const Key('athlete-home-identity-chevron'),
+                            size: 22,
+                            color: AppColors.white.withValues(alpha: 0.85),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: titleStyle,
+              ),
+              if (tagline != null) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  tagline!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodyS.copyWith(
+                    color: AppColors.white.withValues(alpha: 0.72),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+    if (onIdentityTap case final onTap?) {
+      identity = Semantics(
+        button: true,
+        label: identitySemanticLabel,
+        excludeSemantics: identitySemanticLabel != null,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            key: const Key('athlete-home-identity'),
+            onTap: onTap,
+            borderRadius: AppRadii.mdAll,
+            child: identity,
+          ),
+        ),
+      );
+    }
 
     return SizedBox(
       height: topInset + _heroContentHeight - bleedBelow,
@@ -196,44 +276,7 @@ class AthleteHomeHero extends StatelessWidget {
                   // onde mora o sino.
                   widthFactor: leading == null ? 0.72 : 0.82,
                   alignment: Alignment.centerLeft,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (leading != null) ...[
-                        leading!,
-                        const SizedBox(width: AppSpacing.md),
-                      ],
-                      Flexible(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTypography.titleL.copyWith(
-                                color: AppColors.white,
-                              ),
-                            ),
-                            if (tagline != null) ...[
-                              const SizedBox(height: AppSpacing.xs),
-                              Text(
-                                tagline!,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTypography.bodyS.copyWith(
-                                  color: AppColors.white.withValues(
-                                    alpha: 0.72,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                  child: identity,
                 ),
               ],
             ),

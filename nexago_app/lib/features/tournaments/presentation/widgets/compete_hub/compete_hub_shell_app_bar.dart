@@ -7,7 +7,14 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 /// Header da aba Competir no shell do atleta (rola com o conteúdo).
 class CompeteHubHeader extends StatelessWidget {
-  const CompeteHubHeader({super.key, this.trailingActions = const []});
+  const CompeteHubHeader({
+    super.key,
+    this.leading,
+    this.trailingActions = const [],
+  });
+
+  /// À esquerda do título. Ex.: o botão da conta do atleta.
+  final Widget? leading;
 
   final List<Widget> trailingActions;
 
@@ -23,8 +30,14 @@ class CompeteHubHeader extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: leading == null
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
       children: [
+        if (leading case final leading?) ...[
+          leading,
+          const SizedBox(width: 10),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

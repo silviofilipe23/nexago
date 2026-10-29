@@ -17,6 +17,7 @@ import '../../ranking/domain/ranking_providers.dart';
 import '../../tournaments/presentation/widgets/compete_hub/compete_hub_ranking_row.dart';
 import '../domain/athlete_shell_providers.dart';
 import 'widgets/community/community_feed_section.dart';
+import 'widgets/athlete_home/athlete_account_sheet.dart';
 
 /// Comunidade no padrão do painel do portal web: feed automático primeiro
 /// (aberturas de inscrição e campeões), "Ranking em destaque" como card
@@ -77,7 +78,15 @@ class AthleteCommunityPage extends ConsumerWidget {
               ],
             )
           else
-            title,
+            // Como aba, no lugar do voltar entra a conta — o mesmo canto das
+            // outras abas.
+            Row(
+              children: [
+                const AthleteAccountButton(),
+                const SizedBox(width: 10),
+                Expanded(child: title),
+              ],
+            ),
           const SizedBox(height: 3),
           Text(
             'O QUE ESTÁ ROLANDO NOS ESPORTES DE AREIA',

@@ -39,6 +39,20 @@ class _XpPillReplica extends StatelessWidget {
               fontSize: 13,
             ),
           ),
+          const SizedBox(width: 6),
+          Text(
+            'Desafios',
+            style: AppTypography.bodyS.copyWith(
+              color: AppColors.white.withValues(alpha: 0.72),
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(width: 2),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 16,
+            color: AppColors.white.withValues(alpha: 0.72),
+          ),
         ],
       ),
     );

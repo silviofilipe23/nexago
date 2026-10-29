@@ -36,6 +36,7 @@ import 'widgets/arena_search/arena_search_date_time_row.dart';
 import 'widgets/arena_search/arena_search_filters_sheet.dart';
 import 'widgets/arena_search/arena_search_location_sheet.dart';
 import 'widgets/arena_search/arena_search_sort_sheet.dart';
+import 'widgets/athlete_home/athlete_account_sheet.dart';
 
 /// Fração da tela que o sheet ocupa ao abrir. Compartilhada com o
 /// posicionamento dos controles flutuantes, que precisam ficar acima dele.
@@ -816,6 +817,8 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage>
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
+              const AthleteAccountButton(),
+              const SizedBox(width: 8),
               Expanded(
                 child: ArenaMapSearchBar(
                   initialQuery: _filters.query,

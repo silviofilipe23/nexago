@@ -4,10 +4,87 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../../core/auth/active_role_providers.dart';
 import '../../../../../core/router/routes.dart';
+import '../../../../../core/theme/app_theme_colors.dart';
 import '../../../../auth/presentation/role_selection_page.dart';
 import '../../../../professor_links/presentation/widgets/professor_links_ui.dart';
+import '../../../domain/athlete_display_name.dart';
+import '../../../domain/athlete_profile_providers.dart';
+import '../athlete_profile_avatar.dart';
 
 enum AthleteAccountAction { profile, settings, switchRole }
+
+/// O que o leitor de tela anuncia em toda entrada do menu da conta.
+const athleteAccountMenuSemanticLabel =
+    'Sua conta: perfil, configurações e trocar papel';
+
+/// Avatar com a seta ⌄ no canto, à esquerda do título das abas do atleta,
+/// abrindo [openAthleteAccountMenu].
+///
+/// Antes o menu da conta só existia no avatar do topo da Início, sem nada que
+/// dissesse que ele abria um menu: em Agenda, Reservar, Hub e Loja o atleta
+/// não tinha caminho pro perfil nem pras configurações. Mesmo lugar (canto
+/// esquerdo do header) e mesmo desenho em todas as abas.
+class AthleteAccountButton extends ConsumerWidget {
+  const AthleteAccountButton({super.key});
+
+  static const double _avatarSize = 36;
+
+  /// Alvo de toque mínimo de 44 (HIG) em volta do avatar de 36.
+  static const double _slotSize = 44;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.themeColors;
+    final profile = ref.watch(athleteProfileProvider).valueOrNull;
+
+    return Semantics(
+      button: true,
+      label: athleteAccountMenuSemanticLabel,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: 'Sua conta',
+        child: InkWell(
+          key: const Key('athlete-account-button'),
+          onTap: () => openAthleteAccountMenu(context, ref),
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: _slotSize,
+            height: _slotSize,
+            child: Stack(
+              alignment: Alignment.center,
+              clipBehavior: Clip.none,
+              children: [
+                AthleteProfileAvatar(
+                  size: _avatarSize,
+                  initials: profile != null ? athleteInitials(profile) : '?',
+                  imageUrl: profile?.avatarUrl,
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: colors.surfaceRaised,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: colors.canvas, width: 2),
+                    ),
+                    child: Icon(
+                      Icons.expand_more_rounded,
+                      size: 14,
+                      color: colors.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 /// Menu do avatar da Home do atleta: Meu perfil, Configurações e — com mais
 /// de um papel — Trocar papel. Mesmo padrão da folha do modo Professor.

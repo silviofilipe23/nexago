@@ -80,103 +80,65 @@ void main() {
     );
   });
 
-  group('cápsula sempre minimizada no Android', () {
-    testWidgets(
-      'Android: renderiza minimizada mesmo com collapseProgress=0 (topo do scroll)',
-      (tester) async {
-        // No Android a barra não expande/recolhe com o scroll como no iOS —
-        // fica sempre no estado compacto (ícones, sem rótulos), mesmo recém
-        // aberta ou logo após trocar de aba.
-        await tester.pumpWidget(
-          _buildShell(
-            platform: TargetPlatform.android,
-            bottomInset: 24,
-            collapseProgress: 0,
-          ),
-        );
 
-        expect(find.text('Início'), findsNothing);
-        expect(
-          _capsuleRect(tester).height,
-          lessThan(ShellTabBarCollapseController.expandedHeight),
-        );
-      },
-    );
-
-    testWidgets(
-      'iOS: continua expandindo/recolhendo conforme collapseProgress',
-      (tester) async {
-        // Guarda de regressão: só o Android deve ser forçado a minimizar.
+  group('rótulos sempre visíveis', () {
+    // Atletas não sabiam o que cada aba era com a barra minimizada (só
+    // ícones). Ela agora fica expandida, com rótulos, em qualquer plataforma
+    // e em qualquer ponto do scroll.
+    for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
+      testWidgets('${platform.name}: rótulos no topo do scroll',
+          (tester) async {
         await tester.pumpWidget(
-          _buildShell(
-            platform: TargetPlatform.iOS,
-            bottomInset: 34,
-            collapseProgress: 0,
-          ),
+          _buildShell(platform: platform, bottomInset: 24),
         );
 
         expect(find.text('Início'), findsOneWidget);
-      },
-    );
+        expect(find.text('Agenda'), findsOneWidget);
+      });
 
-    testWidgets(
-      'navegação de 3 botões: cápsula nunca fica menor que o alvo de toque',
-      (tester) async {
+      testWidgets('${platform.name}: rótulos continuam depois de rolar',
+          (tester) async {
         await tester.pumpWidget(
-          _buildShell(platform: TargetPlatform.android, bottomInset: 48),
+          _buildShell(platform: platform, bottomInset: 24, collapseProgress: 1),
         );
 
-        // 48dp é o piso de layout (ver visualBarHeight em
-        // NexaLiquidGlassTabBar); o encolhimento cosmético de 0.94 do estado
-        // "compacto" reduz um pouco o retângulo renderizado, então checamos
-        // contra 44 (mínimo de alvo de toque também aceito pela HIG da Apple).
-        expect(_capsuleRect(tester).height, greaterThanOrEqualTo(44));
-      },
-    );
+        expect(find.text('Início'), findsOneWidget);
+        expect(
+          _capsuleRect(tester).height,
+          greaterThanOrEqualTo(ShellTabBarCollapseController.expandedHeight),
+        );
+      });
+    }
+
+    testWidgets('rótulo com 11 de corpo, legível', (tester) async {
+      await tester.pumpWidget(
+        _buildShell(platform: TargetPlatform.android, bottomInset: 24),
+      );
+
+      final label = tester.widget<Text>(find.text('Agenda'));
+      expect(label.style?.fontSize, greaterThanOrEqualTo(11));
+    });
   });
 
-  group('nexaBottomNavBarHeight acompanha a barra minimizada no Android', () {
-    // Regressão: telas que reservam `nexaBottomNavBarHeight() + inset` pra
-    // não ficarem atrás da nav (Focus, início do atleta, etc.) usavam um
-    // valor fixo pensado pra barra expandida — no Android, agora sempre
-    // minimizada, isso deixava um vão vazio entre o conteúdo (ex.: o botão
-    // "Salvar palpites") e a cápsula real, bem menor.
-    testWidgets('Android: usa a altura compacta da nav', (tester) async {
-      late double height;
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData(platform: TargetPlatform.android),
-          home: Builder(
-            builder: (context) {
-              height = nexaBottomNavBarHeight(context);
-              return const SizedBox();
-            },
+  group('nexaBottomNavBarHeight', () {
+    for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
+      testWidgets('${platform.name}: folga da barra expandida',
+          (tester) async {
+        late double height;
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(platform: platform),
+            home: Builder(
+              builder: (context) {
+                height = nexaBottomNavBarHeight(context);
+                return const SizedBox();
+              },
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(
-        height,
-        ShellTabBarCollapseController.collapsedHeight + 20,
-      );
-    });
-
-    testWidgets('iOS: mantém a altura pensada pra barra expandida',
-        (tester) async {
-      late double height;
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData(platform: TargetPlatform.iOS),
-          home: Builder(
-            builder: (context) {
-              height = nexaBottomNavBarHeight(context);
-              return const SizedBox();
-            },
-          ),
-        ),
-      );
-
-      expect(height, 105);
-    });
+        expect(height, 105);
+      });
+    }
   });
 }

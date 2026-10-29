@@ -15,6 +15,7 @@ class AgendaHeader extends StatelessWidget {
     required this.onSearchTap,
     required this.onCalendarTap,
     required this.onNotificationsTap,
+    this.leading,
   });
 
   final String eyebrow;
@@ -26,15 +27,24 @@ class AgendaHeader extends StatelessWidget {
   final VoidCallback onCalendarTap;
   final VoidCallback onNotificationsTap;
 
+  /// À esquerda do título. Ex.: o botão da conta do atleta.
+  final Widget? leading;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 12, 4),
+      padding: EdgeInsets.fromLTRB(leading == null ? 20 : 12, 8, 12, 4),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: leading == null
+            ? CrossAxisAlignment.start
+            : CrossAxisAlignment.center,
         children: [
+          if (leading case final leading?) ...[
+            leading,
+            const SizedBox(width: 10),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

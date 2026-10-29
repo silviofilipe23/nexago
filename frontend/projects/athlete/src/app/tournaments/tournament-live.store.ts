@@ -132,14 +132,38 @@ export class TournamentLiveStore {
     return myDayTimeline(this.matches(), this.myTeamIds(), this.now(), running);
   });
 
-  /** A categoria que o atleta está jogando agora — base da classificação lateral e do "ao vivo
-   *  na sua categoria". Quem se inscreveu em mais de uma vê a da próxima partida. */
-  readonly focusCategoryId = computed<string | null>(() => {
+  /** A categoria que o Focus escolhe sozinho: a da próxima partida, ou a primeira inscrição. */
+  readonly focusAutoCategoryId = computed<string | null>(() => {
     const next = this.nextMatch();
     if (next) return next.categoryId;
     const [first] = [...this.myCategoryIds()];
     return first ?? null;
   });
+
+  /** Categoria escolhida no seletor do cabeçalho do Focus; `null` deixa o Focus decidir. Zera a
+   *  cada torneio carregado — a mesma instância do store pode servir a outro torneio. */
+  readonly focusCategoryChoice = signal<string | null>(null);
+
+  /** As categorias em que o atleta está inscrito, na ordem do torneio. O seletor do cabeçalho só
+   *  aparece com duas ou mais: sem ele, quem joga duas só via a da próxima partida. */
+  readonly myFocusCategories = computed<readonly TournamentCategoryOffer[]>(() => {
+    const mine = this.myCategoryIds();
+    return (this.tournament()?.categories ?? []).filter((c) => mine.has(c.id));
+  });
+
+  /** A categoria em foco — base da classificação lateral e do "ao vivo na sua categoria". A
+   *  escolhida no seletor vence a automática, mas só enquanto o atleta estiver inscrito nela. */
+  readonly focusCategoryId = computed<string | null>(() => {
+    const chosen = this.focusCategoryChoice();
+    if (chosen && this.myCategoryIds().has(chosen)) return chosen;
+    return this.focusAutoCategoryId();
+  });
+
+  /** Escolher a categoria da próxima partida devolve a escolha ao Focus (segue a próxima partida
+   *  de novo quando ela mudar). */
+  chooseFocusCategory(categoryId: string): void {
+    this.focusCategoryChoice.set(categoryId === this.focusAutoCategoryId() ? null : categoryId);
+  }
 
   readonly focusCategory = computed<TournamentCategoryOffer | null>(() => {
     const id = this.focusCategoryId();
@@ -324,6 +348,7 @@ export class TournamentLiveStore {
   async load(tournamentId: string): Promise<void> {
     if (!tournamentId || tournamentId === this.tournamentId()) return;
     this.tournamentId.set(tournamentId);
+    this.focusCategoryChoice.set(null);
     const db = this.db;
     if (!db || !this.projectId) {
       this.loading.set(false);

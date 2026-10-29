@@ -12,6 +12,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/ui/nexa_icon_square_button.dart';
+import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../data/tournament_announcements_repository.dart';
 import '../../data/tournament_inscriptions_repository.dart';
 import '../../domain/focus/focus_boot_logic.dart';
@@ -105,6 +106,43 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
   static bool _settled(AsyncValue<Object?> value) =>
       value.hasValue || value.hasError;
 
+  /// Folha "Ver categoria": quem joga mais de uma escolhe qual o Focus mostra.
+  /// A da próxima partida é marcada e escolhê-la volta à escolha automática —
+  /// assim o Focus segue a próxima partida de novo quando ela mudar.
+  Future<void> _chooseCategory(
+    List<TournamentCategoryOffer> categories,
+    String? currentId,
+  ) async {
+    final automatic = ref.read(
+      focusAutoCategoryIdProvider(widget.tournamentId),
+    );
+    final picked = await showProfessorLinksSheet<String>(
+      context,
+      builder: (sheetContext) => ProfessorLinksSheetBody(
+        title: 'Ver categoria',
+        subtitle: 'O grupo, a chave e as partidas do Focus seguem a '
+            'categoria escolhida.',
+        children: [
+          for (final category in categories)
+            ProfessorLinksSheetRow(
+              key: ValueKey('focus-category-${category.id}'),
+              icon: category.id == currentId
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              title: category.name,
+              subtitle: category.id == automatic
+                  ? 'Da sua próxima partida'
+                  : 'Você também está inscrito',
+              onTap: () => Navigator.of(sheetContext).pop(category.id),
+            ),
+        ],
+      ),
+    );
+    if (picked == null || !mounted) return;
+    ref.read(focusCategoryChoiceProvider(widget.tournamentId).notifier).state =
+        picked == automatic ? null : picked;
+  }
+
   TournamentCategoryOffer? _offer(TournamentDetail? tournament, String? id) {
     if (tournament == null || id == null) return null;
     for (final offer in tournament.categoryOffers) {
@@ -160,6 +198,9 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
     final unavailable = tournament == null && _settled(detailAsync);
 
     final offer = _offer(tournament, categoryId);
+    final registeredCategories = ref.watch(
+      focusRegisteredCategoriesProvider(widget.tournamentId),
+    );
     final isDouble =
         offer != null && isDoubleEliminationBracketFormat(offer.bracketFormat);
     final cards =
@@ -224,6 +265,11 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
               _Header(
                 isDoubleElimination: isDouble,
                 onExit: _exit,
+                // Só para quem joga duas ou mais categorias neste torneio.
+                category: registeredCategories.length >= 2 ? offer : null,
+                onCategoryTap: registeredCategories.length >= 2
+                    ? () => _chooseCategory(registeredCategories, categoryId)
+                    : null,
               ),
               Expanded(
                 child: switch ((unavailable, showBoot, tournament)) {
@@ -351,16 +397,22 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
 
 /// "× | ● FOCUS / DUPLA ELIMINATÓRIA".
 ///
-/// Sem nome do torneio nem categoria: o protótipo deixa o hero e a nav
-/// carregarem o contexto; o cabeçalho só identifica o Modo Focus.
+/// Sem nome do torneio: o protótipo deixa o hero e a nav carregarem o
+/// contexto. A categoria só aparece — como seletor, à direita — para quem
+/// joga mais de uma: o Focus escolhe sozinho pela próxima partida, e sem o
+/// seletor a outra categoria ficava inalcançável.
 class _Header extends StatelessWidget {
   const _Header({
     required this.isDoubleElimination,
     required this.onExit,
+    this.category,
+    this.onCategoryTap,
   });
 
   final bool isDoubleElimination;
   final VoidCallback onExit;
+  final TournamentCategoryOffer? category;
+  final VoidCallback? onCategoryTap;
 
   @override
   Widget build(BuildContext context) {
@@ -420,7 +472,65 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
+          if (category case final category?)
+            if (onCategoryTap case final onTap?) ...[
+              const SizedBox(width: AppSpacing.sm),
+              _CategoryPill(name: category.name, onTap: onTap),
+            ],
         ],
+      ),
+    );
+  }
+}
+
+/// Pílula da categoria em foco, com ⌄: abre a folha "Ver categoria".
+class _CategoryPill extends StatelessWidget {
+  const _CategoryPill({required this.name, required this.onTap});
+
+  final String name;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return Tooltip(
+      message: 'Trocar categoria',
+      child: Material(
+        key: const Key('focus-category-pill'),
+        color: colors.surfaceRaised,
+        shape: const StadiumBorder(),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const StadiumBorder(),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 40, maxWidth: 170),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 8, 0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      name.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.eyebrow.copyWith(
+                        color: colors.onSurface,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(
+                    Icons.expand_more_rounded,
+                    size: 20,
+                    color: colors.onSurface,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

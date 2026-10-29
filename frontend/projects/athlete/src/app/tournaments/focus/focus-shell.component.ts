@@ -71,11 +71,24 @@ export class FocusShellComponent {
     return day ? `Dia ${day.current} de ${day.total}` : null;
   });
 
+  /** Quem joga duas ou mais categorias troca pelo seletor; aí a categoria sai da linha de
+   *  contexto para não aparecer duas vezes. */
+  protected readonly canChooseCategory = computed(() => this.store.myFocusCategories().length >= 2);
+
   protected readonly headerMeta = computed(() =>
-    [this.dayLine(), this.store.focusCategory()?.categoryName, this.store.tournament()?.location]
+    [
+      this.dayLine(),
+      this.canChooseCategory() ? null : this.store.focusCategory()?.categoryName,
+      this.store.tournament()?.location,
+    ]
       .filter((p): p is string => p != null && p.length > 0)
       .join(' · '),
   );
+
+  protected onCategoryChange(event: Event): void {
+    const value = (event.target as HTMLSelectElement | null)?.value ?? '';
+    if (value) this.store.chooseFocusCategory(value);
+  }
 
   constructor() {
     const release = this.store.acquireLive();

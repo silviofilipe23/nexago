@@ -2,6 +2,24 @@ import '../tournament_match.dart';
 import '../tournament_match_status.dart';
 import '../tournament_matches_logic.dart';
 
+/// A categoria em foco quando o atleta pode escolher no seletor do cabeçalho.
+///
+/// A escolha ([chosen]) vence a [automatic] — mas só enquanto ele estiver
+/// inscrito nela ([registered]): uma inscrição removida, ou um id que veio de
+/// outro torneio, cai de volta na escolha automática em vez de deixar o Focus
+/// recortando uma categoria que não é dele.
+String? resolveFocusCategoryChoice({
+  required String? chosen,
+  required String? automatic,
+  required Iterable<String> registered,
+}) {
+  final pick = chosen?.trim() ?? '';
+  if (pick.isNotEmpty && registered.any((id) => id.trim() == pick)) {
+    return pick;
+  }
+  return automatic;
+}
+
 /// Qual categoria o Modo Focus coloca em foco neste torneio.
 ///
 /// A primeira versão respondia só `athleteNextMatchProvider` — a categoria da

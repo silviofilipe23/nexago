@@ -173,3 +173,68 @@ describe('TournamentLiveStore — avaliação pública', () => {
     expect(source.stopped).not.toContain('reputation:o1');
   });
 });
+
+/**
+ * Seletor de categoria do Focus: quem joga duas ou mais categorias escolhe qual o Focus mostra.
+ * Sem ele, o Focus seguia só a categoria da próxima partida e a outra ficava inalcançável.
+ */
+describe('TournamentLiveStore — categoria em foco escolhida pelo atleta', () => {
+  function setup(): TournamentLiveStore {
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        TournamentLiveStore,
+        { provide: AuthService, useValue: { user: signal(null) } },
+      ],
+    });
+    const store = TestBed.inject(TournamentLiveStore);
+    store.tournament.set({
+      id: 't1',
+      categories: [
+        { id: 'cat-a', categoryName: 'Masculina A' },
+        { id: 'cat-b', categoryName: 'Misto B' },
+        { id: 'cat-c', categoryName: 'Feminina C' },
+      ],
+    } as unknown as TournamentSummary);
+    return store;
+  }
+
+  function registerIn(store: TournamentLiveStore, ...categoryIds: string[]): void {
+    store.myRegistrations.set(
+      categoryIds.map((categoryId, i) => ({ id: `r${i}`, tournamentId: 't1', categoryId, teamId: `team-${i}` })) as never,
+    );
+  }
+
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('lista só as categorias em que o atleta está inscrito, na ordem do torneio', () => {
+    const store = setup();
+    registerIn(store, 'cat-b', 'cat-a');
+    expect(store.myFocusCategories().map((c) => c.id)).toEqual(['cat-a', 'cat-b']);
+  });
+
+  it('sem escolha, vale a automática; a escolha vence a automática', () => {
+    const store = setup();
+    registerIn(store, 'cat-a', 'cat-b');
+    expect(store.focusCategoryId()).toBe('cat-a');
+
+    store.chooseFocusCategory('cat-b');
+    expect(store.focusCategoryId()).toBe('cat-b');
+    expect(store.focusCategory()?.categoryName).toBe('Misto B');
+  });
+
+  it('escolher a da próxima partida devolve a escolha ao Focus', () => {
+    const store = setup();
+    registerIn(store, 'cat-a', 'cat-b');
+    store.chooseFocusCategory('cat-b');
+    store.chooseFocusCategory('cat-a');
+    expect(store.focusCategoryChoice()).toBeNull();
+  });
+
+  it('escolha de categoria em que ele não está inscrito não prende o Focus', () => {
+    const store = setup();
+    registerIn(store, 'cat-a', 'cat-b');
+    store.chooseFocusCategory('cat-c');
+    expect(store.focusCategoryId()).toBe('cat-a');
+  });
+});

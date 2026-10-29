@@ -11,6 +11,7 @@ import '../domain/tournament_discovery_providers.dart';
 import 'focus/widgets/focus_match_card.dart';
 import 'public_koc_round_page.dart';
 import 'widgets/follow_match_button.dart';
+import '../../../core/errors/friendly_error_message.dart';
 
 /// J2 — Transmissão pública (read-only).
 ///
@@ -64,7 +65,16 @@ class PublicMatchLivePage extends ConsumerWidget {
       ),
       body: cardsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('$e')),
+        error: (e, _) => Center(
+          child: Text(
+            friendlyErrorMessage(
+              e,
+              action: 'Não foi possível carregar a partida',
+              logReason: 'partida_ao_vivo:carregar',
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
         data: (cards) {
           final card = cards[matchId];
           if (card == null) {

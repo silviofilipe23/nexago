@@ -13,6 +13,7 @@ import '../../arenas/domain/my_booking_item.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../domain/arena_review_providers.dart';
 import 'widgets/rating_dialog.dart';
+import '../../../core/errors/friendly_error_message.dart';
 
 /// Agenda do atleta em tempo real (Firestore `arenaBookings`).
 class AthleteBookingsPage extends ConsumerStatefulWidget {
@@ -251,7 +252,13 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(content: Text('Não foi possível cancelar: $e')),
+          SnackBar(content: Text(
+            friendlyErrorMessage(
+              e,
+              action: 'Não foi possível cancelar',
+              logReason: 'reserva:cancelar',
+            ),
+          )),
         );
     }
   }

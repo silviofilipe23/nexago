@@ -11,6 +11,7 @@ import '../domain/koc/koc_round_providers.dart';
 import '../domain/koc/koc_round_state.dart';
 import '../domain/tournament_match.dart';
 import '../domain/tournament_match_display.dart';
+import '../../../core/errors/friendly_error_message.dart';
 
 /// Telão da rodada King of the Court.
 ///
@@ -70,7 +71,15 @@ class _PublicKocRoundPageState extends ConsumerState<PublicKocRoundPage> {
         child: roundAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(
-            child: Text('$e', style: const TextStyle(color: Colors.white)),
+            child: Text(
+              friendlyErrorMessage(
+                e,
+                action: 'Não foi possível carregar a rodada',
+                logReason: 'koc:rodada',
+              ),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
           data: (round) {
             if (round == null) {

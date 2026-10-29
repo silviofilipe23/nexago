@@ -16,6 +16,7 @@ import '../domain/athlete_profile_providers.dart';
 import '../domain/arena_reputation.dart';
 import '../domain/arena_review.dart';
 import '../domain/arena_review_providers.dart';
+import '../../../core/errors/friendly_error_message.dart';
 
 enum _ReviewSortMode { recent, useful }
 
@@ -71,7 +72,13 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível atualizar curtida: $e')),
+        SnackBar(content: Text(
+            friendlyErrorMessage(
+              e,
+              action: 'Não foi possível atualizar a curtida',
+              logReason: 'avaliacao:curtir',
+            ),
+          )),
       );
     } finally {
       if (mounted) setState(() => _busyLikes.remove(review.id));
@@ -124,7 +131,13 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Erro ao denunciar: $e')));
+      ).showSnackBar(SnackBar(content: Text(
+          friendlyErrorMessage(
+            e,
+            action: 'Não foi possível denunciar',
+            logReason: 'avaliacao:denunciar',
+          ),
+        )));
     } finally {
       if (mounted) setState(() => _busyReports.remove(review.id));
     }

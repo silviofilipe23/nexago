@@ -39,15 +39,12 @@ import '../domain/athlete_home_taglines.dart';
 import '../domain/athlete_home_dashboard_logic.dart';
 import '../domain/athlete_home_registration_progress_providers.dart';
 import '../domain/athlete_notifications_providers.dart';
-import '../domain/athlete_quest/athlete_quest_logic.dart';
 import '../domain/athlete_profile_providers.dart';
 import '../domain/athlete_shell_providers.dart';
 import '../domain/booking_invite_providers.dart';
 import '../domain/booking_played_today.dart';
 import '../domain/community/community_feed_providers.dart';
-import '../domain/gamification_models.dart';
 import '../domain/gamification_providers.dart';
-import '../domain/sand_rank/sand_rank_catalog.dart';
 import '../domain/sand_rank/sand_rank_providers.dart';
 import '../domain/match_history/athlete_match_history_providers.dart';
 import 'booking_details_page.dart';
@@ -64,7 +61,6 @@ import 'widgets/athlete_home/athlete_home_hero.dart';
 import 'widgets/athlete_profile_avatar.dart';
 import 'widgets/pending_booking_invites_section.dart';
 import 'sand_rank/widgets/sand_rank_avatar_frame.dart';
-import 'sand_rank/widgets/sand_rank_emblem.dart';
 import 'widgets/athlete_home/athlete_home_next_reservation_card.dart';
 import 'widgets/athlete_home/athlete_home_registration_tracker.dart';
 import 'widgets/athlete_home/athlete_home_shortcuts_grid.dart';
@@ -149,7 +145,6 @@ class AthleteHomePage extends ConsumerWidget {
                               ? athleteInitials(profile)
                               : '?',
                           imageUrl: profile?.avatarUrl,
-                          summary: summary,
                           sandRankEnabled:
                               ref.watch(sandRankEnabledProvider).valueOrNull ??
                               false,
@@ -897,24 +892,22 @@ class _HeroXpPillState extends State<_HeroXpPill> {
   }
 }
 
-/// Avatar do hero, com moldura e emblema do Sand Rank. O toque é do hero
-/// ([AthleteHomeHero.onIdentityTap]): avatar e saudação abrem o menu da conta
-/// juntos.
+/// Avatar do hero, com a moldura do Sand Rank quando ele está ligado. Sem o
+/// escudo de nível no canto (pedido do dono): o nível já aparece no perfil e
+/// na pílula de XP. O toque é do hero ([AthleteHomeHero.onIdentityTap]):
+/// avatar e nome abrem o menu da conta juntos.
 class _HeroAvatar extends StatelessWidget {
   const _HeroAvatar({
     required this.initials,
-    required this.summary,
     required this.sandRankEnabled,
     this.imageUrl,
     this.sandRankFrameId,
   });
 
   static const double _avatarSize = 48;
-  static const double _slotSize = 56;
 
   final String initials;
   final String? imageUrl;
-  final GamificationSummary summary;
   final bool sandRankEnabled;
   final String? sandRankFrameId;
 
@@ -925,69 +918,16 @@ class _HeroAvatar extends StatelessWidget {
       initials: initials,
       imageUrl: imageUrl,
     );
-    final step = sandRankStepFromXp(summary.xp);
-
-    return SizedBox(
-          key: const Key('athlete-home-avatar'),
-          width: _slotSize,
-          height: _slotSize,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned(
-                left: 0,
-                top: 0,
-                child: sandRankEnabled
-                    ? SandRankAvatarFrame(
-                        frameId: sandRankFrameId,
-                        size: _avatarSize,
-                        child: avatar,
-                      )
-                    : avatar,
-              ),
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: sandRankEnabled
-                    ? SandRankEmblem(
-                        rankCode: step.rankCode,
-                        division: step.division,
-                        size: SandRankEmblemSize.badgeCompact,
-                      )
-                    : _HeroLevelBadge(level: gamificationDisplayLevel(summary)),
-              ),
-            ],
-          ),
+    return KeyedSubtree(
+      key: const Key('athlete-home-avatar'),
+      child: sandRankEnabled
+          ? SandRankAvatarFrame(
+              frameId: sandRankFrameId,
+              size: _avatarSize,
+              child: avatar,
+            )
+          : avatar,
     );
   }
 }
 
-/// Nível numérico — fallback de quando o Sand Rank está desligado, mesmo
-/// desenho que o header antigo usava.
-class _HeroLevelBadge extends StatelessWidget {
-  const _HeroLevelBadge({required this.level});
-
-  final int level;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: AppColors.brand,
-        borderRadius: AppRadii.smAll,
-        border: Border.all(color: AppColors.black, width: 2),
-      ),
-      child: Text(
-        '$level',
-        style: const TextStyle(
-          color: AppColors.black,
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.3,
-          height: 1,
-        ),
-      ),
-    );
-  }
-}

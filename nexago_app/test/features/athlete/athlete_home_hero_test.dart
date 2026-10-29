@@ -129,19 +129,6 @@ void main() {
     });
   });
 
-  group('athleteHomeGreetingByHour', () {
-    test('vira nas fronteiras de 12h e 18h', () {
-      DateTime at(int h, [int m = 0]) => DateTime(2026, 9, 11, h, m);
-
-      expect(athleteHomeGreetingByHour(at(0)), 'Bom dia');
-      expect(athleteHomeGreetingByHour(at(11, 59)), 'Bom dia');
-      expect(athleteHomeGreetingByHour(at(12)), 'Boa tarde');
-      expect(athleteHomeGreetingByHour(at(17, 59)), 'Boa tarde');
-      expect(athleteHomeGreetingByHour(at(18)), 'Boa noite');
-      expect(athleteHomeGreetingByHour(at(23, 59)), 'Boa noite');
-    });
-  });
-
   group('AthleteHomeHero', () {
     /// Recorte do sistema no topo, que o hero soma à própria altura.
     const topInset = 59.0;
@@ -171,7 +158,6 @@ void main() {
       Widget? bottomRight,
       VoidCallback? onIdentityTap,
       double bleedBelow = 0,
-      DateTime? now,
     }) => AthleteHomeHero(
       name: name,
       gender: gender,
@@ -182,7 +168,6 @@ void main() {
       onIdentityTap: onIdentityTap,
       identitySemanticLabel: onIdentityTap == null ? null : 'Sua conta',
       bleedBelow: bleedBelow,
-      now: now ?? DateTime(2026, 9, 11, 22),
     );
 
     String assetOf(WidgetTester tester) {
@@ -191,17 +176,26 @@ void main() {
       return (provider as AssetImage).assetName;
     }
 
-    testWidgets('monta a saudação com a hora e o nome', (tester) async {
+    testWidgets('mostra só o nome, sem saudação', (tester) async {
       await tester.pumpWidget(wrap(hero()));
 
-      expect(find.text('Boa noite, liga1.'), findsOneWidget);
+      expect(find.text('liga1'), findsOneWidget);
+      expect(find.textContaining('Boa '), findsNothing);
+      expect(find.textContaining('Bom dia'), findsNothing);
       expect(find.text('O esporte conecta.'), findsOneWidget);
     });
 
-    testWidgets('sem nome não deixa vírgula solta', (tester) async {
+    testWidgets('nome com 18 de corpo', (tester) async {
+      await tester.pumpWidget(wrap(hero()));
+
+      final title = tester.widget<Text>(find.text('liga1'));
+      expect(title.style!.fontSize, 18);
+    });
+
+    testWidgets('sem nome cai em "Atleta"', (tester) async {
       await tester.pumpWidget(wrap(hero(name: '   ')));
 
-      expect(find.text('Boa noite.'), findsOneWidget);
+      expect(find.text('Atleta'), findsOneWidget);
     });
 
     testWidgets('troca a arte conforme o gênero', (tester) async {
@@ -261,7 +255,7 @@ void main() {
       // A arte é escura nos dois temas: `onSurface` sumiria sobre a foto.
       await tester.pumpWidget(wrap(hero(), theme: AppTheme.light));
 
-      final title = tester.widget<Text>(find.text('Boa noite, liga1.'));
+      final title = tester.widget<Text>(find.text('liga1'));
       expect(title.style!.color, AppColors.white);
     });
 
@@ -289,7 +283,7 @@ void main() {
       );
 
       final avatar = tester.getRect(find.byIcon(Icons.person_rounded));
-      final saudacao = tester.getRect(find.text('Boa noite, liga1.'));
+      final saudacao = tester.getRect(find.text('liga1'));
       expect(avatar.right, lessThanOrEqualTo(saudacao.left));
     });
 
@@ -307,7 +301,7 @@ void main() {
       );
 
       expect(tester.takeException(), isNull);
-      final saudacao = tester.getRect(find.text('Boa noite, Fernandinha.'));
+      final saudacao = tester.getRect(find.text('Fernandinha'));
       final sino = tester.getRect(find.byIcon(Icons.notifications_none_rounded));
       expect(saudacao.right, lessThanOrEqualTo(sino.left));
     });

@@ -91,7 +91,6 @@ void main() {
                 name: 'Atleta',
                 gender: 'Masculino',
                 tagline: 'O esporte conecta.',
-                now: DateTime(2026, 9, 11, 22),
                 // Mesma composição de `AthleteHomePage`: pílula do cashback
                 // à esquerda da de XP, num Row de mainAxisSize.min.
                 bottomRight: const Row(

@@ -30,6 +30,7 @@ import {
   weatherRequestsForTab,
   type WeatherRequest,
   type WeatherRequestTab,
+  weatherSourceLabel,
 } from './weather.model';
 
 /** 03 · Solicitações de clima (`/painel/agenda/chuva/solicitacoes`): pedidos "liberar por chuva"
@@ -179,7 +180,7 @@ import {
                       </div>
                     </div>
                     <p class="fine reading-note">
-                      Previsão/medição Open-Meteo para a hora da reserva{{ s.weather!.fetchedAt ? ', consultada às ' + clock(s.weather!.fetchedAt) : '' }}.
+                      Dado da {{ sourceLabel(s.weather!.source) }} para a hora da reserva{{ s.weather!.fetchedAt ? ', consultado às ' + clock(s.weather!.fetchedAt) : '' }}.
                     </p>
                   } @else {
                     <p class="state-text no-reading">Sem medição para este horário.</p>
@@ -531,6 +532,7 @@ export class PanelWeatherRequestsComponent {
   protected readonly mm = formatMm;
   protected readonly intensity = rainIntensityLabel;
   protected readonly clock = clockLabel;
+  protected readonly sourceLabel = weatherSourceLabel;
   protected readonly code = displayBookingCode;
 
   protected readonly readOnly = computed(() => !this.access.canWrite('agenda'));

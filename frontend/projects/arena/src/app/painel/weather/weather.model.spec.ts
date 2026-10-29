@@ -1,4 +1,5 @@
 import {
+  weatherSourceLabel,
   DEFAULT_WEATHER_POLICY,
   affectedIsUnpaid,
   affectedValueLabel,
@@ -441,5 +442,26 @@ describe('weather.model — erros e datas', () => {
     expect(toDateValue(10)?.getTime()).toBe(10);
     expect(toDateValue('lixo')).toBeNull();
     expect(toDateValue(undefined)).toBeNull();
+  });
+});
+
+describe('fonte da previsão', () => {
+  it('lê fonte e condição da WeatherAPI e rotula', () => {
+    const f = weatherForecastFromData({
+      source: 'weatherapi',
+      fetchedAt: '2026-10-29T12:00:00Z',
+      hours: [{ time: '18:00', probability: 92, precipitationMm: 6.1, condition: 'Chuva forte' }],
+    });
+    expect(f?.source).toBe('weatherapi');
+    expect(f?.hours[0].condition).toBe('Chuva forte');
+    expect(weatherSourceLabel(f!.source)).toBe('WeatherAPI');
+    expect(weatherSourceLabel('open-meteo')).toBe('Open-Meteo');
+  });
+
+  it('fonte desconhecida ou ausente vira null; o clima do pedido também guarda a fonte', () => {
+    expect(weatherForecastFromData({ source: 'outra', hours: [] })?.source).toBeNull();
+    expect(weatherSourceLabel(null)).toBe('previsão');
+    const req = weatherRequestFromDoc('b1', { weather: { precipitationMm: 5.4, source: 'weatherapi' } });
+    expect(req.weather?.source).toBe('weatherapi');
   });
 });

@@ -17,11 +17,11 @@ naquela arena. O dinheiro não sai do caixa — nenhuma movimentação em `arena
 | Crédito | Sempre ativo: é o destino de quem não escolhe. A política só liga/desliga **remarcar**. |
 | Remarcação mais cara | Diferença paga **na arena** (`amountDueOnsiteReais`). Mais barata: a sobra vira crédito. |
 | Pedido do atleta (modo "atleta solicita") | O pedido é só "liberar por chuva" + observação. Aprovado, o atleta escolhe como no Modo chuva. Não segura horário durante a análise. |
-| Automático pela previsão (Beta) | O atleta pede; o servidor aprova sozinho se a previsão/medição da hora passar de 70% e 2 mm/h (Open-Meteo). Senão, cai na fila da arena. |
+| Automático pela previsão (Beta) | O atleta pede; o servidor aprova sozinho se a previsão/medição da hora passar de 70% e 2 mm/h. Senão, cai na fila da arena. |
 | Quadras cobertas | O cadastro não tem esse campo: a política lista as quadras que entram (padrão: todas) e a arena desmarca as cobertas. |
 | Aviso | Push + inbox do app (sem WhatsApp). |
 | Equipe da reserva | Recebe o aviso de cancelamento que já existe; os convites não migram para a reserva remarcada (v1). |
-| Previsão | Open-Meteo (sem chave), pelas coordenadas da arena (`latitude`/`longitude` ou `location`). |
+| Previsão | WeatherAPI (segredo `WEATHER_API_KEY`; `forecast.json` de hoje a +14 dias, `history.json` para dia passado, `lang=pt`), pelas coordenadas da arena (`latitude`/`longitude` ou `location`). Sem chave ou com falha, Open-Meteo. A resposta diz a fonte (`source`). |
 
 ## Dados
 
@@ -111,7 +111,8 @@ naquela arena. O dinheiro não sai do caixa — nenhuma movimentação em `arena
 | `decideArenaWeatherRequest` | agenda (escrita) | `{arenaId, bookingId, approve, reason?}` → `{status}` |
 | `quoteArenaBooking` / `createArenaBooking` | atleta | + `useWeatherCredit?: boolean` |
 
-`Hour = {time:'HH:00', probability: number|null, precipitationMm: number|null}`.
+`Hour = {time:'HH:00', probability: number|null, precipitationMm: number|null, condition?: string|null}`;
+`forecast = {hours, source: 'weatherapi'|'open-meteo', fetchedAt}`; o `weather` do pedido também guarda `source`.
 
 `Affected = {bookingId, athleteId|null, athleteName|null, courtId, courtName, startTime, endTime,
 paidReais, paymentLabel, treatment: 'release'|'partial'|'cancel'|'manual',
@@ -162,6 +163,7 @@ reserva; lista de créditos em `/weather-credits`.
 
 ## Ordem de deploy
 
-índices → functions → rules → portal → app. Function velha + cliente novo: o campo
+segredo `WEATHER_API_KEY` (`firebase functions:secrets:set WEATHER_API_KEY`; sem ele o deploy das
+callables de previsão falha) → índices → functions → rules → portal → app. Function velha + cliente novo: o campo
 `useWeatherCredit` é ignorado e as callables novas dão NOT_FOUND (a tela some de vista enquanto a
 política não estiver ligada).

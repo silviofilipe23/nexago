@@ -103,17 +103,22 @@ class WeatherPolicy {
   }
 }
 
-/// Uma hora da previsão (Open-Meteo): `HH:00`, chance (%) e volume (mm).
+/// Uma hora da previsão (WeatherAPI, ou Open-Meteo de reserva): `HH:00`,
+/// chance (%), volume (mm) e, só da WeatherAPI, a condição em português.
 class WeatherHour {
   const WeatherHour({
     required this.time,
     this.probability,
     this.precipitationMm,
+    this.condition,
   });
 
   final String time;
   final num? probability;
   final num? precipitationMm;
+
+  /// "Chuva passageira moderada ou forte"; `null` quando o provedor não manda.
+  final String? condition;
 
   /// "18h" a partir de "18:00".
   String get hourLabel {
@@ -129,6 +134,8 @@ class WeatherHour {
       time: time,
       probability: _numOrNull(raw['probability']),
       precipitationMm: _numOrNull(raw['precipitationMm']),
+      condition:
+          _text(raw['condition']).isEmpty ? null : _text(raw['condition']),
     );
   }
 }

@@ -366,13 +366,15 @@ export function weatherCreditStatusFor(balanceReais: number, expiresAtMs: number
   return "open";
 }
 
-// ── Previsão (Open-Meteo) ────────────────────────────────────────────────
+// ── Previsão (WeatherAPI, com Open-Meteo de reserva) ─────────────────────
 
 export interface WeatherHour {
-  /** "HH:00" no fuso de São Paulo. */
+  /** "HH:00" no horário local da arena. */
   time: string;
   probability: number | null;
   precipitationMm: number | null;
+  /** Texto do provedor em português ("Chuva passageira fraca"); só a WeatherAPI manda. */
+  condition?: string | null;
 }
 
 function nullableNumber(v: unknown): number | null {
@@ -381,7 +383,7 @@ function nullableNumber(v: unknown): number | null {
 
 /**
  * Horas do dia `dateKey` na resposta do Open-Meteo pedida com
- * `hourly=precipitation_probability,precipitation&timezone=America/Sao_Paulo`.
+ * `hourly=precipitation_probability,precipitation&timezone=auto`.
  */
 export function parseOpenMeteoHourly(json: unknown, dateKey: string): WeatherHour[] {
   const hourly = (json as {hourly?: Record<string, unknown>} | null)?.hourly;
@@ -399,6 +401,32 @@ export function parseOpenMeteoHourly(json: unknown, dateKey: string): WeatherHou
       precipitationMm: mm == null ? null : Math.round(mm * 10) / 10,
     });
   });
+  return hours;
+}
+
+/**
+ * Horas do dia `dateKey` na resposta da WeatherAPI (`forecast.json` ou
+ * `history.json` com `dt=dateKey&lang=pt`): `time` vem como "YYYY-MM-DD HH:mm"
+ * no fuso da própria localização.
+ */
+export function parseWeatherApiHourly(json: unknown, dateKey: string): WeatherHour[] {
+  const days = (json as {forecast?: {forecastday?: unknown}} | null)?.forecast?.forecastday;
+  if (!Array.isArray(days)) return [];
+  const day = days.find((d) => (d as {date?: unknown})?.date === dateKey) as {hour?: unknown} | undefined;
+  if (!day || !Array.isArray(day.hour)) return [];
+  const hours: WeatherHour[] = [];
+  for (const raw of day.hour as Record<string, unknown>[]) {
+    const t = raw?.["time"];
+    if (typeof t !== "string" || !t.startsWith(`${dateKey} `)) continue;
+    const mm = nullableNumber(raw["precip_mm"]);
+    const condition = (raw["condition"] as {text?: unknown} | undefined)?.text;
+    hours.push({
+      time: t.substring(11, 16),
+      probability: nullableNumber(raw["chance_of_rain"]),
+      precipitationMm: mm == null ? null : Math.round(mm * 10) / 10,
+      condition: typeof condition === "string" && condition.trim() !== "" ? condition.trim() : null,
+    });
+  }
   return hours;
 }
 

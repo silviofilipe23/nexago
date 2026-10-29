@@ -56,6 +56,7 @@ interface HourBar {
   probability: number | null;
   mm: string;
   heightPx: number;
+  condition: string | null;
   rainy: boolean;
   likely: boolean;
   selected: boolean;
@@ -78,7 +79,8 @@ const BAR_MAX_PX = 88;
           [class.selected]="b.selected"
           [attr.data-hour]="b.hour"
           [attr.aria-pressed]="b.selected"
-          [attr.aria-label]="b.time + ': ' + (b.probability ?? '—') + '% de chance, ' + b.mm + ' mm'"
+          [attr.aria-label]="b.time + ': ' + (b.probability ?? '—') + '% de chance, ' + b.mm + ' mm' + (b.condition ? ', ' + b.condition : '')"
+          [attr.title]="b.condition"
           (click)="hourClick.emit(b.hour)"
         >
           <span class="pct" [class.likely]="b.likely">{{ b.probability == null ? '—' : b.probability + '%' }}</span>
@@ -206,6 +208,7 @@ export class WxHourlyComponent {
         probability: h.probability,
         mm: formatMm(h.precipitationMm),
         heightPx: Math.max(3, (mm / max) * BAR_MAX_PX),
+        condition: h.condition ?? null,
         rainy: isRainyHour(h),
         likely: (h.probability ?? 0) >= RAIN_PROBABILITY_THRESHOLD,
         selected: start != null && end != null && hour >= start && hour < end,

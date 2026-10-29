@@ -29,7 +29,7 @@ import {
   WEB_PUSH_PUBLIC_KEY,
   WEB_PUSH_SUBJECT,
 } from "./notification-delivery";
-import {fetchArenaWeatherHours} from "./arena-weather-forecast";
+import {fetchArenaWeather, WEATHER_API_KEY} from "./arena-weather-forecast";
 import {
   ARENA_WEATHER_CREDITS,
   weatherCreditDoc,
@@ -66,6 +66,8 @@ const ARENA_SLOT_LOCKS = "arenaSlotLocks";
 export const ARENA_WEATHER_EVENTS = "arenaWeatherEvents";
 export const ARENA_WEATHER_REQUESTS = "arenaWeatherRequests";
 const PUSH_SECRETS = [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT];
+/** Quem consulta a previsão precisa da chave da WeatherAPI (sem ela, cai no Open-Meteo). */
+const WEATHER_AND_PUSH_SECRETS = [...PUSH_SECRETS, WEATHER_API_KEY];
 /** Rota que existe em todos os apps da loja; o app novo abre a escolha pelo `type` + `bookingId`. */
 const ATHLETE_PUSH_URL = "/my-bookings";
 const RELEASABLE_STATUSES = new Set(["active", "confirmed"]);
@@ -506,7 +508,10 @@ export const saveArenaWeatherPolicy = onCall({region: CLIENT_FACING_REGIONS}, as
   return {policy};
 });
 
-export const getArenaWeatherForecast = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {
+export const getArenaWeatherForecast = onCall({
+  region: CLIENT_FACING_REGIONS,
+  secrets: [WEATHER_API_KEY],
+}, async (request) => {
   const uid = requireUid(request);
   const data = (request.data ?? {}) as {arenaId?: unknown; date?: unknown};
   const arenaId = requireText(data.arenaId, "arenaId");
@@ -514,8 +519,10 @@ export const getArenaWeatherForecast = onCall({region: CLIENT_FACING_REGIONS}, a
   const db = getFirestore();
   await assertArenaAreaAccess(db, arenaId, uid, "agenda", "read");
   const arena = await loadArena(db, arenaId);
-  const hours = await fetchArenaWeatherHours(arena.data, date);
-  return {forecast: hours ? {hours, fetchedAt: new Date().toISOString()} : null};
+  const weather = await fetchArenaWeather(arena.data, date);
+  return {
+    forecast: weather ? {hours: weather.hours, source: weather.source, fetchedAt: new Date().toISOString()} : null,
+  };
 });
 
 // ── Modo chuva ───────────────────────────────────────────────────────────
@@ -606,7 +613,7 @@ export const previewArenaRainMode = onCall({region: CLIENT_FACING_REGIONS}, asyn
 
 export const activateArenaRainMode = onCall({
   region: CLIENT_FACING_REGIONS,
-  secrets: PUSH_SECRETS,
+  secrets: WEATHER_AND_PUSH_SECRETS,
   timeoutSeconds: 120,
 }, async (request) => {
   const uid = requireUid(request);
@@ -623,7 +630,8 @@ export const activateArenaRainMode = onCall({
   }
   const blockNewBookings = data["blockNewBookings"] === true;
   const message = optionalText(data["message"], 280);
-  const forecast = await fetchArenaWeatherHours(arena.data, date);
+  const weather = await fetchArenaWeather(arena.data, date);
+  const forecast = weather?.hours ?? null;
 
   const eventRef = db.collection(ARENA_WEATHER_EVENTS).doc();
   const startTime = data["startTime"] as string;
@@ -642,7 +650,8 @@ export const activateArenaRainMode = onCall({
     createdAt: FieldValue.serverTimestamp(),
     counts: {release: 0, partial: 0, cancel: 0, manual: 0},
     bookingIds: [],
-    forecast: forecast ?? null,
+    forecast,
+    forecastSource: weather?.source ?? null,
   });
   const block: WeatherBlock | null = blockNewBookings ?
     {eventId: eventRef.id, blockId: weatherBlockIdFor(eventRef.id), arenaId, date, courtIds,
@@ -1078,7 +1087,7 @@ async function approveWeatherRequest(
 
 export const requestArenaWeatherRelease = onCall({
   region: CLIENT_FACING_REGIONS,
-  secrets: PUSH_SECRETS,
+  secrets: WEATHER_AND_PUSH_SECRETS,
 }, async (request) => {
   const uid = requireUid(request);
   const data = (request.data ?? {}) as {bookingId?: unknown; note?: unknown};
@@ -1125,10 +1134,11 @@ export const requestArenaWeatherRelease = onCall({
     throw new HttpsError("failed-precondition", "Já existe um pedido para esta reserva.");
   }
 
-  const hours = await fetchArenaWeatherHours(arena.data, dateKey, {nowMs});
+  const fetched = await fetchArenaWeather(arena.data, dateKey, {nowMs});
+  const hours = fetched?.hours ?? null;
   const inWindow = hours ? weatherHoursInWindow(hours, win.start, win.end) : [];
   const summary = summarizeWeather(inWindow);
-  const weather = hours ? {...summary, fetchedAt: Timestamp.fromMillis(nowMs)} : null;
+  const weather = fetched ? {...summary, source: fetched.source, fetchedAt: Timestamp.fromMillis(nowMs)} : null;
   const fraction = window.afterStart ? remainingFraction(win, spNow(new Date(nowMs)).minutes) : 1;
   const athleteName = (await athleteNames(db, [uid])).get(uid) ?? "Atleta";
   await ref.set({

@@ -164,6 +164,7 @@ describe('PanelWeatherRainModeComponent', () => {
     expect(el(fixture).querySelector('.no-forecast')?.textContent).toContain('Sem previsão para a localização da arena');
 
     s.forecast.set({
+      source: 'weatherapi',
       fetchedAt: new Date(2026, 9, 29, 14, 52),
       hours: [
         { time: '05:00', probability: 10, precipitationMm: 0 },
@@ -175,7 +176,7 @@ describe('PanelWeatherRainModeComponent', () => {
     fixture.detectChanges();
     const bars = () => Array.from(el(fixture).querySelectorAll<HTMLButtonElement>('ar-wx-hourly button.hour'));
     expect(bars().length).withContext('05:00 fica fora da faixa 06–23').toBe(3);
-    expect(el(fixture).textContent).toContain('atualizada 14:52');
+    expect(el(fixture).textContent).toContain('WeatherAPI · atualizada 14:52');
 
     bars()[1]!.click(); // 17:00
     bars()[2]!.click(); // 18:00

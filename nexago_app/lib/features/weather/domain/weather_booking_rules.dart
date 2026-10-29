@@ -229,8 +229,9 @@ WeatherBookingView resolveWeatherBookingView({
       closesAt: w.closesAt!, afterStart: w.afterStart);
 }
 
-/// Título do aviso A1: "Chuva forte às 18h" pela pior hora da previsão que
-/// cruza o horário; sem previsão, "Chuva no horário".
+/// Título do aviso A1 pela pior hora da previsão que cruza o horário: a
+/// condição da WeatherAPI quando ela fala de chuva ("Chuva moderada às 18h"),
+/// senão "Chuva forte às 18h"/"Chuva às 18h"; sem previsão, "Chuva no horário".
 String weatherReleaseHeadline(WeatherRelease release) {
   WeatherHour? worst;
   for (final h in release.forecast) {
@@ -245,11 +246,19 @@ String weatherReleaseHeadline(WeatherRelease release) {
     if (mm > wmm || (mm == wmm && p > wp)) worst = h;
   }
   if (worst == null) return 'Chuva no horário';
+  final condition = worst.condition?.trim() ?? '';
+  if (_rainyCondition.hasMatch(condition)) {
+    return '${condition[0].toUpperCase()}${condition.substring(1)} às ${worst.hourLabel}';
+  }
   final mm = worst.precipitationMm ?? 0;
   final p = worst.probability ?? 0;
   final strong = mm >= 2 || p >= 80;
   return '${strong ? 'Chuva forte' : 'Chuva'} às ${worst.hourLabel}';
 }
+
+/// Condições da WeatherAPI que valem como título de chuva ("Encoberto" não vale).
+final _rainyCondition =
+    RegExp(r'chuv|trovo|tempest|garoa|aguaceiro', caseSensitive: false);
 
 /// Até 3 horas da previsão para o aviso, centradas na pior hora.
 List<WeatherHour> weatherReleaseHighlightHours(WeatherRelease release) {

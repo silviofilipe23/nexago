@@ -1,14 +1,32 @@
 /**
- * Previsão por hora da arena (Open-Meteo, sem chave). Serve a tela do Modo
+ * Previsão por hora da arena: WeatherAPI (chave no segredo `WEATHER_API_KEY`)
+ * e, se ela faltar ou falhar, Open-Meteo (sem chave). Serve a tela do Modo
  * chuva, o retrato do clima gravado no aviso do atleta e o pedido no modo
  * automático. Falha de rede nunca derruba a operação: devolve `null`.
+ *
+ * A WeatherAPI responde no fuso da própria localização (o mesmo das reservas)
+ * e cobre o dia de hoje e 14 dias à frente (`forecast.json`) e os dias que já
+ * passaram (`history.json`), o que dá a "chuva registrada" dos pedidos.
  */
+import {defineSecret} from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
-import {parseOpenMeteoHourly, type WeatherHour} from "./arena-weather-model";
+import {spNow} from "./arena-peak-rules";
+import {parseOpenMeteoHourly, parseWeatherApiHourly, type WeatherHour} from "./arena-weather-model";
 
+/** Criar antes do deploy: `firebase functions:secrets:set WEATHER_API_KEY`. */
+export const WEATHER_API_KEY = defineSecret("WEATHER_API_KEY");
+
+const WEATHER_API_URL = "https://api.weatherapi.com/v1";
 const OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast";
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 5000;
+
+export type WeatherSource = "weatherapi" | "open-meteo";
+
+export interface ArenaWeather {
+  hours: WeatherHour[];
+  source: WeatherSource;
+}
 
 export type FetchLike = (url: string, init?: {signal?: AbortSignal}) => Promise<{
   ok: boolean;
@@ -16,7 +34,8 @@ export type FetchLike = (url: string, init?: {signal?: AbortSignal}) => Promise<
   json: () => Promise<unknown>;
 }>;
 
-const cache = new Map<string, {at: number; hours: WeatherHour[]}>();
+/** Chave sem a URL: a da WeatherAPI leva o segredo na query string. */
+const cache = new Map<string, {at: number; weather: ArenaWeather}>();
 
 /** Ponto da arena: `latitude`/`longitude` ou o GeoPoint `location`. */
 export function arenaCoordinates(arena: Record<string, unknown> | undefined): {lat: number; lng: number} | null {
@@ -30,50 +49,90 @@ export function arenaCoordinates(arena: Record<string, unknown> | undefined): {l
   return null;
 }
 
+/** `forecast.json` de hoje em diante, `history.json` para dia que já passou. */
+export function weatherApiUrl(apiKey: string, lat: number, lng: number, dateKey: string, todayKey: string): string {
+  const endpoint = dateKey < todayKey ? "history.json" : "forecast.json";
+  const params = new URLSearchParams({
+    key: apiKey,
+    q: `${lat.toFixed(4)},${lng.toFixed(4)}`,
+    dt: dateKey,
+    aqi: "no",
+    alerts: "no",
+    lang: "pt",
+  });
+  return `${WEATHER_API_URL}/${endpoint}?${params.toString()}`;
+}
+
 export function openMeteoUrl(lat: number, lng: number, dateKey: string): string {
   const params = new URLSearchParams({
     latitude: lat.toFixed(4),
     longitude: lng.toFixed(4),
     hourly: "precipitation_probability,precipitation",
-    timezone: "America/Sao_Paulo",
+    timezone: "auto",
     start_date: dateKey,
     end_date: dateKey,
   });
   return `${OPEN_METEO_URL}?${params.toString()}`;
 }
 
-/** Horas do dia na arena, ou `null` sem coordenadas / sem resposta. */
-export async function fetchArenaWeatherHours(
-  arena: Record<string, unknown> | undefined,
-  dateKey: string,
-  options: {fetchImpl?: FetchLike; nowMs?: number} = {},
-): Promise<WeatherHour[] | null> {
-  const point = arenaCoordinates(arena);
-  if (!point) return null;
-  const url = openMeteoUrl(point.lat, point.lng, dateKey);
-  const now = options.nowMs ?? Date.now();
-  const hit = cache.get(url);
-  if (hit && now - hit.at < CACHE_TTL_MS) return hit.hours;
+function configuredApiKey(): string {
+  try {
+    return WEATHER_API_KEY.value().trim();
+  } catch {
+    return "";
+  }
+}
 
-  const fetchImpl = options.fetchImpl ?? (globalThis.fetch as unknown as FetchLike);
+async function fetchJson(fetchImpl: FetchLike, url: string, provider: string, dateKey: string): Promise<unknown | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const res = await fetchImpl(url, {signal: controller.signal});
     if (!res.ok) {
-      logger.warn(`Open-Meteo respondeu ${res.status}`, {dateKey});
+      logger.warn(`${provider} respondeu ${res.status}`, {dateKey});
       return null;
     }
-    const hours = parseOpenMeteoHourly(await res.json(), dateKey);
-    if (hours.length === 0) return null;
-    cache.set(url, {at: now, hours});
-    return hours;
+    return await res.json();
   } catch (e) {
-    logger.warn("Open-Meteo indisponível", {dateKey, error: String(e)});
+    // Nunca logar a URL: a da WeatherAPI carrega a chave.
+    logger.warn(`${provider} indisponível`, {dateKey, error: e instanceof Error ? e.name : "erro"});
     return null;
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Horas do dia na arena e de onde vieram, ou `null` sem coordenadas / sem resposta. */
+export async function fetchArenaWeather(
+  arena: Record<string, unknown> | undefined,
+  dateKey: string,
+  options: {fetchImpl?: FetchLike; nowMs?: number; apiKey?: string} = {},
+): Promise<ArenaWeather | null> {
+  const point = arenaCoordinates(arena);
+  if (!point) return null;
+  const now = options.nowMs ?? Date.now();
+  const cacheKey = `${point.lat.toFixed(4)},${point.lng.toFixed(4)},${dateKey}`;
+  const hit = cache.get(cacheKey);
+  if (hit && now - hit.at < CACHE_TTL_MS) return hit.weather;
+
+  const fetchImpl = options.fetchImpl ?? (globalThis.fetch as unknown as FetchLike);
+  let weather: ArenaWeather | null = null;
+
+  const apiKey = options.apiKey ?? configuredApiKey();
+  if (apiKey) {
+    const todayKey = spNow(new Date(now)).dateKey;
+    const json = await fetchJson(fetchImpl, weatherApiUrl(apiKey, point.lat, point.lng, dateKey, todayKey),
+      "WeatherAPI", dateKey);
+    const hours = json ? parseWeatherApiHourly(json, dateKey) : [];
+    if (hours.length > 0) weather = {hours, source: "weatherapi"};
+  }
+  if (!weather) {
+    const json = await fetchJson(fetchImpl, openMeteoUrl(point.lat, point.lng, dateKey), "Open-Meteo", dateKey);
+    const hours = json ? parseOpenMeteoHourly(json, dateKey) : [];
+    if (hours.length > 0) weather = {hours, source: "open-meteo"};
+  }
+  if (weather) cache.set(cacheKey, {at: now, weather});
+  return weather;
 }
 
 /** Só para testes. */

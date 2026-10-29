@@ -284,6 +284,37 @@ void main() {
       expect(weatherReleaseHeadline(r), 'Chuva forte às 18h');
     });
 
+    test('condição da WeatherAPI vira o título quando fala de chuva', () {
+      expect(
+        weatherReleaseHeadline(withForecast([
+          {
+            'time': '17:00',
+            'probability': 71,
+            'precipitationMm': 1.3,
+            'condition': 'Chuva fraca'
+          },
+          {
+            'time': '19:00',
+            'probability': 100,
+            'precipitationMm': 6.2,
+            'condition': 'chuva passageira moderada ou forte',
+          },
+        ])),
+        'Chuva passageira moderada ou forte às 19h',
+      );
+      expect(
+        weatherReleaseHeadline(withForecast([
+          {
+            'time': '18:00',
+            'probability': 90,
+            'precipitationMm': 3,
+            'condition': 'Encoberto'
+          },
+        ])),
+        'Chuva forte às 18h',
+      );
+    });
+
     test('chuva fraca: "Chuva às 18h"; sem previsão: "Chuva no horário"', () {
       expect(
         weatherReleaseHeadline(withForecast([

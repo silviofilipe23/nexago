@@ -53,6 +53,7 @@ import {
   type RainModeEvent,
   type RainModePreview,
   type WeatherForecast,
+  weatherSourceLabel,
 } from './weather.model';
 
 const PREVIEW_DEBOUNCE_MS = 300;
@@ -151,7 +152,7 @@ const PREVIEW_DEBOUNCE_MS = 300;
             <div class="col">
               <ar-panel-card [title]="isToday() ? 'Previsão para hoje' : 'Previsão'" [kicker]="city()">
                 @if (forecast()?.fetchedAt; as at) {
-                  <span card-actions class="fetched">atualizada {{ clock(at) }}</span>
+                  <span card-actions class="fetched">{{ sourceLabel(forecast()!.source) }} · atualizada {{ clock(at) }}</span>
                 }
                 @if (forecastLoading()) {
                   <p class="state-text">Carregando previsão…</p>
@@ -493,6 +494,7 @@ export class PanelWeatherRainModeComponent {
   protected readonly formatBRL = formatBRL;
   protected readonly timeOfHour = timeOfHour;
   protected readonly clock = clockLabel;
+  protected readonly sourceLabel = weatherSourceLabel;
   protected readonly manualReasonLabel = MANUAL_REASON_LABEL;
   protected readonly activationMessage = rainModeActivationMessage;
   protected readonly eventCountsLabel = rainModeEventCountsLabel;

@@ -314,14 +314,30 @@ export interface WeatherHour {
   time: string;
   probability: number | null;
   precipitationMm: number | null;
+  /** Texto do provedor ("Chuva passageira fraca"); só a WeatherAPI manda. */
+  condition?: string | null;
 }
+
+/** De onde veio a previsão: WeatherAPI, ou Open-Meteo quando ela falha. */
+export type WeatherSource = 'weatherapi' | 'open-meteo';
 
 export interface WeatherForecast {
   hours: WeatherHour[];
+  source: WeatherSource | null;
   fetchedAt: Date | null;
 }
 
-/** Limiares do modo automático (Open-Meteo): chuva "valendo" a partir de 2 mm/h e 70%. */
+export function weatherSourceFromData(raw: unknown): WeatherSource | null {
+  return raw === 'weatherapi' || raw === 'open-meteo' ? raw : null;
+}
+
+export function weatherSourceLabel(source: WeatherSource | null): string {
+  if (source === 'weatherapi') return 'WeatherAPI';
+  if (source === 'open-meteo') return 'Open-Meteo';
+  return 'previsão';
+}
+
+/** Limiares do modo automático: chuva "valendo" a partir de 2 mm/h e 70%. */
 export const RAIN_MM_THRESHOLD = 2;
 export const RAIN_PROBABILITY_THRESHOLD = 70;
 
@@ -329,10 +345,15 @@ export function weatherHourFromData(raw: unknown): WeatherHour | null {
   const d = asRecord(raw);
   const time = str(d['time']);
   if (!time || Number.isNaN(hourOf(time))) return null;
-  return { time, probability: num(d['probability']), precipitationMm: num(d['precipitationMm']) };
+  return {
+    time,
+    probability: num(d['probability']),
+    precipitationMm: num(d['precipitationMm']),
+    condition: str(d['condition']) ?? null,
+  };
 }
 
-/** `forecast` da resposta: `{hours, fetchedAt}` ou `null` (arena sem coordenadas). */
+/** `forecast` da resposta: `{hours, source, fetchedAt}` ou `null` (arena sem coordenadas). */
 export function weatherForecastFromData(raw: unknown): WeatherForecast | null {
   if (raw == null || typeof raw !== 'object') return null;
   const d = asRecord(raw);
@@ -340,7 +361,7 @@ export function weatherForecastFromData(raw: unknown): WeatherForecast | null {
     .map(weatherHourFromData)
     .filter((h): h is WeatherHour => h != null)
     .sort((a, b) => hourOf(a.time) - hourOf(b.time));
-  return { hours, fetchedAt: toDateValue(d['fetchedAt']) };
+  return { hours, source: weatherSourceFromData(d['source']), fetchedAt: toDateValue(d['fetchedAt']) };
 }
 
 export function hoursBetween(hours: readonly WeatherHour[], fromHour: number, toHour: number): WeatherHour[] {
@@ -685,6 +706,7 @@ export const WEATHER_REQUEST_TABS: ReadonlyArray<{ id: WeatherRequestTab; label:
 export interface WeatherReading {
   probability: number | null;
   precipitationMm: number | null;
+  source: WeatherSource | null;
   fetchedAt: Date | null;
 }
 
@@ -716,6 +738,7 @@ export function weatherRequestFromDoc(id: string, data: Record<string, unknown>)
       ? {
           probability: num(asRecord(w)['probability']),
           precipitationMm: num(asRecord(w)['precipitationMm']),
+          source: weatherSourceFromData(asRecord(w)['source']),
           fetchedAt: toDateValue(asRecord(w)['fetchedAt']),
         }
       : null;

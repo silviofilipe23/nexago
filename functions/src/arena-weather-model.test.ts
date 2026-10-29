@@ -9,6 +9,7 @@ import {
   classifyBookingForRain,
   normalizeWeatherPolicy,
   parseOpenMeteoHourly,
+  parseWeatherApiHourly,
   remainingFraction,
   rescheduleSettlement,
   spWallTimeToEpochMs,
@@ -243,6 +244,23 @@ describe("previsão", () => {
     assert.equal(weatherMeetsAutoThreshold(s), true);
     assert.equal(weatherMeetsAutoThreshold({probability: 90, precipitationMm: 1.5}), false);
     assert.equal(weatherMeetsAutoThreshold({probability: null, precipitationMm: null}), false);
+  });
+
+  it("WeatherAPI: lê as horas do dia, volume com uma casa e a condição", () => {
+    const json = {forecast: {forecastday: [
+      {date: "2026-10-28", hour: [{time: "2026-10-28 18:00", chance_of_rain: 100, precip_mm: 1.6,
+        condition: {text: "Chuva passageira moderada ou forte"}}]},
+      {date: "2026-10-29", hour: [
+        {time: "2026-10-29 17:00", chance_of_rain: 56, precip_mm: 0.42, condition: {text: " Chuva fraca "}},
+        {time: "2026-10-29 18:00", chance_of_rain: null, precip_mm: "x", condition: {}},
+      ]},
+    ]}};
+    assert.deepEqual(parseWeatherApiHourly(json, "2026-10-29"), [
+      {time: "17:00", probability: 56, precipitationMm: 0.4, condition: "Chuva fraca"},
+      {time: "18:00", probability: null, precipitationMm: null, condition: null},
+    ]);
+    assert.deepEqual(parseWeatherApiHourly(json, "2026-10-30"), []);
+    assert.deepEqual(parseWeatherApiHourly({error: {code: 1006}}, "2026-10-29"), []);
   });
 
   it("resposta torta vira lista vazia", () => {

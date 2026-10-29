@@ -28,6 +28,19 @@
   </header>
 
   <div class="rk-body">
+    @if (sharedView()) {
+      <div class="rk-shared" role="status">
+        <svg class="rk-shared-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
+        <span class="rk-shared-text">
+          @if (sharerName(); as name) {
+            <b>{{ name }}</b> compartilhou este ranking com filtros
+          } @else {
+            Ranking compartilhado com filtros
+          }
+        </span>
+        <button type="button" class="rk-shared-clear" (click)="clearSharedFilters()">Limpar filtros</button>
+      </div>
+    }
     <div class="rk-toolbar">
       <div class="rk-tabs" role="tablist" aria-label="Individual ou duplas">
         <button
@@ -57,7 +70,7 @@
       <div class="rk-tabs" role="tablist" aria-label="Geral ou temporada">
         <button type="button" role="tab" class="rk-tab" [class.rk-tab--active]="period() === 'geral'" (click)="setPeriod('geral')">Geral</button>
         <button type="button" role="tab" class="rk-tab" [class.rk-tab--active]="period() === 'temporada'" (click)="setPeriod('temporada')">
-          Temporada {{ currentYear }}
+          Temporada {{ seasonYear() }}
         </button>
       </div>
 
@@ -82,7 +95,7 @@
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
         <select
           class="rk-native-select"
-          aria-label="Categoria"
+          aria-label="Nível"
           [value]="levelFilter()"
           (change)="setLevel($any($event.target).value)"
         >

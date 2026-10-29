@@ -10,7 +10,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
@@ -29,7 +29,15 @@ import {
 import { fetchMyAthleteProfile } from '../data/my-athlete-profile-repository';
 import { fetchTeamsByIds, teamIsLookingForPartner, teamMemberIds, type ArenaTeam } from '../data/teams-repository';
 import { RANKING_SCORING_RULES } from './athlete-ranking.models';
-import type { FilterFormat, FilterGender, FilterLevel, RankingAvatar, RankingMode, RankingParticipant, RankingPeriod } from './athlete-ranking.models';
+import type {
+  FilterFormat,
+  FilterGender,
+  FilterLevelBand,
+  RankingAvatar,
+  RankingMode,
+  RankingParticipant,
+  RankingPeriod,
+} from './athlete-ranking.models';
 import {
   CITY_ALL,
   DEFAULT_RANKING_SPORT,
@@ -41,14 +49,25 @@ import {
   normalizeRankingGender,
   rankParticipants,
   searchRanking,
+  strongestLevel,
   teamFormatOf,
   teamProfileLink,
   type RankingRow,
 } from './athlete-ranking.selectors';
+import { sharedRankingFromQuery, sharerFirstName } from './athlete-ranking.share-link';
 
 export type { RankingRow };
 
-const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante 1', 'Iniciante 2', 'Intermediário 1', 'Intermediário 2', 'Avançado 1', 'Avançado 2', 'Open'];
+/** As 4 faixas do app: o degrau exato segue na linha, só a lente do filtro é larga — e é a mesma
+ *  lente do link compartilhado pelo app (`?nivel=`). */
+const LEVEL_OPTIONS: readonly FilterLevelBand[] = ['all', 'iniciante', 'intermediario', 'avancado', 'open'];
+const LEVEL_LABELS: Record<FilterLevelBand, string> = {
+  all: 'Todos os níveis',
+  iniciante: 'Iniciante',
+  intermediario: 'Intermediário',
+  avancado: 'Avançado',
+  open: 'Open',
+};
 const GENDER_OPTIONS: readonly FilterGender[] = ['all', 'male', 'female', 'mixed'];
 const GENDER_LABELS: Record<FilterGender, string> = { all: 'Todos os gêneros', male: 'Masculino', female: 'Feminino', mixed: 'Misto' };
 const FORMAT_OPTIONS: readonly FilterFormat[] = ['all', 'dupla', 'trio', 'quarteto', 'quinteto'];
@@ -120,6 +139,7 @@ function teamDisplayName(team: ArenaTeam, p1: AthletePublicProfile | undefined, 
 export class AthleteRankingComponent {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
   private readonly firestore = createFirestore();
 
   protected readonly searchInputRef = viewChild<ElementRef<HTMLInputElement>>('searchInput');
@@ -140,7 +160,8 @@ export class AthleteRankingComponent {
 
   protected readonly mode = signal<RankingMode>('individual');
   protected readonly period = signal<RankingPeriod>('geral');
-  protected readonly currentYear = new Date().getFullYear();
+  /** Temporada do modo Temporada: o ano corrente, ou a do link compartilhado. */
+  protected readonly seasonYear = signal(new Date().getFullYear());
 
   protected readonly queryInput = signal('');
   protected readonly filterQuery = signal('');
@@ -151,7 +172,7 @@ export class AthleteRankingComponent {
   private sportChosen = false;
   /** Cada leitura ganha um número; resposta de leitura velha (troca rápida de filtro) é descartada. */
   private loadGeneration = 0;
-  protected readonly levelFilter = signal<FilterLevel>('all');
+  protected readonly levelFilter = signal<FilterLevelBand>('all');
   protected readonly cityFilter = signal<string>(CITY_ALL);
   protected readonly genderFilter = signal<FilterGender>('all');
   protected readonly formatFilter = signal<FilterFormat>('all');
@@ -162,6 +183,11 @@ export class AthleteRankingComponent {
   protected readonly levelOptions = LEVEL_OPTIONS;
   protected readonly genderOptions = GENDER_OPTIONS;
   protected readonly formatOptions = FORMAT_OPTIONS;
+
+  /** A tela abriu por um link "Compartilhar ranking" (com os filtros dele aplicados). */
+  protected readonly sharedView = signal(false);
+  /** "Ray" de "Ray compartilhou este ranking"; `null` enquanto carrega ou sem nome. */
+  protected readonly sharerName = signal<string | null>(null);
 
   protected readonly loading = signal(true);
   protected readonly allParticipants = signal<readonly RankingParticipant[]>([]);
@@ -234,12 +260,15 @@ export class AthleteRankingComponent {
 
   constructor() {
     this.destroyRef.onDestroy(() => clearTimeout(this.queryDebounceHandle));
+    // Antes dos efeitos: a primeira leitura já sai no recorte do link.
+    this.applySharedLink();
 
     effect(() => {
       const mode = this.mode();
       const period = this.period();
+      const year = this.seasonYear();
       const sport = this.sportFilter();
-      void this.loadRanking(mode, period, sport);
+      void this.loadRanking(mode, period, year, sport);
     });
 
     effect(() => {
@@ -262,12 +291,51 @@ export class AthleteRankingComponent {
     });
   }
 
+  /** Link do "Compartilhar ranking" do app: aplica o recorte e lembra quem compartilhou. O esporte
+   *  do link vence o principal do atleta (o perfil chega depois e não sobrescreve). */
+  private applySharedLink(): void {
+    const shared = sharedRankingFromQuery(this.route.snapshot.queryParamMap);
+    if (!shared) return;
+    this.sharedView.set(true);
+    this.mode.set(shared.mode);
+    this.period.set(shared.period);
+    if (shared.year != null) this.seasonYear.set(shared.year);
+    if (shared.sport) {
+      this.sportChosen = true;
+      this.sportFilter.set(shared.sport);
+    }
+    this.genderFilter.set(shared.gender);
+    this.levelFilter.set(shared.level);
+    this.formatFilter.set(shared.format);
+    if (shared.sharedBy) void this.loadSharerName(shared.sharedBy);
+  }
+
+  private async loadSharerName(uid: string): Promise<void> {
+    const db = this.firestore;
+    if (!db) return;
+    try {
+      const profiles = await fetchPublicProfilesByIds(db, [uid]);
+      this.sharerName.set(sharerFirstName(profiles.get(uid)));
+    } catch {
+      // Sem o nome, o aviso fica genérico — o ranking em si não depende dele.
+    }
+  }
+
+  /** "Limpar filtros" do aviso: tira os recortes do link e fica no esporte/aba/temporada. */
+  protected clearSharedFilters(): void {
+    this.levelFilter.set('all');
+    this.cityFilter.set(CITY_ALL);
+    this.genderFilter.set('all');
+    this.formatFilter.set('all');
+    this.sharedView.set(false);
+  }
+
   private applyDefaultSport(primarySportId: string | null): void {
     if (this.sportChosen) return;
     this.sportFilter.set(defaultRankingSport(primarySportId));
   }
 
-  private async loadRanking(mode: RankingMode, period: RankingPeriod, sport: string): Promise<void> {
+  private async loadRanking(mode: RankingMode, period: RankingPeriod, year: number, sport: string): Promise<void> {
     const db = this.firestore;
     const projectId = environment.firebase.projectId;
     const generation = ++this.loadGeneration;
@@ -281,7 +349,7 @@ export class AthleteRankingComponent {
     // Temporada: só quem pontuou no ano entra (doc por esporte guarda o histórico inteiro).
     const scored = (rows: RankingBySportRow[]) =>
       rows
-        .map((r) => ({ id: r.id, points: pointsForPeriod(r, period, this.currentYear) }))
+        .map((r) => ({ id: r.id, points: pointsForPeriod(r, period, year) }))
         .filter((r) => period === 'geral' || r.points > 0);
     try {
       let participants: RankingParticipant[];
@@ -355,7 +423,14 @@ export class AthleteRankingComponent {
       name: teamDisplayName(team, p1, p2),
       city: p1?.city ?? p2?.city ?? '',
       points,
-      level: levelLabelOf((p1 ? levelForSport(p1, sport) : null) ?? (p2 ? levelForSport(p2, sport) : null)),
+      // O integrante mais forte, como no app: senão o link compartilhado pelo app abriria outro
+      // recorte de nível aqui.
+      level: strongestLevel(
+        memberIds.map((uid) => {
+          const member = profiles.get(uid);
+          return member ? levelLabelOf(levelForSport(member, sport)) : null;
+        }),
+      ),
       gender,
       format,
       trend: 0,
@@ -399,7 +474,7 @@ export class AthleteRankingComponent {
   }
 
   protected setLevel(level: string): void {
-    this.levelFilter.set(level as FilterLevel);
+    this.levelFilter.set(level as FilterLevelBand);
   }
 
   protected setCity(city: string): void {
@@ -418,8 +493,8 @@ export class AthleteRankingComponent {
     return this.sportOptions.find((o) => o.code === code)?.label ?? code;
   }
 
-  protected levelLabel(level: FilterLevel): string {
-    return level === 'all' ? 'Todas categorias' : level;
+  protected levelLabel(level: FilterLevelBand): string {
+    return LEVEL_LABELS[level];
   }
 
   protected cityLabel(city: string): string {

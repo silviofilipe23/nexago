@@ -24,8 +24,10 @@ import 'widgets/ranking_filters_sheet.dart';
 import 'widgets/ranking_list_tile.dart';
 import 'widgets/ranking_mode_segment.dart';
 import 'widgets/ranking_page_app_bar.dart';
+import 'widgets/ranking_active_filters_row.dart';
 import 'widgets/ranking_podium.dart';
 import 'widgets/ranking_share_position_button.dart';
+import 'widgets/ranking_share_sheet.dart';
 
 class AthleteRankingPage extends ConsumerStatefulWidget {
   const AthleteRankingPage({super.key, this.storyRequest});
@@ -167,17 +169,6 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
     });
   }
 
-  Future<void> _openFilters() async {
-    final applied = await showRankingFiltersSheet(
-      context: context,
-      initial: ref.read(rankingPageFilterProvider),
-      yearOptions: ref.read(rankingYearOptionsProvider),
-      sportCode:
-          ref.read(rankingSportProvider).valueOrNull ?? kDefaultRankingSport,
-    );
-    if (applied == null || !mounted) return;
-    ref.read(rankingPageFilterProvider.notifier).state = applied;
-  }
 
   void _openProfile(RankingListEntry entry, RankingListMode mode) {
     final id = entry.entityId.trim();
@@ -262,7 +253,8 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
         searchOpen: _searchOpen,
         searchController: _searchController,
         onSearchToggle: _toggleSearch,
-        onFilterTap: _openFilters,
+        onFilterTap: () => openRankingFilters(context, ref),
+        onShareTap: () => showRankingShareSheet(context),
         filtersActive: filter.hasActiveFilters,
         onInfoTap: () => context.pushNamed(
           AppRouteNames.athleteHowItWorks,
@@ -339,16 +331,15 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                       },
                     ),
                     SizedBox(height: 12),
-                    // Esporte e temporada sempre à vista: o esporte mora na folha de
-                    // filtros, e lista vazia de um esporte sem isso parece defeito.
-                    Text(
-                      '${rankingSportLabel(sportCode)} · '
-                      '${filter.isGeneralMode ? 'Geral' : '${filter.year}'}',
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: context.themeColors.onSurfaceMuted,
-                      ),
+                    // Esporte e temporada sempre à vista (o esporte mora na
+                    // folha de filtros, e lista vazia de um esporte sem isso
+                    // parece defeito); os recortes ligados viram chips com ×.
+                    RankingActiveFiltersRow(
+                      filter: filter,
+                      sportLabel: rankingSportLabel(sportCode),
+                      onChanged: (next) => ref
+                          .read(rankingPageFilterProvider.notifier)
+                          .state = next,
                     ),
                     SizedBox(height: 16),
                     if (myEntry != null) ...[

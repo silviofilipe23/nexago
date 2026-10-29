@@ -108,6 +108,7 @@ Future<List<RankingListEntry>> buildAthleteRankingListEntries({
         avatarUrl: rankingAvatarUrl(profile),
         pointsBeforeLastStage:
             _pointsBefore(row.totalPoints, row.lastStagePoints),
+        members: [rankingEntryMember(profile, row.athleteId)],
       ),
     );
   }
@@ -150,11 +151,11 @@ Future<List<RankingListEntry>> buildTeamRankingListEntries({
   rows = filterTeamRowsByFormat(rows, filter.format, formatByTeam);
   if (rows.isEmpty) return const [];
 
+  // O elenco inteiro, não só player1/player2: a arte de compartilhar desenha
+  // todos os rostos do trio/quarteto/quinteto, e o 3º integrante também
+  // precisa se ver como "a minha equipe".
   final profiles = await users.getUsersByIds([
-    for (final team in teams.values) ...[
-      if (team.player1Id != null) team.player1Id!,
-      if (team.player2Id != null) team.player2Id!,
-    ],
+    for (final team in teams.values) ...team.memberIds,
   ]);
 
   final levelRankByTeam = <String, int?>{
@@ -173,9 +174,12 @@ Future<List<RankingListEntry>> buildTeamRankingListEntries({
     final team = teams[row.teamId];
     final p1 = team?.player1Id != null ? profiles[team!.player1Id] : null;
     final p2 = team?.player2Id != null ? profiles[team!.player2Id] : null;
+    final memberIds = team?.memberIds ?? const <String>[];
     final isCurrentUser = currentUid != null &&
         currentUid.isNotEmpty &&
-        (team?.player1Id == currentUid || team?.player2Id == currentUid);
+        (team?.player1Id == currentUid ||
+            team?.player2Id == currentUid ||
+            memberIds.contains(currentUid));
 
     entries.add(
       RankingListEntry(
@@ -201,10 +205,22 @@ Future<List<RankingListEntry>> buildTeamRankingListEntries({
         teamFormat: formatByTeam[row.teamId],
         pointsBeforeLastStage:
             _pointsBefore(row.totalPoints, row.lastStagePoints),
+        members: [
+          for (final uid in memberIds) rankingEntryMember(profiles[uid], uid),
+        ],
       ),
     );
   }
   return entries;
+}
+
+/// O rosto de um atleta na arte de compartilhar.
+RankingEntryMember rankingEntryMember(AppUserProfile? profile, String uid) {
+  return RankingEntryMember(
+    initials: rankingInitials(profile, uid),
+    shortName: profile == null ? '' : appUserShortLabel(profile),
+    avatarUrl: rankingAvatarUrl(profile),
+  );
 }
 
 int? _pointsBefore(int points, int? lastStagePoints) {

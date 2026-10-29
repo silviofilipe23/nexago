@@ -1,9 +1,16 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
-import {getFirestore} from "firebase-admin/firestore";
+import {getFirestore, type Firestore} from "firebase-admin/firestore";
+import {
+  athleteFingerprint,
+  findTwinRegistrationPairs,
+  type AthleteFingerprint,
+  type TwinRegistrationPair,
+} from "./athlete-twin-accounts";
 import {assertCanManageTournament} from "./tournament-acl";
 import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 import {normalizePhoneForWhatsApp} from "./tournament-cancellation-request";
 import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
+import {findCategory, type TournamentData} from "./tournament-registration-guards";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /**
@@ -12,6 +19,10 @@ import {CLIENT_FACING_REGIONS} from "./function-regions";
  * `public_profiles` sem PII), este é o único canal de contato — e é mais
  * estrito que o modelo antigo: o gestor só vê contatos de quem está inscrito
  * no torneio dele.
+ *
+ * Como já lê o cadastro de todo inscrito, é aqui também que sai o aviso de
+ * "possível duplicado": a mesma pessoa com duas contas na mesma categoria,
+ * pela regra da trava de inscrição (`athlete-twin-accounts.ts`).
  */
 
 
@@ -39,31 +50,59 @@ export interface AthleteContact {
   email: string;
 }
 
-export const getTournamentAthleteContacts = onCall({
-  region: CLIENT_FACING_REGIONS,
-}, async (request) => {
-  const uid = request.auth?.uid;
-  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
+export interface TournamentAthleteContacts {
+  contacts: Record<string, AthleteContact>;
+  /**
+   * Contas que parecem ser a mesma pessoa inscrita duas vezes na mesma
+   * categoria (`findTwinRegistrationPairs`). Só ids: o WhatsApp que liga as
+   * duas contas não sai daqui por esse campo.
+   */
+  twinPairs: TwinRegistrationPair[];
+}
 
-  const tournamentId = String(request.data?.tournamentId ?? "").trim();
+/** Inscrições do torneio com a categoria resolvida pelo cadastro do torneio. */
+function registrationSeats(
+  tournament: TournamentData,
+  registrations: Array<{id: string; data: Record<string, unknown>}>,
+): Array<{id: string; categoryId: string; uids: string[]}> {
+  const seats: Array<{id: string; categoryId: string; uids: string[]}> = [];
+  for (const {id, data} of registrations) {
+    const raw = String(data["categoryId"] ?? "").trim();
+    if (!raw) continue;
+    // Categoria legada é referenciada pelo nome em parte das inscrições:
+    // as duas grafias são a mesma categoria.
+    const category = findCategory(tournament, raw);
+    const categoryId = String(category?.id ?? category?.categoryId ?? "").trim() || raw;
+    seats.push({id, categoryId, uids: collectParticipantUids([data])});
+  }
+  return seats;
+}
+
+export async function getTournamentAthleteContactsCore(
+  db: Firestore,
+  uid: string,
+  data: unknown,
+): Promise<TournamentAthleteContacts> {
+  const tournamentId = String(
+    (data as Record<string, unknown> | null)?.["tournamentId"] ?? "",
+  ).trim();
   if (!tournamentId) {
     throw new HttpsError("invalid-argument", "tournamentId obrigatório");
   }
 
-  const db = getFirestore();
-  await assertCanManageTournament(db, uid, tournamentId);
+  const tournament = await assertCanManageTournament(db, uid, tournamentId);
 
   const projectId = getFirebaseProjectId();
   const regsSnap = await db
-    .collection(`artifacts/${projectId}/public/data/inscriptions`)
+    .collection(artifactsInscriptionsPath(projectId))
     .where("tournamentId", "==", tournamentId)
     .get();
+  const registrations = regsSnap.docs.map((doc) => ({id: doc.id, data: doc.data()}));
 
-  const participantUids = collectParticipantUids(
-    regsSnap.docs.map((doc) => doc.data()),
-  );
+  const participantUids = collectParticipantUids(registrations.map((r) => r.data));
 
   const contacts: Record<string, AthleteContact> = {};
+  const fingerprints = new Map<string, AthleteFingerprint>();
   const chunkSize = 20;
   for (let i = 0; i < participantUids.length; i += chunkSize) {
     const chunk = participantUids.slice(i, i + chunkSize);
@@ -72,18 +111,32 @@ export const getTournamentAthleteContacts = onCall({
     );
     for (const snap of snaps) {
       if (!snap.exists) continue;
-      const data = snap.data() ?? {};
+      const user = snap.data() ?? {};
       contacts[snap.id] = {
         uid: snap.id,
-        fullName: String(data["fullName"] ?? data["name"] ?? "").trim(),
-        nickname: String(data["nickname"] ?? "").trim(),
-        phoneNumber: String(data["phoneNumber"] ?? "").trim(),
-        email: String(data["email"] ?? "").trim(),
+        fullName: String(user["fullName"] ?? user["name"] ?? "").trim(),
+        nickname: String(user["nickname"] ?? "").trim(),
+        phoneNumber: String(user["phoneNumber"] ?? "").trim(),
+        email: String(user["email"] ?? "").trim(),
       };
+      fingerprints.set(snap.id, athleteFingerprint(user));
     }
   }
 
-  return {contacts};
+  const twinPairs = findTwinRegistrationPairs({
+    registrations: registrationSeats(tournament, registrations),
+    fingerprints,
+  });
+
+  return {contacts, twinPairs};
+}
+
+export const getTournamentAthleteContacts = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
+  return getTournamentAthleteContactsCore(getFirestore(), uid, request.data);
 });
 
 export interface OrganizerContact {

@@ -126,6 +126,59 @@ export function findTwinConflict(params: {
   return null;
 }
 
+/** Duas contas da mesma categoria que parecem ser a mesma pessoa. */
+export interface TwinRegistrationPair {
+  categoryId: string;
+  /** As duas inscrições — repetidas quando as duas contas estão no mesmo elenco. */
+  registrationIds: [string, string];
+  /** A conta de cada inscrição, na mesma ordem de `registrationIds`. */
+  uids: [string, string];
+}
+
+/**
+ * Os pares de contas gêmeas que JÁ estão inscritos, por categoria — o que a
+ * trava de entrada não desfaz. É para o organizador enxergar e decidir: ele é
+ * a saída do falso positivo, então o par vira aviso, nunca bloqueio.
+ *
+ * A mesma conta em duas inscrições não entra aqui: isso é outra trava.
+ */
+export function findTwinRegistrationPairs(params: {
+  registrations: Array<{id: string; categoryId: string; uids: string[]}>;
+  fingerprints: Map<string, AthleteFingerprint>;
+}): TwinRegistrationPair[] {
+  type Seat = {registrationId: string; uid: string; fingerprint: AthleteFingerprint};
+  // Só compara quem divide a chave do WhatsApp: sem ela, `isSameAthlete` já diz não.
+  const seatsByPhone = new Map<string, Seat[]>();
+  for (const reg of params.registrations) {
+    for (const uid of new Set(reg.uids)) {
+      const fingerprint = params.fingerprints.get(uid);
+      if (!fingerprint?.phoneKey) continue;
+      const key = `${reg.categoryId}\u0000${fingerprint.phoneKey}`;
+      const seats = seatsByPhone.get(key) ?? [];
+      seats.push({registrationId: reg.id, uid, fingerprint});
+      seatsByPhone.set(key, seats);
+    }
+  }
+
+  const pairs: TwinRegistrationPair[] = [];
+  for (const [key, seats] of seatsByPhone) {
+    const categoryId = key.slice(0, key.indexOf("\u0000"));
+    for (let i = 0; i < seats.length; i++) {
+      for (let j = i + 1; j < seats.length; j++) {
+        const a = seats[i];
+        const b = seats[j];
+        if (a.uid === b.uid || !isSameAthlete(a.fingerprint, b.fingerprint)) continue;
+        pairs.push({
+          categoryId,
+          registrationIds: [a.registrationId, b.registrationId],
+          uids: [a.uid, b.uid],
+        });
+      }
+    }
+  }
+  return pairs;
+}
+
 /** `jo•••@gmail.com` — o bastante para a pessoa reconhecer a própria conta. */
 export function maskEmail(raw: unknown): string {
   const email = typeof raw === "string" ? raw.trim() : "";

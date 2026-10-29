@@ -4,6 +4,7 @@ import {Timestamp} from "firebase-admin/firestore";
 import {
   birthDayKey,
   findTwinConflict,
+  findTwinRegistrationPairs,
   isSameAthlete,
   maskEmail,
   phoneIdentityKey,
@@ -122,6 +123,91 @@ describe("findTwinConflict", () => {
       ]),
     });
     assert.equal(conflict, null);
+  });
+});
+
+describe("findTwinRegistrationPairs", () => {
+  const joana = {phoneKey: "62998765432", birthDay: "1990-05-17"};
+  const joanaSemData = {phoneKey: "62998765432", birthDay: ""};
+  const outra = {phoneKey: "62911112222", birthDay: "1988-01-01"};
+
+  it("acha a mesma pessoa em duas inscrições da mesma categoria", () => {
+    const pairs = findTwinRegistrationPairs({
+      registrations: [
+        {id: "r1", categoryId: "fem-b", uids: ["google", "parceira1"]},
+        {id: "r2", categoryId: "fem-b", uids: ["email", "parceira2"]},
+      ],
+      fingerprints: new Map([
+        ["google", joana], ["email", joanaSemData], ["parceira1", outra],
+        ["parceira2", {phoneKey: "62933334444", birthDay: ""}],
+      ]),
+    });
+    assert.deepEqual(pairs, [
+      {categoryId: "fem-b", registrationIds: ["r1", "r2"], uids: ["google", "email"]},
+    ]);
+  });
+
+  it("acusa o elenco formado pelas duas contas da mesma pessoa", () => {
+    const pairs = findTwinRegistrationPairs({
+      registrations: [{id: "r1", categoryId: "fem-b", uids: ["google", "email"]}],
+      fingerprints: new Map([["google", joana], ["email", joana]]),
+    });
+    assert.deepEqual(pairs, [
+      {categoryId: "fem-b", registrationIds: ["r1", "r1"], uids: ["google", "email"]},
+    ]);
+  });
+
+  it("categorias diferentes do mesmo torneio seguem liberadas", () => {
+    const pairs = findTwinRegistrationPairs({
+      registrations: [
+        {id: "r1", categoryId: "fem-b", uids: ["google"]},
+        {id: "r2", categoryId: "mista", uids: ["email"]},
+      ],
+      fingerprints: new Map([["google", joana], ["email", joana]]),
+    });
+    assert.deepEqual(pairs, []);
+  });
+
+  it("não acusa a família que divide o número nem quem não tem telefone", () => {
+    const pairs = findTwinRegistrationPairs({
+      registrations: [
+        {id: "r1", categoryId: "mista", uids: ["pai", "semFone1"]},
+        {id: "r2", categoryId: "mista", uids: ["filho", "semFone2"]},
+      ],
+      fingerprints: new Map([
+        ["pai", {phoneKey: "62998765432", birthDay: "1975-01-02"}],
+        ["filho", {phoneKey: "62998765432", birthDay: "2008-03-04"}],
+        ["semFone1", {phoneKey: "", birthDay: "1990-05-17"}],
+        ["semFone2", {phoneKey: "", birthDay: "1990-05-17"}],
+      ]),
+    });
+    assert.deepEqual(pairs, []);
+  });
+
+  it("a mesma conta em duas inscrições não é conta gêmea", () => {
+    const pairs = findTwinRegistrationPairs({
+      registrations: [
+        {id: "r1", categoryId: "fem-b", uids: ["google"]},
+        {id: "r2", categoryId: "fem-b", uids: ["google", "google"]},
+      ],
+      fingerprints: new Map([["google", joana]]),
+    });
+    assert.deepEqual(pairs, []);
+  });
+
+  it("três contas com o mesmo WhatsApp viram três pares", () => {
+    const pairs = findTwinRegistrationPairs({
+      registrations: [
+        {id: "r1", categoryId: "fem-b", uids: ["a"]},
+        {id: "r2", categoryId: "fem-b", uids: ["b"]},
+        {id: "r3", categoryId: "fem-b", uids: ["c"]},
+      ],
+      fingerprints: new Map([["a", joana], ["b", joana], ["c", joanaSemData]]),
+    });
+    assert.deepEqual(
+      pairs.map((p) => p.registrationIds.join("+")),
+      ["r1+r2", "r1+r3", "r2+r3"],
+    );
   });
 });
 

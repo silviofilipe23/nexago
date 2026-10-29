@@ -94,6 +94,7 @@ import {loadTeamMemberUids, loadUserGenderBucket} from "./tournament-team-roster
 import {normalizeAthleteGenderBucket} from "./tournament-registration-pix-helpers";
 import type {AthleteGenderBucket} from "./tournament-registration-pix-helpers";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {assertNoTwinAccountInCategory} from "./athlete-twin-accounts";
 
 export {INVITES_COLLECTION, INVITE_TTL_MS};
 
@@ -954,6 +955,14 @@ export async function sendPartnerInviteFor(
     uids: [uid, inviteeUid],
     requireDeclared: false,
   });
+  await assertNoTwinAccountInCategory({
+    db,
+    projectId,
+    tournamentId,
+    categoryKeys,
+    teamUids: [uid, inviteeUid],
+    callerUid: uid,
+  });
 
   // Categoria individual não tem parceiro (inscrição já nasce completa).
   assertCategoryAcceptsPartner(category);
@@ -1236,6 +1245,14 @@ export const registerSoloTournament = onCall({
       "Você já possui inscrição nesta categoria.",
     );
   }
+  await assertNoTwinAccountInCategory({
+    db,
+    projectId,
+    tournamentId,
+    categoryKeys,
+    teamUids: [uid],
+    callerUid: uid,
+  });
 
   const inscriptionsRef = db.collection(artifactsInscriptionsPath(projectId));
   const regRef = inscriptionsRef.doc();
@@ -1637,6 +1654,15 @@ export const acceptTournamentPartnerInvite = onCall({
     inviteeUniform,
     inviteeUniform != null && categoryRequiresUniform(previewCategory),
   );
+  // Revalida no aceite: nas 48h do convite a outra conta pode ter entrado.
+  await assertNoTwinAccountInCategory({
+    db,
+    projectId,
+    tournamentId: previewTournamentId,
+    categoryKeys: previewCategoryKeys,
+    teamUids: [invitePreviewData.inviterUid as string | undefined, uid],
+    callerUid: uid,
+  });
 
   const result = await db.runTransaction(async (tx) => {
     const inviteSnap = await tx.get(inviteRef);

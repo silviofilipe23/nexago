@@ -65,6 +65,7 @@ import {
 import {loadUserGenderBucket} from "./tournament-team-roster";
 import {sharePaidUidsFromRegistration} from "./tournament-registration-pix-helpers";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {assertNoTwinAccountInCategory} from "./athlete-twin-accounts";
 
 /** Nome exibível do atleta para notificações (users/{uid}). */
 async function loadAthleteDisplayName(
@@ -223,6 +224,15 @@ export const createTournamentTeamRegistration = onCall({
       );
     }
   }
+
+  await assertNoTwinAccountInCategory({
+    db,
+    projectId,
+    tournamentId,
+    categoryKeys,
+    teamUids: [uid],
+    callerUid: uid,
+  });
 
   const teamsRef = db.collection(artifactsTeamsPath(projectId));
   const teamRef = teamsRef.doc();

@@ -81,6 +81,7 @@ import {
   type AthleteGenderBucket,
 } from "./tournament-registration-pix-helpers";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {assertNoTwinAccountInCategory} from "./athlete-twin-accounts";
 
 function str(raw: unknown): string {
   return typeof raw === "string" ? raw.trim() : "";
@@ -243,6 +244,16 @@ export const sendTournamentSubstitutionInvite = onCall({
       throw new HttpsError("failed-precondition", "Este atleta já está inscrito nesta categoria.");
     }
   }
+  // Quem sai fica de fora: trocar a conta errada pela certa é justamente o uso legítimo.
+  await assertNoTwinAccountInCategory({
+    db,
+    projectId,
+    tournamentId,
+    categoryKeys,
+    teamUids: rosterAfter,
+    callerUid: uid,
+    ignoreUids: [replacedUid],
+  });
 
   // Um convite de substituição pendente por vaga; sem duplicar pro convidado.
   const invitesSnap = await db
@@ -509,6 +520,15 @@ export async function acceptSubstitutionInviteFor(
     await assertTeamGenderEligibility({db, category, uids: rosterAfter, requireDeclared: true});
     await assertMixedDuoGenderEligibility({db, category, uids: rosterAfter, requireDeclared: true});
   }
+  await assertNoTwinAccountInCategory({
+    db,
+    projectId,
+    tournamentId,
+    categoryKeys,
+    teamUids: rosterAfter,
+    callerUid: uid,
+    ignoreUids: [outUid],
+  });
 
   const inviteeUniform = parseUniformPayload(inviteeUniformRaw);
   validateUniformPayload(

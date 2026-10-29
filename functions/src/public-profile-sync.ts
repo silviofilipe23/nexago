@@ -5,6 +5,7 @@ import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {hasRoleInClaims} from "./auth-roles";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {syncUserPhoneKey} from "./athlete-twin-account-lookup";
 
 /**
  * Espelho público de perfis: `public_profiles/{uid}` contém APENAS campos de
@@ -82,6 +83,17 @@ export const onUserWrittenSyncPublicProfile = onDocumentWritten(
     const mirrorRef = db.doc(`public_profiles/${userId}`);
 
     const after = event.data?.after;
+    // Mesmo gatilho para não pagar uma invocação a mais por escrita em `users`.
+    // Falha no índice não pode derrubar o espelho público.
+    await syncUserPhoneKey({
+      db,
+      uid: userId,
+      before: event.data?.before?.data(),
+      after: after?.data(),
+    }).catch((error) => {
+      logger.error("Phone key sync failed", {userId, error: String(error)});
+    });
+
     if (!after?.exists) {
       await mirrorRef.delete();
       return;

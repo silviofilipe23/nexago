@@ -20,6 +20,7 @@ import '../../../../auth/widgets/auth_form_widgets.dart';
 import '../../../domain/athlete_profile_options.dart';
 import '../../../presentation/widgets/br_state_city_fields.dart';
 import '../../../phone_verification/presentation/phone_verification_field.dart';
+import '../../data/twin_account_check_service.dart';
 import '../../domain/athlete_onboarding_draft.dart';
 import '../../domain/athlete_onboarding_options.dart';
 import '../../domain/athlete_onboarding_providers.dart';
@@ -28,6 +29,7 @@ import '../widgets/onboarding_logout_button.dart';
 import '../widgets/onboarding_progress_header.dart';
 import '../widgets/onboarding_scaffold.dart';
 import '../widgets/onboarding_step_header.dart';
+import '../widgets/twin_account_dialog.dart';
 import '../../../../tournaments/domain/tournament_invite_links.dart';
 
 const String kOnboardingPhotoUploadFailedMessage =
@@ -63,6 +65,8 @@ class _AthleteOnboardingProfileStepState
   String? _birthError;
   bool _genderMissing = false;
   bool _photoMissing = false;
+  /// Número para o qual o atleta já respondeu "não é minha": não pergunta de novo.
+  String? _twinAcknowledgedPhone;
 
   @override
   void initState() {
@@ -148,6 +152,7 @@ class _AthleteOnboardingProfileStepState
     final pendingDeepLink = ref.read(pendingDeepLinkPathProvider);
     final stopwatch = Stopwatch()..start();
     try {
+      if (!await _confirmNoTwinAccount(draft)) return;
       await ref.read(athleteOnboardingDraftProvider.notifier).submit(
         onStage: (stage) {
           if (mounted) setState(() => _stage = stage);
@@ -202,6 +207,31 @@ class _AthleteOnboardingProfileStepState
         });
       }
     }
+  }
+
+  /// A mesma pessoa com duas contas é o que duplica inscrição: avisa ANTES de
+  /// salvar se o WhatsApp já está em outra conta. `false` = não enviar (o
+  /// atleta foi entrar com a outra conta ou fechou o aviso).
+  Future<bool> _confirmNoTwinAccount(AthleteOnboardingDraft draft) async {
+    if (_twinAcknowledgedPhone == draft.phoneNumber) return true;
+    final other = await ref
+        .read(twinAccountCheckServiceProvider)
+        .findOtherAccount(
+          phoneNumber: draft.phoneNumber,
+          birthDate: draft.birthDate,
+        );
+    if (other == null || !mounted) return true;
+    final choice = await showTwinAccountDialog(context, other);
+    if (choice == TwinAccountChoice.useOtherAccount) {
+      // O GoRouter manda pro login assim que o auth zera.
+      await ref.read(appSignOutProvider)();
+      return false;
+    }
+    if (choice == TwinAccountChoice.continueHere) {
+      _twinAcknowledgedPhone = draft.phoneNumber;
+      return true;
+    }
+    return false;
   }
 
   String _submitErrorMessage(AthleteOnboardingSubmitException e) {

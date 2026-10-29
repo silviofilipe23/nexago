@@ -2013,6 +2013,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Índice WhatsApp → conta (onUserWrittenSyncPublicProfile). Telefone é PII:
+    // só a callable checkPhoneInOtherAccount consulta, e devolve só a dica mascarada.
+    match /userPhoneKeys/{userId} {
+      allow read, write: if false;
+    }
+
     match /users/{userId} {
       // Perfis de atletas são visíveis apenas para usuários AUTENTICADOS
       // (busca de parceiro, ranking, equipe). Sem login não há leitura: o doc

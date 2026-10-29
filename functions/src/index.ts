@@ -728,6 +728,7 @@ export {
 export {completeOrganizerSignup} from "./organizer-signup";
 export {grantAthleteRole} from "./athlete-signup";
 export {confirmPhoneVerification} from "./athlete-phone-verification";
+export {checkPhoneInOtherAccount} from "./athlete-twin-account-lookup";
 
 export {searchAthleteForCoachInvite} from "./coach-athlete-search";
 export {

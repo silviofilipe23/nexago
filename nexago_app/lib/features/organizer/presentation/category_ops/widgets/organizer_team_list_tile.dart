@@ -118,6 +118,10 @@ class OrganizerTeamListTile extends StatelessWidget {
                     const SizedBox(height: 4),
                     const _CancellationPill(),
                   ],
+                  if (team.isPossibleDuplicate) ...[
+                    const SizedBox(height: 4),
+                    const _PossibleDuplicatePill(),
+                  ],
                 ],
               ),
             ],
@@ -156,6 +160,42 @@ class _CancellationPill extends StatelessWidget {
               fontSize: 8,
               fontWeight: FontWeight.w700,
               color: context.themeColors.live,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A mesma pessoa parece estar na categoria por duas contas (mesmo WhatsApp).
+/// Só avisa: quem decide é o organizador, e o motivo fica na folha de ações.
+class _PossibleDuplicatePill extends StatelessWidget {
+  const _PossibleDuplicatePill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.pending.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.content_copy_rounded,
+            size: 11,
+            color: context.themeColors.pending,
+          ),
+          const SizedBox(width: 3),
+          Text(
+            'POSSÍVEL DUPLICADO',
+            style: AppTypography.mono(
+              fontSize: 8,
+              fontWeight: FontWeight.w700,
+              color: context.themeColors.pending,
             ),
           ),
         ],

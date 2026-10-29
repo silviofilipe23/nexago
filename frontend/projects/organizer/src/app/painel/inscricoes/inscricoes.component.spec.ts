@@ -1,7 +1,7 @@
 import { provideZonelessChangeDetection, type WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import type { AthleteContact } from '../data/athlete-contacts-repository';
+import type { AthleteContact, TwinRegistrationPair } from '../data/athlete-contacts-repository';
 import { EMPTY_INSCRIPTION_UNIFORM, type TournamentInscription } from '../data/inscriptions-repository';
 import { EMPTY_TOURNAMENT_COLLECTED } from '../data/tournament-collected';
 import type { OrganizerTournament } from '../data/tournament.model';
@@ -86,6 +86,7 @@ interface Internals {
   tournament: WritableSignal<OrganizerTournament | null>;
   inscriptions: WritableSignal<TournamentInscription[]>;
   contacts: WritableSignal<ReadonlyMap<string, AthleteContact>>;
+  twinPairs: WritableSignal<readonly TwinRegistrationPair[]>;
   occupancyByCategory: () => Record<string, number>;
   waitlistEnabled: () => boolean;
 }
@@ -149,6 +150,36 @@ describe('InscricoesComponent — lista remontada por peça que chega', () => {
     internals.tournament.set(tournament());
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Circuito Verão 2026 · 2 inscrições');
+  });
+
+  // Os pares vêm do callable dos contatos, que chega depois da lista: o selo aparece nas duas
+  // inscrições sem nova ida ao listener.
+  it('põe o selo de possível duplicado nas duas inscrições quando os pares chegam', async () => {
+    const fixture = await mount();
+    const internals = fixture.componentInstance as unknown as Internals;
+    const flagged = () =>
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll('.og-insc-row')]
+        .filter((r) => r.textContent?.includes('Possível duplicado'))
+        .map((r) => r.querySelector('.og-insc-name')?.textContent?.trim());
+
+    internals.inscriptions.set([
+      inscription(),
+      inscription({
+        id: 'i2',
+        teamName: 'Aninha / Carla',
+        participants: [
+          { uid: 'u3', name: 'Aninha', photoUrl: null, levelsBySport: {}, legacyLevel: null },
+          { uid: 'u4', name: 'Carla', photoUrl: null, levelsBySport: {}, legacyLevel: null },
+        ],
+      }),
+      inscription({ id: 'i3', teamName: 'Duda / Eva' }),
+    ]);
+    fixture.detectChanges();
+    expect(flagged()).toEqual([]);
+
+    internals.twinPairs.set([{ categoryId: 'femB', registrationIds: ['i1', 'i2'], uids: ['u1', 'u3'] }]);
+    fixture.detectChanges();
+    expect(flagged().sort()).toEqual(['Ana / Bia', 'Aninha / Carla']);
   });
 
   /** A ocupação alimenta o aviso de "categoria lotada" do formulário. Ela tem de contar do

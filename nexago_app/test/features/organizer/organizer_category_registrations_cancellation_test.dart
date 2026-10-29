@@ -73,8 +73,11 @@ class _FakeCategoryOpsRepository implements OrganizerCategoryOpsRepository {
 
 class _FakeContactsService implements OrganizerContactsService {
   @override
-  Future<Map<String, String>> phonesForTournament(String tournamentId) async {
-    return const {};
+  Future<OrganizerTournamentContacts> contactsForTournament(
+    String tournamentId, {
+    Iterable<String> uids = const [],
+  }) async {
+    return const OrganizerTournamentContacts();
   }
 
   @override

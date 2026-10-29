@@ -1,6 +1,10 @@
 import { participantUnit } from '../data/team-size';
 import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
-import { fetchAthleteContacts, type AthleteContact } from '../data/athlete-contacts-repository';
+import {
+  fetchAthleteContacts,
+  type AthleteContact,
+  type TwinRegistrationPair,
+} from '../data/athlete-contacts-repository';
 import { watchInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { formatPhoneBR } from '../data/phone-contact';
 import { environment } from '../../../environments/environment';
@@ -355,8 +359,11 @@ export class InscricoesComponent {
    *  chegam em momentos diferentes: quem chegar depois só remonta as linhas, sem nova ida à rede. */
   private readonly inscriptions = signal<TournamentInscription[]>([]);
   private readonly contacts = signal<ReadonlyMap<string, AthleteContact>>(new Map());
+  /** Pares de "possível duplicado" — vêm do mesmo callable dos contatos (é ele que lê o
+   *  cadastro de cada inscrito). */
+  private readonly twinPairs = signal<readonly TwinRegistrationPair[]>([]);
   protected readonly rows = computed<InscricaoRow[]>(() =>
-    buildInscricaoRows(this.inscriptions(), this.tournament(), this.contacts()),
+    buildInscricaoRows(this.inscriptions(), this.tournament(), this.contacts(), this.twinPairs()),
   );
 
   /** Uids que a última busca de contatos já cobriu — ver `scheduleContactsRefresh`. */
@@ -449,6 +456,7 @@ export class InscricoesComponent {
       this.tournament.set(null);
       this.inscriptions.set([]);
       this.contacts.set(new Map());
+      this.twinPairs.set([]);
       this.knownContactUids.clear();
       this.deepLinkOpened = false;
       this.categoryFilter.set(null);
@@ -532,12 +540,15 @@ export class InscricoesComponent {
     // A cobertura é marcada no DISPARO: o callable devolve os contatos das inscrições que
     // existiam no servidor naquele instante, e quem entrar depois segue "não perguntado".
     const asked = inscriptionUids(this.inscriptions());
-    const contacts = await fetchAthleteContacts(tid);
+    const { contacts, twinPairs } = await fetchAthleteContacts(tid);
     if (this.id() !== tid) return;
     for (const uid of asked) this.knownContactUids.add(uid);
     // Mescla em vez de substituir: o callable engole o próprio erro e volta vazio, e uma falha
     // na atualização não pode apagar os contatos que já estavam na tela.
     this.contacts.set(new Map([...this.contacts(), ...contacts]));
+    // Os pares, ao contrário, vêm inteiros a cada busca (o servidor compara o torneio todo):
+    // substitui, e só a falha (`null`) mantém o que já estava.
+    if (twinPairs) this.twinPairs.set(twinPairs);
   }
 
   private cancelContactsRefresh(): void {

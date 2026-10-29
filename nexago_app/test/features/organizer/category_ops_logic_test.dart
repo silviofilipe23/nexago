@@ -62,6 +62,77 @@ OrganizerCategoryTeamRow _payTeam({
 }
 
 void main() {
+  group('applyPossibleDuplicates', () {
+    final ana = _team(teamId: 'a', name: 'Ana');
+    final bia = _team(teamId: 'b', name: 'Bia');
+    final carla = _team(teamId: 'c', name: 'Carla');
+    const pair = OrganizerTwinPair(
+      registrationA: 'r-a',
+      uidA: 'p1-a',
+      registrationB: 'r-b',
+      uidB: 'p1-b',
+    );
+    String? noteOf(List<OrganizerCategoryTeamRow> teams, String teamId) =>
+        teams.firstWhere((t) => t.teamId == teamId).possibleDuplicateNote;
+
+    test('marca as duas inscrições do par, nomeando a outra', () {
+      final teams = applyPossibleDuplicates([ana, bia, carla], const [pair]);
+
+      expect(
+        noteOf(teams, 'a'),
+        '$possibleDuplicateNoteText (Bia / Parceiro)',
+      );
+      expect(
+        noteOf(teams, 'b'),
+        '$possibleDuplicateNoteText (Ana / Parceiro)',
+      );
+      expect(noteOf(teams, 'c'), isNull);
+    });
+
+    test('as duas contas no mesmo elenco avisam na própria inscrição', () {
+      final teams = applyPossibleDuplicates([ana], const [
+        OrganizerTwinPair(
+          registrationA: 'r-a',
+          uidA: 'p1-a',
+          registrationB: 'r-a',
+          uidB: 'p2-a',
+        ),
+      ]);
+
+      expect(teams.single.possibleDuplicateNote, possibleDuplicateSameTeamText);
+    });
+
+    // O par é a foto da última busca de contatos.
+    test('a outra inscrição fora da lista derruba o aviso', () {
+      final teams = applyPossibleDuplicates([ana, carla], const [pair]);
+
+      expect(teams.every((t) => !t.isPossibleDuplicate), isTrue);
+    });
+
+    test('a conta substituída na inscrição derruba o aviso', () {
+      final teams = applyPossibleDuplicates([ana, bia], const [
+        OrganizerTwinPair(
+          registrationA: 'r-a',
+          uidA: 'p1-a',
+          registrationB: 'r-b',
+          uidB: 'quem-saiu',
+        ),
+      ]);
+
+      expect(teams.every((t) => !t.isPossibleDuplicate), isTrue);
+    });
+
+    test('preserva a ordem e o resto da linha', () {
+      final teams = applyPossibleDuplicates(
+        [carla, bia.copyWith(seedRank: 2), ana],
+        const [pair],
+      );
+
+      expect(teams.map((t) => t.teamId), ['c', 'b', 'a']);
+      expect(teams[1].seedRank, 2);
+    });
+  });
+
   group('filterCategoryTeams', () {
     final teams = [
       _team(teamId: 'a', name: 'Alpha', status: OrganizerTeamRegistrationStatus.confirmed, seedRank: 1),

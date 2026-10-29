@@ -329,6 +329,59 @@ List<OrganizerCategoryTeamRow> applySeedOrder(
   return ordered;
 }
 
+const possibleDuplicateNoteText =
+    'Mesmo WhatsApp de outra inscrição nesta categoria';
+const possibleDuplicateSameTeamText =
+    'Dois atletas desta inscrição têm o mesmo WhatsApp';
+
+/// Marca as inscrições da categoria que parecem ter a mesma pessoa por duas
+/// contas. Os pares vêm do servidor e são a foto do instante da busca: só vale
+/// o par cujas DUAS pontas ainda estão nesta lista, com a mesma conta — a
+/// inscrição removida, a dupla que mudou de categoria ou o atleta substituído
+/// derrubam o aviso na hora.
+List<OrganizerCategoryTeamRow> applyPossibleDuplicates(
+  List<OrganizerCategoryTeamRow> teams,
+  List<OrganizerTwinPair> pairs,
+) {
+  if (pairs.isEmpty) return teams;
+  final byRegistration = {for (final t in teams) t.registrationId: t};
+  final others = <String, List<OrganizerCategoryTeamRow>>{};
+  for (final pair in pairs) {
+    final a = byRegistration[pair.registrationA];
+    final b = byRegistration[pair.registrationB];
+    if (a == null || b == null) continue;
+    if (!a.participantUids.contains(pair.uidA) ||
+        !b.participantUids.contains(pair.uidB)) {
+      continue;
+    }
+    (others[a.registrationId] ??= []).add(b);
+    (others[b.registrationId] ??= []).add(a);
+  }
+  if (others.isEmpty) return teams;
+
+  return [
+    for (final team in teams)
+      if (others[team.registrationId] case final twins?)
+        team.copyWith(
+          possibleDuplicateNote: _possibleDuplicateNote(team, twins),
+        )
+      else
+        team,
+  ];
+}
+
+String _possibleDuplicateNote(
+  OrganizerCategoryTeamRow team,
+  List<OrganizerCategoryTeamRow> twins,
+) {
+  final elsewhere = {
+    for (final t in twins)
+      if (t.registrationId != team.registrationId) t.displayName,
+  };
+  if (elsewhere.isEmpty) return possibleDuplicateSameTeamText;
+  return '$possibleDuplicateNoteText (${elsewhere.join(', ')})';
+}
+
 List<String> defaultSeedOrderByRanking(List<OrganizerCategoryTeamRow> teams) {
   final sorted = sortCategoryTeams(teams, OrganizerTeamSort.ranking);
   return sorted.map((t) => t.teamId).toList(growable: false);

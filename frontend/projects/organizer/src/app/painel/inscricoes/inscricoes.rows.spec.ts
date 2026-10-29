@@ -1,8 +1,8 @@
-import type { AthleteContact } from '../data/athlete-contacts-repository';
+import type { AthleteContact, TwinRegistrationPair } from '../data/athlete-contacts-repository';
 import { EMPTY_INSCRIPTION_UNIFORM, type TournamentInscription } from '../data/inscriptions-repository';
 import { EMPTY_TOURNAMENT_COLLECTED } from '../data/tournament-collected';
 import type { OrganizerTournament, OrganizerTournamentCategory } from '../data/tournament.model';
-import { buildInscricaoRows } from './inscricoes.rows';
+import { TWIN_NOTE, TWIN_NOTE_SAME_TEAM, buildInscricaoRows } from './inscricoes.rows';
 
 function participant(uid: string, name: string) {
   return { uid, name, photoUrl: null, levelsBySport: {}, legacyLevel: null };
@@ -215,5 +215,70 @@ describe('buildInscricaoRows', () => {
     const row = buildInscricaoRows([inscription()], tournament(), new Map())[0];
     expect(row?.time).toBe('—');
     expect(row?.dateLong).toBe('Data não registrada');
+  });
+
+  /** "Possível duplicado": o servidor manda os pares (mesma pessoa, duas contas, mesma
+   *  categoria) e a linha só mostra o selo enquanto o par ainda vale na lista ao vivo. */
+  describe('possível duplicado', () => {
+    const joanaDuasVezes = (): TournamentInscription[] => [
+      inscription({ id: 'r1', teamName: 'Joana / Bia', participants: [participant('jg', 'Joana'), participant('bia', 'Bia')] }),
+      inscription({ id: 'r2', teamName: 'Jô / Carla', participants: [participant('je', 'Jô'), participant('carla', 'Carla')] }),
+      inscription({ id: 'r3', teamName: 'Ana / Duda', participants: [participant('ana', 'Ana'), participant('duda', 'Duda')] }),
+    ];
+    const pair: TwinRegistrationPair = { categoryId: 'femB', registrationIds: ['r1', 'r2'], uids: ['jg', 'je'] };
+    const byId = (rows: ReturnType<typeof buildInscricaoRows>) => new Map(rows.map((r) => [r.id, r]));
+
+    it('marca as duas inscrições do par, e só elas', () => {
+      const rows = byId(buildInscricaoRows(joanaDuasVezes(), tournament(), new Map(), [pair]));
+      expect(rows.get('r1')?.twinNote).toBe(`${TWIN_NOTE} (Jô / Carla)`);
+      expect(rows.get('r2')?.twinNote).toBe(`${TWIN_NOTE} (Joana / Bia)`);
+      expect(rows.get('r3')?.twinNote).toBeNull();
+    });
+
+    it('a nota vai no atleta do par, não no parceiro', () => {
+      const r1 = byId(buildInscricaoRows(joanaDuasVezes(), tournament(), new Map(), [pair])).get('r1');
+      expect(r1?.athletes.map((a) => a.twinNote)).toEqual([`${TWIN_NOTE} (Jô / Carla)`, '']);
+    });
+
+    it('sem par, nenhuma linha ganha selo', () => {
+      const rows = buildInscricaoRows(joanaDuasVezes(), tournament(), new Map());
+      expect(rows.every((r) => r.twinNote === null && r.athletes.every((a) => a.twinNote === ''))).toBeTrue();
+    });
+
+    it('elenco com as duas contas da mesma pessoa avisa na própria inscrição', () => {
+      const rows = buildInscricaoRows(
+        [inscription({ id: 'r1', participants: [participant('jg', 'Joana'), participant('je', 'Jô')] })],
+        tournament(),
+        new Map(),
+        [{ categoryId: 'femB', registrationIds: ['r1', 'r1'], uids: ['jg', 'je'] }],
+      );
+      expect(rows[0]?.twinNote).toBe(TWIN_NOTE_SAME_TEAM);
+      expect(rows[0]?.athletes.map((a) => a.twinNote)).toEqual([
+        'Mesmo WhatsApp de Jô, desta inscrição',
+        'Mesmo WhatsApp de Joana, desta inscrição',
+      ]);
+    });
+
+    // O par é a foto do instante da busca de contatos, que só se repete quando entra atleta novo.
+    it('derruba o selo quando a outra inscrição sai da lista', () => {
+      const semR2 = joanaDuasVezes().filter((i) => i.id !== 'r2');
+      const r1 = buildInscricaoRows(semR2, tournament(), new Map(), [pair]).find((r) => r.id === 'r1');
+      expect(r1?.twinNote).toBeNull();
+    });
+
+    it('derruba o selo quando a conta foi substituída na inscrição', () => {
+      const trocada = joanaDuasVezes().map((i) =>
+        i.id === 'r2' ? { ...i, participants: [participant('nova', 'Nova'), participant('carla', 'Carla')] } : i,
+      );
+      const rows = byId(buildInscricaoRows(trocada, tournament(), new Map(), [pair]));
+      expect(rows.get('r1')?.twinNote).toBeNull();
+      expect(rows.get('r2')?.twinNote).toBeNull();
+    });
+
+    it('derruba o selo quando uma das duplas mudou de categoria', () => {
+      const movida = joanaDuasVezes().map((i) => (i.id === 'r2' ? { ...i, categoryId: 'mascA' } : i));
+      const r1 = buildInscricaoRows(movida, tournament(), new Map(), [pair]).find((r) => r.id === 'r1');
+      expect(r1?.twinNote).toBeNull();
+    });
   });
 });

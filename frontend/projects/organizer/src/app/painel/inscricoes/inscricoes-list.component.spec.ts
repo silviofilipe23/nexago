@@ -20,6 +20,7 @@ function athlete(over: Partial<InscricaoAthlete> = {}): InscricaoAthlete {
     phone: '',
     sharePaid: false,
     organizerConfirmedShare: false,
+    twinNote: '',
     ...over,
   };
 }
@@ -37,6 +38,7 @@ function row(over: Partial<InscricaoRow> = {}): InscricaoRow {
     canRevertPayment: false,
     partialPayment: false,
     roster: null,
+    twinNote: null,
     cancelPending: false,
     cancelReason: '',
     lgpd: 'aceito',
@@ -108,6 +110,38 @@ describe('OgInscricoesListComponent', () => {
     expect(flags[0]).toBeNull();
     expect(flags[1]?.textContent?.trim()).toContain('Termo de imagem parcial');
     expect(flags[1]?.getAttribute('title')).toContain('Beatriz Costa');
+  });
+
+  /** A mesma pessoa com duas contas na categoria: a trava do servidor só barra quem entra, então
+   *  o que já estava inscrito só aparece pro organizador por este selo. */
+  describe('possível duplicado', () => {
+    const note = 'Mesmo WhatsApp de outra inscrição nesta categoria (Joana / Carla)';
+
+    it('mostra o selo só na linha do par, com o motivo no título', async () => {
+      const el = await render([row({ id: 'limpa' }), row({ id: 'par', twinNote: note })]);
+      const flags = [...el.querySelectorAll('.og-insc-row')].map((r) =>
+        [...r.querySelectorAll('.og-insc-flag')].find((f) => f.textContent?.includes('Possível duplicado')),
+      );
+
+      expect(flags[0]).toBeUndefined();
+      expect(flags[1]?.classList).toContain('warn');
+      expect(flags[1]?.getAttribute('title')).toBe(note);
+      expect(flags[1]?.getAttribute('aria-label')).toBe(`Possível duplicado: ${note}`);
+    });
+
+    it('a gaveta diz qual atleta do par e com qual inscrição', async () => {
+      fixture.componentRef.setInput('rows', [
+        row({ twinNote: note, athletes: [athlete({ twinNote: note }), athlete({ name: 'Beatriz Costa' })] }),
+      ]);
+      fixture.componentRef.setInput('openId', 'i1');
+      await fixture.whenStable();
+      const el = fixture.nativeElement as HTMLElement;
+
+      const items = [...el.querySelectorAll('.og-insc-athletes li')];
+      expect(items[0].querySelector('.twin')?.textContent).toContain(note);
+      expect(items[0].querySelector('.twin')?.textContent).toContain('mesma pessoa com duas contas');
+      expect(items[1].querySelector('.twin')).toBeNull();
+    });
   });
 
   it('a gaveta abre só na linha pedida e traz o LGPD atleta a atleta', async () => {

@@ -255,8 +255,9 @@ Future<List<OrganizerCategoryTeamRow>> _mapInscriptionsToTeams({
   required OrganizerUserProfilesRepository profilesRepo,
   required CategoryOpsState ops,
   required int expectedPerTeamCents,
-  Map<String, String> phoneByUid = const {},
+  OrganizerTournamentContacts contacts = const OrganizerTournamentContacts(),
 }) async {
+  final phoneByUid = contacts.phones;
   final uids = <String>{};
   for (final row in rows) {
     final team = row.team;
@@ -321,8 +322,20 @@ Future<List<OrganizerCategoryTeamRow>> _mapInscriptionsToTeams({
     );
   }
 
-  return applySeedOrder(teams, ops.seeds);
+  return applySeedOrder(
+    applyPossibleDuplicates(teams, contacts.twinPairs),
+    ops.seeds,
+  );
 }
+
+/// Atletas das duplas da lista — o que a busca de contatos precisa cobrir.
+Set<String> _teamUids(List<OrganizerInscriptionWithTeam> rows) => {
+      for (final row in rows)
+        for (final field in const ['player1Id', 'player2Id'])
+          if ((row.team?[field] as String?)?.trim() case final uid?
+              when uid.isNotEmpty)
+            uid,
+    };
 
 /// Lista de uids do doc, sem lixo (não-string, vazio) — os campos de parcela
 /// (`sharePaidUids`, `organizerConfirmedShareUids`) chegam como `arrayUnion`.
@@ -368,15 +381,15 @@ final organizerCategoryRegistrationsProvider = StreamProvider.autoDispose
       tournamentId: key.tournamentId,
       categoryId: key.categoryId,
     );
-    final phoneByUid = await ref
+    final contacts = await ref
         .read(organizerContactsServiceProvider)
-        .phonesForTournament(key.tournamentId);
+        .contactsForTournament(key.tournamentId, uids: _teamUids(rows));
     return _mapInscriptionsToTeams(
       rows: rows,
       profilesRepo: profilesRepo,
       ops: ops,
       expectedPerTeamCents: entryFee,
-      phoneByUid: phoneByUid,
+      contacts: contacts,
     );
   });
 });

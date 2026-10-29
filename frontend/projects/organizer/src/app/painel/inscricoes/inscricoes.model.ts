@@ -76,6 +76,9 @@ export interface InscricaoAthlete {
   /** O organizador confirmou a parte deste atleta manualmente (`organizerConfirmedShareUids`) —
    *  só essa confirmação pode ser desfeita por atleta; a declaração do próprio atleta, não. */
   organizerConfirmedShare: boolean;
+  /** Possível duplicado: outra conta com o mesmo WhatsApp na mesma categoria, e com quem
+   *  ("Mesmo WhatsApp de outra inscrição nesta categoria (Joana / Carla)"). `''` = nenhum. */
+  twinNote: string;
 }
 
 export interface InscricaoRow {
@@ -98,6 +101,10 @@ export interface InscricaoRow {
   partialPayment: boolean;
   /** Categoria de equipe (trio+) com elenco incompleto: "Elenco 2/4". `null` fora disso. */
   roster: string | null;
+  /** Selo "Possível duplicado": a mesma pessoa parece estar nesta categoria por duas contas.
+   *  É o texto do selo (tooltip); `null` = sem aviso. A inscrição feita pelo organizador não
+   *  passa pela trava do servidor, então é aqui que ele enxerga o caso e decide. */
+  twinNote: string | null;
   /** Pedido de cancelamento aberto pelo atleta — motivo escrito por ele. */
   cancelPending: boolean;
   cancelReason: string;

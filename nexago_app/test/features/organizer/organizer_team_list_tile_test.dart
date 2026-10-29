@@ -19,6 +19,7 @@ void main() {
     List<String> organizerConfirmedShareUids = const [],
     DateTime? declaredPaidAt,
     bool paymentVerifiedByOrganizer = false,
+    String? possibleDuplicateNote,
   }) {
     return OrganizerCategoryTeamRow(
       registrationId: 'reg-1',
@@ -42,6 +43,7 @@ void main() {
       organizerConfirmedShareUids: organizerConfirmedShareUids,
       declaredPaidAt: declaredPaidAt,
       paymentVerifiedByOrganizer: paymentVerifiedByOrganizer,
+      possibleDuplicateNote: possibleDuplicateNote,
     );
   }
 
@@ -109,6 +111,29 @@ void main() {
     await tester.pump();
 
     expect(taps, 1);
+  });
+
+  // A mesma pessoa com duas contas na categoria: a trava do servidor só barra
+  // quem entra, então o que já estava inscrito só aparece por este selo.
+  group('possível duplicado', () {
+    testWidgets('mostra o selo quando a linha tem aviso', (tester) async {
+      await pumpTile(
+        tester,
+        team(
+          possibleDuplicateNote:
+              'Mesmo WhatsApp de outra inscrição nesta categoria (Ana / Bia)',
+        ),
+      );
+
+      expect(find.text('POSSÍVEL DUPLICADO'), findsOneWidget);
+      expect(find.text('Pago'), findsOneWidget);
+    });
+
+    testWidgets('sem aviso, sem selo', (tester) async {
+      await pumpTile(tester, team());
+
+      expect(find.text('POSSÍVEL DUPLICADO'), findsNothing);
+    });
   });
 
   group('selos de pagamento', () {

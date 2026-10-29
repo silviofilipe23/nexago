@@ -39,6 +39,7 @@ import {
 import {
   WEATHER_CREDIT_REMINDER_MS,
   WEATHER_DECISION_WINDOW_MS,
+  WEATHER_FORECAST_HORIZON_DAYS,
   addDaysToDateKey,
   bookingPaidReais,
   bookingWindow,
@@ -524,6 +525,40 @@ export const getArenaWeatherForecast = onCall({
   const weather = await fetchArenaWeather(arena.data, date);
   return {
     forecast: weather ? {hours: weather.hours, source: weather.source, fetchedAt: new Date().toISOString()} : null,
+  };
+});
+
+/**
+ * Previsão da reserva para quem joga (dono ou convidado que entrou), chovendo ou não: de 2h
+ * antes do início a 2h depois do fim. Mais de 14 dias antes, só diz quando a previsão chega.
+ */
+export const getBookingWeatherForecast = onCall({
+  region: CLIENT_FACING_REGIONS,
+  secrets: [WEATHER_API_KEY],
+}, async (request) => {
+  const uid = requireUid(request);
+  const data = (request.data ?? {}) as {bookingId?: unknown};
+  const bookingId = requireText(data.bookingId, "bookingId");
+  const db = getFirestore();
+  const booking = (await db.collection(ARENA_BOOKINGS).doc(bookingId).get()).data();
+  if (!booking) throw new HttpsError("not-found", "Reserva não encontrada.");
+  const participants = Array.isArray(booking["participantUids"]) ? booking["participantUids"] as unknown[] : [];
+  if (str(booking["athleteId"]) !== uid && !participants.includes(uid)) {
+    throw new HttpsError("permission-denied", "Esta reserva não é sua.");
+  }
+  const dateKey = parseDateKeyFromBooking(booking["date"]);
+  const win = bookingWindow(booking["startTime"], booking["endTime"]);
+  const arenaId = str(booking["arenaId"]);
+  if (!dateKey || !win || !arenaId) return {forecast: null, availableFrom: null};
+  const availableFrom = addDaysToDateKey(dateKey, -WEATHER_FORECAST_HORIZON_DAYS);
+  if (spNow(new Date()).dateKey < availableFrom) return {forecast: null, availableFrom};
+  const arena = await loadArena(db, arenaId);
+  const weather = await fetchArenaWeather(arena.data, dateKey);
+  if (!weather) return {forecast: null, availableFrom: null};
+  const days = await weatherDaysAround(arena.data, dateKey, win, weather.hours);
+  return {
+    forecast: {hours: weatherDisplayHours(days, win), source: weather.source, fetchedAt: new Date().toISOString()},
+    availableFrom: null,
   };
 });
 

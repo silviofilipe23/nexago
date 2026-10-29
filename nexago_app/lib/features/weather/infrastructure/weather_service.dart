@@ -199,6 +199,14 @@ class WeatherService {
     );
   }
 
+  /// Previsão de 2h antes a 2h depois do jogo, para o dono e os convidados.
+  Future<BookingWeatherForecast> bookingForecast(String bookingId) async {
+    final data = await _call('getBookingWeatherForecast', <String, dynamic>{
+      'bookingId': bookingId.trim(),
+    });
+    return BookingWeatherForecast.fromMap(data);
+  }
+
   Future<void> withdrawRequest({required String bookingId}) async {
     await _call('withdrawArenaWeatherRequest', <String, dynamic>{
       'bookingId': bookingId.trim(),

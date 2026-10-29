@@ -13,7 +13,7 @@ function weatherApiDay(date: string) {
       forecastday: [{
         date,
         hour: [
-          {time: `${date} 17:00`, chance_of_rain: 85, will_it_rain: 1, precip_mm: 4.24,
+          {time: `${date} 17:00`, chance_of_rain: 85, will_it_rain: 1, precip_mm: 4.24, temp_c: 26.94,
             condition: {text: "Chuva moderada"}},
           {time: `${date} 18:00`, chance_of_rain: 92, will_it_rain: 1, precip_mm: 6.1,
             condition: {text: "Chuva passageira moderada ou forte"}},
@@ -54,8 +54,9 @@ describe("fetchArenaWeather", () => {
     const w = await fetchArenaWeather(ARENA, "2026-10-31", {fetchImpl, nowMs: NOW, apiKey: "k123"});
     assert.equal(w?.source, "weatherapi");
     assert.deepEqual(w?.hours, [
-      {time: "17:00", probability: 85, precipitationMm: 4.2, condition: "Chuva moderada"},
-      {time: "18:00", probability: 92, precipitationMm: 6.1, condition: "Chuva passageira moderada ou forte"},
+      {time: "17:00", probability: 85, precipitationMm: 4.2, condition: "Chuva moderada", temperatureC: 26.9},
+      {time: "18:00", probability: 92, precipitationMm: 6.1, condition: "Chuva passageira moderada ou forte",
+        temperatureC: null},
     ]);
     assert.equal(urls.length, 1);
     const url = new URL(urls[0] as string);

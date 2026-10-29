@@ -375,6 +375,8 @@ export interface WeatherHour {
   precipitationMm: number | null;
   /** Texto do provedor em português ("Chuva passageira fraca"); só a WeatherAPI manda. */
   condition?: string | null;
+  /** Temperatura em °C, com uma casa. */
+  temperatureC?: number | null;
 }
 
 function nullableNumber(v: unknown): number | null {
@@ -391,6 +393,7 @@ export function parseOpenMeteoHourly(json: unknown, dateKey: string): WeatherHou
   const probs = Array.isArray(hourly?.["precipitation_probability"]) ?
     hourly["precipitation_probability"] as unknown[] : [];
   const mms = Array.isArray(hourly?.["precipitation"]) ? hourly["precipitation"] as unknown[] : [];
+  const temps = Array.isArray(hourly?.["temperature_2m"]) ? hourly["temperature_2m"] as unknown[] : [];
   const hours: WeatherHour[] = [];
   times.forEach((t, i) => {
     if (typeof t !== "string" || !t.startsWith(`${dateKey}T`)) return;
@@ -399,6 +402,7 @@ export function parseOpenMeteoHourly(json: unknown, dateKey: string): WeatherHou
       time: t.substring(11, 16),
       probability: nullableNumber(probs[i]),
       precipitationMm: mm == null ? null : Math.round(mm * 10) / 10,
+      temperatureC: oneDecimal(nullableNumber(temps[i])),
     });
   });
   return hours;
@@ -425,9 +429,14 @@ export function parseWeatherApiHourly(json: unknown, dateKey: string): WeatherHo
       probability: nullableNumber(raw["chance_of_rain"]),
       precipitationMm: mm == null ? null : Math.round(mm * 10) / 10,
       condition: typeof condition === "string" && condition.trim() !== "" ? condition.trim() : null,
+      temperatureC: oneDecimal(nullableNumber(raw["temp_c"])),
     });
   }
   return hours;
+}
+
+function oneDecimal(value: number | null): number | null {
+  return value == null ? null : Math.round(value * 10) / 10;
 }
 
 /** Horas da previsão que cruzam a janela [start, end) em minutos. */
@@ -440,6 +449,9 @@ export function weatherHoursInWindow(hours: WeatherHour[], start: number, end: n
 
 /** A previsão mostrada ao atleta vai de 2h antes do início a 2h depois do fim do jogo. */
 export const WEATHER_FORECAST_MARGIN_MIN = 120;
+
+/** A WeatherAPI prevê de hoje a 14 dias à frente; antes disso a reserva só diz quando a previsão chega. */
+export const WEATHER_FORECAST_HORIZON_DAYS = 14;
 
 /** Previsão de um dia, deslocado em dias do dia da reserva (−1 véspera, 0 o dia, +1 o seguinte). */
 export interface WeatherForecastDay {

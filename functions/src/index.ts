@@ -1005,6 +1005,7 @@ export {
   decideArenaWeatherRequest,
   endArenaRainMode,
   getArenaWeatherForecast,
+  getBookingWeatherForecast,
   previewArenaRainMode,
   requestArenaWeatherRelease,
   saveArenaWeatherPolicy,

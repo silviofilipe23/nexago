@@ -106,6 +106,7 @@ naquela arena. O dinheiro não sai do caixa — nenhuma movimentação em `arena
 |---|---|---|
 | `saveArenaWeatherPolicy` | agenda (escrita) | `{arenaId, policy}` → `{policy}` normalizada |
 | `getArenaWeatherForecast` | agenda (leitura) | `{arenaId, date}` → `{forecast: {hours: Hour[], fetchedAt} \| null}` |
+| `getBookingWeatherForecast` | dono ou convidado (`participantUids`) | `{bookingId}` → `{forecast: {hours, source, fetchedAt} \| null, availableFrom: 'YYYY-MM-DD' \| null}` (2h antes a 2h depois; mais de 14 dias antes, só `availableFrom`) |
 | `previewArenaRainMode` | agenda (leitura) | `{arenaId, date, startTime, endTime, courtIds}` → `{bookings: Affected[], totals}` |
 | `activateArenaRainMode` | agenda (escrita) | `{arenaId, date, startTime, endTime, courtIds, blockNewBookings, message?}` → `{eventId, released, partial, canceled, manual, notified}` |
 | `endArenaRainMode` | agenda (escrita) | `{arenaId, eventId}` → `{unblocked}` (tira o bloqueio de novas reservas) |
@@ -115,7 +116,8 @@ naquela arena. O dinheiro não sai do caixa — nenhuma movimentação em `arena
 | `decideArenaWeatherRequest` | agenda (escrita) | `{arenaId, bookingId, approve, reason?}` → `{status}` |
 | `quoteArenaBooking` / `createArenaBooking` | atleta | + `useWeatherCredit?: boolean` |
 
-`Hour = {time:'HH:00', probability: number|null, precipitationMm: number|null, condition?: string|null}`;
+`Hour = {time:'HH:00', probability: number|null, precipitationMm: number|null, condition?: string|null,
+temperatureC?: number|null}`;
 `forecast = {hours, source: 'weatherapi'|'open-meteo', fetchedAt}`; o `weather` do pedido também guarda `source`.
 
 `Affected = {bookingId, athleteId|null, athleteName|null, courtId, courtName, startTime, endTime,
@@ -161,7 +163,9 @@ e abre a escolha. Tipos: `arena_weather_release`, `arena_weather_canceled`, `are
 Portal da arena: `/painel/agenda/chuva` (Modo chuva), `/painel/agenda/chuva/politica`,
 `/painel/agenda/chuva/solicitacoes`, `/painel/financeiro/creditos-clima`.
 
-App do atleta: aviso na reserva → `/booking/:bookingId/rain` (escolha, novo horário, crédito
+App do atleta: card "Previsão do tempo" em **toda reserva de pé** até o fim do jogo, chovendo ou não
+(dono e convidados; some cancelada ou liberada por chuva, e mais de 14 dias antes só diz quando a previsão chega);
+aviso na reserva → `/booking/:bookingId/rain` (escolha, novo horário, crédito
 guardado); pedido em análise na própria reserva; "Usar crédito de chuva" na confirmação da
 reserva; lista de créditos em `/weather-credits`.
 

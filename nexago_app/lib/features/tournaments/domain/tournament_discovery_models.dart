@@ -188,6 +188,7 @@ class TournamentCategoryOffer {
     this.genderCompositionMen,
     this.genderCompositionWomen,
     this.bracketPublished = false,
+    this.startsAt,
   });
 
   /// Id da categoria no Firestore (`categories[].id`); legado usa `categoryName`.
@@ -245,6 +246,10 @@ class TournamentCategoryOffer {
   /// Chave da categoria publicada (`categoryOps[id].bracketStatus`): esconde a
   /// ação de substituição no cliente — o servidor é a autoridade do gate.
   final bool bracketPublished;
+
+  /// Início da categoria (`categories[].startsAt`) definido pelo organizador,
+  /// sempre dentro do período do torneio. `null` = sem horário próprio.
+  final DateTime? startsAt;
 
   /// Categoria de equipe nomeada (trio+) — dupla e individual seguem o fluxo
   /// clássico.

@@ -376,6 +376,14 @@
   margin: 0;
 }
 
+.tdv-cat-start {
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--nx-text-dim);
+  margin: 4px 0 0;
+}
+
 .tdv-pill-row {
   display: flex;
   gap: 6px;

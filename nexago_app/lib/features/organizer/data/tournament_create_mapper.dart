@@ -262,6 +262,7 @@ abstract final class TournamentCreateMapper {
       menCount: _compositionCount(map['genderComposition'], 'men'),
       womenCount: _compositionCount(map['genderComposition'], 'women'),
       minLevel: (map['minLevel'] as String?) ?? '',
+      startsAt: _timestamp(map['startsAt']),
     );
   }
 
@@ -513,6 +514,9 @@ abstract final class TournamentCreateMapper {
           'bestOf': profileBestOf(category.bestOf),
         },
       'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
+      'startsAt': category.startsAt != null
+          ? Timestamp.fromDate(category.startsAt!)
+          : null,
       'registrationClosed': false,
       'isCompleted': false,
       'prizes': category.prizes

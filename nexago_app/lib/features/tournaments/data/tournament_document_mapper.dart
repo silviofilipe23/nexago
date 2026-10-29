@@ -343,6 +343,7 @@ abstract final class TournamentDocumentMapper {
           genderCompositionMen: compositionValid ? compositionMen : null,
           genderCompositionWomen: compositionValid ? compositionWomen : null,
           bracketPublished: _categoryOpsBracketPublished(categoryOpsRaw, offerId),
+          startsAt: _timestamp(map['startsAt']),
         ),
       );
     }

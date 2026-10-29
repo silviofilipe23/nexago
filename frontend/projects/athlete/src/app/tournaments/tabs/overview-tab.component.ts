@@ -42,6 +42,9 @@ function genderLabelOf(cat: TournamentCategoryOffer['genderType']): string {
 
 export type CategoryCtaKind = 'register' | 'waitlist' | 'disabled' | 'view-registration' | 'not-open';
 
+const CATEGORY_START_DAY = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+const CATEGORY_START_TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
 /** Aba "Visão geral": a face de venda do torneio (capa, categorias, prêmio, regulamento). É o
  *  conteúdo que antes era a página `/torneios/:id` inteira. Continua sem feed social, comunicados
  *  ou etapas fictícias — o Flutter também não tem nada disso no detalhe. */
@@ -54,6 +57,11 @@ export type CategoryCtaKind = 'register' | 'waitlist' | 'disabled' | 'view-regis
 })
 export class OverviewTabComponent {
   protected readonly store = inject(TournamentLiveStore);
+
+  /** "sáb., 14/11 às 09:00" — início da categoria, quando o organizador definiu. */
+  protected categoryStartLabel(startsAt: Date): string {
+    return `${CATEGORY_START_DAY.format(startsAt)} às ${CATEGORY_START_TIME.format(startsAt)}`;
+  }
 
   protected readonly tournament = this.store.tournament;
   /** Selo "★ 4,6 · 23 avaliações" no herói (spec §5) — `null` abaixo de 3 avaliações. */

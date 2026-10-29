@@ -127,6 +127,10 @@ export interface TournamentCategoryDraft {
   knockoutBestOf3: boolean;
   maxRegistrationsPerAthlete: number;
   prizes: CategoryPrizeDraft[];
+  /** Data e hora em que a categoria começa a jogar (`startsAt` no doc). Opcional: `null` =
+   *  sem horário próprio (categoria antiga ou o organizador não definiu). Quando existe, cai
+   *  dentro do período do torneio — ver `categoryStartError`. */
+  startsAt: Date | null;
   /** Perfil de placar da categoria (spec multiesporte), cru como está no doc. O wizard ainda
    *  não o edita (2d2), mas precisa carregá-lo: o array `categories` é regravado inteiro, e um
    *  campo ausente aqui é um campo apagado. Ausente/`null` = sem perfil explícito. */
@@ -217,6 +221,7 @@ export function emptyCategoryDraft(id: string): TournamentCategoryDraft {
     knockoutBestOf3: false,
     maxRegistrationsPerAthlete: 2,
     prizes: [],
+    startsAt: null,
   };
 }
 
@@ -686,6 +691,36 @@ export function registrationWindowError(draft: TournamentCreateDraft): string | 
   return null;
 }
 
+/** Janela em que o início de uma categoria pode cair: do começo do dia de `startAt` ao fim do
+ *  dia de `endAt` (os dois são só data, gravados à meia-noite). `null` enquanto o período do
+ *  torneio não está completo. */
+export function categoryStartWindow(draft: TournamentCreateDraft): { min: Date; max: Date } | null {
+  const start = draft.startAt;
+  const end = draft.endAt;
+  if (!start || !end) return null;
+  return {
+    min: new Date(start.getFullYear(), start.getMonth(), start.getDate(), 0, 0, 0, 0),
+    max: new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999),
+  };
+}
+
+/** Início da categoria fora do período do torneio. Sem início definido não há erro (campo
+ *  opcional); sem período completo também não — o passo "Local e data" já cobra isso. */
+export function categoryStartError(category: TournamentCategoryDraft, draft: TournamentCreateDraft): string | null {
+  const startsAt = category.startsAt;
+  if (!startsAt) return null;
+  const window = categoryStartWindow(draft);
+  if (!window) return null;
+  if (startsAt < window.min || startsAt > window.max) {
+    return `O início da categoria precisa estar entre ${dayMonth(window.min)} e ${dayMonth(window.max)}, dentro do período do torneio.`;
+  }
+  return null;
+}
+
+function dayMonth(d: Date): string {
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 function sameCalendarDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
@@ -712,7 +747,11 @@ export function canContinueFromStep(draft: TournamentCreateDraft, step: Tourname
         draft.courtsCount > 0
       );
     case 'categories':
-      return draft.categories.length > 0 && draft.categories.every(categoryCompositionValid);
+      return (
+        draft.categories.length > 0 &&
+        draft.categories.every(categoryCompositionValid) &&
+        draft.categories.every((c) => categoryStartError(c, draft) == null)
+      );
     case 'registration':
       return draft.registrationOpensAt != null && draft.registrationClosesAt != null && registrationWindowError(draft) == null && organizerPixComplete(draft);
     case 'rules':

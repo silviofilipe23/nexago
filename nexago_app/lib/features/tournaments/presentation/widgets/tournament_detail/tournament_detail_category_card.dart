@@ -205,6 +205,9 @@ class _TournamentDetailCategoryCardState
                       // Uma info por linha — vagas, formato, taxa e premiação
                       // empilhados pra não competirem na mesma faixa.
                       _CategoryMetaColumn(
+                        startsAtLabel: offer.startsAt == null
+                            ? null
+                            : formatCategoryStartsAt(offer.startsAt!),
                         vacancy: vacancy,
                         levelLabel: categoryLevelFamilyLabel(family),
                         genderLabel: categoryGenderDisplayLabel(offer),
@@ -407,6 +410,7 @@ class _StatePill extends StatelessWidget {
 
 class _CategoryMetaColumn extends StatelessWidget {
   const _CategoryMetaColumn({
+    required this.startsAtLabel,
     required this.vacancy,
     required this.levelLabel,
     required this.genderLabel,
@@ -420,6 +424,7 @@ class _CategoryMetaColumn extends StatelessWidget {
     required this.mutedColor,
   });
 
+  final String? startsAtLabel;
   final TournamentCategoryVacancyUi vacancy;
   final String levelLabel;
   final String genderLabel;
@@ -435,6 +440,15 @@ class _CategoryMetaColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = <Widget>[
+      if (startsAtLabel != null)
+        _MetaItem(
+          key: const Key('category-card-starts-at'),
+          icon: Icons.schedule_rounded,
+          value: startsAtLabel!,
+          caption: 'início',
+          valueColor: valueColor,
+          mutedColor: mutedColor,
+        ),
       _MetaItem(
         icon: Icons.stairs_outlined,
         value: levelLabel,
@@ -497,6 +511,7 @@ class _CategoryMetaColumn extends StatelessWidget {
 
 class _MetaItem extends StatelessWidget {
   const _MetaItem({
+    super.key,
     required this.icon,
     required this.value,
     required this.valueColor,

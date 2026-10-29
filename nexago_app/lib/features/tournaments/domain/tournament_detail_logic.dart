@@ -847,3 +847,14 @@ String tournamentMapsQuery(TournamentDetail detail) {
   if (city.isNotEmpty) return '${detail.location}, $city';
   return detail.location;
 }
+
+/// "Sáb, 14/11 · 09:00" — início da categoria no card da página do torneio.
+String formatCategoryStartsAt(DateTime startsAt) {
+  final weekday =
+      DateFormat('EEE', 'pt_BR').format(startsAt).replaceAll('.', '');
+  final capitalized = weekday.isEmpty
+      ? weekday
+      : '${weekday[0].toUpperCase()}${weekday.substring(1)}';
+  return '$capitalized, ${DateFormat('dd/MM').format(startsAt)} · '
+      '${DateFormat('HH:mm').format(startsAt)}';
+}

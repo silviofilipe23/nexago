@@ -116,7 +116,50 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
     super.dispose();
   }
 
+  Future<void> _pickStartsAt() async {
+    final window = categoryStartWindow(ref.read(tournamentCreateDraftProvider));
+    if (window == null) return;
+    final current = _category.startsAt;
+    final initialDay = current != null &&
+            !current.isBefore(window.min) &&
+            !current.isAfter(window.max)
+        ? current
+        : window.min;
+    final day = await showDatePicker(
+      context: context,
+      initialDate: initialDay,
+      firstDate: window.min,
+      lastDate: window.max,
+    );
+    if (day == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(current ?? DateTime(0, 1, 1, 8)),
+    );
+    if (time == null || !mounted) return;
+    setState(
+      () => _category = _category.copyWith(
+        startsAt: DateTime(
+          day.year,
+          day.month,
+          day.day,
+          time.hour,
+          time.minute,
+        ),
+      ),
+    );
+  }
+
   void _save() {
+    final startError = categoryStartError(
+      _category,
+      ref.read(tournamentCreateDraftProvider),
+    );
+    if (startError != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(startError)));
+      return;
+    }
     final name = _nameController.text.trim().isEmpty
         ? suggestCategoryName(_category)
         : _nameController.text.trim();
@@ -295,6 +338,15 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
                   ),
                 ],
                 const SizedBox(height: 20),
+                _CategoryStartSection(
+                  category: _category,
+                  draft: ref.watch(tournamentCreateDraftProvider),
+                  onPick: _pickStartsAt,
+                  onClear: () => setState(
+                    () => _category = _category.copyWith(clearStartsAt: true),
+                  ),
+                ),
+                const SizedBox(height: 20),
                 OrganizerCategoryFormatSection(
                   sport: ref.watch(tournamentCreateDraftProvider).sport,
                   bracketSystem: _category.bracketSystem,
@@ -437,6 +489,74 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Início da categoria: opcional, e o seletor só oferece dias dentro do
+/// período do torneio. O erro aparece quando as datas do torneio mudaram
+/// depois e o horário gravado ficou de fora.
+class _CategoryStartSection extends StatelessWidget {
+  const _CategoryStartSection({
+    required this.category,
+    required this.draft,
+    required this.onPick,
+    required this.onClear,
+  });
+
+  final TournamentCategoryDraft category;
+  final TournamentCreateDraft draft;
+  final VoidCallback onPick;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final hintStyle = Theme.of(context).textTheme.bodySmall;
+    final window = categoryStartWindow(draft);
+    if (window == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const OrganizerSectionLabel('INÍCIO DA CATEGORIA'),
+          const SizedBox(height: 8),
+          Text(
+            'Defina o início e o fim do torneio no passo "Local e data" para '
+            'escolher quando esta categoria começa.',
+            style: hintStyle?.copyWith(color: colors.onSurfaceMuted),
+          ),
+        ],
+      );
+    }
+    final error = categoryStartError(category, draft);
+    final startsAt = category.startsAt;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OrganizerDateField(
+          key: const Key('category-starts-at-field'),
+          label: 'INÍCIO DA CATEGORIA (OPCIONAL)',
+          value: startsAt == null
+              ? 'Sem horário definido'
+              : formatCategoryStartLabel(startsAt),
+          onTap: onPick,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          error ?? categoryStartHint(draft, hasValue: startsAt != null),
+          style: hintStyle?.copyWith(
+            color: error != null ? colors.live : colors.onSurfaceMuted,
+          ),
+        ),
+        if (startsAt != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: onClear,
+              child: const Text('Remover horário'),
+            ),
+          ),
+      ],
     );
   }
 }

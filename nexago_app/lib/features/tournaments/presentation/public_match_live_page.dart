@@ -54,6 +54,7 @@ class PublicMatchLivePage extends ConsumerWidget {
         actions: [
           if (match != null) FollowMatchButton(match: match, compact: true),
           IconButton(
+            tooltip: 'Compartilhar',
             icon: const Icon(Icons.share_rounded),
             onPressed: () => nexaShareText(
               context,

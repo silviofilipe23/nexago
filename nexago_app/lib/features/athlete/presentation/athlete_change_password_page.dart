@@ -150,6 +150,7 @@ class _AthleteChangePasswordPageState
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
+          tooltip: 'Voltar',
           icon: Icon(Icons.chevron_left_rounded),
           onPressed: () {
             if (context.canPop()) {

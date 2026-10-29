@@ -82,23 +82,27 @@ class RankingPageAppBar extends StatelessWidget implements PreferredSizeWidget {
           CompeteHubAppBarIconButton(
             icon: Icons.help_outline_rounded,
             onTap: onInfoTap,
+            tooltip: 'Como funciona o ranking',
           ),
           _gap,
         ],
         CompeteHubAppBarIconButton(
           icon: searchOpen ? Icons.close_rounded : Icons.search_rounded,
           onTap: onSearchToggle,
+          tooltip: searchOpen ? 'Fechar busca' : 'Buscar no ranking',
         ),
         _gap,
         CompeteHubAppBarIconButton(
           icon: filtersActive ? Icons.filter_alt_rounded : Icons.tune_rounded,
           onTap: onFilterTap,
+          tooltip: 'Filtros',
         ),
         if (!searchOpen) ...[
           _gap,
           CompeteHubAppBarIconButton(
             icon: Icons.ios_share_rounded,
             onTap: onShareTap,
+            tooltip: 'Compartilhar',
           ),
         ],
         SizedBox(width: 8),

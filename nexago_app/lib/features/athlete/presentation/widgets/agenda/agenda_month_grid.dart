@@ -36,6 +36,7 @@ class AgendaMonthGrid extends StatelessWidget {
           Row(
             children: [
               IconButton(
+                tooltip: 'Mês anterior',
                 onPressed: () => onMonthChanged(
                   DateTime(visibleMonth.year, visibleMonth.month - 1),
                 ),
@@ -53,6 +54,7 @@ class AgendaMonthGrid extends StatelessWidget {
                 ),
               ),
               IconButton(
+                tooltip: 'Próximo mês',
                 onPressed: () => onMonthChanged(
                   DateTime(visibleMonth.year, visibleMonth.month + 1),
                 ),

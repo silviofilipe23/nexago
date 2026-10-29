@@ -32,6 +32,7 @@ class DiscoveryListHeader extends StatelessWidget {
         Row(
           children: [
             IconButton(
+              tooltip: 'Voltar',
               onPressed: onBack,
               icon: Icon(Icons.arrow_back_rounded),
               color: context.themeColors.onSurface,
@@ -91,6 +92,7 @@ class DiscoveryListHeader extends StatelessWidget {
                 color: context.themeColors.onSurfaceMuted,
               ),
               suffixIcon: IconButton(
+                tooltip: 'Limpar busca',
                 onPressed: () => controller.clear(),
                 icon: Icon(
                   Icons.close_rounded,

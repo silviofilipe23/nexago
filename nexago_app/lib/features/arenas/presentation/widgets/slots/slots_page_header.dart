@@ -31,7 +31,11 @@ class SlotsPageHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
       child: Row(
         children: [
-          _IconButton(icon: Icons.arrow_back_rounded, onTap: onBack),
+          _IconButton(
+            icon: Icons.arrow_back_rounded,
+            onTap: onBack,
+            tooltip: 'Voltar',
+          ),
           Expanded(
             child: Text(
               title,
@@ -161,23 +165,34 @@ class _CoverBackButton extends StatelessWidget {
 }
 
 class _IconButton extends StatelessWidget {
-  const _IconButton({required this.icon, required this.onTap});
+  const _IconButton({
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+  });
 
   final IconData icon;
   final VoidCallback onTap;
 
+  /// Dica no toque longo e nome lido pelo leitor de tela — botão só com
+  /// ícone não se explica.
+  final String tooltip;
+
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: context.themeColors.surfaceCard,
-      borderRadius: BorderRadius.circular(10),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: SizedBox(
-          width: 40,
-          height: 40,
-          child: Icon(icon, color: context.themeColors.onSurface, size: 22),
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: context.themeColors.surfaceCard,
+        borderRadius: BorderRadius.circular(10),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(icon, color: context.themeColors.onSurface, size: 22),
+          ),
         ),
       ),
     );

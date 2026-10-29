@@ -181,6 +181,7 @@ class _AthleteNotificationsPageState
         backgroundColor: context.themeColors.canvas,
         elevation: 0,
         leading: IconButton(
+          tooltip: 'Voltar',
           icon: Icon(Icons.chevron_left_rounded, size: 28),
           onPressed: () => context.pop(),
         ),

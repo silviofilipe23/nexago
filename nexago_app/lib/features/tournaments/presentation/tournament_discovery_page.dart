@@ -64,6 +64,7 @@ class TournamentDiscoveryPage extends ConsumerWidget {
                     CompeteHubAppBarIconButton(
                       icon: Icons.admin_panel_settings_outlined,
                       onTap: () => context.push(AppRoutes.arenaDashboard),
+                      tooltip: 'Painel da arena',
                     ),
                   ]
                 : const [],

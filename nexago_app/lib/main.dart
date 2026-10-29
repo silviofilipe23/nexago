@@ -29,6 +29,7 @@ import 'core/theme/theme_mode_provider.dart';
 import 'core/theme/theme_preferences_repository.dart';
 import 'core/auth/role_preferences_repository.dart';
 import 'core/auth/active_role_providers.dart';
+import 'core/theme/app_text_scaler.dart';
 import 'features/tournaments/data/tournament_registration_success_preferences_repository.dart';
 import 'features/tournaments/domain/followed_matches_providers.dart';
 import 'features/tournaments/domain/tournament_registration_success_preferences_providers.dart';
@@ -221,7 +222,8 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
             final brightness = Theme.of(context).brightness;
             return AnnotatedRegion<SystemUiOverlayStyle>(
               value: systemUiOverlayForBrightness(brightness),
-              child: child ?? const SizedBox.shrink(),
+              // Texto do app inteiro em 90%, sem descer de 11px.
+              child: AppTextScale(child: child ?? const SizedBox.shrink()),
             );
           },
           localizationsDelegates: const [

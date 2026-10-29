@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="art.css">
+<style>
+  :root { --rainText:#8CC4FF; }
+  .row { display: flex; justify-content: space-between; font-size: 10px; margin-top: 5px; color: var(--dim); }
+  .row b { color: var(--fg); font-weight: 700; }
+  .switch { width: 34px; height: 20px; border-radius: 99px; background: var(--or); position: relative; flex-shrink: 0; }
+  .switch::after { content: ""; position: absolute; right: 3px; top: 3px; width: 14px; height: 14px; border-radius: 99px; background: #0A0A0A; }
+</style></head>
+<body><div class="art">
+  <!-- crédito guardado (aparece no detalhe e nos stories) -->
+  <div class="abs" style="left:112px; top:40px; width:220px; background:var(--surf2); border:1px solid var(--line); border-radius:14px 14px 4px 14px; padding:8px 10px; box-shadow:0 14px 30px rgba(0,0,0,.55);">
+    <div style="font-size:8.5px; font-weight:700; color:var(--rainText);">Crédito de chuva</div>
+    <div style="font-size:10px; margin-top:2px;">R$ 70,00 guardados na Arena Pé</div>
+  </div>
+
+  <!-- confirmação da próxima reserva -->
+  <div class="abs card" style="left:58px; width:274px; top:84px; padding:12px 13px;">
+    <div class="kicker">Confirmar reserva</div>
+    <div style="font-size:13px; font-weight:800; letter-spacing:-.02em; margin-top:4px;">Quadra 2 · sáb, 19:00</div>
+    <div style="display:flex; align-items:center; gap:10px; margin-top:11px; padding:9px 10px; border-radius:12px; background:rgba(255,106,26,.08); border:1px solid rgba(255,106,26,.30);">
+      <div style="flex:1;">
+        <div style="font-size:10.5px; font-weight:700;">Usar crédito de chuva</div>
+        <div style="font-size:8.5px; color:var(--dim); margin-top:1px;">R$ 70,00 disponíveis · vale até 27 jan</div>
+      </div>
+      <div class="switch"></div>
+    </div>
+    <div class="row" style="margin-top:10px;"><span>Reserva</span><b>R$ 90,00</b></div>
+    <div class="row"><span>Crédito de chuva</span><b style="color:var(--win);">− R$ 70,00</b></div>
+    <div class="row" style="font-size:11px; border-top:1px solid var(--line); padding-top:6px;"><span style="color:var(--fg);">A pagar</span><b>R$ 20,00</b></div>
+    <div class="btn" style="margin-top:9px; height:28px;">Pagar R$ 20,00 no Pix</div>
+  </div>
+</div></body></html>

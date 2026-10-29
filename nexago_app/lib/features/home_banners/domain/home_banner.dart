@@ -33,6 +33,8 @@ enum HomeBannerDestination {
   loja('loja'),
   indicar('indicar'),
   missoes('missoes'),
+  minhasReservas('minhas-reservas'),
+  creditosChuva('creditos-chuva'),
   url('url');
 
   const HomeBannerDestination(this.key);

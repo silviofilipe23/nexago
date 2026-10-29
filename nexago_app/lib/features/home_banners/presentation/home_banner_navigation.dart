@@ -22,6 +22,9 @@ IconData homeBannerIcon(HomeBannerDestination destination) =>
       HomeBannerDestination.loja => Icons.storefront_outlined,
       HomeBannerDestination.indicar => Icons.card_giftcard_rounded,
       HomeBannerDestination.missoes => Icons.flag_outlined,
+      HomeBannerDestination.minhasReservas => Icons.event_note_outlined,
+      HomeBannerDestination.creditosChuva =>
+        Icons.account_balance_wallet_outlined,
       HomeBannerDestination.url => Icons.open_in_new_rounded,
     };
 
@@ -60,6 +63,8 @@ Future<void> openAppDestination(
     HomeBannerDestination.aulas => AppRouteNames.classDirectory,
     HomeBannerDestination.indicar => AppRouteNames.athleteReferral,
     HomeBannerDestination.missoes => AppRouteNames.athleteQuest,
+    HomeBannerDestination.minhasReservas => AppRouteNames.myBookings,
+    HomeBannerDestination.creditosChuva => AppRouteNames.athleteWeatherCredits,
     HomeBannerDestination.reservar ||
     HomeBannerDestination.loja ||
     HomeBannerDestination.url =>

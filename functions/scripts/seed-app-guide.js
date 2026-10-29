@@ -16,11 +16,13 @@
  *
  * - Cada guia tem o formato da funcionalidade das Novidades (`appConfig/appNews`).
  * - `destination`: as mesmas chaves do banner da Home (reservar, bora-jogar, peladas, torneios,
- *   ranking, duplas, treinos, aulas, loja, indicar, missoes, url). Chave que o build não conhece
- *   esconde o guia; guia da Loja some com a Loja desligada.
- * - `icon`: map, invite, cancel, story, handshake, focus, chat ou star (sem ele, vale o ícone do
- *   destino; chave que o build não conhece também).
- * - Texto levantado do código das telas em 27/10/2026 (rótulos reais de botões e caminhos). Regra
+ *   ranking, duplas, treinos, aulas, loja, indicar, missoes, minhas-reservas, creditos-chuva, url).
+ *   Chave que o build não conhece esconde o guia; guia da Loja some com a Loja desligada. Os guias
+ *   de Chuva usam `minhas-reservas`/`creditos-chuva` (build 116+): no build 115, sem as telas de
+ *   chuva, eles nem aparecem.
+ * - `icon`: map, invite, cancel, story, handshake, focus, chat, star ou rain (sem ele, vale o ícone
+ *   do destino; chave que o build não conhece também).
+ * - Texto levantado do código das telas em 27/10/2026 (Chuva em 29/10/2026) — rótulos reais de botões e caminhos. Regra
  *   com número (prazo, limite) desatualiza se a regra mudar: conferir antes de republicar.
  *
  * Pré-requisitos (credenciais admin):
@@ -73,6 +75,12 @@ const IMAGES = {
     "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.15-convite-reserva.webp?alt=media&token=a6d66a65-9cab-4a11-a60e-00faa6991581",
   "equipes":
     "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.15-equipes.webp?alt=media&token=401287da-25f6-4e1e-8814-bf0a27090c75",
+  "previsao-reserva":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.18-previsao-reserva.webp?alt=media&token=d318f1a3-f85e-4219-9067-a48b70e9ca9b",
+  "chuva-sem-custo":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.18-chuva-sem-custo.webp?alt=media&token=668e04a6-1e32-4a8c-9e3b-93a3320e95c1",
+  "credito-chuva":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.18-credito-chuva.webp?alt=media&token=d4edaffe-1652-4fce-9f89-0deb8c5fd39b",
 };
 
 const CATEGORIES = [
@@ -130,6 +138,83 @@ const CATEGORIES = [
           "Pronto: aparece \"Reserva cancelada.\"",
         ],
         where: "Agenda › sua reserva › Ações",
+      },
+    ],
+  },
+  {
+    id: "chuva",
+    title: "Chuva e previsão",
+    topics: [
+      {
+        id: "guia-previsao-reserva",
+        icon: "rain",
+        title: "Previsão do tempo da reserva",
+        summary: "Chance de chuva e temperatura de 2h antes a 2h depois do seu jogo.",
+        description:
+          "A reserva mostra a previsão do seu horário: chance de chuva hora a hora, de 2h antes do início a 2h depois do fim, com as horas do jogo em destaque, a temperatura e o céu no começo do jogo. Ela aparece 14 dias antes e some quando o jogo acaba. Quem você convidou também vê.",
+        steps: [
+          "Abra a reserva em \"Minhas reservas\" ou na Agenda",
+          "No card \"Previsão do tempo\", veja a chance de chuva de cada hora; as do seu jogo ficam em destaque",
+          "Mais de 14 dias antes, o card mostra a partir de quando a previsão aparece",
+        ],
+        where: "Minhas reservas › sua reserva",
+        ctaLabel: "Ver minhas reservas",
+        destination: "minhas-reservas",
+        imageUrl: IMAGES["previsao-reserva"],
+      },
+      {
+        id: "guia-reserva-liberada-chuva",
+        icon: "rain",
+        title: "Reserva liberada por chuva",
+        summary: "A arena liberou seu horário: remarque sem custo ou guarde o valor como crédito.",
+        description:
+          "Quando chove, a arena pode ativar o Modo chuva e liberar as reservas pagas do período. Você é avisado e escolhe: remarcar sem custo (se a arena permite) ou guardar o valor como crédito. Sem escolha em 24h, vira crédito sozinho. Chuva no meio do jogo dá crédito do tempo que faltava. Reserva não paga é só cancelada.",
+        steps: [
+          "Toque no aviso de chuva ou abra a reserva em \"Minhas reservas\"",
+          "No card \"Modo chuva ativo\", toque em \"Remarcar ou guardar crédito\"",
+          "Remarcar: escolha o novo dia e horário dentro do prazo da arena e toque em \"Confirmar remarcação\". A diferença, se houver, é paga na arena",
+          "Guardar crédito: o valor fica guardado para a próxima reserva nessa arena",
+          "Vai jogar mesmo assim? Toque em \"Manter minha reserva\"",
+        ],
+        where: "Minhas reservas › reserva liberada",
+        ctaLabel: "Ver minhas reservas",
+        destination: "minhas-reservas",
+        imageUrl: IMAGES["chuva-sem-custo"],
+      },
+      {
+        id: "guia-pedir-cancelamento-chuva",
+        icon: "rain",
+        title: "Pedir cancelamento por chuva",
+        summary: "Choveu e a arena aceita pedidos? Peça pelo app, sem custo.",
+        description:
+          "Em arenas que aceitam pedidos, o botão aparece na reserva a partir de 24h antes do jogo, até o prazo da arena. A arena analisa; em algumas, a aprovação é automática quando a previsão passa de 70% de chance e 2 mm de chuva. Aprovado, você escolhe entre remarcar ou guardar crédito. Até a resposta, a reserva segue de pé.",
+        steps: [
+          "Abra a reserva em \"Minhas reservas\"",
+          "Toque em \"Choveu? Pedir cancelamento sem custo\" e, se quiser, escreva uma observação",
+          "Acompanhe o \"Pedido em análise\" na reserva: dá para falar com a arena pelo WhatsApp ou desistir do pedido",
+          "Aprovado, toque em \"Remarcar ou guardar crédito\" e escolha",
+          "Recusado, a reserva continua de pé e o motivo aparece nela",
+        ],
+        where: "Minhas reservas › sua reserva",
+        ctaLabel: "Ver minhas reservas",
+        destination: "minhas-reservas",
+      },
+      {
+        id: "guia-credito-chuva",
+        title: "Usar o crédito de chuva",
+        summary: "Desconte o crédito na próxima reserva na arena onde choveu.",
+        description:
+          "O crédito vale só na arena onde choveu, com a validade que ela definiu, e você é avisado 7 dias antes de vencer. Na confirmação da próxima reserva lá, \"Usar crédito de chuva\" já vem ligado e desconta do total; se cobrir tudo, a reserva sai paga. Cancelou antes do jogo? O crédito usado volta.",
+        steps: [
+          "Reserve um horário na arena onde choveu",
+          "Na confirmação, confira o card \"Usar crédito de chuva\": ele já vem ligado",
+          "Pague o restante, ou nada, se o crédito cobrir tudo. No Pix, o restante é de pelo menos R$ 5",
+          "Saldo e validade: Configurações › Créditos de chuva",
+        ],
+        where: "Configurações › Créditos de chuva",
+        ctaLabel: "Ver meus créditos",
+        destination: "creditos-chuva",
+        imageUrl: IMAGES["credito-chuva"],
       },
     ],
   },

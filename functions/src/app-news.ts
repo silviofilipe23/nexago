@@ -49,7 +49,7 @@ const BUILD_MAX = 999_999;
  * Ícone quando o destino sozinho não diz o bastante (`AppNewsIcon` no app). Chave nova aqui exige
  * o app que a conhece: build antigo cai no ícone do destino.
  */
-export const APP_NEWS_ICONS = ["map", "invite"] as const;
+export const APP_NEWS_ICONS = ["map", "invite", "rain"] as const;
 export type AppNewsIcon = (typeof APP_NEWS_ICONS)[number];
 
 export interface AppNewsFeatureInput {

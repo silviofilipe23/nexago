@@ -72,6 +72,13 @@ describe('panel-nav.model', () => {
     expect(findActiveId('/painel/nao-existe')).toBeNull();
   });
 
+  it('telas do cancelamento por chuva acendem Agenda e Financeiro (sem item próprio no menu)', () => {
+    expect(findActiveId('/painel/agenda/chuva')).toBe('agenda');
+    expect(findActiveId('/painel/agenda/chuva/politica')).toBe('agenda');
+    expect(findActiveId('/painel/agenda/chuva/solicitacoes')).toBe('agenda');
+    expect(findActiveId('/painel/financeiro/creditos-clima')).toBe('financeiro');
+  });
+
   it('acha a rota ativa mesmo quando o cargo não vê o item', () => {
     // 'planos' é owner-only; a detecção varre NAV_ITEMS inteiro de propósito,
     // senão o realce some quando a rota atual está fora do que o cargo vê.

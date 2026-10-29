@@ -1,0 +1,305 @@
+// Base visual comum das 4 telas do cancelamento por chuva (Política, Modo chuva,
+// Solicitações, Créditos). Azul de chuva do design: #5AA9FF.
+
+:host {
+  --wx-blue: #5aa9ff;
+  --wx-blue-tint: rgba(90, 169, 255, 0.1);
+  --wx-blue-line: rgba(90, 169, 255, 0.3);
+  --wx-blue-ink: #04121f;
+  display: block;
+}
+
+.body {
+  padding: var(--ar-pad-page-y) var(--ar-pad-page-x) 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.state-text {
+  font-size: 13.5px;
+  color: var(--nx-text-mute);
+  margin: 0;
+}
+
+.error-banner,
+.notice,
+.info-banner,
+.warn-banner {
+  border-radius: var(--nx-r-2);
+  padding: 10px 14px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  border: 1px solid;
+}
+
+.error-banner {
+  border-color: var(--nx-live);
+  background: rgba(255, 59, 48, 0.08);
+  color: var(--nx-live);
+}
+
+.notice {
+  border-color: rgba(43, 209, 126, 0.3);
+  background: rgba(43, 209, 126, 0.08);
+  color: var(--nx-win);
+}
+
+.info-banner {
+  border-color: var(--wx-blue-line);
+  background: var(--wx-blue-tint);
+  color: var(--nx-text-mute);
+}
+
+.warn-banner {
+  border-color: rgba(244, 197, 67, 0.3);
+  background: rgba(244, 197, 67, 0.08);
+  color: var(--nx-text-mute);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.warn-banner strong {
+  color: var(--nx-pending);
+}
+
+.banner-link {
+  color: var(--nx-orange-500);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.wx-kicker {
+  font-family: var(--nx-font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.wx-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wx-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+  color: var(--nx-text-mute);
+}
+
+.wx-line .v {
+  font-family: var(--nx-font-mono);
+  font-weight: 500;
+  text-align: right;
+  color: var(--nx-text-mute);
+}
+
+.wx-line .v.strong {
+  font-weight: 700;
+  color: var(--nx-text);
+}
+
+.wx-divider {
+  height: 1px;
+  background: var(--nx-line);
+}
+
+.fine {
+  font-size: 11.5px;
+  color: var(--nx-text-dim);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ar-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ar-chip.wx-blue.active {
+  background: var(--wx-blue-tint);
+  border-color: var(--wx-blue-line);
+  color: var(--wx-blue);
+}
+
+.wx-icon-tile {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: var(--wx-blue-tint);
+  color: var(--wx-blue);
+}
+
+.wx-blue-text {
+  color: var(--wx-blue);
+}
+
+.wx-btn-blue {
+  height: 48px;
+  border-radius: var(--nx-r-2);
+  border: none;
+  background: var(--wx-blue);
+  color: var(--wx-blue-ink);
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.wx-btn-blue:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+// Tabela em grid dentro de `.ar-table-scroll`: quem rola é o container, nunca a página.
+.table-head,
+.table-row {
+  display: grid;
+  gap: 12px;
+  align-items: center;
+}
+
+.table-head {
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--nx-line);
+}
+
+.table-row {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--nx-line);
+}
+
+.table-row:last-child {
+  border-bottom: none;
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.who-name {
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--nx-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cell-ui {
+  font-size: 12.5px;
+  color: var(--nx-text-mute);
+}
+
+.cell-mono {
+  font-family: var(--nx-font-mono);
+  font-size: 12px;
+  color: var(--nx-text-mute);
+  white-space: nowrap;
+}
+
+.cell-money {
+  font-family: var(--nx-font-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--nx-text);
+  white-space: nowrap;
+}
+
+// Modais (ar-modal) — mesmo visual das confirmações da Agenda.
+.modal-title {
+  font-family: var(--nx-font-display);
+  font-weight: 800;
+  font-size: 19px;
+  color: var(--nx-text);
+  margin: 0 0 10px;
+}
+
+.modal-body {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--nx-text-mute);
+  margin: 0 0 18px;
+}
+
+.modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.field-label {
+  font-family: var(--nx-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+  margin-bottom: 8px;
+}
+
+.input-box {
+  width: 100%;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text);
+  font-family: var(--nx-font-ui);
+  font-size: 13.5px;
+  padding: 10px 12px;
+  box-sizing: border-box;
+}
+
+textarea.input-box {
+  min-height: 84px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.input-box:focus {
+  outline: none;
+  border-color: var(--nx-orange-500);
+}

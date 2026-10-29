@@ -300,6 +300,19 @@
             <span>Concluir cadastro</span>
           }
         </button>
+
+        @if (twinAccount()) {
+          <app-nx-blocking-dialog
+            tone="info"
+            role="dialog"
+            heading="Você já tem uma conta?"
+            [body]="twinAccountBody()"
+            primaryLabel="Entrar com ela"
+            secondaryLabel="Não é minha"
+            (primary)="useOtherAccount()"
+            (secondary)="continueWithThisAccount()"
+          />
+        }
       }
 
       @case (5) {

@@ -11,6 +11,8 @@ import { sanitizeReturnUrl } from '../auth/redirect-url';
 import { AuthShellComponent } from '../auth/ui/auth-shell.component';
 import { isAllowedAvatarFile, prepareAvatarJpeg, uploadAthleteAvatar } from '../data/athlete-avatar-upload';
 import { athleteFunctions } from '../data/functions';
+import { findPhoneInOtherAccount, twinAccountHint, type PhoneInOtherAccount } from '../data/twin-account-check';
+import { NxBlockingDialogComponent } from '../shared/feedback/nx-blocking-dialog.component';
 import { SPORT_CATALOG } from '../data/sport-catalog';
 import { athleteStorage } from '../data/storage';
 import {
@@ -56,7 +58,7 @@ function createFirestore(): Firestore | null {
 @Component({
   selector: 'app-athlete-onboarding',
   standalone: true,
-  imports: [RouterLink, AuthShellComponent],
+  imports: [RouterLink, AuthShellComponent, NxBlockingDialogComponent],
   templateUrl: './athlete-onboarding.component.html',
   styleUrl: './athlete-onboarding.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -118,6 +120,20 @@ export class AthleteOnboardingComponent {
   protected readonly notice = signal<string | null>(null);
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
+
+  /** Outra conta com o mesmo WhatsApp: abre o aviso antes de gravar o perfil. */
+  protected readonly twinAccount = signal<PhoneInOtherAccount | null>(null);
+  protected readonly twinAccountBody = computed(() => {
+    const other = this.twinAccount();
+    if (!other) return '';
+    const hint = twinAccountHint(other);
+    return (
+      `Este WhatsApp já está em outra conta do nexaGO${hint ? ` (${hint})` : ''}. ` +
+      'Se ela é sua, entre com ela: assim seus torneios, ranking e inscrições ficam num lugar só.'
+    );
+  });
+  /** Número para o qual o atleta já respondeu "não é minha". */
+  private twinAcknowledgedPhone: string | null = null;
 
   /** Arquivo escolhido (ainda não enviado); preview local via object URL. */
   protected readonly photoFile = signal<File | null>(null);
@@ -299,6 +315,20 @@ export class AthleteOnboardingComponent {
     this.submitError.set(null);
 
     try {
+      // A mesma pessoa com duas contas é o que duplica inscrição: avisa ANTES
+      // de gravar se o WhatsApp já está em outra conta.
+      const phone = this.phoneInput().trim();
+      if (this.twinAcknowledgedPhone !== phone) {
+        const other = await findPhoneInOtherAccount(athleteFunctions(), {
+          phoneNumber: phone,
+          birthDate: isoBirthDate,
+        });
+        if (other) {
+          this.twinAccount.set(other);
+          return;
+        }
+      }
+
       // `roles` é imutável no update das rules (só a Cloud Function, via Admin SDK,
       // pode alterá-lo — mesmo padrão de `completeArenaSignup`). Uma conta que já
       // veio de outro portal (arena/organizer) teria o próprio save do onboarding
@@ -382,6 +412,20 @@ export class AthleteOnboardingComponent {
     } finally {
       this.submitting.set(false);
     }
+  }
+
+  /** Sai desta conta para o atleta entrar na que já tem o WhatsApp. */
+  protected async useOtherAccount(): Promise<void> {
+    this.twinAccount.set(null);
+    await this.auth.signOutUser();
+    await this.router.navigateByUrl('/entrar');
+  }
+
+  /** O número é compartilhado (ou a conta não é dele): segue sem perguntar de novo. */
+  protected continueWithThisAccount(): void {
+    this.twinAcknowledgedPhone = this.phoneInput().trim();
+    this.twinAccount.set(null);
+    void this.submitProfile();
   }
 
   /** Convite de parceiro pendente (link de cadastro) — dirige o passo final e o destino.

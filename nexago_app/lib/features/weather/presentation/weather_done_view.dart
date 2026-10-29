@@ -28,7 +28,7 @@ class WeatherDoneView extends StatelessWidget {
   final WeatherReschedulePick? pick;
   final String? pickCourtName;
 
-  /// Crédito: "Reservar agora" (abre a arena). Remarcação: "Ver minhas reservas".
+  /// "Reservar agora" (abre a arena), nos dois casos como no design.
   final VoidCallback onPrimary;
   final VoidCallback onHome;
 
@@ -95,7 +95,7 @@ class WeatherDoneView extends StatelessWidget {
       ),
       bottomNavigationBar: WeatherBottomBar(
         ctaKey: const ValueKey('weather-done-primary'),
-        ctaLabel: _isReschedule ? 'Ver minhas reservas' : 'Reservar agora',
+        ctaLabel: 'Reservar agora',
         ctaIcon: true,
         onCta: onPrimary,
         secondaryLabel: 'Voltar ao início',
@@ -219,7 +219,7 @@ class _OrangeCard extends StatelessWidget {
           ),
           if (rows.isNotEmpty) ...[
             const SizedBox(height: 16),
-            Divider(height: 1, color: colors.onSurface.withValues(alpha: 0.14)),
+            _DashedLine(color: colors.onSurface.withValues(alpha: 0.14)),
             const SizedBox(height: 12),
             for (final (label, value, color) in rows)
               Padding(
@@ -247,6 +247,31 @@ class _OrangeCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Linha tracejada do cartão (`border-top: 1px dashed` do design).
+class _DashedLine extends StatelessWidget {
+  const _DashedLine({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const dash = 4.0;
+        const gap = 3.0;
+        final count = (constraints.maxWidth / (dash + gap)).floor();
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            for (var i = 0; i < count; i++)
+              SizedBox(width: dash, height: 1, child: ColoredBox(color: color)),
+          ],
+        );
+      },
     );
   }
 }

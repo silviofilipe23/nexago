@@ -237,7 +237,9 @@ class WeatherOptionCard extends StatelessWidget {
   }
 }
 
-/// Barra fixa no rodapé: valor à esquerda (opcional), CTA e ação secundária.
+/// Barra fixa no rodapé (`RsBottomBar` do design): valor à esquerda
+/// (opcional), CTA laranja de 56 e a ação secundária como link embaixo. Sem
+/// CTA ([ctaLabel] nulo), a secundária vira o botão da barra.
 class WeatherBottomBar extends StatelessWidget {
   const WeatherBottomBar({
     super.key,
@@ -248,44 +250,56 @@ class WeatherBottomBar extends StatelessWidget {
     this.amountLabel,
     this.amountCaption,
     this.secondaryLabel,
+    this.secondaryKey,
     this.onSecondary,
     this.loading = false,
   });
 
-  final String ctaLabel;
+  final String? ctaLabel;
   final VoidCallback? onCta;
   final Key? ctaKey;
   final bool ctaIcon;
   final String? amountLabel;
   final String? amountCaption;
   final String? secondaryLabel;
+  final Key? secondaryKey;
   final VoidCallback? onSecondary;
   final bool loading;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final cta = FilledButton(
-      key: ctaKey,
-      onPressed: loading ? null : onCta,
-      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-      child: loading
-          ? const SizedBox.square(
-              dimension: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                    child: Text(ctaLabel, overflow: TextOverflow.ellipsis)),
-                if (ctaIcon) ...[
-                  const SizedBox(width: 8),
-                  const Icon(Icons.arrow_forward_rounded, size: 18),
-                ],
-              ],
+    final label = ctaLabel;
+    final cta = label == null
+        ? null
+        : FilledButton(
+            key: ctaKey,
+            onPressed: loading ? null : onCta,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(56),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
-    );
+            child: loading
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(label, overflow: TextOverflow.ellipsis),
+                      ),
+                      if (ctaIcon) ...[
+                        const SizedBox(width: 8),
+                        const Icon(Icons.arrow_forward_rounded, size: 18),
+                      ],
+                    ],
+                  ),
+          );
+    final secondary = secondaryLabel;
     return Container(
       decoration: BoxDecoration(
         color: colors.canvas,
@@ -296,12 +310,12 @@ class WeatherBottomBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (amountLabel != null)
+              if (cta != null && amountLabel != null)
                 Row(
                   children: [
                     Column(
@@ -312,34 +326,54 @@ class WeatherBottomBar extends StatelessWidget {
                           Text(
                             amountCaption!,
                             style: TextStyle(
-                              fontSize: 11.5,
+                              fontSize: 11,
                               color: colors.onSurfaceMuted,
                             ),
                           ),
                         Text(
                           amountLabel!,
                           style: AppTypography.mono(
-                            fontSize: 18,
+                            fontSize: 22,
                             fontWeight: FontWeight.w800,
-                            color: colors.onSurface,
+                            letterSpacing: -0.4,
+                            color: colors.brandText,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     Expanded(child: cta),
                   ],
                 )
-              else
+              else if (cta != null)
                 cta,
-              if (secondaryLabel != null) ...[
-                const SizedBox(height: 8),
+              if (secondary != null && cta == null)
                 OutlinedButton(
+                  key: secondaryKey,
                   onPressed: loading ? null : onSecondary,
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
+                    minimumSize: const Size.fromHeight(56),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
-                  child: Text(secondaryLabel!),
+                  child: Text(secondary),
+                )
+              else if (secondary != null) ...[
+                const SizedBox(height: 4),
+                // Link, como no design. Sem `textStyle` no botão: ele troca
+                // a fonte do tema (Sora) pela padrão.
+                TextButton(
+                  key: secondaryKey,
+                  onPressed: loading ? null : onSecondary,
+                  child: Text(
+                    secondary,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: colors.brandText,
+                    ),
+                  ),
                 ),
               ],
             ],

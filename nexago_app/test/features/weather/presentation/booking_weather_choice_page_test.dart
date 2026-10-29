@@ -105,8 +105,10 @@ Future<FakeWeatherFunctions> pumpChoice(
         ),
         arenaByIdProvider.overrideWith((ref, id) => Stream.value(null)),
         courtsStreamProvider.overrideWith(
-          (ref, id) =>
-              Stream.value(const [ArenaCourt(id: 'q1', name: 'Quadra 1')]),
+          (ref, id) => Stream.value(const [
+            ArenaCourt(id: 'q1', name: 'Quadra 1'),
+            ArenaCourt(id: 'q2', name: 'Quadra 2'),
+          ]),
         ),
         slotsStreamProvider
             .overrideWith((ref, q) => Stream.value(slotsFor(q.date))),
@@ -137,7 +139,7 @@ void main() {
     expect(find.textContaining('Escolha outro horário até'), findsOneWidget);
     expect(
       find.textContaining(
-        '${formatBRL(60)} na sua carteira para qualquer reserva na Arena CFC. Vale até',
+        '${formatBRL(60)} na sua carteira para qualquer reserva na Arena CFC. Vale por 90 dias.',
       ),
       findsOneWidget,
     );
@@ -192,11 +194,15 @@ void main() {
     await tester.tap(find.byKey(BookingWeatherChoicePage.ctaKey));
     await tester.pump();
     expect(find.text('Novo horário'), findsOneWidget);
+    // Sempre na quadra da reserva: sem troca de quadra, mesmo com outras.
+    expect(find.byType(ChoiceChip), findsNothing);
+    expect(find.text('Quadra 2'), findsNothing);
 
     await tester.tap(find.text(tomorrow.day.toString().padLeft(2, '0')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
+    expect(find.textContaining('QUADRA 1 ·'), findsOneWidget);
     expect(find.text('Mesmo valor'), findsOneWidget);
     expect(find.text('+ ${formatBRL(10)}'), findsOneWidget);
     expect(find.text('Ocupado'), findsOneWidget);
@@ -223,7 +229,10 @@ void main() {
       },
     });
     expect(find.text('Remarcação confirmada'), findsOneWidget);
-    expect(find.text('Ver minhas reservas'), findsOneWidget);
+    // Botões iguais aos do A4 do design.
+    expect(find.text('Reservar agora'), findsOneWidget);
+    expect(find.text('Voltar ao início'), findsOneWidget);
+    expect(find.text('Ver minhas reservas'), findsNothing);
   });
 
   testWidgets('A3: horário tomado mostra o aviso e limpa a escolha',

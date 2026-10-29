@@ -62,6 +62,17 @@ abstract final class WeatherCopy {
 
   static String time(DateTime d) => _hm.format(d);
 
+  /// Mensagem do "Falar com a arena" com o pedido em análise (A6).
+  static String requestWhatsAppMessage({
+    required DateTime start,
+    required String courtName,
+  }) {
+    final court = courtName.trim().isEmpty ? 'quadra' : courtName.trim();
+    return 'Olá! Fiz um pedido de cancelamento por chuva da minha reserva de '
+        '${weekdayShort(start)}, ${dayShortMonth(start)} às ${time(start)} '
+        'na $court.';
+  }
+
   /// "Vale até 27 jan 2027" ou "Sem validade".
   static String validity(DateTime? expiresAt) =>
       expiresAt == null ? 'Sem validade' : 'Vale até ${fullDate(expiresAt)}';

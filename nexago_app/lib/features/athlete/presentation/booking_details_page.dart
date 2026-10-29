@@ -186,6 +186,15 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
         onCancel: _cancelBooking,
         showCancel: canCancel,
       ),
+      // Chuva (A1 liberada / A6 pedido em análise): ações fixas no rodapé.
+      // Fora desses casos não ocupa espaço.
+      bottomNavigationBar: BookingWeatherBottomBar(
+        bookingId: widget.bookingId,
+        booking: bookingData,
+        arenaName: widget.arenaName,
+        now: _now,
+        fallbackArenaId: widget.arenaId,
+      ),
       // bottomNavigationBar: BookingDetailsBottomBar(
       //   onAddToCalendar: _addToCalendar,
       //   inviteEnabled: actionsEnabled,

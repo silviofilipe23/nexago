@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/formatting/app_currency_format.dart';
+import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/booking_confirm/booking_confirm_price_summary.dart';
 import 'package:nexago_app/features/weather/presentation/widgets/weather_credit_checkout_card.dart';
@@ -43,6 +44,11 @@ void main() {
             .value,
         isTrue,
       );
+
+      // Laranja da marca (`WxToggle on`), não o verde do cashback.
+      final toggle = tester
+          .widget<Switch>(find.byKey(WeatherCreditCheckoutCard.switchKey));
+      expect(toggle.activeTrackColor, AppColors.brand);
 
       await tester.tap(find.byKey(WeatherCreditCheckoutCard.switchKey));
       await tester.pump();

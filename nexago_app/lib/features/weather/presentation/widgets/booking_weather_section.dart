@@ -3,22 +3,90 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/auth_providers.dart';
+import '../../../../core/links/open_external_url.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/ui/app_snackbar.dart';
+import '../../../arenas/domain/arena_booking_success_actions.dart';
 import '../../../arenas/domain/booking_providers.dart';
 import '../../application/weather_providers.dart';
 import '../../domain/weather_booking_rules.dart';
 import '../../domain/weather_models.dart';
 import '../../infrastructure/weather_service.dart';
 import '../weather_ui.dart';
+import 'weather_choice_widgets.dart' show WeatherBottomBar;
 import 'weather_request_sheet.dart';
 
-/// Chuva na tela da reserva: aviso de liberação (A1), pedido em análise (A6),
-/// botão de pedir, pedido recusado ou o resumo do que já aconteceu. Some
-/// quando não há nada a mostrar (inclusive antes do doc da reserva chegar).
+/// O que a reserva mostra sobre chuva, a partir do doc vivo. Lê a política e
+/// o pedido só quando importam (sem liberação, reserva de pé, política
+/// ligada). Enquanto o pedido carrega, o botão de pedir não aparece — senão
+/// ele piscaria antes do card A6.
+WeatherBookingView watchWeatherBookingView(
+  WidgetRef ref, {
+  required String bookingId,
+  required Map<String, dynamic>? booking,
+  required DateTime now,
+  String? fallbackArenaId,
+}) {
+  if (booking == null) return const WeatherViewHidden();
+  final viewerUid = ref.watch(authProvider).valueOrNull?.uid;
+  final hasRelease = WeatherRelease.fromBooking(booking) != null;
+  final status = (booking['status'] as String?)?.trim().toLowerCase() ?? '';
+  final canceled = status == 'canceled' || status == 'cancelled';
+  final watchExtras = !hasRelease && !canceled;
+  final arenaId = weatherBookingArenaId(booking, fallbackArenaId);
+  final policy = watchExtras && arenaId.isNotEmpty
+      ? ref.watch(weatherPolicyProvider(arenaId)).valueOrNull
+      : null;
+  final requestAsync = watchExtras && (policy?.enabled ?? false)
+      ? ref.watch(weatherRequestProvider(bookingId))
+      : null;
+  final requestLoading =
+      requestAsync != null && requestAsync.isLoading && !requestAsync.hasValue;
+  final view = resolveWeatherBookingView(
+    booking: booking,
+    viewerUid: viewerUid,
+    policy: policy,
+    request: requestAsync?.valueOrNull,
+    now: now,
+  );
+  if (view is WeatherViewRequestAvailable && requestLoading) {
+    return const WeatherViewHidden();
+  }
+  return view;
+}
+
+/// `arenaId` do doc; sem ele, o que a tela recebeu.
+String weatherBookingArenaId(Map<String, dynamic> booking, String? fallback) {
+  final raw = booking['arenaId'];
+  if (raw is String && raw.trim().isNotEmpty) return raw.trim();
+  return fallback?.trim() ?? '';
+}
+
+/// Link do "Falar com a arena" (A6): `wa.me` com a mensagem do pedido, ou
+/// `null` sem número utilizável.
+String? weatherRequestWhatsAppUrl({
+  required String? phone,
+  required Map<String, dynamic> booking,
+}) {
+  final window = weatherBookingWindow(booking);
+  if (window == null) return null;
+  final court = booking['courtName'];
+  return ArenaBookingSuccessActions.buildWhatsAppUrl(
+    phone: phone,
+    message: WeatherCopy.requestWhatsAppMessage(
+      start: window.start,
+      courtName: court is String ? court : '',
+    ),
+  );
+}
+
+/// Chuva no corpo da reserva: aviso de liberação (A1), pedido em análise
+/// (A6), botão de pedir, pedido recusado ou o resumo do que já aconteceu. As
+/// ações do A1 e do A6 ficam na [BookingWeatherBottomBar]. Some quando não há
+/// nada a mostrar (inclusive antes do doc da reserva chegar).
 class BookingWeatherSection extends ConsumerStatefulWidget {
   const BookingWeatherSection({
     super.key,
@@ -27,7 +95,6 @@ class BookingWeatherSection extends ConsumerStatefulWidget {
     required this.arenaName,
     required this.now,
     this.fallbackArenaId,
-    this.onOpenChoice,
   });
 
   final String bookingId;
@@ -37,9 +104,6 @@ class BookingWeatherSection extends ConsumerStatefulWidget {
   final String arenaName;
   final DateTime now;
   final String? fallbackArenaId;
-
-  /// Injetável para teste; em produção abre `/booking/:bookingId/rain`.
-  final VoidCallback? onOpenChoice;
 
   @override
   ConsumerState<BookingWeatherSection> createState() =>
@@ -51,38 +115,12 @@ class _BookingWeatherSectionState extends ConsumerState<BookingWeatherSection> {
 
   @override
   Widget build(BuildContext context) {
-    final booking = widget.booking;
-    if (booking == null) return const SizedBox.shrink();
-
-    final viewerUid = ref.watch(authProvider).valueOrNull?.uid;
-    final hasRelease = WeatherRelease.fromBooking(booking) != null;
-    final status = (booking['status'] as String?)?.trim().toLowerCase() ?? '';
-    final canceled = status == 'canceled' || status == 'cancelled';
-    // Política e pedido só importam sem liberação e com a reserva de pé.
-    final watchExtras = !hasRelease && !canceled;
-    final arenaId =
-        ((booking['arenaId'] as String?)?.trim().isNotEmpty ?? false)
-            ? (booking['arenaId'] as String).trim()
-            : (widget.fallbackArenaId?.trim() ?? '');
-    final policy = watchExtras && arenaId.isNotEmpty
-        ? ref.watch(weatherPolicyProvider(arenaId)).valueOrNull
-        : null;
-    // Pedido só existe com a política ligada: sem ela, nem abre a leitura.
-    final requestAsync = watchExtras && (policy?.enabled ?? false)
-        ? ref.watch(weatherRequestProvider(widget.bookingId))
-        : null;
-    final request = requestAsync?.valueOrNull;
-    // Enquanto o pedido carrega, o botão de pedir não pisca antes do card A6.
-    final requestLoading = requestAsync != null &&
-        requestAsync.isLoading &&
-        !requestAsync.hasValue;
-
-    final view = resolveWeatherBookingView(
-      booking: booking,
-      viewerUid: viewerUid,
-      policy: policy,
-      request: request,
+    final view = watchWeatherBookingView(
+      ref,
+      bookingId: widget.bookingId,
+      booking: widget.booking,
       now: widget.now,
+      fallbackArenaId: widget.fallbackArenaId,
     );
 
     final Widget? child = switch (view) {
@@ -91,16 +129,12 @@ class _BookingWeatherSectionState extends ConsumerState<BookingWeatherSection> {
           release: release,
           arenaName: widget.arenaName,
           now: widget.now,
-          busy: _busy,
-          onChoose: _openChoice,
-          onKeep: _keep,
         ),
       WeatherViewOutcome(:final kind, :final release) => WeatherOutcomeTile(
           kind: kind,
           release: release,
           arenaName: widget.arenaName,
         ),
-      WeatherViewRequestAvailable() when requestLoading => null,
       WeatherViewRequestAvailable(:final closesAt, :final afterStart) =>
         WeatherRequestButton(
           closesAt: closesAt,
@@ -111,8 +145,6 @@ class _BookingWeatherSectionState extends ConsumerState<BookingWeatherSection> {
       WeatherViewRequestPending(:final request) => WeatherRequestPendingCard(
           request: request,
           arenaName: widget.arenaName,
-          busy: _busy,
-          onWithdraw: _withdraw,
         ),
       WeatherViewRequestRejected(:final request) => WeatherRequestRejectedCard(
           request: request,
@@ -121,6 +153,132 @@ class _BookingWeatherSectionState extends ConsumerState<BookingWeatherSection> {
     };
     if (child == null) return const SizedBox.shrink();
     return Padding(padding: const EdgeInsets.only(top: 14), child: child);
+  }
+
+  Future<void> _request({required bool afterStart}) async {
+    final note = await showWeatherRequestSheet(
+      context,
+      arenaName: widget.arenaName,
+      afterStart: afterStart,
+    );
+    if (note == null || !mounted || _busy) return;
+    setState(() => _busy = true);
+    WeatherRequestResult? result;
+    try {
+      result = await ref
+          .read(weatherServiceProvider)
+          .requestRelease(bookingId: widget.bookingId, note: note);
+    } on WeatherException catch (e) {
+      if (mounted) showAppSnackBar(context, e.message, isError: true);
+    } catch (_) {
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          'Não foi possível concluir. Tente de novo.',
+          isError: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (!mounted || result == null) return;
+    ref.invalidate(weatherRequestProvider(widget.bookingId));
+    showAppSnackBar(
+      context,
+      result.status == WeatherRequestStatus.approved
+          ? 'Pedido aprovado pela previsão. Escolha o que fazer com o valor.'
+          : 'Pedido enviado. A ${widget.arenaName} vai analisar.',
+    );
+  }
+}
+
+/// Barra fixa no rodapé da reserva (`RsBottomBar` do design):
+/// - A1 (liberada, sem escolha): "Remarcar ou guardar crédito" e "Manter
+///   minha reserva";
+/// - A6 (pedido em análise): "Falar com a arena" (WhatsApp, quando a arena
+///   tem número) e "Desistir do pedido".
+///
+/// Nos outros casos não ocupa espaço.
+class BookingWeatherBottomBar extends ConsumerStatefulWidget {
+  const BookingWeatherBottomBar({
+    super.key,
+    required this.bookingId,
+    required this.booking,
+    required this.arenaName,
+    required this.now,
+    this.fallbackArenaId,
+    this.onOpenChoice,
+    this.onOpenUrl,
+  });
+
+  static const Key chooseKey = ValueKey('weather-release-choose');
+  static const Key keepKey = ValueKey('weather-release-keep');
+  static const Key contactKey = ValueKey('weather-request-contact');
+  static const Key withdrawKey = ValueKey('weather-request-withdraw');
+
+  final String bookingId;
+  final Map<String, dynamic>? booking;
+  final String arenaName;
+  final DateTime now;
+  final String? fallbackArenaId;
+
+  /// Injetável para teste; em produção abre `/booking/:bookingId/rain`.
+  final VoidCallback? onOpenChoice;
+
+  /// Injetável para teste; em produção abre o link fora do app.
+  final Future<bool> Function(String url)? onOpenUrl;
+
+  @override
+  ConsumerState<BookingWeatherBottomBar> createState() =>
+      _BookingWeatherBottomBarState();
+}
+
+class _BookingWeatherBottomBarState
+    extends ConsumerState<BookingWeatherBottomBar> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final booking = widget.booking;
+    final view = watchWeatherBookingView(
+      ref,
+      bookingId: widget.bookingId,
+      booking: booking,
+      now: widget.now,
+      fallbackArenaId: widget.fallbackArenaId,
+    );
+    switch (view) {
+      case WeatherViewReleasePending(:final release):
+        return WeatherBottomBar(
+          ctaKey: BookingWeatherBottomBar.chooseKey,
+          ctaLabel: release.canReschedule
+              ? 'Remarcar ou guardar crédito'
+              : 'Guardar crédito',
+          ctaIcon: true,
+          onCta: _openChoice,
+          secondaryKey: BookingWeatherBottomBar.keepKey,
+          secondaryLabel: 'Manter minha reserva',
+          onSecondary: _keep,
+          loading: _busy,
+        );
+      case WeatherViewRequestPending():
+        final arenaId = weatherBookingArenaId(booking!, widget.fallbackArenaId);
+        final url = weatherRequestWhatsAppUrl(
+          phone: ref.watch(weatherArenaContactPhoneProvider(arenaId)),
+          booking: booking,
+        );
+        return WeatherBottomBar(
+          ctaKey: BookingWeatherBottomBar.contactKey,
+          ctaLabel: url == null ? null : 'Falar com a arena',
+          onCta: url == null ? null : () => _openUrl(url),
+          secondaryKey: BookingWeatherBottomBar.withdrawKey,
+          secondaryLabel: 'Desistir do pedido',
+          onSecondary: _withdraw,
+          loading: _busy,
+        );
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   void _openChoice() {
@@ -133,6 +291,14 @@ class _BookingWeatherSectionState extends ConsumerState<BookingWeatherSection> {
       AppRouteNames.bookingWeatherChoice,
       pathParameters: {'bookingId': widget.bookingId},
     );
+  }
+
+  Future<void> _openUrl(String url) async {
+    final open = widget.onOpenUrl ?? openExternalUrl;
+    final ok = await open(url);
+    if (!ok && mounted) {
+      showAppSnackBar(context, 'Não foi possível abrir o WhatsApp.');
+    }
   }
 
   Future<void> _keep() async {
@@ -168,29 +334,6 @@ class _BookingWeatherSectionState extends ConsumerState<BookingWeatherSection> {
     );
   }
 
-  Future<void> _request({required bool afterStart}) async {
-    final note = await showWeatherRequestSheet(
-      context,
-      arenaName: widget.arenaName,
-      afterStart: afterStart,
-    );
-    if (note == null || !mounted) return;
-    WeatherRequestResult? result;
-    await _run(() async {
-      result = await ref
-          .read(weatherServiceProvider)
-          .requestRelease(bookingId: widget.bookingId, note: note);
-    });
-    if (!mounted || result == null) return;
-    ref.invalidate(weatherRequestProvider(widget.bookingId));
-    showAppSnackBar(
-      context,
-      result!.status == WeatherRequestStatus.approved
-          ? 'Pedido aprovado pela previsão. Escolha o que fazer com o valor.'
-          : 'Pedido enviado. A ${widget.arenaName} vai analisar.',
-    );
-  }
-
   Future<void> _withdraw() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -218,8 +361,9 @@ class _BookingWeatherSectionState extends ConsumerState<BookingWeatherSection> {
           .withdrawRequest(bookingId: widget.bookingId),
       success: 'Pedido retirado.',
     );
-    if (done && mounted)
+    if (done && mounted) {
       ref.invalidate(weatherRequestProvider(widget.bookingId));
+    }
   }
 
   Future<bool> _run(Future<void> Function() action, {String? success}) async {
@@ -254,21 +398,13 @@ class WeatherReleaseAlertCard extends StatelessWidget {
     required this.release,
     required this.arenaName,
     required this.now,
-    required this.onChoose,
-    required this.onKeep,
-    this.busy = false,
   });
 
   static const Key cardKey = ValueKey('weather-release-alert');
-  static const Key chooseKey = ValueKey('weather-release-choose');
-  static const Key keepKey = ValueKey('weather-release-keep');
 
   final WeatherRelease release;
   final String arenaName;
   final DateTime now;
-  final VoidCallback onChoose;
-  final VoidCallback onKeep;
-  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -373,24 +509,6 @@ class WeatherReleaseAlertCard extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 14),
-          FilledButton.icon(
-            key: chooseKey,
-            onPressed: busy ? null : onChoose,
-            icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-            iconAlignment: IconAlignment.end,
-            label: Text(
-              release.canReschedule
-                  ? 'Remarcar ou guardar crédito'
-                  : 'Guardar crédito',
-            ),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            key: keepKey,
-            onPressed: busy ? null : onKeep,
-            child: const Text('Manter minha reserva'),
-          ),
         ],
       ),
     );
@@ -546,17 +664,12 @@ class WeatherRequestPendingCard extends StatelessWidget {
     super.key,
     required this.request,
     required this.arenaName,
-    required this.onWithdraw,
-    this.busy = false,
   });
 
   static const Key cardKey = ValueKey('weather-request-pending');
-  static const Key withdrawKey = ValueKey('weather-request-withdraw');
 
   final WeatherRequest request;
   final String arenaName;
-  final VoidCallback onWithdraw;
-  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -652,12 +765,6 @@ class WeatherRequestPendingCard extends StatelessWidget {
                 ),
             ],
           ),
-        ),
-        const SizedBox(height: 10),
-        OutlinedButton(
-          key: withdrawKey,
-          onPressed: busy ? null : onWithdraw,
-          child: const Text('Desistir do pedido'),
         ),
       ],
     );

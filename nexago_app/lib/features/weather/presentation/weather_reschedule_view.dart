@@ -8,7 +8,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
-import '../../arenas/domain/arena_court.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/slots_page_providers.dart';
 import '../../arenas/domain/slots_providers.dart';
@@ -20,7 +19,7 @@ import '../infrastructure/weather_service.dart';
 import 'weather_ui.dart';
 import 'widgets/weather_choice_widgets.dart';
 
-/// A3 — "Novo horário": mesma quadra por padrão (dá para trocar), dias de hoje
+/// A3 — "Novo horário": sempre na quadra da reserva original, dias de hoje
 /// até `rescheduleUntil` e os horários livres com a mesma duração da reserva.
 /// A grade reaproveita `slotsStreamProvider` (preços e disponibilidade do fluxo
 /// de reserva).
@@ -59,7 +58,6 @@ class WeatherRescheduleView extends ConsumerStatefulWidget {
 }
 
 class _WeatherRescheduleViewState extends ConsumerState<WeatherRescheduleView> {
-  String? _courtId;
   DateTime? _day;
   String? _pickedStart;
   bool _submitting = false;
@@ -70,15 +68,8 @@ class _WeatherRescheduleViewState extends ConsumerState<WeatherRescheduleView> {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final now = DateTime.now();
-    final courts = [
-      for (final c
-          in ref.watch(courtsStreamProvider(widget.arenaId)).valueOrNull ??
-              const <ArenaCourt>[])
-        if (!c.isMaintenance || c.id == widget.originalCourtId) c,
-    ];
-    final courtId = _courtId ?? widget.originalCourtId;
-    final court = courts.where((c) => c.id == courtId).firstOrNull;
-    final courtName = court?.name ?? widget.originalCourtName;
+    final courtId = widget.originalCourtId;
+    final courtName = widget.originalCourtName;
     final slotDuration = ref.watch(
       courtSlotDurationMinutesProvider(
           (arenaId: widget.arenaId, courtId: courtId)),
@@ -169,32 +160,6 @@ class _WeatherRescheduleViewState extends ConsumerState<WeatherRescheduleView> {
               ],
             ),
           ),
-          if (courts.length > 1) ...[
-            const SizedBox(height: 16),
-            const WeatherKicker('Quadra'),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 36,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: courts.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (context, i) {
-                  final c = courts[i];
-                  return ChoiceChip(
-                    label: Text(c.name),
-                    selected: c.id == courtId,
-                    onSelected: _submitting
-                        ? null
-                        : (_) => setState(() {
-                              _courtId = c.id;
-                              _pickedStart = null;
-                            }),
-                  );
-                },
-              ),
-            ),
-          ],
           const SizedBox(height: 16),
           if (days.isEmpty)
             Text(
@@ -207,23 +172,30 @@ class _WeatherRescheduleViewState extends ConsumerState<WeatherRescheduleView> {
               '${until == null ? '' : ' · até ${WeatherCopy.dayShortMonth(until)}'}',
             ),
             const SizedBox(height: 10),
-            SizedBox(
-              height: 64,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: days.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (context, i) => _DayCell(
-                  day: days[i],
-                  selected: sameDay(days[i], day),
-                  onTap: _submitting
-                      ? null
-                      : () => setState(() {
-                            _day = days[i];
-                            _pickedStart = null;
-                          }),
-                ),
-              ),
+            // Cinco dias à vista, como no design; o resto rola de lado.
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final cell = (constraints.maxWidth - 4 * 8) / 5;
+                return SizedBox(
+                  height: 64,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: days.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, i) => _DayCell(
+                      day: days[i],
+                      width: cell,
+                      selected: sameDay(days[i], day),
+                      onTap: _submitting
+                          ? null
+                          : () => setState(() {
+                                _day = days[i];
+                                _pickedStart = null;
+                              }),
+                    ),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 18),
             WeatherKicker(
@@ -341,10 +313,15 @@ class _WeatherRescheduleViewState extends ConsumerState<WeatherRescheduleView> {
 }
 
 class _DayCell extends StatelessWidget {
-  const _DayCell(
-      {required this.day, required this.selected, required this.onTap});
+  const _DayCell({
+    required this.day,
+    required this.width,
+    required this.selected,
+    required this.onTap,
+  });
 
   final DateTime day;
+  final double width;
   final bool selected;
   final VoidCallback? onTap;
 
@@ -359,7 +336,7 @@ class _DayCell extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          width: 56,
+          width: width,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(

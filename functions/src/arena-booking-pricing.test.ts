@@ -56,6 +56,28 @@ describe("resolveArenaBookingChargeAmounts", () => {
     assert.equal(amounts.amountDueOnsiteReais, 60);
   });
 
+  it("crédito de chuva do servidor sai do total e o resto vai integral, mesmo pedindo sinal", () => {
+    const amounts = resolveArenaBookingChargeAmounts({
+      serverAmountReais: 70,
+      serverWeatherCreditReais: 50,
+      booking: honestBooking,
+      requestedFraction: 0.5,
+    });
+    assert.equal(amounts.amountReais, 70);
+    assert.equal(amounts.paymentFraction, 1);
+    assert.equal(amounts.amountToPayNowReais, 20);
+    assert.equal(amounts.amountDueOnsiteReais, 0);
+  });
+
+  it("reserva legada (sem doc do servidor) não abate crédito nenhum", () => {
+    const amounts = resolveArenaBookingChargeAmounts({
+      serverAmountReais: null,
+      serverWeatherCreditReais: 50,
+      booking: honestBooking,
+    });
+    assert.equal(amounts.amountToPayNowReais, 120);
+  });
+
   it("fração fora de {0.5, 1} gravada no doc não é usada", () => {
     const amounts = resolveArenaBookingChargeAmounts({
       serverAmountReais: 120,

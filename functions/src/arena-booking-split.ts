@@ -21,7 +21,7 @@ import * as logger from "firebase-functions/logger";
 import {roundMoney, PLATFORM_FEE_FIXED_BRL} from "./mercadopago-arena-helpers";
 import {ARENA_BOOKING_SHARE_PAYMENT_REF_PREFIX} from "./arena-booking-payment-constants";
 import {
-  readArenaBookingServerAmountReais,
+  readArenaBookingServerPricing,
   resolveArenaBookingChargeAmounts,
 } from "./arena-booking-pricing";
 import {asaasArenaSecrets, AsaasApiError} from "./asaas-client";
@@ -247,8 +247,10 @@ export async function splitArenaBookingPaymentCore(
 
   // Soma das fatias = total do servidor × fração, não o `amountToPayNowReais`
   // do doc (o dono já conseguiu reescrevê-lo pelo cliente).
+  const pricing = await readArenaBookingServerPricing(db, bookingId);
   const {amountToPayNowReais: expectedTotal} = resolveArenaBookingChargeAmounts({
-    serverAmountReais: await readArenaBookingServerAmountReais(db, bookingId),
+    serverAmountReais: pricing?.amountReais ?? null,
+    serverWeatherCreditReais: pricing?.weatherCreditReais,
     booking,
   });
   if (!Number.isFinite(expectedTotal) || expectedTotal <= 0) {

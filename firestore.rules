@@ -1797,6 +1797,31 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Cancelamento por chuva (functions/src/arena-weather.ts). Toda escrita é
+    // das Cloud Functions; o crédito é dinheiro que já está na arena, então o
+    // cliente nunca grava saldo, pedido nem evento.
+    match /arenaWeatherEvents/{eventId} {
+      allow read: if request.auth != null && arenaCanRead(resource.data.arenaId, 'agenda');
+      allow write: if false;
+    }
+    match /arenaWeatherCredits/{creditId} {
+      allow read: if request.auth != null && (
+        resource.data.athleteId == request.auth.uid ||
+        arenaCanRead(resource.data.arenaId, 'financeiro') ||
+        arenaCanRead(resource.data.arenaId, 'agenda')
+      );
+      allow write: if false;
+    }
+    // `resource == null`: o app observa o pedido da reserva antes de ele existir.
+    match /arenaWeatherRequests/{bookingId} {
+      allow read: if request.auth != null && (
+        resource == null ||
+        resource.data.athleteId == request.auth.uid ||
+        arenaCanRead(resource.data.arenaId, 'agenda')
+      );
+      allow write: if false;
+    }
+
     // Lista de espera de horário de quadra lotado (domínio distinto da lista
     // de espera de INSCRIÇÃO em torneio). Só o próprio atleta e o gestor da
     // arena podem ler; toda escrita é feita pelas Cloud Functions

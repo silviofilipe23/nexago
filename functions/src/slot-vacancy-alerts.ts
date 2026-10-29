@@ -213,6 +213,10 @@ export const onArenaBookingCanceledNotifySlotVacancyAlerts = onDocumentUpdated(
     if (!isBookingCanceledTransition(before, after)) {
       return;
     }
+    // Cancelada por chuva: avisar "vaga liberada" no meio da chuva não ajuda ninguém.
+    if (after?.["cancelReason"] === "weather") {
+      return;
+    }
 
     const match = extractBookingSlotMatch(after ?? {});
     if (!match) {

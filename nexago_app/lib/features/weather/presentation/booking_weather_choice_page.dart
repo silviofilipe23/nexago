@@ -88,8 +88,8 @@ class _BookingWeatherChoicePageState
         originalStart: start,
         pick: _pick,
         pickCourtName: _pick?.courtName,
-        onPrimary: () => result.choice == WeatherChoice.reschedule ||
-                arenaId.isEmpty
+        // "Reservar agora" abre a arena (crédito e remarcação, como no design).
+        onPrimary: () => arenaId.isEmpty
             ? context.go(AppRoutes.myBookings)
             : context.go(AppRoutes.arenaDetail.replaceAll(':arenaId', arenaId)),
         onHome: () => context.go(AppRoutes.home),
@@ -145,7 +145,8 @@ class _BookingWeatherChoicePageState
         ? ''
         : validityDays == null
             ? ' Sem validade.'
-            : ' Vale até ${WeatherCopy.shortDate(DateTime.now().add(Duration(days: validityDays)), DateTime.now())}.';
+            // "Vale por 90 dias", como no design (a data exata vem no A4).
+            : ' Vale por $validityDays dias.';
 
     return Scaffold(
       backgroundColor: colors.canvas,

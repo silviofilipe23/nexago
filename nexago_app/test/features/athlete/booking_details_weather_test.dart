@@ -117,8 +117,34 @@ void main() {
 
     expect(find.byKey(WeatherReleaseAlertCard.cardKey), findsOneWidget);
     expect(find.text('Chuva forte às 18h'), findsOneWidget);
-    expect(find.text('Remarcar ou guardar crédito'), findsOneWidget);
-    expect(find.text('Manter minha reserva'), findsOneWidget);
+    // Ações na barra fixa do rodapé (Scaffold.bottomNavigationBar), não no
+    // card de chuva.
+    final scaffold = tester.widget<Scaffold>(
+      find
+          .ancestor(
+            of: find.byType(BookingWeatherSection),
+            matching: find.byType(Scaffold),
+          )
+          .first,
+    );
+    expect(scaffold.bottomNavigationBar, isA<BookingWeatherBottomBar>());
+    final bar = find.byType(BookingWeatherBottomBar);
+    expect(
+      find.descendant(
+          of: bar, matching: find.text('Remarcar ou guardar crédito')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: bar, matching: find.text('Manter minha reserva')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(WeatherReleaseAlertCard.cardKey),
+        matching: find.byType(ButtonStyleButton),
+      ),
+      findsNothing,
+    );
     // Cancelar pelo caminho comum perderia o crédito: some da tela.
     expect(find.text('Cancelar reserva'), findsNothing);
     expect(find.byIcon(Icons.cancel_outlined), findsNothing);

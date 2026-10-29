@@ -51,6 +51,8 @@ Future<FakeWeatherFunctions> pumpSection(
   WeatherRequest? request,
   VoidCallback? onOpenChoice,
   ThemeData? theme,
+  String? arenaPhone,
+  List<String>? openedUrls,
 }) async {
   tester.view.physicalSize = const Size(900, 2400);
   tester.view.devicePixelRatio = 1;
@@ -70,9 +72,11 @@ Future<FakeWeatherFunctions> pumpSection(
         ),
         weatherPolicyProvider.overrideWith((ref, id) => Stream.value(policy)),
         weatherRequestProvider.overrideWith((ref, id) => Stream.value(request)),
+        weatherArenaContactPhoneProvider.overrideWith((ref, id) => arenaPhone),
       ],
       child: MaterialApp(
         theme: theme ?? AppTheme.dark,
+        // Como na tela da reserva: cards no corpo, ações na barra fixa.
         home: Scaffold(
           body: SingleChildScrollView(
             child: BookingWeatherSection(
@@ -80,8 +84,18 @@ Future<FakeWeatherFunctions> pumpSection(
               booking: data,
               arenaName: 'Arena CFC',
               now: now,
-              onOpenChoice: onOpenChoice,
             ),
+          ),
+          bottomNavigationBar: BookingWeatherBottomBar(
+            bookingId: 'b1',
+            booking: data,
+            arenaName: 'Arena CFC',
+            now: now,
+            onOpenChoice: onOpenChoice,
+            onOpenUrl: (url) async {
+              openedUrls?.add(url);
+              return true;
+            },
           ),
         ),
       ),
@@ -98,7 +112,7 @@ void main() {
   });
 
   group('A1 — aviso de Modo chuva na reserva', () {
-    testWidgets('mostra título, texto, previsão, prazo e as duas ações',
+    testWidgets('card com aviso, previsão e prazo; ações na barra fixa',
         (tester) async {
       var opened = 0;
       await pumpSection(
@@ -126,7 +140,26 @@ void main() {
         findsOneWidget,
       );
 
-      await tester.tap(find.byKey(WeatherReleaseAlertCard.chooseKey));
+      // Os botões saíram do card e foram para a barra do rodapé.
+      final card = find.byKey(WeatherReleaseAlertCard.cardKey);
+      expect(
+        find.descendant(of: card, matching: find.byType(ButtonStyleButton)),
+        findsNothing,
+      );
+      final bar = find.byType(BookingWeatherBottomBar);
+      expect(
+        find.descendant(
+          of: bar,
+          matching: find.text('Remarcar ou guardar crédito'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: bar, matching: find.text('Manter minha reserva')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(BookingWeatherBottomBar.chooseKey));
       await tester.pump();
       expect(opened, 1);
     });
@@ -145,7 +178,7 @@ void main() {
       final functions =
           await pumpSection(tester, data: booking(release: pendingRelease));
 
-      await tester.tap(find.byKey(WeatherReleaseAlertCard.keepKey));
+      await tester.tap(find.byKey(BookingWeatherBottomBar.keepKey));
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('Manter a reserva?'), findsOneWidget);
       expect(functions.calls, isEmpty);
@@ -220,12 +253,15 @@ void main() {
       expect(find.byKey(WeatherRequestPendingCard.cardKey), findsNothing);
     });
 
-    testWidgets('A6: pedido em análise com linha do tempo e desistir',
+    testWidgets('A6: pedido em análise, WhatsApp da arena e desistir',
         (tester) async {
+      final opened = <String>[];
       final functions = await pumpSection(
         tester,
         data: booking(),
         policy: requestPolicy,
+        arenaPhone: '(11) 98888-7777',
+        openedUrls: opened,
         request: WeatherRequest(
           bookingId: 'b1',
           status: WeatherRequestStatus.pending,
@@ -245,13 +281,50 @@ void main() {
       expect(find.text('Chuva registrada · 5,4 mm'), findsOneWidget);
       expect(find.text('Arena confirma'), findsOneWidget);
       expect(find.text('aguardando'), findsOneWidget);
+      // O desistir saiu do card: fica na barra.
+      expect(
+        find.descendant(
+          of: find.byKey(WeatherRequestPendingCard.cardKey),
+          matching: find.byType(ButtonStyleButton),
+        ),
+        findsNothing,
+      );
 
-      await tester.tap(find.byKey(WeatherRequestPendingCard.withdrawKey));
+      await tester.tap(find.byKey(BookingWeatherBottomBar.contactKey));
+      await tester.pump();
+      expect(opened, [
+        'https://wa.me/5511988887777?text=${Uri.encodeComponent('Olá! Fiz um pedido de cancelamento por chuva da minha reserva de qui, 29 out às 18:00 na Quadra 1.')}',
+      ]);
+
+      await tester.tap(find.byKey(BookingWeatherBottomBar.withdrawKey));
       await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.byKey(const Key('weather-withdraw-confirm')));
       await tester.pump(const Duration(milliseconds: 300));
       expect(functions.payloadOf('withdrawArenaWeatherRequest'),
           {'bookingId': 'b1'});
+    });
+
+    testWidgets('A6 sem número da arena: barra só com "Desistir do pedido"',
+        (tester) async {
+      await pumpSection(
+        tester,
+        data: booking(),
+        policy: requestPolicy,
+        request: const WeatherRequest(
+          bookingId: 'b1',
+          status: WeatherRequestStatus.pending,
+        ),
+      );
+      expect(find.byKey(BookingWeatherBottomBar.contactKey), findsNothing);
+      expect(find.text('Falar com a arena'), findsNothing);
+      expect(find.byKey(BookingWeatherBottomBar.withdrawKey), findsOneWidget);
+    });
+
+    testWidgets('botão de pedir: a barra fica vazia', (tester) async {
+      await pumpSection(tester, data: booking(), policy: requestPolicy);
+      expect(find.byKey(WeatherRequestButton.buttonKey), findsOneWidget);
+      expect(find.byKey(BookingWeatherBottomBar.chooseKey), findsNothing);
+      expect(find.byKey(BookingWeatherBottomBar.withdrawKey), findsNothing);
     });
 
     testWidgets('recusado: mostra o motivo', (tester) async {

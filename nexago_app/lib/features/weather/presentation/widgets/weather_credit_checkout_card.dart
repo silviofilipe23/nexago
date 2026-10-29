@@ -83,8 +83,9 @@ class WeatherCreditCheckoutCard extends StatelessWidget {
             key: switchKey,
             value: value,
             onChanged: enabled ? onChanged : null,
-            activeTrackColor: AppColors.win.withValues(alpha: 0.45),
-            activeThumbColor: AppColors.win,
+            // Laranja da marca, como o `WxToggle on` do design.
+            activeTrackColor: AppColors.brand,
+            activeThumbColor: AppColors.black,
           ),
         ],
       ),

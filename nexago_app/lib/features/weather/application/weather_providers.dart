@@ -2,11 +2,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/firebase/firebase_providers.dart';
+import '../../arenas/domain/arenas_providers.dart' show arenaByIdProvider;
 import '../domain/weather_models.dart';
 import '../infrastructure/weather_service.dart';
 
 final weatherServiceProvider = Provider<WeatherService>((ref) {
   return WeatherService(ref.watch(firestoreProvider));
+});
+
+/// Número para "Falar com a arena" (A6): o WhatsApp de `arenas/{arenaId}`
+/// (`whatsapp`/`whatsApp`/`whatsappNumber`) ou, sem ele, o telefone
+/// (`phone`/`phoneNumber`/`telefone`/`mobile`) — a prioridade do
+/// [ArenaListItem]. `null` sem nenhum.
+final weatherArenaContactPhoneProvider =
+    Provider.autoDispose.family<String?, String>((ref, arenaId) {
+  final id = arenaId.trim();
+  if (id.isEmpty) return null;
+  final arena = ref.watch(arenaByIdProvider(id)).valueOrNull;
+  for (final raw in [arena?.whatsapp, arena?.phone]) {
+    final v = raw?.trim() ?? '';
+    if (v.isNotEmpty) return v;
+  }
+  return null;
 });
 
 /// Uid da sessão; vazio deslogado (nenhuma leitura bate nas rules).

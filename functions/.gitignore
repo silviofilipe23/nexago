@@ -8,3 +8,5 @@ typings/
 # Node.js dependency directory
 node_modules/
 *.local
+# Backup do merge-athlete-accounts.js: dado pessoal do atleta, nunca versionar
+merge-athlete-*.json

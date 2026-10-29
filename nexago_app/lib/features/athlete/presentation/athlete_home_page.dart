@@ -14,10 +14,10 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/nexa_async_view.dart';
 import '../../../core/ui/trailing_gap_if_visible.dart';
 import '../../../core/ui/nexa_skeleton.dart';
+import '../../arenas/domain/my_booking_item.dart';
 import '../../arenas/domain/booking_story.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../../arenas/presentation/booking_story_page.dart';
-import '../../arenas/presentation/my_bookings/my_bookings_page.dart';
 import '../../cashback/presentation/widgets/cashback_balance_pill.dart';
 import '../../store/application/store_providers.dart';
 import '../../tournaments/data/my_tournament_registrations_repository.dart';
@@ -42,12 +42,14 @@ import '../domain/athlete_quest/athlete_quest_logic.dart';
 import '../domain/athlete_profile_providers.dart';
 import '../domain/athlete_shell_providers.dart';
 import '../domain/booking_invite_providers.dart';
+import '../domain/booking_played_today.dart';
 import '../domain/community/community_feed_providers.dart';
 import '../domain/gamification_models.dart';
 import '../domain/gamification_providers.dart';
 import '../domain/sand_rank/sand_rank_catalog.dart';
 import '../domain/sand_rank/sand_rank_providers.dart';
 import '../domain/match_history/athlete_match_history_providers.dart';
+import 'booking_details_page.dart';
 import 'daily_mission_navigation.dart';
 import 'widgets/athlete_home/athlete_account_sheet.dart';
 import 'widgets/athlete_home/athlete_home_tour.dart';
@@ -325,9 +327,8 @@ class AthleteHomePage extends ConsumerWidget {
                                       now: now,
                                       // Compacto na Início; a seta expande.
                                       initiallyExpanded: false,
-                                      onDetailsTap: () => openMyBookingDetails(
+                                      onDetailsTap: () => _openBookingDetails(
                                         context,
-                                        ref,
                                         nextBooking,
                                       ),
                                       onReserveTap: () =>
@@ -475,6 +476,32 @@ class AthleteHomePage extends ConsumerWidget {
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+
+  /// Detalhes da reserva (tela cheia) — sem passar pela lista de Minhas reservas.
+  static void _openBookingDetails(BuildContext context, MyBookingItem booking) {
+    final start = parseBookingStartAt(booking);
+    if (start == null) {
+      context.pushNamed(AppRouteNames.myBookings);
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BookingDetailsPage(
+          bookingId: booking.id,
+          arenaId: booking.arenaId,
+          arenaName: booking.arenaName,
+          courtName: booking.courtName ?? '',
+          startAt: start,
+          endAt:
+              parseBookingEndAt(booking) ?? start.add(const Duration(hours: 1)),
+          status: booking.rawStatus,
+          confirmedParticipants: booking.confirmedParticipants,
+          amountReais: booking.amountReais,
+          paymentType: booking.paymentType,
         ),
       ),
     );

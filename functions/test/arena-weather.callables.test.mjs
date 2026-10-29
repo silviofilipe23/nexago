@@ -364,6 +364,55 @@ describe('pedido do atleta', () => {
   });
 });
 
+describe('previsão da reserva', () => {
+  /** Open-Meteo falso (dia inteiro, chance = hora); o resto vai para a rede de verdade (emulador). */
+  function fakeOpenMeteo() {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async (url, init) => {
+      const u = String(url);
+      if (u.includes('weatherapi.com')) return new Response('{}', {status: 500});
+      if (!u.includes('open-meteo.com')) return realFetch(url, init);
+      const date = new URL(u).searchParams.get('start_date');
+      const time = Array.from({length: 24}, (_, h) => `${date}T${String(h).padStart(2, '0')}:00`);
+      return new Response(JSON.stringify({hourly: {
+        time, precipitation_probability: time.map((_, h) => h), precipitation: time.map(() => 0),
+        temperature_2m: time.map(() => 27.4),
+      }}), {status: 200});
+    };
+    return () => {
+      globalThis.fetch = realFetch;
+    };
+  }
+
+  test('dono e convidado veem de 2h antes a 2h depois; quem não joga, não', async () => {
+    await seedArena();
+    await db.doc('arenas/a1').set({latitude: -16.82, longitude: -49.24}, {merge: true});
+    await seedBooking('bF', {athleteId: 'uA', participantUids: ['uB'], startTime: '18:00', endTime: '19:00'});
+    const restore = fakeOpenMeteo();
+    try {
+      const own = await call(weather.getBookingWeatherForecast, 'uA', {bookingId: 'bF'});
+      assert.equal(own.forecast.source, 'open-meteo');
+      assert.deepEqual(own.forecast.hours.map((h) => h.time), ['16:00', '17:00', '18:00', '19:00', '20:00']);
+      assert.deepEqual(own.forecast.hours[2], {time: '18:00', probability: 18, precipitationMm: 0, temperatureC: 27.4});
+      const guest = await call(weather.getBookingWeatherForecast, 'uB', {bookingId: 'bF'});
+      assert.equal(guest.forecast.hours.length, 5);
+      await rejects(call(weather.getBookingWeatherForecast, 'uC', {bookingId: 'bF'}), /não é sua/);
+    } finally {
+      restore();
+    }
+  });
+
+  test('mais de 14 dias antes: só a data em que a previsão chega', async () => {
+    await seedArena();
+    await db.doc('arenas/a1').set({latitude: -16.82, longitude: -49.24}, {merge: true});
+    await seedBooking('bFar', {athleteId: 'uA', date: addDaysToDateKey(TODAY, 20), startTime: '18:00',
+      endTime: '19:00'});
+    const res = await call(weather.getBookingWeatherForecast, 'uA', {bookingId: 'bFar'});
+    assert.equal(res.forecast, null);
+    assert.equal(res.availableFrom, addDaysToDateKey(TODAY, 6));
+  });
+});
+
 describe('varredura', () => {
   test('24h sem escolha vira crédito; vencido expira; aviso 7 dias antes', async () => {
     await seedArena();

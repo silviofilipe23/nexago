@@ -396,4 +396,64 @@ void main() {
       );
     });
   });
+  group('previsão em toda reserva', () {
+    final game = (
+      start: DateTime(2026, 10, 29, 18),
+      end: DateTime(2026, 10, 29, 19),
+    );
+    List<WeatherHour> around(Map<int, (num, num)> rain) => [
+          for (var h = 16; h <= 20; h++)
+            WeatherHour(
+              time: '$h:00',
+              probability: rain[h]?.$1 ?? 0,
+              precipitationMm: rain[h]?.$2 ?? 0,
+              condition: h == 18 ? 'parcialmente nublado' : 'Sol',
+              temperatureC: 30 - h / 2,
+            ),
+        ];
+
+    test('reserva de pé até o fim do jogo; cancelada ou liberada, não', () {
+      final now = DateTime(2026, 10, 29, 18, 30);
+      expect(showsBookingForecast(booking(), now), isTrue);
+      expect(
+          showsBookingForecast(booking(), DateTime(2026, 10, 29, 19)), isFalse);
+      expect(showsBookingForecast(booking(status: 'canceled'), now), isFalse);
+      expect(
+        showsBookingForecast(
+            booking(release: {'status': 'pending_choice'}), now),
+        isFalse,
+      );
+      expect(showsBookingForecast(null, now), isFalse);
+    });
+
+    test('a previsão chega 14 dias antes, à meia-noite', () {
+      expect(weatherForecastAvailableFrom(DateTime(2026, 11, 20, 18)),
+          DateTime(2026, 11, 6));
+    });
+
+    test('título pela pior hora do jogo, não da margem', () {
+      expect(weatherForecastHeadline(around({}), game: game),
+          'Sem chuva no seu horário');
+      expect(weatherForecastHeadline(around({20: (95, 8)}), game: game),
+          'Sem chuva no seu horário');
+      expect(weatherForecastHeadline(around({18: (45, 0.1)}), game: game),
+          'Chance de chuva às 18h');
+      expect(weatherForecastHeadline(around({18: (85, 3)}), game: game),
+          'Chuva forte prevista às 18h');
+      expect(
+        weatherForecastOutlook(around({18: (10, 0.6)}), game: game)?.outlook,
+        WeatherOutlook.chanceOfRain,
+      );
+      expect(weatherForecastHeadline(const []), 'Previsão do tempo');
+    });
+
+    test('subtítulo: temperatura e condição no começo do jogo', () {
+      expect(weatherForecastSubtitle(around({}), game: game),
+          '21° · Parcialmente nublado');
+      expect(
+        weatherForecastSubtitle(const [WeatherHour(time: '18:00')], game: game),
+        isNull,
+      );
+    });
+  });
 }

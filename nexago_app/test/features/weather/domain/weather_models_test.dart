@@ -201,4 +201,30 @@ void main() {
       expect(WeatherRequest.fromMap('b1', null), isNull);
     });
   });
+  group('BookingWeatherForecast.fromMap', () {
+    test('horas com temperatura, fonte e hora da busca', () {
+      final f = BookingWeatherForecast.fromMap({
+        'forecast': {
+          'source': 'open-meteo',
+          'fetchedAt': '2026-10-29T14:52:00',
+          'hours': [
+            {'time': '16:00', 'probability': 0, 'temperatureC': 27.4},
+          ],
+        },
+        'availableFrom': null,
+      });
+      expect(f.hours.single.temperatureC, 27.4);
+      expect(f.sourceLabel, 'Open-Meteo');
+      expect(f.fetchedAt, DateTime(2026, 10, 29, 14, 52));
+      expect(f.availableFrom, isNull);
+    });
+
+    test('longe do jogo: só o dia em que a previsão chega', () {
+      final f = BookingWeatherForecast.fromMap(
+          {'forecast': null, 'availableFrom': '2026-11-06'});
+      expect(f.hours, isEmpty);
+      expect(f.sourceLabel, 'WeatherAPI');
+      expect(f.availableFrom, DateTime(2026, 11, 6));
+    });
+  });
 }

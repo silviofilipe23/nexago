@@ -10,6 +10,17 @@ final weatherServiceProvider = Provider<WeatherService>((ref) {
   return WeatherService(ref.watch(firestoreProvider));
 });
 
+/// Previsão da reserva, chovendo ou não. `null` quando não há o que mostrar:
+/// arena sem coordenadas, provedor fora ou callable ainda não publicada.
+final bookingWeatherForecastProvider = FutureProvider.autoDispose
+    .family<BookingWeatherForecast?, String>((ref, bookingId) async {
+  try {
+    return await ref.watch(weatherServiceProvider).bookingForecast(bookingId);
+  } catch (_) {
+    return null;
+  }
+});
+
 /// Número para "Falar com a arena" (A6): o WhatsApp de `arenas/{arenaId}`
 /// (`whatsapp`/`whatsApp`/`whatsappNumber`) ou, sem ele, o telefone
 /// (`phone`/`phoneNumber`/`telefone`/`mobile`) — a prioridade do

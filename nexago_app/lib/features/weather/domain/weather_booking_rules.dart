@@ -311,3 +311,88 @@ int? weatherWorstHourIndex(List<WeatherHour> hours) {
   }
   return idx;
 }
+
+/// A previsão chega 14 dias antes do jogo (`WEATHER_FORECAST_HORIZON_DAYS`).
+const weatherForecastHorizonDays = 14;
+
+/// Dia em que a previsão do jogo passa a existir (meia-noite).
+DateTime weatherForecastAvailableFrom(DateTime gameStart) => DateTime(
+    gameStart.year,
+    gameStart.month,
+    gameStart.day - weatherForecastHorizonDays);
+
+/// Card de previsão em toda reserva de pé até o fim do jogo. Liberada por
+/// chuva não: o aviso dela já traz a faixa (e o jogo não vai acontecer ali).
+bool showsBookingForecast(Map<String, dynamic>? booking, DateTime now) {
+  if (booking == null || WeatherRelease.fromBooking(booking) != null) {
+    return false;
+  }
+  final status = (booking['status'] as String?)?.trim().toLowerCase() ?? '';
+  if (_isCanceledStatus(status)) return false;
+  final window = weatherBookingWindow(booking);
+  return window != null && now.isBefore(window.end);
+}
+
+enum WeatherOutlook { heavyRain, chanceOfRain, dry }
+
+/// Como fica o tempo no jogo, pela pior hora dele (sem a janela, da faixa).
+({WeatherOutlook outlook, WeatherHour hour})? weatherForecastOutlook(
+  List<WeatherHour> hours, {
+  ({DateTime start, DateTime end})? game,
+}) {
+  final candidates = _gameHoursOr(hours, game);
+  final idx = weatherWorstHourIndex(candidates);
+  if (idx == null) return null;
+  final worst = candidates[idx];
+  final p = worst.probability ?? 0;
+  final mm = worst.precipitationMm ?? 0;
+  final outlook = mm >= 2 || p >= 80
+      ? WeatherOutlook.heavyRain
+      : mm >= 0.5 || p >= 40
+          ? WeatherOutlook.chanceOfRain
+          : WeatherOutlook.dry;
+  return (outlook: outlook, hour: worst);
+}
+
+/// "Chuva forte prevista às 18h", "Chance de chuva às 18h" ou "Sem chuva no
+/// seu horário".
+String weatherForecastHeadline(
+  List<WeatherHour> hours, {
+  ({DateTime start, DateTime end})? game,
+}) {
+  final o = weatherForecastOutlook(hours, game: game);
+  if (o == null) return 'Previsão do tempo';
+  return switch (o.outlook) {
+    WeatherOutlook.heavyRain => 'Chuva forte prevista às ${o.hour.hourLabel}',
+    WeatherOutlook.chanceOfRain => 'Chance de chuva às ${o.hour.hourLabel}',
+    WeatherOutlook.dry => 'Sem chuva no seu horário',
+  };
+}
+
+/// "27° · Parcialmente nublado" no começo do jogo; `null` sem os dois.
+String? weatherForecastSubtitle(
+  List<WeatherHour> hours, {
+  ({DateTime start, DateTime end})? game,
+}) {
+  final candidates = _gameHoursOr(hours, game);
+  if (candidates.isEmpty) return null;
+  final first = candidates.first;
+  final condition = first.condition?.trim() ?? '';
+  final parts = [
+    if (first.temperatureC != null) '${first.temperatureC!.round()}°',
+    if (condition.isNotEmpty)
+      '${condition[0].toUpperCase()}${condition.substring(1)}',
+  ];
+  return parts.isEmpty ? null : parts.join(' · ');
+}
+
+List<WeatherHour> _gameHoursOr(
+  List<WeatherHour> hours,
+  ({DateTime start, DateTime end})? game,
+) {
+  final inGame = [
+    for (final s in weatherForecastStrip(hours, game: game))
+      if (s.inGame) s.hour
+  ];
+  return inGame.isNotEmpty ? inGame : hours;
+}

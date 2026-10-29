@@ -74,7 +74,7 @@ export function openMeteoUrl(lat: number, lng: number, dateKey: string): string 
   const params = new URLSearchParams({
     latitude: lat.toFixed(4),
     longitude: lng.toFixed(4),
-    hourly: "precipitation_probability,precipitation",
+    hourly: "precipitation_probability,precipitation,temperature_2m",
     timezone: "auto",
     start_date: dateKey,
     end_date: dateKey,

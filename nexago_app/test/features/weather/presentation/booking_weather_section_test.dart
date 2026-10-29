@@ -9,7 +9,9 @@ import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/weather/application/weather_providers.dart';
 import 'package:nexago_app/features/weather/domain/weather_models.dart';
 import 'package:nexago_app/features/weather/infrastructure/weather_service.dart';
+import 'package:nexago_app/features/weather/presentation/widgets/booking_forecast_card.dart';
 import 'package:nexago_app/features/weather/presentation/widgets/booking_weather_section.dart';
+import 'package:nexago_app/features/weather/presentation/widgets/weather_forecast_strip.dart';
 import 'package:nexago_app/features/weather/presentation/widgets/weather_request_sheet.dart';
 
 import '../weather_test_fakes.dart';
@@ -57,6 +59,8 @@ Future<FakeWeatherFunctions> pumpSection(
   String? arenaPhone,
   List<String>? openedUrls,
   Size surface = const Size(900, 2400),
+  Map<String, Object?>? forecast,
+  String viewer = 'u1',
 }) async {
   tester.view.physicalSize = surface;
   tester.view.devicePixelRatio = 1;
@@ -66,11 +70,12 @@ Future<FakeWeatherFunctions> pumpSection(
     'chooseArenaWeatherOption': {'kept': true},
     'requestArenaWeatherRelease': {'status': 'pending', 'weather': null},
     'withdrawArenaWeatherRequest': {'status': 'withdrawn'},
+    if (forecast != null) 'getBookingWeatherForecast': forecast,
   });
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        authProvider.overrideWith((ref) => Stream.value(MockUser(uid: 'u1'))),
+        authProvider.overrideWith((ref) => Stream.value(MockUser(uid: viewer))),
         weatherServiceProvider.overrideWithValue(
           WeatherService(UnusedFirestore(), functions: functions),
         ),
@@ -418,6 +423,129 @@ void main() {
       );
       expect(
           find.text('Cancelada por chuva, nada foi cobrado'), findsOneWidget);
+    });
+  });
+  group('previsão do tempo em toda reserva', () {
+    final sunny = <String, Object?>{
+      'forecast': {
+        'source': 'weatherapi',
+        'fetchedAt': '2026-10-29T14:52:00',
+        'hours': [
+          for (var h = 16; h <= 20; h++)
+            {
+              'time': '$h:00',
+              'probability': h == 18 ? 10 : 0,
+              'precipitationMm': 0,
+              'condition': 'Parcialmente nublado',
+              'temperatureC': 27.4 - (h - 16),
+            },
+        ],
+      },
+      'availableFrom': null,
+    };
+
+    testWidgets('sem chuva: card com a faixa de 2h antes a 2h depois',
+        (tester) async {
+      final functions =
+          await pumpSection(tester, data: booking(), forecast: sunny);
+
+      expect(find.byKey(BookingForecastCard.cardKey), findsOneWidget);
+      expect(find.text('PREVISÃO DO TEMPO'), findsOneWidget);
+      expect(find.text('Sem chuva no seu horário'), findsOneWidget);
+      expect(find.text('25° · Parcialmente nublado'), findsOneWidget);
+      for (final label in ['16h', '17h', '18h', '19h', '20h']) {
+        expect(
+          find.descendant(
+            of: find.byKey(WeatherForecastStrip.stripKey),
+            matching: find.text(label),
+          ),
+          findsOneWidget,
+          reason: label,
+        );
+      }
+      expect(
+        find.text('Previsão da WeatherAPI · atualizada às 14:52'),
+        findsOneWidget,
+      );
+      expect(functions.payloadOf('getBookingWeatherForecast'),
+          {'bookingId': 'b1'});
+    });
+
+    testWidgets('chance de chuva no jogo vira o título', (tester) async {
+      await pumpSection(tester, data: booking(), forecast: {
+        'forecast': {
+          'source': 'open-meteo',
+          'hours': [
+            {'time': '17:00', 'probability': 90, 'precipitationMm': 6},
+            {'time': '18:00', 'probability': 55, 'precipitationMm': 0.2},
+          ],
+        },
+      });
+      expect(find.text('Chance de chuva às 18h'), findsOneWidget);
+      expect(find.text('Previsão da Open-Meteo'), findsOneWidget);
+    });
+
+    testWidgets('com o botão de pedir: os dois aparecem', (tester) async {
+      await pumpSection(
+        tester,
+        data: booking(),
+        policy:
+            const WeatherPolicy(enabled: true, trigger: WeatherTrigger.request),
+        forecast: sunny,
+      );
+      expect(find.byKey(BookingForecastCard.cardKey), findsOneWidget);
+      expect(find.byKey(WeatherRequestButton.buttonKey), findsOneWidget);
+    });
+
+    testWidgets('convidado também acompanha', (tester) async {
+      await pumpSection(tester, data: booking(), forecast: sunny, viewer: 'u2');
+      expect(find.byKey(BookingForecastCard.cardKey), findsOneWidget);
+    });
+
+    testWidgets(
+        'mais de 14 dias antes: diz quando chega, sem chamar o servidor',
+        (tester) async {
+      final functions = await pumpSection(
+        tester,
+        data: {...booking(), 'date': '2026-11-20'},
+        forecast: sunny,
+      );
+      expect(
+        find.text(
+          'A previsão aparece a partir de 6 de novembro, 14 dias antes do jogo.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+          functions.calls.where((c) => c.name == 'getBookingWeatherForecast'),
+          isEmpty);
+    });
+
+    testWidgets('aviso de chuva, reserva cancelada ou jogo acabado: sem o card',
+        (tester) async {
+      for (final data in [
+        booking(release: pendingRelease),
+        {...booking(), 'status': 'canceled'},
+        {...booking(), 'date': '2026-10-28'},
+      ]) {
+        final functions =
+            await pumpSection(tester, data: data, forecast: sunny);
+        expect(find.byKey(BookingForecastCard.cardKey), findsNothing,
+            reason: '$data');
+        expect(
+          functions.calls.where((c) => c.name == 'getBookingWeatherForecast'),
+          isEmpty,
+        );
+      }
+    });
+
+    testWidgets('sem previsão (arena sem coordenadas) ou callable fora: some',
+        (tester) async {
+      await pumpSection(tester,
+          data: booking(), forecast: {'forecast': null, 'availableFrom': null});
+      expect(find.byKey(BookingForecastCard.cardKey), findsNothing);
+      await pumpSection(tester, data: booking());
+      expect(find.byKey(BookingForecastCard.cardKey), findsNothing);
     });
   });
 }

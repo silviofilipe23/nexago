@@ -290,8 +290,8 @@ describe("previsão", () => {
       ]},
     ]}};
     assert.deepEqual(parseWeatherApiHourly(json, "2026-10-29"), [
-      {time: "17:00", probability: 56, precipitationMm: 0.4, condition: "Chuva fraca"},
-      {time: "18:00", probability: null, precipitationMm: null, condition: null},
+      {time: "17:00", probability: 56, precipitationMm: 0.4, condition: "Chuva fraca", temperatureC: null},
+      {time: "18:00", probability: null, precipitationMm: null, condition: null, temperatureC: null},
     ]);
     assert.deepEqual(parseWeatherApiHourly(json, "2026-10-30"), []);
     assert.deepEqual(parseWeatherApiHourly({error: {code: 1006}}, "2026-10-29"), []);

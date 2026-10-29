@@ -111,6 +111,7 @@ class WeatherHour {
     this.probability,
     this.precipitationMm,
     this.condition,
+    this.temperatureC,
   });
 
   final String time;
@@ -119,6 +120,9 @@ class WeatherHour {
 
   /// "Chuva passageira moderada ou forte"; `null` quando o provedor não manda.
   final String? condition;
+
+  /// Temperatura em °C; avisos gravados antes dela não têm.
+  final num? temperatureC;
 
   /// "18h" a partir de "18:00".
   String get hourLabel {
@@ -136,6 +140,7 @@ class WeatherHour {
       precipitationMm: _numOrNull(raw['precipitationMm']),
       condition:
           _text(raw['condition']).isEmpty ? null : _text(raw['condition']),
+      temperatureC: _numOrNull(raw['temperatureC']),
     );
   }
 
@@ -146,6 +151,41 @@ class WeatherHour {
             if (WeatherHour.fromMap(h) case final hour?) hour,
         ]
       : const [];
+}
+
+/// Previsão da reserva (`getBookingWeatherForecast`), chovendo ou não: horas
+/// de 2h antes a 2h depois do jogo. Mais de 14 dias antes do jogo vem só
+/// [availableFrom], o dia em que a previsão chega.
+class BookingWeatherForecast {
+  const BookingWeatherForecast({
+    this.hours = const [],
+    this.source,
+    this.fetchedAt,
+    this.availableFrom,
+  });
+
+  final List<WeatherHour> hours;
+
+  /// `weatherapi` ou `open-meteo` (reserva quando a WeatherAPI falha).
+  final String? source;
+  final DateTime? fetchedAt;
+  final DateTime? availableFrom;
+
+  String get sourceLabel =>
+      source == 'open-meteo' ? 'Open-Meteo' : 'WeatherAPI';
+
+  static BookingWeatherForecast fromMap(Map<String, dynamic> data) {
+    final forecast = data['forecast'];
+    final f = forecast is Map ? forecast : const {};
+    final availableFrom = data['availableFrom'];
+    return BookingWeatherForecast(
+      hours: WeatherHour.listOf(f['hours']),
+      source: _textOrNull(f['source']),
+      fetchedAt: weatherDateOf(f['fetchedAt']),
+      availableFrom:
+          availableFrom is String ? parseWeatherDateKey(availableFrom) : null,
+    );
+  }
 }
 
 enum WeatherReleaseSource { rainMode, request, auto, unknown }

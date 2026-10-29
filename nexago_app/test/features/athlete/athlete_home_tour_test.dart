@@ -62,15 +62,7 @@ Widget _shell(ValueListenable<int> tab, {bool withBell = true}) => Column(
                   ],
                 ),
                 const SizedBox.shrink(),
-                const Column(
-                  children: [
-                    SizedBox(height: 80),
-                    AthleteHomeTourAnchor(
-                      target: AthleteHomeTourTarget.bookCourt,
-                      child: SizedBox(height: 48, width: double.infinity),
-                    ),
-                  ],
-                ),
+                const SizedBox.shrink(),
                 const Column(
                   children: [
                     SizedBox(height: 120),
@@ -165,7 +157,12 @@ void main() {
 
       await next(tester);
       expect(find.text('Alugue uma quadra'), findsOneWidget);
-      expect(tab.value, athleteShellReservarTabIndex);
+      expect(
+        tab.value,
+        0,
+        reason: 'a quadra é o botão Reservar da barra: abrir a aba poria o '
+            'mapa nativo junto da barra nativa',
+      );
 
       await next(tester);
       expect(find.text('Torneios e ligas'), findsOneWidget);
@@ -186,7 +183,7 @@ void main() {
       );
       expect(
         shownTabs,
-        [athleteShellReservarTabIndex, athleteShellCompeteTabIndex, 0],
+        [athleteShellCompeteTabIndex, 0],
         reason: 'troca de aba só quando o passo muda de aba',
       );
 
@@ -207,8 +204,10 @@ void main() {
         (tester) async {
       await open(tester, switchTabs: false);
 
-      expect(find.text('1 DE 3'), findsOneWidget);
+      expect(find.text('1 DE 4'), findsOneWidget);
       await next(tester);
+      await next(tester);
+      expect(find.text('Alugue uma quadra'), findsOneWidget);
       await next(tester);
       expect(find.text('Navegue pelas abas'), findsOneWidget);
       expect(tab.value, 0);
@@ -222,6 +221,17 @@ void main() {
       await next(tester);
       expect(find.text('2 DE 5'), findsOneWidget);
       expect(find.text('Alugue uma quadra'), findsOneWidget);
+    });
+
+    testWidgets('não é rota: a casca segue a rota atual e a barra nativa fica',
+        (tester) async {
+      // Qualquer rota por cima faz o plugin apagar a barra nativa do iOS e a
+      // casca trocar para a cápsula Flutter — era o que o tour mostrava.
+      await open(tester);
+
+      final shell = tester.element(find.text('abrir'));
+      expect(ModalRoute.of(shell)!.isCurrent, isTrue);
+      expect(find.text('Sua conta fica aqui'), findsOneWidget);
     });
 
     testWidgets('cartão do alvo de cima fica abaixo dele, e o da barra acima',
@@ -242,6 +252,17 @@ void main() {
       final lastCard = tester.getRect(find.text('Navegue pelas abas'));
       expect(lastCard.bottom, lessThan(bar.top));
     });
+  });
+
+  test('slotOf divide a barra em fatias iguais', () {
+    const bar = Rect.fromLTWH(16, 700, 350, 64);
+
+    expect(
+      AthleteHomeTourAnchor.slotOf(bar, athleteShellReservarTabIndex, 5),
+      const Rect.fromLTWH(156, 700, 70, 64),
+    );
+    expect(AthleteHomeTourAnchor.slotOf(bar, 0, 5).left, bar.left);
+    expect(AthleteHomeTourAnchor.slotOf(bar, 4, 5).right, bar.right);
   });
 
   group('AthleteHomeTourAnnouncer', () {

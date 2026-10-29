@@ -35,6 +35,7 @@ class NexaLiquidGlassTabBar extends StatelessWidget {
     this.bottomMargin = 10,
     this.collapseProgress = 0,
     this.isScrolling = false,
+    this.capsuleBuilder,
   });
 
   final List<NexaBottomNavItem> items;
@@ -55,6 +56,10 @@ class NexaLiquidGlassTabBar extends StatelessWidget {
   /// (custo de raster por frame) e mostramos só o tint translúcido; o blur
   /// volta assim que o scroll assenta.
   final bool isScrolling;
+
+  /// Embrulha a cápsula em si (sem margens nem sombra). Ex.: marcar o
+  /// retângulo exato dela para um tour destacar a barra ou uma aba.
+  final Widget Function(Widget capsule)? capsuleBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -128,22 +133,27 @@ class NexaLiquidGlassTabBar extends StatelessWidget {
             borderRadius: BorderRadius.circular(visualBarHeight / 2),
             boxShadow: tokens.outerShadow,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(visualBarHeight / 2),
-            child: isScrolling
-                ? content
-                : BackdropFilter(
-                    filter: ImageFilter.blur(
-                      sigmaX: _lerp(28, 20, t),
-                      sigmaY: _lerp(28, 20, t),
+          child: _wrapCapsule(
+            ClipRRect(
+              borderRadius: BorderRadius.circular(visualBarHeight / 2),
+              child: isScrolling
+                  ? content
+                  : BackdropFilter(
+                      filter: ImageFilter.blur(
+                        sigmaX: _lerp(28, 20, t),
+                        sigmaY: _lerp(28, 20, t),
+                      ),
+                      child: content,
                     ),
-                    child: content,
-                  ),
+            ),
           ),
         ),
       ),
     );
   }
+
+  Widget _wrapCapsule(Widget capsule) =>
+      capsuleBuilder?.call(capsule) ?? capsule;
 
   static double _lerp(double a, double b, double t) => a + (b - a) * t;
 }
@@ -472,6 +482,7 @@ class NexaLiquidGlassNativeTabShell extends StatelessWidget {
     required this.bottomMargin,
     required this.child,
     this.collapseProgress = 0,
+    this.capsuleBuilder,
   });
 
   final double height;
@@ -479,6 +490,10 @@ class NexaLiquidGlassNativeTabShell extends StatelessWidget {
   final double bottomMargin;
   final Widget child;
   final double collapseProgress;
+
+  /// Embrulha a cápsula em si (sem margens nem sombra). Ex.: marcar o
+  /// retângulo exato dela para um tour destacar a barra ou uma aba.
+  final Widget Function(Widget capsule)? capsuleBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -514,9 +529,14 @@ class NexaLiquidGlassNativeTabShell extends StatelessWidget {
             borderRadius: BorderRadius.circular(shellHeight / 2),
             boxShadow: tokens.outerShadow,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(shellHeight / 2),
-            child: child,
+          child: Builder(
+            builder: (context) {
+              final capsule = ClipRRect(
+                borderRadius: BorderRadius.circular(shellHeight / 2),
+                child: child,
+              );
+              return capsuleBuilder?.call(capsule) ?? capsule;
+            },
           ),
         ),
       ),

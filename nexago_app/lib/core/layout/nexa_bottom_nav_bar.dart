@@ -28,6 +28,7 @@ class NexaBottomNavBar extends StatelessWidget {
     this.bottomMargin = 0,
     this.collapseProgress = 0,
     this.isScrolling = false,
+    this.capsuleBuilder,
   });
 
   final List<NexaBottomNavItem> items;
@@ -47,6 +48,10 @@ class NexaBottomNavBar extends StatelessWidget {
   /// Repassado à cápsula Flutter (fallback não-nativo) pra suspender o blur
   /// ao vivo enquanto o conteúdo atrás dela está rolando.
   final bool isScrolling;
+
+  /// Embrulha a cápsula em si, nativa ou Flutter (sem margens nem sombra).
+  /// Ex.: o tour da Início marca o retângulo exato dela.
+  final Widget Function(Widget capsule)? capsuleBuilder;
 
   static const double _glassOverflow = 20;
 
@@ -98,6 +103,7 @@ class NexaBottomNavBar extends StatelessWidget {
       horizontalMargin: horizontalMargin,
       bottomMargin: bottomMargin,
       collapseProgress: t,
+      capsuleBuilder: capsuleBuilder,
       child: LiquidGlassTabBar(
         width: barWidth,
         items: glassItems,
@@ -134,6 +140,7 @@ class NexaBottomNavBar extends StatelessWidget {
       bottomMargin: bottomMargin,
       collapseProgress: collapseProgress,
       isScrolling: isScrolling,
+      capsuleBuilder: capsuleBuilder,
     );
   }
 }

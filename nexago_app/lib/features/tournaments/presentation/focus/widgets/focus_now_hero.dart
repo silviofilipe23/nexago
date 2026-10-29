@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_radii.dart';
@@ -376,7 +377,7 @@ class _MatchBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _HeroHeadline(
+        FocusHeroHeadline(
           contextTag: contextTag,
           checkedIn: v.checkedIn,
           live: v.live,
@@ -463,8 +464,9 @@ class _MatchBody extends StatelessWidget {
   }
 }
 
-class _HeroHeadline extends StatefulWidget {
-  const _HeroHeadline({
+@visibleForTesting
+class FocusHeroHeadline extends StatefulWidget {
+  const FocusHeroHeadline({
     required this.contextTag,
     required this.checkedIn,
     required this.live,
@@ -481,10 +483,11 @@ class _HeroHeadline extends StatefulWidget {
   final Color accent;
 
   @override
-  State<_HeroHeadline> createState() => _HeroHeadlineState();
+  State<FocusHeroHeadline> createState() => FocusHeroHeadlineState();
 }
 
-class _HeroHeadlineState extends State<_HeroHeadline> {
+@visibleForTesting
+class FocusHeroHeadlineState extends State<FocusHeroHeadline> {
   Timer? _ticker;
 
   @override
@@ -494,12 +497,27 @@ class _HeroHeadlineState extends State<_HeroHeadline> {
   }
 
   @override
-  void didUpdateWidget(covariant _HeroHeadline oldWidget) {
+  void didUpdateWidget(covariant FocusHeroHeadline oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.live != widget.live ||
         oldWidget.scheduleTime != widget.scheduleTime) {
       _syncTicker();
     }
+    _announceScore(oldWidget.liveScoreLine);
+  }
+
+  /// Quem usa leitor de tela não via o placar da própria partida mudar: anuncia
+  /// cada ponto. Só aqui, na partida DO atleta — anunciar todos os cards ao
+  /// vivo da Arena faria o leitor falar sem parar.
+  void _announceScore(String? previous) {
+    final line = widget.liveScoreLine;
+    if (!widget.live || line == null || line == previous) return;
+    if (!MediaQuery.accessibleNavigationOf(context)) return;
+    SemanticsService.sendAnnouncement(
+      View.of(context),
+      'Placar: ${spokenScoreLine(line)}',
+      Directionality.of(context),
+    );
   }
 
   @override
@@ -599,12 +617,19 @@ class _HeroHeadlineState extends State<_HeroHeadline> {
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
-                valueLabel,
-                style: AppTypography.monoStat.copyWith(
-                  color: overdue ? AppColors.live : widget.accent,
-                  fontSize: widget.live || overdue ? 28 : 40,
-                  fontWeight: FontWeight.w800,
+              Semantics(
+                label: widget.live && widget.liveScoreLine != null
+                    ? 'Placar: ${spokenScoreLine(widget.liveScoreLine!)}'
+                    : null,
+                excludeSemantics:
+                    widget.live && widget.liveScoreLine != null,
+                child: Text(
+                  valueLabel,
+                  style: AppTypography.monoStat.copyWith(
+                    color: overdue ? AppColors.live : widget.accent,
+                    fontSize: widget.live || overdue ? 28 : 40,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],

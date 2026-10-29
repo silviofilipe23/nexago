@@ -15,6 +15,7 @@ import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/athlete/data/athlete_profile_repository.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
+import 'package:nexago_app/features/athlete/onboarding/data/twin_account_check_service.dart';
 import 'package:nexago_app/features/athlete/onboarding/domain/athlete_onboarding_providers.dart';
 import 'package:nexago_app/features/athlete/onboarding/presentation/steps/athlete_onboarding_profile_step.dart';
 import 'package:nexago_app/features/auth/widgets/auth_form_widgets.dart';
@@ -81,16 +82,36 @@ Uint8List _pngBytes() => Uint8List.fromList(const [
       0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
     ]);
 
+class _FakeTwinCheck extends TwinAccountCheckService {
+  _FakeTwinCheck(this.other);
+  final PhoneInOtherAccount? other;
+  int calls = 0;
+
+  @override
+  Future<PhoneInOtherAccount?> findOtherAccount({
+    required String phoneNumber,
+    required String birthDate,
+  }) async {
+    calls++;
+    return other;
+  }
+}
+
 class _Harness {
-  _Harness(this.container, this.repo);
+  _Harness(this.container, this.repo, this.twinCheck);
   final ProviderContainer container;
   final _FakeProfileRepository repo;
+  final _FakeTwinCheck twinCheck;
+  int signOuts = 0;
 }
 
 Future<_Harness> _pumpFilledProfileStep(
   WidgetTester tester, {
   required _FakeProfileRepository repo,
+  PhoneInOtherAccount? otherAccount,
 }) async {
+  final twinCheck = _FakeTwinCheck(otherAccount);
+  late final _Harness harness;
   final user = MockUser(uid: 'u1', email: 'ana@nexago.test');
   final mockAuth = MockFirebaseAuth(signedIn: true, mockUser: user);
   final router = GoRouter(
@@ -107,6 +128,8 @@ Future<_Harness> _pumpFilledProfileStep(
       analyticsServiceProvider.overrideWithValue(_FakeAnalyticsService()),
       athleteProfileRepositoryProvider.overrideWithValue(repo),
       goRouterProvider.overrideWithValue(router),
+      twinAccountCheckServiceProvider.overrideWithValue(twinCheck),
+      appSignOutProvider.overrideWithValue(() async => harness.signOuts++),
     ],
   );
   addTearDown(container.dispose);
@@ -134,7 +157,7 @@ Future<_Harness> _pumpFilledProfileStep(
     ),
   );
   await tester.pump();
-  return _Harness(container, repo);
+  return harness = _Harness(container, repo, twinCheck);
 }
 
 Future<void> _tapConcluir(WidgetTester tester) async {
@@ -256,4 +279,76 @@ void main() {
       expect(find.text('DESCOBRIR'), findsOneWidget);
     },
   );
+
+  group('WhatsApp já em outra conta', () {
+    const other = PhoneInOtherAccount(
+      maskedEmail: 'an•••@gmail.com',
+      signInMethod: 'Google',
+    );
+
+    testWidgets('"Entrar com ela" sai desta conta e não salva o perfil', (
+      tester,
+    ) async {
+      final h = await _pumpFilledProfileStep(
+        tester,
+        repo: _FakeProfileRepository(),
+        otherAccount: other,
+      );
+
+      await _tapConcluir(tester);
+      await tester.pump();
+      expect(find.textContaining('Google · an•••@gmail.com'), findsOneWidget);
+
+      await tester.tap(find.text('Entrar com ela'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(h.signOuts, 1);
+      expect(h.repo.uploads, 0);
+      expect(h.repo.saves, 0);
+    });
+
+    testWidgets('"Não é minha" segue o cadastro e não pergunta de novo', (
+      tester,
+    ) async {
+      final h = await _pumpFilledProfileStep(
+        tester,
+        repo: _FakeProfileRepository(
+          save: () async => throw TimeoutException('firestore'),
+        ),
+        otherAccount: other,
+      );
+
+      await _tapConcluir(tester);
+      await tester.pump();
+      await tester.tap(find.text('Não é minha'));
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(h.repo.saves, 1);
+
+      await _tapConcluir(tester);
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(h.twinCheck.calls, 1);
+      expect(h.repo.saves, 2);
+      expect(h.signOuts, 0);
+    });
+
+    testWidgets('fechar o aviso não envia nada', (tester) async {
+      final h = await _pumpFilledProfileStep(
+        tester,
+        repo: _FakeProfileRepository(),
+        otherAccount: other,
+      );
+
+      await _tapConcluir(tester);
+      await tester.pump();
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pump();
+      await tester.pump();
+
+      expect(h.repo.saves, 0);
+      expect(h.signOuts, 0);
+      expect(_primaryEnabled(tester), isTrue);
+    });
+  });
 }

@@ -107,6 +107,7 @@ export async function clearFirestore() {
 // ── seeds ───────────────────────────────────────────────────────────────────
 
 let userCounter = 0;
+let phoneCounter = 0;
 
 /**
  * Atleta com perfil apto a torneios. `gender`: 'Masculino' | 'Feminino' |
@@ -120,13 +121,16 @@ export async function seedAthlete({
   sportCode = 'BEACH_TENNIS',
   birthDate,
   profileReady = true,
+  phoneNumber,
 } = {}) {
   const id = uid ?? `atleta-${++userCounter}`;
   const data = {
     name: name ?? `Atleta ${id}`,
     city: 'Goiânia',
     state: 'GO',
-    phoneNumber: '62999990000',
+    // Um número por atleta: WhatsApp repetido é o sinal de conta gêmea, e um
+    // número fixo faria de todo atleta semeado a mesma pessoa.
+    phoneNumber: phoneNumber ?? `629${String(++phoneCounter).padStart(8, '0')}`,
   };
   if (profileReady) {
     data.onboardingCompleted = true;

@@ -1,6 +1,6 @@
 import {beforeEach, describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {clearWeatherForecastCache, fetchArenaWeather, type FetchLike} from "./arena-weather-forecast";
+import {clearWeatherForecastCache, fetchArenaWeather, weatherDaysAround, type FetchLike} from "./arena-weather-forecast";
 
 const ARENA = {latitude: -16.8231, longitude: -49.2439};
 const NOW = Date.UTC(2026, 9, 29, 15); // 29/10 12:00 em São Paulo
@@ -99,6 +99,18 @@ describe("fetchArenaWeather", () => {
     assert.equal(await fetchArenaWeather({}, "2026-10-31", {fetchImpl: noCoords.fetchImpl, nowMs: NOW, apiKey: "k"}),
       null);
     assert.equal(noCoords.urls.length, 0);
+  });
+
+  it("weatherDaysAround: só busca o dia seguinte quando o jogo passa da meia-noite", async () => {
+    const {fetchImpl, urls} = fakeFetch({weatherapi: weatherApiDay("2026-11-01")});
+    const opts = {fetchImpl, nowMs: NOW, apiKey: "k"};
+    const same = [{time: "18:00", probability: 1, precipitationMm: 0}];
+    assert.deepEqual(await weatherDaysAround(ARENA, "2026-10-31", {start: 18 * 60, end: 19 * 60}, same, opts),
+      [{offset: 0, hours: same}]);
+    assert.equal(urls.length, 0);
+    const late = await weatherDaysAround(ARENA, "2026-10-31", {start: 22 * 60, end: 24 * 60}, same, opts);
+    assert.deepEqual(late.map((d) => d.offset), [0, 1]);
+    assert.equal(new URL(urls[0] as string).searchParams.get("dt"), "2026-11-01");
   });
 
   it("guarda a resposta por 10 minutos", async () => {

@@ -11,7 +11,14 @@
 import {defineSecret} from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import {spNow} from "./arena-peak-rules";
-import {parseOpenMeteoHourly, parseWeatherApiHourly, type WeatherHour} from "./arena-weather-model";
+import {
+  addDaysToDateKey,
+  parseOpenMeteoHourly,
+  parseWeatherApiHourly,
+  weatherDisplayDayOffsets,
+  type WeatherForecastDay,
+  type WeatherHour,
+} from "./arena-weather-model";
 
 /** Criar antes do deploy: `firebase functions:secrets:set WEATHER_API_KEY`. */
 export const WEATHER_API_KEY = defineSecret("WEATHER_API_KEY");
@@ -133,6 +140,26 @@ export async function fetchArenaWeather(
   }
   if (weather) cache.set(cacheKey, {at: now, weather});
   return weather;
+}
+
+/**
+ * O dia da reserva (já buscado) mais a véspera/o dia seguinte quando a janela de 2h antes
+ * a 2h depois passa da meia-noite. Dia vizinho sem resposta fica de fora.
+ */
+export async function weatherDaysAround(
+  arena: Record<string, unknown> | undefined,
+  dateKey: string,
+  win: {start: number; end: number},
+  sameDay: WeatherHour[],
+  options: {fetchImpl?: FetchLike; nowMs?: number; apiKey?: string} = {},
+): Promise<WeatherForecastDay[]> {
+  const days: WeatherForecastDay[] = [{offset: 0, hours: sameDay}];
+  for (const offset of weatherDisplayDayOffsets(win)) {
+    if (offset === 0) continue;
+    const other = await fetchArenaWeather(arena, addDaysToDateKey(dateKey, offset), options);
+    if (other) days.push({offset, hours: other.hours});
+  }
+  return days;
 }
 
 /** Só para testes. */

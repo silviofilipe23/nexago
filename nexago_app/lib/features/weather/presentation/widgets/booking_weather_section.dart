@@ -123,12 +123,15 @@ class _BookingWeatherSectionState extends ConsumerState<BookingWeatherSection> {
       fallbackArenaId: widget.fallbackArenaId,
     );
 
+    final booking = widget.booking;
+    final game = booking == null ? null : weatherBookingWindow(booking);
     final Widget? child = switch (view) {
       WeatherViewHidden() => null,
       WeatherViewReleasePending(:final release) => WeatherReleaseAlertCard(
           release: release,
           arenaName: widget.arenaName,
           now: widget.now,
+          game: game,
         ),
       WeatherViewOutcome(:final kind, :final release) => WeatherOutcomeTile(
           kind: kind,
@@ -145,6 +148,7 @@ class _BookingWeatherSectionState extends ConsumerState<BookingWeatherSection> {
       WeatherViewRequestPending(:final request) => WeatherRequestPendingCard(
           request: request,
           arenaName: widget.arenaName,
+          game: game,
         ),
       WeatherViewRequestRejected(:final request) => WeatherRequestRejectedCard(
           request: request,
@@ -398,6 +402,7 @@ class WeatherReleaseAlertCard extends StatelessWidget {
     required this.release,
     required this.arenaName,
     required this.now,
+    this.game,
   });
 
   static const Key cardKey = ValueKey('weather-release-alert');
@@ -406,13 +411,14 @@ class WeatherReleaseAlertCard extends StatelessWidget {
   final String arenaName;
   final DateTime now;
 
+  /// Início e fim da reserva: marca as horas do jogo na faixa de previsão.
+  final ({DateTime start, DateTime end})? game;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final theme = Theme.of(context);
     final rainText = WeatherTone.rainText(context);
-    final hours = weatherReleaseHighlightHours(release);
-    final worst = hours.isEmpty ? null : _worstIndex(hours);
     final deadline = release.decisionDeadline;
     final body = release.canReschedule
         ? 'A $arenaName liberou seu horário. Remarque ou guarde o valor como '
@@ -453,7 +459,7 @@ class WeatherReleaseAlertCard extends StatelessWidget {
                     WeatherKicker('Modo chuva ativo', color: rainText),
                     const SizedBox(height: 4),
                     Text(
-                      weatherReleaseHeadline(release),
+                      weatherReleaseHeadline(release, game: game),
                       style: AppTypography.soraRegular(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -484,19 +490,9 @@ class WeatherReleaseAlertCard extends StatelessWidget {
               ),
             ),
           ],
-          if (hours.isNotEmpty) ...[
+          if (release.forecast.isNotEmpty) ...[
             const SizedBox(height: 14),
-            Row(
-              children: [
-                for (var i = 0; i < hours.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 8),
-                  Expanded(
-                    child:
-                        _ForecastCell(hour: hours[i], highlighted: i == worst),
-                  ),
-                ],
-              ],
-            ),
+            WeatherForecastStrip(hours: release.forecast, game: game),
           ],
           if (deadline != null) ...[
             const SizedBox(height: 14),
@@ -513,20 +509,37 @@ class WeatherReleaseAlertCard extends StatelessWidget {
       ),
     );
   }
+}
 
-  static int _worstIndex(List<WeatherHour> hours) {
-    var idx = 0;
-    for (var i = 1; i < hours.length; i++) {
-      final a = hours[i];
-      final b = hours[idx];
-      final am = a.precipitationMm ?? 0;
-      final bm = b.precipitationMm ?? 0;
-      if (am > bm ||
-          (am == bm && (a.probability ?? 0) > (b.probability ?? 0))) {
-        idx = i;
-      }
-    }
-    return idx;
+/// Previsão de 2h antes a 2h depois do jogo, com as horas do jogo em destaque
+/// (sem a janela do jogo, a pior hora).
+class WeatherForecastStrip extends StatelessWidget {
+  const WeatherForecastStrip({super.key, required this.hours, this.game});
+
+  static const Key stripKey = ValueKey('weather-forecast-strip');
+
+  final List<WeatherHour> hours;
+  final ({DateTime start, DateTime end})? game;
+
+  @override
+  Widget build(BuildContext context) {
+    final strip = weatherForecastStrip(hours, game: game);
+    final anyInGame = strip.any((s) => s.inGame);
+    final worst = anyInGame ? null : weatherWorstHourIndex(hours);
+    return Row(
+      key: stripKey,
+      children: [
+        for (var i = 0; i < strip.length; i++) ...[
+          if (i > 0) const SizedBox(width: 6),
+          Expanded(
+            child: _ForecastCell(
+              hour: strip[i].hour,
+              highlighted: anyInGame ? strip[i].inGame : i == worst,
+            ),
+          ),
+        ],
+      ],
+    );
   }
 }
 
@@ -546,8 +559,9 @@ class _ForecastCell extends StatelessWidget {
         : mm != null
             ? WeatherCopy.millimeters(mm)
             : '—';
+    // Jogo longo dá até 7 casas: o texto encolhe em vez de estourar.
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
         color: highlighted
@@ -556,18 +570,24 @@ class _ForecastCell extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(
-            value,
-            style: AppTypography.mono(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: WeatherTone.rainText(context),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: AppTypography.mono(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: WeatherTone.rainText(context),
+              ),
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            hour.hourLabel,
-            style: TextStyle(fontSize: 11, color: colors.onSurfaceMuted),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              hour.hourLabel,
+              style: TextStyle(fontSize: 11, color: colors.onSurfaceMuted),
+            ),
           ),
         ],
       ),
@@ -664,12 +684,16 @@ class WeatherRequestPendingCard extends StatelessWidget {
     super.key,
     required this.request,
     required this.arenaName,
+    this.game,
   });
 
   static const Key cardKey = ValueKey('weather-request-pending');
 
   final WeatherRequest request;
   final String arenaName;
+
+  /// Início e fim da reserva: marca as horas do jogo na faixa de previsão.
+  final ({DateTime start, DateTime end})? game;
 
   @override
   Widget build(BuildContext context) {
@@ -743,6 +767,10 @@ class WeatherRequestPendingCard extends StatelessWidget {
                   height: 1.5,
                 ),
               ),
+              if (request.forecast.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                WeatherForecastStrip(hours: request.forecast, game: game),
+              ],
             ],
           ),
         ),

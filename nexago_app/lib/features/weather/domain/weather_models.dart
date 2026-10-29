@@ -138,6 +138,14 @@ class WeatherHour {
           _text(raw['condition']).isEmpty ? null : _text(raw['condition']),
     );
   }
+
+  /// `forecast` gravado pelo servidor (de 2h antes do início a 2h depois do fim).
+  static List<WeatherHour> listOf(Object? raw) => raw is List
+      ? [
+          for (final h in raw)
+            if (WeatherHour.fromMap(h) case final hour?) hour,
+        ]
+      : const [];
 }
 
 enum WeatherReleaseSource { rainMode, request, auto, unknown }
@@ -205,7 +213,6 @@ class WeatherRelease {
 
   static WeatherRelease? fromMap(Object? raw) {
     if (raw is! Map) return null;
-    final forecastRaw = raw['forecast'];
     return WeatherRelease(
       status: switch (raw['status']) {
         'pending_choice' => WeatherReleaseStatus.pendingChoice,
@@ -232,12 +239,7 @@ class WeatherRelease {
       autoCredited: raw['autoCredited'] == true,
       creditId: _textOrNull(raw['creditId']),
       rescheduledToBookingId: _textOrNull(raw['rescheduledToBookingId']),
-      forecast: forecastRaw is List
-          ? [
-              for (final h in forecastRaw)
-                if (WeatherHour.fromMap(h) case final hour?) hour,
-            ]
-          : const [],
+      forecast: WeatherHour.listOf(raw['forecast']),
       arenaMessage: _textOrNull(raw['arenaMessage']),
     );
   }
@@ -275,6 +277,7 @@ class WeatherRequest {
     this.athleteId = '',
     this.note,
     this.weather,
+    this.forecast = const [],
     this.autoApproved = false,
     this.createdAt,
     this.decidedAt,
@@ -287,6 +290,9 @@ class WeatherRequest {
   final String athleteId;
   final String? note;
   final WeatherReading? weather;
+
+  /// Horas de 2h antes a 2h depois do jogo, buscadas quando o atleta pediu.
+  final List<WeatherHour> forecast;
   final bool autoApproved;
   final DateTime? createdAt;
   final DateTime? decidedAt;
@@ -308,6 +314,7 @@ class WeatherRequest {
       athleteId: _text(data['athleteId']),
       note: _textOrNull(data['note']),
       weather: WeatherReading.fromMap(data['weather']),
+      forecast: WeatherHour.listOf(data['forecast']),
       autoApproved: data['autoApproved'] == true,
       createdAt: weatherDateOf(data['createdAt']),
       decidedAt: weatherDateOf(data['decidedAt']),

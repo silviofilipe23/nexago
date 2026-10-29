@@ -181,6 +181,11 @@ void main() {
         'status': 'pending',
         'note': ' quadra alagada ',
         'weather': {'probability': 80, 'precipitationMm': 5.4},
+        'forecast': [
+          {'time': '16:00', 'probability': 40, 'precipitationMm': 0.5},
+          {'time': '18:00', 'probability': 80, 'precipitationMm': 5.4},
+          {'probability': 10},
+        ],
         'createdAt': Timestamp.fromDate(DateTime(2026, 10, 29, 17, 52)),
       })!;
       expect(r.bookingId, 'b1');
@@ -188,6 +193,7 @@ void main() {
       expect(r.note, 'quadra alagada');
       expect(r.weather!.precipitationMm, 5.4);
       expect(r.weather!.hasData, isTrue);
+      expect(r.forecast.map((h) => h.hourLabel), ['16h', '18h']);
       expect(r.createdAt, DateTime(2026, 10, 29, 17, 52));
     });
 

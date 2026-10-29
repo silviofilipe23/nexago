@@ -325,17 +325,75 @@ void main() {
       expect(weatherReleaseHeadline(withForecast([])), 'Chuva no horário');
     });
 
-    test('no máximo 3 horas, em volta da pior', () {
+    final game = (
+      start: DateTime(2026, 10, 29, 18),
+      end: DateTime(2026, 10, 29, 19),
+    );
+
+    test('título olha só as horas do jogo, não as 2h antes/depois', () {
       final r = withForecast([
-        for (var h = 14; h <= 21; h++)
-          {
-            'time': '$h:00',
-            'probability': 50,
-            'precipitationMm': h == 19 ? 6 : 1
-          },
+        {'time': '16:00', 'probability': 40, 'precipitationMm': 0.5},
+        {'time': '17:00', 'probability': 85, 'precipitationMm': 1.2},
+        {'time': '18:00', 'probability': 60, 'precipitationMm': 0.8},
+        {'time': '19:00', 'probability': 88, 'precipitationMm': 3},
+        {'time': '20:00', 'probability': 95, 'precipitationMm': 8},
       ]);
-      final hours = weatherReleaseHighlightHours(r);
-      expect(hours.map((h) => h.time), ['18:00', '19:00', '20:00']);
+      expect(weatherReleaseHeadline(r, game: game), 'Chuva às 18h');
+      // Sem a janela do jogo, vale a pior hora da faixa.
+      expect(weatherReleaseHeadline(r), 'Chuva forte às 20h');
+    });
+  });
+
+  group('weatherForecastStrip — 2h antes e 2h depois', () {
+    List<WeatherHour> hours(List<String> times) => [
+          for (final t in times)
+            WeatherHour(time: t, probability: 50, precipitationMm: 1),
+        ];
+    List<String> inGame(List<WeatherStripHour> strip) => [
+          for (final s in strip)
+            if (s.inGame) s.hour.time
+        ];
+
+    test('mostra a faixa inteira e marca as horas do jogo', () {
+      final strip = weatherForecastStrip(
+        hours(['16:00', '17:00', '18:00', '19:00', '20:00']),
+        game: (
+          start: DateTime(2026, 10, 29, 18),
+          end: DateTime(2026, 10, 29, 19, 30),
+        ),
+      );
+      expect(strip, hasLength(5));
+      expect(inGame(strip), ['18:00', '19:00']);
+    });
+
+    test('jogo das 23h: as horas depois da meia-noite não contam como jogo',
+        () {
+      final strip = weatherForecastStrip(
+        hours(['21:00', '22:00', '23:00', '00:00', '01:00']),
+        game: (
+          start: DateTime(2026, 10, 29, 23),
+          end: DateTime(2026, 10, 30),
+        ),
+      );
+      expect(inGame(strip), ['23:00']);
+    });
+
+    test('jogo da 1h: a faixa começa na véspera', () {
+      final strip = weatherForecastStrip(
+        hours(['23:00', '00:00', '01:00', '02:00', '03:00']),
+        game: (
+          start: DateTime(2026, 10, 29, 1),
+          end: DateTime(2026, 10, 29, 2),
+        ),
+      );
+      expect(inGame(strip), ['01:00']);
+    });
+
+    test('sem a janela do jogo: nada marcado', () {
+      expect(
+        inGame(weatherForecastStrip(hours(['17:00', '18:00']))),
+        isEmpty,
+      );
     });
   });
 }

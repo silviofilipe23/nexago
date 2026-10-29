@@ -229,23 +229,59 @@ WeatherBookingView resolveWeatherBookingView({
       closesAt: w.closesAt!, afterStart: w.afterStart);
 }
 
-/// Título do aviso A1 pela pior hora da previsão que cruza o horário: a
-/// condição da WeatherAPI quando ela fala de chuva ("Chuva moderada às 18h"),
-/// senão "Chuva forte às 18h"/"Chuva às 18h"; sem previsão, "Chuva no horário".
-String weatherReleaseHeadline(WeatherRelease release) {
-  WeatherHour? worst;
-  for (final h in release.forecast) {
-    final mm = h.precipitationMm ?? 0;
-    final p = h.probability ?? 0;
-    if (worst == null) {
-      worst = h;
+/// Uma casa da faixa de previsão: a hora e se ela cai no horário do jogo.
+typedef WeatherStripHour = ({WeatherHour hour, bool inGame});
+
+/// Faixa de previsão da reserva. O servidor grava de 2h antes do início a 2h
+/// depois do fim, em ordem, podendo virar a meia-noite ("23:00", "00:00");
+/// aqui só se marca o que é jogo. Sem a janela do jogo, nada fica marcado.
+List<WeatherStripHour> weatherForecastStrip(
+  List<WeatherHour> hours, {
+  ({DateTime start, DateTime end})? game,
+}) {
+  if (game == null) return [for (final h in hours) (hour: h, inGame: false)];
+  final start = game.start.hour * 60 + game.start.minute;
+  final end = start + game.end.difference(game.start).inMinutes;
+  const day = 24 * 60;
+  final out = <WeatherStripHour>[];
+  int? previous;
+  for (final h in hours) {
+    final label = _hmToMinutes(h.time);
+    if (label == null) {
+      out.add((hour: h, inGame: false));
       continue;
     }
-    final wmm = worst.precipitationMm ?? 0;
-    final wp = worst.probability ?? 0;
-    if (mm > wmm || (mm == wmm && p > wp)) worst = h;
+    var at = label;
+    if (previous == null) {
+      // Jogo da 1h: a faixa começa às 23h da véspera.
+      if (label - start > day ~/ 2) at -= day;
+    } else {
+      while (at <= previous) {
+        at += day;
+      }
+    }
+    previous = at;
+    out.add((hour: h, inGame: at < end && at + 60 > start));
   }
-  if (worst == null) return 'Chuva no horário';
+  return out;
+}
+
+/// Título do aviso A1 pela pior hora do jogo (sem a janela, de toda a faixa):
+/// a condição da WeatherAPI quando ela fala de chuva ("Chuva moderada às 18h"),
+/// senão "Chuva forte às 18h"/"Chuva às 18h"; sem previsão, "Chuva no horário".
+String weatherReleaseHeadline(
+  WeatherRelease release, {
+  ({DateTime start, DateTime end})? game,
+}) {
+  final strip = weatherForecastStrip(release.forecast, game: game);
+  final inGame = [
+    for (final s in strip)
+      if (s.inGame) s.hour
+  ];
+  final candidates = inGame.isNotEmpty ? inGame : release.forecast;
+  final worstIdx = weatherWorstHourIndex(candidates);
+  if (worstIdx == null) return 'Chuva no horário';
+  final worst = candidates[worstIdx];
   final condition = worst.condition?.trim() ?? '';
   if (_rainyCondition.hasMatch(condition)) {
     return '${condition[0].toUpperCase()}${condition.substring(1)} às ${worst.hourLabel}';
@@ -260,20 +296,18 @@ String weatherReleaseHeadline(WeatherRelease release) {
 final _rainyCondition =
     RegExp(r'chuv|trovo|tempest|garoa|aguaceiro', caseSensitive: false);
 
-/// Até 3 horas da previsão para o aviso, centradas na pior hora.
-List<WeatherHour> weatherReleaseHighlightHours(WeatherRelease release) {
-  final hours = release.forecast;
-  if (hours.length <= 3) return hours;
-  var worstIdx = 0;
+/// Pior hora: mais milímetros e, no empate, mais chance. `null` sem horas.
+int? weatherWorstHourIndex(List<WeatherHour> hours) {
+  if (hours.isEmpty) return null;
+  var idx = 0;
   for (var i = 1; i < hours.length; i++) {
     final a = hours[i];
-    final b = hours[worstIdx];
+    final b = hours[idx];
     final am = a.precipitationMm ?? 0;
     final bm = b.precipitationMm ?? 0;
     if (am > bm || (am == bm && (a.probability ?? 0) > (b.probability ?? 0))) {
-      worstIdx = i;
+      idx = i;
     }
   }
-  final start = (worstIdx - 1).clamp(0, hours.length - 3);
-  return hours.sublist(start, start + 3);
+  return idx;
 }

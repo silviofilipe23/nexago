@@ -51,6 +51,9 @@ naquela arena. O dinheiro não sai do caixa — nenhuma movimentação em `arena
      resolvedAt?: Timestamp, autoCredited?: boolean, creditId?: string,
      rescheduledToBookingId?: string, forecast?: {time:'HH:00', probability:number|null, precipitationMm:number|null}[],
      arenaMessage?: string }`
+- `forecast` vai de **2h antes do início a 2h depois do fim** do jogo (jogo das 18h às 19h → 16h a 20h),
+  juntando o dia seguinte/a véspera quando passa da meia-noite. O app mostra a faixa inteira, com as horas
+  do jogo em destaque, e o título ("Chuva forte às 18h") sai da pior hora do jogo.
 - Cancelada por chuva: `status:'canceled'`, `attendanceStatus:'canceled'`, `cancelReason:'weather'`,
   `canceledByRole:'weather'`, `canceledAt`.
 - Pagou com crédito: `weatherCreditReais`, `weatherCreditUses: [{creditId, amountReais}]`,
@@ -87,6 +90,7 @@ naquela arena. O dinheiro não sai do caixa — nenhuma movimentação em `arena
 { arenaId, bookingId, athleteId, athleteName, courtId, courtName, date, startTime, endTime,
   paidReais, note: string|null, status: 'pending'|'approved'|'rejected'|'withdrawn',
   weather: {probability:number|null, precipitationMm:number|null, fetchedAt: Timestamp}|null,
+  forecast: Hour[],   // 2h antes a 2h depois; o automático só olha as horas do jogo
   autoApproved: boolean, createdAt, decidedAt?, decidedBy?, rejectReason? }
 ```
 

@@ -59,6 +59,7 @@ import { athleteStorage } from '../data/storage';
 import { AthleteHighlightsEditorComponent } from './athlete-highlights-editor.component';
 import { AthleteHighlightsGalleryComponent } from './athlete-highlights-gallery.component';
 import { NxImageCropperComponent } from '../shared/media/nx-image-cropper.component';
+import { FocusAutoOpenToggleComponent } from '../tournaments/focus/focus-auto-open-toggle.component';
 
 interface AthleteProfileData {
   fullName: string;
@@ -153,6 +154,7 @@ function readNumber(data: DocumentData | null | undefined, keys: readonly string
     AthleteHighlightsGalleryComponent,
     AthleteHighlightsEditorComponent,
     NxImageCropperComponent,
+    FocusAutoOpenToggleComponent,
   ],
   templateUrl: './athlete-profile-settings.component.html',
   styleUrl: './athlete-profile-settings.component.scss',

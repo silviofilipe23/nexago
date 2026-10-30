@@ -19,6 +19,7 @@ import '../../../../tournaments/domain/tournament_match_card_view_model.dart';
 import '../../../../tournaments/domain/tournament_match_display.dart';
 import '../../../../tournaments/presentation/widgets/nexa_duo_avatars.dart';
 import '../../../domain/athlete_home_focus_card_logic.dart';
+import 'athlete_home_tour.dart';
 
 /// Card do Modo Focus na Home, no dia do evento: um mini "Agora".
 ///
@@ -78,13 +79,17 @@ class AthleteHomeFocusCard extends ConsumerWidget {
         AppSpacing.screenH,
         bottomGap,
       ),
-      child: AthleteHomeFocusCardBody(
-        tournamentName: target.tournamentName,
-        match: match,
-        opponent: match == null ? null : _opponentOf(match, card, myTeamIds),
-        onOpen: () => context.pushNamed(
-          AppRouteNames.tournamentFocus,
-          pathParameters: {'tournamentId': tournamentId},
+      // Alvo do passo do Focus no tour, quando o tour cai no dia do torneio.
+      child: AthleteHomeTourAnchor(
+        target: AthleteHomeTourTarget.focus,
+        child: AthleteHomeFocusCardBody(
+          tournamentName: target.tournamentName,
+          match: match,
+          opponent: match == null ? null : _opponentOf(match, card, myTeamIds),
+          onOpen: () => context.pushNamed(
+            AppRouteNames.tournamentFocus,
+            pathParameters: {'tournamentId': tournamentId},
+          ),
         ),
       ),
     );

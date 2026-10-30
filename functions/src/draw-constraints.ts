@@ -30,6 +30,16 @@ export interface DrawConstraints {
    * = cabeças sorteadas, que era o comportamento delas.
    */
   seedsPreassigned?: boolean;
+  /**
+   * Dupla eliminatória: as cabeças SORTEIAM entre si os seeds travados — com 4
+   * cabeças, quem cai no 1, 2, 3 e 4 sai do acaso, mas nenhuma delas sai desses
+   * quatro. É o par do `seedsPreassigned` desligado na fase de grupos.
+   *
+   * Campo próprio porque a dupla eliminatória sempre nasceu com
+   * `seedsPreassigned: false` e seed por ranking; reaproveitar aquele campo
+   * mudaria o sorteio das sessões já criadas. Ausente = seed do ranking.
+   */
+  lockedSeedsDrawn?: boolean;
 }
 
 export interface DrawGroupState {

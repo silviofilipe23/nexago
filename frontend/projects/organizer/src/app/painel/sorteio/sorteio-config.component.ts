@@ -10,7 +10,13 @@ import {
   type DrawSession,
   type DrawSessionEntrant,
 } from '../data/draw-session.model';
-import { combinationsOf, formatSummaryOf, readinessChecksOf } from '../data/draw-summary';
+import {
+  combinationsOf,
+  formatSummaryOf,
+  readinessChecksOf,
+  seedPositionsDrawn,
+  seedPositionsDrawnPatch,
+} from '../data/draw-summary';
 import { bracketSystemFromRaw } from '../data/tournament-create.model';
 import {
   currentSeedOrder,
@@ -391,6 +397,13 @@ import { SorteioDuplaRowComponent } from './sorteio-dupla-row.component';
             </og-card>
 
             <og-card kicker="Regras do sorteio" title="Restrições ativas">
+              <og-toggle-row
+                title="Sortear posição das cabeças"
+                [desc]="seedPositionsDesc(s)"
+                [on]="seedPositionsDrawn(s)"
+                [disabled]="!editable(s)"
+                (toggled)="setSeedPositionsDrawn(s, $event)"
+              />
               @if (isBoxed(s)) {
                 <og-toggle-row
                   [title]="s.format === 'king_of_court' ? 'Cabeças em rodadas diferentes' : 'Cabeças em grupos diferentes'"
@@ -1267,6 +1280,27 @@ export class SorteioConfigComponent {
   ): void {
     void this.patchConfig(session, {
       constraints: { ...session.config.constraints, [key]: value },
+    });
+  }
+
+  protected seedPositionsDrawn(session: DrawSession): boolean {
+    return seedPositionsDrawn(session);
+  }
+
+  protected seedPositionsDesc(session: DrawSession): string {
+    if (session.format === 'double_elimination') {
+      const locked = Math.min(session.config.lockedSeedCount, session.entrants.length);
+      if (locked < 2) return 'Com menos de 2 cabeças travadas não há posição para sortear';
+      return `As cabeças sorteiam entre si os seeds 1 a ${locked}. Desligado, cada uma fica no seed do ranking`;
+    }
+    return session.format === 'king_of_court' ?
+      'A rodada de cada cabeça sai do sorteio. Desligado, a 1ª abre a rodada 1, a 2ª a rodada 2…' :
+      'O grupo de cada cabeça sai do sorteio. Desligado, a 1ª abre o grupo A, a 2ª o B…';
+  }
+
+  protected setSeedPositionsDrawn(session: DrawSession, drawn: boolean): void {
+    void this.patchConfig(session, {
+      constraints: { ...session.config.constraints, ...seedPositionsDrawnPatch(session, drawn) },
     });
   }
 

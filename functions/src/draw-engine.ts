@@ -154,10 +154,31 @@ function nextDeReveal(state: DrawEngineState, random: RandomIndex): NextRevealRe
   // As cabeças saem PRIMEIRO, na ordem do ranking, cada uma no seed que já era
   // dela. Buscar pela menor `lockedSeed` em vez de confiar na ordem do pote:
   // assim a fila é a mesma mesmo se o pote vier embaralhado.
-  const nextSeedHead = remaining
+  const heads = remaining
     .map((teamId) => ({teamId, seed: state.teamsById[teamId]?.lockedSeed ?? null}))
     .filter((c): c is {teamId: string; seed: number} => c.seed != null)
-    .sort((a, b) => a.seed - b.seed)[0];
+    .sort((a, b) => a.seed - b.seed);
+
+  if (heads.length > 0 && state.constraints.lockedSeedsDrawn) {
+    // Posição das cabeças sorteada: mesma fila (cabeças primeiro), mas a dupla
+    // e o seed saem do acaso — o seed só entre os travados que ainda estão
+    // vagos, pra nenhuma cabeça escapar do lugar de cabeça.
+    const headSeeds = Object.values(state.teamsById)
+      .map((t) => t.lockedSeed ?? null)
+      .filter((seed): seed is number => seed != null && state.seedOrder[seed - 1] == null);
+    if (headSeeds.length > 0) {
+      return {
+        status: "ok",
+        reveal: {
+          teamId: pickFrom(heads, random).teamId,
+          destination: {type: "seed", seed: pickFrom(headSeeds.sort((a, b) => a - b), random)},
+          relaxed: [],
+        },
+      };
+    }
+  }
+
+  const nextSeedHead = heads[0];
   if (nextSeedHead) {
     return {
       status: "ok",

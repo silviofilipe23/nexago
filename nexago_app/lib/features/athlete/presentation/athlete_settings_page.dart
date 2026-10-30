@@ -20,6 +20,7 @@ import '../../auth/presentation/role_selection_page.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../../cashback/presentation/widgets/cashback_settings_tile.dart';
 import '../../weather/presentation/widgets/weather_credits_settings_tile.dart';
+import '../../tournaments/presentation/focus/widgets/focus_auto_open_settings_tile.dart';
 import '../../center_coach/presentation/widgets/center_coach_settings_group.dart';
 import '../../professor_links/presentation/widgets/professor_links_settings_group.dart';
 import '../domain/achievements/achievement_providers.dart';
@@ -333,6 +334,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   onTap: () => showAthleteAppearanceSheet(context),
                   showDivider: true,
                 ),
+                const FocusAutoOpenSettingsTile(),
                 AthleteSettingsTile(
                   icon: Icons.language_rounded,
                   title: 'Idioma',

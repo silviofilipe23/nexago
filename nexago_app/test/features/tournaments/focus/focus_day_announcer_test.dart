@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/auth/auth_providers.dart';
 import 'package:nexago_app/core/router/routes.dart';
+import 'package:nexago_app/features/tournaments/data/focus_auto_open_preference.dart';
 import 'package:nexago_app/features/tournaments/domain/athlete_tournament_day_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/athlete_tournament_day_providers.dart';
 import 'package:nexago_app/features/tournaments/presentation/focus/focus_day_announcer.dart';
@@ -19,6 +20,19 @@ class _FakeUser implements User {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// Preferência fixa do atleta, sem SharedPreferences.
+class _Pref extends FocusAutoOpenPreferenceNotifier {
+  _Pref(this.initial);
+
+  final bool initial;
+
+  @override
+  Future<bool> build() async => initial;
+
+  @override
+  Future<void> set(bool enabled) async => state = AsyncData(enabled);
 }
 
 AthleteFocusHomeTarget _target() => const AthleteFocusHomeTarget(
@@ -57,9 +71,11 @@ Widget _app(
   GoRouter router, {
   Future<AthleteFocusHomeTarget?>? target,
   Stream<User?>? users,
+  bool autoOpen = true,
 }) {
   return ProviderScope(
     overrides: [
+      focusAutoOpenPreferenceProvider.overrideWith(() => _Pref(autoOpen)),
       authProvider
           .overrideWith((ref) => users ?? Stream.value(_FakeUser('u1'))),
       // Espelha a produção: o alvo do dia depende de QUEM está logado
@@ -77,8 +93,35 @@ Widget _app(
 }
 
 void main() {
-  testWidgets('entra no Focus sozinho no dia do torneio', (tester) async {
+  testWidgets('com a opção ligada, entra no Focus sozinho no dia do torneio',
+      (tester) async {
     await tester.pumpWidget(_app(_router()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('focus de t1'), findsOneWidget);
+  });
+
+  // Desde que o Focus deixou de abrir sempre: a porta de entrada é o card na
+  // Início, e só quem liga a opção nas Configurações entra direto.
+  testWidgets('com a opção desligada, fica na casca no dia do torneio',
+      (tester) async {
+    await tester.pumpWidget(_app(_router(), autoOpen: false));
+    await tester.pumpAndSettle();
+
+    expect(find.text('casca do atleta'), findsOneWidget);
+    expect(find.text('focus de t1'), findsNothing);
+  });
+
+  testWidgets('ligar a opção no meio do dia já entra no Focus',
+      (tester) async {
+    await tester.pumpWidget(_app(_router(), autoOpen: false));
+    await tester.pumpAndSettle();
+    expect(find.text('focus de t1'), findsNothing);
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.text('casca do atleta')),
+    );
+    await container.read(focusAutoOpenPreferenceProvider.notifier).set(true);
     await tester.pumpAndSettle();
 
     expect(find.text('focus de t1'), findsOneWidget);

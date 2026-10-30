@@ -6,14 +6,16 @@ import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/router/routes.dart';
 import '../../domain/athlete_tournament_day_logic.dart';
 import '../../domain/athlete_tournament_day_providers.dart';
+import '../../data/focus_auto_open_preference.dart';
 import '../../domain/focus/focus_day_offer.dart';
 
-/// ENTRA no Modo Focus ao abrir o app no dia do torneio.
+/// ENTRA no Modo Focus ao abrir o app no dia do torneio — só para quem pediu.
 ///
-/// Entra, não oferece: o dono escolheu a opção mais agressiva, a mesma que o
-/// portal do atleta já fazia. A folha "Entrar no Focus / Depois" que vivia aqui
-/// foi removida — quem chega na arena não precisa de um passo a mais para ver o
-/// que decide o dia dele.
+/// Por muito tempo entrou sempre (a opção mais agressiva). Hoje é escolha do
+/// atleta ([focusAutoOpenPreferenceProvider], nas Configurações, desligada
+/// por padrão): sem ela, a porta de entrada é o card do Focus no topo da
+/// Início. Quem liga a opção continua entrando direto, sem folha "Entrar /
+/// Depois" no meio.
 ///
 /// **O gatilho é o dia do EVENTO, não "tem partida hoje"**
 /// ([athleteFocusHomeTargetProvider]): inscrição paga em torneio rolando hoje e
@@ -48,6 +50,9 @@ class _FocusDayAnnouncerState extends ConsumerState<FocusDayAnnouncer> {
 
   void _maybeEnter(AthleteFocusHomeTarget? target) {
     if (_opening || !mounted || target == null) return;
+    // Ainda carregando conta como "não": a preferência chega em seguida, o
+    // `build` observa ela e refaz a tentativa.
+    if (ref.read(focusAutoOpenPreferenceProvider).valueOrNull != true) return;
 
     final uid = ref.read(authProvider).valueOrNull?.uid ?? '';
     if (uid.isEmpty) return;
@@ -94,6 +99,9 @@ class _FocusDayAnnouncerState extends ConsumerState<FocusDayAnnouncer> {
     );
 
     final target = ref.watch(athleteFocusHomeTargetProvider).valueOrNull;
+    // Observada para a entrada acontecer assim que a preferência carrega (ou
+    // o atleta liga a opção no meio do dia).
+    ref.watch(focusAutoOpenPreferenceProvider);
 
     // Ler a rota corrente AQUI, no build, não é uma checagem a mais:
     // `isCurrentOf` assina o `_ModalScopeStatus` da rota, e é essa assinatura

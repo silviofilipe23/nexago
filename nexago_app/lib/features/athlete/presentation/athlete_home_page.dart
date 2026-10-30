@@ -55,7 +55,7 @@ import 'widgets/athlete_home/athlete_home_community_section.dart';
 import 'widgets/athlete_home/athlete_home_competitions_section.dart';
 import 'widgets/athlete_home/athlete_home_daily_missions_section.dart';
 import 'widgets/athlete_home/athlete_home_evolution_chart.dart';
-import 'widgets/athlete_home/athlete_home_focus_button.dart';
+import 'widgets/athlete_home/athlete_home_focus_card.dart';
 import 'widgets/athlete_home/athlete_home_following_matches_section.dart';
 import 'widgets/athlete_home/athlete_home_hero.dart';
 import 'widgets/athlete_profile_avatar.dart';
@@ -197,9 +197,9 @@ class AthleteHomePage extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                              // Dia do evento: o Modo Focus vem antes de tudo.
+                              // Dia do evento: o card do Modo Focus vem antes de tudo.
                               // Fora do dia (ou eliminado), some sem deixar vão.
-                              const AthleteHomeFocusButton(
+                              const AthleteHomeFocusCard(
                                 bottomGap: _dynamicCardGap,
                               ),
                               // Convites para jogar numa reserva (recebidos e sem

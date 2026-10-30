@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -149,16 +151,20 @@ class _NexaSlideToConfirmState extends State<NexaSlideToConfirm>
                         child: Center(
                           child: Opacity(
                             opacity: (1 - t * 1.6).clamp(0.0, 1.0),
-                            child: Text(
-                              '${widget.label}  ›››',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTypography.mono(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: color,
-                                letterSpacing: 1.2,
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    widget.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: _labelStyle(color),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                _SlideChevrons(style: _labelStyle(color)),
+                              ],
                             ),
                           ),
                         ),
@@ -187,6 +193,85 @@ class _NexaSlideToConfirmState extends State<NexaSlideToConfirm>
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+TextStyle _labelStyle(Color color) => AppTypography.mono(
+      fontSize: 10,
+      fontWeight: FontWeight.w700,
+      color: color,
+      letterSpacing: 1.2,
+    );
+
+/// As três setas "›››" acendendo em onda, da esquerda para a direita — apontam
+/// o sentido do arraste, como o "deslize para desbloquear" do iPhone.
+///
+/// Com "reduzir movimento" do sistema ligado, ficam paradas e acesas.
+class _SlideChevrons extends StatefulWidget {
+  const _SlideChevrons({required this.style});
+
+  final TextStyle style;
+
+  @override
+  State<_SlideChevrons> createState() => _SlideChevronsState();
+}
+
+class _SlideChevronsState extends State<_SlideChevrons>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _wave = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+      _wave.stop();
+      _wave.value = 0;
+    } else if (!_wave.isAnimating) {
+      _wave.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _wave.dispose();
+    super.dispose();
+  }
+
+  /// Brilho (0 a 1) da seta [index] no instante [t] do ciclo: cada seta acende
+  /// um pouco depois da anterior e apaga, e o ciclo termina com um respiro.
+  static double glowOf(int index, double t) {
+    final local = (t - index * 0.16) % 1.0;
+    return local < 0.45 ? math.sin(local / 0.45 * math.pi) : 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final still = !_wave.isAnimating;
+    return AnimatedBuilder(
+      animation: _wave,
+      builder: (context, _) => Row(
+        key: const Key('nexa-slide-chevrons'),
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < 3; i++)
+            Builder(
+              builder: (context) {
+                final glow = still ? 1.0 : glowOf(i, _wave.value);
+                return Transform.translate(
+                  offset: Offset(2 * glow, 0),
+                  child: Opacity(
+                    opacity: 0.3 + 0.7 * glow,
+                    child: Text('›', style: widget.style),
+                  ),
+                );
+              },
+            ),
+        ],
       ),
     );
   }

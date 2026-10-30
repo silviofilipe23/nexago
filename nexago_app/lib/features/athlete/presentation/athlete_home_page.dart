@@ -188,14 +188,20 @@ class AthleteHomePage extends ConsumerWidget {
                   padding: EdgeInsets.only(bottom: bottomClearance),
                   sliver: SliverList.list(
                     children: [
-                      // Cards dinâmicos (convites, avaliações, próximo treino,
-                      // próxima reserva): 12 entre eles; o grupo fecha com o
-                      // respiro de seção só quando algum aparece.
+                      // Cards dinâmicos (Modo Focus, convites, avaliações,
+                      // próximo treino, próxima reserva): 12 entre eles; o
+                      // grupo fecha com o respiro de seção só quando algum
+                      // aparece.
                       TrailingGapIfVisible(
                         gap: AppSpacing.sectionGap - _dynamicCardGap,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                              // Dia do evento: o Modo Focus vem antes de tudo.
+                              // Fora do dia (ou eliminado), some sem deixar vão.
+                              const AthleteHomeFocusButton(
+                                bottomGap: _dynamicCardGap,
+                              ),
                               // Convites para jogar numa reserva (recebidos e sem
                               // resposta): o jogo tem hora marcada, então vêm antes
                               // dos convites de dupla.
@@ -366,7 +372,6 @@ class AthleteHomePage extends ConsumerWidget {
                       // Novidades do app (backoffice): segundo assunto da
                       // Home, logo abaixo dos atalhos. Sem novidade, some.
                       const HomeNewsSection(),
-                      const AthleteHomeFocusButton(),
                       const AthleteHomeFollowingMatchesSection(),
                       const Padding(
                         padding: EdgeInsets.symmetric(

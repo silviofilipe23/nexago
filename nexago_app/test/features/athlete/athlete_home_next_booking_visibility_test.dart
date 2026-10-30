@@ -9,8 +9,15 @@ import 'package:nexago_app/features/arenas/domain/my_bookings_providers.dart';
 import 'package:nexago_app/features/athlete/domain/gamification_models.dart';
 import 'package:nexago_app/features/athlete/domain/gamification_providers.dart';
 import 'package:nexago_app/features/athlete/presentation/athlete_home_page.dart';
+import 'package:nexago_app/features/athlete/presentation/widgets/athlete_home/athlete_home_shortcuts_grid.dart';
+import 'package:nexago_app/features/tournaments/domain/athlete_tournament_day_logic.dart';
+import 'package:nexago_app/features/tournaments/domain/athlete_tournament_day_providers.dart';
 
-Future<void> _pump(WidgetTester tester, List<MyBookingItem> bookings) async {
+Future<void> _pump(
+  WidgetTester tester,
+  List<MyBookingItem> bookings, {
+  AthleteFocusHomeTarget? focus,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -18,6 +25,7 @@ Future<void> _pump(WidgetTester tester, List<MyBookingItem> bookings) async {
           (ref) => Stream.value(GamificationSummary.initial()),
         ),
         myBookingsStreamProvider.overrideWith((ref) => Stream.value(bookings)),
+        athleteFocusHomeTargetProvider.overrideWith((ref) async => focus),
       ],
       child: MaterialApp(
         theme: AppTheme.dark,
@@ -39,22 +47,51 @@ void main() {
   });
 
   testWidgets('com reserva futura: o card compacto aparece', (tester) async {
-    final d = DateTime.now().add(const Duration(days: 2));
-    final key =
-        '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-    await _pump(tester, [
-      MyBookingItem(
-        id: 'b1',
-        arenaName: 'Arena Sol',
-        courtName: 'Quadra 2',
-        dateRaw: key,
-        startTime: '19:00',
-        endTime: '20:00',
-        rawStatus: 'confirmed',
-        paymentDisplay: const MyBookingPaymentDisplay(label: 'PIX'),
-      ),
-    ]);
+    await _pump(tester, [_futureBooking()]);
     expect(find.byKey(const Key('home-next-booking')), findsOneWidget);
     expect(find.text('Arena Sol · Quadra 2'), findsOneWidget);
   });
+
+  testWidgets('dia do evento: Modo Focus no topo, acima da reserva',
+      (tester) async {
+    await _pump(
+      tester,
+      [_futureBooking()],
+      focus: const AthleteFocusHomeTarget(
+        tournamentId: 't1',
+        tournamentName: 'Copa Sol',
+      ),
+    );
+
+    final focusTop = tester.getTopLeft(find.text('MODO FOCUS')).dy;
+    expect(
+      focusTop,
+      lessThan(tester.getTopLeft(find.byKey(const Key('home-next-booking'))).dy),
+    );
+    expect(
+      focusTop,
+      lessThan(tester.getTopLeft(find.byType(AthleteHomeShortcutsGrid)).dy),
+    );
+  });
+
+  testWidgets('fora do dia do evento: sem botão do Focus', (tester) async {
+    await _pump(tester, [_futureBooking()]);
+    expect(find.text('MODO FOCUS'), findsNothing);
+  });
+}
+
+MyBookingItem _futureBooking() {
+  final d = DateTime.now().add(const Duration(days: 2));
+  final key =
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  return MyBookingItem(
+    id: 'b1',
+    arenaName: 'Arena Sol',
+    courtName: 'Quadra 2',
+    dateRaw: key,
+    startTime: '19:00',
+    endTime: '20:00',
+    rawStatus: 'confirmed',
+    paymentDisplay: const MyBookingPaymentDisplay(label: 'PIX'),
+  );
 }

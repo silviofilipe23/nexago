@@ -26,6 +26,17 @@ Future<void> _pump(
         ),
         myBookingsStreamProvider.overrideWith((ref) => Stream.value(bookings)),
         athleteFocusHomeTargetProvider.overrideWith((ref) async => focus),
+        athleteNextMatchProvider.overrideWith((ref) async => null),
+        athleteCourtCallMatchProvider.overrideWith(
+          (ref) => Stream.value(null),
+        ),
+        athleteEventDayContextProvider.overrideWith(
+          (ref) async => AthleteEventDayContext(
+            registrations: const [],
+            matchesByTournament: const {},
+            now: DateTime.now(),
+          ),
+        ),
       ],
       child: MaterialApp(
         theme: AppTheme.dark,
@@ -52,7 +63,7 @@ void main() {
     expect(find.text('Arena Sol · Quadra 2'), findsOneWidget);
   });
 
-  testWidgets('dia do evento: Modo Focus no topo, acima da reserva',
+  testWidgets('dia do evento: card do Modo Focus no topo, acima da reserva',
       (tester) async {
     await _pump(
       tester,
@@ -74,7 +85,7 @@ void main() {
     );
   });
 
-  testWidgets('fora do dia do evento: sem botão do Focus', (tester) async {
+  testWidgets('fora do dia do evento: sem card do Focus', (tester) async {
     await _pump(tester, [_futureBooking()]);
     expect(find.text('MODO FOCUS'), findsNothing);
   });

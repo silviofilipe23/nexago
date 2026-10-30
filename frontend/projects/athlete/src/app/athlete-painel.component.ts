@@ -52,6 +52,7 @@ import { recentCampaignsOf, type RecentCampaign } from './tournaments/campaign/r
 import { duoNameOf, duoPlayersOf } from './tournaments/duo-identity';
 import { AthleteGamificationService } from './profile/athlete-gamification.service';
 import { CashbackPainelCardComponent } from './cashback/cashback-painel-card.component';
+import { FocusAutoOpenService } from './tournaments/focus/focus-auto-open.service';
 import { FocusDayService } from './tournaments/focus/focus-day.service';
 import {
   resolveLevelConfirmationPromptForTournament,
@@ -436,6 +437,7 @@ export class AthletePainelComponent {
    *  valendo depois que a entrada automática do dia já foi consumida: é o caminho manual de volta
    *  pro Focus depois que o atleta sai. */
   protected readonly focusDay = inject(FocusDayService);
+  private readonly focusAutoOpen = inject(FocusAutoOpenService);
   private readonly firestore = createFirestore();
 
   private readonly bookingsState = signal<readonly MyBooking[]>([]);
@@ -770,12 +772,18 @@ export class AthletePainelComponent {
     const clock = setInterval(() => this.now.set(new Date()), CLOCK_TICK_MS);
     inject(DestroyRef).onDestroy(() => clearInterval(clock));
 
-    // Entrada automática no Modo Focus: sem guard, porque um guard bloquearia a navegação
-    // esperando o Firestore e daria tela branca. O painel renderiza normal e só redireciona
-    // quando a resposta chega. O serviço já devolve `null` para "não dispensar" (sem jogo hoje,
-    // já dispensado, deslogado ou leitura falhou) — o painel não precisa saber qual caso é.
+    // Entrada automática no Modo Focus — só para quem pediu no Perfil (`FocusAutoOpenService`,
+    // desligada por padrão). O `resolve()` roda sempre: é ele que alimenta o "Entrar no Focus"
+    // do painel, a porta de entrada de quem não pediu.
+    //
+    // Sem guard, porque um guard bloquearia a navegação esperando o Firestore e daria tela
+    // branca. O painel renderiza normal e só redireciona quando a resposta chega. O serviço já
+    // devolve `null` para "não dispensar" (sem jogo hoje, já dispensado, deslogado ou leitura
+    // falhou) — o painel não precisa saber qual caso é.
     void this.focusDay.resolve().then((target) => {
-      if (target) void this.router.navigate(['/torneios', target.tournamentId, 'focus']);
+      if (target && this.focusAutoOpen.enabled()) {
+        void this.router.navigate(['/torneios', target.tournamentId, 'focus']);
+      }
     });
 
     effect((onCleanup) => {

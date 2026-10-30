@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="art.css">
+<style>
+  .t { font-size: 13px; font-weight: 800; letter-spacing: -.02em; }
+  .s { font-size: 9.5px; color: var(--dim); margin-top: 2px; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .ic { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: rgba(255,106,26,.12); color: var(--or); flex-shrink: 0; }
+  .ic .i { font-size: 17px; }
+  .mono { font-family: JB; font-weight: 700; }
+  .pill { height: 20px; border-radius: 99px; padding: 0 8px; display: inline-flex; align-items: center; gap: 4px; font-family: JB; font-weight: 700; font-size: 7.5px; letter-spacing: .12em; }
+  .p-or { background: rgba(255,106,26,.12); border: 1px solid rgba(255,106,26,.32); color: var(--or); }
+  .p-win { background: rgba(43,209,126,.12); border: 1px solid rgba(43,209,126,.32); color: var(--win); }
+  .p-gold { background: rgba(244,197,67,.12); border: 1px solid rgba(244,197,67,.32); color: #F4C543; }
+  .p-red { background: rgba(255,59,48,.12); border: 1px solid rgba(255,59,48,.32); color: #FF5A50; }
+  .sel { border-color: rgba(255,106,26,.55); box-shadow: 0 0 0 4px rgba(255,106,26,.10), 0 18px 44px rgba(0,0,0,.6); }
+  .tap { position: absolute; font-size: 30px; color: #F7F7F8; text-shadow: 0 6px 18px rgba(0,0,0,.75); }
+  .div { height: 1px; background: var(--line); margin: 10px 0; }
+
+  .pl { position:absolute; left:57px; width:276px; height:60px; padding:0 12px; display:flex; align-items:center; gap:10px; }
+  .thumb { width:38px; height:38px; border-radius:10px; display:grid; place-items:center; flex-shrink:0; }
+
+</style></head>
+<body><div class="art">
+
+  <div class="abs" style="left:57px; top:58px; display:flex; gap:6px;"><span class="chip on">Arenas</span><span class="chip">CTs</span><span class="chip">Professores</span></div>
+  <div class="pl card" style="top:92px; opacity:.8;"><div class="thumb" style="background:rgba(138,180,255,.15);color:#8AB4FF;"><span class="i">&#xe559;</span></div>
+    <div><div class="t" style="font-size:12px;">CT Praia Viva</div><div class="s">3 turmas · 1,2 km</div></div><span class="s" style="margin-left:auto;">R$ 180/mês</span></div>
+  <div class="pl card sel" style="top:160px; height:72px;"><div class="thumb" style="background:rgba(255,106,26,.14);color:var(--or);"><span class="i">&#xe5f4;</span></div>
+    <div><div class="t" style="font-size:12.5px;">Iniciante · Ter e Qui</div><div class="s">19:00 · Arena Setor Bueno · 4 vagas</div></div>
+    <div class="btn" style="margin-left:auto; height:28px; font-size:9.5px; padding:0 10px;">Agendar</div></div>
+  <div class="pl card" style="top:240px; opacity:.6;"><div class="av" style="width:38px;height:38px;font-size:13px;background:#2BD17E;">R</div>
+    <div><div class="t" style="font-size:12px;">Prof. Rafa</div><div class="s">Particular · 4,9 <span class="i" style="font-size:10px;color:#F4C543;">&#xe5f9;</span></div></div></div><div class="tap" style="left:282px; top:205px;"><span class="i">&#xe670;</span></div>
+</div></body></html>

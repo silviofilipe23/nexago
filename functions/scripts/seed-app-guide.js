@@ -81,6 +81,9 @@ const IMAGES = {
     "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.18-chuva-sem-custo.webp?alt=media&token=668e04a6-1e32-4a8c-9e3b-93a3320e95c1",
   "credito-chuva":
     "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.18-credito-chuva.webp?alt=media&token=d4edaffe-1652-4fce-9f89-0deb8c5fd39b",
+  // Arte em docs/app-news-art/modo-focus.html (card do Focus da Início, com o deslizar).
+  "modo-focus":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Fmodo-focus.webp?alt=media&token=c0e757cf-061a-46d0-8367-ef5b32dfd2f6",
 };
 
 const CATEGORIES = [
@@ -313,6 +316,7 @@ const CATEGORIES = [
       {
         id: "guia-modo-focus",
         icon: "focus",
+        imageUrl: IMAGES["modo-focus"],
         title: "Modo Focus no dia do jogo",
         summary: "Próximo jogo, grupo, chave e arena numa tela só.",
         description:

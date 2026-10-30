@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="art.css">
+<style>
+  /* O card do Modo Focus da Início (dia do torneio): contagem, adversário e o deslizar. */
+  .focus { position: absolute; left: 57px; top: 70px; width: 276px; padding: 14px;
+    background: radial-gradient(120% 90% at 100% 0, rgba(255,106,26,.22), rgba(255,106,26,0) 55%), var(--surf);
+    border-color: rgba(255,106,26,.32); }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .fchip { height: 20px; padding: 0 8px; border-radius: 99px; display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(255,106,26,.10); border: 1px solid rgba(255,106,26,.30); color: var(--or);
+    font-family: JB; font-weight: 700; font-size: 7.5px; letter-spacing: .14em; }
+  .fchip .i { font-size: 11px; }
+  .tour { margin-left: auto; }
+  .label { margin-top: 12px; }
+  .clock { font-family: JB; font-weight: 700; font-size: 40px; line-height: 1; letter-spacing: -.03em; margin-top: 5px; }
+  .bar { height: 4px; border-radius: 9px; background: rgba(255,106,26,.18); margin-top: 10px; }
+  .bar span { display: block; width: 62%; height: 100%; border-radius: 9px; background: var(--or); }
+  .opp { margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--line); }
+  .duo { position: relative; width: 48px; height: 28px; flex-shrink: 0; }
+  .duo .av { position: absolute; top: 0; width: 28px; height: 28px; font-size: 11px; border: 2px solid var(--surf); }
+  .duo .av:last-child { left: 19px; }
+  .vs { font-size: 12px; font-weight: 700; letter-spacing: -.01em; }
+  .meta { font-size: 9.5px; color: var(--dim); margin-top: 2px; }
+  .track { position: relative; height: 40px; margin-top: 12px; border-radius: 12px; padding: 3px;
+    border: 1px solid rgba(255,106,26,.30); background: linear-gradient(90deg, rgba(255,106,26,.28), rgba(255,106,26,.06)); }
+  .trail { position: absolute; left: 3px; top: 3px; bottom: 3px; width: 70px; border-radius: 9px; background: rgba(255,106,26,.22); }
+  .thumb { position: absolute; left: 39px; top: 3px; width: 34px; height: 34px; border-radius: 9px; background: var(--or);
+    display: grid; place-items: center; color: #fff; box-shadow: 0 6px 16px rgba(255,106,26,.35); }
+  .thumb .i { font-size: 19px; }
+  .hint { position: absolute; left: 80px; right: 6px; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center;
+    font-family: JB; font-weight: 700; font-size: 7px; letter-spacing: .1em; color: var(--or); white-space: nowrap; }
+  .hint b { margin-left: 6px; letter-spacing: .02em; }
+  .hint b span:nth-child(1) { opacity: 1; } .hint b span:nth-child(2) { opacity: .6; } .hint b span:nth-child(3) { opacity: .3; }
+  /* dedo deslizando o polegar */
+  .finger { position: absolute; left: 106px; top: 280px; font-size: 32px; color: #F7F7F8;
+    text-shadow: 0 6px 18px rgba(0,0,0,.75); }
+</style></head>
+<body><div class="art">
+  <div class="focus card">
+    <div class="row">
+      <span class="fchip"><span class="i">&#xe392;</span>MODO FOCUS</span>
+      <span class="kicker tour">Open Goiânia Beach</span>
+    </div>
+    <div class="kicker label">Sua próxima partida em</div>
+    <div class="clock">42:18</div>
+    <div class="bar"><span></span></div>
+    <div class="row opp">
+      <div class="duo"><div class="av" style="background:#8AB4FF;">R</div><div class="av" style="background:#C9A0FF;">L</div></div>
+      <div>
+        <div class="vs">vs Rafa &amp; Leo</div>
+        <div class="meta">Jogo 14 · Quadra 3 · 12:10</div>
+      </div>
+    </div>
+    <div class="track">
+      <div class="trail"></div>
+      <div class="thumb"><span class="i">&#xe392;</span></div>
+      <div class="hint">DESLIZE PARA O MODO FOCUS<b><span>›</span><span>›</span><span>›</span></b></div>
+    </div>
+  </div>
+    <div class="finger"><span class="i">&#xe670;</span></div>
+</div></body></html>

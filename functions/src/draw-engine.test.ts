@@ -422,3 +422,78 @@ describe("nextReveal — cabeças da dupla eliminatória no ar", () => {
     assert.equal(out.status === "ok" && out.reveal.preassigned, undefined);
   });
 });
+
+/**
+ * Posição das cabeças SORTEADA na dupla eliminatória: elas continuam abrindo o
+ * sorteio e continuam presas aos seeds de cabeça, mas quem pega qual seed sai
+ * do acaso — e a revelação não leva a marca de "por ranking".
+ */
+describe("nextReveal — dupla eliminatória com posição das cabeças sorteada", () => {
+  const sorteada = (over: Partial<DrawEngineState> = {}): DrawEngineState => ({
+    format: "double_elimination",
+    constraints: {...semRestricao, lockedSeedsDrawn: true},
+    pots: [{index: 1, teamIds: ["c1", "c2", "c3", "x", "y"]}],
+    teamsById: {
+      c1: {teamId: "c1", potIndex: 1, city: null, lockedSeed: 1},
+      c2: {teamId: "c2", potIndex: 1, city: null, lockedSeed: 2},
+      c3: {teamId: "c3", potIndex: 1, city: null, lockedSeed: 3},
+      x: {teamId: "x", potIndex: 2, city: null, lockedSeed: null},
+      y: {teamId: "y", potIndex: 2, city: null, lockedSeed: null},
+    },
+    groups: [],
+    seedOrder: [null, null, null, null, null],
+    lockedSeedCount: 3,
+    revealedTeamIds: [],
+    ...over,
+  });
+
+  it("o sorteador escolhe a cabeça e o seed — sem a marca de ranking", () => {
+    assert.deepEqual(nextReveal(sorteada(), scripted(2, 1)), {
+      status: "ok",
+      reveal: {teamId: "c3", destination: {type: "seed", seed: 2}, relaxed: []},
+    });
+  });
+
+  it("o seed sai só entre os de cabeça ainda vagos", () => {
+    const out = nextReveal(
+      sorteada({revealedTeamIds: ["c3"], seedOrder: [null, "c3", null, null, null]}),
+      scripted(0, 1),
+    );
+    assert.equal(out.status === "ok" && out.reveal.teamId, "c1");
+    assert.deepEqual(
+      out.status === "ok" ? out.reveal.destination : null,
+      {type: "seed", seed: 3},
+    );
+  });
+
+  it("nenhuma cabeça escapa dos seeds de cabeça, peça o sorteador o que pedir", () => {
+    const out = nextReveal(sorteada(), () => 99);
+    assert.ok(
+      out.status === "ok" &&
+        out.reveal.destination.type === "seed" &&
+        out.reveal.destination.seed <= 3,
+    );
+  });
+
+  it("acabadas as cabeças, as demais vão para os seeds de fora", () => {
+    const out = nextReveal(
+      sorteada({revealedTeamIds: ["c1", "c2", "c3"], seedOrder: ["c2", "c3", "c1", null, null]}),
+      scripted(0, 0),
+    );
+    assert.equal(out.status === "ok" && out.reveal.teamId, "x");
+    assert.deepEqual(
+      out.status === "ok" ? out.reveal.destination : null,
+      {type: "seed", seed: 4},
+    );
+  });
+
+  it("sem a regra, segue no seed do ranking", () => {
+    const out = nextReveal(
+      sorteada({constraints: semRestricao}),
+      () => {
+        throw new Error("não devia sortear");
+      },
+    );
+    assert.equal(out.status === "ok" && out.reveal.preassigned, true);
+  });
+});

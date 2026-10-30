@@ -71,6 +71,31 @@ function factorial(n: number): number {
 }
 
 /**
+ * As cabeças escolhidas têm a POSIÇÃO sorteada, ou entram no lugar que o
+ * ranking define (1ª → grupo A / seed 1)?
+ *
+ * Um conceito, dois campos: nos formatos de caixa é o `seedsPreassigned`
+ * desligado; na dupla eliminatória é o `lockedSeedsDrawn`, porque lá o outro
+ * campo sempre veio `false` com seed por ranking.
+ */
+export function seedPositionsDrawn(session: DrawSession): boolean {
+  const { constraints } = session.config;
+  return session.format === 'double_elimination' ?
+    !!constraints.lockedSeedsDrawn :
+    !constraints.seedsPreassigned;
+}
+
+/** O patch de restrições que liga ou desliga o sorteio da posição das cabeças. */
+export function seedPositionsDrawnPatch(
+  session: DrawSession,
+  drawn: boolean,
+): Partial<DrawSession['config']['constraints']> {
+  return session.format === 'double_elimination' ?
+    { lockedSeedsDrawn: drawn } :
+    { seedsPreassigned: !drawn };
+}
+
+/**
  * Quantos sorteios diferentes as regras ativas ainda permitem.
  *
  * Não é enfeite: é a resposta para "esse sorteio é mesmo aleatório?". Com potes
@@ -87,15 +112,21 @@ export function combinationsOf(session: DrawSession): number | null {
   let total: number;
 
   if (session.format === 'double_elimination') {
-    const open = Math.max(0, teams - Math.min(session.config.lockedSeedCount, teams));
-    if (open < 2) return null;
-    total = factorial(open);
+    const locked = Math.min(session.config.lockedSeedCount, teams);
+    const open = Math.max(0, teams - locked);
+    // Cabeças com posição sorteada permutam entre os seeds delas.
+    total = factorial(open) * (seedPositionsDrawn(session) ? factorial(locked) : 1);
+    if (total < 2) return null;
   } else if (session.config.constraints.potsPerGroup && session.pots.length > 0) {
     // Um slot de cada grupo por rodada de pote: o pote de tamanho k tem
-    // P(grupos, k) arranjos.
+    // P(grupos, k) arranjos. Pote 1 com lugar pelo ranking não sorteia nada.
     const groupCount = groupsOf(session, 0).length;
+    const seedsFixed = !seedPositionsDrawn(session);
     total = session.pots.reduce(
-      (acc, pot) => acc * permutations(groupCount, Math.min(pot.teamIds.length, groupCount)),
+      (acc, pot) =>
+        pot.index === 1 && seedsFixed ?
+          acc :
+          acc * permutations(groupCount, Math.min(pot.teamIds.length, groupCount)),
       1,
     );
   } else {

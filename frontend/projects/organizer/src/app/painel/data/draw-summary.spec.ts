@@ -1,4 +1,10 @@
-import { combinationsOf, formatSummaryOf, readinessChecksOf } from './draw-summary';
+import {
+  combinationsOf,
+  formatSummaryOf,
+  readinessChecksOf,
+  seedPositionsDrawn,
+  seedPositionsDrawnPatch,
+} from './draw-summary';
 import type { DrawSession, DrawSessionEntrant } from './draw-session.model';
 
 function entrant(teamId: string, over: Partial<DrawSessionEntrant> = {}): DrawSessionEntrant {
@@ -129,6 +135,33 @@ describe('combinationsOf', () => {
     expect(combinationsOf(s)).toBe(720); // 6!
   });
 
+  it('dupla eliminatória com posição das cabeças sorteada: as cabeças também permutam', () => {
+    const s = session(8, {
+      format: 'double_elimination',
+      config: {
+        ...session(8).config,
+        lockedSeedCount: 2,
+        constraints: { ...session(8).config.constraints, lockedSeedsDrawn: true },
+      },
+      pots: [{ index: 1, teamIds: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] }],
+    });
+    expect(combinationsOf(s)).toBe(720 * 2); // 6! × 2!
+  });
+
+  it('cabeças com lugar pelo ranking não entram na conta do pote 1', () => {
+    const s = session(16, {
+      config: {
+        ...session(16).config,
+        constraints: { ...session(16).config.constraints, seedsPreassigned: true },
+      },
+      pots: [0, 1, 2, 3].map((i) => ({
+        index: i + 1,
+        teamIds: ['a', 'b', 'c', 'd'].map((x) => `${x}${i}`),
+      })),
+    });
+    expect(combinationsOf(s)).toBe(24 ** 3);
+  });
+
   it('número grande demais para exibir devolve null em vez de Infinity', () => {
     const s = session(60, {
       format: 'double_elimination',
@@ -192,5 +225,34 @@ describe('readinessChecksOf — King of the Court', () => {
     expect(check?.ok).toBe(true);
     expect(check?.label).toContain('rodada');
     expect(check?.label).not.toContain('grupo');
+  });
+});
+
+describe('seedPositionsDrawn', () => {
+  const comRestricoes = (
+    format: DrawSession['format'],
+    constraints: Partial<DrawSession['config']['constraints']>,
+  ): DrawSession => {
+    const base = session(8, { format });
+    return { ...base, config: { ...base.config, constraints: { ...base.config.constraints, ...constraints } } };
+  };
+
+  it('grupos: cabeça com lugar pelo ranking não é sorteada', () => {
+    expect(seedPositionsDrawn(comRestricoes('groups_knockout', { seedsPreassigned: true }))).toBe(false);
+  });
+
+  it('grupos: sessão antiga, sem o campo, sorteia as cabeças', () => {
+    expect(seedPositionsDrawn(comRestricoes('groups_knockout', {}))).toBe(true);
+  });
+
+  it('dupla eliminatória: o `seedsPreassigned: false` de sempre NÃO vira sorteio', () => {
+    expect(seedPositionsDrawn(comRestricoes('double_elimination', { seedsPreassigned: false }))).toBe(false);
+    expect(seedPositionsDrawn(comRestricoes('double_elimination', { lockedSeedsDrawn: true }))).toBe(true);
+  });
+
+  it('o patch escreve no campo de cada formato', () => {
+    expect(seedPositionsDrawnPatch(session(8), true)).toEqual({ seedsPreassigned: false });
+    expect(seedPositionsDrawnPatch(session(8, { format: 'king_of_court' }), false)).toEqual({ seedsPreassigned: true });
+    expect(seedPositionsDrawnPatch(session(8, { format: 'double_elimination' }), true)).toEqual({ lockedSeedsDrawn: true });
   });
 });

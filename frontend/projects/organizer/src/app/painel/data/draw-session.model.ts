@@ -44,6 +44,12 @@ export interface DrawConstraints {
   avoidSameCity: boolean;
   /** Cabeças abrem no grupo que o ranking já definiu (1ª → A, 2ª → B, …). */
   seedsPreassigned?: boolean;
+  /**
+   * Dupla eliminatória: as cabeças sorteiam entre si os seeds travados. Campo
+   * próprio porque a DE sempre nasceu com `seedsPreassigned: false` e seed por
+   * ranking — ausente = seed do ranking.
+   */
+  lockedSeedsDrawn?: boolean;
 }
 
 export interface DrawSessionEntrant {

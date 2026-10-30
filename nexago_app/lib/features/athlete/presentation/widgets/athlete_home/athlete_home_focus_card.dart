@@ -9,6 +9,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_radii.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
+import '../../../../../core/ui/nexa_slide_to_confirm.dart';
 import '../../../../tournaments/domain/athlete_tournament_day_logic.dart';
 import '../../../../tournaments/domain/athlete_tournament_day_providers.dart';
 import '../../../../tournaments/domain/focus/focus_views_logic.dart';
@@ -503,33 +504,33 @@ class _Cta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (label, background) = switch (mode) {
-      HomeFocusCardMode.called => ('ESTOU INDO', AppColors.live),
-      HomeFocusCardMode.live => ('ABRIR MODO FOCUS', AppColors.brand),
-      HomeFocusCardMode.waiting => ('ABRIR MODO FOCUS', null),
-      _ => ('ENTRAR NO FOCUS', AppColors.brand),
-    };
-    final ghost = background == null;
+    // Entrar no Focus é deslizar (protótipo D): vira um modo, não um link.
+    // A chamada da mesa é a exceção — urgência pede um toque só.
+    if (mode != HomeFocusCardMode.called) {
+      return NexaSlideToConfirm(
+        key: const Key('home-focus-card-slide'),
+        label: 'DESLIZE PARA O MODO FOCUS',
+        semanticLabel: 'Ativar Modo Focus',
+        onConfirmed: onPressed,
+      );
+    }
     return SizedBox(
       height: 48,
       child: FilledButton.icon(
         key: const Key('home-focus-card-cta'),
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: background ?? Colors.white.withValues(alpha: 0.05),
+          backgroundColor: AppColors.live,
           foregroundColor: Colors.white,
-          side: ghost
-              ? BorderSide(color: Colors.white.withValues(alpha: 0.10))
-              : null,
           shape: const RoundedRectangleBorder(borderRadius: AppRadii.mdAll),
         ),
-        icon: Icon(
+        icon: const Icon(
           Icons.local_fire_department_rounded,
           size: 18,
-          color: ghost ? AppColors.brand : Colors.white,
+          color: Colors.white,
         ),
         label: Text(
-          label,
+          'ESTOU INDO',
           style: AppTypography.soraRegular(
             fontSize: 13,
             fontWeight: FontWeight.w700,

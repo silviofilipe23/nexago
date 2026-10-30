@@ -44,6 +44,16 @@ const _opponent = TournamentMatchCardTeamViewModel(
   ],
 );
 
+/// Arrasta o polegar até o fim do trilho e deixa a confirmação terminar.
+Future<void> slide(WidgetTester tester) async {
+  await tester.drag(
+    find.byKey(const Key('nexa-slide-thumb')),
+    const Offset(500, 0),
+  );
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.pump(const Duration(milliseconds: 500));
+}
+
 void main() {
   setUpAll(() => initializeDateFormatting('pt_BR'));
 
@@ -153,7 +163,7 @@ void main() {
       expect(find.text('vs Rafa & Leo'), findsOneWidget);
       expect(find.textContaining('Jogo 14 · Quadra 3 · '), findsOneWidget);
 
-      await tester.tap(find.text('ENTRAR NO FOCUS'));
+      await slide(tester);
       expect(taps(), 1);
     });
 
@@ -191,6 +201,8 @@ void main() {
       expect(find.text('CHAMADO PELA MESA'), findsOneWidget);
       expect(find.text('Vá para a Quadra 3 agora'), findsOneWidget);
       expect(find.textContaining('contra Rafa & Leo'), findsOneWidget);
+      // Urgência: toque só, sem trilho de deslizar.
+      expect(find.byKey(const Key('home-focus-card-slide')), findsNothing);
       await tester.tap(find.text('ESTOU INDO'));
       expect(taps(), 1);
     });
@@ -199,7 +211,7 @@ void main() {
       await pump(tester, _match(status: TournamentMatchStatus.inProgress));
       expect(find.text('AO VIVO'), findsOneWidget);
       expect(find.text('Sua partida está rolando'), findsOneWidget);
-      expect(find.text('ABRIR MODO FOCUS'), findsOneWidget);
+      expect(find.text('DESLIZE PARA O MODO FOCUS  ›››'), findsOneWidget);
     });
 
     testWidgets('fila sem horário e sem adversário definido', (tester) async {
@@ -211,7 +223,7 @@ void main() {
     testWidgets('intervalo: sem partida, ainda leva ao Focus', (tester) async {
       final taps = await pump(tester, null, opponent: null);
       expect(find.text('Sem partida marcada agora'), findsOneWidget);
-      await tester.tap(find.text('ABRIR MODO FOCUS'));
+      await slide(tester);
       expect(taps(), 1);
     });
 

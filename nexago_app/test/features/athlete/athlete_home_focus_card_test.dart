@@ -211,7 +211,7 @@ void main() {
       await pump(tester, _match(status: TournamentMatchStatus.inProgress));
       expect(find.text('AO VIVO'), findsOneWidget);
       expect(find.text('Sua partida está rolando'), findsOneWidget);
-      expect(find.text('DESLIZE PARA O MODO FOCUS  ›››'), findsOneWidget);
+      expect(find.text('DESLIZE PARA O MODO FOCUS'), findsOneWidget);
     });
 
     testWidgets('fila sem horário e sem adversário definido', (tester) async {

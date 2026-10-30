@@ -21,6 +21,7 @@ enum AthleteHomeTourTarget {
   notifications,
   tournaments,
   ranking,
+  focus,
   navBar,
 }
 
@@ -33,11 +34,23 @@ class AthleteHomeTourStep {
     this.navSlot,
     this.holePadding = 8,
     this.holeRadius = 16,
+    this.bodyWithoutTarget,
+    this.since = 1,
   });
 
   final AthleteHomeTourTarget target;
   final String title;
   final String body;
+
+  /// Texto para quando o alvo não está na tela. Com ele, o passo aparece
+  /// mesmo assim — sem recorte, só a explicação; sem ele, o passo é pulado.
+  final String? bodyWithoutTarget;
+
+  /// Versão do tour em que o passo entrou: quem já viu uma versão anterior
+  /// vê só os passos mais novos que ela.
+  final int since;
+
+  bool get showsWithoutTarget => bodyWithoutTarget != null;
 
   /// Aba da casca do atleta onde o alvo mora. O tour troca para ela antes do
   /// passo: mostrar o card do Ranking com o atleta na Início não ensinaria
@@ -97,6 +110,22 @@ const athleteHomeTourSteps = [
     tab: athleteShellCompeteTabIndex,
     holePadding: 4,
     holeRadius: 20,
+  ),
+  // O card do Focus só existe no dia do torneio, e o tour quase nunca cai
+  // nesse dia: sem o card, o passo explica onde ele vai aparecer.
+  AthleteHomeTourStep(
+    target: AthleteHomeTourTarget.focus,
+    title: 'Modo Focus no dia do torneio',
+    body: 'Quanto falta para a sua partida, a quadra e o adversário. Deslize '
+        'para entrar: o app fica só com o seu dia e avisa quando a mesa '
+        'chamar.',
+    bodyWithoutTarget: 'No dia em que você joga, aparece um card no topo da '
+        'Início com quanto falta para a sua partida, a quadra e o adversário. '
+        'Deslize nele para entrar no Modo Focus: o app fica só com o seu dia '
+        'e avisa quando a mesa chamar.',
+    since: 4,
+    holePadding: 4,
+    holeRadius: 24,
   ),
   AthleteHomeTourStep(
     target: AthleteHomeTourTarget.navBar,
@@ -211,7 +240,11 @@ Future<void> showAthleteHomeTour(
   // abas): o contador "1 de 6" não pode pular número.
   final visible = steps
       .where((s) => s.tab == 0 || onShowTab != null)
-      .where((s) => AthleteHomeTourAnchor.rectOf(s.target) != null)
+      .where(
+        (s) =>
+            s.showsWithoutTarget ||
+            AthleteHomeTourAnchor.rectOf(s.target) != null,
+      )
       .toList(growable: false);
   if (visible.isEmpty) return Future.value();
 
@@ -340,8 +373,12 @@ class _AthleteHomeTourOverlayState extends State<AthleteHomeTourOverlay> {
   @override
   Widget build(BuildContext context) {
     final step = widget.steps[_index];
+    final size = MediaQuery.sizeOf(context);
     final target = _targetRect(step);
-    if (target == null) {
+    // Sem alvo, o recorte se fecha num ponto e no lugar dele fica o selo do
+    // passo, com o cartão logo abaixo.
+    final standalone = target == null && step.showsWithoutTarget;
+    if (target == null && !standalone) {
       // Alvo fora da tela (aba sem sino, por exemplo): pula o passo.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _next();
@@ -349,9 +386,14 @@ class _AthleteHomeTourOverlayState extends State<AthleteHomeTourOverlay> {
       return const SizedBox.shrink();
     }
 
-    final size = MediaQuery.sizeOf(context);
     final padding = MediaQuery.paddingOf(context);
-    final hole = target.inflate(step.holePadding);
+    final hole = standalone
+        ? Rect.fromCenter(
+            center: Offset(size.width / 2, size.height * 0.28),
+            width: 0,
+            height: 0,
+          )
+        : target!.inflate(step.holePadding);
     final cardBelow = hole.center.dy < size.height / 2;
     final duration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
@@ -378,6 +420,12 @@ class _AthleteHomeTourOverlayState extends State<AthleteHomeTourOverlay> {
               ),
             ),
           ),
+          if (standalone)
+            Positioned(
+              left: hole.center.dx - 28,
+              top: hole.center.dy - 56,
+              child: const _StandaloneBadge(),
+            ),
           AnimatedPositioned(
             duration: duration,
             curve: AppMotion.emphasized,
@@ -395,6 +443,7 @@ class _AthleteHomeTourOverlayState extends State<AthleteHomeTourOverlay> {
               child: _TourCard(
                 key: ValueKey(_index),
                 step: step,
+                body: standalone ? step.bodyWithoutTarget! : step.body,
                 position: _index + 1,
                 total: widget.steps.length,
                 isLast: _isLast,
@@ -433,10 +482,40 @@ class _AthleteHomeTourOverlayState extends State<AthleteHomeTourOverlay> {
   }
 }
 
+/// O que fica no lugar do recorte quando o passo não tem alvo na tela.
+class _StandaloneBadge extends StatelessWidget {
+  const _StandaloneBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('athlete-home-tour-standalone'),
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: AppColors.brand,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.brand.withValues(alpha: 0.35),
+            blurRadius: 24,
+          ),
+        ],
+      ),
+      child: const Icon(
+        Icons.local_fire_department_rounded,
+        color: Colors.white,
+        size: 30,
+      ),
+    );
+  }
+}
+
 class _TourCard extends StatelessWidget {
   const _TourCard({
     super.key,
     required this.step,
+    required this.body,
     required this.position,
     required this.total,
     required this.isLast,
@@ -445,6 +524,7 @@ class _TourCard extends StatelessWidget {
   });
 
   final AthleteHomeTourStep step;
+  final String body;
   final int position;
   final int total;
   final bool isLast;
@@ -474,7 +554,8 @@ class _TourCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '$position DE $total',
+                // Passo único = quem já viu o tour e só tem a novidade.
+                total == 1 ? 'NOVIDADE' : '$position DE $total',
                 style: AppTypography.eyebrow.copyWith(color: AppColors.brand),
               ),
               const SizedBox(height: AppSpacing.xs),
@@ -484,7 +565,7 @@ class _TourCard extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                step.body,
+                body,
                 style: AppTypography.bodyM.copyWith(
                   color: colors.onSurfaceMuted,
                 ),
@@ -550,6 +631,8 @@ class _ScrimPainter extends CustomPainter {
       scrim,
       Paint()..color = AppColors.black.withValues(alpha: 0.74),
     );
+    // Recorte fechado (passo sem alvo): nada de anel desenhado num ponto.
+    if (hole.shortestSide < 1) return;
     canvas.drawRRect(
       rrect,
       Paint()
@@ -564,7 +647,8 @@ class _ScrimPainter extends CustomPainter {
       old.hole != hole || old.radius != radius;
 }
 
-/// Abre o tour uma vez por conta, na Início, com a casca do atleta à vista —
+/// Abre o tour uma vez por conta — e de novo, só com os passos que entraram
+/// depois, quando a versão sobe —, na Início, com a casca do atleta à vista —
 /// mesmo desenho do `AppNewsStoriesAnnouncer`: por cima de uma inscrição, um
 /// convite ou os stories, espera eles saírem.
 ///
@@ -601,7 +685,11 @@ class _AthleteHomeTourAnnouncerState
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final store = ref.read(athleteHomeTourStoreProvider);
       if (!mounted) return;
-      if (await store.seen(uid)) {
+      final seenVersion = await store.seenVersion(uid);
+      final steps = athleteHomeTourSteps
+          .where((s) => s.since > seenVersion)
+          .toList(growable: false);
+      if (steps.isEmpty) {
         _done = true;
         return;
       }
@@ -616,6 +704,7 @@ class _AthleteHomeTourAnnouncerState
       final tab = ref.read(athleteShellTabIndexProvider.notifier);
       await showAthleteHomeTour(
         context,
+        steps: steps,
         onShowTab: (i) => tab.state = i,
         onStep: (step, total, target) => logAnalytics(
           ref,

@@ -15,13 +15,14 @@ import 'package:nexago_app/features/athlete/presentation/widgets/athlete_home/at
 import '../../support/recording_analytics.dart';
 
 class _FakeStore extends AthleteHomeTourStore {
-  _FakeStore({this.alreadySeen = false});
+  _FakeStore({this.seen = 0});
 
-  final bool alreadySeen;
+  final int seen;
   final marked = <String>[];
 
   @override
-  Future<bool> seen(String uid) async => alreadySeen || marked.contains(uid);
+  Future<int> seenVersion(String uid) async =>
+      marked.contains(uid) ? AthleteHomeTourStore.version : seen;
 
   @override
   Future<void> markSeen(String uid) async => marked.add(uid);
@@ -37,7 +38,11 @@ const _profile = AthleteProfile(
 
 /// Casca mínima: abas numa `IndexedStack` (como a do atleta, que monta todas)
 /// e a barra embaixo. [tab] escolhe a aba à vista.
-Widget _shell(ValueListenable<int> tab, {bool withBell = true}) => Column(
+Widget _shell(
+  ValueListenable<int> tab, {
+  bool withBell = true,
+  bool withFocusCard = false,
+}) => Column(
       children: [
         Expanded(
           child: ValueListenableBuilder<int>(
@@ -62,6 +67,11 @@ Widget _shell(ValueListenable<int> tab, {bool withBell = true}) => Column(
                           ),
                       ],
                     ),
+                    if (withFocusCard)
+                      const AthleteHomeTourAnchor(
+                        target: AthleteHomeTourTarget.focus,
+                        child: SizedBox(height: 200, width: double.infinity),
+                      ),
                   ],
                 ),
                 const SizedBox.shrink(),
@@ -107,6 +117,7 @@ void main() {
       WidgetTester tester, {
       bool withBell = true,
       bool switchTabs = true,
+      bool withFocusCard = false,
     }) async {
       tab = ValueNotifier(0);
       shownTabs = [];
@@ -117,7 +128,11 @@ void main() {
             body: Builder(
               builder: (context) => Stack(
                 children: [
-                  _shell(tab, withBell: withBell),
+                  _shell(
+                    tab,
+                    withBell: withBell,
+                    withFocusCard: withFocusCard,
+                  ),
                   Center(
                     child: TextButton(
                       onPressed: () => showAthleteHomeTour(
@@ -147,11 +162,12 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('passa pelas abas: conta, sino, quadra, torneios, ranking, barra',
-        (tester) async {
+    testWidgets(
+        'passa pelas abas: conta, sino, quadra, torneios, ranking, Focus, '
+        'barra', (tester) async {
       await open(tester);
 
-      expect(find.text('1 DE 6'), findsOneWidget);
+      expect(find.text('1 DE 7'), findsOneWidget);
       expect(find.text('Sua conta fica aqui'), findsOneWidget);
 
       await next(tester);
@@ -175,7 +191,11 @@ void main() {
       expect(find.text('Ranking'), findsOneWidget);
 
       await next(tester);
-      expect(find.text('6 DE 6'), findsOneWidget);
+      expect(find.text('Modo Focus no dia do torneio'), findsOneWidget);
+      expect(tab.value, 0, reason: 'o card do Focus mora na Início');
+
+      await next(tester);
+      expect(find.text('7 DE 7'), findsOneWidget);
       expect(find.text('Navegue pelas abas'), findsOneWidget);
       expect(tab.value, 0, reason: 'o último passo volta para a Início');
       expect(find.text('Entendi'), findsOneWidget);
@@ -207,10 +227,12 @@ void main() {
         (tester) async {
       await open(tester, switchTabs: false);
 
-      expect(find.text('1 DE 4'), findsOneWidget);
+      expect(find.text('1 DE 5'), findsOneWidget);
       await next(tester);
       await next(tester);
       expect(find.text('Alugue uma quadra'), findsOneWidget);
+      await next(tester);
+      expect(find.text('Modo Focus no dia do torneio'), findsOneWidget);
       await next(tester);
       expect(find.text('Navegue pelas abas'), findsOneWidget);
       expect(tab.value, 0);
@@ -220,9 +242,9 @@ void main() {
         (tester) async {
       await open(tester, withBell: false);
 
-      expect(find.text('1 DE 5'), findsOneWidget);
+      expect(find.text('1 DE 6'), findsOneWidget);
       await next(tester);
-      expect(find.text('2 DE 5'), findsOneWidget);
+      expect(find.text('2 DE 6'), findsOneWidget);
       expect(find.text('Alugue uma quadra'), findsOneWidget);
     });
 
@@ -247,13 +269,76 @@ void main() {
       final card = tester.getRect(find.text('Sua conta fica aqui'));
       expect(card.top, greaterThan(account.bottom));
 
-      for (var i = 0; i < 5; i++) {
+      for (var i = 0; i < 6; i++) {
         await next(tester);
       }
 
       final bar = AthleteHomeTourAnchor.rectOf(AthleteHomeTourTarget.navBar)!;
       final lastCard = tester.getRect(find.text('Navegue pelas abas'));
       expect(lastCard.bottom, lessThan(bar.top));
+    });
+  });
+
+  group('passo do Modo Focus', () {
+    Future<void> openFocusStep(
+      WidgetTester tester, {
+      required bool withFocusCard,
+    }) async {
+      final tab = ValueNotifier(0);
+      final focusStep = athleteHomeTourSteps.firstWhere(
+        (s) => s.target == AthleteHomeTourTarget.focus,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark,
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => Stack(
+                children: [
+                  _shell(tab, withFocusCard: withFocusCard),
+                  Center(
+                    child: TextButton(
+                      onPressed: () => showAthleteHomeTour(
+                        context,
+                        steps: [focusStep],
+                        onShowTab: (i) => tab.value = i,
+                      ),
+                      child: const Text('abrir'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('fora do dia do torneio: explica sem recorte', (tester) async {
+      await openFocusStep(tester, withFocusCard: false);
+
+      expect(
+        find.byKey(const Key('athlete-home-tour-standalone')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('aparece um card no topo'), findsOneWidget);
+      expect(find.text('NOVIDADE'), findsOneWidget, reason: 'passo único');
+      expect(find.text('Entendi'), findsOneWidget);
+    });
+
+    testWidgets('com o card na tela: destaca o card', (tester) async {
+      await openFocusStep(tester, withFocusCard: true);
+
+      expect(
+        find.byKey(const Key('athlete-home-tour-standalone')),
+        findsNothing,
+      );
+      expect(find.textContaining('Deslize para entrar'), findsOneWidget);
+      final card = AthleteHomeTourAnchor.rectOf(AthleteHomeTourTarget.focus)!;
+      final text = tester.getRect(find.text('Modo Focus no dia do torneio'));
+      expect(text.top, greaterThan(card.bottom));
     });
   });
 
@@ -274,10 +359,10 @@ void main() {
 
     Future<_FakeStore> pumpShell(
       WidgetTester tester, {
-      bool alreadySeen = false,
+      int seen = 0,
       int tab = 0,
     }) async {
-      final store = _FakeStore(alreadySeen: alreadySeen);
+      final store = _FakeStore(seen: seen);
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -355,7 +440,7 @@ void main() {
         'account',
         'notifications',
       ]);
-      expect(steps.first.namedArguments[#total], 6);
+      expect(steps.first.namedArguments[#total], 7);
 
       final finished = analytics.of(#logHomeTourFinished).single;
       expect(finished.namedArguments[#result], 'pulou');
@@ -366,21 +451,36 @@ void main() {
     testWidgets('analytics: chegou ao fim registra "concluiu"', (tester) async {
       await pumpShell(tester);
 
-      for (var i = 0; i < 6; i++) {
+      for (var i = 0; i < 7; i++) {
         await tester.tap(find.byKey(const Key('athlete-home-tour-next')));
         await tester.pumpAndSettle();
       }
 
-      expect(analytics.of(#logHomeTourStep), hasLength(6));
+      expect(analytics.of(#logHomeTourStep), hasLength(7));
       final finished = analytics.of(#logHomeTourFinished).single;
       expect(finished.namedArguments[#result], 'concluiu');
-      expect(finished.namedArguments[#step], 6);
+      expect(finished.namedArguments[#step], 7);
     });
 
     testWidgets('não abre de novo para quem já viu', (tester) async {
-      await pumpShell(tester, alreadySeen: true);
+      await pumpShell(tester, seen: AthleteHomeTourStore.version);
 
       expect(find.byType(AthleteHomeTourOverlay), findsNothing);
+    });
+
+    testWidgets('quem viu a v3 vê só o passo novo do Focus', (tester) async {
+      final store = await pumpShell(tester, seen: 3);
+
+      expect(find.text('Modo Focus no dia do torneio'), findsOneWidget);
+      expect(find.text('NOVIDADE'), findsOneWidget);
+      expect(find.text('Sua conta fica aqui'), findsNothing);
+      expect(store.marked, ['u1']);
+
+      await tester.tap(find.text('Entendi'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AthleteHomeTourOverlay), findsNothing);
+      expect(analytics.of(#logHomeTourStep).single.namedArguments[#target],
+          'focus');
     });
 
     testWidgets('não abre fora da aba Início', (tester) async {

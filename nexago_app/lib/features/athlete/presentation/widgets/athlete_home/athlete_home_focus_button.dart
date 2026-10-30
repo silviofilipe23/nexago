@@ -8,13 +8,19 @@ import '../../../../../core/theme/app_radii.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../tournaments/domain/athlete_tournament_day_providers.dart';
 
-/// CTA do Modo Focus na home — acima dos KPIs.
+/// CTA do Modo Focus na home — no topo, com os cards de hora marcada
+/// (reservas, convites), não perdido abaixo dos atalhos.
 ///
 /// Botão cheio, cantos [AppRadii.md] (não pill): mesma família dos CTAs do
 /// Focus. Some sozinho quando [athleteFocusHomeTargetProvider] devolve null
 /// (fora do dia do evento ou atleta eliminado no mata-mata).
 class AthleteHomeFocusButton extends ConsumerWidget {
-  const AthleteHomeFocusButton({super.key});
+  const AthleteHomeFocusButton({
+    super.key,
+    this.bottomGap = AppSpacing.sectionGap,
+  });
+
+  final double bottomGap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -22,11 +28,11 @@ class AthleteHomeFocusButton extends ConsumerWidget {
     if (target == null) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: EdgeInsets.fromLTRB(
         AppSpacing.screenH,
         0,
         AppSpacing.screenH,
-        AppSpacing.sectionGap,
+        bottomGap,
       ),
       child: SizedBox(
         width: double.infinity,

@@ -81,6 +81,35 @@ const IMAGES = {
     "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.18-chuva-sem-custo.webp?alt=media&token=668e04a6-1e32-4a8c-9e3b-93a3320e95c1",
   "credito-chuva":
     "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.18-credito-chuva.webp?alt=media&token=d4edaffe-1652-4fce-9f89-0deb8c5fd39b",
+  // Artes dos guias em docs/app-news-art/<nome>.html (render.sh), em app/guide/<nome>.webp.
+  "cancelar-reserva":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Fcancelar-reserva.webp?alt=media&token=9a3dc0b1-7459-42a8-95c4-964aa617b444",
+  "pedir-cancelamento-chuva":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Fpedir-cancelamento-chuva.webp?alt=media&token=fd4524f6-750c-41bc-8b36-504bb20d1df9",
+  "story-placar":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Fstory-placar.webp?alt=media&token=b57d9850-69a9-466a-845f-98e4a5fda70a",
+  "inscrever-torneio":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Finscrever-torneio.webp?alt=media&token=9c40fbd2-8948-4cb1-bc50-6187fc145ecc",
+  "convite-dupla":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Fconvite-dupla.webp?alt=media&token=b3ec0ad0-ed53-43ec-9ad7-ae28ac5ba28e",
+  "cancelar-inscricao":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Fcancelar-inscricao.webp?alt=media&token=5924e657-0409-4206-940f-6ccd035e63c9",
+  "campanha-story":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Fcampanha-story.webp?alt=media&token=ae0e2081-9eb7-4829-b0b2-741b8485db60",
+  "ranking":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Franking.webp?alt=media&token=30ec09b0-eadc-4af6-9624-d0cb135efd49",
+  "aulas":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Faulas.webp?alt=media&token=dd1f6e3a-c196-4828-bb80-f23db8bcc31f",
+  "meus-treinos":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Fmeus-treinos.webp?alt=media&token=c85ceabc-be4d-4506-b817-d1219b6ef05b",
+  "mensagens":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Fmensagens.webp?alt=media&token=fd9c2038-4428-441b-8769-9f1ada432792",
+  "avaliar-aula":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Favaliar-aula.webp?alt=media&token=5548ba50-1784-4d7c-bfdd-735a7494f5ac",
+  "loja":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Floja.webp?alt=media&token=84368c39-efa6-4339-99bf-621f5621dccf",
+  "convidar-amigos":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Fconvidar-amigos.webp?alt=media&token=3ae0436d-81d9-4847-98f7-d24b00683112",
   // Arte em docs/app-news-art/modo-focus.html (card do Focus da Início, com o deslizar).
   "modo-focus":
     "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Fmodo-focus.webp?alt=media&token=c0e757cf-061a-46d0-8367-ef5b32dfd2f6",
@@ -130,6 +159,7 @@ const CATEGORIES = [
       },
       {
         id: "guia-cancelar-reserva",
+        imageUrl: IMAGES["cancelar-reserva"],
         icon: "cancel",
         title: "Cancelar uma reserva",
         summary: "Não vai poder ir? Libere o horário pela Agenda.",
@@ -186,6 +216,7 @@ const CATEGORIES = [
       },
       {
         id: "guia-pedir-cancelamento-chuva",
+        imageUrl: IMAGES["pedir-cancelamento-chuva"],
         icon: "rain",
         title: "Pedir cancelamento por chuva",
         summary: "Choveu e a arena aceita pedidos? Peça pelo app, sem custo.",
@@ -227,6 +258,7 @@ const CATEGORIES = [
     topics: [
       {
         id: "guia-story-placar",
+        imageUrl: IMAGES["story-placar"],
         icon: "story",
         title: "Story e placar do jogo",
         summary: "Poste a reserva e o resultado no story e registre o placar.",
@@ -267,6 +299,7 @@ const CATEGORIES = [
     topics: [
       {
         id: "guia-inscrever-torneio",
+        imageUrl: IMAGES["inscrever-torneio"],
         title: "Inscrever-se num torneio",
         summary: "Ache o torneio, escolha a categoria e garanta sua vaga.",
         description:
@@ -284,6 +317,7 @@ const CATEGORIES = [
       },
       {
         id: "guia-convite-dupla",
+        imageUrl: IMAGES["convite-dupla"],
         icon: "handshake",
         title: "Convite de dupla",
         summary: "Responda o convite e feche a dupla antes do prazo vencer.",
@@ -300,6 +334,7 @@ const CATEGORIES = [
       },
       {
         id: "guia-cancelar-inscricao",
+        imageUrl: IMAGES["cancelar-inscricao"],
         icon: "cancel",
         title: "Cancelar inscrição",
         summary: "Libere sua vaga ou peça o cancelamento ao organizador.",
@@ -331,6 +366,7 @@ const CATEGORIES = [
       },
       {
         id: "guia-campanha-story",
+        imageUrl: IMAGES["campanha-story"],
         icon: "story",
         title: "Campanha no story",
         summary: "Poste sua inscrição ou sua campanha no torneio.",
@@ -346,6 +382,7 @@ const CATEGORIES = [
       },
       {
         id: "guia-ranking",
+        imageUrl: IMAGES["ranking"],
         title: "Ranking",
         summary: "Veja sua posição e os pontos da temporada por esporte.",
         description:
@@ -385,6 +422,7 @@ const CATEGORIES = [
     topics: [
       {
         id: "guia-aulas",
+        imageUrl: IMAGES["aulas"],
         title: "Encontrar aulas e treinos",
         summary: "Ache arenas, CTs e professores perto de você e agende a experimental.",
         description:
@@ -402,6 +440,7 @@ const CATEGORIES = [
       },
       {
         id: "guia-meus-treinos",
+        imageUrl: IMAGES["meus-treinos"],
         title: "Meus treinos",
         summary: "Treinos de professor, arena e CT juntos, com presença e pagamento.",
         description:
@@ -418,6 +457,7 @@ const CATEGORIES = [
       },
       {
         id: "guia-mensagens",
+        imageUrl: IMAGES["mensagens"],
         icon: "chat",
         title: "Falar com professor e centro",
         summary: "Converse com seu professor e a recepção do CT pelo app.",
@@ -435,6 +475,7 @@ const CATEGORIES = [
       },
       {
         id: "guia-avaliar-aula",
+        imageUrl: IMAGES["avaliar-aula"],
         icon: "star",
         title: "Avaliar uma aula",
         summary: "Dê estrelas para a aula, o professor e o local.",
@@ -458,6 +499,7 @@ const CATEGORIES = [
     topics: [
       {
         id: "guia-loja",
+        imageUrl: IMAGES["loja"],
         title: "Loja nexaGO",
         summary: "Compre, personalize com nome e número e pague com Pix.",
         description:
@@ -475,6 +517,7 @@ const CATEGORIES = [
       },
       {
         id: "guia-convidar-amigos",
+        imageUrl: IMAGES["convidar-amigos"],
         title: "Convide um amigo",
         summary: "Compartilhe seu código e ganhe +50 XP quando o amigo jogar.",
         description:

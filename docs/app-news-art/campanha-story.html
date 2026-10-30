@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="art.css">
+<style>
+  .t { font-size: 13px; font-weight: 800; letter-spacing: -.02em; }
+  .s { font-size: 9.5px; color: var(--dim); margin-top: 2px; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .ic { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: rgba(255,106,26,.12); color: var(--or); flex-shrink: 0; }
+  .ic .i { font-size: 17px; }
+  .mono { font-family: JB; font-weight: 700; }
+  .pill { height: 20px; border-radius: 99px; padding: 0 8px; display: inline-flex; align-items: center; gap: 4px; font-family: JB; font-weight: 700; font-size: 7.5px; letter-spacing: .12em; }
+  .p-or { background: rgba(255,106,26,.12); border: 1px solid rgba(255,106,26,.32); color: var(--or); }
+  .p-win { background: rgba(43,209,126,.12); border: 1px solid rgba(43,209,126,.32); color: var(--win); }
+  .p-gold { background: rgba(244,197,67,.12); border: 1px solid rgba(244,197,67,.32); color: #F4C543; }
+  .p-red { background: rgba(255,59,48,.12); border: 1px solid rgba(255,59,48,.32); color: #FF5A50; }
+  .sel { border-color: rgba(255,106,26,.55); box-shadow: 0 0 0 4px rgba(255,106,26,.10), 0 18px 44px rgba(0,0,0,.6); }
+  .tap { position: absolute; font-size: 30px; color: #F7F7F8; text-shadow: 0 6px 18px rgba(0,0,0,.75); }
+  .div { height: 1px; background: var(--line); margin: 10px 0; }
+
+  .story { position:absolute; left:120px; top:56px; width:150px; height:258px; border-radius:18px; overflow:hidden; padding:14px;
+    background: linear-gradient(170deg, rgba(255,106,26,.38), rgba(255,106,26,0) 45%), #0b0b0c; border:1px solid rgba(255,106,26,.4); }
+  .big { font-weight:800; letter-spacing:-.04em; font-size:30px; line-height:1; margin-top:6px; }
+  .tl { display:flex; gap:5px; margin-top:12px; }
+  .tl span { flex:1; height:18px; border-radius:6px; display:grid; place-items:center; font-family:JB; font-weight:700; font-size:7.5px; }
+
+</style></head>
+<body><div class="art">
+
+  <div class="story card">
+    <div class="kicker" style="color:var(--or);">MINHA CAMPANHA</div>
+    <div class="t" style="margin-top:8px; font-size:12px;">Open Goiânia Beach</div>
+    <div class="big">3º<span style="font-size:14px; color:var(--dim);"> lugar</span></div>
+    <div class="tl"><span style="background:rgba(43,209,126,.16);color:var(--win);">V</span><span style="background:rgba(43,209,126,.16);color:var(--win);">V</span><span style="background:rgba(43,209,126,.16);color:var(--win);">V</span><span style="background:rgba(255,59,48,.16);color:#FF5A50;">D</span><span style="background:rgba(43,209,126,.16);color:var(--win);">V</span></div>
+    <div class="s" style="margin-top:6px;">4 vitórias · 1 derrota</div>
+    <div class="row" style="margin-top:18px;"><div class="av" style="width:24px;height:24px;font-size:10px;background:var(--or);">A</div><div class="av" style="width:24px;height:24px;font-size:10px;background:#C9A0FF;margin-left:-9px;">B</div><span class="t" style="font-size:10.5px;">Ana &amp; Bia</span></div>
+    <div class="btn" style="margin-top:22px; height:30px; font-size:9.5px;"><span class="i" style="font-size:12px;">&#xe593;</span>Postar no story</div>
+  </div>
+</div></body></html>

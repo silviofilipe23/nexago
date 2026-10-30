@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="art.css">
+<style>
+  .t { font-size: 13px; font-weight: 800; letter-spacing: -.02em; }
+  .s { font-size: 9.5px; color: var(--dim); margin-top: 2px; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .ic { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: rgba(255,106,26,.12); color: var(--or); flex-shrink: 0; }
+  .ic .i { font-size: 17px; }
+  .mono { font-family: JB; font-weight: 700; }
+  .pill { height: 20px; border-radius: 99px; padding: 0 8px; display: inline-flex; align-items: center; gap: 4px; font-family: JB; font-weight: 700; font-size: 7.5px; letter-spacing: .12em; }
+  .p-or { background: rgba(255,106,26,.12); border: 1px solid rgba(255,106,26,.32); color: var(--or); }
+  .p-win { background: rgba(43,209,126,.12); border: 1px solid rgba(43,209,126,.32); color: var(--win); }
+  .p-gold { background: rgba(244,197,67,.12); border: 1px solid rgba(244,197,67,.32); color: #F4C543; }
+  .p-red { background: rgba(255,59,48,.12); border: 1px solid rgba(255,59,48,.32); color: #FF5A50; }
+  .sel { border-color: rgba(255,106,26,.55); box-shadow: 0 0 0 4px rgba(255,106,26,.10), 0 18px 44px rgba(0,0,0,.6); }
+  .tap { position: absolute; font-size: 30px; color: #F7F7F8; text-shadow: 0 6px 18px rgba(0,0,0,.75); }
+  .div { height: 1px; background: var(--line); margin: 10px 0; }
+
+  .story { position:absolute; left:62px; top:58px; width:118px; height:210px; border-radius:16px; overflow:hidden;
+    background: linear-gradient(160deg, #2a1205, #0b0b0c 60%), #0b0b0c; border:1px solid rgba(255,106,26,.35); padding:12px; }
+  .sc { position:absolute; left:192px; top:84px; width:140px; padding:12px; }
+  .score { font-family:JB; font-weight:700; font-size:22px; }
+
+</style></head>
+<body><div class="art">
+
+  <div class="story card">
+    <div class="kicker" style="color:var(--or);">PELADA · ARENA BUENO</div>
+    <div class="t" style="margin-top:46px; font-size:15px;">Sábado<br>19:00</div>
+    <div class="s">Quadra 2</div>
+    <div class="row" style="margin-top:28px;"><div class="av" style="width:20px;height:20px;font-size:8px;background:var(--or);">A</div><div class="av" style="width:20px;height:20px;font-size:8px;background:#8AB4FF;margin-left:-8px;">B</div><div class="av" style="width:20px;height:20px;font-size:8px;background:#2BD17E;margin-left:-8px;">C</div><span class="s" style="margin:0;">+5</span></div>
+  </div>
+  <div class="sc card sel">
+    <div class="kicker">Placar</div>
+    <div class="row" style="justify-content:space-between; margin-top:6px;"><span class="t" style="font-size:11px;">Time A</span><span class="score" style="color:var(--or);">2</span></div>
+    <div class="row" style="justify-content:space-between;"><span class="t" style="font-size:11px; color:var(--dim);">Time B</span><span class="score" style="color:var(--dim);">1</span></div>
+    <div class="s">21-17 · 18-21 · 15-11</div>
+    <div class="btn" style="margin-top:10px; height:28px; font-size:9.5px;"><span class="i" style="font-size:12px;">&#xe159;</span>Confirmar placar</div>
+  </div>
+  <div class="btn ghost" style="position:absolute; left:62px; top:280px; width:118px; height:28px; font-size:9.5px;"><span class="i" style="font-size:12px;">&#xe593;</span>Postar no story</div>
+</div></body></html>

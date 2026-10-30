@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="art.css">
+<style>
+  .t { font-size: 13px; font-weight: 800; letter-spacing: -.02em; }
+  .s { font-size: 9.5px; color: var(--dim); margin-top: 2px; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .ic { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: rgba(255,106,26,.12); color: var(--or); flex-shrink: 0; }
+  .ic .i { font-size: 17px; }
+  .mono { font-family: JB; font-weight: 700; }
+  .pill { height: 20px; border-radius: 99px; padding: 0 8px; display: inline-flex; align-items: center; gap: 4px; font-family: JB; font-weight: 700; font-size: 7.5px; letter-spacing: .12em; }
+  .p-or { background: rgba(255,106,26,.12); border: 1px solid rgba(255,106,26,.32); color: var(--or); }
+  .p-win { background: rgba(43,209,126,.12); border: 1px solid rgba(43,209,126,.32); color: var(--win); }
+  .p-gold { background: rgba(244,197,67,.12); border: 1px solid rgba(244,197,67,.32); color: #F4C543; }
+  .p-red { background: rgba(255,59,48,.12); border: 1px solid rgba(255,59,48,.32); color: #FF5A50; }
+  .sel { border-color: rgba(255,106,26,.55); box-shadow: 0 0 0 4px rgba(255,106,26,.10), 0 18px 44px rgba(0,0,0,.6); }
+  .tap { position: absolute; font-size: 30px; color: #F7F7F8; text-shadow: 0 6px 18px rgba(0,0,0,.75); }
+  .div { height: 1px; background: var(--line); margin: 10px 0; }
+
+  .b { position:absolute; left:57px; width:276px; padding:14px; }
+  .fc { display:flex; gap:8px; margin-top:10px; }
+  .fc div { flex:1; border-radius:12px; background:var(--surf2); padding:8px; text-align:center; }
+  .fc b { display:block; font-family:JB; font-size:15px; color:#8AB4FF; }
+
+</style></head>
+<body><div class="art">
+
+  <div class="b card" style="top:58px;">
+    <div class="row"><div class="ic" style="background:rgba(138,180,255,.14); color:#8AB4FF;"><span class="i">&#xf07cb;</span></div>
+      <div><div class="t">Choveu?</div><div class="s">Sáb 19:00 · Arena Setor Bueno</div></div></div>
+    <div class="fc"><div><b>82%</b><span class="kicker">chance</span></div><div><b>6 mm</b><span class="kicker">chuva</span></div><div><b>19h</b><span class="kicker">jogo</span></div></div>
+    <div class="btn" style="margin-top:12px; height:36px;"><span class="i" style="font-size:14px;">&#xf05a2;</span>Pedir cancelamento sem custo</div>
+  </div>
+  <div class="b card sel" style="top:256px; padding:11px 14px;">
+    <div class="row"><span class="pill p-gold"><span class="i" style="font-size:10px;">&#xe327;</span>PEDIDO EM ANÁLISE</span></div>
+    <div class="s" style="margin-top:7px;">Aprovado, você escolhe: <b style="color:var(--fg);">remarcar ou guardar crédito</b>.</div>
+  </div>
+</div></body></html>

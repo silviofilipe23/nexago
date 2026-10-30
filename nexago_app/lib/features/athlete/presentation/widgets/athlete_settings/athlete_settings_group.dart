@@ -222,10 +222,12 @@ class AthleteSettingsToggleTile extends StatelessWidget {
     required this.subtitle,
     required this.value,
     required this.onChanged,
+    this.icon = Icons.face_rounded,
     this.enabled = true,
     this.showDivider = true,
   });
 
+  final IconData icon;
   final String title;
   final String subtitle;
   final bool value;
@@ -253,7 +255,7 @@ class AthleteSettingsToggleTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
-                  Icons.face_rounded,
+                  icon,
                   color: context.themeColors.win,
                   size: 22,
                 ),

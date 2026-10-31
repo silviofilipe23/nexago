@@ -5,7 +5,7 @@ import type { TournamentMatch } from '../data/matches-repository';
 import { LedFitTextDirective } from '../../publico/led/led-fit-text.directive';
 import { OgPulseDirective } from './og-pulse.directive';
 import type { TelaoTeamDisplay } from './telao-data.service';
-import { ledChipOf, ledCourtParts, ledLeftSideOf, ledNameLines, ledPausaOf, type LedSide } from './telao-led-solo';
+import { ledChipOf, ledLeftSideOf, ledNameLines, ledPausaOf, type LedSide } from './telao-led-solo';
 import { servingPlayerFirstName } from './telao-selectors';
 
 interface LedCard {
@@ -33,9 +33,6 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
     <div class="og-tls-main">
       <header class="og-tls-head">
         <div class="og-tls-title">
-          <div class="og-tls-court">
-            {{ court().label }}@if (court().number) {&ngsp;<span class="og-tls-court-n">{{ court().number }}</span>}
-          </div>
           @if (subtitle()) {
             <div class="og-tls-sub" [ledFitText]="subtitle()">{{ subtitle() }}</div>
           }
@@ -139,18 +136,6 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
       flex-direction: column;
       gap: 6px;
       min-width: 0;
-    }
-    .og-tls-court {
-      font-family: var(--nx-font-mono);
-      font-weight: 800;
-      font-size: 72px;
-      line-height: 1.2;
-      letter-spacing: -0.02em;
-      text-transform: uppercase;
-      white-space: nowrap;
-    }
-    .og-tls-court-n {
-      color: var(--nx-orange-500);
     }
     .og-tls-sub {
       font-weight: 800;
@@ -448,7 +433,6 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
   `,
 })
 export class TelaoLedSoloComponent {
-  readonly courtName = input.required<string>();
   /** Categoria (e fase) — a sublinha do cabeçalho. */
   readonly categoryName = input<string | null>(null);
   readonly match = input.required<TournamentMatch>();
@@ -456,8 +440,6 @@ export class TelaoLedSoloComponent {
   readonly teamB = input.required<TelaoTeamDisplay>();
   /** Relógio do host: o placar não cria timer próprio. */
   readonly nowMs = input(0);
-
-  protected readonly court = computed(() => ledCourtParts(this.courtName()));
 
   private readonly live = computed(() => this.match().status === 'in_progress');
   private readonly current = computed(() => matchLiveCurrentSet(this.match()));

@@ -128,12 +128,6 @@ export function ledPausaOf(
   };
 }
 
-/** "Quadra 1" → rótulo e número separados (o número sai em laranja). Sem número no fim, tudo
- *  é rótulo. */
-export function ledCourtParts(courtName: string): { label: string; number: string } {
-  const match = /^(.*?)\s*(\d+)$/.exec(courtName.trim());
-  return match ? { label: match[1], number: match[2] } : { label: courtName.trim(), number: '' };
-}
 
 /** Linhas do nome no card: um atleta por linha ("Emerson / Enzo"). Equipe de nome próprio
  *  ("Os Imbatíveis da Praia") quebra em duas linhas equilibradas — numa linha só ela encolheria

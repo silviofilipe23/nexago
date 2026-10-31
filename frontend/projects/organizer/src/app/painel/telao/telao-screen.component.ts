@@ -76,6 +76,7 @@ interface TelaoQueueRow {
         [teamA]="solo.teamA"
         [teamB]="solo.teamB"
         [nowMs]="now()"
+        [lances]="solo.lances"
       />
     } @else {
     <header class="og-telao-head">
@@ -627,7 +628,16 @@ export class TelaoScreenComponent {
       match: m,
       teamA: card.teamA,
       teamB: card.teamB,
+      lances: this.soloLances(),
     };
+  });
+
+  /** ACE e Monster Block disparados no painel de Transmissão, com a quadra que ela segue — o
+   *  placar de quadra única decide se o lance é dele (ver `telao-lances.ts`). */
+  private readonly soloLances = computed(() => {
+    const c = this.svc.broadcast();
+    const courtId = this.cfg()?.courtIds[0] ?? '';
+    return c ? { lances: c.lances, transmissaoCourtId: c.courtId, telaoCourtId: courtId } : null;
   });
 
   private readonly queue = computed(() => {

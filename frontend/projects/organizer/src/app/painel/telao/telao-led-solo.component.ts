@@ -1,12 +1,22 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
 import { elapsedSecondsFromStart, formatElapsedMmSs } from '@nexago/live-scoring';
 import { closedSetColumns, livePointsOf, matchLiveCurrentSet, matchSetWins } from '../data/live-set-display';
+import type { BroadcastLances } from '../data/broadcast-lances';
 import type { TournamentMatch } from '../data/matches-repository';
+import { nomeCurtoDe } from '../../publico/overlay/overlay-nome';
 import { LedFitTextDirective } from '../../publico/led/led-fit-text.directive';
 import { OgPulseDirective } from './og-pulse.directive';
 import type { TelaoTeamDisplay } from './telao-data.service';
 import { ledChipOf, ledLeftSideOf, ledNameLines, ledPausaOf, type LedSide } from './telao-led-solo';
+import { TELAO_LANCE_MS, telaoLanceDisparoOf, type TelaoLanceDisparo } from './telao-lances';
 import { servingPlayerFirstName } from './telao-selectors';
+
+/** Lances da Transmissão + as quadras de cada lado, pra o placar decidir se o disparo é dele. */
+export interface TelaoLancesInput {
+  lances: BroadcastLances;
+  transmissaoCourtId: string | null;
+  telaoCourtId: string;
+}
 
 interface LedCard {
   pos: 'left' | 'right';
@@ -99,6 +109,36 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
         <div class="og-tls-pausa-clock">{{ p.clock }}</div>
         <div class="og-tls-brand on-light">NEXA<span>GO</span></div>
       </div>
+    }
+
+    <!-- Lance disparado no painel de Transmissão (o mesmo do overlay): 4,5 s de tela cheia. O
+         @for re-cria o bloco a cada disparo, então dois aces seguidos animam duas vezes. -->
+    @for (l of lanceAtivo(); track l.seq) {
+      @if (l.tipo === 'ace') {
+        <div class="og-tls-lance ace" role="status">
+          <div class="og-tls-lance-sweep" aria-hidden="true"></div>
+          <div class="og-tls-lance-ace">ACE<span>!</span></div>
+          <div class="og-tls-lance-who">
+            <div class="og-tls-lance-nome" [ledFitText]="l.nome">{{ l.nome }}</div>
+            <div class="og-tls-lance-sub">{{ l.sub }}</div>
+          </div>
+        </div>
+      } @else {
+        <div class="og-tls-lance block" role="status">
+          <div class="og-tls-lance-shake">
+            <div class="og-tls-lance-words">
+              <div class="og-tls-lance-bar" aria-hidden="true"></div>
+              <div class="og-tls-lance-word l">Monster</div>
+              <div class="og-tls-lance-word r">Block</div>
+              <div class="og-tls-lance-bar" aria-hidden="true"></div>
+            </div>
+            <div class="og-tls-lance-who">
+              <div class="og-tls-lance-nome" [ledFitText]="l.nome">{{ l.nome }}</div>
+              <div class="og-tls-lance-sub">{{ l.sub }}</div>
+            </div>
+          </div>
+        </div>
+      }
     }
   `,
   styles: `
@@ -422,7 +462,227 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
         transform: scale(1.04);
       }
     }
+    /* ── Lances (protótipos 37/38): tudo em frações dos 4,5 s ─────────────────────────── */
+    .og-tls-lance {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      text-transform: uppercase;
+      font-weight: 800;
+      animation: og-ld-life 4500ms linear both;
+    }
+    .og-tls-lance.ace {
+      gap: 40px;
+      background: var(--nx-orange-500);
+      color: #000;
+      animation:
+        og-ld-life 4500ms linear both,
+        og-ld-boom 4500ms ease-out both;
+    }
+    .og-tls-lance.block {
+      padding: 0 64px;
+      background: #000;
+      color: #fff;
+    }
+    .og-tls-lance-sweep {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 420px;
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
+      animation: og-ld-sweep 4500ms ease-in-out both;
+    }
+    .og-tls-lance-ace {
+      position: relative;
+      font-size: 560px;
+      line-height: 0.82;
+      letter-spacing: -0.04em;
+      animation: og-ld-slam 4500ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+    }
+    .og-tls-lance-ace span {
+      color: #fff;
+    }
+    .og-tls-lance-shake {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 34px;
+      width: 100%;
+      animation: og-ld-shake 4500ms linear both;
+    }
+    .og-tls-lance-words {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 34px;
+      width: 100%;
+    }
+    .og-tls-lance-bar {
+      width: 100%;
+      height: 44px;
+      background: var(--nx-orange-500);
+      animation: og-ld-bar 4500ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+    }
+    .og-tls-lance-word {
+      font-size: 300px;
+      line-height: 0.82;
+      letter-spacing: -0.04em;
+    }
+    .og-tls-lance-word.l {
+      color: var(--nx-orange-500);
+      animation: og-ld-drop-l 4500ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+    }
+    .og-tls-lance-word.r {
+      animation: og-ld-drop-r 4500ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+    }
+    .og-tls-lance-who {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      max-width: 100%;
+      animation: og-ld-rise 4500ms ease-out both;
+    }
+    .og-tls-lance-nome {
+      max-width: 1792px;
+      font-size: 130px;
+      line-height: 0.82;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .og-tls-lance-sub {
+      font-size: 52px;
+      letter-spacing: 0.06em;
+    }
+    .og-tls-lance.block .og-tls-lance-sub {
+      color: var(--tls-label);
+    }
+    @keyframes og-ld-life {
+      0% {
+        opacity: 0;
+      }
+      4%,
+      88% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0;
+      }
+    }
+    @keyframes og-ld-boom {
+      0% {
+        filter: brightness(3.2);
+      }
+      18% {
+        filter: none;
+      }
+    }
+    @keyframes og-ld-slam {
+      0% {
+        transform: scale(3.4);
+        opacity: 0;
+        filter: blur(10px);
+      }
+      22% {
+        transform: scale(0.9);
+        opacity: 1;
+        filter: none;
+      }
+      32% {
+        transform: scale(1.05);
+      }
+      42%,
+      100% {
+        transform: none;
+      }
+    }
+    @keyframes og-ld-shake {
+      0%,
+      18%,
+      60%,
+      100% {
+        transform: none;
+      }
+      22% {
+        transform: translate(-26px, 12px);
+      }
+      28% {
+        transform: translate(22px, -14px);
+      }
+      34% {
+        transform: translate(-16px, 8px);
+      }
+      42% {
+        transform: translate(10px, -6px);
+      }
+      50% {
+        transform: translate(-4px, 2px);
+      }
+    }
+    @keyframes og-ld-drop-l {
+      0%,
+      10% {
+        transform: translateX(-110%);
+      }
+      26%,
+      100% {
+        transform: none;
+      }
+    }
+    @keyframes og-ld-drop-r {
+      0%,
+      10% {
+        transform: translateX(110%);
+      }
+      26%,
+      100% {
+        transform: none;
+      }
+    }
+    @keyframes og-ld-rise {
+      0%,
+      30% {
+        transform: translateY(70px);
+        opacity: 0;
+      }
+      44%,
+      100% {
+        transform: none;
+        opacity: 1;
+      }
+    }
+    @keyframes og-ld-sweep {
+      0%,
+      30% {
+        transform: translateX(-500px) skewX(-18deg);
+      }
+      70%,
+      100% {
+        transform: translateX(2400px) skewX(-18deg);
+      }
+    }
+    @keyframes og-ld-bar {
+      0%,
+      14% {
+        transform: scaleX(0);
+      }
+      30%,
+      100% {
+        transform: scaleX(1);
+      }
+    }
     @media (prefers-reduced-motion: reduce) {
+      .og-tls-lance,
+      .og-tls-lance *,
       .og-tls-big.og-pulse-run,
       .og-tls-card.og-pulse-run,
       .og-tls-chip.troca,
@@ -440,6 +700,46 @@ export class TelaoLedSoloComponent {
   readonly teamB = input.required<TelaoTeamDisplay>();
   /** Relógio do host: o placar não cria timer próprio. */
   readonly nowMs = input(0);
+  /** Lances do painel de Transmissão — `null` onde não há (painel /led da quadra). */
+  readonly lances = input<TelaoLancesInput | null>(null);
+
+  /** O lance no ar (no máximo um), em lista pro `@for` re-animar a cada disparo. */
+  protected readonly lanceAtivo = signal<Array<TelaoLanceDisparo & { nome: string; sub: string }>>([]);
+  private lanceVisto: number | null = null;
+  private lanceTimer: ReturnType<typeof setTimeout> | undefined;
+  private readonly lanceSeq = computed(() => this.lances()?.lances.seq ?? null);
+
+  constructor() {
+    // Reage só ao `seq` (o doc da Transmissão muda por qualquer ajuste do painel). O timer é
+    // próprio e não do `onCleanup`: um disparo que não é deste telão não pode cortar o que está
+    // no ar.
+    effect(() => {
+      const seq = this.lanceSeq();
+      if (seq == null) return;
+      untracked(() => {
+        const src = this.lances();
+        if (!src) return;
+        const disparo = telaoLanceDisparoOf(this.lanceVisto, src.lances, src.transmissaoCourtId, src.telaoCourtId, Date.now());
+        this.lanceVisto = seq;
+        if (!disparo) return;
+        clearTimeout(this.lanceTimer);
+        this.lanceAtivo.set([{ ...disparo, ...this.lanceTextoOf(disparo) }]);
+        this.lanceTimer = setTimeout(() => this.lanceAtivo.set([]), TELAO_LANCE_MS);
+      });
+    });
+    inject(DestroyRef).onDestroy(() => clearTimeout(this.lanceTimer));
+  }
+
+  /** Quem fez (o atleta, como o overlay o chama) e "Felipe / Thiago · 14-12" no placar da tela. */
+  private lanceTextoOf(d: TelaoLanceDisparo): { nome: string; sub: string } {
+    const team = d.lado === 'A' ? this.teamA() : this.teamB();
+    const atleta = team.playerNames[d.atleta]?.trim() ?? '';
+    const [left, right] = this.cards();
+    return {
+      nome: atleta ? nomeCurtoDe(atleta) : team.short,
+      sub: `${team.short} · ${left.big}-${right.big}`,
+    };
+  }
 
   private readonly live = computed(() => this.match().status === 'in_progress');
   private readonly current = computed(() => matchLiveCurrentSet(this.match()));

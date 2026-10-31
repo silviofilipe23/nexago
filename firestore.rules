@@ -204,6 +204,8 @@ service cloud.firestore {
     // `medicalTimeoutPlayers` são o atendimento de 5 minutos: quem para a partida por lesão é a
     // MESA, então a cota e o atendimento em andamento também são escrita de mesário.
     // `technicalTimeout` é o minuto tático em andamento (o overlay de transmissão o lê).
+    // `courtSides` é o lado que a mesa mostra ({setIndex, leftSide}); o telão de LED da quadra
+    // espelha a troca de lado que o árbitro faz no app.
     function scorerCanOnlyEditScoreFields() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'resultA',
@@ -220,6 +222,7 @@ service cloud.firestore {
         'medicalTimeout',
         'medicalTimeoutPlayers',
         'technicalTimeout',
+        'courtSides',
         'sanctions',
         'kitColorA',
         'kitColorB',
@@ -353,6 +356,7 @@ service cloud.firestore {
         'medicalTimeout',
         'medicalTimeoutPlayers',
         'technicalTimeout',
+        'courtSides',
         'sanctions',
         'kitColorA',
         'kitColorB',

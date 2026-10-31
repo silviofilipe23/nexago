@@ -158,6 +158,36 @@ class _OrganizerMatchLiveTablePageState
 
   void _swapSides() => setState(() => _sidesSwapped = !_sidesSwapped);
 
+  /// Último lado publicado em `courtSides` (set + equipe à esquerda/no topo).
+  int? _publishedSidesSet;
+  String? _publishedLeftSide;
+
+  /// O telão de LED da quadra espelha o lado que ESTA tela mostra — a abertura do set, o
+  /// "Trocar lados" e a troca de quadra confirmada. Grava só quando muda, depois do frame, e
+  /// sem travar nada: se a escrita falhar (rules antigas, rede), a mesa segue igual e o telão
+  /// volta a derivar o lado do placar.
+  void _publishCourtSides(TournamentMatch match, int setIdx, bool leftIsA) {
+    if (!match.isInProgress) return;
+    final left = leftIsA ? 'A' : 'B';
+    if (_publishedSidesSet == setIdx && _publishedLeftSide == left) return;
+    _publishedSidesSet = setIdx;
+    _publishedLeftSide = left;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        ref
+            .read(tournamentMatchesRepositoryProvider)
+            .updateMatchFields(
+              matchId: widget.matchId,
+              fields: {
+                'courtSides': {'setIndex': setIdx, 'leftSide': left},
+              },
+            )
+            .catchError((Object _) {}),
+      );
+    });
+  }
+
   /// Troca de lado já confirmada pela mesa: (set, total de pontos). Enquanto o par atual
   /// não bate com isto, o modal de troca fica de pé e nenhum ponto entra.
   int? _switchAckSet;
@@ -1479,6 +1509,7 @@ class _OrganizerMatchLiveTablePageState
                         !_saving && !match.isCompleted && medical == null;
 
                     if (_presentMode) {
+                      _publishCourtSides(match, setIdx, !_sidesSwapped);
                       final (setsWonA, setsWonB) = liveTableSetsWon(match);
                       return LiveTablePresentView(
                         teamA: _sidesSwapped ? teamB : teamA,
@@ -1508,6 +1539,7 @@ class _OrganizerMatchLiveTablePageState
                     }
 
                     if (_fullMode) {
+                      _publishCourtSides(match, setIdx, !_sidesSwapped);
                       final fullModeEnabled = actionsEnabled &&
                           _timeoutSide == null &&
                           !_timeoutPickerOpen &&
@@ -1620,6 +1652,7 @@ class _OrganizerMatchLiveTablePageState
                             (switchPending ? 1 : 0);
                     final swapped = _sidesSwapped != autoFlips.isOdd;
                     final topSideA = !swapped;
+                    _publishCourtSides(match, setIdx, topSideA);
 
                     // Sem trocar o sacador depois do 1º ponto; declarar quem ainda não foi
                     // declarado (slot 0) segue livre — é o que a faixa "Quem saca por…?" faz.

@@ -379,6 +379,21 @@ void main() {
       );
     });
 
+    testWidgets('confirmar publica o lado novo pro telão', (tester) async {
+      await pumpLiveTable(
+        tester,
+        initialMatch: buildMatch(sets: const [TournamentMatchSet(a: 4, b: 3)]),
+      );
+      await tester.pump();
+      expect(fakeRepo.courtSidesWrites.last, {'setIndex': 0, 'leftSide': 'A'});
+
+      await tester.tap(find.text('Duplas trocaram de lado'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+
+      expect(fakeRepo.courtSidesWrites.last, {'setIndex': 0, 'leftSide': 'B'});
+    });
+
     testWidgets('sem múltiplo de 7 não há modal e a rede mostra o contador', (
       tester,
     ) async {
@@ -501,6 +516,13 @@ void main() {
           lessThan(afterA),
           reason:
               'depois de "Trocar quadra" a dupla B deveria aparecer à esquerda',
+        );
+
+        // O telão da quadra acompanha o lado da mesa.
+        await tester.pump();
+        expect(
+          fakeRepo.courtSidesWrites.last,
+          {'setIndex': 0, 'leftSide': 'B'},
         );
 
         // Tocar no painel da ESQUERDA (agora mostra a dupla B) tem que
@@ -1545,6 +1567,10 @@ class _FakeMatchesRepository implements TournamentMatchesRepository {
   final pointWrites = <MatchPointWrite>[];
   final updateFieldsCalls = <({String matchId, Map<String, dynamic> fields})>[];
 
+  /// Lado publicado pro telão (`courtSides`) — fica de fora de [updateFieldsCalls]: a mesa o
+  /// grava sozinha a cada mudança de lado, e os testes de saque/tempo contam só as próprias.
+  final courtSidesWrites = <Map<String, dynamic>>[];
+
   @override
   Future<MatchPointWrite?> recordPointTransaction({
     required String matchId,
@@ -1560,6 +1586,10 @@ class _FakeMatchesRepository implements TournamentMatchesRepository {
     required String matchId,
     required Map<String, dynamic> fields,
   }) async {
+    if (fields.keys.length == 1 && fields.containsKey('courtSides')) {
+      courtSidesWrites.add(fields['courtSides'] as Map<String, dynamic>);
+      return;
+    }
     updateFieldsCalls.add((matchId: matchId, fields: fields));
   }
 

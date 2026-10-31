@@ -85,6 +85,17 @@ describe('telao-led-solo', () => {
       expect(ledSwapCountOf(fim)).toBe(1 + 4);
     });
 
+    it('com a mesa do app publicando o lado, espelha o árbitro', () => {
+      // 4-3 já seria troca pelo placar; o árbitro ainda não confirmou: o painel segue a mesa.
+      expect(ledLeftSideOf({ ...mesa([[4, 3]]), courtSides: { setIndex: 0, leftSide: 'A' } })).toBe('A');
+      // "Trocar lados" no começo do set: B à esquerda mesmo com 0 ponto.
+      expect(ledLeftSideOf({ ...mesa([[0, 0]]), courtSides: { setIndex: 0, leftSide: 'B' } })).toBe('B');
+    });
+
+    it('lado publicado de outro set não vale: volta a derivar do placar', () => {
+      expect(ledLeftSideOf({ ...mesa([[21, 15], [0, 0]]), courtSides: { setIndex: 0, leftSide: 'A' } })).toBe('B');
+    });
+
     it('sem regra de troca por pontos (games), só vira na virada de set', () => {
       const games = match({
         scoringProfile: { kind: 'sets_games', bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6, tiebreakTo: 7, noAd: false, decidingSet: 'full', superTiebreakTo: 10 },

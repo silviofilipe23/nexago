@@ -14,13 +14,14 @@ import { tecnicoNoAr } from '../../publico/overlay/overlay-tecnico';
  *  aparecer à esquerda. Por isso os lados trocam sozinhos, pela MESMA regra que manda as duplas
  *  trocarem (`courtSwitchInterval`: a cada 7 pontos, 5 no decisivo de 15) e na virada de set —
  *  a mesma que a mesa do app sugere ao abrir o set seguinte. Sai do placar, sem escrita nenhuma:
- *  desfazer o ponto desfaz a troca. */
+ *  desfazer o ponto desfaz a troca. Com a mesa do app aberta, quem manda é o lado que ela
+ *  publica (`courtSides`): o painel troca quando o árbitro troca. */
 
 export type LedSide = 'A' | 'B';
 
 type LedMatch = Pick<
   TournamentMatch,
-  'status' | 'sets' | 'liveScore' | 'currentSetIndex' | 'bestOf' | 'scoringProfile' | 'currentGame'
+  'status' | 'sets' | 'liveScore' | 'currentSetIndex' | 'bestOf' | 'scoringProfile' | 'currentGame' | 'courtSides'
 >;
 
 /** Set (0-based) e pontos somados que decidem o lado. Encerrada, conta até o penúltimo ponto:
@@ -48,8 +49,13 @@ export function ledSwapCountOf(m: LedMatch): number {
   return basis.setIndex + (interval ? Math.floor(played / interval) : 0);
 }
 
-/** Lado da partida que aparece à ESQUERDA do painel. Começa com A. */
+/** Lado da partida que aparece à ESQUERDA do painel. Quando a mesa do app publicou o lado deste
+ *  set (`courtSides`), o painel espelha o árbitro — abertura do set, "Trocar lados" e troca de
+ *  quadra confirmada. Sem isso (mesas web, app antigo, lado de outro set), deriva do placar,
+ *  começando com A. */
 export function ledLeftSideOf(m: LedMatch): LedSide {
+  const sides = m.courtSides;
+  if (sides && sides.setIndex === swapBasisOf(m)?.setIndex) return sides.leftSide;
   return ledSwapCountOf(m) % 2 === 0 ? 'A' : 'B';
 }
 

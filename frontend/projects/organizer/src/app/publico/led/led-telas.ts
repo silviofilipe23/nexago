@@ -1,6 +1,7 @@
 import { isKingOfCourtMatchType, kocIsExpired } from '../../painel/data/koc';
 import { kocPreRoundOf } from '../overlay/overlay-koc-preround';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
+import { FINISHED_SHOWCASE_MS } from '../../painel/telao/telao-finished';
 
 export type LedTela =
   | 'elenco'
@@ -9,6 +10,7 @@ export type LedTela =
   | 'tempo-esgotado'
   | 'classificacao'
   | 'classificadas'
+  | 'placar'
   | 'aguardando';
 
 export const CLASSIFICACAO_MS = 15_000;
@@ -26,7 +28,8 @@ export function ledTelaOf(
   nowMs: number,
   finishedAtMs: number | null,
 ): LedTela {
-  if (!match || !isKingOfCourtMatchType(match.matchType) || !match.koc) return 'aguardando';
+  if (!match) return 'aguardando';
+  if (!isKingOfCourtMatchType(match.matchType) || !match.koc) return placarDuelo(match, nowMs, finishedAtMs);
 
   if (match.status === 'completed') {
     if (finishedAtMs != null) {
@@ -58,4 +61,15 @@ export function ledTelaOf(
   // Pausada congela o cronômetro, então não "esgota" enquanto a mesa segura o jogo.
   if (clock && clock.pausedAtMs == null && kocIsExpired(clock, nowMs)) return 'tempo-esgotado';
   return 'jogo';
+}
+
+/** Duelo (dupla contra dupla): o placar da quadra em tela cheia enquanto o jogo corre e nos 30 s
+ *  de fim de jogo — mesma vitrine do telão. Antes do apito não há o que mostrar. Encerrada sem
+ *  fim observado pela TV só conta perto do `matchEndedAt`, pelo mesmo motivo do KOTC: partida
+ *  antiga não volta pro painel. */
+function placarDuelo(match: TournamentMatch, nowMs: number, finishedAtMs: number | null): LedTela {
+  if (match.status === 'in_progress') return 'placar';
+  if (match.status !== 'completed') return 'aguardando';
+  const fim = finishedAtMs ?? match.matchEndedAt?.getTime() ?? null;
+  return fim != null && nowMs - fim < FINISHED_SHOWCASE_MS ? 'placar' : 'aguardando';
 }

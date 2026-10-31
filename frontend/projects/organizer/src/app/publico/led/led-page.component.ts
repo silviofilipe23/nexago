@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
 import { kocColumnLabel } from '../../painel/data/koc';
-import { TelaoDataService } from '../../painel/telao/telao-data.service';
+import { formatCourtLabel } from '../../painel/data/schedule-format';
+import { fallbackTeamDisplay, TelaoDataService } from '../../painel/telao/telao-data.service';
+import { TelaoLedSoloComponent } from '../../painel/telao/telao-led-solo.component';
 import { finishedAtOf } from '../../painel/telao/telao-finished';
 import { overlayCourtContextOf } from '../overlay/overlay-court';
 import { kocRoundTitleOf } from '../overlay/overlay-koc-bar';
@@ -23,7 +25,7 @@ import { PROXIMOS_MS, ledTelaOf, type LedTela } from './led-telas';
   selector: 'og-led-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [TelaoDataService],
-  imports: [LedRoundComponent, LedStandingsComponent, LedProximosComponent],
+  imports: [LedRoundComponent, LedStandingsComponent, LedProximosComponent, TelaoLedSoloComponent],
   host: {
     '(document:keydown)': 'aoTeclar($event)',
   },
@@ -105,6 +107,21 @@ import { PROXIMOS_MS, ledTelaOf, type LedTela } from './led-telas';
               [teams]="teams()"
               [categoryName]="categoryName()"
               [roundLabel]="roundLabel()"
+            />
+          </div>
+        }
+      }
+      @case ('placar') {
+        <!-- Duelo: o mesmo placar de quadra única do telão, com troca de lado automática. -->
+        @if (placar(); as p) {
+          <div class="cortina" animate.enter="led-cortina-in" animate.leave="led-cortina-out">
+            <og-telao-led-solo
+              [courtName]="p.courtName"
+              [categoryName]="categoryName()"
+              [match]="p.match"
+              [teamA]="p.teamA"
+              [teamB]="p.teamB"
+              [nowMs]="tick()"
             />
           </div>
         }
@@ -211,7 +228,7 @@ export class LedPageComponent {
     const s = Math.min(w / 1920, h / 1080) || 1;
     return { s, w: w / s, h: h / s };
   });
-  private readonly tick = signal(Date.now());
+  protected readonly tick = signal(Date.now());
 
   /** O que está nesta quadra agora — ao vivo, recém-encerrada ou a próxima — com o contexto de
    *  fase junto. MESMA função do overlay por quadra: a regra de "qual partida" vive num lugar só. */
@@ -258,11 +275,23 @@ export class LedPageComponent {
 
   private readonly totalRounds = computed(() => this.contexto().totalRounds);
 
-  /** Só a visão de KOTC interessa aqui: o painel é do formato King of the Court. Uma partida de
-   *  duelo na quadra não tem tela neste painel (ver `ledTelaOf`). */
+  /** Visão de KOTC das telas de rodada. O duelo não passa por aqui: usa o `placar()`. */
   protected readonly view = computed(() => {
     const v = overlayViewOf(this.partida(), this.tick(), this.totalRounds());
     return v?.kind === 'koc' ? v : null;
+  });
+
+  /** Duelo na quadra: as duas duplas resolvidas (nome do slot enquanto os perfis não chegam). */
+  protected readonly placar = computed(() => {
+    const m = this.partida();
+    if (!m) return null;
+    const teams = this.dados.teams();
+    return {
+      match: m,
+      courtName: formatCourtLabel(this.courtName() ?? '') || 'Quadra',
+      teamA: teams.get(m.teamAId) ?? fallbackTeamDisplay(m.team1Label),
+      teamB: teams.get(m.teamBId) ?? fallbackTeamDisplay(m.team2Label),
+    };
   });
 
   protected readonly standings = computed(() => {

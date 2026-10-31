@@ -20,6 +20,7 @@ import {
   buildUndoWrite,
   GAMES_UNDO_BLOCKED_MESSAGE,
   canReduceBestOf,
+  courtLeftSide,
   elapsedSecondsFromStart,
   formatElapsedMmSs,
   formatMedicalTimeoutMmSs,
@@ -268,89 +269,55 @@ export function mesaGamesView(m: LiveMatch): MesaGamesView | null {
               </div>
             }
 
+            <!-- As duplas aparecem do lado em que estão na areia: o lado que o árbitro escolheu
+                 ("Trocar lado") com as trocas da regra contando dali — a mesma conta do telão. -->
             <div class="og-mesa-board">
-              <div class="og-mesa-side">
-                <button type="button" class="og-mesa-point" [disabled]="!canScore()" [attr.aria-label]="'Ponto para ' + teamALabel()" (click)="point('A')">
-                  <span class="og-mesa-team">
-                    <og-avatar [initials]="initialsOf(teamALabel())" [size]="34" />
-                    <span class="og-mesa-name" [title]="teamALabel()">{{ truncate(teamALabel(), 22) }}</span>
-                    <!-- Telefone: o botão tem ~150px e o nome cortado em 22 letras virava "Ana S…"
-                         justo onde o mesário confirma o lado. Lá vai o nome inteiro, em até 2 linhas. -->
-                    <span class="og-mesa-name-full">{{ teamALabel() }}</span>
-                    @if (servingSide() === 'A') {
-                      <span class="og-mesa-serve" title="No saque">{{ serveBadge() }}</span>
-                    }
-                  </span>
-                  <span class="og-mesa-score">{{ gamesView()?.mainA ?? currentSet().a }}</span>
-                  @if (gamesView(); as g) {
-                    <span class="og-mesa-sets-lbl">{{ g.gamesA }} games</span>
-                  }
-                  @if (canScore()) {
-                    <span class="og-mesa-plus">+1 ponto</span>
-                  }
-                </button>
-                <button
-                  type="button"
-                  class="og-ghost-btn og-mesa-minus"
-                  [attr.aria-label]="'Tirar ponto de ' + teamALabel()"
-                  [disabled]="!canUndoSide('A')"
-                  (click)="undoSide('A')"
-                >
-                  −1
-                </button>
-                @if (status() === 'in_progress') {
-                  <span class="og-mesa-to" [attr.aria-label]="'Tempos técnicos usados por ' + sideLabel('A')">
-                    <b>tempo</b>
-                    @for (i of technicalSlots; track i) {
-                      <i [class.used]="technicalCounts().A > i"></i>
-                    }
-                  </span>
+              @for (side of boardSides(); track side; let first = $first) {
+                @if (!first) {
+                  <div class="og-mesa-center">
+                    <span class="og-mesa-sets">{{ winsOf(boardSides()[0]) }}<em>×</em>{{ winsOf(boardSides()[1]) }}</span>
+                    <span class="og-mesa-sets-lbl">sets</span>
+                  </div>
                 }
-              </div>
-
-              <div class="og-mesa-center">
-                <span class="og-mesa-sets">{{ wins().a }}<em>×</em>{{ wins().b }}</span>
-                <span class="og-mesa-sets-lbl">sets</span>
-              </div>
-
-              <div class="og-mesa-side">
-                <button type="button" class="og-mesa-point" [disabled]="!canScore()" [attr.aria-label]="'Ponto para ' + teamBLabel()" (click)="point('B')">
-                  <span class="og-mesa-team">
-                    <og-avatar [initials]="initialsOf(teamBLabel())" [size]="34" />
-                    <span class="og-mesa-name" [title]="teamBLabel()">{{ truncate(teamBLabel(), 22) }}</span>
-                    <!-- Telefone: o botão tem ~150px e o nome cortado em 22 letras virava "Ana S…"
-                         justo onde o mesário confirma o lado. Lá vai o nome inteiro, em até 2 linhas. -->
-                    <span class="og-mesa-name-full">{{ teamBLabel() }}</span>
-                    @if (servingSide() === 'B') {
-                      <span class="og-mesa-serve" title="No saque">{{ serveBadge() }}</span>
+                <div class="og-mesa-side">
+                  <button type="button" class="og-mesa-point" [disabled]="!canScore()" [attr.aria-label]="'Ponto para ' + sideLabel(side)" (click)="point(side)">
+                    <span class="og-mesa-team">
+                      <og-avatar [initials]="initialsOf(sideLabel(side))" [size]="34" />
+                      <span class="og-mesa-name" [title]="sideLabel(side)">{{ truncate(sideLabel(side), 22) }}</span>
+                      <!-- Telefone: o botão tem ~150px e o nome cortado em 22 letras virava "Ana S…"
+                           justo onde o mesário confirma o lado. Lá vai o nome inteiro, em até 2 linhas. -->
+                      <span class="og-mesa-name-full">{{ sideLabel(side) }}</span>
+                      @if (servingSide() === side) {
+                        <span class="og-mesa-serve" title="No saque">{{ serveBadge() }}</span>
+                      }
+                    </span>
+                    <span class="og-mesa-score">{{ mainScoreOf(side) }}</span>
+                    @if (gamesView(); as g) {
+                      <span class="og-mesa-sets-lbl">{{ side === 'A' ? g.gamesA : g.gamesB }} games</span>
                     }
-                  </span>
-                  <span class="og-mesa-score">{{ gamesView()?.mainB ?? currentSet().b }}</span>
-                  @if (gamesView(); as g) {
-                    <span class="og-mesa-sets-lbl">{{ g.gamesB }} games</span>
-                  }
-                  @if (canScore()) {
-                    <span class="og-mesa-plus">+1 ponto</span>
-                  }
-                </button>
-                <button
-                  type="button"
-                  class="og-ghost-btn og-mesa-minus"
-                  [attr.aria-label]="'Tirar ponto de ' + teamBLabel()"
-                  [disabled]="!canUndoSide('B')"
-                  (click)="undoSide('B')"
-                >
-                  −1
-                </button>
-                @if (status() === 'in_progress') {
-                  <span class="og-mesa-to" [attr.aria-label]="'Tempos técnicos usados por ' + sideLabel('B')">
-                    <b>tempo</b>
-                    @for (i of technicalSlots; track i) {
-                      <i [class.used]="technicalCounts().B > i"></i>
+                    @if (canScore()) {
+                      <span class="og-mesa-plus">+1 ponto</span>
                     }
-                  </span>
-                }
-              </div>
+                  </button>
+                  <button
+                    type="button"
+                    class="og-ghost-btn og-mesa-minus"
+                    [attr.aria-label]="'Tirar ponto de ' + sideLabel(side)"
+                    [disabled]="!canUndoSide(side)"
+                    (click)="undoSide(side)"
+                  >
+                    −1
+                  </button>
+                  @if (status() === 'in_progress') {
+                    <span class="og-mesa-to" [attr.aria-label]="'Tempos técnicos usados por ' + sideLabel(side)">
+                      <b>tempo</b>
+                      @for (i of technicalSlots; track i) {
+                        <i [class.used]="technicalCounts()[side] > i"></i>
+                      }
+                    </span>
+                  }
+                </div>
+              }
             </div>
 
             <div class="og-mesa-rules">
@@ -392,6 +359,12 @@ export function mesaGamesView(m: LiveMatch): MesaGamesView | null {
           @if (status() === 'scheduled') {
             <og-card kicker="Início" title="Partida ainda não iniciada" class="og-mesa-start-card">
               <p class="og-mesa-hint">Ao iniciar, a partida fica <strong>ao vivo</strong> no portal e no app dos atletas, com o placar acompanhando ponto a ponto.</p>
+              <!-- O lado das duplas se escolhe antes do apito: a mesa e o telão de LED mostram cada
+                   uma do lado em que está na areia desde o primeiro ponto. -->
+              <div class="og-mesa-sides-pick">
+                <span class="og-mesa-hint">À esquerda: <strong>{{ sideLabel(boardSides()[0]) }}</strong></span>
+                <button type="button" class="og-mini-btn" [disabled]="saving()" (click)="swapSides()">⇄ Trocar lado</button>
+              </div>
               <button type="button" class="og-mini-btn og-mini-btn-primary og-mesa-start" [disabled]="saving()" (click)="start()">
                 @if (busyKey() === 'start') {
                   <app-nx-spinner [size]="14" tone="dark" />
@@ -418,6 +391,7 @@ export function mesaGamesView(m: LiveMatch): MesaGamesView | null {
               <div class="og-mesa-actions">
                 <!-- "Voltar ponto" mora na faixa sticky do placar — aqui só as
                      ações secundárias, pra não competir com o alvo do toque. -->
+                <button type="button" class="og-mini-btn" [disabled]="saving()" (click)="swapSides()">⇄ Trocar lado</button>
                 <button type="button" class="og-mini-btn" [disabled]="saving()" (click)="swapServe()">Saque dupla</button>
                 <button type="button" class="og-mini-btn" [disabled]="saving() || servingPlayerSlot() === 0 || servingRosterIsIndividual()" (click)="swapServingPlayer()">Saque atleta</button>
                 <button type="button" class="og-mini-btn" [disabled]="saving() || !canOpenTechnical()" (click)="openTechnicalPicker()">Tempo técnico</button>
@@ -799,6 +773,17 @@ export function mesaGamesView(m: LiveMatch): MesaGamesView | null {
       align-items: stretch;
       gap: 14px;
       margin-top: 16px;
+    }
+    .og-mesa-sides-pick {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .og-mesa-sides-pick .og-mesa-hint {
+      margin: 0;
     }
     .og-mesa-side {
       flex: 1;
@@ -1536,6 +1521,50 @@ export class MesaAoVivoComponent {
   });
 
   protected readonly SIDES = ['A', 'B'] as const;
+
+  /** Dupla à esquerda agora: o lado gravado pelo árbitro (`courtSides`) com as trocas da regra
+   *  contando dali; sem lado gravado, a regra a partir de A. Mesma conta do telão de LED. */
+  private readonly leftSide = computed<MatchSide>(() => {
+    const m = this.match();
+    if (!m) return 'A';
+    const idx = this.currentSetIdx();
+    const s = this.currentSet();
+    const interval = courtSwitchInterval(effectiveScoringProfile(m.scoringProfile, m.bestOf), idx);
+    return courtLeftSide(idx, s.a + s.b, interval, m.courtSides ?? null);
+  });
+
+  protected readonly boardSides = computed<readonly [MatchSide, MatchSide]>(() =>
+    this.leftSide() === 'A' ? ['A', 'B'] : ['B', 'A'],
+  );
+
+  protected winsOf(side: MatchSide): number {
+    return side === 'A' ? this.wins().a : this.wins().b;
+  }
+
+  /** Número grande do lado: o ponto do game (games) ou os pontos do set. */
+  protected mainScoreOf(side: MatchSide): string | number {
+    const g = this.gamesView();
+    if (g) return side === 'A' ? g.mainA : g.mainB;
+    return side === 'A' ? this.currentSet().a : this.currentSet().b;
+  }
+
+  /** "Trocar lado": inverte as duplas na mesa e no telão. Grava o lado novo com o placar do
+   *  instante, pra as trocas seguintes da regra continuarem contando a partir daqui. */
+  protected async swapSides(): Promise<void> {
+    const m = this.match();
+    if (!m || this.saving() || m.status === 'completed') return;
+    const s = this.currentSet();
+    this.saving.set(true);
+    try {
+      await updateMatchFields(this.scoring, m.id, {
+        courtSides: { setIndex: this.currentSetIdx(), leftSide: this.boardSides()[1], total: s.a + s.b },
+      });
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao trocar o lado.' });
+    } finally {
+      this.saving.set(false);
+    }
+  }
 
   protected sideLabel(side: 'A' | 'B'): string {
     return side === 'A' ? this.teamALabel() : this.teamBLabel();

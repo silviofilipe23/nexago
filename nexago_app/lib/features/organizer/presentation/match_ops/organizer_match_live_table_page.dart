@@ -162,16 +162,19 @@ class _OrganizerMatchLiveTablePageState
   int? _publishedSidesSet;
   String? _publishedLeftSide;
 
-  /// O telão de LED da quadra espelha o lado que ESTA tela mostra — a abertura do set, o
-  /// "Trocar lados" e a troca de quadra confirmada. Grava só quando muda, depois do frame, e
-  /// sem travar nada: se a escrita falhar (rules antigas, rede), a mesa segue igual e o telão
-  /// volta a derivar o lado do placar.
+  /// O telão de LED da quadra (e a mesa do portal) espelha o lado que ESTA tela mostra — a
+  /// abertura do set, o "Trocar lados" e a troca de quadra confirmada. Vai junto o total de
+  /// pontos do set: daí em diante as trocas da regra contam a partir dele (ver
+  /// `court-sides.ts` no web). Grava só quando muda, depois do frame, e sem travar nada: se a
+  /// escrita falhar (rules antigas, rede), a mesa segue igual e o telão deriva do placar.
   void _publishCourtSides(TournamentMatch match, int setIdx, bool leftIsA) {
     if (!match.isInProgress) return;
     final left = leftIsA ? 'A' : 'B';
     if (_publishedSidesSet == setIdx && _publishedLeftSide == left) return;
     _publishedSidesSet = setIdx;
     _publishedLeftSide = left;
+    final set = setIdx < match.sets.length ? match.sets[setIdx] : null;
+    final total = (set?.a ?? 0) + (set?.b ?? 0);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(
@@ -180,7 +183,11 @@ class _OrganizerMatchLiveTablePageState
             .updateMatchFields(
               matchId: widget.matchId,
               fields: {
-                'courtSides': {'setIndex': setIdx, 'leftSide': left},
+                'courtSides': {
+                  'setIndex': setIdx,
+                  'leftSide': left,
+                  'total': total,
+                },
               },
             )
             .catchError((Object _) {}),

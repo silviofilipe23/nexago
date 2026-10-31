@@ -11,6 +11,7 @@ import { collection, deleteField, doc, onSnapshot, orderBy, query, runTransactio
 import { applyPoint, liveSetToMap, undoPoint, type ApplyPointResult, type LiveSet } from './live-scoring';
 import { setsWon } from './match-scoring';
 import { statusOf, type MatchDisplayStatus } from './match-status';
+import { courtSidesFromRaw, type CourtSides } from './court-sides';
 import {
   MEDICAL_TIMEOUT_SECONDS,
   canRequestMedicalTimeout,
@@ -89,6 +90,8 @@ export interface LiveMatch {
   medicalTimeoutPlayers: string[];
   /** Tempo técnico em andamento — `null` quando nenhum está rolando (ver `technical-timeout.ts`). */
   technicalTimeout?: TechnicalTimeout | null;
+  /** Lado da quadra que o árbitro deixou valendo (ver `court-sides.ts`). */
+  courtSides?: CourtSides | null;
   matchStartedAt: Date | null;
   winnerId: string | null;
   courtName: string | null;
@@ -182,6 +185,7 @@ export function liveMatchFromDoc(id: string, data: Record<string, unknown>): Liv
     medicalTimeout: medicalTimeoutFromRaw(data['medicalTimeout']),
     medicalTimeoutPlayers: medicalTimeoutPlayerKeysFromRaw(data['medicalTimeoutPlayers']),
     technicalTimeout: technicalTimeoutFromRaw(data['technicalTimeout']),
+    courtSides: courtSidesFromRaw(data['courtSides']),
     matchStartedAt: toDate(data['matchStartedAt']),
     winnerId: optionalStr(data['winnerId']),
     courtName: optionalStr(data['courtName']),

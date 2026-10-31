@@ -77,6 +77,9 @@ export {
   technicalTimeoutRemainingSeconds,
 } from './technical-timeout';
 
+export type { CourtSides } from './court-sides';
+export { courtLeftSide, courtSidesFromRaw } from './court-sides';
+
 export type { LandedPoint, LiveMatch, LivePointEvent, LiveScoringContext, PointWrite } from './live-match-repository';
 export {
   buildMedicalTimeoutEndWrite,

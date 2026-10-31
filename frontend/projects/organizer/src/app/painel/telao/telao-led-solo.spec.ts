@@ -85,15 +85,27 @@ describe('telao-led-solo', () => {
       expect(ledSwapCountOf(fim)).toBe(1 + 4);
     });
 
-    it('com a mesa do app publicando o lado, espelha o árbitro', () => {
-      // 4-3 já seria troca pelo placar; o árbitro ainda não confirmou: o painel segue a mesa.
-      expect(ledLeftSideOf({ ...mesa([[4, 3]]), courtSides: { setIndex: 0, leftSide: 'A' } })).toBe('A');
-      // "Trocar lados" no começo do set: B à esquerda mesmo com 0 ponto.
-      expect(ledLeftSideOf({ ...mesa([[0, 0]]), courtSides: { setIndex: 0, leftSide: 'B' } })).toBe('B');
+    it('lado escolhido pelo árbitro vale, e as trocas da regra contam a partir dali', () => {
+      // "Trocar lado" no começo do set: B à esquerda mesmo com 0 ponto.
+      const sides = { setIndex: 0, leftSide: 'B' as const, total: 0 };
+      expect(ledLeftSideOf({ ...mesa([[0, 0]]), courtSides: sides })).toBe('B');
+      expect(ledLeftSideOf({ ...mesa([[4, 2]]), courtSides: sides })).toBe('B');
+      // 7 pontos: troca pela regra.
+      expect(ledLeftSideOf({ ...mesa([[4, 3]]), courtSides: sides })).toBe('A');
     });
 
-    it('lado publicado de outro set não vale: volta a derivar do placar', () => {
-      expect(ledLeftSideOf({ ...mesa([[21, 15], [0, 0]]), courtSides: { setIndex: 0, leftSide: 'A' } })).toBe('B');
+    it('troca gravada no ponto da troca não troca de novo', () => {
+      // A mesa do app grava o lado ao confirmar a troca, com o placar daquele instante.
+      expect(ledLeftSideOf({ ...mesa([[4, 3]]), courtSides: { setIndex: 0, leftSide: 'B', total: 7 } })).toBe('B');
+      expect(ledLeftSideOf({ ...mesa([[8, 6]]), courtSides: { setIndex: 0, leftSide: 'B', total: 7 } })).toBe('A');
+    });
+
+    it('lado gravado sem placar (app da 1ª versão) é fixo', () => {
+      expect(ledLeftSideOf({ ...mesa([[4, 3]]), courtSides: { setIndex: 0, leftSide: 'A', total: null } })).toBe('A');
+    });
+
+    it('lado gravado de outro set não vale: volta a derivar do placar', () => {
+      expect(ledLeftSideOf({ ...mesa([[21, 15], [0, 0]]), courtSides: { setIndex: 0, leftSide: 'A', total: 30 } })).toBe('B');
     });
 
     it('sem regra de troca por pontos (games), só vira na virada de set', () => {

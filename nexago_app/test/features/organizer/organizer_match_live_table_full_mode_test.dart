@@ -385,13 +385,19 @@ void main() {
         initialMatch: buildMatch(sets: const [TournamentMatchSet(a: 4, b: 3)]),
       );
       await tester.pump();
-      expect(fakeRepo.courtSidesWrites.last, {'setIndex': 0, 'leftSide': 'A'});
+      expect(
+        fakeRepo.courtSidesWrites.last,
+        {'setIndex': 0, 'leftSide': 'A', 'total': 7},
+      );
 
       await tester.tap(find.text('Duplas trocaram de lado'));
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump();
 
-      expect(fakeRepo.courtSidesWrites.last, {'setIndex': 0, 'leftSide': 'B'});
+      expect(
+        fakeRepo.courtSidesWrites.last,
+        {'setIndex': 0, 'leftSide': 'B', 'total': 7},
+      );
     });
 
     testWidgets('sem múltiplo de 7 não há modal e a rede mostra o contador', (
@@ -522,7 +528,7 @@ void main() {
         await tester.pump();
         expect(
           fakeRepo.courtSidesWrites.last,
-          {'setIndex': 0, 'leftSide': 'B'},
+          {'setIndex': 0, 'leftSide': 'B', 'total': 0},
         );
 
         // Tocar no painel da ESQUERDA (agora mostra a dupla B) tem que

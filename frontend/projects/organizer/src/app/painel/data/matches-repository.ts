@@ -6,7 +6,7 @@ import {
   type KocRoundState,
 } from './koc';
 import { collection, doc, getDocs, onSnapshot, query, where, type Unsubscribe } from 'firebase/firestore';
-import { medicalTimeoutFromRaw, statusOf, technicalTimeoutFromRaw, type TechnicalTimeout, type MatchDisplayStatus, type MedicalTimeout, servingPlayerSlotFromRaw } from '@nexago/live-scoring';
+import { courtSidesFromRaw, medicalTimeoutFromRaw, statusOf, technicalTimeoutFromRaw, type CourtSides, type TechnicalTimeout, type MatchDisplayStatus, type MedicalTimeout, servingPlayerSlotFromRaw } from '@nexago/live-scoring';
 import { effectiveScoringProfile, scoringProfileFromRaw, setScoreText, type ScoringProfile } from '@nexago/sports';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
@@ -96,7 +96,7 @@ export interface TournamentMatch {
   technicalTimeout?: TechnicalTimeout | null;
   /** Lado que a mesa do app está mostrando (a dupla à esquerda/no topo) no set `setIndex` — o
    *  telão de LED espelha a troca de lado do árbitro. Ausente quando nenhuma mesa publicou. */
-  courtSides?: MatchCourtSides | null;
+  courtSides?: CourtSides | null;
   /** Rodada King of the Court, quando `matchType` é `koc_*`. A rodada não tem
    *  dois lados: `teamAId`/`teamBId` vêm vazios e o elenco/estado vivem aqui.
    *  Ausente em toda partida de duelo — opcional de propósito, para que nenhuma
@@ -240,19 +240,6 @@ function advanceSlotOf(raw: unknown): 'A' | 'B' | null {
   return null;
 }
 
-export interface MatchCourtSides {
-  setIndex: number;
-  leftSide: 'A' | 'B';
-}
-
-export function courtSidesFromRaw(raw: unknown): MatchCourtSides | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const o = raw as Record<string, unknown>;
-  const leftSide = o['leftSide'] === 'A' || o['leftSide'] === 'B' ? o['leftSide'] : null;
-  const setIndex = typeof o['setIndex'] === 'number' && Number.isInteger(o['setIndex']) && o['setIndex'] >= 0 ? o['setIndex'] : null;
-  return leftSide && setIndex != null ? { setIndex, leftSide } : null;
-}
-
 export interface RawMatch {
   id: string;
   tournamentId: string;
@@ -287,7 +274,7 @@ export interface RawMatch {
   technicalTimeout?: TechnicalTimeout | null;
   /** Lado que a mesa do app está mostrando (a dupla à esquerda/no topo) no set `setIndex` — o
    *  telão de LED espelha a troca de lado do árbitro. Ausente quando nenhuma mesa publicou. */
-  courtSides?: MatchCourtSides | null;
+  courtSides?: CourtSides | null;
   koc?: KocRoundState | null;
   matchStartedAt: Date | null;
   matchEndedAt: Date | null;

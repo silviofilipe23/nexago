@@ -1,4 +1,5 @@
 import {
+  courtLeftSide,
   formatMedicalTimeoutMmSs,
   medicalTimeoutRemainingSeconds,
   technicalTimeoutRemainingSeconds,
@@ -14,8 +15,8 @@ import { tecnicoNoAr } from '../../publico/overlay/overlay-tecnico';
  *  aparecer à esquerda. Por isso os lados trocam sozinhos, pela MESMA regra que manda as duplas
  *  trocarem (`courtSwitchInterval`: a cada 7 pontos, 5 no decisivo de 15) e na virada de set —
  *  a mesma que a mesa do app sugere ao abrir o set seguinte. Sai do placar, sem escrita nenhuma:
- *  desfazer o ponto desfaz a troca. Com a mesa do app aberta, quem manda é o lado que ela
- *  publica (`courtSides`): o painel troca quando o árbitro troca. */
+ *  desfazer o ponto desfaz a troca. Quando o árbitro escolhe ou troca o lado (mesa do app ou do
+ *  portal), vale o lado gravado em `courtSides`, com as trocas da regra contando dali em diante. */
 
 export type LedSide = 'A' | 'B';
 
@@ -40,7 +41,7 @@ function swapBasisOf(m: LedMatch): { setIndex: number; total: number; closing: b
   return null;
 }
 
-/** Quantas trocas de lado a partida já teve: uma por virada de set + as do set corrente. */
+/** Quantas trocas de lado a partida já teve pela regra: uma por virada de set + as do set. */
 export function ledSwapCountOf(m: LedMatch): number {
   const basis = swapBasisOf(m);
   if (!basis) return 0;
@@ -49,14 +50,13 @@ export function ledSwapCountOf(m: LedMatch): number {
   return basis.setIndex + (interval ? Math.floor(played / interval) : 0);
 }
 
-/** Lado da partida que aparece à ESQUERDA do painel. Quando a mesa do app publicou o lado deste
- *  set (`courtSides`), o painel espelha o árbitro — abertura do set, "Trocar lados" e troca de
- *  quadra confirmada. Sem isso (mesas web, app antigo, lado de outro set), deriva do placar,
- *  começando com A. */
+/** Lado da partida que aparece à ESQUERDA do painel — `courtLeftSide`, a mesma conta das mesas. */
 export function ledLeftSideOf(m: LedMatch): LedSide {
-  const sides = m.courtSides;
-  if (sides && sides.setIndex === swapBasisOf(m)?.setIndex) return sides.leftSide;
-  return ledSwapCountOf(m) % 2 === 0 ? 'A' : 'B';
+  const basis = swapBasisOf(m);
+  if (!basis) return 'A';
+  const interval = courtSwitchInterval(effectiveScoringProfile(m.scoringProfile, m.bestOf), basis.setIndex);
+  const played = basis.closing ? Math.max(basis.total - 1, 0) : basis.total;
+  return courtLeftSide(basis.setIndex, played, interval, m.courtSides ?? null);
 }
 
 /** Selo do centro, embaixo dos sets. */

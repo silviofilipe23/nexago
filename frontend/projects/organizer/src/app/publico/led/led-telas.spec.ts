@@ -137,8 +137,29 @@ describe('ledTelaOf', () => {
     expect(ledTelaOf(null, NOW, null)).toBe('aguardando');
   });
 
-  it('partida que não é KOTC não tem tela neste painel', () => {
-    expect(ledTelaOf(match({ matchType: 'knockout', koc: null }), NOW, null)).toBe('aguardando');
+  describe('duelo (não KOTC)', () => {
+    const duelo = (o: Partial<TournamentMatch>) => match({ matchType: 'knockout', koc: null, ...o });
+
+    it('ao vivo mostra o placar da quadra', () => {
+      expect(ledTelaOf(duelo({ status: 'in_progress' }), NOW, null)).toBe('placar');
+    });
+
+    it('antes do apito, aguarda', () => {
+      expect(ledTelaOf(duelo({ status: 'scheduled' }), NOW, null)).toBe('aguardando');
+    });
+
+    it('encerrada segura o placar 30 s e depois aguarda', () => {
+      const fim = duelo({ status: 'completed' });
+      expect(ledTelaOf(fim, NOW + 10_000, NOW)).toBe('placar');
+      expect(ledTelaOf(fim, NOW + 31_000, NOW)).toBe('aguardando');
+    });
+
+    it('encerrada há muito tempo (sem fim observado) não volta pro painel', () => {
+      const antiga = duelo({ status: 'completed', matchEndedAt: new Date(NOW - 3_600_000) });
+      expect(ledTelaOf(antiga, NOW, null)).toBe('aguardando');
+      const recente = duelo({ status: 'completed', matchEndedAt: new Date(NOW - 5_000) });
+      expect(ledTelaOf(recente, NOW, null)).toBe('placar');
+    });
   });
 
   it('logo depois do apito mostra "Próximos em quadra" por 12 s e volta ao jogo', () => {

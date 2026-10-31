@@ -10,6 +10,7 @@ import { TelaoCourtCardComponent } from './telao-court-card.component';
 import { TelaoFinalModeComponent } from './telao-final-mode.component';
 import { finalShowcaseOf, hasOtherLiveCourts } from './telao-final-mode';
 import { TelaoKocModeComponent } from './telao-koc-mode.component';
+import { TelaoLedSoloComponent } from './telao-led-solo.component';
 import { kocShowcaseOf } from './telao-koc-mode';
 import { isKingOfCourtMatchType, kocCardTitle } from '../data/koc';
 import { callOf, courtNowOf, courtPageCount, courtPageOf, ROTATE_INTERVAL_MS, teamShortLabel, upcomingQueue } from './telao-selectors';
@@ -41,7 +42,7 @@ interface TelaoQueueRow {
 @Component({
   selector: 'og-telao-screen',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TelaoCourtCardComponent, TelaoFinalModeComponent, TelaoKocModeComponent, OgPulseDirective],
+  imports: [TelaoCourtCardComponent, TelaoFinalModeComponent, TelaoKocModeComponent, TelaoLedSoloComponent, OgPulseDirective],
   host: { class: 'og-telao' },
   template: `
     @if (finalTakeover(); as fm) {
@@ -67,6 +68,15 @@ interface TelaoQueueRow {
         [nowMs]="now()"
         [teamsById]="teams()"
         [roundTotal]="kocRoundTotal()"
+      />
+    } @else if (ledSolo(); as solo) {
+      <og-telao-led-solo
+        [courtName]="solo.courtName"
+        [categoryName]="solo.categoryName"
+        [match]="solo.match"
+        [teamA]="solo.teamA"
+        [teamB]="solo.teamB"
+        [nowMs]="now()"
       />
     } @else {
     <header class="og-telao-head">
@@ -603,6 +613,23 @@ export class TelaoScreenComponent {
         streakB: streak?.side === 'B' ? streak.count : 0,
       };
     });
+  });
+
+  /** Telão de UMA quadra (o painel de LED da beira da areia): partida ao vivo ou recém-encerrada
+   *  ocupa a tela inteira, com lados que trocam sozinhos. Quadra livre ou à espera do próximo jogo
+   *  volta pra grade com a fila de próximos. */
+  protected readonly ledSolo = computed(() => {
+    if (this.cfg()?.courtIds.length !== 1) return null;
+    const card = this.courtCards()[0];
+    const m = card?.match;
+    if (!m || m.koc != null || (card.kind !== 'live' && card.kind !== 'finished') || !card.teamA || !card.teamB) return null;
+    return {
+      courtName: card.courtName,
+      categoryName: m.categoryId ? (this.categoryNameById().get(m.categoryId) ?? null) : null,
+      match: m,
+      teamA: card.teamA,
+      teamB: card.teamB,
+    };
   });
 
   private readonly queue = computed(() => {

@@ -80,7 +80,7 @@ const clampInt = (v: unknown, min: number, max: number, fallback: number): numbe
         <button type="button" class="og-mini-btn og-mini-btn-primary" (click)="disparar()">Disparar {{ labels[tipo()] }}</button>
         <button type="button" class="og-ghost-btn" (click)="zerar()">Zerar contagem</button>
       </div>
-      <p class="og-lc-dica">Seg 0 deixa a tarja no ar até o próximo lance. A contagem é por atleta, no jogo todo.</p>
+      <p class="og-lc-dica">Seg 0 deixa a tarja no ar até o próximo lance. A contagem é por atleta, no jogo todo. Ace e Monster Block também aparecem no telão quando ele está com uma quadra só.</p>
     </og-card>
   `,
   styles: `

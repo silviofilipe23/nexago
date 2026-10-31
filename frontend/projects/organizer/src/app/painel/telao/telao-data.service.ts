@@ -1,5 +1,7 @@
 import { effect, Injectable, signal } from '@angular/core';
 import { environment } from '../../../environments/environment';
+import type { BroadcastControl } from '../data/broadcast-control';
+import { watchBroadcastControl } from '../data/broadcast-control-repository';
 import { organizerFirestore } from '../data/firestore';
 import { watchMatches, type TournamentMatch } from '../data/matches-repository';
 import { initialsOf } from '../data/mock-data';
@@ -60,6 +62,9 @@ export class TelaoDataService {
   readonly streaks = signal<ReadonlyMap<string, TeamStreak>>(new Map());
   /** Fim de partida observado pela TV (celebração de 30 s) — ver `telao-finished.ts`. */
   readonly finishMemory = signal<ReadonlyMap<string, MatchFinishMemory>>(new Map());
+  /** Controle da Transmissão do torneio — o telão de quadra única anima os Lances (ACE e
+   *  Monster Block) que o painel dispara pro overlay. `null` até o 1º snapshot. */
+  readonly broadcast = signal<BroadcastControl | null>(null);
   /** Algum snapshot já chegou nesta transmissão (vira o "TRANSMITINDO" do preview). */
   readonly connected = signal(false);
   readonly error = signal(false);
@@ -78,6 +83,7 @@ export class TelaoDataService {
       this.teams.set(new Map());
       this.streaks.set(new Map());
       this.finishMemory.set(new Map());
+      this.broadcast.set(null);
       this.hydrated.clear();
       this.connected.set(false);
       this.error.set(false);
@@ -102,9 +108,12 @@ export class TelaoDataService {
         },
         () => this.error.set(true),
       );
+      // Só enfeite: sem o controle, o placar segue igual — erro aqui não acende "reconectando".
+      const unsubBroadcast = watchBroadcastControl(id, (c) => this.broadcast.set(c));
       onCleanup(() => {
         unsubTournament();
         unsubMatches();
+        unsubBroadcast();
       });
     });
   }

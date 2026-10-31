@@ -46,6 +46,7 @@ import {
 import {artifactsMatchesPath, getFirebaseProjectId} from "./firebase-paths";
 import {
   allocateCourtSlots,
+  courtOccupancyWindow,
   matchDurationMin,
   matchTeamIds,
   loadTournamentMatches,
@@ -81,7 +82,7 @@ function parseDayStartTime(value: unknown, fallback: string): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-interface RestConflict {
+export interface RestConflict {
   type: string;
   message: string;
   matchId?: string;
@@ -143,27 +144,21 @@ function detectRestConflict(
   return conflicts;
 }
 
-function detectCourtOverlap(
+export function detectCourtOverlap(
   courtId: string,
   scheduleStart: Date,
   scheduleEnd: Date,
-  allMatches: FirebaseFirestore.QueryDocumentSnapshot[],
+  allMatches: ReadonlyArray<Pick<FirebaseFirestore.QueryDocumentSnapshot, "id" | "data">>,
   excludeMatchId: string,
 ): RestConflict | null {
   for (const doc of allMatches) {
     if (doc.id === excludeMatchId) continue;
     const m = doc.data();
     if (m.courtId !== courtId) continue;
-    if (!m.scheduleTime) continue;
+    const window = courtOccupancyWindow(m, FALLBACK_SLOT_MIN);
+    if (!window) continue;
 
-    const start = (m.scheduleTime as Timestamp).toDate();
-    const end = m.scheduleEndTime ?
-      (m.scheduleEndTime as Timestamp).toDate() :
-      new Date(
-        start.getTime() + matchDurationMin(m, FALLBACK_SLOT_MIN) * 60 * 1000,
-      );
-
-    if (scheduleStart < end && scheduleEnd > start) {
+    if (scheduleStart < window.end && scheduleEnd > window.start) {
       return {
         type: "overlap",
         message: "Quadra ocupada neste horário.",
@@ -1268,9 +1263,12 @@ export const autoScheduleTournamentDay = onCall({
         schedStart.getTime() + matchDurationMin(d, duration) * 60 * 1000,
       );
 
+    // A quadra se libera no fim real da partida encerrada; o descanso da
+    // dupla segue contando do previsto, como antes.
+    const courtEnd = courtOccupancyWindow(d, duration)?.end;
     const prevCourt = courtBusyUntil[courtId];
-    if (!prevCourt || schedEnd > prevCourt) {
-      courtBusyUntil[courtId] = schedEnd;
+    if (courtEnd && (!prevCourt || courtEnd > prevCourt)) {
+      courtBusyUntil[courtId] = courtEnd;
     }
 
     const teamRestUntil = new Date(schedEnd.getTime() + minRest * 60 * 1000);

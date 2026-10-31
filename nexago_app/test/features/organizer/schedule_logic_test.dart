@@ -15,6 +15,8 @@ TournamentMatch _match({
   String courtId = 'Q1',
   int round = 1,
   int matchNumber = 1,
+  String status = TournamentMatchStatus.scheduled,
+  DateTime? matchEndedAt,
 }) {
   return TournamentMatch(
     id: id,
@@ -25,7 +27,7 @@ TournamentMatch _match({
     poolId: '',
     teamAId: teamAId,
     teamBId: teamBId,
-    status: TournamentMatchStatus.scheduled,
+    status: status,
     resultA: '',
     resultB: '',
     isGroupMatch: false,
@@ -33,6 +35,7 @@ TournamentMatch _match({
     scheduleTime: scheduleTime,
     scheduleEndTime: scheduleEndTime,
     courtId: courtId,
+    matchEndedAt: matchEndedAt,
   );
 }
 
@@ -89,6 +92,60 @@ void main() {
       );
       expect(overlap, isNotNull);
       expect(overlap!.type, 'overlap');
+    });
+
+    // Torneio seed: planejada 00:52–01:22, acabou 00:59 — às 01:10 a quadra
+    // vazia ainda aparecia ocupada e a próxima partida não entrava.
+    test('detectCourtOverlap: encerrada libera a quadra no fim real', () {
+      final overlap = ScheduleLogic.detectCourtOverlap(
+        courtId: 'Q1',
+        scheduleStart: DateTime(2026, 10, 31, 1, 10),
+        scheduleEnd: DateTime(2026, 10, 31, 1, 40),
+        allMatches: [
+          _match(
+            id: 'done',
+            status: TournamentMatchStatus.completed,
+            scheduleTime: DateTime(2026, 10, 31, 0, 52),
+            scheduleEndTime: DateTime(2026, 10, 31, 1, 22),
+            matchEndedAt: DateTime(2026, 10, 31, 0, 59),
+          ),
+        ],
+      );
+      expect(overlap, isNull);
+    });
+
+    test('detectCourtOverlap: encerrada sem matchEndedAt segura o previsto', () {
+      final overlap = ScheduleLogic.detectCourtOverlap(
+        courtId: 'Q1',
+        scheduleStart: DateTime(2026, 10, 31, 1, 10),
+        scheduleEnd: DateTime(2026, 10, 31, 1, 40),
+        allMatches: [
+          _match(
+            id: 'done',
+            status: TournamentMatchStatus.completed,
+            scheduleTime: DateTime(2026, 10, 31, 0, 52),
+            scheduleEndTime: DateTime(2026, 10, 31, 1, 22),
+          ),
+        ],
+      );
+      expect(overlap?.type, 'overlap');
+    });
+
+    test('detectCourtOverlap: cancelada não ocupa a quadra', () {
+      final overlap = ScheduleLogic.detectCourtOverlap(
+        courtId: 'Q1',
+        scheduleStart: DateTime(2026, 10, 31, 1, 10),
+        scheduleEnd: DateTime(2026, 10, 31, 1, 40),
+        allMatches: [
+          _match(
+            id: 'off',
+            status: TournamentMatchStatus.canceled,
+            scheduleTime: DateTime(2026, 10, 31, 1, 0),
+            scheduleEndTime: DateTime(2026, 10, 31, 1, 30),
+          ),
+        ],
+      );
+      expect(overlap, isNull);
     });
 
     test('matchOnCourt matches courtId or courtName', () {

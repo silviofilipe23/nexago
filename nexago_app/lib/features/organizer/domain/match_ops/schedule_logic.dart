@@ -79,11 +79,9 @@ abstract final class ScheduleLogic {
       )) {
         continue;
       }
-      if (m.scheduleTime == null) continue;
-
+      final end = courtOccupancyEnd(m, fallbackMin: 50);
+      if (end == null) continue;
       final start = m.scheduleTime!;
-      final end =
-          m.scheduleEndTime ?? start.add(Duration(minutes: m.scheduleSlotMin(50)));
 
       final overlaps = scheduleStart.isBefore(end) && scheduleEnd.isAfter(start);
       if (overlaps) {
@@ -95,6 +93,26 @@ abstract final class ScheduleLogic {
       }
     }
     return null;
+  }
+
+  /// Até quando a partida segura a quadra, ou `null` se não segura.
+  ///
+  /// Encerrada libera no fim REAL (`matchEndedAt`), não no previsto — a que
+  /// acabou antes do horário travava a quadra vazia até o fim planejado.
+  /// Cancelada não segura. Mesma regra de `courtOccupancyWindow` no servidor.
+  static DateTime? courtOccupancyEnd(
+    TournamentMatch m, {
+    required int fallbackMin,
+  }) {
+    final start = m.scheduleTime;
+    if (start == null || m.isCanceled) return null;
+    final planned = m.scheduleEndTime ??
+        start.add(Duration(minutes: m.scheduleSlotMin(fallbackMin)));
+    final ended = m.matchEndedAt;
+    if (m.isCompleted && ended != null && ended.isBefore(planned)) {
+      return ended;
+    }
+    return planned;
   }
 
   /// Partida vinculada à quadra por `courtId` ou `courtName` legado.
@@ -163,9 +181,12 @@ abstract final class ScheduleLogic {
           m.scheduleTime!.add(
             Duration(minutes: m.scheduleSlotMin(matchDurationMin)),
           );
+      // A quadra se libera no fim real da encerrada; o descanso segue o previsto.
+      final courtEnd =
+          courtOccupancyEnd(m, fallbackMin: matchDurationMin);
       final prev = courtBusyUntil[m.courtId];
-      if (prev == null || end.isAfter(prev)) {
-        courtBusyUntil[m.courtId] = end;
+      if (courtEnd != null && (prev == null || courtEnd.isAfter(prev))) {
+        courtBusyUntil[m.courtId] = courtEnd;
       }
       for (final tid in m.scheduleTeamIds) {
         final tPrev = teamBusyUntil[tid];

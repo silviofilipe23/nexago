@@ -1,5 +1,6 @@
-import type {Firestore} from "firebase-admin/firestore";
+import type {Firestore, Timestamp} from "firebase-admin/firestore";
 import {artifactsMatchesPath} from "./firebase-paths";
+import {isMatchCanceled, isMatchCompleted} from "./match-status";
 
 /**
  * Compara duas partidas pela numeração GLOBAL cronológica (`matchNumber`).
@@ -65,6 +66,29 @@ export function matchDurationMin(
   const sec = Number(raw);
   if (!Number.isFinite(sec) || sec <= 0) return fallbackMin;
   return Math.ceil(sec / 60) + KOC_CHANGEOVER_MIN;
+}
+
+/**
+ * Janela em que a partida segura a quadra, ou `null` se não segura.
+ *
+ * Encerrada libera a quadra no fim REAL (`matchEndedAt`), não no previsto:
+ * a partida que acabou antes do horário travava a quadra até o fim planejado,
+ * e o organizador não conseguia pôr a próxima nela ("Quadra ocupada" com a
+ * quadra vazia). Cancelada não segura nada. Encerrada sem `matchEndedAt`
+ * (dado antigo) fica no previsto.
+ */
+export function courtOccupancyWindow(
+  data: FirebaseFirestore.DocumentData,
+  fallbackMin: number,
+): {start: Date; end: Date} | null {
+  if (!data.scheduleTime || isMatchCanceled(data.status)) return null;
+  const start = (data.scheduleTime as Timestamp).toDate();
+  const planned = data.scheduleEndTime ?
+    (data.scheduleEndTime as Timestamp).toDate() :
+    new Date(start.getTime() + matchDurationMin(data, fallbackMin) * 60 * 1000);
+  if (!isMatchCompleted(data.status)) return {start, end: planned};
+  const ended = (data.matchEndedAt as Timestamp | undefined)?.toDate?.();
+  return {start, end: ended && ended < planned ? ended : planned};
 }
 
 /**

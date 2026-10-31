@@ -1,5 +1,5 @@
 import type { TournamentMatch } from '../data/matches-repository';
-import { ledChipOf, ledCourtParts, ledLeftSideOf, ledNameLines, ledPausaOf, ledSwapCountOf } from './telao-led-solo';
+import { ledChipOf, ledLeftSideOf, ledNameLines, ledPausaOf, ledSwapCountOf } from './telao-led-solo';
 
 const NOW = Date.UTC(2026, 9, 30, 18, 0, 0);
 
@@ -161,8 +161,4 @@ describe('telao-led-solo', () => {
     expect(ledNameLines('Tubarões')).toEqual(['Tubarões']);
   });
 
-  it('separa o número da quadra pro destaque', () => {
-    expect(ledCourtParts('Quadra 1')).toEqual({ label: 'Quadra', number: '1' });
-    expect(ledCourtParts('Central')).toEqual({ label: 'Central', number: '' });
-  });
 });

@@ -71,7 +71,6 @@ interface TelaoQueueRow {
       />
     } @else if (ledSolo(); as solo) {
       <og-telao-led-solo
-        [courtName]="solo.courtName"
         [categoryName]="solo.categoryName"
         [match]="solo.match"
         [teamA]="solo.teamA"
@@ -624,7 +623,6 @@ export class TelaoScreenComponent {
     const m = card?.match;
     if (!m || m.koc != null || (card.kind !== 'live' && card.kind !== 'finished') || !card.teamA || !card.teamB) return null;
     return {
-      courtName: card.courtName,
       categoryName: m.categoryId ? (this.categoryNameById().get(m.categoryId) ?? null) : null,
       match: m,
       teamA: card.teamA,

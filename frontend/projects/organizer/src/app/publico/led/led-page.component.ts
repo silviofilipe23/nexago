@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
 import { kocColumnLabel } from '../../painel/data/koc';
-import { formatCourtLabel } from '../../painel/data/schedule-format';
 import { fallbackTeamDisplay, TelaoDataService } from '../../painel/telao/telao-data.service';
 import { TelaoLedSoloComponent } from '../../painel/telao/telao-led-solo.component';
 import { finishedAtOf } from '../../painel/telao/telao-finished';
@@ -116,7 +115,6 @@ import { PROXIMOS_MS, ledTelaOf, type LedTela } from './led-telas';
         @if (placar(); as p) {
           <div class="cortina" animate.enter="led-cortina-in" animate.leave="led-cortina-out">
             <og-telao-led-solo
-              [courtName]="p.courtName"
               [categoryName]="categoryName()"
               [match]="p.match"
               [teamA]="p.teamA"
@@ -288,7 +286,6 @@ export class LedPageComponent {
     const teams = this.dados.teams();
     return {
       match: m,
-      courtName: formatCourtLabel(this.courtName() ?? '') || 'Quadra',
       teamA: teams.get(m.teamAId) ?? fallbackTeamDisplay(m.team1Label),
       teamB: teams.get(m.teamBId) ?? fallbackTeamDisplay(m.team2Label),
     };

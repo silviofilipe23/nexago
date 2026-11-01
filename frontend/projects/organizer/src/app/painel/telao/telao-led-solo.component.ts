@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, input, signal, untracked } from '@angular/core';
 import { elapsedSecondsFromStart, formatElapsedMmSs } from '@nexago/live-scoring';
 import { closedSetColumns, livePointsOf, matchLiveCurrentSet, matchSetWins } from '../data/live-set-display';
 import type { BroadcastLances } from '../data/broadcast-lances';
@@ -60,11 +60,16 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
             [class.right]="card.pos === 'right'"
             [class.serving]="card.serving"
             [class.beaten]="winnerSide() !== null && winnerSide() !== card.side"
+            [class.winner]="winnerSide() === card.side"
             [ogPulse]="leftSide()"
           >
+            <!-- Final: clarão dourado a cada ponto da dupla (só aparece no dourado). -->
+            <span class="og-tls-flash" aria-hidden="true" [ogPulse]="card.big"></span>
             <div class="og-tls-serve-row">
               @if (card.serving) {
                 <span class="og-tls-serve">Saque{{ card.server ? ' · ' + card.server : '' }}</span>
+              } @else if (gold() && winnerSide() === card.side) {
+                <span class="og-tls-serve">Campeões</span>
               }
             </div>
             <div class="og-tls-names">
@@ -78,7 +83,7 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
             <div class="og-tls-center">
               <div class="og-tls-sets">
                 <span class="og-tls-sets-label">Sets</span>
-                <span class="og-tls-sets-score">{{ setsWon()[0] }}<span class="og-tls-dash">-</span>{{ setsWon()[1] }}</span>
+                <span class="og-tls-sets-score" [ogPulse]="setsWon()[0] + setsWon()[1]">{{ setsWon()[0] }}<span class="og-tls-dash">-</span>{{ setsWon()[1] }}</span>
               </div>
               <div class="og-tls-rows">
                 @for (row of setRows(); track $index) {
@@ -213,6 +218,8 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
       gap: 32px;
     }
     .og-tls-card {
+      position: relative;
+      overflow: hidden;
       min-width: 0;
       min-height: 0;
       display: flex;
@@ -471,6 +478,103 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
         transform: scale(1.04);
       }
     }
+    /* ── Efeitos da final (só no dourado) ──────────────────────────────────────────────── */
+    .og-tls-flash {
+      display: none;
+    }
+    :host(.gold) .og-tls-flash {
+      display: block;
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      opacity: 0;
+    }
+    :host(.gold) .og-tls-flash.og-pulse-run {
+      animation: og-tls-gold-flash 700ms ease-out;
+    }
+    /* Brilho atravessando o card dourado de quem saca, a cada poucos segundos. */
+    :host(.gold) .og-tls-card.serving::after,
+    :host(.gold) .og-tls-card.winner::after {
+      content: '';
+      position: absolute;
+      top: -10%;
+      bottom: -10%;
+      left: 0;
+      width: 38%;
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
+      transform: translateX(-160%) skewX(-18deg);
+      animation: og-tls-shimmer 4200ms ease-in-out infinite;
+      pointer-events: none;
+    }
+    /* Campeãs: o card inteiro dourado. */
+    :host(.gold) .og-tls-card.winner {
+      background: var(--tls-accent);
+      color: #000;
+    }
+    :host(.gold) .og-tls-sets {
+      animation: og-tls-gold-breathe 2600ms ease-in-out infinite alternate;
+    }
+    :host(.gold) .og-tls-sets-score.og-pulse-run {
+      animation: og-tls-set-burst 1100ms cubic-bezier(0.2, 0.9, 0.3, 1);
+    }
+    :host(.gold) .og-tls-big.og-pulse-run {
+      animation: og-tls-gold-pop 600ms var(--nx-ease-spring);
+    }
+    @keyframes og-tls-gold-flash {
+      0% {
+        opacity: 0.6;
+        background: radial-gradient(circle at 50% 70%, rgba(255, 232, 154, 0.95), rgba(244, 197, 67, 0.35) 55%, rgba(244, 197, 67, 0) 80%);
+      }
+      100% {
+        opacity: 0;
+        background: radial-gradient(circle at 50% 70%, rgba(255, 232, 154, 0.95), rgba(244, 197, 67, 0.35) 55%, rgba(244, 197, 67, 0) 80%);
+      }
+    }
+    @keyframes og-tls-shimmer {
+      0%,
+      55% {
+        transform: translateX(-160%) skewX(-18deg);
+      }
+      100% {
+        transform: translateX(420%) skewX(-18deg);
+      }
+    }
+    @keyframes og-tls-gold-breathe {
+      from {
+        box-shadow: 0 0 0 2px rgba(244, 197, 67, 0.35);
+      }
+      to {
+        box-shadow:
+          0 0 0 4px rgba(244, 197, 67, 0.8),
+          0 0 60px rgba(244, 197, 67, 0.35);
+      }
+    }
+    @keyframes og-tls-set-burst {
+      0% {
+        transform: scale(1.5);
+        color: var(--tls-accent);
+        text-shadow: 0 0 60px rgba(244, 197, 67, 0.9);
+      }
+      60% {
+        color: var(--tls-accent);
+      }
+      100% {
+        transform: none;
+        text-shadow: none;
+      }
+    }
+    @keyframes og-tls-gold-pop {
+      0% {
+        transform: scale(1.18);
+        text-shadow: 0 0 50px rgba(255, 232, 154, 0.9);
+      }
+      100% {
+        transform: scale(1);
+        text-shadow: none;
+      }
+    }
+
     /* ── Lances (protótipos 37/38): tudo em frações dos 4,5 s ─────────────────────────── */
     .og-tls-lance {
       position: absolute;
@@ -690,6 +794,11 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
       }
     }
     @media (prefers-reduced-motion: reduce) {
+      :host(.gold) .og-tls-flash.og-pulse-run,
+      :host(.gold) .og-tls-card::after,
+      :host(.gold) .og-tls-sets,
+      :host(.gold) .og-tls-sets-score.og-pulse-run,
+      :host(.gold) .og-tls-big.og-pulse-run,
       .og-tls-lance,
       .og-tls-lance *,
       .og-tls-big.og-pulse-run,
@@ -721,6 +830,8 @@ export class TelaoLedSoloComponent {
   private readonly lanceSeq = computed(() => this.lances()?.lances.seq ?? null);
 
   constructor() {
+    this.finalConfetti();
+
     // Reage só ao `seq` (o doc da Transmissão muda por qualquer ajuste do painel). O timer é
     // próprio e não do `onCleanup`: um disparo que não é deste telão não pode cortar o que está
     // no ar.
@@ -739,6 +850,41 @@ export class TelaoLedSoloComponent {
       });
     });
     inject(DestroyRef).onDestroy(() => clearTimeout(this.lanceTimer));
+  }
+
+  /** Final encerrada: confete dourado nos 30 s de fim de jogo (como a celebração da grade do
+   *  telão). Canvas próprio com estilo inline — o CSS com escopo não alcança elemento criado
+   *  fora do template — abaixo das telas de tempo e de lance. */
+  private finalConfetti(): void {
+    const host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+    const campeoes = computed(() => this.gold() && this.match().status === 'completed');
+    effect((onCleanup) => {
+      if (!campeoes()) return;
+      if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      let cancelled = false;
+      const timers: ReturnType<typeof setTimeout>[] = [];
+      let canvas: HTMLCanvasElement | null = null;
+      void import('canvas-confetti').then(({ default: confetti }) => {
+        if (cancelled) return;
+        canvas = document.createElement('canvas');
+        canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1';
+        host.appendChild(canvas);
+        const shoot = confetti.create(canvas, { resize: true });
+        const colors = ['#F4C543', '#FFE89A', '#FFFFFF', '#A87900'];
+        const burst = (strength: number) => {
+          void shoot({ particleCount: Math.round(120 * strength), spread: 80, startVelocity: 45, angle: 60, origin: { x: 0.05, y: 0.95 }, colors, scalar: 1.6, disableForReducedMotion: true });
+          void shoot({ particleCount: Math.round(120 * strength), spread: 80, startVelocity: 45, angle: 120, origin: { x: 0.95, y: 0.95 }, colors, scalar: 1.6, disableForReducedMotion: true });
+        };
+        burst(1);
+        timers.push(setTimeout(() => burst(0.7), 800));
+        for (let t = 5000; t < 27_000; t += 5000) timers.push(setTimeout(() => burst(0.45), t));
+      });
+      onCleanup(() => {
+        cancelled = true;
+        for (const t of timers) clearTimeout(t);
+        canvas?.remove();
+      });
+    });
   }
 
   /** Quem fez (o atleta, como o overlay o chama) e "Felipe / Thiago · 14-12" no placar da tela. */

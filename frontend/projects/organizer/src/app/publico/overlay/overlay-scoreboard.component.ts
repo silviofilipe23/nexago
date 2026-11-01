@@ -343,6 +343,14 @@ type ServeKey = `${Side}${1 | 2}`;
         0 18px 40px rgba(0, 0, 0, 0.55),
         0 0 22px rgba(255, 106, 26, 0.45);
     }
+    /* Anel da final: gira o ÂNGULO do conic-gradient, não o elemento. Com \`rotate\` no ::before o
+       anel inteiro girava em volta do centro e, num placar largo, atravessava o meio dele — mesmo
+       conserto do anel da barra KOTC. */
+    @property --duel-border-a {
+      syntax: '<angle>';
+      inherits: false;
+      initial-value: 0deg;
+    }
     .panel--final-mode::before {
       content: '';
       position: absolute;
@@ -353,7 +361,7 @@ type ServeKey = `${Side}${1 | 2}`;
       pointer-events: none;
       z-index: 4;
       background: conic-gradient(
-        from 0deg,
+        from var(--duel-border-a),
         transparent 0 70%,
         var(--nx-orange-400, #ff8a4a) 82%,
         #fff 86%,
@@ -372,7 +380,7 @@ type ServeKey = `${Side}${1 | 2}`;
     }
     @keyframes duel-border-spin {
       to {
-        transform: rotate(360deg);
+        --duel-border-a: 360deg;
       }
     }
 

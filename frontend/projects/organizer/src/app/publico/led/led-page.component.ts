@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, signal } from '@angular/core';
 import { kocColumnLabel } from '../../painel/data/koc';
 import { fallbackTeamDisplay, TelaoDataService } from '../../painel/telao/telao-data.service';
+import { finalKindOf } from '../../painel/telao/telao-final-mode';
 import { TelaoLedSoloComponent } from '../../painel/telao/telao-led-solo.component';
 import { finishedAtOf } from '../../painel/telao/telao-finished';
 import { overlayCourtContextOf } from '../overlay/overlay-court';
@@ -120,6 +121,7 @@ import { PROXIMOS_MS, ledTelaOf, type LedTela } from './led-telas';
               [teamA]="p.teamA"
               [teamB]="p.teamB"
               [nowMs]="tick()"
+              [gold]="p.gold"
             />
           </div>
         }
@@ -288,6 +290,7 @@ export class LedPageComponent {
       match: m,
       teamA: teams.get(m.teamAId) ?? fallbackTeamDisplay(m.team1Label),
       teamB: teams.get(m.teamBId) ?? fallbackTeamDisplay(m.team2Label),
+      gold: finalKindOf(m.matchType) === 'final',
     };
   });
 

@@ -8,7 +8,7 @@ import { OgPulseDirective } from './og-pulse.directive';
 import { fallbackTeamDisplay, TelaoDataService } from './telao-data.service';
 import { TelaoCourtCardComponent } from './telao-court-card.component';
 import { TelaoFinalModeComponent } from './telao-final-mode.component';
-import { finalShowcaseOf, hasOtherLiveCourts } from './telao-final-mode';
+import { finalKindOf, finalShowcaseOf, hasOtherLiveCourts } from './telao-final-mode';
 import { TelaoKocModeComponent } from './telao-koc-mode.component';
 import { TelaoLedSoloComponent } from './telao-led-solo.component';
 import { kocShowcaseOf } from './telao-koc-mode';
@@ -77,6 +77,7 @@ interface TelaoQueueRow {
         [teamB]="solo.teamB"
         [nowMs]="now()"
         [lances]="solo.lances"
+        [gold]="solo.gold"
       />
     } @else {
     <header class="og-telao-head">
@@ -629,6 +630,7 @@ export class TelaoScreenComponent {
       teamA: card.teamA,
       teamB: card.teamB,
       lances: this.soloLances(),
+      gold: finalKindOf(m.matchType) === 'final',
     };
   });
 
@@ -669,9 +671,11 @@ export class TelaoScreenComponent {
   /** Alterna entre a final e a grade quando outras quadras também estão jogando. */
   private readonly finalPhase = signal<'final' | 'grid'>('final');
 
+  /** Com UMA quadra a final não troca de tela: é o placar de quadra única, em dourado (pedido do
+   *  dono — no painel de LED a final tem que ser lida igual aos outros jogos). */
   private readonly finalShowcase = computed(() => {
     const cfg = this.cfg();
-    if (!cfg?.showFinalMode) return null;
+    if (!cfg?.showFinalMode || cfg.courtIds.length === 1) return null;
     return finalShowcaseOf(this.matches(), cfg.courtIds, this.now(), this.svc.finishMemory());
   });
 

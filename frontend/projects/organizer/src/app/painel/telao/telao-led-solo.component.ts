@@ -38,7 +38,7 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
   selector: 'og-telao-led-solo',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [LedFitTextDirective, OgPulseDirective],
-  host: { class: 'og-tls' },
+  host: { class: 'og-tls', '[class.gold]': 'gold()' },
   template: `
     <div class="og-tls-main">
       <header class="og-tls-head">
@@ -155,6 +155,15 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
       --tls-label: #b8b8c0;
       --tls-dim: #6e6e78;
       --tls-dash: #55555e;
+      /* Cor de destaque (saque, selos, nome no tempo, lances): laranja; dourado na final. */
+      --tls-accent: var(--nx-orange-500);
+    }
+    :host(.gold) {
+      --tls-accent: #f4c543;
+    }
+    /* Na tela branca do tempo o dourado claro some: lá vai o dourado escuro. */
+    :host(.gold) .og-tls-pausa {
+      --tls-accent: #a87900;
     }
     .og-tls-main {
       position: absolute;
@@ -223,9 +232,9 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
       align-items: flex-end;
       text-align: right;
     }
-    /* Quem saca acende: card laranja, letra preta. */
+    /* Quem saca acende: card laranja (dourado na final), letra preta. */
     .og-tls-card.serving {
-      background: var(--nx-orange-500);
+      background: var(--tls-accent);
       color: #000;
     }
     .og-tls-card.beaten {
@@ -241,7 +250,7 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
       padding: 12px 22px;
       border-radius: 16px;
       background: #000;
-      color: var(--nx-orange-500);
+      color: var(--tls-accent);
       font-weight: 800;
       font-size: 40px;
       line-height: 1;
@@ -365,7 +374,7 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
       color: #fff;
     }
     .og-tls-chip.hot {
-      color: var(--nx-orange-500);
+      color: var(--tls-accent);
     }
     .og-tls-chip.troca {
       animation: og-tls-troca 900ms ease-in-out infinite alternate;
@@ -380,7 +389,7 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
       color: var(--tls-dim);
     }
     .og-tls-brand span {
-      color: var(--nx-orange-500);
+      color: var(--tls-accent);
     }
     .og-tls-brand.on-light,
     .og-tls-brand.on-light span {
@@ -417,7 +426,7 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
       line-height: 0.95;
       letter-spacing: -0.03em;
       text-transform: uppercase;
-      color: var(--nx-orange-500);
+      color: var(--tls-accent);
       white-space: nowrap;
       overflow: hidden;
     }
@@ -479,7 +488,7 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
     }
     .og-tls-lance.ace {
       gap: 40px;
-      background: var(--nx-orange-500);
+      background: var(--tls-accent);
       color: #000;
       animation:
         og-ld-life 4500ms linear both,
@@ -527,7 +536,7 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
     .og-tls-lance-bar {
       width: 100%;
       height: 44px;
-      background: var(--nx-orange-500);
+      background: var(--tls-accent);
       animation: og-ld-bar 4500ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
     }
     .og-tls-lance-word {
@@ -536,7 +545,7 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
       letter-spacing: -0.04em;
     }
     .og-tls-lance-word.l {
-      color: var(--nx-orange-500);
+      color: var(--tls-accent);
       animation: og-ld-drop-l 4500ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
     }
     .og-tls-lance-word.r {
@@ -700,6 +709,8 @@ export class TelaoLedSoloComponent {
   readonly teamB = input.required<TelaoTeamDisplay>();
   /** Relógio do host: o placar não cria timer próprio. */
   readonly nowMs = input(0);
+  /** Final: o mesmo placar, com o dourado no lugar do laranja. */
+  readonly gold = input(false);
   /** Lances do painel de Transmissão — `null` onde não há (painel /led da quadra). */
   readonly lances = input<TelaoLancesInput | null>(null);
 

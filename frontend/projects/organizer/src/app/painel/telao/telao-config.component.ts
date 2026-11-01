@@ -29,7 +29,7 @@ const TOGGLES: { key: TelaoToggleKey; title: string; desc: string }[] = [
   { key: 'showAvatars', title: 'Avatares dos atletas', desc: 'Iniciais das duplas em cada quadra' },
   { key: 'autoRotate', title: 'Rotação automática', desc: 'Alterna as quadras exibidas a cada 20 s' },
   { key: 'showStreak', title: 'Em chamas', desc: 'Destaque na dupla com 3+ pontos seguidos — cresce com a sequência' },
-  { key: 'showFinalMode', title: 'Modo Grande Final', desc: 'Final e 3º lugar assumem a tela inteira, com tela de campeões no fim' },
+  { key: 'showFinalMode', title: 'Modo Grande Final', desc: 'Final e 3º lugar assumem a tela inteira, com tela de campeões no fim. Com uma quadra só, a final fica no placar da quadra, em dourado' },
   { key: 'showPublicQr', title: 'QR de acompanhamento', desc: 'O público aponta a câmera e vê os jogos ao vivo no celular' },
 ];
 

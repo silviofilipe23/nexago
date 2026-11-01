@@ -2,7 +2,6 @@ import type { TournamentMatch } from '../../painel/data/matches-repository';
 import { overlayViewOf, type OverlayDuelView } from './overlay-selectors';
 import {
   TECNICO_SAIDA_MS,
-  tecnicoAutoKeyOf,
   tecnicoClock,
   tecnicoManualOf,
   tecnicoNoAr,
@@ -77,7 +76,6 @@ describe('overlay-tecnico', () => {
     it('entra com o placar do instante da chamada', () => {
       const m = match({ technicalTimeout: tt() });
       const r = tecnicoManualOf(m, viewOf(m), NOW, 'Masculino A');
-      expect(r?.kind).toBe('manual');
       expect(r?.side).toBe('A');
       expect(r?.startMs).toBe(NOW - 10_000);
       expect(r?.info).toBe('Set 1 · 10 × 8 · Masculino A');
@@ -100,22 +98,6 @@ describe('overlay-tecnico', () => {
     it('sem carimbo do servidor ainda mostra o minuto cheio', () => {
       const m = match({ technicalTimeout: tt({ startedAt: null }) });
       expect(tecnicoManualOf(m, viewOf(m), NOW, null)?.startMs).toBe(NOW);
-    });
-  });
-
-  describe('automático (21 pontos)', () => {
-    it('dispara com a soma do set em 21 no vôlei', () => {
-      const m = match({ sets: [{ a: 11, b: 10 }] });
-      expect(tecnicoAutoKeyOf(m, viewOf(m))).toBe('m1:1:auto');
-    });
-
-    it('não dispara fora de 21, no tie-break de 15 nem sem estar ao vivo', () => {
-      const m20 = match({ sets: [{ a: 10, b: 10 }] });
-      expect(tecnicoAutoKeyOf(m20, viewOf(m20))).toBeNull();
-      const tb = match({ sets: [{ a: 21, b: 5 }, { a: 5, b: 21 }, { a: 11, b: 10 }], currentSetIndex: 2 });
-      expect(tecnicoAutoKeyOf(tb, viewOf(tb))).toBeNull();
-      const agendada = match({ status: 'scheduled', sets: [] });
-      expect(tecnicoAutoKeyOf(agendada, overlayViewOf(agendada, NOW) as OverlayDuelView)).toBeNull();
     });
   });
 });

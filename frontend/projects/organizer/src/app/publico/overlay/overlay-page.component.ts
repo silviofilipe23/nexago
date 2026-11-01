@@ -41,7 +41,7 @@ import { RESUMO_AUTO_DELAY_MS, RESUMO_AUTO_MAX_MS, resumoOf, type ResumoView } f
 import { OverlayMedicoComponent } from './overlay-medico.component';
 import { medicoOf, type OverlayMedicoView } from './overlay-medico';
 import { OverlayTecnicoComponent } from './overlay-tecnico.component';
-import { TECNICO_AUTO_SEGUNDOS, tecnicoAutoKeyOf, tecnicoInfoOf, tecnicoManualOf, tecnicoNoAr, type OverlayTecnicoView } from './overlay-tecnico';
+import { tecnicoManualOf, type OverlayTecnicoView } from './overlay-tecnico';
 import { DEFAULT_BROADCAST_CONTROL, finalPrefOf, type BroadcastControl } from '../../painel/data/broadcast-control';
 import {
   interviewVisibleAt,
@@ -679,26 +679,12 @@ export class OverlayPageComponent {
     return overlayFinalModeOf(isFinal, this.finalPref());
   });
 
-  /** Tempo técnico automático (vôlei, 21 pontos no set): quando o overlay VÊ a soma chegar a 21.
-   *  O início é o relógio desta tela — o doc não guarda nada — e a 1ª leitura é só linha de base:
-   *  recarregar o OBS com o set já em 21 não reabre um minuto que ninguém chamou. */
-  private readonly tecnicoAuto = signal<{ key: string; startMs: number } | null>(null);
-  private tecnicoBaseline = false;
-  private readonly tecnicoAutoKey = computed(() => tecnicoAutoKeyOf(this.match(), this.duelViewAuto()));
-
-  /** Tempo técnico no ar: o chamado pela mesa tem prioridade sobre o automático. */
-  protected readonly tecnico = computed<OverlayTecnicoView | null>(() => {
-    if (!this.layers().duel || this.resumo() != null) return null;
-    const v = this.duelViewAuto();
-    const nowMs = this.tick();
-    const manual = tecnicoManualOf(this.match(), v, nowMs, this.categoryName());
-    if (manual) return manual;
-    const auto = this.tecnicoAuto();
-    if (!auto || !v || auto.key !== this.tecnicoAutoKey()) return null;
-    const durMs = TECNICO_AUTO_SEGUNDOS * 1000;
-    if (!tecnicoNoAr(auto.startMs, durMs, nowMs)) return null;
-    return { kind: 'auto', key: auto.key, startMs: auto.startMs, durMs, side: null, teamId: '', info: tecnicoInfoOf(v, this.categoryName()) };
-  });
+  /** Tempo técnico no ar: só o chamado pela mesa. */
+  protected readonly tecnico = computed<OverlayTecnicoView | null>(() =>
+    this.layers().duel && this.resumo() == null
+      ? tecnicoManualOf(this.match(), this.duelViewAuto(), this.tick(), this.categoryName())
+      : null,
+  );
 
   /** Pré-jogo no ar: o painel monta o card e liga a chave. A tarja de entrevista toma a tela. */
   protected readonly prejogo = computed(() => {
@@ -1102,23 +1088,6 @@ export class OverlayPageComponent {
       });
     });
     destroyRef.onDestroy(() => this.limparResumoTimers());
-
-    // Automático: a chave só existe com o set em 21; chave nova = relógio novo (a 1ª é a base).
-    effect(() => {
-      const key = this.tecnicoAutoKey();
-      untracked(() => {
-        if (!key) {
-          if (this.tecnicoAuto() != null) this.tecnicoAuto.set(null);
-          return;
-        }
-        if (this.tecnicoAuto()?.key === key) return;
-        const baseline = !this.tecnicoBaseline;
-        this.tecnicoAuto.set({ key, startMs: baseline ? 0 : Date.now() });
-      });
-    });
-    effect(() => {
-      if (this.match()) untracked(() => (this.tecnicoBaseline = true));
-    });
 
     const handle = setInterval(() => this.tick.set(Date.now()), 1000);
     inject(DestroyRef).onDestroy(() => clearInterval(handle));

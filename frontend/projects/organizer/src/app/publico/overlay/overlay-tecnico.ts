@@ -2,25 +2,22 @@ import { matchLiveCurrentSet } from '../../painel/data/live-set-display';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
 import type { OverlayDuelView } from './overlay-selectors';
 
-/** Tempo técnico no ar: o card entra quando a mesa chama (manual) ou quando o set chega a 21
- *  pontos (automático, só vôlei) e sai quando passa o minuto, quando qualquer ponto é marcado ou
- *  `TECNICO_SAIDA_MS` depois do relógio zerar.
+/** Tempo técnico no ar: o card entra só quando a mesa chama e sai quando passa o minuto, quando
+ *  qualquer ponto é marcado ou `TECNICO_SAIDA_MS` depois do relógio zerar. Não há disparo
+ *  automático (o antigo "21 pontos no set" saiu): quem decide o tempo técnico é a mesa.
  *
  *  Puro pelo mesmo motivo dos ciclos de doação/patrocínio: a tela só agenda e desenha, e a regra
  *  de "quando está no ar" mora aqui, com teste. */
 
 export const TECNICO_SAIDA_MS = 4000;
-export const TECNICO_AUTO_PONTOS = 21;
-export const TECNICO_AUTO_SEGUNDOS = 60;
 
 export interface OverlayTecnicoView {
-  kind: 'manual' | 'auto';
   /** Muda a cada tempo técnico novo — chave do `@for` que re-anima a entrada. */
   key: string;
   startMs: number;
   durMs: number;
-  /** Lado que pediu; `null` no automático (vale pros dois). */
-  side: 'A' | 'B' | null;
+  /** Lado que pediu. */
+  side: 'A' | 'B';
   teamId: string;
   /** Linha de informação: "Set 2 · 17 × 19 · Masculino B". */
   info: string;
@@ -52,16 +49,6 @@ export function tecnicoInfoOf(v: OverlayDuelView, categoryName: string | null): 
     .join(' · ');
 }
 
-/** Chave do tempo técnico automático da partida, ou `null` fora dele: vôlei (set de pontos até
- *  21 — o tie-break de 15 fica de fora) com a soma do set em 21, ao vivo. */
-export function tecnicoAutoKeyOf(match: TournamentMatch | null, v: OverlayDuelView | null): string | null {
-  if (!match || !v || match.status !== 'in_progress') return null;
-  if (match.scoringProfile != null && match.scoringProfile.kind !== 'sets_points') return null;
-  if (v.gameA != null || v.targetPoints !== TECNICO_AUTO_PONTOS) return null;
-  if ((v.pointsA ?? 0) + (v.pointsB ?? 0) !== TECNICO_AUTO_PONTOS) return null;
-  return `${match.id}:${v.currentSetNumber}:auto`;
-}
-
 /** Tempo técnico chamado pela mesa e ainda válido: o placar do set é o do instante da chamada
  *  (ponto marcado = acabou). `null` fora disso. */
 export function tecnicoManualOf(
@@ -79,7 +66,6 @@ export function tecnicoManualOf(
   const durMs = tt.durationSec * 1000;
   if (!tecnicoNoAr(startMs, durMs, nowMs)) return null;
   return {
-    kind: 'manual',
     key: `${match.id}:${tt.setIndex}:${startMs}`,
     startMs,
     durMs,

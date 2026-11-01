@@ -6,6 +6,7 @@ DiscoveryTournament _tournament({
   required String id,
   required String name,
   required DateTime startDate,
+  DateTime? endDate,
   TournamentFormat format = TournamentFormat.dupla,
   double priceValue = 100,
   List<TournamentGenderCat> categories = const [TournamentGenderCat.m],
@@ -18,6 +19,7 @@ DiscoveryTournament _tournament({
     city: 'Goiânia',
     dateLabel: '28 mai',
     startDate: startDate,
+    endDate: endDate,
     categories: categories,
     format: format,
     priceLabel: r'R$ 100',
@@ -98,6 +100,58 @@ void main() {
 
       expect(sorted.first.id, 'future');
       expect(sorted.last.id, 'past');
+    });
+
+    test('keeps a multi-day tournament in progress at the top, not with the past ones', () {
+      // Começou ontem e vai até depois de amanhã: o startDate já passou, mas o
+      // evento está rolando — é o primeiro da lista, não um encerrado.
+      final sorted = sortDiscoveryTournamentsByDateProximity(
+        [
+          _tournament(
+            id: 'future',
+            name: 'Future',
+            startDate: DateTime(2026, 6, 15),
+          ),
+          _tournament(
+            id: 'past',
+            name: 'Past',
+            startDate: DateTime(2026, 6, 1),
+            endDate: DateTime(2026, 6, 2),
+          ),
+          _tournament(
+            id: 'ongoing',
+            name: 'Ongoing',
+            startDate: DateTime.utc(2026, 6, 9, 3),
+            endDate: DateTime.utc(2026, 6, 12, 3),
+            status: TournamentListingStatus.bracketsReady,
+          ),
+        ],
+        now: now,
+      );
+
+      expect(sorted.map((t) => t.id), ['ongoing', 'future', 'past']);
+    });
+
+    test('treats a completed tournament as past even inside its date window', () {
+      final sorted = sortDiscoveryTournamentsByDateProximity(
+        [
+          _tournament(
+            id: 'done',
+            name: 'Done',
+            startDate: DateTime(2026, 6, 9),
+            endDate: DateTime(2026, 6, 11),
+            status: TournamentListingStatus.completed,
+          ),
+          _tournament(
+            id: 'future',
+            name: 'Future',
+            startDate: DateTime(2026, 6, 15),
+          ),
+        ],
+        now: now,
+      );
+
+      expect(sorted.map((t) => t.id), ['future', 'done']);
     });
   });
 

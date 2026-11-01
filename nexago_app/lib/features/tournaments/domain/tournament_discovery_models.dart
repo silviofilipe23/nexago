@@ -99,6 +99,7 @@ class DiscoveryTournament {
     required this.featured,
     required this.enrolledCount,
     required this.liveMatchesNow,
+    this.endDate,
     this.offerEndsAt,
     this.leagueId,
     this.leagueStageId,
@@ -116,6 +117,10 @@ class DiscoveryTournament {
   final String city;
   final String dateLabel;
   final DateTime startDate;
+
+  /// Último dia do evento (`endAt`). Num torneio de vários dias, é ele que diz
+  /// se o evento já passou — o `startDate` passa logo no segundo dia.
+  final DateTime? endDate;
   final List<TournamentGenderCat> categories;
   final TournamentFormat format;
   final String priceLabel;

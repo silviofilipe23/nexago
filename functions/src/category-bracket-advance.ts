@@ -104,14 +104,14 @@ export async function applyBracketAdvances(
     updates.push({
       advance: winnerAdvance,
       teamId: winnerId,
-      description: winnerDescription(match, winnerId),
+      description: advanceSlotDescription("WINNER", match),
     });
   }
   if (loserAdvance && loserId) {
     updates.push({
       advance: loserAdvance,
       teamId: loserId,
-      description: loserDescription(match, loserId),
+      description: advanceSlotDescription("LOSER", match),
     });
   }
 
@@ -154,24 +154,19 @@ export async function applyBracketAdvances(
   };
 }
 
-function winnerDescription(
+/**
+ * Placeholder da vaga de destino, no mesmo formato do gerador
+ * (`sourceDescription` em `category-bracket-builders.ts`): a origem é a
+ * partida que acabou de terminar. Copiar a descrição da vaga em que a dupla
+ * estava ("Vencedor Jogo #10") rotulava o destino com a partida errada.
+ */
+export function advanceSlotDescription(
+  kind: "WINNER" | "LOSER",
   match: Record<string, unknown>,
-  winnerId: string,
 ): string | undefined {
-  const teamAId = (match.teamAId as string | undefined)?.trim();
-  if (winnerId === teamAId) {
-    return (match.teamADescription as string | undefined)?.trim() || undefined;
+  const matchNumber = match.matchNumber;
+  if (typeof matchNumber !== "number" || Number.isNaN(matchNumber)) {
+    return undefined;
   }
-  return (match.teamBDescription as string | undefined)?.trim() || undefined;
-}
-
-function loserDescription(
-  match: Record<string, unknown>,
-  loserId: string,
-): string | undefined {
-  const teamAId = (match.teamAId as string | undefined)?.trim();
-  if (loserId === teamAId) {
-    return (match.teamADescription as string | undefined)?.trim() || undefined;
-  }
-  return (match.teamBDescription as string | undefined)?.trim() || undefined;
+  return `${kind === "WINNER" ? "Vencedor" : "Perdedor"} Jogo #${matchNumber}`;
 }

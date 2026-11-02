@@ -41,7 +41,7 @@ import { RESUMO_AUTO_DELAY_MS, RESUMO_AUTO_MAX_MS, resumoOf, type ResumoView } f
 import { OverlayMedicoComponent } from './overlay-medico.component';
 import { medicoOf, type OverlayMedicoView } from './overlay-medico';
 import { OverlayTecnicoComponent } from './overlay-tecnico.component';
-import { tecnicoManualOf, type OverlayTecnicoView } from './overlay-tecnico';
+import { tecnicoAutoKeyOf, tecnicoAutoNext, tecnicoAutoViewOf, tecnicoDocNoPlacar, tecnicoManualOf, type OverlayTecnicoView, type TecnicoAutoState } from './overlay-tecnico';
 import { DEFAULT_BROADCAST_CONTROL, finalPrefOf, type BroadcastControl } from '../../painel/data/broadcast-control';
 import {
   interviewVisibleAt,
@@ -679,12 +679,24 @@ export class OverlayPageComponent {
     return overlayFinalModeOf(isFinal, this.finalPref());
   });
 
-  /** Tempo técnico no ar: só o chamado pela mesa. */
-  protected readonly tecnico = computed<OverlayTecnicoView | null>(() =>
-    this.layers().duel && this.resumo() == null
-      ? tecnicoManualOf(this.match(), this.duelViewAuto(), this.tick(), this.categoryName())
-      : null,
+  /** Automático do 21º ponto que esta tela enxerga sozinha (opção do torneio) — ver
+   *  `overlay-tecnico.ts`. O início é o relógio desta tela; o doc não guarda nada dele. */
+  private readonly tecnicoAuto = signal<TecnicoAutoState | null>(null);
+  private tecnicoBaselineDone = false;
+  private readonly tecnicoAutoKey = computed(() =>
+    tecnicoAutoKeyOf(this.match(), this.gateway.tournament()?.autoTechnicalTimeout === true),
   );
+
+  /** Tempo técnico no ar: o gravado pela mesa tem prioridade sobre o que o overlay viu sozinho. */
+  protected readonly tecnico = computed<OverlayTecnicoView | null>(() => {
+    if (!this.layers().duel || this.resumo() != null) return null;
+    const v = this.duelViewAuto();
+    const nowMs = this.tick();
+    return (
+      tecnicoManualOf(this.match(), v, nowMs, this.categoryName()) ??
+      tecnicoAutoViewOf(this.tecnicoAuto(), this.tecnicoAutoKey(), v, nowMs, this.categoryName())
+    );
+  });
 
   /** Pré-jogo no ar: o painel monta o card e liga a chave. A tarja de entrevista toma a tela. */
   protected readonly prejogo = computed(() => {
@@ -1088,6 +1100,22 @@ export class OverlayPageComponent {
       });
     });
     destroyRef.onDestroy(() => this.limparResumoTimers());
+
+    // Automático do 21: só decide com partida E torneio na mão (a opção mora no torneio); essa
+    // 1ª leitura completa é a linha de base.
+    effect(() => {
+      const key = this.tecnicoAutoKey();
+      const m = this.match();
+      const ready = this.gateway.tournament() != null;
+      untracked(() => {
+        if (!m || !ready) return;
+        const baseline = !this.tecnicoBaselineDone;
+        this.tecnicoBaselineDone = true;
+        const prev = this.tecnicoAuto();
+        const next = tecnicoAutoNext(prev, { key, baseline, docActive: tecnicoDocNoPlacar(m), nowMs: Date.now() });
+        if (next !== prev) this.tecnicoAuto.set(next);
+      });
+    });
 
     const handle = setInterval(() => this.tick.set(Date.now()), 1000);
     inject(DestroyRef).onDestroy(() => clearInterval(handle));

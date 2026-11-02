@@ -1,11 +1,16 @@
+import { TECHNICAL_TIMEOUT_SECONDS } from '@nexago/live-scoring';
+import { effectiveScoringProfile, isAutoTechnicalTimeoutDue } from '@nexago/sports';
 import { matchLiveCurrentSet } from '../../painel/data/live-set-display';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
 import type { OverlayDuelView } from './overlay-selectors';
 
-/** Tempo técnico no ar: o card entra só quando a mesa grava o minuto no doc e sai quando passa o
- *  minuto, quando qualquer ponto é marcado ou `TECNICO_SAIDA_MS` depois do relógio zerar. O
- *  automático do 21º ponto (opção do torneio) também vem da mesa — o overlay nunca dispara sozinho,
- *  então recarregar o OBS não reabre um minuto que ninguém chamou.
+/** Tempo técnico no ar: o card entra quando a mesa grava o minuto no doc e sai quando passa o
+ *  minuto, quando qualquer ponto é marcado ou `TECNICO_SAIDA_MS` depois do relógio zerar.
+ *
+ *  O automático do 21º ponto (opção `autoTechnicalTimeout` do torneio) o overlay também enxerga
+ *  sozinho, pela MESMA regra das mesas: assim ele entra no ponto, mesmo que a mesa seja uma versão
+ *  sem a opção ou a gravação dela atrase. Quando o doc chega, o card do doc assume (mesma chave,
+ *  sem reanimar) e, se a mesa encerrar antes do minuto, o overlay não reabre o dele.
  *
  *  Puro pelo mesmo motivo dos ciclos de doação/patrocínio: a tela só agenda e desenha, e a regra
  *  de "quando está no ar" mora aqui, com teste. */
@@ -60,15 +65,14 @@ export function tecnicoManualOf(
   categoryName: string | null,
 ): OverlayTecnicoView | null {
   const tt = match?.technicalTimeout;
-  if (!match || !tt || !v || match.status !== 'in_progress') return null;
-  const live = matchLiveCurrentSet(match);
-  if (!live || live.setNumber - 1 !== tt.setIndex || live.a !== tt.scoreA || live.b !== tt.scoreB) return null;
+  if (!match || !tt || !v || !tecnicoDocNoPlacar(match)) return null;
   // Sem carimbo ainda (escrita local antes do servidor responder): minuto cheio a partir de agora.
   const startMs = tt.startedAt?.getTime() ?? nowMs;
   const durMs = tt.durationSec * 1000;
   if (!tecnicoNoAr(startMs, durMs, nowMs)) return null;
   return {
-    key: `${match.id}:${tt.setIndex}:${startMs}`,
+    // Automático com a mesma chave do que o overlay enxerga sozinho: o card não reanima na troca.
+    key: tt.auto ? tecnicoAutoKey(match.id, tt.setIndex + 1) : `${match.id}:${tt.setIndex}:${startMs}`,
     startMs,
     durMs,
     side: tt.side,
@@ -76,4 +80,67 @@ export function tecnicoManualOf(
     teamId: tt.side == null ? '' : tt.teamId || (tt.side === 'A' ? match.teamAId : match.teamBId),
     info: tecnicoInfoOf(v, categoryName),
   };
+}
+
+/** O tempo técnico do doc ainda vale pro placar atual (ponto marcado depois da chamada = acabou;
+ *  campo esquecido de um tempo antigo não conta). */
+export function tecnicoDocNoPlacar(match: TournamentMatch): boolean {
+  const tt = match.technicalTimeout;
+  if (!tt || match.status !== 'in_progress') return false;
+  const live = matchLiveCurrentSet(match);
+  return live != null && live.setNumber - 1 === tt.setIndex && live.a === tt.scoreA && live.b === tt.scoreB;
+}
+
+function tecnicoAutoKey(matchId: string, setNumber: number): string {
+  return `${matchId}:${setNumber}:auto`;
+}
+
+/** Chave do automático do 21º ponto na partida, ou `null` fora dele: opção do torneio ligada,
+ *  partida ao vivo e a soma do set em 21 num set de 21 (`isAutoTechnicalTimeoutDue`, a regra das
+ *  mesas). O decisivo de 15 fica de fora. */
+export function tecnicoAutoKeyOf(match: TournamentMatch | null, enabled: boolean): string | null {
+  if (!enabled || !match) return null;
+  const live = matchLiveCurrentSet(match);
+  if (!live) return null;
+  const profile = effectiveScoringProfile(match.scoringProfile, match.bestOf);
+  if (!isAutoTechnicalTimeoutDue(profile, live.setNumber - 1, { a: live.a, b: live.b })) return null;
+  return tecnicoAutoKey(match.id, live.setNumber);
+}
+
+/** O minuto que o overlay abriu sozinho: a chave do 21 e o instante em que ESTA tela o viu.
+ *  `startMs: 0` = já vencido (nunca entra no ar). */
+export interface TecnicoAutoState {
+  key: string;
+  startMs: number;
+}
+
+/** Próximo estado do automático a cada leitura (partida + torneio carregados):
+ *  - sem chave (ponto marcado, set novo, opção desligada): some;
+ *  - a 1ª leitura é só linha de base — recarregar o OBS com o set já em 21 não reabre o minuto;
+ *  - com tempo técnico no doc (o da mesa, automático ou de dupla), a mesa manda: o do overlay
+ *    vence na hora e não volta quando a mesa encerrar;
+ *  - chave nova = relógio novo; a mesma chave mantém o relógio. */
+export function tecnicoAutoNext(
+  prev: TecnicoAutoState | null,
+  input: { key: string | null; baseline: boolean; docActive: boolean; nowMs: number },
+): TecnicoAutoState | null {
+  const { key } = input;
+  if (!key) return null;
+  if (input.baseline || input.docActive) return prev?.key === key && prev.startMs === 0 ? prev : { key, startMs: 0 };
+  if (prev?.key === key) return prev;
+  return { key, startMs: input.nowMs };
+}
+
+/** Card do automático visto pelo overlay, enquanto couber na tela. */
+export function tecnicoAutoViewOf(
+  state: TecnicoAutoState | null,
+  key: string | null,
+  v: OverlayDuelView | null,
+  nowMs: number,
+  categoryName: string | null,
+): OverlayTecnicoView | null {
+  if (!state || !v || state.key !== key) return null;
+  const durMs = TECHNICAL_TIMEOUT_SECONDS * 1000;
+  if (!tecnicoNoAr(state.startMs, durMs, nowMs)) return null;
+  return { key: state.key, startMs: state.startMs, durMs, side: null, auto: true, teamId: '', info: tecnicoInfoOf(v, categoryName) };
 }

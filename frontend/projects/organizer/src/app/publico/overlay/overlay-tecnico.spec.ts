@@ -2,6 +2,9 @@ import type { TournamentMatch } from '../../painel/data/matches-repository';
 import { overlayViewOf, type OverlayDuelView } from './overlay-selectors';
 import {
   TECNICO_SAIDA_MS,
+  tecnicoAutoKeyOf,
+  tecnicoAutoNext,
+  tecnicoAutoViewOf,
   tecnicoClock,
   tecnicoManualOf,
   tecnicoNoAr,
@@ -115,6 +118,54 @@ describe('overlay-tecnico', () => {
     it('o 22º ponto encerra igual ao manual', () => {
       const m = match({ sets: [{ a: 12, b: 10 }], technicalTimeout: tt({ side: null, auto: true, teamId: '', scoreA: 11, scoreB: 10 }) });
       expect(tecnicoManualOf(m, viewOf(m), NOW, null)).toBeNull();
+    });
+
+    it('usa a mesma chave do que o overlay enxerga sozinho (não reanima na troca)', () => {
+      const m = match({ sets: [{ a: 11, b: 10 }], technicalTimeout: tt({ side: null, auto: true, teamId: '', scoreA: 11, scoreB: 10 }) });
+      expect(tecnicoManualOf(m, viewOf(m), NOW, null)?.key).toBe(tecnicoAutoKeyOf(m, true)!);
+    });
+  });
+
+  describe('automático do 21º ponto (visto pelo overlay, conforme a opção do torneio)', () => {
+    it('chave só com a opção ligada e a soma do set em 21', () => {
+      const m = match({ sets: [{ a: 11, b: 10 }] });
+      expect(tecnicoAutoKeyOf(m, true)).toBe('m1:1:auto');
+      expect(tecnicoAutoKeyOf(m, false)).toBeNull();
+    });
+
+    it('sem chave fora de 21, no tie-break de 15 e fora do ao vivo', () => {
+      expect(tecnicoAutoKeyOf(match({ sets: [{ a: 10, b: 10 }] }), true)).toBeNull();
+      const tb = match({ sets: [{ a: 21, b: 5 }, { a: 5, b: 21 }, { a: 11, b: 10 }], currentSetIndex: 2 });
+      expect(tecnicoAutoKeyOf(tb, true)).toBeNull();
+      expect(tecnicoAutoKeyOf(match({ status: 'scheduled', sets: [{ a: 11, b: 10 }] }), true)).toBeNull();
+    });
+
+    it('chave nova abre o minuto com o relógio desta tela', () => {
+      const st = tecnicoAutoNext(null, { key: 'm1:1:auto', baseline: false, docActive: false, nowMs: NOW });
+      expect(st).toEqual({ key: 'm1:1:auto', startMs: NOW });
+      const m = match({ sets: [{ a: 11, b: 10 }] });
+      const v = tecnicoAutoViewOf(st, 'm1:1:auto', viewOf(m), NOW + 5_000, 'Masculino A');
+      expect(v).toEqual(jasmine.objectContaining({ auto: true, side: null, teamId: '', startMs: NOW, info: 'Set 1 · 11 × 10 · Masculino A' }));
+      // A mesma chave mantém o relógio.
+      expect(tecnicoAutoNext(st, { key: 'm1:1:auto', baseline: false, docActive: false, nowMs: NOW + 9_000 })).toBe(st);
+    });
+
+    it('1ª leitura com o set já em 21 é linha de base: recarregar o OBS não reabre', () => {
+      const st = tecnicoAutoNext(null, { key: 'm1:1:auto', baseline: true, docActive: false, nowMs: NOW });
+      const m = match({ sets: [{ a: 11, b: 10 }] });
+      expect(tecnicoAutoViewOf(st, 'm1:1:auto', viewOf(m), NOW, null)).toBeNull();
+    });
+
+    it('com o tempo da mesa no doc, o do overlay vence — e não volta quando a mesa encerra', () => {
+      const aberto = { key: 'm1:1:auto', startMs: NOW };
+      const st = tecnicoAutoNext(aberto, { key: 'm1:1:auto', baseline: false, docActive: true, nowMs: NOW + 2_000 });
+      const m = match({ sets: [{ a: 11, b: 10 }] });
+      expect(tecnicoAutoViewOf(st, 'm1:1:auto', viewOf(m), NOW + 3_000, null)).toBeNull();
+      expect(tecnicoAutoNext(st, { key: 'm1:1:auto', baseline: false, docActive: false, nowMs: NOW + 4_000 })).toBe(st);
+    });
+
+    it('ponto marcado (sem chave) tira do ar', () => {
+      expect(tecnicoAutoNext({ key: 'm1:1:auto', startMs: NOW }, { key: null, baseline: false, docActive: false, nowMs: NOW })).toBeNull();
     });
   });
 });

@@ -95,7 +95,12 @@ export interface LiveMatch {
   matchStartedAt: Date | null;
   winnerId: string | null;
   courtName: string | null;
+  /** Quadra e janela agendadas — a mesa usa pra trocar a quadra mantendo horário e jornada.
+   *  Opcionais: quem só exibe não precisa delas. */
+  courtId?: string | null;
   scheduleTime: Date | null;
+  scheduleEndTime?: Date | null;
+  dayKey?: string | null;
   /** Perfil de placar carimbado na partida; `null` em partida antiga (vale a regra histórica). */
   scoringProfile?: ScoringProfile | null;
   /** Pontos do game em andamento numa partida de games (`{0, 0}` quando ausente). */
@@ -189,7 +194,10 @@ export function liveMatchFromDoc(id: string, data: Record<string, unknown>): Liv
     matchStartedAt: toDate(data['matchStartedAt']),
     winnerId: optionalStr(data['winnerId']),
     courtName: optionalStr(data['courtName']),
+    courtId: optionalStr(data['courtId']),
     scheduleTime: toDate(data['scheduleTime']),
+    scheduleEndTime: toDate(data['scheduleEndTime']),
+    dayKey: optionalStr(data['dayKey']),
     scoringProfile: scoringProfileFromRaw(data['scoringProfile']),
     currentGame: gamePointsOf(data['currentGame']),
   };

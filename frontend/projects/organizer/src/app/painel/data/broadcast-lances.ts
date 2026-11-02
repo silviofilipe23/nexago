@@ -1,3 +1,5 @@
+import { resolveSport } from '@nexago/sports';
+
 /** Controle dos "Lances" (vinheta de tela cheia + tarja do atleta) — Monster Block, Ace, Fire Ball…
  *
  *  É um DISPARO, não um liga/desliga: cada lance mostrado incrementa `seq`; a tela reage à mudança
@@ -7,6 +9,19 @@
 export type LanceTipo = 'block' | 'ace' | 'fire' | 'dig' | 'shark' | 'cachorra' | 'rally' | 'onfire';
 
 export const LANCE_TIPOS: readonly LanceTipo[] = ['block', 'ace', 'fire', 'dig', 'shark', 'cachorra', 'rally', 'onfire'];
+
+/** Lances de um esporte só (código do catálogo `@nexago/sports`); os outros valem em todos.
+ *  Shark Attack é a "de segunda" do futevôlei — não existe no vôlei. */
+const LANCE_SO_NO_ESPORTE: Partial<Record<LanceTipo, string>> = { shark: 'footvolley' };
+
+/** Os lances que a mesa oferece no esporte do torneio (sem esporte: só os de todos). */
+export function lancesDoEsporte(sport: unknown): readonly LanceTipo[] {
+  const code = resolveSport(sport)?.code ?? null;
+  return LANCE_TIPOS.filter((t) => {
+    const so = LANCE_SO_NO_ESPORTE[t];
+    return so === undefined || so === code;
+  });
+}
 
 /** Nome mostrado no painel e no selo da tarja. */
 export const LANCE_LABEL: Record<LanceTipo, string> = {

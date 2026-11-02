@@ -838,7 +838,8 @@ describe('TransmissaoComponent', () => {
       const raiz = el.querySelector('og-tx-lances')!;
       const linhas = [...raiz.querySelectorAll('.og-lc-ath b')].map((b) => (b.textContent ?? '').trim());
       expect(linhas).toEqual(['Ana Souza', 'Bia Lima', 'Ana / Bia', 'Carla Dias', 'Dani Ávila', 'Carla / Dani']);
-      expect(raiz.querySelectorAll('.og-lc-pad').length).toBe(28);
+      expect(raiz.querySelectorAll('.og-lc-pad').length).toBe(24);
+      expect(raiz.querySelector('[aria-label^="Shark Attack"]')).toBeNull();
       expect(pad(el, 'Cachorra · Dani Ávila').querySelector('.og-lc-k')?.textContent).toBe('.');
       expect(pad(el, 'Rally Monstro · Carla Dias / Dani Ávila').classList).toContain('wide');
     });
@@ -879,8 +880,31 @@ describe('TransmissaoComponent', () => {
       expect(fake.saved[1].lances).toEqual(jasmine.objectContaining({ tipo: 'onfire', lado: 1, n: 3 }));
     });
 
+    it('Shark Attack só aparece no futevôlei, com a coluna "De segunda"', async () => {
+      const fake = new FakeData();
+      fake.tournament.set({ ...fake.tournament()!, sportId: 'footvolley' });
+      const { el } = await mount(fake);
+      const raiz = el.querySelector('og-tx-lances')!;
+      expect(raiz.querySelectorAll('.og-lc-pad').length).toBe(28);
+      expect([...raiz.querySelectorAll('.og-lc-h')].map((h) => h.textContent?.trim())).toContain('De segunda');
+      expect(pad(el, 'Shark Attack · Ana Souza').querySelector('.og-lc-k')?.textContent).toBe('t');
+    });
+
+    it('no vôlei, a tecla do Shark Attack fica muda (nem lance, nem atalho da lista)', async () => {
+      const fake = new FakeData();
+      fake.tournament.set({ ...fake.tournament()!, sportId: 'beachVolleyball' });
+      const { el, fixture } = await mount(fake);
+      selecionar(el, 'Lances');
+      await fixture.whenStable();
+      tecla('t');
+      expect(fake.saved).toEqual([]);
+      expect(el.querySelector('.og-tx-cfg h2')?.textContent).toContain('Lances');
+    });
+
     it('com a mesa aberta, as letras disparam: Y = 1º atleta da dupla B, Ç = Shark Attack do 2º, M = On Fire da B', async () => {
-      const { el, fake, fixture } = await mount();
+      const fake = new FakeData();
+      fake.tournament.set({ ...fake.tournament()!, sportId: 'footvolley' });
+      const { el, fixture } = await mount(fake);
       selecionar(el, 'Lances');
       await fixture.whenStable();
       tecla('y');

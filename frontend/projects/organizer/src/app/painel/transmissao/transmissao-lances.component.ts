@@ -9,6 +9,7 @@ import {
   lanceChave,
   lanceContagemOf,
   lanceDisparo,
+  lancesDoEsporte,
   lanceTirada,
   type LanceTipo,
 } from '../data/broadcast-lances';
@@ -17,7 +18,7 @@ import { OgCardComponent } from '../ui/card.component';
 import { TransmissaoDataService } from './transmissao-data.service';
 import { courtMatchOf } from './transmissao-selectors';
 
-/** Lances de um atleta, na ordem das colunas da mesa. */
+/** Lances de um atleta, na ordem das colunas da mesa (o esporte do torneio pode tirar alguns). */
 const INDIVIDUAIS: readonly LanceTipo[] = ['block', 'ace', 'fire', 'dig', 'shark', 'cachorra'];
 
 /** Cabeçalho de cada coluna: o fundamento do lance. */
@@ -33,11 +34,14 @@ const FUNDAMENTO: Record<LanceTipo, string> = {
 };
 
 /** Uma fileira de teclas por atleta: dupla A à esquerda do teclado, dupla B à direita. A 6ª
- *  coluna (Cachorra) usa as teclas livres de cada lado: C/V na A, vírgula/ponto na B. */
+ *  coluna (Cachorra) usa as teclas livres de cada lado: C/V na A, vírgula/ponto na B. A tecla é
+ *  do lance, não da coluna: quando o esporte tira um lance, a tecla dele fica muda. */
 const TECLAS: readonly (readonly [string, string])[] = [
   ['qwertc', 'asdfgv'],
   ['yuiop,', 'hjklç.'],
 ];
+const TODAS_AS_TECLAS = TECLAS.flat().join('');
+
 /** Rally Monstro e On Fire de cada dupla. */
 const TECLAS_DUPLA: readonly (readonly [string, string])[] = [
   ['z', 'x'],
@@ -89,9 +93,9 @@ export interface LanceNoAr {
   imports: [OgCardComponent, NgTemplateOutlet],
   template: `
     <og-card [kicker]="bare() ? '' : 'Apresentação'" [title]="bare() ? '' : 'Lances'">
-      <div class="og-lc-mx" role="group" aria-label="Mesa de lances">
+      <div class="og-lc-mx" role="group" aria-label="Mesa de lances" [style.grid-template-columns]="'128px repeat(' + individuais().length + ', minmax(0, 1fr))'">
         <span></span>
-        @for (t of individuais; track t) {
+        @for (t of individuais(); track t) {
           <span class="og-lc-h">{{ fundamento[t] }}</span>
         }
         @for (d of mesa(); track d.lado) {
@@ -193,7 +197,6 @@ export interface LanceNoAr {
   styles: `
     .og-lc-mx {
       display: grid;
-      grid-template-columns: 128px repeat(6, minmax(0, 1fr));
       gap: 6px;
     }
     .og-lc-h {
@@ -451,7 +454,11 @@ export class TransmissaoLancesComponent {
   readonly bare = input(false);
   protected readonly svc = inject(TransmissaoDataService);
 
-  protected readonly individuais = INDIVIDUAIS;
+  /** Colunas da mesa no esporte do torneio. */
+  protected readonly individuais = computed(() => {
+    const doEsporte = lancesDoEsporte(this.svc.tournament()?.sportId);
+    return INDIVIDUAIS.filter((t) => doEsporte.includes(t));
+  });
   protected readonly fundamento = FUNDAMENTO;
   protected readonly segOpcoes = SEG_OPCOES;
   protected readonly rallyLim = RALLY;
@@ -495,7 +502,7 @@ export class TransmissaoLancesComponent {
         curto: atletas.map((n) => n.split(' ')[0]).join(' / '),
         atletas: ([0, 1] as const).map((a) => ({
           nome: atletas[a],
-          pads: INDIVIDUAIS.map((t, i) => pad(t, a, atletas[a], TECLAS[lado][a][i])),
+          pads: this.individuais().map((t) => pad(t, a, atletas[a], TECLAS[lado][a][INDIVIDUAIS.indexOf(t)])),
         })),
         pads: [pad('rally', 0, atletas.join(' / '), TECLAS_DUPLA[lado][0]), pad('onfire', 0, atletas.join(' / '), TECLAS_DUPLA[lado][1])],
       };
@@ -563,9 +570,9 @@ export class TransmissaoLancesComponent {
     const k = key.toLowerCase() === ';' ? 'ç' : key.toLowerCase();
     if (k.length !== 1) return false;
     const p = this.pads().find((x) => x.tecla === k);
-    if (!p) return false;
-    this.disparar(p);
-    return true;
+    if (p) this.disparar(p);
+    // Tecla de lance fora do esporte: engole, pra não cair no atalho da lista.
+    return p !== undefined || TODAS_AS_TECLAS.includes(k);
   }
 
   /** Recolhe o lance que está passando; a contagem fica. */

@@ -26,7 +26,7 @@ export interface TxItem {
   /** Entra e sai sozinho (Momento decisivo): o switch só autoriza — não conta como "no ar"
    *  nem aparece em "Ativos agora". */
   auto?: boolean;
-  /** Dispara em vez de ligar/desligar (Lances, Atleta): sem switch "No ar", fora de "Ativos agora" e do Esc. */
+  /** Dispara em vez de ligar/desligar (Lances, Atleta): sem switch "No ar". Lances, enquanto passa, entra em "Ativos agora" e no Esc. */
   disparo?: boolean;
 }
 

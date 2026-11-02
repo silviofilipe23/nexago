@@ -24,6 +24,11 @@ export function lanceDeveDisparar(visto: number | null, c: BroadcastLances, nowM
   return c.seq !== visto;
 }
 
+/** Deve recolher? O painel tirou do ar: `seq` novo sem `tipo`. Na primeira leitura não há o que recolher. */
+export function lanceDeveEsconder(visto: number | null, c: BroadcastLances): boolean {
+  return visto !== null && c.seq !== visto && c.tipo === null;
+}
+
 export interface LanceView {
   tipo: LanceTipo;
   rotulo: string;

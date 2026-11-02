@@ -1,10 +1,10 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, output, signal, untracked } from '@angular/core';
-import type { BroadcastLances, LanceTipo } from '../../painel/data/broadcast-lances';
-import { lanceDeveDisparar, lanceViewOf, type LanceDupla, type LanceView } from './overlay-lances';
+import { LANCE_TARJA_IN_MS, type BroadcastLances, type LanceTipo } from '../../painel/data/broadcast-lances';
+import { lanceDeveDisparar, lanceDeveEsconder, lanceViewOf, type LanceDupla, type LanceView } from './overlay-lances';
 
 /** A vinheta sai aos 2 s (420 ms de saída); a tarja entra aos 2,25 s. */
 const VINHETA_MS = 2420;
-const TARJA_IN_MS = 2250;
+const TARJA_IN_MS = LANCE_TARJA_IN_MS;
 const TARJA_OUT_MS = 360;
 
 interface Ch {
@@ -358,8 +358,10 @@ export class OverlayLancesComponent {
       const c = this.config();
       if (!c) return;
       const deve = lanceDeveDisparar(this.visto, c, Date.now());
+      const esconde = lanceDeveEsconder(this.visto, c);
       untracked(() => {
         this.visto = c.seq;
+        if (esconde) this.recolhe();
         if (!deve) return;
         const view = lanceViewOf(c, this.duplas(), { court: this.court(), category: this.category() });
         if (view) this.dispara(view);
@@ -386,6 +388,15 @@ export class OverlayLancesComponent {
       this.timers.push(setTimeout(() => this.tarja.set('out'), TARJA_IN_MS + view.seg * 1000));
       this.timers.push(setTimeout(() => this.tarja.set('off'), TARJA_IN_MS + view.seg * 1000 + TARJA_OUT_MS));
     }
+  }
+
+  /** "Tirar do ar" no painel: a vinheta some e a tarja sai com a animação de saída. */
+  private recolhe(): void {
+    this.limpa();
+    this.vinheta.set(false);
+    if (this.tarja() === 'off') return;
+    this.tarja.set('out');
+    this.timers.push(setTimeout(() => this.tarja.set('off'), TARJA_OUT_MS));
   }
 
   /** O selo do Rally sobe de 0 até o total em ~0,9 s, a partir de 0,56 s. */

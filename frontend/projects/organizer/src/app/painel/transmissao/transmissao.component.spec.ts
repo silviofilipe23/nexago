@@ -810,6 +810,11 @@ describe('TransmissaoComponent', () => {
   });
 
   describe('Lances', () => {
+    const pad = (el: HTMLElement, label: string) => {
+      const b = el.querySelector(`og-tx-lances [aria-label="${label}"]`) as HTMLButtonElement | null;
+      if (!b) throw new Error(`pad "${label}" não encontrado`);
+      return b;
+    };
     const naLances = (el: HTMLElement, texto: string, escopo?: string) => {
       const raiz = el.querySelector('og-tx-lances')!;
       const r = escopo ? raiz.querySelector(`[aria-label="${escopo}"]`)! : raiz;
@@ -824,45 +829,83 @@ describe('TransmissaoComponent', () => {
       expect(el.querySelector('.og-tx-cfg h2')?.textContent).toContain('Lances');
     });
 
-    it('lista os quatro atletas e só pede a dupla nos lances da dupla (nomes do elenco, mesmo com rótulo "A definir")', async () => {
+    it('a mesa tem uma linha por atleta (nomes do elenco, mesmo com rótulo "A definir") e a linha da dupla', async () => {
       const fake = new FakeData();
       fake.matches.set(fake.matches().map((m) => ({ ...m, team1Label: 'A definir', team2Label: 'A definir' })));
       const { el, fixture } = await mount(fake);
       selecionar(el, 'Lances');
       await fixture.whenStable();
       const raiz = el.querySelector('og-tx-lances')!;
-      const atletas = [...raiz.querySelectorAll('[aria-label="Atleta"] button')].map((b) => (b.textContent ?? '').trim());
-      expect(atletas).toEqual(['Ana Souza', 'Bia Lima', 'Carla Dias', 'Dani Ávila']);
-      expect(raiz.querySelector('[aria-label="Dupla"]')).toBeNull();
-      naLances(el, 'Rally', 'Lance').click();
-      await fixture.whenStable();
-      const duplas = [...raiz.querySelectorAll('[aria-label="Dupla"] button')].map((b) => (b.textContent ?? '').trim());
-      expect(duplas).toEqual(['Ana Souza / Bia Lima', 'Carla Dias / Dani Ávila']);
+      const linhas = [...raiz.querySelectorAll('.og-lc-ath b')].map((b) => (b.textContent ?? '').trim());
+      expect(linhas).toEqual(['Ana Souza', 'Bia Lima', 'Ana / Bia', 'Carla Dias', 'Dani Ávila', 'Carla / Dani']);
+      expect(raiz.querySelectorAll('.og-lc-pad').length).toBe(24);
+      expect(pad(el, 'Rally Monstro · Carla Dias / Dani Ávila').classList).toContain('wide');
     });
 
-    it('disparar grava seq+1, tipo, lado, atleta, count e at (serverTimestamp)', async () => {
-      const { el, fake, fixture } = await mount();
-      naLances(el, 'Dani Ávila', 'Atleta').click();
-      naLances(el, 'Ace', 'Lance').click();
-      naLances(el, 'Disparar').click();
+    it('um toque no pad grava seq+1, tipo, lado, atleta, count e at (serverTimestamp)', async () => {
+      const { el, fake } = await mount();
+      pad(el, 'Ace · Dani Ávila').click();
       const l = fake.saved[0].lances!;
       expect(l).toEqual(jasmine.objectContaining({ seq: 1, tipo: 'ace', lado: 1, atleta: 1, count: 1, n: 0, seg: 6, contagem: '{"ace|1|1":1}' }));
       expect((l.at as FieldValue).isEqual(serverTimestamp())).toBeTrue();
     });
 
-    it('o segundo disparo do mesmo atleta sobe o count', async () => {
-      const { el, fake } = await mount();
-      naLances(el, 'Disparar').click();
+    it('o pad aceso mostra a contagem, a barra de tempo e o status; o segundo toque sobe o count', async () => {
+      const { el, fake, fixture } = await mount();
+      pad(el, 'Monster Block · Ana Souza').click();
       fake.control.set({ ...fake.control(), lances: { ...fake.control().lances, ...fake.saved[0].lances!, at: null } });
-      naLances(el, 'Disparar').click();
+      await fixture.whenStable();
+      const p = pad(el, 'Monster Block · Ana Souza');
+      expect(p.classList).toContain('fire');
+      expect(p.querySelector('.og-lc-n')?.textContent).toBe('1×');
+      expect(p.querySelector('.og-lc-pg')).not.toBeNull();
+      expect(el.querySelector('.og-lc-st')?.textContent).toContain('ENTRANDO');
+      expect(el.querySelector('.og-tx-ativos')?.textContent).toContain('Lances');
+      pad(el, 'Monster Block · Ana Souza').click();
       expect(fake.saved[1].lances).toEqual(jasmine.objectContaining({ seq: 2, tipo: 'block', count: 2 }));
     });
 
-    it('rally grava n e count', async () => {
-      const { el, fake } = await mount();
-      naLances(el, 'Rally Monstro', 'Lance').click();
-      naLances(el, 'Disparar').click();
-      expect(fake.saved[0].lances).toEqual(jasmine.objectContaining({ tipo: 'rally', n: 18, count: 18, atleta: 0 }));
+    it('rally e on fire gravam o número dos steppers; a tarja grava os segundos escolhidos', async () => {
+      const { el, fake, fixture } = await mount();
+      (el.querySelector('og-tx-lances [aria-label="Mais trocas"]') as HTMLButtonElement).click();
+      naLances(el, '10 s', 'Tarja na tela').click();
+      await fixture.whenStable();
+      pad(el, 'Rally Monstro · Ana Souza / Bia Lima').click();
+      expect(fake.saved[0].lances).toEqual(jasmine.objectContaining({ tipo: 'rally', n: 19, count: 19, atleta: 0, seg: 10 }));
+      (el.querySelector('og-tx-lances [aria-label="Menos pontos"]') as HTMLButtonElement).click();
+      await fixture.whenStable();
+      pad(el, 'On Fire · Carla Dias / Dani Ávila').click();
+      expect(fake.saved[1].lances).toEqual(jasmine.objectContaining({ tipo: 'onfire', lado: 1, n: 3 }));
+    });
+
+    it('com a mesa aberta, as letras disparam: Y = 1º atleta da dupla B, Ç = Shark Attack do 2º, M = On Fire da B', async () => {
+      const { el, fake, fixture } = await mount();
+      selecionar(el, 'Lances');
+      await fixture.whenStable();
+      tecla('y');
+      tecla('ç');
+      tecla('m');
+      expect(fake.saved.map((p) => p.lances)).toEqual([
+        jasmine.objectContaining({ tipo: 'block', lado: 1, atleta: 0 }),
+        jasmine.objectContaining({ tipo: 'shark', lado: 1, atleta: 1 }),
+        jasmine.objectContaining({ tipo: 'onfire', lado: 1 }),
+      ]);
+    });
+
+    it('fora da mesa, as letras não disparam lance', async () => {
+      const { fake } = await mount();
+      tecla('q');
+      expect(fake.saved.some((p) => p.lances)).toBeFalse();
+    });
+
+    it('tirar do ar grava seq+1 sem tipo e mantém a contagem', async () => {
+      const { el, fake, fixture } = await mount();
+      expect(naLances(el, 'Tirar do ar').disabled).toBeTrue();
+      pad(el, 'Ace · Ana Souza').click();
+      fake.control.set({ ...fake.control(), lances: { ...fake.control().lances, ...fake.saved[0].lances!, at: null } });
+      await fixture.whenStable();
+      naLances(el, 'Tirar do ar').click();
+      expect(fake.saved[1].lances).toEqual(jasmine.objectContaining({ seq: 2, tipo: null, contagem: '{"ace|0|0":1}' }));
     });
 
     it('zerar limpa a contagem e não mexe no seq', async () => {

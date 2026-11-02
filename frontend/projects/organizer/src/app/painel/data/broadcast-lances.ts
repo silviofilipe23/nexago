@@ -4,9 +4,9 @@
  *  de `seq` (e ignora um `seq` já velho ao carregar, pra recarregar o OBS não repetir o lance).
  *  A contagem por atleta no jogo vive aqui, em `contagem` (JSON, porque o `setDoc(merge)` do painel
  *  funde mapas e nunca apagaria chaves ao zerar); `count` é o número já pronto da tarja. */
-export type LanceTipo = 'block' | 'ace' | 'fire' | 'dig' | 'shark' | 'rally' | 'onfire';
+export type LanceTipo = 'block' | 'ace' | 'fire' | 'dig' | 'shark' | 'cachorra' | 'rally' | 'onfire';
 
-export const LANCE_TIPOS: readonly LanceTipo[] = ['block', 'ace', 'fire', 'dig', 'shark', 'rally', 'onfire'];
+export const LANCE_TIPOS: readonly LanceTipo[] = ['block', 'ace', 'fire', 'dig', 'shark', 'cachorra', 'rally', 'onfire'];
 
 /** Nome mostrado no painel e no selo da tarja. */
 export const LANCE_LABEL: Record<LanceTipo, string> = {
@@ -15,6 +15,7 @@ export const LANCE_LABEL: Record<LanceTipo, string> = {
   fire: 'Fire Ball',
   dig: 'Big Dig',
   shark: 'Shark Attack',
+  cachorra: 'Cachorra',
   rally: 'Rally Monstro',
   onfire: 'On Fire',
 };

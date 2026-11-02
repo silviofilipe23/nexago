@@ -338,7 +338,7 @@ function typingTarget(t: EventTarget | null): boolean {
               <li><kbd>↑ ↓</kbd> Navega entre gráficos</li>
               <li><kbd>Esc</kbd> Tira tudo do ar, menos o placar</li>
               @if (selectedKey() === 'lances') {
-                <li><kbd>QWERT</kbd> <kbd>ASDFG</kbd> <kbd>YUIOP</kbd> <kbd>HJKLÇ</kbd> Disparam o lance do atleta; <kbd>Z X</kbd> <kbd>N M</kbd>, Rally e On Fire</li>
+                <li><kbd>QWERT</kbd> <kbd>ASDFG</kbd> <kbd>YUIOP</kbd> <kbd>HJKLÇ</kbd> Disparam o lance do atleta; <kbd>C V</kbd> <kbd>, .</kbd>, Cachorra; <kbd>Z X</kbd> <kbd>N M</kbd>, Rally e On Fire</li>
               }
             </ul>
           </div>

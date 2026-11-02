@@ -82,6 +82,16 @@ describe('OverlayLancesComponent · som', () => {
     expect(som.tocando).toBeFalse();
   });
 
+  it('Cachorra: vinheta com a lua e o uivo, e o seu som', async () => {
+    const { fixture, dispara } = await mount();
+    const el = fixture.nativeElement as HTMLElement;
+    await dispara({ seq: 1, tipo: 'cachorra' });
+    fixture.detectChanges();
+    expect(el.querySelector('.sh.tp-cachorra .lua')).not.toBeNull();
+    expect(el.querySelector('.sh .main')?.textContent?.replace(/\s/g, '')).toBe('CACHORRA');
+    expect(sons.get('/sons/lances/cachorra.mp3')!.tocando).toBeTrue();
+  });
+
   it('o som acompanha a tarja: sai junto quando ela sai', async () => {
     const { dispara } = await mount();
     const som = sons.get('/sons/lances/monster-block.mp3')!;

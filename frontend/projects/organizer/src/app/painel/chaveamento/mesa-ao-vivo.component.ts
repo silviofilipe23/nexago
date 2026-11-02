@@ -63,12 +63,13 @@ import {
 import { isKingOfCourtMatchType, kocIsExpired, kocMatchPhaseLabel, kocRemainingLabel, normalizeMatchType } from '../data/koc';
 import { organizerFirestore } from '../data/firestore';
 import { organizerLiveScoringContext } from '../data/live-scoring-context';
+import { liveCourtChangePayload } from '../data/match-court-change';
 import { formatCourtLabel } from '../data/schedule-format';
 import { fetchProfileNames, fetchTeamsByIds, teamMemberIds } from '../data/teams-repository';
 import { AuthService } from '../../auth/auth.service';
 import { saveBroadcastControl } from '../data/broadcast-control-repository';
 import { environment } from '../../../environments/environment';
-import { revertMatchToScheduled, updateLiveMatchScore, validateMatchResult } from '../data/organizer-ops.service';
+import { revertMatchToScheduled, scheduleMatch, updateLiveMatchScore, validateMatchResult } from '../data/organizer-ops.service';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
 import { OgConfirmDialogComponent } from '../ui/confirm-dialog.component';
@@ -408,6 +409,33 @@ export function mesaGamesView(m: LiveMatch): MesaGamesView | null {
             </og-card>
           }
 
+          <!-- Quadra com problema, ou outra liberou antes: a mesa troca a quadra da partida
+               sem sair da tela — antes ou durante o jogo. Mesma callable do Agendamento. -->
+          @if ((status() === 'scheduled' || status() === 'in_progress') && courts().length > 0) {
+            <og-card kicker="Quadra" [title]="courtTitle()" class="og-mesa-court-card">
+              <div class="og-filter-bar og-mesa-courts" role="group" aria-label="Quadra da partida">
+                @for (c of courts(); track c.id) {
+                  <button
+                    type="button"
+                    class="og-chip og-mesa-court-chip"
+                    [class.active]="currentCourtId() === c.id"
+                    [attr.aria-pressed]="currentCourtId() === c.id"
+                    [disabled]="saving()"
+                    (click)="askCourtChange(c.id)"
+                  >
+                    {{ c.name }}
+                    @if (liveCourtIds().has(c.id)) {
+                      <span class="og-mesa-court-live" title="Outra partida ao vivo nesta quadra">ao vivo</span>
+                    }
+                  </button>
+                }
+              </div>
+              <p class="og-mesa-hint og-mesa-court-hint">
+                Toque numa quadra pra mudar a partida de lugar. O horário continua o mesmo; telão, overlay e app dos atletas passam a mostrar a quadra nova.
+              </p>
+            </og-card>
+          }
+
           @if (feedback(); as fb) {
             <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
           }
@@ -508,6 +536,18 @@ export function mesaGamesView(m: LiveMatch): MesaGamesView | null {
           <button type="button" class="og-mini-btn" (click)="cancelTechnicalPicker()">Cancelar</button>
         </div>
       </div>
+    }
+
+    @if (courtPending(); as c) {
+      <og-confirm-dialog
+        [title]="'Trocar para ' + c.name + '?'"
+        [message]="courtChangeMessage()"
+        confirmLabel="Trocar quadra"
+        [busy]="saving()"
+        [error]="courtError()"
+        (confirmed)="changeCourt()"
+        (cancelled)="dismissCourtChange()"
+      />
     }
 
     @if (confirmingRevert()) {
@@ -928,6 +968,24 @@ export function mesaGamesView(m: LiveMatch): MesaGamesView | null {
       font-size: 12.5px;
       color: var(--nx-text-mute);
       margin: 0 0 12px;
+    }
+    .og-mesa-courts {
+      flex-wrap: wrap;
+    }
+    .og-mesa-court-chip {
+      gap: 6px;
+      min-height: 40px;
+    }
+    .og-mesa-court-live {
+      font-family: var(--nx-font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--nx-live);
+    }
+    .og-mesa-court-hint {
+      margin: 10px 0 0;
     }
     .og-mesa-start {
       min-height: 44px;
@@ -1784,6 +1842,80 @@ export class MesaAoVivoComponent {
       await this.ctx.reloadMatches();
     } catch (e) {
       this.revertError.set((e as Error).message || 'Falha ao tirar a partida do ao vivo.');
+    } finally {
+      this.saving.set(false);
+      this.busyKey.set(null);
+    }
+  }
+
+  /** Quadras reais do torneio (`courts` do doc) — as mesmas do Agendamento e do Placar. */
+  protected readonly courts = computed(() => this.ctx.tournament()?.courts ?? []);
+  /** Quadra da partida pelo doc ao vivo; partida antiga sem `courtId` cai na linha do cache. */
+  protected readonly currentCourtId = computed(() => this.match()?.courtId ?? this.cachedRow()?.courtId ?? '');
+  protected readonly courtTitle = computed(() => {
+    const id = this.currentCourtId();
+    const name = this.courts().find((c) => c.id === id)?.name ?? this.match()?.courtName;
+    return formatCourtLabel(name) || 'Sem quadra definida';
+  });
+  /** Quadras com OUTRA partida ao vivo — só um aviso no chip; quem recusa conflito é o servidor. */
+  protected readonly liveCourtIds = computed(
+    () => new Set(this.ctx.matches().filter((m) => m.status === 'in_progress' && m.id !== this.matchId() && m.courtId).map((m) => m.courtId)),
+  );
+
+  protected readonly courtPending = signal<{ id: string; name: string } | null>(null);
+  protected readonly courtError = signal<string | null>(null);
+
+  protected readonly courtChangeMessage = computed(() => {
+    const c = this.courtPending();
+    if (!c) return '';
+    const live = this.status() === 'in_progress' ? 'O placar continua de onde está. ' : '';
+    const busy = this.liveCourtIds().has(c.id) ? ` Atenção: a ${c.name} tem outra partida ao vivo agora.` : '';
+    return `A partida passa para a ${c.name}. ${live}O horário não muda; telão, overlay e app dos atletas passam a mostrar a quadra nova.${busy}`;
+  });
+
+  protected askCourtChange(courtId: string): void {
+    if (this.saving() || courtId === this.currentCourtId()) return;
+    const name = formatCourtLabel(this.courts().find((c) => c.id === courtId)?.name) || courtId;
+    this.courtError.set(null);
+    this.courtPending.set({ id: courtId, name });
+  }
+
+  protected dismissCourtChange(): void {
+    if (this.saving()) return;
+    this.courtPending.set(null);
+  }
+
+  /** Reusa `scheduleMatch` com a janela que a partida já tem (ou a do início real, na partida
+   *  que a mesa iniciou sem horário). O servidor recusa sobreposição na quadra nova e devolve
+   *  aviso de descanso curto; a tela se atualiza sozinha pelo snapshot do doc. */
+  protected async changeCourt(): Promise<void> {
+    const m = this.match();
+    const target = this.courtPending();
+    if (!m || !target || this.saving()) return;
+    const durationMin = this.ctx.tournament()?.matchOps.defaultMatchDurationMin ?? 30;
+    const payload = liveCourtChangePayload({ ...m, courtId: this.currentCourtId() }, target.id, durationMin);
+    if (!payload) {
+      this.courtPending.set(null);
+      return;
+    }
+    this.saving.set(true);
+    this.busyKey.set(`court:${target.id}`);
+    this.courtError.set(null);
+    this.feedback.set(null);
+    try {
+      const result = await scheduleMatch(payload);
+      const warnings = result.warnings ?? [];
+      this.courtPending.set(null);
+      this.feedback.set({
+        ok: true,
+        message:
+          warnings.length > 0
+            ? `Partida na ${target.name} — aviso: ${warnings.map((w) => w.message).join(' ')}`
+            : `Partida na ${target.name}.`,
+      });
+      await this.ctx.reloadMatches();
+    } catch (e) {
+      this.courtError.set((e as Error).message || 'Falha ao trocar a quadra.');
     } finally {
       this.saving.set(false);
       this.busyKey.set(null);

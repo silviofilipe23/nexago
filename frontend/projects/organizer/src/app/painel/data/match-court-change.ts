@@ -33,3 +33,38 @@ export function courtChangePayload(
 
   return { matchId: match.id, courtId: id, scheduleTime, scheduleEndTime };
 }
+
+/** O que a troca de quadra da mesa ao vivo lê do doc da partida (`LiveMatch`). */
+export interface LiveCourtChangeSource {
+  id: string;
+  status: TournamentMatch['status'];
+  courtId?: string | null;
+  scheduleTime: Date | null;
+  scheduleEndTime?: Date | null;
+  matchStartedAt: Date | null;
+  dayKey?: string | null;
+}
+
+/** Argumentos do `scheduleMatch` pra trocar a quadra NA MESA AO VIVO. Diferente do
+ *  `courtChangePayload` (tela de Placar), aceita partida já iniciada e com pontos — a quadra
+ *  pode precisar mudar no meio do jogo — e partida sem horário: a iniciada pela própria mesa
+ *  fica ao vivo sem `scheduleTime`, então a janela parte do `matchStartedAt` (ou de agora).
+ *  Preserva o `dayKey` gravado: é a jornada, não o dia de calendário do início.
+ *  `null` = nada a fazer (quadra vazia, a mesma de agora, ou partida encerrada/cancelada). */
+export function liveCourtChangePayload(
+  match: LiveCourtChangeSource,
+  courtId: string,
+  defaultDurationMin: number,
+  now: Date = new Date(),
+): { matchId: string; courtId: string; scheduleTime: Date; scheduleEndTime: Date; dayKey?: string } | null {
+  const id = courtId.trim();
+  if (!id || id === (match.courtId ?? '').trim()) return null;
+  if (match.status === 'completed' || match.status === 'canceled') return null;
+
+  const scheduleTime = match.scheduleTime ?? match.matchStartedAt ?? now;
+  const durMin = defaultDurationMin > 0 ? defaultDurationMin : 30;
+  const end = (match.scheduleTime && match.scheduleEndTime) || new Date(scheduleTime.getTime() + durMin * 60000);
+  const dayKey = match.dayKey?.trim();
+
+  return { matchId: match.id, courtId: id, scheduleTime, scheduleEndTime: end, ...(dayKey ? { dayKey } : {}) };
+}

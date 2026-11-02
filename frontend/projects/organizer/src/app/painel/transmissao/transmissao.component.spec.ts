@@ -838,7 +838,8 @@ describe('TransmissaoComponent', () => {
       const raiz = el.querySelector('og-tx-lances')!;
       const linhas = [...raiz.querySelectorAll('.og-lc-ath b')].map((b) => (b.textContent ?? '').trim());
       expect(linhas).toEqual(['Ana Souza', 'Bia Lima', 'Ana / Bia', 'Carla Dias', 'Dani Ávila', 'Carla / Dani']);
-      expect(raiz.querySelectorAll('.og-lc-pad').length).toBe(24);
+      expect(raiz.querySelectorAll('.og-lc-pad').length).toBe(28);
+      expect(pad(el, 'Cachorra · Dani Ávila').querySelector('.og-lc-k')?.textContent).toBe('.');
       expect(pad(el, 'Rally Monstro · Carla Dias / Dani Ávila').classList).toContain('wide');
     });
 
@@ -885,10 +886,14 @@ describe('TransmissaoComponent', () => {
       tecla('y');
       tecla('ç');
       tecla('m');
+      tecla('c');
+      tecla('.');
       expect(fake.saved.map((p) => p.lances)).toEqual([
         jasmine.objectContaining({ tipo: 'block', lado: 1, atleta: 0 }),
         jasmine.objectContaining({ tipo: 'shark', lado: 1, atleta: 1 }),
         jasmine.objectContaining({ tipo: 'onfire', lado: 1 }),
+        jasmine.objectContaining({ tipo: 'cachorra', lado: 0, atleta: 0 }),
+        jasmine.objectContaining({ tipo: 'cachorra', lado: 1, atleta: 1 }),
       ]);
     });
 

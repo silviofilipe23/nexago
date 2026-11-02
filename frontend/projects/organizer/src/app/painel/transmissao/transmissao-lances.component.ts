@@ -18,7 +18,7 @@ import { TransmissaoDataService } from './transmissao-data.service';
 import { courtMatchOf } from './transmissao-selectors';
 
 /** Lances de um atleta, na ordem das colunas da mesa. */
-const INDIVIDUAIS: readonly LanceTipo[] = ['block', 'ace', 'fire', 'dig', 'shark'];
+const INDIVIDUAIS: readonly LanceTipo[] = ['block', 'ace', 'fire', 'dig', 'shark', 'cachorra'];
 
 /** Cabeçalho de cada coluna: o fundamento do lance. */
 const FUNDAMENTO: Record<LanceTipo, string> = {
@@ -27,14 +27,16 @@ const FUNDAMENTO: Record<LanceTipo, string> = {
   fire: 'Ataque',
   dig: 'Defesa',
   shark: 'De segunda',
+  cachorra: 'Especial',
   rally: 'Rally',
   onfire: 'Sequência',
 };
 
-/** Uma fileira de teclas por atleta: dupla A à esquerda do teclado, dupla B à direita. */
+/** Uma fileira de teclas por atleta: dupla A à esquerda do teclado, dupla B à direita. A 6ª
+ *  coluna (Cachorra) usa as teclas livres de cada lado: C/V na A, vírgula/ponto na B. */
 const TECLAS: readonly (readonly [string, string])[] = [
-  ['qwert', 'asdfg'],
-  ['yuiop', 'hjklç'],
+  ['qwertc', 'asdfgv'],
+  ['yuiop,', 'hjklç.'],
 ];
 /** Rally Monstro e On Fire de cada dupla. */
 const TECLAS_DUPLA: readonly (readonly [string, string])[] = [
@@ -112,7 +114,7 @@ export interface LanceNoAr {
           @for (p of d.pads; track p.chave) {
             <ng-container [ngTemplateOutlet]="pad" [ngTemplateOutletContext]="{ $implicit: p, cor: d.cor, wide: true }" />
           }
-          <span></span>
+          <span class="og-lc-resto"></span>
         }
       </div>
 
@@ -182,6 +184,7 @@ export interface LanceNoAr {
 
       <p class="og-lc-dica">
         Teclado: cada atleta tem uma fileira de teclas — dupla A em <kbd>QWERT</kbd>/<kbd>ASDFG</kbd>, dupla B em <kbd>YUIOP</kbd>/<kbd>HJKLÇ</kbd>;
+        Cachorra em <kbd>C</kbd> <kbd>V</kbd> (A) e <kbd>,</kbd> <kbd>.</kbd> (B);
         Rally e On Fire em <kbd>Z</kbd> <kbd>X</kbd> (A) e <kbd>N</kbd> <kbd>M</kbd> (B). Disparar outro lance enquanto um roda substitui o anterior.
         Ace e Monster Block também aparecem no telão quando ele está com uma quadra só.
       </p>
@@ -190,7 +193,7 @@ export interface LanceNoAr {
   styles: `
     .og-lc-mx {
       display: grid;
-      grid-template-columns: 128px repeat(5, minmax(0, 1fr));
+      grid-template-columns: 128px repeat(6, minmax(0, 1fr));
       gap: 6px;
     }
     .og-lc-h {
@@ -203,6 +206,9 @@ export interface LanceNoAr {
       text-transform: uppercase;
       text-align: center;
       color: var(--nx-text-dim);
+    }
+    .og-lc-resto {
+      grid-column: auto / -1;
     }
     .og-lc-gap {
       grid-column: 1 / -1;

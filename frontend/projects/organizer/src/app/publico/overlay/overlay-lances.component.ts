@@ -47,6 +47,7 @@ const LAYOUT: Record<LanceTipo, Layout> = {
   fire: { kicker: 'Ataque fulminante', top: null, main: letras('FIRE', 'BALL'), bottom: null, seal: null },
   dig: { kicker: null, top: um('BIG'), main: letras('DIG'), bottom: null, seal: null },
   shark: { kicker: 'De segunda', top: null, main: letras('SHARK'), bottom: um('ATTACK'), seal: null },
+  cachorra: { kicker: 'Auuuuuu!', top: null, main: letras('CACHORRA'), bottom: null, seal: null },
   rally: { kicker: null, top: null, main: letras('RALLY'), bottom: um('MONSTRO'), seal: 'Trocas / na bola' },
   onfire: { kicker: null, top: null, main: letras('ON', 'FIRE'), bottom: null, seal: 'Pontos / seguidos' },
 };
@@ -124,6 +125,9 @@ function runOf(key: number, view: LanceView): Run {
                 }
                 @case ('rally') {
                   <i class="bola"></i>
+                }
+                @case ('cachorra') {
+                  <i class="lua"></i><i class="onda o1"></i><i class="onda o2"></i><i class="onda o3"></i>
                 }
               }
               @if (r.view.tipo === 'fire' || r.view.tipo === 'onfire') {
@@ -290,6 +294,33 @@ function runOf(key: number, view: LanceView): Run {
     .tp-shark .bottom { font-size: 140px; }
     .tp-shark .bottom .l { animation: ln-s-bt 0.42s ease-out calc(620ms + var(--i) * 35ms) both; }
     @keyframes ln-s-bt { from { opacity: 0; transform: translateX(160px); } }
+
+    /* Cachorra: a lua cheia sobe atrás, o uivo sai em ondas e as letras sobem e ondulam. */
+    .tp-cachorra { --amp: 16px; --shd: 0.3s; --sh0: 0.9s; --fl: 0.85s; }
+    .tp-cachorra .main { font-size: 250px; text-shadow: 10px 10px 0 var(--o5); }
+    .tp-cachorra .main .l {
+      animation:
+        ln-c-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) calc(180ms + var(--i) * 55ms) both,
+        ln-c-onda 0.9s ease-in-out calc(820ms + var(--i) * 70ms) 1 none;
+    }
+    @keyframes ln-c-in { from { opacity: 0; transform: translateY(220px) scaleY(0.4); filter: blur(12px); } 70% { opacity: 1; transform: translateY(-18px) scaleY(1.12); filter: none; } to { transform: none; } }
+    @keyframes ln-c-onda { 0%, 100% { transform: none; } 40% { transform: translateY(-34px) scaleY(1.08); } 70% { transform: translateY(8px); } }
+    .lua {
+      left: 50%; top: 50%; width: 560px; height: 560px; margin: -330px 0 0 -280px; border-radius: 50%;
+      background: radial-gradient(circle at 38% 36%, #fffbe8 0%, #f6e7b4 45%, #d9c07a 75%, #b89a52 100%);
+      box-shadow: 0 0 120px 40px rgba(255, 238, 180, 0.35), 0 0 260px 90px rgba(255, 106, 26, 0.18);
+      animation: ln-lua 2s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    @keyframes ln-lua { 0% { opacity: 0; transform: translateY(260px) scale(0.7); } 30% { opacity: 0.9; transform: none; } 85% { opacity: 0.9; } 100% { opacity: 0; transform: translateY(-40px); } }
+    .onda {
+      left: 50%; top: 50%; width: 360px; height: 360px; margin: -180px 0 0 -180px; border-radius: 50%;
+      border: 8px solid var(--o5); opacity: 0;
+      animation: ln-onda 1.3s cubic-bezier(0.1, 0.7, 0.3, 1) both;
+    }
+    .o1 { animation-delay: 0.85s; }
+    .o2 { animation-delay: 1.1s; border-color: #fff; }
+    .o3 { animation-delay: 1.35s; }
+    @keyframes ln-onda { from { transform: scale(0.4); opacity: 0.9; border-width: 18px; } to { transform: scale(4.2); opacity: 0; border-width: 2px; } }
     .slash { left: 50%; top: 50%; width: 2600px; height: 220px; margin: -110px 0 0 -1300px; background: var(--o5); transform: rotate(-14deg) scaleX(0); animation: ln-slash 1.1s cubic-bezier(0.7, 0, 0.2, 1) both; }
     @keyframes ln-slash { 0% { transform: rotate(-14deg) scaleX(0); opacity: 1; } 35% { transform: rotate(-14deg) scaleX(1); } 60% { transform: rotate(-14deg) scaleX(1) scaleY(0.04); } 100% { transform: rotate(-14deg) scaleX(1) scaleY(0); opacity: 0; } }
 

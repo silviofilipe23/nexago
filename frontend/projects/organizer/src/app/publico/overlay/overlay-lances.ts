@@ -8,6 +8,7 @@ export const LANCE_SOM: Partial<Record<LanceTipo, string>> = {
   block: '/sons/lances/monster-block.mp3',
   ace: '/sons/lances/ace.mp3',
   fire: '/sons/lances/fire-ball.mp3',
+  cachorra: '/sons/lances/cachorra.mp3',
 };
 
 /** Vinheta (~2,4 s) + tarja (padrão 6 s): depois disso um disparo "velho" não repete ao recarregar o OBS. */

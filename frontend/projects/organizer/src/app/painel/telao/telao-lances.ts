@@ -1,15 +1,19 @@
 import type { BroadcastLances } from '../data/broadcast-lances';
 
-/** ACE e MONSTER BLOCK no placar de quadra única (protótipos 37/38 do dono).
+/** ACE, MONSTER BLOCK, FIREBALL e CACHORRA no placar de quadra única (protótipos 37–40 do dono).
  *
  *  Não há botão próprio: o telão escuta o MESMO disparo dos "Lances" do painel de Transmissão
  *  (`broadcast/control.lances`) que o overlay do OBS mostra — um clique, os dois lugares. Só esses
- *  dois lances viram animação no LED; os outros são só da transmissão. */
+ *  quatro lances viram animação no LED; os outros são só da transmissão. Na Cachorra o atleta do
+ *  disparo é quem LEVOU a bola de cobertura. */
 
 /** A animação inteira (entra, segura e sai) — os keyframes do protótipo são frações disto. */
 export const TELAO_LANCE_MS = 4500;
 
-export type TelaoLanceTipo = 'ace' | 'block';
+export type TelaoLanceTipo = 'ace' | 'block' | 'fire' | 'cachorra';
+
+const TELAO_LANCES: readonly TelaoLanceTipo[] = ['ace', 'block', 'fire', 'cachorra'];
+const ehDoTelao = (t: string | null): t is TelaoLanceTipo => TELAO_LANCES.some((x) => x === t);
 
 export interface TelaoLanceDisparo {
   seq: number;
@@ -32,7 +36,7 @@ export function telaoLanceDisparoOf(
   nowMs: number,
 ): TelaoLanceDisparo | null {
   if (lances.seq <= 0 || lances.seq === visto) return null;
-  if (lances.tipo !== 'ace' && lances.tipo !== 'block') return null;
+  if (!ehDoTelao(lances.tipo)) return null;
   if (transmissaoCourtId && transmissaoCourtId !== telaoCourtId) return null;
   if (visto === null && (lances.at === null || nowMs - lances.at.getTime() > TELAO_LANCE_MS)) return null;
   return { seq: lances.seq, tipo: lances.tipo, lado: lances.lado === 1 ? 'B' : 'A', atleta: lances.atleta };

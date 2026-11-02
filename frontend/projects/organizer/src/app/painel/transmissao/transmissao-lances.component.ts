@@ -186,7 +186,7 @@ export interface LanceNoAr {
         Teclado: cada atleta tem uma fileira de teclas — dupla A em <kbd>QWERT</kbd>/<kbd>ASDFG</kbd>, dupla B em <kbd>YUIOP</kbd>/<kbd>HJKLÇ</kbd>;
         Cachorra em <kbd>C</kbd> <kbd>V</kbd> (A) e <kbd>,</kbd> <kbd>.</kbd> (B);
         Rally e On Fire em <kbd>Z</kbd> <kbd>X</kbd> (A) e <kbd>N</kbd> <kbd>M</kbd> (B). Disparar outro lance enquanto um roda substitui o anterior.
-        Ace e Monster Block também aparecem no telão quando ele está com uma quadra só.
+        Ace, Monster Block, Fire Ball e Cachorra também aparecem no telão quando ele está com uma quadra só (na Cachorra, toque em quem levou a cobertura).
       </p>
     </og-card>
   `,

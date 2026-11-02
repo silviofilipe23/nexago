@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 
-import {canFillBracketSlot} from "./category-bracket-advance";
+import {advanceSlotDescription, canFillBracketSlot} from "./category-bracket-advance";
 import {
   callToCourtFields,
   compareByMatchNumber,
@@ -17,6 +17,14 @@ const COURTS = [
   {id: "Q1", name: "Quadra 1"},
   {id: "Q2", name: "Quadra Central"},
 ];
+
+test("advanceSlotDescription nomeia a vaga pela partida de origem, não pela vaga antiga da dupla", () => {
+  // Jogo 18: a dupla estava na vaga "Vencedor Jogo #10"; no destino ela é a vencedora do 18.
+  const match = {matchNumber: 18, teamBDescription: "Vencedor Jogo #10"};
+  assert.equal(advanceSlotDescription("WINNER", match), "Vencedor Jogo #18");
+  assert.equal(advanceSlotDescription("LOSER", match), "Perdedor Jogo #18");
+  assert.equal(advanceSlotDescription("WINNER", {}), undefined);
+});
 
 test("canFillBracketSlot preenche slot vazio de partida não iniciada", () => {
   assert.equal(

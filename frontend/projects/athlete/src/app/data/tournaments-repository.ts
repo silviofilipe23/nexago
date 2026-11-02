@@ -280,6 +280,9 @@ export interface TournamentSummary {
   /** O atleta vê a lista de equipes inscritas (aba Equipes). Decisão do organizador; campo
    *  AUSENTE vale `true` — ver `enrolledTeamsVisibleOf`. */
   enrolledTeamsVisible: boolean;
+  /** Tempo técnico automático no 21º ponto (opção do wizard, só vôlei de praia): a mesa abre o
+   *  minuto sozinha quando a soma do set chega a 21. Ausente = desligado. */
+  autoTechnicalTimeout?: boolean;
   /** Minutos de garantia da vaga após o elenco fechar — default 30 quando ausente. */
   registrationHoldMinutes: number;
   /** Instante em que as inscrições abrem (`registrationOpensAt` no doc). Antes dele a CF
@@ -375,6 +378,7 @@ export function tournamentSummaryFromDoc(id: string, data: Record<string, unknow
     waitlistEnabled: data['waitlistEnabled'] !== false,
     requireFormedPair: data['requireFormedPair'] === true,
     enrolledTeamsVisible: enrolledTeamsVisibleOf(data),
+    autoTechnicalTimeout: data['autoTechnicalTimeout'] === true,
     registrationHoldMinutes: resolveRegistrationHoldMinutes(data),
     registrationOpensAt: toDate(data['registrationOpensAt']),
     registrationClosesAt: toDate(data['registrationClosesAt']),

@@ -73,6 +73,18 @@ abstract final class ScoringRules {
     return interval != null && total > 0 && total % interval == 0;
   }
 
+  /// Soma do set que dispara o tempo técnico automático (vôlei de praia).
+  static const autoTechnicalTimeoutPoints = 21;
+
+  /// O placar do set em curso acabou de chegar ao 21º ponto num set de 21 — o
+  /// momento do tempo técnico automático (opção `autoTechnicalTimeout` do
+  /// torneio). O decisivo de 15 fica de fora. Espelho de
+  /// `isAutoTechnicalTimeoutDue` em `frontend/shared/sports/scoring.ts`.
+  static bool isAutoTechnicalTimeoutDue(ScoringProfile p, int index, ScoreSetValue set) {
+    if (p is! SetsPointsProfile || setPointsTarget(p, index) != autoTechnicalTimeoutPoints) return false;
+    return set.a + set.b == autoTechnicalTimeoutPoints;
+  }
+
   static int? _posInt(Object? v) {
     if (v is! num) return null;
     if (v != v.roundToDouble() || v <= 0) return null;

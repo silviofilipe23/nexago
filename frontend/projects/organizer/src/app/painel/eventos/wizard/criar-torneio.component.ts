@@ -37,6 +37,7 @@ import {
   bracketSystemsForSport,
   categoryScoringView,
   scoringSportOf,
+  autoTechnicalTimeoutAvailable,
   patchCategoryScoring,
   withSportScoring,
   type CategoryScoringPatch,
@@ -643,6 +644,16 @@ function sameDay(a: Date, b: Date): boolean {
                     <og-toggle-row title="Nome do atleta" desc="Sobrenome impresso na camisa." [on]="draft().uniformNameOnShirt" (toggled)="patch({ uniformNameOnShirt: $event })" />
                   }
                 </og-card>
+                @if (autoTechnicalTimeoutOffered()) {
+                  <og-card kicker="Mesa" title="Tempo técnico">
+                    <og-toggle-row
+                      title="Tempo técnico automático no 21º ponto"
+                      desc="Quando a soma do set chega a 21, a mesa abre 1 minuto de tempo técnico sozinha — sem gastar os tempos das duplas. Vale nos sets de 21; o tie-break de 15 fica de fora."
+                      [on]="draft().autoTechnicalTimeout"
+                      (toggled)="patch({ autoTechnicalTimeout: $event })"
+                    />
+                  </og-card>
+                }
                 <og-card kicker="Ranking NexaGO" title="Pontuação">
                   <og-toggle-row title="Vale pontos no ranking" desc="Resultados contam para o ranking oficial. Categorias com menos de 10 duplas pagas não pontuam (desafio)." [on]="draft().rankingEnabled" (toggled)="patch({ rankingEnabled: $event })" />
                 </og-card>
@@ -655,6 +666,9 @@ function sameDay(a: Date, b: Date): boolean {
                   <og-review-row label="Inscrições" [value]="reviewRegistration()" />
                   <og-review-row label="Premiação" [value]="reviewPrizes()" />
                   <og-review-row label="Uniforme" [value]="reviewUniform()" />
+                  @if (autoTechnicalTimeoutOffered()) {
+                    <og-review-row label="Tempo técnico" [value]="draft().autoTechnicalTimeout ? 'Automático no 21º ponto' : 'Só quando a dupla pede'" />
+                  }
                   <og-review-row label="Ranking" [value]="draft().rankingEnabled ? 'Vale pontos · tabela padrão nexaGO' : 'Não vale pontos no ranking'" />
                 </og-card>
                 <og-card title="Visibilidade">
@@ -877,6 +891,8 @@ export class CriarTorneioComponent {
   protected readonly bracketShortLabel = BRACKET_SYSTEM_SHORT_LABEL;
   protected readonly bracketDesc = BRACKET_SYSTEM_DESCRIPTION;
   protected readonly supported = SUPPORTED_BRACKET_SYSTEMS;
+  /** Tempo técnico automático no 21º ponto: só vôlei de praia. */
+  protected readonly autoTechnicalTimeoutOffered = computed(() => autoTechnicalTimeoutAvailable(this.draft()));
   /** KOTC só aparece em vôlei de praia (`bracketSystemsForSport`). */
   protected readonly bracketOptions = computed<TournamentBracketSystem[]>(() => bracketSystemsForSport(this.draft().sport));
   protected readonly sportOptions = Object.values(SPORT_LABEL);

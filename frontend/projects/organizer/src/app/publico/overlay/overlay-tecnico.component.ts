@@ -24,7 +24,7 @@ import { tecnicoClock, tecnicoRestanteSeg, type OverlayTecnicoView } from './ove
       >
         <div class="top">
           <div class="who">
-            <span class="badge">Tempo técnico</span>
+            <span class="badge">{{ v.auto ? 'Tempo técnico · automático' : 'Tempo técnico' }}</span>
             <div class="names">
               @for (linha of linhas(); track $index) {
                 <span class="nome">{{ linha }}</span>
@@ -213,10 +213,12 @@ export class OverlayTecnicoComponent {
     return Math.min(1, Math.max(0, (v.durMs - (this.now() - v.startMs)) / v.durMs));
   });
 
-  /** Um atleta por linha; sem elenco carregado, cai no rótulo da dupla. */
+  /** Um atleta por linha; sem elenco carregado, cai no rótulo da dupla. No automático o título
+   *  é o fato que disparou o tempo. */
   protected readonly linhas = computed<string[]>(() => {
     const v = this.view();
     if (!v) return [];
+    if (v.auto) return ['21 pontos no set'];
     const team = this.teams().get(v.teamId);
     const players = (team?.players ?? []).map(nomeCurtoDe).filter((p) => p !== '');
     if (players.length > 0) return players;

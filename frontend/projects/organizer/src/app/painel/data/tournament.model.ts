@@ -141,6 +141,9 @@ export interface OrganizerTournament {
   uniformRequired: boolean;
   uniformNumberOnShirt: boolean;
   uniformNameOnShirt: boolean;
+  /** Tempo técnico automático no 21º ponto (opção do wizard, só vôlei de praia): a mesa abre o
+   *  minuto sozinha quando a soma do set chega a 21. Ausente = desligado. */
+  autoTechnicalTimeout?: boolean;
   sponsors: OrganizerTournamentSponsor[];
   /** Papel de quem está logado NESTE torneio — `'owner'` quando `managerId` é o
    *  próprio uid, senão vem do espelho de staff. Só `listMyTournaments` sabe

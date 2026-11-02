@@ -119,4 +119,48 @@ void main() {
       },
     );
   });
+
+  group('tempo técnico automático no 21º ponto (espelho do web)', () {
+    final beach3 = ScoringRules.legacyProfile(3);
+    bool due(int idx, int a, int b) =>
+        ScoringRules.isAutoTechnicalTimeoutDue(beach3, idx, ScoreSetValue(a, b));
+
+    test('dispara com a soma do set em 21 nos sets de 21', () {
+      expect(due(0, 11, 10), isTrue);
+      expect(due(1, 4, 17), isTrue);
+      expect(
+        ScoringRules.isAutoTechnicalTimeoutDue(
+          ScoringRules.legacyProfile(1),
+          0,
+          const ScoreSetValue(10, 11),
+        ),
+        isTrue,
+      );
+    });
+
+    test('não dispara fora de 21 nem no decisivo de 15', () {
+      expect(due(0, 10, 10), isFalse);
+      expect(due(0, 12, 10), isFalse);
+      expect(due(2, 11, 10), isFalse);
+    });
+
+    test('não dispara em vôlei de quadra (25)', () {
+      final indoor = ScoringRules.profileFromRaw({
+        'kind': 'sets_points',
+        'bestOf': 3,
+        'setTarget': 25,
+        'decidingSetTarget': 15,
+        'winBy': 2,
+        'pointCap': null,
+      })!;
+      expect(
+        ScoringRules.isAutoTechnicalTimeoutDue(
+          indoor,
+          0,
+          const ScoreSetValue(11, 10),
+        ),
+        isFalse,
+      );
+    });
+  });
 }

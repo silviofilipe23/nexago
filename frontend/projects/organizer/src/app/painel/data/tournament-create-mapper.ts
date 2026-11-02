@@ -32,6 +32,7 @@ import {
   parseTournamentSport,
   sportFirestoreValue,
   profileBestOf,
+  autoTechnicalTimeoutAvailable,
 } from './tournament-create.model';
 
 /** Porta fiel de `tournament_create_mapper.dart` (Flutter): monta o doc `tournaments/{id}`
@@ -209,6 +210,7 @@ export function tournamentDraftToFirestore(params: {
     uniformNameOnShirt: draft.uniformRequired && draft.uniformNameOnShirt,
     rankingEnabled: draft.rankingEnabled,
     rankingTableId: draft.rankingEnabled ? draft.rankingTableId : null,
+    autoTechnicalTimeout: autoTechnicalTimeoutAvailable(draft) && draft.autoTechnicalTimeout,
     keywords: generateKeywords([name, draft.locationName, draft.city, draft.description, ...draft.categories.map((c) => c.name)]),
     updatedAt: serverTimestamp(),
     ...(isUpdate ? {} : { createdAt: serverTimestamp() }),
@@ -436,6 +438,7 @@ export function tournamentDraftFromFirestore(data: Record<string, unknown>, id: 
     uniformNameOnShirt: data['uniformNameOnShirt'] !== false,
     rankingEnabled: data['rankingEnabled'] !== false,
     rankingTableId: str(data['rankingTableId']) || 'nexago_standalone',
+    autoTechnicalTimeout: data['autoTechnicalTimeout'] === true,
     visibility: (data['visibility'] === 'linkOnly' ? 'linkOnly' : 'publicListing') as TournamentVisibility,
     // Ausente = VISÍVEL: a lista já existia antes da flag, e torneio antigo não pode perdê-la.
     enrolledTeamsVisible: data['enrolledTeamsVisible'] !== false,

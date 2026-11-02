@@ -917,6 +917,9 @@ String reviewRankingSummary(TournamentCreateDraft draft) {
   return 'Vale pontos · tabela padrão nexaGO';
 }
 
+String reviewTechnicalTimeoutSummary(TournamentCreateDraft draft) =>
+    draft.autoTechnicalTimeout ? 'Automático no 21º ponto' : 'Só quando a dupla pede';
+
 String rankingTableLabel(String id) => switch (id) {
   'nexago_standalone' => 'Padrão nexaGO · Etapa avulsa',
   _ => id,

@@ -179,6 +179,9 @@ export interface TournamentCreateDraft {
   uniformNameOnShirt: boolean;
   rankingEnabled: boolean;
   rankingTableId: string;
+  /** Tempo técnico automático quando a soma do set chega a 21 (só vôlei de praia — ver
+   *  `autoTechnicalTimeoutAvailable`). Lido pelas mesas, que abrem o minuto sozinhas. */
+  autoTechnicalTimeout: boolean;
   visibility: TournamentVisibility;
   /** O atleta vê a lista de equipes inscritas (tela no app, aba no portal). Desligar esconde a
    *  lista nas duas superfícies, não a contagem de inscritos. */
@@ -263,6 +266,7 @@ export function emptyTournamentDraft(): TournamentCreateDraft {
     uniformNameOnShirt: true,
     rankingEnabled: true,
     rankingTableId: 'nexago_standalone',
+    autoTechnicalTimeout: false,
     visibility: 'publicListing',
     enrolledTeamsVisible: true,
   };
@@ -808,6 +812,11 @@ export function profileBestOf(bestOf: TournamentBestOf): 1 | 3 {
  *  servidor usa o padrão do esporte real. */
 export function scoringSportOf(d: { sport: TournamentSport; sportRaw?: string | null }): TournamentSport | null {
   return d.sportRaw ? null : d.sport;
+}
+
+/** O tempo técnico automático do 21º ponto é regra do vôlei de praia: só ele oferece a opção. */
+export function autoTechnicalTimeoutAvailable(d: { sport: TournamentSport; sportRaw?: string | null }): boolean {
+  return scoringSportOf(d) === 'beachVolleyball';
 }
 
 /** Perfil sugerido para uma categoria NOVA do esporte: o padrão do catálogo (21/15 vôlei de

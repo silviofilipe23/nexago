@@ -943,10 +943,15 @@ class LiveTableActiveTimeout {
     required this.remainingSeconds,
     required this.totalSeconds,
     required this.phase,
+    this.auto = false,
   });
 
   final String teamLabel;
   final int timeoutNumber;
+
+  /// Tempo técnico automático do 21º ponto (opção do torneio): não é de
+  /// nenhuma equipe nem conta na cota.
+  final bool auto;
   final int remainingSeconds;
   final int totalSeconds;
   final LiveTableTimeoutPhase phase;
@@ -1683,7 +1688,9 @@ class LiveTableTechnicalTimeoutOverlay extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                '${timeout.timeoutNumber}º tempo do time',
+                                timeout.auto
+                                    ? 'automático'
+                                    : '${timeout.timeoutNumber}º tempo do time',
                                 style: AppTypography.mono(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,

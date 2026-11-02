@@ -362,6 +362,7 @@ class TournamentCreateDraft {
     this.uniformNameOnShirt = true,
     this.rankingEnabled = true,
     this.rankingTableId = 'nexago_standalone',
+    this.autoTechnicalTimeout = false,
     this.visibility = TournamentVisibility.publicListing,
   });
 
@@ -415,7 +416,17 @@ class TournamentCreateDraft {
   final bool uniformNameOnShirt;
   final bool rankingEnabled;
   final String rankingTableId;
+
+  /// Tempo técnico automático quando a soma do set chega a 21 (só vôlei de
+  /// praia — ver [autoTechnicalTimeoutAvailable]). Lido pelas mesas, que abrem
+  /// o minuto sozinhas.
+  final bool autoTechnicalTimeout;
   final TournamentVisibility visibility;
+
+  /// O tempo técnico automático do 21º ponto é regra do vôlei de praia: só ele
+  /// oferece a opção. Espelho de `autoTechnicalTimeoutAvailable` do painel web.
+  bool get autoTechnicalTimeoutAvailable =>
+      sportRaw == null && sport == TournamentSport.beachVolleyball;
 
   int get totalSpots => categories.fold<int>(0, (sum, c) => sum + c.spots);
 
@@ -467,6 +478,7 @@ class TournamentCreateDraft {
     bool? uniformNameOnShirt,
     bool? rankingEnabled,
     String? rankingTableId,
+    bool? autoTechnicalTimeout,
     TournamentVisibility? visibility,
   }) {
     return TournamentCreateDraft(
@@ -515,6 +527,7 @@ class TournamentCreateDraft {
       uniformNameOnShirt: uniformNameOnShirt ?? this.uniformNameOnShirt,
       rankingEnabled: rankingEnabled ?? this.rankingEnabled,
       rankingTableId: rankingTableId ?? this.rankingTableId,
+      autoTechnicalTimeout: autoTechnicalTimeout ?? this.autoTechnicalTimeout,
       visibility: visibility ?? this.visibility,
     );
   }

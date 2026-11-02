@@ -77,7 +77,15 @@ class _OrganizerMatchLiveTablePageState
   /// não é nulo e a fase é `running`.
   static const _timeoutDurationSeconds = technicalTimeoutSeconds;
   bool _timeoutPickerOpen = false;
+
+  /// `'A'`/`'B'` = equipe que pediu; [_autoTimeout] = o automático do 21º
+  /// ponto (opção `autoTechnicalTimeout` do torneio, não gasta cota).
   String? _timeoutSide;
+  static const _autoTimeout = 'auto';
+
+  /// Sets em que o automático já abriu nesta sessão: desfazer o 21º ponto e
+  /// marcar de novo não reabre o minuto.
+  final Set<int> _autoTimeoutFiredSets = {};
   int _timeoutNumber = 0;
   int _timeoutRemainingSeconds = _timeoutDurationSeconds;
   LiveTableTimeoutPhase _timeoutPhase = LiveTableTimeoutPhase.running;
@@ -273,13 +281,52 @@ class _OrganizerMatchLiveTablePageState
   /// Publica o tempo técnico no doc pro overlay de transmissão. Best-effort: a contagem local
   /// manda e a mesa não vê erro nem reverte se a escrita falhar.
   void _publishTechnicalTimeoutStart(String side) {
+    final teamSide = side == _autoTimeout ? null : side;
     _matchesRepository
         .recordPointTransaction(
           matchId: widget.matchId,
-          build: (fresh) => buildTechnicalTimeoutStartWrite(fresh, side: side),
+          build: (fresh) =>
+              buildTechnicalTimeoutStartWrite(fresh, side: teamSide),
         )
         .catchError((Object _) => null);
   }
+
+  /// Tempo técnico automático (opção do torneio, vôlei de praia): o ponto que
+  /// leva a soma do set a 21 abre o minuto sozinho, uma vez por set, sem gastar
+  /// a cota das equipes. Mesma regra das mesas do web.
+  void _maybeStartAutoTimeout(TournamentMatch match, MatchPointWrite? written) {
+    if (written == null || written.result.winnerId != null) return;
+    final tournament = ref
+        .read(organizerTournamentDetailProvider(widget.tournamentId))
+        .valueOrNull
+        ?.tournament;
+    if (tournament?['autoTechnicalTimeout'] != true) return;
+    if (_timeoutSide != null || match.medicalTimeout != null) return;
+    final idx = written.result.currentSetIndex;
+    final sets = written.result.sets;
+    if (idx >= sets.length || _autoTimeoutFiredSets.contains(idx)) return;
+    final set = ScoreSetValue(sets[idx].a, sets[idx].b);
+    if (!ScoringRules.isAutoTechnicalTimeoutDue(matchScoringProfile(match), idx, set)) {
+      return;
+    }
+    _autoTimeoutFiredSets.add(idx);
+    if (!mounted) return;
+    setState(() {
+      _timeoutPickerOpen = false;
+      _timeoutSide = _autoTimeout;
+      _timeoutNumber = 0;
+      _timeoutRemainingSeconds = _timeoutDurationSeconds;
+      _timeoutPhase = LiveTableTimeoutPhase.running;
+    });
+    _publishTechnicalTimeoutStart(_autoTimeout);
+  }
+
+  String _timeoutTeamLabel(LiveTableTeamData teamA, LiveTableTeamData teamB) =>
+      switch (_timeoutSide) {
+        _autoTimeout => '21 pontos no set',
+        'A' => teamA.label,
+        _ => teamB.label,
+      };
 
   void _publishTechnicalTimeoutEnd() {
     _matchesRepository
@@ -530,11 +577,12 @@ class _OrganizerMatchLiveTablePageState
     try {
       final repo = ref.read(tournamentMatchesRepositoryProvider);
 
-      await repo.recordPointTransaction(
+      final written = await repo.recordPointTransaction(
         matchId: widget.matchId,
         build: (fresh) =>
             buildPointWrite(fresh, side, rosterSizes: _rosterSizes()),
       );
+      _maybeStartAutoTimeout(match, written);
       // Avanço de chave + ranking são propagados pelo trigger
       // onTournamentMatchCompletedAdvance ao concluir a partida (atômico +
       // idempotente), substituindo as chamadas HTTPS sequenciais por ponto.
@@ -1608,10 +1656,9 @@ class _OrganizerMatchLiveTablePageState
                         activeTimeout: _timeoutSide == null
                             ? null
                             : LiveTableActiveTimeout(
-                                teamLabel: _timeoutSide == 'A'
-                                    ? teamA.label
-                                    : teamB.label,
+                                teamLabel: _timeoutTeamLabel(teamA, teamB),
                                 timeoutNumber: _timeoutNumber,
+                                auto: _timeoutSide == _autoTimeout,
                                 remainingSeconds: _timeoutRemainingSeconds,
                                 totalSeconds: _timeoutDurationSeconds,
                                 phase: _timeoutPhase,
@@ -1808,10 +1855,9 @@ class _OrganizerMatchLiveTablePageState
                         else if (_timeoutSide != null)
                           LiveTableTechnicalTimeoutOverlay(
                             timeout: LiveTableActiveTimeout(
-                              teamLabel: _timeoutSide == 'A'
-                                  ? teamA.label
-                                  : teamB.label,
+                              teamLabel: _timeoutTeamLabel(teamA, teamB),
                               timeoutNumber: _timeoutNumber,
+                              auto: _timeoutSide == _autoTimeout,
                               remainingSeconds: _timeoutRemainingSeconds,
                               totalSeconds: _timeoutDurationSeconds,
                               phase: _timeoutPhase,

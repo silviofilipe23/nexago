@@ -116,6 +116,7 @@ void main() {
     // não dependem de pixel-perfect. O overflow da mesa pequena em
     // landscape é coberto à parte (viewport 734×373).
     Size surfaceSize = const Size(800, 1200),
+    bool autoTechnicalTimeout = false,
   }) async {
     tester.view.physicalSize = surfaceSize;
     tester.view.devicePixelRatio = 1.0;
@@ -178,7 +179,12 @@ void main() {
           ),
           organizerTournamentDetailProvider(tournamentId).overrideWith(
             (ref) => Stream.value(
-              const OrganizerTournamentDetailState(isLoading: false),
+              OrganizerTournamentDetailState(
+                isLoading: false,
+                tournament: autoTechnicalTimeout
+                    ? const {'autoTechnicalTimeout': true}
+                    : null,
+              ),
             ),
           ),
         ],
@@ -878,6 +884,45 @@ void main() {
         expect(overlayTimeout(tester).teamLabel, teamBLabel);
       },
     );
+  });
+
+  group('Tempo técnico automático no 21º ponto', () {
+    Future<void> scoreTo21(WidgetTester tester, {required bool enabled}) async {
+      await pumpLiveTable(
+        tester,
+        initialMatch: buildMatch(sets: const [TournamentMatchSet(a: 11, b: 9)]),
+        autoTechnicalTimeout: enabled,
+      );
+      await toggleFullMode(tester);
+      await tester.tap(panelWithLabel(teamALabel));
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('com a opção do torneio, o ponto que leva a 21 abre o minuto '
+        'sozinho, sem gastar a cota', (tester) async {
+      await scoreTo21(tester, enabled: true);
+
+      expect(
+        fakeRepo.pointWrites.map((w) => w.pointEvent['type']),
+        ['point', 'technical-timeout'],
+      );
+      expect(fakeRepo.pointWrites.last.pointEvent['auto'], isTrue);
+      expect(find.byType(LiveTableTechnicalTimeoutOverlay), findsOneWidget);
+      expect(find.text('21 pontos no set'), findsOneWidget);
+      expect(find.text('automático'), findsOneWidget);
+      expect(filledTimeoutDots(tester, panelWithLabel(teamALabel)), 0);
+    });
+
+    testWidgets('sem a opção, só marca o ponto', (tester) async {
+      await scoreTo21(tester, enabled: false);
+
+      expect(
+        fakeRepo.pointWrites.map((w) => w.pointEvent['type']),
+        ['point'],
+      );
+      expect(find.byType(LiveTableTechnicalTimeoutOverlay), findsNothing);
+    });
   });
 
   group('Tempo técnico', () {

@@ -9,11 +9,16 @@ import type { MatchSide } from './serving-player';
  *
  *  `scoreA`/`scoreB` são o placar do set no instante da chamada: qualquer ponto marcado encerra o
  *  tempo técnico, e comparar com o placar atual é o que faz o overlay sair sozinho, sem depender
- *  da mesa lembrar de apagar o campo. */
+ *  da mesa lembrar de apagar o campo.
+ *
+ *  `auto` é o tempo técnico automático do 21º ponto (opção `autoTechnicalTimeout` do torneio):
+ *  vale pras duas equipes, então não tem `side` nem `teamId` e não gasta a cota de ninguém. */
 export const TECHNICAL_TIMEOUT_SECONDS = 60;
 
 export interface TechnicalTimeout {
-  side: MatchSide;
+  /** `null` só no automático. */
+  side: MatchSide | null;
+  auto: boolean;
   teamId: string;
   startedAt: Date | null;
   durationSec: number;
@@ -26,11 +31,13 @@ export function technicalTimeoutFromRaw(raw: unknown): TechnicalTimeout | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
   const side = o['side'] === 'A' || o['side'] === 'B' ? o['side'] : null;
-  if (side == null) return null;
+  const auto = o['auto'] === true;
+  if (side == null && !auto) return null;
   const started = o['startedAt'] as { toDate?: () => Date } | undefined;
   const int = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.trunc(v) : 0);
   return {
-    side,
+    side: auto ? null : side,
+    auto,
     teamId: typeof o['teamId'] === 'string' ? o['teamId'] : '',
     startedAt: typeof started?.toDate === 'function' ? started.toDate() : null,
     durationSec: typeof o['durationSec'] === 'number' && o['durationSec'] > 0 ? Math.trunc(o['durationSec']) : TECHNICAL_TIMEOUT_SECONDS,

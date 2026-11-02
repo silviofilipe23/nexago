@@ -128,8 +128,8 @@ export function ledPausaOf(
   return {
     kind: 'tempo',
     key: `tt:${tt.setIndex}:${startMs}`,
-    title: 'Pedido de tempo',
-    who: teamNames[tt.side],
+    title: tt.side ? 'Pedido de tempo' : 'Tempo técnico',
+    who: tt.side ? teamNames[tt.side] : '21 pontos no set',
     clock: formatMedicalTimeoutMmSs(technicalTimeoutRemainingSeconds(tt, now)),
   };
 }

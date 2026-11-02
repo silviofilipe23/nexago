@@ -554,23 +554,24 @@ export function buildMedicalTimeoutEndWrite(m: LiveMatch): PointWrite | null {
   };
 }
 
-/** Abre o tempo técnico de uma dupla: grava o minuto em andamento (o overlay de transmissão entra
- *  sozinho) e registra o chamado na timeline. A cota de 2 por set segue sendo da tela da mesa.
+/** Abre o tempo técnico de uma dupla (`side`) ou o automático do 21º ponto (`auto`, sem dupla):
+ *  grava o minuto em andamento (o overlay de transmissão entra sozinho) e registra o chamado na
+ *  timeline. A cota de 2 por set segue sendo da tela da mesa — e o automático não gasta cota.
  *
  *  `null` quando a partida já encerrou — a mesma guarda do ponto, sobre o doc FRESCO. */
-export function buildTechnicalTimeoutStartWrite(m: LiveMatch, params: { side: MatchSide }): PointWrite | null {
+export function buildTechnicalTimeoutStartWrite(m: LiveMatch, params: { side: MatchSide } | { auto: true }): PointWrite | null {
   if (m.status === 'completed' || m.status === 'canceled') return null;
 
   const setIndex = clampedSetIndex(m);
   const current = m.sets[setIndex] ?? null;
   const scoreA = current?.a ?? 0;
   const scoreB = current?.b ?? 0;
+  const side = 'side' in params ? params.side : null;
 
   return {
     matchUpdate: {
       technicalTimeout: {
-        side: params.side,
-        teamId: params.side === 'A' ? m.teamAId : m.teamBId,
+        ...(side ? { side, teamId: side === 'A' ? m.teamAId : m.teamBId } : { auto: true }),
         startedAt: serverTimestamp(),
         durationSec: TECHNICAL_TIMEOUT_SECONDS,
         setIndex,
@@ -578,7 +579,7 @@ export function buildTechnicalTimeoutStartWrite(m: LiveMatch, params: { side: Ma
         scoreB,
       },
     },
-    pointEvent: { type: 'technical-timeout', side: params.side, setIndex, scoreA, scoreB },
+    pointEvent: side ? { type: 'technical-timeout', side, setIndex, scoreA, scoreB } : { type: 'technical-timeout', auto: true, setIndex, scoreA, scoreB },
     result: { sets: m.sets, currentSetIndex: m.currentSetIndex, winnerId: null, servingTeamId: m.servingTeamId },
     setIndex,
   };
@@ -595,7 +596,9 @@ export function buildTechnicalTimeoutEndWrite(m: LiveMatch): PointWrite | null {
 
   return {
     matchUpdate: { technicalTimeout: deleteField() },
-    pointEvent: { type: 'technical-timeout-end', side: active.side, setIndex, scoreA: current?.a ?? 0, scoreB: current?.b ?? 0 },
+    pointEvent: active.side
+      ? { type: 'technical-timeout-end', side: active.side, setIndex, scoreA: current?.a ?? 0, scoreB: current?.b ?? 0 }
+      : { type: 'technical-timeout-end', auto: true, setIndex, scoreA: current?.a ?? 0, scoreB: current?.b ?? 0 },
     result: { sets: m.sets, currentSetIndex: m.currentSetIndex, winnerId: null, servingTeamId: m.servingTeamId },
     setIndex,
   };

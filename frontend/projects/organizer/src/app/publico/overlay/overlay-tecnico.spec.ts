@@ -49,7 +49,8 @@ function match(overrides: Partial<TournamentMatch> = {}): TournamentMatch {
 
 const viewOf = (m: TournamentMatch) => overlayViewOf(m, NOW) as OverlayDuelView;
 const tt = (over: object = {}) => ({
-  side: 'A' as const,
+  side: 'A' as 'A' | 'B' | null,
+  auto: false,
   teamId: 'ta',
   startedAt: new Date(NOW - 10_000),
   durationSec: 60,
@@ -98,6 +99,22 @@ describe('overlay-tecnico', () => {
     it('sem carimbo do servidor ainda mostra o minuto cheio', () => {
       const m = match({ technicalTimeout: tt({ startedAt: null }) });
       expect(tecnicoManualOf(m, viewOf(m), NOW, null)?.startMs).toBe(NOW);
+    });
+  });
+
+  describe('automático do 21º ponto (gravado pela mesa)', () => {
+    it('entra sem dupla e sem time', () => {
+      const m = match({ sets: [{ a: 11, b: 10 }], technicalTimeout: tt({ side: null, auto: true, teamId: '', scoreA: 11, scoreB: 10 }) });
+      const r = tecnicoManualOf(m, viewOf(m), NOW, null);
+      expect(r?.auto).toBeTrue();
+      expect(r?.side).toBeNull();
+      expect(r?.teamId).toBe('');
+      expect(r?.info).toBe('Set 1 · 11 × 10');
+    });
+
+    it('o 22º ponto encerra igual ao manual', () => {
+      const m = match({ sets: [{ a: 12, b: 10 }], technicalTimeout: tt({ side: null, auto: true, teamId: '', scoreA: 11, scoreB: 10 }) });
+      expect(tecnicoManualOf(m, viewOf(m), NOW, null)).toBeNull();
     });
   });
 });

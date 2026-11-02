@@ -141,6 +141,19 @@ export function isCourtSwitchDue(p: ScoringProfile, index: number, set: ScoreSet
   return interval !== null && total > 0 && total % interval === 0;
 }
 
+/** Soma do set que dispara o tempo técnico automático (regra do vôlei de praia). */
+export const AUTO_TECHNICAL_TIMEOUT_POINTS = 21;
+
+/**
+ * O placar do set em curso acabou de chegar ao 21º ponto num set de 21 — o momento do tempo
+ * técnico automático (opção `autoTechnicalTimeout` do torneio). O decisivo de 15 fica de fora.
+ * MESMA regra de `ScoringRules.isAutoTechnicalTimeoutDue` no app.
+ */
+export function isAutoTechnicalTimeoutDue(p: ScoringProfile, index: number, set: ScoreSet): boolean {
+  if (p.kind !== 'sets_points' || setPointsTarget(p, index) !== AUTO_TECHNICAL_TIMEOUT_POINTS) return false;
+  return set.a + set.b === AUTO_TECHNICAL_TIMEOUT_POINTS;
+}
+
 export function isSuperTiebreakSet(p: SetsGamesProfile, index: number): boolean {
   return p.decidingSet === 'super_tiebreak' && isDecidingSet(index, p.bestOf);
 }

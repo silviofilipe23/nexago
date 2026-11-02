@@ -140,6 +140,7 @@ class TournamentDetail {
       city: city,
       dateLabel: dateLabel,
       startDate: startDate,
+      endDate: endDate,
       categories: categories,
       format: format,
       priceLabel: priceLabel,

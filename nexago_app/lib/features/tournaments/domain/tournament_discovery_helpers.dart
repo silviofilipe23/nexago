@@ -1,5 +1,6 @@
 import 'tournament_discovery_labels.dart';
 import 'tournament_discovery_models.dart';
+import 'tournament_listing_status.dart';
 
 Set<String> collectLeagueTournamentIds(List<DiscoveryLeague> leagues) {
   final ids = <String>{};
@@ -135,6 +136,15 @@ DateTime? discoveryLeagueNearestStartDate(
   return nearest;
 }
 
+/// Torneio que já passou: concluído/encerrado, ou cujo ÚLTIMO dia ficou para
+/// trás. Olhar só o `startDate` mandava para o fim da lista (junto dos
+/// encerrados) o torneio de vários dias já no seu segundo dia.
+bool _isPastDiscoveryTournament(DiscoveryTournament t, DateTime today) {
+  if (isTournamentTerminal(t.status)) return true;
+  final lastDay = tournamentEventDateLocal(t.endDate ?? t.startDate);
+  return lastDay.isBefore(today);
+}
+
 int compareDiscoveryTournamentsByDateProximity(
   DiscoveryTournament a,
   DiscoveryTournament b, {
@@ -144,8 +154,8 @@ int compareDiscoveryTournamentsByDateProximity(
   final today = _dayStart(clock);
   final aStart = a.startDate;
   final bStart = b.startDate;
-  final aPast = aStart.isBefore(today);
-  final bPast = bStart.isBefore(today);
+  final aPast = _isPastDiscoveryTournament(a, today);
+  final bPast = _isPastDiscoveryTournament(b, today);
 
   if (!aPast && bPast) return -1;
   if (aPast && !bPast) return 1;

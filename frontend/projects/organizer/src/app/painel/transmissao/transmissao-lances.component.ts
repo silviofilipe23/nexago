@@ -16,6 +16,7 @@ import {
 import { resolveCourtNames } from '../data/matches-repository';
 import { OgCardComponent } from '../ui/card.component';
 import { TransmissaoDataService } from './transmissao-data.service';
+import { TransmissaoTorcidaComponent } from './transmissao-torcida.component';
 import { courtMatchOf } from './transmissao-selectors';
 
 /** Lances de um atleta, na ordem das colunas da mesa (o esporte do torneio pode tirar alguns). */
@@ -90,7 +91,7 @@ export interface LanceNoAr {
   selector: 'og-tx-lances',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '[class.og-tx-bare]': 'bare()' },
-  imports: [OgCardComponent, NgTemplateOutlet],
+  imports: [OgCardComponent, NgTemplateOutlet, TransmissaoTorcidaComponent],
   template: `
     <og-card [kicker]="bare() ? '' : 'Apresentação'" [title]="bare() ? '' : 'Lances'">
       <div class="og-lc-mx" role="group" aria-label="Mesa de lances" [style.grid-template-columns]="'128px repeat(' + individuais().length + ', minmax(0, 1fr))'">
@@ -192,6 +193,8 @@ export interface LanceNoAr {
         Rally e On Fire em <kbd>Z</kbd> <kbd>X</kbd> (A) e <kbd>N</kbd> <kbd>M</kbd> (B). Disparar outro lance enquanto um roda substitui o anterior.
         Ace, Monster Block, Fire Ball e Cachorra também aparecem no telão quando ele está com uma quadra só (na Cachorra, toque em quem levou a cobertura).
       </p>
+
+      <og-tx-torcida />
     </og-card>
   `,
   styles: `

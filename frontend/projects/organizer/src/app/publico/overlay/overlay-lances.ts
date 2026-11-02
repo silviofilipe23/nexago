@@ -3,6 +3,11 @@ import { nomeCurtoDe } from './overlay-nome';
 
 /** Lógica pura dos Lances: quando um disparo deve aparecer e o que a tarja mostra. */
 
+/** Som de cada lance, tocado pelo overlay junto com a vinheta (o OBS leva o áudio da fonte). */
+export const LANCE_SOM: Partial<Record<LanceTipo, string>> = {
+  block: '/sons/lances/monster-block.mp3',
+};
+
 /** Vinheta (~2,4 s) + tarja (padrão 6 s): depois disso um disparo "velho" não repete ao recarregar o OBS. */
 export const LANCE_FRESCO_MS = 12_000;
 

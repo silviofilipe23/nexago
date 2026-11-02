@@ -1,11 +1,26 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, effect, inject, input, output, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, InjectionToken, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { LANCE_TARJA_IN_MS, type BroadcastLances, type LanceTipo } from '../../painel/data/broadcast-lances';
-import { lanceDeveDisparar, lanceDeveEsconder, lanceViewOf, type LanceDupla, type LanceView } from './overlay-lances';
+import { LANCE_SOM, lanceDeveDisparar, lanceDeveEsconder, lanceViewOf, type LanceDupla, type LanceView } from './overlay-lances';
 
 /** A vinheta sai aos 2 s (420 ms de saída); a tarja entra aos 2,25 s. */
 const VINHETA_MS = 2420;
 const TARJA_IN_MS = LANCE_TARJA_IN_MS;
 const TARJA_OUT_MS = 360;
+/** O som some aos poucos quando a tarja sai (ou o painel tira do ar). */
+const SOM_FADE_MS = 600;
+
+/** O que o overlay usa de um `<audio>`. */
+export type LanceSom = Pick<HTMLAudioElement, 'play' | 'pause' | 'volume' | 'currentTime'>;
+
+/** Cria o player de um som de lance — trocado nos testes. */
+export const LANCE_SOM_PLAYER = new InjectionToken<(src: string) => LanceSom>('LANCE_SOM_PLAYER', {
+  providedIn: 'root',
+  factory: () => (src) => {
+    const a = new Audio(src);
+    a.preload = 'auto';
+    return a;
+  },
+});
 
 interface Ch {
   c: string;
@@ -346,8 +361,17 @@ export class OverlayLancesComponent {
   private timers: ReturnType<typeof setTimeout>[] = [];
   private contador: ReturnType<typeof setInterval> | undefined;
 
+  /** Um player por som, criado já na abertura pra não atrasar o primeiro disparo. */
+  private readonly player = inject(LANCE_SOM_PLAYER);
+  private readonly sons = new Map(Object.entries(LANCE_SOM).map(([tipo, src]) => [tipo, this.player(src)]));
+  private som: LanceSom | null = null;
+  private fade: ReturnType<typeof setInterval> | undefined;
+
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.limpa());
+    inject(DestroyRef).onDestroy(() => {
+      this.limpa();
+      this.paraSom(0);
+    });
 
     effect(() => {
       const no = this.vinheta() || this.tarja() !== 'off';
@@ -381,11 +405,17 @@ export class OverlayLancesComponent {
     this.vinheta.set(true);
     this.tarja.set('off');
     this.selo.set(view.tipo === 'onfire' ? view.n : 0);
+    this.tocaSom(view.tipo);
     if (view.tipo === 'rally') this.conta(view.n);
     this.timers.push(setTimeout(() => this.vinheta.set(false), VINHETA_MS));
     this.timers.push(setTimeout(() => this.tarja.set('on'), TARJA_IN_MS));
     if (view.seg > 0) {
-      this.timers.push(setTimeout(() => this.tarja.set('out'), TARJA_IN_MS + view.seg * 1000));
+      this.timers.push(
+        setTimeout(() => {
+          this.tarja.set('out');
+          this.paraSom(SOM_FADE_MS);
+        }, TARJA_IN_MS + view.seg * 1000),
+      );
       this.timers.push(setTimeout(() => this.tarja.set('off'), TARJA_IN_MS + view.seg * 1000 + TARJA_OUT_MS));
     }
   }
@@ -393,10 +423,44 @@ export class OverlayLancesComponent {
   /** "Tirar do ar" no painel: a vinheta some e a tarja sai com a animação de saída. */
   private recolhe(): void {
     this.limpa();
+    this.paraSom(SOM_FADE_MS);
     this.vinheta.set(false);
     if (this.tarja() === 'off') return;
     this.tarja.set('out');
     this.timers.push(setTimeout(() => this.tarja.set('off'), TARJA_OUT_MS));
+  }
+
+  /** Toca do começo o som do lance (se tiver); o anterior para na hora. */
+  private tocaSom(tipo: LanceTipo): void {
+    this.paraSom(0);
+    const som = this.sons.get(tipo);
+    if (!som) return;
+    som.volume = 1;
+    som.currentTime = 0;
+    // Navegador comum bloqueia autoplay sem clique; o OBS toca.
+    som.play().catch(() => undefined);
+    this.som = som;
+  }
+
+  /** Para o som: na hora (`0`) ou num fade de `ms`. */
+  private paraSom(ms: number): void {
+    clearInterval(this.fade);
+    const som = this.som;
+    this.som = null;
+    if (!som) return;
+    if (ms <= 0) {
+      som.pause();
+      return;
+    }
+    const t0 = Date.now();
+    const v0 = som.volume;
+    this.fade = setInterval(() => {
+      const f = Math.min(1, (Date.now() - t0) / ms);
+      som.volume = v0 * (1 - f);
+      if (f < 1) return;
+      clearInterval(this.fade);
+      som.pause();
+    }, 30);
   }
 
   /** O selo do Rally sobe de 0 até o total em ~0,9 s, a partir de 0,56 s. */

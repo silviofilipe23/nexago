@@ -24,6 +24,9 @@ export const lanceEhDaDupla = (t: LanceTipo): boolean => t === 'rally' || t === 
 
 export const LANCE_SEG_DEFAULT = 6;
 
+/** Quando a tarja entra, depois da vinheta (o overlay segue o mesmo número). */
+export const LANCE_TARJA_IN_MS = 2250;
+
 export interface BroadcastLances {
   /** Sobe a cada disparo; 0 = nunca disparado. */
   seq: number;
@@ -113,4 +116,10 @@ export function lanceDisparo(
     seg: q.seg ?? atual.seg,
     contagem: JSON.stringify(tally),
   };
+}
+
+/** "Tirar do ar": sobe `seq` com `tipo: null` — a tela recolhe o que estiver passando. A contagem fica. */
+export function lanceTirada(atual: BroadcastLances): Omit<BroadcastLances, 'at'> {
+  const { seq, lado, atleta, n, count, seg, contagem } = atual;
+  return { seq: seq + 1, tipo: null, lado, atleta, n, count, seg, contagem };
 }

@@ -1,4 +1,4 @@
-import { DEFAULT_BROADCAST_LANCES, lanceContagemOf, lanceDisparo, lancesFromRaw } from './broadcast-lances';
+import { DEFAULT_BROADCAST_LANCES, lanceContagemOf, lanceDisparo, lancesFromRaw, lanceTirada } from './broadcast-lances';
 
 describe('broadcast-lances', () => {
   it('lê valores inválidos como o padrão', () => {
@@ -31,5 +31,10 @@ describe('broadcast-lances', () => {
   it('contagem corrompida vira vazia', () => {
     expect(lanceContagemOf('{x')).toEqual({});
     expect(lanceContagemOf('[1]')).toEqual({});
+  });
+
+  it('tirar do ar sobe o seq sem tipo e mantém contagem, lado e tarja', () => {
+    const atual = { ...DEFAULT_BROADCAST_LANCES, seq: 5, tipo: 'ace' as const, lado: 1 as const, seg: 10, contagem: '{"ace|1|0":2}', at: new Date() };
+    expect(lanceTirada(atual)).toEqual({ seq: 6, tipo: null, lado: 1, atleta: 0, n: 0, count: 0, seg: 10, contagem: '{"ace|1|0":2}' });
   });
 });

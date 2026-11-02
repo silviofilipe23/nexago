@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
   interviewOnAirAt,
@@ -337,6 +337,9 @@ function typingTarget(t: EventTarget | null): boolean {
               <li><kbd>1–9</kbd> <kbd>A–Z</kbd> Liga/desliga o gráfico da lista (letras a partir do 10º)</li>
               <li><kbd>↑ ↓</kbd> Navega entre gráficos</li>
               <li><kbd>Esc</kbd> Tira tudo do ar, menos o placar</li>
+              @if (selectedKey() === 'lances') {
+                <li><kbd>QWERT</kbd> <kbd>ASDFG</kbd> <kbd>YUIOP</kbd> <kbd>HJKLÇ</kbd> Disparam o lance do atleta; <kbd>Z X</kbd> <kbd>N M</kbd>, Rally e On Fire</li>
+              }
             </ul>
           </div>
         </section>
@@ -683,6 +686,7 @@ function typingTarget(t: EventTarget | null): boolean {
     .og-tx-pv-tc { left: 50%; top: 6%; transform: translateX(-50%); }
     .og-tx-pv-bc { left: 50%; bottom: 6%; transform: translateX(-50%); }
     .og-tx-pv-c { left: 50%; top: 50%; transform: translate(-50%, -50%); }
+    .og-tx-pv-lxl { left: 4%; bottom: 22%; }
     .og-tx-pv-strip { left: 2%; right: 2%; bottom: 2%; text-align: center; }
     .og-tx-pv-full { inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; border-radius: 0; background: rgba(255, 106, 26, 0.35); }
     .og-tx-pv-mark {
@@ -813,6 +817,10 @@ export class TransmissaoComponent {
     return interviewOnAirAt(i, this.now()) ? i : null;
   });
 
+  /** A mesa de Lances sabe quando a vinheta/tarja está passando (o doc só guarda o disparo). */
+  private readonly lancesCard = viewChild(TransmissaoLancesComponent);
+  private readonly lanceNoAr = computed(() => this.lancesCard()?.noAr() ?? null);
+
   protected readonly groups = computed(() =>
     txGroupsOf({
       control: this.svc.control(),
@@ -820,17 +828,25 @@ export class TransmissaoComponent {
       matches: this.svc.matches(),
       queue: this.svc.queue(),
       interview: this.onAir(),
-    }),
+    }).map((g) => ({ ...g, itens: g.itens.map((i) => (i.key === 'lances' ? { ...i, on: this.lanceNoAr() !== null } : i)) })),
   );
   private readonly items = computed(() => txItemsOf(this.groups()));
   protected readonly selected = computed<TxItem>(() => this.items().find((i) => i.key === this.selectedKey()) ?? this.items()[0]);
-  protected readonly ativos = computed(() => this.items().filter((i) => i.on && !i.auto && !i.disparo));
+  /** Lances é disparo, mas enquanto passa dá pra tirar do ar — por isso entra aqui. */
+  protected readonly ativos = computed(() => this.items().filter((i) => i.on && !i.auto && (!i.disparo || i.key === 'lances')));
   protected readonly noAr = computed(() => this.ativos().length);
   protected readonly isKoc = computed(() => this.selectedKey().startsWith('koc'));
 
   /** Esquema da prévia: uma caixa por gráfico no ar, na posição aproximada da tela. */
   protected readonly previewBoxes = computed(() =>
     this.ativos().map((i) => {
+      const lance = i.key === 'lances' ? this.lanceNoAr() : null;
+      if (lance) {
+        // Primeiro o efeito em tela cheia, depois a tarja com o nome do atleta.
+        return lance.fase === 'vinheta'
+          ? { key: i.key, label: lance.rotulo, spot: 'full' }
+          : { key: i.key, label: `${lance.rotulo} · ${lance.quem}`, spot: 'lxl' };
+      }
       const p = PREVIEW_SPOT[i.key];
       const strip =
         (i.key === 'multi' && this.svc.control().multi.mode === 'strip') || (i.key === 'eventos' && this.svc.control().eventos.mode === 'strip');
@@ -931,6 +947,9 @@ export class TransmissaoComponent {
         void this.svc.save({ summaryOn: !c.summaryOn });
         break;
       case 'lances':
+        // Disparo: o switch não liga; o "×" de Ativos agora recolhe o que está passando.
+        this.lancesCard()?.tirarDoAr();
+        break;
       case 'atleta':
       case 'comentaristas':
         // Disparo, não liga/desliga: o botão do card é quem grava.
@@ -966,6 +985,7 @@ export class TransmissaoComponent {
     };
     void this.svc.save(patch);
     if (this.onAir()) void this.svc.saveAir(null, null);
+    this.lancesCard()?.tirarDoAr();
   }
 
   protected onKey(e: KeyboardEvent): void {
@@ -978,6 +998,8 @@ export class TransmissaoComponent {
       const i = items.findIndex((x) => x.key === this.selectedKey());
       const next = items[Math.min(items.length - 1, Math.max(0, i + (e.key === 'ArrowDown' ? 1 : -1)))];
       if (next) this.select(next.key);
+    } else if (this.selectedKey() === 'lances' && this.lancesCard()?.tecla(e.key)) {
+      // Com a mesa de Lances aberta, as fileiras de letras disparam os lances.
     } else if (txIndexOfAtalho(e.key) != null) {
       const item = items[txIndexOfAtalho(e.key)!];
       if (!item || item.locked) return;

@@ -1,5 +1,5 @@
 import { DEFAULT_BROADCAST_LANCES, type BroadcastLances } from '../../painel/data/broadcast-lances';
-import { lanceDeveDisparar, lanceDuplaOf, lanceViewOf } from './overlay-lances';
+import { lanceDeveDisparar, lanceDeveEsconder, lanceDuplaOf, lanceViewOf } from './overlay-lances';
 
 const base = (p: Partial<BroadcastLances>): BroadcastLances => ({ ...DEFAULT_BROADCAST_LANCES, ...p });
 const NOW = 1_000_000;
@@ -39,5 +39,12 @@ describe('overlay-lances', () => {
 
   it('atleta fora do cadastro cai no nome da dupla', () => {
     expect(lanceViewOf(base({ seq: 1, tipo: 'ace', lado: 1, atleta: 1 }), duplas, { court: null, category: null })!.nome).toBe('Dupla B');
+  });
+
+  it('recolhe só com seq novo sem tipo, e nunca na primeira leitura', () => {
+    expect(lanceDeveEsconder(3, base({ seq: 4, tipo: null }))).toBeTrue();
+    expect(lanceDeveEsconder(4, base({ seq: 4, tipo: null }))).toBeFalse();
+    expect(lanceDeveEsconder(3, base({ seq: 4, tipo: 'ace' }))).toBeFalse();
+    expect(lanceDeveEsconder(null, base({ seq: 4, tipo: null }))).toBeFalse();
   });
 });

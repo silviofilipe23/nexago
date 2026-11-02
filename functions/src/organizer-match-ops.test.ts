@@ -8,6 +8,7 @@ import {
   isMatchAutoSchedulable,
   isMatchEligibleForAutoSchedule,
   scheduleCourtFields,
+  scorerMayAssignCourt,
   selectAutoScheduleCourts,
   shouldPropagateMatchAdvance,
 } from "./organizer-match-ops";
@@ -391,4 +392,22 @@ test("isMatchEligibleForAutoSchedule respeita dependências da chave", () => {
     ),
     true,
   );
+});
+
+test("scorerMayAssignCourt: mesário define a quadra de partida sem quadra nem horário", () => {
+  assert.equal(scorerMayAssignCourt({status: "Scheduled"}), true);
+  assert.equal(scorerMayAssignCourt({courtId: "  ", status: "Scheduled"}), true);
+});
+
+test("scorerMayAssignCourt: agenda já montada continua só do gestor", () => {
+  assert.equal(scorerMayAssignCourt({courtId: "Q2", status: "Scheduled"}), false);
+  assert.equal(
+    scorerMayAssignCourt({scheduleTime: new Date(), status: "Scheduled"}),
+    false,
+  );
+});
+
+test("scorerMayAssignCourt: partida encerrada ou cancelada não ganha quadra", () => {
+  assert.equal(scorerMayAssignCourt({status: "Completed"}), false);
+  assert.equal(scorerMayAssignCourt({status: "Canceled"}), false);
 });

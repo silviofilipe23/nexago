@@ -406,6 +406,40 @@ export function scheduleCourtFields(
   return {courtId, courtName: name || courtId};
 }
 
+/**
+ * O mesário pode DEFINIR a quadra de uma partida que ainda não tem quadra nem
+ * horário — é o que a tela de check-in do app faz antes de "Liberar". Mexer em
+ * agenda já montada (trocar quadra ou horário) continua sendo só do gestor.
+ *
+ * Sem isso o mesário levava `permission-denied` ao tocar na quadra, o app
+ * desfazia a escolha e o "Liberar" ficava desativado (Goiânia Open, 31/10/2026).
+ */
+export function scorerMayAssignCourt(match: {
+  courtId?: unknown;
+  scheduleTime?: unknown;
+  status?: unknown;
+}): boolean {
+  const courtId = typeof match.courtId === "string" ? match.courtId.trim() : "";
+  if (courtId) return false;
+  if (match.scheduleTime != null) return false;
+  return !isMatchCompleted(match.status) && !isMatchCanceled(match.status);
+}
+
+async function assertCanScheduleMatch(
+  db: Firestore,
+  uid: string,
+  tournamentId: string,
+  match: FirebaseFirestore.DocumentData,
+): Promise<void> {
+  try {
+    await assertCanManageTournament(db, uid, tournamentId);
+  } catch (err) {
+    const denied = err instanceof HttpsError && err.code === "permission-denied";
+    if (!denied || !scorerMayAssignCourt(match)) throw err;
+    await assertCanScoreTournament(db, uid, tournamentId);
+  }
+}
+
 export const scheduleMatch = onCall({
   region: CLIENT_FACING_REGIONS,
 }, async (request) => {
@@ -427,7 +461,7 @@ export const scheduleMatch = onCall({
   const projectId = getFirebaseProjectId();
   const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
   const tournamentId = data.tournamentId as string;
-  await assertCanManageTournament(db, uid, tournamentId);
+  await assertCanScheduleMatch(db, uid, tournamentId, data);
 
   const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
   const matchOps = tournamentSnap.data()?.matchOps as Record<string, unknown> | undefined;

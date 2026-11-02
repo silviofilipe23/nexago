@@ -16,6 +16,7 @@ import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/data/nexago_artifacts_paths.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_card_view_model.dart';
+import 'organizer_match_error.dart';
 import 'organizer_match_navigation.dart';
 import 'widgets/organizer_match_live_table_widgets.dart';
 import 'widgets/organizer_schedule_time_widgets.dart';
@@ -298,26 +299,21 @@ class _OrganizerMatchCheckInPageState
       }
       if (mounted) showAppSnackBar(context, 'Quadra definida.');
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _selectedCourtId =
-              match.courtId.isNotEmpty ? match.courtId : null;
-        });
-        showAppSnackBar(context, _friendlyScheduleError(e), isError: true);
+      if (!mounted) return;
+      // Mesário sem permissão de agenda (servidor antigo): a escolha fica na
+      // tela e `callMatchToCourt` — que aceita mesário — grava a quadra ao
+      // liberar. Desfazer aqui desativava o "Liberar" e travava a partida.
+      if (e is FirebaseFunctionsException && e.code == 'permission-denied') {
+        showAppSnackBar(context, 'Quadra escolhida. Ela é gravada ao liberar.');
+        return;
       }
+      setState(() {
+        _selectedCourtId = match.courtId.isNotEmpty ? match.courtId : null;
+      });
+      showAppSnackBar(context, friendlyScheduleError(e), isError: true);
     } finally {
       if (mounted) setState(() => _assigningCourt = false);
     }
-  }
-
-  String _friendlyScheduleError(Object error) {
-    if (error is FirebaseFunctionsException) {
-      if (error.code == 'failed-precondition' &&
-          (error.message?.trim().isNotEmpty ?? false)) {
-        return error.message!.trim();
-      }
-    }
-    return 'Erro: $error';
   }
 
   Future<void> _setCheckIn(String matchId, {required String team}) async {

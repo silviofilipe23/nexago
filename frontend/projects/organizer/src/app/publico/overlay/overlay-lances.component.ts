@@ -95,6 +95,9 @@ function runOf(key: number, view: LanceView): Run {
   selector: 'og-overlay-lances',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    @if (somBloqueado()) {
+      <button type="button" class="som" (click)="ligaSom()">🔇 O navegador bloqueou o som — clique para ligar</button>
+    }
     @if (run(); as r) {
       @for (k of [r.key]; track k) {
         @if (vinheta()) {
@@ -183,6 +186,11 @@ function runOf(key: number, view: LanceView): Run {
       --fogo: linear-gradient(180deg, #fff3c4 0%, #ffc34a 30%, #ff6a1a 62%, #c2260e 100%);
       position: absolute; inset: 0; z-index: 70; display: block; pointer-events: none; overflow: hidden;
       font-family: var(--nx-font-display, 'Sora', system-ui, sans-serif); color: #fff;
+    }
+    .som {
+      position: absolute; top: 32px; left: 32px; z-index: 5; pointer-events: auto; cursor: pointer;
+      padding: 14px 22px; border: 1px solid var(--o5); border-radius: 999px;
+      background: rgba(10, 10, 12, 0.88); color: #fff; font: 600 22px/1 inherit;
     }
     .sh, .dim, .fx, .flash { position: absolute; inset: 0; }
     .fx > i { position: absolute; display: block; }
@@ -355,6 +363,8 @@ export class OverlayLancesComponent {
   protected readonly vinheta = signal(false);
   protected readonly tarja = signal<'off' | 'on' | 'out'>('off');
   protected readonly selo = signal(0);
+  /** Aba comum do navegador: o som só sai depois de um clique na página. No OBS nunca acontece. */
+  protected readonly somBloqueado = signal(false);
 
   private visto: number | null = null;
   private keySeq = 0;
@@ -437,9 +447,20 @@ export class OverlayLancesComponent {
     if (!som) return;
     som.volume = 1;
     som.currentTime = 0;
-    // Navegador comum bloqueia autoplay sem clique; o OBS toca.
-    som.play().catch(() => undefined);
     this.som = som;
+    som.play().then(
+      () => this.somBloqueado.set(false),
+      (e: unknown) => {
+        // Navegador comum bloqueia autoplay sem um clique na página; o OBS toca direto.
+        if (e instanceof DOMException && e.name === 'NotAllowedError') this.somBloqueado.set(true);
+      },
+    );
+  }
+
+  /** O clique libera o som da aba e retoma o lance que está passando. */
+  protected ligaSom(): void {
+    this.somBloqueado.set(false);
+    this.som?.play().catch(() => undefined);
   }
 
   /** Para o som: na hora (`0`) ou num fade de `ms`. */

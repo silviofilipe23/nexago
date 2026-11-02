@@ -7,7 +7,9 @@ class FakeSom implements LanceSom {
   volume = 1;
   currentTime = 7;
   tocando = false;
+  bloqueado = false;
   play(): Promise<void> {
+    if (this.bloqueado) return Promise.reject(new DOMException('sem clique', 'NotAllowedError'));
     this.tocando = true;
     return Promise.resolve();
   }
@@ -80,5 +82,22 @@ describe('OverlayLancesComponent · som', () => {
     expect(som.tocando).toBeTrue();
     jasmine.clock().tick(10 + 700);
     expect(som.tocando).toBeFalse();
+  });
+
+  it('aba sem clique: avisa que o som foi bloqueado e o clique liga o som do lance que está passando', async () => {
+    const { fixture, dispara } = await mount();
+    const el = fixture.nativeElement as HTMLElement;
+    const som = sons.get('/sons/lances/monster-block.mp3')!;
+    som.bloqueado = true;
+    await dispara({ seq: 1, tipo: 'block' });
+    await Promise.resolve();
+    fixture.detectChanges();
+    const aviso = el.querySelector('button.som') as HTMLButtonElement;
+    expect(aviso?.textContent).toContain('clique para ligar');
+    som.bloqueado = false;
+    aviso.click();
+    fixture.detectChanges();
+    expect(som.tocando).toBeTrue();
+    expect(el.querySelector('button.som')).toBeNull();
   });
 });

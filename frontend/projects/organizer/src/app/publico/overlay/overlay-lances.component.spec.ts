@@ -52,12 +52,12 @@ describe('OverlayLancesComponent · som', () => {
   });
   afterEach(() => jasmine.clock().uninstall());
 
-  it('cada lance toca o seu som do começo, e o próximo corta o anterior; Fire Ball não tem som', async () => {
+  it('cada lance toca o seu som do começo, e o próximo corta o anterior; Big Dig não tem som', async () => {
     const { dispara } = await mount();
     const block = sons.get('/sons/lances/monster-block.mp3')!;
     const ace = sons.get('/sons/lances/ace.mp3')!;
-    await dispara({ seq: 1, tipo: 'fire' });
-    expect(block.tocando || ace.tocando).toBeFalse();
+    await dispara({ seq: 1, tipo: 'dig' });
+    expect([...sons.values()].some((s) => s.tocando)).toBeFalse();
     await dispara({ seq: 2, tipo: 'block' });
     expect(block.tocando).toBeTrue();
     expect(block.currentTime).toBe(0);
@@ -65,6 +65,9 @@ describe('OverlayLancesComponent · som', () => {
     expect(ace.tocando).toBeTrue();
     expect(ace.currentTime).toBe(0);
     expect(block.tocando).toBeFalse();
+    await dispara({ seq: 4, tipo: 'fire' });
+    expect(sons.get('/sons/lances/fire-ball.mp3')!.tocando).toBeTrue();
+    expect(ace.tocando).toBeFalse();
   });
 
   it('tirar do ar some com o som num fade', async () => {

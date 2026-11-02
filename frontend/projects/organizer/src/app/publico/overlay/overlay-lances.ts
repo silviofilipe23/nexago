@@ -6,6 +6,7 @@ import { nomeCurtoDe } from './overlay-nome';
 /** Som de cada lance, tocado pelo overlay junto com a vinheta (o OBS leva o áudio da fonte). */
 export const LANCE_SOM: Partial<Record<LanceTipo, string>> = {
   block: '/sons/lances/monster-block.mp3',
+  ace: '/sons/lances/ace.mp3',
 };
 
 /** Vinheta (~2,4 s) + tarja (padrão 6 s): depois disso um disparo "velho" não repete ao recarregar o OBS. */

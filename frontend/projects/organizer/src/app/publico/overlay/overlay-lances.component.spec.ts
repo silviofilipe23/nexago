@@ -52,14 +52,19 @@ describe('OverlayLancesComponent · som', () => {
   });
   afterEach(() => jasmine.clock().uninstall());
 
-  it('Monster Block toca o som do começo; Ace não tem som', async () => {
+  it('cada lance toca o seu som do começo, e o próximo corta o anterior; Fire Ball não tem som', async () => {
     const { dispara } = await mount();
-    const som = sons.get('/sons/lances/monster-block.mp3')!;
-    await dispara({ seq: 1, tipo: 'ace' });
-    expect(som.tocando).toBeFalse();
+    const block = sons.get('/sons/lances/monster-block.mp3')!;
+    const ace = sons.get('/sons/lances/ace.mp3')!;
+    await dispara({ seq: 1, tipo: 'fire' });
+    expect(block.tocando || ace.tocando).toBeFalse();
     await dispara({ seq: 2, tipo: 'block' });
-    expect(som.tocando).toBeTrue();
-    expect(som.currentTime).toBe(0);
+    expect(block.tocando).toBeTrue();
+    expect(block.currentTime).toBe(0);
+    await dispara({ seq: 3, tipo: 'ace' });
+    expect(ace.tocando).toBeTrue();
+    expect(ace.currentTime).toBe(0);
+    expect(block.tocando).toBeFalse();
   });
 
   it('tirar do ar some com o som num fade', async () => {

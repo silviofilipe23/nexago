@@ -22,9 +22,13 @@ describe('telaoLanceDisparoOf', () => {
     expect(telaoLanceDisparoOf(3, lances({}), 'Q1', 'Q1', NOW)).toBeNull();
   });
 
-  it('só ACE e Monster Block viram animação no LED', () => {
-    expect(telaoLanceDisparoOf(2, lances({ tipo: 'fire' }), 'Q1', 'Q1', NOW)).toBeNull();
-    expect(telaoLanceDisparoOf(2, lances({ tipo: 'rally' }), 'Q1', 'Q1', NOW)).toBeNull();
+  it('ACE, Monster Block, Fireball e Cachorra viram animação no LED; os outros não', () => {
+    for (const tipo of ['ace', 'block', 'fire', 'cachorra'] as const) {
+      expect(telaoLanceDisparoOf(2, lances({ tipo }), 'Q1', 'Q1', NOW)?.tipo).toBe(tipo);
+    }
+    for (const tipo of ['dig', 'shark', 'rally', 'onfire'] as const) {
+      expect(telaoLanceDisparoOf(2, lances({ tipo }), 'Q1', 'Q1', NOW)).toBeNull();
+    }
   });
 
   it('transmissão seguindo outra quadra não é com este telão', () => {

@@ -34,6 +34,23 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
  *  atendimento médico), a tela inteira vira a contagem. Desenhado em 1920×1080 pro painel de
  *  LED — letra grande, contraste alto, nada miúdo. Os lados trocam sozinhos (ver
  *  `telao-led-solo.ts`). */
+/** As patas da Cachorra: duas trilhas laranja (perto) e uma cinza no meio (longe), cada uma com
+ *  12 passos alternados que acendem em sequência, como cachorros correndo. */
+const PATAS = [
+  { y: 70, sz: 110, d: 0, longe: false },
+  { y: 870, sz: 110, d: 0.35, longe: false },
+  { y: 470, sz: 70, d: 0.7, longe: true },
+].flatMap((ln) =>
+  Array.from({ length: 12 }, (_, i) => ({
+    top: ln.y + (i % 2 ? ln.sz * 0.55 : 0),
+    left: 40 + i * 160,
+    sz: ln.sz,
+    delay: ln.d + i * 0.13,
+    longe: ln.longe,
+  })),
+);
+const VELOCIDADE = [180, 330, 690, 760, 960].map((top, i) => ({ top, h: i % 2 ? 6 : 12, dur: 0.5 + i * 0.12 }));
+
 @Component({
   selector: 'og-telao-led-solo',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -126,6 +143,38 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
           <div class="og-tls-lance-who">
             <div class="og-tls-lance-nome" [ledFitText]="l.nome">{{ l.nome }}</div>
             <div class="og-tls-lance-sub">{{ l.sub }}</div>
+          </div>
+        </div>
+      } @else if (l.tipo === 'fire') {
+        <div class="og-tls-lance fire" role="status">
+          <div class="og-tls-lance-calor" aria-hidden="true"></div>
+          <div class="og-tls-lance-bola" aria-hidden="true"><i class="rastro"></i><i class="bola"></i></div>
+          <div class="og-tls-lance-shake">
+            <div class="og-tls-lance-fogo">Fireball</div>
+            <div class="og-tls-lance-who">
+              <div class="og-tls-lance-nome" [ledFitText]="l.nome">{{ l.nome }}</div>
+              <div class="og-tls-lance-sub">{{ l.sub }}</div>
+            </div>
+          </div>
+        </div>
+      } @else if (l.tipo === 'cachorra') {
+        <div class="og-tls-lance cachorra" role="status">
+          <div class="og-tls-lance-vel" aria-hidden="true">
+            @for (v of velocidade; track $index) {
+              <i [style.top.px]="v.top" [style.height.px]="v.h" [style.animation-duration.s]="v.dur"></i>
+            }
+          </div>
+          @for (p of patas; track $index) {
+            <div class="og-tls-pata" aria-hidden="true" [class.longe]="p.longe" [style.top.px]="p.top" [style.left.px]="p.left" [style.--sz.px]="p.sz">
+              <div [style.animation-delay.s]="p.delay"><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+          }
+          <div class="og-tls-lance-corre">
+            <div class="og-tls-lance-galope"><div class="og-tls-lance-cachorra">Cachorra!</div></div>
+            <div class="og-tls-lance-who">
+              <div class="og-tls-lance-nome levou" [ledFitText]="l.nome + ' levou'">{{ l.nome }} <span>levou</span></div>
+              <div class="og-tls-lance-sub">{{ l.sub }}</div>
+            </div>
           </div>
         </div>
       } @else {
@@ -793,6 +842,290 @@ const other = (s: LedSide): LedSide => (s === 'A' ? 'B' : 'A');
         transform: scaleX(1);
       }
     }
+
+    /* FIREBALL (protótipo 39): a bola entra na diagonal com rastro, explode no meio, a tela
+       treme e o chão pega fogo (vermelho → laranja → amarelo, tremulando). */
+    .og-tls-lance.fire {
+      gap: 30px;
+      background: #000;
+      color: #fff;
+      animation:
+        og-ld-life 4500ms linear both,
+        og-ld-boom 4500ms ease-out both;
+    }
+    .og-tls-lance-calor {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 70% 60% at 50% 115%, #ffd400 0%, #ff6a1a 35%, #c41e00 62%, #000 90%);
+      animation:
+        og-ld-heat 4500ms linear both,
+        og-ld-flicker 0.45s steps(2) infinite;
+    }
+    .og-tls-lance-bola {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 0;
+      height: 0;
+    }
+    .og-tls-lance-bola i {
+      position: absolute;
+      display: block;
+    }
+    .og-tls-lance-bola .rastro {
+      right: 0;
+      top: -40px;
+      width: 880px;
+      height: 80px;
+      border-radius: 40px;
+      transform-origin: right center;
+      background: linear-gradient(90deg, transparent, #ff6a1a 60%, #ffd400);
+      animation: og-ld-trail 4500ms cubic-bezier(0.5, 0, 0.9, 0.4) both;
+    }
+    .og-tls-lance-bola .bola {
+      left: -90px;
+      top: -90px;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 40%, #fff 0%, #ffd400 35%, #ff6a1a 70%, #c41e00 100%);
+      animation: og-ld-fireball 4500ms cubic-bezier(0.5, 0, 0.9, 0.4) both;
+    }
+    .og-tls-lance.fire .og-tls-lance-shake {
+      position: relative;
+      gap: 30px;
+    }
+    .og-tls-lance-fogo {
+      font-size: 380px;
+      line-height: 0.82;
+      letter-spacing: -0.04em;
+      color: #ffd400;
+      text-shadow: 0 0 60px rgba(255, 106, 26, 0.9);
+      animation: og-ld-burn 4500ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+    }
+    .og-tls-lance.fire .og-tls-lance-sub {
+      color: #ffe7b0;
+    }
+    @keyframes og-ld-fireball {
+      0% {
+        transform: translate(-700px, -520px) scale(0.5);
+        opacity: 0;
+      }
+      6% {
+        opacity: 1;
+      }
+      20% {
+        transform: translate(0, 0) scale(1.15);
+      }
+      24% {
+        transform: scale(2.6);
+        opacity: 0.9;
+      }
+      30%,
+      100% {
+        transform: scale(5);
+        opacity: 0;
+      }
+    }
+    @keyframes og-ld-trail {
+      0%,
+      4% {
+        transform: translate(-700px, -520px) rotate(36.6deg) scaleX(0.2);
+        opacity: 0;
+      }
+      10% {
+        opacity: 1;
+      }
+      20% {
+        transform: translate(0, 0) rotate(36.6deg) scaleX(1);
+        opacity: 1;
+      }
+      30%,
+      100% {
+        transform: translate(0, 0) rotate(36.6deg) scaleX(1);
+        opacity: 0;
+      }
+    }
+    @keyframes og-ld-heat {
+      0%,
+      18% {
+        opacity: 0;
+      }
+      24%,
+      100% {
+        opacity: 1;
+      }
+    }
+    /* Tremula no brilho, não na opacidade: a opacidade é do og-ld-heat (o fogo só acende na explosão). */
+    @keyframes og-ld-flicker {
+      0%,
+      100% {
+        filter: brightness(1);
+      }
+      20% {
+        filter: brightness(0.82);
+      }
+      40% {
+        filter: brightness(0.96);
+      }
+      60% {
+        filter: brightness(0.78);
+      }
+      80% {
+        filter: brightness(0.92);
+      }
+    }
+    @keyframes og-ld-burn {
+      0%,
+      20% {
+        transform: scale(0.4) translateY(60px);
+        opacity: 0;
+        filter: blur(12px);
+      }
+      30% {
+        transform: scale(1.08);
+        opacity: 1;
+        filter: none;
+      }
+      38%,
+      100% {
+        transform: none;
+      }
+    }
+
+    /* CACHORRA (protótipo 40): três trilhas de patas atravessam a tela, passo a passo, sobre
+       linhas de velocidade; "CACHORRA!" entra correndo e galopa. O nome é de quem LEVOU. */
+    .og-tls-lance.cachorra {
+      background: #000;
+      color: #fff;
+      animation:
+        og-ld-life 4500ms linear both,
+        og-ld-boom 4500ms ease-out both;
+    }
+    .og-tls-lance-vel {
+      position: absolute;
+      inset: 0;
+      opacity: 0.5;
+    }
+    .og-tls-lance-vel i {
+      position: absolute;
+      left: 0;
+      display: block;
+      width: 200%;
+      background: repeating-linear-gradient(90deg, #232328 0 220px, transparent 220px 420px);
+      animation: og-ld-speed linear infinite;
+    }
+    .og-tls-pata {
+      position: absolute;
+      width: var(--sz);
+      height: var(--sz);
+      transform: rotate(90deg);
+      --pata: var(--tls-accent);
+    }
+    .og-tls-pata.longe {
+      --pata: #3a3a42;
+    }
+    .og-tls-pata > div {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      animation: og-ld-paw 4500ms ease-out both;
+    }
+    .og-tls-pata i {
+      position: absolute;
+      display: block;
+      border-radius: 50%;
+      background: var(--pata);
+    }
+    /* Almofada + quatro dedos (as proporções do protótipo). */
+    .og-tls-pata i:nth-child(1) { left: 22%; top: 42%; width: 56%; height: 50%; border-radius: 48% 48% 44% 44%; }
+    .og-tls-pata i:nth-child(2) { left: 2%; top: 30%; width: 18%; height: 23.4%; }
+    .og-tls-pata i:nth-child(3) { left: 20%; top: 6%; width: 20%; height: 26%; }
+    .og-tls-pata i:nth-child(4) { left: 50%; top: 6%; width: 20%; height: 26%; }
+    .og-tls-pata i:nth-child(5) { left: 68%; top: 30%; width: 18%; height: 23.4%; }
+    .og-tls-lance-corre {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 26px;
+      max-width: 100%;
+      animation: og-ld-run-in 4500ms cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
+    }
+    .og-tls-lance-galope {
+      animation: og-ld-gallop 0.42s linear infinite;
+    }
+    .og-tls-lance-cachorra {
+      font-size: 290px;
+      line-height: 0.82;
+      letter-spacing: -0.04em;
+      color: #ffd400;
+    }
+    .og-tls-lance-nome.levou {
+      font-size: 110px;
+    }
+    .og-tls-lance-nome.levou span {
+      color: var(--tls-accent);
+    }
+    .og-tls-lance.cachorra .og-tls-lance-sub {
+      color: var(--tls-label);
+    }
+    @keyframes og-ld-paw {
+      0% {
+        opacity: 0;
+        transform: scale(0.3);
+      }
+      8% {
+        opacity: 1;
+        transform: scale(1.1);
+      }
+      14% {
+        transform: none;
+      }
+      55% {
+        opacity: 1;
+      }
+      80%,
+      100% {
+        opacity: 0;
+      }
+    }
+    @keyframes og-ld-gallop {
+      0%,
+      100% {
+        transform: translateY(0) rotate(-2deg);
+      }
+      25% {
+        transform: translateY(-34px) rotate(2deg);
+      }
+      50% {
+        transform: translateY(0) rotate(-2deg);
+      }
+      75% {
+        transform: translateY(-18px) rotate(1deg);
+      }
+    }
+    @keyframes og-ld-run-in {
+      0%,
+      6% {
+        transform: translateX(-2200px);
+      }
+      22% {
+        transform: translateX(60px);
+      }
+      28%,
+      100% {
+        transform: none;
+      }
+    }
+    @keyframes og-ld-speed {
+      from {
+        transform: translateX(0);
+      }
+      to {
+        transform: translateX(-50%);
+      }
+    }
     @media (prefers-reduced-motion: reduce) {
       :host(.gold) .og-tls-flash.og-pulse-run,
       :host(.gold) .og-tls-card::after,
@@ -825,6 +1158,9 @@ export class TelaoLedSoloComponent {
 
   /** O lance no ar (no máximo um), em lista pro `@for` re-animar a cada disparo. */
   protected readonly lanceAtivo = signal<Array<TelaoLanceDisparo & { nome: string; sub: string }>>([]);
+  /** Cachorra: três trilhas de 12 patas (passo alternado) e as linhas de velocidade do protótipo 40. */
+  protected readonly patas = PATAS;
+  protected readonly velocidade = VELOCIDADE;
   private lanceVisto: number | null = null;
   private lanceTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly lanceSeq = computed(() => this.lances()?.lances.seq ?? null);
@@ -892,9 +1228,11 @@ export class TelaoLedSoloComponent {
     const team = d.lado === 'A' ? this.teamA() : this.teamB();
     const atleta = team.playerNames[d.atleta]?.trim() ?? '';
     const [left, right] = this.cards();
+    const placar = `${left.big}-${right.big}`;
     return {
       nome: atleta ? nomeCurtoDe(atleta) : team.short,
-      sub: `${team.short} · ${left.big}-${right.big}`,
+      // Na Cachorra o nome é de quem levou: a linha de baixo diz o lance, não a dupla.
+      sub: d.tipo === 'cachorra' ? `Bola de cobertura · ${placar}` : `${team.short} · ${placar}`,
     };
   }
 

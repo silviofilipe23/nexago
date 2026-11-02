@@ -280,6 +280,49 @@ describe('OverlayPageComponent', () => {
     expect(text).toContain('Quadra 2');
   });
 
+  describe('tempo técnico automático no 21º ponto (opção do torneio)', () => {
+    const em20 = () => match({ sets: [{ a: 21, b: 15 }, { a: 10, b: 10 }] });
+    const em21 = () => match({ sets: [{ a: 21, b: 15 }, { a: 11, b: 10 }] });
+    const tecnico = (fixture: { nativeElement: unknown }) => (fixture.nativeElement as HTMLElement).querySelector('og-overlay-tecnico')?.textContent ?? '';
+
+    async function aoVivo(autoTechnicalTimeout: boolean) {
+      const montado = await mount({ matchId: 'm1' });
+      montado.fake.tournament.set({ ...TOURNAMENT, autoTechnicalTimeout });
+      montado.fake.match.set(em20());
+      await montado.fixture.whenStable();
+      return montado;
+    }
+
+    it('com a opção ligada, o ponto que leva a soma a 21 põe o card no ar sozinho', async () => {
+      const { fixture, fake } = await aoVivo(true);
+      expect(tecnico(fixture)).not.toContain('21 pontos no set');
+
+      fake.match.set(em21());
+      await fixture.whenStable();
+      expect(tecnico(fixture)).toContain('Tempo técnico · automático');
+      expect(tecnico(fixture)).toContain('21 pontos no set');
+
+      fake.match.set(match({ sets: [{ a: 21, b: 15 }, { a: 12, b: 10 }] }));
+      await fixture.whenStable();
+      expect(tecnico(fixture)).not.toContain('21 pontos no set');
+    });
+
+    it('com a opção desligada, o 21 não muda nada', async () => {
+      const { fixture, fake } = await aoVivo(false);
+      fake.match.set(em21());
+      await fixture.whenStable();
+      expect(tecnico(fixture)).not.toContain('21 pontos no set');
+    });
+
+    it('abrir o overlay com o set já em 21 não reabre o minuto', async () => {
+      const { fixture, fake } = await mount({ matchId: 'm1' });
+      fake.tournament.set({ ...TOURNAMENT, autoTechnicalTimeout: true });
+      fake.match.set(em21());
+      await fixture.whenStable();
+      expect(tecnico(fixture)).not.toContain('21 pontos no set');
+    });
+  });
+
   it('ancora o placar de duelo embaixo à esquerda', async () => {
     const { fixture, fake } = await mount({ matchId: 'm1', pos: 'br' });
     fake.match.set(match({}));

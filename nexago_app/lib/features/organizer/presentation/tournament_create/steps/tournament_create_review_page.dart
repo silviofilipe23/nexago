@@ -180,6 +180,17 @@ class _TournamentCreateReviewPageState
               TournamentCreateStep.rules,
             ),
           ),
+          if (draft.autoTechnicalTimeoutAvailable)
+            _ReviewSection(
+              icon: Icons.timer_outlined,
+              label: 'TEMPO TÉCNICO',
+              value: reviewTechnicalTimeoutSummary(draft),
+              onEdit: () => goToCreateStep(
+                context,
+                ref,
+                TournamentCreateStep.rules,
+              ),
+            ),
           _ReviewSection(
             icon: Icons.emoji_events_outlined,
             label: 'RANKING',

@@ -112,6 +112,7 @@ Map<String, dynamic> _draftToJson(TournamentCreateDraft draft) => {
   'uniformNameOnShirt': draft.uniformNameOnShirt,
   'rankingEnabled': draft.rankingEnabled,
   'rankingTableId': draft.rankingTableId,
+  'autoTechnicalTimeout': draft.autoTechnicalTimeout,
   'visibility': draft.visibility.name,
 };
 
@@ -196,6 +197,7 @@ TournamentCreateDraft? _draftFromJson(
       uniformNameOnShirt: json['uniformNameOnShirt'] as bool? ?? true,
       rankingEnabled: json['rankingEnabled'] as bool? ?? true,
       rankingTableId: json['rankingTableId'] as String? ?? 'nexago_standalone',
+      autoTechnicalTimeout: json['autoTechnicalTimeout'] as bool? ?? false,
       visibility: _enumByName(
         TournamentVisibility.values,
         json['visibility'] as String?,

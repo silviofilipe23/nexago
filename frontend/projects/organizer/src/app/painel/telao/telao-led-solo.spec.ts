@@ -135,7 +135,8 @@ describe('telao-led-solo', () => {
 
   describe('pausa', () => {
     const tempo = (o: Partial<NonNullable<TournamentMatch['technicalTimeout']>> = {}) => ({
-      side: 'B' as const,
+      side: 'B' as 'A' | 'B' | null,
+      auto: false,
       teamId: 'tb',
       startedAt: new Date(NOW - 38_000),
       durationSec: 60,
@@ -149,6 +150,13 @@ describe('telao-led-solo', () => {
       const m = { ...mesa([[21, 18], [14, 12]]), technicalTimeout: tempo() };
       expect(ledPausaOf(m, NOW, NAMES, PLAYERS)).toEqual(
         jasmine.objectContaining({ kind: 'tempo', title: 'Pedido de tempo', who: 'Felipe / Thiago', clock: '00:22' }),
+      );
+    });
+
+    it('tempo técnico automático do 21º ponto: sem dupla, com o fato que disparou', () => {
+      const m = { ...mesa([[21, 18], [11, 10]]), technicalTimeout: tempo({ side: null, auto: true, teamId: '', scoreA: 11, scoreB: 10 }) };
+      expect(ledPausaOf(m, NOW, NAMES, PLAYERS)).toEqual(
+        jasmine.objectContaining({ kind: 'tempo', title: 'Tempo técnico', who: '21 pontos no set', clock: '00:22' }),
       );
     });
 

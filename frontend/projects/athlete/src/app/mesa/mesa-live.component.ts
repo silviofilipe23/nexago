@@ -31,6 +31,7 @@ import {
   servingTeamFields,
   setsWonOf,
   type LiveMatch,
+  type PointWrite,
   type LivePointEvent,
   type MatchDisplayStatus,
   type ScoreSet,
@@ -58,7 +59,7 @@ import {
 } from './mesa-board';
 import { EMPTY_HEADER, MesaLiveGateway, type MesaHeaderInfo } from './mesa-live.gateway';
 import { quickPayload, quickRows } from './mesa-quick-score';
-import { effectiveScoringProfile, matchWinnerSide as coreMatchWinnerSide, setsWonBy, validateScoreSets } from '@nexago/sports';
+import { effectiveScoringProfile, isAutoTechnicalTimeoutDue, matchWinnerSide as coreMatchWinnerSide, setsWonBy, validateScoreSets } from '@nexago/sports';
 import { EMPTY_TEAM_NAMES, playerNameOf, rosterSizeOf, teamLabelOf, type MesaTeamNames } from './mesa-team-names';
 
 const STATUS_LABEL: Record<MatchDisplayStatus, string> = { scheduled: 'Agendada', in_progress: 'Ao vivo', completed: 'Encerrada', canceled: 'Cancelada' };
@@ -353,7 +354,7 @@ interface MedicalOptionView {
              de transmissão. Não para o ponto no doc — a mesa só cobre a tela. -->
         <div class="mesa-scrim mesa-scrim--med" role="dialog" aria-live="polite">
           <div class="mesa-med">
-            <span class="mesa-med-kicker">TEMPO TÉCNICO · {{ t.number }}º DO SET</span>
+            <span class="mesa-med-kicker">{{ t.auto ? 'TEMPO TÉCNICO AUTOMÁTICO' : 'TEMPO TÉCNICO · ' + t.number + 'º DO SET' }}</span>
             <strong class="mesa-med-name">{{ t.teamLabel }}</strong>
             <span class="mesa-med-clock" [class.over]="t.ended">{{ t.clock }}</span>
             @if (t.ended) {
@@ -1468,7 +1469,11 @@ export class MesaLiveComponent {
   protected readonly swapped = signal(false);
   protected readonly timeouts = signal<TechnicalTimeoutCounts>({ A: 0, B: 0 });
   protected readonly technicalPickerOpen = signal(false);
-  private readonly technicalRun = signal<{ side: MesaSide; number: number; startedAt: Date } | null>(null);
+  /** `side: null` = o automático do 21º ponto (não gasta cota). */
+  private readonly technicalRun = signal<{ side: MesaSide | null; number: number; startedAt: Date } | null>(null);
+  /** Sets em que o automático já abriu nesta sessão (`matchId:setIndex`): desfazer o 21º ponto e
+   *  marcar de novo não reabre o minuto. */
+  private readonly autoTechnicalFired = new Set<string>();
   protected readonly bumped = signal<MesaSide | null>(null);
 
   protected readonly medicalPickerOpen = signal(false);
@@ -1787,11 +1792,17 @@ export class MesaLiveComponent {
   }
 
   /** Contagem na tela — derivada do carimbo local; o `now` de 1 s só redesenha. */
-  protected readonly technicalView = computed<{ teamLabel: string; number: number; clock: string; ended: boolean } | null>(() => {
+  protected readonly technicalView = computed<{ auto: boolean; teamLabel: string; number: number; clock: string; ended: boolean } | null>(() => {
     const run = this.technicalRun();
     if (!run) return null;
     const remaining = technicalTimeoutRemainingSeconds({ startedAt: run.startedAt, durationSec: TECHNICAL_TIMEOUT_SECONDS }, new Date(this.now()));
-    return { teamLabel: this.label(run.side), number: run.number, clock: formatMedicalTimeoutMmSs(remaining), ended: remaining <= 0 };
+    return {
+      auto: run.side == null,
+      teamLabel: run.side == null ? '21 pontos no set' : this.label(run.side),
+      number: run.number,
+      clock: formatMedicalTimeoutMmSs(remaining),
+      ended: remaining <= 0,
+    };
   });
 
   protected readonly canOpenTechnical = computed(
@@ -1827,6 +1838,23 @@ export class MesaLiveComponent {
     this.timeouts.set(counts);
     this.technicalRun.set({ side, number: counts[side], startedAt: new Date() });
     void this.gateway.recordPoint({ matchId: m.id, build: (fresh) => buildTechnicalTimeoutStartWrite(fresh, { side }) }).catch(() => undefined);
+  }
+
+  /** Tempo técnico automático (opção do torneio, vôlei de praia): o ponto que leva a soma do set
+   *  a 21 abre o minuto sozinho, uma vez por set, sem gastar a cota das duplas. Mesma gravação
+   *  best-effort do chamado manual. */
+  private maybeStartAutoTechnical(m: LiveMatch, written: PointWrite): void {
+    if (written.result.winnerId != null || !this.headerInfo().autoTechnicalTimeout) return;
+    if (this.technicalRun() != null || m.medicalTimeout != null) return;
+    const idx = written.result.currentSetIndex;
+    const set = written.result.sets[idx];
+    const key = `${m.id}:${idx}`;
+    if (!set || this.autoTechnicalFired.has(key)) return;
+    if (!isAutoTechnicalTimeoutDue(effectiveScoringProfile(m.scoringProfile, m.bestOf), idx, set)) return;
+    this.autoTechnicalFired.add(key);
+    this.technicalPickerOpen.set(false);
+    this.technicalRun.set({ side: null, number: 0, startedAt: new Date() });
+    void this.gateway.recordPoint({ matchId: m.id, build: (fresh) => buildTechnicalTimeoutStartWrite(fresh, { auto: true }) }).catch(() => undefined);
   }
 
   protected endTechnical(): void {
@@ -1875,6 +1903,7 @@ export class MesaLiveComponent {
       if (!written) return;
       // Set novo começa com os tempos técnicos zerados.
       if (written.result.currentSetIndex !== written.setIndex) this.timeouts.set({ A: 0, B: 0 });
+      this.maybeStartAutoTechnical(m, written);
       if (written.result.winnerId != null) {
         this.feedback.set({
           ok: true,

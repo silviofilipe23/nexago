@@ -480,6 +480,9 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
   void setRankingEnabled(bool value) =>
       _updateDraft(state.draft.copyWith(rankingEnabled: value));
 
+  void setAutoTechnicalTimeout(bool value) =>
+      _updateDraft(state.draft.copyWith(autoTechnicalTimeout: value));
+
   void setRankingTableId(String value) =>
       _updateDraft(state.draft.copyWith(rankingTableId: value));
 

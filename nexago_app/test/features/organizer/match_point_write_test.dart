@@ -255,6 +255,24 @@ void main() {
       expect(write.matchUpdate.containsKey('sets'), isFalse);
     });
 
+    test('automático do 21º ponto: sem equipe, marcado como auto', () {
+      final write = buildTechnicalTimeoutStartWrite(
+        match(sets: const [TournamentMatchSet(a: 11, b: 10)]),
+        side: null,
+      )!;
+
+      final timeout =
+          write.matchUpdate['technicalTimeout'] as Map<String, dynamic>;
+      expect(timeout['auto'], isTrue);
+      expect(timeout.containsKey('side'), isFalse);
+      expect(timeout.containsKey('teamId'), isFalse);
+      expect(timeout['scoreA'], 11);
+      expect(timeout['scoreB'], 10);
+      expect(write.pointEvent, containsPair('type', 'technical-timeout'));
+      expect(write.pointEvent['auto'], isTrue);
+      expect(write.pointEvent.containsKey('side'), isFalse);
+    });
+
     test('nega em partida encerrada', () {
       expect(
         buildTechnicalTimeoutStartWrite(

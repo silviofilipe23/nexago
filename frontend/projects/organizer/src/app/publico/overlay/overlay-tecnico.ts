@@ -2,9 +2,10 @@ import { matchLiveCurrentSet } from '../../painel/data/live-set-display';
 import type { TournamentMatch } from '../../painel/data/matches-repository';
 import type { OverlayDuelView } from './overlay-selectors';
 
-/** Tempo técnico no ar: o card entra só quando a mesa chama e sai quando passa o minuto, quando
- *  qualquer ponto é marcado ou `TECNICO_SAIDA_MS` depois do relógio zerar. Não há disparo
- *  automático (o antigo "21 pontos no set" saiu): quem decide o tempo técnico é a mesa.
+/** Tempo técnico no ar: o card entra só quando a mesa grava o minuto no doc e sai quando passa o
+ *  minuto, quando qualquer ponto é marcado ou `TECNICO_SAIDA_MS` depois do relógio zerar. O
+ *  automático do 21º ponto (opção do torneio) também vem da mesa — o overlay nunca dispara sozinho,
+ *  então recarregar o OBS não reabre um minuto que ninguém chamou.
  *
  *  Puro pelo mesmo motivo dos ciclos de doação/patrocínio: a tela só agenda e desenha, e a regra
  *  de "quando está no ar" mora aqui, com teste. */
@@ -16,8 +17,9 @@ export interface OverlayTecnicoView {
   key: string;
   startMs: number;
   durMs: number;
-  /** Lado que pediu. */
-  side: 'A' | 'B';
+  /** Lado que pediu; `null` no automático (vale pras duas). */
+  side: 'A' | 'B' | null;
+  auto: boolean;
   teamId: string;
   /** Linha de informação: "Set 2 · 17 × 19 · Masculino B". */
   info: string;
@@ -49,7 +51,7 @@ export function tecnicoInfoOf(v: OverlayDuelView, categoryName: string | null): 
     .join(' · ');
 }
 
-/** Tempo técnico chamado pela mesa e ainda válido: o placar do set é o do instante da chamada
+/** Tempo técnico gravado pela mesa (chamado por uma dupla ou automático) e ainda válido: o placar do set é o do instante da chamada
  *  (ponto marcado = acabou). `null` fora disso. */
 export function tecnicoManualOf(
   match: TournamentMatch | null,
@@ -70,7 +72,8 @@ export function tecnicoManualOf(
     startMs,
     durMs,
     side: tt.side,
-    teamId: tt.teamId || (tt.side === 'A' ? match.teamAId : match.teamBId),
+    auto: tt.auto,
+    teamId: tt.side == null ? '' : tt.teamId || (tt.side === 'A' ? match.teamAId : match.teamBId),
     info: tecnicoInfoOf(v, categoryName),
   };
 }

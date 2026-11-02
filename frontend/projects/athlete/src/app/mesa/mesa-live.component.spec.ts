@@ -117,8 +117,10 @@ class FakeGateway {
     return Promise.resolve(EMPTY_TEAM_NAMES);
   }
 
+  autoTechnicalTimeout = false;
+
   header(): Promise<typeof EMPTY_HEADER> {
-    return Promise.resolve({ tournamentName: 'Etapa Rio', categoryName: 'Masculino A' });
+    return Promise.resolve({ tournamentName: 'Etapa Rio', categoryName: 'Masculino A', autoTechnicalTimeout: this.autoTechnicalTimeout });
   }
 
   role: 'manager' | 'scorer' | null = 'manager';
@@ -262,6 +264,34 @@ describe('MesaLiveComponent', () => {
     expect(matchUpdate['winnerId']).toBe('time-a');
     expect(matchUpdate['resultA']).toBe('2');
     expect(matchUpdate['resultB']).toBe('0');
+  });
+
+  describe('tempo técnico automático no 21º ponto (opção do torneio)', () => {
+    async function scoreTo21(): Promise<void> {
+      gateway.push(liveMatch({ sets: [{ a: 11, b: 9 }] }));
+      fixture.detectChanges();
+      await fixture.whenStable(); // cabeçalho (com a opção do torneio) carregado
+      pointButtons()[0]!.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    }
+
+    it('o ponto que leva a soma a 21 abre o minuto sozinho, sem dupla', async () => {
+      gateway.autoTechnicalTimeout = true;
+      await scoreTo21();
+
+      expect(gateway.points.map((p) => p.pointEvent['type'])).toEqual(['point', 'technical-timeout']);
+      expect(gateway.points[1]!.pointEvent).toEqual(jasmine.objectContaining({ auto: true, scoreA: 12, scoreB: 9 }));
+      expect(el().textContent).toContain('TEMPO TÉCNICO AUTOMÁTICO');
+      expect(el().textContent).toContain('21 pontos no set');
+    });
+
+    it('torneio sem a opção só marca o ponto', async () => {
+      await scoreTo21();
+
+      expect(gateway.points.map((p) => p.pointEvent['type'])).toEqual(['point']);
+      expect(el().textContent).not.toContain('TEMPO TÉCNICO AUTOMÁTICO');
+    });
   });
 
   it('partida agendada não pontua: os botões ficam travados e a ação é iniciar', async () => {

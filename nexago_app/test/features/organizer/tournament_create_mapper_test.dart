@@ -803,4 +803,53 @@ void main() {
       expect(map['sport'], 'beach_tennis');
     });
   });
+
+  group('tempo técnico automático no 21º ponto', () {
+    TournamentCreateDraft draft({
+      TournamentSport sport = TournamentSport.beachVolleyball,
+      bool auto = true,
+    }) =>
+        TournamentCreateDraft(
+          name: 'Copa',
+          city: 'Goiânia',
+          locationName: 'Arena',
+          startAt: DateTime(2026, 3, 28),
+          endAt: DateTime(2026, 3, 30),
+          sport: sport,
+          autoTechnicalTimeout: auto,
+          categories: const [
+            TournamentCategoryDraft(id: 'cat-1', name: 'Open', spots: 16),
+          ],
+        );
+
+    Map<String, dynamic> toDoc(TournamentCreateDraft d) =>
+        TournamentCreateMapper.toFirestore(
+          draft: d,
+          managerId: 'manager-1',
+          publish: true,
+        );
+
+    test('grava ligado no vôlei de praia', () {
+      expect(toDoc(draft())['autoTechnicalTimeout'], isTrue);
+      expect(toDoc(draft(auto: false))['autoTechnicalTimeout'], isFalse);
+    });
+
+    test('outro esporte não leva a opção junto', () {
+      final d = draft(sport: TournamentSport.beachTennis);
+      expect(d.autoTechnicalTimeoutAvailable, isFalse);
+      expect(toDoc(d)['autoTechnicalTimeout'], isFalse);
+    });
+
+    test('volta na edição; campo ausente vale desligado', () {
+      final on = TournamentCreateMapper.fromFirestore(toDoc(draft()), 't1');
+      expect(on.draft.autoTechnicalTimeout, isTrue);
+      final doc = toDoc(draft())..remove('autoTechnicalTimeout');
+      final legacy = TournamentCreateMapper.fromFirestore(doc, 't1');
+      expect(legacy.draft.autoTechnicalTimeout, isFalse);
+    });
+
+    test('torneio novo nasce desligado', () {
+      expect(const TournamentCreateDraft().autoTechnicalTimeout, isFalse);
+    });
+  });
 }

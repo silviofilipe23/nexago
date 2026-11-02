@@ -248,6 +248,7 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>, myRole: To
     uniformRequired: data['uniformRequired'] === true,
     uniformNumberOnShirt: data['uniformNumberOnShirt'] === true,
     uniformNameOnShirt: data['uniformNameOnShirt'] === true,
+    autoTechnicalTimeout: data['autoTechnicalTimeout'] === true,
     sponsors: Array.isArray(data['sponsors'])
       ? data['sponsors'].map(sponsorFromRaw).filter((s): s is OrganizerTournamentSponsor => s != null)
       : [],

@@ -21,9 +21,11 @@ import { EMPTY_TEAM_NAMES, fetchTeamNamesFor, type MesaTeamNames } from './mesa-
 export interface MesaHeaderInfo {
   tournamentName: string | null;
   categoryName: string | null;
+  /** Tempo técnico automático no 21º ponto (opção do torneio). */
+  autoTechnicalTimeout: boolean;
 }
 
-export const EMPTY_HEADER: MesaHeaderInfo = { tournamentName: null, categoryName: null };
+export const EMPTY_HEADER: MesaHeaderInfo = { tournamentName: null, categoryName: null, autoTechnicalTimeout: false };
 
 /** Tudo que a mesa lê e escreve, num lugar só: o componente não fala com o Firestore nem com os
  *  callables direto. Serve pra duas coisas — manter a tela sem detalhe de infra e permitir um
@@ -111,7 +113,7 @@ export class MesaLiveGateway {
   }
 
   /** Nome do torneio e da categoria pro cabeçalho ("Masculino A · Semifinal" / "Etapa Rio ·
-   *  Quadra 3"). Uma leitura por partida aberta; falha vira cabeçalho sem torneio, não erro. */
+   *  Quadra 3") e a opção de tempo técnico automático. Uma leitura por partida aberta; falha vira cabeçalho sem torneio, não erro. */
   async header(tournamentId: string, categoryId: string | null): Promise<MesaHeaderInfo> {
     const db = athleteFirestore();
     if (!db || !tournamentId) return EMPTY_HEADER;
@@ -119,7 +121,7 @@ export class MesaLiveGateway {
       const t = await fetchTournament(db, tournamentId);
       if (!t) return EMPTY_HEADER;
       const category = categoryId ? (t.categories.find((c) => c.id === categoryId)?.categoryName ?? null) : null;
-      return { tournamentName: t.name, categoryName: category };
+      return { tournamentName: t.name, categoryName: category, autoTechnicalTimeout: t.autoTechnicalTimeout === true };
     } catch {
       return EMPTY_HEADER;
     }

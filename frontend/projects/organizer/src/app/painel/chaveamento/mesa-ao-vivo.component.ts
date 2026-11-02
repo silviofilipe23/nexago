@@ -42,6 +42,7 @@ import {
   type LiveMatch,
   type LivePointEvent,
   type MatchDisplayStatus,
+  type PointWrite,
   type MatchSide,
   type MedicalTimeoutSlot,
   type RosterSizes,
@@ -54,6 +55,7 @@ import {
   effectiveScoringProfile,
   gamesLiveHint,
   gamesPointLabels,
+  isAutoTechnicalTimeoutDue,
   isCourtSwitchDue,
   isSuperTiebreakSet,
   isTiebreakInProgress,
@@ -507,7 +509,7 @@ export function mesaGamesView(m: LiveMatch): MesaGamesView | null {
            transmissão entrar sozinho. Não trava o ponto no doc — a mesa só cobre a tela. -->
       <div class="og-mesa-medical-overlay" role="dialog" aria-live="polite">
         <div class="og-mesa-medical-box">
-          <span class="og-mesa-medical-kicker">TEMPO TÉCNICO · {{ t.number }}º DO SET</span>
+          <span class="og-mesa-medical-kicker">{{ t.auto ? 'TEMPO TÉCNICO AUTOMÁTICO' : 'TEMPO TÉCNICO · ' + t.number + 'º DO SET' }}</span>
           <strong class="og-mesa-medical-name">{{ t.teamLabel }}</strong>
           <span class="og-mesa-medical-clock" [class.over]="t.ended">{{ t.clock }}</span>
           @if (t.ended) {
@@ -1435,7 +1437,11 @@ export class MesaAoVivoComponent {
   protected readonly technicalPerSet = TECHNICAL_TIMEOUTS_PER_SET;
   protected readonly technicalCounts = signal<TechnicalTimeoutCounts>(EMPTY_TECHNICAL_TIMEOUT_COUNTS);
   protected readonly technicalPickerOpen = signal(false);
-  private readonly technicalRun = signal<{ side: 'A' | 'B'; number: number; startedAt: Date } | null>(null);
+  /** `side: null` = o automático do 21º ponto (não gasta cota). */
+  private readonly technicalRun = signal<{ side: 'A' | 'B' | null; number: number; startedAt: Date } | null>(null);
+  /** Sets em que o automático já abriu nesta sessão (`matchId:setIndex`): desfazer o 21º ponto e
+   *  marcar de novo não reabre o minuto. */
+  private readonly autoTechnicalFired = new Set<string>();
 
   constructor() {
     // Set novo (ou outra partida) começa com a cota zerada e sem contagem na tela.
@@ -1936,6 +1942,7 @@ export class MesaAoVivoComponent {
     this.feedback.set(null);
     try {
       const written = await recordPointTransaction(this.scoring, { matchId: m.id, build: (fresh) => buildPointWrite(withRosterSizes(fresh, this.rosterSizes()), side) });
+      this.maybeStartAutoTechnical(m, written);
       const winnerId = written?.result.winnerId ?? null;
       if (winnerId != null) {
         this.feedback.set({ ok: true, message: `Partida encerrada — vitória de ${winnerId === m.teamAId ? this.teamALabel() : this.teamBLabel()}. A chave avança automaticamente.` });
@@ -2053,11 +2060,17 @@ export class MesaAoVivoComponent {
   }
 
   /** Contagem na tela — derivada do carimbo local; o `now` de 1 s só redesenha. */
-  protected readonly technicalView = computed<{ teamLabel: string; number: number; clock: string; ended: boolean } | null>(() => {
+  protected readonly technicalView = computed<{ auto: boolean; teamLabel: string; number: number; clock: string; ended: boolean } | null>(() => {
     const run = this.technicalRun();
     if (!run) return null;
     const remaining = technicalTimeoutRemainingSeconds({ startedAt: run.startedAt, durationSec: TECHNICAL_TIMEOUT_SECONDS }, new Date(this.now()));
-    return { teamLabel: this.sideLabel(run.side), number: run.number, clock: formatMedicalTimeoutMmSs(remaining), ended: remaining <= 0 };
+    return {
+      auto: run.side == null,
+      teamLabel: run.side == null ? '21 pontos no set' : this.sideLabel(run.side),
+      number: run.number,
+      clock: formatMedicalTimeoutMmSs(remaining),
+      ended: remaining <= 0,
+    };
   });
 
   protected readonly canOpenTechnical = computed(
@@ -2093,6 +2106,23 @@ export class MesaAoVivoComponent {
     this.technicalCounts.set(counts);
     this.technicalRun.set({ side, number: counts[side], startedAt: new Date() });
     void recordPointTransaction(this.scoring, { matchId: m.id, build: (fresh) => buildTechnicalTimeoutStartWrite(fresh, { side }) }).catch(() => undefined);
+  }
+
+  /** Tempo técnico automático (opção do torneio, vôlei de praia): o ponto que leva a soma do set
+   *  a 21 abre o minuto sozinho, uma vez por set, sem gastar a cota das duplas. Mesma gravação
+   *  best-effort do chamado manual. */
+  private maybeStartAutoTechnical(m: LiveMatch, written: PointWrite | null): void {
+    if (!written || written.result.winnerId != null || !this.ctx.tournament()?.autoTechnicalTimeout) return;
+    if (this.technicalRun() != null || m.medicalTimeout != null) return;
+    const idx = written.result.currentSetIndex;
+    const set = written.result.sets[idx];
+    const key = `${m.id}:${idx}`;
+    if (!set || this.autoTechnicalFired.has(key)) return;
+    if (!isAutoTechnicalTimeoutDue(effectiveScoringProfile(m.scoringProfile, m.bestOf), idx, set)) return;
+    this.autoTechnicalFired.add(key);
+    this.technicalPickerOpen.set(false);
+    this.technicalRun.set({ side: null, number: 0, startedAt: new Date() });
+    void recordPointTransaction(this.scoring, { matchId: m.id, build: (fresh) => buildTechnicalTimeoutStartWrite(fresh, { auto: true }) }).catch(() => undefined);
   }
 
   protected endTechnical(): void {

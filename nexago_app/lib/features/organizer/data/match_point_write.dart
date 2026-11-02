@@ -415,23 +415,29 @@ const technicalTimeoutSeconds = 60;
 
 /// Publica o tempo técnico no doc da partida pro overlay de transmissão enxergar. O placar do
 /// set corrente vai junto: o overlay esconde a tela quando qualquer ponto é marcado depois.
-/// `null` quando a partida já encerrou/cancelou.
+/// `side == null` é o automático do 21º ponto (opção `autoTechnicalTimeout` do torneio): vale
+/// pras duas equipes, então grava `auto: true` no lugar de `side`/`teamId` — mesmo contrato de
+/// `buildTechnicalTimeoutStartWrite` do web. `null` quando a partida já encerrou/cancelou.
 MatchPointWrite? buildTechnicalTimeoutStartWrite(
   TournamentMatch match, {
-  required String side,
+  required String? side,
 }) {
   if (match.isCompleted || match.isCanceled) return null;
 
-  final upperSide = side.toUpperCase();
+  final upperSide = side?.toUpperCase();
   final setIndex = _clampedSetIndex(match);
   final current = match.sets.length > setIndex ? match.sets[setIndex] : null;
-  final teamId = upperSide == 'A' ? match.teamAId : match.teamBId;
+  final who = upperSide == null
+      ? const <String, dynamic>{'auto': true}
+      : <String, dynamic>{
+          'side': upperSide,
+          'teamId': upperSide == 'A' ? match.teamAId : match.teamBId,
+        };
 
   return MatchPointWrite(
     matchUpdate: {
       'technicalTimeout': {
-        'side': upperSide,
-        'teamId': teamId,
+        ...who,
         'startedAt': FieldValue.serverTimestamp(),
         'durationSec': technicalTimeoutSeconds,
         'setIndex': setIndex,
@@ -441,7 +447,7 @@ MatchPointWrite? buildTechnicalTimeoutStartWrite(
     },
     pointEvent: {
       'type': 'technical-timeout',
-      'side': upperSide,
+      ...upperSide == null ? const {'auto': true} : {'side': upperSide},
       'setIndex': setIndex,
       'scoreA': current?.a ?? 0,
       'scoreB': current?.b ?? 0,

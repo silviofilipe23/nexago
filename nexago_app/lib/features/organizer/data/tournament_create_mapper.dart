@@ -98,6 +98,8 @@ abstract final class TournamentCreateMapper {
       'uniformNameOnShirt': draft.uniformRequired && draft.uniformNameOnShirt,
       'rankingEnabled': draft.rankingEnabled,
       'rankingTableId': draft.rankingEnabled ? draft.rankingTableId : null,
+      'autoTechnicalTimeout':
+          draft.autoTechnicalTimeoutAvailable && draft.autoTechnicalTimeout,
       'keywords': generateKeywords([
         name,
         draft.locationName,
@@ -182,6 +184,7 @@ abstract final class TournamentCreateMapper {
       rankingEnabled: data['rankingEnabled'] as bool? ?? true,
       rankingTableId:
           (data['rankingTableId'] as String?) ?? 'nexago_standalone',
+      autoTechnicalTimeout: data['autoTechnicalTimeout'] == true,
       visibility: _parseVisibility(data['visibility'] as String?),
     );
 

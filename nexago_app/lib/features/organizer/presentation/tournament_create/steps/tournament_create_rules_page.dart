@@ -186,6 +186,23 @@ class _TournamentCreateRulesPageState
               ),
             ],
           ),
+          if (draft.autoTechnicalTimeoutAvailable) ...[
+            const SizedBox(height: 20),
+            const OrganizerSectionLabel('TEMPO TÉCNICO'),
+            const SizedBox(height: 8),
+            OrganizerToggleSettingRow(
+              icon: Icons.timer_outlined,
+              title: 'Tempo técnico automático no 21º ponto',
+              subtitle:
+                  'Quando a soma do set chega a 21, a mesa abre 1 minuto de '
+                  'tempo técnico sozinha — sem gastar os tempos das duplas. '
+                  'Vale nos sets de 21; o tie-break de 15 fica de fora.',
+              value: draft.autoTechnicalTimeout,
+              onChanged: (value) => ref
+                  .read(tournamentCreateWizardProvider.notifier)
+                  .setAutoTechnicalTimeout(value),
+            ),
+          ],
           const SizedBox(height: 20),
           const OrganizerSectionLabel('RANKING NEXAGO'),
           const SizedBox(height: 8),

@@ -1,0 +1,84 @@
+import { provideZonelessChangeDetection } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { DEFAULT_BROADCAST_LANCES, type BroadcastLances } from '../../painel/data/broadcast-lances';
+import { LANCE_SOM_PLAYER, OverlayLancesComponent, type LanceSom } from './overlay-lances.component';
+
+class FakeSom implements LanceSom {
+  volume = 1;
+  currentTime = 7;
+  tocando = false;
+  play(): Promise<void> {
+    this.tocando = true;
+    return Promise.resolve();
+  }
+  pause(): void {
+    this.tocando = false;
+  }
+}
+
+describe('OverlayLancesComponent · som', () => {
+  let sons: Map<string, FakeSom>;
+
+  async function mount() {
+    sons = new Map();
+    TestBed.configureTestingModule({
+      imports: [OverlayLancesComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        {
+          provide: LANCE_SOM_PLAYER,
+          useValue: (src: string) => {
+            const s = new FakeSom();
+            sons.set(src, s);
+            return s;
+          },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(OverlayLancesComponent);
+    const dispara = async (l: Partial<BroadcastLances>) => {
+      fixture.componentRef.setInput('config', { ...DEFAULT_BROADCAST_LANCES, at: null, ...l });
+      await fixture.whenStable();
+    };
+    await fixture.whenStable();
+    return { fixture, dispara };
+  }
+
+  beforeEach(() => {
+    jasmine.clock().install();
+    jasmine.clock().mockDate(new Date(1_000_000));
+  });
+  afterEach(() => jasmine.clock().uninstall());
+
+  it('Monster Block toca o som do começo; Ace não tem som', async () => {
+    const { dispara } = await mount();
+    const som = sons.get('/sons/lances/monster-block.mp3')!;
+    await dispara({ seq: 1, tipo: 'ace' });
+    expect(som.tocando).toBeFalse();
+    await dispara({ seq: 2, tipo: 'block' });
+    expect(som.tocando).toBeTrue();
+    expect(som.currentTime).toBe(0);
+  });
+
+  it('tirar do ar some com o som num fade', async () => {
+    const { dispara } = await mount();
+    const som = sons.get('/sons/lances/monster-block.mp3')!;
+    await dispara({ seq: 1, tipo: 'block' });
+    await dispara({ seq: 2, tipo: null });
+    jasmine.clock().tick(300);
+    expect(som.tocando).toBeTrue();
+    expect(som.volume).toBeLessThan(1);
+    jasmine.clock().tick(400);
+    expect(som.tocando).toBeFalse();
+  });
+
+  it('o som acompanha a tarja: sai junto quando ela sai', async () => {
+    const { dispara } = await mount();
+    const som = sons.get('/sons/lances/monster-block.mp3')!;
+    await dispara({ seq: 1, tipo: 'block', seg: 4 });
+    jasmine.clock().tick(2250 + 4000 - 10);
+    expect(som.tocando).toBeTrue();
+    jasmine.clock().tick(10 + 700);
+    expect(som.tocando).toBeFalse();
+  });
+});

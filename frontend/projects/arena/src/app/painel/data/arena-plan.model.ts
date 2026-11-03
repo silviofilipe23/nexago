@@ -13,6 +13,7 @@ export type ArenaCapability =
   | 'promocoes'
   | 'clubinho'
   | 'aulas' // aulas: turmas e aulas avulsas com professor (mesmo gate Pro/Elite do servidor)
+  | 'planosHorario' // planosHorario: horário fixo vendido como plano (mesmo gate Pro/Elite do servidor)
   | 'metricasCompletas'
   | 'receberTorneios'
   | 'multiUnidade'
@@ -83,6 +84,7 @@ export function arenaCapabilitiesFor(tier: ArenaPlanTier | null, entitled: boole
         'promocoes',
         'clubinho',
         'aulas',
+        'planosHorario',
         'metricasCompletas',
         'receberTorneios',
         'multiUnidade',
@@ -96,6 +98,7 @@ export function arenaCapabilitiesFor(tier: ArenaPlanTier | null, entitled: boole
         'promocoes',
         'clubinho',
         'aulas',
+        'planosHorario',
         'metricasCompletas',
         'receberTorneios',
         'equipe',

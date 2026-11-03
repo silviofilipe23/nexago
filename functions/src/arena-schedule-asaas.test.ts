@@ -708,3 +708,102 @@ describe("planos de horário online — tela de pagamento (Pix no app)", () => {
     await rejectsWith(getScheduleChargeCheckoutCore(db, "u1", "c1", undefined, "pix", deps), "unavailable");
   });
 });
+
+describe("planos de horário online — cartão com taxa de antecipação", () => {
+  async function cardCheckout(fake: FakeFirestore, db: Firestore) {
+    const {groupId, deps, calls} = await openGroup(fake, db);
+    const cardCalls: Array<{valueReais: number; feeCents: number; customerId: string}> = [];
+    deps.cardFeePercent = async () => 1.33;
+    deps.createCardPayment = async (input) => {
+      cardCalls.push({valueReais: input.valueReais, feeCents: input.feeCents, customerId: input.customerId});
+      return {paymentId: `card_${input.groupId}`, invoiceUrl: `https://asaas.test/c/${input.groupId}`};
+    };
+    const out = await getScheduleChargeCheckoutCore(db, "u1", "c1", undefined, "card", deps);
+    return {groupId, deps, calls, cardCalls, out};
+  }
+
+  it("cartão: cobrança à parte com a taxa por cima; a fatura do Pix fica como está", async () => {
+    const {fake, db} = makeDb();
+    seedOnline(fake);
+    const {groupId, calls, cardCalls, out} = await cardCheckout(fake, db);
+
+    assert.deepEqual(cardCalls, [{valueReais: 303.99, feeCents: 399, customerId: "cus_u1"}]);
+    assert.equal(out.invoiceUrl, `https://asaas.test/c/${groupId}`);
+    assert.equal(out.amountReais, 300);
+    assert.equal(out.chargedReais, 303.99);
+    assert.equal(out.cardFeeReais, 3.99);
+    assert.equal(out.cardFeePercent, 1.33);
+    assert.deepEqual(group(fake, groupId)["cardCharges"], {[`card_${groupId}`]: 399});
+    assert.equal(group(fake, groupId)["paymentId"], `pay_${groupId}`, "a fatura do Pix segue a do grupo");
+    assert.equal(calls.created.length, 1);
+  });
+
+  it("sem taxa (dublê antigo ou Asaas em 0): o cartão vai pela fatura de sempre", async () => {
+    const {fake, db} = makeDb();
+    seedOnline(fake);
+    const {groupId, deps} = await openGroup(fake, db);
+    deps.cardFeePercent = async () => 0;
+    deps.createCardPayment = async () => {
+      throw new Error("não devia criar");
+    };
+    const out = await getScheduleChargeCheckoutCore(db, "u1", "c1", undefined, "card", deps);
+    assert.equal(out.invoiceUrl, `https://asaas.test/i/${groupId}`);
+    assert.equal(out.cardFeeReais, undefined);
+  });
+
+  it("webhook: a taxa sai do bruto, a antecipação é pedida e o caixa credita quando ela cai", async () => {
+    const {fake, db} = makeDb();
+    seedOnline(fake);
+    const {groupId} = await cardCheckout(fake, db);
+    const cardId = `card_${groupId}`;
+    const ref = processedRef(db, cardId);
+    const anticipations: string[] = [];
+    const deps = {...webhookDeps(), requestAnticipation: async (id: string) => {
+      anticipations.push(id);
+      return {id: "ant1", status: "PENDING"};
+    }};
+    // R$ 303,99 no cartão; o Asaas fica com R$ 10 de processamento.
+    const card = {id: cardId, billingType: "CREDIT_CARD", value: 303.99, netValue: 293.99};
+
+    await processArenaScheduleAsaasNotification(db, cardId, payment(groupId, {...card, status: "CONFIRMED"}), ref, deps);
+    assert.equal(charge(fake)["status"], "paid");
+    assert.equal(charge(fake)["asaasPaymentId"], cardId);
+    // A taxa da NexaGO é sobre o plano (300), não sobre o cobrado.
+    assert.equal(charge(fake)["platformFeeReais"], 18);
+    assert.equal(fake.store.get(`arenaWallets/${ARENA}`)!["awaitingSettlementReais"], 272);
+    assert.deepEqual(anticipations, [cardId]);
+
+    await processArenaScheduleAsaasNotification(
+      db, cardId, payment(groupId, {...card, status: "CONFIRMED"}), ref, deps, {anticipationCredited: true},
+    );
+    let wallet = fake.store.get(`arenaWallets/${ARENA}`)!;
+    assert.equal(wallet["availableReais"], 272);
+    assert.equal(wallet["awaitingSettlementReais"], 0);
+    const ledger = docsIn(fake, `arenaWallets/${ARENA}/ledger/`);
+    assert.equal(ledger.length, 1);
+    assert.equal(ledger[0]![1]["cardFeeReais"], 3.99);
+
+    // A liquidação não credita de novo; reentrega do CONFIRMED não pede de novo.
+    await processArenaScheduleAsaasNotification(db, cardId, payment(groupId, {...card, status: "RECEIVED"}), ref, deps);
+    await processArenaScheduleAsaasNotification(db, cardId, payment(groupId, {...card, status: "CONFIRMED"}), ref, deps);
+    wallet = fake.store.get(`arenaWallets/${ARENA}`)!;
+    assert.equal(wallet["availableReais"], 272);
+    assert.equal(docsIn(fake, `arenaWallets/${ARENA}/ledger/`).length, 1);
+    assert.deepEqual(anticipations, [cardId]);
+  });
+
+  it("pagou no cartão e depois a fatura do Pix também: a segunda é estornada", async () => {
+    const {fake, db} = makeDb();
+    seedOnline(fake);
+    const {groupId} = await cardCheckout(fake, db);
+    const cardId = `card_${groupId}`;
+    const refunds: string[] = [];
+    await processArenaScheduleAsaasNotification(db, cardId,
+      payment(groupId, {id: cardId, billingType: "CREDIT_CARD", value: 303.99, netValue: 293.99, status: "CONFIRMED"}),
+      processedRef(db, cardId), webhookDeps(refunds));
+    await processArenaScheduleAsaasNotification(db, `pay_${groupId}`, payment(groupId),
+      processedRef(db, `pay_${groupId}`), webhookDeps(refunds));
+    assert.deepEqual(refunds, [`pay_${groupId}`]);
+    assert.equal(charge(fake)["asaasPaymentId"], cardId);
+  });
+});

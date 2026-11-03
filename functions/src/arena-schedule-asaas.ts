@@ -33,7 +33,9 @@ import {activatePendingSubscriptionCore, expirePendingSubscriptionCore} from "./
 import {chargeAsaasMirror, type ClassAsaasState} from "./arena-class-asaas-model";
 import {monthLabelPt} from "./arena-class-billing";
 import {asaasArenaSecrets, getAsaasEnvTag} from "./asaas-client";
+import {cardAnticipationFeeCents, loadCardAnticipationPercent} from "./card-anticipation-fee";
 import {
+  createAsaasCardCharge,
   createAsaasInvoiceCharge,
   deleteAsaasPaymentOrThrow,
   fetchAsaasPixQrCode,
@@ -73,6 +75,15 @@ export interface ScheduleAsaasDeps {
   getPayment: (paymentId: string) => Promise<AsaasPaymentDetails>;
   /** QR do Pix da cobrança (a fatura `UNDEFINED` aceita Pix): copia-e-cola e imagem. */
   fetchPixQrCode: (paymentId: string) => Promise<{qrCode: string; qrCodeBase64: string}>;
+  /**
+   * Cobrança só de cartão, com a taxa de antecipação por cima (`card-anticipation-fee.ts`). Ausente
+   * (dublês antigos) = o cartão vai pela fatura de sempre, sem taxa.
+   */
+  createCardPayment?: (input: {
+    groupId: string; customerId: string; valueReais: number; description: string; feeCents: number;
+  }) => Promise<{paymentId: string; invoiceUrl: string}>;
+  /** Percentual da taxa de antecipação vigente. */
+  cardFeePercent?: () => Promise<number>;
   notify: (input: {userId: string; title: string; body: string; type: string; data: Record<string, string>}) => Promise<void>;
   sleep: (ms: number) => Promise<void>;
 }
@@ -128,6 +139,19 @@ export const defaultScheduleAsaasDeps: ScheduleAsaasDeps = {
     assertAsaasAllowed();
     return getAsaasPayment(paymentId);
   },
+  createCardPayment: async (input) => {
+    assertAsaasAllowed();
+    return createAsaasCardCharge({
+      customerId: input.customerId,
+      valueReais: input.valueReais,
+      dueDate: new Date(),
+      description: input.description,
+      externalReference: `${SCHEDULE_PAYMENT_REF_PREFIX}${input.groupId}`,
+      // Mesma taxa = mesma cobrança: tocar de novo no "Pagar" não duplica.
+      idempotencyKey: `schedule-card-${getAsaasEnvTag()}-${input.groupId}-ca${input.feeCents}`,
+    });
+  },
+  cardFeePercent: () => loadCardAnticipationPercent(),
   fetchPixQrCode: (paymentId) => {
     assertAsaasAllowed();
     return fetchAsaasPixQrCode(paymentId);
@@ -869,12 +893,18 @@ export async function getScheduleChargeCheckoutCore(
   methodRaw: unknown,
   deps: ScheduleAsaasDeps = defaultScheduleAsaasDeps,
   opts: {waitMs?: number; pollMs?: number} = {},
-): Promise<{invoiceUrl: string; amountReais: number; qrCode?: string; qrCodeBase64?: string}> {
+): Promise<{
+  invoiceUrl: string; amountReais: number; qrCode?: string; qrCodeBase64?: string;
+  chargedReais?: number; cardFeeReais?: number; cardFeePercent?: number;
+}> {
   await assertPaymentWindowOpen(db, str(chargeIdRaw));
   const {invoiceUrl} = await getScheduleChargePaymentLinkCore(db, uid, chargeIdRaw, cpfRaw, deps, opts);
   const charge = ((await db.collection(ARENA_SCHEDULE_CHARGES).doc(str(chargeIdRaw)).get()).data() ?? {}) as Data;
   const amountReais = Number(charge["amountReais"] ?? 0);
-  if (str(methodRaw) !== "pix") return {invoiceUrl, amountReais};
+  const method = str(methodRaw);
+  // `method` ausente (apps antigos) = a fatura de sempre, que aceita Pix e cartão sem taxa.
+  if (method === "card") return scheduleCardCheckout(db, charge, amountReais, invoiceUrl, deps);
+  if (method !== "pix") return {invoiceUrl, amountReais};
   const groupId = str(asaasOf(charge)["groupId"]);
   const paymentId = groupId ? str((await groupsCol(db).doc(groupId).get()).data()?.["paymentId"]) : "";
   if (!paymentId) throw new HttpsError("unavailable", LINK_PENDING_MESSAGE);
@@ -885,6 +915,43 @@ export async function getScheduleChargeCheckoutCore(
     logger.warn(`getScheduleChargeCheckoutCore: QR do Pix de ${paymentId} falhou`, e);
     throw new HttpsError("unavailable", PIX_UNAVAILABLE_MESSAGE);
   }
+}
+
+/**
+ * Cartão: cobrança à parte, só cartão, com a taxa de antecipação por cima do valor do grupo. A fatura
+ * do grupo segue viva para o Pix; a que for paga primeiro quita a mensalidade e a outra, se paga
+ * depois, é estornada pelo webhook (mensalidade já resolvida). A taxa de cada cobrança de cartão fica
+ * no grupo (`cardCharges.{paymentId}`), onde o webhook a tira do bruto. Sem taxa, a fatura de sempre.
+ */
+async function scheduleCardCheckout(
+  db: Firestore,
+  charge: Data,
+  amountReais: number,
+  invoiceUrl: string,
+  deps: ScheduleAsaasDeps,
+) {
+  const groupId = str(asaasOf(charge)["groupId"]);
+  const groupRef = groupsCol(db).doc(groupId);
+  const group = ((await groupRef.get()).data() ?? {}) as Data;
+  const baseReais = Number(group["amountReais"] ?? amountReais);
+  if (!deps.cardFeePercent || !deps.createCardPayment) return {invoiceUrl, amountReais};
+  const cardFeePercent = await deps.cardFeePercent();
+  const feeCents = cardAnticipationFeeCents(baseReais, cardFeePercent);
+  if (feeCents <= 0) return {invoiceUrl, amountReais};
+
+  const customerAthleteId = str(group["customerAthleteId"]) || str(group["payerAthleteId"]);
+  const customerId = customerAthleteId ? await deps.resolveCustomer(customerAthleteId) : null;
+  if (!customerId) throw new Error("ASAAS_CUSTOMER_CPF_REQUIRED");
+  const chargedReais = (Math.round(baseReais * 100) + feeCents) / 100;
+  const card = await deps.createCardPayment({
+    groupId,
+    customerId,
+    valueReais: chargedReais,
+    description: str(group["description"]) || "Mensalidade",
+    feeCents,
+  });
+  await groupRef.set({cardCharges: {[card.paymentId]: feeCents}, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+  return {invoiceUrl: card.invoiceUrl, amountReais, chargedReais, cardFeeReais: feeCents / 100, cardFeePercent};
 }
 
 export const getArenaScheduleChargePaymentLink = onCall({

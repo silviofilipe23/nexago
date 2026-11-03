@@ -16,7 +16,10 @@
  * https://www.asaas.com/precos-e-taxas
  */
 import * as logger from "firebase-functions/logger";
-import {fetchAsaas} from "./asaas-client";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {FieldValue, type DocumentReference} from "firebase-admin/firestore";
+import {asaasArenaSecrets, fetchAsaas} from "./asaas-client";
+import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 /** Tabela pública do Asaas: antecipação de cartão à vista. */
 export const DEFAULT_ANTICIPATION_MONTHLY_PERCENT = 1.25;
@@ -82,6 +85,66 @@ export async function loadCardAnticipationPercent(nowMs = Date.now()): Promise<n
   cache = {percent, atMs: nowMs};
   return percent;
 }
+
+/** `POST /v3/anticipations` de uma cobrança (docs.asaas.com/reference/solicitar-antecipacao). */
+export async function requestAsaasCardAnticipation(paymentId: string): Promise<{id?: string; status?: string}> {
+  return fetchAsaas<{id?: string; status?: string}>("/v3/anticipations", {
+    method: "POST",
+    body: {payment: paymentId},
+    idempotencyKey: `anticipation-${paymentId}`,
+  });
+}
+
+export type RequestAnticipation = (asaasPaymentId: string) => Promise<{id?: string; status?: string}>;
+
+/**
+ * Pede a antecipação e grava o resultado no processado (`anticipation`). Nunca lança: recusada ou
+ * falha, o recebedor é creditado na liquidação, como sem a taxa. `label` só entra no log.
+ */
+export async function requestAnticipationQuietly(
+  processedRef: DocumentReference,
+  paymentId: string,
+  label: string,
+  request: RequestAnticipation,
+): Promise<void> {
+  try {
+    const res = await request(paymentId);
+    await processedRef.set({
+      anticipation: {
+        id: res.id ?? null,
+        status: res.status ?? null,
+        requestedAt: FieldValue.serverTimestamp(),
+      },
+    }, {merge: true});
+  } catch (e) {
+    logger.error(
+      `Asaas ${label}: antecipação do cartão ${paymentId} não pedida — o caixa credita na liquidação`,
+      e,
+    );
+    try {
+      await processedRef.set({
+        anticipation: {
+          error: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300),
+          requestedAt: FieldValue.serverTimestamp(),
+        },
+      }, {merge: true});
+    } catch (writeErr) {
+      logger.error(`Asaas ${label}: falha ao gravar a antecipação`, writeErr);
+    }
+  }
+}
+
+/**
+ * Prévia do checkout (app e portais): o percentual que o cartão soma por cima. A cobrança refaz a
+ * conta no servidor; isto só põe o valor do cartão e o "Pix mais barato" na tela antes de pagar.
+ */
+export const getCardAnticipationFee = onCall(
+  {region: CLIENT_FACING_REGIONS, invoker: "public" as const, secrets: asaasArenaSecrets},
+  async (request): Promise<{cardFeePercent: number}> => {
+    if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
+    return {cardFeePercent: await loadCardAnticipationPercent()};
+  },
+);
 
 /** Só para testes. */
 export function resetCardAnticipationCacheForTests(): void {

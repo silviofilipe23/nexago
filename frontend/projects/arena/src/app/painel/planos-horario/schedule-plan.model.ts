@@ -220,7 +220,7 @@ export const DEFAULT_SETTINGS: ScheduleSettings = {
   waitlistAutoOffer: true,
   waitlistOfferHours: 24,
   appliedHolidays: [],
-  onlineBillingEnabled: false,
+  onlineBillingEnabled: true,
 };
 
 // ── Rótulos ─────────────────────────────────────────────────────────────────
@@ -361,7 +361,8 @@ export function settingsFromRaw(d: Raw | undefined): ScheduleSettings {
     waitlistAutoOffer: bool(d['waitlistAutoOffer'], true),
     waitlistOfferHours: hours === 12 || hours === 48 ? hours : 24,
     appliedHolidays: strings(d['appliedHolidays']),
-    onlineBillingEnabled: d['onlineBillingEnabled'] === true,
+    // Ausente = ligada (padrão do servidor); só `false` gravado desliga.
+    onlineBillingEnabled: d['onlineBillingEnabled'] !== false,
   };
 }
 

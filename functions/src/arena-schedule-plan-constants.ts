@@ -111,7 +111,8 @@ export const DEFAULT_SCHEDULE_SETTINGS: ScheduleSettings = {
   waitlistAutoOffer: true,
   waitlistOfferHours: 24,
   appliedHolidays: [],
-  onlineBillingEnabled: false,
+  // Arena apta (pagamento online + chave PIX) cobra os planos online; o gestor desliga nas Regras.
+  onlineBillingEnabled: true,
 };
 
 // ---------------------------------------------------------------------------
@@ -627,7 +628,8 @@ export function parseScheduleSettings(data: Record<string, unknown> | undefined)
     appliedHolidays: Array.isArray(data["appliedHolidays"]) ?
       (data["appliedHolidays"] as unknown[]).map(String).filter(isValidDateKey) :
       [],
-    onlineBillingEnabled: data["onlineBillingEnabled"] === true,
+    // Ausente = padrão (ligada); só `false` gravado pelo gestor desliga.
+    onlineBillingEnabled: data["onlineBillingEnabled"] !== false,
   };
 }
 

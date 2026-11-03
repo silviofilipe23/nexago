@@ -257,6 +257,104 @@ void main() {
       expect(card.chargedReais, 54.0);
     });
   });
+
+  group('cardFeePercent — taxa de antecipação do cartão', () {
+    test('lida mesmo com o organizador pagando a taxa de serviço', () {
+      final rule = TournamentServiceFeeRule.fromMap({
+        'percent': 8,
+        'floorReais': 1.5,
+        'payer': 'organizador',
+        'cardFeePercent': 1.33,
+      });
+      expect(rule.payer, _organizador);
+      expect(athleteServiceFeeCents(50, rule), 0);
+      expect(rule.cardFeePercent, 1.33);
+    });
+
+    test('junto da taxa do atleta', () {
+      final rule = TournamentServiceFeeRule.fromMap({
+        'percent': 8,
+        'floorReais': 1.5,
+        'payer': 'atleta',
+        'cardFeePercent': 1.33,
+      });
+      expect(athleteServiceFeeCents(50, rule), 400);
+      expect(rule.cardFeePercent, 1.33);
+    });
+
+    test('ausente (backend antigo), zero ou torto: sem taxa no cartão', () {
+      for (final raw in <Object?>[null, 0, -1, 'x', double.nan, 150]) {
+        final rule = TournamentServiceFeeRule.fromMap({
+          'percent': 8,
+          'floorReais': 1.5,
+          'payer': 'atleta',
+          'cardFeePercent': raw,
+        });
+        expect(rule.cardFeePercent, 0, reason: '$raw');
+      }
+      expect(TournamentServiceFeeRule.none.cardFeePercent, 0);
+      expect(TournamentServiceFeeRule.fromMap(null).cardFeePercent, 0);
+    });
+
+    test('centavos: espelho de cardAnticipationFeeCents do servidor', () {
+      expect(cardAnticipationFeeCents(10000, 1.33), 133);
+      expect(cardAnticipationFeeCents(5450, 1.33), 72);
+      expect(cardAnticipationFeeCents(0, 1.33), 0);
+      expect(cardAnticipationFeeCents(10000, 0), 0);
+    });
+
+    test('PaymentService lê o percentual da callable', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'getTournamentServiceFee': {
+          'percent': 0,
+          'floorReais': 0,
+          'payer': 'organizador',
+          'cardFeePercent': 1.33,
+        },
+      });
+      final service = PaymentService(functions: functions);
+
+      final rule = await service.getTournamentServiceFee(tournamentId: 't1');
+
+      expect(rule.payer, _organizador);
+      expect(rule.cardFeePercent, 1.33);
+    });
+
+    test('resposta do cartão: taxa de antecipação já dentro do cobrado',
+        () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'createTournamentRegistrationCardPayment': {
+          ..._card,
+          'chargedReais': 50.67,
+          'cardFeeReais': 0.67,
+          'cardFeePercent': 1.33,
+        },
+      });
+      final service = PaymentService(functions: functions);
+
+      final card = await service.createTournamentRegistrationCardPayment(
+        registrationId: 'r1',
+      );
+
+      expect(card.chargedReais, 50.67);
+      expect(card.cardFeeReais, 0.67);
+      expect(card.cardFeePercent, 1.33);
+    });
+
+    test('resposta do cartão sem a taxa (functions antigas): 0', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'createTournamentRegistrationCardPayment': _card,
+      });
+      final service = PaymentService(functions: functions);
+
+      final card = await service.createTournamentRegistrationCardPayment(
+        registrationId: 'r1',
+      );
+
+      expect(card.cardFeeReais, 0);
+      expect(card.cardFeePercent, 0);
+    });
+  });
 }
 
 /// Dublê das Functions (o mesmo de `payment_service_cashback_test.dart`), com

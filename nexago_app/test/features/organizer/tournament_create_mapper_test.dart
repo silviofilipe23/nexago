@@ -852,4 +852,91 @@ void main() {
       expect(const TournamentCreateDraft().autoTechnicalTimeout, isFalse);
     });
   });
+
+  group('onlinePaymentMethods (formas aceitas no app)', () {
+    TournamentCreateDraft draftWith({
+      TournamentPaymentMode paymentMode = TournamentPaymentMode.appPixCard,
+      TournamentOnlinePaymentMethods methods =
+          TournamentOnlinePaymentMethods.pixAndCard,
+    }) {
+      return TournamentCreateDraft(
+        name: 'Copa Teste',
+        city: 'Goiânia',
+        locationName: 'Arena',
+        startAt: DateTime(2026, 9, 10),
+        endAt: DateTime(2026, 9, 11),
+        paymentMode: paymentMode,
+        onlinePaymentMethods: methods,
+      );
+    }
+
+    Object? gravado(TournamentCreateDraft draft) =>
+        TournamentCreateMapper.toFirestore(
+          draft: draft,
+          managerId: 'manager-1',
+          publish: true,
+        )['onlinePaymentMethods'];
+
+    test('pelo app grava a lista explícita', () {
+      expect(gravado(draftWith()), ['pix', 'card']);
+      expect(
+        gravado(draftWith(methods: TournamentOnlinePaymentMethods.pixOnly)),
+        ['pix'],
+      );
+      expect(
+        gravado(draftWith(methods: TournamentOnlinePaymentMethods.cardOnly)),
+        ['card'],
+      );
+    });
+
+    test('direto com o organizador não grava a lista', () {
+      expect(
+        gravado(
+          draftWith(
+            paymentMode: TournamentPaymentMode.directWithOrganizer,
+            methods: TournamentOnlinePaymentMethods.pixOnly,
+          ),
+        ),
+        isNull,
+      );
+    });
+
+    test('reidrata a escolha ao abrir para edição', () {
+      TournamentOnlinePaymentMethods lido(Object? raw) =>
+          TournamentCreateMapper.fromFirestore(
+            {'onlinePaymentMethods': raw},
+            't1',
+          ).draft.onlinePaymentMethods;
+
+      expect(lido(['pix']), TournamentOnlinePaymentMethods.pixOnly);
+      expect(lido(['card']), TournamentOnlinePaymentMethods.cardOnly);
+      expect(lido(['pix', 'card']), TournamentOnlinePaymentMethods.pixAndCard);
+    });
+
+    test('torneio antigo (ausente, vazio ou torto) aceita os dois', () {
+      for (final raw in <Object?>[null, const [], 'pix', const ['boleto']]) {
+        expect(
+          TournamentCreateMapper.fromFirestore(
+            {'onlinePaymentMethods': raw},
+            't1',
+          ).draft.onlinePaymentMethods,
+          TournamentOnlinePaymentMethods.pixAndCard,
+          reason: '$raw',
+        );
+      }
+    });
+
+    test('ida e volta preserva a escolha', () {
+      final map = TournamentCreateMapper.toFirestore(
+        draft: draftWith(methods: TournamentOnlinePaymentMethods.cardOnly),
+        managerId: 'manager-1',
+        publish: true,
+      );
+      expect(
+        TournamentCreateMapper.fromFirestore(map, 't1').draft
+            .onlinePaymentMethods,
+        TournamentOnlinePaymentMethods.cardOnly,
+      );
+    });
+  });
 }

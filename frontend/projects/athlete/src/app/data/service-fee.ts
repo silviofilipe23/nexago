@@ -62,3 +62,25 @@ export function readServiceFee(raw: object | null | undefined): number {
   const v = (raw as Record<string, unknown> | null | undefined)?.['serviceFeeReais'];
   return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0;
 }
+
+// Taxa de antecipação do cartão (functions/src/card-anticipation-fee.ts), repassada ao atleta por
+// cima do que vai para o cartão — o mesmo valor que o Pix cobraria (preço + taxa de serviço −
+// descontos − cashback). Só o cartão tem; é o que deixa o Pix mais barato na tela.
+
+/** `cardFeePercent` da prévia (`getTournamentServiceFee`) ou da cobrança; ausente/inválido → 0 (sem taxa). */
+export function readCardFeePercent(raw: unknown): number {
+  const v = (raw as Record<string, unknown> | null | undefined)?.['cardFeePercent'];
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0;
+}
+
+/** `cardFeeReais` da resposta da cobrança de cartão; backend antigo (sem o campo) → 0. */
+export function readCardFee(raw: object | null | undefined): number {
+  const v = (raw as Record<string, unknown> | null | undefined)?.['cardFeeReais'];
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0;
+}
+
+/** Espelho de `cardAnticipationFeeCents`: % sobre os centavos do valor do cartão, arredondado. */
+export function cardFeeReais(baseReais: number, percent: number): number {
+  if (!(baseReais > 0) || !(percent > 0)) return 0;
+  return Math.round((Math.round(baseReais * 100) * percent) / 100) / 100;
+}

@@ -34,6 +34,49 @@ export function sportFirestoreValue(d: { sport: TournamentSport; sportRaw: strin
 export type TournamentBracketSystem = 'groupsThenKnockout' | 'singleElimination' | 'roundRobin' | 'groupsWithRepechage' | 'doubleElimination' | 'kingOfCourt';
 export type TournamentBestOf = 'singleSet' | 'bestOf3' | 'bestOf5';
 export type TournamentPaymentMode = 'appPixCard' | 'directWithOrganizer';
+
+/** Forma aceita no pagamento pelo app (`tournaments.onlinePaymentMethods`, só vale com
+ *  `paymentMode === 'appPixCard'`). No cartão o atleta paga a taxa de antecipação por cima; o
+ *  repasse do organizador é o mesmo nas duas. */
+export type OnlinePaymentMethod = 'pix' | 'card';
+
+/** As três escolhas do organizador, na ordem dos chips. */
+export const ONLINE_PAYMENT_OPTIONS: ReadonlyArray<{ label: string; methods: readonly OnlinePaymentMethod[] }> = [
+  { label: 'Pix e cartão', methods: ['pix', 'card'] },
+  { label: 'Só Pix', methods: ['pix'] },
+  { label: 'Só cartão', methods: ['card'] },
+];
+
+/** Espelho de `tournamentOnlinePaymentMethods` (functions/src/tournament-registration-pix-helpers.ts):
+ *  ausente, vazio ou fora do contrato = as duas — todo o acervo anterior à escolha. */
+export function onlinePaymentMethodsOf(raw: unknown): OnlinePaymentMethod[] {
+  if (!Array.isArray(raw)) return ['pix', 'card'];
+  const methods = (['pix', 'card'] as const).filter((m) => raw.includes(m));
+  return methods.length > 0 ? [...methods] : ['pix', 'card'];
+}
+
+/** Rótulo do chip da escolha ("Pix e cartão" / "Só Pix" / "Só cartão"). */
+export function onlinePaymentLabel(methods: readonly OnlinePaymentMethod[]): string {
+  const normalized = onlinePaymentMethodsOf(methods);
+  if (normalized.length > 1) return 'Pix e cartão';
+  return normalized[0] === 'pix' ? 'Só Pix' : 'Só cartão';
+}
+
+/** Escolha pelo rótulo do chip; rótulo desconhecido = as duas. */
+export function onlinePaymentMethodsForLabel(label: string): OnlinePaymentMethod[] {
+  const option = ONLINE_PAYMENT_OPTIONS.find((o) => o.label === label);
+  return option ? [...option.methods] : ['pix', 'card'];
+}
+
+/** Resumo do pagamento ("Só Pix pelo app", "Pix e cartão pelo app", "pagamento direto"). */
+export function paymentSummaryLabel(
+  paymentMode: TournamentPaymentMode,
+  methods: readonly OnlinePaymentMethod[],
+  directLabel = 'pagamento direto',
+): string {
+  if (paymentMode !== 'appPixCard') return directLabel;
+  return `${onlinePaymentLabel(methods)} pelo app`;
+}
 export type TournamentVisibility = 'publicListing' | 'linkOnly';
 export type CategoryGender = 'male' | 'female' | 'mixed';
 /** `team` é legado (nunca foi oferecido na UI); os formatos de equipe reais são trio/quarteto/quinteto. */
@@ -159,6 +202,8 @@ export interface TournamentCreateDraft {
   registrationOpensAt: Date | null;
   registrationClosesAt: Date | null;
   paymentMode: TournamentPaymentMode;
+  /** Formas aceitas no pagamento pelo app — gravada explícita (`['pix']`, `['card']` ou as duas). */
+  onlinePaymentMethods: OnlinePaymentMethod[];
   organizerPixKey: string;
   organizerPixKeyType: string;
   organizerPixRecipientName: string;
@@ -250,6 +295,7 @@ export function emptyTournamentDraft(): TournamentCreateDraft {
     registrationOpensAt: null,
     registrationClosesAt: null,
     paymentMode: 'appPixCard',
+    onlinePaymentMethods: ['pix', 'card'],
     organizerPixKey: '',
     organizerPixKeyType: '',
     organizerPixRecipientName: '',

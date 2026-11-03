@@ -1117,6 +1117,22 @@ final _screens = <_Screen>[
     [Icons.pix_rounded],
   ),
   _Screen(
+    'Inscrição: Pix mais barato que o cartão',
+    (tester, theme) => _pumpPiece(
+      tester,
+      theme,
+      RegistrationPaymentMethodPicker(
+        value: RegistrationPaymentMethod.pix,
+        amountReais: 100,
+        cardFeeReais: 1.33,
+        cardFeePercent: 1.33,
+        onChanged: (_) {},
+      ),
+    ),
+    find.byType(RegistrationPaymentMethodPicker),
+    ['${formatBRL(1.33)} a menos que no cartão'],
+  ),
+  _Screen(
     'Inscrição: detalhe com pagamento pendente',
     (tester, theme) => _pumpPage(
       tester,

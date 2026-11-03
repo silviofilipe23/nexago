@@ -24,6 +24,23 @@ describe('resolvePaymentMethods', () => {
     expect(resolvePaymentMethods(null)).toEqual(['pix', 'card']);
     expect(resolvePaymentMethods(undefined)).toEqual(['pix', 'card']);
   });
+
+  it('respeita as formas aceitas pelo organizador', () => {
+    expect(resolvePaymentMethods('appPixCard', ['pix'])).toEqual(['pix']);
+    expect(resolvePaymentMethods('appPixCard', ['card'])).toEqual(['card']);
+    expect(resolvePaymentMethods('appPixCard', ['card', 'pix'])).toEqual(['pix', 'card']);
+  });
+
+  it('formas ausentes, vazias ou fora do contrato valem as duas (acervo)', () => {
+    expect(resolvePaymentMethods('appPixCard', undefined)).toEqual(['pix', 'card']);
+    expect(resolvePaymentMethods('appPixCard', [])).toEqual(['pix', 'card']);
+    expect(resolvePaymentMethods('appPixCard', ['boleto'])).toEqual(['pix', 'card']);
+    expect(resolvePaymentMethods('appPixCard', 'pix')).toEqual(['pix', 'card']);
+  });
+
+  it('pagamento direto ignora as formas aceitas', () => {
+    expect(resolvePaymentMethods('directWithOrganizer', ['pix'])).toEqual([]);
+  });
 });
 
 /** A casca do portal monta o menu e ouve convites — abriria WebChannel do Firestore no Karma. */
@@ -60,8 +77,9 @@ function registration(overrides: Partial<AthleteTournamentRegistration> = {}): A
   } as AthleteTournamentRegistration;
 }
 
-function tournament(paymentMode: string): TournamentSummary {
+function tournament(paymentMode: string, onlinePaymentMethods?: string[]): TournamentSummary {
   return {
+    onlinePaymentMethods,
     id: 't1',
     name: 'Copa Teste',
     location: 'Arena Teste',
@@ -84,9 +102,10 @@ describe('TournamentPaymentComponent — cartão', () => {
     listing: ReturnType<typeof signal<TournamentSummary | null>>;
     cardResult: ReturnType<typeof signal<{ paymentId: string; invoiceUrl: string; expiresAt: string; amountReais: number } | null>>;
     method: ReturnType<typeof signal<'pix' | 'card'>>;
+    cardFeePercent: ReturnType<typeof signal<number>>;
   }
 
-  function create(paymentMode = 'appPixCard') {
+  function create(paymentMode = 'appPixCard', onlinePaymentMethods?: string[]) {
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
@@ -116,7 +135,7 @@ describe('TournamentPaymentComponent — cartão', () => {
     // O primeiro ciclo roda a effect de boot, que sem Firestore zera o `listing`
     // e desliga o loading. Semear antes disso seria semear para ser apagado.
     fixture.detectChanges();
-    internals.listing.set(tournament(paymentMode));
+    internals.listing.set(tournament(paymentMode, onlinePaymentMethods));
     internals.onRegistrationUpdate(registration());
     fixture.detectChanges();
     return { fixture, internals };
@@ -177,5 +196,91 @@ describe('TournamentPaymentComponent — cartão', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('.tp-method-toggle')).toBeNull();
+  });
+
+  function texts(fixture: { nativeElement: HTMLElement }, selector: string): string[] {
+    return Array.from(fixture.nativeElement.querySelectorAll(selector) as NodeListOf<HTMLElement>).map(
+      (el) => el.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+    );
+  }
+
+  /** Valor da linha do resumo cujo rótulo começa com `label` (null quando a linha não existe). */
+  function summaryValue(fixture: { nativeElement: HTMLElement }, label: string): string | null {
+    const row = Array.from(fixture.nativeElement.querySelectorAll('.tp-summary-row') as NodeListOf<HTMLElement>).find(
+      (r) => (r.querySelector('.tp-summary-label')?.textContent ?? '').trim().startsWith(label),
+    );
+    return row ? (row.querySelector('.tp-summary-value')?.textContent ?? '').replace(/\s+/g, ' ').trim() : null;
+  }
+
+  it('torneio só Pix: sem seletor, direto no Pix', () => {
+    const { fixture, internals } = create('appPixCard', ['pix']);
+    internals.method.set('card');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.tp-method-toggle')).toBeNull();
+    expect(texts(fixture, 'button.tp-btn-primary')[0]).toContain('Gerar Pix');
+  });
+
+  it('torneio só cartão: sem seletor, direto no cartão (com a taxa no resumo e no botão)', () => {
+    const { fixture, internals } = create('appPixCard', ['card']);
+    internals.cardFeePercent.set(1.33);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.tp-method-toggle')).toBeNull();
+    // Parcela de R$ 50 × 1,33% = R$ 0,67.
+    expect(summaryValue(fixture, 'Taxa de antecipação do cartão (1,33%)')).toBe('+R$ 0,67');
+    expect(texts(fixture, 'button.tp-btn-primary')[0]).toBe('Pagar R$ 50,67 no cartão');
+  });
+
+  it('com taxa no cartão o Pix aparece como o mais barato, com o cartão riscado', () => {
+    const { fixture, internals } = create();
+    internals.cardFeePercent.set(1.33);
+    fixture.detectChanges();
+
+    expect(texts(fixture, '.tp-method-btn-was')).toEqual(['R$ 50,67']);
+    expect(texts(fixture, '.tp-method-badge')).toEqual(['R$ 0,67 a menos que no cartão']);
+    // Pix escolhido: nada de taxa do cartão no resumo nem no botão.
+    expect(summaryValue(fixture, 'Taxa de antecipação')).toBeNull();
+    expect(texts(fixture, 'button.tp-btn-primary')[0]).toBe('Gerar Pix de R$ 50,00');
+  });
+
+  it('cartão escolhido: a taxa entra no resumo e no total', () => {
+    const { fixture, internals } = create();
+    internals.cardFeePercent.set(1.33);
+    internals.method.set('card');
+    fixture.detectChanges();
+
+    expect(summaryValue(fixture, 'Taxa de antecipação do cartão (1,33%)')).toBe('+R$ 0,67');
+    expect(texts(fixture, '.tp-summary-total')).toEqual(['R$ 50,67']);
+    expect(texts(fixture, 'button.tp-btn-primary')[0]).toBe('Pagar R$ 50,67 no cartão');
+  });
+
+  it('sem taxa no cartão (backend antigo): nenhum selo nem linha nova', () => {
+    const { fixture, internals } = create();
+    internals.method.set('card');
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.tp-method-badge')).toBeNull();
+    expect(summaryValue(fixture, 'Taxa de antecipação')).toBeNull();
+    expect(texts(fixture, 'button.tp-btn-primary')[0]).toBe('Pagar R$ 50,00 no cartão');
+  });
+
+  it('cartão gerado: vale o total e a taxa que o servidor cobrou', () => {
+    const { fixture, internals } = create();
+    internals.cardFeePercent.set(1.33);
+    internals.cardResult.set({
+      paymentId: 'pay1',
+      invoiceUrl: 'https://sandbox.asaas.com/i/pay1',
+      expiresAt: new Date(Date.now() + 600_000).toISOString(),
+      amountReais: 50,
+      chargedReais: 50.67,
+      cardFeeReais: 0.67,
+      cardFeePercent: 1.33,
+    } as never);
+    fixture.detectChanges();
+
+    expect(summaryValue(fixture, 'Taxa de antecipação do cartão (1,33%)')).toBe('+R$ 0,67');
+    expect(texts(fixture, '.tp-pix-amount')).toEqual(['Cartão de R$ 50,67']);
+    expect(texts(fixture, '.tp-summary-total')).toEqual(['R$ 50,67']);
   });
 });

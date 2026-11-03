@@ -53,6 +53,26 @@ void main() {
       expect(_session().toJson()['version'], 2);
     });
 
+    test('preserva as formas aceitas no app; ausente = Pix e cartão', () {
+      final session = _session();
+      final json = session.toJson();
+      json['draft'] = {
+        ...(json['draft'] as Map<String, dynamic>),
+        'onlinePaymentMethods': TournamentOnlinePaymentMethods.pixOnly.name,
+      };
+      expect(
+        TournamentCreateSession.fromJson(json)!.draft.onlinePaymentMethods,
+        TournamentOnlinePaymentMethods.pixOnly,
+      );
+
+      final legacy = session.toJson();
+      (legacy['draft'] as Map<String, dynamic>).remove('onlinePaymentMethods');
+      expect(
+        TournamentCreateSession.fromJson(legacy)!.draft.onlinePaymentMethods,
+        TournamentOnlinePaymentMethods.pixAndCard,
+      );
+    });
+
     test('preserves the category minLevel (chosen preset floor)', () {
       final restored = TournamentCreateSession.fromJson(_session().toJson());
       expect(restored!.draft.categories.first.minLevel, 'Avançado 1');

@@ -59,6 +59,8 @@ class CardCheckoutPaymentResult {
     this.squadDiscountReais = 0,
     this.squadPerkReais = 0,
     this.serviceFeeReais = 0,
+    this.cardFeeReais = 0,
+    this.cardFeePercent = 0,
     double? chargedReais,
   }) : chargedReais = chargedReais ?? amountReais;
 
@@ -89,6 +91,13 @@ class CardCheckoutPaymentResult {
   /// e já dentro de [chargedReais]. 0 quando o organizador paga (ou resposta
   /// antiga).
   final double serviceFeeReais;
+
+  /// Taxa de antecipação do cartão repassada ao atleta, já dentro de
+  /// [chargedReais]. 0 sem taxa, na reserva de quadra ou resposta antiga.
+  final double cardFeeReais;
+
+  /// Percentual dessa taxa sobre o valor do cartão (0 sem taxa).
+  final double cardFeePercent;
 }
 
 /// Resposta da callable [createArenaBookingMercadoPagoPayment].
@@ -365,6 +374,8 @@ class PaymentService {
     final squadDiscount = (map['squadDiscountReais'] as num?)?.toDouble() ?? 0;
     final squadPerk = (map['squadPerkReais'] as num?)?.toDouble() ?? 0;
     final serviceFee = _serviceFeeOf(map);
+    final cardFee = (map['cardFeeReais'] as num?)?.toDouble() ?? 0;
+    final cardFeeOk = cardFee.isFinite && cardFee > 0;
     return CardCheckoutPaymentResult(
       paymentId: paymentId,
       invoiceUrl: invoiceUrl,
@@ -374,6 +385,10 @@ class PaymentService {
       squadDiscountReais: squadDiscount > 0 ? squadDiscount : 0,
       squadPerkReais: squadPerk > 0 ? squadPerk : 0,
       serviceFeeReais: serviceFee,
+      cardFeeReais: cardFeeOk ? cardFee : 0,
+      cardFeePercent: cardFeeOk
+          ? parseCardFeePercent(map['cardFeePercent'])
+          : 0,
       chargedReais: charged != null && charged > 0
           ? charged
           : _priceWithServiceFee(amount, serviceFee),

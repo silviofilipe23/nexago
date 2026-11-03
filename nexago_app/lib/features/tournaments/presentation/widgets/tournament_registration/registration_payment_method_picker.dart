@@ -8,62 +8,102 @@ import '../../../domain/registration_payment_method.dart';
 /// "Como você quer pagar?" — PIX ou cartão de crédito, antes de abrir a
 /// cobrança. Some quando já existe uma cobrança viva: uma por vez, como no
 /// portal.
+///
+/// Só os meios que o organizador aceita ([methods]); com um só não há
+/// escolha — o card mostra o meio e o valor, sem rádio. Com os dois e taxa
+/// de antecipação no cartão, o Pix aparece como o mais barato: o total do
+/// cartão riscado ao lado e o selo com a diferença (que é só a taxa).
 class RegistrationPaymentMethodPicker extends StatelessWidget {
   const RegistrationPaymentMethodPicker({
     super.key,
     required this.value,
     required this.amountReais,
     required this.onChanged,
+    this.methods = allRegistrationPaymentMethods,
+    this.cardFeeReais = 0,
+    this.cardFeePercent = 0,
     this.enabled = true,
   });
 
   static const pixKey = Key('payment-method-pix');
   static const cardKey = Key('payment-method-card');
+  static const pixSavingsKey = Key('payment-method-pix-savings');
+  static const cardFeeNoteKey = Key('payment-method-card-fee');
 
   final RegistrationPaymentMethod value;
 
-  /// Valor que a cobrança vai levar (com desconto e saldo já fora).
+  /// Valor que a cobrança no Pix vai levar (com desconto e saldo já fora).
   final double amountReais;
   final ValueChanged<RegistrationPaymentMethod> onChanged;
+
+  /// Meios aceitos pelo torneio, na ordem da tela.
+  final List<RegistrationPaymentMethod> methods;
+
+  /// Taxa de antecipação que o cartão soma por cima de [amountReais].
+  final double cardFeeReais;
+  final double cardFeePercent;
   final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    final amount = formatBRL(amountReais);
+    final single = methods.length == 1;
+    final hasCardFee = cardFeeReais > 0;
+    final cardTotal = formatBRL(amountReais + cardFeeReais);
+    final showPixSavings = !single && hasCardFee;
+    final tiles = <Widget>[
+      for (final method in methods)
+        switch (method) {
+          RegistrationPaymentMethod.pix => _MethodTile(
+              key: pixKey,
+              icon: Icons.pix_rounded,
+              accent: AppColors.win,
+              title: 'Pix · aprovação na hora',
+              subtitle: '${formatBRL(amountReais)} · pagar com seu banco',
+              struckAmount: showPixSavings ? cardTotal : null,
+              badge: showPixSavings
+                  ? '${formatBRL(cardFeeReais)} a menos que no cartão'
+                  : null,
+              badgeKey: pixSavingsKey,
+              selected: value == RegistrationPaymentMethod.pix,
+              showRadio: !single,
+              onTap: enabled && !single
+                  ? () => onChanged(RegistrationPaymentMethod.pix)
+                  : null,
+            ),
+          RegistrationPaymentMethod.card => _MethodTile(
+              key: cardKey,
+              icon: Icons.credit_card_rounded,
+              accent: AppColors.brand,
+              title: 'Cartão de crédito · à vista',
+              subtitle: '$cardTotal · checkout seguro do Asaas',
+              note: hasCardFee
+                  ? 'Inclui taxa de antecipação de '
+                      '${formatCardFeePercent(cardFeePercent)}'
+                  : null,
+              noteKey: cardFeeNoteKey,
+              selected: value == RegistrationPaymentMethod.card,
+              showRadio: !single,
+              onTap: enabled && !single
+                  ? () => onChanged(RegistrationPaymentMethod.card)
+                  : null,
+            ),
+        },
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Como você quer pagar?',
+          single ? 'Forma de pagamento' : 'Como você quer pagar?',
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w800,
                 color: context.themeColors.onSurface,
               ),
         ),
         const SizedBox(height: 10),
-        _MethodTile(
-          key: pixKey,
-          icon: Icons.pix_rounded,
-          accent: AppColors.win,
-          title: 'Pix · aprovação na hora',
-          subtitle: '$amount · pagar com seu banco',
-          selected: value == RegistrationPaymentMethod.pix,
-          onTap: enabled
-              ? () => onChanged(RegistrationPaymentMethod.pix)
-              : null,
-        ),
-        const SizedBox(height: 10),
-        _MethodTile(
-          key: cardKey,
-          icon: Icons.credit_card_rounded,
-          accent: AppColors.brand,
-          title: 'Cartão de crédito · à vista',
-          subtitle: '$amount · checkout seguro do Asaas',
-          selected: value == RegistrationPaymentMethod.card,
-          onTap: enabled
-              ? () => onChanged(RegistrationPaymentMethod.card)
-              : null,
-        ),
+        for (var i = 0; i < tiles.length; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          tiles[i],
+        ],
       ],
     );
   }
@@ -78,6 +118,12 @@ class _MethodTile extends StatelessWidget {
     required this.subtitle,
     required this.selected,
     required this.onTap,
+    this.struckAmount,
+    this.badge,
+    this.badgeKey,
+    this.note,
+    this.noteKey,
+    this.showRadio = true,
   });
 
   final IconData icon;
@@ -86,6 +132,20 @@ class _MethodTile extends StatelessWidget {
   final String subtitle;
   final bool selected;
   final VoidCallback? onTap;
+
+  /// Valor riscado antes do [subtitle] (o total do cartão, no Pix).
+  final String? struckAmount;
+
+  /// Selo verde abaixo do valor ("R$ 1,33 a menos que no cartão").
+  final String? badge;
+  final Key? badgeKey;
+
+  /// Linha miúda abaixo do valor ("Inclui taxa de antecipação de 1,33%").
+  final String? note;
+  final Key? noteKey;
+
+  /// Sem escolha (um meio só): o card é só informativo, sem rádio.
+  final bool showRadio;
 
   @override
   Widget build(BuildContext context) {
@@ -141,28 +201,107 @@ class _MethodTile extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: context.themeColors.onSurfaceMuted,
+                      if (struckAmount case final struck?)
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(
+                                text: struck,
+                                style: const TextStyle(
+                                  decoration: TextDecoration.lineThrough,
+                                ),
+                              ),
+                              const TextSpan(text: '  '),
+                              TextSpan(
+                                text: subtitle,
+                                style: TextStyle(
+                                  color: context.themeColors.onSurface,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: context.themeColors.onSurfaceMuted,
+                          ),
+                        )
+                      else
+                        Text(
+                          subtitle,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: context.themeColors.onSurfaceMuted,
+                          ),
                         ),
-                      ),
+                      if (note != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          note!,
+                          key: noteKey,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: context.themeColors.onSurfaceMuted,
+                          ),
+                        ),
+                      ],
+                      if (badge != null) ...[
+                        const SizedBox(height: 6),
+                        _SavingsBadge(key: badgeKey, label: badge!),
+                      ],
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Icon(
-                  selected
-                      ? Icons.radio_button_checked_rounded
-                      : Icons.radio_button_unchecked_rounded,
-                  color: selected
-                      ? AppColors.brand
-                      : context.themeColors.onSurfaceMuted,
-                  size: 22,
-                ),
+                if (showRadio) ...[
+                  const SizedBox(width: 8),
+                  Icon(
+                    selected
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    color: selected
+                        ? AppColors.brand
+                        : context.themeColors.onSurfaceMuted,
+                    size: 22,
+                  ),
+                ],
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Selo do Pix mais barato: a diferença para o cartão, em verde.
+class _SavingsBadge extends StatelessWidget {
+  const _SavingsBadge({super.key, required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = context.themeColors.win;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: AppColors.win.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.south_rounded, size: 13, color: color),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+            ),
+          ],
         ),
       ),
     );

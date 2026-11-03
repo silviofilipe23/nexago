@@ -133,6 +133,35 @@ class TournamentCreateRegistrationPage extends ConsumerWidget {
             ),
             const SizedBox(height: 10),
           ],
+          if (draft.paymentMode == TournamentPaymentMode.appPixCard) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Formas aceitas no app',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: context.themeColors.onSurface,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            OrganizerChipSelector<TournamentOnlinePaymentMethods>(
+              key: const Key('online-payment-methods'),
+              options: TournamentOnlinePaymentMethods.values,
+              selected: draft.onlinePaymentMethods,
+              labelBuilder: onlinePaymentMethodsLabel,
+              onSelected: (value) => ref
+                  .read(tournamentCreateWizardProvider.notifier)
+                  .setOnlinePaymentMethods(value),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              onlinePaymentMethodsHint,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: context.themeColors.onSurfaceMuted,
+                    height: 1.4,
+                  ),
+            ),
+            const SizedBox(height: 16),
+          ],
           if (draft.paymentMode ==
               TournamentPaymentMode.directWithOrganizer) ...[
             const SizedBox(height: 8),

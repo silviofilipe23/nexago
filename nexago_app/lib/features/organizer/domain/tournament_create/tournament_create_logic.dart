@@ -132,6 +132,18 @@ String paymentModeDescription(TournamentPaymentMode mode) => switch (mode) {
     'Você combina e recebe por fora. O app só reserva a vaga.',
 };
 
+String onlinePaymentMethodsLabel(TournamentOnlinePaymentMethods value) =>
+    switch (value) {
+      TournamentOnlinePaymentMethods.pixAndCard => 'Pix e cartão',
+      TournamentOnlinePaymentMethods.pixOnly => 'Só Pix',
+      TournamentOnlinePaymentMethods.cardOnly => 'Só cartão',
+    };
+
+/// Aviso abaixo da escolha das formas aceitas no app.
+const onlinePaymentMethodsHint =
+    'No cartão, o atleta paga a taxa de antecipação por cima do valor. '
+    'O seu repasse não muda.';
+
 /// Dados PIX obrigatórios apenas no modo "pagar direto com o organizador".
 /// Exige chave e nome do recebedor; cidade é opcional (default no BR Code).
 bool organizerPixComplete(TournamentCreateDraft draft) {

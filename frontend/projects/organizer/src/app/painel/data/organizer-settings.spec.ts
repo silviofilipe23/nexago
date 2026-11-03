@@ -92,6 +92,11 @@ describe('organizer-settings', () => {
       expect(Object.keys(s.profile).sort()).toEqual(['city', 'contactEmail', 'contactPhone', 'logoUrl', 'orgName', 'state']);
     });
 
+    it('formas aceitas: ausente vale as duas; a escolha gravada volta', () => {
+      expect(parseOrganizerSettings({}).defaults.onlinePaymentMethods).toEqual(['pix', 'card']);
+      expect(parseOrganizerSettings({ organizerDefaults: { onlinePaymentMethods: ['card'] } }).defaults.onlinePaymentMethods).toEqual(['card']);
+    });
+
     it('preserva regulamento com espaços e quebras de linha', () => {
       const notes = '  Regra 1\n\nRegra 2  ';
       expect(parseOrganizerSettings({ organizerDefaults: { regulationNotes: notes } }).defaults.regulationNotes).toBe(notes);
@@ -117,6 +122,11 @@ describe('organizer-settings', () => {
       expect(out.defaultPriceCents).toBe(15000);
       expect(out.visibility).toBe('linkOnly');
       expect(out.waitlistEnabled).toBeFalse();
+    });
+
+    it('o rascunho novo herda as formas aceitas no pagamento pelo app', () => {
+      const out = applyOrganizerDefaults(emptyTournamentDraft(), defaultsWith({ onlinePaymentMethods: ['pix'] }));
+      expect(out.onlinePaymentMethods).toEqual(['pix']);
     });
 
     it('não encosta em identidade, datas, local nem categorias', () => {

@@ -73,6 +73,10 @@ import {
   REGISTRATION_HOLD_OPTIONS,
   registrationHoldLabel,
   upToLevelHint,
+  ONLINE_PAYMENT_OPTIONS,
+  onlinePaymentLabel,
+  onlinePaymentMethodsForLabel,
+  paymentSummaryLabel,
 } from '../../data/tournament-create.model';
 import { OgCardComponent } from '../../ui/card.component';
 import { OgCategoryCardComponent } from '../../ui/category-card.component';
@@ -582,6 +586,16 @@ function sameDay(a: Date, b: Date): boolean {
                       (click)="patch({ paymentMode: 'directWithOrganizer' })"
                     /> -->
                   </div>
+                  @if (draft().paymentMode === 'appPixCard') {
+                    <og-form-field label="Formas aceitas" style="margin-top:14px">
+                      <og-select-chips
+                        [options]="onlinePaymentOptions"
+                        [active]="onlinePaymentActive()"
+                        (changed)="patch({ onlinePaymentMethods: onlinePaymentMethodsForLabel($event) })"
+                      />
+                    </og-form-field>
+                    <p class="og-wizard-hint">No cartão o atleta paga a taxa de antecipação por cima do valor. Seu repasse não muda.</p>
+                  }
                   @if (draft().paymentMode === 'directWithOrganizer') {
                     <div class="og-field-grid" style="margin-top:14px">
                       <og-form-field label="Chave PIX">
@@ -865,6 +879,10 @@ export class CriarTorneioComponent {
   /** Capa escolhida localmente (ainda não enviada) + URL de preview (object URL do arquivo,
    *  ou a `coverImageUrl` já salva no doc em modo edição). */
   protected readonly holdOptions = REGISTRATION_HOLD_OPTIONS;
+  /** "Pix e cartão" (padrão), "Só Pix", "Só cartão" — `onlinePaymentMethods` do torneio. */
+  protected readonly onlinePaymentOptions = ONLINE_PAYMENT_OPTIONS.map((o) => o.label);
+  protected readonly onlinePaymentActive = computed(() => onlinePaymentLabel(this.draft().onlinePaymentMethods));
+  protected readonly onlinePaymentMethodsForLabel = onlinePaymentMethodsForLabel;
   protected readonly maxCoverMb = 5;
   protected readonly coverFile = signal<File | null>(null);
   private coverObjectUrl: string | null = null;
@@ -1631,7 +1649,7 @@ export class CriarTorneioComponent {
   protected reviewRegistration(): string {
     const d = this.draft();
     const period = `${datetimeToInput(d.registrationOpensAt)}–${datetimeToInput(d.registrationClosesAt)}`;
-    const payment = d.paymentMode === 'appPixCard' ? 'Pix e cartão pelo app' : 'pagamento direto';
+    const payment = paymentSummaryLabel(d.paymentMode, d.onlinePaymentMethods);
     const waitlist = d.waitlistEnabled ? 'lista de espera ativa' : 'sem lista de espera';
     const hold = d.registrationHoldEnabled
       ? `garantia de ${registrationHoldLabel(d.registrationHoldMinutes)}`

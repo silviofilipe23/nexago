@@ -76,6 +76,11 @@ abstract final class TournamentCreateMapper {
           ? Timestamp.fromDate(draft.registrationClosesAt!)
           : null,
       'paymentMode': draft.paymentMode.name,
+      // Lista explícita só no pagamento pelo app (ausente = as duas).
+      'onlinePaymentMethods':
+          draft.paymentMode == TournamentPaymentMode.appPixCard
+          ? draft.onlinePaymentMethods.firestoreValue
+          : null,
       'organizerPix':
           draft.paymentMode == TournamentPaymentMode.directWithOrganizer
           ? {
@@ -169,6 +174,9 @@ abstract final class TournamentCreateMapper {
       registrationOpensAt: _timestamp(data['registrationOpensAt']),
       registrationClosesAt: _timestamp(data['registrationClosesAt']),
       paymentMode: _parsePaymentMode(data['paymentMode'] as String?),
+      onlinePaymentMethods: parseTournamentOnlinePaymentMethods(
+        data['onlinePaymentMethods'],
+      ),
       organizerPixKey: _pixField(data['organizerPix'], 'key'),
       organizerPixKeyType: _pixField(data['organizerPix'], 'keyType'),
       organizerPixRecipientName: _pixField(data['organizerPix'], 'recipientName'),

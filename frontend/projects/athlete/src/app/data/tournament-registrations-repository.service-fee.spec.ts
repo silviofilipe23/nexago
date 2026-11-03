@@ -1,4 +1,4 @@
-import { registrationChargeFromResponse } from './tournament-registrations-repository';
+import { cardChargeFromResponse, registrationChargeFromResponse } from './tournament-registrations-repository';
 
 describe('registrationChargeFromResponse — taxa de serviço', () => {
   const base = {
@@ -36,5 +36,29 @@ describe('registrationChargeFromResponse — taxa de serviço', () => {
     expect(pix.squadDiscountReais).toBe(0);
     expect(pix.cashbackAppliedReais).toBe(0);
     expect(pix.chargedReais).toBe(50);
+  });
+});
+
+describe('cardChargeFromResponse — taxa de antecipação do cartão', () => {
+  const base = {
+    paymentId: 'pay_2',
+    invoiceUrl: 'https://sandbox.asaas.com/i/pay_2',
+    expiresAt: '2026-10-26T22:00:00.000Z',
+    amountReais: 50,
+  };
+
+  it('a taxa do cartão vem à parte e já dentro do cobrado', () => {
+    const card = cardChargeFromResponse({ ...base, chargedReais: 50.67, cardFeeReais: 0.67, cardFeePercent: 1.33 });
+    expect(card.amountReais).toBe(50);
+    expect(card.cardFeeReais).toBe(0.67);
+    expect(card.cardFeePercent).toBe(1.33);
+    expect(card.chargedReais).toBe(50.67);
+  });
+
+  it('backend antigo (sem os campos): cartão sem taxa e o cobrado é o preço', () => {
+    const card = cardChargeFromResponse(base);
+    expect(card.cardFeeReais).toBe(0);
+    expect(card.cardFeePercent).toBe(0);
+    expect(card.chargedReais).toBe(50);
   });
 });

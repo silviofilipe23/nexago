@@ -1,3 +1,5 @@
+import 'registration_payment_method.dart';
+
 /// Estado passado para a tela de pagamento PIX da inscrição em torneio.
 class TournamentRegistrationPixArgs {
   const TournamentRegistrationPixArgs({
@@ -11,6 +13,7 @@ class TournamentRegistrationPixArgs {
     this.holdExpiresAt,
     this.holdMinutes = 30,
     this.ownShareReais,
+    this.onlinePaymentMethods = allRegistrationPaymentMethods,
   });
 
   final String registrationId;
@@ -33,4 +36,8 @@ class TournamentRegistrationPixArgs {
   /// mesmo pagando a dupla/equipe inteira). `null` = [shareAmountReais] no
   /// `share`; no `full`, a tela estima pelo tamanho do elenco.
   final double? ownShareReais;
+
+  /// Formas que o organizador aceita (`tournaments.onlinePaymentMethods`).
+  /// Com uma só a tela não pergunta. Padrão: as duas (acervo, deep link).
+  final List<RegistrationPaymentMethod> onlinePaymentMethods;
 }

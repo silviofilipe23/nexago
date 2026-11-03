@@ -263,22 +263,35 @@
                 <div class="tp-method-section">
                   <p class="tp-amount-label">Como você quer pagar?</p>
                   <div class="tp-method-toggle" role="group" aria-label="Meio de pagamento">
+                    <!-- Com taxa no cartão o Pix é o mais barato — e é verdade: a diferença é a taxa de
+                         antecipação, que só o cartão tem. Sem taxa (backend antigo), os dois de sempre. -->
                     <button
                       type="button"
                       class="tp-method-btn"
-                      [class.tp-method-btn--active]="method() === 'pix'"
+                      [class.tp-method-btn--active]="selectedMethod() === 'pix'"
                       (click)="setMethod('pix')"
                     >
                       <span class="tp-method-btn-title">Pix</span>
+                      @if (pixSavingsReais() > 0) {
+                        <span class="tp-method-btn-price">
+                          <s class="tp-method-btn-was">{{ formatBRL(cardTotalReais()) }}</s>
+                          <strong>{{ formatBRL(baseDueReais()) }}</strong>
+                        </span>
+                        <span class="tp-method-badge">{{ formatBRL(pixSavingsReais()) }} a menos que no cartão</span>
+                      }
                       <span class="tp-method-btn-hint">Confirmação na hora</span>
                     </button>
                     <button
                       type="button"
                       class="tp-method-btn"
-                      [class.tp-method-btn--active]="method() === 'card'"
+                      [class.tp-method-btn--active]="selectedMethod() === 'card'"
                       (click)="setMethod('card')"
                     >
                       <span class="tp-method-btn-title">Cartão de crédito</span>
+                      @if (pixSavingsReais() > 0) {
+                        <span class="tp-method-btn-price"><strong>{{ formatBRL(cardTotalReais()) }}</strong></span>
+                        <span class="tp-method-btn-hint">Inclui taxa de antecipação ({{ cardFeePercentLabel() }}%)</span>
+                      }
                       <span class="tp-method-btn-hint">Checkout seguro do Asaas</span>
                     </button>
                   </div>
@@ -337,10 +350,10 @@
                     [priceReais]="dueAfterSquadReais()"
                     [availableCents]="cashback.availableCents()"
                     [config]="cashback.config()"
-                    [chargeLabel]="method() === 'card' ? 'cartão' : 'PIX'"
+                    [chargeLabel]="selectedMethod() === 'card' ? 'cartão' : 'PIX'"
                     [(use)]="useCashback"
                   />
-                  @if (method() === 'card') {
+                  @if (selectedMethod() === 'card') {
                     <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="generateCardCheckout()">
                       @if (processing()) {
                         <app-nx-spinner [size]="14" tone="dark" />
@@ -448,6 +461,14 @@
               <div class="tp-summary-row">
                 <span class="tp-summary-label">Cashback</span>
                 <span class="tp-summary-value tp-summary-value--discount">&minus;{{ formatBRL(cashbackAppliedReais()) }}</span>
+              </div>
+            }
+            <!-- Só com o cartão escolhido (ou gerado): incide sobre o que vai ao cartão, depois do
+                 cashback — por isso vem por último. -->
+            @if (cardFeeDueReais() > 0) {
+              <div class="tp-summary-row">
+                <span class="tp-summary-label">Taxa de antecipação do cartão ({{ cardFeePercentLabel() }}%)</span>
+                <span class="tp-summary-value">+{{ formatBRL(cardFeeDueReais()) }}</span>
               </div>
             }
             @if (totalPriceReais() > 0) {

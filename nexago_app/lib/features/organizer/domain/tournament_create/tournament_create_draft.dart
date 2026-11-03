@@ -51,6 +51,32 @@ enum TournamentBestOf { singleSet, bestOf3, bestOf5 }
 
 enum TournamentPaymentMode { appPixCard, directWithOrganizer }
 
+/// Formas aceitas no pagamento pelo app (`tournaments.onlinePaymentMethods`;
+/// só vale com [TournamentPaymentMode.appPixCard]). Padrão: as duas.
+enum TournamentOnlinePaymentMethods { pixAndCard, pixOnly, cardOnly }
+
+extension TournamentOnlinePaymentMethodsX on TournamentOnlinePaymentMethods {
+  /// Lista explícita gravada no Firestore.
+  List<String> get firestoreValue => switch (this) {
+    TournamentOnlinePaymentMethods.pixAndCard => const ['pix', 'card'],
+    TournamentOnlinePaymentMethods.pixOnly => const ['pix'],
+    TournamentOnlinePaymentMethods.cardOnly => const ['card'],
+  };
+}
+
+/// Lê `onlinePaymentMethods`. Ausente, vazio ou fora do contrato = as duas
+/// (todo o acervo anterior à escolha) — mesma regra das functions.
+TournamentOnlinePaymentMethods parseTournamentOnlinePaymentMethods(
+  Object? raw,
+) {
+  if (raw is! List) return TournamentOnlinePaymentMethods.pixAndCard;
+  final pix = raw.contains('pix');
+  final card = raw.contains('card');
+  if (pix && !card) return TournamentOnlinePaymentMethods.pixOnly;
+  if (card && !pix) return TournamentOnlinePaymentMethods.cardOnly;
+  return TournamentOnlinePaymentMethods.pixAndCard;
+}
+
 enum TournamentVisibility { publicListing, linkOnly }
 
 enum TournamentCategoryGender { male, female, mixed }
@@ -347,6 +373,7 @@ class TournamentCreateDraft {
     this.registrationOpensAt,
     this.registrationClosesAt,
     this.paymentMode = TournamentPaymentMode.appPixCard,
+    this.onlinePaymentMethods = TournamentOnlinePaymentMethods.pixAndCard,
     this.organizerPixKey = '',
     this.organizerPixKeyType = '',
     this.organizerPixRecipientName = '',
@@ -394,6 +421,9 @@ class TournamentCreateDraft {
   final DateTime? registrationOpensAt;
   final DateTime? registrationClosesAt;
   final TournamentPaymentMode paymentMode;
+
+  /// Formas aceitas quando [paymentMode] é appPixCard.
+  final TournamentOnlinePaymentMethods onlinePaymentMethods;
 
   /// Dados PIX do organizador (usados quando [paymentMode] é directWithOrganizer).
   final String organizerPixKey;
@@ -462,6 +492,7 @@ class TournamentCreateDraft {
     DateTime? registrationOpensAt,
     DateTime? registrationClosesAt,
     TournamentPaymentMode? paymentMode,
+    TournamentOnlinePaymentMethods? onlinePaymentMethods,
     String? organizerPixKey,
     String? organizerPixKeyType,
     String? organizerPixRecipientName,
@@ -509,6 +540,7 @@ class TournamentCreateDraft {
       registrationOpensAt: registrationOpensAt ?? this.registrationOpensAt,
       registrationClosesAt: registrationClosesAt ?? this.registrationClosesAt,
       paymentMode: paymentMode ?? this.paymentMode,
+      onlinePaymentMethods: onlinePaymentMethods ?? this.onlinePaymentMethods,
       organizerPixKey: organizerPixKey ?? this.organizerPixKey,
       organizerPixKeyType: organizerPixKeyType ?? this.organizerPixKeyType,
       organizerPixRecipientName:

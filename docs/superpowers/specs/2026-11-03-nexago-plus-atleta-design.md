@@ -153,6 +153,47 @@ Assinatura recorrente no Asaas (mesma base dos planos de arena e de horário), i
 inscrição até o teto via motor de perks, selo, contador de economia, pausa. Quem está na lista
 recebe o convite primeiro (push).
 
+> **Bloqueio (03/11/2026): hoje não existe taxa do atleta para isentar.** No DEV (o backend do
+> app da loja), desde 1º/ago foram **137 inscrições pagas, nenhuma com `serviceFeeCents`**, e
+> nenhuma com taxa de cartão (o #1088 é recente). Motivo: `appConfig/tournamentFees` não existe, e o
+> padrão é 8% **pago pelo organizador**; as 2 exceções por torneio também não definem `payer`. O
+> pilar Economia da Fase 1 vale R$ 0 até a nexaGO decidir cobrar parte da taxa do atleta
+> (`payer: atleta` ou `dividido`). Essa é uma decisão de negócio (piora o grátis em troca de criar a
+> economia do plano) e precisa vir antes de construir a Fase 1. Alternativa: começar pelos pilares
+> Status, Evolução e Prioridade e usar os interesses da lista de espera para escolher.
+
+#### Protótipo da Fase 1 (`NexaGO Atleta - nexaGO+ Fase 1.html`, 27 telas, `np1-app-a/b/c.jsx`)
+
+Decisões do design, revisadas:
+- **Teto por mês civil, pela data em que a inscrição é paga:** aceito. É o mesmo critério do
+  benefício do Squad (mês civil de SP, contado na confirmação). Isenção gasta não volta se a
+  inscrição for removida ou estornada, também como no Squad.
+- **Inscrição grátis do embaixador não gasta a isenção, e cobre a taxa:** aceito. A parcela grátis
+  não passa pelo Asaas (`free_{reg}_{uid}`), então não há taxa.
+- **Pausa tira selo e moldura:** aceito ("sem benefício").
+- **"Retomar agora" cobra no dia e muda o dia da renovação:** aceito **no mensal**. No anual já pago,
+  retomar não cobra; só recalcula a data de fim.
+- **7 dias de carência na recusa:** aceito; é a mesma política do plano da arena (`overdue` + 7 dias).
+  A exposição fica limitada ao teto do mês.
+- **Desfazer o cancelamento até o fim do período:** aceito.
+- **Economia da tela do plano calculada com o teto mês a mês:** aceito (número honesto).
+- **Push do mês fraco sem forçar otimismo:** aceito.
+- **"Últimos torneios" no perfil:** aceito; o perfil público já lê partidas e equipes públicas.
+- **Anual "à vista ou em até 12×", sem valor de parcela:** aceito. Confirmar com o Asaas: a
+  assinatura recorrente e o parcelamento são produtos diferentes. O anual parcelado deve ser uma
+  cobrança parcelada recriada a cada renovação.
+
+Dados que o design pediu, conferidos no código:
+| Dado | Existe? |
+|---|---|
+| Final do cartão e motivo da recusa | **Não gravamos.** O webhook do Asaas traz os dados do cartão do pagamento; seria preciso persistir. Motivo detalhado da recusa: não contar com ele, a tela usa texto genérico. |
+| Lote e vencimento do cashback | **Sim.** `athleteWallets/{uid}/lots/{lotId}` (`remainingCents`, `expiresAt`, `status`); o app já lê. |
+| Se o organizador paga a taxa | **Sim, por torneio, antes de pagar:** callable `getTournamentServiceFee` (`payer`). Hoje dá `organizador` em todos. |
+| Taxa de inscrição paga por mês | **No servidor:** `asaas_processed_payments` (`serviceFeeCents`, `payerUid`, `confirmedAt`). Falta callable que agregue por mês. Hoje tudo é zero. |
+| Embaixador e quanto do benefício resta | **Em parte.** `getMySquad` diz o pacote (`registrations.type/value`); o uso do mês não volta na resposta. Falta esse campo. |
+| Torneios abertos com a taxa de cada um | **A lista existe; a taxa não.** A taxa sai de uma chamada por torneio (`getTournamentServiceFee`); na lista, não mostrar taxa por torneio. |
+| Data de entrada na lista de espera | **Sim:** `athletePlusWaitlist/{uid}.createdAt`. O "sua vaga chegou" precisa de um campo novo gravado pelo servidor (`invitedAt`); a rule não deixa o cliente regravar o doc. |
+
 ### Fase 2 — Evolução
 
 Relatório "Seu mês no nexaGO" + push mensal; inscrição antecipada opcional por torneio.

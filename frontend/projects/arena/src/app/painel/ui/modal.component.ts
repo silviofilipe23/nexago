@@ -1,10 +1,14 @@
-import { ChangeDetectionStrategy, Component, HostListener, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input, output } from '@angular/core';
+import { PersonPhotoService } from './person-photo.service';
 
 /** Overlay de modal genérico (protótipo ArModal): scrim + painel centralizado, conteúdo projetado. Fecha no scrim, no X ou em Escape.
  *  `size="lg"` abre o painel até 600px, para formulários com duas colunas (ex.: convite de professor). */
 @Component({
   selector: 'ar-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '(document:keydown.escape)': 'onEscape()',
+  },
   template: `
     <div class="scrim" (click)="close.emit()">
       <div class="panel" [class.lg]="size() === 'lg'" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
@@ -59,8 +63,11 @@ export class ModalComponent {
   readonly close = output<void>();
   readonly size = input<'md' | 'lg'>('md');
 
-  @HostListener('document:keydown.escape')
+  private readonly photos = inject(PersonPhotoService);
+
   protected onEscape(): void {
+    // Foto ampliada aberta de dentro do modal: o Escape é dela, não pode fechar o modal junto.
+    if (this.photos.photo()) return;
     this.close.emit();
   }
 }

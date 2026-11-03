@@ -131,8 +131,8 @@ class AthletePlusWaitlistCard extends ConsumerWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Inscrição sem taxa de serviço e seu mês em '
-                        'números. Quer ser avisado?',
+                        'Selo de assinante, seu mês em números e '
+                        'vantagens nas inscrições. Quer ser avisado?',
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.bodyS.copyWith(

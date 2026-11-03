@@ -18,7 +18,8 @@ AthletePlusWaitlistStatus? athletePlusWaitlistStatusFromKey(Object? key) {
 /// Pilares do pacote — o "o que mais te interessa" da folha. As chaves vão
 /// para o Firestore e o analytics; as rules conferem a mesma lista.
 enum AthletePlusInterest {
-  savings('savings', 'Economia', 'Inscrição em torneio sem taxa de serviço'),
+  // Sem prometer "sem taxa": hoje o atleta não paga taxa de serviço (spec, bloqueio da Fase 1).
+  savings('savings', 'Economia', 'Descontos nas inscrições de torneio'),
   evolution(
       'evolution', 'Evolução', 'Seu mês em números: rating, parceiros e metas'),
   status('status', 'Status', 'Selo de assinante no perfil e cards exclusivos'),

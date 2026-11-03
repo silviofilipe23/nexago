@@ -161,6 +161,20 @@ recebe o convite primeiro (push).
 > (`payer: atleta` ou `dividido`). Essa é uma decisão de negócio (piora o grátis em troca de criar a
 > economia do plano) e precisa vir antes de construir a Fase 1. Alternativa: começar pelos pilares
 > Status, Evolução e Prioridade e usar os interesses da lista de espera para escolher.
+>
+> **Decisão do dono (03/11/2026): esperar a lista de espera.** Nada da Fase 1 é construído antes
+> de ler os dados. Como ler (`athlete-plus-waitlist-report.js` + Analytics):
+> - **Quando:** depois de 4 semanas com o card num build da loja e pelo menos 200 atletas que viram o
+>   card (`athlete_plus_card_shown`, usuários únicos). Antes disso, a amostra não decide.
+> - **Interesse geral < 8%** de quem viu entra na lista: o plano não tem demanda; voltar à spec.
+> - **"Economia" é o interesse nº 1:** o dono decide sobre a taxa do atleta (`dividido`) antes da Fase
+>   1. Sem essa decisão, a economia continua valendo R$ 0.
+> - **"Status", "Evolução" ou "Prioridade" lideram:** a Fase 1 começa por esses pilares, sem isenção
+>   de taxa, e o protótipo da Fase 1 é refeito sem o contador de economia.
+> - **Faixa de preço:** a mediana das respostas vira o teto inicial do preço.
+>
+> O texto do card e da folha deixou de prometer "sem taxa de serviço" (ninguém paga hoje): a opção
+> Economia fala em descontos nas inscrições, sem dizer quais.
 
 #### Protótipo da Fase 1 (`NexaGO Atleta - nexaGO+ Fase 1.html`, 27 telas, `np1-app-a/b/c.jsx`)
 

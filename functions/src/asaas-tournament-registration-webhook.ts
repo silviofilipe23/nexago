@@ -39,7 +39,7 @@ import {
   resolveCategoryEntryFee,
 } from "./tournament-registration-guards";
 import {deliverNotificationToUser} from "./notification-delivery";
-import {resolveGatewayFeeReais} from "./asaas-gateway-fee";
+import {gatewayFeeBeyondCovered, resolveGatewayFeeReais} from "./asaas-gateway-fee";
 import {registrationHoldClearedFields} from "./tournament-registration-hold-ops";
 import {tournamentManagerUids} from "./tournament-acl";
 import {organizerTournamentNotificationLinks} from "./organizer-notification-links";
@@ -170,20 +170,26 @@ export function resolveServiceFeeReais(p: {
 }
 
 /**
- * Taxa de antecipação do cartão que o atleta pagou por cima (`card-anticipation-fee.ts`), em reais.
- * Mesma origem da parte da taxa de serviço: congelada no processado depois da confirmação; na
- * confirmação, a do pendente desta cobrança. Pendente de outra cobrança não tem como refazer (o
- * percentual vem do Asaas): fica 0 e o organizador recebe a taxa junto — nunca a menos.
+ * Taxas do cartão que o atleta pagou por cima (`card-anticipation-fee.ts`), em reais: o acréscimo
+ * inteiro e a parte dele que cobre o processamento do Asaas. Mesma origem da parte da taxa de
+ * serviço: congeladas no processado depois da confirmação; na confirmação, as do pendente desta
+ * cobrança. Pendente de outra cobrança não tem como refazer (os termos vêm do Asaas): fica 0 e o
+ * organizador recebe o acréscimo junto e paga o processamento, como antes — nunca a menos.
+ * Cobrança anterior ao repasse do processamento (só `cardFeeCents`) = só antecipação.
  */
 export function resolveCardFeeReais(p: {
   confirm: boolean;
   processed: Record<string, unknown>;
   pending: Record<string, unknown> | undefined;
   paymentId: string;
-}): number {
-  if (!p.confirm) return centsOf(p.processed["cardFeeCents"]) / 100;
-  if (p.pending?.["asaasPaymentId"] !== p.paymentId) return 0;
-  return centsOf(p.pending["cardFeeCents"]) / 100;
+}): {feeReais: number; processingReais: number} {
+  const source = !p.confirm ? p.processed :
+    p.pending?.["asaasPaymentId"] === p.paymentId ? p.pending : undefined;
+  if (!source) return {feeReais: 0, processingReais: 0};
+  return {
+    feeReais: centsOf(source["cardFeeCents"]) / 100,
+    processingReais: centsOf(source["cardProcessingCents"]) / 100,
+  };
 }
 
 export async function processTournamentRegistrationAsaasNotification(
@@ -315,12 +321,17 @@ export async function processTournamentRegistrationAsaasNotification(
     const squadDiscount = await resolveSquadDiscountCents(db, paymentId, pendingSnap.data()) +
       await resolveSquadPerkCents(db, paymentId, pendingSnap.data());
     // Taxa de antecipação do cartão: do atleta para a plataforma, fora de tudo que é preço.
-    const cardFeeReais = resolveCardFeeReais({
+    const {feeReais: cardFeeReais, processingReais: cardProcessingReais} = resolveCardFeeReais({
       confirm: phases.confirm,
       processed,
       pending: pendingSnap.data(),
       paymentId,
     });
+    // Taxa do gateway do recebedor: a do Asaas menos o processamento que o atleta já pagou por cima.
+    const organizerGatewayFeeReais = gatewayFeeBeyondCovered(
+      resolveGatewayFeeReais(payment, billingType, paidOnline),
+      cardProcessingReais,
+    );
     const chargedGross = roundMoney(paidOnline - cardFeeReais + appliedCents / 100 + squadDiscount / 100);
 
     // Regra da taxa do torneio (`tournament-fees.ts`): exceção do torneio,
@@ -524,6 +535,7 @@ export async function processTournamentRegistrationAsaasNotification(
         ...(organizerId && feeRule ? {platformFee: {...feeRule}} : {}),
         ...(serviceFeeReais > 0 ? {serviceFeeCents: Math.round(serviceFeeReais * 100)} : {}),
         ...(cardFeeReais > 0 ? {cardFeeCents: Math.round(cardFeeReais * 100)} : {}),
+        ...(cardProcessingReais > 0 ? {cardProcessingCents: Math.round(cardProcessingReais * 100)} : {}),
         ...(intentHasWork(intent) ? cashbackIntentFields(intent) : {}),
       }, {merge: true});
 
@@ -660,7 +672,7 @@ export async function processTournamentRegistrationAsaasNotification(
             netReais: organizerNetReais({
               grossReais: grossOnline,
               platformFeeReais: fee.organizerFeeReais,
-              gatewayFeeReais: resolveGatewayFeeReais(payment, billingType, paidOnline),
+              gatewayFeeReais: organizerGatewayFeeReais,
             }),
           });
         } catch (awaitErr) {
@@ -709,7 +721,7 @@ export async function processTournamentRegistrationAsaasNotification(
           serviceFeeReais,
           cardFeeReais,
           // A taxa do gateway é sobre o que o Asaas cobrou (o dinheiro), não sobre o bruto.
-          gatewayFeeReais: resolveGatewayFeeReais(payment, billingType, paidOnline),
+          gatewayFeeReais: organizerGatewayFeeReais,
           cashbackAppliedReais: appliedCents / 100,
           squadDiscountReais: squadDiscount / 100,
           // A fase é marcada (`walletCreditedAt`) na mesma transação do

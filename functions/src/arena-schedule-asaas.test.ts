@@ -709,11 +709,11 @@ describe("planos de horário online — tela de pagamento (Pix no app)", () => {
   });
 });
 
-describe("planos de horário online — cartão com taxa de antecipação", () => {
+describe("planos de horário online — cartão com as taxas por cima", () => {
   async function cardCheckout(fake: FakeFirestore, db: Firestore) {
     const {groupId, deps, calls} = await openGroup(fake, db);
     const cardCalls: Array<{valueReais: number; feeCents: number; customerId: string}> = [];
-    deps.cardFeePercent = async () => 1.33;
+    deps.cardFeeTerms = async () => ({anticipationPercent: 1.33, processingPercent: 2.99, fixedReais: 0.49});
     deps.createCardPayment = async (input) => {
       cardCalls.push({valueReais: input.valueReais, feeCents: input.feeCents, customerId: input.customerId});
       return {paymentId: `card_${input.groupId}`, invoiceUrl: `https://asaas.test/c/${input.groupId}`};
@@ -722,18 +722,21 @@ describe("planos de horário online — cartão com taxa de antecipação", () =
     return {groupId, deps, calls, cardCalls, out};
   }
 
-  it("cartão: cobrança à parte com a taxa por cima; a fatura do Pix fica como está", async () => {
+  it("cartão: cobrança à parte com as taxas por cima; a fatura do Pix fica como está", async () => {
     const {fake, db} = makeDb();
     seedOnline(fake);
     const {groupId, calls, cardCalls, out} = await cardCheckout(fake, db);
 
-    assert.deepEqual(cardCalls, [{valueReais: 303.99, feeCents: 399, customerId: "cus_u1"}]);
+    // (300 + 3,99 de antecipação + 0,49) / 0,9701 = 313,86… → 313,87.
+    assert.deepEqual(cardCalls, [{valueReais: 313.87, feeCents: 1387, customerId: "cus_u1"}]);
     assert.equal(out.invoiceUrl, `https://asaas.test/c/${groupId}`);
     assert.equal(out.amountReais, 300);
-    assert.equal(out.chargedReais, 303.99);
-    assert.equal(out.cardFeeReais, 3.99);
+    assert.equal(out.chargedReais, 313.87);
+    assert.equal(out.cardFeeReais, 13.87);
     assert.equal(out.cardFeePercent, 1.33);
-    assert.deepEqual(group(fake, groupId)["cardCharges"], {[`card_${groupId}`]: 399});
+    assert.equal(out.cardProcessingPercent, 2.99);
+    assert.equal(out.cardFixedReais, 0.49);
+    assert.deepEqual(group(fake, groupId)["cardCharges"], {[`card_${groupId}`]: {feeCents: 1387, processingCents: 988}});
     assert.equal(group(fake, groupId)["paymentId"], `pay_${groupId}`, "a fatura do Pix segue a do grupo");
     assert.equal(calls.created.length, 1);
   });
@@ -742,7 +745,7 @@ describe("planos de horário online — cartão com taxa de antecipação", () =
     const {fake, db} = makeDb();
     seedOnline(fake);
     const {groupId, deps} = await openGroup(fake, db);
-    deps.cardFeePercent = async () => 0;
+    deps.cardFeeTerms = async () => ({anticipationPercent: 0, processingPercent: 0, fixedReais: 0});
     deps.createCardPayment = async () => {
       throw new Error("não devia criar");
     };
@@ -762,32 +765,34 @@ describe("planos de horário online — cartão com taxa de antecipação", () =
       anticipations.push(id);
       return {id: "ant1", status: "PENDING"};
     }};
-    // R$ 303,99 no cartão; o Asaas fica com R$ 10 de processamento.
-    const card = {id: cardId, billingType: "CREDIT_CARD", value: 303.99, netValue: 293.99};
+    // R$ 313,87 no cartão; o Asaas fica com 0,49 + 2,99% = R$ 9,87 (o atleta cobriu R$ 9,88).
+    const card = {id: cardId, billingType: "CREDIT_CARD", value: 313.87, netValue: 304};
 
     await processArenaScheduleAsaasNotification(db, cardId, payment(groupId, {...card, status: "CONFIRMED"}), ref, deps);
     assert.equal(charge(fake)["status"], "paid");
     assert.equal(charge(fake)["asaasPaymentId"], cardId);
     // A taxa da NexaGO é sobre o plano (300), não sobre o cobrado.
     assert.equal(charge(fake)["platformFeeReais"], 18);
-    assert.equal(fake.store.get(`arenaWallets/${ARENA}`)!["awaitingSettlementReais"], 272);
+    // 300 − 18 da NexaGO; o processamento foi pago pelo atleta.
+    assert.equal(fake.store.get(`arenaWallets/${ARENA}`)!["awaitingSettlementReais"], 282);
     assert.deepEqual(anticipations, [cardId]);
 
     await processArenaScheduleAsaasNotification(
       db, cardId, payment(groupId, {...card, status: "CONFIRMED"}), ref, deps, {anticipationCredited: true},
     );
     let wallet = fake.store.get(`arenaWallets/${ARENA}`)!;
-    assert.equal(wallet["availableReais"], 272);
+    assert.equal(wallet["availableReais"], 282);
     assert.equal(wallet["awaitingSettlementReais"], 0);
     const ledger = docsIn(fake, `arenaWallets/${ARENA}/ledger/`);
     assert.equal(ledger.length, 1);
-    assert.equal(ledger[0]![1]["cardFeeReais"], 3.99);
+    assert.equal(ledger[0]![1]["cardFeeReais"], 13.87);
+    assert.equal(ledger[0]![1]["gatewayFeeReais"], 0);
 
     // A liquidação não credita de novo; reentrega do CONFIRMED não pede de novo.
     await processArenaScheduleAsaasNotification(db, cardId, payment(groupId, {...card, status: "RECEIVED"}), ref, deps);
     await processArenaScheduleAsaasNotification(db, cardId, payment(groupId, {...card, status: "CONFIRMED"}), ref, deps);
     wallet = fake.store.get(`arenaWallets/${ARENA}`)!;
-    assert.equal(wallet["availableReais"], 272);
+    assert.equal(wallet["availableReais"], 282);
     assert.equal(docsIn(fake, `arenaWallets/${ARENA}/ledger/`).length, 1);
     assert.deepEqual(anticipations, [cardId]);
   });
@@ -799,7 +804,7 @@ describe("planos de horário online — cartão com taxa de antecipação", () =
     const cardId = `card_${groupId}`;
     const refunds: string[] = [];
     await processArenaScheduleAsaasNotification(db, cardId,
-      payment(groupId, {id: cardId, billingType: "CREDIT_CARD", value: 303.99, netValue: 293.99, status: "CONFIRMED"}),
+      payment(groupId, {id: cardId, billingType: "CREDIT_CARD", value: 313.87, netValue: 304, status: "CONFIRMED"}),
       processedRef(db, cardId), webhookDeps(refunds));
     await processArenaScheduleAsaasNotification(db, `pay_${groupId}`, payment(groupId),
       processedRef(db, `pay_${groupId}`), webhookDeps(refunds));

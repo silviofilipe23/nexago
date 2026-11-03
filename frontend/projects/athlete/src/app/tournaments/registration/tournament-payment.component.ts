@@ -47,7 +47,14 @@ import { resolveDirectPaymentState, type DirectPaymentState } from './direct-pay
 import { RegistrationHoldNoticeComponent } from './registration-hold-notice.component';
 import { SquadCodeFieldComponent } from './squad-code-field.component';
 import { ownPerkPreviewCents, squadDiscountPreviewCents, type OwnPerk } from '../../data/squad-discount';
-import { athleteServiceFeeReais, cardFeeReais, NO_SERVICE_FEE, type ServiceFeeRule } from '../../data/service-fee';
+import {
+  athleteServiceFeeReais,
+  cardFeeReais,
+  NO_CARD_FEE,
+  NO_SERVICE_FEE,
+  type CardFeeTerms,
+  type ServiceFeeRule,
+} from '../../data/service-fee';
 import { shouldShowRegistrationHoldCountdown, registrationHoldCountdownView } from './registration-hold';
 import { appliedPreviewCents } from '../../data/cashback-preview';
 import { CashbackService } from '../../data/cashback.service';
@@ -66,11 +73,6 @@ export function resolvePaymentMethods(
   onlinePaymentMethods?: unknown,
 ): ReadonlyArray<PaymentMethod> {
   return paymentMode === 'directWithOrganizer' ? [] : tournamentOnlinePaymentMethods(onlinePaymentMethods);
-}
-
-/** "1,33" — o % da taxa do cartão como o atleta lê. */
-function formatPercent(value: number): string {
-  return value.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 }
 
 function titleCase(input: string): string {
@@ -366,9 +368,9 @@ export class TournamentPaymentComponent {
   /** Regra da taxa de serviço do torneio (`getTournamentServiceFee`). Organizador pagando — ou
    *  regra ainda não carregada/indisponível — é `NO_SERVICE_FEE`: a tela fica como sempre foi. */
   protected readonly serviceFeeRule = signal<ServiceFeeRule>(NO_SERVICE_FEE);
-  /** % da taxa de antecipação que o cartão soma por cima (`getTournamentServiceFee`); 0 = sem taxa
-   *  (backend antigo ou ainda não carregado). */
-  protected readonly cardFeePercent = signal(0);
+  /** Taxas que o cartão soma por cima (`getTournamentServiceFee`); zeradas = sem taxa (backend
+   *  antigo ou ainda não carregado). */
+  protected readonly cardFeeTerms = signal<CardFeeTerms>(NO_CARD_FEE);
   /** Parte da taxa de serviço que o atleta paga por cima do preço: a da cobrança gerada (servidor)
    *  ou a prévia. Incide sobre o PREÇO desta cobrança (parcela ou integral), nunca sobre o valor
    *  já com desconto do embaixador ou cashback. */
@@ -417,18 +419,18 @@ export class TournamentPaymentComponent {
     );
   });
 
-  /** Prévia do que vai para o Pix — e para o cartão antes da taxa de antecipação. */
+  /** Prévia do que vai para o Pix — e para o cartão antes das taxas do cartão. */
   protected readonly baseDueReais = computed(
     () => Math.round((this.dueAfterSquadReais() - this.cashbackAppliedReais()) * 100) / 100,
   );
 
-  /** Prévia da taxa de antecipação sobre o que iria para o cartão (espelho do servidor). */
+  /** Prévia das taxas do cartão sobre o que iria para ele (espelho do servidor). */
   protected readonly previewCardFeeReais = computed(() => {
     if (!this.appChargeOpen() || !this.methods().includes('card')) return 0;
-    return cardFeeReais(this.baseDueReais(), this.cardFeePercent());
+    return cardFeeReais(this.baseDueReais(), this.cardFeeTerms());
   });
 
-  /** Prévia do total no cartão: o do Pix + a taxa de antecipação. */
+  /** Prévia do total no cartão: o do Pix + as taxas do cartão. */
   protected readonly cardTotalReais = computed(
     () => Math.round((this.baseDueReais() + this.previewCardFeeReais()) * 100) / 100,
   );
@@ -438,7 +440,7 @@ export class TournamentPaymentComponent {
     this.methods().length > 1 && !this.hasLiveCharge() ? this.previewCardFeeReais() : 0,
   );
 
-  /** Taxa de antecipação desta cobrança: a do cartão gerado (servidor) ou a prévia com o cartão
+  /** Taxas do cartão desta cobrança: as do cartão gerado (servidor) ou a prévia com o cartão
    *  escolhido. Pix nunca tem. */
   protected readonly cardFeeDueReais = computed(() => {
     const card = this.cardResult();
@@ -447,12 +449,7 @@ export class TournamentPaymentComponent {
     return this.previewCardFeeReais();
   });
 
-  /** "1,33" para a linha do resumo: o % da cobrança gerada ou o da prévia. */
-  protected readonly cardFeePercentLabel = computed(() =>
-    formatPercent(this.cardResult()?.cardFeePercent || this.cardFeePercent()),
-  );
-
-  /** O que a cobrança vale: `chargedReais` do servidor (no cartão, já com a taxa de antecipação),
+  /** O que a cobrança vale: `chargedReais` do servidor (no cartão, já com as taxas do cartão),
    *  ou parcela + taxas − descontos da prévia. */
   protected readonly chargeDueReais = computed(() => {
     const live = this.pixResult() ?? this.cardResult();
@@ -572,7 +569,7 @@ export class TournamentPaymentComponent {
     }
   }
 
-  /** Regra da taxa de serviço e % da taxa do cartão, uma vez por torneio e sem segurar a tela (é só
+  /** Regra da taxa de serviço e taxas do cartão, uma vez por torneio e sem segurar a tela (é só
    *  prévia: a cobrança refaz a conta). Pagamento direto com o organizador não passa pela cobrança
    *  do app — nem pede. */
   private loadServiceFee(tournamentId: string, paymentMode: string | null | undefined): void {
@@ -582,7 +579,7 @@ export class TournamentPaymentComponent {
     void fetchTournamentServiceFee(athleteFunctions(), tournamentId).then((fees) => {
       if (this.tournamentId() !== tournamentId) return;
       this.serviceFeeRule.set(fees.rule);
-      this.cardFeePercent.set(fees.cardFeePercent);
+      this.cardFeeTerms.set(fees.cardFee);
     });
   }
 

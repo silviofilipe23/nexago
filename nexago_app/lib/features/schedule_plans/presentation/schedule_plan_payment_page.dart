@@ -21,6 +21,7 @@ import '../../arenas/presentation/widgets/booking_pix/booking_pix_qr_card.dart';
 import '../../arenas/presentation/widgets/booking_pix/booking_pix_waiting_card.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../tournaments/domain/registration_payment_method.dart';
+import '../../tournaments/domain/tournament_service_fee.dart';
 import '../../tournaments/presentation/widgets/tournament_registration/registration_card_checkout_panel.dart';
 import '../../tournaments/presentation/widgets/tournament_registration/registration_payment_method_picker.dart';
 import '../application/schedule_plans_providers.dart';
@@ -253,11 +254,11 @@ class _SchedulePlanPaymentPageState
     final checkout = _checkout;
     final live = _live;
     final amount = checkout?.amountReais ?? charge.amountReais;
-    // Cartão soma a taxa de antecipação por cima; o Pix fica no valor do plano.
+    // Cartão soma as taxas do cartão por cima; o Pix fica no valor do plano.
     final quote = registrationMethodQuote(
       pixCents: (amount * 100).round(),
-      cardFeePercent:
-          ref.watch(scheduleCardFeePercentProvider).valueOrNull ?? 0,
+      cardFee: ref.watch(scheduleCardFeeTermsProvider).valueOrNull ??
+          CardFeeTerms.none,
     );
     final selectedTotal = quote.totalCents(_method) / 100;
     final sub = charge.subscriptionId.isEmpty
@@ -300,7 +301,6 @@ class _SchedulePlanPaymentPageState
                     value: _method,
                     amountReais: amount,
                     cardFeeReais: quote.cardFeeCents / 100,
-                    cardFeePercent: quote.cardFeePercent,
                     enabled: !_loading,
                     onChanged: (m) => setState(() {
                       _method = m;
@@ -359,8 +359,8 @@ class _SchedulePlanPaymentPageState
                   if (checkout.cardFeeReais > 0) ...[
                     const SizedBox(height: 8),
                     Text(
-                      'Inclui ${formatBRL(checkout.cardFeeReais)} de taxa de '
-                      'antecipação do cartão.',
+                      'Inclui ${formatBRL(checkout.cardFeeReais)} de taxas '
+                      'do cartão.',
                       key: const Key('schedule-payment-card-fee'),
                       style: TextStyle(
                         fontSize: 12.5,

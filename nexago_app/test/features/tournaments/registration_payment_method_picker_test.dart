@@ -11,7 +11,7 @@ void main() {
     await _pump(
       tester,
       methods: const [RegistrationPaymentMethod.pix],
-      cardFeeReais: 1.33,
+      cardFeeReais: 4.96,
       onChanged: escolhas.add,
     );
 
@@ -32,24 +32,24 @@ void main() {
     expect(escolhas, isEmpty);
   });
 
-  testWidgets('só cartão: o total com a taxa e o aviso da antecipação',
+  testWidgets('só cartão: o total com as taxas e o aviso das taxas do cartão',
       (tester) async {
     await _pump(
       tester,
       value: RegistrationPaymentMethod.card,
       methods: const [RegistrationPaymentMethod.card],
-      cardFeeReais: 1.33,
+      cardFeeReais: 4.96,
     );
 
     expect(find.text('Forma de pagamento'), findsOneWidget);
     expect(find.byKey(RegistrationPaymentMethodPicker.pixKey), findsNothing);
     expect(find.byKey(RegistrationPaymentMethodPicker.cardKey), findsOneWidget);
     expect(
-      find.text('${formatBRL(101.33)} · checkout seguro do Asaas'),
+      find.text('${formatBRL(104.96)} · checkout seguro do Asaas'),
       findsOneWidget,
     );
     expect(
-      find.text('Inclui taxa de antecipação de 1,33%'),
+      find.text('Inclui ${formatBRL(4.96)} de taxas do cartão'),
       findsOneWidget,
     );
     expect(find.byIcon(Icons.radio_button_checked_rounded), findsNothing);
@@ -59,13 +59,13 @@ void main() {
       'os dois com taxa: Pix com o cartão riscado e o selo da diferença',
       (tester) async {
     final escolhas = <RegistrationPaymentMethod>[];
-    await _pump(tester, cardFeeReais: 1.33, onChanged: escolhas.add);
+    await _pump(tester, cardFeeReais: 4.96, onChanged: escolhas.add);
 
     expect(find.text('Como você quer pagar?'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(RegistrationPaymentMethodPicker.pixSavingsKey),
-        matching: find.text('${formatBRL(1.33)} a menos que no cartão'),
+        matching: find.text('${formatBRL(4.96)} a menos que no cartão'),
       ),
       findsOneWidget,
     );
@@ -79,10 +79,10 @@ void main() {
       ),
     );
     final struck = (rich.textSpan! as TextSpan).children!.first as TextSpan;
-    expect(struck.text, formatBRL(101.33));
+    expect(struck.text, formatBRL(104.96));
     expect(struck.style!.decoration, TextDecoration.lineThrough);
     expect(
-      find.text('Inclui taxa de antecipação de 1,33%'),
+      find.text('Inclui ${formatBRL(4.96)} de taxas do cartão'),
       findsOneWidget,
     );
 
@@ -104,7 +104,11 @@ void main() {
       find.text('${formatBRL(100)} · checkout seguro do Asaas'),
       findsOneWidget,
     );
-    expect(find.textContaining('antecipação'), findsNothing);
+    expect(find.textContaining('taxas do cartão'), findsNothing);
+    expect(
+      find.byKey(RegistrationPaymentMethodPicker.cardFeeNoteKey),
+      findsNothing,
+    );
   });
 }
 
@@ -124,7 +128,6 @@ Future<void> _pump(
           methods: methods,
           amountReais: 100,
           cardFeeReais: cardFeeReais,
-          cardFeePercent: cardFeeReais > 0 ? 1.33 : 0,
           onChanged: onChanged ?? (_) {},
         ),
       ),

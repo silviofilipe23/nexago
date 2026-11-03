@@ -11,6 +11,15 @@ import type {AsaasPaymentDetails} from "./asaas-booking-payment";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import type {RegistrationBillingType} from "./registration-payment-phases";
 
+/**
+ * Taxa do gateway que fica com o recebedor quando o atleta já pagou parte dela por cima (as taxas do
+ * cartão, `card-anticipation-fee.ts`): só o que passar do coberto. Nunca negativa — se o Asaas cobrou
+ * menos que o previsto, a sobra fica com a plataforma.
+ */
+export function gatewayFeeBeyondCovered(gatewayFeeReais: number, coveredReais: number): number {
+  return roundMoney(Math.max(0, gatewayFeeReais - Math.max(0, coveredReais)));
+}
+
 export function resolveGatewayFeeReais(
   payment: AsaasPaymentDetails,
   billingType: RegistrationBillingType,

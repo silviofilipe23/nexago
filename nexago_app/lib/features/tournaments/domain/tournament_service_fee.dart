@@ -11,13 +11,13 @@ enum TournamentServiceFeePayer { organizer, athlete, split }
 ///
 /// É só prévia: a cobrança refaz a conta no servidor e devolve a parte do
 /// atleta em `serviceFeeReais`. Com o organizador pagando a regra vem zerada
-/// — menos [cardFeePercent], que vale com quem quer que pague a taxa.
+/// — menos [cardFee], que vale com quem quer que pague a taxa.
 class TournamentServiceFeeRule {
   const TournamentServiceFeeRule({
     required this.percent,
     required this.floorReais,
     required this.payer,
-    this.cardFeePercent = 0,
+    this.cardFee = CardFeeTerms.none,
   });
 
   /// Sem taxa para o atleta — o organizador paga (o caso de sempre).
@@ -31,16 +31,16 @@ class TournamentServiceFeeRule {
   final double floorReais;
   final TournamentServiceFeePayer payer;
 
-  /// Taxa de antecipação que o cartão soma por cima do valor (% sobre o que
-  /// vai para o cartão; ver [cardAnticipationFeeCents]). 0 = sem taxa ou
-  /// backend antigo. Independe de quem paga a taxa de serviço.
-  final double cardFeePercent;
+  /// Taxas que o cartão soma por cima do valor (ver [cardSurchargeCents]).
+  /// Zeradas = sem taxa ou backend antigo. Independe de quem paga a taxa de
+  /// serviço.
+  final CardFeeTerms cardFee;
 
   /// Lê a resposta da callable. Qualquer coisa fora do contrato vale como
   /// sem taxa: melhor não prever do que prever errado.
   factory TournamentServiceFeeRule.fromMap(Object? data) {
     if (data is! Map) return none;
-    final cardFeePercent = parseCardFeePercent(data['cardFeePercent']);
+    final cardFee = CardFeeTerms.fromMap(data);
     final payer = parseTournamentServiceFeePayer(data['payer']);
     final percent = (data['percent'] as num?)?.toDouble() ?? 0;
     final floorReais = (data['floorReais'] as num?)?.toDouble() ?? 0;
@@ -50,20 +50,54 @@ class TournamentServiceFeeRule {
         !floorReais.isFinite ||
         floorReais < 0) {
       // Sem taxa de serviço para o atleta, mas a do cartão continua valendo.
-      return cardFeePercent > 0
-          ? TournamentServiceFeeRule(
+      return cardFee.isZero
+          ? none
+          : TournamentServiceFeeRule(
               percent: 0,
               floorReais: 0,
               payer: TournamentServiceFeePayer.organizer,
-              cardFeePercent: cardFeePercent,
-            )
-          : none;
+              cardFee: cardFee,
+            );
     }
     return TournamentServiceFeeRule(
       percent: percent,
       floorReais: floorReais,
       payer: payer,
-      cardFeePercent: cardFeePercent,
+      cardFee: cardFee,
+    );
+  }
+}
+
+/// Taxas do cartão que vão por cima do valor (`cardFeePercent`,
+/// `cardProcessingPercent`, `cardFixedReais` das callables): antecipação
+/// sobre a base e processamento (fixo + %) sobre o total. Espelho de
+/// `CardFeeTerms` (`functions/src/card-anticipation-fee.ts`).
+class CardFeeTerms {
+  const CardFeeTerms({
+    this.anticipationPercent = 0,
+    this.processingPercent = 0,
+    this.fixedReais = 0,
+  });
+
+  static const none = CardFeeTerms();
+
+  final double anticipationPercent;
+  final double processingPercent;
+  final double fixedReais;
+
+  bool get isZero =>
+      anticipationPercent <= 0 && processingPercent <= 0 && fixedReais <= 0;
+
+  /// Campo ausente (backend antigo) ou torto vale 0. Backend que só manda o
+  /// `cardFeePercent` = só antecipação, como antes.
+  factory CardFeeTerms.fromMap(Map<dynamic, dynamic> data) {
+    final fixed = data['cardFixedReais'];
+    return CardFeeTerms(
+      anticipationPercent: parseCardFeePercent(data['cardFeePercent']),
+      processingPercent: parseCardFeePercent(data['cardProcessingPercent']),
+      fixedReais: fixed is num && fixed.isFinite && fixed > 0 && fixed < 100
+          ? fixed.toDouble()
+          : 0,
     );
   }
 }
@@ -131,10 +165,19 @@ double athleteServiceFeeReais(
 int athleteServiceFeeCents(double priceReais, TournamentServiceFeeRule rule) =>
     _jsRound(athleteServiceFeeReais(priceReais, rule) * 100);
 
-/// Taxa de antecipação do cartão, em centavos, sobre o que vai para o cartão
-/// ([cardCents]: preço + taxa de serviço do atleta − descontos − cashback).
-/// Espelho de `cardAnticipationFeeCents` (`functions/src/card-anticipation-fee.ts`).
-int cardAnticipationFeeCents(int cardCents, double percent) {
-  if (cardCents <= 0 || !(percent > 0)) return 0;
-  return _jsRound(cardCents * percent / 100);
+/// Acréscimo do cartão, em centavos, sobre a base ([baseCents]: o que o Pix
+/// cobraria — preço + taxa de serviço do atleta − descontos − cashback):
+/// total = (base + antecipação + fixo) / (1 − % do processamento), para cima.
+/// Espelho de `cardSurcharge` (`functions/src/card-anticipation-fee.ts`).
+int cardSurchargeCents(int baseCents, CardFeeTerms terms) {
+  final p = terms.processingPercent > 0 && terms.processingPercent < 50
+      ? terms.processingPercent
+      : 0.0;
+  final a = terms.anticipationPercent > 0 ? terms.anticipationPercent : 0.0;
+  final fixed = terms.fixedReais > 0 ? _jsRound(terms.fixedReais * 100) : 0;
+  if (baseCents <= 0 || (p == 0 && a == 0 && fixed == 0)) return 0;
+  final anticipation = _jsRound(baseCents * a / 100);
+  final total =
+      ((baseCents + anticipation + fixed) / (1 - p / 100) - 1e-9).ceil();
+  return total - baseCents;
 }

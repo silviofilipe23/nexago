@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/core/formatting/app_currency_format.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
@@ -10,6 +11,7 @@ import 'package:nexago_app/features/schedule_plans/application/schedule_plans_pr
 import 'package:nexago_app/features/schedule_plans/domain/schedule_plan_models.dart';
 import 'package:nexago_app/features/schedule_plans/infrastructure/schedule_plans_repository.dart';
 import 'package:nexago_app/features/schedule_plans/presentation/schedule_plan_payment_page.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_service_fee.dart';
 import 'package:nexago_app/features/tournaments/presentation/widgets/tournament_registration/registration_payment_method_picker.dart';
 
 // Tela de pagamento da mensalidade: Pix (QR no app) ou cartão (checkout do
@@ -22,7 +24,7 @@ const _cpf = '52998224725';
 class _FakeRepo implements SchedulePlansRepository {
   final calls = <({String chargeId, String method, String? cpfCnpj})>[];
 
-  /// Taxa de antecipação que o servidor devolve na cobrança de cartão.
+  /// Taxas do cartão que o servidor devolve na cobrança de cartão.
   double cardFeeReais = 0;
   final canceled = <String>[];
 
@@ -79,7 +81,7 @@ Future<_Harness> pumpPage(
   WidgetTester tester, {
   String? profileCpf,
   DateTime? pendingUntil,
-  double cardFeePercent = 0,
+  CardFeeTerms cardFee = CardFeeTerms.none,
 }) async {
   // 430pt: a fonte de teste (glifo quadrado) é mais larga que a Sora e o
   // botão "Copiar Pix Copia & Cola" da reserva estoura em 390pt só no teste.
@@ -94,7 +96,7 @@ Future<_Harness> pumpPage(
       overrides: [
         schedulePlansUidProvider.overrideWith((ref) => 'u1'),
         schedulePlansRepositoryProvider.overrideWithValue(h.repo),
-        scheduleCardFeePercentProvider.overrideWith((ref) => cardFeePercent),
+        scheduleCardFeeTermsProvider.overrideWith((ref) async => cardFee),
         scheduleChargeProvider.overrideWith((ref, id) => h.charges.stream),
         scheduleSubscriptionDocProvider
             .overrideWith((ref, id) => h.subs.stream),
@@ -187,28 +189,40 @@ void main() {
     expect(find.text('Pagamento confirmado'), findsOneWidget);
   });
 
-  testWidgets('taxa do cartão: Pix mais barato, cartão com o total e a taxa',
+  testWidgets('taxas do cartão: Pix mais barato, cartão com o total e a taxa',
       (tester) async {
-    final h = await pumpPage(tester, cardFeePercent: 1.33);
-    h.repo.cardFeeReais = 1.2;
-    // 1,33% de R$ 90 = R$ 1,20: o Pix mostra o cartão riscado e a diferença.
+    final h = await pumpPage(
+      tester,
+      cardFee: const CardFeeTerms(
+        anticipationPercent: 1.33,
+        processingPercent: 2.99,
+        fixedReais: 0.49,
+      ),
+    );
+    h.repo.cardFeeReais = 4.52;
+    // Taxas do Asaas sobre R$ 90 = R$ 4,52 (cartão R$ 94,52): o Pix mostra o
+    // cartão riscado e a diferença.
     expect(
       find.byKey(RegistrationPaymentMethodPicker.pixSavingsKey),
       findsOneWidget,
     );
-    expect(find.textContaining('a menos que no cartão'), findsOneWidget);
+    expect(find.text('${formatBRL(4.52)} a menos que no cartão'), findsOneWidget);
     expect(find.text('Gerar PIX'), findsOneWidget);
 
     await tester.tap(find.byKey(RegistrationPaymentMethodPicker.cardKey));
     await tester.pump();
     await typeCpf(tester);
-    expect(find.textContaining('91,20 no cartão'), findsOneWidget);
+    expect(find.textContaining('94,52 no cartão'), findsOneWidget);
     await tester.tap(find.textContaining(r'Pagar R$'));
     await tester.pump();
     await tester.pump();
 
     expect(h.repo.calls.single.method, 'card');
     expect(find.byKey(const Key('schedule-payment-card-fee')), findsOneWidget);
+    expect(
+      find.text('Inclui ${formatBRL(4.52)} de taxas do cartão.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('mensalidade cancelada não oferece pagamento', (tester) async {

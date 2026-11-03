@@ -20,6 +20,9 @@ import {
   NO_SERVICE_FEE,
   readCardFee,
   readCardFeePercent,
+  readCardFeeTerms,
+  NO_CARD_FEE,
+  type CardFeeTerms,
   readServiceFee,
   serviceFeeRuleFromRaw,
   type ServiceFeeRule,
@@ -908,25 +911,25 @@ export function registrationChargeFromResponse<T extends { amountReais: number }
   };
 }
 
-/** Prévia das taxas do checkout: a de serviço (quem paga) e a de antecipação do cartão. */
+/** Prévia das taxas do checkout: a de serviço (quem paga) e as do cartão. */
 export interface TournamentCheckoutFees {
   rule: ServiceFeeRule;
-  /** % que o cartão soma por cima, seja quem for que pague a taxa de serviço (0 = sem taxa). */
-  cardFeePercent: number;
+  /** O que o cartão soma por cima, seja quem for que pague a taxa de serviço (zerado = sem taxa). */
+  cardFee: CardFeeTerms;
 }
 
-const NO_CHECKOUT_FEES: TournamentCheckoutFees = { rule: NO_SERVICE_FEE, cardFeePercent: 0 };
+const NO_CHECKOUT_FEES: TournamentCheckoutFees = { rule: NO_SERVICE_FEE, cardFee: NO_CARD_FEE };
 
 /**
  * Taxas do torneio que o atleta vê no checkout (`getTournamentServiceFee`). Só prévia — a cobrança
  * refaz a conta no servidor. Backend antigo sem a callable (`not-found`) ou qualquer outro erro →
- * sem taxa, em silêncio; backend sem `cardFeePercent` → cartão sem taxa.
+ * sem taxa, em silêncio; backend sem os campos do cartão → cartão sem taxa.
  */
 export async function fetchTournamentServiceFee(functions: Functions, tournamentId: string): Promise<TournamentCheckoutFees> {
   if (!tournamentId) return NO_CHECKOUT_FEES;
   try {
     const result = await httpsCallable<{ tournamentId: string }, unknown>(functions, 'getTournamentServiceFee')({ tournamentId });
-    return { rule: serviceFeeRuleFromRaw(result.data), cardFeePercent: readCardFeePercent(result.data) };
+    return { rule: serviceFeeRuleFromRaw(result.data), cardFee: readCardFeeTerms(result.data) };
   } catch {
     return NO_CHECKOUT_FEES;
   }
@@ -966,7 +969,7 @@ export interface CardPaymentResult {
   squadPerkReais: number;
   /** Parte da taxa de serviço paga pelo atleta, já dentro do `chargedReais` (0 quando o organizador paga). */
   serviceFeeReais: number;
-  /** Taxa de antecipação do cartão paga pelo atleta, já dentro do `chargedReais` (0 no backend antigo). */
+  /** Taxas do cartão pagas pelo atleta, já dentro do `chargedReais` (0 no backend antigo). */
   cardFeeReais: number;
   /** % dessa taxa sobre o valor do cartão (0 sem taxa). */
   cardFeePercent: number;
@@ -975,7 +978,7 @@ export interface CardPaymentResult {
 /** Campos só do cartão que a cobrança normaliza (backend antigo não manda). */
 type CardChargeExtras = RegistrationChargeExtras & { cardFeeReais: number; cardFeePercent: number };
 
-/** Resposta do cartão normalizada: a da inscrição + a taxa de antecipação (ausente = 0). */
+/** Resposta do cartão normalizada: a da inscrição + as taxas do cartão (ausente = 0). */
 export function cardChargeFromResponse<T extends { amountReais: number }>(data: T): T & CardChargeExtras {
   return { ...registrationChargeFromResponse(data), cardFeeReais: readCardFee(data), cardFeePercent: readCardFeePercent(data) };
 }

@@ -216,20 +216,20 @@ class SchedulePlansRepository {
     return checkout;
   }
 
-  /// Percentual da taxa de antecipação que o cartão soma por cima
-  /// (`getCardAnticipationFee`). Prévia: falhou ou servidor antigo = 0, e a
-  /// tela mostra os dois meios com o mesmo valor, como antes.
-  Future<double> cardAnticipationFeePercent() async {
+  /// Taxas que o cartão soma por cima (`getCardAnticipationFee`). Prévia:
+  /// falhou ou servidor antigo = zeradas, e a tela mostra os dois meios com o
+  /// mesmo valor, como antes.
+  Future<CardFeeTerms> cardFeeTerms() async {
     try {
       final data = await _call(
         'getCardAnticipationFee',
         const {},
         fallback: 'Não foi possível carregar a taxa do cartão.',
       );
-      return parseCardFeePercent(data['cardFeePercent']);
+      return CardFeeTerms.fromMap(data);
     } catch (e) {
       debugPrint('getCardAnticipationFee: $e');
-      return 0;
+      return CardFeeTerms.none;
     }
   }
 

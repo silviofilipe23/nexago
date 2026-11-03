@@ -1273,3 +1273,28 @@ describe("asaas-tournament-registration-webhook: antecipação do cartão", () =
     assert.equal(ledgerEntries(fake).length, 0);
   });
 });
+
+describe("asaas-tournament-registration-webhook: processamento do cartão pago pelo atleta", () => {
+  it("o organizador não paga o processamento que o atleta cobriu", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    // R$ 100 + 4,96 de taxas do cartão (3,63 de processamento + 1,33 de antecipação).
+    fake.seedDoc(PENDING_A, {...CARD_PENDING_A, cardFeeCents: 496, cardProcessingCents: 363});
+    // O Asaas fica com 0,49 + 2,99% de 104,96 = 3,63.
+    const card = (status: string) => cardPayment(status, {value: 104.96, netValue: 101.33});
+
+    await processTournamentRegistrationAsaasNotification(db, "pay1", card("CONFIRMED"), processedRefOf(db), makeDeps().deps);
+    assert.equal(fake.store.get(PROCESSED_PATH)!["cardProcessingCents"], 363);
+    // 100 − 8% da plataforma; nada de taxa do cartão.
+    assert.equal(walletDoc(fake)!["awaitingSettlementReais"], 92);
+
+    fake.store.delete(PENDING_A);
+    await processTournamentRegistrationAsaasNotification(db, "pay1", card("RECEIVED"), processedRefOf(db), makeDeps().deps);
+    const credit = ledgerEntries(fake).find((e) => e.type === "credit")!;
+    assert.equal(credit.grossReais, ENTRY_FEE);
+    assert.equal(credit.cardFeeReais, 4.96);
+    assert.equal(credit.gatewayFeeReais, 0);
+    assert.equal(credit.netReais, 92);
+  });
+});

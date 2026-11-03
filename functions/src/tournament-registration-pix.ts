@@ -42,7 +42,7 @@ import {
   sharePaidUidsFromRegistration,
   tournamentOnlinePaymentMethods,
 } from "./tournament-registration-pix-helpers";
-import {cardAnticipationFeeCents, loadCardAnticipationPercent} from "./card-anticipation-fee";
+import {cardFeePreviewFields, cardSurcharge, loadCardFeeTerms} from "./card-anticipation-fee";
 import {
   usesDynamicShare,
   computeTeamMemberShareReais,
@@ -830,10 +830,12 @@ type CardPaymentResponse = {
   squadPerkReais?: number;
   /** Parte da taxa da nexaGO paga pelo atleta, por cima do preço (ausente = organizador paga). */
   serviceFeeReais?: number;
-  /** Taxa de antecipação do cartão repassada ao atleta, já dentro de `chargedReais`. */
+  /** Taxas do cartão (processamento + antecipação) repassadas ao atleta, já dentro de `chargedReais`. */
   cardFeeReais?: number;
-  /** Percentual dessa taxa sobre o valor do cartão. */
+  /** % da antecipação sobre o valor do cartão (a prévia usa os três termos). */
   cardFeePercent?: number;
+  cardProcessingPercent?: number;
+  cardFixedReais?: number;
 };
 
 /**
@@ -876,10 +878,11 @@ export const createTournamentRegistrationCardPayment = onCall({
     nowMs: Date.now(),
   });
 
-  // Taxa de antecipação (`card-anticipation-fee.ts`): por cima do que vai para o cartão — o saldo de
-  // cashback não passa pelo cartão e não se antecipa.
-  const cardFeePercent = await loadCardAnticipationPercent();
-  const cardFeeCents = cardAnticipationFeeCents(cashback.chargeReais, cardFeePercent);
+  // Taxas do cartão (`card-anticipation-fee.ts`): processamento e antecipação por cima do que vai para
+  // o cartão — o saldo de cashback não passa pelo cartão.
+  const cardTerms = await loadCardFeeTerms();
+  const surcharge = cardSurcharge(cashback.chargeReais, cardTerms);
+  const cardFeeCents = surcharge.totalCents;
   const cardChargeReais = (Math.round(cashback.chargeReais * 100) + cardFeeCents) / 100;
 
   let charge;
@@ -948,8 +951,9 @@ export const createTournamentRegistrationCardPayment = onCall({
     ...(prepared.perkCents > 0 ? {squadPerkCents: prepared.perkCents} : {}),
     // Parte da taxa paga pelo atleta: o webhook tira do bruto (o caixa e a parcela são sobre o preço).
     ...(serviceFeeCents(prepared) > 0 ? {serviceFeeCents: serviceFeeCents(prepared)} : {}),
-    // Taxa de antecipação paga pelo atleta: o webhook tira do bruto, como a parte da taxa de serviço.
-    ...(cardFeeCents > 0 ? {cardFeeCents} : {}),
+    // Taxas do cartão pagas pelo atleta: o webhook tira do bruto, como a parte da taxa de serviço.
+    // `cardProcessingCents`: o processamento que o atleta já cobriu — o recebedor só paga o que passar.
+    ...(cardFeeCents > 0 ? {cardFeeCents, cardProcessingCents: surcharge.processingCents} : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
   await recordPerkQuietly(prepared, callerUid, charge.paymentId);
@@ -963,7 +967,7 @@ export const createTournamentRegistrationCardPayment = onCall({
     amountReais: chargeAmount,
     ...cashbackResponseFields(cashback),
     chargedReais: cardChargeReais,
-    ...(cardFeeCents > 0 ? {cardFeeReais: cardFeeCents / 100, cardFeePercent} : {}),
+    ...(cardFeeCents > 0 ? {cardFeeReais: cardFeeCents / 100, ...cardFeePreviewFields(cardTerms)} : {}),
     ...(prepared.squad?.discountCents ? {squadDiscountReais: prepared.squad.discountCents / 100} : {}),
     ...perkResponseFields(prepared),
     ...serviceFeeResponseFields(prepared),

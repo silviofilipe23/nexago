@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/firebase/firebase_providers.dart';
+import '../../tournaments/domain/tournament_service_fee.dart';
 import '../domain/schedule_plan_models.dart';
 import '../infrastructure/schedule_plans_repository.dart';
 
@@ -9,10 +10,10 @@ final schedulePlansRepositoryProvider = Provider<SchedulePlansRepository>((ref) 
   return SchedulePlansRepository(firestore: ref.watch(firestoreProvider));
 });
 
-/// Taxa de antecipação do cartão (%) para a prévia da tela de pagamento.
-final scheduleCardFeePercentProvider =
-    FutureProvider.autoDispose<double>((ref) {
-  return ref.watch(schedulePlansRepositoryProvider).cardAnticipationFeePercent();
+/// Taxas do cartão para a prévia da tela de pagamento.
+final scheduleCardFeeTermsProvider =
+    FutureProvider.autoDispose<CardFeeTerms>((ref) {
+  return ref.watch(schedulePlansRepositoryProvider).cardFeeTerms();
 });
 
 /// Uid da sessão; vazio deslogado (nenhuma leitura bate nas rules).

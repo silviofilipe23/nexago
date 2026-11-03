@@ -168,16 +168,15 @@ class _TournamentRegistrationPixPageState
           .valueOrNull ??
       TournamentServiceFeeRule.none;
 
-  /// Prévia do Pix e do cartão: o cartão leva a taxa de antecipação por cima
+  /// Prévia do Pix e do cartão: o cartão leva as taxas do cartão por cima
   /// do que o Pix cobraria (só se o torneio aceita cartão). Depois da
   /// cobrança vale o `chargedReais` que o servidor devolveu.
   RegistrationMethodQuote _methodQuote(CashbackCheckoutQuote cashbackQuote) =>
       registrationMethodQuote(
         pixCents: cashbackQuote.chargePreviewCents,
-        cardFeePercent:
-            _acceptedMethods.contains(RegistrationPaymentMethod.card)
-                ? _feeRule.cardFeePercent
-                : 0,
+        cardFee: _acceptedMethods.contains(RegistrationPaymentMethod.card)
+            ? _feeRule.cardFee
+            : CardFeeTerms.none,
       );
 
   /// Prévia do cashback sobre o valor desta cobrança (parcela ou integral,
@@ -631,8 +630,6 @@ class _TournamentRegistrationPixPageState
     final cardFeeCents = _method == RegistrationPaymentMethod.card
         ? methodQuote.cardFeeCents
         : 0;
-    final cardFeePercentLabel =
-        formatCardFeePercent(methodQuote.cardFeePercent);
     final liveSquadDiscountReais =
         _pix?.squadDiscountReais ?? _card?.squadDiscountReais ?? 0;
     final liveSquadPerkReais =
@@ -703,7 +700,6 @@ class _TournamentRegistrationPixPageState
                             methods: _acceptedMethods,
                             amountReais: methodQuote.pixCents / 100,
                             cardFeeReais: methodQuote.cardFeeCents / 100,
-                            cardFeePercent: methodQuote.cardFeePercent,
                             enabled: !_loadingCharge,
                             onChanged: (m) => setState(() {
                               _method = m;
@@ -779,8 +775,7 @@ class _TournamentRegistrationPixPageState
                                   '(${squadPercent(_ownPerk?.pct ?? 0)})',
                               cashbackCents: cashbackQuote.appliedPreviewCents,
                               cardFeeCents: cardFeeCents,
-                              cardFeeLabel: 'Taxa de antecipação do cartão '
-                                  '($cardFeePercentLabel)',
+                              cardFeeLabel: 'Taxas do cartão',
                               totalCents: methodQuote.totalCents(_method),
                             ),
                           ],
@@ -820,7 +815,7 @@ class _TournamentRegistrationPixPageState
                           if (liveCardFeeReais > 0) ...[
                             Text(
                               'Inclui ${formatBRL(liveCardFeeReais)} de '
-                              'taxa de antecipação do cartão',
+                              'taxas do cartão',
                               key: const Key('card-fee-note'),
                               textAlign: TextAlign.center,
                               style: Theme.of(context).textTheme.bodyMedium

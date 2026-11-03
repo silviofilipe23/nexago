@@ -258,17 +258,28 @@ void main() {
     });
   });
 
-  group('cardFeePercent — taxa de antecipação do cartão', () {
+  group('CardFeeTerms — taxas do cartão', () {
+    const asaas = CardFeeTerms(
+      anticipationPercent: 1.33,
+      processingPercent: 2.99,
+      fixedReais: 0.49,
+    );
+
     test('lida mesmo com o organizador pagando a taxa de serviço', () {
       final rule = TournamentServiceFeeRule.fromMap({
         'percent': 8,
         'floorReais': 1.5,
         'payer': 'organizador',
         'cardFeePercent': 1.33,
+        'cardProcessingPercent': 2.99,
+        'cardFixedReais': 0.49,
       });
       expect(rule.payer, _organizador);
+      expect(rule.percent, 0);
       expect(athleteServiceFeeCents(50, rule), 0);
-      expect(rule.cardFeePercent, 1.33);
+      expect(rule.cardFee.anticipationPercent, 1.33);
+      expect(rule.cardFee.processingPercent, 2.99);
+      expect(rule.cardFee.fixedReais, 0.49);
     });
 
     test('junto da taxa do atleta', () {
@@ -277,9 +288,45 @@ void main() {
         'floorReais': 1.5,
         'payer': 'atleta',
         'cardFeePercent': 1.33,
+        'cardProcessingPercent': 2.99,
+        'cardFixedReais': 0.49,
       });
       expect(athleteServiceFeeCents(50, rule), 400);
-      expect(rule.cardFeePercent, 1.33);
+      expect(rule.cardFee.anticipationPercent, 1.33);
+      expect(rule.cardFee.processingPercent, 2.99);
+      expect(rule.cardFee.fixedReais, 0.49);
+    });
+
+    test('fromMap lê os 3 campos; campo ausente vale 0', () {
+      final all = CardFeeTerms.fromMap({
+        'cardFeePercent': 1.33,
+        'cardProcessingPercent': 2.99,
+        'cardFixedReais': 0.49,
+      });
+      expect(all.anticipationPercent, 1.33);
+      expect(all.processingPercent, 2.99);
+      expect(all.fixedReais, 0.49);
+      expect(all.isZero, isFalse);
+
+      // Backend que só manda a antecipação: como antes.
+      final onlyAnticipation = CardFeeTerms.fromMap({'cardFeePercent': 1.33});
+      expect(onlyAnticipation.anticipationPercent, 1.33);
+      expect(onlyAnticipation.processingPercent, 0);
+      expect(onlyAnticipation.fixedReais, 0);
+
+      final onlyProcessing = CardFeeTerms.fromMap({
+        'cardProcessingPercent': 2.99,
+        'cardFixedReais': 0.49,
+      });
+      expect(onlyProcessing.anticipationPercent, 0);
+      expect(onlyProcessing.processingPercent, 2.99);
+      expect(onlyProcessing.fixedReais, 0.49);
+
+      final empty = CardFeeTerms.fromMap(const {});
+      expect(empty.anticipationPercent, 0);
+      expect(empty.processingPercent, 0);
+      expect(empty.fixedReais, 0);
+      expect(empty.isZero, isTrue);
     });
 
     test('ausente (backend antigo), zero ou torto: sem taxa no cartão', () {
@@ -289,27 +336,56 @@ void main() {
           'floorReais': 1.5,
           'payer': 'atleta',
           'cardFeePercent': raw,
+          'cardProcessingPercent': raw,
+          'cardFixedReais': raw,
         });
-        expect(rule.cardFeePercent, 0, reason: '$raw');
+        expect(rule.cardFee.anticipationPercent, 0, reason: '$raw');
+        expect(rule.cardFee.processingPercent, 0, reason: '$raw');
+        expect(rule.cardFee.fixedReais, 0, reason: '$raw');
+        expect(rule.cardFee.isZero, isTrue, reason: '$raw');
       }
-      expect(TournamentServiceFeeRule.none.cardFeePercent, 0);
-      expect(TournamentServiceFeeRule.fromMap(null).cardFeePercent, 0);
+      expect(TournamentServiceFeeRule.none.cardFee.isZero, isTrue);
+      expect(TournamentServiceFeeRule.fromMap(null).cardFee.isZero, isTrue);
+      expect(CardFeeTerms.none.isZero, isTrue);
     });
 
-    test('centavos: espelho de cardAnticipationFeeCents do servidor', () {
-      expect(cardAnticipationFeeCents(10000, 1.33), 133);
-      expect(cardAnticipationFeeCents(5450, 1.33), 72);
-      expect(cardAnticipationFeeCents(0, 1.33), 0);
-      expect(cardAnticipationFeeCents(10000, 0), 0);
+    test('organizador pagando e cartão sem taxa: regra none', () {
+      final rule = TournamentServiceFeeRule.fromMap({
+        'percent': 8,
+        'floorReais': 1.5,
+        'payer': 'organizador',
+      });
+      expect(identical(rule, TournamentServiceFeeRule.none), isTrue);
     });
 
-    test('PaymentService lê o percentual da callable', () async {
+    test('cardSurchargeCents: espelho de cardSurcharge do servidor', () {
+      expect(cardSurchargeCents(10000, asaas), 496);
+      expect(cardSurchargeCents(9000, asaas), 452);
+      expect(cardSurchargeCents(30000, asaas), 1387);
+      expect(cardSurchargeCents(5450, asaas), 293);
+    });
+
+    test('cardSurchargeCents: só antecipação = o comportamento antigo', () {
+      const onlyAnticipation = CardFeeTerms(anticipationPercent: 1.33);
+      expect(cardSurchargeCents(10000, onlyAnticipation), 133);
+      expect(cardSurchargeCents(5450, onlyAnticipation), 72);
+    });
+
+    test('cardSurchargeCents: nada a cobrar ou sem taxa = 0', () {
+      expect(cardSurchargeCents(0, asaas), 0);
+      expect(cardSurchargeCents(-100, asaas), 0);
+      expect(cardSurchargeCents(10000, CardFeeTerms.none), 0);
+    });
+
+    test('PaymentService lê as taxas do cartão da callable', () async {
       final functions = _FakeFirebaseFunctions(responses: {
         'getTournamentServiceFee': {
           'percent': 0,
           'floorReais': 0,
           'payer': 'organizador',
           'cardFeePercent': 1.33,
+          'cardProcessingPercent': 2.99,
+          'cardFixedReais': 0.49,
         },
       });
       final service = PaymentService(functions: functions);
@@ -317,16 +393,18 @@ void main() {
       final rule = await service.getTournamentServiceFee(tournamentId: 't1');
 
       expect(rule.payer, _organizador);
-      expect(rule.cardFeePercent, 1.33);
+      expect(rule.cardFee.anticipationPercent, 1.33);
+      expect(rule.cardFee.processingPercent, 2.99);
+      expect(rule.cardFee.fixedReais, 0.49);
     });
 
-    test('resposta do cartão: taxa de antecipação já dentro do cobrado',
+    test('resposta do cartão: taxas do cartão já dentro do cobrado',
         () async {
       final functions = _FakeFirebaseFunctions(responses: {
         'createTournamentRegistrationCardPayment': {
           ..._card,
-          'chargedReais': 50.67,
-          'cardFeeReais': 0.67,
+          'chargedReais': 52.74,
+          'cardFeeReais': 2.74,
           'cardFeePercent': 1.33,
         },
       });
@@ -336,8 +414,8 @@ void main() {
         registrationId: 'r1',
       );
 
-      expect(card.chargedReais, 50.67);
-      expect(card.cardFeeReais, 0.67);
+      expect(card.chargedReais, 52.74);
+      expect(card.cardFeeReais, 2.74);
       expect(card.cardFeePercent, 1.33);
     });
 

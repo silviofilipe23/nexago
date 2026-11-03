@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/formatting/app_currency_format.dart';
 import 'package:nexago_app/features/tournaments/domain/registration_payment_method.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_service_fee.dart';
 
 void main() {
   group('registrationChargeButtonLabel', () {
@@ -58,31 +59,43 @@ void main() {
   });
 
   group('registrationMethodQuote', () {
-    test('o cartão leva a taxa de antecipação por cima do Pix', () {
-      final quote = registrationMethodQuote(
-        pixCents: 10000,
-        cardFeePercent: 1.33,
-      );
+    const asaas = CardFeeTerms(
+      anticipationPercent: 1.33,
+      processingPercent: 2.99,
+      fixedReais: 0.49,
+    );
+
+    test('o cartão leva as taxas do cartão por cima do Pix', () {
+      final quote = registrationMethodQuote(pixCents: 10000, cardFee: asaas);
       expect(quote.pixCents, 10000);
-      expect(quote.cardFeeCents, 133);
-      expect(quote.cardTotalCents, 10133);
+      expect(quote.cardFeeCents, 496);
+      expect(quote.cardTotalCents, 10496);
       expect(quote.totalCents(RegistrationPaymentMethod.pix), 10000);
-      expect(quote.totalCents(RegistrationPaymentMethod.card), 10133);
-      expect(quote.cardFeePercent, 1.33);
+      expect(quote.totalCents(RegistrationPaymentMethod.card), 10496);
     });
 
-    test('sem percentual (backend antigo) o cartão cobra o mesmo que o Pix',
-        () {
-      final quote = registrationMethodQuote(pixCents: 10000, cardFeePercent: 0);
+    test('só antecipação (backend que só manda o percentual): como antes', () {
+      final quote = registrationMethodQuote(
+        pixCents: 10000,
+        cardFee: const CardFeeTerms(anticipationPercent: 1.33),
+      );
+      expect(quote.cardFeeCents, 133);
+      expect(quote.cardTotalCents, 10133);
+    });
+
+    test('sem taxas (backend antigo) o cartão cobra o mesmo que o Pix', () {
+      final quote = registrationMethodQuote(
+        pixCents: 10000,
+        cardFee: CardFeeTerms.none,
+      );
       expect(quote.cardFeeCents, 0);
       expect(quote.cardTotalCents, 10000);
-      expect(quote.cardFeePercent, 0);
     });
 
     test('nada a cobrar (cashback cobre tudo): sem taxa', () {
-      final quote = registrationMethodQuote(pixCents: 0, cardFeePercent: 1.33);
+      final quote = registrationMethodQuote(pixCents: 0, cardFee: asaas);
       expect(quote.cardFeeCents, 0);
-      expect(quote.cardFeePercent, 0);
+      expect(quote.cardTotalCents, 0);
     });
   });
 

@@ -316,8 +316,11 @@ class _SchedulePlanSignupPageState
               _methodChips(a.plan),
               const SizedBox(height: 8),
               Text(
-                'Por enquanto a mensalidade é acertada com a arena, que dá '
-                'baixa a cada mês.',
+                scheduleMethodNote(
+                  _methodOf(a.plan),
+                  onlineBilling: a.onlineBilling,
+                ),
+                key: const Key('schedule-method-note'),
                 style: TextStyle(fontSize: 11.5, color: colors.onSurfaceMuted),
               ),
               if (a.plan.rules.splitEnabled) ...[

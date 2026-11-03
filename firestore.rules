@@ -2016,6 +2016,11 @@ service cloud.firestore {
       );
       allow create, update, delete: if false;
     }
+    // Cobrança online das mensalidades (Asaas): o grupo de pagamento é só do servidor — portal e
+    // app leem o espelho `asaas` na mensalidade. O catch-all já nega; a regra explícita documenta.
+    match /arenaScheduleAsaasPayments/{groupId} {
+      allow read, write: if false;
+    }
     match /arenaScheduleWaitlist/{entryId} {
       allow read: if request.auth != null && (
         resource.data.athleteId == request.auth.uid ||

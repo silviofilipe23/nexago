@@ -32,6 +32,7 @@ import {athleteAccountPhone} from "./arena-class";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {offerNextForPlan} from "./arena-schedule-waitlist";
 import {
+  ARENA_SCHEDULE_ASAAS_PAYMENTS,
   ARENA_SCHEDULE_CHARGES,
   ARENA_SCHEDULE_SUBSCRIPTIONS,
   ARENA_SCHEDULE_WAITLIST,
@@ -168,6 +169,8 @@ export function buildPayerCharges(
       paidAt: null,
       paidOn: null,
       paymentMethod: null,
+      // Manual ou link Asaas: decide o gatilho `onArenaScheduleChargeWritten` (arena-schedule-asaas.ts).
+      billingMode: null,
       registeredByUid: null,
       remindersSent: [],
       createdAt: FieldValue.serverTimestamp(),
@@ -799,6 +802,14 @@ export async function resumeSubscriptionCore(
         firstOccurrenceOnOrAfter(weekdays, fromKey)) :
       [];
     const existing = await Promise.all(planned.map((c) => tx.get(db.collection(ARENA_SCHEDULE_CHARGES).doc(c.id))));
+    // A mensalidade regravada no mesmo id perde o espelho `asaas`: se o grupo dela ainda está vivo
+    // (o gatilho da pausa atrasou), a anulação dele sai aqui, na mesma transação.
+    const oldGroups = await Promise.all(existing.map((snap) => {
+      const groupId = str(((snap.data()?.["asaas"] ?? {}) as Data)["groupId"]);
+      return snap.exists && canWriteCharge(snap) && groupId ?
+        tx.get(db.collection(ARENA_SCHEDULE_ASAAS_PAYMENTS).doc(groupId)) :
+        Promise.resolve(null);
+    }));
 
     // Volta antes do previsto devolve os dias não usados.
     const pausedUntil = typeof sub["pausedUntil"] === "string" ? sub["pausedUntil"] : null;
@@ -810,6 +821,15 @@ export async function resumeSubscriptionCore(
         // Mensalidade cancelada pela pausa no mesmo id dá lugar à da volta.
         if (canWriteCharge(existing[i]!)) {
           tx.set(db.collection(ARENA_SCHEDULE_CHARGES).doc(c.id), c.data);
+          const group = oldGroups[i];
+          const state = str(group?.data()?.["state"]);
+          if (group && ["pending", "creating", "open", "failed", "needs_cpf"].includes(state)) {
+            const next = state === "needs_cpf" ? "void" : "voiding";
+            tx.set(group.ref, {
+              state: next, voidReason: "paused", ...(next === "void" ? {voidedAt: FieldValue.serverTimestamp()} : {}),
+              updatedAt: FieldValue.serverTimestamp(),
+            }, {merge: true});
+          }
         }
       });
     }

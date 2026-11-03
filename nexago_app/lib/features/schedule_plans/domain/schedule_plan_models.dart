@@ -200,7 +200,7 @@ extension SchedulePaymentMethodX on SchedulePaymentMethod {
       };
 
   String get label => switch (this) {
-        SchedulePaymentMethod.pixAuto => 'Pix automático',
+        SchedulePaymentMethod.pixAuto => 'Pix',
         SchedulePaymentMethod.card => 'Cartão',
         SchedulePaymentMethod.onsite => 'Na arena',
       };
@@ -422,11 +422,16 @@ class SchedulePlanAvailability {
     required this.plan,
     this.primeCapReached = false,
     this.days = const [],
+    this.onlineBilling = false,
   });
 
   final SchedulePlan plan;
   final bool primeCapReached;
   final List<SchedulePlanDayAvailability> days;
+
+  /// A arena cobra online (`scheduleSettings/rules.onlineBillingEnabled`):
+  /// Pix/cartão viram link mensal. Backend antigo não manda → `false`.
+  final bool onlineBilling;
 
   factory SchedulePlanAvailability.fromMap(
     Map<String, dynamic> m, {
@@ -441,6 +446,7 @@ class SchedulePlanAvailability {
       plan: SchedulePlan.fromMap(planId, spMap(m['plan']), arenaId: arenaId),
       primeCapReached: spBool(m['primeCapReached']),
       days: days,
+      onlineBilling: spBool(m['onlineBilling']),
     );
   }
 }
@@ -589,6 +595,11 @@ class ScheduleCharge {
     this.status = 'open',
     this.payerAthleteId,
     this.payerName = '',
+    this.billingMode,
+    this.asaasState,
+    this.invoiceUrl,
+    this.paidVia,
+    this.onlineBillingType,
   });
 
   final String id;
@@ -601,17 +612,47 @@ class ScheduleCharge {
   final String? payerAthleteId;
   final String payerName;
 
-  bool get isOpen => status == 'open';
+  /// `null` (a decidir; também mensalidade antiga) | `manual` | `asaas`.
+  final String? billingMode;
 
-  factory ScheduleCharge.fromMap(Map<String, dynamic> m) => ScheduleCharge(
-        id: spStr(m['id'] ?? m['chargeId']),
-        period: spStr(m['period']),
-        amountReais: spDouble(m['amountReais']),
-        dueDate: spDate(m['dueDate']),
-        status: spStr(m['status'], 'open'),
-        payerAthleteId: spStrOrNull(m['payerAthleteId']),
-        payerName: spStr(m['payerName']),
-      );
+  /// Espelho do grupo Asaas (`asaas.state`): `pending | creating | open |
+  /// paid | voiding | void | failed | needs_cpf`.
+  final String? asaasState;
+
+  /// Fatura já gerada (`asaas.invoiceUrl`).
+  final String? invoiceUrl;
+
+  /// `asaas` quando paga online; manual não grava.
+  final String? paidVia;
+
+  /// `PIX | CREDIT_CARD | …` (só paga online).
+  final String? onlineBillingType;
+
+  bool get isOpen => status == 'open';
+  bool get isPaid => status == 'paid';
+
+  /// Cobrada por link (Pix ou cartão) — o atleta paga no app.
+  bool get isOnline => billingMode == 'asaas';
+
+  bool get isPaidOnline => isPaid && paidVia == 'asaas';
+
+  factory ScheduleCharge.fromMap(Map<String, dynamic> m) {
+    final asaas = spMap(m['asaas']);
+    return ScheduleCharge(
+      id: spStr(m['id'] ?? m['chargeId']),
+      period: spStr(m['period']),
+      amountReais: spDouble(m['amountReais']),
+      dueDate: spDate(m['dueDate']),
+      status: spStr(m['status'], 'open'),
+      payerAthleteId: spStrOrNull(m['payerAthleteId']),
+      payerName: spStr(m['payerName']),
+      billingMode: spStrOrNull(m['billingMode']),
+      asaasState: spStrOrNull(asaas['state']),
+      invoiceUrl: spStrOrNull(asaas['invoiceUrl']),
+      paidVia: spStrOrNull(m['paidVia']),
+      onlineBillingType: spStrOrNull(m['onlineBillingType'])?.toUpperCase(),
+    );
+  }
 }
 
 class ScheduleSubscription {

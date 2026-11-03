@@ -4,6 +4,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import '../../../core/firebase/functions_region.dart';
 import '../../tournaments/data/tournament_partner_invite_service.dart'
     show callableErrorMessage;
+import '../domain/schedule_plan_logic.dart' show scheduleCpfRequiredMessage;
 import '../domain/schedule_plan_models.dart';
 
 /// Falha de uma callable dos Planos de horário, com a frase do servidor (ou o
@@ -185,6 +186,28 @@ class SchedulePlansRepository {
       fallback: 'Não foi possível carregar seus planos de horário.',
     );
     return MyScheduleSubscriptions.fromMap(data);
+  }
+
+  /// Fatura online da mensalidade (Pix ou cartão) → `invoiceUrl`. Sem CPF
+  /// guardado o servidor responde `failed-precondition`
+  /// [scheduleCpfRequiredMessage]; aí repete com [cpfCnpj] (só dígitos).
+  Future<String> chargePaymentLink({
+    required String chargeId,
+    String? cpfCnpj,
+  }) async {
+    final cpf = cpfCnpj?.trim() ?? '';
+    final data = await _call(
+      'getArenaScheduleChargePaymentLink',
+      {'chargeId': chargeId, if (cpf.isNotEmpty) 'cpfCnpj': cpf},
+      fallback: 'Não foi possível gerar o link de pagamento.',
+    );
+    final url = spStr(data['invoiceUrl']);
+    if (url.isEmpty) {
+      throw SchedulePlanException(
+        'O link ainda está sendo gerado. Tente de novo em instantes.',
+      );
+    }
+    return url;
   }
 
   Future<ScheduleSkipResult> skipOccurrence(String bookingId) async {

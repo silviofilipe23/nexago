@@ -253,15 +253,16 @@ export function mergeClassRulesInput(stored: ClassRules, input: Record<string, u
   return parseClassRules({...stored, ...given});
 }
 
-/** Cobrança online cai no caixa da arena, como o aluguel online: precisa do pagamento online e do PIX de repasse. */
-export function assertArenaCanBillOnline(arena: Record<string, unknown>): void {
+/** Cobrança online cai no caixa da arena, como o aluguel online: precisa do pagamento online e do PIX de repasse.
+ *  `what` só muda o texto do erro (Aulas: "as aulas"; Planos de horário: "os planos de horário"). */
+export function assertArenaCanBillOnline(arena: Record<string, unknown>, what = "as aulas"): void {
   if (!readArenaPaymentFlags(arena).onlinePaymentEnabled) {
-    throw new HttpsError("failed-precondition", "Ative o pagamento online da arena antes de cobrar as aulas online.");
+    throw new HttpsError("failed-precondition", `Ative o pagamento online da arena antes de cobrar ${what} online.`);
   }
   try {
     requireArenaPayoutPixKey(arena);
   } catch {
-    throw new HttpsError("failed-precondition", "Cadastre a chave PIX de repasse da arena para receber as aulas online.");
+    throw new HttpsError("failed-precondition", `Cadastre a chave PIX de repasse da arena para receber ${what} online.`);
   }
 }
 

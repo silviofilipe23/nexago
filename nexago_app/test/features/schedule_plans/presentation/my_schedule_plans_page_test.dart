@@ -114,7 +114,7 @@ void main() {
     expect(find.text('Até 30 dias'), findsOneWidget);
     expect(find.text('PRÓXIMA COBRANÇA · 05/11'), findsOneWidget);
     expect(find.text('sua parte'), findsOneWidget);
-    expect(find.text('Pix automático'), findsOneWidget);
+    expect(find.text('Pix'), findsOneWidget);
   });
 
   testWidgets('membro não troca nem pausa', (tester) async {

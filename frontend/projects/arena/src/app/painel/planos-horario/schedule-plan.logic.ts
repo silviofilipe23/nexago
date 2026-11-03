@@ -5,6 +5,7 @@ import {
   PAYMENT_FORM_LABEL,
   WEEKDAY_SHORT,
   type PlanWindow,
+  type ScheduleAsaasState,
   type ScheduleCharge,
   type SchedulePaymentForm,
   type SchedulePlan,
@@ -306,6 +307,65 @@ export function matchesFilter(kind: SubscriberStateKind, filter: SubscriberFilte
     default:
       return kind === filter;
   }
+}
+
+// ── Cobrança online (Asaas) ─────────────────────────────────────────────────
+
+export interface OnlineChargeBadge {
+  label: string;
+  tone: 'green' | 'yellow' | 'red' | 'dim' | 'blue';
+}
+
+/** Texto da taxa da cobrança online (o mesmo do aluguel online). */
+export const ONLINE_BILLING_FEE_TEXT =
+  'A NexaGO desconta a mesma taxa do aluguel online (6% no Pro, 5% no Elite, mínimo R$ 1,50) mais a taxa do cartão quando for cartão. O valor cai no caixa da arena.';
+
+type OnlineChargeFields = Pick<ScheduleCharge, 'status' | 'billingMode' | 'asaas' | 'paidVia' | 'onlineBillingType'>;
+
+/** Grupo com pagamento vivo (ou a caminho) no Asaas — o mesmo conjunto que o backend anula na baixa manual. */
+const LIVE_ASAAS_STATES: readonly ScheduleAsaasState[] = ['pending', 'creating', 'open', 'failed'];
+
+/** `PIX` → Pix; cartões → Cartão; resto (boleto…) → nome cru capitalizado. */
+export function onlineBillingTypeLabel(type: string | null): string {
+  if (!type || type === 'PIX') return 'Pix';
+  if (type === 'CREDIT_CARD' || type === 'DEBIT_CARD') return 'Cartão';
+  return type.charAt(0) + type.slice(1).toLowerCase();
+}
+
+/** Selo do estado online da mensalidade. `null` = manual (ou link já anulado), nada a mostrar. */
+export function onlineChargeBadge(charge: OnlineChargeFields): OnlineChargeBadge | null {
+  if (charge.status === 'paid') {
+    return charge.paidVia === 'asaas' ? { label: `Pago online · ${onlineBillingTypeLabel(charge.onlineBillingType)}`, tone: 'green' } : null;
+  }
+  if (charge.status !== 'open' || charge.billingMode !== 'asaas') return null;
+  switch (charge.asaas?.state ?? 'pending') {
+    case 'pending':
+    case 'creating':
+      return { label: 'Gerando link', tone: 'dim' };
+    case 'open':
+      return { label: 'Link enviado', tone: 'blue' };
+    case 'failed':
+      return { label: 'Falhou — tentando de novo', tone: 'red' };
+    case 'needs_cpf':
+      return { label: 'Sem CPF — cobrar manual', tone: 'yellow' };
+    default:
+      return null;
+  }
+}
+
+/** Link da fatura pronto para copiar (só com a mensalidade em aberto). */
+export function onlineChargeInvoiceUrl(charge: Pick<ScheduleCharge, 'status' | 'asaas'>): string | null {
+  return charge.status === 'open' && charge.asaas?.state === 'open' ? charge.asaas.invoiceUrl : null;
+}
+
+/** Baixa manual ou cancelamento desta mensalidade anula o link online (o webhook estorna se o atleta pagar depois). */
+export function chargeVoidsOnlineLink(charge: Pick<ScheduleCharge, 'status' | 'billingMode' | 'asaas'>): boolean {
+  return charge.status === 'open' && charge.billingMode === 'asaas' && LIVE_ASAAS_STATES.includes(charge.asaas?.state ?? 'pending');
+}
+
+/** Como a forma do plano é cobrada hoje: Pix/cartão viram link mensal com a regra ligada; o resto é baixa manual. */
+export function paymentFormBilling(form: SchedulePaymentForm, onlineBillingEnabled: boolean): string {
+  return onlineBillingEnabled && form !== 'onsite' ? 'Pix ou cartão por link (online)' : 'baixa manual';
 }
 
 /** Vencimento mais próximo entre as mensalidades abertas (`null` = nada em aberto). */

@@ -104,4 +104,56 @@ void main() {
     await tester.pump();
     expect(find.textContaining('427,50'), findsOneWidget);
   });
+
+  testWidgets('pagamento: nota conforme a cobrança online da arena',
+      (tester) async {
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    Future<void> pump(bool online) async {
+      final a = SchedulePlanAvailability.fromMap({
+        'plan': {
+          'name': 'Fixo Noite 2x',
+          'timesPerWeek': 2,
+          'monthlyPriceReais': 450,
+          'billing': {
+            'methods': ['pix_auto', 'onsite'],
+          },
+        },
+        'days': const [],
+        'onlineBilling': online,
+      }, arenaId: 'a1', planId: 'p1');
+      await tester.pumpWidget(
+        ProviderScope(
+          key: ValueKey(online),
+          overrides: [
+            schedulePlansUidProvider.overrideWith((ref) => 'u1'),
+            schedulePlanAvailabilityProvider
+                .overrideWith((ref, key) async => a),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark,
+            home: const SchedulePlanSignupPage(arenaId: 'a1', planId: 'p1'),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+    }
+
+    Text note() =>
+        tester.widget<Text>(find.byKey(const Key('schedule-method-note')));
+
+    await pump(true);
+    expect(note().data, startsWith('Link mensal: Pix ou cartão'));
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('schedule-method-onsite')),
+    );
+    await tester.tap(find.byKey(const ValueKey('schedule-method-onsite')));
+    await tester.pump();
+    expect(note().data, contains('direto na arena'));
+
+    await pump(false);
+    expect(note().data, startsWith('Combine o pagamento com a arena'));
+  });
 }

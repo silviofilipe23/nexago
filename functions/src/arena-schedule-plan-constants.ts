@@ -19,6 +19,10 @@ export const ARENA_SCHEDULE_SUBSCRIPTIONS = "arenaScheduleSubscriptions";
 export const ARENA_SCHEDULE_CHARGES = "arenaScheduleCharges";
 export const ARENA_SCHEDULE_CREDITS = "arenaScheduleCredits";
 export const ARENA_SCHEDULE_WAITLIST = "arenaScheduleWaitlist";
+/** Cobrança online: um doc por pagamento Asaas de mensalidade (só servidor; rules negam). */
+export const ARENA_SCHEDULE_ASAAS_PAYMENTS = "arenaScheduleAsaasPayments";
+/** `externalReference` do pagamento Asaas da mensalidade: `arenaSchedulePayment:{groupId}`. */
+export const SCHEDULE_PAYMENT_REF_PREFIX = "arenaSchedulePayment:";
 
 /** Rota do app do atleta ("Meu plano") usada nos pushes. */
 export const ATHLETE_PLANS_URL = "/meus-planos-horario";
@@ -93,6 +97,8 @@ export interface ScheduleSettings {
   waitlistAutoOffer: boolean;
   waitlistOfferHours: number;
   appliedHolidays: string[];
+  /** Cobrança online das mensalidades (link Asaas, Pix ou cartão). Padrão desligado. */
+  onlineBillingEnabled: boolean;
 }
 
 export const DEFAULT_PRIME_WINDOWS: PlanWindow[] = [1, 2, 3, 4, 5].map((weekday) => ({
@@ -105,6 +111,7 @@ export const DEFAULT_SCHEDULE_SETTINGS: ScheduleSettings = {
   waitlistAutoOffer: true,
   waitlistOfferHours: 24,
   appliedHolidays: [],
+  onlineBillingEnabled: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -620,6 +627,7 @@ export function parseScheduleSettings(data: Record<string, unknown> | undefined)
     appliedHolidays: Array.isArray(data["appliedHolidays"]) ?
       (data["appliedHolidays"] as unknown[]).map(String).filter(isValidDateKey) :
       [],
+    onlineBillingEnabled: data["onlineBillingEnabled"] === true,
   };
 }
 
@@ -640,6 +648,10 @@ export function mergeScheduleSettingsInput(stored: ScheduleSettings, input: Reco
       throw new HttpsError("invalid-argument", "Prazo da oferta: 12, 24 ou 48 horas.");
     }
     out.waitlistOfferHours = hours;
+  }
+  if (input["onlineBillingEnabled"] !== undefined) {
+    if (typeof input["onlineBillingEnabled"] !== "boolean") throw new HttpsError("invalid-argument", "Cobrança online inválida.");
+    out.onlineBillingEnabled = input["onlineBillingEnabled"];
   }
   return out;
 }

@@ -12,9 +12,11 @@ import { brl } from './ph-format';
 import { PhIconBoxComponent, PhLineComponent, PhPageComponent } from './planos-horario-ui';
 import {
   BANDS,
+  ONLINE_BILLING_FEE_TEXT,
   cycleMonthlyPrice,
   gridFromWindows,
   holdsSlot,
+  paymentFormBilling,
   planEconomy,
   windowCellKey,
   windowsFromGrid,
@@ -218,8 +220,11 @@ const DUE_DAYS: ReadonlyArray<{ value: number; label: string }> = [
                       <button type="button" class="sm-chip" [class.active]="d().billing.methods.includes(f)" (click)="toggleForm(f)">{{ formLabel[f] }}</button>
                     }
                   </div>
+                  @if (billingNote(); as note) {
+                    <p class="hint">{{ note }}</p>
+                  }
                   @if (d().billing.methods.includes('pix_auto') || d().billing.methods.includes('card')) {
-                    <p class="hint">Cobrança online chega em breve — por enquanto a baixa é manual.</p>
+                    <p class="hint">{{ store.settings().onlineBillingEnabled ? feeText : 'Para cobrar por link, ligue a cobrança online nas Regras gerais.' }}</p>
                   }
                 </div>
                 <div>
@@ -400,6 +405,7 @@ export class PanelPhPlanEditorComponent {
   protected readonly bands = BANDS;
   protected readonly forms = PAYMENT_FORMS;
   protected readonly formLabel = PAYMENT_FORM_LABEL;
+  protected readonly feeText = ONLINE_BILLING_FEE_TEXT;
   protected readonly dueDays = DUE_DAYS;
   protected readonly releaseDays = [1, 3, 7] as const;
   protected readonly durations = [{ value: 60, label: '1h' }, { value: 90, label: '1h30' }, { value: 120, label: '2h' }];
@@ -411,6 +417,16 @@ export class PanelPhPlanEditorComponent {
   protected readonly readOnly = computed(() => !this.access.canWrite('agenda') || !this.arenaContext.hasCapability('planosHorario'));
   protected readonly original = computed<SchedulePlan | null>(() => (this.planId ? this.store.planById().get(this.planId) ?? null : null));
   protected readonly d = signal<EditorDraft>(this.blankDraft());
+  /** `Pix e Cartão: Pix ou cartão por link (online) · Na arena: baixa manual`. */
+  protected readonly billingNote = computed(() => {
+    const online = this.store.settings().onlineBillingEnabled;
+    const groups = new Map<string, string[]>();
+    for (const f of PAYMENT_FORMS.filter((x) => this.d().billing.methods.includes(x))) {
+      const mode = paymentFormBilling(f, online);
+      groups.set(mode, [...(groups.get(mode) ?? []), PAYMENT_FORM_LABEL[f]]);
+    }
+    return [...groups].map(([mode, labels]) => `${labels.join(' e ')}: ${mode}`).join(' · ');
+  });
   /** O plano tinha janelas fora das faixas e a grade ainda não foi mexida — salva as originais. */
   protected readonly customWindows = signal(false);
   private windowsTouched = false;

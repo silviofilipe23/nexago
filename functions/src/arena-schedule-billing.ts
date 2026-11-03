@@ -1,5 +1,6 @@
 /**
- * Planos de horário — mensalidades (cobrança manual nesta etapa), atraso e o agendador diário.
+ * Planos de horário — mensalidades (baixa manual; a cobrança online fica em `arena-schedule-asaas.ts`),
+ * atraso e o agendador diário.
  *
  * As mensalidades nascem 10 dias antes do vencimento (mesma régua das Aulas), uma por pagador do
  * rateio. Atraso além de `overdueReleaseDays` suspende a assinatura e libera a agenda; dar baixa
@@ -65,6 +66,12 @@ export function dueReminder(charge: Data, todayKey: string): number | null {
   const reached = REMINDER_OFFSETS.filter((o) => o <= late);
   const last = reached[reached.length - 1];
   return last != null && !sent.has(last) ? last : null;
+}
+
+/** Link vivo da fatura online (espelho `asaas` aberto), ou "" — o lembrete manda pagar por ele. */
+export function onlineInvoiceUrlOf(charge: Data): string {
+  const asaas = (charge["asaas"] ?? {}) as Data;
+  return charge["billingMode"] === "asaas" && asaas["state"] === "open" ? str(asaas["invoiceUrl"]) : "";
 }
 
 // ---------------------------------------------------------------------------
@@ -317,13 +324,15 @@ export async function runScheduleSubscriptionsDaily(db: Firestore, todayKey: str
     const reminder = dueReminder(charge, todayKey);
     if (reminder != null) {
       const late = daysBetween(str(charge["dueDate"]), todayKey);
+      const invoiceUrl = onlineInvoiceUrlOf(charge);
       await doc.ref.set({remindersSent: [...REMINDER_OFFSETS.filter((o) => o <= reminder)]}, {merge: true});
       await notifyScheduleSafe(str(charge["payerAthleteId"]), {
         title: late === 0 ? "Mensalidade vence hoje" : `Mensalidade atrasada há ${late} dia(s)`,
         body: `${str(charge["planName"])} · ${monthLabelPt(str(charge["period"]))} · ` +
-          `R$ ${Number(charge["amountReais"] ?? 0).toFixed(2).replace(".", ",")}. Acerte com a arena.`,
+          `R$ ${Number(charge["amountReais"] ?? 0).toFixed(2).replace(".", ",")}. ` +
+          (invoiceUrl ? "Toque para pagar com Pix ou cartão." : "Acerte com a arena."),
         type: "schedule_plan_charge_reminder",
-        data: {chargeId: doc.id, subscriptionId: subId},
+        data: {chargeId: doc.id, subscriptionId: subId, ...(invoiceUrl ? {invoiceUrl, webUrl: invoiceUrl} : {})},
       });
       result.reminders += 1;
     }

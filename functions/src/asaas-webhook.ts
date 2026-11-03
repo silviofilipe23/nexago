@@ -28,6 +28,8 @@ import {processArenaSubscriptionAsaasNotification} from "./asaas-arena-subscript
 import {processArenaClubSessionAsaasNotification} from "./asaas-arena-club-webhook";
 import {processArenaClassAsaasNotification} from "./asaas-arena-class-webhook";
 import {CLASS_PAYMENT_REF_PREFIX} from "./arena-class-constants";
+import {processArenaScheduleAsaasNotification} from "./asaas-arena-schedule-webhook";
+import {SCHEDULE_PAYMENT_REF_PREFIX} from "./arena-schedule-plan-constants";
 import {ARENA_CLUB_SESSION_PAYMENT_REF_PREFIX} from "./arena-club-constants";
 import {reverseCashbackForPayment} from "./cashback-reversal";
 import {getFirebaseProjectId} from "./firebase-paths";
@@ -163,6 +165,9 @@ export const asaasWebhook = onRequest({
     } else if (externalRef.startsWith(CLASS_PAYMENT_REF_PREFIX)) {
       // Mensalidade de aula — antes do ramo genérico de assinatura (`|| subscriptionRef`).
       await processArenaClassAsaasNotification(db, paymentId, payment, processedRef);
+    } else if (externalRef.startsWith(SCHEDULE_PAYMENT_REF_PREFIX)) {
+      // Mensalidade de plano de horário — também antes do ramo genérico de assinatura.
+      await processArenaScheduleAsaasNotification(db, paymentId, payment, processedRef);
     } else if (externalRef.startsWith(ARENA_BOOKING_SHARE_PAYMENT_REF_PREFIX)) {
       await processArenaBookingShareAsaasNotification(db, paymentId, payment, processedRef);
     } else if (externalRef.startsWith(ARENA_BOOKING_PAYMENT_REF_PREFIX)) {

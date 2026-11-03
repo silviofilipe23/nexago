@@ -63,6 +63,30 @@ describe('schedule-plan.model · parse', () => {
     expect(w.offer?.expiresAt?.toISOString()).toBe('2026-11-04T22:00:00.000Z');
     expect(waitlistFromRaw('w2', { offer: null }).offer).toBeNull();
   });
+
+  it('cobrança online: regra da arena e campos da mensalidade', () => {
+    expect(settingsFromRaw(undefined).onlineBillingEnabled).toBeFalse();
+    expect(settingsFromRaw({ onlineBillingEnabled: true }).onlineBillingEnabled).toBeTrue();
+    expect(settingsFromRaw({ onlineBillingEnabled: 'sim' }).onlineBillingEnabled).toBeFalse();
+
+    const legacy = chargeFromRaw('old', { status: 'open' });
+    expect(legacy.billingMode).toBeNull();
+    expect(legacy.asaas).toBeNull();
+    expect(legacy.paidVia).toBeNull();
+
+    const online = chargeFromRaw('c1', {
+      status: 'paid', billingMode: 'asaas', paidVia: 'asaas', onlineBillingType: 'CREDIT_CARD', platformFeeReais: 7.2, paymentMethod: null,
+      asaas: { groupId: 'g1', state: 'paid', invoiceUrl: 'https://asaas.com/i/1', status: 'RECEIVED' },
+    });
+    expect(online.billingMode).toBe('asaas');
+    expect(online.asaas).toEqual({ groupId: 'g1', state: 'paid', invoiceUrl: 'https://asaas.com/i/1', status: 'RECEIVED' });
+    expect(online.paidVia).toBe('asaas');
+    expect(online.onlineBillingType).toBe('CREDIT_CARD');
+    expect(online.platformFeeReais).toBe(7.2);
+    expect(online.paymentMethod).toBeNull();
+    expect(chargeFromRaw('c2', { asaas: { state: 'open' } }).asaas).toBeNull();
+    expect(chargeFromRaw('c3', { asaas: { groupId: 'g', state: 'estranho' } }).asaas?.state).toBe('pending');
+  });
 });
 
 describe('schedule-plan-repository · erro amigável', () => {

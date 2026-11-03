@@ -17,6 +17,7 @@ import {
   type SchedulePlan,
 } from './schedule-plan.model';
 import { createScheduleSubscription } from './schedule-plan-repository';
+import { SchedulePlansStore } from './schedule-plans.store';
 
 /** "Adicionar assinante" (gestor): atleta NexaGO ou nome + telefone, plano, dias, horário, ciclo
  *  e forma de cobrança → `createArenaScheduleSubscription`. */
@@ -109,7 +110,15 @@ import { createScheduleSubscription } from './schedule-plan-repository';
             }
           </div>
           @if (method() !== 'onsite') {
-            <p class="hint">Cobrança online chega em breve — por enquanto a baixa é manual.</p>
+            <p class="hint">
+              @if (!onlineBilling()) {
+                Cobrança online desligada nas Regras gerais: a baixa é manual.
+              } @else if (mode() === 'free') {
+                Sem conta no app não dá para cobrar por link: a baixa é manual.
+              } @else {
+                Cada mensalidade vira um link de Pix ou cartão que o atleta paga pelo app.
+              }
+            </p>
           }
         }
 
@@ -127,6 +136,7 @@ import { createScheduleSubscription } from './schedule-plan-repository';
 })
 export class PhAddSubscriberModalComponent {
   private readonly arenaContext = inject(ArenaContextService);
+  private readonly store = inject(SchedulePlansStore);
 
   readonly plans = input.required<SchedulePlan[]>();
   readonly close = output<void>();
@@ -137,6 +147,7 @@ export class PhAddSubscriberModalComponent {
   protected readonly formLabel = PAYMENT_FORM_LABEL;
   protected readonly today = todayKeyLocal();
   protected readonly arenaId = computed(() => this.arenaContext.arenaId());
+  protected readonly onlineBilling = computed(() => this.store.settings().onlineBillingEnabled);
 
   protected readonly mode = signal<'athlete' | 'free'>('athlete');
   protected readonly athlete = signal<AthleteCandidate | null>(null);

@@ -157,7 +157,11 @@ interface AlertView {
               } @else {
                 <p class="state-text">Nenhuma mensalidade em aberto.</p>
               }
-              <p class="hint">Cobrança online chega em breve — por enquanto a baixa é manual.</p>
+              <p class="hint">
+                {{ store.settings().onlineBillingEnabled
+                  ? 'Pix e cartão saem por link online, pago pelo app. Na arena segue com baixa manual.'
+                  : 'Cobrança online desligada: a baixa é manual. Dá para ligar nas Regras gerais.' }}
+              </p>
             </ar-panel-card>
 
             <ar-panel-card title="Precisa de você">

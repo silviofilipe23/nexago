@@ -57,15 +57,21 @@ import { createManualBooking, quoteManualBooking } from './manual-booking-reposi
           <button type="button" class="ar-ghost-btn clear-btn" (click)="clearAthlete()">Trocar</button>
         </div>
       } @else {
+        <div class="row">
+        <div class="col">
         <ar-athlete-search-field [arenaId]="arenaId()" (selected)="onAthleteSelected($event)" />
+        </div>
+        <div class="col">
         <div class="field-label">Ou nome do cliente</div>
         <input
           type="text"
-          class="input-box"
-          placeholder="Ex.: João Silva"
-          [value]="customerName()"
-          (input)="customerName.set($any($event.target).value)"
-        />
+            class="input-box"
+            placeholder="Ex.: João Silva"
+            [value]="customerName()"
+            (input)="customerName.set($any($event.target).value)"
+          />
+        </div>
+        </div>
       }
 
       <div class="field-label">Valor (R$)</div>

@@ -501,6 +501,21 @@ ScheduleCharge? schedulePendingFirstCharge(
   return scheduleNextOpenCharge(sub.charges, uid);
 }
 
+/// Assinatura do titular [uid] aguardando pagamento. Enquanto existir, ele não
+/// assina outro plano (o servidor recusa): paga ou desiste antes.
+ScheduleSubscription? scheduleMyPendingPayment(
+  List<ScheduleSubscription> subs,
+  String uid,
+) {
+  for (final s in subs) {
+    if (s.status == ScheduleSubscriptionStatus.pendingPayment &&
+        s.holderAthleteId == uid) {
+      return s;
+    }
+  }
+  return null;
+}
+
 /// "14:32" do prazo de pagamento.
 String scheduleClock(DateTime d) {
   final local = d.toLocal();

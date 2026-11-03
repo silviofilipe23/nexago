@@ -184,6 +184,48 @@ class _SchedulePlanSignupPageState
     }
   }
 
+  /// Plano do atleta ainda sem pagar: trava a assinatura de outro.
+  ScheduleSubscription? _pendingPayment() {
+    if (_mode == _Mode.change) return null;
+    final data = ref.watch(myScheduleSubscriptionsProvider).valueOrNull;
+    return scheduleMyPendingPayment(
+      data?.subscriptions ?? const [],
+      ref.watch(schedulePlansUidProvider),
+    );
+  }
+
+  Future<void> _payPending(ScheduleSubscription sub) async {
+    final charge =
+        schedulePendingFirstCharge(sub, ref.read(schedulePlansUidProvider));
+    await context.push(
+      charge == null
+          ? AppRoutes.mySchedulePlans
+          : schedulePlanPaymentLocation(charge.id),
+    );
+    if (mounted) ref.invalidate(myScheduleSubscriptionsProvider);
+  }
+
+  Widget _pendingBanner(ScheduleSubscription sub) {
+    final until = sub.pendingPaymentUntil;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: ScheduleBanner(
+        key: const Key('schedule-signup-pending-block'),
+        icon: Icons.hourglass_top_rounded,
+        title: 'Pague o plano ${sub.planName} primeiro',
+        message: 'Ele está aguardando pagamento'
+            '${until == null ? '' : ' até ${scheduleClock(until)}'}. '
+            'Pague ou desista dele para assinar outro plano.',
+        tone: AppColors.pending,
+        action: FilledButton(
+          key: const Key('schedule-signup-pending-pay'),
+          onPressed: () => _payPending(sub),
+          child: const Text('Pagar agora'),
+        ),
+      ),
+    );
+  }
+
   Future<void> _submit(SchedulePlan plan) async {
     if (_saving) return;
     setState(() => _saving = true);
@@ -283,6 +325,7 @@ class _SchedulePlanSignupPageState
     final availability = availabilityAsync.valueOrNull;
     final plan = availability?.plan;
     final offer = _offer();
+    final pending = _pendingPayment();
     return Scaffold(
       backgroundColor: colors.canvas,
       appBar: NexaAppBar(
@@ -317,6 +360,7 @@ class _SchedulePlanSignupPageState
         data: (a) => ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
           children: [
+            if (pending != null) _pendingBanner(pending),
             if (_mode == _Mode.offer)
               ..._offerSection(a, offer)
             else
@@ -728,7 +772,8 @@ class _SchedulePlanSignupPageState
       _cycleOption(plan),
     );
     final share = scheduleSharePerPlayer(monthly, players);
-    final ready = _mode == _Mode.offer ? offer != null : _readyForSlots(a);
+    final ready = _pendingPayment() == null &&
+        (_mode == _Mode.offer ? offer != null : _readyForSlots(a));
     return NexaBottomActionBar(
       leading: Column(
         mainAxisSize: MainAxisSize.min,

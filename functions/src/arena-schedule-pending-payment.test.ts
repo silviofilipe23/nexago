@@ -17,8 +17,8 @@ import {
   getScheduleChargeCheckoutCore,
   type ScheduleAsaasDeps,
 } from "./arena-schedule-asaas";
-import {SIGNUP_PAYMENT_WINDOW_MS} from "./arena-schedule-plan-constants";
-import {ARENA, docsIn, holder, makeDb, pushes, seedArena, today, weekdayIn} from "./arena-schedule.test-helper";
+import {PENDING_PAYMENT_BLOCK_MESSAGE, SIGNUP_PAYMENT_WINDOW_MS} from "./arena-schedule-plan-constants";
+import {ARENA, docsIn, holder, makeDb, planData, pushes, seedArena, today, weekdayIn} from "./arena-schedule.test-helper";
 import type {FakeFirestore} from "./fake-firestore.test-helper";
 
 // Assinatura pelo app com Pix/cartão: segura o horário 30 min até pagar a 1ª mensalidade.
@@ -91,8 +91,24 @@ describe("assinatura aguardando pagamento — nascimento", () => {
     assert.equal(s["status"], "pending_payment");
     assert.equal((s["pendingPaymentUntil"] as Timestamp).toMillis(), NOW + SIGNUP_PAYMENT_WINDOW_MS);
     assert.equal(occupied(fake), 1);
-    // Duplicado enquanto aguarda.
-    await rejects(createSubscriptionCore(db, request(), today(), NOW), "already-exists");
+    // Mesmo plano enquanto aguarda: cai na trava de um pendente por vez.
+    await rejects(createSubscriptionCore(db, request(), today(), NOW), "failed-precondition", PENDING_PAYMENT_BLOCK_MESSAGE);
+  });
+
+  it("com um plano aguardando pagamento, o atleta não assina outro até pagar ou desistir", async () => {
+    const {fake, db} = makeDb();
+    seedOnlineArena(fake);
+    fake.seedDoc(`arenas/${ARENA}/schedulePlans/p2`, planData({name: "Outro plano"}));
+    const first = await createSubscriptionCore(db, request(), today(), NOW);
+    await rejects(createSubscriptionCore(db, request({planId: "p2", paymentMethod: "onsite"}), today(), NOW),
+      "failed-precondition", PENDING_PAYMENT_BLOCK_MESSAGE);
+    // O gestor cadastrando pela arena não é barrado.
+    const byManager = await createSubscriptionCore(db,
+      request({planId: "p2", audience: "manager", source: "arena", createdByUid: "mgr", startTime: "20:00"}), today(), NOW);
+    assert.equal(byManager.status, "active");
+    // Desistiu: libera para assinar de novo.
+    await cancelMySubscriptionCore(db, "u1", first.subscriptionId, today());
+    assert.equal((await createSubscriptionCore(db, request(), today(), NOW)).status, "pending_payment");
   });
 
   it("na arena, gestor ou arena sem cobrança online: nasce ativa como antes", async () => {

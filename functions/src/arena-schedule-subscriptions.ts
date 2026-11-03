@@ -40,6 +40,7 @@ import {
   CYCLES,
   LIVE_SUBSCRIPTION_STATUSES,
   MIN_ONLINE_CHARGE_REAIS,
+  PENDING_PAYMENT_BLOCK_MESSAGE,
   PENDING_PAYMENT_STATUS,
   SIGNUP_PAYMENT_WINDOW_MS,
   commitmentEndsOn,
@@ -489,6 +490,11 @@ export async function createSubscriptionCore(
       }
       // Oferta viva já segura a vaga (inclusive a do "Oferecer ao 1º" manual em plano cheio).
       offerHoldsSeat = offerLive;
+    }
+    // Um plano sem pagar por vez: o horário segurado de graça não vira estoque.
+    if (req.audience === "athlete" &&
+      (holderSubs?.docs ?? []).some((d) => d.data()["status"] === PENDING_PAYMENT_STATUS)) {
+      throw new HttpsError("failed-precondition", PENDING_PAYMENT_BLOCK_MESSAGE);
     }
     const duplicate = (holderSubs?.docs ?? []).some((d) => d.data()["planId"] === req.planId &&
       [...LIVE_SUBSCRIPTION_STATUSES, PENDING_PAYMENT_STATUS].includes(String(d.data()["status"]) as never));

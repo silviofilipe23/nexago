@@ -24,6 +24,7 @@ import '../../arena/presentation/aulas/widgets/arena_class_form_atoms.dart'
 import '../application/schedule_plans_providers.dart';
 import '../domain/schedule_plan_logic.dart';
 import '../domain/schedule_plan_models.dart';
+import 'schedule_plans_routes.dart';
 import 'widgets/schedule_plan_ui.dart';
 
 /// A2 · Montar o horário fixo: dias, horário que vale para todos, ciclo,
@@ -192,11 +193,17 @@ class _SchedulePlanSignupPageState
     final memberIds = plan.rules.splitEnabled && _split
         ? [for (final m in _members) m.uid]
         : const <String>[];
+    final onlineBilling = ref
+            .read(schedulePlanAvailabilityProvider(_key))
+            .valueOrNull
+            ?.onlineBilling ??
+        false;
     try {
       final String message;
+      ScheduleSubscribeResult? created;
       switch (_mode) {
         case _Mode.subscribe:
-          final result = await repo.subscribe(
+          final result = created = await repo.subscribe(
             arenaId: widget.arenaId,
             planId: widget.planId,
             weekdays: [..._days]..sort(),
@@ -212,7 +219,7 @@ class _SchedulePlanSignupPageState
               ? 'Plano assinado$court! 1ª mensalidade: ${formatBRL(first)}.'
               : 'Plano assinado$court! Seu horário é seu toda semana.';
         case _Mode.offer:
-          await repo.acceptOffer(
+          created = await repo.acceptOffer(
             entryId: widget.offerEntryId!,
             cycle: cycle,
             paymentMethod: method,
@@ -229,15 +236,33 @@ class _SchedulePlanSignupPageState
               ? 'Horário trocado.'
               : 'Horário trocado. Agora na $court.';
       }
+      // Pix ou cartão com a arena cobrando online: Meu plano já abre o
+      // pagamento da 1ª mensalidade.
+      final payChargeId = created != null &&
+              schedulePaysOnSignup(
+                onlineBilling: onlineBilling,
+                method: method,
+                result: created,
+              )
+          ? created.firstChargeId
+          : null;
+      final pay = payChargeId != null;
       ref.invalidate(myScheduleSubscriptionsProvider);
       ref.invalidate(schedulePlanAvailabilityProvider(_key));
       ref.invalidate(arenaActiveSchedulePlansProvider(widget.arenaId));
       if (!mounted) return;
-      showAppSnackBar(context, message);
+      showAppSnackBar(
+        context,
+        pay ? '$message Agora é só pagar a 1ª mensalidade.' : message,
+      );
       if (_mode == _Mode.change) {
         popOrGo(context, AppRoutes.mySchedulePlans);
       } else {
-        context.pushReplacement(AppRoutes.mySchedulePlans);
+        context.pushReplacement(
+          mySchedulePlansLocation(
+            payChargeId: payChargeId,
+          ),
+        );
       }
     } catch (e) {
       if (!mounted) return;
@@ -734,12 +759,22 @@ class _SchedulePlanSignupPageState
       ),
       action: SchedulePrimaryButton(
         key: const Key('schedule-signup-submit'),
-        label: _mode == _Mode.offer ? 'Aceitar vaga' : 'Assinar',
+        label: switch ((_mode, _paysOnline(a))) {
+          (_Mode.offer, true) => 'Aceitar e pagar',
+          (_Mode.offer, false) => 'Aceitar vaga',
+          (_, true) => 'Assinar e pagar',
+          _ => 'Assinar',
+        },
         loading: _saving,
         onPressed: ready ? () => _submit(plan) : null,
       ),
     );
   }
+
+  /// Botão promete o pagamento: a arena cobra online e a forma não é na arena.
+  bool _paysOnline(SchedulePlanAvailability a) =>
+      a.onlineBilling &&
+      _methodOf(a.plan) != SchedulePaymentMethod.onsite;
 
   bool _readyForSlots(SchedulePlanAvailability a) {
     if (_days.length != a.plan.timesPerWeek || _time == null) return false;

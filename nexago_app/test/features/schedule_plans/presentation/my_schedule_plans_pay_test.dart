@@ -85,6 +85,7 @@ Future<List<String>> pumpPage(
   required List<Map<String, dynamic>> charges,
   required SchedulePlansRepository repo,
   bool opens = true,
+  String? payChargeId,
 }) async {
   tester.view.physicalSize = const Size(1170, 2532);
   tester.view.devicePixelRatio = 3;
@@ -106,6 +107,7 @@ Future<List<String>> pumpPage(
         theme: AppTheme.dark,
         home: MySchedulePlansPage(
           now: () => DateTime(2026, 11, 3, 10),
+          payChargeId: payChargeId,
           openUrl: (url) async {
             opened.add(url);
             return opens;
@@ -245,5 +247,40 @@ void main() {
     expect(payButton, findsNothing);
     expect(find.byKey(const Key('schedule-charge-paid-online')), findsOneWidget);
     expect(find.text('Pago · Pix'), findsOneWidget);
+  });
+
+  testWidgets('vindo da assinatura: abre o pagamento da 1ª sozinho, uma vez',
+      (tester) async {
+    final repo = _FakeRepo();
+    final opened = await pumpPage(
+      tester,
+      charges: [openOnline()],
+      repo: repo,
+      payChargeId: 'c1',
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(repo.calls.single, (chargeId: 'c1', cpfCnpj: null));
+    expect(opened, [_invoice]);
+
+    // Recarregar a tela não abre de novo.
+    await tester.pump(const Duration(seconds: 1));
+    expect(repo.calls, hasLength(1));
+  });
+
+  testWidgets('mensalidade que não está aberta não abre o pagamento',
+      (tester) async {
+    final repo = _FakeRepo();
+    final opened = await pumpPage(
+      tester,
+      charges: [
+        {...openOnline(), 'status': 'paid'},
+      ],
+      repo: repo,
+      payChargeId: 'c1',
+    );
+    await tester.pump();
+    expect(repo.calls, isEmpty);
+    expect(opened, isEmpty);
   });
 }

@@ -136,7 +136,7 @@ class SchedulePlansRepository {
     return ScheduleSubscribeResult.fromMap(data);
   }
 
-  Future<String> acceptOffer({
+  Future<ScheduleSubscribeResult> acceptOffer({
     required String entryId,
     required SchedulePlanCycle cycle,
     required SchedulePaymentMethod paymentMethod,
@@ -152,7 +152,7 @@ class SchedulePlansRepository {
       },
       fallback: 'Não foi possível aceitar a vaga.',
     );
-    return spStr(data['subscriptionId']);
+    return ScheduleSubscribeResult.fromMap(data);
   }
 
   /// Entra na fila do horário; devolve a posição (0 se o servidor não

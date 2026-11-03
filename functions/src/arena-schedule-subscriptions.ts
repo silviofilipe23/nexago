@@ -39,6 +39,9 @@ import {
   BILLING_METHODS,
   CYCLES,
   LIVE_SUBSCRIPTION_STATUSES,
+  MIN_ONLINE_CHARGE_REAIS,
+  PENDING_PAYMENT_STATUS,
+  SIGNUP_PAYMENT_WINDOW_MS,
   commitmentEndsOn,
   cycleMonthlyPrice,
   daysBetween,
@@ -77,6 +80,7 @@ import {
   requireScheduleManager,
   requireUid,
   rethrowSchedule,
+  scheduleOnlineBillingOn,
 } from "./arena-schedule-plans";
 
 type Data = Record<string, unknown>;
@@ -352,6 +356,25 @@ export interface CreateSubscriptionResult {
   courtName: string;
   skippedDates: string[];
   firstCharge: {chargeId: string; period: string; kind: "first"; amountReais: number; totalReais: number; dueDate: string};
+  /** `pending_payment`: o atleta paga a 1ª até [paymentDeadline] ou o horário é liberado. */
+  status: "active" | typeof PENDING_PAYMENT_STATUS;
+  /** ISO; só com `pending_payment`. */
+  paymentDeadline: string | null;
+}
+
+/**
+ * Assinatura pelo app que já nasce cobrada online: o atleta paga a 1ª mensalidade antes de virar
+ * assinante. Mesma decisão da mensalidade (`decideScheduleBillingMode`), para a parte do titular.
+ */
+export function paysAtSignup(input: {
+  audience: "manager" | "athlete";
+  holderAthleteId: string | null;
+  paymentMethod: string;
+  onlineBilling: boolean;
+  holderShareReais: number;
+}): boolean {
+  return input.audience === "athlete" && !!input.holderAthleteId && input.paymentMethod !== "onsite" &&
+    input.onlineBilling && input.holderShareReais >= MIN_ONLINE_CHARGE_REAIS;
 }
 
 async function resolveMembers(
@@ -430,6 +453,13 @@ export async function createSubscriptionCore(
   const endMin = endMinutes(endTime);
   const entryId = req.waitlistEntryId ?? null;
 
+  const holderShare = splitCents(first.totalReais, members.length)[0] ?? first.totalReais;
+  const pending = paysAtSignup({
+    audience: req.audience, holderAthleteId: req.holder.athleteId, paymentMethod,
+    onlineBilling: scheduleOnlineBillingOn(settings, arena), holderShareReais: holderShare,
+  });
+  const paymentDeadlineMs = pending ? nowMs + SIGNUP_PAYMENT_WINDOW_MS : null;
+
   const subRef = db.collection(ARENA_SCHEDULE_SUBSCRIPTIONS).doc();
   const seriesRefs = weekdays.map(() => db.collection(ARENA_RECURRING_BOOKINGS).doc());
 
@@ -461,7 +491,7 @@ export async function createSubscriptionCore(
       offerHoldsSeat = offerLive;
     }
     const duplicate = (holderSubs?.docs ?? []).some((d) => d.data()["planId"] === req.planId &&
-      (LIVE_SUBSCRIPTION_STATUSES as readonly string[]).includes(String(d.data()["status"])));
+      [...LIVE_SUBSCRIPTION_STATUSES, PENDING_PAYMENT_STATUS].includes(String(d.data()["status"]) as never));
     if (duplicate) throw new HttpsError("already-exists", "Este atleta já tem este plano.");
     if (!offerHoldsSeat && fresh.occupiedCount + liveOffersForPlan(occ, req.planId, nowMs, entryId) >= fresh.capacity) {
       throw new HttpsError("resource-exhausted", "Este plano está lotado. Entre na lista de espera.");
@@ -524,7 +554,8 @@ export async function createSubscriptionCore(
       paymentMethod,
       billingMode: "manual",
       dueDay,
-      status: "active",
+      status: pending ? PENDING_PAYMENT_STATUS : "active",
+      pendingPaymentUntil: paymentDeadlineMs == null ? null : Timestamp.fromMillis(paymentDeadlineMs),
       endsOn: null,
       pausedUntil: null,
       pausedAt: null,
@@ -568,18 +599,15 @@ export async function createSubscriptionCore(
       data: {subscriptionId: subRef.id, arenaId: req.arenaId},
     });
   }
-  for (const m of members.filter((x) => x.role === "member")) {
-    await notifyScheduleSafe(m.athleteId, {
-      title: "Você entrou num plano de horário",
-      body: `${req.holder.name} incluiu você no plano ${plan.name} em ${arenaName} (${when}).`,
-      type: "schedule_plan_member_added",
-      data: {subscriptionId: subRef.id, arenaId: req.arenaId},
-    });
-  }
+  // Aguardando pagamento: os membros só são avisados quando o titular paga (`activatePendingSubscriptionCore`).
+  if (!pending) await notifyMembersAdded(members, req.holder.name, plan.name, arenaName, when, subRef.id, req.arenaId);
 
-  logger.info("arena-schedule: assinatura criada", {subscriptionId: subRef.id, arenaId: req.arenaId, skipped: skippedDates.length});
-  const holderShare = splitCents(first.totalReais, members.length)[0] ?? first.totalReais;
+  logger.info("arena-schedule: assinatura criada", {
+    subscriptionId: subRef.id, arenaId: req.arenaId, skipped: skippedDates.length, pending,
+  });
   return {
+    status: pending ? PENDING_PAYMENT_STATUS : "active",
+    paymentDeadline: paymentDeadlineMs == null ? null : new Date(paymentDeadlineMs).toISOString(),
     subscriptionId: subRef.id,
     courtName: court.courtName,
     skippedDates,
@@ -592,6 +620,133 @@ export async function createSubscriptionCore(
       dueDate: first.dueDate,
     },
   };
+}
+
+async function notifyMembersAdded(
+  members: readonly SubscriptionMember[],
+  holderName: string,
+  planName: string,
+  arenaName: string,
+  when: string,
+  subscriptionId: string,
+  arenaId: string,
+): Promise<void> {
+  for (const m of members.filter((x) => x.role === "member")) {
+    await notifyScheduleSafe(m.athleteId, {
+      title: "Você entrou num plano de horário",
+      body: `${holderName} incluiu você no plano ${planName} em ${arenaName}${when ? ` (${when})` : ""}.`,
+      type: "schedule_plan_member_added",
+      data: {subscriptionId, arenaId},
+    });
+  }
+}
+
+/** "Seg, Qua · 19:00" das vagas da assinatura. */
+function whenOfSlots(sub: Data): string {
+  const slots = Array.isArray(sub["slots"]) ? (sub["slots"] as Data[]) : [];
+  if (slots.length === 0) return "";
+  const days = slots.map((x) => WEEKDAY_LABELS_PT[Number(x["weekday"])] ?? "").filter(Boolean).join(", ");
+  return `${days} · ${str(slots[0]?.["startTime"])}`;
+}
+
+/**
+ * 1ª mensalidade do titular paga: a assinatura que aguardava pagamento vira ativa. Idempotente
+ * (só mexe em `pending_payment`; uma assinatura já vencida não volta — o webhook estorna).
+ */
+export async function activatePendingSubscriptionCore(db: Firestore, subscriptionId: string): Promise<boolean> {
+  const ref = db.collection(ARENA_SCHEDULE_SUBSCRIPTIONS).doc(subscriptionId);
+  const sub = await db.runTransaction(async (tx: Transaction) => {
+    const snap = await tx.get(ref);
+    const data = (snap.data() ?? {}) as Data;
+    if (!snap.exists || data["status"] !== PENDING_PAYMENT_STATUS) return null;
+    tx.set(ref, {
+      status: "active", pendingPaymentUntil: null, activatedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    return data;
+  });
+  if (!sub) return false;
+  const arenaName = str(sub["arenaName"]) || "Arena";
+  const when = whenOfSlots(sub);
+  await notifyScheduleSafe(str(sub["holderAthleteId"]), {
+    title: "Plano de horário confirmado 🎾",
+    body: `Pagamento recebido. ${str(sub["planName"])} em ${arenaName}${when ? `: ${when}` : ""}.`,
+    type: "schedule_plan_subscribed",
+    data: {subscriptionId, arenaId: str(sub["arenaId"])},
+  });
+  const members = Array.isArray(sub["members"]) ? (sub["members"] as SubscriptionMember[]) : [];
+  await notifyMembersAdded(members, str(sub["holderName"]), str(sub["planName"]), arenaName, when,
+    subscriptionId, str(sub["arenaId"]));
+  logger.info("arena-schedule: assinatura paga e ativada", {subscriptionId});
+  return true;
+}
+
+/**
+ * Prazo para pagar a 1ª mensalidade venceu (ou o atleta desistiu, `force`): a assinatura nunca
+ * existiu — séries canceladas, horários liberados, mensalidades abertas canceladas (o gatilho anula
+ * a cobrança no Asaas), vaga devolvida e oferecida à fila. Não mexe se alguma mensalidade já foi paga.
+ */
+export async function expirePendingSubscriptionCore(
+  db: Firestore,
+  subscriptionId: string,
+  todayKey: string,
+  nowMs: number,
+  opts: {force?: boolean} = {},
+): Promise<boolean> {
+  const ref = db.collection(ARENA_SCHEDULE_SUBSCRIPTIONS).doc(subscriptionId);
+  const sub = await db.runTransaction(async (tx: Transaction) => {
+    const snap = await tx.get(ref);
+    const data = (snap.data() ?? {}) as Data;
+    if (!snap.exists || data["status"] !== PENDING_PAYMENT_STATUS) return null;
+    const until = data["pendingPaymentUntil"] instanceof Timestamp ? data["pendingPaymentUntil"].toMillis() : 0;
+    if (!opts.force && until > nowMs) return null;
+    const pRef = planRef(db, str(data["arenaId"]), str(data["planId"]));
+    const planSnap = await tx.get(pRef);
+    const charges = await tx.get(db.collection(ARENA_SCHEDULE_CHARGES).where("subscriptionId", "==", subscriptionId));
+    if (charges.docs.some((c) => c.data()["status"] === "paid")) return null;
+    for (const c of charges.docs) {
+      if (c.data()["status"] !== "open") continue;
+      tx.set(c.ref, {status: "canceled", canceledAt: FieldValue.serverTimestamp(), cancelReason: "payment_expired"}, {merge: true});
+    }
+    for (const seriesId of seriesIdsOf(data)) {
+      tx.set(db.collection(ARENA_RECURRING_BOOKINGS).doc(seriesId), {
+        status: "canceled", canceledAt: FieldValue.serverTimestamp(), cancelReason: "schedule_payment_expired",
+      }, {merge: true});
+    }
+    if (planSnap.exists) {
+      const occupied = Math.max(0, Number(planSnap.data()?.["occupiedCount"] ?? 0) - 1);
+      tx.set(pRef, {occupiedCount: occupied, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    }
+    tx.set(ref, {
+      status: "canceled",
+      endsOn: todayKey,
+      pendingPaymentUntil: null,
+      canceledAt: FieldValue.serverTimestamp(),
+      cancelReason: opts.force ? "Atleta desistiu antes de pagar" : "Pagamento não feito no prazo",
+      ...pendingRelease(seriesIdsOf(data), "schedule_payment_expired"),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    return data;
+  });
+  if (!sub) return false;
+
+  await releaseSubscriptionSeries(db, seriesIdsOf(sub), "schedule_payment_expired", subscriptionId);
+  if (!opts.force) {
+    await notifyScheduleSafe(str(sub["holderAthleteId"]), {
+      title: "Horário liberado",
+      body: `O pagamento do plano ${str(sub["planName"])} em ${str(sub["arenaName"]) || "Arena"} não foi feito ` +
+        "em 30 minutos e o horário voltou a ficar livre. Assine de novo se quiser.",
+      type: "schedule_plan_payment_expired",
+      data: {subscriptionId, arenaId: str(sub["arenaId"])},
+    });
+  }
+  try {
+    await offerNextForPlan(db, str(sub["arenaId"]), str(sub["planId"]), nowMs);
+  } catch (e) {
+    logger.warn("arena-schedule: oferta da fila após prazo vencido falhou", {subscriptionId, error: e});
+  }
+  logger.info("arena-schedule: assinatura sem pagamento liberada", {subscriptionId, force: !!opts.force});
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -1021,6 +1176,11 @@ export async function cancelMySubscriptionCore(
       members.includes(uid) ? "Só o titular do plano pode cancelar." : "Você não participa deste plano.",
     );
   }
+  // Ainda não pagou: desiste na hora (libera o horário, anula a cobrança).
+  if (data["status"] === PENDING_PAYMENT_STATUS) {
+    await expirePendingSubscriptionCore(db, subscriptionId, todayKey, Date.now(), {force: true});
+    return {endsOn: todayKey};
+  }
   const endsOn = await db.runTransaction(async (tx: Transaction) => {
     const snap = await tx.get(ref);
     const sub = (snap.data() ?? {}) as Data;
@@ -1149,7 +1309,10 @@ export const subscribeArenaSchedulePlan = onCall({region: CLIENT_FACING_REGIONS,
       cycle: input["cycle"], paymentMethod: input["paymentMethod"], startDate: todayKey, source: "athlete",
       createdByUid: uid, audience: "athlete",
     }, todayKey, Date.now());
-    return {subscriptionId: result.subscriptionId, courtName: result.courtName, firstCharge: result.firstCharge};
+    return {
+      subscriptionId: result.subscriptionId, courtName: result.courtName, firstCharge: result.firstCharge,
+      status: result.status, paymentDeadline: result.paymentDeadline,
+    };
   } catch (e) {
     return rethrowSchedule("subscribeArenaSchedulePlan", e);
   }

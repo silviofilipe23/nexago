@@ -214,6 +214,20 @@ class SchedulePlansRepository {
     return checkout;
   }
 
+  /// Assinatura ao vivo (prazo do pagamento na tela de pagamento).
+  Stream<ScheduleSubscription?> watchSubscription(String subscriptionId) {
+    return _db
+        .collection('arenaScheduleSubscriptions')
+        .doc(subscriptionId)
+        .snapshots()
+        .map((snap) {
+      final data = snap.data();
+      return data == null
+          ? null
+          : ScheduleSubscription.fromMap(data, id: snap.id);
+    });
+  }
+
   /// Mensalidade ao vivo: a tela de pagamento vê a baixa do webhook.
   Stream<ScheduleCharge?> watchCharge(String chargeId) {
     return _db

@@ -77,7 +77,7 @@ export function watchSubscriptions(
     query(
       collection(db, 'arenaScheduleSubscriptions'),
       where('arenaId', '==', arenaId),
-      where('status', 'in', ['active', 'paused', 'suspended']),
+      where('status', 'in', ['active', 'pending_payment', 'paused', 'suspended']),
     ),
     (snap) => onChange(snap.docs.map(subscriptionFromDoc).sort((a, b) => a.holderName.localeCompare(b.holderName, 'pt-BR'))),
     onError,

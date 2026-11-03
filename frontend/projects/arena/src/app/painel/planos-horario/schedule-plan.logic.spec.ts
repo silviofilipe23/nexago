@@ -151,6 +151,8 @@ describe('schedule-plan.logic · situação do assinante', () => {
     const late = [{ status: 'open' as const, dueDate: '2026-11-01' }];
     expect(subscriberState({ status: 'paused', endsOn: null, pausedUntil: '2026-11-20' }, late, today).label).toBe('Pausado até 20/11');
     expect(subscriberState({ status: 'suspended', endsOn: null, pausedUntil: null }, late, today).kind).toBe('suspended');
+    // Assinou pelo app com Pix/cartão e ainda não pagou (30 min segurando o horário).
+    expect(subscriberState({ status: 'pending_payment', endsOn: null, pausedUntil: null }, late, today).label).toBe('Aguardando pagamento');
     const atrasado = subscriberState({ status: 'active', endsOn: '2026-11-30', pausedUntil: null }, late, today);
     expect(atrasado.kind).toBe('late');
     expect(atrasado.label).toBe('Atrasado 2 dias');

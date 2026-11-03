@@ -167,7 +167,7 @@ void main() {
     Future<String> subscribeAndLand(
       WidgetTester tester, {
       required bool online,
-      required double first,
+      required bool pending,
     }) async {
       tester.view.physicalSize = const Size(1170, 2532);
       tester.view.devicePixelRatio = 3;
@@ -193,7 +193,7 @@ void main() {
         },
         'onlineBilling': online,
       }, arenaId: 'a1', planId: 'p1');
-      final repo = _SubscribeRepo(first);
+      final repo = _SubscribeRepo(pending);
       final router = GoRouter(
         initialLocation: '/',
         routes: [
@@ -253,24 +253,19 @@ void main() {
       return 'MEU PLANO';
     }
 
-    testWidgets('arena cobra online: vai para a tela de pagamento da 1ª',
+    testWidgets('aguardando pagamento: vai para a tela de pagamento da 1ª',
         (tester) async {
       expect(
-        await subscribeAndLand(tester, online: true, first: 90),
+        await subscribeAndLand(tester, online: true, pending: true),
         'PAGAR s1_2026-11_0',
       );
+      expect(find.textContaining('Horário reservado por 30 min'), findsOneWidget);
     });
 
-    testWidgets('arena sem cobrança online: só Meu plano', (tester) async {
+    testWidgets('assinatura já ativa (na arena / abaixo do mínimo): Meu plano',
+        (tester) async {
       expect(
-        await subscribeAndLand(tester, online: false, first: 90),
-        'MEU PLANO',
-      );
-    });
-
-    testWidgets('abaixo do mínimo online: só Meu plano', (tester) async {
-      expect(
-        await subscribeAndLand(tester, online: true, first: 3),
+        await subscribeAndLand(tester, online: true, pending: false),
         'MEU PLANO',
       );
     });
@@ -278,9 +273,9 @@ void main() {
 }
 
 class _SubscribeRepo implements SchedulePlansRepository {
-  _SubscribeRepo(this.first);
+  _SubscribeRepo(this.pending);
 
-  final double first;
+  final bool pending;
 
   @override
   Future<ScheduleSubscribeResult> subscribe({
@@ -297,9 +292,11 @@ class _SubscribeRepo implements SchedulePlansRepository {
         'courtName': 'Quadra 1',
         'firstCharge': {
           'chargeId': 's1_2026-11_0',
-          'amountReais': first,
+          'amountReais': 90,
           'dueDate': '2026-11-10',
         },
+        'status': pending ? 'pending_payment' : 'active',
+        if (pending) 'paymentDeadline': '2026-11-03T13:30:00.000Z',
       });
 
   @override

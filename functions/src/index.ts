@@ -240,6 +240,7 @@ export {
   onArenaScheduleChargeWritten,
   onArenaScheduleAsaasPaymentWritten,
   reconcileArenaScheduleAsaasPayments,
+  expireArenaSchedulePendingPayments,
   getArenaScheduleChargePaymentLink,
 } from "./arena-schedule-asaas";
 // Aulas — cobrança online pelo Asaas (worker do grupo + varredura).

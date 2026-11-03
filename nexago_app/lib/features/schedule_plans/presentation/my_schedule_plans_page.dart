@@ -201,6 +201,24 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
   }
 
   Future<void> _cancel(ScheduleSubscription sub) async {
+    if (sub.status == ScheduleSubscriptionStatus.pendingPayment) {
+      final ok = await confirmScheduleAction(
+        context,
+        title: 'Desistir da assinatura?',
+        message: 'O horário reservado volta a ficar livre na arena agora.',
+        confirmLabel: 'Desistir',
+      );
+      if (ok != true || !mounted) return;
+      await _run(
+        () async {
+          await ref.read(schedulePlansRepositoryProvider).cancelMine(sub.id);
+          return 'Assinatura desfeita. O horário foi liberado.';
+        },
+        failure: 'Não foi possível desistir',
+        logReason: 'schedule_plan_give_up',
+      );
+      return;
+    }
     final exit = scheduleAthleteExitDate(sub, _now);
     final lastDay = DateTime(exit.year, exit.month, exit.day - 1);
     final commitment = sub.commitmentEndsOn;
@@ -320,7 +338,7 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
   }) {
     final colors = context.themeColors;
     final holder = scheduleIsHolder(sub, uid);
-    final banner = _statusBanner(sub);
+    final banner = _statusBanner(sub, uid);
     final explanations = scheduleSkippedExplanations(sub, now);
     final credits = scheduleAvailableCredits(sub.credits, now);
     final skippable = scheduleSkippableOccurrences(sub.occurrences, now);
@@ -433,15 +451,39 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
             style: TextButton.styleFrom(
               foregroundColor: colors.onSurfaceMuted,
             ),
-            child: const Text('Cancelar plano'),
+            child: Text(
+              sub.status == ScheduleSubscriptionStatus.pendingPayment
+                  ? 'Desistir da assinatura'
+                  : 'Cancelar plano',
+            ),
           ),
         ),
       ],
     ];
   }
 
-  Widget? _statusBanner(ScheduleSubscription sub) {
+  Widget? _statusBanner(ScheduleSubscription sub, String uid) {
     switch (sub.status) {
+      case ScheduleSubscriptionStatus.pendingPayment:
+        final until = sub.pendingPaymentUntil;
+        final charge = schedulePendingFirstCharge(sub, uid);
+        return ScheduleBanner(
+          key: const Key('schedule-banner-pending-payment'),
+          icon: Icons.hourglass_top_rounded,
+          title: until == null
+              ? 'Aguardando pagamento'
+              : 'Aguardando pagamento até ${scheduleClock(until)}',
+          message: 'Pague a 1ª mensalidade para confirmar o plano. Sem '
+              'pagamento em 30 minutos, o horário é liberado.',
+          tone: AppColors.pending,
+          action: charge == null
+              ? null
+              : FilledButton(
+                  key: const Key('schedule-pending-pay'),
+                  onPressed: () => _pay(charge),
+                  child: const Text('Pagar agora'),
+                ),
+        );
       case ScheduleSubscriptionStatus.suspended:
         return const ScheduleBanner(
           key: Key('schedule-banner-suspended'),

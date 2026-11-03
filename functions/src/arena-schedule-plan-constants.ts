@@ -42,6 +42,18 @@ export const SCHEDULE_PAYMENT_METHODS = ["pix", "cash", "card_machine", "transfe
 /** Assinatura "viva" (segura a vaga e a quadra). */
 export const LIVE_SUBSCRIPTION_STATUSES = ["active", "paused", "suspended"] as const;
 
+/**
+ * Assinou com Pix/cartão numa arena que cobra online: segura o horário até pagar a 1ª mensalidade.
+ * Não é "viva" (não fatura, não suspende, não pausa); paga → `active`; vence → `canceled`.
+ */
+export const PENDING_PAYMENT_STATUS = "pending_payment";
+
+/** Prazo para pagar a 1ª mensalidade na assinatura pelo app. */
+export const SIGNUP_PAYMENT_WINDOW_MS = 30 * 60_000;
+
+/** Menor valor cobrado online (abaixo disso a mensalidade fica manual). */
+export const MIN_ONLINE_CHARGE_REAIS = 5;
+
 export interface PlanWindow {
   /** ISO 1 = segunda … 7 = domingo. */
   weekday: number;

@@ -94,6 +94,7 @@ describe('schedule-plan.model · parse', () => {
     expect(subscriptionFromRaw('s1', { endsOn: '2026-12-01', endRequestedBy: 'athlete' }).endRequestedBy).toBe('athlete');
     expect(subscriptionFromRaw('s1', { endsOn: '2026-12-01' }).endRequestedBy).toBeNull();
     expect(subscriptionFromRaw('s1', { endRequestedBy: 'x' }).endRequestedBy).toBeNull();
+    expect(subscriptionFromRaw('s1', { status: 'pending_payment' }).status).toBe('pending_payment');
   });
 });
 

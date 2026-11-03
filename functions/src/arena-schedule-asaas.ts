@@ -22,11 +22,14 @@ import {
   ARENA_SCHEDULE_CHARGES,
   ARENA_SCHEDULE_SUBSCRIPTIONS,
   ATHLETE_PLANS_URL,
+  MIN_ONLINE_CHARGE_REAIS,
+  PENDING_PAYMENT_STATUS,
   SCHEDULE_PAYMENT_REF_PREFIX,
   parseScheduleSettings,
   str,
 } from "./arena-schedule-plan-constants";
 import {requireUid, rethrowSchedule, scheduleOnlineBillingOn, scheduleSettingsRef} from "./arena-schedule-plans";
+import {activatePendingSubscriptionCore, expirePendingSubscriptionCore} from "./arena-schedule-subscriptions";
 import {chargeAsaasMirror, type ClassAsaasState} from "./arena-class-asaas-model";
 import {monthLabelPt} from "./arena-class-billing";
 import {asaasArenaSecrets, getAsaasEnvTag} from "./asaas-client";
@@ -49,7 +52,7 @@ type Data = Record<string, unknown>;
 
 export const SCHEDULE_CHARGE_LINK_TYPE = "schedule_plan_charge_link";
 /** Fatura UNDEFINED (Pix ou cartão) no Asaas não aceita menos que isso — abaixo fica manual. */
-export const MIN_ONLINE_CHARGE_REAIS = 5;
+export {MIN_ONLINE_CHARGE_REAIS};
 export const CPF_REQUIRED_MESSAGE = "Informe seu CPF para pagar online.";
 export const ONSITE_ONLY_MESSAGE = "Esta mensalidade é paga direto na arena.";
 export const LINK_PENDING_MESSAGE = "O link ainda está sendo gerado. Tente de novo em instantes.";
@@ -518,12 +521,22 @@ export function scheduleChargeTriggerAction(before: Data | undefined, after: Dat
   return null;
 }
 
+/** A 1ª mensalidade do titular acabou de ser paga (online ou baixa do gestor): ativa a assinatura. */
+export function activatesSubscription(before: Data | undefined, after: Data | undefined): boolean {
+  return before?.["status"] === "open" && after?.["status"] === "paid" &&
+    after["kind"] === "first" && Number(after["payerIndex"] ?? 0) === 0;
+}
+
 export const onArenaScheduleChargeWritten = onDocumentWritten({
   document: `${ARENA_SCHEDULE_CHARGES}/{chargeId}`,
+  secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async (event) => {
-  const action = scheduleChargeTriggerAction(event.data?.before?.data(), event.data?.after?.data());
-  if (!action) return;
+  const before = event.data?.before?.data();
+  const after = event.data?.after?.data();
   const db = getFirestore();
+  if (activatesSubscription(before, after)) await activatePendingSubscriptionCore(db, str(after?.["subscriptionId"]));
+  const action = scheduleChargeTriggerAction(before, after);
+  if (!action) return;
   if (action === "decide") await decideScheduleChargeBilling(db, event.params.chargeId);
   else await requestScheduleAsaasVoid(db, event.params.chargeId);
 });
@@ -654,6 +667,66 @@ export const reconcileArenaScheduleAsaasPayments = onSchedule({
 });
 
 // ---------------------------------------------------------------------------
+// Prazo de 30 min da assinatura pelo app
+// ---------------------------------------------------------------------------
+
+/**
+ * Assinaturas aguardando pagamento com o prazo vencido: libera o horário. Antes, confere a 1ª
+ * mensalidade no Asaas — paga sem o webhook ter chegado fica para o webhook (ou a varredura) dar baixa.
+ */
+export async function expireSchedulePendingPayments(
+  db: Firestore,
+  now: Date,
+  deps: ScheduleAsaasDeps = defaultScheduleAsaasDeps,
+): Promise<{expired: number; waitingWebhook: number}> {
+  const nowMs = now.getTime();
+  const todayKey = dayKeyFromEventDate(now);
+  const snap = await db.collection(ARENA_SCHEDULE_SUBSCRIPTIONS).where("status", "==", PENDING_PAYMENT_STATUS).limit(200).get();
+  let expired = 0;
+  let waitingWebhook = 0;
+  for (const doc of snap.docs) {
+    const until = millisOf(doc.data()["pendingPaymentUntil"]);
+    if (until > nowMs) continue;
+    try {
+      if (await firstChargePaidAtAsaas(db, doc.id, deps)) {
+        waitingWebhook += 1;
+        continue;
+      }
+      if (await expirePendingSubscriptionCore(db, doc.id, todayKey, nowMs)) expired += 1;
+    } catch (e) {
+      logger.warn(`expireSchedulePendingPayments ${doc.id}: falhou`, e);
+    }
+  }
+  return {expired, waitingWebhook};
+}
+
+/** A cobrança da 1ª mensalidade do titular já consta paga no Asaas? */
+async function firstChargePaidAtAsaas(db: Firestore, subscriptionId: string, deps: ScheduleAsaasDeps): Promise<boolean> {
+  const charges = await db.collection(ARENA_SCHEDULE_CHARGES).where("subscriptionId", "==", subscriptionId).get();
+  for (const c of charges.docs) {
+    const data = c.data() as Data;
+    if (data["kind"] !== "first" || Number(data["payerIndex"] ?? 0) !== 0) continue;
+    const groupId = str(asaasOf(data)["groupId"]);
+    const group = groupId ? (await groupsCol(db).doc(groupId).get()).data() ?? {} : {};
+    if (group["state"] === "paid") return true;
+    const paymentId = str(group["paymentId"]);
+    if (!paymentId) return false;
+    const payment = await deps.getPayment(paymentId);
+    return PAID_STATUSES.has(str(payment.status).toUpperCase());
+  }
+  return false;
+}
+
+export const expireArenaSchedulePendingPayments = onSchedule({
+  schedule: "every 5 minutes",
+  timeZone: "America/Sao_Paulo",
+  secrets: [...asaasArenaSecrets, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
+}, async () => {
+  const result = await expireSchedulePendingPayments(getFirestore(), new Date());
+  if (result.expired || result.waitingWebhook) logger.info("expireArenaSchedulePendingPayments", result);
+});
+
+// ---------------------------------------------------------------------------
 // "Pagar" do app
 // ---------------------------------------------------------------------------
 
@@ -766,6 +839,21 @@ export async function getScheduleChargePaymentLinkCore(
   throw new HttpsError("unavailable", LINK_PENDING_MESSAGE);
 }
 
+export const PAYMENT_WINDOW_CLOSED_MESSAGE =
+  "O prazo de 30 minutos para pagar acabou e o horário foi liberado. Assine de novo.";
+
+/** Assinatura aguardando pagamento com o prazo vencido não gera mais cobrança. */
+async function assertPaymentWindowOpen(db: Firestore, chargeId: string): Promise<void> {
+  if (!chargeId || chargeId.includes("/")) return;
+  const charge = (await db.collection(ARENA_SCHEDULE_CHARGES).doc(chargeId).get()).data();
+  const subId = str(charge?.["subscriptionId"]);
+  if (!subId) return;
+  const sub = (await db.collection(ARENA_SCHEDULE_SUBSCRIPTIONS).doc(subId).get()).data() ?? {};
+  if (sub["status"] === PENDING_PAYMENT_STATUS && millisOf(sub["pendingPaymentUntil"]) <= Date.now()) {
+    throw new HttpsError("failed-precondition", PAYMENT_WINDOW_CLOSED_MESSAGE);
+  }
+}
+
 export const PIX_UNAVAILABLE_MESSAGE = "Não foi possível gerar o Pix agora. Tente de novo ou pague com cartão.";
 
 /**
@@ -782,6 +870,7 @@ export async function getScheduleChargeCheckoutCore(
   deps: ScheduleAsaasDeps = defaultScheduleAsaasDeps,
   opts: {waitMs?: number; pollMs?: number} = {},
 ): Promise<{invoiceUrl: string; amountReais: number; qrCode?: string; qrCodeBase64?: string}> {
+  await assertPaymentWindowOpen(db, str(chargeIdRaw));
   const {invoiceUrl} = await getScheduleChargePaymentLinkCore(db, uid, chargeIdRaw, cpfRaw, deps, opts);
   const charge = ((await db.collection(ARENA_SCHEDULE_CHARGES).doc(str(chargeIdRaw)).get()).data() ?? {}) as Data;
   const amountReais = Number(charge["amountReais"] ?? 0);

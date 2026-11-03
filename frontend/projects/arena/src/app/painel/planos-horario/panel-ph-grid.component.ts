@@ -220,7 +220,8 @@ export class PanelPhGridComponent {
     const planSeries = new Set<string>();
     for (const sub of this.store.subscriptions()) {
       if (!holdsSlot(sub)) continue;
-      const status = sub.status === 'paused' ? ' · pausado' : sub.status === 'suspended' ? ' · suspenso' : '';
+      const status = sub.status === 'paused' ? ' · pausado' : sub.status === 'suspended' ? ' · suspenso' :
+        sub.status === 'pending_payment' ? ' · aguardando pagamento' : '';
       for (const slot of sub.slots) {
         planSeries.add(slot.seriesId);
         out.push({

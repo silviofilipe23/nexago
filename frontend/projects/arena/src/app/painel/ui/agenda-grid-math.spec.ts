@@ -5,6 +5,7 @@ import {
   AGENDA_SLOT_MIN,
   formatMinutes,
   gridEndMinFor,
+  gridStartMinFor,
   isWithinGrid,
   minutesToRowOffset,
   nowInMinutes,
@@ -19,6 +20,11 @@ describe('agenda-grid-math', () => {
     it('avança uma linha por slot de 30min', () => {
       expect(minutesToRowOffset(AGENDA_GRID_START_MIN + 30)).toBe(AGENDA_ROW_HEIGHT);
       expect(minutesToRowOffset(AGENDA_GRID_START_MIN + 90)).toBe(AGENDA_ROW_HEIGHT * 3);
+    });
+
+    it('mede a partir do início informado quando a grade começa mais cedo', () => {
+      expect(minutesToRowOffset(6 * 60, 6 * 60)).toBe(0);
+      expect(minutesToRowOffset(7 * 60, 6 * 60)).toBe(AGENDA_ROW_HEIGHT * 2);
     });
   });
 
@@ -37,6 +43,12 @@ describe('agenda-grid-math', () => {
     it('é false antes das 07:00 ou depois das 22:00', () => {
       expect(isWithinGrid(6 * 60)).toBe(false);
       expect(isWithinGrid(23 * 60)).toBe(false);
+    });
+
+    it('respeita a janela informada quando a grade foi esticada', () => {
+      expect(isWithinGrid(6 * 60, 6 * 60, 23 * 60)).toBe(true);
+      expect(isWithinGrid(23 * 60, 6 * 60, 23 * 60)).toBe(true);
+      expect(isWithinGrid(5 * 60, 6 * 60, 23 * 60)).toBe(false);
     });
   });
 
@@ -74,6 +86,24 @@ describe('agenda-grid-math', () => {
     it('arredonda pra cima pro próximo slot quando o fim não cai numa marca redonda', () => {
       const blocks = [{ start: 22 * 60, dur: 40 }];
       expect(gridEndMinFor(blocks)).toBe(22 * 60 + AGENDA_SLOT_MIN * 2);
+    });
+  });
+
+  describe('gridStartMinFor', () => {
+    it('sem blocos, usa o início padrão (07:00)', () => {
+      expect(gridStartMinFor([])).toBe(AGENDA_GRID_START_MIN);
+    });
+
+    it('com blocos depois das 07:00, mantém o início padrão', () => {
+      expect(gridStartMinFor([{ start: 9 * 60 }])).toBe(AGENDA_GRID_START_MIN);
+    });
+
+    it('antecipa o início quando um bloco começa antes das 07:00', () => {
+      expect(gridStartMinFor([{ start: 9 * 60 }, { start: 6 * 60 }])).toBe(6 * 60);
+    });
+
+    it('arredonda pra baixo pro slot anterior quando o início não cai numa marca redonda', () => {
+      expect(gridStartMinFor([{ start: 5 * 60 + 45 }])).toBe(5 * 60 + 30);
     });
   });
 });

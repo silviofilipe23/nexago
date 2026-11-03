@@ -22,6 +22,7 @@ import '../../athlete/domain/arena_review.dart';
 import '../domain/nearby_arenas_logic.dart';
 import '../../professor_links/presentation/widgets/arena_professor_link_card.dart';
 import '../../professor_links/presentation/widgets/arena_public_professors_section.dart';
+import '../../schedule_plans/presentation/widgets/schedule_plans_entry_points.dart';
 import 'arena_booking_navigation.dart';
 import 'widgets/arena_detail/arena_detail_amenity_chips.dart';
 import 'widgets/arena_detail/arena_detail_bottom_cta.dart';
@@ -361,6 +362,8 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                           ],
                         ],
                       ArenaDetailClubSection(arenaId: arena.id),
+                      // Horário fixo vendido como plano (só com plano publicado).
+                      ArenaDetailSchedulePlansSection(arenaId: arena.id),
                       // Vínculos ativos com "Aparecer no perfil da arena".
                       ArenaPublicProfessorsSection(arenaId: arena.id),
                       SizedBox(height: 28),

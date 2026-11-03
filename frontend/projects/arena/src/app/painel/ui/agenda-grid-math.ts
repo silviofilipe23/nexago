@@ -3,8 +3,8 @@ export const AGENDA_GRID_END_MIN = 22 * 60;
 export const AGENDA_SLOT_MIN = 30;
 export const AGENDA_ROW_HEIGHT = 34;
 
-export function minutesToRowOffset(minutes: number): number {
-  return ((minutes - AGENDA_GRID_START_MIN) / AGENDA_SLOT_MIN) * AGENDA_ROW_HEIGHT;
+export function minutesToRowOffset(minutes: number, startMin: number = AGENDA_GRID_START_MIN): number {
+  return ((minutes - startMin) / AGENDA_SLOT_MIN) * AGENDA_ROW_HEIGHT;
 }
 
 export function formatMinutes(minutes: number): string {
@@ -13,8 +13,23 @@ export function formatMinutes(minutes: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-export function isWithinGrid(minutes: number): boolean {
-  return minutes >= AGENDA_GRID_START_MIN && minutes <= AGENDA_GRID_END_MIN;
+export function isWithinGrid(
+  minutes: number,
+  startMin: number = AGENDA_GRID_START_MIN,
+  endMin: number = AGENDA_GRID_END_MIN,
+): boolean {
+  return minutes >= startMin && minutes <= endMin;
+}
+
+/** Início padrão (07:00) só serve de teto — quadras que abrem mais cedo (ex.: 06:00) geram
+ *  slots antes disso, e a grade não pode escondê-los. Antecipa até o bloco mais cedo do dia
+ *  (ou da semana, na grade semanal), arredondado pro slot anterior. Espelho de `gridEndMinFor`. */
+export function gridStartMinFor(blocks: readonly { start: number }[]): number {
+  let minStart = AGENDA_GRID_START_MIN;
+  for (const b of blocks) {
+    if (b.start < minStart) minStart = b.start;
+  }
+  return Math.max(0, Math.floor(minStart / AGENDA_SLOT_MIN) * AGENDA_SLOT_MIN);
 }
 
 /** Fim padrão (22:00) só serve de piso — quadras com horário de funcionamento configurado até

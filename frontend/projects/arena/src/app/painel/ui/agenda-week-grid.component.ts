@@ -1,11 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import type { WeekDay } from '../agenda/agenda-week-math';
 import {
-  AGENDA_GRID_START_MIN,
   AGENDA_ROW_HEIGHT,
   AGENDA_SLOT_MIN,
   formatMinutes,
   gridEndMinFor,
+  gridStartMinFor,
   isWithinGrid,
   minutesToRowOffset,
   nowInMinutes,
@@ -418,14 +418,15 @@ export class AgendaWeekGridComponent {
 
   private readonly nowMinutes = signal(nowInMinutes());
 
+  protected readonly gridStartMin = computed(() => gridStartMinFor(this.blocks()));
   protected readonly gridEndMin = computed(() => gridEndMinFor(this.blocks()));
 
-  protected readonly rowCount = computed(() => (this.gridEndMin() - AGENDA_GRID_START_MIN) / AGENDA_SLOT_MIN);
+  protected readonly rowCount = computed(() => (this.gridEndMin() - this.gridStartMin()) / AGENDA_SLOT_MIN);
   protected readonly gridHeight = computed(() => this.rowCount() * AGENDA_ROW_HEIGHT + 10);
 
   protected readonly rowMarks = computed<RowMark[]>(() =>
     Array.from({ length: this.rowCount() }, (_, i) => {
-      const minute = AGENDA_GRID_START_MIN + i * AGENDA_SLOT_MIN;
+      const minute = this.gridStartMin() + i * AGENDA_SLOT_MIN;
       return { offset: i * AGENDA_ROW_HEIGHT, isHour: minute % 60 === 0, label: formatMinutes(minute) };
     }),
   );
@@ -437,7 +438,7 @@ export class AgendaWeekGridComponent {
   protected readonly positionedByDayAndCourt = computed<Partial<Record<string, PositionedWeekBlock[]>>>(() => {
     const result: Partial<Record<string, PositionedWeekBlock[]>> = {};
     for (const b of this.blocks()) {
-      const top = minutesToRowOffset(b.start) + 1;
+      const top = minutesToRowOffset(b.start, this.gridStartMin()) + 1;
       const height = (b.dur / AGENDA_SLOT_MIN) * AGENDA_ROW_HEIGHT - 3;
       const label = b.status === 'available' ? 'Disponível' : b.status === 'manutencao' ? 'Manutenção' : b.status === 'bloqueado' ? 'Bloqueado' : b.client;
       const timeLabel = `${formatMinutes(b.start)}–${formatMinutes(b.start + b.dur)}`;
@@ -458,7 +459,9 @@ export class AgendaWeekGridComponent {
 
   protected readonly nowOffset = computed(() => {
     const minutes = this.nowMinutes();
-    return isWithinGrid(minutes) ? minutesToRowOffset(minutes) : -1;
+    return isWithinGrid(minutes, this.gridStartMin(), this.gridEndMin())
+      ? minutesToRowOffset(minutes, this.gridStartMin())
+      : -1;
   });
 
   protected weekdayLabel(date: Date): string {

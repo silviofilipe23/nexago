@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_document_mapper.dart';
+import 'package:nexago_app/features/tournaments/domain/registration_payment_method.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_detail_model.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_listing_status.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_payment_mode.dart';
@@ -168,6 +170,24 @@ void main() {
     });
 
     expect(d.paymentMode, TournamentPaymentMode.appPixCard);
+  });
+
+  test('detailFromMap lê as formas aceitas no app; ausente = as duas', () {
+    TournamentDetail lido(Object? raw) =>
+        TournamentDocumentMapper.detailFromMap('t', {
+          'name': 'Copa',
+          'capacity': 16,
+          'enrolledCount': 0,
+          if (raw != null) 'onlinePaymentMethods': raw,
+        });
+
+    expect(lido(['pix']).onlinePaymentMethods, [RegistrationPaymentMethod.pix]);
+    expect(
+      lido(['card']).onlinePaymentMethods,
+      [RegistrationPaymentMethod.card],
+    );
+    expect(lido(null).onlinePaymentMethods, RegistrationPaymentMethod.values);
+    expect(lido(const []).onlinePaymentMethods, RegistrationPaymentMethod.values);
   });
 
   test('detailFromMap parses team category (trio) with composition', () {

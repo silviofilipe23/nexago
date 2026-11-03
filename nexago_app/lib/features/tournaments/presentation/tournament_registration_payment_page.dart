@@ -275,6 +275,9 @@ class _TournamentRegistrationPaymentPageState
           'shareAmountReais': amountReais.toString(),
           'amountType': amountType,
           'ownShareReais': quote.shareAmount.toString(),
+          'paymentMethods': tournament.onlinePaymentMethods
+              .map((m) => m.name)
+              .join(','),
         },
         extra: TournamentRegistrationPixArgs(
           registrationId: widget.registrationId,
@@ -286,6 +289,7 @@ class _TournamentRegistrationPaymentPageState
           ownShareReais: quote.shareAmount,
           holdExpiresAt: snap?.holdExpiresAt,
           holdMinutes: tournament.registrationHoldMinutes,
+          onlinePaymentMethods: tournament.onlinePaymentMethods,
         ),
       );
     } on PaymentException catch (e) {

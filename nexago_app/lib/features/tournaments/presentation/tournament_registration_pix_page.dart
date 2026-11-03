@@ -67,7 +67,9 @@ class _TournamentRegistrationPixPageState
   final _squadCodeController = TextEditingController();
   ArenaBookingPixPaymentResult? _pix;
   CardCheckoutPaymentResult? _card;
-  RegistrationPaymentMethod _method = RegistrationPaymentMethod.pix;
+
+  /// Meio escolhido: o primeiro aceito pelo torneio (Pix, se aceito).
+  late RegistrationPaymentMethod _method = _acceptedMethods.first;
   bool _loadingCharge = false;
   String? _chargeError;
   bool _navigatedBack = false;
@@ -87,6 +89,12 @@ class _TournamentRegistrationPixPageState
   bool _confirmingFree = false;
 
   double get _shareReais => widget.args.shareAmountReais;
+
+  /// Meios que o organizador aceita; lista vazia (não deveria vir) = os dois.
+  List<RegistrationPaymentMethod> get _acceptedMethods =>
+      widget.args.onlinePaymentMethods.isEmpty
+          ? allRegistrationPaymentMethods
+          : widget.args.onlinePaymentMethods;
 
   /// Meio da cobrança viva — uma por vez, como no portal; `null` sem cobrança.
   RegistrationPaymentMethod? get _liveMethod => _pix != null
@@ -152,14 +160,24 @@ class _TournamentRegistrationPixPageState
   /// (0 com o organizador pagando, ou enquanto a regra não chegou). Incide
   /// sobre o preço desta cobrança, nunca sobre o valor com desconto/cashback;
   /// depois da cobrança vale o `serviceFeeReais` que o servidor devolveu.
-  int get _serviceFeeCents => athleteServiceFeeCents(
-        _shareReais,
-        ref
-                .read(
-                  tournamentServiceFeeRuleProvider(widget.args.tournamentId),
-                )
-                .valueOrNull ??
-            TournamentServiceFeeRule.none,
+  int get _serviceFeeCents => athleteServiceFeeCents(_shareReais, _feeRule);
+
+  TournamentServiceFeeRule get _feeRule =>
+      ref
+          .read(tournamentServiceFeeRuleProvider(widget.args.tournamentId))
+          .valueOrNull ??
+      TournamentServiceFeeRule.none;
+
+  /// Prévia do Pix e do cartão: o cartão leva a taxa de antecipação por cima
+  /// do que o Pix cobraria (só se o torneio aceita cartão). Depois da
+  /// cobrança vale o `chargedReais` que o servidor devolveu.
+  RegistrationMethodQuote _methodQuote(CashbackCheckoutQuote cashbackQuote) =>
+      registrationMethodQuote(
+        pixCents: cashbackQuote.chargePreviewCents,
+        cardFeePercent:
+            _acceptedMethods.contains(RegistrationPaymentMethod.card)
+                ? _feeRule.cardFeePercent
+                : 0,
       );
 
   /// Prévia do cashback sobre o valor desta cobrança (parcela ou integral,
@@ -609,6 +627,12 @@ class _TournamentRegistrationPixPageState
     final showCharge = liveMethod != null && !_loadingCharge;
     final cashbackCtx = ref.watch(cashbackCheckoutContextProvider);
     final cashbackQuote = _cashbackQuote(cashbackCtx);
+    final methodQuote = _methodQuote(cashbackQuote);
+    final cardFeeCents = _method == RegistrationPaymentMethod.card
+        ? methodQuote.cardFeeCents
+        : 0;
+    final cardFeePercentLabel =
+        formatCardFeePercent(methodQuote.cardFeePercent);
     final liveSquadDiscountReais =
         _pix?.squadDiscountReais ?? _card?.squadDiscountReais ?? 0;
     final liveSquadPerkReais =
@@ -619,6 +643,7 @@ class _TournamentRegistrationPixPageState
         _pix?.cashbackAppliedReais ?? _card?.cashbackAppliedReais ?? 0;
     final liveServiceFeeReais =
         _pix?.serviceFeeReais ?? _card?.serviceFeeReais ?? 0;
+    final liveCardFeeReais = _card?.cardFeeReais ?? 0;
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -675,7 +700,10 @@ class _TournamentRegistrationPixPageState
                           ],
                           RegistrationPaymentMethodPicker(
                             value: _method,
-                            amountReais: cashbackQuote.chargePreviewCents / 100,
+                            methods: _acceptedMethods,
+                            amountReais: methodQuote.pixCents / 100,
+                            cardFeeReais: methodQuote.cardFeeCents / 100,
+                            cardFeePercent: methodQuote.cardFeePercent,
                             enabled: !_loadingCharge,
                             onChanged: (m) => setState(() {
                               _method = m;
@@ -735,7 +763,8 @@ class _TournamentRegistrationPixPageState
                           ),
                           if (_squadDiscountCents > 0 ||
                               perkDiscountCents > 0 ||
-                              serviceFeeCents > 0) ...[
+                              serviceFeeCents > 0 ||
+                              cardFeeCents > 0) ...[
                             const SizedBox(height: 16),
                             SquadCheckoutSummary(
                               priceCents: reaisToCents(_shareReais),
@@ -749,7 +778,10 @@ class _TournamentRegistrationPixPageState
                                   'Benefício de embaixador '
                                   '(${squadPercent(_ownPerk?.pct ?? 0)})',
                               cashbackCents: cashbackQuote.appliedPreviewCents,
-                              totalCents: cashbackQuote.chargePreviewCents,
+                              cardFeeCents: cardFeeCents,
+                              cardFeeLabel: 'Taxa de antecipação do cartão '
+                                  '($cardFeePercentLabel)',
+                              totalCents: methodQuote.totalCents(_method),
                             ),
                           ],
                           if (_chargeError != null) ...[
@@ -776,6 +808,20 @@ class _TournamentRegistrationPixPageState
                               'Inclui ${formatBRL(liveServiceFeeReais)} de '
                               'taxa de serviço',
                               key: const Key('service-fee-note'),
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: context.themeColors.onSurfaceMuted,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          if (liveCardFeeReais > 0) ...[
+                            Text(
+                              'Inclui ${formatBRL(liveCardFeeReais)} de '
+                              'taxa de antecipação do cartão',
+                              key: const Key('card-fee-note'),
                               textAlign: TextAlign.center,
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
@@ -877,7 +923,7 @@ class _TournamentRegistrationPixPageState
                     onPressed: _loadCharge,
                     label: registrationChargeButtonLabel(
                       _method,
-                      chargeReais: cashbackQuote.chargePreviewCents / 100,
+                      chargeReais: methodQuote.totalCents(_method) / 100,
                     ),
                   ),
               ],

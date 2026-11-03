@@ -271,6 +271,9 @@ export interface TournamentSummary {
   regulationsText: string | null;
   sport: string | null;
   paymentMode: 'appPixCard' | 'directWithOrganizer';
+  /** Formas aceitas no pagamento pelo app (`onlinePaymentMethods`): só Pix, só cartão ou as duas.
+   *  Ausente = as duas — ver `tournamentOnlinePaymentMethods`. */
+  onlinePaymentMethods?: ReadonlyArray<OnlinePaymentMethod>;
   organizerPix: { key: string; keyType: string; recipientName: string; city: string } | null;
   waitlistEnabled: boolean;
   /** Torneio sem inscrição individual: em categoria de DUPLA a vaga só nasce quando o parceiro
@@ -300,6 +303,19 @@ export interface TournamentSummary {
 /** O organizador expõe o roster? Campo AUSENTE = VISÍVEL: a lista existia antes da flag, e
  *  torneio já criado não pode perdê-la porque ninguém marcou uma caixa nova. Só o `false`
  *  explícito esconde. */
+export type OnlinePaymentMethod = 'pix' | 'card';
+
+/**
+ * Formas aceitas no pagamento pelo app (`tournaments.onlinePaymentMethods`). Espelho de
+ * `tournamentOnlinePaymentMethods` (functions/src/tournament-registration-pix-helpers.ts): ausente,
+ * vazio ou fora do contrato = as duas — todo o acervo anterior à escolha.
+ */
+export function tournamentOnlinePaymentMethods(raw: unknown): OnlinePaymentMethod[] {
+  if (!Array.isArray(raw)) return ['pix', 'card'];
+  const methods = (['pix', 'card'] as const).filter((m) => raw.includes(m));
+  return methods.length > 0 ? [...methods] : ['pix', 'card'];
+}
+
 export function enrolledTeamsVisibleOf(data: Record<string, unknown>): boolean {
   return data['enrolledTeamsVisible'] !== false;
 }
@@ -374,6 +390,7 @@ export function tournamentSummaryFromDoc(id: string, data: Record<string, unknow
     regulationsText: optionalStr(data['regulationsText']),
     sport: optionalStr(data['sport']),
     paymentMode: optionalStr(data['paymentMode']) === 'directWithOrganizer' ? 'directWithOrganizer' : 'appPixCard',
+    onlinePaymentMethods: tournamentOnlinePaymentMethods(data['onlinePaymentMethods']),
     organizerPix: organizerPixOf(data['organizerPix']),
     waitlistEnabled: data['waitlistEnabled'] !== false,
     requireFormedPair: data['requireFormedPair'] === true,

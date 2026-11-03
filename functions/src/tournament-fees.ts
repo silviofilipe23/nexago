@@ -28,7 +28,9 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore, type Firestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
+import {asaasArenaSecrets} from "./asaas-client";
 import {callerCanAccessBackoffice} from "./auth-roles";
+import {loadCardAnticipationPercent} from "./card-anticipation-fee";
 import {getFirebaseProjectId} from "./firebase-paths";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {
@@ -598,15 +600,22 @@ export const saveTournamentFeeDefault = onCall(BACKOFFICE_CALLABLE, async (reque
 /**
  * Prévia do checkout (app e portal): `{payer, percent, floorReais}` do torneio. A cobrança refaz a
  * conta no servidor; isto só põe a linha "Taxa de serviço" na tela antes de gerar o PIX/cartão.
+ *
+ * `cardFeePercent` é a taxa de antecipação que o cartão soma por cima (`card-anticipation-fee.ts`),
+ * com quem quer que pague a taxa de serviço — é o que deixa o Pix mais barato na tela.
  */
 export const getTournamentServiceFee = onCall(
-  {region: CLIENT_FACING_REGIONS, invoker: "public" as const},
-  async (request): Promise<FeeRule> => {
+  {region: CLIENT_FACING_REGIONS, invoker: "public" as const, secrets: asaasArenaSecrets},
+  async (request): Promise<FeeRule & {cardFeePercent: number}> => {
     if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
     const raw = (request.data as {tournamentId?: unknown} | undefined)?.tournamentId;
     const tournamentId = typeof raw === "string" ? raw.trim() : "";
     if (!tournamentId) throw new HttpsError("invalid-argument", "tournamentId é obrigatório");
-    return loadAthleteVisibleFeeRule(getFirestore(), tournamentId, new Date());
+    const [rule, cardFeePercent] = await Promise.all([
+      loadAthleteVisibleFeeRule(getFirestore(), tournamentId, new Date()),
+      loadCardAnticipationPercent(),
+    ]);
+    return {...rule, cardFeePercent};
   },
 );
 

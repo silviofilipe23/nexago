@@ -18,11 +18,13 @@ import {
   type TournamentBracketSystem,
   type TournamentCategoryDraft,
   type TournamentCreateDraft,
+  type OnlinePaymentMethod,
   type TournamentPaymentMode,
   type TournamentSport,
   type TournamentVisibility,
   KNOWN_TOURNAMENT_SPORTS,
   bracketSystemsForSport,
+  onlinePaymentMethodsOf,
   suggestedScoringProfile,
 } from './tournament-create.model';
 import { pixKeyTypeFromStored, type PixKeyType } from './pix-key';
@@ -65,6 +67,8 @@ export interface OrganizerEventDefaults {
   courtsCount: number;
   defaultPriceCents: number;
   paymentMode: TournamentPaymentMode;
+  /** Formas aceitas no pagamento pelo app (Pix, cartão ou as duas). Ausente = as duas. */
+  onlinePaymentMethods: OnlinePaymentMethod[];
   visibility: TournamentVisibility;
   waitlistEnabled: boolean;
   uniformRequired: boolean;
@@ -117,6 +121,7 @@ export const DEFAULT_ORGANIZER_EVENT_DEFAULTS: OrganizerEventDefaults = {
   courtsCount: BASE_DRAFT.courtsCount,
   defaultPriceCents: BASE_DRAFT.defaultPriceCents,
   paymentMode: BASE_DRAFT.paymentMode,
+  onlinePaymentMethods: BASE_DRAFT.onlinePaymentMethods,
   visibility: BASE_DRAFT.visibility,
   waitlistEnabled: BASE_DRAFT.waitlistEnabled,
   uniformRequired: BASE_DRAFT.uniformRequired,
@@ -224,6 +229,7 @@ function parseDefaults(raw: Record<string, unknown>): OrganizerEventDefaults {
     courtsCount: clampOrganizerDefault('courtsCount', int(raw['courtsCount'], d.courtsCount)),
     defaultPriceCents: Math.max(0, int(raw['defaultPriceCents'], d.defaultPriceCents)),
     paymentMode: oneOf(raw['paymentMode'], PAYMENT_MODES, d.paymentMode),
+    onlinePaymentMethods: onlinePaymentMethodsOf(raw['onlinePaymentMethods']),
     visibility: oneOf(raw['visibility'], VISIBILITIES, d.visibility),
     waitlistEnabled: bool(raw['waitlistEnabled'], d.waitlistEnabled),
     uniformRequired: bool(raw['uniformRequired'], d.uniformRequired),
@@ -271,6 +277,7 @@ export function applyOrganizerDefaults(
     courtsCount: defaults.courtsCount,
     defaultPriceCents: defaults.defaultPriceCents,
     paymentMode: defaults.paymentMode,
+    onlinePaymentMethods: [...defaults.onlinePaymentMethods],
     visibility: defaults.visibility,
     waitlistEnabled: defaults.waitlistEnabled,
     uniformRequired: defaults.uniformRequired,

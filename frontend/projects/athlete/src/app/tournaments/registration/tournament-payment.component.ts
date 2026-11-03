@@ -30,7 +30,12 @@ import {
   type PixPaymentResult,
   type SentPartnerInvite,
 } from '../../data/tournament-registrations-repository';
-import { fetchTournament, type TournamentCategoryOffer, type TournamentSummary } from '../../data/tournaments-repository';
+import {
+  fetchTournament,
+  tournamentOnlinePaymentMethods,
+  type TournamentCategoryOffer,
+  type TournamentSummary,
+} from '../../data/tournaments-repository';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 import {
@@ -42,7 +47,7 @@ import { resolveDirectPaymentState, type DirectPaymentState } from './direct-pay
 import { RegistrationHoldNoticeComponent } from './registration-hold-notice.component';
 import { SquadCodeFieldComponent } from './squad-code-field.component';
 import { ownPerkPreviewCents, squadDiscountPreviewCents, type OwnPerk } from '../../data/squad-discount';
-import { athleteServiceFeeReais, NO_SERVICE_FEE, type ServiceFeeRule } from '../../data/service-fee';
+import { athleteServiceFeeReais, cardFeeReais, NO_SERVICE_FEE, type ServiceFeeRule } from '../../data/service-fee';
 import { shouldShowRegistrationHoldCountdown, registrationHoldCountdownView } from './registration-hold';
 import { appliedPreviewCents } from '../../data/cashback-preview';
 import { CashbackService } from '../../data/cashback.service';
@@ -53,12 +58,19 @@ export type PaymentAmountType = 'share' | 'full';
 
 export type PaymentMethod = 'pix' | 'card';
 
-/** Modo de pagamento do torneio → meios oferecidos ao atleta. Modo ausente é
- *  cobrança pelo app: é o padrão de todo torneio do acervo. */
+/** Modo de pagamento do torneio + formas aceitas → meios oferecidos ao atleta. Modo ausente é
+ *  cobrança pelo app: é o padrão de todo torneio do acervo; formas ausentes são as duas
+ *  (`tournamentOnlinePaymentMethods`). */
 export function resolvePaymentMethods(
   paymentMode: string | null | undefined,
+  onlinePaymentMethods?: unknown,
 ): ReadonlyArray<PaymentMethod> {
-  return paymentMode === 'directWithOrganizer' ? [] : ['pix', 'card'];
+  return paymentMode === 'directWithOrganizer' ? [] : tournamentOnlinePaymentMethods(onlinePaymentMethods);
+}
+
+/** "1,33" — o % da taxa do cartão como o atleta lê. */
+function formatPercent(value: number): string {
+  return value.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 }
 
 function titleCase(input: string): string {
@@ -168,8 +180,16 @@ export class TournamentPaymentComponent {
   /** Id da última cobrança gerada (PIX ou cartão) — é o id do lote de cashback. Sobrevive ao
    *  `clearPixState()` do pagamento confirmado para a nota do cartão de sucesso achar o lote. */
   protected readonly lastChargePaymentId = signal<string | null>(null);
+  /** Escolha do atleta — Pix pré-selecionado (o mais barato quando o cartão tem taxa). */
   protected readonly method = signal<PaymentMethod>('pix');
-  protected readonly methods = computed(() => resolvePaymentMethods(this.listing()?.paymentMode));
+  protected readonly methods = computed(() =>
+    resolvePaymentMethods(this.listing()?.paymentMode, this.listing()?.onlinePaymentMethods),
+  );
+  /** O meio que vale: a escolha, se o torneio aceita; senão a única forma aceita (só cartão). */
+  protected readonly selectedMethod = computed<PaymentMethod>(() => {
+    const accepted = this.methods();
+    return accepted.includes(this.method()) ? this.method() : (accepted[0] ?? 'pix');
+  });
   /** Uma cobrança viva por vez, seja qual for o meio. */
   protected readonly hasLiveCharge = computed(() => !!this.pixResult() || !!this.cardResult());
   /** Data-URL do QR (Asaas ou gerado no cliente a partir do código copia-e-cola). */
@@ -346,6 +366,9 @@ export class TournamentPaymentComponent {
   /** Regra da taxa de serviço do torneio (`getTournamentServiceFee`). Organizador pagando — ou
    *  regra ainda não carregada/indisponível — é `NO_SERVICE_FEE`: a tela fica como sempre foi. */
   protected readonly serviceFeeRule = signal<ServiceFeeRule>(NO_SERVICE_FEE);
+  /** % da taxa de antecipação que o cartão soma por cima (`getTournamentServiceFee`); 0 = sem taxa
+   *  (backend antigo ou ainda não carregado). */
+  protected readonly cardFeePercent = signal(0);
   /** Parte da taxa de serviço que o atleta paga por cima do preço: a da cobrança gerada (servidor)
    *  ou a prévia. Incide sobre o PREÇO desta cobrança (parcela ou integral), nunca sobre o valor
    *  já com desconto do embaixador ou cashback. */
@@ -394,11 +417,47 @@ export class TournamentPaymentComponent {
     );
   });
 
-  /** O que a cobrança vale: `chargedReais` do servidor, ou parcela + taxa − descontos da prévia. */
+  /** Prévia do que vai para o Pix — e para o cartão antes da taxa de antecipação. */
+  protected readonly baseDueReais = computed(
+    () => Math.round((this.dueAfterSquadReais() - this.cashbackAppliedReais()) * 100) / 100,
+  );
+
+  /** Prévia da taxa de antecipação sobre o que iria para o cartão (espelho do servidor). */
+  protected readonly previewCardFeeReais = computed(() => {
+    if (!this.appChargeOpen() || !this.methods().includes('card')) return 0;
+    return cardFeeReais(this.baseDueReais(), this.cardFeePercent());
+  });
+
+  /** Prévia do total no cartão: o do Pix + a taxa de antecipação. */
+  protected readonly cardTotalReais = computed(
+    () => Math.round((this.baseDueReais() + this.previewCardFeeReais()) * 100) / 100,
+  );
+
+  /** Quanto o Pix sai mais barato que o cartão — só com as duas formas na tela (e a taxa > 0). */
+  protected readonly pixSavingsReais = computed(() =>
+    this.methods().length > 1 && !this.hasLiveCharge() ? this.previewCardFeeReais() : 0,
+  );
+
+  /** Taxa de antecipação desta cobrança: a do cartão gerado (servidor) ou a prévia com o cartão
+   *  escolhido. Pix nunca tem. */
+  protected readonly cardFeeDueReais = computed(() => {
+    const card = this.cardResult();
+    if (card) return card.cardFeeReais;
+    if (this.pixResult() || this.selectedMethod() !== 'card') return 0;
+    return this.previewCardFeeReais();
+  });
+
+  /** "1,33" para a linha do resumo: o % da cobrança gerada ou o da prévia. */
+  protected readonly cardFeePercentLabel = computed(() =>
+    formatPercent(this.cardResult()?.cardFeePercent || this.cardFeePercent()),
+  );
+
+  /** O que a cobrança vale: `chargedReais` do servidor (no cartão, já com a taxa de antecipação),
+   *  ou parcela + taxas − descontos da prévia. */
   protected readonly chargeDueReais = computed(() => {
     const live = this.pixResult() ?? this.cardResult();
     if (live) return live.chargedReais || this.amountDueReais();
-    return Math.round((this.dueAfterSquadReais() - this.cashbackAppliedReais()) * 100) / 100;
+    return Math.round((this.baseDueReais() + this.cardFeeDueReais()) * 100) / 100;
   });
 
   constructor() {
@@ -513,14 +572,17 @@ export class TournamentPaymentComponent {
     }
   }
 
-  /** Regra da taxa de serviço, uma vez por torneio e sem segurar a tela (é só prévia: a cobrança
-   *  refaz a conta). Pagamento direto com o organizador não passa pela cobrança do app — nem pede. */
+  /** Regra da taxa de serviço e % da taxa do cartão, uma vez por torneio e sem segurar a tela (é só
+   *  prévia: a cobrança refaz a conta). Pagamento direto com o organizador não passa pela cobrança
+   *  do app — nem pede. */
   private loadServiceFee(tournamentId: string, paymentMode: string | null | undefined): void {
     if (this.serviceFeeRequestedFor === tournamentId) return;
     if (resolvePaymentMethods(paymentMode).length === 0) return;
     this.serviceFeeRequestedFor = tournamentId;
-    void fetchTournamentServiceFee(athleteFunctions(), tournamentId).then((rule) => {
-      if (this.tournamentId() === tournamentId) this.serviceFeeRule.set(rule);
+    void fetchTournamentServiceFee(athleteFunctions(), tournamentId).then((fees) => {
+      if (this.tournamentId() !== tournamentId) return;
+      this.serviceFeeRule.set(fees.rule);
+      this.cardFeePercent.set(fees.cardFeePercent);
     });
   }
 

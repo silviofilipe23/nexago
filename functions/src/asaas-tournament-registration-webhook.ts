@@ -10,6 +10,7 @@ import {
 import * as logger from "firebase-functions/logger";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import {deleteAsaasPaymentOrThrow, type AsaasPaymentDetails} from "./asaas-booking-payment";
+import {fetchAsaas} from "./asaas-client";
 import {
   PIX_CANCELLED_REGISTRATION_ALREADY_PAID,
   cancelOpenPixPendingCharges,
@@ -89,10 +90,13 @@ const ASAAS_NEGATIVE_TERMINAL_STATUSES = new Set([
 
 export interface TournamentRegistrationWebhookDeps {
   cancelCharge: (asaasPaymentId: string) => Promise<void>;
+  /** Pede ao Asaas a antecipação do cartão (ausente nos testes antigos = não pede). */
+  requestAnticipation?: (asaasPaymentId: string) => Promise<{id?: string; status?: string}>;
 }
 
 const defaultDeps: TournamentRegistrationWebhookDeps = {
   cancelCharge: (asaasPaymentId) => deleteAsaasPaymentOrThrow(asaasPaymentId),
+  requestAnticipation: requestAsaasCardAnticipation,
 };
 
 /**
@@ -161,12 +165,75 @@ export function resolveServiceFeeReais(p: {
   return {reais: inferred, inferred: inferred > 0};
 }
 
+/**
+ * Taxa de antecipação do cartão que o atleta pagou por cima (`card-anticipation-fee.ts`), em reais.
+ * Mesma origem da parte da taxa de serviço: congelada no processado depois da confirmação; na
+ * confirmação, a do pendente desta cobrança. Pendente de outra cobrança não tem como refazer (o
+ * percentual vem do Asaas): fica 0 e o organizador recebe a taxa junto — nunca a menos.
+ */
+export function resolveCardFeeReais(p: {
+  confirm: boolean;
+  processed: Record<string, unknown>;
+  pending: Record<string, unknown> | undefined;
+  paymentId: string;
+}): number {
+  if (!p.confirm) return centsOf(p.processed["cardFeeCents"]) / 100;
+  if (p.pending?.["asaasPaymentId"] !== p.paymentId) return 0;
+  return centsOf(p.pending["cardFeeCents"]) / 100;
+}
+
+/** `POST /v3/anticipations` de uma cobrança (docs.asaas.com/reference/solicitar-antecipacao). */
+async function requestAsaasCardAnticipation(paymentId: string): Promise<{id?: string; status?: string}> {
+  return fetchAsaas<{id?: string; status?: string}>("/v3/anticipations", {
+    method: "POST",
+    body: {payment: paymentId},
+    idempotencyKey: `anticipation-${paymentId}`,
+  });
+}
+
+/** Pede a antecipação e grava o resultado no processado. Nunca lança. */
+async function requestAnticipationQuietly(
+  processedRef: DocumentReference,
+  paymentId: string,
+  registrationId: string,
+  request: NonNullable<TournamentRegistrationWebhookDeps["requestAnticipation"]>,
+): Promise<void> {
+  try {
+    const res = await request(paymentId);
+    await processedRef.set({
+      anticipation: {
+        id: res.id ?? null,
+        status: res.status ?? null,
+        requestedAt: FieldValue.serverTimestamp(),
+      },
+    }, {merge: true});
+  } catch (e) {
+    logger.error(
+      `Asaas tournament registration ${registrationId}: antecipação do cartão ${paymentId} não pedida — ` +
+      "o caixa credita na liquidação",
+      e,
+    );
+    try {
+      await processedRef.set({
+        anticipation: {
+          error: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300),
+          requestedAt: FieldValue.serverTimestamp(),
+        },
+      }, {merge: true});
+    } catch (writeErr) {
+      logger.error(`Asaas tournament registration ${registrationId}: falha ao gravar a antecipação`, writeErr);
+    }
+  }
+}
+
 export async function processTournamentRegistrationAsaasNotification(
   db: Firestore,
   paymentId: string,
   payment: AsaasPaymentDetails,
   processedRef: DocumentReference,
   deps: TournamentRegistrationWebhookDeps = defaultDeps,
+  /** `anticipationCredited`: chegou `RECEIVABLE_ANTICIPATION_CREDITED` deste cartão. */
+  event: {anticipationCredited?: boolean} = {},
 ): Promise<void> {
   const parsed = parseTournamentRegistrationExternalReference(
     (payment.externalReference || "").trim(),
@@ -203,6 +270,7 @@ export async function processTournamentRegistrationAsaasNotification(
     alreadyConfirmed,
     alreadyCredited,
     alreadyAwaitingSettlement,
+    anticipationCredited: event.anticipationCredited === true,
   });
 
   if (
@@ -286,7 +354,14 @@ export async function processTournamentRegistrationAsaasNotification(
     // o mesmo líquido.
     const squadDiscount = await resolveSquadDiscountCents(db, paymentId, pendingSnap.data()) +
       await resolveSquadPerkCents(db, paymentId, pendingSnap.data());
-    const chargedGross = roundMoney(paidOnline + appliedCents / 100 + squadDiscount / 100);
+    // Taxa de antecipação do cartão: do atleta para a plataforma, fora de tudo que é preço.
+    const cardFeeReais = resolveCardFeeReais({
+      confirm: phases.confirm,
+      processed,
+      pending: pendingSnap.data(),
+      paymentId,
+    });
+    const chargedGross = roundMoney(paidOnline - cardFeeReais + appliedCents / 100 + squadDiscount / 100);
 
     // Regra da taxa do torneio (`tournament-fees.ts`): exceção do torneio,
     // senão a comissão do cadastro do organizador, senão o padrão da
@@ -390,6 +465,7 @@ export async function processTournamentRegistrationAsaasNotification(
           // O estorno devolve tudo que foi pago, inclusive a parte da taxa do atleta.
           paidValue: paidOnline,
           ...(serviceFeeReais > 0 ? {serviceFeeReais} : {}),
+          ...(cardFeeReais > 0 ? {cardFeeReais} : {}),
           refundRequired: true,
           cashbackAppliedCents: appliedCents,
           processedAt: FieldValue.serverTimestamp(),
@@ -448,7 +524,8 @@ export async function processTournamentRegistrationAsaasNotification(
             (typeof tournament?.name === "string" ? tournament.name : "Torneio"),
         ),
         eventAtMs: toMillisOrNull(tournament?.startAt ?? tournament?.startDate) ?? Date.now(),
-        cashReais: paidOnline,
+        // A taxa de antecipação do cartão é repasse ao Asaas: não gera cashback.
+        cashReais: roundMoney(paidOnline - cardFeeReais),
         appliedCents,
         // O teto do cashback ganho é sobre a taxa que sobrou para a nexaGO: o desconto do
         // seguidor (NexaSquad) já saiu dela. É a taxa inteira, paga por quem for.
@@ -486,14 +563,16 @@ export async function processTournamentRegistrationAsaasNotification(
         // da taxa que o atleta pagou por cima — o pendente pode ser reescrito até lá.
         ...(organizerId && feeRule ? {platformFee: {...feeRule}} : {}),
         ...(serviceFeeReais > 0 ? {serviceFeeCents: Math.round(serviceFeeReais * 100)} : {}),
+        ...(cardFeeReais > 0 ? {cardFeeCents: Math.round(cardFeeReais * 100)} : {}),
         ...(intentHasWork(intent) ? cashbackIntentFields(intent) : {}),
       }, {merge: true});
 
       await batch.commit();
 
       // Comissão do embaixador (NexaSquad): libera com a receita líquida do Asaas. Nunca lança.
-      // A parte da taxa paga pelo atleta não é inscrição: fica fora da base da comissão.
-      const serviceFeeCents = Math.round(serviceFeeReais * 100);
+      // A parte da taxa paga pelo atleta e a antecipação do cartão não são inscrição: ficam fora da
+      // base da comissão.
+      const serviceFeeCents = Math.round((serviceFeeReais + cardFeeReais) * 100);
       await applySquadPaymentEventQuietly(db, {
         registrationId,
         payerUid,
@@ -633,6 +712,17 @@ export async function processTournamentRegistrationAsaasNotification(
       }
     }
 
+    // Antecipação: o atleta pagou a taxa por cima (`cardFeeCents`), então a plataforma antecipa este
+    // cartão e o caixa é creditado quando o Asaas creditar a antecipação (~2 dias úteis), não na
+    // liquidação. Pedido uma vez por pagamento; recusado ou falho, o caixa segue creditando no
+    // `RECEIVED`, como sem a taxa.
+    if (
+      phases.awaitSettlement && organizerId && cardFeeReais > 0 &&
+      processed.anticipation == null && deps.requestAnticipation
+    ) {
+      await requestAnticipationQuietly(processedRef, paymentId, registrationId, deps.requestAnticipation);
+    }
+
     // Credita o CAIXA DO TORNEIO (`tournamentWallets/{tournamentId}`) com o
     // líquido (bruto − taxa da plataforma − taxa do gateway). A plataforma
     // retém a sua taxa; o dono do evento e os gestores da equipe sacam depois.
@@ -657,6 +747,7 @@ export async function processTournamentRegistrationAsaasNotification(
           grossReais: grossOnline,
           platformFeeReais: fee.organizerFeeReais,
           serviceFeeReais,
+          cardFeeReais,
           // A taxa do gateway é sobre o que o Asaas cobrou (o dinheiro), não sobre o bruto.
           gatewayFeeReais: resolveGatewayFeeReais(payment, billingType, paidOnline),
           cashbackAppliedReais: appliedCents / 100,

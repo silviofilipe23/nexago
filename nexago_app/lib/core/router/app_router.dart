@@ -330,6 +330,7 @@ import '../../features/tournaments/presentation/tournament_predictions_page.dart
 import '../../features/tournaments/presentation/tournament_external_invite_page.dart';
 import '../../features/tournaments/presentation/tournament_partner_invite_page.dart';
 import '../../features/tournaments/domain/registration_wizard_step.dart';
+import '../../features/tournaments/domain/registration_payment_method.dart';
 import '../../features/tournaments/domain/tournament_registration_pix_args.dart';
 import '../../features/tournaments/domain/tournament_registration_success_args.dart';
 import '../../features/tournaments/presentation/registration_wizard/registration_category_page.dart';
@@ -2636,6 +2637,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 amountType: amountType,
                 ownShareReais: double.tryParse(
                   state.uri.queryParameters['ownShareReais']?.trim() ?? '',
+                ),
+                // Sem o parâmetro (link antigo) valem os dois; o servidor
+                // recusa a forma desligada.
+                onlinePaymentMethods: parseOnlinePaymentMethods(
+                  state.uri.queryParameters['paymentMethods']?.split(','),
                 ),
               ),
             );

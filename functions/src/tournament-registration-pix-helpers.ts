@@ -193,6 +193,18 @@ export function isDirectWithOrganizerPaymentMode(paymentMode: unknown): boolean 
     paymentMode.trim() === TOURNAMENT_PAYMENT_MODE_DIRECT_ORGANIZER;
 }
 
+export type OnlinePaymentMethod = "pix" | "card";
+
+/**
+ * Formas aceitas no pagamento pelo app (`tournaments.onlinePaymentMethods`): só Pix, só cartão ou
+ * as duas. Ausente, vazio ou fora do contrato = as duas — todo o acervo anterior à escolha.
+ */
+export function tournamentOnlinePaymentMethods(raw: unknown): OnlinePaymentMethod[] {
+  if (!Array.isArray(raw)) return ["pix", "card"];
+  const methods = (["pix", "card"] as const).filter((m) => raw.includes(m));
+  return methods.length > 0 ? [...methods] : ["pix", "card"];
+}
+
 export type AthleteGenderBucket = "M" | "F";
 
 /** Normaliza `users/{uid}.gender` para comparação da dupla. */

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
 import '../domain/tournament_detail_logic.dart';
+import '../domain/registration_payment_method.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_listing_status.dart';
@@ -145,6 +146,9 @@ abstract final class TournamentDocumentMapper {
       listingStatusRaw: listingStatusRaw,
       sport: _str(data['sport']) ?? '',
       paymentMode: parseTournamentPaymentMode(data['paymentMode'] as String?),
+      onlinePaymentMethods: parseOnlinePaymentMethods(
+        data['onlinePaymentMethods'],
+      ),
       organizerPixKey: _pixField(data['organizerPix'], 'key'),
       organizerPixKeyType: _pixField(data['organizerPix'], 'keyType'),
       organizerPixRecipientName: _pixField(data['organizerPix'], 'recipientName'),

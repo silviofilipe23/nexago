@@ -13,15 +13,20 @@ import {
   BEST_OF_LABEL,
   BRACKET_SYSTEM_LABEL,
   KNOWN_TOURNAMENT_SPORTS,
+  ONLINE_PAYMENT_OPTIONS,
   SPORT_LABEL,
   SUPPORTED_BRACKET_SYSTEMS,
   type TournamentBestOf,
   type TournamentBracketSystem,
+  onlinePaymentLabel,
+  onlinePaymentMethodsForLabel,
+  paymentSummaryLabel,
 } from '../data/tournament-create.model';
 import { OgCardComponent } from '../ui/card.component';
 import { OgFormFieldComponent } from '../ui/form-field.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgRadioRowComponent } from '../ui/radio-row.component';
+import { OgSelectChipsComponent } from '../ui/select-chips.component';
 import { OgStepperStaticComponent } from '../ui/stepper-static.component';
 import { OgToggleRowComponent } from '../ui/toggle-row.component';
 
@@ -48,6 +53,7 @@ const BEST_OFS: readonly TournamentBestOf[] = ['singleSet', 'bestOf3', 'bestOf5'
     OgToggleRowComponent,
     OgStepperStaticComponent,
     OgRadioRowComponent,
+    OgSelectChipsComponent,
     NxSkeletonComponent,
     NxSpinnerComponent,
   ],
@@ -122,6 +128,16 @@ const BEST_OFS: readonly TournamentBestOf[] = ['singleSet', 'bestOf3', 'bestOf5'
           style="cursor:pointer"
           (click)="patch({ paymentMode: 'appPixCard' })"
         />
+        @if (draft().paymentMode === 'appPixCard') {
+          <og-form-field label="Formas aceitas">
+            <og-select-chips
+              [options]="onlinePaymentOptions"
+              [active]="onlinePaymentActive()"
+              (changed)="patch({ onlinePaymentMethods: onlinePaymentMethodsForLabel($event) })"
+            />
+          </og-form-field>
+          <p class="og-cfg-hint">No cartão o atleta paga a taxa de antecipação por cima do valor. Seu repasse não muda.</p>
+        }
         <og-radio-row
           title="Direto com o organizador"
           desc="Você cobra por fora; usa os dados do card Pagamentos."
@@ -205,8 +221,12 @@ export class OgConfigRegrasCardComponent {
   protected readonly draft = signal<OrganizerEventDefaults>(DEFAULT_ORGANIZER_EVENT_DEFAULTS);
 
   protected readonly paymentLabel = computed(() =>
-    this.defaults().paymentMode === 'appPixCard' ? 'Pix e cartão pelo app' : 'Direto com o organizador',
+    paymentSummaryLabel(this.defaults().paymentMode, this.defaults().onlinePaymentMethods, 'Direto com o organizador'),
   );
+  /** "Pix e cartão" (padrão), "Só Pix", "Só cartão" — herdado pelo rascunho novo do wizard. */
+  protected readonly onlinePaymentOptions = ONLINE_PAYMENT_OPTIONS.map((o) => o.label);
+  protected readonly onlinePaymentActive = computed(() => onlinePaymentLabel(this.draft().onlinePaymentMethods));
+  protected readonly onlinePaymentMethodsForLabel = onlinePaymentMethodsForLabel;
 
   /** Normalmente só os formatos suportados. Se o doc trouxer um formato antigo/não suportado, ele
    *  entra na lista para o select não abrir em branco — o organizador vê o que está valendo e

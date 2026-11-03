@@ -1,7 +1,10 @@
 import {
   NO_SERVICE_FEE,
   athleteServiceFeeReais,
+  cardFeeReais,
   platformServiceFeeReais,
+  readCardFee,
+  readCardFeePercent,
   readServiceFee,
   serviceFeeRuleFromRaw,
   type ServiceFeeRule,
@@ -47,5 +50,33 @@ describe('service-fee', () => {
     expect(readServiceFee({ serviceFeeReais: 4 })).toBe(4);
     expect(readServiceFee({})).toBe(0);
     expect(readServiceFee(null)).toBe(0);
+  });
+
+  it('taxa do cartão: % sobre os centavos do valor do cartão, arredondada (espelho do servidor)', () => {
+    expect(cardFeeReais(100, 1.33)).toBe(1.33);
+    // 3.000 centavos × 1,33% = 39,9 → 40 centavos.
+    expect(cardFeeReais(30, 1.33)).toBe(0.4);
+    expect(cardFeeReais(54, 1.33)).toBe(0.72);
+  });
+
+  it('taxa do cartão: sem valor ou sem % não há taxa', () => {
+    expect(cardFeeReais(0, 1.33)).toBe(0);
+    expect(cardFeeReais(50, 0)).toBe(0);
+    expect(cardFeeReais(-10, 1.33)).toBe(0);
+    expect(cardFeeReais(50, Number.NaN)).toBe(0);
+  });
+
+  it('lê o % da taxa do cartão; ausente ou fora do contrato é zero (backend antigo)', () => {
+    expect(readCardFeePercent({ payer: 'organizador', percent: 0, floorReais: 0, cardFeePercent: 1.33 })).toBe(1.33);
+    expect(readCardFeePercent({ payer: 'atleta' })).toBe(0);
+    expect(readCardFeePercent({ cardFeePercent: '1.33' })).toBe(0);
+    expect(readCardFeePercent({ cardFeePercent: -1 })).toBe(0);
+    expect(readCardFeePercent(null)).toBe(0);
+  });
+
+  it('lê a taxa do cartão da resposta da cobrança; ausente é zero', () => {
+    expect(readCardFee({ cardFeeReais: 0.72 })).toBe(0.72);
+    expect(readCardFee({})).toBe(0);
+    expect(readCardFee(null)).toBe(0);
   });
 });

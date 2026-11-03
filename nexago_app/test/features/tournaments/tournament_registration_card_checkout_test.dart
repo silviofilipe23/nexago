@@ -15,8 +15,10 @@ import 'package:nexago_app/features/athlete/domain/tournament_access_providers.d
 import 'package:nexago_app/features/cashback/application/cashback_providers.dart';
 import 'package:nexago_app/features/cashback/domain/cashback_models.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_registration_service.dart';
+import 'package:nexago_app/features/tournaments/domain/registration_payment_method.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_pix_args.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_providers.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_service_fee.dart';
 import 'package:nexago_app/features/tournaments/presentation/tournament_registration_pix_page.dart';
 import 'package:nexago_app/features/tournaments/presentation/widgets/tournament_registration/registration_card_checkout_panel.dart';
 import 'package:nexago_app/features/tournaments/presentation/widgets/tournament_registration/registration_payment_method_picker.dart';
@@ -126,16 +128,117 @@ void main() {
     expect(service.closeCalls, 1);
     expect(find.text('Pagamento expirado'), findsOneWidget);
   });
+
+  group('formas aceitas e taxa de antecipação do cartão', () {
+    const taxaDoCartao = TournamentServiceFeeRule(
+      percent: 0,
+      floorReais: 0,
+      payer: TournamentServiceFeePayer.organizer,
+      cardFeePercent: 1.33,
+    );
+
+    testWidgets('só cartão: sem escolha, o botão já é o do cartão',
+        (tester) async {
+      final service = _FakeCardPaymentService();
+      await _abrir(
+        tester,
+        service: service,
+        methods: const [RegistrationPaymentMethod.card],
+      );
+
+      expect(find.byKey(RegistrationPaymentMethodPicker.pixKey), findsNothing);
+      expect(
+        find.byKey(RegistrationPaymentMethodPicker.cardKey),
+        findsOneWidget,
+      );
+      expect(find.text('Gerar PIX'), findsNothing);
+
+      await tester.enterText(find.byType(TextField), '52998224725');
+      await tester.pump();
+      await tester.tap(find.text('Pagar ${formatBRL(100)} no cartão'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(service.cardCalls, hasLength(1));
+    });
+
+    testWidgets('só Pix: sem o cartão e o fluxo do PIX', (tester) async {
+      await _abrir(
+        tester,
+        service: _FakeCardPaymentService(feeRule: taxaDoCartao),
+        methods: const [RegistrationPaymentMethod.pix],
+      );
+
+      expect(find.byKey(RegistrationPaymentMethodPicker.cardKey), findsNothing);
+      expect(find.byKey(RegistrationPaymentMethodPicker.pixKey), findsOneWidget);
+      expect(
+        find.byKey(RegistrationPaymentMethodPicker.pixSavingsKey),
+        findsNothing,
+      );
+      expect(find.text('Gerar PIX'), findsOneWidget);
+    });
+
+    testWidgets(
+        'os dois com taxa: Pix marcado e mais barato; no cartão o resumo e '
+        'o botão levam a taxa', (tester) async {
+      final service = _FakeCardPaymentService(
+        feeRule: taxaDoCartao,
+        charged: 101.33,
+        cardFee: 1.33,
+      );
+      await _abrir(tester, service: service);
+      await tester.pump();
+
+      expect(find.text('Gerar PIX'), findsOneWidget);
+      expect(
+        find.byKey(RegistrationPaymentMethodPicker.pixSavingsKey),
+        findsOneWidget,
+      );
+      // Pix escolhido: nada de taxa do cartão no resumo.
+      expect(find.textContaining('Taxa de antecipação do cartão'), findsNothing);
+
+      await tester.tap(find.byKey(RegistrationPaymentMethodPicker.cardKey));
+      await tester.pump();
+
+      expect(
+        find.text('Taxa de antecipação do cartão (1,33%)'),
+        findsOneWidget,
+      );
+      expect(find.text(formatBRL(1.33)), findsOneWidget);
+      final botao = 'Pagar ${formatBRL(101.33)} no cartão';
+      expect(find.text(botao), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), '52998224725');
+      await tester.pump();
+      await tester.tap(find.text(botao));
+      await tester.pump();
+      await tester.pump();
+
+      // Depois da cobrança vale o que o servidor devolveu.
+      expect(
+        find.descendant(
+          of: find.byType(RegistrationCardCheckoutPanel),
+          matching: find.text(formatBRL(101.33)),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('card-fee-note')), findsOneWidget);
+    });
+  });
 }
 
 /// Dublê do serviço só com o caminho do cartão.
 class _FakeCardPaymentService implements PaymentService {
   _FakeCardPaymentService({
     this.charged,
+    this.cardFee = 0,
+    this.feeRule = TournamentServiceFeeRule.none,
     this.expiresIn = const Duration(minutes: 15),
   });
 
   final double? charged;
+  final double cardFee;
+  final TournamentServiceFeeRule feeRule;
   final Duration expiresIn;
   final cardCalls =
       <({String registrationId, String? cpfCnpj, String amountType})>[];
@@ -163,8 +266,16 @@ class _FakeCardPaymentService implements PaymentService {
       expiresAt: DateTime.now().add(expiresIn),
       amountReais: 100,
       chargedReais: charged,
+      cardFeeReais: cardFee,
+      cardFeePercent: cardFee > 0 ? 1.33 : 0,
     );
   }
+
+  @override
+  Future<TournamentServiceFeeRule> getTournamentServiceFee({
+    required String tournamentId,
+  }) async =>
+      feeRule;
 
   @override
   Future<void> openHostedCheckout(String url) async => openedUrls.add(url);
@@ -200,6 +311,7 @@ Future<void> _abrir(
   WidgetTester tester, {
   required _FakeCardPaymentService service,
   StreamController<TournamentRegistrationSnapshot>? registration,
+  List<RegistrationPaymentMethod> methods = allRegistrationPaymentMethods,
 }) async {
   tester.view.physicalSize = const Size(800, 2400);
   tester.view.devicePixelRatio = 1.0;
@@ -214,6 +326,7 @@ Future<void> _abrir(
     amountType: 'full',
     holdExpiresAt: DateTime.now().add(const Duration(minutes: 20)),
     holdMinutes: 30,
+    onlinePaymentMethods: methods,
   );
   final router = GoRouter(
     initialLocation: '/pagar',

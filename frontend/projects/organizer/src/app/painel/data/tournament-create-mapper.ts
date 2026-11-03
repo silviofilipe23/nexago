@@ -33,6 +33,7 @@ import {
   sportFirestoreValue,
   profileBestOf,
   autoTechnicalTimeoutAvailable,
+  onlinePaymentMethodsOf,
 } from './tournament-create.model';
 
 /** Porta fiel de `tournament_create_mapper.dart` (Flutter): monta o doc `tournaments/{id}`
@@ -189,6 +190,9 @@ export function tournamentDraftToFirestore(params: {
     registrationOpensAt: draft.registrationOpensAt ? Timestamp.fromDate(draft.registrationOpensAt) : null,
     registrationClosesAt: draft.registrationClosesAt ? Timestamp.fromDate(draft.registrationClosesAt) : null,
     paymentMode: draft.paymentMode,
+    // Lista explícita sempre (só vale com `appPixCard`): guardada mesmo no direto, para a escolha
+    // voltar se o organizador trocar de novo para o app.
+    onlinePaymentMethods: onlinePaymentMethodsOf(draft.onlinePaymentMethods),
     organizerPix:
       draft.paymentMode === 'directWithOrganizer'
         ? {
@@ -420,6 +424,8 @@ export function tournamentDraftFromFirestore(data: Record<string, unknown>, id: 
     registrationOpensAt: ts(data['registrationOpensAt']),
     registrationClosesAt: ts(data['registrationClosesAt']),
     paymentMode: (data['paymentMode'] === 'directWithOrganizer' ? 'directWithOrganizer' : 'appPixCard') as TournamentPaymentMode,
+    // Torneio do acervo (sem o campo) aceita as duas — mesma leitura das callables de cobrança.
+    onlinePaymentMethods: onlinePaymentMethodsOf(data['onlinePaymentMethods']),
     organizerPixKey: str(pix['key']),
     organizerPixKeyType: str(pix['keyType']),
     organizerPixRecipientName: str(pix['recipientName']),

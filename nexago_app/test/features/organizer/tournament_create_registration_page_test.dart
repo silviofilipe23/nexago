@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
+import 'package:nexago_app/features/organizer/domain/tournament_create/tournament_create_draft.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_create/tournament_create_logic.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_create/tournament_create_providers.dart';
 import 'package:nexago_app/features/organizer/presentation/tournament_create/steps/tournament_create_registration_page.dart';
@@ -209,6 +210,49 @@ void main() {
         container.read(tournamentCreateDraftProvider).requireFormedPair,
         isTrue,
       );
+
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'pelo app: escolhe as formas aceitas (padrão Pix e cartão); direto '
+    'esconde a escolha',
+    (tester) async {
+      await pumpPage(tester);
+
+      final chips = find.byKey(const Key('online-payment-methods'));
+      expect(chips, findsOneWidget);
+      expect(
+        container.read(tournamentCreateDraftProvider).onlinePaymentMethods,
+        TournamentOnlinePaymentMethods.pixAndCard,
+      );
+      expect(find.text(onlinePaymentMethodsHint), findsOneWidget);
+
+      await tester.ensureVisible(chips);
+      await tester.pump();
+      await tester.tap(
+        find.descendant(of: chips, matching: find.text('Só Pix')),
+      );
+      await tester.pump();
+
+      expect(
+        container.read(tournamentCreateDraftProvider).onlinePaymentMethods,
+        TournamentOnlinePaymentMethods.pixOnly,
+      );
+
+      final direto = find.text('Direto com o organizador');
+      await tester.ensureVisible(direto);
+      await tester.pump();
+      await tester.tap(direto);
+      await tester.pump();
+
+      expect(
+        container.read(tournamentCreateDraftProvider).paymentMode,
+        TournamentPaymentMode.directWithOrganizer,
+      );
+
+      expect(chips, findsNothing);
 
       await tester.pumpWidget(const SizedBox());
     },

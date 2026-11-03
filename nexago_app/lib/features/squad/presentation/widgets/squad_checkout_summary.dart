@@ -20,6 +20,8 @@ class SquadCheckoutSummary extends StatelessWidget {
     this.serviceFeeCents = 0,
     this.ownPerkCents = 0,
     this.ownPerkLabel = 'Benefício de embaixador',
+    this.cardFeeCents = 0,
+    this.cardFeeLabel = 'Taxa de antecipação do cartão',
   });
 
   final int priceCents;
@@ -39,6 +41,11 @@ class SquadCheckoutSummary extends StatelessWidget {
   /// linha só aparece quando é maior que zero.
   final int ownPerkCents;
   final String ownPerkLabel;
+
+  /// Taxa de antecipação do cartão, por cima do que vai para o cartão (só
+  /// na inscrição paga no cartão); a linha só aparece quando é maior que zero.
+  final int cardFeeCents;
+  final String cardFeeLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -86,6 +93,8 @@ class SquadCheckoutSummary extends StatelessWidget {
           ),
         if (cashbackCents > 0)
           line('Cashback', '− ${formatBRLFromCents(cashbackCents)}'),
+        if (cardFeeCents > 0)
+          line(cardFeeLabel, formatBRLFromCents(cardFeeCents)),
         Divider(height: 8, color: colors.surfaceRaised),
         const SizedBox(height: 6),
         Row(

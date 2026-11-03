@@ -16,7 +16,14 @@ import { isConfirmedInscription, type RosterRow } from '../tournaments/enrolled-
 import { fetchTeamsByIds } from './teams-repository';
 import { withCashbackCharge, type CashbackChargeFields } from './cashback-preview';
 import { ownPerkFromRaw, readSquadDiscount, readSquadPerk, type OwnPerk } from './squad-discount';
-import { NO_SERVICE_FEE, readServiceFee, serviceFeeRuleFromRaw, type ServiceFeeRule } from './service-fee';
+import {
+  NO_SERVICE_FEE,
+  readCardFee,
+  readCardFeePercent,
+  readServiceFee,
+  serviceFeeRuleFromRaw,
+  type ServiceFeeRule,
+} from './service-fee';
 
 const INVITES_COLLECTION = 'tournamentRegistrationInvites';
 
@@ -901,18 +908,27 @@ export function registrationChargeFromResponse<T extends { amountReais: number }
   };
 }
 
+/** Prévia das taxas do checkout: a de serviço (quem paga) e a de antecipação do cartão. */
+export interface TournamentCheckoutFees {
+  rule: ServiceFeeRule;
+  /** % que o cartão soma por cima, seja quem for que pague a taxa de serviço (0 = sem taxa). */
+  cardFeePercent: number;
+}
+
+const NO_CHECKOUT_FEES: TournamentCheckoutFees = { rule: NO_SERVICE_FEE, cardFeePercent: 0 };
+
 /**
- * Regra da taxa de serviço do torneio que o atleta vê no checkout (`getTournamentServiceFee`).
- * Só prévia — a cobrança refaz a conta no servidor. Backend antigo sem a callable (`not-found`)
- * ou qualquer outro erro → sem taxa, em silêncio.
+ * Taxas do torneio que o atleta vê no checkout (`getTournamentServiceFee`). Só prévia — a cobrança
+ * refaz a conta no servidor. Backend antigo sem a callable (`not-found`) ou qualquer outro erro →
+ * sem taxa, em silêncio; backend sem `cardFeePercent` → cartão sem taxa.
  */
-export async function fetchTournamentServiceFee(functions: Functions, tournamentId: string): Promise<ServiceFeeRule> {
-  if (!tournamentId) return NO_SERVICE_FEE;
+export async function fetchTournamentServiceFee(functions: Functions, tournamentId: string): Promise<TournamentCheckoutFees> {
+  if (!tournamentId) return NO_CHECKOUT_FEES;
   try {
     const result = await httpsCallable<{ tournamentId: string }, unknown>(functions, 'getTournamentServiceFee')({ tournamentId });
-    return serviceFeeRuleFromRaw(result.data);
+    return { rule: serviceFeeRuleFromRaw(result.data), cardFeePercent: readCardFeePercent(result.data) };
   } catch {
-    return NO_SERVICE_FEE;
+    return NO_CHECKOUT_FEES;
   }
 }
 
@@ -950,6 +966,18 @@ export interface CardPaymentResult {
   squadPerkReais: number;
   /** Parte da taxa de serviço paga pelo atleta, já dentro do `chargedReais` (0 quando o organizador paga). */
   serviceFeeReais: number;
+  /** Taxa de antecipação do cartão paga pelo atleta, já dentro do `chargedReais` (0 no backend antigo). */
+  cardFeeReais: number;
+  /** % dessa taxa sobre o valor do cartão (0 sem taxa). */
+  cardFeePercent: number;
+}
+
+/** Campos só do cartão que a cobrança normaliza (backend antigo não manda). */
+type CardChargeExtras = RegistrationChargeExtras & { cardFeeReais: number; cardFeePercent: number };
+
+/** Resposta do cartão normalizada: a da inscrição + a taxa de antecipação (ausente = 0). */
+export function cardChargeFromResponse<T extends { amountReais: number }>(data: T): T & CardChargeExtras {
+  return { ...registrationChargeFromResponse(data), cardFeeReais: readCardFee(data), cardFeePercent: readCardFeePercent(data) };
 }
 
 export async function createRegistrationCardPayment(
@@ -957,11 +985,11 @@ export async function createRegistrationCardPayment(
   opts: RegistrationChargeOptions,
 ): Promise<CardPaymentResult> {
   try {
-    const result = await httpsCallable<Record<string, unknown>, Omit<CardPaymentResult, keyof RegistrationChargeExtras>>(
+    const result = await httpsCallable<Record<string, unknown>, Omit<CardPaymentResult, keyof CardChargeExtras>>(
       functions,
       'createTournamentRegistrationCardPayment',
     )(registrationChargePayload(opts));
-    return registrationChargeFromResponse(result.data);
+    return cardChargeFromResponse(result.data);
   } catch (err) {
     throw mapCallableError(err);
   }

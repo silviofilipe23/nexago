@@ -36,10 +36,13 @@ import {
   computeTournamentShareAmountReais,
   isFreeRegistrationFullyConfirmed,
   isDirectWithOrganizerPaymentMode,
+  type OnlinePaymentMethod,
   resolveDirectReservationMarks,
   resolveTournamentChargeReais,
   sharePaidUidsFromRegistration,
+  tournamentOnlinePaymentMethods,
 } from "./tournament-registration-pix-helpers";
+import {cardAnticipationFeeCents, loadCardAnticipationPercent} from "./card-anticipation-fee";
 import {
   usesDynamicShare,
   computeTeamMemberShareReais,
@@ -385,19 +388,28 @@ async function resolveRegistrationCheckout(
  * prazo da vaga, valor da cota e cliente no gateway. É idêntico para PIX e
  * cartão — o que muda é só o `billingType` na hora de criar a cobrança.
  *
- * `methodLabel` entra nas mensagens voltadas ao atleta ("Informe seu CPF para
- * pagar com PIX" / "com cartão").
+ * `method` é conferido contra as formas que o organizador aceita (`onlinePaymentMethods`) e entra
+ * nas mensagens voltadas ao atleta ("Informe seu CPF para pagar com PIX" / "com cartão").
  */
 async function prepareRegistrationCharge(
   callerUid: string,
   data: RegistrationChargeRequest,
-  methodLabel: string,
+  method: OnlinePaymentMethod,
 ): Promise<PreparedRegistrationCharge> {
   const {
     db, projectId, registrationId, registration, amountType, tournamentId, categoryId, tournamentData,
     organizerRegistered, shouldWaitlist, team, athleteUids, tournamentName, regTeamSize,
     isTeamRegistration, shareAmount, chargeAmount,
   } = await resolveRegistrationCheckout(callerUid, data);
+  // App antigo não esconde a forma que o organizador desligou: a recusa é aqui.
+  if (!tournamentOnlinePaymentMethods((tournamentData as Record<string, unknown>).onlinePaymentMethods)
+    .includes(method)) {
+    throw new HttpsError(
+      "failed-precondition",
+      method === "card" ? "Este torneio aceita só Pix." : "Este torneio aceita só cartão de crédito.",
+    );
+  }
+  const methodLabel = method === "card" ? "cartão" : "PIX";
   const cpfFromRequest =
     typeof data.cpfCnpj === "string" ? data.cpfCnpj :
       (typeof data.cpf === "string" ? data.cpf : "");
@@ -698,7 +710,7 @@ export const createTournamentRegistrationPixPayment = onCall({
   const prepared = await prepareRegistrationCharge(
     callerUid,
     (request.data ?? {}) as RegistrationChargeRequest,
-    "PIX",
+    "pix",
   );
   const {
     db, projectId, registrationId, amountType, chargeAmount,
@@ -818,6 +830,10 @@ type CardPaymentResponse = {
   squadPerkReais?: number;
   /** Parte da taxa da nexaGO paga pelo atleta, por cima do preço (ausente = organizador paga). */
   serviceFeeReais?: number;
+  /** Taxa de antecipação do cartão repassada ao atleta, já dentro de `chargedReais`. */
+  cardFeeReais?: number;
+  /** Percentual dessa taxa sobre o valor do cartão. */
+  cardFeePercent?: number;
 };
 
 /**
@@ -839,7 +855,7 @@ export const createTournamentRegistrationCardPayment = onCall({
   const prepared = await prepareRegistrationCharge(
     callerUid,
     (request.data ?? {}) as RegistrationChargeRequest,
-    "cartão",
+    "card",
   );
   const {
     db, projectId, registrationId, amountType, chargeAmount,
@@ -860,17 +876,24 @@ export const createTournamentRegistrationCardPayment = onCall({
     nowMs: Date.now(),
   });
 
+  // Taxa de antecipação (`card-anticipation-fee.ts`): por cima do que vai para o cartão — o saldo de
+  // cashback não passa pelo cartão e não se antecipa.
+  const cardFeePercent = await loadCardAnticipationPercent();
+  const cardFeeCents = cardAnticipationFeeCents(cashback.chargeReais, cardFeePercent);
+  const cardChargeReais = (Math.round(cashback.chargeReais * 100) + cardFeeCents) / 100;
+
   let charge;
   try {
     charge = await createAsaasCardCharge({
       customerId,
-      valueReais: cashback.chargeReais,
+      valueReais: cardChargeReais,
       dueDate: expiresAtDate,
       description,
       externalReference,
       // Com desconto a cobrança é outra: chave própria, para o Asaas não devolver a cheia.
       idempotencyKey: cashbackIdempotencyKey(
-        `tournament-reg-card-${registrationId}-${callerUid}${chargeIdempotencySuffix(prepared)}`,
+        `tournament-reg-card-${registrationId}-${callerUid}${chargeIdempotencySuffix(prepared)}` +
+          (cardFeeCents > 0 ? `-ca${cardFeeCents}` : ""),
         cashback.holdId,
       ),
     });
@@ -925,9 +948,12 @@ export const createTournamentRegistrationCardPayment = onCall({
     ...(prepared.perkCents > 0 ? {squadPerkCents: prepared.perkCents} : {}),
     // Parte da taxa paga pelo atleta: o webhook tira do bruto (o caixa e a parcela são sobre o preço).
     ...(serviceFeeCents(prepared) > 0 ? {serviceFeeCents: serviceFeeCents(prepared)} : {}),
+    // Taxa de antecipação paga pelo atleta: o webhook tira do bruto, como a parte da taxa de serviço.
+    ...(cardFeeCents > 0 ? {cardFeeCents} : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
   await recordPerkQuietly(prepared, callerUid, charge.paymentId);
+  // A comissão é sobre a inscrição: o que foi para o cartão antes da taxa de antecipação.
   await recordSquadCommissionQuietly(prepared, callerUid, charge.paymentId, cashback.chargeReais);
 
   return {
@@ -936,6 +962,8 @@ export const createTournamentRegistrationCardPayment = onCall({
     expiresAt: expiresAtDate.toISOString(),
     amountReais: chargeAmount,
     ...cashbackResponseFields(cashback),
+    chargedReais: cardChargeReais,
+    ...(cardFeeCents > 0 ? {cardFeeReais: cardFeeCents / 100, cardFeePercent} : {}),
     ...(prepared.squad?.discountCents ? {squadDiscountReais: prepared.squad.discountCents / 100} : {}),
     ...perkResponseFields(prepared),
     ...serviceFeeResponseFields(prepared),

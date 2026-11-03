@@ -1,4 +1,5 @@
 import 'tournament_discovery_models.dart';
+import 'registration_payment_method.dart';
 import 'tournament_payment_mode.dart';
 
 /// Prêmio do torneio ou categoria (`prizes[]` no Firestore).
@@ -51,6 +52,7 @@ class TournamentDetail {
     this.listingStatusRaw,
     this.sport = '',
     this.paymentMode = TournamentPaymentMode.appPixCard,
+    this.onlinePaymentMethods = allRegistrationPaymentMethods,
     this.organizerPixKey = '',
     this.organizerPixKeyType = '',
     this.organizerPixRecipientName = '',
@@ -108,6 +110,10 @@ class TournamentDetail {
   final String sport;
 
   final TournamentPaymentMode paymentMode;
+
+  /// Formas aceitas quando [paymentMode] é `appPixCard`
+  /// (`onlinePaymentMethods`; ausente = Pix e cartão).
+  final List<RegistrationPaymentMethod> onlinePaymentMethods;
 
   /// Dados PIX do organizador (modo `directWithOrganizer`), usados para gerar o
   /// QR/copia e cola na inscrição. Vazios quando não aplicável.

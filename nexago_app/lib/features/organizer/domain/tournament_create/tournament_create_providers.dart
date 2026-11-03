@@ -407,6 +407,9 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
   void setPaymentMode(TournamentPaymentMode value) =>
       _updateDraft(state.draft.copyWith(paymentMode: value));
 
+  void setOnlinePaymentMethods(TournamentOnlinePaymentMethods value) =>
+      _updateDraft(state.draft.copyWith(onlinePaymentMethods: value));
+
   void setOrganizerPixKey(String value) =>
       _updateDraft(state.draft.copyWith(organizerPixKey: value));
 

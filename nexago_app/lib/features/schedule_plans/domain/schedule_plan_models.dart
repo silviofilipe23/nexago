@@ -964,10 +964,19 @@ class ScheduleCheckout {
     this.amountReais = 0,
     this.qrCode,
     this.qrCodeBase64,
+    this.chargedReais,
+    this.cardFeeReais = 0,
   });
 
   final String invoiceUrl;
   final double amountReais;
+
+  /// Cartão: o que vai para o cartão (plano + taxa de antecipação). Ausente
+  /// (Pix, servidor antigo) = [amountReais].
+  final double? chargedReais;
+
+  /// Taxa de antecipação do cartão, já dentro de [chargedReais].
+  final double cardFeeReais;
 
   /// Pix copia-e-cola.
   final String? qrCode;
@@ -980,5 +989,7 @@ class ScheduleCheckout {
         amountReais: spDouble(m['amountReais']),
         qrCode: spStrOrNull(m['qrCode']),
         qrCodeBase64: spStrOrNull(m['qrCodeBase64']),
+        chargedReais: spDoubleOrNull(m['chargedReais']),
+        cardFeeReais: spDouble(m['cardFeeReais']),
       );
 }

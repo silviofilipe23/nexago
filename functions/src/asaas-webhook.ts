@@ -124,8 +124,8 @@ export const asaasWebhook = onRequest({
     return;
   }
 
-  // Antecipação creditada: só a inscrição antecipa (quando o atleta pagou a taxa); credita o caixa
-  // do torneio antes da liquidação. Os outros eventos de antecipação não mudam nada aqui — sem o
+  // Antecipação creditada: só inscrição e plano de horário antecipam (quando o atleta pagou a taxa);
+  // credita o caixa antes da liquidação. Os outros eventos de antecipação não mudam nada aqui — sem o
   // crédito, o caixa segue creditando no `PAYMENT_RECEIVED`.
   if (event === ANTICIPATION_CREDITED_EVENT) {
     const anticipatedPaymentId = body.anticipation?.payment?.trim();
@@ -133,14 +133,16 @@ export const asaasWebhook = onRequest({
       const db = getFirestore();
       try {
         const payment = await getAsaasPayment(anticipatedPaymentId);
-        if ((payment.externalReference || "").trim().startsWith(TOURNAMENT_REGISTRATION_PAYMENT_REF_PREFIX)) {
+        const ref = (payment.externalReference || "").trim();
+        const processedRef =
+          db.doc(`artifacts/${getFirebaseProjectId()}/public/data/asaas_processed_payments/${anticipatedPaymentId}`);
+        if (ref.startsWith(TOURNAMENT_REGISTRATION_PAYMENT_REF_PREFIX)) {
           await processTournamentRegistrationAsaasNotification(
-            db,
-            anticipatedPaymentId,
-            payment,
-            db.doc(`artifacts/${getFirebaseProjectId()}/public/data/asaas_processed_payments/${anticipatedPaymentId}`),
-            undefined,
-            {anticipationCredited: true},
+            db, anticipatedPaymentId, payment, processedRef, undefined, {anticipationCredited: true},
+          );
+        } else if (ref.startsWith(SCHEDULE_PAYMENT_REF_PREFIX)) {
+          await processArenaScheduleAsaasNotification(
+            db, anticipatedPaymentId, payment, processedRef, undefined, {anticipationCredited: true},
           );
         }
       } catch (e) {

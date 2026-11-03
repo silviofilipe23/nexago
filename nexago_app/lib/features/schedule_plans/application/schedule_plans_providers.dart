@@ -9,6 +9,12 @@ final schedulePlansRepositoryProvider = Provider<SchedulePlansRepository>((ref) 
   return SchedulePlansRepository(firestore: ref.watch(firestoreProvider));
 });
 
+/// Taxa de antecipação do cartão (%) para a prévia da tela de pagamento.
+final scheduleCardFeePercentProvider =
+    FutureProvider.autoDispose<double>((ref) {
+  return ref.watch(schedulePlansRepositoryProvider).cardAnticipationFeePercent();
+});
+
 /// Uid da sessão; vazio deslogado (nenhuma leitura bate nas rules).
 final schedulePlansUidProvider = Provider.autoDispose<String>((ref) {
   return ref.watch(authProvider).valueOrNull?.uid.trim() ?? '';

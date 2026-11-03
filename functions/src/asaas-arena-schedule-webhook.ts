@@ -28,18 +28,26 @@ import {roundMoney} from "./mercadopago-arena-helpers";
 import {computePlatformFeeReais} from "./platform-fees";
 import {parseRegistrationBillingType, resolvePaymentPhases} from "./registration-payment-phases";
 import {reactivateIfClearCore} from "./arena-schedule-billing";
+import {
+  requestAnticipationQuietly,
+  requestAsaasCardAnticipation,
+  type RequestAnticipation,
+} from "./card-anticipation-fee";
 
 export interface ScheduleWebhookDeps {
   refund: (paymentId: string) => Promise<void>;
   now: () => Date;
   /** Pago online destrava a assinatura suspensa, como a baixa manual. */
   reactivate: (db: Firestore, subscriptionId: string, todayKey: string) => Promise<boolean>;
+  /** Pede ao Asaas a antecipação do cartão (ausente nos testes antigos = não pede). */
+  requestAnticipation?: RequestAnticipation;
 }
 
 const defaultDeps: ScheduleWebhookDeps = {
   refund: (paymentId) => refundAsaasPayment(paymentId),
   now: () => new Date(),
   reactivate: (db, subscriptionId, todayKey) => reactivateIfClearCore(db, subscriptionId, todayKey),
+  requestAnticipation: requestAsaasCardAnticipation,
 };
 
 const NEGATIVE_STATUSES = new Set([
@@ -64,6 +72,8 @@ export async function processArenaScheduleAsaasNotification(
   payment: AsaasPaymentDetails,
   processedRef: DocumentReference,
   deps: ScheduleWebhookDeps = defaultDeps,
+  /** `anticipationCredited`: chegou `RECEIVABLE_ANTICIPATION_CREDITED` deste cartão. */
+  event: {anticipationCredited?: boolean} = {},
 ): Promise<void> {
   const groupId = parseSchedulePaymentRef((payment.externalReference || "").trim());
   if (!groupId) return;
@@ -84,6 +94,7 @@ export async function processArenaScheduleAsaasNotification(
     alreadyConfirmed,
     alreadyCredited,
     alreadyAwaitingSettlement: processed["awaitingSettlement"] != null,
+    anticipationCredited: event.anticipationCredited === true,
   });
 
   const groupRef = db.collection(ARENA_SCHEDULE_ASAAS_PAYMENTS).doc(groupId);
@@ -114,7 +125,12 @@ export async function processArenaScheduleAsaasNotification(
     return;
   }
 
-  const gross = roundMoney(Number(payment.value) || 0);
+  // Cartão pelo app: a taxa de antecipação foi por cima (`cardCharges` do grupo, por cobrança) e é da
+  // plataforma — a mensalidade, a taxa da NexaGO e o caixa da arena ficam no valor do plano.
+  const cardFeeCents = Number(((await groupRef.get()).data()?.["cardCharges"] as Record<string, unknown> | undefined)
+    ?.[paymentId] ?? 0) || 0;
+  const cardFeeReais = cardFeeCents > 0 ? cardFeeCents / 100 : 0;
+  const gross = roundMoney((Number(payment.value) || 0) - cardFeeReais);
   let arenaId = String(processed["arenaId"] ?? "");
   let subscriptionId = String(processed["subscriptionId"] ?? "");
   let chargeId = String(processed["chargeId"] ?? "");
@@ -219,13 +235,19 @@ export async function processArenaScheduleAsaasNotification(
   if (!arenaId) return;
   const arenaData = (await db.collection("arenas").doc(arenaId).get()).data() ?? {};
   const platformFeeReais = computePlatformFeeReais(gross, resolveArenaBookingFeePercent(arenaData, deps.now().getTime()));
-  const gatewayFeeReais = resolveGatewayFeeReais(payment, billingType, gross);
+  // A taxa do gateway é sobre o que o Asaas cobrou (com a taxa de antecipação), não sobre o plano.
+  const gatewayFeeReais = resolveGatewayFeeReais(payment, billingType, roundMoney(Number(payment.value) || 0));
 
   if (phases.awaitSettlement) {
     await holdArenaAwaitingSettlement(db, processedRef, {
       arenaId,
       netReais: arenaBookingNetReais({grossReais: gross, platformFeeReais, gatewayFeeReais}),
     });
+  }
+  // Taxa paga pelo atleta: a plataforma antecipa e o caixa da arena é creditado quando a antecipação
+  // cair (~2 dias úteis). Uma vez por pagamento; falhou, credita na liquidação.
+  if (phases.awaitSettlement && cardFeeReais > 0 && processed["anticipation"] == null && deps.requestAnticipation) {
+    await requestAnticipationQuietly(processedRef, paymentId, `plano de horário ${groupId}`, deps.requestAnticipation);
   }
   if (phases.credit) {
     await creditArenaWalletFromBookingPayment(db, {
@@ -236,7 +258,10 @@ export async function processArenaScheduleAsaasNotification(
       platformFeeReais,
       gatewayFeeReais,
       processedRef,
-      ledgerExtra: {source: "schedule_plan", subscriptionId, scheduleChargeId: chargeId},
+      ledgerExtra: {
+        source: "schedule_plan", subscriptionId, scheduleChargeId: chargeId,
+        ...(cardFeeReais > 0 ? {cardFeeReais} : {}),
+      },
     });
   }
 }

@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/firebase/functions_region.dart';
 import '../../tournaments/data/tournament_partner_invite_service.dart'
     show callableErrorMessage;
+import '../../tournaments/domain/tournament_service_fee.dart';
 import '../domain/schedule_plan_models.dart';
 
 /// Falha de uma callable dos Planos de horário, com a frase do servidor (ou o
@@ -212,6 +214,23 @@ class SchedulePlansRepository {
       );
     }
     return checkout;
+  }
+
+  /// Percentual da taxa de antecipação que o cartão soma por cima
+  /// (`getCardAnticipationFee`). Prévia: falhou ou servidor antigo = 0, e a
+  /// tela mostra os dois meios com o mesmo valor, como antes.
+  Future<double> cardAnticipationFeePercent() async {
+    try {
+      final data = await _call(
+        'getCardAnticipationFee',
+        const {},
+        fallback: 'Não foi possível carregar a taxa do cartão.',
+      );
+      return parseCardFeePercent(data['cardFeePercent']);
+    } catch (e) {
+      debugPrint('getCardAnticipationFee: $e');
+      return 0;
+    }
   }
 
   /// Assinatura ao vivo (prazo do pagamento na tela de pagamento).

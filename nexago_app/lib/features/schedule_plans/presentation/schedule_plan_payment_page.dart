@@ -253,6 +253,13 @@ class _SchedulePlanPaymentPageState
     final checkout = _checkout;
     final live = _live;
     final amount = checkout?.amountReais ?? charge.amountReais;
+    // Cartão soma a taxa de antecipação por cima; o Pix fica no valor do plano.
+    final quote = registrationMethodQuote(
+      pixCents: (amount * 100).round(),
+      cardFeePercent:
+          ref.watch(scheduleCardFeePercentProvider).valueOrNull ?? 0,
+    );
+    final selectedTotal = quote.totalCents(_method) / 100;
     final sub = charge.subscriptionId.isEmpty
         ? null
         : ref
@@ -292,6 +299,8 @@ class _SchedulePlanPaymentPageState
                   RegistrationPaymentMethodPicker(
                     value: _method,
                     amountReais: amount,
+                    cardFeeReais: quote.cardFeeCents / 100,
+                    cardFeePercent: quote.cardFeePercent,
                     enabled: !_loading,
                     onChanged: (m) => setState(() {
                       _method = m;
@@ -344,9 +353,21 @@ class _SchedulePlanPaymentPageState
                   ),
                 ] else ...[
                   RegistrationCardCheckoutPanel(
-                    amountReais: amount,
+                    amountReais: checkout.chargedReais ?? amount,
                     onOpen: _openCard,
                   ),
+                  if (checkout.cardFeeReais > 0) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Inclui ${formatBRL(checkout.cardFeeReais)} de taxa de '
+                      'antecipação do cartão.',
+                      key: const Key('schedule-payment-card-fee'),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: context.themeColors.onSurfaceMuted,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   const BookingPixWaitingCard(),
                   const SizedBox(height: 12),
@@ -376,7 +397,10 @@ class _SchedulePlanPaymentPageState
             enabled: _hasValidCpf,
             loading: _loading,
             onPressed: () => _generate(charge),
-            label: registrationChargeButtonLabel(_method, chargeReais: amount),
+            label: registrationChargeButtonLabel(
+              _method,
+              chargeReais: selectedTotal,
+            ),
           ),
       ],
     );

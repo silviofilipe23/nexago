@@ -8,13 +8,24 @@ const CANDIDATES: AthleteCandidate[] = [
 ];
 
 describe('filterAthleteCandidates', () => {
-  it('menos de 2 caracteres não filtra nada (lista vazia)', () => {
-    expect(filterAthleteCandidates(CANDIDATES, 'j')).toEqual([]);
+  it('sem texto lista todos os atletas em ordem alfabética', () => {
+    const result = filterAthleteCandidates(CANDIDATES, '');
+    expect(result.map((c) => c.athleteId)).toEqual(['a3', 'a4', 'a1', 'a2']);
+  });
+
+  it('sem texto limita a 50 atletas', () => {
+    const many: AthleteCandidate[] = Array.from({ length: 60 }, (_, i) => ({ athleteId: `id${i}`, name: `Atleta ${i}` }));
+    expect(filterAthleteCandidates(many, '  ').length).toBe(50);
+  });
+
+  it('1 caractere já filtra', () => {
+    const result = filterAthleteCandidates(CANDIDATES, 'j');
+    expect(result.map((c) => c.athleteId)).toEqual(['a4', 'a1', 'a2']);
   });
 
   it('filtra por substring, ignorando acento e caixa', () => {
     const result = filterAthleteCandidates(CANDIDATES, 'joao');
-    expect(result.map((c) => c.athleteId)).toEqual(['a1', 'a4']);
+    expect(result.map((c) => c.athleteId)).toEqual(['a4', 'a1']);
   });
 
   it('acha por sobrenome também', () => {
@@ -26,7 +37,7 @@ describe('filterAthleteCandidates', () => {
     expect(filterAthleteCandidates(CANDIDATES, 'xyz')).toEqual([]);
   });
 
-  it('limita a 8 resultados', () => {
+  it('com texto limita a 8 resultados', () => {
     const many: AthleteCandidate[] = Array.from({ length: 12 }, (_, i) => ({ athleteId: `id${i}`, name: `Carlos ${i}` }));
     expect(filterAthleteCandidates(many, 'carlos').length).toBe(8);
   });

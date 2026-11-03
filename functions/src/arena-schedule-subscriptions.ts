@@ -1,6 +1,6 @@
 /**
  * Planos de horário — assinaturas: assinar (atleta, gestor ou fila), trocar horário, pausar,
- * retomar e encerrar.
+ * retomar, encerrar (gestor) e cancelar (titular, no fim do período).
  *
  * Assinatura = uma série de horário fixo (`arenaRecurringBookings`) por dia escolhido, todas na
  * mesma quadra, carimbadas com `scheduleSubscriptionId`/`schedulePlanId`. A materialização,
@@ -954,6 +954,109 @@ export async function endSubscriptionForRemovedCourt(
   return true;
 }
 
+/**
+ * Saída com data futura (dentro de transação): mensalidades abertas de meses depois do último dia
+ * canceladas, séries cortadas na véspera e `endsOn` gravado. O agendador encerra no dia.
+ */
+function markFutureExit(
+  tx: Transaction,
+  db: Firestore,
+  ref: FirebaseFirestore.DocumentReference,
+  sub: Data,
+  charges: FirebaseFirestore.QueryDocumentSnapshot[],
+  endsOn: string,
+  fields: Data,
+): void {
+  const lastDay = addDaysToDateKey(endsOn, -1);
+  for (const c of charges) {
+    if (c.data()["status"] === "open" && String(c.data()["period"]) > monthKeyOf(lastDay)) {
+      tx.set(c.ref, {status: "canceled", canceledAt: FieldValue.serverTimestamp(), cancelReason: "subscription_ending"}, {merge: true});
+    }
+  }
+  for (const seriesId of seriesIdsOf(sub)) {
+    tx.set(db.collection(ARENA_RECURRING_BOOKINGS).doc(seriesId), {endDate: lastDay}, {merge: true});
+  }
+  tx.set(ref, {endsOn, ...fields, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+}
+
+/** Depois de `markFutureExit`: libera as ocorrências já materializadas a partir da saída. */
+async function releaseAfterExit(db: Firestore, sub: Data, endsOn: string): Promise<void> {
+  const lastDay = addDaysToDateKey(endsOn, -1);
+  for (const seriesId of seriesIdsOf(sub)) {
+    await cancelFutureOccurrences(db, seriesId, "schedule_subscription_ending", {afterDateKey: lastDay});
+  }
+}
+
+/**
+ * Saída pedida pelo titular: o plano vai até o fim do mês corrente, do último mês já pago ou do mês
+ * em que a fidelidade (trimestral/anual) termina — o que vier depois. Devolve o 1º dia sem o plano.
+ */
+export function athleteExitDate(todayKey: string, paidPeriods: readonly string[], commitmentEnds: string | null): string {
+  let last = monthKeyOf(todayKey);
+  for (const p of paidPeriods) if (p > last) last = p;
+  if (commitmentEnds && commitmentEnds > todayKey) {
+    const m = monthKeyOf(addDaysToDateKey(commitmentEnds, -1));
+    if (m > last) last = m;
+  }
+  return firstDayOfMonth(nextMonthKey(last));
+}
+
+export const ATHLETE_EXIT_REASON = "Saída pedida pelo atleta";
+
+/**
+ * O titular cancela o próprio plano pelo app. Nunca encerra na hora: marca a saída em
+ * `athleteExitDate` (sem estorno do que já foi pago) e o agendador encerra no dia.
+ */
+export async function cancelMySubscriptionCore(
+  db: Firestore,
+  uid: string,
+  subscriptionId: string,
+  todayKey: string,
+): Promise<{endsOn: string}> {
+  const {ref, data} = await loadSubscriptionOrThrow(db, subscriptionId);
+  if (str(data["holderAthleteId"]) !== uid) {
+    const members = Array.isArray(data["memberAthleteIds"]) ? (data["memberAthleteIds"] as unknown[]).map(String) : [];
+    throw new HttpsError(
+      "permission-denied",
+      members.includes(uid) ? "Só o titular do plano pode cancelar." : "Você não participa deste plano.",
+    );
+  }
+  const endsOn = await db.runTransaction(async (tx: Transaction) => {
+    const snap = await tx.get(ref);
+    const sub = (snap.data() ?? {}) as Data;
+    if (!(LIVE_SUBSCRIPTION_STATUSES as readonly string[]).includes(String(sub["status"]))) {
+      throw new HttpsError("failed-precondition", "Este plano já foi encerrado.");
+    }
+    if (typeof sub["endsOn"] === "string" && sub["endsOn"]) {
+      throw new HttpsError("failed-precondition", `Seu plano já termina em ${formatDateBr(sub["endsOn"])}.`);
+    }
+    const charges = await tx.get(db.collection(ARENA_SCHEDULE_CHARGES).where("subscriptionId", "==", subscriptionId));
+    const paid = charges.docs.filter((c) => c.data()["status"] === "paid").map((c) => String(c.data()["period"]));
+    const commitment = typeof sub["commitmentEndsOn"] === "string" ? sub["commitmentEndsOn"] : null;
+    const exit = athleteExitDate(todayKey, paid, commitment);
+    markFutureExit(tx, db, ref, sub, charges.docs, exit, {
+      cancelReason: ATHLETE_EXIT_REASON,
+      endRequestedBy: "athlete",
+      endRequestedAt: FieldValue.serverTimestamp(),
+    });
+    return exit;
+  });
+  await releaseAfterExit(db, data, endsOn);
+
+  const members = Array.isArray(data["members"]) ? (data["members"] as Data[]) : [];
+  for (const m of members.filter((x) => x["role"] === "member" && str(x["athleteId"]))) {
+    await notifyScheduleSafe(str(m["athleteId"]), {
+      title: "Seu plano tem data de saída",
+      body: `${str(data["holderName"]) || "O titular"} cancelou o plano ${str(data["planName"])} em ` +
+        `${str(data["arenaName"]) || "Arena"}. Ele termina em ${formatDateBr(endsOn)}.`,
+      type: "schedule_plan_ending",
+      data: {subscriptionId, arenaId: str(data["arenaId"])},
+    });
+  }
+  logger.info("arena-schedule: titular cancelou o plano", {subscriptionId, endsOn});
+  return {endsOn};
+}
+
 export async function endSubscriptionCore(
   db: Firestore,
   uid: string,
@@ -974,22 +1077,11 @@ export async function endSubscriptionCore(
   if (endsOn === todayKey) return finalizeSubscriptionEndCore(db, subscriptionId, todayKey, nowMs, reason);
 
   // Data futura: "Sai em dd/mm". O último dia de jogo é a véspera; o agendador encerra no dia.
-  const lastDay = addDaysToDateKey(endsOn, -1);
   await db.runTransaction(async (tx: Transaction) => {
     const charges = await tx.get(db.collection(ARENA_SCHEDULE_CHARGES).where("subscriptionId", "==", subscriptionId));
-    for (const c of charges.docs) {
-      if (c.data()["status"] === "open" && String(c.data()["period"]) > monthKeyOf(lastDay)) {
-        tx.set(c.ref, {status: "canceled", canceledAt: FieldValue.serverTimestamp(), cancelReason: "subscription_ending"}, {merge: true});
-      }
-    }
-    for (const seriesId of seriesIdsOf(data)) {
-      tx.set(db.collection(ARENA_RECURRING_BOOKINGS).doc(seriesId), {endDate: lastDay}, {merge: true});
-    }
-    tx.set(ref, {endsOn, cancelReason: reason, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    markFutureExit(tx, db, ref, data, charges.docs, endsOn, {cancelReason: reason});
   });
-  for (const seriesId of seriesIdsOf(data)) {
-    await cancelFutureOccurrences(db, seriesId, "schedule_subscription_ending", {afterDateKey: lastDay});
-  }
+  await releaseAfterExit(db, data, endsOn);
   await notifyScheduleSafe(str(data["holderAthleteId"]), {
     title: "Seu plano tem data de saída",
     body: `O plano ${str(data["planName"])} em ${str(data["arenaName"]) || "Arena"} termina em ${formatDateBr(endsOn)}.`,
@@ -1006,6 +1098,16 @@ export async function endSubscriptionCore(
 function idList(raw: unknown): string[] {
   return Array.isArray(raw) ? (raw as unknown[]).map(str).filter(Boolean) : [];
 }
+
+export const cancelMyArenaScheduleSubscription = onCall({region: CLIENT_FACING_REGIONS, timeoutSeconds: 120}, async (request) => {
+  const uid = requireUid(request.auth);
+  const input = (request.data ?? {}) as Data;
+  try {
+    return await cancelMySubscriptionCore(getFirestore(), uid, str(input["subscriptionId"]), dayKeyFromEventDate(new Date()));
+  } catch (e) {
+    return rethrowSchedule("cancelMyArenaScheduleSubscription", e);
+  }
+});
 
 export const createArenaScheduleSubscription = onCall({region: CLIENT_FACING_REGIONS, timeoutSeconds: 120}, async (request) => {
   const uid = requireUid(request.auth);

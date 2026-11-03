@@ -14,6 +14,7 @@ import {dayKeyFromEventDate} from "./event-timezone";
 import {ARENA_RECURRING_BOOKINGS, toMinutes} from "./arena-recurring-booking";
 import {ARENA_CLASSES} from "./arena-class-constants";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {assertArenaCanBillOnline} from "./arena-class-billing";
 import {
   ARENA_SCHEDULE_SUBSCRIPTIONS,
   ARENA_SCHEDULE_WAITLIST,
@@ -332,10 +333,13 @@ export async function upsertSchedulePlanCore(
 
 export async function saveScheduleRulesCore(db: Firestore, uid: string, input: Data): Promise<ScheduleSettings> {
   const arenaId = str(input["arenaId"]);
-  await requireScheduleManager(db, arenaId, uid);
+  const arena = await requireScheduleManager(db, arenaId, uid);
   const ref = scheduleSettingsRef(db, arenaId);
   const snap = await ref.get();
-  const merged = mergeScheduleSettingsInput(parseScheduleSettings(snap.exists ? snap.data() as Data : undefined), input);
+  const stored = parseScheduleSettings(snap.exists ? snap.data() as Data : undefined);
+  // Campo ausente (app/portal antigo) mantém o gravado; ligar exige o que as Aulas exigem.
+  const merged = mergeScheduleSettingsInput(stored, input);
+  if (merged.onlineBillingEnabled && !stored.onlineBillingEnabled) assertArenaCanBillOnline(arena, "os planos de horário");
   await ref.set({...merged, updatedAt: FieldValue.serverTimestamp(), updatedByUid: uid}, {merge: true});
   return merged;
 }
@@ -343,6 +347,21 @@ export async function saveScheduleRulesCore(db: Firestore, uid: string, input: D
 // ---------------------------------------------------------------------------
 // Disponibilidade (A2)
 // ---------------------------------------------------------------------------
+
+/** A arena ainda recebe online (pagamento online ligado e chave PIX de repasse)? */
+export function arenaCanBillOnline(arena: Data): boolean {
+  try {
+    assertArenaCanBillOnline(arena);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Mensalidades novas viram link Asaas? Regra ligada e a arena ainda apta a receber online. */
+export function scheduleOnlineBillingOn(settings: ScheduleSettings, arena: Data): boolean {
+  return settings.onlineBillingEnabled && arenaCanBillOnline(arena);
+}
 
 export interface AvailabilityTime {
   startTime: string;
@@ -361,7 +380,7 @@ export async function getPlanAvailabilityCore(
   nowMs: number,
 ) {
   if (!planId) throw new HttpsError("invalid-argument", "Plano inválido.");
-  await loadArenaOrThrow(db, arenaId);
+  const arena = await loadArenaOrThrow(db, arenaId);
   const snap = await planRef(db, arenaId, planId).get();
   if (!snap.exists) throw new HttpsError("not-found", "Plano não encontrado.");
   const plan = parseSchedulePlan(snap.data() as Data);
@@ -402,6 +421,8 @@ export async function getPlanAvailabilityCore(
     primeUsagePercent: primeUsagePercent(usedMinutes, capacityMinutes),
     seatsLeft,
     days,
+    // Pix/cartão viram "link mensal" quando ligada; senão "combine com a arena".
+    onlineBilling: scheduleOnlineBillingOn(settings, arena),
   };
 }
 

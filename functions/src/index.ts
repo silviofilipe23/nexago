@@ -233,6 +233,14 @@ export {
   expireArenaScheduleWaitlistOffers,
 } from "./arena-schedule-waitlist";
 export {getMyArenaScheduleSubscriptions} from "./arena-schedule-athlete";
+// Planos de horário — cobrança online das mensalidades pelo Asaas (decisão/anulação na mensalidade,
+// worker do grupo, varredura e o "Pagar" do app).
+export {
+  onArenaScheduleChargeWritten,
+  onArenaScheduleAsaasPaymentWritten,
+  reconcileArenaScheduleAsaasPayments,
+  getArenaScheduleChargePaymentLink,
+} from "./arena-schedule-asaas";
 // Aulas — cobrança online pelo Asaas (worker do grupo + varredura).
 export {onArenaClassAsaasPaymentWritten, reconcileArenaClassAsaasPayments} from "./asaas-class-billing";
 export {

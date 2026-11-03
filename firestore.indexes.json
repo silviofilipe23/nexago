@@ -1722,6 +1722,34 @@
       ]
     },
     {
+      "collectionGroup": "arenaScheduleAsaasPayments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dueDate",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "arenaScheduleCharges",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "billingMode",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "arenaClassSessions",
       "queryScope": "COLLECTION",
       "fields": [

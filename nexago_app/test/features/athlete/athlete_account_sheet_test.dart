@@ -6,8 +6,13 @@ import 'package:nexago_app/core/auth/active_role_providers.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/athlete_home/athlete_account_sheet.dart';
+import 'package:nexago_app/features/athlete_billing/application/athlete_billing_providers.dart';
+import 'package:nexago_app/features/athlete_billing/domain/athlete_billing.dart';
 
-Widget _harness({required bool multipleRoles}) {
+Widget _harness({
+  required bool multipleRoles,
+  AthleteChargesSummary? billing = const AthleteChargesSummary(),
+}) {
   final router = GoRouter(
     routes: [
       GoRoute(
@@ -31,6 +36,11 @@ Widget _harness({required bool multipleRoles}) {
         builder: (_, __) => const Text('PERFIL'),
       ),
       GoRoute(
+        path: AppRoutes.athleteBilling,
+        name: AppRouteNames.athleteBilling,
+        builder: (_, __) => const Text('COBRANCAS'),
+      ),
+      GoRoute(
         path: AppRoutes.athleteSettings,
         name: AppRouteNames.athleteSettings,
         builder: (_, __) => const Text('AJUSTES'),
@@ -40,6 +50,7 @@ Widget _harness({required bool multipleRoles}) {
   return ProviderScope(
     overrides: [
       hasMultipleMobileRolesProvider.overrideWithValue(multipleRoles),
+      athleteChargesSummaryProvider.overrideWith((ref) => billing),
     ],
     child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
   );
@@ -71,6 +82,7 @@ void main() {
 
     final keys = [
       'athlete-account-profile',
+      'athlete-account-billing',
       'athlete-account-settings',
       'athlete-account-switch-role',
     ];
@@ -105,5 +117,50 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('AJUSTES'), findsOneWidget);
+  });
+
+  testWidgets('Cobranças abre a lista e diz o que está vencido', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _harness(
+        multipleRoles: false,
+        billing: const AthleteChargesSummary(
+          total: 130,
+          overdueCount: 1,
+          overdueTotal: 30,
+          dueCount: 1,
+        ),
+      ),
+    );
+    await _open(tester);
+
+    expect(find.textContaining('1 vencida ·'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('athlete-account-billing')));
+    await tester.pumpAndSettle();
+    expect(find.text('COBRANCAS'), findsOneWidget);
+  });
+
+  test('linha de apoio de Cobranças no menu', () {
+    expect(
+      athleteBillingMenuSubtitle(null),
+      'Aulas, horário fixo, reservas e torneios',
+    );
+    expect(
+      athleteBillingMenuSubtitle(const AthleteChargesSummary()),
+      'Aulas, horário fixo, reservas e torneios',
+    );
+    expect(
+      athleteBillingMenuSubtitle(
+        const AthleteChargesSummary(total: 200, dueCount: 2),
+      ),
+      contains('em aberto'),
+    );
+    expect(
+      athleteBillingMenuSubtitle(
+        const AthleteChargesSummary(total: 90, overdueCount: 3),
+      ),
+      startsWith('3 vencidas · '),
+    );
   });
 }

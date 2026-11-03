@@ -3,20 +3,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/auth/active_role_providers.dart';
+import '../../../../../core/formatting/app_currency_format.dart';
 import '../../../../../core/observability/analytics_log.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_theme_colors.dart';
+import '../../../../athlete_billing/application/athlete_billing_providers.dart';
+import '../../../../athlete_billing/domain/athlete_billing.dart';
 import '../../../../auth/presentation/role_selection_page.dart';
 import '../../../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../../domain/athlete_display_name.dart';
 import '../../../domain/athlete_profile_providers.dart';
 import '../athlete_profile_avatar.dart';
 
-enum AthleteAccountAction { profile, settings, switchRole }
+enum AthleteAccountAction { profile, billing, settings, switchRole }
 
 /// O que o leitor de tela anuncia em toda entrada do menu da conta.
 const athleteAccountMenuSemanticLabel =
-    'Sua conta: perfil, configurações e trocar papel';
+    'Sua conta: perfil, cobranças, configurações e trocar papel';
 
 /// Avatar com a seta ⌄ no canto, à esquerda do título das abas do atleta,
 /// abrindo [openAthleteAccountMenu].
@@ -116,6 +119,7 @@ Future<void> openAthleteAccountMenu(
       origin: origin,
       action: switch (action) {
         AthleteAccountAction.profile => 'perfil',
+        AthleteAccountAction.billing => 'cobrancas',
         AthleteAccountAction.settings => 'configuracoes',
         AthleteAccountAction.switchRole => 'trocar_papel',
         null => 'fechou',
@@ -126,6 +130,8 @@ Future<void> openAthleteAccountMenu(
   switch (action) {
     case AthleteAccountAction.profile:
       context.pushNamed(AppRouteNames.athleteProfile);
+    case AthleteAccountAction.billing:
+      context.pushNamed(AppRouteNames.athleteBilling);
     case AthleteAccountAction.settings:
       context.pushNamed(AppRouteNames.athleteSettings);
     case AthleteAccountAction.switchRole:
@@ -139,6 +145,7 @@ class _AthleteAccountSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final canSwitchRole = ref.watch(hasMultipleMobileRolesProvider);
+    final billing = ref.watch(athleteChargesSummaryProvider);
     void choose(AthleteAccountAction a) => Navigator.of(context).pop(a);
     // O corpo da folha já põe 12 entre os itens: espaçador aqui somava 34.
     return ProfessorLinksSheetBody(
@@ -150,6 +157,15 @@ class _AthleteAccountSheet extends ConsumerWidget {
           title: 'Meu perfil',
           subtitle: 'Seus dados, níveis e histórico',
           onTap: () => choose(AthleteAccountAction.profile),
+        ),
+        // Tudo que o atleta paga num lugar só: aqui, ao lado do perfil, é
+        // onde a conta dele já mora — e o menu abre de qualquer aba.
+        ProfessorLinksSheetRow(
+          key: const Key('athlete-account-billing'),
+          icon: Icons.receipt_long_outlined,
+          title: 'Cobranças',
+          subtitle: athleteBillingMenuSubtitle(billing),
+          onTap: () => choose(AthleteAccountAction.billing),
         ),
         ProfessorLinksSheetRow(
           key: const Key('athlete-account-settings'),
@@ -170,4 +186,15 @@ class _AthleteAccountSheet extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// Linha de apoio de "Cobranças" no menu: o que está em aberto agora.
+String athleteBillingMenuSubtitle(AthleteChargesSummary? s) {
+  if (s == null || s.isEmpty) return 'Aulas, horário fixo, reservas e torneios';
+  final total = formatBRL(s.total);
+  if (s.overdueCount == 1) return '1 vencida · $total em aberto';
+  if (s.overdueCount > 1) {
+    return '${s.overdueCount} vencidas · $total em aberto';
+  }
+  return '$total em aberto';
 }

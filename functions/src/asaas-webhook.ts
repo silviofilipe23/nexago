@@ -53,7 +53,11 @@ type AsaasWebhookBody = {
   event?: string;
   payment?: {id?: string; externalReference?: string};
   transfer?: AsaasTransferPayload;
+  anticipation?: {id?: string; payment?: string; status?: string};
 };
+
+/** A antecipação de um cartão caiu na conta (docs.asaas.com/docs/webhook-para-antecipacoes). */
+const ANTICIPATION_CREDITED_EVENT = "RECEIVABLE_ANTICIPATION_CREDITED";
 
 /**
  * Webhook Asaas — reservas (`arenaBooking:*`) e inscrições (`tournamentRegistration:*`).
@@ -115,6 +119,33 @@ export const asaasWebhook = onRequest({
       await processArenaWithdrawalTransferWebhook(db, event, body.transfer);
     } catch (e) {
       logger.error(`asaasWebhook transfer handler failed event=${event}`, e);
+    }
+    res.status(200).send("OK");
+    return;
+  }
+
+  // Antecipação creditada: só a inscrição antecipa (quando o atleta pagou a taxa); credita o caixa
+  // do torneio antes da liquidação. Os outros eventos de antecipação não mudam nada aqui — sem o
+  // crédito, o caixa segue creditando no `PAYMENT_RECEIVED`.
+  if (event === ANTICIPATION_CREDITED_EVENT) {
+    const anticipatedPaymentId = body.anticipation?.payment?.trim();
+    if (anticipatedPaymentId) {
+      const db = getFirestore();
+      try {
+        const payment = await getAsaasPayment(anticipatedPaymentId);
+        if ((payment.externalReference || "").trim().startsWith(TOURNAMENT_REGISTRATION_PAYMENT_REF_PREFIX)) {
+          await processTournamentRegistrationAsaasNotification(
+            db,
+            anticipatedPaymentId,
+            payment,
+            db.doc(`artifacts/${getFirebaseProjectId()}/public/data/asaas_processed_payments/${anticipatedPaymentId}`),
+            undefined,
+            {anticipationCredited: true},
+          );
+        }
+      } catch (e) {
+        logger.error(`asaasWebhook: antecipação creditada falhou paymentId=${anticipatedPaymentId}`, e);
+      }
     }
     res.status(200).send("OK");
     return;

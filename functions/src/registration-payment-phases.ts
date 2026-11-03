@@ -30,6 +30,11 @@ export interface PaymentPhaseInput {
    * `awaitingSettlement` no doc processado). Ausente = não está.
    */
   alreadyAwaitingSettlement?: boolean;
+  /**
+   * O Asaas creditou a antecipação deste cartão (`RECEIVABLE_ANTICIPATION_CREDITED`): o dinheiro já
+   * está na conta da plataforma antes da liquidação, então o caixa pode ser creditado.
+   */
+  anticipationCredited?: boolean;
 }
 
 export interface PaymentPhases {
@@ -49,9 +54,10 @@ const SETTLED_STATUSES = new Set(["RECEIVED", "RECEIVED_IN_CASH"]);
 
 export function resolvePaymentPhases(input: PaymentPhaseInput): PaymentPhases {
   const status = input.status.toUpperCase();
-  const settled = SETTLED_STATUSES.has(status);
   const cardAuthorized =
     input.billingType === "CREDIT_CARD" && status === "CONFIRMED";
+  const settled = SETTLED_STATUSES.has(status) ||
+    (cardAuthorized && input.anticipationCredited === true);
 
   if (!settled && !cardAuthorized) {
     return {confirm: false, credit: false, awaitSettlement: false};
@@ -60,7 +66,7 @@ export function resolvePaymentPhases(input: PaymentPhaseInput): PaymentPhases {
   return {
     confirm: !input.alreadyConfirmed,
     credit: settled && !input.alreadyCredited,
-    awaitSettlement: cardAuthorized && !input.alreadyCredited &&
+    awaitSettlement: cardAuthorized && !settled && !input.alreadyCredited &&
       input.alreadyAwaitingSettlement !== true,
   };
 }

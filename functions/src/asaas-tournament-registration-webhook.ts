@@ -10,6 +10,7 @@ import {
 import * as logger from "firebase-functions/logger";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import {deleteAsaasPaymentOrThrow, type AsaasPaymentDetails} from "./asaas-booking-payment";
+import {fetchAsaas} from "./asaas-client";
 import {
   PIX_CANCELLED_REGISTRATION_ALREADY_PAID,
   cancelOpenPixPendingCharges,
@@ -89,10 +90,13 @@ const ASAAS_NEGATIVE_TERMINAL_STATUSES = new Set([
 
 export interface TournamentRegistrationWebhookDeps {
   cancelCharge: (asaasPaymentId: string) => Promise<void>;
+  /** Pede ao Asaas a antecipação do cartão (ausente nos testes antigos = não pede). */
+  requestAnticipation?: (asaasPaymentId: string) => Promise<{id?: string; status?: string}>;
 }
 
 const defaultDeps: TournamentRegistrationWebhookDeps = {
   cancelCharge: (asaasPaymentId) => deleteAsaasPaymentOrThrow(asaasPaymentId),
+  requestAnticipation: requestAsaasCardAnticipation,
 };
 
 /**
@@ -178,12 +182,58 @@ export function resolveCardFeeReais(p: {
   return centsOf(p.pending["cardFeeCents"]) / 100;
 }
 
+/** `POST /v3/anticipations` de uma cobrança (docs.asaas.com/reference/solicitar-antecipacao). */
+async function requestAsaasCardAnticipation(paymentId: string): Promise<{id?: string; status?: string}> {
+  return fetchAsaas<{id?: string; status?: string}>("/v3/anticipations", {
+    method: "POST",
+    body: {payment: paymentId},
+    idempotencyKey: `anticipation-${paymentId}`,
+  });
+}
+
+/** Pede a antecipação e grava o resultado no processado. Nunca lança. */
+async function requestAnticipationQuietly(
+  processedRef: DocumentReference,
+  paymentId: string,
+  registrationId: string,
+  request: NonNullable<TournamentRegistrationWebhookDeps["requestAnticipation"]>,
+): Promise<void> {
+  try {
+    const res = await request(paymentId);
+    await processedRef.set({
+      anticipation: {
+        id: res.id ?? null,
+        status: res.status ?? null,
+        requestedAt: FieldValue.serverTimestamp(),
+      },
+    }, {merge: true});
+  } catch (e) {
+    logger.error(
+      `Asaas tournament registration ${registrationId}: antecipação do cartão ${paymentId} não pedida — ` +
+      "o caixa credita na liquidação",
+      e,
+    );
+    try {
+      await processedRef.set({
+        anticipation: {
+          error: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300),
+          requestedAt: FieldValue.serverTimestamp(),
+        },
+      }, {merge: true});
+    } catch (writeErr) {
+      logger.error(`Asaas tournament registration ${registrationId}: falha ao gravar a antecipação`, writeErr);
+    }
+  }
+}
+
 export async function processTournamentRegistrationAsaasNotification(
   db: Firestore,
   paymentId: string,
   payment: AsaasPaymentDetails,
   processedRef: DocumentReference,
   deps: TournamentRegistrationWebhookDeps = defaultDeps,
+  /** `anticipationCredited`: chegou `RECEIVABLE_ANTICIPATION_CREDITED` deste cartão. */
+  event: {anticipationCredited?: boolean} = {},
 ): Promise<void> {
   const parsed = parseTournamentRegistrationExternalReference(
     (payment.externalReference || "").trim(),
@@ -220,6 +270,7 @@ export async function processTournamentRegistrationAsaasNotification(
     alreadyConfirmed,
     alreadyCredited,
     alreadyAwaitingSettlement,
+    anticipationCredited: event.anticipationCredited === true,
   });
 
   if (
@@ -659,6 +710,17 @@ export async function processTournamentRegistrationAsaasNotification(
           );
         }
       }
+    }
+
+    // Antecipação: o atleta pagou a taxa por cima (`cardFeeCents`), então a plataforma antecipa este
+    // cartão e o caixa é creditado quando o Asaas creditar a antecipação (~2 dias úteis), não na
+    // liquidação. Pedido uma vez por pagamento; recusado ou falho, o caixa segue creditando no
+    // `RECEIVED`, como sem a taxa.
+    if (
+      phases.awaitSettlement && organizerId && cardFeeReais > 0 &&
+      processed.anticipation == null && deps.requestAnticipation
+    ) {
+      await requestAnticipationQuietly(processedRef, paymentId, registrationId, deps.requestAnticipation);
     }
 
     // Credita o CAIXA DO TORNEIO (`tournamentWallets/{tournamentId}`) com o

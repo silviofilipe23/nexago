@@ -148,3 +148,39 @@ describe("resolvePaymentPhases: \"a liberar\" do cartão", () => {
     );
   });
 });
+
+describe("resolvePaymentPhases: antecipação do cartão creditada", () => {
+  it("cartão já confirmado: só credita, sem passar pelo a liberar", () => {
+    assert.deepEqual(
+      resolvePaymentPhases({
+        billingType: "CREDIT_CARD", status: "CONFIRMED", alreadyConfirmed: true, alreadyCredited: false,
+        alreadyAwaitingSettlement: true, anticipationCredited: true,
+      }),
+      {confirm: false, credit: true, awaitSettlement: false},
+    );
+  });
+
+  it("CONFIRMED perdido: confirma e credita juntos", () => {
+    assert.deepEqual(
+      resolvePaymentPhases({billingType: "CREDIT_CARD", status: "CONFIRMED", ...FRESH, anticipationCredited: true}),
+      {confirm: true, credit: true, awaitSettlement: false},
+    );
+  });
+
+  it("já creditado: nada", () => {
+    assert.deepEqual(
+      resolvePaymentPhases({
+        billingType: "CREDIT_CARD", status: "CONFIRMED", alreadyConfirmed: true, alreadyCredited: true,
+        anticipationCredited: true,
+      }),
+      {confirm: false, credit: false, awaitSettlement: false},
+    );
+  });
+
+  it("PIX ignora a antecipação", () => {
+    assert.deepEqual(
+      resolvePaymentPhases({billingType: "PIX", status: "CONFIRMED", ...FRESH, anticipationCredited: true}),
+      {confirm: false, credit: false, awaitSettlement: false},
+    );
+  });
+});

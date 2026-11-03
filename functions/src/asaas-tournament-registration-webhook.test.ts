@@ -1192,3 +1192,84 @@ describe("asaas-tournament-registration-webhook: taxa de antecipação do cartã
     assert.equal(fake.store.get(PROCESSED_PATH)!["cardFeeCents"], undefined);
   });
 });
+
+describe("asaas-tournament-registration-webhook: antecipação do cartão", () => {
+  function depsWithAnticipation(result: () => Promise<{id?: string; status?: string}>) {
+    const requested: string[] = [];
+    return {
+      requested,
+      deps: {
+        cancelCharge: async () => undefined,
+        requestAnticipation: async (paymentId: string) => {
+          requested.push(paymentId);
+          return result();
+        },
+      },
+    };
+  }
+  const CONFIRMED = () => cardPayment("CONFIRMED", {value: 101.33, netValue: 97.8});
+
+  it("com a taxa paga: pede a antecipação uma vez e credita o caixa quando ela cai", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, {...CARD_PENDING_A, cardFeeCents: 133});
+    const {requested, deps} = depsWithAnticipation(async () => ({id: "ant1", status: "PENDING"}));
+
+    await processTournamentRegistrationAsaasNotification(db, "pay1", CONFIRMED(), processedRefOf(db), deps);
+    // Reentrega do CONFIRMED não pede de novo.
+    await processTournamentRegistrationAsaasNotification(db, "pay1", CONFIRMED(), processedRefOf(db), deps);
+
+    assert.deepEqual(requested, ["pay1"]);
+    const anticipation = fake.store.get(PROCESSED_PATH)!["anticipation"] as Record<string, unknown>;
+    assert.equal(anticipation.id, "ant1");
+    assert.equal(walletDoc(fake)!["awaitingSettlementReais"], 88.47);
+    assert.equal(ledgerEntries(fake).length, 0);
+
+    // A antecipação cai: o pagamento ainda é CONFIRMED no Asaas.
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", CONFIRMED(), processedRefOf(db), deps, {anticipationCredited: true},
+    );
+    assert.equal(walletDoc(fake)!["availableReais"], 88.47);
+    assert.equal(walletDoc(fake)!["awaitingSettlementReais"], 0);
+    assert.equal(fake.store.get(REG_PATH)!["paidAmount"], ENTRY_FEE);
+
+    // A liquidação (D+32) não credita de novo.
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", cardPayment("RECEIVED", {value: 101.33, netValue: 97.8}), processedRefOf(db), deps,
+    );
+    assert.equal(ledgerEntries(fake).filter((e) => e.type === "credit").length, 1);
+    assert.equal(walletDoc(fake)!["availableReais"], 88.47);
+  });
+
+  it("sem a taxa (backend antigo ou Pix): não pede antecipação", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, CARD_PENDING_A);
+    const {requested, deps} = depsWithAnticipation(async () => ({id: "ant1"}));
+
+    await processTournamentRegistrationAsaasNotification(db, "pay1", cardPayment("CONFIRMED"), processedRefOf(db), deps);
+
+    assert.deepEqual(requested, []);
+    assert.equal(fake.store.get(PROCESSED_PATH)!["anticipation"], undefined);
+  });
+
+  it("pedido recusado: a vaga confirma e o caixa espera a liquidação", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, {...CARD_PENDING_A, cardFeeCents: 133});
+    const {deps} = depsWithAnticipation(async () => {
+      throw new Error("Cobrança não antecipável");
+    });
+
+    await processTournamentRegistrationAsaasNotification(db, "pay1", CONFIRMED(), processedRefOf(db), deps);
+
+    assert.equal(fake.store.get(REG_PATH)!["isPaid"], true);
+    const anticipation = fake.store.get(PROCESSED_PATH)!["anticipation"] as Record<string, unknown>;
+    assert.equal(anticipation.error, "Cobrança não antecipável");
+    assert.equal(walletDoc(fake)!["awaitingSettlementReais"], 88.47);
+    assert.equal(ledgerEntries(fake).length, 0);
+  });
+});

@@ -398,6 +398,79 @@ int scheduleOverdueDays(ScheduleCharge charge, DateTime now) {
   return diff > 0 ? diff : 0;
 }
 
+// ── Cobrança online (link mensal Pix ou cartão) ─────────────────────────
+
+/// Mensagem exata do `getArenaScheduleChargePaymentLink` quando o atleta
+/// ainda não tem CPF guardado: o app pede o CPF e repete com `cpfCnpj`.
+const scheduleCpfRequiredMessage = 'Informe seu CPF para pagar online.';
+
+/// O erro da callable é o pedido de CPF (e não outra pré-condição).
+bool scheduleIsCpfRequired({String? code, required String message}) =>
+    code == 'failed-precondition' &&
+    message.trim() == scheduleCpfRequiredMessage;
+
+/// Mensalidade que o atleta paga pelo app ("Pagar" → fatura).
+bool scheduleCanPayOnline(ScheduleCharge charge) =>
+    charge.isOpen && charge.isOnline;
+
+/// Selo da mensalidade paga online: "Pago · Pix", "Pago · Cartão" ou
+/// "Pago online" (outra forma do Asaas). `null` se não foi paga online.
+String? schedulePaidOnlineLabel(ScheduleCharge charge) {
+  if (!charge.isPaidOnline) return null;
+  return switch (charge.onlineBillingType) {
+    'PIX' => 'Pago · Pix',
+    'CREDIT_CARD' || 'DEBIT_CARD' => 'Pago · Cartão',
+    _ => 'Pago online',
+  };
+}
+
+/// Última mensalidade paga do atleta (a de vencimento mais tarde; sem data,
+/// o período decide).
+ScheduleCharge? scheduleLastPaidCharge(
+  List<ScheduleCharge> charges,
+  String uid,
+) {
+  final paid = charges
+      .where((c) =>
+          c.isPaid &&
+          (c.payerAthleteId == null || uid.isEmpty || c.payerAthleteId == uid))
+      .toList()
+    ..sort((a, b) {
+      final ad = a.dueDate, bd = b.dueDate;
+      if (ad != null && bd != null && ad != bd) return ad.compareTo(bd);
+      return a.period.compareTo(b.period);
+    });
+  return paid.isEmpty ? null : paid.last;
+}
+
+/// Forma de pagamento ao lado da mensalidade: online → "Pix ou cartão";
+/// manual decidido → "Pague na arena"; senão (a decidir, antiga, sem
+/// mensalidade) a forma escolhida na assinatura.
+String scheduleChargeMethodLabel(
+  SchedulePaymentMethod method,
+  ScheduleCharge? charge,
+) {
+  if (charge != null && charge.isOnline) return 'Pix ou cartão';
+  if (charge != null && charge.billingMode == 'manual') {
+    return 'Pague na arena';
+  }
+  return method.label;
+}
+
+/// Nota sob as formas de pagamento na assinatura (A2).
+String scheduleMethodNote(
+  SchedulePaymentMethod method, {
+  required bool onlineBilling,
+}) {
+  if (method == SchedulePaymentMethod.onsite) {
+    return 'Você paga direto na arena, que dá baixa a cada mês.';
+  }
+  return onlineBilling
+      ? 'Link mensal: Pix ou cartão. Todo mês o link de pagamento chega '
+          'no app.'
+      : 'Combine o pagamento com a arena, que dá baixa a cada mês.';
+}
+
 /// Frases sob a faixa do mês para as desmarcadas: "Dia 10 você avisou que
 /// não vai. Ganhou 1 reposição."
 List<String> scheduleSkippedExplanations(

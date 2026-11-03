@@ -551,6 +551,21 @@ AthleteNotificationPresentation _basePresentation(
         routePath: athleteChargesLocation,
         externalUrl: invoiceUrl,
       );
+    // Mensalidade do Plano de horário com link: "Pagar" leva a Meu plano,
+    // onde o botão busca a fatura viva (como o push).
+    case schedulePlanChargeLinkNotificationType:
+      return AthleteNotificationPresentation(
+        icon: Icons.payments_outlined,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.12),
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Pagar',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: resolveNotificationRoute({...data, 'type': type}),
+      );
     // Fatura do centro de treinamento: "Pagar" abre a fatura no app (Pix e
     // cartão), como o push.
     case centerInvoiceLinkNotificationType:

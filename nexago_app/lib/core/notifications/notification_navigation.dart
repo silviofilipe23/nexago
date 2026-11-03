@@ -15,6 +15,12 @@ const _sessionSettleTimeout = Duration(seconds: 8);
 /// `functions/src/asaas-class-billing.ts`): "Toque para pagar com PIX ou cartão".
 const classChargeLinkNotificationType = 'arena_class_charge_link';
 
+/// Mensalidade de Plano de horário com link online pronto
+/// (`functions/src/arena-schedule-asaas.ts`). Diferente da aula, o toque abre
+/// "Meu plano" (`url: /meus-planos-horario`), não a fatura: lá o "Pagar" busca
+/// o link vivo (a fatura do push pode ter sido anulada por baixa manual).
+const schedulePlanChargeLinkNotificationType = 'schedule_plan_charge_link';
+
 /// Cobrança do professor independente (`createProfessorCharge` em
 /// `functions/src/professor-wallet.ts`): mesma fatura online do Asaas.
 const professorChargeLinkNotificationType = 'professor_charge_link';

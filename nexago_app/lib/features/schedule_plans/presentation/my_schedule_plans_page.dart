@@ -6,6 +6,7 @@ import '../../../core/errors/friendly_error_message.dart';
 import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/formatting/app_date_format.dart';
 import '../../../core/layout/nexa_app_bar.dart';
+import '../../../core/links/open_external_url.dart';
 import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -14,14 +15,18 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/nexa_async_view.dart';
 import '../../../core/ui/nexa_skeleton.dart';
+import '../../../core/validation/cpf_cnpj.dart';
 import '../../arena/domain/aulas/arena_class_logic.dart'
     show arenaClassInitials;
 import '../../arena/presentation/aulas/widgets/arena_class_atoms.dart'
     show ArenaClassAvatar;
+import '../../athlete/domain/athlete_profile_providers.dart';
 import '../application/schedule_plans_providers.dart';
 import '../domain/schedule_plan_logic.dart';
 import '../domain/schedule_plan_models.dart';
+import '../infrastructure/schedule_plans_repository.dart';
 import 'schedule_plans_routes.dart';
+import 'widgets/schedule_charge_cpf_sheet.dart';
 import 'widgets/schedule_plan_sheets.dart';
 import 'widgets/schedule_plan_ui.dart';
 
@@ -29,10 +34,13 @@ import 'widgets/schedule_plan_ui.dart';
 /// reposição, trocar, pausar), a próxima cobrança e as vagas oferecidas pela
 /// lista de espera. Destino dos pushes dos planos (`/meus-planos-horario`).
 class MySchedulePlansPage extends ConsumerStatefulWidget {
-  const MySchedulePlansPage({super.key, this.now});
+  const MySchedulePlansPage({super.key, this.now, this.openUrl});
 
   /// Relógio injetável para teste.
   final DateTime Function()? now;
+
+  /// Abre a fatura fora do app; injetável para teste.
+  final Future<bool> Function(String url)? openUrl;
 
   @override
   ConsumerState<MySchedulePlansPage> createState() =>
@@ -43,7 +51,31 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
   String? _selectedId;
   bool _busy = false;
 
+  /// Mensalidade cujo "Pagar" está buscando o link.
+  String? _payingChargeId;
+
+  /// A fatura abriu no navegador: na volta ao app, recarrega para mostrar
+  /// "Pago" se o atleta pagou.
+  bool _refreshOnResume = false;
+  late final AppLifecycleListener _lifecycle;
+
   DateTime get _now => widget.now?.call() ?? DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(onResume: () {
+      if (!_refreshOnResume || !mounted) return;
+      _refreshOnResume = false;
+      _refresh();
+    });
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
 
   Future<void> _refresh() async {
     ref.invalidate(myScheduleSubscriptionsProvider);
@@ -78,6 +110,66 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
   }
 
   // ── Ações ─────────────────────────────────────────────────────────────
+
+  /// "Pagar": link da fatura (Pix ou cartão) → navegador. Sem CPF guardado o
+  /// servidor pede o CPF; a folha repete a chamada com ele.
+  Future<void> _pay(ScheduleCharge charge) async {
+    if (_payingChargeId != null) return;
+    setState(() => _payingChargeId = charge.id);
+    try {
+      String? url;
+      try {
+        url = await ref
+            .read(schedulePlansRepositoryProvider)
+            .chargePaymentLink(chargeId: charge.id);
+      } on SchedulePlanException catch (e) {
+        if (!scheduleIsCpfRequired(code: e.code, message: e.message)) rethrow;
+        if (!mounted) return;
+        url = await showScheduleSheet<String>(
+          context,
+          builder: (_) => ScheduleChargeCpfSheet(
+            chargeId: charge.id,
+            initialCpf: _profileCpf(),
+          ),
+        );
+      }
+      if (url == null || !mounted) return;
+      final opened = await (widget.openUrl ?? openExternalUrl)(url);
+      if (!mounted) return;
+      if (opened) {
+        _refreshOnResume = true;
+      } else {
+        showAppSnackBar(
+          context,
+          'Não foi possível abrir a fatura. Tente de novo em instantes.',
+          isError: true,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        friendlyErrorMessage(
+          e,
+          action: 'Não foi possível abrir o pagamento',
+          logReason: 'schedule_plan_pay',
+        ),
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _payingChargeId = null);
+    }
+  }
+
+  /// CPF já salvo no perfil (preenche a folha); `null` sem perfil.
+  String? _profileCpf() {
+    try {
+      final cpf = ref.read(athleteProfileProvider).valueOrNull?.cpfCnpj;
+      return cpf != null && CpfCnpjValidator.isValid(cpf) ? cpf : null;
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<void> _skip(ScheduleSubscription sub) async {
     final now = _now;
@@ -375,7 +467,13 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
       const SizedBox(height: 14),
       ScheduleActionGrid(actions: actions),
       const SizedBox(height: 12),
-      ScheduleChargeCard(subscription: sub, uid: uid, now: now),
+      ScheduleChargeCard(
+        subscription: sub,
+        uid: uid,
+        now: now,
+        payingChargeId: _payingChargeId,
+        onPay: _pay,
+      ),
     ];
   }
 
@@ -900,17 +998,25 @@ class ScheduleActionTile extends StatelessWidget {
 }
 
 /// "Próxima cobrança · dd/mm": a parte do atleta e a forma de pagamento.
+/// Mensalidade online aberta ganha "Pagar"; sem nada em aberto, a última
+/// paga online mostra "Pago · Pix/Cartão".
 class ScheduleChargeCard extends StatelessWidget {
   const ScheduleChargeCard({
     super.key,
     required this.subscription,
     required this.uid,
     required this.now,
+    this.payingChargeId,
+    this.onPay,
   });
 
   final ScheduleSubscription subscription;
   final String uid;
   final DateTime now;
+
+  /// Mensalidade buscando o link (botão carregando).
+  final String? payingChargeId;
+  final ValueChanged<ScheduleCharge>? onPay;
 
   @override
   Widget build(BuildContext context) {
@@ -925,55 +1031,112 @@ class ScheduleChargeCard extends StatelessWidget {
             ? 'Mensalidade · todo dia ${sub.dueDay}'
             : 'Mensalidade';
     final amount = charge?.amountReais ?? scheduleMyShare(sub, uid);
-    return ScheduleCard(
-      key: const Key('schedule-charge-card'),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ScheduleKicker(kicker),
-                const SizedBox(height: 6),
+    final pay = onPay;
+    final payable =
+        charge != null && pay != null && scheduleCanPayOnline(charge)
+            ? charge
+            : null;
+    final lastPaid =
+        charge == null ? scheduleLastPaidCharge(sub.charges, uid) : null;
+    final paidLabel =
+        lastPaid == null ? null : schedulePaidOnlineLabel(lastPaid);
+    final paying = payable != null && payingChargeId == payable.id;
+    final row = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ScheduleKicker(kicker),
+              const SizedBox(height: 6),
+              Text(
+                formatBRL(amount),
+                style: AppTypography.mono(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: colors.onSurface,
+                ),
+              ),
+              if (overdue > 0) ...[
+                const SizedBox(height: 4),
                 Text(
-                  formatBRL(amount),
-                  style: AppTypography.mono(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: colors.onSurface,
+                  overdue == 1 ? 'Atrasada 1 dia' : 'Atrasada $overdue dias',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colors.live,
                   ),
                 ),
-                if (overdue > 0) ...[
-                  const SizedBox(height: 4),
+              ],
+            ],
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              split ? 'sua parte' : 'por mês',
+              style: TextStyle(fontSize: 12, color: colors.onSurfaceMuted),
+            ),
+            const SizedBox(height: 4),
+            if (paidLabel != null)
+              Row(
+                key: const Key('schedule-charge-paid-online'),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.check_circle_rounded,
+                    size: 14,
+                    color: colors.win,
+                  ),
+                  const SizedBox(width: 4),
                   Text(
-                    overdue == 1 ? 'Atrasada 1 dia' : 'Atrasada $overdue dias',
+                    paidLabel,
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: colors.live,
+                      color: colors.win,
                     ),
                   ),
                 ],
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
+              )
+            else
               Text(
-                split ? 'sua parte' : 'por mês',
-                style: TextStyle(fontSize: 12, color: colors.onSurfaceMuted),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                sub.paymentMethod.label,
+                scheduleChargeMethodLabel(sub.paymentMethod, charge),
                 style: TextStyle(fontSize: 12, color: colors.win),
               ),
-            ],
-          ),
-        ],
-      ),
+          ],
+        ),
+      ],
+    );
+    return ScheduleCard(
+      key: const Key('schedule-charge-card'),
+      child: payable == null || pay == null
+          ? row
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                row,
+                const SizedBox(height: 14),
+                SchedulePrimaryButton(
+                  key: const Key('schedule-charge-pay'),
+                  label: 'Pagar',
+                  icon: Icons.open_in_new_rounded,
+                  loading: paying,
+                  onPressed: () => pay(payable),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Pix ou cartão. A fatura abre no navegador.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: colors.onSurfaceMuted,
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }

@@ -23,29 +23,54 @@ continuam sendo a alavanca.
 
 | Pilar | Benefício | Por que retém | Base que já existe |
 |---|---|---|---|
-| Economia | Isenção (ou 50%) da taxa de serviço do atleta em inscrições e reservas | Concentra o gasto no nexaGO ("já pago, vou usar") | Motor de perks do Squad (`squadPerkUses`, nexaGO banca, organizador recebe o mesmo líquido) |
-| Economia | Cashback dobrado (2% → 4%), mesmo teto sobre a taxa | Saldo com validade de 6 meses puxa o atleta de volta | Cashback (`appConfig/cashback`, PR #550) |
+| Economia | Taxa de serviço do atleta zerada **na inscrição**, até um teto mensal | Concentra o gasto no nexaGO ("já pago, vou usar") | Motor de perks do Squad (`squadPerkUses`, nexaGO banca, organizador recebe o mesmo líquido) |
 | Evolução | "Seu mês no nexaGO": evolução do rating, aproveitamento por fase, com quem mais vence, metas | Valor sentido todo mês, mesmo jogando pouco | `ratingEvents`, partidas públicas, gráfico "Sua evolução" (#977) |
 | Status | Selo/moldura de assinante, cards de compartilhar exclusivos | Identidade + divulgação orgânica | Moldura do sand rank, share cards |
-| Prioridade | Inscrição antecipada (24h) **só se o organizador ligar**; +1 escudo de sequência/mês; prioridade na fila do clubinho | Medo de perder vaga sem tirar vaga de ninguém | Escudo do sand rank, clubinho |
+| Prioridade | Inscrição antecipada (24h) **só se o organizador ligar**; +1 escudo de sequência/mês | Medo de perder vaga sem tirar vaga de ninguém | Escudo do sand rank (perk Protetor de Sequência) |
+
+**O que saiu do pacote da v1, e por quê** (conferido no código em 03/11/2026):
+- **"Taxa zerada nas reservas":** o atleta não paga taxa de serviço na reserva. O
+  `serviceFeeReais` "só existe na inscrição" (`payment_service.dart`); na reserva, a taxa da nexaGO
+  sai da arena. Zerar isso não economiza nada para o atleta.
+- **Cashback dobrado (4%):** o ganho é `min(% do pago, 50% da taxa da nexaGO)`
+  (`computeEarnCents` em `cashback-rules.ts`). Com a taxa do atleta zerada, o teto encolhe, e se a
+  taxa do torneio era toda do atleta ele vira **zero**. Ou seja, "taxa zerada + 4%" não convivem nas
+  regras de hoje; o 4% precisaria de um teto próprio, pago pela nexaGO. Fica de fora da v1: uma
+  alavanca de economia só, fácil de explicar e de contar.
+- **Prioridade na fila do clubinho:** não existe fila. Clubinho lotado recusa
+  (`arena-club-join.ts`). Só volta ao pacote se a lista de espera do clubinho for construída.
 
 **Contador de economia** na tela do plano e em push mensal ("você economizou R$ X este mês; o
 plano custou R$ Y"). É o principal anti-cancelamento.
 
-**Pausar em vez de cancelar** (lesão, entressafra): até 2 meses/ano, sem cobrança, sem benefício.
+**Pausar em vez de cancelar** (lesão, entressafra, viagem): 1 a 3 meses por vez, com teto de
+**3 meses a cada 12**. Sem teto, quem joga por temporada pausa toda entressafra e paga só quando
+joga. Sem cobrança e sem benefício durante a pausa; volta sozinho, com aviso 3 dias antes. No anual,
+a pausa empurra a data de renovação.
 
 ## Preço
 
 Não fixado. Calibrar com dado real, porque a taxa de serviço é configurável por torneio
 (`feeRule`, "quem paga"):
 
-1. Distribuição da taxa de serviço paga por atleta ativo/mês (inscrição + reserva + clubinho).
-2. Preço entre **40% e 60% da mediana** dos ativos. Quem joga muito ganha; a conta fecha pela
-   frequência maior e por quem usa menos.
-3. Anual com ~2 meses grátis (mesmo desenho do plano da arena).
-4. A faixa de preço que a lista de espera responder (Fase 0) entra nessa conta.
+1. Distribuição da taxa de serviço paga pelo atleta ativo por mês, **só em inscrições** (é o único
+   lugar onde o atleta paga taxa).
+2. **Teto mensal da isenção** perto do preço (1× a 1,5×; o protótipo usa R$ 30 para R$ 19,90).
+   O teto um pouco acima do preço deixa o contador "no bolso" positivo para quem joga muito sem
+   abrir o custo. Sem teto, o assinante que joga muito custa mais
+   do que paga, e a frequência maior não devolve a diferença: a inscrição extra do assinante também
+   sai sem taxa do atleta.
+3. A conta fecha com: assinatura + a parte da taxa da nexaGO que é do **organizador/arena** nas
+   inscrições e reservas a mais que o assinante faz + quem usa pouco.
+4. Anual com ~2 meses grátis (mesmo desenho do plano da arena).
+5. A faixa de preço que a lista de espera responder (Fase 0) entra nessa conta.
 
-**Margem do plano** = assinaturas − taxa renunciada − cashback extra − custo de cobrança.
+> Correção de 03/11/2026: a versão anterior dizia "preço entre 40% e 60% da taxa mediana, com
+> isenção total". Com isenção total, o assinante mediano devolveria só metade do que deixa de
+> pagar, e a frequência maior não compensa porque a inscrição dele continua sem taxa. Daí o teto.
+
+**Margem do plano** = assinaturas + taxa do lado do organizador/arena das atividades **a mais**
+− taxa do atleta renunciada − custo de cobrança.
 
 ## Regras de convivência
 
@@ -53,7 +78,15 @@ Não fixado. Calibrar com dado real, porque a taxa de serviço é configurável 
   por cobrança, nunca a soma.
 - **Organizador:** recebe sempre o mesmo líquido (a nexaGO banca, como no Squad e no cashback).
   Inscrição antecipada é opção do torneio, desligada por padrão.
-- **Ranking/nível/chave:** nenhuma regra olha para o plano.
+- **Inscrição antecipada:** na janela de 24h, cada categoria aceita no máximo **metade das vagas,
+  arredondada para baixo**; o resto fica para a abertura geral, e vaga antecipada não usada também
+  vai para a abertura geral. A dupla entra na janela se **quem inscreve** for assinante.
+- **Ranking/nível/chave:** nenhuma regra olha para o plano. A ordem de inscrição não muda sorteio,
+  potes nem cabeças de chave (quem define potes e cabeças é o organizador, em `draw-entrants.ts`).
+- **Cashback durante a pausa:** segue a regra de todo mundo, 6 meses por lote. **Não congela.** O
+  cashback de 2% é programa de todos os atletas, com regulamento próprio; congelar por estado do plano
+  criaria uma segunda regra de vencimento e um motivo para pausar só para guardar saldo. Na folha de
+  pausa, mostrar o que vence durante a pausa ("R$ X vencem em 12 dez; use antes") com atalho para usar.
 
 ## Riscos a resolver antes do MVP
 
@@ -63,7 +96,32 @@ Não fixado. Calibrar com dado real, porque a taxa de serviço é configurável 
   só pelo portal web e o app apenas reconhecer a assinatura.
 - **Viés de medida:** quem assina já era engajado. Medir frequência **antes × depois** da
   assinatura do mesmo atleta, ou manter grupo de controle.
-- **Canibalização da taxa:** coberta pela calibração de preço e pela margem acompanhada mês a mês.
+- **Canibalização da taxa:** coberta pelo teto mensal da isenção e pela margem acompanhada mês a mês.
+- **Cartão salvo:** o atleta não tem forma de pagamento salva hoje (C6 das Cobranças, sem backend).
+  A tela de assinar depende disso ou de um checkout hospedado; e, no iOS, é justamente a tela que
+  esbarra na regra da loja.
+
+## Protótipo (`NexaGO Atleta - nexaGO+.html`, 03/11/2026)
+
+9 telas: P0 pagamento da inscrição com oferta, P1 tela do plano, P2 assinar, P3 meu plano,
+P4 seu mês, P5 torneio com inscrição antecipada, P6 perfil, P7 push do dia 1º, P8 pausa.
+
+Ajustes aplicados no protótipo em 03/11/2026 (`np-app-a.jsx`, `np-app-b.jsx` e subtítulos do canvas):
+- **P0, P1, P3, P7:** tirar "taxa de serviço · reservas" e "cashback extra 4%". A economia é só a
+  taxa da inscrição, até o teto.
+- **P2:** "Começa a valer agora" sem "Cashback 4%"; forma de pagamento depende do item de cartão salvo.
+- **P5:** os contadores passam da metade (9/8 na Mista C, 11/8 na Mista B), o que contradiz a regra
+  da própria tela. Tirar a linha "Cashback 4%". Trocar "Sorteio e seeding seguem o rating de todos"
+  por "A ordem de inscrição não muda sorteio, potes nem cabeças de chave".
+- **P3:** benefício "Fila do clubinho" sai.
+- **P8:** "o cashback não expira" vira "seu saldo continua valendo até o vencimento", mais o aviso do
+  que vence durante a pausa. Teto de 3 meses a cada 12.
+- **Datas:** 1º/nov/2026 e 15/nov/2026 são domingo e 06–07/dez é domingo e segunda. As telas
+  passaram a usar sáb 14/nov (P0), 05–06/dez sáb–dom (P5) e "Domingo, 1 de novembro" (P7).
+- **P2/P3:** sem "Visa •••• 4421"; o cartão é digitado no checkout do Asaas, e a próxima cobrança
+  da P3 vira 03 dez.
+- **Valores:** preço R$ 19,90, teto de R$ 30 e taxas são ilustrativos, até a calibração da seção
+  Preço. O exemplo de outubro: 4 inscrições, R$ 28 de taxa isenta, R$ 8,10 "no bolso"; setembro bateu o teto.
 
 ## Fases
 
@@ -91,9 +149,9 @@ o card entram na lista.
 
 ### Fase 1 — MVP pago
 
-Assinatura recorrente no Asaas (mesma base dos planos de arena e de horário), isenção da taxa via
-motor de perks, cashback 2×, selo, contador de economia, pausa. Quem está na lista recebe o convite
-primeiro (push).
+Assinatura recorrente no Asaas (mesma base dos planos de arena e de horário), isenção da taxa da
+inscrição até o teto via motor de perks, selo, contador de economia, pausa. Quem está na lista
+recebe o convite primeiro (push).
 
 ### Fase 2 — Evolução
 

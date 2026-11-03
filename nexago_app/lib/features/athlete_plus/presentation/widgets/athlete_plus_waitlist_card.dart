@@ -131,7 +131,7 @@ class AthletePlusWaitlistCard extends ConsumerWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Menos taxa, cashback turbinado e seu mês em '
+                        'Inscrição sem taxa de serviço e seu mês em '
                         'números. Quer ser avisado?',
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,

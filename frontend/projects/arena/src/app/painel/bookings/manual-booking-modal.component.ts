@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, output, signal } from '@angular/core';
 import { arenaFunctions } from '../data/functions';
 import { AthleteSearchFieldComponent } from '../recurring/athlete-search-field.component';
+import { AvatarComponent } from '../ui/avatar.component';
 import type { AthleteCandidate } from '../recurring/athlete-search-filter';
 import type { ArenaCourt } from '../courts/court.model';
 import { ModalComponent } from '../ui/modal.component';
@@ -14,7 +15,7 @@ import { createManualBooking, quoteManualBooking } from './manual-booking-reposi
 @Component({
   selector: 'ar-manual-booking-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ModalComponent, AthleteSearchFieldComponent],
+  imports: [ModalComponent, AthleteSearchFieldComponent, AvatarComponent],
   template: `
     <ar-modal (close)="close.emit()">
       <h2 class="modal-title">Nova reserva</h2>
@@ -49,7 +50,10 @@ import { createManualBooking, quoteManualBooking } from './manual-booking-reposi
       @if (athleteId()) {
         <div class="field-label">Atleta</div>
         <div class="selected-athlete">
-          <span class="selected-name">{{ customerName() }}</span>
+          <span class="selected-who">
+            <ar-avatar [name]="customerName()" [photoUrl]="athletePhotoUrl()" [size]="36" zoomable />
+            <span class="selected-name">{{ customerName() }}</span>
+          </span>
           <button type="button" class="ar-ghost-btn clear-btn" (click)="clearAthlete()">Trocar</button>
         </div>
       } @else {
@@ -162,6 +166,13 @@ import { createManualBooking, quoteManualBooking } from './manual-booking-reposi
       margin-bottom: 18px;
     }
 
+    .selected-who {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
     .selected-name {
       font-family: var(--nx-font-display);
       font-weight: 600;
@@ -204,6 +215,7 @@ export class ManualBookingModalComponent {
   protected readonly startValue = signal('');
   protected readonly endValue = signal('');
   protected readonly athleteId = signal<string | null>(null);
+  protected readonly athletePhotoUrl = signal<string | null>(null);
   protected readonly customerName = signal('');
   protected readonly amountText = signal('');
   protected readonly note = signal('');
@@ -289,11 +301,13 @@ export class ManualBookingModalComponent {
 
   protected onAthleteSelected(candidate: AthleteCandidate): void {
     this.athleteId.set(candidate.athleteId);
+    this.athletePhotoUrl.set(candidate.photoUrl ?? null);
     this.customerName.set(candidate.name);
   }
 
   protected clearAthlete(): void {
     this.athleteId.set(null);
+    this.athletePhotoUrl.set(null);
     this.customerName.set('');
   }
 

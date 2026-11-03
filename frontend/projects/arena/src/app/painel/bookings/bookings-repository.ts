@@ -180,51 +180,52 @@ export async function restoreBookingByManager(db: Firestore, bookingId: string, 
   });
 }
 
-const athleteLabelCache = new Map<string, string>();
+export interface AthleteProfileSummary {
+  name: string;
+  photoUrl: string | null;
+}
+
+const athleteProfileCache = new Map<string, AthleteProfileSummary>();
 
 function athleteFallbackLabel(uid: string): string {
   return uid.length <= 8 ? `Atleta (${uid})` : `Atleta (…${uid.slice(-6)})`;
 }
 
+function str(data: Record<string, unknown>, key: string): string {
+  const value = data[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 /** Espelha `ArenaUserLabelService` (Flutter): lê `public_profiles/{uid}` (sem PII), sem
- *  Cloud Function — leitura ampla já permitida pelas rules pra qualquer autenticado. */
-export async function resolveAthleteLabel(db: Firestore, athleteId: string): Promise<string> {
+ *  Cloud Function — leitura ampla já permitida pelas rules pra qualquer autenticado.
+ *  Nome e foto saem da mesma leitura (e do mesmo cache). */
+export async function resolveAthleteProfile(db: Firestore, athleteId: string): Promise<AthleteProfileSummary> {
   const uid = athleteId.trim();
-  if (!uid) return '—';
-  const cached = athleteLabelCache.get(uid);
+  if (!uid) return { name: '—', photoUrl: null };
+  const cached = athleteProfileCache.get(uid);
   if (cached) return cached;
 
+  let name = '';
+  let photoUrl: string | null = null;
   try {
     const snap = await getDoc(doc(db, 'public_profiles', uid));
     const data = snap.data() as Record<string, unknown> | undefined;
     if (data) {
-      const nickname = typeof data['nickname'] === 'string' ? data['nickname'].trim() : '';
+      const nickname = str(data, 'nickname');
       const clean = nickname.startsWith('@') ? nickname.slice(1).trim() : nickname;
-      if (clean) {
-        athleteLabelCache.set(uid, clean);
-        return clean;
-      }
-      const fullName = typeof data['fullName'] === 'string' ? data['fullName'].trim() : '';
-      if (fullName) {
-        athleteLabelCache.set(uid, fullName);
-        return fullName;
-      }
-      const displayName = typeof data['displayName'] === 'string' ? data['displayName'].trim() : '';
-      if (displayName) {
-        athleteLabelCache.set(uid, displayName);
-        return displayName;
-      }
-      const name = typeof data['name'] === 'string' ? data['name'].trim() : '';
-      if (name) {
-        athleteLabelCache.set(uid, name);
-        return name;
-      }
+      name = clean || str(data, 'fullName') || str(data, 'displayName') || str(data, 'name');
+      // Mesma ordem do Clubinho: `profilePhotoUrl` é o campo atual, os outros são legado.
+      photoUrl = str(data, 'profilePhotoUrl') || str(data, 'avatarUrl') || str(data, 'photoURL') || null;
     }
   } catch {
     // permission-denied ou rede: cai no fallback abaixo.
   }
 
-  const fallback = athleteFallbackLabel(uid);
-  athleteLabelCache.set(uid, fallback);
-  return fallback;
+  const profile: AthleteProfileSummary = { name: name || athleteFallbackLabel(uid), photoUrl };
+  athleteProfileCache.set(uid, profile);
+  return profile;
+}
+
+export async function resolveAthleteLabel(db: Firestore, athleteId: string): Promise<string> {
+  return (await resolveAthleteProfile(db, athleteId)).name;
 }

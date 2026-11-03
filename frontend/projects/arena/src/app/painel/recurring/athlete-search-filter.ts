@@ -1,6 +1,7 @@
 export interface AthleteCandidate {
   athleteId: string;
   name: string;
+  photoUrl?: string | null;
 }
 
 const MAX_RESULTS = 8;

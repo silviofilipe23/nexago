@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, inject, input, output, signal } from '@angular/core';
-import { fetchArenaAthleteIdsOnce, resolveAthleteLabel } from '../bookings/bookings-repository';
+import { fetchArenaAthleteIdsOnce, resolveAthleteProfile } from '../bookings/bookings-repository';
 import { arenaFirestore } from '../data/firestore';
+import { AvatarComponent } from '../ui/avatar.component';
 import { filterAthleteCandidates, type AthleteCandidate } from './athlete-search-filter';
 
 /** Campo de busca de atleta pra vincular um mensalista de horário fixo — pesquisa entre os
@@ -10,6 +11,7 @@ import { filterAthleteCandidates, type AthleteCandidate } from './athlete-search
 @Component({
   selector: 'ar-athlete-search-field',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [AvatarComponent],
   host: {
     '(document:click)': 'onDocumentClick($event)',
   },
@@ -35,7 +37,11 @@ import { filterAthleteCandidates, type AthleteCandidate } from './athlete-search
           </div>
         } @else {
           @for (r of results(); track r.athleteId) {
-            <button type="button" class="item" (click)="select(r)">{{ r.name }}</button>
+            <!-- Avatar fora do <button>: com \`zoomable\` ele mesmo é botão (abre a foto ampliada). -->
+            <div class="item">
+              <ar-avatar [name]="r.name" [photoUrl]="r.photoUrl ?? null" [size]="32" zoomable />
+              <button type="button" class="item-name" (click)="select(r)">{{ r.name }}</button>
+            </div>
           }
         }
       </div>
@@ -53,7 +59,7 @@ import { filterAthleteCandidates, type AthleteCandidate } from './athlete-search
       top: calc(100% - 12px);
       left: 0;
       right: 0;
-      max-height: 220px;
+      max-height: 280px;
       overflow: auto;
       background: var(--nx-surface-1);
       border: 1px solid var(--nx-line-strong);
@@ -62,15 +68,26 @@ import { filterAthleteCandidates, type AthleteCandidate } from './athlete-search
     }
 
     .item {
-      display: block;
-      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 0 0 12px;
+      border-bottom: 1px solid var(--nx-line);
+    }
+
+    .item-name {
+      flex: 1;
+      min-width: 0;
       text-align: left;
-      padding: 10px 14px;
+      padding: 14px 14px 14px 0;
       background: transparent;
       border: none;
-      border-bottom: 1px solid var(--nx-line);
       color: var(--nx-text);
+      font-family: inherit;
       font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
       cursor: pointer;
     }
 
@@ -183,7 +200,7 @@ export class AthleteSearchFieldComponent {
       const withNames = await Promise.all(
         athleteIds.map(async (athleteId): Promise<AthleteCandidate> => ({
           athleteId,
-          name: await resolveAthleteLabel(this.db, athleteId),
+          ...(await resolveAthleteProfile(this.db, athleteId)),
         })),
       );
       this.candidates = withNames.filter((c) => c.name && c.name !== '—');

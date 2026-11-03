@@ -116,6 +116,12 @@ export async function processArenaClassAsaasNotification(
   if (phases.confirm) {
     const todayKey = dayKeyFromEventDate(deps.now());
     const result = await db.runTransaction(async (tx: Transaction) => {
+      // Relido aqui dentro: webhook e varredura podem processar o mesmo pagamento ao mesmo tempo, e
+      // a leitura de fora (que decidiu as fases) já pode estar velha.
+      const processedNow = (await tx.get(processedRef)).data() ?? {};
+      const outcomeNow = typeof processedNow["outcome"] === "string" ? processedNow["outcome"] : "";
+      // Outra execução já decidiu estorno/órfão: não estorna de novo.
+      if (outcomeNow && outcomeNow !== "approved") return {kind: "done" as const};
       const groupSnap = await tx.get(groupRef);
       if (!groupSnap.exists) return {kind: "orphan" as const};
       const group = groupSnap.data() as Record<string, unknown>;
@@ -123,8 +129,6 @@ export async function processArenaClassAsaasNotification(
       const chargeSnaps = await Promise.all(ids.map((id) => tx.get(db.collection(ARENA_CLASS_CHARGES).doc(id))));
       const arenaSnap = await tx.get(db.collection("arenas").doc(String(group["arenaId"] ?? "_")));
       const state = String(group["state"] ?? "");
-      const stale = state === "void" || state === "voiding" ||
-        chargeSnaps.some((c) => !c.exists || c.data()?.["status"] !== "open");
       const base = {
         kind: "arenaClassPayment",
         groupId,
@@ -134,6 +138,14 @@ export async function processArenaClassAsaasNotification(
         paymentStatus: status,
         billingType,
       };
+      // Já confirmado por outra execução com ESTE pagamento: nada a estornar; o crédito/"a liberar"
+      // abaixo são idempotentes pelo doc de processados.
+      const confirmedByOther = processedNow["confirmedAt"] != null ||
+        (state === "paid" && group["paymentId"] === paymentId) ||
+        chargeSnaps.some((c) => c.data()?.["asaasPaymentId"] === paymentId);
+      if (confirmedByOther) return {kind: "already" as const, base};
+      const stale = state === "void" || state === "voiding" ||
+        chargeSnaps.some((c) => !c.exists || c.data()?.["status"] !== "open");
       if (stale) {
         tx.set(processedRef, {...base, outcome: "refund_stale", processedAt: FieldValue.serverTimestamp()}, {merge: true});
         tx.set(groupRef, {asaasStatus: status, paymentId, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
@@ -167,6 +179,7 @@ export async function processArenaClassAsaasNotification(
       return {kind: "approved" as const, base};
     });
 
+    if (result.kind === "done") return;
     if (result.kind === "orphan") {
       logger.error(`Asaas aula: grupo ${groupId} não encontrado para o pagamento ${paymentId} — estorno necessário`);
       await processedRef.set({kind: "arenaClassPayment", groupId, outcome: "orphan", paymentStatus: status,
@@ -187,6 +200,7 @@ export async function processArenaClassAsaasNotification(
     arenaId = result.base.arenaId;
     enrollmentId = result.base.enrollmentId;
     chargeIds = result.base.chargeIds;
+    if (result.kind === "already") logger.info(`Asaas aula ${groupId}: ${paymentId} já confirmado por outra execução`);
   }
 
   if (!arenaId) return;

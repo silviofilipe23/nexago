@@ -4,11 +4,12 @@ import { arenaFunctions } from '../data/functions';
 import { ModalComponent } from '../ui/modal.component';
 import { ToggleComponent } from '../ui/toggle.component';
 import { minutesOf } from '../aulas/class.model';
+import { ONLINE_BILLING_FEE_TEXT } from './schedule-plan.logic';
 import { WEEKDAYS, WEEKDAY_SHORT, type ScheduleSettings } from './schedule-plan.model';
 import { saveScheduleRules } from './schedule-plan-repository';
 
-/** "Regras gerais" dos planos: janela do horário nobre + limite para planos e a oferta
- *  automática da lista de espera (`saveArenaScheduleRules`). */
+/** "Regras gerais" dos planos: janela do horário nobre + limite para planos, a oferta
+ *  automática da lista de espera e a cobrança online das mensalidades (`saveArenaScheduleRules`). */
 @Component({
   selector: 'ar-ph-rules-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -62,6 +63,15 @@ import { saveScheduleRules } from './schedule-plan-repository';
         }
       </div>
 
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-title">Cobrança online (Pix ou cartão)</div>
+          <div class="hint flush">Nas assinaturas com Pix ou cartão, cada mensalidade vira um link que o atleta paga pelo app. "Na arena" segue com baixa manual.</div>
+        </div>
+        <ar-toggle [checked]="onlineBilling()" label="Cobrança online (Pix ou cartão)" (changed)="onlineBilling.set($event)" />
+      </div>
+      <p class="hint">{{ feeText }} Precisa do pagamento online ativo e da chave PIX de repasse no perfil da arena.</p>
+
       <div class="modal-actions">
         <button type="button" class="ar-mini-btn" [disabled]="saving()" (click)="close.emit()">Cancelar</button>
         <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="saving() || !valid()" (click)="save()">
@@ -96,6 +106,8 @@ export class PhRulesModalComponent implements OnInit {
   protected readonly cap = signal(75);
   protected readonly autoOffer = signal(true);
   protected readonly hours = signal<12 | 24 | 48>(24);
+  protected readonly onlineBilling = signal(false);
+  protected readonly feeText = ONLINE_BILLING_FEE_TEXT;
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
 
@@ -118,6 +130,7 @@ export class PhRulesModalComponent implements OnInit {
     this.cap.set(s.primeCapPercent);
     this.autoOffer.set(s.waitlistAutoOffer);
     this.hours.set(s.waitlistOfferHours);
+    this.onlineBilling.set(s.onlineBillingEnabled);
   }
 
   protected toggleDay(d: number): void {
@@ -136,6 +149,8 @@ export class PhRulesModalComponent implements OnInit {
         primeCapPercent: Math.round(this.cap()),
         waitlistAutoOffer: this.autoOffer(),
         waitlistOfferHours: this.hours(),
+        // Só manda quando mudou: ligar revalida pagamento online + chave PIX no servidor.
+        ...(this.onlineBilling() !== this.settings().onlineBillingEnabled ? { onlineBillingEnabled: this.onlineBilling() } : {}),
       });
       this.saved.emit();
       this.close.emit();

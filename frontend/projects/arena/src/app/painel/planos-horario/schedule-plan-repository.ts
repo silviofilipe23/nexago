@@ -164,6 +164,8 @@ export interface ScheduleRulesInput {
   primeCapPercent?: number;
   waitlistAutoOffer?: boolean;
   waitlistOfferHours?: 12 | 24 | 48;
+  /** Sem o campo o servidor mantém o gravado. Ligar exige pagamento online ativo e chave PIX de repasse. */
+  onlineBillingEnabled?: boolean;
 }
 
 export function saveScheduleRules(functions: Functions, input: ScheduleRulesInput): Promise<unknown> {

@@ -1,6 +1,7 @@
 import {
   bandOccupancy,
   cellOccupants,
+  chargeVoidsOnlineLink,
   compactWeekdays,
   csvField,
   cycleMonthlyPrice,
@@ -13,7 +14,11 @@ import {
   matchesFilter,
   nextChargeSummary,
   nextDueDate,
+  onlineBillingTypeLabel,
+  onlineChargeBadge,
+  onlineChargeInvoiceUrl,
   overdueDays,
+  paymentFormBilling,
   planEconomy,
   primeCommitment,
   primeHoursLeft,
@@ -29,6 +34,7 @@ import {
 } from './schedule-plan.logic';
 import {
   DEFAULT_PRIME_WINDOWS,
+  chargeFromRaw,
   subscriptionFromRaw,
   waitlistFromRaw,
   type ScheduleSubscription,
@@ -182,7 +188,7 @@ describe('schedule-plan.logic · CSV', () => {
     const lines = subscribersCsv([{ sub: s, state: { label: 'Em dia' }, nextDue: '2026-11-05' }]).split('\r\n');
     expect(lines.length).toBe(2);
     expect(lines[0]!.startsWith('Titular;Telefone;Jogadores;Plano')).toBeTrue();
-    expect(lines[1]).toBe('Marina Lopes;62999990000;2;Fixo Noite 2x;Ter e Qui · 19:00;Q2;Trimestral;427,50;Pix automático;05/11/2026;1;Em dia');
+    expect(lines[1]).toBe('Marina Lopes;62999990000;2;Fixo Noite 2x;Ter e Qui · 19:00;Q2;Trimestral;427,50;Pix;05/11/2026;1;Em dia');
   });
 });
 
@@ -263,5 +269,60 @@ describe('schedule-plan.logic · lista de espera e grade', () => {
     const cell = cellOccupants(blocks, courts, 4, 19);
     expect(cell.map((c) => c.block?.title ?? null)).toEqual(['Rafa', 'Clubinho', null]);
     expect(cellOccupants(blocks, courts, 4, 20).every((c) => c.block === null)).toBeTrue();
+  });
+});
+
+describe('schedule-plan.logic · cobrança online', () => {
+  const asaas = (state: string, extra: Record<string, unknown> = {}) =>
+    chargeFromRaw('c1', { status: 'open', billingMode: 'asaas', asaas: { groupId: 'g1', state, invoiceUrl: 'https://asaas.com/i/1', ...extra } });
+
+  it('selo segue o estado do grupo enquanto a mensalidade está aberta', () => {
+    expect(onlineChargeBadge(asaas('pending'))).toEqual({ label: 'Gerando link', tone: 'dim' });
+    expect(onlineChargeBadge(asaas('creating'))?.label).toBe('Gerando link');
+    expect(onlineChargeBadge(chargeFromRaw('c', { status: 'open', billingMode: 'asaas' }))?.label).toBe('Gerando link');
+    expect(onlineChargeBadge(asaas('open'))).toEqual({ label: 'Link enviado', tone: 'blue' });
+    expect(onlineChargeBadge(asaas('failed'))).toEqual({ label: 'Falhou — tentando de novo', tone: 'red' });
+    expect(onlineChargeBadge(asaas('needs_cpf'))).toEqual({ label: 'Sem CPF — cobrar manual', tone: 'yellow' });
+    expect(onlineChargeBadge(asaas('voiding'))).toBeNull();
+    expect(onlineChargeBadge(asaas('void'))).toBeNull();
+  });
+
+  it('manual, a decidir, legado e cancelada não têm selo', () => {
+    expect(onlineChargeBadge(chargeFromRaw('c', { status: 'open', billingMode: 'manual' }))).toBeNull();
+    expect(onlineChargeBadge(chargeFromRaw('c', { status: 'open', billingMode: null }))).toBeNull();
+    expect(onlineChargeBadge(chargeFromRaw('c', { status: 'open' }))).toBeNull();
+    expect(onlineChargeBadge(chargeFromRaw('c', { status: 'canceled', billingMode: 'asaas', asaas: { groupId: 'g', state: 'void' } }))).toBeNull();
+  });
+
+  it('paga online mostra a forma; baixa manual de mensalidade online não', () => {
+    const paid = (type: unknown) => chargeFromRaw('c', { status: 'paid', billingMode: 'asaas', paidVia: 'asaas', onlineBillingType: type });
+    expect(onlineChargeBadge(paid('PIX'))).toEqual({ label: 'Pago online · Pix', tone: 'green' });
+    expect(onlineChargeBadge(paid('CREDIT_CARD'))?.label).toBe('Pago online · Cartão');
+    expect(onlineChargeBadge(paid(null))?.label).toBe('Pago online · Pix');
+    expect(onlineChargeBadge(chargeFromRaw('c', { status: 'paid', billingMode: 'asaas', paidVia: 'manual', paymentMethod: 'cash' }))).toBeNull();
+    expect(onlineBillingTypeLabel('BOLETO')).toBe('Boleto');
+  });
+
+  it('link para copiar só com grupo aberto e mensalidade em aberto', () => {
+    expect(onlineChargeInvoiceUrl(asaas('open'))).toBe('https://asaas.com/i/1');
+    expect(onlineChargeInvoiceUrl(asaas('pending'))).toBeNull();
+    expect(onlineChargeInvoiceUrl(asaas('open', { invoiceUrl: null }))).toBeNull();
+    expect(onlineChargeInvoiceUrl(chargeFromRaw('c', { status: 'paid', asaas: { groupId: 'g', state: 'open', invoiceUrl: 'https://x' } }))).toBeNull();
+  });
+
+  it('baixa manual avisa que anula o link quando o grupo está vivo', () => {
+    expect(chargeVoidsOnlineLink(asaas('open'))).toBeTrue();
+    expect(chargeVoidsOnlineLink(asaas('pending'))).toBeTrue();
+    expect(chargeVoidsOnlineLink(asaas('failed'))).toBeTrue();
+    expect(chargeVoidsOnlineLink(asaas('needs_cpf'))).toBeFalse();
+    expect(chargeVoidsOnlineLink(asaas('void'))).toBeFalse();
+    expect(chargeVoidsOnlineLink(chargeFromRaw('c', { status: 'open', billingMode: 'manual' }))).toBeFalse();
+  });
+
+  it('forma do plano: Pix/cartão viram link com a regra ligada; Na arena é sempre manual', () => {
+    expect(paymentFormBilling('pix_auto', true)).toBe('Pix ou cartão por link (online)');
+    expect(paymentFormBilling('card', true)).toBe('Pix ou cartão por link (online)');
+    expect(paymentFormBilling('onsite', true)).toBe('baixa manual');
+    expect(paymentFormBilling('card', false)).toBe('baixa manual');
   });
 });

@@ -11,6 +11,8 @@ import { PanelPhPlanEditorComponent } from './panel-ph-plan-editor.component';
 import { PanelPhPlansComponent } from './panel-ph-plans.component';
 import { PanelPhSubscribersComponent } from './panel-ph-subscribers.component';
 import { PanelPhWaitlistComponent } from './panel-ph-waitlist.component';
+import { PhRulesModalComponent } from './ph-rules-modal.component';
+import { PhSubscriberDetailComponent } from './ph-subscriber-detail.component';
 import { chargeFromRaw, planFromRaw, settingsFromRaw, subscriptionFromRaw, waitlistFromRaw } from './schedule-plan.model';
 import { SchedulePlansStore } from './schedule-plans.store';
 
@@ -121,5 +123,51 @@ describe('Planos de horário · telas', () => {
     expect(text).toContain('Lucas Prado');
     expect(text).toContain('Vaga abre');
     expect(text).toContain('Oferecer ao 1º');
+  });
+
+  it('06 Regras gerais têm a chave da cobrança online com a taxa', () => {
+    setup();
+    const fixture = TestBed.createComponent(PhRulesModalComponent);
+    fixture.componentRef.setInput('settings', settingsFromRaw({ onlineBillingEnabled: true }));
+    fixture.detectChanges();
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Cobrança online (Pix ou cartão)');
+    expect(text).toContain('6% no Pro, 5% no Elite, mínimo R$ 1,50');
+  });
+
+  it('07 Editor diz como cada forma é cobrada conforme a regra', () => {
+    const store = setup();
+    store.settings.set(settingsFromRaw({ onlineBillingEnabled: true }));
+    const text = render(PanelPhPlanEditorComponent);
+    expect(text).not.toContain('chega em breve');
+    expect(text).toContain('Pix e Cartão: Pix ou cartão por link (online) · Na arena: baixa manual');
+  });
+
+  it('08 Mensalidade online mostra o selo, copia o link e avisa na baixa manual', () => {
+    const store = setup();
+    const fixture = TestBed.createComponent(PhSubscriberDetailComponent);
+    fixture.componentRef.setInput('sub', store.subscriptions()[0]!);
+    fixture.componentRef.setInput('state', { kind: 'ok', label: 'Em dia', tone: 'green', overdueDays: 0 });
+    fixture.detectChanges();
+    const period = today.slice(0, 7);
+    (fixture.componentInstance as unknown as { charges: { set(v: unknown): void } }).charges.set([
+      chargeFromRaw('c1', {
+        subscriptionId: 's1', payerName: 'Marina Lopes', amountReais: 120, period, dueDate: addDaysKey(today, 3), status: 'open',
+        billingMode: 'asaas', asaas: { groupId: 'g1', state: 'open', invoiceUrl: 'https://asaas.com/i/1' },
+      }),
+      chargeFromRaw('c2', {
+        subscriptionId: 's1', payerIndex: 1, payerName: 'Thaís', amountReais: 120, period, dueDate: addDaysKey(today, 3), status: 'paid',
+        billingMode: 'asaas', paidVia: 'asaas', onlineBillingType: 'CREDIT_CARD',
+      }),
+    ]);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).toContain('Link enviado');
+    expect(el.textContent).toContain('Copiar link');
+    expect(el.textContent).toContain('Pago online · Cartão');
+    const pay = [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('Registrar pagamento'))!;
+    pay.click();
+    fixture.detectChanges();
+    expect(el.textContent).toContain('cancela o link enviado ao atleta');
   });
 });

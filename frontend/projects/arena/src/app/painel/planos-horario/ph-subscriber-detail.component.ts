@@ -10,7 +10,16 @@ import { PanelCardComponent } from '../ui/panel-card.component';
 import { PillComponent } from '../ui/pill.component';
 import { brl, monthLong, monthYear } from './ph-format';
 import { PhIconComponent } from './planos-horario-ui';
-import { durationLabel, slotCourtsLabel, windowsLabel, type SubscriberState } from './schedule-plan.logic';
+import {
+  chargeVoidsOnlineLink,
+  durationLabel,
+  onlineChargeBadge,
+  onlineChargeInvoiceUrl,
+  slotCourtsLabel,
+  windowsLabel,
+  type OnlineChargeBadge,
+  type SubscriberState,
+} from './schedule-plan.logic';
 import {
   CYCLE_LABEL,
   MANUAL_METHODS,
@@ -42,7 +51,8 @@ type Dialog = 'change' | 'pause' | 'resume' | 'makeup' | 'end';
 const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next: '', skip: 'Não vai', makeup: 'Reposição' };
 
 /** Detalhe do assinante (lado direito da 04): horário, ocorrências do mês, rateio/mensalidades e as
- *  ações do gestor — trocar horário, pausar/retomar, dar reposição, encerrar e dar baixa. */
+ *  ações do gestor — trocar horário, pausar/retomar, dar reposição, encerrar e dar baixa. Mensalidade
+ *  online mostra o estado do link (selo) e "Copiar link". */
 @Component({
   selector: 'ar-ph-subscriber-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -88,6 +98,7 @@ const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next:
         <span card-actions class="mono-dim">vence {{ shortDate(due) }}</span>
       }
       @for (c of visibleCharges(); track c.id) {
+        @let online = onlineBadge(c);
         <div class="charge">
           <ar-avatar [name]="c.payerName" [size]="24" />
           <div class="charge-who">
@@ -96,7 +107,7 @@ const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next:
           </div>
           <span class="amount">{{ brl(c.amountReais) }}</span>
           @if (c.status === 'paid') {
-            <ar-pill tone="green">Pago</ar-pill>
+            <ar-pill tone="green">{{ online?.label ?? 'Pago' }}</ar-pill>
           } @else if (c.dueDate < today) {
             <ar-pill tone="yellow">Atrasado</ar-pill>
           } @else {
@@ -105,6 +116,12 @@ const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next:
         </div>
         @if (c.status === 'open') {
           <div class="charge-actions">
+            @if (online) {
+              <span class="online-state"><ar-pill [tone]="online.tone">{{ online.label }}</ar-pill></span>
+            }
+            @if (invoiceUrl(c); as url) {
+              <button type="button" class="ar-ghost-btn" (click)="copyLink(url)">{{ copied() === url ? 'Copiado ✓' : 'Copiar link' }}</button>
+            }
             <button type="button" class="ar-ghost-btn" [disabled]="readOnly()" (click)="openPay(c)">Registrar pagamento</button>
             <button type="button" class="ar-ghost-btn" [disabled]="readOnly()" (click)="canceling.set(c)">Cancelar</button>
           </div>
@@ -209,6 +226,9 @@ const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next:
         <p class="modal-title">Registrar pagamento</p>
         <p class="modal-sub">{{ c.payerName }} · {{ periodLabel(c) }} · {{ brl(c.amountReais) }}</p>
         @if (error(); as err) { <div class="error-banner">{{ err }}</div> }
+        @if (voidsLink(c)) {
+          <p class="hint warn">Esta mensalidade tem cobrança online: registrar o pagamento aqui cancela o link enviado ao atleta. Se ele pagar pelo link depois, o valor é estornado.</p>
+        }
         <div class="field-label">Forma</div>
         <div class="chip-row">
           @for (m of methods; track m) {
@@ -230,6 +250,9 @@ const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next:
         <p class="modal-title">Cancelar mensalidade?</p>
         <p class="modal-sub">{{ c.payerName }} · {{ periodLabel(c) }} · {{ brl(c.amountReais) }}. Ela sai do que o assinante deve e não volta a ser cobrada.</p>
         @if (error(); as err) { <div class="error-banner">{{ err }}</div> }
+        @if (voidsLink(c)) {
+          <p class="hint warn">O link online também é cancelado e deixa de valer.</p>
+        }
         <div class="modal-actions">
           <button type="button" class="ar-mini-btn" [disabled]="busy()" (click)="canceling.set(null)">Voltar</button>
           <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="busy()" (click)="cancelCharge(c)">{{ busy() ? 'Cancelando…' : 'Cancelar mensalidade' }}</button>
@@ -262,7 +285,9 @@ const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next:
     .charge-who { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 12.5px; color: var(--nx-text-mute); }
     .charge-who small { font-family: var(--nx-font-mono); font-size: 10px; color: var(--nx-text-dim); }
     .amount { font-family: var(--nx-font-mono); font-size: 12px; color: var(--nx-text); }
-    .charge-actions { display: flex; justify-content: flex-end; gap: 4px; margin: -4px 0 4px; }
+    .charge-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px; margin: -4px 0 4px; }
+    .online-state { margin-right: auto; padding-left: 34px; }
+    .hint.warn { margin: 0 0 12px; color: var(--nx-pending); }
     .charge-actions .ar-ghost-btn { height: 26px; font-size: 11.5px; color: var(--nx-orange-500); }
     .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .actions .ar-mini-btn, .actions .ar-ghost-btn { justify-content: center; }
@@ -303,6 +328,7 @@ export class PhSubscriberDetailComponent {
   protected readonly dateValue = signal('');
   protected readonly note = signal('');
   protected readonly payMethod = signal<ScheduleManualMethod>('pix');
+  protected readonly copied = signal<string | null>(null);
 
   protected readonly slotText = computed(() => {
     const s = this.sub();
@@ -367,6 +393,23 @@ export class PhSubscriberDetailComponent {
   protected periodLabel(c: ScheduleCharge): string {
     const kind = c.kind === 'first' ? '1ª mensalidade' : c.kind === 'resume' ? 'Volta da pausa' : 'Mensalidade';
     return `${kind} · ${monthYear(c.period)} · vence ${shortDate(c.dueDate)}`;
+  }
+
+  protected onlineBadge(c: ScheduleCharge): OnlineChargeBadge | null {
+    return onlineChargeBadge(c);
+  }
+
+  protected invoiceUrl(c: ScheduleCharge): string | null {
+    return onlineChargeInvoiceUrl(c);
+  }
+
+  protected voidsLink(c: ScheduleCharge): boolean {
+    return chargeVoidsOnlineLink(c);
+  }
+
+  protected copyLink(url: string): void {
+    // Clipboard indisponível (contexto não seguro/permissão): sem fallback, como nas Aulas.
+    void navigator.clipboard?.writeText(url).then(() => this.copied.set(url), () => undefined);
   }
 
   protected openDialog(kind: Dialog): void {

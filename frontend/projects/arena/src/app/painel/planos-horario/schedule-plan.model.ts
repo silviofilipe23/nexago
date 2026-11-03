@@ -13,6 +13,12 @@ export type ScheduleChargeStatus = 'open' | 'paid' | 'canceled';
 /** Forma da baixa manual (o que o gestor recebeu). */
 export type ScheduleManualMethod = 'pix' | 'cash' | 'card_machine' | 'transfer';
 export type ScheduleWaitlistStatus = 'waiting' | 'offered' | 'accepted' | 'expired' | 'removed';
+/** Quem cobra a mensalidade: `null` = a decidir (o gatilho decide uma vez), `manual` = baixa do
+ *  gestor, `asaas` = link online (Pix ou cartão). */
+export type ScheduleBillingMode = 'manual' | 'asaas' | null;
+/** Estado do grupo de pagamento Asaas da mensalidade (espelho em `asaas.state`). */
+export type ScheduleAsaasState = 'pending' | 'creating' | 'open' | 'paid' | 'voiding' | 'void' | 'failed' | 'needs_cpf';
+export const SCHEDULE_ASAAS_STATES: readonly ScheduleAsaasState[] = ['pending', 'creating', 'open', 'paid', 'voiding', 'void', 'failed', 'needs_cpf'];
 
 export interface PlanWindow {
   /** ISO 1 = segunda … 7 = domingo. */
@@ -69,6 +75,8 @@ export interface ScheduleSettings {
   waitlistAutoOffer: boolean;
   waitlistOfferHours: 12 | 24 | 48;
   appliedHolidays: string[];
+  /** Mensalidades de Pix/cartão saem por link online (Asaas). Padrão `false`. */
+  onlineBillingEnabled: boolean;
 }
 
 export interface SubscriptionSlot {
@@ -130,6 +138,22 @@ export interface ScheduleCharge {
   status: ScheduleChargeStatus;
   paidOn: string | null;
   paymentMethod: ScheduleManualMethod | null;
+  billingMode: ScheduleBillingMode;
+  /** Espelho do grupo Asaas (ausente = sem cobrança online). */
+  asaas: ScheduleChargeAsaas | null;
+  /** `asaas` = pago pelo link online. */
+  paidVia: 'asaas' | 'manual' | null;
+  /** `PIX`, `CREDIT_CARD`, … (só quando pago online). */
+  onlineBillingType: string | null;
+  platformFeeReais: number | null;
+}
+
+export interface ScheduleChargeAsaas {
+  groupId: string;
+  state: ScheduleAsaasState;
+  invoiceUrl: string | null;
+  /** Status cru do pagamento no Asaas (`PENDING`, `OVERDUE`, …). */
+  status: string | null;
 }
 
 export interface WaitlistOffer {
@@ -194,6 +218,7 @@ export const DEFAULT_SETTINGS: ScheduleSettings = {
   waitlistAutoOffer: true,
   waitlistOfferHours: 24,
   appliedHolidays: [],
+  onlineBillingEnabled: false,
 };
 
 // ── Rótulos ─────────────────────────────────────────────────────────────────
@@ -201,8 +226,8 @@ export const DEFAULT_SETTINGS: ScheduleSettings = {
 export const CYCLE_LABEL: Record<ScheduleCycle, string> = { monthly: 'Mensal', quarterly: 'Trimestral', annual: 'Anual' };
 
 export const PAYMENT_FORM_LABEL: Record<SchedulePaymentForm, string> = {
-  pix_auto: 'Pix automático',
-  card: 'Cartão recorrente',
+  pix_auto: 'Pix',
+  card: 'Cartão',
   onsite: 'Na arena',
 };
 
@@ -334,6 +359,7 @@ export function settingsFromRaw(d: Raw | undefined): ScheduleSettings {
     waitlistAutoOffer: bool(d['waitlistAutoOffer'], true),
     waitlistOfferHours: hours === 12 || hours === 48 ? hours : 24,
     appliedHolidays: strings(d['appliedHolidays']),
+    onlineBillingEnabled: d['onlineBillingEnabled'] === true,
   };
 }
 
@@ -401,6 +427,24 @@ export function chargeFromRaw(id: string, d: Raw): ScheduleCharge {
     status: oneOf(d['status'], ['open', 'paid', 'canceled'] as const, 'open'),
     paidOn: optStr(d['paidOn']),
     paymentMethod: typeof method === 'string' && (MANUAL_METHODS as readonly string[]).includes(method) ? (method as ScheduleManualMethod) : null,
+    billingMode: d['billingMode'] === 'asaas' ? 'asaas' : d['billingMode'] === 'manual' ? 'manual' : null,
+    asaas: chargeAsaasFromRaw(d['asaas']),
+    paidVia: d['paidVia'] === 'asaas' ? 'asaas' : d['paidVia'] === 'manual' ? 'manual' : null,
+    onlineBillingType: optStr(d['onlineBillingType']),
+    platformFeeReais: optNum(d['platformFeeReais']),
+  };
+}
+
+function chargeAsaasFromRaw(v: unknown): ScheduleChargeAsaas | null {
+  if (v == null || typeof v !== 'object' || Array.isArray(v)) return null;
+  const a = v as Raw;
+  const groupId = str(a['groupId']);
+  if (!groupId) return null;
+  return {
+    groupId,
+    state: oneOf(a['state'], SCHEDULE_ASAAS_STATES, 'pending'),
+    invoiceUrl: optStr(a['invoiceUrl']),
+    status: optStr(a['status']),
   };
 }
 

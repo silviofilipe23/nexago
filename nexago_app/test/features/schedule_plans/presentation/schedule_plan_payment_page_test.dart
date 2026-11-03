@@ -21,6 +21,13 @@ const _cpf = '52998224725';
 
 class _FakeRepo implements SchedulePlansRepository {
   final calls = <({String chargeId, String method, String? cpfCnpj})>[];
+  final canceled = <String>[];
+
+  @override
+  Future<DateTime?> cancelMine(String subscriptionId) async {
+    canceled.add(subscriptionId);
+    return null;
+  }
 
   @override
   Future<ScheduleCheckout> chargeCheckout({
@@ -42,8 +49,11 @@ class _FakeRepo implements SchedulePlansRepository {
       super.noSuchMethod(invocation);
 }
 
-ScheduleCharge charge({String status = 'open'}) => ScheduleCharge.fromMap({
+ScheduleCharge charge({String status = 'open', String? cancelReason}) =>
+    ScheduleCharge.fromMap({
       'chargeId': 'c1',
+      'subscriptionId': 's1',
+      if (cancelReason != null) 'cancelReason': cancelReason,
       'planName': 'Fixo Noite 1x',
       'period': '2026-11',
       'amountReais': 90,
@@ -55,11 +65,16 @@ ScheduleCharge charge({String status = 'open'}) => ScheduleCharge.fromMap({
 class _Harness {
   final repo = _FakeRepo();
   final charges = StreamController<ScheduleCharge?>();
+  final subs = StreamController<ScheduleSubscription?>();
   final opened = <String>[];
   var closed = 0;
 }
 
-Future<_Harness> pumpPage(WidgetTester tester, {String? profileCpf}) async {
+Future<_Harness> pumpPage(
+  WidgetTester tester, {
+  String? profileCpf,
+  DateTime? pendingUntil,
+}) async {
   // 430pt: a fonte de teste (glifo quadrado) é mais larga que a Sora e o
   // botão "Copiar Pix Copia & Cola" da reserva estoura em 390pt só no teste.
   tester.view.physicalSize = const Size(1290, 2796);
@@ -67,12 +82,15 @@ Future<_Harness> pumpPage(WidgetTester tester, {String? profileCpf}) async {
   addTearDown(tester.view.reset);
   final h = _Harness();
   addTearDown(h.charges.close);
+  addTearDown(h.subs.close);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         schedulePlansUidProvider.overrideWith((ref) => 'u1'),
         schedulePlansRepositoryProvider.overrideWithValue(h.repo),
         scheduleChargeProvider.overrideWith((ref, id) => h.charges.stream),
+        scheduleSubscriptionDocProvider
+            .overrideWith((ref, id) => h.subs.stream),
         athleteProfileProvider.overrideWith(
           (ref) => Stream<AthleteProfile?>.value(null),
         ),
@@ -88,6 +106,13 @@ Future<_Harness> pumpPage(WidgetTester tester, {String? profileCpf}) async {
     ),
   );
   h.charges.add(charge());
+  h.subs.add(ScheduleSubscription.fromMap({
+    'arenaId': 'a1',
+    'planId': 'p1',
+    'status': pendingUntil == null ? 'active' : 'pending_payment',
+    if (pendingUntil != null)
+      'pendingPaymentUntil': pendingUntil.toUtc().toIso8601String(),
+  }, id: 's1'));
   await tester.pump();
   await tester.pump();
   return h;
@@ -161,6 +186,37 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.textContaining('foi cancelada'), findsOneWidget);
+    expect(find.text('Gerar PIX'), findsNothing);
+  });
+
+  testWidgets('aguardando pagamento: mostra o prazo e deixa desistir',
+      (tester) async {
+    final until = DateTime.now().add(const Duration(minutes: 29));
+    final h = await pumpPage(tester, pendingUntil: until);
+    expect(find.byKey(const Key('schedule-payment-deadline')), findsOneWidget);
+    expect(find.textContaining('para confirmar o plano'), findsOneWidget);
+    expect(find.text('Pagar depois'), findsNothing);
+
+    final giveUp = find.byKey(const Key('schedule-payment-give-up'));
+    await tester.ensureVisible(giveUp);
+    await tester.pump();
+    await tester.tap(giveUp);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Desistir da assinatura?'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('schedule-confirm')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(h.repo.canceled, ['s1']);
+  });
+
+  testWidgets('prazo vencido: avisa que o horário foi liberado',
+      (tester) async {
+    final h = await pumpPage(tester);
+    h.charges.add(charge(status: 'canceled', cancelReason: 'payment_expired'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.textContaining('prazo de 30 minutos'), findsOneWidget);
     expect(find.text('Gerar PIX'), findsNothing);
   });
 }

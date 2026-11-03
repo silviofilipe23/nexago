@@ -164,22 +164,5 @@ void main() {
       );
     });
   });
-
-  test('paga ao assinar só online, fora do "na arena" e acima do mínimo', () {
-    ScheduleSubscribeResult r(double v, {String? id = 'c1'}) =>
-        ScheduleSubscribeResult(
-          subscriptionId: 's1',
-          firstChargeId: id,
-          firstChargeReais: v,
-        );
-    bool pays(bool online, SchedulePaymentMethod m, ScheduleSubscribeResult x) =>
-        schedulePaysOnSignup(onlineBilling: online, method: m, result: x);
-    expect(pays(true, SchedulePaymentMethod.pixAuto, r(90)), isTrue);
-    expect(pays(true, SchedulePaymentMethod.card, r(5)), isTrue);
-    expect(pays(true, SchedulePaymentMethod.onsite, r(90)), isFalse);
-    expect(pays(false, SchedulePaymentMethod.pixAuto, r(90)), isFalse);
-    expect(pays(true, SchedulePaymentMethod.pixAuto, r(4.99)), isFalse);
-    expect(pays(true, SchedulePaymentMethod.pixAuto, r(90, id: null)), isFalse);
-  });
 }
 

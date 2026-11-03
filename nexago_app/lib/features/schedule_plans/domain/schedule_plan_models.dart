@@ -453,10 +453,19 @@ class SchedulePlanAvailability {
 
 // ── Assinatura (A3) ─────────────────────────────────────────────────────
 
-enum ScheduleSubscriptionStatus { active, paused, suspended, canceled }
+/// `pendingPayment`: assinou com Pix/cartão e tem 30 min para pagar a 1ª
+/// mensalidade; sem pagamento o horário é liberado.
+enum ScheduleSubscriptionStatus {
+  active,
+  pendingPayment,
+  paused,
+  suspended,
+  canceled,
+}
 
 ScheduleSubscriptionStatus scheduleSubscriptionStatusFromKey(String? key) =>
     switch (key) {
+      'pending_payment' => ScheduleSubscriptionStatus.pendingPayment,
       'paused' => ScheduleSubscriptionStatus.paused,
       'suspended' => ScheduleSubscriptionStatus.suspended,
       'canceled' => ScheduleSubscriptionStatus.canceled,
@@ -590,6 +599,8 @@ class ScheduleCharge {
   const ScheduleCharge({
     required this.id,
     this.planName = '',
+    this.subscriptionId = '',
+    this.cancelReason,
     this.period = '',
     this.amountReais = 0,
     this.dueDate,
@@ -607,6 +618,10 @@ class ScheduleCharge {
 
   /// Nome do plano (vem no doc da mensalidade; a lista de Meu plano não usa).
   final String planName;
+  final String subscriptionId;
+
+  /// `payment_expired`: o prazo de 30 min da assinatura venceu sem pagamento.
+  final String? cancelReason;
   final String period;
   final double amountReais;
   final DateTime? dueDate;
@@ -645,6 +660,8 @@ class ScheduleCharge {
     return ScheduleCharge(
       id: spStr(m['id'] ?? m['chargeId']),
       planName: spStr(m['planName']),
+      subscriptionId: spStr(m['subscriptionId']),
+      cancelReason: spStrOrNull(m['cancelReason']),
       period: spStr(m['period']),
       amountReais: spDouble(m['amountReais']),
       dueDate: spDate(m['dueDate']),
@@ -683,6 +700,7 @@ class ScheduleSubscription {
     this.status = ScheduleSubscriptionStatus.active,
     this.endsOn,
     this.pausedUntil,
+    this.pendingPaymentUntil,
     this.pauseDaysUsedYear,
     this.pauseDaysUsed = 0,
     this.makeupBalance = 0,
@@ -712,6 +730,9 @@ class ScheduleSubscription {
   final ScheduleSubscriptionStatus status;
   final DateTime? endsOn;
   final DateTime? pausedUntil;
+
+  /// Prazo para pagar a 1ª mensalidade (só em `pendingPayment`).
+  final DateTime? pendingPaymentUntil;
 
   /// Ano (`YYYY`) a que [pauseDaysUsed] se refere.
   final String? pauseDaysUsedYear;
@@ -761,6 +782,7 @@ class ScheduleSubscription {
       status: scheduleSubscriptionStatusFromKey(spStrOrNull(m['status'])),
       endsOn: spDate(m['endsOn']),
       pausedUntil: spDate(m['pausedUntil']),
+      pendingPaymentUntil: spDateTime(m['pendingPaymentUntil']),
       pauseDaysUsedYear: spStrOrNull(pauseUsed['year']),
       pauseDaysUsed: spInt(pauseUsed['days']),
       makeupBalance: spInt(m['makeupBalance']),
@@ -899,10 +921,16 @@ class ScheduleSubscribeResult {
     this.firstChargeId,
     this.firstChargeReais,
     this.firstChargeDueDate,
+    this.pendingPayment = false,
+    this.paymentDeadline,
   });
 
   final String subscriptionId;
   final String courtName;
+
+  /// Assinou com Pix/cartão: só vira assinante pagando até [paymentDeadline].
+  final bool pendingPayment;
+  final DateTime? paymentDeadline;
 
   /// Mensalidade do atleta na 1ª cobrança (o app leva direto ao pagamento).
   final String? firstChargeId;
@@ -922,6 +950,8 @@ class ScheduleSubscribeResult {
           ? first.toDouble()
           : spDoubleOrNull(firstMap['amountReais']),
       firstChargeDueDate: spDate(firstMap['dueDate']),
+      pendingPayment: spStr(m['status']) == 'pending_payment',
+      paymentDeadline: spDateTime(m['paymentDeadline']),
     );
   }
 }

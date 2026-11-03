@@ -72,3 +72,14 @@ final scheduleChargeProvider = StreamProvider.autoDispose
   }
   return ref.watch(schedulePlansRepositoryProvider).watchCharge(chargeId);
 });
+
+/// Assinatura ao vivo na tela de pagamento (prazo de 30 min do pagamento).
+final scheduleSubscriptionDocProvider = StreamProvider.autoDispose
+    .family<ScheduleSubscription?, String>((ref, subscriptionId) {
+  if (subscriptionId.isEmpty || ref.watch(schedulePlansUidProvider).isEmpty) {
+    return Stream.value(null);
+  }
+  return ref
+      .watch(schedulePlansRepositoryProvider)
+      .watchSubscription(subscriptionId);
+});

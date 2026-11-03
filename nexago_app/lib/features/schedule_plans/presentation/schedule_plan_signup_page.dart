@@ -193,11 +193,6 @@ class _SchedulePlanSignupPageState
     final memberIds = plan.rules.splitEnabled && _split
         ? [for (final m in _members) m.uid]
         : const <String>[];
-    final onlineBilling = ref
-            .read(schedulePlanAvailabilityProvider(_key))
-            .valueOrNull
-            ?.onlineBilling ??
-        false;
     try {
       final String message;
       ScheduleSubscribeResult? created;
@@ -236,16 +231,10 @@ class _SchedulePlanSignupPageState
               ? 'Horário trocado.'
               : 'Horário trocado. Agora na $court.';
       }
-      // Pix ou cartão com a arena cobrando online: vai direto para a tela de
-      // pagamento da 1ª mensalidade.
-      final payChargeId = created != null &&
-              schedulePaysOnSignup(
-                onlineBilling: onlineBilling,
-                method: method,
-                result: created,
-              )
-          ? created.firstChargeId
-          : null;
+      // Assinou com Pix/cartão numa arena que cobra online: o servidor segura
+      // o horário por 30 min até a 1ª mensalidade ser paga.
+      final payChargeId =
+          created != null && created.pendingPayment ? created.firstChargeId : null;
       final pay = payChargeId != null;
       ref.invalidate(myScheduleSubscriptionsProvider);
       ref.invalidate(schedulePlanAvailabilityProvider(_key));
@@ -253,7 +242,10 @@ class _SchedulePlanSignupPageState
       if (!mounted) return;
       showAppSnackBar(
         context,
-        pay ? '$message Agora pague a 1ª mensalidade.' : message,
+        pay
+            ? 'Horário reservado por 30 min. Pague a 1ª mensalidade para '
+                'confirmar o plano.'
+            : message,
       );
       if (_mode == _Mode.change) {
         popOrGo(context, AppRoutes.mySchedulePlans);

@@ -15,6 +15,7 @@ import '../../arenas/domain/payment_providers.dart';
 import '../../arenas/presentation/widgets/booking_pix/booking_pix_app_bar.dart';
 import '../../arenas/presentation/widgets/booking_pix/booking_pix_copy_button.dart';
 import '../../arenas/presentation/widgets/booking_pix/booking_pix_cpf_field.dart';
+import '../../arenas/presentation/widgets/booking_pix/booking_pix_expiry_card.dart';
 import '../../arenas/presentation/widgets/booking_pix/booking_pix_generate_bar.dart';
 import '../../arenas/presentation/widgets/booking_pix/booking_pix_qr_card.dart';
 import '../../arenas/presentation/widgets/booking_pix/booking_pix_waiting_card.dart';
@@ -25,6 +26,7 @@ import '../../tournaments/presentation/widgets/tournament_registration/registrat
 import '../application/schedule_plans_providers.dart';
 import '../domain/schedule_plan_logic.dart';
 import '../domain/schedule_plan_models.dart';
+import 'widgets/schedule_plan_sheets.dart';
 
 /// Pagamento de uma mensalidade do plano de horário: Pix (QR no app) ou
 /// cartão (checkout do Asaas dentro do app). Os dois usam a mesma cobrança;
@@ -185,7 +187,7 @@ class _SchedulePlanPaymentPageState
         title: 'Pagamento confirmado',
         description:
             '${_chargeLabel(charge)} do ${charge.planName.isEmpty ? 'plano' : charge.planName} '
-            'está paga. Bom jogo!',
+            'está paga e o horário é seu. Bom jogo!',
         primaryAction:
             FeedbackAction(label: 'Ver meu plano', onPressed: _goToMyPlan),
       );
@@ -205,7 +207,11 @@ class _SchedulePlanPaymentPageState
             onMyPlan: _goToMyPlan,
           ),
         _ when !charge.isOpen => _Message(
-            text: 'Esta mensalidade foi cancelada e não precisa ser paga.',
+            key: const Key('schedule-payment-closed'),
+            text: charge.cancelReason == 'payment_expired'
+                ? 'O prazo de 30 minutos para pagar acabou e o horário foi '
+                    'liberado. Assine de novo se ainda quiser o plano.'
+                : 'Esta mensalidade foi cancelada e não precisa ser paga.',
             onMyPlan: _goToMyPlan,
           ),
         _ => _openBody(charge),
@@ -213,10 +219,47 @@ class _SchedulePlanPaymentPageState
     );
   }
 
+  /// Assinatura aguardando pagamento: desiste e libera o horário na hora.
+  Future<void> _giveUp(ScheduleCharge charge) async {
+    final ok = await confirmScheduleAction(
+      context,
+      title: 'Desistir da assinatura?',
+      message: 'O horário reservado volta a ficar livre na arena agora.',
+      confirmLabel: 'Desistir',
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await ref
+          .read(schedulePlansRepositoryProvider)
+          .cancelMine(charge.subscriptionId);
+      if (!mounted) return;
+      showAppSnackBar(context, 'Assinatura desfeita. O horário foi liberado.');
+      _goToMyPlan();
+    } catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        friendlyErrorMessage(
+          e,
+          action: 'Não foi possível desistir',
+          logReason: 'schedule_plan_give_up',
+        ),
+        isError: true,
+      );
+    }
+  }
+
   Widget _openBody(ScheduleCharge charge) {
     final checkout = _checkout;
     final live = _live;
     final amount = checkout?.amountReais ?? charge.amountReais;
+    final sub = charge.subscriptionId.isEmpty
+        ? null
+        : ref
+            .watch(scheduleSubscriptionDocProvider(charge.subscriptionId))
+            .valueOrNull;
+    final pending = sub?.status == ScheduleSubscriptionStatus.pendingPayment;
+    final deadline = pending ? sub?.pendingPaymentUntil : null;
     return Column(
       children: [
         Expanded(
@@ -225,6 +268,24 @@ class _SchedulePlanPaymentPageState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (deadline != null) ...[
+                  BookingPixExpiryCard(
+                    key: const Key('schedule-payment-deadline'),
+                    expiresAt: deadline,
+                    amountReais: amount,
+                    statusLabel: 'horário reservado',
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Pague até ${scheduleClock(deadline)} para confirmar o '
+                    'plano. Sem pagamento, o horário é liberado.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: context.themeColors.onSurfaceMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 _ChargeSummary(charge: charge, label: _chargeLabel(charge)),
                 const SizedBox(height: 20),
                 if (checkout == null || live == null) ...[
@@ -295,10 +356,17 @@ class _SchedulePlanPaymentPageState
                     child: const Text('Pagar com PIX'),
                   ),
                 ],
-                TextButton(
-                  onPressed: _goToMyPlan,
-                  child: const Text('Pagar depois'),
-                ),
+                if (pending)
+                  TextButton(
+                    key: const Key('schedule-payment-give-up'),
+                    onPressed: () => _giveUp(charge),
+                    child: const Text('Desistir da assinatura'),
+                  )
+                else
+                  TextButton(
+                    onPressed: _goToMyPlan,
+                    child: const Text('Pagar depois'),
+                  ),
               ],
             ),
           ),
@@ -383,7 +451,7 @@ class _ChargeSummary extends StatelessWidget {
 }
 
 class _Message extends StatelessWidget {
-  const _Message({required this.text, required this.onMyPlan});
+  const _Message({super.key, required this.text, required this.onMyPlan});
 
   final String text;
   final VoidCallback onMyPlan;

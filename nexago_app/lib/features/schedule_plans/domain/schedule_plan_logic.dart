@@ -491,20 +491,22 @@ String scheduleMethodNote(
       : 'Combine o pagamento com a arena, que dá baixa a cada mês.';
 }
 
-/// Menor valor cobrado online (abaixo disso a mensalidade fica manual).
-const scheduleOnlineMinReais = 5.0;
+/// Mensalidade que o titular paga para confirmar a assinatura aguardando
+/// pagamento (a 1ª dele, em aberto).
+ScheduleCharge? schedulePendingFirstCharge(
+  ScheduleSubscription sub,
+  String uid,
+) {
+  if (sub.status != ScheduleSubscriptionStatus.pendingPayment) return null;
+  return scheduleNextOpenCharge(sub.charges, uid);
+}
 
-/// Depois de assinar, o app abre o pagamento da 1ª mensalidade: arena cobra
-/// online, a forma não é "na arena" e o valor passa do mínimo.
-bool schedulePaysOnSignup({
-  required bool onlineBilling,
-  required SchedulePaymentMethod method,
-  required ScheduleSubscribeResult result,
-}) =>
-    onlineBilling &&
-    method != SchedulePaymentMethod.onsite &&
-    (result.firstChargeId ?? '').isNotEmpty &&
-    (result.firstChargeReais ?? 0) >= scheduleOnlineMinReais;
+/// "14:32" do prazo de pagamento.
+String scheduleClock(DateTime d) {
+  final local = d.toLocal();
+  return '${local.hour.toString().padLeft(2, '0')}:'
+      '${local.minute.toString().padLeft(2, '0')}';
+}
 
 /// Frases sob a faixa do mês para as desmarcadas: "Dia 10 você avisou que
 /// não vai. Ganhou 1 reposição."

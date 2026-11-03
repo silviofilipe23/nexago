@@ -291,4 +291,14 @@ class SchedulePlansRepository {
       fallback: 'Não foi possível retomar o plano.',
     );
   }
+
+  /// O titular cancela: o plano segue até a data devolvida (1º dia sem ele).
+  Future<DateTime?> cancelMine(String subscriptionId) async {
+    final data = await _call(
+      'cancelMyArenaScheduleSubscription',
+      {'subscriptionId': subscriptionId},
+      fallback: 'Não foi possível cancelar o plano.',
+    );
+    return spDate(data['endsOn']);
+  }
 }

@@ -359,6 +359,35 @@ bool scheduleIsHolder(ScheduleSubscription sub, String uid) {
   return sub.members.any((m) => m.isHolder && m.athleteId == uid);
 }
 
+/// O titular pode cancelar: plano vivo e ainda sem data de saída.
+bool scheduleCanCancel(ScheduleSubscription sub, String uid) =>
+    scheduleIsHolder(sub, uid) &&
+    sub.endsOn == null &&
+    sub.status != ScheduleSubscriptionStatus.canceled;
+
+/// Prévia do 1º dia sem o plano quando o titular cancela (o servidor decide,
+/// `athleteExitDate`): fim do mês corrente, do último mês pago ou do mês em
+/// que a fidelidade termina — o que vier depois.
+DateTime scheduleAthleteExitDate(ScheduleSubscription sub, DateTime now) {
+  var last = DateTime(now.year, now.month);
+  for (final c in sub.charges.where((c) => c.isPaid)) {
+    final parts = c.period.split('-');
+    final y = parts.length == 2 ? int.tryParse(parts[0]) : null;
+    final m = parts.length == 2 ? int.tryParse(parts[1]) : null;
+    if (y == null || m == null) continue;
+    final month = DateTime(y, m);
+    if (month.isAfter(last)) last = month;
+  }
+  final commitment = sub.commitmentEndsOn;
+  if (commitment != null && _day(commitment).isAfter(_day(now))) {
+    final lastDay =
+        DateTime(commitment.year, commitment.month, commitment.day - 1);
+    final month = DateTime(lastDay.year, lastDay.month);
+    if (month.isAfter(last)) last = month;
+  }
+  return DateTime(last.year, last.month + 1);
+}
+
 /// Parte do atleta na mensalidade (rateio); sem o membro, o mensal inteiro.
 double scheduleMyShare(ScheduleSubscription sub, String uid) {
   for (final m in sub.members) {

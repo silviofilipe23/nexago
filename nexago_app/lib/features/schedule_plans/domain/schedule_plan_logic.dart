@@ -495,10 +495,25 @@ String scheduleMethodNote(
     return 'Você paga direto na arena, que dá baixa a cada mês.';
   }
   return onlineBilling
-      ? 'Link mensal: Pix ou cartão. Todo mês o link de pagamento chega '
-          'no app.'
+      ? 'Pix ou cartão: ao assinar você já paga a 1ª mensalidade. Depois, '
+          'todo mês o link de pagamento chega no app.'
       : 'Combine o pagamento com a arena, que dá baixa a cada mês.';
 }
+
+/// Menor valor cobrado online (abaixo disso a mensalidade fica manual).
+const scheduleOnlineMinReais = 5.0;
+
+/// Depois de assinar, o app abre o pagamento da 1ª mensalidade: arena cobra
+/// online, a forma não é "na arena" e o valor passa do mínimo.
+bool schedulePaysOnSignup({
+  required bool onlineBilling,
+  required SchedulePaymentMethod method,
+  required ScheduleSubscribeResult result,
+}) =>
+    onlineBilling &&
+    method != SchedulePaymentMethod.onsite &&
+    (result.firstChargeId ?? '').isNotEmpty &&
+    (result.firstChargeReais ?? 0) >= scheduleOnlineMinReais;
 
 /// Frases sob a faixa do mês para as desmarcadas: "Dia 10 você avisou que
 /// não vai. Ganhou 1 reposição."

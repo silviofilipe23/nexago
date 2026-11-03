@@ -33,7 +33,7 @@ import {
   requireUid,
   rethrowSchedule,
 } from "./arena-schedule-plans";
-import {createSubscriptionCore, resolveHolderAccount} from "./arena-schedule-subscriptions";
+import {createSubscriptionCore, resolveHolderAccount, type CreateSubscriptionResult} from "./arena-schedule-subscriptions";
 
 type Data = Record<string, unknown>;
 const OPEN_ENTRY = ["waiting", "offered"];
@@ -259,7 +259,7 @@ export async function acceptWaitlistOfferCore(
   input: Data,
   todayKey: string,
   nowMs: number,
-): Promise<{subscriptionId: string; courtName: string; skippedDates: string[]}> {
+): Promise<Pick<CreateSubscriptionResult, "subscriptionId" | "courtName" | "skippedDates" | "firstCharge">> {
   const entryId = str(input["entryId"]);
   if (!entryId) throw new HttpsError("invalid-argument", "Oferta inválida.");
   const snap = await db.collection(ARENA_SCHEDULE_WAITLIST).doc(entryId).get();
@@ -278,7 +278,10 @@ export async function acceptWaitlistOfferCore(
     cycle: input["cycle"], paymentMethod: input["paymentMethod"], startDate: todayKey,
     source: "waitlist", createdByUid: uid, audience: "athlete", waitlistEntryId: entryId,
   }, todayKey, nowMs);
-  return {subscriptionId: result.subscriptionId, courtName: result.courtName, skippedDates: result.skippedDates};
+  return {
+    subscriptionId: result.subscriptionId, courtName: result.courtName, skippedDates: result.skippedDates,
+    firstCharge: result.firstCharge,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -320,7 +323,8 @@ export const acceptArenaScheduleWaitlistOffer = onCall({region: CLIENT_FACING_RE
     const result = await acceptWaitlistOfferCore(
       getFirestore(), uid, (request.data ?? {}) as Data, dayKeyFromEventDate(new Date()), Date.now(),
     );
-    return {subscriptionId: result.subscriptionId, courtName: result.courtName};
+    // `firstCharge`: o app leva o atleta direto ao pagamento da 1ª mensalidade.
+    return {subscriptionId: result.subscriptionId, courtName: result.courtName, firstCharge: result.firstCharge};
   } catch (e) {
     return rethrowSchedule("acceptArenaScheduleWaitlistOffer", e);
   }

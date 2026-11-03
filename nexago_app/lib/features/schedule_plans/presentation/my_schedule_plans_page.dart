@@ -34,13 +34,21 @@ import 'widgets/schedule_plan_ui.dart';
 /// reposição, trocar, pausar), a próxima cobrança e as vagas oferecidas pela
 /// lista de espera. Destino dos pushes dos planos (`/meus-planos-horario`).
 class MySchedulePlansPage extends ConsumerStatefulWidget {
-  const MySchedulePlansPage({super.key, this.now, this.openUrl});
+  const MySchedulePlansPage({
+    super.key,
+    this.now,
+    this.openUrl,
+    this.payChargeId,
+  });
 
   /// Relógio injetável para teste.
   final DateTime Function()? now;
 
   /// Abre a fatura fora do app; injetável para teste.
   final Future<bool> Function(String url)? openUrl;
+
+  /// Vindo da assinatura: abre o pagamento desta mensalidade ao carregar.
+  final String? payChargeId;
 
   @override
   ConsumerState<MySchedulePlansPage> createState() =>
@@ -53,6 +61,9 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
 
   /// Mensalidade cujo "Pagar" está buscando o link.
   String? _payingChargeId;
+
+  /// O pagamento pedido por [MySchedulePlansPage.payChargeId] já foi aberto.
+  bool _autoPayDone = false;
 
   /// A fatura abriu no navegador: na volta ao app, recarrega para mostrar
   /// "Pago" se o atleta pagou.
@@ -367,7 +378,27 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
     );
   }
 
+  /// Vindo da assinatura: mostra o plano da mensalidade e abre o pagamento
+  /// uma vez (a folha de CPF aparece se faltar).
+  void _maybeAutoPay(MyScheduleSubscriptions data) {
+    final chargeId = widget.payChargeId;
+    if (_autoPayDone || chargeId == null) return;
+    _autoPayDone = true;
+    for (final sub in data.subscriptions) {
+      for (final charge in sub.charges) {
+        if (charge.id != chargeId || !charge.isOpen) continue;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _selectedId = sub.id);
+          _pay(charge);
+        });
+        return;
+      }
+    }
+  }
+
   Widget _content(MyScheduleSubscriptions data) {
+    _maybeAutoPay(data);
     final uid = ref.watch(schedulePlansUidProvider);
     final now = _now;
     final subs = data.subscriptions;

@@ -891,12 +891,16 @@ class ScheduleSubscribeResult {
   const ScheduleSubscribeResult({
     required this.subscriptionId,
     this.courtName = '',
+    this.firstChargeId,
     this.firstChargeReais,
     this.firstChargeDueDate,
   });
 
   final String subscriptionId;
   final String courtName;
+
+  /// Mensalidade do atleta na 1ª cobrança (o app leva direto ao pagamento).
+  final String? firstChargeId;
   final double? firstChargeReais;
   final DateTime? firstChargeDueDate;
 
@@ -906,6 +910,9 @@ class ScheduleSubscribeResult {
     return ScheduleSubscribeResult(
       subscriptionId: spStr(m['subscriptionId']),
       courtName: spStr(m['courtName']),
+      firstChargeId: spStr(firstMap['chargeId']).isEmpty
+          ? null
+          : spStr(firstMap['chargeId']),
       firstChargeReais: first is num
           ? first.toDouble()
           : spDoubleOrNull(firstMap['amountReais']),

@@ -10,7 +10,10 @@ List<RouteBase> schedulePlansRoutes() => [
       GoRoute(
         path: AppRoutes.mySchedulePlans,
         name: AppRouteNames.mySchedulePlans,
-        builder: (context, state) => const MySchedulePlansPage(),
+        builder: (context, state) {
+          final pay = state.uri.queryParameters['pagar']?.trim() ?? '';
+          return MySchedulePlansPage(payChargeId: pay.isEmpty ? null : pay);
+        },
       ),
       GoRoute(
         path: AppRoutes.arenaSchedulePlans,
@@ -56,6 +59,13 @@ String schedulePlanSignupLocation({
   if (query.isEmpty) return path;
   return '$path?${Uri(queryParameters: query).query}';
 }
+
+/// Caminho de Meu plano; com [payChargeId] abre o pagamento dessa mensalidade.
+String mySchedulePlansLocation({String? payChargeId}) =>
+    payChargeId == null || payChargeId.isEmpty
+        ? AppRoutes.mySchedulePlans
+        : '${AppRoutes.mySchedulePlans}?'
+            '${Uri(queryParameters: {'pagar': payChargeId}).query}';
 
 /// Caminho do A1 da arena.
 String arenaSchedulePlansLocation(String arenaId) => AppRoutes

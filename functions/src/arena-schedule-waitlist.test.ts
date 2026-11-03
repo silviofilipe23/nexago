@@ -83,6 +83,7 @@ describe("lista de espera", () => {
     // u3 aceita: assina com source waitlist na quadra ofertada.
     const accepted = await acceptWaitlistOfferCore(db, "u3", {entryId: e3.entryId, cycle: "monthly", paymentMethod: "pix_auto"}, today(), now + 25 * HOUR);
     assert.equal(accepted.courtName, "Quadra 1");
+    assert.ok(accepted.firstCharge.chargeId.startsWith(`${accepted.subscriptionId}_`), "devolve a 1ª mensalidade");
     const sub = fake.store.get(`arenaScheduleSubscriptions/${accepted.subscriptionId}`)!;
     assert.equal(sub["source"], "waitlist");
     assert.equal(fake.store.get(`arenaScheduleWaitlist/${e3.entryId}`)!["status"], "accepted");

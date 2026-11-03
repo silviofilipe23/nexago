@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/routes.dart';
 import 'arena_schedule_plans_page.dart';
 import 'my_schedule_plans_page.dart';
+import 'schedule_plan_payment_page.dart';
 import 'schedule_plan_signup_page.dart';
 
 /// Rotas do atleta dos Planos de horário (A1 · A2 · A3).
@@ -10,10 +11,14 @@ List<RouteBase> schedulePlansRoutes() => [
       GoRoute(
         path: AppRoutes.mySchedulePlans,
         name: AppRouteNames.mySchedulePlans,
-        builder: (context, state) {
-          final pay = state.uri.queryParameters['pagar']?.trim() ?? '';
-          return MySchedulePlansPage(payChargeId: pay.isEmpty ? null : pay);
-        },
+        builder: (context, state) => const MySchedulePlansPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.schedulePlanPayment,
+        name: AppRouteNames.schedulePlanPayment,
+        builder: (context, state) => SchedulePlanPaymentPage(
+          chargeId: state.pathParameters['chargeId']?.trim() ?? '',
+        ),
       ),
       GoRoute(
         path: AppRoutes.arenaSchedulePlans,
@@ -60,12 +65,10 @@ String schedulePlanSignupLocation({
   return '$path?${Uri(queryParameters: query).query}';
 }
 
-/// Caminho de Meu plano; com [payChargeId] abre o pagamento dessa mensalidade.
-String mySchedulePlansLocation({String? payChargeId}) =>
-    payChargeId == null || payChargeId.isEmpty
-        ? AppRoutes.mySchedulePlans
-        : '${AppRoutes.mySchedulePlans}?'
-            '${Uri(queryParameters: {'pagar': payChargeId}).query}';
+/// Tela de pagamento de uma mensalidade do plano.
+String schedulePlanPaymentLocation(String chargeId) => AppRoutes
+    .schedulePlanPayment
+    .replaceAll(':chargeId', Uri.encodeComponent(chargeId));
 
 /// Caminho do A1 da arena.
 String arenaSchedulePlansLocation(String arenaId) => AppRoutes

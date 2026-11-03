@@ -4,7 +4,6 @@ import 'package:cloud_functions/cloud_functions.dart';
 import '../../../core/firebase/functions_region.dart';
 import '../../tournaments/data/tournament_partner_invite_service.dart'
     show callableErrorMessage;
-import '../domain/schedule_plan_logic.dart' show scheduleCpfRequiredMessage;
 import '../domain/schedule_plan_models.dart';
 
 /// Falha de uma callable dos Planos de horário, com a frase do servidor (ou o
@@ -188,26 +187,45 @@ class SchedulePlansRepository {
     return MyScheduleSubscriptions.fromMap(data);
   }
 
-  /// Fatura online da mensalidade (Pix ou cartão) → `invoiceUrl`. Sem CPF
-  /// guardado o servidor responde `failed-precondition`
-  /// [scheduleCpfRequiredMessage]; aí repete com [cpfCnpj] (só dígitos).
-  Future<String> chargePaymentLink({
+  /// Tela de pagamento: `pix` devolve o QR da cobrança; `card`, o link do
+  /// checkout. A tela sempre manda o CPF (o servidor guarda no cliente Asaas).
+  Future<ScheduleCheckout> chargeCheckout({
     required String chargeId,
+    required String method,
     String? cpfCnpj,
   }) async {
     final cpf = cpfCnpj?.trim() ?? '';
     final data = await _call(
       'getArenaScheduleChargePaymentLink',
-      {'chargeId': chargeId, if (cpf.isNotEmpty) 'cpfCnpj': cpf},
-      fallback: 'Não foi possível gerar o link de pagamento.',
+      {
+        'chargeId': chargeId,
+        'method': method,
+        if (cpf.isNotEmpty) 'cpfCnpj': cpf,
+      },
+      fallback: 'Não foi possível gerar o pagamento.',
     );
-    final url = spStr(data['invoiceUrl']);
-    if (url.isEmpty) {
+    final checkout = ScheduleCheckout.fromMap(data);
+    if (checkout.invoiceUrl.isEmpty ||
+        (method == 'pix' && !checkout.hasPix)) {
       throw SchedulePlanException(
-        'O link ainda está sendo gerado. Tente de novo em instantes.',
+        'O pagamento ainda está sendo gerado. Tente de novo em instantes.',
       );
     }
-    return url;
+    return checkout;
+  }
+
+  /// Mensalidade ao vivo: a tela de pagamento vê a baixa do webhook.
+  Stream<ScheduleCharge?> watchCharge(String chargeId) {
+    return _db
+        .collection('arenaScheduleCharges')
+        .doc(chargeId)
+        .snapshots()
+        .map((snap) {
+      final data = snap.data();
+      return data == null
+          ? null
+          : ScheduleCharge.fromMap({...data, 'chargeId': snap.id});
+    });
   }
 
   Future<ScheduleSkipResult> skipOccurrence(String bookingId) async {

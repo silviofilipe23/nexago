@@ -462,6 +462,10 @@ abstract final class AppRoutes {
   /// A3 · Meu plano. Mesmo caminho do `url` dos pushes dos planos.
   static const String mySchedulePlans = '/meus-planos-horario';
 
+  /// Pagamento de uma mensalidade do plano (Pix no app ou cartão).
+  static const String schedulePlanPayment =
+      '/meus-planos-horario/pagar/:chargeId';
+
   /// Cobranças do atleta: tudo que ele paga num lugar (aulas, horário fixo,
   /// reservas e inscrições). `?aba=recorrentes|historico`, `?tipo=aulas|…`.
   static const String athleteBilling = '/cobrancas';
@@ -1262,6 +1266,7 @@ abstract final class AppRouteNames {
   static const String arenaSchedulePlans = 'arenaSchedulePlans';
   static const String arenaSchedulePlanSignup = 'arenaSchedulePlanSignup';
   static const String mySchedulePlans = 'mySchedulePlans';
+  static const String schedulePlanPayment = 'schedulePlanPayment';
   static const String athleteBilling = 'athleteBilling';
   static const String squad = 'squad';
   static const String squadShare = 'squadShare';

@@ -6,7 +6,6 @@ import '../../../core/errors/friendly_error_message.dart';
 import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/formatting/app_date_format.dart';
 import '../../../core/layout/nexa_app_bar.dart';
-import '../../../core/links/open_external_url.dart';
 import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -15,18 +14,14 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/nexa_async_view.dart';
 import '../../../core/ui/nexa_skeleton.dart';
-import '../../../core/validation/cpf_cnpj.dart';
 import '../../arena/domain/aulas/arena_class_logic.dart'
     show arenaClassInitials;
 import '../../arena/presentation/aulas/widgets/arena_class_atoms.dart'
     show ArenaClassAvatar;
-import '../../athlete/domain/athlete_profile_providers.dart';
 import '../application/schedule_plans_providers.dart';
 import '../domain/schedule_plan_logic.dart';
 import '../domain/schedule_plan_models.dart';
-import '../infrastructure/schedule_plans_repository.dart';
 import 'schedule_plans_routes.dart';
-import 'widgets/schedule_charge_cpf_sheet.dart';
 import 'widgets/schedule_plan_sheets.dart';
 import 'widgets/schedule_plan_ui.dart';
 
@@ -34,21 +29,10 @@ import 'widgets/schedule_plan_ui.dart';
 /// reposição, trocar, pausar), a próxima cobrança e as vagas oferecidas pela
 /// lista de espera. Destino dos pushes dos planos (`/meus-planos-horario`).
 class MySchedulePlansPage extends ConsumerStatefulWidget {
-  const MySchedulePlansPage({
-    super.key,
-    this.now,
-    this.openUrl,
-    this.payChargeId,
-  });
+  const MySchedulePlansPage({super.key, this.now});
 
   /// Relógio injetável para teste.
   final DateTime Function()? now;
-
-  /// Abre a fatura fora do app; injetável para teste.
-  final Future<bool> Function(String url)? openUrl;
-
-  /// Vindo da assinatura: abre o pagamento desta mensalidade ao carregar.
-  final String? payChargeId;
 
   @override
   ConsumerState<MySchedulePlansPage> createState() =>
@@ -59,34 +43,7 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
   String? _selectedId;
   bool _busy = false;
 
-  /// Mensalidade cujo "Pagar" está buscando o link.
-  String? _payingChargeId;
-
-  /// O pagamento pedido por [MySchedulePlansPage.payChargeId] já foi aberto.
-  bool _autoPayDone = false;
-
-  /// A fatura abriu no navegador: na volta ao app, recarrega para mostrar
-  /// "Pago" se o atleta pagou.
-  bool _refreshOnResume = false;
-  late final AppLifecycleListener _lifecycle;
-
   DateTime get _now => widget.now?.call() ?? DateTime.now();
-
-  @override
-  void initState() {
-    super.initState();
-    _lifecycle = AppLifecycleListener(onResume: () {
-      if (!_refreshOnResume || !mounted) return;
-      _refreshOnResume = false;
-      _refresh();
-    });
-  }
-
-  @override
-  void dispose() {
-    _lifecycle.dispose();
-    super.dispose();
-  }
 
   Future<void> _refresh() async {
     ref.invalidate(myScheduleSubscriptionsProvider);
@@ -122,64 +79,11 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
 
   // ── Ações ─────────────────────────────────────────────────────────────
 
-  /// "Pagar": link da fatura (Pix ou cartão) → navegador. Sem CPF guardado o
-  /// servidor pede o CPF; a folha repete a chamada com ele.
+  /// "Pagar": tela de pagamento da mensalidade (Pix no app ou cartão). Na
+  /// volta, recarrega para mostrar "Pago".
   Future<void> _pay(ScheduleCharge charge) async {
-    if (_payingChargeId != null) return;
-    setState(() => _payingChargeId = charge.id);
-    try {
-      String? url;
-      try {
-        url = await ref
-            .read(schedulePlansRepositoryProvider)
-            .chargePaymentLink(chargeId: charge.id);
-      } on SchedulePlanException catch (e) {
-        if (!scheduleIsCpfRequired(code: e.code, message: e.message)) rethrow;
-        if (!mounted) return;
-        url = await showScheduleSheet<String>(
-          context,
-          builder: (_) => ScheduleChargeCpfSheet(
-            chargeId: charge.id,
-            initialCpf: _profileCpf(),
-          ),
-        );
-      }
-      if (url == null || !mounted) return;
-      final opened = await (widget.openUrl ?? openExternalUrl)(url);
-      if (!mounted) return;
-      if (opened) {
-        _refreshOnResume = true;
-      } else {
-        showAppSnackBar(
-          context,
-          'Não foi possível abrir a fatura. Tente de novo em instantes.',
-          isError: true,
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      showAppSnackBar(
-        context,
-        friendlyErrorMessage(
-          e,
-          action: 'Não foi possível abrir o pagamento',
-          logReason: 'schedule_plan_pay',
-        ),
-        isError: true,
-      );
-    } finally {
-      if (mounted) setState(() => _payingChargeId = null);
-    }
-  }
-
-  /// CPF já salvo no perfil (preenche a folha); `null` sem perfil.
-  String? _profileCpf() {
-    try {
-      final cpf = ref.read(athleteProfileProvider).valueOrNull?.cpfCnpj;
-      return cpf != null && CpfCnpjValidator.isValid(cpf) ? cpf : null;
-    } catch (_) {
-      return null;
-    }
+    await context.push(schedulePlanPaymentLocation(charge.id));
+    if (mounted) await _refresh();
   }
 
   Future<void> _skip(ScheduleSubscription sub) async {
@@ -378,27 +282,7 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
     );
   }
 
-  /// Vindo da assinatura: mostra o plano da mensalidade e abre o pagamento
-  /// uma vez (a folha de CPF aparece se faltar).
-  void _maybeAutoPay(MyScheduleSubscriptions data) {
-    final chargeId = widget.payChargeId;
-    if (_autoPayDone || chargeId == null) return;
-    _autoPayDone = true;
-    for (final sub in data.subscriptions) {
-      for (final charge in sub.charges) {
-        if (charge.id != chargeId || !charge.isOpen) continue;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          setState(() => _selectedId = sub.id);
-          _pay(charge);
-        });
-        return;
-      }
-    }
-  }
-
   Widget _content(MyScheduleSubscriptions data) {
-    _maybeAutoPay(data);
     final uid = ref.watch(schedulePlansUidProvider);
     final now = _now;
     final subs = data.subscriptions;
@@ -538,7 +422,6 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
         subscription: sub,
         uid: uid,
         now: now,
-        payingChargeId: _payingChargeId,
         onPay: _pay,
       ),
       if (scheduleCanCancel(sub, uid)) ...[

@@ -204,8 +204,15 @@ void main() {
           ),
           GoRoute(
             path: AppRoutes.mySchedulePlans,
+            builder: (_, __) => const Text(
+              'MEU PLANO',
+              textDirection: TextDirection.ltr,
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.schedulePlanPayment,
             builder: (_, state) => Text(
-              'MEU PLANO ${state.uri.queryParameters['pagar'] ?? '-'}',
+              'PAGAR ${state.pathParameters['chargeId']}',
               textDirection: TextDirection.ltr,
             ),
           ),
@@ -239,30 +246,32 @@ void main() {
       await tester.pump();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
-      final landed = find.textContaining('MEU PLANO ');
-      expect(landed, findsOneWidget);
-      return tester.widget<Text>(landed).data!;
+      // A tela de cima (pagamento por cima de Meu plano, ou só Meu plano).
+      final pay = find.textContaining('PAGAR ');
+      if (pay.evaluate().isNotEmpty) return tester.widget<Text>(pay).data!;
+      expect(find.text('MEU PLANO'), findsOneWidget);
+      return 'MEU PLANO';
     }
 
-    testWidgets('arena cobra online: Meu plano abre a 1ª mensalidade',
+    testWidgets('arena cobra online: vai para a tela de pagamento da 1ª',
         (tester) async {
       expect(
         await subscribeAndLand(tester, online: true, first: 90),
-        'MEU PLANO s1_2026-11_0',
+        'PAGAR s1_2026-11_0',
       );
     });
 
     testWidgets('arena sem cobrança online: só Meu plano', (tester) async {
       expect(
         await subscribeAndLand(tester, online: false, first: 90),
-        'MEU PLANO -',
+        'MEU PLANO',
       );
     });
 
     testWidgets('abaixo do mínimo online: só Meu plano', (tester) async {
       expect(
         await subscribeAndLand(tester, online: true, first: 3),
-        'MEU PLANO -',
+        'MEU PLANO',
       );
     });
   });

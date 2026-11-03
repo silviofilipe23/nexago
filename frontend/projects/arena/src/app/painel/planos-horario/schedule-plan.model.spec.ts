@@ -65,9 +65,11 @@ describe('schedule-plan.model · parse', () => {
   });
 
   it('cobrança online: regra da arena e campos da mensalidade', () => {
-    expect(settingsFromRaw(undefined).onlineBillingEnabled).toBeFalse();
+    // Ligada por padrão; só `false` gravado desliga.
+    expect(settingsFromRaw(undefined).onlineBillingEnabled).toBeTrue();
+    expect(settingsFromRaw({}).onlineBillingEnabled).toBeTrue();
     expect(settingsFromRaw({ onlineBillingEnabled: true }).onlineBillingEnabled).toBeTrue();
-    expect(settingsFromRaw({ onlineBillingEnabled: 'sim' }).onlineBillingEnabled).toBeFalse();
+    expect(settingsFromRaw({ onlineBillingEnabled: false }).onlineBillingEnabled).toBeFalse();
 
     const legacy = chargeFromRaw('old', { status: 'open' });
     expect(legacy.billingMode).toBeNull();

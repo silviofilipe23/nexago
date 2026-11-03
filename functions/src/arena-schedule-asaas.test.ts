@@ -515,6 +515,29 @@ describe("planos de horário online — regras e disponibilidade", () => {
   });
 });
 
+describe("planos de horário online — ligada por padrão", () => {
+  it("regra nunca salva: arena apta cobra online; sem chave PIX, não; `false` do gestor desliga", async () => {
+    const apt = makeDb();
+    seedOnline(apt.fake);
+    apt.fake.store.delete(`arenas/${ARENA}/scheduleSettings/rules`);
+    apt.fake.seedDoc(`arenas/${ARENA}/schedulePlans/p1`, planData());
+    assert.equal((await getPlanAvailabilityCore(apt.db, "u1", ARENA, "p1", today(), Date.now())).onlineBilling, true);
+    assert.equal((await decideScheduleChargeBilling(apt.db, "c1")).billingMode, "asaas");
+
+    const noPix = makeDb();
+    seedOnline(noPix.fake, {arena: {payoutPixKey: ""}});
+    noPix.fake.store.delete(`arenas/${ARENA}/scheduleSettings/rules`);
+    noPix.fake.seedDoc(`arenas/${ARENA}/schedulePlans/p1`, planData());
+    assert.equal((await getPlanAvailabilityCore(noPix.db, "u1", ARENA, "p1", today(), Date.now())).onlineBilling, false);
+    // Salvar outra regra numa arena sem chave PIX não esbarra na exigência de ligar.
+    assert.equal((await saveScheduleRulesCore(noPix.db, MANAGER, {arenaId: ARENA, primeCapPercent: 60})).primeCapPercent, 60);
+
+    const off = makeDb();
+    seedOnline(off.fake, {rule: false});
+    assert.equal((await decideScheduleChargeBilling(off.db, "c1")).billingMode, "manual");
+  });
+});
+
 describe("planos de horário online — regressões da revisão", () => {
   it("1. webhook e varredura no mesmo pagamento: a 2ª execução não estorna nem credita de novo", async () => {
     const {fake, db} = makeDb();

@@ -88,6 +88,9 @@ const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next:
           <p class="hint flush">Nenhuma ocorrência neste mês.</p>
         }
       </div>
+      @if (s.endsOn && s.endRequestedBy === 'athlete' && s.status !== 'canceled') {
+        <p class="hint">O atleta cancelou pelo app: joga até a véspera de {{ shortDate(s.endsOn) }}, quando a vaga abre.</p>
+      }
       @if (s.holderPhone) {
         <p class="hint">Telefone: {{ s.holderPhone }} · {{ cycleLabel[s.cycle] }} · {{ brl(s.monthlyPriceReais) }}/mês</p>
       }

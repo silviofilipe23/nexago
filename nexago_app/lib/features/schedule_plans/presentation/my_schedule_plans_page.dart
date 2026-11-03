@@ -285,6 +285,42 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
     );
   }
 
+  Future<void> _cancel(ScheduleSubscription sub) async {
+    final exit = scheduleAthleteExitDate(sub, _now);
+    final lastDay = DateTime(exit.year, exit.month, exit.day - 1);
+    final commitment = sub.commitmentEndsOn;
+    final ok = await confirmScheduleAction(
+      context,
+      title: 'Cancelar o plano?',
+      message: 'Você continua jogando até ${scheduleDayMonth(lastDay)}. '
+          'Depois disso o horário volta a ficar livre na arena.',
+      confirmLabel: 'Cancelar plano',
+      warning: ScheduleBanner(
+        key: const Key('schedule-cancel-warning'),
+        icon: Icons.info_outline_rounded,
+        title: commitment != null && commitment.isAfter(_now)
+            ? 'Fidelidade até ${scheduleDayMonth(commitment)}'
+            : 'Sem devolução',
+        message: 'As mensalidades até essa data seguem valendo e o que já foi '
+            'pago não é devolvido. As seguintes são canceladas.',
+        tone: AppColors.pending,
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await _run(
+      () async {
+        final endsOn =
+            await ref.read(schedulePlansRepositoryProvider).cancelMine(sub.id);
+        final until = endsOn == null
+            ? lastDay
+            : DateTime(endsOn.year, endsOn.month, endsOn.day - 1);
+        return 'Plano cancelado. Você joga até ${scheduleDayMonth(until)}.';
+      },
+      failure: 'Não foi possível cancelar o plano',
+      logReason: 'schedule_plan_cancel',
+    );
+  }
+
   void _acceptOffer(ScheduleWaitlistOffer offer) {
     context.push(
       schedulePlanSignupLocation(
@@ -474,6 +510,19 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
         payingChargeId: _payingChargeId,
         onPay: _pay,
       ),
+      if (scheduleCanCancel(sub, uid)) ...[
+        const SizedBox(height: 8),
+        Center(
+          child: TextButton(
+            key: const Key('schedule-action-cancel'),
+            onPressed: _busy ? null : () => _cancel(sub),
+            style: TextButton.styleFrom(
+              foregroundColor: colors.onSurfaceMuted,
+            ),
+            child: const Text('Cancelar plano'),
+          ),
+        ),
+      ],
     ];
   }
 

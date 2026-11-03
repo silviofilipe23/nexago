@@ -67,6 +67,10 @@ assina sozinho pelo app, com cobrança mensal, reposição, pausa, rateio e list
 - **Encerrar** (gestor): `endsOn` (hoje = já; data futura = "Sai em dd/mm" e o agendador encerra no dia).
   Encerrar libera as séries, cancela mensalidades abertas de meses depois de `endsOn` e, com `waitlistAutoOffer`,
   oferece a vaga ao 1º da fila daquele dia/horário.
+- **Cancelar** (titular, pelo app — 03/11/2026): nunca encerra na hora. `endsOn` = 1º dia do mês seguinte ao
+  mais tardio entre o mês corrente, o último mês pago e o mês em que a fidelidade (`commitmentEndsOn`) termina.
+  Sem estorno; mensalidades abertas depois da saída são canceladas (e o link online junto). Grava
+  `endRequestedBy: "athlete"`; membros do rateio recebem push; plano que já tem `endsOn` recusa. Membro não cancela.
 - **Lista de espera** (`arenaScheduleWaitlist`): o atleta entra pelo A2 ("Entrar na fila" no horário lotado) ou o
   gestor adiciona. Oferta = `offer {courtId, courtName, offeredAt, expiresAt}` com `waitlistOfferHours`
   (12/24/48, padrão 24), push ao atleta. Aceitar = assinar aquele horário (A2 já preenchido). Expirou → próximo da
@@ -165,6 +169,7 @@ Gestor (área `agenda` write):
 | `saveArenaScheduleRules` | `{arenaId, primeWindows?, primeCapPercent?, waitlistAutoOffer?, waitlistOfferHours?}` → regras (campo ausente = mantém) |
 | `createArenaScheduleSubscription` | `{arenaId, planId, holderAthleteId? \| holderName, holderPhone?, memberAthleteIds?, weekdays, startTime, courtId?, cycle, paymentMethod, startDate?}` → `{subscriptionId, courtName, skippedDates}` |
 | `endArenaScheduleSubscription` | `{subscriptionId, endsOn, reason?}` → `{status, endsOn}` |
+| `cancelMyArenaScheduleSubscription` | `{subscriptionId}` → `{endsOn}` (só o titular) |
 | `grantArenaScheduleMakeup` | `{subscriptionId, note?}` → `{creditId}` |
 | `registerArenaSchedulePayment` | `{chargeId, paymentMethod, paidOn?}` → `{status, reactivated}` |
 | `cancelArenaScheduleCharge` | `{chargeId}` → `{status}` |

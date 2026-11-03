@@ -372,7 +372,7 @@ export class PanelPhPlansComponent {
       out.push({
         icon: 'queue', tone: 'green',
         title: `Vaga abrindo na ${WEEKDAY_SHORT[slot.weekday]} ${slot.startTime}`,
-        sub: `${sub.holderName} sai em ${shortDate(sub.endsOn!)}. ` +
+        sub: `${sub.holderName} ${sub.endRequestedBy === 'athlete' ? 'cancelou pelo app e sai' : 'sai'} em ${shortDate(sub.endsOn!)}. ` +
           (queue > 0 ? `Há ${queue} pessoa${queue === 1 ? '' : 's'} na lista de espera.` : 'Ninguém na lista de espera desse horário.'),
         cta: queue > 0 ? 'Ver lista de espera' : 'Ver assinantes',
         route: queue > 0 ? '/painel/planos-horario/espera' : '/painel/planos-horario/assinantes',

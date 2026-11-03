@@ -115,6 +115,8 @@ export interface ScheduleSubscription {
   dueDay: number;
   status: ScheduleSubscriptionStatus;
   endsOn: string | null;
+  /** `athlete` quando o titular cancelou pelo app (sai no fim do período). */
+  endRequestedBy: 'athlete' | null;
   pausedUntil: string | null;
   makeupBalance: number;
   startDate: string;
@@ -397,6 +399,7 @@ export function subscriptionFromRaw(id: string, d: Raw): ScheduleSubscription {
     dueDay: num(d['dueDay'], 5),
     status: oneOf(d['status'], ['active', 'paused', 'suspended', 'canceled'] as const, 'active'),
     endsOn: optStr(d['endsOn']),
+    endRequestedBy: d['endRequestedBy'] === 'athlete' ? 'athlete' : null,
     pausedUntil: optStr(d['pausedUntil']),
     makeupBalance: num(d['makeupBalance'], 0),
     startDate: str(d['startDate']),

@@ -212,6 +212,7 @@ export {
   pauseArenaScheduleSubscription,
   resumeArenaScheduleSubscription,
   endArenaScheduleSubscription,
+  cancelMyArenaScheduleSubscription,
 } from "./arena-schedule-subscriptions";
 export {
   registerArenaSchedulePayment,

@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import {HttpsError} from "firebase-functions/v2/https";
 import {addDaysToDateKey, assertNotSchedulePlanSeries, parseRecurringSeriesData} from "./arena-recurring-booking";
 import {
+  ATHLETE_EXIT_REASON,
+  athleteExitDate,
   buildPayerCharges,
+  cancelMySubscriptionCore,
   createSubscriptionCore,
   endSubscriptionCore,
   fullyPausedMonths,
@@ -13,6 +16,8 @@ import {
   type CreateSubscriptionRequest,
 } from "./arena-schedule-subscriptions";
 import {getPlanAvailabilityCore} from "./arena-schedule-plans";
+import {nextMonthKey} from "./arena-class-billing";
+import {monthKeyOf} from "./arena-class-ledger";
 import {ARENA, MANAGER, docsIn, holder, makeDb, seedArena, today, weekdayIn} from "./arena-schedule.test-helper";
 
 async function rejects(p: Promise<unknown>, codeExpected: string, message?: RegExp): Promise<void> {
@@ -248,5 +253,58 @@ describe("encerrar", () => {
       .filter(([, b]) => String(b["date"]) >= endsOn && b["status"] === "active");
     assert.equal(after.length, 0);
     assert.equal(fake.store.get(`arenas/${ARENA}/schedulePlans/p1`)!["occupiedCount"], 1);
+  });
+});
+
+describe("cancelar pelo titular", () => {
+  it("sai no fim do mês corrente, do último mês pago ou da fidelidade — o que vier depois", () => {
+    assert.equal(athleteExitDate("2026-11-03", [], null), "2026-12-01");
+    assert.equal(athleteExitDate("2026-11-30", ["2026-11"], null), "2026-12-01");
+    assert.equal(athleteExitDate("2026-11-25", ["2026-11", "2026-12"], null), "2027-01-01");
+    assert.equal(athleteExitDate("2026-11-03", [], "2027-02-15"), "2027-03-01");
+    assert.equal(athleteExitDate("2026-11-03", [], "2027-02-01"), "2027-02-01");
+    assert.equal(athleteExitDate("2026-11-03", [], "2026-10-15"), "2026-12-01", "fidelidade vencida não conta");
+  });
+
+  it("só o titular; marca a saída no 1º dia do mês seguinte e cancela a mensalidade aberta depois dela", async () => {
+    const {fake, db} = makeDb();
+    seedArena(fake);
+    const {subscriptionId} = await createSubscriptionCore(db, request({memberAthleteIds: ["u2"]}), today(), Date.now());
+    const next = nextMonthKey(monthKeyOf(today()));
+    const nextCharge = `arenaScheduleCharges/${subscriptionId}_${next}_9`;
+    fake.seedDoc(nextCharge, {subscriptionId, arenaId: ARENA, period: next, status: "open", dueDate: `${next}-05`});
+
+    await rejects(cancelMySubscriptionCore(db, "u2", subscriptionId, today()), "permission-denied", /titular/);
+    await rejects(cancelMySubscriptionCore(db, MANAGER, subscriptionId, today()), "permission-denied", /não participa/);
+
+    const out = await cancelMySubscriptionCore(db, "u1", subscriptionId, today());
+    const endsOn = `${next}-01`;
+    assert.deepEqual(out, {endsOn});
+    const sub = fake.store.get(`arenaScheduleSubscriptions/${subscriptionId}`)!;
+    assert.equal(sub["status"], "active", "segue jogando até a saída");
+    assert.equal(sub["endsOn"], endsOn);
+    assert.equal(sub["cancelReason"], ATHLETE_EXIT_REASON);
+    assert.equal(sub["endRequestedBy"], "athlete");
+    assert.equal(fake.store.get(nextCharge)!["status"], "canceled");
+    const seriesId = (sub["slots"] as Array<{seriesId: string}>)[0]!.seriesId;
+    assert.equal(fake.store.get(`arenaRecurringBookings/${seriesId}`)!["endDate"], addDaysToDateKey(endsOn, -1));
+    const after = docsIn(fake, `arenaBookings/rec_${seriesId}_`)
+      .filter(([, b]) => String(b["date"]) >= endsOn && b["status"] === "active");
+    assert.equal(after.length, 0);
+    assert.equal(fake.store.get(`arenas/${ARENA}/schedulePlans/p1`)!["occupiedCount"], 1, "vaga só volta no encerramento");
+
+    await rejects(cancelMySubscriptionCore(db, "u1", subscriptionId, today()), "failed-precondition", /já termina/);
+  });
+
+  it("mês seguinte já pago: vai até o fim dele, sem estorno", async () => {
+    const {fake, db} = makeDb();
+    seedArena(fake);
+    const {subscriptionId} = await createSubscriptionCore(db, request(), today(), Date.now());
+    const next = nextMonthKey(monthKeyOf(today()));
+    const paid = `arenaScheduleCharges/${subscriptionId}_${next}_0`;
+    fake.seedDoc(paid, {subscriptionId, arenaId: ARENA, period: next, status: "paid", dueDate: `${next}-05`});
+    const out = await cancelMySubscriptionCore(db, "u1", subscriptionId, today());
+    assert.equal(out.endsOn, `${nextMonthKey(next)}-01`);
+    assert.equal(fake.store.get(paid)!["status"], "paid");
   });
 });

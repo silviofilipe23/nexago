@@ -87,6 +87,12 @@ describe('schedule-plan.model · parse', () => {
     expect(chargeFromRaw('c2', { asaas: { state: 'open' } }).asaas).toBeNull();
     expect(chargeFromRaw('c3', { asaas: { groupId: 'g', state: 'estranho' } }).asaas?.state).toBe('pending');
   });
+
+  it('marca a saída pedida pelo atleta (cancelou pelo app)', () => {
+    expect(subscriptionFromRaw('s1', { endsOn: '2026-12-01', endRequestedBy: 'athlete' }).endRequestedBy).toBe('athlete');
+    expect(subscriptionFromRaw('s1', { endsOn: '2026-12-01' }).endRequestedBy).toBeNull();
+    expect(subscriptionFromRaw('s1', { endRequestedBy: 'x' }).endRequestedBy).toBeNull();
+  });
 });
 
 describe('schedule-plan-repository · erro amigável', () => {

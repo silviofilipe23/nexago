@@ -18,19 +18,21 @@ import { filterAthleteCandidates, type AthleteCandidate } from './athlete-search
     <input
       type="text"
       class="input-box"
-      placeholder="Digite o nome do atleta…"
+      placeholder="Digite ou escolha o atleta…"
       [value]="queryText()"
       (focus)="onFocus()"
       (input)="onQueryInput($any($event.target).value)"
     />
-    @if (open() && queryText().trim().length >= 2) {
+    @if (open()) {
       <div class="dropdown">
         @if (loading()) {
           <div class="empty">Carregando…</div>
         } @else if (loadError()) {
           <button type="button" class="empty retry" (click)="retryLoad()">Erro ao carregar atletas. Toque para tentar de novo.</button>
         } @else if (results().length === 0) {
-          <div class="empty">Nenhum atleta encontrado.</div>
+          <div class="empty">
+            {{ queryText().trim() ? 'Nenhum atleta encontrado.' : 'Nenhum atleta reservou nesta arena ainda.' }}
+          </div>
         } @else {
           @for (r of results(); track r.athleteId) {
             <button type="button" class="item" (click)="select(r)">{{ r.name }}</button>

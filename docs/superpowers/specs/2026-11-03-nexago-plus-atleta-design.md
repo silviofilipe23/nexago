@@ -55,7 +55,9 @@ Não fixado. Calibrar com dado real, porque a taxa de serviço é configurável 
 
 1. Distribuição da taxa de serviço paga pelo atleta ativo por mês, **só em inscrições** (é o único
    lugar onde o atleta paga taxa).
-2. **Teto mensal da isenção** ≈ preço do plano. Sem teto, o assinante que joga muito custa mais
+2. **Teto mensal da isenção** perto do preço (1× a 1,5×; o protótipo usa R$ 30 para R$ 19,90).
+   O teto um pouco acima do preço deixa o contador "no bolso" positivo para quem joga muito sem
+   abrir o custo. Sem teto, o assinante que joga muito custa mais
    do que paga, e a frequência maior não devolve a diferença: a inscrição extra do assinante também
    sai sem taxa do atleta.
 3. A conta fecha com: assinatura + a parte da taxa da nexaGO que é do **organizador/arena** nas
@@ -104,7 +106,7 @@ Não fixado. Calibrar com dado real, porque a taxa de serviço é configurável 
 9 telas: P0 pagamento da inscrição com oferta, P1 tela do plano, P2 assinar, P3 meu plano,
 P4 seu mês, P5 torneio com inscrição antecipada, P6 perfil, P7 push do dia 1º, P8 pausa.
 
-Ajustes para o protótipo bater com a spec e com o sistema:
+Ajustes aplicados no protótipo em 03/11/2026 (`np-app-a.jsx`, `np-app-b.jsx` e subtítulos do canvas):
 - **P0, P1, P3, P7:** tirar "taxa de serviço · reservas" e "cashback extra 4%". A economia é só a
   taxa da inscrição, até o teto.
 - **P2:** "Começa a valer agora" sem "Cashback 4%"; forma de pagamento depende do item de cartão salvo.
@@ -114,8 +116,12 @@ Ajustes para o protótipo bater com a spec e com o sistema:
 - **P3:** benefício "Fila do clubinho" sai.
 - **P8:** "o cashback não expira" vira "seu saldo continua valendo até o vencimento", mais o aviso do
   que vence durante a pausa. Teto de 3 meses a cada 12.
-- **Datas:** 1º/nov/2026 e 15/nov/2026 são domingo (as telas dizem sábado); 06–07/dez é domingo e segunda.
-- **Valores:** preço R$ 19,90 e taxas são ilustrativos, até a calibração da seção Preço.
+- **Datas:** 1º/nov/2026 e 15/nov/2026 são domingo e 06–07/dez é domingo e segunda. As telas
+  passaram a usar sáb 14/nov (P0), 05–06/dez sáb–dom (P5) e "Domingo, 1 de novembro" (P7).
+- **P2/P3:** sem "Visa •••• 4421"; o cartão é digitado no checkout do Asaas, e a próxima cobrança
+  da P3 vira 03 dez.
+- **Valores:** preço R$ 19,90, teto de R$ 30 e taxas são ilustrativos, até a calibração da seção
+  Preço. O exemplo de outubro: 4 inscrições, R$ 28 de taxa isenta, R$ 8,10 "no bolso"; setembro bateu o teto.
 
 ## Fases
 

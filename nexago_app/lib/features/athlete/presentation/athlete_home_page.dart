@@ -33,6 +33,7 @@ import '../../tournaments/presentation/widgets/pending_tournament_reviews_sectio
 import '../../athlete_billing/presentation/widgets/athlete_billing_home_alert.dart';
 import '../../athlete_training/presentation/widgets/athlete_training_home_entry.dart';
 import '../../home_banners/presentation/widgets/home_news_section.dart';
+import '../../athlete_plus/presentation/widgets/athlete_plus_waitlist_card.dart';
 import '../../messages/application/messages_providers.dart';
 import '../domain/athlete_booking_helpers.dart';
 import '../domain/athlete_display_name.dart';
@@ -379,6 +380,9 @@ class AthleteHomePage extends ConsumerWidget {
                       // Novidades do app (backoffice): segundo assunto da
                       // Home, logo abaixo dos atalhos. Sem novidade, some.
                       const HomeNewsSection(),
+                      // nexaGO+ (lista de espera): só com a flag e enquanto
+                      // o atleta não respondeu.
+                      const AthletePlusWaitlistCard(),
                       const AthleteHomeFollowingMatchesSection(),
                       const Padding(
                         padding: EdgeInsets.symmetric(

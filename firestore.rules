@@ -3392,6 +3392,32 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Lista de espera do nexaGO+ (plano do atleta, spec 2026-11-03 Fase 0): o card da
+    // Início grava UMA resposta por atleta — entrou na lista ou dispensou. O atleta lê
+    // só o próprio doc (o card some depois de responder); ninguém lista pelo cliente,
+    // o relatório é Admin SDK (`functions/scripts/athlete-plus-waitlist-report.js`).
+    // Sem update/delete: quem dispensou não volta a ver o card.
+    match /athletePlusWaitlist/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow list, update, delete: if false;
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(
+          ['status', 'source', 'interests', 'priceBand', 'createdAt', 'updatedAt'])
+        && request.resource.data.keys().hasAll(
+          ['status', 'source', 'interests', 'createdAt', 'updatedAt'])
+        && request.resource.data.status in ['joined', 'dismissed']
+        && request.resource.data.source == 'home'
+        && request.resource.data.interests is list
+        && request.resource.data.interests.size() <= 4
+        && request.resource.data.interests.toSet().hasOnly(
+          ['savings', 'evolution', 'status', 'priority'])
+        && (!('priceBand' in request.resource.data)
+          || request.resource.data.priceBand in
+            ['up_to_10', 'up_to_15', 'up_to_20', 'up_to_30', 'unsure'])
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+    }
+
     // Banner de novidades da Home, tela de Novidades e Central de ajuda (backoffice › App do atleta).
     // A fonte guarda rascunhos e pausados, então só o admin lê; o app lê os espelhos
     // `appConfig/homeBanners`, `appConfig/appNews` e `appConfig/appGuide`. Escrita só pelas callables

@@ -341,4 +341,25 @@ void main() {
       );
     });
   });
+
+  test('scheduleMyPendingPayment: só a do titular aguardando pagamento', () {
+    ScheduleSubscription sub(String status, String holder) =>
+        ScheduleSubscription.fromMap({
+          'id': '$status-$holder',
+          'status': status,
+          'holderAthleteId': holder,
+        });
+    expect(scheduleMyPendingPayment([sub('active', 'u1')], 'u1'), isNull);
+    expect(
+      scheduleMyPendingPayment([sub('pending_payment', 'u2')], 'u1'),
+      isNull,
+    );
+    expect(
+      scheduleMyPendingPayment(
+        [sub('active', 'u1'), sub('pending_payment', 'u1')],
+        'u1',
+      )?.id,
+      'pending_payment-u1',
+    );
+  });
 }

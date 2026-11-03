@@ -377,6 +377,30 @@ class AnalyticsService {
         },
       );
 
+  // --- Lista de espera do nexaGO+ ---
+
+  Future<void> logAthletePlusCardShown() =>
+      _analytics.logEvent(name: AnalyticsEvents.athletePlusCardShown);
+
+  Future<void> logAthletePlusSheetOpened() =>
+      _analytics.logEvent(name: AnalyticsEvents.athletePlusSheetOpened);
+
+  /// [interests]: chaves separadas por vírgula (`savings,evolution`);
+  /// [priceBand]: chave da faixa ou ausente.
+  Future<void> logAthletePlusWaitlistJoined({
+    required String interests,
+    String? priceBand,
+  }) => _analytics.logEvent(
+    name: AnalyticsEvents.athletePlusWaitlistJoined,
+    parameters: {
+      'interests': interests.isEmpty ? 'none' : interests,
+      if (priceBand != null) 'price_band': priceBand,
+    },
+  );
+
+  Future<void> logAthletePlusCardDismissed() =>
+      _analytics.logEvent(name: AnalyticsEvents.athletePlusCardDismissed);
+
   // --- Peladas ---
 
   Future<void> logPeladasTabViewed() =>

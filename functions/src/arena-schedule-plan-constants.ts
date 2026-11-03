@@ -51,6 +51,10 @@ export const PENDING_PAYMENT_STATUS = "pending_payment";
 /** Prazo para pagar a 1ª mensalidade na assinatura pelo app. */
 export const SIGNUP_PAYMENT_WINDOW_MS = 30 * 60_000;
 
+/** Atleta com plano aguardando pagamento não assina outro (em nenhuma arena) até pagar ou desistir. */
+export const PENDING_PAYMENT_BLOCK_MESSAGE =
+  "Você tem um plano aguardando pagamento. Pague ou desista dele antes de assinar outro.";
+
 /** Menor valor cobrado online (abaixo disso a mensalidade fica manual). */
 export const MIN_ONLINE_CHARGE_REAIS = 5;
 

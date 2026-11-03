@@ -96,30 +96,6 @@ void main() {
         isFalse,
       );
     });
-
-    test('pedido de CPF = failed-precondition com a frase exata', () {
-      expect(
-        scheduleIsCpfRequired(
-          code: 'failed-precondition',
-          message: 'Informe seu CPF para pagar online.',
-        ),
-        isTrue,
-      );
-      expect(
-        scheduleIsCpfRequired(
-          code: 'failed-precondition',
-          message: 'Esta mensalidade é paga direto na arena.',
-        ),
-        isFalse,
-      );
-      expect(
-        scheduleIsCpfRequired(
-          code: 'invalid-argument',
-          message: scheduleCpfRequiredMessage,
-        ),
-        isFalse,
-      );
-    });
   });
 
   group('selo e forma', () {

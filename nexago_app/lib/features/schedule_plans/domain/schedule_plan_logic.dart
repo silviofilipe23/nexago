@@ -429,15 +429,6 @@ int scheduleOverdueDays(ScheduleCharge charge, DateTime now) {
 
 // ── Cobrança online (link mensal Pix ou cartão) ─────────────────────────
 
-/// Mensagem exata do `getArenaScheduleChargePaymentLink` quando o atleta
-/// ainda não tem CPF guardado: o app pede o CPF e repete com `cpfCnpj`.
-const scheduleCpfRequiredMessage = 'Informe seu CPF para pagar online.';
-
-/// O erro da callable é o pedido de CPF (e não outra pré-condição).
-bool scheduleIsCpfRequired({String? code, required String message}) =>
-    code == 'failed-precondition' &&
-    message.trim() == scheduleCpfRequiredMessage;
-
 /// Mensalidade que o atleta paga pelo app ("Pagar" → fatura).
 bool scheduleCanPayOnline(ScheduleCharge charge) =>
     charge.isOpen && charge.isOnline;

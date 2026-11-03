@@ -589,6 +589,7 @@ class ScheduleCredit {
 class ScheduleCharge {
   const ScheduleCharge({
     required this.id,
+    this.planName = '',
     this.period = '',
     this.amountReais = 0,
     this.dueDate,
@@ -603,6 +604,9 @@ class ScheduleCharge {
   });
 
   final String id;
+
+  /// Nome do plano (vem no doc da mensalidade; a lista de Meu plano não usa).
+  final String planName;
   final String period;
   final double amountReais;
   final DateTime? dueDate;
@@ -640,6 +644,7 @@ class ScheduleCharge {
     final asaas = spMap(m['asaas']);
     return ScheduleCharge(
       id: spStr(m['id'] ?? m['chargeId']),
+      planName: spStr(m['planName']),
       period: spStr(m['period']),
       amountReais: spDouble(m['amountReais']),
       dueDate: spDate(m['dueDate']),
@@ -919,4 +924,31 @@ class ScheduleSubscribeResult {
       firstChargeDueDate: spDate(firstMap['dueDate']),
     );
   }
+}
+
+/// Tela de pagamento da mensalidade: link da fatura (cartão, no checkout do
+/// Asaas) e, no Pix, o QR da mesma cobrança.
+class ScheduleCheckout {
+  const ScheduleCheckout({
+    required this.invoiceUrl,
+    this.amountReais = 0,
+    this.qrCode,
+    this.qrCodeBase64,
+  });
+
+  final String invoiceUrl;
+  final double amountReais;
+
+  /// Pix copia-e-cola.
+  final String? qrCode;
+  final String? qrCodeBase64;
+
+  bool get hasPix => (qrCode ?? '').isNotEmpty;
+
+  factory ScheduleCheckout.fromMap(Map<String, dynamic> m) => ScheduleCheckout(
+        invoiceUrl: spStr(m['invoiceUrl']),
+        amountReais: spDouble(m['amountReais']),
+        qrCode: spStrOrNull(m['qrCode']),
+        qrCodeBase64: spStrOrNull(m['qrCodeBase64']),
+      );
 }

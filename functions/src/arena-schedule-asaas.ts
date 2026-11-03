@@ -33,6 +33,7 @@ import {asaasArenaSecrets, getAsaasEnvTag} from "./asaas-client";
 import {
   createAsaasInvoiceCharge,
   deleteAsaasPaymentOrThrow,
+  fetchAsaasPixQrCode,
   getAsaasPayment,
   type AsaasPaymentDetails,
 } from "./asaas-booking-payment";
@@ -67,6 +68,8 @@ export interface ScheduleAsaasDeps {
   /** Apaga a cobrança; lança se não der (já paga, por exemplo). 404 conta como apagada. */
   deletePayment: (paymentId: string) => Promise<void>;
   getPayment: (paymentId: string) => Promise<AsaasPaymentDetails>;
+  /** QR do Pix da cobrança (a fatura `UNDEFINED` aceita Pix): copia-e-cola e imagem. */
+  fetchPixQrCode: (paymentId: string) => Promise<{qrCode: string; qrCodeBase64: string}>;
   notify: (input: {userId: string; title: string; body: string; type: string; data: Record<string, string>}) => Promise<void>;
   sleep: (ms: number) => Promise<void>;
 }
@@ -121,6 +124,10 @@ export const defaultScheduleAsaasDeps: ScheduleAsaasDeps = {
   getPayment: (paymentId) => {
     assertAsaasAllowed();
     return getAsaasPayment(paymentId);
+  },
+  fetchPixQrCode: (paymentId) => {
+    assertAsaasAllowed();
+    return fetchAsaasPixQrCode(paymentId);
   },
   notify: async (input) => {
     await deliverNotificationToUser({...input, requireInteraction: false});
@@ -759,6 +766,38 @@ export async function getScheduleChargePaymentLinkCore(
   throw new HttpsError("unavailable", LINK_PENDING_MESSAGE);
 }
 
+export const PIX_UNAVAILABLE_MESSAGE = "Não foi possível gerar o Pix agora. Tente de novo ou pague com cartão.";
+
+/**
+ * Tela de pagamento do app: garante a cobrança como o "Pagar" e, com `method: "pix"`, devolve o QR
+ * do Pix da MESMA cobrança — a fatura é `UNDEFINED`, que o Asaas aceita no QR. Cartão abre o link
+ * (checkout hospedado). Uma cobrança só por mensalidade: webhook, estorno e anulação não mudam.
+ */
+export async function getScheduleChargeCheckoutCore(
+  db: Firestore,
+  uid: string,
+  chargeIdRaw: unknown,
+  cpfRaw: unknown,
+  methodRaw: unknown,
+  deps: ScheduleAsaasDeps = defaultScheduleAsaasDeps,
+  opts: {waitMs?: number; pollMs?: number} = {},
+): Promise<{invoiceUrl: string; amountReais: number; qrCode?: string; qrCodeBase64?: string}> {
+  const {invoiceUrl} = await getScheduleChargePaymentLinkCore(db, uid, chargeIdRaw, cpfRaw, deps, opts);
+  const charge = ((await db.collection(ARENA_SCHEDULE_CHARGES).doc(str(chargeIdRaw)).get()).data() ?? {}) as Data;
+  const amountReais = Number(charge["amountReais"] ?? 0);
+  if (str(methodRaw) !== "pix") return {invoiceUrl, amountReais};
+  const groupId = str(asaasOf(charge)["groupId"]);
+  const paymentId = groupId ? str((await groupsCol(db).doc(groupId).get()).data()?.["paymentId"]) : "";
+  if (!paymentId) throw new HttpsError("unavailable", LINK_PENDING_MESSAGE);
+  try {
+    const qr = await deps.fetchPixQrCode(paymentId);
+    return {invoiceUrl, amountReais, qrCode: qr.qrCode, qrCodeBase64: qr.qrCodeBase64};
+  } catch (e) {
+    logger.warn(`getScheduleChargeCheckoutCore: QR do Pix de ${paymentId} falhou`, e);
+    throw new HttpsError("unavailable", PIX_UNAVAILABLE_MESSAGE);
+  }
+}
+
 export const getArenaScheduleChargePaymentLink = onCall({
   region: CLIENT_FACING_REGIONS,
   timeoutSeconds: 60,
@@ -767,7 +806,8 @@ export const getArenaScheduleChargePaymentLink = onCall({
   const uid = requireUid(request.auth);
   const input = (request.data ?? {}) as Data;
   try {
-    return await getScheduleChargePaymentLinkCore(getFirestore(), uid, input["chargeId"], input["cpfCnpj"]);
+    // `method` ausente (apps antigos) = só o link, como antes.
+    return await getScheduleChargeCheckoutCore(getFirestore(), uid, input["chargeId"], input["cpfCnpj"], input["method"]);
   } catch (e) {
     if (e instanceof Error && e.message === "ASAAS_CUSTOMER_CPF_REQUIRED") {
       throw new HttpsError("failed-precondition", CPF_REQUIRED_MESSAGE);

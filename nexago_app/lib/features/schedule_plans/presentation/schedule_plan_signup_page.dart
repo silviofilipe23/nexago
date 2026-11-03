@@ -236,7 +236,7 @@ class _SchedulePlanSignupPageState
               ? 'Horário trocado.'
               : 'Horário trocado. Agora na $court.';
       }
-      // Pix ou cartão com a arena cobrando online: Meu plano já abre o
+      // Pix ou cartão com a arena cobrando online: vai direto para a tela de
       // pagamento da 1ª mensalidade.
       final payChargeId = created != null &&
               schedulePaysOnSignup(
@@ -253,16 +253,16 @@ class _SchedulePlanSignupPageState
       if (!mounted) return;
       showAppSnackBar(
         context,
-        pay ? '$message Agora é só pagar a 1ª mensalidade.' : message,
+        pay ? '$message Agora pague a 1ª mensalidade.' : message,
       );
       if (_mode == _Mode.change) {
         popOrGo(context, AppRoutes.mySchedulePlans);
+      } else if (payChargeId != null) {
+        // Meu plano por baixo: voltar da tela de pagamento cai no plano.
+        context.pushReplacement(AppRoutes.mySchedulePlans);
+        context.push(schedulePlanPaymentLocation(payChargeId));
       } else {
-        context.pushReplacement(
-          mySchedulePlansLocation(
-            payChargeId: payChargeId,
-          ),
-        );
+        context.pushReplacement(AppRoutes.mySchedulePlans);
       }
     } catch (e) {
       if (!mounted) return;

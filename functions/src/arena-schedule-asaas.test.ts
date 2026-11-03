@@ -21,6 +21,7 @@ import {
   decideScheduleChargeBilling,
   ensureScheduleAsaasPayment,
   MAX_VOID_ATTEMPTS,
+  getScheduleChargeCheckoutCore,
   getScheduleChargePaymentLinkCore,
   reconcileScheduleAsaasPayments,
   requestScheduleAsaasVoid,
@@ -64,6 +65,7 @@ function fakeDeps(over: Partial<ScheduleAsaasDeps> = {}, customers: Record<strin
   const calls = {
     created: [] as string[], deleted: [] as string[], registered: [] as Array<[string, string]>,
     pushes: [] as Array<{userId: string; type: string; data: Record<string, string>}>,
+    qr: [] as string[],
   };
   const known = new Map(Object.entries(customers));
   const deps: ScheduleAsaasDeps = {
@@ -81,6 +83,10 @@ function fakeDeps(over: Partial<ScheduleAsaasDeps> = {}, customers: Record<strin
       calls.deleted.push(id);
     },
     getPayment: async (id) => ({id, status: "PENDING"}),
+    fetchPixQrCode: async (id) => {
+      calls.qr.push(id);
+      return {qrCode: `pix-${id}`, qrCodeBase64: "aW1n"};
+    },
     notify: async (i) => {
       calls.pushes.push({userId: i.userId, type: i.type, data: i.data});
     },
@@ -647,5 +653,35 @@ describe("planos de horário online — regressões da revisão", () => {
     assert.deepEqual(await voidScheduleAsaasPayment(db, groupId, {...flaky, getPayment: async (id) => ({id, status: "PENDING"})}),
       {state: "void"});
     assert.equal(group(fake, groupId)["voidError"], "503");
+  });
+});
+
+describe("planos de horário online — tela de pagamento (Pix no app)", () => {
+  it("Pix: QR da mesma cobrança do link, sem criar outra; cartão: só o link", async () => {
+    const {fake, db} = makeDb();
+    seedOnline(fake);
+    const {groupId, deps, calls} = await openGroup(fake, db);
+    const pix = await getScheduleChargeCheckoutCore(db, "u1", "c1", undefined, "pix", deps);
+    assert.equal(pix.invoiceUrl, `https://asaas.test/i/${groupId}`);
+    assert.equal(pix.qrCode, `pix-pay_${groupId}`);
+    assert.equal(pix.qrCodeBase64, "aW1n");
+    assert.equal(pix.amountReais, Number(charge(fake)["amountReais"]));
+    assert.deepEqual(calls.qr, [`pay_${groupId}`]);
+    assert.equal(calls.created.length, 1, "não cria cobrança nova");
+
+    const card = await getScheduleChargeCheckoutCore(db, "u1", "c1", undefined, "card", deps);
+    assert.equal(card.invoiceUrl, `https://asaas.test/i/${groupId}`);
+    assert.equal(card.qrCode, undefined);
+    assert.equal(calls.qr.length, 1);
+  });
+
+  it("QR que falha vira mensagem amigável", async () => {
+    const {fake, db} = makeDb();
+    seedOnline(fake);
+    const {deps} = await openGroup(fake, db);
+    deps.fetchPixQrCode = async () => {
+      throw new Error("ASAAS_PIX_QR_MISSING");
+    };
+    await rejectsWith(getScheduleChargeCheckoutCore(db, "u1", "c1", undefined, "pix", deps), "unavailable");
   });
 });

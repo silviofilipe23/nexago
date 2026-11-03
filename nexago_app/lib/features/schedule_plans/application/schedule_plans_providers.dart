@@ -63,3 +63,12 @@ final myScheduleOffersCountProvider = StreamProvider.autoDispose<int>((ref) {
       .watchMyOffersCount(uid)
       .handleError((Object _) {});
 });
+
+/// Mensalidade ao vivo na tela de pagamento.
+final scheduleChargeProvider = StreamProvider.autoDispose
+    .family<ScheduleCharge?, String>((ref, chargeId) {
+  if (chargeId.isEmpty || ref.watch(schedulePlansUidProvider).isEmpty) {
+    return Stream.value(null);
+  }
+  return ref.watch(schedulePlansRepositoryProvider).watchCharge(chargeId);
+});

@@ -108,6 +108,57 @@ void main() {
     expect(find.textContaining('427,50'), findsOneWidget);
   });
 
+  testWidgets('plano aguardando pagamento trava a assinatura de outro',
+      (tester) async {
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          schedulePlansUidProvider.overrideWith((ref) => 'u1'),
+          schedulePlanAvailabilityProvider
+              .overrideWith((ref, key) async => availability),
+          myScheduleSubscriptionsProvider.overrideWith(
+            (ref) async => MyScheduleSubscriptions.fromMap({
+              'subscriptions': [
+                {
+                  'id': 's1',
+                  'planName': 'Fixo Manhã',
+                  'status': 'pending_payment',
+                  'holderAthleteId': 'u1',
+                },
+              ],
+            }),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: const SchedulePlanSignupPage(arenaId: 'a1', planId: 'p1'),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+        find.byKey(const Key('schedule-signup-pending-block')), findsOneWidget);
+    expect(find.text('Pague o plano Fixo Manhã primeiro'), findsOneWidget);
+    expect(find.text('Pagar agora'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('schedule-day-2')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('schedule-day-4')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('schedule-time-20:00')));
+    await tester.pump();
+    final submit = tester.widget<FilledButton>(find.descendant(
+      of: find.byKey(const Key('schedule-signup-submit')),
+      matching: find.byType(FilledButton),
+    ));
+    expect(submit.onPressed, isNull);
+  });
+
   testWidgets('pagamento: nota conforme a cobrança online da arena',
       (tester) async {
     tester.view.physicalSize = const Size(1170, 2532);

@@ -1144,3 +1144,51 @@ describe("asaas-tournament-registration-webhook: quem paga a taxa", () => {
     assert.equal(fake.store.get(REG_PATH)!["paidAmount"], ENTRY_FEE);
   });
 });
+
+describe("asaas-tournament-registration-webhook: taxa de antecipação do cartão", () => {
+  it("sai do bruto: a inscrição e o caixa ficam no preço; congela no processado para a liquidação", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    // R$ 100 + 1,33% de antecipação no cartão; o Asaas fica com R$ 3,53 de processamento.
+    fake.seedDoc(PENDING_A, {...CARD_PENDING_A, cardFeeCents: 133});
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", cardPayment("CONFIRMED", {value: 101.33, netValue: 97.8}), processedRefOf(db), makeDeps().deps,
+    );
+    assert.equal(fake.store.get(REG_PATH)!["paidAmount"], ENTRY_FEE);
+    assert.equal(fake.store.get(REG_PATH)!["isPaid"], true);
+    assert.equal(fake.store.get(PROCESSED_PATH)!["cardFeeCents"], 133);
+    // 100 − 8% da plataforma − 3,53 do cartão
+    assert.equal(walletDoc(fake)!["awaitingSettlementReais"], 88.47);
+
+    // O pendente some antes da liquidação: vale a congelada.
+    fake.store.delete(PENDING_A);
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", cardPayment("RECEIVED", {value: 101.33, netValue: 97.8}), processedRefOf(db), makeDeps().deps,
+    );
+
+    const credit = ledgerEntries(fake).find((e) => e.type === "credit")!;
+    assert.equal(credit.grossReais, ENTRY_FEE);
+    assert.equal(credit.cardFeeReais, 1.33);
+    assert.equal(credit.netReais, 88.47);
+    assert.equal(walletDoc(fake)!["availableReais"], 88.47);
+    assert.equal(walletDoc(fake)!["awaitingSettlementReais"], 0);
+  });
+
+  it("pendente de outra cobrança: sem a taxa, o organizador recebe junto (nunca a menos)", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, {...CARD_PENDING_A, asaasPaymentId: "payNovo", cardFeeCents: 133});
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", cardPayment("RECEIVED", {value: 101.33, netValue: 97.8}), processedRefOf(db), makeDeps().deps,
+    );
+
+    const credit = ledgerEntries(fake).find((e) => e.type === "credit")!;
+    assert.equal(credit.grossReais, 101.33);
+    assert.equal(credit.cardFeeReais, undefined);
+    assert.equal(fake.store.get(PROCESSED_PATH)!["cardFeeCents"], undefined);
+  });
+});

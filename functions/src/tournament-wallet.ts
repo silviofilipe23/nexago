@@ -163,6 +163,8 @@ export async function creditTournamentWalletFromRegistration(
      * líquido; só registro. Receita da nexaGO = `platformFeeReais` + esta.
      */
     serviceFeeReais?: number;
+    /** Taxa de antecipação do cartão paga pelo atleta por cima — fora do bruto; só registro. */
+    cardFeeReais?: number;
     /** Taxa do gateway repassada ao organizador: cartão desconta, PIX é 0. */
     gatewayFeeReais?: number;
     /** Parte do bruto paga com cashback do atleta (a nexaGO cobre) — só auditoria. */
@@ -232,6 +234,7 @@ export async function creditTournamentWalletFromRegistration(
       cashbackAppliedReais: roundMoney(Math.max(0, params.cashbackAppliedReais ?? 0)),
       squadDiscountReais: roundMoney(Math.max(0, params.squadDiscountReais ?? 0)),
       ...((params.serviceFeeReais ?? 0) > 0 ? {serviceFeeReais: roundMoney(params.serviceFeeReais!)} : {}),
+      ...((params.cardFeeReais ?? 0) > 0 ? {cardFeeReais: roundMoney(params.cardFeeReais!)} : {}),
       createdAt: FieldValue.serverTimestamp(),
     });
 

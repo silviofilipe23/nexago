@@ -259,7 +259,8 @@ export async function acceptWaitlistOfferCore(
   input: Data,
   todayKey: string,
   nowMs: number,
-): Promise<Pick<CreateSubscriptionResult, "subscriptionId" | "courtName" | "skippedDates" | "firstCharge">> {
+): Promise<Pick<CreateSubscriptionResult,
+  "subscriptionId" | "courtName" | "skippedDates" | "firstCharge" | "status" | "paymentDeadline">> {
   const entryId = str(input["entryId"]);
   if (!entryId) throw new HttpsError("invalid-argument", "Oferta inválida.");
   const snap = await db.collection(ARENA_SCHEDULE_WAITLIST).doc(entryId).get();
@@ -280,7 +281,7 @@ export async function acceptWaitlistOfferCore(
   }, todayKey, nowMs);
   return {
     subscriptionId: result.subscriptionId, courtName: result.courtName, skippedDates: result.skippedDates,
-    firstCharge: result.firstCharge,
+    firstCharge: result.firstCharge, status: result.status, paymentDeadline: result.paymentDeadline,
   };
 }
 
@@ -324,7 +325,10 @@ export const acceptArenaScheduleWaitlistOffer = onCall({region: CLIENT_FACING_RE
       getFirestore(), uid, (request.data ?? {}) as Data, dayKeyFromEventDate(new Date()), Date.now(),
     );
     // `firstCharge`: o app leva o atleta direto ao pagamento da 1ª mensalidade.
-    return {subscriptionId: result.subscriptionId, courtName: result.courtName, firstCharge: result.firstCharge};
+    return {
+      subscriptionId: result.subscriptionId, courtName: result.courtName, firstCharge: result.firstCharge,
+      status: result.status, paymentDeadline: result.paymentDeadline,
+    };
   } catch (e) {
     return rethrowSchedule("acceptArenaScheduleWaitlistOffer", e);
   }

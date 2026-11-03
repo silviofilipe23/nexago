@@ -27,6 +27,13 @@ abstract final class AnalyticsEvents {
   static const peladaEdited = 'pelada_edited';
   static const peladaShared = 'pelada_shared';
 
+  // Lista de espera do nexaGO+ (spec 2026-11-03, Fase 0):
+  // card exibido → folha aberta → entrou na lista | dispensou.
+  static const athletePlusCardShown = 'athlete_plus_card_shown';
+  static const athletePlusSheetOpened = 'athlete_plus_sheet_opened';
+  static const athletePlusWaitlistJoined = 'athlete_plus_waitlist_joined';
+  static const athletePlusCardDismissed = 'athlete_plus_card_dismissed';
+
   // Funil do Bora Jogar (match finder):
   // builder aberto → convite enviado → aceito → check-in → avaliação.
   static const friendlyMatchBuilderOpened = 'friendly_match_builder_opened';

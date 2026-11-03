@@ -184,6 +184,11 @@ Future<GoRouter> _pump(
         name: AppRouteNames.athleteMessages,
         builder: (_, __) => _stub('mensagens'),
       ),
+      GoRoute(
+        path: AppRoutes.athleteBilling,
+        name: AppRouteNames.athleteBilling,
+        builder: (_, s) => _stub('cobrancas ${s.uri.queryParameters['tipo']}'),
+      ),
     ],
   );
   addTearDown(router.dispose);
@@ -712,7 +717,7 @@ void main() {
       expect(find.byKey(const Key('training-plans-empty')), findsOneWidget);
     });
 
-    testWidgets('hub mostra Meus planos e leva aos pagamentos',
+    testWidgets('hub mostra Meus planos e leva às Cobranças de aulas',
         (tester) async {
       final router = await _pump(
         tester,
@@ -721,9 +726,10 @@ void main() {
       );
       expect(find.byKey(const Key('training-hub-plan-e1')), findsOneWidget);
       expect(find.byKey(const Key('training-hub-plan-tm')), findsOneWidget);
-      await tester.tap(find.text('Pagamentos'));
+      await tester.tap(find.text('Cobranças'));
       await _settle(tester);
-      expect(router.state.uri.path, AppRoutes.athleteTrainingPlans);
+      expect(router.state.uri.path, AppRoutes.athleteBilling);
+      expect(router.state.uri.queryParameters['tipo'], 'aulas');
     });
   });
 }

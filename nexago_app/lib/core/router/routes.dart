@@ -462,6 +462,10 @@ abstract final class AppRoutes {
   /// A3 · Meu plano. Mesmo caminho do `url` dos pushes dos planos.
   static const String mySchedulePlans = '/meus-planos-horario';
 
+  /// Cobranças do atleta: tudo que ele paga num lugar (aulas, horário fixo,
+  /// reservas e inscrições). `?aba=recorrentes|historico`, `?tipo=aulas|…`.
+  static const String athleteBilling = '/cobrancas';
+
   /// NexaSquad (embaixadores): telas internas, fora do shell (sem tab bar).
   /// Entrada pelo perfil e pela home; o push do convite abre [squadInvite].
   static const String squad = '/athlete/squad';
@@ -1258,6 +1262,7 @@ abstract final class AppRouteNames {
   static const String arenaSchedulePlans = 'arenaSchedulePlans';
   static const String arenaSchedulePlanSignup = 'arenaSchedulePlanSignup';
   static const String mySchedulePlans = 'mySchedulePlans';
+  static const String athleteBilling = 'athleteBilling';
   static const String squad = 'squad';
   static const String squadShare = 'squadShare';
   static const String squadEarnings = 'squadEarnings';

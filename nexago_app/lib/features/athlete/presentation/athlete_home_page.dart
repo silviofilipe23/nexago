@@ -30,6 +30,7 @@ import '../../tournaments/presentation/widgets/my_tournaments_home_section.dart'
 import '../../tournaments/presentation/widgets/pending_tournament_invitee_invites_section.dart';
 import '../../tournaments/presentation/widgets/pending_tournament_inviter_invites_section.dart';
 import '../../tournaments/presentation/widgets/pending_tournament_reviews_section.dart';
+import '../../athlete_billing/presentation/widgets/athlete_billing_home_alert.dart';
 import '../../athlete_training/presentation/widgets/athlete_training_home_entry.dart';
 import '../../home_banners/presentation/widgets/home_news_section.dart';
 import '../../messages/application/messages_providers.dart';
@@ -200,6 +201,12 @@ class AthleteHomePage extends ConsumerWidget {
                               // Dia do evento: o card do Modo Focus vem antes de tudo.
                               // Fora do dia (ou eliminado), some sem deixar vão.
                               const AthleteHomeFocusCard(
+                                bottomGap: _dynamicCardGap,
+                              ),
+                              // Cobrança vencida (aula, horário fixo…): vem logo
+                              // depois do Focus — é dinheiro atrasado com quem
+                              // recebe. Sem nada vencido, some.
+                              const AthleteBillingHomeAlert(
                                 bottomGap: _dynamicCardGap,
                               ),
                               // Convites para jogar numa reserva (recebidos e sem

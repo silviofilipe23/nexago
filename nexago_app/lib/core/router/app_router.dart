@@ -172,6 +172,7 @@ import '../../features/app_news/presentation/app_news_page.dart';
 import '../../features/app_news/presentation/app_news_stories_page.dart';
 import '../../features/cashback/presentation/cashback_page.dart';
 import '../../features/weather/presentation/booking_weather_choice_page.dart';
+import '../../features/athlete_billing/presentation/athlete_billing_routes.dart';
 import '../../features/schedule_plans/presentation/schedule_plans_routes.dart';
 import '../../features/weather/presentation/weather_credits_page.dart';
 import '../../features/squad/presentation/squad_benefits_page.dart';
@@ -3452,6 +3453,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       // Planos de horário da arena (A1 · A2 · A3) — `/planos-horario/...`
       // e `/meus-planos-horario` (destino dos pushes dos planos).
       ...schedulePlansRoutes(),
+      // Cobranças do atleta (menu da conta, Início e Treinos).
+      ...athleteBillingRoutes(),
       // Plano da aula publicado pelo professor (push `lesson_plan_published`).
       GoRoute(
         path: AppRoutes.athleteLessonPlans,

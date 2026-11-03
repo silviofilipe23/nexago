@@ -25,6 +25,8 @@ import '../../professor_mode/domain/professor_lesson_plans.dart';
 import '../../professor_mode/presentation/lesson_plans/athlete_lesson_plan_pages.dart'
     show openAthleteLessonPlan;
 import '../../professor_mode/presentation/widgets/professor_students_widgets.dart';
+import '../../athlete_billing/presentation/widgets/athlete_billing_widgets.dart'
+    show openTrainingCharges;
 import '../application/athlete_training_providers.dart';
 import '../domain/athlete_training.dart';
 import '../domain/class_presence.dart';
@@ -299,9 +301,8 @@ class _AthleteTrainingHubPageState
                 (plans != null && plans.activeCount > 0)) ...[
               TrainingSectionTitle(
                 'Meus planos',
-                action: 'Pagamentos',
-                onAction: () =>
-                    context.pushNamed(AppRouteNames.athleteTrainingPlans),
+                action: 'Cobranças',
+                onAction: () => openTrainingCharges(context),
               ),
               if (charges.isNotEmpty) ...[
                 TrainingTilesBlock(
@@ -314,8 +315,7 @@ class _AthleteTrainingHubPageState
                           : '${charges.length} mensalidades em aberto',
                       subtitle: charges.first.description,
                       highlight: charges.any((c) => c.overdue),
-                      onTap: () =>
-                          context.pushNamed(AppRouteNames.athleteTrainingPlans),
+                      onTap: () => openTrainingCharges(context),
                     ),
                   ],
                 ),

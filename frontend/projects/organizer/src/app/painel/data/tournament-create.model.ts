@@ -36,7 +36,7 @@ export type TournamentBestOf = 'singleSet' | 'bestOf3' | 'bestOf5';
 export type TournamentPaymentMode = 'appPixCard' | 'directWithOrganizer';
 
 /** Forma aceita no pagamento pelo app (`tournaments.onlinePaymentMethods`, só vale com
- *  `paymentMode === 'appPixCard'`). No cartão o atleta paga a taxa de antecipação por cima; o
+ *  `paymentMode === 'appPixCard'`). No cartão o atleta paga as taxas do cartão por cima; o
  *  repasse do organizador é o mesmo nas duas. */
 export type OnlinePaymentMethod = 'pix' | 'card';
 

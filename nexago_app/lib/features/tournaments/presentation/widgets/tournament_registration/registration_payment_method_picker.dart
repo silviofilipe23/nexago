@@ -21,7 +21,6 @@ class RegistrationPaymentMethodPicker extends StatelessWidget {
     required this.onChanged,
     this.methods = allRegistrationPaymentMethods,
     this.cardFeeReais = 0,
-    this.cardFeePercent = 0,
     this.enabled = true,
   });
 
@@ -39,9 +38,9 @@ class RegistrationPaymentMethodPicker extends StatelessWidget {
   /// Meios aceitos pelo torneio, na ordem da tela.
   final List<RegistrationPaymentMethod> methods;
 
-  /// Taxa de antecipação que o cartão soma por cima de [amountReais].
+  /// Taxas do cartão (processamento e antecipação) que ele soma por cima de
+  /// [amountReais].
   final double cardFeeReais;
-  final double cardFeePercent;
   final bool enabled;
 
   @override
@@ -77,8 +76,7 @@ class RegistrationPaymentMethodPicker extends StatelessWidget {
               title: 'Cartão de crédito · à vista',
               subtitle: '$cardTotal · checkout seguro do Asaas',
               note: hasCardFee
-                  ? 'Inclui taxa de antecipação de '
-                      '${formatCardFeePercent(cardFeePercent)}'
+                  ? 'Inclui ${formatBRL(cardFeeReais)} de taxas do cartão'
                   : null,
               noteKey: cardFeeNoteKey,
               selected: value == RegistrationPaymentMethod.card,
@@ -140,7 +138,7 @@ class _MethodTile extends StatelessWidget {
   final String? badge;
   final Key? badgeKey;
 
-  /// Linha miúda abaixo do valor ("Inclui taxa de antecipação de 1,33%").
+  /// Linha miúda abaixo do valor ("Inclui R$ 4,96 de taxas do cartão").
   final String? note;
   final Key? noteKey;
 

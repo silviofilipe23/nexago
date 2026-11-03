@@ -129,12 +129,16 @@ void main() {
     expect(find.text('Pagamento expirado'), findsOneWidget);
   });
 
-  group('formas aceitas e taxa de antecipação do cartão', () {
+  group('formas aceitas e taxas do cartão', () {
     const taxaDoCartao = TournamentServiceFeeRule(
       percent: 0,
       floorReais: 0,
       payer: TournamentServiceFeePayer.organizer,
-      cardFeePercent: 1.33,
+      cardFee: CardFeeTerms(
+        anticipationPercent: 1.33,
+        processingPercent: 2.99,
+        fixedReais: 0.49,
+      ),
     );
 
     testWidgets('só cartão: sem escolha, o botão já é o do cartão',
@@ -180,11 +184,11 @@ void main() {
 
     testWidgets(
         'os dois com taxa: Pix marcado e mais barato; no cartão o resumo e '
-        'o botão levam a taxa', (tester) async {
+        'o botão levam as taxas', (tester) async {
       final service = _FakeCardPaymentService(
         feeRule: taxaDoCartao,
-        charged: 101.33,
-        cardFee: 1.33,
+        charged: 104.96,
+        cardFee: 4.96,
       );
       await _abrir(tester, service: service);
       await tester.pump();
@@ -195,17 +199,14 @@ void main() {
         findsOneWidget,
       );
       // Pix escolhido: nada de taxa do cartão no resumo.
-      expect(find.textContaining('Taxa de antecipação do cartão'), findsNothing);
+      expect(find.text('Taxas do cartão'), findsNothing);
 
       await tester.tap(find.byKey(RegistrationPaymentMethodPicker.cardKey));
       await tester.pump();
 
-      expect(
-        find.text('Taxa de antecipação do cartão (1,33%)'),
-        findsOneWidget,
-      );
-      expect(find.text(formatBRL(1.33)), findsOneWidget);
-      final botao = 'Pagar ${formatBRL(101.33)} no cartão';
+      expect(find.text('Taxas do cartão'), findsOneWidget);
+      expect(find.text(formatBRL(4.96)), findsOneWidget);
+      final botao = 'Pagar ${formatBRL(104.96)} no cartão';
       expect(find.text(botao), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), '52998224725');
@@ -218,11 +219,15 @@ void main() {
       expect(
         find.descendant(
           of: find.byType(RegistrationCardCheckoutPanel),
-          matching: find.text(formatBRL(101.33)),
+          matching: find.text(formatBRL(104.96)),
         ),
         findsOneWidget,
       );
       expect(find.byKey(const Key('card-fee-note')), findsOneWidget);
+      expect(
+        find.text('Inclui ${formatBRL(4.96)} de taxas do cartão'),
+        findsOneWidget,
+      );
     });
   });
 }

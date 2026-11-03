@@ -136,7 +136,7 @@ const BEST_OFS: readonly TournamentBestOf[] = ['singleSet', 'bestOf3', 'bestOf5'
               (changed)="patch({ onlinePaymentMethods: onlinePaymentMethodsForLabel($event) })"
             />
           </og-form-field>
-          <p class="og-cfg-hint">No cartão o atleta paga a taxa de antecipação por cima do valor. Seu repasse não muda.</p>
+          <p class="og-cfg-hint">No cartão o atleta paga as taxas do cartão por cima do valor. Seu repasse fica igual ao do Pix.</p>
         }
         <og-radio-row
           title="Direto com o organizador"

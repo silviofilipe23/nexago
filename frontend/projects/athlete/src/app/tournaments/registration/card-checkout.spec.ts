@@ -7,8 +7,12 @@ import { AuthService } from '../../auth/auth.service';
 import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
 import type { AthleteTournamentRegistration } from '../../data/tournament-registrations-repository';
 import type { TournamentSummary } from '../../data/tournaments-repository';
+import type { CardFeeTerms } from '../../data/service-fee';
 import { NxToastService } from '../../shared/feedback';
 import { TournamentPaymentComponent, resolvePaymentMethods } from './tournament-payment.component';
+
+/** Só a antecipação (1,33%): mantém os valores destes casos simples. */
+const ONLY_ANTICIPATION: CardFeeTerms = { anticipationPercent: 1.33, processingPercent: 0, fixedReais: 0 };
 
 /** Regra pura, sem montar nada. */
 describe('resolvePaymentMethods', () => {
@@ -102,7 +106,7 @@ describe('TournamentPaymentComponent — cartão', () => {
     listing: ReturnType<typeof signal<TournamentSummary | null>>;
     cardResult: ReturnType<typeof signal<{ paymentId: string; invoiceUrl: string; expiresAt: string; amountReais: number } | null>>;
     method: ReturnType<typeof signal<'pix' | 'card'>>;
-    cardFeePercent: ReturnType<typeof signal<number>>;
+    cardFeeTerms: ReturnType<typeof signal<CardFeeTerms>>;
   }
 
   function create(paymentMode = 'appPixCard', onlinePaymentMethods?: string[]) {
@@ -223,34 +227,34 @@ describe('TournamentPaymentComponent — cartão', () => {
 
   it('torneio só cartão: sem seletor, direto no cartão (com a taxa no resumo e no botão)', () => {
     const { fixture, internals } = create('appPixCard', ['card']);
-    internals.cardFeePercent.set(1.33);
+    internals.cardFeeTerms.set(ONLY_ANTICIPATION);
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('.tp-method-toggle')).toBeNull();
     // Parcela de R$ 50 × 1,33% = R$ 0,67.
-    expect(summaryValue(fixture, 'Taxa de antecipação do cartão (1,33%)')).toBe('+R$ 0,67');
+    expect(summaryValue(fixture, 'Taxas do cartão')).toBe('+R$ 0,67');
     expect(texts(fixture, 'button.tp-btn-primary')[0]).toBe('Pagar R$ 50,67 no cartão');
   });
 
   it('com taxa no cartão o Pix aparece como o mais barato, com o cartão riscado', () => {
     const { fixture, internals } = create();
-    internals.cardFeePercent.set(1.33);
+    internals.cardFeeTerms.set(ONLY_ANTICIPATION);
     fixture.detectChanges();
 
     expect(texts(fixture, '.tp-method-btn-was')).toEqual(['R$ 50,67']);
     expect(texts(fixture, '.tp-method-badge')).toEqual(['R$ 0,67 a menos que no cartão']);
     // Pix escolhido: nada de taxa do cartão no resumo nem no botão.
-    expect(summaryValue(fixture, 'Taxa de antecipação')).toBeNull();
+    expect(summaryValue(fixture, 'Taxas do cartão')).toBeNull();
     expect(texts(fixture, 'button.tp-btn-primary')[0]).toBe('Gerar Pix de R$ 50,00');
   });
 
   it('cartão escolhido: a taxa entra no resumo e no total', () => {
     const { fixture, internals } = create();
-    internals.cardFeePercent.set(1.33);
+    internals.cardFeeTerms.set(ONLY_ANTICIPATION);
     internals.method.set('card');
     fixture.detectChanges();
 
-    expect(summaryValue(fixture, 'Taxa de antecipação do cartão (1,33%)')).toBe('+R$ 0,67');
+    expect(summaryValue(fixture, 'Taxas do cartão')).toBe('+R$ 0,67');
     expect(texts(fixture, '.tp-summary-total')).toEqual(['R$ 50,67']);
     expect(texts(fixture, 'button.tp-btn-primary')[0]).toBe('Pagar R$ 50,67 no cartão');
   });
@@ -261,13 +265,13 @@ describe('TournamentPaymentComponent — cartão', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('.tp-method-badge')).toBeNull();
-    expect(summaryValue(fixture, 'Taxa de antecipação')).toBeNull();
+    expect(summaryValue(fixture, 'Taxas do cartão')).toBeNull();
     expect(texts(fixture, 'button.tp-btn-primary')[0]).toBe('Pagar R$ 50,00 no cartão');
   });
 
   it('cartão gerado: vale o total e a taxa que o servidor cobrou', () => {
     const { fixture, internals } = create();
-    internals.cardFeePercent.set(1.33);
+    internals.cardFeeTerms.set(ONLY_ANTICIPATION);
     internals.cardResult.set({
       paymentId: 'pay1',
       invoiceUrl: 'https://sandbox.asaas.com/i/pay1',
@@ -279,7 +283,7 @@ describe('TournamentPaymentComponent — cartão', () => {
     } as never);
     fixture.detectChanges();
 
-    expect(summaryValue(fixture, 'Taxa de antecipação do cartão (1,33%)')).toBe('+R$ 0,67');
+    expect(summaryValue(fixture, 'Taxas do cartão')).toBe('+R$ 0,67');
     expect(texts(fixture, '.tp-pix-amount')).toEqual(['Cartão de R$ 50,67']);
     expect(texts(fixture, '.tp-summary-total')).toEqual(['R$ 50,67']);
   });

@@ -5,6 +5,7 @@ import {
   platformServiceFeeReais,
   readCardFee,
   readCardFeePercent,
+  readCardFeeTerms,
   readServiceFee,
   serviceFeeRuleFromRaw,
   type ServiceFeeRule,
@@ -52,18 +53,35 @@ describe('service-fee', () => {
     expect(readServiceFee(null)).toBe(0);
   });
 
-  it('taxa do cartão: % sobre os centavos do valor do cartão, arredondada (espelho do servidor)', () => {
-    expect(cardFeeReais(100, 1.33)).toBe(1.33);
-    // 3.000 centavos × 1,33% = 39,9 → 40 centavos.
-    expect(cardFeeReais(30, 1.33)).toBe(0.4);
-    expect(cardFeeReais(54, 1.33)).toBe(0.72);
+  const ASAAS = { anticipationPercent: 1.33, processingPercent: 2.99, fixedReais: 0.49 };
+  const ONLY_ANTICIPATION = { anticipationPercent: 1.33, processingPercent: 0, fixedReais: 0 };
+
+  it('taxas do cartão: processamento sobre o total + antecipação sobre a base (espelho do servidor)', () => {
+    // (100 + 1,33 + 0,49) / 0,9701 = 104,958… → 104,96.
+    expect(cardFeeReais(100, ASAAS)).toBe(4.96);
+    expect(cardFeeReais(90, ASAAS)).toBe(4.52);
+    expect(cardFeeReais(54.5, ASAAS)).toBe(2.93);
   });
 
-  it('taxa do cartão: sem valor ou sem % não há taxa', () => {
-    expect(cardFeeReais(0, 1.33)).toBe(0);
-    expect(cardFeeReais(50, 0)).toBe(0);
-    expect(cardFeeReais(-10, 1.33)).toBe(0);
-    expect(cardFeeReais(50, Number.NaN)).toBe(0);
+  it('taxas do cartão: só antecipação (backend que só manda o %) dá a conta de antes', () => {
+    expect(cardFeeReais(100, ONLY_ANTICIPATION)).toBe(1.33);
+    // 3.000 centavos × 1,33% = 39,9 → 40 centavos.
+    expect(cardFeeReais(30, ONLY_ANTICIPATION)).toBe(0.4);
+    expect(cardFeeReais(54, ONLY_ANTICIPATION)).toBe(0.72);
+  });
+
+  it('taxas do cartão: sem valor ou sem termos não há taxa', () => {
+    expect(cardFeeReais(0, ASAAS)).toBe(0);
+    expect(cardFeeReais(50, { anticipationPercent: 0, processingPercent: 0, fixedReais: 0 })).toBe(0);
+    expect(cardFeeReais(-10, ASAAS)).toBe(0);
+    expect(cardFeeReais(Number.NaN, ASAAS)).toBe(0);
+  });
+
+  it('lê os termos do cartão; ausente ou fora do contrato é zero (backend antigo)', () => {
+    expect(readCardFeeTerms({ cardFeePercent: 1.33, cardProcessingPercent: 2.99, cardFixedReais: 0.49 })).toEqual(ASAAS);
+    expect(readCardFeeTerms({ cardFeePercent: 1.33 })).toEqual(ONLY_ANTICIPATION);
+    expect(readCardFeeTerms({ cardProcessingPercent: '2.99' })).toEqual({ anticipationPercent: 0, processingPercent: 0, fixedReais: 0 });
+    expect(readCardFeeTerms(null)).toEqual({ anticipationPercent: 0, processingPercent: 0, fixedReais: 0 });
   });
 
   it('lê o % da taxa do cartão; ausente ou fora do contrato é zero (backend antigo)', () => {

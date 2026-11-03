@@ -594,7 +594,7 @@ function sameDay(a: Date, b: Date): boolean {
                         (changed)="patch({ onlinePaymentMethods: onlinePaymentMethodsForLabel($event) })"
                       />
                     </og-form-field>
-                    <p class="og-wizard-hint">No cartão o atleta paga a taxa de antecipação por cima do valor. Seu repasse não muda.</p>
+                    <p class="og-wizard-hint">No cartão o atleta paga as taxas do cartão por cima do valor. Seu repasse fica igual ao do Pix.</p>
                   }
                   @if (draft().paymentMode === 'directWithOrganizer') {
                     <div class="og-field-grid" style="margin-top:14px">

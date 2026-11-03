@@ -971,11 +971,11 @@ class ScheduleCheckout {
   final String invoiceUrl;
   final double amountReais;
 
-  /// Cartão: o que vai para o cartão (plano + taxa de antecipação). Ausente
+  /// Cartão: o que vai para o cartão (plano + taxas do cartão). Ausente
   /// (Pix, servidor antigo) = [amountReais].
   final double? chargedReais;
 
-  /// Taxa de antecipação do cartão, já dentro de [chargedReais].
+  /// Taxas do cartão (processamento e antecipação), já dentro de [chargedReais].
   final double cardFeeReais;
 
   /// Pix copia-e-cola.

@@ -28,18 +28,17 @@ List<RegistrationPaymentMethod> parseOnlinePaymentMethods(Object? raw) {
 /// Valores de cada meio na tela de escolha.
 ///
 /// [pixCents] é o que o Pix cobra (preço + taxa de serviço do atleta −
-/// descontos − cashback); o cartão cobra isso mais a taxa de antecipação
-/// ([cardFeeCents]), que só ele tem — por isso o Pix sai mais barato.
+/// descontos − cashback); o cartão cobra isso mais as taxas do cartão
+/// ([cardFeeCents]: processamento e antecipação), que só ele tem — por isso o
+/// Pix sai mais barato.
 class RegistrationMethodQuote {
   const RegistrationMethodQuote({
     required this.pixCents,
     required this.cardFeeCents,
-    required this.cardFeePercent,
   });
 
   final int pixCents;
   final int cardFeeCents;
-  final double cardFeePercent;
 
   int get cardTotalCents => pixCents + cardFeeCents;
 
@@ -48,17 +47,15 @@ class RegistrationMethodQuote {
       method == RegistrationPaymentMethod.card ? cardTotalCents : pixCents;
 }
 
-/// Monta o [RegistrationMethodQuote] a partir do valor do Pix e do % da taxa
-/// do cartão (`cardFeePercent` de `getTournamentServiceFee`).
+/// Monta o [RegistrationMethodQuote] a partir do valor do Pix e das taxas do
+/// cartão (`getTournamentServiceFee` / `getCardAnticipationFee`).
 RegistrationMethodQuote registrationMethodQuote({
   required int pixCents,
-  required double cardFeePercent,
+  required CardFeeTerms cardFee,
 }) {
-  final feeCents = cardAnticipationFeeCents(pixCents, cardFeePercent);
   return RegistrationMethodQuote(
     pixCents: pixCents,
-    cardFeeCents: feeCents,
-    cardFeePercent: feeCents > 0 ? cardFeePercent : 0,
+    cardFeeCents: cardSurchargeCents(pixCents, cardFee),
   );
 }
 

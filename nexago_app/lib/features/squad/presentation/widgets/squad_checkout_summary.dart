@@ -21,7 +21,7 @@ class SquadCheckoutSummary extends StatelessWidget {
     this.ownPerkCents = 0,
     this.ownPerkLabel = 'Benefício de embaixador',
     this.cardFeeCents = 0,
-    this.cardFeeLabel = 'Taxa de antecipação do cartão',
+    this.cardFeeLabel = 'Taxas do cartão',
   });
 
   final int priceCents;
@@ -42,7 +42,7 @@ class SquadCheckoutSummary extends StatelessWidget {
   final int ownPerkCents;
   final String ownPerkLabel;
 
-  /// Taxa de antecipação do cartão, por cima do que vai para o cartão (só
+  /// Taxas do cartão (processamento e antecipação), por cima do que vai para o cartão (só
   /// na inscrição paga no cartão); a linha só aparece quando é maior que zero.
   final int cardFeeCents;
   final String cardFeeLabel;

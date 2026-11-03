@@ -264,7 +264,7 @@
                   <p class="tp-amount-label">Como você quer pagar?</p>
                   <div class="tp-method-toggle" role="group" aria-label="Meio de pagamento">
                     <!-- Com taxa no cartão o Pix é o mais barato — e é verdade: a diferença é a taxa de
-                         antecipação, que só o cartão tem. Sem taxa (backend antigo), os dois de sempre. -->
+                         taxas do cartão, que só ele tem. Sem taxa (backend antigo), os dois de sempre. -->
                     <button
                       type="button"
                       class="tp-method-btn"
@@ -290,7 +290,7 @@
                       <span class="tp-method-btn-title">Cartão de crédito</span>
                       @if (pixSavingsReais() > 0) {
                         <span class="tp-method-btn-price"><strong>{{ formatBRL(cardTotalReais()) }}</strong></span>
-                        <span class="tp-method-btn-hint">Inclui taxa de antecipação ({{ cardFeePercentLabel() }}%)</span>
+                        <span class="tp-method-btn-hint">Inclui {{ formatBRL(previewCardFeeReais()) }} de taxas do cartão</span>
                       }
                       <span class="tp-method-btn-hint">Checkout seguro do Asaas</span>
                     </button>
@@ -467,7 +467,7 @@
                  cashback — por isso vem por último. -->
             @if (cardFeeDueReais() > 0) {
               <div class="tp-summary-row">
-                <span class="tp-summary-label">Taxa de antecipação do cartão ({{ cardFeePercentLabel() }}%)</span>
+                <span class="tp-summary-label">Taxas do cartão</span>
                 <span class="tp-summary-value">+{{ formatBRL(cardFeeDueReais()) }}</span>
               </div>
             }

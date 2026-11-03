@@ -1124,13 +1124,12 @@ final _screens = <_Screen>[
       RegistrationPaymentMethodPicker(
         value: RegistrationPaymentMethod.pix,
         amountReais: 100,
-        cardFeeReais: 1.33,
-        cardFeePercent: 1.33,
+        cardFeeReais: 4.96,
         onChanged: (_) {},
       ),
     ),
     find.byType(RegistrationPaymentMethodPicker),
-    ['${formatBRL(1.33)} a menos que no cartão'],
+    ['${formatBRL(4.96)} a menos que no cartão'],
   ),
   _Screen(
     'Inscrição: detalhe com pagamento pendente',

@@ -22,7 +22,7 @@ import {
   arenaBookingNetReais,
 } from "./arena-wallet";
 import {refundAsaasPayment, type AsaasPaymentDetails} from "./asaas-booking-payment";
-import {resolveGatewayFeeReais} from "./asaas-gateway-fee";
+import {gatewayFeeBeyondCovered, resolveGatewayFeeReais} from "./asaas-gateway-fee";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import {computePlatformFeeReais} from "./platform-fees";
@@ -125,11 +125,12 @@ export async function processArenaScheduleAsaasNotification(
     return;
   }
 
-  // Cartão pelo app: a taxa de antecipação foi por cima (`cardCharges` do grupo, por cobrança) e é da
-  // plataforma — a mensalidade, a taxa da NexaGO e o caixa da arena ficam no valor do plano.
-  const cardFeeCents = Number(((await groupRef.get()).data()?.["cardCharges"] as Record<string, unknown> | undefined)
-    ?.[paymentId] ?? 0) || 0;
-  const cardFeeReais = cardFeeCents > 0 ? cardFeeCents / 100 : 0;
+  // Cartão pelo app: as taxas do cartão foram por cima (`cardCharges` do grupo, por cobrança) — a
+  // mensalidade, a taxa da NexaGO e o caixa da arena ficam no valor do plano.
+  const {feeCents: cardFeeCents, processingCents: cardProcessingCents} = cardChargeOf(
+    ((await groupRef.get()).data()?.["cardCharges"] as Record<string, unknown> | undefined)?.[paymentId],
+  );
+  const cardFeeReais = cardFeeCents / 100;
   const gross = roundMoney((Number(payment.value) || 0) - cardFeeReais);
   let arenaId = String(processed["arenaId"] ?? "");
   let subscriptionId = String(processed["subscriptionId"] ?? "");
@@ -235,8 +236,12 @@ export async function processArenaScheduleAsaasNotification(
   if (!arenaId) return;
   const arenaData = (await db.collection("arenas").doc(arenaId).get()).data() ?? {};
   const platformFeeReais = computePlatformFeeReais(gross, resolveArenaBookingFeePercent(arenaData, deps.now().getTime()));
-  // A taxa do gateway é sobre o que o Asaas cobrou (com a taxa de antecipação), não sobre o plano.
-  const gatewayFeeReais = resolveGatewayFeeReais(payment, billingType, roundMoney(Number(payment.value) || 0));
+  // A taxa do gateway é sobre o que o Asaas cobrou (com as taxas do cartão), não sobre o plano; a arena
+  // só paga o processamento que o atleta não cobriu por cima.
+  const gatewayFeeReais = gatewayFeeBeyondCovered(
+    resolveGatewayFeeReais(payment, billingType, roundMoney(Number(payment.value) || 0)),
+    cardProcessingCents / 100,
+  );
 
   if (phases.awaitSettlement) {
     await holdArenaAwaitingSettlement(db, processedRef, {
@@ -264,6 +269,17 @@ export async function processArenaScheduleAsaasNotification(
       },
     });
   }
+}
+
+/**
+ * Acréscimo de uma cobrança de cartão no grupo (`cardCharges.{paymentId}`): `{feeCents,
+ * processingCents}`; número solto (só antecipação, antes do processamento ir por cima) = só o total.
+ */
+export function cardChargeOf(raw: unknown): {feeCents: number; processingCents: number} {
+  const int = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v > 0 ? v : 0);
+  if (typeof raw === "number") return {feeCents: int(raw), processingCents: 0};
+  const r = (raw ?? {}) as Record<string, unknown>;
+  return {feeCents: int(r["feeCents"]), processingCents: int(r["processingCents"])};
 }
 
 /** Espelha o status do Asaas no grupo e na mensalidade; removido no Asaas anula o grupo. */

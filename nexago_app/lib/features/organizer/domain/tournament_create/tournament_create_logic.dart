@@ -141,7 +141,7 @@ String onlinePaymentMethodsLabel(TournamentOnlinePaymentMethods value) =>
 
 /// Aviso abaixo da escolha das formas aceitas no app.
 const onlinePaymentMethodsHint =
-    'No cartão, o atleta paga a taxa de antecipação por cima do valor. '
+    'No cartão, o atleta paga as taxas do cartão por cima do valor. '
     'O seu repasse não muda.';
 
 /// Dados PIX obrigatórios apenas no modo "pagar direto com o organizador".

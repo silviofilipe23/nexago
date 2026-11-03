@@ -8,7 +8,8 @@ export type SchedulePlanStatus = 'draft' | 'active' | 'archived';
 export type ScheduleCycle = 'monthly' | 'quarterly' | 'annual';
 export type SchedulePaymentForm = 'pix_auto' | 'card' | 'onsite';
 export type ScheduleHolidayRule = 'makeup' | 'play';
-export type ScheduleSubscriptionStatus = 'active' | 'paused' | 'suspended' | 'canceled';
+/** `pending_payment`: assinou pelo app com Pix/cartão e tem 30 min para pagar a 1ª (segura o horário). */
+export type ScheduleSubscriptionStatus = 'active' | 'pending_payment' | 'paused' | 'suspended' | 'canceled';
 export type ScheduleChargeStatus = 'open' | 'paid' | 'canceled';
 /** Forma da baixa manual (o que o gestor recebeu). */
 export type ScheduleManualMethod = 'pix' | 'cash' | 'card_machine' | 'transfer';
@@ -398,7 +399,7 @@ export function subscriptionFromRaw(id: string, d: Raw): ScheduleSubscription {
     commitmentEndsOn: optStr(d['commitmentEndsOn']),
     paymentMethod: oneOf(d['paymentMethod'], PAYMENT_FORMS, 'onsite'),
     dueDay: num(d['dueDay'], 5),
-    status: oneOf(d['status'], ['active', 'paused', 'suspended', 'canceled'] as const, 'active'),
+    status: oneOf(d['status'], ['active', 'pending_payment', 'paused', 'suspended', 'canceled'] as const, 'active'),
     endsOn: optStr(d['endsOn']),
     endRequestedBy: d['endRequestedBy'] === 'athlete' ? 'athlete' : null,
     pausedUntil: optStr(d['pausedUntil']),

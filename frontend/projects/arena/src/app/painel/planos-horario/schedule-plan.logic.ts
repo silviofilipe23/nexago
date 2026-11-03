@@ -263,7 +263,7 @@ export function bandPluralTitle(o: Pick<BandOccupancy, 'band' | 'group'>): strin
 
 // ── Situação do assinante ───────────────────────────────────────────────────
 
-export type SubscriberStateKind = 'ok' | 'late' | 'suspended' | 'paused' | 'leaving';
+export type SubscriberStateKind = 'ok' | 'pending' | 'late' | 'suspended' | 'paused' | 'leaving';
 export type SubscriberFilter = 'all' | 'ok' | 'late' | 'paused' | 'leaving';
 
 export interface SubscriberState {
@@ -289,6 +289,7 @@ export function subscriberState(
   todayKey: string,
 ): SubscriberState {
   const late = overdueDays(charges, todayKey);
+  if (sub.status === 'pending_payment') return { kind: 'pending', label: 'Aguardando pagamento', tone: 'yellow', overdueDays: 0 };
   if (sub.status === 'paused') {
     return { kind: 'paused', label: sub.pausedUntil ? `Pausado até ${shortDate(sub.pausedUntil)}` : 'Pausado', tone: 'dim', overdueDays: late };
   }

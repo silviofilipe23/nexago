@@ -197,6 +197,42 @@ export {
 } from "./arena-class-payout";
 // Aulas — lembrete por push 2h antes (alunos do dia e professor).
 export {sendArenaClassReminders} from "./arena-class-reminders";
+// Planos de horário — horário fixo semanal vendido como plano mensal (catálogo, assinatura,
+// mensalidade manual, reposição, pausa, rateio e lista de espera). Séries em arenaRecurringBookings.
+export {
+  upsertArenaSchedulePlan,
+  saveArenaScheduleRules,
+  getArenaSchedulePlanAvailability,
+  getArenaScheduleOverview,
+} from "./arena-schedule-plans";
+export {
+  createArenaScheduleSubscription,
+  subscribeArenaSchedulePlan,
+  changeArenaScheduleSubscriptionSlots,
+  pauseArenaScheduleSubscription,
+  resumeArenaScheduleSubscription,
+  endArenaScheduleSubscription,
+} from "./arena-schedule-subscriptions";
+export {
+  registerArenaSchedulePayment,
+  cancelArenaScheduleCharge,
+  runArenaScheduleSubscriptionsDaily,
+} from "./arena-schedule-billing";
+export {
+  skipArenaScheduleOccurrence,
+  grantArenaScheduleMakeup,
+  applyArenaScheduleHoliday,
+  getArenaScheduleMakeupOptions,
+  useArenaScheduleMakeup,
+} from "./arena-schedule-makeup";
+export {
+  addArenaScheduleWaitlist,
+  removeArenaScheduleWaitlist,
+  offerArenaScheduleWaitlist,
+  acceptArenaScheduleWaitlistOffer,
+  expireArenaScheduleWaitlistOffers,
+} from "./arena-schedule-waitlist";
+export {getMyArenaScheduleSubscriptions} from "./arena-schedule-athlete";
 // Aulas — cobrança online pelo Asaas (worker do grupo + varredura).
 export {onArenaClassAsaasPaymentWritten, reconcileArenaClassAsaasPayments} from "./asaas-class-billing";
 export {

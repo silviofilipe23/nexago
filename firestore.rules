@@ -1226,6 +1226,18 @@ service cloud.firestore {
       allow read: if request.auth != null && (arenaCanRead(arenaId, 'agenda') || isSuperAdmin());
       allow create, update, delete: if false;
     }
+    // Planos de horário: catálogo (o atleta lê os publicados) e regras da arena (nobre, fila).
+    // Escrita só pelas functions (`arena-schedule-plans.ts`).
+    match /arenas/{arenaId}/schedulePlans/{planId} {
+      allow read: if request.auth != null && (
+        resource.data.status == 'active' || arenaCanRead(arenaId, 'agenda') || isSuperAdmin()
+      );
+      allow create, update, delete: if false;
+    }
+    match /arenas/{arenaId}/scheduleSettings/{docId} {
+      allow read: if request.auth != null && (arenaCanRead(arenaId, 'agenda') || isSuperAdmin());
+      allow create, update, delete: if false;
+    }
     match /arenas/{arenaId}/classTeachers/{teacherId} {
       // Professores das Aulas. Escrita via Cloud Function
       // (`upsertArenaClassTeacher`), com o gate de plano das turmas.
@@ -1974,6 +1986,39 @@ service cloud.firestore {
     }
     match /arenaClassCredits/{creditId} {
       allow read: if request.auth != null && (
+        arenaCanRead(resource.data.arenaId, 'agenda') || isSuperAdmin()
+      );
+      allow create, update, delete: if false;
+    }
+    // Planos de horário: assinatura, mensalidade, crédito de reposição e fila. O atleta lê o que é
+    // dele (membro do rateio, pagador/titular, dono do crédito ou da entrada); a equipe lê pela
+    // agenda (e o financeiro lê assinatura e mensalidade). Escrita só pelas functions.
+    match /arenaScheduleSubscriptions/{subscriptionId} {
+      allow read: if request.auth != null && (
+        request.auth.uid in resource.data.memberAthleteIds ||
+        arenaCanRead(resource.data.arenaId, 'agenda') ||
+        arenaCanRead(resource.data.arenaId, 'financeiro') || isSuperAdmin()
+      );
+      allow create, update, delete: if false;
+    }
+    match /arenaScheduleCharges/{chargeId} {
+      allow read: if request.auth != null && (
+        request.auth.uid in resource.data.visibleTo ||
+        arenaCanRead(resource.data.arenaId, 'agenda') ||
+        arenaCanRead(resource.data.arenaId, 'financeiro') || isSuperAdmin()
+      );
+      allow create, update, delete: if false;
+    }
+    match /arenaScheduleCredits/{creditId} {
+      allow read: if request.auth != null && (
+        request.auth.uid in resource.data.athleteIds ||
+        arenaCanRead(resource.data.arenaId, 'agenda') || isSuperAdmin()
+      );
+      allow create, update, delete: if false;
+    }
+    match /arenaScheduleWaitlist/{entryId} {
+      allow read: if request.auth != null && (
+        resource.data.athleteId == request.auth.uid ||
         arenaCanRead(resource.data.arenaId, 'agenda') || isSuperAdmin()
       );
       allow create, update, delete: if false;

@@ -12,6 +12,7 @@ import {assertArenaAreaAccess} from "./arena-area-access";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {grantArenaCanceledOccurrenceCredit} from "./arena-schedule-makeup";
 
 export const ARENA_RECURRING_BOOKINGS = "arenaRecurringBookings";
 const ARENA_BOOKINGS = "arenaBookings";
@@ -45,6 +46,8 @@ export interface RecurringSeriesData {
   skippedDates: string[];
   /** Turma própria do professor independente (B10): a quadra é dele, carimbada nas ocorrências. */
   professorStamp?: {professorUid: string; professorLinkId: string; professorClassId: string} | null;
+  /** Série de um Plano de horário (`arenaScheduleSubscriptions`): ocorrência já paga pelo plano. */
+  scheduleSubscriptionId?: string | null;
 }
 
 /** Reconstrói `RecurringSeriesData` a partir do doc cru de `arenaRecurringBookings`
@@ -72,7 +75,17 @@ export function parseRecurringSeriesData(data: Record<string, unknown>): Recurri
       professorLinkId: String(data["professorLinkId"] ?? ""),
       professorClassId: String(data["professorClassId"]),
     } : null,
+    scheduleSubscriptionId: typeof data["scheduleSubscriptionId"] === "string" && data["scheduleSubscriptionId"] ?
+      data["scheduleSubscriptionId"] :
+      null,
   };
+}
+
+/** Série de Plano de horário só se mexe pela tela de Planos (rateio, cobrança e vaga dependem dela). */
+export function assertNotSchedulePlanSeries(seriesData: Record<string, unknown>): void {
+  if (typeof seriesData["scheduleSubscriptionId"] === "string" && seriesData["scheduleSubscriptionId"]) {
+    throw new HttpsError("failed-precondition", "Gerencie pela tela Planos de horário.");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -321,7 +334,8 @@ export async function materializeSeriesOccurrences(
           amountReais: series.amountReais,
           amountToPayNowReais: 0,
           amountPaidOnlineReais: 0,
-          amountDueOnsiteReais: series.amountReais,
+          // Ocorrência de plano já está paga pela mensalidade: nada a cobrar no balcão.
+          amountDueOnsiteReais: series.scheduleSubscriptionId ? 0 : series.amountReais,
           paymentChannel: "onsite",
           paymentReceiver: null,
           paymentFraction: null,
@@ -340,6 +354,10 @@ export async function materializeSeriesOccurrences(
             professorLinkId: series.professorStamp.professorLinkId,
             professorRelationshipType: "INDEPENDENT",
             professorClassId: series.professorStamp.professorClassId,
+          } : {}),
+          ...(series.scheduleSubscriptionId ? {
+            scheduleSubscriptionId: series.scheduleSubscriptionId,
+            coveredByPlan: true,
           } : {}),
           createdAt: FieldValue.serverTimestamp(),
         });
@@ -400,6 +418,7 @@ export async function cancelFutureOccurrences(
   db: Firestore,
   seriesId: string,
   cancelReason: string,
+  opts: {afterDateKey?: string} = {},
 ): Promise<string[]> {
   const now = new Date();
   const todayKey = dayKeyFromEventDate(now);
@@ -415,6 +434,8 @@ export async function cancelFutureOccurrences(
     const data = doc.data();
     const dateKey = String(data["date"] ?? "");
     if (dateKey < todayKey) continue;
+    // Encerramento com data futura (Planos de horário): só o que vem depois do último dia.
+    if (opts.afterDateKey && dateKey <= opts.afterDateKey) continue;
 
     const status = String(data["status"] ?? "").toLowerCase();
     if (status !== "active" && status !== "confirmed") continue;
@@ -769,6 +790,7 @@ export const cancelArenaRecurringBooking = onCall({
   const seriesData = seriesSnap.data() as Record<string, unknown>;
   const arenaId = String(seriesData["arenaId"] ?? "");
   await requireArenaManager(db, arenaId, uid);
+  assertNotSchedulePlanSeries(seriesData);
 
   const currentStatus = String(seriesData["status"] ?? "");
   if (currentStatus !== "active" && currentStatus !== "paused") {
@@ -873,6 +895,18 @@ export const cancelArenaRecurringOccurrence = onCall({
   }, {merge: true});
   await batch.commit();
 
+  // Ocorrência de Plano de horário cancelada pela arena vira reposição (se o plano der reposição).
+  // Import circular com o módulo de planos: só usado em tempo de chamada, nunca no carregamento.
+  const scheduleSubscriptionId = typeof booking["scheduleSubscriptionId"] === "string" ?
+    booking["scheduleSubscriptionId"] : "";
+  if (scheduleSubscriptionId) {
+    try {
+      await grantArenaCanceledOccurrenceCredit(db, bookingId, {...booking, status: "cancelled"});
+    } catch (e) {
+      logger.warn("cancelArenaRecurringOccurrence: crédito do plano de horário falhou", {bookingId, error: e});
+    }
+  }
+
   await notifyLinkedAthleteSafe({
     athleteId: (booking["athleteId"] as string | null) ?? null,
     title: "Reserva do horário fixo cancelada",
@@ -937,6 +971,7 @@ async function updateArenaRecurringBookingHandler(
   // (evita um client mal-intencionado tentar editar sob outra arena).
   const arenaId = String(currentData["arenaId"] ?? "");
   await requireArenaManager(db, arenaId, uid);
+  assertNotSchedulePlanSeries(currentData);
 
   const todayKey = dayKeyFromEventDate(new Date());
   const validated = validateRecurringInput({...input, arenaId}, todayKey, {allowPastStartDate: true});
@@ -1069,6 +1104,7 @@ export const pauseArenaRecurringBooking = onCall({
   const seriesData = seriesSnap.data() as Record<string, unknown>;
   const arenaId = String(seriesData["arenaId"] ?? "");
   await requireArenaManager(db, arenaId, uid);
+  assertNotSchedulePlanSeries(seriesData);
 
   if (String(seriesData["status"]) !== "active") {
     throw new HttpsError("failed-precondition", "Só é possível pausar um horário fixo ativo.");
@@ -1127,6 +1163,7 @@ export const resumeArenaRecurringBooking = onCall({
   const seriesData = seriesSnap.data() as Record<string, unknown>;
   const arenaId = String(seriesData["arenaId"] ?? "");
   await requireArenaManager(db, arenaId, uid);
+  assertNotSchedulePlanSeries(seriesData);
 
   if (String(seriesData["status"]) !== "paused") {
     throw new HttpsError("failed-precondition", "Só é possível retomar um horário fixo pausado.");

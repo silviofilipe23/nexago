@@ -139,6 +139,10 @@ String? arenaWeatherNotificationRoute(String type, Map<String, dynamic> data) {
       AppRoutes.myBookings;
 }
 
+/// Pushes dos Planos de horário (`arena_schedule_*` / `schedule_plan_*`).
+bool isSchedulePlanNotificationType(String type) =>
+    type.startsWith('arena_schedule_') || type.startsWith('schedule_plan_');
+
 /// Agenda do atleta.
 const athleteAgendaTabLocation = '${AppRoutes.discover}?tab=agenda';
 
@@ -507,6 +511,14 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
     if (linkId.isEmpty) return AppRoutes.arenaProfessionals;
     return AppRoutes.arenaProfessionalDetail
         .replaceAll(':linkId', Uri.encodeComponent(linkId));
+  }
+
+  // Planos de horário da arena (assinatura, cobrança, atraso, pausa, oferta
+  // da lista de espera): o `url` é `/meus-planos-horario`; sem ele, o tipo
+  // ainda leva a Meu plano — e não ao ramo genérico de arena (agenda do gestor).
+  if (isSchedulePlanNotificationType(type)) {
+    return appRouteForNotificationUrl(data['url'] as String?) ??
+        AppRoutes.mySchedulePlans;
   }
 
   final url = appRouteForNotificationUrl(data['url'] as String?);

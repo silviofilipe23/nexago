@@ -30,6 +30,7 @@ export const NAV_ITEMS: readonly PanelNavItem[] = [
   { id: 'agenda', label: 'Agenda', icon: 'calendar', route: '/painel/agenda', badge: null, area: 'agenda', group: 'operacao' },
   { id: 'reservas', label: 'Reservas', icon: 'clock', route: '/painel/reservas', badge: null, area: 'agenda', group: 'operacao' },
   { id: 'horarios-fixos', label: 'Horários fixos', icon: 'repeat', route: '/painel/horarios-fixos', badge: null, area: 'agenda', group: 'operacao' },
+  { id: 'planos-horario', label: 'Planos de horário', icon: 'bookmark', route: '/painel/planos-horario', badge: null, area: 'agenda', group: 'operacao' },
   { id: 'clubinho', label: 'Clubinho', icon: 'users', route: '/painel/clubinho', badge: null, area: 'agenda', group: 'operacao' },
   { id: 'aulas', label: 'Aulas', icon: 'school', route: '/painel/aulas', badge: null, area: 'agenda', group: 'operacao' },
   { id: 'quadras', label: 'Quadras', icon: 'courts', route: '/painel/quadras', badge: null, area: 'quadras', group: 'operacao' },

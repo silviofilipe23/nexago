@@ -1,0 +1,142 @@
+// Peças comuns das telas de Planos de horário (campos, chips pequenos, modais) — mesmo visual
+// dos formulários de Aulas. Fica enxuto: soma no orçamento de estilo de cada componente.
+
+.field-label {
+  font-family: var(--nx-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+  margin-bottom: 8px;
+}
+
+.field-label.spaced {
+  margin-top: 16px;
+}
+
+.input-box {
+  width: 100%;
+  height: 40px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line-strong);
+  color: var(--nx-text);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+
+.input-box:focus {
+  outline: none;
+  border-color: var(--nx-orange-500);
+}
+
+.hint {
+  font-size: 11.5px;
+  color: var(--nx-text-dim);
+  margin: 8px 0 0;
+  line-height: 1.45;
+}
+
+.error-banner {
+  border-radius: var(--nx-r-2);
+  border: 1px solid var(--nx-live);
+  background: rgba(255, 59, 48, 0.08);
+  color: var(--nx-live);
+  padding: 10px 14px;
+  font-size: 12.5px;
+  margin-bottom: 12px;
+}
+
+.state-text {
+  font-size: 13.5px;
+  color: var(--nx-text-mute);
+  margin: 0;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+// PhSmChip do protótipo — também é botão quando dá para escolher.
+.sm-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 99px;
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 11.5px;
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text-mute);
+  white-space: nowrap;
+}
+
+button.sm-chip {
+  cursor: pointer;
+}
+
+button.sm-chip:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.sm-chip.active {
+  background: var(--nx-orange-tint);
+  border-color: rgba(255, 106, 26, 0.35);
+  color: var(--nx-orange-500);
+}
+
+.cta {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--nx-orange-500);
+  text-decoration: none;
+  text-align: left;
+}
+
+.modal-title {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--nx-text);
+  margin: 0 0 4px;
+}
+
+.modal-sub {
+  font-size: 12.5px;
+  color: var(--nx-text-dim);
+  margin: 0 0 16px;
+  line-height: 1.45;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.row-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 720px) {
+  .row-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

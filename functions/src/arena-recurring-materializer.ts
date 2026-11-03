@@ -13,6 +13,7 @@ import {
 import {deliverNotificationToUser} from "./notification-delivery";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {professorSeriesStillAllowed} from "./professor-own-classes";
+import {endSubscriptionForRemovedCourt} from "./arena-schedule-subscriptions";
 
 async function notifyManagerSafe(
   managerUserId: string,
@@ -85,9 +86,21 @@ export const materializeArenaRecurringBookings = onSchedule({
         cancelReason: "court_deleted",
       }, {merge: true});
       await cancelFutureOccurrences(db, doc.id, "recurring_series_court_deleted");
+      // Série de Plano de horário: a assinatura inteira acaba (senão segue ativa e cobrando).
+      if (series.scheduleSubscriptionId) {
+        try {
+          await endSubscriptionForRemovedCourt(db, series.scheduleSubscriptionId, todayKey, Date.now());
+        } catch (e) {
+          logger.error("materializeArenaRecurringBookings: encerrar plano de horário falhou", {
+            subscriptionId: series.scheduleSubscriptionId, error: e,
+          });
+        }
+      }
       await notifyManagerSafe(managerUserId, {
-        title: "Horário fixo encerrado",
-        body: `O horário fixo de ${seriesLabel} foi encerrado porque a quadra foi removida.`,
+        title: series.scheduleSubscriptionId ? "Plano de horário encerrado" : "Horário fixo encerrado",
+        body: series.scheduleSubscriptionId ?
+          `O plano de horário de ${series.customerName ?? "um atleta"} (${seriesLabel}) foi encerrado porque a quadra foi removida.` :
+          `O horário fixo de ${seriesLabel} foi encerrado porque a quadra foi removida.`,
         type: "recurring_series_court_deleted",
         data: {recurringBookingId: doc.id, arenaId: series.arenaId},
       });

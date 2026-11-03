@@ -106,6 +106,48 @@ export const routes: Routes = [
       import('./painel/recurring/panel-recurring.component').then((m) => m.PanelRecurringComponent),
   },
   {
+    path: 'painel/planos-horario',
+    title: 'Planos de horário — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/planos-horario/panel-ph-plans.component').then((m) => m.PanelPhPlansComponent),
+  },
+  {
+    path: 'painel/planos-horario/novo',
+    title: 'Novo plano de horário — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/planos-horario/panel-ph-plan-editor.component').then((m) => m.PanelPhPlanEditorComponent),
+  },
+  {
+    path: 'painel/planos-horario/assinantes',
+    title: 'Assinantes dos planos — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/planos-horario/panel-ph-subscribers.component').then((m) => m.PanelPhSubscribersComponent),
+  },
+  {
+    path: 'painel/planos-horario/grade',
+    title: 'Grade da semana — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/planos-horario/panel-ph-grid.component').then((m) => m.PanelPhGridComponent),
+  },
+  {
+    path: 'painel/planos-horario/espera',
+    title: 'Lista de espera dos planos — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/planos-horario/panel-ph-waitlist.component').then((m) => m.PanelPhWaitlistComponent),
+  },
+  {
+    path: 'painel/planos-horario/:planId',
+    title: 'Editar plano de horário — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/planos-horario/panel-ph-plan-editor.component').then((m) => m.PanelPhPlanEditorComponent),
+  },
+  {
     path: 'painel/clubinho',
     title: 'Clubinho — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],

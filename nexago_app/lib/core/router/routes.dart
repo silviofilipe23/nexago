@@ -449,6 +449,19 @@ abstract final class AppRoutes {
   /// Créditos de chuva do atleta (saldo por arena, validade, usados/vencidos).
   static const String athleteWeatherCredits = '/weather-credits';
 
+  /// Planos de horário da arena (atleta) — A1. Fora de `/arena/...` para não
+  /// disputar com as rotas literais do gestor antes de [arenaDetail].
+  static const String arenaSchedulePlans = '/planos-horario/:arenaId';
+
+  /// A2 · escolher dias/horário/ciclo do plano. Query `oferta={entryId}`
+  /// aceita a vaga da lista de espera; `trocar={subscriptionId}` troca o
+  /// horário de uma assinatura.
+  static const String arenaSchedulePlanSignup =
+      '/planos-horario/:arenaId/:planId';
+
+  /// A3 · Meu plano. Mesmo caminho do `url` dos pushes dos planos.
+  static const String mySchedulePlans = '/meus-planos-horario';
+
   /// NexaSquad (embaixadores): telas internas, fora do shell (sem tab bar).
   /// Entrada pelo perfil e pela home; o push do convite abre [squadInvite].
   static const String squad = '/athlete/squad';
@@ -1242,6 +1255,9 @@ abstract final class AppRouteNames {
   static const String athleteCashback = 'athleteCashback';
   static const String bookingWeatherChoice = 'bookingWeatherChoice';
   static const String athleteWeatherCredits = 'athleteWeatherCredits';
+  static const String arenaSchedulePlans = 'arenaSchedulePlans';
+  static const String arenaSchedulePlanSignup = 'arenaSchedulePlanSignup';
+  static const String mySchedulePlans = 'mySchedulePlans';
   static const String squad = 'squad';
   static const String squadShare = 'squadShare';
   static const String squadEarnings = 'squadEarnings';

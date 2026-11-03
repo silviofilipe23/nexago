@@ -10,6 +10,7 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../../arenas/presentation/arena_booking_navigation.dart';
+import '../../schedule_plans/presentation/widgets/schedule_plans_entry_points.dart';
 import '../../tournaments/data/my_tournament_registrations_repository.dart';
 import '../../tournaments/domain/tournament_discovery_providers.dart';
 import '../data/class_agenda_repository.dart';
@@ -347,6 +348,10 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
                                   setState(() => _searchQuery = value),
                             ),
                           ),
+                        // Plano de horário (assinatura viva ou vaga oferecida).
+                        const SliverToBoxAdapter(
+                          child: MySchedulePlansAgendaTile(),
+                        ),
                         SliverToBoxAdapter(
                           child: AgendaTabs(
                             selected: _timeTab,

@@ -117,7 +117,10 @@ export const defaultClassAsaasDeps: ClassAsaasDeps = {
     assertAsaasAllowed();
     await deleteAsaasPaymentOrThrow(paymentId);
   },
-  getPayment: (paymentId) => getAsaasPayment(paymentId),
+  getPayment: (paymentId) => {
+    assertAsaasAllowed();
+    return getAsaasPayment(paymentId);
+  },
   notify: async (input) => {
     await deliverNotificationToUser({...input, requireInteraction: false});
   },
@@ -140,6 +143,18 @@ async function readCharges(tx: Transaction, db: Firestore, group: Record<string,
   return Promise.all(ids.map((id) => tx.get(db.collection(ARENA_CLASS_CHARGES).doc(id))));
 }
 
+/** `failed` só por cima de `creating`: anulação no meio do caminho não pode ser desfeita. */
+async function markFailedIfCreating(db: Firestore, groupId: string, error: string, olderThanMs?: number): Promise<boolean> {
+  const groupRef = db.collection(ARENA_CLASS_ASAAS_PAYMENTS).doc(groupId);
+  return db.runTransaction(async (tx: Transaction) => {
+    const group = (await tx.get(groupRef)).data();
+    if (!group || group["state"] !== "creating") return false;
+    if (olderThanMs != null && millisOf(group["updatedAt"]) > olderThanMs) return false;
+    tx.set(groupRef, {state: "failed", lastError: error, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    return true;
+  });
+}
+
 /** Cria (uma vez) a cobrança Asaas do grupo e espelha o link nas mensalidades. */
 export async function ensureClassAsaasPayment(
   db: Firestore,
@@ -152,6 +167,21 @@ export async function ensureClassAsaasPayment(
     const group = snap.data();
     if (!snap.exists || !group) return null;
     if (group["state"] !== "pending" && group["state"] !== "failed") return null;
+    const charges = await readCharges(tx, db, group);
+    const billed = chargesOfGroup(charges, groupId);
+    if (billed.length < charges.length || charges.length === 0) {
+      // Mensalidade resolvida (ou trocada de grupo) antes de a cobrança nascer — gatilho perdido ou
+      // grupo reaberto por cima da anulação. Nenhuma em aberto: anula sem falar com o Asaas; parte
+      // em aberto: `voiding` (o void reagrupa o resto). (Um `failed` por timeout pode ter criado no
+      // Asaas sem sabermos o id; se pagarem, o webhook vê o grupo anulado e estorna.)
+      tx.set(groupRef, {
+        state: billed.length > 0 ? "voiding" : "void",
+        voidReason: "charges_resolved",
+        ...(billed.length > 0 ? {} : {voidedAt: FieldValue.serverTimestamp()}),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+      return null;
+    }
     tx.set(groupRef, {
       state: "creating",
       attempt: Number(group["attempt"] ?? 0) + 1,
@@ -185,10 +215,9 @@ export async function ensureClassAsaasPayment(
     });
   } catch (e) {
     logger.error(`ensureClassAsaasPayment ${groupId}: falhou`, e);
-    await groupRef.set({
-      state: "failed", lastError: e instanceof Error ? e.message : String(e), updatedAt: FieldValue.serverTimestamp(),
-    }, {merge: true});
-    return {state: "failed"};
+    if (await markFailedIfCreating(db, groupId, e instanceof Error ? e.message : String(e))) return {state: "failed"};
+    // Anularam o grupo enquanto o Asaas falhava: fica como está (o void cuida).
+    return {state: String((await groupRef.get()).data()?.["state"] ?? "missing")};
   }
 
   const state = await settle(db, groupId, "open", created);
@@ -246,6 +275,11 @@ async function settle(
   });
 }
 
+/** Status em que a cobrança ainda pode ser paga — DELETE que falhou nesses é falha passageira. */
+const STILL_PAYABLE_STATUSES = new Set(["PENDING", "OVERDUE", "AWAITING_RISK_ANALYSIS"]);
+/** Tentativas de apagar no Asaas antes de fechar o grupo como `void` mesmo assim. */
+export const MAX_VOID_ATTEMPTS = 10;
+
 /** Apaga o pagamento do grupo no Asaas e reagrupa o que ainda estiver em aberto. */
 export async function voidClassAsaasPayment(
   db: Firestore,
@@ -257,13 +291,22 @@ export async function voidClassAsaasPayment(
   if (!before || before["state"] !== "voiding") return {state: String(before?.["state"] ?? "missing"), regroupedAs: null};
   const paymentId = typeof before["paymentId"] === "string" ? before["paymentId"] : "";
   let voidError: string | null = null;
+  let transient = false;
   if (paymentId) {
     try {
       await deps.deletePayment(paymentId);
     } catch (e) {
-      // Já pago (ou o Asaas recusou): o webhook vê o grupo anulado e estorna.
       voidError = e instanceof Error ? e.message : String(e);
       logger.warn(`voidClassAsaasPayment ${groupId}: não apagou ${paymentId} no Asaas`, e);
+      // Recebido/confirmado ou já apagado: o webhook vê o grupo anulado e estorna. Ainda cobrável
+      // (ou nem deu para consultar): falha passageira, tenta de novo.
+      try {
+        const current = await deps.getPayment(paymentId);
+        transient = current.deleted !== true && STILL_PAYABLE_STATUSES.has((current.status || "").toUpperCase());
+      } catch (lookupError) {
+        logger.warn(`voidClassAsaasPayment ${groupId}: consulta de ${paymentId} falhou`, lookupError);
+        transient = true;
+      }
     }
   }
 
@@ -271,6 +314,16 @@ export async function voidClassAsaasPayment(
     const snap = await tx.get(groupRef);
     const group = (snap.data() ?? {}) as Record<string, unknown>;
     if (group["state"] !== "voiding") return {state: String(group["state"] ?? ""), regroupedAs: null};
+    if (transient) {
+      const attempts = Number(group["voidAttempts"] ?? 0) + 1;
+      if (attempts < MAX_VOID_ATTEMPTS) {
+        // Segue `voiding`: a varredura tenta de novo (o gatilho do grupo não reage a esta escrita).
+        tx.set(groupRef, {voidAttempts: attempts, voidError, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+        return {state: "voiding", regroupedAs: null};
+      }
+      logger.error(`voidClassAsaasPayment ${groupId}: ${paymentId} não apagou após ${attempts} tentativas — ` +
+        "fechando como void; conferir no Asaas (pago depois vira estorno pelo webhook)", {groupId, paymentId, voidError});
+    }
     // Criação ainda em voo sem `paymentId`: espera o worker gravar o id (o gatilho roda de novo).
     if (!paymentId && group["paymentId"]) return {state: "voiding", regroupedAs: null};
     const charges = await readCharges(tx, db, group);
@@ -348,7 +401,7 @@ export async function reconcileClassAsaasPayments(
       const age = now.getTime() - millisOf(doc.data()["updatedAt"]);
       if (state === "creating") {
         if (age < STUCK_CREATING_MS) continue;
-        await doc.ref.set({state: "failed", lastError: "stuck_creating", updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+        if (!(await markFailedIfCreating(db, doc.id, "stuck_creating", now.getTime() - STUCK_CREATING_MS))) continue;
       } else if (age < RETRY_AFTER_MS) {
         continue;
       }

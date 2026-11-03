@@ -12,7 +12,13 @@ import {
 } from "./arena-class-billing";
 import {DEFAULT_CLASS_RULES} from "./arena-class-constants";
 import {maskCpfCnpj} from "./arena-class-asaas-model";
-import {ensureClassAsaasPayment, reconcileClassAsaasPayments, voidClassAsaasPayment, type ClassAsaasDeps} from "./asaas-class-billing";
+import {
+  MAX_VOID_ATTEMPTS,
+  ensureClassAsaasPayment,
+  reconcileClassAsaasPayments,
+  voidClassAsaasPayment,
+  type ClassAsaasDeps,
+} from "./asaas-class-billing";
 import {parseClassPaymentRef, processArenaClassAsaasNotification} from "./asaas-arena-class-webhook";
 import type {AsaasPaymentDetails} from "./asaas-booking-payment";
 
@@ -355,5 +361,148 @@ describe("cobrança online — webhook e caixa", () => {
     assert.equal(parseClassPaymentRef("arenaClassPayment:e1_first"), "e1_first");
     assert.equal(parseClassPaymentRef("arenaBooking:x"), null);
     assert.equal(parseClassPaymentRef("arenaClassPayment:a/b"), null);
+  });
+});
+
+describe("cobrança online — regressões da revisão dos planos de horário", () => {
+  it("1. webhook e varredura no mesmo pagamento: a 2ª execução não estorna nem credita de novo", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    const {out} = await enrollAndOpen(fake, db);
+    const groupId = out.asaasGroupId!;
+    const ref = processedRef(fake, `pay_${groupId}`);
+    // A 2ª execução leu o doc de processados (fora da transação) antes de a 1ª gravar.
+    const staleRef = {...ref, get: async () => ({exists: false, id: ref.id, data: () => undefined})} as unknown as typeof ref;
+    const refunds: string[] = [];
+    await processArenaClassAsaasNotification(db, `pay_${groupId}`, payment(groupId), ref, webhookDeps(refunds));
+    await processArenaClassAsaasNotification(db, `pay_${groupId}`, payment(groupId), staleRef, webhookDeps(refunds));
+
+    assert.deepEqual(refunds, []);
+    assert.equal(fake.store.get(ref.path)!["outcome"], "approved");
+    for (const id of out.chargeIds) assert.equal(fake.store.get(`arenaClassCharges/${id}`)!["status"], "paid");
+    assert.equal(fake.store.get("arenaWallets/arena1")!["availableReais"], 180.69);
+    assert.equal([...fake.store.keys()].filter((k) => k.startsWith("arenaWallets/arena1/ledger/")).length, 1);
+  });
+
+  it("1. cartão: a 2ª execução do autorizado não estorna nem segura de novo no 'a liberar'", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    const {out} = await enrollAndOpen(fake, db);
+    const groupId = out.asaasGroupId!;
+    const ref = processedRef(fake, `pay_${groupId}`);
+    const staleRef = {...ref, get: async () => ({exists: false, id: ref.id, data: () => undefined})} as unknown as typeof ref;
+    const card = payment(groupId, {billingType: "CREDIT_CARD", netValue: 186.0, status: "CONFIRMED"});
+    const refunds: string[] = [];
+    await processArenaClassAsaasNotification(db, `pay_${groupId}`, card, ref, webhookDeps(refunds));
+    await processArenaClassAsaasNotification(db, `pay_${groupId}`, card, staleRef, webhookDeps(refunds));
+
+    assert.deepEqual(refunds, []);
+    assert.equal(fake.store.get("arenaWallets/arena1")!["awaitingSettlementReais"], 174.47);
+  });
+
+  it("2. Asaas falha depois da anulação: o grupo segue void e a varredura não recria nem avisa", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    const out = await createEnrollmentCore(db, request({waiveFee: true}), marina, "gestor", TODAY);
+    const groupId = out.asaasGroupId!;
+    const chargeId = `${out.enrollmentId}_2026-10`;
+    const {deps, calls} = fakeDeps({
+      createPayment: async (input) => {
+        calls.created.push(input.groupId);
+        // Gestor cancela a mensalidade enquanto o Asaas pendura; o void roda e o Asaas então falha.
+        await setChargeStatusCore(db, chargeId, {status: "canceled", paymentMethod: null, paidOn: null, actorUid: "g"}, TODAY);
+        await voidClassAsaasPayment(db, input.groupId, fakeDeps().deps);
+        throw new Error("timeout");
+      },
+    });
+    assert.deepEqual(await ensureClassAsaasPayment(db, groupId, deps), {state: "void"});
+    assert.equal(fake.store.get(`arenaClassAsaasPayments/${groupId}`)!["state"], "void");
+
+    await reconcileClassAsaasPayments(db, NOW, deps);
+    assert.equal(calls.created.length, 1);
+    assert.equal(calls.pushes.length, 0);
+    assert.equal(fake.store.get(`arenaClassAsaasPayments/${groupId}`)!["state"], "void");
+  });
+
+  it("2. reivindicar grupo de mensalidades já resolvidas (gatilho perdido) anula sem chamar o Asaas", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    const out = await createEnrollmentCore(db, request(), marina, "gestor", TODAY);
+    const groupId = out.asaasGroupId!;
+    for (const id of out.chargeIds) {
+      fake.seedDoc(`arenaClassCharges/${id}`, {...fake.store.get(`arenaClassCharges/${id}`)!, status: "canceled"});
+    }
+    // Grupo reaberto como `failed` por cima da anulação (o bug antigo): a varredura não recria.
+    fake.seedDoc(`arenaClassAsaasPayments/${groupId}`, {...fake.store.get(`arenaClassAsaasPayments/${groupId}`)!, state: "failed"});
+    const {deps, calls} = fakeDeps();
+    await reconcileClassAsaasPayments(db, NOW, deps);
+    const group = fake.store.get(`arenaClassAsaasPayments/${groupId}`)!;
+    assert.equal(group["state"], "void");
+    assert.equal(group["voidReason"], "charges_resolved");
+    assert.deepEqual(calls.created, []);
+    assert.deepEqual(calls.pushes, []);
+  });
+
+  it("2. reivindicar grupo com parte resolvida: vai para voiding e o void reagrupa o resto", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    const out = await createEnrollmentCore(db, request(), marina, "gestor", TODAY);
+    const groupId = out.asaasGroupId!;
+    const feeId = `${out.enrollmentId}_fee`;
+    fake.seedDoc(`arenaClassCharges/${feeId}`, {...fake.store.get(`arenaClassCharges/${feeId}`)!, status: "paid", paidVia: "manual"});
+    const {deps, calls} = fakeDeps();
+    assert.deepEqual(await ensureClassAsaasPayment(db, groupId, deps), {state: "voiding"});
+    assert.deepEqual(calls.created, []);
+
+    const voided = await voidClassAsaasPayment(db, groupId, deps);
+    assert.deepEqual(voided, {state: "void", regroupedAs: `${groupId}_v1`});
+    assert.deepEqual(calls.deleted, []); // nada nasceu no Asaas
+    assert.deepEqual(fake.store.get(`arenaClassAsaasPayments/${groupId}_v1`)!["chargeIds"], [`${out.enrollmentId}_2026-10`]);
+  });
+
+  it("3. DELETE com falha passageira mantém voiding e tenta de novo até o limite", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    const {out, deps} = await enrollAndOpen(fake, db);
+    const groupId = out.asaasGroupId!;
+    await setChargeStatusCore(db, `${out.enrollmentId}_fee`, {status: "canceled", paymentMethod: null, paidOn: null, actorUid: "g"}, TODAY);
+    const flaky: ClassAsaasDeps = {...deps, deletePayment: async () => {
+      throw new Error("503");
+    }};
+    const voidOf = () => fake.store.get(`arenaClassAsaasPayments/${groupId}`)!;
+
+    // Ainda cobrável no Asaas: segue voiding, sem reagrupar.
+    assert.deepEqual(await voidClassAsaasPayment(db, groupId, {...flaky, getPayment: async (id) => ({id, status: "PENDING"})}),
+      {state: "voiding", regroupedAs: null});
+    // Nem a consulta respondeu: segue voiding.
+    assert.deepEqual(await voidClassAsaasPayment(db, groupId, {...flaky, getPayment: async () => {
+      throw new Error("timeout");
+    }}), {state: "voiding", regroupedAs: null});
+    assert.equal(voidOf()["voidAttempts"], 2);
+    assert.equal(fake.store.has(`arenaClassAsaasPayments/${groupId}_v1`), false);
+    for (let i = 3; i < MAX_VOID_ATTEMPTS; i++) {
+      const r = await voidClassAsaasPayment(db, groupId, {...flaky, getPayment: async (id) => ({id, status: "OVERDUE"})});
+      assert.equal(r.state, "voiding");
+    }
+    // Na 10ª, fecha mesmo assim (com o erro guardado) e reagrupa o resto.
+    assert.deepEqual(await voidClassAsaasPayment(db, groupId, {...flaky, getPayment: async (id) => ({id, status: "PENDING"})}),
+      {state: "void", regroupedAs: `${groupId}_v1`});
+    assert.equal(voidOf()["voidError"], "503");
+  });
+
+  it("3. DELETE recusado porque já foi pago: fecha void na hora (o webhook estorna)", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    const {out, deps} = await enrollAndOpen(fake, db);
+    const groupId = out.asaasGroupId!;
+    await setChargeStatusCore(db, `${out.enrollmentId}_fee`, {status: "canceled", paymentMethod: null, paidOn: null, actorUid: "g"}, TODAY);
+    const paid: ClassAsaasDeps = {...deps,
+      deletePayment: async () => {
+        throw new Error("cobrança recebida não pode ser removida");
+      },
+      getPayment: async (id) => ({id, status: "RECEIVED"}),
+    };
+    assert.deepEqual(await voidClassAsaasPayment(db, groupId, paid), {state: "void", regroupedAs: `${groupId}_v1`});
+    assert.equal(fake.store.get(`arenaClassAsaasPayments/${groupId}`)!["voidAttempts"], undefined);
   });
 });

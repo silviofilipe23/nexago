@@ -216,6 +216,7 @@
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
+				E7C1A5D12F0A000100C636F1 /* [Crashlytics] Upload dSYMs */,
 			);
 			buildRules = (
 			);
@@ -347,6 +348,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
+		};
+		E7C1A5D12F0A000100C636F1 /* [Crashlytics] Upload dSYMs */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${PRODUCT_NAME}",
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Info.plist",
+				"$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)",
+			);
+			name = "[Crashlytics] Upload dSYMs";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Com os plugins em SPM o firebase_crashlytics não instala esta fase (só o\n# podspec do CocoaPods instalava). Sem dSYM o Crashlytics não processa os\n# eventos do iOS e o painel fica vazio. Envia todos os dSYMs do build\n# (Runner, App.framework do Dart, Flutter, ...).\nif [ \"${CONFIGURATION}\" = \"Debug\" ]; then\n  exit 0\nfi\nfor packages in \"${PROJECT_DIR}/../build/ios/SourcePackages\" \"${BUILD_DIR%/Build/*}/SourcePackages\"; do\n  tool=\"${packages}/checkouts/firebase-ios-sdk/Crashlytics/upload-symbols\"\n  if [ -x \"${tool}\" ]; then\n    \"${tool}\" -gsp \"${PROJECT_DIR}/Runner/GoogleService-Info.plist\" -p ios \"${DWARF_DSYM_FOLDER_PATH}\" \\\n      || echo \"warning: Crashlytics upload-symbols falhou; dSYMs não enviados\"\n    exit 0\n  fi\ndone\necho \"warning: Crashlytics upload-symbols não encontrado; dSYMs não enviados\"\n";
+			showEnvVarsInLog = 0;
 		};
 		EC45EF55C2719807504E87F7 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/auth_providers.dart';
+import '../../features/athlete/domain/athlete_profile.dart';
 import '../../features/athlete/domain/athlete_profile_providers.dart';
 import 'biometric_providers.dart';
 
@@ -60,55 +61,58 @@ class _BiometricAppGateState extends ConsumerState<BiometricAppGate> {
       });
     });
 
-    final user = authAsync.valueOrNull;
-
-    if (user == null) {
-      return widget.child;
-    }
-
-    if (profileAsync.isLoading) {
-      // Scrim escuro translúcido, não branco: este gate vive ACIMA do
-      // MaterialApp (sem Theme do app) e um flash branco em tema escuro era
-      // percebido como "a tela piscou" a cada login/cadastro dentro do app.
-      return Directionality(
-        textDirection: TextDirection.ltr,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            widget.child,
-            const ModalBarrier(
-              dismissible: false,
-              color: Color(0x99000000),
-            ),
-            const Center(
-              child: CircularProgressIndicator(),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (profileAsync.hasError) {
-      return widget.child;
-    }
-
-    final useBio = profileAsync.valueOrNull?.useBiometric ?? false;
-    if (!useBio || _sessionUnlocked) {
-      return widget.child;
-    }
-
+    // O app (o `MaterialApp.router`) fica SEMPRE na mesma posição da árvore e
+    // só a camada por cima muda. Alternar entre devolver `widget.child` cru e
+    // embrulhá-lo num `Stack` recriava o `Router` a cada vez que o perfil
+    // recarregava — e o Router novo reaplicava a rota antiga: ao concluir o
+    // onboarding, a ida para a home era desfeita e o atleta voltava ao
+    // formulário já salvo, tocando "Concluir cadastro" de novo.
     return Directionality(
       textDirection: TextDirection.ltr,
       child: Stack(
         fit: StackFit.expand,
         children: [
           widget.child,
-          _BiometricLockLayer(
-            onUnlocked: () => _setUnlocked(true),
+          ..._overlay(
+            signedIn: authAsync.valueOrNull != null,
+            profileAsync: profileAsync,
           ),
         ],
       ),
     );
+  }
+
+  List<Widget> _overlay({
+    required bool signedIn,
+    required AsyncValue<AthleteProfile?> profileAsync,
+  }) {
+    if (!signedIn) return const [];
+
+    if (profileAsync.isLoading) {
+      // Scrim escuro translúcido, não branco: este gate vive ACIMA do
+      // MaterialApp (sem Theme do app) e um flash branco em tema escuro era
+      // percebido como "a tela piscou" a cada login/cadastro dentro do app.
+      return const [
+        ModalBarrier(
+          dismissible: false,
+          color: Color(0x99000000),
+        ),
+        Center(
+          child: CircularProgressIndicator(),
+        ),
+      ];
+    }
+
+    if (profileAsync.hasError) return const [];
+
+    final useBio = profileAsync.valueOrNull?.useBiometric ?? false;
+    if (!useBio || _sessionUnlocked) return const [];
+
+    return [
+      _BiometricLockLayer(
+        onUnlocked: () => _setUnlocked(true),
+      ),
+    ];
   }
 }
 

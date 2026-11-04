@@ -32,6 +32,9 @@ class _AuthLoadingPageState extends ConsumerState<AuthLoadingPage> {
   bool _failed = false;
 
   static const _completeFillDelay = Duration(milliseconds: 300);
+  // O destino também lê papéis e vínculos (Firestore): sem teto, rede caída
+  // prendia a tela.
+  static const _destinationTimeout = Duration(seconds: 20);
 
   @override
   void initState() {
@@ -55,7 +58,19 @@ class _AuthLoadingPageState extends ConsumerState<AuthLoadingPage> {
   Future<void> _startBootstrap() async {
     if (_running) return;
     _running = true;
+    try {
+      await _bootstrapAndLeave();
+    } catch (_) {
+      // Erro ou demora DEPOIS do bootstrap (ex.: escolher o destino) deixava
+      // a tela parada em "TUDO PRONTO" para sempre, sem saída: agora cai no
+      // mesmo painel de recuperação da falha de rede.
+      if (!mounted) return;
+      _running = false;
+      setState(() => _failed = true);
+    }
+  }
 
+  Future<void> _bootstrapAndLeave() async {
     final result = await ref.read(runPostLoginBootstrapProvider)(
       onProgress: (_, label) {
         if (!mounted) return;
@@ -90,7 +105,9 @@ class _AuthLoadingPageState extends ConsumerState<AuthLoadingPage> {
     if (!mounted) return;
 
     ref.read(sessionBootstrapProvider.notifier).markComplete();
-    final destination = await ref.read(resolvePostLoginDestinationProvider)();
+    final destination = await ref
+        .read(resolvePostLoginDestinationProvider)()
+        .timeout(_destinationTimeout);
     if (!mounted) return;
 
     HapticFeedback.lightImpact();

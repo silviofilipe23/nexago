@@ -175,12 +175,28 @@ Future<String?> resolveAuthenticatedRedirect({
   return null;
 }
 
+/// Teto da renovação do token na saída da tela de loading.
+const kPostLoginTokenRefreshTimeout = Duration(seconds: 8);
+
+/// Token renovado (claims recém-concedidos) ou, se a rede falhar ou demorar,
+/// o token em cache — o mesmo que o redirect do router já usa. Sem isto a
+/// tela de loading ficava parada em "TUDO PRONTO" esperando a rede.
+Future<IdTokenResult> _refreshedOrCachedToken(User user) async {
+  try {
+    return await user
+        .getIdTokenResult(true)
+        .timeout(kPostLoginTokenRefreshTimeout);
+  } catch (_) {
+    return user.getIdTokenResult(false);
+  }
+}
+
 /// Destino final após a tela de loading.
 Future<String> resolvePostLoginDestination(Ref ref) async {
   final user = ref.read(authProvider).valueOrNull;
   if (user == null) return AppRoutes.login;
 
-  final token = await user.getIdTokenResult(true);
+  final token = await _refreshedOrCachedToken(user);
   final destination = await resolveAuthenticatedRedirect(
     ref: ref,
     user: user,

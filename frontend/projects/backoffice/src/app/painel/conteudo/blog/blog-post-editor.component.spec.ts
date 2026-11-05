@@ -83,6 +83,13 @@ describe('BlogPostEditorComponent', () => {
             estimatePushReach: estimate,
             listShowcase: () => Promise.resolve([]),
             showcaseProduct: () => Promise.resolve(null),
+            listArenas: () =>
+              Promise.resolve([
+                { id: 'a1', name: 'Arena Errejota', location: 'Goiânia, GO', coverUrl: null, unclaimed: false },
+                { id: 'a2', name: 'Beach Point', location: 'Anápolis, GO', coverUrl: null, unclaimed: false },
+              ]),
+            arena: (arenaId: string) =>
+              Promise.resolve(arenaId === 'a1' ? { id: 'a1', name: 'Arena Errejota', location: 'Goiânia, GO', coverUrl: null, unclaimed: false } : null),
           },
         },
         {
@@ -268,5 +275,73 @@ describe('BlogPostEditorComponent', () => {
   it('post agendado não mostra o resultado', async () => {
     const host = await mount('p1', undefined, { ...STORED, status: 'scheduled', publishAt: new Date('2099-01-01T12:00:00Z') });
     expect(host.querySelector('bo-blog-post-result')).toBeNull();
+  });
+
+  const menuItem = async (host: HTMLElement, label: string) => {
+    host.querySelector<HTMLButtonElement>('bo-blog-embed-menu .trigger')!.click();
+    await settle();
+    return [...host.querySelectorAll<HTMLButtonElement>('bo-blog-embed-menu .item')].find((b) => b.textContent!.includes(label))!;
+  };
+  const dialogButton = (host: HTMLElement, selector: string, label: string) =>
+    [...host.querySelectorAll<HTMLButtonElement>(`${selector} dialog .actions button`)].find((b) => b.textContent!.trim() === label)!;
+
+  it('arena: busca por cidade, insere com a prévia e vai no post', async () => {
+    const host = await mount('p1');
+    (await menuItem(host, 'Arena')).click();
+    await settle();
+    const search = host.querySelector<HTMLInputElement>('bo-blog-embed-picker input')!;
+    type(search, 'anapolis');
+    await settle();
+    expect([...host.querySelectorAll('bo-blog-embed-picker .row .name')].map((e) => e.textContent!.trim())).toEqual(['Beach Point']);
+    type(search, 'goiania');
+    await settle();
+    host.querySelector<HTMLButtonElement>('bo-blog-embed-picker .row')!.click();
+    await settle();
+    dialogButton(host, 'bo-blog-embed-picker', 'Inserir').click();
+    await settle();
+    expect(host.querySelector('bo-blog-embed-preview')!.textContent).toContain('Arena Errejota');
+    primary(host).click();
+    await settle();
+    expect(save.calls.mostRecent().args[0].post.body).toContain({ type: 'arena', arenaId: 'a1' });
+  });
+
+  it('ranking: escolhe esporte, equipes e gênero; o bloco mostra o resumo', async () => {
+    const host = await mount('p1');
+    (await menuItem(host, 'Ranking')).click();
+    await settle();
+    expect(dialogButton(host, 'bo-blog-ranking-picker', 'Inserir').disabled).toBeTrue();
+    const select = host.querySelector<HTMLSelectElement>('bo-blog-ranking-picker select')!;
+    select.value = 'beachVolleyball';
+    select.dispatchEvent(new Event('change'));
+    const chip = (label: string) =>
+      [...host.querySelectorAll<HTMLButtonElement>('bo-blog-ranking-picker .chip')].find((b) => b.textContent!.trim() === label)!;
+    chip('Equipes').click();
+    chip('Feminino').click();
+    await settle();
+    dialogButton(host, 'bo-blog-ranking-picker', 'Inserir').click();
+    await settle();
+    expect(host.querySelector('bo-blog-block-editor .rank-summary')!.textContent!.trim()).toBe('Top 5 · Vôlei de praia · Equipes · Feminino');
+    primary(host).click();
+    await settle();
+    expect(save.calls.mostRecent().args[0].post.body).toContain({ type: 'ranking', sport: 'beachVolleyball', mode: 'teams', gender: 'feminino' });
+  });
+
+  it('com 10 blocos nexaGO os quatro tipos desabilitam e o vídeo segue livre', async () => {
+    const body = Array.from({ length: 10 }, () => ({ type: 'ranking' as const, sport: 'padel', mode: 'athletes' as const, gender: 'all' as const }));
+    const host = await mount('p1', undefined, { ...STORED, body });
+    host.querySelector<HTMLButtonElement>('bo-blog-embed-menu .trigger')!.click();
+    await settle();
+    const items = [...host.querySelectorAll<HTMLButtonElement>('bo-blog-embed-menu .item')].map((b) => [
+      b.querySelector('strong')!.textContent!.trim(),
+      b.disabled,
+    ]);
+    expect(items).toEqual([
+      ['Torneio ou liga', true],
+      ['Produto da loja', true],
+      ['Arena', true],
+      ['Ranking', true],
+      ['Vídeo', false],
+    ]);
+    expect(host.querySelector('bo-blog-embed-menu .note')!.textContent).toContain('Até 10 blocos nexaGO (torneio, produto, arena, ranking) por post.');
   });
 });

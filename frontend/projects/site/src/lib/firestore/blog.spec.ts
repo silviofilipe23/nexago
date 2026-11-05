@@ -81,6 +81,27 @@ describe('mapBlogBlock — blocos nexaGO (fase 2)', () => {
   });
 });
 
+describe('mapBlogBlock — arena e ranking', () => {
+  it('arena guarda o id; inválido é descartado', () => {
+    expect(mapBlogBlock({ type: 'arena', arenaId: 'ar1' })).toEqual({ type: 'arena', arenaId: 'ar1' });
+    expect(mapBlogBlock({ type: 'arena', arenaId: '' })).toBeNull();
+    expect(mapBlogBlock({ type: 'arena', arenaId: 'a/b' })).toBeNull();
+  });
+
+  it('ranking válido passa; modo, gênero ou esporte desconhecido/ausente descarta', () => {
+    expect(mapBlogBlock({ type: 'ranking', sport: 'beachTennis', mode: 'teams', gender: 'misto' })).toEqual({
+      type: 'ranking',
+      sport: 'beachTennis',
+      mode: 'teams',
+      gender: 'misto',
+    });
+    expect(mapBlogBlock({ type: 'ranking', sport: 'beachTennis', mode: 'clubs', gender: 'all' })).toBeNull();
+    expect(mapBlogBlock({ type: 'ranking', sport: 'beachTennis', mode: 'athletes', gender: 'male' })).toBeNull();
+    expect(mapBlogBlock({ type: 'ranking', sport: '', mode: 'athletes', gender: 'all' })).toBeNull();
+    expect(mapBlogBlock({ type: 'ranking', sport: 'beachTennis', mode: 'athletes' })).toBeNull();
+  });
+});
+
 describe('mapBlogPost', () => {
   it('usa o subtítulo quando a descrição do Google está vazia', () => {
     const p = mapBlogPost('id1', doc());

@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, effect, inject, input, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { TournamentsRepository, type TournamentRow } from '../../../torneios/data/tournaments.repository';
 import { IconComponent } from '../../../ui/icon.component';
-import { productPriceLabel, tournamentMeta, type ShowcaseProduct } from '../data/blog-embeds';
+import { productPriceLabel, tournamentMeta, type ArenaPick, type ShowcaseProduct } from '../data/blog-embeds';
 import { BlogPostsRepository } from '../data/blog-posts.repository';
 
 type Preview =
@@ -9,7 +9,16 @@ type Preview =
   | { state: 'missing' }
   | { state: 'error' }
   | { state: 'tournament'; row: TournamentRow }
-  | { state: 'product'; product: ShowcaseProduct };
+  | { state: 'product'; product: ShowcaseProduct }
+  | { state: 'arena'; arena: ArenaPick };
+
+const MISSING: Record<EmbedPreviewKind, string> = {
+  tournament: 'Torneio não encontrado',
+  product: 'Produto fora da vitrine',
+  arena: 'Arena não encontrada',
+};
+
+export type EmbedPreviewKind = 'tournament' | 'product' | 'arena';
 
 /**
  * Prévia compacta do bloco nexaGO no editor, lida do Firestore pelo id. O leitor (app e site) lê de
@@ -30,7 +39,7 @@ type Preview =
         @case ('missing') {
           <span class="thumb icon"><bo-icon name="alert" [size]="18" /></span>
           <span class="text">
-            <span class="name">{{ kind() === 'tournament' ? 'Torneio não encontrado' : 'Produto fora da vitrine' }}</span>
+            <span class="name">{{ missingLabel() }}</span>
             <span class="meta">O save recusa o post assim: troque ou remova o bloco.</span>
           </span>
         }
@@ -47,6 +56,18 @@ type Preview =
             <span class="kicker">Torneio ou liga</span>
             <span class="name">{{ p.row.name }}</span>
             <span class="meta">{{ meta(p.row) }}</span>
+          </span>
+        }
+        @case ('arena') {
+          @if (p.arena.coverUrl; as src) {
+            <img class="thumb" [src]="src" alt="" />
+          } @else {
+            <span class="thumb icon"><bo-icon name="arena" [size]="20" /></span>
+          }
+          <span class="text">
+            <span class="kicker">Arena</span>
+            <span class="name">{{ p.arena.name }}</span>
+            <span class="meta">{{ p.arena.location }} · horários livres e reservar no app</span>
           </span>
         }
         @case ('product') {
@@ -83,7 +104,7 @@ export class BlogEmbedPreviewComponent {
   private readonly tournaments = inject(TournamentsRepository);
   private readonly posts = inject(BlogPostsRepository);
 
-  readonly kind = input.required<'tournament' | 'product'>();
+  readonly kind = input.required<EmbedPreviewKind>();
   readonly id = input.required<string>();
 
   protected readonly preview = signal<Preview>({ state: 'loading' });
@@ -101,14 +122,18 @@ export class BlogEmbedPreviewComponent {
     });
   }
 
-  private async load(kind: 'tournament' | 'product', id: string): Promise<void> {
+  protected readonly missingLabel = computed(() => MISSING[this.kind()]);
+
+  private async load(kind: EmbedPreviewKind, id: string): Promise<void> {
     const seq = ++this.seq;
     this.preview.set({ state: 'loading' });
     try {
       const next: Preview =
         kind === 'tournament'
           ? await this.tournaments.byIds([id]).then((rows) => (rows[0] ? { state: 'tournament', row: rows[0] } : { state: 'missing' }))
-          : await this.posts.showcaseProduct(id).then((product) => (product ? { state: 'product', product } : { state: 'missing' }));
+          : kind === 'arena'
+            ? await this.posts.arena(id).then((arena) => (arena ? { state: 'arena', arena } : { state: 'missing' }))
+            : await this.posts.showcaseProduct(id).then((product) => (product ? { state: 'product', product } : { state: 'missing' }));
       if (seq === this.seq) {
         this.preview.set(next);
       }

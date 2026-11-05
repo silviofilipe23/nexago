@@ -26,6 +26,7 @@ import '../domain/blog_post.dart';
 import '../domain/blog_read_session.dart';
 import 'blog_navigation.dart';
 import 'widgets/blog_embeds.dart';
+import 'widgets/blog_embeds_arena_ranking.dart';
 import 'widgets/blog_notify_widgets.dart';
 import 'widgets/blog_parts.dart';
 
@@ -690,6 +691,8 @@ class _BlockView extends StatelessWidget {
       BlogProductEmbed(:final productId) => BlogProductEmbedCard(
         productId: productId,
       ),
+      BlogArenaEmbed(:final arenaId) => BlogArenaEmbedCard(arenaId: arenaId),
+      final BlogRankingEmbed ranking => BlogRankingEmbedCard(block: ranking),
     };
   }
 }

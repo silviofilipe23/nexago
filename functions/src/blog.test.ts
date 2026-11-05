@@ -207,6 +207,36 @@ describe("blocos nexaGO e push (fase 2)", () => {
   });
 });
 
+describe("blocos arena e ranking", () => {
+  it("valida arena e ranking e normaliza o esporte", () => {
+    const errors = blogPostErrors(post({body: [
+      {type: "arena", arenaId: ""},
+      {type: "ranking", sport: "xadrez", mode: "duplas", gender: "x"},
+    ] as never}), NOW);
+    assert.deepEqual(errors, [
+      "Bloco 1: escolha a arena.",
+      "Bloco 2: escolha o esporte do ranking.",
+      "Bloco 2: escolha atletas ou equipes.",
+      "Bloco 2: gênero do ranking inválido.",
+    ]);
+    const stored = storedBlogPost(post({body: [{type: "ranking", sport: "beach_tennis", mode: "teams", gender: "misto"}]}));
+    assert.deepEqual(stored.body[0], {type: "ranking", sport: "beachTennis", mode: "teams", gender: "misto"});
+  });
+
+  it("recusa arena que não existe e conta arena e ranking no teto de blocos nexaGO", async () => {
+    const {fake, db} = makeDb();
+    await assert.rejects(
+      saveBlogPostCore(db, {id: null, version: 0, post: post({body: [{type: "arena", arenaId: "a1"}]})}, ACTOR, NOW),
+      /arena citado no post não existe mais/,
+    );
+    fake.store.set("arenas/a1", {name: "Arena Errejota"});
+    const ok = await saveBlogPostCore(db, {id: null, version: 0, post: post({body: [{type: "arena", arenaId: "a1"}]})}, ACTOR, NOW);
+    assert.equal(ok.version, 1);
+    const many = Array.from({length: 11}, () => ({type: "ranking" as const, sport: "beachVolleyball", mode: "athletes" as const, gender: "all" as const}));
+    assert.match(blogPostErrors(post({body: many}), NOW).join(), /Até 10 blocos nexaGO/);
+  });
+});
+
 describe("deleteBlogPostCore", () => {
   it("apaga o post e a reserva do endereço", async () => {
     const {fake, db} = makeDb();

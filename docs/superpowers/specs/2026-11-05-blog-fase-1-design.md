@@ -196,3 +196,28 @@ Sem nenhuma leitura na janela: valor "—" e a linha "sem leituras no app ainda"
 
 `where postId == id`: leituras (count), tempo médio (average seconds), lido até o fim (count finished),
 cliques na chamada (count ctaClicked), mais o "Ajudou" (`helpfulCount`) e leitores (`readCount`) que já existem.
+
+---
+
+# Blocos Arena e Ranking (branch `claude/blog-blocos-arena-ranking`)
+
+```ts
+| {type: "arena"; arenaId: string}   // doc em `arenas`; o save confere que existe
+| {type: "ranking"; sport: string;   // `code` do catálogo (o save normaliza appId → code)
+   mode: "athletes" | "teams"; gender: "all" | "masculino" | "feminino" | "misto"}
+```
+
+Arena, ranking, torneio e produto dividem o teto de 10 blocos nexaGO por post. Builds anteriores ignoram os tipos.
+
+- **Arena** — app: capa, nome, cidade/bairro, esportes, "Horários livres hoje" (próximos horários livres
+  usando a MESMA lógica de disponibilidade da tela de reservar; sem horário hoje: "Sem horário livre hoje" e
+  o próximo dia com vaga, se a lógica já der isso barato) e botão "Reservar" para o fluxo de reserva da
+  arena. Some se a arena não existir, não for pública ou não aceitar reserva pelo app (mostre o card sem
+  horários com "Ver arena" nesse último caso, se a arena for pública). Site: card com capa, nome, cidade e
+  link para `/arena/<slug-id>`.
+- **Ranking** — top 5 da temporada atual (ano corrente em São Paulo) do esporte, no modo e gênero escolhidos,
+  com a MESMA regra do ranking do app (pontos da temporada, gênero pelo perfil/equipe como o filtro do app
+  faz, posições renumeradas depois do filtro). Linha: posição, foto/iniciais, nome, pontos. Botão "Ver
+  ranking completo" para a tela de ranking do app no mesmo recorte. Lista vazia: o bloco some. Site: o
+  mesmo top 5 lido das coleções públicas `artifacts/{projectId}/public/data/athleteRankingsBySport` /
+  `teamRankingsBySport` (siga o mapeamento do app), com link para baixar o app.

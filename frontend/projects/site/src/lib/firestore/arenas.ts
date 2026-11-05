@@ -57,6 +57,20 @@ export async function getPublicArenas(max = 12): Promise<ArenaSummary[]> {
   }
 }
 
+/**
+ * Só o resumo da arena (sem a subcoleção `courts`) — o bloco "Arena" do blog. Mesma regra da
+ * página `/arena/:id`: existe = pública. Retorna null se não existir ou se a leitura falhar.
+ */
+export async function getArenaSummaryById(id: string): Promise<ArenaSummary | null> {
+  try {
+    const snap = await getDoc(doc(liteDb, 'arenas', id));
+    return snap.exists() ? mapSummary(snap.id, snap.data()) : null;
+  } catch (err) {
+    console.error('[arenas] getArenaSummaryById failed:', err);
+    return null;
+  }
+}
+
 /** Perfil público de uma arena (arenas/{id} + courts). Retorna null se não existir. */
 export async function getArenaById(id: string): Promise<ArenaDetail | null> {
   try {

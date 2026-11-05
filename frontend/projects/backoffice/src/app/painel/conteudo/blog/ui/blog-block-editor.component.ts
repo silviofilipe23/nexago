@@ -9,6 +9,7 @@ import {
   BLOG_PARAGRAPH_MAX,
   BLOG_QUOTE_MAX,
   isVideoUrl,
+  rankingSummary,
   youtubeVideoId,
   type BlogBlockType,
 } from '../data/blog-post';
@@ -24,6 +25,8 @@ export const BLOCK_LABELS: Record<BlogBlockType, string> = {
   tournament: 'Torneio ou liga',
   product: 'Produto da loja',
   video: 'Vídeo',
+  arena: 'Arena',
+  ranking: 'Ranking',
 };
 
 /** Um bloco do corpo: o campo do tipo dele + subir, descer e remover. Texto puro. */
@@ -40,7 +43,7 @@ export const BLOCK_LABELS: Record<BlogBlockType, string> = {
           <span class="count" [class.near]="c.near">{{ c.text }}</span>
         }
         <span class="spacer"></span>
-        @if (b.type === 'tournament' || b.type === 'product') {
+        @if (b.type === 'tournament' || b.type === 'product' || b.type === 'arena' || b.type === 'ranking') {
           <button type="button" class="bo-mini-btn swap" [disabled]="disabled()" (click)="swap.emit()">Trocar</button>
         }
         <button type="button" class="icon-btn" [attr.aria-label]="'Subir bloco ' + (index() + 1)" [disabled]="disabled() || index() === 0" (click)="move.emit(-1)">
@@ -141,6 +144,19 @@ export const BLOCK_LABELS: Record<BlogBlockType, string> = {
         @case ('product') {
           <bo-blog-embed-preview kind="product" [id]="b.productId" />
         }
+        @case ('arena') {
+          <bo-blog-embed-preview kind="arena" [id]="b.arenaId" />
+        }
+        @case ('ranking') {
+          <div class="rank-card">
+            <span class="rank-icon"><bo-icon name="star" [size]="18" /></span>
+            <span class="rank-text">
+              <span class="rank-kicker">Ranking · temporada atual</span>
+              <span class="rank-summary">{{ rankingText() }}</span>
+              <span class="rank-meta">Os nomes saem do ranking do app na hora da leitura; lista vazia some do post.</span>
+            </span>
+          </div>
+        }
         @case ('video') {
           <div class="video">
             @if (thumb(); as src) {
@@ -207,6 +223,12 @@ export const BLOCK_LABELS: Record<BlogBlockType, string> = {
     .add-item:disabled { opacity: 0.5; cursor: default; }
     .caption { font-size: 13px; color: var(--nx-text-mute); }
     .mono { font-family: var(--nx-font-mono); font-size: 12.5px; }
+    .rank-card { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: var(--nx-r-3); border: 1px solid rgba(255, 106, 26, 0.3); background: rgba(255, 106, 26, 0.05); }
+    .rank-icon { flex: none; width: 56px; height: 56px; display: grid; place-items: center; border-radius: var(--nx-r-2); background: var(--nx-surface-2); color: var(--nx-orange-500); }
+    .rank-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .rank-kicker { font-family: var(--nx-font-mono); font-size: 9px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--nx-orange-500); }
+    .rank-summary { font-family: var(--nx-font-display); font-weight: 700; font-size: 14px; color: var(--nx-text); }
+    .rank-meta { font-size: 12px; color: var(--nx-text-mute); }
     .swap { height: 26px; padding: 0 10px; font-size: 12px; }
     .video { display: flex; gap: 12px; align-items: flex-start; }
     .video-thumb { flex: none; width: 128px; height: 72px; border-radius: var(--nx-r-2); object-fit: cover; background: var(--nx-surface-2); }
@@ -239,6 +261,11 @@ export class BlogBlockEditorComponent {
   };
 
   protected readonly label = computed(() => BLOCK_LABELS[this.block().type]);
+
+  protected readonly rankingText = computed(() => {
+    const b = this.block();
+    return b.type === 'ranking' ? rankingSummary(b) : '';
+  });
 
   protected readonly thumb = computed(() => {
     const b = this.block();

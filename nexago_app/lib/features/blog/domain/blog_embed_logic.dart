@@ -1,12 +1,18 @@
-/// Regras dos blocos nexaGO (Torneio, Produto) na leitura. O status do
+/// Regras dos blocos nexaGO (Torneio, Arena, Ranking) na leitura. O status do
 /// torneio sai da lógica que o Competir já usa — aqui só se escolhe o que
 /// cabe no card.
 library;
 
+import '../../../core/sports/sport_catalog.dart';
+import '../../arenas/domain/arena_court.dart';
+import '../../arenas/domain/arena_slot.dart';
+import '../../arenas/domain/slots_page_logic.dart';
+import '../../ranking/domain/ranking_list_models.dart';
 import '../../tournaments/domain/tournament_detail_logic.dart';
 import '../../tournaments/domain/tournament_detail_model.dart';
 import '../../tournaments/domain/tournament_discovery_labels.dart';
 import '../../tournaments/domain/tournament_listing_status.dart';
+import 'blog_post.dart';
 
 /// O que o card do torneio mostra no cabeçalho.
 class BlogTournamentCardStatus {
@@ -99,4 +105,82 @@ int? blogTournamentSpotsLeft(
   if (stats.spotsTotal <= 0) return null;
   final left = stats.spotsTotal - stats.spotsEnrolled;
   return left < 0 ? 0 : left;
+}
+
+/// Um horário livre de hoje no card da arena: o início e a quadra onde está
+/// livre (a primeira, na ordem das quadras), para abrir a reserva já nele.
+class BlogArenaFreeTime {
+  const BlogArenaFreeTime({required this.slot});
+
+  /// O slot livre (a tela de reservar abre já nele).
+  final ArenaSlot slot;
+
+  /// "HH:mm", como na grade.
+  String get startTime => slot.startTime;
+  String get courtId => slot.courtId;
+
+  @override
+  bool operator ==(Object other) =>
+      other is BlogArenaFreeTime &&
+      other.startTime == startTime &&
+      other.courtId == courtId;
+
+  @override
+  int get hashCode => Object.hash(startTime, courtId);
+}
+
+/// Os próximos [max] horários livres de hoje, sem repetir início, com o MESMO
+/// predicado da tela de reservar (`isAvailable` + `isPastBookableSlot`, que já
+/// cobre o corte de 5 min depois do início). Quadra em manutenção fica fora.
+/// Duração mínima e pico continuam sendo da tela de reservar, ao escolher.
+List<BlogArenaFreeTime> blogArenaFreeTimes({
+  required List<ArenaCourt> courts,
+  required Map<String, List<ArenaSlot>> slotsByCourtId,
+  required DateTime today,
+  required DateTime now,
+  int max = 4,
+}) {
+  final byStart = <String, BlogArenaFreeTime>{};
+  for (final court in courts) {
+    if (court.isMaintenance) continue;
+    for (final slot in slotsByCourtId[court.id] ?? const <ArenaSlot>[]) {
+      if (!slot.isAvailable) continue;
+      if (isPastBookableSlot(selectedDay: today, slot: slot, now: now)) {
+        continue;
+      }
+      byStart.putIfAbsent(slot.startTime, () => BlogArenaFreeTime(slot: slot));
+    }
+  }
+  final times = byStart.values.toList()
+    ..sort(
+      (a, b) => slotStartMinutes(
+        a.startTime,
+      ).compareTo(slotStartMinutes(b.startTime)),
+    );
+  return times.take(max).toList(growable: false);
+}
+
+/// O recorte do ranking do bloco, no formato da tela de ranking: temporada
+/// [year], esporte pelo código de perfil, modo e gênero. `null` para esporte
+/// que o catálogo deste build não conhece (o bloco some).
+RankingPageFilter? blogRankingFilter(
+  BlogRankingEmbed block, {
+  required int year,
+}) {
+  final sport = SportCatalog.resolve(block.sport)?.profileCode;
+  if (sport == null || sport.isEmpty) return null;
+  return RankingPageFilter(
+    mode: switch (block.mode) {
+      BlogRankingMode.athletes => RankingListMode.athletes,
+      BlogRankingMode.teams => RankingListMode.teams,
+    },
+    year: year,
+    gender: switch (block.gender) {
+      BlogRankingGender.all => RankingGenderFilter.all,
+      BlogRankingGender.masculino => RankingGenderFilter.male,
+      BlogRankingGender.feminino => RankingGenderFilter.female,
+      BlogRankingGender.misto => RankingGenderFilter.mixed,
+    },
+    sport: sport,
+  );
 }

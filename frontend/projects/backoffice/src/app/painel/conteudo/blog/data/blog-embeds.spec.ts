@@ -1,5 +1,7 @@
 import type { TournamentRow } from '../../../torneios/data/tournaments.repository';
 import {
+  arenaPickOf,
+  filterArenas,
   filterProducts,
   mergeTournamentResults,
   productPriceLabel,
@@ -69,5 +71,21 @@ describe('blog · blocos nexaGO', () => {
     const now = new Date('2026-11-05T15:00:00Z');
     expect(tournamentMeta({ place: 'Goiânia', startAt: new Date('2026-10-24T13:00:00Z') }, now)).toBe('Goiânia · 24 out');
     expect(tournamentMeta({ place: null, startAt: null }, now)).toBe('Sem cidade nem data');
+  });
+
+  it('arena: busca por nome ou cidade sem acento, só parceiras, em ordem alfabética', () => {
+    const arenas = [
+      { id: '1', name: 'Arena Errejota', location: 'Goiânia, GO', coverUrl: null, unclaimed: false },
+      { id: '2', name: 'Beach Point', location: 'Anápolis, GO', coverUrl: null, unclaimed: false },
+      { id: '3', name: 'Arena Pré', location: 'Goiânia, GO', coverUrl: null, unclaimed: true },
+    ];
+    expect(filterArenas(arenas, '').map((a) => a.id)).toEqual(['1', '2']);
+    expect(filterArenas(arenas, 'goiania').map((a) => a.id)).toEqual(['1']);
+    expect(filterArenas(arenas, 'anapolis beach').map((a) => a.id)).toEqual(['2']);
+  });
+
+  it('arena: capa ou logo do mapeamento compartilhado', () => {
+    const base = { id: 'a', name: 'Arena', locationLabel: 'Goiânia, GO', coverUrl: null, logoUrl: 'https://x/logo.png', isUnclaimed: false };
+    expect(arenaPickOf(base as never)).toEqual({ id: 'a', name: 'Arena', location: 'Goiânia, GO', coverUrl: 'https://x/logo.png', unclaimed: false });
   });
 });

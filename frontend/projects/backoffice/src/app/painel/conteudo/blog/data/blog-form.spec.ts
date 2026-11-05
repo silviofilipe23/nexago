@@ -2,6 +2,7 @@ import {
   draftFromPost,
   embedBlock,
   embedCount,
+  rankingBlock,
   emptyBlock,
   isBlankBlock,
   moveBlock,
@@ -199,7 +200,9 @@ describe('blog · formulário', () => {
     ]);
     const eleven = Array.from({ length: 11 }, (_, i) => embedBlock(i % 2 ? 'product' : 'tournament', `id${i}`));
     expect(embedCount(payloadFromDraft(filled({ body: eleven })).body)).toBe(11);
-    expect(payloadIssues(payloadFromDraft(filled({ body: eleven })), NOW)).toEqual(['Até 10 blocos de torneio e produto por post.']);
+    expect(payloadIssues(payloadFromDraft(filled({ body: eleven })), NOW)).toEqual([
+      'Até 10 blocos nexaGO (torneio, produto, arena, ranking) por post.',
+    ]);
   });
 
   it('post com push enviado abre só de leitura', () => {
@@ -230,5 +233,42 @@ describe('blog · formulário', () => {
       version: 1,
     });
     expect([base.pushEnabled, base.pushCity, base.pushSent]).toEqual([true, 'Goiânia', true]);
+  });
+
+  it('arena e ranking vão no post e dividem o teto de 10 com torneio e produto', () => {
+    const p = payloadFromDraft(
+      filled({ body: [embedBlock('arena', 'a1'), rankingBlock({ sport: 'beachVolleyball', mode: 'teams', gender: 'feminino' }), emptyBlock('arena')] }),
+    );
+    expect(p.body).toEqual([
+      { type: 'arena', arenaId: 'a1' },
+      { type: 'ranking', sport: 'beachVolleyball', mode: 'teams', gender: 'feminino' },
+    ]);
+    expect(payloadIssues(p, NOW)).toEqual([]);
+    const mixed = [
+      ...Array.from({ length: 4 }, (_, i) => embedBlock('arena', `a${i}`)),
+      ...Array.from({ length: 4 }, () => rankingBlock({ sport: 'padel', mode: 'athletes', gender: 'all' })),
+      embedBlock('tournament', 't1'),
+      embedBlock('product', 'p1'),
+      { ...emptyBlock('video'), url: 'https://youtu.be/abcdefghijk' } as BlogDraft['body'][number],
+    ];
+    // 10 nexaGO + 1 vídeo: o vídeo não conta.
+    expect(payloadIssues(payloadFromDraft(filled({ body: mixed })), NOW)).toEqual([]);
+    expect(payloadIssues(payloadFromDraft(filled({ body: [...mixed, embedBlock('arena', 'a9')] })), NOW)).toEqual([
+      'Até 10 blocos nexaGO (torneio, produto, arena, ranking) por post.',
+    ]);
+  });
+
+  it('ranking valida esporte, modo e gênero como o servidor', () => {
+    const bad = payloadFromDraft(
+      filled({ body: [{ ...rankingBlock({ sport: 'xadrez', mode: 'athletes', gender: 'all' }) }, { ...emptyBlock('ranking'), sport: 'padel', mode: 'duplas', gender: 'outro' } as unknown as BlogDraft['body'][number]] }),
+    );
+    expect(payloadIssues(bad, NOW)).toEqual([
+      'Bloco 1: escolha o esporte do ranking.',
+      'Bloco 2: escolha atletas ou equipes.',
+      'Bloco 2: gênero do ranking inválido.',
+    ]);
+    expect(payloadIssues(payloadFromDraft(filled({ body: [embedBlock('arena', 'id com espaço')] })), NOW)).toEqual([
+      'Bloco 1: escolha a arena.',
+    ]);
   });
 });

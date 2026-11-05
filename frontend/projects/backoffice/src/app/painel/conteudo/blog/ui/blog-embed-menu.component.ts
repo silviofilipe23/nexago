@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, input, output, signal } from '@angu
 import { IconComponent } from '../../../ui/icon.component';
 import { BLOG_EMBEDS_MAX } from '../data/blog-post';
 
-export type BlogEmbedChoice = 'tournament' | 'product' | 'video';
+export type BlogEmbedChoice = 'tournament' | 'product' | 'arena' | 'ranking' | 'video';
 
 /** Botão "Bloco nexaGO" da barra de adicionar, com o menu Torneio / Produto / Vídeo. */
 @Component({
@@ -36,12 +36,20 @@ export type BlogEmbedChoice = 'tournament' | 'product' | 'video';
           <bo-icon name="bag" [size]="16" />
           <span><strong>Produto da loja</strong><span>Preço e estoque atualizados</span></span>
         </button>
+        <button type="button" role="menuitem" class="item" [disabled]="embedsFull()" (click)="pick('arena')">
+          <bo-icon name="arena" [size]="16" />
+          <span><strong>Arena</strong><span>Horários livres e botão reservar</span></span>
+        </button>
+        <button type="button" role="menuitem" class="item" [disabled]="embedsFull()" (click)="pick('ranking')">
+          <bo-icon name="star" [size]="16" />
+          <span><strong>Ranking</strong><span>Top 5 de uma categoria</span></span>
+        </button>
         <button type="button" role="menuitem" class="item" (click)="pick('video')">
           <bo-icon name="video" [size]="16" />
           <span><strong>Vídeo</strong><span>YouTube ou Instagram</span></span>
         </button>
         @if (embedsFull()) {
-          <span class="note">Até {{ max }} blocos de torneio e produto por post.</span>
+          <span class="note">Até {{ max }} blocos nexaGO (torneio, produto, arena, ranking) por post.</span>
         }
       </div>
     }
@@ -64,7 +72,7 @@ export type BlogEmbedChoice = 'tournament' | 'product' | 'video';
 })
 export class BlogEmbedMenuComponent {
   readonly disabled = input(false);
-  /** Já há `BLOG_EMBEDS_MAX` blocos de torneio/produto: só o vídeo continua. */
+  /** Já há `BLOG_EMBEDS_MAX` blocos nexaGO: só o vídeo continua. */
   readonly embedsFull = input(false);
   readonly chosen = output<BlogEmbedChoice>();
 

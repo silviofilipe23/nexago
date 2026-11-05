@@ -13,6 +13,7 @@ import { ToggleComponent } from '../../ui/toggle.component';
 import {
   draftFromPost,
   embedBlock,
+  rankingBlock,
   embedCount,
   emptyBlock,
   moveBlock,
@@ -58,12 +59,13 @@ import { BLOCK_LABELS, BlogBlockEditorComponent } from './ui/blog-block-editor.c
 import { BlogEmbedMenuComponent, type BlogEmbedChoice } from './ui/blog-embed-menu.component';
 import { BlogEmbedPickerComponent } from './ui/blog-embed-picker.component';
 import { BlogPostResultComponent } from './ui/blog-post-result.component';
+import { BlogRankingPickerComponent, type RankingChoice } from './ui/blog-ranking-picker.component';
 import { BlogPushSettingsComponent } from './ui/blog-push-settings.component';
 import { BlogImagePickerComponent } from './ui/blog-image-picker.component';
 
 type LoadState = 'loading' | 'ok' | 'missing' | 'error';
 type Confirm = 'delete' | 'unpublish';
-type EmbedKind = 'tournament' | 'product';
+type EmbedKind = 'tournament' | 'product' | 'arena';
 
 const PUBLISH_OPTIONS: ReadonlyArray<{ id: BlogStatus; label: string; hint: string }> = [
   { id: 'draft', label: 'Rascunho', hint: 'Só o time vê.' },
@@ -112,6 +114,7 @@ function isConflict(error: unknown): boolean {
     BlogEmbedMenuComponent,
     BlogPushSettingsComponent,
     BlogPostResultComponent,
+    BlogRankingPickerComponent,
   ],
   template: `
     <bo-panel-shell>
@@ -451,6 +454,9 @@ function isConflict(error: unknown): boolean {
       @if (picker(); as pk) {
         <bo-blog-embed-picker [kind]="pk.kind" [current]="pk.current" (picked)="onPicked($event)" (dismissed)="picker.set(null)" />
       }
+      @if (rankingPicker(); as rp) {
+        <bo-blog-ranking-picker [current]="rp.current" (picked)="onRankingPicked($event)" (dismissed)="rankingPicker.set(null)" />
+      }
 
       @if (confirming(); as kind) {
         <bo-confirm-dialog
@@ -610,6 +616,8 @@ export class BlogPostEditorComponent {
 
   /** Seletor de torneio/produto aberto: `index` `null` = bloco novo no fim; número = trocar aquele. */
   protected readonly picker = signal<{ kind: EmbedKind; index: number | null; current: string | null } | null>(null);
+  /** Escolha do recorte do Ranking: `index` `null` = bloco novo; número = trocar aquele. */
+  protected readonly rankingPicker = signal<{ index: number | null; current: RankingChoice | null } | null>(null);
   private readonly version = signal(0);
 
   protected readonly saving = signal(false);
@@ -768,6 +776,8 @@ export class BlogPostEditorComponent {
   protected onEmbedChosen(choice: BlogEmbedChoice): void {
     if (choice === 'video') {
       this.addBlock('video');
+    } else if (choice === 'ranking') {
+      this.rankingPicker.set({ index: null, current: null });
     } else {
       this.openPicker(choice, null);
     }
@@ -775,14 +785,23 @@ export class BlogPostEditorComponent {
 
   protected openPicker(kind: EmbedKind, index: number | null): void {
     const block = index === null ? null : this.draft().body[index];
-    const current = block?.type === 'tournament' ? block.tournamentId : block?.type === 'product' ? block.productId : null;
+    const current =
+      block?.type === 'tournament'
+        ? block.tournamentId
+        : block?.type === 'product'
+          ? block.productId
+          : block?.type === 'arena'
+            ? block.arenaId
+            : null;
     this.picker.set({ kind, index, current });
   }
 
   protected swapEmbed(index: number): void {
     const block = this.draft().body[index];
-    if (block?.type === 'tournament' || block?.type === 'product') {
+    if (block?.type === 'tournament' || block?.type === 'product' || block?.type === 'arena') {
       this.openPicker(block.type, index);
+    } else if (block?.type === 'ranking') {
+      this.rankingPicker.set({ index, current: { sport: block.sport, mode: block.mode, gender: block.gender } });
     }
   }
 
@@ -792,12 +811,24 @@ export class BlogPostEditorComponent {
     if (!pk) {
       return;
     }
-    const block = embedBlock(pk.kind, id);
+    this.placeBlock(embedBlock(pk.kind, id), pk.index);
+  }
+
+  protected onRankingPicked(choice: RankingChoice): void {
+    const rp = this.rankingPicker();
+    this.rankingPicker.set(null);
+    if (rp) {
+      this.placeBlock(rankingBlock(choice), rp.index);
+    }
+  }
+
+  /** Bloco novo no fim (`index` `null`) ou no lugar do que está sendo trocado, com a mesma chave. */
+  private placeBlock(block: BlockDraft, index: number | null): void {
     this.draft.update((d) => {
-      if (pk.index === null) {
+      if (index === null) {
         return d.body.length >= BLOG_BLOCKS_MAX ? d : { ...d, body: [...d.body, block] };
       }
-      return { ...d, body: d.body.map((b, i) => (i === pk.index ? { ...block, key: b.key } : b)) };
+      return { ...d, body: d.body.map((b, i) => (i === index ? { ...block, key: b.key } : b)) };
     });
   }
 

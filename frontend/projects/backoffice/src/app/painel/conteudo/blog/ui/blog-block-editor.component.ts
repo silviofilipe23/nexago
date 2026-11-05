@@ -125,6 +125,7 @@ export const BLOCK_LABELS: Record<BlogBlockType, string> = {
             [height]="200"
             [disabled]="disabled()"
             alt="Imagem do post"
+            kind="body"
             (urlChange)="patchImage($event)"
             (uploading)="uploading.emit($event)"
           />

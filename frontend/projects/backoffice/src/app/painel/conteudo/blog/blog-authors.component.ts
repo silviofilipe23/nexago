@@ -112,7 +112,7 @@ const EMPTY: SaveBlogAuthorInput = { id: null, name: '', role: '', photoUrl: nul
                     alt="Foto do autor"
                     pickLabel="Enviar foto"
                     replaceLabel="Trocar"
-                    spec="Quadrada, JPG, PNG ou WebP até 5 MB"
+                    kind="author"
                     (urlChange)="patch({ photoUrl: $event })"
                     (uploading)="uploading.set($event)"
                   />

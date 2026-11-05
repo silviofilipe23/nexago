@@ -116,7 +116,9 @@ class BookingService {
             snapshot.docs.map(MyBookingItem.fromFirestore).toList());
   }
 
-  /// Todas as reservas da arena (gestor); filtro por dia fica na UI.
+  /// Até 256 reservas da arena, **sem filtro de data**: a partir daí as de
+  /// hoje podem sumir. Não usar em agenda/listas por dia — ver
+  /// [watchBookingsForArenaInRange].
   Stream<List<ArenaManagerBooking>> watchBookingsForArena(String arenaId) {
     final id = arenaId.trim();
     if (id.isEmpty) {
@@ -127,16 +129,39 @@ class BookingService {
         .where('arenaId', isEqualTo: id)
         .limit(_arenaBookingsLimit)
         .snapshots()
-        .map((snapshot) {
-      final list =
-          snapshot.docs.map(ArenaManagerBooking.fromFirestore).toList();
-      list.sort((a, b) {
-        final byDate = b.dateKey.compareTo(a.dateKey);
-        if (byDate != 0) return byDate;
-        return b.startTime.compareTo(a.startTime);
-      });
-      return list;
+        .map(_managerBookingsFromSnapshot);
+  }
+
+  /// Reservas da arena com `date` (`yyyy-MM-dd`) entre [fromKey] e [toKey],
+  /// inclusive. Índice `arenaBookings (arenaId ASC, date ASC)`.
+  Stream<List<ArenaManagerBooking>> watchBookingsForArenaInRange(
+    String arenaId, {
+    required String fromKey,
+    required String toKey,
+  }) {
+    final id = arenaId.trim();
+    if (id.isEmpty) {
+      return Stream<List<ArenaManagerBooking>>.value(const []);
+    }
+    return _firestore
+        .collection(arenaBookingsCollection)
+        .where('arenaId', isEqualTo: id)
+        .where('date', isGreaterThanOrEqualTo: fromKey)
+        .where('date', isLessThanOrEqualTo: toKey)
+        .snapshots()
+        .map(_managerBookingsFromSnapshot);
+  }
+
+  static List<ArenaManagerBooking> _managerBookingsFromSnapshot(
+    QuerySnapshot<Map<String, dynamic>> snapshot,
+  ) {
+    final list = snapshot.docs.map(ArenaManagerBooking.fromFirestore).toList();
+    list.sort((a, b) {
+      final byDate = b.dateKey.compareTo(a.dateKey);
+      if (byDate != 0) return byDate;
+      return b.startTime.compareTo(a.startTime);
     });
+    return list;
   }
 
   /// Cota autoritativa (promoções + preço por quadra + cupom) via Cloud Function.

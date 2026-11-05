@@ -7,7 +7,8 @@ import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { bookingIsActive, dateKeyOf, type ArenaBooking } from '../bookings/arena-booking.model';
-import { resolveAthleteLabel, watchBookingsForArena } from '../bookings/bookings-repository';
+import { resolveAthleteLabel, watchBookingsForArenaInRange } from '../bookings/bookings-repository';
+import { recentBookingsRange } from '../bookings/bookings-window';
 import { fetchCourtsList } from '../courts/courts-repository';
 import { computeReviewMetrics, formatRating, formatRelativeDate, type ArenaReview } from '../reviews/arena-review.model';
 import { watchReviewsForArena } from '../reviews/reviews-repository';
@@ -658,7 +659,8 @@ export class PanelHomeComponent {
 
       this.loading.set(true);
       const db = arenaFirestore();
-      this.unsubscribeBookings = watchBookingsForArena(db, arenaId, (list) => {
+      // Hoje + 7 dias para trás: gráfico da semana e "mesmo dia da semana passada".
+      this.unsubscribeBookings = watchBookingsForArenaInRange(db, arenaId, recentBookingsRange(7), (list) => {
         this.bookings.set(list);
         this.loading.set(false);
       });

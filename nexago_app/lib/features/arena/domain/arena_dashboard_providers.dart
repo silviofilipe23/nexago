@@ -10,6 +10,7 @@ import 'arena_dashboard_period.dart';
 import 'arena_dashboard_period_metrics.dart';
 import 'arena_dashboard_summary.dart';
 import 'arena_date_utils.dart';
+import 'arena_manager_bookings_window.dart';
 import 'arena_schedule_providers.dart';
 
 final arenaDashboardServiceProvider = Provider<ArenaDashboardService>((ref) {
@@ -57,8 +58,12 @@ final arenaDashboardSummaryProvider =
         return Stream.value(ArenaDashboardSummary.placeholder());
       }
       final today = arenaTodayDateOnly();
-      final bookings$ =
-          ref.watch(bookingServiceProvider).watchBookingsForArena(arenaId);
+      final window = arenaManagerBookingsWindow(today);
+      final bookings$ = ref.watch(bookingServiceProvider).watchBookingsForArenaInRange(
+            arenaId,
+            fromKey: window.fromKey,
+            toKey: window.toKey,
+          );
       final slots$ = ref.watch(slotsRepositoryProvider).watchArenaDaySlotsMerged(
             arenaId: arenaId,
             date: today,

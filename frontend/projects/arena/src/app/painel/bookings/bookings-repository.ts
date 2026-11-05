@@ -15,6 +15,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { arenaBookingFromDoc, type ArenaBooking } from './arena-booking.model';
+import type { BookingsDateRange } from './bookings-window';
 
 /** Espelha `BookingService` (Flutter) para as ações do painel do gestor sobre `arenaBookings`
  *  (coleção top-level). Sem Cloud Function: escrita direta protegida pelas rules
@@ -31,9 +32,32 @@ function bookingsCol(db: Firestore) {
   return collection(db, 'arenaBookings');
 }
 
+/** Até 256 reservas da arena **sem filtro de data** — a partir daí as de hoje podem sumir. Fica para
+ *  quem precisa do histórico (Ranking de clientes); agenda e listas por dia usam
+ *  {@link watchBookingsForArenaInRange}. */
 export function watchBookingsForArena(db: Firestore, arenaId: string, onChange: (bookings: ArenaBooking[]) => void): Unsubscribe {
   return onSnapshot(
     query(bookingsCol(db), where('arenaId', '==', arenaId), limit(ARENA_BOOKINGS_LIMIT)),
+    (snap) => onChange(snap.docs.map(arenaBookingFromDoc)),
+    () => onChange([]),
+  );
+}
+
+/** Reservas da arena com `date` entre `range.fromKey` e `range.toKey` (inclusivo). Índice
+ *  `arenaBookings (arenaId ASC, date ASC)`. Todas as origens gravam `date` como `yyyy-MM-dd`. */
+export function watchBookingsForArenaInRange(
+  db: Firestore,
+  arenaId: string,
+  range: BookingsDateRange,
+  onChange: (bookings: ArenaBooking[]) => void,
+): Unsubscribe {
+  return onSnapshot(
+    query(
+      bookingsCol(db),
+      where('arenaId', '==', arenaId),
+      where('date', '>=', range.fromKey),
+      where('date', '<=', range.toKey),
+    ),
     (snap) => onChange(snap.docs.map(arenaBookingFromDoc)),
     () => onChange([]),
   );

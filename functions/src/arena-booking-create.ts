@@ -32,6 +32,9 @@ import {professorCourtDiscountForQuote, resolveProfessorBooking} from "./arena-p
 import {applyProfessorCourtDiscount, type ProfessorCourtDiscountOutcome} from "./arena-professor-court-discount";
 import {reserveWeatherCreditInTransaction, weatherCreditSummary} from "./arena-weather-credits";
 import {weatherCreditToApply, type WeatherCreditUse} from "./arena-weather-model";
+import {hasBlockedSlotOverlap} from "./arena-recurring-booking";
+import {dayKeyFromEventDate} from "./event-timezone";
+import {arenaBookingStartAt} from "./arena-booking-start-at";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -342,8 +345,22 @@ export const createArenaBooking = onCall({
   if (!arenaId || !courtId || !dateKey || startTime.length < 4 || endTime.length < 4) {
     throw new HttpsError("invalid-argument", "Dados da reserva inválidos.");
   }
+  if (dateKey < dayKeyFromEventDate(new Date())) {
+    throw new HttpsError("invalid-argument", "Não dá pra reservar em data passada.");
+  }
 
   await ensureNotBlocked(arenaId, athleteId);
+  // Bloqueio de quadra do gestor (`arenaSlots` com status blocked): a grade já
+  // esconde, mas a grade aberta antes do bloqueio (ou a callable chamada
+  // direto) passava. Mesma checagem da reserva manual.
+  const blocked = await hasBlockedSlotOverlap(
+    getFirestore(),
+    {arenaId, courtId, startTime, endTime},
+    dateKey,
+  );
+  if (blocked) {
+    throw new HttpsError("failed-precondition", "Esse horário está bloqueado pela arena.");
+  }
   const professorBooking = await resolveProfessorBooking(
     getFirestore(),
     arenaId,
@@ -487,22 +504,7 @@ export const createArenaBooking = onCall({
       .doc(`${safeArena}_${safeCourt}_${dateKey}_h${h.toString().padStart(2, "0")}`),
   );
 
-  const dateParts = dateKey.split("-");
-  const day = new Date(
-    parseInt(dateParts[0] ?? "2020", 10),
-    parseInt(dateParts[1] ?? "1", 10) - 1,
-    parseInt(dateParts[2] ?? "1", 10),
-  );
-  const startParts = startTime.split(":");
-  const startHour = parseInt(startParts[0] ?? "0", 10);
-  const startMinute = parseInt(startParts[1] ?? "0", 10);
-  const startAt = new Date(
-    day.getFullYear(),
-    day.getMonth(),
-    day.getDate(),
-    startHour,
-    startMinute,
-  );
+  const startAt = arenaBookingStartAt(dateKey, startTime);
   const confirmationDeadline = new Date(startAt.getTime() - 2 * 60 * 60 * 1000);
   const paymentExpiresAt = new Date(
     Date.now() + ARENA_BOOKING_PAYMENT_EXPIRY_MINUTES * 60 * 1000,

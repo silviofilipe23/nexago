@@ -8,6 +8,8 @@ import { BlogCover } from './blog-cover';
 import { BlogTournamentBlock } from './blocks/blog-tournament-block';
 import { BlogProductBlock } from './blocks/blog-product-block';
 import { BlogVideoBlock } from './blocks/blog-video-block';
+import { BlogArenaBlock } from './blocks/blog-arena-block';
+import { BlogRankingBlock } from './blocks/blog-ranking-block';
 import { getPostBySlug, STATIC_POST_AUTHOR, staticPostDate, staticReadMinutes, type BlogPost } from '../../../lib/blog/posts';
 import { getSiteBlogPostBySlug, type BlogCategory, type SiteBlogPost } from '../../../lib/firestore/blog';
 import { BLOG_CATEGORY_META, BLOG_NEUTRAL_CHIP } from '../../../lib/blog/categories';
@@ -58,6 +60,8 @@ interface PostHeader {
     BlogTournamentBlock,
     BlogProductBlock,
     BlogVideoBlock,
+    BlogArenaBlock,
+    BlogRankingBlock,
   ],
   styleUrl: './blog-post.page.scss',
   template: `
@@ -162,6 +166,10 @@ interface PostHeader {
                 <app-blog-product-block [productId]="b.productId" />
               } @else if (b.type === 'video') {
                 <app-blog-video-block [url]="b.url" [caption]="b.caption" [provider]="b.provider" [youtubeId]="b.youtubeId" />
+              } @else if (b.type === 'arena') {
+                <app-blog-arena-block [arenaId]="b.arenaId" />
+              } @else if (b.type === 'ranking') {
+                <app-blog-ranking-block [sport]="b.sport" [mode]="b.mode" [gender]="b.gender" />
               }
             }
           </article>

@@ -6,6 +6,9 @@ import {
   BLOG_CTA_DESTINATIONS,
   BLOG_CTA_LABEL_MAX,
   BLOG_EMBEDS_MAX,
+  BLOG_EMBED_TYPES,
+  BLOG_RANKING_GENDERS,
+  BLOG_RANKING_MODES,
   BLOG_HEADING_MAX,
   BLOG_LIST_ITEMS_MAX,
   BLOG_LIST_ITEM_MAX,
@@ -27,6 +30,8 @@ import {
   type BlogCtaDestination,
   type BlogPost,
   type BlogPostInput,
+  type BlogRankingGender,
+  type BlogRankingMode,
   type BlogStatus,
 } from './blog-post';
 
@@ -87,21 +92,38 @@ export function emptyBlock(type: BlogBlock['type']): BlockDraft {
       return { key: nextKey(), type, tournamentId: '' };
     case 'product':
       return { key: nextKey(), type, productId: '' };
+    case 'arena':
+      return { key: nextKey(), type, arenaId: '' };
+    case 'ranking':
+      return { key: nextKey(), type, sport: '', mode: 'athletes', gender: 'all' };
     default:
       return { key: nextKey(), type, text: '' };
   }
 }
 
-/** Bloco de torneio ou produto já com o escolhido. */
-export function embedBlock(kind: 'tournament' | 'product', id: string): BlockDraft {
-  return kind === 'tournament' ? { key: nextKey(), type: kind, tournamentId: id } : { key: nextKey(), type: kind, productId: id };
+/** Bloco de torneio, produto ou arena já com o escolhido. */
+export function embedBlock(kind: 'tournament' | 'product' | 'arena', id: string): BlockDraft {
+  switch (kind) {
+    case 'tournament':
+      return { key: nextKey(), type: kind, tournamentId: id };
+    case 'product':
+      return { key: nextKey(), type: kind, productId: id };
+    case 'arena':
+      return { key: nextKey(), type: kind, arenaId: id };
+  }
 }
 
+/** Bloco de ranking com o recorte escolhido. */
+export function rankingBlock(choice: { sport: string; mode: BlogRankingMode; gender: BlogRankingGender }): BlockDraft {
+  return { key: nextKey(), type: 'ranking', ...choice };
+}
+
+/** Bloco nexaGO que conta no teto (torneio, produto, arena, ranking; o vídeo não). */
 export function isEmbed(b: BlogBlock): boolean {
-  return b.type === 'tournament' || b.type === 'product';
+  return BLOG_EMBED_TYPES.includes(b.type);
 }
 
-/** Blocos de torneio + produto no corpo (o teto é `BLOG_EMBEDS_MAX`). */
+/** Blocos nexaGO no corpo (o teto é `BLOG_EMBEDS_MAX`, compartilhado pelos quatro tipos). */
 export function embedCount(body: readonly BlogBlock[]): number {
   return body.filter(isEmbed).length;
 }
@@ -224,6 +246,10 @@ export function isBlankBlock(b: BlogBlock): boolean {
       return !b.tournamentId;
     case 'product':
       return !b.productId;
+    case 'arena':
+      return !b.arenaId;
+    case 'ranking':
+      return !b.sport;
     default:
       return !b.text.trim();
   }
@@ -240,6 +266,10 @@ function stripKey(b: BlockDraft): BlogBlock {
       return { type: 'tournament', tournamentId: b.tournamentId };
     case 'product':
       return { type: 'product', productId: b.productId };
+    case 'arena':
+      return { type: 'arena', arenaId: b.arenaId };
+    case 'ranking':
+      return { type: 'ranking', sport: b.sport, mode: b.mode, gender: b.gender };
     case 'paragraph':
       return { type: 'paragraph', text: b.text.trim() };
     default:
@@ -324,6 +354,21 @@ function blockIssues(b: BlogBlock, n: number): string[] {
       return DOC_ID_RE.test(b.tournamentId) ? [] : [`${where}: escolha o torneio.`];
     case 'product':
       return DOC_ID_RE.test(b.productId) ? [] : [`${where}: escolha o produto.`];
+    case 'arena':
+      return DOC_ID_RE.test(b.arenaId) ? [] : [`${where}: escolha a arena.`];
+    case 'ranking': {
+      const errors: string[] = [];
+      if (!resolveSport(b.sport)) {
+        errors.push(`${where}: escolha o esporte do ranking.`);
+      }
+      if (!BLOG_RANKING_MODES.includes(b.mode)) {
+        errors.push(`${where}: escolha atletas ou equipes.`);
+      }
+      if (!BLOG_RANKING_GENDERS.includes(b.gender)) {
+        errors.push(`${where}: gênero do ranking inválido.`);
+      }
+      return errors;
+    }
   }
 }
 
@@ -374,7 +419,7 @@ export function payloadIssues(p: BlogPostInput, now: Date): string[] {
   } else {
     p.body.forEach((b, i) => errors.push(...blockIssues(b, i + 1)));
     if (embedCount(p.body) > BLOG_EMBEDS_MAX) {
-      errors.push(`Até ${BLOG_EMBEDS_MAX} blocos de torneio e produto por post.`);
+      errors.push(`Até ${BLOG_EMBEDS_MAX} blocos nexaGO (torneio, produto, arena, ranking) por post.`);
     }
   }
   if (p.cta) {

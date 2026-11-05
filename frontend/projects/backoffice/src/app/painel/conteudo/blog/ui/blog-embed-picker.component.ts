@@ -2,15 +2,46 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, input
 import { callableErrorMessage } from '../../../data/callable-error';
 import { TournamentsRepository, type TournamentRow } from '../../../torneios/data/tournaments.repository';
 import { ConfirmDialogComponent } from '../../../ui/confirm-dialog.component';
-import { IconComponent } from '../../../ui/icon.component';
+import { IconComponent, type PanelIconName } from '../../../ui/icon.component';
 import {
+  filterArenas,
   filterProducts,
   mergeTournamentResults,
   productPriceLabel,
   tournamentMeta,
+  type ArenaPick,
   type ShowcaseProduct,
 } from '../data/blog-embeds';
 import { BlogPostsRepository } from '../data/blog-posts.repository';
+
+export type EmbedPickKind = 'tournament' | 'product' | 'arena';
+
+const COPY: Record<EmbedPickKind, { title: string; description: string; placeholder: string; searchLabel: string; listLabel: string; icon: PanelIconName }> = {
+  tournament: {
+    title: 'Escolher torneio ou liga',
+    description: 'O post mostra o card com a inscrição ao vivo.',
+    placeholder: 'Nome do torneio',
+    searchLabel: 'Buscar torneio',
+    listLabel: 'Torneios',
+    icon: 'trophy',
+  },
+  product: {
+    title: 'Escolher produto da loja',
+    description: 'O post mostra preço e estoque atualizados.',
+    placeholder: 'Nome do produto',
+    searchLabel: 'Buscar produto',
+    listLabel: 'Produtos',
+    icon: 'bag',
+  },
+  arena: {
+    title: 'Escolher arena',
+    description: 'No app, o post mostra os horários livres e o botão reservar.',
+    placeholder: 'Nome ou cidade da arena',
+    searchLabel: 'Buscar arena',
+    listLabel: 'Arenas',
+    icon: 'arena',
+  },
+};
 
 interface PickRow {
   id: string;
@@ -33,8 +64,8 @@ const SEARCH_DEBOUNCE_MS = 300;
     <bo-confirm-dialog
       [open]="true"
       size="md"
-      [title]="kind() === 'tournament' ? 'Escolher torneio ou liga' : 'Escolher produto da loja'"
-      [description]="kind() === 'tournament' ? 'O post mostra o card com a inscrição ao vivo.' : 'O post mostra preço e estoque atualizados.'"
+      [title]="copy().title"
+      [description]="copy().description"
       [confirmLabel]="replacing() ? 'Trocar' : 'Inserir'"
       [confirmDisabled]="!selected()"
       [error]="error()"
@@ -45,13 +76,13 @@ const SEARCH_DEBOUNCE_MS = 300;
         <bo-icon name="search" [size]="15" />
         <input
           type="search"
-          [placeholder]="kind() === 'tournament' ? 'Nome do torneio' : 'Nome do produto'"
-          [attr.aria-label]="kind() === 'tournament' ? 'Buscar torneio' : 'Buscar produto'"
+          [placeholder]="copy().placeholder"
+          [attr.aria-label]="copy().searchLabel"
           [value]="term()"
           (input)="onSearch($event)"
         />
       </div>
-      <div class="rows" role="listbox" [attr.aria-label]="kind() === 'tournament' ? 'Torneios' : 'Produtos'">
+      <div class="rows" role="listbox" [attr.aria-label]="copy().listLabel">
         @if (loading()) {
           @for (slot of [0, 1, 2]; track slot) {
             <div class="skeleton"></div>
@@ -70,7 +101,7 @@ const SEARCH_DEBOUNCE_MS = 300;
               @if (row.imageUrl; as src) {
                 <img class="thumb" [src]="src" alt="" loading="lazy" />
               } @else {
-                <span class="thumb icon"><bo-icon [name]="kind() === 'tournament' ? 'trophy' : 'bag'" [size]="16" /></span>
+                <span class="thumb icon"><bo-icon [name]="copy().icon" [size]="16" /></span>
               }
               <span class="text">
                 <span class="name">{{ row.name }}</span>
@@ -106,7 +137,7 @@ export class BlogEmbedPickerComponent implements OnInit {
   private readonly tournaments = inject(TournamentsRepository);
   private readonly posts = inject(BlogPostsRepository);
 
-  readonly kind = input.required<'tournament' | 'product'>();
+  readonly kind = input.required<EmbedPickKind>();
   /** Id já escolhido no bloco (trocar): começa marcado. */
   readonly current = input<string | null>(null);
 
@@ -119,7 +150,9 @@ export class BlogEmbedPickerComponent implements OnInit {
   protected readonly error = signal<string | null>(null);
   protected readonly replacing = computed(() => this.current() !== null);
 
+  protected readonly copy = computed(() => COPY[this.kind()]);
   private readonly products = signal<ShowcaseProduct[]>([]);
+  private readonly arenas = signal<ArenaPick[]>([]);
   private readonly recentTournaments = signal<TournamentRow[]>([]);
   private readonly prefixTournaments = signal<TournamentRow[]>([]);
   private readonly now = new Date();
@@ -127,6 +160,9 @@ export class BlogEmbedPickerComponent implements OnInit {
   private seq = 0;
 
   protected readonly rows = computed<PickRow[]>(() => {
+    if (this.kind() === 'arena') {
+      return filterArenas(this.arenas(), this.term()).map((a) => ({ id: a.id, name: a.name, meta: a.location, imageUrl: a.coverUrl }));
+    }
     if (this.kind() === 'product') {
       return filterProducts(this.products(), this.term()).map((p) => ({
         id: p.id,
@@ -158,7 +194,9 @@ export class BlogEmbedPickerComponent implements OnInit {
 
   private async loadInitial(): Promise<void> {
     try {
-      if (this.kind() === 'product') {
+      if (this.kind() === 'arena') {
+        this.arenas.set(await this.posts.listArenas());
+      } else if (this.kind() === 'product') {
         this.products.set(await this.posts.listShowcase());
       } else {
         this.recentTournaments.set((await this.tournaments.listTournaments('', null)).rows);

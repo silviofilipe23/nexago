@@ -45,9 +45,14 @@ export const BLOG_LIST_ITEM_MAX = 300;
 export const BLOG_QUOTE_MAX = 300;
 export const BLOG_CAPTION_MAX = 140;
 export const BLOG_CTA_LABEL_MAX = 32;
-/** Blocos nexaGO (torneio, produto) por post: cada um é uma leitura a mais no save e no leitor. */
+/** Blocos nexaGO (torneio, produto, arena, ranking) por post: cada um é uma leitura a mais no leitor. */
 export const BLOG_EMBEDS_MAX = 10;
 export const BLOG_PUSH_CITY_MAX = 60;
+export const BLOG_RANKING_MODES = ["athletes", "teams"] as const;
+export const BLOG_RANKING_GENDERS = ["all", "masculino", "feminino", "misto"] as const;
+export type BlogRankingMode = (typeof BLOG_RANKING_MODES)[number];
+export type BlogRankingGender = (typeof BLOG_RANKING_GENDERS)[number];
+const EMBED_TYPES = new Set(["tournament", "product", "arena", "ranking"]);
 const URL_MAX = 1000;
 const WORDS_PER_MINUTE = 200;
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -65,7 +70,10 @@ export type BlogBlock =
   // torneio/produto existe no save, o leitor mostra o estado ao vivo.
   | {type: "tournament"; tournamentId: string}
   | {type: "product"; productId: string}
-  | {type: "video"; url: string; caption: string};
+  | {type: "video"; url: string; caption: string}
+  // Arena (horários livres + reservar no app) e Ranking (top 5 da temporada atual), depois da fase 2.
+  | {type: "arena"; arenaId: string}
+  | {type: "ranking"; sport: string; mode: BlogRankingMode; gender: BlogRankingGender};
 
 /** Push no horário da publicação (`blog-push.ts`). `city` `null` = todas; `sport` "all" = todos. */
 export interface BlogPushSettings {
@@ -205,6 +213,16 @@ function blockErrors(block: unknown, n: number): string[] {
   case "product":
     if (!isStr(b["productId"]) || !DOC_ID_RE.test(b["productId"])) return [`${where}: escolha o produto.`];
     return [];
+  case "arena":
+    if (!isStr(b["arenaId"]) || !DOC_ID_RE.test(b["arenaId"])) return [`${where}: escolha a arena.`];
+    return [];
+  case "ranking": {
+    const errors: string[] = [];
+    if (!resolveSport(b["sport"])) errors.push(`${where}: escolha o esporte do ranking.`);
+    if (!BLOG_RANKING_MODES.includes(b["mode"] as BlogRankingMode)) errors.push(`${where}: escolha atletas ou equipes.`);
+    if (!BLOG_RANKING_GENDERS.includes(b["gender"] as BlogRankingGender)) errors.push(`${where}: gênero do ranking inválido.`);
+    return errors;
+  }
   default:
     return [`${where}: tipo desconhecido.`];
   }
@@ -249,8 +267,8 @@ export function blogPostErrors(input: unknown, now: Date): string[] {
   else if (p.body.length > BLOG_BLOCKS_MAX) errors.push(`Até ${BLOG_BLOCKS_MAX} blocos.`);
   else {
     p.body.forEach((b, i) => errors.push(...blockErrors(b, i + 1)));
-    const embeds = p.body.filter((b) => (b as {type?: unknown})?.type === "tournament" || (b as {type?: unknown})?.type === "product");
-    if (embeds.length > BLOG_EMBEDS_MAX) errors.push(`Até ${BLOG_EMBEDS_MAX} blocos de torneio e produto por post.`);
+    const embeds = p.body.filter((b) => EMBED_TYPES.has((b as {type?: unknown})?.type as string));
+    if (embeds.length > BLOG_EMBEDS_MAX) errors.push(`Até ${BLOG_EMBEDS_MAX} blocos nexaGO (torneio, produto, arena, ranking) por post.`);
   }
 
   if (p.cta !== null) {
@@ -308,13 +326,17 @@ function storedBlock(b: BlogBlock): BlogBlock {
     return {type: "tournament", tournamentId: b.tournamentId};
   case "product":
     return {type: "product", productId: b.productId};
+  case "arena":
+    return {type: "arena", arenaId: b.arenaId};
+  case "ranking":
+    return {type: "ranking", sport: resolveSport(b.sport)!.code, mode: b.mode, gender: b.gender};
   }
 }
 
 function blockWords(b: BlogBlock): string {
   if (b.type === "list") return b.items.join(" ");
   if (b.type === "image" || b.type === "video") return b.caption;
-  if (b.type === "tournament" || b.type === "product") return "";
+  if (b.type === "tournament" || b.type === "product" || b.type === "arena" || b.type === "ranking") return "";
   return b.text;
 }
 
@@ -361,15 +383,17 @@ function storedPush(push: BlogPushSettings | undefined): BlogPushSettings {
   };
 }
 
-/** Torneios e produtos citados no corpo, sem repetição: o save confere que existem. */
-export function blogEmbedRefs(body: BlogBlock[]): {tournaments: string[]; products: string[]} {
+/** Torneios, produtos e arenas citados no corpo, sem repetição: o save confere que existem. */
+export function blogEmbedRefs(body: BlogBlock[]): {tournaments: string[]; products: string[]; arenas: string[]} {
   const tournaments = new Set<string>();
   const products = new Set<string>();
+  const arenas = new Set<string>();
   for (const b of body) {
     if (b.type === "tournament") tournaments.add(b.tournamentId);
     if (b.type === "product") products.add(b.productId);
+    if (b.type === "arena") arenas.add(b.arenaId);
   }
-  return {tournaments: [...tournaments], products: [...products]};
+  return {tournaments: [...tournaments], products: [...products], arenas: [...arenas]};
 }
 
 /**
@@ -417,9 +441,10 @@ export async function saveBlogPostCore(
       tx.get(slugRef),
       ...embeds.tournaments.map((id) => tx.get(db.collection("tournaments").doc(id))),
       ...embeds.products.map((id) => tx.get(db.collection("storeShowcase").doc(id))),
+      ...embeds.arenas.map((id) => tx.get(db.collection("arenas").doc(id))),
     ]);
     if (embedSnaps.some((s) => !s.exists)) {
-      throw new HttpsError("failed-precondition", "Um torneio ou produto citado no post não existe mais. Troque o bloco.");
+      throw new HttpsError("failed-precondition", "Um torneio, produto ou arena citado no post não existe mais. Troque o bloco.");
     }
     const current = snap.exists ? snap.data()! : null;
     if (input.id && !current) throw new HttpsError("not-found", "Este post não existe mais.");

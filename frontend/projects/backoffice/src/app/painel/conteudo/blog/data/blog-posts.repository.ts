@@ -3,7 +3,8 @@ import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { getDownloadURL, ref as storageRef, uploadBytesResumable } from 'firebase/storage';
 import { backofficeDb, backofficeFunctions, backofficeStorage } from '../../../data/firebase';
-import { showcaseProductFromDoc, type ShowcaseProduct } from './blog-embeds';
+import { arenaListItemFromFirestore } from '@nexago/arena-discovery';
+import { arenaPickOf, showcaseProductFromDoc, type ArenaPick, type ShowcaseProduct } from './blog-embeds';
 import {
   blogPostFromDoc,
   type BlogCategory,
@@ -54,6 +55,22 @@ export class BlogPostsRepository {
   async showcaseProduct(id: string): Promise<ShowcaseProduct | null> {
     const snap = await getDoc(doc(backofficeDb(), 'storeShowcase', id));
     return snap.exists() ? showcaseProductFromDoc(snap.id, snap.data()) : null;
+  }
+
+  /**
+   * Arenas para o seletor do bloco (nome, cidade, capa pelo mapeamento compartilhado do portal).
+   * `arenas` é pública; a busca por nome OU cidade é na tela porque o Firestore só faz prefixo de
+   * um campo.
+   */
+  async listArenas(): Promise<ArenaPick[]> {
+    const snap = await getDocs(collection(backofficeDb(), 'arenas'));
+    return snap.docs.map((d) => arenaPickOf(arenaListItemFromFirestore(d)));
+  }
+
+  /** Arena pelo id; `null` = não existe mais (o save recusa). */
+  async arena(id: string): Promise<ArenaPick | null> {
+    const snap = await getDoc(doc(backofficeDb(), 'arenas', id));
+    return snap.exists() ? arenaPickOf(arenaListItemFromFirestore(snap)) : null;
   }
 
   /**

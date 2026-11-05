@@ -1,3 +1,4 @@
+import { sportLabel } from '@nexago/sports';
 import { DESTINATIONS, type HomeBannerDestination } from '../../../app/novidades/data/home-banner';
 
 /** Espelha `functions/src/blog.ts` — mudar os dois. */
@@ -16,8 +17,22 @@ export const BLOG_LIST_ITEM_MAX = 300;
 export const BLOG_QUOTE_MAX = 300;
 export const BLOG_CAPTION_MAX = 140;
 export const BLOG_CTA_LABEL_MAX = 32;
-/** Blocos nexaGO (torneio, produto) por post: cada um é uma leitura a mais no save e no leitor. */
+/** Blocos nexaGO (torneio, produto, arena, ranking) por post: cada um é uma leitura a mais no leitor. */
 export const BLOG_EMBEDS_MAX = 10;
+export const BLOG_RANKING_MODES = ['athletes', 'teams'] as const;
+export const BLOG_RANKING_GENDERS = ['all', 'masculino', 'feminino', 'misto'] as const;
+export type BlogRankingMode = (typeof BLOG_RANKING_MODES)[number];
+export type BlogRankingGender = (typeof BLOG_RANKING_GENDERS)[number];
+/** Tipos que contam no teto `BLOG_EMBEDS_MAX` (o vídeo não conta). */
+export const BLOG_EMBED_TYPES: ReadonlyArray<string> = ['tournament', 'product', 'arena', 'ranking'];
+
+export const RANKING_MODE_LABELS: Record<BlogRankingMode, string> = { athletes: 'Atletas', teams: 'Equipes' };
+export const RANKING_GENDER_LABELS: Record<BlogRankingGender, string> = {
+  all: 'Todos',
+  masculino: 'Masculino',
+  feminino: 'Feminino',
+  misto: 'Misto',
+};
 export const BLOG_PUSH_CITY_MAX = 60;
 const WORDS_PER_MINUTE = 200;
 
@@ -58,7 +73,10 @@ export type BlogBlock =
   // Blocos nexaGO (fase 2): o servidor confere no save que o torneio/produto existe.
   | { type: 'tournament'; tournamentId: string }
   | { type: 'product'; productId: string }
-  | { type: 'video'; url: string; caption: string };
+  | { type: 'video'; url: string; caption: string }
+  // Arena (horários livres + reservar no app) e Ranking (top 5 da temporada atual).
+  | { type: 'arena'; arenaId: string }
+  | { type: 'ranking'; sport: string; mode: BlogRankingMode; gender: BlogRankingGender };
 export type BlogBlockType = BlogBlock['type'];
 
 /** Push no horário da publicação. `city` `null` = todas; `sport` "all" = todos. */
@@ -218,7 +236,7 @@ function blockWords(b: BlogBlock): string {
   if (b.type === 'image' || b.type === 'video') {
     return b.caption;
   }
-  if (b.type === 'tournament' || b.type === 'product') {
+  if (b.type === 'tournament' || b.type === 'product' || b.type === 'arena' || b.type === 'ranking') {
     return '';
   }
   return b.text;
@@ -260,6 +278,17 @@ function blockFrom(raw: unknown): BlogBlock | null {
       return str(b['tournamentId']) ? { type: 'tournament', tournamentId: str(b['tournamentId']) } : null;
     case 'product':
       return str(b['productId']) ? { type: 'product', productId: str(b['productId']) } : null;
+    case 'arena':
+      return str(b['arenaId']) ? { type: 'arena', arenaId: str(b['arenaId']) } : null;
+    case 'ranking':
+      return str(b['sport']) && BLOG_RANKING_MODES.includes(b['mode'] as BlogRankingMode)
+        ? {
+            type: 'ranking',
+            sport: str(b['sport']),
+            mode: b['mode'] as BlogRankingMode,
+            gender: BLOG_RANKING_GENDERS.includes(b['gender'] as BlogRankingGender) ? (b['gender'] as BlogRankingGender) : 'all',
+          }
+        : null;
     default:
       return null;
   }
@@ -416,4 +445,12 @@ export function pushSentLabel(post: Pick<BlogPost, 'pushSentAt' | 'pushResult'>,
   const n = post.pushResult.recipients;
   const at = post.pushSentAt ? ` em ${dayMonthLabel(post.pushSentAt, now)} · ${saoPauloParts(post.pushSentAt).time}` : '';
   return `Push enviado${at} para ${formatCount(n)} ${n === 1 ? 'atleta' : 'atletas'}`;
+}
+
+// ---------- ranking ----------
+
+/** "Top 5 · Vôlei de praia · Equipes · Feminino" (gênero "Todos" vira "todos os gêneros"). */
+export function rankingSummary(b: { sport: string; mode: BlogRankingMode; gender: BlogRankingGender }): string {
+  const gender = b.gender === 'all' ? 'Todos os gêneros' : RANKING_GENDER_LABELS[b.gender];
+  return ['Top 5', sportLabel(b.sport) ?? b.sport, RANKING_MODE_LABELS[b.mode], gender].join(' · ');
 }

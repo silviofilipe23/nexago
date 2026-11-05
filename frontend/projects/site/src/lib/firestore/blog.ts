@@ -21,6 +21,11 @@ import { videoProvider, youtubeVideoId, type VideoProvider } from '../blog/video
 export const BLOG_CATEGORIES = ['torneios', 'treino', 'regras', 'arenas', 'guia', 'loja'] as const;
 export type BlogCategory = (typeof BLOG_CATEGORIES)[number];
 
+export const BLOG_RANKING_MODES = ['athletes', 'teams'] as const;
+export const BLOG_RANKING_GENDERS = ['all', 'masculino', 'feminino', 'misto'] as const;
+export type BlogRankingMode = (typeof BLOG_RANKING_MODES)[number];
+export type BlogRankingGender = (typeof BLOG_RANKING_GENDERS)[number];
+
 /** Blocos do corpo já normalizados. O parágrafo vem quebrado em `parts` (um `<p>` por parte). */
 export type BlogBlock =
   | { type: 'paragraph'; parts: string[] }
@@ -31,7 +36,10 @@ export type BlogBlock =
   // Blocos nexaGO (fase 2): o leitor busca o torneio/produto ao vivo e some com o bloco se não achar.
   | { type: 'tournament'; tournamentId: string }
   | { type: 'product'; productId: string }
-  | { type: 'video'; url: string; caption: string; provider: VideoProvider; youtubeId: string | null };
+  | { type: 'video'; url: string; caption: string; provider: VideoProvider; youtubeId: string | null }
+  | { type: 'arena'; arenaId: string }
+  /** `sport` é o `code` do catálogo (ex.: `beachTennis`), não o código de perfil do ranking. */
+  | { type: 'ranking'; sport: string; mode: BlogRankingMode; gender: BlogRankingGender };
 
 export interface BlogCta {
   label: string;
@@ -126,6 +134,18 @@ export function mapBlogBlock(raw: unknown): BlogBlock | null {
       const id = docId(b['productId']);
       return id ? { type: 'product', productId: id } : null;
     }
+    case 'arena': {
+      const id = docId(b['arenaId']);
+      return id ? { type: 'arena', arenaId: id } : null;
+    }
+    case 'ranking': {
+      const sport = text(b['sport']);
+      const mode = b['mode'];
+      const gender = b['gender'];
+      // Modo ou gênero fora da lista = bloco de um build mais novo que este não entende.
+      if (!sport || !includes(BLOG_RANKING_MODES, mode) || !includes(BLOG_RANKING_GENDERS, gender)) return null;
+      return { type: 'ranking', sport, mode, gender };
+    }
     case 'video': {
       const url = httpsUrl(b['url']);
       const provider = url ? videoProvider(url) : null;
@@ -144,6 +164,10 @@ function mapCta(raw: unknown): BlogCta | null {
   if (!label) return null;
   const destination = text(c['destination']);
   return { label, destination, url: destination === 'url' ? httpsUrl(c['url']) : null };
+}
+
+function includes<T extends string>(list: readonly T[], value: unknown): value is T {
+  return typeof value === 'string' && (list as readonly string[]).includes(value);
 }
 
 function isCategory(value: unknown): value is BlogCategory {

@@ -2,6 +2,7 @@ import {
   blogPostFromDoc,
   isVideoUrl,
   pushSentLabel,
+  rankingSummary,
   reachLabel,
   youtubeVideoId,
   publicationLabel,
@@ -136,5 +137,27 @@ describe('blog · post', () => {
     expect(pushSentLabel({ pushSentAt: sentAt, pushResult: { state: 'sent', recipients: 1240, sent: 1100 } }, now)).toBe(
       'Push enviado em 12 nov · 09:00 para 1.240 atletas',
     );
+  });
+
+  it('lê arena e ranking do doc; ranking sem esporte ou modo some, gênero ruim vira "all"', () => {
+    const post = blogPostFromDoc('p', {
+      body: [
+        { type: 'arena', arenaId: 'a1' },
+        { type: 'arena', arenaId: '' },
+        { type: 'ranking', sport: 'beachVolleyball', mode: 'teams', gender: 'feminino' },
+        { type: 'ranking', sport: 'padel', mode: 'athletes', gender: 'x' },
+        { type: 'ranking', sport: 'padel', mode: 'duplas', gender: 'all' },
+      ],
+    });
+    expect(post.body).toEqual([
+      { type: 'arena', arenaId: 'a1' },
+      { type: 'ranking', sport: 'beachVolleyball', mode: 'teams', gender: 'feminino' },
+      { type: 'ranking', sport: 'padel', mode: 'athletes', gender: 'all' },
+    ]);
+  });
+
+  it('resumo do ranking no editor', () => {
+    expect(rankingSummary({ sport: 'beachVolleyball', mode: 'teams', gender: 'feminino' })).toBe('Top 5 · Vôlei de praia · Equipes · Feminino');
+    expect(rankingSummary({ sport: 'beach_tennis', mode: 'athletes', gender: 'all' })).toBe('Top 5 · Beach tennis · Atletas · Todos os gêneros');
   });
 });

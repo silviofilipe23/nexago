@@ -1,3 +1,4 @@
+import type { ArenaListItem } from '@nexago/arena-discovery';
 import type { TournamentRow } from '../../../torneios/data/tournaments.repository';
 import { normalizeSearch } from './blog-list';
 import { dayMonthLabel } from './blog-post';
@@ -64,4 +65,37 @@ export function mergeTournamentResults(
 /** "Goiânia · 24 out" — o que der para dizer do torneio na linha de baixo. */
 export function tournamentMeta(t: Pick<TournamentRow, 'place' | 'startAt'>, now: Date): string {
   return [t.place, t.startAt ? dayMonthLabel(t.startAt, now) : null].filter(Boolean).join(' · ') || 'Sem cidade nem data';
+}
+
+/** Arena no seletor e na prévia do bloco. */
+export interface ArenaPick {
+  id: string;
+  name: string;
+  /** "Goiânia, GO" (ou o endereço, quando não há cidade). */
+  location: string;
+  coverUrl: string | null;
+  /** Pré-cadastro: não é parceira (sem quadra nem reserva pelo app). */
+  unclaimed: boolean;
+}
+
+export function arenaPickOf(item: ArenaListItem): ArenaPick {
+  return {
+    id: item.id,
+    name: item.name,
+    location: item.locationLabel,
+    coverUrl: item.coverUrl ?? item.logoUrl,
+    unclaimed: item.isUnclaimed,
+  };
+}
+
+/** Busca por nome ou cidade, sem acento; só parceiras (pré-cadastro não tem reserva). */
+export function filterArenas(arenas: readonly ArenaPick[], q: string): ArenaPick[] {
+  const tokens = normalizeSearch(q).split(/\s+/).filter(Boolean);
+  return arenas
+    .filter((a) => !a.unclaimed)
+    .filter((a) => {
+      const hay = normalizeSearch(`${a.name} ${a.location}`);
+      return tokens.every((t) => hay.includes(t));
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 }

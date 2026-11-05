@@ -73,6 +73,15 @@ sealed class BlogBlock {
       case 'product':
         final id = text('productId');
         return id.isEmpty ? null : BlogProductEmbed(id);
+      case 'arena':
+        final id = text('arenaId');
+        return id.isEmpty ? null : BlogArenaEmbed(id);
+      case 'ranking':
+        final sport = text('sport');
+        final mode = BlogRankingMode.fromKey(raw['mode']);
+        final gender = BlogRankingGender.fromKey(raw['gender']);
+        if (sport.isEmpty || mode == null || gender == null) return null;
+        return BlogRankingEmbed(sport: sport, mode: mode, gender: gender);
       default:
         return null;
     }
@@ -173,6 +182,63 @@ class BlogTournamentEmbed extends BlogBlock {
 class BlogProductEmbed extends BlogBlock {
   const BlogProductEmbed(this.productId);
   final String productId;
+}
+
+/// Arena citada no post (`arenas/{id}`): capa, horários livres de hoje e o
+/// botão para reservar, lidos ao vivo.
+class BlogArenaEmbed extends BlogBlock {
+  const BlogArenaEmbed(this.arenaId);
+  final String arenaId;
+}
+
+/// Modo do bloco de ranking. Chaves iguais às do backend.
+enum BlogRankingMode {
+  athletes('athletes'),
+  teams('teams');
+
+  const BlogRankingMode(this.key);
+  final String key;
+
+  static BlogRankingMode? fromKey(Object? key) =>
+      BlogRankingMode.values.where((m) => m.key == key).firstOrNull;
+}
+
+/// Gênero do bloco de ranking. Chaves iguais às do backend.
+enum BlogRankingGender {
+  all('all'),
+  masculino('masculino'),
+  feminino('feminino'),
+  misto('misto');
+
+  const BlogRankingGender(this.key);
+  final String key;
+
+  static BlogRankingGender? fromKey(Object? key) =>
+      BlogRankingGender.values.where((g) => g.key == key).firstOrNull;
+}
+
+/// Top 5 do ranking da temporada: esporte (`code` do catálogo), modo e
+/// gênero. Também é chave de provider (igualdade por valor).
+class BlogRankingEmbed extends BlogBlock {
+  const BlogRankingEmbed({
+    required this.sport,
+    required this.mode,
+    required this.gender,
+  });
+
+  final String sport;
+  final BlogRankingMode mode;
+  final BlogRankingGender gender;
+
+  @override
+  bool operator ==(Object other) =>
+      other is BlogRankingEmbed &&
+      other.sport == sport &&
+      other.mode == mode &&
+      other.gender == gender;
+
+  @override
+  int get hashCode => Object.hash(sport, mode, gender);
 }
 
 /// Botão no fim do post. Mesmas chaves do banner de novidades.

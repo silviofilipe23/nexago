@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../domain/blog_library.dart';
 import '../domain/blog_logic.dart';
+import '../domain/blog_notify_prefs.dart';
 import '../domain/blog_post.dart';
 import '../domain/blog_repository.dart';
 
@@ -135,4 +136,18 @@ class FirestoreBlogRepository implements BlogRepository {
           uid,
         ).set({'kind': 'helpful', 'createdAt': FieldValue.serverTimestamp()})
       : _reaction(postId, uid).delete();
+
+  DocumentReference<Map<String, dynamic>> _notifyPrefs(String uid) =>
+      _db.collection('blogNotifyPrefs').doc(uid);
+
+  @override
+  Stream<BlogNotifyPrefs> watchNotifyPrefs(String uid) => _notifyPrefs(
+    uid,
+  ).snapshots().map((snap) => BlogNotifyPrefs.fromMap(snap.data()));
+
+  @override
+  Future<void> writeNotifyPrefs(String uid, BlogNotifyPrefs prefs) =>
+      _notifyPrefs(
+        uid,
+      ).set({...prefs.toWriteMap(), 'updatedAt': FieldValue.serverTimestamp()});
 }

@@ -12,7 +12,7 @@ import {CLIENT_FACING_REGIONS} from "./function-regions";
  * recebe a SPA normal.
  *
  * Uso: GET ?path=/torneios/{slug-id} (também /ligas/{slug-id}, /arena/{id}, /s/{slug},
- * /a/{slug}, /o/{slug}). Lê o Firestore com o Admin SDK (ignora as rules; a filtragem de
+ * /a/{slug}, /o/{slug}, /blog/{slug}). Lê o Firestore com o Admin SDK (ignora as rules; a filtragem de
  * "é público mesmo?" é feita aqui, nos mesmos moldes do site) e devolve um HTML mínimo — só
  * `<head>` com meta tags + um link visível — com refresh imediato pra URL canônica, caso algum
  * humano caia aqui por engano (link direto da function, por exemplo).
@@ -151,6 +151,25 @@ async function previewForLinkPage(slug: string, ownerType: "arena" | "organizer"
   };
 }
 
+/** Post do blog no ar no site: mesmos filtros da página (`lib/firestore/blog.ts` do site). */
+async function previewForBlogPost(slug: string): Promise<PreviewData | null> {
+  const snap = await getFirestore()
+    .collection("blogPosts")
+    .where("slug", "==", slug)
+    .where("status", "==", "published")
+    .where("channels.site", "==", true)
+    .limit(1)
+    .get();
+  if (snap.empty) return null;
+  const d = snap.docs[0].data();
+  const title = str(d.title) || "Blog nexaGO";
+  return {
+    title: `${title} · Blog nexaGO`,
+    description: str(d.seoDescription) || str(d.subtitle) || DEFAULT_DESCRIPTION,
+    image: storageUrl(d.coverUrl),
+  };
+}
+
 async function resolvePreview(path: string): Promise<{data: PreviewData; canonical: string} | null> {
   const segments = path.split("/").filter(Boolean);
   const [first, second] = segments;
@@ -163,6 +182,7 @@ async function resolvePreview(path: string): Promise<{data: PreviewData; canonic
   else if (first === "s") data = await previewForArenaSite(second);
   else if (first === "a") data = await previewForLinkPage(second, "arena");
   else if (first === "o") data = await previewForLinkPage(second, "organizer");
+  else if (first === "blog") data = await previewForBlogPost(second);
   else return null;
 
   if (!data) return null;

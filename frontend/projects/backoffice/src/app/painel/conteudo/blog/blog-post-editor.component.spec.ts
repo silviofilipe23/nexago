@@ -2,8 +2,9 @@ import { ApplicationRef, provideZonelessChangeDetection, signal } from '@angular
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { AuthService } from '../../../auth/auth.service';
+import { TournamentsRepository, type TournamentRow } from '../../torneios/data/tournaments.repository';
 import { BlogPostEditorComponent } from './blog-post-editor.component';
-import type { BlogPost, SaveBlogPostInput, SaveBlogPostResult } from './data/blog-post';
+import type { BlogPost, BlogPushReach, SaveBlogPostInput, SaveBlogPostResult } from './data/blog-post';
 import { BlogPostsRepository } from './data/blog-posts.repository';
 
 const STORED: BlogPost = {
@@ -21,6 +22,9 @@ const STORED: BlogPost = {
   cta: null,
   channels: { app: true, site: true },
   featured: false,
+  push: { enabled: false, city: null, sport: 'all' },
+  pushSentAt: null,
+  pushResult: null,
   status: 'published',
   publishAt: new Date('2026-10-28T12:00:00Z'),
   readMinutes: 1,
@@ -33,8 +37,29 @@ const STORED: BlogPost = {
 describe('BlogPostEditorComponent', () => {
   let save: jasmine.Spy<(input: SaveBlogPostInput) => Promise<SaveBlogPostResult>>;
   let navigate: jasmine.Spy;
+  let estimate: jasmine.Spy;
 
-  async function mount(id: string | null, saveImpl?: (input: SaveBlogPostInput) => Promise<SaveBlogPostResult>): Promise<HTMLElement> {
+  const COPA: TournamentRow = {
+    id: 't1',
+    name: 'Copa Goiás Beach',
+    sport: null,
+    status: 'inscricoes',
+    visibility: null,
+    startAt: new Date('2026-11-14T12:00:00Z'),
+    place: 'Goiânia',
+    categoriesCount: 4,
+    capacity: null,
+    managerId: null,
+    entryFeeReais: null,
+  };
+  const REACH: BlogPushReach = { reachable: 1240, athletes: 3106, minBuild: 118, cities: [{ city: 'Goiânia', count: 2100 }] };
+
+  async function mount(
+    id: string | null,
+    saveImpl?: (input: SaveBlogPostInput) => Promise<SaveBlogPostResult>,
+    stored: BlogPost = STORED,
+  ): Promise<HTMLElement> {
+    estimate = jasmine.createSpy('estimatePushReach').and.resolveTo(REACH);
     save = jasmine.createSpy('save').and.callFake(
       saveImpl ??
         ((input: SaveBlogPostInput) =>
@@ -49,7 +74,22 @@ describe('BlogPostEditorComponent', () => {
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap(id ? { id } : {}) } } },
         {
           provide: BlogPostsRepository,
-          useValue: { get: () => Promise.resolve(id === 'p1' ? STORED : null), save, delete: jasmine.createSpy('delete'), uploadImage: jasmine.createSpy('uploadImage') },
+          useValue: {
+            get: () => Promise.resolve(id === 'p1' ? stored : null),
+            save,
+            delete: jasmine.createSpy('delete'),
+            uploadImage: jasmine.createSpy('uploadImage'),
+            estimatePushReach: estimate,
+            listShowcase: () => Promise.resolve([]),
+            showcaseProduct: () => Promise.resolve(null),
+          },
+        },
+        {
+          provide: TournamentsRepository,
+          useValue: {
+            listTournaments: () => Promise.resolve({ rows: [COPA], cursor: null, hasMore: false }),
+            byIds: (ids: string[]) => Promise.resolve(ids.includes('t1') ? [COPA] : []),
+          },
         },
       ],
     }).compileComponents();
@@ -138,5 +178,69 @@ describe('BlogPostEditorComponent', () => {
   it('post que não existe mais', async () => {
     const host = await mount('sumiu');
     expect(host.querySelector('.empty')!.textContent).toContain('Este post não existe mais.');
+  });
+
+  it('push: ligar busca o alcance (com espera) e mostra a linha; desligar o app vira erro', async () => {
+    const host = await mount('p1', undefined, { ...STORED, status: 'scheduled', publishAt: new Date('2099-01-01T12:00:00Z') });
+    const pushToggle = host.querySelector<HTMLButtonElement>('bo-blog-push-settings bo-toggle button')!;
+    pushToggle.click();
+    await settle();
+    expect(host.querySelector('bo-blog-push-settings .reach')!.textContent!.trim()).toBe('Calculando alcance…');
+    await new Promise((r) => setTimeout(r, 600));
+    await settle();
+    expect(estimate).toHaveBeenCalledOnceWith({ city: null, sport: 'all', category: 'loja' });
+    expect(host.querySelector('bo-blog-push-settings .reach')!.textContent!.trim()).toBe(
+      'Alcance estimado: 1.240 atletas com o app atualizado · de 3.106 no público · respeita quem desligou avisos do blog',
+    );
+    const cities = [...host.querySelectorAll('bo-blog-push-settings option')].map((o) => o.textContent!.trim());
+    expect(cities).toContain('Goiânia · 2100');
+
+    const appToggle = host.querySelector<HTMLButtonElement>('bo-toggle[ariaLabel="Blog no app"] button')!;
+    appToggle.click();
+    await settle();
+    expect(host.querySelector('.issues')!.textContent).toContain('A notificação abre o post no app: ligue "Blog no app".');
+    expect(primary(host).disabled).toBeTrue();
+  });
+
+  it('push já enviado vira resumo, sem controle para religar', async () => {
+    const host = await mount('p1', undefined, {
+      ...STORED,
+      push: { enabled: true, city: null, sport: 'all' },
+      pushSentAt: new Date('2026-10-28T12:00:05Z'),
+      pushResult: { state: 'sent', recipients: 1240, sent: 1200 },
+    });
+    expect(host.querySelector('bo-blog-push-settings')!.textContent).toContain('Push enviado em 28 out · 09:00 para 1.240 atletas');
+    expect(host.querySelector('bo-blog-push-settings bo-toggle')).toBeNull();
+    expect(estimate).not.toHaveBeenCalled();
+  });
+
+  it('publicado sem push enviado avisa que ligar agora não envia', async () => {
+    const host = await mount('p1');
+    expect(host.querySelector('bo-blog-push-settings')!.textContent).toContain('ligar agora não envia');
+  });
+
+  it('bloco nexaGO: escolher torneio insere o bloco com a prévia e vai no post', async () => {
+    const host = await mount('p1');
+    host.querySelector<HTMLButtonElement>('bo-blog-embed-menu .trigger')!.click();
+    await settle();
+    const item = [...host.querySelectorAll<HTMLButtonElement>('bo-blog-embed-menu .item')].find((b) => b.textContent!.includes('Torneio'))!;
+    item.click();
+    await settle();
+    const option = host.querySelector<HTMLButtonElement>('bo-blog-embed-picker .row')!;
+    expect(option.textContent).toContain('Copa Goiás Beach');
+    expect(option.textContent).toContain('Goiânia · 14 nov');
+    option.click();
+    await settle();
+    const insert = [...host.querySelectorAll<HTMLButtonElement>('bo-blog-embed-picker dialog .actions button')].find(
+      (b) => b.textContent!.trim() === 'Inserir',
+    )!;
+    insert.click();
+    await settle();
+    expect(host.querySelector('bo-blog-embed-picker')).toBeNull();
+    expect(host.querySelector('bo-blog-embed-preview')!.textContent).toContain('Copa Goiás Beach');
+
+    primary(host).click();
+    await settle();
+    expect(save.calls.mostRecent().args[0].post.body).toContain({ type: 'tournament', tournamentId: 't1' });
   });
 });

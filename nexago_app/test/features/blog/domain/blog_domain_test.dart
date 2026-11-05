@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/blog/domain/blog_library.dart';
 import 'package:nexago_app/features/blog/domain/blog_logic.dart';
+import 'package:nexago_app/features/blog/domain/blog_notify_prefs.dart';
 import 'package:nexago_app/features/blog/domain/blog_post.dart';
 import 'package:nexago_app/features/home_banners/domain/home_banner.dart';
 
@@ -39,7 +40,7 @@ void main() {
         'author': {'name': 'Marcelo R.', 'role': 'Organização'},
         'body': [
           {'type': 'paragraph', 'text': 'Olá'},
-          {'type': 'tournament', 'tournamentId': 'x'},
+          {'type': 'poll', 'question': 'x'},
           {'type': 'heading', 'text': 'O que muda'},
           {
             'type': 'list',
@@ -387,6 +388,125 @@ void main() {
         ),
         0,
       );
+    });
+  });
+
+  group('blocos nexaGO', () {
+    test('torneio, produto e vídeo; inválidos ficam de fora', () {
+      final post = BlogPost.fromMap('p1', {
+        'title': 'Post',
+        'body': [
+          {'type': 'tournament', 'tournamentId': 't1'},
+          {'type': 'tournament', 'tournamentId': ' '},
+          {'type': 'product', 'productId': 'toalha'},
+          {'type': 'product'},
+          {
+            'type': 'video',
+            'url': 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+            'caption': 'Saque viagem',
+          },
+          {
+            'type': 'video',
+            'url': 'https://www.instagram.com/reel/Cabc123/',
+            'caption': '',
+          },
+          {'type': 'video', 'url': 'https://vimeo.com/123', 'caption': ''},
+          {'type': 'video', 'url': 'http://youtu.be/dQw4w9WgXcQ'},
+        ],
+      })!;
+      expect(post.body.map((b) => b.runtimeType), [
+        BlogTournamentEmbed,
+        BlogProductEmbed,
+        BlogVideo,
+        BlogVideo,
+      ]);
+      expect((post.body[0] as BlogTournamentEmbed).tournamentId, 't1');
+      expect((post.body[1] as BlogProductEmbed).productId, 'toalha');
+      final yt = post.body[2] as BlogVideo;
+      expect(yt.caption, 'Saque viagem');
+      expect(
+        yt.thumbnailUrl,
+        'https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+      );
+      expect(yt.isInstagram, isFalse);
+      final ig = post.body[3] as BlogVideo;
+      expect(ig.isInstagram, isTrue);
+      expect(ig.thumbnailUrl, isNull);
+    });
+
+    test('id do YouTube nos formatos de link', () {
+      expect(blogYoutubeId('https://youtu.be/dQw4w9WgXcQ?t=3'), 'dQw4w9WgXcQ');
+      expect(
+        blogYoutubeId('https://m.youtube.com/watch?v=dQw4w9WgXcQ&t=10s'),
+        'dQw4w9WgXcQ',
+      );
+      expect(
+        blogYoutubeId('https://youtube.com/shorts/dQw4w9WgXcQ'),
+        'dQw4w9WgXcQ',
+      );
+      expect(
+        blogYoutubeId('https://www.youtube.com/embed/dQw4w9WgXcQ'),
+        'dQw4w9WgXcQ',
+      );
+      expect(blogYoutubeId('https://www.youtube.com/@nexago'), isNull);
+      expect(blogYoutubeId('https://www.instagram.com/p/abc/'), isNull);
+    });
+  });
+
+  group('avisos por categoria', () {
+    test('doc ausente = todas ligadas', () {
+      final prefs = BlogNotifyPrefs.fromMap(null);
+      expect(prefs.enabled, BlogCategory.values);
+      expect(blogNotifySummary(prefs), 'Todas as categorias ligadas');
+    });
+
+    test('lê muted, ignora chave desconhecida e grava na ordem fixa', () {
+      final prefs = BlogNotifyPrefs.fromMap({
+        'muted': ['loja', 'podcast', 'regras', 3],
+      });
+      expect(prefs.muted, {BlogCategory.loja, BlogCategory.regras});
+      expect(prefs.toWriteMap(), {
+        'muted': ['regras', 'loja'],
+      });
+      expect(prefs.toWriteMap().keys, ['muted']);
+    });
+
+    test('alternar liga e desliga uma categoria', () {
+      final off = BlogNotifyPrefs.allOn.withCategory(
+        BlogCategory.torneios,
+        on: false,
+      );
+      expect(off.isOn(BlogCategory.torneios), isFalse);
+      expect(off.isOn(BlogCategory.treino), isTrue);
+      final on = off.withCategory(BlogCategory.torneios, on: true);
+      expect(on.muted, isEmpty);
+    });
+
+    test('resumo do card', () {
+      BlogNotifyPrefs only(List<BlogCategory> on) => BlogNotifyPrefs(
+        muted: {
+          for (final c in BlogCategory.values)
+            if (!on.contains(c)) c,
+        },
+      );
+      expect(
+        blogNotifySummary(only([BlogCategory.torneios, BlogCategory.treino])),
+        'Torneios e Treino ligados',
+      );
+      expect(blogNotifySummary(only([BlogCategory.regras])), 'Regras ligado');
+      expect(
+        blogNotifySummary(
+          only([BlogCategory.torneios, BlogCategory.treino, BlogCategory.guia]),
+        ),
+        'Torneios, Treino e Guia do app ligados',
+      );
+      expect(
+        blogNotifySummary(
+          BlogNotifyPrefs(muted: {BlogCategory.loja, BlogCategory.arenas}),
+        ),
+        'Todas, menos Arenas e Loja',
+      );
+      expect(blogNotifySummary(only(const [])), 'Todos desligados');
     });
   });
 }

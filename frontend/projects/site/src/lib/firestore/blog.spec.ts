@@ -48,6 +48,39 @@ describe('mapBlogBlock', () => {
   });
 });
 
+describe('mapBlogBlock — blocos nexaGO (fase 2)', () => {
+  it('torneio e produto: guarda o id; vazio ou com barra é descartado', () => {
+    expect(mapBlogBlock({ type: 'tournament', tournamentId: ' t1 ' })).toEqual({ type: 'tournament', tournamentId: 't1' });
+    expect(mapBlogBlock({ type: 'product', productId: 'p1' })).toEqual({ type: 'product', productId: 'p1' });
+    expect(mapBlogBlock({ type: 'tournament', tournamentId: '' })).toBeNull();
+    expect(mapBlogBlock({ type: 'tournament', tournamentId: 'a/b' })).toBeNull();
+    expect(mapBlogBlock({ type: 'product', productId: 42 })).toBeNull();
+    expect(mapBlogBlock({ type: 'product', productId: '..' })).toBeNull();
+  });
+
+  it('vídeo do YouTube: provedor e id extraídos', () => {
+    expect(mapBlogBlock({ type: 'video', url: 'https://youtu.be/dQw4w9WgXcQ', caption: ' Final ' })).toEqual({
+      type: 'video',
+      url: 'https://youtu.be/dQw4w9WgXcQ',
+      caption: 'Final',
+      provider: 'youtube',
+      youtubeId: 'dQw4w9WgXcQ',
+    });
+  });
+
+  it('vídeo do Instagram fica sem id; host fora da lista ou http é descartado', () => {
+    expect(mapBlogBlock({ type: 'video', url: 'https://www.instagram.com/reel/C1/' })).toEqual({
+      type: 'video',
+      url: 'https://www.instagram.com/reel/C1/',
+      caption: '',
+      provider: 'instagram',
+      youtubeId: null,
+    });
+    expect(mapBlogBlock({ type: 'video', url: 'https://vimeo.com/1', caption: '' })).toBeNull();
+    expect(mapBlogBlock({ type: 'video', url: 'http://youtu.be/dQw4w9WgXcQ', caption: '' })).toBeNull();
+  });
+});
+
 describe('mapBlogPost', () => {
   it('usa o subtítulo quando a descrição do Google está vazia', () => {
     const p = mapBlogPost('id1', doc());

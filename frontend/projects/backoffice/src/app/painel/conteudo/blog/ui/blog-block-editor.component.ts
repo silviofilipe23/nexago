@@ -8,8 +8,11 @@ import {
   BLOG_LIST_ITEM_MAX,
   BLOG_PARAGRAPH_MAX,
   BLOG_QUOTE_MAX,
+  isVideoUrl,
+  youtubeVideoId,
   type BlogBlockType,
 } from '../data/blog-post';
+import { BlogEmbedPreviewComponent } from './blog-embed-preview.component';
 import { BlogImagePickerComponent } from './blog-image-picker.component';
 
 export const BLOCK_LABELS: Record<BlogBlockType, string> = {
@@ -18,13 +21,16 @@ export const BLOCK_LABELS: Record<BlogBlockType, string> = {
   list: 'Lista',
   quote: 'Destaque',
   image: 'Imagem',
+  tournament: 'Torneio ou liga',
+  product: 'Produto da loja',
+  video: 'Vídeo',
 };
 
 /** Um bloco do corpo: o campo do tipo dele + subir, descer e remover. Texto puro. */
 @Component({
   selector: 'bo-blog-block-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, BlogImagePickerComponent],
+  imports: [IconComponent, BlogImagePickerComponent, BlogEmbedPreviewComponent],
   template: `
     @let b = block();
     <div class="block" [class]="'type-' + b.type">
@@ -34,6 +40,9 @@ export const BLOCK_LABELS: Record<BlogBlockType, string> = {
           <span class="count" [class.near]="c.near">{{ c.text }}</span>
         }
         <span class="spacer"></span>
+        @if (b.type === 'tournament' || b.type === 'product') {
+          <button type="button" class="bo-mini-btn swap" [disabled]="disabled()" (click)="swap.emit()">Trocar</button>
+        }
         <button type="button" class="icon-btn" [attr.aria-label]="'Subir bloco ' + (index() + 1)" [disabled]="disabled() || index() === 0" (click)="move.emit(-1)">
           <bo-icon class="up" name="chevron-down" [size]="13" />
         </button>
@@ -126,6 +135,45 @@ export const BLOCK_LABELS: Record<BlogBlockType, string> = {
             (input)="patchCaption($event)"
           />
         }
+        @case ('tournament') {
+          <bo-blog-embed-preview kind="tournament" [id]="b.tournamentId" />
+        }
+        @case ('product') {
+          <bo-blog-embed-preview kind="product" [id]="b.productId" />
+        }
+        @case ('video') {
+          <div class="video">
+            @if (thumb(); as src) {
+              <img class="video-thumb" [src]="src" alt="Miniatura do vídeo" />
+            } @else {
+              <span class="video-thumb empty"><bo-icon name="video" [size]="20" /></span>
+            }
+            <div class="video-fields">
+              <input
+                class="text mono"
+                placeholder="https://youtube.com/watch?v=… ou https://instagram.com/reel/…"
+                [attr.aria-label]="'Link do vídeo do bloco ' + (index() + 1)"
+                [value]="b.url"
+                [disabled]="disabled()"
+                (input)="patchUrl($event)"
+              />
+              <input
+                class="text caption"
+                placeholder="Legenda (opcional)"
+                [attr.aria-label]="'Legenda do vídeo do bloco ' + (index() + 1)"
+                [attr.maxlength]="limits.caption"
+                [value]="b.caption"
+                [disabled]="disabled()"
+                (input)="patchCaption($event)"
+              />
+              @if (videoProblem()) {
+                <span class="hint err">Use um link do YouTube ou do Instagram (https).</span>
+              } @else {
+                <span class="hint">Sem player embutido: o leitor vê a miniatura e abre o vídeo fora.</span>
+              }
+            </div>
+          </div>
+        }
       }
     </div>
   `,
@@ -158,6 +206,14 @@ export const BLOCK_LABELS: Record<BlogBlockType, string> = {
     .add-item { align-self: flex-start; margin-left: 20px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 0; border: none; background: none; color: var(--nx-orange-500); font-family: var(--nx-font-display); font-weight: 600; font-size: 12.5px; cursor: pointer; }
     .add-item:disabled { opacity: 0.5; cursor: default; }
     .caption { font-size: 13px; color: var(--nx-text-mute); }
+    .mono { font-family: var(--nx-font-mono); font-size: 12.5px; }
+    .swap { height: 26px; padding: 0 10px; font-size: 12px; }
+    .video { display: flex; gap: 12px; align-items: flex-start; }
+    .video-thumb { flex: none; width: 128px; height: 72px; border-radius: var(--nx-r-2); object-fit: cover; background: var(--nx-surface-2); }
+    .video-thumb.empty { display: grid; place-items: center; color: var(--nx-text-dim); }
+    .video-fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .hint { padding: 0 6px; font-size: 11.5px; color: var(--nx-text-dim); }
+    .hint.err { color: var(--nx-live); }
   `,
 })
 export class BlogBlockEditorComponent {
@@ -170,6 +226,8 @@ export class BlogBlockEditorComponent {
   readonly move = output<-1 | 1>();
   readonly remove = output<void>();
   readonly uploading = output<boolean>();
+  /** Bloco de torneio/produto: abrir o seletor para trocar o escolhido. */
+  readonly swap = output<void>();
 
   protected readonly limits = {
     paragraph: BLOG_PARAGRAPH_MAX,
@@ -181,6 +239,17 @@ export class BlogBlockEditorComponent {
   };
 
   protected readonly label = computed(() => BLOCK_LABELS[this.block().type]);
+
+  protected readonly thumb = computed(() => {
+    const b = this.block();
+    const id = b.type === 'video' ? youtubeVideoId(b.url.trim()) : null;
+    return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : null;
+  });
+
+  protected readonly videoProblem = computed(() => {
+    const b = this.block();
+    return b.type === 'video' && b.url.trim() !== '' && !isVideoUrl(b.url.trim());
+  });
 
   /** Contador de caracteres dos blocos de texto; acende perto do limite. */
   protected readonly counter = computed(() => {
@@ -232,9 +301,16 @@ export class BlogBlockEditorComponent {
     }
   }
 
+  protected patchUrl(event: Event): void {
+    const b = this.block();
+    if (b.type === 'video') {
+      this.changed.emit({ ...b, url: this.value(event) });
+    }
+  }
+
   protected patchCaption(event: Event): void {
     const b = this.block();
-    if (b.type === 'image') {
+    if (b.type === 'image' || b.type === 'video') {
       this.changed.emit({ ...b, caption: this.value(event) });
     }
   }

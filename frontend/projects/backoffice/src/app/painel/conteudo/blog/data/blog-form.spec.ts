@@ -1,5 +1,7 @@
 import {
   draftFromPost,
+  embedBlock,
+  embedCount,
   emptyBlock,
   isBlankBlock,
   moveBlock,
@@ -58,6 +60,9 @@ describe('blog · formulário', () => {
       author: { name: 'Ana', role: '' },
       channels: { app: true, site: true },
       featured: false,
+      push: { enabled: false, city: null, sport: 'all' },
+      pushSentAt: null,
+      pushResult: null,
       status: 'draft',
       publishAt: null,
       readMinutes: 1,
@@ -160,5 +165,70 @@ describe('blog · formulário', () => {
     expect(saveLabel('scheduled', 'scheduled')).toBe('Salvar agendamento');
     expect(saveLabel('published', 'scheduled')).toBe('Publicar agora');
     expect(saveLabel('published', 'published')).toBe('Salvar alterações');
+  });
+
+  it('push vai no post: cidade vazia = todas; já enviado com app desligado não trava o save', () => {
+    const d = filled({ pushEnabled: true, pushCity: '  Goiânia ', pushSport: 'beachTennis' });
+    expect(payloadFromDraft(d).push).toEqual({ enabled: true, city: 'Goiânia', sport: 'beachTennis' });
+    expect(payloadFromDraft(filled({ pushEnabled: true })).push).toEqual({ enabled: true, city: null, sport: 'all' });
+    expect(payloadFromDraft(filled()).push).toEqual({ enabled: false, city: null, sport: 'all' });
+    expect(payloadFromDraft(filled({ pushEnabled: true, pushSent: true, app: false })).push.enabled).toBeFalse();
+  });
+
+  it('push ligado exige o blog no app; esporte do push precisa existir', () => {
+    expect(payloadIssues(payloadFromDraft(filled({ pushEnabled: true, app: false })), NOW)).toEqual([
+      'A notificação abre o post no app: ligue "Blog no app".',
+    ]);
+    expect(payloadIssues(payloadFromDraft(filled({ pushEnabled: true, pushSport: 'xadrez' })), NOW)).toEqual([
+      'Esporte da notificação desconhecido.',
+    ]);
+  });
+
+  it('blocos nexaGO: vídeo só YouTube/Instagram; torneio/produto sem escolha somem; até 10', () => {
+    const video = (url: string) => ({ ...emptyBlock('video'), url } as BlogDraft['body'][number]);
+    const p = payloadFromDraft(
+      filled({ body: [embedBlock('tournament', 't1'), emptyBlock('product'), video('https://youtu.be/abcdefghijk'), emptyBlock('video')] }),
+    );
+    expect(p.body).toEqual([
+      { type: 'tournament', tournamentId: 't1' },
+      { type: 'video', url: 'https://youtu.be/abcdefghijk', caption: '' },
+    ]);
+    expect(payloadIssues(p, NOW)).toEqual([]);
+    expect(payloadIssues(payloadFromDraft(filled({ body: [video('https://vimeo.com/1')] })), NOW)).toEqual([
+      'Bloco 1: vídeo precisa ser um link do YouTube ou do Instagram.',
+    ]);
+    const eleven = Array.from({ length: 11 }, (_, i) => embedBlock(i % 2 ? 'product' : 'tournament', `id${i}`));
+    expect(embedCount(payloadFromDraft(filled({ body: eleven })).body)).toBe(11);
+    expect(payloadIssues(payloadFromDraft(filled({ body: eleven })), NOW)).toEqual(['Até 10 blocos de torneio e produto por post.']);
+  });
+
+  it('post com push enviado abre só de leitura', () => {
+    const base = draftFromPost({
+      id: 'p',
+      title: 'T',
+      subtitle: '',
+      slug: 't',
+      seoDescription: '',
+      coverUrl: null,
+      category: 'treino',
+      sport: 'all',
+      tags: [],
+      author: { name: 'Ana', role: '' },
+      body: [],
+      cta: null,
+      channels: { app: true, site: true },
+      featured: false,
+      push: { enabled: true, city: 'Goiânia', sport: 'all' },
+      pushSentAt: new Date('2026-11-01T12:00:00Z'),
+      pushResult: { state: 'sent', recipients: 10, sent: 9 },
+      status: 'published',
+      publishAt: null,
+      readMinutes: 1,
+      readCount: 0,
+      helpfulCount: 0,
+      updatedAt: null,
+      version: 1,
+    });
+    expect([base.pushEnabled, base.pushCity, base.pushSent]).toEqual([true, 'Goiânia', true]);
   });
 });

@@ -1,4 +1,5 @@
 import 'blog_library.dart';
+import 'blog_notify_prefs.dart';
 import 'blog_post.dart';
 
 /// Leitura do blog e estado de leitura do atleta.
@@ -22,4 +23,10 @@ abstract interface class BlogRepository {
   Stream<bool> watchHelpful(String postId, String uid);
 
   Future<void> setHelpful(String postId, String uid, {required bool helpful});
+
+  /// `blogNotifyPrefs/{uid}`; doc ausente = todas ligadas.
+  Stream<BlogNotifyPrefs> watchNotifyPrefs(String uid);
+
+  /// Grava o doc inteiro (`muted` + `updatedAt` do servidor).
+  Future<void> writeNotifyPrefs(String uid, BlogNotifyPrefs prefs);
 }

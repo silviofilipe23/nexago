@@ -12,6 +12,8 @@ import { PanelShellComponent } from '../../ui/panel-shell.component';
 import { ToggleComponent } from '../../ui/toggle.component';
 import {
   draftFromPost,
+  embedBlock,
+  embedCount,
   emptyBlock,
   moveBlock,
   newBlogDraft,
@@ -31,6 +33,7 @@ import {
   BLOG_CATEGORIES,
   BLOG_CTA_DESTINATIONS,
   BLOG_CTA_LABEL_MAX,
+  BLOG_EMBEDS_MAX,
   BLOG_SEO_DESCRIPTION_MAX,
   BLOG_SITE_HOST,
   BLOG_SLUG_MAX,
@@ -39,21 +42,27 @@ import {
   BLOG_TAG_MAX,
   BLOG_TITLE_MAX,
   dayMonthLabel,
+  pushSentLabel,
   readMinutes,
   saoPauloParts,
   savedAgoLabel,
   type BlogBlockType,
   type BlogCategory,
   type BlogCtaDestination,
+  type BlogPushResult,
   type BlogStatus,
 } from './data/blog-post';
 import { BlogPostsRepository } from './data/blog-posts.repository';
 import { BlogStatusPillComponent } from './ui/blog-badges.component';
 import { BLOCK_LABELS, BlogBlockEditorComponent } from './ui/blog-block-editor.component';
+import { BlogEmbedMenuComponent, type BlogEmbedChoice } from './ui/blog-embed-menu.component';
+import { BlogEmbedPickerComponent } from './ui/blog-embed-picker.component';
+import { BlogPushSettingsComponent } from './ui/blog-push-settings.component';
 import { BlogImagePickerComponent } from './ui/blog-image-picker.component';
 
 type LoadState = 'loading' | 'ok' | 'missing' | 'error';
 type Confirm = 'delete' | 'unpublish';
+type EmbedKind = 'tournament' | 'product';
 
 const PUBLISH_OPTIONS: ReadonlyArray<{ id: BlogStatus; label: string; hint: string }> = [
   { id: 'draft', label: 'Rascunho', hint: 'Só o time vê.' },
@@ -98,6 +107,9 @@ function isConflict(error: unknown): boolean {
     BlogStatusPillComponent,
     BlogBlockEditorComponent,
     BlogImagePickerComponent,
+    BlogEmbedPickerComponent,
+    BlogEmbedMenuComponent,
+    BlogPushSettingsComponent,
   ],
   template: `
     <bo-panel-shell>
@@ -226,6 +238,7 @@ function isConflict(error: unknown): boolean {
                         (move)="move(i, $event)"
                         (remove)="removeBlock(i)"
                         (uploading)="trackUpload($event)"
+                        (swap)="swapEmbed(i)"
                       />
                     } @empty {
                       <p class="none">O corpo está vazio. Comece por um parágrafo.</p>
@@ -240,6 +253,8 @@ function isConflict(error: unknown): boolean {
                         {{ blockLabel(type) }}
                       </button>
                     }
+                    <span class="add-sep" aria-hidden="true"></span>
+                    <bo-blog-embed-menu [disabled]="saving() || d.body.length >= limits.blocks" [embedsFull]="embedsFull()" (chosen)="onEmbedChosen($event)" />
                     <span class="add-count">{{ d.body.length }} de {{ limits.blocks }} blocos</span>
                   </div>
                 </div>
@@ -300,6 +315,16 @@ function isConflict(error: unknown): boolean {
                     <span><strong>Destaque no topo</strong><span class="dim">Card grande no topo do blog do app.</span></span>
                     <bo-toggle ariaLabel="Destaque no topo" [checked]="d.featured" [disabled]="saving()" (checkedChange)="patch({ featured: $event })" />
                   </div>
+                  <bo-blog-push-settings
+                    [enabled]="d.pushEnabled"
+                    [city]="d.pushCity"
+                    [sport]="d.pushSport"
+                    [category]="d.category"
+                    [disabled]="saving()"
+                    [summary]="pushSummary()"
+                    [live]="savedStatus() === 'published'"
+                    (changed)="patch($event)"
+                  />
                 </div>
               </bo-panel-card>
 
@@ -412,6 +437,10 @@ function isConflict(error: unknown): boolean {
         }
       </div>
 
+      @if (picker(); as pk) {
+        <bo-blog-embed-picker [kind]="pk.kind" [current]="pk.current" (picked)="onPicked($event)" (dismissed)="picker.set(null)" />
+      }
+
       @if (confirming(); as kind) {
         <bo-confirm-dialog
           [open]="true"
@@ -477,6 +506,7 @@ function isConflict(error: unknown): boolean {
     .add-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 11px; border-radius: 8px; border: none; background: transparent; color: var(--nx-text-mute); font-family: var(--nx-font-display); font-weight: 600; font-size: 12.5px; cursor: pointer; }
     .add-btn:hover:not(:disabled) { background: var(--nx-surface-2); color: var(--nx-text); }
     .add-btn:disabled { opacity: 0.4; cursor: default; }
+    .add-sep { width: 1px; height: 20px; margin: 0 4px; background: var(--nx-line-strong); }
     .add-count { margin-left: auto; padding: 0 8px; font-family: var(--nx-font-mono); font-size: 10.5px; color: var(--nx-text-dim); }
 
     .options { display: flex; flex-direction: column; gap: 6px; }
@@ -547,6 +577,7 @@ export class BlogPostEditorComponent {
     author: BLOG_AUTHOR_FIELD_MAX,
     cta: BLOG_CTA_LABEL_MAX,
     blocks: BLOG_BLOCKS_MAX,
+    embeds: BLOG_EMBEDS_MAX,
   };
 
   /** `null` = post novo (rota `novo`). */
@@ -561,6 +592,11 @@ export class BlogPostEditorComponent {
   protected readonly savedStatus = signal<BlogStatus | null>(null);
   private readonly savedPublishAt = signal<Date | null>(null);
   private readonly savedAt = signal<Date | null>(null);
+  private readonly savedPushSentAt = signal<Date | null>(null);
+  private readonly savedPushResult = signal<BlogPushResult | null>(null);
+
+  /** Seletor de torneio/produto aberto: `index` `null` = bloco novo no fim; número = trocar aquele. */
+  protected readonly picker = signal<{ kind: EmbedKind; index: number | null; current: string | null } | null>(null);
   private readonly version = signal(0);
 
   protected readonly saving = signal(false);
@@ -584,6 +620,10 @@ export class BlogPostEditorComponent {
     () => this.state() === 'ok' && !this.busy() && this.issues().length === 0 && (this.isNew() || this.dirty()),
   );
   protected readonly primaryLabel = computed(() => saveLabel(this.draft().status, this.savedStatus()));
+  protected readonly embedsFull = computed(() => embedCount(this.draft().body) >= BLOG_EMBEDS_MAX);
+  protected readonly pushSummary = computed(() =>
+    pushSentLabel({ pushSentAt: this.savedPushSentAt(), pushResult: this.savedPushResult() }, this.now()),
+  );
   protected readonly readTime = computed(() => readMinutes(this.payload().title, this.payload().body));
   protected readonly savedAgo = computed(() => {
     const at = this.savedAt();
@@ -637,6 +677,8 @@ export class BlogPostEditorComponent {
       this.savedStatus.set(post.status);
       this.savedPublishAt.set(post.publishAt);
       this.savedAt.set(post.updatedAt);
+      this.savedPushSentAt.set(post.pushSentAt);
+      this.savedPushResult.set(post.pushResult);
       this.version.set(post.version);
       this.state.set('ok');
     } catch (error) {
@@ -708,6 +750,43 @@ export class BlogPostEditorComponent {
   protected removeBlock(index: number): void {
     this.draft.update((d) => ({ ...d, body: d.body.filter((_, i) => i !== index) }));
   }
+
+  protected onEmbedChosen(choice: BlogEmbedChoice): void {
+    if (choice === 'video') {
+      this.addBlock('video');
+    } else {
+      this.openPicker(choice, null);
+    }
+  }
+
+  protected openPicker(kind: EmbedKind, index: number | null): void {
+    const block = index === null ? null : this.draft().body[index];
+    const current = block?.type === 'tournament' ? block.tournamentId : block?.type === 'product' ? block.productId : null;
+    this.picker.set({ kind, index, current });
+  }
+
+  protected swapEmbed(index: number): void {
+    const block = this.draft().body[index];
+    if (block?.type === 'tournament' || block?.type === 'product') {
+      this.openPicker(block.type, index);
+    }
+  }
+
+  protected onPicked(id: string): void {
+    const pk = this.picker();
+    this.picker.set(null);
+    if (!pk) {
+      return;
+    }
+    const block = embedBlock(pk.kind, id);
+    this.draft.update((d) => {
+      if (pk.index === null) {
+        return d.body.length >= BLOG_BLOCKS_MAX ? d : { ...d, body: [...d.body, block] };
+      }
+      return { ...d, body: d.body.map((b, i) => (i === pk.index ? { ...block, key: b.key } : b)) };
+    });
+  }
+
 
   protected trackUpload(active: boolean): void {
     this.uploads.update((n) => Math.max(0, n + (active ? 1 : -1)));
@@ -782,6 +861,7 @@ export class BlogPostEditorComponent {
     try {
       const result = await this.repository.save({ id: this.postId(), version: this.version(), post });
       const wasNew = this.isNew();
+      const pushGoesOut = result.status === 'published' && this.savedStatus() !== 'published' && post.push.enabled && !this.pushSummary();
       this.version.set(result.version);
       this.savedStatus.set(result.status);
       this.savedPublishAt.set(result.publishAt ? new Date(result.publishAt) : null);
@@ -793,7 +873,7 @@ export class BlogPostEditorComponent {
       this.savedJson.set(JSON.stringify({ ...post, slug: result.slug }));
       this.postId.set(result.id);
       this.confirming.set(null);
-      this.showNotice(this.savedMessage(result.status));
+      this.showNotice(pushGoesOut ? 'Post publicado. O push sai em instantes.' : this.savedMessage(result.status));
       if (wasNew) {
         await this.router.navigate(['/painel/conteudo/blog', result.id], { replaceUrl: true });
       }

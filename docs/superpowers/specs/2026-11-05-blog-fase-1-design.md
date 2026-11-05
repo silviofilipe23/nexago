@@ -97,3 +97,56 @@ Gatilho: quando `readStartedAt` aparece pela primeira vez, `readCount += 1` no p
 - `saveBlogPost({id: string | null, version: number, post: {...campos editáveis, publishAt: ISO | null}})`
   → `{id, version, slug, status, publishAt}`. Admin/backoffice. Erros em português.
 - `deleteBlogPost({id})` → `{deleted: true}`. Apaga o post e a reserva do slug.
+
+---
+
+# Fase 2 (branch `claude/blog-fase-2`)
+
+Entra: prévia de link de `/blog/:slug`, push no horário da publicação (público por cidade/esporte,
+alcance estimado, silenciar por categoria no app) e os blocos nexaGO **Torneio**, **Produto da loja** e
+**Vídeo**. Continua fora: arena, ranking e enquete como blocos; métricas de 30 dias, pautas, calendário,
+comentários, seguir autor, aba na barra.
+
+## Blocos novos
+
+```ts
+| {type: "tournament"; tournamentId: string}   // doc em `tournaments`; o save confere que existe
+| {type: "product"; productId: string}         // doc em `storeShowcase` (vitrine pública); idem
+| {type: "video"; url: string; caption: string} // https em youtube.com / youtu.be / instagram.com
+```
+
+Até 10 blocos de torneio+produto por post. Builds sem esses tipos os ignoram (parser tolerante). O leitor
+mostra o estado AO VIVO (lê o torneio/produto ao renderizar); se o doc sumiu ou não está público, o bloco
+some em silêncio. Vídeo não tem player embutido: card com miniatura (YouTube:
+`https://img.youtube.com/vi/<id>/hqdefault.jpg`) que abre o link fora.
+
+## Push
+
+Campo novo no post (opcional no input; ausente = desligado):
+
+```ts
+push: {enabled: boolean; city: string | null; sport: "all" | string}  // city null = todas
+pushSentAt: Timestamp | null   // só servidor
+pushResult: {state: "sending" | "sent"; recipients: number; sent: number; finishedAt?} | null
+```
+
+- Validação: push ligado exige `channels.app == true`.
+- `onBlogPostPublishedPush` (gatilho em `blogPosts/{id}`): quando o post vira `published` com push ligado e
+  sem `pushSentAt`, marca `pushSentAt` e envia uma vez (`type: "blog_post"`, `data: {url:
+  "/athlete/blog/<id>", postId, category}`, FCM + inbox, sem web push).
+- Destinatários: atleta (sem seed/QA) no filtro de cidade (sem acento/caixa) e esporte (`sportOnboarding.
+  levelsBySport`), com push ligado nas Configurações, sem a categoria em `blogNotifyPrefs/{uid}.muted`, e
+  com ao menos um token `users/{uid}/tokens` com `buildNumber >= appConfig/blog.pushMinBuild` (padrão 118,
+  o 1º build com o blog). Sem esse corte, o toque abriria rota inexistente em build antigo.
+- Callable `estimateBlogPushReach({city, sport, category})` → `{reachable, athletes, minBuild, cities:
+  [{city, count}]}` (admin).
+
+## `blogNotifyPrefs/{uid}` → `{muted: BlogCategory[], updatedAt: serverTimestamp}`
+
+Só o dono lê/grava; doc ausente = recebe todas. Chaves exatamente essas duas.
+
+## Prévia de link
+
+`siteOgPreview` atende `/blog/{slug}` (título · Blog nexaGO, `seoDescription`/subtitle, capa). O `.htaccess`
+do site passou a apontar para a function do DEV em São Paulo (o endereço antigo, us-central1 do prod,
+respondia 404 para todas as rotas).

@@ -3493,6 +3493,17 @@ service cloud.firestore {
         allow update: if false;
       }
     }
+    // Categorias do blog que o atleta silenciou para push (`muted`). Doc ausente = recebe todas.
+    // A função do envio (`functions/src/blog-push.ts`) consulta `muted array-contains`.
+    match /blogNotifyPrefs/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['muted', 'updatedAt'])
+        && request.resource.data.muted is list
+        && request.resource.data.muted.size() <= 6
+        && request.resource.data.muted.toSet().hasOnly(['torneios', 'treino', 'regras', 'arenas', 'guia', 'loja'])
+        && request.resource.data.updatedAt == request.time;
+    }
     // Reserva do endereço `/blog/{slug}`; só a callable mexe.
     match /blogSlugs/{slug} {
       allow read: if isAdmin() || isSuperAdmin();

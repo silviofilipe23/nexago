@@ -157,6 +157,56 @@ describe("saveBlogPostCore", () => {
   });
 });
 
+describe("blocos nexaGO e push (fase 2)", () => {
+  it("valida vídeo pelo domínio e exige ids de torneio e produto", () => {
+    const errors = blogPostErrors(post({body: [
+      {type: "video", url: "https://vimeo.com/1", caption: ""},
+      {type: "tournament", tournamentId: ""},
+      {type: "product", productId: "a/b"},
+      {type: "video", url: "https://youtu.be/abc", caption: "Saque"},
+    ]}), NOW);
+    assert.deepEqual(errors, [
+      "Bloco 1: vídeo precisa ser um link do YouTube ou do Instagram.",
+      "Bloco 2: escolha o torneio.",
+      "Bloco 3: escolha o produto.",
+    ]);
+  });
+
+  it("push exige o app ligado; sem push no input grava desligado", () => {
+    const errors = blogPostErrors(post({channels: {app: false, site: true}, push: {enabled: true, city: null, sport: "all"}}), NOW);
+    assert.match(errors.join(), /ligue "Blog no app"/);
+    assert.deepEqual(storedBlogPost(post()).push, {enabled: false, city: null, sport: "all"});
+    assert.deepEqual(
+      storedBlogPost(post({push: {enabled: true, city: " Goiânia ", sport: "beach_volleyball"}})).push,
+      {enabled: true, city: "Goiânia", sport: "beachVolleyball"},
+    );
+  });
+
+  it("recusa torneio ou produto que não existe e aceita os que existem", async () => {
+    const {fake, db} = makeDb();
+    const body = [{type: "tournament" as const, tournamentId: "t1"}, {type: "product" as const, productId: "p1"}];
+    await assert.rejects(
+      saveBlogPostCore(db, {id: null, version: 0, post: post({body})}, ACTOR, NOW),
+      /não existe mais/,
+    );
+    fake.store.set("tournaments/t1", {name: "Copa"});
+    fake.store.set("storeShowcase/p1", {title: "Toalha"});
+    const res = await saveBlogPostCore(db, {id: null, version: 0, post: post({body})}, ACTOR, NOW);
+    assert.equal(res.version, 1);
+  });
+
+  it("o save preserva o registro do push", async () => {
+    const {fake, db} = makeDb();
+    const a = await saveBlogPostCore(db, {id: null, version: 0, post: post({status: "published"})}, ACTOR, NOW);
+    const doc = fake.store.get(`blogPosts/${a.id}`)!;
+    doc["pushSentAt"] = "enviado";
+    doc["pushResult"] = {state: "sent", recipients: 3, sent: 2};
+    await saveBlogPostCore(db, {id: a.id, version: 1, post: post({status: "published"})}, ACTOR, NOW);
+    assert.equal(fake.store.get(`blogPosts/${a.id}`)!["pushSentAt"], "enviado");
+    assert.deepEqual(fake.store.get(`blogPosts/${a.id}`)!["pushResult"], {state: "sent", recipients: 3, sent: 2});
+  });
+});
+
 describe("deleteBlogPostCore", () => {
   it("apaga o post e a reserva do endereço", async () => {
     const {fake, db} = makeDb();

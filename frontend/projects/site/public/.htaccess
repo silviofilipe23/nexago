@@ -41,10 +41,12 @@ Options -Indexes
 # --only functions:siteOgPreview`) — o Firebase confirma a URL no terminal ao terminar; o
 # formato abaixo (região + projectId) é o alias estável do 2nd gen, deve bater sem alteração,
 # mas confirme antes de publicar. Prod: volley-track-2dd3b · Dev: volley-track-dev-4596c.
+# 05/11/2026: aponta pro DEV em São Paulo, o mesmo banco que o site lê (`@nexago/firebase-config`).
+# O endereço anterior (us-central1 do prod) respondia 404: a prévia de link estava quebrada.
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteCond %{HTTP_USER_AGENT} (facebookexternalhit|Facebot|Twitterbot|WhatsApp|LinkedInBot|Slackbot|TelegramBot|Discordbot|Pinterest|redditbot|SkypeUriPreview) [NC]
-  RewriteRule ^(torneios|ligas|arena|s|a|o)/([^/]+)/?$ https://us-central1-volley-track-2dd3b.cloudfunctions.net/siteOgPreview?path=/$1/$2 [R=302,L]
+  RewriteRule ^(torneios|ligas|arena|s|a|o|blog)/([^/]+)/?$ https://southamerica-east1-volley-track-dev-4596c.cloudfunctions.net/siteOgPreview?path=/$1/$2 [R=302,L]
 </IfModule>
 
 # --- Roteamento da SPA -----------------------------------------------------

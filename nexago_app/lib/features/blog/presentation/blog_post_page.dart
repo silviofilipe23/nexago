@@ -24,6 +24,8 @@ import '../domain/blog_library.dart';
 import '../domain/blog_logic.dart';
 import '../domain/blog_post.dart';
 import 'blog_navigation.dart';
+import 'widgets/blog_embeds.dart';
+import 'widgets/blog_notify_widgets.dart';
 import 'widgets/blog_parts.dart';
 
 /// Leitura do post: capa, autor, blocos, chamada no fim, "Ajudou" e "Leia
@@ -296,6 +298,7 @@ class _BlogPostPageState extends ConsumerState<BlogPostPage> {
                       helpful: helpful,
                       count: helpfulCount,
                       onTap: () => _toggleHelpful(post, helpful),
+                      category: post.category,
                     ),
                     if (related.isNotEmpty) ...[
                       const SizedBox(height: 28),
@@ -614,6 +617,13 @@ class _BlockView extends StatelessWidget {
           ],
         ],
       ),
+      final BlogVideo video => BlogVideoCard(video: video),
+      BlogTournamentEmbed(:final tournamentId) => BlogTournamentEmbedCard(
+        tournamentId: tournamentId,
+      ),
+      BlogProductEmbed(:final productId) => BlogProductEmbedCard(
+        productId: productId,
+      ),
     };
   }
 }
@@ -623,11 +633,15 @@ class _HelpfulCard extends StatelessWidget {
     required this.helpful,
     required this.count,
     required this.onTap,
+    required this.category,
   });
 
   final bool helpful;
   final int count;
   final VoidCallback onTap;
+
+  /// Categoria do post: a linha "Avisar posts de …" embaixo do botão.
+  final BlogCategory? category;
 
   @override
   Widget build(BuildContext context) {
@@ -701,6 +715,10 @@ class _HelpfulCard extends StatelessWidget {
               ),
             ),
           ),
+          if (category != null) ...[
+            const SizedBox(height: 12),
+            BlogNotifyCategoryRow(category: category),
+          ],
         ],
       ),
     );

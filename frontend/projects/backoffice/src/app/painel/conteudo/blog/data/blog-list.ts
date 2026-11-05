@@ -1,4 +1,4 @@
-import { BLOG_STATUS_LABELS, saoPauloParts, type BlogPost, type BlogStatus } from './blog-post';
+import { BLOG_STATUS_LABELS, formatCount, saoPauloParts, type BlogPost, type BlogStatus } from './blog-post';
 
 export type BlogTab = 'all' | BlogStatus;
 
@@ -150,4 +150,21 @@ export function upcomingPosts(posts: readonly BlogPost[], now: Date, limit = 6):
       meta: `${BLOG_STATUS_LABELS[p.status].toLowerCase()} sem data`,
     })),
   ].slice(0, limit);
+}
+
+/**
+ * Indicador discreto de push na coluna Status: enviado (com quantos), enviando, ou ligado para sair
+ * quando o post for ao ar. Publicado com push ligado e nunca enviado não ganha nada: não vai sair.
+ */
+export function pushBadge(post: Pick<BlogPost, 'status' | 'push' | 'pushSentAt' | 'pushResult'>): { text: string; sent: boolean } | null {
+  if (post.pushResult?.state === 'sent') {
+    return { text: `push para ${formatCount(post.pushResult.recipients)}`, sent: true };
+  }
+  if (post.pushSentAt || post.pushResult) {
+    return { text: 'enviando push', sent: true };
+  }
+  if (post.push.enabled && post.status !== 'published') {
+    return { text: 'push ao publicar', sent: false };
+  }
+  return null;
 }

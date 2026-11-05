@@ -129,3 +129,31 @@ test('avisos do blog: o atleta silencia categorias só no próprio doc', async (
   await assertFails(getDoc(doc(db(OTHER_UID), 'blogNotifyPrefs', ATHLETE_UID)));
   await assertFails(setDoc(doc(db(OTHER_UID), 'blogNotifyPrefs', ATHLETE_UID), { muted: [], updatedAt: serverTimestamp() }));
 });
+
+/** O que o app grava em `blogReads` ao sair do post. */
+function read(extra = {}) {
+  return {
+    postId: 'pub',
+    uid: ATHLETE_UID,
+    category: 'torneios',
+    seconds: 95,
+    progress: 0.8,
+    finished: false,
+    ctaClicked: true,
+    at: serverTimestamp(),
+    ...extra,
+  };
+}
+
+test('sessão de leitura: o atleta grava a própria, de post publicado, e só o admin lê', async () => {
+  await assertSucceeds(setDoc(doc(db(), 'blogReads', 'r1'), read()));
+  await assertFails(setDoc(doc(db(), 'blogReads', 'r1'), read({ seconds: 10 })));
+  await assertFails(setDoc(doc(db(), 'blogReads', 'r2'), read({ uid: OTHER_UID })));
+  await assertFails(setDoc(doc(db(), 'blogReads', 'r3'), read({ postId: 'draft' })));
+  await assertFails(setDoc(doc(db(), 'blogReads', 'r4'), read({ seconds: 4000 })));
+  await assertFails(setDoc(doc(db(), 'blogReads', 'r5'), read({ seconds: 9.5 })));
+  await assertFails(setDoc(doc(db(), 'blogReads', 'r6'), read({ extra: 1 })));
+  await assertFails(getDoc(doc(db(), 'blogReads', 'r1')));
+  await assertSucceeds(getDoc(doc(adminDb(), 'blogReads', 'r1')));
+  await assertFails(setDoc(doc(adminDb(), 'blogReaders', ATHLETE_UID), { firstReadAt: serverTimestamp() }));
+});

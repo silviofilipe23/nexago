@@ -3,6 +3,8 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AuthService } from '../../../auth/auth.service';
 import type { BlogPost } from './data/blog-post';
+import type { BlogWindowMetrics } from './data/blog-metrics';
+import { BlogMetricsRepository } from './data/blog-metrics.repository';
 import { BlogPostsRepository } from './data/blog-posts.repository';
 import { PanelBlogComponent } from './panel-blog.component';
 
@@ -42,8 +44,21 @@ const POSTS = [
   post('c', { title: 'Regras do KOTC', category: 'regras', status: 'draft', publishAt: null }),
 ];
 
+const METRICS: BlogWindowMetrics = {
+  reads: 8420,
+  prevReads: 9000,
+  avgSeconds: 168,
+  finished: 5136,
+  ctaClicks: 412,
+  readers: 3106,
+  returningReaders: 1180,
+};
+
 describe('PanelBlogComponent', () => {
-  async function mount(list: () => Promise<BlogPost[]> = () => Promise.resolve(POSTS)): Promise<HTMLElement> {
+  async function mount(
+    list: () => Promise<BlogPost[]> = () => Promise.resolve(POSTS),
+    window: () => Promise<BlogWindowMetrics> = () => Promise.resolve(METRICS),
+  ): Promise<HTMLElement> {
     await TestBed.configureTestingModule({
       imports: [PanelBlogComponent],
       providers: [
@@ -51,6 +66,7 @@ describe('PanelBlogComponent', () => {
         provideRouter([]),
         { provide: AuthService, useValue: { displayName: signal('Ana Souza'), user: signal(null) } },
         { provide: BlogPostsRepository, useValue: { list } },
+        { provide: BlogMetricsRepository, useValue: { window } },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(PanelBlogComponent);
@@ -65,15 +81,19 @@ describe('PanelBlogComponent', () => {
   const texts = (host: HTMLElement, selector: string) =>
     [...host.querySelectorAll(selector)].map((e) => e.textContent!.replace(/\s+/g, ' ').trim());
 
-  it('mostra só números reais e a tabela com autor e chamada', async () => {
+  it('cards de 30 dias com a linha de baixo, rodapé do app e a tabela com autor e chamada', async () => {
     const host = await mount();
-    expect(texts(host, 'bo-kpi-mini .label')).toEqual([
-      'Posts publicados',
-      'Agendados',
-      'Leituras · todos os posts',
-      '“Ajudou” · todos os posts',
+    expect(texts(host, 'bo-blog-metric-card .label')).toEqual([
+      'Leituras · 30 dias',
+      'Leitores únicos',
+      'Tempo médio de leitura',
+      'Cliques nas chamadas',
     ]);
-    expect(texts(host, 'bo-kpi-mini .value')).toEqual(['1', '1', '2.140', '12']);
+    expect(texts(host, 'bo-blog-metric-card .value')).toEqual(['8.420', '3.106', '2m 48s', '412']);
+    const down = host.querySelector('bo-blog-metric-card .note')!;
+    expect(down.textContent!.trim()).toBe('▼ 6,4% vs. 30 dias antes');
+    expect(down.classList).toContain('trend-down');
+    expect(host.querySelector('.metrics-foot')!.textContent).toContain('Números do app; leituras pelo site não entram.');
     expect(texts(host, '.tabs button')).toEqual(['Todos 3', 'Publicados 1', 'Agendados 1', 'Em revisão 0', 'Rascunhos 1']);
     expect(texts(host, 'tbody .title')).toEqual(['Chegou a Toalha', 'Liga nexaGO', 'Regras do KOTC']);
     expect(texts(host, 'tbody .meta')).toContain('Ana Souza · chamada: Inscrição');
@@ -100,5 +120,20 @@ describe('PanelBlogComponent', () => {
     const host = await mount(() => Promise.reject({ code: 'permission-denied', message: '' }));
     expect(host.querySelector('.bo-alert')!.textContent).toContain('Não foi possível carregar os posts.');
     expect(texts(host, 'button.retry')).toEqual(['Tentar de novo']);
+  });
+
+  it('erro nas métricas não derruba a tabela: cards com "—" e aviso discreto', async () => {
+    const host = await mount(undefined, () => Promise.reject({ code: 'failed-precondition', message: 'The query requires an index.' }));
+    expect(texts(host, 'bo-blog-metric-card .value')).toEqual(['—', '—', '—', '—']);
+    expect(host.querySelector('.metrics-error')!.textContent).toContain('Não foi possível carregar as métricas.');
+    expect(host.querySelector('.metrics-error')!.getAttribute('title')).toBe('The query requires an index.');
+    expect(texts(host, 'tbody .title').length).toBe(3);
+  });
+
+  it('janela sem leitura: "—" e "sem leituras no app ainda"', async () => {
+    const host = await mount(undefined, () =>
+      Promise.resolve({ reads: 0, prevReads: 0, avgSeconds: null, finished: 0, ctaClicks: 0, readers: 0, returningReaders: 0 }),
+    );
+    expect(texts(host, 'bo-blog-metric-card .note')).toEqual(Array(4).fill('sem leituras no app ainda'));
   });
 });

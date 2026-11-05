@@ -938,6 +938,7 @@ export {
   onBlogLibraryWritten,
 } from "./blog";
 export {onBlogPostPublishedPush, estimateBlogPushReach} from "./blog-push";
+export {onBlogReadCreated} from "./blog-metrics";
 
 // NexaSquad: regras do programa de embaixadores, versionadas. Escrita só por callable.
 export {saveSquadRules} from "./squad-rules";

@@ -150,4 +150,9 @@ class FirestoreBlogRepository implements BlogRepository {
       _notifyPrefs(
         uid,
       ).set({...prefs.toWriteMap(), 'updatedAt': FieldValue.serverTimestamp()});
+
+  @override
+  Future<void> recordRead(Map<String, Object> payload) => _db
+      .collection('blogReads')
+      .add({...payload, 'at': FieldValue.serverTimestamp()});
 }

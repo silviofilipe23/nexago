@@ -47,6 +47,17 @@ describe("configuração de personalização", () => {
     assert.deepEqual(customizationErrors(config()), []);
   });
 
+  it("barra da toalha: só nome, imagem desligada, é válida; local desconhecido é recusado", () => {
+    assert.deepEqual(customizationErrors(config((c) => {
+      c.name.placement = "barra";
+      c.name.maxChars = 14;
+      c.image.enabled = false;
+    })), []);
+    assert.ok(customizationErrors(config((c) => {
+      (c.name as {placement: string}).placement = "rodape";
+    })).includes("name"));
+  });
+
   it("nome ligado exige fonte e cor; imagem ligada exige área", () => {
     assert.deepEqual(
       customizationErrors(config((c) => {

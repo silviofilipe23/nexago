@@ -110,6 +110,12 @@ void main() {
       expect(storeNameSide(StoreNamePlacement.backLower), StorePhotoView.back);
       expect(storeNameSide(StoreNamePlacement.sleeve), StorePhotoView.front);
     });
+
+    test('barra da toalha: "Nome na barra", de frente', () {
+      expect(storeNameStepTitle(StoreNamePlacement.band), 'Nome na barra');
+      expect(storeNameSide(StoreNamePlacement.band), StorePhotoView.front);
+      expect(StoreNamePlacement.from('barra'), StoreNamePlacement.band);
+    });
   });
 
   group('preço', () {
@@ -343,7 +349,9 @@ void main() {
       expect(storeNameCenter(StoreNamePlacement.backLower), (x: 0.5, y: 0.62));
       expect(storeNameCenter(StoreNamePlacement.front), (x: 0.5, y: 0.30));
       expect(storeNameCenter(StoreNamePlacement.sleeve), (x: 0.88, y: 0.24));
+      expect(storeNameCenter(StoreNamePlacement.band), (x: 0.5, y: 0.80));
       expect(storeNameBandWidth(StoreNamePlacement.backUpper), 0.6);
+      expect(storeNameBandWidth(StoreNamePlacement.band), 0.6);
       expect(storeNameBandWidth(StoreNamePlacement.sleeve), 0.18);
     });
 
@@ -639,6 +647,7 @@ void main() {
         null,
         StoreNamePlacement.front,
         StoreNamePlacement.sleeve,
+        StoreNamePlacement.band,
       ]) {
         final box = storeBackBox(back, placement);
         expect(box.y, 0.45, reason: '$placement');

@@ -489,6 +489,7 @@ type PriceKey = keyof CustomizationConfig['price'];
     .name-sample.at-top { top: 26%; }
     .name-sample.at-bottom { top: 62%; }
     .name-sample.at-chest { top: 30%; font-size: 15px; }
+    .name-sample.at-band { top: 76%; }
     .area { position: absolute; border: 1px dashed var(--nx-orange-500); background: rgba(255, 106, 26, 0.12); }
     .area.at-peito_esquerdo { top: 28%; right: 26%; width: 12%; height: 12%; }
     .area.at-centro_frente { top: 42%; left: 30%; width: 40%; height: 40%; }
@@ -559,7 +560,7 @@ export class ProductCustomizationComponent {
       text: sampleName(c.name.maxChars),
       font: c.name.fonts.find((f) => f.enabled)?.id ?? 'bloco',
       color: c.name.colors[0] ?? '#ffffff',
-      spot: c.name.placement === 'costas_inferior' ? 'bottom' : onBack ? 'top' : 'chest',
+      spot: c.name.placement === 'costas_inferior' ? 'bottom' : c.name.placement === 'barra' ? 'band' : onBack ? 'top' : 'chest',
     };
   });
 

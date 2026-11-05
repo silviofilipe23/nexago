@@ -89,12 +89,14 @@ export function nameStepTitle(placement: StoreNamePlacement): string {
       return 'Nome na frente';
     case 'manga':
       return 'Nome na manga';
+    case 'barra':
+      return 'Nome na barra';
     default:
       return 'Nome nas costas';
   }
 }
 
-/** Lado da peça onde o nome fica (a manga aparece na frente). */
+/** Lado da peça onde o nome fica (a manga e a barra da toalha aparecem na frente). */
 export function nameSide(placement: StoreNamePlacement): StorePhotoView {
   return placement === 'costas_superior' || placement === 'costas_inferior' ? 'costas' : 'frente';
 }
@@ -367,6 +369,7 @@ const NAME_CENTERS: Readonly<Record<StoreNamePlacement, readonly [number, number
   costas_inferior: [0.5, 0.62],
   frente: [0.5, 0.3],
   manga: [0.88, 0.24],
+  barra: [0.5, 0.8],
 };
 
 /**

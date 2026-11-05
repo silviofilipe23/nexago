@@ -89,7 +89,7 @@ enum StoreNameProblem {
   }
 }
 
-/// "Nome nas costas" / "Nome na frente" / "Nome na manga".
+/// "Nome nas costas" / "Nome na frente" / "Nome na manga" / "Nome na barra".
 String storeNameStepTitle(StoreNamePlacement placement) {
   switch (placement) {
     case StoreNamePlacement.backUpper:
@@ -99,10 +99,13 @@ String storeNameStepTitle(StoreNamePlacement placement) {
       return 'Nome na frente';
     case StoreNamePlacement.sleeve:
       return 'Nome na manga';
+    case StoreNamePlacement.band:
+      return 'Nome na barra';
   }
 }
 
-/// Lado da prévia em que o nome aparece (a manga fica na frente).
+/// Lado da prévia em que o nome aparece (a manga e a barra da toalha ficam
+/// na frente).
 StorePhotoView storeNameSide(StoreNamePlacement placement) {
   switch (placement) {
     case StoreNamePlacement.backUpper:
@@ -110,6 +113,7 @@ StorePhotoView storeNameSide(StoreNamePlacement placement) {
       return StorePhotoView.back;
     case StoreNamePlacement.front:
     case StoreNamePlacement.sleeve:
+    case StoreNamePlacement.band:
       return StorePhotoView.front;
   }
 }
@@ -472,6 +476,8 @@ StorePreviewPoint storeNameCenter(StoreNamePlacement placement) {
       return (x: 0.50, y: 0.30);
     case StoreNamePlacement.sleeve:
       return (x: 0.88, y: 0.24);
+    case StoreNamePlacement.band:
+      return (x: 0.50, y: 0.80);
   }
 }
 
@@ -569,6 +575,7 @@ String storeBackStepTitle(StoreNamePlacement? namePlacement) {
       return 'Costas · acima do nome';
     case StoreNamePlacement.front:
     case StoreNamePlacement.sleeve:
+    case StoreNamePlacement.band:
     case null:
       return 'Costas';
   }
@@ -633,6 +640,7 @@ StoreBackBox storeBackBox(
           height / 2;
     case StoreNamePlacement.front:
     case StoreNamePlacement.sleeve:
+    case StoreNamePlacement.band:
     case null:
       y = kStoreBackDefaultCenterY;
   }

@@ -45,7 +45,8 @@ export interface StoreDetail {
   value: string;
 }
 
-export type StoreNamePlacement = 'costas_superior' | 'costas_inferior' | 'frente' | 'manga';
+/** `barra` = barra da toalha (nome bordado na faixa de baixo, de frente). */
+export type StoreNamePlacement = 'costas_superior' | 'costas_inferior' | 'frente' | 'manga' | 'barra';
 
 export interface StoreCustomArea {
   id: string;
@@ -261,7 +262,7 @@ function labels(v: unknown): StoreLabel[] {
 }
 
 const BADGES: StoreBadge[] = ['mais-vendida', 'nova', 'edicao-limitada'];
-const PLACEMENTS: StoreNamePlacement[] = ['costas_superior', 'costas_inferior', 'frente', 'manga'];
+const PLACEMENTS: StoreNamePlacement[] = ['costas_superior', 'costas_inferior', 'frente', 'manga', 'barra'];
 
 function strings(v: unknown): string[] {
   return Array.isArray(v) ? v.map(str).filter((x) => x !== '') : [];

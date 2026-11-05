@@ -1,4 +1,5 @@
-export type NamePlacement = 'costas_superior' | 'costas_inferior' | 'frente' | 'manga';
+/** `barra` = barra da toalha (nome bordado na faixa de baixo, de frente). */
+export type NamePlacement = 'costas_superior' | 'costas_inferior' | 'frente' | 'manga' | 'barra';
 export type FontId = 'bloco' | 'classica' | 'mono';
 export type ImageFormat = 'png' | 'jpg' | 'svg';
 
@@ -49,6 +50,7 @@ export const PLACEMENT_LABELS: Record<NamePlacement, string> = {
   costas_inferior: 'Costas inferior',
   frente: 'Frente',
   manga: 'Manga',
+  barra: 'Barra (toalha)',
 };
 
 export const FONT_LABELS: Record<FontId, string> = { bloco: 'Bloco', classica: 'Clássica', mono: 'Mono' };

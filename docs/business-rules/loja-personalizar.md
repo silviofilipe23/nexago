@@ -13,7 +13,7 @@ continua possível pela própria página do produto.
 ```
 fromCents, leadDays, defectOnlyReturns,
 version,                                   // ms do updatedAt da config: o carrinho guarda com qual foi feito
-name:  { enabled, maxChars, placement: 'costas_superior'|'costas_inferior'|'frente'|'manga',
+name:  { enabled, maxChars, placement: 'costas_superior'|'costas_inferior'|'frente'|'manga'|'barra',
          fonts: ['bloco'|'classica'|'mono' ...]  (só as ligadas; a 1ª é o padrão),
          colors: ['#rrggbb' ...] },
 image: { enabled, formats: ['png'|'jpg'|'svg' ...], maxSizeMb, minWidthPx, minHeightPx,
@@ -82,7 +82,10 @@ Upload pede login.
 - Blur → `checkStoreCustomName`; bloqueado: borda vermelha, "Esse nome não pode ser usado", e
   Adicionar desabilitado até mudar.
 - Título do passo pelo `placement`: costas → "Nome nas costas"; frente → "Nome na frente";
-  manga → "Nome na manga".
+  manga → "Nome na manga"; barra → "Nome na barra".
+- `barra` = barra da toalha: o nome bordado na faixa de baixo, de frente (Toalha nexaGO). A logo
+  nexaGO da toalha é fixa e vem nas fotos do produto; produto assim costuma ter só o nome ligado
+  (imagem e costas desligadas) e continua podendo ser comprado sem nome pela página do produto.
 - Fonte: cards com "ABC" na própria fonte — Bloco (fonte display, 800), Clássica (serifada itálica
   700), Mono (mono 700) — os mesmos do backoffice. Padrão: a 1ª ligada.
 - Cor do nome: swatches da config; padrão = a de **maior contraste** (WCAG) com o `hex` da cor do
@@ -129,7 +132,7 @@ Upload pede login.
 - Peça de referência 60 × 70 cm: caixa da área = `widthCm/60` × `heightCm/70` do quadro. Centro das
   áreas conhecidas: `peito_esquerdo` (68%, 30%) — esquerdo de quem veste, direita de quem olha;
   `centro_frente` (50%, 45%); `manga` (88%, 24%); outra → (50%, 40%). Nome: `costas_superior`
-  (50%, 24%), `costas_inferior` (50%, 62%), `frente` (50%, 30%), `manga` (88%, 24%), faixa de 60%
+  (50%, 24%), `costas_inferior` (50%, 62%), `frente` (50%, 30%), `manga` (88%, 24%), `barra` (50%, 80%), faixa de 60%
   da largura; texto em 1 linha, fonte reduzida até caber.
 - Sem imagem: placeholder listrado "SUA IMAGEM" na área.
 

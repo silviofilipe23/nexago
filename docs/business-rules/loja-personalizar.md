@@ -144,6 +144,14 @@ Upload pede login.
 - Sempre dentro da peça: áreas e costas inteiras dentro dela; a faixa do nome só prende o centro na
   horizontal (o texto é centrado e encolhe, então o nome pode ir para o peito) e a faixa inteira na
   vertical. Costas sem `position` ficam coladas ao nome **onde ele estiver** (arrastado ou não).
+- **Áreas criadas no backoffice:** "Nova área" (nome até 40, largura × altura 1–100 cm, até 10 áreas
+  por produto) cria a área ligada, na frente, no lugar padrão (50%, 40%), para arrastar. `id` = nome sem
+  acento + sufixo aleatório (≤ 40, único; o servidor recusa repetido): uma área removida nunca tem o id
+  reaproveitado, porque o pedido guarda a área pelo id (`imageArea`). Toda área se edita (nome, medidas)
+  e se remove (fica ao menos uma); remover equivale a desligar para o carrinho (o checkout recusa a linha),
+  e o pedido já feito segue na fila. Os clientes não mudam: tratam área pelo `id` e desenham pela posição.
+  A fila (tela 10) desenha a área pela mesma geometria; área removida depois do pedido = 10 × 10 cm no
+  lugar padrão.
 - **Backoffice (tela 11):** a prévia usa o mesmo quadro do portal (31:32, foto em cover, peça 6:7 no
   meio). Nome, áreas ligadas e costas se arrastam (mouse/toque) ou andam pelas setas (1%; Shift, 5%);
   área menor fica por cima. Trocar o `Local` do nome devolve o nome ao padrão do novo local e mostra o

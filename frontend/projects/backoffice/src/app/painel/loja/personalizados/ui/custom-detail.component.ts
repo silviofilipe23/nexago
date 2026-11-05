@@ -3,6 +3,7 @@ import { IconComponent } from '../../../ui/icon.component';
 import { PillComponent } from '../../../ui/pill.component';
 import type { PhotoSides } from '../../produtos/data/photo-sides';
 import { FONT_LABELS, type CustomizationConfig, type FontId } from '../../produtos/personalizacao/data/customization';
+import { areaBox } from '../../produtos/personalizacao/data/customization-layout';
 import {
   PLACEMENT_SHORT,
   REASON_LABELS,
@@ -35,7 +36,7 @@ const COLOR_NAMES: Record<string, string> = { '#ffffff': 'branco', '#111111': 'p
           <div class="mock" [class.has-photo]="sides().frente">
             @if (sides().frente; as url) { <img class="photo" [src]="url" [alt]="it.productName" /> }
             @if (it.image && frontArea()) {
-              <span class="area" [class]="'area at-' + it.imageArea">
+              <span class="area" [style]="areaStyle()">
                 @if (it.image.url) { <img [src]="it.image.url" alt="Imagem enviada" /> }
               </span>
             }
@@ -166,9 +167,6 @@ const COLOR_NAMES: Record<string, string> = { '#ffffff': 'branco', '#111111': 'p
     .mock.has-photo .mock-label { color: var(--nx-text-mute); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
     .area { position: absolute; border: 1px dashed var(--nx-orange-500); background: rgba(255, 106, 26, 0.18); overflow: hidden; }
     .area img { width: 100%; height: 100%; object-fit: contain; }
-    .area.at-peito_esquerdo { top: 28%; right: 24%; width: 16%; height: 16%; }
-    .area.at-centro_frente { top: 30%; left: 28%; width: 44%; height: 50%; }
-    .area.at-manga { top: 30%; left: 6%; width: 12%; height: 12%; }
     .name { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); padding: 3px 10px; border: 1px dashed rgba(244, 244, 245, 0.35); border-radius: 4px; font-size: 16px; white-space: nowrap; color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
     .font-bloco { font-family: var(--nx-font-display); font-weight: 800; }
     .font-classica { font-family: Georgia, serif; font-style: italic; font-weight: 700; }
@@ -231,6 +229,18 @@ export class CustomDetailComponent {
   });
 
   protected readonly area = computed(() => this.config().image.areas.find((a) => a.id === this.item().imageArea) ?? null);
+  /**
+   * Caixa da área no quadro quadrado: a peça de referência 6:7 ocupa a altura toda, centrada; a
+   * área fica onde o atleta a viu (posição arrastada, ou o padrão pelo id — também nas áreas criadas
+   * no backoffice). Área removida da config depois do pedido: 10 × 10 cm no lugar padrão.
+   */
+  protected readonly areaStyle = computed(() => {
+    const id = this.item().imageArea ?? '';
+    const b = areaBox(this.area() ?? { id, name: id, widthCm: 10, heightCm: 10, enabled: true });
+    const garmentW = 6 / 7;
+    const left = (1 - garmentW) / 2 + (b.cx - b.w / 2) * garmentW;
+    return `left:${left * 100}%;top:${(b.cy - b.h / 2) * 100}%;width:${b.w * garmentW * 100}%;height:${b.h * 100}%`;
+  });
   /** Manga entra na prévia da frente: é onde o mockup mostra o braço. */
   protected readonly frontArea = computed(() => this.item().image !== null);
 

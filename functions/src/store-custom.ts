@@ -187,8 +187,10 @@ export function customizationErrors(c: CustomizationConfig): string[] {
     !int(i.minHeightPx, 100, 10000) || !bool(i.removeBackground) ||
     !formats || formats.some((f) => !FORMATS.includes(f)) || new Set(formats).size !== formats.length ||
     !areas || areas.length === 0 || areas.length > 10 ||
+    // Id único e curto: o pedido guarda a área por ele (`imageArea`, cortado em 40).
+    new Set(areas.map((a) => a?.id)).size !== areas.length ||
     areas.some((a) =>
-      typeof a?.id !== "string" || !ID_RE.test(a.id) || typeof a.name !== "string" || a.name.trim() === "" ||
+      typeof a?.id !== "string" || !ID_RE.test(a.id) || a.id.length > 40 || typeof a.name !== "string" || a.name.trim() === "" ||
       a.name.length > 40 || !int(a.widthCm, 1, 100) || !int(a.heightCm, 1, 100) || !bool(a.enabled) ||
       !positionOk(a.position),
     )

@@ -112,6 +112,7 @@ class StoreCustomizePreview extends StatefulWidget {
     this.photo,
     this.garmentHex,
     this.namePlacement,
+    this.namePosition,
     this.nameText = '',
     this.nameFont = StoreCustomFont.bloco,
     this.nameColor = Colors.white,
@@ -134,6 +135,10 @@ class StoreCustomizePreview extends StatefulWidget {
 
   /// `null` = produto sem nome.
   final StoreNamePlacement? namePlacement;
+
+  /// Centro da faixa arrastado no backoffice; `null` = o padrão do
+  /// [namePlacement].
+  final StorePreviewPoint? namePosition;
   final String nameText;
   final StoreCustomFont nameFont;
   final Color nameColor;
@@ -313,7 +318,7 @@ class _StoreCustomizePreviewState extends State<StoreCustomizePreview> {
 
   Widget _name(Rect frame) {
     final placement = widget.namePlacement!;
-    final center = storeNameCenter(placement);
+    final center = storeNamePreviewCenter(placement, widget.namePosition);
     final bandWidth = frame.width * storeNameBandWidth(placement);
     final boxHeight = frame.height * kStoreNameBandHeight;
     final empty = widget.nameText.isEmpty;
@@ -414,7 +419,7 @@ class _StoreCustomizePreviewState extends State<StoreCustomizePreview> {
   Rect _areaRect(Rect frame) {
     final area = widget.area!;
     final box = storeCustomAreaBox(area);
-    final center = storeCustomAreaCenter(area.id);
+    final center = storeAreaPreviewCenter(area);
     final width = frame.width * box.width;
     final height = frame.height * box.height;
     return Rect.fromCenter(

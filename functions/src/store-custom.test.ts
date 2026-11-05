@@ -115,6 +115,40 @@ describe("configuração de personalização", () => {
     );
   });
 
+  it("posição arrastada: ponto na peça (0–1) ou null; fora da peça é recusada", () => {
+    assert.deepEqual(customizationErrors(config((c) => {
+      c.name.position = {x: 0.3, y: 0.15};
+      c.image.areas[0]!.position = {x: 0, y: 1};
+      c.back.position = null;
+    })), []);
+    // Doc anterior ao arrastar: área sem `position` continua válida.
+    assert.deepEqual(customizationErrors(config((c) => {
+      delete c.image.areas[0]!.position;
+    })), []);
+    assert.deepEqual(customizationErrors(config((c) => {
+      c.name.position = {x: 1.2, y: 0.5};
+      c.image.areas[1]!.position = {x: Number.NaN, y: 0.5};
+      (c.back as {position: unknown}).position = {x: "0.5", y: 0.5};
+    })), ["back", "image", "name"]);
+  });
+
+  it("grava a posição com 4 casas; sem ela, null", async () => {
+    const {fake, db} = makeDb();
+    await saveCustomizationCore(db, {productId: "p1", config: config((c) => {
+      c.name.position = {x: 0.123456, y: 0.5};
+      c.back.position = {x: 0.5, y: 0.66666};
+      delete c.image.areas[0]!.position;
+    })}, ACTOR, NOW);
+    const doc = fake.store.get("storeProductCustomization/p1") as unknown as CustomizationConfig;
+    assert.deepEqual(doc.name.position, {x: 0.1235, y: 0.5});
+    assert.deepEqual(doc.back.position, {x: 0.5, y: 0.6667});
+    assert.equal(doc.image.areas[0]!.position, null);
+    // Doc antigo, sem nenhuma posição: o padrão é null.
+    const old = withCustomizationDefaults({active: true, name: {maxChars: 10}, back: {enabled: true}});
+    assert.equal(old.name.position, null);
+    assert.equal(old.back.position, null);
+  });
+
   it("costas ligadas exigem imagem ou número; dígitos de 1 a 3", () => {
     assert.deepEqual(customizationErrors(config((c) => {
       c.back.enabled = true;

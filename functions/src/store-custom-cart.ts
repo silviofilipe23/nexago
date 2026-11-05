@@ -18,7 +18,14 @@ import {getStorage} from "firebase-admin/storage";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {MAX_QTY_PER_ITEM} from "./store-catalog";
-import {withCustomizationDefaults, type CustomizationConfig, type FontId, type NamePlacement} from "./store-custom";
+import {
+  cleanPosition,
+  withCustomizationDefaults,
+  type CustomizationConfig,
+  type FontId,
+  type NamePlacement,
+  type PreviewPoint,
+} from "./store-custom";
 
 type Data = Record<string, unknown>;
 
@@ -49,6 +56,8 @@ export interface PublicCustomization {
     enabled: boolean;
     maxChars: number;
     placement: NamePlacement;
+    /** Centro da faixa do nome arrastado no backoffice; `null` = o padrão do `placement`. */
+    position: PreviewPoint | null;
     /** Só as fontes ligadas, na ordem do backoffice (a primeira é o padrão). */
     fonts: FontId[];
     colors: string[];
@@ -60,7 +69,7 @@ export interface PublicCustomization {
     minWidthPx: number;
     minHeightPx: number;
     /** Só as áreas ligadas (a primeira é o padrão). */
-    areas: {id: string; name: string; widthCm: number; heightCm: number}[];
+    areas: {id: string; name: string; widthCm: number; heightCm: number; position: PreviewPoint | null}[];
   };
   /**
    * Costas, abaixo do nome: o atleta escolhe número OU imagem entre os liberados. A imagem segue
@@ -73,6 +82,8 @@ export interface PublicCustomization {
     numberMaxDigits: number;
     widthCm: number;
     heightCm: number;
+    /** Centro da caixa; `null` = colada ao nome (ou 0,45 sem nome nas costas). */
+    position: PreviewPoint | null;
   };
   /** `backCents` soma ao preço de nome/imagem quando o atleta preenche as costas. */
   price: {nameOnlyCents: number; imageOnlyCents: number; bothCents: number; backCents: number};
@@ -107,6 +118,7 @@ export function publicCustomization(raw: Data | null): PublicCustomization | nul
       enabled: nameOn,
       maxChars: c.name.maxChars,
       placement: c.name.placement,
+      position: cleanPosition(c.name.position),
       fonts: c.name.fonts.filter((f) => f.enabled).map((f) => f.id),
       colors: c.name.colors.map((h) => h.toLowerCase()),
     },
@@ -116,7 +128,9 @@ export function publicCustomization(raw: Data | null): PublicCustomization | nul
       maxSizeMb: c.image.maxSizeMb,
       minWidthPx: c.image.minWidthPx,
       minHeightPx: c.image.minHeightPx,
-      areas: areas.map(({id, name, widthCm, heightCm}) => ({id, name: name.trim(), widthCm, heightCm})),
+      areas: areas.map(({id, name, widthCm, heightCm, position}) => ({
+        id, name: name.trim(), widthCm, heightCm, position: cleanPosition(position),
+      })),
     },
     back: {
       enabled: backOn,
@@ -125,6 +139,7 @@ export function publicCustomization(raw: Data | null): PublicCustomization | nul
       numberMaxDigits: c.back.numberMaxDigits,
       widthCm: c.back.widthCm,
       heightCm: c.back.heightCm,
+      position: cleanPosition(c.back.position),
     },
     price: {
       nameOnlyCents: c.price.nameOnlyCents,

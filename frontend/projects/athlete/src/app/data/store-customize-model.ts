@@ -11,6 +11,7 @@ import type {
   StoreNamePlacement,
   StorePhoto,
   StorePhotoView,
+  StorePreviewPoint,
   StoreProduct,
 } from './store-showcase-model';
 
@@ -354,14 +355,25 @@ const AREA_CENTERS: Readonly<Record<string, readonly [number, number]>> = {
   manga: [0.88, 0.24],
 };
 
+/**
+ * Centro dentro da peça; caixas (áreas, costas) inteiras dentro dela. A faixa do nome só prende o
+ * centro na horizontal (o texto é centrado e encolhe até caber). Mesma regra do backoffice.
+ */
+function clampBox(b: PreviewBox, keepWidthInside = true): PreviewBox {
+  const halfW = keepWidthInside ? Math.min(0.5, b.w / 2) : 0;
+  const halfH = Math.min(0.5, b.h / 2);
+  return { ...b, cx: Math.min(1 - halfW, Math.max(halfW, b.cx)), cy: Math.min(1 - halfH, Math.max(halfH, b.cy)) };
+}
+
+/** No lugar arrastado no backoffice (`position`); sem ele, o centro padrão da área. */
 export function areaPreviewBox(area: StoreCustomArea): PreviewBox {
-  const [cx, cy] = AREA_CENTERS[area.id] ?? [0.5, 0.4];
-  return {
+  const [cx, cy] = area.position ? [area.position.x, area.position.y] : (AREA_CENTERS[area.id] ?? [0.5, 0.4]);
+  return clampBox({
     cx,
     cy,
     w: Math.min(1, area.widthCm / GARMENT_CM.width),
     h: Math.min(1, area.heightCm / GARMENT_CM.height),
-  };
+  });
 }
 
 const NAME_CENTERS: Readonly<Record<StoreNamePlacement, readonly [number, number]>> = {
@@ -373,30 +385,34 @@ const NAME_CENTERS: Readonly<Record<StoreNamePlacement, readonly [number, number
 };
 
 /**
- * Caixa das costas: centrada, `widthCm/60 × heightCm/70`; logo abaixo da faixa do nome, logo acima
- * com o nome embaixo, 0,45 sem nome nas costas. Sempre dentro do quadro.
+ * Caixa das costas, `widthCm/60 × heightCm/70`: no lugar arrastado no backoffice (`position`);
+ * sem ele, centrada e logo abaixo da faixa do nome (logo acima com o nome embaixo; o nome no lugar
+ * dele, arrastado ou não), 0,45 sem nome nas costas. Sempre dentro do quadro.
  */
 export function backPreviewBox(
-  back: Pick<StoreCustomization['back'], 'widthCm' | 'heightCm'>,
+  back: Pick<StoreCustomization['back'], 'widthCm' | 'heightCm' | 'position'>,
   namePlacement: StoreNamePlacement | null,
+  namePosition: StorePreviewPoint | null = null,
 ): PreviewBox {
   const w = Math.min(1, back.widthCm / GARMENT_CM.width);
   const h = Math.min(1, back.heightCm / GARMENT_CM.height);
+  if (back.position) return clampBox({ cx: back.position.x, cy: back.position.y, w, h });
   const band = 0.15 / 2;
   const gap = 0.03;
+  const nameY = namePlacement ? namePreviewBox(namePlacement, namePosition).cy : 0;
   const cy =
     namePlacement === 'costas_superior'
-      ? NAME_CENTERS.costas_superior[1] + band + gap + h / 2
+      ? nameY + band + gap + h / 2
       : namePlacement === 'costas_inferior'
-        ? NAME_CENTERS.costas_inferior[1] - band - gap - h / 2
+        ? nameY - band - gap - h / 2
         : 0.45;
-  return { cx: 0.5, cy: Math.min(1 - h / 2, Math.max(h / 2, cy)), w, h };
+  return clampBox({ cx: 0.5, cy, w, h });
 }
 
-/** Faixa do nome: 60% da largura do quadro (a manga é estreita: 18%). */
-export function namePreviewBox(placement: StoreNamePlacement): PreviewBox {
-  const [cx, cy] = NAME_CENTERS[placement];
-  return { cx, cy, w: placement === 'manga' ? 0.18 : 0.6, h: 0.15 };
+/** Faixa do nome: 60% da largura do quadro (a manga é estreita: 18%), no lugar arrastado ou no padrão. */
+export function namePreviewBox(placement: StoreNamePlacement, position: StorePreviewPoint | null = null): PreviewBox {
+  const [cx, cy] = position ? [position.x, position.y] : NAME_CENTERS[placement];
+  return clampBox({ cx, cy, w: placement === 'manga' ? 0.18 : 0.6, h: 0.15 }, false);
 }
 
 /**

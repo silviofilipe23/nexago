@@ -32,12 +32,24 @@ export type NamePlacement = "costas_superior" | "costas_inferior" | "frente" | "
 export type FontId = "bloco" | "classica" | "mono";
 export type ImageFormat = "png" | "jpg" | "svg";
 
+/**
+ * Onde o elemento fica na prévia: centro em fração da peça de referência (60 × 70 cm), 0–1,
+ * arrastado no backoffice. `null` = o lugar padrão (pelo `placement` do nome, pelo `id` da área,
+ * logo abaixo/acima do nome nas costas) — doc anterior ao arrastar e cliente antigo seguem iguais.
+ */
+export interface PreviewPoint {
+  x: number;
+  y: number;
+}
+
 export interface PrintArea {
   id: string;
   name: string;
   widthCm: number;
   heightCm: number;
   enabled: boolean;
+  /** Ausente em doc antigo = `null`. */
+  position?: PreviewPoint | null;
 }
 
 export interface CustomizationConfig {
@@ -46,6 +58,8 @@ export interface CustomizationConfig {
     enabled: boolean;
     maxChars: number;
     placement: NamePlacement;
+    /** Centro da faixa do nome; o lado (frente/costas) segue o `placement`. */
+    position: PreviewPoint | null;
     fonts: {id: FontId; enabled: boolean}[];
     colors: string[];
     blockOffensive: boolean;
@@ -70,6 +84,8 @@ export interface CustomizationConfig {
     numberMaxDigits: number;
     widthCm: number;
     heightCm: number;
+    /** Centro da caixa das costas; `null` = colada ao nome. */
+    position: PreviewPoint | null;
   };
   /** `backCents` soma ao preço de nome/imagem quando o atleta preenche as costas. */
   price: {nameOnlyCents: number; imageOnlyCents: number; bothCents: number; backCents: number};
@@ -90,6 +106,7 @@ export const DEFAULT_CUSTOMIZATION: CustomizationConfig = {
     enabled: true,
     maxChars: 12,
     placement: "costas_superior",
+    position: null,
     fonts: FONTS.map((id) => ({id, enabled: true})),
     colors: ["#ffffff", "#111111", "#ff6a1a", "#e3b85c"],
     blockOffensive: true,
@@ -107,7 +124,9 @@ export const DEFAULT_CUSTOMIZATION: CustomizationConfig = {
     ],
     removeBackground: true,
   },
-  back: {enabled: false, allowImage: true, allowNumber: true, numberMaxDigits: 2, widthCm: 25, heightCm: 25},
+  back: {
+    enabled: false, allowImage: true, allowNumber: true, numberMaxDigits: 2, widthCm: 25, heightCm: 25, position: null,
+  },
   price: {nameOnlyCents: 1490, imageOnlyCents: 1990, bothCents: 2490, backCents: 990},
   production: {leadDays: 5, printShop: "", manualApproval: true},
   defectOnlyReturns: true,
@@ -119,6 +138,21 @@ function int(v: unknown, min: number, max: number): boolean {
 
 function bool(v: unknown): boolean {
   return typeof v === "boolean";
+}
+
+/** `null`/ausente (lugar padrão) ou um ponto dentro da peça. */
+function positionOk(v: unknown): boolean {
+  if (v == null) return true;
+  const p = v as Partial<PreviewPoint>;
+  return typeof p.x === "number" && typeof p.y === "number" &&
+    Number.isFinite(p.x) && Number.isFinite(p.y) && p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1;
+}
+
+/** Como o ponto é gravado: 4 casas bastam (0,1 mm numa peça de 60 cm) e o doc não guarda ruído do arrasto. */
+export function cleanPosition(v: unknown): PreviewPoint | null {
+  if (v == null || !positionOk(v)) return null;
+  const p = v as PreviewPoint;
+  return {x: Math.round(p.x * 10000) / 10000, y: Math.round(p.y * 10000) / 10000};
 }
 
 function invalidFields(fields: string[]): HttpsError {
@@ -134,7 +168,7 @@ export function customizationErrors(c: CustomizationConfig): string[] {
   const colors = Array.isArray(n?.colors) ? n.colors : null;
   if (
     !n || !bool(n.enabled) || !int(n.maxChars, 1, 20) || !PLACEMENTS.includes(n.placement) ||
-    !bool(n.blockOffensive) ||
+    !positionOk(n.position) || !bool(n.blockOffensive) ||
     !fonts || fonts.length !== FONTS.length || fonts.some((f) => !FONTS.includes(f?.id) || !bool(f.enabled)) ||
     new Set(fonts.map((f) => f.id)).size !== FONTS.length ||
     !colors || colors.length > 8 || colors.some((h) => typeof h !== "string" || !HEX_RE.test(h))
@@ -155,7 +189,8 @@ export function customizationErrors(c: CustomizationConfig): string[] {
     !areas || areas.length === 0 || areas.length > 10 ||
     areas.some((a) =>
       typeof a?.id !== "string" || !ID_RE.test(a.id) || typeof a.name !== "string" || a.name.trim() === "" ||
-      a.name.length > 40 || !int(a.widthCm, 1, 100) || !int(a.heightCm, 1, 100) || !bool(a.enabled),
+      a.name.length > 40 || !int(a.widthCm, 1, 100) || !int(a.heightCm, 1, 100) || !bool(a.enabled) ||
+      !positionOk(a.position),
     )
   ) {
     fields.push("image");
@@ -166,7 +201,8 @@ export function customizationErrors(c: CustomizationConfig): string[] {
   const b = c?.back;
   if (
     !b || !bool(b.enabled) || !bool(b.allowImage) || !bool(b.allowNumber) ||
-    !int(b.numberMaxDigits, 1, 3) || !int(b.widthCm, 1, 100) || !int(b.heightCm, 1, 100)
+    !int(b.numberMaxDigits, 1, 3) || !int(b.widthCm, 1, 100) || !int(b.heightCm, 1, 100) ||
+    !positionOk(b.position)
   ) {
     fields.push("back");
   } else if (b.enabled && !b.allowImage && !b.allowNumber) {
@@ -236,11 +272,15 @@ export async function saveCustomizationCore(
       enabled: c.name.enabled,
       maxChars: c.name.maxChars,
       placement: c.name.placement,
+      position: cleanPosition(c.name.position),
       fonts: c.name.fonts,
       colors: c.name.colors.map((h) => h.toLowerCase()),
       blockOffensive: c.name.blockOffensive,
     },
-    image: {...c.image, areas: c.image.areas.map((a) => ({...a, name: a.name.trim()}))},
+    image: {
+      ...c.image,
+      areas: c.image.areas.map((a) => ({...a, name: a.name.trim(), position: cleanPosition(a.position)})),
+    },
     back: {
       enabled: c.back.enabled,
       allowImage: c.back.allowImage,
@@ -248,6 +288,7 @@ export async function saveCustomizationCore(
       numberMaxDigits: c.back.numberMaxDigits,
       widthCm: c.back.widthCm,
       heightCm: c.back.heightCm,
+      position: cleanPosition(c.back.position),
     },
     price: c.price,
     production: {...c.production, printShop: c.production.printShop.trim()},

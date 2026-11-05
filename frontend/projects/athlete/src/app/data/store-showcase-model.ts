@@ -48,11 +48,21 @@ export interface StoreDetail {
 /** `barra` = barra da toalha (nome bordado na faixa de baixo, de frente). */
 export type StoreNamePlacement = 'costas_superior' | 'costas_inferior' | 'frente' | 'manga' | 'barra';
 
+/**
+ * Centro arrastado no backoffice, em fração da peça de referência (0–1). `null`/ausente = o lugar
+ * padrão (ver `store-customize-model.ts`).
+ */
+export interface StorePreviewPoint {
+  x: number;
+  y: number;
+}
+
 export interface StoreCustomArea {
   id: string;
   name: string;
   widthCm: number;
   heightCm: number;
+  position?: StorePreviewPoint | null;
 }
 
 /**
@@ -70,6 +80,8 @@ export interface StoreCustomization {
     enabled: boolean;
     maxChars: number;
     placement: StoreNamePlacement;
+    /** Centro da faixa do nome; o lado segue o `placement`. */
+    position?: StorePreviewPoint | null;
     /** Só as ligadas; a 1ª é o padrão. */
     fonts: string[];
     colors: string[];
@@ -91,6 +103,8 @@ export interface StoreCustomization {
     numberMaxDigits: number;
     widthCm: number;
     heightCm: number;
+    /** Centro da caixa; `null` = colada ao nome. */
+    position?: StorePreviewPoint | null;
   };
   price: { nameOnlyCents: number; imageOnlyCents: number; bothCents: number; backCents: number };
 }
@@ -268,6 +282,14 @@ function strings(v: unknown): string[] {
   return Array.isArray(v) ? v.map(str).filter((x) => x !== '') : [];
 }
 
+/** Ponto dentro da peça (0–1) ou `null`: espelho antigo, ou valor estranho, cai no lugar padrão. */
+function point(v: unknown): StorePreviewPoint | null {
+  const p = (v ?? null) as Raw | null;
+  const x = num(p?.['x']);
+  const y = num(p?.['y']);
+  return x !== null && y !== null && x >= 0 && x <= 1 && y >= 0 && y <= 1 ? { x, y } : null;
+}
+
 function customizationFromRaw(custom: Raw): StoreCustomization {
   const name = (custom['name'] ?? {}) as Raw;
   const image = (custom['image'] ?? {}) as Raw;
@@ -283,6 +305,7 @@ function customizationFromRaw(custom: Raw): StoreCustomization {
           name: str(a?.['name']),
           widthCm: num(a?.['widthCm']) ?? 0,
           heightCm: num(a?.['heightCm']) ?? 0,
+          position: point(a?.['position']),
         }))
         .filter((a) => a.id !== '' && a.name !== '' && a.widthCm > 0 && a.heightCm > 0)
     : [];
@@ -298,6 +321,7 @@ function customizationFromRaw(custom: Raw): StoreCustomization {
       enabled: name['enabled'] === true && fonts.length > 0 && colors.length > 0,
       maxChars: count(name['maxChars']) || 12,
       placement,
+      position: point(name['position']),
       fonts,
       colors,
     },
@@ -317,6 +341,7 @@ function customizationFromRaw(custom: Raw): StoreCustomization {
       numberMaxDigits: Math.min(3, Math.max(1, count(back['numberMaxDigits']) || 2)),
       widthCm: num(back['widthCm']) || 25,
       heightCm: num(back['heightCm']) || 25,
+      position: point(back['position']),
     },
     price: {
       nameOnlyCents: count(price['nameOnlyCents']),

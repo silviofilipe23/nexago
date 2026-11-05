@@ -303,6 +303,46 @@ void main() {
       expect(old.hasOptions, isFalse);
     });
 
+    test(
+        'posição arrastada no backoffice: lida; ausente ou fora da peça = null',
+        () {
+      final c = storeCustomizationFromMap({
+        'name': {
+          'enabled': true,
+          'fonts': ['bloco'],
+          'colors': ['#ffffff'],
+          'position': {'x': 0.3, 'y': 0.2},
+        },
+        'image': {
+          'enabled': true,
+          'formats': ['png'],
+          'areas': [
+            {
+              'id': 'peito_esquerdo',
+              'name': 'Peito',
+              'widthCm': 9,
+              'heightCm': 9,
+              'position': {'x': 0.32, 'y': 0.3},
+            },
+            {
+              'id': 'centro_frente',
+              'name': 'Centro',
+              'widthCm': 25,
+              'heightCm': 30
+            },
+          ],
+        },
+        'back': {
+          'enabled': true,
+          'allowNumber': true,
+          'position': {'x': 1.5, 'y': 0.5},
+        },
+      });
+      expect(c.name.position, (x: 0.3, y: 0.2));
+      expect(c.image.areas.map((a) => a.position), [(x: 0.32, y: 0.3), null]);
+      expect(c.back.position, isNull);
+    });
+
     test('costas: sem opção válida somem; números fora do intervalo', () {
       // Só imagem liberada, mas sem formato no bloco Imagem.
       final noFormat = storeCustomizationFromMap({

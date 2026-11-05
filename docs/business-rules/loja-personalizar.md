@@ -14,11 +14,12 @@ continua possível pela própria página do produto.
 fromCents, leadDays, defectOnlyReturns,
 version,                                   // ms do updatedAt da config: o carrinho guarda com qual foi feito
 name:  { enabled, maxChars, placement: 'costas_superior'|'costas_inferior'|'frente'|'manga'|'barra',
+         position: {x, y} | null,
          fonts: ['bloco'|'classica'|'mono' ...]  (só as ligadas; a 1ª é o padrão),
          colors: ['#rrggbb' ...] },
 image: { enabled, formats: ['png'|'jpg'|'svg' ...], maxSizeMb, minWidthPx, minHeightPx,
-         areas: [{ id, name, widthCm, heightCm }] (só as ligadas; a 1ª é o padrão) },
-back:  { enabled, allowNumber, allowImage, numberMaxDigits (1–3), widthCm, heightCm },
+         areas: [{ id, name, widthCm, heightCm, position: {x, y} | null }] (só as ligadas; a 1ª é o padrão) },
+back:  { enabled, allowNumber, allowImage, numberMaxDigits (1–3), widthCm, heightCm, position: {x, y} | null },
 price: { nameOnlyCents, imageOnlyCents, bothCents, backCents }
 ```
 `null` = sem personalização. `enabled` falso = a opção (passo/aba/preço) some. **Costas** (abaixo
@@ -26,6 +27,11 @@ do nome, PR #720 no backoffice): o atleta escolhe número OU imagem entre os lib
 das costas segue formatos, peso e resolução mínima do bloco `image` (mesmo com a imagem da frente
 desligada). `back.enabled` só vem ligado se sobra uma opção válida.
 `photos[].view` (`'frente'|'costas'|null`) passou a ir no espelho: a prévia usa a foto do lado e da cor.
+
+**`position`** (nome, cada área, costas): centro arrastado na prévia da tela 11, em fração da peça de
+referência (0–1, 4 casas). `null`/ausente = o lugar padrão (tabela em "Prévia"), então doc e espelho
+antigos e app antigo seguem iguais. O lado continua vindo do `placement` (nome) / frente (áreas) /
+costas. Ponto fora de 0–1 é recusado no save e lido como `null` nos clientes.
 
 ### Imagem do atleta
 Storage `store/custom-uploads/{uid}/{uuid}.{png|jpg|svg}`, com `contentType` certo. A rule deixa só o
@@ -129,11 +135,19 @@ Upload pede login.
   o nome padrão contrasta com a peça, e no mockup escuro um nome escuro sumia. Rótulo do mockup
   escuro em peça clara. Seletor Frente/Costas; editar o nome mostra o lado do nome, editar a
   imagem mostra a frente.
-- Peça de referência 60 × 70 cm: caixa da área = `widthCm/60` × `heightCm/70` do quadro. Centro das
+- Peça de referência 60 × 70 cm: caixa da área = `widthCm/60` × `heightCm/70` do quadro. Com
+  `position`, o centro é ele; sem, o padrão. Centro padrão das
   áreas conhecidas: `peito_esquerdo` (68%, 30%) — esquerdo de quem veste, direita de quem olha;
   `centro_frente` (50%, 45%); `manga` (88%, 24%); outra → (50%, 40%). Nome: `costas_superior`
   (50%, 24%), `costas_inferior` (50%, 62%), `frente` (50%, 30%), `manga` (88%, 24%), `barra` (50%, 80%), faixa de 60%
   da largura; texto em 1 linha, fonte reduzida até caber.
+- Sempre dentro da peça: áreas e costas inteiras dentro dela; a faixa do nome só prende o centro na
+  horizontal (o texto é centrado e encolhe, então o nome pode ir para o peito) e a faixa inteira na
+  vertical. Costas sem `position` ficam coladas ao nome **onde ele estiver** (arrastado ou não).
+- **Backoffice (tela 11):** a prévia usa o mesmo quadro do portal (31:32, foto em cover, peça 6:7 no
+  meio). Nome, áreas ligadas e costas se arrastam (mouse/toque) ou andam pelas setas (1%; Shift, 5%);
+  área menor fica por cima. Trocar o `Local` do nome devolve o nome ao padrão do novo local e mostra o
+  lado dele. "Voltar ao padrão" zera todas as posições.
 - Sem imagem: placeholder listrado "SUA IMAGEM" na área.
 
 ### Nota de produção

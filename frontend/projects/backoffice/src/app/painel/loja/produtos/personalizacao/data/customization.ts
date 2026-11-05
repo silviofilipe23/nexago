@@ -3,12 +3,23 @@ export type NamePlacement = 'costas_superior' | 'costas_inferior' | 'frente' | '
 export type FontId = 'bloco' | 'classica' | 'mono';
 export type ImageFormat = 'png' | 'jpg' | 'svg';
 
+/**
+ * Centro do elemento na prévia, em fração da peça de referência (60 × 70 cm), 0–1. `null` = o lugar
+ * padrão (ver `customization-layout.ts`). Mesmo contrato de `PreviewPoint` no servidor.
+ */
+export interface PreviewPoint {
+  x: number;
+  y: number;
+}
+
 export interface PrintArea {
   id: string;
   name: string;
   widthCm: number;
   heightCm: number;
   enabled: boolean;
+  /** Ausente em doc antigo = `null`. */
+  position?: PreviewPoint | null;
 }
 
 /** Mesmo formato de `CustomizationConfig` em functions/src/store-custom.ts. */
@@ -18,6 +29,8 @@ export interface CustomizationConfig {
     enabled: boolean;
     maxChars: number;
     placement: NamePlacement;
+    /** Arrastado na prévia; o lado (frente/costas) segue o `placement`. */
+    position: PreviewPoint | null;
     fonts: { id: FontId; enabled: boolean }[];
     colors: string[];
     blockOffensive: boolean;
@@ -39,6 +52,8 @@ export interface CustomizationConfig {
     numberMaxDigits: number;
     widthCm: number;
     heightCm: number;
+    /** Arrastado na prévia; `null` = colado ao nome. */
+    position: PreviewPoint | null;
   };
   price: { nameOnlyCents: number; imageOnlyCents: number; bothCents: number; backCents: number };
   production: { leadDays: number; printShop: string; manualApproval: boolean };
@@ -66,6 +81,7 @@ export const DEFAULT_CUSTOMIZATION: CustomizationConfig = {
     enabled: true,
     maxChars: 12,
     placement: 'costas_superior',
+    position: null,
     fonts: [
       { id: 'bloco', enabled: true },
       { id: 'classica', enabled: true },
@@ -87,7 +103,7 @@ export const DEFAULT_CUSTOMIZATION: CustomizationConfig = {
     ],
     removeBackground: true,
   },
-  back: { enabled: false, allowImage: true, allowNumber: true, numberMaxDigits: 2, widthCm: 25, heightCm: 25 },
+  back: { enabled: false, allowImage: true, allowNumber: true, numberMaxDigits: 2, widthCm: 25, heightCm: 25, position: null },
   price: { nameOnlyCents: 1490, imageOnlyCents: 1990, bothCents: 2490, backCents: 990 },
   production: { leadDays: 5, printShop: '', manualApproval: true },
   defectOnlyReturns: true,
@@ -112,11 +128,17 @@ export function customizationFromDoc(d: Raw | undefined): CustomizationConfig {
       d['back'] == null && legacyNumber === true
         ? { ...base.back, enabled: true, allowImage: false, allowNumber: true }
         : { ...base.back, ...(d['back'] ?? {}) },
-    image: { ...base.image, ...(d['image'] ?? {}) },
+    image: imageFromDoc(base.image, d['image']),
     price: { ...base.price, ...(d['price'] ?? {}) },
     production: { ...base.production, ...(d['production'] ?? {}) },
     defectOnlyReturns: d['defectOnlyReturns'] !== false,
   };
+}
+
+/** Área sem `position` (doc antigo) ganha `null`: o "sujo" compara o JSON. */
+function imageFromDoc(base: CustomizationConfig['image'], raw: Raw | undefined): CustomizationConfig['image'] {
+  const image = { ...base, ...(raw ?? {}) };
+  return { ...image, areas: image.areas.map((a: PrintArea) => ({ ...a, position: a.position ?? null })) };
 }
 
 export type CardErrors = Partial<Record<'name' | 'image' | 'back' | 'price' | 'production' | 'active', string>>;

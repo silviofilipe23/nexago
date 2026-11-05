@@ -227,6 +227,41 @@ describe('store-customize-model', () => {
       expect(big.cy + big.h / 2).toBeLessThanOrEqual(1);
     });
 
+    it('posição arrastada no backoffice: nome, área e costas no lugar dela; costas seguem o nome arrastado', () => {
+      expect(namePreviewBox('frente', { x: 0.3, y: 0.2 })).toEqual({ cx: 0.3, cy: 0.2, w: 0.6, h: 0.15 });
+      expect(namePreviewBox('frente', null)).toEqual({ cx: 0.5, cy: 0.3, w: 0.6, h: 0.15 });
+      const moved = areaPreviewBox({ ...PEITO, position: { x: 0.32, y: 0.3 } });
+      expect([moved.cx, moved.cy]).toEqual([0.32, 0.3]);
+      // Caixa nunca sai da peça (área maior depois do arrasto).
+      const edge = areaPreviewBox({ ...PEITO, position: { x: 1, y: 0 } });
+      expect(edge.cx + edge.w / 2).toBeLessThanOrEqual(1);
+      expect(edge.cy - edge.h / 2).toBeGreaterThanOrEqual(0);
+      const h = 25 / 70;
+      expect(backPreviewBox(back, 'costas_superior', { x: 0.5, y: 0.1 }).cy).toBeCloseTo(0.1 + 0.075 + 0.03 + h / 2, 5);
+      expect(backPreviewBox({ ...back, position: { x: 0.5, y: 0.7 } }, 'costas_superior').cy).toBe(0.7);
+      const doc = storeProductFromDoc('cam', {
+        name: 'Camiseta',
+        priceCents: 12990,
+        customizable: true,
+        customization: {
+          name: { enabled: true, fonts: ['bloco'], colors: ['#fff'], position: { x: 0.3, y: 0.2 } },
+          image: {
+            enabled: true,
+            formats: ['png'],
+            areas: [
+              { id: 'peito_esquerdo', name: 'Peito', widthCm: 9, heightCm: 9, position: { x: 0.32, y: 0.3 } },
+              { id: 'centro_frente', name: 'Centro', widthCm: 25, heightCm: 30 },
+            ],
+          },
+          back: { enabled: true, allowNumber: true, position: { x: 2, y: 0.5 } },
+        },
+      })!;
+      expect(doc.customization!.name.position).toEqual({ x: 0.3, y: 0.2 });
+      expect(doc.customization!.image.areas.map((a) => a.position)).toEqual([{ x: 0.32, y: 0.3 }, null]);
+      // Fora da peça (doc mexido à mão) = lugar padrão.
+      expect(doc.customization!.back.position).toBeNull();
+    });
+
     it('espelho antigo sem `back` chega com as costas desligadas; só costas já abre o Personalizar', () => {
       const old = storeProductFromDoc('cam', {
         name: 'Camiseta',

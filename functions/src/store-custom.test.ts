@@ -132,6 +132,22 @@ describe("configuração de personalização", () => {
     })), ["back", "image", "name"]);
   });
 
+  it("áreas criadas no backoffice: até 10, id único e de até 40 caracteres", () => {
+    const extra = (id: string, name = "Nuca") => ({id, name, widthCm: 8, heightCm: 4, enabled: true, position: {x: 0.5, y: 0.1}});
+    assert.deepEqual(customizationErrors(config((c) => {
+      c.image.areas.push(extra("nuca_k3f9"), extra("barra_lateral_a1b2", "Barra lateral"));
+    })), []);
+    assert.deepEqual(customizationErrors(config((c) => {
+      c.image.areas.push(extra("peito_esquerdo"));
+    })), ["image"]);
+    assert.deepEqual(customizationErrors(config((c) => {
+      c.image.areas.push(extra("x".repeat(41)));
+    })), ["image"]);
+    assert.deepEqual(customizationErrors(config((c) => {
+      for (let i = 0; i < 8; i++) c.image.areas.push(extra(`a${i}`));
+    })), ["image"]);
+  });
+
   it("grava a posição com 4 casas; sem ela, null", async () => {
     const {fake, db} = makeDb();
     await saveCustomizationCore(db, {productId: "p1", config: config((c) => {

@@ -1,7 +1,10 @@
 import {
   DEFAULT_CUSTOMIZATION,
+  MAX_AREAS,
   addOnCents,
   addOnLines,
+  areaDraftError,
+  newAreaId,
   backKindLabel,
   customizationErrors,
   customizationFromDoc,
@@ -91,5 +94,31 @@ describe('customization', () => {
   it('nome de exemplo respeita o limite', () => {
     expect(sampleName(12)).toBe('ANTUNES');
     expect(sampleName(4)).toBe('ANTU');
+  });
+
+  describe('áreas criadas no backoffice', () => {
+    const areas = DEFAULT_CUSTOMIZATION.image.areas;
+
+    it('id = nome sem acento + sufixo; nunca repete um id existente', () => {
+      expect(newAreaId('Manga Direita', [], () => 0)).toBe('manga_direita_0000');
+      expect(newAreaId('Nuca (bordado)', [], () => 0.5)).toMatch(/^nuca_bordado_[a-z0-9]{4}$/);
+      expect(newAreaId('  ', [], () => 0)).toBe('area_0000');
+      const seq = [0, 0, 0.5];
+      expect(newAreaId('Nuca', ['nuca_0000'], () => seq.shift()!)).not.toBe('nuca_0000');
+      expect(newAreaId('x'.repeat(60), []).length).toBeLessThanOrEqual(40);
+    });
+
+    it('nome obrigatório e sem repetir; medidas de 1 a 100 cm; até o limite', () => {
+      const ok = { name: 'Nuca', widthCm: 8, heightCm: 4 };
+      expect(areaDraftError(ok, areas, null)).toBeNull();
+      expect(areaDraftError({ ...ok, name: ' ' }, areas, null)).toBe('Dê um nome à área.');
+      expect(areaDraftError({ ...ok, name: 'peito ESQUERDO' }, areas, null)).toBe('Já existe uma área com esse nome.');
+      // Editando a própria área, o nome dela não conta como repetido.
+      expect(areaDraftError({ ...ok, name: 'Peito esquerdo' }, areas, 'peito_esquerdo')).toBeNull();
+      expect(areaDraftError({ ...ok, widthCm: 0 }, areas, null)).toBe('Largura e altura vão de 1 a 100 cm.');
+      const full = Array.from({ length: MAX_AREAS }, (_, i) => ({ ...areas[0]!, id: `a${i}`, name: `A${i}` }));
+      expect(areaDraftError(ok, full, null)).toBe('Cada produto tem até 10 áreas.');
+      expect(areaDraftError(ok, full, 'a0')).toBeNull();
+    });
   });
 });

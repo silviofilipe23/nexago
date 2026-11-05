@@ -12,6 +12,10 @@ import { centsToInput, formatBrl, parseBrlToCents } from '../../retirada/retirad
 import {
   DEFAULT_CUSTOMIZATION,
   FONT_LABELS,
+  MAX_AREAS,
+  areaDraftError,
+  newAreaId,
+  type AreaDraft,
   FORMAT_LABELS,
   PLACEMENT_LABELS,
   addOnCents,
@@ -295,10 +299,20 @@ const KEY_STEP_BIG = 0.05;
                         <div class="list-row">
                           <span class="grow">{{ a.name }}</span>
                           <span class="mono dim">{{ a.widthCm }} × {{ a.heightCm }} cm</span>
+                          <button type="button" class="icon-btn" [attr.aria-label]="'Editar área ' + a.name" [title]="'Editar ' + a.name" (click)="openArea(a.id)">
+                            <bo-icon name="edit" [size]="14" />
+                          </button>
                           <bo-toggle [ariaLabel]="'Área ' + a.name" [checked]="a.enabled" (checkedChange)="set('image.areas.' + i + '.enabled', $event)" />
                         </div>
                       }
                     </div>
+                    @if (config().image.areas.length < maxAreas) {
+                      <button type="button" class="add-area" (click)="openArea(null)">
+                        <bo-icon name="plus" [size]="14" /> Nova área
+                      </button>
+                    } @else {
+                      <p class="hint">Limite de {{ maxAreas }} áreas por produto.</p>
+                    }
 
                     <div class="row-between bordered">
                       <div>
@@ -479,6 +493,38 @@ const KEY_STEP_BIG = 0.05;
       </bo-confirm-dialog>
 
       <bo-confirm-dialog
+        [open]="areaOpen()"
+        [title]="areaEditing() ? 'Editar área' : 'Nova área de impressão'"
+        [description]="areaEditing() ? 'Mudar o tamanho não mexe na posição da prévia.' : 'Fica na frente da peça. Depois de criar, arraste na prévia até o lugar certo.'"
+        [confirmLabel]="areaEditing() ? 'Aplicar' : 'Criar área'"
+        size="md"
+        [error]="areaError()"
+        (confirmed)="saveArea()"
+        (dismissed)="areaOpen.set(false)"
+      >
+        <div class="stack">
+          <bo-field label="Nome">
+            <input class="bo-input" maxlength="40" placeholder="Ex.: Nuca, Manga direita" [value]="areaDraft().name" (input)="patchArea('name', text($event))" />
+          </bo-field>
+          <div class="field-like">
+            <span class="label">Tamanho máximo da arte</span>
+            <div class="res">
+              <input class="bo-input" inputmode="numeric" aria-label="Largura da área em cm" [value]="areaDraft().widthCm" (input)="patchArea('widthCm', num($event))" />
+              <span>×</span>
+              <input class="bo-input" inputmode="numeric" aria-label="Altura da área em cm" [value]="areaDraft().heightCm" (input)="patchArea('heightCm', num($event))" />
+              <span class="unit">cm</span>
+            </div>
+          </div>
+          @if (areaEditing(); as id) {
+            <div class="row-between bordered">
+              <span class="hint">Ao salvar, carrinhos com essa área precisam ser refeitos; pedidos já feitos não mudam.</span>
+              <button type="button" class="link danger" [disabled]="config().image.areas.length <= 1" (click)="removeArea(id)">Remover área</button>
+            </div>
+          }
+        </div>
+      </bo-confirm-dialog>
+
+      <bo-confirm-dialog
         [open]="leaveOpen()"
         title="Descartar alterações?"
         description="As mudanças na personalização ainda não foram salvas."
@@ -575,6 +621,12 @@ const KEY_STEP_BIG = 0.05;
     .summary dd { margin: 0; font-family: var(--nx-font-display); font-weight: 600; color: var(--nx-text); }
     .summary .total { padding-top: 10px; border-top: 1px solid var(--nx-line); }
     .summary .total dd { font-size: 16px; font-weight: 800; }
+    .icon-btn { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: none; border-radius: var(--nx-r-2); background: transparent; color: var(--nx-text-dim); cursor: pointer; }
+    .icon-btn:hover { color: var(--nx-text); background: var(--nx-surface-2); }
+    .add-area { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px dashed var(--nx-line-strong); border-radius: var(--nx-r-2); background: transparent; color: var(--nx-text-mute); font-family: var(--nx-font-display); font-weight: 600; font-size: 12.5px; cursor: pointer; }
+    .add-area:hover { color: var(--nx-orange-500); border-color: var(--nx-orange-500); }
+    .link.danger { color: var(--nx-live); white-space: nowrap; }
+    .link:disabled { opacity: 0.4; cursor: not-allowed; }
     .terms { height: auto; padding: 10px 13px; font-family: var(--nx-font-mono); font-size: 12.5px; resize: vertical; }
   `,
 })
@@ -606,6 +658,13 @@ export class ProductCustomizationComponent {
   protected readonly blocklistDraft = signal('');
   protected readonly blocklistBusy = signal(false);
   protected readonly blocklistError = signal<string | null>(null);
+
+  protected readonly maxAreas = MAX_AREAS;
+  protected readonly areaOpen = signal(false);
+  /** Id da área em edição; `null` = criando. */
+  protected readonly areaEditing = signal<string | null>(null);
+  protected readonly areaDraft = signal<AreaDraft>({ name: '', widthCm: 10, heightCm: 10 });
+  protected readonly areaError = signal<string | null>(null);
 
   protected readonly leaveOpen = signal(false);
   private leaveResolve: ((ok: boolean) => void) | null = null;
@@ -819,6 +878,52 @@ export class ProductCustomizationComponent {
       c.name.position = null;
     });
     this.side.set(nameOnBack(placement) ? 'costas' : 'frente');
+  }
+
+  /** Abre o formulário de área: `null` cria (10 × 10 cm), um id edita. */
+  protected openArea(id: string | null): void {
+    const area = id === null ? null : this.config().image.areas.find((a) => a.id === id);
+    this.areaEditing.set(area?.id ?? null);
+    this.areaDraft.set(area ? { name: area.name, widthCm: area.widthCm, heightCm: area.heightCm } : { name: '', widthCm: 10, heightCm: 10 });
+    this.areaError.set(null);
+    this.areaOpen.set(true);
+  }
+
+  protected patchArea<K extends keyof AreaDraft>(key: K, value: AreaDraft[K]): void {
+    this.areaDraft.update((d) => ({ ...d, [key]: value }));
+    this.areaError.set(null);
+  }
+
+  /** Cria ligada e mostra a frente, onde ela aparece para ser arrastada. */
+  protected saveArea(): void {
+    const draft = this.areaDraft();
+    const editing = this.areaEditing();
+    const areas = this.config().image.areas;
+    const error = areaDraftError(draft, areas, editing);
+    if (error) {
+      this.areaError.set(error);
+      return;
+    }
+    const name = draft.name.trim();
+    this.patch((c) => {
+      const area = editing === null ? null : c.image.areas.find((a) => a.id === editing);
+      if (area) {
+        Object.assign(area, { name, widthCm: draft.widthCm, heightCm: draft.heightCm });
+      } else {
+        const ids = c.image.areas.map((a) => a.id);
+        c.image.areas.push({ id: newAreaId(name, ids), name, widthCm: draft.widthCm, heightCm: draft.heightCm, enabled: true, position: null });
+      }
+    });
+    this.side.set('frente');
+    this.areaOpen.set(false);
+  }
+
+  protected removeArea(id: string): void {
+    if (this.config().image.areas.length <= 1) {
+      return;
+    }
+    this.patch((c) => (c.image.areas = c.image.areas.filter((a) => a.id !== id)));
+    this.areaOpen.set(false);
   }
 
   protected removeColor(index: number): void {

@@ -141,6 +141,60 @@ function imageFromDoc(base: CustomizationConfig['image'], raw: Raw | undefined):
   return { ...image, areas: image.areas.map((a: PrintArea) => ({ ...a, position: a.position ?? null })) };
 }
 
+/** Teto de áreas por produto (o mesmo da callable). */
+export const MAX_AREAS = 10;
+
+export interface AreaDraft {
+  name: string;
+  widthCm: number;
+  heightCm: number;
+}
+
+/**
+ * Id de uma área criada aqui: o nome sem acento (até 30) + sufixo aleatório. O sufixo evita
+ * reaproveitar o id de uma área removida — o pedido antigo guarda a área pelo id.
+ */
+export function newAreaId(name: string, taken: readonly string[], random: () => number = Math.random): string {
+  const slug =
+    name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 30)
+      .replace(/_+$/, '') || 'area';
+  for (;;) {
+    const id = `${slug}_${Math.floor(random() * 36 ** 4).toString(36).padStart(4, '0')}`;
+    if (!taken.includes(id)) {
+      return id;
+    }
+  }
+}
+
+/** Erro do formulário de área (criar ou editar `editingId`), ou `null`. */
+export function areaDraftError(draft: AreaDraft, areas: readonly PrintArea[], editingId: string | null): string | null {
+  const name = draft.name.trim();
+  if (name === '') {
+    return 'Dê um nome à área.';
+  }
+  if (name.length > 40) {
+    return 'O nome tem até 40 caracteres.';
+  }
+  const fold = (s: string) => s.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (areas.some((a) => a.id !== editingId && fold(a.name) === fold(name))) {
+    return 'Já existe uma área com esse nome.';
+  }
+  const cm = [draft.widthCm, draft.heightCm];
+  if (cm.some((n) => !Number.isInteger(n) || n < 1 || n > 100)) {
+    return 'Largura e altura vão de 1 a 100 cm.';
+  }
+  if (editingId === null && areas.length >= MAX_AREAS) {
+    return `Cada produto tem até ${MAX_AREAS} áreas.`;
+  }
+  return null;
+}
+
 export type CardErrors = Partial<Record<'name' | 'image' | 'back' | 'price' | 'production' | 'active', string>>;
 
 /** Mesmas regras da callable, com a mensagem no card certo. */
